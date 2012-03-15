@@ -6,8 +6,8 @@
 #                                              #
 #     Licensed under MIT-GPL licenses          #
 #                                              #
-#                     Fotis Georgatos, ????    #
-#                     Sotiris Fragkiskos, CERN #
+#                     Fotis Georgatos          #
+#                     Sotiris Fragkiskos       #
 ################################################
 
 """
