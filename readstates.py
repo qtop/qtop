@@ -2,7 +2,7 @@
 
 ################################################
 #                                              #
-#              qtop v.0.1.1                    #
+#              qtop v.0.1.3                    #
 #                                              #
 #     Licensed under MIT-GPL licenses          #
 #                                              #
@@ -15,6 +15,8 @@
 changelog:
 =========
 
+0.1.3: fixed tabs-to-spaces. Formatting should be correct now.
+       Now each state is saved in a separate file in results folder
 0.1.2: script reads sleep0.out files from each job and displays status for each job
 0.1.1: changed implementation in get_state()
 
@@ -26,15 +28,27 @@ changelog:
 
 import sys,os,glob
 
+if not os.path.exists(os.path.expanduser('~/sleep-oldVersion/results')):
+    cmd='mkdir ~/sleep-oldVersion/results'
+    fp = os.popen(cmd)
+
+savedir='~/sleep-oldVersion/results'
+savedir=os.path.expanduser(savedir)
+
+    
 
 
-"""
 
-def write_state(fout):
-    with open('fout', mode='a') as file:
-        string=status
-        file.write(string)
-"""
+
+
+def write_state(filename,state):
+    fout=open(filename,'w')
+    #try:
+    fout.write(state)
+    #finally:
+    fout.close()
+    
+
 
 
 
@@ -50,28 +64,38 @@ def get_state(fin):
             if nextchar=='f': status+='-'
             else:
                 status+=nextchar
+    fin.close() 
     return status
 
 
 if __name__ == "__main__":
-	
-	DIR='~/sleep-oldVersion/outputs/' #where the output for each job is stored
-	mypath=os.path.expanduser(DIR)
-	os.chdir(mypath)
-	outputDirs=glob.glob('sfragk*')	
-	outputFiles=[]
-	for dir in outputDirs:
-		os.chdir(dir)
-		if glob.glob('*.out'): #is there actually an output from the job?
-			outputFile=glob.glob('*.out')[0]
-			outputFiles.append(os.path.join(DIR,dir,outputFile))
-		os.chdir('..')
+    
+    outputDirs, outputFiles=[],[]
 
-	for File in outputFiles:
-		File=os.path.expanduser(File)
-		fin=open(File,"r")	
-		print get_state(fin)
-        print
-    	fin.close()
+    outputpath='~/sleep-oldVersion/outputs/' #where the output for each job is stored
+    outputpath=os.path.expanduser(outputpath)
+    os.chdir(outputpath)
 
+    outputDirs+=glob.glob('sfragk*') 
 
+    for dir in outputDirs:
+        '''
+        create full path to each sleep.out file and put in outputFiles list
+        '''
+        os.chdir(dir)
+        if glob.glob('*.out'): #is there an actual output from the job?
+            outputFile=glob.glob('*.out')[0]
+            outputFiles.append(os.path.join(outputpath,dir,outputFile))
+        os.chdir('..')
+
+    for fullname in outputFiles:
+        fullname=os.path.expanduser(fullname)
+        (dirname, filename) = os.path.split(fullname)
+        fin=open(fullname,"r")  
+        getst = get_state(fin)
+        #print getst  #--> jjjjj-----d-d----- etc
+        save=dirname
+        (outdir,statefile)=os.path.split(save)
+        os.chdir(savedir)
+        #print os.getcwd() # --> results dir
+        write_state(statefile,getst)
