@@ -16,7 +16,7 @@ changelog:
 =========
 
 0.1.3: fixed tabs-to-spaces. Formatting should be correct now.
-       Now each state is saved in a separate file in results folder
+       Now each state is saved in a separate file in a results folder
 0.1.2: script reads sleep0.out files from each job and displays status for each job
 0.1.1: changed implementation in get_state()
 
@@ -28,11 +28,11 @@ changelog:
 
 import sys,os,glob
 
-if not os.path.exists(os.path.expanduser('~/sleep-oldVersion/results')):
-    cmd='mkdir ~/sleep-oldVersion/results'
+if not os.path.exists(os.path.expanduser('~/qstat-job/results')):
+    cmd='mkdir ~/qstat-job/results'
     fp = os.popen(cmd)
 
-savedir='~/sleep-oldVersion/results'
+savedir='~/qstat-job/results'
 savedir=os.path.expanduser(savedir)
 
     
@@ -72,7 +72,7 @@ if __name__ == "__main__":
     
     outputDirs, outputFiles=[],[]
 
-    outputpath='~/sleep-oldVersion/outputs/' #where the output for each job is stored
+    outputpath='~/qstat-job/outputs/' #where the output for each job is stored
     outputpath=os.path.expanduser(outputpath)
     os.chdir(outputpath)
 
@@ -89,6 +89,9 @@ if __name__ == "__main__":
         os.chdir('..')
 
     for fullname in outputFiles:
+        '''
+        get state for each job and write to separate file in results directory
+        '''
         fullname=os.path.expanduser(fullname)
         (dirname, filename) = os.path.split(fullname)
         fin=open(fullname,"r")  
