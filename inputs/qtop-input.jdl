@@ -1,0 +1,7 @@
+Executable    = "qtop-input.sh";
+Arguments     = "";
+StdOutput     = "qtop-input.out";
+StdError      = "qtop-input.err";
+InputSandbox = {"qtop-input.sh"};
+OutputSandbox = {"qtop-input.out","qtop-input.err"};
+VirtualOrganisation = "see";
