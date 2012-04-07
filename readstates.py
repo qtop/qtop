@@ -2,7 +2,7 @@
 
 ################################################
 #                                              #
-#              qtop v.0.1.3                    #
+#              qtop v.0.1.4                    #
 #                                              #
 #     Licensed under MIT-GPL licenses          #
 #                                              #
@@ -15,6 +15,7 @@
 changelog:
 =========
 
+0.1.4: some "wiremelting" concerning the save directory
 0.1.3: fixed tabs-to-spaces. Formatting should be correct now.
        Now each state is saved in a separate file in a results folder
 0.1.2: script reads sleep0.out files from each job and displays status for each job
@@ -28,12 +29,13 @@ changelog:
 
 import sys,os,glob
 
-if not os.path.exists(os.path.expanduser('~/qstat-job/results')):
-    cmd='mkdir ~/qstat-job/results'
-    fp = os.popen(cmd)
-
 savedir='~/qstat-job/results'
 savedir=os.path.expanduser(savedir)
+
+if not os.path.exists(os.path.expanduser(savedir)):
+    cmd='mkdir'+savedir
+    fp = os.popen(cmd)
+
 
     
 
@@ -101,4 +103,4 @@ if __name__ == "__main__":
         (outdir,statefile)=os.path.split(save)
         os.chdir(savedir)
         #print os.getcwd() # --> results dir
-        write_state(statefile,getst)
+        #write_state(statefile,getst)
