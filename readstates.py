@@ -29,19 +29,16 @@ changelog:
 
 import sys,os,glob
 
-savedir='~/qstat-job/results'
+savedir='~/qtop-input/results'
 savedir=os.path.expanduser(savedir)
+
+outputpath='~/qtop-input/outputs/' #where the output for each job is stored
+outputpath=os.path.expanduser(outputpath)
+    
 
 if not os.path.exists(os.path.expanduser(savedir)):
     cmd='mkdir'+savedir
     fp = os.popen(cmd)
-
-
-    
-
-
-
-
 
 def write_state(filename,state):
     fout=open(filename,'w')
@@ -50,10 +47,6 @@ def write_state(filename,state):
     #finally:
     fout.close()
     
-
-
-
-
 def get_state(fin):
     """
     this gets the state of the nodes for each given file-job.
@@ -74,8 +67,8 @@ if __name__ == "__main__":
     
     outputDirs, outputFiles=[],[]
 
-    outputpath='~/qstat-job/outputs/' #where the output for each job is stored
-    outputpath=os.path.expanduser(outputpath)
+#    outputpath='~/qtop-input/outputs/' #where the output for each job is stored - now moved to the beginning
+#    outputpath=os.path.expanduser(outputpath)
     os.chdir(outputpath)
 
     outputDirs+=glob.glob('sfragk*') 
