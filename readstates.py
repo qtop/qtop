@@ -61,14 +61,14 @@ def write_string(filename,something):
     '''
     appends the contents of a variable to a file 
     '''
-    fout=open(filename,'w') #itan 'w', to allaja gia na ti xrisimopoiisw kai stin writefromtoseparate
+    fout=open(filename,'w') 
     fout.write(something)
     fout.close()
 
 def writeToSeparate(filename1,filename2):
      '''
      writes the data from qstat,qstat-q,pbsnodes, which all reside in
-     qtop-input.out, to a file with the corresponding name, first taking out the prepended command
+     qtop-input.out, to a file with the corresponding name, first taking out the prefix in each line.
      '''
      fin=open(filename1,'r')
      fout=open(filename2,'w')
@@ -82,25 +82,24 @@ if __name__ == "__main__":
     outputDirs, outputFiles=[],[]
 
     os.chdir(outputpath)
-
     outputDirs+=glob.glob('sfragk*') 
 
     for dir in outputDirs:
         '''
-        create full path to each qtop-input.out file and put it in outputFiles list
+        create full path to each sfragk_31sdf.../qtop-input.out file and put it in list outputFiles 
         '''
         os.chdir(dir)
         if glob.glob('*.out'): #is there an actual output from the job?
             outputFile=glob.glob('*.out')[0]
             outputFiles.append(os.path.join(outputpath,dir,outputFile))
             '''
-            thelw na epipleon na parw ka8e outputFile kai na to spasw se 3.
+            here is where each .out file is broken into 3 files
             '''
             sepFiles=['pbsnodes.out','qstat.out','qstat-q.out']
             for sepFile in sepFiles:
                 writeToSeparate(outputFile,sepFile)
-                
         os.chdir('..')
+
 
 '''
     for fullname in outputFiles:
