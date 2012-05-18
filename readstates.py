@@ -2,7 +2,7 @@
 
 ################################################
 #                                              #
-#              qtop v.0.1.5                    #
+#              qtop v.0.1.6                    #
 #                                              #
 #     Licensed under MIT-GPL licenses          #
 #                                              #
@@ -32,6 +32,8 @@ import sys,os,glob,re,yaml
 
 #savedir='~/qtop-input/results'
 #savedir=os.path.expanduser(savedir)
+
+YAML_FLOW=2 # values: 0, 1 , controls the YAML format pbsnodes.yaml uses
 
 outputpath='~sfranky/qtop-input/outputs/' #where the output for each job is stored
 outputpath=os.path.expanduser(outputpath)
@@ -83,21 +85,19 @@ def ReadPbsNodes(fin,fout):
             ljobs=line.split('=')[1].split(',')
             joblist=[]
 #variant 1: eg:         {core: '0', job: '646922'}
-            #'''
-            for job in ljobs:
-                core=job.strip().split('/')[0]
-                job=job.strip().split('/')[1:][0].split('.')[0]
-                yaml.dump({'job': job, 'core': core}, fout, default_flow_style=True)
-            #'''
+            if YAML_FLOW==1:
+                for job in ljobs:
+                    core=job.strip().split('/')[0]
+                    job=job.strip().split('/')[1:][0].split('.')[0]
+                    yaml.dump({'job': job, 'core': core}, fout, default_flow_style=True)
 #variant 2: eg:         - core: '0'
 #                         job: '647568'
-            '''
-            for job in ljobs:
-                core=job.strip().split('/')[0]
-                job=job.strip().split('/')[1:][0].split('.')[0]
-                joblist.append({'job':job, 'core':core})
-            yaml.dump(joblist, fout, default_flow_style=False)
-            '''
+            elif YAML_FLOW==2:
+                for job in ljobs:
+                    core=job.strip().split('/')[0]
+                    job=job.strip().split('/')[1:][0].split('.')[0]
+                    joblist.append({'job':job, 'core':core})
+                yaml.dump(joblist, fout, default_flow_style=False)
         elif line.startswith('\n'):
             fout.write('\n')
             
