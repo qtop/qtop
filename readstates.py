@@ -264,7 +264,7 @@ u=''
 if lastnode<10:
     for i in range(lastnode):
         u+= str(i+1)
-    print u
+    print u+'={__WNID__}'
 elif lastnode<100:
     dec=str(lastnode)[0]
     unit=str(lastnode)[1]
@@ -275,10 +275,10 @@ elif lastnode<100:
         else:
             d+=str(i)*10
     d+=str(i+1)*(int(unit)+1)
-    print d
+    print d+'={__Node__}'
     for i in range(int(str(lastnode)[1])):
         u+=str(i+1)
-    print '1234567890'*int(str(lastnode)[0])+u
+    print '1234567890'*int(str(lastnode)[0])+u+'={___ID___}'
 elif lastnode>99:
     cent=str(lastnode)[0]
     dec=str(lastnode)[1]
@@ -290,7 +290,7 @@ elif lastnode>99:
         elif i==1:
             c+=str(i)*10*int(dec)
     c+=str(i)*(int(unit)+1)
-    print c
+    print c+'={_Worker_}'
     d+='0'*9+'1'*10+'2'*10+'3'*10+'4'*10+'5'*10+'6'*10+'7'*10+'8'*10+'9'*10
     if range(int(dec))!=[]:
         for i in range(int(dec)):
@@ -302,11 +302,11 @@ elif lastnode>99:
     else:
         for i in range(int(unit)+1):
             d+=str(dec)
-    print d
+    print d+'={__Node__}'
     u='1234567890'*9
     for i in range(int(str(lastnode)[2])):
         u+=str(i+1)
-    print '1234567890'*(1+int(str(lastnode)[1]))+u
+    print '1234567890'*(1+int(str(lastnode)[1]))+u+'={___ID___}'
 
 
 #    if dec==unit:
