@@ -14,6 +14,8 @@
 
 changelog:
 =========
+0.1.7: ReadQstatQ function (write in yaml format using Pyyaml)
+       output up to Node state !
 0.1.6: ReadPbsNodes function (write in yaml format using Pyyaml)
 0.1.5: implemented saving to 3 separate files, qstat.out, qstat-q.out, pbsnodes.out
 0.1.4: some "wiremelting" concerning the save directory
@@ -52,8 +54,8 @@ def get_state(fin):
     state=''
     for line in fin:
         line.strip()
-        if line.find('state = ')!=-1:
-            nextchar=line.split()[3][0]  #why not [2][0]??
+        if line.find('state: ')!=-1:
+            nextchar=line.split()[1].strip("'")
             if nextchar=='f': state+='-'
             else:
                 state+=nextchar
@@ -66,6 +68,7 @@ TotalCores=0
 QstatQline,QueueName,Mem,CPUtime,Walltime,Node,Run,Queued,Lm,State,TotalRuns,TotalQueues=0,0,0,0,0,0,0,0,0,0,0,0
 qstatqLst=[]
 lastnode=0
+nonodes=[]
 
 def ReadPbsNodes(fin,fout):
     """
@@ -75,6 +78,8 @@ def ReadPbsNodes(fin,fout):
     global OfflineNodes
     global TotalCores
     global lastnode
+    global nonodes
+    nodenr='000'
     for line in fin:
         line.strip()
         if re.search('^\w+(\.\w+)+', line)!=None:
@@ -85,7 +90,13 @@ def ReadPbsNodes(fin,fout):
             '''
             if re.search('^([A-Za-z]+)(\d+)',dname)!=None:
                 n=re.search('^([A-Za-z]+)(\d+)',dname)
-                nodenr=n.group(2)
+                #check if there are missing (not installed?) nodes not reported in pbsnodes.out
+                # and store them in list nonodes
+                if int(nodenr)!=int(n.group(2))-1:
+                    nonodes.append(int(nodenr)+1)
+                    nodenr=n.group(2)
+                else:
+                    nodenr=n.group(2)
                 OnlineNodes+=1
             #
             yaml.dump({'domainname': dname}, fout, default_flow_style=False)
@@ -130,7 +141,9 @@ def ReadPbsNodes(fin,fout):
         elif line.startswith('\n'):
             fout.write('\n')
     lastnode=nodenr
-    #print lastnode, OnlineNodes, OfflineNodes
+    #if lastnode!=OnlineNodes:
+    #    print n.group(2)
+    ###print lastnode, OnlineNodes, OfflineNodes
     
 
 def ReadQstatQ(fin,fout):
@@ -158,6 +171,8 @@ def ReadQstatQ(fin,fout):
 with open('/home/ubuntu/qt/pbsnodes.yaml', 'w'):
     pass
 with open('/home/ubuntu/qt/qstat-q.yaml', 'w'):
+    pass
+with open('/home/ubuntu/qt/qstat.yaml', 'w'):
     pass
 # this empties the files with every run of the python script
 
@@ -259,7 +274,7 @@ print '* implies blocked'
 print '\n'
 print '===> Worker Nodes occupancy <=== (you can read vertically the node IDs; nodes in free state are noted with - )'
 
-lastnode=169
+#lastnode=169 #for test purposes
 u=''
 if lastnode<10:
     for i in range(lastnode):
@@ -308,8 +323,17 @@ elif lastnode>99:
         u+=str(i+1)
     print '1234567890'*(1+int(str(lastnode)[1]))+u+'={___ID___}'
 
+#if OnlineNodes!=lastnode:
 
-#    if dec==unit:
-#        print '0'*(int(dec+'0')
-#        print '1234567890'*int(dec)
-#print lastnode
+yamlstream=open('/home/ubuntu/qt/pbsnodes.yaml', 'r')
+statebefore=get_state(yamlstream)
+stateafter=statebefore[:nonodes[0]-1]+'?'+statebefore[nonodes[0]-1:]
+for i in range(1,len(nonodes)):
+    stateafter=stateafter[:nonodes[i]-1]+'?'+stateafter[nonodes[i]-1:]
+print stateafter+'=Node state'
+print '_'*int(lastnode)+'=CPU0'
+print '_'*int(lastnode)+'=CPU1'
+print '\n'
+print '===> User accounts and pool mappings <=== (''all'' includes those in C and W states, as reported by qstat)'
+print 'id|  R + Q  / all |  unix account  | Grid certificate DN (this info is only available under elevated privileges)'
+
