@@ -65,8 +65,9 @@ def get_state(fin):
 OnlineNodes=0
 OfflineNodes=0
 TotalCores=0
-QstatQline,QueueName,Mem,CPUtime,Walltime,Node,Run,Queued,Lm,State,TotalRuns,TotalQueues=0,0,0,0,0,0,0,0,0,0,0,0
-qstatqLst=[]
+QstatQline,QueueName,Mem,CPUtime,Walltime,Node,Run,Queued,Lm,State,TotalRuns,TotalQueues=0,0,0,0,0,0,0,0,0,0,0,0 #for readQstatQ
+Jobid,Jobnr,CEname,Name,User,TimeUse,S,Queue=0,0,'','','','','','' #for readQstat
+qstatqLst,qstatLst=[],[]
 lastnode=0
 nonodes=[]
 
@@ -165,7 +166,27 @@ def ReadQstatQ(fin,fout):
         elif re.search(RunQdSearch, line)!=None:
             n=re.search(RunQdSearch, line)
             TotalRuns, TotalQueues=n.group(1), n.group(2)
+    fout.write('---\n')
     yaml.dump({'Total Running': int(TotalRuns), 'Total Queued': int(TotalQueues)}, fout, default_flow_style=False )
+
+
+def ReadQstat(fin,fout):
+    global Jobid,Jobnr,CEname,Name,User,TimeUse,S,Queue
+    """
+    read qstat-q.out sequentially and put in respective yaml file
+    """
+    UserQueueSearch='^((\d+)\.([A-Za-z]+[0-9]*))\s+([A-Za-z0-9_]+)\s+([A-Za-z]+[0-9]+)\s+(\d+:\d+:\d*|0)\s+([CWRQ])\s+(\w+)'
+    RunQdSearch='^\s*(\d+)\s+(\d+)'
+    for line in fin:
+        line.strip()
+        # searches for something like: 422561.cream01             STDIN            see062          48:50:12 R see       
+        if re.search(UserQueueSearch, line)!=None:
+            m=re.search(UserQueueSearch, line)
+            Jobid,Jobnr,CEname,Name,User,TimeUse,S,Queue=m.group(1),m.group(2),m.group(3),m.group(4),m.group(5),m.group(6),m.group(7),m.group(8)
+            qstatLst.append([[Jobnr],User,S,Queue])
+            fout.write('---\n')
+            yaml.dump([{'JobId': Jobid}, {'UnixAccount': User}, {'S': S}, {'Queue': Queue}], fout, default_flow_style=False)
+            fout.write('...\n')
 
 
 with open('/home/ubuntu/qt/pbsnodes.yaml', 'w'):
@@ -184,12 +205,16 @@ for dir in outputDirs:
         os.chdir(dir)
         yamlstream=open('/home/ubuntu/qt/pbsnodes.yaml', 'a')
         yamlstream2=open('/home/ubuntu/qt/qstat-q.yaml', 'a')
+        yamlstream3=open('/home/ubuntu/qt/qstat.yaml', 'a')
         fin=open('pbsnodes.out','r')
         fin2=open('qstat-q.out','r')
+        fin3=open('qstat.out','r')
         ReadPbsNodes(fin,yamlstream)
         ReadQstatQ(fin2,yamlstream2)
+        ReadQstat(fin3,yamlstream3)
         fin.close()
         fin2.close()
+        fin3.close()
         os.chdir('..')
 
 #os.chdir('/home/sfranky/inp/outputs/sfragk_aRk11NE12OEDGvDiX9ExUg/')            
@@ -335,5 +360,104 @@ print '_'*int(lastnode)+'=CPU0'
 print '_'*int(lastnode)+'=CPU1'
 print '\n'
 print '===> User accounts and pool mappings <=== (''all'' includes those in C and W states, as reported by qstat)'
-print 'id|  R + Q  / all |  unix account  | Grid certificate DN (this info is only available under elevated privileges)'
+print 'id |  R +  Q / all|  unix account  | Grid certificate DN (this info is only available under elevated privileges)'
 
+qstatLst.sort(key=lambda unixaccount: unixaccount[1])   # sort by unix account
+
+#for i in range(1,len(qstatLst)-2):
+#    if qstatLst[0][1]==qstatLst[0+i][1]:
+#        qstatLst[0][0].extend(qstatLst[0+i][0])
+#print qstatLst
+
+
+#yamlstream3=open('/home/ubuntu/qt/qstat2.yaml', 'w')
+#yaml.dump(qstatLst, yamlstream3, default_flow_style=False)
+
+
+JobIds=[]
+UnixAccounts=[]
+Ss=[]
+Queues=[]
+userset=set()
+finr=open('/home/ubuntu/qt/qstat.yaml', 'r')
+for line in finr:
+    if line.startswith('- JobId:'):
+        JobIds.append(line.split()[2].split('.')[0])
+    elif line.startswith('- UnixAccount:'):
+        UnixAccounts.append(line.split()[2])
+    elif line.startswith('- S:'):
+        Ss.append(line.split()[2])
+    elif line.startswith('- Queue:'):
+        Queues.append(line.split()[2])
+#print 'JobIds is', JobIds, '\n'
+#print 'UnixAccounts is', UnixAccounts, '\n'
+#print 'Ss is', Ss, '\n'
+#print 'Queues is', Queues, '\n'
+finr.close()
+
+
+#solution for counting R,Q,C attached to each user
+UserRunningDic, UserQueuedDic, UserCancelledDic = {}, {}, {}
+
+for user,status in zip(UnixAccounts,Ss):
+    if status=='R':
+        UserRunningDic[user] = UserRunningDic.get(user, 0) + 1
+    elif status=='Q':
+        UserQueuedDic[user] = UserQueuedDic.get(user, 0) + 1
+    elif status=='C':
+        UserCancelledDic[user] = UserCancelledDic.get(user, 0) + 1
+
+for k in UserRunningDic:
+    UserQueuedDic.setdefault(k, 0)
+    UserCancelledDic.setdefault(k, 0)
+
+AssignedIdDic = {}
+j=0
+for i in UserRunningDic:
+    AssignedIdDic[i]=j
+    j+=1
+
+AssIdvalues = AssignedIdDic.values()
+AssIdkeys = AssignedIdDic.keys()
+UserRunningDicValues = UserRunningDic.values()
+UserRunningDickeys = UserRunningDic.keys()
+UserCancelledDicValues = UserCancelledDic.values()
+UserCancelledDickeys = UserCancelledDic.keys()
+UserQueuedDicValues = UserQueuedDic.values()
+UserQueuedDickeys = UserQueuedDic.keys()
+
+for i in range(len(AssignedIdDic)):
+    print '%2s | %2s + %2s / %2s | %s' % (AssIdvalues[i], UserRunningDicValues[i], UserQueuedDicValues[i], UserCancelledDicValues[i]+ UserRunningDicValues[i]+ UserQueuedDicValues[i], AssIdkeys[i])
+
+print 'AssIdvalues are ', AssIdvalues
+print 'AssIdkeys are ', AssIdkeys
+print 'AssignedIdDic is ', AssignedIdDic
+
+print 'UserRunningDic is ', UserRunningDic
+print 'UserQueuedDic is ', UserQueuedDic
+print 'UserCancelledDic is ', UserCancelledDic
+
+#qStatGrandlist=[]
+#for lista in yaml.load_all(open('/home/ubuntu/qt/qstat.yaml')):
+#    qStatGrandlist.append(lista)
+#
+#print '\n\n'
+#print qStatGrandlist[0]
+#print qStatGrandlist[0][0]
+#print qStatGrandlist[0][0]['JobId']
+#print qStatGrandlist[0][1]['UnixAccount']
+
+#AllJobsDic = {}
+#Ssdic2 = {}
+#for LineLst in qStatGrandlist:
+#    #print LineLst
+#    AllJobsDic[LineLst[1]['UnixAccount']] = accountdic.get(LineLst[1]['UnixAccount'], 0) + 1
+#    #Ssdic2[LineLst[2]['S']] = accountdic.get(LineLst[1]['S'], 0) + 1
+#print AllJobsDic
+##print Ssdic2
+##print Ssdic2
+
+
+
+#qStatGrandlist.sort(key=lambda unixaccount: unixaccount[1])
+#print qStatGrandlist
