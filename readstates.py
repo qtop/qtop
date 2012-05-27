@@ -30,7 +30,8 @@ changelog:
 """
 
 
-import sys,os,glob,re,yaml,datetime
+import sys,os,glob,re,yaml,datetime,itertools
+from readpbsyaml import *
 
 #savedir='~/qtop-input/results'
 #savedir=os.path.expanduser(savedir)
@@ -46,6 +47,12 @@ outputpath=os.path.expanduser(outputpath)
 #    fp = os.popen(cmd)   #execute cmd 'mkdir /home/sfragk/qtop-input/results'
 
     
+# def reverse_lookup(d, v):
+#     for k in d:
+#         if d[k] == v:
+#             return k
+#     raise ValueError
+
 def get_state(fin):
     """
     this gets the state of each of the nodes for each given file-job (*.out), appends it to variable status and
@@ -62,6 +69,25 @@ def get_state(fin):
     fin.close() 
     return state
 
+yamlstream=open('/home/sfranky/qt/pbsnodes.yaml', 'r')
+#statebefore=get_state(yamlstream)    
+
+def get_corejobs(fin):   #yamlstream
+    core0state,core1state='',''
+    for line in fin:
+        line.strip()
+        if line.find("core: '0'")!=-1:
+            jobcpu1=fin.readline().split()[1]
+        elif line.find("core: '1'")!=-1:
+            jobcpu2=fin.readline().split()[1]
+        elif line.find("core: '2'")!=-1:
+            jobcpu3=fin.readline().split()[1]
+        elif line.find("core: '3'")!=-1:
+            jobcpu4=fin.readline().split()[1]
+
+
+
+
 OnlineNodes=0
 OfflineNodes=0
 TotalCores=0
@@ -70,6 +96,10 @@ Jobid,Jobnr,CEname,Name,User,TimeUse,S,Queue=0,0,'','','','','','' #for readQsta
 qstatqLst,qstatLst=[],[]
 lastnode=0
 nonodes=[]
+bigjoblist=[]
+UnixOfJobId={}
+CoreOfJob={}
+IdOfUnixAccount={}
 
 def ReadPbsNodes(fin,fout):
     """
@@ -80,6 +110,8 @@ def ReadPbsNodes(fin,fout):
     global TotalCores
     global lastnode
     global nonodes
+    global bigjoblist
+    global jobseries
     nodenr='000'
     for line in fin:
         line.strip()
@@ -124,6 +156,7 @@ def ReadPbsNodes(fin,fout):
             for job in ljobs:
                 core=job.strip().split('/')[0]
                 job=job.strip().split('/')[1:][0].split('.')[0]
+                CoreOfJob[job]=core
                 #variant 1: eg:         {core: '0', job: '646922'}
                 if YAML_OUTPUT==1:
                     yaml.dump({'job': job, 'core': core}, fout, default_flow_style=True)
@@ -132,6 +165,7 @@ def ReadPbsNodes(fin,fout):
                 if YAML_OUTPUT==2:
                     joblist.append({'core':core, 'job':job})
                 prev_job=job
+            bigjoblist.append(joblist)
 
             if YAML_OUTPUT==2:
                 yaml.dump(joblist, fout, default_flow_style=False)
@@ -142,6 +176,7 @@ def ReadPbsNodes(fin,fout):
         elif line.startswith('\n'):
             fout.write('\n')
     lastnode=nodenr
+
     #if lastnode!=OnlineNodes:
     #    print n.group(2)
     ###print lastnode, OnlineNodes, OfflineNodes
@@ -171,7 +206,7 @@ def ReadQstatQ(fin,fout):
 
 
 def ReadQstat(fin,fout):
-    global Jobid,Jobnr,CEname,Name,User,TimeUse,S,Queue
+    global Jobid,Jobnr,CEname,Name,User,TimeUse,S,Queue,Id2Unix
     """
     read qstat-q.out sequentially and put in respective yaml file
     """
@@ -186,14 +221,15 @@ def ReadQstat(fin,fout):
             qstatLst.append([[Jobnr],User,S,Queue])
             fout.write('---\n')
             yaml.dump([{'JobId': Jobid}, {'UnixAccount': User}, {'S': S}, {'Queue': Queue}], fout, default_flow_style=False)
+            UnixOfJobId[Jobid.split('.')[0]]=User
             fout.write('...\n')
 
 
-with open('/home/ubuntu/qt/pbsnodes.yaml', 'w'):
+with open('/home/sfranky/qt/pbsnodes.yaml', 'w'):
     pass
-with open('/home/ubuntu/qt/qstat-q.yaml', 'w'):
+with open('/home/sfranky/qt/qstat-q.yaml', 'w'):
     pass
-with open('/home/ubuntu/qt/qstat.yaml', 'w'):
+with open('/home/sfranky/qt/qstat.yaml', 'w'):
     pass
 # this empties the files with every run of the python script
 
@@ -203,9 +239,9 @@ outputDirs+=glob.glob('sfragk*')
 for dir in outputDirs:
     if dir=='sfragk_sDNCrWLMn22KMDBH_jboLQ':  #slight change:just use this dir, don't put *everything* in pbsnodes.yaml !!
         os.chdir(dir)
-        yamlstream=open('/home/ubuntu/qt/pbsnodes.yaml', 'a')
-        yamlstream2=open('/home/ubuntu/qt/qstat-q.yaml', 'a')
-        yamlstream3=open('/home/ubuntu/qt/qstat.yaml', 'a')
+        yamlstream=open('/home/sfranky/qt/pbsnodes.yaml', 'a')
+        yamlstream2=open('/home/sfranky/qt/qstat-q.yaml', 'a')
+        yamlstream3=open('/home/sfranky/qt/qstat.yaml', 'a')
         fin=open('pbsnodes.out','r')
         fin2=open('qstat-q.out','r')
         fin3=open('qstat.out','r')
@@ -299,7 +335,8 @@ print '* implies blocked'
 print '\n'
 print '===> Worker Nodes occupancy <=== (you can read vertically the node IDs; nodes in free state are noted with - )'
 
-#lastnode=169 #for test purposes
+#code that outputs the worker node ID number lines
+#lastnode=169 #for testing purposes
 u=''
 if lastnode<10:
     for i in range(lastnode):
@@ -347,39 +384,33 @@ elif lastnode>99:
     for i in range(int(str(lastnode)[2])):
         u+=str(i+1)
     print '1234567890'*(1+int(str(lastnode)[1]))+u+'={___ID___}'
+##end of code outputting workernode id number lines
 
-#if OnlineNodes!=lastnode:
-
-yamlstream=open('/home/ubuntu/qt/pbsnodes.yaml', 'r')
+yamlstream=open('/home/sfranky/qt/pbsnodes.yaml', 'r')
 statebefore=get_state(yamlstream)
 stateafter=statebefore[:nonodes[0]-1]+'?'+statebefore[nonodes[0]-1:]
 for i in range(1,len(nonodes)):
     stateafter=stateafter[:nonodes[i]-1]+'?'+stateafter[nonodes[i]-1:]
 print stateafter+'=Node state'
-print '_'*int(lastnode)+'=CPU0'
-print '_'*int(lastnode)+'=CPU1'
-print '\n'
-print '===> User accounts and pool mappings <=== (''all'' includes those in C and W states, as reported by qstat)'
-print 'id |  R +  Q / all|  unix account  | Grid certificate DN (this info is only available under elevated privileges)'
-
-qstatLst.sort(key=lambda unixaccount: unixaccount[1])   # sort by unix account
-
-#for i in range(1,len(qstatLst)-2):
-#    if qstatLst[0][1]==qstatLst[0+i][1]:
-#        qstatLst[0][0].extend(qstatLst[0+i][0])
-#print qstatLst
+yamlstream.close()
 
 
-#yamlstream3=open('/home/ubuntu/qt/qstat2.yaml', 'w')
-#yaml.dump(qstatLst, yamlstream3, default_flow_style=False)
+#print '_'*int(lastnode)+'=CPU0'
+#print '_'*int(lastnode)+'=CPU1'
 
+#for i in range(1,lastnode):
+
+#reverse_lookup(dictionary,value)
+
+#reverse_lookup(dictionary,value)
+
+###################### copied from below
 
 JobIds=[]
 UnixAccounts=[]
 Ss=[]
 Queues=[]
-userset=set()
-finr=open('/home/ubuntu/qt/qstat.yaml', 'r')
+finr=open('/home/sfranky/qt/qstat.yaml', 'r')
 for line in finr:
     if line.startswith('- JobId:'):
         JobIds.append(line.split()[2].split('.')[0])
@@ -394,6 +425,25 @@ for line in finr:
 #print 'Ss is', Ss, '\n'
 #print 'Queues is', Queues, '\n'
 finr.close()
+
+#User2JobDic= {}
+#for user,jobid in zip(UnixAccounts,JobIds):
+#    User2JobDic
+#
+
+#antistoixisi unix account me to jobid tou
+User2JobDic={}
+for user,jobid in zip(UnixAccounts,JobIds):
+    User2JobDic[jobid]=user
+
+'''
+yamlstream=open('/home/sfranky/qt/pbsnodes.yaml', 'r')
+statebefore=get_state(yamlstream)
+stateafter=statebefore[:nonodes[0]-1]+'?'+statebefore[nonodes[0]-1:]
+for i in range(1,len(nonodes)):
+    stateafter=stateafter[:nonodes[i]-1]+'?'+stateafter[nonodes[i]-1:]
+print stateafter+'=Node state'
+'''
 
 
 #solution for counting R,Q,C attached to each user
@@ -411,14 +461,84 @@ for k in UserRunningDic:
     UserQueuedDic.setdefault(k, 0)
     UserCancelledDic.setdefault(k, 0)
 
-AssignedIdDic = {}
+IdOfUnixAccount = {}
 j=0
-for i in UserRunningDic:
-    AssignedIdDic[i]=j
+for unixaccount in UserRunningDic:
+    IdOfUnixAccount[unixaccount]=j
     j+=1
+########################## end of copied from below
 
-AssIdvalues = AssignedIdDic.values()
-AssIdkeys = AssignedIdDic.keys()
+flatjoblist=[]
+flattened = itertools.chain.from_iterable(bigjoblist)
+for i in flattened:
+    flatjoblist.append(i)
+flatjoblist2=[]
+for cnt,i in enumerate(flatjoblist):
+    flatjoblist2.append((flatjoblist[cnt]['core'], flatjoblist[cnt]['job']))
+
+
+# def givejobOfCore0():
+#     while count<=len(CoreOfJob):
+#         if CoreOfJob[flatjoblist[count]['job']] == '0':
+#             yield str(IdOfUnixAccount[UnixOfJobId[flatjoblist[count]['job']]])
+#     return
+
+# def givejobOfCore1():
+#     while count<=len(CoreOfJob):
+#         if CoreOfJob[flatjoblist[count]['job']] == '1':
+#             yield str(IdOfUnixAccount[UnixOfJobId[flatjoblist[count]['job']]])
+#     return
+
+Cpu0line, Cpu1line, Cpu2line='','',''
+
+for cnt,state in enumerate(stateafter[:-1]):
+    if state=='?':
+        Cpu0line+='?'
+        Cpu1line+='?'
+    if len(big[cnt]['core'])==1 and big[cnt]['core'][0]=='0':
+        Cpu0line += str(IdOfUnixAccount[UnixOfJobId[big[cnt]['job'][0]]])#big[cnt]['job'][0]
+        Cpu1line+='_'
+    elif len(big[cnt]['core'])==1 and big[cnt]['core'][0]=='1':
+        Cpu0line+='_'
+        Cpu1line += str(IdOfUnixAccount[UnixOfJobId[big[cnt]['job'][0]]])#big[cnt]['job'][0]
+    elif len(big[cnt]['job'])==0:
+        Cpu0line+='_'
+        Cpu1line+='_'
+    elif len(big[cnt]['core'])==2:
+        Cpu0line += str(IdOfUnixAccount[UnixOfJobId[big[cnt]['job'][0]]])#big[cnt]['job'][0]
+        Cpu1line += str(IdOfUnixAccount[UnixOfJobId[big[cnt]['job'][1]]])#big[cnt]['job'][1]
+
+print Cpu0line+'=CPU0'
+print Cpu1line+'=CPU1'
+
+
+
+
+
+# print RunningId0+'=CPU0'
+# print RunningId1+'=CPU1'
+
+
+print '\n'
+print '===> User accounts and pool mappings <=== ("all" includes those in C and W states, as reported by qstat)'
+print 'id |  R +  Q / all|  unix account  | Grid certificate DN (this info is only available under elevated privileges)'
+
+qstatLst.sort(key=lambda unixaccount: unixaccount[1])   # sort by unix account
+
+#for i in range(1,len(qstatLst)-2):
+#    if qstatLst[0][1]==qstatLst[0+i][1]:
+#        qstatLst[0][0].extend(qstatLst[0+i][0])
+#print qstatLst
+
+
+#yamlstream3=open('/home/sfranky/qt/qstat2.yaml', 'w')
+#yaml.dump(qstatLst, yamlstream3, default_flow_style=False)
+
+#below
+
+
+AssIdvalues = IdOfUnixAccount.values()
+AssIdkeys = IdOfUnixAccount.keys()
 UserRunningDicValues = UserRunningDic.values()
 UserRunningDickeys = UserRunningDic.keys()
 UserCancelledDicValues = UserCancelledDic.values()
@@ -426,19 +546,23 @@ UserCancelledDickeys = UserCancelledDic.keys()
 UserQueuedDicValues = UserQueuedDic.values()
 UserQueuedDickeys = UserQueuedDic.keys()
 
-for i in range(len(AssignedIdDic)):
+#this prints what is actually below the id| R+Q /all | unix account etc line
+for i in range(len(IdOfUnixAccount)):
     print '%2s | %2s + %2s / %2s | %s' % (AssIdvalues[i], UserRunningDicValues[i], UserQueuedDicValues[i], UserCancelledDicValues[i]+ UserRunningDicValues[i]+ UserQueuedDicValues[i], AssIdkeys[i])
+#######
 
-print 'AssIdvalues are ', AssIdvalues
-print 'AssIdkeys are ', AssIdkeys
-print 'AssignedIdDic is ', AssignedIdDic
+## print 'AssIdvalues are ', AssIdvalues
+## print 'AssIdkeys are ', AssIdkeys
+## print 'IdOfUnixAccount is ', IdOfUnixAccount
 
-print 'UserRunningDic is ', UserRunningDic
-print 'UserQueuedDic is ', UserQueuedDic
-print 'UserCancelledDic is ', UserCancelledDic
+## print 'UserRunningDic is ', UserRunningDic
+## print 'UserQueuedDic is ', UserQueuedDic
+## print 'UserCancelledDic is ', UserCancelledDic
+
+
 
 #qStatGrandlist=[]
-#for lista in yaml.load_all(open('/home/ubuntu/qt/qstat.yaml')):
+#for lista in yaml.load_all(open('/home/sfranky/qt/qstat.yaml')):
 #    qStatGrandlist.append(lista)
 #
 #print '\n\n'
@@ -461,3 +585,5 @@ print 'UserCancelledDic is ', UserCancelledDic
 
 #qStatGrandlist.sort(key=lambda unixaccount: unixaccount[1])
 #print qStatGrandlist
+
+os.chdir('/home/sfranky/qtop/qtop')
