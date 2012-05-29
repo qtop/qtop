@@ -328,7 +328,7 @@ if __name__ == "__main__":
 
 print 'PBS report tool. Please try: watch -d /home/sfragk/off/qtop . All bugs added by fotis@cern.ch. Cross fingers now...\n'
 print '===> Job accounting summary <=== (Rev: 3000 $) %s WORKDIR=to be added\n' % (datetime.datetime.today())
-print 'Usage Totals:\t%s/%s\t Nodes | x/%s\t Cores |\t blah blah' %(OnlineNodes-OfflineNodes, OnlineNodes, TotalCores)
+print 'Usage Totals:\t%s/%s\t Nodes | x/%s\t Cores |\t %s+%s\t jobs (R+Q) reported by qstat -q' %(OnlineNodes-OfflineNodes, OnlineNodes, TotalCores, int(TotalRuns), int(TotalQueues) )
 #print 'Queues: | '+elem[0]+': '+elem[1]+'+'+elem[2]+' \n' % [elem[0] for elem in qstatqLst], [elem[1] for elem in qstatqLst], [elem[2] for elem in qstatqLst]
 print 'Queues: | ',
 for i in qstatqLst:
