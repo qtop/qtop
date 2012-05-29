@@ -2,7 +2,7 @@
 
 ################################################
 #                                              #
-#              qtop v.0.1.6                    #
+#              qtop v.0.1.9                    #
 #                                              #
 #     Licensed under MIT-GPL licenses          #
 #                                              #
@@ -14,6 +14,8 @@
 
 changelog:
 =========
+0.1.9: All CPU lines displaying correctly 
+0.1.8: unix account id assignment to CPU0,1 implemented
 0.1.7: ReadQstatQ function (write in yaml format using Pyyaml)
        output up to Node state !
 0.1.6: ReadPbsNodes function (write in yaml format using Pyyaml)
@@ -395,17 +397,6 @@ print stateafter+'=Node state'
 yamlstream.close()
 
 
-#print '_'*int(lastnode)+'=CPU0'
-#print '_'*int(lastnode)+'=CPU1'
-
-#for i in range(1,lastnode):
-
-#reverse_lookup(dictionary,value)
-
-#reverse_lookup(dictionary,value)
-
-###################### copied from below
-
 JobIds=[]
 UnixAccounts=[]
 Ss=[]
@@ -420,16 +411,7 @@ for line in finr:
         Ss.append(line.split()[2])
     elif line.startswith('- Queue:'):
         Queues.append(line.split()[2])
-#print 'JobIds is', JobIds, '\n'
-#print 'UnixAccounts is', UnixAccounts, '\n'
-#print 'Ss is', Ss, '\n'
-#print 'Queues is', Queues, '\n'
 finr.close()
-
-#User2JobDic= {}
-#for user,jobid in zip(UnixAccounts,JobIds):
-#    User2JobDic
-#
 
 #antistoixisi unix account me to jobid tou
 User2JobDic={}
@@ -477,39 +459,76 @@ for cnt,i in enumerate(flatjoblist):
     flatjoblist2.append((flatjoblist[cnt]['core'], flatjoblist[cnt]['job']))
 
 
-# def givejobOfCore0():
-#     while count<=len(CoreOfJob):
-#         if CoreOfJob[flatjoblist[count]['job']] == '0':
-#             yield str(IdOfUnixAccount[UnixOfJobId[flatjoblist[count]['job']]])
-#     return
-
-# def givejobOfCore1():
-#     while count<=len(CoreOfJob):
-#         if CoreOfJob[flatjoblist[count]['job']] == '1':
-#             yield str(IdOfUnixAccount[UnixOfJobId[flatjoblist[count]['job']]])
-#     return
-
-Cpu0line, Cpu1line, Cpu2line='','',''
+### CPU lines working !!
+CpucoreDic={}
+for i in range(maxcores):
+   CpucoreDic['Cpu'+str(i)+'line']=''
+#Cpu0line, Cpu1line, Cpu2line='','',''
+Maxcorelst=[]
+for i in range(maxcores):
+    Maxcorelst.append(str(i))
 
 for cnt,state in enumerate(stateafter[:-1]):
     if state=='?':
-        Cpu0line+='?'
-        Cpu1line+='?'
-    if len(big[cnt]['core'])==1 and big[cnt]['core'][0]=='0':
-        Cpu0line += str(IdOfUnixAccount[UnixOfJobId[big[cnt]['job'][0]]])#big[cnt]['job'][0]
-        Cpu1line+='_'
-    elif len(big[cnt]['core'])==1 and big[cnt]['core'][0]=='1':
-        Cpu0line+='_'
-        Cpu1line += str(IdOfUnixAccount[UnixOfJobId[big[cnt]['job'][0]]])#big[cnt]['job'][0]
-    elif len(big[cnt]['job'])==0:
-        Cpu0line+='_'
-        Cpu1line+='_'
-    elif len(big[cnt]['core'])==2:
-        Cpu0line += str(IdOfUnixAccount[UnixOfJobId[big[cnt]['job'][0]]])#big[cnt]['job'][0]
-        Cpu1line += str(IdOfUnixAccount[UnixOfJobId[big[cnt]['job'][1]]])#big[cnt]['job'][1]
+        for cpuline in CpucoreDic:
+            CpucoreDic[cpuline]+='?'
+    Maxcorelst2=Maxcorelst[:]
+    for core,job in zip(big[cnt]['core'],big[cnt]['job']):
+        '''
+        eg
+        1, 335315
+        0, 534990
+        and so on
+        '''
 
-print Cpu0line+'=CPU0'
-print Cpu1line+'=CPU1'
+        CpucoreDic['Cpu'+str(core)+'line']+=str(IdOfUnixAccount[UnixOfJobId[job]])
+        '''
+        CpucoreDic['Cpu2line']+='6'
+        CpucoreDic['Cpu1line']+='8'
+        '''
+        if core in Maxcorelst2:
+            Maxcorelst2.remove(core)
+    for unused in Maxcorelst2:
+        CpucoreDic['Cpu'+str(unused)+'line']+='_'
+
+for ind,k in enumerate(CpucoreDic):
+    print CpucoreDic[k]+'=CPU'+str(ind)
+
+# this was a test to check for 2 cpus ONLY !
+# for cnt,state in enumerate(stateafter[:-1]):
+#     if state=='?':
+#         Cpu0line+='?'
+#         Cpu1line+='?'
+#         Cpu2line+='?'
+#         #for cpu in CpucoreDic:
+#         #    CpucoreDic['cpu']+='?'
+#     if len(big[cnt]['core'])==1 and big[cnt]['core'][0]=='0':
+#         Cpu0line += str(IdOfUnixAccount[UnixOfJobId[big[cnt]['job'][0]]])#big[cnt]['job'][0]
+#         Cpu1line+='_'
+#         Cpu2line+='_'
+#     elif len(big[cnt]['core'])==1 and big[cnt]['core'][0]=='1':
+#         Cpu0line+='_'
+#         Cpu1line += str(IdOfUnixAccount[UnixOfJobId[big[cnt]['job'][0]]])#big[cnt]['job'][0]
+#         Cpu2line+='_'
+#     elif len(big[cnt]['core'])==3 and big[cnt]['core'][0]=='0':
+#         Cpu0line+='_'
+#         Cpu1line+='_'
+#         Cpu2line += str(IdOfUnixAccount[UnixOfJobId[big[cnt]['job'][0]]])#big[cnt]['job'][1]
+#     elif len(big[cnt]['job'])==0:
+#         Cpu0line+='_'
+#         Cpu1line+='_'
+#         Cpu2line+='_'
+#     elif len(big[cnt]['core'])==2:
+#         Cpu0line += str(IdOfUnixAccount[UnixOfJobId[big[cnt]['job'][0]]])#big[cnt]['job'][0]
+#         Cpu1line += str(IdOfUnixAccount[UnixOfJobId[big[cnt]['job'][1]]])#big[cnt]['job'][1]
+#         Cpu2line+='_'
+#     else:
+#         print len(big[cnt]['core']), big[cnt]['core'][0]
+
+
+# print Cpu0line+'=CPU0'
+# print Cpu1line+'=CPU1'
+# print Cpu2line+'=CPU2'
 
 
 
@@ -524,17 +543,6 @@ print '===> User accounts and pool mappings <=== ("all" includes those in C and 
 print 'id |  R +  Q / all|  unix account  | Grid certificate DN (this info is only available under elevated privileges)'
 
 qstatLst.sort(key=lambda unixaccount: unixaccount[1])   # sort by unix account
-
-#for i in range(1,len(qstatLst)-2):
-#    if qstatLst[0][1]==qstatLst[0+i][1]:
-#        qstatLst[0][0].extend(qstatLst[0+i][0])
-#print qstatLst
-
-
-#yamlstream3=open('/home/sfranky/qt/qstat2.yaml', 'w')
-#yaml.dump(qstatLst, yamlstream3, default_flow_style=False)
-
-#below
 
 
 AssIdvalues = IdOfUnixAccount.values()
@@ -553,10 +561,10 @@ for i in range(len(IdOfUnixAccount)):
 
 ## print 'AssIdvalues are ', AssIdvalues
 ## print 'AssIdkeys are ', AssIdkeys
-## print 'IdOfUnixAccount is ', IdOfUnixAccount
+## print 'IdOfUnixAccount is ', IdOfUnixAccount 
 
 ## print 'UserRunningDic is ', UserRunningDic
-## print 'UserQueuedDic is ', UserQueuedDic
+## print 'UserQueuedDic is ', UserQueuedDic 
 ## print 'UserCancelledDic is ', UserCancelledDic
 
 

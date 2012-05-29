@@ -2,9 +2,13 @@ big=[]
 counter=0 
 ''' 
 this is the actual counter for the machines. If there are 3 machines names wn001,wn004,wn121,
-then counter will count 3. Qtop displays the WN ID, which will be 
+then counter will count 3. Qtop displays the WN ID, which will be 001,002,003.
+This will also extract the max number of cores it should display.
 '''
 fin=open('/home/sfranky/qtop/qtop/pbsnodes.yaml','r')
+
+maxcores=0
+
 for line in fin:
 	line.strip()
 	if line.startswith('domainname:'):
@@ -21,6 +25,8 @@ for line in fin:
 		np=line.split()[1]
 	elif line.startswith('- core'):
 		core=line.split()[2].strip("'")
+		if int(core)>int(maxcores):
+			maxcores=int(core)
 		d['core'].append(core)
 	elif line.startswith('  job:'):
 		jobid=line.split()[1].strip("'")
@@ -32,3 +38,16 @@ for line in fin:
 		del d
 
 fin.close()
+maxcores+=1
+
+#for bigelement in big:
+#	# bigelement['core'].extend(map(lambda a:str(a), range(maxcores)))
+#	alllist=bigelement['core']+ map(lambda a:str(a), range(maxcores))
+#	alllist=list(set(alllist))
+#	alllist.sort()
+#	bigelement['core'].extend(alllist)
+#
+
+
+
+#print 'the highest core nr is: ', maxcores
