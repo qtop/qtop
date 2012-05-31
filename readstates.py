@@ -177,7 +177,7 @@ def ReadPbsNodes(fin,fout):
             yaml.dump({'gpus': int(gpus)}, fout, default_flow_style=False)
         elif line.startswith('\n'):
             fout.write('\n')
-    lastnode=nodenr
+    lastnode=int(nodenr)
 
     #if lastnode!=OnlineNodes:
     #    print n.group(2)
@@ -212,7 +212,7 @@ def ReadQstat(fin,fout):
     """
     read qstat-q.out sequentially and put in respective yaml file
     """
-    UserQueueSearch='^((\d+)\.([A-Za-z]+[0-9]*))\s+([A-Za-z0-9_]+)\s+([A-Za-z]+[0-9]+)\s+(\d+:\d+:\d*|0)\s+([CWRQ])\s+(\w+)'
+    UserQueueSearch='^((\d+)\.([A-Za-z]+[0-9]*))\s+([A-Za-z0-9_.]+)\s+([A-Za-z]+[0-9]*)\s+(\d+:\d+:\d*|0)\s+([CWRQ])\s+(\w+)'
     RunQdSearch='^\s*(\d+)\s+(\d+)'
     for line in fin:
         line.strip()
@@ -240,6 +240,11 @@ os.chdir(outputpath)
 outputDirs+=glob.glob('sfragk*') 
 for dir in outputDirs:
     if dir=='sfragk_sDNCrWLMn22KMDBH_jboLQ':  #slight change:just use this dir, don't put *everything* in pbsnodes.yaml !!
+    #if dir=='sfragk_tEbjFj59gTww0f46jTzyQA':  #ERROR,  CHECK !!!
+    #if dir=='sfragk_R__ngzvVl5L22epgFVZOkA':  #slight change:just use this dir, don't put *everything* in pbsnodes.yaml !!
+    #if dir=='sfragk_aRk11NE12OEDGvDiX9ExUg': #OK (needs some time)
+    #if dir=='sfragk_iLu0q1CbVgoDFLVhh5NGNw': # 204 WN IDs, 196 actual pcs ?
+
         os.chdir(dir)
         yamlstream=open('/home/sfranky/qt/pbsnodes.yaml', 'a')
         yamlstream2=open('/home/sfranky/qt/qstat-q.yaml', 'a')
@@ -248,10 +253,10 @@ for dir in outputDirs:
         fin2=open('qstat-q.out','r')
         fin3=open('qstat.out','r')
         ReadPbsNodes(fin,yamlstream)
-        ReadQstatQ(fin2,yamlstream2)
-        ReadQstat(fin3,yamlstream3)
         fin.close()
+        ReadQstatQ(fin2,yamlstream2)
         fin2.close()
+        ReadQstat(fin3,yamlstream3)
         fin3.close()
         os.chdir('..')
 
@@ -339,58 +344,57 @@ print '===> Worker Nodes occupancy <=== (you can read vertically the node IDs; n
 
 #code that outputs the worker node ID number lines
 #lastnode=169 #for testing purposes
-u=''
 if lastnode<10:
-    for i in range(lastnode):
-        u+= str(i+1)
-    print u+'={__WNID__}'
+    unit=str(lastnode)[0]
 elif lastnode<100:
     dec=str(lastnode)[0]
     unit=str(lastnode)[1]
-    d,u='',''
-    for i in range(int(dec)):
-        if i==0:
-            d+=str(i)*9
-        else:
-            d+=str(i)*10
-    d+=str(i+1)*(int(unit)+1)
-    print d+'={__Node__}'
-    for i in range(int(str(lastnode)[1])):
-        u+=str(i+1)
-    print '1234567890'*int(str(lastnode)[0])+u+'={___ID___}'
-elif lastnode>99:
-    cent=str(lastnode)[0]
-    dec=str(lastnode)[1]
-    unit=str(lastnode)[2]
-    c,d,u='','',''
-    for i in range(int(cent)+1):
-        if i==0:
-            c=str(i)*99
-        elif i==1:
-            c+=str(i)*10*int(dec)
-    c+=str(i)*(int(unit)+1)
-    print c+'={_Worker_}'
-    d+='0'*9+'1'*10+'2'*10+'3'*10+'4'*10+'5'*10+'6'*10+'7'*10+'8'*10+'9'*10
-    if range(int(dec))!=[]:
-        for i in range(int(dec)):
-            if i==0:
-                d+=str(i)*10
-            else:
-                d+=str(i)*10
-        d+=str(i+1)*(int(unit)+1)
+elif lastnode<1000:
+    cent=int(str(lastnode)[0])
+    dec=int(str(lastnode)[1])
+    unit=int(str(lastnode)[2])
+else:
+    #raise ValueError
+    pass
+c,d,d_,u='','','',''
+
+if lastnode<10:
+    for node in range(lastnode):
+        u+= str(node+1)
+    print u+'={__WNID__}'
+elif lastnode<100:
+    d_='0'*9+'1'*10+'2'*10+'3'*10+'4'*10+'5'*10+'6'*10+'7'*10+'8'*10+'9'*10
+    ud='1234567890'*10
+    d=d_[:lastnode]
+    print d+            '={__Node__}'
+    print ud[:lastnode]+'={___ID___}'
+elif lastnode<1000:
+    c+=str(0)*99
+    for i in range(1,cent):
+        c+=str(i)*100
+    c+=str(cent)*dec*10 + str(cent)*(unit+1)
+    
+    d_='0'*9+'1'*10+'2'*10+'3'*10+'4'*10+'5'*10+'6'*10+'7'*10+'8'*10+'9'*10
+    d=d_
+    for i in range(1,cent):
+        d+=str(0)+d_
     else:
-        for i in range(int(unit)+1):
-            d+=str(dec)
-    print d+'={__Node__}'
-    u='1234567890'*9
-    for i in range(int(str(lastnode)[2])):
-        u+=str(i+1)
-    print '1234567890'*(1+int(str(lastnode)[1]))+u+'={___ID___}'
+        d+=str(0)
+    d+=d_[:int(str(dec)+str(unit))]
+    
+    uc='1234567890'*100
+    ua=uc[:lastnode]
+    print c+ '={_Worker_}'
+    print d+ '={__Node__}'
+    print ua+'={___ID___}'
 ##end of code outputting workernode id number lines
 
 yamlstream=open('/home/sfranky/qt/pbsnodes.yaml', 'r')
 statebefore=get_state(yamlstream)
-stateafter=statebefore[:nonodes[0]-1]+'?'+statebefore[nonodes[0]-1:]
+if nonodes:
+    stateafter=statebefore[:nonodes[0]-1]+'?'+statebefore[nonodes[0]-1:]
+else:
+    stateafter=statebefore
 for i in range(1,len(nonodes)):
     stateafter=stateafter[:nonodes[i]-1]+'?'+stateafter[nonodes[i]-1:]
 print stateafter+'=Node state'
@@ -443,10 +447,11 @@ for k in UserRunningDic:
     UserQueuedDic.setdefault(k, 0)
     UserCancelledDic.setdefault(k, 0)
 
-IdOfUnixAccount = {}
+#IdOfUnixAccount = {}
 j=0
+possids='0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ'
 for unixaccount in UserRunningDic:
-    IdOfUnixAccount[unixaccount]=j
+    IdOfUnixAccount[unixaccount]=possids[j]
     j+=1
 ########################## end of copied from below
 
@@ -469,6 +474,9 @@ for i in range(maxcores):
     Maxcorelst.append(str(i))
 
 for cnt,state in enumerate(stateafter[:-1]):
+    '''
+    For each node, traverse the cores and jobs active, and add the respective Unix IDs to each of the CPUx lines
+    '''
     if state=='?':
         for cpuline in CpucoreDic:
             CpucoreDic[cpuline]+='?'
@@ -477,13 +485,9 @@ for cnt,state in enumerate(stateafter[:-1]):
         '''
         eg
         1, 335315
-        0, 534990
-        and so on
         '''
-
         CpucoreDic['Cpu'+str(core)+'line']+=str(IdOfUnixAccount[UnixOfJobId[job]])
         '''
-        CpucoreDic['Cpu2line']+='6'
         CpucoreDic['Cpu1line']+='8'
         '''
         if core in Maxcorelst2:
@@ -493,50 +497,6 @@ for cnt,state in enumerate(stateafter[:-1]):
 
 for ind,k in enumerate(CpucoreDic):
     print CpucoreDic[k]+'=CPU'+str(ind)
-
-# this was a test to check for 2 cpus ONLY !
-# for cnt,state in enumerate(stateafter[:-1]):
-#     if state=='?':
-#         Cpu0line+='?'
-#         Cpu1line+='?'
-#         Cpu2line+='?'
-#         #for cpu in CpucoreDic:
-#         #    CpucoreDic['cpu']+='?'
-#     if len(big[cnt]['core'])==1 and big[cnt]['core'][0]=='0':
-#         Cpu0line += str(IdOfUnixAccount[UnixOfJobId[big[cnt]['job'][0]]])#big[cnt]['job'][0]
-#         Cpu1line+='_'
-#         Cpu2line+='_'
-#     elif len(big[cnt]['core'])==1 and big[cnt]['core'][0]=='1':
-#         Cpu0line+='_'
-#         Cpu1line += str(IdOfUnixAccount[UnixOfJobId[big[cnt]['job'][0]]])#big[cnt]['job'][0]
-#         Cpu2line+='_'
-#     elif len(big[cnt]['core'])==3 and big[cnt]['core'][0]=='0':
-#         Cpu0line+='_'
-#         Cpu1line+='_'
-#         Cpu2line += str(IdOfUnixAccount[UnixOfJobId[big[cnt]['job'][0]]])#big[cnt]['job'][1]
-#     elif len(big[cnt]['job'])==0:
-#         Cpu0line+='_'
-#         Cpu1line+='_'
-#         Cpu2line+='_'
-#     elif len(big[cnt]['core'])==2:
-#         Cpu0line += str(IdOfUnixAccount[UnixOfJobId[big[cnt]['job'][0]]])#big[cnt]['job'][0]
-#         Cpu1line += str(IdOfUnixAccount[UnixOfJobId[big[cnt]['job'][1]]])#big[cnt]['job'][1]
-#         Cpu2line+='_'
-#     else:
-#         print len(big[cnt]['core']), big[cnt]['core'][0]
-
-
-# print Cpu0line+'=CPU0'
-# print Cpu1line+'=CPU1'
-# print Cpu2line+'=CPU2'
-
-
-
-
-
-# print RunningId0+'=CPU0'
-# print RunningId1+'=CPU1'
-
 
 print '\n'
 print '===> User accounts and pool mappings <=== ("all" includes those in C and W states, as reported by qstat)'
@@ -555,43 +515,14 @@ UserQueuedDicValues = UserQueuedDic.values()
 UserQueuedDickeys = UserQueuedDic.keys()
 
 #this prints what is actually below the id| R+Q /all | unix account etc line
+output=[]
 for i in range(len(IdOfUnixAccount)):
-    print '%2s | %2s + %2s / %2s | %s' % (AssIdvalues[i], UserRunningDicValues[i], UserQueuedDicValues[i], UserCancelledDicValues[i]+ UserRunningDicValues[i]+ UserQueuedDicValues[i], AssIdkeys[i])
-#######
+    #print '%2s | %2s + %2s / %2s | %s' % (AssIdvalues[i], UserRunningDicValues[i], UserQueuedDicValues[i], UserCancelledDicValues[i]+ UserRunningDicValues[i]+ UserQueuedDicValues[i], AssIdkeys[i])
+    output.append([AssIdvalues[i], UserRunningDicValues[i], UserQueuedDicValues[i], UserCancelledDicValues[i]+ UserRunningDicValues[i]+ UserQueuedDicValues[i], AssIdkeys[i]])
+####### workaround, na brw veltistopoiisi
+output.sort()
+for line in output:
+    print '%2s | %2s + %2s / %2s | %s' % (line[0], line[1], line[2], line[3], line[4])
 
-## print 'AssIdvalues are ', AssIdvalues
-## print 'AssIdkeys are ', AssIdkeys
-## print 'IdOfUnixAccount is ', IdOfUnixAccount 
-
-## print 'UserRunningDic is ', UserRunningDic
-## print 'UserQueuedDic is ', UserQueuedDic 
-## print 'UserCancelledDic is ', UserCancelledDic
-
-
-
-#qStatGrandlist=[]
-#for lista in yaml.load_all(open('/home/sfranky/qt/qstat.yaml')):
-#    qStatGrandlist.append(lista)
-#
-#print '\n\n'
-#print qStatGrandlist[0]
-#print qStatGrandlist[0][0]
-#print qStatGrandlist[0][0]['JobId']
-#print qStatGrandlist[0][1]['UnixAccount']
-
-#AllJobsDic = {}
-#Ssdic2 = {}
-#for LineLst in qStatGrandlist:
-#    #print LineLst
-#    AllJobsDic[LineLst[1]['UnixAccount']] = accountdic.get(LineLst[1]['UnixAccount'], 0) + 1
-#    #Ssdic2[LineLst[2]['S']] = accountdic.get(LineLst[1]['S'], 0) + 1
-#print AllJobsDic
-##print Ssdic2
-##print Ssdic2
-
-
-
-#qStatGrandlist.sort(key=lambda unixaccount: unixaccount[1])
-#print qStatGrandlist
 
 os.chdir('/home/sfranky/qtop/qtop')
