@@ -7,7 +7,8 @@ This will also extract the max number of cores it should display.
 '''
 fin=open('/home/sfranky/qtop/qtop/pbsnodes.yaml','r')
 
-maxcores=0
+#maxcores=0
+#maxnp=0
 
 for line in fin:
 	line.strip()
@@ -19,18 +20,20 @@ for line in fin:
 		d['machine nr %r' % counter]=[wnint]
 		d['core']=[]
 		d['job']=[]
-	elif line.startswith('state:'):
-		state=line.split()[1].strip("'")
-	elif line.startswith('np'):
-		np=line.split()[1]
-	elif line.startswith('- core'):
-		core=line.split()[2].strip("'")
-		if int(core)>int(maxcores):
-			maxcores=int(core)
-		d['core'].append(core)
-	elif line.startswith('  job:'):
-		jobid=line.split()[1].strip("'")
-		d['job'].append(jobid)
+	#elif line.startswith('state:'):
+	#	state=line.split()[1].strip("'")
+	#elif line.startswith('np'):
+	#	np=line.split()[1]
+	#	if int(np)>int(maxnp):
+	#		maxnp=int(np)
+	#elif line.startswith('- core'):
+	#	core=line.split()[2].strip("'")
+	#	#if int(core)>int(maxcores):
+	#	#	maxcores=int(core)
+	#	d['core'].append(core)
+	#elif line.startswith('  job:'):
+	#	jobid=line.split()[1].strip("'")
+	#	d['job'].append(jobid)
 	elif line.startswith('gpus'):
 		gpus=line.split()[1]
 	elif line=='\n':
@@ -38,7 +41,12 @@ for line in fin:
 		del d
 
 fin.close()
-maxcores+=1
+#maxcores+=1
+#if maxnp > maxcores:
+#	maxcores=maxnp
+
+#print 'the highest core nr is: ', maxcores
+
 
 #for bigelement in big:
 #	# bigelement['core'].extend(map(lambda a:str(a), range(maxcores)))
