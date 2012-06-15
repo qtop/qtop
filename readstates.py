@@ -537,14 +537,17 @@ for user,status in zip(UnixAccounts,Ss):
     elif status=='C':
         UserCancelledDic[user] = UserCancelledDic.get(user, 0) + 1
 
-for k in UserRunningDic:
-    UserQueuedDic.setdefault(k, 0)
-    UserCancelledDic.setdefault(k, 0)
+for account in UserRunningDic:
+    UserQueuedDic.setdefault(account, 0)
+    UserCancelledDic.setdefault(account, 0)
+
+
+
 
 #IdOfUnixAccount = {}
 j=0
 possids='0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ'
-for unixaccount in UserRunningDic:
+for unixaccount in set(UnixAccounts):
     IdOfUnixAccount[unixaccount]=possids[j]
     j+=1
 ########################## end of copied from below
@@ -630,9 +633,21 @@ UserQueuedDickeys = UserQueuedDic.keys()
 
 #this prints what is actually below the id| R+Q /all | unix account etc line
 output=[]
-for i in range(len(IdOfUnixAccount)):
-    #print '%2s | %2s + %2s / %2s | %s' % (AssIdvalues[i], UserRunningDicValues[i], UserQueuedDicValues[i], UserCancelledDicValues[i]+ UserRunningDicValues[i]+ UserQueuedDicValues[i], AssIdkeys[i])
-    output.append([AssIdvalues[i], UserRunningDicValues[i], UserQueuedDicValues[i], UserCancelledDicValues[i]+ UserRunningDicValues[i]+ UserQueuedDicValues[i], AssIdkeys[i]])
+# for i in range(len(IdOfUnixAccount)):
+#     output.append([AssIdvalues[i], UserRunningDicValues[i], UserQueuedDicValues[i], UserCancelledDicValues[i]+ UserRunningDicValues[i]+ UserQueuedDicValues[i], AssIdkeys[i]])
+# ####### workaround, na brw veltistopoiisi
+
+for id in IdOfUnixAccount:
+    if id not in UserRunningDic:
+        UserRunningDic[id]=0
+    if id not in UserQueuedDic:
+        UserQueuedDic[id]=0
+    if id not in UserCancelledDic:
+        UserCancelledDic[id]=0
+
+
+for id in IdOfUnixAccount:
+    output.append([IdOfUnixAccount[id], UserRunningDic[id], UserQueuedDic[id], UserCancelledDic[id]+ UserRunningDic[id]+ UserQueuedDic[id], id])
 ####### workaround, na brw veltistopoiisi
 output.sort()
 for line in output:
