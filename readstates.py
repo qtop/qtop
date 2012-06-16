@@ -14,6 +14,7 @@
 
 changelog:
 =========
+0.2.0: unix accounts are now correctly ordered
 0.1.9: All CPU lines displaying correctly 
 0.1.8: unix account id assignment to CPU0,1 implemented
 0.1.7: ReadQstatQ function (write in yaml format using Pyyaml)
@@ -33,7 +34,8 @@ changelog:
 
 
 import sys,os,glob,re,yaml,datetime,itertools
-from readpbsyaml import *
+from operator import itemgetter
+#from readpbsyaml import *
 
 #savedir='~/qtop-input/results'
 #savedir=os.path.expanduser(savedir)
@@ -170,8 +172,8 @@ def MakePbsNodesyaml(fin,fout):
                 #CoreOfJob[job]=core #remember to transfer to ReadPbsNodesyaml
 
         elif 'gpus = ' in line:     #line.find('gpus = ')!=-1:
-            gpus=line.split()[2][0:]
-            fout.write('gpus: ' + int(gpus) + '\n')
+            gpus=line.split(' = ')[1]
+            fout.write('gpus: ' + gpus + '\n')
 
         elif line.startswith('\n'):
             fout.write('\n')
@@ -226,6 +228,7 @@ def ReadPbsNodesyaml(fin):
             
         elif 'np:' in line:
             np=line.split(': ')[1].strip()
+            wndic[nodenr].append(np)
             if int(np)>int(maxnp):
                 maxnp=int(np)
             TotalCores+=int(np)
@@ -241,8 +244,8 @@ def ReadPbsNodesyaml(fin):
     statelst=list(state)
     lastnode = BiggestWrittenNode
     maxcores+=1
-    if maxnp > maxcores:
-        maxcores=maxnp
+    if maxnp > maxcores:      # auto to krataw?               
+        maxcores=maxnp        # auto to krataw?         
 
     '''
     fill in invisible WN nodes with '?'   14/5
@@ -329,12 +332,12 @@ for dir in outputDirs:
     #if dir=='sfragk_tEbjFj59gTww0f46jTzyQA':  #ERROR,  CHECK !!!
     #if dir=='sfragk_R__ngzvVl5L22epgFVZOkA':  #seems OK
     #if dir=='sfragk_aRk11NE12OEDGvDiX9ExUg': #OK (needs some time)
-    #if dir=='sfragk_iLu0q1CbVgoDFLVhh5NGNw': # 204 WN IDs, 196 actual pcs ?
     #if dir=='sfragk_gHYT96ReT3-QxTcvjcKzrQ':  #OK
     #if dir=='sfragk_zBwyi8fu8In5rLu7RBtLJw':  #displayed less CPUs than fotis' version, but now OK
-    #if dir=='sfragk_xq9Z9Dw1YU8KQiBu-A5sQg':  # check hashes for invisible pcs, also one less column in CPUlines - identical output as column-1
+    #if dir=='sfragk_sE5OozGPbCemJxLJyoS89w':  # seems ok !
     #if dir=='sfragk_vshrdVf9pfFBvWQ5YfrnYg':  #exact same duplicate of previous line!!?
-    if dir=='sfragk_sE5OozGPbCemJxLJyoS89w':  #???
+    # if dir=='sfragk_iLu0q1CbVgoDFLVhh5NGNw': # 204 WN IDs, 196 actual pcs ?
+    if dir=='sfragk_xq9Z9Dw1YU8KQiBu-A5sQg':  # check hashes for invisible pcs, also one less column in CPUlines - identical output as column-1
 
         os.chdir(dir)
         yamlstream1=open('/home/sfranky/qt/pbsnodes.yaml', 'a')
@@ -541,14 +544,18 @@ for account in UserRunningDic:
     UserQueuedDic.setdefault(account, 0)
     UserCancelledDic.setdefault(account, 0)
 
+occurencedic={}
+for user in UnixAccounts:
+    occurencedic[user]=UnixAccounts.count(user)
 
+Usersortedlst=sorted(occurencedic.items(), key=itemgetter(1), reverse = True)
 
 
 #IdOfUnixAccount = {}
 j=0
-possids='0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ'
-for unixaccount in set(UnixAccounts):
-    IdOfUnixAccount[unixaccount]=possids[j]
+possibleIDs='0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+for unixaccount in Usersortedlst:
+    IdOfUnixAccount[unixaccount[0]]=possibleIDs[j]
     j+=1
 ########################## end of copied from below
 
@@ -563,12 +570,12 @@ for cnt,i in enumerate(flatjoblist):
 
 ### CPU lines working !!
 CpucoreDic={}
-for i in range(maxcores):
-   CpucoreDic['Cpu'+str(i)+'line']=''
-#Cpu0line, Cpu1line, Cpu2line='','',''
 Maxcorelst=[]
 for i in range(maxcores):
+#Cpu0line, Cpu1line, Cpu2line='','',''
+    CpucoreDic['Cpu'+str(i)+'line']=''
     Maxcorelst.append(str(i))
+#for i in range(maxcores):
 for nodenr, wnpropertieslst in zip(wndic.keys(), wndic.values()):
     Maxcorelst2=Maxcorelst[:] # ( ???? )
     if wnpropertieslst == '?':
@@ -578,15 +585,15 @@ for nodenr, wnpropertieslst in zip(wndic.keys(), wndic.values()):
         for cpuline in CpucoreDic:
             CpucoreDic[cpuline]+='_'
     else:
-        HASJOB=0
+        HAS_JOBS=0
         for element in wnpropertieslst:
             if type(element) == tuple:
-                HASJOB+=1
+                HAS_JOBS+=1
                 # print 'wndic[nodenr][%r] is tuple' %i
                 core, job = element[0], element[1]
                 CpucoreDic['Cpu'+str(core)+'line']+=str(IdOfUnixAccount[UserOfJobId[job]])
                 Maxcorelst2.remove(core)
-        if HASJOB != maxcores:
+        if HAS_JOBS != maxcores:
             for core in Maxcorelst2:
                 CpucoreDic['Cpu'+str(core)+'line']+='_'
     
@@ -612,27 +619,34 @@ for nodenr, wnpropertieslst in zip(wndic.keys(), wndic.values()):
 #     for unused in Maxcorelst2:
 #         CpucoreDic['Cpu'+str(unused)+'line']+='_'
 
+CpucoreList=[]
+# sorted(d.items(), key=itemgetter(1))
+# CpucoreList.sort(CpucoreDic.items(), key=itemgetter(3), reverse=True)
 for ind,k in enumerate(CpucoreDic):
-    print CpucoreDic[k]+'=CPU'+str(ind)
+    # print CpucoreDic[k]+'=CPU'+str(ind)
+    print CpucoreDic['Cpu'+str(ind)+'line']+'=CPU'+str(ind)
+
+
 
 print '\n'
 print '===> User accounts and pool mappings <=== ("all" includes those in C and W states, as reported by qstat)'
-print 'id |  R +  Q / all|  unix account  | Grid certificate DN (this info is only available under elevated privileges)'
+print 'id |   R +   Q / all |  unix account  | Grid certificate DN (this info is only available under elevated privileges)'
 
 qstatLst.sort(key=lambda unixaccount: unixaccount[1])   # sort by unix account
 
   
 AssIdvalues = IdOfUnixAccount.values()
 AssIdkeys = IdOfUnixAccount.keys()
-UserRunningDicValues = UserRunningDic.values()
-UserRunningDickeys = UserRunningDic.keys()
-UserCancelledDicValues = UserCancelledDic.values()
-UserCancelledDickeys = UserCancelledDic.keys()
-UserQueuedDicValues = UserQueuedDic.values()
-UserQueuedDickeys = UserQueuedDic.keys()
+# UserRunningDicValues = UserRunningDic.values()
+# UserRunningDickeys = UserRunningDic.keys()
+# UserCancelledDicValues = UserCancelledDic.values()
+# UserCancelledDickeys = UserCancelledDic.keys()
+# UserQueuedDicValues = UserQueuedDic.values()
+# UserQueuedDickeys = UserQueuedDic.keys()
 
 #this prints what is actually below the id| R+Q /all | unix account etc line
 output=[]
+#OLD
 # for i in range(len(IdOfUnixAccount)):
 #     output.append([AssIdvalues[i], UserRunningDicValues[i], UserQueuedDicValues[i], UserCancelledDicValues[i]+ UserRunningDicValues[i]+ UserQueuedDicValues[i], AssIdkeys[i]])
 # ####### workaround, na brw veltistopoiisi
@@ -646,12 +660,12 @@ for id in IdOfUnixAccount:
         UserCancelledDic[id]=0
 
 
-for id in IdOfUnixAccount:
-    output.append([IdOfUnixAccount[id], UserRunningDic[id], UserQueuedDic[id], UserCancelledDic[id]+ UserRunningDic[id]+ UserQueuedDic[id], id])
+for id in Usersortedlst:#IdOfUnixAccount:
+    output.append([IdOfUnixAccount[id[0]], UserRunningDic[id[0]], UserQueuedDic[id[0]], UserCancelledDic[id[0]]+ UserRunningDic[id[0]]+ UserQueuedDic[id[0]], id])
 ####### workaround, na brw veltistopoiisi
-output.sort()
+output.sort(key=itemgetter(3), reverse=True)
 for line in output:
-    print '%2s | %2s + %2s / %2s | %s' % (line[0], line[1], line[2], line[3], line[4])
+    print '%2s | %3s + %3s / %3s | %14s |' % (line[0], line[1], line[2], line[3], line[4][0])
 
 
 os.chdir('/home/sfranky/qtop/qtop')
