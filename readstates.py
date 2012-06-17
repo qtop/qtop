@@ -2,7 +2,7 @@
 
 ################################################
 #                                              #
-#              qtop v.0.1.9                    #
+#              qtop v.0.2.1                    #
 #                                              #
 #     Licensed under MIT-GPL licenses          #
 #                                              #
@@ -330,7 +330,7 @@ outputDirs+=glob.glob('sfragk*')
 
 for dir in outputDirs:
     #if dir=='sfragk_sDNCrWLMn22KMDBH_jboLQ':  #OK
-    #if dir=='sfragk_tEbjFj59gTww0f46jTzyQA':  #ERROR,  CHECK !!!
+    if dir=='sfragk_tEbjFj59gTww0f46jTzyQA':  # implement clip/masking functionality !!
     #if dir=='sfragk_R__ngzvVl5L22epgFVZOkA':  #seems OK
     #if dir=='sfragk_aRk11NE12OEDGvDiX9ExUg': #OK (needs some time)
     #if dir=='sfragk_gHYT96ReT3-QxTcvjcKzrQ':  #OK
@@ -338,7 +338,7 @@ for dir in outputDirs:
     #if dir=='sfragk_sE5OozGPbCemJxLJyoS89w':  # seems ok !
     #if dir=='sfragk_vshrdVf9pfFBvWQ5YfrnYg':  #exact same duplicate of previous line!!?
     # if dir=='sfragk_iLu0q1CbVgoDFLVhh5NGNw': # 204 WN IDs, 196 actual pcs ?
-    if dir=='sfragk_xq9Z9Dw1YU8KQiBu-A5sQg':  # check hashes for invisible pcs, also one less column in CPUlines - identical output as column-1
+    #if dir=='sfragk_xq9Z9Dw1YU8KQiBu-A5sQg':  #OK
 
         os.chdir(dir)
         yamlstream1=open('/home/sfranky/qt/pbsnodes.yaml', 'a')
@@ -573,11 +573,12 @@ for cnt,i in enumerate(flatjoblist):
 CpucoreDic={}
 Maxnplst=[]
 Maxcorelst = [str(i) for i in range(maxcores)]
+UnusedAndDeclaredlst=[]
 for i in range(maxnp):
     CpucoreDic['Cpu'+str(i)+'line']=''      # Cpu0line, Cpu1line, Cpu2line='','',''
     Maxnplst.append(str(i))
 
-#for i in range(maxnp):
+
 for nodenr, wnpropertieslst in zip(wndic.keys(), wndic.values()):
     MaxNPlstTmp=Maxnplst[:] # ( ???? )
     MaxcorelstTmp=Maxcorelst[:] # ( ???? )
