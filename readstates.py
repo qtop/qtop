@@ -531,7 +531,7 @@ print stateafter+'=Node state'
 
 
 #solution for counting R,Q,C attached to each user
-UserRunningDic, UserQueuedDic, UserCancelledDic = {}, {}, {}
+UserRunningDic, UserQueuedDic, UserCancelledDic, UserWaitingDic = {}, {}, {}, {}
 
 for user,status in zip(UnixAccounts,Ss):
     if status=='R':
@@ -540,10 +540,13 @@ for user,status in zip(UnixAccounts,Ss):
         UserQueuedDic[user] = UserQueuedDic.get(user, 0) + 1
     elif status=='C':
         UserCancelledDic[user] = UserCancelledDic.get(user, 0) + 1
+    elif status=='W':
+        UserWaitingDic[user] = UserWaitingDic.get(user, 0) + 1
 
 for account in UserRunningDic:
     UserQueuedDic.setdefault(account, 0)
     UserCancelledDic.setdefault(account, 0)
+    UserWaitingDic.setdefault(account, 0)
 
 occurencedic={}
 for user in UnixAccounts:
@@ -584,7 +587,7 @@ for nodenr, wnpropertieslst in zip(wndic.keys(), wndic.values()):
     MaxcorelstTmp=Maxcorelst[:] # ( ???? )
     if wnpropertieslst == '?':
         for cpuline in CpucoreDic:
-            CpucoreDic[cpuline]+='?'
+            CpucoreDic[cpuline]+='_'
     elif len(wnpropertieslst)==1:
         for cpuline in CpucoreDic:
             CpucoreDic[cpuline]+='_'
@@ -678,10 +681,12 @@ for id in IdOfUnixAccount:
         UserQueuedDic[id]=0
     if id not in UserCancelledDic:
         UserCancelledDic[id]=0
+    if id not in UserWaitingDic:
+        UserWaitingDic[id]=0
 
 
 for id in Usersortedlst:#IdOfUnixAccount:
-    output.append([IdOfUnixAccount[id[0]], UserRunningDic[id[0]], UserQueuedDic[id[0]], UserCancelledDic[id[0]]+ UserRunningDic[id[0]]+ UserQueuedDic[id[0]], id])
+    output.append([IdOfUnixAccount[id[0]], UserRunningDic[id[0]], UserQueuedDic[id[0]], UserCancelledDic[id[0]]+ UserRunningDic[id[0]]+ UserQueuedDic[id[0]]+ UserWaitingDic[id[0]], id])
 ####### workaround, na brw veltistopoiisi
 output.sort(key=itemgetter(3), reverse=True)
 for line in output:
