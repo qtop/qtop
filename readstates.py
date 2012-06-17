@@ -14,6 +14,7 @@
 
 changelog:
 =========
+0.2.1: Hashes displaying when the node has less cores than the max declared by a WN (its np variable)
 0.2.0: unix accounts are now correctly ordered
 0.1.9: All CPU lines displaying correctly 
 0.1.8: unix account id assignment to CPU0,1 implemented
@@ -244,8 +245,8 @@ def ReadPbsNodesyaml(fin):
     statelst=list(state)
     lastnode = BiggestWrittenNode
     maxcores+=1
-    if maxnp > maxcores:      # auto to krataw?               
-        maxcores=maxnp        # auto to krataw?         
+    #if maxnp > maxcores:      # auto to krataw?               
+    #    maxcores=maxnp        # auto to krataw?         
 
     '''
     fill in invisible WN nodes with '?'   14/5
@@ -443,8 +444,8 @@ elif lastnode<100:
     d_='0'*9+'1'*10+'2'*10+'3'*10+'4'*10+'5'*10+'6'*10+'7'*10+'8'*10+'9'*10
     ud='1234567890'*10
     d=d_[:lastnode]
-    print d+            '={__Node__}'
-    print ud[:lastnode]+'={___ID___}'
+    print d+            '={_Worker_}'
+    print ud[:lastnode]+'={__Node__}'
 elif lastnode<1000:
     c+=str(0)*99
     for i in range(1,cent):
@@ -570,14 +571,16 @@ for cnt,i in enumerate(flatjoblist):
 
 ### CPU lines working !!
 CpucoreDic={}
-Maxcorelst=[]
-for i in range(maxcores):
-#Cpu0line, Cpu1line, Cpu2line='','',''
-    CpucoreDic['Cpu'+str(i)+'line']=''
-    Maxcorelst.append(str(i))
-#for i in range(maxcores):
+Maxnplst=[]
+Maxcorelst = [str(i) for i in range(maxcores)]
+for i in range(maxnp):
+    CpucoreDic['Cpu'+str(i)+'line']=''      # Cpu0line, Cpu1line, Cpu2line='','',''
+    Maxnplst.append(str(i))
+
+#for i in range(maxnp):
 for nodenr, wnpropertieslst in zip(wndic.keys(), wndic.values()):
-    Maxcorelst2=Maxcorelst[:] # ( ???? )
+    MaxNPlstTmp=Maxnplst[:] # ( ???? )
+    MaxcorelstTmp=Maxcorelst[:] # ( ???? )
     if wnpropertieslst == '?':
         for cpuline in CpucoreDic:
             CpucoreDic[cpuline]+='?'
@@ -586,17 +589,33 @@ for nodenr, wnpropertieslst in zip(wndic.keys(), wndic.values()):
             CpucoreDic[cpuline]+='_'
     else:
         HAS_JOBS=0
+        ownNP=wnpropertieslst[1]
+        ownNP=int(ownNP)
         for element in wnpropertieslst:
-            if type(element) == tuple:
+            if type(element) == tuple:  #everytime there is a job:
                 HAS_JOBS+=1
                 # print 'wndic[nodenr][%r] is tuple' %i
                 core, job = element[0], element[1]
                 CpucoreDic['Cpu'+str(core)+'line']+=str(IdOfUnixAccount[UserOfJobId[job]])
-                Maxcorelst2.remove(core)
-        if HAS_JOBS != maxcores:
-            for core in Maxcorelst2:
+                MaxNPlstTmp.remove(core)
+                MaxcorelstTmp.remove(core)
+                s = set(MaxcorelstTmp)
+                UnusedAndDeclaredlst = [x for x in MaxNPlstTmp if x not in s]
+        
+        if HAS_JOBS != ownNP:
+            #for core in UnusedAndDeclaredlst:
+            #    CpucoreDic['Cpu'+str(core)+'line']+='#'
+            #    UnusedAndDeclaredlst.remove(core)
+            for core in MaxcorelstTmp:
                 CpucoreDic['Cpu'+str(core)+'line']+='_'
     
+        if ownNP < maxnp:
+            for core in UnusedAndDeclaredlst:
+                CpucoreDic['Cpu'+str(core)+'line']+='#'
+        elif ownNP == maxnp:
+            for core in UnusedAndDeclaredlst:
+                CpucoreDic['Cpu'+str(core)+'line']+='_'
+
 
 
 # for cnt,state in enumerate(stateafterstr,1):
