@@ -14,6 +14,7 @@
 
 changelog:
 =========
+0.2.2: clipping functionality
 0.2.1: Hashes displaying when the node has less cores than the max declared by a WN (its np variable)
 0.2.0: unix accounts are now correctly ordered
 0.1.9: All CPU lines displaying correctly 
@@ -48,6 +49,8 @@ outputpath=os.path.expanduser(outputpath)
 #if not os.path.exists(savedir):
 #    cmd='mkdir '+savedir
 #    fp = os.popen(cmd)   #execute cmd 'mkdir /home/sfragk/qtop-input/results'
+
+CLIPPING = True
 
 statelst=[]
 qstatqdic={}
@@ -245,11 +248,12 @@ def ReadPbsNodesyaml(fin):
     statelst=list(state)
     lastnode = BiggestWrittenNode
     maxcores+=1
-    #if maxnp > maxcores:      # auto to krataw?               
+    #if maxnp > maxcores:      # 
     #    maxcores=maxnp        # auto to krataw?         
 
     '''
     fill in invisible WN nodes with '?'   14/5
+    and count them
     '''
     for i in range(1,BiggestWrittenNode):
         if i not in wndic:
@@ -329,8 +333,8 @@ os.chdir(outputpath)
 outputDirs+=glob.glob('sfragk*') 
 
 for dir in outputDirs:
-    #if dir=='sfragk_sDNCrWLMn22KMDBH_jboLQ':  #OK
     if dir=='sfragk_tEbjFj59gTww0f46jTzyQA':  # implement clip/masking functionality !!
+    #if dir=='sfragk_sDNCrWLMn22KMDBH_jboLQ':  #OK
     #if dir=='sfragk_R__ngzvVl5L22epgFVZOkA':  #seems OK
     #if dir=='sfragk_aRk11NE12OEDGvDiX9ExUg': #OK (needs some time)
     #if dir=='sfragk_gHYT96ReT3-QxTcvjcKzrQ':  #OK
@@ -462,9 +466,20 @@ elif lastnode<1000:
     
     uc='1234567890'*100
     ua=uc[:lastnode]
-    print c+ '={_Worker_}'
-    print d+ '={__Node__}'
-    print ua+'={___ID___}'
+
+    #clipping functionality:
+    '''
+    if the earliest node number is high (e.g. 80), the first 79 WNs need not show up.
+    '''
+    beginprint=0
+    if (CLIPPING == True) and wnlist[0]>30:
+        beginprint=wnlist[0]-1
+    print c[beginprint:] + '={_Worker_}'
+    print d[beginprint:] + '={__Node__}'
+    print ua[beginprint:]+ '={___ID___}'
+    #todo: remember to fix <100 cases (do i need to?)
+
+
 ##end of code outputting workernode id number lines
 ###################################################
 
@@ -488,7 +503,7 @@ yamlstream=open('/home/sfranky/qt/pbsnodes.yaml', 'r')
 stateafterstr=''
 for node in wndic:  #why are dictionaries ALWAYS ordered when keys are '1','5','3' etc ?!!?!?
     stateafterstr+=wndic[node][0]
-print stateafterstr+'=Node state'
+print stateafterstr[beginprint:]+'=Node state'
 
 yamlstream.close()
 
@@ -606,6 +621,7 @@ for nodenr, wnpropertieslst in zip(wndic.keys(), wndic.values()):
                 s = set(MaxcorelstTmp)
                 UnusedAndDeclaredlst = [x for x in MaxNPlstTmp if x not in s]
         
+        #print MaxNPlstTmp                 #disabled it 8/7/12
         if HAS_JOBS != ownNP:
             #for core in UnusedAndDeclaredlst:
             #    CpucoreDic['Cpu'+str(core)+'line']+='#'
@@ -647,7 +663,7 @@ CpucoreList=[]
 # CpucoreList.sort(CpucoreDic.items(), key=itemgetter(3), reverse=True)
 for ind,k in enumerate(CpucoreDic):
     # print CpucoreDic[k]+'=CPU'+str(ind)
-    print CpucoreDic['Cpu'+str(ind)+'line']+'=CPU'+str(ind)
+    print CpucoreDic['Cpu'+str(ind)+'line'][beginprint:]+'=CPU'+str(ind)
 
 
 
