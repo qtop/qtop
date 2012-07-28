@@ -15,6 +15,7 @@
 changelog:
 =========
 0.2.3: corrected regex search pattern in MakeQstat to recognize usernames like spec101u1 (number followed by number followed by letter)
+       now handles non-uniform setups
 0.2.2: clipping functionality
 0.2.1: Hashes displaying when the node has less cores than the max declared by a WN (its np variable)
 0.2.0: unix accounts are now correctly ordered
@@ -53,15 +54,17 @@ outputpath=os.path.expanduser(outputpath)
 #    fp = os.popen(cmd)   #execute cmd 'mkdir /home/sfragk/qtop-input/results'
 
 CLIPPING = True
-
+RMWARNING = '=== WARNING: --- Remapping WN names and retrying heuristics... good luck with this... ---'
+remapnr=0
+nodeinitsDic=dict()
 outputDirs=[]
 statelst=[]
 maxcores=0
 #qstatqdic={} # fainetai na xrisimopoieitai mono mia fora, xrisimopoiw to qstatqLst instead
-wndic={}
+wndic, wndicrm={}, {}
 dname=''
 BiggestWrittenNode=0
-wnlist=[]
+wnlist, wnlistrm=[], []
 nodenr=''
 lastnode=0
 ExistingNodes, NonExistingNodes, OfflineDownNodes=0, [], 0
@@ -133,21 +136,15 @@ def MakePbsNodesyaml(fin,fout):
     global OfflineDownNodes # NonExistingNodes, bigjoblist
     
     # nodenr=0
-
     for line in fin:
         line.strip()
-        searchdname='^\w+(\.\w+)+'
-        searchdname2='^\w+(\d+)'
+        searchdname='^\w+(\.\w+)*'
         if re.search(searchdname, line)!=None:   # line containing domain name
             m=re.search(searchdname, line) #i was missing a "^" here in the beginning of the searchdname actual string
             dname=m.group(0)
+            # print 'dname in makepbs is ', dname
             fout.write('domainname: ' + dname + '\n')
 
-        elif re.search(searchdname2, line)!=None:   # line containing domain name
-            m=re.search(searchdname2, line) #i was missing a "^" here in the beginning of the searchdname actual string
-            dname=m.group(0)
-            fout.write('domainname: ' + dname + '\n')
-  
         elif 'state = ' in line:  #line.find('state = ')!=-1:
             nextchar=line.split()[2][0]
             if nextchar=='f': 
@@ -190,34 +187,48 @@ def ReadPbsNodesyaml(fin):
     '''
     extracts highest node number, online nodes
     '''
-    global ExistingNodes, NonExistingNodes, OfflineDownNodes, lastnode, bigjoblist, jobseries,BiggestWrittenNode,wnlist,nodenr, TotalCores, CoreOfJob, wndic, maxcores,maxnp,statelst
+    global ExistingNodes, NonExistingNodes, OfflineDownNodes, lastnode, bigjoblist, jobseries,BiggestWrittenNode,wnlist, wnlistrm,nodenr, TotalCores, CoreOfJob, wndic, wndicrm, maxcores,maxnp,statelst,nodeinitsDic, remapnr
 
     maxcores = 0
     maxnp = 0
     state=''
-
+    county=0
     for line in fin:
         line.strip()
-        searchdname='[A-Za-z]+(\.\w+)+'
-        searchdname2='[A-Za-z]+(\d+)'
-        searchnodenr='^([A-Za-z]+)(\d+)'
+        county+=1
+        searchdname='domainname: '+'(\w+(\.\w+)*)'
+        searchnodenr='([A-Za-z]+)(\d+)'
+        # print 'take #', county
         if re.search(searchdname, line)!=None:   # line containing domain name
+            # case=0
             m=re.search(searchdname, line) #i was missing a "^" here in the beginning of the searchdname actual string
-            dname=m.group(0)
+            dname=m.group(1)
+            remapnr+=1
+            # print 'dname in readpbs is ', dname
+            # print 'm.group0 is  ', m.group(0)
+            # print 'dname is ', dname
             '''
             extract highest node number,online nodes
             '''
             ExistingNodes+=1    #nodes as recorded on pbsnodes.out
+            # print 'line is ', line
             if re.search(searchnodenr, dname)!=None:
                 n=re.search(searchnodenr, dname)
                 nodenr=int(n.group(2))
-                print nodenr
+                nodeinits=n.group(1)
+                nodeinitsDic.setdefault(nodeinits,0)    # for non-uniform setups of WNs, eg g01... and n01...
+                # print 'dname is ', dname 
+                # print 'nodenr is ', nodenr
+                # print 'nodeinits are ', nodeinits
+                # print 'node nr is ' + nodenr
                 wndic[nodenr]=[]
+                wndicrm[remapnr]=[]
                 #checks if there are missing (not installed?) nodes not reported in pbsnodes.out
                 # and stores them in list nonodes
                 if nodenr > BiggestWrittenNode:
                     BiggestWrittenNode=nodenr
                 wnlist.append(nodenr)
+                wnlistrm.append(remapnr)
                     #if nodenr!=int(n.group(2))-1:
                     #    #print nodenr, int(n.group(2))-1
                     #    nonodes.append(nodenr+1)
@@ -225,48 +236,59 @@ def ReadPbsNodesyaml(fin):
                     #else:
                     #    nodenr=n.group(2)
 
-        elif re.search(searchdname2, line)!=None:   # line containing domain name
-            m=re.search(searchdname2, line) #i was missing a "^" here in the beginning of the searchdname2 actual string
-            dname=m.group(0)
-            #print 'found alternative domain naming' + '    ' +dname
-            '''
-            extract highest node number,online nodes
-            '''
-            ExistingNodes+=1    #nodes as recorded on pbsnodes.out
-            if re.search(searchnodenr, dname)!=None:
-                n=re.search(searchnodenr, dname)
-                nodenr=int(n.group(2))
-                print nodenr
-                wndic[nodenr]=[]
-                #checks if there are missing (not installed?) nodes not reported in pbsnodes.out
-                # and stores them in list nonodes
-                if nodenr > BiggestWrittenNode:
-                    BiggestWrittenNode=nodenr
-                wnlist.append(nodenr)  
+        # elif re.search(searchdname2, line)!=None:   # line containing domain name
+        #     # case=1
+        #     m=re.search(searchdname2, line) #i was missing a "^" here in the beginning of the searchdname2 actual string
+        #     dname=m.group(0)
+        #     # print 'dname is ', dname
+        #     #print 'found alternative domain naming' + '    ' +dname
+        #     '''
+        #     extract highest node number,online nodes
+        #     '''
+        #     ExistingNodes+=1    #nodes as recorded on pbsnodes.out
+        #     if re.search(searchnodenr, dname)!=None:
+        #         n=re.search(searchnodenr, dname)
+        #         nodenr=int(n.group(2))
+        #         # print nodenr
+        #         wndic[nodenr]=[]
+        #         #checks if there are missing (not installed?) nodes not reported in pbsnodes.out
+        #         # and stores them in list nonodes
+        #         if nodenr > BiggestWrittenNode:
+        #             BiggestWrittenNode=nodenr
+        #         wnlist.append(nodenr)  
 
         elif 'state: ' in line: 
+            # case=2
             nextchar=line.split()[1].strip("'")
             if nextchar=='f': 
                 state+='-'
                 wndic[nodenr].append('-')
+                wndicrm[remapnr].append('-')
             else:
                 state+=nextchar
                 wndic[nodenr].append(nextchar)
+                wndicrm[remapnr].append(nextchar)
             
         elif 'np:' in line:
+            # case=3            
             np=line.split(': ')[1].strip()
             wndic[nodenr].append(np)
+            wndicrm[remapnr].append(np)
             if int(np)>int(maxnp):
                 maxnp=int(np)
             TotalCores+=int(np)
         elif 'core: ' in line:
+            # case=4            
             core=line.split(': ')[1].strip()
             if int(core)>int(maxcores):
                 maxcores=int(core)
         elif 'job: ' in line:
+            # case=5            
             job=str(line.split(': ')[1]).strip()
             wndic[nodenr].append((core,job))
+            wndicrm[remapnr].append((core,job))
             #prev_job=0
+        # print 'successful case was ', case
 
     statelst=list(state)
     lastnode = BiggestWrittenNode
@@ -278,12 +300,19 @@ def ReadPbsNodesyaml(fin):
     fill in invisible WN nodes with '?'   14/5
     and count them
     '''
-    for i in range(1,BiggestWrittenNode):
-        if i not in wndic:
-            wndic[i]='?'
-            NonExistingNodes.append(i)
+    if len(nodeinitsDic) >1:
+        for i in range(1,remapnr):
+            if i not in wndicrm:
+                wndicrm[i]='?'
+                NonExistingNodes.append(i)
+    else:
+        for i in range(1,BiggestWrittenNode):
+            if i not in wndic:
+                wndic[i]='?'
+                NonExistingNodes.append(i)
 
     wnlist.sort()
+    wnlistrm.sort()
     diff=0
     # biggestlst=[]
     # for i in range(1,BiggestWrittenNode+1): biggestlst.append(i)
@@ -328,7 +357,7 @@ def MakeQstat(fin,fout):
     """
     read qstat.out sequentially and put useful data in respective yaml file
     """
-    UserQueueSearch='^((\d+)\.([A-Za-z-]+[0-9]*))\s+([A-Za-z0-9_.-]+)\s+([A-Za-z0-9]+)\s+(\d+:\d+:\d*|0)\s+([CWRQ])\s+(\w+)'
+    UserQueueSearch='^((\d+)\.([A-Za-z-]+[0-9]*))\s+([A-Za-z0-9_.-]+)\s+([A-Za-z0-9]+)\s+(\d+:\d+:\d*|0)\s+([CWRQE])\s+(\w+)'
     RunQdSearch='^\s*(\d+)\s+(\d+)'
     for line in fin:
         line.strip()
@@ -368,16 +397,16 @@ outputDirs+=glob.glob('fotis*')
 
 
 for dir in outputDirs:
-    # if dir=='fotistestfiles':
-    if dir=='sfragk_tEbjFj59gTww0f46jTzyQA':  # implement clip/masking functionality !!
+    if dir=='fotistestfiles':
+    # if dir=='sfragk_tEbjFj59gTww0f46jTzyQA':  # implement clip/masking functionality !!
     # if dir=='sfragk_sDNCrWLMn22KMDBH_jboLQ':  #ERROR
-    #if dir=='sfragk_R__ngzvVl5L22epgFVZOkA':  #ERROR
+    # if dir=='sfragk_R__ngzvVl5L22epgFVZOkA':  #ERROR
     # if dir=='sfragk_aRk11NE12OEDGvDiX9ExUg':  #OK (needs some time)
-    #if dir=='sfragk_gHYT96ReT3-QxTcvjcKzrQ':  # problem with cpu lines
-    #if dir=='sfragk_zBwyi8fu8In5rLu7RBtLJw':  #displayed less CPUs than fotis' version, but now OK
-    #if dir=='sfragk_sE5OozGPbCemJxLJyoS89w':  # seems ok !
-    #if dir=='sfragk_vshrdVf9pfFBvWQ5YfrnYg':  #exact same duplicate of previous line!!?
-    #if dir=='sfragk_iLu0q1CbVgoDFLVhh5NGNw': # 204 WN IDs, 196 actual pcs ?
+    # if dir=='sfragk_gHYT96ReT3-QxTcvjcKzrQ':  # problem with cpu lines
+    # if dir=='sfragk_zBwyi8fu8In5rLu7RBtLJw':  #displayed less CPUs than fotis' version, but now OK
+    # if dir=='sfragk_sE5OozGPbCemJxLJyoS89w':  # seems ok !
+    # if dir=='sfragk_vshrdVf9pfFBvWQ5YfrnYg':  #exact same duplicate of previous line!!?
+    # if dir=='sfragk_iLu0q1CbVgoDFLVhh5NGNw': # 204 WN IDs, 196 actual pcs ?
     # if dir=='sfragk_xq9Z9Dw1YU8KQiBu-A5sQg':  #OK
 
         os.chdir(dir)
@@ -449,6 +478,8 @@ if __name__ == "__main__":
 
 #### QTOP  DISPLAY #######################
 
+if len(nodeinitsDic) >1:
+    print RMWARNING
 print 'PBS report tool. Please try: watch -d /home/sfragk/off/qtop . All bugs added by fotis@cern.ch. Cross fingers now...\n'
 print '===> Job accounting summary <=== (Rev: 3000 $) %s WORKDIR=to be added\n' % (datetime.datetime.today())
 print 'Usage Totals:\t%s/%s\t Nodes | x/%s\t Cores |\t %s+%s\t jobs (R+Q) reported by qstat -q' %(ExistingNodes-OfflineDownNodes, ExistingNodes, TotalCores, int(TotalRuns), int(TotalQueues) )
@@ -461,60 +492,113 @@ print '\n'
 print '===> Worker Nodes occupancy <=== (you can read vertically the node IDs; nodes in free state are noted with - )'
 
 #prints the worker node ID number lines
-#lastnode=169 #for testing purposes
-if lastnode<10:
-    unit=str(lastnode)[0]
-elif lastnode<100:
-    dec=str(lastnode)[0]
-    unit=str(lastnode)[1]
-elif lastnode<1000:
-    cent=int(str(lastnode)[0])
-    dec=int(str(lastnode)[1])
-    unit=int(str(lastnode)[2])
+
+
+if len(nodeinitsDic)>1:
+    if remapnr<10:
+        unit=str(remapnr)[0]
+    elif remapnr<100:
+        dec=str(remapnr)[0]
+        unit=str(remapnr)[1]
+    elif remapnr<1000:
+        cent=int(str(remapnr)[0])
+        dec=int(str(remapnr)[1])
+        unit=int(str(remapnr)[2])
 else:
-    #raise ValueError
-    pass
+    if lastnode<10:
+        unit=str(lastnode)[0]
+    elif lastnode<100:
+        dec=str(lastnode)[0]
+        unit=str(lastnode)[1]
+    elif lastnode<1000:
+        cent=int(str(lastnode)[0])
+        dec=int(str(lastnode)[1])
+        unit=int(str(lastnode)[2])    
+
 c,d,d_,u='','','',''
-
 beginprint=0
-if lastnode<10:
-    for node in range(lastnode):
-        u+= str(node+1)
-    print u+'={__WNID__}'
-elif lastnode<100:
-    d_='0'*9+'1'*10+'2'*10+'3'*10+'4'*10+'5'*10+'6'*10+'7'*10+'8'*10+'9'*10
-    ud='1234567890'*10
-    d=d_[:lastnode]
-    print d+            '={_Worker_}'
-    print ud[:lastnode]+'={__Node__}'
-elif lastnode<1000:
-    c+=str(0)*99
-    for i in range(1,cent):
-        c+=str(i)*100
-    c+=str(cent)*dec*10 + str(cent)*(unit+1)
-    
-    d_='0'*9+'1'*10+'2'*10+'3'*10+'4'*10+'5'*10+'6'*10+'7'*10+'8'*10+'9'*10
-    d=d_
-    for i in range(1,cent):
-        d+=str(0)+d_
-    else:
-        d+=str(0)
-    d+=d_[:int(str(dec)+str(unit))]
-    
-    uc='1234567890'*100
-    ua=uc[:lastnode]
 
-    #clipping functionality:
-    '''
-    if the earliest node number is high (e.g. 80), the first 79 WNs need not show up.
-    '''
-    beginprint=0
-    if (CLIPPING == True) and wnlist[0]>30:
-        beginprint=wnlist[0]-1
-    print c[beginprint:] + '={_Worker_}'
-    print d[beginprint:] + '={__Node__}'
-    print ua[beginprint:]+ '={___ID___}'
-    #todo: remember to fix <100 cases (do i really need to, though?)
+#if there are non-uniform WNs in pbsnodes.yaml, remapping is performed
+if len(nodeinitsDic) == 1:
+
+    if lastnode<10:
+        for node in range(lastnode):
+            u+= str(node+1)
+        print u+'={__WNID__}'
+    elif lastnode<100:
+        d_='0'*9+'1'*10+'2'*10+'3'*10+'4'*10+'5'*10+'6'*10+'7'*10+'8'*10+'9'*10
+        ud='1234567890'*10
+        d=d_[:lastnode]
+        print d+            '={_Worker_}'
+        print ud[:lastnode]+'={__Node__}'
+    elif lastnode<1000:
+        c+=str(0)*99
+        for i in range(1,cent):
+            c+=str(i)*100
+        c+=str(cent)*(int(dec))*10 + str(cent)*(int(unit)+1)
+        
+        d_='0'*9+'1'*10+'2'*10+'3'*10+'4'*10+'5'*10+'6'*10+'7'*10+'8'*10+'9'*10
+        d=d_
+        for i in range(1,cent):
+            d+=str(0)+d_
+        else:
+            d+=str(0)
+        d+=d_[:int(str(dec)+str(unit))]
+        
+        uc='1234567890'*100
+        ua=uc[:lastnode]
+
+        #clipping functionality:
+        '''
+        if the earliest node number is high (e.g. 80), the first 79 WNs need not show up.
+        '''
+        beginprint=0
+        if (CLIPPING == True) and wnlist[0]>30:
+            beginprint=wnlist[0]-1
+        print c[beginprint:] + '={_Worker_}'
+        print d[beginprint:] + '={__Node__}'
+        print ua[beginprint:]+ '={___ID___}'
+        #todo: remember to fix <100 cases (do i really need to, though?)
+elif len(nodeinitsDic) >1:
+    if remapnr<10:
+        for node in range(remapnr):
+            u+= str(node+1)
+        print u+'={__WNID__}'
+    elif remapnr<100:
+        d_='0'*9+'1'*10+'2'*10+'3'*10+'4'*10+'5'*10+'6'*10+'7'*10+'8'*10+'9'*10
+        ud='1234567890'*10
+        d=d_[:remapnr]
+        print d+            '={_Worker_}'
+        print ud[:remapnr]+'={__Node__}'
+    elif remapnr<1000:
+        c+=str(0)*99
+        for i in range(1,cent):
+            c+=str(i)*100
+        c+=str(cent)*dec*10 + str(cent)*(unit+1)
+        
+        d_='0'*9+'1'*10+'2'*10+'3'*10+'4'*10+'5'*10+'6'*10+'7'*10+'8'*10+'9'*10
+        d=d_
+        for i in range(1,cent):
+            d+=str(0)+d_
+        else:
+            d+=str(0)
+        d+=d_[:int(str(dec)+str(unit))]
+        
+        uc='1234567890'*100
+        ua=uc[:remapnr]
+
+        #clipping functionality:
+        '''
+        if the earliest node number is high (e.g. 80), the first 79 WNs need not show up.
+        '''
+        beginprint=0
+        if (CLIPPING == True) and wnlistrm[0]>30:
+            beginprint=wnlist[0]-1
+        print c[beginprint:] + '={_Worker_}'
+        print d[beginprint:] + '={__Node__}'
+        print ua[beginprint:]+ '={___ID___}'
+        #todo: remember to fix <100 cases (do i really need to, though?)
+    
 
 
 ##end of code outputting workernode id number lines
@@ -538,8 +622,13 @@ yamlstream=open(homepath+'qt/pbsnodes.yaml', 'r')
 
 
 stateafterstr=''
-for node in wndic:  #why are dictionaries ALWAYS ordered when keys are '1','5','3' etc ?!!?!?
-    stateafterstr+=wndic[node][0]
+if len(nodeinitsDic) ==1:
+    for node in wndic:  #why are dictionaries ALWAYS ordered when keys are '1','5','3' etc ?!!?!?
+        stateafterstr+=wndic[node][0]
+elif len(nodeinitsDic)>1:
+    for node in wndicrm:  #why are dictionaries ALWAYS ordered when keys are '1','5','3' etc ?!!?!?
+        stateafterstr+=wndicrm[node][0]
+
 print stateafterstr[beginprint:]+'=Node state'
 
 yamlstream.close()
@@ -583,7 +672,7 @@ print stateafter+'=Node state'
 
 
 #solution for counting R,Q,C attached to each user
-UserRunningDic, UserQueuedDic, UserCancelledDic, UserWaitingDic = {}, {}, {}, {}
+UserRunningDic, UserQueuedDic, UserCancelledDic, UserWaitingDic, UserEDic = {}, {}, {}, {}, {}
 
 for user,status in zip(UnixAccounts,Ss):
     if status=='R':
@@ -594,11 +683,14 @@ for user,status in zip(UnixAccounts,Ss):
         UserCancelledDic[user] = UserCancelledDic.get(user, 0) + 1
     elif status=='W':
         UserWaitingDic[user] = UserWaitingDic.get(user, 0) + 1
+    elif status=='E':
+        UserWaitingDic[user] = UserEDic.get(user, 0) + 1
 
 for account in UserRunningDic:
     UserQueuedDic.setdefault(account, 0)
     UserCancelledDic.setdefault(account, 0)
     UserWaitingDic.setdefault(account, 0)
+    UserEDic.setdefault(account, 0)
 
 occurencedic={}
 for user in UnixAccounts:
@@ -633,47 +725,88 @@ for i in range(maxnp):
     CpucoreDic['Cpu'+str(i)+'line']=''      # Cpu0line, Cpu1line, Cpu2line='','',''
     Maxnplst.append(str(i))
 
-
-for nodenr, wnpropertieslst in zip(wndic.keys(), wndic.values()):
-    MaxNPlstTmp=Maxnplst[:] # ( ???? )
-    MaxcorelstTmp=Maxcorelst[:] # ( ???? )
-    if wnpropertieslst == '?':
-        for cpuline in CpucoreDic:
-            CpucoreDic[cpuline]+='_'
-    elif len(wnpropertieslst)==1:
-        for cpuline in CpucoreDic:
-            CpucoreDic[cpuline]+='_'
-    else:
-        HAS_JOBS=0
-        ownNP=wnpropertieslst[1]
-        ownNP=int(ownNP)
-        for element in wnpropertieslst:
-            if type(element) == tuple:  #everytime there is a job:
-                HAS_JOBS+=1
-                # print 'wndic[nodenr][%r] is tuple' %i
-                core, job = element[0], element[1]
-                CpucoreDic['Cpu'+str(core)+'line']+=str(IdOfUnixAccount[UserOfJobId[job]])
-                MaxNPlstTmp.remove(core)
-                MaxcorelstTmp.remove(core)
-                s = set(MaxcorelstTmp)
-                UnusedAndDeclaredlst = [x for x in MaxNPlstTmp if x not in s]
-        
-        #print MaxNPlstTmp                 #disabled it 8/7/12
-        if HAS_JOBS != ownNP:
-            #for core in UnusedAndDeclaredlst:
-            #    CpucoreDic['Cpu'+str(core)+'line']+='#'
-            #    UnusedAndDeclaredlst.remove(core)
-            for core in MaxcorelstTmp:
-                CpucoreDic['Cpu'+str(core)+'line']+='_'
-    
-        if ownNP < maxnp:
-            for core in UnusedAndDeclaredlst:
-                CpucoreDic['Cpu'+str(core)+'line']+='#'
-        elif ownNP == maxnp:
-            for core in UnusedAndDeclaredlst:
-                CpucoreDic['Cpu'+str(core)+'line']+='_'
+if len(nodeinitsDic)>1:
+    for nodenr, wnpropertieslst in zip(wndicrm.keys(), wndicrm.values()):
+        MaxNPlstTmp=Maxnplst[:] # ( ???? )
+        MaxcorelstTmp=Maxcorelst[:] # ( ???? )
+        if wnpropertieslst == '?':
+            for cpuline in CpucoreDic:
+                CpucoreDic[cpuline]+='_'
+        elif len(wnpropertieslst)==1:
+            for cpuline in CpucoreDic:
+                CpucoreDic[cpuline]+='_'
         else:
-            print 'no SHIT!!'
+            HAS_JOBS=0
+            ownNP=wnpropertieslst[1]
+            ownNP=int(ownNP)
+            for element in wnpropertieslst:
+                if type(element) == tuple:  #everytime there is a job:
+                    HAS_JOBS+=1
+                    # print 'wndic[nodenr][%r] is tuple' %i
+                    core, job = element[0], element[1]
+                    CpucoreDic['Cpu'+str(core)+'line']+=str(IdOfUnixAccount[UserOfJobId[job]])
+                    MaxNPlstTmp.remove(core)
+                    MaxcorelstTmp.remove(core)
+                    s = set(MaxcorelstTmp)
+                    UnusedAndDeclaredlst = [x for x in MaxNPlstTmp if x not in s]
+            
+            #print MaxNPlstTmp                 #disabled it 8/7/12
+            if HAS_JOBS != ownNP:
+                #for core in UnusedAndDeclaredlst:
+                #    CpucoreDic['Cpu'+str(core)+'line']+='#'
+                #    UnusedAndDeclaredlst.remove(core)
+                for core in MaxcorelstTmp:
+                    CpucoreDic['Cpu'+str(core)+'line']+='_'
+        
+            if ownNP < maxnp:
+                for core in UnusedAndDeclaredlst:
+                    CpucoreDic['Cpu'+str(core)+'line']+='#'
+            elif ownNP == maxnp:
+                for core in UnusedAndDeclaredlst:
+                    CpucoreDic['Cpu'+str(core)+'line']+='_'
+            else:
+                print 'no SHIT!!'
+else:                
+    for nodenr, wnpropertieslst in zip(wndic.keys(), wndic.values()):
+            MaxNPlstTmp=Maxnplst[:] # ( ???? )
+            MaxcorelstTmp=Maxcorelst[:] # ( ???? )
+            if wnpropertieslst == '?':
+                for cpuline in CpucoreDic:
+                    CpucoreDic[cpuline]+='_'
+            elif len(wnpropertieslst)==1:
+                for cpuline in CpucoreDic:
+                    CpucoreDic[cpuline]+='_'
+            else:
+                HAS_JOBS=0
+                ownNP=wnpropertieslst[1]
+                ownNP=int(ownNP)
+                for element in wnpropertieslst:
+                    if type(element) == tuple:  #everytime there is a job:
+                        HAS_JOBS+=1
+                        # print 'wndic[nodenr][%r] is tuple' %i
+                        core, job = element[0], element[1]
+                        CpucoreDic['Cpu'+str(core)+'line']+=str(IdOfUnixAccount[UserOfJobId[job]])
+                        MaxNPlstTmp.remove(core)
+                        MaxcorelstTmp.remove(core)
+                        s = set(MaxcorelstTmp)
+                        UnusedAndDeclaredlst = [x for x in MaxNPlstTmp if x not in s]
+                
+                #print MaxNPlstTmp                 #disabled it 8/7/12
+                if HAS_JOBS != ownNP:
+                    #for core in UnusedAndDeclaredlst:
+                    #    CpucoreDic['Cpu'+str(core)+'line']+='#'
+                    #    UnusedAndDeclaredlst.remove(core)
+                    for core in MaxcorelstTmp:
+                        CpucoreDic['Cpu'+str(core)+'line']+='_'
+            
+                if ownNP < maxnp:
+                    for core in UnusedAndDeclaredlst:
+                        CpucoreDic['Cpu'+str(core)+'line']+='#'
+                elif ownNP == maxnp:
+                    for core in UnusedAndDeclaredlst:
+                        CpucoreDic['Cpu'+str(core)+'line']+='_'
+                else:
+                    print 'no SHIT!!'
 
 
 
@@ -738,10 +871,12 @@ for id in IdOfUnixAccount:
         UserCancelledDic[id]=0
     if id not in UserWaitingDic:
         UserWaitingDic[id]=0
+    if id not in UserEDic:
+        UserEDic[id]=0
 
 
 for id in Usersortedlst:#IdOfUnixAccount:
-    output.append([IdOfUnixAccount[id[0]], UserRunningDic[id[0]], UserQueuedDic[id[0]], UserCancelledDic[id[0]]+ UserRunningDic[id[0]]+ UserQueuedDic[id[0]]+ UserWaitingDic[id[0]], id])
+    output.append([IdOfUnixAccount[id[0]], UserRunningDic[id[0]], UserQueuedDic[id[0]], UserCancelledDic[id[0]]+ UserRunningDic[id[0]]+ UserQueuedDic[id[0]]+ UserWaitingDic[id[0]]+ UserEDic[id[0]], id])
 ####### workaround, na brw veltistopoiisi
 output.sort(key=itemgetter(3), reverse=True)
 for line in output:
@@ -749,3 +884,7 @@ for line in output:
 
 
 os.chdir(homepath+'qtop/qtop')
+# print nodeinitsDic
+# print remapnr
+
+print 'Thanks for watching!'
