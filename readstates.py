@@ -16,6 +16,7 @@ changelog:
 =========
 0.2.3: corrected regex search pattern in MakeQstat to recognize usernames like spec101u1 (number followed by number followed by letter)
        now handles non-uniform setups
+       R+Q / all: all did not display everything (E status)
 0.2.2: clipping functionality
 0.2.1: Hashes displaying when the node has less cores than the max declared by a WN (its np variable)
 0.2.0: unix accounts are now correctly ordered
