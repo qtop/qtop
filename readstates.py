@@ -398,9 +398,9 @@ outputDirs+=glob.glob('fotis*')
 
 
 for dir in outputDirs:
-    if dir=='fotistestfiles':
+    # if dir=='fotistestfiles':
     # if dir=='sfragk_tEbjFj59gTww0f46jTzyQA':  # implement clip/masking functionality !!
-    # if dir=='sfragk_sDNCrWLMn22KMDBH_jboLQ':  #ERROR
+    if dir=='sfragk_sDNCrWLMn22KMDBH_jboLQ':  #ERROR
     # if dir=='sfragk_R__ngzvVl5L22epgFVZOkA':  #ERROR
     # if dir=='sfragk_aRk11NE12OEDGvDiX9ExUg':  #OK (needs some time)
     # if dir=='sfragk_gHYT96ReT3-QxTcvjcKzrQ':  # problem with cpu lines
