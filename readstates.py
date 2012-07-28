@@ -2,7 +2,7 @@
 
 ################################################
 #                                              #
-#              qtop v.0.2.1                    #
+#              qtop v.0.2.3                    #
 #                                              #
 #     Licensed under MIT-GPL licenses          #
 #                                              #
@@ -14,6 +14,7 @@
 
 changelog:
 =========
+0.2.3: corrected regex search pattern in MakeQstat to recognize usernames like spec101u1 (number followed by number followed by letter)
 0.2.2: clipping functionality
 0.2.1: Hashes displaying when the node has less cores than the max declared by a WN (its np variable)
 0.2.0: unix accounts are now correctly ordered
@@ -42,7 +43,8 @@ from operator import itemgetter
 #savedir='~/qtop-input/results'
 #savedir=os.path.expanduser(savedir)
 
-outputpath='~sfranky/qtop-input/outputs/' #where the output for each job is stored
+outputpath='~/qtop-input/outputs/' #where the output for each job is stored
+homepath=os.path.expanduser('~/')
 outputpath=os.path.expanduser(outputpath)
     
 
@@ -52,8 +54,10 @@ outputpath=os.path.expanduser(outputpath)
 
 CLIPPING = True
 
+outputDirs=[]
 statelst=[]
-qstatqdic={}
+maxcores=0
+#qstatqdic={} # fainetai na xrisimopoieitai mono mia fora, xrisimopoiw to qstatqLst instead
 wndic={}
 dname=''
 BiggestWrittenNode=0
@@ -122,28 +126,25 @@ def get_corejobs(fin):   #yamlstream
             jobcpu4=fin.readline().split()[1]
 """
 
-#empties the files with every run of the python script
-fin1temp=open('/home/sfranky/qt/pbsnodes.yaml','w')
-fin1temp.close()
-fin2temp=open('/home/sfranky/qt/qstat-q.yaml','w')
-fin2temp.close()
-fin3temp=open('/home/sfranky/qt/qstat.yaml','w')
-fin3temp.close()
-
-           
 def MakePbsNodesyaml(fin,fout):
     """
     read pbsnodes.out sequentially and put in respective yaml file
     """
-    global NonExistingNodes, OfflineDownNodes # bigjoblist
+    global OfflineDownNodes # NonExistingNodes, bigjoblist
     
     # nodenr=0
 
     for line in fin:
         line.strip()
         searchdname='^\w+(\.\w+)+'
+        searchdname2='^\w+(\d+)'
         if re.search(searchdname, line)!=None:   # line containing domain name
             m=re.search(searchdname, line) #i was missing a "^" here in the beginning of the searchdname actual string
+            dname=m.group(0)
+            fout.write('domainname: ' + dname + '\n')
+
+        elif re.search(searchdname2, line)!=None:   # line containing domain name
+            m=re.search(searchdname2, line) #i was missing a "^" here in the beginning of the searchdname actual string
             dname=m.group(0)
             fout.write('domainname: ' + dname + '\n')
   
@@ -197,7 +198,8 @@ def ReadPbsNodesyaml(fin):
 
     for line in fin:
         line.strip()
-        searchdname='\w+(\.\w+)+'
+        searchdname='[A-Za-z]+(\.\w+)+'
+        searchdname2='[A-Za-z]+(\d+)'
         searchnodenr='^([A-Za-z]+)(\d+)'
         if re.search(searchdname, line)!=None:   # line containing domain name
             m=re.search(searchdname, line) #i was missing a "^" here in the beginning of the searchdname actual string
@@ -209,6 +211,7 @@ def ReadPbsNodesyaml(fin):
             if re.search(searchnodenr, dname)!=None:
                 n=re.search(searchnodenr, dname)
                 nodenr=int(n.group(2))
+                print nodenr
                 wndic[nodenr]=[]
                 #checks if there are missing (not installed?) nodes not reported in pbsnodes.out
                 # and stores them in list nonodes
@@ -221,6 +224,26 @@ def ReadPbsNodesyaml(fin):
                     #    nodenr=n.group(2)
                     #else:
                     #    nodenr=n.group(2)
+
+        elif re.search(searchdname2, line)!=None:   # line containing domain name
+            m=re.search(searchdname2, line) #i was missing a "^" here in the beginning of the searchdname2 actual string
+            dname=m.group(0)
+            #print 'found alternative domain naming' + '    ' +dname
+            '''
+            extract highest node number,online nodes
+            '''
+            ExistingNodes+=1    #nodes as recorded on pbsnodes.out
+            if re.search(searchnodenr, dname)!=None:
+                n=re.search(searchnodenr, dname)
+                nodenr=int(n.group(2))
+                print nodenr
+                wndic[nodenr]=[]
+                #checks if there are missing (not installed?) nodes not reported in pbsnodes.out
+                # and stores them in list nonodes
+                if nodenr > BiggestWrittenNode:
+                    BiggestWrittenNode=nodenr
+                wnlist.append(nodenr)  
+
         elif 'state: ' in line: 
             nextchar=line.split()[1].strip("'")
             if nextchar=='f': 
@@ -286,7 +309,7 @@ def MakeQstatQ(fin,fout):
             m=re.search(Queuesearch, line)
             _,QueueName,Mem,CPUtime,Walltime,Node,Run,Queued,Lm,State=m.group(0),m.group(1),m.group(2),m.group(3),m.group(4),m.group(5),m.group(6),m.group(7),m.group(8),m.group(9)
             qstatqLst.append((QueueName,Run,Queued,Lm,State))   # which one to keep?  #remember to move to ReadQstatQ
-            qstatqdic[QueueName]=[(Run,Queued,Lm,State)]    # which one to keep?  #remember to move to ReadQstatQ
+            #qstatqdic[QueueName]=[(Run,Queued,Lm,State)]    # which one to keep?  #remember to move to ReadQstatQ
             fout.write('- QueueName: ' + QueueName +'\n')
             fout.write('  Running: ' + Run +'\n')
             fout.write('  Queued: ' + Queued +'\n')
@@ -305,7 +328,7 @@ def MakeQstat(fin,fout):
     """
     read qstat.out sequentially and put useful data in respective yaml file
     """
-    UserQueueSearch='^((\d+)\.([A-Za-z-]+[0-9]*))\s+([A-Za-z0-9_.]+)\s+([A-Za-z]+[0-9]*)\s+(\d+:\d+:\d*|0)\s+([CWRQ])\s+(\w+)'
+    UserQueueSearch='^((\d+)\.([A-Za-z-]+[0-9]*))\s+([A-Za-z0-9_.-]+)\s+([A-Za-z0-9]+)\s+(\d+:\d+:\d*|0)\s+([CWRQ])\s+(\w+)'
     RunQdSearch='^\s*(\d+)\s+(\d+)'
     for line in fin:
         line.strip()
@@ -327,31 +350,44 @@ def MakeQstat(fin,fout):
 
 ############################################################################################
 
-outputDirs=[]
+#empties the files with every run of the python script
+fin1temp=open(homepath+'qt/pbsnodes.yaml','w')
+fin1temp.close()
+
+fin2temp=open(homepath+'qt/qstat-q.yaml','w')
+fin2temp.close()
+
+fin3temp=open(homepath+'qt/qstat.yaml','w')
+fin3temp.close()
+
+
 
 os.chdir(outputpath)
 outputDirs+=glob.glob('sfragk*') 
+outputDirs+=glob.glob('fotis*') 
+
 
 for dir in outputDirs:
+    # if dir=='fotistestfiles':
     if dir=='sfragk_tEbjFj59gTww0f46jTzyQA':  # implement clip/masking functionality !!
-    #if dir=='sfragk_sDNCrWLMn22KMDBH_jboLQ':  #OK
-    #if dir=='sfragk_R__ngzvVl5L22epgFVZOkA':  #seems OK
-    #if dir=='sfragk_aRk11NE12OEDGvDiX9ExUg': #OK (needs some time)
-    #if dir=='sfragk_gHYT96ReT3-QxTcvjcKzrQ':  #OK
+    # if dir=='sfragk_sDNCrWLMn22KMDBH_jboLQ':  #ERROR
+    #if dir=='sfragk_R__ngzvVl5L22epgFVZOkA':  #ERROR
+    # if dir=='sfragk_aRk11NE12OEDGvDiX9ExUg':  #OK (needs some time)
+    #if dir=='sfragk_gHYT96ReT3-QxTcvjcKzrQ':  # problem with cpu lines
     #if dir=='sfragk_zBwyi8fu8In5rLu7RBtLJw':  #displayed less CPUs than fotis' version, but now OK
     #if dir=='sfragk_sE5OozGPbCemJxLJyoS89w':  # seems ok !
     #if dir=='sfragk_vshrdVf9pfFBvWQ5YfrnYg':  #exact same duplicate of previous line!!?
-    # if dir=='sfragk_iLu0q1CbVgoDFLVhh5NGNw': # 204 WN IDs, 196 actual pcs ?
-    #if dir=='sfragk_xq9Z9Dw1YU8KQiBu-A5sQg':  #OK
+    #if dir=='sfragk_iLu0q1CbVgoDFLVhh5NGNw': # 204 WN IDs, 196 actual pcs ?
+    # if dir=='sfragk_xq9Z9Dw1YU8KQiBu-A5sQg':  #OK
 
         os.chdir(dir)
-        yamlstream1=open('/home/sfranky/qt/pbsnodes.yaml', 'a')
-        yamlstream2=open('/home/sfranky/qt/qstat-q.yaml', 'a')
-        yamlstream3=open('/home/sfranky/qt/qstat.yaml', 'a')
+        yamlstream1=open(homepath+'qt/pbsnodes.yaml', 'a')
+        yamlstream2=open(homepath+'qt/qstat-q.yaml', 'a')
+        yamlstream3=open(homepath+'qt/qstat.yaml', 'a')
 
         fin1=open('pbsnodes.out','r')
         MakePbsNodesyaml(fin1,yamlstream1)
-        yamlstream1=open('/home/sfranky/qt/pbsnodes.yaml','r')
+        yamlstream1=open(homepath+'qt/pbsnodes.yaml','r')
         ReadPbsNodesyaml(yamlstream1)
         yamlstream1.close()
 
@@ -367,7 +403,7 @@ for dir in outputDirs:
 
         os.chdir('..')
 
-#os.chdir('/home/sfranky/inp/outputs/sfragk_aRk11NE12OEDGvDiX9ExUg/')            
+#os.chdir(homepath+'inp/outputs/sfragk_aRk11NE12OEDGvDiX9ExUg/')            
 #fin=open('pbsnodes.out','r')            
 #ReadPbsNodes(fin,yamlstream)
 
@@ -440,6 +476,7 @@ else:
     pass
 c,d,d_,u='','','',''
 
+beginprint=0
 if lastnode<10:
     for node in range(lastnode):
         u+= str(node+1)
@@ -477,7 +514,7 @@ elif lastnode<1000:
     print c[beginprint:] + '={_Worker_}'
     print d[beginprint:] + '={__Node__}'
     print ua[beginprint:]+ '={___ID___}'
-    #todo: remember to fix <100 cases (do i need to?)
+    #todo: remember to fix <100 cases (do i really need to, though?)
 
 
 ##end of code outputting workernode id number lines
@@ -485,7 +522,7 @@ elif lastnode<1000:
 
 
 # 14/6  alternative solution for extra 'invisible' WNs
-yamlstream=open('/home/sfranky/qt/pbsnodes.yaml', 'r')
+yamlstream=open(homepath+'qt/pbsnodes.yaml', 'r')
 # statebeforeUnsorted=statelst               #get_state(yamlstream)
 # if NonExistingNodes:
 #     for nonex in NonExistingNodes:
@@ -514,7 +551,7 @@ JobIds=[]
 UnixAccounts=[]
 Ss=[]
 Queues=[]
-finr=open('/home/sfranky/qt/qstat.yaml', 'r')
+finr=open(homepath+'qt/qstat.yaml', 'r')
 for line in finr:
     if line.startswith('JobId:'):
         JobIds.append(line.split()[1])
@@ -536,7 +573,7 @@ for user,jobid in zip(UnixAccounts,JobIds):
     User2JobDic[jobid]=user
 
 '''
-yamlstream=open('/home/sfranky/qt/pbsnodes.yaml', 'r')
+yamlstream=open(homepath+'qt/pbsnodes.yaml', 'r')
 statebeforeUnsorted=get_state(yamlstream)
 stateafter=statebeforeUnsorted[:nonodes[0]-1]+'?'+statebeforeUnsorted[nonodes[0]-1:]
 for i in range(1,len(nonodes)):
@@ -635,6 +672,8 @@ for nodenr, wnpropertieslst in zip(wndic.keys(), wndic.values()):
         elif ownNP == maxnp:
             for core in UnusedAndDeclaredlst:
                 CpucoreDic['Cpu'+str(core)+'line']+='_'
+        else:
+            print 'no SHIT!!'
 
 
 
@@ -709,4 +748,4 @@ for line in output:
     print '%2s | %3s + %3s / %3s | %14s |' % (line[0], line[1], line[2], line[3], line[4][0])
 
 
-os.chdir('/home/sfranky/qtop/qtop')
+os.chdir(homepath+'qtop/qtop')
