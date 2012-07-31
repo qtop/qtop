@@ -700,7 +700,7 @@ for i in range(MaxNP):
 
 
 if len(NodeInitials) > 1:
-    for WnNr, WNProperties in zip(AllWNsRemapped.keys(), AllWNsRemapped.values()):
+    for _, WNProperties in zip(AllWNsRemapped.keys(), AllWNsRemapped.values()):
         MaxNonBusyCores = MaxNPRange[:] # ( ???? )
         ActualNonBusyCores = HighestCoreBusyRange[:] # ( ???? )
         if WNProperties[0] == '?':
@@ -726,9 +726,6 @@ if len(NodeInitials) > 1:
             
             # print MaxNonBusyCores                 # disabled it 8/7/12
             if HAS_JOBS != OwnNP:
-                # for core in UnusedYetAvailableCoresLst:
-                #     CPUCoreDic['Cpu'+str(core)+'line'] += '#'
-                #     UnusedYetAvailableCoresLst.remove(core)
                 for Core in ActualNonBusyCores:
                     CPUCoreDic['Cpu'+str(Core)+'line'] += '_'
         
@@ -748,10 +745,6 @@ elif len(NodeInitials) == 1:
             if WNProperties[0] == '?':    # if WN just doesn't exist, 
                 for CPULine in CPUCoreDic:
                     CPUCoreDic[CPULine] += '_'    # add a column of underscores
-            # The following is obsolete, I think!
-            # elif len(WNProperties) == 1:
-            #     for CPULine in CPUCoreDic:
-            #         CPUCoreDic[CPULine] += '_'
 
             else:     # if WN exists
                 HAS_JOBS = 0
@@ -770,38 +763,13 @@ elif len(NodeInitials) == 1:
                         ActualNonBusyCores.remove(Core)
                         s = set(ActualNonBusyCores)
                         UnusedYetAvailableCoresLst = [x for x in MaxNonBusyCores if x not in s]
-                BusyAndEmpty = set(OwnNPEmptyRange+Busy)
-                BusyAndEmpty = list(BusyAndEmpty)
-                BusyAndEmpty.sort()
 
                 NonExistentCores = [item for item in MaxNPRange if item not in OwnNPRange]        
-                # print 'OwnNPEmptyRange is: ', OwnNPEmptyRange
-                # print 'NonExistentCores are: ', NonExistentCores
-                # print 'BusyAndEmpty is: ', BusyAndEmpty
-                # print 'MaxNPRange is: ', MaxNPRange
 
                 for core in OwnNPEmptyRange:                        
                     CPUCoreDic['Cpu'+str(core)+'line'] += '_'
                 for core in NonExistentCores:                        
                     CPUCoreDic['Cpu'+str(core)+'line'] += '#'
-                # print CPUCoreDic['Cpu0line']
-                # if HAS_JOBS != OwnNP:
-                #     # for Core in UnusedYetAvailableCoresLst:
-                #     #     CPUCoreDic['Cpu'+str(Core)+'line']+='#'
-                #     #     UnusedYetAvailableCoresLst.remove(Core)
-                #     for Core in ActualNonBusyCores:
-                #         CPUCoreDic['Cpu'+str(Core)+'line'] += '_'
-            
-                # if OwnNP < MaxNP:
-                #     for Core in UnusedYetAvailableCoresLst:
-                #         CPUCoreDic['Cpu'+str(Core)+'line'] += '#'
-                # elif OwnNP == MaxNP:
-                #     for Core in UnusedYetAvailableCoresLst:
-                #         CPUCoreDic['Cpu'+str(Core)+'line'] += '_'
-                # else:
-                #     print 'no SHIT!!'
-
-
 
 for ind, k in enumerate(CPUCoreDic):
     # print CPUCoreDic[k]+'=CPU'+str(ind)
@@ -818,12 +786,6 @@ qstatLst.sort(key = lambda unixaccount: unixaccount[1])   # sort by unix account
   
 AssIdvalues = IdOfUnixAccount.values()
 AssIdkeys = IdOfUnixAccount.keys()
-# UserRunningDicValues = UserRunningDic.values()
-# UserRunningDickeys = UserRunningDic.keys()
-# UserCancelledDicValues = UserCancelledDic.values()
-# UserCancelledDickeys = UserCancelledDic.keys()
-# UserQueuedDicValues = UserQueuedDic.values()
-# UserQueuedDickeys = UserQueuedDic.keys()
 
 # this calculates and prints what is actually below the id| R+Q /all | unix account etc line
 for id in IdOfUnixAccount:
