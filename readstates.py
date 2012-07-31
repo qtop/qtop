@@ -224,40 +224,10 @@ def ReadPbsNodesyaml(fin):
                 # print 'node nr is ' + nodenr
                 wndic[nodenr]=[]
                 wndicrm[remapnr]=[]
-                #checks if there are missing (not installed?) nodes not reported in pbsnodes.out
-                # and stores them in list nonodes
                 if nodenr > BiggestWrittenNode:
                     BiggestWrittenNode=nodenr
                 wnlist.append(nodenr)
                 wnlistrm.append(remapnr)
-                    #if nodenr!=int(n.group(2))-1:
-                    #    #print nodenr, int(n.group(2))-1
-                    #    nonodes.append(nodenr+1)
-                    #    nodenr=n.group(2)
-                    #else:
-                    #    nodenr=n.group(2)
-
-        # elif re.search(searchdname2, line)!=None:   # line containing domain name
-        #     # case=1
-        #     m=re.search(searchdname2, line) #i was missing a "^" here in the beginning of the searchdname2 actual string
-        #     dname=m.group(0)
-        #     # print 'dname is ', dname
-        #     #print 'found alternative domain naming' + '    ' +dname
-        #     '''
-        #     extract highest node number,online nodes
-        #     '''
-        #     ExistingNodes+=1    #nodes as recorded on pbsnodes.out
-        #     if re.search(searchnodenr, dname)!=None:
-        #         n=re.search(searchnodenr, dname)
-        #         nodenr=int(n.group(2))
-        #         # print nodenr
-        #         wndic[nodenr]=[]
-        #         #checks if there are missing (not installed?) nodes not reported in pbsnodes.out
-        #         # and stores them in list nonodes
-        #         if nodenr > BiggestWrittenNode:
-        #             BiggestWrittenNode=nodenr
-        #         wnlist.append(nodenr)  
-
         elif 'state: ' in line: 
             # case=2
             nextchar=line.split()[1].strip("'")
@@ -398,17 +368,17 @@ outputDirs+=glob.glob('fotis*')
 
 
 for dir in outputDirs:
-    # if dir=='fotistestfiles':
-    # if dir=='sfragk_tEbjFj59gTww0f46jTzyQA':  # implement clip/masking functionality !!
-    if dir=='sfragk_sDNCrWLMn22KMDBH_jboLQ':  #ERROR
-    # if dir=='sfragk_R__ngzvVl5L22epgFVZOkA':  #ERROR
-    # if dir=='sfragk_aRk11NE12OEDGvDiX9ExUg':  #OK (needs some time)
-    # if dir=='sfragk_gHYT96ReT3-QxTcvjcKzrQ':  # problem with cpu lines
-    # if dir=='sfragk_zBwyi8fu8In5rLu7RBtLJw':  #displayed less CPUs than fotis' version, but now OK
-    # if dir=='sfragk_sE5OozGPbCemJxLJyoS89w':  # seems ok !
-    # if dir=='sfragk_vshrdVf9pfFBvWQ5YfrnYg':  #exact same duplicate of previous line!!?
-    # if dir=='sfragk_iLu0q1CbVgoDFLVhh5NGNw': # 204 WN IDs, 196 actual pcs ?
+    # if dir=='fotistestfiles': #OK
+    # if dir=='sfragk_tEbjFj59gTww0f46jTzyQA':  # implement clip/masking functionality !! OK
+    # if dir=='sfragk_sDNCrWLMn22KMDBH_jboLQ':  #OK
+    #if dir=='sfragk_aRk11NE12OEDGvDiX9ExUg':   # OK
+    # if dir=='sfragk_gHYT96ReT3-QxTcvjcKzrQ':  # OK
+    # if dir=='sfragk_zBwyi8fu8In5rLu7RBtLJw':  # OK
     # if dir=='sfragk_xq9Z9Dw1YU8KQiBu-A5sQg':  #OK
+    # if dir=='sfragk_sE5OozGPbCemJxLJyoS89w':  # seems ok !
+    # if dir=='sfragk_vshrdVf9pfFBvWQ5YfrnYg':  # ##s ?
+    if dir=='sfragk_R__ngzvVl5L22epgFVZOkA':  # ##s instead of __s, wrong node state (no ??)
+    # if dir=='sfragk_iLu0q1CbVgoDFLVhh5NGNw': # diaforetiko me tou foti
 
         os.chdir(dir)
         yamlstream1=open(homepath+'qt/pbsnodes.yaml', 'a')
@@ -784,7 +754,6 @@ else:
                 for element in wnpropertieslst:
                     if type(element) == tuple:  #everytime there is a job:
                         HAS_JOBS+=1
-                        # print 'wndic[nodenr][%r] is tuple' %i
                         core, job = element[0], element[1]
                         CpucoreDic['Cpu'+str(core)+'line']+=str(IdOfUnixAccount[UserOfJobId[job]])
                         MaxNPlstTmp.remove(core)
@@ -792,7 +761,6 @@ else:
                         s = set(MaxcorelstTmp)
                         UnusedAndDeclaredlst = [x for x in MaxNPlstTmp if x not in s]
                 
-                #print MaxNPlstTmp                 #disabled it 8/7/12
                 if HAS_JOBS != ownNP:
                     #for core in UnusedAndDeclaredlst:
                     #    CpucoreDic['Cpu'+str(core)+'line']+='#'
