@@ -81,7 +81,7 @@ RemapNr = 0
 NodeInitials = set()
 OutputDirs = []
 statelst = []
-maxcores = 0
+HighestCoreBusy = 0
 # qstatqdic={} # fainetai na xrisimopoieitai mono mia fora, xrisimopoiw to qstatqLst instead
 AllWNs, AllWNsRemapped={}, {}
 dname = ''
@@ -207,9 +207,9 @@ def read_pbsnodes_yaml(fin):
     '''
     extracts highest node number, online nodes
     '''
-    global ExistingNodes, NonExistingNodes, OfflineDownNodes, LastWN, BigJobList, jobseries, BiggestWrittenNode, WNList, WNListRemapped, NodeNr, TotalCores, CoreOfJob, AllWNs, AllWNsRemapped, maxcores, MaxNP, statelst, NodeInitials, RemapNr
+    global ExistingNodes, NonExistingNodes, OfflineDownNodes, LastWN, BigJobList, jobseries, BiggestWrittenNode, WNList, WNListRemapped, NodeNr, TotalCores, CoreOfJob, AllWNs, AllWNsRemapped, HighestCoreBusy, MaxNP, statelst, NodeInitials, RemapNr
 
-    maxcores = 0
+    # HighestCoreBusy = 0
     MaxNP = 0
     state = ''
     county = 0
@@ -262,8 +262,8 @@ def read_pbsnodes_yaml(fin):
         elif 'core: ' in line:
             # case = 4            
             core = line.split(': ')[1].strip()
-            if int(core)>int(maxcores):
-                maxcores = int(core)
+            if int(core)>int(HighestCoreBusy):
+                HighestCoreBusy = int(core)
         elif 'job: ' in line:
             # case = 5            
             job = str(line.split(': ')[1]).strip()
@@ -273,7 +273,7 @@ def read_pbsnodes_yaml(fin):
 
     statelst = list(state)
     LastWN = BiggestWrittenNode
-    maxcores += 1
+    HighestCoreBusy += 1
 
     '''
     fill in invisible WN nodes with '?'   14/5
@@ -370,16 +370,15 @@ OutputDirs += glob.glob('fotis*')
 
 
 for dir in OutputDirs:
-    # if dir == 'fotistestfiles': # OK
+    if dir == 'fotistestfiles': # OK
     # if dir == 'sfragk_tEbjFj59gTww0f46jTzyQA':  # implement clip/masking functionality !! OK
     # if dir == 'sfragk_sDNCrWLMn22KMDBH_jboLQ':  # OK
     # if dir == 'sfragk_aRk11NE12OEDGvDiX9ExUg':   # OK
     # if dir == 'sfragk_gHYT96ReT3-QxTcvjcKzrQ':  # OK
     # if dir == 'sfragk_zBwyi8fu8In5rLu7RBtLJw':  # OK
-    # if dir == 'sfragk_xq9Z9Dw1YU8KQiBu-A5sQg':  # OK
     # if dir == 'sfragk_sE5OozGPbCemJxLJyoS89w':  # seems ok !
-    # if dir == 'sfragk_vshrdVf9pfFBvWQ5YfrnYg':  # ##s ?
-    if dir == 'sfragk_R__ngzvVl5L22epgFVZOkA':  # ##s instead of __s, wrong node state (no ??)
+    # if dir == 'sfragk_vshrdVf9pfFBvWQ5YfrnYg':  # _#_####s ?
+    # if dir == 'sfragk_R__ngzvVl5L22epgFVZOkA':  # ##s instead of __s, wrong node state (no ??)
     # if dir == 'sfragk_iLu0q1CbVgoDFLVhh5NGNw': # diaforetiko me tou foti
 
         os.chdir(dir)
@@ -691,118 +690,119 @@ for cnt, i in enumerate(flatjoblist):
 
 ### CPU lines working !!
 CPUCoreDic={}
-MaxNPlst = []
-Maxcorelst = [str(i) for i in range(maxcores)]
-UnusedAndDeclaredlst = []
+MaxNPRange = []
+
+HighestCoreBusyRange = [str(i) for i in range(HighestCoreBusy)]
+UnusedYetAvailableCoresLst = []
 for i in range(MaxNP):
     CPUCoreDic['Cpu'+str(i)+'line']=''      # Cpu0line, Cpu1line, Cpu2line, .. = '','','', ..
-    MaxNPlst.append(str(i))
+    MaxNPRange.append(str(i))
+
 
 if len(NodeInitials) > 1:
-    for NodeNr, WNPropertiesLst in zip(AllWNsRemapped.keys(), AllWNsRemapped.values()):
-        MaxNPlstTmp = MaxNPlst[:] # ( ???? )
-        MaxcorelstTmp = Maxcorelst[:] # ( ???? )
-        if WNPropertiesLst == '?':
+    for WnNr, WNProperties in zip(AllWNsRemapped.keys(), AllWNsRemapped.values()):
+        MaxNonBusyCores = MaxNPRange[:] # ( ???? )
+        ActualNonBusyCores = HighestCoreBusyRange[:] # ( ???? )
+        if WNProperties[0] == '?':
             for CPULine in CPUCoreDic:
                 CPUCoreDic[CPULine] += '_'
-        elif len(WNPropertiesLst) == 1:
+        elif len(WNProperties) == 1:
             for CPULine in CPUCoreDic:
                 CPUCoreDic[CPULine] += '_'
         else:
             HAS_JOBS = 0
-            OwnNP = WNPropertiesLst[1]
+            OwnNP = WNProperties[1]
             OwnNP = int(OwnNP)
-            for element in WNPropertiesLst:
+            for element in WNProperties:
                 if type(element) == tuple:  # everytime there is a job:
                     HAS_JOBS += 1
                     # print 'AllWNs[NodeNr][%r] is tuple' %i
                     Core, job = element[0], element[1]
                     CPUCoreDic['Cpu'+str(Core)+'line']+=str(IdOfUnixAccount[UserOfJobId[job]])
-                    MaxNPlstTmp.remove(Core)
-                    MaxcorelstTmp.remove(Core)
-                    s = set(MaxcorelstTmp)
-                    UnusedAndDeclaredlst = [x for x in MaxNPlstTmp if x not in s]
+                    MaxNonBusyCores.remove(Core)
+                    ActualNonBusyCores.remove(Core)
+                    s = set(ActualNonBusyCores)
+                    UnusedYetAvailableCoresLst = [x for x in MaxNonBusyCores if x not in s]
             
-            # print MaxNPlstTmp                 # disabled it 8/7/12
+            # print MaxNonBusyCores                 # disabled it 8/7/12
             if HAS_JOBS != OwnNP:
-                # for core in UnusedAndDeclaredlst:
+                # for core in UnusedYetAvailableCoresLst:
                 #     CPUCoreDic['Cpu'+str(core)+'line'] += '#'
-                #     UnusedAndDeclaredlst.remove(core)
-                for Core in MaxcorelstTmp:
+                #     UnusedYetAvailableCoresLst.remove(core)
+                for Core in ActualNonBusyCores:
                     CPUCoreDic['Cpu'+str(Core)+'line'] += '_'
         
             if OwnNP < MaxNP:
-                for Core in UnusedAndDeclaredlst:
+                for Core in UnusedYetAvailableCoresLst:
                     CPUCoreDic['Cpu'+str(Core)+'line'] += '#'
             elif OwnNP == MaxNP:
-                for Core in UnusedAndDeclaredlst:
+                for Core in UnusedYetAvailableCoresLst:
                     CPUCoreDic['Cpu'+str(Core)+'line'] += '_'
 
 elif len(NodeInitials) == 1:                
-    for NodeNr, WNPropertiesLst in zip(AllWNs.keys(), AllWNs.values()):
-            MaxNPlstTmp = MaxNPlst[:] # ( ???? )
-            MaxcorelstTmp = Maxcorelst[:] # ( ???? )
-            if WNPropertiesLst == '?':
+    for _, WNProperties in zip(AllWNs.keys(), AllWNs.values()):
+            Busy = []
+            MaxNonBusyCores = MaxNPRange[:] # ( ???? )
+            ActualNonBusyCores = HighestCoreBusyRange[:] # if the highest core used is e.g. 2, then this list is [0, 1, 2]
+            
+            if WNProperties[0] == '?':    # if WN just doesn't exist, 
                 for CPULine in CPUCoreDic:
-                    CPUCoreDic[CPULine] += '_'
-            elif len(WNPropertiesLst) == 1:
-                for CPULine in CPUCoreDic:
-                    CPUCoreDic[CPULine] += '_'
-            else:
+                    CPUCoreDic[CPULine] += '_'    # add a column of underscores
+            # The following is obsolete, I think!
+            # elif len(WNProperties) == 1:
+            #     for CPULine in CPUCoreDic:
+            #         CPUCoreDic[CPULine] += '_'
+
+            else:     # if WN exists
                 HAS_JOBS = 0
-                OwnNP = WNPropertiesLst[1]
-                OwnNP = int(OwnNP)
-                for element in WNPropertiesLst:
+                OwnNP = int(WNProperties[1])
+                OwnNPRange = [ str(x) for x in range(OwnNP)]
+                OwnNPEmptyRange = [ str(x) for x in range(OwnNP)]
+
+                for element in WNProperties[2:]:
                     if type(element) == tuple:  #everytime there is a job:
                         HAS_JOBS += 1
                         Core, job = element[0], element[1]
                         CPUCoreDic['Cpu'+str(Core)+'line'] += str(IdOfUnixAccount[UserOfJobId[job]])
-                        MaxNPlstTmp.remove(Core)
-                        MaxcorelstTmp.remove(Core)
-                        s = set(MaxcorelstTmp)
-                        UnusedAndDeclaredlst = [x for x in MaxNPlstTmp if x not in s]
-                
-                if HAS_JOBS != OwnNP:
-                    # for Core in UnusedAndDeclaredlst:
-                    #     CPUCoreDic['Cpu'+str(Core)+'line']+='#'
-                    #     UnusedAndDeclaredlst.remove(Core)
-                    for Core in MaxcorelstTmp:
-                        CPUCoreDic['Cpu'+str(Core)+'line'] += '_'
+                        Busy.extend(Core)
+                        OwnNPEmptyRange.remove(Core)
+                        MaxNonBusyCores.remove(Core)
+                        ActualNonBusyCores.remove(Core)
+                        s = set(ActualNonBusyCores)
+                        UnusedYetAvailableCoresLst = [x for x in MaxNonBusyCores if x not in s]
+                BusyAndEmpty = set(OwnNPEmptyRange+Busy)
+                BusyAndEmpty = list(BusyAndEmpty)
+                BusyAndEmpty.sort()
+
+                NonExistentCores = [item for item in MaxNPRange if item not in OwnNPRange]        
+                # print 'OwnNPEmptyRange is: ', OwnNPEmptyRange
+                # print 'NonExistentCores are: ', NonExistentCores
+                # print 'BusyAndEmpty is: ', BusyAndEmpty
+                # print 'MaxNPRange is: ', MaxNPRange
+
+                for core in OwnNPEmptyRange:                        
+                    CPUCoreDic['Cpu'+str(core)+'line'] += '_'
+                for core in NonExistentCores:                        
+                    CPUCoreDic['Cpu'+str(core)+'line'] += '#'
+                # print CPUCoreDic['Cpu0line']
+                # if HAS_JOBS != OwnNP:
+                #     # for Core in UnusedYetAvailableCoresLst:
+                #     #     CPUCoreDic['Cpu'+str(Core)+'line']+='#'
+                #     #     UnusedYetAvailableCoresLst.remove(Core)
+                #     for Core in ActualNonBusyCores:
+                #         CPUCoreDic['Cpu'+str(Core)+'line'] += '_'
             
-                if OwnNP < MaxNP:
-                    for Core in UnusedAndDeclaredlst:
-                        CPUCoreDic['Cpu'+str(Core)+'line'] += '#'
-                elif OwnNP == MaxNP:
-                    for Core in UnusedAndDeclaredlst:
-                        CPUCoreDic['Cpu'+str(Core)+'line'] += '_'
-                else:
-                    print 'no SHIT!!'
+                # if OwnNP < MaxNP:
+                #     for Core in UnusedYetAvailableCoresLst:
+                #         CPUCoreDic['Cpu'+str(Core)+'line'] += '#'
+                # elif OwnNP == MaxNP:
+                #     for Core in UnusedYetAvailableCoresLst:
+                #         CPUCoreDic['Cpu'+str(Core)+'line'] += '_'
+                # else:
+                #     print 'no SHIT!!'
 
 
 
-# for cnt, state in enumerate(stateafterstr, 1):
-#     '''
-#     For each node, traverse the cores and jobs active, and add the respective Unix IDs to each of the CPUx lines
-#     '''
-#     if state == '?':
-#         for CPULine in CPUCoreDic:
-#             CPUCoreDic[CPULine] += '?'
-#     Maxcorelst2 = Maxcorelst[:]
-#     for core, job in zip(big[cnt]['core'], big[cnt]['job']):
-#         '''
-#         CPUCoreDic['Cpu1line'] += '8'
-#         '''
-#         if core in Maxcorelst2:
-#             Maxcorelst2.remove(core)
-#         CPUCoreDic['Cpu'+str(core)+'line'] += str(IdOfUnixAccount[UserOfJobId[job]])
-#         # CPUCoreDic['Cpu'+str(unused)+'line'] += '_'
-        
-#     for unused in Maxcorelst2:
-#         CPUCoreDic['Cpu'+str(unused)+'line'] += '_'
-
-#CpucoreList = []
-# sorted(d.items(), key = itemgetter(1))
-# CpucoreList.sort(CPUCoreDic.items(), key = itemgetter(3), reverse = True)
 for ind, k in enumerate(CPUCoreDic):
     # print CPUCoreDic[k]+'=CPU'+str(ind)
     print CPUCoreDic['Cpu'+str(ind)+'line'][beginprint:]+'=CPU'+str(ind)
