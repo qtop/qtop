@@ -2,7 +2,7 @@
 
 ################################################
 #                                              #
-#              qtop v.0.2.4                    #
+#              qtop v.0.2.5                    #
 #                                              #
 #     Licensed under MIT-GPL licenses          #
 #                                              #
@@ -14,7 +14,10 @@
 
 changelog:
 =========
+0.2.5: Working Cores added in Usage Totals
 0.2.4: implemented some stuff from PEP8
+       un-hardwired the file paths
+       refactored code around CPUCoreDic functionality (responsible for drawing the map)
 0.2.3: corrected regex search pattern in make_qstat to recognize usernames like spec101u1 (number followed by number followed by letter)
        now handles non-uniform setups
        R+Q / all: all did not display everything (E status)
@@ -47,18 +50,15 @@ import os
 import re
 import sys
 import yaml
-# from readpbsyaml import *
-
-# savedir = '~/qtop-input/results'
-# savedir = os.path.expanduser(savedir)
 
 HOMEPATH = os.path.expanduser('~/')
 OUTPUTPATH = os.path.expanduser('~/qtop-input/outputs/')
 QTOPPATH = os.path.expanduser('~/qtop/qtop')
 PROGDIR = os.path.expanduser('~/off/qtop')
+# SAVEDIR = os.path.expanduser('~/qtop-input/results')
 
 
-# Files location
+# Location of read and created files 
 
 PBSNODES_ORIG_FILE = 'pbsnodes.out'
 QSTATQ_ORIG_FILE = 'qstat-q.out'
@@ -71,9 +71,9 @@ QSTAT_YAML_FILE = HOMEPATH + 'qt/qstat.yaml'
 
 
 
-# if not os.path.exists(savedir):
-#     cmd = 'mkdir '+savedir
-#     fp = os.popen(cmd)   # execute cmd 'mkdir /home/sfragk/qtop-input/results'
+# if not os.path.exists(SAVEDIR):
+#     cmd = 'mkdir '+SAVEDIR
+#     fp = os.popen(cmd)   # create dir ~/qtop-input/results if it doesn't exist already
 
 CLIPPING = True
 RMWARNING = '=== WARNING: --- Remapping WN names and retrying heuristics... good luck with this... ---'
@@ -82,7 +82,6 @@ NodeInitials = set()
 OutputDirs = []
 statelst = []
 HighestCoreBusy = 0
-# qstatqdic={} # fainetai na xrisimopoieitai mono mia fora, xrisimopoiw to qstatqLst instead
 AllWNs, AllWNsRemapped={}, {}
 dname = ''
 BiggestWrittenNode = 0
@@ -90,7 +89,7 @@ WNList, WNListRemapped = [], []
 NodeNr = ''
 LastWN = 0
 ExistingNodes, NonExistingNodes, OfflineDownNodes = 0, [], 0
-TotalCores = 0
+TotalCores, WorkingCores = 0, 0
 QueueName, Mem, CPUtime, Walltime, Node, Run, Queued, Lm, State, TotalRuns, TotalQueues = 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 # for readQstatQ
 Jobid, Jobnr, CEname, Name, User, TimeUse, S, Queue = 0, 0,'','','','','','' # for readQstat
 qstatqLst, qstatLst = [],[]
@@ -207,7 +206,7 @@ def read_pbsnodes_yaml(fin):
     '''
     extracts highest node number, online nodes
     '''
-    global ExistingNodes, NonExistingNodes, OfflineDownNodes, LastWN, BigJobList, jobseries, BiggestWrittenNode, WNList, WNListRemapped, NodeNr, TotalCores, CoreOfJob, AllWNs, AllWNsRemapped, HighestCoreBusy, MaxNP, statelst, NodeInitials, RemapNr
+    global ExistingNodes, NonExistingNodes, OfflineDownNodes, LastWN, BigJobList, jobseries, BiggestWrittenNode, WNList, WNListRemapped, NodeNr, TotalCores, WorkingCores, CoreOfJob, AllWNs, AllWNsRemapped, HighestCoreBusy, MaxNP, statelst, NodeInitials, RemapNr
 
     # HighestCoreBusy = 0
     MaxNP = 0
@@ -262,6 +261,7 @@ def read_pbsnodes_yaml(fin):
         elif 'core: ' in line:
             # case = 4            
             core = line.split(': ')[1].strip()
+            WorkingCores+=1
             if int(core)>int(HighestCoreBusy):
                 HighestCoreBusy = int(core)
         elif 'job: ' in line:
@@ -294,7 +294,6 @@ def read_pbsnodes_yaml(fin):
     WNListRemapped.sort()
     diff = 0
 
-    
 def make_qstatq(fin, fout):
     global QueueName, Mem, CPUtime, Walltime, Node, Run, Queued, Lm, State, TotalRuns, TotalQueues, qstatqLst
     """
@@ -308,8 +307,7 @@ def make_qstatq(fin, fout):
         if re.search(Queuesearch, line) is not None:
             m = re.search(Queuesearch, line)
             _, QueueName, Mem, CPUtime, Walltime, Node, Run, Queued, Lm, State = m.group(0), m.group(1), m.group(2), m.group(3), m.group(4), m.group(5), m.group(6), m.group(7), m.group(8), m.group(9)
-            qstatqLst.append((QueueName, Run, Queued, Lm, State))   # which one to keep?  # remember to move to ReadQstatQ
-            # qstatqdic[QueueName] = [(Run, Queued, Lm, State)]    # which one to keep?  # remember to move to ReadQstatQ
+            qstatqLst.append((QueueName, Run, Queued, Lm, State))
             fout.write('- QueueName: ' + QueueName +'\n')
             fout.write('  Running: ' + Run +'\n')
             fout.write('  Queued: ' + Queued +'\n')
@@ -370,16 +368,18 @@ OutputDirs += glob.glob('fotis*')
 
 
 for dir in OutputDirs:
-    if dir == 'fotistestfiles': # OK
+    # if dir == 'fotistestfiles': # OK
     # if dir == 'sfragk_tEbjFj59gTww0f46jTzyQA':  # implement clip/masking functionality !! OK
     # if dir == 'sfragk_sDNCrWLMn22KMDBH_jboLQ':  # OK
     # if dir == 'sfragk_aRk11NE12OEDGvDiX9ExUg':   # OK
     # if dir == 'sfragk_gHYT96ReT3-QxTcvjcKzrQ':  # OK
     # if dir == 'sfragk_zBwyi8fu8In5rLu7RBtLJw':  # OK
     # if dir == 'sfragk_sE5OozGPbCemJxLJyoS89w':  # seems ok !
-    # if dir == 'sfragk_vshrdVf9pfFBvWQ5YfrnYg':  # _#_####s ?
-    # if dir == 'sfragk_R__ngzvVl5L22epgFVZOkA':  # ##s instead of __s, wrong node state (no ??)
+    # if dir == 'sfragk_vshrdVf9pfFBvWQ5YfrnYg':  # OK
+    # if dir == 'sfragk_R__ngzvVl5L22epgFVZOkA':  # OK
     # if dir == 'sfragk_iLu0q1CbVgoDFLVhh5NGNw': # diaforetiko me tou foti
+    if dir == 'sfragk_qWU7q3Y9qb2knm-bgb_O1Q':  # OK
+
 
         os.chdir(dir)
         yamlstream1 = open(PBSNODES_YAML_FILE, 'a')
@@ -454,7 +454,7 @@ if len(NodeInitials) > 1:
     print RMWARNING
 print 'PBS report tool. Please try: watch -d ' + QTOPPATH +'. All bugs added by sfranky@gmail.com. Cross fingers now...\n'
 print '===> Job accounting summary <=== (Rev: 3000 $) %s WORKDIR = to be added\n' % (datetime.datetime.today())
-print 'Usage Totals:\t%s/%s\t Nodes | x/%s\t Cores |\t %s+%s\t jobs (R+Q) reported by qstat -q' %(ExistingNodes-OfflineDownNodes, ExistingNodes, TotalCores, int(TotalRuns), int(TotalQueues) )
+print 'Usage Totals:\t%s/%s\t Nodes | %s/%s\t Cores |\t %s+%s\t jobs (R+Q) reported by qstat -q' %(ExistingNodes-OfflineDownNodes, ExistingNodes, WorkingCores,TotalCores, int(TotalRuns), int(TotalQueues) )
 # print 'Queues: | '+elem[0]+': '+elem[1]+'+'+elem[2]+' \n' % [elem[0] for elem in qstatqLst], [elem[1] for elem in qstatqLst], [elem[2] for elem in qstatqLst]
 print 'Queues: | ',
 for i in qstatqLst:
@@ -466,26 +466,24 @@ print '===> Worker Nodes occupancy <=== (you can read vertically the node IDs; n
 # prints the worker node ID number lines
 
 
-if len(NodeInitials)> 1:
-    if RemapNr < 10:
-        unit = str(RemapNr)[0]
-    elif RemapNr < 100:
-        dec = str(RemapNr)[0]
-        unit = str(RemapNr)[1]
-    elif RemapNr < 1000:
-        cent = int(str(RemapNr)[0])
-        dec = int(str(RemapNr)[1])
-        unit = int(str(RemapNr)[2])
-else:
-    if LastWN < 10:
-        unit = str(LastWN)[0]
-    elif LastWN < 100:
-        dec = str(LastWN)[0]
-        unit = str(LastWN)[1]
-    elif LastWN < 1000:
-        cent = int(str(LastWN)[0])
-        dec = int(str(LastWN)[1])
-        unit = int(str(LastWN)[2])    
+def number_WNs(WNnumber):
+    global unit, dec, cent
+    if WNnumber < 10:
+        unit = str(WNnumber)[0]
+    elif WNnumber < 100:
+        dec = str(WNnumber)[0]
+        unit = str(WNnumber)[1]
+    elif WNnumber < 1000:
+        cent = int(str(WNnumber)[0])
+        dec = int(str(WNnumber)[1])
+        unit = int(str(WNnumber)[2])
+
+
+if len(NodeInitials) > 1:
+    number_WNs(RemapNr)
+elif len(NodeInitials) == 1:
+    number_WNs(LastWN)
+  
 
 c, d, d_, u = '','','',''
 beginprint = 0
@@ -577,20 +575,8 @@ elif len(NodeInitials) > 1:
 ###################################################
 
 
-# 14/6  alternative solution for extra 'invisible' WNs
-yamlstream = open(HOMEPATH+'qt/pbsnodes.yaml', 'r')
-# statebeforeUnsorted = statelst               # get_state(yamlstream)
-# if NonExistingNodes:
-#     for nonex in NonExistingNodes:
-#         statebeforeUnsorted.insert(nonex-1,'?')
-#         # stateafter = statebeforeUnsorted[:NonExistingNodes[0]-1]+'?'+statebeforeUnsorted[NonExistingNodes[0]-1:]
-#         stateafter = statebeforeUnsorted
-# else:
-#     stateafter = statebeforeUnsorted
+yamlstream = open(PBSNODES_YAML_FILE, 'r')
 
-# stateafterstr = ''
-# for i in stateafter:    # or stateafterstr = ''.join(stateafter)
-#     stateafterstr += i
 
 
 stateafterstr = ''
@@ -612,7 +598,7 @@ JobIds = []
 UnixAccounts = []
 Ss = []
 Queues = []
-finr = open(HOMEPATH+'qt/qstat.yaml', 'r')
+finr = open(QSTAT_YAML_FILE, 'r')
 for line in finr:
     if line.startswith('JobId:'):
         JobIds.append(line.split()[1])
@@ -628,20 +614,10 @@ for line in finr:
         # Queues.append(line.split()[2])
 finr.close()
 
-# antistoixisi unix account me to jobid tou
+# matching of unix account to its jobid
 User2JobDic={}
 for user, jobid in zip(UnixAccounts, JobIds):
     User2JobDic[jobid] = user
-
-'''
-yamlstream = open(HOMEPATH+'qt/pbsnodes.yaml', 'r')
-statebeforeUnsorted = get_state(yamlstream)
-stateafter = statebeforeUnsorted[:nonodes[0]-1]+'?'+statebeforeUnsorted[nonodes[0]-1:]
-for i in range(1, len(nonodes)):
-    stateafter = stateafter[:nonodes[i]-1]+'?'+stateafter[nonodes[i]-1:]
-print stateafter+'=Node state'
-'''
-
 
 # solution for counting R, Q, C attached to each user
 UserRunningDic, UserQueuedDic, UserCancelledDic, UserWaitingDic, UserEDic = {}, {}, {}, {}, {}
@@ -664,11 +640,11 @@ for account in UserRunningDic:
     UserWaitingDic.setdefault(account, 0)
     UserEDic.setdefault(account, 0)
 
-occurencedic={}
+OccurenceDic={}
 for user in UnixAccounts:
-    occurencedic[user] = UnixAccounts.count(user)
+    OccurenceDic[user] = UnixAccounts.count(user)
 
-Usersortedlst = sorted(occurencedic.items(), key = itemgetter(1), reverse = True)
+Usersortedlst = sorted(OccurenceDic.items(), key = itemgetter(1), reverse = True)
 
 
 # IdOfUnixAccount = {}
@@ -688,94 +664,57 @@ for cnt, i in enumerate(flatjoblist):
     flatjoblist2.append((flatjoblist[cnt]['core'], flatjoblist[cnt]['job']))
 
 
-### CPU lines working !!
+### CPU lines ######################################
 CPUCoreDic={}
 MaxNPRange = []
 
-HighestCoreBusyRange = [str(i) for i in range(HighestCoreBusy)]
-UnusedYetAvailableCoresLst = []
 for i in range(MaxNP):
     CPUCoreDic['Cpu'+str(i)+'line']=''      # Cpu0line, Cpu1line, Cpu2line, .. = '','','', ..
     MaxNPRange.append(str(i))
 
-
-if len(NodeInitials) > 1:
-    for _, WNProperties in zip(AllWNsRemapped.keys(), AllWNsRemapped.values()):
-        MaxNonBusyCores = MaxNPRange[:] # ( ???? )
-        ActualNonBusyCores = HighestCoreBusyRange[:] # ( ???? )
-        if WNProperties[0] == '?':
-            for CPULine in CPUCoreDic:
-                CPUCoreDic[CPULine] += '_'
-        elif len(WNProperties) == 1:
-            for CPULine in CPUCoreDic:
-                CPUCoreDic[CPULine] += '_'
-        else:
-            HAS_JOBS = 0
-            OwnNP = WNProperties[1]
-            OwnNP = int(OwnNP)
-            for element in WNProperties:
-                if type(element) == tuple:  # everytime there is a job:
-                    HAS_JOBS += 1
-                    # print 'AllWNs[NodeNr][%r] is tuple' %i
-                    Core, job = element[0], element[1]
-                    CPUCoreDic['Cpu'+str(Core)+'line']+=str(IdOfUnixAccount[UserOfJobId[job]])
-                    MaxNonBusyCores.remove(Core)
-                    ActualNonBusyCores.remove(Core)
-                    s = set(ActualNonBusyCores)
-                    UnusedYetAvailableCoresLst = [x for x in MaxNonBusyCores if x not in s]
-            
-            # print MaxNonBusyCores                 # disabled it 8/7/12
-            if HAS_JOBS != OwnNP:
-                for Core in ActualNonBusyCores:
-                    CPUCoreDic['Cpu'+str(Core)+'line'] += '_'
+def fill_cpucore_columns(value,CPUDic):
+    '''
+    Calculates the actual contents of the map by filling in a status string for each CPU line
+    '''
+    Busy = []
         
-            if OwnNP < MaxNP:
-                for Core in UnusedYetAvailableCoresLst:
-                    CPUCoreDic['Cpu'+str(Core)+'line'] += '#'
-            elif OwnNP == MaxNP:
-                for Core in UnusedYetAvailableCoresLst:
-                    CPUCoreDic['Cpu'+str(Core)+'line'] += '_'
+    if value[0] == '?':
+        for CPULine in CPUDic:
+            CPUDic[CPULine] += '_'
+    else:
+        HAS_JOBS = 0
+        OwnNP = int(value[1])
+        OwnNPRange = [ str(x) for x in range(OwnNP)]
+        OwnNPEmptyRange = [ str(x) for x in range(OwnNP)]
+        
+        for element in value[2:]:
+            if type(element) == tuple:  # everytime there is a job:
+                HAS_JOBS += 1
+                Core, job = element[0], element[1]
+                CPUDic['Cpu'+str(Core)+'line']+=str(IdOfUnixAccount[UserOfJobId[job]])
+                Busy.extend(Core)
+                OwnNPEmptyRange.remove(Core)
 
-elif len(NodeInitials) == 1:                
+        NonExistentCores = [item for item in MaxNPRange if item not in OwnNPRange]        
+
+        for core in OwnNPEmptyRange:                        
+            CPUDic['Cpu'+str(core)+'line'] += '_'
+        for core in NonExistentCores:                        
+                CPUDic['Cpu'+str(core)+'line'] += '#'
+
+
+if len(NodeInitials) == 1:                
     for _, WNProperties in zip(AllWNs.keys(), AllWNs.values()):
-            Busy = []
-            MaxNonBusyCores = MaxNPRange[:] # ( ???? )
-            ActualNonBusyCores = HighestCoreBusyRange[:] # if the highest core used is e.g. 2, then this list is [0, 1, 2]
-            
-            if WNProperties[0] == '?':    # if WN just doesn't exist, 
-                for CPULine in CPUCoreDic:
-                    CPUCoreDic[CPULine] += '_'    # add a column of underscores
-
-            else:     # if WN exists
-                HAS_JOBS = 0
-                OwnNP = int(WNProperties[1])
-                OwnNPRange = [ str(x) for x in range(OwnNP)]
-                OwnNPEmptyRange = [ str(x) for x in range(OwnNP)]
-
-                for element in WNProperties[2:]:
-                    if type(element) == tuple:  #everytime there is a job:
-                        HAS_JOBS += 1
-                        Core, job = element[0], element[1]
-                        CPUCoreDic['Cpu'+str(Core)+'line'] += str(IdOfUnixAccount[UserOfJobId[job]])
-                        Busy.extend(Core)
-                        OwnNPEmptyRange.remove(Core)
-                        MaxNonBusyCores.remove(Core)
-                        ActualNonBusyCores.remove(Core)
-                        s = set(ActualNonBusyCores)
-                        UnusedYetAvailableCoresLst = [x for x in MaxNonBusyCores if x not in s]
-
-                NonExistentCores = [item for item in MaxNPRange if item not in OwnNPRange]        
-
-                for core in OwnNPEmptyRange:                        
-                    CPUCoreDic['Cpu'+str(core)+'line'] += '_'
-                for core in NonExistentCores:                        
-                    CPUCoreDic['Cpu'+str(core)+'line'] += '#'
+        fill_cpucore_columns(WNProperties, CPUCoreDic)
+elif len(NodeInitials) > 1:
+    for _, WNProperties in zip(AllWNsRemapped.keys(), AllWNsRemapped.values()):
+        fill_cpucore_columns(WNProperties, CPUCoreDic)
 
 for ind, k in enumerate(CPUCoreDic):
     # print CPUCoreDic[k]+'=CPU'+str(ind)
     print CPUCoreDic['Cpu'+str(ind)+'line'][beginprint:]+'=CPU'+str(ind)
 
-
+####################################################
 
 print '\n'
 print '===> User accounts and pool mappings <=== ("all" includes those in C and W states, as reported by qstat)'
@@ -810,7 +749,5 @@ for line in AccountsMappings:
 
 
 os.chdir(QTOPPATH)
-# print NodeInitials
-# print RemapNr
 
 print 'Thanks for watching!'
