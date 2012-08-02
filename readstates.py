@@ -15,6 +15,7 @@
 changelog:
 =========
 0.2.5: Working Cores added in Usage Totals
+       Feature added: map now splits into two if terminal width is smaller than the Worker Node number
 0.2.4: implemented some stuff from PEP8
        un-hardwired the file paths
        refactored code around CPUCoreDic functionality (responsible for drawing the map)
@@ -50,6 +51,8 @@ import os
 import re
 import sys
 import yaml
+
+
 
 HOMEPATH = os.path.expanduser('~/')
 OUTPUTPATH = os.path.expanduser('~/qtop-input/outputs/')
@@ -97,7 +100,6 @@ BigJobList = []
 UserOfJobId={}
 CoreOfJob={}
 IdOfUnixAccount={}
-
 AccountsMappings = []
 
 def write_to_separate(filename1, filename2):
@@ -112,6 +114,9 @@ def write_to_separate(filename1, filename2):
             fout.write(line.split(':', 1)[1])
     fin.close() 
 
+
+termrows, termcolumns = os.popen('stty size', 'r').read().split()
+termcolumns= int(termcolumns)
 
 '''
 def get_state(fin):     # yamlstream
@@ -369,6 +374,7 @@ OutputDirs += glob.glob('fotis*')
 
 for dir in OutputDirs:
     # if dir == 'fotistestfiles': # OK
+    if dir == 'sfragk_iLu0q1CbVgoDFLVhh5NGNw': # diaforetiko me tou foti
     # if dir == 'sfragk_tEbjFj59gTww0f46jTzyQA':  # implement clip/masking functionality !! OK
     # if dir == 'sfragk_sDNCrWLMn22KMDBH_jboLQ':  # OK
     # if dir == 'sfragk_aRk11NE12OEDGvDiX9ExUg':   # OK
@@ -376,9 +382,8 @@ for dir in OutputDirs:
     # if dir == 'sfragk_zBwyi8fu8In5rLu7RBtLJw':  # OK
     # if dir == 'sfragk_sE5OozGPbCemJxLJyoS89w':  # seems ok !
     # if dir == 'sfragk_vshrdVf9pfFBvWQ5YfrnYg':  # OK
-    # if dir == 'sfragk_R__ngzvVl5L22epgFVZOkA':  # OK
-    # if dir == 'sfragk_iLu0q1CbVgoDFLVhh5NGNw': # diaforetiko me tou foti
-    if dir == 'sfragk_qWU7q3Y9qb2knm-bgb_O1Q':  # OK
+    # if dir == 'sfragk_R__ngzvVl5L22epgFVZOkA':  # OK - 4WNs, 8 hashes
+    # if dir == 'sfragk_qWU7q3Y9qb2knm-bgb_O1Q':  # OK
 
 
         os.chdir(dir)
@@ -407,6 +412,15 @@ for dir in OutputDirs:
 # os.chdir(HOMEPATH+'inp/outputs/sfragk_aRk11NE12OEDGvDiX9ExUg/')            
 # fin = open('PBSNODES_ORIG_FILE','r')            
 # ReadPbsNodes(fin, yamlstream)
+
+#Calculation of split screen size
+DeadWeight = 15
+Dx = termcolumns - BiggestWrittenNode - DeadWeight
+if Dx < 0:
+    pass #split in x+1 pieces, where x = (BiggestWrittenNode+15)/termcolumns
+    endprint = termcolumns - DeadWeight
+else:
+    endprint = None
 
 
 '''
@@ -452,6 +466,7 @@ if __name__ == "__main__":
 
 if len(NodeInitials) > 1:
     print RMWARNING
+
 print 'PBS report tool. Please try: watch -d ' + QTOPPATH +'. All bugs added by sfranky@gmail.com. Cross fingers now...\n'
 print '===> Job accounting summary <=== (Rev: 3000 $) %s WORKDIR = to be added\n' % (datetime.datetime.today())
 print 'Usage Totals:\t%s/%s\t Nodes | %s/%s\t Cores |\t %s+%s\t jobs (R+Q) reported by qstat -q' %(ExistingNodes-OfflineDownNodes, ExistingNodes, WorkingCores,TotalCores, int(TotalRuns), int(TotalQueues) )
@@ -463,9 +478,8 @@ print '* implies blocked'
 print '\n'
 print '===> Worker Nodes occupancy <=== (you can read vertically the node IDs; nodes in free state are noted with - )'
 
-# prints the worker node ID number lines
-
-
+## prints the worker node ID number lines
+###################################################
 def number_WNs(WNnumber):
     global unit, dec, cent
     if WNnumber < 10:
@@ -488,9 +502,11 @@ elif len(NodeInitials) == 1:
 c, d, d_, u = '','','',''
 beginprint = 0
 
-# if there are non-uniform WNs in pbsnodes.yaml, remapping is performed
-if len(NodeInitials) == 1:
 
+if len(NodeInitials) == 1: 
+    '''
+    For uniform WNs, i.e. all using the same numbering scheme, wn01, wn02, ...
+    '''
     if LastWN < 10:
         for node in range(LastWN):
             u += str(node+1)
@@ -499,7 +515,7 @@ if len(NodeInitials) == 1:
         d_ = '0'*9+'1'*10+'2'*10+'3'*10+'4'*10+'5'*10+'6'*10+'7'*10+'8'*10+'9'*10
         ud = '1234567890'*10
         d = d_[:LastWN]
-        print d +             '={_Worker_}'
+        print d +           '={_Worker_}'
         print ud[:LastWN] + '={__Node__}'
     elif LastWN < 1000:
         c += str(0)*99
@@ -525,11 +541,15 @@ if len(NodeInitials) == 1:
         beginprint = 0
         if (CLIPPING == True) and WNList[0]> 30:
             beginprint = WNList[0]-1
-        print c[beginprint:] + '={_Worker_}'
-        print d[beginprint:] + '={__Node__}'
-        print ua[beginprint:]+ '={___ID___}'
+        print c[beginprint:endprint] + '={_Worker_}'
+        print d[beginprint:endprint] + '={__Node__}'
+        print ua[beginprint:endprint]+ '={___ID___}'
         # todo: remember to fix < 100 cases (do i really need to, though?)
+
 elif len(NodeInitials) > 1:
+    '''
+    # if there are non-uniform WNs in pbsnodes.yaml, e.g. wn01, wn02, gn01, gn02, ...,  remapping is performed
+    '''
     if RemapNr < 10:
         for node in range(RemapNr):
             u += str(node+1)
@@ -564,15 +584,15 @@ elif len(NodeInitials) > 1:
         beginprint = 0
         if (CLIPPING == True) and WNListRemapped[0]> 30:
             beginprint = WNList[0]-1
-        print c[beginprint:] + '={_Worker_}'
-        print d[beginprint:] + '={__Node__}'
-        print ua[beginprint:]+ '={___ID___}'
-        # todo: remember to fix < 100 cases (do i really need to, though?)
+        print c[beginprint:endprint] + '={_Worker_}'
+        print d[beginprint:endprint] + '={__Node__}'
+        print ua[beginprint:endprint]+ '={___ID___}'
+            # todo: remember to fix < 100 cases (do i really need to, though?)
     
 
 
-## end of code outputting workernode id number lines
 ###################################################
+## end of code printing the worker node id number lines
 
 
 yamlstream = open(PBSNODES_YAML_FILE, 'r')
@@ -587,7 +607,7 @@ elif len(NodeInitials) > 1:
     for node in AllWNsRemapped:  # why are dictionaries ALWAYS ordered when keys are '1','5','3' etc ?!!?!?
         stateafterstr += AllWNsRemapped[node][0]
 
-print stateafterstr[beginprint:]+'=Node state'
+print stateafterstr[beginprint:endprint]+'=Node state'
 
 yamlstream.close()
 
@@ -712,10 +732,39 @@ elif len(NodeInitials) > 1:
 
 for ind, k in enumerate(CPUCoreDic):
     # print CPUCoreDic[k]+'=CPU'+str(ind)
-    print CPUCoreDic['Cpu'+str(ind)+'line'][beginprint:]+'=CPU'+str(ind)
+    print CPUCoreDic['Cpu'+str(ind)+'line'][beginprint:endprint]+'=CPU'+str(ind)
 
 ####################################################
 
+print '\n'
+print c[endprint:BiggestWrittenNode] + '={_Worker_}'
+print d[endprint:BiggestWrittenNode] + '={__Node__}'
+print ua[endprint:BiggestWrittenNode]+ '={___ID___}'
+print stateafterstr[endprint:BiggestWrittenNode]+'=Node state'
+for ind, k in enumerate(CPUCoreDic):
+    # print CPUCoreDic[k]+'=CPU'+str(ind)
+    print CPUCoreDic['Cpu'+str(ind)+'line'][endprint:BiggestWrittenNode]+'=CPU'+str(ind)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+###########################################################################################################################
 print '\n'
 print '===> User accounts and pool mappings <=== ("all" includes those in C and W states, as reported by qstat)'
 print 'id |   R +   Q / all |  unix account  | Grid certificate DN (this info is only available under elevated privileges)'
