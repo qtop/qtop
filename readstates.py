@@ -81,7 +81,7 @@ QSTAT_YAML_FILE = HOMEPATH + 'qt/qstat.yaml'
 CLIPPING = True
 RMWARNING = '=== WARNING: --- Remapping WN names and retrying heuristics... good luck with this... ---'
 RemapNr = 0
-NodeInitials = set()
+NodeSubClusters = set()
 OutputDirs = []
 statelst = []
 HighestCoreBusy = 0
@@ -102,7 +102,7 @@ CoreOfJob={}
 IdOfUnixAccount={}
 AccountsMappings = []
 
-def write_to_separate(filename1, filename2):
+def write_to_separate_files(filename1, filename2):
     '''
     writes the data from qstat, qstat-q, pbsnodes, which all reside in
     qtop-input.out, to a file with the corresponding name, first taking out the prefix in each line.
@@ -115,8 +115,7 @@ def write_to_separate(filename1, filename2):
     fin.close() 
 
 
-termrows, termcolumns = os.popen('stty size', 'r').read().split()
-termcolumns= int(termcolumns)
+
 
 '''
 def get_state(fin):     # yamlstream
@@ -211,7 +210,7 @@ def read_pbsnodes_yaml(fin):
     '''
     extracts highest node number, online nodes
     '''
-    global ExistingNodes, NonExistingNodes, OfflineDownNodes, LastWN, BigJobList, jobseries, BiggestWrittenNode, WNList, WNListRemapped, NodeNr, TotalCores, WorkingCores, CoreOfJob, AllWNs, AllWNsRemapped, HighestCoreBusy, MaxNP, statelst, NodeInitials, RemapNr
+    global ExistingNodes, NonExistingNodes, OfflineDownNodes, LastWN, BigJobList, jobseries, BiggestWrittenNode, WNList, WNListRemapped, NodeNr, TotalCores, WorkingCores, CoreOfJob, AllWNs, AllWNsRemapped, HighestCoreBusy, MaxNP, statelst, NodeSubClusters, RemapNr
 
     # HighestCoreBusy = 0
     MaxNP = 0
@@ -236,7 +235,7 @@ def read_pbsnodes_yaml(fin):
                 n = re.search(searchnodenr, dname)
                 NodeNr = int(n.group(2))
                 nodeinits = n.group(1)
-                NodeInitials.add(nodeinits)    # for non-uniform setups of WNs, eg g01... and n01...
+                NodeSubClusters.add(nodeinits)    # for non-uniform setups of WNs, eg g01... and n01...
                 AllWNs[NodeNr] = []
                 AllWNsRemapped[RemapNr] = []
                 if NodeNr > BiggestWrittenNode:
@@ -284,7 +283,7 @@ def read_pbsnodes_yaml(fin):
     fill in invisible WN nodes with '?'   14/5
     and count them
     '''
-    if len(NodeInitials) > 1:
+    if len(NodeSubClusters) > 1:
         for i in range(1, RemapNr):
             if i not in AllWNsRemapped:
                 AllWNsRemapped[i]='?'
@@ -299,7 +298,7 @@ def read_pbsnodes_yaml(fin):
     WNListRemapped.sort()
     diff = 0
 
-def make_qstatq(fin, fout):
+def make_qstatq_yaml(fin, fout):
     global QueueName, Mem, CPUtime, Walltime, Node, Run, Queued, Lm, State, TotalRuns, TotalQueues, qstatqLst
     """
     read QSTATQ_ORIG_FILE sequentially and put useful data in respective yaml file
@@ -326,7 +325,7 @@ def make_qstatq(fin, fout):
     fout.write('Total Running: ' + TotalRuns + '\n')
     fout.write('Total Queued: ' + TotalQueues + '\n')
 
-def make_qstat(fin, fout):
+def make_qstat_yaml(fin, fout):
     global Jobid, Jobnr, CEname, Name, User, TimeUse, S, Queue, Id2Unix
     """
     read QSTAT_ORIG_FILE sequentially and put useful data in respective yaml file
@@ -351,6 +350,100 @@ def make_qstat(fin, fout):
             UserOfJobId[Jobid]=User
             fout.write('...\n')
 
+def job_accounting_summary():
+    if len(NodeSubClusters) > 1: print RMWARNING
+    print 'PBS report tool. Please try: watch -d ' + QTOPPATH +'. All bugs added by sfranky@gmail.com. Cross fingers now...\n'
+    print '===> Job accounting summary <=== (Rev: 3000 $) %s WORKDIR = to be added\n' % (datetime.datetime.today())
+    print 'Usage Totals:\t%s/%s\t Nodes | %s/%s\t Cores |\t %s+%s\t jobs (R+Q) reported by qstat -q' %(ExistingNodes-OfflineDownNodes, ExistingNodes, WorkingCores, TotalCores, int(TotalRuns), int(TotalQueues) )
+    print 'Queues: | ',
+    for i in qstatqLst:
+        print i[0]+': '+i[1]+'+'+i[2]+' |',
+    print '* implies blocked'
+    print '\n'
+
+def fill_cpucore_columns(value,CPUDic):
+    '''
+    Calculates the actual contents of the map by filling in a status string for each CPU line
+    '''
+    Busy = []
+        
+    if value[0] == '?':
+        for CPULine in CPUDic:
+            CPUDic[CPULine] += '_'
+    else:
+        HAS_JOBS = 0
+        OwnNP = int(value[1])
+        OwnNPRange = [ str(x) for x in range(OwnNP)]
+        OwnNPEmptyRange = [ str(x) for x in range(OwnNP)]
+        
+        for element in value[2:]:
+            if type(element) == tuple:  # everytime there is a job:
+                HAS_JOBS += 1
+                Core, job = element[0], element[1]
+                CPUDic['Cpu'+str(Core)+'line']+=str(IdOfUnixAccount[UserOfJobId[job]])
+                Busy.extend(Core)
+                OwnNPEmptyRange.remove(Core)
+
+        NonExistentCores = [item for item in MaxNPRange if item not in OwnNPRange]        
+
+        for core in OwnNPEmptyRange:                        
+            CPUDic['Cpu'+str(core)+'line'] += '_'
+        for core in NonExistentCores:                        
+                CPUDic['Cpu'+str(core)+'line'] += '#'
+
+def number_WNs(WNnumber, wnlist):
+    '''
+    prints the worker node ID number lines
+    '''
+    global unit, dec, cent, c, d, d_, u, ua
+    if WNnumber < 10:
+        unit = str(WNnumber)[0]
+
+        for node in range(WNnumber):
+            u += str(node+1)
+        print u +'={__WNID__}'
+
+    elif WNnumber < 100:
+        dec = str(WNnumber)[0]
+        unit = str(WNnumber)[1]
+
+        d_ = '0'*9+'1'*10+'2'*10+'3'*10+'4'*10+'5'*10+'6'*10+'7'*10+'8'*10+'9'*10
+        ud = '1234567890'*10
+        d = d_[:WNnumber]
+        print d +           '={_Worker_}'
+        print ud[:WNnumber] + '={__Node__}'
+    
+    elif WNnumber < 1000:
+        cent = int(str(WNnumber)[0])
+        dec = int(str(WNnumber)[1])
+        unit = int(str(WNnumber)[2])
+
+        c += str(0)*99
+        for i in range(1, cent):
+            c += str(i)*100
+        c += str(cent)*(int(dec))*10 + str(cent)*(int(unit)+1)
+        
+        d_ = '0'*9+'1'*10+'2'*10+'3'*10+'4'*10+'5'*10+'6'*10+'7'*10+'8'*10+'9'*10
+        d = d_
+        for i in range(1, cent):
+            d += str(0)+d_
+        else:
+            d += str(0)
+        d += d_[:int(str(dec)+str(unit))]
+        
+        uc = '1234567890'*100
+        ua = uc[:WNnumber]
+
+        '''
+        masking/clipping functionality: if the earliest node number is high (e.g. 80), the first 79 WNs need not show up.
+        '''
+        beginprint = 0
+        if (CLIPPING == True) and wnlist[0]> 30:
+            beginprint = wnlist[0]-1
+        print c[beginprint:endprint] + '={_Worker_}'
+        print d[beginprint:endprint] + '={__Node__}'
+        print ua[beginprint:endprint]+ '={___ID___}'
+        # todo: remember to fix < 100 cases (do i really need to, though?)
 ############################################################################################
 
 """
@@ -374,13 +467,13 @@ OutputDirs += glob.glob('fotis*')
 
 for dir in OutputDirs:
     # if dir == 'fotistestfiles': # OK
-    if dir == 'sfragk_iLu0q1CbVgoDFLVhh5NGNw': # diaforetiko me tou foti
+    # if dir == 'sfragk_iLu0q1CbVgoDFLVhh5NGNw': # diaforetiko me tou foti
     # if dir == 'sfragk_tEbjFj59gTww0f46jTzyQA':  # implement clip/masking functionality !! OK
     # if dir == 'sfragk_sDNCrWLMn22KMDBH_jboLQ':  # OK
     # if dir == 'sfragk_aRk11NE12OEDGvDiX9ExUg':   # OK
     # if dir == 'sfragk_gHYT96ReT3-QxTcvjcKzrQ':  # OK
     # if dir == 'sfragk_zBwyi8fu8In5rLu7RBtLJw':  # OK
-    # if dir == 'sfragk_sE5OozGPbCemJxLJyoS89w':  # seems ok !
+    if dir == 'sfragk_sE5OozGPbCemJxLJyoS89w':  # seems ok !
     # if dir == 'sfragk_vshrdVf9pfFBvWQ5YfrnYg':  # OK
     # if dir == 'sfragk_R__ngzvVl5L22epgFVZOkA':  # OK - 4WNs, 8 hashes
     # if dir == 'sfragk_qWU7q3Y9qb2knm-bgb_O1Q':  # OK
@@ -398,12 +491,12 @@ for dir in OutputDirs:
         yamlstream1.close()
 
         fin2 = open(QSTATQ_ORIG_FILE, 'r')
-        make_qstatq(fin2, yamlstream2)
+        make_qstatq_yaml(fin2, yamlstream2)
         fin2.close()
         yamlstream2.close()
 
         fin3 = open(QSTAT_ORIG_FILE, 'r')
-        make_qstat(fin3, yamlstream3)
+        make_qstat_yaml(fin3, yamlstream3)
         fin3.close()
         yamlstream3.close()
 
@@ -414,11 +507,15 @@ for dir in OutputDirs:
 # ReadPbsNodes(fin, yamlstream)
 
 #Calculation of split screen size
-DeadWeight = 15
-Dx = termcolumns - BiggestWrittenNode - DeadWeight
+
+termrows, termcolumns = os.popen('stty size', 'r').read().split()
+termcolumns= int(termcolumns)
+
+DEADWEIGHT = 15 #columns on the left and right of the CPUx map
+Dx = termcolumns - (BiggestWrittenNode + DEADWEIGHT)
 if Dx < 0:
-    pass #split in x+1 pieces, where x = (BiggestWrittenNode+15)/termcolumns
-    endprint = termcolumns - DeadWeight
+    #split in x+1 pieces, where x = (BiggestWrittenNode+15)/termcolumns
+    endprint = termcolumns - DEADWEIGHT
 else:
     endprint = None
 
@@ -440,7 +537,7 @@ if __name__ == "__main__":
             # here is where each .out file is broken into 3 files
             sepFiles = ['PBSNODES_ORIG_FILE','QSTAT_ORIG_FILE','QSTATQ_ORIG_FILE']
             for sepFile in sepFiles:
-                write_to_separate(outputFile, sepFile)
+                write_to_separate_files(outputFile, sepFile)
         os.chdir('..')
 
     yfile=('PBSNODES_ORIG_FILE', 'r')
@@ -462,158 +559,128 @@ if __name__ == "__main__":
         #writeString(statefile, getst)  # need to change this as I deleted writeString. make a fin = open(statefile) etc
 '''
 
-#### QTOP  DISPLAY #######################
 
-if len(NodeInitials) > 1:
-    print RMWARNING
-
-print 'PBS report tool. Please try: watch -d ' + QTOPPATH +'. All bugs added by sfranky@gmail.com. Cross fingers now...\n'
-print '===> Job accounting summary <=== (Rev: 3000 $) %s WORKDIR = to be added\n' % (datetime.datetime.today())
-print 'Usage Totals:\t%s/%s\t Nodes | %s/%s\t Cores |\t %s+%s\t jobs (R+Q) reported by qstat -q' %(ExistingNodes-OfflineDownNodes, ExistingNodes, WorkingCores,TotalCores, int(TotalRuns), int(TotalQueues) )
-# print 'Queues: | '+elem[0]+': '+elem[1]+'+'+elem[2]+' \n' % [elem[0] for elem in qstatqLst], [elem[1] for elem in qstatqLst], [elem[2] for elem in qstatqLst]
-print 'Queues: | ',
-for i in qstatqLst:
-    print i[0]+': '+i[1]+'+'+i[2]+' |',
-print '* implies blocked'
-print '\n'
-print '===> Worker Nodes occupancy <=== (you can read vertically the node IDs; nodes in free state are noted with - )'
-
-## prints the worker node ID number lines
-###################################################
-def number_WNs(WNnumber):
-    global unit, dec, cent
-    if WNnumber < 10:
-        unit = str(WNnumber)[0]
-    elif WNnumber < 100:
-        dec = str(WNnumber)[0]
-        unit = str(WNnumber)[1]
-    elif WNnumber < 1000:
-        cent = int(str(WNnumber)[0])
-        dec = int(str(WNnumber)[1])
-        unit = int(str(WNnumber)[2])
+job_accounting_summary()
 
 
-if len(NodeInitials) > 1:
-    number_WNs(RemapNr)
-elif len(NodeInitials) == 1:
-    number_WNs(LastWN)
   
 
 c, d, d_, u = '','','',''
 beginprint = 0
 
+print '===> Worker Nodes occupancy <=== (you can read vertically the node IDs; nodes in free state are noted with - )'
 
-if len(NodeInitials) == 1: 
+if len(NodeSubClusters) == 1: 
     '''
     For uniform WNs, i.e. all using the same numbering scheme, wn01, wn02, ...
     '''
-    if LastWN < 10:
-        for node in range(LastWN):
-            u += str(node+1)
-        print u +'={__WNID__}'
-    elif LastWN < 100:
-        d_ = '0'*9+'1'*10+'2'*10+'3'*10+'4'*10+'5'*10+'6'*10+'7'*10+'8'*10+'9'*10
-        ud = '1234567890'*10
-        d = d_[:LastWN]
-        print d +           '={_Worker_}'
-        print ud[:LastWN] + '={__Node__}'
-    elif LastWN < 1000:
-        c += str(0)*99
-        for i in range(1, cent):
-            c += str(i)*100
-        c += str(cent)*(int(dec))*10 + str(cent)*(int(unit)+1)
-        
-        d_ = '0'*9+'1'*10+'2'*10+'3'*10+'4'*10+'5'*10+'6'*10+'7'*10+'8'*10+'9'*10
-        d = d_
-        for i in range(1, cent):
-            d += str(0)+d_
-        else:
-            d += str(0)
-        d += d_[:int(str(dec)+str(unit))]
-        
-        uc = '1234567890'*100
-        ua = uc[:LastWN]
+    number_WNs(LastWN, WNList)
 
-        # clipping functionality:
-        '''
-        if the earliest node number is high (e.g. 80), the first 79 WNs need not show up.
-        '''
-        beginprint = 0
-        if (CLIPPING == True) and WNList[0]> 30:
-            beginprint = WNList[0]-1
-        print c[beginprint:endprint] + '={_Worker_}'
-        print d[beginprint:endprint] + '={__Node__}'
-        print ua[beginprint:endprint]+ '={___ID___}'
-        # todo: remember to fix < 100 cases (do i really need to, though?)
+    # if LastWN < 10:
+    #     for node in range(LastWN):
+    #         u += str(node+1)
+    #     print u +'={__WNID__}'
+    # elif LastWN < 100:
+    #     d_ = '0'*9+'1'*10+'2'*10+'3'*10+'4'*10+'5'*10+'6'*10+'7'*10+'8'*10+'9'*10
+    #     ud = '1234567890'*10
+    #     d = d_[:LastWN]
+    #     print d +           '={_Worker_}'
+    #     print ud[:LastWN] + '={__Node__}'
+    # elif LastWN < 1000:
+    #     c += str(0)*99
+    #     for i in range(1, cent):
+    #         c += str(i)*100
+    #     c += str(cent)*(int(dec))*10 + str(cent)*(int(unit)+1)
+        
+    #     d_ = '0'*9+'1'*10+'2'*10+'3'*10+'4'*10+'5'*10+'6'*10+'7'*10+'8'*10+'9'*10
+    #     d = d_
+    #     for i in range(1, cent):
+    #         d += str(0)+d_
+    #     else:
+    #         d += str(0)
+    #     d += d_[:int(str(dec)+str(unit))]
+        
+    #     uc = '1234567890'*100
+    #     ua = uc[:LastWN]
 
-elif len(NodeInitials) > 1:
+    #     '''
+    #     masking/clipping functionality: if the earliest node number is high (e.g. 80), the first 79 WNs need not show up.
+    #     '''
+    #     beginprint = 0
+    #     if (CLIPPING == True) and WNList[0]> 30:
+    #         beginprint = WNList[0]-1
+    #     print c[beginprint:endprint] + '={_Worker_}'
+    #     print d[beginprint:endprint] + '={__Node__}'
+    #     print ua[beginprint:endprint]+ '={___ID___}'
+    #     # todo: remember to fix < 100 cases (do i really need to, though?)
+
+elif len(NodeSubClusters) > 1:
     '''
     # if there are non-uniform WNs in pbsnodes.yaml, e.g. wn01, wn02, gn01, gn02, ...,  remapping is performed
     '''
-    if RemapNr < 10:
-        for node in range(RemapNr):
-            u += str(node+1)
-        print u+'={__WNID__}'
-    elif RemapNr < 100:
-        d_ = '0'*9+'1'*10+'2'*10+'3'*10+'4'*10+'5'*10+'6'*10+'7'*10+'8'*10+'9'*10
-        ud = '1234567890'*10
-        d = d_[:RemapNr]
-        print d+            '={_Worker_}'
-        print ud[:RemapNr]+'={__Node__}'
-    elif RemapNr < 1000:
-        c += str(0)*99
-        for i in range(1, cent):
-            c += str(i)*100
-        c += str(cent)*dec*10 + str(cent)*(unit+1)
+    number_WNs(RemapNr, WNListRemapped)
+    # if RemapNr < 10:
+    #     for node in range(RemapNr):
+    #         u += str(node+1)
+    #     print u+'={__WNID__}'
+    # elif RemapNr < 100:
+    #     d_ = '0'*9+'1'*10+'2'*10+'3'*10+'4'*10+'5'*10+'6'*10+'7'*10+'8'*10+'9'*10
+    #     ud = '1234567890'*10
+    #     d = d_[:RemapNr]
+    #     print d+            '={_Worker_}'
+    #     print ud[:RemapNr]+'={__Node__}'
+    # elif RemapNr < 1000:
+    #     c += str(0)*99
+    #     for i in range(1, cent):
+    #         c += str(i)*100
+    #     c += str(cent)*dec*10 + str(cent)*(unit+1)
         
-        d_ = '0'*9+'1'*10+'2'*10+'3'*10+'4'*10+'5'*10+'6'*10+'7'*10+'8'*10+'9'*10
-        d = d_
-        for i in range(1, cent):
-            d += str(0)+d_
-        else:
-            d += str(0)
-        d += d_[:int(str(dec)+str(unit))]
+    #     d_ = '0'*9+'1'*10+'2'*10+'3'*10+'4'*10+'5'*10+'6'*10+'7'*10+'8'*10+'9'*10
+    #     d = d_
+    #     for i in range(1, cent):
+    #         d += str(0)+d_
+    #     else:
+    #         d += str(0)
+    #     d += d_[:int(str(dec)+str(unit))]
         
-        uc = '1234567890'*100
-        ua = uc[:RemapNr]
+    #     uc = '1234567890'*100
+    #     ua = uc[:RemapNr]
 
-        # clipping functionality:
-        '''
-        if the earliest node number is high (e.g. 80), the first 79 WNs need not show up.
-        '''
-        beginprint = 0
-        if (CLIPPING == True) and WNListRemapped[0]> 30:
-            beginprint = WNList[0]-1
-        print c[beginprint:endprint] + '={_Worker_}'
-        print d[beginprint:endprint] + '={__Node__}'
-        print ua[beginprint:endprint]+ '={___ID___}'
-            # todo: remember to fix < 100 cases (do i really need to, though?)
+    #     # clipping functionality:
+    #     '''
+    #     if the earliest node number is high (e.g. 80), the first 79 WNs need not show up.
+    #     '''
+    #     beginprint = 0
+    #     if (CLIPPING == True) and WNListRemapped[0]> 30:
+    #         beginprint = WNList[0]-1
+    #     print c[beginprint:endprint] + '={_Worker_}'
+    #     print d[beginprint:endprint] + '={__Node__}'
+    #     print ua[beginprint:endprint]+ '={___ID___}'
+    #         # todo: remember to fix < 100 cases (do i really need to, though?)
     
-
-
 ###################################################
 ## end of code printing the worker node id number lines
 
-
-yamlstream = open(PBSNODES_YAML_FILE, 'r')
+#yamlstream = open(PBSNODES_YAML_FILE, 'r')
 
 
 
 stateafterstr = ''
-if len(NodeInitials) == 1:
+if len(NodeSubClusters) == 1:
     for node in AllWNs:  # why are dictionaries ALWAYS ordered when keys are '1','5','3' etc ?!!?!?
         stateafterstr += AllWNs[node][0]
-elif len(NodeInitials) > 1:
+elif len(NodeSubClusters) > 1:
     for node in AllWNsRemapped:  # why are dictionaries ALWAYS ordered when keys are '1','5','3' etc ?!!?!?
         stateafterstr += AllWNsRemapped[node][0]
 
 print stateafterstr[beginprint:endprint]+'=Node state'
 
-yamlstream.close()
+#yamlstream.close()
 
 #############################################
 
 # kati san def readqstat ?
+
 JobIds = []
 UnixAccounts = []
 Ss = []
@@ -692,41 +759,13 @@ for i in range(MaxNP):
     CPUCoreDic['Cpu'+str(i)+'line']=''      # Cpu0line, Cpu1line, Cpu2line, .. = '','','', ..
     MaxNPRange.append(str(i))
 
-def fill_cpucore_columns(value,CPUDic):
-    '''
-    Calculates the actual contents of the map by filling in a status string for each CPU line
-    '''
-    Busy = []
-        
-    if value[0] == '?':
-        for CPULine in CPUDic:
-            CPUDic[CPULine] += '_'
-    else:
-        HAS_JOBS = 0
-        OwnNP = int(value[1])
-        OwnNPRange = [ str(x) for x in range(OwnNP)]
-        OwnNPEmptyRange = [ str(x) for x in range(OwnNP)]
-        
-        for element in value[2:]:
-            if type(element) == tuple:  # everytime there is a job:
-                HAS_JOBS += 1
-                Core, job = element[0], element[1]
-                CPUDic['Cpu'+str(Core)+'line']+=str(IdOfUnixAccount[UserOfJobId[job]])
-                Busy.extend(Core)
-                OwnNPEmptyRange.remove(Core)
-
-        NonExistentCores = [item for item in MaxNPRange if item not in OwnNPRange]        
-
-        for core in OwnNPEmptyRange:                        
-            CPUDic['Cpu'+str(core)+'line'] += '_'
-        for core in NonExistentCores:                        
-                CPUDic['Cpu'+str(core)+'line'] += '#'
 
 
-if len(NodeInitials) == 1:                
+
+if len(NodeSubClusters) == 1:                
     for _, WNProperties in zip(AllWNs.keys(), AllWNs.values()):
         fill_cpucore_columns(WNProperties, CPUCoreDic)
-elif len(NodeInitials) > 1:
+elif len(NodeSubClusters) > 1:
     for _, WNProperties in zip(AllWNsRemapped.keys(), AllWNsRemapped.values()):
         fill_cpucore_columns(WNProperties, CPUCoreDic)
 
@@ -736,14 +775,15 @@ for ind, k in enumerate(CPUCoreDic):
 
 ####################################################
 
-print '\n'
-print c[endprint:BiggestWrittenNode] + '={_Worker_}'
-print d[endprint:BiggestWrittenNode] + '={__Node__}'
-print ua[endprint:BiggestWrittenNode]+ '={___ID___}'
-print stateafterstr[endprint:BiggestWrittenNode]+'=Node state'
-for ind, k in enumerate(CPUCoreDic):
-    # print CPUCoreDic[k]+'=CPU'+str(ind)
-    print CPUCoreDic['Cpu'+str(ind)+'line'][endprint:BiggestWrittenNode]+'=CPU'+str(ind)
+if Dx<0:
+    print '\n'
+    print c[endprint:BiggestWrittenNode] + '={_Worker_}'
+    print d[endprint:BiggestWrittenNode] + '={__Node__}'
+    print ua[endprint:BiggestWrittenNode]+ '={___ID___}'
+    print stateafterstr[endprint:BiggestWrittenNode]+'=Node state'
+    for ind, k in enumerate(CPUCoreDic):
+        # print CPUCoreDic[k]+'=CPU'+str(ind)
+        print CPUCoreDic['Cpu'+str(ind)+'line'][endprint:BiggestWrittenNode]+'=CPU'+str(ind)
 
 
 
@@ -772,8 +812,8 @@ print 'id |   R +   Q / all |  unix account  | Grid certificate DN (this info is
 qstatLst.sort(key = lambda unixaccount: unixaccount[1])   # sort by unix account
 
   
-AssIdvalues = IdOfUnixAccount.values()
-AssIdkeys = IdOfUnixAccount.keys()
+# AssIdvalues = IdOfUnixAccount.values()
+# AssIdkeys = IdOfUnixAccount.keys()
 
 # this calculates and prints what is actually below the id| R+Q /all | unix account etc line
 for id in IdOfUnixAccount:
