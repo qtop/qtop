@@ -51,8 +51,410 @@ import os
 import re
 import sys
 import yaml
+# from qtcolormap import *
+# import qtcolormap
+
+ColorOfAccount = {
+'Atlassm':   'Red_L',
+'sgmatlas':  'Red_L',
+'patlas':    'Red_L',
+'satlas':    'Red_L',
+'satl':  'Red_L',
+'atlassgm':  'Red_L',
+'atlsgm':    'Red_L',
+'atlsg': 'Red_L',
+'atlasusr':  'Red_L',
+'atlass':    'Red_L',
+'laspt': 'Red_L',
+'atlpilot':  'Red_L',
+'atpilot':   'Red_L',
+'iatpilot':  'Red_L',
+'atlasplt':  'Red_L',
+'atlaspt':   'Red_L',
+'atlaspil':  'Red_L',
+'atlasplot': 'Red_L',
+'atlplot':   'Red_L',
+'atlpil':    'Red_L',
+'atlpl': 'Red_L',
+'atlaspilot': 'Red_L',
+'atlprod':   'Red',
+'atlasger':  'Red',
+'atlasde':   'Red',
+'datlas':    'Red',
+'atlasit':   'Red',
+'atlde': 'Red',
+'atlit': 'Red',
+'atlasprod': 'Red',
+'atlasprd':  'Red',
+'atlsprd':   'Red',
+'atlprd':    'Red',
+'atlpr': 'Red',
+'iatlas':    'Red',
+'iatprd':    'Red',
+'iatl':  'Red',
+'aatlpd':    'Red',
+'atlasfx':   'Red',
+'atlastw':   'Red',
+'atlx':  'Red',
+'atlp':  'Red',
+'atlu':  'Red',
+'atlhs': 'Red',
+'atlashs':   'Red',
+'atlasp':    'Red',
+'atlasfr':   'Red',
+'atlasana':  'Red',
+'Eatlas':     'Red',
+'shatlas':    'Red',
+'lcgatlas':   'Red',
+'atlasL':     'Red',
+'atlasil':    'Red',
+'atlanaly':   'Red',
+'atlas': 'Red',
+'atlbr': 'Red',
+'atls':  'Red',
+'atl':   'Red',
+'atfx':  'Red',
+'atprd': 'Red',
+'atcanpu':   'Red',
+'atcanpt':   'Red_L',
+'atcan': 'Red',
+'atcpu': 'Red',
+'atsgm': 'Red_L',
+'pilatlas':  'Red_L',
+'pilatl':    'Red_L',
+'zipilatl':  'Red_L',
+'patlit':    'Red_L',
+'platl': 'Red_L',
+'pltatlas':  'Red_L',
+'pltatl':    'Red_L',
+'atplt': 'Red_L',
+'atlplt':    'Red_L',
+'piatlas':   'Red_L',
+'piatla':    'Red_L',
+'piatl': 'Red_L',
+'sgmatl':    'Red_L',
+'zisgmatl':  'Red_L',
+#sgmatl:   'Red',
+'prdatlas':  'Red',
+'prdatl':    'Red',
+'prdat': 'Red',
+'ziprdatl':  'Red',
+'ziatlas':   'Red',
+'patls': 'Red',
+'patlit':    'Red',
+'patl':  'Red',
+'nordugrid-atlas': 'Red',
+'usatlas':   'Red',
+# CMS VO commonly found pool account names
+'cmssgm':    'Green_L',
+'cmsplt':    'Green_L',
+'pltcms':    'Green_L',
+'cmspilot':  'Green_L',
+'cmspil':    'Green_L',
+'pilcms':    'Green_L',
+'pcms':  'Green_L',
+'sgmcms':    'Green_L',
+'sgmcm': 'Green_L',
+'scms':  'Green_L',
+'priocms':   'Green_L',
+'cmsprio':   'Green_L',
+'pricms':    'Green_L',
+'cmsprod':   'Green',
+'cmsprd':    'Green',
+'cmsmcp':    'Green',
+'cmsnu': 'Green',
+'cmst1prd': 'Green',
+'cmprd': 'Green',
+'uscmsPool': 'Green',
+'uscms': 'Green',
+'cmsp':  'Green',
+'cmsusr':    'Green',
+'cmsuwu':    'Green',
+'cmsana':    'Green',
+'cmsger':    'Green',
+'cmss':  'Green',
+'cmszu': 'Green',
+'cmsau': 'Green',
+'twcms': 'Green',
+'cmsmu': 'Green',
+'cms':   'Green',
+'dcms':  'Green',
+'prdcms':    'Green',
+'icms':  'Green',
+'cms': 'Green',
+# ALICE VO commonly found pool account names
+'alicesgm':  'Cyan',
+'alice': 'Cyan',
+'alisc': 'Cyan',
+'alisgm':    'Cyan',
+'alisg': 'Cyan',
+'alibs': 'Cyan',
+'alis':  'Cyan',
+'alikn': 'Cyan',
+'ali':   'Cyan',
+'ialice':    'Cyan',
+'salice':    'Cyan',
+'sali':  'Cyan',
+'caliceuser':    'Cyan',
+'caliceusr': 'Cyan',
+'calice':    'Cyan',
+'calic': 'Cyan',
+'sgmalice':  'Cyan',
+'sgmali':    'Cyan',
+# LHCb VO commonly found pool account names
+'pdlhcb':    'Pink',
+'prdlhcb':   'Pink',
+'prdlhb':    'Pink',
+'prdlhc':    'Pink',
+'lhcbprd':   'Pink',
+'lhbprd':    'Pink',
+'lhprd': 'Pink',
+'ilhcb': 'Pink',
+'lhcbsgm':   'Purple',
+'lhcbs': 'Purple',
+'sgmlhcb':   'Purple',
+'sgmlhb':    'Purple',
+'sgmlhc':    'Purple',
+'lhcbplt':   'Purple',
+'lhcbpilot': 'Purple',
+'lhpilot':   'Purple',
+'lhcpilot':  'Purple',
+'lhcbpil':   'Purple',
+'lhbpil':    'Purple',
+'pillhcb':   'Purple',
+'plhcb': 'Purple',
+'pilhcb':    'Purple',
+'pltlhcb':   'Purple',
+'pillhb':    'Purple',
+'pllhc': 'Purple',
+'tlhcb': 'Pink',
+'lhcbhs':    'Pink',
+'lhcbp': 'Pink',
+'lhcb':  'Pink',
+'lhcp':  'Pink',
+# dteam VO commonly found pool account names
+'dteamsgm':    'Brown',
+'dteamprd':    'Brown',
+'dteamuser': 'Brown',
+'dteamusr':  'Brown',
+'dteam': 'Brown',
+'dte':   'Brown',
+# OPS VO commonly found pool account names
+'opsplt':    'Yellow',
+'opsusr':    'Yellow',
+'opssgm':    'Yellow',
+'opssg': 'Yellow',
+'opsgm': 'Yellow',
+'sgmops':    'Yellow',
+'zisgmops':  'Yellow',
+'opsprd':    'Yellow',
+'opspil':    'Yellow',
+'pilops':    'Yellow',
+'samgrid':   'Yellow',
+'opss':  'Yellow',
+'sops':  'Yellow',
+'opsiber':   'Yellow',
+'opsib': 'Yellow',
+'ops':   'Yellow',
+#
+# Other VOs from the EGEE-I,II,III era
+'egee':  'Blue_L',
+# Biomed VO
+'biomedusr': 'Blue_L',
+'biomed':    'Blue_L',
+'biomd': 'Blue_L',
+'biome': 'Blue_L',
+'biocw': 'Blue_L',
+'biostats':  'Blue_L',
+'biotech':   'Blue_L',
+'bio':   'Blue_L',
+# Gear VO
+'gearsgm':     'Blue_L',
+'gearprd':    'Blue_L',
+'gear':  'Blue_L',
+# DECH VO
+'dechsgm':     'Blue_L',
+'dechprd':   'Blue_L',
+'dechusr':   'Blue_L',
+'dech':  'Blue_L',
+# SEE VO
+'seeops':    'Blue_L',
+'seops': 'Blue_L',
+'seegrid':   'Blue_L',
+'seevo': 'Blue_L',
+'see':   'Blue_L',
+# ESR VO
+'esrsgm':    'Blue_L',
+'esr':   'Blue_L',
+'earthscience':  'Blue_L',
+# Fusion, auvergrid, compchem, enmr, voce, gaussian, balticgrid, Digital Media VOs
+'fusionprd': 'Blue_L',
+'fusionsgm': 'Blue_L',
+'fusion':    'Blue_L',
+'fusio': 'Blue_L',
+'fusi':  'Blue_L',
+'fusn':  'Blue_L',
+'fus':   'Blue_L',
+'auvergrid': 'Blue_L',
+'enmr':  'Blue_L',
+'complex':   'Blue_L',
+'compchem':  'Blue_L',
+'compc': 'Blue_L',
+'compl': 'Blue_L',
+'cmplx': 'Blue_L',
+'vocesgm':   'Blue_L',
+'voceprd':   'Blue_L',
+'voce':  'Blue_L',
+'gaussian':  'Blue_L',
+'balticgrid': 'Blue_L',
+'digmedia':  'Blue_L',
+'dmedia':    'Blue_L',
+# Hone VO
+'prdhone':   'Cyan_L',
+'prdhne':    'Cyan_L',
+'prdhon':    'Cyan_L',
+'honecker':  'Cyan_L',
+'honeprd':   'Cyan_L',
+'honesgm':   'Cyan_L',
+'phone': 'Cyan_L',
+'hone':  'Cyan_L',
+'honp':  'Cyan_L',
+# Other (High Energy) Physics VOs
+'sixto': 'Cyan_L',
+'sixt':  'Cyan_L',
+'babaradm':  'Cyan_L',
+'babarpro':  'Cyan_L',
+'babar': 'Cyan_L',
+'pheno': 'Cyan_L',
+'dzerojim':  'Cyan_L',
+'dzero': 'Cyan_L',
+'dze':   'Cyan_L',
+'dzerqa':    'Cyan_L',
+'theophys_': 'Cyan_L',
+'theophys':  'Cyan_L',
+'zeususr':   'Cyan_L',
+'zeus':  'Cyan_L',
+'argo':  'Cyan_L',
+'ilcprd':    'Cyan_L',
+'ilcpr': 'Cyan_L',
+'ilcp':  'Cyan_L',
+'ilcusr':    'Cyan_L',
+'ilcger':    'Cyan_L',
+'ilc':   'Cyan_L',
+'prdilc':    'Cyan_L',
+'pilc':  'Cyan_L',
+'sgmilc':    'Cyan_L',
+'augersgm':  'Cyan_L',
+'augerprd':  'Cyan_L',
+'auger': 'Cyan_L',
+'augp':  'Cyan_L',
+'aug':   'Cyan_L',
+'chatlas':    'Cyan_L',
+'chcms':  'Cyan_L',
+'chlhcb': 'Cyan_L',
+'geant': 'Cyan_L',
+'lhcft': 'Cyan_L',
+'magic': 'Cyan_L',
+'scier': 'Cyan_L',
+'planck':    'Cyan_L',
+# Other VOs' commonly found pool account names
+#cal:  'White',
+#envir:    'White',
+#gridcc:   'White',
+#hgdemo:   'White',
+#vlemd:    'White',
+#lsgrd:    'White',
+#tsc:  'White',
+#prod: 'White',
+#argo: 'White',
+#swegr:    'White',
+#desrcs:   'White',
+#camont:   'White',
+#dorii:    'White',
+#durdagis: 'White',
+#dur:  'White',
+#cpp:  'White',
+#ssp:  'White',
+#ifc:  'White',
+#ilcp: 'White',
+#ilc:  'White',
+#comsya:   'White',
+#com:  'White',
+#isc:  'White',
+#lal:  'White',
+#sbgrid:   'White',
+#sbg:  'White',
+#osg:  'White',
+#lpsc: 'White',
+#icecubeprd: 'White',
+#icecube:  'White',
+#icep       'White',
+#ice:  'White',
+#mame: 'White',
+#hoeth:    'White',
+#lenz: 'White',
+#gridit:   'White',
+#suzanne:  'White',
+#ngs:  'White',
+#minos:    'White',
+#pamna:    'White',
+#gilda:    'White',
+#auth: 'White',
+#ctaibp:   'White',
+#ctap: 'White',
+#cta:  'White',
+#glarvu:   'White',
+#plgrid:   'White',
+#aegis:    'White',
+#seismo:   'White',
+#meteo:    'White',
+#desktopg: 'White',
+#suprms:   'White',
+#ego:  'White',
+#dte:  'White',
+#ad:   'White',
+# a tiny little gift for kaust-prefixed names
+'kaust': 'Brown',
+# Extras; these are really randomly found user names; needed for screen clarity while in color more
+'mwilli':      'Brown',
+'por':     'Blue',
+'dorisf':      'Cyan',
+'campoman':    'Brown',
+'gallet':      'Blue',
+'tlemmin':     'Cyan',
+'ls': 'Cyan',
+'train': 'Blue_L',
+'train': 'Blue_L',
+'pkoro':           'Brown',
+'fotis':           'Blue',
+'astrelchenko':    'Cyan',
+'tchristoudias':   'Brown'
+# catch-all rule for many more names
+#[[:alpha:]][-_[:alnum:].]* 'Gray_L',
+}
+
+codeCodes = {
+'Red_L': '1;31',
+'Red': '0;31',
+'Green_L': '1;32',
+'Green': '0;32',
+'Cyan': '0;36',
+'Pink': '1;35',
+'Purple': '0;35',
+'Brown': '0;33',
+'Yellow': '1;33',
+'Blue_L': '1;34',
+'Cyan_L': '1;36',
+'White': '1;37',
+'Blue': '0;34',
+'Gray_L': '1;37',
+'normal':   '0'
+}
 
 
+def Colorize(object,pattern):
+    """print specific entity in color"""
+    return "\033["+codeCodes[ColorOfAccount[pattern]]+"m"+object+"\033[0m" 
 
 HOMEPATH = os.path.expanduser('~/')
 OUTPUTPATH = os.path.expanduser('~/qtop-input/outputs/')
@@ -60,9 +462,7 @@ QTOPPATH = os.path.expanduser('~/qtop/qtop')
 PROGDIR = os.path.expanduser('~/off/qtop')
 # SAVEDIR = os.path.expanduser('~/qtop-input/results')
 
-
 # Location of read and created files 
-
 PBSNODES_ORIG_FILE = 'pbsnodes.out'
 QSTATQ_ORIG_FILE = 'qstat-q.out'
 QSTAT_ORIG_FILE = 'qstat.out'
@@ -71,36 +471,39 @@ PBSNODES_YAML_FILE = HOMEPATH + 'qt/pbsnodes.yaml'
 QSTATQ_YAML_FILE = HOMEPATH + 'qt/qstat-q.yaml'
 QSTAT_YAML_FILE = HOMEPATH + 'qt/qstat.yaml'
 
-
-
-
 # if not os.path.exists(SAVEDIR):
 #     cmd = 'mkdir '+SAVEDIR
 #     fp = os.popen(cmd)   # create dir ~/qtop-input/results if it doesn't exist already
+
+#for calculating the WN numbers
+c, d, u = '','',''
+PrintStart = 0
 
 CLIPPING = True
 RMWARNING = '=== WARNING: --- Remapping WN names and retrying heuristics... good luck with this... ---'
 RemapNr = 0
 NodeSubClusters = set()
 OutputDirs = []
-statelst = []
 HighestCoreBusy = 0
 AllWNs, AllWNsRemapped={}, {}
-dname = ''
+# dname = ''
 BiggestWrittenNode = 0
 WNList, WNListRemapped = [], []
-NodeNr = ''
+# NodeNr = ''
+NodeState = ''
 LastWN = 0
-ExistingNodes, NonExistingNodes, OfflineDownNodes = 0, [], 0
+ExistingNodes, OfflineDownNodes = 0, 0
 TotalCores, WorkingCores = 0, 0
-QueueName, Mem, CPUtime, Walltime, Node, Run, Queued, Lm, State, TotalRuns, TotalQueues = 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 # for readQstatQ
-Jobid, Jobnr, CEname, Name, User, TimeUse, S, Queue = 0, 0,'','','','','','' # for readQstat
-qstatqLst, qstatLst = [],[]
-BigJobList = []
-UserOfJobId={}
-CoreOfJob={}
-IdOfUnixAccount={}
-AccountsMappings = []
+TotalRuns, TotalQueues =  0, 0 # for readQstatQ
+JobIds, UnixAccounts, Statuses, Queues = [], [], [], [] #for read_qstat
+qstatqLst = []
+# qstatLst = []
+UserOfJobId, IdOfUnixAccount= {}, {} #keepers
+AccountsMappings = [] #keeper
+
+### CPU lines ######################################
+CPUCoreDic={}
+MaxNPRange = []
 
 def write_to_separate_files(filename1, filename2):
     '''
@@ -114,53 +517,11 @@ def write_to_separate_files(filename1, filename2):
             fout.write(line.split(':', 1)[1])
     fin.close() 
 
-
-
-
-'''
-def get_state(fin):     # yamlstream
-    """
-    gets the state of each of the nodes for each given file-job (pbsnodes.yaml), appends it to variable 'status' and
-    returns the status, which is of the form e.g. ----do---dddd
-    """
-    state = ''
-    for line in fin:
-        line.strip()
-        # if line.find('state: ')!=-1:
-        if 'state: ' in line: 
-            nextchar = line.split()[1].strip("'")
-            if nextchar == 'f': state += '-'
-            else:
-                state += nextchar
-    fin.close() 
-    statelst = list(state)
-    return statelst
-    # or
-    # return state
-'''
-# yamlstream = open('/home/sfranky/qt/pbsnodes.yaml', 'r')
-# statebeforeUnsorted = get_state(yamlstream)    
-
-"""
-def get_core_jobs(fin):   # yamlstream
-    core0state, core1state = '',''
-    for line in fin:
-        line.strip()
-        if line.find("core: '0'")!=-1:
-            jobcpu1 = fin.readline().split()[1]
-        elif line.find("core: '1'")!=-1:
-            jobcpu2 = fin.readline().split()[1]
-        elif line.find("core: '2'")!=-1:
-            jobcpu3 = fin.readline().split()[1]
-        elif line.find("core: '3'")!=-1:
-            jobcpu4 = fin.readline().split()[1]
-"""
-
 def make_pbsnodes_yaml(fin, fout):
     """
     read PBSNODES_ORIG_FILE sequentially and put in respective yaml file
     """
-    global OfflineDownNodes # NonExistingNodes, BigJobList
+    global OfflineDownNodes
     
     # NodeNr = 0
     for line in fin:
@@ -210,7 +571,7 @@ def read_pbsnodes_yaml(fin):
     '''
     extracts highest node number, online nodes
     '''
-    global ExistingNodes, NonExistingNodes, OfflineDownNodes, LastWN, BigJobList, jobseries, BiggestWrittenNode, WNList, WNListRemapped, NodeNr, TotalCores, WorkingCores, CoreOfJob, AllWNs, AllWNsRemapped, HighestCoreBusy, MaxNP, statelst, NodeSubClusters, RemapNr
+    global ExistingNodes, OfflineDownNodes, LastWN, jobseries, BiggestWrittenNode, WNList, WNListRemapped, NodeNr, TotalCores, WorkingCores, AllWNs, AllWNsRemapped, HighestCoreBusy, MaxNP, NodeSubClusters, RemapNr
 
     # HighestCoreBusy = 0
     MaxNP = 0
@@ -275,7 +636,6 @@ def read_pbsnodes_yaml(fin):
             AllWNsRemapped[RemapNr].append((core, job))
         # print 'successful case was ', case
 
-    statelst = list(state)
     LastWN = BiggestWrittenNode
     HighestCoreBusy += 1
 
@@ -287,19 +647,18 @@ def read_pbsnodes_yaml(fin):
         for i in range(1, RemapNr):
             if i not in AllWNsRemapped:
                 AllWNsRemapped[i]='?'
-                NonExistingNodes.append(i)
-    else:
+                # NonExistingNodes.append(i)
+    elif len(NodeSubClusters) == 1:
         for i in range(1, BiggestWrittenNode):
             if i not in AllWNs:
                 AllWNs[i]='?'
-                NonExistingNodes.append(i)
+                # NonExistingNodes.append(i)
 
     WNList.sort()
     WNListRemapped.sort()
-    diff = 0
 
 def make_qstatq_yaml(fin, fout):
-    global QueueName, Mem, CPUtime, Walltime, Node, Run, Queued, Lm, State, TotalRuns, TotalQueues, qstatqLst
+    global TotalRuns, TotalQueues #qstatqLst
     """
     read QSTATQ_ORIG_FILE sequentially and put useful data in respective yaml file
     """
@@ -326,7 +685,6 @@ def make_qstatq_yaml(fin, fout):
     fout.write('Total Queued: ' + TotalQueues + '\n')
 
 def make_qstat_yaml(fin, fout):
-    global Jobid, Jobnr, CEname, Name, User, TimeUse, S, Queue, Id2Unix
     """
     read QSTAT_ORIG_FILE sequentially and put useful data in respective yaml file
     """
@@ -338,7 +696,7 @@ def make_qstat_yaml(fin, fout):
         if re.search(UserQueueSearch, line) is not None:
             m = re.search(UserQueueSearch, line)
             Jobid, Jobnr, CEname, Name, User, TimeUse, S, Queue = m.group(1), m.group(2), m.group(3), m.group(4), m.group(5), m.group(6), m.group(7), m.group(8)
-            qstatLst.append([[Jobnr], User, S, Queue])
+            # qstatLst.append([[Jobnr], User, S, Queue])
             Jobid = Jobid.split('.')[0]
             fout.write('---\n')
             fout.write('JobId: ' + Jobid +'\n')    
@@ -349,6 +707,20 @@ def make_qstat_yaml(fin, fout):
             # UnixOfJobId[Jobid.split('.')[0]]=User
             UserOfJobId[Jobid]=User
             fout.write('...\n')
+
+def read_qstat():
+    # global JobIds, UnixAccounts, Statuses, Queues
+    finr = open(QSTAT_YAML_FILE, 'r')
+    for line in finr:
+        if line.startswith('JobId:'):
+            JobIds.append(line.split()[1])
+        elif line.startswith('UnixAccount:'):
+            UnixAccounts.append(line.split()[1])
+        elif line.startswith('S:'):           
+            Statuses.append(line.split()[1])
+        elif line.startswith('Queue:'):           
+            Queues.append(line.split()[1])
+    finr.close()
 
 def job_accounting_summary():
     if len(NodeSubClusters) > 1: print RMWARNING
@@ -391,27 +763,29 @@ def fill_cpucore_columns(value,CPUDic):
         for core in NonExistentCores:                        
                 CPUDic['Cpu'+str(core)+'line'] += '#'
 
-def number_WNs(WNnumber, wnlist):
+def number_WNs(WNnumber, WNList):
     '''
     prints the worker node ID number lines
     '''
-    global unit, dec, cent, c, d, d_, u, ua
+    global c, d, u, PrintStart, PrintEnd
     if WNnumber < 10:
         unit = str(WNnumber)[0]
 
         for node in range(WNnumber):
             u += str(node+1)
-        print u +'={__WNID__}'
+        # print u + '={__WNID__}'
+        print_WN_ID_lines(PrintStart,PrintEnd, WNnumber)
 
     elif WNnumber < 100:
         dec = str(WNnumber)[0]
         unit = str(WNnumber)[1]
 
         d_ = '0'*9+'1'*10+'2'*10+'3'*10+'4'*10+'5'*10+'6'*10+'7'*10+'8'*10+'9'*10
-        ud = '1234567890'*10
+        u = '1234567890'*10
         d = d_[:WNnumber]
-        print d +           '={_Worker_}'
-        print ud[:WNnumber] + '={__Node__}'
+        # print d +            '={_Worker_}'
+        # print u[:WNnumber] + '={__Node__}'
+        print_WN_ID_lines(PrintStart,PrintEnd, WNnumber)
     
     elif WNnumber < 1000:
         cent = int(str(WNnumber)[0])
@@ -432,33 +806,48 @@ def number_WNs(WNnumber, wnlist):
         d += d_[:int(str(dec)+str(unit))]
         
         uc = '1234567890'*100
-        ua = uc[:WNnumber]
+        u = uc[:WNnumber]
 
         '''
         masking/clipping functionality: if the earliest node number is high (e.g. 80), the first 79 WNs need not show up.
         '''
-        beginprint = 0
-        if (CLIPPING == True) and wnlist[0]> 30:
-            beginprint = wnlist[0]-1
-        print c[beginprint:endprint] + '={_Worker_}'
-        print d[beginprint:endprint] + '={__Node__}'
-        print ua[beginprint:endprint]+ '={___ID___}'
+        if (CLIPPING == True) and WNList[0]> 30:
+            PrintStart = WNList[0]-1
+
+        print_WN_ID_lines(PrintStart,PrintEnd, WNnumber)
+
         # todo: remember to fix < 100 cases (do i really need to, though?)
-############################################################################################
 
-"""
-empties the files with every run of the python script
-"""
-fin1temp = open(PBSNODES_YAML_FILE, 'w')
-fin1temp.close()
+def print_WN_ID_lines(start,stop, WNnumber):
+    if WNnumber < 10:
+        print u + '={__WNID__}'
 
-fin2temp = open(QSTATQ_YAML_FILE, 'w')
-fin2temp.close()
+    elif WNnumber < 100:
+        print d +            '={_Worker_}'
+        print u[:WNnumber] + '={__Node__}'
 
-fin3temp = open(QSTAT_YAML_FILE, 'w')
-fin3temp.close()
+    elif WNnumber < 1000:
+        print c[start:stop] + '={_Worker_}'
+        print d[start:stop] + '={__Node__}'
+        print u[start:stop] + '={___ID___}'
+
+def empty_yaml_files():
+    """
+    empties the files with every run of the python script
+    """
+    fin1temp = open(PBSNODES_YAML_FILE, 'w')
+    fin1temp.close()
+
+    fin2temp = open(QSTATQ_YAML_FILE, 'w')
+    fin2temp.close()
+
+    fin3temp = open(QSTAT_YAML_FILE, 'w')
+    fin3temp.close()
 
 
+################ MAIN ###########################
+
+empty_yaml_files()
 
 os.chdir(OUTPUTPATH)
 OutputDirs += glob.glob('sfragk*') 
@@ -466,14 +855,14 @@ OutputDirs += glob.glob('fotis*')
 
 
 for dir in OutputDirs:
-    # if dir == 'fotistestfiles': # OK
-    # if dir == 'sfragk_iLu0q1CbVgoDFLVhh5NGNw': # diaforetiko me tou foti
-    # if dir == 'sfragk_tEbjFj59gTww0f46jTzyQA':  # implement clip/masking functionality !! OK
+    # if dir == 'fotistestfiles': # periergo
+    # if dir == 'sfragk_iLu0q1CbVgoDFLVhh5NGNw': # 188 WNs, double map
+    # if dir == 'sfragk_tEbjFj59gTww0f46jTzyQA':  # implement clip/masking functionality !! problem me mikro width, split se normal plati o8onis
     # if dir == 'sfragk_sDNCrWLMn22KMDBH_jboLQ':  # OK
-    # if dir == 'sfragk_aRk11NE12OEDGvDiX9ExUg':   # OK
+    if dir == 'sfragk_aRk11NE12OEDGvDiX9ExUg':   # OK
     # if dir == 'sfragk_gHYT96ReT3-QxTcvjcKzrQ':  # OK
     # if dir == 'sfragk_zBwyi8fu8In5rLu7RBtLJw':  # OK
-    if dir == 'sfragk_sE5OozGPbCemJxLJyoS89w':  # seems ok !
+    # if dir == 'sfragk_sE5OozGPbCemJxLJyoS89w':  # seems ok !
     # if dir == 'sfragk_vshrdVf9pfFBvWQ5YfrnYg':  # OK
     # if dir == 'sfragk_R__ngzvVl5L22epgFVZOkA':  # OK - 4WNs, 8 hashes
     # if dir == 'sfragk_qWU7q3Y9qb2knm-bgb_O1Q':  # OK
@@ -500,232 +889,49 @@ for dir in OutputDirs:
         fin3.close()
         yamlstream3.close()
 
+        read_qstat()
         os.chdir('..')
 
-# os.chdir(HOMEPATH+'inp/outputs/sfragk_aRk11NE12OEDGvDiX9ExUg/')            
-# fin = open('PBSNODES_ORIG_FILE','r')            
-# ReadPbsNodes(fin, yamlstream)
 
 #Calculation of split screen size
 
-termrows, termcolumns = os.popen('stty size', 'r').read().split()
-termcolumns= int(termcolumns)
+TermRows, TermColumns = os.popen('stty size', 'r').read().split()
+TermColumns= int(TermColumns)
 
 DEADWEIGHT = 15 #columns on the left and right of the CPUx map
-Dx = termcolumns - (BiggestWrittenNode + DEADWEIGHT)
+Dx = TermColumns - (BiggestWrittenNode + DEADWEIGHT)
 if Dx < 0:
     #split in x+1 pieces, where x = (BiggestWrittenNode+15)/termcolumns
-    endprint = termcolumns - DEADWEIGHT
+    PrintEnd = TermColumns - DEADWEIGHT
 else:
-    endprint = None
-
-
-'''
-if __name__ == "__main__":
-    
-    OutputDirs, outputFiles = [],[]
-
-    os.chdir(OUTPUTPATH)
-    OutputDirs += glob.glob('sfragk*') 
-
-    for dir in OutputDirs:
-        # create full path to each sfragk_31sdf.../qtop-input.out file and put it in list outputFiles 
-        os.chdir(dir)
-        if glob.glob('*.out'): # is there an actual output from the job?
-            outputFile = glob.glob('*.out')[0]
-            outputFiles.append(os.path.join(OUTPUTPATH, dir, outputFile))
-            # here is where each .out file is broken into 3 files
-            sepFiles = ['PBSNODES_ORIG_FILE','QSTAT_ORIG_FILE','QSTATQ_ORIG_FILE']
-            for sepFile in sepFiles:
-                write_to_separate_files(outputFile, sepFile)
-        os.chdir('..')
-
-    yfile=('PBSNODES_ORIG_FILE', 'r')
-    ReadPbsNodes(yfile)
-'''
-
-'''
-    for fullname in outputFiles:
-        # get state for each job and write it to a separate file in results directory
-        fullname = os.path.expanduser(fullname)
-        (dirname, filename) = os.path.split(fullname)
-        fin = open(fullname,"r")  
-        getst = get_state(fin)
-        # print getst  #--> jjjjj-----d-d----- etc
-        save = dirname
-        (outdir, statefile)=os.path.split(save)
-        os.chdir(savedir)
-        #print os.getcwd() # --> results dir
-        #writeString(statefile, getst)  # need to change this as I deleted writeString. make a fin = open(statefile) etc
-'''
+    PrintEnd = None
 
 
 job_accounting_summary()
 
 
-  
 
-c, d, d_, u = '','','',''
-beginprint = 0
-
-print '===> Worker Nodes occupancy <=== (you can read vertically the node IDs; nodes in free state are noted with - )'
-
-if len(NodeSubClusters) == 1: 
-    '''
-    For uniform WNs, i.e. all using the same numbering scheme, wn01, wn02, ...
-    '''
-    number_WNs(LastWN, WNList)
-
-    # if LastWN < 10:
-    #     for node in range(LastWN):
-    #         u += str(node+1)
-    #     print u +'={__WNID__}'
-    # elif LastWN < 100:
-    #     d_ = '0'*9+'1'*10+'2'*10+'3'*10+'4'*10+'5'*10+'6'*10+'7'*10+'8'*10+'9'*10
-    #     ud = '1234567890'*10
-    #     d = d_[:LastWN]
-    #     print d +           '={_Worker_}'
-    #     print ud[:LastWN] + '={__Node__}'
-    # elif LastWN < 1000:
-    #     c += str(0)*99
-    #     for i in range(1, cent):
-    #         c += str(i)*100
-    #     c += str(cent)*(int(dec))*10 + str(cent)*(int(unit)+1)
-        
-    #     d_ = '0'*9+'1'*10+'2'*10+'3'*10+'4'*10+'5'*10+'6'*10+'7'*10+'8'*10+'9'*10
-    #     d = d_
-    #     for i in range(1, cent):
-    #         d += str(0)+d_
-    #     else:
-    #         d += str(0)
-    #     d += d_[:int(str(dec)+str(unit))]
-        
-    #     uc = '1234567890'*100
-    #     ua = uc[:LastWN]
-
-    #     '''
-    #     masking/clipping functionality: if the earliest node number is high (e.g. 80), the first 79 WNs need not show up.
-    #     '''
-    #     beginprint = 0
-    #     if (CLIPPING == True) and WNList[0]> 30:
-    #         beginprint = WNList[0]-1
-    #     print c[beginprint:endprint] + '={_Worker_}'
-    #     print d[beginprint:endprint] + '={__Node__}'
-    #     print ua[beginprint:endprint]+ '={___ID___}'
-    #     # todo: remember to fix < 100 cases (do i really need to, though?)
-
-elif len(NodeSubClusters) > 1:
-    '''
-    # if there are non-uniform WNs in pbsnodes.yaml, e.g. wn01, wn02, gn01, gn02, ...,  remapping is performed
-    '''
-    number_WNs(RemapNr, WNListRemapped)
-    # if RemapNr < 10:
-    #     for node in range(RemapNr):
-    #         u += str(node+1)
-    #     print u+'={__WNID__}'
-    # elif RemapNr < 100:
-    #     d_ = '0'*9+'1'*10+'2'*10+'3'*10+'4'*10+'5'*10+'6'*10+'7'*10+'8'*10+'9'*10
-    #     ud = '1234567890'*10
-    #     d = d_[:RemapNr]
-    #     print d+            '={_Worker_}'
-    #     print ud[:RemapNr]+'={__Node__}'
-    # elif RemapNr < 1000:
-    #     c += str(0)*99
-    #     for i in range(1, cent):
-    #         c += str(i)*100
-    #     c += str(cent)*dec*10 + str(cent)*(unit+1)
-        
-    #     d_ = '0'*9+'1'*10+'2'*10+'3'*10+'4'*10+'5'*10+'6'*10+'7'*10+'8'*10+'9'*10
-    #     d = d_
-    #     for i in range(1, cent):
-    #         d += str(0)+d_
-    #     else:
-    #         d += str(0)
-    #     d += d_[:int(str(dec)+str(unit))]
-        
-    #     uc = '1234567890'*100
-    #     ua = uc[:RemapNr]
-
-    #     # clipping functionality:
-    #     '''
-    #     if the earliest node number is high (e.g. 80), the first 79 WNs need not show up.
-    #     '''
-    #     beginprint = 0
-    #     if (CLIPPING == True) and WNListRemapped[0]> 30:
-    #         beginprint = WNList[0]-1
-    #     print c[beginprint:endprint] + '={_Worker_}'
-    #     print d[beginprint:endprint] + '={__Node__}'
-    #     print ua[beginprint:endprint]+ '={___ID___}'
-    #         # todo: remember to fix < 100 cases (do i really need to, though?)
-    
-###################################################
-## end of code printing the worker node id number lines
-
-#yamlstream = open(PBSNODES_YAML_FILE, 'r')
-
-
-
-stateafterstr = ''
-if len(NodeSubClusters) == 1:
-    for node in AllWNs:  # why are dictionaries ALWAYS ordered when keys are '1','5','3' etc ?!!?!?
-        stateafterstr += AllWNs[node][0]
-elif len(NodeSubClusters) > 1:
-    for node in AllWNsRemapped:  # why are dictionaries ALWAYS ordered when keys are '1','5','3' etc ?!!?!?
-        stateafterstr += AllWNsRemapped[node][0]
-
-print stateafterstr[beginprint:endprint]+'=Node state'
-
-#yamlstream.close()
-
-#############################################
-
-# kati san def readqstat ?
-
-JobIds = []
-UnixAccounts = []
-Ss = []
-Queues = []
-finr = open(QSTAT_YAML_FILE, 'r')
-for line in finr:
-    if line.startswith('JobId:'):
-        JobIds.append(line.split()[1])
-        # JobIds.append(line.split()[2].split()[0])
-    elif line.startswith('UnixAccount:'):
-        UnixAccounts.append(line.split()[1])
-        # UnixAccounts.append(line.split()[2])
-    elif line.startswith('S:'):           
-        Ss.append(line.split()[1])
-        # Ss.append(line.split()[2])
-    elif line.startswith('Queue:'):           
-        Queues.append(line.split()[1])
-        # Queues.append(line.split()[2])
-finr.close()
-
-# matching of unix account to its jobid
-User2JobDic={}
-for user, jobid in zip(UnixAccounts, JobIds):
-    User2JobDic[jobid] = user
 
 # solution for counting R, Q, C attached to each user
-UserRunningDic, UserQueuedDic, UserCancelledDic, UserWaitingDic, UserEDic = {}, {}, {}, {}, {}
+RunningOfUser, QueuedOfUser, CancelledOfUser, WaitingOfUser, ExitingOfUser = {}, {}, {}, {}, {}
 
-for user, status in zip(UnixAccounts, Ss):
+for user, status in zip(UnixAccounts, Statuses):
     if status == 'R':
-        UserRunningDic[user] = UserRunningDic.get(user, 0) + 1
+        RunningOfUser[user] = RunningOfUser.get(user, 0) + 1
     elif status == 'Q':
-        UserQueuedDic[user] = UserQueuedDic.get(user, 0) + 1
+        QueuedOfUser[user] = QueuedOfUser.get(user, 0) + 1
     elif status == 'C':
-        UserCancelledDic[user] = UserCancelledDic.get(user, 0) + 1
+        CancelledOfUser[user] = CancelledOfUser.get(user, 0) + 1
     elif status == 'W':
-        UserWaitingDic[user] = UserWaitingDic.get(user, 0) + 1
+        WaitingOfUser[user] = WaitingOfUser.get(user, 0) + 1
     elif status == 'E':
-        UserWaitingDic[user] = UserEDic.get(user, 0) + 1
+        WaitingOfUser[user] = ExitingOfUser.get(user, 0) + 1
 
-for account in UserRunningDic:
-    UserQueuedDic.setdefault(account, 0)
-    UserCancelledDic.setdefault(account, 0)
-    UserWaitingDic.setdefault(account, 0)
-    UserEDic.setdefault(account, 0)
+for account in RunningOfUser:
+    QueuedOfUser.setdefault(account, 0)
+    CancelledOfUser.setdefault(account, 0)
+    WaitingOfUser.setdefault(account, 0)
+    ExitingOfUser.setdefault(account, 0)
 
 OccurenceDic={}
 for user in UnixAccounts:
@@ -742,25 +948,12 @@ for unixaccount in Usersortedlst:
     j += 1
 ########################## end of copied from below
 
-flatjoblist = []
-flattened = itertools.chain.from_iterable(BigJobList)
-for i in flattened:
-    flatjoblist.append(i)
-flatjoblist2 = []
-for cnt, i in enumerate(flatjoblist):
-    flatjoblist2.append((flatjoblist[cnt]['core'], flatjoblist[cnt]['job']))
-
 
 ### CPU lines ######################################
-CPUCoreDic={}
-MaxNPRange = []
 
 for i in range(MaxNP):
     CPUCoreDic['Cpu'+str(i)+'line']=''      # Cpu0line, Cpu1line, Cpu2line, .. = '','','', ..
     MaxNPRange.append(str(i))
-
-
-
 
 if len(NodeSubClusters) == 1:                
     for _, WNProperties in zip(AllWNs.keys(), AllWNs.values()):
@@ -769,74 +962,88 @@ elif len(NodeSubClusters) > 1:
     for _, WNProperties in zip(AllWNsRemapped.keys(), AllWNsRemapped.values()):
         fill_cpucore_columns(WNProperties, CPUCoreDic)
 
-for ind, k in enumerate(CPUCoreDic):
-    # print CPUCoreDic[k]+'=CPU'+str(ind)
-    print CPUCoreDic['Cpu'+str(ind)+'line'][beginprint:endprint]+'=CPU'+str(ind)
+print '===> Worker Nodes occupancy <=== (you can read vertically the node IDs; nodes in free state are noted with - )'
 
-####################################################
+'''
+if there are non-uniform WNs in pbsnodes.yaml, e.g. wn01, wn02, gn01, gn02, ...,  remapping is performed
+Otherwise, for uniform WNs, i.e. all using the same numbering scheme, wn01, wn02, ... proceed as normal
+'''
+
+if len(NodeSubClusters) == 1: 
+    number_WNs(LastWN, WNList)
+    for node in AllWNs:  # why are dictionaries ALWAYS ordered, when keys are '1','5','3' etc ?!!?!?
+        NodeState += AllWNs[node][0]
+elif len(NodeSubClusters) > 1:
+    number_WNs(RemapNr, WNListRemapped)
+    for node in AllWNsRemapped:  
+        NodeState += AllWNsRemapped[node][0]
+
+print NodeState[PrintStart:PrintEnd]+'=Node state'
+
+for ind, k in enumerate(CPUCoreDic):
+    print CPUCoreDic['Cpu'+str(ind)+'line'][PrintStart:PrintEnd]+'=CPU'+str(ind)
 
 if Dx<0:
     print '\n'
-    print c[endprint:BiggestWrittenNode] + '={_Worker_}'
-    print d[endprint:BiggestWrittenNode] + '={__Node__}'
-    print ua[endprint:BiggestWrittenNode]+ '={___ID___}'
-    print stateafterstr[endprint:BiggestWrittenNode]+'=Node state'
+    if len(NodeSubClusters) == 1:
+        print_WN_ID_lines(PrintEnd,BiggestWrittenNode,LastWN)
+    if len(NodeSubClusters) > 1:
+        print_WN_ID_lines(PrintEnd,BiggestWrittenNode,RemapNr)
+    print NodeState[PrintEnd:BiggestWrittenNode]+'=Node state'
     for ind, k in enumerate(CPUCoreDic):
-        # print CPUCoreDic[k]+'=CPU'+str(ind)
-        print CPUCoreDic['Cpu'+str(ind)+'line'][endprint:BiggestWrittenNode]+'=CPU'+str(ind)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+        print CPUCoreDic['Cpu'+str(ind)+'line'][PrintEnd:BiggestWrittenNode]+'=CPU'+str(ind)
 
 ###########################################################################################################################
-print '\n'
-print '===> User accounts and pool mappings <=== ("all" includes those in C and W states, as reported by qstat)'
-print 'id |   R +   Q / all |  unix account  | Grid certificate DN (this info is only available under elevated privileges)'
 
-qstatLst.sort(key = lambda unixaccount: unixaccount[1])   # sort by unix account
+# qstatLst.sort(key = lambda unixaccount: unixaccount[1])   # sort by unix account
 
   
-# AssIdvalues = IdOfUnixAccount.values()
-# AssIdkeys = IdOfUnixAccount.keys()
-
 # this calculates and prints what is actually below the id| R+Q /all | unix account etc line
 for id in IdOfUnixAccount:
-    if id not in UserRunningDic:
-        UserRunningDic[id]=0
-    if id not in UserQueuedDic:
-        UserQueuedDic[id]=0
-    if id not in UserCancelledDic:
-        UserCancelledDic[id]=0
-    if id not in UserWaitingDic:
-        UserWaitingDic[id]=0
-    if id not in UserEDic:
-        UserEDic[id]=0
+    if id not in RunningOfUser:
+        RunningOfUser[id]=0
+    if id not in QueuedOfUser:
+        QueuedOfUser[id]=0
+    if id not in CancelledOfUser:
+        CancelledOfUser[id]=0
+    if id not in WaitingOfUser:
+        WaitingOfUser[id]=0
+    if id not in ExitingOfUser:
+        ExitingOfUser[id]=0
 
 
 for id in Usersortedlst:# IdOfUnixAccount:
-    AccountsMappings.append([IdOfUnixAccount[id[0]], UserRunningDic[id[0]], UserQueuedDic[id[0]], UserCancelledDic[id[0]]+ UserRunningDic[id[0]]+ UserQueuedDic[id[0]]+ UserWaitingDic[id[0]]+ UserEDic[id[0]], id])
-####### workaround, na brw veltistopoiisi
+    AccountsMappings.append([IdOfUnixAccount[id[0]], RunningOfUser[id[0]], QueuedOfUser[id[0]], CancelledOfUser[id[0]] + RunningOfUser[id[0]] + QueuedOfUser[id[0]] + WaitingOfUser[id[0]] + ExitingOfUser[id[0]], id])
 AccountsMappings.sort(key = itemgetter(3), reverse = True)
-for line in AccountsMappings:
-    print '%2s | %3s + %3s / %3s | %14s |' % (line[0], line[1], line[2], line[3], line[4][0])
 
+print '\n'
+print '===> User accounts and pool mappings <=== ("all" includes those in C and W states, as reported by qstat)'
+print 'id |   R +   Q / all |  unix account  | Grid certificate DN (this info is only available under elevated privileges)'
+for line in AccountsMappings:
+    # printstring = '%2s | %3s + %3s / %3s | %14s |' % (line[0], line[1], line[2], line[3], line[4][0])
+    for account in ColorOfAccount:
+        if account in line[4][0]:
+            printstring = '%2s | %3s + %3s / %3s | %14s |' % (Colorize(line[0],account), Colorize(str(line[1]),account), Colorize(str(line[2]),account), Colorize(str(line[3]),account), Colorize(line[4][0],account))
+
+    print printstring
+
+print 'Thanks for watching!'
 
 os.chdir(QTOPPATH)
 
-print 'Thanks for watching!'
+
+
+
+
+def printc(text, color):
+    """Print in color."""
+    print "\033["+codeCodes[color]+"m"+text+"\033[0m"
+
+def writec(text, color):
+    """Write to stdout in color."""
+    sys.stdout.write("\033["+codeCodes[color]+"m"+text+"\033[0m")
+
+def switchColor(color):
+    """Switch console color."""
+    sys.stdout.write("\033["+codeCodes[color]+"m")
+    
