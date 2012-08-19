@@ -475,9 +475,12 @@ PROGDIR = os.path.expanduser('~/off/qtop')
 # SAVEDIR = os.path.expanduser('~/qtop-input/results')
 
 # Location of read and created files
-PBSNODES_ORIG_FILE = 'pbsnodes.out'
-QSTATQ_ORIG_FILE = 'qstat-q.out'
-QSTAT_ORIG_FILE = 'qstat.out'
+PBSNODES_ORIG_FILE = 'pbsnodes_a.txt'
+#PBSNODES_ORIG_FILE = 'pbsnodes.out'
+QSTATQ_ORIG_FILE = 'qstat_q.txt'
+#QSTATQ_ORIG_FILE = 'qstat-q.out'
+QSTAT_ORIG_FILE = 'qstat.txt'
+#QSTAT_ORIG_FILE = 'qstat.out'
 
 PBSNODES_YAML_FILE = HOMEPATH + 'qt/pbsnodes.yaml'
 QSTATQ_YAML_FILE = HOMEPATH + 'qt/qstat-q.yaml'
@@ -507,6 +510,7 @@ WNList, WNListRemapped = [], []
 NodeState = ''
 LastWN = 0
 ExistingNodes, OfflineDownNodes = 0, 0
+MaxNP = 0 
 TotalCores, WorkingCores = 0, 0
 TotalRuns, TotalQueues = 0, 0  # for readQstatQ
 JobIds, UnixAccounts, Statuses, Queues = [], [], [], []  # for read_qstat
@@ -879,6 +883,7 @@ empty_yaml_files()
 os.chdir(OUTPUTPATH)
 OutputDirs += glob.glob('sfragk*')
 OutputDirs += glob.glob('fotis*')
+OutputDirs += glob.glob('gef*')
 
 
 for dir in OutputDirs:
@@ -886,13 +891,22 @@ for dir in OutputDirs:
     # if dir == 'sfragk_iLu0q1CbVgoDFLVhh5NGNw': # 188 WNs, double map
     # if dir == 'sfragk_tEbjFj59gTww0f46jTzyQA':  # implement clip/masking functionality !! problem me mikro width, split se normal plati o8onis
     # if dir == 'sfragk_sDNCrWLMn22KMDBH_jboLQ':  # OK
-    if dir == 'sfragk_aRk11NE12OEDGvDiX9ExUg':   # OK
+    # if dir == 'sfragk_aRk11NE12OEDGvDiX9ExUg':   # OK
     # if dir == 'sfragk_gHYT96ReT3-QxTcvjcKzrQ':  # OK
     # if dir == 'sfragk_zBwyi8fu8In5rLu7RBtLJw':  # OK
     # if dir == 'sfragk_sE5OozGPbCemJxLJyoS89w':  # seems ok !
     # if dir == 'sfragk_vshrdVf9pfFBvWQ5YfrnYg':  # OK
     # if dir == 'sfragk_R__ngzvVl5L22epgFVZOkA':  # OK - 4WNs, 8 hashes
     # if dir == 'sfragk_qWU7q3Y9qb2knm-bgb_O1Q':  # OK
+    # if dir == 'gef_7vxNwO1hVGAmQW89KBdumg': #  OK
+    # if dir == 'gef_6Q4OUrw5F_mx85S0JNaZpQ': # bugs
+    # if dir == 'gef_8KkrK6_AmC2Fuw6QFsjcSg': # concatenation bug
+    # if dir == 'gef_GfcjdUE0LRzQJcCtMiQ3Pw': #  bugs
+    # if dir == 'gef_j_tdFirMT-h7aAamev8oKg': #  bugs
+    # if dir == 'gef_mplRBNMIVNEeKPvEBjPdZg':
+    # if dir == 'gef_Onj4kWILiJh12VbeD5OBJg': #  concatenation bug
+    # if dir == 'gef_Xe31ZK_keTUrLLrGGczYlw':
+    if dir == 'gef_LQJsv6kz3kUu7LEj5kzoZA':
 
         os.chdir(dir)
         yamlstream1 = open(PBSNODES_YAML_FILE, 'a')
