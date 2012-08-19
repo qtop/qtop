@@ -14,6 +14,7 @@
 
 changelog:
 =========
+0.2.6: fixed some names not being detected (%,= chars missing from regex)
 0.2.5: Working Cores added in Usage Totals
        Feature added: map now splits into two if terminal width is smaller than
         the Worker Node number
@@ -476,10 +477,10 @@ PROGDIR = os.path.expanduser('~/off/qtop')
 
 # Location of read and created files
 PBSNODES_ORIG_FILE = 'pbsnodes_a.txt'
-#PBSNODES_ORIG_FILE = 'pbsnodes.out'
 QSTATQ_ORIG_FILE = 'qstat_q.txt'
-#QSTATQ_ORIG_FILE = 'qstat-q.out'
 QSTAT_ORIG_FILE = 'qstat.txt'
+#PBSNODES_ORIG_FILE = 'pbsnodes.out'
+#QSTATQ_ORIG_FILE = 'qstat-q.out'
 #QSTAT_ORIG_FILE = 'qstat.out'
 
 PBSNODES_YAML_FILE = HOMEPATH + 'qt/pbsnodes.yaml'
@@ -491,6 +492,8 @@ QSTAT_YAML_FILE = HOMEPATH + 'qt/qstat.yaml'
 #     fp = os.popen(cmd)   # create dir ~/qtop-input/results if it doesn't
 #                          # exist already
 
+# IDs of unix accounts, for the lower part of qtop
+POSSIBLE_IDS = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'
 #for calculating the WN numbers
 c, d, u = '', '', ''
 PrintStart = 0
@@ -704,15 +707,15 @@ def make_qstatq_yaml(fin, fout):
             n = re.search(RunQdSearch, line)
             TotalRuns, TotalQueues = n.group(1), n.group(2)
     fout.write('---\n')
-    fout.write('Total Running: ' + TotalRuns + '\n')
-    fout.write('Total Queued: ' + TotalQueues + '\n')
+    fout.write('Total Running: ' + str(TotalRuns) + '\n')
+    fout.write('Total Queued: ' + str(TotalQueues) + '\n')
 
 
 def make_qstat_yaml(fin, fout):
     """
     read QSTAT_ORIG_FILE sequentially and put useful data in respective yaml file
     """
-    UserQueueSearch = '^((\d+)\.([A-Za-z-]+[0-9]*))\s+([A-Za-z0-9_.-]+)\s+([A-Za-z0-9]+)\s+(\d+:\d+:\d*|0)\s+([CWRQE])\s+(\w+)'
+    UserQueueSearch = '^((\d+)\.([A-Za-z-]+[0-9]*))\s+([%A-Za-z0-9_.=-]+)\s+([A-Za-z0-9]+)\s+(\d+:\d+:\d*|0)\s+([CWRQE])\s+(\w+)'
     RunQdSearch = '^\s*(\d+)\s+(\d+)'
     for line in fin:
         line.strip()
@@ -753,7 +756,7 @@ def job_accounting_summary():
         print RMWARNING
     print 'PBS report tool. Please try: watch -d ' + QTOPPATH + '. All bugs added by sfranky@gmail.com. Cross fingers now...\n'
     print '===> Job accounting summary <=== (Rev: 3000 $) %s WORKDIR = to be added\n' % (datetime.datetime.today())
-    print 'Usage Totals:\t%s/%s\t Nodes | %s/%s\t Cores |\t %s+%s\t jobs ( R + Q) reported by qstat -q' % (ExistingNodes - OfflineDownNodes, ExistingNodes, WorkingCores, TotalCores, int(TotalRuns), int(TotalQueues))
+    print 'Usage Totals:\t%s/%s\t Nodes | %s/%s\t Cores |\t %s+%s\t jobs (R + Q) reported by qstat -q' % (ExistingNodes - OfflineDownNodes, ExistingNodes, WorkingCores, TotalCores, int(TotalRuns), int(TotalQueues))
     print 'Queues: | ',
     for i in qstatqLst:
         print i[0] + ': ' + i[1] + '+' + i[2] + ' |',
@@ -891,22 +894,22 @@ for dir in OutputDirs:
     # if dir == 'sfragk_iLu0q1CbVgoDFLVhh5NGNw': # 188 WNs, double map
     # if dir == 'sfragk_tEbjFj59gTww0f46jTzyQA':  # implement clip/masking functionality !! problem me mikro width, split se normal plati o8onis
     # if dir == 'sfragk_sDNCrWLMn22KMDBH_jboLQ':  # OK
-    # if dir == 'sfragk_aRk11NE12OEDGvDiX9ExUg':   # OK
+    # if dir == 'sfragk_aRk11NE12OEDGvDiX9ExUg':  # OK
     # if dir == 'sfragk_gHYT96ReT3-QxTcvjcKzrQ':  # OK
     # if dir == 'sfragk_zBwyi8fu8In5rLu7RBtLJw':  # OK
     # if dir == 'sfragk_sE5OozGPbCemJxLJyoS89w':  # seems ok !
     # if dir == 'sfragk_vshrdVf9pfFBvWQ5YfrnYg':  # OK
     # if dir == 'sfragk_R__ngzvVl5L22epgFVZOkA':  # OK - 4WNs, 8 hashes
     # if dir == 'sfragk_qWU7q3Y9qb2knm-bgb_O1Q':  # OK
-    # if dir == 'gef_7vxNwO1hVGAmQW89KBdumg': #  OK
-    # if dir == 'gef_6Q4OUrw5F_mx85S0JNaZpQ': # bugs
-    # if dir == 'gef_8KkrK6_AmC2Fuw6QFsjcSg': # concatenation bug
-    # if dir == 'gef_GfcjdUE0LRzQJcCtMiQ3Pw': #  bugs
-    # if dir == 'gef_j_tdFirMT-h7aAamev8oKg': #  bugs
-    # if dir == 'gef_mplRBNMIVNEeKPvEBjPdZg':
-    # if dir == 'gef_Onj4kWILiJh12VbeD5OBJg': #  concatenation bug
-    # if dir == 'gef_Xe31ZK_keTUrLLrGGczYlw':
-    if dir == 'gef_LQJsv6kz3kUu7LEj5kzoZA':
+    # if dir == 'gef_7vxNwO1hVGAmQW89KBdumg': #  OK (exemplar dataset)
+    # if dir == 'gef_Onj4kWILiJh12VbeD5OBJg': #  OK 
+    # if dir == 'gef_GfcjdUE0LRzQJcCtMiQ3Pw': #  OK
+    # if dir == 'gef_6Q4OUrw5F_mx85S0JNaZpQ': #  double jobs in wn resulting in bugs
+    # if dir == 'gef_8KkrK6_AmC2Fuw6QFsjcSg': #  empty pbsnodes!
+    if dir == 'gef_j_tdFirMT-h7aAamev8oKg': #  bugs
+    # if dir == 'gef_mplRBNMIVNEeKPvEBjPdZg': #  ok but very small
+    # if dir == 'gef_Xe31ZK_keTUrLLrGGczYlw': # no WN numbering
+    # if dir == 'gef_LQJsv6kz3kUu7LEj5kzoZA': #  double IDs !!
 
         os.chdir(dir)
         yamlstream1 = open(PBSNODES_YAML_FILE, 'a')
@@ -979,9 +982,9 @@ Usersortedlst = sorted(OccurenceDic.items(), key=itemgetter(1), reverse=True)
 
 # IdOfUnixAccount = {}
 j = 0
-possibleIDs = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ'
 for unixaccount in Usersortedlst:
-    IdOfUnixAccount[unixaccount[0]] = possibleIDs[j]
+    print unixaccount
+    IdOfUnixAccount[unixaccount[0]] = POSSIBLE_IDS[j]
     j += 1
 ########################## end of copied from below
 
@@ -1058,12 +1061,14 @@ print '\n'
 print '===> User accounts and pool mappings <=== ("all" includes those in C and W states, as reported by qstat)'
 print 'id |   R +   Q / all |  unix account  | Grid certificate DN (this info is only available under elevated privileges)'
 for line in AccountsMappings:
-    # PrintString = '%2s | %3s + %3s / %3s | %14s |' % (line[0], line[1], line[2], line[3], line[4][0])
+    PrintString = '%2s | %3s + %3s / %3s | %14s |' % (line[0], line[1], line[2], line[3], line[4][0])
     for account in ColorOfAccount:
         if line[4][0].startswith(account):
             PrintString = '%14s | %15s + %15s / %15s | %26s |' % (Colorize(line[0], account), Colorize(str(line[1]), account), Colorize(str(line[2]), account), Colorize(str(line[3]), account), Colorize(line[4][0], account))
             AccountNrlessOfId[line[0]] = account  # bgazei px 'see', oxi 'see018'
             # AccountNrlessOfId[line[0]] = line[4][0]  # bgazei px 'see042'
+        else:
+            pass
     print PrintString
 
 CPUCoreDic2 = copy.deepcopy(CPUCoreDic)
@@ -1082,7 +1087,7 @@ for ind in range(len(CPUCoreDic)):
     # PrintMap +=  CPUCoreDic['Cpu' + str(ind)+'line'][PrintStart:PrintEnd] + '=CPU' + str(ind)+'\n'
     ## PrintMap +=  CPUCoreDic['Cpu' + str(ind)+'line'][PrintStart:PrintEnd] + '=CPU' + str(ind)+'\n'
 
-print PrintMap
+#print PrintMap
 # for id in PrintMap:
 
 print '\nThanks for watching!'
@@ -1103,3 +1108,4 @@ def writec(text, color):
 def switchColor(color):
     """Switch console color."""
     sys.stdout.write("\033[" + CodeOfColor[color] + "m")
+
