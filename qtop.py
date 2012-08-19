@@ -2,7 +2,7 @@
 
 ################################################
 #                                              #
-#              qtop v.0.2.5                    #
+#              qtop v.0.2.6                    #
 #                                              #
 #     Licensed under MIT-GPL licenses          #
 #                                              #
@@ -266,7 +266,6 @@ def read_pbsnodes_yaml(fin):
             job = str(line.split(': ')[1]).strip()
             AllWNs[NodeNr].append((core, job))
             AllWNsRemapped[RemapNr].append((core, job))
-        # print 'successful case was ', case
 
     LastWN = BiggestWrittenNode
     HighestCoreBusy += 1
@@ -541,7 +540,6 @@ Usersortedlst = sorted(OccurenceDic.items(), key=itemgetter(1), reverse=True)
 # IdOfUnixAccount = {}
 j = 0
 for unixaccount in Usersortedlst:
-    print unixaccount
     IdOfUnixAccount[unixaccount[0]] = POSSIBLE_IDS[j]
     j += 1
 ########################## end of copied from below
@@ -594,7 +592,6 @@ if Dx < 0:
 
 ###########################################################################################################################
 
-# qstatLst.sort(key = lambda unixaccount: unixaccount[1])   # sort by unix account
 
 
 # this calculates and prints what is actually below the id|  R + Q /all | unix account etc line
