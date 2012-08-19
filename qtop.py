@@ -14,6 +14,7 @@
 
 changelog:
 =========
+0.2.7: exiting when there two jobs on the same core reported on pbsnodes (remapping functionality to be added)
 0.2.6: fixed some names not being detected (%,= chars missing from regex)
        changed name to qtop, introduced configuration file qtop.conf and 
        colormap file qtop.colormap
@@ -24,31 +25,23 @@ changelog:
        un-hardwired the file paths
        refactored code around CPUCoreDic functionality (responsible for drawing
         the map)
-0.2.3: corrected regex search pattern in make_qstat to recognize usernames like
- spec101u1 (number followed by number followed by letter)
-       now handles non-uniform setups
+0.2.3: corrected regex search pattern in make_qstat to recognize usernames like spec101u1 (number followed by number followed by letter) now handles non-uniform setups
         R + Q / all: all did not display everything (E status)
-0.2.2: clipping functionality (when nodes start from e.g. wn101, empty columns
- 1-100 are ommited)
-0.2.1: Hashes displaying when the node has less cores than the max declared by
-a WN (its np variable)
+0.2.2: clipping functionality (when nodes start from e.g. wn101, empty columns 1-100 are ommited)
+0.2.1: Hashes displaying when the node has less cores than the max declared by a WN (its np variable)
 0.2.0: unix accounts are now correctly ordered
 0.1.9: All CPU lines displaying correctly
 0.1.8: unix account id assignment to CPU0, 1 implemented
 0.1.7: ReadQstatQ function (write in yaml format using Pyyaml)
        output up to Node state !
 0.1.6: ReadPbsNodes function (write in yaml format using Pyyaml)
-0.1.5: implemented saving to 3 separate files, QSTAT_ORIG_FILE,
-QSTATQ_ORIG_FILE, PBSNODES_ORIG_FILE
+0.1.5: implemented saving to 3 separate files, QSTAT_ORIG_FILE, QSTATQ_ORIG_FILE, PBSNODES_ORIG_FILE
 0.1.4: some "wiremelting" concerning the save directory
 0.1.3: fixed tabs-to-spaces. Formatting should be correct now.
        Now each state is saved in a separate file in a results folder
-0.1.2: script reads qtop-input.out files from each job and displays status for
-each job
+0.1.2: script reads qtop-input.out files from each job and displays status for each job
 0.1.1: changed implementation in get_state()
-
-0.1.0: just read a pbsnodes-a output file and gather the results in a single
-line
+0.1.0: just read a pbsnodes-a output file and gather the results in a single line
 
 
 """
@@ -158,11 +151,16 @@ def make_pbsnodes_yaml(fin, fout):
 
         elif 'jobs = ' in line:    # line.find('jobs = ')!=-1:
             ljobs = line.split('=')[1].split(',')
+            lastcore = 150000
             for job in ljobs:
                 core = job.strip().split('/')[0]
+                if core == lastcore:
+                    print 'There are concurrent jobs assigned to the same core!'+'\n'+'Remapping feature is not implemented yet. Exiting..'
+                    sys.exit(1)
                 job = job.strip().split('/')[1:][0].split('.')[0]
                 fout.write('- core: ' + core + '\n')
                 fout.write('  job: ' + job + '\n')
+                lastcore = core
 
         elif 'gpus = ' in line:     # line.find('gpus = ')!=-1:
             gpus = line.split(' = ')[1]
@@ -634,9 +632,4 @@ def printc(text, color):
 def writec(text, color):
     """Write to stdout in color."""
     sys.stdout.write("\033[" + CodeOfColor[color] + "m" + text + "\033[0m")
-
-
-def switchColor(color):
-    """Switch console color."""
-    sys.stdout.write("\033[" + CodeOfColor[color] + "m")
 
