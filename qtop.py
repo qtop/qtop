@@ -76,31 +76,7 @@ def Colorize(text, pattern):
     return "\033[" + CodeOfColor[ColorOfAccount[pattern]] + "m" + text + \
         "\033[1;m"
      # print '\033[1;35mMagenta like Mimosa\033[1;m'
-HOMEPATH = os.path.expanduser('~/')
-OUTPUTPATH = os.path.expanduser('~/qtop-input/outputs/')
-QTOPPATH = os.path.expanduser('~/qtop/qtop')
-PROGDIR = os.path.expanduser('~/off/qtop')
-# SAVEDIR = os.path.expanduser('~/qtop-input/results')
 
-# Location of read and created files
-PBSNODES_ORIG_FILE = 'pbsnodes_a.txt'
-QSTATQ_ORIG_FILE = 'qstat_q.txt'
-QSTAT_ORIG_FILE = 'qstat.txt'
-#PBSNODES_ORIG_FILE = 'pbsnodes.out'
-#QSTATQ_ORIG_FILE = 'qstat-q.out'
-#QSTAT_ORIG_FILE = 'qstat.out'
-
-PBSNODES_YAML_FILE = HOMEPATH + 'qt/pbsnodes.yaml'
-QSTATQ_YAML_FILE = HOMEPATH + 'qt/qstat-q.yaml'
-QSTAT_YAML_FILE = HOMEPATH + 'qt/qstat.yaml'
-
-# if not os.path.exists(SAVEDIR):
-#     cmd = 'mkdir ' + SAVEDIR
-#     fp = os.popen(cmd)   # create dir ~/qtop-input/results if it doesn't
-#                          # exist already
-
-# IDs of unix accounts, for the lower part of qtop
-POSSIBLE_IDS = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'
 #for calculating the WN numbers
 c, d, u = '', '', ''
 PrintStart = 0
@@ -486,13 +462,13 @@ def empty_yaml_files():
 
 
 ################ MAIN ###########################
-empty_yaml_files()
 
 CONFIGFILE = os.path.expanduser('~/qtop/qtop/qtop.conf')
 qtopconf = open(CONFIGFILE, 'r')
 exec qtopconf
 
 
+empty_yaml_files()
 #Calculation of split screen size
 
 TermRows, TermColumns = os.popen('stty size', 'r').read().split()
