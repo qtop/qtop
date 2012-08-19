@@ -58,7 +58,7 @@ import itertools
 import os
 import re
 import sys
-import yaml
+# import yaml
 import copy
 # from qtcolormap import *
 # import qtcolormap
