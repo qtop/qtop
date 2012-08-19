@@ -63,8 +63,7 @@ import copy
 # from qtcolormap import *
 # import qtcolormap
 
-ColorOfAccount =
-{
+ColorOfAccount = {
     'Atlassm':   'Red_L',
     'sgmatlas':  'Red_L',
     'patlas':    'Red_L',
