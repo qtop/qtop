@@ -519,7 +519,6 @@ def empty_yaml_files():
     fin3temp = open(QSTAT_YAML_FILE, 'w')
     fin3temp.close()
 
-
 ################ MAIN ###########################
 
 CONFIGFILE = os.path.expanduser('~/qtop/qtop/qtop.conf')
@@ -527,7 +526,7 @@ qtopconf = open(CONFIGFILE, 'r')
 exec qtopconf
 
 
-empty_yaml_files()
+
 #Calculation of split screen size
 
 TermRows, TermColumns = os.popen('stty size', 'r').read().split()
