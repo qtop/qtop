@@ -2,7 +2,7 @@
 
 ################################################
 #                                              #
-#              qtop v.0.2.6                    #
+#              qtop v.0.2.7                    #
 #                                              #
 #     Licensed under MIT-GPL licenses          #
 #                                              #
@@ -71,7 +71,7 @@ def Colorize(text, pattern):
      # print '\033[1;35mMagenta like Mimosa\033[1;m'
 
 #for calculating the WN numbers
-c, d, u = '', '', ''
+t, c, d, u = '', '', '', ''
 PrintStart = 0
 
 CLIPPING = True
@@ -379,7 +379,7 @@ def number_WNs(WNnumber, WNList):
     '''
     prints the worker node ID number lines
     '''
-    global c, d, u, PrintStart, PrintEnd
+    global t, c, d, u, PrintStart, PrintEnd
     if WNnumber < 10:
         unit = str(WNnumber)[0]
 
@@ -429,6 +429,57 @@ def number_WNs(WNnumber, WNList):
         print_WN_ID_lines(PrintStart, PrintEnd, WNnumber)
 
         # todo: remember to fix < 100 cases (do i really need to, though?)
+    elif WNnumber > 1000:
+        thou = int(str(WNnumber)[0])    
+        cent = int(str(WNnumber)[1])
+        dec = int(str(WNnumber)[2])
+        unit = int(str(WNnumber)[3])
+
+        t += str(0) * 999
+        for i in range(1, thou):
+            t += str(i) * 1000
+        t += str(thou) * ((int(cent)) * 100 + (int(dec)) * 10 + (int(unit) + 1))
+
+        c_ = '0' * 99 + '1' * 100 + '2' * 100 + '3' * 100 + '4' * 100 + '5' * 100 + '6' * 100 + '7' * 100 + '8' * 100 + '9' * 100
+        c__ = '0' * 100 + '1' * 100 + '2' * 100 + '3' * 100 + '4' * 100 + '5' * 100 + '6' * 100 + '7' * 100 + '8' * 100 + '9' * 100
+        c = c_
+
+        for i in range(1, thou):
+            c += c__
+        else:
+            c += c__[:int(str(cent)+str(dec)+str(unit))]
+        #c += c__[:int(str(cent) + str(dec))]
+
+
+        d_ = '0' * 10 + '1' * 10 + '2' * 10 + '3' * 10 + '4' * 10 + '5' * 10 + '6' * 10 + '7' * 10 + '8' * 10 + '9' * 10
+        d__ = d_ * cent * 10
+        d = '0' * 9 + '1' * 10 + '2' * 10 + '3' * 10 + '4' * 10 + '5' * 10 + '6' * 10 + '7' * 10 + '8' * 10 + '9' * 10
+        d += d__
+
+        #for i in range(1, cent):
+        #    c += str(i) * 100
+        #else:
+        #    d += str(0)
+        d += d_[:int(str(dec) + str(unit))]
+
+        uc = '1234567890' * 1000
+        u = uc[:WNnumber]
+
+
+   
+        '''
+        masking/clipping functionality: if the earliest node number is high (e.g. 80), the first 79 WNs need not show up.
+        '''
+        if (CLIPPING is True) and WNList[0] > 100:
+            PrintStart = WNList[0] - 1
+            if PrintEnd < PrintStart:
+                PrintEnd += PrintStart
+
+        print_WN_ID_lines(PrintStart, PrintEnd, WNnumber)
+        #print 'printstart was: ', PrintStart
+        #print 'printend was: ', PrintEnd
+        #print 'WNList was: ', WNList 
+        #print 'WNNumber was: ', WNnumber 
 
 
 def print_WN_ID_lines(start, stop, WNnumber):
@@ -443,6 +494,13 @@ def print_WN_ID_lines(start, stop, WNnumber):
         print c[start:stop] + '={_Worker_}'
         print d[start:stop] + '={__Node__}'
         print u[start:stop] + '={___ID___}'
+
+    elif WNnumber > 1000:
+        print t[start:stop] + '={_Super__}'
+        print c[start:stop] + '={_Worker_}'
+        print d[start:stop] + '={__Node__}'
+        print u[start:stop] + '={___ID___}'
+
 
 
 def empty_yaml_files():
@@ -633,3 +691,5 @@ def writec(text, color):
     """Write to stdout in color."""
     sys.stdout.write("\033[" + CodeOfColor[color] + "m" + text + "\033[0m")
 
+#print AllWNs
+print len(AllWNs)
