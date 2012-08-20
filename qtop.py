@@ -14,7 +14,8 @@
 
 changelog:
 =========
-0.2.7: exiting when there two jobs on the same core reported on pbsnodes (remapping functionality to be added)
+0.2.7: Exiting when there are two jobs on the same core reported on pbsnodes (remapping functionality to be added)
+       Number of WNs >1000 is now handled 
 0.2.6: fixed some names not being detected (%,= chars missing from regex)
        changed name to qtop, introduced configuration file qtop.conf and 
        colormap file qtop.colormap
@@ -127,7 +128,7 @@ def make_pbsnodes_yaml(fin, fout):
     # NodeNr = 0
     for line in fin:
         line.strip()
-        searchdname = '^\w+(\.\w+)*'
+        searchdname = '^\w+-?\w+(\.\w+)*'
         if re.search(searchdname, line) is not None:   # line containing domain name
             m = re.search(searchdname, line)
             dname = m.group(0)
@@ -186,8 +187,8 @@ def read_pbsnodes_yaml(fin):
     for line in fin:
         line.strip()
         county += 1
-        searchdname = 'domainname: ' + '(\w+(\.\w+)*)'
-        searchnodenr = '([A-Za-z]+)(\d+)'
+        searchdname = 'domainname: ' + '(\w+-?\w+(\.\w+)*)'
+        searchnodenr = '([A-Za-z-]+)(\d+)'
         if re.search(searchdname, line) is not None:   # line containing domain name
             # case = 0
             m = re.search(searchdname, line)
@@ -425,6 +426,8 @@ def number_WNs(WNnumber, WNList):
         '''
         if (CLIPPING is True) and WNList[0] > 30:
             PrintStart = WNList[0] - 1
+            if PrintEnd < PrintStart and PrintEnd is not None:
+                PrintEnd += PrintStart
 
         print_WN_ID_lines(PrintStart, PrintEnd, WNnumber)
 
@@ -531,14 +534,16 @@ TermRows, TermColumns = os.popen('stty size', 'r').read().split()
 TermColumns = int(TermColumns)
 
 DEADWEIGHT = 15  # columns on the left and right of the CPUx map
-Dx = TermColumns - (BiggestWrittenNode + DEADWEIGHT)
+
+##### the proper place to put this is probably in the other place
+Dx = TermColumns - (BiggestWrittenNode - PrintStart + DEADWEIGHT)
+
 if Dx < 0:
     #split in x+1 pieces, where x = (BiggestWrittenNode+15)/termcolumns
     PrintEnd = TermColumns - DEADWEIGHT
 else:
     PrintEnd = None
-
-
+##### the proper place to put this is probably in the other place
 job_accounting_summary()
 
 # solution for counting R, Q, C attached to each user
@@ -597,6 +602,9 @@ if there are non-uniform WNs in pbsnodes.yaml, e.g. wn01, wn02, gn01, gn02, ...,
 Otherwise, for uniform WNs, i.e. all using the same numbering scheme, wn01, wn02, ... proceed as normal
 '''
 
+
+
+
 if len(NodeSubClusters) == 1:
     number_WNs(LastWN, WNList)
     for node in AllWNs:  # why are dictionaries ALWAYS ordered, when keys are '1','5','3' etc ?!!?!?
@@ -605,6 +613,20 @@ elif len(NodeSubClusters) > 1:
     number_WNs(RemapNr, WNListRemapped)
     for node in AllWNsRemapped:
         NodeState += AllWNsRemapped[node][0]
+
+
+##### the proper place to put this is probably here
+Dx = TermColumns - (BiggestWrittenNode - PrintStart + DEADWEIGHT)
+#print 'PrintStart is: ', PrintStart
+
+if Dx < 0:
+    #split in x+1 pieces, where x = (BiggestWrittenNode+15)/termcolumns
+    PrintEnd = TermColumns - DEADWEIGHT
+else:
+    PrintEnd = None
+##### the proper place to put this is probably here
+
+
 
 print NodeState[PrintStart:PrintEnd] + '=Node state'
 
@@ -693,3 +715,7 @@ def writec(text, color):
 
 #print AllWNs
 print len(AllWNs)
+print PrintStart, PrintEnd, Dx
+print 'Dx = TermColumns - (BiggestWrittenNode-PrintStart + DEADWEIGHT)'
+print Dx, '=', TermColumns, '-', '(', BiggestWrittenNode, '-', PrintStart, '+', DEADWEIGHT, ')'
+
