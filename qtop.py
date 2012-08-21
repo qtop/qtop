@@ -458,8 +458,6 @@ def number_WNs(WNnumber, WNList):
         uc = '1234567890' * 1000
         u = uc[:WNnumber]
 
-
-
     '''
     masking/clipping functionality: if the earliest node number is high (e.g. 80), the first 79 WNs need not show up.
     '''
@@ -469,13 +467,17 @@ def number_WNs(WNnumber, WNList):
             PrintEnd = BiggestWrittenNode
         elif PrintEnd < PrintStart:
             PrintEnd += PrintStart
+    elif WNList[0] < 100:
+        if PrintEnd is None:
+            PrintEnd = BiggestWrittenNode
+        
 
 
     NrOfTables = (BiggestWrittenNode - PrintStart) / TermColumns + 1
     if NrOfTables > 1: 
         PrintEnd = PrintStart + TermColumns - DEADWEIGHT
     else:
-        PrintEnd = None
+        PrintEnd = BiggestWrittenNode
 
     print_WN_ID_lines(PrintStart, PrintEnd, WNnumber)
 
@@ -687,9 +689,9 @@ os.chdir(QTOPPATH)
 
 
 #print AllWNs
-print 'BiggestWrittenNode is: ', len(AllWNs), BiggestWrittenNode
-print 'PrintStart, PrintEnd are: ', PrintStart, PrintEnd
-# print 'Dx = TermColumns - (BiggestWrittenNode-PrintStart + DEADWEIGHT)'
-# print Dx, '=', TermColumns, '-', '(', BiggestWrittenNode, '-', PrintStart, '+', DEADWEIGHT, ')'
-print 'NrOfTables is:', NrOfTables
-print 'TermColumns is: ', TermColumns
+# print 'BiggestWrittenNode is: ', len(AllWNs), BiggestWrittenNode
+# print 'PrintStart, PrintEnd are: ', PrintStart, PrintEnd
+# # print 'Dx = TermColumns - (BiggestWrittenNode-PrintStart + DEADWEIGHT)'
+# # print Dx, '=', TermColumns, '-', '(', BiggestWrittenNode, '-', PrintStart, '+', DEADWEIGHT, ')'
+# print 'NrOfTables is:', NrOfTables
+# print 'TermColumns is: ', TermColumns
