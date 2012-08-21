@@ -71,9 +71,19 @@ def Colorize(text, pattern):
         "\033[1;m"
      # print '\033[1;35mMagenta like Mimosa\033[1;m'
 
+def printc(text, color):
+    """Print in color."""
+    print "\033[" + CodeOfColor[color] + "m" + text + "\033[0m"
+
+
+def writec(text, color):
+    """Write to stdout in color."""
+    sys.stdout.write("\033[" + CodeOfColor[color] + "m" + text + "\033[0m")
+
+
 #for calculating the WN numbers
 t, c, d, u = '', '', '', ''
-PrintStart = 0
+PrintStart, PrintEnd = 0, None
 
 CLIPPING = True
 RMWARNING = '=== WARNING: --- Remapping WN names and retrying heuristics... \
@@ -380,14 +390,12 @@ def number_WNs(WNnumber, WNList):
     '''
     prints the worker node ID number lines
     '''
-    global t, c, d, u, PrintStart, PrintEnd
+    global t, c, d, u, PrintStart, PrintEnd, Dx, NrOfTables
     if WNnumber < 10:
         unit = str(WNnumber)[0]
 
         for node in range(WNnumber):
             u += str(node + 1)
-        # print u + '={__WNID__}'
-        print_WN_ID_lines(PrintStart, PrintEnd, WNnumber)
 
     elif WNnumber < 100:
         dec = str(WNnumber)[0]
@@ -396,9 +404,6 @@ def number_WNs(WNnumber, WNList):
         d_ = '0' * 9 + '1' * 10 + '2' * 10 + '3' * 10 + '4' * 10 + '5' * 10 + '6' * 10 + '7' * 10 + '8' * 10 + '9' * 10
         u = '1234567890' * 10
         d = d_[:WNnumber]
-        # print d +            '={_Worker_}'
-        # print u[:WNnumber] + '={__Node__}'
-        print_WN_ID_lines(PrintStart, PrintEnd, WNnumber)
 
     elif WNnumber < 1000:
         cent = int(str(WNnumber)[0])
@@ -421,17 +426,7 @@ def number_WNs(WNnumber, WNList):
         uc = '1234567890' * 100
         u = uc[:WNnumber]
 
-        '''
-        masking/clipping functionality: if the earliest node number is high (e.g. 80), the first 79 WNs need not show up.
-        '''
-        if (CLIPPING is True) and WNList[0] > 30:
-            PrintStart = WNList[0] - 1
-            if PrintEnd < PrintStart and PrintEnd is not None:
-                PrintEnd += PrintStart
 
-        print_WN_ID_lines(PrintStart, PrintEnd, WNnumber)
-
-        # todo: remember to fix < 100 cases (do i really need to, though?)
     elif WNnumber > 1000:
         thou = int(str(WNnumber)[0])    
         cent = int(str(WNnumber)[1])
@@ -450,39 +445,42 @@ def number_WNs(WNnumber, WNList):
         for i in range(1, thou):
             c += c__
         else:
-            c += c__[:int(str(cent)+str(dec)+str(unit))]
-        #c += c__[:int(str(cent) + str(dec))]
-
+            c += c__[:int(str(cent)+str(dec)+str(unit))+1]
+            print 'the length of c is:', len(c__) # int(str(cent)+str(dec)+str(unit))
 
         d_ = '0' * 10 + '1' * 10 + '2' * 10 + '3' * 10 + '4' * 10 + '5' * 10 + '6' * 10 + '7' * 10 + '8' * 10 + '9' * 10
         d__ = d_ * cent * 10
         d = '0' * 9 + '1' * 10 + '2' * 10 + '3' * 10 + '4' * 10 + '5' * 10 + '6' * 10 + '7' * 10 + '8' * 10 + '9' * 10
         d += d__
 
-        #for i in range(1, cent):
-        #    c += str(i) * 100
-        #else:
-        #    d += str(0)
         d += d_[:int(str(dec) + str(unit))]
 
         uc = '1234567890' * 1000
         u = uc[:WNnumber]
 
 
-   
-        '''
-        masking/clipping functionality: if the earliest node number is high (e.g. 80), the first 79 WNs need not show up.
-        '''
-        if (CLIPPING is True) and WNList[0] > 100:
-            PrintStart = WNList[0] - 1
-            if PrintEnd < PrintStart:
-                PrintEnd += PrintStart
 
-        print_WN_ID_lines(PrintStart, PrintEnd, WNnumber)
-        #print 'printstart was: ', PrintStart
-        #print 'printend was: ', PrintEnd
-        #print 'WNList was: ', WNList 
-        #print 'WNNumber was: ', WNnumber 
+    '''
+    masking/clipping functionality: if the earliest node number is high (e.g. 80), the first 79 WNs need not show up.
+    '''
+    if (CLIPPING is True) and WNList[0] > 100:
+        PrintStart = WNList[0] - 1
+        if PrintEnd is None:
+            PrintEnd = BiggestWrittenNode
+        elif PrintEnd < PrintStart:
+            PrintEnd += PrintStart
+
+
+    NrOfTables = (BiggestWrittenNode - PrintStart) / TermColumns + 1
+    if NrOfTables > 1: 
+        PrintEnd = PrintStart + TermColumns - DEADWEIGHT
+    else:
+        PrintEnd = None
+
+    print_WN_ID_lines(PrintStart, PrintEnd, WNnumber)
+
+
+
 
 
 def print_WN_ID_lines(start, stop, WNnumber):
@@ -499,10 +497,10 @@ def print_WN_ID_lines(start, stop, WNnumber):
         print u[start:stop] + '={___ID___}'
 
     elif WNnumber > 1000:
-        print t[start:stop] + '={_Super__}'
-        print c[start:stop] + '={_Worker_}'
-        print d[start:stop] + '={__Node__}'
-        print u[start:stop] + '={___ID___}'
+        print t[start:stop] + '={_This___}'
+        print c[start:stop] + '={_space__}'
+        print d[start:stop] + '={__for __}'
+        print u[start:stop] + '={_sale___}'
 
 
 
@@ -532,17 +530,8 @@ exec qtopconf
 TermRows, TermColumns = os.popen('stty size', 'r').read().split()
 TermColumns = int(TermColumns)
 
-DEADWEIGHT = 15  # columns on the left and right of the CPUx map
+DEADWEIGHT = 15  # standard columns on the left and right of the CPUx map
 
-##### the proper place to put this is probably in the other place
-Dx = TermColumns - (BiggestWrittenNode - PrintStart + DEADWEIGHT)
-
-if Dx < 0:
-    #split in x+1 pieces, where x = (BiggestWrittenNode+15)/termcolumns
-    PrintEnd = TermColumns - DEADWEIGHT
-else:
-    PrintEnd = None
-##### the proper place to put this is probably in the other place
 job_accounting_summary()
 
 # solution for counting R, Q, C attached to each user
@@ -613,40 +602,33 @@ elif len(NodeSubClusters) > 1:
     for node in AllWNsRemapped:
         NodeState += AllWNsRemapped[node][0]
 
-
-##### the proper place to put this is probably here
-Dx = TermColumns - (BiggestWrittenNode - PrintStart + DEADWEIGHT)
-#print 'PrintStart is: ', PrintStart
-
-if Dx < 0:
-    #split in x+1 pieces, where x = (BiggestWrittenNode+15)/termcolumns
-    PrintEnd = TermColumns - DEADWEIGHT
-else:
-    PrintEnd = None
-##### the proper place to put this is probably here
-
-
-
 print NodeState[PrintStart:PrintEnd] + '=Node state'
 
 for ind, k in enumerate(CPUCoreDic):
     PrintLines = CPUCoreDic['Cpu' + str(ind) + 'line'][PrintStart:PrintEnd] + '=CPU' + str(ind)
     print PrintLines
 
-if Dx < 0:
+
+
+#print remaining tables
+for i in range(NrOfTables): 
     print '\n'
+    PrintStart = PrintEnd
+    PrintEnd += TermColumns - DEADWEIGHT
+    if PrintEnd > BiggestWrittenNode:
+        PrintEnd = BiggestWrittenNode
+    if PrintStart == PrintEnd:
+        break
     if len(NodeSubClusters) == 1:
-        print_WN_ID_lines(PrintEnd, BiggestWrittenNode, LastWN)
+        print_WN_ID_lines(PrintStart, PrintEnd, LastWN)
     if len(NodeSubClusters) > 1:
-        print_WN_ID_lines(PrintEnd, BiggestWrittenNode, RemapNr)
-    print NodeState[PrintEnd:BiggestWrittenNode] + '=Node state'
+        print_WN_ID_lines(PrintStart, PrintEnd, RemapNr)
+    print NodeState[PrintStart:PrintEnd] + '=Node state'
     for ind, k in enumerate(CPUCoreDic):
-        print CPUCoreDic['Cpu' + str(ind) + 'line'][PrintEnd:BiggestWrittenNode] + '=CPU' + str(ind)
-
-###########################################################################################################################
+        print CPUCoreDic['Cpu' + str(ind) + 'line'][PrintStart:PrintEnd] + '=CPU' + str(ind)
 
 
-
+################################################################################################
 # this calculates and prints what is actually below the id|  R + Q /all | unix account etc line
 for id in IdOfUnixAccount:
     if id not in RunningOfUser:
@@ -683,7 +665,7 @@ CPUCoreDic2 = copy.deepcopy(CPUCoreDic)
 PrintMap = ''
 for ind in range(len(CPUCoreDic)):
     if  '1' in CPUCoreDic['Cpu' + str(ind) + 'line']:
-        print
+        pass
     ## for Accountless, id in zip(AccountNrlessOfId.values(),
         # AccountNrlessOfId.keys()):
         '''
@@ -703,18 +685,11 @@ print '\nThanks for watching!'
 os.chdir(QTOPPATH)
 
 
-def printc(text, color):
-    """Print in color."""
-    print "\033[" + CodeOfColor[color] + "m" + text + "\033[0m"
-
-
-def writec(text, color):
-    """Write to stdout in color."""
-    sys.stdout.write("\033[" + CodeOfColor[color] + "m" + text + "\033[0m")
 
 #print AllWNs
-print len(AllWNs)
-print PrintStart, PrintEnd, Dx
-print 'Dx = TermColumns - (BiggestWrittenNode-PrintStart + DEADWEIGHT)'
-print Dx, '=', TermColumns, '-', '(', BiggestWrittenNode, '-', PrintStart, '+', DEADWEIGHT, ')'
-
+print 'BiggestWrittenNode is: ', len(AllWNs), BiggestWrittenNode
+print 'PrintStart, PrintEnd are: ', PrintStart, PrintEnd
+# print 'Dx = TermColumns - (BiggestWrittenNode-PrintStart + DEADWEIGHT)'
+# print Dx, '=', TermColumns, '-', '(', BiggestWrittenNode, '-', PrintStart, '+', DEADWEIGHT, ')'
+print 'NrOfTables is:', NrOfTables
+print 'TermColumns is: ', TermColumns
