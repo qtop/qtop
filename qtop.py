@@ -285,7 +285,7 @@ def make_qstatq_yaml(fin, fout):
     """
     read QSTATQ_ORIG_FILE sequentially and put useful data in respective yaml file
     """
-    Queuesearch = '^([a-z]+)\s+(--)\s+(--|\d+:\d+:\d+)\s+(--|\d+:\d+:\d+)\s+(--)\s+(\d+)\s+(\d+)\s+(--|\d+)\s+([DE] R)'
+    Queuesearch = '^([a-zA-Z0-9_.-]+)\s+(--)\s+(--|\d+:\d+:\d+)\s+(--|\d+:\d+:\d+)\s+(--)\s+(\d+)\s+(\d+)\s+(--|\d+)\s+([DE] R)'
     RunQdSearch = '^\s*(\d+)\s+(\d+)'
     for line in fin:
         line.strip()
@@ -352,7 +352,7 @@ def job_accounting_summary():
     if len(NodeSubClusters) > 1:
         print RMWARNING
     print 'PBS report tool. Please try: watch -d ' + QTOPPATH + '. All bugs added by sfranky@gmail.com. Cross fingers now...\n'
-    print '===> Job accounting summary <=== (Rev: 3000 $) %s WORKDIR = to be added\n' % (datetime.datetime.today())
+    print Colorize('===> ', 'Brown') + Colorize('Job accounting summary', 'purple') + Colorize(' <=== ', 'Brown') + '(Rev: 3000 $) %s WORKDIR = to be added\n' % (datetime.datetime.today())
     print 'Usage Totals:\t%s/%s\t Nodes | %s/%s  Cores |\t %s+%s jobs (R + Q) reported by qstat -q' % (ExistingNodes - OfflineDownNodes, ExistingNodes, WorkingCores, TotalCores, int(TotalRuns), int(TotalQueues))
     print 'Queues: | ',
     for i in qstatqLst:
@@ -613,7 +613,7 @@ elif len(NodeSubClusters) > 1:
 
 
 ########################### Node State ######################
-print '===> Worker Nodes occupancy <=== (you can read vertically the node IDs; nodes in free state are noted with - )'
+print Colorize('===> ', 'Brown') + Colorize('Worker Nodes occupancy', 'purple') + Colorize(' <=== ', 'Brown') + '(you can read vertically the node IDs; nodes in free state are noted with - )\n'
 
 '''
 if there are non-uniform WNs in pbsnodes.yaml, e.g. wn01, wn02, gn01, gn02, ...,  remapping is performed
@@ -693,7 +693,7 @@ for i in range(NrOfTables):
 # if AccountsMappings[0][1]>999:
 
 print '\n'
-print '===> User accounts and pool mappings <=== ("all" includes those in C and W states, as reported by qstat)'
+print Colorize('===> ', 'Brown') + Colorize('User accounts and pool mappings', 'purple') + Colorize(' <=== ', 'Brown') + '("all" includes those in C and W states, as reported by qstat)\n'
 print ' id |  R   +   Q  /  all |    unix account | Grid certificate DN (this info is only available under elevated privileges)'
 for line in AccountsMappings:
     PrintString = '%3s | %4s + %4s / %4s | %15s |' % (line[0], line[1], line[2], line[3], line[4][0])

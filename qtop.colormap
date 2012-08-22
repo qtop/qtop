@@ -374,7 +374,12 @@ ColorOfAccount = {
     'pkoro':           'Brown',
     'fotis':           'Blue',
     'astrelchenko':    'Cyan',
-    'tchristoudias':   'Brown'
+    'tchristoudias':   'Brown',
+    'dashed':    'Gray_L',
+    'purple':    'Purple',
+    'Red':    'Red',
+    'Gray':   'Gray_L',
+    'Brown':    'Brown',
     # catch-all rule for many more names
     #[[:alpha:]][-_[:alnum:].]* 'Gray_L',
 }
