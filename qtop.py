@@ -665,12 +665,9 @@ for line in AccountsMappings:
     for account in ColorOfAccount:
         if line[4][0].startswith(account):
             PrintString = '%15s | %16s + %16s / %16s | %27s |' % (Colorize(line[0], account), Colorize(str(line[1]), account), Colorize(str(line[2]), account), Colorize(str(line[3]), account), Colorize(line[4][0], account))
-            # AccountNrlessOfId[line[0]] = account  # bgazei px 'see', oxi 'see018'
-            ## AccountNrlessOfId[line[0]] = line[4][0]  # bgazei px 'see042'
         else:
             pass
     print PrintString
-
 
 print '\nThanks for watching!'
 
