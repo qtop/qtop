@@ -2,7 +2,7 @@
 
 ################################################
 #                                              #
-#              qtop v.0.2.7                    #
+#              qtop v.0.2.8                    #
 #                                              #
 #     Licensed under MIT-GPL licenses          #
 #                                              #
@@ -70,17 +70,6 @@ def Colorize(text, pattern):
     """print text colored according to its unix account colors"""
     return "\033[" + CodeOfColor[ColorOfAccount[pattern]] + "m" + text + \
         "\033[1;m"
-     # print '\033[1;35mMagenta like Mimosa\033[1;m'
-
-def printc(text, color):
-    """Print in color."""
-    print "\033[" + CodeOfColor[color] + "m" + text + "\033[0m"
-
-
-def writec(text, color):
-    """Write to stdout in color."""
-    sys.stdout.write("\033[" + CodeOfColor[color] + "m" + text + "\033[0m")
-
 
 #for calculating the WN numbers
 t, c, d, u = '', '', '', ''
@@ -136,7 +125,6 @@ def make_pbsnodes_yaml(fin, fout):
     """
     global OfflineDownNodes
 
-    # NodeNr = 0
     for line in fin:
         line.strip()
         searchdname = '^\w+-?\w+(\.\w+)*'
@@ -191,13 +179,10 @@ def read_pbsnodes_yaml(fin):
     '''
     global ExistingNodes, OfflineDownNodes, LastWN, jobseries, BiggestWrittenNode, WNList, WNListRemapped, NodeNr, TotalCores, WorkingCores, AllWNs, AllWNsRemapped, HighestCoreBusy, MaxNP, NodeSubClusters, RemapNr
 
-    # HighestCoreBusy = 0
     MaxNP = 0
     state = ''
-    # county = 0
     for line in fin:
         line.strip()
-        # county += 1
         searchdname = 'domainname: ' + '(\w+-?\w+(\.\w+)*)'
         searchnodenr = '([A-Za-z-]+)(\d+)'
         if re.search(searchdname, line) is not None:   # line contains domain name
@@ -285,7 +270,7 @@ def make_qstatq_yaml(fin, fout):
     """
     read QSTATQ_ORIG_FILE sequentially and put useful data in respective yaml file
     """
-    Queuesearch = '^([a-zA-Z0-9_.-]+)\s+(--)\s+(--|\d+:\d+:\d+)\s+(--|\d+:\d+:\d+)\s+(--)\s+(\d+)\s+(\d+)\s+(--|\d+)\s+([DE] R)'
+    Queuesearch = '^([a-zA-Z0-9_.-]+)\s+(--|[0-9]+[mgtkp]b[a-z]*)\s+(--|\d+:\d+:\d+)\s+(--|\d+:\d+:\d+)\s+(--)\s+(\d+)\s+(\d+)\s+(--|\d+)\s+([DE] R)'
     RunQdSearch = '^\s*(\d+)\s+(\d+)'
     for line in fin:
         line.strip()
@@ -353,7 +338,7 @@ def job_accounting_summary():
         print RMWARNING
     print 'PBS report tool. Please try: watch -d ' + QTOPPATH + '. All bugs added by sfranky@gmail.com. Cross fingers now...\n'
     print Colorize('===> ', 'Brown') + Colorize('Job accounting summary', 'purple') + Colorize(' <=== ', 'Brown') + '(Rev: 3000 $) %s WORKDIR = to be added\n' % (datetime.datetime.today())
-    print 'Usage Totals:\t%s/%s\t Nodes | %s/%s  Cores |\t %s+%s jobs (R + Q) reported by qstat -q' % (ExistingNodes - OfflineDownNodes, ExistingNodes, WorkingCores, TotalCores, int(TotalRuns), int(TotalQueues))
+    print 'Usage Totals:\t%s/%s\t Nodes | %s/%s  Cores |   %s+%s jobs (R + Q) reported by qstat -q' % (ExistingNodes - OfflineDownNodes, ExistingNodes, WorkingCores, TotalCores, int(TotalRuns), int(TotalQueues))
     print 'Queues: | ',
     for i in qstatqLst:
         print i[0] + ': ' + i[1] + '+' + i[2] + ' |',
@@ -484,9 +469,6 @@ def number_WNs(WNnumber, WNList):
         PrintEnd = BiggestWrittenNode
 
     print_WN_ID_lines(PrintStart, PrintEnd, WNnumber)
-
-
-
 
 
 def print_WN_ID_lines(start, stop, WNnumber):
@@ -637,29 +619,21 @@ print NodeState[PrintStart:PrintEnd] + '=Node state'
 
 
 for line in AccountsMappings:
-    for account in ColorOfAccount:
-        if line[4][0].startswith(account):
-            AccountNrlessOfId[line[0]] = account
-        else:
-            pass
+    if re.split('[0-9]+', line[4][0])[0] in ColorOfAccount:
+            AccountNrlessOfId[line[0]] = re.split('[0-9]+', line[4][0])[0]
+    else:
+        AccountNrlessOfId[line[0]] = 'NoColourAccount'
 
 
-# original:
-# for ind, k in enumerate(CPUCoreDic):
-#     PrintLines = CPUCoreDic['Cpu' + str(ind) + 'line'][PrintStart:PrintEnd] + '=Core' + str(ind)
-#     print PrintLines
+AccountNrlessOfId['#'] = '#'
+AccountNrlessOfId['_'] = '_'
 
 for ind, k in enumerate(CPUCoreDic):
-    ColourCPUCoreDic = list(CPUCoreDic['Cpu' + str(ind) + 'line'][PrintStart:PrintEnd])
-    for index, elem in enumerate(ColourCPUCoreDic):
-        # if elem not in ['_', '#']:
-        if elem in AccountNrlessOfId:
-            elem = Colorize(elem, AccountNrlessOfId[elem])
-            ColourCPUCoreDic[index] = elem
-    line = ''.join(ColourCPUCoreDic)
+    ColourCPUCoreLst = list(CPUCoreDic['Cpu' + str(ind) + 'line'][PrintStart:PrintEnd])
+    ColourCPUCoreLst = [Colorize(elem, AccountNrlessOfId[elem]) for elem in ColourCPUCoreLst if elem in AccountNrlessOfId]
+    line = ''.join(ColourCPUCoreLst)
 
-    PrintLines = line + '=Core' + str(ind)
-    print PrintLines
+    print line + '=Core' + str(ind)
 
 #print remaining tables
 for i in range(NrOfTables): 
@@ -676,21 +650,12 @@ for i in range(NrOfTables):
         print_WN_ID_lines(PrintStart, PrintEnd, RemapNr)
     print NodeState[PrintStart:PrintEnd] + '=Node state'
     for ind, k in enumerate(CPUCoreDic):
-        # print CPUCoreDic['Cpu' + str(ind) + 'line'][PrintStart:PrintEnd] + '=Core' + str(ind)
-        ColourCPUCoreDic = list(CPUCoreDic['Cpu' + str(ind) + 'line'][PrintStart:PrintEnd])
-        for index, elem in enumerate(ColourCPUCoreDic):
-            # if elem not in ['_', '#']:
-            if elem in AccountNrlessOfId:
-                elem = Colorize(elem, AccountNrlessOfId[elem])
-                ColourCPUCoreDic[index] = elem
-        line = ''.join(ColourCPUCoreDic)
+        ColourCPUCoreLst = list(CPUCoreDic['Cpu' + str(ind) + 'line'][PrintStart:PrintEnd])
+        ColourCPUCoreLst = [Colorize(elem, AccountNrlessOfId[elem]) for elem in ColourCPUCoreLst if elem in AccountNrlessOfId]
+        line = ''.join(ColourCPUCoreLst)
 
-        PrintLines = line + '=Core' + str(ind)
-        print PrintLines        
+        print line + '=Core' + str(ind)
 
-
-
-# if AccountsMappings[0][1]>999:
 
 print '\n'
 print Colorize('===> ', 'Brown') + Colorize('User accounts and pool mappings', 'purple') + Colorize(' <=== ', 'Brown') + '("all" includes those in C and W states, as reported by qstat)\n'
@@ -705,9 +670,6 @@ for line in AccountsMappings:
         else:
             pass
     print PrintString
-
-
-
 
 
 print '\nThanks for watching!'

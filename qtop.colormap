@@ -378,7 +378,7 @@ ColorOfAccount = {
     'dashed':    'Gray_L',
     'purple':    'Purple',
     'Red':    'Red',
-    'Gray':   'Gray_L',
+    'DGray':   'Gray_D',
     'Brown':    'Brown',
     # catch-all rule for many more names
     #[[:alpha:]][-_[:alnum:].]* 'Gray_L',
@@ -399,5 +399,6 @@ CodeOfColor = {
     'White': '1;37',
     'Blue': '0;34',
     'Gray_L': '1;37',
+    'Gray_D':'1;30',
     'normal':   '0'
 }
