@@ -14,6 +14,7 @@
 
 changelog:
 =========
+0.2.8: colour implementation for all of the tables
 0.2.7: Exiting when there are two jobs on the same core reported on pbsnodes (remapping functionality to be added)
        Number of WNs >1000 is now handled 
 0.2.6: fixed some names not being detected (%,= chars missing from regex)
@@ -193,14 +194,13 @@ def read_pbsnodes_yaml(fin):
     # HighestCoreBusy = 0
     MaxNP = 0
     state = ''
-    county = 0
+    # county = 0
     for line in fin:
         line.strip()
-        county += 1
+        # county += 1
         searchdname = 'domainname: ' + '(\w+-?\w+(\.\w+)*)'
         searchnodenr = '([A-Za-z-]+)(\d+)'
-        if re.search(searchdname, line) is not None:   # line containing domain name
-            # case = 0
+        if re.search(searchdname, line) is not None:   # line contains domain name
             m = re.search(searchdname, line)
             dname = m.group(1)
             RemapNr += 1
@@ -209,19 +209,28 @@ def read_pbsnodes_yaml(fin):
             '''
             ExistingNodes += 1    # nodes as recorded on PBSNODES_ORIG_FILE
             # print 'line is ', line
-            if re.search(searchnodenr, dname) is not None:
+            if re.search(searchnodenr, dname) is not None: # if a number and domain is found
                 n = re.search(searchnodenr, dname)
+                NodeInits = n.group(1)
                 NodeNr = int(n.group(2))
-                nodeinits = n.group(1)
-                NodeSubClusters.add(nodeinits)    # for non-uniform setups of WNs, eg g01... and n01...
+                NodeSubClusters.add(NodeInits)    # for non-uniform setups of WNs, eg g01... and n01...
                 AllWNs[NodeNr] = []
                 AllWNsRemapped[RemapNr] = []
                 if NodeNr > BiggestWrittenNode:
                     BiggestWrittenNode = NodeNr
                 WNList.append(NodeNr)
                 WNListRemapped.append(RemapNr)
+            else:
+                NodeNr = 0
+                NodeInits = dname
+                AllWNs[NodeNr] = []
+                AllWNsRemapped[RemapNr] = []
+                NodeSubClusters.add(NodeInits)    # for non-uniform setups of WNs, eg g01... and n01...
+                if NodeNr > BiggestWrittenNode:
+                    BiggestWrittenNode = NodeNr + 1
+                WNList.append(NodeNr)
+                WNListRemapped.append(RemapNr)
         elif 'state: ' in line:
-            # case = 2
             nextchar = line.split()[1].strip("'")
             if nextchar == 'f':
                 state += '-'
@@ -233,7 +242,6 @@ def read_pbsnodes_yaml(fin):
                 AllWNsRemapped[RemapNr].append(nextchar)
 
         elif 'np:' in line:
-            # case = 3
             np = line.split(': ')[1].strip()
             AllWNs[NodeNr].append(np)
             AllWNsRemapped[RemapNr].append(np)
@@ -241,13 +249,11 @@ def read_pbsnodes_yaml(fin):
                 MaxNP = int(np)
             TotalCores += int(np)
         elif 'core: ' in line:
-            # case = 4
             core = line.split(': ')[1].strip()
             WorkingCores += 1
             if int(core) > int(HighestCoreBusy):
                 HighestCoreBusy = int(core)
         elif 'job: ' in line:
-            # case = 5
             job = str(line.split(': ')[1]).strip()
             AllWNs[NodeNr].append((core, job))
             AllWNsRemapped[RemapNr].append((core, job))
@@ -347,7 +353,7 @@ def job_accounting_summary():
         print RMWARNING
     print 'PBS report tool. Please try: watch -d ' + QTOPPATH + '. All bugs added by sfranky@gmail.com. Cross fingers now...\n'
     print '===> Job accounting summary <=== (Rev: 3000 $) %s WORKDIR = to be added\n' % (datetime.datetime.today())
-    print 'Usage Totals:\t%s/%s\t Nodes | %s/%s\t Cores |\t %s+%s\t jobs (R + Q) reported by qstat -q' % (ExistingNodes - OfflineDownNodes, ExistingNodes, WorkingCores, TotalCores, int(TotalRuns), int(TotalQueues))
+    print 'Usage Totals:\t%s/%s\t Nodes | %s/%s  Cores |\t %s+%s jobs (R + Q) reported by qstat -q' % (ExistingNodes - OfflineDownNodes, ExistingNodes, WorkingCores, TotalCores, int(TotalRuns), int(TotalQueues))
     print 'Queues: | ',
     for i in qstatqLst:
         print i[0] + ': ' + i[1] + '+' + i[2] + ' |',
@@ -446,7 +452,6 @@ def number_WNs(WNnumber, WNList):
             c += c__
         else:
             c += c__[:int(str(cent)+str(dec)+str(unit))+1]
-            print 'the length of c is:', len(c__) # int(str(cent)+str(dec)+str(unit))
 
         d_ = '0' * 10 + '1' * 10 + '2' * 10 + '3' * 10 + '4' * 10 + '5' * 10 + '6' * 10 + '7' * 10 + '8' * 10 + '9' * 10
         d__ = d_ * cent * 10
@@ -470,7 +475,6 @@ def number_WNs(WNnumber, WNList):
     elif WNList[0] < 100:
         if PrintEnd is None:
             PrintEnd = BiggestWrittenNode
-        
 
 
     NrOfTables = (BiggestWrittenNode - PrintStart) / TermColumns + 1
@@ -499,10 +503,10 @@ def print_WN_ID_lines(start, stop, WNnumber):
         print u[start:stop] + '={___ID___}'
 
     elif WNnumber > 1000:
-        print t[start:stop] + '={_This___}'
-        print c[start:stop] + '={_space__}'
-        print d[start:stop] + '={__for __}'
-        print u[start:stop] + '={_sale___}'
+        print t[start:stop] + '={__Super_}'
+        print c[start:stop] + '={_Worker_}'
+        print d[start:stop] + '={__Node__}'
+        print u[start:stop] + '={___ID___}'
 
 
 
@@ -571,65 +575,6 @@ for unixaccount in Usersortedlst:
     j += 1
 ########################## end of copied from below
 
-
-### CPU lines ######################################
-
-for i in range(MaxNP):
-    CPUCoreDic['Cpu' + str(i) + 'line'] = ''  # Cpu0line, Cpu1line, Cpu2line, .. = '','','', ..
-    MaxNPRange.append(str(i))
-
-if len(NodeSubClusters) == 1:
-    for _, WNProperties in zip(AllWNs.keys(), AllWNs.values()):
-        fill_cpucore_columns(WNProperties, CPUCoreDic)
-elif len(NodeSubClusters) > 1:
-    for _, WNProperties in zip(AllWNsRemapped.keys(), AllWNsRemapped.values()):
-        fill_cpucore_columns(WNProperties, CPUCoreDic)
-
-print '===> Worker Nodes occupancy <=== (you can read vertically the node IDs; nodes in free state are noted with - )'
-
-'''
-if there are non-uniform WNs in pbsnodes.yaml, e.g. wn01, wn02, gn01, gn02, ...,  remapping is performed
-Otherwise, for uniform WNs, i.e. all using the same numbering scheme, wn01, wn02, ... proceed as normal
-'''
-
-
-
-
-if len(NodeSubClusters) == 1:
-    number_WNs(LastWN, WNList)
-    for node in AllWNs:  # why are dictionaries ALWAYS ordered, when keys are '1','5','3' etc ?!!?!?
-        NodeState += AllWNs[node][0]
-elif len(NodeSubClusters) > 1:
-    number_WNs(RemapNr, WNListRemapped)
-    for node in AllWNsRemapped:
-        NodeState += AllWNsRemapped[node][0]
-
-print NodeState[PrintStart:PrintEnd] + '=Node state'
-
-for ind, k in enumerate(CPUCoreDic):
-    PrintLines = CPUCoreDic['Cpu' + str(ind) + 'line'][PrintStart:PrintEnd] + '=CPU' + str(ind)
-    print PrintLines
-
-
-
-#print remaining tables
-for i in range(NrOfTables): 
-    print '\n'
-    PrintStart = PrintEnd
-    PrintEnd += TermColumns - DEADWEIGHT
-    if PrintEnd > BiggestWrittenNode:
-        PrintEnd = BiggestWrittenNode
-    if PrintStart == PrintEnd:
-        break
-    if len(NodeSubClusters) == 1:
-        print_WN_ID_lines(PrintStart, PrintEnd, LastWN)
-    if len(NodeSubClusters) > 1:
-        print_WN_ID_lines(PrintStart, PrintEnd, RemapNr)
-    print NodeState[PrintStart:PrintEnd] + '=Node state'
-    for ind, k in enumerate(CPUCoreDic):
-        print CPUCoreDic['Cpu' + str(ind) + 'line'][PrintStart:PrintEnd] + '=CPU' + str(ind)
-
-
 ################################################################################################
 # this calculates and prints what is actually below the id|  R + Q /all | unix account etc line
 for id in IdOfUnixAccount:
@@ -648,50 +593,124 @@ for id in IdOfUnixAccount:
 for id in Usersortedlst:  # IdOfUnixAccount:
     AccountsMappings.append([IdOfUnixAccount[id[0]], RunningOfUser[id[0]], QueuedOfUser[id[0]], CancelledOfUser[id[0]] + RunningOfUser[id[0]] + QueuedOfUser[id[0]] + WaitingOfUser[id[0]] + ExitingOfUser[id[0]], id])
 AccountsMappings.sort(key=itemgetter(3), reverse=True)
+################################################################################################
+
+
+### CPU lines ######################################
+
+for i in range(MaxNP):
+    CPUCoreDic['Cpu' + str(i) + 'line'] = ''  # Cpu0line, Cpu1line, Cpu2line, .. = '','','', ..
+    MaxNPRange.append(str(i))
+
+if len(NodeSubClusters) == 1:
+    for _, WNProperties in zip(AllWNs.keys(), AllWNs.values()):
+        fill_cpucore_columns(WNProperties, CPUCoreDic)
+elif len(NodeSubClusters) > 1:
+    for _, WNProperties in zip(AllWNsRemapped.keys(), AllWNsRemapped.values()):
+        fill_cpucore_columns(WNProperties, CPUCoreDic)
+
+### CPU lines ######################################
+
+
+########################### Node State ######################
+print '===> Worker Nodes occupancy <=== (you can read vertically the node IDs; nodes in free state are noted with - )'
+
+'''
+if there are non-uniform WNs in pbsnodes.yaml, e.g. wn01, wn02, gn01, gn02, ...,  remapping is performed
+Otherwise, for uniform WNs, i.e. all using the same numbering scheme, wn01, wn02, ... proceed as normal
+'''
+if len(NodeSubClusters) == 1:
+    number_WNs(LastWN, WNList)
+    for node in AllWNs:
+        NodeState += AllWNs[node][0]
+elif len(NodeSubClusters) > 1:
+    number_WNs(RemapNr, WNListRemapped)
+    for node in AllWNsRemapped:
+        NodeState += AllWNsRemapped[node][0]
+else:
+    number_WNs(LastWN, WNList)
+    for node in AllWNs:
+        NodeState += AllWNs[node][0]
+
+print NodeState[PrintStart:PrintEnd] + '=Node state'
+########################### Node State ######################
+
+
+for line in AccountsMappings:
+    for account in ColorOfAccount:
+        if line[4][0].startswith(account):
+            AccountNrlessOfId[line[0]] = account
+        else:
+            pass
+
+
+# original:
+# for ind, k in enumerate(CPUCoreDic):
+#     PrintLines = CPUCoreDic['Cpu' + str(ind) + 'line'][PrintStart:PrintEnd] + '=Core' + str(ind)
+#     print PrintLines
+
+for ind, k in enumerate(CPUCoreDic):
+    ColourCPUCoreDic = list(CPUCoreDic['Cpu' + str(ind) + 'line'][PrintStart:PrintEnd])
+    for index, elem in enumerate(ColourCPUCoreDic):
+        # if elem not in ['_', '#']:
+        if elem in AccountNrlessOfId:
+            elem = Colorize(elem, AccountNrlessOfId[elem])
+            ColourCPUCoreDic[index] = elem
+    line = ''.join(ColourCPUCoreDic)
+
+    PrintLines = line + '=Core' + str(ind)
+    print PrintLines
+
+#print remaining tables
+for i in range(NrOfTables): 
+    print '\n'
+    PrintStart = PrintEnd
+    PrintEnd += TermColumns - DEADWEIGHT
+    if PrintEnd > BiggestWrittenNode:
+        PrintEnd = BiggestWrittenNode
+    if PrintStart == PrintEnd:
+        break
+    if len(NodeSubClusters) == 1:
+        print_WN_ID_lines(PrintStart, PrintEnd, LastWN)
+    if len(NodeSubClusters) > 1:
+        print_WN_ID_lines(PrintStart, PrintEnd, RemapNr)
+    print NodeState[PrintStart:PrintEnd] + '=Node state'
+    for ind, k in enumerate(CPUCoreDic):
+        # print CPUCoreDic['Cpu' + str(ind) + 'line'][PrintStart:PrintEnd] + '=Core' + str(ind)
+        ColourCPUCoreDic = list(CPUCoreDic['Cpu' + str(ind) + 'line'][PrintStart:PrintEnd])
+        for index, elem in enumerate(ColourCPUCoreDic):
+            # if elem not in ['_', '#']:
+            if elem in AccountNrlessOfId:
+                elem = Colorize(elem, AccountNrlessOfId[elem])
+                ColourCPUCoreDic[index] = elem
+        line = ''.join(ColourCPUCoreDic)
+
+        PrintLines = line + '=Core' + str(ind)
+        print PrintLines        
+
+
+
+# if AccountsMappings[0][1]>999:
 
 print '\n'
 print '===> User accounts and pool mappings <=== ("all" includes those in C and W states, as reported by qstat)'
-print 'id |   R +   Q / all |  unix account  | Grid certificate DN (this info is only available under elevated privileges)'
+print ' id |  R   +   Q  /  all |    unix account | Grid certificate DN (this info is only available under elevated privileges)'
 for line in AccountsMappings:
-    PrintString = '%2s | %3s + %3s / %3s | %14s |' % (line[0], line[1], line[2], line[3], line[4][0])
+    PrintString = '%3s | %4s + %4s / %4s | %15s |' % (line[0], line[1], line[2], line[3], line[4][0])
     for account in ColorOfAccount:
         if line[4][0].startswith(account):
-            PrintString = '%14s | %15s + %15s / %15s | %26s |' % (Colorize(line[0], account), Colorize(str(line[1]), account), Colorize(str(line[2]), account), Colorize(str(line[3]), account), Colorize(line[4][0], account))
-            AccountNrlessOfId[line[0]] = account  # bgazei px 'see', oxi 'see018'
-            # AccountNrlessOfId[line[0]] = line[4][0]  # bgazei px 'see042'
+            PrintString = '%15s | %16s + %16s / %16s | %27s |' % (Colorize(line[0], account), Colorize(str(line[1]), account), Colorize(str(line[2]), account), Colorize(str(line[3]), account), Colorize(line[4][0], account))
+            # AccountNrlessOfId[line[0]] = account  # bgazei px 'see', oxi 'see018'
+            ## AccountNrlessOfId[line[0]] = line[4][0]  # bgazei px 'see042'
         else:
             pass
     print PrintString
 
-CPUCoreDic2 = copy.deepcopy(CPUCoreDic)
-PrintMap = ''
-for ind in range(len(CPUCoreDic)):
-    if  '1' in CPUCoreDic['Cpu' + str(ind) + 'line']:
-        pass
-    ## for Accountless, id in zip(AccountNrlessOfId.values(),
-        # AccountNrlessOfId.keys()):
-        '''
-        was: range(len(CPUCoreDic)): # range(13):
-        '''
-        # CPUCoreDic2['Cpu' + str(ind)+'line'] = CPUCoreDic['Cpu' + str(ind)+'line'][PrintStart:PrintEnd].replace(str(id),Colorize(str(id),AccountNrlessOfId[str(id)]))
-        ## CPUCoreDic['Cpu' + str(ind)+'line'] = CPUCoreDic['Cpu' + str(ind)+'line'][PrintStart:PrintEnd].replace(str(id),Colorize(str(id),AccountNrlessOfId[str(id)]))
-        # Colorize(CPUCoreDic['Cpu' + str(ind)+'line'][PrintStart:PrintEnd], account)
-    # PrintMap +=  CPUCoreDic['Cpu' + str(ind)+'line'][PrintStart:PrintEnd] + '=CPU' + str(ind)+'\n'
-    ## PrintMap +=  CPUCoreDic['Cpu' + str(ind)+'line'][PrintStart:PrintEnd] + '=CPU' + str(ind)+'\n'
 
-#print PrintMap
-# for id in PrintMap:
+
+
 
 print '\nThanks for watching!'
 
 os.chdir(QTOPPATH)
 
-
-
-#print AllWNs
-# print 'BiggestWrittenNode is: ', len(AllWNs), BiggestWrittenNode
-# print 'PrintStart, PrintEnd are: ', PrintStart, PrintEnd
-# # print 'Dx = TermColumns - (BiggestWrittenNode-PrintStart + DEADWEIGHT)'
-# # print Dx, '=', TermColumns, '-', '(', BiggestWrittenNode, '-', PrintStart, '+', DEADWEIGHT, ')'
-# print 'NrOfTables is:', NrOfTables
-# print 'TermColumns is: ', TermColumns
