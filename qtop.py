@@ -297,25 +297,48 @@ def make_qstat_yaml(fin, fout):
     """
     read QSTAT_ORIG_FILE sequentially and put useful data in respective yaml file
     """
-    UserQueueSearch = '^((\d+)\.([A-Za-z-]+[0-9]*))\s+([%A-Za-z0-9_.=-]+)\s+([A-Za-z0-9]+)\s+(\d+:\d+:\d*|0)\s+([CWRQE])\s+(\w+)'
-    RunQdSearch = '^\s*(\d+)\s+(\d+)'
-    for line in fin:
-        line.strip()
-        # searches for something like: 422561.cream01             STDIN            see062          48:50:12 R see
-        if re.search(UserQueueSearch, line) is not None:
-            m = re.search(UserQueueSearch, line)
-            Jobid, Jobnr, CEname, Name, User, TimeUse, S, Queue = m.group(1), m.group(2), m.group(3), m.group(4), m.group(5), m.group(6), m.group(7), m.group(8)
-            # qstatLst.append([[Jobnr], User, S, Queue])
-            Jobid = Jobid.split('.')[0]
-            fout.write('---\n')
-            fout.write('JobId: ' + Jobid + '\n')
-            fout.write('UnixAccount: ' + User + '\n')
-            fout.write('S: ' + S + '\n')
-            fout.write('Queue: ' + Queue + '\n')
+    # UserQueueSearch = '^((\d+)\.([A-Za-z-]+[0-9]*))\s+([%A-Za-z0-9_.=-]+)\s+([A-Za-z0-9]+)\s+(\d+:\d+:\d*|0)\s+([CWRQE])\s+(\w+)'
+    firstline = fin.readline()
+    if 'prior' not in firstline:
+        UserQueueSearch = '^((\d+)\.([A-Za-z0-9-]+))\s+([%A-Za-z0-9_.=-]+)\s+([A-Za-z0-9]+)\s+(\d+:\d+:\d*|0)\s+([CWRQE])\s+(\w+)'
+        RunQdSearch = '^\s*(\d+)\s+(\d+)'
+        for line in fin:
+            line.strip()
+            # searches for something like: 422561.cream01             STDIN            see062          48:50:12 R see
+            if re.search(UserQueueSearch, line) is not None:
+                m = re.search(UserQueueSearch, line)
+                Jobid, Jobnr, CEname, Name, User, TimeUse, S, Queue = m.group(1), m.group(2), m.group(3), m.group(4), m.group(5), m.group(6), m.group(7), m.group(8)
+                # qstatLst.append([[Jobnr], User, S, Queue])
+                Jobid = Jobid.split('.')[0]
+                fout.write('---\n')
+                fout.write('JobId: ' + Jobid + '\n')
+                fout.write('UnixAccount: ' + User + '\n')
+                fout.write('S: ' + S + '\n')
+                fout.write('Queue: ' + Queue + '\n')
 
-            # UnixOfJobId[Jobid.split('.')[0]]=User
-            UserOfJobId[Jobid] = User
-            fout.write('...\n')
+                # UnixOfJobId[Jobid.split('.')[0]]=User
+                UserOfJobId[Jobid] = User
+                fout.write('...\n')
+    elif 'prior' in firstline:
+        DIFFERENT_QSTAT_FORMAT_FLAG = 1
+        UserQueueSearch = '\s{2}(\d+)\s+([0-9]\.[0-9]+)\s+([A-Za-z0-9_.-]+)\s+([A-Za-z0-9._-]+)\s+([a-z])\s+(\d{2}/\d{2}/\d{2}|0)\s+(\d+:\d+:\d*|0)\s+([A-Za-z0-9_]+@[A-Za-z0-9_.-]+)\s+(\d+)\s+(\w*)'
+        RunQdSearch = '^\s*(\d+)\s+(\d+)'
+        for line in fin:
+            line.strip()
+            # searches for something like: 422561.cream01             STDIN            see062          48:50:12 R see
+            if re.search(UserQueueSearch, line) is not None:
+                m = re.search(UserQueueSearch, line)
+                Jobid, Prior, Name, User, State, Submit, StartAt, Queue, QueueDomain, Slots, Ja_taskID = m.group(1), m.group(2), m.group(3), m.group(4), m.group(5), m.group(6), m.group(7), m.group(8), m.group(9), m.group(10), m.group(11)
+                print Jobid, Prior, Name, User, State, Submit, StartAt, Queue, QueueDomain, Slots, Ja-taskID
+                fout.write('---\n')
+                fout.write('JobId: ' + Jobid + '\n')
+                fout.write('UnixAccount: ' + User + '\n')
+                fout.write('S: ' + State + '\n')
+                fout.write('Queue: ' + Queue + '\n')
+
+                # UnixOfJobId[Jobid.split('.')[0]]=User
+                UserOfJobId[Jobid] = User
+                fout.write('...\n')
 
 
 def read_qstat():
