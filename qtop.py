@@ -14,6 +14,8 @@
 
 changelog:
 =========
+0.2.9: handles cases of non-numbered WNs (e.g. fruit names)
+       parses more complex domain names (with more than one dash)
 0.2.8: colour implementation for all of the tables
 0.2.7: Exiting when there are two jobs on the same core reported on pbsnodes (remapping functionality to be added)
        Number of WNs >1000 is now handled 
@@ -86,7 +88,7 @@ AllWNs, AllWNsRemapped = {}, {}
 # dname = ''
 BiggestWrittenNode = 0
 WNList, WNListRemapped = [], []
-# NodeNr = ''
+NodeNr = 0
 NodeState = ''
 LastWN = 0
 ExistingNodes, OfflineDownNodes = 0, 0
@@ -127,7 +129,7 @@ def make_pbsnodes_yaml(fin, fout):
 
     for line in fin:
         line.strip()
-        searchdname = '^\w+-?\w+(\.\w+)*'
+        searchdname = '^\w+([.-]?\w+)*' # '^\w+-?\w+(\.\w+)*'
         if re.search(searchdname, line) is not None:   # line containing domain name
             m = re.search(searchdname, line)
             dname = m.group(0)
@@ -183,8 +185,9 @@ def read_pbsnodes_yaml(fin):
     state = ''
     for line in fin:
         line.strip()
-        searchdname = 'domainname: ' + '(\w+-?\w+(\.\w+)*)'
+        searchdname = 'domainname: ' + '(\w+-?\w+([.-]\w+)*)'
         searchnodenr = '([A-Za-z-]+)(\d+)'
+        searchjustletters = '(^[A-Za-z-]+)'
         if re.search(searchdname, line) is not None:   # line contains domain name
             m = re.search(searchdname, line)
             dname = m.group(1)
@@ -205,7 +208,21 @@ def read_pbsnodes_yaml(fin):
                     BiggestWrittenNode = NodeNr
                 WNList.append(NodeNr)
                 WNListRemapped.append(RemapNr)
-            else:
+            elif re.search(searchjustletters, dname) is not None: # for non-numbered WNs (eg. fruit names)
+                n = re.search(searchjustletters, dname)
+                NodeInits = n.group(1)
+                NodeNr += 1
+                NodeSubClusters.add(NodeInits)    # for non-uniform setups of WNs, eg g01... and n01...
+                AllWNs[NodeNr] = []
+                AllWNsRemapped[RemapNr] = []
+                if NodeNr > BiggestWrittenNode:
+                    BiggestWrittenNode = NodeNr
+                WNList.append(NodeNr)
+                WNListRemapped.append(RemapNr)
+                '''
+                (original below: handles the no number-domain case by doing nothing?)
+                '''
+            else: 
                 NodeNr = 0
                 NodeInits = dname
                 AllWNs[NodeNr] = []
