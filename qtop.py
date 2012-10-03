@@ -16,6 +16,7 @@ changelog:
 =========
 0.2.9: handles cases of non-numbered WNs (e.g. fruit names)
        parses more complex domain names (with more than one dash)
+       correction in WN ID numbers display (tens were problematic for larger numbers)
 0.2.8: colour implementation for all of the tables
 0.2.7: Exiting when there are two jobs on the same core reported on pbsnodes (remapping functionality to be added)
        Number of WNs >1000 is now handled 
@@ -78,6 +79,7 @@ t, c, d, u = '', '', '', ''
 PrintStart, PrintEnd = 0, None
 
 CLIPPING = True
+JUST_NAMES_FLAG = 0
 RMWARNING = '=== WARNING: --- Remapping WN names and retrying heuristics... \
  good luck with this... ---'
 RemapNr = 0
@@ -179,7 +181,7 @@ def read_pbsnodes_yaml(fin):
     '''
     extracts highest node number, online nodes
     '''
-    global ExistingNodes, OfflineDownNodes, LastWN, jobseries, BiggestWrittenNode, WNList, WNListRemapped, NodeNr, TotalCores, WorkingCores, AllWNs, AllWNsRemapped, HighestCoreBusy, MaxNP, NodeSubClusters, RemapNr
+    global ExistingNodes, OfflineDownNodes, LastWN, jobseries, BiggestWrittenNode, WNList, WNListRemapped, NodeNr, TotalCores, WorkingCores, AllWNs, AllWNsRemapped, HighestCoreBusy, MaxNP, NodeSubClusters, RemapNr, JUST_NAMES_FLAG
 
     MaxNP = 0
     state = ''
@@ -209,6 +211,7 @@ def read_pbsnodes_yaml(fin):
                 WNList.append(NodeNr)
                 WNListRemapped.append(RemapNr)
             elif re.search(searchjustletters, dname) is not None: # for non-numbered WNs (eg. fruit names)
+                JUST_NAMES_FLAG += 1
                 n = re.search(searchjustletters, dname)
                 NodeInits = n.group(1)
                 NodeNr += 1
@@ -217,7 +220,8 @@ def read_pbsnodes_yaml(fin):
                 AllWNsRemapped[RemapNr] = []
                 if NodeNr > BiggestWrittenNode:
                     BiggestWrittenNode = NodeNr
-                WNList.append(NodeNr)
+                WNList.append(NodeInits)
+                WNList[:] = [UnNumberedWN.rjust(len(max(WNList))) for UnNumberedWN in WNList]
                 WNListRemapped.append(RemapNr)
                 '''
                 (original below: handles the no number-domain case by doing nothing?)
@@ -259,7 +263,6 @@ def read_pbsnodes_yaml(fin):
             job = str(line.split(': ')[1]).strip()
             AllWNs[NodeNr].append((core, job))
             AllWNsRemapped[RemapNr].append((core, job))
-
     LastWN = BiggestWrittenNode
     HighestCoreBusy += 1
 
@@ -278,8 +281,9 @@ def read_pbsnodes_yaml(fin):
                 AllWNs[i] = '?'
                 # NonExistingNodes.append(i)
 
-    WNList.sort()
-    WNListRemapped.sort()
+    if JUST_NAMES_FLAG <= 1:
+        WNList.sort()
+        WNListRemapped.sort()
 
 
 def make_qstatq_yaml(fin, fout):
@@ -479,11 +483,12 @@ def number_WNs(WNnumber, WNList):
             c += c__[:int(str(cent)+str(dec)+str(unit))+1]
 
         d_ = '0' * 10 + '1' * 10 + '2' * 10 + '3' * 10 + '4' * 10 + '5' * 10 + '6' * 10 + '7' * 10 + '8' * 10 + '9' * 10
-        d__ = d_ * cent * 10
+        d__ = d_ * thou * 10 # cent * 10
+        d___ = d_ * (cent-1)
         d = '0' * 9 + '1' * 10 + '2' * 10 + '3' * 10 + '4' * 10 + '5' * 10 + '6' * 10 + '7' * 10 + '8' * 10 + '9' * 10
         d += d__
-
-        d += d_[:int(str(dec) + str(unit))]
+        d += d___
+        d += d_[:int(str(dec) + str(unit))+1]
 
         uc = '1234567890' * 1000
         u = uc[:WNnumber]
@@ -512,24 +517,40 @@ def number_WNs(WNnumber, WNList):
 
 
 def print_WN_ID_lines(start, stop, WNnumber):
-    if WNnumber < 10:
-        print u + '={__WNID__}'
+    global JUST_NAMES_FLAG
+    JustNameDic = {}
+    if JUST_NAMES_FLAG <= 1: # normal case, numbered WNs
+        if WNnumber < 10:
+            print u + '={__WNID__}'
 
-    elif WNnumber < 100:
-        print d            + '={_Worker_}'
-        print u[:WNnumber] + '={__Node__}'
+        elif WNnumber < 100:
+            print d            + '={_Worker_}'
+            print u[:WNnumber] + '={__Node__}'
 
-    elif WNnumber < 1000:
-        print c[start:stop] + '={_Worker_}'
-        print d[start:stop] + '={__Node__}'
-        print u[start:stop] + '={___ID___}'
+        elif WNnumber < 1000:
+            print c[start:stop] + '={_Worker_}'
+            print d[start:stop] + '={__Node__}'
+            print u[start:stop] + '={___ID___}'
 
-    elif WNnumber > 1000:
-        print t[start:stop] + '={__Super_}'
-        print c[start:stop] + '={_Worker_}'
-        print d[start:stop] + '={__Node__}'
-        print u[start:stop] + '={___ID___}'
-
+        elif WNnumber > 1000:
+            print t[start:stop] + '={__Super_}'
+            print c[start:stop] + '={_Worker_}'
+            print d[start:stop] + '={__Node__}'
+            print u[start:stop] + '={___ID___}'
+    else:
+        colour = 0
+        Highlight = {0: 'cmsplt', 1:'Red'}
+        for line in range(len(max(WNList))):
+            JustNameDic[line]=''
+        for column in range(len(WNList)):
+            for line in range(len(max(WNList))):
+                JustNameDic[line] += Colorize(WNList[column][line], Highlight[colour])
+            if colour ==1: 
+                colour = 0
+            else:
+                colour = 1
+        for line in range(len(max(WNList))):
+            print JustNameDic[line] + '={__WN ID__}'
 
 
 def empty_yaml_files():
