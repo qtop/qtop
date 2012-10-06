@@ -14,14 +14,16 @@
 
 changelog:
 =========
+0.3  : command-line arguments (mostly empty for now)!
+       non-numbered WNs can now be displayed instead of numbered WN IDs
 0.2.9: handles cases of non-numbered WNs (e.g. fruit names)
        parses more complex domain names (with more than one dash)
        correction in WN ID numbers display (tens were problematic for larger numbers)
 0.2.8: colour implementation for all of the tables
 0.2.7: Exiting when there are two jobs on the same core reported on pbsnodes (remapping functionality to be added)
-       Number of WNs >1000 is now handled 
+       Number of WNs >1000 is now handled
 0.2.6: fixed some names not being detected (%,= chars missing from regex)
-       changed name to qtop, introduced configuration file qtop.conf and 
+       changed name to qtop, introduced configuration file qtop.conf and
        colormap file qtop.colormap
 0.2.5: Working Cores added in Usage Totals
        Feature added: map now splits into two if terminal width is smaller than
@@ -32,7 +34,7 @@ changelog:
         the map)
 0.2.3: corrected regex search pattern in make_qstat to recognize usernames like spec101u1 (number followed by number followed by letter) now handles non-uniform setups
         R + Q / all: all did not display everything (E status)
-0.2.2: clipping functionality (when nodes start from e.g. wn101, empty columns 1-100 are ommited)
+0.2.2: masking/clipping functionality (when nodes start from e.g. wn101, empty columns 1-100 are ommited)
 0.2.1: Hashes displaying when the node has less cores than the max declared by a WN (its np variable)
 0.2.0: unix accounts are now correctly ordered
 0.1.9: All CPU lines displaying correctly
@@ -53,20 +55,28 @@ changelog:
 
 
 from operator import itemgetter
+from optparse import OptionParser
 import datetime
 import glob
-import itertools
+#import itertools
 import os
 import re
 import sys
-import copy
+#import copy
 # from qtcolormap import *
 # import qtcolormap
+
+parser = OptionParser()
+parser.add_option("-m", "--nomasking",
+                  action="store_false", dest="MASKING", default=True, help="Don't mask early empty Worker Nodes. (default setting is: if e.g. the first 30 WNs are unused, counting starts from 31).")
+parser.add_option("-e", "--file", dest="filename", help="write report to FILE (currently not implemented)", metavar="FILE")
+parser.add_option("-z", "--quiet", action="store_false", dest="verbose", default=True, help="don't print status messages to stdout. Not doing anything at the moment.")
+
+(options, args) = parser.parse_args()
 
 COLORFILE = os.path.expanduser('~/qtop/qtop/qtop.colormap')
 qtopcolormap = open(COLORFILE, 'r')
 exec qtopcolormap
-
 
 
 def Colorize(text, pattern):
@@ -78,7 +88,7 @@ def Colorize(text, pattern):
 t, c, d, u = '', '', '', ''
 PrintStart, PrintEnd = 0, None
 
-CLIPPING = True
+# options.MASKING = True
 JUST_NAMES_FLAG = 0
 RMWARNING = '=== WARNING: --- Remapping WN names and retrying heuristics... \
  good luck with this... ---'
@@ -94,7 +104,7 @@ NodeNr = 0
 NodeState = ''
 LastWN = 0
 ExistingNodes, OfflineDownNodes = 0, 0
-MaxNP = 0 
+MaxNP = 0
 TotalCores, WorkingCores = 0, 0
 TotalRuns, TotalQueues = 0, 0  # for readQstatQ
 JobIds, UnixAccounts, Statuses, Queues = [], [], [], []  # for read_qstat
@@ -131,7 +141,7 @@ def make_pbsnodes_yaml(fin, fout):
 
     for line in fin:
         line.strip()
-        searchdname = '^\w+([.-]?\w+)*' # '^\w+-?\w+(\.\w+)*'
+        searchdname = '^\w+([.-]?\w+)*'  # '^\w+-?\w+(\.\w+)*'
         if re.search(searchdname, line) is not None:   # line containing domain name
             m = re.search(searchdname, line)
             dname = m.group(0)
@@ -159,7 +169,7 @@ def make_pbsnodes_yaml(fin, fout):
             for job in ljobs:
                 core = job.strip().split('/')[0]
                 if core == lastcore:
-                    print 'There are concurrent jobs assigned to the same core!'+'\n'+'Remapping feature is not implemented yet. Exiting..'
+                    print 'There are concurrent jobs assigned to the same core!' + '\n' +'Remapping feature is not implemented yet. Exiting..'
                     sys.exit(1)
                 job = job.strip().split('/')[1:][0].split('.')[0]
                 fout.write('- core: ' + core + '\n')
@@ -199,7 +209,7 @@ def read_pbsnodes_yaml(fin):
             '''
             ExistingNodes += 1    # nodes as recorded on PBSNODES_ORIG_FILE
             # print 'line is ', line
-            if re.search(searchnodenr, dname) is not None: # if a number and domain is found
+            if re.search(searchnodenr, dname) is not None:  # if a number and domain is found
                 n = re.search(searchnodenr, dname)
                 NodeInits = n.group(1)
                 NodeNr = int(n.group(2))
@@ -210,7 +220,7 @@ def read_pbsnodes_yaml(fin):
                     BiggestWrittenNode = NodeNr
                 WNList.append(NodeNr)
                 WNListRemapped.append(RemapNr)
-            elif re.search(searchjustletters, dname) is not None: # for non-numbered WNs (eg. fruit names)
+            elif re.search(searchjustletters, dname) is not None:  # for non-numbered WNs (eg. fruit names)
                 JUST_NAMES_FLAG += 1
                 n = re.search(searchjustletters, dname)
                 NodeInits = n.group(1)
@@ -226,7 +236,7 @@ def read_pbsnodes_yaml(fin):
                 '''
                 (original below: handles the no number-domain case by doing nothing?)
                 '''
-            else: 
+            else:
                 NodeNr = 0
                 NodeInits = dname
                 AllWNs[NodeNr] = []
@@ -350,7 +360,7 @@ def make_qstat_yaml(fin, fout):
             if re.search(UserQueueSearch, line) is not None:
                 m = re.search(UserQueueSearch, line)
                 Jobid, Prior, Name, User, State, Submit, StartAt, Queue, QueueDomain, Slots, Ja_taskID = m.group(1), m.group(2), m.group(3), m.group(4), m.group(5), m.group(6), m.group(7), m.group(8), m.group(9), m.group(10), m.group(11)
-                print Jobid, Prior, Name, User, State, Submit, StartAt, Queue, QueueDomain, Slots, Ja-taskID
+                print Jobid, Prior, Name, User, State, Submit, StartAt, Queue, QueueDomain, Slots, Ja_taskID
                 fout.write('---\n')
                 fout.write('JobId: ' + Jobid + '\n')
                 fout.write('UnixAccount: ' + User + '\n')
@@ -461,9 +471,8 @@ def number_WNs(WNnumber, WNList):
         uc = '1234567890' * 100
         u = uc[:WNnumber]
 
-
     elif WNnumber > 1000:
-        thou = int(str(WNnumber)[0])    
+        thou = int(str(WNnumber)[0])
         cent = int(str(WNnumber)[1])
         dec = int(str(WNnumber)[2])
         unit = int(str(WNnumber)[3])
@@ -480,15 +489,15 @@ def number_WNs(WNnumber, WNList):
         for i in range(1, thou):
             c += c__
         else:
-            c += c__[:int(str(cent)+str(dec)+str(unit))+1]
+            c += c__[:int(str(cent) + str(dec) +str(unit))+1]
 
         d_ = '0' * 10 + '1' * 10 + '2' * 10 + '3' * 10 + '4' * 10 + '5' * 10 + '6' * 10 + '7' * 10 + '8' * 10 + '9' * 10
-        d__ = d_ * thou * 10 # cent * 10
-        d___ = d_ * (cent-1)
+        d__ = d_ * thou * 10  # cent * 10
+        d___ = d_ * (cent - 1)
         d = '0' * 9 + '1' * 10 + '2' * 10 + '3' * 10 + '4' * 10 + '5' * 10 + '6' * 10 + '7' * 10 + '8' * 10 + '9' * 10
         d += d__
         d += d___
-        d += d_[:int(str(dec) + str(unit))+1]
+        d += d_[:int(str(dec) + str(unit)) + 1]
 
         uc = '1234567890' * 1000
         u = uc[:WNnumber]
@@ -496,7 +505,7 @@ def number_WNs(WNnumber, WNList):
     '''
     masking/clipping functionality: if the earliest node number is high (e.g. 80), the first 79 WNs need not show up.
     '''
-    if (CLIPPING is True) and WNList[0] > 100:
+    if (options.MASKING is True) and WNList[0] > 100:
         PrintStart = WNList[0] - 1
         if PrintEnd is None:
             PrintEnd = BiggestWrittenNode
@@ -506,9 +515,8 @@ def number_WNs(WNnumber, WNList):
         if PrintEnd is None:
             PrintEnd = BiggestWrittenNode
 
-
     NrOfTables = (BiggestWrittenNode - PrintStart) / TermColumns + 1
-    if NrOfTables > 1: 
+    if NrOfTables > 1:
         PrintEnd = PrintStart + TermColumns - DEADWEIGHT
     else:
         PrintEnd = BiggestWrittenNode
@@ -519,12 +527,12 @@ def number_WNs(WNnumber, WNList):
 def print_WN_ID_lines(start, stop, WNnumber):
     global JUST_NAMES_FLAG
     JustNameDic = {}
-    if JUST_NAMES_FLAG <= 1: # normal case, numbered WNs
+    if JUST_NAMES_FLAG <= 1:  # normal case, numbered WNs
         if WNnumber < 10:
             print u + '={__WNID__}'
 
         elif WNnumber < 100:
-            print d            + '={_Worker_}'
+            print d + '={_Worker_}'
             print u[:WNnumber] + '={__Node__}'
 
         elif WNnumber < 1000:
@@ -539,13 +547,13 @@ def print_WN_ID_lines(start, stop, WNnumber):
             print u[start:stop] + '={___ID___}'
     else:
         colour = 0
-        Highlight = {0: 'cmsplt', 1:'Red'}
+        Highlight = {0: 'cmsplt', 1: 'Red'}
         for line in range(len(max(WNList))):
-            JustNameDic[line]=''
+            JustNameDic[line] = ''
         for column in range(len(WNList)):
             for line in range(len(max(WNList))):
                 JustNameDic[line] += Colorize(WNList[column][line], Highlight[colour])
-            if colour ==1: 
+            if colour == 1:
                 colour = 0
             else:
                 colour = 1
@@ -573,9 +581,7 @@ qtopconf = open(CONFIGFILE, 'r')
 exec qtopconf
 
 
-
 #Calculation of split screen size
-
 TermRows, TermColumns = os.popen('stty size', 'r').read().split()
 TermColumns = int(TermColumns)
 
@@ -697,7 +703,7 @@ for ind, k in enumerate(CPUCoreDic):
     print line + '=Core' + str(ind)
 
 #print remaining tables
-for i in range(NrOfTables): 
+for i in range(NrOfTables):
     print '\n'
     PrintStart = PrintEnd
     PrintEnd += TermColumns - DEADWEIGHT
@@ -733,4 +739,3 @@ for line in AccountsMappings:
 print '\nThanks for watching!'
 
 os.chdir(QTOPPATH)
-

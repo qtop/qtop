@@ -88,6 +88,8 @@ ColorOfAccount = {
     'patlit':    'Red',
     'patl':  'Red',
     'nordugrid-atlas': 'Red',
+    'nlv': 'Red_L',
+    'ncfk': 'Green_L',
     'usatlas':   'Red',
     # CMS VO commonly found pool account names
     'cmssgm':    'Green_L',
