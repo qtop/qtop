@@ -91,9 +91,9 @@ PrintStart, PrintEnd = 0, None
 
 # options.MASKING = True
 if options.FORCE_NAMES == False: 
-    JUST_NAMES_FLAG = 1
-else:
     JUST_NAMES_FLAG = 0
+else:
+    JUST_NAMES_FLAG = 1
 RMWARNING = '=== WARNING: --- Remapping WN names and retrying heuristics... \
  good luck with this... ---'
 RemapNr = 0
@@ -509,13 +509,13 @@ def number_WNs(WNnumber, WNList):
     '''
     masking/clipping functionality: if the earliest node number is high (e.g. 80), the first 79 WNs need not show up.
     '''
-    if (options.MASKING is True) and WNList[0] > 100 and type(WNList) == int:
+    if (options.MASKING is True) and WNList[0] > 100 and type(WNList[0]) == int:
         PrintStart = WNList[0] - 1
         if PrintEnd is None:
             PrintEnd = BiggestWrittenNode
         elif PrintEnd < PrintStart:
             PrintEnd += PrintStart
-    if (options.MASKING is True) and WNList[0] > 100 and type(WNList) == str:
+    if (options.MASKING is True) and WNList[0] > 100 and type(WNList[0]) == str:
         pass            
     elif WNList[0] < 100:
         if PrintEnd is None:
@@ -535,7 +535,7 @@ def number_WNs(WNnumber, WNList):
 def print_WN_ID_lines(start, stop, WNnumber):
     global JUST_NAMES_FLAG
     JustNameDic = {}
-    if JUST_NAMES_FLAG < 1:  # normal case, numbered WNs
+    if JUST_NAMES_FLAG <= 1:  # normal case, numbered WNs
         if WNnumber < 10:
             print u + '={__WNID__}'
 
@@ -555,7 +555,6 @@ def print_WN_ID_lines(start, stop, WNnumber):
             print u[start:stop] + '={___ID___}'
     elif JUST_NAMES_FLAG > 1 or options.FORCE_NAMES == True: # names instead of numbered WNs
         colour = 0
-        print 'heeeeeeeeeeeeeeeeeeeeeeeeeeellllooooooooooooooo!!!'
         Highlight = {0: 'cmsplt', 1: 'Red'}
         for line in range(len(max(WNList))):
             JustNameDic[line] = ''
