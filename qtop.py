@@ -16,6 +16,7 @@ changelog:
 =========
 0.3  : command-line arguments (mostly empty for now)!
        non-numbered WNs can now be displayed instead of numbered WN IDs
+       fixed issue with single named WN
 0.2.9: handles cases of non-numbered WNs (e.g. fruit names)
        parses more complex domain names (with more than one dash)
        correction in WN ID numbers display (tens were problematic for larger numbers)
@@ -67,8 +68,8 @@ import sys
 # import qtcolormap
 
 parser = OptionParser()
-parser.add_option("-m", "--nomasking",
-                  action="store_false", dest="MASKING", default=True, help="Don't mask early empty Worker Nodes. (default setting is: if e.g. the first 30 WNs are unused, counting starts from 31).")
+parser.add_option("-m", "--noMasking", action="store_false", dest="MASKING", default=True, help="Don't mask early empty Worker Nodes. (default setting is: if e.g. the first 30 WNs are unused, counting starts from 31).")
+parser.add_option("-f", "--ForceNames", action="store_true", dest="FORCE_NAMES", default=False, help="force names to show up instead of numbered WNs even for very small numbers of WNs")
 parser.add_option("-e", "--file", dest="filename", help="write report to FILE (currently not implemented)", metavar="FILE")
 parser.add_option("-z", "--quiet", action="store_false", dest="verbose", default=True, help="don't print status messages to stdout. Not doing anything at the moment.")
 
@@ -89,7 +90,10 @@ t, c, d, u = '', '', '', ''
 PrintStart, PrintEnd = 0, None
 
 # options.MASKING = True
-JUST_NAMES_FLAG = 0
+if options.FORCE_NAMES == False: 
+    JUST_NAMES_FLAG = 1
+else:
+    JUST_NAMES_FLAG = 0
 RMWARNING = '=== WARNING: --- Remapping WN names and retrying heuristics... \
  good luck with this... ---'
 RemapNr = 0
@@ -505,15 +509,19 @@ def number_WNs(WNnumber, WNList):
     '''
     masking/clipping functionality: if the earliest node number is high (e.g. 80), the first 79 WNs need not show up.
     '''
-    if (options.MASKING is True) and WNList[0] > 100:
+    if (options.MASKING is True) and WNList[0] > 100 and type(WNList) == int:
         PrintStart = WNList[0] - 1
         if PrintEnd is None:
             PrintEnd = BiggestWrittenNode
         elif PrintEnd < PrintStart:
             PrintEnd += PrintStart
+    if (options.MASKING is True) and WNList[0] > 100 and type(WNList) == str:
+        pass            
     elif WNList[0] < 100:
         if PrintEnd is None:
             PrintEnd = BiggestWrittenNode
+
+
 
     NrOfTables = (BiggestWrittenNode - PrintStart) / TermColumns + 1
     if NrOfTables > 1:
@@ -527,7 +535,7 @@ def number_WNs(WNnumber, WNList):
 def print_WN_ID_lines(start, stop, WNnumber):
     global JUST_NAMES_FLAG
     JustNameDic = {}
-    if JUST_NAMES_FLAG <= 1:  # normal case, numbered WNs
+    if JUST_NAMES_FLAG < 1:  # normal case, numbered WNs
         if WNnumber < 10:
             print u + '={__WNID__}'
 
@@ -545,8 +553,9 @@ def print_WN_ID_lines(start, stop, WNnumber):
             print c[start:stop] + '={_Worker_}'
             print d[start:stop] + '={__Node__}'
             print u[start:stop] + '={___ID___}'
-    else:
+    elif JUST_NAMES_FLAG > 1 or options.FORCE_NAMES == True: # names instead of numbered WNs
         colour = 0
+        print 'heeeeeeeeeeeeeeeeeeeeeeeeeeellllooooooooooooooo!!!'
         Highlight = {0: 'cmsplt', 1: 'Red'}
         for line in range(len(max(WNList))):
             JustNameDic[line] = ''
@@ -558,7 +567,7 @@ def print_WN_ID_lines(start, stop, WNnumber):
             else:
                 colour = 1
         for line in range(len(max(WNList))):
-            print JustNameDic[line] + '={__WN ID__}'
+            print JustNameDic[line] + '={__WNID__}'
 
 
 def empty_yaml_files():
