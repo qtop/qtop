@@ -543,7 +543,7 @@ def number_WNs(WNnumber, WNList):
 
 
     NrOfExtraTables = (len(WNList) - PrintStart) / TermColumns + 1 # was: (BiggestWrittenNode - PrintStart) / TermColumns + 1
-    print 'NrOfExtraTables is: ', NrOfExtraTables ###
+    # print 'NrOfExtraTables is: ', NrOfExtraTables ###
     if NrOfExtraTables > 1:
         PrintEnd = PrintStart + TermColumns - DEADWEIGHT
     else:
@@ -709,7 +709,7 @@ else:
     for node in AllWNs:
         NodeState += AllWNs[node][0]
 
-print 'about to print Nodestate. PrintStart, PrintEnd are: ', PrintStart, PrintEnd
+# print 'about to print Nodestate. PrintStart, PrintEnd are: ', PrintStart, PrintEnd
 if PrintEnd < PrintStart:
     PrintEnd += PrintStart
 print NodeState[PrintStart:PrintEnd] + '=Node state'
@@ -732,22 +732,20 @@ for ind, k in enumerate(CPUCoreDic):
     line = ''.join(ColourCPUCoreLst)
 
     print line + '=Core' + str(ind)
-print 'initial printstart, printend are: ', PrintStart, PrintEnd ###
+# print 'initial printstart, printend are: ', PrintStart, PrintEnd ###
 
 #print remaining tables
 for i in range(NrOfExtraTables):
     print '\n'
     PrintStart = PrintEnd
     PrintEnd += TermColumns - DEADWEIGHT
-    print 'PrintStart, PrintEnd: ', PrintStart, PrintEnd ###
+    # print 'PrintStart, PrintEnd: ', PrintStart, PrintEnd ###
     if PrintEnd > len(WNList):
-        print 'PrintEnd > len(WNList): ', str(PrintEnd) + '>' + str(len(WNList)) ###
+        # print 'PrintEnd > len(WNList): ', str(PrintEnd) + '>' + str(len(WNList)) ###
         PrintEnd = len(WNList)
-        print 'So PrintEnd is now: len(WNList) = ', PrintEnd ###
-    else: ###
-        print 'PrintEnd < len(WNList): ', str(PrintEnd) + '<' + str(len(WNList)) ###
+        # print 'So PrintEnd is now: len(WNList) = ', PrintEnd ###
     if PrintStart == PrintEnd:
-        print "So we're going to stop here!"
+        # print "So we're going to stop here!"
         break
     if len(NodeSubClusters) == 1:
         print_WN_ID_lines(PrintStart, PrintEnd, LastWN)
