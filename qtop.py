@@ -17,6 +17,7 @@ changelog:
 0.3  : command-line arguments (mostly empty for now)!
        non-numbered WNs can now be displayed instead of numbered WN IDs
        fixed issue with single named WN
+       better regex pattern and algorithm for catching complicated numbered WN domain names
 0.2.9: handles cases of non-numbered WNs (e.g. fruit names)
        parses more complex domain names (with more than one dash)
        correction in WN ID numbers display (tens were problematic for larger numbers)
@@ -69,6 +70,7 @@ import sys
 
 parser = OptionParser()
 parser.add_option("-m", "--noMasking", action="store_false", dest="MASKING", default=True, help="Don't mask early empty Worker Nodes. (default setting is: if e.g. the first 30 WNs are unused, counting starts from 31).")
+parser.add_option("-s", "--SetSourceDir", dest="SOURCEDIR", help="Set the source directory where pbsnodes and qstat reside")
 parser.add_option("-f", "--ForceNames", action="store_true", dest="FORCE_NAMES", default=False, help="force names to show up instead of numbered WNs even for very small numbers of WNs")
 parser.add_option("-e", "--file", dest="filename", help="write report to FILE (currently not implemented)", metavar="FILE")
 parser.add_option("-z", "--quiet", action="store_false", dest="verbose", default=True, help="don't print status messages to stdout. Not doing anything at the moment.")
@@ -187,6 +189,11 @@ def make_pbsnodes_yaml(fin, fout):
         elif line.startswith('\n'):
             fout.write('\n')
 
+        elif 'ntype = PBS' in line:
+            print 'PBS currently not supported!'
+            sys.exit(1)
+
+
     fin.close()
     fout.close()
 
@@ -202,7 +209,9 @@ def read_pbsnodes_yaml(fin):
     for line in fin:
         line.strip()
         searchdname = 'domainname: ' + '(\w+-?\w+([.-]\w+)*)'
-        searchnodenr = '([A-Za-z-]+)(\d+)'
+        # searchnodenr = '[a-zA-Z]+[0-9]*(-?[a-zA-Z]*[0-9]*)+' ### was: '([A-Za-z-]+)(\d+)'
+        searchnodenr = '([A-Za-z0-9-]+)(?=\.|$)' ### was: '([A-Za-z-]+)(\d+)'
+        searchnodenrfind = '[A-Za-z]+|[0-9]+|[A-Za-z]+[0-9]+'
         searchjustletters = '(^[A-Za-z-]+)'
         if re.search(searchdname, line) is not None:   # line contains domain name
             m = re.search(searchdname, line)
@@ -215,8 +224,18 @@ def read_pbsnodes_yaml(fin):
             # print 'line is ', line
             if re.search(searchnodenr, dname) is not None:  # if a number and domain is found
                 n = re.search(searchnodenr, dname)
-                NodeInits = n.group(1)
-                NodeNr = int(n.group(2))
+                NodeInits = n.group(0)
+                NameGroups = re.findall(searchnodenrfind, NodeInits)
+                NodeInits = '-'.join(NameGroups[0:-1])
+                # print 'n,group(0), NodeInits are: ', n.group(0), NodeInits
+                if NameGroups[-1].isdigit():
+                    NodeNr = int(NameGroups[-1]) ### was: int(n.group(2))
+                elif NameGroups[-2].isdigit():
+                    NodeNr = int(NameGroups[-2])
+                else:
+                    NodeNr = int(NameGroups[-3])
+                # print 'NameGroups is: ', NameGroups
+                # print 'NodeInits, NodeNr are: ', NodeInits, NodeNr
                 NodeSubClusters.add(NodeInits)    # for non-uniform setups of WNs, eg g01... and n01...
                 AllWNs[NodeNr] = []
                 AllWNsRemapped[RemapNr] = []
@@ -277,7 +296,7 @@ def read_pbsnodes_yaml(fin):
             job = str(line.split(': ')[1]).strip()
             AllWNs[NodeNr].append((core, job))
             AllWNsRemapped[RemapNr].append((core, job))
-    LastWN = BiggestWrittenNode
+    LastWN = len(WNList) ### was: BiggestWrittenNode
     HighestCoreBusy += 1
 
     '''
@@ -335,7 +354,7 @@ def make_qstat_yaml(fin, fout):
     # UserQueueSearch = '^((\d+)\.([A-Za-z-]+[0-9]*))\s+([%A-Za-z0-9_.=-]+)\s+([A-Za-z0-9]+)\s+(\d+:\d+:\d*|0)\s+([CWRQE])\s+(\w+)'
     firstline = fin.readline()
     if 'prior' not in firstline:
-        UserQueueSearch = '^((\d+)\.([A-Za-z0-9-]+))\s+([%A-Za-z0-9_.=-]+)\s+([A-Za-z0-9]+)\s+(\d+:\d+:\d*|0)\s+([CWRQE])\s+(\w+)'
+        UserQueueSearch = '^((\d+)\.([A-Za-z0-9-]+))\s+([%A-Za-z0-9_.=+-]+)\s+([A-Za-z0-9]+)\s+(\d+:\d+:\d*|0)\s+([CWRQE])\s+(\w+)'
         RunQdSearch = '^\s*(\d+)\s+(\d+)'
         for line in fin:
             line.strip()
@@ -439,7 +458,7 @@ def number_WNs(WNnumber, WNList):
     '''
     prints the worker node ID number lines
     '''
-    global t, c, d, u, PrintStart, PrintEnd, Dx, NrOfTables
+    global t, c, d, u, PrintStart, PrintEnd, Dx, NrOfExtraTables
     if WNnumber < 10:
         unit = str(WNnumber)[0]
 
@@ -519,15 +538,16 @@ def number_WNs(WNnumber, WNList):
         pass            
     elif WNList[0] < 100:
         if PrintEnd is None:
-            PrintEnd = BiggestWrittenNode
+            PrintEnd = len(WNList) ### was: BiggestWrittenNode
 
 
 
-    NrOfTables = (BiggestWrittenNode - PrintStart) / TermColumns + 1
-    if NrOfTables > 1:
+    NrOfExtraTables = (len(WNList) - PrintStart) / TermColumns + 1 # was: (BiggestWrittenNode - PrintStart) / TermColumns + 1
+    print 'NrOfExtraTables is: ', NrOfExtraTables ###
+    if NrOfExtraTables > 1:
         PrintEnd = PrintStart + TermColumns - DEADWEIGHT
     else:
-        PrintEnd = BiggestWrittenNode
+        PrintEnd = len(WNList) ### was: BiggestWrittenNode
 
     print_WN_ID_lines(PrintStart, PrintEnd, WNnumber)
 
@@ -689,6 +709,7 @@ else:
     for node in AllWNs:
         NodeState += AllWNs[node][0]
 
+print 'about to print Nodestate. PrintStart, PrintEnd are: ', PrintStart, PrintEnd
 print NodeState[PrintStart:PrintEnd] + '=Node state'
 ########################### Node State ######################
 
@@ -709,15 +730,22 @@ for ind, k in enumerate(CPUCoreDic):
     line = ''.join(ColourCPUCoreLst)
 
     print line + '=Core' + str(ind)
+print 'initial printstart, printend are: ', PrintStart, PrintEnd ###
 
 #print remaining tables
-for i in range(NrOfTables):
+for i in range(NrOfExtraTables):
     print '\n'
     PrintStart = PrintEnd
     PrintEnd += TermColumns - DEADWEIGHT
-    if PrintEnd > BiggestWrittenNode:
-        PrintEnd = BiggestWrittenNode
+    print 'PrintStart, PrintEnd: ', PrintStart, PrintEnd ###
+    if PrintEnd > len(WNList):
+        print 'PrintEnd > len(WNList): ', str(PrintEnd) + '>' + str(len(WNList)) ###
+        PrintEnd = len(WNList)
+        print 'So PrintEnd is now: len(WNList) = ', PrintEnd ###
+    else: ###
+        print 'PrintEnd < len(WNList): ', str(PrintEnd) + '<' + str(len(WNList)) ###
     if PrintStart == PrintEnd:
+        print "So we're going to stop here!"
         break
     if len(NodeSubClusters) == 1:
         print_WN_ID_lines(PrintStart, PrintEnd, LastWN)
