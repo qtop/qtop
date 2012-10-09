@@ -710,6 +710,8 @@ else:
         NodeState += AllWNs[node][0]
 
 print 'about to print Nodestate. PrintStart, PrintEnd are: ', PrintStart, PrintEnd
+if PrintEnd < PrintStart:
+    PrintEnd += PrintStart
 print NodeState[PrintStart:PrintEnd] + '=Node state'
 ########################### Node State ######################
 
