@@ -18,6 +18,7 @@ changelog:
        non-numbered WNs can now be displayed instead of numbered WN IDs
        fixed issue with single named WN
        better regex pattern and algorithm for catching complicated numbered WN domain names
+       implement colorless switch (-c)
 0.2.9: handles cases of non-numbered WNs (e.g. fruit names)
        parses more complex domain names (with more than one dash)
        correction in WN ID numbers display (tens were problematic for larger numbers)
@@ -69,6 +70,7 @@ import sys
 # import qtcolormap
 
 parser = OptionParser()
+parser.add_option("-c", "--COLOROFF", action="store_false", dest="COLOR", default=True, help="Disable color in qtop output.")
 parser.add_option("-m", "--noMasking", action="store_false", dest="MASKING", default=True, help="Don't mask early empty Worker Nodes. (default setting is: if e.g. the first 30 WNs are unused, counting starts from 31).")
 parser.add_option("-s", "--SetSourceDir", dest="SOURCEDIR", help="Set the source directory where pbsnodes and qstat reside")
 parser.add_option("-f", "--ForceNames", action="store_true", dest="FORCE_NAMES", default=False, help="force names to show up instead of numbered WNs even for very small numbers of WNs")
@@ -84,8 +86,10 @@ exec qtopcolormap
 
 def Colorize(text, pattern):
     """print text colored according to its unix account colors"""
-    return "\033[" + CodeOfColor[ColorOfAccount[pattern]] + "m" + text + \
-        "\033[1;m"
+    if options.COLOR == True:
+        return "\033[" + CodeOfColor[ColorOfAccount[pattern]] + "m" + text + "\033[1;m"
+    else:
+        return text
 
 #for calculating the WN numbers
 t, c, d, u = '', '', '', ''
@@ -766,8 +770,10 @@ print ' id |  R   +   Q  /  all |    unix account | Grid certificate DN (this in
 for line in AccountsMappings:
     PrintString = '%3s | %4s + %4s / %4s | %15s |' % (line[0], line[1], line[2], line[3], line[4][0])
     for account in ColorOfAccount:
-        if line[4][0].startswith(account):
+        if line[4][0].startswith(account) and options.COLOR == True:
             PrintString = '%15s | %16s + %16s / %16s | %27s |' % (Colorize(line[0], account), Colorize(str(line[1]), account), Colorize(str(line[2]), account), Colorize(str(line[3]), account), Colorize(line[4][0], account))
+        elif line[4][0].startswith(account) and options.COLOR == False:
+            PrintString = '%2s | %3s + %3s / %3s | %14s |' %(Colorize(line[0], account), Colorize(str(line[1]), account), Colorize(str(line[2]), account), Colorize(str(line[3]), account), Colorize(line[4][0], account))
         else:
             pass
     print PrintString
