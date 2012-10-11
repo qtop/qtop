@@ -1,11 +1,8 @@
 #!/usr/bin/env python
 
 ################################################
-#                                              #
 #              qtop v.0.2.8                    #
-#                                              #
 #     Licensed under MIT-GPL licenses          #
-#                                              #
 #                     Fotis Georgatos          #
 #                     Sotiris Fragkiskos       #
 ################################################
@@ -14,6 +11,8 @@
 
 changelog:
 =========
+0.4  : corrected colorless switch to have ON/OFF option (default ON)
+
 0.3  : command-line arguments (mostly empty for now)!
        non-numbered WNs can now be displayed instead of numbered WN IDs
        fixed issue with single named WN
@@ -33,7 +32,7 @@ changelog:
         the Worker Node number
 0.2.4: implemented some stuff from PEP8
        un-hardwired the file paths
-       refactored code around CPUCoreDic functionality (responsible for drawing
+       refactored code around CPUCoreDict functionality (responsible for drawing
         the map)
 0.2.3: corrected regex search pattern in make_qstat to recognize usernames like spec101u1 (number followed by number followed by letter) now handles non-uniform setups
         R + Q / all: all did not display everything (E status)
@@ -56,52 +55,45 @@ changelog:
 
 """
 
-
 from operator import itemgetter
 from optparse import OptionParser
 import datetime
 import glob
-#import itertools
 import os
 import re
 import sys
-#import copy
-# from qtcolormap import *
-# import qtcolormap
 
-parser = OptionParser()
-parser.add_option("-c", "--COLOROFF", action="store_false", dest="COLOR", default=True, help="Disable color in qtop output.")
+parser = OptionParser() # for more details see http://docs.python.org/library/optparse.html
+parser.add_option("-c", "--COLOR", action="store", dest="COLOR", default='ON', choices=['ON', 'OFF'], help="Enable/Disable color in qtop output. Use it with an ON/OFF switch: -c ON or -c OFF")
+parser.add_option("-f", "--setCOLORMAPFILE", action="store", type="string", dest="COLORFILE")
 parser.add_option("-m", "--noMasking", action="store_false", dest="MASKING", default=True, help="Don't mask early empty Worker Nodes. (default setting is: if e.g. the first 30 WNs are unused, counting starts from 31).")
 parser.add_option("-s", "--SetSourceDir", dest="SOURCEDIR", help="Set the source directory where pbsnodes and qstat reside")
-parser.add_option("-f", "--ForceNames", action="store_true", dest="FORCE_NAMES", default=False, help="force names to show up instead of numbered WNs even for very small numbers of WNs")
-# parser.add_option("-e", "--file", dest="filename", help="write report to FILE (currently not implemented)", metavar="FILE")
 parser.add_option("-z", "--quiet", action="store_false", dest="verbose", default=True, help="don't print status messages to stdout. Not doing anything at the moment.")
+parser.add_option("-F", "--ForceNames", action="store_true", dest="FORCE_NAMES", default=False, help="force names to show up instead of numbered WNs even for very small numbers of WNs")
 
 (options, args) = parser.parse_args()
 
-COLORFILE = os.path.expanduser('~/qtop/qtop/qtop.colormap')
-qtopcolormap = open(COLORFILE, 'r')
+if not options.COLORFILE:
+    options.COLORFILE = os.path.expanduser('~/qtop/qtop/qtop.colormap')
+qtopcolormap = open(options.COLORFILE, 'r')
 exec qtopcolormap
 
 
 def Colorize(text, pattern):
     """print text colored according to its unix account colors"""
-    if options.COLOR == True:
+    if options.COLOR == 'ON':
         return "\033[" + CodeOfColor[ColorOfAccount[pattern]] + "m" + text + "\033[1;m"
     else:
         return text
 
 #for calculating the WN numbers
-t, c, d, u = '', '', '', ''
+h1000, h0100, h0010, h0001 = '', '', '', ''
 PrintStart, PrintEnd = 0, None
 
-# options.MASKING = True
 if options.FORCE_NAMES == False: 
     JUST_NAMES_FLAG = 0
 else:
     JUST_NAMES_FLAG = 1
-RMWARNING = '=== WARNING: --- Remapping WN names and retrying heuristics... \
- good luck with this... ---'
 RemapNr = 0
 NodeSubClusters = set()
 OutputDirs = []
@@ -119,12 +111,11 @@ TotalCores, WorkingCores = 0, 0
 TotalRuns, TotalQueues = 0, 0  # for readQstatQ
 JobIds, UnixAccounts, Statuses, Queues = [], [], [], []  # for read_qstat
 qstatqLst = []
-# qstatLst = []
 UserOfJobId, IdOfUnixAccount = {}, {}  # keepers
 AccountsMappings = []  # keeper
 
 ### CPU lines ######################################
-CPUCoreDic = {}
+
 MaxNPRange = []
 
 AccountNrlessOfId = {}
@@ -208,7 +199,7 @@ def read_pbsnodes_yaml(fin):
     '''
     global ExistingNodes, OfflineDownNodes, LastWN, jobseries, BiggestWrittenNode, WNList, WNListRemapped, NodeNr, TotalCores, WorkingCores, AllWNs, AllWNsRemapped, HighestCoreBusy, MaxNP, NodeSubClusters, RemapNr, JUST_NAMES_FLAG
 
-    MaxNP = 0
+    # MaxNP = 0
     state = ''
     for line in fin:
         line.strip()
@@ -446,7 +437,7 @@ def read_qstat():
 
 def job_accounting_summary():
     if len(NodeSubClusters) > 1:
-        print RMWARNING
+        print '=== WARNING: --- Remapping WN names and retrying heuristics... good luck with this... ---'
     print 'PBS report tool. Please try: watch -d ' + QTOPPATH + '. All bugs added by sfranky@gmail.com. Cross fingers now...\n'
     print Colorize('===> ', 'Brown') + Colorize('Job accounting summary', 'purple') + Colorize(' <=== ', 'Brown') + '(Rev: 3000 $) %s WORKDIR = to be added\n' % (datetime.datetime.today())
     print 'Usage Totals:\t%s/%s\t Nodes | %s/%s  Cores |   %s+%s jobs (R + Q) reported by qstat -q' % (ExistingNodes - OfflineDownNodes, ExistingNodes, WorkingCores, TotalCores, int(TotalRuns), int(TotalQueues))
@@ -457,76 +448,76 @@ def job_accounting_summary():
     print '\n'
 
 
-def fill_cpucore_columns(value, CPUDic):
+def fill_cpucore_columns(value, CPUDict):
     '''
     Calculates the actual contents of the map by filling in a status string for each CPU line
     '''
     Busy = []
 
     if value[0] == '?':
-        for CPULine in CPUDic:
-            CPUDic[CPULine] += '_'
+        for CPULine in CPUDict:
+            CPUDict[CPULine] += '_'
     else:
         HAS_JOBS = 0
         OwnNP = int(value[1])
         OwnNPRange = [str(x) for x in range(OwnNP)]
-        OwnNPEmptyRange = [str(x) for x in range(OwnNP)]
+        OwnNPEmptyRange = OwnNPRange[:] # was: [str(x) for x in range(OwnNP)]
 
         for element in value[2:]:
             if type(element) == tuple:  # everytime there is a job:
                 HAS_JOBS += 1
                 Core, job = element[0], element[1]
-                CPUDic['Cpu' + str(Core) + 'line'] += str(IdOfUnixAccount[UserOfJobId[job]])
+                CPUDict['Cpu' + str(Core) + 'line'] += str(IdOfUnixAccount[UserOfJobId[job]])
                 Busy.extend(Core)
                 OwnNPEmptyRange.remove(Core)
 
         NonExistentCores = [item for item in MaxNPRange if item not in OwnNPRange]
 
         for core in OwnNPEmptyRange:
-            CPUDic['Cpu' + str(core) + 'line'] += '_'
+            CPUDict['Cpu' + str(core) + 'line'] += '_'
         for core in NonExistentCores:
-                CPUDic['Cpu' + str(core) + 'line'] += '#'
+                CPUDict['Cpu' + str(core) + 'line'] += '#'
 
 
 def number_WNs(WNnumber, WNList):
     '''
     prints the worker node ID number lines
     '''
-    global t, c, d, u, PrintStart, PrintEnd, Dx, NrOfExtraTables
+    global h1000, h0100, h0010, h0001, PrintStart, PrintEnd, Dx, NrOfExtraTables
     if WNnumber < 10:
         unit = str(WNnumber)[0]
 
         for node in range(WNnumber):
-            u += str(node + 1)
+            h0001 += str(node + 1)
 
     elif WNnumber < 100:
         dec = str(WNnumber)[0]
         unit = str(WNnumber)[1]
 
         d_ = '0' * 9 + '1' * 10 + '2' * 10 + '3' * 10 + '4' * 10 + '5' * 10 + '6' * 10 + '7' * 10 + '8' * 10 + '9' * 10
-        u = '1234567890' * 10
-        d = d_[:WNnumber]
+        h0001 = '1234567890' * 10
+        h0010 = d_[:WNnumber]
 
     elif WNnumber < 1000:
         cent = int(str(WNnumber)[0])
         dec = int(str(WNnumber)[1])
         unit = int(str(WNnumber)[2])
 
-        c += str(0) * 99
+        h0100 += str(0) * 99
         for i in range(1, cent):
-            c += str(i) * 100
-        c += str(cent) * (int(dec)) * 10 + str(cent) * (int(unit) + 1)
+            h0100 += str(i) * 100
+        h0100 += str(cent) * (int(dec)) * 10 + str(cent) * (int(unit) + 1)
 
         d_ = '0' * 9 + '1' * 10 + '2' * 10 + '3' * 10 + '4' * 10 + '5' * 10 + '6' * 10 + '7' * 10 + '8' * 10 + '9' * 10
-        d = d_
+        h0010 = d_
         for i in range(1, cent):
-            d += str(0) + d_
+            h0010 += str(0) + d_
         else:
-            d += str(0)
-        d += d_[:int(str(dec) + str(unit))]
+            h0010 += str(0)
+        h0010 += d_[:int(str(dec) + str(unit))]
 
         uc = '1234567890' * 100
-        u = uc[:WNnumber]
+        h0001 = uc[:WNnumber]
 
     elif WNnumber > 1000:
         thou = int(str(WNnumber)[0])
@@ -534,30 +525,30 @@ def number_WNs(WNnumber, WNList):
         dec = int(str(WNnumber)[2])
         unit = int(str(WNnumber)[3])
 
-        t += str(0) * 999
+        h1000 += str(0) * 999
         for i in range(1, thou):
-            t += str(i) * 1000
-        t += str(thou) * ((int(cent)) * 100 + (int(dec)) * 10 + (int(unit) + 1))
+            h1000 += str(i) * 1000
+        h1000 += str(thou) * ((int(cent)) * 100 + (int(dec)) * 10 + (int(unit) + 1))
 
         c_ = '0' * 99 + '1' * 100 + '2' * 100 + '3' * 100 + '4' * 100 + '5' * 100 + '6' * 100 + '7' * 100 + '8' * 100 + '9' * 100
         c__ = '0' * 100 + '1' * 100 + '2' * 100 + '3' * 100 + '4' * 100 + '5' * 100 + '6' * 100 + '7' * 100 + '8' * 100 + '9' * 100
-        c = c_
+        h0100 = c_
 
         for i in range(1, thou):
-            c += c__
+            h0100 += c__
         else:
-            c += c__[:int(str(cent) + str(dec) +str(unit))+1]
+            h0100 += c__[:int(str(cent) + str(dec) +str(unit))+1]
 
         d_ = '0' * 10 + '1' * 10 + '2' * 10 + '3' * 10 + '4' * 10 + '5' * 10 + '6' * 10 + '7' * 10 + '8' * 10 + '9' * 10
         d__ = d_ * thou * 10  # cent * 10
         d___ = d_ * (cent - 1)
-        d = '0' * 9 + '1' * 10 + '2' * 10 + '3' * 10 + '4' * 10 + '5' * 10 + '6' * 10 + '7' * 10 + '8' * 10 + '9' * 10
-        d += d__
-        d += d___
-        d += d_[:int(str(dec) + str(unit)) + 1]
+        h0010 = '0' * 9 + '1' * 10 + '2' * 10 + '3' * 10 + '4' * 10 + '5' * 10 + '6' * 10 + '7' * 10 + '8' * 10 + '9' * 10
+        h0010 += d__
+        h0010 += d___
+        h0010 += d_[:int(str(dec) + str(unit)) + 1]
 
         uc = '1234567890' * 1000
-        u = uc[:WNnumber]
+        h0001 = uc[:WNnumber]
 
     '''
     masking/clipping functionality: if the earliest node number is high (e.g. 80), the first 79 WNs need not show up.
@@ -594,43 +585,49 @@ def number_WNs(WNnumber, WNList):
 
 
 def print_WN_ID_lines(start, stop, WNnumber):
+    '''
+    h1000 is a header for the 'thousands',
+    h0100 is a header for the 'hundreds',
+    h0010 is a header for the 'tens',
+    h0001 is a header for the 'units' in the WN_ID lines
+    '''
     global JUST_NAMES_FLAG
-    JustNameDic = {}
+    JustNameDict = {}
     if JUST_NAMES_FLAG <= 1:  # normal case, numbered WNs
         if WNnumber < 10:
-            print u + '={__WNID__}'
+            print h0001 + '={__WNID__}'
 
         elif WNnumber < 100:
-            print d + '={_Worker_}'
-            print u[:WNnumber] + '={__Node__}'
+            print h0010 + '={_Worker_}'
+            print h0001[:WNnumber] + '={__Node__}'
 
         elif WNnumber < 1000:
-            print c[start:stop] + '={_Worker_}'
-            print d[start:stop] + '={__Node__}'
-            print u[start:stop] + '={___ID___}'
+            print h0100[start:stop] + '={_Worker_}'
+            print h0010[start:stop] + '={__Node__}'
+            print h0001[start:stop] + '={___ID___}'
 
         elif WNnumber > 1000:
-            print t[start:stop] + '={__Super_}'
-            print c[start:stop] + '={_Worker_}'
-            print d[start:stop] + '={__Node__}'
-            print u[start:stop] + '={___ID___}'
+            print h1000[start:stop] + '={________}'
+            print h0100[start:stop] + '={_Worker_}'
+            print h0010[start:stop] + '={__Node__}'
+            print h0001[start:stop] + '={___ID___}'
     elif JUST_NAMES_FLAG > 1 or options.FORCE_NAMES == True: # names instead of numbered WNs
         colour = 0
         Highlight = {0: 'cmsplt', 1: 'Red'}
         for line in range(len(max(WNList))):
-            JustNameDic[line] = ''
+            JustNameDict[line] = ''
         for column in range(len(WNList)-1):
             for line in range(len(max(WNList))):
-                JustNameDic[line] += Colorize(WNList[column][line], Highlight[colour])
+                JustNameDict[line] += Colorize(WNList[column][line], Highlight[colour])
             if colour == 1:
                 colour = 0
             else:
                 colour = 1
         for line in range(len(max(WNList))):
-            print JustNameDic[line] + '={__WNID__}'
+            print JustNameDict[line] + '={__WNID__}'
 
 
-def empty_yaml_files():
+def reset_yaml_files():
     """
     empties the files with every run of the python script
     """
@@ -680,11 +677,11 @@ for account in RunningOfUser:
     WaitingOfUser.setdefault(account, 0)
     ExitingOfUser.setdefault(account, 0)
 
-OccurenceDic = {}
+OccurenceDict = {}
 for user in UnixAccounts:
-    OccurenceDic[user] = UnixAccounts.count(user)
+    OccurenceDict[user] = UnixAccounts.count(user)
 
-Usersortedlst = sorted(OccurenceDic.items(), key=itemgetter(1), reverse=True)
+Usersortedlst = sorted(OccurenceDict.items(), key=itemgetter(1), reverse=True)
 
 
 # IdOfUnixAccount = {}
@@ -716,17 +713,17 @@ AccountsMappings.sort(key=itemgetter(3), reverse=True)
 
 
 ### CPU lines ######################################
-
+CPUCoreDict = {}
 for i in range(MaxNP):
-    CPUCoreDic['Cpu' + str(i) + 'line'] = ''  # Cpu0line, Cpu1line, Cpu2line, .. = '','','', ..
+    CPUCoreDict['Cpu' + str(i) + 'line'] = ''  # Cpu0line, Cpu1line, Cpu2line, .. = '','','', ..
     MaxNPRange.append(str(i))
 
 if len(NodeSubClusters) == 1:
     for _, WNProperties in zip(AllWNs.keys(), AllWNs.values()):
-        fill_cpucore_columns(WNProperties, CPUCoreDic)
+        fill_cpucore_columns(WNProperties, CPUCoreDict)
 elif len(NodeSubClusters) > 1:
     for _, WNProperties in zip(AllWNsRemapped.keys(), AllWNsRemapped.values()):
-        fill_cpucore_columns(WNProperties, CPUCoreDic)
+        fill_cpucore_columns(WNProperties, CPUCoreDict)
 
 ### CPU lines ######################################
 
@@ -756,8 +753,8 @@ if PrintEnd < PrintStart:
     PrintEnd += PrintStart
 print 'So PrintEnd becomes: ', PrintEnd
 print NodeState[PrintStart:PrintEnd] + '=Node state'
-########################### Node State ######################
 
+########################### Node State ######################
 
 for line in AccountsMappings:
     if re.split('[0-9]+', line[4][0])[0] in ColorOfAccount:
@@ -765,12 +762,11 @@ for line in AccountsMappings:
     else:
         AccountNrlessOfId[line[0]] = 'NoColourAccount'
 
-
 AccountNrlessOfId['#'] = '#'
 AccountNrlessOfId['_'] = '_'
 
-for ind, k in enumerate(CPUCoreDic):
-    ColourCPUCoreLst = list(CPUCoreDic['Cpu' + str(ind) + 'line'][PrintStart:PrintEnd])
+for ind, k in enumerate(CPUCoreDict):
+    ColourCPUCoreLst = list(CPUCoreDict['Cpu' + str(ind) + 'line'][PrintStart:PrintEnd])
     ColourCPUCoreLst = [Colorize(elem, AccountNrlessOfId[elem]) for elem in ColourCPUCoreLst if elem in AccountNrlessOfId]
     line = ''.join(ColourCPUCoreLst)
 
@@ -796,13 +792,12 @@ for i in range(NrOfExtraTables):
     if len(NodeSubClusters) > 1:
         print_WN_ID_lines(PrintStart, PrintEnd, RemapNr)
     print NodeState[PrintStart:PrintEnd] + '=Node state'
-    for ind, k in enumerate(CPUCoreDic):
-        ColourCPUCoreLst = list(CPUCoreDic['Cpu' + str(ind) + 'line'][PrintStart:PrintEnd])
+    for ind, k in enumerate(CPUCoreDict):
+        ColourCPUCoreLst = list(CPUCoreDict['Cpu' + str(ind) + 'line'][PrintStart:PrintEnd])
         ColourCPUCoreLst = [Colorize(elem, AccountNrlessOfId[elem]) for elem in ColourCPUCoreLst if elem in AccountNrlessOfId]
         line = ''.join(ColourCPUCoreLst)
 
         print line + '=Core' + str(ind)
-
 
 print '\n'
 print Colorize('===> ', 'Brown') + Colorize('User accounts and pool mappings', 'purple') + Colorize(' <=== ', 'Brown') + '("all" includes those in C and W states, as reported by qstat)\n'
