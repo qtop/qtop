@@ -820,7 +820,7 @@ for line in AccountsMappings:
     PrintString = '%3s | %4s + %4s / %4s | %15s |' % (line[0], line[1], line[2], line[3], line[4][0])
     for account in ColorOfAccount:
         if line[4][0].startswith(account) and options.COLOR == 'ON':
-            PrintString = '%15s | %16s + %16s / %16s | %27s |' % (Colorize(line[0], account), Colorize(str(line[1]), account), Colorize(str(line[2]), account), Colorize(str(line[3]), account), Colorize(line[4][0], account))
+            PrintString = '%15s | %16s + %16s / %16s | %27s %4s' % (Colorize(line[0], account), Colorize(str(line[1]), account), Colorize(str(line[2]), account), Colorize(str(line[3]), account), Colorize(line[4][0], account), Colorize('|', 'NoColourAccount'))
         elif line[4][0].startswith(account) and options.COLOR == 'OFF':
             PrintString = '%2s | %3s + %3s / %3s | %14s |' %(Colorize(line[0], account), Colorize(str(line[1]), account), Colorize(str(line[2]), account), Colorize(str(line[3]), account), Colorize(line[4][0], account))
         else:
