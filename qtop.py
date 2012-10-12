@@ -13,6 +13,8 @@ changelog:
 =========
 0.4  : corrected colorless switch to have ON/OFF option (default ON)
        bugfixes
+       now descriptions are in white, as before.
+       Queues in the job accounting summary section are now coloured
 0.3  : command-line arguments (mostly empty for now)!
        non-numbered WNs can now be displayed instead of numbered WN IDs
        fixed issue with single named WN
@@ -438,16 +440,27 @@ def read_qstat():
 def job_accounting_summary():
     if len(NodeSubClusters) > 1:
         print '=== WARNING: --- Remapping WN names and retrying heuristics... good luck with this... ---'
-    else: 
-        print '\n'
-    print 'PBS report tool. Please try: watch -d ' + QTOPPATH + '. All bugs added by sfranky@gmail.com. Cross fingers now...\n'
-    print Colorize('===> ', 'Brown') + Colorize('Job accounting summary', 'purple') + Colorize(' <=== ', 'Brown') + '(Rev: 3000 $) %s WORKDIR = to be added' % (datetime.datetime.today()) #was: added\n
+    print '\nPBS report tool. Please try: watch -d ' + QTOPPATH + '. All bugs added by sfranky@gmail.com. Cross fingers now...\n'
+    print Colorize('===> ', 'Brown') + Colorize('Job accounting summary', 'purple') + Colorize(' <=== ', 'Brown') + Colorize('(Rev: 3000 $) %s WORKDIR = to be added', 'NoColourAccount') % (datetime.datetime.today()) #was: added\n
     print 'Usage Totals:\t%s/%s\t Nodes | %s/%s  Cores |   %s+%s jobs (R + Q) reported by qstat -q' % (ExistingNodes - OfflineDownNodes, ExistingNodes, WorkingCores, TotalCores, int(TotalRuns), int(TotalQueues))
     print 'Queues: | ',
-    for i in qstatqLst:
-        print i[0] + ': ' + i[1] + '+' + i[2] + ' |',
-    print '* implies blocked'
-    print '\n'
+    if options.COLOR == 'ON':
+        # for queue in qstatqLst:
+        #     for account in ColorOfAccount:
+        #         if queue[0].startswith(account):
+        #             print Colorize(queue[0] + ': ' + queue[1] + '+' + queue[2] , account) + ' |',
+        for queue in qstatqLst:
+            # print queue[0],
+            if queue[0] in ColorOfAccount:
+                print Colorize(queue[0], queue[0]) + ': ' + Colorize(queue[1], queue[0]) + '+' + Colorize(queue[2], queue[0]) + ' |',        
+            else:
+                print Colorize(queue[0], 'Nothing') + ': ' + Colorize(queue[1], 'Nothing') + '+' + Colorize(queue[2], 'Nothing') + ' |',
+                # print queue[0] + ': ' + queue[1] + '+' + queue[2] + ' |',
+    else:    
+        for queue in qstatqLst:
+            print queue[0] + ': ' + queue[1] + '+' + queue[2] + ' |',
+    print '* implies blocked\n'
+
 
 
 def fill_cpucore_columns(value, CPUDict):
@@ -731,7 +744,7 @@ elif len(NodeSubClusters) > 1:
 
 
 ########################### Node State ######################
-print Colorize('===> ', 'Brown') + Colorize('Worker Nodes occupancy', 'purple') + Colorize(' <=== ', 'Brown') + '(you can read vertically the node IDs; nodes in free state are noted with - )\n'
+print Colorize('===> ', 'Brown') + Colorize('Worker Nodes occupancy', 'purple') + Colorize(' <=== ', 'Brown') + Colorize('(you can read vertically the node IDs; nodes in free state are noted with - )', 'NoColourAccount')
 
 '''
 if there are non-uniform WNs in pbsnodes.yaml, e.g. wn01, wn02, gn01, gn02, ...,  remapping is performed
@@ -777,7 +790,6 @@ for ind, k in enumerate(CPUCoreDict):
 
 #print remaining tables
 for i in range(NrOfExtraTables):
-    print '\n'
     PrintStart = PrintEnd
     PrintEnd += TermColumns - DEADWEIGHT # += 192
     # print 'PrintStart, PrintEnd on the extra table, ', i+1, 'are: ', PrintStart, PrintEnd ###
@@ -788,6 +800,7 @@ for i in range(NrOfExtraTables):
     if PrintStart == PrintEnd:
         # print "So we're going to stop here!"
         break
+    print '\n'
     if len(NodeSubClusters) == 1:
         # print 'on the extra table, ', i+1, 'PrintStart, PrintEnd are: ', PrintStart, PrintEnd
         print_WN_ID_lines(PrintStart, PrintEnd, LastWN)
@@ -801,8 +814,7 @@ for i in range(NrOfExtraTables):
 
         print line + '=Core' + str(ind)
 
-print '\n'
-print Colorize('===> ', 'Brown') + Colorize('User accounts and pool mappings', 'purple') + Colorize(' <=== ', 'Brown') + '("all" includes those in C and W states, as reported by qstat)\n'
+print Colorize('\n===> ', 'Brown') + Colorize('User accounts and pool mappings', 'purple') + Colorize(' <=== ', 'Brown') + Colorize('("all" includes those in C and W states, as reported by qstat)', 'NoColourAccount')
 print ' id |  R   +   Q  /  all |    unix account | Grid certificate DN (this info is only available under elevated privileges)'
 for line in AccountsMappings:
     PrintString = '%3s | %4s + %4s / %4s | %15s |' % (line[0], line[1], line[2], line[3], line[4][0])
