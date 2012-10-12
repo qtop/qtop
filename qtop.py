@@ -580,8 +580,6 @@ def number_WNs(WNnumber, WNList):
         if PrintEnd is None:
             PrintEnd = BiggestWrittenNode ### was: len(WNList)
 
-
-
     if len(WNList) > PrintStart:
         NrOfExtraTables = (BiggestWrittenNode - PrintStart) / TermColumns + 1 # was: (len(WNList) - PrintStart) / TermColumns + 1
     else:
@@ -595,7 +593,7 @@ def number_WNs(WNnumber, WNList):
 
     # print 'Right before first table print'
     # print 'PrintStart, PrintEnd, WNnumber are: ', PrintStart, PrintEnd, WNnumber
-    # print FIRST TABLE
+    # print 'FIRST TABLE'
     print_WN_ID_lines(PrintStart, PrintEnd, WNnumber)
 
 
