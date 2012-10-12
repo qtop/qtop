@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 ################################################
-#              qtop v.0.2.8                    #
+#              qtop v.0.4                      #
 #     Licensed under MIT-GPL licenses          #
 #                     Fotis Georgatos          #
 #                     Sotiris Fragkiskos       #
@@ -12,7 +12,7 @@
 changelog:
 =========
 0.4  : corrected colorless switch to have ON/OFF option (default ON)
-
+       bugfixes
 0.3  : command-line arguments (mostly empty for now)!
        non-numbered WNs can now be displayed instead of numbered WN IDs
        fixed issue with single named WN
@@ -258,7 +258,7 @@ def read_pbsnodes_yaml(fin):
                     NodeNr = int(NameGroups[-2])
                 else:
                     NodeNr = int(NameGroups[-3])
-                print 'NameGroups is: ', NameGroups
+                # print 'NameGroups is: ', NameGroups
                 # print 'NodeInits, NodeNr are: ', NodeInits, NodeNr
                 NodeSubClusters.add(NodeInits)    # for non-uniform setups of WNs, eg g01... and n01...
                 AllWNs[NodeNr] = []
@@ -438,8 +438,10 @@ def read_qstat():
 def job_accounting_summary():
     if len(NodeSubClusters) > 1:
         print '=== WARNING: --- Remapping WN names and retrying heuristics... good luck with this... ---'
+    else: 
+        print '\n'
     print 'PBS report tool. Please try: watch -d ' + QTOPPATH + '. All bugs added by sfranky@gmail.com. Cross fingers now...\n'
-    print Colorize('===> ', 'Brown') + Colorize('Job accounting summary', 'purple') + Colorize(' <=== ', 'Brown') + '(Rev: 3000 $) %s WORKDIR = to be added\n' % (datetime.datetime.today())
+    print Colorize('===> ', 'Brown') + Colorize('Job accounting summary', 'purple') + Colorize(' <=== ', 'Brown') + '(Rev: 3000 $) %s WORKDIR = to be added' % (datetime.datetime.today()) #was: added\n
     print 'Usage Totals:\t%s/%s\t Nodes | %s/%s  Cores |   %s+%s jobs (R + Q) reported by qstat -q' % (ExistingNodes - OfflineDownNodes, ExistingNodes, WorkingCores, TotalCores, int(TotalRuns), int(TotalQueues))
     print 'Queues: | ',
     for i in qstatqLst:
@@ -748,10 +750,10 @@ else:
     for node in AllWNs:
         NodeState += AllWNs[node][0]
 
-print 'about to print Nodestate. PrintStart, PrintEnd are: ', PrintStart, PrintEnd
+# print 'about to print Nodestate. PrintStart, PrintEnd are: ', PrintStart, PrintEnd
 if PrintEnd < PrintStart:
     PrintEnd += PrintStart
-print 'So PrintEnd becomes: ', PrintEnd
+# print 'So PrintEnd becomes: ', PrintEnd
 print NodeState[PrintStart:PrintEnd] + '=Node state'
 
 ########################### Node State ######################
@@ -771,23 +773,23 @@ for ind, k in enumerate(CPUCoreDict):
     line = ''.join(ColourCPUCoreLst)
 
     print line + '=Core' + str(ind)
-print 'printstart, printend of first table are: ', PrintStart, PrintEnd ###
+# print 'printstart, printend of first table are: ', PrintStart, PrintEnd ###
 
 #print remaining tables
 for i in range(NrOfExtraTables):
     print '\n'
     PrintStart = PrintEnd
     PrintEnd += TermColumns - DEADWEIGHT # += 192
-    print 'PrintStart, PrintEnd on the extra table, ', i+1, 'are: ', PrintStart, PrintEnd ###
+    # print 'PrintStart, PrintEnd on the extra table, ', i+1, 'are: ', PrintStart, PrintEnd ###
     if PrintEnd > BiggestWrittenNode: ### was: len(WNList)
-        print 'PrintEnd > BiggestWrittenNode: ', str(PrintEnd) + '>' + str(BiggestWrittenNode) ###
+        # print 'PrintEnd > BiggestWrittenNode: ', str(PrintEnd) + '>' + str(BiggestWrittenNode) ###
         PrintEnd = BiggestWrittenNode ### was: len(WNList)
-        print 'So PrintEnd is now: BiggestWrittenNode = ', PrintEnd ###
+        # print 'So PrintEnd is now: BiggestWrittenNode = ', PrintEnd ###
     if PrintStart == PrintEnd:
-        print "So we're going to stop here!"
+        # print "So we're going to stop here!"
         break
     if len(NodeSubClusters) == 1:
-        print 'on the extra table, ', i+1, 'PrintStart, PrintEnd are: ', PrintStart, PrintEnd
+        # print 'on the extra table, ', i+1, 'PrintStart, PrintEnd are: ', PrintStart, PrintEnd
         print_WN_ID_lines(PrintStart, PrintEnd, LastWN)
     if len(NodeSubClusters) > 1:
         print_WN_ID_lines(PrintStart, PrintEnd, RemapNr)
@@ -805,9 +807,9 @@ print ' id |  R   +   Q  /  all |    unix account | Grid certificate DN (this in
 for line in AccountsMappings:
     PrintString = '%3s | %4s + %4s / %4s | %15s |' % (line[0], line[1], line[2], line[3], line[4][0])
     for account in ColorOfAccount:
-        if line[4][0].startswith(account) and options.COLOR == True:
+        if line[4][0].startswith(account) and options.COLOR == 'ON':
             PrintString = '%15s | %16s + %16s / %16s | %27s |' % (Colorize(line[0], account), Colorize(str(line[1]), account), Colorize(str(line[2]), account), Colorize(str(line[3]), account), Colorize(line[4][0], account))
-        elif line[4][0].startswith(account) and options.COLOR == False:
+        elif line[4][0].startswith(account) and options.COLOR == 'OFF':
             PrintString = '%2s | %3s + %3s / %3s | %14s |' %(Colorize(line[0], account), Colorize(str(line[1]), account), Colorize(str(line[2]), account), Colorize(str(line[3]), account), Colorize(line[4][0], account))
         else:
             pass
