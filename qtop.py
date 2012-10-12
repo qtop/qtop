@@ -12,7 +12,7 @@
 changelog:
 =========
 0.4  : corrected colorless switch to have ON/OFF option (default ON)
-       bugfixes
+       bugfixes (qstat_q didn't recognize some faulty cpu time entries)
        now descriptions are in white, as before.
        Queues in the job accounting summary section are now coloured
 0.3  : command-line arguments (mostly empty for now)!
@@ -351,7 +351,7 @@ def make_qstatq_yaml(fin, fout):
     """
     read QSTATQ_ORIG_FILE sequentially and put useful data in respective yaml file
     """
-    Queuesearch = '^([a-zA-Z0-9_.-]+)\s+(--|[0-9]+[mgtkp]b[a-z]*)\s+(--|\d+:\d+:\d+)\s+(--|\d+:\d+:\d+)\s+(--)\s+(\d+)\s+(\d+)\s+(--|\d+)\s+([DE] R)'
+    Queuesearch = '^([a-zA-Z0-9_.-]+)\s+(--|[0-9]+[mgtkp]b[a-z]*)\s+(--|\d+:\d+:?\d*)\s+(--|\d+:\d+:\d+)\s+(--)\s+(\d+)\s+(\d+)\s+(--|\d+)\s+([DE] R)'
     RunQdSearch = '^\s*(\d+)\s+(\d+)'
     for line in fin:
         line.strip()
@@ -785,7 +785,7 @@ for ind, k in enumerate(CPUCoreDict):
     ColourCPUCoreLst = [Colorize(elem, AccountNrlessOfId[elem]) for elem in ColourCPUCoreLst if elem in AccountNrlessOfId]
     line = ''.join(ColourCPUCoreLst)
 
-    print line + '=Core' + str(ind)
+    print line + Colorize('=Core' + str(ind), 'NoColourAccount')
 # print 'printstart, printend of first table are: ', PrintStart, PrintEnd ###
 
 #print remaining tables
