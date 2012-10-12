@@ -261,7 +261,7 @@ def read_pbsnodes_yaml(fin):
                     NodeNr = int(NameGroups[-2])
                 else:
                     NodeNr = int(NameGroups[-3])
-                print 'NameGroups is: ', NameGroups
+                # print 'NameGroups is: ', NameGroups
                 # print 'NodeInits, NodeNr are: ', NodeInits, NodeNr
                 NodeSubClusters.add(NodeInits)    # for non-uniform setups of WNs, eg g01... and n01...
                 AllWNs[NodeNr] = []
