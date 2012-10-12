@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 ################################################
-#              qtop v.0.4                      #
+#              qtop v.0.4.1                    #
 #     Licensed under MIT-GPL licenses          #
 #                     Fotis Georgatos          #
 #                     Sotiris Fragkiskos       #
@@ -11,6 +11,7 @@
 
 changelog:
 =========
+0.4.1: now understands more possible names for pbsnodes,qstat and qstat-q data files
 0.4  : corrected colorless switch to have ON/OFF option (default ON)
        bugfixes (qstat_q didn't recognize some faulty cpu time entries)
        now descriptions are in white, as before.
@@ -260,7 +261,7 @@ def read_pbsnodes_yaml(fin):
                     NodeNr = int(NameGroups[-2])
                 else:
                     NodeNr = int(NameGroups[-3])
-                # print 'NameGroups is: ', NameGroups
+                print 'NameGroups is: ', NameGroups
                 # print 'NodeInits, NodeNr are: ', NodeInits, NodeNr
                 NodeSubClusters.add(NodeInits)    # for non-uniform setups of WNs, eg g01... and n01...
                 AllWNs[NodeNr] = []
@@ -381,7 +382,7 @@ def make_qstat_yaml(fin, fout):
     # UserQueueSearch = '^((\d+)\.([A-Za-z-]+[0-9]*))\s+([%A-Za-z0-9_.=-]+)\s+([A-Za-z0-9]+)\s+(\d+:\d+:\d*|0)\s+([CWRQE])\s+(\w+)'
     firstline = fin.readline()
     if 'prior' not in firstline:
-        UserQueueSearch = '^((\d+)\.([A-Za-z0-9-]+))\s+([%A-Za-z0-9_.=+-]+)\s+([A-Za-z0-9]+)\s+(\d+:\d+:\d*|0)\s+([CWRQE])\s+(\w+)'
+        UserQueueSearch = '^(([0-9-]+)\.([A-Za-z0-9-]+))\s+([%A-Za-z0-9_.=+-]+)\s+([A-Za-z0-9]+)\s+(\d+:\d+:\d*|0)\s+([CWRQE])\s+(\w+)'
         RunQdSearch = '^\s*(\d+)\s+(\d+)'
         for line in fin:
             line.strip()
@@ -571,21 +572,25 @@ def number_WNs(WNnumber, WNList):
     if (options.MASKING is True) and WNList[0] > 100 and type(WNList[0]) == int:
         PrintStart = WNList[0] - 1
         if PrintEnd is None:
-            PrintEnd = BiggestWrittenNode
+            PrintEnd = PrintStart + len(WNList)
+            # PrintEnd = BiggestWrittenNode
         elif PrintEnd < PrintStart:
-            PrintEnd += PrintStart
+            PrintEnd = PrintStart + len(WNList)
+            # PrintEnd += PrintStart
     if (options.MASKING is True) and WNList[0] > 100 and type(WNList[0]) == str:
         pass            
     elif WNList[0] < 100:
         if PrintEnd is None:
-            PrintEnd = BiggestWrittenNode ### was: len(WNList)
+            PrintEnd = len(WNList) ### was: len(WNList)
 
     if len(WNList) > PrintStart:
-        NrOfExtraTables = (BiggestWrittenNode - PrintStart) / TermColumns + 1 # was: (len(WNList) - PrintStart) / TermColumns + 1
-    else:
-        NrOfExtraTables = (BiggestWrittenNode) / TermColumns + 1 # was: (len(WNList) - PrintStart) / TermColumns + 1
+        NrOfExtraTables = (WNList[-1] - PrintStart) / TermColumns + 1 # was: (len(WNList) - PrintStart) / TermColumns + 1
+    elif len(WNList) < PrintStart and len(NodeSubClusters)>1:
+        NrOfExtraTables = len(WNList) / TermColumns + 1 # was: (len(WNList) - PrintStart) / TermColumns + 1
+    elif len(WNList) < PrintStart and len(NodeSubClusters) <= 1:
+        NrOfExtraTables = (WNList[-1] - PrintStart) / TermColumns + 1 # was: (len(WNList) - PrintStart) / TermColumns + 1
     # print 'NrOfExtraTables is: ', NrOfExtraTables ###
-    # print 'len(WNList), PrintStart is:', len(WNList), PrintStart
+    print 'len(WNList), PrintStart is:', len(WNList), PrintStart
     if NrOfExtraTables > 1:
         PrintEnd = PrintStart + TermColumns - DEADWEIGHT
     else:
@@ -747,6 +752,7 @@ print Colorize('===> ', '#') + Colorize('Worker Nodes occupancy', 'Nothing') + C
 '''
 if there are non-uniform WNs in pbsnodes.yaml, e.g. wn01, wn02, gn01, gn02, ...,  remapping is performed
 Otherwise, for uniform WNs, i.e. all using the same numbering scheme, wn01, wn02, ... proceed as normal
+Number of Extra tables needed is calculated inside the number_WNs function below
 '''
 if len(NodeSubClusters) == 1:
     number_WNs(LastWN, WNList)
@@ -810,7 +816,7 @@ for i in range(NrOfExtraTables):
         ColourCPUCoreLst = [Colorize(elem, AccountNrlessOfId[elem]) for elem in ColourCPUCoreLst if elem in AccountNrlessOfId]
         line = ''.join(ColourCPUCoreLst)
 
-        print line + '=Core' + str(ind)
+        print line + Colorize('=Core' + str(ind), 'NoColourAccount')
 
 print Colorize('\n===> ', '#') + Colorize('User accounts and pool mappings', 'Nothing') + Colorize(' <=== ', '#') + Colorize('("all" includes those in C and W states, as reported by qstat)', 'NoColourAccount')
 print ' id |  R   +   Q  /  all |    unix account | Grid certificate DN (this info is only available under elevated privileges)'
