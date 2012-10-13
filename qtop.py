@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 ################################################
-#              qtop v.0.4.1                    #
+#              qtop v.0.5                      #
 #     Licensed under MIT-GPL licenses          #
 #                     Fotis Georgatos          #
 #                     Sotiris Fragkiskos       #
@@ -11,6 +11,7 @@
 
 changelog:
 =========
+0.5  : Major rewrite of matrices calculation
 0.4.1: now understands more possible names for pbsnodes,qstat and qstat-q data files
 0.4  : corrected colorless switch to have ON/OFF option (default ON)
        bugfixes (qstat_q didn't recognize some faulty cpu time entries)
@@ -491,16 +492,19 @@ def fill_cpucore_columns(value, CPUDict):
                 CPUDict['Cpu' + str(core) + 'line'] += '#'
 
 
-def number_WNs(WNnumber, WNList): # RemapNr, WNListRemapped in case of multiple NodeSubClusters
+def calculate_WNIDLine_Width(WNnumber): # (RemapNr) in case of multiple NodeSubClusters
     '''
-    prints the worker node ID number lines
+    calculates the worker node ID number line widths (expressed by hxxxx's)
+    h1000 is the thousands' line
+    h0100 is the hundreds' line
+    and so on
     '''
-    global h1000, h0100, h0010, h0001, PrintStart, PrintEnd, Dx, NrOfExtraTables
-    print '--------------------------------'  #####DEBUGPRINT1
-    print 'before Number_WNs starts running'  #####DEBUGPRINT1
-    print '--------------------------------'  #####DEBUGPRINT1
-    print 'PrintStart = ', PrintStart #####DEBUGPRINT1
-    print 'PrintEnd = ', PrintEnd #####DEBUGPRINT1
+    global h1000, h0100, h0010, h0001                 # PrintStart, PrintEnd, Dx, NrOfExtraMatrices
+    # print '--------------------------------'  #####DEBUGPRINT1
+    # print 'before calculate_WNIDLine_Width starts running'  #####DEBUGPRINT1
+    # print '--------------------------------'  #####DEBUGPRINT1
+    # print 'PrintStart = ', PrintStart #####DEBUGPRINT1
+    # print 'PrintEnd = ', PrintEnd #####DEBUGPRINT1
     if WNnumber < 10:
         u_ = '123456789'
         h0001 = u_[:WNnumber]
@@ -518,18 +522,16 @@ def number_WNs(WNnumber, WNList): # RemapNr, WNListRemapped in case of multiple 
         dec = int(str(WNnumber)[1])
         unit = int(str(WNnumber)[2])
 
-        h0100 = str(0) * 99
+        c_ = str(0) * 99
         for i in range(1, cent):
-            h0100 += str(i) * 100
-        h0100 += str(cent) * (int(dec)) * 10 + str(cent) * (int(unit) + 1)
+            c_ += str(i) * 100
+        c_ += str(cent) * (int(dec)) * 10 + str(cent) * (int(unit) + 1)
+        h0100 = c_[:WNnumber]
 
         d_ = '0' * 9 + '1' * 10 + '2' * 10 + '3' * 10 + '4' * 10 + '5' * 10 + '6' * 10 + '7' * 10 + '8' * 10 + '9' * 10
-        h0010 = d_
-        for i in range(1, cent):
-            h0010 += str(0) + d_
-        else:
-            h0010 += str(0)
-        h0010 += d_[:int(str(dec) + str(unit))]
+        d__ = d_ + (cent - 1) * (str(0) + d_) + str(0)
+        d__ += d_[:int(str(dec) + str(unit))]
+        h0010 = d__[:WNnumber]
 
         uc = '1234567890' * 100
         h0001 = uc[:WNnumber]
@@ -565,52 +567,58 @@ def number_WNs(WNnumber, WNList): # RemapNr, WNListRemapped in case of multiple 
         uc = '1234567890' * 1000
         h0001 = uc[:WNnumber]
 
-    '''
-    masking/clipping functionality: if the earliest node number is high (e.g. 80), the first 79 WNs need not show up.
-    '''
-    if (options.MASKING is True) and WNList[0] > 100 and type(WNList[0]) == int:
-        PrintStart = WNList[0] - 1
-        if PrintEnd is None:
-            PrintEnd = PrintStart + len(WNList)
-            # PrintEnd = BiggestWrittenNode
-        elif PrintEnd < PrintStart:
-            PrintEnd = PrintStart + len(WNList)
-            # PrintEnd += PrintStart
     
-    if (options.MASKING is True) and WNList[0] > 100 and type(WNList[0]) == str:
-        pass            
-    elif WNList[0] < 100:
-        if PrintEnd is None:
-            PrintEnd = len(WNList) ### was: BiggestWrittenNode
-    # edw diamorfwnetai to printend twn WNID lines     (1st time)       
 
-    if len(WNList) > PrintStart:
-        print 'it was len(WNList) > PrintStart: ', str(len(WNList)) + '>' + str(PrintStart)  #####DEBUGPRINT1
-        NrOfExtraTables = (WNList[-1] - PrintStart) / TermColumns #+ 1 # was: (len(WNList) - PrintStart) / TermColumns + 1
-        print 'NrOfExtraTables, case 1 is now: ', NrOfExtraTables  #####DEBUGPRINT1
-    elif len(WNList) < PrintStart and len(NodeSubClusters)>1: # Remapping
-        NrOfExtraTables = len(WNList) / TermColumns # +1 # was: (len(WNList) - PrintStart) / TermColumns + 1
-        print 'NrOfExtraTables, case 2 is now: ', NrOfExtraTables  #####DEBUGPRINT1
-    elif len(WNList) < PrintStart and len(NodeSubClusters) <= 1:
-        NrOfExtraTables = (WNList[-1] - PrintStart) / TermColumns + 1 # was: (len(WNList) - PrintStart) / TermColumns + 1
-        print 'NrOfExtraTables, case 3 is now: ', NrOfExtraTables  #####DEBUGPRINT1
-    print 'len(WNList) = ' , len(WNList) #####DEBUGPRINT1
-    print 'PrintStart = ' , PrintStart #####DEBUGPRINT1
-    print 'PrintEnd = ', PrintEnd #####DEBUGPRINT1
-    
-    if NrOfExtraTables >= 1:
-        PrintEnd = PrintStart + TermColumns - DEADWEIGHT
+def make_Matrices(WNnumber, WNList):
+    '''
+    masking/clipping functionality: if the earliest node number is high (e.g. 130), the first 129 WNs need not show up.
+    '''
+    Start = 0
+    if (options.MASKING is True) and min(WNList) > 99 and type(min(WNList)) == str: # in case of named instead of numbered WNs 
+        pass            
+    elif (options.MASKING is True) and min(WNList) > 99 and type(min(WNList)) == int:
+        Start = min(WNList) # - 1   #exclude unneeded first empty nodes from matrix
+        
+    '''
+    Extra matrices might be needed if the WNs are more than what the screen width can hold.
+    '''
+    if WNnumber > Start: # start will be either 1 or (masked = > 100)
+        # print 'it was len(WNList) > Start: ', str(len(WNList)) + '>' + str(Start)  #####DEBUGPRINT1
+        NrOfExtraMatrices = abs(WNnumber - Start) / TermColumns #+ 1 # was: (len(WNList) - Start) / TermColumns + 1
+        # print 'NrOfExtraMatrices, case 1 is now: ', NrOfExtraMatrices  #####DEBUGPRINT1
+    elif WNnumber < Start and len(NodeSubClusters)>1: # Remapping
+        NrOfExtraMatrices = WNnumber / TermColumns # +1 # was: (len(WNList) - Start) / TermColumns + 1
+        # print 'NrOfExtraMatrices, case 2 is now: ', NrOfExtraMatrices  #####DEBUGPRINT1
     else:
-        PrintEnd = len(WNList) ### was: BiggestWrittenNode # it can't be BiggestWrittenNode, there's always the case where len(NodeSubClusters)>1 !!
-        # sa na janadiamorfwnetai edw to printend ?!!? to idio!!
-    print '------------------------------' #####DEBUGPRINT1
-    print 'Right before first table print' #####DEBUGPRINT1
-    print '------------------------------' #####DEBUGPRINT1
-    print 'PrintStart = ', PrintStart #####DEBUGPRINT1
-    print 'PrintEnd = ', PrintEnd #####DEBUGPRINT1
-    print 'WNnumber = ', WNnumber #####DEBUGPRINT1
-    print '           ' #####DEBUGPRINT1
-    print_WN_ID_lines(PrintStart, PrintEnd, WNnumber)
+        print "This is the case you didn't foresee (WNnumber vs Start vs NodeSubClusters)"
+    # elif WNnumber < Start and len(NodeSubClusters) <= 1:
+    #     NrOfExtraMatrices = (WNList[-1] - Start) / TermColumns + 1 # was: (len(WNList) - Start) / TermColumns + 1
+        # print 'NrOfExtraMatrices, case 3 is now: ', NrOfExtraMatrices  #####DEBUGPRINT1
+    # print 'len(WNList) = ' , len(WNList) #####DEBUGPRINT1
+    # print 'Start = ' , Start #####DEBUGPRINT1
+    # print 'Stop = ', Stop #####DEBUGPRINT1
+
+    # if Stop is None:
+    #     Stop = Start + WNnumber 
+    # elif Stop < Start:
+    #     Stop = Start + WNnumber
+    
+    # values for Start, Stop (printstart, printed) were given here
+    if NrOfExtraMatrices:
+        Stop = Start + TermColumns - DEADWEIGHT
+    else:
+        Stop = Start + WNnumber
+        # sa na janadiamorfwnetai edw to Stop ?!!? to idio!!
+    # print '------------------------------' #####DEBUGPRINT1
+    # print 'Right before first table print' #####DEBUGPRINT1
+    # print '------------------------------' #####DEBUGPRINT1
+    # print 'Start = ', Start #####DEBUGPRINT1
+    # print 'Stop = ', Stop #####DEBUGPRINT1
+    # print 'WNnumber = ', WNnumber #####DEBUGPRINT1
+    # print '           ' #####DEBUGPRINT1
+
+    return (Start, Stop, NrOfExtraMatrices)
+    ### print_WN_ID_lines(Start, Stop, WNnumber)
 
 
 def print_WN_ID_lines(start, stop, WNnumber): # WNnumber determines the number of WN ID lines (1/2/3/4?)
@@ -763,29 +771,28 @@ print Colorize('===> ', '#') + Colorize('Worker Nodes occupancy', 'Nothing') + C
 '''
 if there are non-uniform WNs in pbsnodes.yaml, e.g. wn01, wn02, gn01, gn02, ...,  remapping is performed
 Otherwise, for uniform WNs, i.e. all using the same numbering scheme, wn01, wn02, ... proceed as normal
-Number of Extra tables needed is calculated inside the number_WNs function below
+Number of Extra tables needed is calculated inside the calculate_WNIDLine_Width function below
 '''
-if options.BLINDREMAP:
-    number_WNs(RemapNr, WNListRemapped)
+if options.BLINDREMAP or len(NodeSubClusters) > 1:
+    calculate_WNIDLine_Width(RemapNr) # , WNListRemapped)
     for node in AllWNsRemappedDict:
         NodeState += AllWNsRemappedDict[node][0]
-elif len(NodeSubClusters) == 1:
-    number_WNs(BiggestWrittenNode, WNList)
+    (PrintStart, PrintEnd, NrOfExtraMatrices) = make_Matrices(RemapNr, WNListRemapped)
+    print_WN_ID_lines(PrintStart, PrintEnd, RemapNr)
+else: # len(NodeSubClusters) == 1
+    calculate_WNIDLine_Width(BiggestWrittenNode) # , WNList)
     for node in AllWNsDict:
         NodeState += AllWNsDict[node][0]
-elif len(NodeSubClusters) > 1:
-    number_WNs(RemapNr, WNListRemapped)
-    for node in AllWNsRemappedDict:
-        NodeState += AllWNsRemappedDict[node][0]
-else:
-    number_WNs(BiggestWrittenNode, WNList)
-    for node in AllWNsDict:
-        NodeState += AllWNsDict[node][0]
+    (PrintStart, PrintEnd, NrOfExtraMatrices) = make_Matrices(BiggestWrittenNode, WNList)
+    print_WN_ID_lines(PrintStart, PrintEnd, BiggestWrittenNode)
 
-print 'about to print Nodestate. PrintStart, PrintEnd are: ', PrintStart, PrintEnd #####DEBUGPRINT1 
-if PrintEnd < PrintStart:
-    PrintEnd += PrintStart
-print 'So PrintEnd remains/becomes: ', PrintEnd #####DEBUGPRINT1
+# print 'about to print Nodestate. PrintStart, PrintEnd are: ', PrintStart, PrintEnd #####DEBUGPRINT1 
+
+# if PrintEnd < PrintStart:
+#     PrintEnd += PrintStart
+
+# print 'So PrintEnd remains/becomes: ', PrintEnd #####DEBUGPRINT1
+
 print NodeState[PrintStart:PrintEnd] + '=Node state'
 
 ########################### Node State ######################
@@ -805,23 +812,28 @@ for ind, k in enumerate(CPUCoreDict):
     line = ''.join(ColourCPUCoreLst)
 
     print line + Colorize('=Core' + str(ind), 'NoColourAccount')
-print 'printstart, printend of first table are: ', PrintStart, PrintEnd #####DEBUGPRINT1
+# print 'printstart, printend of first table are: ', PrintStart, PrintEnd #####DEBUGPRINT1
 
-#print remaining tables
-for i in range(NrOfExtraTables):
+#print remaining matrices
+for i in range(NrOfExtraMatrices):
     PrintStart = PrintEnd
     PrintEnd += TermColumns - DEADWEIGHT #
-    print 'PrintStart, PrintEnd on the extra table, ', i+1, 'are: ', PrintStart, PrintEnd #####DEBUGPRINT1
-    if PrintEnd > len(WNList): ### was: BiggestWrittenNode
-        print 'PrintEnd > len(WNList): ', str(PrintEnd) + '>' + str(len(WNList)) # was: BiggestWrittenNode #####DEBUGPRINT1
-        PrintEnd = len(WNList) ### was: BiggestWrittenNode
-        print 'So PrintEnd is now: len(WNList) = ', PrintEnd #####DEBUGPRINT1
-    if PrintStart == PrintEnd:
-        print "So we're going to stop here!" #####DEBUGPRINT1
-        break
+    # print 'PrintStart, PrintEnd on the extra table, ', i+1, 'are: ', PrintStart, PrintEnd #####DEBUGPRINT1
+    
+    if len(NodeSubClusters) == 1:
+        if PrintEnd >= RemapNr: ### was: len(WNList) and even before, BiggestWrittenNode
+        # print 'PrintEnd > WNnumber: ', str(PrintEnd) + '>' + str(WNnumber) # was: len(WNList) and even before, BiggestWrittenNode #####DEBUGPRINT1
+            PrintEnd = RemapNr ### was: len(WNList) and even before, BiggestWrittenNode
+        # print 'PrintEnd is now: len(WNList) = ', PrintEnd #####DEBUGPRINT1
+        # print "so we're going to stop here!" #####DEBUGPRINT1
+            # break
+    elif len(NodeSubClusters) >= 1:
+        if PrintEnd >= BiggestWrittenNode:
+            PrintEnd = BiggestWrittenNode
+            # break
     print '\n'
     if len(NodeSubClusters) == 1:
-        print 'on the extra table, ', i+1, 'PrintStart, PrintEnd are: ', PrintStart, PrintEnd #####DEBUGPRINT1
+        # print 'on the extra table, ', i+1, 'PrintStart, PrintEnd are: ', PrintStart, PrintEnd #####DEBUGPRINT1
         print_WN_ID_lines(PrintStart, PrintEnd, BiggestWrittenNode)
     if len(NodeSubClusters) > 1:
         print_WN_ID_lines(PrintStart, PrintEnd, RemapNr)
@@ -830,8 +842,9 @@ for i in range(NrOfExtraTables):
         ColourCPUCoreLst = list(CPUCoreDict['Cpu' + str(ind) + 'line'][PrintStart:PrintEnd])
         ColourCPUCoreLst = [Colorize(elem, AccountNrlessOfId[elem]) for elem in ColourCPUCoreLst if elem in AccountNrlessOfId]
         line = ''.join(ColourCPUCoreLst)
-
         print line + Colorize('=Core' + str(ind), 'NoColourAccount')
+
+
 
 print Colorize('\n===> ', '#') + Colorize('User accounts and pool mappings', 'Nothing') + Colorize(' <=== ', '#') + Colorize('("all" includes those in C and W states, as reported by qstat)', 'NoColourAccount')
 print ' id |  R   +   Q  /  all |    unix account | Grid certificate DN (this info is only available under elevated privileges)'
