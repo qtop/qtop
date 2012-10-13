@@ -15,6 +15,7 @@ changelog:
        fixed: true blind remapping !!
        exotic cases of very high numbering schemes now handled
        more qstat entries successfully parsed
+       case of many unix accounts (>62) now handled
 0.4.1: now understands more possible names for pbsnodes,qstat and qstat-q data files
 0.4  : corrected colorless switch to have ON/OFF option (default ON)
        bugfixes (qstat_q didn't recognize some faulty cpu time entries)
@@ -389,7 +390,7 @@ def make_qstat_yaml(fin, fout):
     # UserQueueSearch = '^((\d+)\.([A-Za-z-]+[0-9]*))\s+([%A-Za-z0-9_.=-]+)\s+([A-Za-z0-9]+)\s+(\d+:\d+:\d*|0)\s+([CWRQE])\s+(\w+)'
     firstline = fin.readline()
     if 'prior' not in firstline:
-        UserQueueSearch = '^(([0-9-]+)\.([A-Za-z0-9-]+))\s+([%A-Za-z0-9_.=+-]+)\s+([A-Za-z0-9.]+)\s+(\d+:\d+:\d*|0)\s+([CWRQE])\s+(\w+)'
+        UserQueueSearch = '^(([0-9-]+)\.([A-Za-z0-9-]+))\s+([A-Za-z0-9%_.=+/-]+)\s+([A-Za-z0-9.]+)\s+(\d+:\d+:?\d*|0)\s+([CWRQE])\s+(\w+)'
         RunQdSearch = '^\s*(\d+)\s+(\d+)'
         for line in fin:
             line.strip()
@@ -488,8 +489,8 @@ def fill_cpucore_columns(value, CPUDict):
                 Core, job = element[0], element[1]
                 try: 
                     UserOfJobId[job]
-                except KeyError:
-                    print 'There seems to be a problem with the qstat output. A JobID has gone rogue. Please check with the System Administrator.'
+                except KeyError, KeyErrorValue:
+                    print 'There seems to be a problem with the qstat output. A JobID has gone rogue (namely, ' + str(KeyErrorValue) +'. Please check with the System Administrator.'
                 CPUDict['Cpu' + str(Core) + 'line'] += str(IdOfUnixAccount[UserOfJobId[job]])
                 Busy.extend(Core)
                 OwnNPEmptyRange.remove(Core)
@@ -732,10 +733,19 @@ Usersortedlst = sorted(OccurenceDict.items(), key=itemgetter(1), reverse=True)
 
 
 # IdOfUnixAccount = {}
+'''
+In case there are more users than the sum number of all numbers and small/capital letters of the alphabet 
+'''
+
 j = 0
+if len(Usersortedlst)>62: 
+    for i in xrange(62, len(Usersortedlst)+62):
+        POSSIBLE_IDS.append(str(i))
+
 for unixaccount in Usersortedlst:
     IdOfUnixAccount[unixaccount[0]] = POSSIBLE_IDS[j]
     j += 1
+
 ########################## end of copied from below
 
 ################################################################################################
