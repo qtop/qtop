@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 ################################################
-#              qtop v.0.5                      #
+#              qtop v.0.1                      #
 #     Licensed under MIT-GPL licenses          #
 #                     Fotis Georgatos          #
 #                     Sotiris Fragkiskos       #
@@ -11,6 +11,7 @@
 
 changelog:
 =========
+0.5.1: If more than 20% of the WNs are empty, perform a blind remap.
 0.5  : Major rewrite of matrices calculation
        fixed: true blind remapping !!
        exotic cases of very high numbering schemes now handled
@@ -353,6 +354,8 @@ def read_pbsnodes_yaml(fin):
     if min(WNList) > 9000: # handle exotic cases of WN numbering starting VERY high
         WNList = [element - min(WNList) for element in WNList]
         options.BLINDREMAP = True 
+    if len(WNList) < 0.8 * BiggestWrittenNode: #if more than 20% of the matrices are empty (no jobs), perform a blind remap
+        options.BLINDREMAP = True
 
 
 def make_qstatq_yaml(fin, fout):
