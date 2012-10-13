@@ -1,23 +1,23 @@
 #!/usr/bin/env python
 
 ################################################
-#              qtop v.0.1                      #
+#              qtop v.0.5.1                    #
 #     Licensed under MIT-GPL licenses          #
 #                     Fotis Georgatos          #
 #                     Sotiris Fragkiskos       #
 ################################################
 
 """
-
 changelog:
 =========
 0.5.1: If more than 20% of the WNs are empty, perform a blind remap.
+       Code Cleanup
 0.5  : Major rewrite of matrices calculation
        fixed: true blind remapping !!
        exotic cases of very high numbering schemes now handled
        more qstat entries successfully parsed
        case of many unix accounts (>62) now handled
-0.4.1: now understands more possible names for pbsnodes,qstat and qstat-q data files
+0.4.1: now understands additional probable names for pbsnodes,qstat and qstat-q data files
 0.4  : corrected colorless switch to have ON/OFF option (default ON)
        bugfixes (qstat_q didn't recognize some faulty cpu time entries)
        now descriptions are in white, as before.
@@ -60,8 +60,6 @@ changelog:
 0.1.2: script reads qtop-input.out files from each job and displays status for each job
 0.1.1: changed implementation in get_state()
 0.1.0: just read a pbsnodes-a output file and gather the results in a single line
-
-
 """
 
 from operator import itemgetter
@@ -109,7 +107,6 @@ NodeSubClusters = set()
 OutputDirs = []
 HighestCoreBusy = 0
 AllWNsDict, AllWNsRemappedDict = {}, {}
-# dname = ''
 BiggestWrittenNode = 0
 WNList, WNListRemapped = [], []
 NodeNr = 0
@@ -120,8 +117,8 @@ TotalCores, WorkingCores = 0, 0
 TotalRuns, TotalQueues = 0, 0  # for readQstatQ
 JobIds, UnixAccounts, Statuses, Queues = [], [], [], []  # for read_qstat
 qstatqLst = []
-UserOfJobId, IdOfUnixAccount = {}, {}  # keepers
-AccountsMappings = []  # keeper
+UserOfJobId, IdOfUnixAccount = {}, {}  
+AccountsMappings = []  
 
 ### CPU lines ######################################
 
@@ -151,13 +148,13 @@ def make_pbsnodes_yaml(fin, fout):
 
     for line in fin:
         line.strip()
-        searchdname = '^\w+([.-]?\w+)*'  # '^\w+-?\w+(\.\w+)*'
+        searchdname = '^\w+([.-]?\w+)*'
         if re.search(searchdname, line) is not None:   # line containing domain name
             m = re.search(searchdname, line)
             dname = m.group(0)
             fout.write('domainname: ' + dname + '\n')
 
-        elif 'state = ' in line:  # line.find('state = ')!=-1:
+        elif 'state = ' in line:
             nextchar = line.split()[2][0]
             if nextchar == 'f':
                 state = '-'
@@ -168,12 +165,12 @@ def make_pbsnodes_yaml(fin, fout):
                 state = nextchar
             fout.write('state: ' + state + '\n')
 
-        elif 'np = ' in line:   # line.find('np = ')!=-1:
+        elif 'np = ' in line:
             np = line.split()[2][0:]
             # TotalCores = int(np)
             fout.write('np: ' + np + '\n')
 
-        elif 'jobs = ' in line:    # line.find('jobs = ')!=-1:
+        elif 'jobs = ' in line:
             ljobs = line.split('=')[1].split(',')
             lastcore = 150000
             for job in ljobs:
@@ -186,7 +183,7 @@ def make_pbsnodes_yaml(fin, fout):
                 fout.write('  job: ' + job + '\n')
                 lastcore = core
 
-        elif 'gpus = ' in line:     # line.find('gpus = ')!=-1:
+        elif 'gpus = ' in line:
             gpus = line.split(' = ')[1]
             fout.write('gpus: ' + gpus + '\n')
 
@@ -208,12 +205,11 @@ def read_pbsnodes_yaml(fin):
     '''
     global ExistingNodes, OfflineDownNodes, jobseries, BiggestWrittenNode, WNList, WNListRemapped, NodeNr, TotalCores, WorkingCores, AllWNsDict, AllWNsRemappedDict, HighestCoreBusy, MaxNP, NodeSubClusters, RemapNr, JUST_NAMES_FLAG
 
-    # MaxNP = 0
     state = ''
     for line in fin:
         line.strip()
         searchdname = 'domainname: ' + '(\w+-?\w+([.-]\w+)*)'
-        searchnodenr = '([A-Za-z0-9-]+)(?=\.|$)' ### was: '([A-Za-z-]+)(\d+)'
+        searchnodenr = '([A-Za-z0-9-]+)(?=\.|$)'
         searchnodenrfind = '[A-Za-z]+|[0-9]+|[A-Za-z]+[0-9]+'
         searchjustletters = '(^[A-Za-z-]+)'
         if re.search(searchdname, line) is not None:   # line contains domain name
@@ -224,14 +220,13 @@ def read_pbsnodes_yaml(fin):
             extract highest node number, online nodes
             '''
             ExistingNodes += 1    # nodes as recorded on PBSNODES_ORIG_FILE
-            if re.search(searchnodenr, dname) is not None:  # if a number and domain is found
+            if re.search(searchnodenr, dname) is not None:  # if a number and domain are found
                 n = re.search(searchnodenr, dname)
                 NodeInits = n.group(0)
                 NameGroups = re.findall(searchnodenrfind, NodeInits)
                 NodeInits = '-'.join(NameGroups[0:-1])
-                # print 'n,group(0), NodeInits are: ', n.group(0), NodeInits
                 if NameGroups[-1].isdigit():
-                    NodeNr = int(NameGroups[-1]) ### was: int(n.group(2))
+                    NodeNr = int(NameGroups[-1])
                 elif len(NameGroups) == 1: # if e.g. WN name is just 'gridmon'
                     if re.search(searchjustletters, dname) is not None:  # for non-numbered WNs (eg. fruit names)
                         JUST_NAMES_FLAG += 1
@@ -244,7 +239,6 @@ def read_pbsnodes_yaml(fin):
                         if NodeNr > BiggestWrittenNode:
                             BiggestWrittenNode = NodeNr
                         WNList.append(NodeInits)
-                        # print 'just appended NodeInits: ', NodeInits  #####DEBUGPRINT2
                         WNList[:] = [UnNumberedWN.rjust(len(max(WNList))) for UnNumberedWN in WNList if type(UnNumberedWN) is str ]
                         WNListRemapped.append(RemapNr)                    
                 elif len(NameGroups) == 2 and not NameGroups[-1].isdigit() and not NameGroups[-2].isdigit():
@@ -260,15 +254,13 @@ def read_pbsnodes_yaml(fin):
                        if NodeNr > BiggestWrittenNode:
                            BiggestWrittenNode = NodeNr
                        WNList.append(NodeInits)
-                       # print 'just appended NodeInits: ', NodeInits  #####DEBUGPRINT2
                        WNList[:] = [UnNumberedWN.rjust(len(max(WNList))) for UnNumberedWN in WNList if type(UnNumberedWN) is str ]
                        WNListRemapped.append(RemapNr)                                  
                 elif NameGroups[-2].isdigit():
                     NodeNr = int(NameGroups[-2])
                 else:
                     NodeNr = int(NameGroups[-3])
-                # print 'NameGroups is: ', NameGroups #####DEBUGPRINT2
-                # print 'NodeInits, NodeNr are: ', NodeInits, NodeNr #####DEBUGPRINT2
+                # print 'NamedGroups are: ', NameGroups #####DEBUGPRINT2  
                 NodeSubClusters.add(NodeInits)    # for non-uniform setups of WNs, eg g01... and n01...
                 AllWNsDict[NodeNr] = []
                 AllWNsRemappedDict[RemapNr] = []
@@ -276,7 +268,6 @@ def read_pbsnodes_yaml(fin):
                     BiggestWrittenNode = NodeNr
                 if JUST_NAMES_FLAG <= 1:
                     WNList.append(NodeNr)
-                    # print 'just appended NodeNr: ', NodeNr
                 WNListRemapped.append(RemapNr)
             elif re.search(searchjustletters, dname) is not None:  # for non-numbered WNs (eg. fruit names)
                 JUST_NAMES_FLAG += 1
@@ -289,12 +280,8 @@ def read_pbsnodes_yaml(fin):
                 if NodeNr > BiggestWrittenNode:
                     BiggestWrittenNode = NodeNr
                 WNList.append(NodeInits)
-                # print 'just appended NodeInits: ', NodeInits
                 WNList[:] = [UnNumberedWN.rjust(len(max(WNList))) for UnNumberedWN in WNList]
                 WNListRemapped.append(RemapNr)
-                '''
-                (original below: handles the no number-domain case by doing nothing?)
-                '''
             else:
                 NodeNr = 0
                 NodeInits = dname
@@ -304,7 +291,6 @@ def read_pbsnodes_yaml(fin):
                 if NodeNr > BiggestWrittenNode:
                     BiggestWrittenNode = NodeNr + 1
                 WNList.append(NodeNr)
-                # print 'just appended NodeInits: ', NodeInits  #####DEBUGPRINT2
                 WNListRemapped.append(RemapNr)
         elif 'state: ' in line:
             nextchar = line.split()[1].strip("'")
@@ -339,7 +325,7 @@ def read_pbsnodes_yaml(fin):
     fill in invisible WN nodes with '?' and count them
     '''
     if len(NodeSubClusters) > 1:
-        for i in range(1, RemapNr): # This RemapNr here is the LAST remapped node, it's kind of the actual BiggestWrittenNode for remapped cases
+        for i in range(1, RemapNr): # This RemapNr here is the LAST remapped node, it's the equivalent BiggestWrittenNode for the remapped case
             if i not in AllWNsRemappedDict:
                 AllWNsRemappedDict[i] = '?'
     elif len(NodeSubClusters) == 1:
@@ -354,7 +340,7 @@ def read_pbsnodes_yaml(fin):
     if min(WNList) > 9000: # handle exotic cases of WN numbering starting VERY high
         WNList = [element - min(WNList) for element in WNList]
         options.BLINDREMAP = True 
-    if len(WNList) < 0.8 * BiggestWrittenNode: #if more than 20% of the matrices are empty (no jobs), perform a blind remap
+    if len(WNList) < PERCENTAGE * BiggestWrittenNode: 
         options.BLINDREMAP = True
 
 
@@ -390,7 +376,6 @@ def make_qstat_yaml(fin, fout):
     """
     read QSTAT_ORIG_FILE sequentially and put useful data in respective yaml file
     """
-    # UserQueueSearch = '^((\d+)\.([A-Za-z-]+[0-9]*))\s+([%A-Za-z0-9_.=-]+)\s+([A-Za-z0-9]+)\s+(\d+:\d+:\d*|0)\s+([CWRQE])\s+(\w+)'
     firstline = fin.readline()
     if 'prior' not in firstline:
         UserQueueSearch = '^(([0-9-]+)\.([A-Za-z0-9-]+))\s+([A-Za-z0-9%_.=+/-]+)\s+([A-Za-z0-9.]+)\s+(\d+:\d+:?\d*|0)\s+([CWRQE])\s+(\w+)'
@@ -408,7 +393,6 @@ def make_qstat_yaml(fin, fout):
                 fout.write('S: ' + S + '\n')
                 fout.write('Queue: ' + Queue + '\n')
 
-                # UnixOfJobId[Jobid.split('.')[0]]=User
                 UserOfJobId[Jobid] = User
                 fout.write('...\n')
     elif 'prior' in firstline:
@@ -454,17 +438,11 @@ def job_accounting_summary():
     print 'Usage Totals:\t%s/%s\t Nodes | %s/%s  Cores |   %s+%s jobs (R + Q) reported by qstat -q' % (ExistingNodes - OfflineDownNodes, ExistingNodes, WorkingCores, TotalCores, int(TotalRuns), int(TotalQueues))
     print 'Queues: | ',
     if options.COLOR == 'ON':
-        # for queue in qstatqLst:
-        #     for account in ColorOfAccount:
-        #         if queue[0].startswith(account):
-        #             print Colorize(queue[0] + ': ' + queue[1] + '+' + queue[2] , account) + ' |',
         for queue in qstatqLst:
-            # print queue[0],
             if queue[0] in ColorOfAccount:
                 print Colorize(queue[0], queue[0]) + ': ' + Colorize(queue[1], queue[0]) + '+' + Colorize(queue[2], queue[0]) + ' |',        
             else:
                 print Colorize(queue[0], 'Nothing') + ': ' + Colorize(queue[1], 'Nothing') + '+' + Colorize(queue[2], 'Nothing') + ' |',
-                # print queue[0] + ': ' + queue[1] + '+' + queue[2] + ' |',
     else:    
         for queue in qstatqLst:
             print queue[0] + ': ' + queue[1] + '+' + queue[2] + ' |',
@@ -484,7 +462,7 @@ def fill_cpucore_columns(value, CPUDict):
         HAS_JOBS = 0
         OwnNP = int(value[1])
         OwnNPRange = [str(x) for x in range(OwnNP)]
-        OwnNPEmptyRange = OwnNPRange[:] # was: [str(x) for x in range(OwnNP)]
+        OwnNPEmptyRange = OwnNPRange[:] 
 
         for element in value[2:]:
             if type(element) == tuple:  # everytime there is a job:
@@ -513,19 +491,13 @@ def calculate_Total_WNIDLine_Width(WNnumber): # (RemapNr) in case of multiple No
     h0100 is the hundreds' line
     and so on
     '''
-    global h1000, h0100, h0010, h0001                 # PrintStart, PrintEnd, Dx, NrOfExtraMatrices
-    # print '--------------------------------'  #####DEBUGPRINT1
-    # print 'before calculate_Total_WNIDLine_Width starts running'  #####DEBUGPRINT1
-    # print '--------------------------------'  #####DEBUGPRINT1
-    # print 'PrintStart = ', PrintStart #####DEBUGPRINT1
-    # print 'PrintEnd = ', PrintEnd #####DEBUGPRINT1
+    global h1000, h0100, h0010, h0001
+
     if WNnumber < 10:
         u_ = '123456789'
         h0001 = u_[:WNnumber]
 
     elif WNnumber < 100:
-        # dec = str(WNnumber)[0] # useless for now?
-        # unit = str(WNnumber)[1] # useless for now?
         d_ = '0' * 9 + '1' * 10 + '2' * 10 + '3' * 10 + '4' * 10 + '5' * 10 + '6' * 10 + '7' * 10 + '8' * 10 + '9' * 10
         u_ = '1234567890' * 10
         h0010 = d_[:WNnumber]
@@ -590,49 +562,22 @@ def make_Matrices(WNnumber, WNList):
     if (options.MASKING is True) and min(WNList) > MIN_MASKING_THRESHOLD and type(min(WNList)) == str: # in case of named instead of numbered WNs 
         pass            
     elif (options.MASKING is True) and min(WNList) > MIN_MASKING_THRESHOLD and type(min(WNList)) == int:
-        Start = min(WNList) - 1   #exclude unneeded first empty nodes from matrix
-        
-        
+        Start = min(WNList) - 1   #exclude unneeded first empty nodes from the matrix
     '''
     Extra matrices might be needed if the WNs are more than the screen width can hold.
     '''
-    if WNnumber > Start: # start will be either 1 or (masked >= MIN_MASKING_THRESHOLD + 1)
-        # print 'it was len(WNList) > Start: ', str(len(WNList)) + '>' + str(Start)  #####DEBUGPRINT1
-        NrOfExtraMatrices = abs(WNnumber - Start + 10) / TermColumns #+ 1 # was: (len(WNList) - Start) / TermColumns + 1
-        # print 'NrOfExtraMatrices, case 1 is now: ', NrOfExtraMatrices  #####DEBUGPRINT1
+    if WNnumber > Start: # start will either be 1 or (masked >= MIN_MASKING_THRESHOLD + 1)
+        NrOfExtraMatrices = abs(WNnumber - Start + 10) / TermColumns 
     elif WNnumber < Start and len(NodeSubClusters) > 1: # Remapping
-        NrOfExtraMatrices = (WNnumber + 10) / TermColumns # +1 # was: (len(WNList) - Start) / TermColumns + 1
-        # print 'NrOfExtraMatrices, case 2 is now: ', NrOfExtraMatrices  #####DEBUGPRINT1
+        NrOfExtraMatrices = (WNnumber + 10) / TermColumns
     else:
         print "This is the case you didn't foresee (WNnumber vs Start vs NodeSubClusters)"
 
-    # elif WNnumber < Start and len(NodeSubClusters) <= 1:
-    #     NrOfExtraMatrices = (WNList[-1] - Start) / TermColumns + 1 # was: (len(WNList) - Start) / TermColumns + 1
-        # print 'NrOfExtraMatrices, case 3 is now: ', NrOfExtraMatrices  #####DEBUGPRINT1
-    # print 'len(WNList) = ' , len(WNList) #####DEBUGPRINT1
-    # print 'Start = ' , Start #####DEBUGPRINT1
-    # print 'Stop = ', Stop #####DEBUGPRINT1
-
-    # if Stop is None:
-    #     Stop = Start + WNnumber 
-    # elif Stop < Start:
-    #     Stop = Start + WNnumber
-    
-    # values for Start, Stop (printstart, printed) were given here
     if NrOfExtraMatrices:
         Stop = Start + TermColumns - DEADWEIGHT
     else:
         Stop = Start + WNnumber
-    # print '------------------------------' #####DEBUGPRINT1
-    # print 'Right before first table print' #####DEBUGPRINT1
-    # print '------------------------------' #####DEBUGPRINT1
-    # print 'Start = ', Start #####DEBUGPRINT1
-    # print 'Stop = ', Stop #####DEBUGPRINT1
-    # print 'WNnumber = ', WNnumber #####DEBUGPRINT1
-    # print '           ' #####DEBUGPRINT1
-
     return (Start, Stop, NrOfExtraMatrices)
-    ### print_WN_ID_lines(Start, Stop, WNnumber)
 
 
 def print_WN_ID_lines(start, stop, WNnumber): # WNnumber determines the number of WN ID lines (1/2/3/4?)
@@ -662,7 +607,7 @@ def print_WN_ID_lines(start, stop, WNnumber): # WNnumber determines the number o
             print h0100[start:stop] + '={_Worker_}'
             print h0010[start:stop] + '={__Node__}'
             print h0001[start:stop] + '={___ID___}'
-    elif JUST_NAMES_FLAG > 1 or options.FORCE_NAMES == True: # names instead of numbered WNs
+    elif JUST_NAMES_FLAG > 1 or options.FORCE_NAMES == True: # names (e.g. fruits) instead of numbered WNs
         colour = 0
         Highlight = {0: 'cmsplt', 1: 'Red'}
         for line in range(len(max(WNList))):
@@ -692,7 +637,6 @@ def reset_yaml_files():
     fin3temp.close()
 
 ################ MAIN ######################################################################
-############################################################################################
 
 CONFIGFILE = os.path.expanduser('~/qtop/qtop/qtop.conf')
 qtopconf = open(CONFIGFILE, 'r')
@@ -707,7 +651,7 @@ DEADWEIGHT = 15  # standard columns on the right of the CoreX map
 
 job_accounting_summary()
 
-# solution for counting R, Q, C attached to each user
+# counting of R, Q, C attached to each user
 RunningOfUser, QueuedOfUser, CancelledOfUser, WaitingOfUser, ExitingOfUser = {}, {}, {}, {}, {}
 
 for user, status in zip(UnixAccounts, Statuses):
@@ -735,11 +679,10 @@ for user in UnixAccounts:
 Usersortedlst = sorted(OccurenceDict.items(), key=itemgetter(1), reverse=True)
 
 
-# IdOfUnixAccount = {}
 '''
-In case there are more users than the sum number of all numbers and small/capital letters of the alphabet 
+In case there are more users than the sum number of all numbers and 
+small/capital letters of the alphabet 
 '''
-
 j = 0
 if len(Usersortedlst)>62: 
     for i in xrange(62, len(Usersortedlst)+62):
@@ -749,10 +692,8 @@ for unixaccount in Usersortedlst:
     IdOfUnixAccount[unixaccount[0]] = POSSIBLE_IDS[j]
     j += 1
 
-########################## end of copied from below
-
-################################################################################################
-# this calculates and prints what is actually below the id|  R + Q /all | unix account etc line
+# this calculates and prints what is actually below the id|  R + Q /all | unix
+# account etc line
 for id in IdOfUnixAccount:
     if id not in RunningOfUser:
         RunningOfUser[id] = 0
@@ -775,7 +716,7 @@ AccountsMappings.sort(key=itemgetter(3), reverse=True)
 ### CPU lines ######################################
 CPUCoreDict = {}
 for i in range(MaxNP):
-    CPUCoreDict['Cpu' + str(i) + 'line'] = ''  # Cpu0line, Cpu1line, Cpu2line, .. = '','','', ..
+    CPUCoreDict['Cpu' + str(i) + 'line'] = '' # Cpu0line, Cpu1line, Cpu2line, .. = '','','', ..
     MaxNPRange.append(str(i))
 
 if len(NodeSubClusters) > 1 or options.BLINDREMAP:
@@ -797,24 +738,18 @@ Otherwise, for uniform WNs, i.e. all using the same numbering scheme, wn01, wn02
 Number of Extra tables needed is calculated inside the calculate_Total_WNIDLine_Width function below
 '''
 if options.BLINDREMAP or len(NodeSubClusters) > 1:
-    calculate_Total_WNIDLine_Width(RemapNr) # , WNListRemapped)
+    calculate_Total_WNIDLine_Width(RemapNr)
     for node in AllWNsRemappedDict:
         NodeState += AllWNsRemappedDict[node][0]
     (PrintStart, PrintEnd, NrOfExtraMatrices) = make_Matrices(RemapNr, WNListRemapped)
     print_WN_ID_lines(PrintStart, PrintEnd, RemapNr)
 else: # len(NodeSubClusters) == 1 AND options.BLINDREMAP false 
-    calculate_Total_WNIDLine_Width(BiggestWrittenNode) # , WNList)
+    calculate_Total_WNIDLine_Width(BiggestWrittenNode)
     for node in AllWNsDict:
         NodeState += AllWNsDict[node][0]
     (PrintStart, PrintEnd, NrOfExtraMatrices) = make_Matrices(BiggestWrittenNode, WNList)
     print_WN_ID_lines(PrintStart, PrintEnd, BiggestWrittenNode)
 
-# print 'about to print Nodestate. PrintStart, PrintEnd are: ', PrintStart, PrintEnd #####DEBUGPRINT1 
-
-# if PrintEnd < PrintStart:
-#     PrintEnd += PrintStart
-
-# print 'So PrintEnd remains/becomes: ', PrintEnd #####DEBUGPRINT1
 
 print NodeState[PrintStart:PrintEnd] + '=Node state'
 
@@ -835,28 +770,23 @@ for ind, k in enumerate(CPUCoreDict):
     line = ''.join(ColourCPUCoreLst)
 
     print line + Colorize('=Core' + str(ind), 'NoColourAccount')
-# print 'printstart, printend of first table are: ', PrintStart, PrintEnd #####DEBUGPRINT1
 
-#print remaining matrices
+
+'''
+Calculate remaining matrices
+'''
 for i in range(NrOfExtraMatrices):
     PrintStart = PrintEnd
     PrintEnd += TermColumns - DEADWEIGHT #
-    # print 'PrintStart, PrintEnd on the extra table, ', i+1, 'are: ', PrintStart, PrintEnd #####DEBUGPRINT1
     
     if options.BLINDREMAP or len(NodeSubClusters) > 1:
         if PrintEnd >= RemapNr:
             PrintEnd = RemapNr
-            # break
     else:
-        if PrintEnd >= BiggestWrittenNode: ### was: len(WNList) and even before, BiggestWrittenNode
-        # print 'PrintEnd > WNnumber: ', str(PrintEnd) + '>' + str(WNnumber) # was: len(WNList) and even before, BiggestWrittenNode #####DEBUGPRINT1
-            PrintEnd = BiggestWrittenNode ### was: len(WNList) and even before, BiggestWrittenNode
-        # print 'PrintEnd is now: len(WNList) = ', PrintEnd #####DEBUGPRINT1
-        # print "so we're going to stop here!" #####DEBUGPRINT1
-            # break
+        if PrintEnd >= BiggestWrittenNode:
+            PrintEnd = BiggestWrittenNode
     print '\n'
     if len(NodeSubClusters) == 1:
-        # print 'on the extra table, ', i+1, 'PrintStart, PrintEnd are: ', PrintStart, PrintEnd #####DEBUGPRINT1
         print_WN_ID_lines(PrintStart, PrintEnd, BiggestWrittenNode)
     if len(NodeSubClusters) > 1:
         print_WN_ID_lines(PrintStart, PrintEnd, RemapNr)
@@ -866,7 +796,6 @@ for i in range(NrOfExtraMatrices):
         ColourCPUCoreLst = [Colorize(elem, AccountNrlessOfId[elem]) for elem in ColourCPUCoreLst if elem in AccountNrlessOfId]
         line = ''.join(ColourCPUCoreLst)
         print line + Colorize('=Core' + str(ind), 'NoColourAccount')
-
 
 
 print Colorize('\n===> ', '#') + Colorize('User accounts and pool mappings', 'Nothing') + Colorize(' <=== ', '#') + Colorize('("all" includes those in C and W states, as reported by qstat)', 'NoColourAccount')
