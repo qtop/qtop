@@ -573,14 +573,14 @@ def make_Matrices(WNnumber, WNList):
     else:
         print "This is the case you didn't foresee (WNnumber vs Start vs NodeSubClusters)"
 
-    if NrOfExtraMatrices:
+    if NrOfExtraMatrices: # if more matrices are needed, cut every matrix so that if fits to screen
         Stop = Start + TermColumns - DEADWEIGHT
     else:
         Stop = Start + WNnumber
     return (Start, Stop, NrOfExtraMatrices)
 
 
-def print_WN_ID_lines(start, stop, WNnumber): # WNnumber determines the number of WN ID lines (1/2/3/4?)
+def print_WN_ID_lines(start, stop, WNnumber): # WNnumber determines the number of WN ID lines needed  (1/2/3/4?)
     '''
     h1000 is a header for the 'thousands',
     h0100 is a header for the 'hundreds',
@@ -692,8 +692,8 @@ for unixaccount in Usersortedlst:
     IdOfUnixAccount[unixaccount[0]] = POSSIBLE_IDS[j]
     j += 1
 
-# this calculates and prints what is actually below the id|  R + Q /all | unix
-# account etc line
+# this calculates and prints what is actually below the 
+# id|  R + Q /all | unix account etc line
 for id in IdOfUnixAccount:
     if id not in RunningOfUser:
         RunningOfUser[id] = 0
