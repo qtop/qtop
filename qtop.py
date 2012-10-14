@@ -10,6 +10,7 @@
 """
 changelog:
 =========
+0.6.4: lines that don't contain *any* actual core are now not printed in the matrices.
 0.6.3: optional stopping of vertical separators (every 'n' position for x times)
        additional vertical separator in the beginning
 0.6.2: WN matrix width bug ironed out.
@@ -328,7 +329,7 @@ def read_pbsnodes_yaml(fin):
     HighestCoreBusy += 1
 
     '''
-    fill in invisible WN nodes with '?' and count them
+    fill in non-existent WN nodes (absent from pbsnodes file) with '?' and count them
     '''
     if len(NodeSubClusters) > 1:
         for i in range(1, RemapNr): # This RemapNr here is the LAST remapped node, it's the equivalent BiggestWrittenNode for the remapped case
@@ -484,9 +485,13 @@ def fill_cpucore_columns(value, CPUDict):
 
         NonExistentCores = [item for item in MaxNPRange if item not in OwnNPRange]
 
+        '''
+        the height of the matrix is determined by the highest-core WN existing. If other WNs have less cores,
+        these positions are filled with '#'s.
+        '''
         for core in OwnNPEmptyRange:
             CPUDict['Cpu' + str(core) + 'line'] += '_'
-        for core in NonExistentCores:
+        for core in NonExistentCores: 
                 CPUDict['Cpu' + str(core) + 'line'] += '#'
 
 
@@ -797,9 +802,14 @@ AccountNrlessOfId[SEPARATOR] = 'NoColourAccount'
 
 for ind, k in enumerate(CPUCoreDict):
     ColourCPUCoreLst = list(insert(CPUCoreDict['Cpu' + str(ind) + 'line'][PrintStart:PrintEnd], SEPARATOR, options.WN_COLON))
+    ColourlessLineLen = len(''.join(ColourCPUCoreLst))
     ColourCPUCoreLst = [Colorize(elem, AccountNrlessOfId[elem]) for elem in ColourCPUCoreLst if elem in AccountNrlessOfId]
     line = ''.join(ColourCPUCoreLst)
-
+    #'''
+    #don't print the non-existent core lines in the first matrix 
+    #(for when the remaining tables have machines with higher cores, but not the first matrix)
+    #'''    
+    # if '\x1b[1;30m#\x1b[1;m' * ColourlessLineLen not in line:
     print line + Colorize('=Core' + str(ind), 'NoColourAccount')
 
 
@@ -825,9 +835,16 @@ for i in range(NrOfExtraMatrices):
     print insert(NodeState[PrintStart:PrintEnd], SEPARATOR, options.WN_COLON) + '=Node state'
     for ind, k in enumerate(CPUCoreDict):
         ColourCPUCoreLst = list(insert(CPUCoreDict['Cpu' + str(ind) + 'line'][PrintStart:PrintEnd], SEPARATOR, options.WN_COLON))
+        ColourlessLineLen = len(''.join(ColourCPUCoreLst))
         ColourCPUCoreLst = [Colorize(elem, AccountNrlessOfId[elem]) for elem in ColourCPUCoreLst if elem in AccountNrlessOfId]
         line = ''.join(ColourCPUCoreLst)
-        print line + Colorize('=Core' + str(ind), 'NoColourAccount')
+        '''
+        if the first matrix has 10 machines with 64 cores, and the rest 190 machines have 8 cores, don't print the non-existent
+        56 cores from the next matrix on.
+        IMPORTANT: not working if vertical separators are present!
+        '''
+        if '\x1b[1;30m#\x1b[1;m' * ColourlessLineLen not in line:
+            print line + Colorize('=Core' + str(ind), 'NoColourAccount')
 
 
 print Colorize('\n===> ', '#') + Colorize('User accounts and pool mappings', 'Nothing') + Colorize(' <=== ', '#') + Colorize('("all" includes those in C and W states, as reported by qstat)', 'NoColourAccount')
