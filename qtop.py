@@ -495,8 +495,8 @@ def insert(original, new, pos, stopaftern = 0):
     insert new (separator) into original (string) every posth position, optionally stopping after stopafter times.
     '''
     pos = int(pos)
-    if pos != 0:
-        sep = new + original[:] 
+    if pos != 0: # default value is zero, means no vertical separators
+        sep = new + original[:]  # insert initial vertical separator
         if stopaftern == 0:
             times = len(original) / pos
         else:
@@ -598,7 +598,7 @@ def find_Matrices_Width(WNnumber, WNList):
     else:
         print "This is a case I didn't foresee (WNnumber vs Start vs NodeSubClusters)"
 
-    if UserCutMatrixWidth: # if the user defines a custom cut
+    if UserCutMatrixWidth: # if the user defines a custom cut (in the configuration file)
         Stop = Start + UserCutMatrixWidth
         return (Start, Stop, WNnumber/UserCutMatrixWidth)
     elif NrOfExtraMatrices: # if more matrices are needed due to lack of space, cut every matrix so that if fits to screen
