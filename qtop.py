@@ -10,19 +10,21 @@
 """
 changelog:
 =========
+0.6.1: Custom-cut matrices (horizontally, too!), -o switch
+0.5.2: Custom-cut matrices (vertically, not horizontally), width set by user.
 0.5.1: If more than 20% of the WNs are empty, perform a blind remap.
        Code Cleanup
-0.5  : Major rewrite of matrices calculation
+0.5.0: Major rewrite of matrices calculation
        fixed: true blind remapping !!
        exotic cases of very high numbering schemes now handled
        more qstat entries successfully parsed
        case of many unix accounts (>62) now handled
 0.4.1: now understands additional probable names for pbsnodes,qstat and qstat-q data files
-0.4  : corrected colorless switch to have ON/OFF option (default ON)
+0.4.0: corrected colorless switch to have ON/OFF option (default ON)
        bugfixes (qstat_q didn't recognize some faulty cpu time entries)
        now descriptions are in white, as before.
        Queues in the job accounting summary section are now coloured
-0.3  : command-line arguments (mostly empty for now)!
+0.3.0: command-line arguments (mostly empty for now)!
        non-numbered WNs can now be displayed instead of numbered WN IDs
        fixed issue with single named WN
        better regex pattern and algorithm for catching complicated numbered WN domain names
@@ -75,6 +77,7 @@ parser.add_option("-a", "--blindremapping", action="store_true", dest="BLINDREMA
 parser.add_option("-c", "--COLOR", action="store", dest="COLOR", default='ON', choices=['ON', 'OFF'], help="Enable/Disable color in qtop output. Use it with an ON/OFF switch: -c ON or -c OFF")
 parser.add_option("-f", "--setCOLORMAPFILE", action="store", type="string", dest="COLORFILE")
 parser.add_option("-m", "--noMasking", action="store_false", dest="MASKING", default=True, help="Don't mask early empty Worker Nodes. (default setting is: if e.g. the first 30 WNs are unused, counting starts from 31).")
+parser.add_option("-o", "--SetVerticalSeparator", action="store", dest="WN_COLON", default=0, help="Put vertical bar every WN_COLON nodes.")
 parser.add_option("-s", "--SetSourceDir", dest="SOURCEDIR", help="Set the source directory where pbsnodes and qstat reside")
 parser.add_option("-z", "--quiet", action="store_false", dest="verbose", default=True, help="don't print status messages to stdout. Not doing anything at the moment.")
 parser.add_option("-F", "--ForceNames", action="store_true", dest="FORCE_NAMES", default=False, help="force names to show up instead of numbered WNs even for very small numbers of WNs")
@@ -176,7 +179,7 @@ def make_pbsnodes_yaml(fin, fout):
             for job in ljobs:
                 core = job.strip().split('/')[0]
                 if core == lastcore:
-                    print 'There are concurrent jobs assigned to the same core!' + '\n' +'Remapping feature is not implemented yet. Exiting..'
+                    print 'There are concurrent jobs assigned to the same core!' + '\n' +' This kind of Remapping is not implemented yet. Exiting..'
                     sys.exit(1)
                 job = job.strip().split('/')[1:][0].split('.')[0]
                 fout.write('- core: ' + core + '\n')
@@ -471,7 +474,7 @@ def fill_cpucore_columns(value, CPUDict):
                 try: 
                     UserOfJobId[job]
                 except KeyError, KeyErrorValue:
-                    print 'There seems to be a problem with the qstat output. A JobID has gone rogue (namely, ' + str(KeyErrorValue) +'. Please check with the System Administrator.'
+                    print 'There seems to be a problem with the qstat output. A JobID has gone rogue (namely, ' + str(KeyErrorValue) +'). Please check with the System Administrator.'
                 CPUDict['Cpu' + str(Core) + 'line'] += str(IdOfUnixAccount[UserOfJobId[job]])
                 Busy.extend(Core)
                 OwnNPEmptyRange.remove(Core)
@@ -482,6 +485,20 @@ def fill_cpucore_columns(value, CPUDict):
             CPUDict['Cpu' + str(core) + 'line'] += '_'
         for core in NonExistentCores:
                 CPUDict['Cpu' + str(core) + 'line'] += '#'
+
+def insert(original, new, pos):
+    '''
+    '''
+    pos = int(pos)
+    if pos != 0:
+        times = len(original) / pos
+        sep = original[:pos] + new + original[pos:] 
+        for i in range(2, times+1):
+            sep = sep[:pos * i + i-1] + new + sep[pos * i + i-1:] 
+        return sep
+    else:
+        return original
+
 
 
 def calculate_Total_WNIDLine_Width(WNnumber): # (RemapNr) in case of multiple NodeSubClusters
@@ -564,7 +581,7 @@ def make_Matrices(WNnumber, WNList):
     elif (options.MASKING is True) and min(WNList) > MIN_MASKING_THRESHOLD and type(min(WNList)) == int:
         Start = min(WNList) - 1   #exclude unneeded first empty nodes from the matrix
     '''
-    Extra matrices might be needed if the WNs are more than the screen width can hold.
+    Extra matrices may be needed if the WNs are more than the screen width can hold.
     '''
     if WNnumber > Start: # start will either be 1 or (masked >= MIN_MASKING_THRESHOLD + 1)
         NrOfExtraMatrices = abs(WNnumber - Start + 10) / TermColumns 
@@ -573,14 +590,19 @@ def make_Matrices(WNnumber, WNList):
     else:
         print "This is the case you didn't foresee (WNnumber vs Start vs NodeSubClusters)"
 
-    if NrOfExtraMatrices: # if more matrices are needed, cut every matrix so that if fits to screen
+    if UserCutMatrixLength: # if the user defines a custom cut
+        Stop = Start + UserCutMatrixLength
+        return (Start, Stop, WNnumber/UserCutMatrixLength)
+    elif NrOfExtraMatrices: # if more matrices are needed due to lack of space, cut every matrix so that if fits to screen
         Stop = Start + TermColumns - DEADWEIGHT
-    else:
+        return (Start, Stop, NrOfExtraMatrices)
+    else: # just one matrix, small cluster!
         Stop = Start + WNnumber
-    return (Start, Stop, NrOfExtraMatrices)
+        return (Start, Stop, 0)
 
 
 def print_WN_ID_lines(start, stop, WNnumber): # WNnumber determines the number of WN ID lines needed  (1/2/3/4?)
+    global h1000, h0100, h0010, h0001
     '''
     h1000 is a header for the 'thousands',
     h0100 is a header for the 'hundreds',
@@ -591,22 +613,22 @@ def print_WN_ID_lines(start, stop, WNnumber): # WNnumber determines the number o
     JustNameDict = {}
     if JUST_NAMES_FLAG <= 1:  # normal case, numbered WNs
         if WNnumber < 10:
-            print h0001 + '={__WNID__}'
+            print insert(h0001, SEPARATOR, options.WN_COLON) + '={__WNID__}'
 
         elif WNnumber < 100:
-            print h0010 + '={_Worker_}'
-            print h0001 + '={__Node__}'
+            print insert(h0010, SEPARATOR, options.WN_COLON) + '={_Worker_}'
+            print insert(h0001, SEPARATOR, options.WN_COLON) + '={__Node__}'
 
         elif WNnumber < 1000:
-            print h0100[start:stop] + '={_Worker_}'
-            print h0010[start:stop] + '={__Node__}'
-            print h0001[start:stop] + '={___ID___}'
+            print insert(h0100[start:stop], SEPARATOR, options.WN_COLON) + '={_Worker_}'
+            print insert(h0010[start:stop], SEPARATOR, options.WN_COLON) + '={__Node__}'
+            print insert(h0001[start:stop], SEPARATOR, options.WN_COLON) + '={___ID___}'
 
         elif WNnumber > 1000:
-            print h1000[start:stop] + '={________}'
-            print h0100[start:stop] + '={_Worker_}'
-            print h0010[start:stop] + '={__Node__}'
-            print h0001[start:stop] + '={___ID___}'
+            print insert(h1000[start:stop], SEPARATOR, options.WN_COLON) + '={________}'
+            print insert(h0100[start:stop], SEPARATOR, options.WN_COLON) + '={_Worker_}'
+            print insert(h0010[start:stop], SEPARATOR, options.WN_COLON) + '={__Node__}'
+            print insert(h0001[start:stop], SEPARATOR, options.WN_COLON) + '={___ID___}'
     elif JUST_NAMES_FLAG > 1 or options.FORCE_NAMES == True: # names (e.g. fruits) instead of numbered WNs
         colour = 0
         Highlight = {0: 'cmsplt', 1: 'Red'}
@@ -647,7 +669,7 @@ exec qtopconf
 TermRows, TermColumns = os.popen('stty size', 'r').read().split()
 TermColumns = int(TermColumns)
 
-DEADWEIGHT = 15  # standard columns on the right of the CoreX map
+DEADWEIGHT = 15  # standard columns' width on the right of the CoreX map
 
 job_accounting_summary()
 
@@ -751,7 +773,7 @@ else: # len(NodeSubClusters) == 1 AND options.BLINDREMAP false
     print_WN_ID_lines(PrintStart, PrintEnd, BiggestWrittenNode)
 
 
-print NodeState[PrintStart:PrintEnd] + '=Node state'
+print insert(NodeState[PrintStart:PrintEnd], SEPARATOR, options.WN_COLON) + '=Node state'
 
 ########################### Node State ######################
 
@@ -763,21 +785,23 @@ for line in AccountsMappings:
 
 AccountNrlessOfId['#'] = '#'
 AccountNrlessOfId['_'] = '_'
+AccountNrlessOfId[SEPARATOR] = 'NoColourAccount'
 
 for ind, k in enumerate(CPUCoreDict):
-    ColourCPUCoreLst = list(CPUCoreDict['Cpu' + str(ind) + 'line'][PrintStart:PrintEnd])
+    ColourCPUCoreLst = list(insert(CPUCoreDict['Cpu' + str(ind) + 'line'][PrintStart:PrintEnd], SEPARATOR, options.WN_COLON))
     ColourCPUCoreLst = [Colorize(elem, AccountNrlessOfId[elem]) for elem in ColourCPUCoreLst if elem in AccountNrlessOfId]
     line = ''.join(ColourCPUCoreLst)
 
     print line + Colorize('=Core' + str(ind), 'NoColourAccount')
 
 
-'''
-Calculate remaining matrices
-'''
+############# Calculate remaining matrices ##################
 for i in range(NrOfExtraMatrices):
     PrintStart = PrintEnd
-    PrintEnd += TermColumns - DEADWEIGHT #
+    if UserCutMatrixLength:
+        PrintEnd += UserCutMatrixLength
+    else:
+        PrintEnd += TermColumns - DEADWEIGHT 
     
     if options.BLINDREMAP or len(NodeSubClusters) > 1:
         if PrintEnd >= RemapNr:
@@ -790,9 +814,9 @@ for i in range(NrOfExtraMatrices):
         print_WN_ID_lines(PrintStart, PrintEnd, BiggestWrittenNode)
     if len(NodeSubClusters) > 1:
         print_WN_ID_lines(PrintStart, PrintEnd, RemapNr)
-    print NodeState[PrintStart:PrintEnd] + '=Node state'
+    print insert(NodeState[PrintStart:PrintEnd], SEPARATOR, options.WN_COLON) + '=Node state'
     for ind, k in enumerate(CPUCoreDict):
-        ColourCPUCoreLst = list(CPUCoreDict['Cpu' + str(ind) + 'line'][PrintStart:PrintEnd])
+        ColourCPUCoreLst = list(insert(CPUCoreDict['Cpu' + str(ind) + 'line'][PrintStart:PrintEnd], SEPARATOR, options.WN_COLON))
         ColourCPUCoreLst = [Colorize(elem, AccountNrlessOfId[elem]) for elem in ColourCPUCoreLst if elem in AccountNrlessOfId]
         line = ''.join(ColourCPUCoreLst)
         print line + Colorize('=Core' + str(ind), 'NoColourAccount')
@@ -804,7 +828,7 @@ for line in AccountsMappings:
     PrintString = '%3s | %4s + %4s / %4s | %15s |' % (line[0], line[1], line[2], line[3], line[4][0])
     for account in ColorOfAccount:
         if line[4][0].startswith(account) and options.COLOR == 'ON':
-            PrintString = '%15s | %16s + %16s / %16s | %27s %4s' % (Colorize(line[0], account), Colorize(str(line[1]), account), Colorize(str(line[2]), account), Colorize(str(line[3]), account), Colorize(line[4][0], account), Colorize('|', 'NoColourAccount'))
+            PrintString = '%15s | %16s + %16s / %16s | %27s %4s' % (Colorize(line[0], account), Colorize(str(line[1]), account), Colorize(str(line[2]), account), Colorize(str(line[3]), account), Colorize(line[4][0], account), Colorize(SEPARATOR, 'NoColourAccount'))
         elif line[4][0].startswith(account) and options.COLOR == 'OFF':
             PrintString = '%2s | %3s + %3s / %3s | %14s |' %(Colorize(line[0], account), Colorize(str(line[1]), account), Colorize(str(line[2]), account), Colorize(str(line[3]), account), Colorize(line[4][0], account))
         else:
