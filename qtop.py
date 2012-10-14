@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 ################################################
-#              qtop v.0.5.1                    #
+#              qtop v.0.6.2                    #
 #     Licensed under MIT-GPL licenses          #
 #                     Fotis Georgatos          #
 #                     Sotiris Fragkiskos       #
@@ -10,6 +10,7 @@
 """
 changelog:
 =========
+0.6.2: WN matrix width bug ironed out.
 0.6.1: Custom-cut matrices (horizontally, too!), -o switch
 0.5.2: Custom-cut matrices (vertically, not horizontally), width set by user.
 0.5.1: If more than 20% of the WNs are empty, perform a blind remap.
@@ -128,7 +129,7 @@ AccountsMappings = []
 MaxNPRange = []
 
 AccountNrlessOfId = {}
-
+####################################################
 
 def write_to_separate_files(filename1, filename2):
     '''
@@ -486,6 +487,7 @@ def fill_cpucore_columns(value, CPUDict):
         for core in NonExistentCores:
                 CPUDict['Cpu' + str(core) + 'line'] += '#'
 
+
 def insert(original, new, pos):
     '''
     '''
@@ -498,7 +500,6 @@ def insert(original, new, pos):
         return sep
     else:
         return original
-
 
 
 def calculate_Total_WNIDLine_Width(WNnumber): # (RemapNr) in case of multiple NodeSubClusters
@@ -571,7 +572,7 @@ def calculate_Total_WNIDLine_Width(WNnumber): # (RemapNr) in case of multiple No
         h0001 = uc[:WNnumber]
 
     
-def make_Matrices(WNnumber, WNList):
+def find_Matrices_Width(WNnumber, WNList):
     '''
     masking/clipping functionality: if the earliest node number is high (e.g. 130), the first 129 WNs need not show up.
     '''
@@ -588,13 +589,13 @@ def make_Matrices(WNnumber, WNList):
     elif WNnumber < Start and len(NodeSubClusters) > 1: # Remapping
         NrOfExtraMatrices = (WNnumber + 10) / TermColumns
     else:
-        print "This is the case you didn't foresee (WNnumber vs Start vs NodeSubClusters)"
+        print "This is a case I didn't foresee (WNnumber vs Start vs NodeSubClusters)"
 
-    if UserCutMatrixLength: # if the user defines a custom cut
-        Stop = Start + UserCutMatrixLength
-        return (Start, Stop, WNnumber/UserCutMatrixLength)
+    if UserCutMatrixWidth: # if the user defines a custom cut
+        Stop = Start + UserCutMatrixWidth
+        return (Start, Stop, WNnumber/UserCutMatrixWidth)
     elif NrOfExtraMatrices: # if more matrices are needed due to lack of space, cut every matrix so that if fits to screen
-        Stop = Start + TermColumns - DEADWEIGHT
+        Stop = Start + TermColumns - DEADWEIGHT 
         return (Start, Stop, NrOfExtraMatrices)
     else: # just one matrix, small cluster!
         Stop = Start + WNnumber
@@ -613,11 +614,11 @@ def print_WN_ID_lines(start, stop, WNnumber): # WNnumber determines the number o
     JustNameDict = {}
     if JUST_NAMES_FLAG <= 1:  # normal case, numbered WNs
         if WNnumber < 10:
-            print insert(h0001, SEPARATOR, options.WN_COLON) + '={__WNID__}'
+            print insert(h0001[start:stop], SEPARATOR, options.WN_COLON) + '={__WNID__}'
 
         elif WNnumber < 100:
-            print insert(h0010, SEPARATOR, options.WN_COLON) + '={_Worker_}'
-            print insert(h0001, SEPARATOR, options.WN_COLON) + '={__Node__}'
+            print insert(h0010[start:stop], SEPARATOR, options.WN_COLON) + '={_Worker_}'
+            print insert(h0001[start:stop], SEPARATOR, options.WN_COLON) + '={__Node__}'
 
         elif WNnumber < 1000:
             print insert(h0100[start:stop], SEPARATOR, options.WN_COLON) + '={_Worker_}'
@@ -763,13 +764,13 @@ if options.BLINDREMAP or len(NodeSubClusters) > 1:
     calculate_Total_WNIDLine_Width(RemapNr)
     for node in AllWNsRemappedDict:
         NodeState += AllWNsRemappedDict[node][0]
-    (PrintStart, PrintEnd, NrOfExtraMatrices) = make_Matrices(RemapNr, WNListRemapped)
+    (PrintStart, PrintEnd, NrOfExtraMatrices) = find_Matrices_Width(RemapNr, WNListRemapped)
     print_WN_ID_lines(PrintStart, PrintEnd, RemapNr)
 else: # len(NodeSubClusters) == 1 AND options.BLINDREMAP false 
     calculate_Total_WNIDLine_Width(BiggestWrittenNode)
     for node in AllWNsDict:
         NodeState += AllWNsDict[node][0]
-    (PrintStart, PrintEnd, NrOfExtraMatrices) = make_Matrices(BiggestWrittenNode, WNList)
+    (PrintStart, PrintEnd, NrOfExtraMatrices) = find_Matrices_Width(BiggestWrittenNode, WNList)
     print_WN_ID_lines(PrintStart, PrintEnd, BiggestWrittenNode)
 
 
@@ -798,10 +799,10 @@ for ind, k in enumerate(CPUCoreDict):
 ############# Calculate remaining matrices ##################
 for i in range(NrOfExtraMatrices):
     PrintStart = PrintEnd
-    if UserCutMatrixLength:
-        PrintEnd += UserCutMatrixLength
+    if UserCutMatrixWidth:
+        PrintEnd += UserCutMatrixWidth
     else:
-        PrintEnd += TermColumns - DEADWEIGHT 
+        PrintEnd += TermColumns - DEADWEIGHT # 
     
     if options.BLINDREMAP or len(NodeSubClusters) > 1:
         if PrintEnd >= RemapNr:
