@@ -10,6 +10,8 @@
 """
 changelog:
 =========
+0.6.3: optional stopping of vertical separators (every 'n' position for x times)
+       additional vertical separator in the beginning
 0.6.2: WN matrix width bug ironed out.
 0.6.1: Custom-cut matrices (horizontally, too!), -o switch
 0.5.2: Custom-cut matrices (vertically, not horizontally), width set by user.
@@ -78,7 +80,7 @@ parser.add_option("-a", "--blindremapping", action="store_true", dest="BLINDREMA
 parser.add_option("-c", "--COLOR", action="store", dest="COLOR", default='ON', choices=['ON', 'OFF'], help="Enable/Disable color in qtop output. Use it with an ON/OFF switch: -c ON or -c OFF")
 parser.add_option("-f", "--setCOLORMAPFILE", action="store", type="string", dest="COLORFILE")
 parser.add_option("-m", "--noMasking", action="store_false", dest="MASKING", default=True, help="Don't mask early empty Worker Nodes. (default setting is: if e.g. the first 30 WNs are unused, counting starts from 31).")
-parser.add_option("-o", "--SetVerticalSeparator", action="store", dest="WN_COLON", default=0, help="Put vertical bar every WN_COLON nodes.")
+parser.add_option("-o", "--SetVerticalSeparatorXX", action="store", dest="WN_COLON", default=0, help="Put vertical bar every WN_COLON nodes.")
 parser.add_option("-s", "--SetSourceDir", dest="SOURCEDIR", help="Set the source directory where pbsnodes and qstat reside")
 parser.add_option("-z", "--quiet", action="store_false", dest="verbose", default=True, help="don't print status messages to stdout. Not doing anything at the moment.")
 parser.add_option("-F", "--ForceNames", action="store_true", dest="FORCE_NAMES", default=False, help="force names to show up instead of numbered WNs even for very small numbers of WNs")
@@ -488,13 +490,18 @@ def fill_cpucore_columns(value, CPUDict):
                 CPUDict['Cpu' + str(core) + 'line'] += '#'
 
 
-def insert(original, new, pos):
+def insert(original, new, pos, stopaftern = 0):
     '''
+    insert new (separator) into original (string) every posth position, optionally stopping after stopafter times.
     '''
     pos = int(pos)
     if pos != 0:
-        times = len(original) / pos
-        sep = original[:pos] + new + original[pos:] 
+        sep = new + original[:] 
+        if stopaftern == 0:
+            times = len(original) / pos
+        else:
+            times = stopaftern
+        sep = sep[:pos] + new + sep[pos:] 
         for i in range(2, times+1):
             sep = sep[:pos * i + i-1] + new + sep[pos * i + i-1:] 
         return sep
