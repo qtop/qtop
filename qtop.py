@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 ################################################
-#              qtop v.0.6.2                    #
+#              qtop v.0.6.4                    #
 #     Licensed under MIT-GPL licenses          #
 #                     Fotis Georgatos          #
 #                     Sotiris Fragkiskos       #
