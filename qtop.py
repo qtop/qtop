@@ -126,6 +126,7 @@ JobIds, UnixAccounts, Statuses, Queues = [], [], [], []  # for read_qstat
 qstatqLst = []
 UserOfJobId, IdOfUnixAccount = {}, {}  
 AccountsMappings = []  
+DIFFERENT_QSTAT_FORMAT_FLAG = 0
 
 ### CPU lines ######################################
 
@@ -133,19 +134,6 @@ MaxNPRange = []
 
 AccountNrlessOfId = {}
 ####################################################
-
-def write_to_separate_files(filename1, filename2):
-    '''
-    writes the data from qstat, qstat-q, pbsnodes, which all reside in
-    qtop-input.out, to a file with the corresponding name, first taking out the prefix in each line.
-    '''
-    fin = open(filename1, 'r')
-    fout = open(filename2, 'w')
-    for line in fin:
-        if line.startswith(filename2.split('.')[0] + ':'):
-            fout.write(line.split(':', 1)[1])
-    fin.close()
-
 
 def make_pbsnodes_yaml(fin, fout):
     """
@@ -198,7 +186,7 @@ def make_pbsnodes_yaml(fin, fout):
             fout.write('\n')
 
         elif 'ntype = PBS' in line:
-            print 'PBS currently not supported!'
+            print 'System currently not supported!'
             sys.exit(1)
 
 
@@ -400,9 +388,10 @@ def make_qstat_yaml(fin, fout):
                 fout.write('S: ' + S + '\n')
                 fout.write('Queue: ' + Queue + '\n')
 
-                UserOfJobId[Jobid] = User
+                UserOfJobId[Jobid] = User # this actually belongs to read_qstat() !
                 fout.write('...\n')
     elif 'prior' in firstline:
+        # e.g. job-ID  prior   name       user         state submit/start at     queue                          slots ja-task-ID 
         DIFFERENT_QSTAT_FORMAT_FLAG = 1
         UserQueueSearch = '\s{2}(\d+)\s+([0-9]\.[0-9]+)\s+([A-Za-z0-9_.-]+)\s+([A-Za-z0-9._-]+)\s+([a-z])\s+(\d{2}/\d{2}/\d{2}|0)\s+(\d+:\d+:\d*|0)\s+([A-Za-z0-9_]+@[A-Za-z0-9_.-]+)\s+(\d+)\s+(\w*)'
         RunQdSearch = '^\s*(\d+)\s+(\d+)'
@@ -671,11 +660,58 @@ def reset_yaml_files():
     fin3temp = open(QSTAT_YAML_FILE, 'w')
     fin3temp.close()
 
-################ MAIN ######################################################################
+################ MAIN ###################################
 
 CONFIGFILE = os.path.expanduser('~/qtop/qtop/qtop.conf')
 qtopconf = open(CONFIGFILE, 'r')
 exec qtopconf
+
+reset_yaml_files()
+yamlstream1 = open(PBSNODES_YAML_FILE, 'a')
+yamlstream2 = open(QSTATQ_YAML_FILE, 'a')
+yamlstream3 = open(QSTAT_YAML_FILE, 'a')
+
+if not os.path.getsize(PBSNODES_ORIG_FILE) > 0:  
+    print 'Bailing out... Not yet ready for Sun Grid Engine clusters'
+    os.chdir(HOMEPATH + 'qt')
+    sys.exit(0)
+    # os.chdir('..')
+    # continue
+else:
+    fin1 = open(PBSNODES_ORIG_FILE, 'r')
+make_pbsnodes_yaml(fin1, yamlstream1)
+yamlstream1 = open(PBSNODES_YAML_FILE, 'r')
+read_pbsnodes_yaml(yamlstream1)
+yamlstream1.close()
+
+if not os.path.getsize(QSTATQ_ORIG_FILE) > 0:  
+    print 'Your ' + QSTATQ_ORIG_FILE + ' file is empty! Please check your directory. Exiting ...'
+    os.chdir(HOMEPATH + 'qt')
+    sys.exit(0)
+    # os.chdir('..')
+    # continue
+else:
+    fin2 = open(QSTATQ_ORIG_FILE, 'r')
+make_qstatq_yaml(fin2, yamlstream2)
+fin2.close()
+yamlstream2.close()
+
+if not os.path.getsize(QSTAT_ORIG_FILE) > 0:  
+    print 'Your ' + QSTAT_ORIG_FILE + ' file is empty! Please check your directory. Exiting ...'
+    os.chdir(HOMEPATH + 'qt')
+    sys.exit(0)
+    # os.chdir('..')
+    # continue
+else:
+    fin3 = open(QSTAT_ORIG_FILE, 'r')
+make_qstat_yaml(fin3, yamlstream3)
+fin3.close()
+yamlstream3.close()
+# print dir
+
+read_qstat()
+os.chdir(dir)
+dir = os.getcwd()
 
 
 #Calculation of split screen size
@@ -745,7 +781,7 @@ for id in IdOfUnixAccount:
 for id in Usersortedlst:  # IdOfUnixAccount:
     AccountsMappings.append([IdOfUnixAccount[id[0]], RunningOfUser[id[0]], QueuedOfUser[id[0]], CancelledOfUser[id[0]] + RunningOfUser[id[0]] + QueuedOfUser[id[0]] + WaitingOfUser[id[0]] + ExitingOfUser[id[0]], id])
 AccountsMappings.sort(key=itemgetter(3), reverse=True)
-################################################################################################
+####################################################
 
 
 ### CPU lines ######################################
@@ -764,7 +800,7 @@ elif len(NodeSubClusters) == 1:
 ### CPU lines ######################################
 
 
-########################### Node State ######################
+################ Node State ######################
 print Colorize('===> ', '#') + Colorize('Worker Nodes occupancy', 'Nothing') + Colorize(' <=== ', '#') + Colorize('(you can read vertically the node IDs; nodes in free state are noted with - )', 'NoColourAccount')
 
 '''
