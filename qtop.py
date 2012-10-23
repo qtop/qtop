@@ -332,7 +332,7 @@ def read_pbsnodes_yaml(fin):
         WNList.sort()
         WNListRemapped.sort()
 
-    if min(WNList) > 9000: # handle exotic cases of WN numbering starting VERY high
+    if min(WNList) > 9000 and type(min(WNList)) == int: # handle exotic cases of WN numbering starting VERY high
         WNList = [element - min(WNList) for element in WNList]
         options.BLINDREMAP = True 
     if len(WNList) < PERCENTAGE * BiggestWrittenNode: 
@@ -484,22 +484,23 @@ def fill_cpucore_columns(value, CPUDict):
                 CPUDict['Cpu' + str(core) + 'line'] += '#'
 
 
-def insert(original, new, pos, stopaftern = 0):
+def insert(original, separator, pos, stopaftern = 0):
     '''
-    insert new (separator) into original (string) every posth position, optionally stopping after stopafter times.
+    insert separator into original (string) every posth position, optionally stopping after stopafter times.
     '''
     pos = int(pos)
     if pos != 0: # default value is zero, means no vertical separators
-        sep = new + original[:]  # insert initial vertical separator
+        sep = original[:]  # insert initial vertical separator
         if stopaftern == 0:
             times = len(original) / pos
         else:
             times = stopaftern
-        sep = sep[:pos] + new + sep[pos:] 
+        sep = sep[:pos] + separator + sep[pos:] 
         for i in range(2, times+1):
-            sep = sep[:pos * i + i-1] + new + sep[pos * i + i-1:] 
+            sep = sep[:pos * i + i-1] + separator + sep[pos * i + i-1:] 
+        sep = separator + sep  # insert initial vertical separator
         return sep
-    else:
+    else: # no separators
         return original
 
 
@@ -636,7 +637,7 @@ def print_WN_ID_lines(start, stop, WNnumber): # WNnumber determines the number o
         Highlight = {0: 'cmsplt', 1: 'Red'}
         for line in range(len(max(WNList))):
             JustNameDict[line] = ''
-        for column in range(len(WNList)-1):
+        for column in range(len(WNList)): #was -1
             for line in range(len(max(WNList))):
                 JustNameDict[line] += Colorize(WNList[column][line], Highlight[colour])
             if colour == 1:
@@ -757,7 +758,7 @@ small/capital letters of the alphabet
 j = 0
 if len(Usersortedlst)>62: 
     for i in xrange(62, len(Usersortedlst)+62):
-        POSSIBLE_IDS.append(str(i))
+        POSSIBLE_IDS.append(str(i)[0])
 
 for unixaccount in Usersortedlst:
     IdOfUnixAccount[unixaccount[0]] = POSSIBLE_IDS[j]
@@ -824,7 +825,7 @@ else: # len(NodeSubClusters) == 1 AND options.BLINDREMAP false
 
 print insert(NodeState[PrintStart:PrintEnd], SEPARATOR, options.WN_COLON) + '=Node state'
 
-########################### Node State ######################
+################ Node State ######################
 
 for line in AccountsMappings:
     if re.split('[0-9]+', line[4][0])[0] in ColorOfAccount:
