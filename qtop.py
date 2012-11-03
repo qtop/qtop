@@ -10,6 +10,7 @@
 """
 changelog:
 =========
+0.6.5: PBS now supported
 0.6.4: lines that don't contain *any* actual core are now not printed in the matrices.
 0.6.3: optional stopping of vertical separators (every 'n' position for x times)
        additional vertical separator in the beginning
@@ -160,7 +161,7 @@ def make_pbsnodes_yaml(fin, fout):
                 state = nextchar
             fout.write('state: ' + state + '\n')
 
-        elif 'np = ' in line:
+        elif 'np = ' in line or 'pcpus = ' in line:
             np = line.split()[2][0:]
             # TotalCores = int(np)
             fout.write('np: ' + np + '\n')
@@ -169,11 +170,15 @@ def make_pbsnodes_yaml(fin, fout):
             ljobs = line.split('=')[1].split(',')
             lastcore = 150000
             for job in ljobs:
-                core = job.strip().split('/')[0]
+                # core = job.strip().split('/')[0]
+                # job = job.strip().split('/')[1:][0].split('.')[0]
+                core, job = job.strip().split('/')
+                if len(core) > len(job): # that can't be the case, so we got it wrong (jobs format must be jobid/core instead of core/jobid)
+                    core, job = job, core
+                job = job.strip().split('/')[0].split('.')[0]
                 if core == lastcore:
                     print 'There are concurrent jobs assigned to the same core!' + '\n' +' This kind of Remapping is not implemented yet. Exiting..'
                     sys.exit(1)
-                job = job.strip().split('/')[1:][0].split('.')[0]
                 fout.write('- core: ' + core + '\n')
                 fout.write('  job: ' + job + '\n')
                 lastcore = core
@@ -185,9 +190,9 @@ def make_pbsnodes_yaml(fin, fout):
         elif line.startswith('\n'):
             fout.write('\n')
 
-        elif 'ntype = PBS' in line:
-            print 'System currently not supported!'
-            sys.exit(1)
+        # elif 'ntype = PBS' in line:
+        #     print 'System currently not supported!'
+        #     sys.exit(1)
 
 
     fin.close()
@@ -298,13 +303,14 @@ def read_pbsnodes_yaml(fin):
                 AllWNsDict[NodeNr].append(nextchar)
                 AllWNsRemappedDict[RemapNr].append(nextchar)
 
-        elif 'np:' in line:
+        elif 'np:' in line or 'pcpus:' in line:
             np = line.split(': ')[1].strip()
             AllWNsDict[NodeNr].append(np)
             AllWNsRemappedDict[RemapNr].append(np)
             if int(np) > int(MaxNP):
                 MaxNP = int(np)
             TotalCores += int(np)
+
         elif 'core: ' in line:
             core = line.split(': ')[1].strip()
             WorkingCores += 1
