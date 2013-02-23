@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 ################################################
-#              qtop v.0.6.4                    #
+#              qtop v.0.6.6                    #
 #     Licensed under MIT-GPL licenses          #
 #                     Fotis Georgatos          #
 #                     Sotiris Fragkiskos       #
@@ -10,6 +10,7 @@
 """
 changelog:
 =========
+0.6.6: got rid of all global variables (experimental)
 0.6.5: PBS now supported
 0.6.4: lines that don't contain *any* actual core are now not printed in the matrices.
 0.6.3: optional stopping of vertical separators (every 'n' position for x times)
@@ -76,6 +77,14 @@ import glob
 import os
 import re
 import sys
+# import cProfile
+# import stats
+# stats = pstats.Stats('outputfile.profile')
+
+
+# import pycallgraph
+# pycallgraph.start_trace()
+
 
 parser = OptionParser() # for more details see http://docs.python.org/library/optparse.html
 parser.add_option("-a", "--blindremapping", action="store_true", dest="BLINDREMAP", default=False, help="This is used in situations where node names are not a pure arithmetic sequence (eg. rocks clusters)")
@@ -103,27 +112,28 @@ def Colorize(text, pattern):
         return text
 
 #for calculating the WN numbers
-h1000, h0100, h0010, h0001 = '', '', '', ''
+# h1000, h0100, h0010, h0001 = '', '', '', ''
 PrintStart, PrintEnd = 0, None
 
 if options.FORCE_NAMES == False: 
     JUST_NAMES_FLAG = 0
 else:
     JUST_NAMES_FLAG = 1
-RemapNr = 0
+# RemapNr = 0 $ ex global
 NodeSubClusters = set()
 OutputDirs = []
-HighestCoreBusy = 0
-AllWNsDict, AllWNsRemappedDict = {}, {}
-BiggestWrittenNode = 0
-WNList, WNListRemapped = [], []
-NodeNr = 0
+# HighestCoreBusy = 0
+# AllWNsRemappedDict = {}
+# BiggestWrittenNode = 0 ex global, AllWNsDict = {}
+# WNList = [] # ex global
+# NodeNr = 0 # ex-global
 NodeState = ''
-ExistingNodes, OfflineDownNodes = 0, 0
-MaxNP = 0
-TotalCores, WorkingCores = 0, 0
-TotalRuns, TotalQueues = 0, 0  # for readQstatQ
-JobIds, UnixAccounts, Statuses, Queues = [], [], [], []  # for read_qstat
+# OfflineDownNodes = 0 ex globals
+# ExistingNodes = 0 
+# MaxNP = 0 # ex global
+# TotalCores, WorkingCores = 0, 0 (ex clobal)
+# TotalQueues = 0 (ex global)  # for readQstatQ
+# TotalRuns = 0 (ex global)
 qstatqLst = []
 UserOfJobId, IdOfUnixAccount = {}, {}  
 AccountsMappings = []  
@@ -140,7 +150,8 @@ def make_pbsnodes_yaml(fin, fout):
     """
     read PBSNODES_ORIG_FILE sequentially and put in respective yaml file
     """
-    global OfflineDownNodes
+    OfflineDownNodes = 0 
+    # global OfflineDownNodes
 
     for line in fin:
         line.strip()
@@ -193,18 +204,26 @@ def make_pbsnodes_yaml(fin, fout):
         # elif 'ntype = PBS' in line:
         #     print 'System currently not supported!'
         #     sys.exit(1)
-
-
     fin.close()
     fout.close()
+    return OfflineDownNodes
 
 
-def read_pbsnodes_yaml(fin):
+def read_pbsnodes_yaml(fin, namesflag):
     '''
     extracts highest node number, online nodes
     '''
-    global ExistingNodes, OfflineDownNodes, jobseries, BiggestWrittenNode, WNList, WNListRemapped, NodeNr, TotalCores, WorkingCores, AllWNsDict, AllWNsRemappedDict, HighestCoreBusy, MaxNP, NodeSubClusters, RemapNr, JUST_NAMES_FLAG
-
+    # global JUST_NAMES_FLAG   --> internal copy is now namesflag
+    WNList = [] # ex global
+    MaxNP = 0
+    RemapNr = 0 # ex-global
+    # ExistingNodes, OfflineDownNodes, WorkingCores, TotalCores, BiggestWrittenNode, NodeSubClusters, HighestCoreBusy
+    NodeNr = 0 # ex-global
+    AllWNsRemappedDict = {} # ex-global
+    BiggestWrittenNode, TotalCores, WorkingCores, HighestCoreBusy = 0, 0, 0, 0
+    ExistingNodes, OfflineDownNodes = 0, 0
+    AllWNsDict = {}
+    WNListRemapped = []
     state = ''
     for line in fin:
         line.strip()
@@ -229,7 +248,7 @@ def read_pbsnodes_yaml(fin):
                     NodeNr = int(NameGroups[-1])
                 elif len(NameGroups) == 1: # if e.g. WN name is just 'gridmon'
                     if re.search(searchjustletters, dname) is not None:  # for non-numbered WNs (eg. fruit names)
-                        JUST_NAMES_FLAG += 1
+                        namesflag += 1
                         n = re.search(searchjustletters, dname)
                         NodeInits = n.group(1)
                         NodeNr += 1
@@ -239,12 +258,13 @@ def read_pbsnodes_yaml(fin):
                         if NodeNr > BiggestWrittenNode:
                             BiggestWrittenNode = NodeNr
                         WNList.append(NodeInits)
+                        # import pdb; pdb.set_trace()
                         WNList[:] = [UnNumberedWN.rjust(len(max(WNList))) for UnNumberedWN in WNList if type(UnNumberedWN) is str ]
                         WNListRemapped.append(RemapNr)                    
                 elif len(NameGroups) == 2 and not NameGroups[-1].isdigit() and not NameGroups[-2].isdigit():
                     NameGroups = '-'.join(NameGroups)
                     if re.search(searchjustletters, dname) is not None:  # for non-numbered WNs (eg. fruit names)
-                       JUST_NAMES_FLAG += 1
+                       namesflag += 1
                        n = re.search(searchjustletters, dname)
                        NodeInits = n.group(1)
                        NodeNr += 1
@@ -266,11 +286,11 @@ def read_pbsnodes_yaml(fin):
                 AllWNsRemappedDict[RemapNr] = []
                 if NodeNr > BiggestWrittenNode:
                     BiggestWrittenNode = NodeNr
-                if JUST_NAMES_FLAG <= 1:
+                if namesflag <= 1:
                     WNList.append(NodeNr)
                 WNListRemapped.append(RemapNr)
             elif re.search(searchjustletters, dname) is not None:  # for non-numbered WNs (eg. fruit names)
-                JUST_NAMES_FLAG += 1
+                namesflag += 1
                 n = re.search(searchjustletters, dname)
                 NodeInits = n.group(1)
                 NodeNr += 1
@@ -334,7 +354,7 @@ def read_pbsnodes_yaml(fin):
             if i not in AllWNsDict:
                 AllWNsDict[i] = '?'
 
-    if JUST_NAMES_FLAG <= 1:
+    if namesflag <= 1:
         WNList.sort()
         WNListRemapped.sort()
 
@@ -343,10 +363,11 @@ def read_pbsnodes_yaml(fin):
         options.BLINDREMAP = True 
     if len(WNList) < PERCENTAGE * BiggestWrittenNode: 
         options.BLINDREMAP = True
+    return ExistingNodes, WorkingCores, TotalCores, BiggestWrittenNode, AllWNsDict, WNListRemapped, AllWNsRemappedDict, RemapNr, MaxNP, WNList, namesflag
 
 
 def make_qstatq_yaml(fin, fout):
-    global TotalRuns, TotalQueues  # qstatqLst
+    # ex-global TotalRuns, TotalQueues #qstatqLst
     """
     read QSTATQ_ORIG_FILE sequentially and put useful data in respective yaml file
     """
@@ -371,6 +392,7 @@ def make_qstatq_yaml(fin, fout):
     fout.write('---\n')
     fout.write('Total Running: ' + str(TotalRuns) + '\n')
     fout.write('Total Queued: ' + str(TotalQueues) + '\n')
+    return TotalRuns, TotalQueues
 
 
 def make_qstat_yaml(fin, fout):
@@ -437,6 +459,7 @@ def job_accounting_summary():
         print '=== WARNING: --- Remapping WN names and retrying heuristics... good luck with this... ---'
     print '\nPBS report tool. Please try: watch -d ' + QTOPPATH + '. All bugs added by sfranky@gmail.com. Cross fingers now...\n'
     print Colorize('===> ', '#') + Colorize('Job accounting summary', 'Nothing') + Colorize(' <=== ', '#') + Colorize('(Rev: 3000 $) %s WORKDIR = to be added', 'NoColourAccount') % (datetime.datetime.today()) #was: added\n
+    # import pdb;pdb.set_trace()
     print 'Usage Totals:\t%s/%s\t Nodes | %s/%s  Cores |   %s+%s jobs (R + Q) reported by qstat -q' % (ExistingNodes - OfflineDownNodes, ExistingNodes, WorkingCores, TotalCores, int(TotalRuns), int(TotalQueues))
     print 'Queues: | ',
     if options.COLOR == 'ON':
@@ -517,7 +540,8 @@ def calculate_Total_WNIDLine_Width(WNnumber): # (RemapNr) in case of multiple No
     h0100 is the hundreds' line
     and so on
     '''
-    global h1000, h0100, h0010, h0001
+    # global h1000, h0100, h0010, h0001
+    h1000, h0100, h0010, h0001 = '','','',''
 
     if WNnumber < 10:
         u_ = '123456789'
@@ -578,6 +602,7 @@ def calculate_Total_WNIDLine_Width(WNnumber): # (RemapNr) in case of multiple No
 
         uc = '1234567890' * 1000
         h0001 = uc[:WNnumber]
+    return h1000, h0100, h0010, h0001
 
     
 def find_Matrices_Width(WNnumber, WNList):
@@ -611,14 +636,14 @@ def find_Matrices_Width(WNnumber, WNList):
 
 
 def print_WN_ID_lines(start, stop, WNnumber): # WNnumber determines the number of WN ID lines needed  (1/2/3/4?)
-    global h1000, h0100, h0010, h0001
+    # global h1000, h0100, h0010, h0001
     '''
     h1000 is a header for the 'thousands',
     h0100 is a header for the 'hundreds',
     h0010 is a header for the 'tens',
     h0001 is a header for the 'units' in the WN_ID lines
     '''
-    global JUST_NAMES_FLAG
+    # global JUST_NAMES_FLAG
     JustNameDict = {}
     if JUST_NAMES_FLAG <= 1:  # normal case, numbered WNs
         if WNnumber < 10:
@@ -673,6 +698,20 @@ CONFIGFILE = os.path.expanduser('~/qtop/qtop/qtop.conf')
 qtopconf = open(CONFIGFILE, 'r')
 exec qtopconf
 
+
+dir = SOURCEDIR
+# import pdb; pdb.set_trace()
+
+os.chdir(dir)
+
+# Location of read and created files
+PBSNODES_ORIG_FILE = [file for file in os.listdir(os.getcwd()) if file.startswith('pbsnodes') and not file.endswith('.yaml')][0]
+QSTATQ_ORIG_FILE = [file for file in os.listdir(os.getcwd()) if (file.startswith('qstat_q') or file.startswith('qstatq') or file.startswith('qstat-q') and not file.endswith('.yaml'))][0]
+QSTAT_ORIG_FILE = [file for file in os.listdir(os.getcwd()) if file.startswith('qstat.') and not file.endswith('.yaml')][0]
+#PBSNODES_ORIG_FILE = 'pbsnodes.out'
+#QSTATQ_ORIG_FILE = 'qstat-q.out'
+#QSTAT_ORIG_FILE = 'qstat.out'
+
 reset_yaml_files()
 yamlstream1 = open(PBSNODES_YAML_FILE, 'a')
 yamlstream2 = open(QSTATQ_YAML_FILE, 'a')
@@ -686,9 +725,9 @@ if not os.path.getsize(PBSNODES_ORIG_FILE) > 0:
     # continue
 else:
     fin1 = open(PBSNODES_ORIG_FILE, 'r')
-make_pbsnodes_yaml(fin1, yamlstream1)
+OfflineDownNodes = make_pbsnodes_yaml(fin1, yamlstream1)
 yamlstream1 = open(PBSNODES_YAML_FILE, 'r')
-read_pbsnodes_yaml(yamlstream1)
+ExistingNodes, WorkingCores, TotalCores, BiggestWrittenNode, AllWNsDict, WNListRemapped, AllWNsRemappedDict, RemapNr, MaxNP, WNList, JUST_NAMES_FLAG = read_pbsnodes_yaml(yamlstream1, JUST_NAMES_FLAG)
 yamlstream1.close()
 
 if not os.path.getsize(QSTATQ_ORIG_FILE) > 0:  
@@ -699,7 +738,7 @@ if not os.path.getsize(QSTATQ_ORIG_FILE) > 0:
     # continue
 else:
     fin2 = open(QSTATQ_ORIG_FILE, 'r')
-make_qstatq_yaml(fin2, yamlstream2)
+TotalRuns, TotalQueues = make_qstatq_yaml(fin2, yamlstream2)
 fin2.close()
 yamlstream2.close()
 
@@ -716,6 +755,7 @@ fin3.close()
 yamlstream3.close()
 # print dir
 
+JobIds, UnixAccounts, Statuses, Queues = [], [], [], []  # for read_qstat()
 read_qstat()
 os.chdir(dir)
 dir = os.getcwd()
@@ -772,21 +812,21 @@ for unixaccount in Usersortedlst:
 
 # this calculates and prints what is actually below the 
 # id|  R + Q /all | unix account etc line
-for id in IdOfUnixAccount:
-    if id not in RunningOfUser:
-        RunningOfUser[id] = 0
-    if id not in QueuedOfUser:
-        QueuedOfUser[id] = 0
-    if id not in CancelledOfUser:
-        CancelledOfUser[id] = 0
-    if id not in WaitingOfUser:
-        WaitingOfUser[id] = 0
-    if id not in ExitingOfUser:
-        ExitingOfUser[id] = 0
+for uid in IdOfUnixAccount:
+    if uid not in RunningOfUser:
+        RunningOfUser[uid] = 0
+    if uid not in QueuedOfUser:
+        QueuedOfUser[uid] = 0
+    if uid not in CancelledOfUser:
+        CancelledOfUser[uid] = 0
+    if uid not in WaitingOfUser:
+        WaitingOfUser[uid] = 0
+    if uid not in ExitingOfUser:
+        ExitingOfUser[uid] = 0
 
 
-for id in Usersortedlst:  # IdOfUnixAccount:
-    AccountsMappings.append([IdOfUnixAccount[id[0]], RunningOfUser[id[0]], QueuedOfUser[id[0]], CancelledOfUser[id[0]] + RunningOfUser[id[0]] + QueuedOfUser[id[0]] + WaitingOfUser[id[0]] + ExitingOfUser[id[0]], id])
+for uid in Usersortedlst:  # IdOfUnixAccount:
+    AccountsMappings.append([IdOfUnixAccount[uid[0]], RunningOfUser[uid[0]], QueuedOfUser[uid[0]], CancelledOfUser[uid[0]] + RunningOfUser[uid[0]] + QueuedOfUser[uid[0]] + WaitingOfUser[uid[0]] + ExitingOfUser[uid[0]], uid])
 AccountsMappings.sort(key=itemgetter(3), reverse=True)
 ####################################################
 
@@ -816,13 +856,13 @@ Otherwise, for uniform WNs, i.e. all using the same numbering scheme, wn01, wn02
 Number of Extra tables needed is calculated inside the calculate_Total_WNIDLine_Width function below
 '''
 if options.BLINDREMAP or len(NodeSubClusters) > 1:
-    calculate_Total_WNIDLine_Width(RemapNr)
+    h1000, h0100, h0010, h0001 = calculate_Total_WNIDLine_Width(RemapNr)
     for node in AllWNsRemappedDict:
         NodeState += AllWNsRemappedDict[node][0]
     (PrintStart, PrintEnd, NrOfExtraMatrices) = find_Matrices_Width(RemapNr, WNListRemapped)
     print_WN_ID_lines(PrintStart, PrintEnd, RemapNr)
 else: # len(NodeSubClusters) == 1 AND options.BLINDREMAP false 
-    calculate_Total_WNIDLine_Width(BiggestWrittenNode)
+    h1000, h0100, h0010, h0001 = calculate_Total_WNIDLine_Width(BiggestWrittenNode)
     for node in AllWNsDict:
         NodeState += AllWNsDict[node][0]
     (PrintStart, PrintEnd, NrOfExtraMatrices) = find_Matrices_Width(BiggestWrittenNode, WNList)
@@ -906,3 +946,4 @@ for line in AccountsMappings:
 print '\nThanks for watching!'
 
 os.chdir(dir)
+# pycallgraph.make_dot_graph('qtop.png')
