@@ -1,0 +1,2 @@
+UserOfJobId = {}
+qstatqLst = []
