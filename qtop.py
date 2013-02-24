@@ -10,6 +10,7 @@
 """
 changelog:
 =========
+0.6.7: created yaml files now have the pid appended to the filename
 0.6.6: got rid of all global variables (experimental)
 0.6.5: PBS now supported
 0.6.4: lines that don't contain *any* actual core are now not printed in the matrices.
@@ -513,7 +514,7 @@ def fill_cpucore_columns(value, CPUDict):
                 CPUDict['Cpu' + str(core) + 'line'] += '#'
 
 
-def insert(original, separator, pos, stopaftern = 0):
+def insert_sep(original, separator, pos, stopaftern = 0):
     '''
     insert separator into original (string) every posth position, optionally stopping after stopafter times.
     '''
@@ -647,22 +648,22 @@ def print_WN_ID_lines(start, stop, WNnumber): # WNnumber determines the number o
     JustNameDict = {}
     if JUST_NAMES_FLAG <= 1:  # normal case, numbered WNs
         if WNnumber < 10:
-            print insert(h0001[start:stop], SEPARATOR, options.WN_COLON) + '={__WNID__}'
+            print insert_sep(h0001[start:stop], SEPARATOR, options.WN_COLON) + '={__WNID__}'
 
         elif WNnumber < 100:
-            print insert(h0010[start:stop], SEPARATOR, options.WN_COLON) + '={_Worker_}'
-            print insert(h0001[start:stop], SEPARATOR, options.WN_COLON) + '={__Node__}'
+            print insert_sep(h0010[start:stop], SEPARATOR, options.WN_COLON) + '={_Worker_}'
+            print insert_sep(h0001[start:stop], SEPARATOR, options.WN_COLON) + '={__Node__}'
 
         elif WNnumber < 1000:
-            print insert(h0100[start:stop], SEPARATOR, options.WN_COLON) + '={_Worker_}'
-            print insert(h0010[start:stop], SEPARATOR, options.WN_COLON) + '={__Node__}'
-            print insert(h0001[start:stop], SEPARATOR, options.WN_COLON) + '={___ID___}'
+            print insert_sep(h0100[start:stop], SEPARATOR, options.WN_COLON) + '={_Worker_}'
+            print insert_sep(h0010[start:stop], SEPARATOR, options.WN_COLON) + '={__Node__}'
+            print insert_sep(h0001[start:stop], SEPARATOR, options.WN_COLON) + '={___ID___}'
 
         elif WNnumber > 1000:
-            print insert(h1000[start:stop], SEPARATOR, options.WN_COLON) + '={________}'
-            print insert(h0100[start:stop], SEPARATOR, options.WN_COLON) + '={_Worker_}'
-            print insert(h0010[start:stop], SEPARATOR, options.WN_COLON) + '={__Node__}'
-            print insert(h0001[start:stop], SEPARATOR, options.WN_COLON) + '={___ID___}'
+            print insert_sep(h1000[start:stop], SEPARATOR, options.WN_COLON) + '={________}'
+            print insert_sep(h0100[start:stop], SEPARATOR, options.WN_COLON) + '={_Worker_}'
+            print insert_sep(h0010[start:stop], SEPARATOR, options.WN_COLON) + '={__Node__}'
+            print insert_sep(h0001[start:stop], SEPARATOR, options.WN_COLON) + '={___ID___}'
     elif JUST_NAMES_FLAG > 1 or options.FORCE_NAMES == True: # names (e.g. fruits) instead of numbered WNs
         colour = 0
         Highlight = {0: 'cmsplt', 1: 'Red'}
@@ -699,23 +700,23 @@ qtopconf = open(CONFIGFILE, 'r')
 exec qtopconf
 
 
-dir = SOURCEDIR
+# dir = SOURCEDIR
 # import pdb; pdb.set_trace()
 
-os.chdir(dir)
+os.chdir(SOURCEDIR)
 
 # Location of read and created files
-PBSNODES_ORIG_FILE = [file for file in os.listdir(os.getcwd()) if file.startswith('pbsnodes') and not file.endswith('.yaml')][0]
-QSTATQ_ORIG_FILE = [file for file in os.listdir(os.getcwd()) if (file.startswith('qstat_q') or file.startswith('qstatq') or file.startswith('qstat-q') and not file.endswith('.yaml'))][0]
-QSTAT_ORIG_FILE = [file for file in os.listdir(os.getcwd()) if file.startswith('qstat.') and not file.endswith('.yaml')][0]
+### also in qtop.conf ### PBSNODES_ORIG_FILE = [file for file in os.listdir(os.getcwd()) if file.startswith('pbsnodes') and not file.endswith('.yaml')][0]
+### also in qtop.conf ### QSTATQ_ORIG_FILE = [file for file in os.listdir(os.getcwd()) if (file.startswith('qstat_q') or file.startswith('qstatq') or file.startswith('qstat-q') and not file.endswith('.yaml'))][0]
+### also in qtop.conf ### QSTAT_ORIG_FILE = [file for file in os.listdir(os.getcwd()) if file.startswith('qstat.') and not file.endswith('.yaml')][0]
 #PBSNODES_ORIG_FILE = 'pbsnodes.out'
 #QSTATQ_ORIG_FILE = 'qstat-q.out'
 #QSTAT_ORIG_FILE = 'qstat.out'
 
 reset_yaml_files()
-yamlstream1 = open(PBSNODES_YAML_FILE, 'a')
-yamlstream2 = open(QSTATQ_YAML_FILE, 'a')
-yamlstream3 = open(QSTAT_YAML_FILE, 'a')
+PBSNodesYamlFout = open(PBSNODES_YAML_FILE, 'a')
+QSTATQYamlFout = open(QSTATQ_YAML_FILE, 'a')
+QSTATYamlFout = open(QSTAT_YAML_FILE, 'a')
 
 if not os.path.getsize(PBSNODES_ORIG_FILE) > 0:  
     print 'Bailing out... Not yet ready for Sun Grid Engine clusters'
@@ -724,11 +725,12 @@ if not os.path.getsize(PBSNODES_ORIG_FILE) > 0:
     # os.chdir('..')
     # continue
 else:
-    fin1 = open(PBSNODES_ORIG_FILE, 'r')
-OfflineDownNodes = make_pbsnodes_yaml(fin1, yamlstream1)
-yamlstream1 = open(PBSNODES_YAML_FILE, 'r')
-ExistingNodes, WorkingCores, TotalCores, BiggestWrittenNode, AllWNsDict, WNListRemapped, AllWNsRemappedDict, RemapNr, MaxNP, WNList, JUST_NAMES_FLAG = read_pbsnodes_yaml(yamlstream1, JUST_NAMES_FLAG)
-yamlstream1.close()
+    pbsnodesfin = open(PBSNODES_ORIG_FILE, 'r')
+
+OfflineDownNodes = make_pbsnodes_yaml(pbsnodesfin, PBSNodesYamlFout)
+PBSNodesYamlFout = open(PBSNODES_YAML_FILE, 'r')
+ExistingNodes, WorkingCores, TotalCores, BiggestWrittenNode, AllWNsDict, WNListRemapped, AllWNsRemappedDict, RemapNr, MaxNP, WNList, JUST_NAMES_FLAG = read_pbsnodes_yaml(PBSNodesYamlFout, JUST_NAMES_FLAG)
+PBSNodesYamlFout.close()
 
 if not os.path.getsize(QSTATQ_ORIG_FILE) > 0:  
     print 'Your ' + QSTATQ_ORIG_FILE + ' file is empty! Please check your directory. Exiting ...'
@@ -737,10 +739,10 @@ if not os.path.getsize(QSTATQ_ORIG_FILE) > 0:
     # os.chdir('..')
     # continue
 else:
-    fin2 = open(QSTATQ_ORIG_FILE, 'r')
-TotalRuns, TotalQueues = make_qstatq_yaml(fin2, yamlstream2)
-fin2.close()
-yamlstream2.close()
+    qstatqfin = open(QSTATQ_ORIG_FILE, 'r')
+TotalRuns, TotalQueues = make_qstatq_yaml(qstatqfin, QSTATQYamlFout)
+qstatqfin.close()
+QSTATQYamlFout.close()
 
 if not os.path.getsize(QSTAT_ORIG_FILE) > 0:  
     print 'Your ' + QSTAT_ORIG_FILE + ' file is empty! Please check your directory. Exiting ...'
@@ -749,16 +751,16 @@ if not os.path.getsize(QSTAT_ORIG_FILE) > 0:
     # os.chdir('..')
     # continue
 else:
-    fin3 = open(QSTAT_ORIG_FILE, 'r')
-make_qstat_yaml(fin3, yamlstream3)
-fin3.close()
-yamlstream3.close()
+    qstatfin = open(QSTAT_ORIG_FILE, 'r')
+make_qstat_yaml(qstatfin, QSTATYamlFout)
+qstatfin.close()
+QSTATYamlFout.close()
 # print dir
 
 JobIds, UnixAccounts, Statuses, Queues = [], [], [], []  # for read_qstat()
-read_qstat()
-os.chdir(dir)
-dir = os.getcwd()
+read_qstat() # populates the above 4 lists
+os.chdir(SOURCEDIR)
+# direct = os.getcwd()
 
 
 #Calculation of split screen size
@@ -784,11 +786,11 @@ for user, status in zip(UnixAccounts, Statuses):
     elif status == 'E':
         WaitingOfUser[user] = ExitingOfUser.get(user, 0) + 1
 
-for account in RunningOfUser:
-    QueuedOfUser.setdefault(account, 0)
-    CancelledOfUser.setdefault(account, 0)
-    WaitingOfUser.setdefault(account, 0)
-    ExitingOfUser.setdefault(account, 0)
+for UserAccount in RunningOfUser:
+    QueuedOfUser.setdefault(UserAccount, 0)
+    CancelledOfUser.setdefault(UserAccount, 0)
+    WaitingOfUser.setdefault(UserAccount, 0)
+    ExitingOfUser.setdefault(UserAccount, 0)
 
 OccurenceDict = {}
 for user in UnixAccounts:
@@ -802,9 +804,13 @@ In case there are more users than the sum number of all numbers and
 small/capital letters of the alphabet 
 '''
 j = 0
-if len(Usersortedlst)>62: 
-    for i in xrange(62, len(Usersortedlst)+62):
+# if len(Usersortedlst) > 62: 
+if len(Usersortedlst) > 87: 
+    for i in xrange(87, len(Usersortedlst) + 87):
+    # for i in xrange(62, len(Usersortedlst) + 62):
         POSSIBLE_IDS.append(str(i)[0])
+
+
 
 for unixaccount in Usersortedlst:
     IdOfUnixAccount[unixaccount[0]] = POSSIBLE_IDS[j]
@@ -869,7 +875,7 @@ else: # len(NodeSubClusters) == 1 AND options.BLINDREMAP false
     print_WN_ID_lines(PrintStart, PrintEnd, BiggestWrittenNode)
 
 
-print insert(NodeState[PrintStart:PrintEnd], SEPARATOR, options.WN_COLON) + '=Node state'
+print insert_sep(NodeState[PrintStart:PrintEnd], SEPARATOR, options.WN_COLON) + '=Node state'
 
 ################ Node State ######################
 
@@ -884,7 +890,7 @@ AccountNrlessOfId['_'] = '_'
 AccountNrlessOfId[SEPARATOR] = 'NoColourAccount'
 
 for ind, k in enumerate(CPUCoreDict):
-    ColourCPUCoreLst = list(insert(CPUCoreDict['Cpu' + str(ind) + 'line'][PrintStart:PrintEnd], SEPARATOR, options.WN_COLON))
+    ColourCPUCoreLst = list(insert_sep(CPUCoreDict['Cpu' + str(ind) + 'line'][PrintStart:PrintEnd], SEPARATOR, options.WN_COLON))
     ColourlessLineLen = len(''.join(ColourCPUCoreLst))
     ColourCPUCoreLst = [Colorize(elem, AccountNrlessOfId[elem]) for elem in ColourCPUCoreLst if elem in AccountNrlessOfId]
     line = ''.join(ColourCPUCoreLst)
@@ -915,9 +921,9 @@ for i in range(NrOfExtraMatrices):
         print_WN_ID_lines(PrintStart, PrintEnd, BiggestWrittenNode)
     if len(NodeSubClusters) > 1:
         print_WN_ID_lines(PrintStart, PrintEnd, RemapNr)
-    print insert(NodeState[PrintStart:PrintEnd], SEPARATOR, options.WN_COLON) + '=Node state'
+    print insert_sep(NodeState[PrintStart:PrintEnd], SEPARATOR, options.WN_COLON) + '=Node state'
     for ind, k in enumerate(CPUCoreDict):
-        ColourCPUCoreLst = list(insert(CPUCoreDict['Cpu' + str(ind) + 'line'][PrintStart:PrintEnd], SEPARATOR, options.WN_COLON))
+        ColourCPUCoreLst = list(insert_sep(CPUCoreDict['Cpu' + str(ind) + 'line'][PrintStart:PrintEnd], SEPARATOR, options.WN_COLON))
         ColourlessLineLen = len(''.join(ColourCPUCoreLst))
         ColourCPUCoreLst = [Colorize(elem, AccountNrlessOfId[elem]) for elem in ColourCPUCoreLst if elem in AccountNrlessOfId]
         line = ''.join(ColourCPUCoreLst)
@@ -945,5 +951,5 @@ for line in AccountsMappings:
 
 print '\nThanks for watching!'
 
-os.chdir(dir)
+os.chdir(SOURCEDIR)
 # pycallgraph.make_dot_graph('qtop.png')
