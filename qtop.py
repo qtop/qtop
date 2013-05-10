@@ -12,6 +12,10 @@ changelog:
 =========
 0.6.7: created yaml files now have the pid appended to the filename
        pbs-related functions (which create the respective yaml files) have moved to a dedicated module 
+       took out HighestCoreBusy, seemed useless (and unused)
+       a separate read_qstatq_yaml function added, for consistency (removed from qstatq2yaml)
+       change qstatqLst from list of tuples to list of dictionaries
+       OfflineDownNodes was moved from pbs.pbsnodes2yaml to read_pbsnodes_yaml 
 0.6.6: got rid of all global variables (experimental)
 0.6.5: PBS now supported
 0.6.4: lines that don't contain *any* actual core are now not printed in the matrices.
@@ -122,7 +126,7 @@ OutputDirs = []
 
 NodeState = ''
 
-IdOfUnixAccount = {}
+IdOfUserName = {}
 AccountsMappings = []  
 DIFFERENT_QSTAT_FORMAT_FLAG = 0
 
@@ -144,7 +148,7 @@ def read_pbsnodes_yaml(fin, namesflag):
     # ExistingNodes, OfflineDownNodes, WorkingCores, TotalCores, BiggestWrittenNode, NodeSubClusters, HighestCoreBusy
     NodeNr = 0 # ex-global
     AllWNsRemappedDict = {} # ex-global
-    BiggestWrittenNode, TotalCores, WorkingCores, HighestCoreBusy = 0, 0, 0, 0
+    BiggestWrittenNode, TotalCores, WorkingCores = 0, 0, 0 # , HighestCoreBusy = 0 useless?
     ExistingNodes, OfflineDownNodes = 0, 0
     AllWNsDict = {}
     WNListRemapped = []
@@ -242,6 +246,11 @@ def read_pbsnodes_yaml(fin, namesflag):
                 state += '-'
                 AllWNsDict[NodeNr].append('-')
                 AllWNsRemappedDict[RemapNr].append('-')
+            elif (nextchar == 'd') | (nextchar == 'o'):
+                state += nextchar
+                OfflineDownNodes += 1    
+                AllWNsDict[NodeNr].append(nextchar)
+                AllWNsRemappedDict[RemapNr].append(nextchar)
             else:
                 state += nextchar
                 AllWNsDict[NodeNr].append(nextchar)
@@ -255,16 +264,16 @@ def read_pbsnodes_yaml(fin, namesflag):
                 MaxNP = int(np)
             TotalCores += int(np)
 
-        elif 'core: ' in line:
+        elif ' core: ' in line: # this should also work for OAR's yaml file
             core = line.split(': ')[1].strip()
             WorkingCores += 1
-            if int(core) > int(HighestCoreBusy):
-                HighestCoreBusy = int(core)
+            # if int(core) > int(HighestCoreBusy): # HighestCoreBusy doesn't look like it's doing anything!!
+            #     HighestCoreBusy = int(core)
         elif 'job: ' in line:
             job = str(line.split(': ')[1]).strip()
             AllWNsDict[NodeNr].append((core, job))
             AllWNsRemappedDict[RemapNr].append((core, job))
-    HighestCoreBusy += 1
+    # HighestCoreBusy += 1
 
     '''
     fill in non-existent WN nodes (absent from pbsnodes file) with '?' and count them
@@ -287,41 +296,77 @@ def read_pbsnodes_yaml(fin, namesflag):
         options.BLINDREMAP = True 
     if len(WNList) < PERCENTAGE * BiggestWrittenNode: 
         options.BLINDREMAP = True
-    return ExistingNodes, WorkingCores, TotalCores, BiggestWrittenNode, AllWNsDict, WNListRemapped, AllWNsRemappedDict, RemapNr, MaxNP, WNList, namesflag
+    return ExistingNodes, WorkingCores, TotalCores, BiggestWrittenNode, AllWNsDict, WNListRemapped, AllWNsRemappedDict, RemapNr, MaxNP, WNList, namesflag, OfflineDownNodes
 
-def read_qstat():
+def read_qstat_yaml(QSTAT_YAML_FILE):
+    """
+    reads qstat YAML file and populates four lists. Returns the lists
+    """
+    JobIds, UserNames, Statuses, QueueNames = [], [], [], []
     finr = open(QSTAT_YAML_FILE, 'r')
     for line in finr:
         if line.startswith('JobId:'):
             JobIds.append(line.split()[1])
-        elif line.startswith('UnixAccount:'):
-            UnixAccounts.append(line.split()[1])
+        elif line.startswith('UserName:'):
+            UserNames.append(line.split()[1])
         elif line.startswith('S:'):
             Statuses.append(line.split()[1])
         elif line.startswith('Queue:'):
-            Queues.append(line.split()[1])
+            QueueNames.append(line.split()[1])
     finr.close()
+    # import pdb;pdb.set_trace()
+    return JobIds, UserNames, Statuses, QueueNames
 
+def read_qstatq_yaml(QSTATQ_YAML_FILE):
+    """
+    added for consistency. Originally instead of this function, 
+    the following existed in qstatq2yaml:
+    variables.qstatqLst.append((QueueName, Run, Queued, Lm, State))
+    """
+    templst = []
+    tempdict = {}
+    qstatqLst = []
+    finr = open(QSTATQ_YAML_FILE, 'r')
+    for line in finr:
+        line = line.strip()
+        if ' QueueName:' in line:
+            tempdict.setdefault('QueueName',line.split(': ')[1])
+        elif line.startswith('Running:'):
+            tempdict.setdefault('Running',line.split(': ')[1])
+        elif line.startswith('Queued:'):
+            tempdict.setdefault('Queued',line.split(': ')[1])
+        elif line.startswith('Lm:'):
+            tempdict.setdefault('Lm',line.split(': ')[1])
+        elif line.startswith('State:'):
+            tempdict.setdefault('State',line.split(': ')[1])
+        elif not line:
+            qstatqLst.append(tempdict)
+            tempdict = {}
+        elif '---' in line:
+            break
+    finr.close()
+    # import pdb;pdb.set_trace()
+    return qstatqLst
 
-def job_accounting_summary():
+def print_job_accounting_summary(ExistingNodes, OfflineDownNodes, WorkingCores, TotalCores, TotalRuns, TotalQueues, qstatqLst):
+    # import pdb;pdb.set_trace()
     if len(NodeSubClusters) > 1 or options.BLINDREMAP:
         print '=== WARNING: --- Remapping WN names and retrying heuristics... good luck with this... ---'
     print '\nPBS report tool. Please try: watch -d ' + QTOPPATH + '. All bugs added by sfranky@gmail.com. Cross fingers now...\n'
     print Colorize('===> ', '#') + Colorize('Job accounting summary', 'Nothing') + Colorize(' <=== ', '#') + Colorize('(Rev: 3000 $) %s WORKDIR = to be added', 'NoColourAccount') % (datetime.datetime.today()) #was: added\n
-    # import pdb;pdb.set_trace()
     print 'Usage Totals:\t%s/%s\t Nodes | %s/%s  Cores |   %s+%s jobs (R + Q) reported by qstat -q' % (ExistingNodes - OfflineDownNodes, ExistingNodes, WorkingCores, TotalCores, int(TotalRuns), int(TotalQueues))
     print 'Queues: | ',
+    # import pdb;pdb.set_trace()
     if options.COLOR == 'ON':
-        for queue in variables.qstatqLst:
-            if queue[0] in ColorOfAccount:
-                print Colorize(queue[0], queue[0]) + ': ' + Colorize(queue[1], queue[0]) + '+' + Colorize(queue[2], queue[0]) + ' |',        
+        for queue in qstatqLst:
+            if queue['QueueName'] in ColorOfAccount:
+                print Colorize(queue['QueueName'], queue['QueueName']) + ': ' + Colorize(queue['Running'], queue['QueueName']) + '+' + Colorize(queue['Queued'], queue['QueueName']) + ' |',        
             else:
-                print Colorize(queue[0], 'Nothing') + ': ' + Colorize(queue[1], 'Nothing') + '+' + Colorize(queue[2], 'Nothing') + ' |',
+                print Colorize(queue['QueueName'], 'Nothing') + ': ' + Colorize(queue['Running'], 'Nothing') + '+' + Colorize(queue['Queued'], 'Nothing') + ' |',
     else:    
-        for queue in variables.qstatqLst:
-            print queue[0] + ': ' + queue[1] + '+' + queue[2] + ' |',
+        for queue in qstatqLst:
+            print queue['QueueName'] + ': ' + queue['Running'] + '+' + queue['Queued'] + ' |',
     print '* implies blocked\n'
-
 
 def fill_cpucore_columns(value, CPUDict):
     '''
@@ -346,7 +391,7 @@ def fill_cpucore_columns(value, CPUDict):
                     variables.UserOfJobId[job]
                 except KeyError, KeyErrorValue:
                     print 'There seems to be a problem with the qstat output. A JobID has gone rogue (namely, ' + str(KeyErrorValue) +'). Please check with the System Administrator.'
-                CPUDict['Cpu' + str(Core) + 'line'] += str(IdOfUnixAccount[variables.UserOfJobId[job]])
+                CPUDict['Cpu' + str(Core) + 'line'] += str(IdOfUserName[variables.UserOfJobId[job]])
                 Busy.extend(Core)
                 OwnNPEmptyRange.remove(Core)
 
@@ -360,7 +405,6 @@ def fill_cpucore_columns(value, CPUDict):
             CPUDict['Cpu' + str(core) + 'line'] += '_'
         for core in NonExistentCores: 
                 CPUDict['Cpu' + str(core) + 'line'] += '#'
-
 
 def insert_sep(original, separator, pos, stopaftern = 0):
     '''
@@ -380,7 +424,6 @@ def insert_sep(original, separator, pos, stopaftern = 0):
         return sep
     else: # no separators
         return original
-
 
 def calculate_Total_WNIDLine_Width(WNnumber): # (RemapNr) in case of multiple NodeSubClusters
     '''
@@ -453,7 +496,6 @@ def calculate_Total_WNIDLine_Width(WNnumber): # (RemapNr) in case of multiple No
         h0001 = uc[:WNnumber]
     return h1000, h0100, h0010, h0001
 
-    
 def find_Matrices_Width(WNnumber, WNList):
     '''
     masking/clipping functionality: if the earliest node number is high (e.g. 130), the first 129 WNs need not show up.
@@ -482,7 +524,6 @@ def find_Matrices_Width(WNnumber, WNList):
     else: # just one matrix, small cluster!
         Stop = Start + WNnumber
         return (Start, Stop, 0)
-
 
 def print_WN_ID_lines(start, stop, WNnumber): # WNnumber determines the number of WN ID lines needed  (1/2/3/4?)
     # global h1000, h0100, h0010, h0001
@@ -532,14 +573,9 @@ def reset_yaml_files():
     """
     empties the files with every run of the python script
     """
-    fin1temp = open(PBSNODES_YAML_FILE, 'w')
-    fin1temp.close()
-
-    fin2temp = open(QSTATQ_YAML_FILE, 'w')
-    fin2temp.close()
-
-    fin3temp = open(QSTAT_YAML_FILE, 'w')
-    fin3temp.close()
+    for FILE in [PBSNODES_YAML_FILE, QSTATQ_YAML_FILE, QSTAT_YAML_FILE]:
+        fin = open(FILE, 'w')
+        fin.close()    
 
 ################ MAIN ###################################
 
@@ -554,47 +590,63 @@ PBSNodesYamlFout = open(PBSNODES_YAML_FILE, 'a')
 QSTATQYamlFout = open(QSTATQ_YAML_FILE, 'a')
 QSTATYamlFout = open(QSTAT_YAML_FILE, 'a')
 
-if not os.path.getsize(PBSNODES_ORIG_FILE) > 0:  
+if not os.path.getsize(variables.PBSNODES_ORIG_FILE) > 0:  
     print 'Bailing out... Not yet ready for Sun Grid Engine clusters'
     os.chdir(HOMEPATH + 'qt')
     sys.exit(0)
     # os.chdir('..')
     # continue
 else:
-    pbsnodesfin = open(PBSNODES_ORIG_FILE, 'r')
+    pbsnodesfin = open(variables.PBSNODES_ORIG_FILE, 'r')
 
-OfflineDownNodes = pbs.make_pbsnodes_yaml(pbsnodesfin, PBSNodesYamlFout)
+pbs.pbsnodes2yaml(pbsnodesfin, PBSNodesYamlFout)
+
 PBSNodesYamlFout = open(PBSNODES_YAML_FILE, 'r')
-ExistingNodes, WorkingCores, TotalCores, BiggestWrittenNode, AllWNsDict, WNListRemapped, AllWNsRemappedDict, RemapNr, MaxNP, WNList, JUST_NAMES_FLAG = read_pbsnodes_yaml(PBSNodesYamlFout, JUST_NAMES_FLAG)
+
+(ExistingNodes, 
+WorkingCores, 
+TotalCores, 
+BiggestWrittenNode, 
+AllWNsDict, 
+WNListRemapped, 
+AllWNsRemappedDict, 
+RemapNr, 
+MaxNP, 
+WNList, 
+JUST_NAMES_FLAG,
+variables.OfflineDownNodes) = read_pbsnodes_yaml(PBSNodesYamlFout, JUST_NAMES_FLAG)
 PBSNodesYamlFout.close()
 
-if not os.path.getsize(QSTATQ_ORIG_FILE) > 0:  
-    print 'Your ' + QSTATQ_ORIG_FILE + ' file is empty! Please check your directory. Exiting ...'
+if not os.path.getsize(variables.QSTATQ_ORIG_FILE) > 0:  
+    print 'Your ' + variables.QSTATQ_ORIG_FILE + ' file is empty! Please check your directory. Exiting ...'
     os.chdir(HOMEPATH + 'qt')
     sys.exit(0)
     # os.chdir('..')
     # continue
 else:
-    qstatqfin = open(QSTATQ_ORIG_FILE, 'r')
-TotalRuns, TotalQueues = pbs.make_qstatq_yaml(qstatqfin, QSTATQYamlFout)
+    qstatqfin = open(variables.QSTATQ_ORIG_FILE, 'r')
+TotalRuns, TotalQueues = pbs.qstatq2yaml(qstatqfin, QSTATQYamlFout)
 qstatqfin.close()
 QSTATQYamlFout.close()
+variables.qstatqLst = read_qstatq_yaml(QSTATQ_YAML_FILE)
+# import pdb;pdb.set_trace()
 
-if not os.path.getsize(QSTAT_ORIG_FILE) > 0:  
-    print 'Your ' + QSTAT_ORIG_FILE + ' file is empty! Please check your directory. Exiting ...'
+if not os.path.getsize(variables.QSTAT_ORIG_FILE) > 0:  
+    print 'Your ' + variables.QSTAT_ORIG_FILE + ' file is empty! Please check your directory. Exiting ...'
     os.chdir(HOMEPATH + 'qt')
     sys.exit(0)
     # os.chdir('..')
     # continue
 else:
-    qstatfin = open(QSTAT_ORIG_FILE, 'r')
-pbs.make_qstat_yaml(qstatfin, QSTATYamlFout)
+    qstatfin = open(variables.QSTAT_ORIG_FILE, 'r')
+pbs.qstat2yaml(qstatfin, QSTATYamlFout)
 qstatfin.close()
 QSTATYamlFout.close()
-# print dir
 
-JobIds, UnixAccounts, Statuses, Queues = [], [], [], []  # for read_qstat()
-read_qstat() # populates the above 4 lists
+JobIds, UserNames, Statuses, QueueNames = read_qstat_yaml(QSTAT_YAML_FILE) # populates 4 lists
+for username, jobid in zip(UserNames, JobIds):
+    variables.UserOfJobId[jobid] = username
+
 os.chdir(SOURCEDIR)
 # direct = os.getcwd()
 
@@ -605,33 +657,34 @@ TermColumns = int(TermColumns)
 
 DEADWEIGHT = 15  # standard columns' width on the right of the CoreX map
 
-job_accounting_summary()
+print_job_accounting_summary(ExistingNodes, variables.OfflineDownNodes, WorkingCores, TotalCores, TotalRuns, TotalQueues,variables.qstatqLst)
 
-# counting of R, Q, C attached to each user
+# counting of R, Q, C, W, E attached to each user
 RunningOfUser, QueuedOfUser, CancelledOfUser, WaitingOfUser, ExitingOfUser = {}, {}, {}, {}, {}
 
-for user, status in zip(UnixAccounts, Statuses):
+for UserName, status in zip(UserNames, Statuses):
     if status == 'R':
-        RunningOfUser[user] = RunningOfUser.get(user, 0) + 1
+        RunningOfUser[UserName] = RunningOfUser.get(UserName, 0) + 1
     elif status == 'Q':
-        QueuedOfUser[user] = QueuedOfUser.get(user, 0) + 1
+        QueuedOfUser[UserName] = QueuedOfUser.get(UserName, 0) + 1
     elif status == 'C':
-        CancelledOfUser[user] = CancelledOfUser.get(user, 0) + 1
+        CancelledOfUser[UserName] = CancelledOfUser.get(UserName, 0) + 1
     elif status == 'W':
-        WaitingOfUser[user] = WaitingOfUser.get(user, 0) + 1
+        WaitingOfUser[UserName] = WaitingOfUser.get(UserName, 0) + 1
     elif status == 'E':
-        WaitingOfUser[user] = ExitingOfUser.get(user, 0) + 1
+        WaitingOfUser[UserName] = ExitingOfUser.get(UserName, 0) + 1
 
-for UserAccount in RunningOfUser:
-    QueuedOfUser.setdefault(UserAccount, 0)
-    CancelledOfUser.setdefault(UserAccount, 0)
-    WaitingOfUser.setdefault(UserAccount, 0)
-    ExitingOfUser.setdefault(UserAccount, 0)
+for UserName in RunningOfUser:
+    QueuedOfUser.setdefault(UserName, 0)
+    CancelledOfUser.setdefault(UserName, 0)
+    WaitingOfUser.setdefault(UserName, 0)
+    ExitingOfUser.setdefault(UserName, 0)
 
+
+#produces the decrementing list of users in the user accounts and poolmappings table
 OccurenceDict = {}
-for user in UnixAccounts:
-    OccurenceDict[user] = UnixAccounts.count(user)
-
+for UserName in UserNames:
+    OccurenceDict[UserName] = UserNames.count(UserName)
 Usersortedlst = sorted(OccurenceDict.items(), key=itemgetter(1), reverse=True)
 
 
@@ -648,13 +701,13 @@ if len(Usersortedlst) > 87:
 
 
 
-for unixaccount in Usersortedlst:
-    IdOfUnixAccount[unixaccount[0]] = POSSIBLE_IDS[j]
+for UserName in Usersortedlst:
+    IdOfUserName[UserName[0]] = POSSIBLE_IDS[j]
     j += 1
 
 # this calculates and prints what is actually below the 
 # id|  R + Q /all | unix account etc line
-for uid in IdOfUnixAccount:
+for uid in IdOfUserName:
     if uid not in RunningOfUser:
         RunningOfUser[uid] = 0
     if uid not in QueuedOfUser:
@@ -667,9 +720,10 @@ for uid in IdOfUnixAccount:
         ExitingOfUser[uid] = 0
 
 
-for uid in Usersortedlst:  # IdOfUnixAccount:
-    AccountsMappings.append([IdOfUnixAccount[uid[0]], RunningOfUser[uid[0]], QueuedOfUser[uid[0]], CancelledOfUser[uid[0]] + RunningOfUser[uid[0]] + QueuedOfUser[uid[0]] + WaitingOfUser[uid[0]] + ExitingOfUser[uid[0]], uid])
-AccountsMappings.sort(key=itemgetter(3), reverse=True)
+for uid in Usersortedlst:  # IdOfUserName:
+    AllOfUser = CancelledOfUser[uid[0]] + RunningOfUser[uid[0]] + QueuedOfUser[uid[0]] + WaitingOfUser[uid[0]] + ExitingOfUser[uid[0]]
+    AccountsMappings.append([IdOfUserName[uid[0]], RunningOfUser[uid[0]], QueuedOfUser[uid[0]], AllOfUser, uid])
+AccountsMappings.sort(key=itemgetter(3), reverse=True) # sort by All jobs
 ####################################################
 
 
@@ -788,4 +842,3 @@ for line in AccountsMappings:
 print '\nThanks for watching!'
 
 os.chdir(SOURCEDIR)
-# pycallgraph.make_dot_graph('qtop.png')
