@@ -1,4 +1,4 @@
-ColorOfAccount = {
+gitColorOfAccount = {
     'Atlassm':   'Red_L',
     'sgmatlas':  'Red_L',
     'patlas':    'Red_L',

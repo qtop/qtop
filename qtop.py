@@ -86,6 +86,7 @@ import sys
 # modules
 import pbs
 import variables
+import colormap
 
 parser = OptionParser() # for more details see http://docs.python.org/library/optparse.html
 parser.add_option("-a", "--blindremapping", action="store_true", dest="BLINDREMAP", default=False, help="This is used in situations where node names are not a pure arithmetic sequence (eg. rocks clusters)")
@@ -101,8 +102,8 @@ parser.add_option("-F", "--ForceNames", action="store_true", dest="FORCE_NAMES",
 
 if not options.COLORFILE:
     options.COLORFILE = os.path.expanduser('~/qtop/qtop/qtop.colormap')
-qtopcolormap = open(options.COLORFILE, 'r')
-exec qtopcolormap
+# qtopcolormap = open(options.COLORFILE, 'r')
+# exec qtopcolormap
 
 
 def Colorize(text, pattern):
