@@ -84,7 +84,7 @@ import os
 import re
 import sys
 # modules
-import pbs
+from pbs import make_pbsnodes_yaml, make_qstatq_yaml, make_qstat_yaml
 import variables
 from colormap import color_of_account, code_of_color
 import yaml
@@ -138,7 +138,7 @@ MaxNPRange = []
 AccountNrlessOfId = {}
 ####################################################
 
-def read_pbsnodes_yaml(fin, namesflag):
+def read_pbsnodes_yaml(yaml_file, namesflag):
     '''
     extracts highest node number, online nodes
     '''
@@ -154,127 +154,128 @@ def read_pbsnodes_yaml(fin, namesflag):
     AllWNsDict = {}
     WNListRemapped = []
     state = ''
-    for line in fin:
-        line.strip()
-        searchdname = 'domainname: ' + '(\w+-?\w+([.-]\w+)*)'
-        searchnodenr = '([A-Za-z0-9-]+)(?=\.|$)'
-        searchnodenrfind = '[A-Za-z]+|[0-9]+|[A-Za-z]+[0-9]+'
-        searchjustletters = '(^[A-Za-z-]+)'
-        if re.search(searchdname, line) is not None:   # line contains domain name
-            m = re.search(searchdname, line)
-            dname = m.group(1)
-            RemapNr += 1
-            '''
-            extract highest node number, online nodes
-            '''
-            ExistingNodes += 1    # nodes as recorded on PBSNODES_ORIG_FILE
-            if re.search(searchnodenr, dname) is not None:  # if a number and domain are found
-                n = re.search(searchnodenr, dname)
-                NodeInits = n.group(0)
-                NameGroups = re.findall(searchnodenrfind, NodeInits)
-                NodeInits = '-'.join(NameGroups[0:-1])
-                if NameGroups[-1].isdigit():
-                    NodeNr = int(NameGroups[-1])
-                elif len(NameGroups) == 1: # if e.g. WN name is just 'gridmon'
-                    if re.search(searchjustletters, dname) is not None:  # for non-numbered WNs (eg. fruit names)
-                        namesflag += 1
-                        n = re.search(searchjustletters, dname)
-                        NodeInits = n.group(1)
-                        NodeNr += 1
-                        NodeSubClusters.add(NodeInits)    # for non-uniform setups of WNs, eg g01... and n01...
-                        AllWNsDict[NodeNr] = []
-                        AllWNsRemappedDict[RemapNr] = []
-                        if NodeNr > BiggestWrittenNode:
-                            BiggestWrittenNode = NodeNr
-                        WNList.append(NodeInits)
-                        # import pdb; pdb.set_trace()
-                        WNList[:] = [UnNumberedWN.rjust(len(max(WNList))) for UnNumberedWN in WNList if type(UnNumberedWN) is str ]
-                        WNListRemapped.append(RemapNr)                    
-                elif len(NameGroups) == 2 and not NameGroups[-1].isdigit() and not NameGroups[-2].isdigit():
-                    NameGroups = '-'.join(NameGroups)
-                    if re.search(searchjustletters, dname) is not None:  # for non-numbered WNs (eg. fruit names)
-                       namesflag += 1
-                       n = re.search(searchjustletters, dname)
-                       NodeInits = n.group(1)
-                       NodeNr += 1
-                       NodeSubClusters.add(NodeInits)    # for non-uniform setups of WNs, eg g01... and n01...
-                       AllWNsDict[NodeNr] = []
-                       AllWNsRemappedDict[RemapNr] = []
-                       if NodeNr > BiggestWrittenNode:
-                           BiggestWrittenNode = NodeNr
-                       WNList.append(NodeInits)
-                       WNList[:] = [UnNumberedWN.rjust(len(max(WNList))) for UnNumberedWN in WNList if type(UnNumberedWN) is str ]
-                       WNListRemapped.append(RemapNr)                                  
-                elif NameGroups[-2].isdigit():
-                    NodeNr = int(NameGroups[-2])
+    with open(yaml_file, 'r') as fin:
+        for line in fin:
+            line.strip()
+            searchdname = 'domainname: ' + '(\w+-?\w+([.-]\w+)*)'
+            searchnodenr = '([A-Za-z0-9-]+)(?=\.|$)'
+            searchnodenrfind = '[A-Za-z]+|[0-9]+|[A-Za-z]+[0-9]+'
+            searchjustletters = '(^[A-Za-z-]+)'
+            if re.search(searchdname, line) is not None:   # line contains domain name
+                m = re.search(searchdname, line)
+                dname = m.group(1)
+                RemapNr += 1
+                '''
+                extract highest node number, online nodes
+                '''
+                ExistingNodes += 1    # nodes as recorded on PBSNODES_ORIG_FILE
+                if re.search(searchnodenr, dname) is not None:  # if a number and domain are found
+                    n = re.search(searchnodenr, dname)
+                    NodeInits = n.group(0)
+                    NameGroups = re.findall(searchnodenrfind, NodeInits)
+                    NodeInits = '-'.join(NameGroups[0:-1])
+                    if NameGroups[-1].isdigit():
+                        NodeNr = int(NameGroups[-1])
+                    elif len(NameGroups) == 1: # if e.g. WN name is just 'gridmon'
+                        if re.search(searchjustletters, dname) is not None:  # for non-numbered WNs (eg. fruit names)
+                            namesflag += 1
+                            n = re.search(searchjustletters, dname)
+                            NodeInits = n.group(1)
+                            NodeNr += 1
+                            NodeSubClusters.add(NodeInits)    # for non-uniform setups of WNs, eg g01... and n01...
+                            AllWNsDict[NodeNr] = []
+                            AllWNsRemappedDict[RemapNr] = []
+                            if NodeNr > BiggestWrittenNode:
+                                BiggestWrittenNode = NodeNr
+                            WNList.append(NodeInits)
+                            # import pdb; pdb.set_trace()
+                            WNList[:] = [UnNumberedWN.rjust(len(max(WNList))) for UnNumberedWN in WNList if type(UnNumberedWN) is str ]
+                            WNListRemapped.append(RemapNr)
+                    elif len(NameGroups) == 2 and not NameGroups[-1].isdigit() and not NameGroups[-2].isdigit():
+                        NameGroups = '-'.join(NameGroups)
+                        if re.search(searchjustletters, dname) is not None:  # for non-numbered WNs (eg. fruit names)
+                           namesflag += 1
+                           n = re.search(searchjustletters, dname)
+                           NodeInits = n.group(1)
+                           NodeNr += 1
+                           NodeSubClusters.add(NodeInits)    # for non-uniform setups of WNs, eg g01... and n01...
+                           AllWNsDict[NodeNr] = []
+                           AllWNsRemappedDict[RemapNr] = []
+                           if NodeNr > BiggestWrittenNode:
+                               BiggestWrittenNode = NodeNr
+                           WNList.append(NodeInits)
+                           WNList[:] = [UnNumberedWN.rjust(len(max(WNList))) for UnNumberedWN in WNList if type(UnNumberedWN) is str ]
+                           WNListRemapped.append(RemapNr)
+                    elif NameGroups[-2].isdigit():
+                        NodeNr = int(NameGroups[-2])
+                    else:
+                        NodeNr = int(NameGroups[-3])
+                    # print 'NamedGroups are: ', NameGroups #####DEBUGPRINT2
+                    NodeSubClusters.add(NodeInits)    # for non-uniform setups of WNs, eg g01... and n01...
+                    AllWNsDict[NodeNr] = []
+                    AllWNsRemappedDict[RemapNr] = []
+                    if NodeNr > BiggestWrittenNode:
+                        BiggestWrittenNode = NodeNr
+                    if namesflag <= 1:
+                        WNList.append(NodeNr)
+                    WNListRemapped.append(RemapNr)
+                elif re.search(searchjustletters, dname) is not None:  # for non-numbered WNs (eg. fruit names)
+                    namesflag += 1
+                    n = re.search(searchjustletters, dname)
+                    NodeInits = n.group(1)
+                    NodeNr += 1
+                    NodeSubClusters.add(NodeInits)    # for non-uniform setups of WNs, eg g01... and n01...
+                    AllWNsDict[NodeNr] = []
+                    AllWNsRemappedDict[RemapNr] = []
+                    if NodeNr > BiggestWrittenNode:
+                        BiggestWrittenNode = NodeNr
+                    WNList.append(NodeInits)
+                    WNList[:] = [UnNumberedWN.rjust(len(max(WNList))) for UnNumberedWN in WNList]
+                    WNListRemapped.append(RemapNr)
                 else:
-                    NodeNr = int(NameGroups[-3])
-                # print 'NamedGroups are: ', NameGroups #####DEBUGPRINT2  
-                NodeSubClusters.add(NodeInits)    # for non-uniform setups of WNs, eg g01... and n01...
-                AllWNsDict[NodeNr] = []
-                AllWNsRemappedDict[RemapNr] = []
-                if NodeNr > BiggestWrittenNode:
-                    BiggestWrittenNode = NodeNr
-                if namesflag <= 1:
+                    NodeNr = 0
+                    NodeInits = dname
+                    AllWNsDict[NodeNr] = []
+                    AllWNsRemappedDict[RemapNr] = []
+                    NodeSubClusters.add(NodeInits)    # for non-uniform setups of WNs, eg g01... and n01...
+                    if NodeNr > BiggestWrittenNode:
+                        BiggestWrittenNode = NodeNr + 1
                     WNList.append(NodeNr)
-                WNListRemapped.append(RemapNr)
-            elif re.search(searchjustletters, dname) is not None:  # for non-numbered WNs (eg. fruit names)
-                namesflag += 1
-                n = re.search(searchjustletters, dname)
-                NodeInits = n.group(1)
-                NodeNr += 1
-                NodeSubClusters.add(NodeInits)    # for non-uniform setups of WNs, eg g01... and n01...
-                AllWNsDict[NodeNr] = []
-                AllWNsRemappedDict[RemapNr] = []
-                if NodeNr > BiggestWrittenNode:
-                    BiggestWrittenNode = NodeNr
-                WNList.append(NodeInits)
-                WNList[:] = [UnNumberedWN.rjust(len(max(WNList))) for UnNumberedWN in WNList]
-                WNListRemapped.append(RemapNr)
-            else:
-                NodeNr = 0
-                NodeInits = dname
-                AllWNsDict[NodeNr] = []
-                AllWNsRemappedDict[RemapNr] = []
-                NodeSubClusters.add(NodeInits)    # for non-uniform setups of WNs, eg g01... and n01...
-                if NodeNr > BiggestWrittenNode:
-                    BiggestWrittenNode = NodeNr + 1
-                WNList.append(NodeNr)
-                WNListRemapped.append(RemapNr)
-        elif 'state: ' in line:
-            nextchar = line.split()[1].strip("'")
-            if nextchar == 'f':
-                state += '-'
-                AllWNsDict[NodeNr].append('-')
-                AllWNsRemappedDict[RemapNr].append('-')
-            elif (nextchar == 'd') | (nextchar == 'o'):
-                state += nextchar
-                OfflineDownNodes += 1    
-                AllWNsDict[NodeNr].append(nextchar)
-                AllWNsRemappedDict[RemapNr].append(nextchar)
-            else:
-                state += nextchar
-                AllWNsDict[NodeNr].append(nextchar)
-                AllWNsRemappedDict[RemapNr].append(nextchar)
+                    WNListRemapped.append(RemapNr)
+            elif 'state: ' in line:
+                nextchar = line.split()[1].strip("'")
+                if nextchar == 'f':
+                    state += '-'
+                    AllWNsDict[NodeNr].append('-')
+                    AllWNsRemappedDict[RemapNr].append('-')
+                elif (nextchar == 'd') | (nextchar == 'o'):
+                    state += nextchar
+                    OfflineDownNodes += 1
+                    AllWNsDict[NodeNr].append(nextchar)
+                    AllWNsRemappedDict[RemapNr].append(nextchar)
+                else:
+                    state += nextchar
+                    AllWNsDict[NodeNr].append(nextchar)
+                    AllWNsRemappedDict[RemapNr].append(nextchar)
 
-        elif 'np:' in line or 'pcpus:' in line:
-            np = line.split(': ')[1].strip()
-            AllWNsDict[NodeNr].append(np)
-            AllWNsRemappedDict[RemapNr].append(np)
-            if int(np) > int(MaxNP):
-                MaxNP = int(np)
-            TotalCores += int(np)
+            elif 'np:' in line or 'pcpus:' in line:
+                np = line.split(': ')[1].strip()
+                AllWNsDict[NodeNr].append(np)
+                AllWNsRemappedDict[RemapNr].append(np)
+                if int(np) > int(MaxNP):
+                    MaxNP = int(np)
+                TotalCores += int(np)
 
-        elif ' core: ' in line: # this should also work for OAR's yaml file
-            core = line.split(': ')[1].strip()
-            WorkingCores += 1
-            # if int(core) > int(HighestCoreBusy): # HighestCoreBusy doesn't look like it's doing anything!!
-            #     HighestCoreBusy = int(core)
-        elif 'job: ' in line:
-            job = str(line.split(': ')[1]).strip()
-            AllWNsDict[NodeNr].append((core, job))
-            AllWNsRemappedDict[RemapNr].append((core, job))
-    # HighestCoreBusy += 1
+            elif ' core: ' in line: # this should also work for OAR's yaml file
+                core = line.split(': ')[1].strip()
+                WorkingCores += 1
+                # if int(core) > int(HighestCoreBusy): # HighestCoreBusy doesn't look like it's doing anything!!
+                #     HighestCoreBusy = int(core)
+            elif 'job: ' in line:
+                job = str(line.split(': ')[1]).strip()
+                AllWNsDict[NodeNr].append((core, job))
+                AllWNsRemappedDict[RemapNr].append((core, job))
+        # HighestCoreBusy += 1
 
     '''
     fill in non-existent WN nodes (absent from pbsnodes file) with '?' and count them
@@ -304,18 +305,20 @@ def read_qstat_yaml(QSTAT_YAML_FILE):
     reads qstat YAML file and populates four lists. Returns the lists
     """
     JobIds, UserNames, Statuses, QueueNames = [], [], [], []
-    finr = open(QSTAT_YAML_FILE, 'r')
-    for line in finr:
-        if line.startswith('JobId:'):
-            JobIds.append(line.split()[1])
-        elif line.startswith('UserName:'):
-            UserNames.append(line.split()[1])
-        elif line.startswith('S:'):
-            Statuses.append(line.split()[1])
-        elif line.startswith('Queue:'):
-            QueueNames.append(line.split()[1])
-    finr.close()
-    # import pdb;pdb.set_trace()
+    with open(QSTAT_YAML_FILE, 'r') as finr:
+        for line in finr:
+            if line.startswith('JobId:'):
+                JobIds.append(line.split()[1])
+            elif line.startswith('UnixAccount:'):
+                UserNames.append(line.split()[1])
+            elif line.startswith('S:'):
+                Statuses.append(line.split()[1])
+            elif line.startswith('Queue:'):
+                QueueNames.append(line.split()[1])
+
+    for (job_id, user_name) in zip(JobIds, UserNames):
+        variables.UserOfJobId[job_id]  = user_name
+    # variables.UserOfJobId[Jobid] = UserNames
     return JobIds, UserNames, Statuses, QueueNames
 
 def read_qstatq_yaml(QSTATQ_YAML_FILE):
@@ -349,8 +352,8 @@ def read_qstatq_yaml(QSTATQ_YAML_FILE):
     # import pdb;pdb.set_trace()
     return qstatqLst
 
+
 def print_job_accounting_summary(ExistingNodes, OfflineDownNodes, WorkingCores, TotalCores, TotalRuns, TotalQueues, qstatqLst):
-    # import pdb;pdb.set_trace()
     if len(NodeSubClusters) > 1 or options.BLINDREMAP:
         print '=== WARNING: --- Remapping WN names and retrying heuristics... good luck with this... ---'
     print '\nPBS report tool. Please try: watch -d ' + QTOPPATH + '. All bugs added by sfranky@gmail.com. Cross fingers now...\n'
@@ -579,36 +582,36 @@ def reset_yaml_files():
         fin = open(FILE, 'w')
         fin.close()
 
+
+def load_yaml_config(path):
+    try:
+        config = yaml.safe_load(open(path + "/qtopconf.yaml"))
+    except yaml.YAMLError, exc:
+        if hasattr(exc, 'problem_mark'):
+            mark = exc.problem_mark
+            print "Error position: (%s:%s)" % (mark.line+1, mark.column+1)
+
+    symbol_map = dict([(chr(x), x) for x in range(33, 48) + range(58, 64) + range (91, 96) + range(123, 126)])
+    for symbol in symbol_map:
+        config['possible_ids'].append(symbol)
+    return config
+
+
 ################ MAIN ###################################
 
-# CONFIGFILE = os.path.expanduser('~/qtop/qtop/qtop.conf')
-# qtopconf = open(CONFIGFILE, 'r')
-# exec qtopconf
-HOMEPATH = os.path.expanduser('~/')
-QTOPPATH = os.path.expanduser('~/qtop-master/qtop') # qtoppath: ~/qtop/qtop
+HOMEPATH = os.path.expanduser('~/PycharmProjects')
+QTOPPATH = os.path.expanduser('~/PycharmProjects/qtop') # qtoppath: ~/qtop/qtop
 # PROGDIR = os.path.expanduser('~/off/qtop')
 SOURCEDIR = options.SOURCEDIR # as set by the '-s' switch
 
-try:
-    config = yaml.safe_load(open(QTOPPATH + "/qtopconf.yaml"))
-except yaml.YAMLError, exc:
-    if hasattr(exc, 'problem_mark'):
-        mark = exc.problem_mark
-        print "Error position: (%s:%s)" % (mark.line+1, mark.column+1)
-
-symbol_map = dict([(chr(x), x) for x in range(33,48) + range(58,64) + range (91,96) + range(123,126)])
-for symbol in symbol_map:
-    config['possible_ids'].append(symbol)
-
+config = load_yaml_config(QTOPPATH)
 
 # the following three lines save the produced YAML files in the dataset folder each time
 PBSNODES_YAML_FILE = 'pbsnodes_%s.yaml' % os.getpid()
 QSTATQ_YAML_FILE = 'qstat-q_%s.yaml' % os.getpid()
 QSTAT_YAML_FILE = 'qstat_%s.yaml' % os.getpid()
 
-# dir = SOURCEDIR
 os.chdir(SOURCEDIR)
-
 
 # Location of read and created files
 PBSNODES_ORIG_FILE = [f for f in os.listdir(os.getcwd()) if f.startswith('pbsnodes') and not f.endswith('.yaml')][0]
@@ -616,73 +619,29 @@ QSTATQ_ORIG_FILE = [f for f in os.listdir(os.getcwd()) if (f.startswith('qstat_q
 QSTAT_ORIG_FILE = [f for f in os.listdir(os.getcwd()) if f.startswith('qstat.') and not f.endswith('.yaml')][0]
 
 reset_yaml_files()
-PBSNodesYamlFout = open(PBSNODES_YAML_FILE, 'a')
-QSTATQYamlFout = open(QSTATQ_YAML_FILE, 'a')
-QSTATYamlFout = open(QSTAT_YAML_FILE, 'a')
+make_pbsnodes_yaml(PBSNODES_ORIG_FILE, PBSNODES_YAML_FILE)
 
-if not os.path.getsize(PBSNODES_ORIG_FILE) > 0:
-    print 'Bailing out... Not yet ready for Sun Grid Engine clusters'
-    os.chdir(HOMEPATH + 'qt')
-    sys.exit(0)
-    # os.chdir('..')
-    # continue
-else:
-    pbsnodesfin = open(PBSNODES_ORIG_FILE, 'r')
+(ExistingNodes, WorkingCores,
+TotalCores, BiggestWrittenNode,
+AllWNsDict, WNListRemapped,
+AllWNsRemappedDict, RemapNr,
+MaxNP, WNList,
+JUST_NAMES_FLAG, variables.OfflineDownNodes) = read_pbsnodes_yaml(PBSNODES_YAML_FILE, JUST_NAMES_FLAG)
 
-pbs.make_pbsnodes_yaml(pbsnodesfin, PBSNodesYamlFout)
 
-PBSNodesYamlFout = open(PBSNODES_YAML_FILE, 'r')
-
-(ExistingNodes, 
-WorkingCores, 
-TotalCores, 
-BiggestWrittenNode, 
-AllWNsDict, 
-WNListRemapped, 
-AllWNsRemappedDict, 
-RemapNr, 
-MaxNP, 
-WNList, 
-JUST_NAMES_FLAG,
-variables.OfflineDownNodes) = read_pbsnodes_yaml(PBSNodesYamlFout, JUST_NAMES_FLAG)
-PBSNodesYamlFout.close()
-
-if not os.path.getsize(QSTATQ_ORIG_FILE) > 0:
-    print 'Your ' + QSTATQ_ORIG_FILE + ' file is empty! Please check your directory. Exiting ...'
-    os.chdir(HOMEPATH + 'qt')
-    sys.exit(0)
-    # os.chdir('..')
-    # continue
-else:
-    qstatqfin = open(QSTATQ_ORIG_FILE, 'r')
-TotalRuns, TotalQueues = pbs.make_qstatq_yaml(qstatqfin, QSTATQYamlFout)
-qstatqfin.close()
-QSTATQYamlFout.close()
+TotalRuns, TotalQueues = make_qstatq_yaml(QSTATQ_ORIG_FILE, QSTATQ_YAML_FILE)
 variables.qstatqLst = read_qstatq_yaml(QSTATQ_YAML_FILE)
-# import pdb;pdb.set_trace()
+make_qstat_yaml(QSTAT_ORIG_FILE, QSTAT_YAML_FILE)
+JobIds, UserNames, Statuses, QueueNames = read_qstat_yaml(QSTAT_YAML_FILE)  # populates 4 lists
 
-if not os.path.getsize(QSTAT_ORIG_FILE) > 0:
-    print 'Your ' + QSTAT_ORIG_FILE + ' file is empty! Please check your directory. Exiting ...'
-    os.chdir(HOMEPATH + 'qt')
-    sys.exit(0)
-    # os.chdir('..')
-    # continue
-else:
-    qstatfin = open(QSTAT_ORIG_FILE, 'r')
-pbs.make_qstat_yaml(qstatfin, QSTATYamlFout)
-qstatfin.close()
-QSTATYamlFout.close()
-
-JobIds, UserNames, Statuses, QueueNames = read_qstat_yaml(QSTAT_YAML_FILE) # populates 4 lists
 for username, jobid in zip(UserNames, JobIds):
     variables.UserOfJobId[jobid] = username
 
 os.chdir(SOURCEDIR)
-# direct = os.getcwd()
-
 
 #Calculation of split screen size
-TermRows, TermColumns = os.popen('stty size', 'r').read().split()
+# TermRows, TermColumns = os.popen('stty size', 'r').read().split()  # does not work in pycharm
+TermRows, TermColumns = [52, 211]
 TermColumns = int(TermColumns)
 
 DEADWEIGHT = 15  # standard columns' width on the right of the CoreX map
@@ -863,7 +822,7 @@ for line in AccountsMappings:
     PrintString = '%3s | %4s + %4s / %4s | %15s |' % (line[0], line[1], line[2], line[3], line[4][0])
     for account in color_of_account:
         if line[4][0].startswith(account) and options.COLOR == 'ON':
-            PrintString = '%15s | %16s + %16s / %16s | %27s %4s' % (colorize(line[0], account), colorize(str(line[1]), account), colorize(str(line[2]), account), colorize(str(line[3]), account), colorize(line[4][0], account), colorize(SEPARATOR, 'NoColourAccount'))
+            PrintString = '%15s | %16s + %16s / %16s | %27s %4s' % (colorize(str(line[0]), account), colorize(str(line[1]), account), colorize(str(line[2]), account), colorize(str(line[3]), account), colorize(str(line[4][0]), account), colorize(SEPARATOR, 'NoColourAccount'))
         elif line[4][0].startswith(account) and options.COLOR == 'OFF':
             PrintString = '%2s | %3s + %3s / %3s | %14s |' %(colorize(line[0], account), colorize(str(line[1]), account), colorize(str(line[2]), account), colorize(str(line[3]), account), colorize(line[4][0], account))
         else:
