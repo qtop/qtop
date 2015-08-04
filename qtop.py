@@ -640,8 +640,10 @@ for username, jobid in zip(UserNames, JobIds):
 os.chdir(SOURCEDIR)
 
 #Calculation of split screen size
-# TermRows, TermColumns = os.popen('stty size', 'r').read().split()  # does not work in pycharm
-TermRows, TermColumns = [52, 211]
+try:
+    TermRows, TermColumns = os.popen('stty size', 'r').read().split()  # does not work in pycharm
+except ValueError:  # probably Pycharm's fault
+    TermRows, TermColumns = [52, 211]
 TermColumns = int(TermColumns)
 
 DEADWEIGHT = 15  # standard columns' width on the right of the CoreX map
@@ -759,10 +761,8 @@ print insert_sep(NodeState[PrintStart:PrintEnd], SEPARATOR, options.WN_COLON) + 
 ################ Node State ######################
 
 for line in AccountsMappings:
-    if re.split('[0-9]+', line[4][0])[0] in color_of_account:
-            AccountNrlessOfId[line[0]] = re.split('[0-9]+', line[4][0])[0]
-    else:
-        AccountNrlessOfId[line[0]] = 'NoColourAccount'
+    just_name = re.split('[0-9]+', line[4][0])[0]
+    AccountNrlessOfId[line[0]] = just_name if just_name in color_of_account else 'NoColourAccount'
 
 AccountNrlessOfId['#'] = '#'
 AccountNrlessOfId['_'] = '_'
@@ -772,6 +772,7 @@ AccountNrlessOfId[SEPARATOR] = 'NoColourAccount'
 for ind, k in enumerate(CPUCoreDict):
     colour_cpu_core_list = list(insert_sep(CPUCoreDict['Cpu' + str(ind) + 'line'][PrintStart:PrintEnd], SEPARATOR, options.WN_COLON))
     nocolor_linelength = len(''.join(colour_cpu_core_list))
+
     colour_cpu_core_list = [colorize(elem, AccountNrlessOfId[elem]) for elem in colour_cpu_core_list if elem in AccountNrlessOfId]
     line = ''.join(colour_cpu_core_list)
     #'''

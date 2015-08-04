@@ -2,4 +2,4 @@ min_masking_threshold: 9 # Masking/clipping functionality. How high should the e
 user_cut_matrix_width: 0 # Change this to zero if you don't want a custom cut matrix length
 separator: '|' # character used for vertical separator, for the -o switch
 percentage: 0.8 # if less than PERCENTAGE x 100% of the matrices have jobs, perform a blind remap
-possible_ids: [0,1,2,3,4,5,6,7,8,9,A,B,C,D,E,F,G,H,I,J,K,L,M,N,O,P,Q,R,S,T,U,V,W,X,Y,Z,a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p,q,r,s,t,u,v,w,x,y,z] # IDs of unix accounts, for the lower part of qtop
+possible_ids: ['0','1','2','3','4','5','6','7','8','9','A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V','W','X','Y','Z','a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p','q','r','s','t','u','v','w','x','y','z'] # IDs of unix accounts, for the lower part of qtop
