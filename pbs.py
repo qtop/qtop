@@ -1,5 +1,6 @@
-import variables
 import re
+import sys
+import variables
 
 def make_pbsnodes_yaml(fin, fout):
     """

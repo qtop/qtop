@@ -101,13 +101,12 @@ parser.add_option("-F", "--ForceNames", action="store_true", dest="FORCE_NAMES",
 
 (options, args) = parser.parse_args()
 
-if not options.COLORFILE:
-    options.COLORFILE = os.path.expanduser('~/qtop/qtop/qtop.colormap')
-# qtopcolormap = open(options.COLORFILE, 'r')
-# exec qtopcolormap
+# TODO make this work with py files instead of qtop.colormap files
+# if not options.COLORFILE:
+#     options.COLORFILE = os.path.expanduser('~/qtop/qtop/qtop.colormap')
 
 
-def Colorize(text, pattern):
+def colorize(text, pattern):
     """print text colored according to its unix account colors"""
     if options.COLOR == 'ON':
         return "\033[" + code_of_color[color_of_account[pattern]] + "m" + text + "\033[1;m"
@@ -118,7 +117,7 @@ def Colorize(text, pattern):
 # h1000, h0100, h0010, h0001 = '', '', '', ''
 PrintStart, PrintEnd = 0, None
 
-if options.FORCE_NAMES == False: 
+if not options.FORCE_NAMES:
     JUST_NAMES_FLAG = 0
 else:
     JUST_NAMES_FLAG = 1
@@ -355,16 +354,16 @@ def print_job_accounting_summary(ExistingNodes, OfflineDownNodes, WorkingCores, 
     if len(NodeSubClusters) > 1 or options.BLINDREMAP:
         print '=== WARNING: --- Remapping WN names and retrying heuristics... good luck with this... ---'
     print '\nPBS report tool. Please try: watch -d ' + QTOPPATH + '. All bugs added by sfranky@gmail.com. Cross fingers now...\n'
-    print Colorize('===> ', '#') + Colorize('Job accounting summary', 'Nothing') + Colorize(' <=== ', '#') + Colorize('(Rev: 3000 $) %s WORKDIR = to be added', 'NoColourAccount') % (datetime.datetime.today()) #was: added\n
+    print colorize('===> ', '#') + colorize('Job accounting summary', 'Nothing') + colorize(' <=== ', '#') + colorize('(Rev: 3000 $) %s WORKDIR = to be added', 'NoColourAccount') % (datetime.datetime.today()) #was: added\n
     print 'Usage Totals:\t%s/%s\t Nodes | %s/%s  Cores |   %s+%s jobs (R + Q) reported by qstat -q' % (ExistingNodes - OfflineDownNodes, ExistingNodes, WorkingCores, TotalCores, int(TotalRuns), int(TotalQueues))
     print 'Queues: | ',
     # import pdb;pdb.set_trace()
     if options.COLOR == 'ON':
         for queue in qstatqLst:
             if queue['QueueName'] in color_of_account:
-                print Colorize(queue['QueueName'], queue['QueueName']) + ': ' + Colorize(queue['Running'], queue['QueueName']) + '+' + Colorize(queue['Queued'], queue['QueueName']) + ' |',        
+                print colorize(queue['QueueName'], queue['QueueName']) + ': ' + colorize(queue['Running'], queue['QueueName']) + '+' + colorize(queue['Queued'], queue['QueueName']) + ' |',
             else:
-                print Colorize(queue['QueueName'], 'Nothing') + ': ' + Colorize(queue['Running'], 'Nothing') + '+' + Colorize(queue['Queued'], 'Nothing') + ' |',
+                print colorize(queue['QueueName'], 'Nothing') + ': ' + colorize(queue['Running'], 'Nothing') + '+' + colorize(queue['Queued'], 'Nothing') + ' |',
     else:    
         for queue in qstatqLst:
             print queue['QueueName'] + ': ' + queue['Running'] + '+' + queue['Queued'] + ' |',
@@ -563,7 +562,7 @@ def print_WN_ID_lines(start, stop, WNnumber): # WNnumber determines the number o
             JustNameDict[line] = ''
         for column in range(len(WNList)): #was -1
             for line in range(len(max(WNList))):
-                JustNameDict[line] += Colorize(WNList[column][line], Highlight[colour])
+                JustNameDict[line] += colorize(WNList[column][line], Highlight[colour])
             if colour == 1:
                 colour = 0
             else:
@@ -585,23 +584,22 @@ def reset_yaml_files():
 # CONFIGFILE = os.path.expanduser('~/qtop/qtop/qtop.conf')
 # qtopconf = open(CONFIGFILE, 'r')
 # exec qtopconf
-config = yaml.safe_load(open("qtopconf.yaml"))
+HOMEPATH = os.path.expanduser('~/')
+QTOPPATH = os.path.expanduser('~/qtop-master/qtop') # qtoppath: ~/qtop/qtop
+# PROGDIR = os.path.expanduser('~/off/qtop')
+SOURCEDIR = options.SOURCEDIR # as set by the '-s' switch
+
 try:
-    yaml.safe_load(open("qtopconf.yaml"))
+    config = yaml.safe_load(open(QTOPPATH + "/qtopconf.yaml"))
 except yaml.YAMLError, exc:
     if hasattr(exc, 'problem_mark'):
         mark = exc.problem_mark
         print "Error position: (%s:%s)" % (mark.line+1, mark.column+1)
 
-
 symbol_map = dict([(chr(x), x) for x in range(33,48) + range(58,64) + range (91,96) + range(123,126)])
-for map in symbol_map:
-    config['possible_ids'].append(map)
+for symbol in symbol_map:
+    config['possible_ids'].append(symbol)
 
-HOMEPATH = os.path.expanduser('~/')
-QTOPPATH = os.path.expanduser('~/qtop/qtop')
-# PROGDIR = os.path.expanduser('~/off/qtop')
-SOURCEDIR = options.SOURCEDIR # as set by the '-s' switch
 
 # the following three lines save the produced YAML files in the dataset folder each time
 PBSNODES_YAML_FILE = 'pbsnodes_%s.yaml' % os.getpid()
@@ -780,7 +778,7 @@ elif len(NodeSubClusters) == 1:
 
 
 ################ Node State ######################
-print Colorize('===> ', '#') + Colorize('Worker Nodes occupancy', 'Nothing') + Colorize(' <=== ', '#') + Colorize('(you can read vertically the node IDs; nodes in free state are noted with - )', 'NoColourAccount')
+print colorize('===> ', '#') + colorize('Worker Nodes occupancy', 'Nothing') + colorize(' <=== ', '#') + colorize('(you can read vertically the node IDs; nodes in free state are noted with - )', 'NoColourAccount')
 
 '''
 if there are non-uniform WNs in pbsnodes.yaml, e.g. wn01, wn02, gn01, gn02, ...,  remapping is performed
@@ -819,14 +817,14 @@ AccountNrlessOfId[SEPARATOR] = 'NoColourAccount'
 for ind, k in enumerate(CPUCoreDict):
     ColourCPUCoreLst = list(insert_sep(CPUCoreDict['Cpu' + str(ind) + 'line'][PrintStart:PrintEnd], SEPARATOR, options.WN_COLON))
     ColourlessLineLen = len(''.join(ColourCPUCoreLst))
-    ColourCPUCoreLst = [Colorize(elem, AccountNrlessOfId[elem]) for elem in ColourCPUCoreLst if elem in AccountNrlessOfId]
+    ColourCPUCoreLst = [colorize(elem, AccountNrlessOfId[elem]) for elem in ColourCPUCoreLst if elem in AccountNrlessOfId]
     line = ''.join(ColourCPUCoreLst)
     #'''
     #don't print the non-existent core lines in the first matrix 
     #(for when the remaining tables have machines with higher cores, but not the first matrix)
     #'''    
     # if '\x1b[1;30m#\x1b[1;m' * ColourlessLineLen not in line:
-    print line + Colorize('=Core' + str(ind), 'NoColourAccount')
+    print line + colorize('=Core' + str(ind), 'NoColourAccount')
 
 
 ############# Calculate remaining matrices ##################
@@ -852,7 +850,7 @@ for i in range(NrOfExtraMatrices):
     for ind, k in enumerate(CPUCoreDict):
         ColourCPUCoreLst = list(insert_sep(CPUCoreDict['Cpu' + str(ind) + 'line'][PrintStart:PrintEnd], SEPARATOR, options.WN_COLON))
         ColourlessLineLen = len(''.join(ColourCPUCoreLst))
-        ColourCPUCoreLst = [Colorize(elem, AccountNrlessOfId[elem]) for elem in ColourCPUCoreLst if elem in AccountNrlessOfId]
+        ColourCPUCoreLst = [colorize(elem, AccountNrlessOfId[elem]) for elem in ColourCPUCoreLst if elem in AccountNrlessOfId]
         line = ''.join(ColourCPUCoreLst)
         '''
         if the first matrix has 10 machines with 64 cores, and the rest 190 machines have 8 cores, don't print the non-existent
@@ -860,18 +858,18 @@ for i in range(NrOfExtraMatrices):
         IMPORTANT: not working if vertical separators are present!
         '''
         if '\x1b[1;30m#\x1b[1;m' * ColourlessLineLen not in line:
-            print line + Colorize('=Core' + str(ind), 'NoColourAccount')
+            print line + colorize('=Core' + str(ind), 'NoColourAccount')
 
 
-print Colorize('\n===> ', '#') + Colorize('User accounts and pool mappings', 'Nothing') + Colorize(' <=== ', '#') + Colorize('("all" includes those in C and W states, as reported by qstat)', 'NoColourAccount')
+print colorize('\n===> ', '#') + colorize('User accounts and pool mappings', 'Nothing') + colorize(' <=== ', '#') + colorize('("all" includes those in C and W states, as reported by qstat)', 'NoColourAccount')
 print ' id |  R   +   Q  /  all |    unix account | Grid certificate DN (this info is only available under elevated privileges)'
 for line in AccountsMappings:
     PrintString = '%3s | %4s + %4s / %4s | %15s |' % (line[0], line[1], line[2], line[3], line[4][0])
     for account in color_of_account:
         if line[4][0].startswith(account) and options.COLOR == 'ON':
-            PrintString = '%15s | %16s + %16s / %16s | %27s %4s' % (Colorize(line[0], account), Colorize(str(line[1]), account), Colorize(str(line[2]), account), Colorize(str(line[3]), account), Colorize(line[4][0], account), Colorize(SEPARATOR, 'NoColourAccount'))
+            PrintString = '%15s | %16s + %16s / %16s | %27s %4s' % (colorize(line[0], account), colorize(str(line[1]), account), colorize(str(line[2]), account), colorize(str(line[3]), account), colorize(line[4][0], account), colorize(SEPARATOR, 'NoColourAccount'))
         elif line[4][0].startswith(account) and options.COLOR == 'OFF':
-            PrintString = '%2s | %3s + %3s / %3s | %14s |' %(Colorize(line[0], account), Colorize(str(line[1]), account), Colorize(str(line[2]), account), Colorize(str(line[3]), account), Colorize(line[4][0], account))
+            PrintString = '%2s | %3s + %3s / %3s | %14s |' %(colorize(line[0], account), colorize(str(line[1]), account), colorize(str(line[2]), account), colorize(str(line[3]), account), colorize(line[4][0], account))
         else:
             pass
     print PrintString
