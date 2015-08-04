@@ -71,7 +71,7 @@ def make_qstat_yaml(fin, fout):
     firstline = fin.readline()
     if 'prior' not in firstline:
         UserQueueSearch = '^(([0-9-]+)\.([A-Za-z0-9-]+))\s+([A-Za-z0-9%_.=+/-]+)\s+([A-Za-z0-9.]+)\s+(\d+:\d+:?\d*|0)\s+([CWRQE])\s+(\w+)'
-        RunQdSearch = '^\s*(\d+)\s+(\d+)'
+        run_qd_search = '^\s*(\d+)\s+(\d+)'
         for line in fin:
             line.strip()
             # searches for something like: 422561.cream01             STDIN            see062          48:50:12 R see
@@ -91,7 +91,7 @@ def make_qstat_yaml(fin, fout):
         # e.g. job-ID  prior   name       user         state submit/start at     queue                          slots ja-task-ID 
         DIFFERENT_QSTAT_FORMAT_FLAG = 1
         UserQueueSearch = '\s{2}(\d+)\s+([0-9]\.[0-9]+)\s+([A-Za-z0-9_.-]+)\s+([A-Za-z0-9._-]+)\s+([a-z])\s+(\d{2}/\d{2}/\d{2}|0)\s+(\d+:\d+:\d*|0)\s+([A-Za-z0-9_]+@[A-Za-z0-9_.-]+)\s+(\d+)\s+(\w*)'
-        RunQdSearch = '^\s*(\d+)\s+(\d+)'
+        run_qd_search = '^\s*(\d+)\s+(\d+)'
         for line in fin:
             line.strip()
             # searches for something like: 422561.cream01             STDIN            see062          48:50:12 R see
@@ -113,13 +113,13 @@ def make_qstatq_yaml(fin, fout):
     """
     read QSTATQ_ORIG_FILE sequentially and put useful data in respective yaml file
     """
-    Queuesearch = '^([a-zA-Z0-9_.-]+)\s+(--|[0-9]+[mgtkp]b[a-z]*)\s+(--|\d+:\d+:?\d*)\s+(--|\d+:\d+:\d+)\s+(--)\s+(\d+)\s+(\d+)\s+(--|\d+)\s+([DE] R)'
-    RunQdSearch = '^\s*(\d+)\s+(\d+)'
+    queue_search = '^([a-zA-Z0-9_.-]+)\s+(--|[0-9]+[mgtkp]b[a-z]*)\s+(--|\d+:\d+:?\d*)\s+(--|\d+:\d+:\d+)\s+(--)\s+(\d+)\s+(\d+)\s+(--|\d+)\s+([DE] R)'
+    run_qd_search = '^\s*(\d+)\s+(\d+)'
     for line in fin:
         line.strip()
         # searches for something like: biomed             --      --    72:00:00   --   31   0 --   E R
-        if re.search(Queuesearch, line) is not None:
-            m = re.search(Queuesearch, line)
+        if re.search(queue_search, line) is not None:
+            m = re.search(queue_search, line)
             _, QueueName, Mem, CPUtime, Walltime, Node, Run, Queued, Lm, State = m.group(0), m.group(1), m.group(2), m.group(3), m.group(4), m.group(5), m.group(6), m.group(7), m.group(8), m.group(9)
             variables.qstatqLst.append((QueueName, Run, Queued, Lm, State))
             fout.write('- QueueName: ' + QueueName + '\n')
@@ -128,8 +128,8 @@ def make_qstatq_yaml(fin, fout):
             fout.write('  Lm: ' + Lm + '\n')
             fout.write('  State: ' + State + '\n')
             fout.write('\n')
-        elif re.search(RunQdSearch, line) is not None:
-            n = re.search(RunQdSearch, line)
+        elif re.search(run_qd_search, line) is not None:
+            n = re.search(run_qd_search, line)
             TotalRuns, TotalQueues = n.group(1), n.group(2)
     fout.write('---\n')
     fout.write('Total Running: ' + str(TotalRuns) + '\n')
