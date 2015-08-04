@@ -1,4 +1,4 @@
-gitColorOfAccount = {
+color_of_account = {
     'Atlassm':   'Red_L',
     'sgmatlas':  'Red_L',
     'patlas':    'Red_L',
@@ -333,7 +333,7 @@ gitColorOfAccount = {
     #[[:alpha:]][-_[:alnum:].]* 'Gray_L',
 }
 
-CodeOfColor = {
+code_of_color = {
     'Red_L': '1;31',
     'Red': '0;31',
     'Green_L': '1;32',

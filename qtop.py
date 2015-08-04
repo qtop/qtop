@@ -86,7 +86,7 @@ import sys
 # modules
 import pbs
 import variables
-import colormap
+from colormap import color_of_account, code_of_color
 
 parser = OptionParser() # for more details see http://docs.python.org/library/optparse.html
 parser.add_option("-a", "--blindremapping", action="store_true", dest="BLINDREMAP", default=False, help="This is used in situations where node names are not a pure arithmetic sequence (eg. rocks clusters)")
@@ -109,7 +109,7 @@ if not options.COLORFILE:
 def Colorize(text, pattern):
     """print text colored according to its unix account colors"""
     if options.COLOR == 'ON':
-        return "\033[" + CodeOfColor[ColorOfAccount[pattern]] + "m" + text + "\033[1;m"
+        return "\033[" + code_of_color[color_of_account[pattern]] + "m" + text + "\033[1;m"
     else:
         return text
 
@@ -360,7 +360,7 @@ def print_job_accounting_summary(ExistingNodes, OfflineDownNodes, WorkingCores, 
     # import pdb;pdb.set_trace()
     if options.COLOR == 'ON':
         for queue in qstatqLst:
-            if queue['QueueName'] in ColorOfAccount:
+            if queue['QueueName'] in color_of_account:
                 print Colorize(queue['QueueName'], queue['QueueName']) + ': ' + Colorize(queue['Running'], queue['QueueName']) + '+' + Colorize(queue['Queued'], queue['QueueName']) + ' |',        
             else:
                 print Colorize(queue['QueueName'], 'Nothing') + ': ' + Colorize(queue['Running'], 'Nothing') + '+' + Colorize(queue['Queued'], 'Nothing') + ' |',
@@ -771,7 +771,7 @@ print insert_sep(NodeState[PrintStart:PrintEnd], SEPARATOR, options.WN_COLON) + 
 ################ Node State ######################
 
 for line in AccountsMappings:
-    if re.split('[0-9]+', line[4][0])[0] in ColorOfAccount:
+    if re.split('[0-9]+', line[4][0])[0] in color_of_account:
             AccountNrlessOfId[line[0]] = re.split('[0-9]+', line[4][0])[0]
     else:
         AccountNrlessOfId[line[0]] = 'NoColourAccount'
@@ -831,7 +831,7 @@ print Colorize('\n===> ', '#') + Colorize('User accounts and pool mappings', 'No
 print ' id |  R   +   Q  /  all |    unix account | Grid certificate DN (this info is only available under elevated privileges)'
 for line in AccountsMappings:
     PrintString = '%3s | %4s + %4s / %4s | %15s |' % (line[0], line[1], line[2], line[3], line[4][0])
-    for account in ColorOfAccount:
+    for account in color_of_account:
         if line[4][0].startswith(account) and options.COLOR == 'ON':
             PrintString = '%15s | %16s + %16s / %16s | %27s %4s' % (Colorize(line[0], account), Colorize(str(line[1]), account), Colorize(str(line[2]), account), Colorize(str(line[3]), account), Colorize(line[4][0], account), Colorize(SEPARATOR, 'NoColourAccount'))
         elif line[4][0].startswith(account) and options.COLOR == 'OFF':
