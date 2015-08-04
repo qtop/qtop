@@ -770,15 +770,15 @@ SEPARATOR = config['separator']
 AccountNrlessOfId[SEPARATOR] = 'NoColourAccount'
 
 for ind, k in enumerate(CPUCoreDict):
-    ColourCPUCoreLst = list(insert_sep(CPUCoreDict['Cpu' + str(ind) + 'line'][PrintStart:PrintEnd], SEPARATOR, options.WN_COLON))
-    ColourlessLineLen = len(''.join(ColourCPUCoreLst))
-    ColourCPUCoreLst = [colorize(elem, AccountNrlessOfId[elem]) for elem in ColourCPUCoreLst if elem in AccountNrlessOfId]
-    line = ''.join(ColourCPUCoreLst)
+    colour_cpu_core_list = list(insert_sep(CPUCoreDict['Cpu' + str(ind) + 'line'][PrintStart:PrintEnd], SEPARATOR, options.WN_COLON))
+    nocolor_linelength = len(''.join(colour_cpu_core_list))
+    colour_cpu_core_list = [colorize(elem, AccountNrlessOfId[elem]) for elem in colour_cpu_core_list if elem in AccountNrlessOfId]
+    line = ''.join(colour_cpu_core_list)
     #'''
     #don't print the non-existent core lines in the first matrix 
     #(for when the remaining tables have machines with higher cores, but not the first matrix)
     #'''    
-    # if '\x1b[1;30m#\x1b[1;m' * ColourlessLineLen not in line:
+    # if '\x1b[1;30m#\x1b[1;m' * nocolor_linelength not in line:
     print line + colorize('=Core' + str(ind), 'NoColourAccount')
 
 
@@ -803,16 +803,16 @@ for i in range(NrOfExtraMatrices):
         print_WN_ID_lines(PrintStart, PrintEnd, RemapNr)
     print insert_sep(NodeState[PrintStart:PrintEnd], SEPARATOR, options.WN_COLON) + '=Node state'
     for ind, k in enumerate(CPUCoreDict):
-        ColourCPUCoreLst = list(insert_sep(CPUCoreDict['Cpu' + str(ind) + 'line'][PrintStart:PrintEnd], SEPARATOR, options.WN_COLON))
-        ColourlessLineLen = len(''.join(ColourCPUCoreLst))
-        ColourCPUCoreLst = [colorize(elem, AccountNrlessOfId[elem]) for elem in ColourCPUCoreLst if elem in AccountNrlessOfId]
-        line = ''.join(ColourCPUCoreLst)
+        colour_cpu_core_list = list(insert_sep(CPUCoreDict['Cpu' + str(ind) + 'line'][PrintStart:PrintEnd], SEPARATOR, options.WN_COLON))
+        nocolor_linelength = len(''.join(colour_cpu_core_list))
+        colour_cpu_core_list = [colorize(elem, AccountNrlessOfId[elem]) for elem in colour_cpu_core_list if elem in AccountNrlessOfId]
+        line = ''.join(colour_cpu_core_list)
         '''
         if the first matrix has 10 machines with 64 cores, and the rest 190 machines have 8 cores, don't print the non-existent
         56 cores from the next matrix on.
         IMPORTANT: not working if vertical separators are present!
         '''
-        if '\x1b[1;30m#\x1b[1;m' * ColourlessLineLen not in line:
+        if '\x1b[1;30m#\x1b[1;m' * nocolor_linelength not in line:
             print line + colorize('=Core' + str(ind), 'NoColourAccount')
 
 
@@ -823,6 +823,7 @@ for line in AccountsMappings:
     for account in color_of_account:
         if line[4][0].startswith(account) and options.COLOR == 'ON':
             PrintString = '%15s | %16s + %16s / %16s | %27s %4s' % (colorize(str(line[0]), account), colorize(str(line[1]), account), colorize(str(line[2]), account), colorize(str(line[3]), account), colorize(str(line[4][0]), account), colorize(SEPARATOR, 'NoColourAccount'))
+            # PrintString = '%15s | %16s + %16s / %16s | %27s %4s' % (colorize(line[0], account), colorize(str(line[1]), account), colorize(str(line[2]), account), colorize(str(line[3]), account), colorize(line[4][0], account), colorize(SEPARATOR, 'NoColourAccount'))
         elif line[4][0].startswith(account) and options.COLOR == 'OFF':
             PrintString = '%2s | %3s + %3s / %3s | %14s |' %(colorize(line[0], account), colorize(str(line[1]), account), colorize(str(line[2]), account), colorize(str(line[3]), account), colorize(line[4][0], account))
         else:
