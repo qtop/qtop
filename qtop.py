@@ -87,6 +87,7 @@ import sys
 import pbs
 import variables
 from colormap import color_of_account, code_of_color
+import yaml
 
 parser = OptionParser() # for more details see http://docs.python.org/library/optparse.html
 parser.add_option("-a", "--blindremapping", action="store_true", dest="BLINDREMAP", default=False, help="This is used in situations where node names are not a pure arithmetic sequence (eg. rocks clusters)")
@@ -295,7 +296,7 @@ def read_pbsnodes_yaml(fin, namesflag):
     if min(WNList) > 9000 and type(min(WNList)) == int: # handle exotic cases of WN numbering starting VERY high
         WNList = [element - min(WNList) for element in WNList]
         options.BLINDREMAP = True 
-    if len(WNList) < PERCENTAGE * BiggestWrittenNode: 
+    if len(WNList) < config.percentage * BiggestWrittenNode:
         options.BLINDREMAP = True
     return ExistingNodes, WorkingCores, TotalCores, BiggestWrittenNode, AllWNsDict, WNListRemapped, AllWNsRemappedDict, RemapNr, MaxNP, WNList, namesflag, OfflineDownNodes
 
@@ -502,23 +503,23 @@ def find_Matrices_Width(WNnumber, WNList):
     masking/clipping functionality: if the earliest node number is high (e.g. 130), the first 129 WNs need not show up.
     '''
     Start = 0
-    if (options.MASKING is True) and min(WNList) > MIN_MASKING_THRESHOLD and type(min(WNList)) == str: # in case of named instead of numbered WNs 
+    if (options.MASKING is True) and min(WNList) > config['min_masking_threshold'] and type(min(WNList)) == str: # in case of named instead of numbered WNs
         pass            
-    elif (options.MASKING is True) and min(WNList) > MIN_MASKING_THRESHOLD and type(min(WNList)) == int:
+    elif (options.MASKING is True) and min(WNList) > config['min_masking_threshold'] and type(min(WNList)) == int:
         Start = min(WNList) - 1   #exclude unneeded first empty nodes from the matrix
     '''
     Extra matrices may be needed if the WNs are more than the screen width can hold.
     '''
-    if WNnumber > Start: # start will either be 1 or (masked >= MIN_MASKING_THRESHOLD + 1)
+    if WNnumber > Start: # start will either be 1 or (masked >= config['min_masking_threshold'] + 1)
         NrOfExtraMatrices = abs(WNnumber - Start + 10) / TermColumns 
     elif WNnumber < Start and len(NodeSubClusters) > 1: # Remapping
         NrOfExtraMatrices = (WNnumber + 10) / TermColumns
     else:
         print "This is a case I didn't foresee (WNnumber vs Start vs NodeSubClusters)"
 
-    if UserCutMatrixWidth: # if the user defines a custom cut (in the configuration file)
-        Stop = Start + UserCutMatrixWidth
-        return (Start, Stop, WNnumber/UserCutMatrixWidth)
+    if config['user_cut_matrix_width']: # if the user defines a custom cut (in the configuration file)
+        Stop = Start + config['user_cut_matrix_width']
+        return (Start, Stop, WNnumber/config['user_cut_matrix_width'])
     elif NrOfExtraMatrices: # if more matrices are needed due to lack of space, cut every matrix so that if fits to screen
         Stop = Start + TermColumns - DEADWEIGHT 
         return (Start, Stop, NrOfExtraMatrices)
@@ -527,6 +528,7 @@ def find_Matrices_Width(WNnumber, WNList):
         return (Start, Stop, 0)
 
 def print_WN_ID_lines(start, stop, WNnumber): # WNnumber determines the number of WN ID lines needed  (1/2/3/4?)
+    SEPARATOR = config['separator']
     # global h1000, h0100, h0010, h0001
     '''
     h1000 is a header for the 'thousands',
@@ -576,13 +578,46 @@ def reset_yaml_files():
     """
     for FILE in [PBSNODES_YAML_FILE, QSTATQ_YAML_FILE, QSTAT_YAML_FILE]:
         fin = open(FILE, 'w')
-        fin.close()    
+        fin.close()
 
 ################ MAIN ###################################
 
-CONFIGFILE = os.path.expanduser('~/qtop/qtop/qtop.conf')
-qtopconf = open(CONFIGFILE, 'r')
-exec qtopconf
+# CONFIGFILE = os.path.expanduser('~/qtop/qtop/qtop.conf')
+# qtopconf = open(CONFIGFILE, 'r')
+# exec qtopconf
+config = yaml.safe_load(open("qtopconf.yaml"))
+try:
+    yaml.safe_load(open("qtopconf.yaml"))
+except yaml.YAMLError, exc:
+    if hasattr(exc, 'problem_mark'):
+        mark = exc.problem_mark
+        print "Error position: (%s:%s)" % (mark.line+1, mark.column+1)
+
+
+symbol_map = dict([(chr(x), x) for x in range(33,48) + range(58,64) + range (91,96) + range(123,126)])
+for map in symbol_map:
+    config['possible_ids'].append(map)
+
+HOMEPATH = os.path.expanduser('~/')
+QTOPPATH = os.path.expanduser('~/qtop/qtop')
+# PROGDIR = os.path.expanduser('~/off/qtop')
+SOURCEDIR = options.SOURCEDIR # as set by the '-s' switch
+
+# the following three lines save the produced YAML files in the dataset folder each time
+PBSNODES_YAML_FILE = 'pbsnodes_%s.yaml' % os.getpid()
+QSTATQ_YAML_FILE = 'qstat-q_%s.yaml' % os.getpid()
+QSTAT_YAML_FILE = 'qstat_%s.yaml' % os.getpid()
+
+# dir = SOURCEDIR
+os.chdir(SOURCEDIR)
+
+
+# Location of read and created files
+PBSNODES_ORIG_FILE = [f for f in os.listdir(os.getcwd()) if f.startswith('pbsnodes') and not f.endswith('.yaml')][0]
+QSTATQ_ORIG_FILE = [f for f in os.listdir(os.getcwd()) if (f.startswith('qstat_q') or f.startswith('qstatq') or f.startswith('qstat-q') and not f.endswith('.yaml'))][0]
+QSTAT_ORIG_FILE = [f for f in os.listdir(os.getcwd()) if f.startswith('qstat.') and not f.endswith('.yaml')][0]
+
+
 
 os.chdir(SOURCEDIR)
 
@@ -698,12 +733,12 @@ j = 0
 if len(Usersortedlst) > 87: 
     for i in xrange(87, len(Usersortedlst) + 87):
     # for i in xrange(62, len(Usersortedlst) + 62):
-        POSSIBLE_IDS.append(str(i)[0])
+        config['possible_ids'].append(str(i)[0])
 
 
 
 for UserName in Usersortedlst:
-    IdOfUserName[UserName[0]] = POSSIBLE_IDS[j]
+    IdOfUserName[UserName[0]] = config['possible_ids'][j]
     j += 1
 
 # this calculates and prints what is actually below the 
@@ -765,7 +800,7 @@ else: # len(NodeSubClusters) == 1 AND options.BLINDREMAP false
     (PrintStart, PrintEnd, NrOfExtraMatrices) = find_Matrices_Width(BiggestWrittenNode, WNList)
     print_WN_ID_lines(PrintStart, PrintEnd, BiggestWrittenNode)
 
-
+SEPARATOR = config['separator']
 print insert_sep(NodeState[PrintStart:PrintEnd], SEPARATOR, options.WN_COLON) + '=Node state'
 
 ################ Node State ######################
@@ -778,6 +813,7 @@ for line in AccountsMappings:
 
 AccountNrlessOfId['#'] = '#'
 AccountNrlessOfId['_'] = '_'
+SEPARATOR = config['separator']
 AccountNrlessOfId[SEPARATOR] = 'NoColourAccount'
 
 for ind, k in enumerate(CPUCoreDict):
@@ -796,8 +832,8 @@ for ind, k in enumerate(CPUCoreDict):
 ############# Calculate remaining matrices ##################
 for i in range(NrOfExtraMatrices):
     PrintStart = PrintEnd
-    if UserCutMatrixWidth:
-        PrintEnd += UserCutMatrixWidth
+    if config['user_cut_matrix_width']:
+        PrintEnd += config['user_cut_matrix_width']
     else:
         PrintEnd += TermColumns - DEADWEIGHT # 
     
