@@ -295,7 +295,7 @@ def read_pbsnodes_yaml(fin, namesflag):
     if min(WNList) > 9000 and type(min(WNList)) == int: # handle exotic cases of WN numbering starting VERY high
         WNList = [element - min(WNList) for element in WNList]
         options.BLINDREMAP = True 
-    if len(WNList) < config.percentage * BiggestWrittenNode:
+    if len(WNList) < config['percentage'] * BiggestWrittenNode:
         options.BLINDREMAP = True
     return ExistingNodes, WorkingCores, TotalCores, BiggestWrittenNode, AllWNsDict, WNListRemapped, AllWNsRemappedDict, RemapNr, MaxNP, WNList, namesflag, OfflineDownNodes
 
@@ -615,25 +615,21 @@ PBSNODES_ORIG_FILE = [f for f in os.listdir(os.getcwd()) if f.startswith('pbsnod
 QSTATQ_ORIG_FILE = [f for f in os.listdir(os.getcwd()) if (f.startswith('qstat_q') or f.startswith('qstatq') or f.startswith('qstat-q') and not f.endswith('.yaml'))][0]
 QSTAT_ORIG_FILE = [f for f in os.listdir(os.getcwd()) if f.startswith('qstat.') and not f.endswith('.yaml')][0]
 
-
-
-os.chdir(SOURCEDIR)
-
 reset_yaml_files()
 PBSNodesYamlFout = open(PBSNODES_YAML_FILE, 'a')
 QSTATQYamlFout = open(QSTATQ_YAML_FILE, 'a')
 QSTATYamlFout = open(QSTAT_YAML_FILE, 'a')
 
-if not os.path.getsize(variables.PBSNODES_ORIG_FILE) > 0:  
+if not os.path.getsize(PBSNODES_ORIG_FILE) > 0:
     print 'Bailing out... Not yet ready for Sun Grid Engine clusters'
     os.chdir(HOMEPATH + 'qt')
     sys.exit(0)
     # os.chdir('..')
     # continue
 else:
-    pbsnodesfin = open(variables.PBSNODES_ORIG_FILE, 'r')
+    pbsnodesfin = open(PBSNODES_ORIG_FILE, 'r')
 
-pbs.pbsnodes2yaml(pbsnodesfin, PBSNodesYamlFout)
+pbs.make_pbsnodes_yaml(pbsnodesfin, PBSNodesYamlFout)
 
 PBSNodesYamlFout = open(PBSNODES_YAML_FILE, 'r')
 
@@ -651,29 +647,29 @@ JUST_NAMES_FLAG,
 variables.OfflineDownNodes) = read_pbsnodes_yaml(PBSNodesYamlFout, JUST_NAMES_FLAG)
 PBSNodesYamlFout.close()
 
-if not os.path.getsize(variables.QSTATQ_ORIG_FILE) > 0:  
-    print 'Your ' + variables.QSTATQ_ORIG_FILE + ' file is empty! Please check your directory. Exiting ...'
+if not os.path.getsize(QSTATQ_ORIG_FILE) > 0:
+    print 'Your ' + QSTATQ_ORIG_FILE + ' file is empty! Please check your directory. Exiting ...'
     os.chdir(HOMEPATH + 'qt')
     sys.exit(0)
     # os.chdir('..')
     # continue
 else:
-    qstatqfin = open(variables.QSTATQ_ORIG_FILE, 'r')
-TotalRuns, TotalQueues = pbs.qstatq2yaml(qstatqfin, QSTATQYamlFout)
+    qstatqfin = open(QSTATQ_ORIG_FILE, 'r')
+TotalRuns, TotalQueues = pbs.make_qstatq_yaml(qstatqfin, QSTATQYamlFout)
 qstatqfin.close()
 QSTATQYamlFout.close()
 variables.qstatqLst = read_qstatq_yaml(QSTATQ_YAML_FILE)
 # import pdb;pdb.set_trace()
 
-if not os.path.getsize(variables.QSTAT_ORIG_FILE) > 0:  
-    print 'Your ' + variables.QSTAT_ORIG_FILE + ' file is empty! Please check your directory. Exiting ...'
+if not os.path.getsize(QSTAT_ORIG_FILE) > 0:
+    print 'Your ' + QSTAT_ORIG_FILE + ' file is empty! Please check your directory. Exiting ...'
     os.chdir(HOMEPATH + 'qt')
     sys.exit(0)
     # os.chdir('..')
     # continue
 else:
-    qstatfin = open(variables.QSTAT_ORIG_FILE, 'r')
-pbs.qstat2yaml(qstatfin, QSTATYamlFout)
+    qstatfin = open(QSTAT_ORIG_FILE, 'r')
+pbs.make_qstat_yaml(qstatfin, QSTATYamlFout)
 qstatfin.close()
 QSTATYamlFout.close()
 
