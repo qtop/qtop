@@ -55,7 +55,7 @@ changelog:
         the Worker Node number
 0.2.4: implemented some stuff from PEP8
        un-hardwired the file paths
-       refactored code around CPUCoreDict functionality (responsible for drawing
+       refactored code around cpu_core_dict functionality (responsible for drawing
         the map)
 0.2.3: corrected regex search pattern in make_qstat to recognize usernames like spec101u1 (number followed by number followed by letter) now handles non-uniform setups
         R + Q / all: all did not display everything (E status)
@@ -351,13 +351,13 @@ def print_job_accounting_summary(state_dict, total_runs, total_queues, qstatq_li
     print '* implies blocked\n'
 
 
-def fill_cpucore_columns(state_np_corejob, cpu_dict, id_of_username):
+def fill_cpucore_columns(state_np_corejob, cpu_core_dict, id_of_username, max_np_range):
     """
     Calculates the actual contents of the map by filling in a status string for each CPU line
     """
     if state_np_corejob[0] == '?':
-        for cpu_line in cpu_dict:
-            cpu_dict[cpu_line] += '_'
+        for cpu_line in cpu_core_dict:
+            cpu_core_dict[cpu_line] += '_'
     else:
         _own_np = int(state_np_corejob[1])
         own_np_range = [str(x) for x in range(_own_np)]
@@ -370,7 +370,7 @@ def fill_cpucore_columns(state_np_corejob, cpu_dict, id_of_username):
                     variables.UserOfJobId[job]
                 except KeyError, KeyErrorValue:
                     print 'There seems to be a problem with the qstat output. A JobID has gone rogue (namely, ' + str(KeyErrorValue) +'). Please check with the System Administrator.'
-                cpu_dict['Cpu' + str(core) + 'line'] += str(id_of_username[variables.UserOfJobId[job]])
+                cpu_core_dict['Cpu' + str(core) + 'line'] += str(id_of_username[variables.UserOfJobId[job]])
                 own_np_empty_range.remove(core)
 
         non_existent_cores = [item for item in max_np_range if item not in own_np_range]
@@ -380,9 +380,10 @@ def fill_cpucore_columns(state_np_corejob, cpu_dict, id_of_username):
         these positions are filled with '#'s.
         '''
         for core in own_np_empty_range:
-            cpu_dict['Cpu' + str(core) + 'line'] += '_'
+            cpu_core_dict['Cpu' + str(core) + 'line'] += '_'
         for core in non_existent_cores:
-                cpu_dict['Cpu' + str(core) + 'line'] += '#'
+                cpu_core_dict['Cpu' + str(core) + 'line'] += '#'
+    return cpu_core_dict
 
 
 def insert_sep(original, separator, pos, stopaftern = 0):
@@ -477,11 +478,12 @@ def calculate_Total_WNIDLine_Width(WNnumber): # (remap_nr) in case of multiple s
     return h1000, h0100, h0010, h0001
 
 
-def find_matrices_width(wn_number, wn_list, state_dict):
+def find_matrices_width(wn_number, wn_list, state_dict, DEADWEIGHT=15):
     """
     masking/clipping functionality: if the earliest node number is high (e.g. 130), the first 129 WNs need not show up.
     case 1: wn_number is RemapNr, WNList is WNListRemapped
     case 2: wn_number is BiggestWrittenNode, WNList is WNList
+    DEADWEIGHT = 15  # standard columns' width on the right of the CoreX map
     """
     start = 0
     if (options.MASKING is True) and min(wn_list) > config['min_masking_threshold'] and type(min(wn_list)) == str: # in case of named instead of numbered WNs
@@ -491,9 +493,9 @@ def find_matrices_width(wn_number, wn_list, state_dict):
 
     # Extra matrices may be needed if the WNs are more than the screen width can hold.
     if wn_number > start: # start will either be 1 or (masked >= config['min_masking_threshold'] + 1)
-        extra_matrices_nr = abs(wn_number - start + 10) / TermColumns
+        extra_matrices_nr = abs(wn_number - start + 10) / term_columns
     elif wn_number < start and len(state_dict['node_subclusters']) > 1: # Remapping
-        extra_matrices_nr = (wn_number + 10) / TermColumns
+        extra_matrices_nr = (wn_number + 10) / term_columns
     else:
         print "This is a case I didn't foresee (wn_number vs start vs state_dict['node_subclusters'])"
 
@@ -501,7 +503,7 @@ def find_matrices_width(wn_number, wn_list, state_dict):
         stop = start + config['user_cut_matrix_width']
         return start, stop, wn_number/config['user_cut_matrix_width']
     elif extra_matrices_nr:  # if more matrices are needed due to lack of space, cut every matrix so that if fits to screen
-        stop = start + TermColumns - DEADWEIGHT
+        stop = start + term_columns - DEADWEIGHT
         return (start, stop, extra_matrices_nr)
     else: # just one matrix, small cluster!
         stop = start + wn_number
@@ -553,6 +555,85 @@ def print_WN_ID_lines(start, stop, WNnumber): # WNnumber determines the number o
             print JustNameDict[line] + '={__WNID__}'
 
 
+def calculate_remaining_matrices(extra_matrices_nr, state_dict, cpu_core_dict, print_end, DEADWEIGHT=15):
+    """
+    Calculate remaining matrices
+    """
+    for i in range(extra_matrices_nr):
+        print_start = print_end
+        if config['user_cut_matrix_width']:
+            print_end += config['user_cut_matrix_width']
+        else:
+            print_end += term_columns - DEADWEIGHT
+
+        if options.BLINDREMAP or len(state_dict['node_subclusters']) > 1:
+            if print_end >= state_dict['remap_nr']:
+                print_end = state_dict['remap_nr']
+        else:
+            if print_end >= state_dict['biggest_written_node']:
+                print_end = state_dict['biggest_written_node']
+        print '\n'
+        if len(state_dict['node_subclusters']) == 1:
+            print_WN_ID_lines(print_start, print_end, state_dict['biggest_written_node'])
+        if len(state_dict['node_subclusters']) > 1:
+            print_WN_ID_lines(print_start, print_end, state_dict['remap_nr'])
+        print insert_sep(node_state[print_start:print_end], SEPARATOR, options.WN_COLON) + '=Node state'
+        for ind, k in enumerate(cpu_core_dict):
+            colour_cpu_core_list = list(insert_sep(cpu_core_dict['Cpu' + str(ind) + 'line'][print_start:print_end], SEPARATOR, options.WN_COLON))
+            nocolor_linelength = len(''.join(colour_cpu_core_list))
+            colour_cpu_core_list = [colorize(elem, account_nrless_of_id[elem]) for elem in colour_cpu_core_list if elem in account_nrless_of_id]
+            line = ''.join(colour_cpu_core_list)
+            '''
+            if the first matrix has 10 machines with 64 cores, and the rest 190 machines have 8 cores, don't print the non-existent
+            56 cores from the next matrix on.
+            IMPORTANT: not working if vertical separators are present!
+            '''
+            if '\x1b[1;30m#\x1b[1;m' * nocolor_linelength not in line:
+                print line + colorize('=core' + str(ind), 'NoColourAccount')
+
+
+def user_accounts_pool_mappings(colorize, accounts_mappings, color_of_account):
+    print colorize('\n===> ', '#') + colorize('User accounts and pool mappings', 'Nothing') + colorize(' <=== ', '#') + colorize('("all" includes those in C and W states, as reported by qstat)', 'NoColourAccount')
+    print ' id |  R   +   Q  /  all |    unix account | Grid certificate DN (this info is only available under elevated privileges)'
+
+    for line in accounts_mappings:
+        print_string = '%3s | %4s + %4s / %4s | %15s |' % (line[0], line[1], line[2], line[3], line[4][0])
+        for account in color_of_account:
+            if line[4][0].startswith(account) and options.COLOR == 'ON':
+                print_string = '%15s | %16s + %16s / %16s | %27s %4s' % (colorize(str(line[0]), account), colorize(str(line[1]), account), colorize(str(line[2]), account), colorize(str(line[3]), account), colorize(str(line[4][0]), account), colorize(SEPARATOR, 'NoColourAccount'))
+            elif line[4][0].startswith(account) and options.COLOR == 'OFF':
+                print_string = '%2s | %3s + %3s / %3s | %14s |' %(colorize(line[0], account), colorize(str(line[1]), account), colorize(str(line[2]), account), colorize(str(line[3]), account), colorize(line[4][0], account))
+            else:
+                pass
+        print print_string
+
+
+def print_core_line(cpu_core_dict):
+    for ind, k in enumerate(cpu_core_dict):
+        colour_cpu_core_list = list(insert_sep(cpu_core_dict['Cpu' + str(ind) + 'line'][print_start:print_end], SEPARATOR, options.WN_COLON))
+        colour_cpu_core_list = [colorize(elem, account_nrless_of_id[elem]) for elem in colour_cpu_core_list if elem in account_nrless_of_id]
+        line = ''.join(colour_cpu_core_list)
+        print line + colorize('=core' + str(ind), 'NoColourAccount')
+
+
+def calc_cpu_lines(state_dict):
+    _cpu_core_dict = {}
+    max_np_range = []
+
+    for core_nr in range(state_dict['max_np']):
+        _cpu_core_dict['Cpu' + str(core_nr) + 'line'] = ''  # Cpu0line, Cpu1line, Cpu2line, .. = '','','', ..
+        max_np_range.append(str(core_nr))
+
+    if len(state_dict['node_subclusters']) > 1 or options.BLINDREMAP:
+        state_np_corejobs = state_dict['all_wns_remapped_dict']
+    elif len(state_dict['node_subclusters']) == 1:
+        state_np_corejobs = state_dict['all_wns_dict']
+    for _node in state_np_corejobs:
+        _cpu_core_dict = fill_cpucore_columns(state_np_corejobs[_node], _cpu_core_dict, id_of_username, max_np_range)
+
+    return _cpu_core_dict
+
+
 def reset_yaml_files():
     """
     empties the files with every run of the python script
@@ -583,9 +664,6 @@ node_state = ''
 accounts_mappings = []
 DIFFERENT_QSTAT_FORMAT_FLAG = 0
 
-# CPU lines ######################################
-max_np_range = []
-account_nrless_of_id = {}
 #  MAIN ###################################
 
 HOMEPATH = os.path.expanduser('~/PycharmProjects')
@@ -625,12 +703,13 @@ os.chdir(SOURCEDIR)
 
 #Calculation of split screen size
 try:
-    TermRows, TermColumns = os.popen('stty size', 'r').read().split()  # does not work in pycharm
+    TermRows, term_columns = os.popen('stty size', 'r').read().split()  # does not work in pycharm
 except ValueError:  # probably Pycharm's fault
-    TermRows, TermColumns = [52, 211]
-TermColumns = int(TermColumns)
+    # TermRows, term_columns = [52, 211]
+    TermRows, term_columns = [53, 176]
+term_columns = int(term_columns)
 
-DEADWEIGHT = 15  # standard columns' width on the right of the CoreX map
+# DEADWEIGHT = 15  # standard columns' width on the right of the CoreX map
 
 print_job_accounting_summary(state_dict, total_runs, total_queues, variables.qstatq_list)
 
@@ -698,23 +777,9 @@ accounts_mappings.sort(key=itemgetter(3), reverse=True)  # sort by All jobs
 ####################################################
 
 
-### CPU lines ######################################
-CPUCoreDict = {}
-for i in range(state_dict['max_np']):
-    CPUCoreDict['Cpu' + str(i) + 'line'] = '' # Cpu0line, Cpu1line, Cpu2line, .. = '','','', ..
-    max_np_range.append(str(i))
 
-if len(state_dict['node_subclusters']) > 1 or options.BLINDREMAP:
-    for _, WNProperties in zip(state_dict['all_wns_remapped_dict'].keys(), state_dict['all_wns_remapped_dict'].values()):
-        fill_cpucore_columns(WNProperties, CPUCoreDict, id_of_username)
-    print('test')
 
-elif len(state_dict['node_subclusters']) == 1:
-    for _, WNProperties in zip(state_dict['all_wns_dict'].keys(), state_dict['all_wns_dict'].values()):
-        fill_cpucore_columns(WNProperties, CPUCoreDict, id_of_username)
-
-### CPU lines ######################################
-
+cpu_core_dict = calc_cpu_lines(state_dict)
 
 ################ Node State ######################
 print colorize('===> ', '#') + colorize('Worker Nodes occupancy', 'Nothing') + colorize(' <=== ', '#') + colorize('(you can read vertically the node IDs; nodes in free state are noted with - )', 'NoColourAccount')
@@ -742,7 +807,7 @@ SEPARATOR = config['separator']  # alias
 print insert_sep(node_state[print_start:print_end], SEPARATOR, options.WN_COLON) + '=Node state'
 
 ################ Node State ######################
-
+account_nrless_of_id = {}
 for line in accounts_mappings:
     just_name = re.split('[0-9]+', line[4][0])[0]
     account_nrless_of_id[line[0]] = just_name if just_name in color_of_account else 'NoColourAccount'
@@ -752,68 +817,9 @@ account_nrless_of_id['_'] = '_'
 SEPARATOR = config['separator']
 account_nrless_of_id[SEPARATOR] = 'NoColourAccount'
 
-for ind, k in enumerate(CPUCoreDict):
-    colour_cpu_core_list = list(insert_sep(CPUCoreDict['Cpu' + str(ind) + 'line'][print_start:print_end], SEPARATOR, options.WN_COLON))
-    nocolor_linelength = len(''.join(colour_cpu_core_list))
-
-    colour_cpu_core_list = [colorize(elem, account_nrless_of_id[elem]) for elem in colour_cpu_core_list if elem in account_nrless_of_id]
-    line = ''.join(colour_cpu_core_list)
-    #'''
-    #don't print the non-existent core lines in the first matrix 
-    #(for when the remaining tables have machines with higher cores, but not the first matrix)
-    #'''    
-    # if '\x1b[1;30m#\x1b[1;m' * nocolor_linelength not in line:
-    print line + colorize('=core' + str(ind), 'NoColourAccount')
-
-
-############# Calculate remaining matrices ##################
-for i in range(extra_matrices_nr):
-    print_start = print_end
-    if config['user_cut_matrix_width']:
-        print_end += config['user_cut_matrix_width']
-    else:
-        print_end += TermColumns - DEADWEIGHT #
-    
-    if options.BLINDREMAP or len(state_dict['node_subclusters']) > 1:
-        if print_end >= state_dict['remap_nr']:
-            print_end = state_dict['remap_nr']
-    else:
-        if print_end >= state_dict['biggest_written_node']:
-            print_end = state_dict['biggest_written_node']
-    print '\n'
-    if len(state_dict['node_subclusters']) == 1:
-        print_WN_ID_lines(print_start, print_end, state_dict['biggest_written_node'])
-    if len(state_dict['node_subclusters']) > 1:
-        print_WN_ID_lines(print_start, print_end, state_dict['remap_nr'])
-    print insert_sep(node_state[print_start:print_end], SEPARATOR, options.WN_COLON) + '=Node state'
-    for ind, k in enumerate(CPUCoreDict):
-        colour_cpu_core_list = list(insert_sep(CPUCoreDict['Cpu' + str(ind) + 'line'][print_start:print_end], SEPARATOR, options.WN_COLON))
-        nocolor_linelength = len(''.join(colour_cpu_core_list))
-        colour_cpu_core_list = [colorize(elem, account_nrless_of_id[elem]) for elem in colour_cpu_core_list if elem in account_nrless_of_id]
-        line = ''.join(colour_cpu_core_list)
-        '''
-        if the first matrix has 10 machines with 64 cores, and the rest 190 machines have 8 cores, don't print the non-existent
-        56 cores from the next matrix on.
-        IMPORTANT: not working if vertical separators are present!
-        '''
-        if '\x1b[1;30m#\x1b[1;m' * nocolor_linelength not in line:
-            print line + colorize('=core' + str(ind), 'NoColourAccount')
-
-
-print colorize('\n===> ', '#') + colorize('User accounts and pool mappings', 'Nothing') + colorize(' <=== ', '#') + colorize('("all" includes those in C and W states, as reported by qstat)', 'NoColourAccount')
-print ' id |  R   +   Q  /  all |    unix account | Grid certificate DN (this info is only available under elevated privileges)'
-for line in accounts_mappings:
-    PrintString = '%3s | %4s + %4s / %4s | %15s |' % (line[0], line[1], line[2], line[3], line[4][0])
-    for account in color_of_account:
-        if line[4][0].startswith(account) and options.COLOR == 'ON':
-            PrintString = '%15s | %16s + %16s / %16s | %27s %4s' % (colorize(str(line[0]), account), colorize(str(line[1]), account), colorize(str(line[2]), account), colorize(str(line[3]), account), colorize(str(line[4][0]), account), colorize(SEPARATOR, 'NoColourAccount'))
-            # PrintString = '%15s | %16s + %16s / %16s | %27s %4s' % (colorize(line[0], account), colorize(str(line[1]), account), colorize(str(line[2]), account), colorize(str(line[3]), account), colorize(line[4][0], account), colorize(SEPARATOR, 'NoColourAccount'))
-        elif line[4][0].startswith(account) and options.COLOR == 'OFF':
-            PrintString = '%2s | %3s + %3s / %3s | %14s |' %(colorize(line[0], account), colorize(str(line[1]), account), colorize(str(line[2]), account), colorize(str(line[3]), account), colorize(line[4][0], account))
-        else:
-            pass
-    print PrintString
-
+print_core_line(cpu_core_dict)
+calculate_remaining_matrices(extra_matrices_nr, state_dict, cpu_core_dict, print_end)
+user_accounts_pool_mappings(colorize, accounts_mappings, color_of_account)
 print '\nThanks for watching!'
 
 os.chdir(SOURCEDIR)
