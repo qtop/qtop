@@ -13,16 +13,14 @@ def make_pbsnodes_yaml(orig_file, yaml_file):
         # os.chdir(HOMEPATH + 'qt')
         sys.exit(0)
 
-    OfflineDownNodes = 0 
-    # global OfflineDownNodes
     with open(orig_file, 'r') as fin, open(yaml_file, 'a') as fout:
         for line in fin:
             line.strip()
-            searchdname = '^\w+([.-]?\w+)*'
-            if re.search(searchdname, line) is not None:   # line containing domain name
-                m = re.search(searchdname, line)
-                dname = m.group(0)
-                fout.write('domainname: ' + dname + '\n')
+            search_domain_name = '^\w+([.-]?\w+)*'
+            if re.search(search_domain_name, line) is not None:   # line containing domain name
+                m = re.search(search_domain_name, line)
+                domain_name = m.group(0)
+                fout.write('domainname: ' + domain_name + '\n')
 
             elif 'state = ' in line:
                 nextchar = line.split()[2][0]
@@ -30,14 +28,14 @@ def make_pbsnodes_yaml(orig_file, yaml_file):
                     state = '-'
                 elif (nextchar == 'd') | (nextchar == 'o'):
                     state = nextchar
-                    OfflineDownNodes += 1
+                    # offline_down_nodes += 1
                 else:
                     state = nextchar
                 fout.write('state: ' + state + '\n')
 
             elif 'np = ' in line or 'pcpus = ' in line:
                 np = line.split()[2][0:]
-                # TotalCores = int(np)
+                # total_cores = int(np)
                 fout.write('np: ' + np + '\n')
 
             elif 'jobs = ' in line:
@@ -63,7 +61,7 @@ def make_pbsnodes_yaml(orig_file, yaml_file):
 
             elif line.startswith('\n'):
                 fout.write('\n')
-    return OfflineDownNodes
+    # return offline_down_nodes
 
 def make_qstat_yaml(orig_file, yaml_file):
     """
@@ -95,7 +93,7 @@ def make_qstat_yaml(orig_file, yaml_file):
                     # variables.UserOfJobId[Jobid] = User # this actually belongs to read_qstat() !
 
         elif 'prior' in first_line:
-            # e.g. job-ID  prior   name       user         state submit/start at     queue                          slots ja-task-ID
+            # e.g. job-ID  prior   name       user         state_dict submit/start at     queue                          slots ja-task-ID
             DIFFERENT_QSTAT_FORMAT_FLAG = 1
             UserQueueSearch = '\s{2}(\d+)\s+([0-9]\.[0-9]+)\s+([A-Za-z0-9_.-]+)\s+([A-Za-z0-9._-]+)\s+([a-z])\s+(\d{2}/\d{2}/\d{2}|0)\s+(\d+:\d+:\d*|0)\s+([A-Za-z0-9_]+@[A-Za-z0-9_.-]+)\s+(\d+)\s+(\w*)'
             run_qd_search = '^\s*(\d+)\s+(\d+)'
@@ -115,7 +113,7 @@ def make_qstat_yaml(orig_file, yaml_file):
                     # variables.UserOfJobId[Jobid] = User
 
 def make_qstatq_yaml(orig_file, yaml_file):
-    # ex-global total_runs, total_queues #qstatqLst
+    # ex-global total_runs, total_queues #qstatq_list
     """
     read QSTATQ_ORIG_FILE sequentially and put useful data in respective yaml file
     """
@@ -134,7 +132,7 @@ def make_qstatq_yaml(orig_file, yaml_file):
             if re.search(queue_search, line) is not None:
                 m = re.search(queue_search, line)
                 _, QueueName, Mem, CPUtime, Walltime, Node, Run, Queued, Lm, State = m.group(0), m.group(1), m.group(2), m.group(3), m.group(4), m.group(5), m.group(6), m.group(7), m.group(8), m.group(9)
-                variables.qstatqLst.append((QueueName, Run, Queued, Lm, State))
+                variables.qstatq_list.append((QueueName, Run, Queued, Lm, State))
                 fout.write('- QueueName: ' + QueueName + '\n')
                 fout.write('  Running: ' + Run + '\n')
                 fout.write('  Queued: ' + Queued + '\n')
