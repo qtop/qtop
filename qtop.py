@@ -296,8 +296,8 @@ def read_qstat_yaml(QSTAT_YAML_FILE):
                 queue_names.append(line.split()[1])
 
     for (job_id, user_name) in zip(job_ids, usernames):
-        variables.UserOfJobId[job_id]  = user_name
-    # variables.UserOfJobId[Jobid] = usernames
+        variables.user_of_job_id[job_id]  = user_name
+    # variables.user_of_job_id[Jobid] = usernames
     return job_ids, usernames, statuses, queue_names
 
 
@@ -305,7 +305,7 @@ def read_qstatq_yaml(QSTATQ_YAML_FILE):
     """
     added for consistency. Originally instead of this function, 
     the following existed in qstatq2yaml:
-    variables.qstatq_list.append((QueueName, Run, Queued, Lm, State))
+    variables.qstatq_list.append((queue_name, Run, Queued, Lm, State))
     """
     templst = []
     tempdict = {}
@@ -313,8 +313,8 @@ def read_qstatq_yaml(QSTATQ_YAML_FILE):
     finr = open(QSTATQ_YAML_FILE, 'r')
     for line in finr:
         line = line.strip()
-        if ' QueueName:' in line:
-            tempdict.setdefault('QueueName',line.split(': ')[1])
+        if ' queue_name:' in line:
+            tempdict.setdefault('queue_name',line.split(': ')[1])
         elif line.startswith('Running:'):
             tempdict.setdefault('Running',line.split(': ')[1])
         elif line.startswith('Queued:'):
@@ -342,13 +342,13 @@ def print_job_accounting_summary(state_dict, total_runs, total_queues, qstatq_li
     print 'Queues: | ',
     if options.COLOR == 'ON':
         for queue in qstatq_list:
-            if queue['QueueName'] in color_of_account:
-                print colorize(queue['QueueName'], queue['QueueName']) + ': ' + colorize(queue['Running'], queue['QueueName']) + '+' + colorize(queue['Queued'], queue['QueueName']) + ' |',
+            if queue['queue_name'] in color_of_account:
+                print colorize(queue['queue_name'], queue['queue_name']) + ': ' + colorize(queue['Running'], queue['queue_name']) + '+' + colorize(queue['Queued'], queue['queue_name']) + ' |',
             else:
-                print colorize(queue['QueueName'], 'Nothing') + ': ' + colorize(queue['Running'], 'Nothing') + '+' + colorize(queue['Queued'], 'Nothing') + ' |',
+                print colorize(queue['queue_name'], 'Nothing') + ': ' + colorize(queue['Running'], 'Nothing') + '+' + colorize(queue['Queued'], 'Nothing') + ' |',
     else:    
         for queue in qstatq_list:
-            print queue['QueueName'] + ': ' + queue['Running'] + '+' + queue['Queued'] + ' |',
+            print queue['queue_name'] + ': ' + queue['Running'] + '+' + queue['Queued'] + ' |',
     print '* implies blocked\n'
 
 
@@ -368,10 +368,10 @@ def fill_cpucore_columns(state_np_corejob, cpu_core_dict, id_of_username, max_np
             if type(element) == tuple:  # everytime there is a job:
                 core, job = element[0], element[1]
                 try: 
-                    variables.UserOfJobId[job]
+                    variables.user_of_job_id[job]
                 except KeyError, KeyErrorValue:
                     print 'There seems to be a problem with the qstat output. A JobID has gone rogue (namely, ' + str(KeyErrorValue) +'). Please check with the System Administrator.'
-                cpu_core_dict['Cpu' + str(core) + 'line'] += str(id_of_username[variables.UserOfJobId[job]])
+                cpu_core_dict['Cpu' + str(core) + 'line'] += str(id_of_username[variables.user_of_job_id[job]])
                 own_np_empty_range.remove(core)
 
         non_existent_cores = [item for item in max_np_range if item not in own_np_range]
@@ -525,7 +525,7 @@ def print_WN_ID_lines(start, stop, WNnumber, hxxxx): # WNnumber determines the n
     h0001 is a header for the 'units' in the WN_ID lines
     '''
     # global JUST_NAMES_FLAG
-    JustNameDict = {}
+    just_name_dict = {}
     if JUST_NAMES_FLAG <= 1:  # normal case, numbered WNs
         if WNnumber < 10:
             print insert_sep(hxxxx['h0001'][start:stop], SEPARATOR, options.WN_COLON) + '={__WNID__}'
@@ -548,16 +548,16 @@ def print_WN_ID_lines(start, stop, WNnumber, hxxxx): # WNnumber determines the n
         colour = 0
         Highlight = {0: 'cmsplt', 1: 'Red'}
         for line in range(len(max(state_dict['wn_list']))):
-            JustNameDict[line] = ''
+            just_name_dict[line] = ''
         for column in range(len(state_dict['wn_list'])): #was -1
             for line in range(len(max(state_dict['wn_list']))):
-                JustNameDict[line] += colorize(state_dict['wn_list'][column][line], Highlight[colour])
+                just_name_dict[line] += colorize(state_dict['wn_list'][column][line], Highlight[colour])
             if colour == 1:
                 colour = 0
             else:
                 colour = 1
         for line in range(len(max(state_dict['wn_list']))):
-            print JustNameDict[line] + '={__WNID__}'
+            print just_name_dict[line] + '={__WNID__}'
 
 
 def calculate_remaining_matrices(extra_matrices_nr, state_dict, cpu_core_dict, _print_end, account_nrless_of_id, hxxxx, DEADWEIGHT=15):
@@ -752,7 +752,7 @@ make_qstat_yaml(QSTAT_ORIG_FILE, QSTAT_YAML_FILE)
 job_ids, usernames, statuses, queue_names = read_qstat_yaml(QSTAT_YAML_FILE)  # populates 4 lists
 
 for username, jobid in zip(usernames, job_ids):
-    variables.UserOfJobId[jobid] = username
+    variables.user_of_job_id[jobid] = username
 
 os.chdir(SOURCEDIR)
 
@@ -765,29 +765,29 @@ print_job_accounting_summary(state_dict, total_runs, total_queues, variables.qst
 # counting of R, Q, C, W, E attached to each user
 running_of_user, queued_of_user, cancelled_of_user, waiting_of_user, exiting_of_user = {}, {}, {}, {}, {}
 
-for UserName, status in zip(usernames, statuses):
+for user_name, status in zip(usernames, statuses):
     if status == 'R':
-        running_of_user[UserName] = running_of_user.get(UserName, 0) + 1
+        running_of_user[user_name] = running_of_user.get(user_name, 0) + 1
     elif status == 'Q':
-        queued_of_user[UserName] = queued_of_user.get(UserName, 0) + 1
+        queued_of_user[user_name] = queued_of_user.get(user_name, 0) + 1
     elif status == 'C':
-        cancelled_of_user[UserName] = cancelled_of_user.get(UserName, 0) + 1
+        cancelled_of_user[user_name] = cancelled_of_user.get(user_name, 0) + 1
     elif status == 'W':
-        waiting_of_user[UserName] = waiting_of_user.get(UserName, 0) + 1
+        waiting_of_user[user_name] = waiting_of_user.get(user_name, 0) + 1
     elif status == 'E':
-        waiting_of_user[UserName] = exiting_of_user.get(UserName, 0) + 1
+        waiting_of_user[user_name] = exiting_of_user.get(user_name, 0) + 1
 
-for UserName in running_of_user:
-    queued_of_user.setdefault(UserName, 0)
-    cancelled_of_user.setdefault(UserName, 0)
-    waiting_of_user.setdefault(UserName, 0)
-    exiting_of_user.setdefault(UserName, 0)
+for user_name in running_of_user:
+    queued_of_user.setdefault(user_name, 0)
+    cancelled_of_user.setdefault(user_name, 0)
+    waiting_of_user.setdefault(user_name, 0)
+    exiting_of_user.setdefault(user_name, 0)
 
 
 # produces the decrementing list of users in the user accounts and poolmappings table
 occurence_dict = {}
-for UserName in usernames:
-    occurence_dict[UserName] = usernames.count(UserName)
+for user_name in usernames:
+    occurence_dict[user_name] = usernames.count(user_name)
 user_sorted_list = sorted(occurence_dict.items(), key=itemgetter(1), reverse=True)
 
 
@@ -820,8 +820,8 @@ for uid in id_of_username:
 
 accounts_mappings = []
 for uid in user_sorted_list:
-    AllOfUser = cancelled_of_user[uid[0]] + running_of_user[uid[0]] + queued_of_user[uid[0]] + waiting_of_user[uid[0]] + exiting_of_user[uid[0]]
-    accounts_mappings.append([id_of_username[uid[0]], running_of_user[uid[0]], queued_of_user[uid[0]], AllOfUser, uid])
+    all_of_user = cancelled_of_user[uid[0]] + running_of_user[uid[0]] + queued_of_user[uid[0]] + waiting_of_user[uid[0]] + exiting_of_user[uid[0]]
+    accounts_mappings.append([id_of_username[uid[0]], running_of_user[uid[0]], queued_of_user[uid[0]], all_of_user, uid])
 accounts_mappings.sort(key=itemgetter(3), reverse=True)  # sort by All jobs
 ####################################################
 
