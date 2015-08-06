@@ -3,6 +3,7 @@ import sys
 import os
 import variables
 
+MAX_CORE_ALLOWED = 150000
 
 def make_pbsnodes_yaml(orig_file, yaml_file):
     """
@@ -40,7 +41,7 @@ def make_pbsnodes_yaml(orig_file, yaml_file):
 
             elif 'jobs = ' in line:
                 ljobs = line.split('=')[1].split(',')
-                lastcore = 150000
+                lastcore = MAX_CORE_ALLOWED
                 for job in ljobs:
                     # core = job.strip().split('/')[0]
                     # job = job.strip().split('/')[1:][0].split('.')[0]
