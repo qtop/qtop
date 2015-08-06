@@ -278,6 +278,7 @@ def read_pbsnodes_yaml(yaml_file, names_flag):
     return state_dict, names_flag
     # return state_dict['existing_nodes'], state_dict['working_cores'], state_dict['total_cores'], biggest_written_node, state_dict['all_wns_dict'], state_dict['wn_list_remapped'], state_dict['all_wns_remapped_dict'], state_dict['remap_nr'], state_dict['max_np'], state_dict['wn_list'], names_flag, offline_down_nodes, state_dict['node_subclusters']
 
+
 def read_qstat_yaml(QSTAT_YAML_FILE):
     """
     reads qstat YAML file and populates four lists. Returns the lists
@@ -406,76 +407,80 @@ def insert_sep(original, separator, pos, stopaftern = 0):
         return original
 
 
-def calculate_Total_WNIDLine_Width(WNnumber): # (remap_nr) in case of multiple state_dict['node_subclusters']
-    '''
+def calculate_Total_WNIDLine_Width(_wn_number): # (remap_nr) in case of multiple state_dict['node_subclusters']
+    """
     calculates the worker node ID number line widths (expressed by hxxxx's)
     h1000 is the thousands' line
     h0100 is the hundreds' line
     and so on
-    '''
-    # global h1000, h0100, h0010, h0001
-    h1000, h0100, h0010, h0001 = '','','',''
+    # h1000, h0100, h0010, h0001 = '','','',''
+    """
+    hxxxx = {}
+    # hxxxx['h1000'] = h1000
+    # hxxxx['h0100'] = h0100
+    # hxxxx['h0010'] = h0010
+    # hxxxx['h0001'] = h0001
 
-    if WNnumber < 10:
+    if _wn_number < 10:
         u_ = '123456789'
-        h0001 = u_[:WNnumber]
+        hxxxx['h0001'] = u_[:_wn_number]
 
-    elif WNnumber < 100:
+    elif _wn_number < 100:
         d_ = '0' * 9 + '1' * 10 + '2' * 10 + '3' * 10 + '4' * 10 + '5' * 10 + '6' * 10 + '7' * 10 + '8' * 10 + '9' * 10
         u_ = '1234567890' * 10
-        h0010 = d_[:WNnumber]
-        h0001 = u_[:WNnumber]
+        hxxxx['h0010'] = d_[:_wn_number]
+        hxxxx['h0001'] = u_[:_wn_number]
 
-    elif WNnumber < 1000:
-        cent = int(str(WNnumber)[0])
-        dec = int(str(WNnumber)[1])
-        unit = int(str(WNnumber)[2])
+    elif _wn_number < 1000:
+        cent = int(str(_wn_number)[0])
+        dec = int(str(_wn_number)[1])
+        unit = int(str(_wn_number)[2])
 
         c_ = str(0) * 99
         for i in range(1, cent):
             c_ += str(i) * 100
         c_ += str(cent) * (int(dec)) * 10 + str(cent) * (int(unit) + 1)
-        h0100 = c_[:WNnumber]
+        hxxxx['h0100'] = c_[:_wn_number]
 
         d_ = '0' * 9 + '1' * 10 + '2' * 10 + '3' * 10 + '4' * 10 + '5' * 10 + '6' * 10 + '7' * 10 + '8' * 10 + '9' * 10
         d__ = d_ + (cent - 1) * (str(0) + d_) + str(0)
         d__ += d_[:int(str(dec) + str(unit))]
-        h0010 = d__[:WNnumber]
+        hxxxx['h0010'] = d__[:_wn_number]
 
         uc = '1234567890' * 100
-        h0001 = uc[:WNnumber]
+        hxxxx['h0001'] = uc[:_wn_number]
 
-    elif WNnumber > 1000:
-        thou = int(str(WNnumber)[0])
-        cent = int(str(WNnumber)[1])
-        dec = int(str(WNnumber)[2])
-        unit = int(str(WNnumber)[3])
+    elif _wn_number > 1000:
+        thou = int(str(_wn_number)[0])
+        cent = int(str(_wn_number)[1])
+        dec = int(str(_wn_number)[2])
+        unit = int(str(_wn_number)[3])
 
-        h1000 += str(0) * 999
+        hxxxx['h1000'] += str(0) * 999
         for i in range(1, thou):
-            h1000 += str(i) * 1000
-        h1000 += str(thou) * ((int(cent)) * 100 + (int(dec)) * 10 + (int(unit) + 1))
+            hxxxx['h1000'] += str(i) * 1000
+        hxxxx['h1000'] += str(thou) * ((int(cent)) * 100 + (int(dec)) * 10 + (int(unit) + 1))
 
         c_ = '0' * 99 + '1' * 100 + '2' * 100 + '3' * 100 + '4' * 100 + '5' * 100 + '6' * 100 + '7' * 100 + '8' * 100 + '9' * 100
         c__ = '0' * 100 + '1' * 100 + '2' * 100 + '3' * 100 + '4' * 100 + '5' * 100 + '6' * 100 + '7' * 100 + '8' * 100 + '9' * 100
-        h0100 = c_
+        hxxxx['h0100'] = c_
 
         for i in range(1, thou):
-            h0100 += c__
+            hxxxx['h0100'] += c__
         else:
-            h0100 += c__[:int(str(cent) + str(dec) +str(unit))+1]
+            hxxxx['h0100'] += c__[:int(str(cent) + str(dec) +str(unit))+1]
 
         d_ = '0' * 10 + '1' * 10 + '2' * 10 + '3' * 10 + '4' * 10 + '5' * 10 + '6' * 10 + '7' * 10 + '8' * 10 + '9' * 10
         d__ = d_ * thou * 10  # cent * 10
         d___ = d_ * (cent - 1)
-        h0010 = '0' * 9 + '1' * 10 + '2' * 10 + '3' * 10 + '4' * 10 + '5' * 10 + '6' * 10 + '7' * 10 + '8' * 10 + '9' * 10
-        h0010 += d__
-        h0010 += d___
-        h0010 += d_[:int(str(dec) + str(unit)) + 1]
+        hxxxx['h0010'] = '0' * 9 + '1' * 10 + '2' * 10 + '3' * 10 + '4' * 10 + '5' * 10 + '6' * 10 + '7' * 10 + '8' * 10 + '9' * 10
+        hxxxx['h0010'] += d__
+        hxxxx['h0010'] += d___
+        hxxxx['h0010'] += d_[:int(str(dec) + str(unit)) + 1]
 
         uc = '1234567890' * 1000
-        h0001 = uc[:WNnumber]
-    return h1000, h0100, h0010, h0001
+        hxxxx['h0001'] = uc[:_wn_number]
+    return hxxxx
 
 
 def find_matrices_width(wn_number, wn_list, state_dict, DEADWEIGHT=15):
@@ -510,7 +515,7 @@ def find_matrices_width(wn_number, wn_list, state_dict, DEADWEIGHT=15):
         return (start, stop, 0)
 
 
-def print_WN_ID_lines(start, stop, WNnumber): # WNnumber determines the number of WN ID lines needed  (1/2/3/4?)
+def print_WN_ID_lines(start, stop, WNnumber, hxxxx): # WNnumber determines the number of WN ID lines needed  (1/2/3/4?)
     SEPARATOR = config['separator']
     # global h1000, h0100, h0010, h0001
     '''
@@ -523,22 +528,22 @@ def print_WN_ID_lines(start, stop, WNnumber): # WNnumber determines the number o
     JustNameDict = {}
     if JUST_NAMES_FLAG <= 1:  # normal case, numbered WNs
         if WNnumber < 10:
-            print insert_sep(h0001[start:stop], SEPARATOR, options.WN_COLON) + '={__WNID__}'
+            print insert_sep(hxxxx['h0001'][start:stop], SEPARATOR, options.WN_COLON) + '={__WNID__}'
 
         elif WNnumber < 100:
-            print insert_sep(h0010[start:stop], SEPARATOR, options.WN_COLON) + '={_Worker_}'
-            print insert_sep(h0001[start:stop], SEPARATOR, options.WN_COLON) + '={__Node__}'
+            print insert_sep(hxxxx['h0010'][start:stop], SEPARATOR, options.WN_COLON) + '={_Worker_}'
+            print insert_sep(hxxxx['h0001'][start:stop], SEPARATOR, options.WN_COLON) + '={__Node__}'
 
         elif WNnumber < 1000:
-            print insert_sep(h0100[start:stop], SEPARATOR, options.WN_COLON) + '={_Worker_}'
-            print insert_sep(h0010[start:stop], SEPARATOR, options.WN_COLON) + '={__Node__}'
-            print insert_sep(h0001[start:stop], SEPARATOR, options.WN_COLON) + '={___ID___}'
+            print insert_sep(hxxxx['h0100'][start:stop], SEPARATOR, options.WN_COLON) + '={_Worker_}'
+            print insert_sep(hxxxx['h0010'][start:stop], SEPARATOR, options.WN_COLON) + '={__Node__}'
+            print insert_sep(hxxxx['h0001'][start:stop], SEPARATOR, options.WN_COLON) + '={___ID___}'
 
         elif WNnumber > 1000:
-            print insert_sep(h1000[start:stop], SEPARATOR, options.WN_COLON) + '={________}'
-            print insert_sep(h0100[start:stop], SEPARATOR, options.WN_COLON) + '={_Worker_}'
-            print insert_sep(h0010[start:stop], SEPARATOR, options.WN_COLON) + '={__Node__}'
-            print insert_sep(h0001[start:stop], SEPARATOR, options.WN_COLON) + '={___ID___}'
+            print insert_sep(hxxxx['h1000'][start:stop], SEPARATOR, options.WN_COLON) + '={________}'
+            print insert_sep(hxxxx['h0100'][start:stop], SEPARATOR, options.WN_COLON) + '={_Worker_}'
+            print insert_sep(hxxxx['h0010'][start:stop], SEPARATOR, options.WN_COLON) + '={__Node__}'
+            print insert_sep(hxxxx['h0001'][start:stop], SEPARATOR, options.WN_COLON) + '={___ID___}'
     elif JUST_NAMES_FLAG > 1 or options.FORCE_NAMES == True: # names (e.g. fruits) instead of numbered WNs
         colour = 0
         Highlight = {0: 'cmsplt', 1: 'Red'}
@@ -555,31 +560,31 @@ def print_WN_ID_lines(start, stop, WNnumber): # WNnumber determines the number o
             print JustNameDict[line] + '={__WNID__}'
 
 
-def calculate_remaining_matrices(extra_matrices_nr, state_dict, cpu_core_dict, print_end, DEADWEIGHT=15):
+def calculate_remaining_matrices(extra_matrices_nr, state_dict, cpu_core_dict, _print_end, account_nrless_of_id, hxxxx, DEADWEIGHT=15):
     """
     Calculate remaining matrices
     """
     for i in range(extra_matrices_nr):
-        print_start = print_end
+        print_start = _print_end
         if config['user_cut_matrix_width']:
-            print_end += config['user_cut_matrix_width']
+            _print_end += config['user_cut_matrix_width']
         else:
-            print_end += term_columns - DEADWEIGHT
+            _print_end += term_columns - DEADWEIGHT
 
         if options.BLINDREMAP or len(state_dict['node_subclusters']) > 1:
-            if print_end >= state_dict['remap_nr']:
-                print_end = state_dict['remap_nr']
+            if _print_end >= state_dict['remap_nr']:
+                _print_end = state_dict['remap_nr']
         else:
-            if print_end >= state_dict['biggest_written_node']:
-                print_end = state_dict['biggest_written_node']
+            if _print_end >= state_dict['biggest_written_node']:
+                _print_end = state_dict['biggest_written_node']
         print '\n'
         if len(state_dict['node_subclusters']) == 1:
-            print_WN_ID_lines(print_start, print_end, state_dict['biggest_written_node'])
-        if len(state_dict['node_subclusters']) > 1:
-            print_WN_ID_lines(print_start, print_end, state_dict['remap_nr'])
-        print insert_sep(node_state[print_start:print_end], SEPARATOR, options.WN_COLON) + '=Node state'
+            print_WN_ID_lines(print_start, _print_end, state_dict['remap_nr'], hxxxx)
+        elif len(state_dict['node_subclusters']) > 1:
+            print_WN_ID_lines(print_start, _print_end, state_dict['remap_nr'], hxxxx)
+        print insert_sep(node_state[print_start:_print_end], SEPARATOR, options.WN_COLON) + '=Node state'
         for ind, k in enumerate(cpu_core_dict):
-            colour_cpu_core_list = list(insert_sep(cpu_core_dict['Cpu' + str(ind) + 'line'][print_start:print_end], SEPARATOR, options.WN_COLON))
+            colour_cpu_core_list = list(insert_sep(cpu_core_dict['Cpu' + str(ind) + 'line'][print_start:_print_end], SEPARATOR, options.WN_COLON))
             nocolor_linelength = len(''.join(colour_cpu_core_list))
             colour_cpu_core_list = [colorize(elem, account_nrless_of_id[elem]) for elem in colour_cpu_core_list if elem in account_nrless_of_id]
             line = ''.join(colour_cpu_core_list)
@@ -608,12 +613,23 @@ def user_accounts_pool_mappings(colorize, accounts_mappings, color_of_account):
         print print_string
 
 
-def print_core_line(cpu_core_dict):
+def print_core_line(cpu_core_dict, accounts_mappings):
+    ################ Node State ######################
+    account_nrless_of_id = {}
+    for line in accounts_mappings:
+        just_name = re.split('[0-9]+', line[4][0])[0]
+        account_nrless_of_id[line[0]] = just_name if just_name in color_of_account else 'NoColourAccount'
+
+    account_nrless_of_id['#'] = '#'
+    account_nrless_of_id['_'] = '_'
+    SEPARATOR = config['separator']
+    account_nrless_of_id[SEPARATOR] = 'NoColourAccount'
     for ind, k in enumerate(cpu_core_dict):
         colour_cpu_core_list = list(insert_sep(cpu_core_dict['Cpu' + str(ind) + 'line'][print_start:print_end], SEPARATOR, options.WN_COLON))
         colour_cpu_core_list = [colorize(elem, account_nrless_of_id[elem]) for elem in colour_cpu_core_list if elem in account_nrless_of_id]
         line = ''.join(colour_cpu_core_list)
         print line + colorize('=core' + str(ind), 'NoColourAccount')
+    return account_nrless_of_id
 
 
 def calc_cpu_lines(state_dict):
@@ -632,6 +648,33 @@ def calc_cpu_lines(state_dict):
         _cpu_core_dict = fill_cpucore_columns(state_np_corejobs[_node], _cpu_core_dict, id_of_username, max_np_range)
 
     return _cpu_core_dict
+
+
+def print_wn_occupancy(colorize, state_dict):
+    """
+    Prints the Worker Nodes Occupancy table.
+    if there are non-uniform WNs in pbsnodes.yaml, e.g. wn01, wn02, gn01, gn02, ...,  remapping is performed.
+    Otherwise, for uniform WNs, i.e. all using the same numbering scheme, wn01, wn02, ... proceeds as normal.
+    Number of Extra tables needed is calculated inside the calculate_Total_WNIDLine_Width function below
+    """
+    node_state = ''
+    print colorize('===> ', '#') + colorize('Worker Nodes occupancy', 'Nothing') + colorize(' <=== ', '#') + colorize('(you can read vertically the node IDs; nodes in free state are noted with - )', 'NoColourAccount')
+
+    if options.BLINDREMAP or len(state_dict['node_subclusters']) > 1:
+        _nodes = state_dict['remap_nr']
+        all_wns = state_dict['all_wns_remapped_dict']
+        wn_list = state_dict['wn_list_remapped']
+    else:
+        _nodes = state_dict['biggest_written_node']
+        all_wns = state_dict['all_wns_dict']
+        wn_list = state_dict['wn_list']
+
+    hxxxx = calculate_Total_WNIDLine_Width(_nodes)
+    for node in all_wns:
+        node_state += all_wns[node][0]
+    (print_start, print_end, extra_matrices_nr) = find_matrices_width(_nodes, wn_list, state_dict)
+    print_WN_ID_lines(print_start, print_end, _nodes, hxxxx)
+    return node_state, hxxxx, extra_matrices_nr, print_start, print_end
 
 
 def reset_yaml_files():
@@ -657,18 +700,30 @@ def load_yaml_config(path):
     return config
 
 
+def calculate_split_screen_size():
+    """
+    Calculation of split screen size
+    """
+    try:
+        term_rows, term_columns = os.popen('stty size', 'r').read().split()  # does not work in pycharm
+    except ValueError:  # probably Pycharm's fault
+        # term_rows, term_columns = [52, 211]
+        term_rows, term_columns = [53, 176]
+    term_columns = int(term_columns)
+    return term_rows, term_columns
+
+
 print_start, print_end = 0, None
 JUST_NAMES_FLAG = 0 if not options.FORCE_NAMES else 1
-node_state = ''
+# node_state = ''
 
-accounts_mappings = []
+
 DIFFERENT_QSTAT_FORMAT_FLAG = 0
 
 #  MAIN ###################################
 
 HOMEPATH = os.path.expanduser('~/PycharmProjects')
 QTOPPATH = os.path.expanduser('~/PycharmProjects/qtop')  # qtoppath: ~/qtop/qtop
-# PROGDIR = os.path.expanduser('~/off/qtop')
 SOURCEDIR = options.SOURCEDIR  # as set by the '-s' switch
 
 config = load_yaml_config(QTOPPATH)
@@ -701,13 +756,7 @@ for username, jobid in zip(usernames, job_ids):
 
 os.chdir(SOURCEDIR)
 
-#Calculation of split screen size
-try:
-    TermRows, term_columns = os.popen('stty size', 'r').read().split()  # does not work in pycharm
-except ValueError:  # probably Pycharm's fault
-    # TermRows, term_columns = [52, 211]
-    TermRows, term_columns = [53, 176]
-term_columns = int(term_columns)
+term_rows, term_columns = calculate_split_screen_size()
 
 # DEADWEIGHT = 15  # standard columns' width on the right of the CoreX map
 
@@ -769,56 +818,23 @@ for uid in id_of_username:
     if uid not in exiting_of_user:
         exiting_of_user[uid] = 0
 
-
+accounts_mappings = []
 for uid in user_sorted_list:
     AllOfUser = cancelled_of_user[uid[0]] + running_of_user[uid[0]] + queued_of_user[uid[0]] + waiting_of_user[uid[0]] + exiting_of_user[uid[0]]
     accounts_mappings.append([id_of_username[uid[0]], running_of_user[uid[0]], queued_of_user[uid[0]], AllOfUser, uid])
 accounts_mappings.sort(key=itemgetter(3), reverse=True)  # sort by All jobs
 ####################################################
 
-
-
-
 cpu_core_dict = calc_cpu_lines(state_dict)
 
-################ Node State ######################
-print colorize('===> ', '#') + colorize('Worker Nodes occupancy', 'Nothing') + colorize(' <=== ', '#') + colorize('(you can read vertically the node IDs; nodes in free state are noted with - )', 'NoColourAccount')
-
-'''
-if there are non-uniform WNs in pbsnodes.yaml, e.g. wn01, wn02, gn01, gn02, ...,  remapping is performed
-Otherwise, for uniform WNs, i.e. all using the same numbering scheme, wn01, wn02, ... proceed as normal
-Number of Extra tables needed is calculated inside the calculate_Total_WNIDLine_Width function below
-'''
-if options.BLINDREMAP or len(state_dict['node_subclusters']) > 1:
-    h1000, h0100, h0010, h0001 = calculate_Total_WNIDLine_Width(state_dict['remap_nr'])
-    for node in state_dict['all_wns_remapped_dict']:
-        node_state += state_dict['all_wns_remapped_dict'][node][0]
-    (print_start, print_end, extra_matrices_nr) = find_matrices_width(state_dict['remap_nr'], state_dict['wn_list_remapped'], state_dict)
-    print_WN_ID_lines(print_start, print_end, state_dict['remap_nr'])
-
-else:  # len(state_dict['node_subclusters']) == 1 AND options.BLINDREMAP false
-    h1000, h0100, h0010, h0001 = calculate_Total_WNIDLine_Width(state_dict['biggest_written_node'])
-    for node in state_dict['all_wns_dict']:
-        node_state += state_dict['all_wns_dict'][node][0]
-    (print_start, print_end, extra_matrices_nr) = find_matrices_width(state_dict['biggest_written_node'], state_dict['wn_list'], state_dict)
-    print_WN_ID_lines(print_start, print_end, state_dict['biggest_written_node'])
+node_state, hxxxx, extra_matrices_nr, print_start, print_end = print_wn_occupancy(colorize, state_dict)
 
 SEPARATOR = config['separator']  # alias
 print insert_sep(node_state[print_start:print_end], SEPARATOR, options.WN_COLON) + '=Node state'
 
-################ Node State ######################
-account_nrless_of_id = {}
-for line in accounts_mappings:
-    just_name = re.split('[0-9]+', line[4][0])[0]
-    account_nrless_of_id[line[0]] = just_name if just_name in color_of_account else 'NoColourAccount'
+account_nrless_of_id = print_core_line(cpu_core_dict, accounts_mappings)
+calculate_remaining_matrices(extra_matrices_nr, state_dict, cpu_core_dict, print_end, account_nrless_of_id, hxxxx)
 
-account_nrless_of_id['#'] = '#'
-account_nrless_of_id['_'] = '_'
-SEPARATOR = config['separator']
-account_nrless_of_id[SEPARATOR] = 'NoColourAccount'
-
-print_core_line(cpu_core_dict)
-calculate_remaining_matrices(extra_matrices_nr, state_dict, cpu_core_dict, print_end)
 user_accounts_pool_mappings(colorize, accounts_mappings, color_of_account)
 print '\nThanks for watching!'
 
