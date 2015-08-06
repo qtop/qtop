@@ -62,7 +62,7 @@ def make_pbsnodes_yaml(orig_file, yaml_file):
 
             elif line.startswith('\n'):
                 fout.write('\n')
-    # return offline_down_nodes
+
 
 def make_qstat_yaml(orig_file, yaml_file):
     """
@@ -113,12 +113,11 @@ def make_qstat_yaml(orig_file, yaml_file):
                     fout.write('...\n')
                     # variables.user_of_job_id[job_id] = User
 
+
 def make_qstatq_yaml(orig_file, yaml_file):
-    # ex-global total_runs, total_queues #qstatq_list
     """
     read QSTATQ_ORIG_FILE sequentially and put useful data in respective yaml file
     """
-
     if not os.path.getsize(orig_file) > 0:
         print 'Your ' + orig_file + ' file is empty! Please check your directory. Exiting ...'
         # os.chdir(HOMEPATH + 'qt')  # TODO: check if this works on restarting the qtop script
@@ -146,4 +145,3 @@ def make_qstatq_yaml(orig_file, yaml_file):
         fout.write('---\n')
         fout.write('Total Running: ' + str(total_runs) + '\n')
         fout.write('Total Queued: ' + str(total_queues) + '\n')
-    return total_runs, total_queues

@@ -310,27 +310,27 @@ def read_qstatq_yaml(QSTATQ_YAML_FILE):
     templst = []
     tempdict = {}
     qstatq_list = []
-    finr = open(QSTATQ_YAML_FILE, 'r')
-    for line in finr:
-        line = line.strip()
-        if ' queue_name:' in line:
-            tempdict.setdefault('queue_name',line.split(': ')[1])
-        elif line.startswith('Running:'):
-            tempdict.setdefault('Running',line.split(': ')[1])
-        elif line.startswith('Queued:'):
-            tempdict.setdefault('Queued',line.split(': ')[1])
-        elif line.startswith('Lm:'):
-            tempdict.setdefault('Lm',line.split(': ')[1])
-        elif line.startswith('State:'):
-            tempdict.setdefault('State',line.split(': ')[1])
-        elif not line:
-            qstatq_list.append(tempdict)
-            tempdict = {}
-        elif '---' in line:
-            break
-    finr.close()
-    # import pdb;pdb.set_trace()
-    return qstatq_list
+    with open(QSTATQ_YAML_FILE, 'r') as finr:
+        for line in finr:
+            line = line.strip()
+            if ' queue_name:' in line:
+                tempdict.setdefault('queue_name', line.split(': ')[1])
+            elif line.startswith('Running:'):
+                tempdict.setdefault('Running', line.split(': ')[1])
+            elif line.startswith('Queued:'):
+                tempdict.setdefault('Queued', line.split(': ')[1])
+            elif line.startswith('Lm:'):
+                tempdict.setdefault('Lm', line.split(': ')[1])
+            elif line.startswith('State:'):
+                tempdict.setdefault('State', line.split(': ')[1])
+            elif not line:
+                qstatq_list.append(tempdict)
+                tempdict = {}
+            elif line.startswith(('Total Running:')):
+                total_runs = line.split(': ')[1]
+            elif line.startswith(('Total Queued:')):
+                total_queues = line.split(': ')[1]
+    return total_runs, total_queues, qstatq_list
 
 
 def print_job_accounting_summary(state_dict, total_runs, total_queues, qstatq_list):
@@ -350,6 +350,100 @@ def print_job_accounting_summary(state_dict, total_runs, total_queues, qstatq_li
         for queue in qstatq_list:
             print queue['queue_name'] + ': ' + queue['Running'] + '+' + queue['Queued'] + ' |',
     print '* implies blocked\n'
+
+
+def calculate_job_counts(user_names, statuses):
+    """
+    Calculates and prints what is actually below the id|  R + Q /all | unix account etc line
+    """
+    state_abbrevs = {'R': 'running_of_user',
+                 'Q': 'queued_of_user',
+                 'C': 'cancelled_of_user',
+                 'W': 'waiting_of_user',
+                 'E': 'exiting_of_user'}
+
+    _job_counts = create_job_counts(user_names, statuses, state_abbrevs)
+    user_sorted_list = produce_user_list(user_names)
+    expand_useraccounts_symbols(config, user_sorted_list)
+
+    id_of_username = {}
+    for ind, user_name in enumerate(user_sorted_list):
+        id_of_username[user_name[0]] = config['possible_ids'][ind]
+
+    # Calculates and prints what is actually below the id|  R + Q /all | unix account etc line
+    # this is slower but shorter: 8mus
+    for state_abbrev in state_abbrevs:
+        missing_uids = set(id_of_username).difference(_job_counts[state_abbrevs[state_abbrev]])
+        [_job_counts[state_abbrevs[state_abbrev]].setdefault(uid, 0) for uid in missing_uids]
+
+    # This is actually faster: 6 mus
+    # for uid in id_of_username:
+    #     if uid not in job_counts['running_of_user']:
+    #         job_counts['running_of_user'][uid] = 0  # 4
+    #     if uid not in job_counts['queued_of_user']:
+    #         job_counts['queued_of_user'][uid] = 0  # 4
+    #     if uid not in job_counts['cancelled_of_user']:
+    #         job_counts['cancelled_of_user'][uid] = 0  # 20
+    #     if uid not in job_counts['waiting_of_user']:
+    #         job_counts['waiting_of_user'][uid] = 0  # 19
+    #     if uid not in job_counts['exiting_of_user']:
+    #         job_counts['exiting_of_user'][uid] = 0  # 20
+    return _job_counts, user_sorted_list, id_of_username
+
+
+def create_account_mappings(job_counts, user_sorted_list, id_of_username):
+    accounts_mappings = []
+    for uid in user_sorted_list:
+        all_of_user = job_counts['cancelled_of_user'][uid[0]] + \
+                      job_counts['running_of_user'][uid[0]] + \
+                      job_counts['queued_of_user'][uid[0]] + \
+                      job_counts['waiting_of_user'][uid[0]] + \
+                      job_counts['exiting_of_user'][uid[0]]
+        accounts_mappings.append([id_of_username[uid[0]], job_counts['running_of_user'][uid[0]], job_counts['queued_of_user'][
+            uid[0]], all_of_user,uid])
+    accounts_mappings.sort(key=itemgetter(3), reverse=True)  # sort by All jobs
+    return accounts_mappings
+
+
+def create_job_counts(user_names, statuses, state_abbrevs):
+    """
+    counting of R, Q, C, W, E attached to each user
+    """
+    job_counts = dict()
+    for value in state_abbrevs.values():
+        job_counts[value] = dict()
+
+    for user_name, status in zip(user_names, statuses):
+        job_counts[state_abbrevs[status]][user_name] = job_counts[state_abbrevs[status]].get(user_name, 0) + 1
+
+    for user_name in job_counts['running_of_user']:
+        job_counts['queued_of_user'].setdefault(user_name, 0)
+        job_counts['cancelled_of_user'].setdefault(user_name, 0)
+        job_counts['waiting_of_user'].setdefault(user_name, 0)
+        job_counts['exiting_of_user'].setdefault(user_name, 0)
+
+    return job_counts
+
+
+def produce_user_list(_user_names):
+    """
+    produces the decrementing list of users in the user accounts and poolmappings table
+    """
+    occurence_dict = {}
+    for user_name in _user_names:
+        occurence_dict[user_name] = _user_names.count(user_name)
+    user_sorted_list = sorted(occurence_dict.items(), key=itemgetter(1), reverse=True)
+    return user_sorted_list
+
+
+def expand_useraccounts_symbols(config, user_sorted_list):
+    """
+    In case there are more users than the sum number of all numbers and small/capital letters of the alphabet
+    """
+    MAX_UNIX_ACCOUNTS = 87  # was : 62
+    if len(user_sorted_list) > MAX_UNIX_ACCOUNTS:
+        for i in xrange(MAX_UNIX_ACCOUNTS, len(user_sorted_list) + MAX_UNIX_ACCOUNTS):  # was: # for i in xrange(MAX_UNIX_ACCOUNTS, len(user_sorted_list) + MAX_UNIX_ACCOUNTS):
+            config['possible_ids'].append(str(i)[0])
 
 
 def fill_cpucore_columns(state_np_corejob, cpu_core_dict, id_of_username, max_np_range):
@@ -597,7 +691,7 @@ def calculate_remaining_matrices(extra_matrices_nr, state_dict, cpu_core_dict, _
                 print line + colorize('=core' + str(ind), 'NoColourAccount')
 
 
-def user_accounts_pool_mappings(colorize, accounts_mappings, color_of_account):
+def print_user_accounts_pool_mappings(colorize, accounts_mappings, color_of_account):
     print colorize('\n===> ', '#') + colorize('User accounts and pool mappings', 'Nothing') + colorize(' <=== ', '#') + colorize('("all" includes those in C and W states, as reported by qstat)', 'NoColourAccount')
     print ' id |  R   +   Q  /  all |    unix account | Grid certificate DN (this info is only available under elevated privileges)'
 
@@ -632,7 +726,7 @@ def print_core_line(cpu_core_dict, accounts_mappings):
     return account_nrless_of_id
 
 
-def calc_cpu_lines(state_dict):
+def calc_cpu_lines(state_dict, id_of_username):
     _cpu_core_dict = {}
     max_np_range = []
 
@@ -681,8 +775,8 @@ def reset_yaml_files():
     """
     empties the files with every run of the python script
     """
-    for FILE in [PBSNODES_YAML_FILE, QSTATQ_YAML_FILE, QSTAT_YAML_FILE]:
-        fin = open(FILE, 'w')
+    for _file in [PBSNODES_YAML_FILE, QSTATQ_YAML_FILE, QSTAT_YAML_FILE]:
+        fin = open(_file, 'w')
         fin.close()
 
 
@@ -712,15 +806,11 @@ def calculate_split_screen_size():
     term_columns = int(term_columns)
     return term_rows, term_columns
 
-
+#if __name__ == '__main__': # todo: later
 print_start, print_end = 0, None
 JUST_NAMES_FLAG = 0 if not options.FORCE_NAMES else 1
-# node_state = ''
-
-
+DEADWEIGHT = 15  # standard columns' width on the right of the CoreX map
 DIFFERENT_QSTAT_FORMAT_FLAG = 0
-
-#  MAIN ###################################
 
 HOMEPATH = os.path.expanduser('~/PycharmProjects')
 QTOPPATH = os.path.expanduser('~/PycharmProjects/qtop')  # qtoppath: ~/qtop/qtop
@@ -739,15 +829,14 @@ PBSNODES_ORIG_FILE = [f for f in os.listdir(os.getcwd()) if f.startswith('pbsnod
 QSTATQ_ORIG_FILE = [f for f in os.listdir(os.getcwd()) if (f.startswith('qstat_q') or f.startswith('qstatq') or f.startswith('qstat-q') and not f.endswith('.yaml'))][0]
 QSTAT_ORIG_FILE = [f for f in os.listdir(os.getcwd()) if f.startswith('qstat.') and not f.endswith('.yaml')][0]
 
+#  MAIN ###################################
 reset_yaml_files()
 make_pbsnodes_yaml(PBSNODES_ORIG_FILE, PBSNODES_YAML_FILE)
+make_qstatq_yaml(QSTATQ_ORIG_FILE, QSTATQ_YAML_FILE)
+make_qstat_yaml(QSTAT_ORIG_FILE, QSTAT_YAML_FILE)
 
 state_dict, JUST_NAMES_FLAG = read_pbsnodes_yaml(PBSNODES_YAML_FILE, JUST_NAMES_FLAG)
-
-
-total_runs, total_queues = make_qstatq_yaml(QSTATQ_ORIG_FILE, QSTATQ_YAML_FILE)
-variables.qstatq_list = read_qstatq_yaml(QSTATQ_YAML_FILE)
-make_qstat_yaml(QSTAT_ORIG_FILE, QSTAT_YAML_FILE)
+total_runs, total_queues, variables.qstatq_list = read_qstatq_yaml(QSTATQ_YAML_FILE)
 job_ids, user_names, statuses, queue_names = read_qstat_yaml(QSTAT_YAML_FILE)  # populates 4 lists
 
 for user_name, jobid in zip(user_names, job_ids):
@@ -757,73 +846,11 @@ os.chdir(SOURCEDIR)
 
 term_rows, term_columns = calculate_split_screen_size()
 
-# DEADWEIGHT = 15  # standard columns' width on the right of the CoreX map
-
 print_job_accounting_summary(state_dict, total_runs, total_queues, variables.qstatq_list)
+job_counts, user_sorted_list, id_of_username = calculate_job_counts(user_names, statuses)
+accounts_mappings = create_account_mappings(job_counts, user_sorted_list, id_of_username)
 
-# counting of R, Q, C, W, E attached to each user
-running_of_user, queued_of_user, cancelled_of_user, waiting_of_user, exiting_of_user = {}, {}, {}, {}, {}
-
-for user_name, status in zip(user_names, statuses):
-    if status == 'R':
-        running_of_user[user_name] = running_of_user.get(user_name, 0) + 1
-    elif status == 'Q':
-        queued_of_user[user_name] = queued_of_user.get(user_name, 0) + 1
-    elif status == 'C':
-        cancelled_of_user[user_name] = cancelled_of_user.get(user_name, 0) + 1
-    elif status == 'W':
-        waiting_of_user[user_name] = waiting_of_user.get(user_name, 0) + 1
-    elif status == 'E':
-        waiting_of_user[user_name] = exiting_of_user.get(user_name, 0) + 1
-
-for user_name in running_of_user:
-    queued_of_user.setdefault(user_name, 0)
-    cancelled_of_user.setdefault(user_name, 0)
-    waiting_of_user.setdefault(user_name, 0)
-    exiting_of_user.setdefault(user_name, 0)
-
-
-# produces the decrementing list of users in the user accounts and poolmappings table
-occurence_dict = {}
-for user_name in user_names:
-    occurence_dict[user_name] = user_names.count(user_name)
-user_sorted_list = sorted(occurence_dict.items(), key=itemgetter(1), reverse=True)
-
-
-'''
-In case there are more users than the sum number of all numbers and 
-small/capital letters of the alphabet 
-'''
-if len(user_sorted_list) > 87:  # was: > 62:
-    for i in xrange(87, len(user_sorted_list) + 87):  # was: # for i in xrange(62, len(user_sorted_list) + 62):
-        config['possible_ids'].append(str(i)[0])
-
-
-id_of_username = {}
-for j, user_name in enumerate(user_sorted_list):
-    id_of_username[user_name[0]] = config['possible_ids'][j]
-
-# this calculates and prints what is actually below the id|  R + Q /all | unix account etc line
-for uid in id_of_username:
-    if uid not in running_of_user:
-        running_of_user[uid] = 0
-    if uid not in queued_of_user:
-        queued_of_user[uid] = 0
-    if uid not in cancelled_of_user:
-        cancelled_of_user[uid] = 0
-    if uid not in waiting_of_user:
-        waiting_of_user[uid] = 0
-    if uid not in exiting_of_user:
-        exiting_of_user[uid] = 0
-
-accounts_mappings = []
-for uid in user_sorted_list:
-    all_of_user = cancelled_of_user[uid[0]] + running_of_user[uid[0]] + queued_of_user[uid[0]] + waiting_of_user[uid[0]] + exiting_of_user[uid[0]]
-    accounts_mappings.append([id_of_username[uid[0]], running_of_user[uid[0]], queued_of_user[uid[0]], all_of_user, uid])
-accounts_mappings.sort(key=itemgetter(3), reverse=True)  # sort by All jobs
-####################################################
-
-cpu_core_dict = calc_cpu_lines(state_dict)
+cpu_core_dict = calc_cpu_lines(state_dict, id_of_username)
 
 node_state, hxxxx, extra_matrices_nr, print_start, print_end = print_wn_occupancy(colorize, state_dict)
 
@@ -833,7 +860,7 @@ print insert_sep(node_state[print_start:print_end], SEPARATOR, options.WN_COLON)
 account_nrless_of_id = print_core_line(cpu_core_dict, accounts_mappings)
 calculate_remaining_matrices(extra_matrices_nr, state_dict, cpu_core_dict, print_end, account_nrless_of_id, hxxxx)
 
-user_accounts_pool_mappings(colorize, accounts_mappings, color_of_account)
+print_user_accounts_pool_mappings(colorize, accounts_mappings, color_of_account)
 print '\nThanks for watching!'
 
 os.chdir(SOURCEDIR)
