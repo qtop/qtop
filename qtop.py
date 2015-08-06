@@ -734,7 +734,6 @@ QSTATQ_YAML_FILE = 'qstat-q_%s.yaml' % os.getpid()
 QSTAT_YAML_FILE = 'qstat_%s.yaml' % os.getpid()
 
 os.chdir(SOURCEDIR)
-
 # Location of read and created files
 PBSNODES_ORIG_FILE = [f for f in os.listdir(os.getcwd()) if f.startswith('pbsnodes') and not f.endswith('.yaml')][0]
 QSTATQ_ORIG_FILE = [f for f in os.listdir(os.getcwd()) if (f.startswith('qstat_q') or f.startswith('qstatq') or f.startswith('qstat-q') and not f.endswith('.yaml'))][0]
@@ -749,10 +748,10 @@ state_dict, JUST_NAMES_FLAG = read_pbsnodes_yaml(PBSNODES_YAML_FILE, JUST_NAMES_
 total_runs, total_queues = make_qstatq_yaml(QSTATQ_ORIG_FILE, QSTATQ_YAML_FILE)
 variables.qstatq_list = read_qstatq_yaml(QSTATQ_YAML_FILE)
 make_qstat_yaml(QSTAT_ORIG_FILE, QSTAT_YAML_FILE)
-job_ids, usernames, statuses, queue_names = read_qstat_yaml(QSTAT_YAML_FILE)  # populates 4 lists
+job_ids, user_names, statuses, queue_names = read_qstat_yaml(QSTAT_YAML_FILE)  # populates 4 lists
 
-for username, jobid in zip(usernames, job_ids):
-    variables.user_of_job_id[jobid] = username
+for user_name, jobid in zip(user_names, job_ids):
+    variables.user_of_job_id[jobid] = user_name
 
 os.chdir(SOURCEDIR)
 
@@ -765,7 +764,7 @@ print_job_accounting_summary(state_dict, total_runs, total_queues, variables.qst
 # counting of R, Q, C, W, E attached to each user
 running_of_user, queued_of_user, cancelled_of_user, waiting_of_user, exiting_of_user = {}, {}, {}, {}, {}
 
-for user_name, status in zip(usernames, statuses):
+for user_name, status in zip(user_names, statuses):
     if status == 'R':
         running_of_user[user_name] = running_of_user.get(user_name, 0) + 1
     elif status == 'Q':
@@ -786,8 +785,8 @@ for user_name in running_of_user:
 
 # produces the decrementing list of users in the user accounts and poolmappings table
 occurence_dict = {}
-for user_name in usernames:
-    occurence_dict[user_name] = usernames.count(user_name)
+for user_name in user_names:
+    occurence_dict[user_name] = user_names.count(user_name)
 user_sorted_list = sorted(occurence_dict.items(), key=itemgetter(1), reverse=True)
 
 
@@ -801,11 +800,10 @@ if len(user_sorted_list) > 87:  # was: > 62:
 
 
 id_of_username = {}
-for j, username in enumerate(user_sorted_list):
-    id_of_username[username[0]] = config['possible_ids'][j]
+for j, user_name in enumerate(user_sorted_list):
+    id_of_username[user_name[0]] = config['possible_ids'][j]
 
-# this calculates and prints what is actually below the 
-# id|  R + Q /all | unix account etc line
+# this calculates and prints what is actually below the id|  R + Q /all | unix account etc line
 for uid in id_of_username:
     if uid not in running_of_user:
         running_of_user[uid] = 0
