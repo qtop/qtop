@@ -91,7 +91,6 @@ def make_qstat_yaml(orig_file, yaml_file):
                     fout.write('S: ' + S + '\n')
                     fout.write('Queue: ' + Queue + '\n')
                     fout.write('...\n')
-                    # variables.user_of_job_id[job_id] = User # this actually belongs to read_qstat() !
 
         elif 'prior' in first_line:
             # e.g. job-ID  prior   name       user         state_dict submit/start at     queue                          slots ja-task-ID
@@ -111,7 +110,6 @@ def make_qstat_yaml(orig_file, yaml_file):
                     fout.write('S: ' + State + '\n')
                     fout.write('Queue: ' + Queue + '\n')
                     fout.write('...\n')
-                    # variables.user_of_job_id[job_id] = User
 
 
 def make_qstatq_yaml(orig_file, yaml_file):
@@ -131,13 +129,14 @@ def make_qstatq_yaml(orig_file, yaml_file):
             # searches for something like: biomed             --      --    72:00:00   --   31   0 --   E R
             if re.search(queue_search, line) is not None:
                 m = re.search(queue_search, line)
-                _, queue_name, Mem, cpu_time, wall_time, Node, Run, Queued, Lm, State = m.group(0), m.group(1), m.group(2), m.group(3), m.group(4), m.group(5), m.group(6), m.group(7), m.group(8), m.group(9)
-                variables.qstatq_list.append((queue_name, Run, Queued, Lm, State))
+                _, queue_name, Mem, cpu_time, wall_time, node, run, queued, lm, state = m.group(0), m.group(1), m.group(2), \
+                                                                                     m.group(3), m.group(4), m.group(5), m.group(6), m.group(7), m.group(8), m.group(9)
+                # variables.qstatq_list.append((queue_name, run, queued, lm, state))
                 fout.write('- queue_name: ' + queue_name + '\n')
-                fout.write('  Running: ' + Run + '\n')
-                fout.write('  Queued: ' + Queued + '\n')
-                fout.write('  Lm: ' + Lm + '\n')
-                fout.write('  State: ' + State + '\n')
+                fout.write('  Running: ' + run + '\n')
+                fout.write('  Queued: ' + queued + '\n')
+                fout.write('  Lm: ' + lm + '\n')
+                fout.write('  State: ' + state + '\n')
                 fout.write('\n')
             elif re.search(run_qd_search, line) is not None:
                 n = re.search(run_qd_search, line)

@@ -284,6 +284,7 @@ def read_qstat_yaml(QSTAT_YAML_FILE):
     reads qstat YAML file and populates four lists. Returns the lists
     """
     job_ids, usernames, statuses, queue_names = [], [], [], []
+    user_of_job_id = {}
     with open(QSTAT_YAML_FILE, 'r') as finr:
         for line in finr:
             if line.startswith('JobId:'):
@@ -296,9 +297,8 @@ def read_qstat_yaml(QSTAT_YAML_FILE):
                 queue_names.append(line.split()[1])
 
     for (job_id, user_name) in zip(job_ids, usernames):
-        variables.user_of_job_id[job_id]  = user_name
-    # variables.user_of_job_id[Jobid] = usernames
-    return job_ids, usernames, statuses, queue_names
+        user_of_job_id[job_id] = user_name
+    return job_ids, usernames, statuses, queue_names, user_of_job_id
 
 
 def read_qstatq_yaml(QSTATQ_YAML_FILE):
@@ -446,7 +446,7 @@ def expand_useraccounts_symbols(config, user_sorted_list):
             config['possible_ids'].append(str(i)[0])
 
 
-def fill_cpucore_columns(state_np_corejob, cpu_core_dict, id_of_username, max_np_range):
+def fill_cpucore_columns(state_np_corejob, cpu_core_dict, id_of_username, max_np_range, user_of_job_id):
     """
     Calculates the actual contents of the map by filling in a status string for each CPU line
     """
@@ -462,10 +462,10 @@ def fill_cpucore_columns(state_np_corejob, cpu_core_dict, id_of_username, max_np
             if type(element) == tuple:  # everytime there is a job:
                 core, job = element[0], element[1]
                 try: 
-                    variables.user_of_job_id[job]
+                    user_of_job_id[job]
                 except KeyError, KeyErrorValue:
                     print 'There seems to be a problem with the qstat output. A JobID has gone rogue (namely, ' + str(KeyErrorValue) +'). Please check with the System Administrator.'
-                cpu_core_dict['Cpu' + str(core) + 'line'] += str(id_of_username[variables.user_of_job_id[job]])
+                cpu_core_dict['Cpu' + str(core) + 'line'] += str(id_of_username[user_of_job_id[job]])
                 own_np_empty_range.remove(core)
 
         non_existent_cores = [item for item in max_np_range if item not in own_np_range]
@@ -739,7 +739,7 @@ def calc_cpu_lines(state_dict, id_of_username):
     elif len(state_dict['node_subclusters']) == 1:
         state_np_corejobs = state_dict['all_wns_dict']
     for _node in state_np_corejobs:
-        _cpu_core_dict = fill_cpucore_columns(state_np_corejobs[_node], _cpu_core_dict, id_of_username, max_np_range)
+        _cpu_core_dict = fill_cpucore_columns(state_np_corejobs[_node], _cpu_core_dict, id_of_username, max_np_range, user_of_job_id)
 
     return _cpu_core_dict
 
@@ -836,17 +836,17 @@ make_qstatq_yaml(QSTATQ_ORIG_FILE, QSTATQ_YAML_FILE)
 make_qstat_yaml(QSTAT_ORIG_FILE, QSTAT_YAML_FILE)
 
 state_dict, JUST_NAMES_FLAG = read_pbsnodes_yaml(PBSNODES_YAML_FILE, JUST_NAMES_FLAG)
-total_runs, total_queues, variables.qstatq_list = read_qstatq_yaml(QSTATQ_YAML_FILE)
-job_ids, user_names, statuses, queue_names = read_qstat_yaml(QSTAT_YAML_FILE)  # populates 4 lists
+total_runs, total_queues, qstatq_list = read_qstatq_yaml(QSTATQ_YAML_FILE)
+job_ids, user_names, statuses, queue_names, user_of_job_id = read_qstat_yaml(QSTAT_YAML_FILE)  # populates 4 lists
 
 for user_name, jobid in zip(user_names, job_ids):
-    variables.user_of_job_id[jobid] = user_name
+    user_of_job_id[jobid] = user_name
 
 os.chdir(SOURCEDIR)
 
 term_rows, term_columns = calculate_split_screen_size()
 
-print_job_accounting_summary(state_dict, total_runs, total_queues, variables.qstatq_list)
+print_job_accounting_summary(state_dict, total_runs, total_queues, qstatq_list)
 job_counts, user_sorted_list, id_of_username = calculate_job_counts(user_names, statuses)
 accounts_mappings = create_account_mappings(job_counts, user_sorted_list, id_of_username)
 
