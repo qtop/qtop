@@ -581,12 +581,20 @@ def print_WN_ID_lines(start, stop, wn_number, hxxxx):
             print just_name_dict[line] + '={__WNID__}'
 
 
-def calculate_remaining_matrices(node_state, extra_matrices_nr, state_dict, cpu_core_dict, _print_end, account_nrless_of_id,
-                                 hxxxx, term_columns, DEADWEIGHT=15):
+def calculate_remaining_matrices(node_state,
+                                 extra_matrices_nr,
+                                 state_dict,
+                                 cpu_core_dict,
+                                 _print_end,
+                                 account_nrless_of_id,
+                                 hxxxx,
+                                 term_columns,
+                                 DEADWEIGHT=15):
     """
-    Calculate remaining matrices
+    If there WNs are numerous, this calculates the extra matrices needed to display them.
     """
     for i in range(extra_matrices_nr):
+        print '\n'
         print_start = _print_end
         if config['user_cut_matrix_width']:
             _print_end += config['user_cut_matrix_width']
@@ -594,16 +602,15 @@ def calculate_remaining_matrices(node_state, extra_matrices_nr, state_dict, cpu_
             _print_end += term_columns - DEADWEIGHT
 
         if options.BLINDREMAP or len(state_dict['node_subclusters']) > 1:
-            if _print_end >= state_dict['remap_nr']:
-                _print_end = state_dict['remap_nr']
+            _print_end = min(_print_end, state_dict['remap_nr'])
         else:
-            if _print_end >= state_dict['biggest_written_node']:
-                _print_end = state_dict['biggest_written_node']
-        print '\n'
+            _print_end = min(_print_end, state_dict['biggest_written_node'])
+
         if len(state_dict['node_subclusters']) == 1:
             print_WN_ID_lines(print_start, _print_end, state_dict['remap_nr'], hxxxx)
-        elif len(state_dict['node_subclusters']) > 1:
+        elif len(state_dict['node_subclusters']) > 1:  # not sure that this works, these two funcs seem terribly similar!!
             print_WN_ID_lines(print_start, _print_end, state_dict['remap_nr'], hxxxx)
+
         print insert_sep(node_state[print_start:_print_end], SEPARATOR, options.WN_COLON) + '=Node state'
         for ind, k in enumerate(cpu_core_dict):
             color_cpu_core_list = list(insert_sep(cpu_core_dict['Cpu' + str(ind) + 'line'][print_start:_print_end], SEPARATOR, options.WN_COLON))
@@ -636,7 +643,9 @@ def create_user_accounts_pool_mappings(accounts_mappings, color_of_account):
 
 
 def print_core_lines(cpu_core_dict, accounts_mappings, print_start, print_end):
-    ################ Node State ######################
+    """
+    prints all coreX lines
+    """
     account_nrless_of_id = {}
     for line in accounts_mappings:
         just_name = re.split('[0-9]+', line[4][0])[0]
@@ -644,13 +653,13 @@ def print_core_lines(cpu_core_dict, accounts_mappings, print_start, print_end):
 
     account_nrless_of_id['#'] = '#'
     account_nrless_of_id['_'] = '_'
-    SEPARATOR = config['separator']
     account_nrless_of_id[SEPARATOR] = 'NoColourAccount'
     for ind, k in enumerate(cpu_core_dict):
         color_cpu_core_list = list(insert_sep(cpu_core_dict['Cpu' + str(ind) + 'line'][print_start:print_end], SEPARATOR, options.WN_COLON))
         color_cpu_core_list = [colorize(elem, account_nrless_of_id[elem]) for elem in color_cpu_core_list if elem in account_nrless_of_id]
         line = ''.join(color_cpu_core_list)
         print line + colorize('=core' + str(ind), 'NoColourAccount')
+
     return account_nrless_of_id
 
 
