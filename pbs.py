@@ -7,50 +7,43 @@ MAX_CORE_ALLOWED = 150000
 
 def make_pbsnodes_yaml(orig_file, yaml_file):
     """
-    read PBSNODES_ORIG_FILE sequentially and put in respective yaml file
+    reads PBSNODES_ORIG_FILE sequentially and puts its information in a new yaml file
     """
     if not os.path.getsize(orig_file) > 0:
         print 'Bailing out... Not yet ready for Sun Grid Engine clusters'
-        # os.chdir(HOMEPATH + 'qt')
         sys.exit(0)
 
+    search_domain_name = '^\w+([.-]?\w+)*'
     with open(orig_file, 'r') as fin, open(yaml_file, 'a') as fout:
         for line in fin:
             line.strip()
-            search_domain_name = '^\w+([.-]?\w+)*'
-            if re.search(search_domain_name, line) is not None:   # line containing domain name
-                m = re.search(search_domain_name, line)
+
+            m = re.search(search_domain_name, line)
+            if m:
                 domain_name = m.group(0)
                 fout.write('domainname: ' + domain_name + '\n')
 
             elif 'state = ' in line:
                 nextchar = line.split()[2][0]
-                if nextchar == 'f':
-                    state = '-'
-                elif (nextchar == 'd') | (nextchar == 'o'):
-                    state = nextchar
-                    # offline_down_nodes += 1
-                else:
-                    state = nextchar
+                state = '-' if nextchar == 'f' else nextchar
                 fout.write('state: ' + state + '\n')
 
             elif 'np = ' in line or 'pcpus = ' in line:
                 np = line.split()[2][0:]
-                # total_cores = int(np)
                 fout.write('np: ' + np + '\n')
 
             elif 'jobs = ' in line:
                 ljobs = line.split('=')[1].split(',')
                 lastcore = MAX_CORE_ALLOWED
                 for job in ljobs:
-                    # core = job.strip().split('/')[0]
-                    # job = job.strip().split('/')[1:][0].split('.')[0]
                     core, job = job.strip().split('/')
-                    if len(core) > len(job): # that can't be the case, so we got it wrong (jobs format must be jobid/core instead of core/jobid)
+                    if len(core) > len(job):
+                        # that can't be the case, so we got it wrong (jobs format must be jobid/core instead of core/jobid)
                         core, job = job, core
                     job = job.strip().split('/')[0].split('.')[0]
                     if core == lastcore:
-                        print 'There are concurrent jobs assigned to the same core!' + '\n' +' This kind of Remapping is not implemented yet. Exiting..'
+                        print 'There are concurrent jobs assigned to the same core!' + '\n' +\
+                              ' This kind of Remapping is not implemented yet. Exiting..'
                         sys.exit(1)
                     fout.write('- core: ' + core + '\n')
                     fout.write('  job: ' + job + '\n')
