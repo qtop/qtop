@@ -7,75 +7,6 @@
 #                     Sotiris Fragkiskos       #
 ################################################
 
-"""
-changelog:
-=========
-0.6.7: created yaml files now have the pid appended to the filename
-       pbs-related functions (which create the respective yaml files) have moved to a dedicated module 
-       took out state_dict['highest_core_busy'], seemed useless (and unused)
-       a separate read_qstatq_yaml function added, for consistency (removed from qstatq2yaml)
-       change qstatq_list from list of tuples to list of dictionaries
-       offline_down_nodes was moved from pbs.pbsnodes2yaml to read_pbsnodes_yaml
-0.6.6: got rid of all global variables (experimental)
-0.6.5: PBS now supported
-0.6.4: lines that don't contain *any* actual core are now not printed in the matrices.
-0.6.3: optional stopping of vertical separators (every 'n' position for x times)
-       additional vertical separator in the beginning
-0.6.2: WN matrix width bug ironed out.
-0.6.1: Custom-cut matrices (horizontally, too!), -o switch
-0.5.2: Custom-cut matrices (vertically, not horizontally), width set by user.
-0.5.1: If more than 20% of the WNs are empty, perform a blind remap.
-       Code Cleanup
-0.5.0: Major rewrite of matrices calculation
-       fixed: true blind remapping !!
-       exotic cases of very high numbering schemes now handled
-       more qstat entries successfully parsed
-       case of many unix accounts (>62) now handled
-0.4.1: now understands additional probable names for pbsnodes,qstat and qstat-q data files
-0.4.0: corrected colorless switch to have ON/OFF option (default ON)
-       bugfixes (qstat_q didn't recognize some faulty cpu time entries)
-       now descriptions are in white, as before.
-       Queues in the job accounting summary section are now coloured
-0.3.0: command-line arguments (mostly empty for now)!
-       non-numbered WNs can now be displayed instead of numbered WN IDs
-       fixed issue with single named WN
-       better regex pattern and algorithm for catching complicated numbered WN domain names
-       implement colorless switch (-c)
-0.2.9: handles cases of non-numbered WNs (e.g. fruit names)
-       parses more complex domain names (with more than one dash)
-       correction in WN ID numbers display (tens were problematic for larger numbers)
-0.2.8: colour implementation for all of the tables
-0.2.7: Exiting when there are two jobs on the same core reported on pbsnodes (remapping functionality to be added)
-       Number of WNs >1000 is now handled
-0.2.6: fixed some names not being detected (%,= chars missing from regex)
-       changed name to qtop, introduced configuration file qtop.conf and
-       colormap file qtop.colormap
-0.2.5: Working Cores added in Usage Totals
-       Feature added: map now splits into two if terminal width is smaller than
-        the Worker Node number
-0.2.4: implemented some stuff from PEP8
-       un-hardwired the file paths
-       refactored code around cpu_core_dict functionality (responsible for drawing
-        the map)
-0.2.3: corrected regex search pattern in make_qstat to recognize usernames like spec101u1 (number followed by number followed by letter) now handles non-uniform setups
-        R + Q / all: all did not display everything (E status)
-0.2.2: masking/clipping functionality (when nodes start from e.g. wn101, empty columns 1-100 are ommited)
-0.2.1: Hashes displaying when the node has less cores than the max declared by a WN (its np variable)
-0.2.0: unix accounts are now correctly ordered
-0.1.9: All CPU lines displaying correctly
-0.1.8: unix account id assignment to CPU0, 1 implemented
-0.1.7: ReadQstatQ function (write in yaml format using Pyyaml)
-       output up to Node state!
-0.1.6: ReadPbsNodes function (write in yaml format using Pyyaml)
-0.1.5: implemented saving to 3 separate files, QSTAT_ORIG_FILE, QSTATQ_ORIG_FILE, PBSNODES_ORIG_FILE
-0.1.4: some "wiremelting" concerning the save directory
-0.1.3: fixed tabs-to-spaces. Formatting should be correct now.
-       Now each state is saved in a separate file in a results folder
-0.1.2: script reads qtop-input.out files from each job and displays status for each job
-0.1.1: changed implementation in get_state()
-0.1.0: just read a pbsnodes-a output file and gather the results in a single line
-"""
-
 from operator import itemgetter
 from optparse import OptionParser
 import datetime
@@ -85,7 +16,6 @@ import yaml
 # modules
 from pbs import make_pbsnodes_yaml, make_qstatq_yaml, make_qstat_yaml
 from colormap import color_of_account, code_of_color
-import variables
 
 parser = OptionParser() # for more details see http://docs.python.org/library/optparse.html
 parser.add_option("-a", "--blindremapping", action="store_true", dest="BLINDREMAP", default=False, help="This is used in situations where node names are not a pure arithmetic sequence (eg. rocks clusters)")
@@ -806,61 +736,62 @@ def calculate_split_screen_size():
     term_columns = int(term_columns)
     return term_rows, term_columns
 
-#if __name__ == '__main__': # todo: later
-print_start, print_end = 0, None
-JUST_NAMES_FLAG = 0 if not options.FORCE_NAMES else 1
-DEADWEIGHT = 15  # standard columns' width on the right of the CoreX map
-DIFFERENT_QSTAT_FORMAT_FLAG = 0
 
-HOMEPATH = os.path.expanduser('~/PycharmProjects')
-QTOPPATH = os.path.expanduser('~/PycharmProjects/qtop')  # qtoppath: ~/qtop/qtop
-SOURCEDIR = options.SOURCEDIR  # as set by the '-s' switch
+if __name__ == '__main__':
+    print_start, print_end = 0, None
+    JUST_NAMES_FLAG = 0 if not options.FORCE_NAMES else 1
+    DEADWEIGHT = 15  # standard columns' width on the right of the CoreX map
+    DIFFERENT_QSTAT_FORMAT_FLAG = 0
 
-config = load_yaml_config(QTOPPATH)
+    HOMEPATH = os.path.expanduser('~/PycharmProjects')
+    QTOPPATH = os.path.expanduser('~/PycharmProjects/qtop')  # qtoppath: ~/qtop/qtop
+    SOURCEDIR = options.SOURCEDIR  # as set by the '-s' switch
 
-# Name files according to unique pid
-PBSNODES_YAML_FILE = 'pbsnodes_%s.yaml' % os.getpid()
-QSTATQ_YAML_FILE = 'qstat-q_%s.yaml' % os.getpid()
-QSTAT_YAML_FILE = 'qstat_%s.yaml' % os.getpid()
+    config = load_yaml_config(QTOPPATH)
 
-os.chdir(SOURCEDIR)
-# Location of read and created files
-PBSNODES_ORIG_FILE = [f for f in os.listdir(os.getcwd()) if f.startswith('pbsnodes') and not f.endswith('.yaml')][0]
-QSTATQ_ORIG_FILE = [f for f in os.listdir(os.getcwd()) if (f.startswith('qstat_q') or f.startswith('qstatq') or f.startswith('qstat-q') and not f.endswith('.yaml'))][0]
-QSTAT_ORIG_FILE = [f for f in os.listdir(os.getcwd()) if f.startswith('qstat.') and not f.endswith('.yaml')][0]
+    # Name files according to unique pid
+    PBSNODES_YAML_FILE = 'pbsnodes_%s.yaml' % os.getpid()
+    QSTATQ_YAML_FILE = 'qstat-q_%s.yaml' % os.getpid()
+    QSTAT_YAML_FILE = 'qstat_%s.yaml' % os.getpid()
 
-#  MAIN ###################################
-reset_yaml_files()
-make_pbsnodes_yaml(PBSNODES_ORIG_FILE, PBSNODES_YAML_FILE)
-make_qstatq_yaml(QSTATQ_ORIG_FILE, QSTATQ_YAML_FILE)
-make_qstat_yaml(QSTAT_ORIG_FILE, QSTAT_YAML_FILE)
+    os.chdir(SOURCEDIR)
+    # Location of read and created files
+    PBSNODES_ORIG_FILE = [f for f in os.listdir(os.getcwd()) if f.startswith('pbsnodes') and not f.endswith('.yaml')][0]
+    QSTATQ_ORIG_FILE = [f for f in os.listdir(os.getcwd()) if (f.startswith('qstat_q') or f.startswith('qstatq') or f.startswith('qstat-q') and not f.endswith('.yaml'))][0]
+    QSTAT_ORIG_FILE = [f for f in os.listdir(os.getcwd()) if f.startswith('qstat.') and not f.endswith('.yaml')][0]
 
-state_dict, JUST_NAMES_FLAG = read_pbsnodes_yaml(PBSNODES_YAML_FILE, JUST_NAMES_FLAG)
-total_runs, total_queues, qstatq_list = read_qstatq_yaml(QSTATQ_YAML_FILE)
-job_ids, user_names, statuses, queue_names, user_of_job_id = read_qstat_yaml(QSTAT_YAML_FILE)  # populates 4 lists
+    #  MAIN ###################################
+    reset_yaml_files()
+    make_pbsnodes_yaml(PBSNODES_ORIG_FILE, PBSNODES_YAML_FILE)
+    make_qstatq_yaml(QSTATQ_ORIG_FILE, QSTATQ_YAML_FILE)
+    make_qstat_yaml(QSTAT_ORIG_FILE, QSTAT_YAML_FILE)
 
-for user_name, jobid in zip(user_names, job_ids):
-    user_of_job_id[jobid] = user_name
+    state_dict, JUST_NAMES_FLAG = read_pbsnodes_yaml(PBSNODES_YAML_FILE, JUST_NAMES_FLAG)
+    total_runs, total_queues, qstatq_list = read_qstatq_yaml(QSTATQ_YAML_FILE)
+    job_ids, user_names, statuses, queue_names, user_of_job_id = read_qstat_yaml(QSTAT_YAML_FILE)  # populates 4 lists
 
-os.chdir(SOURCEDIR)
+    for user_name, jobid in zip(user_names, job_ids):
+        user_of_job_id[jobid] = user_name
 
-term_rows, term_columns = calculate_split_screen_size()
+    os.chdir(SOURCEDIR)
 
-print_job_accounting_summary(state_dict, total_runs, total_queues, qstatq_list)
-job_counts, user_sorted_list, id_of_username = calculate_job_counts(user_names, statuses)
-accounts_mappings = create_account_mappings(job_counts, user_sorted_list, id_of_username)
+    term_rows, term_columns = calculate_split_screen_size()
 
-cpu_core_dict = calc_cpu_lines(state_dict, id_of_username)
+    print_job_accounting_summary(state_dict, total_runs, total_queues, qstatq_list)
+    job_counts, user_sorted_list, id_of_username = calculate_job_counts(user_names, statuses)
+    accounts_mappings = create_account_mappings(job_counts, user_sorted_list, id_of_username)
 
-node_state, hxxxx, extra_matrices_nr, print_start, print_end = print_wn_occupancy(colorize, state_dict)
+    cpu_core_dict = calc_cpu_lines(state_dict, id_of_username)
 
-SEPARATOR = config['separator']  # alias
-print insert_sep(node_state[print_start:print_end], SEPARATOR, options.WN_COLON) + '=Node state'
+    node_state, hxxxx, extra_matrices_nr, print_start, print_end = print_wn_occupancy(colorize, state_dict)
 
-account_nrless_of_id = print_core_line(cpu_core_dict, accounts_mappings)
-calculate_remaining_matrices(extra_matrices_nr, state_dict, cpu_core_dict, print_end, account_nrless_of_id, hxxxx)
+    SEPARATOR = config['separator']  # alias
+    print insert_sep(node_state[print_start:print_end], SEPARATOR, options.WN_COLON) + '=Node state'
 
-print_user_accounts_pool_mappings(colorize, accounts_mappings, color_of_account)
-print '\nThanks for watching!'
+    account_nrless_of_id = print_core_line(cpu_core_dict, accounts_mappings)
+    calculate_remaining_matrices(extra_matrices_nr, state_dict, cpu_core_dict, print_end, account_nrless_of_id, hxxxx)
 
-os.chdir(SOURCEDIR)
+    print_user_accounts_pool_mappings(colorize, accounts_mappings, color_of_account)
+    print '\nThanks for watching!'
+
+    os.chdir(SOURCEDIR)
