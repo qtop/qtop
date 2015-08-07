@@ -321,18 +321,18 @@ def calculate_job_counts(user_names, statuses):
     return _job_counts, user_sorted_list, id_of_username
 
 
-def create_account_mappings(job_counts, user_sorted_list, id_of_username):
-    accounts_mappings = []
+def create_account_jobs_table(job_counts, user_sorted_list, id_of_username):
+    account_jobs_table = []
     for uid in user_sorted_list:
         all_of_user = job_counts['cancelled_of_user'][uid[0]] + \
                       job_counts['running_of_user'][uid[0]] + \
                       job_counts['queued_of_user'][uid[0]] + \
                       job_counts['waiting_of_user'][uid[0]] + \
                       job_counts['exiting_of_user'][uid[0]]
-        accounts_mappings.append([id_of_username[uid[0]], job_counts['running_of_user'][uid[0]], job_counts['queued_of_user'][
+        account_jobs_table.append([id_of_username[uid[0]], job_counts['running_of_user'][uid[0]], job_counts['queued_of_user'][
             uid[0]], all_of_user,uid])
-    accounts_mappings.sort(key=itemgetter(3), reverse=True)  # sort by All jobs
-    return accounts_mappings
+    account_jobs_table.sort(key=itemgetter(3), reverse=True)  # sort by All jobs
+    return account_jobs_table
 
 
 def create_job_counts(user_names, statuses, state_abbrevs):
@@ -675,7 +675,7 @@ def calc_cpu_lines(state_dict, id_of_username):
     return _cpu_core_dict
 
 
-def print_wn_occupancy(colorize, state_dict, id_of_username):
+def print_wn_occupancy(colorize, state_dict, id_of_username, account_jobs_table):
     """
     Prints the Worker Nodes Occupancy table.
     if there are non-uniform WNs in pbsnodes.yaml, e.g. wn01, wn02, gn01, gn02, ...,  remapping is performed.
@@ -703,7 +703,8 @@ def print_wn_occupancy(colorize, state_dict, id_of_username):
     (print_start, print_end, extra_matrices_nr) = find_matrices_width(_nodes, wn_list, state_dict, term_columns)
     print_WN_ID_lines(print_start, print_end, _nodes, hxxxx)
     print insert_sep(node_state[print_start:print_end], SEPARATOR, options.WN_COLON) + '=Node state'
-    account_nrless_of_id = print_core_line(cpu_core_dict, accounts_mappings, print_start, print_end)
+
+    account_nrless_of_id = print_core_line(cpu_core_dict, account_jobs_table, print_start, print_end)
     calculate_remaining_matrices(node_state, extra_matrices_nr, state_dict, cpu_core_dict, print_end, account_nrless_of_id,
                                  hxxxx, term_columns)
 
@@ -726,7 +727,7 @@ def load_yaml_config(path):
             print "Error position: (%s:%s)" % (mark.line+1, mark.column+1)
 
     config['possible_ids'] = list(config['possible_ids'])
-    symbol_map = dict([(chr(x), x) for x in range(33, 48) + range(58, 64) + range (91, 96) + range(123, 126)])
+    symbol_map = dict([(chr(x), x) for x in range(33, 48) + range(58, 64) + range(91, 96) + range(123, 126)])
     for symbol in symbol_map:
         config['possible_ids'].append(symbol)
     return config
@@ -782,11 +783,11 @@ if __name__ == '__main__':
     print_job_accounting_summary(state_dict, total_runs, total_queues, qstatq_list)
 
     job_counts, user_sorted_list, id_of_username = calculate_job_counts(user_names, statuses)
-    accounts_mappings = create_account_mappings(job_counts, user_sorted_list, id_of_username)
 
-    print_wn_occupancy(colorize, state_dict, id_of_username)
+    account_jobs_table = create_account_jobs_table(job_counts, user_sorted_list, id_of_username)
+    print_wn_occupancy(colorize, state_dict, id_of_username, account_jobs_table)
 
-    print_user_accounts_pool_mappings(colorize, accounts_mappings, color_of_account)
+    print_user_accounts_pool_mappings(colorize, account_jobs_table, color_of_account)
     print '\nThanks for watching!'
 
     os.chdir(SOURCEDIR)
