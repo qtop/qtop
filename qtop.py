@@ -675,7 +675,7 @@ def calc_cpu_lines(state_dict, id_of_username):
     return _cpu_core_dict
 
 
-def print_wn_occupancy(colorize, state_dict):
+def print_wn_occupancy(colorize, state_dict, id_of_username):
     """
     Prints the Worker Nodes Occupancy table.
     if there are non-uniform WNs in pbsnodes.yaml, e.g. wn01, wn02, gn01, gn02, ...,  remapping is performed.
@@ -725,6 +725,7 @@ def load_yaml_config(path):
             mark = exc.problem_mark
             print "Error position: (%s:%s)" % (mark.line+1, mark.column+1)
 
+    config['possible_ids'] = list(config['possible_ids'])
     symbol_map = dict([(chr(x), x) for x in range(33, 48) + range(58, 64) + range (91, 96) + range(123, 126)])
     for symbol in symbol_map:
         config['possible_ids'].append(symbol)
@@ -783,7 +784,7 @@ if __name__ == '__main__':
     job_counts, user_sorted_list, id_of_username = calculate_job_counts(user_names, statuses)
     accounts_mappings = create_account_mappings(job_counts, user_sorted_list, id_of_username)
 
-    print_wn_occupancy(colorize, state_dict)
+    print_wn_occupancy(colorize, state_dict, id_of_username)
 
     print_user_accounts_pool_mappings(colorize, accounts_mappings, color_of_account)
     print '\nThanks for watching!'
