@@ -263,7 +263,7 @@ def read_qstatq_yaml(QSTATQ_YAML_FILE):
     return total_runs, total_queues, qstatq_list
 
 
-def print_job_accounting_summary(state_dict, total_runs, total_queues, qstatq_list):
+def create_job_accounting_summary(state_dict, total_runs, total_queues, qstatq_list):
     if len(state_dict['node_subclusters']) > 1 or options.BLINDREMAP:
         print '=== WARNING: --- Remapping WN names and retrying heuristics... good luck with this... ---'
     print '\nPBS report tool. Please try: watch -d ' + QTOPPATH + '. All bugs added by sfranky@gmail.com. Cross fingers now...\n'
@@ -321,7 +321,8 @@ def calculate_job_counts(user_names, statuses):
     return _job_counts, user_sorted_list, id_of_username
 
 
-def create_account_jobs_table(job_counts, user_sorted_list, id_of_username):
+def create_account_jobs_table(user_names, statuses):
+    job_counts, user_sorted_list, id_of_username = calculate_job_counts(user_names, statuses)
     account_jobs_table = []
     for uid in user_sorted_list:
         all_of_user = job_counts['cancelled_of_user'][uid[0]] + \
@@ -332,7 +333,7 @@ def create_account_jobs_table(job_counts, user_sorted_list, id_of_username):
         account_jobs_table.append([id_of_username[uid[0]], job_counts['running_of_user'][uid[0]], job_counts['queued_of_user'][
             uid[0]], all_of_user,uid])
     account_jobs_table.sort(key=itemgetter(3), reverse=True)  # sort by All jobs
-    return account_jobs_table
+    return account_jobs_table, id_of_username
 
 
 def create_job_counts(user_names, statuses, state_abbrevs):
@@ -622,7 +623,7 @@ def calculate_remaining_matrices(node_state, extra_matrices_nr, state_dict, cpu_
                 print line + colorize('=core' + str(ind), 'NoColourAccount')
 
 
-def print_user_accounts_pool_mappings(colorize, accounts_mappings, color_of_account):
+def create_user_accounts_pool_mappings(colorize, accounts_mappings, color_of_account):
     print colorize('\n===> ', '#') + colorize('User accounts and pool mappings', 'Nothing') + colorize(' <=== ', '#') + colorize('("all" includes those in C and W states, as reported by qstat)', 'NoColourAccount')
     print ' id |  R   +   Q  /  all |    unix account | Grid certificate DN (this info is only available under elevated privileges)'
 
@@ -675,7 +676,7 @@ def calc_cpu_lines(state_dict, id_of_username):
     return _cpu_core_dict
 
 
-def print_wn_occupancy(colorize, state_dict, id_of_username, account_jobs_table):
+def calculate_wn_occupancy(colorize, state_dict, user_names, statuses):
     """
     Prints the Worker Nodes Occupancy table.
     if there are non-uniform WNs in pbsnodes.yaml, e.g. wn01, wn02, gn01, gn02, ...,  remapping is performed.
@@ -683,6 +684,7 @@ def print_wn_occupancy(colorize, state_dict, id_of_username, account_jobs_table)
     Number of Extra tables needed is calculated inside the calculate_Total_WNIDLine_Width function below
     """
     term_columns = calculate_split_screen_size()
+    account_jobs_table, id_of_username = create_account_jobs_table(user_names, statuses)
 
     cpu_core_dict = calc_cpu_lines(state_dict, id_of_username)
     node_state = ''
@@ -707,7 +709,7 @@ def print_wn_occupancy(colorize, state_dict, id_of_username, account_jobs_table)
     account_nrless_of_id = print_core_line(cpu_core_dict, account_jobs_table, print_start, print_end)
     calculate_remaining_matrices(node_state, extra_matrices_nr, state_dict, cpu_core_dict, print_end, account_nrless_of_id,
                                  hxxxx, term_columns)
-
+    return account_jobs_table
 
 def reset_yaml_files():
     """
@@ -780,14 +782,10 @@ if __name__ == '__main__':
     total_runs, total_queues, qstatq_list = read_qstatq_yaml(QSTATQ_YAML_FILE)
     job_ids, user_names, statuses, queue_names, user_of_job_id = read_qstat_yaml(QSTAT_YAML_FILE)  # populates 4 lists
 
-    print_job_accounting_summary(state_dict, total_runs, total_queues, qstatq_list)
+    create_job_accounting_summary(state_dict, total_runs, total_queues, qstatq_list)
+    account_jobs_table = calculate_wn_occupancy(colorize, state_dict, user_names, statuses)
+    create_user_accounts_pool_mappings(colorize, account_jobs_table, color_of_account)
 
-    job_counts, user_sorted_list, id_of_username = calculate_job_counts(user_names, statuses)
-
-    account_jobs_table = create_account_jobs_table(job_counts, user_sorted_list, id_of_username)
-    print_wn_occupancy(colorize, state_dict, id_of_username, account_jobs_table)
-
-    print_user_accounts_pool_mappings(colorize, account_jobs_table, color_of_account)
     print '\nThanks for watching!'
 
     os.chdir(SOURCEDIR)
