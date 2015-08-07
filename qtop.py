@@ -507,7 +507,7 @@ def calculate_Total_WNIDLine_Width(_wn_number): # (remap_nr) in case of multiple
     return hxxxx
 
 
-def find_matrices_width(wn_number, wn_list, state_dict, DEADWEIGHT=15):
+def find_matrices_width(wn_number, wn_list, state_dict, term_columns, DEADWEIGHT=15):
     """
     masking/clipping functionality: if the earliest node number is high (e.g. 130), the first 129 WNs need not show up.
     case 1: wn_number is RemapNr, WNList is WNListRemapped
@@ -585,7 +585,7 @@ def print_WN_ID_lines(start, stop, WNnumber, hxxxx): # WNnumber determines the n
 
 
 def calculate_remaining_matrices(node_state, extra_matrices_nr, state_dict, cpu_core_dict, _print_end, account_nrless_of_id,
-                                 hxxxx, DEADWEIGHT=15):
+                                 hxxxx, term_columns, DEADWEIGHT=15):
     """
     Calculate remaining matrices
     """
@@ -682,6 +682,8 @@ def print_wn_occupancy(colorize, state_dict):
     Otherwise, for uniform WNs, i.e. all using the same numbering scheme, wn01, wn02, ... proceeds as normal.
     Number of Extra tables needed is calculated inside the calculate_Total_WNIDLine_Width function below
     """
+    term_columns = calculate_split_screen_size()
+
     cpu_core_dict = calc_cpu_lines(state_dict, id_of_username)
     node_state = ''
     print colorize('===> ', '#') + colorize('Worker Nodes occupancy', 'Nothing') + colorize(' <=== ', '#') + colorize('(you can read vertically the node IDs; nodes in free state are noted with - )', 'NoColourAccount')
@@ -698,13 +700,12 @@ def print_wn_occupancy(colorize, state_dict):
     hxxxx = calculate_Total_WNIDLine_Width(_nodes)
     for node in all_wns:
         node_state += all_wns[node][0]
-    (print_start, print_end, extra_matrices_nr) = find_matrices_width(_nodes, wn_list, state_dict)
+    (print_start, print_end, extra_matrices_nr) = find_matrices_width(_nodes, wn_list, state_dict, term_columns)
     print_WN_ID_lines(print_start, print_end, _nodes, hxxxx)
     print insert_sep(node_state[print_start:print_end], SEPARATOR, options.WN_COLON) + '=Node state'
     account_nrless_of_id = print_core_line(cpu_core_dict, accounts_mappings, print_start, print_end)
     calculate_remaining_matrices(node_state, extra_matrices_nr, state_dict, cpu_core_dict, print_end, account_nrless_of_id,
-                                 hxxxx)
-    # return account_nrless_of_id, cpu_core_dict, node_state, hxxxx, extra_matrices_nr, print_start, print_end
+                                 hxxxx, term_columns)
 
 
 def reset_yaml_files():
@@ -735,12 +736,12 @@ def calculate_split_screen_size():
     Calculation of split screen size
     """
     try:
-        term_rows, term_columns = os.popen('stty size', 'r').read().split()  # does not work in pycharm
+        _, term_columns = os.popen('stty size', 'r').read().split()  # does not work in pycharm
     except ValueError:  # probably Pycharm's fault
-        # term_rows, term_columns = [52, 211]
-        term_rows, term_columns = [53, 176]
+        # _, term_columns = [52, 211]
+        _, term_columns = [53, 176]
     term_columns = int(term_columns)
-    return term_rows, term_columns
+    return term_columns
 
 
 if __name__ == '__main__':
@@ -779,8 +780,6 @@ if __name__ == '__main__':
 
     for user_name, jobid in zip(user_names, job_ids):
         user_of_job_id[jobid] = user_name
-
-    term_rows, term_columns = calculate_split_screen_size()
 
     print_job_accounting_summary(state_dict, total_runs, total_queues, qstatq_list)
 
