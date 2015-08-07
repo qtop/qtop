@@ -584,7 +584,8 @@ def print_WN_ID_lines(start, stop, WNnumber, hxxxx): # WNnumber determines the n
             print just_name_dict[line] + '={__WNID__}'
 
 
-def calculate_remaining_matrices(extra_matrices_nr, state_dict, cpu_core_dict, _print_end, account_nrless_of_id, hxxxx, DEADWEIGHT=15):
+def calculate_remaining_matrices(node_state, extra_matrices_nr, state_dict, cpu_core_dict, _print_end, account_nrless_of_id,
+                                 hxxxx, DEADWEIGHT=15):
     """
     Calculate remaining matrices
     """
@@ -637,7 +638,7 @@ def print_user_accounts_pool_mappings(colorize, accounts_mappings, color_of_acco
         print print_string
 
 
-def print_core_line(cpu_core_dict, accounts_mappings):
+def print_core_line(cpu_core_dict, accounts_mappings, print_start, print_end):
     ################ Node State ######################
     account_nrless_of_id = {}
     for line in accounts_mappings:
@@ -681,6 +682,7 @@ def print_wn_occupancy(colorize, state_dict):
     Otherwise, for uniform WNs, i.e. all using the same numbering scheme, wn01, wn02, ... proceeds as normal.
     Number of Extra tables needed is calculated inside the calculate_Total_WNIDLine_Width function below
     """
+    cpu_core_dict = calc_cpu_lines(state_dict, id_of_username)
     node_state = ''
     print colorize('===> ', '#') + colorize('Worker Nodes occupancy', 'Nothing') + colorize(' <=== ', '#') + colorize('(you can read vertically the node IDs; nodes in free state are noted with - )', 'NoColourAccount')
 
@@ -698,7 +700,11 @@ def print_wn_occupancy(colorize, state_dict):
         node_state += all_wns[node][0]
     (print_start, print_end, extra_matrices_nr) = find_matrices_width(_nodes, wn_list, state_dict)
     print_WN_ID_lines(print_start, print_end, _nodes, hxxxx)
-    return node_state, hxxxx, extra_matrices_nr, print_start, print_end
+    print insert_sep(node_state[print_start:print_end], SEPARATOR, options.WN_COLON) + '=Node state'
+    account_nrless_of_id = print_core_line(cpu_core_dict, accounts_mappings, print_start, print_end)
+    calculate_remaining_matrices(node_state, extra_matrices_nr, state_dict, cpu_core_dict, print_end, account_nrless_of_id,
+                                 hxxxx)
+    # return account_nrless_of_id, cpu_core_dict, node_state, hxxxx, extra_matrices_nr, print_start, print_end
 
 
 def reset_yaml_files():
@@ -748,6 +754,7 @@ if __name__ == '__main__':
     SOURCEDIR = options.SOURCEDIR  # as set by the '-s' switch
 
     config = load_yaml_config(QTOPPATH)
+    SEPARATOR = config['separator']  # alias
 
     # Name files according to unique pid
     PBSNODES_YAML_FILE = 'pbsnodes_%s.yaml' % os.getpid()
@@ -773,23 +780,14 @@ if __name__ == '__main__':
     for user_name, jobid in zip(user_names, job_ids):
         user_of_job_id[jobid] = user_name
 
-    os.chdir(SOURCEDIR)
-
     term_rows, term_columns = calculate_split_screen_size()
 
     print_job_accounting_summary(state_dict, total_runs, total_queues, qstatq_list)
+
     job_counts, user_sorted_list, id_of_username = calculate_job_counts(user_names, statuses)
     accounts_mappings = create_account_mappings(job_counts, user_sorted_list, id_of_username)
 
-    cpu_core_dict = calc_cpu_lines(state_dict, id_of_username)
-
-    node_state, hxxxx, extra_matrices_nr, print_start, print_end = print_wn_occupancy(colorize, state_dict)
-
-    SEPARATOR = config['separator']  # alias
-    print insert_sep(node_state[print_start:print_end], SEPARATOR, options.WN_COLON) + '=Node state'
-
-    account_nrless_of_id = print_core_line(cpu_core_dict, accounts_mappings)
-    calculate_remaining_matrices(extra_matrices_nr, state_dict, cpu_core_dict, print_end, account_nrless_of_id, hxxxx)
+    print_wn_occupancy(colorize, state_dict)
 
     print_user_accounts_pool_mappings(colorize, accounts_mappings, color_of_account)
     print '\nThanks for watching!'
