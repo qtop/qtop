@@ -1,9 +1,9 @@
 import re
 import sys
 import os
-import variables
 
 MAX_CORE_ALLOWED = 150000
+
 
 def make_pbsnodes_yaml(orig_file, yaml_file):
     """
@@ -131,7 +131,6 @@ def make_qstatq_yaml(orig_file, yaml_file):
                 m = re.search(queue_search, line)
                 _, queue_name, Mem, cpu_time, wall_time, node, run, queued, lm, state = m.group(0), m.group(1), m.group(2), \
                                                                                      m.group(3), m.group(4), m.group(5), m.group(6), m.group(7), m.group(8), m.group(9)
-                # variables.qstatq_list.append((queue_name, run, queued, lm, state))
                 fout.write('- queue_name: ' + queue_name + '\n')
                 fout.write('  Running: ' + run + '\n')
                 fout.write('  Queued: ' + queued + '\n')

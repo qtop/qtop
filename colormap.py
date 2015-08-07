@@ -315,7 +315,6 @@ color_of_account = {
     'tlemmin':     'Cyan',
     'ls': 'Cyan',
     'train': 'Blue_L',
-    'train': 'Blue_L',
     'pkoro':           'Brown',
     'fotis':           'Blue',
     'astrelchenko':    'Cyan',
