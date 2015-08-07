@@ -778,9 +778,6 @@ if __name__ == '__main__':
     total_runs, total_queues, qstatq_list = read_qstatq_yaml(QSTATQ_YAML_FILE)
     job_ids, user_names, statuses, queue_names, user_of_job_id = read_qstat_yaml(QSTAT_YAML_FILE)  # populates 4 lists
 
-    for user_name, jobid in zip(user_names, job_ids):
-        user_of_job_id[jobid] = user_name
-
     print_job_accounting_summary(state_dict, total_runs, total_queues, qstatq_list)
 
     job_counts, user_sorted_list, id_of_username = calculate_job_counts(user_names, statuses)
