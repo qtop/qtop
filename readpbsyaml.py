@@ -20,8 +20,8 @@ for line in fin:
 		d['machine nr %r' % counter]=[wnint]
 		d['core']=[]
 		d['job']=[]
-	#elif line.startswith('state:'):
-	#	state=line.split()[1].strip("'")
+	#elif line.startswith('state_dict:'):
+	#	state_dict=line.split()[1].strip("'")
 	#elif line.startswith('np'):
 	#	np=line.split()[1]
 	#	if int(np)>int(maxnp):
