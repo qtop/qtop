@@ -13,6 +13,7 @@ import datetime
 import os
 import re
 import yaml
+from itertools import izip
 # modules
 from pbs import make_pbsnodes_yaml, make_qstatq_yaml, make_qstat_yaml
 from colormap import color_of_account, code_of_color
@@ -226,9 +227,7 @@ def read_qstat_yaml(QSTAT_YAML_FILE):
             elif line.startswith('Queue:'):
                 queue_names.append(line.split()[1])
 
-    for (job_id, user_name) in zip(job_ids, usernames):
-        user_of_job_id[job_id] = user_name
-    return job_ids, usernames, statuses, queue_names, user_of_job_id
+    return job_ids, usernames, statuses, queue_names
 
 
 def read_qstatq_yaml(QSTATQ_YAML_FILE):
@@ -255,18 +254,19 @@ def read_qstatq_yaml(QSTATQ_YAML_FILE):
                 qstatq_list.append(tempdict)
                 tempdict = {}
             elif line.startswith(('Total Running:')):
-                total_runs = line.split(': ')[1]
+                total_running = line.split(': ')[1]
             elif line.startswith(('Total Queued:')):
-                total_queues = line.split(': ')[1]
-    return total_runs, total_queues, qstatq_list
+                total_queued = line.split(': ')[1]
+    return total_running, total_queued, qstatq_list
 
 
-def create_job_accounting_summary(state_dict, total_runs, total_queues, qstatq_list):
+def create_job_accounting_summary(state_dict, total_running, total_queued, qstatq_list):
     if len(state_dict['node_subclusters']) > 1 or options.BLINDREMAP:
         print '=== WARNING: --- Remapping WN names and retrying heuristics... good luck with this... ---'
     print '\nPBS report tool. Please try: watch -d ' + QTOPPATH + '. All bugs added by sfranky@gmail.com. Cross fingers now...\n'
     print colorize('===> ', '#') + colorize('Job accounting summary', 'Nothing') + colorize(' <=== ', '#') + colorize('(Rev: 3000 $) %s WORKDIR = to be added', 'NoColourAccount') % (datetime.datetime.today()) #was: added\n
-    print 'Usage Totals:\t%s/%s\t Nodes | %s/%s  Cores |   %s+%s jobs (R + Q) reported by qstat -q' % (state_dict['existing_nodes'] - state_dict['offline_down_nodes'], state_dict['existing_nodes'], state_dict['working_cores'], state_dict['total_cores'], int(total_runs), int(total_queues))
+    print 'Usage Totals:\t%s/%s\t Nodes | %s/%s  Cores |   %s+%s jobs (R + Q) reported by qstat -q' % (state_dict[
+                                                                                                           'existing_nodes'] - state_dict['offline_down_nodes'], state_dict['existing_nodes'], state_dict['working_cores'], state_dict['total_cores'], int(total_running), int(total_queued))
     print 'Queues: | ',
     if options.COLOR == 'ON':
         for queue in qstatq_list:
@@ -784,10 +784,12 @@ if __name__ == '__main__':
     make_qstat_yaml(QSTAT_ORIG_FILE, QSTAT_YAML_FILE)
 
     state_dict, names_flag = read_pbsnodes_yaml(PBSNODES_YAML_FILE)
-    total_runs, total_queues, qstatq_list = read_qstatq_yaml(QSTATQ_YAML_FILE)
-    job_ids, user_names, statuses, queue_names, user_of_job_id = read_qstat_yaml(QSTAT_YAML_FILE)  # populates 4 lists
+    total_running, total_queued, qstatq_list = read_qstatq_yaml(QSTATQ_YAML_FILE)
+    job_ids, user_names, statuses, queue_names = read_qstat_yaml(QSTAT_YAML_FILE)  # populates 4 lists
 
-    create_job_accounting_summary(state_dict, total_runs, total_queues, qstatq_list)
+    user_of_job_id = dict(izip(job_ids, user_names))
+
+    create_job_accounting_summary(state_dict, total_running, total_queued, qstatq_list)
     account_jobs_table = calculate_wn_occupancy(state_dict, user_names, statuses)
     create_user_accounts_pool_mappings(account_jobs_table, color_of_account)
 

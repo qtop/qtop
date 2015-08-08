@@ -132,7 +132,7 @@ def make_qstatq_yaml(orig_file, yaml_file):
                 fout.write('\n')
             elif re.search(run_qd_search, line) is not None:
                 n = re.search(run_qd_search, line)
-                total_runs, total_queues = n.group(1), n.group(2)
+                total_running, total_queued = n.group(1), n.group(2)
         fout.write('---\n')
-        fout.write('Total Running: ' + str(total_runs) + '\n')
-        fout.write('Total Queued: ' + str(total_queues) + '\n')
+        fout.write('Total Running: ' + str(total_running) + '\n')
+        fout.write('Total Queued: ' + str(total_queued) + '\n')
