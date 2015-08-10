@@ -25,7 +25,7 @@ def make_pbsnodes_yaml(orig_file, yaml_file):
 
             elif 'state = ' in line:
                 nextchar = line.split()[2][0]
-                state = '-' if nextchar == 'f' else nextchar
+                state = "'-'" if nextchar == 'f' else nextchar
                 fout.write('state: ' + state + '\n')
 
             elif 'np = ' in line or 'pcpus = ' in line:
@@ -35,6 +35,7 @@ def make_pbsnodes_yaml(orig_file, yaml_file):
             elif 'jobs = ' in line:
                 ljobs = line.split('=')[1].split(',')
                 lastcore = MAX_CORE_ALLOWED
+                fout.write('core_job_map: \n')
                 for job in ljobs:
                     core, job = job.strip().split('/')
                     if len(core) > len(job):
@@ -54,7 +55,7 @@ def make_pbsnodes_yaml(orig_file, yaml_file):
                 fout.write('gpus: ' + gpus + '\n')
 
             elif line.startswith('\n'):
-                fout.write('\n')
+                fout.write('---\n')
 
 
 def make_qstat_yaml(orig_file, yaml_file):
