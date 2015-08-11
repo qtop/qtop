@@ -102,11 +102,10 @@ def read_pbsnodes_yaml(yaml_file):
         for line in fin:
             line = line.strip()
             if 'domainname:' in line:
+                state_dict['remap_nr'] += 1  # just count all nodes
                 domain_name = line.split(': ')[1]
-                nodename_match         = re.search(re_nodename, domain_name)
+                nodename_match = re.search(re_nodename, domain_name)
                 nodename_letters_only_match = re.search(re_nodename_letters_only, domain_name)
-
-                state_dict['remap_nr']       += 1  # extract highest node number, online nodes
 
                 if nodename_match:  # host (node) name is an alphanumeric
                     _node = nodename_match.group(0)
@@ -114,31 +113,31 @@ def read_pbsnodes_yaml(yaml_file):
                     node_digits = "".join(re.findall(r'\d+', domain_name))
 
                     if node_digits:
-                        state_dict['node_nr'] = int(node_digits)  # 1x18 becomes 118, posing problems later:range(1, state_dict[ 'remap_nr']
+                        state_dict['node_nr'] = int(node_digits)
+                        # thus 1x18 becomes 118, posing problems later in range(1, state_dict[ 'remap_nr'] (more repetitions)
+                        state_dict['wn_list'].append(state_dict['node_nr'])
                     elif nodename_letters_only_match:  # for non-numbered WNs (eg. fruit names)
                         names_flag += 1
-                        state_dict['node_nr'] += 1
+                        # increment node_nr but only if the next nr hasn't already shown up
+                        state_dict['node_nr'] += 1 if state_dict['node_nr'] + 1 not in state_dict['all_wns_dict'] else False
                         state_dict['wn_list'].append(node_letters)
                         state_dict['wn_list'][:] = [unnumbered_wn.rjust(len(max(state_dict['wn_list']))) for unnumbered_wn in state_dict['wn_list'] if type(unnumbered_wn) is str]
 
                     state_dict['node_subclusters'].add(node_letters)    # for non-uniform setups of WNs, eg g01... and n01...
                     state_dict['all_wns_dict'][state_dict['node_nr']] = []
                     state_dict['all_wns_remapped_dict'][state_dict['remap_nr']] = []
-                    state_dict['biggest_written_node'] = max(state_dict['node_nr'], state_dict['biggest_written_node'])
-                    if names_flag <= 1:
-                        state_dict['wn_list'].append(state_dict['node_nr'])
                     state_dict['wn_list_remapped'].append(state_dict['remap_nr'])
 
-                else:
+                else:  # non_alphanumeric domain_name case?
                     node_letters = domain_name
                     state_dict['node_nr'] = 0
                     state_dict['node_subclusters'].add(node_letters)    # for non-uniform setups of WNs, eg g01... and n01...
                     state_dict['all_wns_dict'][state_dict['node_nr']] = []
                     state_dict['all_wns_remapped_dict'][state_dict['remap_nr']] = []
-                    if state_dict['node_nr'] > state_dict['biggest_written_node']:
-                        state_dict['biggest_written_node'] = state_dict['node_nr'] + 1
                     state_dict['wn_list'].append(state_dict['node_nr'])
                     state_dict['wn_list_remapped'].append(state_dict['remap_nr'])
+                    import pdb; pdb.set_trace()
+                    import sys; sys.exit(0)
 
             elif 'state: ' in line:
                 nextchar = line.split()[1].strip("'")
@@ -162,11 +161,12 @@ def read_pbsnodes_yaml(yaml_file):
                 state_dict['all_wns_dict'][state_dict['node_nr']].append((core, job))
                 state_dict['all_wns_remapped_dict'][state_dict['remap_nr']].append((core, job))
 
+    state_dict['biggest_written_node'] = max(state_dict['wn_list'])
     '''
     fill in non-existent WN nodes (absent from pbsnodes file) with '?' and count them
     '''
     if len(state_dict['node_subclusters']) > 1:
-        for i in range(1, state_dict['remap_nr']):  # This state_dict['remap_nr'] here is the LAST remapped node, it's the equivalent biggest_written_node for the remapped case
+        for i in range(1, state_dict['remap_nr']):  # This state_dict['remap_nr'] here is a counter of nodes, it's therefore the equivalent biggest_written_node for the remapped case
             if i not in state_dict['all_wns_remapped_dict']:
                 state_dict['all_wns_remapped_dict'][i] = '?'
     else:
@@ -544,16 +544,17 @@ def print_WN_ID_lines(start, stop, wn_number, hxxxx):
     elif names_flag > 1 or options.FORCE_NAMES:  # names (e.g. fruits) instead of numbered WNs
         color = 0
         highlight = {0: 'cmsplt', 1: 'Red'}
-        for line in range(len(max(state_dict['wn_list']))):
+        for line, _ in enumerate(max(state_dict['wn_list'])):
             just_name_dict[line] = ''
-        for column in range(len(state_dict['wn_list'])):  # was -1
-            for line in range(len(max(state_dict['wn_list']))):
-                just_name_dict[line] += colorize(state_dict['wn_list'][column][line], highlight[color])
-            if color == 1:
-                color = 0
-            else:
-                color = 1
-        for line in range(len(max(state_dict['wn_list']))):
+        for column, _1 in enumerate(state_dict['wn_list']):
+            for line, _2 in enumerate(max(state_dict['wn_list'])):
+                try:
+                    letter = state_dict['wn_list'][column][line]
+                except TypeError:
+                    letter = ' '
+                just_name_dict[line] += colorize(letter, highlight[color])
+            color = 0 if color == 1 else 1
+        for line, _ in enumerate(max(state_dict['wn_list'])):
             print just_name_dict[line] + '={__WNID__}'
 
 
