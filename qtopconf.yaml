@@ -1,0 +1,5 @@
+min_masking_threshold: 9 # Masking/clipping functionality. How high should the earliest node number be (e.g. 50), to make the previous WNs vanish
+user_cut_matrix_width: 0 # Change this to zero if you don't want a custom cut matrix length
+separator: '|' # character used for vertical separator, for the -o switch
+percentage: 0.8 # if less than PERCENTAGE x 100% of the matrices have jobs, perform a blind remap
+possible_ids: '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz' # IDs of unix accounts, for the lower part of qtop
