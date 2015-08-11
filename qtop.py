@@ -117,7 +117,7 @@ def read_pbsnodes_yaml(yaml_file):
                         # thus 1x18 becomes 118, posing problems later in range(1, state_dict[ 'remap_nr'] (more repetitions)
                         state_dict['wn_list'].append(state_dict['node_nr'])
                     elif nodename_letters_only_match:  # for non-numbered WNs (eg. fruit names)
-                        names_flag += 1
+                        names_flag += 2
                         # increment node_nr but only if the next nr hasn't already shown up
                         state_dict['node_nr'] += 1 if state_dict['node_nr'] + 1 not in state_dict['all_wns_dict'] else False
                         state_dict['wn_list'].append(node_letters)
@@ -157,7 +157,7 @@ def read_pbsnodes_yaml(yaml_file):
                 state_dict['all_wns_dict'][state_dict['node_nr']].append((core, job))
                 state_dict['all_wns_remapped_dict'][state_dict['remap_nr']].append((core, job))
 
-    state_dict['biggest_written_node'] = max(state_dict['wn_list'])
+    state_dict['biggest_written_node'] = max(state_dict['wn_list']) if names_flag < 1 else max(state_dict['wn_list_remapped'])
     '''
     fill in non-existent WN nodes (absent from pbsnodes file) with '?' and count them
     '''
@@ -756,7 +756,8 @@ if __name__ == '__main__':
     make_qstatq_yaml(QSTATQ_ORIG_FILE, QSTATQ_YAML_FILE)
     make_qstat_yaml(QSTAT_ORIG_FILE, QSTAT_YAML_FILE)
 
-    # pbs_nodes = read_pbsnodes_yaml(PBSNODES_YAML_FILE)
+    # pbs_nodes = read_pbsnodes_yaml2(PBSNODES_YAML_FILE)
+    # calculate_stuff(pbs_nodes)
     state_dict, names_flag = read_pbsnodes_yaml(PBSNODES_YAML_FILE)
     total_running, total_queued, qstatq_list = read_qstatq_yaml(QSTATQ_YAML_FILE)
     job_ids, user_names, statuses, queue_names = read_qstat_yaml(QSTAT_YAML_FILE)  # populates 4 lists
