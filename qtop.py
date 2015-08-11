@@ -96,47 +96,35 @@ def read_pbsnodes_yaml(yaml_file):
     state = ''
     names_flag = 0 if not options.FORCE_NAMES else 1  # <=1:numbered WNs, >1: names instead (e.g. fruits)
 
-    re_node = '([A-Za-z0-9-]+)(?=\.|$)'
-    search_node_nr_find = '[A-Za-z]+|[0-9]+|[A-Za-z]+[0-9]+'
-    re_node_letters = '(^[A-Za-z-]+)'
+    re_nodename = r'(^[A-Za-z0-9-]+)(?=\.|$)'
+    re_nodename_letters_only = r'(^[A-Za-z-]+)'
+    # re_find_all_nodename_parts = '[A-Za-z]+|[0-9]+|[A-Za-z]+[0-9]+'
 
     with open(yaml_file, 'r') as fin:
         for line in fin:
             line = line.strip()
             if 'domainname:' in line:
                 domain_name = line.split(': ')[1]
-                node_match = re.search(re_node, domain_name)
-                node_letters_match = re.search(re_node_letters, domain_name)
+                nodename_match         = re.search(re_nodename, domain_name)
+                nodename_letters_only_match = re.search(re_nodename_letters_only, domain_name)
 
-                state_dict['remap_nr'] += 1  # extract highest node number, online nodes
+                state_dict['remap_nr']       += 1  # extract highest node number, online nodes
                 state_dict['existing_nodes'] += 1    # nodes as recorded on PBSNODES_ORIG_FILE
                 
-                if node_match:
-                    node = node_match.group(0)
-                    name_groups = re.findall(search_node_nr_find, node)
-                    node_inits = '-'.join(name_groups[0:-1])
+                if nodename_match:  # host (node) name is an alphanumeric
+                    _node = nodename_match.group(0)
+                    node_letters = '-'.join(re.findall(r'\D+', _node))
+                    node_digits = "".join(re.findall(r'\d+', domain_name))
 
-                    if name_groups[-1].isdigit():
-                        state_dict['node_nr'] = int(name_groups[-1])
-                    elif (len(name_groups) == 1) or len(name_groups) == 2 and not name_groups[-1].isdigit() and not name_groups[-2].isdigit():
+                    if node_digits:
+                        state_dict['node_nr'] = int(node_digits)  # 1x18 becomes 118, posing problems later:range(1, state_dict[ 'remap_nr']
+                    elif nodename_letters_only_match:  # for non-numbered WNs (eg. fruit names)
+                        names_flag += 1
+                        state_dict['node_nr'] += 1
+                        state_dict['wn_list'].append(node_letters)
+                        state_dict['wn_list'][:] = [unnumbered_wn.rjust(len(max(state_dict['wn_list']))) for unnumbered_wn in state_dict['wn_list'] if type(unnumbered_wn) is str]
 
-                        if node_letters_match:  # for non-numbered WNs (eg. fruit names)
-                            names_flag += 1
-                            node_inits = node_letters_match.group(1)
-                            state_dict['node_nr'] += 1
-                            state_dict['node_subclusters'].add(node_inits)    # for non-uniform setups of WNs, eg g01... and n01...
-                            state_dict['all_wns_dict'][state_dict['node_nr']] = []
-                            state_dict['all_wns_remapped_dict'][state_dict['remap_nr']] = []
-                            state_dict['biggest_written_node'] = max(state_dict['node_nr'], state_dict['biggest_written_node'])
-                            state_dict['wn_list'].append(node_inits)
-                            state_dict['wn_list'][:] = [unnumbered_wn.rjust(len(max(state_dict['wn_list']))) for unnumbered_wn in state_dict['wn_list'] if type(unnumbered_wn) is str ]
-                            state_dict['wn_list_remapped'].append(state_dict['remap_nr'])
-                    elif name_groups[-2].isdigit():
-                        state_dict['node_nr'] = int(name_groups[-2])
-                    else:
-                        state_dict['node_nr'] = int(name_groups[-3])
-
-                    state_dict['node_subclusters'].add(node_inits)    # for non-uniform setups of WNs, eg g01... and n01...
+                    state_dict['node_subclusters'].add(node_letters)    # for non-uniform setups of WNs, eg g01... and n01...
                     state_dict['all_wns_dict'][state_dict['node_nr']] = []
                     state_dict['all_wns_remapped_dict'][state_dict['remap_nr']] = []
                     state_dict['biggest_written_node'] = max(state_dict['node_nr'], state_dict['biggest_written_node'])
@@ -144,22 +132,10 @@ def read_pbsnodes_yaml(yaml_file):
                         state_dict['wn_list'].append(state_dict['node_nr'])
                     state_dict['wn_list_remapped'].append(state_dict['remap_nr'])
 
-                elif node_letters_match:  # for non-numbered WNs (eg. fruit names)
-                    names_flag += 1
-                    node_inits = node_letters_match.group(1)
-                    state_dict['node_nr'] += 1
-                    state_dict['node_subclusters'].add(node_inits)    # for non-uniform setups of WNs, eg g01... and n01...
-                    state_dict['all_wns_dict'][state_dict['node_nr']] = []
-                    state_dict['all_wns_remapped_dict'][state_dict['remap_nr']] = []
-                    state_dict['biggest_written_node'] = max(state_dict['node_nr'], state_dict['biggest_written_node'])
-                    state_dict['wn_list'].append(node_inits)
-                    state_dict['wn_list'][:] = [unnumbered_wn.rjust(len(max(state_dict['wn_list']))) for unnumbered_wn in state_dict['wn_list']]
-                    state_dict['wn_list_remapped'].append(state_dict['remap_nr'])
-
                 else:
-                    node_inits = domain_name
+                    node_letters = domain_name
                     state_dict['node_nr'] = 0
-                    state_dict['node_subclusters'].add(node_inits)    # for non-uniform setups of WNs, eg g01... and n01...
+                    state_dict['node_subclusters'].add(node_letters)    # for non-uniform setups of WNs, eg g01... and n01...
                     state_dict['all_wns_dict'][state_dict['node_nr']] = []
                     state_dict['all_wns_remapped_dict'][state_dict['remap_nr']] = []
                     if state_dict['node_nr'] > state_dict['biggest_written_node']:
@@ -182,7 +158,7 @@ def read_pbsnodes_yaml(yaml_file):
                     state_dict['max_np'] = int(np)
                 state_dict['total_cores'] += int(np)
 
-            elif ' core: ' in line: # this should also work for OAR's yaml file
+            elif ' core: ' in line:  # this should also work for OAR's yaml file
                 core = line.split(': ')[1].strip()
                 state_dict['working_cores'] += 1
             elif 'job: ' in line:
@@ -194,10 +170,10 @@ def read_pbsnodes_yaml(yaml_file):
     fill in non-existent WN nodes (absent from pbsnodes file) with '?' and count them
     '''
     if len(state_dict['node_subclusters']) > 1:
-        for i in range(1, state_dict['remap_nr']): # This state_dict['remap_nr'] here is the LAST remapped node, it's the equivalent biggest_written_node for the remapped case
+        for i in range(1, state_dict['remap_nr']):  # This state_dict['remap_nr'] here is the LAST remapped node, it's the equivalent biggest_written_node for the remapped case
             if i not in state_dict['all_wns_remapped_dict']:
                 state_dict['all_wns_remapped_dict'][i] = '?'
-    elif len(state_dict['node_subclusters']) == 1:
+    else:
         for i in range(1, state_dict['biggest_written_node']):
             if i not in state_dict['all_wns_dict']:
                 state_dict['all_wns_dict'][i] = '?'
