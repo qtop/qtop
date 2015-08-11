@@ -123,21 +123,17 @@ def read_pbsnodes_yaml(yaml_file):
                         state_dict['wn_list'].append(node_letters)
                         state_dict['wn_list'][:] = [unnumbered_wn.rjust(len(max(state_dict['wn_list']))) for unnumbered_wn in state_dict['wn_list'] if type(unnumbered_wn) is str]
 
-                    state_dict['node_subclusters'].add(node_letters)    # for non-uniform setups of WNs, eg g01... and n01...
-                    state_dict['all_wns_dict'][state_dict['node_nr']] = []
-                    state_dict['all_wns_remapped_dict'][state_dict['remap_nr']] = []
-                    state_dict['wn_list_remapped'].append(state_dict['remap_nr'])
-
                 else:  # non_alphanumeric domain_name case?
                     node_letters = domain_name
                     state_dict['node_nr'] = 0
-                    state_dict['node_subclusters'].add(node_letters)    # for non-uniform setups of WNs, eg g01... and n01...
-                    state_dict['all_wns_dict'][state_dict['node_nr']] = []
-                    state_dict['all_wns_remapped_dict'][state_dict['remap_nr']] = []
                     state_dict['wn_list'].append(state_dict['node_nr'])
-                    state_dict['wn_list_remapped'].append(state_dict['remap_nr'])
                     import pdb; pdb.set_trace()
                     import sys; sys.exit(0)
+
+                state_dict['node_subclusters'].add(node_letters)    # for non-uniform setups of WNs, eg g01... and n01...
+                state_dict['all_wns_dict'][state_dict['node_nr']] = []
+                state_dict['all_wns_remapped_dict'][state_dict['remap_nr']] = []
+                state_dict['wn_list_remapped'].append(state_dict['remap_nr'])
 
             elif 'state: ' in line:
                 nextchar = line.split()[1].strip("'")
@@ -673,19 +669,19 @@ def calculate_wn_occupancy(state_dict, user_names, statuses):
     print colorize('===> ', '#') + colorize('Worker Nodes occupancy', 'Nothing') + colorize(' <=== ', '#') + colorize('(you can read vertically the node IDs; nodes in free state are noted with - )', 'NoColourAccount')
 
     if options.BLINDREMAP or len(state_dict['node_subclusters']) > 1:
-        _nodes = state_dict['remap_nr']
+        node_count = state_dict['remap_nr']
         all_wns = state_dict['all_wns_remapped_dict']
         wn_list = state_dict['wn_list_remapped']
     else:
-        _nodes = state_dict['biggest_written_node']
+        node_count = state_dict['biggest_written_node']
         all_wns = state_dict['all_wns_dict']
         wn_list = state_dict['wn_list']
 
-    hxxxx = calculate_Total_WNIDLine_Width(_nodes)
+    hxxxx = calculate_Total_WNIDLine_Width(node_count)
     for node in all_wns:
         node_state += all_wns[node][0]
-    (print_start, print_end, extra_matrices_nr) = find_matrices_width(_nodes, wn_list, state_dict, term_columns)
-    print_WN_ID_lines(print_start, print_end, _nodes, hxxxx)
+    (print_start, print_end, extra_matrices_nr) = find_matrices_width(node_count, wn_list, state_dict, term_columns)
+    print_WN_ID_lines(print_start, print_end, node_count, hxxxx)
     print insert_sep(node_state[print_start:print_end], SEPARATOR, options.WN_COLON) + '=Node state'
 
     account_nrless_of_id = print_core_lines(cpu_core_dict, account_jobs_table, print_start, print_end)
