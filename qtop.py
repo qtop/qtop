@@ -59,8 +59,7 @@ def read_pbsnodes_yaml2(yaml_fn):
 
 def calculate_stuff(pbs_nodes):
     state_dict = dict()
-    state_dict['remap_nr'] = len(pbs_nodes)
-    state_dict['existing_nodes'] = len(pbs_nodes)
+    state_dict['remap_nr'] = len(pbs_nodes)  # == existing_nodes
     state_dict['working_cores'] = 0
     state_dict['total_cores'] = 0
     state_dict['biggest_written_node'] = 0
@@ -80,13 +79,12 @@ def read_pbsnodes_yaml(yaml_file):
     Reads the pbsnodes yaml file and extracts the node information necessary to build the tables
     """
     state_dict = dict()
-    state_dict['existing_nodes'] = 0
     state_dict['working_cores'] = 0
     state_dict['total_cores'] = 0
     state_dict['biggest_written_node'] = 0
     state_dict['offline_down_nodes'] = 0
     state_dict['max_np'] = 0
-    state_dict['remap_nr'] = 0
+    state_dict['remap_nr'] = 0  # == existing_nodes
     state_dict['node_nr'] = 0
     state_dict['wn_list'] = []
     state_dict['wn_list_remapped'] = []
@@ -109,8 +107,7 @@ def read_pbsnodes_yaml(yaml_file):
                 nodename_letters_only_match = re.search(re_nodename_letters_only, domain_name)
 
                 state_dict['remap_nr']       += 1  # extract highest node number, online nodes
-                state_dict['existing_nodes'] += 1    # nodes as recorded on PBSNODES_ORIG_FILE
-                
+
                 if nodename_match:  # host (node) name is an alphanumeric
                     _node = nodename_match.group(0)
                     node_letters = '-'.join(re.findall(r'\D+', _node))
@@ -154,8 +151,7 @@ def read_pbsnodes_yaml(yaml_file):
                 np = line.split(': ')[1].strip()
                 state_dict['all_wns_dict'][state_dict['node_nr']].append(np)
                 state_dict['all_wns_remapped_dict'][state_dict['remap_nr']].append(np)
-                if int(np) > int(state_dict['max_np']):
-                    state_dict['max_np'] = int(np)
+                state_dict['max_np'] = max(int(np), state_dict['max_np'])
                 state_dict['total_cores'] += int(np)
 
             elif ' core: ' in line:  # this should also work for OAR's yaml file
@@ -182,7 +178,8 @@ def read_pbsnodes_yaml(yaml_file):
         state_dict['wn_list'].sort()
         state_dict['wn_list_remapped'].sort()
 
-    if min(state_dict['wn_list']) > 9000 and type(min(state_dict['wn_list'])) == int: # handle exotic cases of WN numbering starting VERY high
+    if min(state_dict['wn_list']) > 9000 and type(min(state_dict['wn_list'])) == int:
+        # handle exotic cases of WN numbering starting VERY high
         state_dict['wn_list'] = [element - min(state_dict['wn_list']) for element in state_dict['wn_list']]
         options.BLINDREMAP = True 
     if len(state_dict['wn_list']) < config['percentage'] * state_dict['biggest_written_node']:
@@ -245,7 +242,7 @@ def create_job_accounting_summary(state_dict, total_running, total_queued, qstat
         print '=== WARNING: --- Remapping WN names and retrying heuristics... good luck with this... ---'
     print '\nPBS report tool. Please try: watch -d ' + QTOPPATH + '. All bugs added by sfranky@gmail.com. Cross fingers now...\n'
     print colorize('===> ', '#') + colorize('Job accounting summary', 'Nothing') + colorize(' <=== ', '#') + colorize('(Rev: 3000 $) %s WORKDIR = to be added', 'NoColourAccount') % (datetime.datetime.today()) #was: added\n
-    print 'Usage Totals:\t%s/%s\t Nodes | %s/%s  Cores |   %s+%s jobs (R + Q) reported by qstat -q' % (state_dict['existing_nodes'] - state_dict['offline_down_nodes'], state_dict['existing_nodes'], state_dict['working_cores'], state_dict['total_cores'], int(total_running), int(total_queued))
+    print 'Usage Totals:\t%s/%s\t Nodes | %s/%s  Cores |   %s+%s jobs (R + Q) reported by qstat -q' % (state_dict['remap_nr'] - state_dict['offline_down_nodes'], state_dict['remap_nr'], state_dict['working_cores'], state_dict['total_cores'], int(total_running), int(total_queued))
     print 'Queues: | ',
     if options.COLOR == 'ON':
         for queue in qstatq_list:
