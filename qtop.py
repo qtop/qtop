@@ -90,13 +90,10 @@ def decide_naming_scheme(pbs_nodes, state_dict):
     state_dict['node_subclusters'] = set(_all_letters)
     all_digits = [int(digit) for digit in _all_str_digits]
 
+    if options.BLINDREMAP or len(state_dict['node_subclusters']) > 1 or min(state_dict['wn_list']) >= 9000 or state_dict['biggest_written_node'] * options['percentage'] < state_dict['wn_list_remapped'][-1] or len(all_digits) != len(_all_str_digits):
+        options.REMAP = True
 
-    if len(state_dict['node_subclusters']) > 1:
-        options.BLINDREMAP = True
-    if min(state_dict['wn_list']) >= 9000 or state_dict['biggest_written_node'] * options['percentage'] < state_dict['wn_list_remapped'][-1]:
-        options.BLINDREMAP = True
-    if len(all_digits) == len(_all_str_digits):
-        NR_COLLISION = False
+    return options.REMAP
 
 
 def calculate_stuff(pbs_nodes):
@@ -106,7 +103,6 @@ def calculate_stuff(pbs_nodes):
     for key in ['working_cores', 'total_cores', 'max_np', 'biggest_written_node', 'offline_down_nodes']:
         state_dict[key] = 0
     state_dict['wn_list'] = []
-    state_dict['wn_list_remapped'] = []
     state_dict['node_subclusters'] = set()
     state_dict['all_wns_remapped_dict'] = {}  # { remapnr: [state, np, (core0, job1), (core1, job1), ....]}
     state_dict['all_wns_dict'] = {}
@@ -120,7 +116,7 @@ def calculate_stuff(pbs_nodes):
         node_letters = ''.join(re.findall(r'\D+', _nodename))
         node_digits = "".join(re.findall(r'\d+', _nodename))
 
-        state_dict['node_subclusters'].add(node_letters)
+        # state_dict['node_subclusters'].add(node_letters)
         state_dict['total_cores'] += node.get('np')
         state_dict['max_np'] = max(state_dict['max_np'], node['np'])
         state_dict['offline_down_nodes'] += 1 if node['state'] in 'do' else 0
@@ -136,12 +132,14 @@ def calculate_stuff(pbs_nodes):
         except KeyError:
             continue
 
-    if len(state_dict['node_subclusters']) > 1 or options.BLINDREMAP or named_wns:
+    options.REMAP = decide_naming_scheme(pbs_nodes, state_dict)
+
+    if options.REMAP or named_wns:
         state_dict['biggest_written_node'] = state_dict['remap_nr']
     else:
         state_dict['biggest_written_node'] = max(state_dict['wn_list'])
 
-    state_dict['all_wns_dict'] = map_pbsnodes_to_allwns_dict(state_dict, pbs_nodes)
+    # state_dict['all_wns_dict'] = map_pbsnodes_to_allwns_dict(state_dict, pbs_nodes)
 
     return state_dict, named_wns
 
@@ -256,9 +254,9 @@ def read_pbsnodes_yaml(yaml_file):
     if min(state_dict['wn_list']) > 9000 and type(min(state_dict['wn_list'])) == int:
         # handle exotic cases of WN numbering starting VERY high
         state_dict['wn_list'] = [element - min(state_dict['wn_list']) for element in state_dict['wn_list']]
-        options.BLINDREMAP = True 
+        options.REMAP = True
     if len(state_dict['wn_list']) < config['percentage'] * state_dict['biggest_written_node']:
-        options.BLINDREMAP = True
+        options.REMAP = True
     return state_dict, named_wns
 
 
@@ -313,7 +311,7 @@ def read_qstatq_yaml(QSTATQ_YAML_FILE):
 
 
 def create_job_accounting_summary(state_dict, total_running, total_queued, qstatq_list):
-    if len(state_dict['node_subclusters']) > 1 or options.BLINDREMAP:
+    if options.REMAP:
         print '=== WARNING: --- Remapping WN names and retrying heuristics... good luck with this... ---'
     print '\nPBS report tool. Please try: watch -d ' + QTOPPATH + '. All bugs added by sfranky@gmail.com. Cross fingers now...\n'
     print colorize('===> ', '#') + colorize('Job accounting summary', 'Nothing') + colorize(' <=== ', '#') + colorize('(Rev: 3000 $) %s WORKDIR = to be added', 'NoColourAccount') % (datetime.datetime.today()) #was: added\n
@@ -617,6 +615,7 @@ def print_WN_ID_lines(start, stop, wn_number, hxxxx):
             print insert_sep(hxxxx['h0010'][start:stop], SEPARATOR, options.WN_COLON) + '={__Node__}'
             print insert_sep(hxxxx['h0001'][start:stop], SEPARATOR, options.WN_COLON) + '={___ID___}'
     elif named_wns or options.FORCE_NAMES:  # names (e.g. fruits) instead of numbered WNs
+        raise NotImplementedError
         color = 0
         highlight = {0: 'cmsplt', 1: 'Red'}
         for line, _ in enumerate(max(state_dict['wn_list'])):
@@ -653,7 +652,7 @@ def calculate_remaining_matrices(node_state,
         else:
             _print_end += term_columns - DEADWEIGHT
 
-        if options.BLINDREMAP or len(state_dict['node_subclusters']) > 1:
+        if options.REMAP:
             _print_end = min(_print_end, state_dict['remap_nr'])
         else:
             _print_end = min(_print_end, state_dict['biggest_written_node'])
@@ -723,7 +722,7 @@ def calc_cpu_lines(state_dict, id_of_username):
         _cpu_core_dict['Cpu' + str(core_nr) + 'line'] = ''  # Cpu0line, Cpu1line, Cpu2line, .. = '','','', ..
         max_np_range.append(str(core_nr))
 
-    if len(state_dict['node_subclusters']) > 1 or options.BLINDREMAP:
+    if options.REMAP:
         state_np_corejobs = state_dict['all_wns_remapped_dict']
     elif len(state_dict['node_subclusters']) == 1:
         state_np_corejobs = state_dict['all_wns_dict']
@@ -746,7 +745,7 @@ def calculate_wn_occupancy(state_dict, user_names, statuses):
     cpu_core_dict = calc_cpu_lines(state_dict, id_of_username)
     print colorize('===> ', '#') + colorize('Worker Nodes occupancy', 'Nothing') + colorize(' <=== ', '#') + colorize('(you can read vertically the node IDs; nodes in free state are noted with - )', 'NoColourAccount')
 
-    if options.BLINDREMAP or len(state_dict['node_subclusters']) > 1:
+    if options.REMAP:
         node_count = state_dict['remap_nr']
         all_wns = state_dict['all_wns_remapped_dict']
         wn_list = state_dict['wn_list_remapped']
