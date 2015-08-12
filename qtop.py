@@ -85,7 +85,7 @@ def decide_naming_scheme(pbs_nodes, state_dict):
         node_letters = ''.join(re.findall(r'\D+', _nodename))
         _all_letters.append(node_letters)
         node_str_digits = "".join(re.findall(r'\d+', _nodename))
-        _all_str_digits.append(node_str_digits)
+    _all_str_digits = filter(lambda x: x != "", _all_str_digits)
 
     state_dict['node_subclusters'] = set(_all_letters)
     all_digits = [int(digit) for digit in _all_str_digits]
