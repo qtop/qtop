@@ -75,6 +75,30 @@ def read_pbsnodes_yaml_into_dict(yaml_fn):
     return pbs_nodes
 
 
+def decide_naming_scheme(pbs_nodes, state_dict):
+    _all_letters = []
+    _all_str_digits = []
+    re_nodename = r'(^[A-Za-z0-9-]+)(?=\.|$)'
+    for domain_name, _ in pbs_nodes.iteritems():
+        nodename_match = re.search(re_nodename, domain_name)
+        _nodename = nodename_match.group(0)
+        node_letters = ''.join(re.findall(r'\D+', _nodename))
+        _all_letters.append(node_letters)
+        node_str_digits = "".join(re.findall(r'\d+', _nodename))
+        _all_str_digits.append(node_str_digits)
+
+    state_dict['node_subclusters'] = set(_all_letters)
+    all_digits = [int(digit) for digit in _all_str_digits]
+
+
+    if len(state_dict['node_subclusters']) > 1:
+        options.BLINDREMAP = True
+    if min(state_dict['wn_list']) >= 9000 or state_dict['biggest_written_node'] * options['percentage'] < state_dict['wn_list_remapped'][-1]:
+        options.BLINDREMAP = True
+    if len(all_digits) == len(_all_str_digits):
+        NR_COLLISION = False
+
+
 def calculate_stuff(pbs_nodes):
     named_wns = 0 if not options.FORCE_NAMES else 1
     state_dict = dict()
