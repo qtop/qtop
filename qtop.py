@@ -75,7 +75,11 @@ def read_pbsnodes_yaml_into_dict(yaml_fn):
     return pbs_nodes
 
 
-def decide_naming_scheme(pbs_nodes, state_dict):
+def handle_wn_numbering(pbs_nodes, state_dict):
+    """
+    Stores the particular numbering and lettering of the worker nodes
+    so as to be able to later decide on how to display the info on tables.
+    """
     _all_letters = []
     _all_str_digits = []
     re_nodename = r'(^[A-Za-z0-9-]+)(?=\.|$)'
@@ -85,14 +89,17 @@ def decide_naming_scheme(pbs_nodes, state_dict):
         node_letters = ''.join(re.findall(r'\D+', _nodename))
         _all_letters.append(node_letters)
         node_str_digits = "".join(re.findall(r'\d+', _nodename))
-    _all_str_digits = filter(lambda x: x != "", _all_str_digits)
+        _all_str_digits.append(node_str_digits)
 
+    state_dict['all_str_digits'] = filter(lambda x: x != "", _all_str_digits)
+    state_dict['all_digits'] = [int(digit) for digit in state_dict['all_str_digits']]
     state_dict['node_subclusters'] = set(_all_letters)
-    all_digits = [int(digit) for digit in _all_str_digits]
 
-    if options.BLINDREMAP or len(state_dict['node_subclusters']) > 1 or min(state_dict['wn_list']) >= 9000 or state_dict['biggest_written_node'] * options['percentage'] < state_dict['wn_list_remapped'][-1] or len(all_digits) != len(_all_str_digits):
+
+def decide_naming_scheme(pbs_nodes, state_dict):
+    handle_wn_numbering(pbs_nodes, state_dict)
+    if options.BLINDREMAP or len(state_dict['node_subclusters']) > 1 or min(state_dict['wn_list']) >= 9000 or state_dict['biggest_written_node'] * options['percentage'] < state_dict['wn_list_remapped'][-1] or len(state_dict['all_digits']) != len(state_dict['all_str_digits']):
         options.REMAP = True
-
     return options.REMAP
 
 
@@ -109,6 +116,7 @@ def calculate_stuff(pbs_nodes):
 
     state_dict['remap_nr'] = len(pbs_nodes)  # == existing_nodes
     state_dict['wn_list_remapped'] = xrange(state_dict['remap_nr'])
+
     re_nodename = r'(^[A-Za-z0-9-]+)(?=\.|$)'
     for domain_name, node in pbs_nodes.iteritems():
         nodename_match = re.search(re_nodename, domain_name)
@@ -116,7 +124,6 @@ def calculate_stuff(pbs_nodes):
         node_letters = ''.join(re.findall(r'\D+', _nodename))
         node_digits = "".join(re.findall(r'\d+', _nodename))
 
-        # state_dict['node_subclusters'].add(node_letters)
         state_dict['total_cores'] += node.get('np')
         state_dict['max_np'] = max(state_dict['max_np'], node['np'])
         state_dict['offline_down_nodes'] += 1 if node['state'] in 'do' else 0
@@ -133,11 +140,14 @@ def calculate_stuff(pbs_nodes):
             continue
 
     options.REMAP = decide_naming_scheme(pbs_nodes, state_dict)
-
-    if options.REMAP or named_wns:
-        state_dict['biggest_written_node'] = state_dict['remap_nr']
+    if options.REMAP:
+        node_count = state_dict['remap_nr']
+        all_wns = state_dict['all_wns_remapped_dict']
+        wn_list = state_dict['wn_list_remapped']
     else:
-        state_dict['biggest_written_node'] = max(state_dict['wn_list'])
+        node_count = max(state_dict['wn_list'])
+        all_wns = state_dict['all_wns_dict']
+        wn_list = state_dict['wn_list']
 
     # state_dict['all_wns_dict'] = map_pbsnodes_to_allwns_dict(state_dict, pbs_nodes)
 
@@ -745,14 +755,15 @@ def calculate_wn_occupancy(state_dict, user_names, statuses):
     cpu_core_dict = calc_cpu_lines(state_dict, id_of_username)
     print colorize('===> ', '#') + colorize('Worker Nodes occupancy', 'Nothing') + colorize(' <=== ', '#') + colorize('(you can read vertically the node IDs; nodes in free state are noted with - )', 'NoColourAccount')
 
-    if options.REMAP:
-        node_count = state_dict['remap_nr']
-        all_wns = state_dict['all_wns_remapped_dict']
-        wn_list = state_dict['wn_list_remapped']
-    else:
-        node_count = state_dict['biggest_written_node']
-        all_wns = state_dict['all_wns_dict']
-        wn_list = state_dict['wn_list']
+    # here, node_count, all_wns, wn_list are expected
+    # if options.REMAP:
+    #     node_count = state_dict['remap_nr']
+    #     all_wns = state_dict['all_wns_remapped_dict']
+    #     wn_list = state_dict['wn_list_remapped']
+    # else:
+    #     node_count = state_dict['biggest_written_node']
+    #     all_wns = state_dict['all_wns_dict']
+    #     wn_list = state_dict['wn_list']
 
     hxxxx = calculate_Total_WNIDLine_Width(node_count)
     node_state = ''
