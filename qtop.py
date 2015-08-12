@@ -141,14 +141,17 @@ def calculate_stuff(pbs_nodes):
 
     options.REMAP = decide_naming_scheme(pbs_nodes, state_dict)
     if options.REMAP:
-        node_count = state_dict['remap_nr']
+        all_nodes_nr = state_dict['remap_nr']
         all_wns = state_dict['all_wns_remapped_dict']
         wn_list = state_dict['wn_list_remapped']
     else:
-        node_count = max(state_dict['wn_list'])
+        all_nodes_nr = max(state_dict['wn_list'])
         all_wns = state_dict['all_wns_dict']
         wn_list = state_dict['wn_list']
 
+    state_dict['all_nodes_nr'] = all_nodes_nr
+    state_dict['all_wns'] = all_wns
+    state_dict['wn_list'] = wn_list
     # state_dict['all_wns_dict'] = map_pbsnodes_to_allwns_dict(state_dict, pbs_nodes)
 
     return state_dict, named_wns
@@ -755,22 +758,14 @@ def calculate_wn_occupancy(state_dict, user_names, statuses):
     cpu_core_dict = calc_cpu_lines(state_dict, id_of_username)
     print colorize('===> ', '#') + colorize('Worker Nodes occupancy', 'Nothing') + colorize(' <=== ', '#') + colorize('(you can read vertically the node IDs; nodes in free state are noted with - )', 'NoColourAccount')
 
-    # here, node_count, all_wns, wn_list are expected
-    # if options.REMAP:
-    #     node_count = state_dict['remap_nr']
-    #     all_wns = state_dict['all_wns_remapped_dict']
-    #     wn_list = state_dict['wn_list_remapped']
-    # else:
-    #     node_count = state_dict['biggest_written_node']
-    #     all_wns = state_dict['all_wns_dict']
-    #     wn_list = state_dict['wn_list']
+    all_nodes_nr, all_wns, wn_list = state_dict['all_nodes_nr'], state_dict['all_wns'], state_dict['wn_list']
 
-    hxxxx = calculate_Total_WNIDLine_Width(node_count)
+    hxxxx = calculate_Total_WNIDLine_Width(all_nodes_nr)
     node_state = ''
     for node in all_wns:
         node_state += all_wns[node][0]
-    (print_start, print_end, extra_matrices_nr) = find_matrices_width(node_count, wn_list, state_dict, term_columns)
-    print_WN_ID_lines(print_start, print_end, node_count, hxxxx)
+    (print_start, print_end, extra_matrices_nr) = find_matrices_width(all_nodes_nr, wn_list, state_dict, term_columns)
+    print_WN_ID_lines(print_start, print_end, all_nodes_nr, hxxxx)
     print insert_sep(node_state[print_start:print_end], SEPARATOR, options.WN_COLON) + '=Node state'
 
     account_nrless_of_id = print_core_lines(cpu_core_dict, account_jobs_table, print_start, print_end)
