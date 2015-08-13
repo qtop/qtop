@@ -98,7 +98,8 @@ def handle_wn_numbering(pbs_nodes, state_dict):
 
 def decide_naming_scheme(pbs_nodes, state_dict):
     handle_wn_numbering(pbs_nodes, state_dict)
-    if options.BLINDREMAP or len(state_dict['node_subclusters']) > 1 or min(state_dict['wn_list']) >= 9000 or state_dict['biggest_written_node'] * options['percentage'] < state_dict['wn_list_remapped'][-1] or len(state_dict['all_digits']) != len(state_dict['all_str_digits']):
+    if options.BLINDREMAP or len(state_dict['node_subclusters']) > 1 or min(state_dict['wn_list']) >= 9000 or state_dict['biggest_written_node'] * config['percentage'] < state_dict['wn_list_remapped'][-1] or len(state_dict['all_digits']) \
+            != len(state_dict['all_str_digits']):
         options.REMAP = True
     return options.REMAP
 
@@ -163,7 +164,7 @@ def map_pbsnodes_to_allwns_dict(state_dict, pbs_nodes):
         t = []
         t.append(pbs_node['state'])
         t.append(pbs_node['np'])
-        for corejob in pbs_node['core_job_map']:
+        for corejob in pbs_node.get('core_job_map', []):
             t.append((corejob['core'], corejob['job']))
         d[state_dict['wn_final_list']] = t
 
