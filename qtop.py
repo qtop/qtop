@@ -30,7 +30,7 @@ parser.add_option("-F", "--ForceNames", action="store_true", dest="FORCE_NAMES",
 
 (options, args) = parser.parse_args()
 
-# TODO make this work with py files instead of qtop.colormap files
+# TODO make the following work with py files instead of qtop.colormap files
 # if not options.COLORFILE:
 #     options.COLORFILE = os.path.expanduser('~/qtop/qtop/qtop.colormap')
 
@@ -133,8 +133,7 @@ def calculate_stuff(pbs_nodes):
         try:
             state_dict['working_cores'] += len(node['core_job_map'])
         except KeyError as msg:
-            cnt += 1
-            print "KeyError: {}, {} ".format(cnt, msg)
+            pass
 
         try:
             cur_node_nr = int(node_str_digits)
@@ -157,16 +156,8 @@ def calculate_stuff(pbs_nodes):
     else:
         state_dict['highest_wn'] = max(state_dict['wn_list'])
 
-    # if len(state_dict['node_subclusters']) > 1:
-    #     for i in range(1, state_dict['total_wn']):  # This state_dict['total_wn'] here is a counter of nodes, it's therefore the equivalent highest_wn for the remapped case
-    #         if i not in state_dict['wn_dict_remapped']:
-    #             state_dict['wn_dict_remapped'][i] = '?'
-    # else:
-    #     for i in range(1, state_dict['highest_wn']):
-    #         if i not in state_dict['wn_dict']:
-    #             state_dict['wn_dict'][i] = '?'
-
     # fill in non-existent WN nodes (absent from pbsnodes file) with '?' and count them
+    # is this even needed anymore?!
     for i in range(state_dict['highest_wn']):
         if i not in state_dict['wn_dict']:
             state_dict['wn_dict'][i] = '?'
@@ -186,18 +177,6 @@ def map_pbsnodes_to_wn_dicts(state_dict, pbs_nodes):
         state_dict['wn_dict'][cur_node_nr] = pbs_node
         state_dict['wn_dict_remapped'][idx] = pbs_node
 
-
-# def map_pbsnodes_to_wn_dict(state_dict, pbs_nodes):
-#     d = dict()
-#     for pbs_node in nodes_with_jobs(pbs_nodes):
-#         t = []
-#         t.append(pbs_node['state'])
-#         t.append(pbs_node['np'])
-#         for corejob in pbs_node['core_job_map']:
-#             t.append((corejob['core'], corejob['job']))
-#         d[state_dict['wn_list']] = t
-#
-#     return d
 
 
 def read_pbsnodes_yaml(yaml_file):
@@ -878,9 +857,7 @@ if __name__ == '__main__':
     make_qstatq_yaml(QSTATQ_ORIG_FILE, QSTATQ_YAML_FILE)
     make_qstat_yaml(QSTAT_ORIG_FILE, QSTAT_YAML_FILE)
 
-    pbs_nodes = read_pbsnodes_yaml_into_list(PBSNODES_YAML_FILE)
-    # pbs_nodes = read_pbsnodes_yaml_into_dict(PBSNODES_YAML_FILE)
-    # was: state_dict, NAMED_WNS = calculate_stuff(pbs_nodes)
+    pbs_nodes = read_pbsnodes_yaml_into_list(PBSNODES_YAML_FILE)  # was: read_pbsnodes_yaml_into_dict(PBSNODES_YAML_FILE)
     # was: state_dict, NAMED_WNS = read_pbsnodes_yaml(PBSNODES_YAML_FILE)
     total_running, total_queued, qstatq_list = read_qstatq_yaml(QSTATQ_YAML_FILE)
     job_ids, user_names, statuses, queue_names = read_qstat_yaml(QSTAT_YAML_FILE)  # populates 4 lists
