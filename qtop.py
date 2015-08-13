@@ -18,7 +18,7 @@ from itertools import izip
 from pbs import make_pbsnodes_yaml, make_qstatq_yaml, make_qstat_yaml
 from colormap import color_of_account, code_of_color
 
-parser = OptionParser() # for more details see http://docs.python.org/library/optparse.html
+parser = OptionParser()  # for more details see http://docs.python.org/library/optparse.html
 parser.add_option("-a", "--blindremapping", action="store_true", dest="BLINDREMAP", default=False, help="This is used in situations where node names are not a pure arithmetic sequence (eg. rocks clusters)")
 parser.add_option("-c", "--COLOR", action="store", dest="COLOR", default='ON', choices=['ON', 'OFF'], help="Enable/Disable color in qtop output. Use it with an ON/OFF switch: -c ON or -c OFF")
 parser.add_option("-f", "--setCOLORMAPFILE", action="store", type="string", dest="COLORFILE")
@@ -181,7 +181,6 @@ def map_pbsnodes_to_allwns_dict(state_dict, pbs_nodes):
     return d
 
 
-
 def read_pbsnodes_yaml(yaml_file):
     """
     Reads the pbsnodes yaml file and extracts the node information necessary to build the tables
@@ -296,7 +295,6 @@ def read_qstat_yaml(QSTAT_YAML_FILE):
     reads qstat YAML file and populates four lists. Returns the lists
     """
     job_ids, usernames, statuses, queue_names = [], [], [], []
-    user_of_job_id = {}
     with open(QSTAT_YAML_FILE, 'r') as finr:
         for line in finr:
             if line.startswith('JobId:'):
@@ -748,6 +746,7 @@ def print_core_lines(cpu_core_dict, accounts_mappings, print_start, print_end):
 def calc_cpu_lines(state_dict, id_of_username):
     _cpu_core_dict = {}
     max_np_range = []
+    user_of_job_id = dict(izip(job_ids, user_names))
 
     for core_nr in range(state_dict['max_np']):
         _cpu_core_dict['Cpu' + str(core_nr) + 'line'] = ''  # Cpu0line, Cpu1line, Cpu2line, .. = '','','', ..
@@ -858,15 +857,13 @@ if __name__ == '__main__':
     make_qstatq_yaml(QSTATQ_ORIG_FILE, QSTATQ_YAML_FILE)
     make_qstat_yaml(QSTAT_ORIG_FILE, QSTAT_YAML_FILE)
 
-    # pbs_nodes = read_pbsnodes_yaml_into_list(PBSNODES_YAML_FILE)
     pbs_nodes = read_pbsnodes_yaml_into_dict(PBSNODES_YAML_FILE)
-    state_dict, NAMED_WNS = calculate_stuff(pbs_nodes)
-    # state_dict, NAMED_WNS = read_pbsnodes_yaml(PBSNODES_YAML_FILE)
+    # was: state_dict, NAMED_WNS = calculate_stuff(pbs_nodes)
+    # was: state_dict, NAMED_WNS = read_pbsnodes_yaml(PBSNODES_YAML_FILE)
     total_running, total_queued, qstatq_list = read_qstatq_yaml(QSTATQ_YAML_FILE)
     job_ids, user_names, statuses, queue_names = read_qstat_yaml(QSTAT_YAML_FILE)  # populates 4 lists
 
-    # calculate_stuff(pbs_nodes)
-    user_of_job_id = dict(izip(job_ids, user_names))
+    state_dict, NAMED_WNS = calculate_stuff(pbs_nodes)
 
     create_job_accounting_summary(state_dict, total_running, total_queued, qstatq_list)
     account_jobs_table = calculate_wn_occupancy(state_dict, user_names, statuses)
