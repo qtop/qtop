@@ -75,31 +75,16 @@ def read_pbsnodes_yaml_into_dict(yaml_fn):
     return pbs_nodes
 
 
-def handle_wn_numbering(pbs_nodes, state_dict):
+def decide_remapping(pbs_nodes, state_dict):
     """
-    Stores the particular numbering and lettering of the worker nodes
-    so as to be able to decide how to display the info on tables.
+    Cases where remapping is enforced are:
+    - the user has requested it (blindremap switch)
+    - there are different WN namings, e.g. wn001, wn002, ..., ps001, ps002, ... etc
+    - the first starting numbering of a WN is very high and thus would require too much unused space
+    - the numbering is strange, say the highest numbered node is named wn12500 but the total amount of WNs is 8000
+    - there are numbering collisions,
+        e.g. there's a ps001 and a wn001, or a 0x001 and a 0x1, which all would be displayed in position 1
     """
-    _all_letters = []
-    _all_str_digits = []
-    re_nodename = r'(^[A-Za-z0-9-]+)(?=\.|$)'
-    for domain_name, _ in pbs_nodes.iteritems():
-        nodename_match = re.search(re_nodename, domain_name)
-        _nodename = nodename_match.group(0)
-
-        node_letters = ''.join(re.findall(r'\D+', _nodename))
-        node_str_digits = "".join(re.findall(r'\d+', _nodename))
-
-        _all_letters.append(node_letters)
-        _all_str_digits.append(node_str_digits)
-
-    state_dict['node_subclusters'] = set(_all_letters)
-    state_dict['all_str_digits'] = filter(lambda x: x != "", _all_str_digits)
-    state_dict['all_digits'] = [int(digit) for digit in state_dict['all_str_digits']]
-
-
-def decide_naming_scheme(pbs_nodes, state_dict):
-    handle_wn_numbering(pbs_nodes, state_dict)
     if options.BLINDREMAP or \
         len(state_dict['node_subclusters']) > 1 or \
         min(state_dict['wn_list']) >= 9000 or \
@@ -120,20 +105,27 @@ def calculate_stuff(pbs_nodes):
     state_dict['all_wns_dict'] = {}
 
     state_dict['remap_nr'] = len(pbs_nodes)  # == existing_nodes
-    state_dict['wn_list_remapped'] = xrange(state_dict['remap_nr'])
+    state_dict['wn_list_remapped'] = range(state_dict['remap_nr'])  # leave xrange aside for now
+
+    _all_letters = []
+    _all_str_digits = []
 
     re_nodename = r'(^[A-Za-z0-9-]+)(?=\.|$)'
     for domain_name, node in pbs_nodes.iteritems():
         nodename_match = re.search(re_nodename, domain_name)
         _nodename = nodename_match.group(0)
+
         node_letters = ''.join(re.findall(r'\D+', _nodename))
-        node_digits = "".join(re.findall(r'\d+', _nodename))
+        node_str_digits = "".join(re.findall(r'\d+', _nodename))
+
+        _all_letters.append(node_letters)
+        _all_str_digits.append(node_str_digits)
 
         state_dict['total_cores'] += node.get('np')
         state_dict['max_np'] = max(state_dict['max_np'], node['np'])
         state_dict['offline_down_nodes'] += 1 if node['state'] in 'do' else 0
         try:
-            _node_nr = int(node_digits)
+            _node_nr = int(node_str_digits)
         except ValueError:
             _node_nr = node_letters
         finally:
@@ -144,7 +136,11 @@ def calculate_stuff(pbs_nodes):
         except KeyError:
             continue
 
-    decide_naming_scheme(pbs_nodes, state_dict)
+    state_dict['node_subclusters'] = set(_all_letters)
+    state_dict['all_str_digits'] = filter(lambda x: x != "", _all_str_digits)
+    state_dict['all_digits'] = [int(digit) for digit in state_dict['all_str_digits']]
+
+    decide_remapping(pbs_nodes, state_dict)
     if options.REMAP:
         all_nodes_nr = state_dict['remap_nr']
         all_wns = state_dict['all_wns_remapped_dict']
