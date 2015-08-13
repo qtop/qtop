@@ -462,9 +462,12 @@ def fill_cpucore_columns(state_np_corejob, cpu_core_dict, id_of_username, max_np
     will be a dict!
     """
 
-    state = state_np_corejob[0]
-    np = state_np_corejob[1]
-    corejob = state_np_corejob[2:]
+    # state = state_np_corejob[0]
+    # np = state_np_corejob[1]
+    # corejob = state_np_corejob[2:]
+    state = state_np_corejob['state']
+    np = state_np_corejob['np']
+    corejobs = state_np_corejob.get('core_job_map', '')
     if state == '?':
         for cpu_line in cpu_core_dict:
             cpu_core_dict[cpu_line] += '_'
@@ -473,15 +476,14 @@ def fill_cpucore_columns(state_np_corejob, cpu_core_dict, id_of_username, max_np
         own_np_range = [str(x) for x in range(_own_np)]
         own_np_empty_range = own_np_range[:]
 
-        for element in corejob:
-            if type(element) == tuple:  # everytime there is a job:
-                core, job = element[0], element[1]
-                try: 
-                    user_of_job_id[job]
-                except KeyError, KeyErrorValue:
-                    print 'There seems to be a problem with the qstat output. A JobID has gone rogue (namely, ' + str(KeyErrorValue) +'). Please check with the System Administrator.'
-                cpu_core_dict['Cpu' + str(core) + 'line'] += str(id_of_username[user_of_job_id[job]])
-                own_np_empty_range.remove(core)
+        for corejob in corejobs:
+            core, job = str(corejob['core']), str(corejob['job'])
+            try:
+                user_of_job_id[job]
+            except KeyError, KeyErrorValue:
+                print 'There seems to be a problem with the qstat output. A JobID has gone rogue (namely, ' + str(KeyErrorValue) +'). Please check with the System Administrator.'
+            cpu_core_dict['Cpu' + str(core) + 'line'] += str(id_of_username[user_of_job_id[job]])
+            own_np_empty_range.remove(core)
 
         non_existent_cores = [item for item in max_np_range if item not in own_np_range]
 
@@ -785,7 +787,7 @@ def calculate_wn_occupancy(state_dict, user_names, statuses):
     hxxxx = calculate_Total_WNIDLine_Width(highest_wn)
     node_state = ''
     for node in wn_dict:
-        node_state += wn_dict[node][0]
+        node_state += wn_dict[node]['state']
     (print_start, print_end, extra_matrices_nr) = find_matrices_width(highest_wn, wn_list, state_dict, term_columns)
     print_WN_ID_lines(print_start, print_end, highest_wn, hxxxx)
     print insert_sep(node_state[print_start:print_end], SEPARATOR, options.WN_COLON) + '=Node state'
