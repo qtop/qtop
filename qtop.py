@@ -151,16 +151,23 @@ def calculate_stuff(pbs_nodes):
 
     state_dict['all_nodes_nr'] = all_nodes_nr
     state_dict['all_wns'] = all_wns
-    state_dict['wn_list'] = wn_list
-    # state_dict['all_wns_dict'] = map_pbsnodes_to_allwns_dict(state_dict, pbs_nodes)
+    state_dict['wn_final_list'] = wn_list
 
+    state_dict['all_wns_dict'] = map_pbsnodes_to_allwns_dict(state_dict, pbs_nodes)
     return state_dict, named_wns
 
 
 def map_pbsnodes_to_allwns_dict(state_dict, pbs_nodes):
     d = dict()
     for _, pbs_node in pbs_nodes.iteritems():
-        d[pbs_node]
+        t = []
+        t.append(pbs_node['state'])
+        t.append(pbs_node['np'])
+        for corejob in pbs_node['core_job_map']:
+            t.append((corejob['core'], corejob['job']))
+        d[state_dict['wn_final_list']] = t
+
+    return d
 
 
 
