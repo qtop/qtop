@@ -125,16 +125,16 @@ def calculate_stuff(pbs_nodes):
         state_dict['max_np'] = max(state_dict['max_np'], node['np'])
         state_dict['offline_down_nodes'] += 1 if node['state'] in 'do' else 0
         try:
+            state_dict['working_cores'] += len(node['core_job_map'])
+        except KeyError:
+            continue
+
+        try:
             _node_nr = int(node_str_digits)
         except ValueError:
             _node_nr = node_letters
         finally:
             state_dict['wn_list'].append(_node_nr)
-
-        try:
-            state_dict['working_cores'] += len(node['core_job_map'])
-        except KeyError:
-            continue
 
     state_dict['node_subclusters'] = set(_all_letters)
     state_dict['all_str_digits'] = filter(lambda x: x != "", _all_str_digits)
@@ -142,17 +142,13 @@ def calculate_stuff(pbs_nodes):
 
     decide_remapping(pbs_nodes, state_dict)
     if options.REMAP:
-        all_nodes_nr = state_dict['total_wn']
-        all_wns = state_dict['wn_dict_remapped']
-        wn_list = state_dict['wn_list_remapped']
+        highest_wn = state_dict['total_wn']
+        state_dict['wn_dict'] = state_dict['wn_dict_remapped']
+        state_dict['wn_list'] = state_dict['wn_list_remapped']
     else:
-        all_nodes_nr = max(state_dict['wn_list'])
-        all_wns = state_dict['wn_dict']
-        wn_list = state_dict['wn_list']
+        highest_wn = max(state_dict['wn_list'])
 
-    state_dict['all_nodes_nr'] = all_nodes_nr
-    state_dict['all_wns'] = all_wns
-    state_dict['wn_final_list'] = wn_list
+    state_dict['highest_wn'] = highest_wn
 
     state_dict['wn_dict'] = map_pbsnodes_to_allwns_dict(state_dict, pbs_nodes)
     return state_dict, NAMED_WNS
@@ -172,7 +168,7 @@ def map_pbsnodes_to_allwns_dict(state_dict, pbs_nodes):
         t.append(pbs_node['np'])
         for corejob in pbs_node['core_job_map']:
             t.append((corejob['core'], corejob['job']))
-        d[state_dict['wn_final_list']] = t
+        d[state_dict['wn_list']] = t
 
     return d
 
@@ -771,14 +767,14 @@ def calculate_wn_occupancy(state_dict, user_names, statuses):
     cpu_core_dict = calc_cpu_lines(state_dict, id_of_username)
     print colorize('===> ', '#') + colorize('Worker Nodes occupancy', 'Nothing') + colorize(' <=== ', '#') + colorize('(you can read vertically the node IDs; nodes in free state are noted with - )', 'NoColourAccount')
 
-    all_nodes_nr, all_wns, wn_list = state_dict['all_nodes_nr'], state_dict['all_wns'], state_dict['wn_list']
+    highest_wn, wn_dict, wn_list = state_dict['highest_wn'], state_dict['wn_dict'], state_dict['wn_list']
 
-    hxxxx = calculate_Total_WNIDLine_Width(all_nodes_nr)
+    hxxxx = calculate_Total_WNIDLine_Width(highest_wn)
     node_state = ''
-    for node in all_wns:
-        node_state += all_wns[node][0]
-    (print_start, print_end, extra_matrices_nr) = find_matrices_width(all_nodes_nr, wn_list, state_dict, term_columns)
-    print_WN_ID_lines(print_start, print_end, all_nodes_nr, hxxxx)
+    for node in wn_dict:
+        node_state += wn_dict[node][0]
+    (print_start, print_end, extra_matrices_nr) = find_matrices_width(highest_wn, wn_list, state_dict, term_columns)
+    print_WN_ID_lines(print_start, print_end, highest_wn, hxxxx)
     print insert_sep(node_state[print_start:print_end], SEPARATOR, options.WN_COLON) + '=Node state'
 
     account_nrless_of_id = print_core_lines(cpu_core_dict, account_jobs_table, print_start, print_end)
