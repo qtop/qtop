@@ -166,7 +166,7 @@ def nodes_with_jobs(pbs_nodes):
 
 def map_pbsnodes_to_wn_dicts(state_dict, pbs_nodes):
     for (pbs_node, (idx, cur_node_nr)) in zip(pbs_nodes, enumerate(state_dict['wn_list'])):
-        state_dict['wn_dict_remapped']['cur_node_nr'] = pbs_node
+        state_dict['wn_dict_remapped'][cur_node_nr] = pbs_node
         state_dict['wn_dict'][idx] = pbs_node
 
 
