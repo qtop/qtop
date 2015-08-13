@@ -84,11 +84,16 @@ def decide_remapping(pbs_nodes, state_dict):
     - the numbering is strange, say the highest numbered node is named wn12500 but the total amount of WNs is 8000
     - there are numbering collisions,
         e.g. there's a ps001 and a wn001, or a 0x001 and a 0x1, which all would be displayed in position 1
+        or there are non-numbered wns
+
+    Reasons not enough to warrant remapping (intended future behaviour)
+    - one or two unnumbered nodes (should just be put in the end of the cluster)
     """
     if options.BLINDREMAP or \
         len(state_dict['node_subclusters']) > 1 or \
         min(state_dict['wn_list']) >= 9000 or \
         state_dict['biggest_written_node'] * config['percentage'] < state_dict['wn_list_remapped'][-1] or \
+        len(state_dict['_all_str_digits_with_empties']) != len(state_dict['all_str_digits']) or \
         len(state_dict['all_digits']) != len(state_dict['all_str_digits']):
             options.REMAP = True
 
@@ -108,7 +113,7 @@ def calculate_stuff(pbs_nodes):
     state_dict['wn_list_remapped'] = range(state_dict['total_wn'])  # leave xrange aside for now
 
     _all_letters = []
-    _all_str_digits = []
+    _all_str_digits_with_empties = []
 
     re_nodename = r'(^[A-Za-z0-9-]+)(?=\.|$)'
     for domain_name, node in pbs_nodes.iteritems():
@@ -119,7 +124,7 @@ def calculate_stuff(pbs_nodes):
         node_str_digits = "".join(re.findall(r'\d+', _nodename))
 
         _all_letters.append(node_letters)
-        _all_str_digits.append(node_str_digits)
+        _all_str_digits_with_empties.append(node_str_digits)
 
         state_dict['total_cores'] += node.get('np')
         state_dict['max_np'] = max(state_dict['max_np'], node['np'])
@@ -130,27 +135,26 @@ def calculate_stuff(pbs_nodes):
             continue
 
         try:
-            _node_nr = int(node_str_digits)
+            cur_node_nr = int(node_str_digits)
         except ValueError:
-            _node_nr = node_letters
+            cur_node_nr = node_letters
         finally:
-            state_dict['wn_list'].append(_node_nr)
+            state_dict['wn_list'].append(cur_node_nr)
 
     state_dict['node_subclusters'] = set(_all_letters)
-    state_dict['all_str_digits'] = filter(lambda x: x != "", _all_str_digits)
+    state_dict['_all_str_digits_with_empties'] = _all_str_digits_with_empties
+    state_dict['all_str_digits'] = filter(lambda x: x != "", _all_str_digits_with_empties)
     state_dict['all_digits'] = [int(digit) for digit in state_dict['all_str_digits']]
 
     decide_remapping(pbs_nodes, state_dict)
     if options.REMAP:
-        highest_wn = state_dict['total_wn']
-        state_dict['wn_dict'] = state_dict['wn_dict_remapped']
+        state_dict['highest_wn'] = state_dict['total_wn']
         state_dict['wn_list'] = state_dict['wn_list_remapped']
+        state_dict['wn_dict'] = state_dict['wn_dict_remapped']
     else:
-        highest_wn = max(state_dict['wn_list'])
+        state_dict['highest_wn'] = max(state_dict['wn_list'])
 
-    state_dict['highest_wn'] = highest_wn
-
-    state_dict['wn_dict'] = map_pbsnodes_to_allwns_dict(state_dict, pbs_nodes)
+    # state_dict['wn_dict'] = map_pbsnodes_to_allwns_dict(state_dict, pbs_nodes)
     return state_dict, NAMED_WNS
 
 
