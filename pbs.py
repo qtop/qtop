@@ -147,8 +147,13 @@ def read_pbsnodes_yaml_into_list(yaml_fn):
     :return: list
     """
     pbs_nodes = []
+    try:
+        from yaml import CLoader as Loader
+    except ImportError:
+        from yaml import Loader
+
     with open(yaml_fn) as fin:
-        _nodes = yaml.safe_load_all(fin)
+        _nodes = yaml.load_all(fin, Loader=Loader)
         for node in _nodes:
             pbs_nodes.append(node)
     pbs_nodes.pop()  # until i figure out why the last node is None

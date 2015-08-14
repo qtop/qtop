@@ -238,7 +238,7 @@ def produce_user_list(_user_names):
     produces the decrementing list of users in the user accounts and poolmappings table
     """
     occurence_dict = {}
-    for user_name in _user_names:
+    for user_name in set(_user_names):
         occurence_dict[user_name] = _user_names.count(user_name)
     user_sorted_list = sorted(occurence_dict.items(), key=itemgetter(1), reverse=True)
     return user_sorted_list
