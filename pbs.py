@@ -4,7 +4,10 @@ import os
 import yaml
 
 MAX_CORE_ALLOWED = 150000
-
+try:
+    from yaml import CLoader as Loader
+except ImportError:
+    from yaml import Loader
 
 def make_pbsnodes_yaml(orig_file, yaml_file):
     """
@@ -147,10 +150,6 @@ def read_pbsnodes_yaml_into_list(yaml_fn):
     :return: list
     """
     pbs_nodes = []
-    try:
-        from yaml import CLoader as Loader
-    except ImportError:
-        from yaml import Loader
 
     with open(yaml_fn) as fin:
         _nodes = yaml.load_all(fin, Loader=Loader)
@@ -187,7 +186,7 @@ def read_qstat_yaml(QSTAT_YAML_FILE):
     """
     reads qstat YAML file and populates four lists. Returns the lists
     """
-    job_ids, usernames, statuses, queue_names = [], [], [], []
+    job_ids, usernames, job_states, queue_names = [], [], [], []
     with open(QSTAT_YAML_FILE, 'r') as finr:
         for line in finr:
             if line.startswith('JobId:'):
@@ -195,11 +194,26 @@ def read_qstat_yaml(QSTAT_YAML_FILE):
             elif line.startswith('UnixAccount:'):
                 usernames.append(line.split()[1])
             elif line.startswith('S:'):
-                statuses.append(line.split()[1])
+                job_states.append(line.split()[1])
             elif line.startswith('Queue:'):
                 queue_names.append(line.split()[1])
 
-    return job_ids, usernames, statuses, queue_names
+    return job_ids, usernames, job_states, queue_names
+
+
+def read_qstat_yaml_new(QSTAT_YAML_FILE):
+    """
+    reads qstat YAML file and populates four lists. Returns the lists
+    """
+    job_ids, usernames, job_states, queue_names = [], [], [], []
+    # with open(QSTAT_YAML_FILE, 'r') as finr:
+    with open(QSTAT_YAML_FILE) as finr:
+        qstats = yaml.load_all(finr, Loader=Loader)
+        for qstat in qstats:
+            job_ids.append(qstat['JobId'])
+            usernames.append(qstat['UnixAccount'])
+            job_states.append(qstat['S'])
+            queue_names.append(qstat['Queue'])
 
 
 def read_qstatq_yaml(QSTATQ_YAML_FILE):
