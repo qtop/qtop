@@ -13,11 +13,12 @@ import datetime
 import os
 import re
 import yaml
+from itertools import izip
 # modules
 from pbs import make_pbsnodes_yaml, make_qstatq_yaml, make_qstat_yaml
 from colormap import color_of_account, code_of_color
 
-parser = OptionParser() # for more details see http://docs.python.org/library/optparse.html
+parser = OptionParser()  # for more details see http://docs.python.org/library/optparse.html
 parser.add_option("-a", "--blindremapping", action="store_true", dest="BLINDREMAP", default=False, help="This is used in situations where node names are not a pure arithmetic sequence (eg. rocks clusters)")
 parser.add_option("-c", "--COLOR", action="store", dest="COLOR", default='ON', choices=['ON', 'OFF'], help="Enable/Disable color in qtop output. Use it with an ON/OFF switch: -c ON or -c OFF")
 parser.add_option("-f", "--setCOLORMAPFILE", action="store", type="string", dest="COLORFILE")
@@ -29,7 +30,7 @@ parser.add_option("-F", "--ForceNames", action="store_true", dest="FORCE_NAMES",
 
 (options, args) = parser.parse_args()
 
-# TODO make this work with py files instead of qtop.colormap files
+# TODO make the following work with py files instead of qtop.colormap files
 # if not options.COLORFILE:
 #     options.COLORFILE = os.path.expanduser('~/qtop/qtop/qtop.colormap')
 
@@ -42,171 +43,249 @@ def colorize(text, pattern):
         return text
 
 
+def read_pbsnodes_yaml_into_list(yaml_fn):
+    """
+    Parses the pbsnodes yaml file
+    :param yaml_fn: str
+    :return: list
+    """
+    pbs_nodes = []
+    with open(yaml_fn) as fin:
+        _nodes = yaml.safe_load_all(fin)
+        for node in _nodes:
+            pbs_nodes.append(node)
+    pbs_nodes.pop()  # until i figure out why the last node is None
+    return pbs_nodes
+
+
+def read_pbsnodes_yaml_into_dict(yaml_fn):
+    """
+    Parses the pbsnodes yaml file
+    :param yaml_fn: str
+    :return: dict
+    """
+    pbs_nodes = {}
+    with open(yaml_fn) as fin:
+        _nodes = yaml.safe_load_all(fin)
+        for node in _nodes:
+            try:
+                pbs_nodes[node['domainname']] = node
+            except TypeError:
+                continue
+    return pbs_nodes
+
+
+def decide_remapping(pbs_nodes, state_dict):
+    """
+    Cases where remapping is enforced are:
+    - the user has requested it (blindremap switch)
+    - there are different WN namings, e.g. wn001, wn002, ..., ps001, ps002, ... etc
+    - the first starting numbering of a WN is very high and thus would require too much unused space
+    - the numbering is strange, say the highest numbered node is named wn12500 but the total amount of WNs is 8000
+    - there are numbering collisions,
+        e.g. there's a ps001 and a wn001, or a 0x001 and a 0x1, which all would be displayed in position 1
+        or there are non-numbered wns
+
+    Reasons not enough to warrant remapping (intended future behaviour)
+    - one or two unnumbered nodes (should just be put in the end of the cluster)
+    """
+    if options.BLINDREMAP or \
+        len(state_dict['node_subclusters']) > 1 or \
+        min(state_dict['wn_list']) >= 9000 or \
+        state_dict['highest_wn'] * config['percentage'] < state_dict['wn_list_remapped'][-1] or \
+        len(state_dict['_all_str_digits_with_empties']) != len(state_dict['all_str_digits']) or \
+        len(state_dict['all_digits']) != len(state_dict['all_str_digits']):
+            options.REMAP = True
+
+
+def calculate_stuff(pbs_nodes):
+    NAMED_WNS = 0 if not options.FORCE_NAMES else 1
+    state_dict = dict()
+    for key in ['working_cores', 'total_cores', 'max_np', 'highest_wn', 'offline_down_nodes']:
+        state_dict[key] = 0
+    state_dict['node_subclusters'] = set()
+    state_dict['wn_dict'] = {}
+    state_dict['wn_dict_remapped'] = {}  # { remapnr: [state, np, (core0, job1), (core1, job1), ....]}
+
+    state_dict['total_wn'] = len(pbs_nodes)  # == existing_nodes
+    state_dict['wn_list'] = []
+    state_dict['wn_list_remapped'] = range(1, state_dict['total_wn'])  # leave xrange aside for now
+
+    _all_letters = []
+    _all_str_digits_with_empties = []
+
+    re_nodename = r'(^[A-Za-z0-9-]+)(?=\.|$)'
+    cnt = 0
+    for node in pbs_nodes:
+
+        nodename_match = re.search(re_nodename, node['domainname'])
+        _nodename = nodename_match.group(0)
+
+        node_letters = ''.join(re.findall(r'\D+', _nodename))
+        node_str_digits = "".join(re.findall(r'\d+', _nodename))
+
+        _all_letters.append(node_letters)
+        _all_str_digits_with_empties.append(node_str_digits)
+
+        state_dict['total_cores'] += node.get('np')
+        state_dict['max_np'] = max(state_dict['max_np'], node['np'])
+        state_dict['offline_down_nodes'] += 1 if node['state'] in 'do' else 0
+        try:
+            state_dict['working_cores'] += len(node['core_job_map'])
+        except KeyError as msg:
+            pass
+
+        try:
+            cur_node_nr = int(node_str_digits)
+        except ValueError:
+            cur_node_nr = _nodename
+        finally:
+            state_dict['wn_list'].append(cur_node_nr)
+
+    state_dict['node_subclusters'] = set(_all_letters)
+    state_dict['_all_str_digits_with_empties'] = _all_str_digits_with_empties
+    state_dict['all_str_digits'] = filter(lambda x: x != "", _all_str_digits_with_empties)
+    state_dict['all_digits'] = [int(digit) for digit in state_dict['all_str_digits']]
+
+    decide_remapping(pbs_nodes, state_dict)
+    map_pbsnodes_to_wn_dicts(state_dict, pbs_nodes)
+    if options.REMAP:
+        state_dict['highest_wn'] = state_dict['total_wn']
+        state_dict['wn_list'] = state_dict['wn_list_remapped']
+        state_dict['wn_dict'] = state_dict['wn_dict_remapped']
+    else:
+        state_dict['highest_wn'] = max(state_dict['wn_list'])
+
+    # fill in non-existent WN nodes (absent from pbsnodes file) with '?' and count them
+    # is this even needed anymore?!
+    for i in range(state_dict['highest_wn']):
+        if i not in state_dict['wn_dict']:
+            state_dict['wn_dict'][i] = '?'
+
+
+    return state_dict, NAMED_WNS
+
+
+def nodes_with_jobs(pbs_nodes):
+    for _, pbs_node in pbs_nodes.iteritems():
+        if 'core_job_map' in pbs_node:
+            yield pbs_node
+
+
+def map_pbsnodes_to_wn_dicts(state_dict, pbs_nodes):
+    for (pbs_node, (idx, cur_node_nr)) in zip(pbs_nodes, enumerate(state_dict['wn_list'])):
+        state_dict['wn_dict'][cur_node_nr] = pbs_node
+        state_dict['wn_dict_remapped'][idx] = pbs_node
+
+
+
 def read_pbsnodes_yaml(yaml_file):
     """
     Reads the pbsnodes yaml file and extracts the node information necessary to build the tables
     """
     state_dict = dict()
-    state_dict['existing_nodes'] = 0
     state_dict['working_cores'] = 0
     state_dict['total_cores'] = 0
-    state_dict['biggest_written_node'] = 0
+    state_dict['highest_wn'] = 0
     state_dict['offline_down_nodes'] = 0
     state_dict['max_np'] = 0
-    state_dict['remap_nr'] = 0
+    state_dict['total_wn'] = 0  # == existing_nodes
     state_dict['node_nr'] = 0
     state_dict['wn_list'] = []
     state_dict['wn_list_remapped'] = []
     state_dict['node_subclusters'] = set()
-    state_dict['all_wns_remapped_dict'] = {}  # { remapnr: [state, np, (core0, job1), (core1, job1), ....]}
-    state_dict['all_wns_dict'] = {}
+    state_dict['wn_dict_remapped'] = {}  # { remapnr: [state, np, (core0, job1), (core1, job1), ....]}
+    state_dict['wn_dict'] = {}
     state = ''
-    names_flag = 0 if not options.FORCE_NAMES else 1  # <=1:numbered WNs, >1: names instead (e.g. fruits)
+    NAMED_WNS = 0 if not options.FORCE_NAMES else 1  # <=1:numbered WNs, >1: names instead (e.g. fruits)
+
+    re_nodename = r'(^[A-Za-z0-9-]+)(?=\.|$)'
+    re_nodename_letters_only = r'(^[A-Za-z-]+)'
+    # re_find_all_nodename_parts = '[A-Za-z]+|[0-9]+|[A-Za-z]+[0-9]+'
 
     with open(yaml_file, 'r') as fin:
         for line in fin:
-            line.strip()
-            search_domain_name = 'domainname: ' + '(\w+-?\w+([.-]\w+)*)'
-            search_node_nr = '([A-Za-z0-9-]+)(?=\.|$)'
-            search_node_nr_find = '[A-Za-z]+|[0-9]+|[A-Za-z]+[0-9]+'
-            search_just_letters = '(^[A-Za-z-]+)'
-            if re.search(search_domain_name, line) is not None:   # line contains domain name
-                m = re.search(search_domain_name, line)
-                domain_name = m.group(1)
-                state_dict['remap_nr'] += 1
-                '''
-                extract highest node number, online nodes
-                '''
-                state_dict['existing_nodes'] += 1    # nodes as recorded on PBSNODES_ORIG_FILE
-                if re.search(search_node_nr, domain_name) is not None:  # if a number and domain are found
-                    n = re.search(search_node_nr, domain_name)
-                    node_inits = n.group(0)
-                    name_groups = re.findall(search_node_nr_find, node_inits)
-                    node_inits = '-'.join(name_groups[0:-1])
-                    if name_groups[-1].isdigit():
-                        state_dict['node_nr'] = int(name_groups[-1])
-                    elif len(name_groups) == 1: # if e.g. WN name is just 'gridmon'
-                        if re.search(search_just_letters, domain_name) is not None:  # for non-numbered WNs (eg. fruit names)
-                            names_flag += 1
-                            n = re.search(search_just_letters, domain_name)
-                            node_inits = n.group(1)
-                            state_dict['node_nr'] += 1
-                            state_dict['node_subclusters'].add(node_inits)    # for non-uniform setups of WNs, eg g01... and n01...
-                            state_dict['all_wns_dict'][state_dict['node_nr']] = []
-                            state_dict['all_wns_remapped_dict'][state_dict['remap_nr']] = []
-                            if state_dict['node_nr'] > state_dict['biggest_written_node']:
-                                state_dict['biggest_written_node'] = state_dict['node_nr']
-                            state_dict['wn_list'].append(node_inits)
-                            state_dict['wn_list'][:] = [unnumbered_wn.rjust(len(max(state_dict['wn_list']))) for unnumbered_wn in state_dict['wn_list'] if type(unnumbered_wn) is str ]
-                            state_dict['wn_list_remapped'].append(state_dict['remap_nr'])
-                    elif len(name_groups) == 2 and not name_groups[-1].isdigit() and not name_groups[-2].isdigit():
-                        name_groups = '-'.join(name_groups)
-                        if re.search(search_just_letters, domain_name) is not None:  # for non-numbered WNs (eg. fruit names)
-                           names_flag += 1
-                           n = re.search(search_just_letters, domain_name)
-                           node_inits = n.group(1)
-                           state_dict['node_nr'] += 1
-                           state_dict['node_subclusters'].add(node_inits)    # for non-uniform setups of WNs, eg g01... and n01...
-                           state_dict['all_wns_dict'][state_dict['node_nr']] = []
-                           state_dict['all_wns_remapped_dict'][state_dict['remap_nr']] = []
-                           if state_dict['node_nr'] > state_dict['biggest_written_node']:
-                               state_dict['biggest_written_node'] = state_dict['node_nr']
-                           state_dict['wn_list'].append(node_inits)
-                           state_dict['wn_list'][:] = [unnumbered_wn.rjust(len(max(state_dict['wn_list']))) for unnumbered_wn in state_dict['wn_list'] if type(unnumbered_wn) is str ]
-                           state_dict['wn_list_remapped'].append(state_dict['remap_nr'])
-                    elif name_groups[-2].isdigit():
-                        state_dict['node_nr'] = int(name_groups[-2])
-                    else:
-                        state_dict['node_nr'] = int(name_groups[-3])
-                    # print 'NamedGroups are: ', name_groups #####DEBUGPRINT2
-                    state_dict['node_subclusters'].add(node_inits)    # for non-uniform setups of WNs, eg g01... and n01...
-                    state_dict['all_wns_dict'][state_dict['node_nr']] = []
-                    state_dict['all_wns_remapped_dict'][state_dict['remap_nr']] = []
-                    if state_dict['node_nr'] > state_dict['biggest_written_node']:
-                        state_dict['biggest_written_node'] = state_dict['node_nr']
-                    if names_flag <= 1:
+            line = line.strip()
+            if 'domainname:' in line:
+                state_dict['total_wn'] += 1  # just count all nodes
+                domain_name = line.split(': ')[1]
+                nodename_match = re.search(re_nodename, domain_name)
+                nodename_letters_only_match = re.search(re_nodename_letters_only, domain_name)
+
+                if nodename_match:  # host (node) name is an alphanumeric
+                    _node = nodename_match.group(0)
+                    node_letters = '-'.join(re.findall(r'\D+', _node))
+                    node_digits = "".join(re.findall(r'\d+', domain_name))
+
+                    if node_digits:
+                        state_dict['node_nr'] = int(node_digits)
+                        # thus 1x18 becomes 118, posing problems later in range(1, state_dict[ 'total_wn'] (more repetitions)
                         state_dict['wn_list'].append(state_dict['node_nr'])
-                    state_dict['wn_list_remapped'].append(state_dict['remap_nr'])
-                elif re.search(search_just_letters, domain_name) is not None:  # for non-numbered WNs (eg. fruit names)
-                    names_flag += 1
-                    n = re.search(search_just_letters, domain_name)
-                    node_inits = n.group(1)
-                    state_dict['node_nr'] += 1
-                    state_dict['node_subclusters'].add(node_inits)    # for non-uniform setups of WNs, eg g01... and n01...
-                    state_dict['all_wns_dict'][state_dict['node_nr']] = []
-                    state_dict['all_wns_remapped_dict'][state_dict['remap_nr']] = []
-                    if state_dict['node_nr'] > state_dict['biggest_written_node']:
-                        state_dict['biggest_written_node'] = state_dict['node_nr']
-                    state_dict['wn_list'].append(node_inits)
-                    state_dict['wn_list'][:] = [unnumbered_wn.rjust(len(max(state_dict['wn_list']))) for unnumbered_wn in state_dict['wn_list']]
-                    state_dict['wn_list_remapped'].append(state_dict['remap_nr'])
-                else:
+                    elif nodename_letters_only_match:  # for non-numbered WNs (eg. fruit names)
+                        NAMED_WNS += 1
+                        # increment node_nr but only if the next nr hasn't already shown up
+                        state_dict['node_nr'] += 1 if state_dict['node_nr'] + 1 not in state_dict['wn_dict'] else False
+                        state_dict['wn_list'].append(node_letters)
+                        state_dict['wn_list'][:] = [unnumbered_wn.rjust(len(max(state_dict['wn_list']))) for unnumbered_wn in state_dict['wn_list'] if type(unnumbered_wn) is str]
+
+                else:  # non_alphanumeric domain_name case?
+                    node_letters = domain_name
                     state_dict['node_nr'] = 0
-                    node_inits = domain_name
-                    state_dict['all_wns_dict'][state_dict['node_nr']] = []
-                    state_dict['all_wns_remapped_dict'][state_dict['remap_nr']] = []
-                    state_dict['node_subclusters'].add(node_inits)    # for non-uniform setups of WNs, eg g01... and n01...
-                    if state_dict['node_nr'] > state_dict['biggest_written_node']:
-                        state_dict['biggest_written_node'] = state_dict['node_nr'] + 1
                     state_dict['wn_list'].append(state_dict['node_nr'])
-                    state_dict['wn_list_remapped'].append(state_dict['remap_nr'])
+                    import pdb; pdb.set_trace()
+                    import sys; sys.exit(0)
+
+                state_dict['node_subclusters'].add(node_letters)    # for non-uniform setups of WNs, eg g01... and n01...
+                state_dict['wn_dict'][state_dict['node_nr']] = []
+                state_dict['wn_dict_remapped'][state_dict['total_wn']] = []
+                state_dict['wn_list_remapped'].append(state_dict['total_wn'])
+
             elif 'state: ' in line:
                 nextchar = line.split()[1].strip("'")
-                if nextchar == 'f':
-                    state += '-'
-                    state_dict['all_wns_dict'][state_dict['node_nr']].append('-')
-                    state_dict['all_wns_remapped_dict'][state_dict['remap_nr']].append('-')
-                elif (nextchar == 'd') | (nextchar == 'o'):
-                    state += nextchar
+                state += nextchar
+                state_dict['wn_dict'][state_dict['node_nr']].append(nextchar)
+                state_dict['wn_dict_remapped'][state_dict['total_wn']].append(nextchar)
+                if (nextchar == 'd') | (nextchar == 'o'):
                     state_dict['offline_down_nodes'] += 1
-                    state_dict['all_wns_dict'][state_dict['node_nr']].append(nextchar)
-                    state_dict['all_wns_remapped_dict'][state_dict['remap_nr']].append(nextchar)
-                else:
-                    state += nextchar
-                    state_dict['all_wns_dict'][state_dict['node_nr']].append(nextchar)
-                    state_dict['all_wns_remapped_dict'][state_dict['remap_nr']].append(nextchar)
-
             elif 'np:' in line or 'pcpus:' in line:
                 np = line.split(': ')[1].strip()
-                state_dict['all_wns_dict'][state_dict['node_nr']].append(np)
-                state_dict['all_wns_remapped_dict'][state_dict['remap_nr']].append(np)
-                if int(np) > int(state_dict['max_np']):
-                    state_dict['max_np'] = int(np)
+                state_dict['wn_dict'][state_dict['node_nr']].append(np)
+                state_dict['wn_dict_remapped'][state_dict['total_wn']].append(np)
+                state_dict['max_np'] = max(int(np), state_dict['max_np'])
                 state_dict['total_cores'] += int(np)
 
-            elif ' core: ' in line: # this should also work for OAR's yaml file
+            elif ' core: ' in line:  # this should also work for OAR's yaml file
                 core = line.split(': ')[1].strip()
                 state_dict['working_cores'] += 1
-                # if int(core) > int(state_dict['highest_core_busy']): # state_dict['highest_core_busy'] doesn't look like it's doing anything!!
-                #     state_dict['highest_core_busy'] = int(core)
             elif 'job: ' in line:
                 job = str(line.split(': ')[1]).strip()
-                state_dict['all_wns_dict'][state_dict['node_nr']].append((core, job))
-                state_dict['all_wns_remapped_dict'][state_dict['remap_nr']].append((core, job))
-        # state_dict['highest_core_busy'] += 1
+                state_dict['wn_dict'][state_dict['node_nr']].append((core, job))
+                state_dict['wn_dict_remapped'][state_dict['total_wn']].append((core, job))
 
+    state_dict['highest_wn'] = max(state_dict['wn_list']) if not NAMED_WNS else max(state_dict['wn_list_remapped'])
     '''
     fill in non-existent WN nodes (absent from pbsnodes file) with '?' and count them
     '''
     if len(state_dict['node_subclusters']) > 1:
-        for i in range(1, state_dict['remap_nr']): # This state_dict['remap_nr'] here is the LAST remapped node, it's the equivalent biggest_written_node for the remapped case
-            if i not in state_dict['all_wns_remapped_dict']:
-                state_dict['all_wns_remapped_dict'][i] = '?'
-    elif len(state_dict['node_subclusters']) == 1:
-        for i in range(1, state_dict['biggest_written_node']):
-            if i not in state_dict['all_wns_dict']:
-                state_dict['all_wns_dict'][i] = '?'
+        for i in range(1, state_dict['total_wn']):  # This state_dict['total_wn'] here is a counter of nodes, it's therefore the equivalent highest_wn for the remapped case
+            if i not in state_dict['wn_dict_remapped']:
+                state_dict['wn_dict_remapped'][i] = '?'
+    else:
+        for i in range(1, state_dict['highest_wn']):
+            if i not in state_dict['wn_dict']:
+                state_dict['wn_dict'][i] = '?'
 
-    if names_flag <= 1:
+    if NAMED_WNS:
         state_dict['wn_list'].sort()
         state_dict['wn_list_remapped'].sort()
 
-    if min(state_dict['wn_list']) > 9000 and type(min(state_dict['wn_list'])) == int: # handle exotic cases of WN numbering starting VERY high
+    if min(state_dict['wn_list']) > 9000 and type(min(state_dict['wn_list'])) == int:
+        # handle exotic cases of WN numbering starting VERY high
         state_dict['wn_list'] = [element - min(state_dict['wn_list']) for element in state_dict['wn_list']]
-        options.BLINDREMAP = True 
-    if len(state_dict['wn_list']) < config['percentage'] * state_dict['biggest_written_node']:
-        options.BLINDREMAP = True
-    return state_dict, names_flag
+        options.REMAP = True
+    if len(state_dict['wn_list']) < config['percentage'] * state_dict['highest_wn']:
+        options.REMAP = True
+    return state_dict, NAMED_WNS
 
 
 def read_qstat_yaml(QSTAT_YAML_FILE):
@@ -214,7 +293,6 @@ def read_qstat_yaml(QSTAT_YAML_FILE):
     reads qstat YAML file and populates four lists. Returns the lists
     """
     job_ids, usernames, statuses, queue_names = [], [], [], []
-    user_of_job_id = {}
     with open(QSTAT_YAML_FILE, 'r') as finr:
         for line in finr:
             if line.startswith('JobId:'):
@@ -226,9 +304,7 @@ def read_qstat_yaml(QSTAT_YAML_FILE):
             elif line.startswith('Queue:'):
                 queue_names.append(line.split()[1])
 
-    for (job_id, user_name) in zip(job_ids, usernames):
-        user_of_job_id[job_id] = user_name
-    return job_ids, usernames, statuses, queue_names, user_of_job_id
+    return job_ids, usernames, statuses, queue_names
 
 
 def read_qstatq_yaml(QSTATQ_YAML_FILE):
@@ -255,18 +331,18 @@ def read_qstatq_yaml(QSTATQ_YAML_FILE):
                 qstatq_list.append(tempdict)
                 tempdict = {}
             elif line.startswith(('Total Running:')):
-                total_runs = line.split(': ')[1]
+                total_running = line.split(': ')[1]
             elif line.startswith(('Total Queued:')):
-                total_queues = line.split(': ')[1]
-    return total_runs, total_queues, qstatq_list
+                total_queued = line.split(': ')[1]
+    return total_running, total_queued, qstatq_list
 
 
-def create_job_accounting_summary(state_dict, total_runs, total_queues, qstatq_list):
-    if len(state_dict['node_subclusters']) > 1 or options.BLINDREMAP:
+def create_job_accounting_summary(state_dict, total_running, total_queued, qstatq_list):
+    if options.REMAP:
         print '=== WARNING: --- Remapping WN names and retrying heuristics... good luck with this... ---'
     print '\nPBS report tool. Please try: watch -d ' + QTOPPATH + '. All bugs added by sfranky@gmail.com. Cross fingers now...\n'
     print colorize('===> ', '#') + colorize('Job accounting summary', 'Nothing') + colorize(' <=== ', '#') + colorize('(Rev: 3000 $) %s WORKDIR = to be added', 'NoColourAccount') % (datetime.datetime.today()) #was: added\n
-    print 'Usage Totals:\t%s/%s\t Nodes | %s/%s  Cores |   %s+%s jobs (R + Q) reported by qstat -q' % (state_dict['existing_nodes'] - state_dict['offline_down_nodes'], state_dict['existing_nodes'], state_dict['working_cores'], state_dict['total_cores'], int(total_runs), int(total_queues))
+    print 'Usage Totals:\t%s/%s\t Nodes | %s/%s  Cores |   %s+%s jobs (R + Q) reported by qstat -q' % (state_dict['total_wn'] - state_dict['offline_down_nodes'], state_dict['total_wn'], state_dict['working_cores'], state_dict['total_cores'], int(total_running), int(total_queued))
     print 'Queues: | ',
     if options.COLOR == 'ON':
         for queue in qstatq_list:
@@ -378,24 +454,29 @@ def expand_useraccounts_symbols(config, user_sorted_list):
 def fill_cpucore_columns(state_np_corejob, cpu_core_dict, id_of_username, max_np_range, user_of_job_id):
     """
     Calculates the actual contents of the map by filling in a status string for each CPU line
+    state_np_corejob was: [state, np, (core0, job1), (core1, job1), ....]
+    will be a dict!
     """
-    if state_np_corejob[0] == '?':
+    state = state_np_corejob['state']
+    np = state_np_corejob['np']
+    corejobs = state_np_corejob.get('core_job_map', '')
+
+    if state == '?':
         for cpu_line in cpu_core_dict:
             cpu_core_dict[cpu_line] += '_'
     else:
-        _own_np = int(state_np_corejob[1])
+        _own_np = int(np)
         own_np_range = [str(x) for x in range(_own_np)]
         own_np_empty_range = own_np_range[:]
 
-        for element in state_np_corejob[2:]:
-            if type(element) == tuple:  # everytime there is a job:
-                core, job = element[0], element[1]
-                try: 
-                    user_of_job_id[job]
-                except KeyError, KeyErrorValue:
-                    print 'There seems to be a problem with the qstat output. A JobID has gone rogue (namely, ' + str(KeyErrorValue) +'). Please check with the System Administrator.'
-                cpu_core_dict['Cpu' + str(core) + 'line'] += str(id_of_username[user_of_job_id[job]])
-                own_np_empty_range.remove(core)
+        for corejob in corejobs:
+            core, job = str(corejob['core']), str(corejob['job'])
+            try:
+                user_of_job_id[job]
+            except KeyError, KeyErrorValue:
+                print 'There seems to be a problem with the qstat output. A JobID has gone rogue (namely, ' + str(KeyErrorValue) +'). Please check with the System Administrator.'
+            cpu_core_dict['Cpu' + str(core) + 'line'] += str(id_of_username[user_of_job_id[job]])
+            own_np_empty_range.remove(core)
 
         non_existent_cores = [item for item in max_np_range if item not in own_np_range]
 
@@ -430,7 +511,7 @@ def insert_sep(original, separator, pos, stopaftern = 0):
         return original
 
 
-def calculate_Total_WNIDLine_Width(_wn_number): # (remap_nr) in case of multiple state_dict['node_subclusters']
+def calculate_Total_WNIDLine_Width(_node_count): # (total_wn) in case of multiple state_dict['node_subclusters']
     """
     calculates the worker node ID number line widths (expressed by hxxxx's)
     h1000 is the thousands' line
@@ -444,40 +525,40 @@ def calculate_Total_WNIDLine_Width(_wn_number): # (remap_nr) in case of multiple
     # hxxxx['h0010'] = h0010
     # hxxxx['h0001'] = h0001
 
-    if _wn_number < 10:
+    if _node_count < 10:
         u_ = '123456789'
-        hxxxx['h0001'] = u_[:_wn_number]
+        hxxxx['h0001'] = u_[:_node_count]
 
-    elif _wn_number < 100:
+    elif _node_count < 100:
         d_ = '0' * 9 + '1' * 10 + '2' * 10 + '3' * 10 + '4' * 10 + '5' * 10 + '6' * 10 + '7' * 10 + '8' * 10 + '9' * 10
         u_ = '1234567890' * 10
-        hxxxx['h0010'] = d_[:_wn_number]
-        hxxxx['h0001'] = u_[:_wn_number]
+        hxxxx['h0010'] = d_[:_node_count]
+        hxxxx['h0001'] = u_[:_node_count]
 
-    elif _wn_number < 1000:
-        cent = int(str(_wn_number)[0])
-        dec = int(str(_wn_number)[1])
-        unit = int(str(_wn_number)[2])
+    elif _node_count < 1000:
+        cent = int(str(_node_count)[0])
+        dec = int(str(_node_count)[1])
+        unit = int(str(_node_count)[2])
 
         c_ = str(0) * 99
         for i in range(1, cent):
             c_ += str(i) * 100
         c_ += str(cent) * (int(dec)) * 10 + str(cent) * (int(unit) + 1)
-        hxxxx['h0100'] = c_[:_wn_number]
+        hxxxx['h0100'] = c_[:_node_count]
 
         d_ = '0' * 9 + '1' * 10 + '2' * 10 + '3' * 10 + '4' * 10 + '5' * 10 + '6' * 10 + '7' * 10 + '8' * 10 + '9' * 10
         d__ = d_ + (cent - 1) * (str(0) + d_) + str(0)
         d__ += d_[:int(str(dec) + str(unit))]
-        hxxxx['h0010'] = d__[:_wn_number]
+        hxxxx['h0010'] = d__[:_node_count]
 
         uc = '1234567890' * 100
-        hxxxx['h0001'] = uc[:_wn_number]
+        hxxxx['h0001'] = uc[:_node_count]
 
-    elif _wn_number > 1000:
-        thou = int(str(_wn_number)[0])
-        cent = int(str(_wn_number)[1])
-        dec = int(str(_wn_number)[2])
-        unit = int(str(_wn_number)[3])
+    elif _node_count > 1000:
+        thou = int(str(_node_count)[0])
+        cent = int(str(_node_count)[1])
+        dec = int(str(_node_count)[2])
+        unit = int(str(_node_count)[3])
 
         hxxxx['h1000'] += str(0) * 999
         for i in range(1, thou):
@@ -502,7 +583,7 @@ def calculate_Total_WNIDLine_Width(_wn_number): # (remap_nr) in case of multiple
         hxxxx['h0010'] += d_[:int(str(dec) + str(unit)) + 1]
 
         uc = '1234567890' * 1000
-        hxxxx['h0001'] = uc[:_wn_number]
+        hxxxx['h0001'] = uc[:_node_count]
     return hxxxx
 
 
@@ -547,7 +628,7 @@ def print_WN_ID_lines(start, stop, wn_number, hxxxx):
     wn_number determines the number of WN ID lines needed  (1/2/3/4?)
     """
     just_name_dict = {}
-    if names_flag <= 1:  # normal case, numbered WNs
+    if not NAMED_WNS:
         if wn_number < 10:
             print insert_sep(hxxxx['h0001'][start:stop], SEPARATOR, options.WN_COLON) + '={__WNID__}'
 
@@ -565,19 +646,21 @@ def print_WN_ID_lines(start, stop, wn_number, hxxxx):
             print insert_sep(hxxxx['h0100'][start:stop], SEPARATOR, options.WN_COLON) + '={_Worker_}'
             print insert_sep(hxxxx['h0010'][start:stop], SEPARATOR, options.WN_COLON) + '={__Node__}'
             print insert_sep(hxxxx['h0001'][start:stop], SEPARATOR, options.WN_COLON) + '={___ID___}'
-    elif names_flag > 1 or options.FORCE_NAMES:  # names (e.g. fruits) instead of numbered WNs
+    elif NAMED_WNS or options.FORCE_NAMES:  # names (e.g. fruits) instead of numbered WNs
+        raise NotImplementedError
         color = 0
         highlight = {0: 'cmsplt', 1: 'Red'}
-        for line in range(len(max(state_dict['wn_list']))):
+        for line, _ in enumerate(max(state_dict['wn_list'])):
             just_name_dict[line] = ''
-        for column in range(len(state_dict['wn_list'])):  # was -1
-            for line in range(len(max(state_dict['wn_list']))):
-                just_name_dict[line] += colorize(state_dict['wn_list'][column][line], highlight[color])
-            if color == 1:
-                color = 0
-            else:
-                color = 1
-        for line in range(len(max(state_dict['wn_list']))):
+        for column, _1 in enumerate(state_dict['wn_list']):
+            for line, _2 in enumerate(max(state_dict['wn_list'])):
+                try:
+                    letter = state_dict['wn_list'][column][line]
+                except TypeError:
+                    letter = ' '
+                just_name_dict[line] += colorize(letter, highlight[color])
+            color = 0 if color == 1 else 1
+        for line, _ in enumerate(max(state_dict['wn_list'])):
             print just_name_dict[line] + '={__WNID__}'
 
 
@@ -601,15 +684,15 @@ def calculate_remaining_matrices(node_state,
         else:
             _print_end += term_columns - DEADWEIGHT
 
-        if options.BLINDREMAP or len(state_dict['node_subclusters']) > 1:
-            _print_end = min(_print_end, state_dict['remap_nr'])
+        if options.REMAP:
+            _print_end = min(_print_end, state_dict['total_wn'])
         else:
-            _print_end = min(_print_end, state_dict['biggest_written_node'])
+            _print_end = min(_print_end, state_dict['highest_wn'])
 
         if len(state_dict['node_subclusters']) == 1:
-            print_WN_ID_lines(print_start, _print_end, state_dict['remap_nr'], hxxxx)
+            print_WN_ID_lines(print_start, _print_end, state_dict['total_wn'], hxxxx)
         elif len(state_dict['node_subclusters']) > 1:  # not sure that this works, these two funcs seem terribly similar!!
-            print_WN_ID_lines(print_start, _print_end, state_dict['remap_nr'], hxxxx)
+            print_WN_ID_lines(print_start, _print_end, state_dict['total_wn'], hxxxx)
 
         print insert_sep(node_state[print_start:_print_end], SEPARATOR, options.WN_COLON) + '=Node state'
         for ind, k in enumerate(cpu_core_dict):
@@ -666,17 +749,15 @@ def print_core_lines(cpu_core_dict, accounts_mappings, print_start, print_end):
 def calc_cpu_lines(state_dict, id_of_username):
     _cpu_core_dict = {}
     max_np_range = []
+    user_of_job_id = dict(izip(job_ids, user_names))
 
     for core_nr in range(state_dict['max_np']):
         _cpu_core_dict['Cpu' + str(core_nr) + 'line'] = ''  # Cpu0line, Cpu1line, Cpu2line, .. = '','','', ..
         max_np_range.append(str(core_nr))
 
-    if len(state_dict['node_subclusters']) > 1 or options.BLINDREMAP:
-        state_np_corejobs = state_dict['all_wns_remapped_dict']
-    elif len(state_dict['node_subclusters']) == 1:
-        state_np_corejobs = state_dict['all_wns_dict']
-    for _node in state_np_corejobs:
-        _cpu_core_dict = fill_cpucore_columns(state_np_corejobs[_node], _cpu_core_dict, id_of_username, max_np_range, user_of_job_id)
+    for _node in state_dict['wn_dict']:
+        state_np_corejob = state_dict['wn_dict'][_node]
+        _cpu_core_dict = fill_cpucore_columns(state_np_corejob, _cpu_core_dict, id_of_username, max_np_range, user_of_job_id)
 
     return _cpu_core_dict
 
@@ -692,23 +773,16 @@ def calculate_wn_occupancy(state_dict, user_names, statuses):
     account_jobs_table, id_of_username = create_account_jobs_table(user_names, statuses)
 
     cpu_core_dict = calc_cpu_lines(state_dict, id_of_username)
-    node_state = ''
     print colorize('===> ', '#') + colorize('Worker Nodes occupancy', 'Nothing') + colorize(' <=== ', '#') + colorize('(you can read vertically the node IDs; nodes in free state are noted with - )', 'NoColourAccount')
 
-    if options.BLINDREMAP or len(state_dict['node_subclusters']) > 1:
-        _nodes = state_dict['remap_nr']
-        all_wns = state_dict['all_wns_remapped_dict']
-        wn_list = state_dict['wn_list_remapped']
-    else:
-        _nodes = state_dict['biggest_written_node']
-        all_wns = state_dict['all_wns_dict']
-        wn_list = state_dict['wn_list']
+    highest_wn, wn_dict, wn_list = state_dict['highest_wn'], state_dict['wn_dict'], state_dict['wn_list']
 
-    hxxxx = calculate_Total_WNIDLine_Width(_nodes)
-    for node in all_wns:
-        node_state += all_wns[node][0]
-    (print_start, print_end, extra_matrices_nr) = find_matrices_width(_nodes, wn_list, state_dict, term_columns)
-    print_WN_ID_lines(print_start, print_end, _nodes, hxxxx)
+    hxxxx = calculate_Total_WNIDLine_Width(highest_wn)
+    node_state = ''
+    for node in wn_dict:
+        node_state += wn_dict[node]['state']
+    (print_start, print_end, extra_matrices_nr) = find_matrices_width(highest_wn, wn_list, state_dict, term_columns)
+    print_WN_ID_lines(print_start, print_end, highest_wn, hxxxx)
     print insert_sep(node_state[print_start:print_end], SEPARATOR, options.WN_COLON) + '=Node state'
 
     account_nrless_of_id = print_core_lines(cpu_core_dict, account_jobs_table, print_start, print_end)
@@ -783,11 +857,14 @@ if __name__ == '__main__':
     make_qstatq_yaml(QSTATQ_ORIG_FILE, QSTATQ_YAML_FILE)
     make_qstat_yaml(QSTAT_ORIG_FILE, QSTAT_YAML_FILE)
 
-    state_dict, names_flag = read_pbsnodes_yaml(PBSNODES_YAML_FILE)
-    total_runs, total_queues, qstatq_list = read_qstatq_yaml(QSTATQ_YAML_FILE)
-    job_ids, user_names, statuses, queue_names, user_of_job_id = read_qstat_yaml(QSTAT_YAML_FILE)  # populates 4 lists
+    pbs_nodes = read_pbsnodes_yaml_into_list(PBSNODES_YAML_FILE)  # was: read_pbsnodes_yaml_into_dict(PBSNODES_YAML_FILE)
+    # was: state_dict, NAMED_WNS = read_pbsnodes_yaml(PBSNODES_YAML_FILE)
+    total_running, total_queued, qstatq_list = read_qstatq_yaml(QSTATQ_YAML_FILE)
+    job_ids, user_names, statuses, queue_names = read_qstat_yaml(QSTAT_YAML_FILE)  # populates 4 lists
 
-    create_job_accounting_summary(state_dict, total_runs, total_queues, qstatq_list)
+    state_dict, NAMED_WNS = calculate_stuff(pbs_nodes)
+
+    create_job_accounting_summary(state_dict, total_running, total_queued, qstatq_list)
     account_jobs_table = calculate_wn_occupancy(state_dict, user_names, statuses)
     create_user_accounts_pool_mappings(account_jobs_table, color_of_account)
 

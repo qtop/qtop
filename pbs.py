@@ -25,7 +25,7 @@ def make_pbsnodes_yaml(orig_file, yaml_file):
 
             elif 'state = ' in line:
                 nextchar = line.split()[2][0]
-                state = '-' if nextchar == 'f' else nextchar
+                state = "'-'" if nextchar == 'f' else nextchar
                 fout.write('state: ' + state + '\n')
 
             elif 'np = ' in line or 'pcpus = ' in line:
@@ -35,6 +35,7 @@ def make_pbsnodes_yaml(orig_file, yaml_file):
             elif 'jobs = ' in line:
                 ljobs = line.split('=')[1].split(',')
                 lastcore = MAX_CORE_ALLOWED
+                fout.write('core_job_map: \n')
                 for job in ljobs:
                     core, job = job.strip().split('/')
                     if len(core) > len(job):
@@ -54,7 +55,7 @@ def make_pbsnodes_yaml(orig_file, yaml_file):
                 fout.write('gpus: ' + gpus + '\n')
 
             elif line.startswith('\n'):
-                fout.write('\n')
+                fout.write('---\n')
 
 
 def make_qstat_yaml(orig_file, yaml_file):
@@ -132,7 +133,7 @@ def make_qstatq_yaml(orig_file, yaml_file):
                 fout.write('\n')
             elif re.search(run_qd_search, line) is not None:
                 n = re.search(run_qd_search, line)
-                total_runs, total_queues = n.group(1), n.group(2)
+                total_running, total_queued = n.group(1), n.group(2)
         fout.write('---\n')
-        fout.write('Total Running: ' + str(total_runs) + '\n')
-        fout.write('Total Queued: ' + str(total_queues) + '\n')
+        fout.write('Total Running: ' + str(total_running) + '\n')
+        fout.write('Total Queued: ' + str(total_queued) + '\n')
