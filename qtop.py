@@ -15,7 +15,7 @@ import re
 import yaml
 from itertools import izip
 # modules
-from pbs import make_pbsnodes_yaml, make_qstatq_yaml, make_qstat_yaml
+from pbs import *
 from colormap import color_of_account, code_of_color
 
 parser = OptionParser()  # for more details see http://docs.python.org/library/optparse.html
@@ -41,38 +41,6 @@ def colorize(text, pattern):
         return "\033[" + code_of_color[color_of_account[pattern]] + "m" + text + "\033[1;m"
     else:
         return text
-
-
-def read_pbsnodes_yaml_into_list(yaml_fn):
-    """
-    Parses the pbsnodes yaml file
-    :param yaml_fn: str
-    :return: list
-    """
-    pbs_nodes = []
-    with open(yaml_fn) as fin:
-        _nodes = yaml.safe_load_all(fin)
-        for node in _nodes:
-            pbs_nodes.append(node)
-    pbs_nodes.pop()  # until i figure out why the last node is None
-    return pbs_nodes
-
-
-def read_pbsnodes_yaml_into_dict(yaml_fn):
-    """
-    Parses the pbsnodes yaml file
-    :param yaml_fn: str
-    :return: dict
-    """
-    pbs_nodes = {}
-    with open(yaml_fn) as fin:
-        _nodes = yaml.safe_load_all(fin)
-        for node in _nodes:
-            try:
-                pbs_nodes[node['domainname']] = node
-            except TypeError:
-                continue
-    return pbs_nodes
 
 
 def decide_remapping(pbs_nodes, state_dict):
@@ -170,171 +138,6 @@ def nodes_with_jobs(pbs_nodes):
     for _, pbs_node in pbs_nodes.iteritems():
         if 'core_job_map' in pbs_node:
             yield pbs_node
-
-
-def map_pbsnodes_to_wn_dicts(state_dict, pbs_nodes):
-    for (pbs_node, (idx, cur_node_nr)) in zip(pbs_nodes, enumerate(state_dict['wn_list'])):
-        state_dict['wn_dict'][cur_node_nr] = pbs_node
-        state_dict['wn_dict_remapped'][idx] = pbs_node
-
-
-
-def read_pbsnodes_yaml(yaml_file):
-    """
-    Reads the pbsnodes yaml file and extracts the node information necessary to build the tables
-    """
-    state_dict = dict()
-    state_dict['working_cores'] = 0
-    state_dict['total_cores'] = 0
-    state_dict['highest_wn'] = 0
-    state_dict['offline_down_nodes'] = 0
-    state_dict['max_np'] = 0
-    state_dict['total_wn'] = 0  # == existing_nodes
-    state_dict['node_nr'] = 0
-    state_dict['wn_list'] = []
-    state_dict['wn_list_remapped'] = []
-    state_dict['node_subclusters'] = set()
-    state_dict['wn_dict_remapped'] = {}  # { remapnr: [state, np, (core0, job1), (core1, job1), ....]}
-    state_dict['wn_dict'] = {}
-    state = ''
-    NAMED_WNS = 0 if not options.FORCE_NAMES else 1  # <=1:numbered WNs, >1: names instead (e.g. fruits)
-
-    re_nodename = r'(^[A-Za-z0-9-]+)(?=\.|$)'
-    re_nodename_letters_only = r'(^[A-Za-z-]+)'
-    # re_find_all_nodename_parts = '[A-Za-z]+|[0-9]+|[A-Za-z]+[0-9]+'
-
-    with open(yaml_file, 'r') as fin:
-        for line in fin:
-            line = line.strip()
-            if 'domainname:' in line:
-                state_dict['total_wn'] += 1  # just count all nodes
-                domain_name = line.split(': ')[1]
-                nodename_match = re.search(re_nodename, domain_name)
-                nodename_letters_only_match = re.search(re_nodename_letters_only, domain_name)
-
-                if nodename_match:  # host (node) name is an alphanumeric
-                    _node = nodename_match.group(0)
-                    node_letters = '-'.join(re.findall(r'\D+', _node))
-                    node_digits = "".join(re.findall(r'\d+', domain_name))
-
-                    if node_digits:
-                        state_dict['node_nr'] = int(node_digits)
-                        # thus 1x18 becomes 118, posing problems later in range(1, state_dict[ 'total_wn'] (more repetitions)
-                        state_dict['wn_list'].append(state_dict['node_nr'])
-                    elif nodename_letters_only_match:  # for non-numbered WNs (eg. fruit names)
-                        NAMED_WNS += 1
-                        # increment node_nr but only if the next nr hasn't already shown up
-                        state_dict['node_nr'] += 1 if state_dict['node_nr'] + 1 not in state_dict['wn_dict'] else False
-                        state_dict['wn_list'].append(node_letters)
-                        state_dict['wn_list'][:] = [unnumbered_wn.rjust(len(max(state_dict['wn_list']))) for unnumbered_wn in state_dict['wn_list'] if type(unnumbered_wn) is str]
-
-                else:  # non_alphanumeric domain_name case?
-                    node_letters = domain_name
-                    state_dict['node_nr'] = 0
-                    state_dict['wn_list'].append(state_dict['node_nr'])
-                    import pdb; pdb.set_trace()
-                    import sys; sys.exit(0)
-
-                state_dict['node_subclusters'].add(node_letters)    # for non-uniform setups of WNs, eg g01... and n01...
-                state_dict['wn_dict'][state_dict['node_nr']] = []
-                state_dict['wn_dict_remapped'][state_dict['total_wn']] = []
-                state_dict['wn_list_remapped'].append(state_dict['total_wn'])
-
-            elif 'state: ' in line:
-                nextchar = line.split()[1].strip("'")
-                state += nextchar
-                state_dict['wn_dict'][state_dict['node_nr']].append(nextchar)
-                state_dict['wn_dict_remapped'][state_dict['total_wn']].append(nextchar)
-                if (nextchar == 'd') | (nextchar == 'o'):
-                    state_dict['offline_down_nodes'] += 1
-            elif 'np:' in line or 'pcpus:' in line:
-                np = line.split(': ')[1].strip()
-                state_dict['wn_dict'][state_dict['node_nr']].append(np)
-                state_dict['wn_dict_remapped'][state_dict['total_wn']].append(np)
-                state_dict['max_np'] = max(int(np), state_dict['max_np'])
-                state_dict['total_cores'] += int(np)
-
-            elif ' core: ' in line:  # this should also work for OAR's yaml file
-                core = line.split(': ')[1].strip()
-                state_dict['working_cores'] += 1
-            elif 'job: ' in line:
-                job = str(line.split(': ')[1]).strip()
-                state_dict['wn_dict'][state_dict['node_nr']].append((core, job))
-                state_dict['wn_dict_remapped'][state_dict['total_wn']].append((core, job))
-
-    state_dict['highest_wn'] = max(state_dict['wn_list']) if not NAMED_WNS else max(state_dict['wn_list_remapped'])
-    '''
-    fill in non-existent WN nodes (absent from pbsnodes file) with '?' and count them
-    '''
-    if len(state_dict['node_subclusters']) > 1:
-        for i in range(1, state_dict['total_wn']):  # This state_dict['total_wn'] here is a counter of nodes, it's therefore the equivalent highest_wn for the remapped case
-            if i not in state_dict['wn_dict_remapped']:
-                state_dict['wn_dict_remapped'][i] = '?'
-    else:
-        for i in range(1, state_dict['highest_wn']):
-            if i not in state_dict['wn_dict']:
-                state_dict['wn_dict'][i] = '?'
-
-    if NAMED_WNS:
-        state_dict['wn_list'].sort()
-        state_dict['wn_list_remapped'].sort()
-
-    if min(state_dict['wn_list']) > 9000 and type(min(state_dict['wn_list'])) == int:
-        # handle exotic cases of WN numbering starting VERY high
-        state_dict['wn_list'] = [element - min(state_dict['wn_list']) for element in state_dict['wn_list']]
-        options.REMAP = True
-    if len(state_dict['wn_list']) < config['percentage'] * state_dict['highest_wn']:
-        options.REMAP = True
-    return state_dict, NAMED_WNS
-
-
-def read_qstat_yaml(QSTAT_YAML_FILE):
-    """
-    reads qstat YAML file and populates four lists. Returns the lists
-    """
-    job_ids, usernames, statuses, queue_names = [], [], [], []
-    with open(QSTAT_YAML_FILE, 'r') as finr:
-        for line in finr:
-            if line.startswith('JobId:'):
-                job_ids.append(line.split()[1])
-            elif line.startswith('UnixAccount:'):
-                usernames.append(line.split()[1])
-            elif line.startswith('S:'):
-                statuses.append(line.split()[1])
-            elif line.startswith('Queue:'):
-                queue_names.append(line.split()[1])
-
-    return job_ids, usernames, statuses, queue_names
-
-
-def read_qstatq_yaml(QSTATQ_YAML_FILE):
-    """
-    Reads the generated qstatq yaml file and extracts the information necessary for building the user accounts and pool
-    mappings table.
-    """
-    tempdict = {}
-    qstatq_list = []
-    with open(QSTATQ_YAML_FILE, 'r') as finr:
-        for line in finr:
-            line = line.strip()
-            if ' queue_name:' in line:
-                tempdict.setdefault('queue_name', line.split(': ')[1])
-            elif line.startswith('Running:'):
-                tempdict.setdefault('Running', line.split(': ')[1])
-            elif line.startswith('Queued:'):
-                tempdict.setdefault('Queued', line.split(': ')[1])
-            elif line.startswith('Lm:'):
-                tempdict.setdefault('Lm', line.split(': ')[1])
-            elif line.startswith('State:'):
-                tempdict.setdefault('State', line.split(': ')[1])
-            elif not line:
-                qstatq_list.append(tempdict)
-                tempdict = {}
-            elif line.startswith(('Total Running:')):
-                total_running = line.split(': ')[1]
-            elif line.startswith(('Total Queued:')):
-                total_queued = line.split(': ')[1]
-    return total_running, total_queued, qstatq_list
 
 
 def create_job_accounting_summary(state_dict, total_running, total_queued, qstatq_list):
@@ -858,7 +661,6 @@ if __name__ == '__main__':
     make_qstat_yaml(QSTAT_ORIG_FILE, QSTAT_YAML_FILE)
 
     pbs_nodes = read_pbsnodes_yaml_into_list(PBSNODES_YAML_FILE)  # was: read_pbsnodes_yaml_into_dict(PBSNODES_YAML_FILE)
-    # was: state_dict, NAMED_WNS = read_pbsnodes_yaml(PBSNODES_YAML_FILE)
     total_running, total_queued, qstatq_list = read_qstatq_yaml(QSTATQ_YAML_FILE)
     job_ids, user_names, statuses, queue_names = read_qstat_yaml(QSTAT_YAML_FILE)  # populates 4 lists
 

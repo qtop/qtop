@@ -1,6 +1,7 @@
 import re
 import sys
 import os
+import yaml
 
 MAX_CORE_ALLOWED = 150000
 
@@ -137,3 +138,90 @@ def make_qstatq_yaml(orig_file, yaml_file):
         fout.write('---\n')
         fout.write('Total Running: ' + str(total_running) + '\n')
         fout.write('Total Queued: ' + str(total_queued) + '\n')
+
+
+def read_pbsnodes_yaml_into_list(yaml_fn):
+    """
+    Parses the pbsnodes yaml file
+    :param yaml_fn: str
+    :return: list
+    """
+    pbs_nodes = []
+    with open(yaml_fn) as fin:
+        _nodes = yaml.safe_load_all(fin)
+        for node in _nodes:
+            pbs_nodes.append(node)
+    pbs_nodes.pop()  # until i figure out why the last node is None
+    return pbs_nodes
+
+
+def read_pbsnodes_yaml_into_dict(yaml_fn):
+    """
+    Parses the pbsnodes yaml file
+    :param yaml_fn: str
+    :return: dict
+    """
+    pbs_nodes = {}
+    with open(yaml_fn) as fin:
+        _nodes = yaml.safe_load_all(fin)
+        for node in _nodes:
+            try:
+                pbs_nodes[node['domainname']] = node
+            except TypeError:
+                continue
+    return pbs_nodes
+
+
+def map_pbsnodes_to_wn_dicts(state_dict, pbs_nodes):
+    for (pbs_node, (idx, cur_node_nr)) in zip(pbs_nodes, enumerate(state_dict['wn_list'])):
+        state_dict['wn_dict'][cur_node_nr] = pbs_node
+        state_dict['wn_dict_remapped'][idx] = pbs_node
+
+
+def read_qstat_yaml(QSTAT_YAML_FILE):
+    """
+    reads qstat YAML file and populates four lists. Returns the lists
+    """
+    job_ids, usernames, statuses, queue_names = [], [], [], []
+    with open(QSTAT_YAML_FILE, 'r') as finr:
+        for line in finr:
+            if line.startswith('JobId:'):
+                job_ids.append(line.split()[1])
+            elif line.startswith('UnixAccount:'):
+                usernames.append(line.split()[1])
+            elif line.startswith('S:'):
+                statuses.append(line.split()[1])
+            elif line.startswith('Queue:'):
+                queue_names.append(line.split()[1])
+
+    return job_ids, usernames, statuses, queue_names
+
+
+def read_qstatq_yaml(QSTATQ_YAML_FILE):
+    """
+    Reads the generated qstatq yaml file and extracts the information necessary for building the user accounts and pool
+    mappings table.
+    """
+    tempdict = {}
+    qstatq_list = []
+    with open(QSTATQ_YAML_FILE, 'r') as finr:
+        for line in finr:
+            line = line.strip()
+            if ' queue_name:' in line:
+                tempdict.setdefault('queue_name', line.split(': ')[1])
+            elif line.startswith('Running:'):
+                tempdict.setdefault('Running', line.split(': ')[1])
+            elif line.startswith('Queued:'):
+                tempdict.setdefault('Queued', line.split(': ')[1])
+            elif line.startswith('Lm:'):
+                tempdict.setdefault('Lm', line.split(': ')[1])
+            elif line.startswith('State:'):
+                tempdict.setdefault('State', line.split(': ')[1])
+            elif not line:
+                qstatq_list.append(tempdict)
+                tempdict = {}
+            elif line.startswith(('Total Running:')):
+                total_running = line.split(': ')[1]
+            elif line.startswith(('Total Queued:')):
+                total_queued = line.split(': ')[1]
+    return total_running, total_queued, qstatq_list
