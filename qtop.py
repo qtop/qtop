@@ -20,7 +20,8 @@ from colormap import color_of_account, code_of_color
 
 parser = OptionParser()  # for more details see http://docs.python.org/library/optparse.html
 parser.add_option("-a", "--blindremapping", action="store_true", dest="BLINDREMAP", default=False, help="This is used in situations where node names are not a pure arithmetic sequence (eg. rocks clusters)")
-parser.add_option("-c", "--COLOR", action="store", dest="COLOR", default='ON', choices=['ON', 'OFF'], help="Enable/Disable color in qtop output. Use it with an ON/OFF switch: -c ON or -c OFF")
+parser.add_option("-c", "--COLOR", action="store_true", dest="COLOR", default=True, help="Enable/Disable color in qtop output. Use it with an ON/OFF switch: -c ON or -c OFF")
+# parser.add_option("-c", "--COLOR", action="store", dest="COLOR", default='ON', choices=['ON', 'OFF'], help="Enable/Disable color in qtop output. Use it with an ON/OFF switch: -c ON or -c OFF")
 parser.add_option("-f", "--setCOLORMAPFILE", action="store", type="string", dest="COLORFILE")
 parser.add_option("-m", "--noMasking", action="store_false", dest="MASKING", default=True, help="Don't mask early empty Worker Nodes. (default setting is: if e.g. the first 30 WNs are unused, counting starts from 31).")
 parser.add_option("-o", "--SetVerticalSeparatorXX", action="store", dest="WN_COLON", default=0, help="Put vertical bar every WN_COLON nodes.")
@@ -37,10 +38,7 @@ parser.add_option("-F", "--ForceNames", action="store_true", dest="FORCE_NAMES",
 
 def colorize(text, pattern):
     """prints text colored according to its unix account colors"""
-    if options.COLOR == 'ON':
-        return "\033[" + code_of_color[color_of_account[pattern]] + "m" + text + "\033[1;m"
-    else:
-        return text
+    return "\033[" + code_of_color[color_of_account[pattern]] + "m" + text + "\033[1;m" if options.COLOR else text
 
 
 def decide_remapping(pbs_nodes, state_dict):
@@ -145,12 +143,18 @@ def create_job_accounting_summary(state_dict, total_running, total_queued, qstat
         print '=== WARNING: --- Remapping WN names and retrying heuristics... good luck with this... ---'
     print '\nPBS report tool. Please try: watch -d ' + QTOPPATH + '. All bugs added by sfranky@gmail.com. Cross fingers now...\n'
     print colorize('===> ', '#') + colorize('Job accounting summary', 'Nothing') + colorize(' <=== ', '#') + colorize('(Rev: 3000 $) %s WORKDIR = to be added', 'NoColourAccount') % (datetime.datetime.today()) #was: added\n
-    print 'Usage Totals:\t%s/%s\t Nodes | %s/%s  Cores |   %s+%s jobs (R + Q) reported by qstat -q' % (state_dict['total_wn'] - state_dict['offline_down_nodes'], state_dict['total_wn'], state_dict['working_cores'], state_dict['total_cores'], int(total_running), int(total_queued))
+    print 'Usage Totals:\t%s/%s\t Nodes | %s/%s  Cores |   %s+%s jobs (R + Q) reported by qstat -q' % \
+          (state_dict['total_wn'] - state_dict['offline_down_nodes'],
+           state_dict['total_wn'],
+           state_dict['working_cores'],
+           state_dict['total_cores'],
+           int(total_running),
+           int(total_queued))
     print 'Queues: | ',
     for q in qstatq_list:
         q_name, q_running_jobs, q_queued_jobs = q['queue_name'], q['Running'], q['Queued']
         color = q_name if q_name in color_of_account else 'Nothing'
-        print "{}: {} + {} + |".format(colorize(q_name, color), colorize(q_running_jobs, color), colorize(q_queued_jobs, color))
+        print "{}: {} + {} + |".format(colorize(q_name, color), colorize(q_running_jobs, color), colorize(q_queued_jobs, color)),
     print '* implies blocked\n'
 
 
@@ -216,8 +220,8 @@ def create_job_counts(user_names, job_states, state_abbrevs):
     for value in state_abbrevs.values():
         job_counts[value] = dict()
 
-    for user_name, status in zip(user_names, job_states):
-        job_counts[state_abbrevs[status]][user_name] = job_counts[state_abbrevs[status]].get(user_name, 0) + 1
+    for user_name, job_state in zip(user_names, job_states):
+        job_counts[state_abbrevs[job_state]][user_name] = job_counts[state_abbrevs[job_state]].get(user_name, 0) + 1
 
     for user_name in job_counts['running_of_user']:
         job_counts['queued_of_user'].setdefault(user_name, 0)
@@ -514,9 +518,9 @@ def create_user_accounts_pool_mappings(accounts_mappings, color_of_account):
     for line in accounts_mappings:
         print_string = '%3s | %4s + %4s / %4s | %15s |' % (line[0], line[1], line[2], line[3], line[4][0])
         for account in color_of_account:
-            if line[4][0].startswith(account) and options.COLOR == 'ON':
+            if line[4][0].startswith(account) and options.COLOR:
                 print_string = '%15s | %16s + %16s / %16s | %27s %4s' % (colorize(str(line[0]), account), colorize(str(line[1]), account), colorize(str(line[2]), account), colorize(str(line[3]), account), colorize(str(line[4][0]), account), colorize(SEPARATOR, 'NoColourAccount'))
-            elif line[4][0].startswith(account) and options.COLOR == 'OFF':
+            elif line[4][0].startswith(account) and not options.COLOR:
                 print_string = '%2s | %3s + %3s / %3s | %14s |' %(colorize(line[0], account), colorize(str(line[1]), account), colorize(str(line[2]), account), colorize(str(line[3]), account), colorize(line[4][0], account))
             else:
                 pass
@@ -657,8 +661,8 @@ if __name__ == '__main__':
 
     pbs_nodes = read_pbsnodes_yaml_into_list(PBSNODES_YAML_FILE)  # was: read_pbsnodes_yaml_into_dict(PBSNODES_YAML_FILE)
     total_running, total_queued, qstatq_list = read_qstatq_yaml(QSTATQ_YAML_FILE)
+    # job_ids, user_names, job_states, queue_names = read_qstat_yaml_old(QSTAT_YAML_FILE)  # populates 4 lists
     job_ids, user_names, job_states, queue_names = read_qstat_yaml(QSTAT_YAML_FILE)  # populates 4 lists
-    # job_ids, user_names, job_states, queue_names = read_qstat_yaml_new(QSTAT_YAML_FILE)  # populates 4 lists
 
     state_dict, NAMED_WNS = calculate_stuff(pbs_nodes)
 
@@ -668,4 +672,5 @@ if __name__ == '__main__':
 
     print '\nThanks for watching!'
 
-    os.chdir(SOURCEDIR)
+    # os.chdir(SOURCEDIR)
+    os.chdir(QTOPPATH)

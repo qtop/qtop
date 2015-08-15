@@ -182,7 +182,7 @@ def map_pbsnodes_to_wn_dicts(state_dict, pbs_nodes):
         state_dict['wn_dict_remapped'][idx] = pbs_node
 
 
-def read_qstat_yaml(QSTAT_YAML_FILE):
+def read_qstat_yaml_old(QSTAT_YAML_FILE):
     """
     reads qstat YAML file and populates four lists. Returns the lists
     """
@@ -201,19 +201,21 @@ def read_qstat_yaml(QSTAT_YAML_FILE):
     return job_ids, usernames, job_states, queue_names
 
 
-def read_qstat_yaml_new(QSTAT_YAML_FILE):
+def read_qstat_yaml(yaml_fn):
     """
     reads qstat YAML file and populates four lists. Returns the lists
     """
     job_ids, usernames, job_states, queue_names = [], [], [], []
-    # with open(QSTAT_YAML_FILE, 'r') as finr:
-    with open(QSTAT_YAML_FILE) as finr:
+
+    with open(yaml_fn) as finr:
         qstats = yaml.load_all(finr, Loader=Loader)
         for qstat in qstats:
-            job_ids.append(qstat['JobId'])
+            job_ids.append(str(qstat['JobId']))
             usernames.append(qstat['UnixAccount'])
             job_states.append(qstat['S'])
             queue_names.append(qstat['Queue'])
+
+    return job_ids, usernames, job_states, queue_names
 
 
 def read_qstatq_yaml(QSTATQ_YAML_FILE):
