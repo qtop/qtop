@@ -154,7 +154,7 @@ def create_job_accounting_summary(state_dict, total_running, total_queued, qstat
     for q in qstatq_list:
         q_name, q_running_jobs, q_queued_jobs = q['queue_name'], q['Running'], q['Queued']
         color = q_name if q_name in color_of_account else 'Nothing'
-        print "{}: {} + {} + |".format(colorize(q_name, color), colorize(q_running_jobs, color), colorize(q_queued_jobs, color)),
+        print "{}: {} + {} |".format(colorize(q_name, color), colorize(q_running_jobs, color), colorize(q_queued_jobs, color)),
     print '* implies blocked\n'
 
 

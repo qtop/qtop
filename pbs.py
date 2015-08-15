@@ -130,18 +130,18 @@ def make_qstatq_yaml(orig_file, yaml_file):
                 m = re.search(queue_search, line)
                 _, queue_name, Mem, cpu_time, wall_time, node, run, queued, lm, state = m.group(0), m.group(1), m.group(2), \
                                                                                      m.group(3), m.group(4), m.group(5), m.group(6), m.group(7), m.group(8), m.group(9)
-                fout.write('- queue_name: ' + queue_name + '\n')
-                fout.write('  Running: ' + run + '\n')
-                fout.write('  Queued: ' + queued + '\n')
-                fout.write('  Lm: ' + lm + '\n')
-                fout.write('  State: ' + state + '\n')
+                fout.write('- queue_name: ' + '"' + queue_name + '"' + '\n')
+                fout.write('  Running: ' + '"' + run + '"' + '\n')
+                fout.write('  Queued: ' + '"' + queued + '"' + '\n')
+                fout.write('  Lm: ' + '"' + lm + '"' + '\n')
+                fout.write('  State: ' + '"' + state + '"' + '\n')
                 fout.write('\n')
             elif re.search(run_qd_search, line) is not None:
                 n = re.search(run_qd_search, line)
                 total_running, total_queued = n.group(1), n.group(2)
         fout.write('---\n')
-        fout.write('Total Running: ' + str(total_running) + '\n')
-        fout.write('Total Queued: ' + str(total_queued) + '\n')
+        fout.write('Total Running: ' + '"' + str(total_running) + '"' + '\n')
+        fout.write('Total Queued: ' + '"' + str(total_queued) + '"' + '\n')
 
 
 def read_pbsnodes_yaml_into_list(yaml_fn):
@@ -219,31 +219,17 @@ def read_qstat_yaml(yaml_fn):
     return job_ids, usernames, job_states, queue_names
 
 
-def read_qstatq_yaml(QSTATQ_YAML_FILE):
+def read_qstatq_yaml(yaml_fn):
     """
     Reads the generated qstatq yaml file and extracts the information necessary for building the user accounts and pool
     mappings table.
     """
-    tempdict = {}
+    tempdict = dict()
     qstatq_list = []
-    with open(QSTATQ_YAML_FILE, 'r') as finr:
-        for line in finr:
-            line = line.strip()
-            if ' queue_name:' in line:
-                tempdict.setdefault('queue_name', line.split(': ')[1])
-            elif line.startswith('Running:'):
-                tempdict.setdefault('Running', line.split(': ')[1])
-            elif line.startswith('Queued:'):
-                tempdict.setdefault('Queued', line.split(': ')[1])
-            elif line.startswith('Lm:'):
-                tempdict.setdefault('Lm', line.split(': ')[1])
-            elif line.startswith('State:'):
-                tempdict.setdefault('State', line.split(': ')[1])
-            elif not line:
-                qstatq_list.append(tempdict)
-                tempdict = {}
-            elif line.startswith(('Total Running:')):
-                total_running = line.split(': ')[1]
-            elif line.startswith(('Total Queued:')):
-                total_queued = line.split(': ')[1]
+    with open(yaml_fn, 'r') as fin:
+        qstatqs_total = yaml.load_all(fin, Loader=Loader)
+        qstatq_list = qstatqs_total.next()
+        total = qstatqs_total.next()
+        total_running, total_queued = total['Total Running'], total['Total Queued']
     return total_running, total_queued, qstatq_list
+
