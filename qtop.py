@@ -633,7 +633,6 @@ def calculate_split_screen_size():
 if __name__ == '__main__':
     print_start, print_end = 0, None
     DEADWEIGHT = 15  # standard columns' width on the right of the CoreX map
-    DIFFERENT_QSTAT_FORMAT_FLAG = 0
 
     HOMEPATH = os.path.expanduser('~/PycharmProjects')
     QTOPPATH = os.path.expanduser('~/PycharmProjects/qtop')  # qtoppath: ~/qtop/qtop
