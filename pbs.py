@@ -5,7 +5,7 @@ import yaml
 
 MAX_CORE_ALLOWED = 150000
 try:
-    from yaml import CLoader as Loader
+    from yaml import CLoader as Loader, CDumper as Dumper
 except ImportError:
     from yaml import Loader
 
@@ -114,7 +114,7 @@ def make_qstat_yaml(orig_file, yaml_file):
                 qstat_write_sequence(fout, job_id, user, job_state, queue)
 
 
-def make_qstatq_yaml(orig_file, yaml_file):
+def make_qstatq_yaml_old(orig_file, yaml_file):
     """
     reads QSTATQ_ORIG_FILE sequentially and put useful data in respective yaml file
     All lines are something like: searches for something like: biomed             --      --    72:00:00   --   31   0 --   E R
@@ -148,11 +148,40 @@ def make_qstatq_yaml(orig_file, yaml_file):
 
 def make_qstatq_yaml(orig_file, yaml_file):
     """
-
-    :param orig_file:
-    :param yaml_file:
-    :return:
+    reads QSTATQ_ORIG_FILE sequentially and put useful data in respective yaml file
+    All lines are something like: searches for something like: biomed             --      --    72:00:00   --   31   0 --   E R
+    except the last line which contains two sums
     """
+    check_empty_file(orig_file)
+    l = []
+    queue_search = '^([a-zA-Z0-9_.-]+)\s+(--|[0-9]+[mgtkp]b[a-z]*)\s+(--|\d+:\d+:?\d*)\s+(--|\d+:\d+:\d+)\s+(--)\s+(\d+)\s+(\d+)\s+(--|\d+)\s+([DE] R)'
+    run_qd_search = '^\s*(\d+)\s+(\d+)'
+
+    stream = file(yaml_file, 'w')
+    with open(orig_file, 'r') as fin:
+        fin.next()
+        server_name = fin.next().split(': ')[1].strip()
+        fin.next()
+        headers = fin.next().strip()  # this should later define the keys in temp_dict
+        fin.next()
+        for line in fin:
+            line = line.strip()
+            m = re.search(queue_search, line)
+            n = re.search(run_qd_search, line)
+            temp_dict = {}
+            try:
+                queue_name, run, queued, lm, state = m.group(1), m.group(6), m.group(7), m.group(8), m.group(9)
+            except AttributeError:
+                try:
+                    total_running, total_queued = n.group(1), n.group(2)
+                except AttributeError:
+                    continue
+            else:
+                for key, value in [('queue_name', queue_name), ('run', run), ('queued', queued), ('lm', lm), ('state', state)]:
+                    temp_dict[key] = value
+                l.append(temp_dict)
+        l.append({'Total running': total_running, 'Total queued': total_queued})
+    yaml.dump_all(l, stream, Dumper=Dumper, default_flow_style=False)
 
 
 def read_pbsnodes_yaml_into_list(yaml_fn):
@@ -219,8 +248,9 @@ def read_qstatq_yaml(yaml_fn):
     qstatq_list = []
     with open(yaml_fn, 'r') as fin:
         qstatqs_total = yaml.load_all(fin, Loader=Loader)
-        qstatq_list = qstatqs_total.next()
-        total = qstatqs_total.next()
-        total_running, total_queued = total['Total Running'], total['Total Queued']
+        for qstatq in qstatqs_total:
+            qstatq_list.append(qstatq)
+        total = qstatq_list.pop()
+        total_running, total_queued = total['Total running'], total['Total queued']
     return total_running, total_queued, qstatq_list
 
