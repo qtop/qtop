@@ -116,7 +116,9 @@ def make_qstat_yaml(orig_file, yaml_file):
 
 def make_qstatq_yaml(orig_file, yaml_file):
     """
-    read QSTATQ_ORIG_FILE sequentially and put useful data in respective yaml file
+    reads QSTATQ_ORIG_FILE sequentially and put useful data in respective yaml file
+    All lines are something like: searches for something like: biomed             --      --    72:00:00   --   31   0 --   E R
+    except the last line which contains two sums
     """
     check_empty_file(orig_file)
 
@@ -125,23 +127,32 @@ def make_qstatq_yaml(orig_file, yaml_file):
     with open(yaml_file, 'a') as fout, open(orig_file, 'r') as fin:
         for line in fin:
             line.strip()
-            # searches for something like: biomed             --      --    72:00:00   --   31   0 --   E R
-            if re.search(queue_search, line) is not None:
-                m = re.search(queue_search, line)
-                _, queue_name, Mem, cpu_time, wall_time, node, run, queued, lm, state = m.group(0), m.group(1), m.group(2), \
-                                                                                     m.group(3), m.group(4), m.group(5), m.group(6), m.group(7), m.group(8), m.group(9)
+            m = re.search(queue_search, line)
+            n = re.search(run_qd_search, line)
+
+            if m:
+                # unused: _, _mem, _cpu_time, _wall_time, _node, = m.group(0), m.group(2), m.group(3), m.group(4), m.group(5)
+                queue_name, run, queued, lm, state = m.group(1), m.group(6), m.group(7), m.group(8), m.group(9)
                 fout.write('- queue_name: ' + '"' + queue_name + '"' + '\n')
                 fout.write('  Running: ' + '"' + run + '"' + '\n')
                 fout.write('  Queued: ' + '"' + queued + '"' + '\n')
                 fout.write('  Lm: ' + '"' + lm + '"' + '\n')
                 fout.write('  State: ' + '"' + state + '"' + '\n')
                 fout.write('\n')
-            elif re.search(run_qd_search, line) is not None:
-                n = re.search(run_qd_search, line)
+            elif n:
                 total_running, total_queued = n.group(1), n.group(2)
         fout.write('---\n')
         fout.write('Total Running: ' + '"' + str(total_running) + '"' + '\n')
         fout.write('Total Queued: ' + '"' + str(total_queued) + '"' + '\n')
+
+
+def make_qstatq_yaml(orig_file, yaml_file):
+    """
+
+    :param orig_file:
+    :param yaml_file:
+    :return:
+    """
 
 
 def read_pbsnodes_yaml_into_list(yaml_fn):
@@ -183,25 +194,6 @@ def map_pbsnodes_to_wn_dicts(state_dict, pbs_nodes):
         state_dict['wn_dict_remapped'][idx] = pbs_node
 
 
-def read_qstat_yaml_old(QSTAT_YAML_FILE):
-    """
-    reads qstat YAML file and populates four lists. Returns the lists
-    """
-    job_ids, usernames, job_states, queue_names = [], [], [], []
-    with open(QSTAT_YAML_FILE, 'r') as finr:
-        for line in finr:
-            if line.startswith('JobId:'):
-                job_ids.append(line.split()[1])
-            elif line.startswith('UnixAccount:'):
-                usernames.append(line.split()[1])
-            elif line.startswith('S:'):
-                job_states.append(line.split()[1])
-            elif line.startswith('Queue:'):
-                queue_names.append(line.split()[1])
-
-    return job_ids, usernames, job_states, queue_names
-
-
 def read_qstat_yaml(yaml_fn):
     """
     reads qstat YAML file and populates four lists. Returns the lists
@@ -224,7 +216,6 @@ def read_qstatq_yaml(yaml_fn):
     Reads the generated qstatq yaml file and extracts the information necessary for building the user accounts and pool
     mappings table.
     """
-    tempdict = dict()
     qstatq_list = []
     with open(yaml_fn, 'r') as fin:
         qstatqs_total = yaml.load_all(fin, Loader=Loader)
