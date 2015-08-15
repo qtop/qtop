@@ -9,13 +9,21 @@ try:
 except ImportError:
     from yaml import Loader
 
+
+def check_empty_file(orig_file):
+    if not os.path.getsize(orig_file) > 0:
+        print 'Your ' + orig_file + ' file is empty! Please check your directory. Exiting ...'
+        try:
+            os.chdir(HOMEPATH + 'qt')
+        finally:
+            sys.exit(0)
+
+
 def make_pbsnodes_yaml(orig_file, yaml_file):
     """
     reads PBSNODES_ORIG_FILE sequentially and puts its information in a new yaml file
     """
-    if not os.path.getsize(orig_file) > 0:
-        print 'Bailing out... Not yet ready for Sun Grid Engine clusters'
-        sys.exit(0)
+    check_empty_file(orig_file)
 
     search_domain_name = '^\w+([.-]?\w+)*'
     with open(orig_file, 'r') as fin, open(yaml_file, 'a') as fout:
@@ -62,14 +70,21 @@ def make_pbsnodes_yaml(orig_file, yaml_file):
                 fout.write('---\n')
 
 
+def qstat_write_sequence(fout, job_id, user, job_state, queue):
+    fout.write('---\n')
+    fout.write('JobId: ' + job_id + '\n')
+    fout.write('UnixAccount: ' + user + '\n')
+    fout.write('S: ' + job_state + '\n')
+    fout.write('Queue: ' + queue + '\n')
+    fout.write('...\n')
+
+
 def make_qstat_yaml(orig_file, yaml_file):
     """
-    read QSTAT_ORIG_FILE sequentially and put useful data in respective yaml file
+    reads QSTAT_ORIG_FILE sequentially and put useful data in respective yaml file.
+    Some qstat files are structured a bit differently (the ones containing 'prior')
     """
-    if not os.path.getsize(orig_file) > 0:
-        print 'Your ' + orig_file + ' file is empty! Please check your directory. Exiting ...'
-        os.chdir(HOMEPATH + 'qt')
-        sys.exit(0)
+    check_empty_file(orig_file)
 
     with open(orig_file, 'r') as fin, open(yaml_file, 'a') as fout:
         first_line = fin.readline()
@@ -84,40 +99,26 @@ def make_qstat_yaml(orig_file, yaml_file):
                 job_id, user, job_state, queue = m.group(1), m.group(5), m.group(7), m.group(8)
                 # unused: _job_nr, _ce_name, _name, _time_use = m.group(2), m.group(3), m.group(4), m.group(6)
                 job_id = job_id.split('.')[0]
-                fout.write('---\n')
-                fout.write('JobId: ' + job_id + '\n')
-                fout.write('UnixAccount: ' + user + '\n')
-                fout.write('S: ' + job_state + '\n')
-                fout.write('Queue: ' + queue + '\n')
-                fout.write('...\n')
+                qstat_write_sequence(fout, job_id, user, job_state, queue)
 
         elif 'prior' in first_line:
             # e.g. job-ID  prior   name       user         state_dict submit/start at     queue                          slots ja-task-ID
             user_queue_search = '\s{2}(\d+)\s+([0-9]\.[0-9]+)\s+([A-Za-z0-9_.-]+)\s+([A-Za-z0-9._-]+)\s+([a-z])\s+(\d{2}/\d{2}/\d{2}|0)\s+(\d+:\d+:\d*|0)\s+([A-Za-z0-9_]+@[A-Za-z0-9_.-]+)\s+(\d+)\s+(\w*)'
             for line in fin:
                 line.strip()
-                # searches for something like: 422561.cream01             STDIN            see062          48:50:12 R see
                 m = re.search(user_queue_search, line)
                 if not m:
                     continue
                 job_id, user, job_state, queue = m.group(1), m.group(4), m.group(5), m.group(8)
                 # unused:  _prior, _name, _submit, _start_at, _queue_domain, _slots, _ja_taskID = m.group(2), m.group(3), m.group(6), m.group(7), m.group(9), m.group(10), m.group(11)
-                fout.write('---\n')
-                fout.write('JobId: ' + job_id + '\n')
-                fout.write('UnixAccount: ' + user + '\n')
-                fout.write('S: ' + job_state + '\n')
-                fout.write('queue: ' + queue + '\n')
-                fout.write('...\n')
+                qstat_write_sequence(fout, job_id, user, job_state, queue)
 
 
 def make_qstatq_yaml(orig_file, yaml_file):
     """
     read QSTATQ_ORIG_FILE sequentially and put useful data in respective yaml file
     """
-    if not os.path.getsize(orig_file) > 0:
-        print 'Your ' + orig_file + ' file is empty! Please check your directory. Exiting ...'
-        # os.chdir(HOMEPATH + 'qt')  # TODO: check if this works on restarting the qtop script
-        sys.exit(0)
+    check_empty_file(orig_file)
 
     queue_search = '^([a-zA-Z0-9_.-]+)\s+(--|[0-9]+[mgtkp]b[a-z]*)\s+(--|\d+:\d+:?\d*)\s+(--|\d+:\d+:\d+)\s+(--)\s+(\d+)\s+(\d+)\s+(--|\d+)\s+([DE] R)'
     run_qd_search = '^\s*(\d+)\s+(\d+)'
