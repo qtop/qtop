@@ -79,7 +79,7 @@ def qstat_write_sequence(fout, job_id, user, job_state, queue):
     fout.write('...\n')
 
 
-def make_qstat_yaml(orig_file, yaml_file):
+def make_qstat_yaml_old(orig_file, yaml_file):
     """
     reads QSTAT_ORIG_FILE sequentially and put useful data in respective yaml file.
     Some qstat files are structured a bit differently (the ones containing 'prior')
@@ -114,36 +114,48 @@ def make_qstat_yaml(orig_file, yaml_file):
                 qstat_write_sequence(fout, job_id, user, job_state, queue)
 
 
-def make_qstatq_yaml_old(orig_file, yaml_file):
+def make_qstat_yaml(orig_file, yaml_file):
     """
-    reads QSTATQ_ORIG_FILE sequentially and put useful data in respective yaml file
-    All lines are something like: searches for something like: biomed             --      --    72:00:00   --   31   0 --   E R
-    except the last line which contains two sums
+    reads QSTAT_ORIG_FILE sequentially and put useful data in respective yaml file.
+    Some qstat files are structured a bit differently (the ones containing 'prior')
+    Job id                    Name             User            Time Use S Queue
+    or
+    job-ID  prior   name       user         state_dict submit/start at     queue                          slots ja-task-ID
+    # searches for something like: 422561.cream01             STDIN            see062          48:50:12 R see
+    This new version of the function takes 93ms to run, as opposed to 86.5ms of the older version. Go figure!!
     """
     check_empty_file(orig_file)
 
-    queue_search = '^([a-zA-Z0-9_.-]+)\s+(--|[0-9]+[mgtkp]b[a-z]*)\s+(--|\d+:\d+:?\d*)\s+(--|\d+:\d+:\d+)\s+(--)\s+(\d+)\s+(\d+)\s+(--|\d+)\s+([DE] R)'
-    run_qd_search = '^\s*(\d+)\s+(\d+)'
-    with open(yaml_file, 'a') as fout, open(orig_file, 'r') as fin:
-        for line in fin:
-            line.strip()
-            m = re.search(queue_search, line)
-            n = re.search(run_qd_search, line)
+    user_queue_search = '^(([0-9-]+)\.([\w-]+))\s+([\w%.=+/-]+)\s+([A-Za-z0-9.]+)\s+(\d+:\d+:?\d*|0)\s+([CWRQE])\s+(\w+)'
+    user_queue_search_prior = '\s{2}(\d+)\s+([0-9]\.[0-9]+)\s+([\w.-]+)\s+([\w.-]+)\s+([a-z])\s+(\d{2}/\d{2}/\d{' \
+                              '2}|0)\s+(\d+:\d+:\d*|0)\s+(\w+@[\w.-]+)\s+(\d+)\s+(\w*)'
 
-            if m:
-                # unused: _, _mem, _cpu_time, _wall_time, _node, = m.group(0), m.group(2), m.group(3), m.group(4), m.group(5)
-                queue_name, run, queued, lm, state = m.group(1), m.group(6), m.group(7), m.group(8), m.group(9)
-                fout.write('- queue_name: ' + '"' + queue_name + '"' + '\n')
-                fout.write('  Running: ' + '"' + run + '"' + '\n')
-                fout.write('  Queued: ' + '"' + queued + '"' + '\n')
-                fout.write('  Lm: ' + '"' + lm + '"' + '\n')
-                fout.write('  State: ' + '"' + state + '"' + '\n')
-                fout.write('\n')
-            elif n:
-                total_running, total_queued = n.group(1), n.group(2)
-        fout.write('---\n')
-        fout.write('Total Running: ' + '"' + str(total_running) + '"' + '\n')
-        fout.write('Total Queued: ' + '"' + str(total_queued) + '"' + '\n')
+    # fout = file(yaml_file, 'a')
+    with open(orig_file, 'r') as fin, open(yaml_file, 'a') as fout:
+        header = fin.readline()
+        fin.readline()
+        line = fin.readline()
+        try:  # first qstat line determines which format qstat follows.
+            re_search = user_queue_search
+            m = re.search(re_search, line)
+            re_match_positions = (1, 5, 7, 8)
+            job_id, user, job_state, queue = [m.group(x) for x in re_match_positions]
+            # unused: _job_nr, _ce_name, _name, _time_use = m.group(2), m.group(3), m.group(4), m.group(6)
+            job_id = job_id.split('.')[0]
+            qstat_write_sequence(fout, job_id, user, job_state, queue)
+        except AttributeError:  # this means 'prior' exists in qstat, it's another format
+            re_search = user_queue_search_prior
+            m = re.search(re_search, line)
+            re_match_positions = (1, 4, 5, 8)
+            job_id, user, job_state, queue = [m.group(x) for x in re_match_positions]
+            qstat_write_sequence(fout, job_id, user, job_state, queue)
+            # unused:  _prior, _name, _submit, _start_at, _queue_domain, _slots, _ja_taskID = m.group(2), m.group(3), m.group(6), m.group(7), m.group(9), m.group(10), m.group(11)
+        finally:  # hence the rest of the lines should follow either try's or except's same format
+            for line in fin:
+                m = re.search(re_search, line.strip())
+                job_id, user, job_state, queue = [m.group(x) for x in re_match_positions]
+                job_id = job_id.split('.')[0]
+                qstat_write_sequence(fout, job_id, user, job_state, queue)
 
 
 def make_qstatq_yaml(orig_file, yaml_file):
@@ -154,15 +166,15 @@ def make_qstatq_yaml(orig_file, yaml_file):
     """
     check_empty_file(orig_file)
     l = []
-    queue_search = '^([a-zA-Z0-9_.-]+)\s+(--|[0-9]+[mgtkp]b[a-z]*)\s+(--|\d+:\d+:?\d*)\s+(--|\d+:\d+:\d+)\s+(--)\s+(\d+)\s+(\d+)\s+(--|\d+)\s+([DE] R)'
+    queue_search = '^([\w.-]+)\s+(--|[0-9]+[mgtkp]b[a-z]*)\s+(--|\d+:\d+:?\d*)\s+(--|\d+:\d+:\d+)\s+(--)\s+(\d+)\s+(\d+)\s+(--|\d+)\s+([DE] R)'
     run_qd_search = '^\s*(\d+)\s+(\d+)'
 
     stream = file(yaml_file, 'w')
     with open(orig_file, 'r') as fin:
         fin.next()
-        server_name = fin.next().split(': ')[1].strip()
+        # server_name = fin.next().split(': ')[1].strip()
         fin.next()
-        headers = fin.next().strip()  # this should later define the keys in temp_dict
+        headers = fin.next().strip()  # this should later define the keys in temp_dict, should they be different
         fin.next()
         for line in fin:
             line = line.strip()
@@ -197,23 +209,6 @@ def read_pbsnodes_yaml_into_list(yaml_fn):
         for node in _nodes:
             pbs_nodes.append(node)
     pbs_nodes.pop()  # until i figure out why the last node is None
-    return pbs_nodes
-
-
-def read_pbsnodes_yaml_into_dict(yaml_fn):
-    """
-    Parses the pbsnodes yaml file
-    :param yaml_fn: str
-    :return: dict
-    """
-    pbs_nodes = {}
-    with open(yaml_fn) as fin:
-        _nodes = yaml.safe_load_all(fin)
-        for node in _nodes:
-            try:
-                pbs_nodes[node['domainname']] = node
-            except TypeError:
-                continue
     return pbs_nodes
 
 
