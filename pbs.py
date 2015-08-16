@@ -21,7 +21,7 @@ def check_empty_file(orig_file):
 
 def make_pbsnodes_yaml(orig_file, yaml_file):
     """
-    reads PBSNODES_ORIG_FILE sequentially and puts its information in a new yaml file
+    reads PBSNODES_ORIG_FILE sequentially and puts its information into a new yaml file
     """
     check_empty_file(orig_file)
     blocks = read_all_blocks(orig_file)
@@ -42,8 +42,6 @@ def make_pbsnodes_yaml(orig_file, yaml_file):
             else:
                 write_jobs_cores(block['jobs'], fout)
             fout.write('---\n')
-
-        fout.write('---\n')
 
 
 def write_jobs_cores(jobs, fout):  # block['jobs']
