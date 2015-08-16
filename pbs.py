@@ -79,41 +79,6 @@ def qstat_write_sequence(fout, job_id, user, job_state, queue):
     fout.write('...\n')
 
 
-def make_qstat_yaml_old(orig_file, yaml_file):
-    """
-    reads QSTAT_ORIG_FILE sequentially and put useful data in respective yaml file.
-    Some qstat files are structured a bit differently (the ones containing 'prior')
-    """
-    check_empty_file(orig_file)
-
-    with open(orig_file, 'r') as fin, open(yaml_file, 'a') as fout:
-        first_line = fin.readline()
-        if 'prior' not in first_line:
-            user_queue_search = '^(([0-9-]+)\.([A-Za-z0-9-]+))\s+([A-Za-z0-9%_.=+/-]+)\s+([A-Za-z0-9.]+)\s+(\d+:\d+:?\d*|0)\s+([CWRQE])\s+(\w+)'
-            for line in fin:
-                line.strip()
-                # searches for something like: 422561.cream01             STDIN            see062          48:50:12 R see
-                m = re.search(user_queue_search, line)
-                if not m:
-                    continue
-                job_id, user, job_state, queue = m.group(1), m.group(5), m.group(7), m.group(8)
-                # unused: _job_nr, _ce_name, _name, _time_use = m.group(2), m.group(3), m.group(4), m.group(6)
-                job_id = job_id.split('.')[0]
-                qstat_write_sequence(fout, job_id, user, job_state, queue)
-
-        elif 'prior' in first_line:
-            # e.g. job-ID  prior   name       user         state_dict submit/start at     queue                          slots ja-task-ID
-            user_queue_search = '\s{2}(\d+)\s+([0-9]\.[0-9]+)\s+([A-Za-z0-9_.-]+)\s+([A-Za-z0-9._-]+)\s+([a-z])\s+(\d{2}/\d{2}/\d{2}|0)\s+(\d+:\d+:\d*|0)\s+([A-Za-z0-9_]+@[A-Za-z0-9_.-]+)\s+(\d+)\s+(\w*)'
-            for line in fin:
-                line.strip()
-                m = re.search(user_queue_search, line)
-                if not m:
-                    continue
-                job_id, user, job_state, queue = m.group(1), m.group(4), m.group(5), m.group(8)
-                # unused:  _prior, _name, _submit, _start_at, _queue_domain, _slots, _ja_taskID = m.group(2), m.group(3), m.group(6), m.group(7), m.group(9), m.group(10), m.group(11)
-                qstat_write_sequence(fout, job_id, user, job_state, queue)
-
-
 def make_qstat_yaml(orig_file, yaml_file):
     """
     reads QSTAT_ORIG_FILE sequentially and put useful data in respective yaml file.
@@ -130,32 +95,46 @@ def make_qstat_yaml(orig_file, yaml_file):
     user_queue_search_prior = '\s{2}(\d+)\s+([0-9]\.[0-9]+)\s+([\w.-]+)\s+([\w.-]+)\s+([a-z])\s+(\d{2}/\d{2}/\d{' \
                               '2}|0)\s+(\d+:\d+:\d*|0)\s+(\w+@[\w.-]+)\s+(\d+)\s+(\w*)'
 
-    # fout = file(yaml_file, 'a')
-    with open(orig_file, 'r') as fin, open(yaml_file, 'a') as fout:
+    fout = file(yaml_file, 'a')
+    l = list()
+    with open(orig_file, 'r') as fin:
         header = fin.readline()
         fin.readline()
         line = fin.readline()
         try:  # first qstat line determines which format qstat follows.
+            temp_dict = dict()
             re_search = user_queue_search
             m = re.search(re_search, line)
             re_match_positions = (1, 5, 7, 8)
             job_id, user, job_state, queue = [m.group(x) for x in re_match_positions]
             # unused: _job_nr, _ce_name, _name, _time_use = m.group(2), m.group(3), m.group(4), m.group(6)
             job_id = job_id.split('.')[0]
-            qstat_write_sequence(fout, job_id, user, job_state, queue)
+            for key, value in [('JobId', job_id), ('UnixAccount', user), ('S', job_state), ('Queue', queue)]:
+                temp_dict[key] = value
+            l.append(temp_dict)
+            # qstat_write_sequence(fout, job_id, user, job_state, queue)
         except AttributeError:  # this means 'prior' exists in qstat, it's another format
+            temp_dict = dict()
             re_search = user_queue_search_prior
             m = re.search(re_search, line)
             re_match_positions = (1, 4, 5, 8)
             job_id, user, job_state, queue = [m.group(x) for x in re_match_positions]
-            qstat_write_sequence(fout, job_id, user, job_state, queue)
+            for key, value in [('JobId', job_id), ('UnixAccount', user), ('S', job_state), ('Queue', queue)]:
+                temp_dict[key] = value
+            l.append(temp_dict)
+            # qstat_write_sequence(fout, job_id, user, job_state, queue)
             # unused:  _prior, _name, _submit, _start_at, _queue_domain, _slots, _ja_taskID = m.group(2), m.group(3), m.group(6), m.group(7), m.group(9), m.group(10), m.group(11)
         finally:  # hence the rest of the lines should follow either try's or except's same format
             for line in fin:
+                temp_dict = dict()
                 m = re.search(re_search, line.strip())
                 job_id, user, job_state, queue = [m.group(x) for x in re_match_positions]
                 job_id = job_id.split('.')[0]
-                qstat_write_sequence(fout, job_id, user, job_state, queue)
+                for key, value in [('JobId', job_id), ('UnixAccount', user), ('S', job_state), ('Queue', queue)]:
+                    temp_dict[key] = value
+                l.append(temp_dict)
+                # qstat_write_sequence(fout, job_id, user, job_state, queue)
+    yaml.dump_all(l, fout, Dumper=Dumper, default_flow_style=False)
 
 
 def make_qstatq_yaml(orig_file, yaml_file):
