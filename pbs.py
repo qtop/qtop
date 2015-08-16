@@ -26,9 +26,11 @@ def make_pbsnodes_yaml(orig_file, yaml_file):
     check_empty_file(orig_file)
 
     search_domain_name = '^\w+([.-]?\w+)*'
+    # lastcore = MAX_CORE_ALLOWED  # why ?!!?
+    lastcore = ''
     with open(orig_file, 'r') as fin, open(yaml_file, 'a') as fout:
         for line in fin:
-            line.strip()
+            line = line.strip()
 
             m = re.search(search_domain_name, line)
             if m:
@@ -46,7 +48,7 @@ def make_pbsnodes_yaml(orig_file, yaml_file):
 
             elif 'jobs = ' in line:
                 ljobs = line.split('=')[1].split(',')
-                lastcore = MAX_CORE_ALLOWED
+                # lastcore = MAX_CORE_ALLOWED # was here
                 fout.write('core_job_map: \n')
                 for job in ljobs:
                     core, job = job.strip().split('/')
