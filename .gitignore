@@ -1,0 +1,9 @@
+.idea/encodings.xml
+.idea/inspectionProfiles/
+.idea/misc.xml
+.idea/modules.xml
+.idea/qtop.iml
+.idea/vcs.xml
+.idea/workspace.xml
+*.pyc
+*.xml
