@@ -26,12 +26,14 @@ def make_pbsnodes_yaml(orig_file, yaml_file):
     check_empty_file(orig_file)
     blocks = read_all_blocks(orig_file)
     with open(yaml_file, 'w') as fout:
-        lastcore = ''
+        # lastcore = ''
         for block in blocks:
             fout.write('domainname: ' + block['Domain name'] + '\n')
+
             nextchar = block['state'][0]
             state = "'-'" if nextchar == 'f' else nextchar
             fout.write('state: ' + state + '\n')
+
             fout.write('np: ' + block['np'] + '\n')
             if block.get('gpus') > 0:  # this should be rare.
                 fout.write('gpus: ' + block['gpus'] + '\n')
@@ -44,23 +46,21 @@ def make_pbsnodes_yaml(orig_file, yaml_file):
             fout.write('---\n')
 
 
-def write_jobs_cores(jobs, fout):  # block['jobs']
-    ljobs = jobs.split(',')
-    # lastcore = ''  # should put this much later (in read pbsnodes?)
+def write_jobs_cores(jobs, fout):
     fout.write('core_job_map: \n')
-    for job in ljobs:
-        core, job = job.strip().split('/')
-        if len(core) > len(job):
-            # that can't be the case, so we got it wrong (jobs format must be jobid/core instead of core/jobid)
-            core, job = job, core
-        job = job.strip().split('/')[0].split('.')[0]
-        # if core == lastcore:
-        #     print 'There are concurrent jobs assigned to the same core!' + '\n' +\
-        #           ' This kind of Remapping is not implemented yet. Exiting..'
-        #     sys.exit(1)
+    for job, core in jobs_cores(jobs):
         fout.write('- core: ' + core + '\n')
         fout.write('  job: ' + job + '\n')
-        # lastcore = core
+
+
+def jobs_cores(jobs):  # block['jobs']
+    jobs_list = jobs.split(',')
+    for job in jobs_list:
+        core, job = job.strip().split('/')
+        if len(core) > len(job):  # we must've got this wrong (jobs format must be jobid/core, not core/jobid)
+            core, job = job, core
+        job = job.strip().split('/')[0].split('.')[0]
+        yield job, core
 
 
 def read_all_blocks(orig_file):
