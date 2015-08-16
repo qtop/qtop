@@ -24,52 +24,79 @@ def make_pbsnodes_yaml(orig_file, yaml_file):
     reads PBSNODES_ORIG_FILE sequentially and puts its information in a new yaml file
     """
     check_empty_file(orig_file)
+    blocks = read_all_blocks(orig_file)
+    with open(yaml_file, 'w') as fout:
+        lastcore = ''
+        for block in blocks:
+            fout.write('domainname: ' + block['Domain name'] + '\n')
+            nextchar = block['state'][0]
+            state = "'-'" if nextchar == 'f' else nextchar
+            fout.write('state: ' + state + '\n')
+            fout.write('np: ' + block['np'] + '\n')
+            if block.get('gpus') > 0:  # this should be rare.
+                fout.write('gpus: ' + block['gpus'] + '\n')
+            try:  # this should turn up more often, hence the try/except.
+                _ = block['jobs']
+            except KeyError:
+                pass
+            else:
+                write_jobs_cores(block['jobs'], fout)
+            fout.write('---\n')
 
-    search_domain_name = '^\w+([.-]?\w+)*'
-    # lastcore = MAX_CORE_ALLOWED  # why ?!!?
-    lastcore = ''
-    with open(orig_file, 'r') as fin, open(yaml_file, 'a') as fout:
-        for line in fin:
-            line = line.strip()
+        fout.write('---\n')
 
-            m = re.search(search_domain_name, line)
-            if m:
-                domain_name = m.group(0)
-                fout.write('domainname: ' + domain_name + '\n')
 
-            elif 'state = ' in line:
-                nextchar = line.split()[2][0]
-                state = "'-'" if nextchar == 'f' else nextchar
-                fout.write('state: ' + state + '\n')
+def write_jobs_cores(jobs, fout):  # block['jobs']
+    ljobs = jobs.split(',')
+    # lastcore = ''  # should put this much later (in read pbsnodes?)
+    fout.write('core_job_map: \n')
+    for job in ljobs:
+        core, job = job.strip().split('/')
+        if len(core) > len(job):
+            # that can't be the case, so we got it wrong (jobs format must be jobid/core instead of core/jobid)
+            core, job = job, core
+        job = job.strip().split('/')[0].split('.')[0]
+        # if core == lastcore:
+        #     print 'There are concurrent jobs assigned to the same core!' + '\n' +\
+        #           ' This kind of Remapping is not implemented yet. Exiting..'
+        #     sys.exit(1)
+        fout.write('- core: ' + core + '\n')
+        fout.write('  job: ' + job + '\n')
+        # lastcore = core
 
-            elif 'np = ' in line or 'pcpus = ' in line:
-                np = line.split()[2][0:]
-                fout.write('np: ' + np + '\n')
 
-            elif 'jobs = ' in line:
-                ljobs = line.split('=')[1].split(',')
-                # lastcore = MAX_CORE_ALLOWED # was here
-                fout.write('core_job_map: \n')
-                for job in ljobs:
-                    core, job = job.strip().split('/')
-                    if len(core) > len(job):
-                        # that can't be the case, so we got it wrong (jobs format must be jobid/core instead of core/jobid)
-                        core, job = job, core
-                    job = job.strip().split('/')[0].split('.')[0]
-                    if core == lastcore:
-                        print 'There are concurrent jobs assigned to the same core!' + '\n' +\
-                              ' This kind of Remapping is not implemented yet. Exiting..'
-                        sys.exit(1)
-                    fout.write('- core: ' + core + '\n')
-                    fout.write('  job: ' + job + '\n')
-                    lastcore = core
+def read_all_blocks(orig_file):
+    """
+    reads pbsnodes txt file block by block
+    """
+    with open(orig_file, mode='r') as fin:
+        result = []
+        reading = True
+        while reading:
+            wn_block = read_block(fin)
+            if wn_block:
+                result.append(wn_block)
+            else:
+                reading = False
+    return result
 
-            elif 'gpus = ' in line:
-                gpus = line.split(' = ')[1]
-                fout.write('gpus: ' + gpus + '\n')
 
-            elif line.startswith('\n'):
-                fout.write('---\n')
+def read_block(fin):
+    line = fin.readline()
+    if not line:
+        return None
+
+    domain_name = line.strip()
+    block = {'Domain name': domain_name}
+    reading = True
+    while reading:
+        line = fin.readline()
+        if line == '\n':
+            reading = False
+        else:
+            key, value = line.split(' = ')
+            block[key.strip()] = value.strip()
+    return block
 
 
 def qstat_write_sequence(fout, job_id, user, job_state, queue):
