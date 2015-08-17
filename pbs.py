@@ -97,13 +97,14 @@ def read_block(fin):
     return block
 
 
-def qstat_write_sequence(fout, job_id, user, job_state, queue):
-    fout.write('---\n')
-    fout.write('JobId: ' + job_id + '\n')
-    fout.write('UnixAccount: ' + user + '\n')
-    fout.write('S: ' + job_state + '\n')
-    fout.write('Queue: ' + queue + '\n')
-    fout.write('...\n')
+def qstat_write_lines(l, fout):
+    for qstat_values in l:
+        fout.write('---\n')
+        fout.write('JobId: ' + qstat_values['JobId'] + '\n')
+        fout.write('UnixAccount: ' + qstat_values['UnixAccount'] + '\n')
+        fout.write('S: ' + qstat_values['S'] + '\n')  # job state
+        fout.write('Queue: ' + qstat_values['Queue'] + '\n')
+        fout.write('...\n')
 
 
 def make_qstat_yaml(orig_file, yaml_file):
@@ -129,39 +130,33 @@ def make_qstat_yaml(orig_file, yaml_file):
         fin.readline()
         line = fin.readline()
         try:  # first qstat line determines which format qstat follows.
-            temp_dict = dict()
-            re_search = user_queue_search
-            m = re.search(re_search, line)
             re_match_positions = (1, 5, 7, 8)
-            job_id, user, job_state, queue = [m.group(x) for x in re_match_positions]
+            re_search = user_queue_search
+            qstat_values = process_line(re_search, line, re_match_positions)
+            l.append(qstat_values)
             # unused: _job_nr, _ce_name, _name, _time_use = m.group(2), m.group(3), m.group(4), m.group(6)
-            job_id = job_id.split('.')[0]
-            for key, value in [('JobId', job_id), ('UnixAccount', user), ('S', job_state), ('Queue', queue)]:
-                temp_dict[key] = value
-            l.append(temp_dict)
-            # qstat_write_sequence(fout, job_id, user, job_state, queue)
         except AttributeError:  # this means 'prior' exists in qstat, it's another format
-            temp_dict = dict()
-            re_search = user_queue_search_prior
-            m = re.search(re_search, line)
             re_match_positions = (1, 4, 5, 8)
-            job_id, user, job_state, queue = [m.group(x) for x in re_match_positions]
-            for key, value in [('JobId', job_id), ('UnixAccount', user), ('S', job_state), ('Queue', queue)]:
-                temp_dict[key] = value
-            l.append(temp_dict)
-            # qstat_write_sequence(fout, job_id, user, job_state, queue)
+            re_search = user_queue_search_prior
+            qstat_values = process_line(re_search, line, re_match_positions)
+            l.append(qstat_values)
             # unused:  _prior, _name, _submit, _start_at, _queue_domain, _slots, _ja_taskID = m.group(2), m.group(3), m.group(6), m.group(7), m.group(9), m.group(10), m.group(11)
         finally:  # hence the rest of the lines should follow either try's or except's same format
             for line in fin:
-                temp_dict = dict()
-                m = re.search(re_search, line.strip())
-                job_id, user, job_state, queue = [m.group(x) for x in re_match_positions]
-                job_id = job_id.split('.')[0]
-                for key, value in [('JobId', job_id), ('UnixAccount', user), ('S', job_state), ('Queue', queue)]:
-                    temp_dict[key] = value
-                l.append(temp_dict)
-                # qstat_write_sequence(fout, job_id, user, job_state, queue)
-    yaml.dump_all(l, fout, Dumper=Dumper, default_flow_style=False)
+                qstat_values = process_line(re_search, line, re_match_positions)
+                l.append(qstat_values)
+    # yaml.dump_all(l, fout, Dumper=Dumper, default_flow_style=False)
+    qstat_write_lines(l, fout)
+
+
+def process_line(re_search, line, re_match_positions):
+    qstat_values = dict()
+    m = re.search(re_search, line.strip())
+    job_id, user, job_state, queue = [m.group(x) for x in re_match_positions]
+    job_id = job_id.split('.')[0]
+    for key, value in [('JobId', job_id), ('UnixAccount', user), ('S', job_state), ('Queue', queue)]:
+        qstat_values[key] = value
+    return qstat_values
 
 
 def make_qstatq_yaml(orig_file, yaml_file):
