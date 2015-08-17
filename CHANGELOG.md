@@ -1,3 +1,8 @@
+## 0.7
+
+Enhancements:
+  - Input files are now using YAML for dumping and loading
+
 ## 0.6.7
 
 Enhancements:
