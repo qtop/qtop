@@ -2,6 +2,7 @@ import re
 import sys
 import os
 import yaml
+import ujson as json
 
 MAX_CORE_ALLOWED = 150000
 try:
@@ -19,7 +20,7 @@ def check_empty_file(orig_file):
             sys.exit(0)
 
 
-def make_pbsnodes_yaml(orig_file, yaml_file):
+def make_pbsnodes(orig_file, yaml_file):
     """
     reads PBSNODES_ORIG_FILE sequentially and puts its information into a new yaml file
     """
@@ -107,7 +108,23 @@ def qstat_write_lines(l, fout):
         fout.write('...\n')
 
 
-def make_qstat_yaml(orig_file, yaml_file):
+def qstat_dump_all(l, fout, write_method, mapping):
+    """
+    dumps the content of qstat/qstat_q files in the selected write_method format
+    """
+    try:
+        fun, kwargs = mapping[write_method]
+        fun(l, fout, **kwargs)
+    except:
+        import pdb; pdb.set_trace()
+        raise NotImplementedError
+
+
+# def perform(func, *args, **kwargs):
+#     func(*args, **kwargs)
+
+
+def make_qstat(orig_file, yaml_file, write_method):
     """
     reads QSTAT_ORIG_FILE sequentially and put useful data in respective yaml file.
     Some qstat files are structured a bit differently (the ones containing 'prior')
@@ -145,8 +162,7 @@ def make_qstat_yaml(orig_file, yaml_file):
             for line in fin:
                 qstat_values = process_line(re_search, line, re_match_positions)
                 l.append(qstat_values)
-    # yaml.dump_all(l, fout, Dumper=Dumper, default_flow_style=False)
-    qstat_write_lines(l, fout)
+    qstat_dump_all(l, fout, write_method, _qstat_mapping)
 
 
 def process_line(re_search, line, re_match_positions):
@@ -159,7 +175,7 @@ def process_line(re_search, line, re_match_positions):
     return qstat_values
 
 
-def make_qstatq_yaml(orig_file, yaml_file):
+def make_qstatq(orig_file, yaml_file, write_method):
     """
     reads QSTATQ_ORIG_FILE sequentially and put useful data in respective yaml file
     All lines are something like: searches for something like: biomed             --      --    72:00:00   --   31   0 --   E R
@@ -170,7 +186,7 @@ def make_qstatq_yaml(orig_file, yaml_file):
     queue_search = '^([\w.-]+)\s+(--|[0-9]+[mgtkp]b[a-z]*)\s+(--|\d+:\d+:?\d*)\s+(--|\d+:\d+:\d+)\s+(--)\s+(\d+)\s+(\d+)\s+(--|\d+)\s+([DE] R)'
     run_qd_search = '^\s*(\d+)\s+(\d+)'
 
-    stream = file(yaml_file, 'w')
+    fout = file(yaml_file, 'w')
     with open(orig_file, 'r') as fin:
         fin.next()
         # server_name = fin.next().split(': ')[1].strip()
@@ -194,7 +210,7 @@ def make_qstatq_yaml(orig_file, yaml_file):
                     temp_dict[key] = value
                 l.append(temp_dict)
         l.append({'Total running': total_running, 'Total queued': total_queued})
-    yaml.dump_all(l, stream, Dumper=Dumper, default_flow_style=False)
+    qstat_dump_all(l, fout, write_method, _qstatq_mapping)
 
 
 def read_pbsnodes_yaml_into_list(yaml_fn):
@@ -250,3 +266,15 @@ def read_qstatq_yaml(yaml_fn):
         total_running, total_queued = total['Total running'], total['Total queued']
     return total_running, total_queued, qstatq_list
 
+
+def qstatq_write_lines():
+    raise NotImplementedError
+
+
+_qstat_mapping = {'yaml': (yaml.dump_all, {'Dumper': Dumper, 'default_flow_style': False}),
+                  'txtyaml': (qstat_write_lines, {}),
+                  'json': (json.dumps, {})}
+
+_qstatq_mapping = {'yaml': (yaml.dump_all, {'Dumper': Dumper, 'default_flow_style': False}),
+                   'txtyaml': (qstatq_write_lines, {}),
+                   'json': (json.dumps, {})}

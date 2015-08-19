@@ -21,14 +21,13 @@ from colormap import color_of_account, code_of_color
 parser = OptionParser()  # for more details see http://docs.python.org/library/optparse.html
 parser.add_option("-a", "--blindremapping", action="store_true", dest="BLINDREMAP", default=False, help="This is used in situations where node names are not a pure arithmetic sequence (eg. rocks clusters)")
 parser.add_option("-c", "--COLOR", action="store_true", dest="COLOR", default=True, help="Enable/Disable color in qtop output. Use it with an ON/OFF switch: -c ON or -c OFF")
-# parser.add_option("-c", "--COLOR", action="store", dest="COLOR", default='ON', choices=['ON', 'OFF'], help="Enable/Disable color in qtop output. Use it with an ON/OFF switch: -c ON or -c OFF")
 parser.add_option("-f", "--setCOLORMAPFILE", action="store", type="string", dest="COLORFILE")
 parser.add_option("-m", "--noMasking", action="store_false", dest="MASKING", default=True, help="Don't mask early empty Worker Nodes. (default setting is: if e.g. the first 30 WNs are unused, counting starts from 31).")
 parser.add_option("-o", "--SetVerticalSeparatorXX", action="store", dest="WN_COLON", default=0, help="Put vertical bar every WN_COLON nodes.")
 parser.add_option("-s", "--SetSourceDir", dest="SOURCEDIR", help="Set the source directory where pbsnodes and qstat reside")
 parser.add_option("-z", "--quiet", action="store_false", dest="verbose", default=True, help="don't print status messages to stdout. Not doing anything at the moment.")
 parser.add_option("-F", "--ForceNames", action="store_true", dest="FORCE_NAMES", default=False, help="force names to show up instead of numbered WNs even for very small numbers of WNs")
-
+parser.add_option("-w", "--writemethod", dest="write_method", action="store", default="txtyaml", choices=['txtyaml', 'yaml', 'json'], help="Set the method used for dumping information, json, yaml, or native python (yaml format)")
 (options, args) = parser.parse_args()
 
 # TODO make the following work with py files instead of qtop.colormap files
@@ -654,9 +653,9 @@ if __name__ == '__main__':
 
     #  MAIN ###################################
     reset_yaml_files()
-    make_pbsnodes_yaml(PBSNODES_ORIG_FILE, PBSNODES_YAML_FILE)
-    make_qstatq_yaml(QSTATQ_ORIG_FILE, QSTATQ_YAML_FILE)
-    make_qstat_yaml(QSTAT_ORIG_FILE, QSTAT_YAML_FILE)
+    make_pbsnodes(PBSNODES_ORIG_FILE, PBSNODES_YAML_FILE)
+    make_qstatq(QSTATQ_ORIG_FILE, QSTATQ_YAML_FILE, options.write_method)
+    make_qstat(QSTAT_ORIG_FILE, QSTAT_YAML_FILE, options.write_method)
 
     pbs_nodes = read_pbsnodes_yaml_into_list(PBSNODES_YAML_FILE)  # was: read_pbsnodes_yaml_into_dict(PBSNODES_YAML_FILE)
     total_running, total_queued, qstatq_list = read_qstatq_yaml(QSTATQ_YAML_FILE)
