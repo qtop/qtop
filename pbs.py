@@ -43,18 +43,18 @@ def make_pbsnodes(orig_file, yaml_file):
             except KeyError:
                 pass
             else:
-                write_jobs_cores(block['jobs'], fout)
+                _write_jobs_cores(block['jobs'], fout)
             fout.write('---\n')
 
 
-def write_jobs_cores(jobs, fout):
+def _write_jobs_cores(jobs, fout):
     fout.write('core_job_map: \n')
-    for job, core in jobs_cores(jobs):
+    for job, core in _jobs_cores(jobs):
         fout.write('- core: ' + core + '\n')
         fout.write('  job: ' + job + '\n')
 
 
-def jobs_cores(jobs):  # block['jobs']
+def _jobs_cores(jobs):  # block['jobs']
     jobs_list = jobs.split(',')
     for job in jobs_list:
         core, job = job.strip().split('/')
@@ -267,8 +267,20 @@ def read_qstatq_yaml(yaml_fn):
     return total_running, total_queued, qstatq_list
 
 
-def qstatq_write_lines():
-    raise NotImplementedError
+def qstatq_write_lines(l, fout):
+    last_line = l.pop()
+    for qstatq_values in l:
+        fout.write('---\n')
+        fout.write('queue_name: ' + qstatq_values['queue_name'] + '\n')
+        fout.write('state: ' + qstatq_values['state'] + '\n')  # job state
+        fout.write('lm: ' + qstatq_values['lm'] + '\n')
+        fout.write('run: ' + '"' + qstatq_values['run'] + '"' + '\n')  # job state
+        fout.write('queued: ' + '"' + qstatq_values['queued'] + '"' + '\n')
+        fout.write('...\n')
+    fout.write('---\n')
+    fout.write('Total queued: ' + '"' + last_line['Total queued'] + '"' + '\n')
+    fout.write('Total running: ' + '"' + last_line['Total running'] + '"' + '\n')
+    fout.write('...\n')
 
 
 _qstat_mapping = {'yaml': (yaml.dump_all, {'Dumper': Dumper, 'default_flow_style': False}),
