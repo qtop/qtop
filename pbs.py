@@ -124,7 +124,7 @@ def qstat_dump_all(l, fout, write_method, mapping):
 #     func(*args, **kwargs)
 
 
-def make_qstat(orig_file, yaml_file, write_method):
+def make_qstat(orig_file, out_file, write_method):
     """
     reads QSTAT_ORIG_FILE sequentially and put useful data in respective yaml file.
     Some qstat files are structured a bit differently (the ones containing 'prior')
@@ -140,7 +140,7 @@ def make_qstat(orig_file, yaml_file, write_method):
     user_queue_search_prior = '\s{2}(\d+)\s+([0-9]\.[0-9]+)\s+([\w.-]+)\s+([\w.-]+)\s+([a-z])\s+(\d{2}/\d{2}/\d{' \
                               '2}|0)\s+(\d+:\d+:\d*|0)\s+(\w+@[\w.-]+)\s+(\d+)\s+(\w*)'
 
-    fout = file(yaml_file, 'a')
+    fout = file(out_file, 'a')
     l = list()
     with open(orig_file, 'r') as fin:
         header = fin.readline()
@@ -175,7 +175,7 @@ def process_line(re_search, line, re_match_positions):
     return qstat_values
 
 
-def make_qstatq(orig_file, yaml_file, write_method):
+def make_qstatq(orig_file, out_file, write_method):
     """
     reads QSTATQ_ORIG_FILE sequentially and put useful data in respective yaml file
     All lines are something like: searches for something like: biomed             --      --    72:00:00   --   31   0 --   E R
@@ -186,7 +186,7 @@ def make_qstatq(orig_file, yaml_file, write_method):
     queue_search = '^([\w.-]+)\s+(--|[0-9]+[mgtkp]b[a-z]*)\s+(--|\d+:\d+:?\d*)\s+(--|\d+:\d+:\d+)\s+(--)\s+(\d+)\s+(\d+)\s+(--|\d+)\s+([DE] R)'
     run_qd_search = '^\s*(\d+)\s+(\d+)'
 
-    fout = file(yaml_file, 'w')
+    fout = file(out_file, 'w')
     with open(orig_file, 'r') as fin:
         fin.next()
         # server_name = fin.next().split(': ')[1].strip()
