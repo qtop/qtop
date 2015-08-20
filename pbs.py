@@ -107,12 +107,12 @@ def qstat_write_lines(l, fout):
         fout.write('...\n')
 
 
-def qstat_dump_all(l, outfile, write_func_args):
+def qstat_dump_all(l, out_file, write_func_args):
     """
     dumps the content of qstat/qstat_q files in the selected write_method format
     """
     # try:
-    with open(outfile, 'w') as fout:
+    with open(out_file, 'w') as fout:
         write_func, kwargs, _ = write_func_args
         write_func(l, fout, **kwargs)
         # except:
@@ -125,7 +125,7 @@ def qstat_dump_all(l, outfile, write_func_args):
 #     func(*args, **kwargs)
 
 
-def make_qstat(orig_file, outfile, write_method):
+def make_qstat(orig_file, out_file, write_method):
     """
     reads QSTAT_ORIG_FN sequentially and put useful data in respective yaml file.
     Some qstat files are structured a bit differently (the ones containing 'prior')
@@ -163,7 +163,7 @@ def make_qstat(orig_file, outfile, write_method):
             for line in fin:
                 qstat_values = _process_line(re_search, line, re_match_positions)
                 l.append(qstat_values)
-    qstat_dump_all(l, outfile, qstat_mapping[write_method])
+    qstat_dump_all(l, out_file, qstat_mapping[write_method])
 
 
 def _process_line(re_search, line, re_match_positions):
@@ -176,7 +176,7 @@ def _process_line(re_search, line, re_match_positions):
     return qstat_values
 
 
-def make_qstatq(orig_file, outfile, write_method):
+def make_qstatq(orig_file, out_file, write_method):
     """
     reads QSTATQ_ORIG_FN sequentially and put useful data in respective yaml file
     All lines are something like: searches for something like:
@@ -212,7 +212,7 @@ def make_qstatq(orig_file, outfile, write_method):
                     temp_dict[key] = value
                 l.append(temp_dict)
         l.append({'Total running': total_running, 'Total queued': total_queued})
-    qstat_dump_all(l, outfile, qstatq_mapping[write_method])
+    qstat_dump_all(l, out_file, qstatq_mapping[write_method])
 
 
 def read_pbsnodes_yaml_into_list(yaml_fn):
@@ -231,7 +231,7 @@ def read_pbsnodes_yaml_into_list(yaml_fn):
     return pbs_nodes
 
 
-def _map_pbsnodes_to_wn_dicts(state_dict, pbs_nodes):
+def map_pbsnodes_to_wn_dicts(state_dict, pbs_nodes):
     for (pbs_node, (idx, cur_node_nr)) in zip(pbs_nodes, enumerate(state_dict['wn_list'])):
         state_dict['wn_dict'][cur_node_nr] = pbs_node
         state_dict['wn_dict_remapped'][idx] = pbs_node

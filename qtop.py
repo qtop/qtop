@@ -123,7 +123,7 @@ def calculate_stuff(pbs_nodes):
     state_dict['all_digits'] = [int(digit) for digit in state_dict['all_str_digits']]
 
     decide_remapping(pbs_nodes, state_dict)
-    _map_pbsnodes_to_wn_dicts(state_dict, pbs_nodes)
+    map_pbsnodes_to_wn_dicts(state_dict, pbs_nodes)
     if options.REMAP:
         state_dict['highest_wn'] = state_dict['total_wn']
         state_dict['wn_list'] = state_dict['wn_list_remapped']
