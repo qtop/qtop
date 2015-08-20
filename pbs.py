@@ -108,23 +108,25 @@ def qstat_write_lines(l, fout):
         fout.write('...\n')
 
 
-def qstat_dump_all(l, fout, write_method, mapping):
+def qstat_dump_all(l, outfile, write_func_args):
     """
     dumps the content of qstat/qstat_q files in the selected write_method format
     """
-    try:
-        fun, kwargs = mapping[write_method]
-        fun(l, fout, **kwargs)
-    except:
-        import pdb; pdb.set_trace()
-        raise NotImplementedError
+    # try:
+    with open(outfile, 'w') as fout:
+        write_func, kwargs, _ = write_func_args
+        write_func(l, fout, **kwargs)
+    # except:
+    #     import pdb; pdb.set_trace()
+        # print 'oh-oh!'
+        # raise NotImplementedError
 
 
 # def perform(func, *args, **kwargs):
 #     func(*args, **kwargs)
 
 
-def make_qstat(orig_file, out_file, write_method):
+def make_qstat(orig_file, outfile, write_method):
     """
     reads QSTAT_ORIG_FILE sequentially and put useful data in respective yaml file.
     Some qstat files are structured a bit differently (the ones containing 'prior')
@@ -140,7 +142,6 @@ def make_qstat(orig_file, out_file, write_method):
     user_queue_search_prior = '\s{2}(\d+)\s+([0-9]\.[0-9]+)\s+([\w.-]+)\s+([\w.-]+)\s+([a-z])\s+(\d{2}/\d{2}/\d{' \
                               '2}|0)\s+(\d+:\d+:\d*|0)\s+(\w+@[\w.-]+)\s+(\d+)\s+(\w*)'
 
-    fout = file(out_file, 'a')
     l = list()
     with open(orig_file, 'r') as fin:
         header = fin.readline()
@@ -162,7 +163,7 @@ def make_qstat(orig_file, out_file, write_method):
             for line in fin:
                 qstat_values = process_line(re_search, line, re_match_positions)
                 l.append(qstat_values)
-    qstat_dump_all(l, fout, write_method, _qstat_mapping)
+    qstat_dump_all(l, outfile, qstat_mapping[write_method])
 
 
 def process_line(re_search, line, re_match_positions):
@@ -175,7 +176,7 @@ def process_line(re_search, line, re_match_positions):
     return qstat_values
 
 
-def make_qstatq(orig_file, out_file, write_method):
+def make_qstatq(orig_file, outfile, write_method):
     """
     reads QSTATQ_ORIG_FILE sequentially and put useful data in respective yaml file
     All lines are something like: searches for something like: biomed             --      --    72:00:00   --   31   0 --   E R
@@ -186,7 +187,6 @@ def make_qstatq(orig_file, out_file, write_method):
     queue_search = '^([\w.-]+)\s+(--|[0-9]+[mgtkp]b[a-z]*)\s+(--|\d+:\d+:?\d*)\s+(--|\d+:\d+:\d+)\s+(--)\s+(\d+)\s+(\d+)\s+(--|\d+)\s+([DE] R)'
     run_qd_search = '^\s*(\d+)\s+(\d+)'
 
-    fout = file(out_file, 'w')
     with open(orig_file, 'r') as fin:
         fin.next()
         # server_name = fin.next().split(': ')[1].strip()
@@ -210,7 +210,7 @@ def make_qstatq(orig_file, out_file, write_method):
                     temp_dict[key] = value
                 l.append(temp_dict)
         l.append({'Total running': total_running, 'Total queued': total_queued})
-    qstat_dump_all(l, fout, write_method, _qstatq_mapping)
+    qstat_dump_all(l, outfile, qstatq_mapping[write_method])
 
 
 def read_pbsnodes_yaml_into_list(yaml_fn):
@@ -283,10 +283,10 @@ def qstatq_write_lines(l, fout):
     fout.write('...\n')
 
 
-_qstat_mapping = {'yaml': (yaml.dump_all, {'Dumper': Dumper, 'default_flow_style': False}),
-                  'txtyaml': (qstat_write_lines, {}),
-                  'json': (json.dumps, {})}
+qstat_mapping = {'yaml': (yaml.dump_all, {'Dumper': Dumper, 'default_flow_style': False}, 'yaml'),
+                  'txtyaml': (qstat_write_lines, {}, 'yaml'),
+                  'json': (json.dumps, {}, 'json')}
 
-_qstatq_mapping = {'yaml': (yaml.dump_all, {'Dumper': Dumper, 'default_flow_style': False}),
-                   'txtyaml': (qstatq_write_lines, {}),
-                   'json': (json.dumps, {})}
+qstatq_mapping = {'yaml': (yaml.dump_all, {'Dumper': Dumper, 'default_flow_style': False}, 'yaml'),
+                   'txtyaml': (qstatq_write_lines, {}, 'yaml'),
+                   'json': (json.dumps, {},'json')}

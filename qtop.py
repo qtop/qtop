@@ -635,24 +635,24 @@ if __name__ == '__main__':
 
     HOMEPATH = os.path.expanduser('~/PycharmProjects')
     QTOPPATH = os.path.expanduser('~/PycharmProjects/qtop')  # qtoppath: ~/qtop/qtop
-    SOURCEDIR = options.SOURCEDIR  # as set by the '-s' switch
 
     config = load_yaml_config(QTOPPATH)
     SEPARATOR = config['separator']  # alias
 
     # Name files according to unique pid
-    PBSNODES_YAML_FILE = 'pbsnodes_%s.yaml' % os.getpid()
-    QSTATQ_YAML_FILE = 'qstat-q_%s.yaml' % os.getpid()
-    QSTAT_YAML_FILE = 'qstat_%s.yaml' % os.getpid()
+    ext = qstat_mapping[options.write_method][2]
+    PBSNODES_YAML_FILE = 'pbsnodes_{}.{}'.format(os.getpid(), ext)
+    QSTATQ_YAML_FILE = 'qstat-q_{}.{}'.format(os.getpid(), ext)
+    QSTAT_YAML_FILE = 'qstat_{}.{}'.format(os.getpid(), ext)
 
-    os.chdir(SOURCEDIR)
+    os.chdir(options.SOURCEDIR)
     # Location of read and created files
     PBSNODES_ORIG_FILE = [f for f in os.listdir(os.getcwd()) if f.startswith('pbsnodes') and not f.endswith('.yaml')][0]
     QSTATQ_ORIG_FILE = [f for f in os.listdir(os.getcwd()) if (f.startswith('qstat_q') or f.startswith('qstatq') or f.startswith('qstat-q') and not f.endswith('.yaml'))][0]
     QSTAT_ORIG_FILE = [f for f in os.listdir(os.getcwd()) if f.startswith('qstat.') and not f.endswith('.yaml')][0]
 
     #  MAIN ###################################
-    reset_yaml_files()
+    # reset_yaml_files()  # either that or having a pid appended in the filename
     make_pbsnodes(PBSNODES_ORIG_FILE, PBSNODES_YAML_FILE)
     make_qstatq(QSTATQ_ORIG_FILE, QSTATQ_YAML_FILE, options.write_method)
     make_qstat(QSTAT_ORIG_FILE, QSTAT_YAML_FILE, options.write_method)
