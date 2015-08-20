@@ -115,8 +115,8 @@ def qstat_dump_all(l, outfile, write_func_args):
     with open(outfile, 'w') as fout:
         write_func, kwargs, _ = write_func_args
         write_func(l, fout, **kwargs)
-    # except:
-    #     import pdb; pdb.set_trace()
+        # except:
+        #     import pdb; pdb.set_trace()
         # print 'oh-oh!'
         # raise NotImplementedError
 
@@ -143,7 +143,7 @@ def make_qstat(orig_file, outfile, write_method):
 
     l = list()
     with open(orig_file, 'r') as fin:
-        header = fin.readline()
+        _ = fin.readline()  # header
         fin.readline()
         line = fin.readline()
         try:  # first qstat line determines which format qstat follows.
@@ -157,7 +157,8 @@ def make_qstat(orig_file, outfile, write_method):
             re_search = user_queue_search_prior
             qstat_values = _process_line(re_search, line, re_match_positions)
             l.append(qstat_values)
-            # unused:  _prior, _name, _submit, _start_at, _queue_domain, _slots, _ja_taskID = m.group(2), m.group(3), m.group(6), m.group(7), m.group(9), m.group(10), m.group(11)
+            # unused:  _prior, _name, _submit, _start_at, _queue_domain, _slots, _ja_taskID =
+            # m.group(2), m.group(3), m.group(6), m.group(7), m.group(9), m.group(10), m.group(11)
         finally:  # hence the rest of the lines should follow either try's or except's same format
             for line in fin:
                 qstat_values = _process_line(re_search, line, re_match_positions)
@@ -178,7 +179,8 @@ def _process_line(re_search, line, re_match_positions):
 def make_qstatq(orig_file, outfile, write_method):
     """
     reads QSTATQ_ORIG_FN sequentially and put useful data in respective yaml file
-    All lines are something like: searches for something like: biomed             --      --    72:00:00   --   31   0 --   E R
+    All lines are something like: searches for something like:
+    biomed             --      --    72:00:00   --   31   0 --   E R
     except the last line which contains two sums
     """
     check_empty_file(orig_file)
@@ -205,7 +207,8 @@ def make_qstatq(orig_file, outfile, write_method):
                 except AttributeError:
                     continue
             else:
-                for key, value in [('queue_name', queue_name), ('run', run), ('queued', queued), ('lm', lm), ('state', state)]:
+                for key, value in [('queue_name', queue_name), ('run', run), ('queued', queued), ('lm', lm),
+                                   ('state', state)]:
                     temp_dict[key] = value
                 l.append(temp_dict)
         l.append({'Total running': total_running, 'Total queued': total_queued})
@@ -253,8 +256,9 @@ def read_qstat_yaml(yaml_fn):
 
 def read_qstatq_yaml(yaml_fn):
     """
-    Reads the generated qstatq yaml file and extracts the information necessary for building the user accounts and pool
-    mappings table.
+    Reads the generated qstatq yaml file and extracts
+    the information necessary for building the
+    user accounts and pool mappings table.
     """
     qstatq_list = []
     with open(yaml_fn, 'r') as fin:
@@ -283,9 +287,9 @@ def qstatq_write_lines(l, fout):
 
 
 qstat_mapping = {'yaml': (yaml.dump_all, {'Dumper': Dumper, 'default_flow_style': False}, 'yaml'),
-                  'txtyaml': (qstat_write_lines, {}, 'yaml'),
-                  'json': (json.dumps, {}, 'json')}
+                 'txtyaml': (qstat_write_lines, {}, 'yaml'),
+                 'json': (json.dumps, {}, 'json')}
 
 qstatq_mapping = {'yaml': (yaml.dump_all, {'Dumper': Dumper, 'default_flow_style': False}, 'yaml'),
-                   'txtyaml': (qstatq_write_lines, {}, 'yaml'),
-                   'json': (json.dumps, {},'json')}
+                  'txtyaml': (qstatq_write_lines, {}, 'yaml'),
+                  'json': (json.dumps, {}, 'json')}
