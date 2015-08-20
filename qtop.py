@@ -596,7 +596,7 @@ def reset_yaml_files():
     """
     empties the files with every run of the python script
     """
-    for _file in [PBSNODES_YAML_FILE, QSTATQ_YAML_FILE, QSTAT_YAML_FILE]:
+    for _file in [PBSNODES_OUT_FN, QSTATQ_OUT_FN, QSTAT_OUT_FN]:
         fin = open(_file, 'w')
         fin.close()
 
@@ -641,25 +641,25 @@ if __name__ == '__main__':
 
     # Name files according to unique pid
     ext = qstat_mapping[options.write_method][2]
-    PBSNODES_YAML_FILE = 'pbsnodes_{}.{}'.format(os.getpid(), ext)
-    QSTATQ_YAML_FILE = 'qstat-q_{}.{}'.format(os.getpid(), ext)
-    QSTAT_YAML_FILE = 'qstat_{}.{}'.format(os.getpid(), ext)
+    PBSNODES_OUT_FN = 'pbsnodes_{}.{}'.format(os.getpid(), ext)
+    QSTATQ_OUT_FN = 'qstat-q_{}.{}'.format(os.getpid(), ext)
+    QSTAT_OUT_FN = 'qstat_{}.{}'.format(os.getpid(), ext)
 
     os.chdir(options.SOURCEDIR)
     # Location of read and created files
-    PBSNODES_ORIG_FILE = [f for f in os.listdir(os.getcwd()) if f.startswith('pbsnodes') and not f.endswith('.yaml')][0]
-    QSTATQ_ORIG_FILE = [f for f in os.listdir(os.getcwd()) if (f.startswith('qstat_q') or f.startswith('qstatq') or f.startswith('qstat-q') and not f.endswith('.yaml'))][0]
-    QSTAT_ORIG_FILE = [f for f in os.listdir(os.getcwd()) if f.startswith('qstat.') and not f.endswith('.yaml')][0]
+    PBSNODES_ORIG_FN = [f for f in os.listdir(os.getcwd()) if f.startswith('pbsnodes') and not f.endswith('.yaml')][0]
+    QSTATQ_ORIG_FN = [f for f in os.listdir(os.getcwd()) if (f.startswith('qstat_q') or f.startswith('qstatq') or f.startswith('qstat-q') and not f.endswith('.yaml'))][0]
+    QSTAT_ORIG_FN = [f for f in os.listdir(os.getcwd()) if f.startswith('qstat.') and not f.endswith('.yaml')][0]
 
     #  MAIN ###################################
     # reset_yaml_files()  # either that or having a pid appended in the filename
-    make_pbsnodes(PBSNODES_ORIG_FILE, PBSNODES_YAML_FILE)
-    make_qstatq(QSTATQ_ORIG_FILE, QSTATQ_YAML_FILE, options.write_method)
-    make_qstat(QSTAT_ORIG_FILE, QSTAT_YAML_FILE, options.write_method)
+    make_pbsnodes(PBSNODES_ORIG_FN, PBSNODES_OUT_FN)
+    make_qstatq(QSTATQ_ORIG_FN, QSTATQ_OUT_FN, options.write_method)
+    make_qstat(QSTAT_ORIG_FN, QSTAT_OUT_FN, options.write_method)
 
-    pbs_nodes = read_pbsnodes_yaml_into_list(PBSNODES_YAML_FILE)
-    total_running, total_queued, qstatq_list = read_qstatq_yaml(QSTATQ_YAML_FILE)
-    job_ids, user_names, job_states, queue_names = read_qstat_yaml(QSTAT_YAML_FILE)
+    pbs_nodes = read_pbsnodes_yaml_into_list(PBSNODES_OUT_FN)
+    total_running, total_queued, qstatq_list = read_qstatq_yaml(QSTATQ_OUT_FN)
+    job_ids, user_names, job_states, queue_names = read_qstat_yaml(QSTAT_OUT_FN)
 
     state_dict, NAMED_WNS = calculate_stuff(pbs_nodes)
 

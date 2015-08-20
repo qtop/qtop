@@ -22,7 +22,7 @@ def check_empty_file(orig_file):
 
 def make_pbsnodes(orig_file, yaml_file):
     """
-    reads PBSNODES_ORIG_FILE sequentially and puts its information into a new yaml file
+    reads PBSNODES_ORIG_FN sequentially and puts its information into a new yaml file
     """
     check_empty_file(orig_file)
     blocks = read_all_blocks(orig_file)
@@ -128,7 +128,7 @@ def qstat_dump_all(l, outfile, write_func_args):
 
 def make_qstat(orig_file, outfile, write_method):
     """
-    reads QSTAT_ORIG_FILE sequentially and put useful data in respective yaml file.
+    reads QSTAT_ORIG_FN sequentially and put useful data in respective yaml file.
     Some qstat files are structured a bit differently (the ones containing 'prior')
     Job id                    Name             User            Time Use S Queue
     or
@@ -178,7 +178,7 @@ def process_line(re_search, line, re_match_positions):
 
 def make_qstatq(orig_file, outfile, write_method):
     """
-    reads QSTATQ_ORIG_FILE sequentially and put useful data in respective yaml file
+    reads QSTATQ_ORIG_FN sequentially and put useful data in respective yaml file
     All lines are something like: searches for something like: biomed             --      --    72:00:00   --   31   0 --   E R
     except the last line which contains two sums
     """
