@@ -20,14 +20,13 @@ def check_empty_file(orig_file):
             sys.exit(0)
 
 
-def make_pbsnodes(orig_file, yaml_file):
+def make_pbsnodes(orig_file, out_file):
     """
     reads PBSNODES_ORIG_FN sequentially and puts its information into a new yaml file
     """
     check_empty_file(orig_file)
-    blocks = read_all_blocks(orig_file)
-    with open(yaml_file, 'w') as fout:
-        # lastcore = ''
+    blocks = _read_all_blocks(orig_file)
+    with open(out_file, 'w') as fout:
         for block in blocks:
             fout.write('domainname: ' + block['Domain name'] + '\n')
 
@@ -64,7 +63,7 @@ def _jobs_cores(jobs):  # block['jobs']
         yield job, core
 
 
-def read_all_blocks(orig_file):
+def _read_all_blocks(orig_file):
     """
     reads pbsnodes txt file block by block
     """
@@ -72,7 +71,7 @@ def read_all_blocks(orig_file):
         result = []
         reading = True
         while reading:
-            wn_block = read_block(fin)
+            wn_block = _read_block(fin)
             if wn_block:
                 result.append(wn_block)
             else:
@@ -80,7 +79,7 @@ def read_all_blocks(orig_file):
     return result
 
 
-def read_block(fin):
+def _read_block(fin):
     line = fin.readline()
     if not line:
         return None
@@ -150,23 +149,23 @@ def make_qstat(orig_file, outfile, write_method):
         try:  # first qstat line determines which format qstat follows.
             re_match_positions = (1, 5, 7, 8)
             re_search = user_queue_search
-            qstat_values = process_line(re_search, line, re_match_positions)
+            qstat_values = _process_line(re_search, line, re_match_positions)
             l.append(qstat_values)
             # unused: _job_nr, _ce_name, _name, _time_use = m.group(2), m.group(3), m.group(4), m.group(6)
         except AttributeError:  # this means 'prior' exists in qstat, it's another format
             re_match_positions = (1, 4, 5, 8)
             re_search = user_queue_search_prior
-            qstat_values = process_line(re_search, line, re_match_positions)
+            qstat_values = _process_line(re_search, line, re_match_positions)
             l.append(qstat_values)
             # unused:  _prior, _name, _submit, _start_at, _queue_domain, _slots, _ja_taskID = m.group(2), m.group(3), m.group(6), m.group(7), m.group(9), m.group(10), m.group(11)
         finally:  # hence the rest of the lines should follow either try's or except's same format
             for line in fin:
-                qstat_values = process_line(re_search, line, re_match_positions)
+                qstat_values = _process_line(re_search, line, re_match_positions)
                 l.append(qstat_values)
     qstat_dump_all(l, outfile, qstat_mapping[write_method])
 
 
-def process_line(re_search, line, re_match_positions):
+def _process_line(re_search, line, re_match_positions):
     qstat_values = dict()
     m = re.search(re_search, line.strip())
     job_id, user, job_state, queue = [m.group(x) for x in re_match_positions]
@@ -229,7 +228,7 @@ def read_pbsnodes_yaml_into_list(yaml_fn):
     return pbs_nodes
 
 
-def map_pbsnodes_to_wn_dicts(state_dict, pbs_nodes):
+def _map_pbsnodes_to_wn_dicts(state_dict, pbs_nodes):
     for (pbs_node, (idx, cur_node_nr)) in zip(pbs_nodes, enumerate(state_dict['wn_list'])):
         state_dict['wn_dict'][cur_node_nr] = pbs_node
         state_dict['wn_dict_remapped'][idx] = pbs_node
