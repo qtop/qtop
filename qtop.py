@@ -102,8 +102,8 @@ def calculate_stuff(pbs_nodes):
         _all_letters.append(node_letters)
         _all_str_digits_with_empties.append(node_str_digits)
 
-        state_dict['total_cores'] += node.get('np')
-        state_dict['max_np'] = max(state_dict['max_np'], node['np'])
+        state_dict['total_cores'] += int(node.get('np'))
+        state_dict['max_np'] = max(state_dict['max_np'], int(node['np']))
         state_dict['offline_down_nodes'] += 1 if node['state'] in 'do' else 0
         try:
             state_dict['working_cores'] += len(node['core_job_map'])
@@ -674,9 +674,9 @@ if __name__ == '__main__':
 
     # Name files according to unique pid
     ext = qstat_mapping[options.write_method][2]
-    PBSNODES_OUT_FN = 'pbsnodes_{}.{}'.format(os.getpid(), ext)
-    QSTATQ_OUT_FN = 'qstat-q_{}.{}'.format(os.getpid(), ext)
-    QSTAT_OUT_FN = 'qstat_{}.{}'.format(os.getpid(), ext)
+    PBSNODES_OUT_FN = 'pbsnodes_{}.{}'.format(options.write_method, ext)  # os.getpid()
+    QSTATQ_OUT_FN = 'qstat-q_{}.{}'.format(options.write_method, ext)  # os.getpid()
+    QSTAT_OUT_FN = 'qstat_{}.{}'.format(options.write_method, ext)  # os.getpid()
 
     os.chdir(options.SOURCEDIR)
     # Location of read and created files
@@ -687,11 +687,11 @@ if __name__ == '__main__':
 
     #  MAIN ###################################
     # reset_yaml_files()  # either that or having a pid appended in the filename
-    make_pbsnodes(PBSNODES_ORIG_FN, PBSNODES_OUT_FN)
+    make_pbsnodes(PBSNODES_ORIG_FN, PBSNODES_OUT_FN, options.write_method)
     make_qstatq(QSTATQ_ORIG_FN, QSTATQ_OUT_FN, options.write_method)
     make_qstat(QSTAT_ORIG_FN, QSTAT_OUT_FN, options.write_method)
 
-    pbs_nodes = read_pbsnodes_yaml_into_list(PBSNODES_OUT_FN)
+    pbs_nodes = read_pbsnodes_yaml(PBSNODES_OUT_FN)
     total_running, total_queued, qstatq_list = read_qstatq_yaml(QSTATQ_OUT_FN)
     job_ids, user_names, job_states, queue_names = read_qstat_yaml(QSTAT_OUT_FN)
 

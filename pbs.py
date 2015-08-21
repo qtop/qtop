@@ -14,49 +14,79 @@ except ImportError:
 def check_empty_file(orig_file):
     if not os.path.getsize(orig_file) > 0:
         print 'Your ' + orig_file + ' file is empty! Please check your directory. Exiting ...'
-        try:
-            os.chdir(HOMEPATH + 'qt')
-        finally:
-            sys.exit(0)
+        sys.exit(0)
 
 
-def make_pbsnodes(orig_file, out_file):
+def make_pbsnodes(orig_file, out_file, write_method):
     """
     reads PBSNODES_ORIG_FN sequentially and puts its information into a new yaml file
     """
     check_empty_file(orig_file)
-    blocks = _read_all_blocks(orig_file)
-    with open(out_file, 'w') as fout:
-        for block in blocks:
-            fout.write('domainname: ' + block['Domain name'] + '\n')
+    raw_blocks = _read_all_blocks(orig_file)
+    all_pbs_values = []
+    for block in raw_blocks:
+        pbs_values = dict()
+        pbs_values['domainname'] = block['domainname']
 
-            nextchar = block['state'][0]
-            state = "'-'" if nextchar == 'f' else nextchar
-            fout.write('state: ' + state + '\n')
+        nextchar = block['state'][0]
+        state = (nextchar == 'f') and "-" or nextchar
 
-            fout.write('np: ' + block['np'] + '\n')
-            if block.get('gpus') > 0:  # this should be rare.
-                fout.write('gpus: ' + block['gpus'] + '\n')
-            try:  # this should turn up more often, hence the try/except.
-                _ = block['jobs']
-            except KeyError:
-                pass
-            else:
-                _write_jobs_cores(block['jobs'], fout)
-            fout.write('---\n')
+        pbs_values['state'] = state
+        pbs_values['np'] = block['np']
+
+        if block.get('gpus') > 0:  # this should be rare.
+            pbs_values['gpus'] = block['gpus']
+        try:  # this should turn up more often, hence the try/except.
+            _ = block['jobs']
+        except KeyError:
+            pass
+        else:
+            pbs_values['core_job_map'] = []
+            jobs = block['jobs'].split(',')
+            for job, core in get_jobs_cores(jobs):
+                _d = {}
+                _d['job'] = job
+                _d['core'] = core
+                pbs_values['core_job_map'].append(_d)
+            all_pbs_values.append(pbs_values)
+    pbs_dump_all(all_pbs_values, out_file, pbsnodes_mapping[write_method])
 
 
-def _write_jobs_cores(jobs, fout):
+def pbsnodes_write_lines(l, fout):
+    for _block in l:
+        fout.write('---\n')
+        fout.write('domainname: ' + _block['domainname'] + '\n')
+        fout.write('state: ' + "'" + _block['state'] + "'" + '\n')
+        fout.write('np: ' + _block['np'] + '\n')
+        if _block.get('gpus') > 0:
+            fout.write('gpus: ' + _block['gpus'] + '\n')
+        try:  # this should turn up more often, hence the try/except.
+            core_job_map = _block['core_job_map']
+        except KeyError:
+            pass
+        else:
+            _write_jobs_cores(core_job_map, fout)
+        fout.write('...\n')
+
+
+def _write_jobs_cores(job_cores, fout):
     fout.write('core_job_map: \n')
-    for job, core in _jobs_cores(jobs):
-        fout.write('- core: ' + core + '\n')
-        fout.write('  job: ' + job + '\n')
+    # for job, core in get_jobs_cores(jobs):
+    for job_core in job_cores:
+        fout.write('- core: ' + job_core['core'] + '\n')
+        fout.write('  job: ' + job_core['job'] + '\n')
 
 
-def _jobs_cores(jobs):  # block['jobs']
-    jobs_list = jobs.split(',')
-    for job in jobs_list:
-        core, job = job.strip().split('/')
+def get_jobs_cores(jobs):  # block['jobs']
+    """
+    Generator that takes str of this format
+    '0/10102182.f-batch01.grid.sinica.edu.tw, 1/10102106.f-batch01.grid.sinica.edu.tw, 2/10102339.f-batch01.grid.sinica.edu.tw, 3/10104007.f-batch01.grid.sinica.edu.tw'
+    and spits tuples of the format (job,core)
+    """
+    # jobs = jobs_str.split(',')
+    for core_job in jobs:
+        core, job = core_job.strip().split('/')
+        # core, job = job['core'], job['job']
         if len(core) > len(job):  # we must've got this wrong (jobs format must be jobid/core, not core/jobid)
             core, job = job, core
         job = job.strip().split('/')[0].split('.')[0]
@@ -80,12 +110,11 @@ def _read_all_blocks(orig_file):
 
 
 def _read_block(fin):
-    line = fin.readline()
-    if not line:
+    domain_name = fin.readline().strip()
+    if not domain_name:
         return None
 
-    domain_name = line.strip()
-    block = {'Domain name': domain_name}
+    block = {'domainname': domain_name}
     reading = True
     while reading:
         line = fin.readline()
@@ -107,22 +136,13 @@ def qstat_write_lines(l, fout):
         fout.write('...\n')
 
 
-def qstat_dump_all(l, out_file, write_func_args):
+def pbs_dump_all(l, out_file, write_func_args):
     """
     dumps the content of qstat/qstat_q files in the selected write_method format
     """
-    # try:
     with open(out_file, 'w') as fout:
         write_func, kwargs, _ = write_func_args
         write_func(l, fout, **kwargs)
-        # except:
-        #     import pdb; pdb.set_trace()
-        # print 'oh-oh!'
-        # raise NotImplementedError
-
-
-# def perform(func, *args, **kwargs):
-#     func(*args, **kwargs)
 
 
 def make_qstat(orig_file, out_file, write_method):
@@ -163,7 +183,7 @@ def make_qstat(orig_file, out_file, write_method):
             for line in fin:
                 qstat_values = _process_line(re_search, line, re_match_positions)
                 l.append(qstat_values)
-    qstat_dump_all(l, out_file, qstat_mapping[write_method])
+    pbs_dump_all(l, out_file, qstat_mapping[write_method])
 
 
 def _process_line(re_search, line, re_match_positions):
@@ -212,10 +232,10 @@ def make_qstatq(orig_file, out_file, write_method):
                     temp_dict[key] = value
                 l.append(temp_dict)
         l.append({'Total running': total_running, 'Total queued': total_queued})
-    qstat_dump_all(l, out_file, qstatq_mapping[write_method])
+    pbs_dump_all(l, out_file, qstatq_mapping[write_method])
 
 
-def read_pbsnodes_yaml_into_list(yaml_fn):
+def read_pbsnodes_yaml(yaml_fn):
     """
     Parses the pbsnodes yaml file
     :param yaml_fn: str
@@ -293,3 +313,7 @@ qstat_mapping = {'yaml': (yaml.dump_all, {'Dumper': Dumper, 'default_flow_style'
 qstatq_mapping = {'yaml': (yaml.dump_all, {'Dumper': Dumper, 'default_flow_style': False}, 'yaml'),
                   'txtyaml': (qstatq_write_lines, {}, 'yaml'),
                   'json': (json.dumps, {}, 'json')}
+
+pbsnodes_mapping = {'yaml': (yaml.dump_all, {'Dumper': Dumper, 'default_flow_style': False}, 'yaml'),
+                    'txtyaml': (pbsnodes_write_lines, {}, 'yaml'),
+                    'json': (json.dumps, {}, 'json')}
