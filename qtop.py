@@ -220,7 +220,7 @@ def create_account_jobs_table(user_names, job_states):
         account_jobs_table.append(
             [id_of_username[uid[0]], job_counts['running_of_user'][uid[0]], job_counts['queued_of_user'][
                 uid[0]], all_of_user, uid])
-    account_jobs_table.sort(key=itemgetter(3), reverse=True)  # sort by All jobs
+    account_jobs_table.sort(key=itemgetter(3,1,4), reverse=True)  # sort by All jobs
     return account_jobs_table, id_of_username
 
 
@@ -534,7 +534,7 @@ def calculate_remaining_matrices(node_state,
 def create_user_accounts_pool_mappings(accounts_mappings, color_of_account):
     print colorize('\n===> ', '#') + colorize('User accounts and pool mappings', 'Nothing') + colorize(' <=== ',
                                                                                                        '#') + colorize(
-        '("all" includes those in C and W states, as reported by qstat)', 'NoColourAccount')
+        "('all' includes those in C and W states, as reported by qstat)", 'NoColourAccount')
     print ' id |  R   +   Q  /  all |    unix account | Grid certificate DN (this info is only available under elevated privileges)'
 
     for line in accounts_mappings:
