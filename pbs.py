@@ -244,7 +244,7 @@ def read_pbsnodes_yaml(fn, write_method):
     pbs_nodes = []
 
     with open(fn) as fin:
-        _nodes = (write_method == 'yaml') and yaml.load_all(fin, Loader=Loader) or json.load(fin)
+        _nodes = (write_method.endswith('yaml')) and yaml.load_all(fin, Loader=Loader) or json.load(fin)
         for node in _nodes:
             pbs_nodes.append(node)
     pbs_nodes.pop()  # until i figure out why the last node is None
@@ -264,7 +264,7 @@ def read_qstat_yaml(fn, write_method):
     job_ids, usernames, job_states, queue_names = [], [], [], []
 
     with open(fn) as fin:
-        qstats = (write_method == 'yaml') and yaml.load_all(fin, Loader=Loader) or json.load(fin)
+        qstats = (write_method.endswith('yaml')) and yaml.load_all(fin, Loader=Loader) or json.load(fin)
         for qstat in qstats:
             job_ids.append(str(qstat['JobId']))
             usernames.append(qstat['UnixAccount'])
@@ -282,7 +282,7 @@ def read_qstatq_yaml(fn, write_method):
     """
     qstatq_list = []
     with open(fn, 'r') as fin:
-        qstatqs_total = (write_method == 'yaml') and yaml.load_all(fin, Loader=Loader) or json.load(fin)
+        qstatqs_total = (write_method.endswith('yaml')) and yaml.load_all(fin, Loader=Loader) or json.load(fin)
         for qstatq in qstatqs_total:
             qstatq_list.append(qstatq)
         total = qstatq_list.pop()
