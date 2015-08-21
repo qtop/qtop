@@ -691,9 +691,9 @@ if __name__ == '__main__':
     make_qstatq(QSTATQ_ORIG_FN, QSTATQ_OUT_FN, options.write_method)
     make_qstat(QSTAT_ORIG_FN, QSTAT_OUT_FN, options.write_method)
 
-    pbs_nodes = read_pbsnodes_yaml(PBSNODES_OUT_FN)
-    total_running, total_queued, qstatq_list = read_qstatq_yaml(QSTATQ_OUT_FN)
-    job_ids, user_names, job_states, queue_names = read_qstat_yaml(QSTAT_OUT_FN)
+    pbs_nodes = read_pbsnodes_yaml(PBSNODES_OUT_FN, options.write_method)
+    total_running, total_queued, qstatq_list = read_qstatq_yaml(QSTATQ_OUT_FN, options.write_method)
+    job_ids, user_names, job_states, queue_names = read_qstat_yaml(QSTAT_OUT_FN, options.write_method)
 
     state_dict, NAMED_WNS = calculate_stuff(pbs_nodes)
 

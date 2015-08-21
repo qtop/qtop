@@ -235,16 +235,16 @@ def make_qstatq(orig_file, out_file, write_method):
     pbs_dump_all(l, out_file, qstatq_mapping[write_method])
 
 
-def read_pbsnodes_yaml(yaml_fn):
+def read_pbsnodes_yaml(fn, write_method):
     """
     Parses the pbsnodes yaml file
-    :param yaml_fn: str
+    :param fn: str
     :return: list
     """
     pbs_nodes = []
 
-    with open(yaml_fn) as fin:
-        _nodes = yaml.load_all(fin, Loader=Loader)
+    with open(fn) as fin:
+        _nodes = (write_method == 'yaml') and yaml.load_all(fin, Loader=Loader) or json.load(fin)
         for node in _nodes:
             pbs_nodes.append(node)
     pbs_nodes.pop()  # until i figure out why the last node is None
@@ -257,14 +257,14 @@ def map_pbsnodes_to_wn_dicts(state_dict, pbs_nodes):
         state_dict['wn_dict_remapped'][idx] = pbs_node
 
 
-def read_qstat_yaml(yaml_fn):
+def read_qstat_yaml(fn, write_method):
     """
     reads qstat YAML file and populates four lists. Returns the lists
     """
     job_ids, usernames, job_states, queue_names = [], [], [], []
 
-    with open(yaml_fn) as finr:
-        qstats = yaml.load_all(finr, Loader=Loader)
+    with open(fn) as fin:
+        qstats = (write_method == 'yaml') and yaml.load_all(fin, Loader=Loader) or json.load(fin)
         for qstat in qstats:
             job_ids.append(str(qstat['JobId']))
             usernames.append(qstat['UnixAccount'])
@@ -274,15 +274,15 @@ def read_qstat_yaml(yaml_fn):
     return job_ids, usernames, job_states, queue_names
 
 
-def read_qstatq_yaml(yaml_fn):
+def read_qstatq_yaml(fn, write_method):
     """
     Reads the generated qstatq yaml file and extracts
     the information necessary for building the
     user accounts and pool mappings table.
     """
     qstatq_list = []
-    with open(yaml_fn, 'r') as fin:
-        qstatqs_total = yaml.load_all(fin, Loader=Loader)
+    with open(fn, 'r') as fin:
+        qstatqs_total = (write_method == 'yaml') and yaml.load_all(fin, Loader=Loader) or json.load(fin)
         for qstatq in qstatqs_total:
             qstatq_list.append(qstatq)
         total = qstatq_list.pop()
@@ -308,12 +308,12 @@ def qstatq_write_lines(l, fout):
 
 qstat_mapping = {'yaml': (yaml.dump_all, {'Dumper': Dumper, 'default_flow_style': False}, 'yaml'),
                  'txtyaml': (qstat_write_lines, {}, 'yaml'),
-                 'json': (json.dumps, {}, 'json')}
+                 'json': (json.dump, {}, 'json')}
 
 qstatq_mapping = {'yaml': (yaml.dump_all, {'Dumper': Dumper, 'default_flow_style': False}, 'yaml'),
                   'txtyaml': (qstatq_write_lines, {}, 'yaml'),
-                  'json': (json.dumps, {}, 'json')}
+                  'json': (json.dump, {}, 'json')}
 
 pbsnodes_mapping = {'yaml': (yaml.dump_all, {'Dumper': Dumper, 'default_flow_style': False}, 'yaml'),
                     'txtyaml': (pbsnodes_write_lines, {}, 'yaml'),
-                    'json': (json.dumps, {}, 'json')}
+                    'json': (json.dump, {}, 'json')}
