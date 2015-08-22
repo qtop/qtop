@@ -10,6 +10,7 @@
 from operator import itemgetter
 from optparse import OptionParser
 import datetime
+from collections import Counter
 import os
 import re
 import yaml
@@ -182,7 +183,7 @@ def calculate_job_counts(user_names, job_states):
                      'W': 'waiting_of_user',
                      'E': 'exiting_of_user'}
 
-    _job_counts = create_job_counts(user_names, job_states, state_abbrevs)
+    job_counts = create_job_counts(user_names, job_states, state_abbrevs)
     expand_useraccounts_symbols(config, user_names)
     user_sorted_lot = produce_user_lot(user_names)
 
@@ -193,7 +194,7 @@ def calculate_job_counts(user_names, job_states):
     # Calculates and prints what is actually below the id|  R + Q /all | unix account etc line
     # this is slower but shorter: 8mus
     for state_abbrev in state_abbrevs:
-        _xjobs_of_user = _job_counts[state_abbrevs[state_abbrev]]
+        _xjobs_of_user = job_counts[state_abbrevs[state_abbrev]]
         missing_uids = set(id_of_username).difference(_xjobs_of_user)
         [_xjobs_of_user.setdefault(missing_uid, 0) for missing_uid in missing_uids]
 
@@ -209,21 +210,21 @@ def calculate_job_counts(user_names, job_states):
     #         job_counts['waiting_of_user'][uid] = 0  # 19
     #     if uid not in job_counts['exiting_of_user']:
     #         job_counts['exiting_of_user'][uid] = 0  # 20
-    return _job_counts, user_sorted_lot, id_of_username
+    return job_counts, user_sorted_lot, id_of_username
 
 
 def create_account_jobs_table(user_names, job_states):
     job_counts, user_sorted_lot, id_of_username = calculate_job_counts(user_names, job_states)
     account_jobs_table = []
-    for uid in user_sorted_lot:
-        all_of_user = job_counts['cancelled_of_user'][uid[0]] + \
-                      job_counts['running_of_user'][uid[0]] + \
-                      job_counts['queued_of_user'][uid[0]] + \
-                      job_counts['waiting_of_user'][uid[0]] + \
-                      job_counts['exiting_of_user'][uid[0]]
+    for user_allcount in user_sorted_lot:
+        all_of_user = job_counts['cancelled_of_user'][user_allcount[0]] + \
+                      job_counts['running_of_user'][user_allcount[0]] + \
+                      job_counts['queued_of_user'][user_allcount[0]] + \
+                      job_counts['waiting_of_user'][user_allcount[0]] + \
+                      job_counts['exiting_of_user'][user_allcount[0]]
         account_jobs_table.append(
-            [id_of_username[uid[0]], job_counts['running_of_user'][uid[0]], job_counts['queued_of_user'][
-                uid[0]], all_of_user, uid])
+            [id_of_username[user_allcount[0]], job_counts['running_of_user'][user_allcount[0]], job_counts['queued_of_user'][
+                user_allcount[0]], all_of_user, uid])
     account_jobs_table.sort(key=itemgetter(3,1,4), reverse=True)  # sort by All jobs
     return account_jobs_table, id_of_username
 
@@ -256,10 +257,9 @@ def create_job_counts2(user_names, job_states, state_abbrevs):
     :param state_abbrevs: dict
     :return: dict
     """
-    from collections import Counter
-    job_counts = dict()
     user_states = [(user_name, job_state) for user_name, job_state in zip(user_names, job_states)]
-    job_counts[state_abbrevs[job_state]] = Counter(user_states)
+    job_counts = Counter(user_states)
+    return job_counts
 
 
 def produce_user_lot(_user_names):
