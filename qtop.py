@@ -10,7 +10,7 @@
 from operator import itemgetter
 from optparse import OptionParser
 import datetime
-from collections import Counter
+from collections import Counter, OrderedDict
 import os
 import re
 import yaml
@@ -346,77 +346,19 @@ def insert_sep(original, separator, pos, stopaftern=0):
 def calculate_Total_WNIDLine_Width(_node_count):  # (total_wn) in case of multiple node_dict['node_subclusters']
     """
     calculates the worker node ID number line widths (expressed by hxxxx's)
-    h1000 is the thousands' line
-    h0100 is the hundreds' line
-    and so on
-    # h1000, h0100, h0010, h0001 = '','','',''
     """
-    hxxxx = {}
-    # hxxxx['h1000'] = h1000
-    # hxxxx['h0100'] = h0100
-    # hxxxx['h0010'] = h0010
-    # hxxxx['h0001'] = h0001
+    hxxxx = dict()
 
-    if _node_count < 10:
-        u_ = '123456789'
-        hxxxx['h0001'] = u_[:_node_count]
+    str_nodes = len(str(_node_count))  # 4
+    hxxxx = {str(place): [] for place in range(1, str_nodes + 1)}
+    for nr in range(1, _node_count + 1):
+        extra_zeros = str_nodes - len(str(nr))  # 4 - 1 = 3, for wn0001
+        string = "".join("0" * extra_zeros + str(nr))
+        for place in range(1, str_nodes + 1):
+            hxxxx[str(place)].append(string[place - 1])
 
-    elif _node_count < 100:
-        d_ = '0' * 9 + '1' * 10 + '2' * 10 + '3' * 10 + '4' * 10 + '5' * 10 + '6' * 10 + '7' * 10 + '8' * 10 + '9' * 10
-        u_ = '1234567890' * 10
-        hxxxx['h0010'] = d_[:_node_count]
-        hxxxx['h0001'] = u_[:_node_count]
-
-    elif _node_count < 1000:
-        cent = int(str(_node_count)[0])
-        dec = int(str(_node_count)[1])
-        unit = int(str(_node_count)[2])
-
-        c_ = str(0) * 99
-        for i in range(1, cent):
-            c_ += str(i) * 100
-        c_ += str(cent) * (int(dec)) * 10 + str(cent) * (int(unit) + 1)
-        hxxxx['h0100'] = c_[:_node_count]
-
-        d_ = '0' * 9 + '1' * 10 + '2' * 10 + '3' * 10 + '4' * 10 + '5' * 10 + '6' * 10 + '7' * 10 + '8' * 10 + '9' * 10
-        d__ = d_ + (cent - 1) * (str(0) + d_) + str(0)
-        d__ += d_[:int(str(dec) + str(unit))]
-        hxxxx['h0010'] = d__[:_node_count]
-
-        uc = '1234567890' * 100
-        hxxxx['h0001'] = uc[:_node_count]
-
-    elif _node_count > 1000:
-        thou = int(str(_node_count)[0])
-        cent = int(str(_node_count)[1])
-        dec = int(str(_node_count)[2])
-        unit = int(str(_node_count)[3])
-
-        hxxxx['h1000'] += str(0) * 999
-        for i in range(1, thou):
-            hxxxx['h1000'] += str(i) * 1000
-        hxxxx['h1000'] += str(thou) * ((int(cent)) * 100 + (int(dec)) * 10 + (int(unit) + 1))
-
-        c_ = '0' * 99 + '1' * 100 + '2' * 100 + '3' * 100 + '4' * 100 + '5' * 100 + '6' * 100 + '7' * 100 + '8' * 100 + '9' * 100
-        c__ = '0' * 100 + '1' * 100 + '2' * 100 + '3' * 100 + '4' * 100 + '5' * 100 + '6' * 100 + '7' * 100 + '8' * 100 + '9' * 100
-        hxxxx['h0100'] = c_
-
-        for i in range(1, thou):
-            hxxxx['h0100'] += c__
-        else:
-            hxxxx['h0100'] += c__[:int(str(cent) + str(dec) + str(unit)) + 1]
-
-        d_ = '0' * 10 + '1' * 10 + '2' * 10 + '3' * 10 + '4' * 10 + '5' * 10 + '6' * 10 + '7' * 10 + '8' * 10 + '9' * 10
-        d__ = d_ * thou * 10  # cent * 10
-        d___ = d_ * (cent - 1)
-        hxxxx[
-            'h0010'] = '0' * 9 + '1' * 10 + '2' * 10 + '3' * 10 + '4' * 10 + '5' * 10 + '6' * 10 + '7' * 10 + '8' * 10 + '9' * 10
-        hxxxx['h0010'] += d__
-        hxxxx['h0010'] += d___
-        hxxxx['h0010'] += d_[:int(str(dec) + str(unit)) + 1]
-
-        uc = '1234567890' * 1000
-        hxxxx['h0001'] = uc[:_node_count]
+    # for place in range(1, str_nodes + 1):
+    #     print "".join(hxxxx[str(place)])
     return hxxxx
 
 
@@ -455,31 +397,24 @@ def find_matrices_width(wn_number, wn_list, state_dict, term_columns, DEADWEIGHT
 
 def print_WN_ID_lines(start, stop, wn_number, hxxxx):
     """
-    h1000 is a header for the 'thousands',
-    h0100 is a header for the 'hundreds',
-    h0010 is a header for the 'tens',
-    h0001 is a header for the 'units' in the WN_ID lines
-    wn_number determines the number of WN ID lines needed  (1/2/3/4?)
+    wn_number determines the number of WN ID lines needed  (1/2/3/4+?)
     """
     just_name_dict = {}
+    str_nodes = len(str(wn_number))  # 4
+    d = OrderedDict()
     if not NAMED_WNS:
-        if wn_number < 10:
-            print insert_sep(hxxxx['h0001'][start:stop], SEPARATOR, options.WN_COLON) + '={__WNID__}'
-
-        elif wn_number < 100:
-            print insert_sep(hxxxx['h0010'][start:stop], SEPARATOR, options.WN_COLON) + '={_Worker_}'
-            print insert_sep(hxxxx['h0001'][start:stop], SEPARATOR, options.WN_COLON) + '={__Node__}'
-
-        elif wn_number < 1000:
-            print insert_sep(hxxxx['h0100'][start:stop], SEPARATOR, options.WN_COLON) + '={_Worker_}'
-            print insert_sep(hxxxx['h0010'][start:stop], SEPARATOR, options.WN_COLON) + '={__Node__}'
-            print insert_sep(hxxxx['h0001'][start:stop], SEPARATOR, options.WN_COLON) + '={___ID___}'
-
-        elif wn_number > 1000:
-            print insert_sep(hxxxx['h1000'][start:stop], SEPARATOR, options.WN_COLON) + '={________}'
-            print insert_sep(hxxxx['h0100'][start:stop], SEPARATOR, options.WN_COLON) + '={_Worker_}'
-            print insert_sep(hxxxx['h0010'][start:stop], SEPARATOR, options.WN_COLON) + '={__Node__}'
-            print insert_sep(hxxxx['h0001'][start:stop], SEPARATOR, options.WN_COLON) + '={___ID___}'
+        for place in range(1, str_nodes + 1):
+            d[str(place)] = "".join(hxxxx[str(place)])
+        appends = {
+            '1': ['={__WNID__}'],
+            '2': ['={_Worker_}', '={__Node__}'],
+            '3': ['={_Worker_}', '={__Node__}', '={___ID___}'],
+            '4': ['={________}', '={_Worker_}', '={__Node__}', '={___ID___}']
+        }
+        size = str(len(d))  # key, nr of horizontal lines to be displayed
+        d[size]  #
+        for line in d:
+            print insert_sep(d[line][start:stop], SEPARATOR, options.WN_COLON) + iter(appends[size]).next()
     elif NAMED_WNS or options.FORCE_NAMES:  # names (e.g. fruits) instead of numbered WNs
         raise NotImplementedError
         color = 0
