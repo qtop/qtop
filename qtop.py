@@ -21,8 +21,8 @@ from colormap import color_of_account, code_of_color
 parser = OptionParser()  # for more details see http://docs.python.org/library/optparse.html
 parser.add_option("-a", "--blindremapping", action="store_true", dest="BLINDREMAP", default=False,
                   help="This is used in situations where node names are not a pure arithmetic seq (eg. rocks clusters)")
-parser.add_option("-c", "--COLOR", action="store_true", dest="COLOR", default=True,
-                  help="Enable/Disable color in qtop output. Use it with an ON/OFF switch: -c ON or -c OFF")
+parser.add_option("-c", "--NOCOLOR", action="store_true", dest="NOCOLOR", default=False,
+                  help="Enable/Disable color in qtop output.")
 parser.add_option("-f", "--setCOLORMAPFILE", action="store", type="string", dest="COLORFILE")
 parser.add_option("-m", "--noMasking", action="store_false", dest="MASKING", default=True,
                   help="Don't mask early empty WNs (default: if the first 30 WNs are unused, counting starts from 31).")
@@ -47,7 +47,7 @@ parser.add_option("-w", "--writemethod", dest="write_method", action="store", de
 
 def colorize(text, pattern):
     """prints text colored according to its unix account colors"""
-    return "\033[" + code_of_color[color_of_account[pattern]] + "m" + text + "\033[1;m" if options.COLOR else text
+    return "\033[" + code_of_color[color_of_account[pattern]] + "m" + text + "\033[1;m" if not options.NOCOLOR else text
 
 
 def decide_remapping(pbs_nodes, state_dict):
@@ -172,6 +172,9 @@ def create_job_accounting_summary(state_dict, total_running, total_queued, qstat
 def calculate_job_counts(user_names, job_states):
     """
     Calculates and prints what is actually below the id|  R + Q /all | unix account etc line
+    :param user_names: list
+    :param job_states: list
+    :return: (list, list, dict)
     """
     state_abbrevs = {'R': 'running_of_user',
                      'Q': 'queued_of_user',
@@ -180,18 +183,19 @@ def calculate_job_counts(user_names, job_states):
                      'E': 'exiting_of_user'}
 
     _job_counts = create_job_counts(user_names, job_states, state_abbrevs)
-    user_sorted_list = produce_user_list(user_names)
-    expand_useraccounts_symbols(config, user_sorted_list)
+    expand_useraccounts_symbols(config, user_names)
+    user_sorted_lot = produce_user_lot(user_names)
 
     id_of_username = {}
-    for ind, user_name in enumerate(user_sorted_list):
-        id_of_username[user_name[0]] = config['possible_ids'][ind]
+    for _id, user_allcount in enumerate(user_sorted_lot):
+        id_of_username[user_allcount[0]] = config['possible_ids'][_id]
 
     # Calculates and prints what is actually below the id|  R + Q /all | unix account etc line
     # this is slower but shorter: 8mus
     for state_abbrev in state_abbrevs:
-        missing_uids = set(id_of_username).difference(_job_counts[state_abbrevs[state_abbrev]])
-        [_job_counts[state_abbrevs[state_abbrev]].setdefault(uid, 0) for uid in missing_uids]
+        _xjobs_of_user = _job_counts[state_abbrevs[state_abbrev]]
+        missing_uids = set(id_of_username).difference(_xjobs_of_user)
+        [_xjobs_of_user.setdefault(missing_uid, 0) for missing_uid in missing_uids]
 
     # This is actually faster: 6 mus
     # for uid in id_of_username:
@@ -205,13 +209,13 @@ def calculate_job_counts(user_names, job_states):
     #         job_counts['waiting_of_user'][uid] = 0  # 19
     #     if uid not in job_counts['exiting_of_user']:
     #         job_counts['exiting_of_user'][uid] = 0  # 20
-    return _job_counts, user_sorted_list, id_of_username
+    return _job_counts, user_sorted_lot, id_of_username
 
 
 def create_account_jobs_table(user_names, job_states):
-    job_counts, user_sorted_list, id_of_username = calculate_job_counts(user_names, job_states)
+    job_counts, user_sorted_lot, id_of_username = calculate_job_counts(user_names, job_states)
     account_jobs_table = []
-    for uid in user_sorted_list:
+    for uid in user_sorted_lot:
         all_of_user = job_counts['cancelled_of_user'][uid[0]] + \
                       job_counts['running_of_user'][uid[0]] + \
                       job_counts['queued_of_user'][uid[0]] + \
@@ -244,25 +248,40 @@ def create_job_counts(user_names, job_states, state_abbrevs):
     return job_counts
 
 
-def produce_user_list(_user_names):
+def create_job_counts2(user_names, job_states, state_abbrevs):
     """
-    produces the decrementing list of users in the user accounts and poolmappings table
+    counting of R,Q,C,W,E attached to user
+    :param user_names: list
+    :param job_states: list
+    :param state_abbrevs: dict
+    :return: dict
     """
-    occurence_dict = {}
+    from collections import Counter
+    job_counts = dict()
+    user_states = [(user_name, job_state) for user_name, job_state in zip(user_names, job_states)]
+    job_counts[state_abbrevs[job_state]] = Counter(user_states)
+
+
+def produce_user_lot(_user_names):
+    """
+    Produces a list of tuples (lot) of the form (user account, all jobs count) in descending order.
+    Used in the user accounts and poolmappings table
+    """
+    alljobs_of_user = {}
     for user_name in set(_user_names):
-        occurence_dict[user_name] = _user_names.count(user_name)
-    user_sorted_list = sorted(occurence_dict.items(), key=itemgetter(1), reverse=True)
-    return user_sorted_list
+        alljobs_of_user[user_name] = _user_names.count(user_name)
+    user_sorted_lot = sorted(alljobs_of_user.items(), key=itemgetter(1), reverse=True)
+    return user_sorted_lot
 
 
-def expand_useraccounts_symbols(config, user_sorted_list):
+def expand_useraccounts_symbols(config, user_list):
     """
     In case there are more users than the sum number of all numbers and small/capital letters of the alphabet
     """
     MAX_UNIX_ACCOUNTS = 87  # was : 62
-    if len(user_sorted_list) > MAX_UNIX_ACCOUNTS:
+    if len(user_list) > MAX_UNIX_ACCOUNTS:
         for i in xrange(MAX_UNIX_ACCOUNTS, len(
-                user_sorted_list) + MAX_UNIX_ACCOUNTS):  # was: # for i in xrange(MAX_UNIX_ACCOUNTS, len(user_sorted_list) + MAX_UNIX_ACCOUNTS):
+                user_list) + MAX_UNIX_ACCOUNTS):  # was: # for i in xrange(MAX_UNIX_ACCOUNTS, len(user_list) + MAX_UNIX_ACCOUNTS):
             config['possible_ids'].append(str(i)[0])
 
 
@@ -540,12 +559,12 @@ def create_user_accounts_pool_mappings(accounts_mappings, color_of_account):
     for line in accounts_mappings:
         print_string = '%3s | %4s + %4s / %4s | %15s |' % (line[0], line[1], line[2], line[3], line[4][0])
         for account in color_of_account:
-            if line[4][0].startswith(account) and options.COLOR:
+            if line[4][0].startswith(account) and not options.NOCOLOR:
                 print_string = '%15s | %16s + %16s / %16s | %27s %4s' % (
                     colorize(str(line[0]), account), colorize(str(line[1]), account), colorize(str(line[2]), account),
                     colorize(str(line[3]), account), colorize(str(line[4][0]), account),
                     colorize(SEPARATOR, 'NoColourAccount'))
-            elif line[4][0].startswith(account) and not options.COLOR:
+            elif line[4][0].startswith(account) and options.NOCOLOR:
                 print_string = '%2s | %3s + %3s / %3s | %14s |' % (
                     colorize(line[0], account), colorize(str(line[1]), account), colorize(str(line[2]), account),
                     colorize(str(line[3]), account), colorize(line[4][0], account))
