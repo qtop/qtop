@@ -153,7 +153,7 @@ def create_job_accounting_summary(state_dict, total_running, total_queued, qstat
     print '\nPBS report tool. Please try: watch -d ' + QTOPPATH + \
           '. All bugs added by sfranky@gmail.com. Cross fingers now...\n'
     print colorize('===> ', '#') + colorize('Job accounting summary', 'Nothing') + colorize(' <=== ', '#') + colorize(
-        '(Rev: 3000 $) %s WORKDIR = to be added', 'NoColourAccount') % (datetime.datetime.today())  # was: added\n
+        '(Rev: 3000 $) %s WORKDIR = to be added', 'NoColourAccount') % (datetime.datetime.today())
     print 'Usage Totals:\t%s/%s\t Nodes | %s/%s  Cores |   %s+%s jobs (R + Q) reported by qstat -q' % \
           (state_dict['total_wn'] - state_dict['offline_down_nodes'],
            state_dict['total_wn'],
@@ -165,7 +165,8 @@ def create_job_accounting_summary(state_dict, total_running, total_queued, qstat
     for q in qstatq_list:
         q_name, q_running_jobs, q_queued_jobs = q['queue_name'], q['run'], q['queued']
         color = q_name if q_name in color_of_account else 'Nothing'
-        print "{}: {} + {} |".format(colorize(q_name, color), colorize(q_running_jobs, color),
+        print "{}: {} + {} |".format(colorize(q_name, color),
+                                     colorize(q_running_jobs, color),
                                      colorize(q_queued_jobs, color)),
     print '* implies blocked\n'
 
@@ -177,6 +178,7 @@ def calculate_job_counts(user_names, job_states):
     :param job_states: list
     :return: (list, list, dict)
     """
+    expand_useraccounts_symbols(config, user_names)
     state_abbrevs = {'R': 'running_of_user',
                      'Q': 'queued_of_user',
                      'C': 'cancelled_of_user',
@@ -184,11 +186,10 @@ def calculate_job_counts(user_names, job_states):
                      'E': 'exiting_of_user'}
 
     job_counts = create_job_counts(user_names, job_states, state_abbrevs)
-    expand_useraccounts_symbols(config, user_names)
-    user_sorted_lot = produce_user_lot(user_names)
+    user_alljobs_sorted_lot = produce_user_lot(user_names)
 
     id_of_username = {}
-    for _id, user_allcount in enumerate(user_sorted_lot):
+    for _id, user_allcount in enumerate(user_alljobs_sorted_lot):
         id_of_username[user_allcount[0]] = config['possible_ids'][_id]
 
     # Calculates and prints what is actually below the id|  R + Q /all | unix account etc line
@@ -210,22 +211,18 @@ def calculate_job_counts(user_names, job_states):
     #         job_counts['waiting_of_user'][uid] = 0  # 19
     #     if uid not in job_counts['exiting_of_user']:
     #         job_counts['exiting_of_user'][uid] = 0  # 20
-    return job_counts, user_sorted_lot, id_of_username
+    return job_counts, user_alljobs_sorted_lot, id_of_username
 
 
 def create_account_jobs_table(user_names, job_states):
-    job_counts, user_sorted_lot, id_of_username = calculate_job_counts(user_names, job_states)
+    job_counts, user_alljobs_sorted_lot, id_of_username = calculate_job_counts(user_names, job_states)
     account_jobs_table = []
-    for user_allcount in user_sorted_lot:
-        all_of_user = job_counts['cancelled_of_user'][user_allcount[0]] + \
-                      job_counts['running_of_user'][user_allcount[0]] + \
-                      job_counts['queued_of_user'][user_allcount[0]] + \
-                      job_counts['waiting_of_user'][user_allcount[0]] + \
-                      job_counts['exiting_of_user'][user_allcount[0]]
+    for user_alljobs in user_alljobs_sorted_lot:
+        user, alljobs_of_user = user_alljobs
         account_jobs_table.append(
-            [id_of_username[user_allcount[0]], job_counts['running_of_user'][user_allcount[0]], job_counts['queued_of_user'][
-                user_allcount[0]], all_of_user, uid])
-    account_jobs_table.sort(key=itemgetter(3,1,4), reverse=True)  # sort by All jobs
+            [id_of_username[user], job_counts['running_of_user'][user], job_counts['queued_of_user'][
+                user], alljobs_of_user, user])
+    account_jobs_table.sort(key=itemgetter(3, 1, 4), reverse=True)  # sort by All jobs
     return account_jobs_table, id_of_username
 
 
@@ -270,8 +267,8 @@ def produce_user_lot(_user_names):
     alljobs_of_user = {}
     for user_name in set(_user_names):
         alljobs_of_user[user_name] = _user_names.count(user_name)
-    user_sorted_lot = sorted(alljobs_of_user.items(), key=itemgetter(1), reverse=True)
-    return user_sorted_lot
+    user_alljobs_sorted_lot = sorted(alljobs_of_user.items(), key=itemgetter(1), reverse=True)
+    return user_alljobs_sorted_lot
 
 
 def expand_useraccounts_symbols(config, user_list):
@@ -346,7 +343,7 @@ def insert_sep(original, separator, pos, stopaftern=0):
         return original
 
 
-def calculate_Total_WNIDLine_Width(_node_count):  # (total_wn) in case of multiple state_dict['node_subclusters']
+def calculate_Total_WNIDLine_Width(_node_count):  # (total_wn) in case of multiple node_dict['node_subclusters']
     """
     calculates the worker node ID number line widths (expressed by hxxxx's)
     h1000 is the thousands' line
@@ -443,7 +440,7 @@ def find_matrices_width(wn_number, wn_list, state_dict, term_columns, DEADWEIGHT
     elif wn_number < start and len(state_dict['node_subclusters']) > 1:  # Remapping
         extra_matrices_nr = (wn_number + 10) / term_columns
     else:
-        print "This is a case I didn't foresee (wn_number vs start vs state_dict['node_subclusters'])"
+        print "This is a case I didn't foresee (wn_number vs start vs node_dict['node_subclusters'])"
 
     if config['user_cut_matrix_width']:  # if the user defines a custom cut (in the configuration file)
         stop = start + config['user_cut_matrix_width']
@@ -487,17 +484,17 @@ def print_WN_ID_lines(start, stop, wn_number, hxxxx):
         raise NotImplementedError
         color = 0
         highlight = {0: 'cmsplt', 1: 'Red'}
-        for line, _ in enumerate(max(state_dict['wn_list'])):
+        for line, _ in enumerate(max(node_dict['wn_list'])):
             just_name_dict[line] = ''
-        for column, _1 in enumerate(state_dict['wn_list']):
-            for line, _2 in enumerate(max(state_dict['wn_list'])):
+        for column, _1 in enumerate(node_dict['wn_list']):
+            for line, _2 in enumerate(max(node_dict['wn_list'])):
                 try:
-                    letter = state_dict['wn_list'][column][line]
+                    letter = node_dict['wn_list'][column][line]
                 except TypeError:
                     letter = ' '
                 just_name_dict[line] += colorize(letter, highlight[color])
             color = 0 if color == 1 else 1
-        for line, _ in enumerate(max(state_dict['wn_list'])):
+        for line, _ in enumerate(max(node_dict['wn_list'])):
             print just_name_dict[line] + '={__WNID__}'
 
 
@@ -550,36 +547,35 @@ def calculate_remaining_matrices(node_state,
                 print line + colorize('=core' + str(ind), 'NoColourAccount')
 
 
-def create_user_accounts_pool_mappings(accounts_mappings, color_of_account):
+def create_user_accounts_pool_mappings(account_jobs_table):
     print colorize('\n===> ', '#') + colorize('User accounts and pool mappings', 'Nothing') + colorize(' <=== ',
                                                                                                        '#') + colorize(
         "('all' includes those in C and W states, as reported by qstat)", 'NoColourAccount')
     print ' id |  R   +   Q  /  all |    unix account | Grid certificate DN (this info is only available under elevated privileges)'
 
-    for line in accounts_mappings:
-        print_string = '%3s | %4s + %4s / %4s | %15s |' % (line[0], line[1], line[2], line[3], line[4][0])
+    for line in account_jobs_table:
+        uid, runningjobs, queuedjobs, alljobs, user = line[0], line[1], line[2], line[3], line[4]
+        print_string = '%3s | %4s + %4s / %4s | %15s |' % (uid, runningjobs, queuedjobs, alljobs, user)
         for account in color_of_account:
-            if line[4][0].startswith(account) and not options.NOCOLOR:
+            if user.startswith(account) and not options.NOCOLOR:
                 print_string = '%15s | %16s + %16s / %16s | %27s %4s' % (
-                    colorize(str(line[0]), account), colorize(str(line[1]), account), colorize(str(line[2]), account),
-                    colorize(str(line[3]), account), colorize(str(line[4][0]), account),
+                    colorize(str(uid), account), colorize(str(runningjobs), account), colorize(str(queuedjobs), account),
+                    colorize(str(alljobs), account), colorize(str(user), account),
                     colorize(SEPARATOR, 'NoColourAccount'))
-            elif line[4][0].startswith(account) and options.NOCOLOR:
+            elif user.startswith(account) and options.NOCOLOR:
                 print_string = '%2s | %3s + %3s / %3s | %14s |' % (
-                    colorize(line[0], account), colorize(str(line[1]), account), colorize(str(line[2]), account),
-                    colorize(str(line[3]), account), colorize(line[4][0], account))
-            else:
-                pass
+                    colorize(uid, account), colorize(str(runningjobs), account), colorize(str(queuedjobs), account),
+                    colorize(str(alljobs), account), colorize(user, account))
         print print_string
 
 
-def print_core_lines(cpu_core_dict, accounts_mappings, print_start, print_end):
+def print_core_lines(cpu_core_dict, account_jobs_table, print_start, print_end):
     """
     prints all coreX lines
     """
     account_nrless_of_id = {}
-    for line in accounts_mappings:
-        just_name = re.split('[0-9]+', line[4][0])[0]
+    for line in account_jobs_table:
+        just_name = re.split('[0-9]+', line[4])[0]
         account_nrless_of_id[line[0]] = just_name if just_name in color_of_account else 'NoColourAccount'
 
     account_nrless_of_id['#'] = '#'
@@ -704,23 +700,22 @@ if __name__ == '__main__':
         f.startswith('qstat_q') or f.startswith('qstatq') or f.startswith('qstat-q') and not f.endswith('.yaml'))][0]
     QSTAT_ORIG_FN = [f for f in os.listdir(os.getcwd()) if f.startswith('qstat.') and not f.endswith('.yaml')][0]
 
-    #  MAIN ###################################
+    # input files ###################################
     # reset_yaml_files()  # either that or having a pid appended in the filename
     make_pbsnodes(PBSNODES_ORIG_FN, PBSNODES_OUT_FN, options.write_method)
     make_qstatq(QSTATQ_ORIG_FN, QSTATQ_OUT_FN, options.write_method)
     make_qstat(QSTAT_ORIG_FN, QSTAT_OUT_FN, options.write_method)
 
     pbs_nodes = read_pbsnodes_yaml(PBSNODES_OUT_FN, options.write_method)
-    total_running, total_queued, qstatq_list = read_qstatq_yaml(QSTATQ_OUT_FN, options.write_method)
-    job_ids, user_names, job_states, queue_names = read_qstat_yaml(QSTAT_OUT_FN, options.write_method)
+    total_running, total_queued, qstatq_lod = read_qstatq_yaml(QSTATQ_OUT_FN, options.write_method)
+    job_ids, user_names, job_states, _ = read_qstat_yaml(QSTAT_OUT_FN, options.write_method)  #_ == queue_names, not used for now
 
-    state_dict, NAMED_WNS = calculate_stuff(pbs_nodes)
+    #  MAIN ##################################
+    node_dict, NAMED_WNS = calculate_stuff(pbs_nodes)
 
-    create_job_accounting_summary(state_dict, total_running, total_queued, qstatq_list)
-    account_jobs_table = calculate_wn_occupancy(state_dict, user_names, job_states, job_ids)
-    create_user_accounts_pool_mappings(account_jobs_table, color_of_account)
+    create_job_accounting_summary(node_dict, total_running, total_queued, qstatq_lod)
+    account_jobs_table = calculate_wn_occupancy(node_dict, user_names, job_states, job_ids)
+    create_user_accounts_pool_mappings(account_jobs_table)
 
     print '\nThanks for watching!'
-
-    # os.chdir(SOURCEDIR)
     os.chdir(QTOPPATH)

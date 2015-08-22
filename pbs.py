@@ -151,7 +151,7 @@ def make_qstat(orig_file, out_file, write_method):
     Some qstat files are structured a bit differently (the ones containing 'prior')
     Job id                    Name             User            Time Use S Queue
     or
-    job-ID  prior   name       user         state_dict submit/start at     queue                          slots ja-task-ID
+    job-ID  prior   name       user         node_dict submit/start at     queue                          slots ja-task-ID
     # searches for something like: 422561.cream01             STDIN            see062          48:50:12 R see
     This new version of the function takes 93ms to run, as opposed to 86.5ms of the older version. Go figure!!
     """
