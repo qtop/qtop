@@ -523,11 +523,7 @@ def calculate_remaining_matrices(node_state,
         else:
             _print_end = min(_print_end, state_dict['highest_wn'])
 
-        if len(state_dict['node_subclusters']) == 1:
-            print_WN_ID_lines(print_start, _print_end, state_dict['total_wn'], hxxxx)
-        elif len(state_dict[
-                     'node_subclusters']) > 1:  # not sure that this works, these two funcs seem terribly similar!!
-            print_WN_ID_lines(print_start, _print_end, state_dict['total_wn'], hxxxx)
+        print_WN_ID_lines(print_start, _print_end, state_dict['total_wn'], hxxxx)
 
         print insert_sep(node_state[print_start:_print_end], SEPARATOR, options.WN_COLON) + '=Node state'
         for ind, k in enumerate(cpu_core_dict):
@@ -634,7 +630,11 @@ def calculate_wn_occupancy(state_dict, user_names, job_states, job_ids):
     print insert_sep(node_state[print_start:print_end], SEPARATOR, options.WN_COLON) + '=Node state'
 
     account_nrless_of_id = print_core_lines(cpu_core_dict, account_jobs_table, print_start, print_end)
-    calculate_remaining_matrices(node_state, extra_matrices_nr, state_dict, cpu_core_dict, print_end,
+    calculate_remaining_matrices(node_state,
+                                 extra_matrices_nr,
+                                 state_dict,
+                                 cpu_core_dict,
+                                 print_end,
                                  account_nrless_of_id,
                                  hxxxx, term_columns)
     return account_jobs_table
