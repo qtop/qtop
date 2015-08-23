@@ -10,6 +10,7 @@
 from operator import itemgetter
 from optparse import OptionParser
 import datetime
+from collections import Counter, OrderedDict
 import os
 import re
 import yaml
@@ -19,17 +20,26 @@ from pbs import *
 from colormap import color_of_account, code_of_color
 
 parser = OptionParser()  # for more details see http://docs.python.org/library/optparse.html
-parser.add_option("-a", "--blindremapping", action="store_true", dest="BLINDREMAP", default=False, help="This is used in situations where node names are not a pure arithmetic sequence (eg. rocks clusters)")
-parser.add_option("-c", "--COLOR", action="store_true", dest="COLOR", default=True, help="Enable/Disable color in qtop output. Use it with an ON/OFF switch: -c ON or -c OFF")
-# parser.add_option("-c", "--COLOR", action="store", dest="COLOR", default='ON', choices=['ON', 'OFF'], help="Enable/Disable color in qtop output. Use it with an ON/OFF switch: -c ON or -c OFF")
+parser.add_option("-a", "--blindremapping", action="store_true", dest="BLINDREMAP", default=False,
+                  help="This is used in situations where node names are not a pure arithmetic seq (eg. rocks clusters)")
+parser.add_option("-c", "--NOCOLOR", action="store_true", dest="NOCOLOR", default=False,
+                  help="Enable/Disable color in qtop output.")
 parser.add_option("-f", "--setCOLORMAPFILE", action="store", type="string", dest="COLORFILE")
-parser.add_option("-m", "--noMasking", action="store_false", dest="MASKING", default=True, help="Don't mask early empty Worker Nodes. (default setting is: if e.g. the first 30 WNs are unused, counting starts from 31).")
-parser.add_option("-o", "--SetVerticalSeparatorXX", action="store", dest="WN_COLON", default=0, help="Put vertical bar every WN_COLON nodes.")
-parser.add_option("-s", "--SetSourceDir", dest="SOURCEDIR", help="Set the source directory where pbsnodes and qstat reside")
-parser.add_option("-z", "--quiet", action="store_false", dest="verbose", default=True, help="don't print status messages to stdout. Not doing anything at the moment.")
-parser.add_option("-F", "--ForceNames", action="store_true", dest="FORCE_NAMES", default=False, help="force names to show up instead of numbered WNs even for very small numbers of WNs")
-
+parser.add_option("-m", "--noMasking", action="store_false", dest="MASKING", default=True,
+                  help="Don't mask early empty WNs (default: if the first 30 WNs are unused, counting starts from 31).")
+parser.add_option("-o", "--SetVerticalSeparatorXX", action="store", dest="WN_COLON", default=0,
+                  help="Put vertical bar every WN_COLON nodes.")
+parser.add_option("-s", "--SetSourceDir", dest="SOURCEDIR",
+                  help="Set the source directory where pbsnodes and qstat reside")
+parser.add_option("-z", "--quiet", action="store_false", dest="verbose", default=True,
+                  help="don't print status messages to stdout. Not doing anything at the moment.")
+parser.add_option("-F", "--ForceNames", action="store_true", dest="FORCE_NAMES", default=False,
+                  help="force names to show up instead of numbered WNs even for very small numbers of WNs")
+parser.add_option("-w", "--writemethod", dest="write_method", action="store", default="txtyaml",
+                  choices=['txtyaml', 'yaml', 'json'],
+                  help="Set the method used for dumping information, json, yaml, or native python (yaml format)")
 (options, args) = parser.parse_args()
+
 
 # TODO make the following work with py files instead of qtop.colormap files
 # if not options.COLORFILE:
@@ -38,7 +48,7 @@ parser.add_option("-F", "--ForceNames", action="store_true", dest="FORCE_NAMES",
 
 def colorize(text, pattern):
     """prints text colored according to its unix account colors"""
-    return "\033[" + code_of_color[color_of_account[pattern]] + "m" + text + "\033[1;m" if options.COLOR else text
+    return "\033[" + code_of_color[color_of_account[pattern]] + "m" + text + "\033[1;m" if not options.NOCOLOR else text
 
 
 def decide_remapping(pbs_nodes, state_dict):
@@ -56,12 +66,12 @@ def decide_remapping(pbs_nodes, state_dict):
     - one or two unnumbered nodes (should just be put in the end of the cluster)
     """
     if options.BLINDREMAP or \
-        len(state_dict['node_subclusters']) > 1 or \
-        min(state_dict['wn_list']) >= 9000 or \
-        state_dict['highest_wn'] * config['percentage'] < state_dict['wn_list_remapped'][-1] or \
-        len(state_dict['_all_str_digits_with_empties']) != len(state_dict['all_str_digits']) or \
-        len(state_dict['all_digits']) != len(state_dict['all_str_digits']):
-            options.REMAP = True
+                    len(state_dict['node_subclusters']) > 1 or \
+                    min(state_dict['wn_list']) >= 9000 or \
+                            state_dict['highest_wn'] * config['percentage'] < state_dict['wn_list_remapped'][-1] or \
+                    len(state_dict['_all_str_digits_with_empties']) != len(state_dict['all_str_digits']) or \
+                    len(state_dict['all_digits']) != len(state_dict['all_str_digits']):
+        options.REMAP = True
 
 
 def calculate_stuff(pbs_nodes):
@@ -93,8 +103,8 @@ def calculate_stuff(pbs_nodes):
         _all_letters.append(node_letters)
         _all_str_digits_with_empties.append(node_str_digits)
 
-        state_dict['total_cores'] += node.get('np')
-        state_dict['max_np'] = max(state_dict['max_np'], node['np'])
+        state_dict['total_cores'] += int(node.get('np'))
+        state_dict['max_np'] = max(state_dict['max_np'], int(node['np']))
         state_dict['offline_down_nodes'] += 1 if node['state'] in 'do' else 0
         try:
             state_dict['working_cores'] += len(node['core_job_map'])
@@ -128,7 +138,6 @@ def calculate_stuff(pbs_nodes):
         if i not in state_dict['wn_dict']:
             state_dict['wn_dict'][i] = '?'
 
-
     return state_dict, NAMED_WNS
 
 
@@ -141,8 +150,10 @@ def nodes_with_jobs(pbs_nodes):
 def create_job_accounting_summary(state_dict, total_running, total_queued, qstatq_list):
     if options.REMAP:
         print '=== WARNING: --- Remapping WN names and retrying heuristics... good luck with this... ---'
-    print '\nPBS report tool. Please try: watch -d ' + QTOPPATH + '. All bugs added by sfranky@gmail.com. Cross fingers now...\n'
-    print colorize('===> ', '#') + colorize('Job accounting summary', 'Nothing') + colorize(' <=== ', '#') + colorize('(Rev: 3000 $) %s WORKDIR = to be added', 'NoColourAccount') % (datetime.datetime.today()) #was: added\n
+    print '\nPBS report tool. Please try: watch -d ' + QTOPPATH + \
+          '. All bugs added by sfranky@gmail.com. Cross fingers now...\n'
+    print colorize('===> ', '#') + colorize('Job accounting summary', 'Nothing') + colorize(' <=== ', '#') + colorize(
+        '(Rev: 3000 $) %s WORKDIR = to be added', 'NoColourAccount') % (datetime.datetime.today())
     print 'Usage Totals:\t%s/%s\t Nodes | %s/%s  Cores |   %s+%s jobs (R + Q) reported by qstat -q' % \
           (state_dict['total_wn'] - state_dict['offline_down_nodes'],
            state_dict['total_wn'],
@@ -154,33 +165,39 @@ def create_job_accounting_summary(state_dict, total_running, total_queued, qstat
     for q in qstatq_list:
         q_name, q_running_jobs, q_queued_jobs = q['queue_name'], q['run'], q['queued']
         color = q_name if q_name in color_of_account else 'Nothing'
-        print "{}: {} + {} |".format(colorize(q_name, color), colorize(q_running_jobs, color), colorize(q_queued_jobs, color)),
+        print "{}: {} + {} |".format(colorize(q_name, color),
+                                     colorize(q_running_jobs, color),
+                                     colorize(q_queued_jobs, color)),
     print '* implies blocked\n'
 
 
 def calculate_job_counts(user_names, job_states):
     """
     Calculates and prints what is actually below the id|  R + Q /all | unix account etc line
+    :param user_names: list
+    :param job_states: list
+    :return: (list, list, dict)
     """
+    expand_useraccounts_symbols(config, user_names)
     state_abbrevs = {'R': 'running_of_user',
-                 'Q': 'queued_of_user',
-                 'C': 'cancelled_of_user',
-                 'W': 'waiting_of_user',
-                 'E': 'exiting_of_user'}
+                     'Q': 'queued_of_user',
+                     'C': 'cancelled_of_user',
+                     'W': 'waiting_of_user',
+                     'E': 'exiting_of_user'}
 
-    _job_counts = create_job_counts(user_names, job_states, state_abbrevs)
-    user_sorted_list = produce_user_list(user_names)
-    expand_useraccounts_symbols(config, user_sorted_list)
+    job_counts = create_job_counts(user_names, job_states, state_abbrevs)
+    user_alljobs_sorted_lot = produce_user_lot(user_names)
 
     id_of_username = {}
-    for ind, user_name in enumerate(user_sorted_list):
-        id_of_username[user_name[0]] = config['possible_ids'][ind]
+    for _id, user_allcount in enumerate(user_alljobs_sorted_lot):
+        id_of_username[user_allcount[0]] = config['possible_ids'][_id]
 
     # Calculates and prints what is actually below the id|  R + Q /all | unix account etc line
     # this is slower but shorter: 8mus
     for state_abbrev in state_abbrevs:
-        missing_uids = set(id_of_username).difference(_job_counts[state_abbrevs[state_abbrev]])
-        [_job_counts[state_abbrevs[state_abbrev]].setdefault(uid, 0) for uid in missing_uids]
+        _xjobs_of_user = job_counts[state_abbrevs[state_abbrev]]
+        missing_uids = set(id_of_username).difference(_xjobs_of_user)
+        [_xjobs_of_user.setdefault(missing_uid, 0) for missing_uid in missing_uids]
 
     # This is actually faster: 6 mus
     # for uid in id_of_username:
@@ -194,21 +211,18 @@ def calculate_job_counts(user_names, job_states):
     #         job_counts['waiting_of_user'][uid] = 0  # 19
     #     if uid not in job_counts['exiting_of_user']:
     #         job_counts['exiting_of_user'][uid] = 0  # 20
-    return _job_counts, user_sorted_list, id_of_username
+    return job_counts, user_alljobs_sorted_lot, id_of_username
 
 
 def create_account_jobs_table(user_names, job_states):
-    job_counts, user_sorted_list, id_of_username = calculate_job_counts(user_names, job_states)
+    job_counts, user_alljobs_sorted_lot, id_of_username = calculate_job_counts(user_names, job_states)
     account_jobs_table = []
-    for uid in user_sorted_list:
-        all_of_user = job_counts['cancelled_of_user'][uid[0]] + \
-                      job_counts['running_of_user'][uid[0]] + \
-                      job_counts['queued_of_user'][uid[0]] + \
-                      job_counts['waiting_of_user'][uid[0]] + \
-                      job_counts['exiting_of_user'][uid[0]]
-        account_jobs_table.append([id_of_username[uid[0]], job_counts['running_of_user'][uid[0]], job_counts['queued_of_user'][
-            uid[0]], all_of_user,uid])
-    account_jobs_table.sort(key=itemgetter(3), reverse=True)  # sort by All jobs
+    for user_alljobs in user_alljobs_sorted_lot:
+        user, alljobs_of_user = user_alljobs
+        account_jobs_table.append(
+            [id_of_username[user], job_counts['running_of_user'][user], job_counts['queued_of_user'][
+                user], alljobs_of_user, user])
+    account_jobs_table.sort(key=itemgetter(3, 1, 4), reverse=True)  # sort by All jobs
     return account_jobs_table, id_of_username
 
 
@@ -232,24 +246,39 @@ def create_job_counts(user_names, job_states, state_abbrevs):
     return job_counts
 
 
-def produce_user_list(_user_names):
+def create_job_counts2(user_names, job_states, state_abbrevs):
     """
-    produces the decrementing list of users in the user accounts and poolmappings table
+    counting of R,Q,C,W,E attached to user
+    :param user_names: list
+    :param job_states: list
+    :param state_abbrevs: dict
+    :return: dict
     """
-    occurence_dict = {}
+    user_states = [(user_name, job_state) for user_name, job_state in zip(user_names, job_states)]
+    job_counts = Counter(user_states)
+    return job_counts
+
+
+def produce_user_lot(_user_names):
+    """
+    Produces a list of tuples (lot) of the form (user account, all jobs count) in descending order.
+    Used in the user accounts and poolmappings table
+    """
+    alljobs_of_user = {}
     for user_name in set(_user_names):
-        occurence_dict[user_name] = _user_names.count(user_name)
-    user_sorted_list = sorted(occurence_dict.items(), key=itemgetter(1), reverse=True)
-    return user_sorted_list
+        alljobs_of_user[user_name] = _user_names.count(user_name)
+    user_alljobs_sorted_lot = sorted(alljobs_of_user.items(), key=itemgetter(1), reverse=True)
+    return user_alljobs_sorted_lot
 
 
-def expand_useraccounts_symbols(config, user_sorted_list):
+def expand_useraccounts_symbols(config, user_list):
     """
     In case there are more users than the sum number of all numbers and small/capital letters of the alphabet
     """
     MAX_UNIX_ACCOUNTS = 87  # was : 62
-    if len(user_sorted_list) > MAX_UNIX_ACCOUNTS:
-        for i in xrange(MAX_UNIX_ACCOUNTS, len(user_sorted_list) + MAX_UNIX_ACCOUNTS):  # was: # for i in xrange(MAX_UNIX_ACCOUNTS, len(user_sorted_list) + MAX_UNIX_ACCOUNTS):
+    if len(user_list) > MAX_UNIX_ACCOUNTS:
+        for i in xrange(MAX_UNIX_ACCOUNTS, len(
+                user_list) + MAX_UNIX_ACCOUNTS):  # was: # for i in xrange(MAX_UNIX_ACCOUNTS, len(user_list) + MAX_UNIX_ACCOUNTS):
             config['possible_ids'].append(str(i)[0])
 
 
@@ -276,7 +305,8 @@ def fill_cpucore_columns(state_np_corejob, cpu_core_dict, id_of_username, max_np
             try:
                 user_of_job_id[job]
             except KeyError, KeyErrorValue:
-                print 'There seems to be a problem with the qstat output. A JobID has gone rogue (namely, ' + str(KeyErrorValue) +'). Please check with the System Administrator.'
+                print 'There seems to be a problem with the qstat output. A JobID has gone rogue (namely, ' + str(
+                    KeyErrorValue) + '). Please check with the System Administrator.'
             cpu_core_dict['Cpu' + str(core) + 'line'] += str(id_of_username[user_of_job_id[job]])
             own_np_empty_range.remove(core)
 
@@ -289,103 +319,46 @@ def fill_cpucore_columns(state_np_corejob, cpu_core_dict, id_of_username, max_np
         for core in own_np_empty_range:
             cpu_core_dict['Cpu' + str(core) + 'line'] += '_'
         for core in non_existent_cores:
-                cpu_core_dict['Cpu' + str(core) + 'line'] += '#'
+            cpu_core_dict['Cpu' + str(core) + 'line'] += '#'
     return cpu_core_dict
 
 
-def insert_sep(original, separator, pos, stopaftern = 0):
+def insert_sep(original, separator, pos, stopaftern=0):
     '''
     insert separator into original (string) every posth position, optionally stopping after stopafter times.
     '''
     pos = int(pos)
-    if pos != 0: # default value is zero, means no vertical separators
+    if pos != 0:  # default value is zero, means no vertical separators
         sep = original[:]  # insert initial vertical separator
         if stopaftern == 0:
             times = len(original) / pos
         else:
             times = stopaftern
-        sep = sep[:pos] + separator + sep[pos:] 
-        for i in range(2, times+1):
-            sep = sep[:pos * i + i-1] + separator + sep[pos * i + i-1:] 
+        sep = sep[:pos] + separator + sep[pos:]
+        for i in range(2, times + 1):
+            sep = sep[:pos * i + i - 1] + separator + sep[pos * i + i - 1:]
         sep = separator + sep  # insert initial vertical separator
         return sep
-    else: # no separators
+    else:  # no separators
         return original
 
 
-def calculate_Total_WNIDLine_Width(_node_count): # (total_wn) in case of multiple state_dict['node_subclusters']
+def calculate_Total_WNIDLine_Width(_node_count):  # (total_wn) in case of multiple node_dict['node_subclusters']
     """
     calculates the worker node ID number line widths (expressed by hxxxx's)
-    h1000 is the thousands' line
-    h0100 is the hundreds' line
-    and so on
-    # h1000, h0100, h0010, h0001 = '','','',''
     """
-    hxxxx = {}
-    # hxxxx['h1000'] = h1000
-    # hxxxx['h0100'] = h0100
-    # hxxxx['h0010'] = h0010
-    # hxxxx['h0001'] = h0001
+    hxxxx = dict()
 
-    if _node_count < 10:
-        u_ = '123456789'
-        hxxxx['h0001'] = u_[:_node_count]
+    str_nodes = len(str(_node_count))  # 4
+    hxxxx = {str(place): [] for place in range(1, str_nodes + 1)}
+    for nr in range(1, _node_count + 1):
+        extra_zeros = str_nodes - len(str(nr))  # 4 - 1 = 3, for wn0001
+        string = "".join("0" * extra_zeros + str(nr))
+        for place in range(1, str_nodes + 1):
+            hxxxx[str(place)].append(string[place - 1])
 
-    elif _node_count < 100:
-        d_ = '0' * 9 + '1' * 10 + '2' * 10 + '3' * 10 + '4' * 10 + '5' * 10 + '6' * 10 + '7' * 10 + '8' * 10 + '9' * 10
-        u_ = '1234567890' * 10
-        hxxxx['h0010'] = d_[:_node_count]
-        hxxxx['h0001'] = u_[:_node_count]
-
-    elif _node_count < 1000:
-        cent = int(str(_node_count)[0])
-        dec = int(str(_node_count)[1])
-        unit = int(str(_node_count)[2])
-
-        c_ = str(0) * 99
-        for i in range(1, cent):
-            c_ += str(i) * 100
-        c_ += str(cent) * (int(dec)) * 10 + str(cent) * (int(unit) + 1)
-        hxxxx['h0100'] = c_[:_node_count]
-
-        d_ = '0' * 9 + '1' * 10 + '2' * 10 + '3' * 10 + '4' * 10 + '5' * 10 + '6' * 10 + '7' * 10 + '8' * 10 + '9' * 10
-        d__ = d_ + (cent - 1) * (str(0) + d_) + str(0)
-        d__ += d_[:int(str(dec) + str(unit))]
-        hxxxx['h0010'] = d__[:_node_count]
-
-        uc = '1234567890' * 100
-        hxxxx['h0001'] = uc[:_node_count]
-
-    elif _node_count > 1000:
-        thou = int(str(_node_count)[0])
-        cent = int(str(_node_count)[1])
-        dec = int(str(_node_count)[2])
-        unit = int(str(_node_count)[3])
-
-        hxxxx['h1000'] += str(0) * 999
-        for i in range(1, thou):
-            hxxxx['h1000'] += str(i) * 1000
-        hxxxx['h1000'] += str(thou) * ((int(cent)) * 100 + (int(dec)) * 10 + (int(unit) + 1))
-
-        c_ = '0' * 99 + '1' * 100 + '2' * 100 + '3' * 100 + '4' * 100 + '5' * 100 + '6' * 100 + '7' * 100 + '8' * 100 + '9' * 100
-        c__ = '0' * 100 + '1' * 100 + '2' * 100 + '3' * 100 + '4' * 100 + '5' * 100 + '6' * 100 + '7' * 100 + '8' * 100 + '9' * 100
-        hxxxx['h0100'] = c_
-
-        for i in range(1, thou):
-            hxxxx['h0100'] += c__
-        else:
-            hxxxx['h0100'] += c__[:int(str(cent) + str(dec) +str(unit))+1]
-
-        d_ = '0' * 10 + '1' * 10 + '2' * 10 + '3' * 10 + '4' * 10 + '5' * 10 + '6' * 10 + '7' * 10 + '8' * 10 + '9' * 10
-        d__ = d_ * thou * 10  # cent * 10
-        d___ = d_ * (cent - 1)
-        hxxxx['h0010'] = '0' * 9 + '1' * 10 + '2' * 10 + '3' * 10 + '4' * 10 + '5' * 10 + '6' * 10 + '7' * 10 + '8' * 10 + '9' * 10
-        hxxxx['h0010'] += d__
-        hxxxx['h0010'] += d___
-        hxxxx['h0010'] += d_[:int(str(dec) + str(unit)) + 1]
-
-        uc = '1234567890' * 1000
-        hxxxx['h0001'] = uc[:_node_count]
+    # for place in range(1, str_nodes + 1):
+    #     print "".join(hxxxx[str(place)])
     return hxxxx
 
 
@@ -397,72 +370,66 @@ def find_matrices_width(wn_number, wn_list, state_dict, term_columns, DEADWEIGHT
     DEADWEIGHT = 15  # standard columns' width on the right of the CoreX map
     """
     start = 0
-    if (options.MASKING is True) and min(wn_list) > config['min_masking_threshold'] and type(min(wn_list)) == str: # in case of named instead of numbered WNs
-        pass            
+    if (options.MASKING is True) and min(wn_list) > config['min_masking_threshold'] and type(
+            min(wn_list)) == str:  # in case of named instead of numbered WNs
+        pass
     elif (options.MASKING is True) and min(wn_list) > config['min_masking_threshold'] and type(min(wn_list)) == int:
-        start = min(wn_list) - 1   #exclude unneeded first empty nodes from the matrix
+        start = min(wn_list) - 1  # exclude unneeded first empty nodes from the matrix
 
     # Extra matrices may be needed if the WNs are more than the screen width can hold.
-    if wn_number > start: # start will either be 1 or (masked >= config['min_masking_threshold'] + 1)
+    if wn_number > start:  # start will either be 1 or (masked >= config['min_masking_threshold'] + 1)
         extra_matrices_nr = abs(wn_number - start + 10) / term_columns
-    elif wn_number < start and len(state_dict['node_subclusters']) > 1: # Remapping
+    elif wn_number < start and len(state_dict['node_subclusters']) > 1:  # Remapping
         extra_matrices_nr = (wn_number + 10) / term_columns
     else:
-        print "This is a case I didn't foresee (wn_number vs start vs state_dict['node_subclusters'])"
+        print "This is a case I didn't foresee (wn_number vs start vs node_dict['node_subclusters'])"
 
-    if config['user_cut_matrix_width']: # if the user defines a custom cut (in the configuration file)
+    if config['user_cut_matrix_width']:  # if the user defines a custom cut (in the configuration file)
         stop = start + config['user_cut_matrix_width']
-        return start, stop, wn_number/config['user_cut_matrix_width']
+        return start, stop, wn_number / config['user_cut_matrix_width']
     elif extra_matrices_nr:  # if more matrices are needed due to lack of space, cut every matrix so that if fits to screen
         stop = start + term_columns - DEADWEIGHT
         return (start, stop, extra_matrices_nr)
-    else: # just one matrix, small cluster!
+    else:  # just one matrix, small cluster!
         stop = start + wn_number
         return (start, stop, 0)
 
 
 def print_WN_ID_lines(start, stop, wn_number, hxxxx):
     """
-    h1000 is a header for the 'thousands',
-    h0100 is a header for the 'hundreds',
-    h0010 is a header for the 'tens',
-    h0001 is a header for the 'units' in the WN_ID lines
-    wn_number determines the number of WN ID lines needed  (1/2/3/4?)
+    wn_number determines the number of WN ID lines needed  (1/2/3/4+?)
     """
     just_name_dict = {}
+    str_nodes = len(str(wn_number))  # 4
+    d = OrderedDict()
     if not NAMED_WNS:
-        if wn_number < 10:
-            print insert_sep(hxxxx['h0001'][start:stop], SEPARATOR, options.WN_COLON) + '={__WNID__}'
-
-        elif wn_number < 100:
-            print insert_sep(hxxxx['h0010'][start:stop], SEPARATOR, options.WN_COLON) + '={_Worker_}'
-            print insert_sep(hxxxx['h0001'][start:stop], SEPARATOR, options.WN_COLON) + '={__Node__}'
-
-        elif wn_number < 1000:
-            print insert_sep(hxxxx['h0100'][start:stop], SEPARATOR, options.WN_COLON) + '={_Worker_}'
-            print insert_sep(hxxxx['h0010'][start:stop], SEPARATOR, options.WN_COLON) + '={__Node__}'
-            print insert_sep(hxxxx['h0001'][start:stop], SEPARATOR, options.WN_COLON) + '={___ID___}'
-
-        elif wn_number > 1000:
-            print insert_sep(hxxxx['h1000'][start:stop], SEPARATOR, options.WN_COLON) + '={________}'
-            print insert_sep(hxxxx['h0100'][start:stop], SEPARATOR, options.WN_COLON) + '={_Worker_}'
-            print insert_sep(hxxxx['h0010'][start:stop], SEPARATOR, options.WN_COLON) + '={__Node__}'
-            print insert_sep(hxxxx['h0001'][start:stop], SEPARATOR, options.WN_COLON) + '={___ID___}'
+        for place in range(1, str_nodes + 1):
+            d[str(place)] = "".join(hxxxx[str(place)])
+        appends = {
+            '1': ['={__WNID__}'],
+            '2': ['={_Worker_}', '={__Node__}'],
+            '3': ['={_Worker_}', '={__Node__}', '={___ID___}'],
+            '4': ['={________}', '={_Worker_}', '={__Node__}', '={___ID___}']
+        }
+        size = str(len(d))  # key, nr of horizontal lines to be displayed
+        d[size]  #
+        for line in d:
+            print insert_sep(d[line][start:stop], SEPARATOR, options.WN_COLON) + iter(appends[size]).next()
     elif NAMED_WNS or options.FORCE_NAMES:  # names (e.g. fruits) instead of numbered WNs
         raise NotImplementedError
         color = 0
         highlight = {0: 'cmsplt', 1: 'Red'}
-        for line, _ in enumerate(max(state_dict['wn_list'])):
+        for line, _ in enumerate(max(node_dict['wn_list'])):
             just_name_dict[line] = ''
-        for column, _1 in enumerate(state_dict['wn_list']):
-            for line, _2 in enumerate(max(state_dict['wn_list'])):
+        for column, _1 in enumerate(node_dict['wn_list']):
+            for line, _2 in enumerate(max(node_dict['wn_list'])):
                 try:
-                    letter = state_dict['wn_list'][column][line]
+                    letter = node_dict['wn_list'][column][line]
                 except TypeError:
                     letter = ' '
                 just_name_dict[line] += colorize(letter, highlight[color])
             color = 0 if color == 1 else 1
-        for line, _ in enumerate(max(state_dict['wn_list'])):
+        for line, _ in enumerate(max(node_dict['wn_list'])):
             print just_name_dict[line] + '={__WNID__}'
 
 
@@ -491,16 +458,16 @@ def calculate_remaining_matrices(node_state,
         else:
             _print_end = min(_print_end, state_dict['highest_wn'])
 
-        if len(state_dict['node_subclusters']) == 1:
-            print_WN_ID_lines(print_start, _print_end, state_dict['total_wn'], hxxxx)
-        elif len(state_dict['node_subclusters']) > 1:  # not sure that this works, these two funcs seem terribly similar!!
-            print_WN_ID_lines(print_start, _print_end, state_dict['total_wn'], hxxxx)
+        print_WN_ID_lines(print_start, _print_end, state_dict['total_wn'], hxxxx)
 
         print insert_sep(node_state[print_start:_print_end], SEPARATOR, options.WN_COLON) + '=Node state'
         for ind, k in enumerate(cpu_core_dict):
-            color_cpu_core_list = list(insert_sep(cpu_core_dict['Cpu' + str(ind) + 'line'][print_start:_print_end], SEPARATOR, options.WN_COLON))
+            color_cpu_core_list = list(
+                insert_sep(cpu_core_dict['Cpu' + str(ind) + 'line'][print_start:_print_end], SEPARATOR,
+                           options.WN_COLON))
             nocolor_linelength = len(''.join(color_cpu_core_list))
-            color_cpu_core_list = [colorize(elem, account_nrless_of_id[elem]) for elem in color_cpu_core_list if elem in account_nrless_of_id]
+            color_cpu_core_list = [colorize(elem, account_nrless_of_id[elem]) for elem in color_cpu_core_list if
+                                   elem in account_nrless_of_id]
             line = ''.join(color_cpu_core_list)
             '''
             if the first matrix has 10 machines with 64 cores, and the rest 190 machines have 8 cores, don't print the non-existent
@@ -511,37 +478,45 @@ def calculate_remaining_matrices(node_state,
                 print line + colorize('=core' + str(ind), 'NoColourAccount')
 
 
-def create_user_accounts_pool_mappings(accounts_mappings, color_of_account):
-    print colorize('\n===> ', '#') + colorize('User accounts and pool mappings', 'Nothing') + colorize(' <=== ', '#') + colorize('("all" includes those in C and W states, as reported by qstat)', 'NoColourAccount')
+def create_user_accounts_pool_mappings(account_jobs_table):
+    print colorize('\n===> ', '#') + colorize('User accounts and pool mappings', 'Nothing') + colorize(' <=== ',
+                                                                                                       '#') + colorize(
+        "('all' includes those in C and W states, as reported by qstat)", 'NoColourAccount')
     print ' id |  R   +   Q  /  all |    unix account | Grid certificate DN (this info is only available under elevated privileges)'
 
-    for line in accounts_mappings:
-        print_string = '%3s | %4s + %4s / %4s | %15s |' % (line[0], line[1], line[2], line[3], line[4][0])
+    for line in account_jobs_table:
+        uid, runningjobs, queuedjobs, alljobs, user = line[0], line[1], line[2], line[3], line[4]
+        print_string = '%3s | %4s + %4s / %4s | %15s |' % (uid, runningjobs, queuedjobs, alljobs, user)
         for account in color_of_account:
-            if line[4][0].startswith(account) and options.COLOR:
-                print_string = '%15s | %16s + %16s / %16s | %27s %4s' % (colorize(str(line[0]), account), colorize(str(line[1]), account), colorize(str(line[2]), account), colorize(str(line[3]), account), colorize(str(line[4][0]), account), colorize(SEPARATOR, 'NoColourAccount'))
-            elif line[4][0].startswith(account) and not options.COLOR:
-                print_string = '%2s | %3s + %3s / %3s | %14s |' %(colorize(line[0], account), colorize(str(line[1]), account), colorize(str(line[2]), account), colorize(str(line[3]), account), colorize(line[4][0], account))
-            else:
-                pass
+            if user.startswith(account) and not options.NOCOLOR:
+                print_string = '%15s | %16s + %16s / %16s | %27s %4s' % (
+                    colorize(str(uid), account), colorize(str(runningjobs), account), colorize(str(queuedjobs), account),
+                    colorize(str(alljobs), account), colorize(str(user), account),
+                    colorize(SEPARATOR, 'NoColourAccount'))
+            elif user.startswith(account) and options.NOCOLOR:
+                print_string = '%2s | %3s + %3s / %3s | %14s |' % (
+                    colorize(uid, account), colorize(str(runningjobs), account), colorize(str(queuedjobs), account),
+                    colorize(str(alljobs), account), colorize(user, account))
         print print_string
 
 
-def print_core_lines(cpu_core_dict, accounts_mappings, print_start, print_end):
+def print_core_lines(cpu_core_dict, account_jobs_table, print_start, print_end):
     """
     prints all coreX lines
     """
     account_nrless_of_id = {}
-    for line in accounts_mappings:
-        just_name = re.split('[0-9]+', line[4][0])[0]
+    for line in account_jobs_table:
+        just_name = re.split('[0-9]+', line[4])[0]
         account_nrless_of_id[line[0]] = just_name if just_name in color_of_account else 'NoColourAccount'
 
     account_nrless_of_id['#'] = '#'
     account_nrless_of_id['_'] = '_'
     account_nrless_of_id[SEPARATOR] = 'NoColourAccount'
     for ind, k in enumerate(cpu_core_dict):
-        color_cpu_core_list = list(insert_sep(cpu_core_dict['Cpu' + str(ind) + 'line'][print_start:print_end], SEPARATOR, options.WN_COLON))
-        color_cpu_core_list = [colorize(elem, account_nrless_of_id[elem]) for elem in color_cpu_core_list if elem in account_nrless_of_id]
+        color_cpu_core_list = list(
+            insert_sep(cpu_core_dict['Cpu' + str(ind) + 'line'][print_start:print_end], SEPARATOR, options.WN_COLON))
+        color_cpu_core_list = [colorize(elem, account_nrless_of_id[elem]) for elem in color_cpu_core_list if
+                               elem in account_nrless_of_id]
         line = ''.join(color_cpu_core_list)
         print line + colorize('=core' + str(ind), 'NoColourAccount')
 
@@ -559,7 +534,8 @@ def calc_cpu_lines(state_dict, id_of_username, job_ids, user_names):
 
     for _node in state_dict['wn_dict']:
         state_np_corejob = state_dict['wn_dict'][_node]
-        _cpu_core_dict = fill_cpucore_columns(state_np_corejob, _cpu_core_dict, id_of_username, max_np_range, user_of_job_id)
+        _cpu_core_dict = fill_cpucore_columns(state_np_corejob, _cpu_core_dict, id_of_username, max_np_range,
+                                              user_of_job_id)
 
     return _cpu_core_dict
 
@@ -575,7 +551,8 @@ def calculate_wn_occupancy(state_dict, user_names, job_states, job_ids):
     account_jobs_table, id_of_username = create_account_jobs_table(user_names, job_states)
 
     cpu_core_dict = calc_cpu_lines(state_dict, id_of_username, job_ids, user_names)
-    print colorize('===> ', '#') + colorize('Worker Nodes occupancy', 'Nothing') + colorize(' <=== ', '#') + colorize('(you can read vertically the node IDs; nodes in free state are noted with - )', 'NoColourAccount')
+    print colorize('===> ', '#') + colorize('Worker Nodes occupancy', 'Nothing') + colorize(' <=== ', '#') + colorize(
+        '(you can read vertically the node IDs; nodes in free state are noted with - )', 'NoColourAccount')
 
     highest_wn, wn_dict, wn_list = state_dict['highest_wn'], state_dict['wn_dict'], state_dict['wn_list']
 
@@ -588,7 +565,12 @@ def calculate_wn_occupancy(state_dict, user_names, job_states, job_ids):
     print insert_sep(node_state[print_start:print_end], SEPARATOR, options.WN_COLON) + '=Node state'
 
     account_nrless_of_id = print_core_lines(cpu_core_dict, account_jobs_table, print_start, print_end)
-    calculate_remaining_matrices(node_state, extra_matrices_nr, state_dict, cpu_core_dict, print_end, account_nrless_of_id,
+    calculate_remaining_matrices(node_state,
+                                 extra_matrices_nr,
+                                 state_dict,
+                                 cpu_core_dict,
+                                 print_end,
+                                 account_nrless_of_id,
                                  hxxxx, term_columns)
     return account_jobs_table
 
@@ -597,7 +579,7 @@ def reset_yaml_files():
     """
     empties the files with every run of the python script
     """
-    for _file in [PBSNODES_YAML_FILE, QSTATQ_YAML_FILE, QSTAT_YAML_FILE]:
+    for _file in [PBSNODES_OUT_FN, QSTATQ_OUT_FN, QSTAT_OUT_FN]:
         fin = open(_file, 'w')
         fin.close()
 
@@ -608,7 +590,7 @@ def load_yaml_config(path):
     except yaml.YAMLError, exc:
         if hasattr(exc, 'problem_mark'):
             mark = exc.problem_mark
-            print "Error position: (%s:%s)" % (mark.line+1, mark.column+1)
+            print "Error position: (%s:%s)" % (mark.line + 1, mark.column + 1)
 
     config['possible_ids'] = list(config['possible_ids'])
     symbol_map = dict([(chr(x), x) for x in range(33, 48) + range(58, 64) + range(91, 96) + range(123, 126)])
@@ -636,40 +618,39 @@ if __name__ == '__main__':
 
     HOMEPATH = os.path.expanduser('~/PycharmProjects')
     QTOPPATH = os.path.expanduser('~/PycharmProjects/qtop')  # qtoppath: ~/qtop/qtop
-    SOURCEDIR = options.SOURCEDIR  # as set by the '-s' switch
 
     config = load_yaml_config(QTOPPATH)
     SEPARATOR = config['separator']  # alias
 
     # Name files according to unique pid
-    PBSNODES_YAML_FILE = 'pbsnodes_%s.yaml' % os.getpid()
-    QSTATQ_YAML_FILE = 'qstat-q_%s.yaml' % os.getpid()
-    QSTAT_YAML_FILE = 'qstat_%s.yaml' % os.getpid()
+    ext = qstat_mapping[options.write_method][2]
+    PBSNODES_OUT_FN = 'pbsnodes_{}.{}'.format(options.write_method, ext)  # os.getpid()
+    QSTATQ_OUT_FN = 'qstat-q_{}.{}'.format(options.write_method, ext)  # os.getpid()
+    QSTAT_OUT_FN = 'qstat_{}.{}'.format(options.write_method, ext)  # os.getpid()
 
-    os.chdir(SOURCEDIR)
+    os.chdir(options.SOURCEDIR)
     # Location of read and created files
-    PBSNODES_ORIG_FILE = [f for f in os.listdir(os.getcwd()) if f.startswith('pbsnodes') and not f.endswith('.yaml')][0]
-    QSTATQ_ORIG_FILE = [f for f in os.listdir(os.getcwd()) if (f.startswith('qstat_q') or f.startswith('qstatq') or f.startswith('qstat-q') and not f.endswith('.yaml'))][0]
-    QSTAT_ORIG_FILE = [f for f in os.listdir(os.getcwd()) if f.startswith('qstat.') and not f.endswith('.yaml')][0]
+    PBSNODES_ORIG_FN = [f for f in os.listdir(os.getcwd()) if f.startswith('pbsnodes') and not f.endswith('.yaml')][0]
+    QSTATQ_ORIG_FN = [f for f in os.listdir(os.getcwd()) if (
+        f.startswith('qstat_q') or f.startswith('qstatq') or f.startswith('qstat-q') and not f.endswith('.yaml'))][0]
+    QSTAT_ORIG_FN = [f for f in os.listdir(os.getcwd()) if f.startswith('qstat.') and not f.endswith('.yaml')][0]
 
-    #  MAIN ###################################
-    reset_yaml_files()
-    make_pbsnodes_yaml(PBSNODES_ORIG_FILE, PBSNODES_YAML_FILE)
-    make_qstatq_yaml(QSTATQ_ORIG_FILE, QSTATQ_YAML_FILE)
-    make_qstat_yaml(QSTAT_ORIG_FILE, QSTAT_YAML_FILE)
+    # input files ###################################
+    # reset_yaml_files()  # either that or having a pid appended in the filename
+    make_pbsnodes(PBSNODES_ORIG_FN, PBSNODES_OUT_FN, options.write_method)
+    make_qstatq(QSTATQ_ORIG_FN, QSTATQ_OUT_FN, options.write_method)
+    make_qstat(QSTAT_ORIG_FN, QSTAT_OUT_FN, options.write_method)
 
-    pbs_nodes = read_pbsnodes_yaml_into_list(PBSNODES_YAML_FILE)  # was: read_pbsnodes_yaml_into_dict(PBSNODES_YAML_FILE)
-    total_running, total_queued, qstatq_list = read_qstatq_yaml(QSTATQ_YAML_FILE)
-    # job_ids, user_names, job_states, queue_names = read_qstat_yaml_old(QSTAT_YAML_FILE)  # populates 4 lists
-    job_ids, user_names, job_states, queue_names = read_qstat_yaml(QSTAT_YAML_FILE)  # populates 4 lists
+    pbs_nodes = read_pbsnodes_yaml(PBSNODES_OUT_FN, options.write_method)
+    total_running, total_queued, qstatq_lod = read_qstatq_yaml(QSTATQ_OUT_FN, options.write_method)
+    job_ids, user_names, job_states, _ = read_qstat_yaml(QSTAT_OUT_FN, options.write_method)  #_ == queue_names, not used for now
 
-    state_dict, NAMED_WNS = calculate_stuff(pbs_nodes)
+    #  MAIN ##################################
+    node_dict, NAMED_WNS = calculate_stuff(pbs_nodes)
 
-    create_job_accounting_summary(state_dict, total_running, total_queued, qstatq_list)
-    account_jobs_table = calculate_wn_occupancy(state_dict, user_names, job_states, job_ids)
-    create_user_accounts_pool_mappings(account_jobs_table, color_of_account)
+    create_job_accounting_summary(node_dict, total_running, total_queued, qstatq_lod)
+    account_jobs_table = calculate_wn_occupancy(node_dict, user_names, job_states, job_ids)
+    create_user_accounts_pool_mappings(account_jobs_table)
 
     print '\nThanks for watching!'
-
-    # os.chdir(SOURCEDIR)
     os.chdir(QTOPPATH)
