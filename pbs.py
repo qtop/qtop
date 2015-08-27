@@ -48,6 +48,7 @@ def make_pbsnodes(orig_file, out_file, write_method):
                 _d['job'] = job
                 _d['core'] = core
                 pbs_values['core_job_map'].append(_d)
+        finally:
             all_pbs_values.append(pbs_values)
     pbs_dump_all(all_pbs_values, out_file, pbsnodes_mapping[write_method])
 
@@ -251,10 +252,10 @@ def read_pbsnodes_yaml(fn, write_method):
     return pbs_nodes
 
 
-def map_pbsnodes_to_wn_dicts(state_dict, pbs_nodes):
-    for (pbs_node, (idx, cur_node_nr)) in zip(pbs_nodes, enumerate(state_dict['wn_list'])):
-        state_dict['wn_dict'][cur_node_nr] = pbs_node
-        state_dict['wn_dict_remapped'][idx] = pbs_node
+def map_pbsnodes_to_wn_dicts(node_dict, pbs_nodes):
+    for (pbs_node, (idx, cur_node_nr)) in zip(pbs_nodes, enumerate(node_dict['wn_list'])):
+        node_dict['wn_dict'][cur_node_nr] = pbs_node
+        node_dict['wn_dict_remapped'][idx] = pbs_node
 
 
 def read_qstat_yaml(fn, write_method):
