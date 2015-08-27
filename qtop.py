@@ -228,7 +228,8 @@ def create_account_jobs_table(user_names, job_states):
              job_counts['queued_of_user'][user],
              alljobs_of_user, user]
         )
-    account_jobs_table.sort(key=itemgetter(3, 1, 4), reverse=True)  # sort by All jobs
+    # account_jobs_table.sort(key=itemgetter(3, 1, 4), reverse=True)  # sort by All jobs
+    account_jobs_table.sort(key=itemgetter(3, 4), reverse=True)  # sort by All jobs
     return account_jobs_table, id_of_username
 
 
