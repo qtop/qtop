@@ -220,8 +220,11 @@ def create_account_jobs_table(user_names, job_states):
     for user_alljobs in user_alljobs_sorted_lot:
         user, alljobs_of_user = user_alljobs
         account_jobs_table.append(
-            [id_of_username[user], job_counts['running_of_user'][user], job_counts['queued_of_user'][
-                user], alljobs_of_user, user])
+            [id_of_username[user],
+             job_counts['running_of_user'][user],
+             job_counts['queued_of_user'][user],
+             alljobs_of_user, user]
+        )
     account_jobs_table.sort(key=itemgetter(3, 1, 4), reverse=True)  # sort by All jobs
     return account_jobs_table, id_of_username
 
@@ -235,7 +238,8 @@ def create_job_counts(user_names, job_states, state_abbrevs):
         job_counts[value] = dict()
 
     for user_name, job_state in zip(user_names, job_states):
-        job_counts[state_abbrevs[job_state]][user_name] = job_counts[state_abbrevs[job_state]].get(user_name, 0) + 1
+        x_of_user = state_abbrevs[job_state]
+        job_counts[x_of_user][user_name] = job_counts[x_of_user].get(user_name, 0) + 1
 
     for user_name in job_counts['running_of_user']:
         job_counts['queued_of_user'].setdefault(user_name, 0)
@@ -347,8 +351,6 @@ def calculate_Total_WNIDLine_Width(_node_count):  # (total_wn) in case of multip
     """
     calculates the worker node ID number line widths (expressed by hxxxx's)
     """
-    hxxxx = dict()
-
     str_nodes = len(str(_node_count))  # 4
     hxxxx = {str(place): [] for place in range(1, str_nodes + 1)}
     for nr in range(1, _node_count + 1):
@@ -357,8 +359,6 @@ def calculate_Total_WNIDLine_Width(_node_count):  # (total_wn) in case of multip
         for place in range(1, str_nodes + 1):
             hxxxx[str(place)].append(string[place - 1])
 
-    # for place in range(1, str_nodes + 1):
-    #     print "".join(hxxxx[str(place)])
     return hxxxx
 
 
@@ -412,7 +412,7 @@ def print_WN_ID_lines(start, stop, wn_number, hxxxx):
             '4': ['={________}', '={_Worker_}', '={__Node__}', '={___ID___}']
         }
         size = str(len(d))  # key, nr of horizontal lines to be displayed
-        d[size]  #
+        # d[size]  #
         for line in d:
             print insert_sep(d[line][start:stop], SEPARATOR, options.WN_COLON) + iter(appends[size]).next()
     elif NAMED_WNS or options.FORCE_NAMES:  # names (e.g. fruits) instead of numbered WNs
