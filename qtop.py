@@ -57,7 +57,8 @@ def decide_remapping(pbs_nodes, node_dict):
     - the user has requested it (blindremap switch)
     - there are different WN namings, e.g. wn001, wn002, ..., ps001, ps002, ... etc
     - the first starting numbering of a WN is very high and thus would require too much unused space
-    - the numbering is strange, say the highest numbered node is named wn12500 but the total amount of WNs is 8000
+    #- the numbering is strange, say the highest numbered node is named wn12500 but the total amount of WNs is 8000????
+    - more than PERCENTAGE*nodes have no jobs assigned
     - there are numbering collisions,
         e.g. there's a ps001 and a wn001, or a 0x001 and a 0x1, which all would be displayed in position 1
         or there are non-numbered wns
@@ -68,11 +69,13 @@ def decide_remapping(pbs_nodes, node_dict):
     if options.BLINDREMAP or \
                     len(node_dict['node_subclusters']) > 1 or \
                     min(node_dict['wn_list']) >= 9000 or \
-                            node_dict['highest_wn'] * config['percentage'] < node_dict['wn_list_remapped'][-1] or \
+                    node_dict['offline_down_nodes'] >= node_dict['total_wn'] * config['percentage'] or \
                     len(node_dict['_all_str_digits_with_empties']) != len(node_dict['all_str_digits']) or \
                     len(node_dict['all_digits']) != len(node_dict['all_str_digits']):
         options.REMAP = True
-
+    else:
+        options.REMAP = False
+        # max(node_dict['wn_list']) was node_dict['highest_wn']
 
 def calculate_stuff(pbs_nodes):
     NAMED_WNS = 0 if not options.FORCE_NAMES else 1
@@ -134,9 +137,9 @@ def calculate_stuff(pbs_nodes):
 
     # fill in non-existent WN nodes (absent from pbsnodes file) with '?' and count them
     # is this even needed anymore?!
-    for i in range(node_dict['highest_wn']):
+    for i in range(1, node_dict['highest_wn'] + 1):
         if i not in node_dict['wn_dict']:
-            node_dict['wn_dict'][i] = '?'
+            node_dict['wn_dict'][i] = {'state': '?', 'np': 0}  # was: node_dict['wn_dict'][i] = '?'
 
     return node_dict, NAMED_WNS
 
@@ -534,8 +537,7 @@ def calc_cpu_lines(node_dict, id_of_username, job_ids, user_names):
 
     for _node in node_dict['wn_dict']:
         state_np_corejob = node_dict['wn_dict'][_node]
-        _cpu_core_dict = fill_cpucore_columns(state_np_corejob, _cpu_core_dict, id_of_username, max_np_range,
-                                              user_of_job_id)
+        _cpu_core_dict = fill_cpucore_columns(state_np_corejob, _cpu_core_dict, id_of_username, max_np_range, user_of_job_id)
 
     return _cpu_core_dict
 
