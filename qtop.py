@@ -228,8 +228,11 @@ def create_account_jobs_table(user_names, job_states):
              job_counts['queued_of_user'][user],
              alljobs_of_user, user]
         )
-    # account_jobs_table.sort(key=itemgetter(3, 1, 4), reverse=True)  # sort by All jobs
-    account_jobs_table.sort(key=itemgetter(3, 4), reverse=True)  # sort by All jobs
+    account_jobs_table.sort(key=itemgetter(3, 4), reverse=True)  # sort by All jobs, then unix account
+    # unix account id needs to be recomputed at this point. Should fix later.
+    for quintuplet, new_uid in zip(account_jobs_table, config['possible_ids']):
+        unix_account = quintuplet[-1]
+        quintuplet[0] = id_of_username[unix_account] = new_uid
     return account_jobs_table, id_of_username
 
 
