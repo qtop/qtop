@@ -248,7 +248,8 @@ def read_pbsnodes_yaml(fn, write_method):
         _nodes = (write_method.endswith('yaml')) and yaml.load_all(fin, Loader=Loader) or json.load(fin)
         for node in _nodes:
             pbs_nodes.append(node)
-    pbs_nodes.pop()  # until i figure out why the last node is None
+    # pbs_nodes.pop() if not pbs_nodes[-1] else None # until i figure out why the last node is None
+    # this doesn't seem to be the case anymore, DONT KNOW WHY!!
     return pbs_nodes
 
 
