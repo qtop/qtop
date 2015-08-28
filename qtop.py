@@ -371,27 +371,24 @@ def calculate_Total_WNIDLine_Width(_node_count):  # (total_wn) in case of multip
     return hxxxx
 
 
-def find_matrices_width(wn_number, wn_list, node_dict, term_columns, DEADWEIGHT=15):
+def find_matrices_width(wn_number, wn_list, node_dict, term_columns, DEADWEIGHT=11):
     """
     masking/clipping functionality: if the earliest node number is high (e.g. 130), the first 129 WNs need not show up.
     case 1: wn_number is RemapNr, WNList is WNListRemapped
     case 2: wn_number is BiggestWrittenNode, WNList is WNList
-    DEADWEIGHT = 15  # standard columns' width on the right of the CoreX map
+    DEADWEIGHT = 11  # standard columns' width on the right of the CoreX map
     """
     start = 0
-    if (options.NOMASKING is True) and min(wn_list) > config['min_masking_threshold'] and type(min(wn_list)) == str:
-        # in case of named instead of numbered WNs
-        pass
-    elif (options.NOMASKING is True) and min(wn_list) > config['min_masking_threshold'] and type(min(wn_list)) == int:
-        start = min(wn_list) - 1  # exclude unneeded first empty nodes from the matrix
+    # exclude unneeded first empty nodes from the matrix
+    if options.NOMASKING and min(wn_list) > config['min_masking_threshold']:
+        start = min(wn_list) - 1
 
     # Extra matrices may be needed if the WNs are more than the screen width can hold.
     # import pdb; pdb.set_trace()
     if wn_number > start:  # start will either be 1 or (masked >= config['min_masking_threshold'] + 1)
-        # extra_matrices_nr = abs(wn_number - start + 10) / term_columns
-        extra_matrices_nr = int(ceil(abs(wn_number - start + 10) / float(term_columns)))
-    elif wn_number < start and len(node_dict['node_subclusters']) > 1:  # Remapping
-        extra_matrices_nr = int(ceil((wn_number + 10) / float(term_columns)))
+        extra_matrices_nr = int(ceil(abs(wn_number - start) / float(term_columns - DEADWEIGHT))) - 1  # there was a +10 here
+    elif options.REMAP:  # was: ***wn_number < start*** and len(node_dict['node_subclusters']) > 1:  # Remapping
+        extra_matrices_nr = int(ceil(wn_number / float(term_columns - DEADWEIGHT))) - 1
     else:
         print "This is a case I didn't foresee (wn_number vs start vs node_dict['node_subclusters'])"
 
@@ -453,7 +450,7 @@ def calculate_remaining_matrices(node_state,
                                  account_nrless_of_id,
                                  hxxxx,
                                  term_columns,
-                                 DEADWEIGHT=15):
+                                 DEADWEIGHT=11):
     """
     If the WNs are more than a screenful (width-wise), this calculates the extra matrices needed to display them.
     """
@@ -619,7 +616,7 @@ def calculate_split_screen_size():
 
 if __name__ == '__main__':
     print_start, print_end = 0, None
-    DEADWEIGHT = 15  # standard columns' width on the right of the CoreX map
+    DEADWEIGHT = 11  # standard columns' width on the right of the CoreX map
 
     HOMEPATH = os.path.expanduser('~/PycharmProjects')
     QTOPPATH = os.path.expanduser('~/PycharmProjects/qtop')  # qtoppath: ~/qtop/qtop
