@@ -77,6 +77,7 @@ def decide_remapping(pbs_nodes, node_dict):
         options.REMAP = False
         # max(node_dict['wn_list']) was node_dict['highest_wn']
 
+
 def calculate_stuff(pbs_nodes):
     NAMED_WNS = 0 if not options.FORCE_NAMES else 1
     node_dict = dict()
@@ -450,24 +451,17 @@ def calculate_remaining_matrices(node_state,
                                  term_columns,
                                  DEADWEIGHT=15):
     """
-    If there WNs are numerous, this calculates the extra matrices needed to display them.
+    If the WNs are more than a screenful (width-wise), this calculates the extra matrices needed to display them.
     """
-    for i in range(extra_matrices_nr):
+    for matrix in range(extra_matrices_nr):
         print '\n'
         print_start = _print_end
-        if config['user_cut_matrix_width']:
-            _print_end += config['user_cut_matrix_width']
-        else:
-            _print_end += term_columns - DEADWEIGHT
-
-        if options.REMAP:
-            _print_end = min(_print_end, node_dict['total_wn'])
-        else:
-            _print_end = min(_print_end, node_dict['highest_wn'])
+        _print_end += config['user_cut_matrix_width'] if config['user_cut_matrix_width'] else term_columns - DEADWEIGHT
+        _print_end = min(_print_end, node_dict['total_wn']) if options.REMAP else min(_print_end, node_dict['highest_wn'])
 
         print_WN_ID_lines(print_start, _print_end, node_dict['total_wn'], hxxxx)
-
         print insert_sep(node_state[print_start:_print_end], SEPARATOR, options.WN_COLON) + '=Node state'
+
         for ind, k in enumerate(cpu_core_dict):
             color_cpu_core_list = list(
                 insert_sep(cpu_core_dict['Cpu' + str(ind) + 'line'][print_start:_print_end], SEPARATOR,
@@ -577,7 +571,8 @@ def calculate_wn_occupancy(node_dict, user_names, job_states, job_ids):
                                  cpu_core_dict,
                                  print_end,
                                  account_nrless_of_id,
-                                 hxxxx, term_columns)
+                                 hxxxx,
+                                 term_columns)
     return account_jobs_table
 
 
