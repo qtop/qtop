@@ -376,7 +376,7 @@ def find_matrices_width(wn_number, wn_list, node_dict, term_columns, DEADWEIGHT=
     masking/clipping functionality: if the earliest node number is high (e.g. 130), the first 129 WNs need not show up.
     case 1: wn_number is RemapNr, WNList is WNListRemapped
     case 2: wn_number is BiggestWrittenNode, WNList is WNList
-    DEADWEIGHT = 11  # standard columns' width on the right of the CoreX map
+    DEADWEIGHT is the space taken by the {__XXXX__} labels on the right of the CoreX map
     """
     start = 0
     # exclude unneeded first empty nodes from the matrix
@@ -453,6 +453,7 @@ def calculate_remaining_matrices(node_state,
                                  DEADWEIGHT=11):
     """
     If the WNs are more than a screenful (width-wise), this calculates the extra matrices needed to display them.
+    DEADWEIGHT is the space taken by the {__XXXX__} labels on the right of the CoreX map
     """
     for matrix in range(extra_matrices_nr):
         print '\n'
@@ -616,7 +617,6 @@ def calculate_split_screen_size():
 
 if __name__ == '__main__':
     print_start, print_end = 0, None
-    DEADWEIGHT = 11  # standard columns' width on the right of the CoreX map
 
     HOMEPATH = os.path.expanduser('~/PycharmProjects')
     QTOPPATH = os.path.expanduser('~/PycharmProjects/qtop')  # qtoppath: ~/qtop/qtop
