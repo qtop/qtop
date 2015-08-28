@@ -421,8 +421,9 @@ def print_WN_ID_lines(start, stop, wn_number, hxxxx):
         }
         size = str(len(d))  # key, nr of horizontal lines to be displayed
         # d[size]  #
+        end_label = iter(appends[size])
         for line in d:
-            print insert_sep(d[line][start:stop], SEPARATOR, options.WN_COLON) + iter(appends[size]).next()
+            print insert_sep(d[line][start:stop], SEPARATOR, options.WN_COLON) + end_label.next()
     elif NAMED_WNS or options.FORCE_NAMES:  # names (e.g. fruits) instead of numbered WNs
         raise NotImplementedError
         color = 0
