@@ -17,6 +17,7 @@ import yaml
 from itertools import izip
 # modules
 from pbs import *
+from math import ceil
 from colormap import color_of_account, code_of_color
 
 parser = OptionParser()  # for more details see http://docs.python.org/library/optparse.html
@@ -385,10 +386,12 @@ def find_matrices_width(wn_number, wn_list, node_dict, term_columns, DEADWEIGHT=
         start = min(wn_list) - 1  # exclude unneeded first empty nodes from the matrix
 
     # Extra matrices may be needed if the WNs are more than the screen width can hold.
+    # import pdb; pdb.set_trace()
     if wn_number > start:  # start will either be 1 or (masked >= config['min_masking_threshold'] + 1)
-        extra_matrices_nr = abs(wn_number - start + 10) / term_columns
+        # extra_matrices_nr = abs(wn_number - start + 10) / term_columns
+        extra_matrices_nr = int(ceil(abs(wn_number - start + 10) / float(term_columns)))
     elif wn_number < start and len(node_dict['node_subclusters']) > 1:  # Remapping
-        extra_matrices_nr = (wn_number + 10) / term_columns
+        extra_matrices_nr = int(ceil((wn_number + 10) / float(term_columns)))
     else:
         print "This is a case I didn't foresee (wn_number vs start vs node_dict['node_subclusters'])"
 
