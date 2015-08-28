@@ -459,7 +459,7 @@ def calculate_remaining_matrices(node_state,
         _print_end += config['user_cut_matrix_width'] if config['user_cut_matrix_width'] else term_columns - DEADWEIGHT
         _print_end = min(_print_end, node_dict['total_wn']) if options.REMAP else min(_print_end, node_dict['highest_wn'])
 
-        print_WN_ID_lines(print_start, _print_end, node_dict['total_wn'], hxxxx)
+        print_WN_ID_lines(print_start, _print_end, node_dict['highest_wn'], hxxxx)
         print insert_sep(node_state[print_start:_print_end], SEPARATOR, options.WN_COLON) + '=Node state'
 
         for ind, k in enumerate(cpu_core_dict):
