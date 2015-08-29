@@ -50,14 +50,14 @@ parser.add_option("-w", "--writemethod", dest="write_method", action="store", de
 def colorize(text, pattern):
     """prints text colored according to its unix account colors"""
     try:
-        colour = code_of_color[color_of_account[pattern]]
+        color_code = code_of_color[color_of_account[pattern]]
     except KeyError:
         return text
     else:
-        return "\033[" + code_of_color[color_of_account[pattern]] + "m" + text + "\033[1;m" if not options.NOCOLOR else text
+        return "\033[" + color_code + "m" + text + "\033[1;m" if not options.NOCOLOR else text
 
 
-def decide_remapping(pbs_nodes, node_dict):
+def decide_remapping(node_dict):
     """
     Cases where remapping is enforced are:
     - the user has requested it (blindremap switch)
@@ -133,7 +133,7 @@ def calculate_stuff(pbs_nodes):
     node_dict['all_str_digits'] = filter(lambda x: x != "", _all_str_digits_with_empties)
     node_dict['all_digits'] = [int(digit) for digit in node_dict['all_str_digits']]
 
-    decide_remapping(pbs_nodes, node_dict)
+    decide_remapping(node_dict)
     map_pbsnodes_to_wn_dicts(node_dict, pbs_nodes)
     if options.REMAP:
         node_dict['highest_wn'] = node_dict['total_wn']
@@ -455,7 +455,7 @@ def calculate_remaining_matrices(node_state,
                                  node_dict,
                                  cpu_core_dict,
                                  _print_end,
-                                 account_nrless_of_id,
+                                 nrless_user_of_id,
                                  hxxxx,
                                  term_columns,
                                  DEADWEIGHT=11):
@@ -481,7 +481,7 @@ def calculate_remaining_matrices(node_state,
         print '\n'
         print_wnid_lines(print_start, _print_end, node_dict['highest_wn'], hxxxx)
         print line_with_separators(node_state[print_start:_print_end], SEPARATOR, options.WN_COLON) + '=Node state'
-        for core_line in get_core_lines(cpu_core_dict, print_start, _print_end, account_nrless_of_id):
+        for core_line in get_core_lines(cpu_core_dict, print_start, _print_end, nrless_user_of_id):
             if gray_hash * (_print_end - print_start) not in core_line.replace(separator_between_ansi, ''):
                 print core_line
 
@@ -496,13 +496,16 @@ def create_user_accounts_pool_mappings(account_jobs_table):
     for line in account_jobs_table:
         uid, runningjobs, queuedjobs, alljobs, user = line[0], line[1], line[2], line[3], line[4]
         account = re.search('[A-Za-z]+', user).group(0)  # verify that this doesn't lose hits compared to the old for loop
-        extra_width = 0 if options.NOCOLOR or account not in color_of_account else 12
+        if options.NOCOLOR or all([_account not in color_of_account for _account in (account, user)]):
+            extra_width = 0
+        else:
+            extra_width = 12
         print_string = '{:<{width2}} {sep} {:>{width4}} + {:>{width4}} / {:>{width4}} {sep} {:>{width15}} {sep}'.format(
-            colorize(str(uid), account),
-            colorize(str(runningjobs), account),
-            colorize(str(queuedjobs), account),
-            colorize(str(alljobs), account),
-            colorize(str(user), account),
+            colorize_with_either(str(uid), account, user),
+            colorize_with_either(str(runningjobs), account, user),
+            colorize_with_either(str(queuedjobs), account, user),
+            colorize_with_either(str(alljobs), account, user),
+            colorize_with_either(user, account, user),
             sep=colorize(SEPARATOR, account),
             width2=2 + extra_width,
             width3=3 + extra_width,
@@ -512,7 +515,11 @@ def create_user_accounts_pool_mappings(account_jobs_table):
         print print_string
 
 
-def get_core_lines(cpu_core_dict, print_start, print_end, account_nrless_of_id):
+def colorize_with_either(text, one, two):
+    return (colorize(text, one) == text) and colorize(text, two) or (colorize(text, one))
+
+
+def get_core_lines(cpu_core_dict, print_start, print_end, nrless_user_of_id):
     """
     prints all coreX lines
     """
@@ -525,8 +532,8 @@ def get_core_lines(cpu_core_dict, print_start, print_end, account_nrless_of_id):
                 options.WN_COLON
             )
         )
-        color_cpu_core_list = [colorize(elem, account_nrless_of_id[elem]) for elem in color_cpu_core_list if
-                               elem in account_nrless_of_id]
+        color_cpu_core_list = [colorize(elem, nrless_user_of_id[elem]) for elem in color_cpu_core_list if
+                               elem in nrless_user_of_id]
         line = ''.join(color_cpu_core_list)
         yield line + colorize('=core' + str(ind), 'account_not_coloured')
 
@@ -556,7 +563,7 @@ def calculate_wn_occupancy(node_dict, user_names, job_states, job_ids):
     """
     term_columns = calculate_split_screen_size()
     account_jobs_table, id_of_username = create_account_jobs_table(user_names, job_states)
-    account_nrless_of_id = make_account_nrless_of_id(account_jobs_table)
+    nrless_user_of_id = make_account_nrless_of_id(account_jobs_table)
 
     cpu_core_dict = calc_cpu_lines(node_dict, id_of_username, job_ids, user_names)
     print colorize('===> ', '#') + colorize('Worker Nodes occupancy', 'Nothing') + colorize(' <=== ', '#') + colorize(
@@ -564,16 +571,14 @@ def calculate_wn_occupancy(node_dict, user_names, job_states, job_ids):
 
     highest_wn, wn_dict, wn_list = node_dict['highest_wn'], node_dict['wn_dict'], node_dict['wn_list']
 
-    node_state = ''
-    for node in wn_dict:
-        node_state += wn_dict[node]['state']
-
     (print_start, print_end, extra_matrices_nr) = find_matrices_width(highest_wn, wn_list, node_dict, term_columns)
     hxxxx = calculate_total_wnid_line_width(highest_wn)
-
     print_wnid_lines(print_start, print_end, highest_wn, hxxxx)
+
+    node_state = ''.join([wn_dict[node]['state'] for node in wn_dict])
     print line_with_separators(node_state[print_start:print_end], SEPARATOR, options.WN_COLON) + '=Node state'
-    for core_line in get_core_lines(cpu_core_dict, print_start, print_end, account_nrless_of_id):
+
+    for core_line in get_core_lines(cpu_core_dict, print_start, print_end, nrless_user_of_id):
         print core_line
 
     calculate_remaining_matrices(node_state,
@@ -581,24 +586,22 @@ def calculate_wn_occupancy(node_dict, user_names, job_states, job_ids):
                                  node_dict,
                                  cpu_core_dict,
                                  print_end,
-                                 account_nrless_of_id,
+                                 nrless_user_of_id,
                                  hxxxx,
                                  term_columns)
     return account_jobs_table
 
 
 def make_account_nrless_of_id(account_jobs_table):
-    account_nrless_of_id = {}
+    nrless_user_of_id = {}
     for line in account_jobs_table:
         just_name = re.split('[0-9]+', line[4])[0]
-        account_nrless_of_id[line[0]] = just_name if just_name in color_of_account else 'account_not_coloured'
+        nrless_user_of_id[line[0]] = just_name if just_name in color_of_account else 'account_not_coloured'
 
-    account_nrless_of_id['#'] = '#'
-    account_nrless_of_id['_'] = '_'
-    account_nrless_of_id[SEPARATOR] = 'account_not_coloured'
-    return account_nrless_of_id
-
-
+    nrless_user_of_id['#'] = '#'
+    nrless_user_of_id['_'] = '_'
+    nrless_user_of_id[SEPARATOR] = 'account_not_coloured'
+    return nrless_user_of_id
 
 
 def reset_yaml_files():
@@ -620,6 +623,8 @@ def load_yaml_config(path):
 
     config['possible_ids'] = list(config['possible_ids'])
     symbol_map = dict([(chr(x), x) for x in range(33, 48) + range(58, 64) + range(91, 96) + range(123, 126)])
+
+    color_of_account.update(config['user_colour_mappings'])
     for symbol in symbol_map:
         config['possible_ids'].append(symbol)
     return config
