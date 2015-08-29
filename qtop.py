@@ -457,6 +457,10 @@ def calculate_remaining_matrices(node_state,
     """
     If the WNs are more than a screenful (width-wise), this calculates the extra matrices needed to display them.
     DEADWEIGHT is the space taken by the {__XXXX__} labels on the right of the CoreX map
+
+    if the first matrix has e.g. 10 machines with 64 cores,
+    and the remaining 190 machines have 8 cores, this doesn't print the non-existent
+    56 cores from the next matrix on.
     """
     for matrix in range(extra_matrices_nr):
         print '\n'
@@ -471,15 +475,10 @@ def calculate_remaining_matrices(node_state,
         print line_with_separators(node_state[print_start:_print_end], SEPARATOR, options.WN_COLON) + '=Node state'
 
         gray_hash = '\x1b[1;30m#\x1b[1;m'
-        for line, no_color_linelength in get_core_lines(cpu_core_dict, print_start, _print_end, account_nrless_of_id):
-            '''
-            if the first matrix has e.g. 10 machines with 64 cores,
-            and the remaining 190 machines have 8 cores, don't print the non-existent
-            56 cores from the next matrix on.
-            IMPORTANT: not working if vertical separators are present!
-            '''
-            if gray_hash * (_print_end - print_start) not in line.replace('\x1b[0m|\x1b[1;m',''):  # if gray hashes not in line
-                print line
+        for core_line in get_core_lines(cpu_core_dict, print_start, _print_end, account_nrless_of_id):
+            if gray_hash * (_print_end - print_start) not in core_line.replace('\x1b[0m|\x1b[1;m', ''):
+                # if gray hashes not in line
+                print core_line
 
 
 def create_user_accounts_pool_mappings(account_jobs_table):
@@ -520,8 +519,7 @@ def get_core_lines(cpu_core_dict, print_start, print_end, account_nrless_of_id):
         color_cpu_core_list = [colorize(elem, account_nrless_of_id[elem]) for elem in color_cpu_core_list if
                                elem in account_nrless_of_id]
         line = ''.join(color_cpu_core_list)
-        nocolor_linelength = len(''.join(color_cpu_core_list))
-        yield (line + colorize('=core' + str(ind), 'account_not_coloured'), nocolor_linelength)
+        yield line + colorize('=core' + str(ind), 'account_not_coloured')
 
 
 def calc_cpu_lines(node_dict, id_of_username, job_ids, user_names):
@@ -566,8 +564,8 @@ def calculate_wn_occupancy(node_dict, user_names, job_states, job_ids):
     hxxxx = calculate_total_wnid_line_width(highest_wn)
     print_wnid_lines(print_start, print_end, highest_wn, hxxxx)
     print line_with_separators(node_state[print_start:print_end], SEPARATOR, options.WN_COLON) + '=Node state'
-    for line, _ in get_core_lines(cpu_core_dict, print_start, print_end, account_nrless_of_id):
-        print line
+    for core_line in get_core_lines(cpu_core_dict, print_start, print_end, account_nrless_of_id):
+        print core_line
 
     calculate_remaining_matrices(node_state,
                                  extra_matrices_nr,
