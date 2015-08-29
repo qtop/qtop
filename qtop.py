@@ -462,6 +462,9 @@ def calculate_remaining_matrices(node_state,
     and the remaining 190 machines have 8 cores, this doesn't print the non-existent
     56 cores from the next matrix on.
     """
+    gray_hash = '\x1b[1;30m#\x1b[1;m'
+    separator_between_ansi = '\x1b[0m|\x1b[1;m'
+
     for matrix in range(extra_matrices_nr):
         print '\n'
         print_start = _print_end
@@ -473,11 +476,8 @@ def calculate_remaining_matrices(node_state,
 
         print_wnid_lines(print_start, _print_end, node_dict['highest_wn'], hxxxx)
         print line_with_separators(node_state[print_start:_print_end], SEPARATOR, options.WN_COLON) + '=Node state'
-
-        gray_hash = '\x1b[1;30m#\x1b[1;m'
         for core_line in get_core_lines(cpu_core_dict, print_start, _print_end, account_nrless_of_id):
-            if gray_hash * (_print_end - print_start) not in core_line.replace('\x1b[0m|\x1b[1;m', ''):
-                # if gray hashes not in line
+            if gray_hash * (_print_end - print_start) not in core_line.replace(separator_between_ansi, ''):
                 print core_line
 
 
@@ -560,8 +560,8 @@ def calculate_wn_occupancy(node_dict, user_names, job_states, job_ids):
         node_state += wn_dict[node]['state']
 
     (print_start, print_end, extra_matrices_nr) = find_matrices_width(highest_wn, wn_list, node_dict, term_columns)
-
     hxxxx = calculate_total_wnid_line_width(highest_wn)
+
     print_wnid_lines(print_start, print_end, highest_wn, hxxxx)
     print line_with_separators(node_state[print_start:print_end], SEPARATOR, options.WN_COLON) + '=Node state'
     for core_line in get_core_lines(cpu_core_dict, print_start, print_end, account_nrless_of_id):
