@@ -466,7 +466,6 @@ def calculate_remaining_matrices(node_state,
     separator_between_ansi = '\x1b[0m|\x1b[1;m'
 
     for matrix in range(extra_matrices_nr):
-        print '\n'
         print_start = _print_end
         if config['user_cut_matrix_width']:
             _print_end += config['user_cut_matrix_width']
@@ -474,6 +473,7 @@ def calculate_remaining_matrices(node_state,
             _print_end += term_columns - DEADWEIGHT  # - (node_dict['highest_wn'] / float(options.WN_COLON))
         _print_end = min(_print_end, node_dict['total_wn']) if options.REMAP else min(_print_end, node_dict['highest_wn'])
 
+        print '\n'
         print_wnid_lines(print_start, _print_end, node_dict['highest_wn'], hxxxx)
         print line_with_separators(node_state[print_start:_print_end], SEPARATOR, options.WN_COLON) + '=Node state'
         for core_line in get_core_lines(cpu_core_dict, print_start, _print_end, account_nrless_of_id):
@@ -482,24 +482,27 @@ def calculate_remaining_matrices(node_state,
 
 
 def create_user_accounts_pool_mappings(account_jobs_table):
-    print colorize('\n===> ', '#') + colorize('User accounts and pool mappings', 'Nothing') + colorize(' <=== ',
-                                                                                                       '#') + colorize(
-        "('all' includes those in C and W states, as reported by qstat)", 'account_not_coloured')
-    print ' id |  R   +   Q  /  all |    unix account | Grid certificate DN (this info is only available under elevated privileges)'
+    print colorize('\n===> ', '#') + \
+          colorize('User accounts and pool mappings', 'Nothing') + \
+          colorize(' <=== ', '#') + \
+          colorize("('all' includes those in C and W states, as reported by qstat)", 'account_not_coloured')
+    print ' id |  R   +   Q  /  all |    unix account | Grid certificate DN (info only available under elevated privileges)'
 
     for line in account_jobs_table:
         uid, runningjobs, queuedjobs, alljobs, user = line[0], line[1], line[2], line[3], line[4]
         print_string = '%3s | %4s + %4s / %4s | %15s |' % (uid, runningjobs, queuedjobs, alljobs, user)
-        for account in color_of_account:
-            if user.startswith(account) and not options.NOCOLOR:
+        nrless_user = re.search('[A-Za-z]+', user).group(0)  # verify that this doesn't lose hits compared to the for loop
+        account = nrless_user
+        if nrless_user in color_of_account:
+            if not options.NOCOLOR:
                 print_string = '%15s | %16s + %16s / %16s | %27s %4s' % (
                     colorize(str(uid), account), colorize(str(runningjobs), account), colorize(str(queuedjobs), account),
                     colorize(str(alljobs), account), colorize(str(user), account),
                     colorize(SEPARATOR, 'account_not_coloured'))
-            elif user.startswith(account) and options.NOCOLOR:
+            else:
                 print_string = '%2s | %3s + %3s / %3s | %14s |' % (
-                    colorize(uid, account), colorize(str(runningjobs), account), colorize(str(queuedjobs), account),
-                    colorize(str(alljobs), account), colorize(user, account))
+                    colorize(str(uid), account), colorize(str(runningjobs), account), colorize(str(queuedjobs), account),
+                    colorize(str(alljobs), account), colorize(str(user), account))
         print print_string
 
 
