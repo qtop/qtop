@@ -490,7 +490,7 @@ def create_user_accounts_pool_mappings(account_jobs_table):
     print colorize('\n===> ', '#') + \
           colorize('User accounts and pool mappings', 'Nothing') + \
           colorize(' <=== ', '#') + \
-          colorize("('all' also includes those in C and W states, as reported by qstat)", 'account_not_coloured')
+          colorize("  ('all' also includes those in C and W states, as reported by qstat)", '#')
 
     print 'id |    R +    Q /  all |    unix account | Grid certificate DN (info only available under elevated privileges)'
     for line in account_jobs_table:
