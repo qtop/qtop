@@ -49,7 +49,12 @@ parser.add_option("-w", "--writemethod", dest="write_method", action="store", de
 
 def colorize(text, pattern):
     """prints text colored according to its unix account colors"""
-    return "\033[" + code_of_color[color_of_account[pattern]] + "m" + text + "\033[1;m" if not options.NOCOLOR else text
+    try:
+        colour = code_of_color[color_of_account[pattern]]
+    except KeyError:
+        return text
+    else:
+        return "\033[" + code_of_color[color_of_account[pattern]] + "m" + text + "\033[1;m" if not options.NOCOLOR else text
 
 
 def decide_remapping(pbs_nodes, node_dict):
@@ -486,23 +491,27 @@ def create_user_accounts_pool_mappings(account_jobs_table):
           colorize('User accounts and pool mappings', 'Nothing') + \
           colorize(' <=== ', '#') + \
           colorize("('all' includes those in C and W states, as reported by qstat)", 'account_not_coloured')
-    print ' id |  R   +   Q  /  all |    unix account | Grid certificate DN (info only available under elevated privileges)'
+    print 'id |    R +    Q /  all |    unix account | Grid certificate DN (info only available under elevated privileges)'
 
     for line in account_jobs_table:
         uid, runningjobs, queuedjobs, alljobs, user = line[0], line[1], line[2], line[3], line[4]
-        print_string = '%3s | %4s + %4s / %4s | %15s |' % (uid, runningjobs, queuedjobs, alljobs, user)
-        nrless_user = re.search('[A-Za-z]+', user).group(0)  # verify that this doesn't lose hits compared to the for loop
-        account = nrless_user
-        if nrless_user in color_of_account:
-            if not options.NOCOLOR:
-                print_string = '%15s | %16s + %16s / %16s | %27s %4s' % (
-                    colorize(str(uid), account), colorize(str(runningjobs), account), colorize(str(queuedjobs), account),
-                    colorize(str(alljobs), account), colorize(str(user), account),
-                    colorize(SEPARATOR, 'account_not_coloured'))
-            else:
-                print_string = '%2s | %3s + %3s / %3s | %14s |' % (
-                    colorize(str(uid), account), colorize(str(runningjobs), account), colorize(str(queuedjobs), account),
-                    colorize(str(alljobs), account), colorize(str(user), account))
+        account = re.search('[A-Za-z]+', user).group(0)  # verify that this doesn't lose hits compared to the old for loop
+        extra_width = 0 if options.NOCOLOR else 12
+        if account not in color_of_account:
+            print_string = '{:<2} | {:>4} + {:>4} / {:>4} | {:>15} |'.format(uid, runningjobs, queuedjobs, alljobs, user, SEPARATOR)
+        elif account in color_of_account:
+            print_string = '{:<{width2}} | {:>{width4}} + {:>{width4}} / {:>{width4}} | {:>{width15}} |'.format(
+                colorize(str(uid), account),
+                colorize(str(runningjobs), account),
+                colorize(str(queuedjobs), account),
+                colorize(str(alljobs), account),
+                colorize(str(user), account),
+                # colorize(SEPARATOR, 'account_not_coloured'),
+                width2=2 + extra_width,
+                width3=3 + extra_width,
+                width4=4 + extra_width,
+                width15=15 + extra_width,
+            )
         print print_string
 
 
