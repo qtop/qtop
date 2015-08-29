@@ -472,9 +472,12 @@ def calculate_remaining_matrices(node_state,
 
         for ind, k in enumerate(cpu_core_dict):
             color_cpu_core_list = list(
-                line_with_separators(cpu_core_dict['Cpu' + str(ind) + 'line'][print_start:_print_end], SEPARATOR,
-                           options.WN_COLON))
-            nocolor_linelength = len(''.join(color_cpu_core_list))
+                line_with_separators(
+                    cpu_core_dict['Cpu' + str(ind) + 'line'][print_start:_print_end],
+                    SEPARATOR,
+                    options.WN_COLON
+                )
+            )
             color_cpu_core_list = [colorize(elem, account_nrless_of_id[elem]) for elem in color_cpu_core_list if
                                    elem in account_nrless_of_id]
             line = ''.join(color_cpu_core_list)
@@ -483,7 +486,8 @@ def calculate_remaining_matrices(node_state,
             56 cores from the next matrix on.
             IMPORTANT: not working if vertical separators are present!
             '''
-            if '\x1b[1;30m#\x1b[1;m' * nocolor_linelength not in line:
+            nocolor_linelength = len(''.join(color_cpu_core_list))
+            if '\x1b[1;30m#\x1b[1;m' * nocolor_linelength not in line:  # gray hashes not in line
                 print line + colorize('=core' + str(ind), 'NoColourAccount')
 
 
@@ -521,9 +525,15 @@ def print_core_lines(cpu_core_dict, account_jobs_table, print_start, print_end):
     account_nrless_of_id['#'] = '#'
     account_nrless_of_id['_'] = '_'
     account_nrless_of_id[SEPARATOR] = 'NoColourAccount'
+
     for ind, k in enumerate(cpu_core_dict):
         color_cpu_core_list = list(
-            line_with_separators(cpu_core_dict['Cpu' + str(ind) + 'line'][print_start:print_end], SEPARATOR, options.WN_COLON))
+            line_with_separators(
+                cpu_core_dict['Cpu' + str(ind) + 'line'][print_start:print_end],
+                SEPARATOR,
+                options.WN_COLON
+            )
+        )
         color_cpu_core_list = [colorize(elem, account_nrless_of_id[elem]) for elem in color_cpu_core_list if
                                elem in account_nrless_of_id]
         line = ''.join(color_cpu_core_list)
@@ -569,11 +579,12 @@ def calculate_wn_occupancy(node_dict, user_names, job_states, job_ids):
         node_state += wn_dict[node]['state']
 
     (print_start, print_end, extra_matrices_nr) = find_matrices_width(highest_wn, wn_list, node_dict, term_columns)
+
     hxxxx = calculate_total_wnid_line_width(highest_wn)
     print_wnid_lines(print_start, print_end, highest_wn, hxxxx)
     print line_with_separators(node_state[print_start:print_end], SEPARATOR, options.WN_COLON) + '=Node state'
-
     account_nrless_of_id = print_core_lines(cpu_core_dict, account_jobs_table, print_start, print_end)
+
     calculate_remaining_matrices(node_state,
                                  extra_matrices_nr,
                                  node_dict,
