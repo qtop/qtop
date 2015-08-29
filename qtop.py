@@ -158,7 +158,7 @@ def create_job_accounting_summary(node_dict, total_running, total_queued, qstatq
     print '\nPBS report tool. Please try: watch -d ' + QTOPPATH + \
           '. All bugs added by sfranky@gmail.com. Cross fingers now...\n'
     print colorize('===> ', '#') + colorize('Job accounting summary', 'Nothing') + colorize(' <=== ', '#') + colorize(
-        '(Rev: 3000 $) %s WORKDIR = to be added', 'NoColourAccount') % (datetime.datetime.today())
+        '(Rev: 3000 $) %s WORKDIR = to be added', 'account_not_coloured') % (datetime.datetime.today())
     print 'Usage Totals:\t%s/%s\t Nodes | %s/%s  Cores |   %s+%s jobs (R + Q) reported by qstat -q' % \
           (node_dict['total_wn'] - node_dict['offline_down_nodes'],
            node_dict['total_wn'],
@@ -470,31 +470,22 @@ def calculate_remaining_matrices(node_state,
         print_wnid_lines(print_start, _print_end, node_dict['highest_wn'], hxxxx)
         print line_with_separators(node_state[print_start:_print_end], SEPARATOR, options.WN_COLON) + '=Node state'
 
-        for ind, k in enumerate(cpu_core_dict):
-            color_cpu_core_list = list(
-                line_with_separators(
-                    cpu_core_dict['Cpu' + str(ind) + 'line'][print_start:_print_end],
-                    SEPARATOR,
-                    options.WN_COLON
-                )
-            )
-            color_cpu_core_list = [colorize(elem, account_nrless_of_id[elem]) for elem in color_cpu_core_list if
-                                   elem in account_nrless_of_id]
-            line = ''.join(color_cpu_core_list)
+        gray_hash = '\x1b[1;30m#\x1b[1;m'
+        for line, no_color_linelength in get_core_lines(cpu_core_dict, print_start, _print_end, account_nrless_of_id):
             '''
-            if the first matrix has 10 machines with 64 cores, and the rest 190 machines have 8 cores, don't print the non-existent
+            if the first matrix has e.g. 10 machines with 64 cores,
+            and the remaining 190 machines have 8 cores, don't print the non-existent
             56 cores from the next matrix on.
             IMPORTANT: not working if vertical separators are present!
             '''
-            nocolor_linelength = len(''.join(color_cpu_core_list))
-            if '\x1b[1;30m#\x1b[1;m' * nocolor_linelength not in line:  # gray hashes not in line
-                print line + colorize('=core' + str(ind), 'NoColourAccount')
+            if gray_hash * (_print_end - print_start) not in line.replace('\x1b[0m|\x1b[1;m',''):  # if gray hashes not in line
+                print line
 
 
 def create_user_accounts_pool_mappings(account_jobs_table):
     print colorize('\n===> ', '#') + colorize('User accounts and pool mappings', 'Nothing') + colorize(' <=== ',
                                                                                                        '#') + colorize(
-        "('all' includes those in C and W states, as reported by qstat)", 'NoColourAccount')
+        "('all' includes those in C and W states, as reported by qstat)", 'account_not_coloured')
     print ' id |  R   +   Q  /  all |    unix account | Grid certificate DN (this info is only available under elevated privileges)'
 
     for line in account_jobs_table:
@@ -505,7 +496,7 @@ def create_user_accounts_pool_mappings(account_jobs_table):
                 print_string = '%15s | %16s + %16s / %16s | %27s %4s' % (
                     colorize(str(uid), account), colorize(str(runningjobs), account), colorize(str(queuedjobs), account),
                     colorize(str(alljobs), account), colorize(str(user), account),
-                    colorize(SEPARATOR, 'NoColourAccount'))
+                    colorize(SEPARATOR, 'account_not_coloured'))
             elif user.startswith(account) and options.NOCOLOR:
                 print_string = '%2s | %3s + %3s / %3s | %14s |' % (
                     colorize(uid, account), colorize(str(runningjobs), account), colorize(str(queuedjobs), account),
@@ -513,19 +504,11 @@ def create_user_accounts_pool_mappings(account_jobs_table):
         print print_string
 
 
-def print_core_lines(cpu_core_dict, account_jobs_table, print_start, print_end):
+def get_core_lines(cpu_core_dict, print_start, print_end, account_nrless_of_id):
     """
     prints all coreX lines
     """
-    account_nrless_of_id = {}
-    for line in account_jobs_table:
-        just_name = re.split('[0-9]+', line[4])[0]
-        account_nrless_of_id[line[0]] = just_name if just_name in color_of_account else 'NoColourAccount'
-
-    account_nrless_of_id['#'] = '#'
-    account_nrless_of_id['_'] = '_'
-    account_nrless_of_id[SEPARATOR] = 'NoColourAccount'
-
+    # lines = []
     for ind, k in enumerate(cpu_core_dict):
         color_cpu_core_list = list(
             line_with_separators(
@@ -537,9 +520,8 @@ def print_core_lines(cpu_core_dict, account_jobs_table, print_start, print_end):
         color_cpu_core_list = [colorize(elem, account_nrless_of_id[elem]) for elem in color_cpu_core_list if
                                elem in account_nrless_of_id]
         line = ''.join(color_cpu_core_list)
-        print line + colorize('=core' + str(ind), 'NoColourAccount')
-
-    return account_nrless_of_id
+        nocolor_linelength = len(''.join(color_cpu_core_list))
+        yield (line + colorize('=core' + str(ind), 'account_not_coloured'), nocolor_linelength)
 
 
 def calc_cpu_lines(node_dict, id_of_username, job_ids, user_names):
@@ -567,10 +549,11 @@ def calculate_wn_occupancy(node_dict, user_names, job_states, job_ids):
     """
     term_columns = calculate_split_screen_size()
     account_jobs_table, id_of_username = create_account_jobs_table(user_names, job_states)
+    account_nrless_of_id = make_account_nrless_of_id(account_jobs_table)
 
     cpu_core_dict = calc_cpu_lines(node_dict, id_of_username, job_ids, user_names)
     print colorize('===> ', '#') + colorize('Worker Nodes occupancy', 'Nothing') + colorize(' <=== ', '#') + colorize(
-        '(you can read vertically the node IDs; nodes in free state are noted with - )', 'NoColourAccount')
+        '(you can read vertically the node IDs; nodes in free state are noted with - )', 'account_not_coloured')
 
     highest_wn, wn_dict, wn_list = node_dict['highest_wn'], node_dict['wn_dict'], node_dict['wn_list']
 
@@ -583,7 +566,8 @@ def calculate_wn_occupancy(node_dict, user_names, job_states, job_ids):
     hxxxx = calculate_total_wnid_line_width(highest_wn)
     print_wnid_lines(print_start, print_end, highest_wn, hxxxx)
     print line_with_separators(node_state[print_start:print_end], SEPARATOR, options.WN_COLON) + '=Node state'
-    account_nrless_of_id = print_core_lines(cpu_core_dict, account_jobs_table, print_start, print_end)
+    for line, _ in get_core_lines(cpu_core_dict, print_start, print_end, account_nrless_of_id):
+        print line
 
     calculate_remaining_matrices(node_state,
                                  extra_matrices_nr,
@@ -594,6 +578,20 @@ def calculate_wn_occupancy(node_dict, user_names, job_states, job_ids):
                                  hxxxx,
                                  term_columns)
     return account_jobs_table
+
+
+def make_account_nrless_of_id(account_jobs_table):
+    account_nrless_of_id = {}
+    for line in account_jobs_table:
+        just_name = re.split('[0-9]+', line[4])[0]
+        account_nrless_of_id[line[0]] = just_name if just_name in color_of_account else 'account_not_coloured'
+
+    account_nrless_of_id['#'] = '#'
+    account_nrless_of_id['_'] = '_'
+    account_nrless_of_id[SEPARATOR] = 'account_not_coloured'
+    return account_nrless_of_id
+
+
 
 
 def reset_yaml_files():

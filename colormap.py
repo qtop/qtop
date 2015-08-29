@@ -326,7 +326,7 @@ color_of_account = {
     'Brown':    'Brown',
     '_':    'Gray_D',
     '#':    'Gray_D',
-    'NoColourAccount':    'normal',
+    'account_not_coloured':    'normal',
     'Nothing':    'White'
     # catch-all rule for many more names
     #[[:alpha:]][-_[:alnum:].]* 'Gray_L',
