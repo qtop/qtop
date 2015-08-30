@@ -4,5 +4,6 @@ separator: '|' # character used for vertical separator, for the -o switch
 percentage: 0.8 # if less than PERCENTAGE x 100% of the matrices have jobs, perform a blind remap
 possible_ids: '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz' # IDs of unix accounts, for the lower part of qtop
 user_colour_mappings:
-  eumab140: Gray_D
-  therq062: Red_L
+  '[A-Za-z]+1\d{2}': Red_L
+  '[A-Za-z]+15\d': Gray_D
+  'the[rd]q\d+': Blue_L

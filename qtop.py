@@ -48,7 +48,9 @@ parser.add_option("-w", "--writemethod", dest="write_method", action="store", de
 
 
 def colorize(text, pattern):
-    """prints text colored according to its unix account colors"""
+    """
+    prints text coloured according to a unix account pattern color.
+    """
     try:
         color_code = code_of_color[color_of_account[pattern]]
     except KeyError:
@@ -174,10 +176,10 @@ def create_job_accounting_summary(node_dict, total_running, total_queued, qstatq
     print 'Queues: | ',
     for q in qstatq_list:
         q_name, q_running_jobs, q_queued_jobs = q['queue_name'], q['run'], q['queued']
-        color = q_name if q_name in color_of_account else 'Nothing'
-        print "{}: {} + {} |".format(colorize(q_name, color),
-                                     colorize(q_running_jobs, color),
-                                     colorize(q_queued_jobs, color)),
+        account = q_name if q_name in color_of_account else 'account_not_coloured'
+        print "{}: {} + {} |".format(colorize(q_name, account),
+                                     colorize(q_running_jobs, account),
+                                     colorize(q_queued_jobs, account)),
     print '* implies blocked\n'
 
 
@@ -495,17 +497,29 @@ def create_user_accounts_pool_mappings(account_jobs_table):
     print 'id |    R +    Q /  all |    unix account | Grid certificate DN (info only available under elevated privileges)'
     for line in account_jobs_table:
         uid, runningjobs, queuedjobs, alljobs, user = line[0], line[1], line[2], line[3], line[4]
-        account = re.search('[A-Za-z]+', user).group(0)  # verify that this doesn't lose hits compared to the old for loop
+
+        _account = re.search('[A-Za-z]+', user).group(0)  # verify that this doesn't lose hits compared to the old for loop
+        for re_account in config['user_colour_mappings']:
+            try:
+                _ = re.search(re_account, user).group(0)
+            except AttributeError:
+                continue  # keep trying
+            else:
+                account = re_account  # colours the text according to the regex given by the user in qtopconf
+                break
+        else:  # if no break occurs (=if no regex match has been found)
+            account = _account  # fallback to the colormaps in colormap.py
+
         if options.NOCOLOR or all([_account not in color_of_account for _account in (account, user)]):
             extra_width = 0
         else:
             extra_width = 12
         print_string = '{:<{width2}} {sep} {:>{width4}} + {:>{width4}} / {:>{width4}} {sep} {:>{width15}} {sep}'.format(
-            colorize_with_either(str(uid), account, user),
-            colorize_with_either(str(runningjobs), account, user),
-            colorize_with_either(str(queuedjobs), account, user),
-            colorize_with_either(str(alljobs), account, user),
-            colorize_with_either(user, account, user),
+            colorize(str(uid), account),
+            colorize(str(runningjobs), account),
+            colorize(str(queuedjobs), account),
+            colorize(str(alljobs), account),
+            colorize(user, account),
             sep=colorize(SEPARATOR, account),
             width2=2 + extra_width,
             width3=3 + extra_width,
@@ -516,6 +530,11 @@ def create_user_accounts_pool_mappings(account_jobs_table):
 
 
 def colorize_with_either(text, one, two):
+    """
+    will first attempt to colorize the text according to unix account's "one" colouring.
+    If "one" doesn't have a colormap mapped to it, it will colorize it with "two"s colouring.
+    If that doesn't work either, no colouring will take place.
+    """
     return (colorize(text, one) == text) and colorize(text, two) or (colorize(text, one))
 
 
