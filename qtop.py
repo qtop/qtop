@@ -650,7 +650,10 @@ def load_yaml_config(path):
     config['possible_ids'] = list(config['possible_ids'])
     symbol_map = dict([(chr(x), x) for x in range(33, 48) + range(58, 64) + range(91, 96) + range(123, 126)])
 
-    color_of_account.update(config['user_colour_mappings'])
+    if config['user_colour_mappings']:
+        color_of_account.update(config['user_colour_mappings'])
+    else:
+        config['user_colour_mappings'] = dict()
     for symbol in symbol_map:
         config['possible_ids'].append(symbol)
     return config
