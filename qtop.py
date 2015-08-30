@@ -56,7 +56,8 @@ def colorize(text, pattern):
     except KeyError:
         return text
     else:
-        return "\033[" + color_code + "m" + text + "\033[1;m" if not options.NOCOLOR else text
+        return "\033[" + color_code + "m" + text + "\033[1;m" if ((not options.NOCOLOR) and pattern != 'account_not_coloured') \
+            else text
 
 
 def decide_remapping(node_dict):
@@ -235,7 +236,8 @@ def create_account_jobs_table(user_names, job_states):
             [id_of_username[user],
              job_counts['running_of_user'][user],
              job_counts['queued_of_user'][user],
-             alljobs_of_user, user]
+             alljobs_of_user,
+             user]
         )
     account_jobs_table.sort(key=itemgetter(3, 4), reverse=True)  # sort by All jobs, then unix account
     # unix account id needs to be recomputed at this point. Should fix later.
@@ -457,7 +459,7 @@ def calculate_remaining_matrices(node_state,
                                  node_dict,
                                  cpu_core_dict,
                                  _print_end,
-                                 nrless_user_of_id,
+                                 pattern_of_id,
                                  hxxxx,
                                  term_columns,
                                  DEADWEIGHT=11):
@@ -483,7 +485,7 @@ def calculate_remaining_matrices(node_state,
         print '\n'
         print_wnid_lines(print_start, _print_end, node_dict['highest_wn'], hxxxx)
         print line_with_separators(node_state[print_start:_print_end], SEPARATOR, options.WN_COLON) + '=Node state'
-        for core_line in get_core_lines(cpu_core_dict, print_start, _print_end, nrless_user_of_id):
+        for core_line in get_core_lines(cpu_core_dict, print_start, _print_end, pattern_of_id):
             if gray_hash * (_print_end - print_start) not in core_line.replace(separator_between_ansi, ''):
                 print core_line
 
@@ -497,21 +499,12 @@ def create_user_accounts_pool_mappings(account_jobs_table):
     print 'id |    R +    Q /  all |    unix account | Grid certificate DN (info only available under elevated privileges)'
     for line in account_jobs_table:
         uid, runningjobs, queuedjobs, alljobs, user = line[0], line[1], line[2], line[3], line[4]
-
-        _account = re.search('[A-Za-z]+', user).group(0)  # verify that this doesn't lose hits compared to the old for loop
-        for re_account in config['user_colour_mappings']:
-            try:
-                _ = re.search(re_account, user).group(0)
-            except AttributeError:
-                continue  # keep trying
-            else:
-                account = re_account  # colours the text according to the regex given by the user in qtopconf
-                break
-        else:  # if no break occurs (=if no regex match has been found)
-            account = _account  # fallback to the colormaps in colormap.py
-
-        if options.NOCOLOR or all([_account not in color_of_account for _account in (account, user)]):
+        # nrless_user = re.search('[A-Za-z]+', user).group(0)
+        account = pattern_of_id[uid]
+        if options.NOCOLOR or account == 'account_not_coloured' or color_of_account[account] == 'normal':
+            # was: ... or all([_account not in color_of_account for _account in (account, user)])
             extra_width = 0
+            account = 'account_not_coloured'
         else:
             extra_width = 12
         print_string = '{:<{width2}} {sep} {:>{width4}} + {:>{width4}} / {:>{width4}} {sep} {:>{width15}} {sep}'.format(
@@ -538,7 +531,7 @@ def colorize_with_either(text, one, two):
     return (colorize(text, one) == text) and colorize(text, two) or (colorize(text, one))
 
 
-def get_core_lines(cpu_core_dict, print_start, print_end, nrless_user_of_id):
+def get_core_lines(cpu_core_dict, print_start, print_end, pattern_of_id):
     """
     prints all coreX lines
     """
@@ -551,8 +544,7 @@ def get_core_lines(cpu_core_dict, print_start, print_end, nrless_user_of_id):
                 options.WN_COLON
             )
         )
-        color_cpu_core_list = [colorize(elem, nrless_user_of_id[elem]) for elem in color_cpu_core_list if
-                               elem in nrless_user_of_id]
+        color_cpu_core_list = [colorize(elem, pattern_of_id[elem]) for elem in color_cpu_core_list if elem in pattern_of_id]
         line = ''.join(color_cpu_core_list)
         yield line + colorize('=core' + str(ind), 'account_not_coloured')
 
@@ -582,7 +574,7 @@ def calculate_wn_occupancy(node_dict, user_names, job_states, job_ids):
     """
     term_columns = calculate_split_screen_size()
     account_jobs_table, id_of_username = create_account_jobs_table(user_names, job_states)
-    nrless_user_of_id = make_account_nrless_of_id(account_jobs_table)
+    pattern_of_id = make_pattern_of_id(account_jobs_table)
 
     cpu_core_dict = calc_cpu_lines(node_dict, id_of_username, job_ids, user_names)
     print colorize('===> ', '#') + colorize('Worker Nodes occupancy', 'Nothing') + colorize(' <=== ', '#') + colorize(
@@ -597,7 +589,7 @@ def calculate_wn_occupancy(node_dict, user_names, job_states, job_ids):
     node_state = ''.join([wn_dict[node]['state'] for node in wn_dict])
     print line_with_separators(node_state[print_start:print_end], SEPARATOR, options.WN_COLON) + '=Node state'
 
-    for core_line in get_core_lines(cpu_core_dict, print_start, print_end, nrless_user_of_id):
+    for core_line in get_core_lines(cpu_core_dict, print_start, print_end, pattern_of_id):
         print core_line
 
     calculate_remaining_matrices(node_state,
@@ -605,22 +597,37 @@ def calculate_wn_occupancy(node_dict, user_names, job_states, job_ids):
                                  node_dict,
                                  cpu_core_dict,
                                  print_end,
-                                 nrless_user_of_id,
+                                 pattern_of_id,
                                  hxxxx,
                                  term_columns)
-    return account_jobs_table
+    return account_jobs_table, pattern_of_id
 
 
-def make_account_nrless_of_id(account_jobs_table):
-    nrless_user_of_id = {}
+def make_pattern_of_id(account_jobs_table):
+    """
+    First strips the numbers off of the unix accounts and tries to match this against the given color table in colormap.
+    Additionally, it will try to apply the regex rules given by the user in qtopconf.yaml, overriding the colormap.
+    The last matched regex is valid.
+    If no matching was possible, there will be no coloring applied.
+    """
+    pattern_of_id = {}
     for line in account_jobs_table:
-        just_name = re.split('[0-9]+', line[4])[0]
-        nrless_user_of_id[line[0]] = just_name if just_name in color_of_account else 'account_not_coloured'
+        uid, user = line[0], line[4]
+        account = re.search('[A-Za-z]+', user).group(0)  #
+        for re_account in config['user_colour_mappings']:
+            try:
+                _ = re.search(re_account, user).group(0)
+            except AttributeError:
+                continue  # keep trying
+            else:
+                account = re_account  # colours the text according to the regex given by the user in qtopconf
 
-    nrless_user_of_id['#'] = '#'
-    nrless_user_of_id['_'] = '_'
-    nrless_user_of_id[SEPARATOR] = 'account_not_coloured'
-    return nrless_user_of_id
+        pattern_of_id[uid] = account if account in color_of_account else 'account_not_coloured'
+
+    pattern_of_id['#'] = '#'
+    pattern_of_id['_'] = '_'
+    pattern_of_id[SEPARATOR] = 'account_not_coloured'
+    return pattern_of_id
 
 
 def reset_yaml_files():
@@ -698,7 +705,7 @@ if __name__ == '__main__':
     node_dict, NAMED_WNS = calculate_stuff(pbs_nodes)
 
     create_job_accounting_summary(node_dict, total_running, total_queued, qstatq_lod)
-    account_jobs_table = calculate_wn_occupancy(node_dict, user_names, job_states, job_ids)
+    account_jobs_table, pattern_of_id = calculate_wn_occupancy(node_dict, user_names, job_states, job_ids)
     create_user_accounts_pool_mappings(account_jobs_table)
 
     print '\nThanks for watching!'

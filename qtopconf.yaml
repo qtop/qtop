@@ -3,7 +3,29 @@ user_cut_matrix_width: 0 # Change this to zero if you don't want a custom cut ma
 separator: '|' # character used for vertical separator, for the -o switch
 percentage: 0.8 # if less than PERCENTAGE x 100% of the matrices have jobs, perform a blind remap
 possible_ids: '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz' # IDs of unix accounts, for the lower part of qtop
-user_colour_mappings:
+user_colour_mappings:  # accountpattern : color
+  '\w+': normal  # enabling this cancels all saved accounts in colormap.py
   '[A-Za-z]+1\d{2}': Red_L
   '[A-Za-z]+15\d': Gray_D
   'the[rd]q\d+': Blue_L
+  '\w*lhc\w*': Cyan_L
+  '\w+00\d': Blue
+
+
+# available colours:
+#Blue
+#Blue_L
+#Brown
+#Cyan
+#Cyan_L
+#Gray_D
+#Gray_L
+#Green
+#Green_L
+#normal
+#Pink
+#Purple
+#Red
+#Red_L
+#White
+#Yellow
