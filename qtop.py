@@ -435,8 +435,8 @@ def print_wnid_lines(start, stop, highest_wn, wn_vert_labels):
     highest_wn determines the number of WN ID lines needed  (1/2/3/4+?)
     (= highest_wn)
     """
+    d = OrderedDict()
     if not NAMED_WNS:
-        d = OrderedDict()
         node_str_width = len(str(highest_wn))  # 4 for thousands of nodes
 
         for node_nr in range(1, node_str_width + 1):
@@ -447,30 +447,27 @@ def print_wnid_lines(start, stop, highest_wn, wn_vert_labels):
             '3': ['={_Worker_}', '={__Node__}', '={___ID___}'],
             '4': ['={________}', '={_Worker_}', '={__Node__}', '={___ID___}']
         }
-        size = str(len(d))  # key, nr of horizontal lines to be displayed
-        end_label = iter(appends[size])
-        for line in d:
-            print line_with_separators(d[line][start:stop], SEPARATOR, options.WN_COLON) + end_label.next()
-
     elif NAMED_WNS or options.FORCE_NAMES:  # names (e.g. fruits) instead of numbered WNs
-        # raise NotImplementedError
-        just_name_dict = {}
         color = 0
         highlight = {0: 'cmsplt', 1: 'Red'}  # should obviously be customizable
-
-        for line, _ in enumerate(highest_wn):
-            just_name_dict[line] = ''
-        for column, _1 in enumerate(node_dict['wn_list']):
-            for line, _2 in enumerate(highest_wn):
-                try:
-                    letter = node_dict['wn_list'][column][line]
-                except TypeError:
-                    letter = ' '
-                just_name_dict[line] += colorize(letter, highlight[color])
-            color = 0 if color == 1 else 1
-        for line, _ in enumerate(highest_wn):
-            print just_name_dict[line] + '={__WNID__}'
-
+        hosts = [state_corejob_dn['host'] for _, state_corejob_dn in node_dict['wn_dict'].items()]
+        # this is recalculated in calc_all_wnid_label_lines, need to refactor  # TODO
+        node_str_width = len(max(hosts, key=len))
+        for node_nr in range(1, node_str_width + 1):
+            d[str(node_nr)] = "".join(wn_vert_labels[str(node_nr)])
+        appends = {
+            '1': ['={__WNID__}'],
+            '2': ['={_Worker_}', '={__Node__}'],
+            '3': ['={_Worker_}', '={__Node__}', '={___ID___}'],
+            '4': ['={________}', '={_Worker_}', '={__Node__}', '={___ID___}'],
+            '5': ['={_FOR____}', '={__SALE__}', '={_Worker_}', '={__Node__}', '={___ID___}'],
+            '6': ['={_SPACE__}', '={_FOR____}', '={__SALE__}', '={_Worker_}', '={__Node__}', '={___ID___}'],
+            '7': ['={_PLACE__}', '={__YOUR__}', '={_ADVERT_}', '={__HERE__}', '={_Worker_}', '={__Node__}', '={___ID___}'],
+        }
+    size = str(len(d))  # key, nr of horizontal lines to be displayed
+    end_label = iter(appends[size])
+    for line in d:
+        print line_with_separators(d[line][start:stop], SEPARATOR, options.WN_COLON) + end_label.next()
 
 def calculate_remaining_matrices(node_state,
                                  extra_matrices_nr,
