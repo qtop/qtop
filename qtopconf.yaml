@@ -4,12 +4,14 @@ separator: '|' # character used for vertical separator, for the -o switch
 percentage: 0.8 # if less than PERCENTAGE x 100% of the matrices have jobs, perform a blind remap
 possible_ids: '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz' # IDs of unix accounts, for the lower part of qtop
 user_colour_mappings:  # order should be from more generic-->more specific
-  '\w+': normal  # enabling this cancels all saved accounts in colormap.py
-#  '[A-Za-z]+1\d{2}': Red_L
-#  '[A-Za-z]+15\d': Gray_D
-#  '\w*lhc\w*': Cyan_L
-  '\w+00\d': Blue
-  '\w*pilot\w*': Cyan_L
+ - '\w+': Gray_D  # enabling this cancels all saved accounts in colormap.py
+# - '[\d]+': Gray_D
+# - '[A-Za-z]+0\d{2}': Red_L
+# - '[A-Za-z]+15\d': Gray_D
+# - '\w*lhc\w*': Cyan_L
+# - '\w+00\d': Blue
+ - '\w*cms\w*': Red_L
+ - 'atlas\w+': Cyan_L
 
 
 # available colours:

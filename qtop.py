@@ -496,18 +496,16 @@ def create_user_accounts_pool_mappings(account_jobs_table):
           colorize(' <=== ', '#') + \
           colorize("  ('all' also includes those in C and W states, as reported by qstat)", '#')
 
-    print 'id |    R +    Q /  all |    unix account | Grid certificate DN (info only available under elevated privileges)'
+    print 'id|    R +    Q /  all |    unix account | Grid certificate DN (info only available under elevated privileges)'
     for line in account_jobs_table:
         uid, runningjobs, queuedjobs, alljobs, user = line[0], line[1], line[2], line[3], line[4]
-        # nrless_user = re.search('[A-Za-z]+', user).group(0)
         account = pattern_of_id[uid]
         if options.NOCOLOR or account == 'account_not_coloured' or color_of_account[account] == 'normal':
-            # was: ... or all([_account not in color_of_account for _account in (account, user)])
             extra_width = 0
             account = 'account_not_coloured'
         else:
             extra_width = 12
-        print_string = '{:<{width2}} {sep} {:>{width4}} + {:>{width4}} / {:>{width4}} {sep} {:>{width15}} {sep}'.format(
+        print_string = '{:<{width2}}{sep} {:>{width4}} + {:>{width4}} / {:>{width4}} {sep} {:>{width15}} {sep}'.format(
             colorize(str(uid), account),
             colorize(str(runningjobs), account),
             colorize(str(queuedjobs), account),
@@ -546,7 +544,7 @@ def get_core_lines(cpu_core_dict, print_start, print_end, pattern_of_id):
         )
         color_cpu_core_list = [colorize(elem, pattern_of_id[elem]) for elem in color_cpu_core_list if elem in pattern_of_id]
         line = ''.join(color_cpu_core_list)
-        yield line + colorize('=core' + str(ind), 'account_not_coloured')
+        yield line + colorize('=Core' + str(ind), 'account_not_coloured')
 
 
 def calc_cpu_lines(node_dict, id_of_username, job_ids, user_names):
@@ -614,7 +612,8 @@ def make_pattern_of_id(account_jobs_table):
     for line in account_jobs_table:
         uid, user = line[0], line[4]
         account = re.search('[A-Za-z]+', user).group(0)  #
-        for re_account in config['user_colour_mappings']:
+        for re_account_colour in config['user_colour_mappings']:
+            re_account = re_account_colour.keys()[0]
             try:
                 _ = re.search(re_account, user).group(0)
             except AttributeError:
@@ -651,9 +650,9 @@ def load_yaml_config(path):
     symbol_map = dict([(chr(x), x) for x in range(33, 48) + range(58, 64) + range(91, 96) + range(123, 126)])
 
     if config['user_colour_mappings']:
-        color_of_account.update(config['user_colour_mappings'])
+        [color_of_account.update(d) for d in config['user_colour_mappings']]
     else:
-        config['user_colour_mappings'] = dict()
+        config['user_colour_mappings'] = list()
     for symbol in symbol_map:
         config['possible_ids'].append(symbol)
     return config
