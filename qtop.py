@@ -149,7 +149,11 @@ def calculate_stuff(pbs_nodes):
     # is this even needed anymore?!
     for i in range(1, node_dict['highest_wn'] + 1):
         if i not in node_dict['wn_dict']:
-            node_dict['wn_dict'][i] = {'state': '?', 'np': 0}  # was: node_dict['wn_dict'][i] = '?'
+            node_dict['wn_dict'][i] = {'state': '?', 'np': 0, 'domainname': 'N/A', 'host':'N/A'}
+            # was: node_dict['wn_dict'][ i] = '?'
+
+    for _, state_corejob_dn in node_dict['wn_dict'].items():
+        state_corejob_dn['host'] = state_corejob_dn['domainname'].split('.', 1)[0]
 
     return node_dict, NAMED_WNS
 
@@ -363,7 +367,7 @@ def line_with_separators(orig_str, separator, pos, stopaftern=0):
         return orig_str
 
 
-def calculate_total_wnid_line_width(highest_wn):  # (total_wn) in case of multiple node_dict['node_subclusters']
+def calc_all_wnid_label_lines(highest_wn):  # (total_wn) in case of multiple node_dict['node_subclusters']
     """
     calculates the Worker Node ID number line widths. expressed by hxxxxs in the following form, e.g. for hundreds of nodes:
     '1': [ 00000000... ]
@@ -371,15 +375,28 @@ def calculate_total_wnid_line_width(highest_wn):  # (total_wn) in case of multip
     '3': [ 12345678901234567....]
     where list contents are strings: '0', '1' etc
     """
-    node_str_width = len(str(highest_wn))  # 4
-    hxxxx = {str(place): [] for place in range(1, node_str_width + 1)}
-    for nr in range(1, highest_wn + 1):
-        extra_zeros = node_str_width - len(str(nr))  # 4 - 1 = 3, for wn0001
-        string = "".join("0" * extra_zeros + str(nr))
-        for place in range(1, node_str_width + 1):
-            hxxxx[str(place)].append(string[place - 1])
+    if not options.FORCE_NAMES:
+        node_str_width = len(str(highest_wn))  # 4
+        wn_vert_labels = {str(place): [] for place in range(1, node_str_width + 1)}
+        for nr in range(1, highest_wn + 1):
+            extra_zeros = node_str_width - len(str(nr))  # 4 - 1 = 3, for wn0001
+            string = "".join("0" * extra_zeros + str(nr))
+            for place in range(1, node_str_width + 1):
+                wn_vert_labels[str(place)].append(string[place - 1])
+    else:
+        wn_dict = node_dict['wn_dict']
+        hosts = [state_corejob_dn['host'] for _, state_corejob_dn in wn_dict.items()]
+        node_str_width = len(max(hosts, key=len))
+        wn_vert_labels = {str(place): [] for place in range(1, node_str_width + 1)}
+        for node in wn_dict:
+            host = wn_dict[node]['host']
+            extra_zeros = node_str_width - len(host)
+            string = "".join(" " * extra_zeros + host)
+            for place in range(1, node_str_width + 1):
+                wn_vert_labels[str(place)].append(string[place - 1])
 
-    return hxxxx
+
+    return wn_vert_labels
 
 
 def find_matrices_width(wn_number, wn_list, node_dict, term_columns, DEADWEIGHT=11):
@@ -413,16 +430,17 @@ def find_matrices_width(wn_number, wn_list, node_dict, term_columns, DEADWEIGHT=
         return start, stop, 0
 
 
-def print_wnid_lines(start, stop, highest_wn, hxxxx):
+def print_wnid_lines(start, stop, highest_wn, wn_vert_labels):
     """
     highest_wn determines the number of WN ID lines needed  (1/2/3/4+?)
     (= highest_wn)
     """
-    node_str_width = len(str(highest_wn))  # 4 for thousands of nodes
-    d = OrderedDict()
     if not NAMED_WNS:
-        for place in range(1, node_str_width + 1):
-            d[str(place)] = "".join(hxxxx[str(place)])
+        d = OrderedDict()
+        node_str_width = len(str(highest_wn))  # 4 for thousands of nodes
+
+        for node_nr in range(1, node_str_width + 1):
+            d[str(node_nr)] = "".join(wn_vert_labels[str(node_nr)])
         appends = {
             '1': ['={__WNID__}'],
             '2': ['={_Worker_}', '={__Node__}'],
@@ -435,7 +453,7 @@ def print_wnid_lines(start, stop, highest_wn, hxxxx):
             print line_with_separators(d[line][start:stop], SEPARATOR, options.WN_COLON) + end_label.next()
 
     elif NAMED_WNS or options.FORCE_NAMES:  # names (e.g. fruits) instead of numbered WNs
-        raise NotImplementedError
+        # raise NotImplementedError
         just_name_dict = {}
         color = 0
         highlight = {0: 'cmsplt', 1: 'Red'}  # should obviously be customizable
@@ -460,7 +478,7 @@ def calculate_remaining_matrices(node_state,
                                  cpu_core_dict,
                                  _print_end,
                                  pattern_of_id,
-                                 hxxxx,
+                                 wn_vert_labels,
                                  term_columns,
                                  DEADWEIGHT=11):
     """
@@ -479,11 +497,11 @@ def calculate_remaining_matrices(node_state,
         if config['user_cut_matrix_width']:
             _print_end += config['user_cut_matrix_width']
         else:
-            _print_end += term_columns - DEADWEIGHT  # - (node_dict['highest_wn'] / float(options.WN_COLON))
+            _print_end += term_columns - DEADWEIGHT
         _print_end = min(_print_end, node_dict['total_wn']) if options.REMAP else min(_print_end, node_dict['highest_wn'])
 
         print '\n'
-        print_wnid_lines(print_start, _print_end, node_dict['highest_wn'], hxxxx)
+        print_wnid_lines(print_start, _print_end, node_dict['highest_wn'], wn_vert_labels)
         print line_with_separators(node_state[print_start:_print_end], SEPARATOR, options.WN_COLON) + '=Node state'
         for core_line in get_core_lines(cpu_core_dict, print_start, _print_end, pattern_of_id):
             if gray_hash * (_print_end - print_start) not in core_line.replace(separator_between_ansi, ''):
@@ -568,7 +586,7 @@ def calculate_wn_occupancy(node_dict, user_names, job_states, job_ids):
     Prints the Worker Nodes Occupancy table.
     if there are non-uniform WNs in pbsnodes.yaml, e.g. wn01, wn02, gn01, gn02, ...,  remapping is performed.
     Otherwise, for uniform WNs, i.e. all using the same numbering scheme, wn01, wn02, ... proceeds as normal.
-    Number of Extra tables needed is calculated inside the calculate_total_wnid_line_width function below
+    Number of Extra tables needed is calculated inside the calc_all_wnid_label_lines function below
     """
     term_columns = calculate_split_screen_size()
     account_jobs_table, id_of_username = create_account_jobs_table(user_names, job_states)
@@ -578,11 +596,11 @@ def calculate_wn_occupancy(node_dict, user_names, job_states, job_ids):
     print colorize('===> ', '#') + colorize('Worker Nodes occupancy', 'Nothing') + colorize(' <=== ', '#') + colorize(
         '(you can read vertically the node IDs; nodes in free state are noted with - )', 'account_not_coloured')
 
-    highest_wn, wn_dict, wn_list = node_dict['highest_wn'], node_dict['wn_dict'], node_dict['wn_list']
+    tot_length, wn_dict, wn_list = node_dict['highest_wn'], node_dict['wn_dict'], node_dict['wn_list']
 
-    (print_start, print_end, extra_matrices_nr) = find_matrices_width(highest_wn, wn_list, node_dict, term_columns)
-    hxxxx = calculate_total_wnid_line_width(highest_wn)
-    print_wnid_lines(print_start, print_end, highest_wn, hxxxx)
+    (print_start, print_end, extra_matrices_nr) = find_matrices_width(tot_length, wn_list, node_dict, term_columns)
+    wn_vert_labels = calc_all_wnid_label_lines(tot_length)
+    print_wnid_lines(print_start, print_end, tot_length, wn_vert_labels)
 
     node_state = ''.join([wn_dict[node]['state'] for node in wn_dict])
     print line_with_separators(node_state[print_start:print_end], SEPARATOR, options.WN_COLON) + '=Node state'
@@ -596,7 +614,7 @@ def calculate_wn_occupancy(node_dict, user_names, job_states, job_ids):
                                  cpu_core_dict,
                                  print_end,
                                  pattern_of_id,
-                                 hxxxx,
+                                 wn_vert_labels,
                                  term_columns)
     return account_jobs_table, pattern_of_id
 
