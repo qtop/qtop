@@ -152,7 +152,7 @@ def calculate_stuff(pbs_nodes):
             # was: node_dict['wn_dict'][ i] = '?'
 
     for _, state_corejob_dn in node_dict['wn_dict'].items():
-        state_corejob_dn['host'] = state_corejob_dn['domainname'].split('.', 1)[0]
+        state_corejob_dn['host'] = state_corejob_dn['domainname'].split('.', 1)[0].replace('-','X')
 
     return node_dict, NAMED_WNS
 
@@ -386,13 +386,13 @@ def calc_all_wnid_label_lines(highest_wn):  # (total_wn) in case of multiple nod
         wn_dict = node_dict['wn_dict']
         hosts = [state_corejob_dn['host'] for _, state_corejob_dn in wn_dict.items()]
         node_str_width = len(max(hosts, key=len))
-        wn_vert_labels = {str(place): [] for place in range(1, node_str_width + 1)}
+        wn_vert_labels = OrderedDict((str(place), []) for place in range(1, node_str_width + 1))
         for node in wn_dict:
             host = wn_dict[node]['host']
             extra_zeros = node_str_width - len(host)
-            string = "".join(" " * extra_zeros + host)
-            for place in range(1, node_str_width + 1):
-                wn_vert_labels[str(place)].append(string[place - 1])
+            string = "".join("." * extra_zeros + host)
+            for place in range(node_str_width):
+                wn_vert_labels[str(place + 1)].append(string[place])
 
 
     return wn_vert_labels
@@ -456,19 +456,9 @@ def print_wnid_lines(start, stop, highest_wn, wn_vert_labels):
         highlight = {0: 'Gray_L', 1: 'Red'}  # should obviously be customizable
         hosts = [state_corejob_dn['host'] for _, state_corejob_dn in node_dict['wn_dict'].items()]
         # this is recalculated in calc_all_wnid_label_lines, need to refactor  # TODO
+        hosts.pop()
         node_str_width = len(max(hosts, key=len))
-        for node_nr in range(1, node_str_width + 1):
-            # coloured_letter = colorize(letter, highlight[color])
-            letters = wn_vert_labels[str(node_nr)]
-            _letters = []
-            for letter in letters:
-                _letters.append(colorize(letter, highlight[color]))
-                color = 0 if color else 1
-            d[str(node_nr)] = ["".join(_letters)]
-            times_coloured = len(letters) - len(d[str(node_nr)][0]) % 13
-            d[str(node_nr)].append(times_coloured)
-            # whole wn label line
-            # color = 0 if color == 1 else 1
+
         appends = {
             '1': ['={__WNID__}'],
             '2': ['={_Worker_}', '={__Node__}'],
@@ -478,10 +468,15 @@ def print_wnid_lines(start, stop, highest_wn, wn_vert_labels):
             '6': ['={_SPACE__}', '={_FOR____}', '={__SALE__}', '={_Worker_}', '={__Node__}', '={___ID___}'],
             '7': ['={__PLACE_}', '={__YOUR__}', '={_ADVERT_}', '={__HERE__}', '={_Worker_}', '={__Node__}', '={___ID___}'],
         }
-        size = str(len(d))  # key, nr of horizontal lines to be displayed
+        for num in range(1, len(wn_vert_labels) + 1):
+            appends.setdefault(str(num), num * ['={___ID___}'])
+        size = str(len(wn_vert_labels))  # key, nr of horizontal lines to be displayed
         end_label = iter(appends[size])
-        for line in d:
-            print line_with_separators(d[line][0][start:stop * d[line][1]], SEPARATOR, options.WN_COLON) + end_label.next()
+        for line_nr in wn_vert_labels:
+            color_wn_id_list = list(line_with_separators(wn_vert_labels[line_nr][start:stop], SEPARATOR, options.WN_COLON))
+            color_wn_id_list = [colorize(elem, highlight[color]) for elem in color_wn_id_list]
+            line = ''.join(color_wn_id_list)
+            print line + end_label.next()
 
 
 def calculate_remaining_matrices(node_state,
