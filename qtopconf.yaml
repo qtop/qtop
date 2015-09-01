@@ -12,6 +12,8 @@ user_colour_mappings:  # order should be from more generic-->more specific
 # - '\w+00\d': Blue
  - '\w*cms\w*': Red_L
  - '\w*atl\w+': Cyan_L
+wn_labels_max_len: 5
+alt_label_highlight_colours: [Yellow, Green]
 remapping:
  - 'torvalds(\d+)' : 'tor\1'
  - '(\w+)(\d+)' : test

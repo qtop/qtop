@@ -47,12 +47,12 @@ parser.add_option("-w", "--writemethod", dest="write_method", action="store", de
 #     options.COLORFILE = os.path.expanduser('~/qtop/qtop/qtop.colormap')
 
 
-def colorize(text, pattern):
+def colorize(text, pattern, color=None):
     """
     prints text coloured according to a unix account pattern color.
     """
     try:
-        color_code = code_of_color[color_of_account[pattern]]
+        color_code = code_of_color[color] if color else code_of_color[color_of_account[pattern]]
     except KeyError:
         return text
     else:
@@ -456,9 +456,9 @@ def print_wnid_lines(start, stop, highest_wn, wn_vert_labels):
         size = str(len(wn_vert_labels))  # key, nr of horizontal lines to be displayed
         end_label = iter(appends[size])
         for line_nr in wn_vert_labels:
-            highlight = highlight_alternately('Gray_L', 'Red')
+            highlight = highlight_alternately(*config['alt_label_highlight_colours'])
             color_wn_id_list = list(line_with_separators(wn_vert_labels[line_nr][start:stop], SEPARATOR, options.WN_COLON))
-            color_wn_id_list = [colorize(elem, highlight.next()) for elem in color_wn_id_list]
+            color_wn_id_list = [colorize(elem, _, highlight.next()) for elem in color_wn_id_list]
             line = ''.join(color_wn_id_list)
             print line + end_label.next()
 
@@ -469,6 +469,7 @@ def highlight_alternately(colour_a, colour_b):
     while True:
         selection = 0 if selection else 1
         yield highlight[selection]
+
 
 
 def calculate_remaining_matrices(node_state,
@@ -709,8 +710,7 @@ if __name__ == '__main__':
 
     pbs_nodes = read_pbsnodes_yaml(PBSNODES_OUT_FN, options.write_method)
     total_running, total_queued, qstatq_lod = read_qstatq_yaml(QSTATQ_OUT_FN, options.write_method)
-    job_ids, user_names, job_states, _ = read_qstat_yaml(QSTAT_OUT_FN, options.write_method)  # _ == queue_names, not used for
-    #  now
+    job_ids, user_names, job_states, _ = read_qstat_yaml(QSTAT_OUT_FN, options.write_method)  # _ == queue_names, not used for now
 
     #  MAIN ##################################
     node_dict, NAMED_WNS = calculate_stuff(pbs_nodes)
