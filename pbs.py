@@ -32,7 +32,10 @@ def make_pbsnodes(orig_file, out_file, write_method):
         state = (nextchar == 'f') and "-" or nextchar
 
         pbs_values['state'] = state
-        pbs_values['np'] = block['np']
+        try:
+            pbs_values['np'] = block['np']
+        except KeyError:
+            pbs_values['np'] = block['pcpus']  # handle torque cases  # todo : to check
 
         if block.get('gpus') > 0:  # this should be rare.
             pbs_values['gpus'] = block['gpus']
@@ -88,7 +91,7 @@ def get_jobs_cores(jobs):  # block['jobs']
     for core_job in jobs:
         core, job = core_job.strip().split('/')
         # core, job = job['core'], job['job']
-        if len(core) > len(job):  # we must've got this wrong (jobs format must be jobid/core, not core/jobid)
+        if len(core) > len(job):  # PBS vs torque?
             core, job = job, core
         job = job.strip().split('/')[0].split('.')[0]
         yield job, core
