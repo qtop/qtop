@@ -11,9 +11,9 @@ from operator import itemgetter
 from optparse import OptionParser
 import datetime
 from collections import Counter, OrderedDict
-# import os
-# import re
-# import yaml
+import os
+import re
+import yaml
 from itertools import izip
 # modules
 from pbs import *
@@ -56,7 +56,8 @@ def colorize(text, pattern, color=None):
     except KeyError:
         return text
     else:
-        return "\033[" + color_code + "m" + text + "\033[1;m" if ((not options.NOCOLOR) and pattern != 'account_not_coloured' and text != ' ') else text
+        return "\033[" + color_code + "m" + text + "\033[1;m" \
+            if ((not options.NOCOLOR) and pattern != 'account_not_coloured' and text != ' ') else text
 
 
 def decide_remapping(node_dict):
@@ -144,20 +145,19 @@ def calculate_stuff(pbs_nodes):
         node_dict['highest_wn'] = max(node_dict['wn_list'])
 
     # fill in non-existent WN nodes (absent from pbsnodes file) with '?' and count them
-    # is this even needed anymore?!
     for i in range(1, node_dict['highest_wn'] + 1):
         if i not in node_dict['wn_dict']:
             node_dict['wn_dict'][i] = {'state': '?', 'np': 0, 'domainname': 'N/A', 'host': 'N/A'}
-            # was: node_dict['wn_dict'][ i] = '?'
 
+    # custom hostnames (for the wn id label lines)
     for _, state_corejob_dn in node_dict['wn_dict'].items():
         _host = state_corejob_dn['domainname'].split('.', 1)[0]
-        changed = 0
+        changed = False
         for remap_line in config['remapping']:
             pat, repl = remap_line.items()[0]
             repl = eval(repl) if repl.startswith('lambda') else repl
             if re.search(pat, _host):
-                changed = 1
+                changed = True
                 state_corejob_dn['host'] = _host = re.sub(pat, repl, _host)
         else:
             state_corejob_dn['host'] = _host if not changed else state_corejob_dn['host']
