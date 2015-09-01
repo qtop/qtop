@@ -12,9 +12,11 @@ user_colour_mappings:  # order should be from more generic-->more specific
 # - '\w+00\d': Blue
  - '\w*cms\w*': Red_L
  - '\w*atl\w+': Cyan_L
-wn_labels_max_len: 5
-alt_label_highlight_colours: [Yellow, Green]
+wn_labels_max_len: 15
+alt_label_highlight_colours: [White, Blue_L]
 remapping:
+ - "([A-Za-z]+)([1-9]|[1-9][0-9]|[0-9][0-9][0-9])$": |
+     lambda m: str(m.group(1)+str(int(m.group(2))+250))
  - 'torvalds(\d+)' : 'tor\1'
  - 'gridlab(\d+)' : 'glab\1'
  - 'gridmon(\d*)' : 'mon\1'

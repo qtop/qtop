@@ -155,6 +155,7 @@ def calculate_stuff(pbs_nodes):
         changed = 0
         for remap_line in config['remapping']:
             pat, repl = remap_line.items()[0]
+            repl = eval(repl) if repl.startswith('lambda') else repl
             if re.search(pat, _host):
                 changed = 1
                 state_corejob_dn['host'] = _host = re.sub(pat, repl, _host)
@@ -457,8 +458,8 @@ def print_wnid_lines(start, stop, highest_wn, wn_vert_labels):
             '2': ['={_Worker_}', '={__Node__}'],
             '3': ['={_Worker_}', '={__Node__}', '={___ID___}'],
             '4': ['={________}', '={_Worker_}', '={__Node__}', '={___ID___}'],
-            '5': ['={_FOR____}', '={__SALE__}', '={_Worker_}', '={__Node__}', '={___ID___}'],
-            '6': ['={_SPACE__}', '={_FOR____}', '={__SALE__}', '={_Worker_}', '={__Node__}', '={___ID___}'],
+            '5': ['={__FOR___}', '={__SALE__}', '={_Worker_}', '={__Node__}', '={___ID___}'],
+            '6': ['={_SPACE__}', '={__FOR___}', '={__SALE__}', '={_Worker_}', '={__Node__}', '={___ID___}'],
             '7': ['={__PLACE_}', '={__YOUR__}', '={_ADVERT_}', '={__HERE__}', '={_Worker_}', '={__Node__}', '={___ID___}'],
         }
         for num in range(8, len(wn_vert_labels) + 1):
