@@ -11,9 +11,9 @@ from operator import itemgetter
 from optparse import OptionParser
 import datetime
 from collections import Counter, OrderedDict
-import os
-import re
-import yaml
+# import os
+# import re
+# import yaml
 from itertools import izip
 # modules
 from pbs import *
@@ -103,7 +103,6 @@ def calculate_stuff(pbs_nodes):
     _all_str_digits_with_empties = []
 
     re_nodename = r'(^[A-Za-z0-9-]+)(?=\.|$)'
-    cnt = 0
     for node in pbs_nodes:
 
         nodename_match = re.search(re_nodename, node['domainname'])
@@ -120,7 +119,7 @@ def calculate_stuff(pbs_nodes):
         node_dict['offline_down_nodes'] += 1 if node['state'] in 'do' else 0
         try:
             node_dict['working_cores'] += len(node['core_job_map'])
-        except KeyError as msg:
+        except KeyError:
             pass
 
         try:
@@ -148,11 +147,11 @@ def calculate_stuff(pbs_nodes):
     # is this even needed anymore?!
     for i in range(1, node_dict['highest_wn'] + 1):
         if i not in node_dict['wn_dict']:
-            node_dict['wn_dict'][i] = {'state': '?', 'np': 0, 'domainname': 'N/A', 'host':'N/A'}
+            node_dict['wn_dict'][i] = {'state': '?', 'np': 0, 'domainname': 'N/A', 'host': 'N/A'}
             # was: node_dict['wn_dict'][ i] = '?'
 
     for _, state_corejob_dn in node_dict['wn_dict'].items():
-        state_corejob_dn['host'] = state_corejob_dn['domainname'].split('.', 1)[0].replace('-','X')
+        state_corejob_dn['host'] = state_corejob_dn['domainname'].split('.', 1)[0].replace('-', 'X')
 
     return node_dict, NAMED_WNS
 
@@ -271,19 +270,6 @@ def create_job_counts(user_names, job_states, state_abbrevs):
     return job_counts
 
 
-def create_job_counts2(user_names, job_states, state_abbrevs):
-    """
-    counting of R,Q,C,W,E attached to user
-    :param user_names: list
-    :param job_states: list
-    :param state_abbrevs: dict
-    :return: dict
-    """
-    user_states = [(user_name, job_state) for user_name, job_state in zip(user_names, job_states)]
-    job_counts = Counter(user_states)
-    return job_counts
-
-
 def produce_user_lot(_user_names):
     """
     Produces a list of tuples (lot) of the form (user account, all jobs count) in descending order.
@@ -374,15 +360,7 @@ def calc_all_wnid_label_lines(highest_wn):  # (total_wn) in case of multiple nod
     '3': [ 12345678901234567....]
     where list contents are strings: '0', '1' etc
     """
-    if not options.FORCE_NAMES:
-        node_str_width = len(str(highest_wn))  # 4
-        wn_vert_labels = {str(place): [] for place in range(1, node_str_width + 1)}
-        for nr in range(1, highest_wn + 1):
-            extra_zeros = node_str_width - len(str(nr))  # 4 - 1 = 3, for wn0001
-            string = "".join("0" * extra_zeros + str(nr))
-            for place in range(1, node_str_width + 1):
-                wn_vert_labels[str(place)].append(string[place - 1])
-    elif NAMED_WNS or options.FORCE_NAMES:
+    if NAMED_WNS or options.FORCE_NAMES:
         wn_dict = node_dict['wn_dict']
         hosts = [state_corejob_dn['host'] for _, state_corejob_dn in wn_dict.items()]
         node_str_width = len(max(hosts, key=len))
@@ -393,12 +371,20 @@ def calc_all_wnid_label_lines(highest_wn):  # (total_wn) in case of multiple nod
             string = "".join(" " * extra_zeros + host)
             for place in range(node_str_width):
                 wn_vert_labels[str(place + 1)].append(string[place])
+    else:
+        node_str_width = len(str(highest_wn))  # 4
+        wn_vert_labels = {str(place): [] for place in range(1, node_str_width + 1)}
+        for nr in range(1, highest_wn + 1):
+            extra_zeros = node_str_width - len(str(nr))  # 4 - 1 = 3, for wn0001
+            string = "".join("0" * extra_zeros + str(nr))
+            for place in range(1, node_str_width + 1):
+                wn_vert_labels[str(place)].append(string[place - 1])
 
 
     return wn_vert_labels
 
 
-def find_matrices_width(wn_number, wn_list, node_dict, term_columns, DEADWEIGHT=11):
+def find_matrices_width(wn_number, wn_list, term_columns, DEADWEIGHT=11):
     """
     masking/clipping functionality: if the earliest node number is high (e.g. 130), the first 129 WNs need not show up.
     case 1: wn_number is RemapNr, WNList is WNListRemapped
@@ -452,9 +438,9 @@ def print_wnid_lines(start, stop, highest_wn, wn_vert_labels):
             print line_with_separators(d[line][start:stop], SEPARATOR, options.WN_COLON) + end_label.next()
 
     elif NAMED_WNS or options.FORCE_NAMES:  # names (e.g. fruits) instead of numbered WNs
-        hosts = [state_corejob_dn['host'] for _, state_corejob_dn in node_dict['wn_dict'].items()]
+        # hosts = [state_corejob_dn['host'] for _, state_corejob_dn in node_dict['wn_dict'].items()]
         # this is recalculated in calc_all_wnid_label_lines, need to refactor  # TODO
-        node_str_width = len(max(hosts, key=len))
+        # node_str_width = len(max(hosts, key=len))
 
         appends = {
             '1': ['={__WNID__}'],
@@ -602,7 +588,7 @@ def calculate_wn_occupancy(node_dict, user_names, job_states, job_ids):
 
     tot_length, wn_dict, wn_list = node_dict['highest_wn'], node_dict['wn_dict'], node_dict['wn_list']
 
-    (print_start, print_end, extra_matrices_nr) = find_matrices_width(tot_length, wn_list, node_dict, term_columns)
+    (print_start, print_end, extra_matrices_nr) = find_matrices_width(tot_length, wn_list, term_columns)
     wn_vert_labels = calc_all_wnid_label_lines(tot_length)
     print_wnid_lines(print_start, print_end, tot_length, wn_vert_labels)
 
@@ -723,7 +709,8 @@ if __name__ == '__main__':
 
     pbs_nodes = read_pbsnodes_yaml(PBSNODES_OUT_FN, options.write_method)
     total_running, total_queued, qstatq_lod = read_qstatq_yaml(QSTATQ_OUT_FN, options.write_method)
-    job_ids, user_names, job_states, _ = read_qstat_yaml(QSTAT_OUT_FN, options.write_method)  #_ == queue_names, not used for now
+    job_ids, user_names, job_states, _ = read_qstat_yaml(QSTAT_OUT_FN, options.write_method)  # _ == queue_names, not used for
+    #  now
 
     #  MAIN ##################################
     node_dict, NAMED_WNS = calculate_stuff(pbs_nodes)

@@ -44,7 +44,7 @@ def make_pbsnodes(orig_file, out_file, write_method):
             pbs_values['core_job_map'] = []
             jobs = block['jobs'].split(',')
             for job, core in get_jobs_cores(jobs):
-                _d = {}
+                _d = dict()
                 _d['job'] = job
                 _d['core'] = core
                 pbs_values['core_job_map'].append(_d)
@@ -213,7 +213,7 @@ def make_qstatq(orig_file, out_file, write_method):
         fin.next()
         # server_name = fin.next().split(': ')[1].strip()
         fin.next()
-        headers = fin.next().strip()  # this should later define the keys in temp_dict, should they be different
+        fin.next().strip()  # the headers line should later define the keys in temp_dict, should they be different
         fin.next()
         for line in fin:
             line = line.strip()

@@ -123,7 +123,6 @@ color_of_account = {
     'cmsau': 'Green',
     'twcms': 'Green',
     'cmsmu': 'Green',
-    'cms': 'Green',
     'dcms': 'Green',
     'prdcms': 'Green',
     'icms': 'Green',
