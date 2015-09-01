@@ -16,7 +16,9 @@ wn_labels_max_len: 5
 alt_label_highlight_colours: [Yellow, Green]
 remapping:
  - 'torvalds(\d+)' : 'tor\1'
- - '(\w+)(\d+)' : test
+ - 'gridlab(\d+)' : 'glab\1'
+ - 'gridmon(\d*)' : 'mon\1'
+ - '-' : ''
 
 # available colours:
 #Blue

@@ -151,7 +151,15 @@ def calculate_stuff(pbs_nodes):
             # was: node_dict['wn_dict'][ i] = '?'
 
     for _, state_corejob_dn in node_dict['wn_dict'].items():
-        state_corejob_dn['host'] = state_corejob_dn['domainname'].split('.', 1)[0].replace('-', 'X')
+        _host = state_corejob_dn['domainname'].split('.', 1)[0]
+        changed = 0
+        for remap_line in config['remapping']:
+            pat, repl = remap_line.items()[0]
+            if re.search(pat, _host):
+                changed = 1
+                state_corejob_dn['host'] = _host = re.sub(pat, repl, _host)
+        else:
+            state_corejob_dn['host'] = _host if not changed else state_corejob_dn['host']
 
     return node_dict, NAMED_WNS
 
@@ -662,6 +670,10 @@ def load_yaml_config(path):
         [color_of_account.update(d) for d in config['user_colour_mappings']]
     else:
         config['user_colour_mappings'] = list()
+    if config['remapping']:
+        pass
+    else:
+        config['remapping'] = list()
     for symbol in symbol_map:
         config['possible_ids'].append(symbol)
     return config
