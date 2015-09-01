@@ -382,7 +382,7 @@ def calc_all_wnid_label_lines(highest_wn):  # (total_wn) in case of multiple nod
             string = "".join("0" * extra_zeros + str(nr))
             for place in range(1, node_str_width + 1):
                 wn_vert_labels[str(place)].append(string[place - 1])
-    else:
+    elif NAMED_WNS or options.FORCE_NAMES:
         wn_dict = node_dict['wn_dict']
         hosts = [state_corejob_dn['host'] for _, state_corejob_dn in wn_dict.items()]
         node_str_width = len(max(hosts, key=len))
@@ -431,11 +431,11 @@ def find_matrices_width(wn_number, wn_list, node_dict, term_columns, DEADWEIGHT=
 
 def print_wnid_lines(start, stop, highest_wn, wn_vert_labels):
     """
+    Prints the Worker Node ID lines, after it colours them and adds separators to them.
     highest_wn determines the number of WN ID lines needed  (1/2/3/4+?)
-    (= highest_wn)
     """
     d = OrderedDict()
-    if not NAMED_WNS:
+    if not NAMED_WNS:  # not used meaningfully yet
         node_str_width = len(str(highest_wn))  # 4 for thousands of nodes
 
         for node_nr in range(1, node_str_width + 1):
@@ -452,11 +452,8 @@ def print_wnid_lines(start, stop, highest_wn, wn_vert_labels):
             print line_with_separators(d[line][start:stop], SEPARATOR, options.WN_COLON) + end_label.next()
 
     elif NAMED_WNS or options.FORCE_NAMES:  # names (e.g. fruits) instead of numbered WNs
-        color = 1
-        highlight = {0: 'Gray_L', 1: 'Red'}  # should obviously be customizable
         hosts = [state_corejob_dn['host'] for _, state_corejob_dn in node_dict['wn_dict'].items()]
         # this is recalculated in calc_all_wnid_label_lines, need to refactor  # TODO
-        # hosts.pop()
         node_str_width = len(max(hosts, key=len))
 
         appends = {
@@ -473,10 +470,19 @@ def print_wnid_lines(start, stop, highest_wn, wn_vert_labels):
         size = str(len(wn_vert_labels))  # key, nr of horizontal lines to be displayed
         end_label = iter(appends[size])
         for line_nr in wn_vert_labels:
+            highlight = highlight_alternately('Gray_L', 'Red')
             color_wn_id_list = list(line_with_separators(wn_vert_labels[line_nr][start:stop], SEPARATOR, options.WN_COLON))
-            color_wn_id_list = [colorize(elem, highlight[color]) for elem in color_wn_id_list]
+            color_wn_id_list = [colorize(elem, highlight.next()) for elem in color_wn_id_list]
             line = ''.join(color_wn_id_list)
             print line + end_label.next()
+
+
+def highlight_alternately(colour_a, colour_b):
+    highlight = {0: colour_a, 1: colour_b}  # should obviously be customizable
+    selection = 0
+    while True:
+        selection = 0 if selection else 1
+        yield highlight[selection]
 
 
 def calculate_remaining_matrices(node_state,
@@ -543,15 +549,6 @@ def create_user_accounts_pool_mappings(account_jobs_table):
             width15=15 + extra_width,
         )
         print print_string
-
-
-def colorize_with_either(text, one, two):
-    """
-    will first attempt to colorize the text according to unix account's "one" colouring.
-    If "one" doesn't have a colormap mapped to it, it will colorize it with "two"s colouring.
-    If that doesn't work either, no colouring will take place.
-    """
-    return (colorize(text, one) == text) and colorize(text, two) or (colorize(text, one))
 
 
 def get_core_lines(cpu_core_dict, print_start, print_end, pattern_of_id):
