@@ -390,7 +390,7 @@ def calc_all_wnid_label_lines(highest_wn):  # (total_wn) in case of multiple nod
         for node in wn_dict:
             host = wn_dict[node]['host']
             extra_zeros = node_str_width - len(host)
-            string = "".join("." * extra_zeros + host)
+            string = "".join(" " * extra_zeros + host)
             for place in range(node_str_width):
                 wn_vert_labels[str(place + 1)].append(string[place])
 
@@ -456,7 +456,7 @@ def print_wnid_lines(start, stop, highest_wn, wn_vert_labels):
         highlight = {0: 'Gray_L', 1: 'Red'}  # should obviously be customizable
         hosts = [state_corejob_dn['host'] for _, state_corejob_dn in node_dict['wn_dict'].items()]
         # this is recalculated in calc_all_wnid_label_lines, need to refactor  # TODO
-        hosts.pop()
+        # hosts.pop()
         node_str_width = len(max(hosts, key=len))
 
         appends = {
@@ -468,8 +468,8 @@ def print_wnid_lines(start, stop, highest_wn, wn_vert_labels):
             '6': ['={_SPACE__}', '={_FOR____}', '={__SALE__}', '={_Worker_}', '={__Node__}', '={___ID___}'],
             '7': ['={__PLACE_}', '={__YOUR__}', '={_ADVERT_}', '={__HERE__}', '={_Worker_}', '={__Node__}', '={___ID___}'],
         }
-        for num in range(1, len(wn_vert_labels) + 1):
-            appends.setdefault(str(num), num * ['={___ID___}'])
+        for num in range(8, len(wn_vert_labels) + 1):
+            appends.setdefault(str(num), appends['7'] + num * ['={___ID___}'])
         size = str(len(wn_vert_labels))  # key, nr of horizontal lines to be displayed
         end_label = iter(appends[size])
         for line_nr in wn_vert_labels:
