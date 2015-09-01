@@ -160,6 +160,8 @@ def calculate_stuff(pbs_nodes):
                 state_corejob_dn['host'] = _host = re.sub(pat, repl, _host)
         else:
             state_corejob_dn['host'] = _host if not changed else state_corejob_dn['host']
+            label_max_len = config['wn_labels_max_len']
+            state_corejob_dn['host'] = label_max_len and state_corejob_dn['host'][-label_max_len:] or state_corejob_dn['host']
 
     return node_dict, NAMED_WNS
 
