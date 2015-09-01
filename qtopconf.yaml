@@ -17,10 +17,21 @@ alt_label_highlight_colours: [White, Blue_L]
 remapping:
  - "([A-Za-z]+)([1-9]|[1-9][0-9]|[0-9][0-9][0-9])$": |
      lambda m: str(m.group(1)+str(int(m.group(2))+250))
+     # e.g. wn100 --> wn350, wn101 --> wn351 and so on
  - 'torvalds(\d+)' : 'tor\1'
  - 'gridlab(\d+)' : 'glab\1'
  - 'gridmon(\d*)' : 'mon\1'
- - '-' : ''
+ - '-' : ''  # removes dashes for shortening (can also replace them with something else, e.g. _
+
+# customised end labels
+end_labels:
+ '1': ['={__WNID__}']
+ '2': ['={_Worker_}', '={__Node__}']
+ '3': ['={_Worker_}', '={__Node__}', '={___ID___}']
+ '4': ['={________}', '={_Worker_}', '={__Node__}', '={___ID___}']
+ '5': ['={__FOR___}', '={__SALE__}', '={_Worker_}', '={__Node__}', '={___ID___}']
+ '6': ['={_SPACE__}', '={__FOR___}', '={__SALE__}', '={_Worker_}', '={__Node__}', '={___ID___}']
+ '7': ['={__PLACE_}', '={__YOUR__}', '={_ADVERT_}', '={__HERE__}', '={_Worker_}', '={__Node__}', '={___ID___}']
 
 # available colours:
 #Blue

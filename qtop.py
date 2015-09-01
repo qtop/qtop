@@ -432,40 +432,26 @@ def print_wnid_lines(start, stop, highest_wn, wn_vert_labels):
     highest_wn determines the number of WN ID lines needed  (1/2/3/4+?)
     """
     d = OrderedDict()
+    end_labels = config['end_labels']
+
     if not NAMED_WNS:  # not used meaningfully yet
         node_str_width = len(str(highest_wn))  # 4 for thousands of nodes
 
         for node_nr in range(1, node_str_width + 1):
             d[str(node_nr)] = "".join(wn_vert_labels[str(node_nr)])
-        appends = {
-            '1': ['={__WNID__}'],
-            '2': ['={_Worker_}', '={__Node__}'],
-            '3': ['={_Worker_}', '={__Node__}', '={___ID___}'],
-            '4': ['={________}', '={_Worker_}', '={__Node__}', '={___ID___}']
-        }
         size = str(len(d))  # key, nr of horizontal lines to be displayed
-        end_label = iter(appends[size])
+        end_label = iter(end_labels[size])
         for line in d:
             print line_with_separators(d[line][start:stop], SEPARATOR, options.WN_COLON) + end_label.next()
 
     elif NAMED_WNS or options.FORCE_NAMES:  # names (e.g. fruits) instead of numbered WNs
-        # hosts = [state_corejob_dn['host'] for _, state_corejob_dn in node_dict['wn_dict'].items()]
-        # this is recalculated in calc_all_wnid_label_lines, need to refactor  # TODO
-        # node_str_width = len(max(hosts, key=len))
 
-        appends = {
-            '1': ['={__WNID__}'],
-            '2': ['={_Worker_}', '={__Node__}'],
-            '3': ['={_Worker_}', '={__Node__}', '={___ID___}'],
-            '4': ['={________}', '={_Worker_}', '={__Node__}', '={___ID___}'],
-            '5': ['={__FOR___}', '={__SALE__}', '={_Worker_}', '={__Node__}', '={___ID___}'],
-            '6': ['={_SPACE__}', '={__FOR___}', '={__SALE__}', '={_Worker_}', '={__Node__}', '={___ID___}'],
-            '7': ['={__PLACE_}', '={__YOUR__}', '={_ADVERT_}', '={__HERE__}', '={_Worker_}', '={__Node__}', '={___ID___}'],
-        }
+        # for longer full-labeled wn ids, add more end-labels (far-right) towards the bottom
         for num in range(8, len(wn_vert_labels) + 1):
-            appends.setdefault(str(num), appends['7'] + num * ['={___ID___}'])
+            end_labels.setdefault(str(num), end_labels['7'] + num * ['={___ID___}'])
+
         size = str(len(wn_vert_labels))  # key, nr of horizontal lines to be displayed
-        end_label = iter(appends[size])
+        end_label = iter(end_labels[size])
         for line_nr in wn_vert_labels:
             highlight = highlight_alternately(*config['alt_label_highlight_colours'])
             color_wn_id_list = list(line_with_separators(wn_vert_labels[line_nr][start:stop], SEPARATOR, options.WN_COLON))
@@ -725,7 +711,7 @@ if __name__ == '__main__':
 
     pbs_nodes = read_pbsnodes_yaml(PBSNODES_OUT_FN, options.write_method)
     total_running, total_queued, qstatq_lod = read_qstatq_yaml(QSTATQ_OUT_FN, options.write_method)
-    job_ids, user_names, job_states, _ = read_qstat_yaml(QSTAT_OUT_FN, options.write_method)  # _ == queue_names, not used for now
+    job_ids, user_names, job_states, _ = read_qstat_yaml(QSTAT_OUT_FN, options.write_method)  # _ == queue_names
 
     #  MAIN ##################################
     node_dict, NAMED_WNS = calculate_stuff(pbs_nodes)
