@@ -16,7 +16,7 @@ wn_labels_max_len: 15
 alt_label_highlight_colours: [White, Blue_L]
 remapping:
 # - "([A-Za-z]+)([1-9]|[1-9][0-9]|[0-9][0-9][0-9])$": |
-#     lambda m: str(m.group(1)+str(int(m.group(2))+250))
+#     lambda m: m.group(1)+str(int(m.group(2))+250)
      # e.g. wn100 --> wn350, wn101 --> wn351 and so on
  - 'torvalds(\d+)' : 'tor\1'
  - 'gridlab(\d+)' : 'glab\1'
