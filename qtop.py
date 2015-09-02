@@ -47,17 +47,17 @@ parser.add_option("-w", "--writemethod", dest="write_method", action="store", de
 #     options.COLORFILE = os.path.expanduser('~/qtop/qtop/qtop.colormap')
 
 
-def colorize(text, pattern):
+def colorize(text, pattern, color=None):
     """
     prints text coloured according to a unix account pattern color.
     """
     try:
-        color_code = code_of_color[color_of_account[pattern]]
+        color_code = code_of_color[color] if color else code_of_color[color_of_account[pattern]]
     except KeyError:
         return text
     else:
-        return "\033[" + color_code + "m" + text + "\033[1;m" if ((not options.NOCOLOR) and pattern != 'account_not_coloured') \
-            else text
+        return "\033[" + color_code + "m" + text + "\033[1;m" \
+            if ((not options.NOCOLOR) and pattern != 'account_not_coloured' and text != ' ') else text
 
 
 def decide_remapping(node_dict):
@@ -104,7 +104,6 @@ def calculate_stuff(pbs_nodes):
     _all_str_digits_with_empties = []
 
     re_nodename = r'(^[A-Za-z0-9-]+)(?=\.|$)'
-    cnt = 0
     for node in pbs_nodes:
 
         nodename_match = re.search(re_nodename, node['domainname'])
@@ -121,7 +120,7 @@ def calculate_stuff(pbs_nodes):
         node_dict['offline_down_nodes'] += 1 if node['state'] in 'do' else 0
         try:
             node_dict['working_cores'] += len(node['core_job_map'])
-        except KeyError as msg:
+        except KeyError:
             pass
 
         try:
@@ -146,10 +145,24 @@ def calculate_stuff(pbs_nodes):
         node_dict['highest_wn'] = max(node_dict['wn_list'])
 
     # fill in non-existent WN nodes (absent from pbsnodes file) with '?' and count them
-    # is this even needed anymore?!
     for i in range(1, node_dict['highest_wn'] + 1):
         if i not in node_dict['wn_dict']:
-            node_dict['wn_dict'][i] = {'state': '?', 'np': 0}  # was: node_dict['wn_dict'][i] = '?'
+            node_dict['wn_dict'][i] = {'state': '?', 'np': 0, 'domainname': 'N/A', 'host': 'N/A'}
+
+    # custom hostnames (for the wn id label lines)
+    for _, state_corejob_dn in node_dict['wn_dict'].items():
+        _host = state_corejob_dn['domainname'].split('.', 1)[0]
+        changed = False
+        for remap_line in config['remapping']:
+            pat, repl = remap_line.items()[0]
+            repl = eval(repl) if repl.startswith('lambda') else repl
+            if re.search(pat, _host):
+                changed = True
+                state_corejob_dn['host'] = _host = re.sub(pat, repl, _host)
+        else:
+            state_corejob_dn['host'] = _host if not changed else state_corejob_dn['host']
+            label_max_len = config['wn_labels_max_len']
+            state_corejob_dn['host'] = label_max_len and state_corejob_dn['host'][-label_max_len:] or state_corejob_dn['host']
 
     return node_dict, NAMED_WNS
 
@@ -268,19 +281,6 @@ def create_job_counts(user_names, job_states, state_abbrevs):
     return job_counts
 
 
-def create_job_counts2(user_names, job_states, state_abbrevs):
-    """
-    counting of R,Q,C,W,E attached to user
-    :param user_names: list
-    :param job_states: list
-    :param state_abbrevs: dict
-    :return: dict
-    """
-    user_states = [(user_name, job_state) for user_name, job_state in zip(user_names, job_states)]
-    job_counts = Counter(user_states)
-    return job_counts
-
-
 def produce_user_lot(_user_names):
     """
     Produces a list of tuples (lot) of the form (user account, all jobs count) in descending order.
@@ -363,7 +363,7 @@ def line_with_separators(orig_str, separator, pos, stopaftern=0):
         return orig_str
 
 
-def calculate_total_wnid_line_width(highest_wn):  # (total_wn) in case of multiple node_dict['node_subclusters']
+def calc_all_wnid_label_lines(highest_wn):  # (total_wn) in case of multiple node_dict['node_subclusters']
     """
     calculates the Worker Node ID number line widths. expressed by hxxxxs in the following form, e.g. for hundreds of nodes:
     '1': [ 00000000... ]
@@ -371,18 +371,31 @@ def calculate_total_wnid_line_width(highest_wn):  # (total_wn) in case of multip
     '3': [ 12345678901234567....]
     where list contents are strings: '0', '1' etc
     """
-    node_str_width = len(str(highest_wn))  # 4
-    hxxxx = {str(place): [] for place in range(1, node_str_width + 1)}
-    for nr in range(1, highest_wn + 1):
-        extra_zeros = node_str_width - len(str(nr))  # 4 - 1 = 3, for wn0001
-        string = "".join("0" * extra_zeros + str(nr))
-        for place in range(1, node_str_width + 1):
-            hxxxx[str(place)].append(string[place - 1])
+    if NAMED_WNS or options.FORCE_NAMES:
+        wn_dict = node_dict['wn_dict']
+        hosts = [state_corejob_dn['host'] for _, state_corejob_dn in wn_dict.items()]
+        node_str_width = len(max(hosts, key=len))
+        wn_vert_labels = OrderedDict((str(place), []) for place in range(1, node_str_width + 1))
+        for node in wn_dict:
+            host = wn_dict[node]['host']
+            extra_zeros = node_str_width - len(host)
+            string = "".join(" " * extra_zeros + host)
+            for place in range(node_str_width):
+                wn_vert_labels[str(place + 1)].append(string[place])
+    else:
+        node_str_width = len(str(highest_wn))  # 4
+        wn_vert_labels = {str(place): [] for place in range(1, node_str_width + 1)}
+        for nr in range(1, highest_wn + 1):
+            extra_zeros = node_str_width - len(str(nr))  # 4 - 1 = 3, for wn0001
+            string = "".join("0" * extra_zeros + str(nr))
+            for place in range(1, node_str_width + 1):
+                wn_vert_labels[str(place)].append(string[place - 1])
 
-    return hxxxx
+
+    return wn_vert_labels
 
 
-def find_matrices_width(wn_number, wn_list, node_dict, term_columns, DEADWEIGHT=11):
+def find_matrices_width(wn_number, wn_list, term_columns, DEADWEIGHT=11):
     """
     masking/clipping functionality: if the earliest node number is high (e.g. 130), the first 129 WNs need not show up.
     case 1: wn_number is RemapNr, WNList is WNListRemapped
@@ -413,45 +426,47 @@ def find_matrices_width(wn_number, wn_list, node_dict, term_columns, DEADWEIGHT=
         return start, stop, 0
 
 
-def print_wnid_lines(start, stop, highest_wn, hxxxx):
+def print_wnid_lines(start, stop, highest_wn, wn_vert_labels):
     """
+    Prints the Worker Node ID lines, after it colours them and adds separators to them.
     highest_wn determines the number of WN ID lines needed  (1/2/3/4+?)
-    (= highest_wn)
     """
-    node_str_width = len(str(highest_wn))  # 4 for thousands of nodes
     d = OrderedDict()
-    if not NAMED_WNS:
-        for place in range(1, node_str_width + 1):
-            d[str(place)] = "".join(hxxxx[str(place)])
-        appends = {
-            '1': ['={__WNID__}'],
-            '2': ['={_Worker_}', '={__Node__}'],
-            '3': ['={_Worker_}', '={__Node__}', '={___ID___}'],
-            '4': ['={________}', '={_Worker_}', '={__Node__}', '={___ID___}']
-        }
+    end_labels = config['end_labels']
+
+    if not NAMED_WNS:  # not used meaningfully yet
+        node_str_width = len(str(highest_wn))  # 4 for thousands of nodes
+
+        for node_nr in range(1, node_str_width + 1):
+            d[str(node_nr)] = "".join(wn_vert_labels[str(node_nr)])
         size = str(len(d))  # key, nr of horizontal lines to be displayed
-        end_label = iter(appends[size])
+        end_label = iter(end_labels[size])
         for line in d:
             print line_with_separators(d[line][start:stop], SEPARATOR, options.WN_COLON) + end_label.next()
 
     elif NAMED_WNS or options.FORCE_NAMES:  # names (e.g. fruits) instead of numbered WNs
-        raise NotImplementedError
-        just_name_dict = {}
-        color = 0
-        highlight = {0: 'cmsplt', 1: 'Red'}  # should obviously be customizable
 
-        for line, _ in enumerate(highest_wn):
-            just_name_dict[line] = ''
-        for column, _1 in enumerate(node_dict['wn_list']):
-            for line, _2 in enumerate(highest_wn):
-                try:
-                    letter = node_dict['wn_list'][column][line]
-                except TypeError:
-                    letter = ' '
-                just_name_dict[line] += colorize(letter, highlight[color])
-            color = 0 if color == 1 else 1
-        for line, _ in enumerate(highest_wn):
-            print just_name_dict[line] + '={__WNID__}'
+        # for longer full-labeled wn ids, add more end-labels (far-right) towards the bottom
+        for num in range(8, len(wn_vert_labels) + 1):
+            end_labels.setdefault(str(num), end_labels['7'] + num * ['={___ID___}'])
+
+        size = str(len(wn_vert_labels))  # key, nr of horizontal lines to be displayed
+        end_label = iter(end_labels[size])
+        for line_nr in wn_vert_labels:
+            highlight = highlight_alternately(*config['alt_label_highlight_colours'])
+            color_wn_id_list = list(line_with_separators(wn_vert_labels[line_nr][start:stop], SEPARATOR, options.WN_COLON))
+            color_wn_id_list = [colorize(elem, _, highlight.next()) for elem in color_wn_id_list]
+            line = ''.join(color_wn_id_list)
+            print line + end_label.next()
+
+
+def highlight_alternately(colour_a, colour_b):
+    highlight = {0: colour_a, 1: colour_b}  # should obviously be customizable
+    selection = 0
+    while True:
+        selection = 0 if selection else 1
+        yield highlight[selection]
+
 
 
 def calculate_remaining_matrices(node_state,
@@ -460,7 +475,7 @@ def calculate_remaining_matrices(node_state,
                                  cpu_core_dict,
                                  _print_end,
                                  pattern_of_id,
-                                 hxxxx,
+                                 wn_vert_labels,
                                  term_columns,
                                  DEADWEIGHT=11):
     """
@@ -479,11 +494,11 @@ def calculate_remaining_matrices(node_state,
         if config['user_cut_matrix_width']:
             _print_end += config['user_cut_matrix_width']
         else:
-            _print_end += term_columns - DEADWEIGHT  # - (node_dict['highest_wn'] / float(options.WN_COLON))
+            _print_end += term_columns - DEADWEIGHT
         _print_end = min(_print_end, node_dict['total_wn']) if options.REMAP else min(_print_end, node_dict['highest_wn'])
 
         print '\n'
-        print_wnid_lines(print_start, _print_end, node_dict['highest_wn'], hxxxx)
+        print_wnid_lines(print_start, _print_end, node_dict['highest_wn'], wn_vert_labels)
         print line_with_separators(node_state[print_start:_print_end], SEPARATOR, options.WN_COLON) + '=Node state'
         for core_line in get_core_lines(cpu_core_dict, print_start, _print_end, pattern_of_id):
             if gray_hash * (_print_end - print_start) not in core_line.replace(separator_between_ansi, ''):
@@ -518,15 +533,6 @@ def create_user_accounts_pool_mappings(account_jobs_table):
             width15=15 + extra_width,
         )
         print print_string
-
-
-def colorize_with_either(text, one, two):
-    """
-    will first attempt to colorize the text according to unix account's "one" colouring.
-    If "one" doesn't have a colormap mapped to it, it will colorize it with "two"s colouring.
-    If that doesn't work either, no colouring will take place.
-    """
-    return (colorize(text, one) == text) and colorize(text, two) or (colorize(text, one))
 
 
 def get_core_lines(cpu_core_dict, print_start, print_end, pattern_of_id):
@@ -568,7 +574,7 @@ def calculate_wn_occupancy(node_dict, user_names, job_states, job_ids):
     Prints the Worker Nodes Occupancy table.
     if there are non-uniform WNs in pbsnodes.yaml, e.g. wn01, wn02, gn01, gn02, ...,  remapping is performed.
     Otherwise, for uniform WNs, i.e. all using the same numbering scheme, wn01, wn02, ... proceeds as normal.
-    Number of Extra tables needed is calculated inside the calculate_total_wnid_line_width function below
+    Number of Extra tables needed is calculated inside the calc_all_wnid_label_lines function below
     """
     term_columns = calculate_split_screen_size()
     account_jobs_table, id_of_username = create_account_jobs_table(user_names, job_states)
@@ -578,11 +584,11 @@ def calculate_wn_occupancy(node_dict, user_names, job_states, job_ids):
     print colorize('===> ', '#') + colorize('Worker Nodes occupancy', 'Nothing') + colorize(' <=== ', '#') + colorize(
         '(you can read vertically the node IDs; nodes in free state are noted with - )', 'account_not_coloured')
 
-    highest_wn, wn_dict, wn_list = node_dict['highest_wn'], node_dict['wn_dict'], node_dict['wn_list']
+    tot_length, wn_dict, wn_list = node_dict['highest_wn'], node_dict['wn_dict'], node_dict['wn_list']
 
-    (print_start, print_end, extra_matrices_nr) = find_matrices_width(highest_wn, wn_list, node_dict, term_columns)
-    hxxxx = calculate_total_wnid_line_width(highest_wn)
-    print_wnid_lines(print_start, print_end, highest_wn, hxxxx)
+    (print_start, print_end, extra_matrices_nr) = find_matrices_width(tot_length, wn_list, term_columns)
+    wn_vert_labels = calc_all_wnid_label_lines(tot_length)
+    print_wnid_lines(print_start, print_end, tot_length, wn_vert_labels)
 
     node_state = ''.join([wn_dict[node]['state'] for node in wn_dict])
     print line_with_separators(node_state[print_start:print_end], SEPARATOR, options.WN_COLON) + '=Node state'
@@ -596,7 +602,7 @@ def calculate_wn_occupancy(node_dict, user_names, job_states, job_ids):
                                  cpu_core_dict,
                                  print_end,
                                  pattern_of_id,
-                                 hxxxx,
+                                 wn_vert_labels,
                                  term_columns)
     return account_jobs_table, pattern_of_id
 
@@ -653,6 +659,10 @@ def load_yaml_config(path):
         [color_of_account.update(d) for d in config['user_colour_mappings']]
     else:
         config['user_colour_mappings'] = list()
+    if config['remapping']:
+        pass
+    else:
+        config['remapping'] = list()
     for symbol in symbol_map:
         config['possible_ids'].append(symbol)
     return config
@@ -701,7 +711,7 @@ if __name__ == '__main__':
 
     pbs_nodes = read_pbsnodes_yaml(PBSNODES_OUT_FN, options.write_method)
     total_running, total_queued, qstatq_lod = read_qstatq_yaml(QSTATQ_OUT_FN, options.write_method)
-    job_ids, user_names, job_states, _ = read_qstat_yaml(QSTAT_OUT_FN, options.write_method)  #_ == queue_names, not used for now
+    job_ids, user_names, job_states, _ = read_qstat_yaml(QSTAT_OUT_FN, options.write_method)  # _ == queue_names
 
     #  MAIN ##################################
     node_dict, NAMED_WNS = calculate_stuff(pbs_nodes)
