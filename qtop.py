@@ -173,7 +173,7 @@ def nodes_with_jobs(pbs_nodes):
             yield pbs_node
 
 
-def create_job_accounting_summary(node_dict, total_running, total_queued, qstatq_list):
+def display_job_accounting_summary(node_dict, total_running, total_queued, qstatq_list):
     if options.REMAP:
         print '=== WARNING: --- Remapping WN names and retrying heuristics... good luck with this... ---'
     print '\nPBS report tool. Please try: watch -d ' + QTOPPATH + \
@@ -469,7 +469,7 @@ def highlight_alternately(colour_a, colour_b):
 
 
 
-def calculate_remaining_matrices(node_state,
+def display_remaining_matrices(node_state,
                                  extra_matrices_nr,
                                  node_dict,
                                  cpu_core_dict,
@@ -486,7 +486,7 @@ def calculate_remaining_matrices(node_state,
     and the remaining 190 machines have 8 cores, this doesn't print the non-existent
     56 cores from the next matrix on.
     """
-    gray_hash = '\x1b[1;30m#\x1b[1;m'
+    gray_hash = colorize('#', _, color='Red_L')  # was: # gray_hash = '\x1b[1;30m#\x1b[1;m'
     separator_between_ansi = '\x1b[0m|\x1b[1;m'
 
     for matrix in range(extra_matrices_nr):
@@ -505,7 +505,7 @@ def calculate_remaining_matrices(node_state,
                 print core_line
 
 
-def create_user_accounts_pool_mappings(account_jobs_table):
+def create_user_accounts_pool_mappings(account_jobs_table, pattern_of_id):
     print colorize('\n===> ', '#') + \
           colorize('User accounts and pool mappings', 'Nothing') + \
           colorize(' <=== ', '#') + \
@@ -576,35 +576,50 @@ def calculate_wn_occupancy(node_dict, user_names, job_states, job_ids):
     Otherwise, for uniform WNs, i.e. all using the same numbering scheme, wn01, wn02, ... proceeds as normal.
     Number of Extra tables needed is calculated inside the calc_all_wnid_label_lines function below
     """
-    term_columns = calculate_split_screen_size()
-    account_jobs_table, id_of_username = create_account_jobs_table(user_names, job_states)
-    pattern_of_id = make_pattern_of_id(account_jobs_table)
+    wn_occup = dict()
+    wn_occup['term_columns'] = calculate_split_screen_size()
+    wn_occup['account_jobs_table'], wn_occup['id_of_username'] = create_account_jobs_table(user_names, job_states)
+    account_jobs_table = wn_occup['account_jobs_table']
+    wn_occup['pattern_of_id'] = make_pattern_of_id(account_jobs_table)
 
-    cpu_core_dict = calc_cpu_lines(node_dict, id_of_username, job_ids, user_names)
-    print colorize('===> ', '#') + colorize('Worker Nodes occupancy', 'Nothing') + colorize(' <=== ', '#') + colorize(
-        '(you can read vertically the node IDs; nodes in free state are noted with - )', 'account_not_coloured')
-
+    wn_occup['cpu_core_dict'] = calc_cpu_lines(node_dict, wn_occup['id_of_username'], job_ids, user_names)
     tot_length, wn_dict, wn_list = node_dict['highest_wn'], node_dict['wn_dict'], node_dict['wn_list']
 
-    (print_start, print_end, extra_matrices_nr) = find_matrices_width(tot_length, wn_list, term_columns)
-    wn_vert_labels = calc_all_wnid_label_lines(tot_length)
+    (wn_occup['print_start'], wn_occup['print_end'], wn_occup['extra_matrices_nr']) = find_matrices_width(tot_length, wn_list,
+                                                                                                wn_occup['term_columns'])
+    wn_occup['wn_vert_labels'] = calc_all_wnid_label_lines(tot_length)
+    wn_occup['node_state'] = ''.join([wn_dict[node]['state'] for node in wn_dict])
+
+    return wn_occup, node_dict
+
+
+def display_wn_occupancy(wn_occup, node_dict):
+
+    print_start = wn_occup['print_start']
+    print_end = wn_occup['print_end']
+    wn_vert_labels = wn_occup['wn_vert_labels']
+    node_state = wn_occup['node_state']
+    cpu_core_dict = wn_occup['cpu_core_dict']
+    extra_matrices_nr = wn_occup['extra_matrices_nr']
+    term_columns = wn_occup['term_columns']
+    pattern_of_id = wn_occup['pattern_of_id']
+    tot_length, wn_dict, wn_list = node_dict['highest_wn'], node_dict['wn_dict'], node_dict['wn_list']
+
+    print colorize('===> ', '#') + colorize('Worker Nodes occupancy', 'Nothing') + colorize(' <=== ', '#') + colorize(
+        '(you can read vertically the node IDs; nodes in free state are noted with - )', 'account_not_coloured')
     print_wnid_lines(print_start, print_end, tot_length, wn_vert_labels)
-
-    node_state = ''.join([wn_dict[node]['state'] for node in wn_dict])
     print line_with_separators(node_state[print_start:print_end], SEPARATOR, options.WN_COLON) + '=Node state'
-
     for core_line in get_core_lines(cpu_core_dict, print_start, print_end, pattern_of_id):
         print core_line
 
-    calculate_remaining_matrices(node_state,
-                                 extra_matrices_nr,
-                                 node_dict,
-                                 cpu_core_dict,
-                                 print_end,
-                                 pattern_of_id,
-                                 wn_vert_labels,
-                                 term_columns)
-    return account_jobs_table, pattern_of_id
+    display_remaining_matrices(node_state,
+                               extra_matrices_nr,
+                               node_dict,
+                               cpu_core_dict,
+                               print_end,
+                               pattern_of_id,
+                               wn_vert_labels,
+                               term_columns)
 
 
 def make_pattern_of_id(account_jobs_table):
@@ -716,9 +731,12 @@ if __name__ == '__main__':
     #  MAIN ##################################
     node_dict, NAMED_WNS = calculate_stuff(pbs_nodes)
 
-    create_job_accounting_summary(node_dict, total_running, total_queued, qstatq_lod)
-    account_jobs_table, pattern_of_id = calculate_wn_occupancy(node_dict, user_names, job_states, job_ids)
-    create_user_accounts_pool_mappings(account_jobs_table)
+    display_job_accounting_summary(node_dict, total_running, total_queued, qstatq_lod)
+    wn_occup, node_dict = calculate_wn_occupancy(node_dict, user_names, job_states, job_ids)
+    display_wn_occupancy(wn_occup, node_dict)
+    create_user_accounts_pool_mappings(wn_occup['account_jobs_table'], wn_occup['pattern_of_id'])
 
     print '\nThanks for watching!'
     os.chdir(QTOPPATH)
+
+# account_jobs_table, pattern_of_id, print_start, print_end, tot_length, wn_vert_labels, node_state, cpu_core_dict, extra_matrices_nr, term_columns
