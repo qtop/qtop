@@ -554,19 +554,19 @@ def get_core_lines(cpu_core_dict, print_start, print_end, pattern_of_id):
 
 
 def calc_cpu_lines(node_dict, id_of_username, job_ids, user_names):
-    _cpu_core_d = {}
+    _cpu_core_dict = {}
     max_np_range = []
     user_of_job_id = dict(izip(job_ids, user_names))
 
     for core_nr in range(node_dict['max_np']):
-        _cpu_core_d['Cpu' + str(core_nr) + 'line'] = ''  # Cpu0line, Cpu1line, Cpu2line, .. = '','','', ..
+        _cpu_core_dict['Cpu' + str(core_nr) + 'line'] = ''  # Cpu0line, Cpu1line, Cpu2line, .. = '','','', ..
         max_np_range.append(str(core_nr))
 
     for _node in node_dict['wn_dict']:
         state_np_corejob = node_dict['wn_dict'][_node]
-        _cpu_core_d = fill_cpucore_columns(state_np_corejob, _cpu_core_d, id_of_username, max_np_range, user_of_job_id)
+        _cpu_core_dict = fill_cpucore_columns(state_np_corejob, _cpu_core_dict, id_of_username, max_np_range, user_of_job_id)
 
-    return _cpu_core_d
+    return _cpu_core_dict
 
 
 def calculate_wn_occupancy(node_dict, user_names, job_states, job_ids):
