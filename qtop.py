@@ -304,7 +304,7 @@ def expand_useraccounts_symbols(config, user_list):
             config['possible_ids'].append(str(i)[0])
 
 
-def fill_cpucore_columns(state_np_corejob, cpu_core_d, id_of_username, max_np_range, user_of_job_id):
+def fill_cpucore_columns(state_np_corejob, cpu_core_dict, id_of_username, max_np_range, user_of_job_id):
     """
     Calculates the actual contents of the map by filling in a status string for each CPU line
     state_np_corejob was: [state, np, (core0, job1), (core1, job1), ....]
@@ -315,8 +315,8 @@ def fill_cpucore_columns(state_np_corejob, cpu_core_d, id_of_username, max_np_ra
     corejobs = state_np_corejob.get('core_job_map', '')
 
     if state == '?':
-        for cpu_line in cpu_core_d:
-            cpu_core_d[cpu_line] += '_'
+        for cpu_line in cpu_core_dict:
+            cpu_core_dict[cpu_line] += '_'
     else:
         _own_np = int(np)
         own_np_range = [str(x) for x in range(_own_np)]
@@ -329,7 +329,7 @@ def fill_cpucore_columns(state_np_corejob, cpu_core_d, id_of_username, max_np_ra
             except KeyError, KeyErrorValue:
                 print 'There seems to be a problem with the qstat output. A JobID has gone rogue (namely, ' + str(
                     KeyErrorValue) + '). Please check with the System Administrator.'
-            cpu_core_d['Cpu' + str(core) + 'line'] += str(id_of_username[user_of_job_id[job]])
+            cpu_core_dict['Cpu' + str(core) + 'line'] += str(id_of_username[user_of_job_id[job]])
             own_np_empty_range.remove(core)
 
         non_existent_cores = [item for item in max_np_range if item not in own_np_range]
@@ -339,10 +339,10 @@ def fill_cpucore_columns(state_np_corejob, cpu_core_d, id_of_username, max_np_ra
         these positions are filled with '#'s.
         '''
         for core in own_np_empty_range:
-            cpu_core_d['Cpu' + str(core) + 'line'] += '_'
+            cpu_core_dict['Cpu' + str(core) + 'line'] += '_'
         for core in non_existent_cores:
-            cpu_core_d['Cpu' + str(core) + 'line'] += '#'
-    return cpu_core_d
+            cpu_core_dict['Cpu' + str(core) + 'line'] += '#'
+    return cpu_core_dict
 
 
 def line_with_separators(orig_str, separator, pos, stopaftern=0):
@@ -409,18 +409,18 @@ def find_matrices_width(wn_number, wn_list, term_columns, DEADWEIGHT=11):
 
     # Extra matrices may be needed if the WNs are more than the screen width can hold.
     if wn_number > start:  # start will either be 1 or (masked >= config['min_masking_threshold'] + 1)
-        xtra_matr_nr = int(ceil(abs(wn_number - start) / float(term_columns - DEADWEIGHT))) - 1
+        extra_matrices_nr = int(ceil(abs(wn_number - start) / float(term_columns - DEADWEIGHT))) - 1
     elif options.REMAP:  # was: ***wn_number < start*** and len(node_dict['node_subclusters']) > 1:  # Remapping
-        xtra_matr_nr = int(ceil(wn_number / float(term_columns - DEADWEIGHT))) - 1
+        extra_matrices_nr = int(ceil(wn_number / float(term_columns - DEADWEIGHT))) - 1
     else:
         raise (NotImplementedError, "Not foreseen")
 
     if config['user_cut_matrix_width']:  # if the user defines a custom cut (in the configuration file)
         stop = start + config['user_cut_matrix_width']
         return start, stop, wn_number / config['user_cut_matrix_width']
-    elif xtra_matr_nr:  # if more matrices are needed due to lack of space, cut every matrix so that if fits to screen
+    elif extra_matrices_nr:  # if more matrices are needed due to lack of space, cut every matrix so that if fits to screen
         stop = start + term_columns - DEADWEIGHT
-        return start, stop, xtra_matr_nr
+        return start, stop, extra_matrices_nr
     else:  # just one matrix, small cluster!
         stop = start + wn_number
         return start, stop, 0
@@ -470,9 +470,9 @@ def highlight_alternately(colour_a, colour_b):
 
 
 def display_remaining_matrices(node_state,
-                                 xtra_matr_nr,
+                                 extra_matrices_nr,
                                  node_dict,
-                                 cpu_core_d,
+                                 cpu_core_dict,
                                  _print_end,
                                  pattern_of_id,
                                  wn_vert_labels,
@@ -489,7 +489,7 @@ def display_remaining_matrices(node_state,
     gray_hash = colorize('#', _, color='Red_L')  # was: # gray_hash = '\x1b[1;30m#\x1b[1;m'
     separator_between_ansi = '\x1b[0m|\x1b[1;m'
 
-    for matrix in range(xtra_matr_nr):
+    for matrix in range(extra_matrices_nr):
         print_start = _print_end
         if config['user_cut_matrix_width']:
             _print_end += config['user_cut_matrix_width']
@@ -500,7 +500,7 @@ def display_remaining_matrices(node_state,
         print '\n'
         print_wnid_lines(print_start, _print_end, node_dict['highest_wn'], wn_vert_labels)
         print line_with_separators(node_state[print_start:_print_end], SEPARATOR, options.WN_COLON) + '=Node state'
-        for core_line in get_core_lines(cpu_core_d, print_start, _print_end, pattern_of_id):
+        for core_line in get_core_lines(cpu_core_dict, print_start, _print_end, pattern_of_id):
             if gray_hash * (_print_end - print_start) not in core_line.replace(separator_between_ansi, ''):
                 print core_line
 
@@ -535,15 +535,15 @@ def create_user_accounts_pool_mappings(account_jobs_table, pattern_of_id):
         print print_string
 
 
-def get_core_lines(cpu_core_d, print_start, print_end, pattern_of_id):
+def get_core_lines(cpu_core_dict, print_start, print_end, pattern_of_id):
     """
     prints all coreX lines
     """
     # lines = []
-    for ind, k in enumerate(cpu_core_d):
+    for ind, k in enumerate(cpu_core_dict):
         color_cpu_core_list = list(
             line_with_separators(
-                cpu_core_d['Cpu' + str(ind) + 'line'][print_start:print_end],
+                cpu_core_dict['Cpu' + str(ind) + 'line'][print_start:print_end],
                 SEPARATOR,
                 options.WN_COLON
             )
@@ -571,7 +571,7 @@ def calc_cpu_lines(node_dict, id_of_username, job_ids, user_names):
 
 def calculate_wn_occupancy(node_dict, user_names, job_states, job_ids):
     """
-    Prints the Worker Nodes Occupanjcy table.
+    Prints the Worker Nodes Occupancy table.
     if there are non-uniform WNs in pbsnodes.yaml, e.g. wn01, wn02, gn01, gn02, ...,  remapping is performed.
     Otherwise, for uniform WNs, i.e. all using the same numbering scheme, wn01, wn02, ... proceeds as normal.
     Number of Extra tables needed is calculated inside the calc_all_wnid_label_lines function below
@@ -582,10 +582,10 @@ def calculate_wn_occupancy(node_dict, user_names, job_states, job_ids):
     account_jobs_table = wn_occup['account_jobs_table']
     wn_occup['pattern_of_id'] = make_pattern_of_id(account_jobs_table)
 
-    wn_occup['cpu_core_d'] = calc_cpu_lines(node_dict, wn_occup['id_of_username'], job_ids, user_names)
+    wn_occup['cpu_core_dict'] = calc_cpu_lines(node_dict, wn_occup['id_of_username'], job_ids, user_names)
     tot_length, wn_dict, wn_list = node_dict['highest_wn'], node_dict['wn_dict'], node_dict['wn_list']
 
-    (wn_occup['print_start'], wn_occup['print_end'], wn_occup['xtra_matr_nr']) = find_matrices_width(tot_length, wn_list,
+    (wn_occup['print_start'], wn_occup['print_end'], wn_occup['extra_matrices_nr']) = find_matrices_width(tot_length, wn_list,
                                                                                                 wn_occup['term_columns'])
     wn_occup['wn_vert_labels'] = calc_all_wnid_label_lines(tot_length)
     wn_occup['node_state'] = ''.join([wn_dict[node]['state'] for node in wn_dict])
@@ -599,8 +599,8 @@ def display_wn_occupancy(wn_occup, node_dict):
     print_end = wn_occup['print_end']
     wn_vert_labels = wn_occup['wn_vert_labels']
     node_state = wn_occup['node_state']
-    cpu_core_d = wn_occup['cpu_core_d']
-    xtra_matr_nr = wn_occup['xtra_matr_nr']
+    cpu_core_dict = wn_occup['cpu_core_dict']
+    extra_matrices_nr = wn_occup['extra_matrices_nr']
     term_columns = wn_occup['term_columns']
     pattern_of_id = wn_occup['pattern_of_id']
     tot_length, wn_dict, wn_list = node_dict['highest_wn'], node_dict['wn_dict'], node_dict['wn_list']
@@ -609,13 +609,13 @@ def display_wn_occupancy(wn_occup, node_dict):
         '(you can read vertically the node IDs; nodes in free state are noted with - )', 'account_not_coloured')
     print_wnid_lines(print_start, print_end, tot_length, wn_vert_labels)
     print line_with_separators(node_state[print_start:print_end], SEPARATOR, options.WN_COLON) + '=Node state'
-    for core_line in get_core_lines(cpu_core_d, print_start, print_end, pattern_of_id):
+    for core_line in get_core_lines(cpu_core_dict, print_start, print_end, pattern_of_id):
         print core_line
 
     display_remaining_matrices(node_state,
-                               xtra_matr_nr,
+                               extra_matrices_nr,
                                node_dict,
-                               cpu_core_d,
+                               cpu_core_dict,
                                print_end,
                                pattern_of_id,
                                wn_vert_labels,
@@ -739,4 +739,4 @@ if __name__ == '__main__':
     print '\nThanks for watching!'
     os.chdir(QTOPPATH)
 
-# account_jobs_table, pattern_of_id, print_start, print_end, tot_length, wn_vert_labels, node_state, cpu_core_d, xtra_matr_nr, term_columns
+# account_jobs_table, pattern_of_id, print_start, print_end, tot_length, wn_vert_labels, node_state, cpu_core_dict, extra_matrices_nr, term_columns
