@@ -505,7 +505,7 @@ def display_remaining_matrices(node_state,
                 print core_line
 
 
-def create_user_accounts_pool_mappings(account_jobs_table, pattern_of_id):
+def display_user_accounts_pool_mappings(account_jobs_table, pattern_of_id):
     print colorize('\n===> ', '#') + \
           colorize('User accounts and pool mappings', 'Nothing') + \
           colorize(' <=== ', '#') + \
@@ -730,13 +730,16 @@ if __name__ == '__main__':
 
     #  MAIN ##################################
     node_dict, NAMED_WNS = calculate_stuff(pbs_nodes)
-
-    display_job_accounting_summary(node_dict, total_running, total_queued, qstatq_lod)
     wn_occup, node_dict = calculate_wn_occupancy(node_dict, user_names, job_states, job_ids)
-    display_wn_occupancy(wn_occup, node_dict)
-    create_user_accounts_pool_mappings(wn_occup['account_jobs_table'], wn_occup['pattern_of_id'])
+
+    display_parts = {
+        'job_accounting_summary': (display_job_accounting_summary, node_dict, total_running, total_queued, qstatq_lod),
+        'wn_occupancy': (display_wn_occupancy, wn_occup, node_dict),
+        'user_accounts_pool_mappings': (display_user_accounts_pool_mappings, wn_occup['account_jobs_table'], wn_occup['pattern_of_id'])}
+
+    for part in config['user_display_parts']:
+        fn, args = display_parts[part][0], display_parts[part][1:]
+        fn(*args)
 
     print '\nThanks for watching!'
     os.chdir(QTOPPATH)
-
-# account_jobs_table, pattern_of_id, print_start, print_end, tot_length, wn_vert_labels, node_state, cpu_core_dict, extra_matrices_nr, term_columns

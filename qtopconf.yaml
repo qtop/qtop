@@ -33,6 +33,12 @@ end_labels:
  '6': ['={_SPACE__}', '={__FOR___}', '={__SALE__}', '={_Worker_}', '={__Node__}', '={___ID___}']
  '7': ['={__PLACE_}', '={__YOUR__}', '={_ADVERT_}', '={__HERE__}', '={_Worker_}', '={__Node__}', '={___ID___}']
 
+# what parts of qtop to display
+user_display_parts:
+ - job_accounting_summary
+ - wn_occupancy
+ - user_accounts_pool_mappings
+
 # available colours:
 #Blue
 #Blue_L
