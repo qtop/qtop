@@ -2,7 +2,7 @@
 
 ################################################
 #              qtop v.0.7.0                    #
-#     Licensed under MIT-GPL licenses          #
+#node_dict['wn_dict'][wn]     Licensed under MIT-GPL licenses          #
 #                     Sotiris Fragkiskos       #
 #                     Fotis Georgatos          #
 ################################################
@@ -350,17 +350,17 @@ def line_with_separators(orig_str, separator, pos, stopaftern=0):
     inserts separator into orig_str every pos-th position, optionally stopping after stopaftern times.
     """
     pos = int(pos)
-    if pos:  # default value is zero, means no vertical separators
-        sep = orig_str[:]  # insert initial vertical separator
+    if not pos:  # default value is zero, means no vertical separators
+        return orig_str
+    else:
+        sep_str = orig_str[:]  # insert initial vertical separator
 
         times = len(orig_str) / pos if not stopaftern else stopaftern
-        sep = sep[:pos] + separator + sep[pos:]
+        sep_str = sep_str[:pos] + separator + sep_str[pos:]
         for i in range(2, times + 1):
-            sep = sep[:pos * i + i - 1] + separator + sep[pos * i + i - 1:]
-        sep += separator  # insert initial vertical separator
-        return sep
-    else:  # no separators
-        return orig_str
+            sep_str = sep_str[:pos * i + i - 1] + separator + sep_str[pos * i + i - 1:]
+        sep_str += separator  # insert initial vertical separator
+        return sep_str
 
 
 def calc_all_wnid_label_lines(highest_wn):  # (total_wn) in case of multiple node_dict['node_subclusters']
@@ -390,7 +390,6 @@ def calc_all_wnid_label_lines(highest_wn):  # (total_wn) in case of multiple nod
             string = "".join("0" * extra_zeros + str(nr))
             for place in range(1, node_str_width + 1):
                 wn_vert_labels[str(place)].append(string[place - 1])
-
 
     return wn_vert_labels
 
@@ -434,30 +433,32 @@ def print_wnid_lines(start, stop, highest_wn, wn_vert_labels):
     d = OrderedDict()
     end_labels = config['end_labels']
 
-    if not NAMED_WNS:  # not used meaningfully yet
-        node_str_width = len(str(highest_wn))  # 4 for thousands of nodes
+    if not NAMED_WNS:
+        node_str_width = len(str(highest_wn))  # 4 for thousands of nodes, nr of horizontal lines to be displayed
 
         for node_nr in range(1, node_str_width + 1):
             d[str(node_nr)] = "".join(wn_vert_labels[str(node_nr)])
-        size = str(len(d))  # key, nr of horizontal lines to be displayed
-        end_label = iter(end_labels[size])
-        for line in d:
-            print line_with_separators(d[line][start:stop], SEPARATOR, options.WN_COLON) + end_label.next()
+        end_label = iter(end_labels[str(node_str_width)])
+        display_wnid_lines(d, start, stop, end_label, color_func=colour_plainly, args=('White', 'Red_L', start > 100))
 
     elif NAMED_WNS or options.FORCE_NAMES:  # names (e.g. fruits) instead of numbered WNs
+        node_str_width = len(wn_vert_labels)  # key, nr of horizontal lines to be displayed
 
         # for longer full-labeled wn ids, add more end-labels (far-right) towards the bottom
         for num in range(8, len(wn_vert_labels) + 1):
             end_labels.setdefault(str(num), end_labels['7'] + num * ['={___ID___}'])
 
-        size = str(len(wn_vert_labels))  # key, nr of horizontal lines to be displayed
-        end_label = iter(end_labels[size])
-        for line_nr in wn_vert_labels:
-            highlight = highlight_alternately(*config['alt_label_highlight_colours'])
-            color_wn_id_list = list(line_with_separators(wn_vert_labels[line_nr][start:stop], SEPARATOR, options.WN_COLON))
-            color_wn_id_list = [colorize(elem, _, highlight.next()) for elem in color_wn_id_list]
-            line = ''.join(color_wn_id_list)
-            print line + end_label.next()
+        end_label = iter(end_labels[str(node_str_width)])
+        display_wnid_lines(wn_vert_labels, start, stop, end_label,
+                           color_func=highlight_alternately, args=(config['alt_label_highlight_colours']))
+
+
+def display_wnid_lines(d, start, stop, end_label, color_func, args):
+    for line_nr in d:
+        color = color_func(*args)
+        wn_id_str = line_with_separators(d[line_nr][start:stop], SEPARATOR, options.WN_COLON)
+        wn_id_str = ''.join([colorize(elem, _, color.next()) for elem in wn_id_str])
+        print wn_id_str + end_label.next()
 
 
 def highlight_alternately(colour_a, colour_b):
@@ -467,6 +468,13 @@ def highlight_alternately(colour_a, colour_b):
         selection = 0 if selection else 1
         yield highlight[selection]
 
+
+def colour_plainly(colour_0, colour_1, condition):
+    while condition:
+        yield colour_0
+    else:
+        while not condition:
+            yield colour_1
 
 
 def display_remaining_matrices(node_state,
@@ -541,16 +549,10 @@ def get_core_lines(cpu_core_dict, print_start, print_end, pattern_of_id):
     """
     # lines = []
     for ind, k in enumerate(cpu_core_dict):
-        color_cpu_core_list = list(
-            line_with_separators(
-                cpu_core_dict['Cpu' + str(ind) + 'line'][print_start:print_end],
-                SEPARATOR,
-                options.WN_COLON
-            )
-        )
-        color_cpu_core_list = [colorize(elem, pattern_of_id[elem]) for elem in color_cpu_core_list if elem in pattern_of_id]
-        line = ''.join(color_cpu_core_list)
-        yield line + colorize('=Core' + str(ind), 'account_not_coloured')
+        cpu_core_line = cpu_core_dict['Cpu' + str(ind) + 'line'][print_start:print_end]
+        cpu_core_line = line_with_separators(cpu_core_line, SEPARATOR, options.WN_COLON)
+        cpu_core_line = ''.join([colorize(elem, pattern_of_id[elem]) for elem in cpu_core_line if elem in pattern_of_id])
+        yield cpu_core_line + colorize('=Core' + str(ind), 'account_not_coloured')
 
 
 def calc_core_lines(node_dict, id_of_username, job_ids, user_names):
@@ -569,6 +571,10 @@ def calc_core_lines(node_dict, id_of_username, job_ids, user_names):
     return _cpu_core_dict
 
 
+def calc_attr():
+    pass
+
+
 def calculate_wn_occupancy(node_dict, user_names, job_states, job_ids):
     """
     Prints the Worker Nodes Occupancy table.
@@ -580,7 +586,6 @@ def calculate_wn_occupancy(node_dict, user_names, job_states, job_ids):
     wn_occup['term_columns'] = calculate_split_screen_size()
     wn_occup['account_jobs_table'], wn_occup['id_of_username'] = create_account_jobs_table(user_names, job_states)
     wn_occup['pattern_of_id'] = make_pattern_of_id(wn_occup['account_jobs_table'])
-
     wn_occup['print_start'], wn_occup['print_end'], wn_occup['extra_matrices_nr'] = find_matrices_width(
         node_dict['highest_wn'],
         node_dict['wn_list'],
