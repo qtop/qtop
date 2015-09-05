@@ -553,7 +553,7 @@ def get_core_lines(cpu_core_dict, print_start, print_end, pattern_of_id):
         yield line + colorize('=Core' + str(ind), 'account_not_coloured')
 
 
-def calc_cpu_lines(node_dict, id_of_username, job_ids, user_names):
+def calc_core_lines(node_dict, id_of_username, job_ids, user_names):
     _cpu_core_dict = {}
     max_np_range = []
     user_of_job_id = dict(izip(job_ids, user_names))
@@ -579,16 +579,16 @@ def calculate_wn_occupancy(node_dict, user_names, job_states, job_ids):
     wn_occup = dict()
     wn_occup['term_columns'] = calculate_split_screen_size()
     wn_occup['account_jobs_table'], wn_occup['id_of_username'] = create_account_jobs_table(user_names, job_states)
-    account_jobs_table = wn_occup['account_jobs_table']
-    wn_occup['pattern_of_id'] = make_pattern_of_id(account_jobs_table)
+    wn_occup['pattern_of_id'] = make_pattern_of_id(wn_occup['account_jobs_table'])
 
-    wn_occup['cpu_core_dict'] = calc_cpu_lines(node_dict, wn_occup['id_of_username'], job_ids, user_names)
-    tot_length, wn_dict, wn_list = node_dict['highest_wn'], node_dict['wn_dict'], node_dict['wn_list']
-
-    (wn_occup['print_start'], wn_occup['print_end'], wn_occup['extra_matrices_nr']) = find_matrices_width(tot_length, wn_list,
-                                                                                                wn_occup['term_columns'])
-    wn_occup['wn_vert_labels'] = calc_all_wnid_label_lines(tot_length)
-    wn_occup['node_state'] = ''.join([wn_dict[node]['state'] for node in wn_dict])
+    wn_occup['print_start'], wn_occup['print_end'], wn_occup['extra_matrices_nr'] = find_matrices_width(
+        node_dict['highest_wn'],
+        node_dict['wn_list'],
+        wn_occup['term_columns']
+    )
+    wn_occup['wn_vert_labels'] = calc_all_wnid_label_lines(node_dict['highest_wn'])
+    wn_occup['node_state'] = ''.join([node_dict['wn_dict'][node]['state'] for node in node_dict['wn_dict']])
+    wn_occup['cpu_core_dict'] = calc_core_lines(node_dict, wn_occup['id_of_username'], job_ids, user_names)
 
     return wn_occup, node_dict
 
@@ -607,6 +607,7 @@ def display_wn_occupancy(wn_occup, node_dict):
 
     print colorize('===> ', '#') + colorize('Worker Nodes occupancy', 'Nothing') + colorize(' <=== ', '#') + colorize(
         '(you can read vertically the node IDs; nodes in free state are noted with - )', 'account_not_coloured')
+
     print_wnid_lines(print_start, print_end, tot_length, wn_vert_labels)
     print line_with_separators(node_state[print_start:print_end], SEPARATOR, options.WN_COLON) + '=Node state'
     for core_line in get_core_lines(cpu_core_dict, print_start, print_end, pattern_of_id):
@@ -685,7 +686,7 @@ def load_yaml_config(path):
 
 def calculate_split_screen_size():
     """
-    Calculation of split screen size
+    Calculates where to break the matrix into more matrices, because of the window size.
     """
     try:
         _, term_columns = os.popen('stty size', 'r').read().split()  # does not work in pycharm
