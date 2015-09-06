@@ -45,19 +45,14 @@ wn_occupancy:
  - cores
 
 # available colours:
-#Blue
-#Blue_L
+#Blue Blue_L
 #Brown
-#Cyan
-#Cyan_L
-#Gray_D
-#Gray_L
-#Green
-#Green_L
+#Cyan Cyan_L
+#Gray_D Gray_L
+#Green Green_L
 #normal
 #Pink
 #Purple
-#Red
-#Red_L
+#Red Red_L
 #White
 #Yellow

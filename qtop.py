@@ -426,7 +426,7 @@ def find_matrices_width(wn_number, wn_list, term_columns, DEADWEIGHT=11):
         return start, stop, 0
 
 
-def print_wnid_lines(start, stop, highest_wn, wn_vert_labels):
+def print_wnid_lines(start, stop, highest_wn, wn_vert_labels, attrs):
     """
     Prints the Worker Node ID lines, after it colours them and adds separators to them.
     highest_wn determines the number of WN ID lines needed  (1/2/3/4+?)
@@ -479,14 +479,14 @@ def colour_plainly(colour_0, colour_1, condition):
 
 
 def display_remaining_matrices(node_state,
-                                 extra_matrices_nr,
-                                 node_dict,
-                                 cpu_core_dict,
-                                 print_end,
-                                 pattern_of_id,
-                                 wn_vert_labels,
-                                 term_columns,
-                                 DEADWEIGHT=11):
+                               extra_matrices_nr,
+                               node_dict,
+                               cpu_core_dict,
+                               print_end,
+                               pattern_of_id,
+                               wn_vert_labels,
+                               term_columns,
+                               DEADWEIGHT=11):
     """
     If the WNs are more than a screenful (width-wise), this calculates the extra matrices needed to display them.
     DEADWEIGHT is the space taken by the {__XXXX__} labels on the right of the CoreX map
@@ -505,22 +505,25 @@ def display_remaining_matrices(node_state,
 
         # occupancy_parts needs to be redefined for each matrix, because of changed parameter values
         occupancy_parts = {
-            'wn id lines': (print_wnid_lines, print_start, print_end, node_dict['highest_wn'], wn_vert_labels),
-            'node state': (print_single_attr_line, node_state, print_start, print_end, 'Node state'),
-            'cores': (print_core_lines, cpu_core_dict, print_start, print_end, pattern_of_id)
+            'wn id lines': (print_wnid_lines, (print_start, print_end, node_dict['highest_wn'], wn_vert_labels), {'attrs': None}),
+            'node state': (print_single_attr_line, (print_start, print_end), {'attr': node_state, 'label': 'Node state'}),
+            'cores': (print_core_lines, (cpu_core_dict, print_start, print_end, pattern_of_id), {'attrs':None})
         }
 
         print '\n'
-        for part in config['wn_occupancy']:
-            fn, args = occupancy_parts[part][0], occupancy_parts[part][1:]
-            fn(*args)
+        for _part in config['wn_occupancy']:
+            fn, args, kwargs = occupancy_parts[_part][0], occupancy_parts[_part][1], occupancy_parts[_part][2]
+            fn(*args, **kwargs)
 
 
-def print_single_attr_line(node_state, print_start, _print_end, label, color_func=None):
-    line = node_state[print_start:_print_end]
-    node_state = insert_separators(line, SEPARATOR, options.WN_COLON) + '={}'.format(label)
-    node_state = ''.join([colorize(char, 'Nothing', color_func) for char in node_state])
-    print node_state
+def print_single_attr_line(print_start, print_end, attr, label, color_func=None):
+    """
+    attr can be e.g. Node state
+    """
+    line = attr[print_start:print_end]
+    attr = insert_separators(line, SEPARATOR, options.WN_COLON) + '={}'.format(label)
+    attr = ''.join([colorize(char, 'Nothing', color_func) for char in attr])
+    print attr
 
 
 def display_user_accounts_pool_mappings(account_jobs_table, pattern_of_id):
@@ -611,7 +614,7 @@ def calculate_wn_occupancy(node_dict, user_names, job_states, job_ids):
     return wn_occup, node_dict
 
 
-def print_core_lines(cpu_core_dict, print_start, print_end, pattern_of_id):
+def print_core_lines(cpu_core_dict, print_start, print_end, pattern_of_id, attrs):
     for core_line in get_core_lines(cpu_core_dict, print_start, print_end, pattern_of_id):
         print core_line
 
@@ -632,14 +635,14 @@ def display_wn_occupancy(wn_occup, node_dict):
         '(you can read vertically the node IDs; nodes in free state are noted with - )', 'account_not_coloured')
 
     occupancy_parts = {
-        'wn id lines': (print_wnid_lines, print_start, print_end, tot_length, wn_vert_labels),
-        'node state': (print_single_attr_line, node_state, print_start, print_end, 'Node state'),
-        'cores': (print_core_lines, cpu_core_dict, print_start, print_end, pattern_of_id)
+        'wn id lines': (print_wnid_lines, (print_start, print_end, tot_length, wn_vert_labels), {'attrs': None}),
+        'node state': (print_single_attr_line, (print_start, print_end), {'attr': node_state, 'label': 'Node state'}),
+        'cores': (print_core_lines, (cpu_core_dict, print_start, print_end, pattern_of_id), {'attrs': None})
     }
 
     for part in config['wn_occupancy']:
-        fn, args = occupancy_parts[part][0], occupancy_parts[part][1:]
-        fn(*args)
+        fn, args, kwargs = occupancy_parts[part][0], occupancy_parts[part][1], occupancy_parts[part][2]
+        fn(*args, **kwargs)
 
     display_remaining_matrices(node_state,
                                extra_matrices_nr,
