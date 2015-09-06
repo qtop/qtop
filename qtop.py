@@ -39,6 +39,8 @@ parser.add_option("-F", "--ForceNames", action="store_true", dest="FORCE_NAMES",
 parser.add_option("-w", "--writemethod", dest="write_method", action="store", default="txtyaml",
                   choices=['txtyaml', 'yaml', 'json'],
                   help="Set the method used for dumping information, json, yaml, or native python (yaml format)")
+parser.add_option("-r", "--removeemptycorelines", dest="REM_EMPTY_CORELINES", action="store_true", default=False,
+                  help="Set the method used for dumping information, json, yaml, or native python (yaml format)")
 (options, args) = parser.parse_args()
 
 
@@ -47,17 +49,19 @@ parser.add_option("-w", "--writemethod", dest="write_method", action="store", de
 #     options.COLORFILE = os.path.expanduser('~/qtop/qtop/qtop.colormap')
 
 
-def colorize(text, pattern='Nothing', color=None):
+def colorize(text, pattern='Nothing', color=None, bg_colour=None):
     """
     prints text coloured according to a unix account pattern color.
     If color is given, pattern is not needed.
     """
+    # bg_colour = code_of_color['BlueBG']
+    bg_colour = '' if not bg_colour else bg_colour
     try:
-        color_code = code_of_color[color] if color else code_of_color[color_of_account[pattern]]
+        ansi_color = code_of_color[color] if color else code_of_color[color_of_account[pattern]]
     except KeyError:
         return text
     else:
-        return "\033[" + color_code + "m" + text + "\033[1;m" \
+        return "\033[" + '{}{}'.format(ansi_color, bg_colour) + "m" + text + "\033[0;m" \
             if ((not options.NOCOLOR) and pattern != 'account_not_coloured' and text != ' ') else text
 
 
@@ -521,6 +525,7 @@ def print_single_attr_line(print_start, print_end, attr, label, color_func=None)
     attr can be e.g. Node state
     """
     line = attr[print_start:print_end]
+    # maybe put attr and label as kwd arguments? collect them as **kwargs
     attr = insert_separators(line, SEPARATOR, options.WN_COLON) + '={}'.format(label)
     attr = ''.join([colorize(char, 'Nothing', color_func) for char in attr])
     print attr
@@ -536,7 +541,7 @@ def display_user_accounts_pool_mappings(account_jobs_table, pattern_of_id):
     for line in account_jobs_table:
         uid, runningjobs, queuedjobs, alljobs, user = line[0], line[1], line[2], line[3], line[4]
         account = pattern_of_id[uid]
-        if options.NOCOLOR or account == 'account_not_coloured' or color_of_account[account] == 'normal':
+        if options.NOCOLOR or account == 'account_not_coloured' or color_of_account[account] == 'reset':
             extra_width = 0
             account = 'account_not_coloured'
         else:
@@ -564,7 +569,7 @@ def get_core_lines(cpu_core_dict, print_start, print_end, pattern_of_id):
     # lines = []
     for ind, k in enumerate(cpu_core_dict):
         cpu_core_line = cpu_core_dict['Cpu' + str(ind) + 'line'][print_start:print_end]
-        if '#' * (print_end - print_start) == cpu_core_line:
+        if options.REM_EMPTY_CORELINES and '#' * (print_end - print_start) == cpu_core_line:
             continue
         cpu_core_line = insert_separators(cpu_core_line, SEPARATOR, options.WN_COLON)
         cpu_core_line = ''.join([colorize(elem, pattern_of_id[elem]) for elem in cpu_core_line if elem in pattern_of_id])
