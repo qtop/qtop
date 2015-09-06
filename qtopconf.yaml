@@ -39,6 +39,11 @@ user_display_parts:
  - wn_occupancy
  - user_accounts_pool_mappings
 
+wn_occupancy:
+ - wn id lines
+ - node state
+ - cores
+
 # available colours:
 #Blue
 #Blue_L

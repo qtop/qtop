@@ -2,7 +2,7 @@
 
 ################################################
 #              qtop v.0.7.0                    #
-#node_dict['wn_dict'][wn]     Licensed under MIT-GPL licenses          #
+#     Licensed under MIT-GPL licenses          #
 #                     Sotiris Fragkiskos       #
 #                     Fotis Georgatos          #
 ################################################
@@ -47,9 +47,10 @@ parser.add_option("-w", "--writemethod", dest="write_method", action="store", de
 #     options.COLORFILE = os.path.expanduser('~/qtop/qtop/qtop.colormap')
 
 
-def colorize(text, pattern, color=None):
+def colorize(text, pattern='Nothing', color=None):
     """
     prints text coloured according to a unix account pattern color.
+    If color is given, pattern is not needed.
     """
     try:
         color_code = code_of_color[color] if color else code_of_color[color_of_account[pattern]]
@@ -345,7 +346,7 @@ def fill_cpucore_columns(state_np_corejob, cpu_core_dict, id_of_username, max_np
     return cpu_core_dict
 
 
-def line_with_separators(orig_str, separator, pos, stopaftern=0):
+def insert_separators(orig_str, separator, pos, stopaftern=0):
     """
     inserts separator into orig_str every pos-th position, optionally stopping after stopaftern times.
     """
@@ -439,7 +440,7 @@ def print_wnid_lines(start, stop, highest_wn, wn_vert_labels):
         for node_nr in range(1, node_str_width + 1):
             d[str(node_nr)] = "".join(wn_vert_labels[str(node_nr)])
         end_label = iter(end_labels[str(node_str_width)])
-        display_wnid_lines(d, start, stop, end_label, color_func=colour_plainly, args=('White', 'Red_L', start > 100))
+        display_wnid_lines(d, start, stop, end_label, color_func=colour_plainly, args=('White', 'Gray_L', start > 0))
 
     elif NAMED_WNS or options.FORCE_NAMES:  # names (e.g. fruits) instead of numbered WNs
         node_str_width = len(wn_vert_labels)  # key, nr of horizontal lines to be displayed
@@ -456,7 +457,7 @@ def print_wnid_lines(start, stop, highest_wn, wn_vert_labels):
 def display_wnid_lines(d, start, stop, end_label, color_func, args):
     for line_nr in d:
         color = color_func(*args)
-        wn_id_str = line_with_separators(d[line_nr][start:stop], SEPARATOR, options.WN_COLON)
+        wn_id_str = insert_separators(d[line_nr][start:stop], SEPARATOR, options.WN_COLON)
         wn_id_str = ''.join([colorize(elem, _, color.next()) for elem in wn_id_str])
         print wn_id_str + end_label.next()
 
@@ -481,7 +482,7 @@ def display_remaining_matrices(node_state,
                                  extra_matrices_nr,
                                  node_dict,
                                  cpu_core_dict,
-                                 _print_end,
+                                 print_end,
                                  pattern_of_id,
                                  wn_vert_labels,
                                  term_columns,
@@ -494,23 +495,32 @@ def display_remaining_matrices(node_state,
     and the remaining 190 machines have 8 cores, this doesn't print the non-existent
     56 cores from the next matrix on.
     """
-    gray_hash = colorize('#', _, color='Red_L')  # was: # gray_hash = '\x1b[1;30m#\x1b[1;m'
-    separator_between_ansi = '\x1b[0m|\x1b[1;m'
-
     for matrix in range(extra_matrices_nr):
-        print_start = _print_end
+        print_start = print_end
         if config['user_cut_matrix_width']:
-            _print_end += config['user_cut_matrix_width']
+            print_end += config['user_cut_matrix_width']
         else:
-            _print_end += term_columns - DEADWEIGHT
-        _print_end = min(_print_end, node_dict['total_wn']) if options.REMAP else min(_print_end, node_dict['highest_wn'])
+            print_end += term_columns - DEADWEIGHT
+        print_end = min(print_end, node_dict['total_wn']) if options.REMAP else min(print_end, node_dict['highest_wn'])
+
+        # occupancy_parts needs to be redefined for each matrix, because of changed parameter values
+        occupancy_parts = {
+            'wn id lines': (print_wnid_lines, print_start, print_end, node_dict['highest_wn'], wn_vert_labels),
+            'node state': (print_single_attr_line, node_state, print_start, print_end, 'Node state'),
+            'cores': (print_core_lines, cpu_core_dict, print_start, print_end, pattern_of_id)
+        }
 
         print '\n'
-        print_wnid_lines(print_start, _print_end, node_dict['highest_wn'], wn_vert_labels)
-        print line_with_separators(node_state[print_start:_print_end], SEPARATOR, options.WN_COLON) + '=Node state'
-        for core_line in get_core_lines(cpu_core_dict, print_start, _print_end, pattern_of_id):
-            if gray_hash * (_print_end - print_start) not in core_line.replace(separator_between_ansi, ''):
-                print core_line
+        for part in config['wn_occupancy']:
+            fn, args = occupancy_parts[part][0], occupancy_parts[part][1:]
+            fn(*args)
+
+
+def print_single_attr_line(node_state, print_start, _print_end, label, color_func=None):
+    line = node_state[print_start:_print_end]
+    node_state = insert_separators(line, SEPARATOR, options.WN_COLON) + '={}'.format(label)
+    node_state = ''.join([colorize(char, 'Nothing', color_func) for char in node_state])
+    print node_state
 
 
 def display_user_accounts_pool_mappings(account_jobs_table, pattern_of_id):
@@ -545,12 +555,15 @@ def display_user_accounts_pool_mappings(account_jobs_table, pattern_of_id):
 
 def get_core_lines(cpu_core_dict, print_start, print_end, pattern_of_id):
     """
-    prints all coreX lines
+    prints all coreX lines, except cores that don't show up
+    anywhere in the given matrix
     """
     # lines = []
     for ind, k in enumerate(cpu_core_dict):
         cpu_core_line = cpu_core_dict['Cpu' + str(ind) + 'line'][print_start:print_end]
-        cpu_core_line = line_with_separators(cpu_core_line, SEPARATOR, options.WN_COLON)
+        if '#' * (print_end - print_start) == cpu_core_line:
+            continue
+        cpu_core_line = insert_separators(cpu_core_line, SEPARATOR, options.WN_COLON)
         cpu_core_line = ''.join([colorize(elem, pattern_of_id[elem]) for elem in cpu_core_line if elem in pattern_of_id])
         yield cpu_core_line + colorize('=Core' + str(ind), 'account_not_coloured')
 
@@ -598,6 +611,11 @@ def calculate_wn_occupancy(node_dict, user_names, job_states, job_ids):
     return wn_occup, node_dict
 
 
+def print_core_lines(cpu_core_dict, print_start, print_end, pattern_of_id):
+    for core_line in get_core_lines(cpu_core_dict, print_start, print_end, pattern_of_id):
+        print core_line
+
+
 def display_wn_occupancy(wn_occup, node_dict):
 
     print_start = wn_occup['print_start']
@@ -613,10 +631,15 @@ def display_wn_occupancy(wn_occup, node_dict):
     print colorize('===> ', '#') + colorize('Worker Nodes occupancy', 'Nothing') + colorize(' <=== ', '#') + colorize(
         '(you can read vertically the node IDs; nodes in free state are noted with - )', 'account_not_coloured')
 
-    print_wnid_lines(print_start, print_end, tot_length, wn_vert_labels)
-    print line_with_separators(node_state[print_start:print_end], SEPARATOR, options.WN_COLON) + '=Node state'
-    for core_line in get_core_lines(cpu_core_dict, print_start, print_end, pattern_of_id):
-        print core_line
+    occupancy_parts = {
+        'wn id lines': (print_wnid_lines, print_start, print_end, tot_length, wn_vert_labels),
+        'node state': (print_single_attr_line, node_state, print_start, print_end, 'Node state'),
+        'cores': (print_core_lines, cpu_core_dict, print_start, print_end, pattern_of_id)
+    }
+
+    for part in config['wn_occupancy']:
+        fn, args = occupancy_parts[part][0], occupancy_parts[part][1:]
+        fn(*args)
 
     display_remaining_matrices(node_state,
                                extra_matrices_nr,
@@ -697,7 +720,8 @@ def calculate_split_screen_size():
         _, term_columns = os.popen('stty size', 'r').read().split()  # does not work in pycharm
     except ValueError:  # probably Pycharm's fault
         # _, term_columns = [52, 211]
-        _, term_columns = [53, 176]
+        # _, term_columns = [53, 176]
+        _, term_columns = [53, 126]  # for smaller screens, namely 1366 x 768
     term_columns = int(term_columns)
     return term_columns
 
