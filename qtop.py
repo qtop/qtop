@@ -65,7 +65,7 @@ def colorize(text, pattern='Nothing', color=None, bg_colour=None):
             if ((not options.NOCOLOR) and pattern != 'account_not_coloured' and text != ' ') else text
 
 
-def decide_remapping(node_dict):
+def decide_remapping(cluster_dict, _all_letters, _all_str_digits_with_empties):
     """
     Cases where remapping is enforced are:
     - the user has requested it (blindremap switch)
@@ -80,30 +80,37 @@ def decide_remapping(node_dict):
     Reasons not enough to warrant remapping (intended future behaviour)
     - one or two unnumbered nodes (should just be put in the end of the cluster)
     """
+
+    # all needed for decide_remapping
+    cluster_dict['node_subclusters'] = set(_all_letters)
+    cluster_dict['_all_str_digits_with_empties'] = _all_str_digits_with_empties
+    cluster_dict['all_str_digits'] = filter(lambda x: x != "", _all_str_digits_with_empties)
+    cluster_dict['all_digits'] = [int(digit) for digit in cluster_dict['all_str_digits']]
+
     if options.BLINDREMAP or \
-                    len(node_dict['node_subclusters']) > 1 or \
-                    min(node_dict['wn_list']) >= 9000 or \
-                    node_dict['offline_down_nodes'] >= node_dict['total_wn'] * config['percentage'] or \
-                    len(node_dict['_all_str_digits_with_empties']) != len(node_dict['all_str_digits']) or \
-                    len(node_dict['all_digits']) != len(node_dict['all_str_digits']):
+                    len(cluster_dict['node_subclusters']) > 1 or \
+                    min(cluster_dict['wn_list']) >= 9000 or \
+                    cluster_dict['offline_down_nodes'] >= cluster_dict['total_wn'] * config['percentage'] or \
+                    len(cluster_dict['_all_str_digits_with_empties']) != len(cluster_dict['all_str_digits']) or \
+                    len(cluster_dict['all_digits']) != len(cluster_dict['all_str_digits']):
         options.REMAP = True
     else:
         options.REMAP = False
-        # max(node_dict['wn_list']) was node_dict['highest_wn']
+        # max(cluster_dict['wn_list']) was cluster_dict['highest_wn']
 
 
-def calculate_stuff(pbs_nodes):
+def calculate_cluster(pbs_nodes):
     NAMED_WNS = 0 if not options.FORCE_NAMES else 1
-    node_dict = dict()
+    cluster_dict = dict()
     for key in ['working_cores', 'total_cores', 'max_np', 'highest_wn', 'offline_down_nodes']:
-        node_dict[key] = 0
-    node_dict['node_subclusters'] = set()
-    node_dict['wn_dict'] = {}
-    node_dict['wn_dict_remapped'] = {}  # { remapnr: [state, np, (core0, job1), (core1, job1), ....]}
+        cluster_dict[key] = 0
+    cluster_dict['node_subclusters'] = set()
+    cluster_dict['wn_dict'] = {}
+    cluster_dict['wn_dict_remapped'] = {}  # { remapnr: [state, np, (core0, job1), (core1, job1), ....]}
 
-    node_dict['total_wn'] = len(pbs_nodes)  # == existing_nodes
-    node_dict['wn_list'] = []
-    node_dict['wn_list_remapped'] = range(1, node_dict['total_wn'])  # leave xrange aside for now
+    cluster_dict['total_wn'] = len(pbs_nodes)  # == existing_nodes
+    cluster_dict['wn_list'] = []
+    cluster_dict['wn_list_remapped'] = range(1, cluster_dict['total_wn'])  # leave xrange aside for now
 
     _all_letters = []
     _all_str_digits_with_empties = []
@@ -120,11 +127,11 @@ def calculate_stuff(pbs_nodes):
         _all_letters.append(node_letters)
         _all_str_digits_with_empties.append(node_str_digits)
 
-        node_dict['total_cores'] += int(node.get('np'))
-        node_dict['max_np'] = max(node_dict['max_np'], int(node['np']))
-        node_dict['offline_down_nodes'] += 1 if node['state'] in 'do' else 0
+        cluster_dict['total_cores'] += int(node.get('np'))
+        cluster_dict['max_np'] = max(cluster_dict['max_np'], int(node['np']))
+        cluster_dict['offline_down_nodes'] += 1 if node['state'] in 'do' else 0
         try:
-            node_dict['working_cores'] += len(node['core_job_map'])
+            cluster_dict['working_cores'] += len(node['core_job_map'])
         except KeyError:
             pass
 
@@ -133,29 +140,32 @@ def calculate_stuff(pbs_nodes):
         except ValueError:
             cur_node_nr = _nodename
         finally:
-            node_dict['wn_list'].append(cur_node_nr)
+            cluster_dict['wn_list'].append(cur_node_nr)
 
-    node_dict['node_subclusters'] = set(_all_letters)
-    node_dict['_all_str_digits_with_empties'] = _all_str_digits_with_empties
-    node_dict['all_str_digits'] = filter(lambda x: x != "", _all_str_digits_with_empties)
-    node_dict['all_digits'] = [int(digit) for digit in node_dict['all_str_digits']]
-
-    decide_remapping(node_dict)
-    map_pbsnodes_to_wn_dicts(node_dict, pbs_nodes)
+    decide_remapping(cluster_dict, _all_letters, _all_str_digits_with_empties)
+    map_pbsnodes_to_wn_dicts(cluster_dict, pbs_nodes)
     if options.REMAP:
-        node_dict['highest_wn'] = node_dict['total_wn']
-        node_dict['wn_list'] = node_dict['wn_list_remapped']
-        node_dict['wn_dict'] = node_dict['wn_dict_remapped']
+        cluster_dict['highest_wn'] = cluster_dict['total_wn']
+        cluster_dict['wn_list'] = cluster_dict['wn_list_remapped']
+        cluster_dict['wn_dict'] = cluster_dict['wn_dict_remapped']
     else:
-        node_dict['highest_wn'] = max(node_dict['wn_list'])
+        cluster_dict['highest_wn'] = max(cluster_dict['wn_list'])
 
     # fill in non-existent WN nodes (absent from pbsnodes file) with '?' and count them
-    for i in range(1, node_dict['highest_wn'] + 1):
-        if i not in node_dict['wn_dict']:
-            node_dict['wn_dict'][i] = {'state': '?', 'np': 0, 'domainname': 'N/A', 'host': 'N/A'}
+    for i in range(1, cluster_dict['highest_wn'] + 1):
+        if i not in cluster_dict['wn_dict']:
+            cluster_dict['wn_dict'][i] = {'state': '?', 'np': 0, 'domainname': 'N/A', 'host': 'N/A'}
 
-    # custom hostnames (for the wn id label lines)
-    for _, state_corejob_dn in node_dict['wn_dict'].items():
+    do_name_remapping(cluster_dict)
+
+    return cluster_dict, NAMED_WNS
+
+
+def do_name_remapping(cluster_dict):
+    """
+    renames hostnames according to user remapping in conf file (for the wn id label lines)
+    """
+    for _, state_corejob_dn in cluster_dict['wn_dict'].items():
         _host = state_corejob_dn['domainname'].split('.', 1)[0]
         changed = False
         for remap_line in config['remapping']:
@@ -169,8 +179,6 @@ def calculate_stuff(pbs_nodes):
             label_max_len = config['wn_labels_max_len']
             state_corejob_dn['host'] = label_max_len and state_corejob_dn['host'][-label_max_len:] or state_corejob_dn['host']
 
-    return node_dict, NAMED_WNS
-
 
 def nodes_with_jobs(pbs_nodes):
     for _, pbs_node in pbs_nodes.iteritems():
@@ -178,7 +186,7 @@ def nodes_with_jobs(pbs_nodes):
             yield pbs_node
 
 
-def display_job_accounting_summary(node_dict, total_running, total_queued, qstatq_list):
+def display_job_accounting_summary(cluster_dict, total_running, total_queued, qstatq_list):
     if options.REMAP:
         print '=== WARNING: --- Remapping WN names and retrying heuristics... good luck with this... ---'
     print '\nPBS report tool. Please try: watch -d ' + QTOPPATH + \
@@ -186,10 +194,10 @@ def display_job_accounting_summary(node_dict, total_running, total_queued, qstat
     print colorize('===> ', '#') + colorize('Job accounting summary', 'Nothing') + colorize(' <=== ', '#') + colorize(
         '(Rev: 3000 $) %s WORKDIR = to be added', 'account_not_coloured') % (datetime.datetime.today())
     print 'Usage Totals:\t%s/%s\t Nodes | %s/%s  Cores |   %s+%s jobs (R + Q) reported by qstat -q' % \
-          (node_dict['total_wn'] - node_dict['offline_down_nodes'],
-           node_dict['total_wn'],
-           node_dict['working_cores'],
-           node_dict['total_cores'],
+          (cluster_dict['total_wn'] - cluster_dict['offline_down_nodes'],
+           cluster_dict['total_wn'],
+           cluster_dict['working_cores'],
+           cluster_dict['total_cores'],
            int(total_running),
            int(total_queued))
     print 'Queues: | ',
@@ -368,7 +376,7 @@ def insert_separators(orig_str, separator, pos, stopaftern=0):
         return sep_str
 
 
-def calc_all_wnid_label_lines(highest_wn):  # (total_wn) in case of multiple node_dict['node_subclusters']
+def calc_all_wnid_label_lines(highest_wn):  # (total_wn) in case of multiple cluster_dict['node_subclusters']
     """
     calculates the Worker Node ID number line widths. expressed by hxxxxs in the following form, e.g. for hundreds of nodes:
     '1': [ 00000000... ]
@@ -377,7 +385,7 @@ def calc_all_wnid_label_lines(highest_wn):  # (total_wn) in case of multiple nod
     where list contents are strings: '0', '1' etc
     """
     if NAMED_WNS or options.FORCE_NAMES:
-        wn_dict = node_dict['wn_dict']
+        wn_dict = cluster_dict['wn_dict']
         hosts = [state_corejob_dn['host'] for _, state_corejob_dn in wn_dict.items()]
         node_str_width = len(max(hosts, key=len))
         wn_vert_labels = OrderedDict((str(place), []) for place in range(1, node_str_width + 1))
@@ -414,7 +422,7 @@ def find_matrices_width(wn_number, wn_list, term_columns, DEADWEIGHT=11):
     # Extra matrices may be needed if the WNs are more than the screen width can hold.
     if wn_number > start:  # start will either be 1 or (masked >= config['min_masking_threshold'] + 1)
         extra_matrices_nr = int(ceil(abs(wn_number - start) / float(term_columns - DEADWEIGHT))) - 1
-    elif options.REMAP:  # was: ***wn_number < start*** and len(node_dict['node_subclusters']) > 1:  # Remapping
+    elif options.REMAP:  # was: ***wn_number < start*** and len(cluster_dict['node_subclusters']) > 1:  # Remapping
         extra_matrices_nr = int(ceil(wn_number / float(term_columns - DEADWEIGHT))) - 1
     else:
         raise (NotImplementedError, "Not foreseen")
@@ -484,7 +492,7 @@ def colour_plainly(colour_0, colour_1, condition):
 
 def display_remaining_matrices(node_state,
                                extra_matrices_nr,
-                               node_dict,
+                               cluster_dict,
                                cpu_core_dict,
                                print_end,
                                pattern_of_id,
@@ -505,13 +513,13 @@ def display_remaining_matrices(node_state,
             print_end += config['user_cut_matrix_width']
         else:
             print_end += term_columns - DEADWEIGHT
-        print_end = min(print_end, node_dict['total_wn']) if options.REMAP else min(print_end, node_dict['highest_wn'])
+        print_end = min(print_end, cluster_dict['total_wn']) if options.REMAP else min(print_end, cluster_dict['highest_wn'])
 
         # occupancy_parts needs to be redefined for each matrix, because of changed parameter values
         occupancy_parts = {
-            'wn id lines': (print_wnid_lines, (print_start, print_end, node_dict['highest_wn'], wn_vert_labels), {'attrs': None}),
+            'wn id lines': (print_wnid_lines, (print_start, print_end, cluster_dict['highest_wn'], wn_vert_labels), {'attrs': None}),
             'node state': (print_single_attr_line, (print_start, print_end), {'attr': node_state, 'label': 'Node state'}),
-            'cores': (print_core_lines, (cpu_core_dict, print_start, print_end, pattern_of_id), {'attrs':None})
+            'cores': (print_core_lines, (cpu_core_dict, print_start, print_end, pattern_of_id), {'attrs': None})
         }
 
         print '\n'
@@ -561,7 +569,7 @@ def display_user_accounts_pool_mappings(account_jobs_table, pattern_of_id):
         print print_string
 
 
-def get_core_lines(cpu_core_dict, print_start, print_end, pattern_of_id):
+def get_core_lines(cpu_core_dict, print_start, print_end, pattern_of_id, attrs):
     """
     prints all coreX lines, except cores that don't show up
     anywhere in the given matrix
@@ -576,17 +584,17 @@ def get_core_lines(cpu_core_dict, print_start, print_end, pattern_of_id):
         yield cpu_core_line + colorize('=Core' + str(ind), 'account_not_coloured')
 
 
-def calc_core_lines(node_dict, id_of_username, job_ids, user_names):
+def calc_core_lines(cluster_dict, id_of_username, job_ids, user_names):
     _cpu_core_dict = {}
     max_np_range = []
     user_of_job_id = dict(izip(job_ids, user_names))
 
-    for core_nr in range(node_dict['max_np']):
+    for core_nr in range(cluster_dict['max_np']):
         _cpu_core_dict['Cpu' + str(core_nr) + 'line'] = ''  # Cpu0line, Cpu1line, Cpu2line, .. = '','','', ..
         max_np_range.append(str(core_nr))
 
-    for _node in node_dict['wn_dict']:
-        state_np_corejob = node_dict['wn_dict'][_node]
+    for _node in cluster_dict['wn_dict']:
+        state_np_corejob = cluster_dict['wn_dict'][_node]
         _cpu_core_dict = fill_cpucore_columns(state_np_corejob, _cpu_core_dict, id_of_username, max_np_range, user_of_job_id)
 
     return _cpu_core_dict
@@ -596,7 +604,7 @@ def calc_attr():
     pass
 
 
-def calculate_wn_occupancy(node_dict, user_names, job_states, job_ids):
+def calculate_wn_occupancy(cluster_dict, user_names, job_states, job_ids):
     """
     Prints the Worker Nodes Occupancy table.
     if there are non-uniform WNs in pbsnodes.yaml, e.g. wn01, wn02, gn01, gn02, ...,  remapping is performed.
@@ -608,23 +616,23 @@ def calculate_wn_occupancy(node_dict, user_names, job_states, job_ids):
     wn_occup['account_jobs_table'], wn_occup['id_of_username'] = create_account_jobs_table(user_names, job_states)
     wn_occup['pattern_of_id'] = make_pattern_of_id(wn_occup['account_jobs_table'])
     wn_occup['print_start'], wn_occup['print_end'], wn_occup['extra_matrices_nr'] = find_matrices_width(
-        node_dict['highest_wn'],
-        node_dict['wn_list'],
+        cluster_dict['highest_wn'],
+        cluster_dict['wn_list'],
         wn_occup['term_columns']
     )
-    wn_occup['wn_vert_labels'] = calc_all_wnid_label_lines(node_dict['highest_wn'])
-    wn_occup['node_state'] = ''.join([node_dict['wn_dict'][node]['state'] for node in node_dict['wn_dict']])
-    wn_occup['cpu_core_dict'] = calc_core_lines(node_dict, wn_occup['id_of_username'], job_ids, user_names)
+    wn_occup['wn_vert_labels'] = calc_all_wnid_label_lines(cluster_dict['highest_wn'])
+    wn_occup['node_state'] = ''.join([cluster_dict['wn_dict'][node]['state'] for node in cluster_dict['wn_dict']])
+    wn_occup['cpu_core_dict'] = calc_core_lines(cluster_dict, wn_occup['id_of_username'], job_ids, user_names)
 
-    return wn_occup, node_dict
+    return wn_occup, cluster_dict
 
 
 def print_core_lines(cpu_core_dict, print_start, print_end, pattern_of_id, attrs):
-    for core_line in get_core_lines(cpu_core_dict, print_start, print_end, pattern_of_id):
+    for core_line in get_core_lines(cpu_core_dict, print_start, print_end, pattern_of_id, attrs):
         print core_line
 
 
-def display_wn_occupancy(wn_occup, node_dict):
+def display_wn_occupancy(wn_occup, cluster_dict):
 
     print_start = wn_occup['print_start']
     print_end = wn_occup['print_end']
@@ -634,7 +642,7 @@ def display_wn_occupancy(wn_occup, node_dict):
     extra_matrices_nr = wn_occup['extra_matrices_nr']
     term_columns = wn_occup['term_columns']
     pattern_of_id = wn_occup['pattern_of_id']
-    tot_length, wn_dict, wn_list = node_dict['highest_wn'], node_dict['wn_dict'], node_dict['wn_list']
+    tot_length, wn_dict, wn_list = cluster_dict['highest_wn'], cluster_dict['wn_dict'], cluster_dict['wn_list']
 
     print colorize('===> ', '#') + colorize('Worker Nodes occupancy', 'Nothing') + colorize(' <=== ', '#') + colorize(
         '(you can read vertically the node IDs; nodes in free state are noted with - )', 'account_not_coloured')
@@ -651,7 +659,7 @@ def display_wn_occupancy(wn_occup, node_dict):
 
     display_remaining_matrices(node_state,
                                extra_matrices_nr,
-                               node_dict,
+                               cluster_dict,
                                cpu_core_dict,
                                print_end,
                                pattern_of_id,
@@ -767,12 +775,12 @@ if __name__ == '__main__':
     job_ids, user_names, job_states, _ = read_qstat_yaml(QSTAT_OUT_FN, options.write_method)  # _ == queue_names
 
     #  MAIN ##################################
-    node_dict, NAMED_WNS = calculate_stuff(pbs_nodes)
-    wn_occup, node_dict = calculate_wn_occupancy(node_dict, user_names, job_states, job_ids)
+    cluster_dict, NAMED_WNS = calculate_cluster(pbs_nodes)
+    wn_occup, cluster_dict = calculate_wn_occupancy(cluster_dict, user_names, job_states, job_ids)
 
     display_parts = {
-        'job_accounting_summary': (display_job_accounting_summary, node_dict, total_running, total_queued, qstatq_lod),
-        'wn_occupancy': (display_wn_occupancy, wn_occup, node_dict),
+        'job_accounting_summary': (display_job_accounting_summary, cluster_dict, total_running, total_queued, qstatq_lod),
+        'wn_occupancy': (display_wn_occupancy, wn_occup, cluster_dict),
         'user_accounts_pool_mappings': (display_user_accounts_pool_mappings, wn_occup['account_jobs_table'], wn_occup['pattern_of_id'])}
 
     for part in config['user_display_parts']:

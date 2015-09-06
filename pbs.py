@@ -155,7 +155,7 @@ def make_qstat(orig_file, out_file, write_method):
     Some qstat files are structured a bit differently (the ones containing 'prior')
     Job id                    Name             User            Time Use S Queue
     or
-    job-ID  prior   name       user         node_dict submit/start at     queue                          slots ja-task-ID
+    job-ID  prior   name       user         ??????? submit/start at     queue                          slots ja-task-ID
     # searches for something like: 422561.cream01             STDIN            see062          48:50:12 R see
     This new version of the function takes 93ms to run, as opposed to 86.5ms of the older version. Go figure!!
     """
@@ -256,10 +256,10 @@ def read_pbsnodes_yaml(fn, write_method):
     return pbs_nodes
 
 
-def map_pbsnodes_to_wn_dicts(node_dict, pbs_nodes):
-    for (pbs_node, (idx, cur_node_nr)) in zip(pbs_nodes, enumerate(node_dict['wn_list'])):
-        node_dict['wn_dict'][cur_node_nr] = pbs_node
-        node_dict['wn_dict_remapped'][idx] = pbs_node
+def map_pbsnodes_to_wn_dicts(cluster_dict, pbs_nodes):
+    for (pbs_node, (idx, cur_node_nr)) in zip(pbs_nodes, enumerate(cluster_dict['wn_list'])):
+        cluster_dict['wn_dict'][cur_node_nr] = pbs_node
+        cluster_dict['wn_dict_remapped'][idx] = pbs_node
 
 
 def read_qstat_yaml(fn, write_method):
