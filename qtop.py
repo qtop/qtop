@@ -49,7 +49,7 @@ parser.add_option("-r", "--removeemptycorelines", dest="REM_EMPTY_CORELINES", ac
 #     options.COLORFILE = os.path.expanduser('~/qtop/qtop/qtop.colormap')
 
 
-def colorize(text, pattern='Nothing', color=None, bg_colour=None):
+def colorize(text, pattern='Nothing', color_func=None, bg_colour=None):
     """
     prints text coloured according to a unix account pattern color.
     If color is given, pattern is not needed.
@@ -57,7 +57,7 @@ def colorize(text, pattern='Nothing', color=None, bg_colour=None):
     # bg_colour = code_of_color['BlueBG']
     bg_colour = '' if not bg_colour else bg_colour
     try:
-        ansi_color = code_of_color[color] if color else code_of_color[color_of_account[pattern]]
+        ansi_color = code_of_color[color_func] if color_func else code_of_color[color_of_account[pattern]]
     except KeyError:
         return text
     else:
@@ -518,7 +518,7 @@ def display_remaining_matrices(node_state,
         # occupancy_parts needs to be redefined for each matrix, because of changed parameter values
         occupancy_parts = {
             'wn id lines': (print_wnid_lines, (print_start, print_end, cluster_dict['highest_wn'], wn_vert_labels), {'attrs': None}),
-            'node state': (print_single_attr_line, (print_start, print_end), {'attr': node_state, 'label': 'Node state'}),
+            'node state': (print_single_attr_line, (print_start, print_end), {'attr_line': node_state, 'label': 'Node state'}),
             'cores': (print_core_lines, (cpu_core_dict, print_start, print_end, pattern_of_id), {'attrs': None})
         }
 
@@ -528,15 +528,15 @@ def display_remaining_matrices(node_state,
             fn(*args, **kwargs)
 
 
-def print_single_attr_line(print_start, print_end, attr, label, color_func=None):
+def print_single_attr_line(print_start, print_end, attr_line, label, color_func=None):
     """
-    attr can be e.g. Node state
+    attr_line can be e.g. Node state
     """
-    line = attr[print_start:print_end]
-    # maybe put attr and label as kwd arguments? collect them as **kwargs
-    attr = insert_separators(line, SEPARATOR, options.WN_COLON) + '={}'.format(label)
-    attr = ''.join([colorize(char, 'Nothing', color_func) for char in attr])
-    print attr
+    line = attr_line[print_start:print_end]
+    # maybe put attr_line and label as kwd arguments? collect them as **kwargs
+    attr_line = insert_separators(line, SEPARATOR, options.WN_COLON) + '={}'.format(label)
+    attr_line = ''.join([colorize(char, 'Nothing', color_func) for char in attr_line])
+    print attr_line
 
 
 def display_user_accounts_pool_mappings(account_jobs_table, pattern_of_id):
@@ -649,7 +649,7 @@ def display_wn_occupancy(wn_occup, cluster_dict):
 
     occupancy_parts = {
         'wn id lines': (print_wnid_lines, (print_start, print_end, tot_length, wn_vert_labels), {'attrs': None}),
-        'node state': (print_single_attr_line, (print_start, print_end), {'attr': node_state, 'label': 'Node state'}),
+        'node state': (print_single_attr_line, (print_start, print_end), {'attr_line': node_state, 'label': 'Node state'}),
         'cores': (print_core_lines, (cpu_core_dict, print_start, print_end, pattern_of_id), {'attrs': None})
     }
 
