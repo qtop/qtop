@@ -329,7 +329,7 @@ def fill_node_cores_column(state_np_corejob, core_user_dict, id_of_username, max
 
     if state == '?':  # for non-existent machines
         for core_line in core_user_dict:
-            core_user_dict[core_line] += '#'  # was '_'. @Fotis Maybe closer to reality? (No machine, no cores!)
+            core_user_dict[core_line] += ['#']  # was '_'. @Fotis Maybe closer to reality? (No machine, no cores!)
     else:
         _own_np = int(np)
         own_np_range = [str(x) for x in range(_own_np)]
@@ -343,7 +343,7 @@ def fill_node_cores_column(state_np_corejob, core_user_dict, id_of_username, max
                 raise (KeyError, 'There seems to be a problem with the qstat output. A Job (ID %s) has gone rogue. '
                                  'Please check with the SysAdmin.' % str(KeyErrorValue))
             else:
-                core_user_dict['Core' + str(core) + 'line'] += str(id_of_username[user_of_job_id[job]])
+                core_user_dict['Core' + str(core) + 'line'] += [str(id_of_username[user_of_job_id[job]])]
                 own_np_empty_range.remove(core)
 
         non_existent_cores = [item for item in max_np_range if item not in own_np_range]
@@ -353,10 +353,13 @@ def fill_node_cores_column(state_np_corejob, core_user_dict, id_of_username, max
         these positions are filled with '#'s.
         '''
         for core in own_np_empty_range:
-            core_user_dict['Core' + str(core) + 'line'] += '_'
+            core_user_dict['Core' + str(core) + 'line'] += ['_']
         for core in non_existent_cores:
-            core_user_dict['Core' + str(core) + 'line'] += '#'
-    return core_user_dict
+            core_user_dict['Core' + str(core) + 'line'] += ['#']
+
+    col = [core_user_dict[line][-1] for line in core_user_dict]
+
+    return core_user_dict, col
 
 
 def insert_separators(orig_str, separator, pos, stopaftern=0):
@@ -591,11 +594,14 @@ def calc_core_userid_matrix(cluster_dict, id_of_username, job_ids, user_names):
     user_of_job_id = dict(izip(job_ids, user_names))
 
     for core_nr in max_np_range:
-        _core_user_dict['Core' + str(core_nr) + 'line'] = ''  # Cpu0line, Cpu1line, Cpu2line, .. = '','','', ..
+        _core_user_dict['Core' + str(core_nr) + 'line'] = []  # Cpu0line, Cpu1line, Cpu2line, .. = '','','', ..
 
     for _node in cluster_dict['wn_dict']:
         state_np_corejob = cluster_dict['wn_dict'][_node]
-        _core_user_dict = fill_node_cores_column(state_np_corejob, _core_user_dict, id_of_username, max_np_range, user_of_job_id)
+        _core_user_dict, cluster_dict['wn_dict'][_node]['core_user_column'] = fill_node_cores_column(state_np_corejob, _core_user_dict, id_of_username, max_np_range, user_of_job_id)
+
+    for coreline in _core_user_dict:
+        _core_user_dict[coreline] = ''.join(_core_user_dict[coreline])
 
     return _core_user_dict
 
