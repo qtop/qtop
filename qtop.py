@@ -317,7 +317,7 @@ def expand_useraccounts_symbols(config, user_list):
             config['possible_ids'].append(str(i)[0])
 
 
-def fill_cpucore_columns(state_np_corejob, cpu_core_dict, id_of_username, max_np_range, user_of_job_id):
+def fill_node_cores_column(state_np_corejob, core_user_dict, id_of_username, max_np_range, user_of_job_id):
     """
     Calculates the actual contents of the map by filling in a status string for each CPU line
     state_np_corejob was: [state, np, (core0, job1), (core1, job1), ....]
@@ -327,9 +327,9 @@ def fill_cpucore_columns(state_np_corejob, cpu_core_dict, id_of_username, max_np
     np = state_np_corejob['np']
     corejobs = state_np_corejob.get('core_job_map', '')
 
-    if state == '?':
-        for cpu_line in cpu_core_dict:
-            cpu_core_dict[cpu_line] += '_'
+    if state == '?':  # for non-existent machines
+        for core_line in core_user_dict:
+            core_user_dict[core_line] += '#'  # was '_'. @Fotis Maybe closer to reality? (No machine, no cores!)
     else:
         _own_np = int(np)
         own_np_range = [str(x) for x in range(_own_np)]
@@ -338,12 +338,13 @@ def fill_cpucore_columns(state_np_corejob, cpu_core_dict, id_of_username, max_np
         for corejob in corejobs:
             core, job = str(corejob['core']), str(corejob['job'])
             try:
-                user_of_job_id[job]
+                _ = user_of_job_id[job]
             except KeyError, KeyErrorValue:
-                print 'There seems to be a problem with the qstat output. A JobID has gone rogue (namely, ' + str(
-                    KeyErrorValue) + '). Please check with the System Administrator.'
-            cpu_core_dict['Cpu' + str(core) + 'line'] += str(id_of_username[user_of_job_id[job]])
-            own_np_empty_range.remove(core)
+                raise (KeyError, 'There seems to be a problem with the qstat output. A Job (ID %s) has gone rogue. '
+                                 'Please check with the SysAdmin.' % str(KeyErrorValue))
+            else:
+                core_user_dict['Core' + str(core) + 'line'] += str(id_of_username[user_of_job_id[job]])
+                own_np_empty_range.remove(core)
 
         non_existent_cores = [item for item in max_np_range if item not in own_np_range]
 
@@ -352,10 +353,10 @@ def fill_cpucore_columns(state_np_corejob, cpu_core_dict, id_of_username, max_np
         these positions are filled with '#'s.
         '''
         for core in own_np_empty_range:
-            cpu_core_dict['Cpu' + str(core) + 'line'] += '_'
+            core_user_dict['Core' + str(core) + 'line'] += '_'
         for core in non_existent_cores:
-            cpu_core_dict['Cpu' + str(core) + 'line'] += '#'
-    return cpu_core_dict
+            core_user_dict['Core' + str(core) + 'line'] += '#'
+    return core_user_dict
 
 
 def insert_separators(orig_str, separator, pos, stopaftern=0):
@@ -493,7 +494,7 @@ def colour_plainly(colour_0, colour_1, condition):
 def display_remaining_matrices(node_state,
                                extra_matrices_nr,
                                cluster_dict,
-                               cpu_core_dict,
+                               core_user_dict,
                                print_end,
                                pattern_of_id,
                                wn_vert_labels,
@@ -519,7 +520,7 @@ def display_remaining_matrices(node_state,
         occupancy_parts = {
             'wn id lines': (print_wnid_lines, (print_start, print_end, cluster_dict['highest_wn'], wn_vert_labels), {'attrs': None}),
             'node state': (print_single_attr_line, (print_start, print_end), {'attr_line': node_state, 'label': 'Node state'}),
-            'cores': (print_core_lines, (cpu_core_dict, print_start, print_end, pattern_of_id), {'attrs': None})
+            'cores': (print_core_lines, (core_user_dict, print_start, print_end, pattern_of_id), {'attrs': None})
         }
 
         print '\n'
@@ -569,14 +570,14 @@ def display_user_accounts_pool_mappings(account_jobs_table, pattern_of_id):
         print print_string
 
 
-def get_core_lines(cpu_core_dict, print_start, print_end, pattern_of_id, attrs):
+def get_core_lines(core_user_dict, print_start, print_end, pattern_of_id, attrs):
     """
     prints all coreX lines, except cores that don't show up
     anywhere in the given matrix
     """
     # lines = []
-    for ind, k in enumerate(cpu_core_dict):
-        cpu_core_line = cpu_core_dict['Cpu' + str(ind) + 'line'][print_start:print_end]
+    for ind, k in enumerate(core_user_dict):
+        cpu_core_line = core_user_dict['Core' + str(ind) + 'line'][print_start:print_end]
         if options.REM_EMPTY_CORELINES and '#' * (print_end - print_start) == cpu_core_line:
             continue
         cpu_core_line = insert_separators(cpu_core_line, SEPARATOR, options.WN_COLON)
@@ -584,20 +585,19 @@ def get_core_lines(cpu_core_dict, print_start, print_end, pattern_of_id, attrs):
         yield cpu_core_line + colorize('=Core' + str(ind), 'account_not_coloured')
 
 
-def calc_core_lines(cluster_dict, id_of_username, job_ids, user_names):
-    _cpu_core_dict = {}
-    max_np_range = []
+def calc_core_userid_matrix(cluster_dict, id_of_username, job_ids, user_names):
+    _core_user_dict = OrderedDict()
+    max_np_range = [str(x) for x in range(cluster_dict['max_np'])]
     user_of_job_id = dict(izip(job_ids, user_names))
 
-    for core_nr in range(cluster_dict['max_np']):
-        _cpu_core_dict['Cpu' + str(core_nr) + 'line'] = ''  # Cpu0line, Cpu1line, Cpu2line, .. = '','','', ..
-        max_np_range.append(str(core_nr))
+    for core_nr in max_np_range:
+        _core_user_dict['Core' + str(core_nr) + 'line'] = ''  # Cpu0line, Cpu1line, Cpu2line, .. = '','','', ..
 
     for _node in cluster_dict['wn_dict']:
         state_np_corejob = cluster_dict['wn_dict'][_node]
-        _cpu_core_dict = fill_cpucore_columns(state_np_corejob, _cpu_core_dict, id_of_username, max_np_range, user_of_job_id)
+        _core_user_dict = fill_node_cores_column(state_np_corejob, _core_user_dict, id_of_username, max_np_range, user_of_job_id)
 
-    return _cpu_core_dict
+    return _core_user_dict
 
 
 def calc_attr():
@@ -622,13 +622,13 @@ def calculate_wn_occupancy(cluster_dict, user_names, job_states, job_ids):
     )
     wn_occup['wn_vert_labels'] = calc_all_wnid_label_lines(cluster_dict['highest_wn'])
     wn_occup['node_state'] = ''.join([cluster_dict['wn_dict'][node]['state'] for node in cluster_dict['wn_dict']])
-    wn_occup['cpu_core_dict'] = calc_core_lines(cluster_dict, wn_occup['id_of_username'], job_ids, user_names)
+    wn_occup['core_user_dict'] = calc_core_userid_matrix(cluster_dict, wn_occup['id_of_username'], job_ids, user_names)
 
     return wn_occup, cluster_dict
 
 
-def print_core_lines(cpu_core_dict, print_start, print_end, pattern_of_id, attrs):
-    for core_line in get_core_lines(cpu_core_dict, print_start, print_end, pattern_of_id, attrs):
+def print_core_lines(core_user_dict, print_start, print_end, pattern_of_id, attrs):
+    for core_line in get_core_lines(core_user_dict, print_start, print_end, pattern_of_id, attrs):
         print core_line
 
 
@@ -638,7 +638,7 @@ def display_wn_occupancy(wn_occup, cluster_dict):
     print_end = wn_occup['print_end']
     wn_vert_labels = wn_occup['wn_vert_labels']
     node_state = wn_occup['node_state']
-    cpu_core_dict = wn_occup['cpu_core_dict']
+    core_user_dict = wn_occup['core_user_dict']
     extra_matrices_nr = wn_occup['extra_matrices_nr']
     term_columns = wn_occup['term_columns']
     pattern_of_id = wn_occup['pattern_of_id']
@@ -650,7 +650,7 @@ def display_wn_occupancy(wn_occup, cluster_dict):
     occupancy_parts = {
         'wn id lines': (print_wnid_lines, (print_start, print_end, tot_length, wn_vert_labels), {'attrs': None}),
         'node state': (print_single_attr_line, (print_start, print_end), {'attr_line': node_state, 'label': 'Node state'}),
-        'cores': (print_core_lines, (cpu_core_dict, print_start, print_end, pattern_of_id), {'attrs': None})
+        'cores': (print_core_lines, (core_user_dict, print_start, print_end, pattern_of_id), {'attrs': None})
     }
 
     for part in config['wn_occupancy']:
@@ -660,7 +660,7 @@ def display_wn_occupancy(wn_occup, cluster_dict):
     display_remaining_matrices(node_state,
                                extra_matrices_nr,
                                cluster_dict,
-                               cpu_core_dict,
+                               core_user_dict,
                                print_end,
                                pattern_of_id,
                                wn_vert_labels,
@@ -736,8 +736,8 @@ def calculate_split_screen_size():
         _, term_columns = os.popen('stty size', 'r').read().split()  # does not work in pycharm
     except ValueError:  # probably Pycharm's fault
         # _, term_columns = [52, 211]
-        # _, term_columns = [53, 176]
-        _, term_columns = [53, 126]  # for smaller screens, namely 1366 x 768
+        _, term_columns = [53, 176]
+        # _, term_columns = [53, 126]  # for smaller screens, namely 1366 x 768
     term_columns = int(term_columns)
     return term_columns
 

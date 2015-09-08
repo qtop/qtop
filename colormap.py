@@ -323,7 +323,7 @@ color_of_account = {
     'Red': 'Red',
     'DGray': 'Gray_D',
     'Brown': 'Brown',
-    '_': 'Gray_D',
+    '_': 'White',
     '#': 'Gray_D',
     'account_not_coloured': 'reset',
     'Nothing': 'White'
