@@ -424,7 +424,7 @@ def find_matrices_width(wn_number, wn_list, term_columns, DEADWEIGHT=11):
     """
     start = 0
     # exclude unneeded first empty nodes from the matrix
-    if options.NOMASKING and min(wn_list) > config['min_masking_threshold']:
+    if options.NOMASKING and min(wn_list) > config['wn_occupancy'][0]['wn id lines']['min_masking_threshold']:
         start = min(wn_list) - 1
 
     # Extra matrices may be needed if the WNs are more than the screen width can hold.
@@ -435,9 +435,9 @@ def find_matrices_width(wn_number, wn_list, term_columns, DEADWEIGHT=11):
     else:
         raise (NotImplementedError, "Not foreseen")
 
-    if config['user_cut_matrix_width']:  # if the user defines a custom cut (in the configuration file)
-        stop = start + config['user_cut_matrix_width']
-        return start, stop, wn_number / config['user_cut_matrix_width']
+    if USER_CUT_MATRIX_WIDTH:  # if the user defines a custom cut (in the configuration file)
+        stop = start + USER_CUT_MATRIX_WIDTH
+        return start, stop, wn_number / USER_CUT_MATRIX_WIDTH
     elif extra_matrices_nr:  # if more matrices are needed due to lack of space, cut every matrix so that if fits to screen
         stop = start + term_columns - DEADWEIGHT
         return start, stop, extra_matrices_nr
@@ -446,13 +446,13 @@ def find_matrices_width(wn_number, wn_list, term_columns, DEADWEIGHT=11):
         return start, stop, 0
 
 
-def print_wnid_lines(start, stop, highest_wn, wn_vert_labels, inner_attrs, max_len):
+def print_wnid_lines(start, stop, highest_wn, wn_vert_labels, **kwargs):
     """
     Prints the Worker Node ID lines, after it colours them and adds separators to them.
     highest_wn determines the number of WN ID lines needed  (1/2/3/4+?)
     """
     d = OrderedDict()
-    end_labels = config['end_labels']
+    end_labels = config['wn_occupancy'][0]['wn id lines']['end_labels']
 
     if not NAMED_WNS:
         node_str_width = len(str(highest_wn))  # 4 for thousands of nodes, nr of horizontal lines to be displayed
@@ -472,7 +472,7 @@ def print_wnid_lines(start, stop, highest_wn, wn_vert_labels, inner_attrs, max_l
 
         end_label = iter(end_labels[str(node_str_width)])
         display_wnid_lines(wn_vert_labels, start, stop, end_label,
-                           color_func=highlight_alternately, args=(config['alt_label_highlight_colours']))
+                           color_func=highlight_alternately, args=(ALT_LABEL_HIGHLIGHT_COLOURS))
 
 
 def display_wnid_lines(d, start, stop, end_label, color_func, args):
@@ -507,6 +507,7 @@ def display_remaining_matrices(node_state,
                                pattern_of_id,
                                wn_vert_labels,
                                term_columns,
+                               temp,
                                DEADWEIGHT=11):
     """
     If the WNs are more than a screenful (width-wise), this calculates the extra matrices needed to display them.
@@ -518,29 +519,34 @@ def display_remaining_matrices(node_state,
     """
     for matrix in range(extra_matrices_nr):
         print_start = print_end
-        if config['user_cut_matrix_width']:
-            print_end += config['user_cut_matrix_width']
+        if USER_CUT_MATRIX_WIDTH:
+            print_end += USER_CUT_MATRIX_WIDTH
         else:
             print_end += term_columns - DEADWEIGHT
         print_end = min(print_end, cluster_dict['total_wn']) if options.REMAP else min(print_end, cluster_dict['highest_wn'])
 
-        # occupancy_parts needs to be redefined for each matrix, because of changed parameter values
-        occupancy_parts = {
-            'wn id lines': (print_wnid_lines, (print_start, print_end, cluster_dict['highest_wn'], wn_vert_labels),
-                            {'inner_attrs': None}),
-            'node state': (print_single_attr_line, (print_start, print_end), {'attr_line': node_state, 'label': 'Node state'}),
-            'core user map': (print_core_lines, (core_user_map, print_start, print_end, pattern_of_id), {'attrs': None})
-        }
-
-        print '\n'
-        for _part in config['wn_occupancy']:
-            part = [k for k in _part][0]
-            occupancy_parts[part][2].update(_part[part])  # get extra options from user
-            fn, args, kwargs = occupancy_parts[_part][0], occupancy_parts[_part][1], occupancy_parts[_part][2]
-            fn(*args, **kwargs)
+        run_selected_parts(print_start, print_end, wn_vert_labels, core_user_map, pattern_of_id, node_state, temp)
 
 
-def print_single_attr_line(print_start, print_end, attr_line, label, option, color_func=None):
+def run_selected_parts(print_start, print_end, wn_vert_labels, core_user_map, pattern_of_id, node_state, temp):
+    """occupancy_parts needs to be redefined for each matrix, because of changed parameter values"""
+    occupancy_parts = {
+        'wn id lines': (print_wnid_lines, (print_start, print_end, cluster_dict['highest_wn'], wn_vert_labels),
+                        {'inner_attrs': None}),
+        'node state': (print_single_attr_line, (print_start, print_end), {'attr_line': node_state}),
+        'core user map': (print_core_lines, (core_user_map, print_start, print_end, pattern_of_id), {'attrs': None}),
+        'temperature': (print_single_attr_line, (print_start, print_end), {'attr_line': temp}),
+    }
+
+    print '\n'
+    for _part in config['wn_occupancy']:
+        part = [k for k in _part][0]
+        occupancy_parts[part][2].update(_part[part])  # get extra options from user
+        fn, args, kwargs = occupancy_parts[part][0], occupancy_parts[part][1], occupancy_parts[part][2]
+        fn(*args, **kwargs)
+
+
+def print_single_attr_line(print_start, print_end, attr_line, label, color_func=None, **kwargs):
     """
     attr_line can be e.g. Node state
     """
@@ -636,14 +642,17 @@ def calculate_wn_occupancy(cluster_dict, user_names, job_states, job_ids):
         wn_occup['term_columns']
     )
     wn_occup['wn_vert_labels'] = calc_all_wnid_label_lines(cluster_dict['highest_wn'])
-    wn_occup['node_state'] = ''.join([cluster_dict['wn_dict'][node]['state'] for node in cluster_dict['wn_dict']])
+
+    for part in config['wn_occupancy']:
+        part_name = [i for i in part][0]
+        part_options = part[part_name]
+        # label = part_options.get('label')
+        yaml_defined = part_options.get('yaml attr')
+        if yaml_defined:
+            wn_occup[part_name] = ''.join([str(cluster_dict['wn_dict'][node][yaml_defined]) for node in cluster_dict['wn_dict']])
+    # wn_occup['node_state'] = ''.join([str(cluster_dict['wn_dict'][node]['state']) for node in cluster_dict['wn_dict']])
+    # wn_occup['temperature'] = ''.join([str(cluster_dict['wn_dict'][node]['temperature']) for node in cluster_dict['wn_dict']])
     wn_occup['core user map'] = calc_core_userid_matrix(cluster_dict, wn_occup['id_of_username'], job_ids, user_names)
-    wn_occup['temperature'] = ''.join([str(cluster_dict['wn_dict'][node]['temperature']) for node in cluster_dict['wn_dict']])
-    # for user_attr in config['wn_occupancy']:
-    #     wn_occup[user_attr] = user_attr not in wn_occup and \
-    #                           ''.join([str(cluster_dict['wn_dict'][node][user_attr]) for node in cluster_dict['wn_dict']]) or None
-
-
     return wn_occup, cluster_dict
 
 
@@ -657,7 +666,7 @@ def display_wn_occupancy(wn_occup, cluster_dict):
     print_start = wn_occup['print_start']
     print_end = wn_occup['print_end']
     wn_vert_labels = wn_occup['wn_vert_labels']
-    node_state = wn_occup['node_state']
+    node_state = wn_occup['node state']
     temp = wn_occup['temperature']
     core_user_map = wn_occup['core user map']
     extra_matrices_nr = wn_occup['extra_matrices_nr']
@@ -668,18 +677,7 @@ def display_wn_occupancy(wn_occup, cluster_dict):
     print colorize('===> ', '#') + colorize('Worker Nodes occupancy', 'Nothing') + colorize(' <=== ', '#') + colorize(
         '(you can read vertically the node IDs; nodes in free state are noted with - )', 'account_not_coloured')
 
-    occupancy_parts = {
-        'wn id lines': (print_wnid_lines, (print_start, print_end, tot_length, wn_vert_labels), {'inner_attrs': None}),
-        'node state': (print_single_attr_line, (print_start, print_end), {'attr_line': node_state, 'label': 'Node state'}),
-        'core user map': (print_core_lines, (core_user_map, print_start, print_end, pattern_of_id), {'attrs': None}),
-        'temperature': (print_single_attr_line, (print_start, print_end), {'attr_line': temp, 'label': 'Temperature'}),
-    }
-
-    for _part in config['wn_occupancy']:
-        part = [k for k in _part][0]
-        occupancy_parts[part][2].update(_part[part])
-        fn, args, kwargs = occupancy_parts[part][0], occupancy_parts[part][1], occupancy_parts[part][2]
-        fn(*args, **kwargs)
+    run_selected_parts(print_start, print_end, wn_vert_labels, core_user_map, pattern_of_id, node_state, temp)
 
     display_remaining_matrices(node_state,
                                extra_matrices_nr,
@@ -688,7 +686,8 @@ def display_wn_occupancy(wn_occup, cluster_dict):
                                print_end,
                                pattern_of_id,
                                wn_vert_labels,
-                               term_columns)
+                               term_columns,
+                               temp)
 
 
 def make_pattern_of_id(account_jobs_table):
@@ -773,7 +772,9 @@ if __name__ == '__main__':
     QTOPPATH = os.path.expanduser('~/PycharmProjects/qtop')  # qtoppath: ~/qtop/qtop
 
     config = load_yaml_config(QTOPPATH)
-    SEPARATOR = config['separator']  # alias
+    SEPARATOR = config['wn_occupancy'][0]['wn id lines']['separator']  # alias
+    USER_CUT_MATRIX_WIDTH = config['wn_occupancy'][0]['wn id lines']['user_cut_matrix_width']  # alias
+    ALT_LABEL_HIGHLIGHT_COLOURS = config['wn_occupancy'][0]['wn id lines']['alt_label_highlight_colours']  # alias
 
     # Name files according to unique pid
     ext = qstat_mapping[options.write_method][2]
