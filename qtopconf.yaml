@@ -51,15 +51,19 @@ wn_occupancy:
        '5': ['={__FOR___}', '={__SALE__}', '={_Worker_}', '={__Node__}', '={___ID___}']
        '6': ['={_SPACE__}', '={__FOR___}', '={__SALE__}', '={_Worker_}', '={__Node__}', '={___ID___}']
        '7': ['={__PLACE_}', '={__YOUR__}', '={_ADVERT_}', '={__HERE__}', '={_Worker_}', '={__Node__}', '={___ID___}']
+ - temperature:
+     yaml key: temperature  # how it's found in the yaml file
+     label: Temperature (C)  # how to label it on the qtop matrix
+     option: {}
+     max_len: 1
  - node state:
-     yaml attr: state
+     yaml key: state
      label: Node state
      option: {}
      max_len: 1
- - temperature:
-     yaml attr: temperature
-     label: Temperature (C)
-     option: {}
+ - mojokoloku8ia:
+     yaml key: mojo factor
+     label: Mojo-ness
      max_len: 1
  - core user map:
      options1: {}

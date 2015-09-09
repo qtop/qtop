@@ -10,7 +10,7 @@
 from operator import itemgetter
 from optparse import OptionParser
 import datetime
-from collections import Counter, OrderedDict
+from collections import OrderedDict
 import os
 import re
 import yaml
@@ -153,11 +153,11 @@ def calculate_cluster(pbs_nodes):
     else:
         cluster_dict['highest_wn'] = max(cluster_dict['wn_list'])
 
-    # fill in non-existent WN nodes (absent from pbsnodes file) with '?' and count them
-    for i in range(1, cluster_dict['highest_wn'] + 1):
-        if i not in cluster_dict['wn_dict']:
-            cluster_dict['wn_dict'][i] = {'state': '?', 'np': 0, 'domainname': 'N/A', 'host': 'N/A', 'temperature': 0}
-            # TODO: determine what goes in here
+    # fill in non-existent WN nodes (absent from pbsnodes file) with default values and count them
+    for node in range(1, cluster_dict['highest_wn'] + 1):
+        if node not in cluster_dict['wn_dict']:
+            cluster_dict['wn_dict'][node] = {'state': '?', 'np': 0, 'domainname': 'N/A', 'host': 'N/A'}
+            cluster_dict['wn_dict'][node].update({yaml_key: '?' for yaml_key, part_name in get_yaml_key_part('wn_occupancy')})
 
     do_name_remapping(cluster_dict)
 
@@ -499,15 +499,14 @@ def colour_plainly(colour_0, colour_1, condition):
             yield colour_1
 
 
-def display_remaining_matrices(node_state,
-                               extra_matrices_nr,
+def display_remaining_matrices(extra_matrices_nr,
                                cluster_dict,
                                core_user_map,
                                print_end,
                                pattern_of_id,
                                wn_vert_labels,
                                term_columns,
-                               temp,
+                               wn_occup,
                                DEADWEIGHT=11):
     """
     If the WNs are more than a screenful (width-wise), this calculates the extra matrices needed to display them.
@@ -517,6 +516,7 @@ def display_remaining_matrices(node_state,
     and the remaining 190 machines have 8 cores, this doesn't print the non-existent
     56 cores from the next matrix on.
     """
+    # need node_state, temp
     for matrix in range(extra_matrices_nr):
         print_start = print_end
         if USER_CUT_MATRIX_WIDTH:
@@ -525,20 +525,27 @@ def display_remaining_matrices(node_state,
             print_end += term_columns - DEADWEIGHT
         print_end = min(print_end, cluster_dict['total_wn']) if options.REMAP else min(print_end, cluster_dict['highest_wn'])
 
-        run_selected_parts(print_start, print_end, wn_vert_labels, core_user_map, pattern_of_id, node_state, temp)
+        display_selected_occupancy_parts(print_start, print_end, wn_vert_labels, core_user_map, pattern_of_id, wn_occup)
 
 
-def run_selected_parts(print_start, print_end, wn_vert_labels, core_user_map, pattern_of_id, node_state, temp):
-    """occupancy_parts needs to be redefined for each matrix, because of changed parameter values"""
+def display_selected_occupancy_parts(print_start, print_end, wn_vert_labels, core_user_map, pattern_of_id, wn_occup):
+    """
+    occupancy_parts needs to be redefined for each matrix, because of changed parameter values
+    """
     occupancy_parts = {
         'wn id lines': (print_wnid_lines, (print_start, print_end, cluster_dict['highest_wn'], wn_vert_labels),
                         {'inner_attrs': None}),
-        'node state': (print_single_attr_line, (print_start, print_end), {'attr_line': node_state}),
         'core user map': (print_core_lines, (core_user_map, print_start, print_end, pattern_of_id), {'attrs': None}),
-        'temperature': (print_single_attr_line, (print_start, print_end), {'attr_line': temp}),
+        # 'node state': (print_single_attr_line, (print_start, print_end), {'attr_line': wn_occup['node state']}),
+        # 'temperature': (print_single_attr_line, (print_start, print_end), {'attr_line': wn_occup['temperature']}),
     }
+    for yaml_key, part_name in get_yaml_key_part('wn_occupancy'):
+        occupancy_parts.update(
+            {part_name: (print_single_attr_line, (print_start, print_end), {'attr_line': wn_occup[part_name]})}
+        )
 
     print '\n'
+
     for _part in config['wn_occupancy']:
         part = [k for k in _part][0]
         occupancy_parts[part][2].update(_part[part])  # get extra options from user
@@ -625,6 +632,21 @@ def calc_attr():
     pass
 
 
+def get_yaml_key_part(major_key):
+    """
+    only return the list items of the yaml major_key if a yaml key subkey exists
+    (this signals a user-inserted value)
+    """
+    # e.g. major_key = 'wn_occupancy'
+    for part in config[major_key]:
+        part_name = [i for i in part][0]
+        part_options = part[part_name]
+        # label = part_options.get('label')
+        yaml_key = part_options.get('yaml key')
+        if yaml_key:
+            yield yaml_key, part_name
+
+
 def calculate_wn_occupancy(cluster_dict, user_names, job_states, job_ids):
     """
     Prints the Worker Nodes Occupancy table.
@@ -643,15 +665,9 @@ def calculate_wn_occupancy(cluster_dict, user_names, job_states, job_ids):
     )
     wn_occup['wn_vert_labels'] = calc_all_wnid_label_lines(cluster_dict['highest_wn'])
 
-    for part in config['wn_occupancy']:
-        part_name = [i for i in part][0]
-        part_options = part[part_name]
-        # label = part_options.get('label')
-        yaml_defined = part_options.get('yaml attr')
-        if yaml_defined:
-            wn_occup[part_name] = ''.join([str(cluster_dict['wn_dict'][node][yaml_defined]) for node in cluster_dict['wn_dict']])
-    # wn_occup['node_state'] = ''.join([str(cluster_dict['wn_dict'][node]['state']) for node in cluster_dict['wn_dict']])
-    # wn_occup['temperature'] = ''.join([str(cluster_dict['wn_dict'][node]['temperature']) for node in cluster_dict['wn_dict']])
+    for yaml_key, part_name in get_yaml_key_part('wn_occupancy'):
+        wn_occup[part_name] = ''.join([str(cluster_dict['wn_dict'][node][yaml_key]) for node in cluster_dict['wn_dict']])
+    # e.g. wn_occup['node_state'] = ''.join([str(cluster_dict['wn_dict'][node]['state']) for node in cluster_dict['wn_dict']])
     wn_occup['core user map'] = calc_core_userid_matrix(cluster_dict, wn_occup['id_of_username'], job_ids, user_names)
     return wn_occup, cluster_dict
 
@@ -666,28 +682,24 @@ def display_wn_occupancy(wn_occup, cluster_dict):
     print_start = wn_occup['print_start']
     print_end = wn_occup['print_end']
     wn_vert_labels = wn_occup['wn_vert_labels']
-    node_state = wn_occup['node state']
-    temp = wn_occup['temperature']
     core_user_map = wn_occup['core user map']
     extra_matrices_nr = wn_occup['extra_matrices_nr']
     term_columns = wn_occup['term_columns']
     pattern_of_id = wn_occup['pattern_of_id']
-    tot_length, wn_dict, wn_list = cluster_dict['highest_wn'], cluster_dict['wn_dict'], cluster_dict['wn_list']
 
     print colorize('===> ', '#') + colorize('Worker Nodes occupancy', 'Nothing') + colorize(' <=== ', '#') + colorize(
         '(you can read vertically the node IDs; nodes in free state are noted with - )', 'account_not_coloured')
 
-    run_selected_parts(print_start, print_end, wn_vert_labels, core_user_map, pattern_of_id, node_state, temp)
+    display_selected_occupancy_parts(print_start, print_end, wn_vert_labels, core_user_map, pattern_of_id, wn_occup)
 
-    display_remaining_matrices(node_state,
-                               extra_matrices_nr,
+    display_remaining_matrices(extra_matrices_nr,
                                cluster_dict,
                                core_user_map,
                                print_end,
                                pattern_of_id,
                                wn_vert_labels,
                                term_columns,
-                               temp)
+                               wn_occup)
 
 
 def make_pattern_of_id(account_jobs_table):
