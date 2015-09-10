@@ -1,3 +1,17 @@
+batch_system:
+  pbs:
+    pbsnodes_file: pbsnodes_a.txt
+    qstatq_file: qstat_q.txt
+    qstat_file: qstat.txt
+  oar:
+    oarnodes_s_file: oarnodes_s
+    oarnodes_y_file: oarnodes_y
+    oarnodes_file: oarnodes
+    oarstat_file: oarstat
+  sge:
+    sge_file: sge.xml
+
+
 percentage: 0.8 # if less than PERCENTAGE x 100% of the matrices have jobs, perform a blind remap
 possible_ids: '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz' # IDs of unix accounts, for the lower part of qtop
 non_existent_node_symbol: '#'
@@ -58,16 +72,16 @@ workernodes_matrix:
        '5': ['={__FOR___}', '={__SALE__}', '={_Worker_}', '={__Node__}', '={___ID___}']
        '6': ['={_SPACE__}', '={__FOR___}', '={__SALE__}', '={_Worker_}', '={__Node__}', '={___ID___}']
        '7': ['={__PLACE_}', '={__YOUR__}', '={_ADVERT_}', '={__HERE__}', '={_Worker_}', '={__Node__}', '={___ID___}']
- - temperature:
-     yaml key: temperature  # how it's found in the yaml file
-     label: Temperature (C)  # how to label it on the qtop matrix
-     option: {}
-     max_len: 1
+# - temperature:
+#     yaml key: temperature  # how it's found in the yaml file
+#     label: Temperature (C)  # how to label it on the qtop matrix
+#     option: {}
+#     max_len: 1
 
- - mojokoloku8ia:
-     yaml key: mojo factor
-     label: Mojo-ness
-     max_len: 1
+# - mojokoloku8ia:
+#     yaml key: mojo factor
+#     label: Mojo-ness
+#     max_len: 1
  - core user map:
      options1: {}
      options2: {}

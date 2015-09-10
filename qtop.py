@@ -20,7 +20,7 @@ from colormap import color_of_account, code_of_color
 parser = OptionParser()  # for more details see http://docs.python.org/library/optparse.html
 parser.add_option("-a", "--blindremapping", action="store_true", dest="BLINDREMAP", default=False,
                   help="This is used in situations where node names are not a pure arithmetic seq (eg. rocks clusters)")
-parser.add_option("-y", "--readexistingyaml", action="store_false", dest="EXISTYAML", default=True,
+parser.add_option("-y", "--readexistingyaml", action="store_true", dest="YAML_EXISTS", default=False,
                   help="Do not remake yaml input files, read from the existing ones")
 parser.add_option("-c", "--NOCOLOR", action="store_true", dest="NOCOLOR", default=False,
                   help="Enable/Disable color in qtop output.")
@@ -98,7 +98,7 @@ def decide_remapping(cluster_dict, _all_letters, _all_str_digits_with_empties):
         # max(cluster_dict['workernode_list']) was cluster_dict['highest_wn']
 
 
-def calculate_cluster(pbs_nodes):
+def calculate_cluster(worker_nodes):
     NAMED_WNS = 0 if not options.FORCE_NAMES else 1
     cluster_dict = dict()
     for key in ['working_cores', 'total_cores', 'max_np', 'highest_wn', 'offline_down_nodes']:
@@ -107,7 +107,7 @@ def calculate_cluster(pbs_nodes):
     cluster_dict['workernode_dict'] = {}
     cluster_dict['workernode_dict_remapped'] = {}  # { remapnr: [state, np, (core0, job1), (core1, job1), ....]}
 
-    cluster_dict['total_wn'] = len(pbs_nodes)  # == existing_nodes
+    cluster_dict['total_wn'] = len(worker_nodes)  # == existing_nodes
     cluster_dict['workernode_list'] = []
     cluster_dict['workernode_list_remapped'] = range(1, cluster_dict['total_wn'])  # leave xrange aside for now
 
@@ -115,7 +115,7 @@ def calculate_cluster(pbs_nodes):
     _all_str_digits_with_empties = []
 
     re_nodename = r'(^[A-Za-z0-9-]+)(?=\.|$)'
-    for node in pbs_nodes:
+    for node in worker_nodes:
 
         nodename_match = re.search(re_nodename, node['domainname'])
         _nodename = nodename_match.group(0)
@@ -142,7 +142,7 @@ def calculate_cluster(pbs_nodes):
             cluster_dict['workernode_list'].append(cur_node_nr)
 
     decide_remapping(cluster_dict, _all_letters, _all_str_digits_with_empties)
-    map_pbsnodes_to_wn_dicts(cluster_dict, pbs_nodes)
+    map_pbsnodes_to_wn_dicts(cluster_dict, worker_nodes)
     if options.REMAP:
         cluster_dict['highest_wn'] = cluster_dict['total_wn']
         cluster_dict['workernode_list'] = cluster_dict['workernode_list_remapped']
@@ -182,8 +182,8 @@ def do_name_remapping(cluster_dict):
             state_corejob_dn['host'] = label_max_len and state_corejob_dn['host'][-label_max_len:] or state_corejob_dn['host']
 
 
-def nodes_with_jobs(pbs_nodes):
-    for _, pbs_node in pbs_nodes.iteritems():
+def nodes_with_jobs(worker_nodes):
+    for _, pbs_node in worker_nodes.iteritems():
         if 'core_job_map' in pbs_node:
             yield pbs_node
 
@@ -744,13 +744,13 @@ def make_pattern_of_id(account_jobs_table):
     return pattern_of_id
 
 
-def reset_yaml_files():
-    """
-    empties the files with every run of the python script
-    """
-    for _file in [PBSNODES_OUT_FN, QSTATQ_OUT_FN, QSTAT_OUT_FN]:
-        fin = open(_file, 'w')
-        fin.close()
+# def reset_yaml_files():
+#     """
+#     empties the files with every run of the python script
+#     """
+#     for _file in [PBSNODES_OUT_FN, QSTATQ_OUT_FN, QSTAT_OUT_FN]:
+#         fin = open(_file, 'w')
+#         fin.close()
 
 
 def load_yaml_config(path):
@@ -789,6 +789,17 @@ def calculate_split_screen_size():
     return term_columns
 
 
+def convert_to_yaml(batch_system, INPUT_FNs, filenames, write_method):
+    yaml_converter = {
+        'pbs': [make_pbsnodes, make_qstatq, make_qstat],
+        'sge': ['make_sge']
+    }
+
+    for _file, _func in zip(INPUT_FNs, yaml_converter[batch_system]):
+        file_orig, file_out = filenames[_file], filenames[_file + '_out']
+        _func(file_orig, file_out, write_method)
+
+
 if __name__ == '__main__':
     # print_char_start, print_char_stop = 0, None
 
@@ -800,32 +811,26 @@ if __name__ == '__main__':
     USER_CUT_MATRIX_WIDTH = config['workernodes_matrix'][0]['wn id lines']['user_cut_matrix_width']  # alias
     ALT_LABEL_HIGHLIGHT_COLOURS = config['workernodes_matrix'][0]['wn id lines']['alt_label_highlight_colours']  # alias
 
-    # Name files according to unique pid
-    ext = qstat_mapping[options.write_method][2]
-    PBSNODES_OUT_FN = 'pbsnodes_{}.{}'.format(options.write_method, ext)  # os.getpid()
-    QSTATQ_OUT_FN = 'qstat-q_{}.{}'.format(options.write_method, ext)  # os.getpid()
-    QSTAT_OUT_FN = 'qstat_{}.{}'.format(options.write_method, ext)  # os.getpid()
-
     os.chdir(options.SOURCEDIR)
-    # Location of read and created files
-    PBSNODES_ORIG_FN = [f for f in os.listdir(os.getcwd()) if f.startswith('pbsnodes') and not f.endswith('.yaml')][0]
-    QSTATQ_ORIG_FN = [f for f in os.listdir(os.getcwd()) if (
-        f.startswith('qstat_q') or f.startswith('qstatq') or f.startswith('qstat-q') and not f.endswith('.yaml'))][0]
-    QSTAT_ORIG_FN = [f for f in os.listdir(os.getcwd()) if f.startswith('qstat.') and not f.endswith('.yaml')][0]
+    # system = 'oar'  # for now
+    batch_system = 'pbs'  # for now
+    INPUT_FNs = config['batch_system'][batch_system]
+    ext = qstat_mapping[options.write_method][2]
+    filenames = dict()
+    for _file in INPUT_FNs:
+        filenames[_file] = INPUT_FNs[_file]
+        filenames[_file + '_out'] = '{}_{}.{}'.format(INPUT_FNs[_file].rsplit('.')[0], options.write_method, ext)  # os.getpid()
 
-    # input files ###################################
     # reset_yaml_files()  # either that or having a pid appended in the filename
-    if options.EXISTYAML:
-        make_pbsnodes(PBSNODES_ORIG_FN, PBSNODES_OUT_FN, options.write_method)
-        make_qstatq(QSTATQ_ORIG_FN, QSTATQ_OUT_FN, options.write_method)
-        make_qstat(QSTAT_ORIG_FN, QSTAT_OUT_FN, options.write_method)
+    if not options.YAML_EXISTS or batch_system != 'oar':
+        convert_to_yaml(batch_system, INPUT_FNs, filenames, options.write_method)
 
-    pbs_nodes = read_pbsnodes_yaml(PBSNODES_OUT_FN, options.write_method)
-    total_running, total_queued, qstatq_lod = read_qstatq_yaml(QSTATQ_OUT_FN, options.write_method)
-    job_ids, user_names, job_states, _ = read_qstat_yaml(QSTAT_OUT_FN, options.write_method)  # _ == queue_names
+    worker_nodes = read_pbsnodes_yaml(filenames['pbsnodes_file_out'], options.write_method)
+    total_running, total_queued, qstatq_lod = read_qstatq_yaml(filenames['qstatq_file_out'], options.write_method)
+    job_ids, user_names, job_states, _ = read_qstat_yaml(filenames['qstat_file_out'], options.write_method)  # _ == queue_names
 
     #  MAIN ##################################
-    cluster_dict, NAMED_WNS = calculate_cluster(pbs_nodes)
+    cluster_dict, NAMED_WNS = calculate_cluster(worker_nodes)
     workernodes_occupancy, cluster_dict = calculate_wn_occupancy(cluster_dict, user_names, job_states, job_ids)
 
     display_parts = {
@@ -834,8 +839,8 @@ if __name__ == '__main__':
         'user_accounts_pool_mappings': (display_user_accounts_pool_mappings, (workernodes_occupancy['account_jobs_table'], workernodes_occupancy['pattern_of_id']))}
 
     for part in config['user_display_parts']:
-        fn, args = display_parts[part][0], display_parts[part][1]
-        fn(*args)
+        _func, args = display_parts[part][0], display_parts[part][1]
+        _func(*args)
 
     print '\nThanks for watching!'
     os.chdir(QTOPPATH)
