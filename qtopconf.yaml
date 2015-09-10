@@ -1,8 +1,10 @@
-min_masking_threshold: 9 # Masking/clipping functionality. How high should the earliest node number be (e.g. 50), to make the previous WNs vanish
-user_cut_matrix_width: 0 # Change this to zero if you don't want a custom cut matrix length
-separator: '|' # character used for vertical separator, for the -o switch
 percentage: 0.8 # if less than PERCENTAGE x 100% of the matrices have jobs, perform a blind remap
 possible_ids: '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz' # IDs of unix accounts, for the lower part of qtop
+non_existent_node_symbol: '#'
+# set the terminal window size manually so that the matrices can expand accordingly.
+# If this is commented out, autodetection takes place (may not work, e.g. in Pycharm window)
+term_size: [53, 176]
+#term_size: [53, 126]  # for smaller screens, namely 1366 x 768
 user_colour_mappings:  # order should be from more generic-->more specific
 # - '\w+': Gray_D  # enabling this cancels all saved accounts in colormap.py
 # - '[\d]+': Gray_D
@@ -12,41 +14,74 @@ user_colour_mappings:  # order should be from more generic-->more specific
 # - '\w+00\d': Blue
  - '\w*cms\w*': Red_L
  - '\w*atl\w+': Cyan_L
-wn_labels_max_len: 15
-alt_label_highlight_colours: [White, Blue_L]
+
+# if cluster numbering should start on a number # above this, do automatic blind remapping
+exotic_starting_wn_nr: 9000
 remapping:
- - "([A-Za-z]+)([1-9]|[1-9][0-9]|[0-9][0-9][0-9])$": |
-     lambda m: str(m.group(1)+str(int(m.group(2))+250))
+# - "([A-Za-z]+)([1-9]|[1-9][0-9]|[0-9][0-9][0-9])$": |
+#     lambda m: m.group(1)+str(int(m.group(2))+250)
      # e.g. wn100 --> wn350, wn101 --> wn351 and so on
  - 'torvalds(\d+)' : 'tor\1'
  - 'gridlab(\d+)' : 'glab\1'
  - 'gridmon(\d*)' : 'mon\1'
  - '-' : ''  # removes dashes for shortening (can also replace them with something else, e.g. _
 
-# customised end labels
-end_labels:
- '1': ['={__WNID__}']
- '2': ['={_Worker_}', '={__Node__}']
- '3': ['={_Worker_}', '={__Node__}', '={___ID___}']
- '4': ['={________}', '={_Worker_}', '={__Node__}', '={___ID___}']
- '5': ['={__FOR___}', '={__SALE__}', '={_Worker_}', '={__Node__}', '={___ID___}']
- '6': ['={_SPACE__}', '={__FOR___}', '={__SALE__}', '={_Worker_}', '={__Node__}', '={___ID___}']
- '7': ['={__PLACE_}', '={__YOUR__}', '={_ADVERT_}', '={__HERE__}', '={_Worker_}', '={__Node__}', '={___ID___}']
+
+# what parts of qtop to display
+user_display_parts:
+ - job_accounting_summary
+ - workernodes_matrix
+ - user_accounts_pool_mappings
+
+#wn_occupancy:
+# - wn id lines
+# - node state
+# - temperature
+# - core user map
+
+workernodes_matrix:
+ - wn id lines:
+     max_len: 15
+     # Masking/clipping functionality. How high should the # earliest node number be (e.g. 50), to make the previous WNs vanish
+     min_masking_threshold: 9
+     # Change this to an int if you want a custom cut matrix length
+     user_cut_matrix_width: 0
+     # character used for vertical separator, for the -o switch
+     separator: '|'
+     alt_label_highlight_colours: [White, Blue_L]
+     # customised end labels
+     end_labels:
+       '1': ['={__WNID__}']
+       '2': ['={_Worker_}', '={__Node__}']
+       '3': ['={_Worker_}', '={__Node__}', '={___ID___}']
+       '4': ['={________}', '={_Worker_}', '={__Node__}', '={___ID___}']
+       '5': ['={__FOR___}', '={__SALE__}', '={_Worker_}', '={__Node__}', '={___ID___}']
+       '6': ['={_SPACE__}', '={__FOR___}', '={__SALE__}', '={_Worker_}', '={__Node__}', '={___ID___}']
+       '7': ['={__PLACE_}', '={__YOUR__}', '={_ADVERT_}', '={__HERE__}', '={_Worker_}', '={__Node__}', '={___ID___}']
+ - temperature:
+     yaml key: temperature  # how it's found in the yaml file
+     label: Temperature (C)  # how to label it on the qtop matrix
+     option: {}
+     max_len: 1
+
+ - mojokoloku8ia:
+     yaml key: mojo factor
+     label: Mojo-ness
+     max_len: 1
+ - core user map:
+     options1: {}
+     options2: {}
+
 
 # available colours:
-#Blue
-#Blue_L
+#Blue Blue_L
 #Brown
-#Cyan
-#Cyan_L
-#Gray_D
-#Gray_L
-#Green
-#Green_L
+#Cyan Cyan_L
+#Gray_D Gray_L
+#Green Green_L
 #normal
 #Pink
 #Purple
-#Red
-#Red_L
+#Red Red_L
 #White
 #Yellow
