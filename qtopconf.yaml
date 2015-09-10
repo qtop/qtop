@@ -30,7 +30,7 @@ remapping:
 # what parts of qtop to display
 user_display_parts:
  - job_accounting_summary
- - workernodes_occupancy
+ - workernodes_matrix
  - user_accounts_pool_mappings
 
 #wn_occupancy:
@@ -39,7 +39,7 @@ user_display_parts:
 # - temperature
 # - core user map
 
-workernodes_occupancy:
+workernodes_matrix:
  - wn id lines:
      max_len: 15
      # Masking/clipping functionality. How high should the # earliest node number be (e.g. 50), to make the previous WNs vanish
