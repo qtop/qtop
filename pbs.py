@@ -257,9 +257,9 @@ def read_pbsnodes_yaml(fn, write_method):
 
 
 def map_pbsnodes_to_wn_dicts(cluster_dict, pbs_nodes):
-    for (pbs_node, (idx, cur_node_nr)) in zip(pbs_nodes, enumerate(cluster_dict['wn_list'])):
-        cluster_dict['wn_dict'][cur_node_nr] = pbs_node
-        cluster_dict['wn_dict_remapped'][idx] = pbs_node
+    for (pbs_node, (idx, cur_node_nr)) in zip(pbs_nodes, enumerate(cluster_dict['workernode_list'])):
+        cluster_dict['workernode_dict'][cur_node_nr] = pbs_node
+        cluster_dict['workernode_dict_remapped'][idx] = pbs_node
 
 
 def read_qstat_yaml(fn, write_method):
