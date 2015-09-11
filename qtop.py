@@ -188,7 +188,7 @@ def nodes_with_jobs(worker_nodes):
             yield pbs_node
 
 
-def display_job_accounting_summary(cluster_dict, total_running, total_queued, qstatq_list):
+def display_job_accounting_summary(cluster_dict, total_running_jobs, total_queued_jobs, qstatq_list):
     if options.REMAP:
         print '=== WARNING: --- Remapping WN names and retrying heuristics... good luck with this... ---'
     print '\nPBS report tool. Please try: watch -d ' + QTOPPATH + \
@@ -200,8 +200,8 @@ def display_job_accounting_summary(cluster_dict, total_running, total_queued, qs
            cluster_dict['total_wn'],
            cluster_dict['working_cores'],
            cluster_dict['total_cores'],
-           int(total_running),
-           int(total_queued))
+           int(total_running_jobs),
+           int(total_queued_jobs))
     print 'Queues: | ',
     for q in qstatq_list:
         q_name, q_running_jobs, q_queued_jobs = q['queue_name'], q['run'], q['queued']
@@ -562,7 +562,7 @@ def display_selected_occupancy_parts(
         }
         occupancy_parts.update(new_dict_var)
 
-    print '\n'
+    # print '\n'
 
     for _part in config['workernodes_matrix']:
         part = [k for k in _part][0]
@@ -789,13 +789,13 @@ def calculate_split_screen_size():
     return term_columns
 
 
-def convert_to_yaml(batch_system, INPUT_FNs, filenames, write_method):
+def convert_to_yaml(scheduler, INPUT_FNs, filenames, write_method):
     yaml_converter = {
         'pbs': [make_pbsnodes, make_qstatq, make_qstat],
         'sge': ['make_sge']
     }
 
-    for _file, _func in zip(INPUT_FNs, yaml_converter[batch_system]):
+    for _file, _func in zip(INPUT_FNs, yaml_converter[scheduler]):
         file_orig, file_out = filenames[_file], filenames[_file + '_out']
         _func(file_orig, file_out, write_method)
 
@@ -813,8 +813,8 @@ if __name__ == '__main__':
 
     os.chdir(options.SOURCEDIR)
     # system = 'oar'  # for now
-    batch_system = 'pbs'  # for now
-    INPUT_FNs = config['batch_system'][batch_system]
+    scheduler = 'pbs'  # for now
+    INPUT_FNs = config['scheduler'][scheduler]
     ext = qstat_mapping[options.write_method][2]
     filenames = dict()
     for _file in INPUT_FNs:
@@ -822,11 +822,11 @@ if __name__ == '__main__':
         filenames[_file + '_out'] = '{}_{}.{}'.format(INPUT_FNs[_file].rsplit('.')[0], options.write_method, ext)  # os.getpid()
 
     # reset_yaml_files()  # either that or having a pid appended in the filename
-    if not options.YAML_EXISTS or batch_system != 'oar':
-        convert_to_yaml(batch_system, INPUT_FNs, filenames, options.write_method)
+    if not options.YAML_EXISTS or scheduler != 'oar':
+        convert_to_yaml(scheduler, INPUT_FNs, filenames, options.write_method)
 
     worker_nodes = read_pbsnodes_yaml(filenames['pbsnodes_file_out'], options.write_method)
-    total_running, total_queued, qstatq_lod = read_qstatq_yaml(filenames['qstatq_file_out'], options.write_method)
+    total_running_jobs, total_queued_jobs, qstatq_lod = read_qstatq_yaml(filenames['qstatq_file_out'], options.write_method)
     job_ids, user_names, job_states, _ = read_qstat_yaml(filenames['qstat_file_out'], options.write_method)  # _ == queue_names
 
     #  MAIN ##################################
@@ -834,7 +834,7 @@ if __name__ == '__main__':
     workernodes_occupancy, cluster_dict = calculate_wn_occupancy(cluster_dict, user_names, job_states, job_ids)
 
     display_parts = {
-        'job_accounting_summary': (display_job_accounting_summary, (cluster_dict, total_running, total_queued, qstatq_lod)),
+        'job_accounting_summary': (display_job_accounting_summary, (cluster_dict, total_running_jobs, total_queued_jobs, qstatq_lod)),
         'workernodes_matrix': (display_wn_occupancy, (workernodes_occupancy, cluster_dict)),
         'user_accounts_pool_mappings': (display_user_accounts_pool_mappings, (workernodes_occupancy['account_jobs_table'], workernodes_occupancy['pattern_of_id']))}
 

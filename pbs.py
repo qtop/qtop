@@ -227,7 +227,7 @@ def make_qstatq(orig_file, out_file, write_method):
                 queue_name, run, queued, lm, state = m.group(1), m.group(6), m.group(7), m.group(8), m.group(9)
             except AttributeError:
                 try:
-                    total_running, total_queued = n.group(1), n.group(2)
+                    total_running_jobs, total_queued_jobs = n.group(1), n.group(2)
                 except AttributeError:
                     continue
             else:
@@ -235,7 +235,7 @@ def make_qstatq(orig_file, out_file, write_method):
                                    ('state', state)]:
                     temp_dict[key] = value
                 l.append(temp_dict)
-        l.append({'Total running': total_running, 'Total queued': total_queued})
+        l.append({'Total running': total_running_jobs, 'Total queued': total_queued_jobs})
     pbs_dump_all(l, out_file, qstatq_mapping[write_method])
 
 
@@ -291,8 +291,8 @@ def read_qstatq_yaml(fn, write_method):
         for qstatq in qstatqs_total:
             qstatq_list.append(qstatq)
         total = qstatq_list.pop()
-        total_running, total_queued = total['Total running'], total['Total queued']
-    return total_running, total_queued, qstatq_list
+        total_running_jobs, total_queued_jobs = total['Total running'], total['Total queued']
+    return total_running_jobs, total_queued_jobs, qstatq_list
 
 
 def qstatq_write_lines(l, fout):
