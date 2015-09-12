@@ -155,8 +155,6 @@ class QStatMaker(StatMaker):
             self.l.append({'Total running': total_running_jobs, 'Total queued': total_queued_jobs})
         self.dump_all(out_file, self.statq_mapping[write_method])
 
-
-
     @staticmethod
     def process_line(re_search, line, re_match_positions):
         qstat_values = dict()
@@ -171,7 +169,8 @@ class QStatMaker(StatMaker):
             qstat_values[key] = value
         return qstat_values
 
-    def dump_all(self, out_file, write_func_args):
+    @staticmethod
+    def dump_all( out_file, write_func_args):
         """
         dumps the content of qstat/qstat_q files in the selected write_method format
         """
