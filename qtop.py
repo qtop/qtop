@@ -16,6 +16,7 @@ from itertools import izip
 from pbs import *
 from math import ceil
 from colormap import color_of_account, code_of_color
+from stat_maker import QStatMaker, OarStatMaker
 
 parser = OptionParser()  # for more details see http://docs.python.org/library/optparse.html
 parser.add_option("-a", "--blindremapping", action="store_true", dest="BLINDREMAP", default=False,
@@ -533,6 +534,8 @@ def display_remaining_matrices(
             pattern_of_id,
             workernodes_occupancy)
 
+        print '\n'
+
 
 def display_selected_occupancy_parts(
         print_char_start,
@@ -790,12 +793,23 @@ def calculate_split_screen_size():
 
 
 def convert_to_yaml(scheduler, INPUT_FNs, filenames, write_method):
+
     yaml_converter = {
-        'pbs': [make_pbsnodes, make_qstatq, make_qstat],
+        'pbs': (
+            make_pbsnodes,
+            QStatMaker().make_statq,
+            QStatMaker().make_stat,
+        ),
+        'oar': (
+            lambda x,y,z: None,
+            lambda x,y,z: None,
+            OarStatMaker().make_stat
+        ),
         'sge': ['make_sge']
     }
 
-    for _file, _func in zip(INPUT_FNs, yaml_converter[scheduler]):
+    commands = yaml_converter[scheduler]
+    for _file, _func in zip(INPUT_FNs, commands):
         file_orig, file_out = filenames[_file], filenames[_file + '_out']
         _func(file_orig, file_out, write_method)
 
@@ -812,17 +826,16 @@ if __name__ == '__main__':
     ALT_LABEL_HIGHLIGHT_COLOURS = config['workernodes_matrix'][0]['wn id lines']['alt_label_highlight_colours']  # alias
 
     os.chdir(options.SOURCEDIR)
-    # system = 'oar'  # for now
-    scheduler = 'pbs'  # for now
-    INPUT_FNs = config['scheduler'][scheduler]
-    ext = qstat_mapping[options.write_method][2]
+    scheduler = config['scheduler']
+    INPUT_FNs = config['schedulers'][scheduler]
+    ext = ext_mapping[options.write_method]
     filenames = dict()
     for _file in INPUT_FNs:
         filenames[_file] = INPUT_FNs[_file]
         filenames[_file + '_out'] = '{}_{}.{}'.format(INPUT_FNs[_file].rsplit('.')[0], options.write_method, ext)  # os.getpid()
 
     # reset_yaml_files()  # either that or having a pid appended in the filename
-    if not options.YAML_EXISTS or scheduler != 'oar':
+    if not options.YAML_EXISTS:
         convert_to_yaml(scheduler, INPUT_FNs, filenames, options.write_method)
 
     worker_nodes = read_pbsnodes_yaml(filenames['pbsnodes_file_out'], options.write_method)

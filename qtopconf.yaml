@@ -1,4 +1,4 @@
-scheduler:
+schedulers:
   pbs:
     pbsnodes_file: pbsnodes_a.txt
     qstatq_file: qstat_q.txt
@@ -11,6 +11,7 @@ scheduler:
   sge:
     sge_file: sge.xml
 
+scheduler: oar
 
 percentage: 0.8 # if less than PERCENTAGE x 100% of the matrices have jobs, perform a blind remap
 possible_ids: '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz' # IDs of unix accounts, for the lower part of qtop
