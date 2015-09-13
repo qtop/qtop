@@ -795,22 +795,26 @@ def calculate_split_screen_size():
 def convert_to_yaml(scheduler, INPUT_FNs, filenames, write_method):
 
     yaml_converter = {
-        'pbs': (
-            make_pbsnodes,
-            QStatMaker().make_statq,
-            QStatMaker().make_stat,
-        ),
-        'oar': (
-            lambda x,y,z: None,
-            lambda x,y,z: None,
-            OarStatMaker().make_stat
-        ),
-        'sge': ['make_sge']
+        'pbs': {
+            'pbsnodes_file': make_pbsnodes,
+            'qstatq_file': QStatMaker().make_statq,
+            'qstat_file': QStatMaker().make_stat,
+        },
+        'oar': {
+            'oarnodes_s_file': lambda x, y, z: None,
+            'oarnodes_y_file': lambda x, y, z: None,
+            'oarnodes_file': lambda x, y, z: None,
+            'oarstat_file': OarStatMaker().make_stat,
+        },
+        'sge': {'sge.xml': 'make_sge'}
     }
 
     commands = yaml_converter[scheduler]
-    for _file, _func in zip(INPUT_FNs, commands):
+    # for _file, _func in zip(INPUT_FNs, commands):
+    for _file in INPUT_FNs:
         file_orig, file_out = filenames[_file], filenames[_file + '_out']
+        _func = commands[_file]
+        print 'executing %(_func)s on file %(_file)s' % {'_func': _func, '_file': _file}
         _func(file_orig, file_out, write_method)
 
 
