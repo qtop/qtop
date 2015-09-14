@@ -799,6 +799,13 @@ def convert_to_yaml(scheduler, INPUT_FNs, filenames, write_method, commands):
         _func(file_orig, file_out, write_method)
 
 
+def exec_func_tuples(func_tuples):
+    _commands = iter(func_tuples)
+    for command in _commands:
+        ffunc, args, kwargs = command[0], command[1], command[2]
+        yield ffunc(*args, **kwargs)
+
+
 if __name__ == '__main__':
     # print_char_start, print_char_stop = 0, None
 
@@ -838,22 +845,6 @@ if __name__ == '__main__':
     if not options.YAML_EXISTS:
         convert_to_yaml(scheduler, INPUT_FNs, filenames, options.write_method, commands)
 
-    # yaml_converter = {
-    #     'pbs': {
-    #         'pbsnodes_file_out': make_pbsnodes,
-    #         'qstatq_file': QStatMaker().make_statq,
-    #         'qstat_file': QStatMaker().make_stat,
-    #     },
-    #     'oar': {
-    #         'oarnodes_s_file': lambda x, y, z: None,
-    #         'oarnodes_y_file': lambda x, y, z: None,
-    #         'oarnodes_file': lambda x, y, z: None,
-    #         'oarstat_file': OarStatMaker().make_stat,
-    #     },
-    #     'sge': {'sge.xml': 'make_sge'}
-    # }
-
-    print filenames
     yaml_reader = {
         'pbs': [
             (read_pbsnodes_yaml, (filenames.get('pbsnodes_file_out'),), {'write_method': options.write_method}),
@@ -867,28 +858,9 @@ if __name__ == '__main__':
         ]
     }
 
-    # for command in yaml_reader[scheduler]:
-    #     _func, args = display_parts[command][0], display_parts[command][1]
-    #     _func(*args)
+    func_tuples = yaml_reader[scheduler]
+    commands = exec_func_tuples(func_tuples)
 
-    # PBS worker_nodes = read_pbsnodes_yaml(filenames['pbsnodes_file_out'], options.write_method)
-    # OAR worker_nodes = read_oarnodes_yaml(filenames['oarnodes_s_file'], filenames['oarnodes_y_file'], options.write_method)
-
-    # PBS total_running_jobs, total_queued_jobs, qstatq_lod = read_qstatq_yaml(filenames['qstatq_file_out'], options.write_method)
-
-    # PBS job_ids, user_names, job_states, _ = read_qstat_yaml(filenames['qstat_file_out'], options.write_method)  # _ == queue_names
-    # OAR job_ids, user_names, job_states, _ = read_qstat_yaml(filenames['oarstat_file_out'], options.write_method)  # _ == queue_names
-    # OAR total_running_jobs, total_queued_jobs, qstatq_lod = 0, 0, 0
-    # import pdb; pdb.set_trace()
-
-    def yield_returnables(yaml_reader):
-        commands = iter(yaml_reader[scheduler])
-        for command in commands:
-            ffunc, args, kwargs = command[0], command[1], command[2]
-            yield ffunc(*args, **kwargs)
-
-
-    commands = yield_returnables(yaml_reader)
     worker_nodes = next(commands)
     job_ids, user_names, job_states, _ = next(commands)
     total_running_jobs, total_queued_jobs, qstatq_lod = next(commands)
