@@ -222,42 +222,7 @@ def calculate_job_counts(user_names, job_states):
     :return: (list, list, dict)
     """
     expand_useraccounts_symbols(config, user_names)
-    state_abbrevs = {
-        'Q': 'queued_of_user',
-        'R': 'running_of_user',
-        'C': 'cancelled_of_user',
-        'E': 'exiting_of_user',
-        'W': 'waiting_of_user',
-    }
-
-    state_abbrevs = {
-        # 'L': 'toLaunch',
-        'L': 'Launching',
-        'E': 'Error',
-        # 'E': 'toError',
-        'F': 'Finishing',
-        'S': 'Resuming',
-        # 'W': 'toAckReservation',
-        'H': 'queued_of_user',
-        'W': 'waiting_of_user',
-        'R': 'running_of_user',
-        'T': 'exiting_of_user',
-        'S': 'cancelled_of_user',
-    }
-    # state_abbrevs = {
-    #     'W': 'Waiting',
-    #     'L': 'toLaunch',
-    #     'L': 'Launching',
-    #     'H': 'Hold',
-    #     'R': 'Running',
-    #     'T': 'Terminated',
-    #     'E': 'Error',
-    #     'E': 'toError',
-    #     'F': 'Finishing',
-    #     'S': 'Suspended',
-    #     'S': 'Resuming',
-    #     'W': 'toAckReservation',
-    # }
+    state_abbrevs = config['state_abbrevs'][scheduler]
 
     job_counts = create_job_counts(user_names, job_states, state_abbrevs)
     user_alljobs_sorted_lot = produce_user_lot(user_names)
@@ -824,24 +789,8 @@ def calculate_split_screen_size():
     return term_columns
 
 
-def convert_to_yaml(scheduler, INPUT_FNs, filenames, write_method):
+def convert_to_yaml(scheduler, INPUT_FNs, filenames, write_method, commands):
 
-    yaml_converter = {
-        'pbs': {
-            'pbsnodes_file': make_pbsnodes,
-            'qstatq_file': QStatMaker().make_statq,
-            'qstat_file': QStatMaker().make_stat,
-        },
-        'oar': {
-            'oarnodes_s_file': lambda x, y, z: None,
-            'oarnodes_y_file': lambda x, y, z: None,
-            'oarnodes_file': lambda x, y, z: None,
-            'oarstat_file': OarStatMaker().make_stat,
-        },
-        'sge': {'sge.xml': 'make_sge'}
-    }
-
-    commands = yaml_converter[scheduler]
     # for _file, _func in zip(INPUT_FNs, commands):
     for _file in INPUT_FNs:
         file_orig, file_out = filenames[_file], filenames[_file + '_out']
@@ -870,17 +819,79 @@ if __name__ == '__main__':
         filenames[_file] = INPUT_FNs[_file]
         filenames[_file + '_out'] = '{}_{}.{}'.format(INPUT_FNs[_file].rsplit('.')[0], options.write_method, ext)  # os.getpid()
 
+    yaml_converter = {
+        'pbs': {
+            'pbsnodes_file': make_pbsnodes,
+            'qstatq_file': QStatMaker().make_statq,
+            'qstat_file': QStatMaker().make_stat,
+        },
+        'oar': {
+            'oarnodes_s_file': lambda x, y, z: None,
+            'oarnodes_y_file': lambda x, y, z: None,
+            'oarnodes_file': lambda x, y, z: None,
+            'oarstat_file': OarStatMaker().make_stat,
+        },
+        'sge': {'sge.xml': 'make_sge'}
+    }
+    commands = yaml_converter[scheduler]
     # reset_yaml_files()  # either that or having a pid appended in the filename
     if not options.YAML_EXISTS:
-        convert_to_yaml(scheduler, INPUT_FNs, filenames, options.write_method)
+        convert_to_yaml(scheduler, INPUT_FNs, filenames, options.write_method, commands)
 
-    # worker_nodes = read_pbsnodes_yaml(filenames['pbsnodes_file_out'], options.write_method)
-    worker_nodes = read_oarnodes_yaml(filenames['oarnodes_s_file'], filenames['oarnodes_y_file'], options.write_method)
-    # total_running_jobs, total_queued_jobs, qstatq_lod = read_qstatq_yaml(filenames['qstatq_file_out'], options.write_method)
-    # total_running_jobs, total_queued_jobs, qstatq_lod = read_qstatq_yaml(filenames['qstatq_file_out'], options.write_method)
-    # job_ids, user_names, job_states, _ = read_qstat_yaml(filenames['qstat_file_out'], options.write_method)  # _ == queue_names
-    job_ids, user_names, job_states, _ = read_qstat_yaml(filenames['oarstat_file_out'], options.write_method)  # _ == queue_names
-    total_running_jobs, total_queued_jobs, qstatq_lod = 0,0,0
+    # yaml_converter = {
+    #     'pbs': {
+    #         'pbsnodes_file_out': make_pbsnodes,
+    #         'qstatq_file': QStatMaker().make_statq,
+    #         'qstat_file': QStatMaker().make_stat,
+    #     },
+    #     'oar': {
+    #         'oarnodes_s_file': lambda x, y, z: None,
+    #         'oarnodes_y_file': lambda x, y, z: None,
+    #         'oarnodes_file': lambda x, y, z: None,
+    #         'oarstat_file': OarStatMaker().make_stat,
+    #     },
+    #     'sge': {'sge.xml': 'make_sge'}
+    # }
+
+    print filenames
+    yaml_reader = {
+        'pbs': [
+            (read_pbsnodes_yaml, (filenames.get('pbsnodes_file_out'),), {'write_method': options.write_method}),
+            (read_qstatq_yaml, (filenames.get('qstatq_file_out'),), {'write_method': options.write_method}),
+            (read_qstat_yaml, (filenames.get('qstat_file_out'),), {'write_method': options.write_method}),
+        ],
+        'oar': [
+            (read_oarnodes_yaml, ([filenames.get('oarnodes_s_file'), filenames.get('oarnodes_y_file')]), {'write_method': options.write_method}),
+            (read_qstat_yaml, ([filenames.get('oarstat_file_out')]), {'write_method': options.write_method}),
+            (lambda *args, **kwargs: (0, 0, 0), ([filenames.get('oarstat_file')]), {'write_method': options.write_method}),
+        ]
+    }
+
+    # for command in yaml_reader[scheduler]:
+    #     _func, args = display_parts[command][0], display_parts[command][1]
+    #     _func(*args)
+
+    # PBS worker_nodes = read_pbsnodes_yaml(filenames['pbsnodes_file_out'], options.write_method)
+    # OAR worker_nodes = read_oarnodes_yaml(filenames['oarnodes_s_file'], filenames['oarnodes_y_file'], options.write_method)
+
+    # PBS total_running_jobs, total_queued_jobs, qstatq_lod = read_qstatq_yaml(filenames['qstatq_file_out'], options.write_method)
+
+    # PBS job_ids, user_names, job_states, _ = read_qstat_yaml(filenames['qstat_file_out'], options.write_method)  # _ == queue_names
+    # OAR job_ids, user_names, job_states, _ = read_qstat_yaml(filenames['oarstat_file_out'], options.write_method)  # _ == queue_names
+    # OAR total_running_jobs, total_queued_jobs, qstatq_lod = 0, 0, 0
+    # import pdb; pdb.set_trace()
+
+    def yield_returnables(yaml_reader):
+        commands = iter(yaml_reader[scheduler])
+        for command in commands:
+            ffunc, args, kwargs = command[0], command[1], command[2]
+            yield ffunc(*args, **kwargs)
+
+
+    commands = yield_returnables(yaml_reader)
+    worker_nodes = next(commands)
+    job_ids, user_names, job_states, _ = next(commands)
+    total_running_jobs, total_queued_jobs, qstatq_lod = next(commands)
 
     #  MAIN ##################################
     cluster_dict, NAMED_WNS = calculate_cluster(worker_nodes)

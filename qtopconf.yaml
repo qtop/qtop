@@ -13,6 +13,41 @@ schedulers:
 
 scheduler: oar
 
+# insert comment here
+state_abbrevs:
+  pbs:
+    Q: queued_of_user
+    R: running_of_user
+    C: cancelled_of_user
+    E: exiting_of_user
+    W: waiting_of_user
+  oar:
+    E: Error
+    F: Finishing
+    S: Resuming
+    H: Hold
+    L: waiting_of_user
+    W: queued_of_user
+    R: running_of_user
+    T: exiting_of_user
+    S: cancelled_of_user
+
+# original:
+# state_abbrevs = {
+#     'W': 'Waiting',
+#     'L': 'toLaunch',
+#     'L': 'Launching',
+#     'H': 'Hold',
+#     'R': 'Running',
+#     'T': 'Terminated',
+#     'E': 'Error',
+#     'E': 'toError',
+#     'F': 'Finishing',
+#     'S': 'Suspended',
+#     'S': 'Resuming',
+#     'W': 'toAckReservation',
+# }
+
 percentage: 0.8 # if less than PERCENTAGE x 100% of the matrices have jobs, perform a blind remap
 possible_ids: '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz' # IDs of unix accounts, for the lower part of qtop
 non_existent_node_symbol: '#'
@@ -31,6 +66,11 @@ user_colour_mappings:  # order should be from more generic-->more specific
  - '\w*cms048': Blue
  - '\w*cms193': Gray_L
  - '\w*atl\w+': Cyan_L
+ - 'snielsen': Blue
+ - 'ekalesaki': Cyan_L
+ - 'zzhang': Red_L
+ - 'mmravlak': Red_L
+ - 'dbobbili': Cyan_L
 
 # if cluster numbering should start on a number # above this, do automatic blind remapping
 exotic_starting_wn_nr: 9000
@@ -48,7 +88,7 @@ remapping:
 user_display_parts:
 # - job_accounting_summary
  - workernodes_matrix
-# - user_accounts_pool_mappings
+ - user_accounts_pool_mappings
 
 #wn_occupancy:
 # - wn id lines
