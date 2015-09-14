@@ -341,8 +341,8 @@ def fill_node_cores_column(state_np_corejob, core_user_map, id_of_username, max_
             try:
                 _ = user_of_job_id[job]
             except KeyError, KeyErrorValue:
-                raise (KeyError, 'There seems to be a problem with the qstat output. A Job (ID %s) has gone rogue. '
-                                 'Please check with the SysAdmin.' % str(KeyErrorValue))
+                print 'There seems to be a problem with the qstat output. A Job (ID {}) has gone rogue. Please check with the SysAdmin.'.format(str(KeyErrorValue))
+                raise KeyError
             else:
                 core_user_map['Core' + str(core) + 'line'] += [str(id_of_username[user_of_job_id[job]])]
                 own_np_empty_range.remove(core)
@@ -872,7 +872,8 @@ if __name__ == '__main__':
     display_parts = {
         'job_accounting_summary': (display_job_accounting_summary, (cluster_dict, total_running_jobs, total_queued_jobs, qstatq_lod)),
         'workernodes_matrix': (display_wn_occupancy, (workernodes_occupancy, cluster_dict)),
-        'user_accounts_pool_mappings': (display_user_accounts_pool_mappings, (workernodes_occupancy['account_jobs_table'], workernodes_occupancy['pattern_of_id']))}
+        'user_accounts_pool_mappings': (display_user_accounts_pool_mappings, (workernodes_occupancy['account_jobs_table'], workernodes_occupancy['pattern_of_id']))
+    }
 
     for part in config['user_display_parts']:
         _func, args = display_parts[part][0], display_parts[part][1]

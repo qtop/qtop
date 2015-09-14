@@ -3,26 +3,44 @@ import yaml
 from collections import OrderedDict
 
 
+def calculate_oar_state(jobid_state_lot, nr_of_jobs, node_state_mapping):
+    """
+    If all resource ids within the node are either alive or dead or suspected, the respective label is given to the node.
+    Otherwise, a mixed-state is reported
+    """
+    states = [job_state_tpl[1] for job_state_tpl in jobid_state_lot]
+    alive = states.count('Alive')
+    dead = states.count('Dead')
+    suspected = states.count('Suspected')
+
+    if bool(alive) + bool(dead) + bool(suspected) > 1:
+        state = node_state_mapping['mixed']
+        return state
+    else:
+        return node_state_mapping[states[0]]
+
+
 def read_oarnodes_yaml(fn_s, fn_y, write_method):
     nodes_resids = read_oarnodes_s(fn_s, write_method)
     resids_jobs = read_oarnodes_y(fn_y, write_method)
 
     nodes_jobs = {}
     for node in nodes_resids:
-        resids = nodes_resids[node]
-        for resid in resids:
-            nodes_jobs.setdefault(node, []).append(resids_jobs[resid])
+        resids_state_lot = nodes_resids[node]
+        for (resid, state) in resids_state_lot:
+            nodes_jobs.setdefault(node, []).append((resids_jobs[resid], state))
 
     worker_nodes = list()
+    node_state_mapping = {'Alive': '-', 'Dead': 'd', 'Suspected': 's', 'Mixed': '%'}
     for node in nodes_jobs:
         d = OrderedDict()
         d['domainname'] = node
         nr_of_jobs = len(nodes_jobs[node])
         d['np'] = nr_of_jobs
-        d['core_job_map'] = [{'core':idx, 'job':job} for idx,job in enumerate(nodes_jobs[node]) if job is not None]
+        d['core_job_map'] = [{'core': idx, 'job': job[0]} for idx, job in enumerate(nodes_jobs[node]) if job[0] is not None]
         if not d['core_job_map']:
             del d['core_job_map']
-        d['state'] = '-'
+        d['state'] = calculate_oar_state(nodes_jobs[node], nr_of_jobs, node_state_mapping)
         worker_nodes.append(d)
 
     return worker_nodes
@@ -31,7 +49,7 @@ def read_oarnodes_yaml(fn_s, fn_y, write_method):
 def read_oarnodes_s(fn_s, write_method):
     with open(fn_s, mode='r') as fin:
         data = yaml.load(fin)
-    nodes_resids = {node: resid_state.keys() for node, resid_state in data.items()}
+    nodes_resids = {node: resid_state.items() for node, resid_state in data.items()}
     return nodes_resids
 
 
