@@ -14,6 +14,7 @@ from collections import OrderedDict
 from itertools import izip
 # modules
 from pbs import *
+from oar import *
 from math import ceil
 from colormap import color_of_account, code_of_color
 from stat_maker import QStatMaker, OarStatMaker
@@ -117,7 +118,7 @@ def calculate_cluster(worker_nodes):
 
     re_nodename = r'(^[A-Za-z0-9-]+)(?=\.|$)'
     for node in worker_nodes:
-
+        # import pdb; pdb.set_trace()
         nodename_match = re.search(re_nodename, node['domainname'])
         _nodename = nodename_match.group(0)
 
@@ -221,11 +222,42 @@ def calculate_job_counts(user_names, job_states):
     :return: (list, list, dict)
     """
     expand_useraccounts_symbols(config, user_names)
-    state_abbrevs = {'R': 'running_of_user',
-                     'Q': 'queued_of_user',
-                     'C': 'cancelled_of_user',
-                     'W': 'waiting_of_user',
-                     'E': 'exiting_of_user'}
+    state_abbrevs = {
+        'Q': 'queued_of_user',
+        'R': 'running_of_user',
+        'C': 'cancelled_of_user',
+        'E': 'exiting_of_user',
+        'W': 'waiting_of_user',
+    }
+
+    state_abbrevs = {
+        # 'L': 'toLaunch',
+        'L': 'Launching',
+        'E': 'Error',
+        # 'E': 'toError',
+        'F': 'Finishing',
+        'S': 'Resuming',
+        # 'W': 'toAckReservation',
+        'H': 'queued_of_user',
+        'W': 'waiting_of_user',
+        'R': 'running_of_user',
+        'T': 'exiting_of_user',
+        'S': 'cancelled_of_user',
+    }
+    # state_abbrevs = {
+    #     'W': 'Waiting',
+    #     'L': 'toLaunch',
+    #     'L': 'Launching',
+    #     'H': 'Hold',
+    #     'R': 'Running',
+    #     'T': 'Terminated',
+    #     'E': 'Error',
+    #     'E': 'toError',
+    #     'F': 'Finishing',
+    #     'S': 'Suspended',
+    #     'S': 'Resuming',
+    #     'W': 'toAckReservation',
+    # }
 
     job_counts = create_job_counts(user_names, job_states, state_abbrevs)
     user_alljobs_sorted_lot = produce_user_lot(user_names)
@@ -842,9 +874,13 @@ if __name__ == '__main__':
     if not options.YAML_EXISTS:
         convert_to_yaml(scheduler, INPUT_FNs, filenames, options.write_method)
 
-    worker_nodes = read_pbsnodes_yaml(filenames['pbsnodes_file_out'], options.write_method)
-    total_running_jobs, total_queued_jobs, qstatq_lod = read_qstatq_yaml(filenames['qstatq_file_out'], options.write_method)
-    job_ids, user_names, job_states, _ = read_qstat_yaml(filenames['qstat_file_out'], options.write_method)  # _ == queue_names
+    # worker_nodes = read_pbsnodes_yaml(filenames['pbsnodes_file_out'], options.write_method)
+    worker_nodes = read_oarnodes_yaml(filenames['oarnodes_s_file'], filenames['oarnodes_y_file'], options.write_method)
+    # total_running_jobs, total_queued_jobs, qstatq_lod = read_qstatq_yaml(filenames['qstatq_file_out'], options.write_method)
+    # total_running_jobs, total_queued_jobs, qstatq_lod = read_qstatq_yaml(filenames['qstatq_file_out'], options.write_method)
+    # job_ids, user_names, job_states, _ = read_qstat_yaml(filenames['qstat_file_out'], options.write_method)  # _ == queue_names
+    job_ids, user_names, job_states, _ = read_qstat_yaml(filenames['oarstat_file_out'], options.write_method)  # _ == queue_names
+    total_running_jobs, total_queued_jobs, qstatq_lod = 0,0,0
 
     #  MAIN ##################################
     cluster_dict, NAMED_WNS = calculate_cluster(worker_nodes)

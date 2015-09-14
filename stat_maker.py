@@ -59,6 +59,15 @@ class StatMaker:
         fout.write('Total running: ' + '"' + last_line['Total running'] + '"' + '\n')
         fout.write('...\n')
 
+    @staticmethod
+    def dump_all(out_file, write_func_args):
+        """
+        dumps the content of qstat/qstat_q files in the selected write_method format
+        """
+        with open(out_file, 'w') as fout:
+            write_func, kwargs, _ = write_func_args
+            write_func(fout, **kwargs)
+
 
 class QStatMaker(StatMaker):
 
@@ -168,15 +177,6 @@ class QStatMaker(StatMaker):
         for key, value in [('JobId', job_id), ('UnixAccount', user), ('S', job_state), ('Queue', queue)]:
             qstat_values[key] = value
         return qstat_values
-
-    @staticmethod
-    def dump_all( out_file, write_func_args):
-        """
-        dumps the content of qstat/qstat_q files in the selected write_method format
-        """
-        with open(out_file, 'w') as fout:
-            write_func, kwargs, _ = write_func_args
-            write_func(fout, **kwargs)
 
 
 class OarStatMaker(QStatMaker):

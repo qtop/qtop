@@ -46,9 +46,9 @@ remapping:
 
 # what parts of qtop to display
 user_display_parts:
- - job_accounting_summary
+# - job_accounting_summary
  - workernodes_matrix
- - user_accounts_pool_mappings
+# - user_accounts_pool_mappings
 
 #wn_occupancy:
 # - wn id lines
