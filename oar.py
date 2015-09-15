@@ -21,8 +21,9 @@ def calculate_oar_state(jobid_state_lot, nr_of_jobs, node_state_mapping):
 
 
 def read_oarnodes_yaml(fn_s, fn_y, write_method):
-    nodes_resids = read_oarnodes_s(fn_s, write_method)
-    resids_jobs = read_oarnodes_y(fn_y, write_method)
+    nodes_resids = read_oarnodes_s_yaml(fn_s, write_method)
+    # resids_jobs = read_oarnodes_y_yaml(fn_y, write_method)
+    resids_jobs = read_oarnodes_y_textyaml(fn_y, write_method)
 
     nodes_jobs = {}
     for node in nodes_resids:
@@ -46,15 +47,44 @@ def read_oarnodes_yaml(fn_s, fn_y, write_method):
     return worker_nodes
 
 
-def read_oarnodes_s(fn_s, write_method):
+def read_oarnodes_s_yaml(fn_s, write_method):
     with open(fn_s, mode='r') as fin:
         data = yaml.load(fin)
     nodes_resids = {node: resid_state.items() for node, resid_state in data.items()}
     return nodes_resids
 
 
-def read_oarnodes_y(fn_y, write_method):
+def read_oarnodes_y_yaml(fn_y, write_method):
     with open('oarnodes_y', mode='r') as fin:
         data = yaml.load(fin)
     resids_jobs = {resid: info.get('jobs', None) for resid, info in data.items()}
     return resids_jobs
+
+
+def read_oarnodes_y_textyaml(fn, write_method):
+    oar_nodes = {}
+    with open(fn, mode='r') as fin:
+        fin.readline()  # '---'
+        line = fin.readline().strip()  # first res_id
+        while line:
+            oar_node, line = read_oar_node_y_textyaml(fin, line)
+            oar_nodes.update(oar_node)
+
+        resids_jobs = {resid: info.get('jobs', None) for resid, info in oar_nodes.items()}
+        return resids_jobs
+        # return oar_nodes
+
+
+def read_oar_node_y_textyaml(fin, line):
+    _oarnode = dict()
+
+    res_id = line.strip(': ')
+    _oarnode[int(res_id)] = dict()
+
+    line = fin.readline().strip()
+    while line and not line[0].isdigit():
+        key, value = line.strip().split(': ')
+        _oarnode[int(res_id)][key] = value
+        line = fin.readline().strip()
+
+    return _oarnode, line

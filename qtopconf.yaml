@@ -11,6 +11,7 @@ schedulers:
   sge:
     sge_file: sge.xml
 
+#scheduler: pbs
 scheduler: oar
 
 # insert comment here
