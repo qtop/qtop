@@ -20,10 +20,18 @@ def calculate_oar_state(jobid_state_lot, nr_of_jobs, node_state_mapping):
         return node_state_mapping[states[0]]
 
 
+def read_oarnodes_y(fn_y, write_method):
+    if write_method == 'yaml':
+        return read_oarnodes_y_yaml(fn_y)
+    else:
+        return read_oarnodes_y_textyaml(fn_y)
+
+
 def read_oarnodes_yaml(fn_s, fn_y, write_method):
     nodes_resids = read_oarnodes_s_yaml(fn_s, write_method)
-    # resids_jobs = read_oarnodes_y_yaml(fn_y, write_method)
-    resids_jobs = read_oarnodes_y_textyaml(fn_y, write_method)
+    # resids_jobs = read_oarnodes_y_yaml(fn_y)
+    # resids_jobs = read_oarnodes_y_textyaml(fn_y)
+    resids_jobs = read_oarnodes_y(fn_y, write_method)
 
     nodes_jobs = {}
     for node in nodes_resids:
@@ -54,14 +62,14 @@ def read_oarnodes_s_yaml(fn_s, write_method):
     return nodes_resids
 
 
-def read_oarnodes_y_yaml(fn_y, write_method):
+def read_oarnodes_y_yaml(fn_y):
     with open('oarnodes_y', mode='r') as fin:
         data = yaml.load(fin)
     resids_jobs = {resid: info.get('jobs', None) for resid, info in data.items()}
     return resids_jobs
 
 
-def read_oarnodes_y_textyaml(fn, write_method):
+def read_oarnodes_y_textyaml(fn):
     oar_nodes = {}
     with open(fn, mode='r') as fin:
         fin.readline()  # '---'
