@@ -55,7 +55,7 @@ def read_oarnodes_yaml(fn_s, fn_y, write_method):
     return worker_nodes
 
 
-def read_oarnodes_s_yaml(fn_s, write_method):
+def read_oarnodes_s_yaml(fn_s, write_method):  # todo: fix write_method not being used
     with open(fn_s, mode='r') as fin:
         data = yaml.load(fin)
     nodes_resids = {node: resid_state.items() for node, resid_state in data.items()}

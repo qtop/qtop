@@ -144,7 +144,7 @@ def calculate_cluster(worker_nodes):
             cluster_dict['workernode_list'].append(cur_node_nr)
 
     decide_remapping(cluster_dict, _all_letters, _all_str_digits_with_empties)
-    map_pbsnodes_to_wn_dicts(cluster_dict, worker_nodes)
+    map_pbsnodes_to_wn_dicts(cluster_dict, worker_nodes, options.REMAP, config['group_by_name'])
     if options.REMAP:
         cluster_dict['highest_wn'] = cluster_dict['total_wn']
         cluster_dict['workernode_list'] = cluster_dict['workernode_list_remapped']
