@@ -31,7 +31,7 @@ parser.add_option("-m", "--noMasking", action="store_true", dest="NOMASKING", de
                   help="Don't mask early empty WNs (default: if the first 30 WNs are unused, counting starts from 31).")
 parser.add_option("-o", "--SetVerticalSeparatorXX", action="store", dest="WN_COLON", default=0,
                   help="Put vertical bar every WN_COLON nodes.")
-parser.add_option("-s", "--SetSourceDir", dest="SOURCEDIR",
+parser.add_option("-s", "--SetSourceDir", dest="SOURCEDIR", default='.',
                   help="Set the source directory where pbsnodes and qstat reside")
 parser.add_option("-z", "--quiet", action="store_false", dest="verbose", default=True,
                   help="don't print status messages to stdout. Not doing anything at the moment.")
@@ -396,16 +396,16 @@ def calc_all_wnid_label_lines(highest_wn):  # (total_wn) in case of multiple clu
         wn_vert_labels = OrderedDict((str(place), []) for place in range(1, node_str_width + 1))
         for node in workernode_dict:
             host = workernode_dict[node]['host']
-            extra_zeros = node_str_width - len(host)
-            string = "".join(" " * extra_zeros + host)
+            extra_spaces = node_str_width - len(host)
+            string = "".join(" " * extra_spaces + host)
             for place in range(node_str_width):
                 wn_vert_labels[str(place + 1)].append(string[place])
     else:
         node_str_width = len(str(highest_wn))  # 4
         wn_vert_labels = {str(place): [] for place in range(1, node_str_width + 1)}
         for nr in range(1, highest_wn + 1):
-            extra_zeros = node_str_width - len(str(nr))  # 4 - 1 = 3, for wn0001
-            string = "".join("0" * extra_zeros + str(nr))
+            extra_spaces = node_str_width - len(str(nr))  # 4 - 1 = 3, for wn0001
+            string = "".join("0" * extra_spaces + str(nr))
             for place in range(1, node_str_width + 1):
                 wn_vert_labels[str(place)].append(string[place - 1])
 

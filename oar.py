@@ -8,6 +8,7 @@ def calculate_oar_state(jobid_state_lot, nr_of_jobs, node_state_mapping):
     If all resource ids within the node are either alive or dead or suspected, the respective label is given to the node.
     Otherwise, a mixed-state is reported
     """
+    #todo: make user-tuneable
     states = [job_state_tpl[1] for job_state_tpl in jobid_state_lot]
     alive = states.count('Alive')
     dead = states.count('Dead')
@@ -29,8 +30,6 @@ def read_oarnodes_y(fn_y, write_method):
 
 def read_oarnodes_yaml(fn_s, fn_y, write_method):
     nodes_resids = read_oarnodes_s_yaml(fn_s, write_method)
-    # resids_jobs = read_oarnodes_y_yaml(fn_y)
-    # resids_jobs = read_oarnodes_y_textyaml(fn_y)
     resids_jobs = read_oarnodes_y(fn_y, write_method)
 
     nodes_jobs = {}
@@ -40,6 +39,7 @@ def read_oarnodes_yaml(fn_s, fn_y, write_method):
             nodes_jobs.setdefault(node, []).append((resids_jobs[resid], state))
 
     worker_nodes = list()
+    #todo: make user-tuneable
     node_state_mapping = {'Alive': '-', 'Dead': 'd', 'Suspected': 's', 'Mixed': '%'}
     for node in nodes_jobs:
         d = OrderedDict()
@@ -75,7 +75,7 @@ def read_oarnodes_y_textyaml(fn):
         fin.readline()  # '---'
         line = fin.readline().strip()  # first res_id
         while line:
-            oar_node, line = read_oar_node_y_textyaml(fin, line)
+            oar_node, line = _read_oar_node_y_textyaml(fin, line)
             oar_nodes.update(oar_node)
 
         resids_jobs = {resid: info.get('jobs', None) for resid, info in oar_nodes.items()}
@@ -83,7 +83,7 @@ def read_oarnodes_y_textyaml(fn):
         # return oar_nodes
 
 
-def read_oar_node_y_textyaml(fin, line):
+def _read_oar_node_y_textyaml(fin, line):
     _oarnode = dict()
 
     res_id = line.strip(': ')

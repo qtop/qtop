@@ -257,7 +257,10 @@ def read_pbsnodes_yaml(fn, write_method):
 
 
 def map_pbsnodes_to_wn_dicts(cluster_dict, pbs_nodes, options_remap, group_by_name=False):
+    """
+    """
     if group_by_name and options_remap:
+        # roughly groups the nodes by name and then by number. Experimental!
         pbs_nodes.sort(key=lambda d: (len(d.values()[0].split('-')[0]), int(d.values()[0].split('-')[1])), reverse=False)
 
     for (pbs_node, (idx, cur_node_nr)) in zip(pbs_nodes, enumerate(cluster_dict['workernode_list'])):
