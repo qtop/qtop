@@ -9,10 +9,11 @@ schedulers:
     oarnodes_file: oarnodes
     oarstat_file: oarstat
   sge:
-    sge_file: sge.xml
+    sge_file: qstat.F.xml.stdout
 
 #scheduler: pbs
-scheduler: oar
+#scheduler: oar
+scheduler: sge
 
 # insert comment here
 state_abbrevs:
