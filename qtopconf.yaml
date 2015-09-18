@@ -4,9 +4,9 @@ schedulers:
     qstatq_file: qstat_q.txt
     qstat_file: qstat.txt
   oar:
-    oarnodes_s_file: oarnodes_s
-    oarnodes_y_file: oarnodes_y
-    oarstat_file: oarstat
+    oarnodes_s_file: oarnodes_s_Y.txt
+    oarnodes_y_file: oarnodes_Y.txt
+    oarstat_file: oarstat.txt
   sge:
     sge_file_stat: qstat.F.xml.stdout
 
@@ -87,9 +87,11 @@ remapping:
 # - 'torvalds(\d+)' : 'tor\1'
 # - 'gridlab(\d+)' : 'glab\1'
 # - 'gridmon(\d*)' : 'mon\1'
+ - '(.*?)cluster(.*?)': '\1-\2'  # remove "cluster" word from all node names
+# - '--' : '-'  # removes dashes for shortening (can also replace them with something else, e.g. _
  - '-' : ''  # removes dashes for shortening (can also replace them with something else, e.g. _
 
-group_by_name: True
+group_by_name: False
 
 # what parts of qtop to display
 user_display_parts:
