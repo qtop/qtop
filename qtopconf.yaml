@@ -6,7 +6,6 @@ schedulers:
   oar:
     oarnodes_s_file: oarnodes_s
     oarnodes_y_file: oarnodes_y
-    oarnodes_file: oarnodes
     oarstat_file: oarstat
   sge:
     sge_file_stat: qstat.F.xml.stdout

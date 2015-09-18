@@ -23,11 +23,12 @@ from colormap import color_of_account, code_of_color
 parser = OptionParser()  # for more details see http://docs.python.org/library/optparse.html
 parser.add_option("-a", "--blindremapping", action="store_true", dest="BLINDREMAP", default=False,
                   help="This is used in situations where node names are not a pure arithmetic seq (eg. rocks clusters)")
+parser.add_option("-b", "--batchSystem", action="store", type="string", dest="BATCH_SYSTEM")
 parser.add_option("-y", "--readexistingyaml", action="store_true", dest="YAML_EXISTS", default=False,
                   help="Do not remake yaml input files, read from the existing ones")
 parser.add_option("-c", "--NOCOLOR", action="store_true", dest="NOCOLOR", default=False,
                   help="Enable/Disable color in qtop output.")
-parser.add_option("-f", "--setCOLORMAPFILE", action="store", type="string", dest="COLORFILE")
+# parser.add_option("-f", "--setCOLORMAPFILE", action="store", type="string", dest="COLORFILE")
 parser.add_option("-m", "--noMasking", action="store_true", dest="NOMASKING", default=False,
                   help="Don't mask early empty WNs (default: if the first 30 WNs are unused, counting starts from 31).")
 parser.add_option("-o", "--SetVerticalSeparatorXX", action="store", dest="WN_COLON", default=0,
@@ -819,7 +820,7 @@ if __name__ == '__main__':
     ALT_LABEL_HIGHLIGHT_COLOURS = config['workernodes_matrix'][0]['wn id lines']['alt_label_highlight_colours']  # alias
 
     os.chdir(options.SOURCEDIR)
-    scheduler = config['scheduler']
+    scheduler = options.BATCH_SYSTEM or config['scheduler']
     INPUT_FNs = config['schedulers'][scheduler]
     ext = ext_mapping[options.write_method]
     filenames = dict()
@@ -836,7 +837,6 @@ if __name__ == '__main__':
         'oar': {
             'oarnodes_s_file': lambda x, y, z: None,
             'oarnodes_y_file': lambda x, y, z: None,
-            'oarnodes_file': lambda x, y, z: None,
             'oarstat_file': OarStatMaker().make_stat,
         },
         'sge': {
