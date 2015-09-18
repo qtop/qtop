@@ -21,7 +21,7 @@ from stat_maker import QStatMaker, OarStatMaker
 
 parser = OptionParser()  # for more details see http://docs.python.org/library/optparse.html
 parser.add_option("-a", "--blindremapping", action="store_true", dest="BLINDREMAP", default=False,
-                  help="This is used in situations where node names are not a pure arithmetic seq (eg. rocks clusters)")
+                  help="This may be used in situations where node names are not a pure arithmetic seq (eg. rocks clusters)")
 parser.add_option("-y", "--readexistingyaml", action="store_true", dest="YAML_EXISTS", default=False,
                   help="Do not remake yaml input files, read from the existing ones")
 parser.add_option("-c", "--NOCOLOR", action="store_true", dest="NOCOLOR", default=False,
@@ -118,7 +118,6 @@ def calculate_cluster(worker_nodes):
 
     re_nodename = r'(^[A-Za-z0-9-]+)(?=\.|$)'
     for node in worker_nodes:
-        # import pdb; pdb.set_trace()
         nodename_match = re.search(re_nodename, node['domainname'])
         _nodename = nodename_match.group(0)
 
@@ -144,7 +143,7 @@ def calculate_cluster(worker_nodes):
             cluster_dict['workernode_list'].append(cur_node_nr)
 
     decide_remapping(cluster_dict, _all_letters, _all_str_digits_with_empties)
-    map_pbsnodes_to_wn_dicts(cluster_dict, worker_nodes, options.REMAP, config['group_by_name'])
+    map_batch_nodes_to_wn_dicts(cluster_dict, worker_nodes, options.REMAP, config['group_by_name'])
     if options.REMAP:
         cluster_dict['highest_wn'] = cluster_dict['total_wn']
         cluster_dict['workernode_list'] = cluster_dict['workernode_list_remapped']
@@ -341,7 +340,9 @@ def fill_node_cores_column(state_np_corejob, core_user_map, id_of_username, max_
             try:
                 _ = user_of_job_id[job]
             except KeyError, KeyErrorValue:
-                print 'There seems to be a problem with the qstat output. A Job (ID {}) has gone rogue. Please check with the SysAdmin.'.format(str(KeyErrorValue))
+                print 'There seems to be a problem with the qstat output. ' \
+                      'A Job (ID {}) has gone rogue. ' \
+                      'Please check with the SysAdmin.'.format(str(KeyErrorValue))
                 raise KeyError
             else:
                 core_user_map['Core' + str(core) + 'line'] += [str(id_of_username[user_of_job_id[job]])]
@@ -562,8 +563,6 @@ def display_selected_occupancy_parts(
         }
         occupancy_parts.update(new_dict_var)
 
-    # print '\n'
-
     for _part in config['workernodes_matrix']:
         part = [k for k in _part][0]
         occupancy_parts[part][2].update(_part[part])  # get extra options from user
@@ -744,15 +743,6 @@ def make_pattern_of_id(account_jobs_table):
     return pattern_of_id
 
 
-# def reset_yaml_files():
-#     """
-#     empties the files with every run of the python script
-#     """
-#     for _file in [PBSNODES_OUT_FN, QSTATQ_OUT_FN, QSTAT_OUT_FN]:
-#         fin = open(_file, 'w')
-#         fin.close()
-
-
 def load_yaml_config(path):
     try:
         config = yaml.safe_load(open(path + "/qtopconf.yaml"))
@@ -791,11 +781,10 @@ def calculate_split_screen_size():
 
 def convert_to_yaml(scheduler, INPUT_FNs, filenames, write_method, commands):
 
-    # for _file, _func in zip(INPUT_FNs, commands):
     for _file in INPUT_FNs:
         file_orig, file_out = filenames[_file], filenames[_file + '_out']
         _func = commands[_file]
-        print 'executing %(_func)s on file %(_file)s' % {'_func': _func, '_file': _file}
+        # print 'executing %(_func)s on file %(_file)s' % {'_func': _func, '_file': _file}
         _func(file_orig, file_out, write_method)
 
 
@@ -807,7 +796,6 @@ def exec_func_tuples(func_tuples):
 
 
 if __name__ == '__main__':
-    # print_char_start, print_char_stop = 0, None
 
     HOMEPATH = os.path.expanduser('~/PycharmProjects')
     QTOPPATH = os.path.expanduser('~/PycharmProjects/qtop')  # qtoppath: ~/qtop/qtop

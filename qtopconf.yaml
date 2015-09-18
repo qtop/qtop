@@ -122,11 +122,6 @@ workernodes_matrix:
 #     label: Temperature (C)  # how to label it on the qtop matrix
 #     option: {}
 #     max_len: 1
-
-# - mojokoloku8ia:
-#     yaml key: mojo factor
-#     label: Mojo-ness
-#     max_len: 1
  - node state:
      yaml key: state
      label: Node state

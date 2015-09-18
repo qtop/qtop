@@ -117,10 +117,10 @@ class QStatMaker(StatMaker):
 
     def make_statq(self, orig_file, out_file, write_method):
         """
-        reads QSTATQ_ORIG_FN sequentially and put useful data in respective yaml file
-        All lines are something like: searches for something like:
+        reads QSTATQ_ORIG_FN sequentially and puts useful data in respective yaml file
+        Searches for lines in the following format:
         biomed             --      --    72:00:00   --   31   0 --   E R
-        except the last line which contains two sums
+        (except for the last line, which contains two sums and is parsed separately)
         """
         check_empty_file(orig_file)
         queue_search = r'^(?P<queue_name>[\w.-]+)\s+' \
@@ -200,16 +200,3 @@ class OarStatMaker(QStatMaker):
                 qstat_values = self.process_line(re_search, line, re_match_positions)
                 self.l.append(qstat_values)
         self.dump_all(out_file, self.stat_mapping[write_method])
-
-
-# qstat_mapping = {'yaml': (yaml.dump_all, {'Dumper': Dumper, 'default_flow_style': False}, 'yaml'),
-#                  'txtyaml': (qstat_write_lines, {}, 'yaml'),
-#                  'json': (json.dump, {}, 'json')}
-#
-# qstatq_mapping = {'yaml': (yaml.dump_all, {'Dumper': Dumper, 'default_flow_style': False}, 'yaml'),
-#                   'txtyaml': (qstatq_write_lines, {}, 'yaml'),
-#                   'json': (json.dump, {}, 'json')}
-#
-# pbsnodes_mapping = {'yaml': (yaml.dump_all, {'Dumper': Dumper, 'default_flow_style': False}, 'yaml'),
-#                     'txtyaml': (pbsnodes_write_lines, {}, 'yaml'),
-#                     'json': (json.dump, {}, 'json')}
