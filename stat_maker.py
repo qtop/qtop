@@ -118,10 +118,10 @@ class QStatMaker(StatMaker):
 
     def make_statq(self, orig_file, out_file, write_method):
         """
-        reads QSTATQ_ORIG_FN sequentially and put useful data in respective yaml file
-        All lines are something like: searches for something like:
+        reads QSTATQ_ORIG_FN sequentially and puts useful data in respective yaml file
+        Searches for lines in the following format:
         biomed             --      --    72:00:00   --   31   0 --   E R
-        except the last line which contains two sums
+        (except for the last line, which contains two sums and is parsed separately)
         """
         check_empty_file(orig_file)
         queue_search = r'^(?P<queue_name>[\w.-]+)\s+' \
