@@ -14,13 +14,15 @@ from collections import OrderedDict
 from itertools import izip
 # modules
 from pbs import *
+from oar import *
 from math import ceil
 from colormap import color_of_account, code_of_color
+from stat_maker import QStatMaker, OarStatMaker
 
 parser = OptionParser()  # for more details see http://docs.python.org/library/optparse.html
 parser.add_option("-a", "--blindremapping", action="store_true", dest="BLINDREMAP", default=False,
-                  help="This is used in situations where node names are not a pure arithmetic seq (eg. rocks clusters)")
-parser.add_option("-y", "--readexistingyaml", action="store_false", dest="EXISTYAML", default=True,
+                  help="This may be used in situations where node names are not a pure arithmetic seq (eg. rocks clusters)")
+parser.add_option("-y", "--readexistingyaml", action="store_true", dest="YAML_EXISTS", default=False,
                   help="Do not remake yaml input files, read from the existing ones")
 parser.add_option("-c", "--NOCOLOR", action="store_true", dest="NOCOLOR", default=False,
                   help="Enable/Disable color in qtop output.")
@@ -29,7 +31,7 @@ parser.add_option("-m", "--noMasking", action="store_true", dest="NOMASKING", de
                   help="Don't mask early empty WNs (default: if the first 30 WNs are unused, counting starts from 31).")
 parser.add_option("-o", "--SetVerticalSeparatorXX", action="store", dest="WN_COLON", default=0,
                   help="Put vertical bar every WN_COLON nodes.")
-parser.add_option("-s", "--SetSourceDir", dest="SOURCEDIR",
+parser.add_option("-s", "--SetSourceDir", dest="SOURCEDIR", default='.',
                   help="Set the source directory where pbsnodes and qstat reside")
 parser.add_option("-z", "--quiet", action="store_false", dest="verbose", default=True,
                   help="don't print status messages to stdout. Not doing anything at the moment.")
@@ -98,7 +100,7 @@ def decide_remapping(cluster_dict, _all_letters, _all_str_digits_with_empties):
         # max(cluster_dict['workernode_list']) was cluster_dict['highest_wn']
 
 
-def calculate_cluster(pbs_nodes):
+def calculate_cluster(worker_nodes):
     NAMED_WNS = 0 if not options.FORCE_NAMES else 1
     cluster_dict = dict()
     for key in ['working_cores', 'total_cores', 'max_np', 'highest_wn', 'offline_down_nodes']:
@@ -107,7 +109,7 @@ def calculate_cluster(pbs_nodes):
     cluster_dict['workernode_dict'] = {}
     cluster_dict['workernode_dict_remapped'] = {}  # { remapnr: [state, np, (core0, job1), (core1, job1), ....]}
 
-    cluster_dict['total_wn'] = len(pbs_nodes)  # == existing_nodes
+    cluster_dict['total_wn'] = len(worker_nodes)  # == existing_nodes
     cluster_dict['workernode_list'] = []
     cluster_dict['workernode_list_remapped'] = range(1, cluster_dict['total_wn'])  # leave xrange aside for now
 
@@ -115,8 +117,7 @@ def calculate_cluster(pbs_nodes):
     _all_str_digits_with_empties = []
 
     re_nodename = r'(^[A-Za-z0-9-]+)(?=\.|$)'
-    for node in pbs_nodes:
-
+    for node in worker_nodes:
         nodename_match = re.search(re_nodename, node['domainname'])
         _nodename = nodename_match.group(0)
 
@@ -142,7 +143,7 @@ def calculate_cluster(pbs_nodes):
             cluster_dict['workernode_list'].append(cur_node_nr)
 
     decide_remapping(cluster_dict, _all_letters, _all_str_digits_with_empties)
-    map_pbsnodes_to_wn_dicts(cluster_dict, pbs_nodes)
+    map_batch_nodes_to_wn_dicts(cluster_dict, worker_nodes, options.REMAP, config['group_by_name'])
     if options.REMAP:
         cluster_dict['highest_wn'] = cluster_dict['total_wn']
         cluster_dict['workernode_list'] = cluster_dict['workernode_list_remapped']
@@ -182,13 +183,13 @@ def do_name_remapping(cluster_dict):
             state_corejob_dn['host'] = label_max_len and state_corejob_dn['host'][-label_max_len:] or state_corejob_dn['host']
 
 
-def nodes_with_jobs(pbs_nodes):
-    for _, pbs_node in pbs_nodes.iteritems():
+def nodes_with_jobs(worker_nodes):
+    for _, pbs_node in worker_nodes.iteritems():
         if 'core_job_map' in pbs_node:
             yield pbs_node
 
 
-def display_job_accounting_summary(cluster_dict, total_running, total_queued, qstatq_list):
+def display_job_accounting_summary(cluster_dict, total_running_jobs, total_queued_jobs, qstatq_list):
     if options.REMAP:
         print '=== WARNING: --- Remapping WN names and retrying heuristics... good luck with this... ---'
     print '\nPBS report tool. Please try: watch -d ' + QTOPPATH + \
@@ -200,8 +201,8 @@ def display_job_accounting_summary(cluster_dict, total_running, total_queued, qs
            cluster_dict['total_wn'],
            cluster_dict['working_cores'],
            cluster_dict['total_cores'],
-           int(total_running),
-           int(total_queued))
+           int(total_running_jobs),
+           int(total_queued_jobs))
     print 'Queues: | ',
     for q in qstatq_list:
         q_name, q_running_jobs, q_queued_jobs = q['queue_name'], q['run'], q['queued']
@@ -220,11 +221,7 @@ def calculate_job_counts(user_names, job_states):
     :return: (list, list, dict)
     """
     expand_useraccounts_symbols(config, user_names)
-    state_abbrevs = {'R': 'running_of_user',
-                     'Q': 'queued_of_user',
-                     'C': 'cancelled_of_user',
-                     'W': 'waiting_of_user',
-                     'E': 'exiting_of_user'}
+    state_abbrevs = config['state_abbrevs'][scheduler]
 
     job_counts = create_job_counts(user_names, job_states, state_abbrevs)
     user_alljobs_sorted_lot = produce_user_lot(user_names)
@@ -343,8 +340,10 @@ def fill_node_cores_column(state_np_corejob, core_user_map, id_of_username, max_
             try:
                 _ = user_of_job_id[job]
             except KeyError, KeyErrorValue:
-                raise (KeyError, 'There seems to be a problem with the qstat output. A Job (ID %s) has gone rogue. '
-                                 'Please check with the SysAdmin.' % str(KeyErrorValue))
+                print 'There seems to be a problem with the qstat output. ' \
+                      'A Job (ID {}) has gone rogue. ' \
+                      'Please check with the SysAdmin.'.format(str(KeyErrorValue))
+                raise KeyError
             else:
                 core_user_map['Core' + str(core) + 'line'] += [str(id_of_username[user_of_job_id[job]])]
                 own_np_empty_range.remove(core)
@@ -398,16 +397,16 @@ def calc_all_wnid_label_lines(highest_wn):  # (total_wn) in case of multiple clu
         wn_vert_labels = OrderedDict((str(place), []) for place in range(1, node_str_width + 1))
         for node in workernode_dict:
             host = workernode_dict[node]['host']
-            extra_zeros = node_str_width - len(host)
-            string = "".join(" " * extra_zeros + host)
+            extra_spaces = node_str_width - len(host)
+            string = "".join(" " * extra_spaces + host)
             for place in range(node_str_width):
                 wn_vert_labels[str(place + 1)].append(string[place])
     else:
         node_str_width = len(str(highest_wn))  # 4
         wn_vert_labels = {str(place): [] for place in range(1, node_str_width + 1)}
         for nr in range(1, highest_wn + 1):
-            extra_zeros = node_str_width - len(str(nr))  # 4 - 1 = 3, for wn0001
-            string = "".join("0" * extra_zeros + str(nr))
+            extra_spaces = node_str_width - len(str(nr))  # 4 - 1 = 3, for wn0001
+            string = "".join("0" * extra_spaces + str(nr))
             for place in range(1, node_str_width + 1):
                 wn_vert_labels[str(place)].append(string[place - 1])
 
@@ -533,6 +532,8 @@ def display_remaining_matrices(
             pattern_of_id,
             workernodes_occupancy)
 
+        print '\n'
+
 
 def display_selected_occupancy_parts(
         print_char_start,
@@ -561,8 +562,6 @@ def display_selected_occupancy_parts(
             )
         }
         occupancy_parts.update(new_dict_var)
-
-    print '\n'
 
     for _part in config['workernodes_matrix']:
         part = [k for k in _part][0]
@@ -744,15 +743,6 @@ def make_pattern_of_id(account_jobs_table):
     return pattern_of_id
 
 
-def reset_yaml_files():
-    """
-    empties the files with every run of the python script
-    """
-    for _file in [PBSNODES_OUT_FN, QSTATQ_OUT_FN, QSTAT_OUT_FN]:
-        fin = open(_file, 'w')
-        fin.close()
-
-
 def load_yaml_config(path):
     try:
         config = yaml.safe_load(open(path + "/qtopconf.yaml"))
@@ -789,8 +779,23 @@ def calculate_split_screen_size():
     return term_columns
 
 
+def convert_to_yaml(scheduler, INPUT_FNs, filenames, write_method, commands):
+
+    for _file in INPUT_FNs:
+        file_orig, file_out = filenames[_file], filenames[_file + '_out']
+        _func = commands[_file]
+        # print 'executing %(_func)s on file %(_file)s' % {'_func': _func, '_file': _file}
+        _func(file_orig, file_out, write_method)
+
+
+def exec_func_tuples(func_tuples):
+    _commands = iter(func_tuples)
+    for command in _commands:
+        ffunc, args, kwargs = command[0], command[1], command[2]
+        yield ffunc(*args, **kwargs)
+
+
 if __name__ == '__main__':
-    # print_char_start, print_char_stop = 0, None
 
     HOMEPATH = os.path.expanduser('~/PycharmProjects')
     QTOPPATH = os.path.expanduser('~/PycharmProjects/qtop')  # qtoppath: ~/qtop/qtop
@@ -800,42 +805,67 @@ if __name__ == '__main__':
     USER_CUT_MATRIX_WIDTH = config['workernodes_matrix'][0]['wn id lines']['user_cut_matrix_width']  # alias
     ALT_LABEL_HIGHLIGHT_COLOURS = config['workernodes_matrix'][0]['wn id lines']['alt_label_highlight_colours']  # alias
 
-    # Name files according to unique pid
-    ext = qstat_mapping[options.write_method][2]
-    PBSNODES_OUT_FN = 'pbsnodes_{}.{}'.format(options.write_method, ext)  # os.getpid()
-    QSTATQ_OUT_FN = 'qstat-q_{}.{}'.format(options.write_method, ext)  # os.getpid()
-    QSTAT_OUT_FN = 'qstat_{}.{}'.format(options.write_method, ext)  # os.getpid()
-
     os.chdir(options.SOURCEDIR)
-    # Location of read and created files
-    PBSNODES_ORIG_FN = [f for f in os.listdir(os.getcwd()) if f.startswith('pbsnodes') and not f.endswith('.yaml')][0]
-    QSTATQ_ORIG_FN = [f for f in os.listdir(os.getcwd()) if (
-        f.startswith('qstat_q') or f.startswith('qstatq') or f.startswith('qstat-q') and not f.endswith('.yaml'))][0]
-    QSTAT_ORIG_FN = [f for f in os.listdir(os.getcwd()) if f.startswith('qstat.') and not f.endswith('.yaml')][0]
+    scheduler = config['scheduler']
+    INPUT_FNs = config['schedulers'][scheduler]
+    ext = ext_mapping[options.write_method]
+    filenames = dict()
+    for _file in INPUT_FNs:
+        filenames[_file] = INPUT_FNs[_file]
+        filenames[_file + '_out'] = '{}_{}.{}'.format(INPUT_FNs[_file].rsplit('.')[0], options.write_method, ext)  # os.getpid()
 
-    # input files ###################################
+    yaml_converter = {
+        'pbs': {
+            'pbsnodes_file': make_pbsnodes,
+            'qstatq_file': QStatMaker().make_statq,
+            'qstat_file': QStatMaker().make_stat,
+        },
+        'oar': {
+            'oarnodes_s_file': lambda x, y, z: None,
+            'oarnodes_y_file': lambda x, y, z: None,
+            'oarnodes_file': lambda x, y, z: None,
+            'oarstat_file': OarStatMaker().make_stat,
+        },
+        'sge': {'sge.xml': 'make_sge'}
+    }
+    commands = yaml_converter[scheduler]
     # reset_yaml_files()  # either that or having a pid appended in the filename
-    if options.EXISTYAML:
-        make_pbsnodes(PBSNODES_ORIG_FN, PBSNODES_OUT_FN, options.write_method)
-        make_qstatq(QSTATQ_ORIG_FN, QSTATQ_OUT_FN, options.write_method)
-        make_qstat(QSTAT_ORIG_FN, QSTAT_OUT_FN, options.write_method)
+    if not options.YAML_EXISTS:
+        convert_to_yaml(scheduler, INPUT_FNs, filenames, options.write_method, commands)
 
-    pbs_nodes = read_pbsnodes_yaml(PBSNODES_OUT_FN, options.write_method)
-    total_running, total_queued, qstatq_lod = read_qstatq_yaml(QSTATQ_OUT_FN, options.write_method)
-    job_ids, user_names, job_states, _ = read_qstat_yaml(QSTAT_OUT_FN, options.write_method)  # _ == queue_names
+    yaml_reader = {
+        'pbs': [
+            (read_pbsnodes_yaml, (filenames.get('pbsnodes_file_out'),), {'write_method': options.write_method}),
+            (read_qstatq_yaml, (filenames.get('qstatq_file_out'),), {'write_method': options.write_method}),
+            (read_qstat_yaml, (filenames.get('qstat_file_out'),), {'write_method': options.write_method}),
+        ],
+        'oar': [
+            (read_oarnodes_yaml, ([filenames.get('oarnodes_s_file'), filenames.get('oarnodes_y_file')]), {'write_method': options.write_method}),
+            (read_qstat_yaml, ([filenames.get('oarstat_file_out')]), {'write_method': options.write_method}),
+            (lambda *args, **kwargs: (0, 0, 0), ([filenames.get('oarstat_file')]), {'write_method': options.write_method}),
+        ]
+    }
+
+    func_tuples = yaml_reader[scheduler]
+    commands = exec_func_tuples(func_tuples)
+
+    worker_nodes = next(commands)
+    job_ids, user_names, job_states, _ = next(commands)
+    total_running_jobs, total_queued_jobs, qstatq_lod = next(commands)
 
     #  MAIN ##################################
-    cluster_dict, NAMED_WNS = calculate_cluster(pbs_nodes)
+    cluster_dict, NAMED_WNS = calculate_cluster(worker_nodes)
     workernodes_occupancy, cluster_dict = calculate_wn_occupancy(cluster_dict, user_names, job_states, job_ids)
 
     display_parts = {
-        'job_accounting_summary': (display_job_accounting_summary, (cluster_dict, total_running, total_queued, qstatq_lod)),
+        'job_accounting_summary': (display_job_accounting_summary, (cluster_dict, total_running_jobs, total_queued_jobs, qstatq_lod)),
         'workernodes_matrix': (display_wn_occupancy, (workernodes_occupancy, cluster_dict)),
-        'user_accounts_pool_mappings': (display_user_accounts_pool_mappings, (workernodes_occupancy['account_jobs_table'], workernodes_occupancy['pattern_of_id']))}
+        'user_accounts_pool_mappings': (display_user_accounts_pool_mappings, (workernodes_occupancy['account_jobs_table'], workernodes_occupancy['pattern_of_id']))
+    }
 
     for part in config['user_display_parts']:
-        fn, args = display_parts[part][0], display_parts[part][1]
-        fn(*args)
+        _func, args = display_parts[part][0], display_parts[part][1]
+        _func(*args)
 
     print '\nThanks for watching!'
     os.chdir(QTOPPATH)

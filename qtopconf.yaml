@@ -1,3 +1,54 @@
+schedulers:
+  pbs:
+    pbsnodes_file: pbsnodes_a.txt
+    qstatq_file: qstat_q.txt
+    qstat_file: qstat.txt
+  oar:
+    oarnodes_s_file: oarnodes_s
+    oarnodes_y_file: oarnodes_y
+    oarnodes_file: oarnodes
+    oarstat_file: oarstat
+  sge:
+    sge_file: sge.xml
+
+#scheduler: pbs
+scheduler: oar
+
+# insert comment here
+state_abbrevs:
+  pbs:
+    Q: queued_of_user
+    R: running_of_user
+    C: cancelled_of_user
+    E: exiting_of_user
+    W: waiting_of_user
+  oar:
+    E: Error
+    F: Finishing
+    S: Resuming
+    H: Hold
+    L: waiting_of_user
+    W: queued_of_user
+    R: running_of_user
+    T: exiting_of_user
+    S: cancelled_of_user
+
+# original:
+# state_abbrevs = {
+#     'W': 'Waiting',
+#     'L': 'toLaunch',
+#     'L': 'Launching',
+#     'H': 'Hold',
+#     'R': 'Running',
+#     'T': 'Terminated',
+#     'E': 'Error',
+#     'E': 'toError',
+#     'F': 'Finishing',
+#     'S': 'Suspended',
+#     'S': 'Resuming',
+#     'W': 'toAckReservation',
+# }
+
 percentage: 0.8 # if less than PERCENTAGE x 100% of the matrices have jobs, perform a blind remap
 possible_ids: '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz' # IDs of unix accounts, for the lower part of qtop
 non_existent_node_symbol: '#'
@@ -12,8 +63,15 @@ user_colour_mappings:  # order should be from more generic-->more specific
 # - '[A-Za-z]+15\d': Gray_D
 # - '\w*lhc\w*': Cyan_L
 # - '\w+00\d': Blue
- - '\w*cms\w*': Red_L
+# - '\w*cms\w*': Red_L
+ - '\w*cms048': Blue
+ - '\w*cms193': Gray_L
  - '\w*atl\w+': Cyan_L
+ - 'snielsen': Blue
+ - 'ekalesaki': Cyan_L
+ - 'zzhang': Red_L
+ - 'mmravlak': Red_L
+ - 'dbobbili': Cyan_L
 
 # if cluster numbering should start on a number # above this, do automatic blind remapping
 exotic_starting_wn_nr: 9000
@@ -21,15 +79,16 @@ remapping:
 # - "([A-Za-z]+)([1-9]|[1-9][0-9]|[0-9][0-9][0-9])$": |
 #     lambda m: m.group(1)+str(int(m.group(2))+250)
      # e.g. wn100 --> wn350, wn101 --> wn351 and so on
- - 'torvalds(\d+)' : 'tor\1'
- - 'gridlab(\d+)' : 'glab\1'
- - 'gridmon(\d*)' : 'mon\1'
+# - 'torvalds(\d+)' : 'tor\1'
+# - 'gridlab(\d+)' : 'glab\1'
+# - 'gridmon(\d*)' : 'mon\1'
  - '-' : ''  # removes dashes for shortening (can also replace them with something else, e.g. _
 
+group_by_name: True
 
 # what parts of qtop to display
 user_display_parts:
- - job_accounting_summary
+# - job_accounting_summary
  - workernodes_matrix
  - user_accounts_pool_mappings
 
@@ -58,15 +117,14 @@ workernodes_matrix:
        '5': ['={__FOR___}', '={__SALE__}', '={_Worker_}', '={__Node__}', '={___ID___}']
        '6': ['={_SPACE__}', '={__FOR___}', '={__SALE__}', '={_Worker_}', '={__Node__}', '={___ID___}']
        '7': ['={__PLACE_}', '={__YOUR__}', '={_ADVERT_}', '={__HERE__}', '={_Worker_}', '={__Node__}', '={___ID___}']
- - temperature:
-     yaml key: temperature  # how it's found in the yaml file
-     label: Temperature (C)  # how to label it on the qtop matrix
-     option: {}
-     max_len: 1
-
- - mojokoloku8ia:
-     yaml key: mojo factor
-     label: Mojo-ness
+# - temperature:
+#     yaml key: temperature  # how it's found in the yaml file
+#     label: Temperature (C)  # how to label it on the qtop matrix
+#     option: {}
+#     max_len: 1
+ - node state:
+     yaml key: state
+     label: Node state
      max_len: 1
  - core user map:
      options1: {}
