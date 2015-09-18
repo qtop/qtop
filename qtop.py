@@ -1,844 +1,871 @@
 #!/usr/bin/env python
 
 ################################################
-#              qtop v.0.6.7                    #
+#              qtop v.0.7.2                    #
 #     Licensed under MIT-GPL licenses          #
-#                     Fotis Georgatos          #
 #                     Sotiris Fragkiskos       #
+#                     Fotis Georgatos          #
 ################################################
-
-"""
-changelog:
-=========
-0.6.7: created yaml files now have the pid appended to the filename
-       pbs-related functions (which create the respective yaml files) have moved to a dedicated module 
-       took out HighestCoreBusy, seemed useless (and unused)
-       a separate read_qstatq_yaml function added, for consistency (removed from qstatq2yaml)
-       change qstatqLst from list of tuples to list of dictionaries
-       OfflineDownNodes was moved from pbs.pbsnodes2yaml to read_pbsnodes_yaml 
-0.6.6: got rid of all global variables (experimental)
-0.6.5: PBS now supported
-0.6.4: lines that don't contain *any* actual core are now not printed in the matrices.
-0.6.3: optional stopping of vertical separators (every 'n' position for x times)
-       additional vertical separator in the beginning
-0.6.2: WN matrix width bug ironed out.
-0.6.1: Custom-cut matrices (horizontally, too!), -o switch
-0.5.2: Custom-cut matrices (vertically, not horizontally), width set by user.
-0.5.1: If more than 20% of the WNs are empty, perform a blind remap.
-       Code Cleanup
-0.5.0: Major rewrite of matrices calculation
-       fixed: true blind remapping !!
-       exotic cases of very high numbering schemes now handled
-       more qstat entries successfully parsed
-       case of many unix accounts (>62) now handled
-0.4.1: now understands additional probable names for pbsnodes,qstat and qstat-q data files
-0.4.0: corrected colorless switch to have ON/OFF option (default ON)
-       bugfixes (qstat_q didn't recognize some faulty cpu time entries)
-       now descriptions are in white, as before.
-       Queues in the job accounting summary section are now coloured
-0.3.0: command-line arguments (mostly empty for now)!
-       non-numbered WNs can now be displayed instead of numbered WN IDs
-       fixed issue with single named WN
-       better regex pattern and algorithm for catching complicated numbered WN domain names
-       implement colorless switch (-c)
-0.2.9: handles cases of non-numbered WNs (e.g. fruit names)
-       parses more complex domain names (with more than one dash)
-       correction in WN ID numbers display (tens were problematic for larger numbers)
-0.2.8: colour implementation for all of the tables
-0.2.7: Exiting when there are two jobs on the same core reported on pbsnodes (remapping functionality to be added)
-       Number of WNs >1000 is now handled
-0.2.6: fixed some names not being detected (%,= chars missing from regex)
-       changed name to qtop, introduced configuration file qtop.conf and
-       colormap file qtop.colormap
-0.2.5: Working Cores added in Usage Totals
-       Feature added: map now splits into two if terminal width is smaller than
-        the Worker Node number
-0.2.4: implemented some stuff from PEP8
-       un-hardwired the file paths
-       refactored code around CPUCoreDict functionality (responsible for drawing
-        the map)
-0.2.3: corrected regex search pattern in make_qstat to recognize usernames like spec101u1 (number followed by number followed by letter) now handles non-uniform setups
-        R + Q / all: all did not display everything (E status)
-0.2.2: masking/clipping functionality (when nodes start from e.g. wn101, empty columns 1-100 are ommited)
-0.2.1: Hashes displaying when the node has less cores than the max declared by a WN (its np variable)
-0.2.0: unix accounts are now correctly ordered
-0.1.9: All CPU lines displaying correctly
-0.1.8: unix account id assignment to CPU0, 1 implemented
-0.1.7: ReadQstatQ function (write in yaml format using Pyyaml)
-       output up to Node state !
-0.1.6: ReadPbsNodes function (write in yaml format using Pyyaml)
-0.1.5: implemented saving to 3 separate files, QSTAT_ORIG_FILE, QSTATQ_ORIG_FILE, PBSNODES_ORIG_FILE
-0.1.4: some "wiremelting" concerning the save directory
-0.1.3: fixed tabs-to-spaces. Formatting should be correct now.
-       Now each state is saved in a separate file in a results folder
-0.1.2: script reads qtop-input.out files from each job and displays status for each job
-0.1.1: changed implementation in get_state()
-0.1.0: just read a pbsnodes-a output file and gather the results in a single line
-"""
 
 from operator import itemgetter
 from optparse import OptionParser
 import datetime
-import glob
-import os
-import re
-import sys
+from collections import OrderedDict
+from itertools import izip
 # modules
-import pbs
-import variables
+from pbs import *
+from oar import *
+from math import ceil
+from colormap import color_of_account, code_of_color
+from stat_maker import QStatMaker, OarStatMaker
 
-parser = OptionParser() # for more details see http://docs.python.org/library/optparse.html
-parser.add_option("-a", "--blindremapping", action="store_true", dest="BLINDREMAP", default=False, help="This is used in situations where node names are not a pure arithmetic sequence (eg. rocks clusters)")
-parser.add_option("-c", "--COLOR", action="store", dest="COLOR", default='ON', choices=['ON', 'OFF'], help="Enable/Disable color in qtop output. Use it with an ON/OFF switch: -c ON or -c OFF")
+parser = OptionParser()  # for more details see http://docs.python.org/library/optparse.html
+parser.add_option("-a", "--blindremapping", action="store_true", dest="BLINDREMAP", default=False,
+                  help="This may be used in situations where node names are not a pure arithmetic seq (eg. rocks clusters)")
+parser.add_option("-y", "--readexistingyaml", action="store_true", dest="YAML_EXISTS", default=False,
+                  help="Do not remake yaml input files, read from the existing ones")
+parser.add_option("-c", "--NOCOLOR", action="store_true", dest="NOCOLOR", default=False,
+                  help="Enable/Disable color in qtop output.")
 parser.add_option("-f", "--setCOLORMAPFILE", action="store", type="string", dest="COLORFILE")
-parser.add_option("-m", "--noMasking", action="store_false", dest="MASKING", default=True, help="Don't mask early empty Worker Nodes. (default setting is: if e.g. the first 30 WNs are unused, counting starts from 31).")
-parser.add_option("-o", "--SetVerticalSeparatorXX", action="store", dest="WN_COLON", default=0, help="Put vertical bar every WN_COLON nodes.")
-parser.add_option("-s", "--SetSourceDir", dest="SOURCEDIR", help="Set the source directory where pbsnodes and qstat reside")
-parser.add_option("-z", "--quiet", action="store_false", dest="verbose", default=True, help="don't print status messages to stdout. Not doing anything at the moment.")
-parser.add_option("-F", "--ForceNames", action="store_true", dest="FORCE_NAMES", default=False, help="force names to show up instead of numbered WNs even for very small numbers of WNs")
-
+parser.add_option("-m", "--noMasking", action="store_true", dest="NOMASKING", default=False,
+                  help="Don't mask early empty WNs (default: if the first 30 WNs are unused, counting starts from 31).")
+parser.add_option("-o", "--SetVerticalSeparatorXX", action="store", dest="WN_COLON", default=0,
+                  help="Put vertical bar every WN_COLON nodes.")
+parser.add_option("-s", "--SetSourceDir", dest="SOURCEDIR", default='.',
+                  help="Set the source directory where pbsnodes and qstat reside")
+parser.add_option("-z", "--quiet", action="store_false", dest="verbose", default=True,
+                  help="don't print status messages to stdout. Not doing anything at the moment.")
+parser.add_option("-F", "--ForceNames", action="store_true", dest="FORCE_NAMES", default=False,
+                  help="force names to show up instead of numbered WNs even for very small numbers of WNs")
+parser.add_option("-w", "--writemethod", dest="write_method", action="store", default="txtyaml",
+                  choices=['txtyaml', 'yaml', 'json'],
+                  help="Set the method used for dumping information, json, yaml, or native python (yaml format)")
+parser.add_option("-r", "--removeemptycorelines", dest="REM_EMPTY_CORELINES", action="store_true", default=False,
+                  help="Set the method used for dumping information, json, yaml, or native python (yaml format)")
 (options, args) = parser.parse_args()
 
-if not options.COLORFILE:
-    options.COLORFILE = os.path.expanduser('~/qtop/qtop/qtop.colormap')
-qtopcolormap = open(options.COLORFILE, 'r')
-exec qtopcolormap
+
+# TODO make the following work with py files instead of qtop.colormap files
+# if not options.COLORFILE:
+#     options.COLORFILE = os.path.expanduser('~/qtop/qtop/qtop.colormap')
 
 
-def Colorize(text, pattern):
-    """print text colored according to its unix account colors"""
-    if options.COLOR == 'ON':
-        return "\033[" + CodeOfColor[ColorOfAccount[pattern]] + "m" + text + "\033[1;m"
-    else:
+def colorize(text, pattern='Nothing', color_func=None, bg_colour=None):
+    """
+    prints text coloured according to a unix account pattern color.
+    If color is given, pattern is not needed.
+    """
+    # bg_colour = code_of_color['BlueBG']
+    bg_colour = '' if not bg_colour else bg_colour
+    try:
+        ansi_color = code_of_color[color_func] if color_func else code_of_color[color_of_account[pattern]]
+    except KeyError:
         return text
+    else:
+        return "\033[" + '{}{}'.format(ansi_color, bg_colour) + "m" + text + "\033[0;m" \
+            if ((not options.NOCOLOR) and pattern != 'account_not_coloured' and text != ' ') else text
 
-#for calculating the WN numbers
-# h1000, h0100, h0010, h0001 = '', '', '', ''
-PrintStart, PrintEnd = 0, None
 
-if options.FORCE_NAMES == False: 
-    JUST_NAMES_FLAG = 0
-else:
-    JUST_NAMES_FLAG = 1
-# RemapNr = 0 $ ex global
-NodeSubClusters = set()
-OutputDirs = []
-
-NodeState = ''
-
-IdOfUserName = {}
-AccountsMappings = []  
-DIFFERENT_QSTAT_FORMAT_FLAG = 0
-
-### CPU lines ######################################
-
-MaxNPRange = []
-
-AccountNrlessOfId = {}
-####################################################
-
-def read_pbsnodes_yaml(fin, namesflag):
-    '''
-    extracts highest node number, online nodes
-    '''
-    # global JUST_NAMES_FLAG   --> internal copy is now namesflag
-    WNList = [] # ex global
-    MaxNP = 0
-    RemapNr = 0 # ex-global
-    # ExistingNodes, OfflineDownNodes, WorkingCores, TotalCores, BiggestWrittenNode, NodeSubClusters, HighestCoreBusy
-    NodeNr = 0 # ex-global
-    AllWNsRemappedDict = {} # ex-global
-    BiggestWrittenNode, TotalCores, WorkingCores = 0, 0, 0 # , HighestCoreBusy = 0 useless?
-    ExistingNodes, OfflineDownNodes = 0, 0
-    AllWNsDict = {}
-    WNListRemapped = []
-    state = ''
-    for line in fin:
-        line.strip()
-        searchdname = 'domainname: ' + '(\w+-?\w+([.-]\w+)*)'
-        searchnodenr = '([A-Za-z0-9-]+)(?=\.|$)'
-        searchnodenrfind = '[A-Za-z]+|[0-9]+|[A-Za-z]+[0-9]+'
-        searchjustletters = '(^[A-Za-z-]+)'
-        if re.search(searchdname, line) is not None:   # line contains domain name
-            m = re.search(searchdname, line)
-            dname = m.group(1)
-            RemapNr += 1
-            '''
-            extract highest node number, online nodes
-            '''
-            ExistingNodes += 1    # nodes as recorded on PBSNODES_ORIG_FILE
-            if re.search(searchnodenr, dname) is not None:  # if a number and domain are found
-                n = re.search(searchnodenr, dname)
-                NodeInits = n.group(0)
-                NameGroups = re.findall(searchnodenrfind, NodeInits)
-                NodeInits = '-'.join(NameGroups[0:-1])
-                if NameGroups[-1].isdigit():
-                    NodeNr = int(NameGroups[-1])
-                elif len(NameGroups) == 1: # if e.g. WN name is just 'gridmon'
-                    if re.search(searchjustletters, dname) is not None:  # for non-numbered WNs (eg. fruit names)
-                        namesflag += 1
-                        n = re.search(searchjustletters, dname)
-                        NodeInits = n.group(1)
-                        NodeNr += 1
-                        NodeSubClusters.add(NodeInits)    # for non-uniform setups of WNs, eg g01... and n01...
-                        AllWNsDict[NodeNr] = []
-                        AllWNsRemappedDict[RemapNr] = []
-                        if NodeNr > BiggestWrittenNode:
-                            BiggestWrittenNode = NodeNr
-                        WNList.append(NodeInits)
-                        # import pdb; pdb.set_trace()
-                        WNList[:] = [UnNumberedWN.rjust(len(max(WNList))) for UnNumberedWN in WNList if type(UnNumberedWN) is str ]
-                        WNListRemapped.append(RemapNr)                    
-                elif len(NameGroups) == 2 and not NameGroups[-1].isdigit() and not NameGroups[-2].isdigit():
-                    NameGroups = '-'.join(NameGroups)
-                    if re.search(searchjustletters, dname) is not None:  # for non-numbered WNs (eg. fruit names)
-                       namesflag += 1
-                       n = re.search(searchjustletters, dname)
-                       NodeInits = n.group(1)
-                       NodeNr += 1
-                       NodeSubClusters.add(NodeInits)    # for non-uniform setups of WNs, eg g01... and n01...
-                       AllWNsDict[NodeNr] = []
-                       AllWNsRemappedDict[RemapNr] = []
-                       if NodeNr > BiggestWrittenNode:
-                           BiggestWrittenNode = NodeNr
-                       WNList.append(NodeInits)
-                       WNList[:] = [UnNumberedWN.rjust(len(max(WNList))) for UnNumberedWN in WNList if type(UnNumberedWN) is str ]
-                       WNListRemapped.append(RemapNr)                                  
-                elif NameGroups[-2].isdigit():
-                    NodeNr = int(NameGroups[-2])
-                else:
-                    NodeNr = int(NameGroups[-3])
-                # print 'NamedGroups are: ', NameGroups #####DEBUGPRINT2  
-                NodeSubClusters.add(NodeInits)    # for non-uniform setups of WNs, eg g01... and n01...
-                AllWNsDict[NodeNr] = []
-                AllWNsRemappedDict[RemapNr] = []
-                if NodeNr > BiggestWrittenNode:
-                    BiggestWrittenNode = NodeNr
-                if namesflag <= 1:
-                    WNList.append(NodeNr)
-                WNListRemapped.append(RemapNr)
-            elif re.search(searchjustletters, dname) is not None:  # for non-numbered WNs (eg. fruit names)
-                namesflag += 1
-                n = re.search(searchjustletters, dname)
-                NodeInits = n.group(1)
-                NodeNr += 1
-                NodeSubClusters.add(NodeInits)    # for non-uniform setups of WNs, eg g01... and n01...
-                AllWNsDict[NodeNr] = []
-                AllWNsRemappedDict[RemapNr] = []
-                if NodeNr > BiggestWrittenNode:
-                    BiggestWrittenNode = NodeNr
-                WNList.append(NodeInits)
-                WNList[:] = [UnNumberedWN.rjust(len(max(WNList))) for UnNumberedWN in WNList]
-                WNListRemapped.append(RemapNr)
-            else:
-                NodeNr = 0
-                NodeInits = dname
-                AllWNsDict[NodeNr] = []
-                AllWNsRemappedDict[RemapNr] = []
-                NodeSubClusters.add(NodeInits)    # for non-uniform setups of WNs, eg g01... and n01...
-                if NodeNr > BiggestWrittenNode:
-                    BiggestWrittenNode = NodeNr + 1
-                WNList.append(NodeNr)
-                WNListRemapped.append(RemapNr)
-        elif 'state: ' in line:
-            nextchar = line.split()[1].strip("'")
-            if nextchar == 'f':
-                state += '-'
-                AllWNsDict[NodeNr].append('-')
-                AllWNsRemappedDict[RemapNr].append('-')
-            elif (nextchar == 'd') | (nextchar == 'o'):
-                state += nextchar
-                OfflineDownNodes += 1    
-                AllWNsDict[NodeNr].append(nextchar)
-                AllWNsRemappedDict[RemapNr].append(nextchar)
-            else:
-                state += nextchar
-                AllWNsDict[NodeNr].append(nextchar)
-                AllWNsRemappedDict[RemapNr].append(nextchar)
-
-        elif 'np:' in line or 'pcpus:' in line:
-            np = line.split(': ')[1].strip()
-            AllWNsDict[NodeNr].append(np)
-            AllWNsRemappedDict[RemapNr].append(np)
-            if int(np) > int(MaxNP):
-                MaxNP = int(np)
-            TotalCores += int(np)
-
-        elif ' core: ' in line: # this should also work for OAR's yaml file
-            core = line.split(': ')[1].strip()
-            WorkingCores += 1
-            # if int(core) > int(HighestCoreBusy): # HighestCoreBusy doesn't look like it's doing anything!!
-            #     HighestCoreBusy = int(core)
-        elif 'job: ' in line:
-            job = str(line.split(': ')[1]).strip()
-            AllWNsDict[NodeNr].append((core, job))
-            AllWNsRemappedDict[RemapNr].append((core, job))
-    # HighestCoreBusy += 1
-
-    '''
-    fill in non-existent WN nodes (absent from pbsnodes file) with '?' and count them
-    '''
-    if len(NodeSubClusters) > 1:
-        for i in range(1, RemapNr): # This RemapNr here is the LAST remapped node, it's the equivalent BiggestWrittenNode for the remapped case
-            if i not in AllWNsRemappedDict:
-                AllWNsRemappedDict[i] = '?'
-    elif len(NodeSubClusters) == 1:
-        for i in range(1, BiggestWrittenNode):
-            if i not in AllWNsDict:
-                AllWNsDict[i] = '?'
-
-    if namesflag <= 1:
-        WNList.sort()
-        WNListRemapped.sort()
-
-    if min(WNList) > 9000 and type(min(WNList)) == int: # handle exotic cases of WN numbering starting VERY high
-        WNList = [element - min(WNList) for element in WNList]
-        options.BLINDREMAP = True 
-    if len(WNList) < PERCENTAGE * BiggestWrittenNode: 
-        options.BLINDREMAP = True
-    return ExistingNodes, WorkingCores, TotalCores, BiggestWrittenNode, AllWNsDict, WNListRemapped, AllWNsRemappedDict, RemapNr, MaxNP, WNList, namesflag, OfflineDownNodes
-
-def read_qstat_yaml(QSTAT_YAML_FILE):
+def decide_remapping(cluster_dict, _all_letters, _all_str_digits_with_empties):
     """
-    reads qstat YAML file and populates four lists. Returns the lists
-    """
-    JobIds, UserNames, Statuses, QueueNames = [], [], [], []
-    finr = open(QSTAT_YAML_FILE, 'r')
-    for line in finr:
-        if line.startswith('JobId:'):
-            JobIds.append(line.split()[1])
-        elif line.startswith('UserName:'):
-            UserNames.append(line.split()[1])
-        elif line.startswith('S:'):
-            Statuses.append(line.split()[1])
-        elif line.startswith('Queue:'):
-            QueueNames.append(line.split()[1])
-    finr.close()
-    # import pdb;pdb.set_trace()
-    return JobIds, UserNames, Statuses, QueueNames
+    Cases where remapping is enforced are:
+    - the user has requested it (blindremap switch)
+    - there are different WN namings, e.g. wn001, wn002, ..., ps001, ps002, ... etc
+    - the first starting numbering of a WN is very high and thus would require too much unused space
+    #- the numbering is strange, say the highest numbered node is named wn12500 but the total amount of WNs is 8000????
+    - more than PERCENTAGE*nodes have no jobs assigned
+    - there are numbering collisions,
+        e.g. there's a ps001 and a wn001, or a 0x001 and a 0x1, which all would be displayed in position 1
+        or there are non-numbered wns
 
-def read_qstatq_yaml(QSTATQ_YAML_FILE):
+    Reasons not enough to warrant remapping (intended future behaviour)
+    - one or two unnumbered nodes (should just be put in the end of the cluster)
     """
-    added for consistency. Originally instead of this function, 
-    the following existed in qstatq2yaml:
-    variables.qstatqLst.append((QueueName, Run, Queued, Lm, State))
-    """
-    templst = []
-    tempdict = {}
-    qstatqLst = []
-    finr = open(QSTATQ_YAML_FILE, 'r')
-    for line in finr:
-        line = line.strip()
-        if ' QueueName:' in line:
-            tempdict.setdefault('QueueName',line.split(': ')[1])
-        elif line.startswith('Running:'):
-            tempdict.setdefault('Running',line.split(': ')[1])
-        elif line.startswith('Queued:'):
-            tempdict.setdefault('Queued',line.split(': ')[1])
-        elif line.startswith('Lm:'):
-            tempdict.setdefault('Lm',line.split(': ')[1])
-        elif line.startswith('State:'):
-            tempdict.setdefault('State',line.split(': ')[1])
-        elif not line:
-            qstatqLst.append(tempdict)
-            tempdict = {}
-        elif '---' in line:
-            break
-    finr.close()
-    # import pdb;pdb.set_trace()
-    return qstatqLst
 
-def print_job_accounting_summary(ExistingNodes, OfflineDownNodes, WorkingCores, TotalCores, TotalRuns, TotalQueues, qstatqLst):
-    # import pdb;pdb.set_trace()
-    if len(NodeSubClusters) > 1 or options.BLINDREMAP:
+    # all needed for decide_remapping
+    cluster_dict['node_subclusters'] = set(_all_letters)
+    cluster_dict['_all_str_digits_with_empties'] = _all_str_digits_with_empties
+    cluster_dict['all_str_digits'] = filter(lambda x: x != "", _all_str_digits_with_empties)
+    cluster_dict['all_digits'] = [int(digit) for digit in cluster_dict['all_str_digits']]
+
+    if options.BLINDREMAP or \
+                    len(cluster_dict['node_subclusters']) > 1 or \
+                    min(cluster_dict['workernode_list']) >= config['exotic_starting_wn_nr'] or \
+                    cluster_dict['offline_down_nodes'] >= cluster_dict['total_wn'] * config['percentage'] or \
+                    len(cluster_dict['_all_str_digits_with_empties']) != len(cluster_dict['all_str_digits']) or \
+                    len(cluster_dict['all_digits']) != len(cluster_dict['all_str_digits']):
+        options.REMAP = True
+    else:
+        options.REMAP = False
+        # max(cluster_dict['workernode_list']) was cluster_dict['highest_wn']
+
+
+def calculate_cluster(worker_nodes):
+    NAMED_WNS = 0 if not options.FORCE_NAMES else 1
+    cluster_dict = dict()
+    for key in ['working_cores', 'total_cores', 'max_np', 'highest_wn', 'offline_down_nodes']:
+        cluster_dict[key] = 0
+    cluster_dict['node_subclusters'] = set()
+    cluster_dict['workernode_dict'] = {}
+    cluster_dict['workernode_dict_remapped'] = {}  # { remapnr: [state, np, (core0, job1), (core1, job1), ....]}
+
+    cluster_dict['total_wn'] = len(worker_nodes)  # == existing_nodes
+    cluster_dict['workernode_list'] = []
+    cluster_dict['workernode_list_remapped'] = range(1, cluster_dict['total_wn'])  # leave xrange aside for now
+
+    _all_letters = []
+    _all_str_digits_with_empties = []
+
+    re_nodename = r'(^[A-Za-z0-9-]+)(?=\.|$)'
+    for node in worker_nodes:
+        nodename_match = re.search(re_nodename, node['domainname'])
+        _nodename = nodename_match.group(0)
+
+        node_letters = ''.join(re.findall(r'\D+', _nodename))
+        node_str_digits = "".join(re.findall(r'\d+', _nodename))
+
+        _all_letters.append(node_letters)
+        _all_str_digits_with_empties.append(node_str_digits)
+
+        cluster_dict['total_cores'] += int(node.get('np'))
+        cluster_dict['max_np'] = max(cluster_dict['max_np'], int(node['np']))
+        cluster_dict['offline_down_nodes'] += 1 if node['state'] in 'do' else 0
+        try:
+            cluster_dict['working_cores'] += len(node['core_job_map'])
+        except KeyError:
+            pass
+
+        try:
+            cur_node_nr = int(node_str_digits)
+        except ValueError:
+            cur_node_nr = _nodename
+        finally:
+            cluster_dict['workernode_list'].append(cur_node_nr)
+
+    decide_remapping(cluster_dict, _all_letters, _all_str_digits_with_empties)
+    map_batch_nodes_to_wn_dicts(cluster_dict, worker_nodes, options.REMAP, config['group_by_name'])
+    if options.REMAP:
+        cluster_dict['highest_wn'] = cluster_dict['total_wn']
+        cluster_dict['workernode_list'] = cluster_dict['workernode_list_remapped']
+        cluster_dict['workernode_dict'] = cluster_dict['workernode_dict_remapped']
+    else:
+        cluster_dict['highest_wn'] = max(cluster_dict['workernode_list'])
+
+    # fill in non-existent WN nodes (absent from pbsnodes file) with default values and count them
+    for node in range(1, cluster_dict['highest_wn'] + 1):
+        if node not in cluster_dict['workernode_dict']:
+            cluster_dict['workernode_dict'][node] = {'state': '?', 'np': 0, 'domainname': 'N/A', 'host': 'N/A'}
+            default_values_for_empty_nodes = {yaml_key: '?' for yaml_key, part_name in get_yaml_key_part('workernodes_matrix')}
+            cluster_dict['workernode_dict'][node].update(default_values_for_empty_nodes)
+
+    do_name_remapping(cluster_dict)
+
+    return cluster_dict, NAMED_WNS
+
+
+def do_name_remapping(cluster_dict):
+    """
+    renames hostnames according to user remapping in conf file (for the wn id label lines)
+    """
+    label_max_len = config['workernodes_matrix'][0]['wn id lines']['max_len']
+    for _, state_corejob_dn in cluster_dict['workernode_dict'].items():
+        _host = state_corejob_dn['domainname'].split('.', 1)[0]
+        changed = False
+        for remap_line in config['remapping']:
+            pat, repl = remap_line.items()[0]
+            repl = eval(repl) if repl.startswith('lambda') else repl
+            if re.search(pat, _host):
+                changed = True
+                state_corejob_dn['host'] = _host = re.sub(pat, repl, _host)
+        else:
+            state_corejob_dn['host'] = _host if not changed else state_corejob_dn['host']
+            # was: label_max_len = config['wn_labels_max_len']
+            state_corejob_dn['host'] = label_max_len and state_corejob_dn['host'][-label_max_len:] or state_corejob_dn['host']
+
+
+def nodes_with_jobs(worker_nodes):
+    for _, pbs_node in worker_nodes.iteritems():
+        if 'core_job_map' in pbs_node:
+            yield pbs_node
+
+
+def display_job_accounting_summary(cluster_dict, total_running_jobs, total_queued_jobs, qstatq_list):
+    if options.REMAP:
         print '=== WARNING: --- Remapping WN names and retrying heuristics... good luck with this... ---'
-    print '\nPBS report tool. Please try: watch -d ' + QTOPPATH + '. All bugs added by sfranky@gmail.com. Cross fingers now...\n'
-    print Colorize('===> ', '#') + Colorize('Job accounting summary', 'Nothing') + Colorize(' <=== ', '#') + Colorize('(Rev: 3000 $) %s WORKDIR = to be added', 'NoColourAccount') % (datetime.datetime.today()) #was: added\n
-    print 'Usage Totals:\t%s/%s\t Nodes | %s/%s  Cores |   %s+%s jobs (R + Q) reported by qstat -q' % (ExistingNodes - OfflineDownNodes, ExistingNodes, WorkingCores, TotalCores, int(TotalRuns), int(TotalQueues))
+    print '\nPBS report tool. Please try: watch -d ' + QTOPPATH + \
+          '. All bugs added by sfranky@gmail.com. Cross fingers now...\n'
+    print colorize('===> ', '#') + colorize('Job accounting summary', 'Nothing') + colorize(' <=== ', '#') + colorize(
+        '(Rev: 3000 $) %s WORKDIR = to be added', 'account_not_coloured') % (datetime.datetime.today())
+    print 'Usage Totals:\t%s/%s\t Nodes | %s/%s  Cores |   %s+%s jobs (R + Q) reported by qstat -q' % \
+          (cluster_dict['total_wn'] - cluster_dict['offline_down_nodes'],
+           cluster_dict['total_wn'],
+           cluster_dict['working_cores'],
+           cluster_dict['total_cores'],
+           int(total_running_jobs),
+           int(total_queued_jobs))
     print 'Queues: | ',
-    # import pdb;pdb.set_trace()
-    if options.COLOR == 'ON':
-        for queue in qstatqLst:
-            if queue['QueueName'] in ColorOfAccount:
-                print Colorize(queue['QueueName'], queue['QueueName']) + ': ' + Colorize(queue['Running'], queue['QueueName']) + '+' + Colorize(queue['Queued'], queue['QueueName']) + ' |',        
-            else:
-                print Colorize(queue['QueueName'], 'Nothing') + ': ' + Colorize(queue['Running'], 'Nothing') + '+' + Colorize(queue['Queued'], 'Nothing') + ' |',
-    else:    
-        for queue in qstatqLst:
-            print queue['QueueName'] + ': ' + queue['Running'] + '+' + queue['Queued'] + ' |',
+    for q in qstatq_list:
+        q_name, q_running_jobs, q_queued_jobs = q['queue_name'], q['run'], q['queued']
+        account = q_name if q_name in color_of_account else 'account_not_coloured'
+        print "{}: {} + {} |".format(colorize(q_name, account),
+                                     colorize(q_running_jobs, account),
+                                     colorize(q_queued_jobs, account)),
     print '* implies blocked\n'
 
-def fill_cpucore_columns(value, CPUDict):
-    '''
+
+def calculate_job_counts(user_names, job_states):
+    """
+    Calculates and prints what is actually below the id|  R + Q /all | unix account etc line
+    :param user_names: list
+    :param job_states: list
+    :return: (list, list, dict)
+    """
+    expand_useraccounts_symbols(config, user_names)
+    state_abbrevs = config['state_abbrevs'][scheduler]
+
+    job_counts = create_job_counts(user_names, job_states, state_abbrevs)
+    user_alljobs_sorted_lot = produce_user_lot(user_names)
+
+    id_of_username = {}
+    for _id, user_allcount in enumerate(user_alljobs_sorted_lot):
+        id_of_username[user_allcount[0]] = config['possible_ids'][_id]
+
+    # Calculates and prints what is actually below the id|  R + Q /all | unix account etc line
+    # this is slower but shorter: 8mus
+    for state_abbrev in state_abbrevs:
+        _xjobs_of_user = job_counts[state_abbrevs[state_abbrev]]
+        missing_uids = set(id_of_username).difference(_xjobs_of_user)
+        [_xjobs_of_user.setdefault(missing_uid, 0) for missing_uid in missing_uids]
+
+    # This is actually faster: 6 mus
+    # for uid in id_of_username:
+    #     if uid not in job_counts['running_of_user']:
+    #         job_counts['running_of_user'][uid] = 0  # 4
+    #     if uid not in job_counts['queued_of_user']:
+    #         job_counts['queued_of_user'][uid] = 0  # 4
+    #     if uid not in job_counts['cancelled_of_user']:
+    #         job_counts['cancelled_of_user'][uid] = 0  # 20
+    #     if uid not in job_counts['waiting_of_user']:
+    #         job_counts['waiting_of_user'][uid] = 0  # 19
+    #     if uid not in job_counts['exiting_of_user']:
+    #         job_counts['exiting_of_user'][uid] = 0  # 20
+    return job_counts, user_alljobs_sorted_lot, id_of_username
+
+
+def create_account_jobs_table(user_names, job_states):
+    job_counts, user_alljobs_sorted_lot, id_of_username = calculate_job_counts(user_names, job_states)
+    account_jobs_table = []
+    for user_alljobs in user_alljobs_sorted_lot:
+        user, alljobs_of_user = user_alljobs
+        account_jobs_table.append(
+            [
+                id_of_username[user],
+                job_counts['running_of_user'][user],
+                job_counts['queued_of_user'][user],
+                alljobs_of_user,
+                user
+             ]
+        )
+    account_jobs_table.sort(key=itemgetter(3, 4), reverse=True)  # sort by All jobs, then unix account
+    # unix account id needs to be recomputed at this point. Should fix later.
+    for quintuplet, new_uid in zip(account_jobs_table, config['possible_ids']):
+        unix_account = quintuplet[-1]
+        quintuplet[0] = id_of_username[unix_account] = new_uid
+    return account_jobs_table, id_of_username
+
+
+def create_job_counts(user_names, job_states, state_abbrevs):
+    """
+    counting of R, Q, C, W, E attached to each user
+    """
+    job_counts = dict()
+    for value in state_abbrevs.values():
+        job_counts[value] = dict()
+
+    for user_name, job_state in zip(user_names, job_states):
+        x_of_user = state_abbrevs[job_state]
+        job_counts[x_of_user][user_name] = job_counts[x_of_user].get(user_name, 0) + 1
+
+    for user_name in job_counts['running_of_user']:
+        job_counts['queued_of_user'].setdefault(user_name, 0)
+        job_counts['cancelled_of_user'].setdefault(user_name, 0)
+        job_counts['waiting_of_user'].setdefault(user_name, 0)
+        job_counts['exiting_of_user'].setdefault(user_name, 0)
+
+    return job_counts
+
+
+def produce_user_lot(_user_names):
+    """
+    Produces a list of tuples (lot) of the form (user account, all jobs count) in descending order.
+    Used in the user accounts and poolmappings table
+    """
+    alljobs_of_user = {}
+    for user_name in set(_user_names):
+        alljobs_of_user[user_name] = _user_names.count(user_name)
+    user_alljobs_sorted_lot = sorted(alljobs_of_user.items(), key=itemgetter(1), reverse=True)
+    return user_alljobs_sorted_lot
+
+
+def expand_useraccounts_symbols(config, user_list):
+    """
+    In case there are more users than the sum number of all numbers and small/capital letters of the alphabet
+    """
+    MAX_UNIX_ACCOUNTS = 87  # was : 62
+    if len(user_list) > MAX_UNIX_ACCOUNTS:
+        for i in xrange(MAX_UNIX_ACCOUNTS, len(user_list) + MAX_UNIX_ACCOUNTS):
+            config['possible_ids'].append(str(i)[0])
+
+
+def fill_node_cores_column(state_np_corejob, core_user_map, id_of_username, max_np_range, user_of_job_id):
+    """
     Calculates the actual contents of the map by filling in a status string for each CPU line
-    '''
-    Busy = []
+    state_np_corejob was: [state, np, (core0, job1), (core1, job1), ....]
+    will be a dict!
+    """
+    state = state_np_corejob['state']
+    np = state_np_corejob['np']
+    corejobs = state_np_corejob.get('core_job_map', '')
 
-    if value[0] == '?':
-        for CPULine in CPUDict:
-            CPUDict[CPULine] += '_'
+    if state == '?':  # for non-existent machines
+        for core_line in core_user_map:
+            core_user_map[core_line] += [config['non_existent_node_symbol']]
     else:
-        HAS_JOBS = 0
-        OwnNP = int(value[1])
-        OwnNPRange = [str(x) for x in range(OwnNP)]
-        OwnNPEmptyRange = OwnNPRange[:] 
+        _own_np = int(np)
+        own_np_range = [str(x) for x in range(_own_np)]
+        own_np_empty_range = own_np_range[:]
 
-        for element in value[2:]:
-            if type(element) == tuple:  # everytime there is a job:
-                HAS_JOBS += 1
-                Core, job = element[0], element[1]
-                try: 
-                    variables.UserOfJobId[job]
-                except KeyError, KeyErrorValue:
-                    print 'There seems to be a problem with the qstat output. A JobID has gone rogue (namely, ' + str(KeyErrorValue) +'). Please check with the System Administrator.'
-                CPUDict['Cpu' + str(Core) + 'line'] += str(IdOfUserName[variables.UserOfJobId[job]])
-                Busy.extend(Core)
-                OwnNPEmptyRange.remove(Core)
+        for corejob in corejobs:
+            core, job = str(corejob['core']), str(corejob['job'])
+            try:
+                _ = user_of_job_id[job]
+            except KeyError, KeyErrorValue:
+                print 'There seems to be a problem with the qstat output. ' \
+                      'A Job (ID {}) has gone rogue. ' \
+                      'Please check with the SysAdmin.'.format(str(KeyErrorValue))
+                raise KeyError
+            else:
+                core_user_map['Core' + str(core) + 'line'] += [str(id_of_username[user_of_job_id[job]])]
+                own_np_empty_range.remove(core)
 
-        NonExistentCores = [item for item in MaxNPRange if item not in OwnNPRange]
+        non_existent_cores = [item for item in max_np_range if item not in own_np_range]
 
         '''
         the height of the matrix is determined by the highest-core WN existing. If other WNs have less cores,
         these positions are filled with '#'s.
         '''
-        for core in OwnNPEmptyRange:
-            CPUDict['Cpu' + str(core) + 'line'] += '_'
-        for core in NonExistentCores: 
-                CPUDict['Cpu' + str(core) + 'line'] += '#'
+        for core in own_np_empty_range:
+            core_user_map['Core' + str(core) + 'line'] += ['_']
+        for core in non_existent_cores:
+            core_user_map['Core' + str(core) + 'line'] += ['#']
 
-def insert_sep(original, separator, pos, stopaftern = 0):
-    '''
-    insert separator into original (string) every posth position, optionally stopping after stopafter times.
-    '''
+    col = [core_user_map[line][-1] for line in core_user_map]
+
+    return core_user_map, col
+
+
+def insert_separators(orig_str, separator, pos, stopaftern=0):
+    """
+    inserts separator into orig_str every pos-th position, optionally stopping after stopaftern times.
+    """
     pos = int(pos)
-    if pos != 0: # default value is zero, means no vertical separators
-        sep = original[:]  # insert initial vertical separator
-        if stopaftern == 0:
-            times = len(original) / pos
-        else:
-            times = stopaftern
-        sep = sep[:pos] + separator + sep[pos:] 
-        for i in range(2, times+1):
-            sep = sep[:pos * i + i-1] + separator + sep[pos * i + i-1:] 
-        sep = separator + sep  # insert initial vertical separator
-        return sep
-    else: # no separators
-        return original
+    if not pos:  # default value is zero, means no vertical separators
+        return orig_str
+    else:
+        sep_str = orig_str[:]  # insert initial vertical separator
 
-def calculate_Total_WNIDLine_Width(WNnumber): # (RemapNr) in case of multiple NodeSubClusters
-    '''
-    calculates the worker node ID number line widths (expressed by hxxxx's)
-    h1000 is the thousands' line
-    h0100 is the hundreds' line
-    and so on
-    '''
-    # global h1000, h0100, h0010, h0001
-    h1000, h0100, h0010, h0001 = '','','',''
+        times = len(orig_str) / pos if not stopaftern else stopaftern
+        sep_str = sep_str[:pos] + separator + sep_str[pos:]
+        for i in range(2, times + 1):
+            sep_str = sep_str[:pos * i + i - 1] + separator + sep_str[pos * i + i - 1:]
+        sep_str += separator  # insert initial vertical separator
+        return sep_str
 
-    if WNnumber < 10:
-        u_ = '123456789'
-        h0001 = u_[:WNnumber]
 
-    elif WNnumber < 100:
-        d_ = '0' * 9 + '1' * 10 + '2' * 10 + '3' * 10 + '4' * 10 + '5' * 10 + '6' * 10 + '7' * 10 + '8' * 10 + '9' * 10
-        u_ = '1234567890' * 10
-        h0010 = d_[:WNnumber]
-        h0001 = u_[:WNnumber]
+def calc_all_wnid_label_lines(highest_wn):  # (total_wn) in case of multiple cluster_dict['node_subclusters']
+    """
+    calculates the Worker Node ID number line widths. expressed by hxxxxs in the following form, e.g. for hundreds of nodes:
+    '1': [ 00000000... ]
+    '2': [ 0000000001111111... ]
+    '3': [ 12345678901234567....]
+    where list contents are strings: '0', '1' etc
+    """
+    if NAMED_WNS or options.FORCE_NAMES:
+        workernode_dict = cluster_dict['workernode_dict']
+        hosts = [state_corejob_dn['host'] for _, state_corejob_dn in workernode_dict.items()]
+        node_str_width = len(max(hosts, key=len))
+        wn_vert_labels = OrderedDict((str(place), []) for place in range(1, node_str_width + 1))
+        for node in workernode_dict:
+            host = workernode_dict[node]['host']
+            extra_spaces = node_str_width - len(host)
+            string = "".join(" " * extra_spaces + host)
+            for place in range(node_str_width):
+                wn_vert_labels[str(place + 1)].append(string[place])
+    else:
+        node_str_width = len(str(highest_wn))  # 4
+        wn_vert_labels = {str(place): [] for place in range(1, node_str_width + 1)}
+        for nr in range(1, highest_wn + 1):
+            extra_spaces = node_str_width - len(str(nr))  # 4 - 1 = 3, for wn0001
+            string = "".join("0" * extra_spaces + str(nr))
+            for place in range(1, node_str_width + 1):
+                wn_vert_labels[str(place)].append(string[place - 1])
 
-    elif WNnumber < 1000:
-        cent = int(str(WNnumber)[0])
-        dec = int(str(WNnumber)[1])
-        unit = int(str(WNnumber)[2])
+    return wn_vert_labels
 
-        c_ = str(0) * 99
-        for i in range(1, cent):
-            c_ += str(i) * 100
-        c_ += str(cent) * (int(dec)) * 10 + str(cent) * (int(unit) + 1)
-        h0100 = c_[:WNnumber]
 
-        d_ = '0' * 9 + '1' * 10 + '2' * 10 + '3' * 10 + '4' * 10 + '5' * 10 + '6' * 10 + '7' * 10 + '8' * 10 + '9' * 10
-        d__ = d_ + (cent - 1) * (str(0) + d_) + str(0)
-        d__ += d_[:int(str(dec) + str(unit))]
-        h0010 = d__[:WNnumber]
-
-        uc = '1234567890' * 100
-        h0001 = uc[:WNnumber]
-
-    elif WNnumber > 1000:
-        thou = int(str(WNnumber)[0])
-        cent = int(str(WNnumber)[1])
-        dec = int(str(WNnumber)[2])
-        unit = int(str(WNnumber)[3])
-
-        h1000 += str(0) * 999
-        for i in range(1, thou):
-            h1000 += str(i) * 1000
-        h1000 += str(thou) * ((int(cent)) * 100 + (int(dec)) * 10 + (int(unit) + 1))
-
-        c_ = '0' * 99 + '1' * 100 + '2' * 100 + '3' * 100 + '4' * 100 + '5' * 100 + '6' * 100 + '7' * 100 + '8' * 100 + '9' * 100
-        c__ = '0' * 100 + '1' * 100 + '2' * 100 + '3' * 100 + '4' * 100 + '5' * 100 + '6' * 100 + '7' * 100 + '8' * 100 + '9' * 100
-        h0100 = c_
-
-        for i in range(1, thou):
-            h0100 += c__
-        else:
-            h0100 += c__[:int(str(cent) + str(dec) +str(unit))+1]
-
-        d_ = '0' * 10 + '1' * 10 + '2' * 10 + '3' * 10 + '4' * 10 + '5' * 10 + '6' * 10 + '7' * 10 + '8' * 10 + '9' * 10
-        d__ = d_ * thou * 10  # cent * 10
-        d___ = d_ * (cent - 1)
-        h0010 = '0' * 9 + '1' * 10 + '2' * 10 + '3' * 10 + '4' * 10 + '5' * 10 + '6' * 10 + '7' * 10 + '8' * 10 + '9' * 10
-        h0010 += d__
-        h0010 += d___
-        h0010 += d_[:int(str(dec) + str(unit)) + 1]
-
-        uc = '1234567890' * 1000
-        h0001 = uc[:WNnumber]
-    return h1000, h0100, h0010, h0001
-
-def find_Matrices_Width(WNnumber, WNList):
-    '''
+def find_matrices_width(wn_number, workernode_list, term_columns, DEADWEIGHT=11):
+    """
     masking/clipping functionality: if the earliest node number is high (e.g. 130), the first 129 WNs need not show up.
-    '''
-    Start = 0
-    if (options.MASKING is True) and min(WNList) > MIN_MASKING_THRESHOLD and type(min(WNList)) == str: # in case of named instead of numbered WNs 
-        pass            
-    elif (options.MASKING is True) and min(WNList) > MIN_MASKING_THRESHOLD and type(min(WNList)) == int:
-        Start = min(WNList) - 1   #exclude unneeded first empty nodes from the matrix
-    '''
-    Extra matrices may be needed if the WNs are more than the screen width can hold.
-    '''
-    if WNnumber > Start: # start will either be 1 or (masked >= MIN_MASKING_THRESHOLD + 1)
-        NrOfExtraMatrices = abs(WNnumber - Start + 10) / TermColumns 
-    elif WNnumber < Start and len(NodeSubClusters) > 1: # Remapping
-        NrOfExtraMatrices = (WNnumber + 10) / TermColumns
-    else:
-        print "This is a case I didn't foresee (WNnumber vs Start vs NodeSubClusters)"
-
-    if UserCutMatrixWidth: # if the user defines a custom cut (in the configuration file)
-        Stop = Start + UserCutMatrixWidth
-        return (Start, Stop, WNnumber/UserCutMatrixWidth)
-    elif NrOfExtraMatrices: # if more matrices are needed due to lack of space, cut every matrix so that if fits to screen
-        Stop = Start + TermColumns - DEADWEIGHT 
-        return (Start, Stop, NrOfExtraMatrices)
-    else: # just one matrix, small cluster!
-        Stop = Start + WNnumber
-        return (Start, Stop, 0)
-
-def print_WN_ID_lines(start, stop, WNnumber): # WNnumber determines the number of WN ID lines needed  (1/2/3/4?)
-    # global h1000, h0100, h0010, h0001
-    '''
-    h1000 is a header for the 'thousands',
-    h0100 is a header for the 'hundreds',
-    h0010 is a header for the 'tens',
-    h0001 is a header for the 'units' in the WN_ID lines
-    '''
-    # global JUST_NAMES_FLAG
-    JustNameDict = {}
-    if JUST_NAMES_FLAG <= 1:  # normal case, numbered WNs
-        if WNnumber < 10:
-            print insert_sep(h0001[start:stop], SEPARATOR, options.WN_COLON) + '={__WNID__}'
-
-        elif WNnumber < 100:
-            print insert_sep(h0010[start:stop], SEPARATOR, options.WN_COLON) + '={_Worker_}'
-            print insert_sep(h0001[start:stop], SEPARATOR, options.WN_COLON) + '={__Node__}'
-
-        elif WNnumber < 1000:
-            print insert_sep(h0100[start:stop], SEPARATOR, options.WN_COLON) + '={_Worker_}'
-            print insert_sep(h0010[start:stop], SEPARATOR, options.WN_COLON) + '={__Node__}'
-            print insert_sep(h0001[start:stop], SEPARATOR, options.WN_COLON) + '={___ID___}'
-
-        elif WNnumber > 1000:
-            print insert_sep(h1000[start:stop], SEPARATOR, options.WN_COLON) + '={________}'
-            print insert_sep(h0100[start:stop], SEPARATOR, options.WN_COLON) + '={_Worker_}'
-            print insert_sep(h0010[start:stop], SEPARATOR, options.WN_COLON) + '={__Node__}'
-            print insert_sep(h0001[start:stop], SEPARATOR, options.WN_COLON) + '={___ID___}'
-    elif JUST_NAMES_FLAG > 1 or options.FORCE_NAMES == True: # names (e.g. fruits) instead of numbered WNs
-        colour = 0
-        Highlight = {0: 'cmsplt', 1: 'Red'}
-        for line in range(len(max(WNList))):
-            JustNameDict[line] = ''
-        for column in range(len(WNList)): #was -1
-            for line in range(len(max(WNList))):
-                JustNameDict[line] += Colorize(WNList[column][line], Highlight[colour])
-            if colour == 1:
-                colour = 0
-            else:
-                colour = 1
-        for line in range(len(max(WNList))):
-            print JustNameDict[line] + '={__WNID__}'
-
-
-def reset_yaml_files():
+    case 1: wn_number is RemapNr, WNList is WNListRemapped
+    case 2: wn_number is BiggestWrittenNode, WNList is WNList
+    DEADWEIGHT is the space taken by the {__XXXX__} labels on the right of the CoreX map
     """
-    empties the files with every run of the python script
+    start = 0
+    # exclude unneeded first empty nodes from the matrix
+    if options.NOMASKING and min(workernode_list) > config['workernodes_matrix'][0]['wn id lines']['min_masking_threshold']:
+        start = min(workernode_list) - 1
+
+    # Extra matrices may be needed if the WNs are more than the screen width can hold.
+    if wn_number > start:  # start will either be 1 or (masked >= config['min_masking_threshold'] + 1)
+        extra_matrices_nr = int(ceil(abs(wn_number - start) / float(term_columns - DEADWEIGHT))) - 1
+    elif options.REMAP:  # was: ***wn_number < start*** and len(cluster_dict['node_subclusters']) > 1:  # Remapping
+        extra_matrices_nr = int(ceil(wn_number / float(term_columns - DEADWEIGHT))) - 1
+    else:
+        raise (NotImplementedError, "Not foreseen")
+
+    if USER_CUT_MATRIX_WIDTH:  # if the user defines a custom cut (in the configuration file)
+        stop = start + USER_CUT_MATRIX_WIDTH
+        return start, stop, wn_number / USER_CUT_MATRIX_WIDTH
+    elif extra_matrices_nr:  # if more matrices are needed due to lack of space, cut every matrix so that if fits to screen
+        stop = start + term_columns - DEADWEIGHT
+        return start, stop, extra_matrices_nr
+    else:  # just one matrix, small cluster!
+        stop = start + wn_number
+        return start, stop, 0
+
+
+def print_wnid_lines(start, stop, highest_wn, wn_vert_labels, **kwargs):
     """
-    for FILE in [PBSNODES_YAML_FILE, QSTATQ_YAML_FILE, QSTAT_YAML_FILE]:
-        fin = open(FILE, 'w')
-        fin.close()    
+    Prints the Worker Node ID lines, after it colours them and adds separators to them.
+    highest_wn determines the number of WN ID lines needed  (1/2/3/4+?)
+    """
+    d = OrderedDict()
+    end_labels = config['workernodes_matrix'][0]['wn id lines']['end_labels']
 
-################ MAIN ###################################
+    if not NAMED_WNS:
+        node_str_width = len(str(highest_wn))  # 4 for thousands of nodes, nr of horizontal lines to be displayed
 
-CONFIGFILE = os.path.expanduser('~/qtop/qtop/qtop.conf')
-qtopconf = open(CONFIGFILE, 'r')
-exec qtopconf
+        for node_nr in range(1, node_str_width + 1):
+            d[str(node_nr)] = "".join(wn_vert_labels[str(node_nr)])
+        end_label = iter(end_labels[str(node_str_width)])
+        display_wnid_lines(d, start, stop, end_label, color_func=colour_plainly, args=('White', 'Gray_L', start > 0))
+        # start > 0 is just a test for a possible future condition
 
-os.chdir(SOURCEDIR)
+    elif NAMED_WNS or options.FORCE_NAMES:  # names (e.g. fruits) instead of numbered WNs
+        node_str_width = len(wn_vert_labels)  # key, nr of horizontal lines to be displayed
 
-reset_yaml_files()
-PBSNodesYamlFout = open(PBSNODES_YAML_FILE, 'a')
-QSTATQYamlFout = open(QSTATQ_YAML_FILE, 'a')
-QSTATYamlFout = open(QSTAT_YAML_FILE, 'a')
+        # for longer full-labeled wn ids, add more end-labels (far-right) towards the bottom
+        for num in range(8, len(wn_vert_labels) + 1):
+            end_labels.setdefault(str(num), end_labels['7'] + num * ['={___ID___}'])
 
-if not os.path.getsize(variables.PBSNODES_ORIG_FILE) > 0:  
-    print 'Bailing out... Not yet ready for Sun Grid Engine clusters'
-    os.chdir(HOMEPATH + 'qt')
-    sys.exit(0)
-    # os.chdir('..')
-    # continue
-else:
-    pbsnodesfin = open(variables.PBSNODES_ORIG_FILE, 'r')
-
-pbs.pbsnodes2yaml(pbsnodesfin, PBSNodesYamlFout)
-
-PBSNodesYamlFout = open(PBSNODES_YAML_FILE, 'r')
-
-(ExistingNodes, 
-WorkingCores, 
-TotalCores, 
-BiggestWrittenNode, 
-AllWNsDict, 
-WNListRemapped, 
-AllWNsRemappedDict, 
-RemapNr, 
-MaxNP, 
-WNList, 
-JUST_NAMES_FLAG,
-variables.OfflineDownNodes) = read_pbsnodes_yaml(PBSNodesYamlFout, JUST_NAMES_FLAG)
-PBSNodesYamlFout.close()
-
-if not os.path.getsize(variables.QSTATQ_ORIG_FILE) > 0:  
-    print 'Your ' + variables.QSTATQ_ORIG_FILE + ' file is empty! Please check your directory. Exiting ...'
-    os.chdir(HOMEPATH + 'qt')
-    sys.exit(0)
-    # os.chdir('..')
-    # continue
-else:
-    qstatqfin = open(variables.QSTATQ_ORIG_FILE, 'r')
-TotalRuns, TotalQueues = pbs.qstatq2yaml(qstatqfin, QSTATQYamlFout)
-qstatqfin.close()
-QSTATQYamlFout.close()
-variables.qstatqLst = read_qstatq_yaml(QSTATQ_YAML_FILE)
-# import pdb;pdb.set_trace()
-
-if not os.path.getsize(variables.QSTAT_ORIG_FILE) > 0:  
-    print 'Your ' + variables.QSTAT_ORIG_FILE + ' file is empty! Please check your directory. Exiting ...'
-    os.chdir(HOMEPATH + 'qt')
-    sys.exit(0)
-    # os.chdir('..')
-    # continue
-else:
-    qstatfin = open(variables.QSTAT_ORIG_FILE, 'r')
-pbs.qstat2yaml(qstatfin, QSTATYamlFout)
-qstatfin.close()
-QSTATYamlFout.close()
-
-JobIds, UserNames, Statuses, QueueNames = read_qstat_yaml(QSTAT_YAML_FILE) # populates 4 lists
-for username, jobid in zip(UserNames, JobIds):
-    variables.UserOfJobId[jobid] = username
-
-os.chdir(SOURCEDIR)
-# direct = os.getcwd()
+        end_label = iter(end_labels[str(node_str_width)])
+        display_wnid_lines(wn_vert_labels, start, stop, end_label,
+                           color_func=highlight_alternately, args=(ALT_LABEL_HIGHLIGHT_COLOURS))
 
 
-#Calculation of split screen size
-TermRows, TermColumns = os.popen('stty size', 'r').read().split()
-TermColumns = int(TermColumns)
-
-DEADWEIGHT = 15  # standard columns' width on the right of the CoreX map
-
-print_job_accounting_summary(ExistingNodes, variables.OfflineDownNodes, WorkingCores, TotalCores, TotalRuns, TotalQueues,variables.qstatqLst)
-
-# counting of R, Q, C, W, E attached to each user
-RunningOfUser, QueuedOfUser, CancelledOfUser, WaitingOfUser, ExitingOfUser = {}, {}, {}, {}, {}
-
-for UserName, status in zip(UserNames, Statuses):
-    if status == 'R':
-        RunningOfUser[UserName] = RunningOfUser.get(UserName, 0) + 1
-    elif status == 'Q':
-        QueuedOfUser[UserName] = QueuedOfUser.get(UserName, 0) + 1
-    elif status == 'C':
-        CancelledOfUser[UserName] = CancelledOfUser.get(UserName, 0) + 1
-    elif status == 'W':
-        WaitingOfUser[UserName] = WaitingOfUser.get(UserName, 0) + 1
-    elif status == 'E':
-        WaitingOfUser[UserName] = ExitingOfUser.get(UserName, 0) + 1
-
-for UserName in RunningOfUser:
-    QueuedOfUser.setdefault(UserName, 0)
-    CancelledOfUser.setdefault(UserName, 0)
-    WaitingOfUser.setdefault(UserName, 0)
-    ExitingOfUser.setdefault(UserName, 0)
+def display_wnid_lines(d, start, stop, end_label, color_func, args):
+    for line_nr in d:
+        color = color_func(*args)
+        wn_id_str = insert_separators(d[line_nr][start:stop], SEPARATOR, options.WN_COLON)
+        wn_id_str = ''.join([colorize(elem, _, color.next()) for elem in wn_id_str])
+        print wn_id_str + end_label.next()
 
 
-#produces the decrementing list of users in the user accounts and poolmappings table
-OccurenceDict = {}
-for UserName in UserNames:
-    OccurenceDict[UserName] = UserNames.count(UserName)
-Usersortedlst = sorted(OccurenceDict.items(), key=itemgetter(1), reverse=True)
+def highlight_alternately(colour_a, colour_b):
+    highlight = {0: colour_a, 1: colour_b}  # should obviously be customizable
+    selection = 0
+    while True:
+        selection = 0 if selection else 1
+        yield highlight[selection]
 
 
-'''
-In case there are more users than the sum number of all numbers and 
-small/capital letters of the alphabet 
-'''
-j = 0
-# if len(Usersortedlst) > 62: 
-if len(Usersortedlst) > 87: 
-    for i in xrange(87, len(Usersortedlst) + 87):
-    # for i in xrange(62, len(Usersortedlst) + 62):
-        POSSIBLE_IDS.append(str(i)[0])
-
-
-
-for UserName in Usersortedlst:
-    IdOfUserName[UserName[0]] = POSSIBLE_IDS[j]
-    j += 1
-
-# this calculates and prints what is actually below the 
-# id|  R + Q /all | unix account etc line
-for uid in IdOfUserName:
-    if uid not in RunningOfUser:
-        RunningOfUser[uid] = 0
-    if uid not in QueuedOfUser:
-        QueuedOfUser[uid] = 0
-    if uid not in CancelledOfUser:
-        CancelledOfUser[uid] = 0
-    if uid not in WaitingOfUser:
-        WaitingOfUser[uid] = 0
-    if uid not in ExitingOfUser:
-        ExitingOfUser[uid] = 0
-
-
-for uid in Usersortedlst:  # IdOfUserName:
-    AllOfUser = CancelledOfUser[uid[0]] + RunningOfUser[uid[0]] + QueuedOfUser[uid[0]] + WaitingOfUser[uid[0]] + ExitingOfUser[uid[0]]
-    AccountsMappings.append([IdOfUserName[uid[0]], RunningOfUser[uid[0]], QueuedOfUser[uid[0]], AllOfUser, uid])
-AccountsMappings.sort(key=itemgetter(3), reverse=True) # sort by All jobs
-####################################################
-
-
-### CPU lines ######################################
-CPUCoreDict = {}
-for i in range(MaxNP):
-    CPUCoreDict['Cpu' + str(i) + 'line'] = '' # Cpu0line, Cpu1line, Cpu2line, .. = '','','', ..
-    MaxNPRange.append(str(i))
-
-if len(NodeSubClusters) > 1 or options.BLINDREMAP:
-    for _, WNProperties in zip(AllWNsRemappedDict.keys(), AllWNsRemappedDict.values()):
-        fill_cpucore_columns(WNProperties, CPUCoreDict)
-elif len(NodeSubClusters) == 1:
-    for _, WNProperties in zip(AllWNsDict.keys(), AllWNsDict.values()):
-        fill_cpucore_columns(WNProperties, CPUCoreDict)
-
-### CPU lines ######################################
-
-
-################ Node State ######################
-print Colorize('===> ', '#') + Colorize('Worker Nodes occupancy', 'Nothing') + Colorize(' <=== ', '#') + Colorize('(you can read vertically the node IDs; nodes in free state are noted with - )', 'NoColourAccount')
-
-'''
-if there are non-uniform WNs in pbsnodes.yaml, e.g. wn01, wn02, gn01, gn02, ...,  remapping is performed
-Otherwise, for uniform WNs, i.e. all using the same numbering scheme, wn01, wn02, ... proceed as normal
-Number of Extra tables needed is calculated inside the calculate_Total_WNIDLine_Width function below
-'''
-if options.BLINDREMAP or len(NodeSubClusters) > 1:
-    h1000, h0100, h0010, h0001 = calculate_Total_WNIDLine_Width(RemapNr)
-    for node in AllWNsRemappedDict:
-        NodeState += AllWNsRemappedDict[node][0]
-    (PrintStart, PrintEnd, NrOfExtraMatrices) = find_Matrices_Width(RemapNr, WNListRemapped)
-    print_WN_ID_lines(PrintStart, PrintEnd, RemapNr)
-else: # len(NodeSubClusters) == 1 AND options.BLINDREMAP false 
-    h1000, h0100, h0010, h0001 = calculate_Total_WNIDLine_Width(BiggestWrittenNode)
-    for node in AllWNsDict:
-        NodeState += AllWNsDict[node][0]
-    (PrintStart, PrintEnd, NrOfExtraMatrices) = find_Matrices_Width(BiggestWrittenNode, WNList)
-    print_WN_ID_lines(PrintStart, PrintEnd, BiggestWrittenNode)
-
-
-print insert_sep(NodeState[PrintStart:PrintEnd], SEPARATOR, options.WN_COLON) + '=Node state'
-
-################ Node State ######################
-
-for line in AccountsMappings:
-    if re.split('[0-9]+', line[4][0])[0] in ColorOfAccount:
-            AccountNrlessOfId[line[0]] = re.split('[0-9]+', line[4][0])[0]
+def colour_plainly(colour_0, colour_1, condition):
+    while condition:
+        yield colour_0
     else:
-        AccountNrlessOfId[line[0]] = 'NoColourAccount'
-
-AccountNrlessOfId['#'] = '#'
-AccountNrlessOfId['_'] = '_'
-AccountNrlessOfId[SEPARATOR] = 'NoColourAccount'
-
-for ind, k in enumerate(CPUCoreDict):
-    ColourCPUCoreLst = list(insert_sep(CPUCoreDict['Cpu' + str(ind) + 'line'][PrintStart:PrintEnd], SEPARATOR, options.WN_COLON))
-    ColourlessLineLen = len(''.join(ColourCPUCoreLst))
-    ColourCPUCoreLst = [Colorize(elem, AccountNrlessOfId[elem]) for elem in ColourCPUCoreLst if elem in AccountNrlessOfId]
-    line = ''.join(ColourCPUCoreLst)
-    #'''
-    #don't print the non-existent core lines in the first matrix 
-    #(for when the remaining tables have machines with higher cores, but not the first matrix)
-    #'''    
-    # if '\x1b[1;30m#\x1b[1;m' * ColourlessLineLen not in line:
-    print line + Colorize('=Core' + str(ind), 'NoColourAccount')
+        while not condition:
+            yield colour_1
 
 
-############# Calculate remaining matrices ##################
-for i in range(NrOfExtraMatrices):
-    PrintStart = PrintEnd
-    if UserCutMatrixWidth:
-        PrintEnd += UserCutMatrixWidth
-    else:
-        PrintEnd += TermColumns - DEADWEIGHT # 
-    
-    if options.BLINDREMAP or len(NodeSubClusters) > 1:
-        if PrintEnd >= RemapNr:
-            PrintEnd = RemapNr
-    else:
-        if PrintEnd >= BiggestWrittenNode:
-            PrintEnd = BiggestWrittenNode
-    print '\n'
-    if len(NodeSubClusters) == 1:
-        print_WN_ID_lines(PrintStart, PrintEnd, BiggestWrittenNode)
-    if len(NodeSubClusters) > 1:
-        print_WN_ID_lines(PrintStart, PrintEnd, RemapNr)
-    print insert_sep(NodeState[PrintStart:PrintEnd], SEPARATOR, options.WN_COLON) + '=Node state'
-    for ind, k in enumerate(CPUCoreDict):
-        ColourCPUCoreLst = list(insert_sep(CPUCoreDict['Cpu' + str(ind) + 'line'][PrintStart:PrintEnd], SEPARATOR, options.WN_COLON))
-        ColourlessLineLen = len(''.join(ColourCPUCoreLst))
-        ColourCPUCoreLst = [Colorize(elem, AccountNrlessOfId[elem]) for elem in ColourCPUCoreLst if elem in AccountNrlessOfId]
-        line = ''.join(ColourCPUCoreLst)
-        '''
-        if the first matrix has 10 machines with 64 cores, and the rest 190 machines have 8 cores, don't print the non-existent
-        56 cores from the next matrix on.
-        IMPORTANT: not working if vertical separators are present!
-        '''
-        if '\x1b[1;30m#\x1b[1;m' * ColourlessLineLen not in line:
-            print line + Colorize('=Core' + str(ind), 'NoColourAccount')
+def display_remaining_matrices(
+        extra_matrices_nr,
+        cluster_dict,
+        core_user_map,
+        print_char_stop,
+        pattern_of_id,
+        wn_vert_labels,
+        term_columns,
+        workernodes_occupancy,
+        DEADWEIGHT=11):
+    """
+    If the WNs are more than a screenful (width-wise), this calculates the extra matrices needed to display them.
+    DEADWEIGHT is the space taken by the {__XXXX__} labels on the right of the CoreX map
 
-
-print Colorize('\n===> ', '#') + Colorize('User accounts and pool mappings', 'Nothing') + Colorize(' <=== ', '#') + Colorize('("all" includes those in C and W states, as reported by qstat)', 'NoColourAccount')
-print ' id |  R   +   Q  /  all |    unix account | Grid certificate DN (this info is only available under elevated privileges)'
-for line in AccountsMappings:
-    PrintString = '%3s | %4s + %4s / %4s | %15s |' % (line[0], line[1], line[2], line[3], line[4][0])
-    for account in ColorOfAccount:
-        if line[4][0].startswith(account) and options.COLOR == 'ON':
-            PrintString = '%15s | %16s + %16s / %16s | %27s %4s' % (Colorize(line[0], account), Colorize(str(line[1]), account), Colorize(str(line[2]), account), Colorize(str(line[3]), account), Colorize(line[4][0], account), Colorize(SEPARATOR, 'NoColourAccount'))
-        elif line[4][0].startswith(account) and options.COLOR == 'OFF':
-            PrintString = '%2s | %3s + %3s / %3s | %14s |' %(Colorize(line[0], account), Colorize(str(line[1]), account), Colorize(str(line[2]), account), Colorize(str(line[3]), account), Colorize(line[4][0], account))
+    if the first matrix has e.g. 10 machines with 64 cores,
+    and the remaining 190 machines have 8 cores, this doesn't print the non-existent
+    56 cores from the next matrix on.
+    """
+    # need node_state, temp
+    for matrix in range(extra_matrices_nr):
+        print_char_start = print_char_stop
+        if USER_CUT_MATRIX_WIDTH:
+            print_char_stop += USER_CUT_MATRIX_WIDTH
         else:
-            pass
-    print PrintString
+            print_char_stop += term_columns - DEADWEIGHT
+        print_char_stop = min(print_char_stop, cluster_dict['total_wn']) \
+            if options.REMAP else min(print_char_stop, cluster_dict['highest_wn'])
 
-print '\nThanks for watching!'
+        display_selected_occupancy_parts(print_char_start,
+            print_char_stop,
+            wn_vert_labels,
+            core_user_map,
+            pattern_of_id,
+            workernodes_occupancy)
 
-os.chdir(SOURCEDIR)
+        print '\n'
+
+
+def display_selected_occupancy_parts(
+        print_char_start,
+        print_char_stop,
+        wn_vert_labels,
+        core_user_map,
+        pattern_of_id,
+        workernodes_occupancy):
+    """
+    occupancy_parts needs to be redefined for each matrix, because of changed parameter values
+    """
+    occupancy_parts = {
+        'wn id lines': (print_wnid_lines, (print_char_start, print_char_stop, cluster_dict['highest_wn'], wn_vert_labels),
+                        {'inner_attrs': None}),
+        'core user map': (print_core_lines, (core_user_map, print_char_start, print_char_stop, pattern_of_id), {'attrs': None}),
+        # 'temperature':
+        # (print_single_attr_line, (print_char_start, print_char_stop), {'attr_line': workernodes_occupancy['temperature']}),
+    }
+    for yaml_key, part_name in get_yaml_key_part('workernodes_matrix'):
+        new_dict_var = {
+            part_name:
+            (
+                print_single_attr_line,
+                (print_char_start, print_char_stop),
+                {'attr_line': workernodes_occupancy[part_name]}
+            )
+        }
+        occupancy_parts.update(new_dict_var)
+
+    for _part in config['workernodes_matrix']:
+        part = [k for k in _part][0]
+        occupancy_parts[part][2].update(_part[part])  # get extra options from user
+        fn, args, kwargs = occupancy_parts[part][0], occupancy_parts[part][1], occupancy_parts[part][2]
+        fn(*args, **kwargs)
+
+
+def print_single_attr_line(print_char_start, print_char_stop, attr_line, label, color_func=None, **kwargs):
+    """
+    attr_line can be e.g. Node state
+    """
+    # TODO: fix option parameter, inserted for testing purposes
+    line = attr_line[print_char_start:print_char_stop]
+    # maybe put attr_line and label as kwd arguments? collect them as **kwargs
+    attr_line = insert_separators(line, SEPARATOR, options.WN_COLON) + '={}'.format(label)
+    attr_line = ''.join([colorize(char, 'Nothing', color_func) for char in attr_line])
+    print attr_line
+
+
+def display_user_accounts_pool_mappings(account_jobs_table, pattern_of_id):
+    print colorize('\n===> ', '#') + \
+          colorize('User accounts and pool mappings', 'Nothing') + \
+          colorize(' <=== ', '#') + \
+          colorize("  ('all' also includes those in C and W states, as reported by qstat)", '#')
+
+    print 'id|    R +    Q /  all |    unix account | Grid certificate DN (info only available under elevated privileges)'
+    for line in account_jobs_table:
+        uid, runningjobs, queuedjobs, alljobs, user = line[0], line[1], line[2], line[3], line[4]
+        account = pattern_of_id[uid]
+        if options.NOCOLOR or account == 'account_not_coloured' or color_of_account[account] == 'reset':
+            extra_width = 0
+            account = 'account_not_coloured'
+        else:
+            extra_width = 12
+        print_string = '{:<{width2}}{sep} {:>{width4}} + {:>{width4}} / {:>{width4}} {sep} {:>{width15}} {sep}'.format(
+            colorize(str(uid), account),
+            colorize(str(runningjobs), account),
+            colorize(str(queuedjobs), account),
+            colorize(str(alljobs), account),
+            colorize(user, account),
+            sep=colorize(SEPARATOR, account),
+            width2=2 + extra_width,
+            width3=3 + extra_width,
+            width4=4 + extra_width,
+            width15=15 + extra_width,
+        )
+        print print_string
+
+
+def get_core_lines(core_user_map, print_char_start, print_char_stop, pattern_of_id, attrs):
+    """
+    prints all coreX lines, except cores that don't show up
+    anywhere in the given matrix
+    """
+    # lines = []
+    for ind, k in enumerate(core_user_map):
+        cpu_core_line = core_user_map['Core' + str(ind) + 'line'][print_char_start:print_char_stop]
+        if options.REM_EMPTY_CORELINES and '#' * (print_char_stop - print_char_start) == cpu_core_line:
+            continue
+        cpu_core_line = insert_separators(cpu_core_line, SEPARATOR, options.WN_COLON)
+        cpu_core_line = ''.join([colorize(elem, pattern_of_id[elem]) for elem in cpu_core_line if elem in pattern_of_id])
+        yield cpu_core_line + colorize('=Core' + str(ind), 'account_not_coloured')
+
+
+def calc_core_userid_matrix(cluster_dict, id_of_username, job_ids, user_names):
+    _core_user_map = OrderedDict()
+    max_np_range = [str(x) for x in range(cluster_dict['max_np'])]
+    user_of_job_id = dict(izip(job_ids, user_names))
+
+    for core_nr in max_np_range:
+        _core_user_map['Core' + str(core_nr) + 'line'] = []  # Cpu0line, Cpu1line, Cpu2line, .. = '','','', ..
+
+    for _node in cluster_dict['workernode_dict']:
+        state_np_corejob = cluster_dict['workernode_dict'][_node]
+        _core_user_map, cluster_dict['workernode_dict'][_node]['core_user_column'] = fill_node_cores_column(state_np_corejob, _core_user_map, id_of_username, max_np_range, user_of_job_id)
+
+    for coreline in _core_user_map:
+        _core_user_map[coreline] = ''.join(_core_user_map[coreline])
+
+    return _core_user_map
+
+
+def get_yaml_key_part(major_key):
+    """
+    only return the list items of the yaml major_key if a yaml key subkey exists
+    (this signals a user-inserted value)
+    """
+    # e.g. major_key = 'workernodes_matrix'
+    for part in config[major_key]:
+        part_name = [i for i in part][0]
+        part_options = part[part_name]
+        # label = part_options.get('label')
+        yaml_key = part_options.get('yaml key')
+        if yaml_key:
+            yield yaml_key, part_name
+
+
+def calculate_wn_occupancy(cluster_dict, user_names, job_states, job_ids):
+    """
+    Prints the Worker Nodes Occupancy table.
+    if there are non-uniform WNs in pbsnodes.yaml, e.g. wn01, wn02, gn01, gn02, ...,  remapping is performed.
+    Otherwise, for uniform WNs, i.e. all using the same numbering scheme, wn01, wn02, ... proceeds as normal.
+    Number of Extra tables needed is calculated inside the calc_all_wnid_label_lines function below
+    """
+    workernodes_occupancy = dict()
+    workernodes_occupancy['term_columns'] = calculate_split_screen_size()
+    workernodes_occupancy['account_jobs_table'], workernodes_occupancy['id_of_username'] = create_account_jobs_table(user_names, job_states)
+    workernodes_occupancy['pattern_of_id'] = make_pattern_of_id(workernodes_occupancy['account_jobs_table'])
+    workernodes_occupancy['print_char_start'], workernodes_occupancy['print_char_stop'], workernodes_occupancy['extra_matrices_nr'] = find_matrices_width(
+        cluster_dict['highest_wn'],
+        cluster_dict['workernode_list'],
+        workernodes_occupancy['term_columns']
+    )
+    workernodes_occupancy['wn_vert_labels'] = calc_all_wnid_label_lines(cluster_dict['highest_wn'])
+
+    for yaml_key, part_name in get_yaml_key_part('workernodes_matrix'):
+        workernodes_occupancy[part_name] = ''.join([str(cluster_dict['workernode_dict'][node][yaml_key]) for node in cluster_dict['workernode_dict']])
+    # e.g. workernodes_occupancy['node_state'] = ''.join([str(cluster_dict['workernode_dict'][node]['state']) for node in cluster_dict['workernode_dict']])
+    workernodes_occupancy['core user map'] = calc_core_userid_matrix(cluster_dict, workernodes_occupancy['id_of_username'], job_ids, user_names)
+    return workernodes_occupancy, cluster_dict
+
+
+def print_core_lines(core_user_map, print_char_start, print_char_stop, pattern_of_id, attrs, options1, options2):
+    for core_line in get_core_lines(core_user_map, print_char_start, print_char_stop, pattern_of_id, attrs):
+        print core_line
+
+
+def display_wn_occupancy(workernodes_occupancy, cluster_dict):
+
+    print_char_start = workernodes_occupancy['print_char_start']
+    print_char_stop = workernodes_occupancy['print_char_stop']
+    wn_vert_labels = workernodes_occupancy['wn_vert_labels']
+    core_user_map = workernodes_occupancy['core user map']
+    extra_matrices_nr = workernodes_occupancy['extra_matrices_nr']
+    term_columns = workernodes_occupancy['term_columns']
+    pattern_of_id = workernodes_occupancy['pattern_of_id']
+
+    print colorize('===> ', '#') + colorize('Worker Nodes occupancy', 'Nothing') + colorize(' <=== ', '#') + colorize(
+        '(you can read vertically the node IDs; nodes in free state are noted with - )', 'account_not_coloured')
+
+    display_selected_occupancy_parts(print_char_start, print_char_stop, wn_vert_labels, core_user_map, pattern_of_id, workernodes_occupancy)
+
+    display_remaining_matrices(extra_matrices_nr,
+                               cluster_dict,
+                               core_user_map,
+                               print_char_stop,
+                               pattern_of_id,
+                               wn_vert_labels,
+                               term_columns,
+                               workernodes_occupancy)
+
+
+def make_pattern_of_id(account_jobs_table):
+    """
+    First strips the numbers off of the unix accounts and tries to match this against the given color table in colormap.
+    Additionally, it will try to apply the regex rules given by the user in qtopconf.yaml, overriding the colormap.
+    The last matched regex is valid.
+    If no matching was possible, there will be no coloring applied.
+    """
+    pattern_of_id = {}
+    for line in account_jobs_table:
+        uid, user = line[0], line[4]
+        account = re.search('[A-Za-z]+', user).group(0)  #
+        for re_account_colour in config['user_colour_mappings']:
+            re_account = re_account_colour.keys()[0]
+            try:
+                _ = re.search(re_account, user).group(0)
+            except AttributeError:
+                continue  # keep trying
+            else:
+                account = re_account  # colours the text according to the regex given by the user in qtopconf
+
+        pattern_of_id[uid] = account if account in color_of_account else 'account_not_coloured'
+
+    pattern_of_id['#'] = '#'
+    pattern_of_id['_'] = '_'
+    pattern_of_id[SEPARATOR] = 'account_not_coloured'
+    return pattern_of_id
+
+
+def load_yaml_config(path):
+    try:
+        config = yaml.safe_load(open(path + "/qtopconf.yaml"))
+    except yaml.YAMLError, exc:
+        if hasattr(exc, 'problem_mark'):
+            mark = exc.problem_mark
+            print "Error position: (%s:%s)" % (mark.line + 1, mark.column + 1)
+
+    config['possible_ids'] = list(config['possible_ids'])
+    symbol_map = dict([(chr(x), x) for x in range(33, 48) + range(58, 64) + range(91, 96) + range(123, 126)])
+
+    if config['user_colour_mappings']:
+        [color_of_account.update(d) for d in config['user_colour_mappings']]
+    else:
+        config['user_colour_mappings'] = list()
+    if config['remapping']:
+        pass
+    else:
+        config['remapping'] = list()
+    for symbol in symbol_map:
+        config['possible_ids'].append(symbol)
+    return config
+
+
+def calculate_split_screen_size():
+    """
+    Calculates where to break the matrix into more matrices, because of the window size.
+    """
+    try:
+        _, term_columns = config['term_size']
+    except KeyError:
+        _, term_columns = os.popen('stty size', 'r').read().split()
+    term_columns = int(term_columns)
+    return term_columns
+
+
+def convert_to_yaml(scheduler, INPUT_FNs, filenames, write_method, commands):
+
+    for _file in INPUT_FNs:
+        file_orig, file_out = filenames[_file], filenames[_file + '_out']
+        _func = commands[_file]
+        # print 'executing %(_func)s on file %(_file)s' % {'_func': _func, '_file': _file}
+        _func(file_orig, file_out, write_method)
+
+
+def exec_func_tuples(func_tuples):
+    _commands = iter(func_tuples)
+    for command in _commands:
+        ffunc, args, kwargs = command[0], command[1], command[2]
+        yield ffunc(*args, **kwargs)
+
+
+if __name__ == '__main__':
+
+    HOMEPATH = os.path.expanduser('~/PycharmProjects')
+    QTOPPATH = os.path.expanduser('~/PycharmProjects/qtop')  # qtoppath: ~/qtop/qtop
+
+    config = load_yaml_config(QTOPPATH)
+    SEPARATOR = config['workernodes_matrix'][0]['wn id lines']['separator']  # alias
+    USER_CUT_MATRIX_WIDTH = config['workernodes_matrix'][0]['wn id lines']['user_cut_matrix_width']  # alias
+    ALT_LABEL_HIGHLIGHT_COLOURS = config['workernodes_matrix'][0]['wn id lines']['alt_label_highlight_colours']  # alias
+
+    os.chdir(options.SOURCEDIR)
+    scheduler = config['scheduler']
+    INPUT_FNs = config['schedulers'][scheduler]
+    ext = ext_mapping[options.write_method]
+    filenames = dict()
+    for _file in INPUT_FNs:
+        filenames[_file] = INPUT_FNs[_file]
+        filenames[_file + '_out'] = '{}_{}.{}'.format(INPUT_FNs[_file].rsplit('.')[0], options.write_method, ext)  # os.getpid()
+
+    yaml_converter = {
+        'pbs': {
+            'pbsnodes_file': make_pbsnodes,
+            'qstatq_file': QStatMaker().make_statq,
+            'qstat_file': QStatMaker().make_stat,
+        },
+        'oar': {
+            'oarnodes_s_file': lambda x, y, z: None,
+            'oarnodes_y_file': lambda x, y, z: None,
+            'oarnodes_file': lambda x, y, z: None,
+            'oarstat_file': OarStatMaker().make_stat,
+        },
+        'sge': {'sge.xml': 'make_sge'}
+    }
+    commands = yaml_converter[scheduler]
+    # reset_yaml_files()  # either that or having a pid appended in the filename
+    if not options.YAML_EXISTS:
+        convert_to_yaml(scheduler, INPUT_FNs, filenames, options.write_method, commands)
+
+    yaml_reader = {
+        'pbs': [
+            (read_pbsnodes_yaml, (filenames.get('pbsnodes_file_out'),), {'write_method': options.write_method}),
+            (read_qstatq_yaml, (filenames.get('qstatq_file_out'),), {'write_method': options.write_method}),
+            (read_qstat_yaml, (filenames.get('qstat_file_out'),), {'write_method': options.write_method}),
+        ],
+        'oar': [
+            (read_oarnodes_yaml, ([filenames.get('oarnodes_s_file'), filenames.get('oarnodes_y_file')]), {'write_method': options.write_method}),
+            (read_qstat_yaml, ([filenames.get('oarstat_file_out')]), {'write_method': options.write_method}),
+            (lambda *args, **kwargs: (0, 0, 0), ([filenames.get('oarstat_file')]), {'write_method': options.write_method}),
+        ]
+    }
+
+    func_tuples = yaml_reader[scheduler]
+    commands = exec_func_tuples(func_tuples)
+
+    worker_nodes = next(commands)
+    job_ids, user_names, job_states, _ = next(commands)
+    total_running_jobs, total_queued_jobs, qstatq_lod = next(commands)
+
+    #  MAIN ##################################
+    cluster_dict, NAMED_WNS = calculate_cluster(worker_nodes)
+    workernodes_occupancy, cluster_dict = calculate_wn_occupancy(cluster_dict, user_names, job_states, job_ids)
+
+    display_parts = {
+        'job_accounting_summary': (display_job_accounting_summary, (cluster_dict, total_running_jobs, total_queued_jobs, qstatq_lod)),
+        'workernodes_matrix': (display_wn_occupancy, (workernodes_occupancy, cluster_dict)),
+        'user_accounts_pool_mappings': (display_user_accounts_pool_mappings, (workernodes_occupancy['account_jobs_table'], workernodes_occupancy['pattern_of_id']))
+    }
+
+    for part in config['user_display_parts']:
+        _func, args = display_parts[part][0], display_parts[part][1]
+        _func(*args)
+
+    print '\nThanks for watching!'
+    os.chdir(QTOPPATH)

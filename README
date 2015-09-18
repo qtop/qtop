@@ -1,23 +1,13 @@
-==========================================================
-
-
-
+========================================================================================
 qtop
 
-Version 0.6.4
+Version 0.7.2
+September 18, 2015
 
-October 14, 2012
-
+Python port: Sotiris Fragkiskos
 Originally created by Fotis Georgatos
-
-python port: Sotiris Fragkiskos
 
 License: MIT/GPL
 
-
-
-This program is currently in development, and highly 
-
-experimental. Please see license for more details.
-
-==========================================================
+This program is currently in development and highly experimental. If it works, peace :)
+========================================================================================
