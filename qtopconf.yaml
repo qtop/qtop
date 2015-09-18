@@ -143,3 +143,9 @@ workernodes_matrix:
 #Red Red_L
 #White
 #Yellow
+
+# example how to extract the GECOS field from a copy of the passwd file
+extract_info:
+  sourcefile: $HOME/.local/qtop/getent_passwd_copy
+  separator: ":"
+  fields_to_use: 5
