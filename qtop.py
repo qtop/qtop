@@ -15,9 +15,10 @@ from itertools import izip
 # modules
 from pbs import *
 from oar import *
+from sge import *
+from stat_maker import *
 from math import ceil
 from colormap import color_of_account, code_of_color
-from stat_maker import QStatMaker, OarStatMaker
 
 parser = OptionParser()  # for more details see http://docs.python.org/library/optparse.html
 parser.add_option("-a", "--blindremapping", action="store_true", dest="BLINDREMAP", default=False,
@@ -838,7 +839,10 @@ if __name__ == '__main__':
             'oarnodes_file': lambda x, y, z: None,
             'oarstat_file': OarStatMaker().make_stat,
         },
-        'sge': {'sge.xml': 'make_sge'}
+        'sge': {
+            'sge_file_stat': SGEStatMaker().make_stat,
+            # 'sge_file': SGEStatMaker().make_stat,
+        }
     }
     commands = yaml_converter[scheduler]
     # reset_yaml_files()  # either that or having a pid appended in the filename
@@ -854,6 +858,11 @@ if __name__ == '__main__':
         'oar': [
             (read_oarnodes_yaml, ([filenames.get('oarnodes_s_file'), filenames.get('oarnodes_y_file')]), {'write_method': options.write_method}),
             (read_qstat_yaml, ([filenames.get('oarstat_file_out')]), {'write_method': options.write_method}),
+            (lambda *args, **kwargs: (0, 0, 0), ([filenames.get('oarstat_file')]), {'write_method': options.write_method}),
+        ],
+        'sge': [
+            (get_worker_nodes, ([filenames.get('sge_file_stat')]), {'write_method': options.write_method}),
+            (read_qstat_yaml, ([filenames.get('sge_file_stat_out')]), {'write_method': options.write_method}),
             (lambda *args, **kwargs: (0, 0, 0), ([filenames.get('oarstat_file')]), {'write_method': options.write_method}),
         ]
     }

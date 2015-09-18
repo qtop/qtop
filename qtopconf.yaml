@@ -9,10 +9,9 @@ schedulers:
     oarnodes_file: oarnodes
     oarstat_file: oarstat
   sge:
-    sge_file: qstat.F.xml.stdout
+    sge_file_stat: qstat.F.xml.stdout
 
-#scheduler: pbs
-#scheduler: oar
+#possible values: pbs, oar, sge
 scheduler: sge
 
 # insert comment here
@@ -33,6 +32,12 @@ state_abbrevs:
     R: running_of_user
     T: exiting_of_user
     S: cancelled_of_user
+  sge:
+    r: running_of_user
+    E: exiting_of_user  # not real
+    qw: queued_of_user
+    C: cancelled_of_user  # not real
+    W: waiting_of_user  # not real
 
 # original:
 # state_abbrevs = {
