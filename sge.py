@@ -1,28 +1,7 @@
 from collections import OrderedDict
 
 __author__ = 'sfranky'
-from lxml import etree
-
-# fn = '/home/sfranky/PycharmProjects/results/gef_sge1/qstat.F.xml.stdout'
-# tree = etree.parse(fn)
-# root = tree.getroot()
-
-
-# def extract_job_info(elem, elem_text, job_ids=None, usernames=None, job_states=None, jobs=None):
-#     """
-#     inside elem, iterates over subelems named elem_text and extracts relevant job information
-#     """
-#     if not all([job_ids, usernames, job_states]):
-#         job_ids, usernames, job_states, jobs = [], [], [], []
-#     for subelem in elem.iter(elem_text):
-#         job = dict()
-#         job_ids.append(subelem.find('./JB_job_number').text)
-#         usernames.append(subelem.find('./JB_owner').text)
-#         job_states.append(subelem.find('./state').text)
-#         # job['job_name'] = subelem.find('./JB_name').text
-#         job['job_slots'] = subelem.find('./slots').text
-#         jobs.append(job['job_slots'])
-#     return job_ids, usernames, job_states, jobs
+from xml.etree import ElementTree as etree
 
 
 def calc_everything(fn, write_method):
@@ -41,9 +20,9 @@ def calc_everything(fn, write_method):
         else:
             sge_values['state'] = state
 
-        slots_used = queue_elem.find('./slots_used').text
-        slots_resv = queue_elem.find('./slots_resv').text
-        slots_total = queue_elem.find('./slots_total').text
+        # slots_used = queue_elem.find('./slots_used').text
+        # slots_resv = queue_elem.find('./slots_resv').text
+        # slots_total = queue_elem.find('./slots_total').text
 
         if sge_values['domainname'] not in node_names:
             job_ids, usernames, job_states = extract_job_info(queue_elem, 'job_list')
@@ -60,10 +39,6 @@ def calc_everything(fn, write_method):
                     existing_d['state'] = sge_values['state'] == '-' and existing_d['state'] or sge_values['state']
                     break
 
-    # job_info_elem = root.find('./job_info')
-    # add pending jobs
-    # job_ids, usernames, job_states, jobs = extract_job_info(job_info_elem, 'job_list', job_ids, usernames, job_states, jobs)
-
     return worker_nodes
 
 
@@ -71,10 +46,6 @@ def get_worker_nodes(fn, write_method):
     worker_nodes = calc_everything(fn, write_method)
     return worker_nodes
 
-
-# def get_stat(fn, write_method):
-#     worker_nodes, job_ids, usernames, job_states, queue_names, jobs = calc_everything(fn, write_method)
-#     return job_ids, usernames, job_states, queue_names
 
 def extract_job_info(elem, elem_text):
     """
@@ -95,4 +66,4 @@ def make_stat(fn, write_method):
     for queue_elem in root.iter('Queue-List'):
         queue_name = queue_elem.find('./resource[@name="qname"]').text
         job_ids, usernames, job_states = extract_job_info(queue_elem, 'job_list')
-        queue_names = queue_name * len(job_ids)
+        _queue_names = queue_name * len(job_ids)

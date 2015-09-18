@@ -49,7 +49,7 @@ parser.add_option("-r", "--removeemptycorelines", dest="REM_EMPTY_CORELINES", ac
 
 # TODO make the following work with py files instead of qtop.colormap files
 # if not options.COLORFILE:
-#     options.COLORFILE = os.path.expanduser('~/qtop/qtop/qtop.colormap')
+#     options.COLORFILE = os.path.expandvars('$HOME/qtop/qtop/qtop.colormap')
 
 
 def colorize(text, pattern='Nothing', color_func=None, bg_colour=None):
@@ -799,8 +799,8 @@ def exec_func_tuples(func_tuples):
 
 if __name__ == '__main__':
 
-    HOMEPATH = os.path.expanduser('~/PycharmProjects')
-    QTOPPATH = os.path.expanduser('~/PycharmProjects/qtop')  # qtoppath: ~/qtop/qtop
+    cwd = os.getcwd()
+    QTOPPATH = os.path.expanduser(cwd)
 
     config = load_yaml_config(QTOPPATH)
     SEPARATOR = config['workernodes_matrix'][0]['wn id lines']['separator']  # alias
@@ -809,6 +809,13 @@ if __name__ == '__main__':
 
     os.chdir(options.SOURCEDIR)
     scheduler = options.BATCH_SYSTEM or config['scheduler']
+    if config['faster_xml_parsing']:
+        try:
+            from lxml import etree
+        except ImportError:
+            print 'Module lxml is missing. Reverting to xml module.'
+            from xml.etree import ElementTree as etree
+
     INPUT_FNs = config['schedulers'][scheduler]
     ext = ext_mapping[options.write_method]
     filenames = dict()

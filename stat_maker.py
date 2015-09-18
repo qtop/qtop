@@ -3,7 +3,7 @@ __author__ = 'sfranky'
 import re
 import yaml
 import ujson as json
-from lxml import etree
+from xml.etree import ElementTree as etree
 import os
 import sys
 
@@ -11,7 +11,7 @@ MAX_CORE_ALLOWED = 150000
 try:
     from yaml import CLoader as Loader, CDumper as Dumper
 except ImportError:
-    from yaml import Loader
+    from yaml import Loader, Dumper
 
 
 def check_empty_file(orig_file):

@@ -8,7 +8,7 @@ MAX_CORE_ALLOWED = 150000
 try:
     from yaml import CLoader as Loader, CDumper as Dumper
 except ImportError:
-    from yaml import Loader
+    from yaml import Loader, Dumper
 
 
 def check_empty_file(orig_file):

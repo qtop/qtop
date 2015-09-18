@@ -13,6 +13,10 @@ schedulers:
 #possible values: pbs, oar, sge
 scheduler: sge
 
+# utilises lxml module. Needs to be installed in your system.
+# Might result in segmentation fault.
+faster_xml_parsing: True
+
 # insert comment here
 state_abbrevs:
   pbs:
