@@ -1,3 +1,9 @@
+## 0.7.2
+  - Introduce support for SGE
+
+## 0.7.1
+  - Finalise support for PBS
+
 ## 0.7
 
 Enhancements:
