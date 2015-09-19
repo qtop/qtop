@@ -11,7 +11,7 @@ schedulers:
     sge_file_stat: qstat.F.xml.stdout
 
 #possible values: pbs, oar, sge
-scheduler: sge
+scheduler: pbs
 
 # utilises lxml module. Needs to be installed in your system.
 # Might result in segmentation fault.

@@ -125,8 +125,12 @@ def _read_block(fin):
         if line == '\n':
             reading = False
         else:
-            key, value = line.split(' = ')
-            block[key.strip()] = value.strip()
+            try:
+                key, value = line.split(' = ')
+            except ValueError:  # e.g. if line is 'jobs =' with no jobs
+                pass
+            else:
+                block[key.strip()] = value.strip()
     return block
 
 
@@ -164,22 +168,6 @@ def read_pbsnodes_yaml(fn, write_method):
     # pbs_nodes.pop() if not pbs_nodes[-1] else None # until i figure out why the last node is None
     # this doesn't seem to be the case anymore, DONT KNOW WHY!!
     return pbs_nodes
-
-
-def map_batch_nodes_to_wn_dicts(cluster_dict, pbs_nodes, options_remap, group_by_name=False):
-    """
-    """
-    if group_by_name and options_remap:
-        # roughly groups the nodes by name and then by number. Experimental!
-        pbs_nodes.sort(key=lambda d: (
-            len(d.values()[0].split('-')[0]),
-            # int(d.values()[0].split('-')[1])
-            int(re.sub(r'[A-Za-z_-]+', '', d.values()[0]))
-        ), reverse=False)
-
-    for (pbs_node, (idx, cur_node_nr)) in zip(pbs_nodes, enumerate(cluster_dict['workernode_list'])):
-        cluster_dict['workernode_dict'][cur_node_nr] = pbs_node
-        cluster_dict['workernode_dict_remapped'][idx] = pbs_node
 
 
 def read_qstat_yaml(fn, write_method):

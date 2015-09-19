@@ -1,5 +1,3 @@
-from collections import OrderedDict
-
 __author__ = 'sfranky'
 from xml.etree import ElementTree as etree
 

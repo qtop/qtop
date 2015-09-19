@@ -781,6 +781,22 @@ def calculate_split_screen_size():
     return term_columns
 
 
+def map_batch_nodes_to_wn_dicts(cluster_dict, batch_nodes, options_remap, group_by_name=False):
+    """
+    """
+    if group_by_name and options_remap:
+        # roughly groups the nodes by name and then by number. Experimental!
+        batch_nodes.sort(key=lambda d: (
+            len(d.values()[0].split('-')[0]),
+            # int(d.values()[0].split('-')[1])
+            int(re.sub(r'[A-Za-z_-]+', '', d.values()[0]))
+        ), reverse=False)
+
+    for (batch_node, (idx, cur_node_nr)) in zip(batch_nodes, enumerate(cluster_dict['workernode_list'])):
+        cluster_dict['workernode_dict'][cur_node_nr] = batch_node
+        cluster_dict['workernode_dict_remapped'][idx] = batch_node
+
+
 def convert_to_yaml(scheduler, INPUT_FNs, filenames, write_method, commands):
 
     for _file in INPUT_FNs:
@@ -847,8 +863,8 @@ if __name__ == '__main__':
     yaml_reader = {
         'pbs': [
             (read_pbsnodes_yaml, (filenames.get('pbsnodes_file_out'),), {'write_method': options.write_method}),
-            (read_qstatq_yaml, (filenames.get('qstatq_file_out'),), {'write_method': options.write_method}),
             (read_qstat_yaml, (filenames.get('qstat_file_out'),), {'write_method': options.write_method}),
+            (read_qstatq_yaml, (filenames.get('qstatq_file_out'),), {'write_method': options.write_method}),
         ],
         'oar': [
             (read_oarnodes_yaml, ([filenames.get('oarnodes_s_file'), filenames.get('oarnodes_y_file')]), {'write_method': options.write_method}),
