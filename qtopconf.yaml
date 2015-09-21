@@ -103,14 +103,18 @@ sorting:
 #      ord(d['domainname'][0]),
 #      int(re.sub(r'[A-Za-z_-]+', '', d['domainname'].split('.', 1)[0].split('-')[0]) or -1)
 #      )
-  # by_np
   user_sort: |
-      lambda d: d['np']
+      lambda d: (
+      d['np'],  # by_np
+      len(d['domainname'].split('.', 1)[0].split('-')[0]),
+      ord(d['domainname'][0]),
+      int(re.sub(r'[A-Za-z_-]+', '', d['domainname'].split('.', 1)[0].split('-')[0]) or -1)
+      )
+
+#  user_sort: |  # by node state
+#       lambda d: ord(d['state'])
   reverse: False
 
-
-
-group_by_name: True
 
 # what parts of qtop to display
 user_display_parts:

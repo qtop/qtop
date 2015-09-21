@@ -28,6 +28,7 @@ def test_re_node(domain_name, match):
     except AttributeError:
         assert False
 
+
 @pytest.mark.parametrize('domain_name, number',
     (
          ('wn067.grid.cs.tcd.ie', 67),
