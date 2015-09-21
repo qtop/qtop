@@ -206,5 +206,3 @@ def read_qstatq_yaml(fn, write_method):
 pbsnodes_mapping = {'yaml': (yaml.dump_all, {'Dumper': Dumper, 'default_flow_style': False}, 'yaml'),
                     'txtyaml': (pbsnodes_write_lines, {}, 'yaml'),
                     'json': (json.dump, {}, 'json')}
-
-ext_mapping = {'yaml': 'yaml', 'txtyaml': 'yaml', 'json': 'json'}

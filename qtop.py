@@ -745,7 +745,7 @@ def make_pattern_of_id(account_jobs_table):
     return pattern_of_id
 
 
-def load_yaml_config(path):
+def load_yaml_config(path='.'):
     try:
         config = yaml.safe_load(open(path + "/qtopconf.yaml"))
     except yaml.YAMLError, exc:
@@ -817,8 +817,8 @@ if __name__ == '__main__':
 
     cwd = os.getcwd()
     QTOPPATH = os.path.expanduser(cwd)
-
     config = load_yaml_config(QTOPPATH)
+
     SEPARATOR = config['workernodes_matrix'][0]['wn id lines']['separator']  # alias
     USER_CUT_MATRIX_WIDTH = config['workernodes_matrix'][0]['wn id lines']['user_cut_matrix_width']  # alias
     ALT_LABEL_HIGHLIGHT_COLOURS = config['workernodes_matrix'][0]['wn id lines']['alt_label_highlight_colours']  # alias
@@ -833,7 +833,8 @@ if __name__ == '__main__':
             from xml.etree import ElementTree as etree
 
     INPUT_FNs = config['schedulers'][scheduler]
-    ext = ext_mapping[options.write_method]
+    parser_extension_mapping = {'yaml': 'yaml', 'txtyaml': 'yaml', 'json': 'json'}
+    ext = parser_extension_mapping[options.write_method]
     filenames = dict()
     for _file in INPUT_FNs:
         filenames[_file] = INPUT_FNs[_file]
