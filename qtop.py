@@ -781,16 +781,15 @@ def calculate_split_screen_size():
     return term_columns
 
 
+def sort_batch_nodes(batch_nodes):
+    batch_nodes.sort(key=eval(config['sorting']['user_sort']), reverse=config['sorting']['reverse'])
+
+
 def map_batch_nodes_to_wn_dicts(cluster_dict, batch_nodes, options_remap, group_by_name=False):
     """
     """
     if group_by_name and options_remap:
-        # roughly groups the nodes by name and then by number. Experimental!
-        batch_nodes.sort(key=lambda d: (
-            len(d.values()[0].split('-')[0]),
-            # int(d.values()[0].split('-')[1])
-            int(re.sub(r'[A-Za-z_-]+', '', d.values()[0]))
-        ), reverse=False)
+        sort_batch_nodes(batch_nodes)
 
     for (batch_node, (idx, cur_node_nr)) in zip(batch_nodes, enumerate(cluster_dict['workernode_list'])):
         cluster_dict['workernode_dict'][cur_node_nr] = batch_node

@@ -92,10 +92,25 @@ remapping:
 # - 'gridlab(\d+)' : 'glab\1'
 # - 'gridmon(\d*)' : 'mon\1'
  - '(.*?)cluster(.*?)': '\1-\2'  # remove "cluster" word from all node names
-# - '--' : '-'  # removes dashes for shortening (can also replace them with something else, e.g. _
- - '-' : ''  # removes dashes for shortening (can also replace them with something else, e.g. _
+### - '--' : '-'  # removes dashes for shortening (can also replace them with something else, e.g. _
+# - '-' : ''  # removes dashes for shortening (can also replace them with something else, e.g. _
 
-group_by_name: False
+sorting:
+  # by_namelen_by_nr, roughly groups the nodes by name and then by number. Experimental!
+#  user_sort: |
+#      lambda d: (
+#      len(d['domainname'].split('.', 1)[0].split('-')[0]),
+#      ord(d['domainname'][0]),
+#      int(re.sub(r'[A-Za-z_-]+', '', d['domainname'].split('.', 1)[0].split('-')[0]) or -1)
+#      )
+  # by_np
+  user_sort: |
+      lambda d: d['np']
+  reverse: False
+
+
+
+group_by_name: True
 
 # what parts of qtop to display
 user_display_parts:
