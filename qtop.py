@@ -15,18 +15,20 @@ from itertools import izip
 # modules
 from pbs import *
 from oar import *
+from sge import *
+from stat_maker import *
 from math import ceil
 from colormap import color_of_account, code_of_color
-from stat_maker import QStatMaker, OarStatMaker
 
 parser = OptionParser()  # for more details see http://docs.python.org/library/optparse.html
 parser.add_option("-a", "--blindremapping", action="store_true", dest="BLINDREMAP", default=False,
                   help="This may be used in situations where node names are not a pure arithmetic seq (eg. rocks clusters)")
+parser.add_option("-b", "--batchSystem", action="store", type="string", dest="BATCH_SYSTEM")
 parser.add_option("-y", "--readexistingyaml", action="store_true", dest="YAML_EXISTS", default=False,
                   help="Do not remake yaml input files, read from the existing ones")
 parser.add_option("-c", "--NOCOLOR", action="store_true", dest="NOCOLOR", default=False,
                   help="Enable/Disable color in qtop output.")
-parser.add_option("-f", "--setCOLORMAPFILE", action="store", type="string", dest="COLORFILE")
+# parser.add_option("-f", "--setCOLORMAPFILE", action="store", type="string", dest="COLORFILE")
 parser.add_option("-m", "--noMasking", action="store_true", dest="NOMASKING", default=False,
                   help="Don't mask early empty WNs (default: if the first 30 WNs are unused, counting starts from 31).")
 parser.add_option("-o", "--SetVerticalSeparatorXX", action="store", dest="WN_COLON", default=0,
@@ -47,7 +49,7 @@ parser.add_option("-r", "--removeemptycorelines", dest="REM_EMPTY_CORELINES", ac
 
 # TODO make the following work with py files instead of qtop.colormap files
 # if not options.COLORFILE:
-#     options.COLORFILE = os.path.expanduser('~/qtop/qtop/qtop.colormap')
+#     options.COLORFILE = os.path.expandvars('$HOME/qtop/qtop/qtop.colormap')
 
 
 def colorize(text, pattern='Nothing', color_func=None, bg_colour=None):
@@ -743,7 +745,7 @@ def make_pattern_of_id(account_jobs_table):
     return pattern_of_id
 
 
-def load_yaml_config(path):
+def load_yaml_config(path='.'):
     try:
         config = yaml.safe_load(open(path + "/qtopconf.yaml"))
     except yaml.YAMLError, exc:
@@ -779,6 +781,22 @@ def calculate_split_screen_size():
     return term_columns
 
 
+def map_batch_nodes_to_wn_dicts(cluster_dict, batch_nodes, options_remap, group_by_name=False):
+    """
+    """
+    if group_by_name and options_remap:
+        # roughly groups the nodes by name and then by number. Experimental!
+        batch_nodes.sort(key=lambda d: (
+            len(d.values()[0].split('-')[0]),
+            # int(d.values()[0].split('-')[1])
+            int(re.sub(r'[A-Za-z_-]+', '', d.values()[0]))
+        ), reverse=False)
+
+    for (batch_node, (idx, cur_node_nr)) in zip(batch_nodes, enumerate(cluster_dict['workernode_list'])):
+        cluster_dict['workernode_dict'][cur_node_nr] = batch_node
+        cluster_dict['workernode_dict_remapped'][idx] = batch_node
+
+
 def convert_to_yaml(scheduler, INPUT_FNs, filenames, write_method, commands):
 
     for _file in INPUT_FNs:
@@ -797,18 +815,26 @@ def exec_func_tuples(func_tuples):
 
 if __name__ == '__main__':
 
-    HOMEPATH = os.path.expanduser('~/PycharmProjects')
-    QTOPPATH = os.path.expanduser('~/PycharmProjects/qtop')  # qtoppath: ~/qtop/qtop
-
+    cwd = os.getcwd()
+    QTOPPATH = os.path.expanduser(cwd)
     config = load_yaml_config(QTOPPATH)
+
     SEPARATOR = config['workernodes_matrix'][0]['wn id lines']['separator']  # alias
     USER_CUT_MATRIX_WIDTH = config['workernodes_matrix'][0]['wn id lines']['user_cut_matrix_width']  # alias
     ALT_LABEL_HIGHLIGHT_COLOURS = config['workernodes_matrix'][0]['wn id lines']['alt_label_highlight_colours']  # alias
 
     os.chdir(options.SOURCEDIR)
-    scheduler = config['scheduler']
+    scheduler = options.BATCH_SYSTEM or config['scheduler']
+    if config['faster_xml_parsing']:
+        try:
+            from lxml import etree
+        except ImportError:
+            print 'Module lxml is missing. Reverting to xml module.'
+            from xml.etree import ElementTree as etree
+
     INPUT_FNs = config['schedulers'][scheduler]
-    ext = ext_mapping[options.write_method]
+    parser_extension_mapping = {'yaml': 'yaml', 'txtyaml': 'yaml', 'json': 'json'}
+    ext = parser_extension_mapping[options.write_method]
     filenames = dict()
     for _file in INPUT_FNs:
         filenames[_file] = INPUT_FNs[_file]
@@ -823,10 +849,12 @@ if __name__ == '__main__':
         'oar': {
             'oarnodes_s_file': lambda x, y, z: None,
             'oarnodes_y_file': lambda x, y, z: None,
-            'oarnodes_file': lambda x, y, z: None,
             'oarstat_file': OarStatMaker().make_stat,
         },
-        'sge': {'sge.xml': 'make_sge'}
+        'sge': {
+            'sge_file_stat': SGEStatMaker().make_stat,
+            # 'sge_file': SGEStatMaker().make_stat,
+        }
     }
     commands = yaml_converter[scheduler]
     # reset_yaml_files()  # either that or having a pid appended in the filename
@@ -836,12 +864,17 @@ if __name__ == '__main__':
     yaml_reader = {
         'pbs': [
             (read_pbsnodes_yaml, (filenames.get('pbsnodes_file_out'),), {'write_method': options.write_method}),
-            (read_qstatq_yaml, (filenames.get('qstatq_file_out'),), {'write_method': options.write_method}),
             (read_qstat_yaml, (filenames.get('qstat_file_out'),), {'write_method': options.write_method}),
+            (read_qstatq_yaml, (filenames.get('qstatq_file_out'),), {'write_method': options.write_method}),
         ],
         'oar': [
             (read_oarnodes_yaml, ([filenames.get('oarnodes_s_file'), filenames.get('oarnodes_y_file')]), {'write_method': options.write_method}),
             (read_qstat_yaml, ([filenames.get('oarstat_file_out')]), {'write_method': options.write_method}),
+            (lambda *args, **kwargs: (0, 0, 0), ([filenames.get('oarstat_file')]), {'write_method': options.write_method}),
+        ],
+        'sge': [
+            (get_worker_nodes, ([filenames.get('sge_file_stat')]), {'write_method': options.write_method}),
+            (read_qstat_yaml, ([filenames.get('sge_file_stat_out')]), {'write_method': options.write_method}),
             (lambda *args, **kwargs: (0, 0, 0), ([filenames.get('oarstat_file')]), {'write_method': options.write_method}),
         ]
     }

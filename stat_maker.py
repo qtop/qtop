@@ -3,6 +3,7 @@ __author__ = 'sfranky'
 import re
 import yaml
 import ujson as json
+from xml.etree import ElementTree as etree
 import os
 import sys
 
@@ -10,7 +11,7 @@ MAX_CORE_ALLOWED = 150000
 try:
     from yaml import CLoader as Loader, CDumper as Dumper
 except ImportError:
-    from yaml import Loader
+    from yaml import Loader, Dumper
 
 
 def check_empty_file(orig_file):
@@ -200,3 +201,46 @@ class OarStatMaker(QStatMaker):
                 qstat_values = self.process_line(re_search, line, re_match_positions)
                 self.l.append(qstat_values)
         self.dump_all(out_file, self.stat_mapping[write_method])
+
+
+class SGEStatMaker(StatMaker):
+    def __init__(self):
+        StatMaker.__init__(self)
+
+    def make_stat(self, orig_file, out_file, write_method):
+        tree = etree.parse(orig_file)
+        root = tree.getroot()
+        for queue_elem in root.iter('Queue-List'):
+            queue_name = queue_elem.find('./resource[@name="qname"]').text
+            self._extract_job_info(queue_elem, 'job_list', queue_name=queue_name)
+
+        job_info_elem = root.find('./job_info')
+        self._extract_job_info(job_info_elem, 'job_list', queue_name='NoQueueAssigned')
+        self.dump_all(out_file, self.stat_mapping[write_method])
+
+    def _extract_job_info(self, elem, elem_text, queue_name):
+        """
+        inside elem, iterates over subelems named elem_text and extracts relevant job information
+        """
+        for subelem in elem.iter(elem_text):
+            qstat_values = dict()
+            qstat_values['JobId'] = subelem.find('./JB_job_number').text
+            qstat_values['UnixAccount'] = subelem.find('./JB_owner').text
+            qstat_values['S'] = subelem.find('./state').text
+            qstat_values['Queue'] = queue_name
+            self.l.append(qstat_values)
+
+
+
+
+# qstat_mapping = {'yaml': (yaml.dump_all, {'Dumper': Dumper, 'default_flow_style': False}, 'yaml'),
+#                  'txtyaml': (qstat_write_lines, {}, 'yaml'),
+#                  'json': (json.dump, {}, 'json')}
+#
+# qstatq_mapping = {'yaml': (yaml.dump_all, {'Dumper': Dumper, 'default_flow_style': False}, 'yaml'),
+#                   'txtyaml': (qstatq_write_lines, {}, 'yaml'),
+#                   'json': (json.dump, {}, 'json')}
+#
+# pbsnodes_mapping = {'yaml': (yaml.dump_all, {'Dumper': Dumper, 'default_flow_style': False}, 'yaml'),
+#                     'txtyaml': (pbsnodes_write_lines, {}, 'yaml'),
+#                     'json': (json.dump, {}, 'json')}
