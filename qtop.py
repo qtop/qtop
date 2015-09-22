@@ -528,6 +528,15 @@ def display_remaining_matrices(
         print_char_stop = min(print_char_stop, cluster_dict['total_wn']) \
             if options.REMAP else min(print_char_stop, cluster_dict['highest_wn'])
 
+        lines = []
+        for ind, k in enumerate(core_user_map):
+            cpu_core_line = core_user_map['Core' + str(ind) + 'line'][print_char_start:print_char_stop]
+            if ('#' * (print_char_stop - print_char_start) == cpu_core_line) or \
+                ('#' * (len(cpu_core_line)) == cpu_core_line):
+                    lines.append('*')
+        if len(lines) == len(core_user_map):
+            break
+
         display_selected_occupancy_parts(print_char_start,
             print_char_stop,
             wn_vert_labels,
@@ -535,7 +544,7 @@ def display_remaining_matrices(
             pattern_of_id,
             workernodes_occupancy)
 
-        print '\n'
+        print
 
 
 def display_selected_occupancy_parts(
@@ -571,6 +580,8 @@ def display_selected_occupancy_parts(
         occupancy_parts[part][2].update(_part[part])  # get extra options from user
         fn, args, kwargs = occupancy_parts[part][0], occupancy_parts[part][1], occupancy_parts[part][2]
         fn(*args, **kwargs)
+
+    print
 
 
 def print_single_attr_line(print_char_start, print_char_stop, attr_line, label, color_func=None, **kwargs):
