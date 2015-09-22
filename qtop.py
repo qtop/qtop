@@ -145,7 +145,7 @@ def calculate_cluster(worker_nodes):
             cluster_dict['workernode_list'].append(cur_node_nr)
 
     decide_remapping(cluster_dict, _all_letters, _all_str_digits_with_empties)
-    map_batch_nodes_to_wn_dicts(cluster_dict, worker_nodes, options.REMAP, config['sorting'], config['filtering'])
+    map_batch_nodes_to_wn_dicts(cluster_dict, worker_nodes, options.REMAP)
     if options.REMAP:
         cluster_dict['highest_wn'] = cluster_dict['total_wn']
         cluster_dict['workernode_list'] = cluster_dict['workernode_list_remapped']
@@ -623,8 +623,10 @@ def get_core_lines(core_user_map, print_char_start, print_char_stop, pattern_of_
     # lines = []
     for ind, k in enumerate(core_user_map):
         cpu_core_line = core_user_map['Core' + str(ind) + 'line'][print_char_start:print_char_stop]
-        if options.REM_EMPTY_CORELINES and '#' * (print_char_stop - print_char_start) == cpu_core_line:
-            continue
+        if options.REM_EMPTY_CORELINES and \
+            ('#' * (print_char_stop - print_char_start) == cpu_core_line) or \
+            ('#' * (len(cpu_core_line)) == cpu_core_line):
+                continue
         cpu_core_line = insert_separators(cpu_core_line, SEPARATOR, options.WN_COLON)
         cpu_core_line = ''.join([colorize(elem, pattern_of_id[elem]) for elem in cpu_core_line if elem in pattern_of_id])
         yield cpu_core_line + colorize('=Core' + str(ind), 'account_not_coloured')
@@ -787,7 +789,9 @@ def sort_batch_nodes(batch_nodes):
     pass
 
 
-def filter_list_out(batch_nodes, _list):
+def filter_list_out(batch_nodes, _list=None):
+    if not _list:
+        _list = []
     for idx, node in enumerate(batch_nodes):
         if idx in _list:
             node['mark'] = '*'
@@ -795,7 +799,9 @@ def filter_list_out(batch_nodes, _list):
     return batch_nodes
 
 
-def filter_list_out_by_name(batch_nodes, _list):
+def filter_list_out_by_name(batch_nodes, _list=None):
+    if not _list:
+        _list = []
     for idx, node in enumerate(batch_nodes):
         if node['domainname'].split('.', 1)[0] in _list:
             node['mark'] = '*'
@@ -803,10 +809,22 @@ def filter_list_out_by_name(batch_nodes, _list):
     return batch_nodes
 
 
-def filter_pattern_out_by_name(batch_nodes, _list):
+def filter_list_out_by_node_state(batch_nodes, _list=None):
+    if not _list:
+        _list = []
+    for idx, node in enumerate(batch_nodes):
+        if node['state'] in _list:
+            node['mark'] = '*'
+    batch_nodes = filter(lambda item: not item.get('mark'), batch_nodes)
+    return batch_nodes
+
+
+def filter_list_out_by_name_pattern(batch_nodes, _list=None):
+    if not _list:
+        _list = []
     for idx, node in enumerate(batch_nodes):
         for pattern in _list:
-            match = re.match(eval(pattern), node['domainname'].split('.', 1)[0])
+            match = re.search(eval(pattern), node['domainname'].split('.', 1)[0])
             try:
                 match.group(0)
             except AttributeError:
@@ -822,7 +840,8 @@ def filter_batch_nodes(batch_nodes, filter_rules=None):
     filter_types = {
         'list_out': filter_list_out,
         'list_out_by_name': filter_list_out_by_name,
-        'pattern_out_by_name': filter_pattern_out_by_name,
+        'list_out_by_name_pattern': filter_list_out_by_name_pattern,
+        'list_out_by_node_state': filter_list_out_by_node_state
         # 'ranges_out': func3,
     }
 
@@ -833,15 +852,14 @@ def filter_batch_nodes(batch_nodes, filter_rules=None):
             filter_func = filter_types[rule.keys()[0]]
             args = rule.values()[0]
             batch_nodes = filter_func(batch_nodes, args)
-            # [item.pop('mark', None) for item in batch_nodes if item.get('mark')]
         return batch_nodes
 
 
-
-
-def map_batch_nodes_to_wn_dicts(cluster_dict, batch_nodes, options_remap, user_sorting=False, user_filtering=False):
+def map_batch_nodes_to_wn_dicts(cluster_dict, batch_nodes, options_remap):
     """
     """
+    user_sorting = config['sorting'] and config['sorting'].values()[0]
+    user_filtering = config['filtering'] and config['filtering'][0]
     if user_sorting and options_remap:
         sort_batch_nodes(batch_nodes)
     if user_filtering and options_remap:

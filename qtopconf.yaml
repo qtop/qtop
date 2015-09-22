@@ -110,23 +110,28 @@ sorting:
       ord(d['domainname'][0]),
       int(re.sub(r'[A-Za-z_-]+', '', d['domainname'].split('.', 1)[0].split('-')[0]) or -1)
       )
-
 #  user_sort: |  # by node state
 #       lambda d: ord(d['state'])
   reverse: False
 
 filtering:
-  - list_out: [0, 1, 2, 3, 16]
-  - list_out_by_name: [wn001, wn003]
-  - pattern_out_by_name:
-    - r'^wn'
+#  - list_out: [0, 1, 2, 3, 16]
+#  - list_out_by_name: [wn001, wn003]
+  - list_out_by_name: [gaia-74, gaia-73, gaia-81, gaia-80]
+  - list_out_by_name_pattern:
+#    - r'^wn'
+#    - r'^ps'
+#    - r'p5'
+#    - r'moonshot'
 #  - ranges_out: 1-12, 30-42
+#  - list_out_by_node_state:
+#    - 'E'
 
 # what parts of qtop to display
 user_display_parts:
 # - job_accounting_summary
  - workernodes_matrix
- - user_accounts_pool_mappings
+# - user_accounts_pool_mappings
 
 #wn_occupancy:
 # - wn id lines
