@@ -145,7 +145,7 @@ def calculate_cluster(worker_nodes):
             cluster_dict['workernode_list'].append(cur_node_nr)
 
     decide_remapping(cluster_dict, _all_letters, _all_str_digits_with_empties)
-    map_batch_nodes_to_wn_dicts(cluster_dict, worker_nodes, options.REMAP, config['sorting'])
+    map_batch_nodes_to_wn_dicts(cluster_dict, worker_nodes, options.REMAP, config['sorting'], config['filtering'])
     if options.REMAP:
         cluster_dict['highest_wn'] = cluster_dict['total_wn']
         cluster_dict['workernode_list'] = cluster_dict['workernode_list_remapped']
@@ -154,11 +154,12 @@ def calculate_cluster(worker_nodes):
         cluster_dict['highest_wn'] = max(cluster_dict['workernode_list'])
 
     # fill in non-existent WN nodes (absent from pbsnodes file) with default values and count them
-    for node in range(1, cluster_dict['highest_wn'] + 1):
-        if node not in cluster_dict['workernode_dict']:
-            cluster_dict['workernode_dict'][node] = {'state': '?', 'np': 0, 'domainname': 'N/A', 'host': 'N/A'}
-            default_values_for_empty_nodes = {yaml_key: '?' for yaml_key, part_name in get_yaml_key_part('workernodes_matrix')}
-            cluster_dict['workernode_dict'][node].update(default_values_for_empty_nodes)
+    if not options.REMAP:
+        for node in range(1, cluster_dict['highest_wn'] + 1):
+            if node not in cluster_dict['workernode_dict']:
+                cluster_dict['workernode_dict'][node] = {'state': '?', 'np': 0, 'domainname': 'N/A', 'host': 'N/A'}
+                default_values_for_empty_nodes = {yaml_key: '?' for yaml_key, part_name in get_yaml_key_part('workernodes_matrix')}
+                cluster_dict['workernode_dict'][node].update(default_values_for_empty_nodes)
 
     do_name_remapping(cluster_dict)
 
@@ -783,14 +784,68 @@ def calculate_split_screen_size():
 
 def sort_batch_nodes(batch_nodes):
     batch_nodes.sort(key=eval(config['sorting']['user_sort']), reverse=config['sorting']['reverse'])
+    pass
 
 
-def map_batch_nodes_to_wn_dicts(cluster_dict, batch_nodes, options_remap, user_sorting=False):
+def filter_list_out(batch_nodes, _list):
+    for idx, node in enumerate(batch_nodes):
+        if idx in _list:
+            node['mark'] = '*'
+    batch_nodes = filter(lambda item: not item.get('mark'), batch_nodes)
+    return batch_nodes
+
+
+def filter_list_out_by_name(batch_nodes, _list):
+    for idx, node in enumerate(batch_nodes):
+        if node['domainname'].split('.', 1)[0] in _list:
+            node['mark'] = '*'
+    batch_nodes = filter(lambda item: not item.get('mark'), batch_nodes)
+    return batch_nodes
+
+
+def filter_pattern_out_by_name(batch_nodes, _list):
+    for idx, node in enumerate(batch_nodes):
+        for pattern in _list:
+            match = re.match(eval(pattern), node['domainname'].split('.', 1)[0])
+            try:
+                match.group(0)
+            except AttributeError:
+                pass
+            else:
+                node['mark'] = '*'
+    batch_nodes = filter(lambda item: not item.get('mark'), batch_nodes)
+    return batch_nodes
+
+
+def filter_batch_nodes(batch_nodes, filter_rules=None):
+
+    filter_types = {
+        'list_out': filter_list_out,
+        'list_out_by_name': filter_list_out_by_name,
+        'pattern_out_by_name': filter_pattern_out_by_name,
+        # 'ranges_out': func3,
+    }
+
+    if not filter_rules:
+        return batch_nodes
+    else:
+        for rule in filter_rules:
+            filter_func = filter_types[rule.keys()[0]]
+            args = rule.values()[0]
+            batch_nodes = filter_func(batch_nodes, args)
+            # [item.pop('mark', None) for item in batch_nodes if item.get('mark')]
+        return batch_nodes
+
+
+
+
+def map_batch_nodes_to_wn_dicts(cluster_dict, batch_nodes, options_remap, user_sorting=False, user_filtering=False):
     """
     """
     if user_sorting and options_remap:
         sort_batch_nodes(batch_nodes)
-
+    if user_filtering and options_remap:
+        batch_nodes = filter_batch_nodes(batch_nodes, config['filtering'])
     for (batch_node, (idx, cur_node_nr)) in zip(batch_nodes, enumerate(cluster_dict['workernode_list'])):
         cluster_dict['workernode_dict'][cur_node_nr] = batch_node
         cluster_dict['workernode_dict_remapped'][idx] = batch_node

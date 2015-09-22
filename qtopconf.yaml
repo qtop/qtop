@@ -115,6 +115,12 @@ sorting:
 #       lambda d: ord(d['state'])
   reverse: False
 
+filtering:
+  - list_out: [0, 1, 2, 3, 16]
+  - list_out_by_name: [wn001, wn003]
+  - pattern_out_by_name:
+    - r'^wn'
+#  - ranges_out: 1-12, 30-42
 
 # what parts of qtop to display
 user_display_parts:
