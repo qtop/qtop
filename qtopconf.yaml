@@ -92,16 +92,46 @@ remapping:
 # - 'gridlab(\d+)' : 'glab\1'
 # - 'gridmon(\d*)' : 'mon\1'
  - '(.*?)cluster(.*?)': '\1-\2'  # remove "cluster" word from all node names
-# - '--' : '-'  # removes dashes for shortening (can also replace them with something else, e.g. _
- - '-' : ''  # removes dashes for shortening (can also replace them with something else, e.g. _
+### - '--' : '-'  # removes dashes for shortening (can also replace them with something else, e.g. _
+# - '-' : ''  # removes dashes for shortening (can also replace them with something else, e.g. _
 
-group_by_name: False
+sorting:
+  # by_namelen_by_nr, roughly groups the nodes by name and then by number. Experimental!
+#  user_sort: |
+#      lambda d: (
+#      len(d['domainname'].split('.', 1)[0].split('-')[0]),
+#      ord(d['domainname'][0]),
+#      int(re.sub(r'[A-Za-z_-]+', '', d['domainname'].split('.', 1)[0].split('-')[0]) or -1)
+#      )
+  user_sort: |
+      lambda d: (
+      d['np'],  # by_np
+      len(d['domainname'].split('.', 1)[0].split('-')[0]),
+      ord(d['domainname'][0]),
+      int(re.sub(r'[A-Za-z_-]+', '', d['domainname'].split('.', 1)[0].split('-')[0]) or -1)
+      )
+#  user_sort: |  # by node state
+#       lambda d: ord(d['state'])
+  reverse: False
+
+filtering:
+#  - list_out: [0, 1, 2, 3, 16]
+  - list_out_by_name: [gaia-73, gaia-80, gaia-81]
+#  - list_out_by_name: [gaia-74, gaia-73, gaia-81, gaia-80, gaia-87, gaia-75, gaia-77, gaia-76, gaia-79, gaia-78]
+  - list_out_by_name_pattern:
+#    - r'^wn'
+#    - r'^ps'
+#    - r'p5'
+    - r'moonshot'
+#  - ranges_out: 1-12, 30-42
+#  - list_out_by_node_state:
+#    - 'E'
 
 # what parts of qtop to display
 user_display_parts:
 # - job_accounting_summary
  - workernodes_matrix
- - user_accounts_pool_mappings
+# - user_accounts_pool_mappings
 
 #wn_occupancy:
 # - wn id lines

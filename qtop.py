@@ -145,7 +145,7 @@ def calculate_cluster(worker_nodes):
             cluster_dict['workernode_list'].append(cur_node_nr)
 
     decide_remapping(cluster_dict, _all_letters, _all_str_digits_with_empties)
-    map_batch_nodes_to_wn_dicts(cluster_dict, worker_nodes, options.REMAP, config['group_by_name'])
+    map_batch_nodes_to_wn_dicts(cluster_dict, worker_nodes, options.REMAP)
     if options.REMAP:
         cluster_dict['highest_wn'] = cluster_dict['total_wn']
         cluster_dict['workernode_list'] = cluster_dict['workernode_list_remapped']
@@ -154,11 +154,12 @@ def calculate_cluster(worker_nodes):
         cluster_dict['highest_wn'] = max(cluster_dict['workernode_list'])
 
     # fill in non-existent WN nodes (absent from pbsnodes file) with default values and count them
-    for node in range(1, cluster_dict['highest_wn'] + 1):
-        if node not in cluster_dict['workernode_dict']:
-            cluster_dict['workernode_dict'][node] = {'state': '?', 'np': 0, 'domainname': 'N/A', 'host': 'N/A'}
-            default_values_for_empty_nodes = {yaml_key: '?' for yaml_key, part_name in get_yaml_key_part('workernodes_matrix')}
-            cluster_dict['workernode_dict'][node].update(default_values_for_empty_nodes)
+    if not options.REMAP:
+        for node in range(1, cluster_dict['highest_wn'] + 1):
+            if node not in cluster_dict['workernode_dict']:
+                cluster_dict['workernode_dict'][node] = {'state': '?', 'np': 0, 'domainname': 'N/A', 'host': 'N/A'}
+                default_values_for_empty_nodes = {yaml_key: '?' for yaml_key, part_name in get_yaml_key_part('workernodes_matrix')}
+                cluster_dict['workernode_dict'][node].update(default_values_for_empty_nodes)
 
     do_name_remapping(cluster_dict)
 
@@ -527,6 +528,15 @@ def display_remaining_matrices(
         print_char_stop = min(print_char_stop, cluster_dict['total_wn']) \
             if options.REMAP else min(print_char_stop, cluster_dict['highest_wn'])
 
+        lines = []
+        for ind, k in enumerate(core_user_map):
+            cpu_core_line = core_user_map['Core' + str(ind) + 'line'][print_char_start:print_char_stop]
+            if ('#' * (print_char_stop - print_char_start) == cpu_core_line) or \
+                ('#' * (len(cpu_core_line)) == cpu_core_line):
+                    lines.append('*')
+        if len(lines) == len(core_user_map):
+            break
+
         display_selected_occupancy_parts(print_char_start,
             print_char_stop,
             wn_vert_labels,
@@ -534,7 +544,7 @@ def display_remaining_matrices(
             pattern_of_id,
             workernodes_occupancy)
 
-        print '\n'
+        print
 
 
 def display_selected_occupancy_parts(
@@ -570,6 +580,8 @@ def display_selected_occupancy_parts(
         occupancy_parts[part][2].update(_part[part])  # get extra options from user
         fn, args, kwargs = occupancy_parts[part][0], occupancy_parts[part][1], occupancy_parts[part][2]
         fn(*args, **kwargs)
+
+    print
 
 
 def print_single_attr_line(print_char_start, print_char_stop, attr_line, label, color_func=None, **kwargs):
@@ -622,8 +634,10 @@ def get_core_lines(core_user_map, print_char_start, print_char_stop, pattern_of_
     # lines = []
     for ind, k in enumerate(core_user_map):
         cpu_core_line = core_user_map['Core' + str(ind) + 'line'][print_char_start:print_char_stop]
-        if options.REM_EMPTY_CORELINES and '#' * (print_char_stop - print_char_start) == cpu_core_line:
-            continue
+        if options.REM_EMPTY_CORELINES and \
+            ('#' * (print_char_stop - print_char_start) == cpu_core_line) or \
+            ('#' * (len(cpu_core_line)) == cpu_core_line):
+                continue
         cpu_core_line = insert_separators(cpu_core_line, SEPARATOR, options.WN_COLON)
         cpu_core_line = ''.join([colorize(elem, pattern_of_id[elem]) for elem in cpu_core_line if elem in pattern_of_id])
         yield cpu_core_line + colorize('=Core' + str(ind), 'account_not_coloured')
@@ -781,17 +795,86 @@ def calculate_split_screen_size():
     return term_columns
 
 
-def map_batch_nodes_to_wn_dicts(cluster_dict, batch_nodes, options_remap, group_by_name=False):
-    """
-    """
-    if group_by_name and options_remap:
-        # roughly groups the nodes by name and then by number. Experimental!
-        batch_nodes.sort(key=lambda d: (
-            len(d.values()[0].split('-')[0]),
-            # int(d.values()[0].split('-')[1])
-            int(re.sub(r'[A-Za-z_-]+', '', d.values()[0]))
-        ), reverse=False)
+def sort_batch_nodes(batch_nodes):
+    batch_nodes.sort(key=eval(config['sorting']['user_sort']), reverse=config['sorting']['reverse'])
+    pass
 
+
+def filter_list_out(batch_nodes, _list=None):
+    if not _list:
+        _list = []
+    for idx, node in enumerate(batch_nodes):
+        if idx in _list:
+            node['mark'] = '*'
+    batch_nodes = filter(lambda item: not item.get('mark'), batch_nodes)
+    return batch_nodes
+
+
+def filter_list_out_by_name(batch_nodes, _list=None):
+    if not _list:
+        _list = []
+    for idx, node in enumerate(batch_nodes):
+        if node['domainname'].split('.', 1)[0] in _list:
+            node['mark'] = '*'
+    batch_nodes = filter(lambda item: not item.get('mark'), batch_nodes)
+    return batch_nodes
+
+
+def filter_list_out_by_node_state(batch_nodes, _list=None):
+    if not _list:
+        _list = []
+    for idx, node in enumerate(batch_nodes):
+        if node['state'] in _list:
+            node['mark'] = '*'
+    batch_nodes = filter(lambda item: not item.get('mark'), batch_nodes)
+    return batch_nodes
+
+
+def filter_list_out_by_name_pattern(batch_nodes, _list=None):
+    if not _list:
+        _list = []
+    for idx, node in enumerate(batch_nodes):
+        for pattern in _list:
+            match = re.search(eval(pattern), node['domainname'].split('.', 1)[0])
+            try:
+                match.group(0)
+            except AttributeError:
+                pass
+            else:
+                node['mark'] = '*'
+    batch_nodes = filter(lambda item: not item.get('mark'), batch_nodes)
+    return batch_nodes
+
+
+def filter_batch_nodes(batch_nodes, filter_rules=None):
+
+    filter_types = {
+        'list_out': filter_list_out,
+        'list_out_by_name': filter_list_out_by_name,
+        'list_out_by_name_pattern': filter_list_out_by_name_pattern,
+        'list_out_by_node_state': filter_list_out_by_node_state
+        # 'ranges_out': func3,
+    }
+
+    if not filter_rules:
+        return batch_nodes
+    else:
+        for rule in filter_rules:
+            filter_func = filter_types[rule.keys()[0]]
+            args = rule.values()[0]
+            batch_nodes = filter_func(batch_nodes, args)
+        return batch_nodes
+
+
+def map_batch_nodes_to_wn_dicts(cluster_dict, batch_nodes, options_remap):
+    """
+    """
+    user_sorting = config['sorting'] and config['sorting'].values()[0]
+    user_filtering = config['filtering'] and config['filtering'][0]
+    if user_sorting and options_remap:
+        sort_batch_nodes(batch_nodes)
+    if user_filtering and options_remap:
+        batch_nodes = filter_batch_nodes(batch_nodes, config['filtering'])
     for (batch_node, (idx, cur_node_nr)) in zip(batch_nodes, enumerate(cluster_dict['workernode_list'])):
         cluster_dict['workernode_dict'][cur_node_nr] = batch_node
         cluster_dict['workernode_dict_remapped'][idx] = batch_node
