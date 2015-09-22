@@ -4,15 +4,18 @@ schedulers:
     qstatq_file: qstat_q.txt
     qstat_file: qstat.txt
   oar:
-    oarnodes_s_file: oarnodes_s
-    oarnodes_y_file: oarnodes_y
-    oarnodes_file: oarnodes
-    oarstat_file: oarstat
+    oarnodes_s_file: oarnodes_s_Y.txt
+    oarnodes_y_file: oarnodes_Y.txt
+    oarstat_file: oarstat.txt
   sge:
-    sge_file: sge.xml
+    sge_file_stat: qstat.F.xml.stdout
 
-#scheduler: pbs
-scheduler: oar
+#possible values: pbs, oar, sge
+scheduler: pbs
+
+# utilises lxml module. Needs to be installed in your system.
+# Might result in segmentation fault.
+faster_xml_parsing: True
 
 # insert comment here
 state_abbrevs:
@@ -32,6 +35,12 @@ state_abbrevs:
     R: running_of_user
     T: exiting_of_user
     S: cancelled_of_user
+  sge:
+    r: running_of_user
+    E: exiting_of_user  # not real
+    qw: queued_of_user
+    C: cancelled_of_user  # not real
+    W: waiting_of_user  # not real
 
 # original:
 # state_abbrevs = {
@@ -82,15 +91,47 @@ remapping:
 # - 'torvalds(\d+)' : 'tor\1'
 # - 'gridlab(\d+)' : 'glab\1'
 # - 'gridmon(\d*)' : 'mon\1'
- - '-' : ''  # removes dashes for shortening (can also replace them with something else, e.g. _
+ - '(.*?)cluster(.*?)': '\1-\2'  # remove "cluster" word from all node names
+### - '--' : '-'  # removes dashes for shortening (can also replace them with something else, e.g. _
+# - '-' : ''  # removes dashes for shortening (can also replace them with something else, e.g. _
 
-group_by_name: True
+sorting:
+  # by_namelen_by_nr, roughly groups the nodes by name and then by number. Experimental!
+#  user_sort: |
+#      lambda d: (
+#      len(d['domainname'].split('.', 1)[0].split('-')[0]),
+#      ord(d['domainname'][0]),
+#      int(re.sub(r'[A-Za-z_-]+', '', d['domainname'].split('.', 1)[0].split('-')[0]) or -1)
+#      )
+  user_sort: |
+      lambda d: (
+      d['np'],  # by_np
+      len(d['domainname'].split('.', 1)[0].split('-')[0]),
+      ord(d['domainname'][0]),
+      int(re.sub(r'[A-Za-z_-]+', '', d['domainname'].split('.', 1)[0].split('-')[0]) or -1)
+      )
+#  user_sort: |  # by node state
+#       lambda d: ord(d['state'])
+  reverse: False
+
+filtering:
+#  - list_out: [0, 1, 2, 3, 16]
+  - list_out_by_name: [gaia-73, gaia-80, gaia-81]
+#  - list_out_by_name: [gaia-74, gaia-73, gaia-81, gaia-80, gaia-87, gaia-75, gaia-77, gaia-76, gaia-79, gaia-78]
+  - list_out_by_name_pattern:
+#    - r'^wn'
+#    - r'^ps'
+#    - r'p5'
+    - r'moonshot'
+#  - ranges_out: 1-12, 30-42
+#  - list_out_by_node_state:
+#    - 'E'
 
 # what parts of qtop to display
 user_display_parts:
 # - job_accounting_summary
  - workernodes_matrix
- - user_accounts_pool_mappings
+# - user_accounts_pool_mappings
 
 #wn_occupancy:
 # - wn id lines

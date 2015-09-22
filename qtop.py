@@ -15,18 +15,20 @@ from itertools import izip
 # modules
 from pbs import *
 from oar import *
+from sge import *
+from stat_maker import *
 from math import ceil
 from colormap import color_of_account, code_of_color
-from stat_maker import QStatMaker, OarStatMaker
 
 parser = OptionParser()  # for more details see http://docs.python.org/library/optparse.html
 parser.add_option("-a", "--blindremapping", action="store_true", dest="BLINDREMAP", default=False,
                   help="This may be used in situations where node names are not a pure arithmetic seq (eg. rocks clusters)")
+parser.add_option("-b", "--batchSystem", action="store", type="string", dest="BATCH_SYSTEM")
 parser.add_option("-y", "--readexistingyaml", action="store_true", dest="YAML_EXISTS", default=False,
                   help="Do not remake yaml input files, read from the existing ones")
 parser.add_option("-c", "--NOCOLOR", action="store_true", dest="NOCOLOR", default=False,
                   help="Enable/Disable color in qtop output.")
-parser.add_option("-f", "--setCOLORMAPFILE", action="store", type="string", dest="COLORFILE")
+# parser.add_option("-f", "--setCOLORMAPFILE", action="store", type="string", dest="COLORFILE")
 parser.add_option("-m", "--noMasking", action="store_true", dest="NOMASKING", default=False,
                   help="Don't mask early empty WNs (default: if the first 30 WNs are unused, counting starts from 31).")
 parser.add_option("-o", "--SetVerticalSeparatorXX", action="store", dest="WN_COLON", default=0,
@@ -47,7 +49,7 @@ parser.add_option("-r", "--removeemptycorelines", dest="REM_EMPTY_CORELINES", ac
 
 # TODO make the following work with py files instead of qtop.colormap files
 # if not options.COLORFILE:
-#     options.COLORFILE = os.path.expanduser('~/qtop/qtop/qtop.colormap')
+#     options.COLORFILE = os.path.expandvars('$HOME/qtop/qtop/qtop.colormap')
 
 
 def colorize(text, pattern='Nothing', color_func=None, bg_colour=None):
@@ -143,7 +145,7 @@ def calculate_cluster(worker_nodes):
             cluster_dict['workernode_list'].append(cur_node_nr)
 
     decide_remapping(cluster_dict, _all_letters, _all_str_digits_with_empties)
-    map_batch_nodes_to_wn_dicts(cluster_dict, worker_nodes, options.REMAP, config['group_by_name'])
+    map_batch_nodes_to_wn_dicts(cluster_dict, worker_nodes, options.REMAP)
     if options.REMAP:
         cluster_dict['highest_wn'] = cluster_dict['total_wn']
         cluster_dict['workernode_list'] = cluster_dict['workernode_list_remapped']
@@ -152,11 +154,12 @@ def calculate_cluster(worker_nodes):
         cluster_dict['highest_wn'] = max(cluster_dict['workernode_list'])
 
     # fill in non-existent WN nodes (absent from pbsnodes file) with default values and count them
-    for node in range(1, cluster_dict['highest_wn'] + 1):
-        if node not in cluster_dict['workernode_dict']:
-            cluster_dict['workernode_dict'][node] = {'state': '?', 'np': 0, 'domainname': 'N/A', 'host': 'N/A'}
-            default_values_for_empty_nodes = {yaml_key: '?' for yaml_key, part_name in get_yaml_key_part('workernodes_matrix')}
-            cluster_dict['workernode_dict'][node].update(default_values_for_empty_nodes)
+    if not options.REMAP:
+        for node in range(1, cluster_dict['highest_wn'] + 1):
+            if node not in cluster_dict['workernode_dict']:
+                cluster_dict['workernode_dict'][node] = {'state': '?', 'np': 0, 'domainname': 'N/A', 'host': 'N/A'}
+                default_values_for_empty_nodes = {yaml_key: '?' for yaml_key, part_name in get_yaml_key_part('workernodes_matrix')}
+                cluster_dict['workernode_dict'][node].update(default_values_for_empty_nodes)
 
     do_name_remapping(cluster_dict)
 
@@ -525,6 +528,15 @@ def display_remaining_matrices(
         print_char_stop = min(print_char_stop, cluster_dict['total_wn']) \
             if options.REMAP else min(print_char_stop, cluster_dict['highest_wn'])
 
+        lines = []
+        for ind, k in enumerate(core_user_map):
+            cpu_core_line = core_user_map['Core' + str(ind) + 'line'][print_char_start:print_char_stop]
+            if ('#' * (print_char_stop - print_char_start) == cpu_core_line) or \
+                ('#' * (len(cpu_core_line)) == cpu_core_line):
+                    lines.append('*')
+        if len(lines) == len(core_user_map):
+            break
+
         display_selected_occupancy_parts(print_char_start,
             print_char_stop,
             wn_vert_labels,
@@ -532,7 +544,7 @@ def display_remaining_matrices(
             pattern_of_id,
             workernodes_occupancy)
 
-        print '\n'
+        print
 
 
 def display_selected_occupancy_parts(
@@ -568,6 +580,8 @@ def display_selected_occupancy_parts(
         occupancy_parts[part][2].update(_part[part])  # get extra options from user
         fn, args, kwargs = occupancy_parts[part][0], occupancy_parts[part][1], occupancy_parts[part][2]
         fn(*args, **kwargs)
+
+    print
 
 
 def print_single_attr_line(print_char_start, print_char_stop, attr_line, label, color_func=None, **kwargs):
@@ -620,8 +634,10 @@ def get_core_lines(core_user_map, print_char_start, print_char_stop, pattern_of_
     # lines = []
     for ind, k in enumerate(core_user_map):
         cpu_core_line = core_user_map['Core' + str(ind) + 'line'][print_char_start:print_char_stop]
-        if options.REM_EMPTY_CORELINES and '#' * (print_char_stop - print_char_start) == cpu_core_line:
-            continue
+        if options.REM_EMPTY_CORELINES and \
+            ('#' * (print_char_stop - print_char_start) == cpu_core_line) or \
+            ('#' * (len(cpu_core_line)) == cpu_core_line):
+                continue
         cpu_core_line = insert_separators(cpu_core_line, SEPARATOR, options.WN_COLON)
         cpu_core_line = ''.join([colorize(elem, pattern_of_id[elem]) for elem in cpu_core_line if elem in pattern_of_id])
         yield cpu_core_line + colorize('=Core' + str(ind), 'account_not_coloured')
@@ -743,7 +759,7 @@ def make_pattern_of_id(account_jobs_table):
     return pattern_of_id
 
 
-def load_yaml_config(path):
+def load_yaml_config(path='.'):
     try:
         config = yaml.safe_load(open(path + "/qtopconf.yaml"))
     except yaml.YAMLError, exc:
@@ -779,6 +795,91 @@ def calculate_split_screen_size():
     return term_columns
 
 
+def sort_batch_nodes(batch_nodes):
+    batch_nodes.sort(key=eval(config['sorting']['user_sort']), reverse=config['sorting']['reverse'])
+    pass
+
+
+def filter_list_out(batch_nodes, _list=None):
+    if not _list:
+        _list = []
+    for idx, node in enumerate(batch_nodes):
+        if idx in _list:
+            node['mark'] = '*'
+    batch_nodes = filter(lambda item: not item.get('mark'), batch_nodes)
+    return batch_nodes
+
+
+def filter_list_out_by_name(batch_nodes, _list=None):
+    if not _list:
+        _list = []
+    for idx, node in enumerate(batch_nodes):
+        if node['domainname'].split('.', 1)[0] in _list:
+            node['mark'] = '*'
+    batch_nodes = filter(lambda item: not item.get('mark'), batch_nodes)
+    return batch_nodes
+
+
+def filter_list_out_by_node_state(batch_nodes, _list=None):
+    if not _list:
+        _list = []
+    for idx, node in enumerate(batch_nodes):
+        if node['state'] in _list:
+            node['mark'] = '*'
+    batch_nodes = filter(lambda item: not item.get('mark'), batch_nodes)
+    return batch_nodes
+
+
+def filter_list_out_by_name_pattern(batch_nodes, _list=None):
+    if not _list:
+        _list = []
+    for idx, node in enumerate(batch_nodes):
+        for pattern in _list:
+            match = re.search(eval(pattern), node['domainname'].split('.', 1)[0])
+            try:
+                match.group(0)
+            except AttributeError:
+                pass
+            else:
+                node['mark'] = '*'
+    batch_nodes = filter(lambda item: not item.get('mark'), batch_nodes)
+    return batch_nodes
+
+
+def filter_batch_nodes(batch_nodes, filter_rules=None):
+
+    filter_types = {
+        'list_out': filter_list_out,
+        'list_out_by_name': filter_list_out_by_name,
+        'list_out_by_name_pattern': filter_list_out_by_name_pattern,
+        'list_out_by_node_state': filter_list_out_by_node_state
+        # 'ranges_out': func3,
+    }
+
+    if not filter_rules:
+        return batch_nodes
+    else:
+        for rule in filter_rules:
+            filter_func = filter_types[rule.keys()[0]]
+            args = rule.values()[0]
+            batch_nodes = filter_func(batch_nodes, args)
+        return batch_nodes
+
+
+def map_batch_nodes_to_wn_dicts(cluster_dict, batch_nodes, options_remap):
+    """
+    """
+    user_sorting = config['sorting'] and config['sorting'].values()[0]
+    user_filtering = config['filtering'] and config['filtering'][0]
+    if user_sorting and options_remap:
+        sort_batch_nodes(batch_nodes)
+    if user_filtering and options_remap:
+        batch_nodes = filter_batch_nodes(batch_nodes, config['filtering'])
+    for (batch_node, (idx, cur_node_nr)) in zip(batch_nodes, enumerate(cluster_dict['workernode_list'])):
+        cluster_dict['workernode_dict'][cur_node_nr] = batch_node
+        cluster_dict['workernode_dict_remapped'][idx] = batch_node
+
+
 def convert_to_yaml(scheduler, INPUT_FNs, filenames, write_method, commands):
 
     for _file in INPUT_FNs:
@@ -797,18 +898,26 @@ def exec_func_tuples(func_tuples):
 
 if __name__ == '__main__':
 
-    HOMEPATH = os.path.expanduser('~/PycharmProjects')
-    QTOPPATH = os.path.expanduser('~/PycharmProjects/qtop')  # qtoppath: ~/qtop/qtop
-
+    cwd = os.getcwd()
+    QTOPPATH = os.path.expanduser(cwd)
     config = load_yaml_config(QTOPPATH)
+
     SEPARATOR = config['workernodes_matrix'][0]['wn id lines']['separator']  # alias
     USER_CUT_MATRIX_WIDTH = config['workernodes_matrix'][0]['wn id lines']['user_cut_matrix_width']  # alias
     ALT_LABEL_HIGHLIGHT_COLOURS = config['workernodes_matrix'][0]['wn id lines']['alt_label_highlight_colours']  # alias
 
     os.chdir(options.SOURCEDIR)
-    scheduler = config['scheduler']
+    scheduler = options.BATCH_SYSTEM or config['scheduler']
+    if config['faster_xml_parsing']:
+        try:
+            from lxml import etree
+        except ImportError:
+            print 'Module lxml is missing. Reverting to xml module.'
+            from xml.etree import ElementTree as etree
+
     INPUT_FNs = config['schedulers'][scheduler]
-    ext = ext_mapping[options.write_method]
+    parser_extension_mapping = {'yaml': 'yaml', 'txtyaml': 'yaml', 'json': 'json'}
+    ext = parser_extension_mapping[options.write_method]
     filenames = dict()
     for _file in INPUT_FNs:
         filenames[_file] = INPUT_FNs[_file]
@@ -823,10 +932,12 @@ if __name__ == '__main__':
         'oar': {
             'oarnodes_s_file': lambda x, y, z: None,
             'oarnodes_y_file': lambda x, y, z: None,
-            'oarnodes_file': lambda x, y, z: None,
             'oarstat_file': OarStatMaker().make_stat,
         },
-        'sge': {'sge.xml': 'make_sge'}
+        'sge': {
+            'sge_file_stat': SGEStatMaker().make_stat,
+            # 'sge_file': SGEStatMaker().make_stat,
+        }
     }
     commands = yaml_converter[scheduler]
     # reset_yaml_files()  # either that or having a pid appended in the filename
@@ -836,12 +947,17 @@ if __name__ == '__main__':
     yaml_reader = {
         'pbs': [
             (read_pbsnodes_yaml, (filenames.get('pbsnodes_file_out'),), {'write_method': options.write_method}),
-            (read_qstatq_yaml, (filenames.get('qstatq_file_out'),), {'write_method': options.write_method}),
             (read_qstat_yaml, (filenames.get('qstat_file_out'),), {'write_method': options.write_method}),
+            (read_qstatq_yaml, (filenames.get('qstatq_file_out'),), {'write_method': options.write_method}),
         ],
         'oar': [
             (read_oarnodes_yaml, ([filenames.get('oarnodes_s_file'), filenames.get('oarnodes_y_file')]), {'write_method': options.write_method}),
             (read_qstat_yaml, ([filenames.get('oarstat_file_out')]), {'write_method': options.write_method}),
+            (lambda *args, **kwargs: (0, 0, 0), ([filenames.get('oarstat_file')]), {'write_method': options.write_method}),
+        ],
+        'sge': [
+            (get_worker_nodes, ([filenames.get('sge_file_stat')]), {'write_method': options.write_method}),
+            (read_qstat_yaml, ([filenames.get('sge_file_stat_out')]), {'write_method': options.write_method}),
             (lambda *args, **kwargs: (0, 0, 0), ([filenames.get('oarstat_file')]), {'write_method': options.write_method}),
         ]
     }

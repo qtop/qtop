@@ -8,7 +8,7 @@ MAX_CORE_ALLOWED = 150000
 try:
     from yaml import CLoader as Loader, CDumper as Dumper
 except ImportError:
-    from yaml import Loader
+    from yaml import Loader, Dumper
 
 
 def check_empty_file(orig_file):
@@ -125,8 +125,12 @@ def _read_block(fin):
         if line == '\n':
             reading = False
         else:
-            key, value = line.split(' = ')
-            block[key.strip()] = value.strip()
+            try:
+                key, value = line.split(' = ')
+            except ValueError:  # e.g. if line is 'jobs =' with no jobs
+                pass
+            else:
+                block[key.strip()] = value.strip()
     return block
 
 
@@ -166,18 +170,6 @@ def read_pbsnodes_yaml(fn, write_method):
     return pbs_nodes
 
 
-def map_batch_nodes_to_wn_dicts(cluster_dict, pbs_nodes, options_remap, group_by_name=False):
-    """
-    """
-    if group_by_name and options_remap:
-        # roughly groups the nodes by name and then by number. Experimental!
-        pbs_nodes.sort(key=lambda d: (len(d.values()[0].split('-')[0]), int(d.values()[0].split('-')[1])), reverse=False)
-
-    for (pbs_node, (idx, cur_node_nr)) in zip(pbs_nodes, enumerate(cluster_dict['workernode_list'])):
-        cluster_dict['workernode_dict'][cur_node_nr] = pbs_node
-        cluster_dict['workernode_dict_remapped'][idx] = pbs_node
-
-
 def read_qstat_yaml(fn, write_method):
     """
     reads qstat YAML file and populates four lists. Returns the lists
@@ -214,5 +206,3 @@ def read_qstatq_yaml(fn, write_method):
 pbsnodes_mapping = {'yaml': (yaml.dump_all, {'Dumper': Dumper, 'default_flow_style': False}, 'yaml'),
                     'txtyaml': (pbsnodes_write_lines, {}, 'yaml'),
                     'json': (json.dump, {}, 'json')}
-
-ext_mapping = {'yaml': 'yaml', 'txtyaml': 'yaml', 'json': 'json'}

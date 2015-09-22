@@ -28,3 +28,15 @@ def test_re_node(domain_name, match):
     except AttributeError:
         assert False
 
+
+@pytest.mark.parametrize('domain_name, number',
+    (
+         ('wn067.grid.cs.tcd.ie', 67),
+         ('gridmon.cs.tcs.ie', -1),
+         ('wn003.cs.tcs.ie', 3),
+         ('wn01-03-003.cs.tcs.ie', 103003),
+    ),
+)
+def test_batch_nodes_sorting(domain_name, number):
+    domain_name = domain_name.split('.', 1)[0]
+    assert int(re.sub(r'[A-Za-z_-]+', '', domain_name) or -1) == number
