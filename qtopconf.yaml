@@ -93,7 +93,7 @@ remapping:
 # - 'gridmon(\d*)' : 'mon\1'
  - '(.*?)cluster(.*?)': '\1-\2'  # remove "cluster" word from all node names
 ### - '--' : '-'  # removes dashes for shortening (can also replace them with something else, e.g. _
-# - '-' : ''  # removes dashes for shortening (can also replace them with something else, e.g. _
+ - '-' : ''  # removes dashes for shortening (can also replace them with something else, e.g. _
 
 sorting:
   # by_namelen_by_nr, roughly groups the nodes by name and then by number. Experimental!
@@ -105,10 +105,11 @@ sorting:
 #      )
   user_sort: |
       lambda d: (
-      d['np'],  # by_np
-      len(d['domainname'].split('.', 1)[0].split('-')[0]),
+      d['np'],
       ord(d['domainname'][0]),
-      int(re.sub(r'[A-Za-z_-]+', '', d['domainname'].split('.', 1)[0].split('-')[0]) or -1)
+      len(d['domainname'].split('.', 1)[0].split('-')[0]),
+      #int(d['domainname'].split('.', 1)[0].split('-')[1]),
+      #int(re.sub(r'[A-Za-z_-]+', '', d['domainname'].split('.', 1)[0].split('-')[0]) or -1),  # by number
       )
 #  user_sort: |  # by node state
 #       lambda d: ord(d['state'])
@@ -117,7 +118,7 @@ sorting:
 filtering:
 #  - list_out: [0, 1, 2, 3, 16]
   - list_out_by_name: [gaia-73, gaia-80, gaia-81]
-#  - list_out_by_name: [gaia-74, gaia-73, gaia-81, gaia-80, gaia-87, gaia-75, gaia-77, gaia-76, gaia-79, gaia-78]
+  # - list_out_by_name: [gaia-74, gaia-73, gaia-81, gaia-80, gaia-87, gaia-75, gaia-77, gaia-76, gaia-79, gaia-78]
   - list_out_by_name_pattern:
 #    - r'^wn'
 #    - r'^ps'

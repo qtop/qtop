@@ -197,8 +197,9 @@ def display_job_accounting_summary(cluster_dict, total_running_jobs, total_queue
         print '=== WARNING: --- Remapping WN names and retrying heuristics... good luck with this... ---'
     print '\nPBS report tool. Please try: watch -d ' + QTOPPATH + \
           '. All bugs added by sfranky@gmail.com. Cross fingers now...\n'
-    print colorize('===> ', '#') + colorize('Job accounting summary', 'Nothing') + colorize(' <=== ', '#') + colorize(
+    print colorize('===> ', '#') + colorize('Job accounting summary', 'Normal') + colorize(' <=== ', '#') + colorize(
         '(Rev: 3000 $) %s WORKDIR = to be added', 'account_not_coloured') % (datetime.datetime.today())
+
     print 'Usage Totals:\t%s/%s\t Nodes | %s/%s  Cores |   %s+%s jobs (R + Q) reported by qstat -q' % \
           (cluster_dict['total_wn'] - cluster_dict['offline_down_nodes'],
            cluster_dict['total_wn'],
@@ -206,6 +207,7 @@ def display_job_accounting_summary(cluster_dict, total_running_jobs, total_queue
            cluster_dict['total_cores'],
            int(total_running_jobs),
            int(total_queued_jobs))
+
     print 'Queues: | ',
     for q in qstatq_list:
         q_name, q_running_jobs, q_queued_jobs = q['queue_name'], q['run'], q['queued']
@@ -796,8 +798,11 @@ def calculate_split_screen_size():
 
 
 def sort_batch_nodes(batch_nodes):
-    batch_nodes.sort(key=eval(config['sorting']['user_sort']), reverse=config['sorting']['reverse'])
-    pass
+    try:
+        batch_nodes.sort(key=eval(config['sorting']['user_sort']), reverse=config['sorting']['reverse'])
+    except IndexError:
+        print "\n**There's probably something wrong in your sorting lambda in qtopconf.yaml.**\n"
+        raise
 
 
 def filter_list_out(batch_nodes, _list=None):
@@ -900,7 +905,12 @@ if __name__ == '__main__':
 
     cwd = os.getcwd()
     QTOPPATH = os.path.expanduser(cwd)
-    config = load_yaml_config(QTOPPATH)
+    USERPATH = '$HOME/.local/qtop'
+    try:
+        config = load_yaml_config(USERPATH)
+    except IOError:
+        config = load_yaml_config(QTOPPATH)
+
 
     SEPARATOR = config['workernodes_matrix'][0]['wn id lines']['separator']  # alias
     USER_CUT_MATRIX_WIDTH = config['workernodes_matrix'][0]['wn id lines']['user_cut_matrix_width']  # alias
