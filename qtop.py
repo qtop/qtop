@@ -905,7 +905,7 @@ if __name__ == '__main__':
 
     cwd = os.getcwd()
     QTOPPATH = os.path.expanduser(cwd)
-    USERPATH = '$HOME/.local/qtop'
+    USERPATH = os.path.expandvars('$HOME/.local/qtop')
     try:
         config = load_yaml_config(USERPATH)
     except IOError:
