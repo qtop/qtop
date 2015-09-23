@@ -195,10 +195,10 @@ def nodes_with_jobs(worker_nodes):
 def display_job_accounting_summary(cluster_dict, total_running_jobs, total_queued_jobs, qstatq_list):
     if options.REMAP:
         print '=== WARNING: --- Remapping WN names and retrying heuristics... good luck with this... ---'
-    print '\nPBS report tool. Please try: watch -d ' + QTOPPATH + \
-          '. All bugs added by sfranky@gmail.com. Cross fingers now...\n'
+    print 'PBS report tool. All bugs added by sfranky@gmail.com. Cross fingers now...'
+    print 'Please try: watch -d + %s/qtop.py -s %s\n' % (QTOPPATH, options.SOURCEDIR)
     print colorize('===> ', '#') + colorize('Job accounting summary', 'Normal') + colorize(' <=== ', '#') + colorize(
-        '(Rev: 3000 $) %s WORKDIR = to be added', 'account_not_coloured') % (datetime.datetime.today())
+        '(Rev: 3000 $) %s WORKDIR = %s' % (datetime.datetime.today(), QTOPPATH), 'account_not_coloured')
 
     print 'Usage Totals:\t%s/%s\t Nodes | %s/%s  Cores |   %s+%s jobs (R + Q) reported by qstat -q' % \
           (cluster_dict['total_wn'] - cluster_dict['offline_down_nodes'],
@@ -212,9 +212,9 @@ def display_job_accounting_summary(cluster_dict, total_running_jobs, total_queue
     for q in qstatq_list:
         q_name, q_running_jobs, q_queued_jobs = q['queue_name'], q['run'], q['queued']
         account = q_name if q_name in color_of_account else 'account_not_coloured'
-        print "{}: {} + {} |".format(colorize(q_name, account),
-                                     colorize(q_running_jobs, account),
-                                     colorize(q_queued_jobs, account)),
+        print "{qname}: {run} {q}|".format(qname=colorize(q_name, account),
+                                     run=colorize(q_running_jobs, account),
+                                     q='+ ' + colorize(q_queued_jobs, account) if q_queued_jobs != '0' else ''),
     print '* implies blocked\n'
 
 
@@ -968,7 +968,8 @@ if __name__ == '__main__':
         'sge': [
             (get_worker_nodes, ([filenames.get('sge_file_stat')]), {'write_method': options.write_method}),
             (read_qstat_yaml, ([filenames.get('sge_file_stat_out')]), {'write_method': options.write_method}),
-            (lambda *args, **kwargs: (0, 0, 0), ([filenames.get('oarstat_file')]), {'write_method': options.write_method}),
+            # (lambda *args, **kwargs: (0, 0, 0), ([filenames.get('sge_file_stat')]), {'write_method': options.write_method}),
+            (get_statq_from_xml, ([filenames.get('sge_file_stat')]), {'write_method': options.write_method}),
         ]
     }
 
