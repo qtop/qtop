@@ -12,6 +12,7 @@ from optparse import OptionParser
 import datetime
 from collections import OrderedDict
 from itertools import izip
+import sys
 # modules
 from pbs import *
 from oar import *
@@ -705,7 +706,24 @@ def calculate_wn_occupancy(cluster_dict, user_names, job_states, job_ids):
 
 def print_core_lines(core_user_map, print_char_start, print_char_stop, pattern_of_id, attrs, options1, options2):
     for core_line in get_core_lines(core_user_map, print_char_start, print_char_stop, pattern_of_id, attrs):
-        print core_line
+        try:
+            print core_line
+        except IOError:
+            # This tries to handle the broken pipe exception that occurs when doing "| head"
+            # stdout is closed, no point in continuing
+            # Attempt to close them explicitly to prevent cleanup problems
+            # Results are not always best. misbehaviour with watch -d,
+            # output gets corrupted in the terminal afterwards without watch.
+            # TODO Find fix.
+            try:
+                sys.stdout.close()
+            except IOError:
+                pass
+            try:
+                sys.stderr.close()
+            except IOError:
+                pass
+
 
 
 def display_wn_occupancy(workernodes_occupancy, cluster_dict):
