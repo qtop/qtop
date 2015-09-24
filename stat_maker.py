@@ -215,7 +215,7 @@ class SGEStatMaker(StatMaker):
             self._extract_job_info(queue_elem, 'job_list', queue_name=queue_name)
 
         job_info_elem = root.find('./job_info')
-        self._extract_job_info(job_info_elem, 'job_list', queue_name='NoQueueAssigned')
+        self._extract_job_info(job_info_elem, 'job_list', queue_name='Pending')
         self.dump_all(out_file, self.stat_mapping[write_method])
 
     def _extract_job_info(self, elem, elem_text, queue_name):

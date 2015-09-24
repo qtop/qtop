@@ -12,6 +12,7 @@ from optparse import OptionParser
 import datetime
 from collections import OrderedDict
 from itertools import izip
+import sys
 # modules
 from pbs import *
 from oar import *
@@ -195,10 +196,11 @@ def nodes_with_jobs(worker_nodes):
 def display_job_accounting_summary(cluster_dict, total_running_jobs, total_queued_jobs, qstatq_list):
     if options.REMAP:
         print '=== WARNING: --- Remapping WN names and retrying heuristics... good luck with this... ---'
-    print '\nPBS report tool. Please try: watch -d ' + QTOPPATH + \
-          '. All bugs added by sfranky@gmail.com. Cross fingers now...\n'
-    print colorize('===> ', '#') + colorize('Job accounting summary', 'Nothing') + colorize(' <=== ', '#') + colorize(
-        '(Rev: 3000 $) %s WORKDIR = to be added', 'account_not_coloured') % (datetime.datetime.today())
+    print 'PBS report tool. All bugs added by sfranky@gmail.com. Cross fingers now...'
+    print 'Please try: watch -d + %s/qtop.py -s %s\n' % (QTOPPATH, options.SOURCEDIR)
+    print colorize('===> ', '#') + colorize('Job accounting summary', 'Normal') + colorize(' <=== ', '#') + colorize(
+        '(Rev: 3000 $) %s WORKDIR = %s' % (datetime.datetime.today(), QTOPPATH), 'account_not_coloured')
+
     print 'Usage Totals:\t%s/%s\t Nodes | %s/%s  Cores |   %s+%s jobs (R + Q) reported by qstat -q' % \
           (cluster_dict['total_wn'] - cluster_dict['offline_down_nodes'],
            cluster_dict['total_wn'],
@@ -206,13 +208,14 @@ def display_job_accounting_summary(cluster_dict, total_running_jobs, total_queue
            cluster_dict['total_cores'],
            int(total_running_jobs),
            int(total_queued_jobs))
+
     print 'Queues: | ',
     for q in qstatq_list:
         q_name, q_running_jobs, q_queued_jobs = q['queue_name'], q['run'], q['queued']
         account = q_name if q_name in color_of_account else 'account_not_coloured'
-        print "{}: {} + {} |".format(colorize(q_name, account),
-                                     colorize(q_running_jobs, account),
-                                     colorize(q_queued_jobs, account)),
+        print "{qname}: {run} {q}|".format(qname=colorize(q_name, account),
+                                     run=colorize(q_running_jobs, account),
+                                     q='+ ' + colorize(q_queued_jobs, account) if q_queued_jobs != '0' else ''),
     print '* implies blocked\n'
 
 
@@ -224,7 +227,7 @@ def calculate_job_counts(user_names, job_states):
     :return: (list, list, dict)
     """
     expand_useraccounts_symbols(config, user_names)
-    state_abbrevs = config['state_abbrevs'][scheduler]
+    state_abbrevs = config['state_abbreviations'][scheduler]
 
     job_counts = create_job_counts(user_names, job_states, state_abbrevs)
     user_alljobs_sorted_lot = produce_user_lot(user_names)
@@ -294,6 +297,15 @@ def create_job_counts(user_names, job_states, state_abbrevs):
         job_counts['cancelled_of_user'].setdefault(user_name, 0)
         job_counts['waiting_of_user'].setdefault(user_name, 0)
         job_counts['exiting_of_user'].setdefault(user_name, 0)
+        job_counts['restarting_of_user'].setdefault(user_name, 0)
+        job_counts['Eqw_of_user'].setdefault(user_name, 0)
+        job_counts['hold_of_user'].setdefault(user_name, 0)
+        job_counts['transferring_of_user'].setdefault(user_name, 0)
+        job_counts['threshold_reached'].setdefault(user_name, 0)
+        job_counts['job_ending_of_user'].setdefault(user_name, 0)
+        job_counts['suspended_of_user'].setdefault(user_name, 0)
+        job_counts['suspended_by_the_queue'].setdefault(user_name, 0)
+
 
     return job_counts
 
@@ -703,7 +715,24 @@ def calculate_wn_occupancy(cluster_dict, user_names, job_states, job_ids):
 
 def print_core_lines(core_user_map, print_char_start, print_char_stop, pattern_of_id, attrs, options1, options2):
     for core_line in get_core_lines(core_user_map, print_char_start, print_char_stop, pattern_of_id, attrs):
-        print core_line
+        try:
+            print core_line
+        except IOError:
+            # This tries to handle the broken pipe exception that occurs when doing "| head"
+            # stdout is closed, no point in continuing
+            # Attempt to close them explicitly to prevent cleanup problems
+            # Results are not always best. misbehaviour with watch -d,
+            # output gets corrupted in the terminal afterwards without watch.
+            # TODO Find fix.
+            try:
+                sys.stdout.close()
+            except IOError:
+                pass
+            try:
+                sys.stderr.close()
+            except IOError:
+                pass
+
 
 
 def display_wn_occupancy(workernodes_occupancy, cluster_dict):
@@ -796,8 +825,11 @@ def calculate_split_screen_size():
 
 
 def sort_batch_nodes(batch_nodes):
-    batch_nodes.sort(key=eval(config['sorting']['user_sort']), reverse=config['sorting']['reverse'])
-    pass
+    try:
+        batch_nodes.sort(key=eval(config['sorting']['user_sort']), reverse=config['sorting']['reverse'])
+    except IndexError:
+        print "\n**There's probably something wrong in your sorting lambda in qtopconf.yaml.**\n"
+        raise
 
 
 def filter_list_out(batch_nodes, _list=None):
@@ -900,7 +932,12 @@ if __name__ == '__main__':
 
     cwd = os.getcwd()
     QTOPPATH = os.path.expanduser(cwd)
-    config = load_yaml_config(QTOPPATH)
+    USERPATH = os.path.expandvars('$HOME/.local/qtop')
+    try:
+        config = load_yaml_config(USERPATH)
+    except IOError:
+        config = load_yaml_config(QTOPPATH)
+
 
     SEPARATOR = config['workernodes_matrix'][0]['wn id lines']['separator']  # alias
     USER_CUT_MATRIX_WIDTH = config['workernodes_matrix'][0]['wn id lines']['user_cut_matrix_width']  # alias
@@ -958,7 +995,8 @@ if __name__ == '__main__':
         'sge': [
             (get_worker_nodes, ([filenames.get('sge_file_stat')]), {'write_method': options.write_method}),
             (read_qstat_yaml, ([filenames.get('sge_file_stat_out')]), {'write_method': options.write_method}),
-            (lambda *args, **kwargs: (0, 0, 0), ([filenames.get('oarstat_file')]), {'write_method': options.write_method}),
+            # (lambda *args, **kwargs: (0, 0, 0), ([filenames.get('sge_file_stat')]), {'write_method': options.write_method}),
+            (get_statq_from_xml, ([filenames.get('sge_file_stat')]), {'write_method': options.write_method}),
         ]
     }
 
