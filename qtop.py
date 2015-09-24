@@ -12,14 +12,17 @@ from optparse import OptionParser
 import datetime
 from collections import OrderedDict
 from itertools import izip
-import sys
 # modules
-from pbs import *
-from oar import *
-from sge import *
+from plugin_pbs import *
+from plugin_oar import *
+from plugin_sge import *
 from stat_maker import *
 from math import ceil
 from colormap import color_of_account, code_of_color
+from common_module import read_qstat_yaml
+from signal import signal, SIGPIPE, SIG_DFL
+
+
 
 parser = OptionParser()  # for more details see http://docs.python.org/library/optparse.html
 parser.add_option("-a", "--blindremapping", action="store_true", dest="BLINDREMAP", default=False,
@@ -702,6 +705,7 @@ def calculate_wn_occupancy(cluster_dict, user_names, job_states, job_ids):
 
 
 def print_core_lines(core_user_map, print_char_start, print_char_stop, pattern_of_id, attrs, options1, options2):
+    signal(SIGPIPE, SIG_DFL)
     for core_line in get_core_lines(core_user_map, print_char_start, print_char_stop, pattern_of_id, attrs):
         try:
             print core_line
@@ -713,6 +717,8 @@ def print_core_lines(core_user_map, print_char_start, print_char_stop, pattern_o
             # output gets corrupted in the terminal afterwards without watch.
             # TODO Find fix.
             try:
+                signal(SIGPIPE, SIG_DFL)
+                print core_line
                 sys.stdout.close()
             except IOError:
                 pass
@@ -946,7 +952,10 @@ if __name__ == '__main__':
     filenames = dict()
     for _file in INPUT_FNs:
         filenames[_file] = INPUT_FNs[_file]
-        filenames[_file + '_out'] = '{}_{}.{}'.format(INPUT_FNs[_file].rsplit('.')[0], options.write_method, ext)  # os.getpid()
+        # filenames[_file + '_out'] = get_new_temp_file(suffix, prefix)
+        filenames[_file + '_out'] = '{filename}_{writemethod}.{ext}'.format(
+            filename=INPUT_FNs[_file].rsplit('.')[0], writemethod=options.write_method, ext=ext
+        )  # pid=os.getpid()
 
     yaml_converter = {
         'pbs': {
@@ -961,7 +970,6 @@ if __name__ == '__main__':
         },
         'sge': {
             'sge_file_stat': SGEStatMaker().make_stat,
-            # 'sge_file': SGEStatMaker().make_stat,
         }
     }
     commands = yaml_converter[scheduler]
@@ -982,7 +990,7 @@ if __name__ == '__main__':
         ],
         'sge': [
             (get_worker_nodes, ([filenames.get('sge_file_stat')]), {'write_method': options.write_method}),
-            (read_qstat_yaml, ([filenames.get('sge_file_stat_out')]), {'write_method': options.write_method}),
+            (read_qstat_yaml, ([SGEStatMaker.temp_filepath]), {'write_method': options.write_method}),
             # (lambda *args, **kwargs: (0, 0, 0), ([filenames.get('sge_file_stat')]), {'write_method': options.write_method}),
             (get_statq_from_xml, ([filenames.get('sge_file_stat')]), {'write_method': options.write_method}),
         ]
@@ -1004,10 +1012,10 @@ if __name__ == '__main__':
         'workernodes_matrix': (display_wn_occupancy, (workernodes_occupancy, cluster_dict)),
         'user_accounts_pool_mappings': (display_user_accounts_pool_mappings, (workernodes_occupancy['account_jobs_table'], workernodes_occupancy['pattern_of_id']))
     }
-
+    # print 'Reading: {}'.format(SGEStatMaker.temp_filepath)
     for part in config['user_display_parts']:
         _func, args = display_parts[part][0], display_parts[part][1]
         _func(*args)
 
-    print '\nThanks for watching!'
+    # print '\nThanks for watching!'
     os.chdir(QTOPPATH)
