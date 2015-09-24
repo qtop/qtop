@@ -1,3 +1,6 @@
+#possible values: pbs, oar, sge
+scheduler: sge
+
 schedulers:
   pbs:
     pbsnodes_file: pbsnodes_a.txt
@@ -10,15 +13,13 @@ schedulers:
   sge:
     sge_file_stat: qstat.F.xml.stdout
 
-#possible values: pbs, oar, sge
-scheduler: pbs
 
 # utilises lxml module. Needs to be installed in your system.
 # Might result in segmentation fault.
-faster_xml_parsing: True
+faster_xml_parsing: False
 
 # insert comment here
-state_abbrevs:
+state_abbreviations:
   pbs:
     Q: queued_of_user
     R: running_of_user
@@ -41,9 +42,17 @@ state_abbrevs:
     qw: queued_of_user
     C: cancelled_of_user  # not real
     W: waiting_of_user  # not real
+    R: restarting_of_user
+    Eqw: Eqw_of_user
+    hqw: hold_of_user
+    t: transferring_of_user
+    T: threshold_reached
+    dr: job_ending_of_user
+    s: suspended_of_user
+    S: suspended_by_the_queue
 
-# original:
-# state_abbrevs = {
+# original OAR abbreviations:
+# state_abbreviations = {
 #     'W': 'Waiting',
 #     'L': 'toLaunch',
 #     'L': 'Launching',
@@ -130,9 +139,9 @@ filtering:
 
 # what parts of qtop to display
 user_display_parts:
-# - job_accounting_summary
+ - job_accounting_summary
  - workernodes_matrix
-# - user_accounts_pool_mappings
+ - user_accounts_pool_mappings
 
 #wn_occupancy:
 # - wn id lines
