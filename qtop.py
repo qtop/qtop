@@ -227,7 +227,7 @@ def calculate_job_counts(user_names, job_states):
     :return: (list, list, dict)
     """
     expand_useraccounts_symbols(config, user_names)
-    state_abbrevs = config['state_abbreviations'][scheduler]
+    state_abbrevs = config['state_abbreviations'][options.BATCH_SYSTEM or scheduler]
 
     job_counts = create_job_counts(user_names, job_states, state_abbrevs)
     user_alljobs_sorted_lot = produce_user_lot(user_names)
@@ -293,19 +293,7 @@ def create_job_counts(user_names, job_states, state_abbrevs):
         job_counts[x_of_user][user_name] = job_counts[x_of_user].get(user_name, 0) + 1
 
     for user_name in job_counts['running_of_user']:
-        job_counts['queued_of_user'].setdefault(user_name, 0)
-        job_counts['cancelled_of_user'].setdefault(user_name, 0)
-        job_counts['waiting_of_user'].setdefault(user_name, 0)
-        job_counts['exiting_of_user'].setdefault(user_name, 0)
-        job_counts['restarting_of_user'].setdefault(user_name, 0)
-        job_counts['Eqw_of_user'].setdefault(user_name, 0)
-        job_counts['hold_of_user'].setdefault(user_name, 0)
-        job_counts['transferring_of_user'].setdefault(user_name, 0)
-        job_counts['threshold_reached'].setdefault(user_name, 0)
-        job_counts['job_ending_of_user'].setdefault(user_name, 0)
-        job_counts['suspended_of_user'].setdefault(user_name, 0)
-        job_counts['suspended_by_the_queue'].setdefault(user_name, 0)
-
+        [job_counts[x_of_user].setdefault(user_name, 0) for x_of_user in job_counts if x_of_user != 'running_of_user']
 
     return job_counts
 
