@@ -101,5 +101,6 @@ def get_statq_from_xml(fn, write_method):
         d['queued'] = str(d['queued'])
     total_queued_jobs = str(len(root.findall('.//job_list[@state="pending"]')))
     qstatq_list.append({'run': '0', 'queued': total_queued_jobs, 'queue_name': 'Pending', 'state': 'Q', 'lm': '0'})
+    # TODO: check validity. 'state' shouldnt just be 'Q'!
 
     return total_running_jobs, total_queued_jobs, qstatq_list
