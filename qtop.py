@@ -71,7 +71,7 @@ def colorize(text, pattern='Nothing', color_func=None, bg_colour=None):
     except KeyError:
         return text
     else:
-        return "\033[" + '{}{}'.format(ansi_color, bg_colour) + "m" + text + "\033[0;m" \
+        return "\033[" + '%s%s' % (ansi_color, bg_colour) + "m" + text + "\033[0;m" \
             if ((not options.NOCOLOR) and pattern != 'account_not_coloured' and text != ' ') else text
 
 
