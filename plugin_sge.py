@@ -26,7 +26,7 @@ def calc_everything(fn, write_method):
                 sge_values['np'] = resource.text
                 break
         else:
-            raise ValueError("No such resource")
+            sge_values['np'] = 0
 
         try:
             state = queue_elem.find('state').text
