@@ -144,7 +144,13 @@ def get_statq_from_xml(fn, write_method):
     for d in qstatq_list:
         d['run'] = str(d['run'])
         d['queued'] = str(d['queued'])
-    total_queued_jobs = str(len(root.findall('.//job_list[@state="pending"]')))
+    # total_queued_jobs = str(len(root.findall('.//job_list[@state="pending"]')))  # python 2.7 only
+    _total_queued_jobs = root.findall('job_info/job_list')
+    pending_count = 0
+    for job in _total_queued_jobs:
+        if job.attrib.get('state') == 'pending':
+            pending_count +=1
+    total_queued_jobs = str(pending_count)
     qstatq_list.append({'run': '0', 'queued': total_queued_jobs, 'queue_name': 'Pending', 'state': 'Q', 'lm': '0'})
     # TODO: check validity. 'state' shouldnt just be 'Q'!
 
