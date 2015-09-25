@@ -2,7 +2,7 @@ import yaml
 try:
     import ujson as json
 except ImportError:
-    import ujson as json
+    import json
 from tempfile import mkstemp
 import os
 

@@ -5,7 +5,7 @@ import yaml
 try:
     import ujson as json
 except ImportError:
-    import ujson as json
+    import json
 
 MAX_CORE_ALLOWED = 150000
 try:

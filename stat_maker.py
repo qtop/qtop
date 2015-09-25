@@ -5,7 +5,7 @@ import yaml
 try:
     import ujson as json
 except ImportError:
-    import ujson as json
+    import json
 from xml.etree import ElementTree as etree
 import os
 import sys
