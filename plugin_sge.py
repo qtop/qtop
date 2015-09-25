@@ -109,7 +109,13 @@ def get_statq_from_xml(fn, write_method):
         FOUND = False
         for exist_d in qstatq_list:
             if queue_name == exist_d['queue_name']:
-                exist_d['run'] += len(queue_elem.findall('./job_list[@state="running"]'))
+                # exist_d['run'] += len(queue_elem.findall('./job_list[@state="running"]'))
+                jobs = queue_elem.findall('job_list')
+                run_count = 0
+                for _run in jobs:
+                    if _run.attrib.get('state') == 'running':
+                        run_count += 1
+                exist_d['run'] += run_count
                 FOUND = True
                 break
         if FOUND:
