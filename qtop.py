@@ -10,8 +10,11 @@
 from operator import itemgetter
 from optparse import OptionParser
 import datetime
-from collections import OrderedDict
 from itertools import izip
+try:
+    from collections import OrderedDict
+except ImportError:
+    from ordereddict import OrderedDict
 # modules
 from plugin_pbs import *
 from plugin_oar import *
@@ -162,7 +165,8 @@ def calculate_cluster(worker_nodes):
         for node in range(1, cluster_dict['highest_wn'] + 1):
             if node not in cluster_dict['workernode_dict']:
                 cluster_dict['workernode_dict'][node] = {'state': '?', 'np': 0, 'domainname': 'N/A', 'host': 'N/A'}
-                default_values_for_empty_nodes = {yaml_key: '?' for yaml_key, part_name in get_yaml_key_part('workernodes_matrix')}
+                default_values_for_empty_nodes = dict([(yaml_key, '?') for yaml_key, part_name in get_yaml_key_part(
+                    'workernodes_matrix')])
                 cluster_dict['workernode_dict'][node].update(default_values_for_empty_nodes)
 
     do_name_remapping(cluster_dict)

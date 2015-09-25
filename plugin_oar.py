@@ -1,6 +1,9 @@
 __author__ = 'sfranky'
 import yaml
-from collections import OrderedDict
+try:
+    from collections import OrderedDict
+except ImportError:
+    from ordereddict import OrderedDict
 
 
 def calculate_oar_state(jobid_state_lot, nr_of_jobs, node_state_mapping):
@@ -58,14 +61,14 @@ def read_oarnodes_yaml(fn_s, fn_y, write_method):
 def read_oarnodes_s_yaml(fn_s, write_method):  # todo: fix write_method not being used
     with open(fn_s, mode='r') as fin:
         data = yaml.load(fin)
-    nodes_resids = {node: resid_state.items() for node, resid_state in data.items()}
+    nodes_resids = dict([(node, resid_state.items()) for node, resid_state in data.items()])
     return nodes_resids
 
 
 def read_oarnodes_y_yaml(fn_y):
     with open('oarnodes_y', mode='r') as fin:
         data = yaml.load(fin)
-    resids_jobs = {resid: info.get('jobs', None) for resid, info in data.items()}
+    resids_jobs = dict([(resid, info.get('jobs', None)) for resid, info in data.items()])
     return resids_jobs
 
 
