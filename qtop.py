@@ -618,7 +618,7 @@ def display_user_accounts_pool_mappings(account_jobs_table, pattern_of_id):
             account = 'account_not_coloured'
         else:
             extra_width = 12
-        print_string = '{:<{width2}}{sep} {:>{width4}} + {:>{width4}} / {:>{width4}} {sep} {:>{width15}} {sep}'.format(
+        print_string = '{0:<{width2}}{sep} {1:>{width4}} + {2:>{width4}} / {3:>{width4}} {sep} {4:>{width15}} {sep}'.format(
             colorize(str(uid), account),
             colorize(str(runningjobs), account),
             colorize(str(queuedjobs), account),
