@@ -413,7 +413,7 @@ def calc_all_wnid_label_lines(highest_wn):  # (total_wn) in case of multiple clu
                 wn_vert_labels[str(place + 1)].append(string[place])
     else:
         node_str_width = len(str(highest_wn))  # 4
-        wn_vert_labels = {str(place): [] for place in range(1, node_str_width + 1)}
+        wn_vert_labels = dict([(str(place), []) for place in range(1, node_str_width + 1)])
         for nr in range(1, highest_wn + 1):
             extra_spaces = node_str_width - len(str(nr))  # 4 - 1 = 3, for wn0001
             string = "".join("0" * extra_spaces + str(nr))
