@@ -125,12 +125,11 @@ def get_statq_from_xml(fn, write_method):
             raise
         # d['run'] = len(queue_elem.findall('./job_list[@state="running"]'))  # python 2.7 only
         job_lists = queue_elem.findall('job_list')
+        run_count = 0
         for _run in job_lists:
             if _run.attrib.get('state') == 'running':
-                d['run'] = _run.text
-                break
-        else:
-            raise ValueError("No such element")
+                run_count += 1
+        d['run'] = run_count
         d['lm'] = 0
         d['queued'] = 0
         qstatq_list.append(d)
