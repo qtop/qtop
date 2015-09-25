@@ -81,7 +81,7 @@ def read_oarnodes_y_textyaml(fn):
             oar_node, line = _read_oar_node_y_textyaml(fin, line)
             oar_nodes.update(oar_node)
 
-        resids_jobs = {resid: info.get('jobs', None) for resid, info in oar_nodes.items()}
+        resids_jobs = dict([(resid, info.get('jobs', None)) for resid, info in oar_nodes.items()])
         return resids_jobs
         # return oar_nodes
 

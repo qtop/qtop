@@ -2,7 +2,10 @@ import re
 import sys
 import os
 import yaml
-import ujson as json
+try:
+    import ujson as json
+except ImportError:
+    import ujson as json
 
 MAX_CORE_ALLOWED = 150000
 try:

@@ -2,7 +2,10 @@ __author__ = 'sfranky'
 
 import re
 import yaml
-import ujson as json
+try:
+    import ujson as json
+except ImportError:
+    import ujson as json
 from xml.etree import ElementTree as etree
 import os
 import sys

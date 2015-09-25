@@ -1,5 +1,8 @@
 import yaml
-import ujson as json
+try:
+    import ujson as json
+except ImportError:
+    import ujson as json
 from tempfile import mkstemp
 import os
 
