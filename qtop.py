@@ -351,8 +351,8 @@ def fill_node_cores_column(state_np_corejob, core_user_map, id_of_username, max_
                 _ = user_of_job_id[job]
             except KeyError, KeyErrorValue:
                 print 'There seems to be a problem with the qstat output. ' \
-                      'A Job (ID {}) has gone rogue. ' \
-                      'Please check with the SysAdmin.'.format(str(KeyErrorValue))
+                      'A Job (ID %s) has gone rogue. ' \
+                      'Please check with the SysAdmin.' % (str(KeyErrorValue))
                 raise KeyError
             else:
                 core_user_map['Core' + str(core) + 'line'] += [str(id_of_username[user_of_job_id[job]])]
@@ -598,7 +598,7 @@ def print_single_attr_line(print_char_start, print_char_stop, attr_line, label, 
     # TODO: fix option parameter, inserted for testing purposes
     line = attr_line[print_char_start:print_char_stop]
     # maybe put attr_line and label as kwd arguments? collect them as **kwargs
-    attr_line = insert_separators(line, SEPARATOR, options.WN_COLON) + '={}'.format(label)
+    attr_line = insert_separators(line, SEPARATOR, options.WN_COLON) + '=%s' % (label)
     attr_line = ''.join([colorize(char, 'Nothing', color_func) for char in attr_line])
     print attr_line
 
