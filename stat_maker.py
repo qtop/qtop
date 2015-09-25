@@ -214,8 +214,17 @@ class SGEStatMaker(StatMaker):
     def make_stat(self, orig_file, out_file, write_method):
         tree = etree.parse(orig_file)
         root = tree.getroot()
-        for queue_elem in root.iter('Queue-List'):
-            queue_name = queue_elem.find('./resource[@name="qname"]').text
+        # for queue_elem in root.iter('Queue-List'):  # 2.7 only
+        for queue_elem in root.findall('queue_info/Queue-List'):
+            # queue_name = queue_elem.find('./resource[@name="qname"]').text  # 2.7 only
+            queue_names = queue_elem.findall('resource')
+            for _queue_name in queue_names:
+                if _queue_name.attrib.get('name') == 'qname':
+                    queue_name = _queue_name.text
+                    break
+            else:
+                raise ValueError("No such queue name")
+
             self._extract_job_info(queue_elem, 'job_list', queue_name=queue_name)
 
         job_info_elem = root.find('./job_info')
@@ -228,7 +237,7 @@ class SGEStatMaker(StatMaker):
         """
         inside elem, iterates over subelems named elem_text and extracts relevant job information
         """
-        for subelem in elem.iter(elem_text):
+        for subelem in elem.findall(elem_text):
             qstat_values = dict()
             qstat_values['JobId'] = subelem.find('./JB_job_number').text
             qstat_values['UnixAccount'] = subelem.find('./JB_owner').text
