@@ -6,6 +6,7 @@ import ujson as json
 from xml.etree import ElementTree as etree
 import os
 import sys
+from common_module import get_new_temp_file
 
 MAX_CORE_ALLOWED = 150000
 try:
@@ -215,8 +216,10 @@ class SGEStatMaker(StatMaker):
             self._extract_job_info(queue_elem, 'job_list', queue_name=queue_name)
 
         job_info_elem = root.find('./job_info')
-        self._extract_job_info(job_info_elem, 'job_list', queue_name='NoQueueAssigned')
-        self.dump_all(out_file, self.stat_mapping[write_method])
+        self._extract_job_info(job_info_elem, 'job_list', queue_name='Pending')
+        prefix, suffix  = out_file.split('.')
+        SGEStatMaker.fd, SGEStatMaker.temp_filepath = get_new_temp_file(prefix=prefix, suffix=suffix)
+        self.dump_all(SGEStatMaker.fd, self.stat_mapping[write_method])
 
     def _extract_job_info(self, elem, elem_text, queue_name):
         """
@@ -231,16 +234,15 @@ class SGEStatMaker(StatMaker):
             self.l.append(qstat_values)
 
 
-
-
-# qstat_mapping = {'yaml': (yaml.dump_all, {'Dumper': Dumper, 'default_flow_style': False}, 'yaml'),
-#                  'txtyaml': (qstat_write_lines, {}, 'yaml'),
-#                  'json': (json.dump, {}, 'json')}
-#
-# qstatq_mapping = {'yaml': (yaml.dump_all, {'Dumper': Dumper, 'default_flow_style': False}, 'yaml'),
-#                   'txtyaml': (qstatq_write_lines, {}, 'yaml'),
-#                   'json': (json.dump, {}, 'json')}
-#
-# pbsnodes_mapping = {'yaml': (yaml.dump_all, {'Dumper': Dumper, 'default_flow_style': False}, 'yaml'),
-#                     'txtyaml': (pbsnodes_write_lines, {}, 'yaml'),
-#                     'json': (json.dump, {}, 'json')}
+    @staticmethod
+    def dump_all(fd, write_func_args):
+        """
+        dumps the content of qstat/qstat_q files in the selected write_method format
+        fd here is already a file descriptor
+        """
+        # prefix, suffix  = out_file.split('.')
+        # out_file = get_new_temp_file(prefix=prefix, suffix=suffix)
+        out_file = os.fdopen(fd, 'w')
+        write_func, kwargs, _ = write_func_args
+        write_func(out_file, **kwargs)
+        out_file.close()

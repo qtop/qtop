@@ -13,12 +13,16 @@ import datetime
 from collections import OrderedDict
 from itertools import izip
 # modules
-from pbs import *
-from oar import *
-from sge import *
+from plugin_pbs import *
+from plugin_oar import *
+from plugin_sge import *
 from stat_maker import *
 from math import ceil
 from colormap import color_of_account, code_of_color
+from common_module import read_qstat_yaml
+from signal import signal, SIGPIPE, SIG_DFL
+
+
 
 parser = OptionParser()  # for more details see http://docs.python.org/library/optparse.html
 parser.add_option("-a", "--blindremapping", action="store_true", dest="BLINDREMAP", default=False,
@@ -195,10 +199,11 @@ def nodes_with_jobs(worker_nodes):
 def display_job_accounting_summary(cluster_dict, total_running_jobs, total_queued_jobs, qstatq_list):
     if options.REMAP:
         print '=== WARNING: --- Remapping WN names and retrying heuristics... good luck with this... ---'
-    print '\nPBS report tool. Please try: watch -d ' + QTOPPATH + \
-          '. All bugs added by sfranky@gmail.com. Cross fingers now...\n'
-    print colorize('===> ', '#') + colorize('Job accounting summary', 'Nothing') + colorize(' <=== ', '#') + colorize(
-        '(Rev: 3000 $) %s WORKDIR = to be added', 'account_not_coloured') % (datetime.datetime.today())
+    print 'PBS report tool. All bugs added by sfranky@gmail.com. Cross fingers now...'
+    print 'Please try: watch -d + %s/qtop.py -s %s\n' % (QTOPPATH, options.SOURCEDIR)
+    print colorize('===> ', '#') + colorize('Job accounting summary', 'Normal') + colorize(' <=== ', '#') + colorize(
+        '(Rev: 3000 $) %s WORKDIR = %s' % (datetime.datetime.today(), QTOPPATH), 'account_not_coloured')
+
     print 'Usage Totals:\t%s/%s\t Nodes | %s/%s  Cores |   %s+%s jobs (R + Q) reported by qstat -q' % \
           (cluster_dict['total_wn'] - cluster_dict['offline_down_nodes'],
            cluster_dict['total_wn'],
@@ -206,13 +211,14 @@ def display_job_accounting_summary(cluster_dict, total_running_jobs, total_queue
            cluster_dict['total_cores'],
            int(total_running_jobs),
            int(total_queued_jobs))
+
     print 'Queues: | ',
     for q in qstatq_list:
         q_name, q_running_jobs, q_queued_jobs = q['queue_name'], q['run'], q['queued']
         account = q_name if q_name in color_of_account else 'account_not_coloured'
-        print "{}: {} + {} |".format(colorize(q_name, account),
-                                     colorize(q_running_jobs, account),
-                                     colorize(q_queued_jobs, account)),
+        print "{qname}: {run} {q}|".format(qname=colorize(q_name, account),
+                                     run=colorize(q_running_jobs, account),
+                                     q='+ ' + colorize(q_queued_jobs, account) if q_queued_jobs != '0' else ''),
     print '* implies blocked\n'
 
 
@@ -224,7 +230,7 @@ def calculate_job_counts(user_names, job_states):
     :return: (list, list, dict)
     """
     expand_useraccounts_symbols(config, user_names)
-    state_abbrevs = config['state_abbrevs'][scheduler]
+    state_abbrevs = config['state_abbreviations'][options.BATCH_SYSTEM or scheduler]
 
     job_counts = create_job_counts(user_names, job_states, state_abbrevs)
     user_alljobs_sorted_lot = produce_user_lot(user_names)
@@ -290,10 +296,7 @@ def create_job_counts(user_names, job_states, state_abbrevs):
         job_counts[x_of_user][user_name] = job_counts[x_of_user].get(user_name, 0) + 1
 
     for user_name in job_counts['running_of_user']:
-        job_counts['queued_of_user'].setdefault(user_name, 0)
-        job_counts['cancelled_of_user'].setdefault(user_name, 0)
-        job_counts['waiting_of_user'].setdefault(user_name, 0)
-        job_counts['exiting_of_user'].setdefault(user_name, 0)
+        [job_counts[x_of_user].setdefault(user_name, 0) for x_of_user in job_counts if x_of_user != 'running_of_user']
 
     return job_counts
 
@@ -702,8 +705,28 @@ def calculate_wn_occupancy(cluster_dict, user_names, job_states, job_ids):
 
 
 def print_core_lines(core_user_map, print_char_start, print_char_stop, pattern_of_id, attrs, options1, options2):
+    signal(SIGPIPE, SIG_DFL)
     for core_line in get_core_lines(core_user_map, print_char_start, print_char_stop, pattern_of_id, attrs):
-        print core_line
+        try:
+            print core_line
+        except IOError:
+            # This tries to handle the broken pipe exception that occurs when doing "| head"
+            # stdout is closed, no point in continuing
+            # Attempt to close them explicitly to prevent cleanup problems
+            # Results are not always best. misbehaviour with watch -d,
+            # output gets corrupted in the terminal afterwards without watch.
+            # TODO Find fix.
+            try:
+                signal(SIGPIPE, SIG_DFL)
+                print core_line
+                sys.stdout.close()
+            except IOError:
+                pass
+            try:
+                sys.stderr.close()
+            except IOError:
+                pass
+
 
 
 def display_wn_occupancy(workernodes_occupancy, cluster_dict):
@@ -796,8 +819,11 @@ def calculate_split_screen_size():
 
 
 def sort_batch_nodes(batch_nodes):
-    batch_nodes.sort(key=eval(config['sorting']['user_sort']), reverse=config['sorting']['reverse'])
-    pass
+    try:
+        batch_nodes.sort(key=eval(config['sorting']['user_sort']), reverse=config['sorting']['reverse'])
+    except IndexError:
+        print "\n**There's probably something wrong in your sorting lambda in qtopconf.yaml.**\n"
+        raise
 
 
 def filter_list_out(batch_nodes, _list=None):
@@ -900,7 +926,12 @@ if __name__ == '__main__':
 
     cwd = os.getcwd()
     QTOPPATH = os.path.expanduser(cwd)
-    config = load_yaml_config(QTOPPATH)
+    USERPATH = os.path.expandvars('$HOME/.local/qtop')
+    try:
+        config = load_yaml_config(USERPATH)
+    except IOError:
+        config = load_yaml_config(QTOPPATH)
+
 
     SEPARATOR = config['workernodes_matrix'][0]['wn id lines']['separator']  # alias
     USER_CUT_MATRIX_WIDTH = config['workernodes_matrix'][0]['wn id lines']['user_cut_matrix_width']  # alias
@@ -921,7 +952,10 @@ if __name__ == '__main__':
     filenames = dict()
     for _file in INPUT_FNs:
         filenames[_file] = INPUT_FNs[_file]
-        filenames[_file + '_out'] = '{}_{}.{}'.format(INPUT_FNs[_file].rsplit('.')[0], options.write_method, ext)  # os.getpid()
+        # filenames[_file + '_out'] = get_new_temp_file(suffix, prefix)
+        filenames[_file + '_out'] = '{filename}_{writemethod}.{ext}'.format(
+            filename=INPUT_FNs[_file].rsplit('.')[0], writemethod=options.write_method, ext=ext
+        )  # pid=os.getpid()
 
     yaml_converter = {
         'pbs': {
@@ -936,7 +970,6 @@ if __name__ == '__main__':
         },
         'sge': {
             'sge_file_stat': SGEStatMaker().make_stat,
-            # 'sge_file': SGEStatMaker().make_stat,
         }
     }
     commands = yaml_converter[scheduler]
@@ -957,8 +990,9 @@ if __name__ == '__main__':
         ],
         'sge': [
             (get_worker_nodes, ([filenames.get('sge_file_stat')]), {'write_method': options.write_method}),
-            (read_qstat_yaml, ([filenames.get('sge_file_stat_out')]), {'write_method': options.write_method}),
-            (lambda *args, **kwargs: (0, 0, 0), ([filenames.get('oarstat_file')]), {'write_method': options.write_method}),
+            (read_qstat_yaml, ([SGEStatMaker.temp_filepath]), {'write_method': options.write_method}),
+            # (lambda *args, **kwargs: (0, 0, 0), ([filenames.get('sge_file_stat')]), {'write_method': options.write_method}),
+            (get_statq_from_xml, ([filenames.get('sge_file_stat')]), {'write_method': options.write_method}),
         ]
     }
 
@@ -978,10 +1012,10 @@ if __name__ == '__main__':
         'workernodes_matrix': (display_wn_occupancy, (workernodes_occupancy, cluster_dict)),
         'user_accounts_pool_mappings': (display_user_accounts_pool_mappings, (workernodes_occupancy['account_jobs_table'], workernodes_occupancy['pattern_of_id']))
     }
-
+    # print 'Reading: {}'.format(SGEStatMaker.temp_filepath)
     for part in config['user_display_parts']:
         _func, args = display_parts[part][0], display_parts[part][1]
         _func(*args)
 
-    print '\nThanks for watching!'
+    # print '\nThanks for watching!'
     os.chdir(QTOPPATH)
