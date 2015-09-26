@@ -511,9 +511,12 @@ def is_matrix_coreless(core_user_map, print_char_start, print_char_stop):
     for ind, k in enumerate(core_user_map):
         cpu_core_line = core_user_map['Core' + str(ind) + 'line'][print_char_start:print_char_stop]
         if options.REM_EMPTY_CORELINES and \
-            ('#' * (print_char_stop - print_char_start) == cpu_core_line) or \
-            ('#' * (len(cpu_core_line)) == cpu_core_line):
-                lines.append('*')
+            (
+                ('#' * (print_char_stop - print_char_start) == cpu_core_line) or \
+                ('#' * (len(cpu_core_line)) == cpu_core_line)
+            ):
+            lines.append('*')
+
     return len(lines) == len(core_user_map)
 
 
@@ -643,13 +646,15 @@ def get_core_lines(core_user_map, print_char_start, print_char_stop, pattern_of_
     prints all coreX lines, except cores that don't show up
     anywhere in the given matrix
     """
-    # lines = []
+    # TODO: is there a way to use is_matrix_coreless in here? avoid duplication of code
     for ind, k in enumerate(core_user_map):
         cpu_core_line = core_user_map['Core' + str(ind) + 'line'][print_char_start:print_char_stop]
         if options.REM_EMPTY_CORELINES and \
-            ('#' * (print_char_stop - print_char_start) == cpu_core_line) or \
-            ('#' * (len(cpu_core_line)) == cpu_core_line):
-                continue
+            (
+                ('#' * (print_char_stop - print_char_start) == cpu_core_line) or \
+                ('#' * (len(cpu_core_line)) == cpu_core_line)
+            ):
+            continue
         cpu_core_line = insert_separators(cpu_core_line, SEPARATOR, options.WN_COLON)
         cpu_core_line = ''.join([colorize(elem, pattern_of_id[elem]) for elem in cpu_core_line if elem in pattern_of_id])
         yield cpu_core_line + colorize('=Core' + str(ind), 'account_not_coloured')
