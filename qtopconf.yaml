@@ -1,3 +1,6 @@
+#possible values: pbs, oar, sge
+scheduler: sge
+
 schedulers:
   pbs:
     pbsnodes_file: pbsnodes_a.txt
@@ -10,15 +13,13 @@ schedulers:
   sge:
     sge_file_stat: qstat.F.xml.stdout
 
-#possible values: pbs, oar, sge
-scheduler: pbs
 
 # utilises lxml module. Needs to be installed in your system.
 # Might result in segmentation fault.
-faster_xml_parsing: True
+faster_xml_parsing: False
 
 # insert comment here
-state_abbrevs:
+state_abbreviations:
   pbs:
     Q: queued_of_user
     R: running_of_user
@@ -36,14 +37,24 @@ state_abbrevs:
     T: exiting_of_user
     S: cancelled_of_user
   sge:
+    # ref: http://www.softpanorama.org/HPC/Grid_engine/Reference/qstat.shtml
     r: running_of_user
     E: exiting_of_user  # not real
     qw: queued_of_user
     C: cancelled_of_user  # not real
     W: waiting_of_user  # not real
+    R: restarting_of_user
+    Eqw: Eqw_of_user
+    hqw: hold_of_user
+    t: transferring_of_user
+    T: threshold_reached
+    dr: job_ending_of_user
+    dt: dt_of_user
+    s: suspended_of_user
+    S: suspended_by_the_queue
 
-# original:
-# state_abbrevs = {
+# original OAR abbreviations:
+# state_abbreviations = {
 #     'W': 'Waiting',
 #     'L': 'toLaunch',
 #     'L': 'Launching',
@@ -65,7 +76,7 @@ non_existent_node_symbol: '#'
 # If this is commented out, autodetection takes place (may not work, e.g. in Pycharm window)
 term_size: [53, 176]
 #term_size: [53, 126]  # for smaller screens, namely 1366 x 768
-user_colour_mappings:  # order should be from more generic-->more specific
+user_color_mappings:  # order should be from more generic-->more specific
 # - '\w+': Gray_D  # enabling this cancels all saved accounts in colormap.py
 # - '[\d]+': Gray_D
 # - '[A-Za-z]+0\d{2}': Red_L
@@ -93,7 +104,7 @@ remapping:
 # - 'gridmon(\d*)' : 'mon\1'
  - '(.*?)cluster(.*?)': '\1-\2'  # remove "cluster" word from all node names
 ### - '--' : '-'  # removes dashes for shortening (can also replace them with something else, e.g. _
-# - '-' : ''  # removes dashes for shortening (can also replace them with something else, e.g. _
+ - '-' : ''  # removes dashes for shortening (can also replace them with something else, e.g. _
 
 sorting:
   # by_namelen_by_nr, roughly groups the nodes by name and then by number. Experimental!
@@ -105,10 +116,11 @@ sorting:
 #      )
   user_sort: |
       lambda d: (
-      d['np'],  # by_np
-      len(d['domainname'].split('.', 1)[0].split('-')[0]),
+      d['np'],
       ord(d['domainname'][0]),
-      int(re.sub(r'[A-Za-z_-]+', '', d['domainname'].split('.', 1)[0].split('-')[0]) or -1)
+      len(d['domainname'].split('.', 1)[0].split('-')[0]),
+      #int(d['domainname'].split('.', 1)[0].split('-')[1]),
+      #int(re.sub(r'[A-Za-z_-]+', '', d['domainname'].split('.', 1)[0].split('-')[0]) or -1),  # by number
       )
 #  user_sort: |  # by node state
 #       lambda d: ord(d['state'])
@@ -117,7 +129,7 @@ sorting:
 filtering:
 #  - list_out: [0, 1, 2, 3, 16]
   - list_out_by_name: [gaia-73, gaia-80, gaia-81]
-#  - list_out_by_name: [gaia-74, gaia-73, gaia-81, gaia-80, gaia-87, gaia-75, gaia-77, gaia-76, gaia-79, gaia-78]
+  # - list_out_by_name: [gaia-74, gaia-73, gaia-81, gaia-80, gaia-87, gaia-75, gaia-77, gaia-76, gaia-79, gaia-78]
   - list_out_by_name_pattern:
 #    - r'^wn'
 #    - r'^ps'
@@ -129,9 +141,9 @@ filtering:
 
 # what parts of qtop to display
 user_display_parts:
-# - job_accounting_summary
+ - job_accounting_summary
  - workernodes_matrix
-# - user_accounts_pool_mappings
+ - user_accounts_pool_mappings
 
 #wn_occupancy:
 # - wn id lines
@@ -148,7 +160,7 @@ workernodes_matrix:
      user_cut_matrix_width: 0
      # character used for vertical separator, for the -o switch
      separator: '|'
-     alt_label_highlight_colours: [White, Blue_L]
+     alt_label_highlight_colors: [White, Blue_L]
      # customised end labels
      end_labels:
        '1': ['={__WNID__}']
@@ -186,6 +198,7 @@ workernodes_matrix:
 #Yellow
 
 # example how to extract the GECOS field from a copy of the passwd file
+# NOT YET IMPLEMENTED
 extract_info:
   sourcefile: $HOME/.local/qtop/getent_passwd_copy
   separator: ":"
