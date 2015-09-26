@@ -7,10 +7,27 @@ def calc_everything(fn, write_method):
     root = tree.getroot()
     worker_nodes = list()
     node_names = set()
-    for queue_elem in root.iter('Queue-List'):
+    # for queue_elem in root.iter('Queue-List'):  # 2.7-only
+    for queue_elem in root.findall('queue_info/Queue-List'):
         sge_values = dict()
-        sge_values['domainname'] = queue_elem.find('./resource[@name="hostname"]').text.split('.', 1)[0]
-        sge_values['np'] = queue_elem.find('./resource[@name="num_proc"]').text
+        # sge_values['domainname'] = queue_elem.find('./resource[@name="hostname"]').text.split('.', 1)[0]  # 2.7 only
+        resources = queue_elem.findall('resource')
+        for resource in resources:
+            if resource.attrib.get('name') == 'hostname':
+                sge_values['domainname'] = resource.text
+                break
+        else:
+            raise ValueError("No such resource")
+
+        # sge_values['np'] = queue_elem.find('./resource[@name="num_proc"]').text  # python 2.7 only
+        resources = queue_elem.findall('resource')
+        for resource in resources:
+            if resource.attrib.get('name') == 'num_proc':
+                sge_values['np'] = resource.text
+                break
+        else:
+            sge_values['np'] = 0
+
         try:
             state = queue_elem.find('state').text
         except AttributeError:
@@ -50,7 +67,7 @@ def extract_job_info(elem, elem_text):
     inside elem, iterates over subelems named elem_text and extracts relevant job information
     """
     job_ids, usernames, job_states = [], [], []
-    for subelem in elem.iter(elem_text):
+    for subelem in elem.findall(elem_text):
         job_ids.append(subelem.find('./JB_job_number').text)
         usernames.append(subelem.find('./JB_owner').text)
         job_states.append(subelem.find('./state').text)
@@ -61,8 +78,16 @@ def make_stat(fn, write_method):
     tree = etree.parse(fn)
     root = tree.getroot()
     job_ids, usernames, job_states, queue_names = [], [], [], []
-    for queue_elem in root.iter('Queue-List'):
-        queue_name = queue_elem.find('./resource[@name="qname"]').text
+    # for queue_elem in root.iter('Queue-List'):  # python 2.7-only
+    for queue_elem in root.find('queue_info/Queue-List'):
+        # queue_name = queue_elem.find('./resource[@name="qname"]').text  # 2.7 only
+        queue_names = queue_elem.findall('resource')
+        for _queue_name in queue_names:
+            if _queue_name.attrib.get('name') == 'qname':
+                queue_name = _queue_name.text
+                break
+        else:
+            raise ValueError("No such resource")
         job_ids, usernames, job_states = extract_job_info(queue_elem, 'job_list')
         _queue_names = queue_name * len(job_ids)
 
@@ -71,12 +96,26 @@ def get_statq_from_xml(fn, write_method):
     tree = etree.parse(fn)
     root = tree.getroot()
     qstatq_list = []
-    for queue_elem in root.iter('Queue-List'):
-        queue_name = queue_elem.find('./resource[@name="qname"]').text
+    # for queue_elem in root.iter('Queue-List'):  # python 2.7-only
+    for queue_elem in root.findall('queue_info/Queue-List'):
+        # queue_name = queue_elem.find('./resource[@name="qname"]').text  # python 2.7-only
+        queue_names = queue_elem.findall('resource')
+        for _queue_name in queue_names:
+            if _queue_name.attrib.get('name') == 'qname':
+                queue_name = _queue_name.text
+                break
+        else:
+            raise ValueError("No such resource")
         FOUND = False
         for exist_d in qstatq_list:
             if queue_name == exist_d['queue_name']:
-                exist_d['run'] += len(queue_elem.findall('./job_list[@state="running"]'))
+                # exist_d['run'] += len(queue_elem.findall('./job_list[@state="running"]'))
+                jobs = queue_elem.findall('job_list')
+                run_count = 0
+                for _run in jobs:
+                    if _run.attrib.get('state') == 'running':
+                        run_count += 1
+                exist_d['run'] += run_count
                 FOUND = True
                 break
         if FOUND:
@@ -90,7 +129,13 @@ def get_statq_from_xml(fn, write_method):
             d['state'] = '?'
         except:
             raise
-        d['run'] = len(queue_elem.findall('./job_list[@state="running"]'))
+        # d['run'] = len(queue_elem.findall('./job_list[@state="running"]'))  # python 2.7 only
+        job_lists = queue_elem.findall('job_list')
+        run_count = 0
+        for _run in job_lists:
+            if _run.attrib.get('state') == 'running':
+                run_count += 1
+        d['run'] = run_count
         d['lm'] = 0
         d['queued'] = 0
         qstatq_list.append(d)
@@ -99,7 +144,13 @@ def get_statq_from_xml(fn, write_method):
     for d in qstatq_list:
         d['run'] = str(d['run'])
         d['queued'] = str(d['queued'])
-    total_queued_jobs = str(len(root.findall('.//job_list[@state="pending"]')))
+    # total_queued_jobs = str(len(root.findall('.//job_list[@state="pending"]')))  # python 2.7 only
+    _total_queued_jobs = root.findall('job_info/job_list')
+    pending_count = 0
+    for job in _total_queued_jobs:
+        if job.attrib.get('state') == 'pending':
+            pending_count +=1
+    total_queued_jobs = str(pending_count)
     qstatq_list.append({'run': '0', 'queued': total_queued_jobs, 'queue_name': 'Pending', 'state': 'Q', 'lm': '0'})
     # TODO: check validity. 'state' shouldnt just be 'Q'!
 

@@ -10,8 +10,11 @@
 from operator import itemgetter
 from optparse import OptionParser
 import datetime
-from collections import OrderedDict
 from itertools import izip
+try:
+    from collections import OrderedDict
+except ImportError:
+    from ordereddict import OrderedDict
 # modules
 from plugin_pbs import *
 from plugin_oar import *
@@ -68,7 +71,7 @@ def colorize(text, pattern='Nothing', color_func=None, bg_colour=None):
     except KeyError:
         return text
     else:
-        return "\033[" + '{}{}'.format(ansi_color, bg_colour) + "m" + text + "\033[0;m" \
+        return "\033[" + '%s%s' % (ansi_color, bg_colour) + "m" + text + "\033[0;m" \
             if ((not options.NOCOLOR) and pattern != 'account_not_coloured' and text != ' ') else text
 
 
@@ -162,7 +165,7 @@ def calculate_cluster(worker_nodes):
         for node in range(1, cluster_dict['highest_wn'] + 1):
             if node not in cluster_dict['workernode_dict']:
                 cluster_dict['workernode_dict'][node] = {'state': '?', 'np': 0, 'domainname': 'N/A', 'host': 'N/A'}
-                default_values_for_empty_nodes = {yaml_key: '?' for yaml_key, part_name in get_yaml_key_part('workernodes_matrix')}
+                default_values_for_empty_nodes = dict([(yaml_key, '?') for yaml_key, part_name in get_yaml_key_part('workernodes_matrix')])
                 cluster_dict['workernode_dict'][node].update(default_values_for_empty_nodes)
 
     do_name_remapping(cluster_dict)
@@ -347,8 +350,8 @@ def fill_node_cores_column(state_np_corejob, core_user_map, id_of_username, max_
                 _ = user_of_job_id[job]
             except KeyError, KeyErrorValue:
                 print 'There seems to be a problem with the qstat output. ' \
-                      'A Job (ID {}) has gone rogue. ' \
-                      'Please check with the SysAdmin.'.format(str(KeyErrorValue))
+                      'A Job (ID %s) has gone rogue. ' \
+                      'Please check with the SysAdmin.' % (str(KeyErrorValue))
                 raise KeyError
             else:
                 core_user_map['Core' + str(core) + 'line'] += [str(id_of_username[user_of_job_id[job]])]
@@ -409,7 +412,7 @@ def calc_all_wnid_label_lines(highest_wn):  # (total_wn) in case of multiple clu
                 wn_vert_labels[str(place + 1)].append(string[place])
     else:
         node_str_width = len(str(highest_wn))  # 4
-        wn_vert_labels = {str(place): [] for place in range(1, node_str_width + 1)}
+        wn_vert_labels = dict([(str(place), []) for place in range(1, node_str_width + 1)])
         for nr in range(1, highest_wn + 1):
             extra_spaces = node_str_width - len(str(nr))  # 4 - 1 = 3, for wn0001
             string = "".join("0" * extra_spaces + str(nr))
@@ -503,6 +506,20 @@ def colour_plainly(colour_0, colour_1, condition):
             yield colour_1
 
 
+def is_matrix_coreless(core_user_map, print_char_start, print_char_stop):
+    lines = []
+    for ind, k in enumerate(core_user_map):
+        cpu_core_line = core_user_map['Core' + str(ind) + 'line'][print_char_start:print_char_stop]
+        if options.REM_EMPTY_CORELINES and \
+            (
+                ('#' * (print_char_stop - print_char_start) == cpu_core_line) or \
+                ('#' * (len(cpu_core_line)) == cpu_core_line)
+            ):
+            lines.append('*')
+
+    return len(lines) == len(core_user_map)
+
+
 def display_remaining_matrices(
         extra_matrices_nr,
         cluster_dict,
@@ -531,14 +548,8 @@ def display_remaining_matrices(
         print_char_stop = min(print_char_stop, cluster_dict['total_wn']) \
             if options.REMAP else min(print_char_stop, cluster_dict['highest_wn'])
 
-        lines = []
-        for ind, k in enumerate(core_user_map):
-            cpu_core_line = core_user_map['Core' + str(ind) + 'line'][print_char_start:print_char_stop]
-            if ('#' * (print_char_stop - print_char_start) == cpu_core_line) or \
-                ('#' * (len(cpu_core_line)) == cpu_core_line):
-                    lines.append('*')
-        if len(lines) == len(core_user_map):
-            break
+        if is_matrix_coreless(core_user_map, print_char_start, print_char_stop):
+            continue
 
         display_selected_occupancy_parts(print_char_start,
             print_char_stop,
@@ -562,11 +573,12 @@ def display_selected_occupancy_parts(
     """
     occupancy_parts = {
         'wn id lines': (print_wnid_lines, (print_char_start, print_char_stop, cluster_dict['highest_wn'], wn_vert_labels),
-                        {'inner_attrs': None}),
+            {'inner_attrs': None}),
         'core user map': (print_core_lines, (core_user_map, print_char_start, print_char_stop, pattern_of_id), {'attrs': None}),
         # 'temperature':
         # (print_single_attr_line, (print_char_start, print_char_stop), {'attr_line': workernodes_occupancy['temperature']}),
     }
+
     for yaml_key, part_name in get_yaml_key_part('workernodes_matrix'):
         new_dict_var = {
             part_name:
@@ -594,7 +606,7 @@ def print_single_attr_line(print_char_start, print_char_stop, attr_line, label, 
     # TODO: fix option parameter, inserted for testing purposes
     line = attr_line[print_char_start:print_char_stop]
     # maybe put attr_line and label as kwd arguments? collect them as **kwargs
-    attr_line = insert_separators(line, SEPARATOR, options.WN_COLON) + '={}'.format(label)
+    attr_line = insert_separators(line, SEPARATOR, options.WN_COLON) + '=%s' % (label)
     attr_line = ''.join([colorize(char, 'Nothing', color_func) for char in attr_line])
     print attr_line
 
@@ -614,7 +626,7 @@ def display_user_accounts_pool_mappings(account_jobs_table, pattern_of_id):
             account = 'account_not_coloured'
         else:
             extra_width = 12
-        print_string = '{:<{width2}}{sep} {:>{width4}} + {:>{width4}} / {:>{width4}} {sep} {:>{width15}} {sep}'.format(
+        print_string = '{0:<{width2}}{sep} {1:>{width4}} + {2:>{width4}} / {3:>{width4}} {sep} {4:>{width15}} {sep}'.format(
             colorize(str(uid), account),
             colorize(str(runningjobs), account),
             colorize(str(queuedjobs), account),
@@ -634,13 +646,15 @@ def get_core_lines(core_user_map, print_char_start, print_char_stop, pattern_of_
     prints all coreX lines, except cores that don't show up
     anywhere in the given matrix
     """
-    # lines = []
+    # TODO: is there a way to use is_matrix_coreless in here? avoid duplication of code
     for ind, k in enumerate(core_user_map):
         cpu_core_line = core_user_map['Core' + str(ind) + 'line'][print_char_start:print_char_stop]
         if options.REM_EMPTY_CORELINES and \
-            ('#' * (print_char_stop - print_char_start) == cpu_core_line) or \
-            ('#' * (len(cpu_core_line)) == cpu_core_line):
-                continue
+            (
+                ('#' * (print_char_stop - print_char_start) == cpu_core_line) or \
+                ('#' * (len(cpu_core_line)) == cpu_core_line)
+            ):
+            continue
         cpu_core_line = insert_separators(cpu_core_line, SEPARATOR, options.WN_COLON)
         cpu_core_line = ''.join([colorize(elem, pattern_of_id[elem]) for elem in cpu_core_line if elem in pattern_of_id])
         yield cpu_core_line + colorize('=Core' + str(ind), 'account_not_coloured')
@@ -742,16 +756,26 @@ def display_wn_occupancy(workernodes_occupancy, cluster_dict):
     print colorize('===> ', '#') + colorize('Worker Nodes occupancy', 'Nothing') + colorize(' <=== ', '#') + colorize(
         '(you can read vertically the node IDs; nodes in free state are noted with - )', 'account_not_coloured')
 
-    display_selected_occupancy_parts(print_char_start, print_char_stop, wn_vert_labels, core_user_map, pattern_of_id, workernodes_occupancy)
+    if not is_matrix_coreless(core_user_map, print_char_start, print_char_stop):
+        display_selected_occupancy_parts(
+        print_char_start,
+        print_char_stop,
+        wn_vert_labels,
+        core_user_map,
+        pattern_of_id,
+        workernodes_occupancy
+        )
 
-    display_remaining_matrices(extra_matrices_nr,
-                               cluster_dict,
-                               core_user_map,
-                               print_char_stop,
-                               pattern_of_id,
-                               wn_vert_labels,
-                               term_columns,
-                               workernodes_occupancy)
+    display_remaining_matrices(
+        extra_matrices_nr,
+        cluster_dict,
+        core_user_map,
+        print_char_stop,
+        pattern_of_id,
+        wn_vert_labels,
+        term_columns,
+        workernodes_occupancy
+    )
 
 
 def make_pattern_of_id(account_jobs_table):
