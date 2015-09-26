@@ -26,6 +26,7 @@ def calc_everything(fn, write_method):
                 sge_values['np'] = resource.text
                 break
         else:
+            # check this for bugs, maybe raise an exception in the future?
             sge_values['np'] = 0
 
         try:
@@ -145,9 +146,9 @@ def get_statq_from_xml(fn, write_method):
         d['run'] = str(d['run'])
         d['queued'] = str(d['queued'])
     # total_queued_jobs = str(len(root.findall('.//job_list[@state="pending"]')))  # python 2.7 only
-    _total_queued_jobs = root.findall('job_info/job_list')
+    total_queued_jobs_elems = root.findall('job_info/job_list')
     pending_count = 0
-    for job in _total_queued_jobs:
+    for job in total_queued_jobs_elems:
         if job.attrib.get('state') == 'pending':
             pending_count +=1
     total_queued_jobs = str(pending_count)

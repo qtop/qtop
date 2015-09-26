@@ -59,20 +59,20 @@ parser.add_option("-r", "--removeemptycorelines", dest="REM_EMPTY_CORELINES", ac
 #     options.COLORFILE = os.path.expandvars('$HOME/qtop/qtop/qtop.colormap')
 
 
-def colorize(text, pattern='Nothing', color_func=None, bg_colour=None):
+def colorize(text, pattern='Nothing', color_func=None, bg_color=None):
     """
-    prints text coloured according to a unix account pattern color.
+    prints text colored according to a unix account pattern color.
     If color is given, pattern is not needed.
     """
-    # bg_colour = code_of_color['BlueBG']
-    bg_colour = '' if not bg_colour else bg_colour
+    # bg_color = code_of_color['BlueBG']
+    bg_color = '' if not bg_color else bg_color
     try:
         ansi_color = code_of_color[color_func] if color_func else code_of_color[color_of_account[pattern]]
     except KeyError:
         return text
     else:
-        return "\033[" + '%s%s' % (ansi_color, bg_colour) + "m" + text + "\033[0;m" \
-            if ((not options.NOCOLOR) and pattern != 'account_not_coloured' and text != ' ') else text
+        return "\033[" + '%s%s' % (ansi_color, bg_color) + "m" + text + "\033[0;m" \
+            if ((not options.NOCOLOR) and pattern != 'account_not_colored' and text != ' ') else text
 
 
 def decide_remapping(cluster_dict, _all_letters, _all_str_digits_with_empties):
@@ -205,7 +205,7 @@ def display_job_accounting_summary(cluster_dict, total_running_jobs, total_queue
     print 'PBS report tool. All bugs added by sfranky@gmail.com. Cross fingers now...'
     print 'Please try: watch -d + %s/qtop.py -s %s\n' % (QTOPPATH, options.SOURCEDIR)
     print colorize('===> ', '#') + colorize('Job accounting summary', 'Normal') + colorize(' <=== ', '#') + colorize(
-        '(Rev: 3000 $) %s WORKDIR = %s' % (datetime.datetime.today(), QTOPPATH), 'account_not_coloured')
+        '(Rev: 3000 $) %s WORKDIR = %s' % (datetime.datetime.today(), QTOPPATH), 'account_not_colored')
 
     print 'Usage Totals:\t%s/%s\t Nodes | %s/%s  Cores |   %s+%s jobs (R + Q) reported by qstat -q' % \
           (cluster_dict['total_wn'] - cluster_dict['offline_down_nodes'],
@@ -218,7 +218,7 @@ def display_job_accounting_summary(cluster_dict, total_running_jobs, total_queue
     print 'Queues: | ',
     for q in qstatq_list:
         q_name, q_running_jobs, q_queued_jobs = q['queue_name'], q['run'], q['queued']
-        account = q_name if q_name in color_of_account else 'account_not_coloured'
+        account = q_name if q_name in color_of_account else 'account_not_colored'
         print "{qname}: {run} {q}|".format(qname=colorize(q_name, account),
                                      run=colorize(q_running_jobs, account),
                                      q='+ ' + colorize(q_queued_jobs, account) if q_queued_jobs != '0' else ''),
@@ -455,7 +455,7 @@ def find_matrices_width(wn_number, workernode_list, term_columns, DEADWEIGHT=11)
 
 def print_wnid_lines(start, stop, highest_wn, wn_vert_labels, **kwargs):
     """
-    Prints the Worker Node ID lines, after it colours them and adds separators to them.
+    Prints the Worker Node ID lines, after it colors them and adds separators to them.
     highest_wn determines the number of WN ID lines needed  (1/2/3/4+?)
     """
     d = OrderedDict()
@@ -467,7 +467,7 @@ def print_wnid_lines(start, stop, highest_wn, wn_vert_labels, **kwargs):
         for node_nr in range(1, node_str_width + 1):
             d[str(node_nr)] = "".join(wn_vert_labels[str(node_nr)])
         end_label = iter(end_labels[str(node_str_width)])
-        display_wnid_lines(d, start, stop, end_label, color_func=colour_plainly, args=('White', 'Gray_L', start > 0))
+        display_wnid_lines(d, start, stop, end_label, color_func=color_plainly, args=('White', 'Gray_L', start > 0))
         # start > 0 is just a test for a possible future condition
 
     elif NAMED_WNS or options.FORCE_NAMES:  # names (e.g. fruits) instead of numbered WNs
@@ -479,7 +479,7 @@ def print_wnid_lines(start, stop, highest_wn, wn_vert_labels, **kwargs):
 
         end_label = iter(end_labels[str(node_str_width)])
         display_wnid_lines(wn_vert_labels, start, stop, end_label,
-                           color_func=highlight_alternately, args=(ALT_LABEL_HIGHLIGHT_COLOURS))
+                           color_func=highlight_alternately, args=(ALT_LABEL_HIGHLIGHT_colorS))
 
 
 def display_wnid_lines(d, start, stop, end_label, color_func, args):
@@ -490,20 +490,20 @@ def display_wnid_lines(d, start, stop, end_label, color_func, args):
         print wn_id_str + end_label.next()
 
 
-def highlight_alternately(colour_a, colour_b):
-    highlight = {0: colour_a, 1: colour_b}  # should obviously be customizable
+def highlight_alternately(color_a, color_b):
+    highlight = {0: color_a, 1: color_b}  # should obviously be customizable
     selection = 0
     while True:
         selection = 0 if selection else 1
         yield highlight[selection]
 
 
-def colour_plainly(colour_0, colour_1, condition):
+def color_plainly(color_0, color_1, condition):
     while condition:
-        yield colour_0
+        yield color_0
     else:
         while not condition:
-            yield colour_1
+            yield color_1
 
 
 def is_matrix_coreless(core_user_map, print_char_start, print_char_stop):
@@ -606,7 +606,7 @@ def print_single_attr_line(print_char_start, print_char_stop, attr_line, label, 
     # TODO: fix option parameter, inserted for testing purposes
     line = attr_line[print_char_start:print_char_stop]
     # maybe put attr_line and label as kwd arguments? collect them as **kwargs
-    attr_line = insert_separators(line, SEPARATOR, options.WN_COLON) + '=%s' % (label)
+    attr_line = insert_separators(line, SEPARATOR, options.WN_COLON) + '=%(label)s'
     attr_line = ''.join([colorize(char, 'Nothing', color_func) for char in attr_line])
     print attr_line
 
@@ -621,9 +621,9 @@ def display_user_accounts_pool_mappings(account_jobs_table, pattern_of_id):
     for line in account_jobs_table:
         uid, runningjobs, queuedjobs, alljobs, user = line[0], line[1], line[2], line[3], line[4]
         account = pattern_of_id[uid]
-        if options.NOCOLOR or account == 'account_not_coloured' or color_of_account[account] == 'reset':
+        if options.NOCOLOR or account == 'account_not_colored' or color_of_account[account] == 'reset':
             extra_width = 0
-            account = 'account_not_coloured'
+            account = 'account_not_colored'
         else:
             extra_width = 12
         print_string = '{0:<{width2}}{sep} {1:>{width4}} + {2:>{width4}} / {3:>{width4}} {sep} {4:>{width15}} {sep}'.format(
@@ -657,7 +657,7 @@ def get_core_lines(core_user_map, print_char_start, print_char_stop, pattern_of_
             continue
         cpu_core_line = insert_separators(cpu_core_line, SEPARATOR, options.WN_COLON)
         cpu_core_line = ''.join([colorize(elem, pattern_of_id[elem]) for elem in cpu_core_line if elem in pattern_of_id])
-        yield cpu_core_line + colorize('=Core' + str(ind), 'account_not_coloured')
+        yield cpu_core_line + colorize('=Core' + str(ind), 'account_not_colored')
 
 
 def calc_core_userid_matrix(cluster_dict, id_of_username, job_ids, user_names):
@@ -754,7 +754,7 @@ def display_wn_occupancy(workernodes_occupancy, cluster_dict):
     pattern_of_id = workernodes_occupancy['pattern_of_id']
 
     print colorize('===> ', '#') + colorize('Worker Nodes occupancy', 'Nothing') + colorize(' <=== ', '#') + colorize(
-        '(you can read vertically the node IDs; nodes in free state are noted with - )', 'account_not_coloured')
+        '(you can read vertically the node IDs; nodes in free state are noted with - )', 'account_not_colored')
 
     if not is_matrix_coreless(core_user_map, print_char_start, print_char_stop):
         display_selected_occupancy_parts(
@@ -789,20 +789,20 @@ def make_pattern_of_id(account_jobs_table):
     for line in account_jobs_table:
         uid, user = line[0], line[4]
         account = re.search('[A-Za-z]+', user).group(0)  #
-        for re_account_colour in config['user_colour_mappings']:
-            re_account = re_account_colour.keys()[0]
+        for re_account_color in config['user_color_mappings']:
+            re_account = re_account_color.keys()[0]
             try:
                 _ = re.search(re_account, user).group(0)
             except AttributeError:
                 continue  # keep trying
             else:
-                account = re_account  # colours the text according to the regex given by the user in qtopconf
+                account = re_account  # colors the text according to the regex given by the user in qtopconf
 
-        pattern_of_id[uid] = account if account in color_of_account else 'account_not_coloured'
+        pattern_of_id[uid] = account if account in color_of_account else 'account_not_colored'
 
     pattern_of_id['#'] = '#'
     pattern_of_id['_'] = '_'
-    pattern_of_id[SEPARATOR] = 'account_not_coloured'
+    pattern_of_id[SEPARATOR] = 'account_not_colored'
     return pattern_of_id
 
 
@@ -817,10 +817,10 @@ def load_yaml_config(path='.'):
     config['possible_ids'] = list(config['possible_ids'])
     symbol_map = dict([(chr(x), x) for x in range(33, 48) + range(58, 64) + range(91, 96) + range(123, 126)])
 
-    if config['user_colour_mappings']:
-        [color_of_account.update(d) for d in config['user_colour_mappings']]
+    if config['user_color_mappings']:
+        [color_of_account.update(d) for d in config['user_color_mappings']]
     else:
-        config['user_colour_mappings'] = list()
+        config['user_color_mappings'] = list()
     if config['remapping']:
         pass
     else:
@@ -959,7 +959,7 @@ if __name__ == '__main__':
 
     SEPARATOR = config['workernodes_matrix'][0]['wn id lines']['separator']  # alias
     USER_CUT_MATRIX_WIDTH = config['workernodes_matrix'][0]['wn id lines']['user_cut_matrix_width']  # alias
-    ALT_LABEL_HIGHLIGHT_COLOURS = config['workernodes_matrix'][0]['wn id lines']['alt_label_highlight_colours']  # alias
+    ALT_LABEL_HIGHLIGHT_colorS = config['workernodes_matrix'][0]['wn id lines']['alt_label_highlight_colors']  # alias
 
     os.chdir(options.SOURCEDIR)
     scheduler = options.BATCH_SYSTEM or config['scheduler']
