@@ -606,7 +606,7 @@ def print_single_attr_line(print_char_start, print_char_stop, attr_line, label, 
     # TODO: fix option parameter, inserted for testing purposes
     line = attr_line[print_char_start:print_char_stop]
     # maybe put attr_line and label as kwd arguments? collect them as **kwargs
-    attr_line = insert_separators(line, SEPARATOR, options.WN_COLON) + '=%s' % (label)
+    attr_line = insert_separators(line, SEPARATOR, options.WN_COLON) + '=%(label)s'
     attr_line = ''.join([colorize(char, 'Nothing', color_func) for char in attr_line])
     print attr_line
 

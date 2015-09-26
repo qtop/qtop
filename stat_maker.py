@@ -217,10 +217,10 @@ class SGEStatMaker(StatMaker):
         # for queue_elem in root.iter('Queue-List'):  # 2.7 only
         for queue_elem in root.findall('queue_info/Queue-List'):
             # queue_name = queue_elem.find('./resource[@name="qname"]').text  # 2.7 only
-            queue_names = queue_elem.findall('resource')
-            for _queue_name in queue_names:
-                if _queue_name.attrib.get('name') == 'qname':
-                    queue_name = _queue_name.text
+            queue_name_elems = queue_elem.findall('resource')
+            for queue_name_elem in queue_name_elems:
+                if queue_name_elem.attrib.get('name') == 'qname':
+                    queue_name = queue_name_elem.text
                     break
             else:
                 raise ValueError("No such queue name")
