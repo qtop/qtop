@@ -1,3 +1,5 @@
+# IMPORTANT: a blank line MUST be left after every line of python code.
+
 #possible values: pbs, oar, sge
 scheduler: sge
 
@@ -99,12 +101,12 @@ remapping:
 # - "([A-Za-z]+)([1-9]|[1-9][0-9]|[0-9][0-9][0-9])$": |
 #     lambda m: m.group(1)+str(int(m.group(2))+250)
      # e.g. wn100 --> wn350, wn101 --> wn351 and so on
-# - 'torvalds(\d+)' : 'tor\1'
-# - 'gridlab(\d+)' : 'glab\1'
-# - 'gridmon(\d*)' : 'mon\1'
+# - 'torvalds(\d+)': 'tor\1'
+# - 'gridlab(\d+)': 'glab\1'
+# - 'gridmon(\d*)': 'mon\1'
  - '(.*?)cluster(.*?)': '\1-\2'  # remove "cluster" word from all node names
 ### - '--' : '-'  # removes dashes for shortening (can also replace them with something else, e.g. _
- - '-' : ''  # removes dashes for shortening (can also replace them with something else, e.g. _
+ - '-': ''  # removes dashes for shortening (can also replace them with something else, e.g. _
 
 sorting:
   # by_namelen_by_nr, roughly groups the nodes by name and then by number. Experimental!
@@ -122,6 +124,7 @@ sorting:
       #int(d['domainname'].split('.', 1)[0].split('-')[1]),
       #int(re.sub(r'[A-Za-z_-]+', '', d['domainname'].split('.', 1)[0].split('-')[0]) or -1),  # by number
       )
+
 #  user_sort: |  # by node state
 #       lambda d: ord(d['state'])
   reverse: False
@@ -141,7 +144,7 @@ filtering:
 
 # what parts of qtop to display
 user_display_parts:
- - job_accounting_summary
+ - '-1': job_accounting_summary
  - workernodes_matrix
  - user_accounts_pool_mappings
 
