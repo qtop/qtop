@@ -56,6 +56,7 @@ def read_yaml_config(fn):
 
 def read_yaml_config_block(line, fin, get_lines, block):
     last_empty_container = block
+
     if len(line) > 1:  # non-empty line
         key_value, last_empty_container = process_line(line, fin, get_lines, last_empty_container)
         for (k, v) in key_value.items():
@@ -65,19 +66,28 @@ def read_yaml_config_block(line, fin, get_lines, block):
         line = next(get_lines)
 
     while len(line) > 1:  # as long as a blank line is not reached (i.e. block is not complete)
-        if line[0] > 0:  # nesting
+        if line[0] == 0:  # same level
             key_value, new_container = process_line(line, fin, get_lines, last_empty_container)
-            for (k, v) in key_value.items():
-                last_empty_container[k] = v
-                last_empty_container = new_container
-        elif line[0] == 0:  # same level
+            for k in key_value:
+                if k == '-':
+                    _list.append(new_container)
+                else:
+                    last_empty_container[k] = key_value[k]  # fill up parent container with new key_value
+                    last_empty_container = new_container  # point towards latest container (key_value's value)
+        elif line[0] > 0:  # nesting
             key_value, new_container = process_line(line, fin, get_lines, last_empty_container)
-            for (k, v) in key_value.items():  # fill parent container with new key_value
-                last_empty_container[k] = v
+            for k in key_value:
+                last_empty_container[k] = key_value[k]
+                if k == '-':
+                    _list = last_empty_container[k]
                 last_empty_container = new_container
+
         elif line[0] < 0:  # go up one level
-            # key, container = process_key_value_line(line, fin, get_lines)
-            pass
+            key_value, container = process_line(line, fin, get_lines, last_empty_container)
+            for k in key_value:
+                if k == '-':
+                    _list.extend(key_value[k])
+                last_empty_container = container
         line = next(get_lines)
 
     return block, line
@@ -103,27 +113,21 @@ def process_line(list_line, fin, get_lines, last_empty_container):
         return {key: container}, container
     elif len(list_line) == 3:
         container = list_line[2]
-        if ': ' in container:
+        if ': ' in container:  # key must have been '-'
             parent_key = key
             key, container = container.split(None, 1)
-            return {parent_key: {key: container}}, last_empty_container
-        elif container.endswith(':'):
+            return {parent_key: [{key: container}]}, last_empty_container
+        elif container.endswith(':'):  # key must have been '-'
             parent_key = key
             key = container
-            container = {}
-            return {parent_key: {key: container}}, container
+            container = {}  # new container
+            return {parent_key: [{key: container}]}, container
         else:  # simple value
+            if key == '-':
+                last_empty_container = container
             return {key: container}, last_empty_container
     else:
         raise ValueError("Didn't anticipate that!")
-
-
-
-# def process_container(line, container, fin):
-#     if len(line) > 2:
-#         get_nested_container = get_line([container])  # SEPARATOR=': '
-#         nested_container = next(get_nested_container)[1:]
-#         key, container = process_line(line, fin, get_nested_container)
 
 
 def process_key_value_line(line, fin, get_lines=None):

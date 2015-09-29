@@ -3,7 +3,7 @@ __author__ = 'sfranky'
 import pytest
 from yaml_parser import *
 
-@pytest.mark.skipif(True, reason="No special reason")
+# @pytest.mark.skipif(True, reason="No special reason")
 @pytest.mark.parametrize('fin, t',
     (
         (
@@ -37,7 +37,7 @@ def test_get_line(fin, t):
     actual_t = next(get_lines)
     assert actual_t == t
 
-@pytest.mark.skipif(True, reason="No special reason")
+# @pytest.mark.skipif(True, reason="No special reason")
 @pytest.mark.parametrize('fin, t',
     (
         (
@@ -97,23 +97,23 @@ def test_get_more_lines(fin, t):
              ['testkey: |'], [0, 'testkey:', '|'], get_line(['testkey: |']), {'testkey:': '|'}, {}
          ),
          (
-             ['- testkey:'], [0, '-', 'testkey:'], get_line(['- testkey:']), {'-': {'testkey:': {}}}, {}
+             ['- testkey:'], [0, '-', 'testkey:'], get_line(['- testkey:']), {'-': [{'testkey:': {}}]}, {}
          ),
          (
-             ['- testkey: testvalue'], [0, '-', 'testkey: testvalue'], get_line(['- testkey: testvalue']), {'-': {'testkey:': 'testvalue'}}, {}
+             ['- testkey: testvalue'], [0, '-', 'testkey: testvalue'], get_line(['- testkey: testvalue']), {'-': [{'testkey:': 'testvalue'}]}, {}
          ),
          (
-                 ['- testkey: [testvalue]'], [0, '-', 'testkey: [testvalue]'], get_line(['- testkey: [testvalue]']), {'-': {'testkey:': '[testvalue]'}}, {}
+                 ['- testkey: [testvalue]'], [0, '-', 'testkey: [testvalue]'], get_line(['- testkey: [testvalue]']), {'-': [{'testkey:': '[testvalue]'}]}, {}
          ),
          (
-             ['- testvalue'], [0, '-', 'testvalue'], get_line(['- testvalue']), {'-': 'testvalue'}, {}
+             ['- testvalue'], [0, '-', 'testvalue'], get_line(['- testvalue']), {'-': 'testvalue'}, 'testvalue'
          ),
      )
 )
 def test_process_line(line, fin, get_lines, key_container, last_empty_container):  # parent_container, container_stack, stack):
-    assert key_container, last_empty_container == process_line(line, fin, get_lines, last_empty_container)
+    assert process_line(line, fin, get_lines, last_empty_container) == (key_container, last_empty_container)
 
-
+@pytest.mark.current
 @pytest.mark.parametrize('line_in, fin, block_in, block_out, line_out',
      (
          (
@@ -141,8 +141,57 @@ testkey1:
              {'testkey1:': {'testkey2:': {'testkey3:': 'value3', 'testkey4:': 'value4'}}},
              [-1],
          ),
+         (
+             [0],
+"""
+testkey1:
+  - testkey2:
+     testkey3: value3
+  - testkey4:
+     testkey5: value5
+  - testkey6: value6
+  - value7
+""".split('\n'),
+             {},
+             {'testkey1:':
+                  {
+                    '-':
+                       [
+                        {'testkey2:': {'testkey3:': 'value3'}},
+                        {'testkey4:': {'testkey5:': 'value5'}},
+                        {'testkey6:': 'value6'},
+                        'value7'
+                       ]
+                  }
+             },
+             [-1],
+         ),
      )
 )
 def test_read_yaml_config_block(line_in, line_out, fin, block_in, block_out):
     get_lines = get_line(fin)
     assert read_yaml_config_block(line_in, fin, get_lines, block_in) == (block_out, line_out)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
