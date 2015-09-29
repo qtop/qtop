@@ -37,7 +37,7 @@ def test_get_line(fin, t):
     actual_t = next(get_lines)
     assert actual_t == t
 
-# @pytest.mark.skipif(True, reason="No special reason")
+@pytest.mark.skipif(True, reason="No special reason")
 @pytest.mark.parametrize('fin, t',
     (
         (
@@ -81,86 +81,65 @@ def test_get_more_lines(fin, t):
         assert actual_t == t[idx]
 
 
-# @pytest.mark.parametrize('line, fin, get_lines, parent_container, container_stack, stack',
-# @pytest.mark.parametrize('fin, line, get_lines, key_container',  # get_line(fin)
-#      (
-#          (
-#              ['testkey: testvalue'], [0, 'testkey:', 'testvalue'], get_line(['testkey: testvalue']), {'testkey:': 'testvalue'}
-#          ),
-#          (
-#              ['testkey:'], [0, 'testkey:'], get_line(['testkey:']), {'testkey:': {}}
-#          ),
-#          (
-#              ['testkey: [testvalue]'], [0, 'testkey:', '[testvalue]'], get_line(['testkey: [testvalue]']), {'testkey:': '[testvalue]'}
-#          ),
-#          (
-#              ['testkey: |'], [0, 'testkey:', '|'], get_line(['testkey: |']), {'testkey:': '|'}
-#          ),
-#          (
-#              ['- testkey:'], [0, '-', 'testkey:'], get_line(['- testkey:']), {'-': 'testkey:'}
-#          ),
-#          (
-#              ['- testkey: testvalue'], [0, '-', 'testkey: testvalue'], get_line(['- testkey: testvalue']), {'-': 'testkey: testvalue'}
-#          ),
-#          (
-#              ['- testkey: [testvalue]'], [0, '-', 'testkey: [testvalue]'], get_line(['- testkey: [testvalue]']), {'-': 'testkey: [testvalue]'}
-#          ),
-#          (
-#              ['- testvalue'], [0, '-', 'testvalue'], get_line(['- testvalue']), {'-': 'testvalue'}
-#          ),
-#      )
-# )
-# def test_process_line(line, fin, get_lines, key_container):  # parent_container, container_stack, stack):
-#     assert key_container == process_line(line, fin, get_lines)
-
 # @pytest.mark.skipif(True, reason="No special reason")
-@pytest.mark.parametrize('fin, line, get_lines, key_container',  # get_line(fin)
+@pytest.mark.parametrize('fin, line, get_lines, key_container, last_empty_container',  # get_line(fin)
      (
          (
-             ['testkey: testvalue'], [0, 'testkey:', 'testvalue'], get_line(['testkey: testvalue']), {'testkey:': 'testvalue'}
+             ['testkey: testvalue'], [0, 'testkey:', 'testvalue'], get_line(['testkey: testvalue']), {'testkey:': 'testvalue'}, {}
          ),
          (
-             ['testkey:'], [0, 'testkey:'], get_line(['testkey:']), {'testkey:': {}}
+             ['testkey:'], [0, 'testkey:'], get_line(['testkey:']), {'testkey:': {}}, {}
          ),
          (
-             ['testkey: [testvalue]'], [0, 'testkey:', '[testvalue]'], get_line(['testkey: [testvalue]']), {'testkey:': '[testvalue]'}
+             ['testkey: [testvalue]'], [0, 'testkey:', '[testvalue]'], get_line(['testkey: [testvalue]']), {'testkey:': '[testvalue]'}, {}
          ),
          (
-             ['testkey: |'], [0, 'testkey:', '|'], get_line(['testkey: |']), {'testkey:': '|'}
+             ['testkey: |'], [0, 'testkey:', '|'], get_line(['testkey: |']), {'testkey:': '|'}, {}
          ),
          (
-             ['- testkey:'], [0, '-', 'testkey:'], get_line(['- testkey:']), {'-': {'testkey:': {}}}
+             ['- testkey:'], [0, '-', 'testkey:'], get_line(['- testkey:']), {'-': {'testkey:': {}}}, {}
          ),
          (
-             ['- testkey: testvalue'], [0, '-', 'testkey: testvalue'], get_line(['- testkey: testvalue']), {'-': {'testkey:': 'testvalue'}}
+             ['- testkey: testvalue'], [0, '-', 'testkey: testvalue'], get_line(['- testkey: testvalue']), {'-': {'testkey:': 'testvalue'}}, {}
          ),
          (
-             ['- testkey: [testvalue]'], [0, '-', 'testkey: [testvalue]'], get_line(['- testkey: [testvalue]']), {'-': {'testkey:': '[testvalue]'}}
+                 ['- testkey: [testvalue]'], [0, '-', 'testkey: [testvalue]'], get_line(['- testkey: [testvalue]']), {'-': {'testkey:': '[testvalue]'}}, {}
          ),
          (
-             ['- testvalue'], [0, '-', 'testvalue'], get_line(['- testvalue']), {'-': 'testvalue'}
+             ['- testvalue'], [0, '-', 'testvalue'], get_line(['- testvalue']), {'-': 'testvalue'}, {}
          ),
      )
 )
-def test_process_line(line, fin, get_lines, key_container):  # parent_container, container_stack, stack):
-    assert key_container == process_line(line, fin, get_lines)
+def test_process_line(line, fin, get_lines, key_container, last_empty_container):  # parent_container, container_stack, stack):
+    assert key_container, last_empty_container == process_line(line, fin, get_lines, last_empty_container)
 
 
 @pytest.mark.parametrize('line_in, fin, block_in, block_out, line_out',
      (
          (
              [0],
-             # [0, 'testkey1:', 'testvalue1'],
              # """testkey1: testvalue1\ntestkey2: testvalue2\ntestkey3: testvalue3\n""".split('\n'),
 """
 testkey1: testvalue1
 testkey2: testvalue2
 testkey3: testvalue3
 """.split('\n'),
-             # None,
              {},
              {'testkey1:': 'testvalue1', 'testkey2:': 'testvalue2', 'testkey3:': 'testvalue3'},
              [0],
+         ),
+         (
+             [0],
+             # """testkey1: testvalue1\ntestkey2: testvalue2\ntestkey3: testvalue3\n""".split('\n'),
+"""
+testkey1:
+  testkey2:
+    testkey3: value3
+    testkey4: value4
+""".split('\n'),
+             {},
+             {'testkey1:': {'testkey2:': {'testkey3:': 'value3', 'testkey4:': 'value4'}}},
+             [-1],
          ),
      )
 )

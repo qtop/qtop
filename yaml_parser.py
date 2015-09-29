@@ -2,7 +2,7 @@ __author__ = 'sfranky'
 
 import os
 from itertools import takewhile, dropwhile
-conf_file = '/home/sfranky/.local/qtop/qtopconf.yaml'
+# conf_file = '/home/sfranky/.local/qtop/qtopconf.yaml'
 
 
 def get_line(fin, verbatim=False, SEPARATOR=None):
@@ -55,24 +55,29 @@ def read_yaml_config(fn):
 
 
 def read_yaml_config_block(line, fin, get_lines, block):
+    last_empty_container = block
     if len(line) > 1:  # non-empty line
-        d = process_line(line, fin, get_lines)
-        for (k, v) in d.items():
+        key_value, last_empty_container = process_line(line, fin, get_lines, last_empty_container)
+        for (k, v) in key_value.items():
             block[k] = v
 
-    while len(line) == 1:
+    while len(line) == 1:  # skip empty lines
         line = next(get_lines)
+
     while len(line) > 1:  # as long as a blank line is not reached (i.e. block is not complete)
         if line[0] > 0:  # nesting
-            d = process_line(line, fin, get_lines)  # , parent_container
+            key_value, new_container = process_line(line, fin, get_lines, last_empty_container)
+            for (k, v) in key_value.items():
+                last_empty_container[k] = v
+                last_empty_container = new_container
         elif line[0] == 0:  # same level
-            d = process_line(line, fin, get_lines)  # , parent_container
-            for (k, v) in d.items():
-                block[k] = v
+            key_value, new_container = process_line(line, fin, get_lines, last_empty_container)
+            for (k, v) in key_value.items():  # fill parent container with new key_value
+                last_empty_container[k] = v
+                last_empty_container = new_container
         elif line[0] < 0:  # go up one level
-            # parent_container = container_stack[-1]
-            key, container = process_key_value_line(line, fin, get_lines)
-            # parent_container[key] = container
+            # key, container = process_key_value_line(line, fin, get_lines)
+            pass
         line = next(get_lines)
 
     return block, line
@@ -91,32 +96,34 @@ def read_yaml_config_block(line, fin, get_lines, block):
 #     return container  # want to return a {} here for by_name_pattern
 
 
-def process_line(list_line, fin, get_lines):
+def process_line(list_line, fin, get_lines, last_empty_container):
     key = list_line[1]
-    if len(list_line) == 2:
+    if len(list_line) == 2:  # key-only, so what's in the line following should be written in a new container
         container = {}
+        return {key: container}, container
     elif len(list_line) == 3:
         container = list_line[2]
         if ': ' in container:
             parent_key = key
-            # parent_container = container
             key, container = container.split(None, 1)
-            return {parent_key: {key: container}}
+            return {parent_key: {key: container}}, last_empty_container
         elif container.endswith(':'):
             parent_key = key
             key = container
             container = {}
-            return {parent_key: {key: container}}
+            return {parent_key: {key: container}}, container
+        else:  # simple value
+            return {key: container}, last_empty_container
     else:
         raise ValueError("Didn't anticipate that!")
-    return {key: container}
 
 
-def process_container(line, container, fin):
-    if len(line) > 2:
-        get_nested_container = get_line([container])  # SEPARATOR=': '
-        nested_container = next(get_nested_container)[1:]
-        key, container = process_line(line, fin, get_nested_container)
+
+# def process_container(line, container, fin):
+#     if len(line) > 2:
+#         get_nested_container = get_line([container])  # SEPARATOR=': '
+#         nested_container = next(get_nested_container)[1:]
+#         key, container = process_line(line, fin, get_nested_container)
 
 
 def process_key_value_line(line, fin, get_lines=None):
