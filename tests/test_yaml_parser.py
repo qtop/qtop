@@ -166,6 +166,29 @@ testkey1:
              },
              [-1],
          ),
+         (
+             [0],
+"""
+testkey0:
+    - testkey:
+        testkey1: testvalue1
+        testkey2: [testvalue2]
+""".split('\n'),
+             {},
+             {'testkey0:': {'-': [{'testkey:': {'testkey1:': 'testvalue1', 'testkey2:': '[testvalue2]'}}]}},
+             [-1],
+         ),
+         (
+             [0],
+"""
+testkey1:
+ - testkey2:
+     testkey3: testvalue3
+""".split('\n'),
+             {},
+             {'testkey1:': {'-': [{'testkey2:': {'testkey3:': 'testvalue3'}}]}},
+             [-1],
+         ),
      )
 )
 def test_read_yaml_config_block(line_in, line_out, fin, block_in, block_out):
