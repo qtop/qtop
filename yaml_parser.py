@@ -55,8 +55,6 @@ def read_yaml_config(fn):
 
 
 def read_yaml_config_block(line, fin, get_lines, block):
-    lines = ['testkey1: testvalue1', 'testkey2: testvalue2', 'testkey3: testvalue3', '\n']  # debugtest
-    get_lines = get_line(lines)  # debugtest
     if len(line) > 1:  # non-empty line
         d = process_line(line, fin, get_lines)
         for (k, v) in d.items():
@@ -93,12 +91,12 @@ def read_yaml_config_block(line, fin, get_lines, block):
 #     return container  # want to return a {} here for by_name_pattern
 
 
-def process_line(line, fin, get_lines):
-    key = line[1]
-    if len(line) == 2:
+def process_line(list_line, fin, get_lines):
+    key = list_line[1]
+    if len(list_line) == 2:
         container = {}
-    elif len(line) == 3:
-        container = line[2]
+    elif len(list_line) == 3:
+        container = list_line[2]
         if ': ' in container:
             parent_key = key
             # parent_container = container
