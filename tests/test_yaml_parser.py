@@ -189,11 +189,37 @@ testkey1:
              {'testkey1:': {'-': [{'testkey2:': {'testkey3:': 'testvalue3'}}]}},
              [-1],
          ),
+         (
+             [0],
+"""
+testkey1:  # order should be from more generic-->more specific
+ - test: Blue
+ - test1: Gray_L
+ - test2: Cyan_L
+""".split('\n'),
+             {},
+             {'testkey1:': {'-': [{'test:': 'Blue'}, {'test1:': 'Gray_L'}, {'test2:': 'Cyan_L'}]}},
+             [-1],
+         ),
      )
 )
 def test_read_yaml_config_block(line_in, line_out, fin, block_in, block_out):
     get_lines = get_line(fin)
     assert read_yaml_config_block(line_in, fin, get_lines, block_in) == (block_out, line_out)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

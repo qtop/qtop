@@ -606,7 +606,7 @@ def print_single_attr_line(print_char_start, print_char_stop, attr_line, label, 
     # TODO: fix option parameter, inserted for testing purposes
     line = attr_line[print_char_start:print_char_stop]
     # maybe put attr_line and label as kwd arguments? collect them as **kwargs
-    attr_line = insert_separators(line, SEPARATOR, options.WN_COLON) + '=%(label)s'
+    attr_line = insert_separators(line, SEPARATOR, options.WN_COLON) + '=%s'  % label  # this didnt work as expected
     attr_line = ''.join([colorize(char, 'Nothing', color_func) for char in attr_line])
     print attr_line
 
@@ -812,7 +812,8 @@ def load_yaml_config(path='.'):
     except yaml.YAMLError, exc:
         if hasattr(exc, 'problem_mark'):
             mark = exc.problem_mark
-            print "Error position: (%s:%s)" % (mark.line + 1, mark.column + 1)
+            print "Your YAML configuration file has an error in position: (%s:%s)" % (mark.line + 1, mark.column + 1)
+            print "Please make sure that spaces are multiples of 2."
 
     config['possible_ids'] = list(config['possible_ids'])
     symbol_map = dict([(chr(x), x) for x in range(33, 48) + range(58, 64) + range(91, 96) + range(123, 126)])
@@ -949,8 +950,8 @@ def exec_func_tuples(func_tuples):
 if __name__ == '__main__':
 
     cwd = os.getcwd()
-    QTOPPATH = os.path.expanduser(cwd)
     USERPATH = os.path.expandvars('$HOME/.local/qtop')
+    QTOPPATH = os.path.expanduser(cwd)
     try:
         config = load_yaml_config(USERPATH)
     except IOError:

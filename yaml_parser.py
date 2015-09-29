@@ -2,7 +2,7 @@ __author__ = 'sfranky'
 
 import os
 from itertools import takewhile, dropwhile
-# conf_file = '/home/sfranky/.local/qtop/qtopconf.yaml'
+
 
 
 def get_line(fin, verbatim=False, SEPARATOR=None):
@@ -34,7 +34,13 @@ def get_line(fin, verbatim=False, SEPARATOR=None):
         else:
             d_indent = -1
         line = line.rstrip()
-        yield verbatim and [d_indent, line] or [d_indent] + line.split(None or SEPARATOR, 1)
+        list_line = verbatim and [d_indent, line] or [d_indent] + line.split(None or SEPARATOR, 1)
+        if len(list_line) > 1:
+            if list_line[1].startswith('"') or list_line[1].startswith("'"):
+                list_line[1] = list_line[1][1:-1]
+        else:
+            pass
+        yield list_line
 
 
 def read_yaml_config(fn):
@@ -63,24 +69,32 @@ def read_yaml_config_block(line, fin, get_lines, block):
             block[k] = v
 
     while len(line) == 1:  # skip empty lines
-        line = next(get_lines)
+        try:
+            line = next(get_lines)
+        except StopIteration:
+            return {}, ''
 
     while len(line) > 1:  # as long as a blank line is not reached (i.e. block is not complete)
         if line[0] == 0:  # same level
-            key_value, new_container = process_line(line, fin, get_lines, last_empty_container)
+            key_value, container = process_line(line, fin, get_lines, last_empty_container)
             for k in key_value:
                 if k == '-':
-                    _list.append(new_container)
+                    if isinstance(container, str):
+                        # print _list
+                        _list.append(container)
+                    elif isinstance(key_value[k], list):
+                        _list.extend(key_value[k])
                 else:
                     last_empty_container[k] = key_value[k]  # fill up parent container with new key_value
-                    last_empty_container = new_container  # point towards latest container (key_value's value)
+                    last_empty_container = container  # point towards latest container (key_value's value)
         elif line[0] > 0:  # nesting
             key_value, new_container = process_line(line, fin, get_lines, last_empty_container)
             for k in key_value:
-                last_empty_container[k] = key_value[k]
+                last_empty_container[k] = key_value[k]  # gemise ton patera me ti lista gia na pros8eseis ta alla
                 if k == '-':
-                    _list = last_empty_container[k]
-                last_empty_container = new_container
+                    # krata to ref tis parapanw listas edw  #TODO
+                    _list = last_empty_container[k] if isinstance(last_empty_container[k], list) else [last_empty_container[k]]
+                last_empty_container = new_container  # xreiazetai ston epomeno AN ekeinos einai nested
 
         elif line[0] < 0:  # go up one level
             key_value, container = process_line(line, fin, get_lines, last_empty_container)
@@ -89,6 +103,7 @@ def read_yaml_config_block(line, fin, get_lines, block):
                     _list.extend(key_value[k])
                 last_empty_container = container
         line = next(get_lines)
+        # print line  # DEBUG
 
     return block, line
 
@@ -197,13 +212,17 @@ def process_value(_value, fin):
     return d
 
 
-# #### MAIN ###############
-#
-# # with open(conf_file, mode='r') as fin:
-# #     prev_indent = 0
-# #     for line in takewhile(lambda x: True, get_line(fin)):
-# #         print line
-#
-#
-# stuff = read_yaml_config(conf_file)
-# print stuff
+#### MAIN ###############
+
+# with open(conf_file, mode='r') as fin:
+#     prev_indent = 0
+#     for line in takewhile(lambda x: True, get_line(fin)):
+#         print line
+
+if __name__ == '__main__':
+    conf_file = '/home/sfranky/.local/qtop/qtopconf.yaml'
+    stuff = read_yaml_config(conf_file)
+    for key in stuff:
+        print key
+        print stuff[key]
+        print
