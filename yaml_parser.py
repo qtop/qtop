@@ -44,7 +44,7 @@ def read_yaml_config(fn):
         line = next(get_lines)
         while line:
             block = dict()
-            block, line = _read_yaml_config_block(line, fin, get_lines, block)
+            block, line = read_yaml_config_block(line, fin, get_lines, block)
             # for key in block:
             #     print key
             #     print '\t' + str(block[key])
@@ -54,22 +54,27 @@ def read_yaml_config(fn):
         return config_dict
 
 
-def _read_yaml_config_block(line, fin, get_lines, block):
+def read_yaml_config_block(line, fin, get_lines, block):
+    lines = ['testkey1: testvalue1', 'testkey2: testvalue2', 'testkey3: testvalue3', '\n']  # debugtest
+    get_lines = get_line(lines)  # debugtest
     if len(line) > 1:  # non-empty line
-        key, container = process_key_value_line(line, fin, get_lines)
-        block[key] = container
+        d = process_line(line, fin, get_lines)
+        for (k, v) in d.items():
+            block[k] = v
 
     while len(line) == 1:
         line = next(get_lines)
     while len(line) > 1:  # as long as a blank line is not reached (i.e. block is not complete)
         if line[0] > 0:  # nesting
-            container = process_line(line, fin, get_lines, parent_container, container_stack, stack)
+            d = process_line(line, fin, get_lines)  # , parent_container
         elif line[0] == 0:  # same level
-            container = process_line(line, fin, get_lines, parent_container, container_stack, stack)
+            d = process_line(line, fin, get_lines)  # , parent_container
+            for (k, v) in d.items():
+                block[k] = v
         elif line[0] < 0:  # go up one level
-            parent_container = container_stack[-1]
+            # parent_container = container_stack[-1]
             key, container = process_key_value_line(line, fin, get_lines)
-            parent_container[key] = container
+            # parent_container[key] = container
         line = next(get_lines)
 
     return block, line

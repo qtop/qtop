@@ -3,7 +3,7 @@ __author__ = 'sfranky'
 import pytest
 from yaml_parser import *
 
-
+# @pytest.mark.skipif(True, reason="No special reason")
 @pytest.mark.parametrize('fin, t',
     (
         (
@@ -37,7 +37,7 @@ def test_get_line(fin, t):
     actual_t = next(get_lines)
     assert actual_t == t
 
-
+# @pytest.mark.skipif(True, reason="No special reason")
 @pytest.mark.parametrize('fin, t',
     (
         (
@@ -113,6 +113,7 @@ def test_get_more_lines(fin, t):
 # def test_process_line(line, fin, get_lines, key_container):  # parent_container, container_stack, stack):
 #     assert key_container == process_line(line, fin, get_lines)
 
+# @pytest.mark.skipif(True, reason="No special reason")
 @pytest.mark.parametrize('fin, line, get_lines, key_container',  # get_line(fin)
      (
          (
@@ -144,12 +145,22 @@ def test_get_more_lines(fin, t):
 def test_process_line(line, fin, get_lines, key_container):  # parent_container, container_stack, stack):
     assert key_container == process_line(line, fin, get_lines)
 
-# @pytest.mark.parametrize('container, result',
-#      (
-#          (
-#                  {},
-#          )
-#      )
-# )
-# def test_process_container(container):
-#     assert process_container(container) == result
+
+@pytest.mark.parametrize('line_in, fin, get_lines, block_in, block_out, line_out',
+     (
+         (
+             [0, 'testkey1:', 'testvalue1'],
+             """testkey1: testvalue1
+             testkey2: testvalue2
+             testkey3: testvalue3
+
+             """,
+             None,
+             {},
+             {'testkey1:': 'testvalue1', 'testkey2:': 'testvalue2', 'testkey3:': 'testvalue3'},
+             [0],
+         ),
+     )
+)
+def test_read_yaml_config_block(line_in, line_out, fin, get_lines, block_in, block_out):
+    assert read_yaml_config_block(line_in, fin, get_lines, block_in) == (block_out, line_out)
