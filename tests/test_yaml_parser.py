@@ -214,6 +214,28 @@ testkey26:
              {'testkey26:': {'-': ['testvalue27', 'testvalue28', 'testvalue29']}},
              [-1],
          ),
+         (
+             [0],
+"""
+state_abbreviations:
+  pbs:
+    Q: queued_of_user
+    E: exiting_of_user
+    W: waiting_of_user
+  oar:
+    E: Error
+    F: Finishing
+    S: cancelled_of_user
+  sge:
+    r: running_of_user
+    E: exiting_of_user  # not real
+    qw: queued_of_user
+""".split('\n'),
+             {},
+             {'state_abbreviations:': {'pbs:': {'Q:': 'queued_of_user', 'E:': 'exiting_of_user', 'W:': 'waiting_of_user'},
+                                       'oar:': {'E:': 'Error', 'F:': 'Finishing', 'S:': 'cancelled_of_user'}, 'sge:': {'r:': 'running_of_user', 'E:': 'exiting_of_user', 'qw:': 'queued_of_user'}}},
+             [-1],
+         ),
      ), ids=[
         "3dicts",
         "dict2items_inside_doubly_nested_dict",
@@ -221,7 +243,8 @@ testkey26:
         "1",
         "2",
         "3",
-        "lov_in_dict"
+        "lov_in_dict",
+        "state_abbreviations"
     ]
 )
 def test_read_yaml_config_block(line_in, line_out, fin, block_in, block_out):
