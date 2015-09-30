@@ -103,15 +103,16 @@ def test_get_more_lines(fin, t):
              ['- testkey: testvalue'], [0, '-', 'testkey: testvalue'], get_line(['- testkey: testvalue']), {'-': [{'testkey:': 'testvalue'}]}, {}
          ),
          (
-                 ['- testkey: [testvalue]'], [0, '-', 'testkey: [testvalue]'], get_line(['- testkey: [testvalue]']), {'-': [{'testkey:': '[testvalue]'}]}, {}
+             ['- testkey: [testvalue]'], [0, '-', 'testkey: [testvalue]'], get_line(['- testkey: [testvalue]']), {'-': [{'testkey:': '[testvalue]'}]}, {}
          ),
          (
-             ['- testvalue'], [0, '-', 'testvalue'], get_line(['- testvalue']), {'-': 'testvalue'}, 'testvalue'
+             ['- testvalue'], [0, '-', 'testvalue'], get_line(['- testvalue']), {'-': ['testvalue']}, 'testvalue'
          ),
      )
 )
 def test_process_line(line, fin, get_lines, key_container, last_empty_container):  # parent_container, container_stack, stack):
     assert process_line(line, fin, get_lines, last_empty_container) == (key_container, last_empty_container)
+
 
 @pytest.mark.current
 @pytest.mark.parametrize('line_in, fin, block_in, block_out, line_out',
@@ -132,35 +133,35 @@ testkey3: testvalue3
              [0],
              # """testkey1: testvalue1\ntestkey2: testvalue2\ntestkey3: testvalue3\n""".split('\n'),
 """
-testkey1:
-  testkey2:
-    testkey3: value3
-    testkey4: value4
+testkey4:
+  testkey5:
+    testkey6: value6
+    testkey7: value7
 """.split('\n'),
              {},
-             {'testkey1:': {'testkey2:': {'testkey3:': 'value3', 'testkey4:': 'value4'}}},
+             {'testkey4:': {'testkey5:': {'testkey6:': 'value6', 'testkey7:': 'value7'}}},
              [-1],
          ),
          (
              [0],
 """
-testkey1:
-  - testkey2:
-     testkey3: value3
-  - testkey4:
-     testkey5: value5
-  - testkey6: value6
-  - value7
+testkey8:
+  - testkey9:
+     testkey10: value10
+  - testkey11:
+     testkey12: value12
+  - testkey13: value13
+  - value14
 """.split('\n'),
              {},
-             {'testkey1:':
+             {'testkey8:':
                   {
                     '-':
                        [
-                        {'testkey2:': {'testkey3:': 'value3'}},
-                        {'testkey4:': {'testkey5:': 'value5'}},
-                        {'testkey6:': 'value6'},
-                        'value7'
+                        {'testkey9:': {'testkey10:': 'value10'}},
+                        {'testkey11:': {'testkey12:': 'value12'}},
+                        {'testkey13:': 'value13'},
+                        'value14'
                        ]
                   }
              },
@@ -169,39 +170,59 @@ testkey1:
          (
              [0],
 """
-testkey0:
-    - testkey:
-        testkey1: testvalue1
-        testkey2: [testvalue2]
+testkey15:
+    - testkey16:
+        testkey17: testvalue17
+        testkey18: [testvalue18]
 """.split('\n'),
              {},
-             {'testkey0:': {'-': [{'testkey:': {'testkey1:': 'testvalue1', 'testkey2:': '[testvalue2]'}}]}},
+             {'testkey15:': {'-': [{'testkey16:': {'testkey17:': 'testvalue17', 'testkey18:': '[testvalue18]'}}]}},
              [-1],
          ),
          (
              [0],
 """
-testkey1:
- - testkey2:
-     testkey3: testvalue3
+testkey19:
+ - testkey20:
+     testkey21: testvalue21
 """.split('\n'),
              {},
-             {'testkey1:': {'-': [{'testkey2:': {'testkey3:': 'testvalue3'}}]}},
+             {'testkey19:': {'-': [{'testkey20:': {'testkey21:': 'testvalue21'}}]}},
              [-1],
          ),
          (
              [0],
 """
-testkey1:  # order should be from more generic-->more specific
- - test: Blue
- - test1: Gray_L
- - test2: Cyan_L
+testkey22:  # order should be from more generic-->more specific
+ - testkey23: testvalue23
+ - testkey24: testvalue24
+ - testkey25: testvalue25
 """.split('\n'),
              {},
-             {'testkey1:': {'-': [{'test:': 'Blue'}, {'test1:': 'Gray_L'}, {'test2:': 'Cyan_L'}]}},
+             {'testkey22:': {'-': [{'testkey23:': 'testvalue23'}, {'testkey24:': 'testvalue24'}, {'testkey25:': 'testvalue25'}]}},
              [-1],
          ),
-     )
+         (
+             [0],
+"""
+testkey26:
+ - testvalue27
+ - testvalue28
+ - testvalue29
+""".split('\n'),
+             {},
+             {'testkey26:': {'-': ['testvalue27', 'testvalue28', 'testvalue29']}},
+             [-1],
+         ),
+     ), ids=[
+        "3dicts",
+        "dict2items_inside_doubly_nested_dict",
+        "listof_3dicts_and_a_value_inside_dict",
+        "1",
+        "2",
+        "3",
+        "lov_in_dict"
+    ]
 )
 def test_read_yaml_config_block(line_in, line_out, fin, block_in, block_out):
     get_lines = get_line(fin)

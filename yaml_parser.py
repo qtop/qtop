@@ -71,7 +71,7 @@ def read_yaml_config_block(line, fin, get_lines, block):
     while len(line) == 1:  # skip empty lines
         try:
             line = next(get_lines)
-        except StopIteration:
+        except StopIteration:  # EO(config)F
             return {}, ''
 
     while len(line) > 1:  # as long as a blank line is not reached (i.e. block is not complete)
@@ -80,21 +80,23 @@ def read_yaml_config_block(line, fin, get_lines, block):
             for k in key_value:
                 if k == '-':
                     if isinstance(container, str):
-                        # print _list
                         _list.append(container)
                     elif isinstance(key_value[k], list):
                         _list.extend(key_value[k])
                 else:
-                    last_empty_container[k] = key_value[k]  # fill up parent container with new key_value
+                    last_empty_container[k] = key_value[k]  # fill up parent container with new value
                     last_empty_container = container  # point towards latest container (key_value's value)
+
         elif line[0] > 0:  # nesting
-            key_value, new_container = process_line(line, fin, get_lines, last_empty_container)
+            key_value, container = process_line(line, fin, get_lines, last_empty_container)
             for k in key_value:
-                last_empty_container[k] = key_value[k]  # gemise ton patera me ti lista gia na pros8eseis ta alla
+                # insert list into parent. Others should follow
+                last_empty_container[k] = key_value[k]
                 if k == '-':
-                    # krata to ref tis parapanw listas edw  #TODO
+                    # keep ref of above list here  #TODO
+                    # _list = last_empty_container[k]
                     _list = last_empty_container[k] if isinstance(last_empty_container[k], list) else [last_empty_container[k]]
-                last_empty_container = new_container  # xreiazetai ston epomeno AN ekeinos einai nested
+                last_empty_container = container  # next line needs this IF it is nested...
 
         elif line[0] < 0:  # go up one level
             key_value, container = process_line(line, fin, get_lines, last_empty_container)
@@ -102,9 +104,8 @@ def read_yaml_config_block(line, fin, get_lines, block):
                 if k == '-':
                     _list.extend(key_value[k])
                 last_empty_container = container
-        line = next(get_lines)
-        # print line  # DEBUG
 
+        line = next(get_lines)
     return block, line
 
 
@@ -123,46 +124,34 @@ def read_yaml_config_block(line, fin, get_lines, block):
 
 def process_line(list_line, fin, get_lines, last_empty_container):
     key = list_line[1]
+
     if len(list_line) == 2:  # key-only, so what's in the line following should be written in a new container
         container = {}
         return {key: container}, container
+
     elif len(list_line) == 3:
         container = list_line[2]
-        if ': ' in container:  # key must have been '-'
+
+        if container.endswith(':'):  # key: '-'           - testkey:
+            parent_key = key
+            key = container
+            new_container = {}
+            return {parent_key: [{key: new_container}]}, new_container
+
+        elif ': ' in container:  # key: '-'               - testkey: testvalue
             parent_key = key
             key, container = container.split(None, 1)
             return {parent_key: [{key: container}]}, last_empty_container
-        elif container.endswith(':'):  # key must have been '-'
-            parent_key = key
-            key = container
-            container = {}  # new container
-            return {parent_key: [{key: container}]}, container
-        else:  # simple value
-            if key == '-':
-                last_empty_container = container
-            return {key: container}, last_empty_container
+
+        else:  # simple value, e.g. testkey: testvalue
+            if key == '-':  # i.e.  - testvalue
+                last_empty_container = container  # TODO: why show a value?
+                return {key: [container]}, last_empty_container
+            else:
+                # print 'testkey: testvalue here. %s: %s'  % (key, container)  # DEBUG
+                return {key: container}, last_empty_container
     else:
         raise ValueError("Didn't anticipate that!")
-
-
-def process_key_value_line(line, fin, get_lines=None):
-    key = line[1].rstrip(':')
-    if len(line) == 3:  # key-value in same line
-        value = line[2]
-        if value == '|':
-            value = process_code(fin)
-    else:
-        value = {}
-        # value = None
-    value = process_value(value, fin)
-    return key, value
-
-
-def process_list_item_line(line, fin, stack, parent_container):
-    stack +=1
-    value = line[-1]
-    container = process_value(value, fin)
-    return container, stack
 
 
 def process_code(fin):
@@ -179,37 +168,6 @@ def process_code(fin):
         code.append(' ' + line[-1])
         line = next(get_code)
     return ' '.join(code.strip())
-
-
-def process_value(_value, fin):
-    if _value == 'False':
-        return eval(_value)
-    elif _value in [{}, None]:
-        return _value
-    elif isinstance(_value, list):
-        value = _value[0].rstrip()
-        if value.endswith(':'):
-            key = value.rstrip(':')
-            value = {}
-        elif ':' in value:
-            key, value = value.split(None, 1)
-        else:
-            key = '-'
-        new_line = [0, key, value]
-        key, value = process_key_value_line(new_line, fin, None)
-        d = {key: value}
-        return [d]
-    elif ': ' in _value:
-        key, _value = _value.split(': ')
-        value = eval(repr(_value))
-        d = {key: value}
-    elif _value.endswith(':'):
-        key = _value.rstrip(':')
-        value = dict()
-        d = {key: value}
-    else:  # when it's just a value
-        return _value
-    return d
 
 
 #### MAIN ###############
