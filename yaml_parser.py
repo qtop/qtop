@@ -43,21 +43,21 @@ def get_line(fin, verbatim=False, SEPARATOR=None):
         yield list_line
 
 
-def read_yaml_config(fn):
+def read_yaml_config(fin):
     raw_key_values = {}
-    with open(fn, mode='r') as fin:
-        get_lines = get_line(fin)
-        line = next(get_lines)
-        while line:
-            block = dict()
-            block, line = read_yaml_config_block(line, fin, get_lines, block)
-            # for key in block:
-            #     print key
-            #     print '\t' + str(block[key])
-            raw_key_values.update(block)
+    # with open(fn, mode='r') as fin:
+    get_lines = get_line(fin)
+    line = next(get_lines)
+    while line:
+        block = dict()
+        block, line = read_yaml_config_block(line, fin, get_lines, block)
+        # for key in block:
+        #     print key
+        #     print '\t' + str(block[key])
+        raw_key_values.update(block)
 
-        config_dict = dict([(key, value) for key, value in raw_key_values.items()])
-        return config_dict
+    config_dict = dict([(key, value) for key, value in raw_key_values.items()])
+    return config_dict
 
 
 def read_yaml_config_block(line, fin, get_lines, block):
@@ -190,17 +190,14 @@ def process_code(fin):
     return '\n'.join([c.strip() for c in code]).strip()
 
 
-#### MAIN ###############
+def safe_load(fin):
+    config_dict = read_yaml_config(fin)
+    fin.close()
+    return config_dict
 
-# with open(conf_file, mode='r') as fin:
-#     prev_indent = 0
-#     for line in takewhile(lambda x: True, get_line(fin)):
-#         print line
 
 if __name__ == '__main__':
     conf_file = '/home/sfranky/.local/qtop/qtopconf.yaml'
-    stuff = read_yaml_config(conf_file)
-    for key in stuff:
-        print key
-        print stuff[key]
-        print
+    config = read_yaml_config(conf_file)
+    import pdb; pdb.set_trace()
+    pass

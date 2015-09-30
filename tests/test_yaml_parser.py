@@ -215,6 +215,19 @@ testkey26:
          (
              [0],
 """
+testkey31:
+ - testkey32: [testvalue32]
+ - testkey33:
+    - testvalue34
+    - testvalue35
+""".split('\n'),
+             {},
+             {'testkey31': {'-': [{'testkey32': ['testvalue32']}, {'testkey33': {'-': ['testvalue34', 'testvalue35']}}]}},
+             [-1],
+         ),
+         (
+             [0],
+"""
 state_abbreviations:
   pbs:
     Q: queued_of_user
@@ -256,6 +269,7 @@ state_abbreviations:
         "2",
         "3",
         "lov_in_dict",
+        "nested_lists",
         "state_abbreviations",
         # "code"
     ]
