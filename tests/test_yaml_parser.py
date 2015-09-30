@@ -3,7 +3,7 @@ __author__ = 'sfranky'
 import pytest
 from yaml_parser import *
 
-# @pytest.mark.skipif(True, reason="No special reason")
+
 @pytest.mark.parametrize('fin, t',
     (
         (
@@ -93,9 +93,9 @@ def test_get_more_lines(fin, t):
          (
              ['testkey: [testvalue]'], [0, 'testkey', '[testvalue]'], get_line(['testkey: [testvalue]']), {'testkey': '[testvalue]'}, {}
          ),
-         (
-             ['testkey: |'], [0, 'testkey', '|'], get_line(['testkey: |']), {'testkey': '|'}, {}
-         ),
+         # (
+         #     ['testkey: |'], [0, 'testkey', '|'], get_line(['testkey: |']), {'testkey': {}}, {}
+         # ),
          (
              ['- testkey'], [0, '-', 'testkey'], get_line(['- testkey']), {'-': ['testkey']}, 'testkey'
          ),
@@ -119,7 +119,6 @@ def test_process_line(line, fin, get_lines, key_container, last_empty_container)
      (
          (
              [0],
-             # """testkey1: testvalue1\ntestkey2: testvalue2\ntestkey3: testvalue3\n""".split('\n'),
 """
 testkey1: testvalue1
 testkey2: testvalue2
@@ -131,7 +130,6 @@ testkey3: testvalue3
          ),
          (
              [0],
-             # """testkey1: testvalue1\ntestkey2: testvalue2\ntestkey3: testvalue3\n""".split('\n'),
 """
 testkey4:
   testkey5:
@@ -236,6 +234,20 @@ state_abbreviations:
                                        'oar': {'E': 'Error', 'F': 'Finishing', 'S': 'cancelled_of_user'}, 'sge': {'r': 'running_of_user', 'E': 'exiting_of_user', 'qw': 'queued_of_user'}}},
              [-1],
          ),
+#          (
+#              [0],
+#
+# """user_sort: |
+#     lambda d: (
+#     d['np'],
+#     ord(d['domainname'][0]),
+#     len(d['domainname'].split('.', 1)[0].split('-')[0]),
+#     )
+# """.split('\n'),
+#              {},
+#              {'user_sort': "lambda d: (\nd['np'],\nord(d['domainname'][0]),\nlen(d['domainname'].split('.', 1)[0].split('-')[0]),\n)"},
+#              [-1],
+#          ),
      ), ids=[
         "3dicts",
         "dict2items_inside_doubly_nested_dict",
@@ -244,7 +256,8 @@ state_abbreviations:
         "2",
         "3",
         "lov_in_dict",
-        "state_abbreviations"
+        "state_abbreviations",
+        # "code"
     ]
 )
 def test_read_yaml_config_block(line_in, line_out, fin, block_in, block_out):
@@ -252,39 +265,19 @@ def test_read_yaml_config_block(line_in, line_out, fin, block_in, block_out):
     assert read_yaml_config_block(line_in, fin, get_lines, block_in) == (block_out, line_out)
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+@pytest.mark.parametrize('fin, code',
+     (
+        (
+            [
+                "lambda d: (",
+                "d['np'],",
+                "ord(d['domainname'][0]),",
+                "len(d['domainname'].split('.', 1)[0].split('-')[0]),",
+                "int(d['domainname'].split('.', 1)[0].split('-')[1]),",
+            ],
+            "lambda d: (\nd['np'],\nord(d['domainname'][0]),\nlen(d['domainname'].split('.', 1)[0].split('-')[0]),\nint(d['domainname'].split('.', 1)[0].split('-')[1]),"
+        ),
+     )
+)
+def test_process_code(fin, code):
+    assert process_code(fin) == code

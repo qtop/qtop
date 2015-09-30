@@ -162,6 +162,10 @@ def process_line(list_line, fin, get_lines, last_empty_container):
             key, container = container.split(None, 1)
             return {parent_key: [{key.rstrip(':'): container}]}, last_empty_container
 
+        elif container.endswith('|'):
+            container = process_code(fin)
+            return {key.rstrip(':'): container}, last_empty_container
+
         else:  # simple value
             if key == '-':  # i.e.  - testvalue
                 last_empty_container = container  # TODO: why show a value?
@@ -173,19 +177,17 @@ def process_line(list_line, fin, get_lines, last_empty_container):
 
 
 def process_code(fin):
-    # line = next(get_lines)
-    # code = line[1]
-    # while line[0] != -1:
-    #     code += ' ' + line[-1]
-    #     line = next(get_lines)
-    # return code
     get_code = get_line(fin, verbatim=True)
+    # line = next(get_code)
     line = next(get_code)
     code = []
     while line[0] != -1:
         code.append(' ' + line[-1])
-        line = next(get_code)
-    return ' '.join(code.strip())
+        try:
+            line = next(get_code)
+        except StopIteration:
+            break
+    return '\n'.join([c.strip() for c in code]).strip()
 
 
 #### MAIN ###############
