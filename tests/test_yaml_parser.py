@@ -11,12 +11,12 @@ from yaml_parser import *
             [0, "scheduler:", "sge"]
         ),
         (
-            ['schedulers:'],
-            [0, "schedulers:"]
+            ['schedulers'],
+            [0, "schedulers"]
         ),
         (
-            ['  pbs:'],
-            [1, "pbs:"]
+            ['  pbs'],
+            [1, "pbs"]
         ),
         (
             ["   - r'moonshot'"],
@@ -53,11 +53,11 @@ def test_get_line(fin, t):
         (
             [
                 '    oarstat_file: oarstat.txt\n',
-                '  sge:'
+                '  sge'
             ],
             [
                 [1, "oarstat_file:", "oarstat.txt"],
-                [-1, "sge:"]
+                [-1, "sge"]
             ]
         ),
         (
@@ -85,25 +85,25 @@ def test_get_more_lines(fin, t):
 @pytest.mark.parametrize('fin, line, get_lines, key_container, last_empty_container',  # get_line(fin)
      (
          (
-             ['testkey: testvalue'], [0, 'testkey:', 'testvalue'], get_line(['testkey: testvalue']), {'testkey:': 'testvalue'}, {}
+             ['testkey: testvalue'], [0, 'testkey', 'testvalue'], get_line(['testkey: testvalue']), {'testkey': 'testvalue'}, {}
          ),
          (
-             ['testkey:'], [0, 'testkey:'], get_line(['testkey:']), {'testkey:': {}}, {}
+             ['testkey'], [0, 'testkey'], get_line(['testkey']), {'testkey': {}}, {}
          ),
          (
-             ['testkey: [testvalue]'], [0, 'testkey:', '[testvalue]'], get_line(['testkey: [testvalue]']), {'testkey:': '[testvalue]'}, {}
+             ['testkey: [testvalue]'], [0, 'testkey', '[testvalue]'], get_line(['testkey: [testvalue]']), {'testkey': '[testvalue]'}, {}
          ),
          (
-             ['testkey: |'], [0, 'testkey:', '|'], get_line(['testkey: |']), {'testkey:': '|'}, {}
+             ['testkey: |'], [0, 'testkey', '|'], get_line(['testkey: |']), {'testkey': '|'}, {}
          ),
          (
-             ['- testkey:'], [0, '-', 'testkey:'], get_line(['- testkey:']), {'-': [{'testkey:': {}}]}, {}
+             ['- testkey'], [0, '-', 'testkey'], get_line(['- testkey']), {'-': ['testkey']}, 'testkey'
          ),
          (
-             ['- testkey: testvalue'], [0, '-', 'testkey: testvalue'], get_line(['- testkey: testvalue']), {'-': [{'testkey:': 'testvalue'}]}, {}
+             ['- testkey: testvalue'], [0, '-', 'testkey: testvalue'], get_line(['- testkey: testvalue']), {'-': [{'testkey': 'testvalue'}]}, {}
          ),
          (
-             ['- testkey: [testvalue]'], [0, '-', 'testkey: [testvalue]'], get_line(['- testkey: [testvalue]']), {'-': [{'testkey:': '[testvalue]'}]}, {}
+             ['- testkey: [testvalue]'], [0, '-', 'testkey: [testvalue]'], get_line(['- testkey: [testvalue]']), {'-': [{'testkey': '[testvalue]'}]}, {}
          ),
          (
              ['- testvalue'], [0, '-', 'testvalue'], get_line(['- testvalue']), {'-': ['testvalue']}, 'testvalue'
@@ -126,7 +126,7 @@ testkey2: testvalue2
 testkey3: testvalue3
 """.split('\n'),
              {},
-             {'testkey1:': 'testvalue1', 'testkey2:': 'testvalue2', 'testkey3:': 'testvalue3'},
+             {'testkey1': 'testvalue1', 'testkey2': 'testvalue2', 'testkey3': 'testvalue3'},
              [0],
          ),
          (
@@ -139,7 +139,7 @@ testkey4:
     testkey7: value7
 """.split('\n'),
              {},
-             {'testkey4:': {'testkey5:': {'testkey6:': 'value6', 'testkey7:': 'value7'}}},
+             {'testkey4': {'testkey5': {'testkey6': 'value6', 'testkey7': 'value7'}}},
              [-1],
          ),
          (
@@ -154,13 +154,13 @@ testkey8:
   - value14
 """.split('\n'),
              {},
-             {'testkey8:':
+             {'testkey8':
                   {
                     '-':
                        [
-                        {'testkey9:': {'testkey10:': 'value10'}},
-                        {'testkey11:': {'testkey12:': 'value12'}},
-                        {'testkey13:': 'value13'},
+                        {'testkey9': {'testkey10': 'value10'}},
+                        {'testkey11': {'testkey12': 'value12'}},
+                        {'testkey13': 'value13'},
                         'value14'
                        ]
                   }
@@ -176,7 +176,7 @@ testkey15:
         testkey18: [testvalue18]
 """.split('\n'),
              {},
-             {'testkey15:': {'-': [{'testkey16:': {'testkey17:': 'testvalue17', 'testkey18:': '[testvalue18]'}}]}},
+             {'testkey15': {'-': [{'testkey16': {'testkey17': 'testvalue17', 'testkey18': '[testvalue18]'}}]}},
              [-1],
          ),
          (
@@ -187,7 +187,7 @@ testkey19:
      testkey21: testvalue21
 """.split('\n'),
              {},
-             {'testkey19:': {'-': [{'testkey20:': {'testkey21:': 'testvalue21'}}]}},
+             {'testkey19': {'-': [{'testkey20': {'testkey21': 'testvalue21'}}]}},
              [-1],
          ),
          (
@@ -199,7 +199,7 @@ testkey22:  # order should be from more generic-->more specific
  - testkey25: testvalue25
 """.split('\n'),
              {},
-             {'testkey22:': {'-': [{'testkey23:': 'testvalue23'}, {'testkey24:': 'testvalue24'}, {'testkey25:': 'testvalue25'}]}},
+             {'testkey22': {'-': [{'testkey23': 'testvalue23'}, {'testkey24': 'testvalue24'}, {'testkey25': 'testvalue25'}]}},
              [-1],
          ),
          (
@@ -211,7 +211,7 @@ testkey26:
  - testvalue29
 """.split('\n'),
              {},
-             {'testkey26:': {'-': ['testvalue27', 'testvalue28', 'testvalue29']}},
+             {'testkey26': {'-': ['testvalue27', 'testvalue28', 'testvalue29']}},
              [-1],
          ),
          (
@@ -232,8 +232,8 @@ state_abbreviations:
     qw: queued_of_user
 """.split('\n'),
              {},
-             {'state_abbreviations:': {'pbs:': {'Q:': 'queued_of_user', 'E:': 'exiting_of_user', 'W:': 'waiting_of_user'},
-                                       'oar:': {'E:': 'Error', 'F:': 'Finishing', 'S:': 'cancelled_of_user'}, 'sge:': {'r:': 'running_of_user', 'E:': 'exiting_of_user', 'qw:': 'queued_of_user'}}},
+             {'state_abbreviations': {'pbs': {'Q': 'queued_of_user', 'E': 'exiting_of_user', 'W': 'waiting_of_user'},
+                                       'oar': {'E': 'Error', 'F': 'Finishing', 'S': 'cancelled_of_user'}, 'sge': {'r': 'running_of_user', 'E': 'exiting_of_user', 'qw': 'queued_of_user'}}},
              [-1],
          ),
      ), ids=[

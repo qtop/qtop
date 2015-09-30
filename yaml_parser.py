@@ -146,7 +146,7 @@ def process_line(list_line, fin, get_lines, last_empty_container):
 
     if len(list_line) == 2:  # key-only, so what's in the line following should be written in a new container
         container = {}
-        return {key: container}, container
+        return {key.rstrip(':'): container}, container
 
     elif len(list_line) == 3:
         container = list_line[2]
@@ -155,19 +155,19 @@ def process_line(list_line, fin, get_lines, last_empty_container):
             parent_key = key
             key = container
             new_container = {}
-            return {parent_key: [{key: new_container}]}, new_container
+            return {parent_key: [{key.rstrip(':'): new_container}]}, new_container
 
         elif ': ' in container:  # key: '-'               - testkey: testvalue
             parent_key = key
             key, container = container.split(None, 1)
-            return {parent_key: [{key: container}]}, last_empty_container
+            return {parent_key: [{key.rstrip(':'): container}]}, last_empty_container
 
         else:  # simple value
             if key == '-':  # i.e.  - testvalue
                 last_empty_container = container  # TODO: why show a value?
                 return {'-': [container]}, last_empty_container
             else:  # i.e. testkey: testvalue
-                return {key: container}, last_empty_container
+                return {key.rstrip(':'): container}, last_empty_container
     else:
         raise ValueError("Didn't anticipate that!")
 
