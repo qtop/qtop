@@ -215,7 +215,18 @@ testkey3: testvalue3
     - testvalue35
 """.split('\n'),
              {},
-             {'testkey31': {'-': [{'testkey32': ['testvalue32']}, {'testkey33': {'-': ['testvalue34', 'testvalue35']}}]}},
+             {'testkey31':
+                  {'-':
+                       [
+                           {'testkey32': ['testvalue32']},
+                           {'testkey33':
+                                {'-':
+                                     ['testvalue34', 'testvalue35']
+                                 }
+                            }
+                       ]
+                  }
+             },
              [-1],
          ),
          (
