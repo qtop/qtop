@@ -85,13 +85,13 @@ def test_get_more_lines(fin, t):
 @pytest.mark.parametrize('fin, line, get_lines, key_container, parent_container',  # get_line(fin)
      (
          (
-             ['testkey: testvalue'], [0, 'testkey', 'testvalue'], get_line(['testkey: testvalue']), {'testkey': 'testvalue'}, {}
+             ['testkey: testvalue'], [0, 'testkey', 'testvalue'], get_line(['testkey: testvalue']), {'testkey': 'testvalue'}, 'testvalue'
          ),
          (
              ['testkey'], [0, 'testkey'], get_line(['testkey']), {'testkey': {}}, {}
          ),
          (
-             ['testkey: [testvalue]'], [0, 'testkey', '[testvalue]'], get_line(['testkey: [testvalue]']), {'testkey': ['testvalue']}, {}
+             ['testkey: [testvalue]'], [0, 'testkey', '[testvalue]'], get_line(['testkey: [testvalue]']), {'testkey': ['testvalue']}, ['testvalue']
          ),
          # (
          #     ['testkey: |'], [0, 'testkey', '|'], get_line(['testkey: |']), {'testkey': {}}, {}
@@ -100,10 +100,10 @@ def test_get_more_lines(fin, t):
              ['- testkey'], [0, '-', 'testkey'], get_line(['- testkey']), {'-': ['testkey']}, 'testkey'
          ),
          (
-             ['- testkey: testvalue'], [0, '-', 'testkey: testvalue'], get_line(['- testkey: testvalue']), {'-': [{'testkey': 'testvalue'}]}, {}
+             ['- testkey: testvalue'], [0, '-', 'testkey: testvalue'], get_line(['- testkey: testvalue']), {'-': [{'testkey': 'testvalue'}]}, 'testvalue'
          ),
          (
-             ['- testkey: [testvalue]'], [0, '-', 'testkey: [testvalue]'], get_line(['- testkey: [testvalue]']), {'-': [{'testkey': '[testvalue]'}]}, {}
+             ['- testkey: [testvalue]'], [0, '-', 'testkey: [testvalue]'], get_line(['- testkey: [testvalue]']), {'-': [{'testkey': ['testvalue']}]}, ['testvalue']
          ),
          (
              ['- testvalue'], [0, '-', 'testvalue'], get_line(['- testvalue']), {'-': ['testvalue']}, 'testvalue'
