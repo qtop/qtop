@@ -61,12 +61,12 @@ def read_yaml_config(fin):
 
 
 def read_yaml_config_block(line, fin, get_lines, block):
-    last_empty_container = block
-    stack = 0
-    stack_dict = dict()
+    parent_container = block
+    open_containers = list()
+    open_containers.append(block)
 
     if len(line) > 1:  # non-empty line
-        key_value, last_empty_container = process_line(line, fin, get_lines, last_empty_container)
+        key_value, parent_container = process_line(line, fin, get_lines, parent_container)
         for (k, v) in key_value.items():
             block[k] = v
 
@@ -78,70 +78,56 @@ def read_yaml_config_block(line, fin, get_lines, block):
 
     while len(line) > 1:  # as long as a blank line is not reached (i.e. block is not complete)
         if line[0] == 0:  # same level
-            key_value, container = process_line(line, fin, get_lines, last_empty_container)
-            stack_dict.setdefault(stack, key_value)
+            key_value, container = process_line(line, fin, get_lines, parent_container)
             for k in key_value:
-                if k == '-':
-                    if isinstance(container, str):
-                        _list.append(container)
-                    elif isinstance(key_value[k], list):
-                        _list.extend(key_value[k])
-                else:
-                    stack_dict[stack].update(key_value)
-                    last_empty_container[k] = key_value[k]  # fill up parent container with new value
-                    last_empty_container = container  # point towards latest container (key_value's value)
+                pass  # assign dict's sole key to k
+            if parent_container == {} or '-' not in parent_container:
+                parent_container[k] = key_value[k]
+            else:
+                parent_container.setdefault(k, []).extend(key_value[k])  # was waiting for a list, but a str came in!
+            if container == {}:
+                open_containers.append(container)
+                parent_container = open_containers[-1]  # point towards latest container (key_value's value)
+
 
         elif line[0] > 0:  # go down one level
-            key_value, container = process_line(line, fin, get_lines, last_empty_container)
-            stack += 1
-            stack_dict.setdefault(stack, key_value)
+            key_value, container = process_line(line, fin, get_lines, parent_container)
             for k in key_value:
-                # insert list into parent. Others should follow
-                last_empty_container[k] = key_value[k]
-                if k == '-':  # list item
-                    # keep ref of above list here  #TODO
-                    # _list = last_empty_container[k]
-                    _list = last_empty_container['-'] \
-                        if isinstance(last_empty_container['-'], list) else [last_empty_container['-']]
-                else:
-                    stack_dict[stack].update(key_value)
-                last_empty_container = container  # next line needs this IF it is nested...
+                pass
+            # if container == {}:  # up parent container with new value
+            if parent_container == {}:
+                parent_container[k] = key_value[k]
+            else:
+                parent_container.setdefault(k, []).extend(key_value[k])
+            if container == {}:
+                open_containers.append(container)
+                parent_container = open_containers[-1]  # point towards latest container (key_value's value)
+
 
         elif line[0] < 0:  # go up one level
-            key_value, container = process_line(line, fin, get_lines, last_empty_container)
-            stack -= 1
-            stack_dict.setdefault(stack, key_value)
+            key_value, container = process_line(line, fin, get_lines, parent_container)
+            open_containers.pop()
             for k in key_value:
-                if k == '-':  # list item
-                    _list.extend(key_value['-'])
-                else:
-                    stack_dict[stack].update(key_value)
-                    if stack == 1:  # SHAME!SHAME!SHAME!  #TODO: FIX!
-                        root_key = next(stack_dict[0].iterkeys())
-                        block[root_key].update(key_value)
+                pass
+            if open_containers[-1].get('-'):
+                open_containers[-1].setdefault('-', []).extend(key_value[k])
+            else:
+                open_containers[-1][k] = key_value[k]
+            if container == {}:
+                open_containers.append(container)
+                parent_container = open_containers[-1]  # point towards latest container (key_value's value)
+            else:
+                parent_container = open_containers[-1]
+            # root_key = next(open_containers[0].iterkeys())
+            # block[root_key].update(key_value)
 
-
-                last_empty_container = container
-                # last_empty_container = stack_dict[stack - 1]
+            # parent_container = container
 
         line = next(get_lines)
     return block, line
 
 
-# def process_line(line, fin, get_lines, parent_container, container_stack, stack):
-#     container_stack.append(parent_container)
-#     if line[1].endswith(':'):
-#         key, container = process_key_value_line(line, fin, get_lines)
-#         parent_container[key] = container
-#     elif line[1] == '-':
-#         container_stack.append(parent_container)
-#         container, stack = process_list_item_line(line, fin, stack, parent_container)
-#         # (container is {list_out_by_name_pattern: dict()})
-#         parent_container.setdefault('-',[]).append(container)
-#     return container  # want to return a {} here for by_name_pattern
-
-
-def process_line(list_line, fin, get_lines, last_empty_container):
+def process_line(list_line, fin, get_lines, parent_container):
     key = list_line[1]
 
     if len(list_line) == 2:  # key-only, so what's in the line following should be written in a new container
@@ -155,23 +141,24 @@ def process_line(list_line, fin, get_lines, last_empty_container):
             parent_key = key
             key = container
             new_container = {}
-            return {parent_key: [{key.rstrip(':'): new_container}]}, new_container
+            return {parent_key: [{key.rstrip(':'): new_container}]}, new_container  #list
 
         elif ': ' in container:  # key: '-'               - testkey: testvalue
             parent_key = key
             key, container = container.split(None, 1)
-            return {parent_key: [{key.rstrip(':'): container}]}, last_empty_container
+            container = [container[1:-1]] if container.startswith('[') else container
+            return {'-': [{key.rstrip(':'): container}]}, container  #list
 
         elif container.endswith('|'):
             container = process_code(fin)
-            return {key.rstrip(':'): container}, last_empty_container
+            return {key.rstrip(':'): container}, parent_container
 
         else:  # simple value
             if key == '-':  # i.e.  - testvalue
-                last_empty_container = container  # TODO: why show a value?
-                return {'-': [container]}, last_empty_container
+                return {'-': [container]}, container  # was parent_container******was :[container]}, container
             else:  # i.e. testkey: testvalue
-                return {key.rstrip(':'): container}, last_empty_container
+                container = [container[1:-1]] if container.startswith('[') else container  #list
+                return {key.rstrip(':'): container}, container  # was parent_container#str
     else:
         raise ValueError("Didn't anticipate that!")
 

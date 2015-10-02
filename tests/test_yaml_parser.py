@@ -82,7 +82,7 @@ def test_get_more_lines(fin, t):
 
 
 # @pytest.mark.skipif(True, reason="No special reason")
-@pytest.mark.parametrize('fin, line, get_lines, key_container, last_empty_container',  # get_line(fin)
+@pytest.mark.parametrize('fin, line, get_lines, key_container, parent_container',  # get_line(fin)
      (
          (
              ['testkey: testvalue'], [0, 'testkey', 'testvalue'], get_line(['testkey: testvalue']), {'testkey': 'testvalue'}, {}
@@ -91,7 +91,7 @@ def test_get_more_lines(fin, t):
              ['testkey'], [0, 'testkey'], get_line(['testkey']), {'testkey': {}}, {}
          ),
          (
-             ['testkey: [testvalue]'], [0, 'testkey', '[testvalue]'], get_line(['testkey: [testvalue]']), {'testkey': '[testvalue]'}, {}
+             ['testkey: [testvalue]'], [0, 'testkey', '[testvalue]'], get_line(['testkey: [testvalue]']), {'testkey': ['testvalue']}, {}
          ),
          # (
          #     ['testkey: |'], [0, 'testkey', '|'], get_line(['testkey: |']), {'testkey': {}}, {}
@@ -110,8 +110,8 @@ def test_get_more_lines(fin, t):
          ),
      )
 )
-def test_process_line(line, fin, get_lines, key_container, last_empty_container):  # parent_container, container_stack, stack):
-    assert process_line(line, fin, get_lines, last_empty_container) == (key_container, last_empty_container)
+def test_process_line(line, fin, get_lines, key_container, parent_container):  # parent_container, container_stack, stack):
+    assert process_line(line, fin, get_lines, parent_container) == (key_container, parent_container)
 
 
 @pytest.mark.current
@@ -119,8 +119,7 @@ def test_process_line(line, fin, get_lines, key_container, last_empty_container)
      (
          (
              [0],
-"""
-testkey1: testvalue1
+"""testkey1: testvalue1
 testkey2: testvalue2
 testkey3: testvalue3
 """.split('\n'),
@@ -130,8 +129,8 @@ testkey3: testvalue3
          ),
          (
              [0],
-"""
-testkey4:
+
+"""testkey4:
   testkey5:
     testkey6: value6
     testkey7: value7
@@ -142,8 +141,7 @@ testkey4:
          ),
          (
              [0],
-"""
-testkey8:
+"""testkey8:
   - testkey9:
      testkey10: value10
   - testkey11:
@@ -167,20 +165,18 @@ testkey8:
          ),
          (
              [0],
-"""
-testkey15:
+"""testkey15:
     - testkey16:
         testkey17: testvalue17
         testkey18: [testvalue18]
 """.split('\n'),
              {},
-             {'testkey15': {'-': [{'testkey16': {'testkey17': 'testvalue17', 'testkey18': '[testvalue18]'}}]}},
+             {'testkey15': {'-': [{'testkey16': {'testkey17': 'testvalue17', 'testkey18': ['testvalue18']}}]}},
              [-1],
          ),
          (
              [0],
-"""
-testkey19:
+"""testkey19:
  - testkey20:
      testkey21: testvalue21
 """.split('\n'),
@@ -190,8 +186,7 @@ testkey19:
          ),
          (
              [0],
-"""
-testkey22:  # order should be from more generic-->more specific
+"""testkey22:  # order should be from more generic-->more specific
  - testkey23: testvalue23
  - testkey24: testvalue24
  - testkey25: testvalue25
@@ -202,8 +197,7 @@ testkey22:  # order should be from more generic-->more specific
          ),
          (
              [0],
-"""
-testkey26:
+"""testkey26:
  - testvalue27
  - testvalue28
  - testvalue29
@@ -214,8 +208,7 @@ testkey26:
          ),
          (
              [0],
-"""
-testkey31:
+"""testkey31:
  - testkey32: [testvalue32]
  - testkey33:
     - testvalue34
@@ -227,8 +220,7 @@ testkey31:
          ),
          (
              [0],
-"""
-state_abbreviations:
+"""state_abbreviations:
   pbs:
     Q: queued_of_user
     E: exiting_of_user
@@ -265,9 +257,9 @@ state_abbreviations:
         "3dicts",
         "dict2items_inside_doubly_nested_dict",
         "listof_3dicts_and_a_value_inside_dict",
-        "1",
-        "2",
-        "3",
+        "1block",
+        "2block",
+        "3block",
         "lov_in_dict",
         "nested_lists",
         "state_abbreviations",
