@@ -43,21 +43,21 @@ def get_line(fin, verbatim=False, SEPARATOR=None):
         yield list_line
 
 
-def read_yaml_config(fin):
+def read_yaml_config(_fin):
     raw_key_values = {}
-    # with open(fn, mode='r') as fin:
-    get_lines = get_line(fin)
-    line = next(get_lines)
-    while line:
-        block = dict()
-        block, line = read_yaml_config_block(line, fin, get_lines, block)
-        # for key in block:
-        #     print key
-        #     print '\t' + str(block[key])
-        raw_key_values.update(block)
+    with open(_fin, mode='r') as fin:
+        get_lines = get_line(fin)
+        line = next(get_lines)
+        while line:
+            block = dict()
+            block, line = read_yaml_config_block(line, fin, get_lines, block)
+            for key in block:
+                print key
+                print '\t' + str(block[key])
+            raw_key_values.update(block)
 
-    config_dict = dict([(key, value) for key, value in raw_key_values.items()])
-    return config_dict
+        config_dict = dict([(key, value) for key, value in raw_key_values.items()])
+        return config_dict
 
 
 def read_yaml_config_block(line, fin, get_lines, block):
@@ -89,7 +89,6 @@ def read_yaml_config_block(line, fin, get_lines, block):
                 open_containers.append(container)
                 parent_container = open_containers[-1]  # point towards latest container (key_value's value)
 
-
         elif line[0] > 0:  # go down one level
             key_value, container = process_line(line, fin, get_lines, parent_container)
             for k in key_value:
@@ -102,7 +101,6 @@ def read_yaml_config_block(line, fin, get_lines, block):
             if container == {}:
                 open_containers.append(container)
                 parent_container = open_containers[-1]  # point towards latest container (key_value's value)
-
 
         elif line[0] < 0:  # go up one level
             key_value, container = process_line(line, fin, get_lines, parent_container)
@@ -120,10 +118,11 @@ def read_yaml_config_block(line, fin, get_lines, block):
                 parent_container = open_containers[-1]
             # root_key = next(open_containers[0].iterkeys())
             # block[root_key].update(key_value)
+        try:
+            line = next(get_lines)
+        except StopIteration:
+            return block, ''
 
-            # parent_container = container
-
-        line = next(get_lines)
     return block, line
 
 
@@ -185,6 +184,5 @@ def safe_load(fin):
 
 if __name__ == '__main__':
     conf_file = '/home/sfranky/.local/qtop/qtopconf.yaml'
+    # conf_file = '/home/liveuser/PycharmProjects/qtop/qtopconf.yaml'
     config = read_yaml_config(conf_file)
-    import pdb; pdb.set_trace()
-    pass
