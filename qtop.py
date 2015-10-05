@@ -338,7 +338,7 @@ def fill_node_cores_column(state_np_corejob, core_user_map, id_of_username, max_
 
     if state == '?':  # for non-existent machines
         for core_line in core_user_map:
-            core_user_map[core_line] += [config['non_existent_node_symbol']]
+            core_user_map[core_line] += [eval(config['non_existent_node_symbol'])]
     else:
         _own_np = int(np)
         own_np_range = [str(x) for x in range(_own_np)]

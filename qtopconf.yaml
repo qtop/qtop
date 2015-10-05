@@ -106,6 +106,7 @@ remapping:
 # - 'gridmon(\d*)': 'mon\1'
  - '(.*?)cluster(.*?)': '\1-\2'  # remove "cluster" word from all node names
 ### - '--' : '-'  # removes dashes for shortening (can also replace them with something else, e.g. _
+# not working properly in native yaml parser
  - '-': ""  # removes dashes for shortening (can also replace them with something else, e.g. _
 
 sorting:
@@ -163,9 +164,6 @@ workernodes_matrix:
      user_cut_matrix_width: 0
      # character used for vertical separator, for the -o switch
      separator: '|'
-     alt_label_highlight_colors:
-       - "White"
-       - "Blue_L"
      # customised end labels
      end_labels:
        1: ['={__WNID__}']
@@ -175,6 +173,8 @@ workernodes_matrix:
        5: ['={__FOR___}', '={__SALE__}', '={_Worker_}', '={__Node__}', '={___ID___}']
        6: ['={_SPACE__}', '={__FOR___}', '={__SALE__}', '={_Worker_}', '={__Node__}', '={___ID___}']
        7: ['={__PLACE_}', '={__YOUR__}', '={_ADVERT_}', '={__HERE__}', '={_Worker_}', '={__Node__}', '={___ID___}']
+     # native yaml parser: two consecutive unindents are not allowed. Must have an unindented key-value after nested keys:
+     alt_label_highlight_colors: [White, Blue_L]
 # - temperature:
 #     yaml key: temperature  # how it's found in the yaml file
 #     label: Temperature (C)  # how to label it on the qtop matrix
