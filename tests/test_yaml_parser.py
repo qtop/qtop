@@ -80,7 +80,7 @@ def test_get_more_lines(fin, t):
         actual_t = next(get_lines)
         assert actual_t == t[idx]
 
-
+@pytest.mark.current
 # @pytest.mark.skipif(True, reason="No special reason")
 @pytest.mark.parametrize('fin, line, get_lines, key_container, parent_container',  # get_line(fin)
      (
@@ -114,8 +114,8 @@ def test_process_line(line, fin, get_lines, key_container, parent_container):  #
     assert process_line(line, fin, get_lines, parent_container) == (key_container, parent_container)
 
 
-@pytest.mark.current
-@pytest.mark.parametrize('line_in, fin, block_in, block_out, line_out',
+# @pytest.mark.current
+@pytest.mark.parametrize('line_in, fin, block_out, line_out',
      (
          (
              [0],
@@ -123,7 +123,6 @@ def test_process_line(line, fin, get_lines, key_container, parent_container):  #
 testkey2: testvalue2
 testkey3: testvalue3
 """.split('\n'),
-             {},
              {'testkey1': 'testvalue1', 'testkey2': 'testvalue2', 'testkey3': 'testvalue3'},
              [0],
          ),
@@ -135,7 +134,6 @@ testkey3: testvalue3
     testkey6: value6
     testkey7: value7
 """.split('\n'),
-             {},
              {'testkey4': {'testkey5': {'testkey6': 'value6', 'testkey7': 'value7'}}},
              [-1],
          ),
@@ -149,7 +147,6 @@ testkey3: testvalue3
   - testkey13: value13
   - value14
 """.split('\n'),
-             {},
              {'testkey8':
                   {
                     '-':
@@ -170,7 +167,6 @@ testkey3: testvalue3
         testkey17: testvalue17
         testkey18: [testvalue18]
 """.split('\n'),
-             {},
              {'testkey15': {'-': [{'testkey16': {'testkey17': 'testvalue17', 'testkey18': ['testvalue18']}}]}},
              [-1],
          ),
@@ -180,7 +176,6 @@ testkey3: testvalue3
  - testkey20:
      testkey21: testvalue21
 """.split('\n'),
-             {},
              {'testkey19': {'-': [{'testkey20': {'testkey21': 'testvalue21'}}]}},
              [-1],
          ),
@@ -191,7 +186,6 @@ testkey3: testvalue3
  - testkey24: testvalue24
  - testkey25: testvalue25
 """.split('\n'),
-             {},
              {'testkey22': {'-': [{'testkey23': 'testvalue23'}, {'testkey24': 'testvalue24'}, {'testkey25': 'testvalue25'}]}},
              [-1],
          ),
@@ -202,23 +196,26 @@ testkey3: testvalue3
  - testvalue28
  - testvalue29
 """.split('\n'),
-             {},
-             {'testkey26': {'-': ['testvalue27', 'testvalue28', 'testvalue29']}},
+             {
+                  'testkey26':
+                      {'-':
+                           ['testvalue27', 'testvalue28', 'testvalue29']
+                      }
+             },
              [-1],
          ),
          (
              [0],
 """testkey31:
- - testkey32: [testvalue32]
+ - testkey32: [testvalue32, testvalue32b]
  - testkey33:
     - testvalue34
     - testvalue35
 """.split('\n'),
-             {},
              {'testkey31':
                   {'-':
                        [
-                           {'testkey32': ['testvalue32']},
+                           {'testkey32': ['testvalue32', 'testvalue32b']},
                            {'testkey33':
                                 {'-':
                                      ['testvalue34', 'testvalue35']
@@ -245,7 +242,6 @@ testkey3: testvalue3
     E: exiting_of_user  # not real
     qw: queued_of_user
 """.split('\n'),
-             {},
              {'state_abbreviations': {'pbs': {'Q': 'queued_of_user', 'E': 'exiting_of_user', 'W': 'waiting_of_user'},
                                        'oar': {'E': 'Error', 'F': 'Finishing', 'S': 'cancelled_of_user'}, 'sge': {'r': 'running_of_user', 'E': 'exiting_of_user', 'qw': 'queued_of_user'}}},
              [-1],
@@ -260,7 +256,6 @@ testkey3: testvalue3
 #     len(d['domainname'].split('.', 1)[0].split('-')[0]),
 #     )
 # """.split('\n'),
-#              {},
 #              {'user_sort': "lambda d: (\nd['np'],\nord(d['domainname'][0]),\nlen(d['domainname'].split('.', 1)[0].split('-')[0]),\n)"},
 #              [-1],
 #          ),
@@ -277,9 +272,9 @@ testkey3: testvalue3
         # "code"
     ]
 )
-def test_read_yaml_config_block(line_in, line_out, fin, block_in, block_out):
+def test_read_yaml_config_block(line_in, line_out, fin, block_out):
     get_lines = get_line(fin)
-    assert read_yaml_config_block(line_in, fin, get_lines, block_in) == (block_out, line_out)
+    assert read_yaml_config_block(line_in, fin, get_lines) == (block_out, line_out)
 
 
 @pytest.mark.parametrize('fin, code',
@@ -298,3 +293,50 @@ def test_read_yaml_config_block(line_in, line_out, fin, block_in, block_out):
 )
 def test_process_code(fin, code):
     assert process_code(fin) == code
+
+# @pytest.mark.current
+@pytest.mark.parametrize('dict_a, dict_b',
+    (
+        (
+                {'filt': 'a', 'filtb': 'b'},  # nothing should change here
+                {'filt': 'a', 'filtb': 'b'},
+        ),
+        (
+            {'testkey22':
+                {'-':
+                     [
+                         {'testkey23': 'testvalue23'},
+                         {'testkey24': 'testvalue24'},
+                         {'testkey25': 'testvalue25'}
+                     ]
+                }
+            },
+            {'testkey22':
+                     [
+                         {'testkey23': 'testvalue23'},
+                         {'testkey24': 'testvalue24'},
+                         {'testkey25': 'testvalue25'}
+                     ]
+            }
+        ),
+        # (
+        #     {'filt':
+        #          {'-':
+        #               [
+        #                   {'list_name': [1, 2, 3]},
+        #                   {'list_pattern': {'-': ['p5', 'moonshot']}}
+        #               ]
+        #          }
+        #     },
+        #     {'filt':
+        #          [
+        #              {'list_name': [1, 2, 3]},
+        #              {'list_pattern': ['p5', 'moonshot']}
+        #          ]
+        #     }
+        # ),
+    )
+)
+def test_convert_dash_key_in_dict(dict_a, dict_b):
+    # pass
+    assert convert_dash_key_in_dict(dict_a) == dict_b
