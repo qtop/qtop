@@ -1,4 +1,5 @@
-import yaml
+# import yaml
+import yaml_parser as yaml
 try:
     import ujson as json
 except ImportError:
@@ -10,7 +11,10 @@ import os
 try:
     from yaml import CLoader as Loader, CDumper as Dumper
 except ImportError:
-    from yaml import Loader, Dumper
+    try:
+        from yaml import Loader, Dumper
+    except ImportError:
+        pass
 
 
 def read_qstat_yaml(fn, write_method):

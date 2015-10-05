@@ -1,5 +1,6 @@
 __author__ = 'sfranky'
-import yaml
+# import yaml
+import yaml_parser as yaml
 try:
     from collections import OrderedDict
 except ImportError:

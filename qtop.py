@@ -15,6 +15,7 @@ try:
     from collections import OrderedDict
 except ImportError:
     from ordereddict import OrderedDict
+from signal import signal, SIGPIPE, SIG_DFL
 # modules
 from plugin_pbs import *
 from plugin_oar import *
@@ -23,8 +24,7 @@ from stat_maker import *
 from math import ceil
 from colormap import color_of_account, code_of_color
 from common_module import read_qstat_yaml
-from signal import signal, SIGPIPE, SIG_DFL
-
+from yaml_parser import read_yaml_config
 
 
 parser = OptionParser()  # for more details see http://docs.python.org/library/optparse.html
@@ -177,7 +177,7 @@ def do_name_remapping(cluster_dict):
     """
     renames hostnames according to user remapping in conf file (for the wn id label lines)
     """
-    label_max_len = config['workernodes_matrix'][0]['wn id lines']['max_len']
+    label_max_len = int(config['workernodes_matrix'][0]['wn id lines']['max_len'])
     for _, state_corejob_dn in cluster_dict['workernode_dict'].items():
         _host = state_corejob_dn['domainname'].split('.', 1)[0]
         changed = False
@@ -338,7 +338,7 @@ def fill_node_cores_column(state_np_corejob, core_user_map, id_of_username, max_
 
     if state == '?':  # for non-existent machines
         for core_line in core_user_map:
-            core_user_map[core_line] += [config['non_existent_node_symbol']]
+            core_user_map[core_line] += [eval(config['non_existent_node_symbol'])]
     else:
         _own_np = int(np)
         own_np_range = [str(x) for x in range(_own_np)]
@@ -431,8 +431,9 @@ def find_matrices_width(wn_number, workernode_list, term_columns, DEADWEIGHT=11)
     """
     start = 0
     # exclude unneeded first empty nodes from the matrix
-    if options.NOMASKING and min(workernode_list) > config['workernodes_matrix'][0]['wn id lines']['min_masking_threshold']:
-        start = min(workernode_list) - 1
+    if options.NOMASKING and \
+        min(workernode_list) > int(config['workernodes_matrix'][0]['wn id lines']['min_masking_threshold']):
+            start = min(workernode_list) - 1
 
     # Extra matrices may be needed if the WNs are more than the screen width can hold.
     if wn_number > start:  # start will either be 1 or (masked >= config['min_masking_threshold'] + 1)
@@ -460,6 +461,8 @@ def print_wnid_lines(start, stop, highest_wn, wn_vert_labels, **kwargs):
     """
     d = OrderedDict()
     end_labels = config['workernodes_matrix'][0]['wn id lines']['end_labels']
+    # for nr in end_labels:
+    #     end_labels[nr] = [label.strip("'") for label in fix_config_list(end_labels[nr])]
 
     if not NAMED_WNS:
         node_str_width = len(str(highest_wn))  # 4 for thousands of nodes, nr of horizontal lines to be displayed
@@ -479,7 +482,7 @@ def print_wnid_lines(start, stop, highest_wn, wn_vert_labels, **kwargs):
 
         end_label = iter(end_labels[str(node_str_width)])
         display_wnid_lines(wn_vert_labels, start, stop, end_label,
-                           color_func=highlight_alternately, args=(ALT_LABEL_HIGHLIGHT_colorS))
+                           color_func=highlight_alternately, args=(ALT_LABEL_HIGHLIGHT_COLORS))
 
 
 def display_wnid_lines(d, start, stop, end_label, color_func, args):
@@ -688,7 +691,7 @@ def get_yaml_key_part(major_key):
         part_name = [i for i in part][0]
         part_options = part[part_name]
         # label = part_options.get('label')
-        yaml_key = part_options.get('yaml key')
+        yaml_key = part_options.get('yaml_key')
         if yaml_key:
             yield yaml_key, part_name
 
@@ -807,13 +810,16 @@ def make_pattern_of_id(account_jobs_table):
 
 
 def load_yaml_config(path='.'):
-    try:
-        config = yaml.safe_load(open(path + "/qtopconf.yaml"))
-    except yaml.YAMLError, exc:
-        if hasattr(exc, 'problem_mark'):
-            mark = exc.problem_mark
-            print "Your YAML configuration file has an error in position: (%s:%s)" % (mark.line + 1, mark.column + 1)
-            print "Please make sure that spaces are multiples of 2."
+    config = read_yaml_config(os.path.join(path + "/qtopconf.yaml"))
+    # try:
+    #     config = yaml.safe_load(open(os.path.join(path + "/qtopconf.yaml")))
+    # except ImportError:
+    #     config = read_yaml_config(os.path.join(path + "/qtopconf.yaml"))
+    # except yaml.YAMLError, exc:
+    #     if hasattr(exc, 'problem_mark'):
+    #         mark = exc.problem_mark
+    #         print "Your YAML configuration file has an error in position: (%s:%s)" % (mark.line + 1, mark.column + 1)
+    #         print "Please make sure that spaces are multiples of 2."
 
     config['possible_ids'] = list(config['possible_ids'])
     symbol_map = dict([(chr(x), x) for x in range(33, 48) + range(58, 64) + range(91, 96) + range(123, 126)])
@@ -837,15 +843,24 @@ def calculate_split_screen_size():
     """
     try:
         _, term_columns = config['term_size']
+    except ValueError:
+        _, term_columns = fix_config_list(config['term_size'])
     except KeyError:
         _, term_columns = os.popen('stty size', 'r').read().split()
     term_columns = int(term_columns)
     return term_columns
 
 
+def fix_config_list(config_list):
+    t = config_list
+    item = t[0]
+    list_items = item.split(',')
+    return [nr.strip() for nr in list_items]
+
+
 def sort_batch_nodes(batch_nodes):
     try:
-        batch_nodes.sort(key=eval(config['sorting']['user_sort']), reverse=config['sorting']['reverse'])
+        batch_nodes.sort(key=eval(config['sorting']['user_sort']), reverse=eval(config['sorting']['reverse']))
     except IndexError:
         print "\n**There's probably something wrong in your sorting lambda in qtopconf.yaml.**\n"
         raise
@@ -958,9 +973,10 @@ if __name__ == '__main__':
         config = load_yaml_config(QTOPPATH)
 
 
-    SEPARATOR = config['workernodes_matrix'][0]['wn id lines']['separator']  # alias
-    USER_CUT_MATRIX_WIDTH = config['workernodes_matrix'][0]['wn id lines']['user_cut_matrix_width']  # alias
-    ALT_LABEL_HIGHLIGHT_colorS = config['workernodes_matrix'][0]['wn id lines']['alt_label_highlight_colors']  # alias
+    SEPARATOR = config['workernodes_matrix'][0]['wn id lines']['separator'].translate(None, "'")  # alias
+    USER_CUT_MATRIX_WIDTH = int(config['workernodes_matrix'][0]['wn id lines']['user_cut_matrix_width'])  # alias
+    # ALT_LABEL_HIGHLIGHT_COLORS = config['workernodes_matrix'][0]['wn id lines']['alt_label_highlight_colors']  # alias
+    ALT_LABEL_HIGHLIGHT_COLORS = fix_config_list(config['workernodes_matrix'][0]['wn id lines']['alt_label_highlight_colors'])
 
     os.chdir(options.SOURCEDIR)
     scheduler = options.BATCH_SYSTEM or config['scheduler']
@@ -972,7 +988,7 @@ if __name__ == '__main__':
             from xml.etree import ElementTree as etree
 
     INPUT_FNs = config['schedulers'][scheduler]
-    parser_extension_mapping = {'yaml': 'yaml', 'txtyaml': 'yaml', 'json': 'json'}
+    parser_extension_mapping = {'txtyaml': 'yaml', 'json': 'json'}  # 'yaml': 'yaml',
     ext = parser_extension_mapping[options.write_method]
     filenames = dict()
     for _file in INPUT_FNs:

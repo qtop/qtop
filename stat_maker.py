@@ -1,7 +1,8 @@
 __author__ = 'sfranky'
 
 import re
-import yaml
+# import yaml
+import yaml_parser as yaml
 try:
     import ujson as json
 except ImportError:
@@ -15,7 +16,10 @@ MAX_CORE_ALLOWED = 150000
 try:
     from yaml import CLoader as Loader, CDumper as Dumper
 except ImportError:
-    from yaml import Loader, Dumper
+    try:
+        from yaml import Loader, Dumper
+    except ImportError:
+        pass
 
 
 def check_empty_file(orig_file):
@@ -30,13 +34,13 @@ class StatMaker:
         self.l = list()
 
         self.stat_mapping = {
-            'yaml': (yaml.dump_all, {'Dumper': Dumper, 'default_flow_style': False}, 'yaml'),
+            # 'yaml': (yaml.dump_all, {'Dumper': Dumper, 'default_flow_style': False}, 'yaml'),
             'txtyaml': (self.stat_write_lines, {}, 'yaml'),
             'json': (json.dump, {}, 'json')
         }
 
         self.statq_mapping = {
-            'yaml': (yaml.dump_all, {'Dumper': Dumper, 'default_flow_style': False}, 'yaml'),
+            # 'yaml': (yaml.dump_all, {'Dumper': Dumper, 'default_flow_style': False}, 'yaml'),
             'txtyaml': (self.statq_write_lines, {}, 'yaml'),
             'json': (json.dump, {}, 'json')}
 
