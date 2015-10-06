@@ -13,8 +13,8 @@ import os
 # except ImportError:
 #     try:
 #         from yaml import Loader, Dumper
-    except ImportError:
-        pass
+#     except ImportError:
+#         pass
 
 Loader = None
 
