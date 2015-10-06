@@ -107,7 +107,7 @@ remapping:
  - '(.*?)cluster(.*?)': '\1-\2'  # remove "cluster" word from all node names
 ### - '--' : '-'  # removes dashes for shortening (can also replace them with something else, e.g. _
 # not working properly in native yaml parser
- - '-': ""  # removes dashes for shortening (can also replace them with something else, e.g. _
+ - -: ""  # removes dashes for shortening (can also replace them with something else, e.g. _
 
 sorting:
   # by_namelen_by_nr, roughly groups the nodes by name and then by number. Experimental!
