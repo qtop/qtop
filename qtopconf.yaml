@@ -145,6 +145,7 @@ filtering:
 
 # what parts of qtop to display
 user_display_parts:
+ # job_accounting_summary should be disabled for OAR systems.
  - job_accounting_summary
  - workernodes_matrix
  - user_accounts_pool_mappings
