@@ -8,14 +8,15 @@ from tempfile import mkstemp
 import os
 
 
-try:
-    from yaml import CLoader as Loader, CDumper as Dumper
-except ImportError:
-    try:
-        from yaml import Loader, Dumper
+# try:
+#     from yaml import CLoader as Loader, CDumper as Dumper
+# except ImportError:
+#     try:
+#         from yaml import Loader, Dumper
     except ImportError:
         pass
 
+Loader = None
 
 def read_qstat_yaml(fn, write_method):
     """
