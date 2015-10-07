@@ -5,17 +5,17 @@ scheduler: sge
 
 schedulers:
   pbs:
-    pbsnodes_file: pbsnodes_a.txt
-    qstatq_file: qstat_q.txt
-    qstat_file: qstat.txt
+    pbsnodes_file: %(path)s/pbsnodes_a.txt, pbsnodes -a
+    qstatq_file: %(path)s/qstat_q.txt, qstat -q
+    qstat_file: %(path)s/qstat.txt, qstat
   oar:
-    oarnodes_s_file: oarnodes_s_Y.txt
-    oarnodes_y_file: oarnodes_Y.txt
-    oarstat_file: oarstat.txt
+    oarnodes_s_file: %(path)s/oarnodes_s_Y.txt, oarnodes -s -Y
+    oarnodes_y_file: %(path)s/oarnodes_Y.txt, oarnodes -Y
+    oarstat_file: %(path)s/oarstat.txt, oarstat
   sge:
-    sge_file_stat: qstat.F.xml.stdout
+    sge_file_stat: %(path)s/qstat.F.xml.stdout, qstat -F
 
-
+savepath: /tmp/qtop_results
 # utilises lxml module. Needs to be installed in your system.
 # Might result in segmentation fault.
 faster_xml_parsing: False

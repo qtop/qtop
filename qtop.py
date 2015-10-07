@@ -1007,7 +1007,8 @@ def get_filenames_commands():
     d = dict()
     for fn, path_command in config['schedulers'][scheduler].items():
         path, command = path_command.strip().split(', ')
-        path = path % config['savepath']
+        path = path % {"path": config['savepath']}
+        command = command % {"path": config['savepath']}
         d[fn] = (path, command)
     return d
 
@@ -1044,9 +1045,8 @@ if __name__ == '__main__':
     for _file in INPUT_FNs_commands:
         filenames[_file], pbs_commands[_file] = INPUT_FNs_commands[_file]
         _pbs_command = pbs_commands[_file].strip()
-        # with open(filenames[_file], mode='w') as fin:
-        command = subprocess.Popen(_pbs_command, stdout=subprocess.STDOUT, stderr=subprocess.STDOUT, shell=True)  # stdout = subprocess.PIPE
-        # command.communicate()[0]
+        with open(filenames[_file], mode='w') as fin:
+            command = subprocess.Popen(_pbs_command, stdout=fin, stderr=fin, shell=True)  # stdout = subprocess.PIPE
         filenames[_file + '_out'] = '{filename}_{writemethod}.{ext}'.format(
             filename=INPUT_FNs_commands[_file][0].rsplit('.')[0], writemethod=options.write_method, ext=ext
         )  # pid=os.getpid()
