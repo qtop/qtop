@@ -2,21 +2,22 @@
 
 #possible values: pbs, oar, sge
 scheduler: sge
+savepath: /tmp/qtop_results_$USER
 
 schedulers:
   pbs:
-    pbsnodes_file: %(path)s/pbsnodes_a.txt, pbsnodes -a
-    qstatq_file: %(path)s/qstat_q.txt, qstat -q
-    qstat_file: %(path)s/qstat.txt, qstat
+    pbsnodes_file: %(savepath)s/pbsnodes_a.txt, pbsnodes -a
+    qstatq_file: %(savepath)s/qstat_q.txt, qstat -q
+    qstat_file: %(savepath)s/qstat.txt, qstat
   oar:
-    oarnodes_s_file: %(path)s/oarnodes_s_Y.txt, oarnodes -s -Y
-    oarnodes_y_file: %(path)s/oarnodes_Y.txt, oarnodes -Y
-    oarstat_file: %(path)s/oarstat.txt, oarstat
+    oarnodes_s_file: %(savepath)s/oarnodes_s_Y.txt, oarnodes -s -Y
+    oarnodes_y_file: %(savepath)s/oarnodes_Y.txt, oarnodes -Y
+    oarstat_file: %(savepath)s/oarstat.txt, oarstat
   sge:
-    sge_file_stat: %(path)s/qstat.F.xml.stdout, qstat -F
+    sge_file_stat: %(savepath)s/qstat.F.xml.stdout, qstat -F -xml
 
-savepath: /tmp/qtop_results
-dummy_commands: True
+# for TESTING purposes
+dummy_commands: False
 # utilises lxml module. Needs to be installed in your system.
 # Might result in segmentation fault.
 faster_xml_parsing: False

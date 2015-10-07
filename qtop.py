@@ -847,7 +847,7 @@ def load_yaml_config(path='.'):
     for symbol in symbol_map:
         config['possible_ids'].append(symbol)
 
-    user_selected_save_path = os.path.realpath(config['savepath'])
+    user_selected_save_path = os.path.realpath(os.path.expandvars(config['savepath']))
     if not os.path.exists(user_selected_save_path):
         mkdir_p(user_selected_save_path)
     config['savepath'] = user_selected_save_path
@@ -1008,8 +1008,8 @@ def get_filenames_commands():
     d = dict()
     for fn, path_command in config['schedulers'][scheduler].items():
         path, command = path_command.strip().split(', ')
-        path = path % {"path": config['savepath']}
-        command = command % {"path": config['savepath']}
+        path = path % {"savepath": config['savepath']}
+        command = command % {"savepath": config['savepath']}
         d[fn] = (path, command)
     return d
 
