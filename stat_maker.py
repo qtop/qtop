@@ -216,9 +216,13 @@ class SGEStatMaker(StatMaker):
         StatMaker.__init__(self)
 
     def make_stat(self, orig_file, out_file, write_method):
-        # import pdb; pdb.set_trace()
-        tree = etree.parse(orig_file)
-        root = tree.getroot()
+        try:
+            tree = etree.parse(orig_file)
+        except:
+            print "File %(filename)s does not appear to contain a proper XML structure. Exiting.." % {"filename": orig_file}
+            raise
+        else:
+            root = tree.getroot()
         # for queue_elem in root.iter('Queue-List'):  # 2.7 only
         for queue_elem in root.findall('queue_info/Queue-List'):
             # queue_name = queue_elem.find('./resource[@name="qname"]').text  # 2.7 only
