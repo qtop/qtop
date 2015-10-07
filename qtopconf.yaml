@@ -72,7 +72,7 @@ state_abbreviations:
 # }
 
 percentage: 0.8 # if less than PERCENTAGE x 100% of the matrices have jobs, perform a blind remap
-possible_ids: '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz' # IDs of unix accounts, for the lower part of qtop
+possible_ids: 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz # IDs of unix accounts, for the lower part of qtop
 non_existent_node_symbol: '#'
 # set the terminal window size manually so that the matrices can expand accordingly.
 # If this is commented out, autodetection takes place (may not work, e.g. in Pycharm window)
@@ -134,11 +134,10 @@ filtering:
 #  - list_out: [0, 1, 2, 3, 16]
   - list_out_by_name: [gaia-73, gaia-80, gaia-81]
   # - list_out_by_name: [gaia-74, gaia-73, gaia-81, gaia-80, gaia-87, gaia-75, gaia-77, gaia-76, gaia-79, gaia-78]
-  - list_out_by_name_pattern:
+  - list_out_by_name_pattern: ['moonshot', 'p5']
 #    - ^wn
 #    - ^ps
 #    - p5
-    - moonshot
 #  - ranges_out: 1-12, 30-42
 #  - list_out_by_node_state:
 #    - 'E'

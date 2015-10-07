@@ -216,6 +216,7 @@ class SGEStatMaker(StatMaker):
         StatMaker.__init__(self)
 
     def make_stat(self, orig_file, out_file, write_method):
+        # import pdb; pdb.set_trace()
         tree = etree.parse(orig_file)
         root = tree.getroot()
         # for queue_elem in root.iter('Queue-List'):  # 2.7 only

@@ -11,6 +11,8 @@ from operator import itemgetter
 from optparse import OptionParser
 import datetime
 from itertools import izip
+import subprocess
+import errno
 try:
     from collections import OrderedDict
 except ImportError:
@@ -809,6 +811,16 @@ def make_pattern_of_id(account_jobs_table):
     return pattern_of_id
 
 
+def mkdir_p(path):
+    try:
+        os.makedirs(path)
+    except OSError as exc:  # Python >2.5
+        if exc.errno == errno.EEXIST and os.path.isdir(path):
+            pass
+        else:
+            raise
+
+
 def load_yaml_config(path='.'):
     config = read_yaml_config(os.path.join(path + "/qtopconf.yaml"))
     # try:
@@ -834,6 +846,12 @@ def load_yaml_config(path='.'):
         config['remapping'] = list()
     for symbol in symbol_map:
         config['possible_ids'].append(symbol)
+
+    user_selected_save_path = os.path.realpath(config['savepath'])
+    if not os.path.exists(user_selected_save_path):
+        mkdir_p(user_selected_save_path)
+    config['savepath'] = user_selected_save_path
+
     return config
 
 
@@ -946,9 +964,9 @@ def map_batch_nodes_to_wn_dicts(cluster_dict, batch_nodes, options_remap):
         cluster_dict['workernode_dict_remapped'][idx] = batch_node
 
 
-def convert_to_yaml(scheduler, INPUT_FNs, filenames, write_method, commands):
+def convert_to_yaml(scheduler, INPUT_FNs_commands, filenames, write_method, commands):
 
-    for _file in INPUT_FNs:
+    for _file in INPUT_FNs_commands:
         file_orig, file_out = filenames[_file], filenames[_file + '_out']
         _func = commands[_file]
         # print 'executing %(_func)s on file %(_file)s' % {'_func': _func, '_file': _file}
@@ -985,6 +1003,14 @@ def get_yaml_reader(scheduler):
     return yaml_reader
 
 
+def get_filenames_commands():
+    d = dict()
+    for fn, path_command in config['schedulers'][scheduler].items():
+        path, command = path_command.strip().split(', ')
+        path = path % config['savepath']
+        d[fn] = (path, command)
+    return d
+
 if __name__ == '__main__':
 
     cwd = os.getcwd()
@@ -1007,18 +1033,22 @@ if __name__ == '__main__':
         try:
             from lxml import etree
         except ImportError:
-            print 'Module lxml is missing. Reverting to xml module.'
+            # print 'Module lxml is missing. Reverting to xml module.'  ## DEBUG
             from xml.etree import ElementTree as etree
 
-    INPUT_FNs = config['schedulers'][scheduler]
+    INPUT_FNs_commands = get_filenames_commands()
     parser_extension_mapping = {'txtyaml': 'yaml', 'json': 'json'}  # 'yaml': 'yaml',
     ext = parser_extension_mapping[options.write_method]
     filenames = dict()
-    for _file in INPUT_FNs:
-        filenames[_file] = INPUT_FNs[_file]
-        # filenames[_file + '_out'] = get_new_temp_file(suffix, prefix)
+    pbs_commands = dict()
+    for _file in INPUT_FNs_commands:
+        filenames[_file], pbs_commands[_file] = INPUT_FNs_commands[_file]
+        _pbs_command = pbs_commands[_file].strip()
+        # with open(filenames[_file], mode='w') as fin:
+        command = subprocess.Popen(_pbs_command, stdout=subprocess.STDOUT, stderr=subprocess.STDOUT, shell=True)  # stdout = subprocess.PIPE
+        # command.communicate()[0]
         filenames[_file + '_out'] = '{filename}_{writemethod}.{ext}'.format(
-            filename=INPUT_FNs[_file].rsplit('.')[0], writemethod=options.write_method, ext=ext
+            filename=INPUT_FNs_commands[_file][0].rsplit('.')[0], writemethod=options.write_method, ext=ext
         )  # pid=os.getpid()
 
     yaml_converter = {
@@ -1039,7 +1069,7 @@ if __name__ == '__main__':
     commands = yaml_converter[scheduler]
     # reset_yaml_files()  # either that or having a pid appended in the filename
     if not options.YAML_EXISTS:
-        convert_to_yaml(scheduler, INPUT_FNs, filenames, options.write_method, commands)
+        convert_to_yaml(scheduler, INPUT_FNs_commands, filenames, options.write_method, commands)
 
     func_tuples = get_yaml_reader(scheduler)
     commands = exec_func_tuples(func_tuples)
