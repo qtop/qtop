@@ -962,6 +962,29 @@ def exec_func_tuples(func_tuples):
         yield ffunc(*args, **kwargs)
 
 
+def get_yaml_reader(scheduler):
+    if scheduler == 'pbs':
+        yaml_reader = [
+            (read_pbsnodes_yaml, (filenames.get('pbsnodes_file_out'),), {'write_method': options.write_method}),
+            (read_qstat_yaml, (filenames.get('qstat_file_out'),), {'write_method': options.write_method}),
+            (read_qstatq_yaml, (filenames.get('qstatq_file_out'),), {'write_method': options.write_method}),
+        ]
+    elif scheduler == 'oar':
+        yaml_reader = [
+            (read_oarnodes_yaml, ([filenames.get('oarnodes_s_file'), filenames.get('oarnodes_y_file')]), {'write_method': options.write_method}),
+            (read_qstat_yaml, ([filenames.get('oarstat_file_out')]), {'write_method': options.write_method}),
+            (lambda *args, **kwargs: (0, 0, 0), ([filenames.get('oarstat_file')]), {'write_method': options.write_method}),
+        ]
+    elif scheduler == 'sge':
+        yaml_reader = [
+            (get_worker_nodes, ([filenames.get('sge_file_stat')]), {'write_method': options.write_method}),
+            (read_qstat_yaml, ([SGEStatMaker.temp_filepath]), {'write_method': options.write_method}),
+            # (lambda *args, **kwargs: (0, 0, 0), ([filenames.get('sge_file_stat')]), {'write_method': options.write_method}),
+            (get_statq_from_xml, ([filenames.get('sge_file_stat')]), {'write_method': options.write_method}),
+        ]
+    return yaml_reader
+
+
 if __name__ == '__main__':
 
     cwd = os.getcwd()
@@ -1018,26 +1041,7 @@ if __name__ == '__main__':
     if not options.YAML_EXISTS:
         convert_to_yaml(scheduler, INPUT_FNs, filenames, options.write_method, commands)
 
-    yaml_reader = {
-        'pbs': [
-            (read_pbsnodes_yaml, (filenames.get('pbsnodes_file_out'),), {'write_method': options.write_method}),
-            (read_qstat_yaml, (filenames.get('qstat_file_out'),), {'write_method': options.write_method}),
-            (read_qstatq_yaml, (filenames.get('qstatq_file_out'),), {'write_method': options.write_method}),
-        ],
-        'oar': [
-            (read_oarnodes_yaml, ([filenames.get('oarnodes_s_file'), filenames.get('oarnodes_y_file')]), {'write_method': options.write_method}),
-            (read_qstat_yaml, ([filenames.get('oarstat_file_out')]), {'write_method': options.write_method}),
-            (lambda *args, **kwargs: (0, 0, 0), ([filenames.get('oarstat_file')]), {'write_method': options.write_method}),
-        ],
-        'sge': [
-            (get_worker_nodes, ([filenames.get('sge_file_stat')]), {'write_method': options.write_method}),
-            (read_qstat_yaml, ([SGEStatMaker.temp_filepath]), {'write_method': options.write_method}),
-            # (lambda *args, **kwargs: (0, 0, 0), ([filenames.get('sge_file_stat')]), {'write_method': options.write_method}),
-            (get_statq_from_xml, ([filenames.get('sge_file_stat')]), {'write_method': options.write_method}),
-        ]
-    }
-
-    func_tuples = yaml_reader[scheduler]
+    func_tuples = get_yaml_reader(scheduler)
     commands = exec_func_tuples(func_tuples)
 
     worker_nodes = next(commands)

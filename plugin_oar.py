@@ -40,7 +40,7 @@ def read_oarnodes_yaml(fn_s, fn_y, write_method):
     for node in nodes_resids:
         resids_state_lot = nodes_resids[node]
         for (resid, state) in resids_state_lot:
-            nodes_jobs.setdefault(node, []).append((resids_jobs[resid], state))
+            nodes_jobs.setdefault(node, []).append((resids_jobs[int(resid)], state))
 
     worker_nodes = list()
     #todo: make user-tuneable
@@ -60,8 +60,8 @@ def read_oarnodes_yaml(fn_s, fn_y, write_method):
 
 
 def read_oarnodes_s_yaml(fn_s, write_method):  # todo: fix write_method not being used
-    with open(fn_s, mode='r') as fin:
-        data = yaml.load(fin)
+    # with open(fn_s, mode='r') as fin:
+    data = yaml.safe_load(fn_s)
     nodes_resids = dict([(node, resid_state.items()) for node, resid_state in data.items()])
     return nodes_resids
 

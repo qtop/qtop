@@ -209,7 +209,7 @@ def process_code(fin):
 
 def safe_load(fin):
     config_dict = read_yaml_config(fin)
-    fin.close()
+    # fin.close()
     return config_dict
 
 
