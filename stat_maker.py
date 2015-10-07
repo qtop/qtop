@@ -218,6 +218,8 @@ class SGEStatMaker(StatMaker):
     def make_stat(self, orig_file, out_file, write_method):
         try:
             tree = etree.parse(orig_file)
+        except IOError:
+            raise
         except:
             print "File %(filename)s does not appear to contain a proper XML structure. Exiting.." % {"filename": orig_file}
             raise

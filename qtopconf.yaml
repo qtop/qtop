@@ -16,6 +16,7 @@ schedulers:
     sge_file_stat: %(path)s/qstat.F.xml.stdout, qstat -F
 
 savepath: /tmp/qtop_results
+dummy_commands: True
 # utilises lxml module. Needs to be installed in your system.
 # Might result in segmentation fault.
 faster_xml_parsing: False

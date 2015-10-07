@@ -851,6 +851,7 @@ def load_yaml_config(path='.'):
     if not os.path.exists(user_selected_save_path):
         mkdir_p(user_selected_save_path)
     config['savepath'] = user_selected_save_path
+    config['dummy_commands'] = eval(config['dummy_commands'])
 
     return config
 
@@ -1045,8 +1046,11 @@ if __name__ == '__main__':
     for _file in INPUT_FNs_commands:
         filenames[_file], pbs_commands[_file] = INPUT_FNs_commands[_file]
         _pbs_command = pbs_commands[_file].strip()
-        with open(filenames[_file], mode='w') as fin:
-            command = subprocess.Popen(_pbs_command, stdout=fin, stderr=fin, shell=True)  # stdout = subprocess.PIPE
+        if config['dummy_commands']:
+            command = subprocess.Popen(_pbs_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+        else:
+            with open(filenames[_file], mode='w') as fin:
+                command = subprocess.Popen(_pbs_command, stdout=fin, stderr=fin, shell=True)  # stdout = subprocess.PIPE
         filenames[_file + '_out'] = '{filename}_{writemethod}.{ext}'.format(
             filename=INPUT_FNs_commands[_file][0].rsplit('.')[0], writemethod=options.write_method, ext=ext
         )  # pid=os.getpid()
