@@ -19,6 +19,7 @@ except ImportError:
     from ordereddict import OrderedDict
 from signal import signal, SIGPIPE, SIG_DFL
 # modules
+from constants import *
 from plugin_pbs import *
 from plugin_oar import *
 from plugin_sge import *
@@ -205,7 +206,7 @@ def display_job_accounting_summary(cluster_dict, total_running_jobs, total_queue
     if options.REMAP:
         print '=== WARNING: --- Remapping WN names and retrying heuristics... good luck with this... ---'
     print 'PBS report tool. All bugs added by sfranky@gmail.com. Cross fingers now...'
-    print 'Please try: watch -d + %s/qtop.py -s %s\n' % (QTOPPATH, options.SOURCEDIR)
+    print 'Please try: watch -d %s/qtop.py -s %s\n' % (QTOPPATH, options.SOURCEDIR)
     print colorize('===> ', '#') + colorize('Job accounting summary', 'Normal') + colorize(' <=== ', '#') + colorize(
         '(Rev: 3000 $) %s WORKDIR = %s' % (datetime.datetime.today(), QTOPPATH), 'account_not_colored')
 
@@ -822,7 +823,7 @@ def mkdir_p(path):
 
 
 def load_yaml_config(path='.'):
-    config = read_yaml_config(os.path.join(path + "/qtopconf.yaml"))
+    config = read_yaml_config(os.path.join(path + "/" + QTOPCONF_YAML))
     # try:
     #     config = yaml.safe_load(open(os.path.join(path + "/qtopconf.yaml")))
     # except ImportError:
@@ -1042,15 +1043,15 @@ if __name__ == '__main__':
     parser_extension_mapping = {'txtyaml': 'yaml', 'json': 'json'}  # 'yaml': 'yaml',
     ext = parser_extension_mapping[options.write_method]
     filenames = dict()
-    pbs_commands = dict()
+    batch_system_commands = dict()
     for _file in INPUT_FNs_commands:
-        filenames[_file], pbs_commands[_file] = INPUT_FNs_commands[_file]
-        _pbs_command = pbs_commands[_file].strip()
+        filenames[_file], batch_system_commands[_file] = INPUT_FNs_commands[_file]
+        _batch_system_command = batch_system_commands[_file].strip()
         if config['dummy_commands']:
-            command = subprocess.call(_pbs_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+            command = subprocess.call(_batch_system_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
         else:
             with open(filenames[_file], mode='w') as fin:
-                command = subprocess.call(_pbs_command, stdout=fin, stderr=fin, shell=True)  # stdout = subprocess.PIPE
+                command = subprocess.call(_batch_system_command, stdout=fin, stderr=fin, shell=True)  # stdout = subprocess.PIPE
         filenames[_file + '_out'] = '{filename}_{writemethod}.{ext}'.format(
             filename=INPUT_FNs_commands[_file][0].rsplit('.')[0], writemethod=options.write_method, ext=ext
         )  # pid=os.getpid()

@@ -216,6 +216,7 @@ class SGEStatMaker(StatMaker):
         StatMaker.__init__(self)
 
     def make_stat(self, orig_file, out_file, write_method):
+        out_file = out_file.rsplit('/',1)[1]
         try:
             tree = etree.parse(orig_file)
         except IOError:
@@ -240,7 +241,7 @@ class SGEStatMaker(StatMaker):
 
         job_info_elem = root.find('./job_info')
         self._extract_job_info(job_info_elem, 'job_list', queue_name='Pending')
-        prefix, suffix  = out_file.split('.')
+        prefix, suffix = out_file.split('.')
         SGEStatMaker.fd, SGEStatMaker.temp_filepath = get_new_temp_file(prefix=prefix, suffix=suffix)
         self.dump_all(SGEStatMaker.fd, self.stat_mapping[write_method])
 
