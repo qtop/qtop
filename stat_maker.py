@@ -260,6 +260,7 @@ class SGEStatMaker(StatMaker):
             qstat_values['UnixAccount'] = subelem.find('./JB_owner').text
             qstat_values['S'] = subelem.find('./state').text
             qstat_values['Queue'] = queue_name
+            logging.debug('qstat_values: %s' % qstat_values)
             self.l.append(qstat_values)
 
 
@@ -272,6 +273,7 @@ class SGEStatMaker(StatMaker):
         # prefix, suffix  = out_file.split('.')
         # out_file = get_new_temp_file(prefix=prefix, suffix=suffix)
         out_file = os.fdopen(fd, 'w')
+        logging.debug('File state: %s' % out_file)
         write_func, kwargs, _ = write_func_args
         write_func(out_file, **kwargs)
         out_file.close()

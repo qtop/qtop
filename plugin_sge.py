@@ -1,6 +1,7 @@
 __author__ = 'sfranky'
 from xml.etree import ElementTree as etree
 from common_module import logging
+import os
 
 
 def calc_everything(fn, write_method):
@@ -75,7 +76,8 @@ def extract_job_info(elem, elem_text):
     return job_ids, usernames, job_states
 
 
-def make_stat(fn, write_method):
+def makme_stat(fn, write_method):
+
     tree = etree.parse(fn)
     root = tree.getroot()
     job_ids, usernames, job_states, queue_names = [], [], [], []
