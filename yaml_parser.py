@@ -1,9 +1,3 @@
-__author__ = 'sfranky'
-
-import os
-from itertools import takewhile, dropwhile
-
-
 Loader = None
 
 def get_line(fin, verbatim=False, SEPARATOR=None):
@@ -226,14 +220,10 @@ def load_all(fin, Loader=None):
         except StopIteration:
             line = ''
 
-    # config_dict = dict([(key, value) for key, value in raw_key_values.items()])
     return list_of_dicts
 
 
 if __name__ == '__main__':
-    with open('/home/sfranky/.local/qtop/qtopconf.yaml', mode='r') as conf_file:
-        # config = read_yaml_config(conf_file)
-        # conf_file = '/tmp/qstat_txtyamlV55J21yaml'
+    LOCAL_QTOPCONF_YAML = '/home/sfranky/.local/qtop/qtopconf.yaml'
+    with open(LOCAL_QTOPCONF_YAML, mode='r') as conf_file:
         config = load_all(conf_file)
-        # import pdb; pdb.set_trace()
-        # pass
