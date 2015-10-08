@@ -76,15 +76,18 @@ def read_qstat_yaml(fn, write_method):
         try:
             assert os.stat(fn).st_size != 0
         except AssertionError:
-            logging.critical('File %s is empty!! Exiting...' % fn)
-            raise
+            logging.critical('File %s is empty!! Either problematic or no jobs found.' % fn)
         logging.debug('File state before read_qstat_yaml: %s' % fin)
-        qstats = (write_method.endswith('yaml')) and yaml.load_all(fin, Loader=Loader) or json.load(fin)
-        for qstat in qstats:
-            job_ids.append(str(qstat['JobId']))
-            usernames.append(qstat['UnixAccount'])
-            job_states.append(qstat['S'])
-            queue_names.append(qstat['Queue'])
+        try:
+            qstats = (write_method.endswith('yaml')) and yaml.load_all(fin, Loader=Loader) or json.load(fin)
+        except StopIteration:
+            logging.warning('File %s is empty. (No jobs found)')
+        else:
+            for qstat in qstats:
+                job_ids.append(str(qstat['JobId']))
+                usernames.append(qstat['UnixAccount'])
+                job_states.append(qstat['S'])
+                queue_names.append(qstat['Queue'])
     # os.remove(fn)  # that DELETES the file!! why did I do that?!!
     logging.debug('job_ids, usernames, job_states, queue_names lengths: '
         '%(job_ids)s, %(usernames)s, %(job_states)s, %(queue_names)s'
