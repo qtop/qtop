@@ -1,4 +1,5 @@
 Loader = None
+from common_module import *
 
 def get_line(fin, verbatim=False, SEPARATOR=None):
     """
@@ -59,6 +60,7 @@ def convert_dash_key_in_dict(d):
 def read_yaml_config(fn):
     raw_key_values = {}
     with open(fn, mode='r') as fin:
+        logging.debug('File state: %s' % fin)
         get_lines = get_line(fin)
         line = next(get_lines)
         while line:

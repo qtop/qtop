@@ -10,7 +10,7 @@ except ImportError:
 from xml.etree import ElementTree as etree
 import os
 import sys
-from common_module import get_new_temp_file
+from common_module import *
 
 MAX_CORE_ALLOWED = 150000
 try:
@@ -201,6 +201,7 @@ class OarStatMaker(QStatMaker):
 
     def make_stat(self, orig_file, out_file, write_method):
         with open(orig_file, 'r') as fin:
+            logging.debug('File state before OarStatMaker.make_stat: %(fin)s' % {"fin": fin})
             _ = fin.readline()  # header
             fin.readline()  # dashes
             re_match_positions = ('job_id', 'user', 'job_state', 'queue')
@@ -208,6 +209,8 @@ class OarStatMaker(QStatMaker):
             for line in fin:
                 qstat_values = self.process_line(re_search, line, re_match_positions)
                 self.l.append(qstat_values)
+
+        logging.debug('File state after OarStatMaker.make_stat: %(fin)s' % {"fin": fin})
         self.dump_all(out_file, self.stat_mapping[write_method])
 
 

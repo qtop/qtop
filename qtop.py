@@ -1051,14 +1051,18 @@ if __name__ == '__main__':
     logging.info('Selected method for storing data structures is: %s' % ext)
     filenames = dict()
     batch_system_commands = dict()
-    logging.debug('Command --- result saved in:')
     for _file in INPUT_FNs_commands:
         filenames[_file], batch_system_commands[_file] = INPUT_FNs_commands[_file]
         _batch_system_command = batch_system_commands[_file].strip()
-        logging.debug('\t%s \t---\t %s' % (_batch_system_command, filenames[_file]))
+        logging.debug('Command: "%s" -- result in: %s' % (_batch_system_command, filenames[_file]))
         with open(filenames[_file], mode='w') as fin:
-            logging.debug('File state before subprocess call: %(fin)s' % {"fin": fin})
-            command = subprocess.call(_batch_system_command, stdout=fin, stderr=fin, shell=True)  # stdout = subprocess.PIPE
+            logging.debug('\tFile state before subprocess call: %(fin)s' % {"fin": fin})
+            logging.debug('\tWaiting on subprocess.call...')
+            command = subprocess.Popen(_batch_system_command, stdout=fin, stderr=subprocess.PIPE, shell=True)
+            error = command.communicate()[1]
+            command.wait()
+            if error:
+                logging.critical('\tError msg: %s' % error)
         logging.debug('File state after subprocess call: %(fin)s' % {"fin": fin})
 
         filenames[_file + '_out'] = '{filename}_{writemethod}.{ext}'.format(

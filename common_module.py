@@ -61,8 +61,8 @@ logging.basicConfig(
     filename=os.path.expandvars(QTOP_LOGFILE),
     filemode='w',
     level=log_level,
-    format='%(levelname)s - %(message)s'
-    # format='%(asctime)s - %(levelname)s - %(message)s'
+    # format='%(levelname)s - %(message)s'
+    format='%(asctime)s - %(levelname)s - %(message)s'
 )
 
 

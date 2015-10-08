@@ -1,5 +1,7 @@
 __author__ = 'sfranky'
 # import yaml
+import os
+from common_module import *
 import yaml_parser as yaml
 try:
     from collections import OrderedDict
@@ -60,7 +62,8 @@ def read_oarnodes_yaml(fn_s, fn_y, write_method):
 
 
 def read_oarnodes_s_yaml(fn_s, write_method):  # todo: fix write_method not being used
-    # with open(fn_s, mode='r') as fin:
+    logging.debug('File %s exists: %s' % (fn_s, os.path.isfile(fn_s)))
+    assert os.path.isfile(fn_s)
     data = yaml.safe_load(fn_s)
     nodes_resids = dict([(node, resid_state.items()) for node, resid_state in data.items()])
     return nodes_resids
