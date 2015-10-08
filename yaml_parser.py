@@ -57,10 +57,15 @@ def convert_dash_key_in_dict(d):
     return d
 
 
-def read_yaml_config(fn):
+def read_yaml_natively(fn):
     raw_key_values = {}
     with open(fn, mode='r') as fin:
-        logging.debug('File state: %s' % fin)
+        try:
+            assert os.stat(fn).st_size != 0
+        except AssertionError:
+            logging.critical('File %s is empty!! Exiting...' % fn)
+            raise
+        logging.debug('File state before read_yaml_natively: %s' % fin)
         get_lines = get_line(fin)
         line = next(get_lines)
         while line:
@@ -70,6 +75,7 @@ def read_yaml_config(fn):
                 block[k] = convert_dash_key_in_dict(block[k])
             raw_key_values.update(block)
 
+    logging.debug('File state after read_yaml_natively: %s' % fin)
     config_dict = dict([(key, value) for key, value in raw_key_values.items()])
     return config_dict
 
@@ -204,7 +210,7 @@ def process_code(fin):
 
 
 def safe_load(fin):
-    config_dict = read_yaml_config(fin)
+    config_dict = read_yaml_natively(fin)
     # fin.close()
     return config_dict
 

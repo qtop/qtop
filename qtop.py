@@ -30,7 +30,7 @@ from stat_maker import *
 from math import ceil
 from colormap import color_of_account, code_of_color
 # from common_module import read_qstat_yaml
-from yaml_parser import read_yaml_config
+from yaml_parser import read_yaml_natively
 
 
 
@@ -819,11 +819,11 @@ def mkdir_p(path):
 
 
 def load_yaml_config(path='.'):
-    config = read_yaml_config(os.path.join(path + "/" + QTOPCONF_YAML))
+    config = read_yaml_natively(os.path.join(path + "/" + QTOPCONF_YAML))
     # try:
     #     config = yaml.safe_load(open(os.path.join(path + "/qtopconf.yaml")))
     # except ImportError:
-    #     config = read_yaml_config(os.path.join(path + "/qtopconf.yaml"))
+    #     config = read_yaml_natively(os.path.join(path + "/qtopconf.yaml"))
     # except yaml.YAMLError, exc:
     #     if hasattr(exc, 'problem_mark'):
     #         mark = exc.problem_mark
@@ -966,7 +966,6 @@ def map_batch_nodes_to_wn_dicts(cluster_dict, batch_nodes, options_remap):
 
 
 def convert_to_yaml(scheduler, INPUT_FNs_commands, filenames, write_method, commands):
-
     for _file in INPUT_FNs_commands:
         file_orig, file_out = filenames[_file], filenames[_file + '_out']
         _func = commands[_file]
