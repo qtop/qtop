@@ -236,14 +236,19 @@ class SGEStatMaker(StatMaker):
         for queue_elem in root.findall('queue_info/Queue-List'):
             # queue_name = queue_elem.find('./resource[@name="qname"]').text  # 2.7 only
             queue_name_elems = queue_elem.findall('resource')
+            logging.debug('queue_name_elems is: %s' % queue_name_elems)
             for queue_name_elem in queue_name_elems:
+                logging.debug('Inside nested for loop')
                 if queue_name_elem.attrib.get('name') == 'qname':
+                    logging.debug('name: %s' % 'qname')
                     queue_name = queue_name_elem.text
                     break
             else:
                 raise ValueError("No such queue name")
 
+            logging.debug('Before _extract_job_info')
             self._extract_job_info(queue_elem, 'job_list', queue_name=queue_name)
+            logging.debug('After _extract_job_info')
 
         job_info_elem = root.find('./job_info')
         self._extract_job_info(job_info_elem, 'job_list', queue_name='Pending')
@@ -263,7 +268,7 @@ class SGEStatMaker(StatMaker):
             qstat_values['UnixAccount'] = subelem.find('./JB_owner').text
             qstat_values['S'] = subelem.find('./state').text
             qstat_values['Queue'] = queue_name
-            # logging.debug('qstat_values: %s' % qstat_values)
+            logging.debug('qstat_values: %s' % qstat_values)
             self.l.append(qstat_values)
 
 
