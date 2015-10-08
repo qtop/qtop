@@ -220,9 +220,11 @@ class SGEStatMaker(StatMaker):
 
     def make_stat(self, orig_file, out_file, write_method):
         out_file = out_file.rsplit('/', 1)[1]
+        logging.debug('Inside SGEStatMaker.make_stat')
         try:
             tree = etree.parse(orig_file)
         except IOError:
+            logging.exception('IO error here?')
             raise
         except:
             print "File %(filename)s does not appear to contain a proper XML structure. Exiting.." % {"filename": orig_file}
@@ -230,6 +232,7 @@ class SGEStatMaker(StatMaker):
         else:
             root = tree.getroot()
         # for queue_elem in root.iter('Queue-List'):  # 2.7 only
+        logging.debug('Queue-List elements: %s' % len(root.findall('queue_info/Queue-List')))
         for queue_elem in root.findall('queue_info/Queue-List'):
             # queue_name = queue_elem.find('./resource[@name="qname"]').text  # 2.7 only
             queue_name_elems = queue_elem.findall('resource')
@@ -260,7 +263,7 @@ class SGEStatMaker(StatMaker):
             qstat_values['UnixAccount'] = subelem.find('./JB_owner').text
             qstat_values['S'] = subelem.find('./state').text
             qstat_values['Queue'] = queue_name
-            logging.debug('qstat_values: %s' % qstat_values)
+            # logging.debug('qstat_values: %s' % qstat_values)
             self.l.append(qstat_values)
 
 

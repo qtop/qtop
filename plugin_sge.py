@@ -76,7 +76,7 @@ def extract_job_info(elem, elem_text):
     return job_ids, usernames, job_states
 
 
-def makme_stat(fn, write_method):
+def make_stat(fn, write_method):
 
     tree = etree.parse(fn)
     root = tree.getroot()
