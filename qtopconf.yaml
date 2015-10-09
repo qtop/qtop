@@ -75,8 +75,8 @@ percentage: 0.8 # if less than PERCENTAGE x 100% of the matrices have jobs, perf
 possible_ids: 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz # IDs of unix accounts, for the lower part of qtop
 non_existent_node_symbol: '#'
 # set the terminal window size manually so that the matrices can expand accordingly.
-# If this is commented out, autodetection takes place (may not work, e.g. in Pycharm window)
-term_size: [53, 176]
+# If term_size is commented out, autodetection takes place (may not work, e.g. in Pycharm window)
+#term_size: [53, 176]
 #term_size: [53, 126]  # for smaller screens, namely 1366 x 768
 user_color_mappings:  # order should be from more generic-->more specific
 # - '\w+': Gray_D  # enabling this cancels all saved accounts in colormap.py

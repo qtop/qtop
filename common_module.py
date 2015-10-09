@@ -79,18 +79,18 @@ mkdir_p(QTOP_LOGFILE_PATH)
 logger = logging.getLogger()
 logger.setLevel(logging.DEBUG)
 
-formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+# formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+formatter = logging.Formatter('%(levelname)s - %(message)s')
 
 fh = logging.FileHandler(QTOP_LOGFILE)
 fh.setLevel(log_level)
 fh.setFormatter(formatter)
 logger.addHandler(fh)
 
-if options.verbose >= 2 and options.DEBUG:
-    fh = logging.StreamHandler()
-    fh.setLevel(logging.ERROR)
-    fh.setFormatter(formatter)
-    logger.addHandler(fh)
+fh = logging.StreamHandler()
+fh.setLevel(logging.ERROR) if options.DEBUG else fh.setLevel(logging.CRITICAL)
+fh.setFormatter(formatter)
+logger.addHandler(fh)
 
 logging.info("\n")
 logging.info("=" * 50)

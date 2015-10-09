@@ -11,6 +11,7 @@ from operator import itemgetter
 import datetime
 from itertools import izip
 import subprocess
+import os
 try:
     from collections import OrderedDict
 except ImportError:
@@ -849,7 +850,13 @@ def calculate_split_screen_size():
     except ValueError:
         _, term_columns = fix_config_list(config['term_size'])
     except KeyError:
-        _, term_columns = os.popen('stty size', 'r').read().split()
+        try:
+            _, term_columns = os.popen('stty size', 'r').read().split()
+        except ValueError:
+            logging.critical("Failed to autodetect your terminal's size. "
+                             "Please insert a value in %s,\n"
+                             "e.g. term_size: [53, 176]" % QTOP_LOGFILE)
+            sys.exit(0)
     term_columns = int(term_columns)
     logging.debug('Detected terminal size is: %s * %s' % (_, term_columns))
     return term_columns

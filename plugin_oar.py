@@ -58,6 +58,7 @@ def read_oarnodes_yaml(fn_s, fn_y, write_method):
         d['state'] = calculate_oar_state(nodes_jobs[node], nr_of_jobs, node_state_mapping)
         worker_nodes.append(d)
 
+    logging.info('worker_nodes contains %s entries' % len(worker_nodes))
     return worker_nodes
 
 
