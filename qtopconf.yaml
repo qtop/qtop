@@ -1,18 +1,20 @@
+# IMPORTANT: a blank line MUST be left after every line of python code.
+
 #possible values: pbs, oar, sge
 scheduler: sge
+savepath: /tmp/qtop_results_$USER
 
 schedulers:
   pbs:
-    pbsnodes_file: pbsnodes_a.txt
-    qstatq_file: qstat_q.txt
-    qstat_file: qstat.txt
+    pbsnodes_file: %(savepath)s/pbsnodes_a_%(pid)s.txt, pbsnodes -a
+    qstatq_file: %(savepath)s/qstat_q_%(pid)s.txt, qstat -q
+    qstat_file: %(savepath)s/qstat_%(pid)s.txt, qstat
   oar:
-    oarnodes_s_file: oarnodes_s_Y.txt
-    oarnodes_y_file: oarnodes_Y.txt
-    oarstat_file: oarstat.txt
+    oarnodes_s_file: %(savepath)s/oarnodes_s_Y_%(pid)s.txt, oarnodes -s -Y
+    oarnodes_y_file: %(savepath)s/oarnodes_Y_%(pid)s.txt, oarnodes -Y
+    oarstat_file: %(savepath)s/oarstat_%(pid)s.txt, oarstat
   sge:
-    sge_file_stat: qstat.F.xml.stdout
-
+    sge_file_stat: %(savepath)s/qstat_%(pid)s.F.xml.stdout, qstat -F -xml
 
 # utilises lxml module. Needs to be installed in your system.
 # Might result in segmentation fault.
@@ -70,11 +72,11 @@ state_abbreviations:
 # }
 
 percentage: 0.8 # if less than PERCENTAGE x 100% of the matrices have jobs, perform a blind remap
-possible_ids: '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz' # IDs of unix accounts, for the lower part of qtop
+possible_ids: 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz # IDs of unix accounts, for the lower part of qtop
 non_existent_node_symbol: '#'
 # set the terminal window size manually so that the matrices can expand accordingly.
-# If this is commented out, autodetection takes place (may not work, e.g. in Pycharm window)
-term_size: [53, 176]
+# If term_size is commented out, autodetection takes place (may not work, e.g. in Pycharm window)
+#term_size: [53, 176]
 #term_size: [53, 126]  # for smaller screens, namely 1366 x 768
 user_color_mappings:  # order should be from more generic-->more specific
 # - '\w+': Gray_D  # enabling this cancels all saved accounts in colormap.py
@@ -99,12 +101,13 @@ remapping:
 # - "([A-Za-z]+)([1-9]|[1-9][0-9]|[0-9][0-9][0-9])$": |
 #     lambda m: m.group(1)+str(int(m.group(2))+250)
      # e.g. wn100 --> wn350, wn101 --> wn351 and so on
-# - 'torvalds(\d+)' : 'tor\1'
-# - 'gridlab(\d+)' : 'glab\1'
-# - 'gridmon(\d*)' : 'mon\1'
+# - 'torvalds(\d+)': 'tor\1'
+# - 'gridlab(\d+)': 'glab\1'
+# - 'gridmon(\d*)': 'mon\1'
  - '(.*?)cluster(.*?)': '\1-\2'  # remove "cluster" word from all node names
 ### - '--' : '-'  # removes dashes for shortening (can also replace them with something else, e.g. _
- - '-' : ''  # removes dashes for shortening (can also replace them with something else, e.g. _
+# not working properly in native yaml parser
+ - -: ""  # removes dashes for shortening (can also replace them with something else, e.g. _
 
 sorting:
   # by_namelen_by_nr, roughly groups the nodes by name and then by number. Experimental!
@@ -122,25 +125,26 @@ sorting:
       #int(d['domainname'].split('.', 1)[0].split('-')[1]),
       #int(re.sub(r'[A-Za-z_-]+', '', d['domainname'].split('.', 1)[0].split('-')[0]) or -1),  # by number
       )
+
 #  user_sort: |  # by node state
 #       lambda d: ord(d['state'])
   reverse: False
 
 filtering:
 #  - list_out: [0, 1, 2, 3, 16]
-  - list_out_by_name: [gaia-73, gaia-80, gaia-81]
+#  - list_out_by_name: [gaia-73, gaia-80, gaia-81]
   # - list_out_by_name: [gaia-74, gaia-73, gaia-81, gaia-80, gaia-87, gaia-75, gaia-77, gaia-76, gaia-79, gaia-78]
-  - list_out_by_name_pattern:
-#    - r'^wn'
-#    - r'^ps'
-#    - r'p5'
-    - r'moonshot'
+#  - list_out_by_name_pattern: ['moonshot', 'p5']
+#    - ^wn
+#    - ^ps
+#    - p5
 #  - ranges_out: 1-12, 30-42
 #  - list_out_by_node_state:
 #    - 'E'
 
 # what parts of qtop to display
 user_display_parts:
+ # job_accounting_summary should be disabled for OAR systems.
  - job_accounting_summary
  - workernodes_matrix
  - user_accounts_pool_mappings
@@ -160,23 +164,24 @@ workernodes_matrix:
      user_cut_matrix_width: 0
      # character used for vertical separator, for the -o switch
      separator: '|'
-     alt_label_highlight_colors: [White, Blue_L]
      # customised end labels
      end_labels:
-       '1': ['={__WNID__}']
-       '2': ['={_Worker_}', '={__Node__}']
-       '3': ['={_Worker_}', '={__Node__}', '={___ID___}']
-       '4': ['={________}', '={_Worker_}', '={__Node__}', '={___ID___}']
-       '5': ['={__FOR___}', '={__SALE__}', '={_Worker_}', '={__Node__}', '={___ID___}']
-       '6': ['={_SPACE__}', '={__FOR___}', '={__SALE__}', '={_Worker_}', '={__Node__}', '={___ID___}']
-       '7': ['={__PLACE_}', '={__YOUR__}', '={_ADVERT_}', '={__HERE__}', '={_Worker_}', '={__Node__}', '={___ID___}']
+       1: ['={__WNID__}']
+       2: ['={_Worker_}', '={__Node__}']
+       3: ['={_Worker_}', '={__Node__}', '={___ID___}']
+       4: ['={________}', '={_Worker_}', '={__Node__}', '={___ID___}']
+       5: ['={__FOR___}', '={__SALE__}', '={_Worker_}', '={__Node__}', '={___ID___}']
+       6: ['={_SPACE__}', '={__FOR___}', '={__SALE__}', '={_Worker_}', '={__Node__}', '={___ID___}']
+       7: ['={__PLACE_}', '={__YOUR__}', '={_ADVERT_}', '={__HERE__}', '={_Worker_}', '={__Node__}', '={___ID___}']
+     # native yaml parser: two consecutive unindents are not allowed. Must have an unindented key-value after nested keys:
+     alt_label_highlight_colors: [White, Blue_L]
 # - temperature:
 #     yaml key: temperature  # how it's found in the yaml file
 #     label: Temperature (C)  # how to label it on the qtop matrix
 #     option: {}
 #     max_len: 1
  - node state:
-     yaml key: state
+     yaml_key: state
      label: Node state
      max_len: 1
  - core user map:

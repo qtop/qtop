@@ -1,57 +1,36 @@
 #!/usr/bin/env python
 
 ################################################
-#              qtop v.0.7.2                    #
+#              qtop v.0.8.1                    #
 #     Licensed under MIT-GPL licenses          #
 #                     Sotiris Fragkiskos       #
 #                     Fotis Georgatos          #
 ################################################
 
 from operator import itemgetter
-from optparse import OptionParser
 import datetime
 from itertools import izip
+import subprocess
+import os
 try:
     from collections import OrderedDict
 except ImportError:
     from ordereddict import OrderedDict
+from signal import signal, SIGPIPE, SIG_DFL
 # modules
+from constants import *
+import common_module
+from common_module import logging, options
 from plugin_pbs import *
 from plugin_oar import *
 from plugin_sge import *
 from stat_maker import *
 from math import ceil
 from colormap import color_of_account, code_of_color
-from common_module import read_qstat_yaml
-from signal import signal, SIGPIPE, SIG_DFL
+from yaml_parser import read_yaml_natively
 
 
 
-parser = OptionParser()  # for more details see http://docs.python.org/library/optparse.html
-parser.add_option("-a", "--blindremapping", action="store_true", dest="BLINDREMAP", default=False,
-                  help="This may be used in situations where node names are not a pure arithmetic seq (eg. rocks clusters)")
-parser.add_option("-b", "--batchSystem", action="store", type="string", dest="BATCH_SYSTEM")
-parser.add_option("-y", "--readexistingyaml", action="store_true", dest="YAML_EXISTS", default=False,
-                  help="Do not remake yaml input files, read from the existing ones")
-parser.add_option("-c", "--NOCOLOR", action="store_true", dest="NOCOLOR", default=False,
-                  help="Enable/Disable color in qtop output.")
-# parser.add_option("-f", "--setCOLORMAPFILE", action="store", type="string", dest="COLORFILE")
-parser.add_option("-m", "--noMasking", action="store_true", dest="NOMASKING", default=False,
-                  help="Don't mask early empty WNs (default: if the first 30 WNs are unused, counting starts from 31).")
-parser.add_option("-o", "--SetVerticalSeparatorXX", action="store", dest="WN_COLON", default=0,
-                  help="Put vertical bar every WN_COLON nodes.")
-parser.add_option("-s", "--SetSourceDir", dest="SOURCEDIR", default='.',
-                  help="Set the source directory where pbsnodes and qstat reside")
-parser.add_option("-z", "--quiet", action="store_false", dest="verbose", default=True,
-                  help="don't print status messages to stdout. Not doing anything at the moment.")
-parser.add_option("-F", "--ForceNames", action="store_true", dest="FORCE_NAMES", default=False,
-                  help="force names to show up instead of numbered WNs even for very small numbers of WNs")
-parser.add_option("-w", "--writemethod", dest="write_method", action="store", default="txtyaml",
-                  choices=['txtyaml', 'yaml', 'json'],
-                  help="Set the method used for dumping information, json, yaml, or native python (yaml format)")
-parser.add_option("-r", "--removeemptycorelines", dest="REM_EMPTY_CORELINES", action="store_true", default=False,
-                  help="Set the method used for dumping information, json, yaml, or native python (yaml format)")
-(options, args) = parser.parse_args()
 
 
 # TODO make the following work with py files instead of qtop.colormap files
@@ -72,7 +51,7 @@ def colorize(text, pattern='Nothing', color_func=None, bg_color=None):
         return text
     else:
         return "\033[" + '%s%s' % (ansi_color, bg_color) + "m" + text + "\033[0;m" \
-            if ((not options.NOCOLOR) and pattern != 'account_not_colored' and text != ' ') else text
+            if ((options.COLOR == 'ON') and pattern != 'account_not_colored' and text != ' ') else text
 
 
 def decide_remapping(cluster_dict, _all_letters, _all_str_digits_with_empties):
@@ -106,10 +85,27 @@ def decide_remapping(cluster_dict, _all_letters, _all_str_digits_with_empties):
         options.REMAP = True
     else:
         options.REMAP = False
-        # max(cluster_dict['workernode_list']) was cluster_dict['highest_wn']
+    logging.info('Blind Remapping [user selected]: %s,'
+                  '\n\t\t\t\t\t\t\t\t  Decided Remapping: %s' % (options.BLINDREMAP, options.REMAP))
+
+    if logging.getLogger().isEnabledFor(logging.DEBUG) and options.REMAP:
+        user_request = options.BLINDREMAP and 'The user has requested it (blindremap switch)' or False
+        subclusters = len(cluster_dict['node_subclusters']) > 1 and \
+          'there are different WN namings, e.g. wn001, wn002, ..., ps001, ps002, ... etc' or False
+        exotic_starting = min(cluster_dict['workernode_list']) >= config['exotic_starting_wn_nr'] and \
+          'the first starting numbering of a WN is very high and thus would require too much unused space' or False
+        percentage_unassigned = len(cluster_dict['_all_str_digits_with_empties']) != len(cluster_dict['all_str_digits']) and \
+           'more than %s*nodes have no jobs assigned' %options.PERCENTAGE or False
+        numbering_collisions = min(cluster_dict['workernode_list']) >= config['exotic_starting_wn_nr'] and \
+           'there are numbering collisions' or False
+        print
+        logging.debug('Remapping decided due to: \n\t %s' %
+          filter(None, [user_request, subclusters, exotic_starting, percentage_unassigned, numbering_collisions]))
+    # max(cluster_dict['workernode_list']) was cluster_dict['highest_wn']
 
 
 def calculate_cluster(worker_nodes):
+    logging.debug('FORCE_NAMES is: %s' % options.FORCE_NAMES)
     NAMED_WNS = 0 if not options.FORCE_NAMES else 1
     cluster_dict = dict()
     for key in ['working_cores', 'total_cores', 'max_np', 'highest_wn', 'offline_down_nodes']:
@@ -120,7 +116,7 @@ def calculate_cluster(worker_nodes):
 
     cluster_dict['total_wn'] = len(worker_nodes)  # == existing_nodes
     cluster_dict['workernode_list'] = []
-    cluster_dict['workernode_list_remapped'] = range(1, cluster_dict['total_wn'])  # leave xrange aside for now
+    cluster_dict['workernode_list_remapped'] = range(1, cluster_dict['total_wn'] + 1)  # leave xrange aside for now
 
     _all_letters = []
     _all_str_digits_with_empties = []
@@ -152,10 +148,13 @@ def calculate_cluster(worker_nodes):
             cluster_dict['workernode_list'].append(cur_node_nr)
 
     decide_remapping(cluster_dict, _all_letters, _all_str_digits_with_empties)
-    map_batch_nodes_to_wn_dicts(cluster_dict, worker_nodes, options.REMAP)
+    nodes_drop = map_batch_nodes_to_wn_dicts(cluster_dict, worker_nodes, options.REMAP)
+    # this amount has to be chopped off of the end of workernode_list_remapped
+    nodes_drop_slice_end = None if (nodes_drop == 0) else nodes_drop
     if options.REMAP:
+        cluster_dict['total_wn'] += nodes_drop
         cluster_dict['highest_wn'] = cluster_dict['total_wn']
-        cluster_dict['workernode_list'] = cluster_dict['workernode_list_remapped']
+        cluster_dict['workernode_list'] = cluster_dict['workernode_list_remapped'][:nodes_drop_slice_end]
         cluster_dict['workernode_dict'] = cluster_dict['workernode_dict_remapped']
     else:
         cluster_dict['highest_wn'] = max(cluster_dict['workernode_list'])
@@ -177,7 +176,7 @@ def do_name_remapping(cluster_dict):
     """
     renames hostnames according to user remapping in conf file (for the wn id label lines)
     """
-    label_max_len = config['workernodes_matrix'][0]['wn id lines']['max_len']
+    label_max_len = int(config['workernodes_matrix'][0]['wn id lines']['max_len'])
     for _, state_corejob_dn in cluster_dict['workernode_dict'].items():
         _host = state_corejob_dn['domainname'].split('.', 1)[0]
         changed = False
@@ -203,7 +202,7 @@ def display_job_accounting_summary(cluster_dict, total_running_jobs, total_queue
     if options.REMAP:
         print '=== WARNING: --- Remapping WN names and retrying heuristics... good luck with this... ---'
     print 'PBS report tool. All bugs added by sfranky@gmail.com. Cross fingers now...'
-    print 'Please try: watch -d + %s/qtop.py -s %s\n' % (QTOPPATH, options.SOURCEDIR)
+    print 'Please try: watch -d %s/qtop.py -s %s\n' % (QTOPPATH, options.SOURCEDIR)
     print colorize('===> ', '#') + colorize('Job accounting summary', 'Normal') + colorize(' <=== ', '#') + colorize(
         '(Rev: 3000 $) %s WORKDIR = %s' % (datetime.datetime.today(), QTOPPATH), 'account_not_colored')
 
@@ -320,7 +319,6 @@ def expand_useraccounts_symbols(config, user_list):
     """
     In case there are more users than the sum number of all numbers and small/capital letters of the alphabet
     """
-    MAX_UNIX_ACCOUNTS = 87  # was : 62
     if len(user_list) > MAX_UNIX_ACCOUNTS:
         for i in xrange(MAX_UNIX_ACCOUNTS, len(user_list) + MAX_UNIX_ACCOUNTS):
             config['possible_ids'].append(str(i)[0])
@@ -338,7 +336,7 @@ def fill_node_cores_column(state_np_corejob, core_user_map, id_of_username, max_
 
     if state == '?':  # for non-existent machines
         for core_line in core_user_map:
-            core_user_map[core_line] += [config['non_existent_node_symbol']]
+            core_user_map[core_line] += [eval(config['non_existent_node_symbol'])]
     else:
         _own_np = int(np)
         own_np_range = [str(x) for x in range(_own_np)]
@@ -431,8 +429,9 @@ def find_matrices_width(wn_number, workernode_list, term_columns, DEADWEIGHT=11)
     """
     start = 0
     # exclude unneeded first empty nodes from the matrix
-    if options.NOMASKING and min(workernode_list) > config['workernodes_matrix'][0]['wn id lines']['min_masking_threshold']:
-        start = min(workernode_list) - 1
+    if options.NOMASKING and \
+        min(workernode_list) > int(config['workernodes_matrix'][0]['wn id lines']['min_masking_threshold']):
+            start = min(workernode_list) - 1
 
     # Extra matrices may be needed if the WNs are more than the screen width can hold.
     if wn_number > start:  # start will either be 1 or (masked >= config['min_masking_threshold'] + 1)
@@ -460,6 +459,8 @@ def print_wnid_lines(start, stop, highest_wn, wn_vert_labels, **kwargs):
     """
     d = OrderedDict()
     end_labels = config['workernodes_matrix'][0]['wn id lines']['end_labels']
+    # for nr in end_labels:
+    #     end_labels[nr] = [label.strip("'") for label in fix_config_list(end_labels[nr])]
 
     if not NAMED_WNS:
         node_str_width = len(str(highest_wn))  # 4 for thousands of nodes, nr of horizontal lines to be displayed
@@ -479,7 +480,7 @@ def print_wnid_lines(start, stop, highest_wn, wn_vert_labels, **kwargs):
 
         end_label = iter(end_labels[str(node_str_width)])
         display_wnid_lines(wn_vert_labels, start, stop, end_label,
-                           color_func=highlight_alternately, args=(ALT_LABEL_HIGHLIGHT_colorS))
+                           color_func=highlight_alternately, args=(ALT_LABEL_HIGHLIGHT_COLORS))
 
 
 def display_wnid_lines(d, start, stop, end_label, color_func, args):
@@ -606,7 +607,7 @@ def print_single_attr_line(print_char_start, print_char_stop, attr_line, label, 
     # TODO: fix option parameter, inserted for testing purposes
     line = attr_line[print_char_start:print_char_stop]
     # maybe put attr_line and label as kwd arguments? collect them as **kwargs
-    attr_line = insert_separators(line, SEPARATOR, options.WN_COLON) + '=%(label)s'
+    attr_line = insert_separators(line, SEPARATOR, options.WN_COLON) + '=%s'  % label  # this didnt work as expected
     attr_line = ''.join([colorize(char, 'Nothing', color_func) for char in attr_line])
     print attr_line
 
@@ -621,7 +622,7 @@ def display_user_accounts_pool_mappings(account_jobs_table, pattern_of_id):
     for line in account_jobs_table:
         uid, runningjobs, queuedjobs, alljobs, user = line[0], line[1], line[2], line[3], line[4]
         account = pattern_of_id[uid]
-        if options.NOCOLOR or account == 'account_not_colored' or color_of_account[account] == 'reset':
+        if options.COLOR == 'OFF' or account == 'account_not_colored' or color_of_account[account] == 'reset':
             extra_width = 0
             account = 'account_not_colored'
         else:
@@ -688,7 +689,7 @@ def get_yaml_key_part(major_key):
         part_name = [i for i in part][0]
         part_options = part[part_name]
         # label = part_options.get('label')
-        yaml_key = part_options.get('yaml key')
+        yaml_key = part_options.get('yaml_key')
         if yaml_key:
             yield yaml_key, part_name
 
@@ -704,10 +705,12 @@ def calculate_wn_occupancy(cluster_dict, user_names, job_states, job_ids):
     workernodes_occupancy['term_columns'] = calculate_split_screen_size()
     workernodes_occupancy['account_jobs_table'], workernodes_occupancy['id_of_username'] = create_account_jobs_table(user_names, job_states)
     workernodes_occupancy['pattern_of_id'] = make_pattern_of_id(workernodes_occupancy['account_jobs_table'])
-    workernodes_occupancy['print_char_start'], workernodes_occupancy['print_char_stop'], workernodes_occupancy['extra_matrices_nr'] = find_matrices_width(
-        cluster_dict['highest_wn'],
-        cluster_dict['workernode_list'],
-        workernodes_occupancy['term_columns']
+    workernodes_occupancy['print_char_start'], \
+        workernodes_occupancy['print_char_stop'], \
+        workernodes_occupancy['extra_matrices_nr'] = find_matrices_width(
+            cluster_dict['highest_wn'],
+            cluster_dict['workernode_list'],
+            workernodes_occupancy['term_columns']
     )
     workernodes_occupancy['wn_vert_labels'] = calc_all_wnid_label_lines(cluster_dict['highest_wn'])
 
@@ -740,7 +743,6 @@ def print_core_lines(core_user_map, print_char_start, print_char_stop, pattern_o
                 sys.stderr.close()
             except IOError:
                 pass
-
 
 
 def display_wn_occupancy(workernodes_occupancy, cluster_dict):
@@ -807,12 +809,16 @@ def make_pattern_of_id(account_jobs_table):
 
 
 def load_yaml_config(path='.'):
-    try:
-        config = yaml.safe_load(open(path + "/qtopconf.yaml"))
-    except yaml.YAMLError, exc:
-        if hasattr(exc, 'problem_mark'):
-            mark = exc.problem_mark
-            print "Error position: (%s:%s)" % (mark.line + 1, mark.column + 1)
+    config = read_yaml_natively(os.path.join(path + "/" + QTOPCONF_YAML))
+    # try:
+    #     config = yaml.safe_load(open(os.path.join(path + "/qtopconf.yaml")))
+    # except ImportError:
+    #     config = read_yaml_natively(os.path.join(path + "/qtopconf.yaml"))
+    # except yaml.YAMLError, exc:
+    #     if hasattr(exc, 'problem_mark'):
+    #         mark = exc.problem_mark
+    #         print "Your YAML configuration file has an error in position: (%s:%s)" % (mark.line + 1, mark.column + 1)
+    #         print "Please make sure that spaces are multiples of 2."
 
     config['possible_ids'] = list(config['possible_ids'])
     symbol_map = dict([(chr(x), x) for x in range(33, 48) + range(58, 64) + range(91, 96) + range(123, 126)])
@@ -827,6 +833,15 @@ def load_yaml_config(path='.'):
         config['remapping'] = list()
     for symbol in symbol_map:
         config['possible_ids'].append(symbol)
+
+    user_selected_save_path = os.path.realpath(os.path.expandvars(config['savepath']))
+    if not os.path.exists(user_selected_save_path):
+        mkdir_p(user_selected_save_path)
+        logging.debug('Directory %s created.' % user_selected_save_path)
+    else:
+        logging.debug('%s files saved in directory %s.' % (config['scheduler'], user_selected_save_path))
+    config['savepath'] = user_selected_save_path
+
     return config
 
 
@@ -836,17 +851,33 @@ def calculate_split_screen_size():
     """
     try:
         _, term_columns = config['term_size']
+    except ValueError:
+        _, term_columns = fix_config_list(config['term_size'])
     except KeyError:
-        _, term_columns = os.popen('stty size', 'r').read().split()
+        try:
+            _, term_columns = os.popen('stty size', 'r').read().split()
+        except ValueError:
+            logging.critical("Failed to autodetect your terminal's size. "
+                             "Please insert a value in %s,\n"
+                             "e.g. term_size: [53, 176]" % QTOPCONF_YAML)
+            sys.exit(0)
     term_columns = int(term_columns)
+    logging.debug('Detected terminal size is: %s * %s' % (_, term_columns))
     return term_columns
+
+
+def fix_config_list(config_list):
+    t = config_list
+    item = t[0]
+    list_items = item.split(',')
+    return [nr.strip() for nr in list_items]
 
 
 def sort_batch_nodes(batch_nodes):
     try:
-        batch_nodes.sort(key=eval(config['sorting']['user_sort']), reverse=config['sorting']['reverse'])
+        batch_nodes.sort(key=eval(config['sorting']['user_sort']), reverse=eval(config['sorting']['reverse']))
     except IndexError:
-        print "\n**There's probably something wrong in your sorting lambda in qtopconf.yaml.**\n"
+        logging.critical("There's (probably) something wrong in your sorting lambda in %s." % QTOPCONF_YAML)
         raise
 
 
@@ -909,6 +940,7 @@ def filter_batch_nodes(batch_nodes, filter_rules=None):
     if not filter_rules:
         return batch_nodes
     else:
+        logging.warning("WN Occupancy view is filtered.")
         for rule in filter_rules:
             filter_func = filter_types[rule.keys()[0]]
             args = rule.values()[0]
@@ -918,24 +950,38 @@ def filter_batch_nodes(batch_nodes, filter_rules=None):
 
 def map_batch_nodes_to_wn_dicts(cluster_dict, batch_nodes, options_remap):
     """
+    For filtering to take place,
+    1) a filter should be defined in QTOPCONF_YAM
+    2) remap should be either selected by the user or enforced by the circumstances
     """
+    nodes_drop = 0  # count change in nodes after filtering
     user_sorting = config['sorting'] and config['sorting'].values()[0]
     user_filtering = config['filtering'] and config['filtering'][0]
+
     if user_sorting and options_remap:
         sort_batch_nodes(batch_nodes)
+
     if user_filtering and options_remap:
+        batch_nodes_before = len(batch_nodes)
         batch_nodes = filter_batch_nodes(batch_nodes, config['filtering'])
+        batch_nodes_after = len(batch_nodes)
+        nodes_drop = batch_nodes_after - batch_nodes_before
+
     for (batch_node, (idx, cur_node_nr)) in zip(batch_nodes, enumerate(cluster_dict['workernode_list'])):
+        # Seemingly there is an error in the for loop because batch_nodes and workernode_list
+        # have different lengths if there's a filter in place, but it is OK, since
+        # it is just the idx counter that is taken into account in remapping.
         cluster_dict['workernode_dict'][cur_node_nr] = batch_node
         cluster_dict['workernode_dict_remapped'][idx] = batch_node
+    return nodes_drop
 
-
-def convert_to_yaml(scheduler, INPUT_FNs, filenames, write_method, commands):
-
-    for _file in INPUT_FNs:
+def convert_to_yaml(scheduler, INPUT_FNs_commands, filenames, write_method, commands):
+    for _file in INPUT_FNs_commands:
         file_orig, file_out = filenames[_file], filenames[_file + '_out']
         _func = commands[_file]
-        # print 'executing %(_func)s on file %(_file)s' % {'_func': _func, '_file': _file}
+        logging.debug('Executing %(func)s \n\t'
+                      'on: %(file_orig)s,\n\t'
+                      'resulting in: %(file_out)s\n' % {"func": _func.__name__, "file_orig": file_orig, "file_out": file_out})
         _func(file_orig, file_out, write_method)
 
 
@@ -943,43 +989,98 @@ def exec_func_tuples(func_tuples):
     _commands = iter(func_tuples)
     for command in _commands:
         ffunc, args, kwargs = command[0], command[1], command[2]
+        logging.debug('Executing %s' % ffunc.__name__)
         yield ffunc(*args, **kwargs)
 
 
+def get_yaml_reader(scheduler):
+    if scheduler == 'pbs':
+        yaml_reader = [
+            (read_pbsnodes_yaml, (filenames.get('pbsnodes_file_out'),), {'write_method': options.write_method}),
+            (common_module.read_qstat_yaml, (filenames.get('qstat_file_out'),), {'write_method': options.write_method}),
+            (read_qstatq_yaml, (filenames.get('qstatq_file_out'),), {'write_method': options.write_method}),
+        ]
+    elif scheduler == 'oar':
+        yaml_reader = [
+            (read_oarnodes_yaml, ([filenames.get('oarnodes_s_file'), filenames.get('oarnodes_y_file')]), {'write_method': options.write_method}),
+            (common_module.read_qstat_yaml, ([filenames.get('oarstat_file_out')]), {'write_method': options.write_method}),
+            (lambda *args, **kwargs: (0, 0, 0), ([filenames.get('oarstat_file')]), {'write_method': options.write_method}),
+        ]
+    elif scheduler == 'sge':
+        yaml_reader = [
+            (get_worker_nodes, ([filenames.get('sge_file_stat')]), {'write_method': options.write_method}),
+            (common_module.read_qstat_yaml, ([SGEStatMaker.temp_filepath]), {'write_method': options.write_method}),
+            # (lambda *args, **kwargs: (0, 0, 0), ([filenames.get('sge_file_stat')]), {'write_method': options.write_method}),
+            (get_statq_from_xml, ([filenames.get('sge_file_stat')]), {'write_method': options.write_method}),
+        ]
+    return yaml_reader
+
+
+def get_filenames_commands():
+    d = dict()
+    for fn, path_command in config['schedulers'][scheduler].items():
+        path, command = path_command.strip().split(', ')
+        path = path % {"savepath": config['savepath'], "pid": os.getpid()}
+        command = command % {"savepath": config['savepath']}
+        d[fn] = (path, command)
+    return d
+
 if __name__ == '__main__':
 
-    cwd = os.getcwd()
-    QTOPPATH = os.path.expanduser(cwd)
-    USERPATH = os.path.expandvars('$HOME/.local/qtop')
+    initial_cwd = os.getcwd()
+    logging.debug('Initial qtop directory: %s' % initial_cwd)
+    print "Log file created in %s" % os.path.expandvars(QTOP_LOGFILE)
+    QTOPPATH = os.path.expanduser(initial_cwd)
     try:
         config = load_yaml_config(USERPATH)
+        logging.debug('%s is read from %s/' % (QTOPCONF_YAML, USERPATH))
     except IOError:
         config = load_yaml_config(QTOPPATH)
+        logging.debug('%s is read from %s/' % (QTOPCONF_YAML, QTOPPATH))
 
-
-    SEPARATOR = config['workernodes_matrix'][0]['wn id lines']['separator']  # alias
-    USER_CUT_MATRIX_WIDTH = config['workernodes_matrix'][0]['wn id lines']['user_cut_matrix_width']  # alias
-    ALT_LABEL_HIGHLIGHT_colorS = config['workernodes_matrix'][0]['wn id lines']['alt_label_highlight_colors']  # alias
+    SEPARATOR = config['workernodes_matrix'][0]['wn id lines']['separator'].translate(None, "'")  # alias
+    USER_CUT_MATRIX_WIDTH = int(config['workernodes_matrix'][0]['wn id lines']['user_cut_matrix_width'])  # alias
+    # TODO: int should be handled internally in native yaml parser
+    # ALT_LABEL_HIGHLIGHT_COLORS = config['workernodes_matrix'][0]['wn id lines']['alt_label_highlight_colors']  # alias
+    ALT_LABEL_HIGHLIGHT_COLORS = fix_config_list(config['workernodes_matrix'][0]['wn id lines']['alt_label_highlight_colors'])
+    # TODO: fix_config_list should be handled internally in native yaml parser
 
     os.chdir(options.SOURCEDIR)
+    logging.debug('Working directory (set by user with -s) is now: %s' % options.SOURCEDIR)
     scheduler = options.BATCH_SYSTEM or config['scheduler']
+    logging.debug('Selected scheduler is %s' % scheduler)
     if config['faster_xml_parsing']:
         try:
             from lxml import etree
         except ImportError:
-            print 'Module lxml is missing. Reverting to xml module.'
+            logging.info('Module lxml is missing. Reverting to xml module.')
             from xml.etree import ElementTree as etree
 
-    INPUT_FNs = config['schedulers'][scheduler]
-    parser_extension_mapping = {'yaml': 'yaml', 'txtyaml': 'yaml', 'json': 'json'}
+    INPUT_FNs_commands = get_filenames_commands()
+    parser_extension_mapping = {'txtyaml': 'yaml', 'json': 'json'}  # 'yaml': 'yaml',
     ext = parser_extension_mapping[options.write_method]
+    logging.info('Selected method for storing data structures is: %s' % ext)
     filenames = dict()
-    for _file in INPUT_FNs:
-        filenames[_file] = INPUT_FNs[_file]
-        # filenames[_file + '_out'] = get_new_temp_file(suffix, prefix)
+    batch_system_commands = dict()
+    for _file in INPUT_FNs_commands:
+        filenames[_file], batch_system_commands[_file] = INPUT_FNs_commands[_file]
+        _batch_system_command = batch_system_commands[_file].strip()
+        logging.debug('Command: "%s" -- result in: %s' % (_batch_system_command, filenames[_file]))
+        with open(filenames[_file], mode='w') as fin:
+            logging.debug('\tFile state before subprocess call: %(fin)s' % {"fin": fin})
+            logging.debug('\tWaiting on subprocess.call...')
+            command = subprocess.Popen(_batch_system_command, stdout=fin, stderr=subprocess.PIPE, shell=True)
+            error = command.communicate()[1]
+            command.wait()
+            if error:
+                logging.critical('\tError msg: %s' % error)
+        logging.debug('File state after subprocess call: %(fin)s' % {"fin": fin})
+
         filenames[_file + '_out'] = '{filename}_{writemethod}.{ext}'.format(
-            filename=INPUT_FNs[_file].rsplit('.')[0], writemethod=options.write_method, ext=ext
-        )  # pid=os.getpid()
+            filename=INPUT_FNs_commands[_file][0].rsplit('.')[0],
+            writemethod=options.write_method,
+            ext=ext
+        )
 
     yaml_converter = {
         'pbs': {
@@ -999,28 +1100,9 @@ if __name__ == '__main__':
     commands = yaml_converter[scheduler]
     # reset_yaml_files()  # either that or having a pid appended in the filename
     if not options.YAML_EXISTS:
-        convert_to_yaml(scheduler, INPUT_FNs, filenames, options.write_method, commands)
+        convert_to_yaml(scheduler, INPUT_FNs_commands, filenames, options.write_method, commands)
 
-    yaml_reader = {
-        'pbs': [
-            (read_pbsnodes_yaml, (filenames.get('pbsnodes_file_out'),), {'write_method': options.write_method}),
-            (read_qstat_yaml, (filenames.get('qstat_file_out'),), {'write_method': options.write_method}),
-            (read_qstatq_yaml, (filenames.get('qstatq_file_out'),), {'write_method': options.write_method}),
-        ],
-        'oar': [
-            (read_oarnodes_yaml, ([filenames.get('oarnodes_s_file'), filenames.get('oarnodes_y_file')]), {'write_method': options.write_method}),
-            (read_qstat_yaml, ([filenames.get('oarstat_file_out')]), {'write_method': options.write_method}),
-            (lambda *args, **kwargs: (0, 0, 0), ([filenames.get('oarstat_file')]), {'write_method': options.write_method}),
-        ],
-        'sge': [
-            (get_worker_nodes, ([filenames.get('sge_file_stat')]), {'write_method': options.write_method}),
-            (read_qstat_yaml, ([SGEStatMaker.temp_filepath]), {'write_method': options.write_method}),
-            # (lambda *args, **kwargs: (0, 0, 0), ([filenames.get('sge_file_stat')]), {'write_method': options.write_method}),
-            (get_statq_from_xml, ([filenames.get('sge_file_stat')]), {'write_method': options.write_method}),
-        ]
-    }
-
-    func_tuples = yaml_reader[scheduler]
+    func_tuples = get_yaml_reader(scheduler)
     commands = exec_func_tuples(func_tuples)
 
     worker_nodes = next(commands)
@@ -1028,6 +1110,7 @@ if __name__ == '__main__':
     total_running_jobs, total_queued_jobs, qstatq_lod = next(commands)
 
     #  MAIN ##################################
+    logging.info('CALCULATION AREA')
     cluster_dict, NAMED_WNS = calculate_cluster(worker_nodes)
     workernodes_occupancy, cluster_dict = calculate_wn_occupancy(cluster_dict, user_names, job_states, job_ids)
 
@@ -1036,9 +1119,10 @@ if __name__ == '__main__':
         'workernodes_matrix': (display_wn_occupancy, (workernodes_occupancy, cluster_dict)),
         'user_accounts_pool_mappings': (display_user_accounts_pool_mappings, (workernodes_occupancy['account_jobs_table'], workernodes_occupancy['pattern_of_id']))
     }
-    # print 'Reading: {}'.format(SGEStatMaker.temp_filepath)
+    logging.info('DISPLAY AREA')
     for part in config['user_display_parts']:
         _func, args = display_parts[part][0], display_parts[part][1]
+        logging.debug('Executing %s' % _func.__name__)
         _func(*args)
 
     # print '\nThanks for watching!'

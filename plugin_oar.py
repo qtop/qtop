@@ -1,5 +1,8 @@
 __author__ = 'sfranky'
-import yaml
+# import yaml
+import os
+from common_module import *
+import yaml_parser as yaml
 try:
     from collections import OrderedDict
 except ImportError:
@@ -39,7 +42,7 @@ def read_oarnodes_yaml(fn_s, fn_y, write_method):
     for node in nodes_resids:
         resids_state_lot = nodes_resids[node]
         for (resid, state) in resids_state_lot:
-            nodes_jobs.setdefault(node, []).append((resids_jobs[resid], state))
+                nodes_jobs.setdefault(node, []).append((resids_jobs[int(resid)], state))
 
     worker_nodes = list()
     #todo: make user-tuneable
@@ -55,12 +58,19 @@ def read_oarnodes_yaml(fn_s, fn_y, write_method):
         d['state'] = calculate_oar_state(nodes_jobs[node], nr_of_jobs, node_state_mapping)
         worker_nodes.append(d)
 
+    logging.info('worker_nodes contains %s entries' % len(worker_nodes))
     return worker_nodes
 
 
 def read_oarnodes_s_yaml(fn_s, write_method):  # todo: fix write_method not being used
-    with open(fn_s, mode='r') as fin:
-        data = yaml.load(fin)
+    assert os.path.isfile(fn_s)
+    logging.debug('File %s exists: %s' % (fn_s, os.path.isfile(fn_s)))
+    try:
+        assert os.stat(fn_s).st_size != 0
+    except AssertionError:
+        logging.critical('File %s is empty!! Exiting...\n' % fn_s)
+        raise
+    data = yaml.safe_load(fn_s)
     nodes_resids = dict([(node, resid_state.items()) for node, resid_state in data.items()])
     return nodes_resids
 
@@ -74,7 +84,9 @@ def read_oarnodes_y_yaml(fn_y):
 
 def read_oarnodes_y_textyaml(fn):
     oar_nodes = {}
+    logging.debug("Before opening %s" % fn)
     with open(fn, mode='r') as fin:
+        logging.debug("File state %s" % fin)
         fin.readline()  # '---'
         line = fin.readline().strip()  # first res_id
         while line:
@@ -82,8 +94,8 @@ def read_oarnodes_y_textyaml(fn):
             oar_nodes.update(oar_node)
 
         resids_jobs = dict([(resid, info.get('jobs', None)) for resid, info in oar_nodes.items()])
-        return resids_jobs
-        # return oar_nodes
+    return resids_jobs
+    # return oar_nodes
 
 
 def _read_oar_node_y_textyaml(fin, line):

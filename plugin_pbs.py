@@ -1,17 +1,22 @@
 import re
 import sys
 import os
-import yaml
+# import yaml
+import yaml_parser as yaml
 try:
     import ujson as json
 except ImportError:
     import json
+from constants import *
+from common_module import logging
 
-MAX_CORE_ALLOWED = 150000
 try:
     from yaml import CLoader as Loader, CDumper as Dumper
 except ImportError:
-    from yaml import Loader, Dumper
+    try:
+        from yaml import Loader, Dumper
+    except ImportError:
+        pass
 
 
 def check_empty_file(orig_file):
@@ -180,6 +185,7 @@ def read_qstatq_yaml(fn, write_method):
     user accounts and pool mappings table.
     """
     qstatq_list = []
+    logging.debug("Opening %s" % fn)
     with open(fn, 'r') as fin:
         qstatqs_total = (write_method.endswith('yaml')) and yaml.load_all(fin, Loader=Loader) or json.load(fin)
         for qstatq in qstatqs_total:
@@ -189,6 +195,8 @@ def read_qstatq_yaml(fn, write_method):
     return total_running_jobs, total_queued_jobs, qstatq_list
 
 
-pbsnodes_mapping = {'yaml': (yaml.dump_all, {'Dumper': Dumper, 'default_flow_style': False}, 'yaml'),
+pbsnodes_mapping = {
+                    #'yaml': (yaml.dump_all, {'Dumper': Dumper, 'default_flow_style': False}, 'yaml'),
                     'txtyaml': (pbsnodes_write_lines, {}, 'yaml'),
-                    'json': (json.dump, {}, 'json')}
+                    'json': (json.dump, {}, 'json')
+                    }

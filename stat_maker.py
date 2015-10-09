@@ -1,7 +1,8 @@
 __author__ = 'sfranky'
 
 import re
-import yaml
+# import yaml
+import yaml_parser as yaml
 try:
     import ujson as json
 except ImportError:
@@ -9,13 +10,17 @@ except ImportError:
 from xml.etree import ElementTree as etree
 import os
 import sys
-from common_module import get_new_temp_file
+from constants import *
+from common_module import *
 
-MAX_CORE_ALLOWED = 150000
+
 try:
     from yaml import CLoader as Loader, CDumper as Dumper
 except ImportError:
-    from yaml import Loader, Dumper
+    try:
+        from yaml import Loader, Dumper
+    except ImportError:
+        pass
 
 
 def check_empty_file(orig_file):
@@ -30,13 +35,13 @@ class StatMaker:
         self.l = list()
 
         self.stat_mapping = {
-            'yaml': (yaml.dump_all, {'Dumper': Dumper, 'default_flow_style': False}, 'yaml'),
+            # 'yaml': (yaml.dump_all, {'Dumper': Dumper, 'default_flow_style': False}, 'yaml'),
             'txtyaml': (self.stat_write_lines, {}, 'yaml'),
             'json': (json.dump, {}, 'json')
         }
 
         self.statq_mapping = {
-            'yaml': (yaml.dump_all, {'Dumper': Dumper, 'default_flow_style': False}, 'yaml'),
+            # 'yaml': (yaml.dump_all, {'Dumper': Dumper, 'default_flow_style': False}, 'yaml'),
             'txtyaml': (self.statq_write_lines, {}, 'yaml'),
             'json': (json.dump, {}, 'json')}
 
@@ -197,6 +202,7 @@ class OarStatMaker(QStatMaker):
 
     def make_stat(self, orig_file, out_file, write_method):
         with open(orig_file, 'r') as fin:
+            logging.debug('File state before OarStatMaker.make_stat: %(fin)s' % {"fin": fin})
             _ = fin.readline()  # header
             fin.readline()  # dashes
             re_match_positions = ('job_id', 'user', 'job_state', 'queue')
@@ -204,6 +210,8 @@ class OarStatMaker(QStatMaker):
             for line in fin:
                 qstat_values = self.process_line(re_search, line, re_match_positions)
                 self.l.append(qstat_values)
+
+        logging.debug('File state after OarStatMaker.make_stat: %(fin)s' % {"fin": fin})
         self.dump_all(out_file, self.stat_mapping[write_method])
 
 
@@ -212,8 +220,16 @@ class SGEStatMaker(StatMaker):
         StatMaker.__init__(self)
 
     def make_stat(self, orig_file, out_file, write_method):
-        tree = etree.parse(orig_file)
-        root = tree.getroot()
+        out_file = out_file.rsplit('/', 1)[1]
+        try:
+            tree = etree.parse(orig_file)
+        except IOError:
+            raise
+        except:
+            print "File %(filename)s does not appear to contain a proper XML structure. Exiting.." % {"filename": orig_file}
+            raise
+        else:
+            root = tree.getroot()
         # for queue_elem in root.iter('Queue-List'):  # 2.7 only
         for queue_elem in root.findall('queue_info/Queue-List'):
             # queue_name = queue_elem.find('./resource[@name="qname"]').text  # 2.7 only
@@ -228,8 +244,13 @@ class SGEStatMaker(StatMaker):
             self._extract_job_info(queue_elem, 'job_list', queue_name=queue_name)
 
         job_info_elem = root.find('./job_info')
-        self._extract_job_info(job_info_elem, 'job_list', queue_name='Pending')
-        prefix, suffix  = out_file.split('.')
+        if job_info_elem is None:
+            logging.debug('No pending jobs found!')
+        else:
+            self._extract_job_info(job_info_elem, 'job_list', queue_name='Pending')
+        prefix, suffix = out_file.split('.')
+        prefix += '_'
+        suffix = '.' + suffix
         SGEStatMaker.fd, SGEStatMaker.temp_filepath = get_new_temp_file(prefix=prefix, suffix=suffix)
         self.dump_all(SGEStatMaker.fd, self.stat_mapping[write_method])
 
@@ -244,6 +265,8 @@ class SGEStatMaker(StatMaker):
             qstat_values['S'] = subelem.find('./state').text
             qstat_values['Queue'] = queue_name
             self.l.append(qstat_values)
+        if not self.l:
+            logging.info('No jobs found in XML file!')
 
 
     @staticmethod
@@ -255,6 +278,7 @@ class SGEStatMaker(StatMaker):
         # prefix, suffix  = out_file.split('.')
         # out_file = get_new_temp_file(prefix=prefix, suffix=suffix)
         out_file = os.fdopen(fd, 'w')
+        logging.debug('File state: %s' % out_file)
         write_func, kwargs, _ = write_func_args
         write_func(out_file, **kwargs)
         out_file.close()
