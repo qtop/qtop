@@ -74,14 +74,9 @@ def read_qstat_yaml(fn, write_method):
 
     with open(fn) as fin:
         try:
-            assert os.stat(fn).st_size != 0
-        except AssertionError:
-            logging.critical('File %s is empty!! Either problematic or no jobs found.' % fn)
-        logging.debug('File state before read_qstat_yaml: %s' % fin)
-        try:
             qstats = (write_method.endswith('yaml')) and yaml.load_all(fin, Loader=Loader) or json.load(fin)
         except StopIteration:
-            logging.warning('File %s is empty. (No jobs found)')
+            logging.warning('File %s is empty. (No jobs found or Error!)')
         else:
             for qstat in qstats:
                 job_ids.append(str(qstat['JobId']))

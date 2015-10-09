@@ -10,9 +10,10 @@ except ImportError:
 from xml.etree import ElementTree as etree
 import os
 import sys
+from constants import *
 from common_module import *
 
-MAX_CORE_ALLOWED = 150000
+
 try:
     from yaml import CLoader as Loader, CDumper as Dumper
 except ImportError:
@@ -243,7 +244,7 @@ class SGEStatMaker(StatMaker):
             self._extract_job_info(queue_elem, 'job_list', queue_name=queue_name)
 
         job_info_elem = root.find('./job_info')
-        if not job_info_elem:
+        if job_info_elem is None:
             logging.debug('No pending jobs found!')
         else:
             self._extract_job_info(job_info_elem, 'job_list', queue_name='Pending')

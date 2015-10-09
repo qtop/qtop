@@ -7,10 +7,9 @@ try:
     import ujson as json
 except ImportError:
     import json
+from constants import *
 from common_module import logging
 
-
-MAX_CORE_ALLOWED = 150000
 try:
     from yaml import CLoader as Loader, CDumper as Dumper
 except ImportError:
