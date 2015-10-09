@@ -116,7 +116,7 @@ def calculate_cluster(worker_nodes):
 
     cluster_dict['total_wn'] = len(worker_nodes)  # == existing_nodes
     cluster_dict['workernode_list'] = []
-    cluster_dict['workernode_list_remapped'] = range(1, cluster_dict['total_wn'])  # leave xrange aside for now
+    cluster_dict['workernode_list_remapped'] = range(1, cluster_dict['total_wn'] + 1)  # leave xrange aside for now
 
     _all_letters = []
     _all_str_digits_with_empties = []
@@ -148,10 +148,13 @@ def calculate_cluster(worker_nodes):
             cluster_dict['workernode_list'].append(cur_node_nr)
 
     decide_remapping(cluster_dict, _all_letters, _all_str_digits_with_empties)
-    map_batch_nodes_to_wn_dicts(cluster_dict, worker_nodes, options.REMAP)
+    nodes_drop = map_batch_nodes_to_wn_dicts(cluster_dict, worker_nodes, options.REMAP)
+    # this amount has to be chopped off of the end of workernode_list_remapped
+    nodes_drop_slice_end = None if (nodes_drop == 0) else nodes_drop
     if options.REMAP:
+        cluster_dict['total_wn'] += nodes_drop
         cluster_dict['highest_wn'] = cluster_dict['total_wn']
-        cluster_dict['workernode_list'] = cluster_dict['workernode_list_remapped']
+        cluster_dict['workernode_list'] = cluster_dict['workernode_list_remapped'][:nodes_drop_slice_end]
         cluster_dict['workernode_dict'] = cluster_dict['workernode_dict_remapped']
     else:
         cluster_dict['highest_wn'] = max(cluster_dict['workernode_list'])
@@ -702,10 +705,12 @@ def calculate_wn_occupancy(cluster_dict, user_names, job_states, job_ids):
     workernodes_occupancy['term_columns'] = calculate_split_screen_size()
     workernodes_occupancy['account_jobs_table'], workernodes_occupancy['id_of_username'] = create_account_jobs_table(user_names, job_states)
     workernodes_occupancy['pattern_of_id'] = make_pattern_of_id(workernodes_occupancy['account_jobs_table'])
-    workernodes_occupancy['print_char_start'], workernodes_occupancy['print_char_stop'], workernodes_occupancy['extra_matrices_nr'] = find_matrices_width(
-        cluster_dict['highest_wn'],
-        cluster_dict['workernode_list'],
-        workernodes_occupancy['term_columns']
+    workernodes_occupancy['print_char_start'], \
+        workernodes_occupancy['print_char_stop'], \
+        workernodes_occupancy['extra_matrices_nr'] = find_matrices_width(
+            cluster_dict['highest_wn'],
+            cluster_dict['workernode_list'],
+            workernodes_occupancy['term_columns']
     )
     workernodes_occupancy['wn_vert_labels'] = calc_all_wnid_label_lines(cluster_dict['highest_wn'])
 
@@ -935,6 +940,7 @@ def filter_batch_nodes(batch_nodes, filter_rules=None):
     if not filter_rules:
         return batch_nodes
     else:
+        logging.warning("WN Occupancy view is filtered.")
         for rule in filter_rules:
             filter_func = filter_types[rule.keys()[0]]
             args = rule.values()[0]
@@ -944,17 +950,30 @@ def filter_batch_nodes(batch_nodes, filter_rules=None):
 
 def map_batch_nodes_to_wn_dicts(cluster_dict, batch_nodes, options_remap):
     """
+    For filtering to take place,
+    1) a filter should be defined in QTOPCONF_YAM
+    2) remap should be either selected by the user or enforced by the circumstances
     """
+    nodes_drop = 0  # count change in nodes after filtering
     user_sorting = config['sorting'] and config['sorting'].values()[0]
     user_filtering = config['filtering'] and config['filtering'][0]
+
     if user_sorting and options_remap:
         sort_batch_nodes(batch_nodes)
+
     if user_filtering and options_remap:
+        batch_nodes_before = len(batch_nodes)
         batch_nodes = filter_batch_nodes(batch_nodes, config['filtering'])
+        batch_nodes_after = len(batch_nodes)
+        nodes_drop = batch_nodes_after - batch_nodes_before
+
     for (batch_node, (idx, cur_node_nr)) in zip(batch_nodes, enumerate(cluster_dict['workernode_list'])):
+        # Seemingly there is an error in the for loop because batch_nodes and workernode_list
+        # have different lengths if there's a filter in place, but it is OK, since
+        # it is just the idx counter that is taken into account in remapping.
         cluster_dict['workernode_dict'][cur_node_nr] = batch_node
         cluster_dict['workernode_dict_remapped'][idx] = batch_node
-
+    return nodes_drop
 
 def convert_to_yaml(scheduler, INPUT_FNs_commands, filenames, write_method, commands):
     for _file in INPUT_FNs_commands:

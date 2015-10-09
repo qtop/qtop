@@ -76,8 +76,8 @@ def read_yaml_natively(fn):
             raw_key_values.update(block)
 
     logging.debug('File state after read_yaml_natively: %s' % fin)
-    config_dict = dict([(key, value) for key, value in raw_key_values.items()])
-    return config_dict
+    a_dict = dict([(key, value) for key, value in raw_key_values.items()])
+    return a_dict
 
 
 def read_yaml_config_block(line, fin, get_lines):
@@ -211,7 +211,7 @@ def process_code(fin):
 
 def safe_load(fin):
     a_dict = read_yaml_natively(fin)
-    logging.debug("Config_dict length: %s" % len(a_dict))
+    logging.debug("YAML dict length: %s" % len(a_dict))
     return a_dict
 
 
