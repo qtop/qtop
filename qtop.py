@@ -740,7 +740,6 @@ def print_core_lines(core_user_map, print_char_start, print_char_stop, pattern_o
                 pass
 
 
-
 def display_wn_occupancy(workernodes_occupancy, cluster_dict):
 
     print_char_start = workernodes_occupancy['print_char_start']
@@ -855,7 +854,7 @@ def calculate_split_screen_size():
         except ValueError:
             logging.critical("Failed to autodetect your terminal's size. "
                              "Please insert a value in %s,\n"
-                             "e.g. term_size: [53, 176]" % QTOP_LOGFILE)
+                             "e.g. term_size: [53, 176]" % QTOPCONF_YAML)
             sys.exit(0)
     term_columns = int(term_columns)
     logging.debug('Detected terminal size is: %s * %s' % (_, term_columns))
@@ -1101,7 +1100,6 @@ if __name__ == '__main__':
         'workernodes_matrix': (display_wn_occupancy, (workernodes_occupancy, cluster_dict)),
         'user_accounts_pool_mappings': (display_user_accounts_pool_mappings, (workernodes_occupancy['account_jobs_table'], workernodes_occupancy['pattern_of_id']))
     }
-    # print 'Reading: {}'.format(SGEStatMaker.temp_filepath)
     logging.info('DISPLAY AREA')
     for part in config['user_display_parts']:
         _func, args = display_parts[part][0], display_parts[part][1]
