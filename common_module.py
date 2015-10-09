@@ -1,5 +1,6 @@
 # import yaml
 import logging
+from sys import stdin, stdout
 from constants import *
 from optparse import OptionParser
 import yaml_parser as yaml
@@ -37,7 +38,7 @@ parser.add_option("-a", "--blindremapping", action="store_true", dest="BLINDREMA
 parser.add_option("-b", "--batchSystem", action="store", type="string", dest="BATCH_SYSTEM")
 parser.add_option("-y", "--readexistingyaml", action="store_true", dest="YAML_EXISTS", default=False,
                   help="Do not remake yaml input files, read from the existing ones")
-parser.add_option("-c", "--NOCOLOR", action="store_true", dest="NOCOLOR", default=False,
+parser.add_option("-c", "--COLOR", action="store", dest="COLOR", default="AUTO", choices=['ON', 'OFF', 'AUTO'],
                   help="Enable/Disable color in qtop output.")
 # parser.add_option("-f", "--setCOLORMAPFILE", action="store", type="string", dest="COLORFILE")
 parser.add_option("-m", "--noMasking", action="store_true", dest="NOMASKING", default=False,
@@ -58,6 +59,13 @@ parser.add_option("-r", "--removeemptycorelines", dest="REM_EMPTY_CORELINES", ac
 parser.add_option("-v", "--verbose", dest="verbose", action="count", help="Increase verbosity (specify multiple times for more")
 
 (options, args) = parser.parse_args()
+
+print "output isatty: %s" % stdout.isatty()
+print "input isatty: %s" % stdin.isatty()
+if options.COLOR == 'AUTO':
+    options.COLOR = 'ON' if stdout.isatty() else 'OFF'
+
+
 
 log_level = logging.WARNING  # default
 

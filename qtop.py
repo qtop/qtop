@@ -50,7 +50,7 @@ def colorize(text, pattern='Nothing', color_func=None, bg_color=None):
         return text
     else:
         return "\033[" + '%s%s' % (ansi_color, bg_color) + "m" + text + "\033[0;m" \
-            if ((not options.NOCOLOR) and pattern != 'account_not_colored' and text != ' ') else text
+            if ((options.COLOR == 'ON') and pattern != 'account_not_colored' and text != ' ') else text
 
 
 def decide_remapping(cluster_dict, _all_letters, _all_str_digits_with_empties):
@@ -618,7 +618,7 @@ def display_user_accounts_pool_mappings(account_jobs_table, pattern_of_id):
     for line in account_jobs_table:
         uid, runningjobs, queuedjobs, alljobs, user = line[0], line[1], line[2], line[3], line[4]
         account = pattern_of_id[uid]
-        if options.NOCOLOR or account == 'account_not_colored' or color_of_account[account] == 'reset':
+        if options.COLOR == 'OFF' or account == 'account_not_colored' or color_of_account[account] == 'reset':
             extra_width = 0
             account = 'account_not_colored'
         else:
