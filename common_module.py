@@ -60,13 +60,6 @@ parser.add_option("-v", "--verbose", dest="verbose", action="count", help="Incre
 
 (options, args) = parser.parse_args()
 
-print "output isatty: %s" % stdout.isatty()
-print "input isatty: %s" % stdin.isatty()
-if options.COLOR == 'AUTO':
-    options.COLOR = 'ON' if stdout.isatty() else 'OFF'
-
-
-
 log_level = logging.WARNING  # default
 
 if options.verbose == 1:
@@ -83,6 +76,12 @@ logging.basicConfig(
     # format='%(levelname)s - %(message)s'
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
+
+logging.debug("output isatty: %s" % stdout.isatty())
+logging.debug("input isatty: %s" % stdin.isatty())
+if options.COLOR == 'AUTO':
+    options.COLOR = 'ON' if stdout.isatty() else 'OFF'
+logging.debug("options.COLOR is now set to: %s" % options.COLOR)
 
 
 def read_qstat_yaml(fn, write_method):
