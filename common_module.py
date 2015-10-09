@@ -36,31 +36,34 @@ parser = OptionParser()  # for more details see http://docs.python.org/library/o
 parser.add_option("-a", "--blindremapping", action="store_true", dest="BLINDREMAP", default=False,
                   help="This may be used in situations where node names are not a pure arithmetic seq (eg. rocks clusters)")
 parser.add_option("-b", "--batchSystem", action="store", type="string", dest="BATCH_SYSTEM")
-parser.add_option("-y", "--readexistingyaml", action="store_true", dest="YAML_EXISTS", default=False,
-                  help="Do not remake yaml input files, read from the existing ones")
 parser.add_option("-c", "--COLOR", action="store", dest="COLOR", default="AUTO", choices=['ON', 'OFF', 'AUTO'],
-                  help="Enable/Disable color in qtop output.")
+                  help="Enable/Disable color in qtop output. AUTO detects tty (for watch -d)")
+parser.add_option("-d", "--debug", action="store_true", dest="DEBUG", default=False,
+                  help="print debugging messages in stdout, not just in the log file.")
+parser.add_option("-F", "--ForceNames", action="store_true", dest="FORCE_NAMES", default=False,
+                  help="force names to show up instead of numbered WNs even for very small numbers of WNs")
 # parser.add_option("-f", "--setCOLORMAPFILE", action="store", type="string", dest="COLORFILE")
 parser.add_option("-m", "--noMasking", action="store_true", dest="NOMASKING", default=False,
                   help="Don't mask early empty WNs (default: if the first 30 WNs are unused, counting starts from 31).")
 parser.add_option("-o", "--SetVerticalSeparatorXX", action="store", dest="WN_COLON", default=0,
                   help="Put vertical bar every WN_COLON nodes.")
+parser.add_option("-r", "--removeemptycorelines", dest="REM_EMPTY_CORELINES", action="store_true", default=False,
+                  help="Set the method used for dumping information, json, yaml, or native python (yaml format)")
 parser.add_option("-s", "--SetSourceDir", dest="SOURCEDIR", default=os.path.realpath('.'),
                   help="Set the source directory where pbsnodes and qstat reside")
-parser.add_option("-z", "--quiet", action="store_false", dest="verbose", default=True,
-                  help="don't print status messages to stdout. Not doing anything at the moment.")
-parser.add_option("-F", "--ForceNames", action="store_true", dest="FORCE_NAMES", default=False,
-                  help="force names to show up instead of numbered WNs even for very small numbers of WNs")
+parser.add_option("-v", "--verbose", dest="verbose", action="count",
+                  help="Increase verbosity (specify multiple times for more)")
 parser.add_option("-w", "--writemethod", dest="write_method", action="store", default="txtyaml",
                   choices=['txtyaml', 'yaml', 'json'],
                   help="Set the method used for dumping information, json, yaml, or native python (yaml format)")
-parser.add_option("-r", "--removeemptycorelines", dest="REM_EMPTY_CORELINES", action="store_true", default=False,
-                  help="Set the method used for dumping information, json, yaml, or native python (yaml format)")
-parser.add_option("-v", "--verbose", dest="verbose", action="count", help="Increase verbosity (specify multiple times for more")
+parser.add_option("-y", "--readexistingyaml", action="store_true", dest="YAML_EXISTS", default=False,
+                  help="Do not remake yaml input files, read from the existing ones")
+parser.add_option("-z", "--quiet", action="store_false", dest="verbose", default=True,
+                  help="don't print status messages to stdout. Not doing anything at the moment.")
 
 (options, args) = parser.parse_args()
 
-log_level = logging.WARNING  # default
+# log_level = logging.WARNING  # default
 
 if options.verbose == 1:
     log_level = logging.INFO
@@ -69,16 +72,33 @@ elif options.verbose >= 2:
 
 QTOP_LOGFILE_PATH = QTOP_LOGFILE.rsplit('/', 1)[0]
 mkdir_p(QTOP_LOGFILE_PATH)
-logging.basicConfig(
-    filename=QTOP_LOGFILE,
-    filemode='w',
-    level=log_level,
-    # format='%(levelname)s - %(message)s'
-    format='%(asctime)s - %(levelname)s - %(message)s'
-)
 
-logging.debug("output isatty: %s" % stdout.isatty())
-logging.debug("input isatty: %s" % stdin.isatty())
+# This is for only writing to a log file
+# logging.basicConfig(filename=QTOP_LOGFILE, filemode='w', level=log_level, format='%(asctime)s - %(levelname)s - %(message)s')
+
+logger = logging.getLogger()
+logger.setLevel(logging.DEBUG)
+
+formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+
+fh = logging.FileHandler(QTOP_LOGFILE)
+fh.setLevel(log_level)
+fh.setFormatter(formatter)
+logger.addHandler(fh)
+
+if options.verbose >= 2 and options.DEBUG:
+    fh = logging.StreamHandler()
+    fh.setLevel(logging.ERROR)
+    fh.setFormatter(formatter)
+    logger.addHandler(fh)
+
+logging.info("\n")
+logging.info("=" * 50)
+logging.info("STARTING NEW LOG ENTRY...")
+logging.info("=" * 50)
+logging.info("\n\n")
+
+logging.debug("input, output isatty: %s\t%s" % (stdin.isatty(), stdout.isatty()))
 if options.COLOR == 'AUTO':
     options.COLOR = 'ON' if stdout.isatty() else 'OFF'
 logging.debug("options.COLOR is now set to: %s" % options.COLOR)

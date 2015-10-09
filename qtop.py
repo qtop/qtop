@@ -1085,7 +1085,7 @@ if __name__ == '__main__':
     total_running_jobs, total_queued_jobs, qstatq_lod = next(commands)
 
     #  MAIN ##################################
-    logging.info('\n\nCALCULATION AREA')
+    logging.info('CALCULATION AREA')
     cluster_dict, NAMED_WNS = calculate_cluster(worker_nodes)
     workernodes_occupancy, cluster_dict = calculate_wn_occupancy(cluster_dict, user_names, job_states, job_ids)
 
@@ -1095,7 +1095,7 @@ if __name__ == '__main__':
         'user_accounts_pool_mappings': (display_user_accounts_pool_mappings, (workernodes_occupancy['account_jobs_table'], workernodes_occupancy['pattern_of_id']))
     }
     # print 'Reading: {}'.format(SGEStatMaker.temp_filepath)
-    logging.info('\n\nDISPLAY AREA')
+    logging.info('DISPLAY AREA')
     for part in config['user_display_parts']:
         _func, args = display_parts[part][0], display_parts[part][1]
         logging.debug('Executing %s' % _func.__name__)
