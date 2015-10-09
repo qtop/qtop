@@ -1,5 +1,6 @@
 # import yaml
 import logging
+import sys
 from sys import stdin, stdout
 from constants import *
 from optparse import OptionParser
@@ -102,6 +103,21 @@ logging.debug("input, output isatty: %s\t%s" % (stdin.isatty(), stdout.isatty())
 if options.COLOR == 'AUTO':
     options.COLOR = 'ON' if stdout.isatty() else 'OFF'
 logging.debug("options.COLOR is now set to: %s" % options.COLOR)
+
+
+def handle_exception(exc_type, exc_value, exc_traceback):
+    """
+    This, when replacing sys.excepthook,
+    will log uncaught exceptions to the logging module instead
+    of printing them to stdout.
+    """
+    if issubclass(exc_type, KeyboardInterrupt):
+        sys.__excepthook__(exc_type, exc_value, exc_traceback)
+        return
+
+    logger.error("Uncaught exception", exc_info=(exc_type, exc_value, exc_traceback))
+
+sys.excepthook = handle_exception
 
 
 def read_qstat_yaml(fn, write_method):

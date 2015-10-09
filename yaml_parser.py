@@ -210,9 +210,9 @@ def process_code(fin):
 
 
 def safe_load(fin):
-    config_dict = read_yaml_natively(fin)
-    # fin.close()
-    return config_dict
+    a_dict = read_yaml_natively(fin)
+    logging.debug("Config_dict length: %s" % len(a_dict))
+    return a_dict
 
 
 def load_all(fin, Loader=None):

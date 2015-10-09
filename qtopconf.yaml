@@ -6,15 +6,15 @@ savepath: /tmp/qtop_results_$USER
 
 schedulers:
   pbs:
-    pbsnodes_file: %(savepath)s/pbsnodes_a.txt, pbsnodes -a
-    qstatq_file: %(savepath)s/qstat_q.txt, qstat -q
-    qstat_file: %(savepath)s/qstat.txt, qstat
+    pbsnodes_file: %(savepath)s/pbsnodes_a_%(pid)s.txt, pbsnodes -a
+    qstatq_file: %(savepath)s/qstat_q_%(pid)s.txt, qstat -q
+    qstat_file: %(savepath)s/qstat_%(pid)s.txt, qstat
   oar:
-    oarnodes_s_file: %(savepath)s/oarnodes_s_Y.txt, oarnodes -s -Y
-    oarnodes_y_file: %(savepath)s/oarnodes_Y.txt, oarnodes -Y
-    oarstat_file: %(savepath)s/oarstat.txt, oarstat
+    oarnodes_s_file: %(savepath)s/oarnodes_s_Y_%(pid)s.txt, oarnodes -s -Y
+    oarnodes_y_file: %(savepath)s/oarnodes_Y_%(pid)s.txt, oarnodes -Y
+    oarstat_file: %(savepath)s/oarstat_%(pid)s.txt, oarstat
   sge:
-    sge_file_stat: %(savepath)s/qstat.F.xml.stdout, qstat -F -xml
+    sge_file_stat: %(savepath)s/qstat_%(pid)s.F.xml.stdout, qstat -F -xml
 
 # utilises lxml module. Needs to be installed in your system.
 # Might result in segmentation fault.

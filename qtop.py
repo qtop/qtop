@@ -1002,7 +1002,7 @@ def get_filenames_commands():
     d = dict()
     for fn, path_command in config['schedulers'][scheduler].items():
         path, command = path_command.strip().split(', ')
-        path = path % {"savepath": config['savepath']}
+        path = path % {"savepath": config['savepath'], "pid": os.getpid()}
         command = command % {"savepath": config['savepath']}
         d[fn] = (path, command)
     return d
