@@ -232,6 +232,6 @@ def load_all(fin, Loader=None):
 
 
 if __name__ == '__main__':
-    LOCAL_QTOPCONF_YAML = '/home/sfranky/.local/qtop/qtopconf.yaml'
+    LOCAL_QTOPCONF_YAML = os.path.expandvars('$HOME/.local/qtop/qtopconf.yaml')
     with open(LOCAL_QTOPCONF_YAML, mode='r') as conf_file:
         config = load_all(conf_file)

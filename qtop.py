@@ -319,7 +319,6 @@ def expand_useraccounts_symbols(config, user_list):
     """
     In case there are more users than the sum number of all numbers and small/capital letters of the alphabet
     """
-    MAX_UNIX_ACCOUNTS = 87  # was : 62
     if len(user_list) > MAX_UNIX_ACCOUNTS:
         for i in xrange(MAX_UNIX_ACCOUNTS, len(user_list) + MAX_UNIX_ACCOUNTS):
             config['possible_ids'].append(str(i)[0])
@@ -1030,8 +1029,10 @@ if __name__ == '__main__':
 
     SEPARATOR = config['workernodes_matrix'][0]['wn id lines']['separator'].translate(None, "'")  # alias
     USER_CUT_MATRIX_WIDTH = int(config['workernodes_matrix'][0]['wn id lines']['user_cut_matrix_width'])  # alias
+    # TODO: int should be handled internally in native yaml parser
     # ALT_LABEL_HIGHLIGHT_COLORS = config['workernodes_matrix'][0]['wn id lines']['alt_label_highlight_colors']  # alias
     ALT_LABEL_HIGHLIGHT_COLORS = fix_config_list(config['workernodes_matrix'][0]['wn id lines']['alt_label_highlight_colors'])
+    # TODO: fix_config_list should be handled internally in native yaml parser
 
     os.chdir(options.SOURCEDIR)
     logging.debug('Working directory (set by user with -s) is now: %s' % options.SOURCEDIR)
