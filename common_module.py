@@ -8,7 +8,7 @@ try:
 except ImportError:
     import json
 from tempfile import mkstemp
-import os
+import os, errno
 
 
 # try:
@@ -18,6 +18,15 @@ import os
 #         from yaml import Loader, Dumper
 #     except ImportError:
 #         pass
+
+def mkdir_p(path):
+    try:
+        os.makedirs(path)
+    except OSError as exc:  # Python >2.5
+        if exc.errno == errno.EEXIST and os.path.isdir(path):
+            pass
+        else:
+            raise
 
 Loader = None
 
@@ -57,8 +66,10 @@ if options.verbose == 1:
 elif options.verbose >= 2:
     log_level = logging.DEBUG
 
+QTOP_LOGFILE_PATH = QTOP_LOGFILE.rsplit('/', 1)[0]
+mkdir_p(QTOP_LOGFILE_PATH)
 logging.basicConfig(
-    filename=os.path.expandvars(QTOP_LOGFILE),
+    filename=QTOP_LOGFILE,
     filemode='w',
     level=log_level,
     # format='%(levelname)s - %(message)s'

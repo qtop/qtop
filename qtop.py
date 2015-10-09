@@ -8,17 +8,14 @@
 ################################################
 
 from operator import itemgetter
-from optparse import OptionParser
 import datetime
 from itertools import izip
 import subprocess
-import errno
 try:
     from collections import OrderedDict
 except ImportError:
     from ordereddict import OrderedDict
 from signal import signal, SIGPIPE, SIG_DFL
-import logging
 # modules
 from constants import *
 import common_module
@@ -29,7 +26,6 @@ from plugin_sge import *
 from stat_maker import *
 from math import ceil
 from colormap import color_of_account, code_of_color
-# from common_module import read_qstat_yaml
 from yaml_parser import read_yaml_natively
 
 
@@ -805,16 +801,6 @@ def make_pattern_of_id(account_jobs_table):
     pattern_of_id['_'] = '_'
     pattern_of_id[SEPARATOR] = 'account_not_colored'
     return pattern_of_id
-
-
-def mkdir_p(path):
-    try:
-        os.makedirs(path)
-    except OSError as exc:  # Python >2.5
-        if exc.errno == errno.EEXIST and os.path.isdir(path):
-            pass
-        else:
-            raise
 
 
 def load_yaml_config(path='.'):
