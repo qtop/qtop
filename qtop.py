@@ -30,9 +30,6 @@ from colormap import color_of_account, code_of_color
 from yaml_parser import read_yaml_natively
 
 
-
-
-
 # TODO make the following work with py files instead of qtop.colormap files
 # if not options.COLORFILE:
 #     options.COLORFILE = os.path.expandvars('$HOME/qtop/qtop/qtop.colormap')
@@ -91,16 +88,16 @@ def decide_remapping(cluster_dict, _all_letters, _all_str_digits_with_empties):
     if logging.getLogger().isEnabledFor(logging.DEBUG) and options.REMAP:
         user_request = options.BLINDREMAP and 'The user has requested it (blindremap switch)' or False
         subclusters = len(cluster_dict['node_subclusters']) > 1 and \
-          'there are different WN namings, e.g. wn001, wn002, ..., ps001, ps002, ... etc' or False
+            'there are different WN namings, e.g. wn001, wn002, ..., ps001, ps002, ... etc' or False
         exotic_starting = min(cluster_dict['workernode_list']) >= config['exotic_starting_wn_nr'] and \
-          'the first starting numbering of a WN is very high and thus would require too much unused space' or False
+            'the first starting numbering of a WN is very high and thus would require too much unused space' or False
         percentage_unassigned = len(cluster_dict['_all_str_digits_with_empties']) != len(cluster_dict['all_str_digits']) and \
-           'more than %s*nodes have no jobs assigned' %options.PERCENTAGE or False
+            'more than %s*nodes have no jobs assigned' %options.PERCENTAGE or False
         numbering_collisions = min(cluster_dict['workernode_list']) >= config['exotic_starting_wn_nr'] and \
-           'there are numbering collisions' or False
+            'there are numbering collisions' or False
         print
-        logging.debug('Remapping decided due to: \n\t %s' %
-          filter(None, [user_request, subclusters, exotic_starting, percentage_unassigned, numbering_collisions]))
+        logging.debug('Remapping decided due to: \n\t %s' % filter(None,
+            [user_request, subclusters, exotic_starting, percentage_unassigned, numbering_collisions]))
     # max(cluster_dict['workernode_list']) was cluster_dict['highest_wn']
 
 
@@ -809,6 +806,13 @@ def make_pattern_of_id(account_jobs_table):
 
 
 def load_yaml_config():
+    """
+    Loads ./QTOPCONF_YAML into a dictionary and then tries to update the dictionary
+    with the same-named conf file found in:
+    /env
+    $HOME/.local/qtop/
+    in that order.
+    """
     config = read_yaml_natively(os.path.join(QTOPPATH, QTOPCONF_YAML))
     logging.info('Default configuration dictionary loaded. Length: %s items' % len(config))
     # try:
@@ -950,6 +954,9 @@ def filter_list_out_by_name_pattern(batch_nodes, _list=None):
 
 
 def filter_batch_nodes(batch_nodes, filter_rules=None):
+    """
+    Filters specific nodes according to the filter rules in QTOPCONF_YAML
+    """
 
     filter_types = {
         'list_out': filter_list_out,
@@ -996,6 +1003,7 @@ def map_batch_nodes_to_wn_dicts(cluster_dict, batch_nodes, options_remap):
         cluster_dict['workernode_dict'][cur_node_nr] = batch_node
         cluster_dict['workernode_dict_remapped'][idx] = batch_node
     return nodes_drop
+
 
 def convert_to_yaml(scheduler, INPUT_FNs_commands, filenames, write_method, commands):
     for _file in INPUT_FNs_commands:
