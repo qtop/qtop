@@ -37,7 +37,7 @@ parser = OptionParser()  # for more details see http://docs.python.org/library/o
 
 parser.add_option("-a", "--blindremapping", action="store_true", dest="BLINDREMAP", default=False,
                   help="This may be used in situations where node names are not a pure arithmetic seq (eg. rocks clusters)")
-parser.add_option("-b", "--batchSystem", action="store", type="string", dest="BATCH_SYSTEM")
+parser.add_option("-b", "--batchSystem", action="store", type="string", dest="BATCH_SYSTEM", default=None)
 parser.add_option("-c", "--COLOR", action="store", dest="COLOR", default="AUTO", choices=['ON', 'OFF', 'AUTO'],
                   help="Enable/Disable color in qtop output. AUTO detects tty (for watch -d)")
 parser.add_option("-d", "--debug", action="store_true", dest="DEBUG", default=False,
@@ -75,7 +75,7 @@ elif options.verbose >= 2:
 QTOP_LOGFILE_PATH = QTOP_LOGFILE.rsplit('/', 1)[0]
 mkdir_p(QTOP_LOGFILE_PATH)
 
-# This is for only writing to a log file
+# This is for writing only to a log file
 # logging.basicConfig(filename=QTOP_LOGFILE, filemode='w', level=log_level, format='%(asctime)s - %(levelname)s - %(message)s')
 
 logger = logging.getLogger()
@@ -102,7 +102,7 @@ logging.info("\n\n")
 
 logging.debug("input, output isatty: %s\t%s" % (stdin.isatty(), stdout.isatty()))
 if options.COLOR == 'AUTO':
-    options.COLOR = 'ON' if stdout.isatty() else 'OFF'
+    options.COLOR = 'ON' if (os.environ.get("QTOP_COLOR", stdout.isatty()) in ("ON", True)) else 'OFF'
 logging.debug("options.COLOR is now set to: %s" % options.COLOR)
 
 

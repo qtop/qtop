@@ -229,7 +229,7 @@ def calculate_job_counts(user_names, job_states):
     :return: (list, list, dict)
     """
     expand_useraccounts_symbols(config, user_names)
-    state_abbrevs = config['state_abbreviations'][options.BATCH_SYSTEM or scheduler]
+    state_abbrevs = config['state_abbreviations'][scheduler]
 
     job_counts = create_job_counts(user_names, job_states, state_abbrevs)
     user_alljobs_sorted_lot = produce_user_lot(user_names)
@@ -1058,12 +1058,30 @@ def get_filenames_commands():
         d[fn] = (path, command)
     return d
 
+
+def auto_get_avail_batch_system():
+    """
+    If the auto option exists in env variable QTOP_SCHEDULER or in QTOPCONF_YAML
+    (QTOP_SCHEDULER should be unset if QTOPCONF_YAML is set to auto)
+    qtop tries to determine which of the known batch commands are available in the current system.
+    """
+    if not os.environ.get('QTOP_SCHEDULER', config['scheduler']) == 'auto':
+        return None
+    for (batch_command, system) in [('pbsnodes', 'pbs'), ('oarnodes', 'oar'), ('qstat', 'sge')]:
+        NOT_FOUND = subprocess.call(['which', batch_command], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        if not NOT_FOUND:
+            return system
+    else:
+        return None
+
+
 if __name__ == '__main__':
 
     initial_cwd = os.getcwd()
     logging.debug('Initial qtop directory: %s' % initial_cwd)
     print "Log file created in %s" % os.path.expandvars(QTOP_LOGFILE)
-    QTOPPATH = os.path.expanduser(initial_cwd)
+    CURPATH = os.path.expanduser(initial_cwd)  # ex QTOPPATH, will not work if qtop is executed from within a different dir
+    QTOPPATH = os.path.dirname(sys.argv[0])  # dir where qtop resides
     config = load_yaml_config()
 
 
@@ -1076,7 +1094,8 @@ if __name__ == '__main__':
 
     os.chdir(options.SOURCEDIR)
     logging.debug('Working directory (set by user with -s) is now: %s' % options.SOURCEDIR)
-    scheduler = options.BATCH_SYSTEM or config['scheduler']
+    avail_batch_system = auto_get_avail_batch_system()
+    scheduler = options.BATCH_SYSTEM or avail_batch_system or config['scheduler']
     logging.debug('Selected scheduler is %s' % scheduler)
     if config['faster_xml_parsing']:
         try:

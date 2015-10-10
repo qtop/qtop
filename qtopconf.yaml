@@ -2,7 +2,7 @@
 # IMPORTANT: a blank line MUST be left after every line of python code.
 
 # scheduler possible values (currently supported): pbs, oar, sge
-scheduler: sge
+scheduler: auto
 # where to save output from batch commands and their conversion to yaml
 savepath: /tmp/qtop_results_$USER
 
@@ -146,8 +146,7 @@ filtering:
 #    - 'E'
 
 # what parts of qtop to display
-user_display_parts:
- # job_accounting_summary should be disabled for OAR systems.
+user_display_parts: # job_accounting_summary should be disabled for OAR systems.
  - job_accounting_summary
  - workernodes_matrix
  - user_accounts_pool_mappings
