@@ -808,8 +808,9 @@ def make_pattern_of_id(account_jobs_table):
     return pattern_of_id
 
 
-def load_yaml_config(path='.'):
-    config = read_yaml_natively(os.path.join(path + "/" + QTOPCONF_YAML))
+def load_yaml_config():
+    config = read_yaml_natively(os.path.join(QTOPPATH, QTOPCONF_YAML))
+    logging.info('Default configuration dictionary loaded. Length: %s items' % len(config))
     # try:
     #     config = yaml.safe_load(open(os.path.join(path + "/qtopconf.yaml")))
     # except ImportError:
@@ -819,6 +820,27 @@ def load_yaml_config(path='.'):
     #         mark = exc.problem_mark
     #         print "Your YAML configuration file has an error in position: (%s:%s)" % (mark.line + 1, mark.column + 1)
     #         print "Please make sure that spaces are multiples of 2."
+    try:
+        config_env = read_yaml_natively(os.path.join(ENVPATH, QTOPCONF_YAML))
+    except IOError:
+        config_env = {}
+        logging.info('%s could not be found in %s/' % (QTOPCONF_YAML, ENVPATH))
+    else:
+        logging.info('Env %s found in %s/' % (QTOPCONF_YAML, ENVPATH))
+        logging.info('Env configuration dictionary loaded. Length: %s items' % len(config_env))
+
+    try:
+        config_user = read_yaml_natively(os.path.join(USERPATH, QTOPCONF_YAML))
+    except IOError:
+        config_user = {}
+        logging.info('User %s could not be found in %s/' % (QTOPCONF_YAML, USERPATH))
+    else:
+        logging.info('User %s found in %s/' % (QTOPCONF_YAML, USERPATH))
+        logging.info('User configuration dictionary loaded. Length: %s items' % len(config_user))
+
+    config.update(config_env)
+    config.update(config_user)
+    logging.info('Updated main dictionary. Length: %s items' % len(config))
 
     config['possible_ids'] = list(config['possible_ids'])
     symbol_map = dict([(chr(x), x) for x in range(33, 48) + range(58, 64) + range(91, 96) + range(123, 126)])
@@ -1031,12 +1053,8 @@ if __name__ == '__main__':
     logging.debug('Initial qtop directory: %s' % initial_cwd)
     print "Log file created in %s" % os.path.expandvars(QTOP_LOGFILE)
     QTOPPATH = os.path.expanduser(initial_cwd)
-    try:
-        config = load_yaml_config(USERPATH)
-        logging.debug('%s is read from %s/' % (QTOPCONF_YAML, USERPATH))
-    except IOError:
-        config = load_yaml_config(QTOPPATH)
-        logging.debug('%s is read from %s/' % (QTOPCONF_YAML, QTOPPATH))
+    config = load_yaml_config()
+
 
     SEPARATOR = config['workernodes_matrix'][0]['wn id lines']['separator'].translate(None, "'")  # alias
     USER_CUT_MATRIX_WIDTH = int(config['workernodes_matrix'][0]['wn id lines']['user_cut_matrix_width'])  # alias

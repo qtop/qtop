@@ -65,6 +65,8 @@ def read_yaml_natively(fn):
         except AssertionError:
             logging.critical('File %s is empty!! Exiting...\n' % fn)
             raise
+        except IOError:
+            raise
         logging.debug('File state before read_yaml_natively: %s' % fin)
         get_lines = get_line(fin)
         line = next(get_lines)
