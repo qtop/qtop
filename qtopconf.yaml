@@ -1,9 +1,12 @@
+# Default configuration file for qtop.
 # IMPORTANT: a blank line MUST be left after every line of python code.
 
-#possible values: pbs, oar, sge
+# scheduler possible values (currently supported): pbs, oar, sge
 scheduler: sge
+# where to save output from batch commands and their conversion to yaml
 savepath: /tmp/qtop_results_$USER
 
+# batch commands, filenames to save their output in
 schedulers:
   pbs:
     pbsnodes_file: %(savepath)s/pbsnodes_a_%(pid)s.txt, pbsnodes -a
@@ -16,11 +19,11 @@ schedulers:
   sge:
     sge_file_stat: %(savepath)s/qstat_%(pid)s.F.xml.stdout, qstat -F -xml
 
-# utilises lxml module. Needs to be installed in your system.
-# Might result in segmentation fault.
+# Utilises lxml module. Needs to be installed in your system.
+# Might result in segmentation fault in some systems.
 faster_xml_parsing: False
 
-# insert comment here
+# Meaning of queue state abbreviations
 state_abbreviations:
   pbs:
     Q: queued_of_user
@@ -106,7 +109,7 @@ remapping:
 # - 'gridmon(\d*)': 'mon\1'
  - '(.*?)cluster(.*?)': '\1-\2'  # remove "cluster" word from all node names
 ### - '--' : '-'  # removes dashes for shortening (can also replace them with something else, e.g. _
-# not working properly in native yaml parser
+# WARNING: not working properly in native yaml parser
  - -: ""  # removes dashes for shortening (can also replace them with something else, e.g. _
 
 sorting:
@@ -189,7 +192,7 @@ workernodes_matrix:
      options2: {}
 
 
-# available colours:
+# INFO: available colours.
 #Blue Blue_L
 #Brown
 #Cyan Cyan_L
@@ -202,7 +205,7 @@ workernodes_matrix:
 #White
 #Yellow
 
-# example how to extract the GECOS field from a copy of the passwd file
+# TODO: example how to extract the GECOS field from a copy of the passwd file
 # NOT YET IMPLEMENTED
 extract_info:
   sourcefile: $HOME/.local/qtop/getent_passwd_copy

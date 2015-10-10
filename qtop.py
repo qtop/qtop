@@ -875,6 +875,7 @@ def calculate_split_screen_size():
     """
     Calculates where to break the matrix into more matrices, because of the window size.
     """
+    fallback_term_size = [53, 176]
     try:
         _, term_columns = config['term_size']
     except ValueError:
@@ -883,12 +884,14 @@ def calculate_split_screen_size():
         try:
             _, term_columns = os.popen('stty size', 'r').read().split()
         except ValueError:
-            logging.critical("Failed to autodetect your terminal's size. "
-                             "Please insert a value in %s,\n"
-                             "e.g. term_size: [53, 176]" % QTOPCONF_YAML)
-            sys.exit(0)
-    term_columns = int(term_columns)
-    logging.debug('Detected terminal size is: %s * %s' % (_, term_columns))
+            logging.warn("Failed to autodetect your terminal's size or read it from %s. "
+                             "Using term_size: %s" % QTOPCONF_YAML, fallback_term_size)
+            config['term_size'] = fallback_term_size
+            _, term_columns = config['term_size']
+    else:
+        logging.debug('Detected terminal size is: %s * %s' % (_, term_columns))
+    finally:
+        term_columns = int(term_columns)
     return term_columns
 
 
