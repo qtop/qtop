@@ -51,7 +51,7 @@ parser.add_option("-o", "--SetVerticalSeparatorXX", action="store", dest="WN_COL
                   help="Put vertical bar every WN_COLON nodes.")
 parser.add_option("-r", "--removeemptycorelines", dest="REM_EMPTY_CORELINES", action="store_true", default=False,
                   help="Set the method used for dumping information, json, yaml, or native python (yaml format)")
-parser.add_option("-s", "--SetSourceDir", dest="SOURCEDIR", default=os.path.realpath('.'),
+parser.add_option("-s", "--SetSourceDir", dest="SOURCEDIR",
                   help="Set the source directory where pbsnodes and qstat reside")
 parser.add_option("-v", "--verbose", dest="verbose", action="count",
                   help="Increase verbosity (specify multiple times for more)")

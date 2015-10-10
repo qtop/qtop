@@ -865,7 +865,7 @@ def load_yaml_config():
         mkdir_p(user_selected_save_path)
         logging.debug('Directory %s created.' % user_selected_save_path)
     else:
-        logging.debug('%s files saved in directory %s.' % (config['scheduler'], user_selected_save_path))
+        logging.debug('%s files will be saved in directory %s.' % (config['scheduler'], user_selected_save_path))
     config['savepath'] = user_selected_save_path
 
     return config
@@ -1051,10 +1051,11 @@ def get_yaml_reader(scheduler):
 
 def get_filenames_commands():
     d = dict()
+    fn_append = "_" + str(os.getpid()) if not options.SOURCEDIR else ""
     for fn, path_command in config['schedulers'][scheduler].items():
         path, command = path_command.strip().split(', ')
-        path = path % {"savepath": config['savepath'], "pid": os.getpid()}
-        command = command % {"savepath": config['savepath']}
+        path = path % {"savepath": options.workdir, "pid": fn_append}
+        command = command % {"savepath": options.workdir}
         d[fn] = (path, command)
     return d
 
@@ -1075,6 +1076,36 @@ def auto_get_avail_batch_system():
         return None
 
 
+def pick_batch_system():
+    avail_batch_system = auto_get_avail_batch_system()
+    scheduler = options.BATCH_SYSTEM or avail_batch_system or config['scheduler']
+    logging.debug('cmdline switch option scheduler: %s' % options.BATCH_SYSTEM or "None")
+    logging.debug('Autodetected scheduler: %s' % avail_batch_system or "None")
+    if scheduler == 'auto':
+        logging.critical('No suitable scheduler was found. '
+                         'Please define one in a switch or env variable or in %s' % QTOPCONF_YAML)
+        raise (ValueError, 'No suitable scheduler was found.')
+    logging.debug('Selected scheduler is %s' % scheduler)
+    return scheduler
+
+
+def execute_shell_batch_commands(batch_system_commands, filenames, _file):
+    _batch_system_command = batch_system_commands[_file].strip()
+    with open(filenames[_file], mode='w') as fin:
+        logging.debug('Command: "%s" -- result will be saved in: %s' % (_batch_system_command, filenames[_file]))
+        logging.debug('\tFile state before subprocess call: %(fin)s' % {"fin": fin})
+        logging.debug('\tWaiting on subprocess.call...')
+
+        command = subprocess.Popen(_batch_system_command, stdout=fin, stderr=subprocess.PIPE, shell=True)
+        error = command.communicate()[1]
+        command.wait()
+        if error:
+            logging.exception('A message from your shell: %s' % error)
+            logging.critical('%s could not be executed. Maybe try "module load %s"?' % (_batch_system_command, scheduler))
+            sys.exit(1)
+
+    logging.debug('File state after subprocess call: %(fin)s' % {"fin": fin})
+
 if __name__ == '__main__':
 
     initial_cwd = os.getcwd()
@@ -1092,11 +1123,14 @@ if __name__ == '__main__':
     ALT_LABEL_HIGHLIGHT_COLORS = fix_config_list(config['workernodes_matrix'][0]['wn id lines']['alt_label_highlight_colors'])
     # TODO: fix_config_list should be handled internally in native yaml parser
 
-    os.chdir(options.SOURCEDIR)
-    logging.debug('Working directory (set by user with -s) is now: %s' % options.SOURCEDIR)
-    avail_batch_system = auto_get_avail_batch_system()
-    scheduler = options.BATCH_SYSTEM or avail_batch_system or config['scheduler']
-    logging.debug('Selected scheduler is %s' % scheduler)
+    options.SOURCEDIR = os.path.realpath(options.SOURCEDIR) if options.SOURCEDIR else None
+    logging.debug("User-defined source directory: %s" % options.SOURCEDIR)
+    options.workdir = options.SOURCEDIR or config['savepath']
+    logging.debug('Working directory is now: %s' % options.workdir)
+    os.chdir(options.workdir)
+
+    scheduler = pick_batch_system()
+
     if config['faster_xml_parsing']:
         try:
             from lxml import etree
@@ -1112,17 +1146,13 @@ if __name__ == '__main__':
     batch_system_commands = dict()
     for _file in INPUT_FNs_commands:
         filenames[_file], batch_system_commands[_file] = INPUT_FNs_commands[_file]
-        _batch_system_command = batch_system_commands[_file].strip()
-        logging.debug('Command: "%s" -- result in: %s' % (_batch_system_command, filenames[_file]))
-        with open(filenames[_file], mode='w') as fin:
-            logging.debug('\tFile state before subprocess call: %(fin)s' % {"fin": fin})
-            logging.debug('\tWaiting on subprocess.call...')
-            command = subprocess.Popen(_batch_system_command, stdout=fin, stderr=subprocess.PIPE, shell=True)
-            error = command.communicate()[1]
-            command.wait()
-            if error:
-                logging.critical('\tError msg: %s' % error)
-        logging.debug('File state after subprocess call: %(fin)s' % {"fin": fin})
+
+        if not options.SOURCEDIR:
+            # if user didn't specify a dir where ready-made data files already exist,
+            # execute the appropriate batch commands and fetch results to the respective files
+            execute_shell_batch_commands(batch_system_commands, filenames, _file)
+        else:
+            pass
 
         filenames[_file + '_out'] = '{filename}_{writemethod}.{ext}'.format(
             filename=INPUT_FNs_commands[_file][0].rsplit('.')[0],

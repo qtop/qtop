@@ -2,22 +2,25 @@
 # IMPORTANT: a blank line MUST be left after every line of python code.
 
 # scheduler possible values (currently supported): pbs, oar, sge
+# auto will try to detect available batch commands in the current system
 scheduler: auto
 # where to save output from batch commands and their conversion to yaml
 savepath: /tmp/qtop_results_$USER
 
 # batch commands, filenames to save their output in
+# If user sets a sourcedir, qtop expects to find the respective
+# filenames below, minus the _pid.
 schedulers:
   pbs:
-    pbsnodes_file: %(savepath)s/pbsnodes_a_%(pid)s.txt, pbsnodes -a
-    qstatq_file: %(savepath)s/qstat_q_%(pid)s.txt, qstat -q
-    qstat_file: %(savepath)s/qstat_%(pid)s.txt, qstat
+    pbsnodes_file: %(savepath)s/pbsnodes_a%(pid)s.txt, pbsnodes -a
+    qstatq_file: %(savepath)s/qstat_q%(pid)s.txt, qstat -q
+    qstat_file: %(savepath)s/qstat%(pid)s.txt, qstat
   oar:
-    oarnodes_s_file: %(savepath)s/oarnodes_s_Y_%(pid)s.txt, oarnodes -s -Y
-    oarnodes_y_file: %(savepath)s/oarnodes_Y_%(pid)s.txt, oarnodes -Y
-    oarstat_file: %(savepath)s/oarstat_%(pid)s.txt, oarstat
+    oarnodes_s_file: %(savepath)s/oarnodes_s_Y%(pid)s.txt, oarnodes -s -Y
+    oarnodes_y_file: %(savepath)s/oarnodes_Y%(pid)s.txt, oarnodes -Y
+    oarstat_file: %(savepath)s/oarstat%(pid)s.txt, oarstat
   sge:
-    sge_file_stat: %(savepath)s/qstat_%(pid)s.F.xml.stdout, qstat -F -xml
+    sge_file_stat: %(savepath)s/qstat%(pid)s.F.xml.stdout, qstat -F -xml
 
 # Utilises lxml module. Needs to be installed in your system.
 # Might result in segmentation fault in some systems.
