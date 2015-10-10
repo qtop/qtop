@@ -5,12 +5,13 @@ from sys import stdin, stdout
 from constants import *
 from optparse import OptionParser
 import yaml_parser as yaml
+from tempfile import mkstemp
+import os
+import errno
 try:
     import ujson as json
 except ImportError:
     import json
-from tempfile import mkstemp
-import os, errno
 
 
 # try:
@@ -150,8 +151,8 @@ def read_qstat_yaml(fn, write_method):
     return job_ids, usernames, job_states, queue_names
 
 
-def get_new_temp_file(suffix, prefix):  # **kwargs
-    fd, temp_filepath = mkstemp(suffix=suffix, prefix=prefix)  # **kwargs
+def get_new_temp_file(config, suffix, prefix):  # **kwargs
+    fd, temp_filepath = mkstemp(suffix=suffix, prefix=prefix, dir=config['savepath'])  # **kwargs
     logging.debug('temp_filepath: %s' % temp_filepath)
     # out_file = os.fdopen(fd, 'w')
     return fd, temp_filepath

@@ -1085,16 +1085,16 @@ if __name__ == '__main__':
     yaml_converter = {
         'pbs': {
             'pbsnodes_file': make_pbsnodes,
-            'qstatq_file': QStatMaker().make_statq,
-            'qstat_file': QStatMaker().make_stat,
+            'qstatq_file': QStatMaker(config).make_statq,
+            'qstat_file': QStatMaker(config).make_stat,
         },
         'oar': {
             'oarnodes_s_file': lambda x, y, z: None,
             'oarnodes_y_file': lambda x, y, z: None,
-            'oarstat_file': OarStatMaker().make_stat,
+            'oarstat_file': OarStatMaker(config).make_stat,
         },
         'sge': {
-            'sge_file_stat': SGEStatMaker().make_stat,
+            'sge_file_stat': SGEStatMaker(config).make_stat,
         }
     }
     commands = yaml_converter[scheduler]

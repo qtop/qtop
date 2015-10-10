@@ -31,8 +31,9 @@ def check_empty_file(orig_file):
 
 class StatMaker:
 
-    def __init__(self):
+    def __init__(self, config):
         self.l = list()
+        self.config = config
 
         self.stat_mapping = {
             # 'yaml': (yaml.dump_all, {'Dumper': Dumper, 'default_flow_style': False}, 'yaml'),
@@ -81,8 +82,8 @@ class StatMaker:
 
 class QStatMaker(StatMaker):
 
-    def __init__(self):
-        StatMaker.__init__(self)
+    def __init__(self, config):
+        StatMaker.__init__(self, config)
         self.user_q_search = r'^(?P<host_name>(?P<job_id>[0-9-]+)\.(?P<domain>[\w-]+))\s+' \
                              r'(?P<name>[\w%.=+/-]+)\s+' \
                              r'(?P<user>[A-Za-z0-9.]+)\s+' \
@@ -190,8 +191,8 @@ class QStatMaker(StatMaker):
 
 
 class OarStatMaker(QStatMaker):
-    def __init__(self):
-        StatMaker.__init__(self)
+    def __init__(self, config):
+        StatMaker.__init__(self, config)
         self.user_q_search = r'^(?P<job_id>[0-9]+)\s+' \
                              r'(?P<name>[0-9A-Za-z_.-]+)?\s+' \
                              r'(?P<user>[0-9A-Za-z_.-]+)\s+' \
@@ -216,8 +217,8 @@ class OarStatMaker(QStatMaker):
 
 
 class SGEStatMaker(StatMaker):
-    def __init__(self):
-        StatMaker.__init__(self)
+    def __init__(self, config):
+        StatMaker.__init__(self, config)
 
     def make_stat(self, orig_file, out_file, write_method):
         out_file = out_file.rsplit('/', 1)[1]
@@ -251,7 +252,7 @@ class SGEStatMaker(StatMaker):
         prefix, suffix = out_file.split('.')
         prefix += '_'
         suffix = '.' + suffix
-        SGEStatMaker.fd, SGEStatMaker.temp_filepath = get_new_temp_file(prefix=prefix, suffix=suffix)
+        SGEStatMaker.fd, SGEStatMaker.temp_filepath = get_new_temp_file(self.config, prefix=prefix, suffix=suffix)
         self.dump_all(SGEStatMaker.fd, self.stat_mapping[write_method])
 
     def _extract_job_info(self, elem, elem_text, queue_name):
