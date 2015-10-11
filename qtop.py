@@ -1013,8 +1013,8 @@ def convert_to_yaml(scheduler, INPUT_FNs_commands, filenames, write_method, comm
         file_orig, file_out = filenames[_file], filenames[_file + '_out']
         _func = commands[_file]
         logging.debug('Executing %(func)s \n\t'
-                      'on: %(file_orig)s,\n\t'
-                      'resulting in: %(file_out)s\n' % {"func": _func.__name__, "file_orig": file_orig, "file_out": file_out})
+                      'on: %(file_orig)s,\n\t' % {"func": _func.__name__, "file_orig": file_orig, "file_out": file_out})
+        # 'resulting in: %(file_out)s\n'
         _func(file_orig, file_out, write_method)
 
 
