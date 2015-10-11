@@ -9,7 +9,7 @@
 
 from operator import itemgetter
 import datetime
-from itertools import izip
+from itertools import izip, izip_longest
 import subprocess
 import os
 try:
@@ -145,7 +145,10 @@ def calculate_cluster(worker_nodes):
             cluster_dict['workernode_list'].append(cur_node_nr)
 
     decide_remapping(cluster_dict, _all_letters, _all_str_digits_with_empties)
+
+    # cluster_dict['workernode_dict'] creation
     nodes_drop = map_batch_nodes_to_wn_dicts(cluster_dict, worker_nodes, options.REMAP)
+
     # this amount has to be chopped off of the end of workernode_list_remapped
     nodes_drop_slice_end = None if (nodes_drop == 0) else nodes_drop
     if options.REMAP:
@@ -344,9 +347,9 @@ def fill_node_cores_column(state_np_corejob, core_user_map, id_of_username, max_
             try:
                 _ = user_of_job_id[job]
             except KeyError, KeyErrorValue:
-                print 'There seems to be a problem with the qstat output. ' \
-                      'A Job (ID %s) has gone rogue. ' \
-                      'Please check with the SysAdmin.' % (str(KeyErrorValue))
+                logging.critical('There seems to be a problem with the qstat output. '
+                                 'A Job (ID %s) has gone rogue. '
+                                 'Please check with the SysAdmin.' % (str(KeyErrorValue)))
                 raise KeyError
             else:
                 core_user_map['Core' + str(core) + 'line'] += [str(id_of_username[user_of_job_id[job]])]
@@ -415,6 +418,18 @@ def calc_all_wnid_label_lines(highest_wn):  # (total_wn) in case of multiple clu
                 wn_vert_labels[str(place)].append(string[place - 1])
 
     return wn_vert_labels
+
+
+# def calc_multiple_lines(attr_line, max_len):
+#     node_str_width = int(max_len)  # 3
+#     wn_vert_attr = dict([(str(place), []) for place in range(1, node_str_width + 1)])
+#     for char in range(1, attr_line + 1):
+#         extra_spaces = node_str_width - len(str(char))  # 4 - 1 = 3, for wn0001
+#         string = "".join(" " * extra_spaces + str(char))
+#         for place in range(1, node_str_width + 1):
+#             wn_vert_attr[str(place)].append(string[place - 1])
+#
+#     return wn_vert_attr
 
 
 def find_matrices_width(wn_number, workernode_list, term_columns, DEADWEIGHT=11):
@@ -570,23 +585,31 @@ def display_selected_occupancy_parts(
     occupancy_parts needs to be redefined for each matrix, because of changed parameter values
     """
     occupancy_parts = {
-        'wn id lines': (print_wnid_lines, (print_char_start, print_char_stop, cluster_dict['highest_wn'], wn_vert_labels),
-            {'inner_attrs': None}),
-        'core user map': (print_core_lines, (core_user_map, print_char_start, print_char_stop, pattern_of_id), {'attrs': None}),
-        # 'temperature':
-        # (print_single_attr_line, (print_char_start, print_char_stop), {'attr_line': workernodes_occupancy['temperature']}),
+        'wn id lines':
+            (
+                print_wnid_lines,
+                (print_char_start, print_char_stop, cluster_dict['highest_wn'], wn_vert_labels),
+                {'inner_attrs': None}
+            ),
+        'core user map':
+            (
+                print_core_lines,
+                (core_user_map, print_char_start, print_char_stop, pattern_of_id),
+                {'attrs': None}
+            ),
     }
 
+    # custom part
     for yaml_key, part_name in get_yaml_key_part('workernodes_matrix'):
-        new_dict_var = {
+        new_occupancy_part = {
             part_name:
-            (
-                print_single_attr_line,
-                (print_char_start, print_char_stop),
-                {'attr_line': workernodes_occupancy[part_name]}
-            )
+                (
+                    print_mult_attr_line,  # func
+                    (print_char_start, print_char_stop),  # args
+                    {'attr_lines': workernodes_occupancy[part_name]}  # kwargs
+                )
         }
-        occupancy_parts.update(new_dict_var)
+        occupancy_parts.update(new_occupancy_part)
 
     for _part in config['workernodes_matrix']:
         part = [k for k in _part][0]
@@ -597,16 +620,17 @@ def display_selected_occupancy_parts(
     print
 
 
-def print_single_attr_line(print_char_start, print_char_stop, attr_line, label, color_func=None, **kwargs):
+def print_mult_attr_line(print_char_start, print_char_stop, attr_lines, label, color_func=None, **kwargs):  # NEW!
     """
-    attr_line can be e.g. Node state
+    attr_lines can be e.g. Node state lines
     """
     # TODO: fix option parameter, inserted for testing purposes
-    line = attr_line[print_char_start:print_char_stop]
-    # maybe put attr_line and label as kwd arguments? collect them as **kwargs
-    attr_line = insert_separators(line, SEPARATOR, options.WN_COLON) + '=%s'  % label  # this didnt work as expected
-    attr_line = ''.join([colorize(char, 'Nothing', color_func) for char in attr_line])
-    print attr_line
+    for line in attr_lines:
+        line = attr_lines[line][print_char_start:print_char_stop]
+        # maybe put attr_line and label as kwd arguments? collect them as **kwargs
+        attr_line = insert_separators(line, SEPARATOR, options.WN_COLON) + '=%s'  % label  # this didnt work as expected
+        attr_line = ''.join([colorize(char, 'Nothing', color_func) for char in attr_line])
+        print attr_line
 
 
 def display_user_accounts_pool_mappings(account_jobs_table, pattern_of_id):
@@ -664,7 +688,7 @@ def calc_core_userid_matrix(cluster_dict, id_of_username, job_ids, user_names):
     user_of_job_id = dict(izip(job_ids, user_names))
 
     for core_nr in max_np_range:
-        _core_user_map['Core' + str(core_nr) + 'line'] = []  # Cpu0line, Cpu1line, Cpu2line, .. = '','','', ..
+        _core_user_map['Core%sline' % str(core_nr)] = []  # Cpu0line, Cpu1line, Cpu2line, .. = '','','', ..
 
     for _node in cluster_dict['workernode_dict']:
         state_np_corejob = cluster_dict['workernode_dict'][_node]
@@ -674,6 +698,39 @@ def calc_core_userid_matrix(cluster_dict, id_of_username, job_ids, user_names):
         _core_user_map[coreline] = ''.join(_core_user_map[coreline])
 
     return _core_user_map
+
+
+def calc_general_multiline_attr(cluster_dict, part_name, yaml_key):  # NEW
+    multiline_map = OrderedDict()
+    elem_identifier = [d for d in config['workernodes_matrix'] if part_name in d][0]  # jeeez
+    part_name_idx = config['workernodes_matrix'].index(elem_identifier)
+    user_max_len = int(config['workernodes_matrix'][part_name_idx][part_name]['max_len'])
+    real_max_len = max([len(cluster_dict['workernode_dict'][_node][yaml_key]) for _node in cluster_dict['workernode_dict']])
+    min_len = min(user_max_len, real_max_len)
+    max_len = max(user_max_len, real_max_len)
+    if real_max_len > user_max_len:
+        logging.warning("Some longer node states have been cropped due to node state length restriction by user.")
+
+    # initialisation of lines
+    for line_nr in range(1, min_len + 1):
+        multiline_map['attr%sline' % str(line_nr)] = []
+
+    for _node in cluster_dict['workernode_dict']:
+        state_np_corejob = cluster_dict['workernode_dict'][_node]
+        # distribute_state_to_lines
+        for attr_line, ch in izip_longest(multiline_map, state_np_corejob[yaml_key], fillvalue=' '):
+            try:
+                multiline_map[attr_line].append(ch)
+            except KeyError:
+                break
+        # is this really needed?: cluster_dict['workernode_dict'][_node]['state_column']
+
+    for line, attr_line in enumerate(multiline_map, 1):
+        multiline_map[attr_line] = ''.join(multiline_map[attr_line])
+        if line == user_max_len:
+            break
+
+    return multiline_map
 
 
 def get_yaml_key_part(major_key):
@@ -686,6 +743,7 @@ def get_yaml_key_part(major_key):
         part_name = [i for i in part][0]
         part_options = part[part_name]
         # label = part_options.get('label')
+        # part_nr_lines = int(part_options['max_len'])
         yaml_key = part_options.get('yaml_key')
         if yaml_key:
             yield yaml_key, part_name
@@ -698,24 +756,23 @@ def calculate_wn_occupancy(cluster_dict, user_names, job_states, job_ids):
     Otherwise, for uniform WNs, i.e. all using the same numbering scheme, wn01, wn02, ... proceeds as normal.
     Number of Extra tables needed is calculated inside the calc_all_wnid_label_lines function below
     """
-    workernodes_occupancy = dict()
-    workernodes_occupancy['term_columns'] = calculate_split_screen_size()
-    workernodes_occupancy['account_jobs_table'], workernodes_occupancy['id_of_username'] = create_account_jobs_table(user_names, job_states)
-    workernodes_occupancy['pattern_of_id'] = make_pattern_of_id(workernodes_occupancy['account_jobs_table'])
-    workernodes_occupancy['print_char_start'], \
-        workernodes_occupancy['print_char_stop'], \
-        workernodes_occupancy['extra_matrices_nr'] = find_matrices_width(
-            cluster_dict['highest_wn'],
-            cluster_dict['workernode_list'],
-            workernodes_occupancy['term_columns']
-    )
-    workernodes_occupancy['wn_vert_labels'] = calc_all_wnid_label_lines(cluster_dict['highest_wn'])
+    wns_occupancy = dict()
+    wns_occupancy['term_columns'] = calculate_split_screen_size()
+    wns_occupancy['account_jobs_table'], wns_occupancy['id_of_username'] = create_account_jobs_table(user_names, job_states)
+    wns_occupancy['pattern_of_id'] = make_pattern_of_id(wns_occupancy['account_jobs_table'])
+    wns_occupancy['print_char_start'], wns_occupancy['print_char_stop'], wns_occupancy['extra_matrices_nr'] = \
+        find_matrices_width(cluster_dict['highest_wn'], cluster_dict['workernode_list'], wns_occupancy['term_columns'])
 
+    wns_occupancy['wn_vert_labels'] = calc_all_wnid_label_lines(cluster_dict['highest_wn'])
+
+    # For loop below only for user-inserted/customizeable values.
+    # e.g. wns_occupancy['node_state'] = ...workernode_dict[node]['state'] for node in workernode_dict...
     for yaml_key, part_name in get_yaml_key_part('workernodes_matrix'):
-        workernodes_occupancy[part_name] = ''.join([str(cluster_dict['workernode_dict'][node][yaml_key]) for node in cluster_dict['workernode_dict']])
-    # e.g. workernodes_occupancy['node_state'] = ''.join([str(cluster_dict['workernode_dict'][node]['state']) for node in cluster_dict['workernode_dict']])
-    workernodes_occupancy['core user map'] = calc_core_userid_matrix(cluster_dict, workernodes_occupancy['id_of_username'], job_ids, user_names)
-    return workernodes_occupancy, cluster_dict
+        wns_occupancy[part_name] = calc_general_multiline_attr(cluster_dict, part_name, yaml_key)  # now gives map instead of single line str
+        # was: wns_occupancy[part_name] = ''.join([str(cluster_dict['workernode_dict'][node][yaml_key]) for node in cluster_dict['workernode_dict']])
+
+    wns_occupancy['core user map'] = calc_core_userid_matrix(cluster_dict, wns_occupancy['id_of_username'], job_ids, user_names)
+    return wns_occupancy, cluster_dict
 
 
 def print_core_lines(core_user_map, print_char_start, print_char_stop, pattern_of_id, attrs, options1, options2):

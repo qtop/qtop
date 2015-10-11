@@ -170,7 +170,7 @@ workernodes_matrix:
      # character used for vertical separator, for the -o switch
      separator: '|'
      # customised end labels
-     end_labels:
+     end_labels:  # TODO: bug for clusters with up to 9 nodes. Label will display incorrectly
        1: ['={__WNID__}']
        2: ['={_Worker_}', '={__Node__}']
        3: ['={_Worker_}', '={__Node__}', '={___ID___}']
