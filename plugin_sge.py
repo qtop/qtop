@@ -30,8 +30,6 @@ def calc_everything(fn, write_method):
                     if count == 2: break
                 elif resource.attrib.get('name') == 'qname':
                     worker_node['qname'] = set(resource.text[0]) if slots_used else set()
-                    # worker_node.append(resource.text[0]) if slots_used else None
-                    # worker_node.setdefault('qname', []).append(resource.text) if slots_used else worker_node.setdefault('qname', [])
                     count += 1
                     if count == 2: break
             else:
@@ -44,7 +42,7 @@ def calc_everything(fn, write_method):
                     worker_node['np'] = resource.text
                     break
             else:
-                # check this for bugs, maybe raise an exception in the future?
+                # TODO: check this for bugs, maybe raise an exception in the future?
                 worker_node['np'] = 0
 
             try:
@@ -62,16 +60,17 @@ def calc_everything(fn, write_method):
                 worker_nodes.append(worker_node)
             else:
                 for existing_wn in worker_nodes:
-                    if worker_node['domainname'] == existing_wn['domainname']:
-                        job_ids, usernames, job_states = extract_job_info(queue_elem, 'job_list')
-                        core_jobs = [{'core': idx, 'job': job_id} for idx, job_id in enumerate(job_ids, existing_wn[
-                            'existing_busy_cores'])]
-                        existing_wn['core_job_map'].extend(core_jobs)
-                        # don't change the node state to free.
-                        # Just keep the state reported in the last queue mentioning the node.
-                        existing_wn['state'] = (worker_node['state'] == '-') and existing_wn['state'] or worker_node['state']
-                        existing_wn['qname'].update(worker_node['qname'])
-                        break
+                    if worker_node['domainname'] != existing_wn['domainname']:
+                        continue
+                    job_ids, usernames, job_states = extract_job_info(queue_elem, 'job_list')
+                    core_jobs = [{'core': idx, 'job': job_id} for idx, job_id in enumerate(job_ids, existing_wn[
+                        'existing_busy_cores'])]
+                    existing_wn['core_job_map'].extend(core_jobs)
+                    # don't change the node state to free.
+                    # Just keep the state reported in the last queue mentioning the node.
+                    existing_wn['state'] = (worker_node['state'] == '-') and existing_wn['state'] or worker_node['state']
+                    existing_wn['qname'].update(worker_node['qname'])
+                    break
     logging.debug('Closing %s' % fn)
     logging.info('worker_nodes contains %s entries' % len(worker_nodes))
     return worker_nodes

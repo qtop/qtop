@@ -188,7 +188,11 @@ workernodes_matrix:
  - node state:
      yaml_key: state
      label: Node state
-     max_len: 1
+     max_len: 5
+ - queue name:
+     yaml_key: qname
+     label: queue name
+     max_len: 2
  - core user map:
      options1: {}
      options2: {}
