@@ -22,14 +22,15 @@ def calc_everything(fn, write_method):
             except AttributeError:
                 slots_used = 0
             count = 0
-            worker_node['qname'] = ""
+            # worker_node.setdefault('qname', [])
             for resource in resources:
                 if resource.attrib.get('name') == 'hostname':
                     worker_node['domainname'] = resource.text
                     count += 1
                     if count == 2: break
                 elif resource.attrib.get('name') == 'qname':
-                    worker_node['qname'] += resource.text[0] if slots_used else ""
+                    worker_node['qname'] = set(resource.text[0]) if slots_used else set()
+                    # worker_node.append(resource.text[0]) if slots_used else None
                     # worker_node.setdefault('qname', []).append(resource.text) if slots_used else worker_node.setdefault('qname', [])
                     count += 1
                     if count == 2: break
@@ -69,6 +70,7 @@ def calc_everything(fn, write_method):
                         # don't change the node state to free.
                         # Just keep the state reported in the last queue mentioning the node.
                         existing_wn['state'] = (worker_node['state'] == '-') and existing_wn['state'] or worker_node['state']
+                        existing_wn['qname'].update(worker_node['qname'])
                         break
     logging.debug('Closing %s' % fn)
     logging.info('worker_nodes contains %s entries' % len(worker_nodes))
