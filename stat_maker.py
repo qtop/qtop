@@ -224,6 +224,9 @@ class SGEStatMaker(StatMaker):
         out_file = out_file.rsplit('/', 1)[1]
         try:
             tree = etree.parse(orig_file)
+        except etree.ParseError:
+            logging.critical("This is an XML parse error (??)")
+            raise
         except IOError:
             raise
         except:
@@ -242,13 +245,14 @@ class SGEStatMaker(StatMaker):
             else:
                 raise ValueError("No such queue name")
 
-            self._extract_job_info(queue_elem, 'job_list', queue_name=queue_name)
+            self._extract_job_info(queue_elem, 'job_list', queue_name=queue_name)  # puts it into self.l
 
         job_info_elem = root.find('./job_info')
         if job_info_elem is None:
             logging.debug('No pending jobs found!')
         else:
-            self._extract_job_info(job_info_elem, 'job_list', queue_name='Pending')
+            self._extract_job_info(job_info_elem, 'job_list', queue_name='Pending')  # puts it into self.l
+
         prefix, suffix = out_file.split('.')
         prefix += '_'
         suffix = '.' + suffix

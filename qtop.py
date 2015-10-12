@@ -420,18 +420,6 @@ def calc_all_wnid_label_lines(highest_wn):  # (total_wn) in case of multiple clu
     return wn_vert_labels
 
 
-# def calc_multiple_lines(attr_line, max_len):
-#     node_str_width = int(max_len)  # 3
-#     wn_vert_attr = dict([(str(place), []) for place in range(1, node_str_width + 1)])
-#     for char in range(1, attr_line + 1):
-#         extra_spaces = node_str_width - len(str(char))  # 4 - 1 = 3, for wn0001
-#         string = "".join(" " * extra_spaces + str(char))
-#         for place in range(1, node_str_width + 1):
-#             wn_vert_attr[str(place)].append(string[place - 1])
-#
-#     return wn_vert_attr
-
-
 def find_matrices_width(wn_number, workernode_list, term_columns, DEADWEIGHT=11):
     """
     masking/clipping functionality: if the earliest node number is high (e.g. 130), the first 129 WNs need not show up.
@@ -471,8 +459,6 @@ def print_wnid_lines(start, stop, highest_wn, wn_vert_labels, **kwargs):
     """
     d = OrderedDict()
     end_labels = config['workernodes_matrix'][0]['wn id lines']['end_labels']
-    # for nr in end_labels:
-    #     end_labels[nr] = [label.strip("'") for label in fix_config_list(end_labels[nr])]
 
     if not NAMED_WNS:
         node_str_width = len(str(highest_wn))  # 4 for thousands of nodes, nr of horizontal lines to be displayed

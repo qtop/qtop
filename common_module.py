@@ -93,6 +93,8 @@ fh = logging.StreamHandler()
 fh.setLevel(logging.ERROR) if options.DEBUG else fh.setLevel(logging.CRITICAL)
 fh.setFormatter(formatter)
 logger.addHandler(fh)
+logger.disabled = False  # maybe make this a cmdline switch? -D ?
+
 
 logging.info("\n")
 logging.info("=" * 50)
