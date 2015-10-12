@@ -22,13 +22,14 @@ def calc_everything(fn, write_method):
             except AttributeError:
                 slots_used = 0
             count = 0
+            worker_node['qname'] = ""
             for resource in resources:
                 if resource.attrib.get('name') == 'hostname':
                     worker_node['domainname'] = resource.text
                     count += 1
                     if count == 2: break
                 elif resource.attrib.get('name') == 'qname':
-                    worker_node['qname'] = resource.text if slots_used else ""
+                    worker_node['qname'] += resource.text[0] if slots_used else ""
                     # worker_node.setdefault('qname', []).append(resource.text) if slots_used else worker_node.setdefault('qname', [])
                     count += 1
                     if count == 2: break
