@@ -695,7 +695,8 @@ def calc_general_multiline_attr(cluster_dict, part_name, yaml_key):  # NEW
     min_len = min(user_max_len, real_max_len)
     max_len = max(user_max_len, real_max_len)
     if real_max_len > user_max_len:
-        logging.warning("Some longer node states have been cropped due to node state length restriction by user.")
+        logging.warn("Some longer %(attr)ss have been cropped due to %(attr)s length restriction by user." %
+                        {"attr": part_name})
 
     # initialisation of lines
     for line_nr in range(1, min_len + 1):
