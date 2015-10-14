@@ -171,7 +171,7 @@ workernodes_matrix:
      separator: '|'
      # customised end labels
      end_labels:  # TODO: bug for clusters with up to 9 nodes. Label will display incorrectly
-       1: ['={__WNID__}']
+       1: '={__WNID__}'
        2: ['={_Worker_}', '={__Node__}']
        3: ['={_Worker_}', '={__Node__}', '={___ID___}']
        4: ['={________}', '={_Worker_}', '={__Node__}', '={___ID___}']
@@ -189,10 +189,10 @@ workernodes_matrix:
      yaml_key: state
      label: Node state
      max_len: 5
- - queue name:
-     yaml_key: qname
-     label: queue name
-     max_len: 2
+# - queue name:  # this only works for SGE systems
+#     yaml_key: qname
+#     label: queue name
+#     max_len: 2
  - core user map:
      options1: {}
      options2: {}

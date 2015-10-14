@@ -597,9 +597,9 @@ def display_selected_occupancy_parts(
         }
         occupancy_parts.update(new_occupancy_part)
 
-    for _part in config['workernodes_matrix']:
-        part = [k for k in _part][0]
-        occupancy_parts[part][2].update(_part[part])  # get extra options from user
+    for part_dict in config['workernodes_matrix']:
+        part = [k for k in part_dict][0]
+        occupancy_parts[part][2].update(part_dict[part])  # get extra options from user
         fn, args, kwargs = occupancy_parts[part][0], occupancy_parts[part][1], occupancy_parts[part][2]
         fn(*args, **kwargs)
 
@@ -940,6 +940,9 @@ def calculate_split_screen_size():
 
 
 def fix_config_list(config_list):
+    """
+    transforms a list of the form ['a, b'] to ['a', 'b']
+    """
     t = config_list
     item = t[0]
     list_items = item.split(',')
