@@ -691,7 +691,12 @@ def calc_general_multiline_attr(cluster_dict, part_name, yaml_key):  # NEW
     elem_identifier = [d for d in config['workernodes_matrix'] if part_name in d][0]  # jeeez
     part_name_idx = config['workernodes_matrix'].index(elem_identifier)
     user_max_len = int(config['workernodes_matrix'][part_name_idx][part_name]['max_len'])
-    real_max_len = max([len(cluster_dict['workernode_dict'][_node][yaml_key]) for _node in cluster_dict['workernode_dict']])
+    try:
+        real_max_len = max([len(cluster_dict['workernode_dict'][_node][yaml_key]) for _node in cluster_dict['workernode_dict']])
+    except KeyError:
+        logging.critical("%s lines in the matrix are not supported for %s systems. "
+                         "Please remove appropriate lines from conf file. Exiting..."
+                         % (part_name, config['scheduler'] ))
     min_len = min(user_max_len, real_max_len)
     max_len = max(user_max_len, real_max_len)
     if real_max_len > user_max_len:
