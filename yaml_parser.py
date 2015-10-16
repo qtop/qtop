@@ -229,6 +229,7 @@ def process_line(list_line, fin, get_lines, parent_container):
             key, container = container.split(None, 1)
             # container = [container[1:-1]] if container.startswith('[') else container
             container = container[1:-1].split(', ') if container.startswith('[') else container
+            container = "" if container in ("''", '""') else container
             if len(container) == 1 and isinstance(container, list) and isinstance(container[0], str):
                 try:
                     container = list(eval(container[0]))
