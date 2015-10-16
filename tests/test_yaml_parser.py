@@ -32,7 +32,7 @@ from yaml_parser import *
         ),
     ),
 )
-def test_get_line(fin, t):
+def test_detect_indentation_level(fin, t):
     get_lines = get_line(fin, verbatim=False)
     actual_t = next(get_lines)
     assert actual_t == t
