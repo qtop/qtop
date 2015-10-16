@@ -20,7 +20,7 @@ from yaml_parser import *
         ),
         (
             ["   - r'moonshot'"],
-            [1, "-", "r'moonshot'"]
+            [2, "-", "r'moonshot'"]
         ),
         (
             [" - '\w*cms048': Blue"],
@@ -56,7 +56,7 @@ def test_get_line(fin, t):
                 '  sge'
             ],
             [
-                [1, "oarstat_file:", "oarstat.txt"],
+                [2, "oarstat_file:", "oarstat.txt"],
                 [-1, "sge"]
             ]
         ),
@@ -67,8 +67,8 @@ def test_get_line(fin, t):
                 'faster_xml_parsing: False'
             ],
             [
-                [1, 'sge_file_stat:', 'qstat.F.xml.stdout'],
-                [-1],
+                [2, 'sge_file_stat:', 'qstat.F.xml.stdout'],
+                [-2],
                 [0, 'faster_xml_parsing:', 'False'],
             ]
         )
@@ -80,7 +80,7 @@ def test_get_more_lines(fin, t):
         actual_t = next(get_lines)
         assert actual_t == t[idx]
 
-@pytest.mark.current
+# @pytest.mark.current
 # @pytest.mark.skipif(True, reason="No special reason")
 @pytest.mark.parametrize('fin, line, get_lines, key_container, parent_container',  # get_line(fin)
      (
@@ -135,7 +135,7 @@ testkey3: testvalue3
     testkey7: value7
 """.split('\n'),
              {'testkey4': {'testkey5': {'testkey6': 'value6', 'testkey7': 'value7'}}},
-             [-1],
+             [-2],
          ),
          (
              [0],
@@ -162,13 +162,35 @@ testkey3: testvalue3
          ),
          (
              [0],
+"""testkey36:
+  - testkey37: testvalue37
+    testkey38: testvalue38
+  - testkey39: testvalue39
+    testkey40: testvalue40
+  - testkey41: testvalue41
+    testkey42: testvalue42
+""".split('\n'),
+             {'testkey36':
+                  {
+                    '-':
+                       [
+                        {'testkey37': 'testvalue37', 'testkey38': 'testvalue38'},
+                        {'testkey39': 'testvalue39', 'testkey40': 'testvalue40'},
+                        {'testkey41': 'testvalue41', 'testkey42': 'testvalue42'},
+                       ]
+                  }
+             },
+             [-2],
+         ),
+         (
+             [0],
 """testkey15:
     - testkey16:
         testkey17: testvalue17
         testkey18: [testvalue18]
 """.split('\n'),
              {'testkey15': {'-': [{'testkey16': {'testkey17': 'testvalue17', 'testkey18': ['testvalue18']}}]}},
-             [-1],
+             [-8],
          ),
          (
              [0],
@@ -177,7 +199,7 @@ testkey3: testvalue3
      testkey21: testvalue21
 """.split('\n'),
              {'testkey19': {'-': [{'testkey20': {'testkey21': 'testvalue21'}}]}},
-             [-1],
+             [-5],
          ),
          (
              [0],
@@ -224,7 +246,7 @@ testkey3: testvalue3
                        ]
                   }
              },
-             [-1],
+             [-2],
          ),
          (
              [0],
@@ -244,7 +266,7 @@ testkey3: testvalue3
 """.split('\n'),
              {'state_abbreviations': {'pbs': {'Q': 'queued_of_user', 'E': 'exiting_of_user', 'W': 'waiting_of_user'},
                                        'oar': {'E': 'Error', 'F': 'Finishing', 'S': 'cancelled_of_user'}, 'sge': {'r': 'running_of_user', 'E': 'exiting_of_user', 'qw': 'queued_of_user'}}},
-             [-1],
+             [-2],
          ),
 #          (
 #              [0],
@@ -263,6 +285,7 @@ testkey3: testvalue3
         "3dicts",
         "dict2items_inside_doubly_nested_dict",
         "listof_3dicts_and_a_value_inside_dict",
+        "list_dicts",
         "1block",
         "2block",
         "3block",

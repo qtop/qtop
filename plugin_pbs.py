@@ -10,6 +10,7 @@ except ImportError:
 from constants import *
 from common_module import logging
 
+
 try:
     from yaml import CLoader as Loader, CDumper as Dumper
 except ImportError:
@@ -85,8 +86,8 @@ def _write_jobs_cores(job_cores, fout):
     fout.write('core_job_map: \n')
     # for job, core in get_jobs_cores(jobs):
     for job_core in job_cores:
-        fout.write('- core: ' + job_core['core'] + '\n')
-        fout.write('  job: ' + job_core['job'] + '\n')
+        fout.write('  - core: ' + job_core['core'] + '\n')
+        fout.write('    job: ' + job_core['job'] + '\n')
 
 
 def get_jobs_cores(jobs):  # block['jobs']
@@ -191,8 +192,8 @@ def read_qstatq_yaml(fn, write_method):
         for qstatq in qstatqs_total:
             qstatq_list.append(qstatq)
         total = qstatq_list.pop()
-        total_running_jobs, total_queued_jobs = total['Total running'], total['Total queued']
-    return total_running_jobs, total_queued_jobs, qstatq_list
+        total_running_jobs, total_queued_jobs = total['Total_running'], total['Total_queued']
+    return int(eval(total_running_jobs)), int(eval(total_queued_jobs)), qstatq_list
 
 
 pbsnodes_mapping = {

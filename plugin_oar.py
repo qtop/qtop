@@ -21,7 +21,7 @@ def calculate_oar_state(jobid_state_lot, nr_of_jobs, node_state_mapping):
     suspected = states.count('Suspected')
 
     if bool(alive) + bool(dead) + bool(suspected) > 1:
-        state = node_state_mapping['mixed']
+        state = node_state_mapping['Mixed']  # TODO: investigate!
         return state
     else:
         return node_state_mapping[states[0]]
@@ -70,7 +70,7 @@ def read_oarnodes_s_yaml(fn_s, write_method):  # todo: fix write_method not bein
     except AssertionError:
         logging.critical('File %s is empty!! Exiting...\n' % fn_s)
         raise
-    data = yaml.safe_load(fn_s)
+    data = yaml.safe_load(fn_s, DEF_INDENT=4)
     nodes_resids = dict([(node, resid_state.items()) for node, resid_state in data.items()])
     return nodes_resids
 

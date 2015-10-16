@@ -27,7 +27,7 @@ from plugin_sge import *
 from stat_maker import *
 from math import ceil
 from colormap import color_of_account, code_of_color
-from yaml_parser import read_yaml_natively
+from yaml_parser import read_yaml_natively, fix_config_list, convert_dash_key_in_dict
 
 
 # TODO make the following work with py files instead of qtop.colormap files
@@ -336,7 +336,7 @@ def fill_node_cores_column(state_np_corejob, core_user_map, id_of_username, max_
 
     if state == '?':  # for non-existent machines
         for core_line in core_user_map:
-            core_user_map[core_line] += [eval(config['non_existent_node_symbol'])]
+            core_user_map[core_line] += [config['non_existent_node_symbol']]
     else:
         _own_np = int(np)
         own_np_range = [str(x) for x in range(_own_np)]
@@ -896,6 +896,7 @@ def load_yaml_config():
     logging.info('Updated main dictionary. Length: %s items' % len(config))
 
     config['possible_ids'] = list(config['possible_ids'])
+    config['non_existent_node_symbol'] = eval(config['non_existent_node_symbol'])
     symbol_map = dict([(chr(x), x) for x in range(33, 48) + range(58, 64) + range(91, 96) + range(123, 126)])
 
     if config['user_color_mappings']:
@@ -942,16 +943,6 @@ def calculate_split_screen_size():
     finally:
         term_columns = int(term_columns)
     return term_columns
-
-
-def fix_config_list(config_list):
-    """
-    transforms a list of the form ['a, b'] to ['a', 'b']
-    """
-    t = config_list
-    item = t[0]
-    list_items = item.split(',')
-    return [nr.strip() for nr in list_items]
 
 
 def sort_batch_nodes(batch_nodes):

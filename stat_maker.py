@@ -66,8 +66,8 @@ class StatMaker:
             fout.write('queued: ' + '"' + qstatq_values['queued'] + '"' + '\n')
             fout.write('...\n')
         fout.write('---\n')
-        fout.write('Total queued: ' + '"' + last_line['Total queued'] + '"' + '\n')
-        fout.write('Total running: ' + '"' + last_line['Total running'] + '"' + '\n')
+        fout.write('Total_queued: ' + '"' + last_line['Total_queued'] + '"' + '\n')
+        fout.write('Total_running: ' + '"' + last_line['Total_running'] + '"' + '\n')
         fout.write('...\n')
 
     @staticmethod
@@ -172,7 +172,7 @@ class QStatMaker(StatMaker):
                                        ('state', state)]:
                         temp_dict[key] = value
                     self.l.append(temp_dict)
-            self.l.append({'Total running': total_running_jobs, 'Total queued': total_queued_jobs})
+            self.l.append({'Total_running': total_running_jobs, 'Total_queued': total_queued_jobs})
         self.dump_all(out_file, self.statq_mapping[write_method])
 
     @staticmethod

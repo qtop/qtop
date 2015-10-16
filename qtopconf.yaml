@@ -20,7 +20,7 @@ schedulers:
     oarnodes_y_file: %(savepath)s/oarnodes_Y%(pid)s.txt, oarnodes -Y
     oarstat_file: %(savepath)s/oarstat%(pid)s.txt, oarstat
   sge:
-    sge_file_stat: %(savepath)s/qstat%(pid)s.F.xml.stdout, qstat -F -xml
+    sge_file_stat: %(savepath)s/qstat%(pid)s.F.xml.stdout, qstat -F -xml -u '*'
 
 # Utilises lxml module. Needs to be installed in your system.
 # Might result in segmentation fault in some systems.
