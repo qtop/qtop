@@ -5,12 +5,13 @@ from sys import stdin, stdout
 from constants import *
 from optparse import OptionParser
 import yaml_parser as yaml
+from tempfile import mkstemp
+import os
+import errno
 try:
     import ujson as json
 except ImportError:
     import json
-from tempfile import mkstemp
-import os, errno
 
 
 # try:
@@ -30,13 +31,20 @@ def mkdir_p(path):
         else:
             raise
 
+
+def check_empty_file(orig_file):
+    if not os.path.getsize(orig_file) > 0:
+        logging.critical('Your ' + orig_file + ' file is empty! Please check your directory. Exiting ...')
+        sys.exit(0)
+
+
 Loader = None
 
 parser = OptionParser()  # for more details see http://docs.python.org/library/optparse.html
 
 parser.add_option("-a", "--blindremapping", action="store_true", dest="BLINDREMAP", default=False,
                   help="This may be used in situations where node names are not a pure arithmetic seq (eg. rocks clusters)")
-parser.add_option("-b", "--batchSystem", action="store", type="string", dest="BATCH_SYSTEM")
+parser.add_option("-b", "--batchSystem", action="store", type="string", dest="BATCH_SYSTEM", default=None)
 parser.add_option("-c", "--COLOR", action="store", dest="COLOR", default="AUTO", choices=['ON', 'OFF', 'AUTO'],
                   help="Enable/Disable color in qtop output. AUTO detects tty (for watch -d)")
 parser.add_option("-d", "--debug", action="store_true", dest="DEBUG", default=False,
@@ -50,7 +58,7 @@ parser.add_option("-o", "--SetVerticalSeparatorXX", action="store", dest="WN_COL
                   help="Put vertical bar every WN_COLON nodes.")
 parser.add_option("-r", "--removeemptycorelines", dest="REM_EMPTY_CORELINES", action="store_true", default=False,
                   help="Set the method used for dumping information, json, yaml, or native python (yaml format)")
-parser.add_option("-s", "--SetSourceDir", dest="SOURCEDIR", default=os.path.realpath('.'),
+parser.add_option("-s", "--SetSourceDir", dest="SOURCEDIR",
                   help="Set the source directory where pbsnodes and qstat reside")
 parser.add_option("-v", "--verbose", dest="verbose", action="count",
                   help="Increase verbosity (specify multiple times for more)")
@@ -74,7 +82,7 @@ elif options.verbose >= 2:
 QTOP_LOGFILE_PATH = QTOP_LOGFILE.rsplit('/', 1)[0]
 mkdir_p(QTOP_LOGFILE_PATH)
 
-# This is for only writing to a log file
+# This is for writing only to a log file
 # logging.basicConfig(filename=QTOP_LOGFILE, filemode='w', level=log_level, format='%(asctime)s - %(levelname)s - %(message)s')
 
 logger = logging.getLogger()
@@ -92,6 +100,7 @@ fh = logging.StreamHandler()
 fh.setLevel(logging.ERROR) if options.DEBUG else fh.setLevel(logging.CRITICAL)
 fh.setFormatter(formatter)
 logger.addHandler(fh)
+logger.disabled = False  # maybe make this a cmdline switch? -D ?
 
 logging.info("\n")
 logging.info("=" * 50)
@@ -101,7 +110,7 @@ logging.info("\n\n")
 
 logging.debug("input, output isatty: %s\t%s" % (stdin.isatty(), stdout.isatty()))
 if options.COLOR == 'AUTO':
-    options.COLOR = 'ON' if stdout.isatty() else 'OFF'
+    options.COLOR = 'ON' if (os.environ.get("QTOP_COLOR", stdout.isatty()) in ("ON", True)) else 'OFF'
 logging.debug("options.COLOR is now set to: %s" % options.COLOR)
 
 
@@ -150,8 +159,8 @@ def read_qstat_yaml(fn, write_method):
     return job_ids, usernames, job_states, queue_names
 
 
-def get_new_temp_file(suffix, prefix):  # **kwargs
-    fd, temp_filepath = mkstemp(suffix=suffix, prefix=prefix)  # **kwargs
+def get_new_temp_file(config, suffix, prefix):  # **kwargs
+    fd, temp_filepath = mkstemp(suffix=suffix, prefix=prefix, dir=config['savepath'])  # **kwargs
     logging.debug('temp_filepath: %s' % temp_filepath)
     # out_file = os.fdopen(fd, 'w')
     return fd, temp_filepath

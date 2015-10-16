@@ -1,3 +1,4 @@
+# example color maps
 color_of_account = {
     'Atlassm': 'Red_L',
     'sgmatlas': 'Red_L',

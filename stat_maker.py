@@ -31,8 +31,9 @@ def check_empty_file(orig_file):
 
 class StatMaker:
 
-    def __init__(self):
+    def __init__(self, config):
         self.l = list()
+        self.config = config
 
         self.stat_mapping = {
             # 'yaml': (yaml.dump_all, {'Dumper': Dumper, 'default_flow_style': False}, 'yaml'),
@@ -65,8 +66,8 @@ class StatMaker:
             fout.write('queued: ' + '"' + qstatq_values['queued'] + '"' + '\n')
             fout.write('...\n')
         fout.write('---\n')
-        fout.write('Total queued: ' + '"' + last_line['Total queued'] + '"' + '\n')
-        fout.write('Total running: ' + '"' + last_line['Total running'] + '"' + '\n')
+        fout.write('Total_queued: ' + '"' + last_line['Total_queued'] + '"' + '\n')
+        fout.write('Total_running: ' + '"' + last_line['Total_running'] + '"' + '\n')
         fout.write('...\n')
 
     @staticmethod
@@ -81,8 +82,8 @@ class StatMaker:
 
 class QStatMaker(StatMaker):
 
-    def __init__(self):
-        StatMaker.__init__(self)
+    def __init__(self, config):
+        StatMaker.__init__(self, config)
         self.user_q_search = r'^(?P<host_name>(?P<job_id>[0-9-]+)\.(?P<domain>[\w-]+))\s+' \
                              r'(?P<name>[\w%.=+/-]+)\s+' \
                              r'(?P<user>[A-Za-z0-9.]+)\s+' \
@@ -171,7 +172,7 @@ class QStatMaker(StatMaker):
                                        ('state', state)]:
                         temp_dict[key] = value
                     self.l.append(temp_dict)
-            self.l.append({'Total running': total_running_jobs, 'Total queued': total_queued_jobs})
+            self.l.append({'Total_running': total_running_jobs, 'Total_queued': total_queued_jobs})
         self.dump_all(out_file, self.statq_mapping[write_method])
 
     @staticmethod
@@ -190,8 +191,8 @@ class QStatMaker(StatMaker):
 
 
 class OarStatMaker(QStatMaker):
-    def __init__(self):
-        StatMaker.__init__(self)
+    def __init__(self, config):
+        StatMaker.__init__(self, config)
         self.user_q_search = r'^(?P<job_id>[0-9]+)\s+' \
                              r'(?P<name>[0-9A-Za-z_.-]+)?\s+' \
                              r'(?P<user>[0-9A-Za-z_.-]+)\s+' \
@@ -216,13 +217,16 @@ class OarStatMaker(QStatMaker):
 
 
 class SGEStatMaker(StatMaker):
-    def __init__(self):
-        StatMaker.__init__(self)
+    def __init__(self, config):
+        StatMaker.__init__(self, config)
 
     def make_stat(self, orig_file, out_file, write_method):
         out_file = out_file.rsplit('/', 1)[1]
         try:
             tree = etree.parse(orig_file)
+        except etree.ParseError:
+            logging.critical("This is an XML parse error (??)")
+            raise
         except IOError:
             raise
         except:
@@ -241,17 +245,18 @@ class SGEStatMaker(StatMaker):
             else:
                 raise ValueError("No such queue name")
 
-            self._extract_job_info(queue_elem, 'job_list', queue_name=queue_name)
+            self._extract_job_info(queue_elem, 'job_list', queue_name=queue_name)  # puts it into self.l
 
         job_info_elem = root.find('./job_info')
         if job_info_elem is None:
             logging.debug('No pending jobs found!')
         else:
-            self._extract_job_info(job_info_elem, 'job_list', queue_name='Pending')
+            self._extract_job_info(job_info_elem, 'job_list', queue_name='Pending')  # puts it into self.l
+
         prefix, suffix = out_file.split('.')
         prefix += '_'
         suffix = '.' + suffix
-        SGEStatMaker.fd, SGEStatMaker.temp_filepath = get_new_temp_file(prefix=prefix, suffix=suffix)
+        SGEStatMaker.fd, SGEStatMaker.temp_filepath = get_new_temp_file(self.config, prefix=prefix, suffix=suffix)
         self.dump_all(SGEStatMaker.fd, self.stat_mapping[write_method])
 
     def _extract_job_info(self, elem, elem_text, queue_name):
