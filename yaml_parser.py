@@ -102,7 +102,7 @@ def read_yaml_natively(fn, DEF_INDENT=2):
         except IOError:
             raise
         logging.debug('File state before read_yaml_natively: %s' % fin)
-        get_lines = get_line(fin, DEF_INDENT=DEF_INDENT)
+        get_lines = get_line(fin, DEF_INDENT=DEF_INDENT)  # TODO: weird
         line = next(get_lines)
         while line:
             block, line = read_yaml_config_block(line, fin, get_lines)

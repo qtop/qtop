@@ -189,7 +189,7 @@ workernodes_matrix:
      yaml_key: state
      label: Node state
      max_len: 5
-# - queue name:  # this only works for SGE systems
+# - queue name:  # TODO: this only works for SGE systems
 #     yaml_key: qname
 #     label: queue name
 #     max_len: 2
