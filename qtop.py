@@ -896,7 +896,6 @@ def load_yaml_config():
     logging.info('Updated main dictionary. Length: %s items' % len(config))
 
     config['possible_ids'] = list(config['possible_ids'])
-    config['non_existent_node_symbol'] = eval(config['non_existent_node_symbol'])
     symbol_map = dict([(chr(x), x) for x in range(33, 48) + range(58, 64) + range(91, 96) + range(123, 126)])
 
     if config['user_color_mappings']:

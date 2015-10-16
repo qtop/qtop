@@ -43,7 +43,7 @@ def get_line(fin, verbatim=False, SEPARATOR=None, DEF_INDENT=2):
     for line in fin:
         if line.lstrip().startswith('#') or line.strip() == '---':
             continue
-        elif ' #' in line:
+        elif ' #' in line and not line.endswith('#\n'):
             line = line.split(' #', 1)[0]
 
         prev_indent = indent

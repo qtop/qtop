@@ -79,7 +79,7 @@ state_abbreviations:
 
 percentage: 0.8 # if less than PERCENTAGE x 100% of the matrices have jobs, perform a blind remap
 possible_ids: 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz # IDs of unix accounts, for the lower part of qtop
-non_existent_node_symbol: '#'
+non_existent_node_symbol: #
 # set the terminal window size manually so that the matrices can expand accordingly.
 # If term_size is commented out, autodetection takes place (may not work, e.g. in Pycharm window)
 term_size: [53, 176]
@@ -110,7 +110,7 @@ remapping:
 # - 'torvalds(\d+)': 'tor\1'
 # - 'gridlab(\d+)': 'glab\1'
 # - 'gridmon(\d*)': 'mon\1'
- - '(.*?)cluster(.*?)': '\1-\2'  # remove "cluster" word from all node names
+ - '(.*?)cluster(.*?)': \1-\2  # remove "cluster" word from all node names
 ### - '--' : '-'  # removes dashes for shortening (can also replace them with something else, e.g. _
 # WARNING: not working properly in native yaml parser
  - -: ""  # removes dashes for shortening (can also replace them with something else, e.g. _
@@ -215,5 +215,5 @@ workernodes_matrix:
 # NOT YET IMPLEMENTED
 extract_info:
   sourcefile: $HOME/.local/qtop/getent_passwd_copy
-  separator: ":"
+  separator: :
   fields_to_use: 5
