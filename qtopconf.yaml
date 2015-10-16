@@ -124,11 +124,12 @@ sorting:
 #      )
   user_sort: |
       lambda d: (
-      d['np'],
-      ord(d['domainname'][0]),
+      d['np'], # first sort by number of cores
+      ord(d['domainname'][0]), # then by first letter
       len(d['domainname'].split('.', 1)[0].split('-')[0]),
       #int(d['domainname'].split('.', 1)[0].split('-')[1]),
       #int(re.sub(r'[A-Za-z_-]+', '', d['domainname'].split('.', 1)[0].split('-')[0]) or -1),  # by number
+      int(re.sub(r'[A-Za-z _.-]+', '', d['domainname']))
       )
 
 #  user_sort: |  # by node state
