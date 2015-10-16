@@ -8,7 +8,7 @@ try:
 except ImportError:
     import json
 from constants import *
-from common_module import logging
+from common_module import logging, check_empty_file
 
 
 try:
@@ -18,12 +18,6 @@ except ImportError:
         from yaml import Loader, Dumper
     except ImportError:
         pass
-
-
-def check_empty_file(orig_file):
-    if not os.path.getsize(orig_file) > 0:
-        print 'Your ' + orig_file + ' file is empty! Please check your directory. Exiting ...'
-        sys.exit(0)
 
 
 def make_pbsnodes(orig_file, out_file, write_method):

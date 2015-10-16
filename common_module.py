@@ -31,6 +31,13 @@ def mkdir_p(path):
         else:
             raise
 
+
+def check_empty_file(orig_file):
+    if not os.path.getsize(orig_file) > 0:
+        logging.critical('Your ' + orig_file + ' file is empty! Please check your directory. Exiting ...')
+        sys.exit(0)
+
+
 Loader = None
 
 parser = OptionParser()  # for more details see http://docs.python.org/library/optparse.html
@@ -94,7 +101,6 @@ fh.setLevel(logging.ERROR) if options.DEBUG else fh.setLevel(logging.CRITICAL)
 fh.setFormatter(formatter)
 logger.addHandler(fh)
 logger.disabled = False  # maybe make this a cmdline switch? -D ?
-
 
 logging.info("\n")
 logging.info("=" * 50)

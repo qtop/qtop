@@ -613,7 +613,7 @@ def print_mult_attr_line(print_char_start, print_char_stop, attr_lines, label, c
     # TODO: fix option parameter, inserted for testing purposes
     for line in attr_lines:
         line = attr_lines[line][print_char_start:print_char_stop]
-        # maybe put attr_line and label as kwd arguments? collect them as **kwargs
+        # TODO: maybe put attr_line and label as kwd arguments? collect them as **kwargs
         attr_line = insert_separators(line, SEPARATOR, options.WN_COLON) + '=%s'  % label  # this didnt work as expected
         attr_line = ''.join([colorize(char, 'Nothing', color_func) for char in attr_line])
         print attr_line
@@ -700,8 +700,7 @@ def calc_general_multiline_attr(cluster_dict, part_name, yaml_key):  # NEW
     min_len = min(user_max_len, real_max_len)
     max_len = max(user_max_len, real_max_len)
     if real_max_len > user_max_len:
-        logging.warn("Some longer %(attr)ss have been cropped due to %(attr)s length restriction by user." %
-                        {"attr": part_name})
+        logging.warn("Some longer %(attr)ss have been cropped due to %(attr)s length restriction by user" % {"attr": part_name})
 
     # initialisation of lines
     for line_nr in range(1, min_len + 1):
@@ -748,6 +747,7 @@ def calculate_wn_occupancy(cluster_dict, user_names, job_states, job_ids):
     Otherwise, for uniform WNs, i.e. all using the same numbering scheme, wn01, wn02, ... proceeds as normal.
     Number of Extra tables needed is calculated inside the calc_all_wnid_label_lines function below
     """
+    # TODO: make this readable !!!!!
     wns_occupancy = dict()
     wns_occupancy['term_columns'] = calculate_split_screen_size()
     wns_occupancy['account_jobs_table'], wns_occupancy['id_of_username'] = create_account_jobs_table(user_names, job_states)
@@ -874,12 +874,12 @@ def load_yaml_config():
     #         print "Your YAML configuration file has an error in position: (%s:%s)" % (mark.line + 1, mark.column + 1)
     #         print "Please make sure that spaces are multiples of 2."
     try:
-        config_env = read_yaml_natively(os.path.join(ENVPATH, QTOPCONF_YAML))
+        config_env = read_yaml_natively(os.path.join(SYSTEMCONFDIR, QTOPCONF_YAML))
     except IOError:
         config_env = {}
-        logging.info('%s could not be found in %s/' % (QTOPCONF_YAML, ENVPATH))
+        logging.info('%s could not be found in %s/' % (QTOPCONF_YAML, SYSTEMCONFDIR))
     else:
-        logging.info('Env %s found in %s/' % (QTOPCONF_YAML, ENVPATH))
+        logging.info('Env %s found in %s/' % (QTOPCONF_YAML, SYSTEMCONFDIR))
         logging.info('Env configuration dictionary loaded. Length: %s items' % len(config_env))
 
     try:

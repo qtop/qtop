@@ -1,6 +1,6 @@
 __author__ = 'sfranky'
 from xml.etree import ElementTree as etree
-from common_module import logging
+from common_module import logging, check_empty_file
 import os
 
 
@@ -63,8 +63,8 @@ def calc_everything(fn, write_method):
                     if worker_node['domainname'] != existing_wn['domainname']:
                         continue
                     job_ids, usernames, job_states = extract_job_info(queue_elem, 'job_list')
-                    core_jobs = [{'core': idx, 'job': job_id} for idx, job_id in enumerate(job_ids, existing_wn[
-                        'existing_busy_cores'])]
+                    core_jobs = [{'core': idx, 'job': job_id}
+                                 for idx, job_id in enumerate(job_ids, existing_wn['existing_busy_cores'])]
                     existing_wn['core_job_map'].extend(core_jobs)
                     # don't change the node state to free.
                     # Just keep the state reported in the last queue mentioning the node.
@@ -93,27 +93,9 @@ def extract_job_info(elem, elem_text):
     return job_ids, usernames, job_states
 
 
-# def make_stat(fn, write_method):
-#
-#     tree = etree.parse(fn)
-#     root = tree.getroot()
-#     job_ids, usernames, job_states, queue_names = [], [], [], []
-#     # for queue_elem in root.iter('Queue-List'):  # python 2.7-only
-#     for queue_elem in root.find('queue_info/Queue-List'):
-#         # queue_name = queue_elem.find('./resource[@name="qname"]').text  # 2.7 only
-#         queue_names = queue_elem.findall('resource')
-#         for _queue_name in queue_names:
-#             if _queue_name.attrib.get('name') == 'qname':
-#                 queue_name = _queue_name.text
-#                 break
-#         else:
-#             raise ValueError("No such resource")
-#         job_ids, usernames, job_states = extract_job_info(queue_elem, 'job_list')
-#         _queue_names = queue_name * len(job_ids)
-
-
 def get_statq_from_xml(fn, write_method):
     logging.debug("Parsing tree of %s" % fn)
+    check_empty_file(fn)
     with open(fn, mode='rb') as fin:
         try:
             tree = etree.parse(fin)
