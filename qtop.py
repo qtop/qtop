@@ -620,6 +620,7 @@ def print_mult_attr_line(print_char_start, print_char_stop, attr_lines, label, c
 
 
 def display_user_accounts_pool_mappings(account_jobs_table, pattern_of_id):
+    fullname_of_name = get_fullname_of_name()
     print colorize('\n===> ', '#') + \
           colorize('User accounts and pool mappings', 'Nothing') + \
           colorize(' <=== ', '#') + \
@@ -634,12 +635,16 @@ def display_user_accounts_pool_mappings(account_jobs_table, pattern_of_id):
             account = 'account_not_colored'
         else:
             extra_width = 12
-        print_string = '{0:<{width2}}{sep} {1:>{width4}} + {2:>{width4}} / {3:>{width4}} {sep} {4:>{width15}} {sep}'.format(
+        print_string = '{0:<{width2}}{sep} ' \
+                       '{1:>{width4}} + {2:>{width4}} / {3:>{width4}} {sep} ' \
+                       '{4:>{width15}} {sep} ' \
+                       '{5:>{width15}} {sep}'.format(
             colorize(str(uid), account),
             colorize(str(runningjobs), account),
             colorize(str(queuedjobs), account),
             colorize(str(alljobs), account),
             colorize(user, account),
+            colorize(fullname_of_name.get(user, ''), account),
             sep=colorize(SEPARATOR, account),
             width2=2 + extra_width,
             width3=3 + extra_width,
@@ -1147,6 +1152,22 @@ def execute_shell_batch_commands(batch_system_commands, filenames, _file):
             sys.exit(1)
 
     logging.debug('File state after subprocess call: %(fin)s' % {"fin": fin})
+
+
+def get_fullname_of_name():
+    fullname_of_name = dict()
+    extract_info = config['extract_info']
+    sep = extract_info.get('separator', ':')
+    limit = extract_info.get('fields_to_use', 5)
+    fn = os.path.expandvars(extract_info['sourcefile'])
+    with open(fn, mode='r') as fin:
+        for line in fin:
+            fields = line.split(sep, limit)
+            user = fields[0]
+            fullname = fields[4].split(' <')[0].strip()
+            fullname_of_name[user] = fullname
+    return fullname_of_name
+
 
 if __name__ == '__main__':
 
