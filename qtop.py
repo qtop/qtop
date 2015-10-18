@@ -1155,12 +1155,26 @@ def execute_shell_batch_commands(batch_system_commands, filenames, _file):
 
 
 def get_fullname_of_name():
-    fullname_of_name = dict()
-    extract_info = config['extract_info']
+    """
+    Reads file $HOME/.local/qtop/getent_passwd.txt or whatever is put in QTOPCONF_YAML
+    and extracts the fullname of the users. This shall be printed in User Accounts
+    and Pool Mappings.
+    """
+    extract_info = config.get('extract_info', None)
+    if not extract_info:
+        return dict()
     sep = extract_info.get('separator', ':')
     limit = extract_info.get('fields_to_use', 5)
     fn = os.path.expandvars(extract_info['sourcefile'])
+    assert os.path.isfile(fn)
+    logging.debug('File %s exists: %s' % (fn, os.path.isfile(fn)))
+    try:
+        assert os.stat(fn).st_size != 0
+    except AssertionError:
+        logging.warn('File %s is empty! No full name available. ' % fn)
+        return dict()
     with open(fn, mode='r') as fin:
+        fullname_of_name = dict()
         for line in fin:
             fields = line.split(sep, limit)
             user = fields[0]
