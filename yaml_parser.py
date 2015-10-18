@@ -251,6 +251,8 @@ def process_line(list_line, fin, get_lines, parent_container):
                         container = list(eval(container[0]))
                     except NameError:
                         pass
+                elif container.startswith("'") and container.endswith("'"):
+                    container = eval(container)
                 return {key.rstrip(':'): container}, container  # was parent_container#str
     else:
         raise ValueError("Didn't anticipate that!")
@@ -294,10 +296,12 @@ def load_all(fin, Loader=None):
 
 
 if __name__ == '__main__':
-    # LOCAL_QTOPCONF_YAML = '$HOME/.local/qtop/qtopconf.yaml'
+    LOCAL_QTOPCONF_YAML = '$HOME/.local/qtop/qtopconf.yaml'
     # LOCAL_QTOPCONF_YAML = '/home/sfranky/PycharmProjects/results/gef_8e3OrbuWti6wAR59UMqR7Q/pbsnodes_a_txtyaml.yaml'
-    LOCAL_QTOPCONF_YAML = '/home/sfranky/PycharmProjects/results/gef_8e3OrbuWti6wAR59UMqR7Q/testkey8.yaml'
+    # LOCAL_QTOPCONF_YAML = '/home/sfranky/PycharmProjects/results/gef_8e3OrbuWti6wAR59UMqR7Q/testkey8.yaml'
     f = os.path.expandvars(LOCAL_QTOPCONF_YAML)
-    with open(f, mode='r') as fn:
-        config = load_all(fn)
-        pass
+    config = read_yaml_natively(f)
+    # with open(f, mode='r') as fn:
+    #     config = load_all(fn)
+        # pass
+    pass

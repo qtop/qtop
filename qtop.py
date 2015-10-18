@@ -1177,6 +1177,9 @@ def get_fullname_of_name():
         fullname_of_name = dict()
         for line in fin:
             fields = line.split(sep, limit)
+            if len(fields) == 1:
+                logging.warn('Separator defined for file {} is invalid. Skipping display. Please adjust.'.format(fn))
+                return dict()
             user = fields[0]
             fullname = fields[limit - 1].split(' <')[0].strip()
             fullname_of_name[user] = fullname

@@ -189,10 +189,12 @@ workernodes_matrix:
      yaml_key: state
      label: Node state
      max_len: 5
-# - queue name:  # TODO: this only works for SGE systems
-#     yaml_key: qname
-#     label: queue name
-#     max_len: 2
+     systems: [sge, oar, pbs]
+ - queue name:  # TODO: this only works for SGE systems
+     yaml_key: qname
+     label: queue name
+     max_len: 2
+     systems: [sge]
  - core user map:
      options1: {}
      options2: {}
@@ -215,5 +217,5 @@ workernodes_matrix:
 # NOT YET IMPLEMENTED
 extract_info:
   sourcefile: $HOME/.local/qtop/getent_passwd.txt
-  separator: :
+  separator: ':'
   field_to_use: 5
