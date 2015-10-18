@@ -216,4 +216,4 @@ workernodes_matrix:
 extract_info:
   sourcefile: $HOME/.local/qtop/getent_passwd.txt
   separator: :
-  fields_to_use: 5
+  field_to_use: 5

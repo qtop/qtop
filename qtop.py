@@ -1164,7 +1164,7 @@ def get_fullname_of_name():
         for line in fin:
             fields = line.split(sep, limit)
             user = fields[0]
-            fullname = fields[4].split(' <')[0].strip()
+            fullname = fields[limit - 1].split(' <')[0].strip()
             fullname_of_name[user] = fullname
     return fullname_of_name
 
