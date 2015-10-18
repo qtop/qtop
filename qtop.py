@@ -239,27 +239,15 @@ def calculate_job_counts(user_names, job_states):
 
     id_of_username = {}
     for _id, user_allcount in enumerate(user_alljobs_sorted_lot):
-        id_of_username[user_allcount[0]] = config['possible_ids'][_id]
+        id_of_username[user_allcount[0]] = user_allcount[0][0] \
+            if eval(config['fill_with_user_firstletter']) else config['possible_ids'][_id]
 
     # Calculates and prints what is actually below the id|  R + Q /all | unix account etc line
-    # this is slower but shorter: 8mus
     for state_abbrev in state_abbrevs:
         _xjobs_of_user = job_counts[state_abbrevs[state_abbrev]]
         missing_uids = set(id_of_username).difference(_xjobs_of_user)
         [_xjobs_of_user.setdefault(missing_uid, 0) for missing_uid in missing_uids]
 
-    # This is actually faster: 6 mus
-    # for uid in id_of_username:
-    #     if uid not in job_counts['running_of_user']:
-    #         job_counts['running_of_user'][uid] = 0  # 4
-    #     if uid not in job_counts['queued_of_user']:
-    #         job_counts['queued_of_user'][uid] = 0  # 4
-    #     if uid not in job_counts['cancelled_of_user']:
-    #         job_counts['cancelled_of_user'][uid] = 0  # 20
-    #     if uid not in job_counts['waiting_of_user']:
-    #         job_counts['waiting_of_user'][uid] = 0  # 19
-    #     if uid not in job_counts['exiting_of_user']:
-    #         job_counts['exiting_of_user'][uid] = 0  # 20
     return job_counts, user_alljobs_sorted_lot, id_of_username
 
 
@@ -278,10 +266,10 @@ def create_account_jobs_table(user_names, job_states):
              ]
         )
     account_jobs_table.sort(key=itemgetter(3, 4), reverse=True)  # sort by All jobs, then unix account
-    # unix account id needs to be recomputed at this point. Should fix later.
+    # TODO: unix account id needs to be recomputed at this point. fix.
     for quintuplet, new_uid in zip(account_jobs_table, config['possible_ids']):
         unix_account = quintuplet[-1]
-        quintuplet[0] = id_of_username[unix_account] = new_uid
+        quintuplet[0] = id_of_username[unix_account] = unix_account[0] if config['fill_with_user_firstletter'] else new_uid
     return account_jobs_table, id_of_username
 
 
@@ -345,14 +333,16 @@ def fill_node_cores_column(state_np_corejob, core_user_map, id_of_username, max_
         for corejob in corejobs:
             core, job = str(corejob['core']), str(corejob['job'])
             try:
-                _ = user_of_job_id[job]
+                user = user_of_job_id[job]
             except KeyError, KeyErrorValue:
                 logging.critical('There seems to be a problem with the qstat output. '
                                  'A Job (ID %s) has gone rogue. '
                                  'Please check with the SysAdmin.' % (str(KeyErrorValue)))
                 raise KeyError
             else:
-                core_user_map['Core' + str(core) + 'line'] += [str(id_of_username[user_of_job_id[job]])]
+                # filling = eval(config['fill_with_user_firstletter']) and str(user[0]) or str(id_of_username[user])
+                filling = str(id_of_username[user])
+                core_user_map['Core' + str(core) + 'line'] += [filling]
                 own_np_empty_range.remove(core)
 
         non_existent_cores = [item for item in max_np_range if item not in own_np_range]

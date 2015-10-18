@@ -219,3 +219,5 @@ extract_info:
   sourcefile: $HOME/.local/qtop/getent_passwd.txt
   separator: ':'
   field_to_use: 5
+
+fill_with_user_firstletter: True
