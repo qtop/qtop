@@ -1159,7 +1159,9 @@ def get_detail_of_name():
     regex = extract_info.get('regex', None)
 
     fn = os.path.expandvars(extract_info['sourcefile'])
-    assert os.path.isfile(fn)
+    if not os.path.isfile(fn):
+        logging.error("File %s not found.")
+        return dict()
     logging.debug('File %s exists: %s' % (fn, os.path.isfile(fn)))
     try:
         assert os.stat(fn).st_size != 0
