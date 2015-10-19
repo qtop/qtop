@@ -1158,21 +1158,31 @@ def get_detail_of_name():
     field_idx = int(extract_info.get('field_to_use', 5))
     regex = extract_info.get('regex', None)
 
-    fn = os.path.expandvars(extract_info['sourcefile'])
-    if not os.path.isfile(fn):
-        logging.error("File %s not found.")
-        return dict()
-    logging.debug('File %s exists: %s' % (fn, os.path.isfile(fn)))
-    try:
-        assert os.stat(fn).st_size != 0
-    except AssertionError:
-        logging.warn('File %s is empty! No full name available. ' % fn)
-        return dict()
+    # fn = os.path.expandvars(extract_info['sourcefile'])
+    # if not os.path.isfile(fn):
+    #     logging.error("File %s not found." % fn)
+    #     return dict()
+    # logging.debug('File %s exists: %s' % (fn, os.path.isfile(fn)))
+    # try:
+    #     assert os.stat(fn).st_size != 0
+    # except AssertionError:
+    #     logging.warn('File %s is empty! No full name available. ' % fn)
+    #     return dict()
 
-    with open(fn, mode='r') as fin:
-        detail_of_name = dict()
-        for line in fin:
-            user, field = line.split(sep)[0:field_idx:field_idx - 1]
+    passwd_command = extract_info.get('sourcefile').split()
+    p = subprocess.Popen(passwd_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    output, err = p.communicate("something here")
+    if 'No such file or directory' in err:
+        logging.error('You have to set a proper command to get the passwd file in your %s file.' % QTOPCONF_YAML)
+
+    # with open(fn, mode='r') as fin:
+    detail_of_name = dict()
+    for line in output.split('\n'):
+        try:
+            user, field = line.strip().split(sep)[0:field_idx:field_idx - 1]
+        except ValueError:
+            break
+        else:
             try:
                 detail = eval(regex)
             except (AttributeError, TypeError):
