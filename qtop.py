@@ -1159,17 +1159,6 @@ def get_detail_of_name():
     field_idx = int(extract_info.get('field_to_use', 5))
     regex = extract_info.get('regex', None)
 
-    # fn = os.path.expandvars(extract_info['sourcefile'])
-    # if not os.path.isfile(fn):
-    #     logging.error("File %s not found." % fn)
-    #     return dict()
-    # logging.debug('File %s exists: %s' % (fn, os.path.isfile(fn)))
-    # try:
-    #     assert os.stat(fn).st_size != 0
-    # except AssertionError:
-    #     logging.warn('File %s is empty! No full name available. ' % fn)
-    #     return dict()
-
     passwd_command = extract_info.get('sourcefile').split()
     p = subprocess.Popen(passwd_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     output, err = p.communicate("something here")

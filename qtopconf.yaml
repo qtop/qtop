@@ -214,7 +214,7 @@ workernodes_matrix:
 #Yellow
 
 extract_info:
-  sourcefile: cat -E /foo/mara # this should print an /etc/passwd file
+  sourcefile: cat -E $HOME/.local/qtop/getent_passwd.txt # this should print an /etc/passwd file
   field_to_use: 4
   regex: |
     re.search('(?<=<)[^<>]+(?=>)', field).group(0)
