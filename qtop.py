@@ -693,6 +693,7 @@ def calc_general_multiline_attr(cluster_dict, part_name, yaml_key):  # NEW
         logging.critical("%s lines in the matrix are not supported for %s systems. "
                          "Please remove appropriate lines from conf file. Exiting..."
                          % (part_name, config['scheduler'] ))
+        sys.exit(1)
     min_len = min(user_max_len, real_max_len)
     max_len = max(user_max_len, real_max_len)
     if real_max_len > user_max_len:
