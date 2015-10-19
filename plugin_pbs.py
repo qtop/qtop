@@ -63,7 +63,7 @@ def pbsnodes_write_lines(l, fout):
     for _block in l:
         fout.write('---\n')
         fout.write('domainname: ' + _block['domainname'] + '\n')
-        fout.write('state: ' + "'" + _block['state'] + "'" + '\n')
+        fout.write('state: ' + _block['state'] + '\n')
         fout.write('np: ' + _block['np'] + '\n')
         if _block.get('gpus') > 0:
             fout.write('gpus: ' + _block['gpus'] + '\n')

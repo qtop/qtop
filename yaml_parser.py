@@ -43,7 +43,7 @@ def get_line(fin, verbatim=False, SEPARATOR=None, DEF_INDENT=2):
     for line in fin:
         if line.lstrip().startswith('#') or line.strip() == '---':
             continue
-        elif ' #' in line:
+        elif ' #' in line and not line.endswith('#\n'):
             line = line.split(' #', 1)[0]
 
         prev_indent = indent
@@ -229,6 +229,7 @@ def process_line(list_line, fin, get_lines, parent_container):
             key, container = container.split(None, 1)
             # container = [container[1:-1]] if container.startswith('[') else container
             container = container[1:-1].split(', ') if container.startswith('[') else container
+            container = "" if container in ("''", '""') else container
             if len(container) == 1 and isinstance(container, list) and isinstance(container[0], str):
                 try:
                     container = list(eval(container[0]))
@@ -250,6 +251,8 @@ def process_line(list_line, fin, get_lines, parent_container):
                         container = list(eval(container[0]))
                     except NameError:
                         pass
+                elif container.startswith("'") and container.endswith("'"):
+                    container = eval(container)
                 return {key.rstrip(':'): container}, container  # was parent_container#str
     else:
         raise ValueError("Didn't anticipate that!")
@@ -293,10 +296,12 @@ def load_all(fin, Loader=None):
 
 
 if __name__ == '__main__':
-    # LOCAL_QTOPCONF_YAML = '$HOME/.local/qtop/qtopconf.yaml'
+    LOCAL_QTOPCONF_YAML = '$HOME/.local/qtop/qtopconf.yaml'
     # LOCAL_QTOPCONF_YAML = '/home/sfranky/PycharmProjects/results/gef_8e3OrbuWti6wAR59UMqR7Q/pbsnodes_a_txtyaml.yaml'
-    LOCAL_QTOPCONF_YAML = '/home/sfranky/PycharmProjects/results/gef_8e3OrbuWti6wAR59UMqR7Q/testkey8.yaml'
+    # LOCAL_QTOPCONF_YAML = '/home/sfranky/PycharmProjects/results/gef_8e3OrbuWti6wAR59UMqR7Q/testkey8.yaml'
     f = os.path.expandvars(LOCAL_QTOPCONF_YAML)
-    with open(f, mode='r') as fn:
-        config = load_all(fn)
-        pass
+    config = read_yaml_natively(f)
+    # with open(f, mode='r') as fn:
+    #     config = load_all(fn)
+        # pass
+    pass

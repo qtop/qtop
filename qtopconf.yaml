@@ -79,7 +79,7 @@ state_abbreviations:
 
 percentage: 0.8 # if less than PERCENTAGE x 100% of the matrices have jobs, perform a blind remap
 possible_ids: 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz # IDs of unix accounts, for the lower part of qtop
-non_existent_node_symbol: '#'
+non_existent_node_symbol: #
 # set the terminal window size manually so that the matrices can expand accordingly.
 # If term_size is commented out, autodetection takes place (may not work, e.g. in Pycharm window)
 term_size: [53, 176]
@@ -110,8 +110,7 @@ remapping:
 # - 'torvalds(\d+)': 'tor\1'
 # - 'gridlab(\d+)': 'glab\1'
 # - 'gridmon(\d*)': 'mon\1'
- - '(.*?)cluster(.*?)': '\1-\2'  # remove "cluster" word from all node names
-### - '--' : '-'  # removes dashes for shortening (can also replace them with something else, e.g. _
+ - '(.*?)cluster(.*?)': \1-\2  # remove "cluster" word from all node names
 # WARNING: not working properly in native yaml parser
  - -: ""  # removes dashes for shortening (can also replace them with something else, e.g. _
 
@@ -125,11 +124,12 @@ sorting:
 #      )
   user_sort: |
       lambda d: (
-      d['np'],
-      ord(d['domainname'][0]),
+      d['np'], # first sort by number of cores
+      ord(d['domainname'][0]), # then by first letter
       len(d['domainname'].split('.', 1)[0].split('-')[0]),
       #int(d['domainname'].split('.', 1)[0].split('-')[1]),
       #int(re.sub(r'[A-Za-z_-]+', '', d['domainname'].split('.', 1)[0].split('-')[0]) or -1),  # by number
+      int(re.sub(r'[A-Za-z _.-]+', '', d['domainname']))
       )
 
 #  user_sort: |  # by node state
@@ -189,10 +189,12 @@ workernodes_matrix:
      yaml_key: state
      label: Node state
      max_len: 5
-# - queue name:  # TODO: this only works for SGE systems
-#     yaml_key: qname
-#     label: queue name
-#     max_len: 2
+     systems: [sge, oar, pbs]
+ - queue name:  # TODO: this only works for SGE systems
+     yaml_key: qname
+     label: queue name
+     max_len: 2
+     systems: [sge]
  - core user map:
      options1: {}
      options2: {}
@@ -211,9 +213,10 @@ workernodes_matrix:
 #White
 #Yellow
 
-# TODO: example how to extract the GECOS field from a copy of the passwd file
-# NOT YET IMPLEMENTED
 extract_info:
-  sourcefile: $HOME/.local/qtop/getent_passwd_copy
-  separator: ":"
-  fields_to_use: 5
+  sourcefile: cat -E $HOME/.local/qtop/getent_passwd.txt # this should print an /etc/passwd file
+  field_to_use: 4
+  regex: |
+    re.search('(?<=<)[^<>]+(?=>)', field).group(0)
+
+fill_with_user_firstletter: True
