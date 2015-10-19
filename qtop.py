@@ -610,7 +610,7 @@ def print_mult_attr_line(print_char_start, print_char_stop, attr_lines, label, c
 
 
 def display_user_accounts_pool_mappings(account_jobs_table, pattern_of_id):
-    fullname_of_name = get_fullname_of_name()
+    detail_of_name = get_detail_of_name()
     print colorize('\n===> ', '#') + \
           colorize('User accounts and pool mappings', 'Nothing') + \
           colorize(' <=== ', '#') + \
@@ -628,18 +628,19 @@ def display_user_accounts_pool_mappings(account_jobs_table, pattern_of_id):
         print_string = '{0:<{width2}}{sep} ' \
                        '{1:>{width4}} + {2:>{width4}} / {3:>{width4}} {sep} ' \
                        '{4:>{width15}} {sep} ' \
-                       '{5:>{width15}} {sep}'.format(
+                       '{5:>{width40}} {sep}'.format(
             colorize(str(uid), account),
             colorize(str(runningjobs), account),
             colorize(str(queuedjobs), account),
             colorize(str(alljobs), account),
             colorize(user, account),
-            colorize(fullname_of_name.get(user, ''), account),
+            colorize(detail_of_name.get(user, ''), account),
             sep=colorize(SEPARATOR, account),
             width2=2 + extra_width,
             width3=3 + extra_width,
             width4=4 + extra_width,
             width15=15 + extra_width,
+            width40=40 + extra_width,
         )
         print print_string
 
@@ -1144,7 +1145,7 @@ def execute_shell_batch_commands(batch_system_commands, filenames, _file):
     logging.debug('File state after subprocess call: %(fin)s' % {"fin": fin})
 
 
-def get_fullname_of_name():
+def get_detail_of_name():
     """
     Reads file $HOME/.local/qtop/getent_passwd.txt or whatever is put in QTOPCONF_YAML
     and extracts the fullname of the users. This shall be printed in User Accounts
@@ -1153,8 +1154,10 @@ def get_fullname_of_name():
     extract_info = config.get('extract_info', None)
     if not extract_info:
         return dict()
-    sep = extract_info.get('separator', ':')
-    limit = extract_info.get('fields_to_use', 5)
+    sep = ':'
+    field_idx = int(extract_info.get('field_to_use', 5))
+    regex = extract_info.get('regex', None)
+
     fn = os.path.expandvars(extract_info['sourcefile'])
     assert os.path.isfile(fn)
     logging.debug('File %s exists: %s' % (fn, os.path.isfile(fn)))
@@ -1163,17 +1166,18 @@ def get_fullname_of_name():
     except AssertionError:
         logging.warn('File %s is empty! No full name available. ' % fn)
         return dict()
+
     with open(fn, mode='r') as fin:
-        fullname_of_name = dict()
+        detail_of_name = dict()
         for line in fin:
-            fields = line.split(sep, limit)
-            if len(fields) == 1:
-                logging.warn('Separator defined for file {} is invalid. Skipping display. Please adjust.'.format(fn))
-                return dict()
-            user = fields[0]
-            fullname = fields[limit - 1].split(' <')[0].strip()
-            fullname_of_name[user] = fullname
-    return fullname_of_name
+            user, field = line.split(sep)[0:field_idx:field_idx - 1]
+            try:
+                detail = eval(regex)
+            except (AttributeError, TypeError):
+                detail = field.strip()
+            finally:
+                detail_of_name[user] = detail
+    return detail_of_name
 
 
 if __name__ == '__main__':
