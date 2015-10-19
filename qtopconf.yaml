@@ -213,12 +213,10 @@ workernodes_matrix:
 #White
 #Yellow
 
-# TODO: example how to extract the GECOS field from a copy of the passwd file
-# NOT YET IMPLEMENTED
 extract_info:
   sourcefile: $HOME/.local/qtop/getent_passwd.txt
   regex: |
-    re.search('(?<=<)[^<>]+(?=>)', fields[4]).group(0)
-  field_to_use: 5
+    re.search('(?<=<)[^<>]+(?=>)', field).group(0)
+  field_to_use: 4
 
 fill_with_user_firstletter: True
