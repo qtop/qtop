@@ -42,6 +42,12 @@ Loader = None
 
 parser = OptionParser()  # for more details see http://docs.python.org/library/optparse.html
 
+parser.add_option("-1", "--disablesection1", action="store_true", dest="sect_1_off", default=False,
+                  help="Disable first section of qtop, i.e. Job Accounting Summary")
+parser.add_option("-2", "--disablesection2", action="store_true", dest="sect_2_off", default=False,
+                  help="Disable second section of qtop, i.e. Worker Node Occupancy")
+parser.add_option("-3", "--disablesection3", action="store_true", dest="sect_3_off", default=False,
+                  help="Disable third section of qtop, i.e. User Accounts and Pool Mappings")
 parser.add_option("-a", "--blindremapping", action="store_true", dest="BLINDREMAP", default=False,
                   help="This may be used in situations where node names are not a pure arithmetic seq (eg. rocks clusters)")
 parser.add_option("-b", "--batchSystem", action="store", type="string", dest="BATCH_SYSTEM", default=None)

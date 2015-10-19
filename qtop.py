@@ -1285,10 +1285,14 @@ if __name__ == '__main__':
         'user_accounts_pool_mappings': (display_user_accounts_pool_mappings, (workernodes_occupancy['account_jobs_table'], workernodes_occupancy['pattern_of_id']))
     }
     logging.info('DISPLAY AREA')
-    for part in config['user_display_parts']:
+    sections_off = {
+        1: options.sect_1_off,
+        2: options.sect_2_off,
+        3: options.sect_3_off
+    }
+    for idx, part in enumerate(config['user_display_parts'], 1):
         _func, args = display_parts[part][0], display_parts[part][1]
-        logging.debug('Executing %s' % _func.__name__)
-        _func(*args)
+        _func(*args) if not sections_off[idx] else None
 
     # print '\nThanks for watching!'
     os.chdir(QTOPPATH)
