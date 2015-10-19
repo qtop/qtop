@@ -215,8 +215,8 @@ workernodes_matrix:
 
 extract_info:
   sourcefile: $HOME/.local/qtop/getent_passwd.txt
+  field_to_use: 4
   regex: |
     re.search('(?<=<)[^<>]+(?=>)', field).group(0)
-  field_to_use: 4
 
 fill_with_user_firstletter: True
