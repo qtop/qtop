@@ -1,29 +1,25 @@
 import re
 import sys
 import os
-# import yaml
-import yaml_parser as yaml
 try:
     import ujson as json
 except ImportError:
     import json
+
+import yaml_parser as yaml
 from constants import *
 from common_module import logging, check_empty_file
-
-
-try:
-    from yaml import CLoader as Loader, CDumper as Dumper
-except ImportError:
-    try:
-        from yaml import Loader, Dumper
-    except ImportError:
-        pass
 
 
 def make_pbsnodes(orig_file, out_file, write_method):
     """
     reads PBSNODES_ORIG_FN sequentially and puts its information into a new yaml file
     """
+    all_pbs_values = get_pbsnodes_values(orig_file, out_file, write_method)
+    pbs_dump_all(all_pbs_values, out_file, pbsnodes_mapping[write_method])
+
+
+def get_pbsnodes_values(orig_file, out_file, write_method):
     check_empty_file(orig_file)
     raw_blocks = _read_all_blocks(orig_file)
     all_pbs_values = []
@@ -56,8 +52,7 @@ def make_pbsnodes(orig_file, out_file, write_method):
                 pbs_values['core_job_map'].append(_d)
         finally:
             all_pbs_values.append(pbs_values)
-    pbs_dump_all(all_pbs_values, out_file, pbsnodes_mapping[write_method])
-
+    return all_pbs_values
 
 def pbsnodes_write_lines(l, fout):
     for _block in l:
@@ -139,7 +134,7 @@ def _read_block(fin):
 
 def pbs_dump_all(l, out_file, write_func_args):
     """
-    dumps the content of qstat/qstat_q files in the selected write_method format
+    dumps the content of pbsnodes files with the the selected write_method format
     """
     with open(out_file, 'w') as fout:
         write_func, kwargs, _ = write_func_args
@@ -165,7 +160,7 @@ def read_pbsnodes_yaml(fn, write_method):
     pbs_nodes = []
 
     with open(fn) as fin:
-        _nodes = (write_method.endswith('yaml')) and yaml.load_all(fin, Loader=Loader) or json.load(fin)
+        _nodes = (write_method.endswith('yaml')) and yaml.load_all(fin) or json.load(fin)
         for node in _nodes:
             pbs_nodes.append(node)
     # pbs_nodes.pop() if not pbs_nodes[-1] else None # until i figure out why the last node is None
@@ -182,7 +177,7 @@ def read_qstatq_yaml(fn, write_method):
     qstatq_list = []
     logging.debug("Opening %s" % fn)
     with open(fn, 'r') as fin:
-        qstatqs_total = (write_method.endswith('yaml')) and yaml.load_all(fin, Loader=Loader) or json.load(fin)
+        qstatqs_total = (write_method.endswith('yaml')) and yaml.load_all(fin) or json.load(fin)
         for qstatq in qstatqs_total:
             qstatq_list.append(qstatq)
         total = qstatq_list.pop()
@@ -191,7 +186,7 @@ def read_qstatq_yaml(fn, write_method):
 
 
 pbsnodes_mapping = {
-                    #'yaml': (yaml.dump_all, {'Dumper': Dumper, 'default_flow_style': False}, 'yaml'),
-                    'txtyaml': (pbsnodes_write_lines, {}, 'yaml'),
-                    'json': (json.dump, {}, 'json')
-                    }
+    #'yaml': (yaml.dump_all, {'Dumper': Dumper, 'default_flow_style': False}, 'yaml'),
+    'txtyaml': (pbsnodes_write_lines, {}, 'yaml'),
+    'json': (json.dump, {}, 'json')
+}

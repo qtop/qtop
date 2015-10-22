@@ -219,4 +219,4 @@ extract_info:
   regex: |
     re.search('(?<=<)[^<>]+(?=>)', field).group(0)
 
-fill_with_user_firstletter: True
+fill_with_user_firstletter: False

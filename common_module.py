@@ -1,10 +1,7 @@
-# import yaml
 import logging
 import sys
 from sys import stdin, stdout
-from constants import *
 from optparse import OptionParser
-import yaml_parser as yaml
 from tempfile import mkstemp
 import os
 import errno
@@ -13,14 +10,9 @@ try:
 except ImportError:
     import json
 
+from constants import *
+import yaml_parser as yaml
 
-# try:
-#     from yaml import CLoader as Loader, CDumper as Dumper
-# except ImportError:
-#     try:
-#         from yaml import Loader, Dumper
-#     except ImportError:
-#         pass
 
 def mkdir_p(path):
     try:
@@ -34,11 +26,9 @@ def mkdir_p(path):
 
 def check_empty_file(orig_file):
     if not os.path.getsize(orig_file) > 0:
-        logging.critical('Your ' + orig_file + ' file is empty! Please check your directory. Exiting ...')
+        logging.critical('Your %s file is empty! Please check your directory. Exiting ...' % orig_file)
         sys.exit(0)
 
-
-Loader = None
 
 parser = OptionParser()  # for more details see http://docs.python.org/library/optparse.html
 
@@ -69,7 +59,7 @@ parser.add_option("-s", "--SetSourceDir", dest="SOURCEDIR",
 parser.add_option("-v", "--verbose", dest="verbose", action="count",
                   help="Increase verbosity (specify multiple times for more)")
 parser.add_option("-w", "--writemethod", dest="write_method", action="store", default="txtyaml",
-                  choices=['txtyaml', 'yaml', 'json'],
+                  choices=['txtyaml', 'json'],
                   help="Set the method used for dumping information, json, yaml, or native python (yaml format)")
 parser.add_option("-y", "--readexistingyaml", action="store_true", dest="YAML_EXISTS", default=False,
                   help="Do not remake yaml input files, read from the existing ones")
@@ -143,7 +133,7 @@ def read_qstat_yaml(fn, write_method):
 
     with open(fn) as fin:
         try:
-            qstats = (write_method.endswith('yaml')) and yaml.load_all(fin, Loader=Loader) or json.load(fin)
+            qstats = (write_method.endswith('yaml')) and yaml.load_all(fin) or json.load(fin)
         except StopIteration:
             logging.warning('File %s is empty. (No jobs found or Error!)')
         else:

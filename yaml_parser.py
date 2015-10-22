@@ -1,4 +1,3 @@
-Loader = None
 from common_module import *
 
 
@@ -278,7 +277,7 @@ def safe_load(fin, DEF_INDENT=2):
     return a_dict
 
 
-def load_all(fin, Loader=None):
+def load_all(fin):
     list_of_dicts = []
     # with open(fn, mode='r') as fin:
     get_lines = get_line(fin)

@@ -1,8 +1,6 @@
 __author__ = 'sfranky'
 
 import re
-# import yaml
-import yaml_parser as yaml
 try:
     import ujson as json
 except ImportError:
@@ -10,17 +8,10 @@ except ImportError:
 from xml.etree import ElementTree as etree
 import os
 import sys
+
+import yaml_parser as yaml
 from constants import *
 from common_module import *
-
-
-try:
-    from yaml import CLoader as Loader, CDumper as Dumper
-except ImportError:
-    try:
-        from yaml import Loader, Dumper
-    except ImportError:
-        pass
 
 
 def check_empty_file(orig_file):

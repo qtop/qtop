@@ -269,7 +269,8 @@ def create_account_jobs_table(user_names, job_states):
     # TODO: unix account id needs to be recomputed at this point. fix.
     for quintuplet, new_uid in zip(account_jobs_table, config['possible_ids']):
         unix_account = quintuplet[-1]
-        quintuplet[0] = id_of_username[unix_account] = unix_account[0] if config['fill_with_user_firstletter'] else new_uid
+        quintuplet[0] = id_of_username[unix_account] = unix_account[0] if eval(config['fill_with_user_firstletter']) else \
+            new_uid
     return account_jobs_table, id_of_username
 
 
@@ -1191,11 +1192,9 @@ if __name__ == '__main__':
     QTOPPATH = os.path.dirname(sys.argv[0])  # dir where qtop resides
     config = load_yaml_config()
 
-
     SEPARATOR = config['workernodes_matrix'][0]['wn id lines']['separator'].translate(None, "'")  # alias
     USER_CUT_MATRIX_WIDTH = int(config['workernodes_matrix'][0]['wn id lines']['user_cut_matrix_width'])  # alias
     # TODO: int should be handled internally in native yaml parser
-    # ALT_LABEL_HIGHLIGHT_COLORS = config['workernodes_matrix'][0]['wn id lines']['alt_label_highlight_colors']  # alias
     ALT_LABEL_HIGHLIGHT_COLORS = fix_config_list(config['workernodes_matrix'][0]['wn id lines']['alt_label_highlight_colors'])
     # TODO: fix_config_list should be handled internally in native yaml parser
 
@@ -1211,7 +1210,7 @@ if __name__ == '__main__':
         try:
             from lxml import etree
         except ImportError:
-            logging.info('Module lxml is missing. Reverting to xml module.')
+            logging.warn('Module lxml is missing. Try issuing "pip install lxml". Reverting to xml module.')
             from xml.etree import ElementTree as etree
 
     INPUT_FNs_commands = get_filenames_commands()
