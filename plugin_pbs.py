@@ -11,15 +11,40 @@ from constants import *
 from common_module import logging, check_empty_file
 
 
+# def get_queues_info(fn, write_method):
+#     return read_qstatq_yaml(fn_write_method)
+
+def _read_qstatq_yaml(fn, write_method):
+    """
+    Reads the generated qstatq yaml file and extracts
+    the information necessary for building the
+    user accounts and pool mappings table.
+    """
+    qstatq_list = []
+    logging.debug("Opening %s" % fn)
+    with open(fn, 'r') as fin:
+        qstatqs_total = (write_method.endswith('yaml')) and yaml.load_all(fin) or json.load(fin)
+        for qstatq in qstatqs_total:
+            qstatq_list.append(qstatq)
+        total = qstatq_list.pop()
+        total_running_jobs, total_queued_jobs = total['Total_running'], total['Total_queued']
+    return int(eval(total_running_jobs)), int(eval(total_queued_jobs)), qstatq_list
+
+
+def _get_worker_nodes(fn, write_method):
+    worker_nodes = _read_pbsnodes_yaml(fn, write_method)
+    return worker_nodes
+
+
 def convert_pbsnodes_to_yaml(orig_file, out_file, write_method):
     """
     reads PBSNODES_ORIG_FN sequentially and puts its information into a new yaml file
     """
-    all_pbs_values = get_pbsnodes_values(orig_file, out_file, write_method)
-    pbsnodes_dump_all(all_pbs_values, out_file, pbsnodes_savemethod_mapping[write_method])
+    all_pbs_values = _get_pbsnodes_values(orig_file, out_file, write_method)
+    _pbsnodes_dump_all(all_pbs_values, out_file, pbsnodes_savemethod_mapping[write_method])
 
 
-def get_pbsnodes_values(orig_file, out_file, write_method):
+def _get_pbsnodes_values(orig_file, out_file, write_method):
     check_empty_file(orig_file)
     raw_blocks = _read_all_blocks(orig_file)
     all_pbs_values = []
@@ -45,7 +70,7 @@ def get_pbsnodes_values(orig_file, out_file, write_method):
         else:
             pbs_values['core_job_map'] = []
             jobs = block['jobs'].split(',')
-            for job, core in get_jobs_cores(jobs):
+            for job, core in _get_jobs_cores(jobs):
                 _d = dict()
                 _d['job'] = job
                 _d['core'] = core
@@ -55,7 +80,7 @@ def get_pbsnodes_values(orig_file, out_file, write_method):
     return all_pbs_values
 
 
-def pbsnodes_write_lines(l, fout):
+def _pbsnodes_write_lines(l, fout):
     for _block in l:
         fout.write('---\n')
         fout.write('domainname: ' + _block['domainname'] + '\n')
@@ -80,7 +105,7 @@ def _write_jobs_cores(job_cores, fout):
         fout.write('    job: ' + job_core['job'] + '\n')
 
 
-def get_jobs_cores(jobs):  # block['jobs']
+def _get_jobs_cores(jobs):  # block['jobs']
     """
     Generator that takes str of this format
     '0/10102182.f-batch01.grid.sinica.edu.tw, 1/10102106.f-batch01.grid.sinica.edu.tw, 2/10102339.f-batch01.grid.sinica.edu.tw, 3/10104007.f-batch01.grid.sinica.edu.tw'
@@ -133,7 +158,7 @@ def _read_block(fin):
     return block
 
 
-def pbsnodes_dump_all(l, out_file, write_func_args):
+def _pbsnodes_dump_all(l, out_file, write_func_args):
     """
     dumps the content of pbsnodes files with the the selected write_method format
     """
@@ -152,7 +177,7 @@ def _process_line(re_search, line, re_match_positions):
     return qstat_values
 
 
-def read_pbsnodes_yaml(fn, write_method):
+def _read_pbsnodes_yaml(fn, write_method):
     """
     Parses the pbsnodes yaml file
     :param fn: str
@@ -169,24 +194,7 @@ def read_pbsnodes_yaml(fn, write_method):
     return pbs_nodes
 
 
-def read_qstatq_yaml(fn, write_method):
-    """
-    Reads the generated qstatq yaml file and extracts
-    the information necessary for building the
-    user accounts and pool mappings table.
-    """
-    qstatq_list = []
-    logging.debug("Opening %s" % fn)
-    with open(fn, 'r') as fin:
-        qstatqs_total = (write_method.endswith('yaml')) and yaml.load_all(fin) or json.load(fin)
-        for qstatq in qstatqs_total:
-            qstatq_list.append(qstatq)
-        total = qstatq_list.pop()
-        total_running_jobs, total_queued_jobs = total['Total_running'], total['Total_queued']
-    return int(eval(total_running_jobs)), int(eval(total_queued_jobs)), qstatq_list
-
-
 pbsnodes_savemethod_mapping = {
-    'txtyaml': (pbsnodes_write_lines, {}, 'yaml'),
+    'txtyaml': (_pbsnodes_write_lines, {}, 'yaml'),
     'json': (json.dump, {}, 'json')
 }

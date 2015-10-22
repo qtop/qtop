@@ -4,80 +4,8 @@ from common_module import logging, check_empty_file, StatMaker, get_new_temp_fil
 import os
 
 
-def calc_everything(fn, write_method):
-    logging.debug('Parsing tree of %s' % fn)
-    with open(fn, 'rb') as fin:
-        tree = etree.parse(fin)
-        root = tree.getroot()
-        worker_nodes = list()
-        existing_node_names = set()
-        # for queue_elem in root.iter('Queue-List'):  # 2.7-only
-        for queue_elem in root.findall('queue_info/Queue-List'):
-            worker_node = dict()
-            # worker_node['domainname'] = queue_elem.find('./resource[@name="hostname"]').text.split('.', 1)[0]  # 2.7 only
-            resources = queue_elem.findall('resource')
-            # TODO: find a way to loop ONCE for both hostname and qname!!
-            try:
-                slots_used = int(queue_elem.find('./slots_used').text)
-            except AttributeError:
-                slots_used = 0
-            count = 0
-            # worker_node.setdefault('qname', [])
-            for resource in resources:
-                if resource.attrib.get('name') == 'hostname':
-                    worker_node['domainname'] = resource.text
-                    count += 1
-                    if count == 2: break
-                elif resource.attrib.get('name') == 'qname':
-                    worker_node['qname'] = set(resource.text[0]) if slots_used else set()
-                    count += 1
-                    if count == 2: break
-            else:
-                raise ValueError("No such resource")
-
-            # worker_node['np'] = queue_elem.find('./resource[@name="num_proc"]').text  # python 2.7 only
-            resources = queue_elem.findall('resource')
-            for resource in resources:
-                if resource.attrib.get('name') == 'num_proc':
-                    worker_node['np'] = resource.text
-                    break
-            else:
-                # TODO: check this for bugs, maybe raise an exception in the future?
-                worker_node['np'] = 0
-
-            try:
-                state = queue_elem.find('state').text
-            except AttributeError:
-                worker_node['state'] = '-'
-            else:
-                worker_node['state'] = state
-
-            if worker_node['domainname'] not in existing_node_names:
-                job_ids, usernames, job_states = extract_job_info(queue_elem, 'job_list')
-                worker_node['core_job_map'] = [{'core': idx, 'job': job_id} for idx, job_id in enumerate(job_ids)]
-                worker_node['existing_busy_cores'] = len(worker_node['core_job_map'])
-                existing_node_names.update([worker_node['domainname']])
-                worker_nodes.append(worker_node)
-            else:
-                for existing_wn in worker_nodes:
-                    if worker_node['domainname'] != existing_wn['domainname']:
-                        continue
-                    job_ids, usernames, job_states = extract_job_info(queue_elem, 'job_list')
-                    core_jobs = [{'core': idx, 'job': job_id}
-                                 for idx, job_id in enumerate(job_ids, existing_wn['existing_busy_cores'])]
-                    existing_wn['core_job_map'].extend(core_jobs)
-                    # don't change the node state to free.
-                    # Just keep the state reported in the last queue mentioning the node.
-                    existing_wn['state'] = (worker_node['state'] == '-') and existing_wn['state'] or worker_node['state']
-                    existing_wn['qname'].update(worker_node['qname'])
-                    break
-    logging.debug('Closing %s' % fn)
-    logging.info('worker_nodes contains %s entries' % len(worker_nodes))
-    return worker_nodes
-
-
-def get_worker_nodes(fn, write_method):
-    worker_nodes = calc_everything(fn, write_method)
+def _get_worker_nodes(fn, write_method):
+    worker_nodes = _calc_everything(fn, write_method)
     return worker_nodes
 
 
@@ -93,7 +21,11 @@ def extract_job_info(elem, elem_text):
     return job_ids, usernames, job_states
 
 
-def get_statq_from_xml(fn, write_method):
+# def get_queues_info(fn, write_method):
+#     return get_statq_from_xml(fn, write_method)
+
+
+def _get_statq_from_xml(fn, write_method):
     logging.debug("Parsing tree of %s" % fn)
     check_empty_file(fn)
     with open(fn, mode='rb') as fin:
@@ -244,3 +176,77 @@ class SGEStatMaker(StatMaker):
         write_func, kwargs, _ = write_func_args
         write_func(out_file, **kwargs)
         out_file.close()
+
+
+def _calc_everything(fn, write_method):
+    logging.debug('Parsing tree of %s' % fn)
+    with open(fn, 'rb') as fin:
+        tree = etree.parse(fin)
+        root = tree.getroot()
+        worker_nodes = list()
+        existing_node_names = set()
+        # for queue_elem in root.iter('Queue-List'):  # 2.7-only
+        for queue_elem in root.findall('queue_info/Queue-List'):
+            worker_node = dict()
+            # worker_node['domainname'] = queue_elem.find('./resource[@name="hostname"]').text.split('.', 1)[0]  # 2.7 only
+            resources = queue_elem.findall('resource')
+            # TODO: find a way to loop ONCE for both hostname and qname!!
+            try:
+                slots_used = int(queue_elem.find('./slots_used').text)
+            except AttributeError:
+                slots_used = 0
+            count = 0
+            # worker_node.setdefault('qname', [])
+            for resource in resources:
+                if resource.attrib.get('name') == 'hostname':
+                    worker_node['domainname'] = resource.text
+                    count += 1
+                    if count == 2: break
+                elif resource.attrib.get('name') == 'qname':
+                    worker_node['qname'] = set(resource.text[0]) if slots_used else set()
+                    count += 1
+                    if count == 2: break
+            else:
+                raise ValueError("No such resource")
+
+            # worker_node['np'] = queue_elem.find('./resource[@name="num_proc"]').text  # python 2.7 only
+            resources = queue_elem.findall('resource')
+            for resource in resources:
+                if resource.attrib.get('name') == 'num_proc':
+                    worker_node['np'] = resource.text
+                    break
+            else:
+                # TODO: check this for bugs, maybe raise an exception in the future?
+                worker_node['np'] = 0
+
+            try:
+                state = queue_elem.find('state').text
+            except AttributeError:
+                worker_node['state'] = '-'
+            else:
+                worker_node['state'] = state
+
+            if worker_node['domainname'] not in existing_node_names:
+                job_ids, usernames, job_states = extract_job_info(queue_elem, 'job_list')
+                worker_node['core_job_map'] = [{'core': idx, 'job': job_id} for idx, job_id in enumerate(job_ids)]
+                worker_node['existing_busy_cores'] = len(worker_node['core_job_map'])
+                existing_node_names.update([worker_node['domainname']])
+                worker_nodes.append(worker_node)
+            else:
+                for existing_wn in worker_nodes:
+                    if worker_node['domainname'] != existing_wn['domainname']:
+                        continue
+                    job_ids, usernames, job_states = extract_job_info(queue_elem, 'job_list')
+                    core_jobs = [{'core': idx, 'job': job_id}
+                                 for idx, job_id in enumerate(job_ids, existing_wn['existing_busy_cores'])]
+                    existing_wn['core_job_map'].extend(core_jobs)
+                    # don't change the node state to free.
+                    # Just keep the state reported in the last queue mentioning the node.
+                    existing_wn['state'] = (worker_node['state'] == '-') and existing_wn['state'] or worker_node['state']
+                    existing_wn['qname'].update(worker_node['qname'])
+                    break
+    logging.debug('Closing %s' % fn)
+    logging.info('worker_nodes contains %s entries' % len(worker_nodes))
+    return worker_nodes
+
+
