@@ -9,6 +9,7 @@ except ImportError:
     from ordereddict import OrderedDict
 
 
+
 def calculate_oar_state(jobid_state_lot, nr_of_jobs, node_state_mapping):
     """
     If all resource ids within the node are either alive or dead or suspected, the respective label is given to the node.
@@ -111,3 +112,29 @@ def _read_oar_node_y_textyaml(fin, line):
         line = fin.readline().strip()
 
     return _oarnode, line
+
+
+class OarStatMaker(QStatMaker):
+    def __init__(self, config):
+        StatMaker.__init__(self, config)
+        self.user_q_search = r'^(?P<job_id>[0-9]+)\s+' \
+                             r'(?P<name>[0-9A-Za-z_.-]+)?\s+' \
+                             r'(?P<user>[0-9A-Za-z_.-]+)\s+' \
+                             r'(?:\d{4}-\d{2}-\d{2})\s+' \
+                             r'(?:\d{2}:\d{2}:\d{2})\s+' \
+                             r'(?P<job_state>[RWF])\s+' \
+                             r'(?P<queue>default|besteffort)'
+
+    def make_stat(self, orig_file, out_file, write_method):
+        with open(orig_file, 'r') as fin:
+            logging.debug('File state before OarStatMaker.make_stat: %(fin)s' % {"fin": fin})
+            _ = fin.readline()  # header
+            fin.readline()  # dashes
+            re_match_positions = ('job_id', 'user', 'job_state', 'queue')
+            re_search = self.user_q_search
+            for line in fin:
+                qstat_values = self.process_line(re_search, line, re_match_positions)
+                self.l.append(qstat_values)
+
+        logging.debug('File state after OarStatMaker.make_stat: %(fin)s' % {"fin": fin})
+        self.dump_all(out_file, self.stat_mapping[write_method])

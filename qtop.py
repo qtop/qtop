@@ -1077,7 +1077,7 @@ def get_yaml_reader(scheduler):
         yaml_reader = [
             (read_oarnodes_yaml, ([filenames.get('oarnodes_s_file'), filenames.get('oarnodes_y_file')]), {'write_method': options.write_method}),
             (common_module.read_qstat_yaml, ([filenames.get('oarstat_file_out')]), {'write_method': options.write_method}),
-            (lambda *args, **kwargs: (0, 0, 0), ([filenames.get('oarstat_file')]), {'write_method': options.write_method}),
+            (lambda *args, **kwargs: (0, 0, []), ([filenames.get('oarstat_file')]), {'write_method': options.write_method}),
         ]
     elif scheduler == 'sge':
         yaml_reader = [
@@ -1237,7 +1237,7 @@ if __name__ == '__main__':
 
     yaml_converter = {
         'pbs': {
-            'pbsnodes_file': make_pbsnodes,
+            'pbsnodes_file': convert_pbsnodes_to_yaml,
             'qstatq_file': QStatMaker(config).make_statq,
             'qstat_file': QStatMaker(config).make_stat,
         },

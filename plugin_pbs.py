@@ -11,12 +11,12 @@ from constants import *
 from common_module import logging, check_empty_file
 
 
-def make_pbsnodes(orig_file, out_file, write_method):
+def convert_pbsnodes_to_yaml(orig_file, out_file, write_method):
     """
     reads PBSNODES_ORIG_FN sequentially and puts its information into a new yaml file
     """
     all_pbs_values = get_pbsnodes_values(orig_file, out_file, write_method)
-    pbs_dump_all(all_pbs_values, out_file, pbsnodes_mapping[write_method])
+    pbsnodes_dump_all(all_pbs_values, out_file, pbsnodes_savemethod_mapping[write_method])
 
 
 def get_pbsnodes_values(orig_file, out_file, write_method):
@@ -53,6 +53,7 @@ def get_pbsnodes_values(orig_file, out_file, write_method):
         finally:
             all_pbs_values.append(pbs_values)
     return all_pbs_values
+
 
 def pbsnodes_write_lines(l, fout):
     for _block in l:
@@ -132,7 +133,7 @@ def _read_block(fin):
     return block
 
 
-def pbs_dump_all(l, out_file, write_func_args):
+def pbsnodes_dump_all(l, out_file, write_func_args):
     """
     dumps the content of pbsnodes files with the the selected write_method format
     """
@@ -185,8 +186,7 @@ def read_qstatq_yaml(fn, write_method):
     return int(eval(total_running_jobs)), int(eval(total_queued_jobs)), qstatq_list
 
 
-pbsnodes_mapping = {
-    #'yaml': (yaml.dump_all, {'Dumper': Dumper, 'default_flow_style': False}, 'yaml'),
+pbsnodes_savemethod_mapping = {
     'txtyaml': (pbsnodes_write_lines, {}, 'yaml'),
     'json': (json.dump, {}, 'json')
 }

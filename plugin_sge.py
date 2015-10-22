@@ -1,6 +1,6 @@
 __author__ = 'sfranky'
 from xml.etree import ElementTree as etree
-from common_module import logging, check_empty_file
+from common_module import logging, check_empty_file, StatMaker, get_new_temp_file
 import os
 
 
@@ -171,3 +171,76 @@ def get_statq_from_xml(fn, write_method):
         # TODO: check validity. 'state' shouldnt just be 'Q'!
     logging.debug("Closing %s" % fn)
     return total_running_jobs, total_queued_jobs, qstatq_list
+
+
+class SGEStatMaker(StatMaker):
+    def __init__(self, config):
+        StatMaker.__init__(self, config)
+
+    def make_stat(self, orig_file, out_file, write_method):
+        out_file = out_file.rsplit('/', 1)[1]
+        try:
+            tree = etree.parse(orig_file)
+        except etree.ParseError:
+            logging.critical("This is an XML parse error (??)")
+            raise
+        except IOError:
+            raise
+        except:
+            print "File %(filename)s does not appear to contain a proper XML structure. Exiting.." % {"filename": orig_file}
+            raise
+        else:
+            root = tree.getroot()
+        # for queue_elem in root.iter('Queue-List'):  # 2.7 only
+        for queue_elem in root.findall('queue_info/Queue-List'):
+            # queue_name = queue_elem.find('./resource[@name="qname"]').text  # 2.7 only
+            queue_name_elems = queue_elem.findall('resource')
+            for queue_name_elem in queue_name_elems:
+                if queue_name_elem.attrib.get('name') == 'qname':
+                    queue_name = queue_name_elem.text
+                    break
+            else:
+                raise ValueError("No such queue name")
+
+            self._extract_job_info(queue_elem, 'job_list', queue_name=queue_name)  # puts it into self.l
+
+        job_info_elem = root.find('./job_info')
+        if job_info_elem is None:
+            logging.debug('No pending jobs found!')
+        else:
+            self._extract_job_info(job_info_elem, 'job_list', queue_name='Pending')  # puts it into self.l
+
+        prefix, suffix = out_file.split('.')
+        prefix += '_'
+        suffix = '.' + suffix
+        SGEStatMaker.fd, SGEStatMaker.temp_filepath = get_new_temp_file(self.config, prefix=prefix, suffix=suffix)
+        self.dump_all(SGEStatMaker.fd, self.stat_mapping[write_method])
+
+    def _extract_job_info(self, elem, elem_text, queue_name):
+        """
+        inside elem, iterates over subelems named elem_text and extracts relevant job information
+        """
+        for subelem in elem.findall(elem_text):
+            qstat_values = dict()
+            qstat_values['JobId'] = subelem.find('./JB_job_number').text
+            qstat_values['UnixAccount'] = subelem.find('./JB_owner').text
+            qstat_values['S'] = subelem.find('./state').text
+            qstat_values['Queue'] = queue_name
+            self.l.append(qstat_values)
+        if not self.l:
+            logging.info('No jobs found in XML file!')
+
+
+    @staticmethod
+    def dump_all(fd, write_func_args):
+        """
+        dumps the content of qstat/qstat_q files in the selected write_method format
+        fd here is already a file descriptor
+        """
+        # prefix, suffix  = out_file.split('.')
+        # out_file = get_new_temp_file(prefix=prefix, suffix=suffix)
+        out_file = os.fdopen(fd, 'w')
+        logging.debug('File state: %s' % out_file)
+        write_func, kwargs, _ = write_func_args
+        write_func(out_file, **kwargs)
+        out_file.close()
