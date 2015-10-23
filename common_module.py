@@ -31,84 +31,12 @@ def check_empty_file(orig_file):
         sys.exit(0)
 
 
-parser = OptionParser()  # for more details see http://docs.python.org/library/optparse.html
-
-parser.add_option("-1", "--disablesection1", action="store_true", dest="sect_1_off", default=False,
-                  help="Disable first section of qtop, i.e. Job Accounting Summary")
-parser.add_option("-2", "--disablesection2", action="store_true", dest="sect_2_off", default=False,
-                  help="Disable second section of qtop, i.e. Worker Node Occupancy")
-parser.add_option("-3", "--disablesection3", action="store_true", dest="sect_3_off", default=False,
-                  help="Disable third section of qtop, i.e. User Accounts and Pool Mappings")
-parser.add_option("-a", "--blindremapping", action="store_true", dest="BLINDREMAP", default=False,
-                  help="This may be used in situations where node names are not a pure arithmetic seq (eg. rocks clusters)")
-parser.add_option("-b", "--batchSystem", action="store", type="string", dest="BATCH_SYSTEM", default=None)
-parser.add_option("-c", "--COLOR", action="store", dest="COLOR", default="AUTO", choices=['ON', 'OFF', 'AUTO'],
-                  help="Enable/Disable color in qtop output. AUTO detects tty (for watch -d)")
-parser.add_option("-d", "--debug", action="store_true", dest="DEBUG", default=False,
-                  help="print debugging messages in stdout, not just in the log file.")
-parser.add_option("-F", "--ForceNames", action="store_true", dest="FORCE_NAMES", default=False,
-                  help="force names to show up instead of numbered WNs even for very small numbers of WNs")
-# parser.add_option("-f", "--setCOLORMAPFILE", action="store", type="string", dest="COLORFILE")
-parser.add_option("-m", "--noMasking", action="store_true", dest="NOMASKING", default=False,
-                  help="Don't mask early empty WNs (default: if the first 30 WNs are unused, counting starts from 31).")
-parser.add_option("-o", "--SetVerticalSeparatorXX", action="store", dest="WN_COLON", default=0,
-                  help="Put vertical bar every WN_COLON nodes.")
-parser.add_option("-r", "--removeemptycorelines", dest="REM_EMPTY_CORELINES", action="store_true", default=False,
-                  help="Set the method used for dumping information, json, yaml, or native python (yaml format)")
-parser.add_option("-s", "--SetSourceDir", dest="SOURCEDIR",
-                  help="Set the source directory where pbsnodes and qstat reside")
-parser.add_option("-v", "--verbose", dest="verbose", action="count",
-                  help="Increase verbosity (specify multiple times for more)")
-parser.add_option("-w", "--writemethod", dest="write_method", action="store", default="txtyaml",
-                  choices=['txtyaml', 'json'],
-                  help="Set the method used for dumping information, json, yaml, or native python (yaml format)")
-parser.add_option("-y", "--readexistingyaml", action="store_true", dest="YAML_EXISTS", default=False,
-                  help="Do not remake yaml input files, read from the existing ones")
-parser.add_option("-z", "--quiet", action="store_false", dest="verbose", default=True,
-                  help="don't print status messages to stdout. Not doing anything at the moment.")
-
-(options, args) = parser.parse_args()
-
-# log_level = logging.WARNING  # default
-
-if options.verbose == 1:
-    log_level = logging.INFO
-elif options.verbose >= 2:
-    log_level = logging.DEBUG
-
-QTOP_LOGFILE_PATH = QTOP_LOGFILE.rsplit('/', 1)[0]
-mkdir_p(QTOP_LOGFILE_PATH)
-
-# This is for writing only to a log file
-# logging.basicConfig(filename=QTOP_LOGFILE, filemode='w', level=log_level, format='%(asctime)s - %(levelname)s - %(message)s')
-
-logger = logging.getLogger()
-logger.setLevel(logging.DEBUG)
-
-# formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
-formatter = logging.Formatter('%(levelname)s - %(message)s')
-
-fh = logging.FileHandler(QTOP_LOGFILE)
-fh.setLevel(log_level)
-fh.setFormatter(formatter)
-logger.addHandler(fh)
-
-fh = logging.StreamHandler()
-fh.setLevel(logging.ERROR) if options.DEBUG else fh.setLevel(logging.CRITICAL)
-fh.setFormatter(formatter)
-logger.addHandler(fh)
-logger.disabled = False  # maybe make this a cmdline switch? -D ?
-
-logging.info("\n")
-logging.info("=" * 50)
-logging.info("STARTING NEW LOG ENTRY...")
-logging.info("=" * 50)
-logging.info("\n\n")
-
-logging.debug("input, output isatty: %s\t%s" % (stdin.isatty(), stdout.isatty()))
-if options.COLOR == 'AUTO':
-    options.COLOR = 'ON' if (os.environ.get("QTOP_COLOR", stdout.isatty()) in ("ON", True)) else 'OFF'
-logging.debug("options.COLOR is now set to: %s" % options.COLOR)
+def get_new_temp_file(config, suffix, prefix):  # **kwargs
+    fd, temp_filepath = mkstemp(suffix=suffix, prefix=prefix, dir=config['savepath'])  # **kwargs
+    logging.debug('temp_filepath: %s' % temp_filepath)
+    # out_file = os.fdopen(fd, 'w')
+    return fd, temp_filepath
+    # return out_file
 
 
 def handle_exception(exc_type, exc_value, exc_traceback):
@@ -122,47 +50,6 @@ def handle_exception(exc_type, exc_value, exc_traceback):
         return
 
     logger.error("Uncaught exception", exc_info=(exc_type, exc_value, exc_traceback))
-
-sys.excepthook = handle_exception
-
-
-def get_job_info(fn, write_method=options.write_method):
-    """
-    reads qstat YAML file and populates four lists. Returns the lists
-    ex read_qstat_yaml
-    """
-    job_ids, usernames, job_states, queue_names = [], [], [], []
-
-    with open(fn) as fin:
-        try:
-            qstats = (write_method.endswith('yaml')) and yaml.load_all(fin) or json.load(fin)
-        except StopIteration:
-            logging.warning('File %s is empty. (No jobs found or Error!)')
-        else:
-            for qstat in qstats:
-                job_ids.append(str(qstat['JobId']))
-                usernames.append(qstat['UnixAccount'])
-                job_states.append(qstat['S'])
-                queue_names.append(qstat['Queue'])
-    # os.remove(fn)  # that DELETES the file!! why did I do that?!!
-    logging.debug('job_ids, usernames, job_states, queue_names lengths: '
-        '%(job_ids)s, %(usernames)s, %(job_states)s, %(queue_names)s'
-        % {
-        "job_ids": len(job_ids),
-        "usernames": len(usernames),
-        "job_states": len(job_states),
-        "queue_names": len(queue_names)
-        }
-    )
-    return job_ids, usernames, job_states, queue_names
-
-
-def get_new_temp_file(config, suffix, prefix):  # **kwargs
-    fd, temp_filepath = mkstemp(suffix=suffix, prefix=prefix, dir=config['savepath'])  # **kwargs
-    logging.debug('temp_filepath: %s' % temp_filepath)
-    # out_file = os.fdopen(fd, 'w')
-    return fd, temp_filepath
-    # return out_file
 
 
 class StatMaker:
@@ -236,7 +123,7 @@ class QStatMaker(StatMaker):
                                    r'(?:\d+)\s+' \
                                    r'(?:\w*)'
 
-    def make_stat(self, orig_file, out_file, write_method):
+    def convert_qstat_to_yaml(self, orig_file, out_file, write_method):
         check_empty_file(orig_file)
         with open(orig_file, 'r') as fin:
             _ = fin.readline()  # header
@@ -260,7 +147,7 @@ class QStatMaker(StatMaker):
                     self.l.append(qstat_values)
         self.dump_all(out_file, self.stat_mapping[write_method])  # self.l,
 
-    def make_statq(self, orig_file, out_file, write_method):
+    def convert_qstatq_to_yaml(self, orig_file, out_file, write_method):
         """
         reads QSTATQ_ORIG_FN sequentially and puts useful data in respective yaml file
         Searches for lines in the following format:
@@ -322,3 +209,121 @@ class QStatMaker(StatMaker):
         for key, value in [('JobId', job_id), ('UnixAccount', user), ('S', job_state), ('Queue', queue)]:
             qstat_values[key] = value
         return qstat_values
+
+
+parser = OptionParser()  # for more details see http://docs.python.org/library/optparse.html
+
+parser.add_option("-1", "--disablesection1", action="store_true", dest="sect_1_off", default=False,
+                  help="Disable first section of qtop, i.e. Job Accounting Summary")
+parser.add_option("-2", "--disablesection2", action="store_true", dest="sect_2_off", default=False,
+                  help="Disable second section of qtop, i.e. Worker Node Occupancy")
+parser.add_option("-3", "--disablesection3", action="store_true", dest="sect_3_off", default=False,
+                  help="Disable third section of qtop, i.e. User Accounts and Pool Mappings")
+parser.add_option("-a", "--blindremapping", action="store_true", dest="BLINDREMAP", default=False,
+                  help="This may be used in situations where node names are not a pure arithmetic seq (eg. rocks clusters)")
+parser.add_option("-b", "--batchSystem", action="store", type="string", dest="BATCH_SYSTEM", default=None)
+parser.add_option("-c", "--COLOR", action="store", dest="COLOR", default="AUTO", choices=['ON', 'OFF', 'AUTO'],
+                  help="Enable/Disable color in qtop output. AUTO detects tty (for watch -d)")
+parser.add_option("-d", "--debug", action="store_true", dest="DEBUG", default=False,
+                  help="print debugging messages in stdout, not just in the log file.")
+parser.add_option("-F", "--ForceNames", action="store_true", dest="FORCE_NAMES", default=False,
+                  help="force names to show up instead of numbered WNs even for very small numbers of WNs")
+# parser.add_option("-f", "--setCOLORMAPFILE", action="store", type="string", dest="COLORFILE")
+parser.add_option("-m", "--noMasking", action="store_true", dest="NOMASKING", default=False,
+                  help="Don't mask early empty WNs (default: if the first 30 WNs are unused, counting starts from 31).")
+parser.add_option("-o", "--SetVerticalSeparatorXX", action="store", dest="WN_COLON", default=0,
+                  help="Put vertical bar every WN_COLON nodes.")
+parser.add_option("-r", "--removeemptycorelines", dest="REM_EMPTY_CORELINES", action="store_true", default=False,
+                  help="Set the method used for dumping information, json, yaml, or native python (yaml format)")
+parser.add_option("-s", "--SetSourceDir", dest="SOURCEDIR",
+                  help="Set the source directory where pbsnodes and qstat reside")
+parser.add_option("-v", "--verbose", dest="verbose", action="count",
+                  help="Increase verbosity (specify multiple times for more)")
+parser.add_option("-w", "--writemethod", dest="write_method", action="store", default="txtyaml",
+                  choices=['txtyaml', 'json'],
+                  help="Set the method used for dumping information, json, yaml, or native python (yaml format)")
+parser.add_option("-y", "--readexistingyaml", action="store_true", dest="YAML_EXISTS", default=False,
+                  help="Do not remake yaml input files, read from the existing ones")
+parser.add_option("-z", "--quiet", action="store_false", dest="verbose", default=True,
+                  help="don't print status messages to stdout. Not doing anything at the moment.")
+
+(options, args) = parser.parse_args()
+# log_level = logging.WARNING  # default
+
+if options.verbose == 1:
+    log_level = logging.INFO
+elif options.verbose >= 2:
+    log_level = logging.DEBUG
+
+QTOP_LOGFILE_PATH = QTOP_LOGFILE.rsplit('/', 1)[0]
+mkdir_p(QTOP_LOGFILE_PATH)
+
+# This is for writing only to a log file
+# logging.basicConfig(filename=QTOP_LOGFILE, filemode='w', level=log_level, format='%(asctime)s - %(levelname)s - %(message)s')
+
+logger = logging.getLogger()
+logger.setLevel(logging.DEBUG)
+
+# formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')  #this adds time
+formatter = logging.Formatter('%(levelname)s - %(message)s')
+
+fh = logging.FileHandler(QTOP_LOGFILE)
+fh.setLevel(log_level)
+fh.setFormatter(formatter)
+logger.addHandler(fh)
+
+fh = logging.StreamHandler()
+fh.setLevel(logging.ERROR) if options.DEBUG else fh.setLevel(logging.CRITICAL)
+fh.setFormatter(formatter)
+logger.addHandler(fh)
+logger.disabled = False  # maybe make this a cmdline switch? -D ?
+
+logging.info("\n")
+logging.info("=" * 50)
+logging.info("STARTING NEW LOG ENTRY...")
+logging.info("=" * 50)
+logging.info("\n\n")
+
+logging.debug("input, output isatty: %s\t%s" % (stdin.isatty(), stdout.isatty()))
+if options.COLOR == 'AUTO':
+    options.COLOR = 'ON' if (os.environ.get("QTOP_COLOR", stdout.isatty()) in ("ON", True)) else 'OFF'
+logging.debug("options.COLOR is now set to: %s" % options.COLOR)
+
+sections_off = {
+    1: options.sect_1_off,
+    2: options.sect_2_off,
+    3: options.sect_3_off
+}
+
+sys.excepthook = handle_exception
+
+
+def get_jobs_info(fn, write_method=options.write_method):
+    """
+    reads qstat YAML file and populates four lists. Returns the lists
+    ex read_qstat_yaml
+    """
+    job_ids, usernames, job_states, queue_names = [], [], [], []
+
+    with open(fn) as fin:
+        try:
+            qstats = (write_method.endswith('yaml')) and yaml.load_all(fin) or json.load(fin)
+        except StopIteration:
+            logging.warning('File %s is empty. (No jobs found or Error!)')
+        else:
+            for qstat in qstats:
+                job_ids.append(str(qstat['JobId']))
+                usernames.append(qstat['UnixAccount'])
+                job_states.append(qstat['S'])
+                queue_names.append(qstat['Queue'])
+    # os.remove(fn)  # that DELETES the file!! why did I do that?!!
+    logging.debug('job_ids, usernames, job_states, queue_names lengths: '
+        '%(job_ids)s, %(usernames)s, %(job_states)s, %(queue_names)s'
+        % {
+        "job_ids": len(job_ids),
+        "usernames": len(usernames),
+        "job_states": len(job_states),
+        "queue_names": len(queue_names)
+        }
+    )
+    return job_ids, usernames, job_states, queue_names

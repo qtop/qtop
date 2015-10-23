@@ -109,7 +109,7 @@ class SGEStatMaker(StatMaker):
     def __init__(self, config):
         StatMaker.__init__(self, config)
 
-    def make_stat(self, orig_file, out_file, write_method):
+    def convert_qstat_to_yaml(self, orig_file, out_file, write_method):
         out_file = out_file.rsplit('/', 1)[1]
         try:
             tree = etree.parse(orig_file)

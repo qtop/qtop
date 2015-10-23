@@ -20,7 +20,7 @@ from signal import signal, SIGPIPE, SIG_DFL
 # modules
 from constants import *
 import common_module
-from common_module import logging, options
+from common_module import logging, options, sections_off
 import plugin_pbs, plugin_oar, plugin_sge
 from plugin_pbs import *
 from plugin_oar import *
@@ -1048,14 +1048,31 @@ def map_batch_nodes_to_wn_dicts(cluster_dict, batch_nodes, options_remap):
     return nodes_drop
 
 
-def convert_to_yaml(scheduler, INPUT_FNs_commands, filenames, write_method, commands):
+def convert_to_yaml(scheduler, INPUT_FNs_commands, filenames, write_method=options.write_method):
+
+    yaml_converter = {
+        'pbs': {
+            'pbsnodes_file': convert_pbsnodes_to_yaml,
+            'qstatq_file': QStatMaker(config).convert_qstatq_to_yaml,
+            'qstat_file': QStatMaker(config).convert_qstat_to_yaml,
+        },
+        'oar': {
+            'oarnodes_s_file': lambda x, y, z: None,
+            'oarnodes_y_file': lambda x, y, z: None,
+            'oarstat_file': OarStatMaker(config).convert_qstat_to_yaml,
+        },
+        'sge': {
+            'sge_file_stat': SGEStatMaker(config).convert_qstat_to_yaml,
+        }
+    }
+    converters = yaml_converter[scheduler]
+
     for _file in INPUT_FNs_commands:
         file_orig, file_out = filenames[_file], filenames[_file + '_out']
-        _func = commands[_file]
+        converter_func = converters[_file]
         logging.debug('Executing %(func)s \n\t'
-                      'on: %(file_orig)s,\n\t' % {"func": _func.__name__, "file_orig": file_orig, "file_out": file_out})
-        # 'resulting in: %(file_out)s\n'
-        _func(file_orig, file_out, write_method)
+                      'on: %(file_orig)s,\n\t' % {"func": converter_func.__name__, "file_orig": file_orig, "file_out": file_out})
+        converter_func(file_orig, file_out, write_method)
 
 
 def exec_func_tuples(func_tuples):
@@ -1082,26 +1099,26 @@ def get_queues_info(scheduler):
     return d[scheduler]
 
 
-def get_job_info(scheduler):
-    return common_module.get_job_info
+def get_jobs_info(scheduler):
+    return common_module.get_jobs_info
 
 
-def get_info(scheduler):
+def get_yaml_files(scheduler, filenames):
     SGEStatMaker.temp_filepath = None if scheduler != 'sge' else SGEStatMaker.temp_filepath
     args = {}
     args['pbs'] = {
         'get_worker_nodes': [filenames.get('pbsnodes_file_out')],
-        'get_job_info': [filenames.get('qstat_file_out')],
+        'get_jobs_info': [filenames.get('qstat_file_out')],
         'get_queues_info': [filenames.get('qstatq_file_out')]
     }
     args['oar'] = {
         'get_worker_nodes': [filenames.get('oarnodes_s_file'), filenames.get('oarnodes_y_file')],
-        'get_job_info': [filenames.get('oarstat_file_out')],
+        'get_jobs_info': [filenames.get('oarstat_file_out')],
         'get_queues_info': [filenames.get('oarstat_file')],
     }
     args['sge'] = {
         'get_worker_nodes': [filenames.get('sge_file_stat')],
-        'get_job_info': [SGEStatMaker.temp_filepath],
+        'get_jobs_info': [SGEStatMaker.temp_filepath],
         'get_queues_info': [filenames.get('sge_file_stat')],
     }
     return args[scheduler]
@@ -1201,6 +1218,33 @@ def get_detail_of_name():
     return detail_of_name
 
 
+def get_input_filenames():
+
+    parser_extension_mapping = {'txtyaml': 'yaml', 'json': 'json'}
+    extension = parser_extension_mapping[options.write_method]
+    logging.info('Selected method for storing data structures is: %s' % extension)
+
+    filenames = dict()
+    batch_system_commands = dict()
+    for _file in INPUT_FNs_commands:
+        filenames[_file], batch_system_commands[_file] = INPUT_FNs_commands[_file]
+
+        if not options.SOURCEDIR:
+            # if user didn't specify a dir where ready-made data files already exist,
+            # execute the appropriate batch commands and fetch results to the respective files
+            execute_shell_batch_commands(batch_system_commands, filenames, _file)
+        else:
+            pass
+
+        filenames[_file + '_out'] = '{filename}_{writemethod}.{ext}'.format(
+            filename=INPUT_FNs_commands[_file][0].rsplit('.')[0],
+            writemethod=options.write_method,
+            ext=extension
+        )
+    return filenames
+
+
+
 if __name__ == '__main__':
 
     initial_cwd = os.getcwd()
@@ -1208,12 +1252,13 @@ if __name__ == '__main__':
     print "Log file created in %s" % os.path.expandvars(QTOP_LOGFILE)
     CURPATH = os.path.expanduser(initial_cwd)  # ex QTOPPATH, will not work if qtop is executed from within a different dir
     QTOPPATH = os.path.dirname(sys.argv[0])  # dir where qtop resides
+
     config = load_yaml_config()
 
     SEPARATOR = config['workernodes_matrix'][0]['wn id lines']['separator'].translate(None, "'")  # alias
     USER_CUT_MATRIX_WIDTH = int(config['workernodes_matrix'][0]['wn id lines']['user_cut_matrix_width'])  # alias
-    # TODO: int should be handled internally in native yaml parser
     ALT_LABEL_HIGHLIGHT_COLORS = fix_config_list(config['workernodes_matrix'][0]['wn id lines']['alt_label_highlight_colors'])
+    # TODO: int should be handled internally in native yaml parser
     # TODO: fix_config_list should be handled internally in native yaml parser
 
     options.SOURCEDIR = os.path.realpath(options.SOURCEDIR) if options.SOURCEDIR else None
@@ -1232,51 +1277,16 @@ if __name__ == '__main__':
             from xml.etree import ElementTree as etree
 
     INPUT_FNs_commands = get_filenames_commands()
-    parser_extension_mapping = {'txtyaml': 'yaml', 'json': 'json'}  # 'yaml': 'yaml',
-    ext = parser_extension_mapping[options.write_method]
-    logging.info('Selected method for storing data structures is: %s' % ext)
-    filenames = dict()
-    batch_system_commands = dict()
-    for _file in INPUT_FNs_commands:
-        filenames[_file], batch_system_commands[_file] = INPUT_FNs_commands[_file]
+    input_filenames = get_input_filenames()
 
-        if not options.SOURCEDIR:
-            # if user didn't specify a dir where ready-made data files already exist,
-            # execute the appropriate batch commands and fetch results to the respective files
-            execute_shell_batch_commands(batch_system_commands, filenames, _file)
-        else:
-            pass
-
-        filenames[_file + '_out'] = '{filename}_{writemethod}.{ext}'.format(
-            filename=INPUT_FNs_commands[_file][0].rsplit('.')[0],
-            writemethod=options.write_method,
-            ext=ext
-        )
-
-    yaml_converter = {
-        'pbs': {
-            'pbsnodes_file': convert_pbsnodes_to_yaml,
-            'qstatq_file': QStatMaker(config).make_statq,
-            'qstat_file': QStatMaker(config).make_stat,
-        },
-        'oar': {
-            'oarnodes_s_file': lambda x, y, z: None,
-            'oarnodes_y_file': lambda x, y, z: None,
-            'oarstat_file': OarStatMaker(config).make_stat,
-        },
-        'sge': {
-            'sge_file_stat': SGEStatMaker(config).make_stat,
-        }
-    }
-    commands = yaml_converter[scheduler]
     # reset_yaml_files()  # either that or having a pid appended in the filename
     if not options.YAML_EXISTS:
-        convert_to_yaml(scheduler, INPUT_FNs_commands, filenames, options.write_method, commands)
+        convert_to_yaml(scheduler, INPUT_FNs_commands, input_filenames)
+    yaml_files = get_yaml_files(scheduler, input_filenames)
 
-    input_files = get_info(scheduler)
-    worker_nodes = get_worker_nodes(scheduler)(*input_files['get_worker_nodes'])
-    job_ids, user_names, job_states, _ = get_job_info(scheduler)(*input_files['get_job_info'])
-    total_running_jobs, total_queued_jobs, qstatq_lod = get_queues_info(scheduler)(*input_files['get_queues_info'])
+    worker_nodes = get_worker_nodes(scheduler)(*yaml_files['get_worker_nodes'])
+    job_ids, user_names, job_states, _ = get_jobs_info(scheduler)(*yaml_files['get_jobs_info'])
+    total_running_jobs, total_queued_jobs, qstatq_lod = get_queues_info(scheduler)(*yaml_files['get_queues_info'])
 
     #  MAIN ##################################
     logging.info('CALCULATION AREA')
@@ -1289,14 +1299,9 @@ if __name__ == '__main__':
         'user_accounts_pool_mappings': (display_user_accounts_pool_mappings, (workernodes_occupancy['account_jobs_table'], workernodes_occupancy['pattern_of_id']))
     }
     logging.info('DISPLAY AREA')
-    sections_off = {
-        1: options.sect_1_off,
-        2: options.sect_2_off,
-        3: options.sect_3_off
-    }
+
     for idx, part in enumerate(config['user_display_parts'], 1):
         _func, args = display_parts[part][0], display_parts[part][1]
         _func(*args) if not sections_off[idx] else None
 
-    # print '\nThanks for watching!'
     os.chdir(QTOPPATH)
