@@ -1244,9 +1244,17 @@ def get_input_filenames():
     return filenames
 
 
+def check_python_version():
+    try:
+        assert sys.version_info[0] == 2
+        assert sys.version_info[1] in (6,7)
+    except AssertionError:
+        logging.critical("Only python versions 2.6.x and 2.7.x are supported. Exiting")
+        sys.exit(1)
 
 if __name__ == '__main__':
 
+    check_python_version()
     initial_cwd = os.getcwd()
     logging.debug('Initial qtop directory: %s' % initial_cwd)
     print "Log file created in %s" % os.path.expandvars(QTOP_LOGFILE)
@@ -1301,7 +1309,7 @@ if __name__ == '__main__':
     logging.info('DISPLAY AREA')
 
     for idx, part in enumerate(config['user_display_parts'], 1):
-        _func, args = display_parts[part][0], display_parts[part][1]
-        _func(*args) if not sections_off[idx] else None
+        display_func, args = display_parts[part][0], display_parts[part][1]
+        display_func(*args) if not sections_off[idx] else None
 
     os.chdir(QTOPPATH)
