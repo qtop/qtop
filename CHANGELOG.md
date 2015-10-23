@@ -1,12 +1,3 @@
-## 0.8.1
-  - Overwrote PyYAML dependency with custom YAML parser
-
-## 0.8.0
-  - Wrapping together support for PBS, OAR, SGE
-
-## 0.7.3
-  - Support for OAR
-
 ## 0.7.2
   - Introduce support for SGE
 
