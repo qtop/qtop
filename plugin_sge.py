@@ -21,10 +21,6 @@ def extract_job_info(elem, elem_text):
     return job_ids, usernames, job_states
 
 
-# def get_queues_info(fn, write_method):
-#     return get_statq_from_xml(fn, write_method)
-
-
 def _get_statq_from_xml(fn, write_method=options.write_method):
     logging.debug("Parsing tree of %s" % fn)
     check_empty_file(fn)

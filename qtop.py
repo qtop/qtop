@@ -443,7 +443,7 @@ def find_matrices_width(wn_number, workernode_list, term_columns, DEADWEIGHT=11)
         return start, stop, 0
 
 
-def print_wnid_lines(start, stop, highest_wn, wn_vert_labels, **kwargs):
+def calculate_wnid_lines(start, stop, highest_wn, wn_vert_labels, **kwargs):
     """
     Prints the Worker Node ID lines, after it colors them and adds separators to them.
     highest_wn determines the number of WN ID lines needed  (1/2/3/4+?)
@@ -474,6 +474,7 @@ def print_wnid_lines(start, stop, highest_wn, wn_vert_labels, **kwargs):
 
 def display_wnid_lines(d, start, stop, end_label, color_func, args):
     for line_nr in d:
+        import pdb; pdb.set_trace()
         color = color_func(*args)
         wn_id_str = insert_separators(d[line_nr][start:stop], SEPARATOR, options.WN_COLON)
         wn_id_str = ''.join([colorize(elem, _, color.next()) for elem in wn_id_str])
@@ -564,7 +565,7 @@ def display_selected_occupancy_parts(
     occupancy_parts = {
         'wn id lines':
             (
-                print_wnid_lines,
+                calculate_wnid_lines,
                 (print_char_start, print_char_stop, cluster_dict['highest_wn'], wn_vert_labels),
                 {'inner_attrs': None}
             ),
