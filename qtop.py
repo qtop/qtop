@@ -1086,29 +1086,24 @@ def get_job_info(scheduler):
     return common_module.get_job_info
 
 
-# get_worker_nodes[scheduler]
-# get_job_info[scheduler]
-# get_queues_info[scheduler]
-
-# {'write_method': options.write_method}
 def get_info(scheduler):
-    SGEStatMaker.temp_filepath = None
+    SGEStatMaker.temp_filepath = None if scheduler != 'sge' else SGEStatMaker.temp_filepath
     args = {}
-    args['pbs'] = [
-            filenames.get('pbsnodes_file_out'),
-            filenames.get('qstat_file_out'),
-            filenames.get('qstatq_file_out')
-        ]
-    args['oar'] = [
-            [filenames.get('oarnodes_s_file'), filenames.get('oarnodes_y_file')],
-            [filenames.get('oarstat_file_out')],
-            [filenames.get('oarstat_file')],
-        ]
-    args['sge'] = [
-            [filenames.get('sge_file_stat')],
-            [SGEStatMaker.temp_filepath],
-            [filenames.get('sge_file_stat')],
-        ]
+    args['pbs'] = {
+        'get_worker_nodes': [filenames.get('pbsnodes_file_out')],
+        'get_job_info': [filenames.get('qstat_file_out')],
+        'get_queues_info': [filenames.get('qstatq_file_out')]
+    }
+    args['oar'] = {
+        'get_worker_nodes': [filenames.get('oarnodes_s_file'), filenames.get('oarnodes_y_file')],
+        'get_job_info': [filenames.get('oarstat_file_out')],
+        'get_queues_info': [filenames.get('oarstat_file')],
+    }
+    args['sge'] = {
+        'get_worker_nodes': [filenames.get('sge_file_stat')],
+        'get_job_info': [SGEStatMaker.temp_filepath],
+        'get_queues_info': [filenames.get('sge_file_stat')],
+    }
     return args[scheduler]
 
 
@@ -1278,18 +1273,11 @@ if __name__ == '__main__':
     if not options.YAML_EXISTS:
         convert_to_yaml(scheduler, INPUT_FNs_commands, filenames, options.write_method, commands)
 
-    # func_tuples = get_info(scheduler)
-    # commands = exec_func_tuples(func_tuples)
-
     input_files = get_info(scheduler)
-    worker_nodes = get_worker_nodes(scheduler)(*input_files, write_method=options.write_method)
-    job_ids, user_names, job_states, _ = get_job_info(scheduler)(input_files, options.write_method)
-    total_running_jobs, total_queued_jobs, qstatq_lod = get_queues_info(scheduler)(input_files, options.write_method)
+    worker_nodes = get_worker_nodes(scheduler)(*input_files['get_worker_nodes'])
+    job_ids, user_names, job_states, _ = get_job_info(scheduler)(*input_files['get_job_info'])
+    total_running_jobs, total_queued_jobs, qstatq_lod = get_queues_info(scheduler)(*input_files['get_queues_info'])
 
-    # worker_nodes = next(commands)
-    # job_ids, user_names, job_states, _ = next(commands)
-    # total_running_jobs, total_queued_jobs, qstatq_lod = next(commands)
-    #
     #  MAIN ##################################
     logging.info('CALCULATION AREA')
     cluster_dict, NAMED_WNS = calculate_cluster(worker_nodes)

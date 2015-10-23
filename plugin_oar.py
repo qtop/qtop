@@ -10,7 +10,7 @@ except ImportError:
 
 
 # def read_oarnodes_yaml(fn_s, fn_y, write_method):
-def _get_worker_nodes(fn_s, fn_y, write_method):
+def _get_worker_nodes(fn_s, fn_y, write_method=options.write_method):
     nodes_resids = _read_oarnodes_s_yaml(fn_s, write_method)
     resids_jobs = _read_oarnodes_y_textyaml(fn_y)
 

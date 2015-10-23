@@ -1,10 +1,10 @@
 __author__ = 'sfranky'
 from xml.etree import ElementTree as etree
-from common_module import logging, check_empty_file, StatMaker, get_new_temp_file
+from common_module import logging, check_empty_file, StatMaker, get_new_temp_file, options
 import os
 
 
-def _get_worker_nodes(fn, write_method):
+def _get_worker_nodes(fn, write_method=options.write_method):
     worker_nodes = _calc_everything(fn, write_method)
     return worker_nodes
 
@@ -25,7 +25,7 @@ def extract_job_info(elem, elem_text):
 #     return get_statq_from_xml(fn, write_method)
 
 
-def _get_statq_from_xml(fn, write_method):
+def _get_statq_from_xml(fn, write_method=options.write_method):
     logging.debug("Parsing tree of %s" % fn)
     check_empty_file(fn)
     with open(fn, mode='rb') as fin:

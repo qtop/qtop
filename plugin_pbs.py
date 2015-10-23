@@ -8,13 +8,13 @@ except ImportError:
 
 import yaml_parser as yaml
 from constants import *
-from common_module import logging, check_empty_file
+from common_module import logging, check_empty_file, options
 
 
 # def get_queues_info(fn, write_method):
 #     return read_qstatq_yaml(fn_write_method)
 
-def _read_qstatq_yaml(fn, write_method):
+def _read_qstatq_yaml(fn, write_method=options.write_method):
     """
     Reads the generated qstatq yaml file and extracts
     the information necessary for building the
@@ -31,7 +31,7 @@ def _read_qstatq_yaml(fn, write_method):
     return int(eval(total_running_jobs)), int(eval(total_queued_jobs)), qstatq_list
 
 
-def _get_worker_nodes(fn, write_method):
+def _get_worker_nodes(fn, write_method=options.write_method):
     worker_nodes = _read_pbsnodes_yaml(fn, write_method)
     return worker_nodes
 

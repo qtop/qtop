@@ -126,7 +126,7 @@ def handle_exception(exc_type, exc_value, exc_traceback):
 sys.excepthook = handle_exception
 
 
-def get_job_info(fn, write_method):
+def get_job_info(fn, write_method=options.write_method):
     """
     reads qstat YAML file and populates four lists. Returns the lists
     ex read_qstat_yaml
