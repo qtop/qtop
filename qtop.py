@@ -474,7 +474,6 @@ def calculate_wnid_lines(start, stop, highest_wn, wn_vert_labels, **kwargs):
 
 def display_wnid_lines(d, start, stop, end_label, color_func, args):
     for line_nr in d:
-        import pdb; pdb.set_trace()
         color = color_func(*args)
         wn_id_str = insert_separators(d[line_nr][start:stop], SEPARATOR, options.WN_COLON)
         wn_id_str = ''.join([colorize(elem, _, color.next()) for elem in wn_id_str])
