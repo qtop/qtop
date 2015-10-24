@@ -251,7 +251,7 @@ def calculate_job_counts(user_names, job_states):
     return job_counts, user_alljobs_sorted_lot, id_of_username
 
 
-def create_account_jobs_table(user_names, job_states):
+def create_account_jobs_table(user_names, job_states, wns_occupancy):
     job_counts, user_alljobs_sorted_lot, id_of_username = calculate_job_counts(user_names, job_states)
     account_jobs_table = []
     for user_alljobs in user_alljobs_sorted_lot:
@@ -271,7 +271,8 @@ def create_account_jobs_table(user_names, job_states):
         unix_account = quintuplet[-1]
         quintuplet[0] = id_of_username[unix_account] = unix_account[0] if eval(config['fill_with_user_firstletter']) else \
             new_uid
-    return account_jobs_table, id_of_username
+    wns_occupancy['account_jobs_table'] = account_jobs_table
+    wns_occupancy['id_of_username'] = id_of_username
 
 
 def create_job_counts(user_names, job_states, state_abbrevs):
@@ -380,7 +381,7 @@ def insert_separators(orig_str, separator, pos, stopaftern=0):
         return sep_str
 
 
-def calc_all_wnid_label_lines(highest_wn):  # (total_wn) in case of multiple cluster_dict['node_subclusters']
+def calc_all_wnid_label_lines(cluster_dict, wns_occupancy):  # (total_wn) in case of multiple cluster_dict['node_subclusters']
     """
     calculates the Worker Node ID number line widths. expressed by hxxxxs in the following form, e.g. for hundreds of nodes:
     '1': [ 00000000... ]
@@ -388,6 +389,7 @@ def calc_all_wnid_label_lines(highest_wn):  # (total_wn) in case of multiple clu
     '3': [ 12345678901234567....]
     where list contents are strings: '0', '1' etc
     """
+    highest_wn = cluster_dict['highest_wn']
     if NAMED_WNS or options.FORCE_NAMES:
         workernode_dict = cluster_dict['workernode_dict']
         hosts = [state_corejob_dn['host'] for _, state_corejob_dn in workernode_dict.items()]
@@ -408,17 +410,22 @@ def calc_all_wnid_label_lines(highest_wn):  # (total_wn) in case of multiple clu
             for place in range(1, node_str_width + 1):
                 wn_vert_labels[str(place)].append(string[place - 1])
 
-    return wn_vert_labels
+    wns_occupancy['wn_vert_labels'] = wn_vert_labels
 
 
-def find_matrices_width(wn_number, workernode_list, term_columns, DEADWEIGHT=11):
+def find_matrices_width(wns_occupancy, cluster_dict, DEADWEIGHT=11):
     """
     masking/clipping functionality: if the earliest node number is high (e.g. 130), the first 129 WNs need not show up.
     case 1: wn_number is RemapNr, WNList is WNListRemapped
     case 2: wn_number is BiggestWrittenNode, WNList is WNList
     DEADWEIGHT is the space taken by the {__XXXX__} labels on the right of the CoreX map
+
+    uses cluster_dict['highest_wn'], cluster_dict['workernode_list']
     """
     start = 0
+    wn_number = cluster_dict['highest_wn']
+    workernode_list = cluster_dict['workernode_list']
+    term_columns = wns_occupancy['term_columns']
     # exclude unneeded first empty nodes from the matrix
     if options.NOMASKING and \
         min(workernode_list) > int(config['workernodes_matrix'][0]['wn id lines']['min_masking_threshold']):
@@ -434,13 +441,16 @@ def find_matrices_width(wn_number, workernode_list, term_columns, DEADWEIGHT=11)
 
     if USER_CUT_MATRIX_WIDTH:  # if the user defines a custom cut (in the configuration file)
         stop = start + USER_CUT_MATRIX_WIDTH
-        return start, stop, wn_number / USER_CUT_MATRIX_WIDTH
+        wns_occupancy['extra_matrices_nr'] = wn_number / USER_CUT_MATRIX_WIDTH
     elif extra_matrices_nr:  # if more matrices are needed due to lack of space, cut every matrix so that if fits to screen
         stop = start + term_columns - DEADWEIGHT
-        return start, stop, extra_matrices_nr
+        wns_occupancy['extra_matrices_nr'] = extra_matrices_nr
     else:  # just one matrix, small cluster!
         stop = start + wn_number
-        return start, stop, 0
+        wns_occupancy['extra_matrices_nr'] = 0
+
+    wns_occupancy['print_char_start'] = start
+    wns_occupancy['print_char_stop'] = stop
 
 
 def calculate_wnid_lines(start, stop, highest_wn, wn_vert_labels, **kwargs):
@@ -665,7 +675,8 @@ def get_core_lines(core_user_map, print_char_start, print_char_stop, pattern_of_
         yield cpu_core_line + colorize('=Core' + str(ind), 'account_not_colored')
 
 
-def calc_core_userid_matrix(cluster_dict, id_of_username, job_ids, user_names):
+def calc_core_userid_matrix(cluster_dict, wns_occupancy, job_ids, user_names):
+    id_of_username = wns_occupancy['id_of_username']
     _core_user_map = OrderedDict()
     max_np_range = [str(x) for x in range(cluster_dict['max_np'])]
     user_of_job_id = dict(izip(job_ids, user_names))
@@ -680,7 +691,7 @@ def calc_core_userid_matrix(cluster_dict, id_of_username, job_ids, user_names):
     for coreline in _core_user_map:
         _core_user_map[coreline] = ''.join(_core_user_map[coreline])
 
-    return _core_user_map
+    wns_occupancy['core user map'] = _core_user_map
 
 
 def calc_general_multiline_attr(cluster_dict, part_name, yaml_key):  # NEW
@@ -745,23 +756,19 @@ def calculate_wn_occupancy(cluster_dict, user_names, job_states, job_ids):
     Otherwise, for uniform WNs, i.e. all using the same numbering scheme, wn01, wn02, ... proceeds as normal.
     Number of Extra tables needed is calculated inside the calc_all_wnid_label_lines function below
     """
-    # TODO: make this readable !!!!!
     wns_occupancy = dict()
-    wns_occupancy['term_columns'] = calculate_split_screen_size()
-    wns_occupancy['account_jobs_table'], wns_occupancy['id_of_username'] = create_account_jobs_table(user_names, job_states)
-    wns_occupancy['pattern_of_id'] = make_pattern_of_id(wns_occupancy['account_jobs_table'])
-    wns_occupancy['print_char_start'], wns_occupancy['print_char_stop'], wns_occupancy['extra_matrices_nr'] = \
-        find_matrices_width(cluster_dict['highest_wn'], cluster_dict['workernode_list'], wns_occupancy['term_columns'])
+    calculate_split_screen_size(wns_occupancy)  # term_columns
+    create_account_jobs_table(user_names, job_states, wns_occupancy) # account_jobs_table, id_of_username
+    make_pattern_of_id(wns_occupancy)  # pattern_of_id
+    find_matrices_width(wns_occupancy, cluster_dict)  # print_char_start, print_char_stop, extra_matrices_nr
+    calc_all_wnid_label_lines(cluster_dict, wns_occupancy)  # wn_vert_labels
 
-    wns_occupancy['wn_vert_labels'] = calc_all_wnid_label_lines(cluster_dict['highest_wn'])
-
-    # For loop below only for user-inserted/customizeable values.
+    # For-loop below only for user-inserted/customizeable values.
     # e.g. wns_occupancy['node_state'] = ...workernode_dict[node]['state'] for node in workernode_dict...
     for yaml_key, part_name in get_yaml_key_part('workernodes_matrix'):
-        wns_occupancy[part_name] = calc_general_multiline_attr(cluster_dict, part_name, yaml_key)  # now gives map instead of single line str
-        # was: wns_occupancy[part_name] = ''.join([str(cluster_dict['workernode_dict'][node][yaml_key]) for node in cluster_dict['workernode_dict']])
+        wns_occupancy[part_name] = calc_general_multiline_attr(cluster_dict, part_name, yaml_key)
 
-    wns_occupancy['core user map'] = calc_core_userid_matrix(cluster_dict, wns_occupancy['id_of_username'], job_ids, user_names)
+    calc_core_userid_matrix(cluster_dict, wns_occupancy, job_ids, user_names)  # core user map
     return wns_occupancy, cluster_dict
 
 
@@ -824,7 +831,7 @@ def display_wn_occupancy(workernodes_occupancy, cluster_dict):
     )
 
 
-def make_pattern_of_id(account_jobs_table):
+def make_pattern_of_id(wns_occupancy):
     """
     First strips the numbers off of the unix accounts and tries to match this against the given color table in colormap.
     Additionally, it will try to apply the regex rules given by the user in qtopconf.yaml, overriding the colormap.
@@ -832,7 +839,7 @@ def make_pattern_of_id(account_jobs_table):
     If no matching was possible, there will be no coloring applied.
     """
     pattern_of_id = {}
-    for line in account_jobs_table:
+    for line in wns_occupancy['account_jobs_table']:
         uid, user = line[0], line[4]
         account = re.search('[A-Za-z]+', user).group(0)  #
         for re_account_color in config['user_color_mappings']:
@@ -849,7 +856,7 @@ def make_pattern_of_id(account_jobs_table):
     pattern_of_id['#'] = '#'
     pattern_of_id['_'] = '_'
     pattern_of_id[SEPARATOR] = 'account_not_colored'
-    return pattern_of_id
+    wns_occupancy['pattern_of_id'] = pattern_of_id
 
 
 def load_yaml_config():
@@ -918,7 +925,7 @@ def load_yaml_config():
     return config
 
 
-def calculate_split_screen_size():
+def calculate_split_screen_size(wns_occupancy):
     """
     Calculates where to break the matrix into more matrices, because of the window size.
     """
@@ -938,8 +945,8 @@ def calculate_split_screen_size():
     else:
         logging.debug('Detected terminal size is: %s * %s' % (_, term_columns))
     finally:
-        term_columns = int(term_columns)
-    return term_columns
+        wns_occupancy['term_columns'] = int(term_columns)
+
 
 
 def sort_batch_nodes(batch_nodes):
