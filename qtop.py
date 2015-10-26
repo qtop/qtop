@@ -92,7 +92,7 @@ def decide_remapping(cluster_dict, _all_letters, _all_str_digits_with_empties):
         exotic_starting = min(cluster_dict['workernode_list']) >= config['exotic_starting_wn_nr'] and \
             'the first starting numbering of a WN is very high and thus would require too much unused space' or False
         percentage_unassigned = len(cluster_dict['_all_str_digits_with_empties']) != len(cluster_dict['all_str_digits']) and \
-            'more than %s*nodes have no jobs assigned' %options.PERCENTAGE or False
+            'more than %s*nodes have no jobs assigned' % float(config['percentage']) or False
         numbering_collisions = min(cluster_dict['workernode_list']) >= config['exotic_starting_wn_nr'] and \
             'there are numbering collisions' or False
         print
@@ -314,12 +314,13 @@ def expand_useraccounts_symbols(config, user_list):
             config['possible_ids'].append(str(i)[0])
 
 
-def fill_node_cores_column(state_np_corejob, core_user_map, id_of_username, max_np_range, user_of_job_id):
+def fill_node_cores_column(_node, core_user_map, id_of_username, max_np_range, user_of_job_id):
     """
     Calculates the actual contents of the map by filling in a status string for each CPU line
     state_np_corejob was: [state, np, (core0, job1), (core1, job1), ....]
     will be a dict!
     """
+    state_np_corejob = cluster_dict['workernode_dict'][_node]
     state = state_np_corejob['state']
     np = state_np_corejob['np']
     corejobs = state_np_corejob.get('core_job_map', '')
@@ -358,9 +359,9 @@ def fill_node_cores_column(state_np_corejob, core_user_map, id_of_username, max_
         for core in non_existent_cores:
             core_user_map['Core' + str(core) + 'line'] += ['#']
 
-    col = [core_user_map[line][-1] for line in core_user_map]
+    cluster_dict['workernode_dict'][_node]['core_user_column'] = [core_user_map[line][-1] for line in core_user_map]
 
-    return core_user_map, col
+    return core_user_map
 
 
 def insert_separators(orig_str, separator, pos, stopaftern=0):
@@ -426,10 +427,10 @@ def find_matrices_width(wns_occupancy, cluster_dict, DEADWEIGHT=11):
     wn_number = cluster_dict['highest_wn']
     workernode_list = cluster_dict['workernode_list']
     term_columns = wns_occupancy['term_columns']
-    # exclude unneeded first empty nodes from the matrix
-    if options.NOMASKING and \
-        min(workernode_list) > int(config['workernodes_matrix'][0]['wn id lines']['min_masking_threshold']):
-            start = min(workernode_list) - 1
+    min_masking_threshold = int(config['workernodes_matrix'][0]['wn id lines']['min_masking_threshold'])
+    if options.NOMASKING and min(workernode_list) > min_masking_threshold:
+        # exclude unneeded first empty nodes from the matrix
+        start = min(workernode_list) - 1
 
     # Extra matrices may be needed if the WNs are more than the screen width can hold.
     if wn_number > start:  # start will either be 1 or (masked >= config['min_masking_threshold'] + 1)
@@ -453,7 +454,7 @@ def find_matrices_width(wns_occupancy, cluster_dict, DEADWEIGHT=11):
     wns_occupancy['print_char_stop'] = stop
 
 
-def calculate_wnid_lines(start, stop, highest_wn, wn_vert_labels, **kwargs):
+def display_wnid_lines(start, stop, highest_wn, wn_vert_labels, **kwargs):
     """
     Prints the Worker Node ID lines, after it colors them and adds separators to them.
     highest_wn determines the number of WN ID lines needed  (1/2/3/4+?)
@@ -467,7 +468,7 @@ def calculate_wnid_lines(start, stop, highest_wn, wn_vert_labels, **kwargs):
         for node_nr in range(1, node_str_width + 1):
             d[str(node_nr)] = "".join(wn_vert_labels[str(node_nr)])
         end_label = iter(end_labels[str(node_str_width)])
-        display_wnid_lines(d, start, stop, end_label, color_func=color_plainly, args=('White', 'Gray_L', start > 0))
+        print_wnid_lines(d, start, stop, end_label, color_func=color_plainly, args=('White', 'Gray_L', start > 0))
         # start > 0 is just a test for a possible future condition
 
     elif NAMED_WNS or options.FORCE_NAMES:  # names (e.g. fruits) instead of numbered WNs
@@ -478,11 +479,11 @@ def calculate_wnid_lines(start, stop, highest_wn, wn_vert_labels, **kwargs):
             end_labels.setdefault(str(num), end_labels['7'] + num * ['={___ID___}'])
 
         end_label = iter(end_labels[str(node_str_width)])
-        display_wnid_lines(wn_vert_labels, start, stop, end_label,
+        print_wnid_lines(wn_vert_labels, start, stop, end_label,
                            color_func=highlight_alternately, args=(ALT_LABEL_HIGHLIGHT_COLORS))
 
 
-def display_wnid_lines(d, start, stop, end_label, color_func, args):
+def print_wnid_lines(d, start, stop, end_label, color_func, args):
     for line_nr in d:
         color = color_func(*args)
         wn_id_str = insert_separators(d[line_nr][start:stop], SEPARATOR, options.WN_COLON)
@@ -506,8 +507,11 @@ def color_plainly(color_0, color_1, condition):
             yield color_1
 
 
-def is_matrix_coreless(core_user_map, print_char_start, print_char_stop):
+def is_matrix_coreless(workernodes_occupancy):
+    print_char_start = workernodes_occupancy['print_char_start']
+    print_char_stop = workernodes_occupancy['print_char_stop']
     lines = []
+    core_user_map = workernodes_occupancy['core user map']
     for ind, k in enumerate(core_user_map):
         cpu_core_line = core_user_map['Core' + str(ind) + 'line'][print_char_start:print_char_stop]
         if options.REM_EMPTY_CORELINES and \
@@ -520,16 +524,7 @@ def is_matrix_coreless(core_user_map, print_char_start, print_char_stop):
     return len(lines) == len(core_user_map)
 
 
-def display_remaining_matrices(
-        extra_matrices_nr,
-        cluster_dict,
-        core_user_map,
-        print_char_stop,
-        pattern_of_id,
-        wn_vert_labels,
-        term_columns,
-        workernodes_occupancy,
-        DEADWEIGHT=11):
+def display_remaining_matrices(wn_occupancy, DEADWEIGHT=11):
     """
     If the WNs are more than a screenful (width-wise), this calculates the extra matrices needed to display them.
     DEADWEIGHT is the space taken by the {__XXXX__} labels on the right of the CoreX map
@@ -538,43 +533,40 @@ def display_remaining_matrices(
     and the remaining 190 machines have 8 cores, this doesn't print the non-existent
     56 cores from the next matrix on.
     """
+    extra_matrices_nr = wn_occupancy['extra_matrices_nr']
+    term_columns = wn_occupancy['term_columns']
+
     # need node_state, temp
     for matrix in range(extra_matrices_nr):
-        print_char_start = print_char_stop
+        wn_occupancy['print_char_start'] = wn_occupancy['print_char_stop']
         if USER_CUT_MATRIX_WIDTH:
-            print_char_stop += USER_CUT_MATRIX_WIDTH
+            wn_occupancy['print_char_stop'] += USER_CUT_MATRIX_WIDTH
         else:
-            print_char_stop += term_columns - DEADWEIGHT
-        print_char_stop = min(print_char_stop, cluster_dict['total_wn']) \
-            if options.REMAP else min(print_char_stop, cluster_dict['highest_wn'])
+            wn_occupancy['print_char_stop'] += term_columns - DEADWEIGHT
+        wn_occupancy['print_char_stop'] = min(wn_occupancy['print_char_stop'], cluster_dict['total_wn']) \
+            if options.REMAP else min(wn_occupancy['print_char_stop'], cluster_dict['highest_wn'])
 
-        if is_matrix_coreless(core_user_map, print_char_start, print_char_stop):
-            continue
-
-        display_selected_occupancy_parts(print_char_start,
-            print_char_stop,
-            wn_vert_labels,
-            core_user_map,
-            pattern_of_id,
-            workernodes_occupancy)
-
-        print
+        display_selected_occupancy_parts(wn_occupancy)
 
 
-def display_selected_occupancy_parts(
-        print_char_start,
-        print_char_stop,
-        wn_vert_labels,
-        core_user_map,
-        pattern_of_id,
-        workernodes_occupancy):
+def display_selected_occupancy_parts(workernodes_occupancy):
     """
     occupancy_parts needs to be redefined for each matrix, because of changed parameter values
     """
+    if is_matrix_coreless(workernodes_occupancy):
+        return
+    print_char_start = workernodes_occupancy['print_char_start']
+    print_char_stop = workernodes_occupancy['print_char_stop']
+    wn_vert_labels = workernodes_occupancy['wn_vert_labels']
+    core_user_map = workernodes_occupancy['core user map']
+    extra_matrices_nr = workernodes_occupancy['extra_matrices_nr']
+    term_columns = workernodes_occupancy['term_columns']
+    pattern_of_id = workernodes_occupancy['pattern_of_id']
+
     occupancy_parts = {
         'wn id lines':
             (
-                calculate_wnid_lines,
+                display_wnid_lines,
                 (print_char_start, print_char_stop, cluster_dict['highest_wn'], wn_vert_labels),
                 {'inner_attrs': None}
             ),
@@ -685,8 +677,8 @@ def calc_core_userid_matrix(cluster_dict, wns_occupancy, job_ids, user_names):
         _core_user_map['Core%sline' % str(core_nr)] = []  # Cpu0line, Cpu1line, Cpu2line, .. = '','','', ..
 
     for _node in cluster_dict['workernode_dict']:
-        state_np_corejob = cluster_dict['workernode_dict'][_node]
-        _core_user_map, cluster_dict['workernode_dict'][_node]['core_user_column'] = fill_node_cores_column(state_np_corejob, _core_user_map, id_of_username, max_np_range, user_of_job_id)
+        # state_np_corejob = cluster_dict['workernode_dict'][_node]
+        _core_user_map = fill_node_cores_column(_node, _core_user_map, id_of_username, max_np_range, user_of_job_id)
 
     for coreline in _core_user_map:
         _core_user_map[coreline] = ''.join(_core_user_map[coreline])
@@ -723,7 +715,7 @@ def calc_general_multiline_attr(cluster_dict, part_name, yaml_key):  # NEW
                 multiline_map[attr_line].append(ch)
             except KeyError:
                 break
-        # is this really needed?: cluster_dict['workernode_dict'][_node]['state_column']
+        # TODO: is this really needed?: cluster_dict['workernode_dict'][_node]['state_column']
 
     for line, attr_line in enumerate(multiline_map, 1):
         multiline_map[attr_line] = ''.join(multiline_map[attr_line])
@@ -732,6 +724,11 @@ def calc_general_multiline_attr(cluster_dict, part_name, yaml_key):  # NEW
 
     return multiline_map
 
+
+def transpose_matrix(d, reverse=False):
+    for i in izip_longest(*[[char for char in d[k]] for k in d], fillvalue=" "):
+        if any(j != " " for j in i):
+            print "".join(i)[::-1] if reverse else "".join(i)
 
 def get_yaml_key_part(major_key):
     """
@@ -760,6 +757,7 @@ def calculate_wn_occupancy(cluster_dict, user_names, job_states, job_ids):
     calculate_split_screen_size(wns_occupancy)  # term_columns
     create_account_jobs_table(user_names, job_states, wns_occupancy) # account_jobs_table, id_of_username
     make_pattern_of_id(wns_occupancy)  # pattern_of_id
+
     find_matrices_width(wns_occupancy, cluster_dict)  # print_char_start, print_char_stop, extra_matrices_nr
     calc_all_wnid_label_lines(cluster_dict, wns_occupancy)  # wn_vert_labels
 
@@ -798,37 +796,11 @@ def print_core_lines(core_user_map, print_char_start, print_char_stop, pattern_o
 
 def display_wn_occupancy(workernodes_occupancy, cluster_dict):
 
-    print_char_start = workernodes_occupancy['print_char_start']
-    print_char_stop = workernodes_occupancy['print_char_stop']
-    wn_vert_labels = workernodes_occupancy['wn_vert_labels']
-    core_user_map = workernodes_occupancy['core user map']
-    extra_matrices_nr = workernodes_occupancy['extra_matrices_nr']
-    term_columns = workernodes_occupancy['term_columns']
-    pattern_of_id = workernodes_occupancy['pattern_of_id']
-
     print colorize('===> ', '#') + colorize('Worker Nodes occupancy', 'Nothing') + colorize(' <=== ', '#') + colorize(
         '(you can read vertically the node IDs; nodes in free state are noted with - )', 'account_not_colored')
 
-    if not is_matrix_coreless(core_user_map, print_char_start, print_char_stop):
-        display_selected_occupancy_parts(
-        print_char_start,
-        print_char_stop,
-        wn_vert_labels,
-        core_user_map,
-        pattern_of_id,
-        workernodes_occupancy
-        )
-
-    display_remaining_matrices(
-        extra_matrices_nr,
-        cluster_dict,
-        core_user_map,
-        print_char_stop,
-        pattern_of_id,
-        wn_vert_labels,
-        term_columns,
-        workernodes_occupancy
-    )
+    display_selected_occupancy_parts(workernodes_occupancy)
+    display_remaining_matrices(workernodes_occupancy)
 
 
 def make_pattern_of_id(wns_occupancy):
@@ -952,7 +924,7 @@ def calculate_split_screen_size(wns_occupancy):
 def sort_batch_nodes(batch_nodes):
     try:
         batch_nodes.sort(key=eval(config['sorting']['user_sort']), reverse=eval(config['sorting']['reverse']))
-    except IndexError:
+    except (IndexError, ValueError):
         logging.critical("There's (probably) something wrong in your sorting lambda in %s." % QTOPCONF_YAML)
         raise
 
