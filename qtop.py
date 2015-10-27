@@ -2,7 +2,7 @@
 
 ################################################
 #              qtop v.0.8.1                    #
-#     Licensed under MIT-GPL licenses          #
+#     Licensed under MIT-GPL licenses             #
 #                     Sotiris Fragkiskos       #
 #                     Fotis Georgatos          #
 ################################################
@@ -460,15 +460,15 @@ def display_wnid_lines(start, stop, highest_wn, wn_vert_labels, **kwargs):
     highest_wn determines the number of WN ID lines needed  (1/2/3/4+?)
     """
     d = OrderedDict()
-    end_labels = config['workernodes_matrix'][0]['wn id lines']['end_labels']
+    _end_labels = config['workernodes_matrix'][0]['wn id lines']['end_labels']
 
     if not NAMED_WNS:
         node_str_width = len(str(highest_wn))  # 4 for thousands of nodes, nr of horizontal lines to be displayed
 
         for node_nr in range(1, node_str_width + 1):
             d[str(node_nr)] = "".join(wn_vert_labels[str(node_nr)])
-        end_label = iter(end_labels[str(node_str_width)])
-        print_wnid_lines(d, start, stop, end_label, color_func=color_plainly, args=('White', 'Gray_L', start > 0))
+        end_labels = iter(_end_labels[str(node_str_width)])
+        print_wnid_lines(d, start, stop, end_labels, color_func=color_plainly, args=('White', 'Gray_L', start > 0))
         # start > 0 is just a test for a possible future condition
 
     elif NAMED_WNS or options.FORCE_NAMES:  # names (e.g. fruits) instead of numbered WNs
@@ -476,19 +476,19 @@ def display_wnid_lines(start, stop, highest_wn, wn_vert_labels, **kwargs):
 
         # for longer full-labeled wn ids, add more end-labels (far-right) towards the bottom
         for num in range(8, len(wn_vert_labels) + 1):
-            end_labels.setdefault(str(num), end_labels['7'] + num * ['={___ID___}'])
+            _end_labels.setdefault(str(num), _end_labels['7'] + num * ['={___ID___}'])
 
-        end_label = iter(end_labels[str(node_str_width)])
-        print_wnid_lines(wn_vert_labels, start, stop, end_label,
+        end_labels = iter(_end_labels[str(node_str_width)])
+        print_wnid_lines(wn_vert_labels, start, stop, end_labels,
                            color_func=highlight_alternately, args=(ALT_LABEL_HIGHLIGHT_COLORS))
 
 
-def print_wnid_lines(d, start, stop, end_label, color_func, args):
-    for line_nr in d:
-        color = color_func(*args)
+def print_wnid_lines(d, start, stop, end_labels, color_func, args):
+    colors = iter(color_func(*args))
+    for line_nr, end_label, color in zip(d, end_labels, colors):
         wn_id_str = insert_separators(d[line_nr][start:stop], SEPARATOR, options.WN_COLON)
-        wn_id_str = ''.join([colorize(elem, _, color.next()) for elem in wn_id_str])
-        print wn_id_str + end_label.next()
+        wn_id_str = ''.join([colorize(elem, _, color) for elem in wn_id_str])
+        print wn_id_str + end_label
 
 
 def highlight_alternately(color_a, color_b):
@@ -546,10 +546,10 @@ def display_remaining_matrices(wn_occupancy, DEADWEIGHT=11):
         wn_occupancy['print_char_stop'] = min(wn_occupancy['print_char_stop'], cluster_dict['total_wn']) \
             if options.REMAP else min(wn_occupancy['print_char_stop'], cluster_dict['highest_wn'])
 
-        display_selected_occupancy_parts(wn_occupancy)
+        display_matrix(wn_occupancy)
 
 
-def display_selected_occupancy_parts(workernodes_occupancy):
+def display_matrix(workernodes_occupancy):
     """
     occupancy_parts needs to be redefined for each matrix, because of changed parameter values
     """
@@ -726,6 +726,10 @@ def calc_general_multiline_attr(cluster_dict, part_name, yaml_key):  # NEW
 
 
 def transpose_matrix(d, reverse=False):
+    """
+    takes a dictionary whose values are lists of strings (=matrix)
+    returns a transposed matrix
+    """
     for i in izip_longest(*[[char for char in d[k]] for k in d], fillvalue=" "):
         if any(j != " " for j in i):
             print "".join(i)[::-1] if reverse else "".join(i)
@@ -799,7 +803,7 @@ def display_wn_occupancy(workernodes_occupancy, cluster_dict):
     print colorize('===> ', '#') + colorize('Worker Nodes occupancy', 'Nothing') + colorize(' <=== ', '#') + colorize(
         '(you can read vertically the node IDs; nodes in free state are noted with - )', 'account_not_colored')
 
-    display_selected_occupancy_parts(workernodes_occupancy)
+    display_matrix(workernodes_occupancy)
     display_remaining_matrices(workernodes_occupancy)
 
 
