@@ -468,7 +468,8 @@ def display_wnid_lines(start, stop, highest_wn, wn_vert_labels, **kwargs):
         for node_nr in range(1, node_str_width + 1):
             d[str(node_nr)] = "".join(wn_vert_labels[str(node_nr)])
         end_labels = iter(_end_labels[str(node_str_width)])
-        print_wnid_lines(d, start, stop, end_labels, color_func=color_plainly, args=('White', 'Gray_L', start > 0))
+        print_wnid_lines(d, start, stop, end_labels, transposed_matrices,
+                         color_func=color_plainly, args=('White', 'Gray_L', start > 0))
         # start > 0 is just a test for a possible future condition
 
     elif NAMED_WNS or options.FORCE_NAMES:  # names (e.g. fruits) instead of numbered WNs
@@ -479,12 +480,16 @@ def display_wnid_lines(start, stop, highest_wn, wn_vert_labels, **kwargs):
             _end_labels.setdefault(str(num), _end_labels['7'] + num * ['={___ID___}'])
 
         end_labels = iter(_end_labels[str(node_str_width)])
-        print_wnid_lines(wn_vert_labels, start, stop, end_labels,
-                           color_func=highlight_alternately, args=(ALT_LABEL_HIGHLIGHT_COLORS))
+        print_wnid_lines(wn_vert_labels, start, stop, end_labels, transposed_matrices,
+                         color_func=highlight_alternately, args=(ALT_LABEL_HIGHLIGHT_COLORS))
 
 
-def print_wnid_lines(d, start, stop, end_labels, color_func, args):
+def print_wnid_lines(d, start, stop, end_labels, transposed_matrices, color_func, args):
     colors = iter(color_func(*args))
+    if eval(config['transpose_wn_matrices']):
+        transposed_matrices.append(transpose_matrix(d))
+        return
+
     for line_nr, end_label, color in zip(d, end_labels, colors):
         wn_id_str = insert_separators(d[line_nr][start:stop], SEPARATOR, options.WN_COLON)
         wn_id_str = ''.join([colorize(elem, _, color) for elem in wn_id_str])
@@ -553,6 +558,7 @@ def display_matrix(workernodes_occupancy):
     """
     occupancy_parts needs to be redefined for each matrix, because of changed parameter values
     """
+    global transposed_matrices
     if is_matrix_coreless(workernodes_occupancy):
         return
     print_char_start = workernodes_occupancy['print_char_start']
@@ -573,7 +579,7 @@ def display_matrix(workernodes_occupancy):
         'core user map':
             (
                 print_core_lines,
-                (core_user_map, print_char_start, print_char_stop, pattern_of_id),
+                (core_user_map, print_char_start, print_char_stop, transposed_matrices, pattern_of_id),
                 {'attrs': None}
             ),
     }
@@ -584,7 +590,7 @@ def display_matrix(workernodes_occupancy):
             part_name:
                 (
                     print_mult_attr_line,  # func
-                    (print_char_start, print_char_stop),  # args
+                    (print_char_start, print_char_stop, transposed_matrices),  # args
                     {'attr_lines': workernodes_occupancy[part_name]}  # kwargs
                 )
         }
@@ -596,20 +602,28 @@ def display_matrix(workernodes_occupancy):
         fn, args, kwargs = occupancy_parts[part][0], occupancy_parts[part][1], occupancy_parts[part][2]
         fn(*args, **kwargs)
 
+    if eval(config['transpose_wn_matrices']):
+        for line_tuple in izip(*transposed_matrices):
+            join_prints(*line_tuple)
+
     print
 
 
-def print_mult_attr_line(print_char_start, print_char_stop, attr_lines, label, color_func=None, **kwargs):  # NEW!
+def print_mult_attr_line(print_char_start, print_char_stop, transposed_matrices, attr_lines, label, color_func=None,
+                         **kwargs):  # NEW!
     """
     attr_lines can be e.g. Node state lines
     """
+    if eval(config['transpose_wn_matrices']):
+        transposed_matrices.append(transpose_matrix(attr_lines))
+        return
     # TODO: fix option parameter, inserted for testing purposes
     for line in attr_lines:
         line = attr_lines[line][print_char_start:print_char_stop]
         # TODO: maybe put attr_line and label as kwd arguments? collect them as **kwargs
-        attr_line = insert_separators(line, SEPARATOR, options.WN_COLON) + '=%s'  % label  # this didnt work as expected
+        attr_line = insert_separators(line, SEPARATOR, options.WN_COLON)
         attr_line = ''.join([colorize(char, 'Nothing', color_func) for char in attr_line])
-        print attr_line
+        print attr_line + label
 
 
 def display_user_accounts_pool_mappings(account_jobs_table, pattern_of_id):
@@ -732,7 +746,15 @@ def transpose_matrix(d, reverse=False):
     """
     for i in izip_longest(*[[char for char in d[k]] for k in d], fillvalue=" "):
         if any(j != " " for j in i):
-            print "".join(i)[::-1] if reverse else "".join(i)
+            yield "".join(i)[::-1] if reverse else "".join(i)
+
+
+def join_prints(*args):
+    for d in args:
+        print d,
+    else:
+        print
+
 
 def get_yaml_key_part(major_key):
     """
@@ -774,8 +796,12 @@ def calculate_wn_occupancy(cluster_dict, user_names, job_states, job_ids):
     return wns_occupancy, cluster_dict
 
 
-def print_core_lines(core_user_map, print_char_start, print_char_stop, pattern_of_id, attrs, options1, options2):
+def print_core_lines(core_user_map, print_char_start, print_char_stop, transposed_matrices, pattern_of_id, attrs, options1,
+                     options2):
     signal(SIGPIPE, SIG_DFL)
+    if eval(config['transpose_wn_matrices']):
+        transposed_matrices.append(transpose_matrix(core_user_map))
+        return
     for core_line in get_core_lines(core_user_map, print_char_start, print_char_stop, pattern_of_id, attrs):
         try:
             print core_line
@@ -1236,7 +1262,7 @@ def check_python_version():
         sys.exit(1)
 
 if __name__ == '__main__':
-
+    transposed_matrices = []
     check_python_version()
     initial_cwd = os.getcwd()
     logging.debug('Initial qtop directory: %s' % initial_cwd)

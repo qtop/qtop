@@ -219,4 +219,9 @@ extract_info:
   regex: |
     re.search('(?<=<)[^<>]+(?=>)', field).group(0)
 
+# If set to true, wn_occupancy matrices contain the first letter of the user
+# owning the job. If false, it will show a mapped single-letter id instead.
+# The latter is useful when there are a lot of users starting with the same letter.
 fill_with_user_firstletter: False
+# If set to true, lines represent worker nodes, wherease if set to false, columns do.
+transpose_wn_matrices: False
