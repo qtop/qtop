@@ -487,7 +487,8 @@ def display_wnid_lines(start, stop, highest_wn, wn_vert_labels, **kwargs):
 def print_wnid_lines(d, start, stop, end_labels, transposed_matrices, color_func, args):
     colors = iter(color_func(*args))
     if eval(config['transpose_wn_matrices']):
-        transposed_matrices.append(transpose_matrix(d))
+        tuple = [None, 'wnid_lines', transpose_matrix(d)]
+        transposed_matrices.append(tuple)
         return
 
     for line_nr, end_label, color in zip(d, end_labels, colors):
@@ -603,7 +604,13 @@ def display_matrix(workernodes_occupancy):
         fn(*args, **kwargs)
 
     if eval(config['transpose_wn_matrices']):
-        for line_tuple in izip(*transposed_matrices):
+        order = config['occupancy_column_order']
+        print "(" + "/".join(order) + ")"
+        for idx, (item, matrix) in enumerate(zip(order, transposed_matrices)):
+            matrix[0] = order.index(matrix[1])
+
+        transposed_matrices.sort(key=lambda item: item[0])
+        for line_tuple in izip_longest(*[tpl[2] for tpl in transposed_matrices], fillvalue='  '):
             join_prints(*line_tuple)
 
     print
@@ -615,7 +622,8 @@ def print_mult_attr_line(print_char_start, print_char_stop, transposed_matrices,
     attr_lines can be e.g. Node state lines
     """
     if eval(config['transpose_wn_matrices']):
-        transposed_matrices.append(transpose_matrix(attr_lines))
+        tuple = [None, label, transpose_matrix(attr_lines)]
+        transposed_matrices.append(tuple)
         return
     # TODO: fix option parameter, inserted for testing purposes
     for line in attr_lines:
@@ -739,19 +747,23 @@ def calc_general_multiline_attr(cluster_dict, part_name, yaml_key):  # NEW
     return multiline_map
 
 
-def transpose_matrix(d, reverse=False):
+def transpose_matrix(d, colored=False, reverse=False):
     """
     takes a dictionary whose values are lists of strings (=matrix)
     returns a transposed matrix
     """
-    for i in izip_longest(*[[char for char in d[k]] for k in d], fillvalue=" "):
-        if any(j != " " for j in i):
-            yield "".join(i)[::-1] if reverse else "".join(i)
+    pattern_of_id = workernodes_occupancy['pattern_of_id']
+    for tuple in izip_longest(*[[char for char in d[k]] for k in d], fillvalue=" "):
+        if any(j != " " for j in tuple):
+            tuple = colored and [colorize(j, pattern_of_id[j]) if j in pattern_of_id else j for j in tuple] or list(tuple)
+            tuple[:] = tuple[::-1] if reverse else tuple
+            yield "".join(tuple)
 
 
 def join_prints(*args):
     for d in args:
-        print d,
+        sys.stdout.softspace = False # if i want to omit in-between column spaces
+        print d + '|',
     else:
         print
 
@@ -800,7 +812,8 @@ def print_core_lines(core_user_map, print_char_start, print_char_stop, transpose
                      options2):
     signal(SIGPIPE, SIG_DFL)
     if eval(config['transpose_wn_matrices']):
-        transposed_matrices.append(transpose_matrix(core_user_map))
+        tuple = [None, 'core_map', transpose_matrix(core_user_map, colored=True)]
+        transposed_matrices.append(tuple)
         return
     for core_line in get_core_lines(core_user_map, print_char_start, print_char_stop, pattern_of_id, attrs):
         try:
@@ -826,8 +839,8 @@ def print_core_lines(core_user_map, print_char_start, print_char_stop, transpose
 
 def display_wn_occupancy(workernodes_occupancy, cluster_dict):
 
-    print colorize('===> ', '#') + colorize('Worker Nodes occupancy', 'Nothing') + colorize(' <=== ', '#') + colorize(
-        '(you can read vertically the node IDs; nodes in free state are noted with - )', 'account_not_colored')
+    print colorize('===> ', '#') + colorize('Worker Nodes occupancy', 'Nothing') + colorize(' <=== ', '#') \
+          + colorize('(you can read vertically the node IDs; nodes in free state are noted with - )', 'account_not_colored')
 
     display_matrix(workernodes_occupancy)
     display_remaining_matrices(workernodes_occupancy)
