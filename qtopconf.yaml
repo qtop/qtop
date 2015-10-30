@@ -225,3 +225,9 @@ extract_info:
 fill_with_user_firstletter: False
 # If set to true, lines represent worker nodes, wherease if set to false, columns do.
 transpose_wn_matrices: False
+occupancy_column_order:
+  - wnid_lines
+  - core_map
+  - Node state
+  - queue name
+horizontal_separator: '|'

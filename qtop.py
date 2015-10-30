@@ -605,13 +605,12 @@ def display_matrix(workernodes_occupancy):
 
     if eval(config['transpose_wn_matrices']):
         order = config['occupancy_column_order']
-        print "(" + "/".join(order) + ")"
         for idx, (item, matrix) in enumerate(zip(order, transposed_matrices)):
             matrix[0] = order.index(matrix[1])
 
         transposed_matrices.sort(key=lambda item: item[0])
         for line_tuple in izip_longest(*[tpl[2] for tpl in transposed_matrices], fillvalue='  '):
-            join_prints(*line_tuple)
+            join_prints(*line_tuple, sep=config.get('horizontal_separator', None))
 
     print
 
@@ -760,10 +759,10 @@ def transpose_matrix(d, colored=False, reverse=False):
             yield "".join(tuple)
 
 
-def join_prints(*args):
+def join_prints(*args, **kwargs):
     for d in args:
         sys.stdout.softspace = False # if i want to omit in-between column spaces
-        print d + '|',
+        print d + kwargs['sep'],
     else:
         print
 
@@ -838,9 +837,13 @@ def print_core_lines(core_user_map, print_char_start, print_char_stop, transpose
 
 
 def display_wn_occupancy(workernodes_occupancy, cluster_dict):
-
+    if config['transpose_wn_matrices']:
+        order = config['occupancy_column_order']
+        note = "/".join(order)
+    else:
+        note = 'you can read vertically the node IDs; nodes in free state are noted with - '
     print colorize('===> ', '#') + colorize('Worker Nodes occupancy', 'Nothing') + colorize(' <=== ', '#') \
-          + colorize('(you can read vertically the node IDs; nodes in free state are noted with - )', 'account_not_colored')
+          + colorize('(%s)', 'account_not_colored') % note
 
     display_matrix(workernodes_occupancy)
     display_remaining_matrices(workernodes_occupancy)
