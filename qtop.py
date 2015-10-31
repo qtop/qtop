@@ -846,7 +846,8 @@ def display_wn_occupancy(workernodes_occupancy, cluster_dict):
           + colorize('(%s)', 'account_not_colored') % note
 
     display_matrix(workernodes_occupancy)
-    display_remaining_matrices(workernodes_occupancy)
+    if not config['transpose_wn_matrices']:
+        display_remaining_matrices(workernodes_occupancy)
 
 
 def make_pattern_of_id(wns_occupancy):
