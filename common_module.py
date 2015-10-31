@@ -231,7 +231,9 @@ parser.add_option("-F", "--ForceNames", action="store_true", dest="FORCE_NAMES",
 # parser.add_option("-f", "--setCOLORMAPFILE", action="store", type="string", dest="COLORFILE")
 parser.add_option("-m", "--noMasking", action="store_true", dest="NOMASKING", default=False,
                   help="Don't mask early empty WNs (default: if the first 30 WNs are unused, counting starts from 31).")
-parser.add_option("-o", "--SetVerticalSeparatorXX", action="store", dest="WN_COLON", default=0,
+parser.add_option("-o", "--option", action="store", dest="OPTION", type="string", default=None,
+                  help="Override respective option in QTOPCONF_YAML file")
+parser.add_option("-V", "--SetVerticalSeparatorXX", action="store", dest="WN_COLON", default=0,
                   help="Put vertical bar every WN_COLON nodes.")
 parser.add_option("-r", "--removeemptycorelines", dest="REM_EMPTY_CORELINES", action="store_true", default=False,
                   help="Set the method used for dumping information, json, yaml, or native python (yaml format)")

@@ -1270,6 +1270,11 @@ def get_input_filenames():
     return filenames
 
 
+def get_key_val_from_option_string(string):
+    key, val = string.split('=')
+    return key, val
+
+
 def check_python_version():
     try:
         assert sys.version_info[0] == 2
@@ -1277,6 +1282,7 @@ def check_python_version():
     except AssertionError:
         logging.critical("Only python versions 2.6.x and 2.7.x are supported. Exiting")
         sys.exit(1)
+
 
 if __name__ == '__main__':
     transposed_matrices = []
@@ -1288,6 +1294,9 @@ if __name__ == '__main__':
     QTOPPATH = os.path.dirname(sys.argv[0])  # dir where qtop resides
 
     config = load_yaml_config()
+    if options.OPTION:
+        key, val = get_key_val_from_option_string(options.OPTION)
+        config[key] = val
 
     SEPARATOR = config['workernodes_matrix'][0]['wn id lines']['separator'].translate(None, "'")  # alias
     USER_CUT_MATRIX_WIDTH = int(config['workernodes_matrix'][0]['wn id lines']['user_cut_matrix_width'])  # alias
@@ -1339,3 +1348,4 @@ if __name__ == '__main__':
         display_func(*args) if not sections_off[idx] else None
 
     os.chdir(QTOPPATH)
+
