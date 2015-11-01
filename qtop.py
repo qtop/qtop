@@ -204,7 +204,7 @@ def display_job_accounting_summary(cluster_dict, total_running_jobs, total_queue
     print 'PBS report tool. All bugs added by sfranky@gmail.com. Cross fingers now...'
     print 'Please try: watch -d %s/qtop.py -s %s\n' % (QTOPPATH, options.SOURCEDIR)
     print colorize('===> ', '#') + colorize('Job accounting summary', '', 'Yellow') + colorize(' <=== ', '#') + colorize(
-        '(Rev: 3000 $) %s WORKDIR = %s' % (colorize(str(datetime.datetime.today()), '', 'Blue'), QTOPPATH),
+        '(Rev: 3000 $) %s WORKDIR = %s' % (colorize(str(datetime.datetime.today()), '', 'Purple'), QTOPPATH),
         'account_not_colored')
 
     print '%(Usage Totals)s:\t%(online_nodes)s/%(total_nodes)s %(Nodes)s | %(working_cores)s/%(total_cores)s %(Cores)s |' \
@@ -997,8 +997,22 @@ def filter_list_out(batch_nodes, _list=None):
 def filter_list_out_by_name(batch_nodes, _list=None):
     if not _list:
         _list = []
+    else:
+        _list[:] = [eval(i) for i in _list]
     for idx, node in enumerate(batch_nodes):
         if node['domainname'].split('.', 1)[0] in _list:
+            node['mark'] = '*'
+    batch_nodes = filter(lambda item: not item.get('mark'), batch_nodes)
+    return batch_nodes
+
+
+def filter_list_in_by_name(batch_nodes, _list=None):
+    if not _list:
+        _list = []
+    else:
+        _list[:] = [eval(i) for i in _list]
+    for idx, node in enumerate(batch_nodes):
+        if node['domainname'].split('.', 1)[0] not in _list:
             node['mark'] = '*'
     batch_nodes = filter(lambda item: not item.get('mark'), batch_nodes)
     return batch_nodes
@@ -1038,6 +1052,7 @@ def filter_batch_nodes(batch_nodes, filter_rules=None):
     filter_types = {
         'list_out': filter_list_out,
         'list_out_by_name': filter_list_out_by_name,
+        'list_in_by_name': filter_list_in_by_name,
         'list_out_by_name_pattern': filter_list_out_by_name_pattern,
         'list_out_by_node_state': filter_list_out_by_node_state
         # 'ranges_out': func3,

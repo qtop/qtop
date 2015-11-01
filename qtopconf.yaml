@@ -138,6 +138,7 @@ sorting:
 
 filtering:
 #  - list_out: [0, 1, 2, 3, 16]
+#   - list_in_by_name: ['gaia-73', 'gaia-80', 'gaia-81']
 #  - list_out_by_name: [gaia-73, gaia-80, gaia-81]
   # - list_out_by_name: [gaia-74, gaia-73, gaia-81, gaia-80, gaia-87, gaia-75, gaia-77, gaia-76, gaia-79, gaia-78]
 #  - list_out_by_name_pattern: ['moonshot', 'p5']
