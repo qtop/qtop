@@ -630,7 +630,7 @@ def print_mult_attr_line(print_char_start, print_char_stop, transposed_matrices,
         # TODO: maybe put attr_line and label as kwd arguments? collect them as **kwargs
         attr_line = insert_separators(line, SEPARATOR, options.WN_COLON)
         attr_line = ''.join([colorize(char, 'Nothing', color_func) for char in attr_line])
-        print attr_line + label
+        print attr_line + "=" + label
 
 
 def display_user_accounts_pool_mappings(account_jobs_table, pattern_of_id):
