@@ -203,18 +203,26 @@ def display_job_accounting_summary(cluster_dict, total_running_jobs, total_queue
         print '=== WARNING: --- Remapping WN names and retrying heuristics... good luck with this... ---'
     print 'PBS report tool. All bugs added by sfranky@gmail.com. Cross fingers now...'
     print 'Please try: watch -d %s/qtop.py -s %s\n' % (QTOPPATH, options.SOURCEDIR)
-    print colorize('===> ', '#') + colorize('Job accounting summary', 'Normal') + colorize(' <=== ', '#') + colorize(
-        '(Rev: 3000 $) %s WORKDIR = %s' % (datetime.datetime.today(), QTOPPATH), 'account_not_colored')
+    print colorize('===> ', '#') + colorize('Job accounting summary', '', 'Yellow') + colorize(' <=== ', '#') + colorize(
+        '(Rev: 3000 $) %s WORKDIR = %s' % (colorize(str(datetime.datetime.today()), '', 'Blue'), QTOPPATH),
+        'account_not_colored')
 
-    print 'Usage Totals:\t%s/%s\t Nodes | %s/%s  Cores |   %s+%s jobs (R + Q) reported by qstat -q' % \
-          (cluster_dict['total_wn'] - cluster_dict['offline_down_nodes'],
-           cluster_dict['total_wn'],
-           cluster_dict['working_cores'],
-           cluster_dict['total_cores'],
-           int(total_running_jobs),
-           int(total_queued_jobs))
+    print '%(Usage Totals)s:\t%(online_nodes)s/%(total_nodes)s %(Nodes)s | %(working_cores)s/%(total_cores)s %(Cores)s |' \
+          '   %(total_run_jobs)s+%(total_q_jobs)s %(jobs)s (R + Q) reported by qstat -q' % \
+          {
+              'Usage Totals': colorize('Usage Totals', '', 'Yellow'),
+              'online_nodes': colorize(str(cluster_dict['total_wn'] - cluster_dict['offline_down_nodes']), '', 'Red_L'),
+              'total_nodes': colorize(str(cluster_dict['total_wn']), '', 'Red_L'),
+              'Nodes': colorize('Nodes', '', 'Red_L'),
+              'working_cores': colorize(str(cluster_dict['working_cores']), '', 'Green_L'),
+              'total_cores': colorize(str(cluster_dict['total_cores']), '', 'Green_L'),
+              'Cores': colorize('cores', '', 'Green_L'),
+              'total_run_jobs': colorize(str(int(total_running_jobs)), '', 'Blue_L'),
+              'total_q_jobs': colorize(str(int(total_queued_jobs)), '', 'Blue_L'),
+              'jobs': colorize('jobs', '', 'Blue_L')
+          }
 
-    print 'Queues: | ',
+    print '%(queues)s: | ' % {'queues': colorize('Queues', '', 'Yellow')},
     for q in qstatq_list:
         q_name, q_running_jobs, q_queued_jobs = q['queue_name'], q['run'], q['queued']
         account = q_name if q_name in color_of_account else 'account_not_colored'
@@ -837,7 +845,7 @@ def print_core_lines(core_user_map, print_char_start, print_char_stop, transpose
 
 
 def display_wn_occupancy(workernodes_occupancy, cluster_dict):
-    if config['transpose_wn_matrices']:
+    if eval(config['transpose_wn_matrices']):
         order = config['occupancy_column_order']
         note = "/".join(order)
     else:
