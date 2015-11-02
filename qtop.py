@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 
 ################################################
-#              qtop v.0.8.1                    #
-#     Licensed under MIT-GPL licenses             #
+#              qtop v.0.8.2                    #
+#     Licensed under MIT-GPL licenses          #
 #                     Sotiris Fragkiskos       #
 #                     Fotis Georgatos          #
 ################################################
@@ -95,7 +95,7 @@ def decide_remapping(cluster_dict, _all_letters, _all_str_digits_with_empties):
         exotic_starting = min(cluster_dict['workernode_list']) >= config['exotic_starting_wn_nr'] and \
             'the first starting numbering of a WN is very high and thus would require too much unused space' or False
         percentage_unassigned = len(cluster_dict['_all_str_digits_with_empties']) != len(cluster_dict['all_str_digits']) and \
-            'more than %s*nodes have no jobs assigned' % float(config['percentage']) or False
+            'more than %s of nodes have are down/offline' % float(config['percentage']) or False
         numbering_collisions = min(cluster_dict['workernode_list']) >= config['exotic_starting_wn_nr'] and \
             'there are numbering collisions' or False
         print
@@ -571,7 +571,7 @@ def display_matrix(workernodes_occupancy):
     """
     occupancy_parts needs to be redefined for each matrix, because of changed parameter values
     """
-    global transposed_matrices
+    # global transposed_matrices
     if is_matrix_coreless(workernodes_occupancy):
         return
     print_char_start = workernodes_occupancy['print_char_start']
@@ -1006,57 +1006,56 @@ def sort_batch_nodes(batch_nodes):
         raise
 
 
-def filter_list_out(batch_nodes, _list=None):
-    if not _list:
-        _list = []
+def filter_list_out(batch_nodes, the_list=None):
+    if not the_list:
+        the_list = []
     for idx, node in enumerate(batch_nodes):
-        if idx in _list:
+        if idx in the_list:
             node['mark'] = '*'
     batch_nodes = filter(lambda item: not item.get('mark'), batch_nodes)
     return batch_nodes
 
 
-def filter_list_out_by_name(batch_nodes, _list=None):
-    if not _list:
-        _list = []
+def filter_list_out_by_name(batch_nodes, the_list=None):
+    if not the_list:
+        the_list = []
     else:
-        _list[:] = [eval(i) for i in _list]
+        the_list[:] = [eval(i) for i in the_list]
     for idx, node in enumerate(batch_nodes):
-        if node['domainname'].split('.', 1)[0] in _list:
+        if node['domainname'].split('.', 1)[0] in the_list:
             node['mark'] = '*'
     batch_nodes = filter(lambda item: not item.get('mark'), batch_nodes)
     return batch_nodes
 
 
-def filter_list_in_by_name(batch_nodes, _list=None):
-    if not _list:
-        _list = []
+def filter_list_in_by_name(batch_nodes, the_list=None):
+    if not the_list:
+        the_list = []
     else:
-        _list[:] = [eval(i) for i in _list]
+        the_list[:] = [eval(i) for i in the_list]
     for idx, node in enumerate(batch_nodes):
-        if node['domainname'].split('.', 1)[0] not in _list:
+        if node['domainname'].split('.', 1)[0] not in the_list:
             node['mark'] = '*'
     batch_nodes = filter(lambda item: not item.get('mark'), batch_nodes)
     return batch_nodes
 
 
-def filter_list_out_by_node_state(batch_nodes, _list=None):
-    if not _list:
-        _list = []
+def filter_list_out_by_node_state(batch_nodes, the_list=None):
+    if not the_list:
+        the_list = []
     for idx, node in enumerate(batch_nodes):
-        if node['state'] in _list:
+        if node['state'] in the_list:
             node['mark'] = '*'
     batch_nodes = filter(lambda item: not item.get('mark'), batch_nodes)
     return batch_nodes
 
 
-def filter_list_out_by_name_pattern(batch_nodes, _list=None):
-    if not _list:
-        _list = []
-    # else:
-    #     _list[:] = [eval(i) for i in _list]
+def filter_list_out_by_name_pattern(batch_nodes, the_list=None):
+    if not the_list:
+        the_list = []
+
     for idx, node in enumerate(batch_nodes):
-        for pattern in _list:
+        for pattern in the_list:
             match = re.search(pattern, node['domainname'].split('.', 1)[0])
             try:
                 match.group(0)
@@ -1068,14 +1067,12 @@ def filter_list_out_by_name_pattern(batch_nodes, _list=None):
     return batch_nodes
 
 
-def filter_list_in_by_name_pattern(batch_nodes, _list=None):
-    if not _list:
-        _list = []
-    # else:
-    #     _list[:] = [eval(i) for i in _list]
+def filter_list_in_by_name_pattern(batch_nodes, the_list=None):
+    if not the_list:
+        the_list = []
 
     for idx, node in enumerate(batch_nodes):
-        for pattern in _list:
+        for pattern in the_list:
             match = re.search(pattern, node['domainname'].split('.', 1)[0])
             try:
                 match.group(0)
