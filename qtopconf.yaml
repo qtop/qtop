@@ -138,6 +138,7 @@ sorting:
 
 filtering:
 #  - list_out: [0, 1, 2, 3, 16]
+#   - list_in_by_name: ['gaia-73', 'gaia-80', 'gaia-81']
 #  - list_out_by_name: [gaia-73, gaia-80, gaia-81]
   # - list_out_by_name: [gaia-74, gaia-73, gaia-81, gaia-80, gaia-87, gaia-75, gaia-77, gaia-76, gaia-79, gaia-78]
 #  - list_out_by_name_pattern: ['moonshot', 'p5']
@@ -160,6 +161,9 @@ user_display_parts: # job_accounting_summary should be disabled for OAR systems.
 # - temperature
 # - core user map
 
+# character used for vertical separator in WN occupancy matrix
+vertical_separator: '|'
+
 workernodes_matrix:
  - wn id lines:
      max_len: 15
@@ -167,8 +171,6 @@ workernodes_matrix:
      min_masking_threshold: 9
      # Change this to an int if you want a custom cut matrix length
      user_cut_matrix_width: 0
-     # character used for vertical separator, for the -o switch
-     separator: '|'
      # customised end labels
      end_labels:  # TODO: bug for clusters with up to 9 nodes. Label will display incorrectly
        1: '={__WNID__}'
@@ -219,4 +221,15 @@ extract_info:
   regex: |
     re.search('(?<=<)[^<>]+(?=>)', field).group(0)
 
+# If set to true, wn_occupancy matrices contain the first letter of the user
+# owning the job. If false, it will show a mapped single-letter id instead.
+# The latter is useful when there are a lot of users starting with the same letter.
 fill_with_user_firstletter: False
+# If set to true, lines represent worker nodes, wherease if set to false, columns do.
+transpose_wn_matrices: True
+occupancy_column_order:
+  - wnid_lines
+  - core_map
+  - Node state
+  - queue name
+horizontal_separator: '|'

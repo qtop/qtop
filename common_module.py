@@ -83,8 +83,8 @@ class StatMaker:
             fout.write('queue_name: ' + qstatq_values['queue_name'] + '\n')
             fout.write('state: ' + qstatq_values['state'] + '\n')  # job state
             fout.write('lm: ' + qstatq_values['lm'] + '\n')
-            fout.write('run: ' + '"' + qstatq_values['run'] + '"' + '\n')  # job state
-            fout.write('queued: ' + '"' + qstatq_values['queued'] + '"' + '\n')
+            fout.write('run: ' + qstatq_values['run'] + '\n')  # job state
+            fout.write('queued: ' + qstatq_values['queued'] + '\n')
             fout.write('...\n')
         fout.write('---\n')
         fout.write('Total_queued: ' + '"' + last_line['Total_queued'] + '"' + '\n')
@@ -229,10 +229,11 @@ parser.add_option("-d", "--debug", action="store_true", dest="DEBUG", default=Fa
 parser.add_option("-F", "--ForceNames", action="store_true", dest="FORCE_NAMES", default=False,
                   help="force names to show up instead of numbered WNs even for very small numbers of WNs")
 # parser.add_option("-f", "--setCOLORMAPFILE", action="store", type="string", dest="COLORFILE")
+parser.add_option("-f", "--setCUSTOMCONFFILE", action="store", type="string", dest="CONFFILE")
 parser.add_option("-m", "--noMasking", action="store_true", dest="NOMASKING", default=False,
                   help="Don't mask early empty WNs (default: if the first 30 WNs are unused, counting starts from 31).")
-parser.add_option("-o", "--SetVerticalSeparatorXX", action="store", dest="WN_COLON", default=0,
-                  help="Put vertical bar every WN_COLON nodes.")
+parser.add_option("-o", "--option", action="store", dest="OPTION", type="string", default=None,
+                  help="Override respective option in QTOPCONF_YAML file")
 parser.add_option("-r", "--removeemptycorelines", dest="REM_EMPTY_CORELINES", action="store_true", default=False,
                   help="Set the method used for dumping information, json, yaml, or native python (yaml format)")
 parser.add_option("-s", "--SetSourceDir", dest="SOURCEDIR",
