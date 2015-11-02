@@ -35,7 +35,7 @@ from yaml_parser import read_yaml_natively, fix_config_list, convert_dash_key_in
 #     options.COLORFILE = os.path.expandvars('$HOME/qtop/qtop/qtop.colormap')
 
 
-def colorize(text, pattern='Nothing', color_func=None, bg_color=None):
+def colorize(text, color_func=None, pattern='NoPattern', bg_color=None):
     """
     prints text colored according to a unix account pattern color.
     If color is given, pattern is not needed.
@@ -47,8 +47,11 @@ def colorize(text, pattern='Nothing', color_func=None, bg_color=None):
     except KeyError:
         return text
     else:
-        return "\033[" + '%s%s' % (ansi_color, bg_color) + "m" + text + "\033[0;m" \
-            if ((options.COLOR == 'ON') and pattern != 'account_not_colored' and text != ' ') else text
+        if ((options.COLOR == 'ON') and pattern != 'account_not_colored' and text != ' '):
+            text = "\033[%(fg_color)s%(bg_color)sm%(text)s\033[0;m" \
+                   % {'fg_color': ansi_color, 'bg_color': bg_color, 'text': text}
+
+        return text
 
 
 def decide_remapping(cluster_dict, _all_letters, _all_str_digits_with_empties):
@@ -203,34 +206,34 @@ def display_job_accounting_summary(cluster_dict, total_running_jobs, total_queue
         print '=== WARNING: --- Remapping WN names and retrying heuristics... good luck with this... ---'
     print 'PBS report tool. All bugs added by sfranky@gmail.com. Cross fingers now...'
     print 'Please try: watch -d %s/qtop.py -s %s\n' % (QTOPPATH, options.SOURCEDIR)
-    print colorize('===> ', '#') + colorize('Job accounting summary', '', 'Yellow') + colorize(' <=== ', '#') + colorize(
-        '(Rev: 3000 $) %s WORKDIR = %s' % (colorize(str(datetime.datetime.today()), '', 'Purple'), QTOPPATH),
-        'account_not_colored')
+    print colorize('===> ', 'Gray_D') + colorize('Job accounting summary', 'White') + colorize(' <=== ', 'Gray_D') + colorize(
+        '(Rev: 3000 $) %s WORKDIR = %s' % (colorize(str(datetime.datetime.today()), 'Purple'), QTOPPATH),
+        'reset')
 
     print '%(Usage Totals)s:\t%(online_nodes)s/%(total_nodes)s %(Nodes)s | %(working_cores)s/%(total_cores)s %(Cores)s |' \
           '   %(total_run_jobs)s+%(total_q_jobs)s %(jobs)s (R + Q) reported by qstat -q' % \
           {
-              'Usage Totals': colorize('Usage Totals', '', 'Yellow'),
-              'online_nodes': colorize(str(cluster_dict['total_wn'] - cluster_dict['offline_down_nodes']), '', 'Red_L'),
-              'total_nodes': colorize(str(cluster_dict['total_wn']), '', 'Red_L'),
-              'Nodes': colorize('Nodes', '', 'Red_L'),
-              'working_cores': colorize(str(cluster_dict['working_cores']), '', 'Green_L'),
-              'total_cores': colorize(str(cluster_dict['total_cores']), '', 'Green_L'),
-              'Cores': colorize('cores', '', 'Green_L'),
-              'total_run_jobs': colorize(str(int(total_running_jobs)), '', 'Blue_L'),
-              'total_q_jobs': colorize(str(int(total_queued_jobs)), '', 'Blue_L'),
-              'jobs': colorize('jobs', '', 'Blue_L')
+              'Usage Totals': colorize('Usage Totals', 'Yellow'),
+              'online_nodes': colorize(str(cluster_dict['total_wn'] - cluster_dict['offline_down_nodes']), 'Red_L'),
+              'total_nodes': colorize(str(cluster_dict['total_wn']), 'Red_L'),
+              'Nodes': colorize('Nodes', 'Red_L'),
+              'working_cores': colorize(str(cluster_dict['working_cores']), 'Green_L'),
+              'total_cores': colorize(str(cluster_dict['total_cores']), 'Green_L'),
+              'Cores': colorize('cores', 'Green_L'),
+              'total_run_jobs': colorize(str(int(total_running_jobs)), 'Blue_L'),
+              'total_q_jobs': colorize(str(int(total_queued_jobs)), 'Blue_L'),
+              'jobs': colorize('jobs', 'Blue_L')
           }
 
-    print '%(queues)s: | ' % {'queues': colorize('Queues', '', 'Yellow')},
+    print '%(queues)s: | ' % {'queues': colorize('Queues', 'Yellow')},
     for q in qstatq_list:
         q_name, q_running_jobs, q_queued_jobs = q['queue_name'], q['run'], q['queued']
         account = q_name if q_name in color_of_account else 'account_not_colored'
-        print "{qname}{star}: {run} {q}|".format(qname=colorize(q_name, account),
-            star=colorize('*', '', 'Red_L') if q['state'].startswith('D') else '',
-            run=colorize(q_running_jobs, account),
-            q='+ ' + colorize(q_queued_jobs, account) if q_queued_jobs != '0' else ''),
-    print colorize('* implies blocked', '', 'Red') + '\n'
+        print "{qname}{star}: {run} {q}|".format(qname=colorize(q_name, '', account),
+            star=colorize('*', 'Red_L') if q['state'].startswith('D') else '',
+            run=colorize(q_running_jobs, '', account),
+            q='+ ' + colorize(q_queued_jobs, '', account) + ' ' if q_queued_jobs != '0' else ''),
+    print colorize('* implies blocked', 'Red') + '\n'
 
 
 def calculate_job_counts(user_names, job_states):
@@ -502,7 +505,7 @@ def print_wnid_lines(d, start, stop, end_labels, transposed_matrices, color_func
 
     for line_nr, end_label, color in zip(d, end_labels, colors):
         wn_id_str = insert_separators(d[line_nr][start:stop], SEPARATOR, config['vertical_separator_every_X_columns'])
-        wn_id_str = ''.join([colorize(elem, _, color) for elem in wn_id_str])
+        wn_id_str = ''.join([colorize(elem, color) for elem in wn_id_str])
         print wn_id_str + end_label
 
 
@@ -638,16 +641,16 @@ def print_mult_attr_line(print_char_start, print_char_stop, transposed_matrices,
         line = attr_lines[line][print_char_start:print_char_stop]
         # TODO: maybe put attr_line and label as kwd arguments? collect them as **kwargs
         attr_line = insert_separators(line, SEPARATOR, config['vertical_separator_every_X_columns'])
-        attr_line = ''.join([colorize(char, 'Nothing', color_func) for char in attr_line])
+        attr_line = ''.join([colorize(char, color_func) for char in attr_line])
         print attr_line + "=" + label
 
 
 def display_user_accounts_pool_mappings(account_jobs_table, pattern_of_id):
     detail_of_name = get_detail_of_name()
-    print colorize('\n===> ', '#') + \
-          colorize('User accounts and pool mappings', 'Nothing') + \
-          colorize(' <=== ', '#') + \
-          colorize("  ('all' also includes those in C and W states, as reported by qstat)", '#')
+    print colorize('\n===> ', 'Gray_D') + \
+          colorize('User accounts and pool mappings', 'White') + \
+          colorize(' <=== ', 'Gray_d') + \
+          colorize("  ('all' also includes those in C and W states, as reported by qstat)", 'Gray_D')
 
     print 'id|    R +    Q /  all |    unix account | Grid certificate DN (info only available under elevated privileges)'
     for line in account_jobs_table:
@@ -662,13 +665,13 @@ def display_user_accounts_pool_mappings(account_jobs_table, pattern_of_id):
                        '{1:>{width4}} + {2:>{width4}} / {3:>{width4}} {sep} ' \
                        '{4:>{width15}} {sep} ' \
                        '{5:>{width40}} {sep}'.format(
-            colorize(str(uid), account),
-            colorize(str(runningjobs), account),
-            colorize(str(queuedjobs), account),
-            colorize(str(alljobs), account),
-            colorize(user, account),
-            colorize(detail_of_name.get(user, ''), account),
-            sep=colorize(SEPARATOR, account),
+            colorize(str(uid), '', account),
+            colorize(str(runningjobs), '', account),
+            colorize(str(queuedjobs), '', account),
+            colorize(str(alljobs), '', account),
+            colorize(user, '', account),
+            colorize(detail_of_name.get(user, ''), '', account),
+            sep=colorize(SEPARATOR, '', account),
             width2=2 + extra_width,
             width3=3 + extra_width,
             width4=4 + extra_width,
@@ -693,8 +696,8 @@ def get_core_lines(core_user_map, print_char_start, print_char_stop, pattern_of_
             ):
             continue
         cpu_core_line = insert_separators(cpu_core_line, SEPARATOR, config['vertical_separator_every_X_columns'])
-        cpu_core_line = ''.join([colorize(elem, pattern_of_id[elem]) for elem in cpu_core_line if elem in pattern_of_id])
-        yield cpu_core_line + colorize('=Core' + str(ind), 'account_not_colored')
+        cpu_core_line = ''.join([colorize(elem, '', pattern_of_id[elem]) for elem in cpu_core_line if elem in pattern_of_id])
+        yield cpu_core_line + colorize('=Core' + str(ind), '', 'account_not_colored')
 
 
 def calc_core_userid_matrix(cluster_dict, wns_occupancy, job_ids, user_names):
@@ -763,7 +766,7 @@ def transpose_matrix(d, colored=False, reverse=False):
     pattern_of_id = workernodes_occupancy['pattern_of_id']
     for tuple in izip_longest(*[[char for char in d[k]] for k in d], fillvalue=" "):
         if any(j != " " for j in tuple):
-            tuple = colored and [colorize(j, pattern_of_id[j]) if j in pattern_of_id else j for j in tuple] or list(tuple)
+            tuple = colored and [colorize(j, '', pattern_of_id[j]) if j in pattern_of_id else j for j in tuple] or list(tuple)
             tuple[:] = tuple[::-1] if reverse else tuple
             yield "".join(tuple)
 
@@ -851,8 +854,8 @@ def display_wn_occupancy(workernodes_occupancy, cluster_dict):
         note = "/".join(order)
     else:
         note = 'you can read vertically the node IDs; nodes in free state are noted with - '
-    print colorize('===> ', '#') + colorize('Worker Nodes occupancy', 'Nothing') + colorize(' <=== ', '#') \
-          + colorize('(%s)', 'account_not_colored') % note
+    print colorize('===> ', 'Gray_D') + colorize('Worker Nodes occupancy', 'reset') + colorize(' <=== ', 'Gray_D') \
+          + colorize('(%s)', 'Gray_D') % note
 
     display_matrix(workernodes_occupancy)
     if not config['transpose_wn_matrices']:
