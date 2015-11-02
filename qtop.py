@@ -472,15 +472,15 @@ def display_wnid_lines(start, stop, highest_wn, wn_vert_labels, **kwargs):
     highest_wn determines the number of WN ID lines needed  (1/2/3/4+?)
     """
     d = OrderedDict()
-    _end_labels = config['workernodes_matrix'][0]['wn id lines']['end_labels']
+    end_labels = config['workernodes_matrix'][0]['wn id lines']['end_labels']
 
     if not NAMED_WNS:
         node_str_width = len(str(highest_wn))  # 4 for thousands of nodes, nr of horizontal lines to be displayed
 
         for node_nr in range(1, node_str_width + 1):
             d[str(node_nr)] = "".join(wn_vert_labels[str(node_nr)])
-        end_labels = iter(_end_labels[str(node_str_width)])
-        print_wnid_lines(d, start, stop, end_labels, transposed_matrices,
+        end_labels_iter = iter(end_labels[str(node_str_width)])
+        print_wnid_lines(d, start, stop, end_labels_iter, transposed_matrices,
                          color_func=color_plainly, args=('White', 'Gray_L', start > 0))
         # start > 0 is just a test for a possible future condition
 
@@ -489,10 +489,10 @@ def display_wnid_lines(start, stop, highest_wn, wn_vert_labels, **kwargs):
 
         # for longer full-labeled wn ids, add more end-labels (far-right) towards the bottom
         for num in range(8, len(wn_vert_labels) + 1):
-            _end_labels.setdefault(str(num), _end_labels['7'] + num * ['={___ID___}'])
+            end_labels.setdefault(str(num), end_labels['7'] + num * ['={___ID___}'])
 
-        end_labels = iter(_end_labels[str(node_str_width)])
-        print_wnid_lines(wn_vert_labels, start, stop, end_labels, transposed_matrices,
+        end_labels_iter = iter(end_labels[str(node_str_width)])
+        print_wnid_lines(wn_vert_labels, start, stop, end_labels_iter, transposed_matrices,
                          color_func=highlight_alternately, args=(ALT_LABEL_HIGHLIGHT_COLORS))
 
 
