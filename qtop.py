@@ -1049,15 +1049,36 @@ def filter_list_out_by_node_state(batch_nodes, _list=None):
 def filter_list_out_by_name_pattern(batch_nodes, _list=None):
     if not _list:
         _list = []
+    # else:
+    #     _list[:] = [eval(i) for i in _list]
     for idx, node in enumerate(batch_nodes):
         for pattern in _list:
-            match = re.search(eval(pattern), node['domainname'].split('.', 1)[0])
+            match = re.search(pattern, node['domainname'].split('.', 1)[0])
             try:
                 match.group(0)
             except AttributeError:
                 pass
             else:
                 node['mark'] = '*'
+    batch_nodes = filter(lambda item: not item.get('mark'), batch_nodes)
+    return batch_nodes
+
+
+def filter_list_in_by_name_pattern(batch_nodes, _list=None):
+    if not _list:
+        _list = []
+    # else:
+    #     _list[:] = [eval(i) for i in _list]
+
+    for idx, node in enumerate(batch_nodes):
+        for pattern in _list:
+            match = re.search(pattern, node['domainname'].split('.', 1)[0])
+            try:
+                match.group(0)
+            except AttributeError:
+                node['mark'] = '*'
+            else:
+                pass
     batch_nodes = filter(lambda item: not item.get('mark'), batch_nodes)
     return batch_nodes
 
@@ -1072,6 +1093,7 @@ def filter_batch_nodes(batch_nodes, filter_rules=None):
         'list_out_by_name': filter_list_out_by_name,
         'list_in_by_name': filter_list_in_by_name,
         'list_out_by_name_pattern': filter_list_out_by_name_pattern,
+        'list_in_by_name_pattern': filter_list_in_by_name_pattern,
         'list_out_by_node_state': filter_list_out_by_node_state
         # 'ranges_out': func3,
     }
