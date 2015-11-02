@@ -161,6 +161,9 @@ user_display_parts: # job_accounting_summary should be disabled for OAR systems.
 # - temperature
 # - core user map
 
+# character used for vertical separator in WN occupancy matrix
+vertical_separator: '|'
+
 workernodes_matrix:
  - wn id lines:
      max_len: 15
@@ -168,8 +171,6 @@ workernodes_matrix:
      min_masking_threshold: 9
      # Change this to an int if you want a custom cut matrix length
      user_cut_matrix_width: 0
-     # character used for vertical separator, for the -o switch
-     separator: '|'
      # customised end labels
      end_labels:  # TODO: bug for clusters with up to 9 nodes. Label will display incorrectly
        1: '={__WNID__}'

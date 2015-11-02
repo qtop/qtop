@@ -501,7 +501,7 @@ def print_wnid_lines(d, start, stop, end_labels, transposed_matrices, color_func
         return
 
     for line_nr, end_label, color in zip(d, end_labels, colors):
-        wn_id_str = insert_separators(d[line_nr][start:stop], SEPARATOR, options.WN_COLON)
+        wn_id_str = insert_separators(d[line_nr][start:stop], SEPARATOR, config['vertical_separator_every_X_columns'])
         wn_id_str = ''.join([colorize(elem, _, color) for elem in wn_id_str])
         print wn_id_str + end_label
 
@@ -637,7 +637,7 @@ def print_mult_attr_line(print_char_start, print_char_stop, transposed_matrices,
     for line in attr_lines:
         line = attr_lines[line][print_char_start:print_char_stop]
         # TODO: maybe put attr_line and label as kwd arguments? collect them as **kwargs
-        attr_line = insert_separators(line, SEPARATOR, options.WN_COLON)
+        attr_line = insert_separators(line, SEPARATOR, config['vertical_separator_every_X_columns'])
         attr_line = ''.join([colorize(char, 'Nothing', color_func) for char in attr_line])
         print attr_line + "=" + label
 
@@ -692,7 +692,7 @@ def get_core_lines(core_user_map, print_char_start, print_char_stop, pattern_of_
                 ('#' * (len(cpu_core_line)) == cpu_core_line)
             ):
             continue
-        cpu_core_line = insert_separators(cpu_core_line, SEPARATOR, options.WN_COLON)
+        cpu_core_line = insert_separators(cpu_core_line, SEPARATOR, config['vertical_separator_every_X_columns'])
         cpu_core_line = ''.join([colorize(elem, pattern_of_id[elem]) for elem in cpu_core_line if elem in pattern_of_id])
         yield cpu_core_line + colorize('=Core' + str(ind), 'account_not_colored')
 
@@ -1362,7 +1362,7 @@ if __name__ == '__main__':
         key, val = get_key_val_from_option_string(options.OPTION)
         config[key] = val
 
-    SEPARATOR = config['workernodes_matrix'][0]['wn id lines']['separator'].translate(None, "'")  # alias
+    SEPARATOR = config['vertical_separator'].translate(None, "'")  # alias
     USER_CUT_MATRIX_WIDTH = int(config['workernodes_matrix'][0]['wn id lines']['user_cut_matrix_width'])  # alias
     ALT_LABEL_HIGHLIGHT_COLORS = fix_config_list(config['workernodes_matrix'][0]['wn id lines']['alt_label_highlight_colors'])
     # TODO: int should be handled internally in native yaml parser
