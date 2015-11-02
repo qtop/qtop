@@ -83,8 +83,8 @@ class StatMaker:
             fout.write('queue_name: ' + qstatq_values['queue_name'] + '\n')
             fout.write('state: ' + qstatq_values['state'] + '\n')  # job state
             fout.write('lm: ' + qstatq_values['lm'] + '\n')
-            fout.write('run: ' + '"' + qstatq_values['run'] + '"' + '\n')  # job state
-            fout.write('queued: ' + '"' + qstatq_values['queued'] + '"' + '\n')
+            fout.write('run: ' + qstatq_values['run'] + '\n')  # job state
+            fout.write('queued: ' + qstatq_values['queued'] + '\n')
             fout.write('...\n')
         fout.write('---\n')
         fout.write('Total_queued: ' + '"' + last_line['Total_queued'] + '"' + '\n')
