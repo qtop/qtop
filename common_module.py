@@ -229,6 +229,7 @@ parser.add_option("-d", "--debug", action="store_true", dest="DEBUG", default=Fa
 parser.add_option("-F", "--ForceNames", action="store_true", dest="FORCE_NAMES", default=False,
                   help="force names to show up instead of numbered WNs even for very small numbers of WNs")
 # parser.add_option("-f", "--setCOLORMAPFILE", action="store", type="string", dest="COLORFILE")
+parser.add_option("-f", "--setCUSTOMCONFFILE", action="store", type="string", dest="CONFFILE")
 parser.add_option("-m", "--noMasking", action="store_true", dest="NOMASKING", default=False,
                   help="Don't mask early empty WNs (default: if the first 30 WNs are unused, counting starts from 31).")
 parser.add_option("-o", "--option", action="store", dest="OPTION", type="string", default=None,

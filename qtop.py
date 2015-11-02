@@ -925,6 +925,24 @@ def load_yaml_config():
 
     config.update(config_env)
     config.update(config_user)
+
+    if options.CONFFILE:
+        try:
+            config_user_custom = read_yaml_natively(os.path.join(USERPATH, options.CONFFILE))
+        except IOError:
+            try:
+                config_user_custom = read_yaml_natively(os.path.join(CURPATH, options.CONFFILE))
+            except IOError:
+                config_user_custom = {}
+                logging.info('Custom User %s could not be found in %s/ or current dir' % (options.CONFFILE, CURPATH))
+            else:
+                logging.info('Custom User %s found in %s/' % (QTOPCONF_YAML, CURPATH))
+                logging.info('Custom User configuration dictionary loaded. Length: %s items' % len(config_user_custom))
+        else:
+            logging.info('Custom User %s found in %s/' % (QTOPCONF_YAML, USERPATH))
+            logging.info('Custom User configuration dictionary loaded. Length: %s items' % len(config_user_custom))
+        config.update(config_user_custom)
+
     logging.info('Updated main dictionary. Length: %s items' % len(config))
 
     config['possible_ids'] = list(config['possible_ids'])
