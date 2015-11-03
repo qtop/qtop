@@ -112,7 +112,7 @@ remapping:
 # - 'gridmon(\d*)': 'mon\1'
  - '(.*?)cluster(.*?)': \1-\2  # remove "cluster" word from all node names
 # WARNING: not working properly in native yaml parser
- - -: ""  # removes dashes for shortening (can also replace them with something else, e.g. _
+# - -: ""  # removes dashes for shortening (can also replace them with something else, e.g. _
 
 sorting:
   # by_namelen_by_nr, roughly groups the nodes by name and then by number. Experimental!
@@ -163,10 +163,12 @@ user_display_parts: # job_accounting_summary should be disabled for OAR systems.
 
 # character used for vertical separator in WN occupancy matrix
 vertical_separator: '|'
+# Put vertical_separator every X columns.
+vertical_separator_every_X_columns: 0
 
 workernodes_matrix:
  - wn id lines:
-     max_len: 15
+     max_len: 22
      # Masking/clipping functionality. How high should the # earliest node number be (e.g. 50), to make the previous WNs vanish
      min_masking_threshold: 9
      # Change this to an int if you want a custom cut matrix length
