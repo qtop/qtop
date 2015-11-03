@@ -224,6 +224,8 @@ parser.add_option("-a", "--blindremapping", action="store_true", dest="BLINDREMA
 parser.add_option("-b", "--batchSystem", action="store", type="string", dest="BATCH_SYSTEM", default=None)
 parser.add_option("-c", "--COLOR", action="store", dest="COLOR", default="AUTO", choices=['ON', 'OFF', 'AUTO'],
                   help="Enable/Disable color in qtop output. AUTO detects tty (for watch -d)")
+parser.add_option("-C", "--classic", action="store_true", dest="CLASSIC", default=False,
+                  help="tries to mimic legacy qtop display as much as possible")
 parser.add_option("-d", "--debug", action="store_true", dest="DEBUG", default=False,
                   help="print debugging messages in stdout, not just in the log file.")
 parser.add_option("-F", "--ForceNames", action="store_true", dest="FORCE_NAMES", default=False,

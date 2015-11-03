@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 ################################################
-#              qtop v.0.8.2                    #
+#              qtop v.0.8.3                    #
 #     Licensed under MIT-GPL licenses          #
 #                     Sotiris Fragkiskos       #
 #                     Fotis Georgatos          #
@@ -203,15 +203,20 @@ def nodes_with_jobs(worker_nodes):
 
 def display_job_accounting_summary(cluster_dict, total_running_jobs, total_queued_jobs, qstatq_list):
     if options.REMAP:
-        print '=== WARNING: --- Remapping WN names and retrying heuristics... good luck with this... ---'
-    print 'PBS report tool. All bugs added by sfranky@gmail.com. Cross fingers now...'
+        if options.CLASSIC:
+            print '=== WARNING: --- Remapping WN names and retrying heuristics... good luck with this... ---'
+        else:
+            logging.warning('=== WARNING: --- Remapping WN names and retrying heuristics... good luck with this... ---')
+    print '%(name)s report tool. All bugs added by sfranky@gmail.com. Cross fingers now...' \
+        % {'name': 'PBS' if options.CLASSIC else 'Queueing System'}
+
     print 'Please try: watch -d %s/qtop.py -s %s\n' % (QTOPPATH, options.SOURCEDIR)
     print colorize('===> ', 'Gray_D') + colorize('Job accounting summary', 'White') + colorize(' <=== ', 'Gray_D') + colorize(
-        '(Rev: 3000 $) %s WORKDIR = %s' % (colorize(str(datetime.datetime.today()), 'Purple'), QTOPPATH),
+        '(Rev: 3000 $) %s WORKDIR = %s' % (colorize(str(datetime.datetime.today()), 'White'), QTOPPATH),
         'reset')
 
     print '%(Usage Totals)s:\t%(online_nodes)s/%(total_nodes)s %(Nodes)s | %(working_cores)s/%(total_cores)s %(Cores)s |' \
-          '   %(total_run_jobs)s+%(total_q_jobs)s %(jobs)s (R + Q) reported by qstat -q' % \
+          '   %(total_run_jobs)s+%(total_q_jobs)s %(jobs)s (R + Q) %(reported_by)s' % \
           {
               'Usage Totals': colorize('Usage Totals', 'Yellow'),
               'online_nodes': colorize(str(cluster_dict['total_wn'] - cluster_dict['offline_down_nodes']), 'Red_L'),
@@ -222,7 +227,8 @@ def display_job_accounting_summary(cluster_dict, total_running_jobs, total_queue
               'Cores': colorize('cores', 'Green_L'),
               'total_run_jobs': colorize(str(int(total_running_jobs)), 'Blue_L'),
               'total_q_jobs': colorize(str(int(total_queued_jobs)), 'Blue_L'),
-              'jobs': colorize('jobs', 'Blue_L')
+              'jobs': colorize('jobs', 'Blue_L'),
+              'reported_by': 'reported by qstat - q' if options.CLASSIC else ''
           }
 
     print '%(queues)s: | ' % {'queues': colorize('Queues', 'Yellow')},
@@ -650,9 +656,12 @@ def display_user_accounts_pool_mappings(account_jobs_table, pattern_of_id):
     print colorize('\n===> ', 'Gray_D') + \
           colorize('User accounts and pool mappings', 'White') + \
           colorize(' <=== ', 'Gray_d') + \
-          colorize("  ('all' also includes those in C and W states, as reported by qstat)", 'Gray_D')
+          colorize("  ('all' also includes those in C and W states)%(note)s" % {'note': ', as reported by qstat'
+                   if options.CLASSIC else ''}, 'Gray_D')
 
-    print 'id|    R +    Q /  all |    unix account | Grid certificate DN (info only available under elevated privileges)'
+    print 'id|    R +    Q /  all |    unix account | %(msg)s' % \
+          {'msg': 'Grid certificate DN (info only available under elevated privileges)' if options.CLASSIC else
+          'GECOS field or Grid certificate DN' + colorize(' (info only available under elevated privileges)', 'Gray_D')}
     for line in account_jobs_table:
         uid, runningjobs, queuedjobs, alljobs, user = line[0], line[1], line[2], line[3], line[4]
         account = pattern_of_id[uid]
@@ -854,7 +863,7 @@ def display_wn_occupancy(workernodes_occupancy, cluster_dict):
         note = "/".join(order)
     else:
         note = 'you can read vertically the node IDs; nodes in free state are noted with - '
-    print colorize('===> ', 'Gray_D') + colorize('Worker Nodes occupancy', 'reset') + colorize(' <=== ', 'Gray_D') \
+    print colorize('===> ', 'Gray_D') + colorize('Worker Nodes occupancy', 'White') + colorize(' <=== ', 'Gray_D') \
           + colorize('(%s)', 'Gray_D') % note
 
     display_matrix(workernodes_occupancy)
@@ -1353,7 +1362,6 @@ if __name__ == '__main__':
     check_python_version()
     initial_cwd = os.getcwd()
     logging.debug('Initial qtop directory: %s' % initial_cwd)
-    print "Log file created in %s" % os.path.expandvars(QTOP_LOGFILE)
     CURPATH = os.path.expanduser(initial_cwd)  # ex QTOPPATH, will not work if qtop is executed from within a different dir
     QTOPPATH = os.path.dirname(sys.argv[0])  # dir where qtop resides
 
@@ -1411,5 +1419,6 @@ if __name__ == '__main__':
         display_func, args = display_parts[part][0], display_parts[part][1]
         display_func(*args) if not sections_off[idx] else None
 
+    print "\nLog file created in %s" % os.path.expandvars(QTOP_LOGFILE)
     os.chdir(QTOPPATH)
 
