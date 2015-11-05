@@ -11,6 +11,7 @@ from operator import itemgetter
 import datetime
 from itertools import izip, izip_longest
 import subprocess
+import time
 import os
 try:
     from collections import OrderedDict
@@ -1225,6 +1226,8 @@ def get_yaml_files(scheduler, filenames):
 
 def get_filenames_commands():
     d = dict()
+    # date = time.strftime("%Y%m%d")
+    # fn_append = "_" + str(date) if not options.SOURCEDIR else ""
     fn_append = "_" + str(os.getpid()) if not options.SOURCEDIR else ""
     for fn, path_command in config['schedulers'][scheduler].items():
         path, command = path_command.strip().split(', ')
@@ -1365,6 +1368,16 @@ def check_python_version():
         sys.exit(1)
 
 
+def take_care_of_old_yaml_files(filepath):
+    time_alive = int(config['auto_delete_old_yaml_files_after'])
+    user_selected_save_path = os.path.realpath(os.path.expandvars(config['savepath']))
+    for f in os.listdir(user_selected_save_path):
+        curpath = os.path.join(user_selected_save_path, f)
+        file_modified = datetime.datetime.fromtimestamp(os.path.getmtime(curpath))
+        if datetime.datetime.now() - file_modified > datetime.timedelta(hours=time_alive):
+            os.remove(curpath)
+
+
 if __name__ == '__main__':
     transposed_matrices = []
     check_python_version()
@@ -1410,7 +1423,7 @@ if __name__ == '__main__':
     worker_nodes = get_worker_nodes(scheduler)(*yaml_files['get_worker_nodes'])
     job_ids, user_names, job_states, _ = get_jobs_info(scheduler)(*yaml_files['get_jobs_info'])
     total_running_jobs, total_queued_jobs, qstatq_lod = get_queues_info(scheduler)(*yaml_files['get_queues_info'])
-
+    take_care_of_old_yaml_files(*yaml_files['get_jobs_info'])
     #  MAIN ##################################
     logging.info('CALCULATION AREA')
     cluster_dict, NAMED_WNS = calculate_cluster(worker_nodes)
