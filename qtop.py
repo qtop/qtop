@@ -1369,9 +1369,19 @@ def check_python_version():
 
 
 def take_care_of_old_yaml_files(filepath):
+    """
+    deletes older yaml files in savepath directory. Experimental and untested!!
+    USE AT OWN RISK
+    """
+    """
+    :type filepath: str
+    :return:
+    """
     time_alive = int(config['auto_delete_old_yaml_files_after'])
     user_selected_save_path = os.path.realpath(os.path.expandvars(config['savepath']))
     for f in os.listdir(user_selected_save_path):
+        if not f.endswith('yaml'):
+            continue
         curpath = os.path.join(user_selected_save_path, f)
         file_modified = datetime.datetime.fromtimestamp(os.path.getmtime(curpath))
         if datetime.datetime.now() - file_modified > datetime.timedelta(hours=time_alive):
