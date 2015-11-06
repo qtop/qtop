@@ -660,7 +660,7 @@ def display_user_accounts_pool_mappings(account_jobs_table, pattern_of_id):
           colorize("  ('all' also includes those in C and W states)%(note)s" % {'note': ', as reported by qstat'
                    if options.CLASSIC else ''}, 'Gray_D')
 
-    print 'id|    R +    Q /  all |    unix account | %(msg)s' % \
+    print '   R +    Q /  all |    unix account | id| %(msg)s' % \
           {'msg': 'Grid certificate DN (info only available under elevated privileges)' if options.CLASSIC else
           'GECOS field or Grid certificate DN' + colorize(' (info only available under elevated privileges)', 'Gray_D')}
     for line in account_jobs_table:
@@ -671,10 +671,10 @@ def display_user_accounts_pool_mappings(account_jobs_table, pattern_of_id):
             account = 'account_not_colored'
         else:
             extra_width = 12
-        print_string = '{0:<{width2}}{sep} ' \
-                       '{1:>{width4}} + {2:>{width4}} / {3:>{width4}} {sep} ' \
+        print_string = '{1:>{width4}} + {2:>{width4}} / {3:>{width4}} {sep} ' \
                        '{4:>{width15}} {sep} ' \
-                       '{5:>{width40}} {sep}'.format(
+                       '{0:<{width2}}{sep} ' \
+                       '{5:<{width40}} {sep}'.format(
             colorize(str(uid), '', account),
             colorize(str(runningjobs), '', account),
             colorize(str(queuedjobs), '', account),
@@ -1471,7 +1471,7 @@ if __name__ == '__main__':
                 break  # TODO: make a func that allows display of specific part, not just the beginning
         if not options.WATCH:
             break
-        time.sleep(4)
+        # time.sleep(2)
         os.chdir(QTOPPATH)
 
 
