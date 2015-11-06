@@ -236,7 +236,8 @@ def display_job_accounting_summary(cluster_dict, total_running_jobs, total_queue
     for q in qstatq_list:
         q_name, q_running_jobs, q_queued_jobs = q['queue_name'], q['run'], q['queued']
         account = q_name if q_name in color_of_account else 'account_not_colored'
-        print "{qname}{star}: {run} {q}|".format(qname=colorize(q_name, '', account),
+        print "{qname}{star}: {run} {q}|".format(
+            qname=colorize(q_name, '', account),
             star=colorize('*', 'Red_L') if q['state'].startswith('D') or q['state'].endswith('S') else '',
             run=colorize(q_running_jobs, '', account),
             q='+ ' + colorize(q_queued_jobs, '', account) + ' ' if q_queued_jobs != '0' else ''),
