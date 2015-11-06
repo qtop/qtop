@@ -213,9 +213,8 @@ def display_job_accounting_summary(cluster_dict, total_running_jobs, total_queue
         % {'name': 'PBS' if options.CLASSIC else 'Queueing System'}
 
     print 'Please try: watch -d %s/qtop.py -s %s\n' % (QTOPPATH, options.SOURCEDIR)
-    print colorize('===> ', 'Gray_D') + colorize('Job accounting summary', 'White') + colorize(' <=== ', 'Gray_D') + colorize(
-        '(Rev: 3000 $) %s WORKDIR = %s' % (colorize(str(datetime.datetime.today()), 'White'), QTOPPATH),
-        'reset')
+    print colorize('===> ', 'Gray_D') + colorize('Job accounting summary', 'White') + colorize(' <=== ', 'Gray_D') + \
+          '%s WORKDIR = %s' % (colorize(str(datetime.datetime.today())[:-7], 'White'), QTOPPATH)
 
     print '%(Usage Totals)s:\t%(online_nodes)s/%(total_nodes)s %(Nodes)s | %(working_cores)s/%(total_cores)s %(Cores)s |' \
           '   %(total_run_jobs)s+%(total_q_jobs)s %(jobs)s (R + Q) %(reported_by)s' % \
@@ -779,15 +778,20 @@ def transpose_matrix(d, colored=False, reverse=False):
         if any(j != " " for j in tuple):
             tuple = colored and [colorize(j, '', pattern_of_id[j]) if j in pattern_of_id else j for j in tuple] or list(tuple)
             tuple[:] = tuple[::-1] if reverse else tuple
-            yield "".join(tuple)
+            yield tuple
+            # yield "".join(tuple[:config['term_size'][1]])
 
 
 def join_prints(*args, **kwargs):
+    joined_list = []
     for d in args:
         sys.stdout.softspace = False # if i want to omit in-between column spaces
-        print d + kwargs['sep'],
-    else:
-        print
+        joined_list.extend(d)
+        joined_list.append(kwargs['sep'])
+        # print "".join(d) + kwargs['sep'],
+    print "".join(joined_list[:config['term_size'][1]])
+
+    # print
 
 
 def get_yaml_key_part(major_key):
@@ -1461,11 +1465,15 @@ if __name__ == '__main__':
         sys.stdout.flush()
         sys.stdout.close()
         sys.stdout = stdout
-        for line in open(fout, 'r'):
-            print line.strip()
+        for line_nr, line in enumerate(open(fout, 'r')):
+            print line.rstrip()  # [0:config['term_size'][1]].strip()
+            if line_nr > config['term_size'][0]:
+                break  # TODO: make a func that allows display of specific part, not just the beginning
         if not options.WATCH:
             break
         time.sleep(4)
+        os.chdir(QTOPPATH)
 
-    os.chdir(QTOPPATH)
+
+
 

@@ -220,7 +220,7 @@ workernodes_matrix:
 extract_info:
   user_details1: cat -E $HOME/.local/qtop/getent_passwd.txt # this should print an /etc/passwd file
   user_details2: getent passwd %s # alternative method to get details should the first one fail
-  field_to_use: 4
+  field_to_use: 5
   regex: |
     re.search('(?<=<)[^<>]+(?=>)', field).group(0)
 

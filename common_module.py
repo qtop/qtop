@@ -244,10 +244,10 @@ parser.add_option("-s", "--SetSourceDir", dest="SOURCEDIR",
                   help="Set the source directory where pbsnodes and qstat reside")
 parser.add_option("-v", "--verbose", dest="verbose", action="count",
                   help="Increase verbosity (specify multiple times for more)")
-parser.add_option("-w", "--writemethod", dest="write_method", action="store", default="txtyaml",
+parser.add_option("-W", "--writemethod", dest="write_method", action="store", default="txtyaml",
                   choices=['txtyaml', 'json'],
                   help="Set the method used for dumping information, json, yaml, or native python (yaml format)")
-parser.add_option("-W", "--watch", dest="WATCH", action="store_true", default=False,
+parser.add_option("-w", "--watch", dest="WATCH", action="store_true", default=False,
                   help="mimic shell's watch behaviour")
 parser.add_option("-y", "--readexistingyaml", action="store_true", dest="YAML_EXISTS", default=False,
                   help="Do not remake yaml input files, read from the existing ones")
