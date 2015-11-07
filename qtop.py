@@ -874,7 +874,7 @@ def display_wn_occupancy(workernodes_occupancy, cluster_dict):
           + colorize('(%s)', 'Gray_D') % note
 
     display_matrix(workernodes_occupancy)
-    if not config['transpose_wn_matrices']:
+    if not eval(config['transpose_wn_matrices']):
         display_remaining_matrices(workernodes_occupancy)
 
 
