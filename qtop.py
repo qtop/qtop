@@ -1398,83 +1398,88 @@ OUTFILE = '/tmp/output'
 if __name__ == '__main__':
     fout = os.path.expanduser(OUTFILE)
     stdout = sys.stdout
-    while True:
+    try:
+        while True:
 
-        sys.stdout = open(fout, 'w', -1)
-        transposed_matrices = []
-        check_python_version()
-        initial_cwd = os.getcwd()
-        logging.debug('Initial qtop directory: %s' % initial_cwd)
-        CURPATH = os.path.expanduser(initial_cwd)  # ex QTOPPATH, will not work if qtop is executed from within a different dir
-        QTOPPATH = os.path.dirname(sys.argv[0])  # dir where qtop resides
+            sys.stdout = open(fout, 'w', -1)
+            transposed_matrices = []
+            check_python_version()
+            initial_cwd = os.getcwd()
+            logging.debug('Initial qtop directory: %s' % initial_cwd)
+            CURPATH = os.path.expanduser(initial_cwd)  # ex QTOPPATH, will not work if qtop is executed from within a different dir
+            QTOPPATH = os.path.dirname(sys.argv[0])  # dir where qtop resides
 
-        config = load_yaml_config()
-        if options.OPTION:
-            key, val = get_key_val_from_option_string(options.OPTION)
-            config[key] = val
+            config = load_yaml_config()
+            if options.OPTION:
+                key, val = get_key_val_from_option_string(options.OPTION)
+                config[key] = val
 
-        SEPARATOR = config['vertical_separator'].translate(None, "'")  # alias
-        USER_CUT_MATRIX_WIDTH = int(config['workernodes_matrix'][0]['wn id lines']['user_cut_matrix_width'])  # alias
-        ALT_LABEL_HIGHLIGHT_COLORS = fix_config_list(config['workernodes_matrix'][0]['wn id lines']['alt_label_highlight_colors'])
-        # TODO: int should be handled internally in native yaml parser
-        # TODO: fix_config_list should be handled internally in native yaml parser
+            SEPARATOR = config['vertical_separator'].translate(None, "'")  # alias
+            USER_CUT_MATRIX_WIDTH = int(config['workernodes_matrix'][0]['wn id lines']['user_cut_matrix_width'])  # alias
+            ALT_LABEL_HIGHLIGHT_COLORS = fix_config_list(config['workernodes_matrix'][0]['wn id lines']['alt_label_highlight_colors'])
+            # TODO: int should be handled internally in native yaml parser
+            # TODO: fix_config_list should be handled internally in native yaml parser
 
-        options.SOURCEDIR = os.path.realpath(options.SOURCEDIR) if options.SOURCEDIR else None
-        logging.debug("User-defined source directory: %s" % options.SOURCEDIR)
-        options.workdir = options.SOURCEDIR or config['savepath']
-        logging.debug('Working directory is now: %s' % options.workdir)
-        os.chdir(options.workdir)
+            options.SOURCEDIR = os.path.realpath(options.SOURCEDIR) if options.SOURCEDIR else None
+            logging.debug("User-defined source directory: %s" % options.SOURCEDIR)
+            options.workdir = options.SOURCEDIR or config['savepath']
+            logging.debug('Working directory is now: %s' % options.workdir)
+            os.chdir(options.workdir)
 
-        scheduler = pick_batch_system()
+            scheduler = pick_batch_system()
 
-        if config['faster_xml_parsing']:
-            try:
-                from lxml import etree
-            except ImportError:
-                logging.warn('Module lxml is missing. Try issuing "pip install lxml". Reverting to xml module.')
-                from xml.etree import ElementTree as etree
+            if config['faster_xml_parsing']:
+                try:
+                    from lxml import etree
+                except ImportError:
+                    logging.warn('Module lxml is missing. Try issuing "pip install lxml". Reverting to xml module.')
+                    from xml.etree import ElementTree as etree
 
-        INPUT_FNs_commands = get_filenames_commands()
-        input_filenames = get_input_filenames()
+            INPUT_FNs_commands = get_filenames_commands()
+            input_filenames = get_input_filenames()
 
-        # reset_yaml_files()  # either that or having a pid appended in the filename
-        if not options.YAML_EXISTS:
-            convert_to_yaml(scheduler, INPUT_FNs_commands, input_filenames)
-        yaml_files = get_yaml_files(scheduler, input_filenames)
+            # reset_yaml_files()  # either that or having a pid appended in the filename
+            if not options.YAML_EXISTS:
+                convert_to_yaml(scheduler, INPUT_FNs_commands, input_filenames)
+            yaml_files = get_yaml_files(scheduler, input_filenames)
 
-        worker_nodes = get_worker_nodes(scheduler)(*yaml_files['get_worker_nodes'])
-        job_ids, user_names, job_states, _ = get_jobs_info(scheduler)(*yaml_files['get_jobs_info'])
-        total_running_jobs, total_queued_jobs, qstatq_lod = get_queues_info(scheduler)(*yaml_files['get_queues_info'])
-        take_care_of_old_yaml_files(*yaml_files['get_jobs_info'])
-        #  MAIN ##################################
-        logging.info('CALCULATION AREA')
-        cluster_dict, NAMED_WNS = calculate_cluster(worker_nodes)
-        workernodes_occupancy, cluster_dict = calculate_wn_occupancy(cluster_dict, user_names, job_states, job_ids)
+            worker_nodes = get_worker_nodes(scheduler)(*yaml_files['get_worker_nodes'])
+            job_ids, user_names, job_states, _ = get_jobs_info(scheduler)(*yaml_files['get_jobs_info'])
+            total_running_jobs, total_queued_jobs, qstatq_lod = get_queues_info(scheduler)(*yaml_files['get_queues_info'])
+            take_care_of_old_yaml_files(*yaml_files['get_jobs_info'])
+            #  MAIN ##################################
+            logging.info('CALCULATION AREA')
+            cluster_dict, NAMED_WNS = calculate_cluster(worker_nodes)
+            workernodes_occupancy, cluster_dict = calculate_wn_occupancy(cluster_dict, user_names, job_states, job_ids)
 
-        display_parts = {
-            'job_accounting_summary': (display_job_accounting_summary, (cluster_dict, total_running_jobs, total_queued_jobs, qstatq_lod)),
-            'workernodes_matrix': (display_wn_occupancy, (workernodes_occupancy, cluster_dict)),
-            'user_accounts_pool_mappings': (display_user_accounts_pool_mappings, (workernodes_occupancy['account_jobs_table'], workernodes_occupancy['pattern_of_id']))
-        }
-        logging.info('DISPLAY AREA')
+            display_parts = {
+                'job_accounting_summary': (display_job_accounting_summary, (cluster_dict, total_running_jobs, total_queued_jobs, qstatq_lod)),
+                'workernodes_matrix': (display_wn_occupancy, (workernodes_occupancy, cluster_dict)),
+                'user_accounts_pool_mappings': (display_user_accounts_pool_mappings, (workernodes_occupancy['account_jobs_table'], workernodes_occupancy['pattern_of_id']))
+            }
+            logging.info('DISPLAY AREA')
 
-        print "\033c"
-        for idx, part in enumerate(config['user_display_parts'], 1):
-            display_func, args = display_parts[part][0], display_parts[part][1]
-            display_func(*args) if not sections_off[idx] else None
-        print "\nLog file created in %s" % os.path.expandvars(QTOP_LOGFILE)
+            print "\033c"
+            for idx, part in enumerate(config['user_display_parts'], 1):
+                display_func, args = display_parts[part][0], display_parts[part][1]
+                display_func(*args) if not sections_off[idx] else None
+            print "\nLog file created in %s" % os.path.expandvars(QTOP_LOGFILE)
+            sys.stdout.flush()
+            sys.stdout.close()
+            sys.stdout = stdout
+            for line_nr, line in enumerate(open(fout, 'r')):
+                print line.rstrip()  # [0:config['term_size'][1]].strip()
+                if line_nr > config['term_size'][0]:
+                    break  # TODO: make a func that allows display of specific part, not just the beginning
+            if not options.WATCH:
+                break
+            # time.sleep(2)
+            os.chdir(QTOPPATH)
+    except KeyboardInterrupt:
         sys.stdout.flush()
         sys.stdout.close()
         sys.stdout = stdout
-        for line_nr, line in enumerate(open(fout, 'r')):
-            print line.rstrip()  # [0:config['term_size'][1]].strip()
-            if line_nr > config['term_size'][0]:
-                break  # TODO: make a func that allows display of specific part, not just the beginning
-        if not options.WATCH:
-            break
-        # time.sleep(2)
-        os.chdir(QTOPPATH)
-
+        print '  Exiting...'
 
 
 
