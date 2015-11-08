@@ -19,6 +19,8 @@ try:
 except ImportError:
     from ordereddict import OrderedDict
 from signal import signal, SIGPIPE, SIG_DFL
+import termios
+import contextlib
 # modules
 from constants import *
 import common_module
@@ -30,6 +32,35 @@ from plugin_sge import *
 from math import ceil
 from colormap import color_of_account, code_of_color
 from yaml_parser import read_yaml_natively, fix_config_list, convert_dash_key_in_dict
+
+
+@contextlib.contextmanager
+def raw_mode(file):
+    old_attrs = termios.tcgetattr(file.fileno())
+    new_attrs = old_attrs[:]
+    new_attrs[3] = new_attrs[3] & ~(termios.ECHO | termios.ICANON)
+    try:
+        termios.tcsetattr(file.fileno(), termios.TCSADRAIN, new_attrs)
+        yield
+    finally:
+        termios.tcsetattr(file.fileno(), termios.TCSADRAIN, old_attrs)
+
+
+# def main():
+#     print 'exit with ^C or ^D'
+#     with raw_mode(sys.stdin):
+#         try:
+#             while True:
+#                 ch = sys.stdin.read(1)
+#                 if not ch or ch == chr(4):
+#                     break
+#                 #print '%02x' % ord(ch),
+#                 if '%02x' % ord(ch) == '6c':
+#                     print 'Right arrow'
+#                 elif '%02x' % ord(ch) == '68':
+#                     print 'Left arrow'
+#         except (KeyboardInterrupt, EOFError):
+#             pass
 
 
 # TODO make the following work with py files instead of qtop.colormap files
@@ -1311,11 +1342,11 @@ def get_detail_of_name(account_jobs_table):
     else:
         passwd_command = extract_info.get('user_details1').split()
 
-
     p = subprocess.Popen(passwd_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     output, err = p.communicate("something here")
     if 'No such file or directory' in err:
         logging.error('You have to set a proper command to get the passwd file in your %s file.' % QTOPCONF_YAML)
+        logging.error('Error returned by getent: %s\nCommand issued: %s' % (err, passwd_command))
 
     # with open(fn, mode='r') as fin:
     detail_of_name = dict()
@@ -1394,92 +1425,139 @@ def take_care_of_old_yaml_files(filepath):
             os.remove(curpath)
 
 
+
+
 OUTFILE = '/tmp/output'
 if __name__ == '__main__':
     fout = os.path.expanduser(OUTFILE)
     stdout = sys.stdout
-    try:
-        while True:
+    v_start = 1
+    v_stop = 53
+    ch = 'r'  # initial value, resets view position to beginning
+    num_lines = 0
+    with raw_mode(sys.stdin):
+        try:
+            while True:
 
-            sys.stdout = open(fout, 'w', -1)
-            transposed_matrices = []
-            check_python_version()
-            initial_cwd = os.getcwd()
-            logging.debug('Initial qtop directory: %s' % initial_cwd)
-            CURPATH = os.path.expanduser(initial_cwd)  # ex QTOPPATH, will not work if qtop is executed from within a different dir
-            QTOPPATH = os.path.dirname(sys.argv[0])  # dir where qtop resides
+                if not ch or ch == chr(4):
+                    break
+                sys.stdout = open(fout, 'w', -1)
+                transposed_matrices = []
+                check_python_version()
+                initial_cwd = os.getcwd()
+                logging.debug('Initial qtop directory: %s' % initial_cwd)
+                CURPATH = os.path.expanduser(initial_cwd)  # ex QTOPPATH, will not work if qtop is executed from within a different dir
+                QTOPPATH = os.path.dirname(sys.argv[0])  # dir where qtop resides
 
-            config = load_yaml_config()
-            if options.OPTION:
-                key, val = get_key_val_from_option_string(options.OPTION)
-                config[key] = val
+                config = load_yaml_config()
+                if options.OPTION:
+                    key, val = get_key_val_from_option_string(options.OPTION)
+                    config[key] = val
 
-            SEPARATOR = config['vertical_separator'].translate(None, "'")  # alias
-            USER_CUT_MATRIX_WIDTH = int(config['workernodes_matrix'][0]['wn id lines']['user_cut_matrix_width'])  # alias
-            ALT_LABEL_HIGHLIGHT_COLORS = fix_config_list(config['workernodes_matrix'][0]['wn id lines']['alt_label_highlight_colors'])
-            # TODO: int should be handled internally in native yaml parser
-            # TODO: fix_config_list should be handled internally in native yaml parser
+                SEPARATOR = config['vertical_separator'].translate(None, "'")  # alias
+                USER_CUT_MATRIX_WIDTH = int(config['workernodes_matrix'][0]['wn id lines']['user_cut_matrix_width'])  # alias
+                ALT_LABEL_HIGHLIGHT_COLORS = fix_config_list(config['workernodes_matrix'][0]['wn id lines']['alt_label_highlight_colors'])
+                # TODO: int should be handled internally in native yaml parser
+                # TODO: fix_config_list should be handled internally in native yaml parser
 
-            options.SOURCEDIR = os.path.realpath(options.SOURCEDIR) if options.SOURCEDIR else None
-            logging.debug("User-defined source directory: %s" % options.SOURCEDIR)
-            options.workdir = options.SOURCEDIR or config['savepath']
-            logging.debug('Working directory is now: %s' % options.workdir)
-            os.chdir(options.workdir)
+                options.SOURCEDIR = os.path.realpath(options.SOURCEDIR) if options.SOURCEDIR else None
+                logging.debug("User-defined source directory: %s" % options.SOURCEDIR)
+                options.workdir = options.SOURCEDIR or config['savepath']
+                logging.debug('Working directory is now: %s' % options.workdir)
+                os.chdir(options.workdir)
 
-            scheduler = pick_batch_system()
+                scheduler = pick_batch_system()
 
-            if config['faster_xml_parsing']:
-                try:
-                    from lxml import etree
-                except ImportError:
-                    logging.warn('Module lxml is missing. Try issuing "pip install lxml". Reverting to xml module.')
-                    from xml.etree import ElementTree as etree
+                if config['faster_xml_parsing']:
+                    try:
+                        from lxml import etree
+                    except ImportError:
+                        logging.warn('Module lxml is missing. Try issuing "pip install lxml". Reverting to xml module.')
+                        from xml.etree import ElementTree as etree
 
-            INPUT_FNs_commands = get_filenames_commands()
-            input_filenames = get_input_filenames()
+                INPUT_FNs_commands = get_filenames_commands()
+                input_filenames = get_input_filenames()
 
-            # reset_yaml_files()  # either that or having a pid appended in the filename
-            if not options.YAML_EXISTS:
-                convert_to_yaml(scheduler, INPUT_FNs_commands, input_filenames)
-            yaml_files = get_yaml_files(scheduler, input_filenames)
+                # reset_yaml_files()  # either that or having a pid appended in the filename
+                if not options.YAML_EXISTS:
+                    convert_to_yaml(scheduler, INPUT_FNs_commands, input_filenames)
+                yaml_files = get_yaml_files(scheduler, input_filenames)
 
-            worker_nodes = get_worker_nodes(scheduler)(*yaml_files['get_worker_nodes'])
-            job_ids, user_names, job_states, _ = get_jobs_info(scheduler)(*yaml_files['get_jobs_info'])
-            total_running_jobs, total_queued_jobs, qstatq_lod = get_queues_info(scheduler)(*yaml_files['get_queues_info'])
-            take_care_of_old_yaml_files(*yaml_files['get_jobs_info'])
-            #  MAIN ##################################
-            logging.info('CALCULATION AREA')
-            cluster_dict, NAMED_WNS = calculate_cluster(worker_nodes)
-            workernodes_occupancy, cluster_dict = calculate_wn_occupancy(cluster_dict, user_names, job_states, job_ids)
+                worker_nodes = get_worker_nodes(scheduler)(*yaml_files['get_worker_nodes'])
+                job_ids, user_names, job_states, _ = get_jobs_info(scheduler)(*yaml_files['get_jobs_info'])
+                total_running_jobs, total_queued_jobs, qstatq_lod = get_queues_info(scheduler)(*yaml_files['get_queues_info'])
+                take_care_of_old_yaml_files(*yaml_files['get_jobs_info'])
+                #  MAIN ##################################
+                logging.info('CALCULATION AREA')
+                cluster_dict, NAMED_WNS = calculate_cluster(worker_nodes)
+                workernodes_occupancy, cluster_dict = calculate_wn_occupancy(cluster_dict, user_names, job_states, job_ids)
 
-            display_parts = {
-                'job_accounting_summary': (display_job_accounting_summary, (cluster_dict, total_running_jobs, total_queued_jobs, qstatq_lod)),
-                'workernodes_matrix': (display_wn_occupancy, (workernodes_occupancy, cluster_dict)),
-                'user_accounts_pool_mappings': (display_user_accounts_pool_mappings, (workernodes_occupancy['account_jobs_table'], workernodes_occupancy['pattern_of_id']))
-            }
-            logging.info('DISPLAY AREA')
+                display_parts = {
+                    'job_accounting_summary': (display_job_accounting_summary, (cluster_dict, total_running_jobs, total_queued_jobs, qstatq_lod)),
+                    'workernodes_matrix': (display_wn_occupancy, (workernodes_occupancy, cluster_dict)),
+                    'user_accounts_pool_mappings': (display_user_accounts_pool_mappings, (workernodes_occupancy['account_jobs_table'], workernodes_occupancy['pattern_of_id']))
+                }
+                logging.info('DISPLAY AREA')
 
-            print "\033c"
-            for idx, part in enumerate(config['user_display_parts'], 1):
-                display_func, args = display_parts[part][0], display_parts[part][1]
-                display_func(*args) if not sections_off[idx] else None
-            print "\nLog file created in %s" % os.path.expandvars(QTOP_LOGFILE)
+                print "\033c"
+
+                for idx, part in enumerate(config['user_display_parts'], 1):
+                    display_func, args = display_parts[part][0], display_parts[part][1]
+                    display_func(*args) if not sections_off[idx] else None
+                print "\nLog file created in %s" % os.path.expandvars(QTOP_LOGFILE)
+                sys.stdout.flush()
+                sys.stdout.close()
+                sys.stdout = stdout
+
+                pressed_char_hex = '%02x' % ord(ch) # '6c'
+                num_lines = sum(1 for line in open(fout, 'r')) if not num_lines else num_lines
+
+                if pressed_char_hex == '6a':  # "j", down
+                    logging.debug('v_start: %s' % v_start)
+                    logging.debug('Total nr of lines: %s' % num_lines)
+                    if v_stop < num_lines:
+                        v_start += config['term_size'][0]
+                        v_stop += config['term_size'][0] # - 10
+                        logging.info('Going down...')
+                        logging.debug('v_start: %s' % v_start)
+                        logging.debug('v_stop: %s' % v_stop)
+                    else:
+                        logging.info('Staying put')
+                        logging.debug('v_start: %s' % v_start)
+                        logging.debug('v_stop: %s' % v_stop)
+                elif pressed_char_hex == '6b':  # "k" , up
+                    if v_start - config['term_size'][0] >= 0:
+                        v_start -= config['term_size'][0]
+                        v_stop -= config['term_size'][0]
+                        logging.debug('v_start: %s' % v_start)
+                        logging.debug('v_stop: %s' % v_stop)
+                        logging.info('Going up...')
+                    else:
+                        v_start = 1
+                        v_stop = config['term_size'][0]
+                        logging.info('Staying put')
+                    logging.debug('v_stop: %s' % v_stop)
+                elif pressed_char_hex == '72':  # reset
+                    v_start = 1
+                    logging.debug('v_start: %s' % v_start)
+                    v_stop = config['term_size'][0]
+                    logging.debug('v_stop: %s' % v_stop)
+
+
+                for line_nr, line in enumerate(open(fout, 'r')):
+                    if v_start <= line_nr <= v_stop:
+                        print line.rstrip()
+                        # TODO: make a func that allows display of specific part, not just the beginning
+
+                if not options.WATCH:
+                    break
+                ch = sys.stdin.read(1)
+                os.chdir(QTOPPATH)
+        except (KeyboardInterrupt, EOFError):
             sys.stdout.flush()
             sys.stdout.close()
             sys.stdout = stdout
-            for line_nr, line in enumerate(open(fout, 'r')):
-                print line.rstrip()  # [0:config['term_size'][1]].strip()
-                if line_nr > config['term_size'][0]:
-                    break  # TODO: make a func that allows display of specific part, not just the beginning
-            if not options.WATCH:
-                break
-            # time.sleep(2)
-            os.chdir(QTOPPATH)
-    except KeyboardInterrupt:
-        sys.stdout.flush()
-        sys.stdout.close()
-        sys.stdout = stdout
-        print '  Exiting...'
+            print '  Exiting...'
 
 
 
