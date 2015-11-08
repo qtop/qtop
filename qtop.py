@@ -477,7 +477,8 @@ def find_matrices_width(wns_occupancy, cluster_dict, DEADWEIGHT=11):
     start = 0
     wn_number = cluster_dict['highest_wn']
     workernode_list = cluster_dict['workernode_list']
-    term_columns = wns_occupancy['term_columns']
+    # was: term_columns = wns_occupancy['term_columns']
+    term_columns = config['term_size'][1]
     min_masking_threshold = int(config['workernodes_matrix'][0]['wn id lines']['min_masking_threshold'])
     if options.NOMASKING and min(workernode_list) > min_masking_threshold:
         # exclude unneeded first empty nodes from the matrix
@@ -618,7 +619,8 @@ def display_matrix(workernodes_occupancy):
     wn_vert_labels = workernodes_occupancy['wn_vert_labels']
     core_user_map = workernodes_occupancy['core user map']
     extra_matrices_nr = workernodes_occupancy['extra_matrices_nr']
-    term_columns = workernodes_occupancy['term_columns']
+    # term_columns = workernodes_occupancy['term_columns']
+    term_columns = config['term_size'][1]
     pattern_of_id = workernodes_occupancy['pattern_of_id']
 
     occupancy_parts = {
@@ -1027,22 +1029,20 @@ def calculate_split_screen_size(wns_occupancy):
     """
     fallback_term_size = [53, 176]
     try:
-        _, term_columns = config['term_size']
+        term_height, term_columns = os.popen('stty size', 'r').read().split()
     except ValueError:
-        _, term_columns = fix_config_list(config['term_size'])
-    except KeyError:
+        logging.warn("Failed to autodetect terminal size. Trying values in %s." % QTOPCONF_YAML)
         try:
-            _, term_columns = os.popen('stty size', 'r').read().split()
+            term_height, term_columns = config['term_size']
         except ValueError:
-            logging.warn("Failed to autodetect your terminal's size or read it from %s. "
-                             "Using term_size: %s" % QTOPCONF_YAML, fallback_term_size)
-            config['term_size'] = fallback_term_size
-            _, term_columns = config['term_size']
-    else:
-        logging.debug('Detected terminal size is: %s * %s' % (_, term_columns))
+            try:
+                term_height, term_columns = fix_config_list(config['term_size'])
+            except KeyError:
+                config['term_size'] = fallback_term_size
     finally:
-        wns_occupancy['term_columns'] = int(term_columns)
-
+        # was: wns_occupancy['term_columns'] = int(term_columns)
+        logging.debug('Set terminal size is: %s * %s' % (term_height, term_columns))
+        config['term_size'] = [int(term_height), int(term_columns)]
 
 
 def sort_batch_nodes(batch_nodes):
