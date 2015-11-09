@@ -13,6 +13,7 @@ from itertools import izip, izip_longest
 import subprocess
 import time
 import sys
+import select
 import os
 try:
     from collections import OrderedDict
@@ -1542,6 +1543,7 @@ if __name__ == '__main__':
     read_char = 'r'  # initial value, resets view position to beginning
     num_lines = 0
     max_line_len = 0
+    timeout = 1
 
     with raw_mode(sys.stdin):
         try:
@@ -1626,15 +1628,20 @@ if __name__ == '__main__':
                 logging.debug('Total nr of lines: %s' % num_lines)
                 logging.debug('Max line length: %s' % max_line_len)
 
-
                 for line_nr, line in enumerate(open(fout, 'r')):
                     if v_start <= line_nr <= v_stop:
                         print line.rstrip()
                 if not options.WATCH:
                     break
-                read_char = sys.stdin.read(1)
-                if not read_char or read_char == chr(4):
-                    break
+                while sys.stdin in select.select([sys.stdin], [], [], timeout)[0]:
+                    read_char = sys.stdin.read(1)
+                    # if read_char and read_char != chr(4):
+                    if read_char:
+                        logging.debug('Pressed %s' % read_char)
+                        break
+                else:
+                    read_char = '\n'
+                    logging.debug("It's as if someone pressed <Enter>")
                 pressed_char_hex = '%02x' % ord(read_char) # read_char has an initial value that resets the display ('72')
                 h_start, h_stop, v_start, v_stop = control_movement(pressed_char_hex, h_start, h_stop, v_start, v_stop)
                 os.chdir(QTOPPATH)
