@@ -1436,6 +1436,27 @@ def scroll_down(h_start, h_stop, v_start, v_stop):
         logging.info('Staying put')
     return h_start, h_stop, v_start, v_stop
 
+
+def scroll_bottom(h_start, h_stop, v_start, v_stop):
+    logging.debug('v_start: %s' % v_start)
+
+    v_start = num_lines - config['term_size'][0]
+    v_stop = num_lines
+    logging.info('Going to the bottom...')
+    config['v_stop'] = v_stop
+    return h_start, h_stop, v_start, v_stop
+
+
+def scroll_top(h_start, h_stop, v_start, v_stop):
+    logging.debug('v_start: %s' % v_start)
+
+    v_start = 0
+    v_stop = config['term_size'][0]
+    logging.info('Going to the top...')
+    config['v_stop'] = v_stop
+    return h_start, h_stop, v_start, v_stop
+
+
 def scroll_up(h_start, h_stop, v_start, v_stop):
     if v_start - config['term_size'][0] >= 0:
         v_start -= config['term_size'][0]
@@ -1488,13 +1509,19 @@ def quit_program(h_start, h_stop, v_start, v_stop):  # "q", quit
 
 def control_movement(pressed_char_hex, h_start, h_stop, v_start, v_stop):
     key_actions = {
-        '6a': scroll_down,
-        '6b': scroll_up,
-        '6c': scroll_right,
-        '68': scroll_left,
-        '72': reset_display,
-        '71': quit_program,
-        '0a': lambda a,b,c,d:(a,b,c,d),
+        '6a': scroll_down,  # j
+        '20': scroll_down,  # spacebar
+        '6b': scroll_up,  # k
+        '7f': scroll_up,  # Backspace
+        '6c': scroll_right,  # l
+        '68': scroll_left,  # h
+        '4a': scroll_bottom,  # S-j
+        '47': scroll_bottom,  # G
+        '4b': scroll_top,  # S-k
+        '67': scroll_top,  # g
+        '72': reset_display,  # r
+        '71': quit_program,  # q
+        '0a': lambda a,b,c,d:(a,b,c,d),  # Enter
     }
     h_start, h_stop, v_start, v_stop = key_actions[pressed_char_hex](h_start, h_stop, v_start, v_stop)
     # logging.debug('\n\tv_start: %s\n\tv_stop: %s\n\th_start: %s\n\th_stop: %s' % (v_start, v_stop, h_start, h_stop))
