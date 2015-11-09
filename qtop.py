@@ -662,9 +662,12 @@ def display_matrix(workernodes_occupancy):
             matrix[0] = order.index(matrix[1])
 
         transposed_matrices.sort(key=lambda item: item[0])
+        # logging.debug('Area Displayed Before join_prints: (h_start, v_start) --> (h_stop, v_stop) '
+        #               '\n\t(%(h_start)s, %(v_start)s) --> (%(h_stop)s, %(v_stop)s)' %
+        #               {'v_start': v_start, 'v_stop': v_stop, 'h_start': h_start, 'h_stop': h_stop})
         for line_tuple in izip_longest(*[tpl[2] for tpl in transposed_matrices], fillvalue='  '):
             join_prints(*line_tuple, sep=config.get('horizontal_separator', None))
-
+        logging.debug('Printed horizontally from %s to %s' % (config['h_start'], h_stop))
     print
 
 
@@ -823,7 +826,8 @@ def join_prints(*args, **kwargs):
         joined_list.extend(d)
         joined_list.append(kwargs['sep'])
         # print "".join(d) + kwargs['sep'],
-    print "".join(joined_list[:config['term_size'][1]])
+    print "".join(joined_list[h_start:h_stop])
+    # print "".join(joined_list[:config['term_size'][1]])
 
     # print
 
@@ -949,15 +953,7 @@ def load_yaml_config():
     """
     config = read_yaml_natively(os.path.join(QTOPPATH, QTOPCONF_YAML))
     logging.info('Default configuration dictionary loaded. Length: %s items' % len(config))
-    # try:
-    #     config = yaml.safe_load(open(os.path.join(path + "/qtopconf.yaml")))
-    # except ImportError:
-    #     config = read_yaml_natively(os.path.join(path + "/qtopconf.yaml"))
-    # except yaml.YAMLError, exc:
-    #     if hasattr(exc, 'problem_mark'):
-    #         mark = exc.problem_mark
-    #         print "Your YAML configuration file has an error in position: (%s:%s)" % (mark.line + 1, mark.column + 1)
-    #         print "Please make sure that spaces are multiples of 2."
+
     try:
         config_env = read_yaml_natively(os.path.join(SYSTEMCONFDIR, QTOPCONF_YAML))
     except IOError:
@@ -1043,6 +1039,9 @@ def calculate_split_screen_size(wns_occupancy):
         # was: wns_occupancy['term_columns'] = int(term_columns)
         logging.debug('Set terminal size is: %s * %s' % (term_height, term_columns))
         config['term_size'] = [int(term_height), int(term_columns)]
+        config['h_start'] = h_start
+        config['h_stop'] = config['term_size'][1]
+        config['v_stop'] = config['term_size'][0]
 
 
 def sort_batch_nodes(batch_nodes):
@@ -1425,23 +1424,102 @@ def take_care_of_old_yaml_files(filepath):
             os.remove(curpath)
 
 
+def scroll_down(h_start, h_stop, v_start, v_stop):
+    logging.debug('v_start: %s' % v_start)
 
+    if v_stop < num_lines:
+        v_start += config['term_size'][0]
+        v_stop += config['term_size'][0]  # - 10
+        logging.info('Going down...')
+        config['v_stop'] = v_stop
+    else:
+        logging.info('Staying put')
+    return h_start, h_stop, v_start, v_stop
+
+def scroll_up(h_start, h_stop, v_start, v_stop):
+    if v_start - config['term_size'][0] >= 0:
+        v_start -= config['term_size'][0]
+        v_stop -= config['term_size'][0]
+        logging.info('Going up...')
+    else:
+        v_start = 1
+        v_stop = config['term_size'][0]
+        logging.info('Staying put')
+    config['v_stop'] = v_stop
+    return h_start, h_stop, v_start, v_stop
+
+
+def scroll_right(h_start, h_stop, v_start, v_stop):  # 'l', right
+    h_start += config['term_size'][1]/2
+    config['h_start'] = h_start
+    h_stop += config['term_size'][1]/2
+    config['h_stop'] = h_stop
+    logging.info('Going right...')
+    return config['h_start'], config['h_stop'], v_start, v_stop
+
+
+def scroll_left(h_start, h_stop, v_start, v_stop):
+    if h_start >= config['term_size'][1] / 2:
+        h_start -= config['term_size'][1]/2
+    if h_start > 0:
+        h_stop -= config['term_size'][1]/2
+    else:
+        h_stop = config['term_size'][1]
+    config['h_start'] = h_start
+    config['h_stop'] = h_stop
+    logging.info('Going left...')
+    return h_start, h_stop, v_start, v_stop
+
+def reset_display(h_start, h_stop, v_start, v_stop):  # "R", reset display
+    v_start = 1
+    v_stop = config['term_size'][0]
+    config['v_stop'] = v_stop
+    h_start = 0
+    h_stop = config['term_size'][1]
+    return h_start, h_stop, v_start, v_stop
+
+def quit_program(h_start, h_stop, v_start, v_stop):  # "q", quit
+    try:
+        raise KeyboardInterrupt
+    except KeyboardInterrupt:
+        print '  Exiting...'
+        sys.exit(0)
+
+
+def control_movement(pressed_char_hex, h_start, h_stop, v_start, v_stop):
+    key_actions = {
+        '6a': scroll_down,
+        '6b': scroll_up,
+        '6c': scroll_right,
+        '68': scroll_left,
+        '72': reset_display,
+        '71': quit_program,
+        '0a': lambda a,b,c,d:(a,b,c,d),
+    }
+    h_start, h_stop, v_start, v_stop = key_actions[pressed_char_hex](h_start, h_stop, v_start, v_stop)
+    # logging.debug('\n\tv_start: %s\n\tv_stop: %s\n\th_start: %s\n\th_stop: %s' % (v_start, v_stop, h_start, h_stop))
+    logging.debug('Area Displayed: (h_start, v_start) --> (h_stop, v_stop) '
+                  '\n\t(%(h_start)s, %(v_start)s) --> (%(h_stop)s, %(v_stop)s)' %
+                  {'v_start': v_start, 'v_stop': v_stop, 'h_start': h_start, 'h_stop': h_stop})
+
+    return h_start, h_stop, v_start, v_stop
 
 OUTFILE = '/tmp/output'
 if __name__ == '__main__':
     fout = os.path.expanduser(OUTFILE)
     stdout = sys.stdout
     v_start = 1
-    v_stop = 53
-    ch = 'r'  # initial value, resets view position to beginning
+    v_stop = None
+    h_start = 0
+    h_stop = None
+    read_char = 'r'  # initial value, resets view position to beginning
     num_lines = 0
+    max_line_len = 0
+
     with raw_mode(sys.stdin):
         try:
             while True:
-
-                if not ch or ch == chr(4):
-                    break
-                sys.stdout = open(fout, 'w', -1)
+                sys.stdout = open(fout, 'w', -1)  # redirect everything to file
                 transposed_matrices = []
                 check_python_version()
                 initial_cwd = os.getcwd()
@@ -1450,6 +1528,7 @@ if __name__ == '__main__':
                 QTOPPATH = os.path.dirname(sys.argv[0])  # dir where qtop resides
 
                 config = load_yaml_config()
+
                 if options.OPTION:
                     key, val = get_key_val_from_option_string(options.OPTION)
                     config[key] = val
@@ -1491,7 +1570,12 @@ if __name__ == '__main__':
                 logging.info('CALCULATION AREA')
                 cluster_dict, NAMED_WNS = calculate_cluster(worker_nodes)
                 workernodes_occupancy, cluster_dict = calculate_wn_occupancy(cluster_dict, user_names, job_states, job_ids)
+                h_stop = config['h_stop'] if h_stop is None else h_stop
+                v_stop = config['v_stop'] if v_stop is None else v_stop
 
+                # logging.debug('Area Displayed Before Display FUNC: (h_start, v_start) --> (h_stop, v_stop) '
+                #               '\n\t(%(h_start)s, %(v_start)s) --> (%(h_stop)s, %(v_stop)s)' %
+                #               {'v_start': v_start, 'v_stop': v_stop, 'h_start': h_start, 'h_stop': h_stop})
                 display_parts = {
                     'job_accounting_summary': (display_job_accounting_summary, (cluster_dict, total_running_jobs, total_queued_jobs, qstatq_lod)),
                     'workernodes_matrix': (display_wn_occupancy, (workernodes_occupancy, cluster_dict)),
@@ -1507,57 +1591,32 @@ if __name__ == '__main__':
                 print "\nLog file created in %s" % os.path.expandvars(QTOP_LOGFILE)
                 sys.stdout.flush()
                 sys.stdout.close()
-                sys.stdout = stdout
+                sys.stdout = stdout  # sys.stdout is back to its normal function (i.e. screen output)
 
-                pressed_char_hex = '%02x' % ord(ch) # '6c'
                 num_lines = sum(1 for line in open(fout, 'r')) if not num_lines else num_lines
+                max_line_len = max(len(line.strip()) for line in open(fout, 'r')) if not max_line_len else max_line_len
 
-                if pressed_char_hex == '6a':  # "j", down
-                    logging.debug('v_start: %s' % v_start)
-                    logging.debug('Total nr of lines: %s' % num_lines)
-                    if v_stop < num_lines:
-                        v_start += config['term_size'][0]
-                        v_stop += config['term_size'][0] # - 10
-                        logging.info('Going down...')
-                        logging.debug('v_start: %s' % v_start)
-                        logging.debug('v_stop: %s' % v_stop)
-                    else:
-                        logging.info('Staying put')
-                        logging.debug('v_start: %s' % v_start)
-                        logging.debug('v_stop: %s' % v_stop)
-                elif pressed_char_hex == '6b':  # "k" , up
-                    if v_start - config['term_size'][0] >= 0:
-                        v_start -= config['term_size'][0]
-                        v_stop -= config['term_size'][0]
-                        logging.debug('v_start: %s' % v_start)
-                        logging.debug('v_stop: %s' % v_stop)
-                        logging.info('Going up...')
-                    else:
-                        v_start = 1
-                        v_stop = config['term_size'][0]
-                        logging.info('Staying put')
-                    logging.debug('v_stop: %s' % v_stop)
-                elif pressed_char_hex == '72':  # reset
-                    v_start = 1
-                    logging.debug('v_start: %s' % v_start)
-                    v_stop = config['term_size'][0]
-                    logging.debug('v_stop: %s' % v_stop)
+                logging.debug('Total nr of lines: %s' % num_lines)
+                logging.debug('Max line length: %s' % max_line_len)
 
 
                 for line_nr, line in enumerate(open(fout, 'r')):
                     if v_start <= line_nr <= v_stop:
                         print line.rstrip()
-                        # TODO: make a func that allows display of specific part, not just the beginning
-
                 if not options.WATCH:
                     break
-                ch = sys.stdin.read(1)
+                read_char = sys.stdin.read(1)
+                if not read_char or read_char == chr(4):
+                    break
+                pressed_char_hex = '%02x' % ord(read_char) # read_char has an initial value that resets the display ('72')
+                h_start, h_stop, v_start, v_stop = control_movement(pressed_char_hex, h_start, h_stop, v_start, v_stop)
                 os.chdir(QTOPPATH)
         except (KeyboardInterrupt, EOFError):
             sys.stdout.flush()
             sys.stdout.close()
             sys.stdout = stdout
-            print '  Exiting...'
+            # print '  Exiting...'
+            sys.exit(0)
 
 
 
