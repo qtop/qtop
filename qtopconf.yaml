@@ -56,8 +56,10 @@ state_abbreviations:
     hqw: hold_of_user
     t: transferring_of_user
     T: threshold_reached
+    ht: ht_of_user
     dr: job_ending_of_user
     dt: dt_of_user
+    dht: dht_of_user
     s: suspended_of_user
     S: suspended_by_the_queue
 
