@@ -219,9 +219,9 @@ workernodes_matrix:
 #Yellow
 
 extract_info:
-  user_details1: cat -E $HOME/.local/qtop/getent_passwd # this should print an /etc/passwd file
-  user_details2: getent passwd %s # alternative method to get details should the first one fail
-  field_to_use: 5
+  user_details_cache: cat -E $HOME/.local/qtop/getent_passwd.txt # this gets cached GECOS field info
+  user_details_realtime: getent passwd %s # alternative method to get details in realtime
+  field_to_use: 4
   regex: |
     re.search('(?<=<)[^<>]+(?=>)', field).group(0)
 
@@ -238,4 +238,4 @@ occupancy_column_order:
   - queue name
 horizontal_separator: '|'
 
-auto_delete_old_yaml_files_after: 1 # (hours)
+auto_delete_old_yaml_files_after_few_hours: 1 # (hours)

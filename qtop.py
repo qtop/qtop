@@ -1246,7 +1246,7 @@ def get_yaml_files(scheduler, filenames):
 
 def get_filenames_commands():
     d = dict()
-    # date = time.strftime("%Y%m%d")
+    # date = time.strftime("%Y%m%d")  #TODO
     # fn_append = "_" + str(date) if not options.SOURCEDIR else ""
     fn_append = "_" + str(os.getpid()) if not options.SOURCEDIR else ""
     for fn, path_command in config['schedulers'][scheduler].items():
@@ -1320,10 +1320,10 @@ def get_detail_of_name(account_jobs_table):
 
     if options.GET_GECOS:
         users = ' '.join([line[4] for line in account_jobs_table])
-        passwd_command = extract_info.get('user_details2') % users
+        passwd_command = extract_info.get('user_details_realtime') % users
         passwd_command = passwd_command.split()
     else:
-        passwd_command = extract_info.get('user_details1').split()
+        passwd_command = extract_info.get('user_details_cache').split()
 
     p = subprocess.Popen(passwd_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     output, err = p.communicate("something here")
