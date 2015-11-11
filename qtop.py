@@ -1297,10 +1297,10 @@ def get_detail_of_name(account_jobs_table):
 
     if options.GET_GECOS:
         users = ' '.join([line[4] for line in account_jobs_table])
-        passwd_command = extract_info.get('user_details2') % users
+        passwd_command = extract_info.get('user_details_realtime') % users
         passwd_command = passwd_command.split()
     else:
-        passwd_command = extract_info.get('user_details1').split()
+        passwd_command = extract_info.get('user_details_cache').split()
 
 
     p = subprocess.Popen(passwd_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)

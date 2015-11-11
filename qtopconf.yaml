@@ -218,8 +218,8 @@ workernodes_matrix:
 #Yellow
 
 extract_info:
-  user_details1: cat -E $HOME/.local/qtop/getent_passwd.txt # this should print an /etc/passwd file
-  user_details2: getent passwd %s # alternative method to get details should the first one fail
+  user_details_cache: cat -E $HOME/.local/qtop/getent_passwd.txt # this gets cached GECOS field info
+  user_details_realtime: getent passwd %s # alternative method to get details in realtime
   field_to_use: 4
   regex: |
     re.search('(?<=<)[^<>]+(?=>)', field).group(0)
