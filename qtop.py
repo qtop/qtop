@@ -651,11 +651,10 @@ def display_matrix(workernodes_occupancy):
             matrix[0] = order.index(matrix[1])
 
         transposed_matrices.sort(key=lambda item: item[0])
-        # logging.debug('Area Displayed Before join_prints: (h_start, v_start) --> (h_stop, v_stop) '
-        #               '\n\t(%(h_start)s, %(v_start)s) --> (%(h_stop)s, %(v_stop)s)' %
-        #               {'v_start': v_start, 'v_stop': v_stop, 'h_start': h_start, 'h_stop': h_stop})
+
         for line_tuple in izip_longest(*[tpl[2] for tpl in transposed_matrices], fillvalue='  '):
-            join_prints(*line_tuple, sep=config.get('horizontal_separator', None))
+            max_full_line_len = join_prints(*line_tuple, sep=config.get('horizontal_separator', None))
+        workernodes_occupancy['max_full_line_len'] = max_full_line_len
         logging.debug('Printed horizontally from %s to %s' % (config['h_start'], h_stop))
     print
 
@@ -814,11 +813,9 @@ def join_prints(*args, **kwargs):
         sys.stdout.softspace = False # if i want to omit in-between column spaces
         joined_list.extend(d)
         joined_list.append(kwargs['sep'])
-        # print "".join(d) + kwargs['sep'],
-    print "".join(joined_list[h_start:h_stop])
-    # print "".join(joined_list[:config['term_size'][1]])
 
-    # print
+    print "".join(joined_list[h_start:h_stop])
+    return len(joined_list)
 
 
 def get_yaml_key_part(major_key):
@@ -1464,6 +1461,19 @@ def scroll_right(h_start, h_stop, v_start, v_stop):  # 'l', right
     return config['h_start'], config['h_stop'], v_start, v_stop
 
 
+def scroll_far_right(h_start, h_stop, v_start, v_stop):  # 'l', right
+    h_start = workernodes_occupancy['max_full_line_len'] - config['term_size'][1]
+    config['h_start'] = h_start
+    h_stop = workernodes_occupancy['max_full_line_len']
+    config['h_stop'] = h_stop
+    logging.info('h_start: %s' % h_start)
+    logging.info('max_line_len: %s' % max_line_len)
+    logging.info('config["term_size"][1] %s' % config['term_size'][1])
+    logging.info('h_stop: %s' % h_stop)
+    logging.info('Going far right...')
+    return config['h_start'], config['h_stop'], v_start, v_stop
+
+
 def scroll_left(h_start, h_stop, v_start, v_stop):
     if h_start >= config['term_size'][1] / 2:
         h_start -= config['term_size'][1]/2
@@ -1475,6 +1485,16 @@ def scroll_left(h_start, h_stop, v_start, v_stop):
     config['h_stop'] = h_stop
     logging.info('Going left...')
     return h_start, h_stop, v_start, v_stop
+
+
+def scroll_far_left(h_start, h_stop, v_start, v_stop):
+    h_start = 0
+    h_stop = config['term_size'][1]
+    config['h_start'] = h_start
+    config['h_stop'] = h_stop
+    logging.info('Going far left...')
+    return h_start, h_stop, v_start, v_stop
+
 
 def reset_display(h_start, h_stop, v_start, v_stop):  # "R", reset display
     v_start = 1
@@ -1499,7 +1519,9 @@ def control_movement(pressed_char_hex, h_start, h_stop, v_start, v_stop):
         '6b': scroll_up,  # k
         '7f': scroll_up,  # Backspace
         '6c': scroll_right,  # l
+        '24': scroll_far_right,  # $
         '68': scroll_left,  # h
+        '30': scroll_far_left,  # 0
         '4a': scroll_bottom,  # S-j
         '47': scroll_bottom,  # G
         '4b': scroll_top,  # S-k
@@ -1604,7 +1626,9 @@ if __name__ == '__main__':
                 sys.stdout = stdout  # sys.stdout is back to its normal function (i.e. screen output)
 
                 num_lines = sum(1 for line in open(fout, 'r')) if not num_lines else num_lines
-                max_line_len = max(len(line.strip()) for line in open(fout, 'r')) if not max_line_len else max_line_len
+                ansi_escape = re.compile(r'\x1b[^m]*m')
+                max_line_len = max(len(ansi_escape.sub('', line.strip())) for line in open(fout, 'r')) \
+                    if not max_line_len else max_line_len
 
                 logging.debug('Total nr of lines: %s' % num_lines)
                 logging.debug('Max line length: %s' % max_line_len)

@@ -1,5 +1,5 @@
 ## 0.8.4
-  - Watch replacement (with full color functionality, compatible with older RHEL6 systems)
+  - Watch replacement with simple pager included (with full color functionality, compatible with older RHEL6 systems)
   - GECOS field completed by a less "intruding" command
   - Numerous enhancements and bug fixes
 
