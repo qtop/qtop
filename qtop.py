@@ -952,7 +952,7 @@ def load_yaml_config():
     $HOME/.local/qtop/
     in that order.
     """
-    config = read_yaml_natively(os.path.join(CURPATH, QTOPCONF_YAML))
+    config = read_yaml_natively(os.path.join(os.path.realpath(QTOPPATH), QTOPCONF_YAML))
     logging.info('Default configuration dictionary loaded. Length: %s items' % len(config))
 
     try:
@@ -1545,17 +1545,18 @@ if __name__ == '__main__':
     max_line_len = 0
     timeout = 1
 
+    check_python_version()
+    initial_cwd = os.getcwd()
+    logging.debug('Initial qtop directory: %s' % initial_cwd)
+    # where qtop was invoked from, will not work if qtop is executed from within a different dir
+    CURPATH = os.path.expanduser(initial_cwd)
+    QTOPPATH = os.path.dirname(os.path.realpath(sys.argv[0]))  # dir where qtop resides
+
     with raw_mode(sys.stdin):
         try:
             while True:
                 sys.stdout = open(fout, 'w', -1)  # redirect everything to file
                 transposed_matrices = []
-                check_python_version()
-                initial_cwd = os.getcwd()
-                logging.debug('Initial qtop directory: %s' % initial_cwd)
-                CURPATH = os.path.expanduser(initial_cwd)  # ex QTOPPATH, will not work if qtop is executed from within a different dir
-                QTOPPATH = os.path.dirname(sys.argv[0])  # dir where qtop resides
-
                 config = load_yaml_config()
 
                 if options.OPTION:
