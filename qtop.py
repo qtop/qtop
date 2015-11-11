@@ -1393,14 +1393,10 @@ def check_python_version():
         sys.exit(1)
 
 
-def take_care_of_old_yaml_files(filepath):
+def deprecate_old_yaml_files(filepath):
     """
-    deletes older yaml files in savepath directory. Experimental and untested!!
-    USE AT OWN RISK
-    """
-    """
-    :type filepath: str
-    :return:
+    deletes older yaml files in savepath directory.
+    experimental and loosely untested
     """
     time_alive = int(config['auto_delete_old_yaml_files_after'])
     user_selected_save_path = os.path.realpath(os.path.expandvars(config['savepath']))
