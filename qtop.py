@@ -1226,7 +1226,7 @@ def get_yaml_files(scheduler, filenames):
 
 def get_filenames_commands():
     d = dict()
-    # date = time.strftime("%Y%m%d")
+    # date = time.strftime("%Y%m%d")  #TODO
     # fn_append = "_" + str(date) if not options.SOURCEDIR else ""
     fn_append = "_" + str(os.getpid()) if not options.SOURCEDIR else ""
     for fn, path_command in config['schedulers'][scheduler].items():

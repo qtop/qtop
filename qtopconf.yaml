@@ -237,4 +237,4 @@ occupancy_column_order:
   - queue name
 horizontal_separator: '|'
 
-auto_delete_old_yaml_files_after: 1 # (hours)
+auto_delete_old_yaml_files_after_few_hours: 1 # (hours)
