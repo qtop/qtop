@@ -271,8 +271,8 @@ mkdir_p(QTOP_LOGFILE_PATH)
 logger = logging.getLogger()
 logger.setLevel(logging.DEBUG)
 
-# formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')  #this adds time
-formatter = logging.Formatter('%(levelname)s - %(message)s')
+formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s', "%Y-%m-%d %H:%M:%S")  #this adds time
+# formatter = logging.Formatter('%(levelname)s - %(message)s')
 
 fh = logging.FileHandler(QTOP_LOGFILE)
 fh.setLevel(log_level)

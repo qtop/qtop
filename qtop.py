@@ -803,7 +803,6 @@ def transpose_matrix(d, colored=False, reverse=False):
             tuple = colored and [colorize(j, '', pattern_of_id[j]) if j in pattern_of_id else j for j in tuple] or list(tuple)
             tuple[:] = tuple[::-1] if reverse else tuple
             yield tuple
-            # yield "".join(tuple[:config['term_size'][1]])
 
 
 def join_prints(*args, **kwargs):
