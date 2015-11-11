@@ -653,8 +653,7 @@ def display_matrix(workernodes_occupancy):
         transposed_matrices.sort(key=lambda item: item[0])
 
         for line_tuple in izip_longest(*[tpl[2] for tpl in transposed_matrices], fillvalue='  '):
-            max_full_line_len = join_prints(*line_tuple, sep=config.get('horizontal_separator', None))
-        workernodes_occupancy['max_full_line_len'] = max_full_line_len
+            join_prints(*line_tuple, sep=config.get('horizontal_separator', None))
         logging.debug('Printed horizontally from %s to %s' % (config['h_start'], h_stop))
     print
 
@@ -815,7 +814,7 @@ def join_prints(*args, **kwargs):
         joined_list.append(kwargs['sep'])
 
     print "".join(joined_list[h_start:h_stop])
-    return len(joined_list)
+    workernodes_occupancy.setdefault('max_full_line_len', len(joined_list))
 
 
 def get_yaml_key_part(major_key):
