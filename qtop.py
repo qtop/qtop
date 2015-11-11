@@ -1532,8 +1532,7 @@ if __name__ == '__main__':
     check_python_version()
     initial_cwd = os.getcwd()
     logging.debug('Initial qtop directory: %s' % initial_cwd)
-    # where qtop was invoked from, will not work if qtop is executed from within a different dir
-    CURPATH = os.path.expanduser(initial_cwd)
+    CURPATH = os.path.expanduser(initial_cwd)  # where qtop was invoked from
     QTOPPATH = os.path.dirname(os.path.realpath(sys.argv[0]))  # dir where qtop resides
 
     with raw_mode(sys.stdin):
@@ -1579,7 +1578,7 @@ if __name__ == '__main__':
                 worker_nodes = get_worker_nodes(scheduler)(*yaml_files['get_worker_nodes'])
                 job_ids, user_names, job_states, _ = get_jobs_info(scheduler)(*yaml_files['get_jobs_info'])
                 total_running_jobs, total_queued_jobs, qstatq_lod = get_queues_info(scheduler)(*yaml_files['get_queues_info'])
-                take_care_of_old_yaml_files(*yaml_files['get_jobs_info'])
+                deprecate_old_yaml_files(*yaml_files['get_jobs_info'])
                 #  MAIN ##################################
                 logging.info('CALCULATION AREA')
                 cluster_dict, NAMED_WNS = calculate_cluster(worker_nodes)
@@ -1587,9 +1586,6 @@ if __name__ == '__main__':
                 h_stop = config['h_stop'] if h_stop is None else h_stop
                 v_stop = config['v_stop'] if v_stop is None else v_stop
 
-                # logging.debug('Area Displayed Before Display FUNC: (h_start, v_start) --> (h_stop, v_stop) '
-                #               '\n\t(%(h_start)s, %(v_start)s) --> (%(h_stop)s, %(v_stop)s)' %
-                #               {'v_start': v_start, 'v_stop': v_stop, 'h_start': h_start, 'h_stop': h_stop})
                 display_parts = {
                     'job_accounting_summary': (display_job_accounting_summary, (cluster_dict, total_running_jobs, total_queued_jobs, qstatq_lod)),
                     'workernodes_matrix': (display_wn_occupancy, (workernodes_occupancy, cluster_dict)),
