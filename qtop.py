@@ -46,24 +46,6 @@ def raw_mode(file):
     finally:
         termios.tcsetattr(file.fileno(), termios.TCSADRAIN, old_attrs)
 
-
-# def main():
-#     print 'exit with ^C or ^D'
-#     with raw_mode(sys.stdin):
-#         try:
-#             while True:
-#                 ch = sys.stdin.read(1)
-#                 if not ch or ch == chr(4):
-#                     break
-#                 #print '%02x' % ord(ch),
-#                 if '%02x' % ord(ch) == '6c':
-#                     print 'Right arrow'
-#                 elif '%02x' % ord(ch) == '68':
-#                     print 'Left arrow'
-#         except (KeyboardInterrupt, EOFError):
-#             pass
-
-
 # TODO make the following work with py files instead of qtop.colormap files
 # if not options.COLORFILE:
 #     options.COLORFILE = os.path.expandvars('$HOME/qtop/qtop/qtop.colormap')
