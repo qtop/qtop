@@ -952,7 +952,7 @@ def load_yaml_config():
     $HOME/.local/qtop/
     in that order.
     """
-    config = read_yaml_natively(os.path.join(QTOPPATH, QTOPCONF_YAML))
+    config = read_yaml_natively(os.path.join(CURPATH, QTOPCONF_YAML))
     logging.info('Default configuration dictionary loaded. Length: %s items' % len(config))
 
     try:
