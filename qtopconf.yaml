@@ -221,7 +221,7 @@ workernodes_matrix:
 extract_info:
   user_details_cache: cat -E $HOME/.local/qtop/getent_passwd.txt # this gets cached GECOS field info
   user_details_realtime: getent passwd %s # alternative method to get details in realtime
-  field_to_use: 4
+  field_to_use: 5
   regex: |
     re.search('(?<=<)[^<>]+(?=>)', field).group(0)
 

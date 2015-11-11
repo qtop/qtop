@@ -256,6 +256,7 @@ def display_job_accounting_summary(cluster_dict, total_running_jobs, total_queue
             run=colorize(q_running_jobs, '', account),
             q='+ ' + colorize(q_queued_jobs, '', account) + ' ' if q_queued_jobs != '0' else ''),
     print colorize('* implies blocked', 'Red') + '\n'
+    # TODO unhardwire states from star kwarg
 
 
 def calculate_job_counts(user_names, job_states):
@@ -681,12 +682,12 @@ def display_user_accounts_pool_mappings(account_jobs_table, pattern_of_id):
     print colorize('\n===> ', 'Gray_D') + \
           colorize('User accounts and pool mappings', 'White') + \
           colorize(' <=== ', 'Gray_d') + \
-          colorize("  ('all' also includes those in C and W states)%(note)s" % {'note': ', as reported by qstat'
-                   if options.CLASSIC else ''}, 'Gray_D')
+          colorize("  ('all' also includes those in C and W states, as reported by qstat)"
+                   if options.CLASSIC else "  ('all' includes any jobs beyond R and W)", 'Gray_D')
 
     print '   R +    Q /  all |    unix account | id| %(msg)s' % \
           {'msg': 'Grid certificate DN (info only available under elevated privileges)' if options.CLASSIC else
-          'GECOS field or Grid certificate DN' + colorize(' (info only available under elevated privileges)', 'Gray_D')}
+          'GECOS field or Grid certificate DN'}
     for line in account_jobs_table:
         uid, runningjobs, queuedjobs, alljobs, user = line[0], line[1], line[2], line[3], line[4]
         account = pattern_of_id[uid]
@@ -1393,7 +1394,7 @@ def deprecate_old_yaml_files(filepath):
     deletes older yaml files in savepath directory.
     experimental and loosely untested
     """
-    time_alive = int(config['auto_delete_old_yaml_files_after'])
+    time_alive = int(config['auto_delete_old_yaml_files_after_few_hours'])
     user_selected_save_path = os.path.realpath(os.path.expandvars(config['savepath']))
     for f in os.listdir(user_selected_save_path):
         if not f.endswith('yaml'):
@@ -1634,6 +1635,8 @@ if __name__ == '__main__':
                 line_offset = v_stop - v_start
                 cat_command = 'clear;tail -n+%s %s | head -n%s' % (v_start, fout, line_offset)
                 NOT_FOUND = subprocess.call(cat_command, stdout=stdout, stderr=stdout, shell=True)
+                # justification for implementation: http://unix.stackexchange.com/questions/47407/cat-line-x-to-line-y-on-a-huge
+                # -file
 
                 if not options.WATCH:
                     break
