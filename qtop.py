@@ -652,7 +652,7 @@ def print_mult_attr_line(print_char_start, print_char_stop, transposed_matrices,
 
 
 def display_user_accounts_pool_mappings(account_jobs_table, pattern_of_id):
-    detail_of_name = get_detail_of_name()
+    detail_of_name = get_detail_of_name(account_jobs_table)
     print colorize('\n===> ', 'Gray_D') + \
           colorize('User accounts and pool mappings', 'White') + \
           colorize(' <=== ', 'Gray_d') + \
@@ -1281,7 +1281,7 @@ def execute_shell_batch_commands(batch_system_commands, filenames, _file):
     logging.debug('File state after subprocess call: %(fin)s' % {"fin": fin})
 
 
-def get_detail_of_name():
+def get_detail_of_name(account_jobs_table):
     """
     Reads file $HOME/.local/qtop/getent_passwd.txt or whatever is put in QTOPCONF_YAML
     and extracts the fullname of the users. This shall be printed in User Accounts
@@ -1290,11 +1290,19 @@ def get_detail_of_name():
     extract_info = config.get('extract_info', None)
     if not extract_info:
         return dict()
+
     sep = ':'
     field_idx = int(extract_info.get('field_to_use', 5))
     regex = extract_info.get('regex', None)
 
-    passwd_command = extract_info.get('sourcefile').split()
+    if options.GET_GECOS:
+        users = ' '.join([line[4] for line in account_jobs_table])
+        passwd_command = extract_info.get('user_details_realtime') % users
+        passwd_command = passwd_command.split()
+    else:
+        passwd_command = extract_info.get('user_details_cache').split()
+
+
     p = subprocess.Popen(passwd_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     output, err = p.communicate("something here")
     if 'No such file or directory' in err:
