@@ -336,7 +336,13 @@ def create_job_counts(user_names, job_states, state_abbrevs):
         job_counts[value] = dict()
 
     for user_name, job_state in zip(user_names, job_states):
-        x_of_user = state_abbrevs[job_state]
+        try:
+            x_of_user = state_abbrevs[job_state]
+        except KeyError:
+            logging.critical('Job state %s not found.'
+                             'You may wish to add that node state inside %s in state_abbreviations section.\n'
+                             'Exiting...' % (job_state, QTOPCONF_YAML))
+            sys.exit(1)
         job_counts[x_of_user][user_name] = job_counts[x_of_user].get(user_name, 0) + 1
 
     for user_name in job_counts['running_of_user']:
