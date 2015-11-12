@@ -1,11 +1,17 @@
 ========================================================================================
-qtop
+qtop.py / The command-line tool to tame queueing or scheduling systems and some more
 
-Version 0.8.4
-November 12, 2015
+Version 0.8.4 / November 12, 2015
 
-Python port: Sotiris Fragkiskos
-Originally created by Fotis Georgatos
+Ported in Python by Sotiris Fragkiskos / Originally created in bash by Fotis Georgatos
+
+Summary:
+qtop is a work-in-progress project; it is intended to be built upon and extended.
+
+We have made an initial release of the source code, and continue to work 
+actively to make it better. We hope to build an active open source community 
+that drives the future of this tool, both by providing feedback 
+and by actively contributing to the source code.
 
 License: MIT/GPL
 
