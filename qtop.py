@@ -15,6 +15,8 @@ import time
 import sys
 import select
 import os
+from os import unlink, close
+from os.path import realpath, expandvars, getmtime
 try:
     from collections import OrderedDict
 except ImportError:
@@ -936,7 +938,7 @@ def load_yaml_config():
     $HOME/.local/qtop/
     in that order.
     """
-    config = read_yaml_natively(os.path.join(os.path.realpath(QTOPPATH), QTOPCONF_YAML))
+    config = read_yaml_natively(os.path.join(realpath(QTOPPATH), QTOPCONF_YAML))
     logging.info('Default configuration dictionary loaded. Length: %s items' % len(config))
 
     try:
@@ -993,7 +995,7 @@ def load_yaml_config():
     for symbol in symbol_map:
         config['possible_ids'].append(symbol)
 
-    user_selected_save_path = os.path.realpath(os.path.expandvars(config['savepath']))
+    user_selected_save_path = realpath(expandvars(config['savepath']))
     if not os.path.exists(user_selected_save_path):
         mkdir_p(user_selected_save_path)
         logging.debug('Directory %s created.' % user_selected_save_path)
@@ -1025,8 +1027,7 @@ def calculate_split_screen_size(wns_occupancy):
         logging.debug('Set terminal size is: %s * %s' % (term_height, term_columns))
         config['term_size'] = [int(term_height), int(term_columns)]
         config['h_start'] = h_start
-        config['h_stop'] = config['term_size'][1]
-        config['v_stop'] = config['term_size'][0]
+        config['v_stop'], config['h_stop'] = config['term_size']
 
 
 def sort_batch_nodes(batch_nodes):
@@ -1395,12 +1396,12 @@ def deprecate_old_yaml_files(filepath):
     experimental and loosely untested
     """
     time_alive = int(config['auto_delete_old_yaml_files_after_few_hours'])
-    user_selected_save_path = os.path.realpath(os.path.expandvars(config['savepath']))
+    user_selected_save_path = realpath(expandvars(config['savepath']))
     for f in os.listdir(user_selected_save_path):
         if not f.endswith('yaml'):
             continue
         curpath = os.path.join(user_selected_save_path, f)
-        file_modified = datetime.datetime.fromtimestamp(os.path.getmtime(curpath))
+        file_modified = datetime.datetime.fromtimestamp(getmtime(curpath))
         if datetime.datetime.now() - file_modified > datetime.timedelta(hours=time_alive):
             os.remove(curpath)
 
@@ -1508,6 +1509,7 @@ def quit_program(h_start, h_stop, v_start, v_stop):  # "q", quit
         raise KeyboardInterrupt
     except KeyboardInterrupt:
         print '  Exiting...'
+        unlink(name)
         sys.exit(0)
 
 
@@ -1537,9 +1539,9 @@ def control_movement(pressed_char_hex, h_start, h_stop, v_start, v_stop):
 
     return h_start, h_stop, v_start, v_stop
 
-OUTFILE = '/tmp/output'
+
 if __name__ == '__main__':
-    fout = os.path.expanduser(OUTFILE)
+
     stdout = sys.stdout
     v_start = 1
     v_stop = None
@@ -1554,12 +1556,15 @@ if __name__ == '__main__':
     initial_cwd = os.getcwd()
     logging.debug('Initial qtop directory: %s' % initial_cwd)
     CURPATH = os.path.expanduser(initial_cwd)  # where qtop was invoked from
-    QTOPPATH = os.path.dirname(os.path.realpath(sys.argv[0]))  # dir where qtop resides
+    QTOPPATH = os.path.dirname(realpath(sys.argv[0]))  # dir where qtop resides
 
     with raw_mode(sys.stdin):
         try:
             while True:
-                sys.stdout = open(fout, 'w', -1)  # redirect everything to file
+                handle, name = get_new_temp_file(prefix='qtop_', suffix='.out')
+                fout = os.path.expanduser(name)
+                sys.stdout = os.fdopen(handle, 'w')  # redirect everything to file
+                # sys.stdout = open(fout, 'w', -1)  # redirect everything to file
                 transposed_matrices = []
                 config = load_yaml_config()
 
@@ -1573,7 +1578,7 @@ if __name__ == '__main__':
                 # TODO: int should be handled internally in native yaml parser
                 # TODO: fix_config_list should be handled internally in native yaml parser
 
-                options.SOURCEDIR = os.path.realpath(options.SOURCEDIR) if options.SOURCEDIR else None
+                options.SOURCEDIR = realpath(options.SOURCEDIR) if options.SOURCEDIR else None
                 logging.debug("User-defined source directory: %s" % options.SOURCEDIR)
                 options.workdir = options.SOURCEDIR or config['savepath']
                 logging.debug('Working directory is now: %s' % options.workdir)
@@ -1619,7 +1624,7 @@ if __name__ == '__main__':
                 for idx, part in enumerate(config['user_display_parts'], 1):
                     display_func, args = display_parts[part][0], display_parts[part][1]
                     display_func(*args) if not sections_off[idx] else None
-                print "\nLog file created in %s" % os.path.expandvars(QTOP_LOGFILE)
+                print "\nLog file created in %s" % expandvars(QTOP_LOGFILE)
                 sys.stdout.flush()
                 sys.stdout.close()
                 sys.stdout = stdout  # sys.stdout is back to its normal function (i.e. screen output)
@@ -1651,12 +1656,17 @@ if __name__ == '__main__':
                 pressed_char_hex = '%02x' % ord(read_char) # read_char has an initial value that resets the display ('72')
                 h_start, h_stop, v_start, v_stop = control_movement(pressed_char_hex, h_start, h_stop, v_start, v_stop)
                 os.chdir(QTOPPATH)
+                unlink(name)
         except (KeyboardInterrupt, EOFError):
             sys.stdout.flush()
             sys.stdout.close()
+            close(handle)
+            unlink(name)
             sys.stdout = stdout
             # print '  Exiting...'
             sys.exit(0)
-
+        else:
+            close(handle)
+            unlink(name)
 
 

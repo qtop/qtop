@@ -141,7 +141,7 @@ class SGEStatMaker(StatMaker):
         prefix, suffix = out_file.split('.')
         prefix += '_'
         suffix = '.' + suffix
-        SGEStatMaker.fd, SGEStatMaker.temp_filepath = get_new_temp_file(self.config, prefix=prefix, suffix=suffix)
+        SGEStatMaker.fd, SGEStatMaker.temp_filepath = get_new_temp_file(prefix=prefix, suffix=suffix, config=self.config)
         self.dump_all(SGEStatMaker.fd, self.stat_mapping[write_method])
 
     def _extract_job_info(self, elem, elem_text, queue_name):

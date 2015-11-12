@@ -31,8 +31,9 @@ def check_empty_file(orig_file):
         sys.exit(0)
 
 
-def get_new_temp_file(config, suffix, prefix):  # **kwargs
-    fd, temp_filepath = mkstemp(suffix=suffix, prefix=prefix, dir=config['savepath'])  # **kwargs
+def get_new_temp_file(suffix, prefix, config=None):  # **kwargs
+    savepath = config['savepath'] if config else None
+    fd, temp_filepath = mkstemp(suffix=suffix, prefix=prefix, dir=savepath)  # **kwargs
     logging.debug('temp_filepath: %s' % temp_filepath)
     # out_file = os.fdopen(fd, 'w')
     return fd, temp_filepath
