@@ -31,8 +31,9 @@ def check_empty_file(orig_file):
         sys.exit(0)
 
 
-def get_new_temp_file(config, suffix, prefix):  # **kwargs
-    fd, temp_filepath = mkstemp(suffix=suffix, prefix=prefix, dir=config['savepath'])  # **kwargs
+def get_new_temp_file(suffix, prefix, config=None):  # **kwargs
+    savepath = config['savepath'] if config else None
+    fd, temp_filepath = mkstemp(suffix=suffix, prefix=prefix, dir=savepath)  # **kwargs
     logging.debug('temp_filepath: %s' % temp_filepath)
     # out_file = os.fdopen(fd, 'w')
     return fd, temp_filepath
@@ -232,6 +233,8 @@ parser.add_option("-F", "--ForceNames", action="store_true", dest="FORCE_NAMES",
                   help="force names to show up instead of numbered WNs even for very small numbers of WNs")
 # parser.add_option("-f", "--setCOLORMAPFILE", action="store", type="string", dest="COLORFILE")
 parser.add_option("-f", "--setCUSTOMCONFFILE", action="store", type="string", dest="CONFFILE")
+parser.add_option("-g", "--get_gecos_via_getent_passwd", action="store_true", dest="GET_GECOS", default=False,
+                  help="get user details by issuing getent passwd for all users mentioned in qtop input files.")
 parser.add_option("-m", "--noMasking", action="store_true", dest="NOMASKING", default=False,
                   help="Don't mask early empty WNs (default: if the first 30 WNs are unused, counting starts from 31).")
 parser.add_option("-o", "--option", action="store", dest="OPTION", type="string", default=None,
@@ -242,9 +245,11 @@ parser.add_option("-s", "--SetSourceDir", dest="SOURCEDIR",
                   help="Set the source directory where pbsnodes and qstat reside")
 parser.add_option("-v", "--verbose", dest="verbose", action="count",
                   help="Increase verbosity (specify multiple times for more)")
-parser.add_option("-w", "--writemethod", dest="write_method", action="store", default="txtyaml",
+parser.add_option("-W", "--writemethod", dest="write_method", action="store", default="txtyaml",
                   choices=['txtyaml', 'json'],
                   help="Set the method used for dumping information, json, yaml, or native python (yaml format)")
+parser.add_option("-w", "--watch", dest="WATCH", action="store_true", default=False,
+                  help="mimic shell's watch behaviour")
 parser.add_option("-y", "--readexistingyaml", action="store_true", dest="YAML_EXISTS", default=False,
                   help="Do not remake yaml input files, read from the existing ones")
 parser.add_option("-z", "--quiet", action="store_false", dest="verbose", default=True,
@@ -267,8 +272,8 @@ mkdir_p(QTOP_LOGFILE_PATH)
 logger = logging.getLogger()
 logger.setLevel(logging.DEBUG)
 
-# formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')  #this adds time
-formatter = logging.Formatter('%(levelname)s - %(message)s')
+formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s', "%Y-%m-%d %H:%M:%S")  #this adds time
+# formatter = logging.Formatter('%(levelname)s - %(message)s')
 
 fh = logging.FileHandler(QTOP_LOGFILE)
 fh.setLevel(log_level)

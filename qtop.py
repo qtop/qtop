@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 ################################################
-#              qtop v.0.8.3                    #
+#              qtop v.0.8.4                    #
 #     Licensed under MIT-GPL licenses          #
 #                     Sotiris Fragkiskos       #
 #                     Fotis Georgatos          #
@@ -11,12 +11,19 @@ from operator import itemgetter
 import datetime
 from itertools import izip, izip_longest
 import subprocess
+import time
+import sys
+import select
 import os
+from os import unlink, close
+from os.path import realpath, expandvars, getmtime
 try:
     from collections import OrderedDict
 except ImportError:
     from ordereddict import OrderedDict
 from signal import signal, SIGPIPE, SIG_DFL
+import termios
+import contextlib
 # modules
 from constants import *
 import common_module
@@ -29,6 +36,17 @@ from math import ceil
 from colormap import color_of_account, code_of_color
 from yaml_parser import read_yaml_natively, fix_config_list, convert_dash_key_in_dict
 
+
+@contextlib.contextmanager
+def raw_mode(file):
+    old_attrs = termios.tcgetattr(file.fileno())
+    new_attrs = old_attrs[:]
+    new_attrs[3] = new_attrs[3] & ~(termios.ECHO | termios.ICANON)
+    try:
+        termios.tcsetattr(file.fileno(), termios.TCSADRAIN, new_attrs)
+        yield
+    finally:
+        termios.tcsetattr(file.fileno(), termios.TCSADRAIN, old_attrs)
 
 # TODO make the following work with py files instead of qtop.colormap files
 # if not options.COLORFILE:
@@ -211,9 +229,8 @@ def display_job_accounting_summary(cluster_dict, total_running_jobs, total_queue
         % {'name': 'PBS' if options.CLASSIC else 'Queueing System'}
 
     print 'Please try: watch -d %s/qtop.py -s %s\n' % (QTOPPATH, options.SOURCEDIR)
-    print colorize('===> ', 'Gray_D') + colorize('Job accounting summary', 'White') + colorize(' <=== ', 'Gray_D') + colorize(
-        '(Rev: 3000 $) %s WORKDIR = %s' % (colorize(str(datetime.datetime.today()), 'White'), QTOPPATH),
-        'reset')
+    print colorize('===> ', 'Gray_D') + colorize('Job accounting summary', 'White') + colorize(' <=== ', 'Gray_D') + \
+          '%s WORKDIR = %s' % (colorize(str(datetime.datetime.today())[:-7], 'White'), QTOPPATH)
 
     print '%(Usage Totals)s:\t%(online_nodes)s/%(total_nodes)s %(Nodes)s | %(working_cores)s/%(total_cores)s %(Cores)s |' \
           '   %(total_run_jobs)s+%(total_q_jobs)s %(jobs)s (R + Q) %(reported_by)s' % \
@@ -235,11 +252,13 @@ def display_job_accounting_summary(cluster_dict, total_running_jobs, total_queue
     for q in qstatq_list:
         q_name, q_running_jobs, q_queued_jobs = q['queue_name'], q['run'], q['queued']
         account = q_name if q_name in color_of_account else 'account_not_colored'
-        print "{qname}{star}: {run} {q}|".format(qname=colorize(q_name, '', account),
+        print "{qname}{star}: {run} {q}|".format(
+            qname=colorize(q_name, '', account),
             star=colorize('*', 'Red_L') if q['state'].startswith('D') or q['state'].endswith('S') else '',
             run=colorize(q_running_jobs, '', account),
             q='+ ' + colorize(q_queued_jobs, '', account) + ' ' if q_queued_jobs != '0' else ''),
     print colorize('* implies blocked', 'Red') + '\n'
+    # TODO unhardwire states from star kwarg
 
 
 def calculate_job_counts(user_names, job_states):
@@ -302,7 +321,13 @@ def create_job_counts(user_names, job_states, state_abbrevs):
         job_counts[value] = dict()
 
     for user_name, job_state in zip(user_names, job_states):
-        x_of_user = state_abbrevs[job_state]
+        try:
+            x_of_user = state_abbrevs[job_state]
+        except KeyError:
+            logging.critical('Job state %s not found.'
+                             'You may wish to add that node state inside %s in state_abbreviations section.\n'
+                             'Exiting...' % (job_state, QTOPCONF_YAML))
+            sys.exit(1)
         job_counts[x_of_user][user_name] = job_counts[x_of_user].get(user_name, 0) + 1
 
     for user_name in job_counts['running_of_user']:
@@ -444,7 +469,8 @@ def find_matrices_width(wns_occupancy, cluster_dict, DEADWEIGHT=11):
     start = 0
     wn_number = cluster_dict['highest_wn']
     workernode_list = cluster_dict['workernode_list']
-    term_columns = wns_occupancy['term_columns']
+    # was: term_columns = wns_occupancy['term_columns']
+    term_columns = config['term_size'][1]
     min_masking_threshold = int(config['workernodes_matrix'][0]['wn id lines']['min_masking_threshold'])
     if options.NOMASKING and min(workernode_list) > min_masking_threshold:
         # exclude unneeded first empty nodes from the matrix
@@ -585,7 +611,8 @@ def display_matrix(workernodes_occupancy):
     wn_vert_labels = workernodes_occupancy['wn_vert_labels']
     core_user_map = workernodes_occupancy['core user map']
     extra_matrices_nr = workernodes_occupancy['extra_matrices_nr']
-    term_columns = workernodes_occupancy['term_columns']
+    # term_columns = workernodes_occupancy['term_columns']
+    term_columns = config['term_size'][1]
     pattern_of_id = workernodes_occupancy['pattern_of_id']
 
     occupancy_parts = {
@@ -627,9 +654,10 @@ def display_matrix(workernodes_occupancy):
             matrix[0] = order.index(matrix[1])
 
         transposed_matrices.sort(key=lambda item: item[0])
+
         for line_tuple in izip_longest(*[tpl[2] for tpl in transposed_matrices], fillvalue='  '):
             join_prints(*line_tuple, sep=config.get('horizontal_separator', None))
-
+        logging.debug('Printed horizontally from %s to %s' % (config['h_start'], h_stop))
     print
 
 
@@ -652,16 +680,16 @@ def print_mult_attr_line(print_char_start, print_char_stop, transposed_matrices,
 
 
 def display_user_accounts_pool_mappings(account_jobs_table, pattern_of_id):
-    detail_of_name = get_detail_of_name()
+    detail_of_name = get_detail_of_name(account_jobs_table)
     print colorize('\n===> ', 'Gray_D') + \
           colorize('User accounts and pool mappings', 'White') + \
           colorize(' <=== ', 'Gray_d') + \
-          colorize("  ('all' also includes those in C and W states)%(note)s" % {'note': ', as reported by qstat'
-                   if options.CLASSIC else ''}, 'Gray_D')
+          colorize("  ('all' also includes those in C and W states, as reported by qstat)"
+                   if options.CLASSIC else "  ('all' includes any jobs beyond R and W)", 'Gray_D')
 
-    print 'id|    R +    Q /  all |    unix account | %(msg)s' % \
+    print '   R +    Q /  all |    unix account | id| %(msg)s' % \
           {'msg': 'Grid certificate DN (info only available under elevated privileges)' if options.CLASSIC else
-          'GECOS field or Grid certificate DN' + colorize(' (info only available under elevated privileges)', 'Gray_D')}
+          'GECOS field or Grid certificate DN'}
     for line in account_jobs_table:
         uid, runningjobs, queuedjobs, alljobs, user = line[0], line[1], line[2], line[3], line[4]
         account = pattern_of_id[uid]
@@ -670,10 +698,10 @@ def display_user_accounts_pool_mappings(account_jobs_table, pattern_of_id):
             account = 'account_not_colored'
         else:
             extra_width = 12
-        print_string = '{0:<{width2}}{sep} ' \
-                       '{1:>{width4}} + {2:>{width4}} / {3:>{width4}} {sep} ' \
+        print_string = '{1:>{width4}} + {2:>{width4}} / {3:>{width4}} {sep} ' \
                        '{4:>{width15}} {sep} ' \
-                       '{5:>{width40}} {sep}'.format(
+                       '{0:<{width2}}{sep} ' \
+                       '{5:<{width40}} {sep}'.format(
             colorize(str(uid), '', account),
             colorize(str(runningjobs), '', account),
             colorize(str(queuedjobs), '', account),
@@ -777,15 +805,18 @@ def transpose_matrix(d, colored=False, reverse=False):
         if any(j != " " for j in tuple):
             tuple = colored and [colorize(j, '', pattern_of_id[j]) if j in pattern_of_id else j for j in tuple] or list(tuple)
             tuple[:] = tuple[::-1] if reverse else tuple
-            yield "".join(tuple)
+            yield tuple
 
 
 def join_prints(*args, **kwargs):
+    joined_list = []
     for d in args:
         sys.stdout.softspace = False # if i want to omit in-between column spaces
-        print d + kwargs['sep'],
-    else:
-        print
+        joined_list.extend(d)
+        joined_list.append(kwargs['sep'])
+
+    print "".join(joined_list[h_start:h_stop])
+    workernodes_occupancy.setdefault('max_full_line_len', len(joined_list))
 
 
 def get_yaml_key_part(major_key):
@@ -867,7 +898,7 @@ def display_wn_occupancy(workernodes_occupancy, cluster_dict):
           + colorize('(%s)', 'Gray_D') % note
 
     display_matrix(workernodes_occupancy)
-    if not config['transpose_wn_matrices']:
+    if not eval(config['transpose_wn_matrices']):
         display_remaining_matrices(workernodes_occupancy)
 
 
@@ -907,17 +938,9 @@ def load_yaml_config():
     $HOME/.local/qtop/
     in that order.
     """
-    config = read_yaml_natively(os.path.join(QTOPPATH, QTOPCONF_YAML))
+    config = read_yaml_natively(os.path.join(realpath(QTOPPATH), QTOPCONF_YAML))
     logging.info('Default configuration dictionary loaded. Length: %s items' % len(config))
-    # try:
-    #     config = yaml.safe_load(open(os.path.join(path + "/qtopconf.yaml")))
-    # except ImportError:
-    #     config = read_yaml_natively(os.path.join(path + "/qtopconf.yaml"))
-    # except yaml.YAMLError, exc:
-    #     if hasattr(exc, 'problem_mark'):
-    #         mark = exc.problem_mark
-    #         print "Your YAML configuration file has an error in position: (%s:%s)" % (mark.line + 1, mark.column + 1)
-    #         print "Please make sure that spaces are multiples of 2."
+
     try:
         config_env = read_yaml_natively(os.path.join(SYSTEMCONFDIR, QTOPCONF_YAML))
     except IOError:
@@ -972,7 +995,7 @@ def load_yaml_config():
     for symbol in symbol_map:
         config['possible_ids'].append(symbol)
 
-    user_selected_save_path = os.path.realpath(os.path.expandvars(config['savepath']))
+    user_selected_save_path = realpath(expandvars(config['savepath']))
     if not os.path.exists(user_selected_save_path):
         mkdir_p(user_selected_save_path)
         logging.debug('Directory %s created.' % user_selected_save_path)
@@ -989,22 +1012,22 @@ def calculate_split_screen_size(wns_occupancy):
     """
     fallback_term_size = [53, 176]
     try:
-        _, term_columns = config['term_size']
+        term_height, term_columns = os.popen('stty size', 'r').read().split()
     except ValueError:
-        _, term_columns = fix_config_list(config['term_size'])
-    except KeyError:
+        logging.warn("Failed to autodetect terminal size. Trying values in %s." % QTOPCONF_YAML)
         try:
-            _, term_columns = os.popen('stty size', 'r').read().split()
+            term_height, term_columns = config['term_size']
         except ValueError:
-            logging.warn("Failed to autodetect your terminal's size or read it from %s. "
-                             "Using term_size: %s" % QTOPCONF_YAML, fallback_term_size)
-            config['term_size'] = fallback_term_size
-            _, term_columns = config['term_size']
-    else:
-        logging.debug('Detected terminal size is: %s * %s' % (_, term_columns))
+            try:
+                term_height, term_columns = fix_config_list(config['term_size'])
+            except KeyError:
+                config['term_size'] = fallback_term_size
     finally:
-        wns_occupancy['term_columns'] = int(term_columns)
-
+        # was: wns_occupancy['term_columns'] = int(term_columns)
+        logging.debug('Set terminal size is: %s * %s' % (term_height, term_columns))
+        config['term_size'] = [int(term_height), int(term_columns)]
+        config['h_start'] = h_start
+        config['v_stop'], config['h_stop'] = config['term_size']
 
 
 def sort_batch_nodes(batch_nodes):
@@ -1225,6 +1248,8 @@ def get_yaml_files(scheduler, filenames):
 
 def get_filenames_commands():
     d = dict()
+    # date = time.strftime("%Y%m%d")  #TODO
+    # fn_append = "_" + str(date) if not options.SOURCEDIR else ""
     fn_append = "_" + str(os.getpid()) if not options.SOURCEDIR else ""
     for fn, path_command in config['schedulers'][scheduler].items():
         path, command = path_command.strip().split(', ')
@@ -1281,7 +1306,7 @@ def execute_shell_batch_commands(batch_system_commands, filenames, _file):
     logging.debug('File state after subprocess call: %(fin)s' % {"fin": fin})
 
 
-def get_detail_of_name():
+def get_detail_of_name(account_jobs_table):
     """
     Reads file $HOME/.local/qtop/getent_passwd.txt or whatever is put in QTOPCONF_YAML
     and extracts the fullname of the users. This shall be printed in User Accounts
@@ -1290,15 +1315,23 @@ def get_detail_of_name():
     extract_info = config.get('extract_info', None)
     if not extract_info:
         return dict()
+
     sep = ':'
     field_idx = int(extract_info.get('field_to_use', 5))
     regex = extract_info.get('regex', None)
 
-    passwd_command = extract_info.get('sourcefile').split()
+    if options.GET_GECOS:
+        users = ' '.join([line[4] for line in account_jobs_table])
+        passwd_command = extract_info.get('user_details_realtime') % users
+        passwd_command = passwd_command.split()
+    else:
+        passwd_command = extract_info.get('user_details_cache').split()
+
     p = subprocess.Popen(passwd_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     output, err = p.communicate("something here")
     if 'No such file or directory' in err:
         logging.error('You have to set a proper command to get the passwd file in your %s file.' % QTOPCONF_YAML)
+        logging.error('Error returned by getent: %s\nCommand issued: %s' % (err, passwd_command))
 
     # with open(fn, mode='r') as fin:
     detail_of_name = dict()
@@ -1357,68 +1390,286 @@ def check_python_version():
         sys.exit(1)
 
 
+def deprecate_old_yaml_files(filepath):
+    """
+    deletes older yaml files in savepath directory.
+    experimental and loosely untested
+    """
+    time_alive = int(config['auto_delete_old_yaml_files_after_few_hours'])
+    user_selected_save_path = realpath(expandvars(config['savepath']))
+    for f in os.listdir(user_selected_save_path):
+        if not f.endswith('yaml'):
+            continue
+        curpath = os.path.join(user_selected_save_path, f)
+        file_modified = datetime.datetime.fromtimestamp(getmtime(curpath))
+        if datetime.datetime.now() - file_modified > datetime.timedelta(hours=time_alive):
+            os.remove(curpath)
+
+
+def scroll_down(h_start, h_stop, v_start, v_stop):
+    logging.debug('v_start: %s' % v_start)
+
+    if v_stop < num_lines:
+        v_start += config['term_size'][0]
+        v_stop += config['term_size'][0]  # - 10
+        logging.info('Going down...')
+        config['v_stop'] = v_stop
+    else:
+        logging.info('Staying put')
+    return h_start, h_stop, v_start, v_stop
+
+
+def scroll_bottom(h_start, h_stop, v_start, v_stop):
+    logging.debug('v_start: %s' % v_start)
+
+    v_start = num_lines - config['term_size'][0]
+    v_stop = num_lines
+    logging.info('Going to the bottom...')
+    config['v_stop'] = v_stop
+    return h_start, h_stop, v_start, v_stop
+
+
+def scroll_top(h_start, h_stop, v_start, v_stop):
+    logging.debug('v_start: %s' % v_start)
+
+    v_start = 0
+    v_stop = config['term_size'][0]
+    logging.info('Going to the top...')
+    config['v_stop'] = v_stop
+    return h_start, h_stop, v_start, v_stop
+
+
+def scroll_up(h_start, h_stop, v_start, v_stop):
+    if v_start - config['term_size'][0] >= 0:
+        v_start -= config['term_size'][0]
+        v_stop -= config['term_size'][0]
+        logging.info('Going up...')
+    else:
+        v_start = 1
+        v_stop = config['term_size'][0]
+        logging.info('Staying put')
+    config['v_stop'] = v_stop
+    return h_start, h_stop, v_start, v_stop
+
+
+def scroll_right(h_start, h_stop, v_start, v_stop):  # 'l', right
+    h_start += config['term_size'][1]/2
+    config['h_start'] = h_start
+    h_stop += config['term_size'][1]/2
+    config['h_stop'] = h_stop
+    logging.info('Going right...')
+    return config['h_start'], config['h_stop'], v_start, v_stop
+
+
+def scroll_far_right(h_start, h_stop, v_start, v_stop):  # 'l', right
+    h_start = workernodes_occupancy['max_full_line_len'] - config['term_size'][1]
+    config['h_start'] = h_start
+    h_stop = workernodes_occupancy['max_full_line_len']
+    config['h_stop'] = h_stop
+    logging.info('h_start: %s' % h_start)
+    logging.info('max_line_len: %s' % max_line_len)
+    logging.info('config["term_size"][1] %s' % config['term_size'][1])
+    logging.info('h_stop: %s' % h_stop)
+    logging.info('Going far right...')
+    return config['h_start'], config['h_stop'], v_start, v_stop
+
+
+def scroll_left(h_start, h_stop, v_start, v_stop):
+    if h_start >= config['term_size'][1] / 2:
+        h_start -= config['term_size'][1]/2
+    if h_start > 0:
+        h_stop -= config['term_size'][1]/2
+    else:
+        h_stop = config['term_size'][1]
+    config['h_start'] = h_start
+    config['h_stop'] = h_stop
+    logging.info('Going left...')
+    return h_start, h_stop, v_start, v_stop
+
+
+def scroll_far_left(h_start, h_stop, v_start, v_stop):
+    h_start = 0
+    h_stop = config['term_size'][1]
+    config['h_start'] = h_start
+    config['h_stop'] = h_stop
+    logging.info('Going far left...')
+    return h_start, h_stop, v_start, v_stop
+
+
+def reset_display(h_start, h_stop, v_start, v_stop):  # "R", reset display
+    v_start = 1
+    v_stop = config['term_size'][0]
+    config['v_stop'] = v_stop
+    h_start = 0
+    h_stop = config['term_size'][1]
+    return h_start, h_stop, v_start, v_stop
+
+def quit_program(h_start, h_stop, v_start, v_stop):  # "q", quit
+    try:
+        raise KeyboardInterrupt
+    except KeyboardInterrupt:
+        print '  Exiting...'
+        unlink(name)
+        sys.exit(0)
+
+
+def control_movement(pressed_char_hex, h_start, h_stop, v_start, v_stop):
+    key_actions = {
+        '6a': scroll_down,  # j
+        '20': scroll_down,  # spacebar
+        '6b': scroll_up,  # k
+        '7f': scroll_up,  # Backspace
+        '6c': scroll_right,  # l
+        '24': scroll_far_right,  # $
+        '68': scroll_left,  # h
+        '30': scroll_far_left,  # 0
+        '4a': scroll_bottom,  # S-j
+        '47': scroll_bottom,  # G
+        '4b': scroll_top,  # S-k
+        '67': scroll_top,  # g
+        '72': reset_display,  # r
+        '71': quit_program,  # q
+        '0a': lambda a,b,c,d:(a,b,c,d),  # Enter
+    }
+    h_start, h_stop, v_start, v_stop = key_actions[pressed_char_hex](h_start, h_stop, v_start, v_stop)
+    # logging.debug('\n\tv_start: %s\n\tv_stop: %s\n\th_start: %s\n\th_stop: %s' % (v_start, v_stop, h_start, h_stop))
+    logging.debug('Area Displayed: (h_start, v_start) --> (h_stop, v_stop) '
+                  '\n\t(%(h_start)s, %(v_start)s) --> (%(h_stop)s, %(v_stop)s)' %
+                  {'v_start': v_start, 'v_stop': v_stop, 'h_start': h_start, 'h_stop': h_stop})
+
+    return h_start, h_stop, v_start, v_stop
+
+
 if __name__ == '__main__':
-    transposed_matrices = []
+
+    stdout = sys.stdout
+    v_start = 1
+    v_stop = None
+    h_start = 0
+    h_stop = None
+    read_char = 'r'  # initial value, resets view position to beginning
+    num_lines = 0
+    max_line_len = 0
+    timeout = 1
+
     check_python_version()
     initial_cwd = os.getcwd()
     logging.debug('Initial qtop directory: %s' % initial_cwd)
-    CURPATH = os.path.expanduser(initial_cwd)  # ex QTOPPATH, will not work if qtop is executed from within a different dir
-    QTOPPATH = os.path.dirname(sys.argv[0])  # dir where qtop resides
+    CURPATH = os.path.expanduser(initial_cwd)  # where qtop was invoked from
+    QTOPPATH = os.path.dirname(realpath(sys.argv[0]))  # dir where qtop resides
 
-    config = load_yaml_config()
-    if options.OPTION:
-        key, val = get_key_val_from_option_string(options.OPTION)
-        config[key] = val
-
-    SEPARATOR = config['vertical_separator'].translate(None, "'")  # alias
-    USER_CUT_MATRIX_WIDTH = int(config['workernodes_matrix'][0]['wn id lines']['user_cut_matrix_width'])  # alias
-    ALT_LABEL_HIGHLIGHT_COLORS = fix_config_list(config['workernodes_matrix'][0]['wn id lines']['alt_label_highlight_colors'])
-    # TODO: int should be handled internally in native yaml parser
-    # TODO: fix_config_list should be handled internally in native yaml parser
-
-    options.SOURCEDIR = os.path.realpath(options.SOURCEDIR) if options.SOURCEDIR else None
-    logging.debug("User-defined source directory: %s" % options.SOURCEDIR)
-    options.workdir = options.SOURCEDIR or config['savepath']
-    logging.debug('Working directory is now: %s' % options.workdir)
-    os.chdir(options.workdir)
-
-    scheduler = pick_batch_system()
-
-    if config['faster_xml_parsing']:
+    with raw_mode(sys.stdin):
         try:
-            from lxml import etree
-        except ImportError:
-            logging.warn('Module lxml is missing. Try issuing "pip install lxml". Reverting to xml module.')
-            from xml.etree import ElementTree as etree
+            while True:
+                handle, name = get_new_temp_file(prefix='qtop_', suffix='.out')
+                fout = os.path.expanduser(name)
+                sys.stdout = os.fdopen(handle, 'w')  # redirect everything to file
+                # sys.stdout = open(fout, 'w', -1)  # redirect everything to file
+                transposed_matrices = []
+                config = load_yaml_config()
 
-    INPUT_FNs_commands = get_filenames_commands()
-    input_filenames = get_input_filenames()
+                if options.OPTION:
+                    key, val = get_key_val_from_option_string(options.OPTION)
+                    config[key] = val
 
-    # reset_yaml_files()  # either that or having a pid appended in the filename
-    if not options.YAML_EXISTS:
-        convert_to_yaml(scheduler, INPUT_FNs_commands, input_filenames)
-    yaml_files = get_yaml_files(scheduler, input_filenames)
+                SEPARATOR = config['vertical_separator'].translate(None, "'")  # alias
+                USER_CUT_MATRIX_WIDTH = int(config['workernodes_matrix'][0]['wn id lines']['user_cut_matrix_width'])  # alias
+                ALT_LABEL_HIGHLIGHT_COLORS = fix_config_list(config['workernodes_matrix'][0]['wn id lines']['alt_label_highlight_colors'])
+                # TODO: int should be handled internally in native yaml parser
+                # TODO: fix_config_list should be handled internally in native yaml parser
 
-    worker_nodes = get_worker_nodes(scheduler)(*yaml_files['get_worker_nodes'])
-    job_ids, user_names, job_states, _ = get_jobs_info(scheduler)(*yaml_files['get_jobs_info'])
-    total_running_jobs, total_queued_jobs, qstatq_lod = get_queues_info(scheduler)(*yaml_files['get_queues_info'])
+                options.SOURCEDIR = realpath(options.SOURCEDIR) if options.SOURCEDIR else None
+                logging.debug("User-defined source directory: %s" % options.SOURCEDIR)
+                options.workdir = options.SOURCEDIR or config['savepath']
+                logging.debug('Working directory is now: %s' % options.workdir)
+                os.chdir(options.workdir)
 
-    #  MAIN ##################################
-    logging.info('CALCULATION AREA')
-    cluster_dict, NAMED_WNS = calculate_cluster(worker_nodes)
-    workernodes_occupancy, cluster_dict = calculate_wn_occupancy(cluster_dict, user_names, job_states, job_ids)
+                scheduler = pick_batch_system()
 
-    display_parts = {
-        'job_accounting_summary': (display_job_accounting_summary, (cluster_dict, total_running_jobs, total_queued_jobs, qstatq_lod)),
-        'workernodes_matrix': (display_wn_occupancy, (workernodes_occupancy, cluster_dict)),
-        'user_accounts_pool_mappings': (display_user_accounts_pool_mappings, (workernodes_occupancy['account_jobs_table'], workernodes_occupancy['pattern_of_id']))
-    }
-    logging.info('DISPLAY AREA')
+                if config['faster_xml_parsing']:
+                    try:
+                        from lxml import etree
+                    except ImportError:
+                        logging.warn('Module lxml is missing. Try issuing "pip install lxml". Reverting to xml module.')
+                        from xml.etree import ElementTree as etree
 
-    for idx, part in enumerate(config['user_display_parts'], 1):
-        display_func, args = display_parts[part][0], display_parts[part][1]
-        display_func(*args) if not sections_off[idx] else None
+                INPUT_FNs_commands = get_filenames_commands()
+                input_filenames = get_input_filenames()
 
-    print "\nLog file created in %s" % os.path.expandvars(QTOP_LOGFILE)
-    os.chdir(QTOPPATH)
+                # reset_yaml_files()  # either that or having a pid appended in the filename
+                if not options.YAML_EXISTS:
+                    convert_to_yaml(scheduler, INPUT_FNs_commands, input_filenames)
+                yaml_files = get_yaml_files(scheduler, input_filenames)
+
+                worker_nodes = get_worker_nodes(scheduler)(*yaml_files['get_worker_nodes'])
+                job_ids, user_names, job_states, _ = get_jobs_info(scheduler)(*yaml_files['get_jobs_info'])
+                total_running_jobs, total_queued_jobs, qstatq_lod = get_queues_info(scheduler)(*yaml_files['get_queues_info'])
+                deprecate_old_yaml_files(*yaml_files['get_jobs_info'])
+                #  MAIN ##################################
+                logging.info('CALCULATION AREA')
+                cluster_dict, NAMED_WNS = calculate_cluster(worker_nodes)
+                workernodes_occupancy, cluster_dict = calculate_wn_occupancy(cluster_dict, user_names, job_states, job_ids)
+                h_stop = config['h_stop'] if h_stop is None else h_stop
+                v_stop = config['v_stop'] if v_stop is None else v_stop
+
+                display_parts = {
+                    'job_accounting_summary': (display_job_accounting_summary, (cluster_dict, total_running_jobs, total_queued_jobs, qstatq_lod)),
+                    'workernodes_matrix': (display_wn_occupancy, (workernodes_occupancy, cluster_dict)),
+                    'user_accounts_pool_mappings': (display_user_accounts_pool_mappings, (workernodes_occupancy['account_jobs_table'], workernodes_occupancy['pattern_of_id']))
+                }
+                logging.info('DISPLAY AREA')
+
+                print "\033c"
+
+                for idx, part in enumerate(config['user_display_parts'], 1):
+                    display_func, args = display_parts[part][0], display_parts[part][1]
+                    display_func(*args) if not sections_off[idx] else None
+                print "\nLog file created in %s" % expandvars(QTOP_LOGFILE)
+                sys.stdout.flush()
+                sys.stdout.close()
+                sys.stdout = stdout  # sys.stdout is back to its normal function (i.e. screen output)
+
+                num_lines = sum(1 for line in open(fout, 'r')) if not num_lines else num_lines
+                ansi_escape = re.compile(r'\x1b[^m]*m')
+                max_line_len = max(len(ansi_escape.sub('', line.strip())) for line in open(fout, 'r')) \
+                    if not max_line_len else max_line_len
+
+                logging.debug('Total nr of lines: %s' % num_lines)
+                logging.debug('Max line length: %s' % max_line_len)
+
+                if not options.WATCH:
+                    cat_command = 'clear;cat %s' % fout
+                    NOT_FOUND = subprocess.call(cat_command, stdout=stdout, stderr=stdout, shell=True)
+                    quit_program(h_start, h_stop, v_start, v_stop)
+                    break
+                # justification for implementation:
+                # http://unix.stackexchange.com/questions/47407/cat-line-x-to-line-y-on-a-huge-file
+                line_offset = v_stop - v_start
+                cat_command = 'clear;tail -n+%s %s | head -n%s' % (v_start, fout, line_offset)
+                NOT_FOUND = subprocess.call(cat_command, stdout=stdout, stderr=stdout, shell=True)
+
+                while sys.stdin in select.select([sys.stdin], [], [], timeout)[0]:
+                    read_char = sys.stdin.read(1)
+                    if read_char:
+                        logging.debug('Pressed %s' % read_char)
+                        break
+                else:
+                    read_char = '\n'
+                    logging.debug("Auto-advancing by pressing <Enter>")
+                pressed_char_hex = '%02x' % ord(read_char) # read_char has an initial value that resets the display ('72')
+                h_start, h_stop, v_start, v_stop = control_movement(pressed_char_hex, h_start, h_stop, v_start, v_stop)
+                os.chdir(QTOPPATH)
+                unlink(name)
+        except (KeyboardInterrupt, EOFError):
+            sys.stdout.flush()
+            sys.stdout.close()
+            close(handle)
+            unlink(name)
+            sys.stdout = stdout
+            # print '  Exiting...'
+            sys.exit(0)
+        else:
+            close(handle)
+            unlink(name)
+
 

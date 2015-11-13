@@ -1,3 +1,22 @@
+## 0.8.4
+  - Watch replacement with simple pager included (with full color functionality, compatible with older RHEL6 systems)
+  - GECOS field completed by a less "intruding" command
+  - Numerous enhancements and bug fixes
+
+## 0.8.3
+  - The worker node occupancy table can now be viewed horizontally (transposed)
+  - Custom conf files createable by users
+  - Filter/select nodes by name/regex
+  - Numerous enhancements and bug fixes
+
+## 0.8.2
+  - Ability to select which of the three qtop parts to display
+  - GECOS field implemented
+  - States can be assigned more than one lines
+  - New node line displays the queue the job belongs to
+  - (trivial) auto-detection of batch-system
+  - Numerous enhancements and bug fixes
+
 ## 0.8.1
   - Overwrote PyYAML dependency with custom YAML parser
 
