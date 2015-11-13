@@ -844,7 +844,7 @@ def calculate_wn_occupancy(cluster_dict, user_names, job_states, job_ids):
     Number of Extra tables needed is calculated inside the calc_all_wnid_label_lines function below
     """
     wns_occupancy = dict()
-    calculate_split_screen_size(wns_occupancy)  # term_columns
+    calculate_split_screen_size()  # term_columns
     create_account_jobs_table(user_names, job_states, wns_occupancy) # account_jobs_table, id_of_username
     make_pattern_of_id(wns_occupancy)  # pattern_of_id
 
@@ -1007,7 +1007,7 @@ def load_yaml_config():
     return config
 
 
-def calculate_split_screen_size(wns_occupancy):
+def calculate_split_screen_size():
     """
     Calculates where to break the matrix into more matrices, because of the window size.
     """
@@ -1024,7 +1024,6 @@ def calculate_split_screen_size(wns_occupancy):
             except KeyError:
                 config['term_size'] = fallback_term_size
     finally:
-        # was: wns_occupancy['term_columns'] = int(term_columns)
         logging.debug('Set terminal size is: %s * %s' % (term_height, term_columns))
         config['term_size'] = [int(term_height), int(term_columns)]
         config['h_start'] = h_start
@@ -1628,7 +1627,7 @@ if __name__ == '__main__':
                 }
                 logging.info('DISPLAY AREA')
 
-                # print "\033c",
+                print "\033c",  # the comma here is to avoid losing the whole first line. An empty char still remains, though.
 
                 for idx, part in enumerate(config['user_display_parts'], 1):
                     display_func, args = display_parts[part][0], display_parts[part][1]
@@ -1664,7 +1663,10 @@ if __name__ == '__main__':
                         logging.debug('Pressed %s' % read_char)
                         break
                 else:
-                    read_char = '\n'
+                    state = config['term_size']
+                    calculate_split_screen_size()
+                    new_state = config['term_size']
+                    read_char = '\n' if (state == new_state) else 'r'
                     logging.debug("Auto-advancing by pressing <Enter>")
                 pressed_char_hex = '%02x' % ord(read_char) # read_char has an initial value that resets the display ('72')
                 h_start, h_stop, v_start, v_stop = control_movement(pressed_char_hex, h_start, h_stop, v_start, v_stop)
