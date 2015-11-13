@@ -1637,15 +1637,17 @@ if __name__ == '__main__':
                 logging.debug('Total nr of lines: %s' % num_lines)
                 logging.debug('Max line length: %s' % max_line_len)
 
+                if not options.WATCH:
+                    cat_command = 'clear;cat %s' % fout
+                    NOT_FOUND = subprocess.call(cat_command, stdout=stdout, stderr=stdout, shell=True)
+                    quit_program(h_start, h_stop, v_start, v_stop)
+                    break
                 # justification for implementation:
                 # http://unix.stackexchange.com/questions/47407/cat-line-x-to-line-y-on-a-huge-file
                 line_offset = v_stop - v_start
                 cat_command = 'clear;tail -n+%s %s | head -n%s' % (v_start, fout, line_offset)
                 NOT_FOUND = subprocess.call(cat_command, stdout=stdout, stderr=stdout, shell=True)
 
-                if not options.WATCH:
-                    quit_program(h_start, h_stop, v_start, v_stop)
-                    break
                 while sys.stdin in select.select([sys.stdin], [], [], timeout)[0]:
                     read_char = sys.stdin.read(1)
                     if read_char:
