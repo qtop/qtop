@@ -228,7 +228,8 @@ def display_job_accounting_summary(cluster_dict, total_running_jobs, total_queue
     print '%(name)s report tool. All bugs added by sfranky@gmail.com. Cross fingers now...' \
         % {'name': 'PBS' if options.CLASSIC else 'Queueing System'}
 
-    print 'Please try: watch -d %s/qtop.py -s %s\n' % (QTOPPATH, options.SOURCEDIR)
+    if not options.WATCH:
+        print 'Please try: watch -d %s/qtop.py -s <SOURCEDIR>\n' % QTOPPATH
     print colorize('===> ', 'Gray_D') + colorize('Job accounting summary', 'White') + colorize(' <=== ', 'Gray_D') + \
           '%s WORKDIR = %s' % (colorize(str(datetime.datetime.today())[:-7], 'White'), QTOPPATH)
 
@@ -1509,7 +1510,6 @@ def quit_program(h_start, h_stop, v_start, v_stop):  # "q", quit
         raise KeyboardInterrupt
     except KeyboardInterrupt:
         print '  Exiting...'
-        unlink(name)
         sys.exit(0)
 
 
@@ -1540,6 +1540,16 @@ def control_movement(pressed_char_hex, h_start, h_stop, v_start, v_stop):
     return h_start, h_stop, v_start, v_stop
 
 
+def safe_exit_with_file_close(handle, name, stdout, delete_file=False):
+    sys.stdout.flush()
+    sys.stdout.close()
+    close(handle)
+    if delete_file:
+        unlink(name)  # this deletes the file
+    # sys.stdout = stdout
+    sys.exit(0)
+
+
 if __name__ == '__main__':
 
     stdout = sys.stdout
@@ -1562,8 +1572,7 @@ if __name__ == '__main__':
         try:
             while True:
                 handle, name = get_new_temp_file(prefix='qtop_', suffix='.out')
-                fout = os.path.expanduser(name)
-                sys.stdout = os.fdopen(handle, 'w')  # redirect everything to file
+                sys.stdout = os.fdopen(handle, 'w')  # redirect everything to file, creates file object out of handle
                 # sys.stdout = open(fout, 'w', -1)  # redirect everything to file
                 transposed_matrices = []
                 config = load_yaml_config()
@@ -1619,7 +1628,7 @@ if __name__ == '__main__':
                 }
                 logging.info('DISPLAY AREA')
 
-                print "\033c"
+                # print "\033c",
 
                 for idx, part in enumerate(config['user_display_parts'], 1):
                     display_func, args = display_parts[part][0], display_parts[part][1]
@@ -1629,23 +1638,24 @@ if __name__ == '__main__':
                 sys.stdout.close()
                 sys.stdout = stdout  # sys.stdout is back to its normal function (i.e. screen output)
 
-                num_lines = sum(1 for line in open(fout, 'r')) if not num_lines else num_lines
-                ansi_escape = re.compile(r'\x1b[^m]*m')
-                max_line_len = max(len(ansi_escape.sub('', line.strip())) for line in open(fout, 'r')) \
+                num_lines = sum(1 for line in open(name, 'r')) if not num_lines else num_lines
+                ansi_escape = re.compile(r'\x1b[^m]*m')  # matches ANSI escape characters
+                max_line_len = max(len(ansi_escape.sub('', line.strip())) for line in open(name, 'r')) \
                     if not max_line_len else max_line_len
 
                 logging.debug('Total nr of lines: %s' % num_lines)
                 logging.debug('Max line length: %s' % max_line_len)
 
                 if not options.WATCH:
-                    cat_command = 'clear;cat %s' % fout
+                    cat_command = 'clear;cat %s' % name
                     NOT_FOUND = subprocess.call(cat_command, stdout=stdout, stderr=stdout, shell=True)
-                    quit_program(h_start, h_stop, v_start, v_stop)
                     break
+
+
                 # justification for implementation:
                 # http://unix.stackexchange.com/questions/47407/cat-line-x-to-line-y-on-a-huge-file
                 line_offset = v_stop - v_start
-                cat_command = 'clear;tail -n+%s %s | head -n%s' % (v_start, fout, line_offset)
+                cat_command = 'clear;tail -n+%s %s | head -n%s' % (v_start, name, line_offset)
                 NOT_FOUND = subprocess.call(cat_command, stdout=stdout, stderr=stdout, shell=True)
 
                 while sys.stdin in select.select([sys.stdin], [], [], timeout)[0]:
@@ -1660,16 +1670,10 @@ if __name__ == '__main__':
                 h_start, h_stop, v_start, v_stop = control_movement(pressed_char_hex, h_start, h_stop, v_start, v_stop)
                 os.chdir(QTOPPATH)
                 unlink(name)
+
         except (KeyboardInterrupt, EOFError):
-            sys.stdout.flush()
-            sys.stdout.close()
-            close(handle)
-            unlink(name)
-            sys.stdout = stdout
-            # print '  Exiting...'
-            sys.exit(0)
+            safe_exit_with_file_close(handle, name, stdout)
         else:
-            close(handle)
-            unlink(name)
+            pass
 
 
