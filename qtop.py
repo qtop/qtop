@@ -1577,8 +1577,9 @@ if __name__ == '__main__':
                 config = load_yaml_config()
 
                 if options.OPTION:
-                    key, val = get_key_val_from_option_string(options.OPTION)
-                    config[key] = val
+                    for opt in options.OPTION:
+                        key, val = get_key_val_from_option_string(opt)
+                        config[key] = val
 
                 SEPARATOR = config['vertical_separator'].translate(None, "'")  # alias
                 USER_CUT_MATRIX_WIDTH = int(config['workernodes_matrix'][0]['wn id lines']['user_cut_matrix_width'])  # alias
