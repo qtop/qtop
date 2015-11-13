@@ -1644,6 +1644,7 @@ if __name__ == '__main__':
                 NOT_FOUND = subprocess.call(cat_command, stdout=stdout, stderr=stdout, shell=True)
 
                 if not options.WATCH:
+                    quit_program(h_start, h_stop, v_start, v_stop)
                     break
                 while sys.stdin in select.select([sys.stdin], [], [], timeout)[0]:
                     read_char = sys.stdin.read(1)
