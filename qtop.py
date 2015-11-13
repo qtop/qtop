@@ -585,7 +585,8 @@ def display_remaining_matrices(wn_occupancy, DEADWEIGHT=11):
     56 cores from the next matrix on.
     """
     extra_matrices_nr = wn_occupancy['extra_matrices_nr']
-    term_columns = wn_occupancy['term_columns']
+    # term_columns = wn_occupancy['term_columns']
+    term_columns = config['term_size'][1]
 
     # need node_state, temp
     for matrix in range(extra_matrices_nr):
