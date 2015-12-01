@@ -225,8 +225,9 @@ def display_job_accounting_summary(cluster_dict, total_running_jobs, total_queue
             print '=== WARNING: --- Remapping WN names and retrying heuristics... good luck with this... ---'
         else:
             logging.warning('=== WARNING: --- Remapping WN names and retrying heuristics... good luck with this... ---')
-    print '%(name)s report tool. All bugs added by sfranky@gmail.com. Cross fingers now...' \
-        % {'name': 'PBS' if options.CLASSIC else 'Queueing System'}
+    ansi_delete_char = "\015"  # this removes the first ever character (space) appearing in the output
+    print '%(del)s%(name)s report tool. All bugs added by sfranky@gmail.com. Cross fingers now...' \
+        % {'name': 'PBS' if options.CLASSIC else 'Queueing System', 'del': ansi_delete_char}
 
     if not options.WATCH:
         print 'Please try: watch -d %s/qtop.py -s <SOURCEDIR>\n' % QTOPPATH
@@ -1582,6 +1583,13 @@ if __name__ == '__main__':
                         key, val = get_key_val_from_option_string(opt)
                         config[key] = val
 
+                if config['faster_xml_parsing']:
+                    try:
+                        from lxml import etree
+                    except ImportError:
+                        logging.warn('Module lxml is missing. Try issuing "pip install lxml". Reverting to xml module.')
+                        from xml.etree import ElementTree as etree
+
                 SEPARATOR = config['vertical_separator'].translate(None, "'")  # alias
                 USER_CUT_MATRIX_WIDTH = int(config['workernodes_matrix'][0]['wn id lines']['user_cut_matrix_width'])  # alias
                 ALT_LABEL_HIGHLIGHT_COLORS = fix_config_list(config['workernodes_matrix'][0]['wn id lines']['alt_label_highlight_colors'])
@@ -1595,13 +1603,6 @@ if __name__ == '__main__':
                 os.chdir(options.workdir)
 
                 scheduler = pick_batch_system()
-
-                if config['faster_xml_parsing']:
-                    try:
-                        from lxml import etree
-                    except ImportError:
-                        logging.warn('Module lxml is missing. Try issuing "pip install lxml". Reverting to xml module.')
-                        from xml.etree import ElementTree as etree
 
                 INPUT_FNs_commands = get_filenames_commands()
                 input_filenames = get_input_filenames()
