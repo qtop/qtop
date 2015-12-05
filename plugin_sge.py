@@ -1,6 +1,6 @@
 __author__ = 'sfranky'
 from xml.etree import ElementTree as etree
-from common_module import logging, check_empty_file, StatMaker, get_new_temp_file, options
+from common_module import logging, check_empty_file, StatMaker, get_new_temp_file, options, anonymize
 import os
 
 
@@ -151,7 +151,8 @@ class SGEStatMaker(StatMaker):
         for subelem in elem.findall(elem_text):
             qstat_values = dict()
             qstat_values['JobId'] = subelem.find('./JB_job_number').text
-            qstat_values['UnixAccount'] = subelem.find('./JB_owner').text
+            qstat_values['UnixAccount'] = subelem.find('./JB_owner').text \
+                if not options.ANONYMIZE else anonymize(subelem.find('./JB_owner').text)
             qstat_values['S'] = subelem.find('./state').text
             qstat_values['Queue'] = queue_name
             self.l.append(qstat_values)

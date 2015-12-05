@@ -222,6 +222,8 @@ parser.add_option("-3", "--disablesection3", action="store_true", dest="sect_3_o
                   help="Disable third section of qtop, i.e. User Accounts and Pool Mappings")
 parser.add_option("-a", "--blindremapping", action="store_true", dest="BLINDREMAP", default=False,
                   help="This may be used in situations where node names are not a pure arithmetic seq (eg. rocks clusters)")
+parser.add_option("-A", "--anonymize", action="store_true", dest="ANONYMIZE", default=False,
+                  help="Masks unix account names and workernode names for security reasons (sending bug reports etc.)")
 parser.add_option("-b", "--batchSystem", action="store", type="string", dest="BATCH_SYSTEM", default=None)
 parser.add_option("-c", "--COLOR", action="store", dest="COLOR", default="AUTO", choices=['ON', 'OFF', 'AUTO'],
                   help="Enable/Disable color in qtop output. AUTO detects tty (for watch -d)")
@@ -335,3 +337,7 @@ def get_jobs_info(fn, write_method=options.write_method):
         }
     )
     return job_ids, usernames, job_states, queue_names
+
+
+def anonymize(strng):
+    return strng
