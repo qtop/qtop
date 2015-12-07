@@ -27,7 +27,7 @@ import contextlib
 # modules
 from constants import *
 import common_module
-from common_module import logging, options, sections_off
+from common_module import logging, options, sections_off, anonymize_func
 import plugin_pbs, plugin_oar, plugin_sge
 from plugin_pbs import *
 from plugin_oar import *
@@ -139,7 +139,7 @@ def calculate_cluster(worker_nodes):
     _all_letters = []
     _all_str_digits_with_empties = []
 
-    re_nodename = r'(^[A-Za-z0-9-]+)(?=\.|$)'
+    re_nodename = r'(^[A-Za-z0-9-]+)(?=\.|$)' if not options.ANONYMIZE else r'\w_anon_\w+'
     for node in worker_nodes:
         nodename_match = re.search(re_nodename, node['domainname'])
         _nodename = nodename_match.group(0)
@@ -1608,11 +1608,13 @@ if __name__ == '__main__':
                 input_filenames = get_input_filenames()
 
                 # reset_yaml_files()  # either that or having a pid appended in the filename
+                # anonymize = anonymize_func()
                 if not options.YAML_EXISTS:
                     convert_to_yaml(scheduler, INPUT_FNs_commands, input_filenames)
                 yaml_files = get_yaml_files(scheduler, input_filenames)
 
                 worker_nodes = get_worker_nodes(scheduler)(*yaml_files['get_worker_nodes'])
+                # import wdb; wdb.set_trace()
                 job_ids, user_names, job_states, _ = get_jobs_info(scheduler)(*yaml_files['get_jobs_info'])
                 total_running_jobs, total_queued_jobs, qstatq_lod = get_queues_info(scheduler)(*yaml_files['get_queues_info'])
                 deprecate_old_yaml_files(*yaml_files['get_jobs_info'])

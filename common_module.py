@@ -5,6 +5,7 @@ from optparse import OptionParser
 from tempfile import mkstemp
 import os
 import re
+from itertools import count
 import errno
 try:
     import ujson as json
@@ -58,6 +59,7 @@ class StatMaker:
     def __init__(self, config):
         self.l = list()
         self.config = config
+        self.anonymize = anonymize_func()
 
         self.stat_mapping = {
             'txtyaml': (self.stat_write_lines, {}, 'yaml'),
@@ -339,5 +341,38 @@ def get_jobs_info(fn, write_method=options.write_method):
     return job_ids, usernames, job_states, queue_names
 
 
-def anonymize(strng):
-    return strng
+def anonymize_func():
+    """
+    creates and returns an _anonymize_func object (closure)
+    """
+    counters = {}
+    stored_dict = {}
+    for key in ['users', 'wns', 'qs']:
+        counters[key] = count()
+
+    maps = {
+        'users': '_anon_user_',
+        'wns': '_anon_wn_',
+        'qs': '_anon_q_'
+    }
+
+    def _anonymize_func(s, a_type, stored_dict=stored_dict):
+        """
+        d4-p4-04 --> d_anon_wn_0
+        d4-p4-05 --> d_anon_wn_1
+        biomed017--> b_anon_user_0
+        alice    --> a_anon_q_0
+        """
+        dup_counter = counters[a_type]
+
+        s_type = maps[a_type]
+        cnt = '0'
+        new_name_parts = [s[0], s_type, cnt]
+        if s not in stored_dict:
+            cnt = str(dup_counter.next())
+            new_name_parts.pop()
+            new_name_parts.append(cnt)
+        stored_dict.setdefault(s, (''.join(new_name_parts), s_type))
+        return stored_dict[s][0]
+
+    return _anonymize_func
