@@ -89,7 +89,7 @@ def _read_oarnodes_y_yaml(fn_y):
     with open('oarnodes_y', mode='r') as fin:
         data = yaml.load(fin)
     resids_jobs = dict([(resid, info.get('jobs', None)) for resid, info in data.items()])
-    return resids_jobsw
+    return resids_jobs
 
 
 def _read_oarnodes_y_textyaml(fn):
