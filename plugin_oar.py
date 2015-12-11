@@ -69,6 +69,7 @@ class OarStatMaker(QStatMaker):
 
 def _read_oarnodes_s_yaml(fn_s, write_method):  # todo: fix write_method not being used
     assert os.path.isfile(fn_s)
+    anonymize = anonymize_func()
     logging.debug('File %s exists: %s' % (fn_s, os.path.isfile(fn_s)))
     try:
         assert os.stat(fn_s).st_size != 0
@@ -76,7 +77,11 @@ def _read_oarnodes_s_yaml(fn_s, write_method):  # todo: fix write_method not bei
         logging.critical('File %s is empty!! Exiting...\n' % fn_s)
         raise
     data = yaml.safe_load(fn_s, DEF_INDENT=4)
-    nodes_resids = dict([(node, resid_state.items()) for node, resid_state in data.items()])
+    if options.ANONYMIZE:
+        nodes_resids = dict([(anonymize(node, 'wns'), resid_state.items()) for node, resid_state in data.items()])
+    else:
+        nodes_resids = dict([(node, resid_state.items()) for node, resid_state in data.items()])
+    # import wdb; wdb.set_trace()
     return nodes_resids
 
 
@@ -84,7 +89,7 @@ def _read_oarnodes_y_yaml(fn_y):
     with open('oarnodes_y', mode='r') as fin:
         data = yaml.load(fin)
     resids_jobs = dict([(resid, info.get('jobs', None)) for resid, info in data.items()])
-    return resids_jobs
+    return resids_jobsw
 
 
 def _read_oarnodes_y_textyaml(fn):
