@@ -158,6 +158,7 @@ class QStatMaker(StatMaker):
         (except for the last line, which contains two sums and is parsed separately)
         """
         check_empty_file(orig_file)
+        anonymize = anonymize_func()
         queue_search = r'^(?P<queue_name>[\w.-]+)\s+' \
                        r'(?:--|[0-9]+[mgtkp]b[a-z]*)\s+' \
                        r'(?:--|\d+:\d+:?\d*:?)\s+' \
@@ -181,8 +182,8 @@ class QStatMaker(StatMaker):
                 n = re.search(run_qd_search, line)
                 temp_dict = {}
                 try:
-                    queue_name, run, queued, lm, state = m.group('queue_name'), m.group('run'), m.group('queued'), \
-                                                         m.group('lm'), m.group('state')
+                    queue_name = m.group('queue_name') if not options.ANONYMIZE else anonymize(m.group('queue_name'), 'qs')
+                    run, queued, lm, state = m.group('run'), m.group('queued'), m.group('lm'), m.group('state')
                 except AttributeError:
                     try:
                         total_running_jobs, total_queued_jobs = n.group('tot_run'), n.group('tot_queued')
@@ -199,8 +200,7 @@ class QStatMaker(StatMaker):
             self.l.append({'Total_running': total_running_jobs, 'Total_queued': total_queued_jobs})
         self.dump_all(out_file, self.statq_mapping[write_method])
 
-    @staticmethod
-    def process_line(re_search, line, re_match_positions):
+    def process_line(self, re_search, line, re_match_positions):
         qstat_values = dict()
         m = re.search(re_search, line.strip())
         try:
@@ -209,6 +209,7 @@ class QStatMaker(StatMaker):
             print line.strip()
             sys.exit(0)
         job_id = job_id.split('.')[0]
+        user = user if not options.ANONYMIZE else self.anonymize(user, 'users')
         for key, value in [('JobId', job_id), ('UnixAccount', user), ('S', job_state), ('Queue', queue)]:
             qstat_values[key] = value
         return qstat_values
@@ -356,7 +357,7 @@ def anonymize_func():
         'qs': '_anon_q_'
     }
 
-    def _anonymize_func(s, a_type, stored_dict=stored_dict):
+    def _anonymize_func(s, a_type):
         """
         d4-p4-04 --> d_anon_wn_0
         d4-p4-05 --> d_anon_wn_1
