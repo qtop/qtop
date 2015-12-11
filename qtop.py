@@ -1608,7 +1608,6 @@ if __name__ == '__main__':
                 input_filenames = get_input_filenames()
 
                 # reset_yaml_files()  # either that or having a pid appended in the filename
-                # anonymize = anonymize_func()
                 if not options.YAML_EXISTS:
                     convert_to_yaml(scheduler, INPUT_FNs_commands, input_filenames)
                 yaml_files = get_yaml_files(scheduler, input_filenames)
