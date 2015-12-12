@@ -8,7 +8,9 @@ Homepage: https://github.com/qtop/qtop
 Ported in Python by Sotiris Fragkiskos / Originally created in bash by Fotis Georgatos
 
 Summary:
-qtop is a work-in-progress project; it is intended to be built upon and extended.
+qtop.py is the python rewrite of qtop, a tool to monitor Torque, PBS, OAR or SGE clusters, etc.
+This release provides for the *anonymization* feature, which is handy for debugging it without data leaks.
+qtop is and will remain a work-in-progress project; it is intended to be built upon and extended.
 
 This is an initial release of the source code, and work continues to make it better. 
 We hope to build an active open source community that drives the future of this tool, 
