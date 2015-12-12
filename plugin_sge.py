@@ -1,6 +1,6 @@
 __author__ = 'sfranky'
 from xml.etree import ElementTree as etree
-from common_module import logging, check_empty_file, StatMaker, get_new_temp_file, options
+from common_module import logging, check_empty_file, StatMaker, get_new_temp_file, options, anonymize_func
 import os
 
 
@@ -24,6 +24,7 @@ def extract_job_info(elem, elem_text):
 def _get_statq_from_xml(fn, write_method=options.write_method):
     logging.debug("Parsing tree of %s" % fn)
     check_empty_file(fn)
+    anonymize = anonymize_func()
     with open(fn, mode='rb') as fin:
         try:
             tree = etree.parse(fin)
@@ -43,7 +44,7 @@ def _get_statq_from_xml(fn, write_method=options.write_method):
             queue_names = queue_elem.findall('resource')
             for _queue_name in queue_names:
                 if _queue_name.attrib.get('name') == 'qname':
-                    queue_name = _queue_name.text
+                    queue_name = _queue_name.text if not options.ANONYMIZE else anonymize(_queue_name.text, 'qs')
                     break
             else:
                 raise ValueError("No such resource")
@@ -125,7 +126,8 @@ class SGEStatMaker(StatMaker):
             queue_name_elems = queue_elem.findall('resource')
             for queue_name_elem in queue_name_elems:
                 if queue_name_elem.attrib.get('name') == 'qname':
-                    queue_name = queue_name_elem.text
+                    queue_name = queue_name_elem.text if not options.ANONYMIZE else self.anonymize(queue_name_elem.text, 'qs')
+                    # import wdb; wdb.set_trace()
                     break
             else:
                 raise ValueError("No such queue name")
@@ -151,7 +153,8 @@ class SGEStatMaker(StatMaker):
         for subelem in elem.findall(elem_text):
             qstat_values = dict()
             qstat_values['JobId'] = subelem.find('./JB_job_number').text
-            qstat_values['UnixAccount'] = subelem.find('./JB_owner').text
+            qstat_values['UnixAccount'] = subelem.find('./JB_owner').text \
+                if not options.ANONYMIZE else self.anonymize(subelem.find('./JB_owner').text, 'users')
             qstat_values['S'] = subelem.find('./state').text
             qstat_values['Queue'] = queue_name
             self.l.append(qstat_values)
@@ -176,6 +179,7 @@ class SGEStatMaker(StatMaker):
 
 def _calc_everything(fn, write_method):
     logging.debug('Parsing tree of %s' % fn)
+    anonymize = anonymize_func()
     with open(fn, 'rb') as fin:
         tree = etree.parse(fin)
         root = tree.getroot()
@@ -195,11 +199,15 @@ def _calc_everything(fn, write_method):
             # worker_node.setdefault('qname', [])
             for resource in resources:
                 if resource.attrib.get('name') == 'hostname':
-                    worker_node['domainname'] = resource.text
+                    worker_node['domainname'] = resource.text if not options.ANONYMIZE else anonymize(resource.text, 'wns')
                     count += 1
                     if count == 2: break
                 elif resource.attrib.get('name') == 'qname':
-                    worker_node['qname'] = set(resource.text[0]) if slots_used else set()
+                    if not slots_used:
+                        worker_node['qname'] = set()
+                    else:
+                        worker_node['qname'] = set(resource.text[0]) \
+                            if not options.ANONYMIZE else set(anonymize(resource.text[0], 'qs'))
                     count += 1
                     if count == 2: break
             else:

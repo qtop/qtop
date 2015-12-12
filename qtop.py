@@ -27,7 +27,7 @@ import contextlib
 # modules
 from constants import *
 import common_module
-from common_module import logging, options, sections_off
+from common_module import logging, options, sections_off  #, anonymize_func
 import plugin_pbs, plugin_oar, plugin_sge
 from plugin_pbs import *
 from plugin_oar import *
@@ -139,7 +139,7 @@ def calculate_cluster(worker_nodes):
     _all_letters = []
     _all_str_digits_with_empties = []
 
-    re_nodename = r'(^[A-Za-z0-9-]+)(?=\.|$)'
+    re_nodename = r'(^[A-Za-z0-9-]+)(?=\.|$)' if not options.ANONYMIZE else r'\w_anon_\w+'
     for node in worker_nodes:
         nodename_match = re.search(re_nodename, node['domainname'])
         _nodename = nodename_match.group(0)
@@ -225,10 +225,12 @@ def display_job_accounting_summary(cluster_dict, total_running_jobs, total_queue
             print '=== WARNING: --- Remapping WN names and retrying heuristics... good luck with this... ---'
         else:
             logging.warning('=== WARNING: --- Remapping WN names and retrying heuristics... good luck with this... ---')
-    print '%(name)s report tool. All bugs added by sfranky@gmail.com. Cross fingers now...' \
-        % {'name': 'PBS' if options.CLASSIC else 'Queueing System'}
+    ansi_delete_char = "\015"  # this removes the first ever character (space) appearing in the output
+    print '%(del)s%(name)s report tool. All bugs added by sfranky@gmail.com. Cross fingers now...' \
+        % {'name': 'PBS' if options.CLASSIC else 'Queueing System', 'del': ansi_delete_char}
 
-    print 'Please try: watch -d %s/qtop.py -s %s\n' % (QTOPPATH, options.SOURCEDIR)
+    if not options.WATCH:
+        print 'Please try: watch -d %s/qtop.py -s <SOURCEDIR>\n' % QTOPPATH
     print colorize('===> ', 'Gray_D') + colorize('Job accounting summary', 'White') + colorize(' <=== ', 'Gray_D') + \
           '%s WORKDIR = %s' % (colorize(str(datetime.datetime.today())[:-7], 'White'), QTOPPATH)
 
@@ -584,7 +586,8 @@ def display_remaining_matrices(wn_occupancy, DEADWEIGHT=11):
     56 cores from the next matrix on.
     """
     extra_matrices_nr = wn_occupancy['extra_matrices_nr']
-    term_columns = wn_occupancy['term_columns']
+    # term_columns = wn_occupancy['term_columns']
+    term_columns = config['term_size'][1]
 
     # need node_state, temp
     for matrix in range(extra_matrices_nr):
@@ -843,7 +846,7 @@ def calculate_wn_occupancy(cluster_dict, user_names, job_states, job_ids):
     Number of Extra tables needed is calculated inside the calc_all_wnid_label_lines function below
     """
     wns_occupancy = dict()
-    calculate_split_screen_size(wns_occupancy)  # term_columns
+    calculate_split_screen_size()  # term_columns
     create_account_jobs_table(user_names, job_states, wns_occupancy) # account_jobs_table, id_of_username
     make_pattern_of_id(wns_occupancy)  # pattern_of_id
 
@@ -1006,7 +1009,7 @@ def load_yaml_config():
     return config
 
 
-def calculate_split_screen_size(wns_occupancy):
+def calculate_split_screen_size():
     """
     Calculates where to break the matrix into more matrices, because of the window size.
     """
@@ -1023,7 +1026,6 @@ def calculate_split_screen_size(wns_occupancy):
             except KeyError:
                 config['term_size'] = fallback_term_size
     finally:
-        # was: wns_occupancy['term_columns'] = int(term_columns)
         logging.debug('Set terminal size is: %s * %s' % (term_height, term_columns))
         config['term_size'] = [int(term_height), int(term_columns)]
         config['h_start'] = h_start
@@ -1509,7 +1511,6 @@ def quit_program(h_start, h_stop, v_start, v_stop):  # "q", quit
         raise KeyboardInterrupt
     except KeyboardInterrupt:
         print '  Exiting...'
-        unlink(name)
         sys.exit(0)
 
 
@@ -1540,6 +1541,16 @@ def control_movement(pressed_char_hex, h_start, h_stop, v_start, v_stop):
     return h_start, h_stop, v_start, v_stop
 
 
+def safe_exit_with_file_close(handle, name, stdout, delete_file=False):
+    sys.stdout.flush()
+    sys.stdout.close()
+    close(handle)
+    if delete_file:
+        unlink(name)  # this deletes the file
+    # sys.stdout = stdout
+    sys.exit(0)
+
+
 if __name__ == '__main__':
 
     stdout = sys.stdout
@@ -1562,15 +1573,22 @@ if __name__ == '__main__':
         try:
             while True:
                 handle, name = get_new_temp_file(prefix='qtop_', suffix='.out')
-                fout = os.path.expanduser(name)
-                sys.stdout = os.fdopen(handle, 'w')  # redirect everything to file
+                sys.stdout = os.fdopen(handle, 'w')  # redirect everything to file, creates file object out of handle
                 # sys.stdout = open(fout, 'w', -1)  # redirect everything to file
                 transposed_matrices = []
                 config = load_yaml_config()
 
                 if options.OPTION:
-                    key, val = get_key_val_from_option_string(options.OPTION)
-                    config[key] = val
+                    for opt in options.OPTION:
+                        key, val = get_key_val_from_option_string(opt)
+                        config[key] = val
+
+                if config['faster_xml_parsing']:
+                    try:
+                        from lxml import etree
+                    except ImportError:
+                        logging.warn('Module lxml is missing. Try issuing "pip install lxml". Reverting to xml module.')
+                        from xml.etree import ElementTree as etree
 
                 SEPARATOR = config['vertical_separator'].translate(None, "'")  # alias
                 USER_CUT_MATRIX_WIDTH = int(config['workernodes_matrix'][0]['wn id lines']['user_cut_matrix_width'])  # alias
@@ -1586,13 +1604,6 @@ if __name__ == '__main__':
 
                 scheduler = pick_batch_system()
 
-                if config['faster_xml_parsing']:
-                    try:
-                        from lxml import etree
-                    except ImportError:
-                        logging.warn('Module lxml is missing. Try issuing "pip install lxml". Reverting to xml module.')
-                        from xml.etree import ElementTree as etree
-
                 INPUT_FNs_commands = get_filenames_commands()
                 input_filenames = get_input_filenames()
 
@@ -1602,6 +1613,7 @@ if __name__ == '__main__':
                 yaml_files = get_yaml_files(scheduler, input_filenames)
 
                 worker_nodes = get_worker_nodes(scheduler)(*yaml_files['get_worker_nodes'])
+                # import wdb; wdb.set_trace()
                 job_ids, user_names, job_states, _ = get_jobs_info(scheduler)(*yaml_files['get_jobs_info'])
                 total_running_jobs, total_queued_jobs, qstatq_lod = get_queues_info(scheduler)(*yaml_files['get_queues_info'])
                 deprecate_old_yaml_files(*yaml_files['get_jobs_info'])
@@ -1619,7 +1631,7 @@ if __name__ == '__main__':
                 }
                 logging.info('DISPLAY AREA')
 
-                print "\033c"
+                print "\033c",  # the comma here is to avoid losing the whole first line. An empty char still remains, though.
 
                 for idx, part in enumerate(config['user_display_parts'], 1):
                     display_func, args = display_parts[part][0], display_parts[part][1]
@@ -1629,23 +1641,24 @@ if __name__ == '__main__':
                 sys.stdout.close()
                 sys.stdout = stdout  # sys.stdout is back to its normal function (i.e. screen output)
 
-                num_lines = sum(1 for line in open(fout, 'r')) if not num_lines else num_lines
-                ansi_escape = re.compile(r'\x1b[^m]*m')
-                max_line_len = max(len(ansi_escape.sub('', line.strip())) for line in open(fout, 'r')) \
+                num_lines = sum(1 for line in open(name, 'r')) if not num_lines else num_lines
+                ansi_escape = re.compile(r'\x1b[^m]*m')  # matches ANSI escape characters
+                max_line_len = max(len(ansi_escape.sub('', line.strip())) for line in open(name, 'r')) \
                     if not max_line_len else max_line_len
 
                 logging.debug('Total nr of lines: %s' % num_lines)
                 logging.debug('Max line length: %s' % max_line_len)
 
                 if not options.WATCH:
-                    cat_command = 'clear;cat %s' % fout
+                    cat_command = 'clear;cat %s' % name
                     NOT_FOUND = subprocess.call(cat_command, stdout=stdout, stderr=stdout, shell=True)
-                    quit_program(h_start, h_stop, v_start, v_stop)
                     break
+
+
                 # justification for implementation:
                 # http://unix.stackexchange.com/questions/47407/cat-line-x-to-line-y-on-a-huge-file
                 line_offset = v_stop - v_start
-                cat_command = 'clear;tail -n+%s %s | head -n%s' % (v_start, fout, line_offset)
+                cat_command = 'clear;tail -n+%s %s | head -n%s' % (v_start, name, line_offset)
                 NOT_FOUND = subprocess.call(cat_command, stdout=stdout, stderr=stdout, shell=True)
 
                 while sys.stdin in select.select([sys.stdin], [], [], timeout)[0]:
@@ -1654,22 +1667,19 @@ if __name__ == '__main__':
                         logging.debug('Pressed %s' % read_char)
                         break
                 else:
-                    read_char = '\n'
+                    state = config['term_size']
+                    calculate_split_screen_size()
+                    new_state = config['term_size']
+                    read_char = '\n' if (state == new_state) else 'r'
                     logging.debug("Auto-advancing by pressing <Enter>")
                 pressed_char_hex = '%02x' % ord(read_char) # read_char has an initial value that resets the display ('72')
                 h_start, h_stop, v_start, v_stop = control_movement(pressed_char_hex, h_start, h_stop, v_start, v_stop)
                 os.chdir(QTOPPATH)
                 unlink(name)
+
         except (KeyboardInterrupt, EOFError):
-            sys.stdout.flush()
-            sys.stdout.close()
-            close(handle)
-            unlink(name)
-            sys.stdout = stdout
-            # print '  Exiting...'
-            sys.exit(0)
+            safe_exit_with_file_close(handle, name, stdout)
         else:
-            close(handle)
-            unlink(name)
+            pass
 
 
