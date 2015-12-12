@@ -8,7 +8,7 @@ except ImportError:
 
 import yaml_parser as yaml
 from constants import *
-from common_module import logging, check_empty_file, options
+from common_module import logging, check_empty_file, options, anonymize_func
 
 
 # def get_queues_info(fn, write_method):
@@ -48,9 +48,10 @@ def _get_pbsnodes_values(orig_file, out_file, write_method):
     check_empty_file(orig_file)
     raw_blocks = _read_all_blocks(orig_file)
     all_pbs_values = []
+    anonymize = anonymize_func()
     for block in raw_blocks:
         pbs_values = dict()
-        pbs_values['domainname'] = block['domainname']
+        pbs_values['domainname'] = block['domainname'] if not options.ANONYMIZE else anonymize(block['domainname'], 'wns')
 
         nextchar = block['state'][0]
         state = (nextchar == 'f') and "-" or nextchar

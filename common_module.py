@@ -5,6 +5,7 @@ from optparse import OptionParser
 from tempfile import mkstemp
 import os
 import re
+from itertools import count
 import errno
 try:
     import ujson as json
@@ -58,6 +59,7 @@ class StatMaker:
     def __init__(self, config):
         self.l = list()
         self.config = config
+        self.anonymize = anonymize_func()
 
         self.stat_mapping = {
             'txtyaml': (self.stat_write_lines, {}, 'yaml'),
@@ -156,6 +158,7 @@ class QStatMaker(StatMaker):
         (except for the last line, which contains two sums and is parsed separately)
         """
         check_empty_file(orig_file)
+        anonymize = anonymize_func()
         queue_search = r'^(?P<queue_name>[\w.-]+)\s+' \
                        r'(?:--|[0-9]+[mgtkp]b[a-z]*)\s+' \
                        r'(?:--|\d+:\d+:?\d*:?)\s+' \
@@ -179,8 +182,8 @@ class QStatMaker(StatMaker):
                 n = re.search(run_qd_search, line)
                 temp_dict = {}
                 try:
-                    queue_name, run, queued, lm, state = m.group('queue_name'), m.group('run'), m.group('queued'), \
-                                                         m.group('lm'), m.group('state')
+                    queue_name = m.group('queue_name') if not options.ANONYMIZE else anonymize(m.group('queue_name'), 'qs')
+                    run, queued, lm, state = m.group('run'), m.group('queued'), m.group('lm'), m.group('state')
                 except AttributeError:
                     try:
                         total_running_jobs, total_queued_jobs = n.group('tot_run'), n.group('tot_queued')
@@ -197,8 +200,7 @@ class QStatMaker(StatMaker):
             self.l.append({'Total_running': total_running_jobs, 'Total_queued': total_queued_jobs})
         self.dump_all(out_file, self.statq_mapping[write_method])
 
-    @staticmethod
-    def process_line(re_search, line, re_match_positions):
+    def process_line(self, re_search, line, re_match_positions):
         qstat_values = dict()
         m = re.search(re_search, line.strip())
         try:
@@ -207,6 +209,7 @@ class QStatMaker(StatMaker):
             print line.strip()
             sys.exit(0)
         job_id = job_id.split('.')[0]
+        user = user if not options.ANONYMIZE else self.anonymize(user, 'users')
         for key, value in [('JobId', job_id), ('UnixAccount', user), ('S', job_state), ('Queue', queue)]:
             qstat_values[key] = value
         return qstat_values
@@ -222,6 +225,8 @@ parser.add_option("-3", "--disablesection3", action="store_true", dest="sect_3_o
                   help="Disable third section of qtop, i.e. User Accounts and Pool Mappings")
 parser.add_option("-a", "--blindremapping", action="store_true", dest="BLINDREMAP", default=False,
                   help="This may be used in situations where node names are not a pure arithmetic seq (eg. rocks clusters)")
+parser.add_option("-A", "--anonymize", action="store_true", dest="ANONYMIZE", default=False,
+                  help="Masks unix account names and workernode names for security reasons (sending bug reports etc.)")
 parser.add_option("-b", "--batchSystem", action="store", type="string", dest="BATCH_SYSTEM", default=None)
 parser.add_option("-c", "--COLOR", action="store", dest="COLOR", default="AUTO", choices=['ON', 'OFF', 'AUTO'],
                   help="Enable/Disable color in qtop output. AUTO detects tty (for watch -d)")
@@ -237,7 +242,7 @@ parser.add_option("-g", "--get_gecos_via_getent_passwd", action="store_true", de
                   help="get user details by issuing getent passwd for all users mentioned in qtop input files.")
 parser.add_option("-m", "--noMasking", action="store_true", dest="NOMASKING", default=False,
                   help="Don't mask early empty WNs (default: if the first 30 WNs are unused, counting starts from 31).")
-parser.add_option("-o", "--option", action="store", dest="OPTION", type="string", default=None,
+parser.add_option("-o", "--option", action="append", dest="OPTION", type="string", default=None,
                   help="Override respective option in QTOPCONF_YAML file")
 parser.add_option("-r", "--removeemptycorelines", dest="REM_EMPTY_CORELINES", action="store_true", default=False,
                   help="Set the method used for dumping information, json, yaml, or native python (yaml format)")
@@ -335,3 +340,42 @@ def get_jobs_info(fn, write_method=options.write_method):
         }
     )
     return job_ids, usernames, job_states, queue_names
+
+
+def anonymize_func():
+    """
+    creates and returns an _anonymize_func object (closure)
+    Anonymisation can be used by the user for providing feedback to the developers.
+    The logs and the output should no longer contain sensitive information about the clusters ran by the user.
+    """
+    counters = {}
+    stored_dict = {}
+    for key in ['users', 'wns', 'qs']:
+        counters[key] = count()
+
+    maps = {
+        'users': '_anon_user_',
+        'wns': '_anon_wn_',
+        'qs': '_anon_q_'
+    }
+
+    def _anonymize_func(s, a_type):
+        """
+        d4-p4-04 --> d_anon_wn_0
+        d4-p4-05 --> d_anon_wn_1
+        biomed017--> b_anon_user_0
+        alice    --> a_anon_q_0
+        """
+        dup_counter = counters[a_type]
+
+        s_type = maps[a_type]
+        cnt = '0'
+        new_name_parts = [s[0], s_type, cnt]
+        if s not in stored_dict:
+            cnt = str(dup_counter.next())
+            new_name_parts.pop()
+            new_name_parts.append(cnt)
+        stored_dict.setdefault(s, (''.join(new_name_parts), s_type))
+        return stored_dict[s][0]
+
+    return _anonymize_func
