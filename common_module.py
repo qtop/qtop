@@ -345,6 +345,8 @@ def get_jobs_info(fn, write_method=options.write_method):
 def anonymize_func():
     """
     creates and returns an _anonymize_func object (closure)
+    Anonymisation can be used by the user for providing feedback to the developers.
+    The logs and the output should no longer contain sensitive information about the clusters ran by the user.
     """
     counters = {}
     stored_dict = {}
