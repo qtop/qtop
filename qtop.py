@@ -1590,6 +1590,9 @@ if __name__ == '__main__':
                         logging.warn('Module lxml is missing. Try issuing "pip install lxml". Reverting to xml module.')
                         from xml.etree import ElementTree as etree
 
+                if options.TRANSPOSE:
+                    config['transpose_wn_matrices'] = 'False'
+
                 SEPARATOR = config['vertical_separator'].translate(None, "'")  # alias
                 USER_CUT_MATRIX_WIDTH = int(config['workernodes_matrix'][0]['wn id lines']['user_cut_matrix_width'])  # alias
                 ALT_LABEL_HIGHLIGHT_COLORS = fix_config_list(config['workernodes_matrix'][0]['wn id lines']['alt_label_highlight_colors'])
