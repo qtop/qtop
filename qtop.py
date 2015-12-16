@@ -1608,6 +1608,9 @@ if __name__ == '__main__':
                 input_filenames = get_input_filenames()
 
                 # reset_yaml_files()  # either that or having a pid appended in the filename
+                if options.TAR >= 1:
+                    tar_out = tarfile.open(os.path.join(config['savepath'], QTOP_TARFN), mode='w')
+                    tar_out.close()
                 if not options.YAML_EXISTS:
                     convert_to_yaml(scheduler, INPUT_FNs_commands, input_filenames)
                 yaml_files = get_yaml_files(scheduler, input_filenames)

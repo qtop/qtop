@@ -4,6 +4,7 @@ from sys import stdin, stdout
 from optparse import OptionParser
 from tempfile import mkstemp
 import os
+import tarfile
 import re
 from itertools import count
 import errno
@@ -94,14 +95,21 @@ class StatMaker:
         fout.write('Total_running: ' + '"' + last_line['Total_running'] + '"' + '\n')
         fout.write('...\n')
 
-    @staticmethod
-    def dump_all(out_file, write_func_args):
+    def dump_all(self, out_file, write_func_args):
         """
         dumps the content of qstat/qstat_q files in the selected write_method format
         """
         with open(out_file, 'w') as fout:
             write_func, kwargs, _ = write_func_args
             write_func(fout, **kwargs)
+            if options.TAR >= 1:
+                tar_out = tarfile.open(os.path.join(self.config['savepath'], QTOP_TARFN), mode='a')
+                try:
+                    logging.debug('adding qstat file to tarball...')
+                    tar_out.add(out_file)
+                finally:
+                    logging.debug('closing tarball')
+                    tar_out.close()
 
 
 class QStatMaker(StatMaker):
@@ -254,11 +262,15 @@ parser.add_option("-W", "--writemethod", dest="write_method", action="store", de
                   choices=['txtyaml', 'json'],
                   help="Set the method used for dumping information, json, yaml, or native python (yaml format)")
 parser.add_option("-w", "--watch", dest="WATCH", action="store_true", default=False,
-                  help="mimic shell's watch behaviour")
+                  help="Mimic shell's watch behaviour")
 parser.add_option("-y", "--readexistingyaml", action="store_true", dest="YAML_EXISTS", default=False,
                   help="Do not remake yaml input files, read from the existing ones")
 parser.add_option("-z", "--quiet", action="store_false", dest="verbose", default=True,
-                  help="don't print status messages to stdout. Not doing anything at the moment.")
+                  help="Don't print status messages to stdout. Not doing anything at the moment.")
+parser.add_option("-t", "--tarball", action="count", dest="TAR", default=False,
+                  help="Create a tarball file. A single t creates a tarball with  the log, original input files, "
+                       "yaml files and output. "
+                       "Two 't's additionaly include the qtop_conf yaml file, and qtop source.")
 
 (options, args) = parser.parse_args()
 # log_level = logging.WARNING  # default
