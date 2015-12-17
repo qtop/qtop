@@ -256,6 +256,8 @@ parser.add_option("-r", "--removeemptycorelines", dest="REM_EMPTY_CORELINES", ac
                   help="Set the method used for dumping information, json, yaml, or native python (yaml format)")
 parser.add_option("-s", "--SetSourceDir", dest="SOURCEDIR",
                   help="Set the source directory where pbsnodes and qstat reside")
+parser.add_option("-T", "--Transpose", dest="TRANSPOSE", action="store_true", default=False,
+                  help="mimic shell's watch behaviour")
 parser.add_option("-v", "--verbose", dest="verbose", action="count",
                   help="Increase verbosity (specify multiple times for more)")
 parser.add_option("-W", "--writemethod", dest="write_method", action="store", default="txtyaml",
