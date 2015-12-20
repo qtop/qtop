@@ -39,14 +39,26 @@ from yaml_parser import read_yaml_natively, fix_config_list, convert_dash_key_in
 
 @contextlib.contextmanager
 def raw_mode(file):
-    old_attrs = termios.tcgetattr(file.fileno())
-    new_attrs = old_attrs[:]
-    new_attrs[3] = new_attrs[3] & ~(termios.ECHO | termios.ICANON)
-    try:
-        termios.tcsetattr(file.fileno(), termios.TCSADRAIN, new_attrs)
+    """
+    Simple key listener implementation
+    Taken from http://stackoverflow.com/questions/11918999/key-listeners-in-python/11919074#11919074
+    Exits program with ^C or ^D
+    """
+    if options.SAVETOFILE:
         yield
-    finally:
-        termios.tcsetattr(file.fileno(), termios.TCSADRAIN, old_attrs)
+    else:
+        try:
+            old_attrs = termios.tcgetattr(file.fileno())
+        except:
+            yield
+        else:
+            new_attrs = old_attrs[:]
+            new_attrs[3] = new_attrs[3] & ~(termios.ECHO | termios.ICANON)
+            try:
+                termios.tcsetattr(file.fileno(), termios.TCSADRAIN, new_attrs)
+                yield
+            finally:
+                termios.tcsetattr(file.fileno(), termios.TCSADRAIN, old_attrs)
 
 # TODO make the following work with py files instead of qtop.colormap files
 # if not options.COLORFILE:
@@ -1025,6 +1037,9 @@ def calculate_split_screen_size():
                 term_height, term_columns = fix_config_list(config['term_size'])
             except KeyError:
                 config['term_size'] = fallback_term_size
+        except KeyError:
+            config['term_size'] = fallback_term_size
+            term_height, term_columns = config['term_size']
     finally:
         logging.debug('Set terminal size is: %s * %s' % (term_height, term_columns))
         config['term_size'] = [int(term_height), int(term_columns)]
