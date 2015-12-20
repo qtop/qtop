@@ -1040,7 +1040,6 @@ def calculate_split_screen_size():
         except KeyError:
             config['term_size'] = fallback_term_size
             term_height, term_columns = config['term_size']
-            logging.debug('I am in KeyError 1031')
     finally:
         logging.debug('Set terminal size is: %s * %s' % (term_height, term_columns))
         config['term_size'] = [int(term_height), int(term_columns)]
