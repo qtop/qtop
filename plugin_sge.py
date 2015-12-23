@@ -2,15 +2,16 @@ __author__ = 'sfranky'
 import tarfile
 import os
 from xml.etree import ElementTree as etree
-from common_module import logging, check_empty_file, StatMaker, get_new_temp_file, options, anonymize_func
+from common_module import logging, check_empty_file, StatMaker, get_new_temp_file, options, anonymize_func, report, add_to_tar
 from constants import *
 
 
+@report
 def _get_worker_nodes(fn, write_method=options.write_method):
     worker_nodes = _calc_everything(fn, write_method)
     return worker_nodes
 
-
+# @report
 def extract_job_info(elem, elem_text):
     """
     inside elem, iterates over subelems named elem_text and extracts relevant job information
@@ -23,6 +24,7 @@ def extract_job_info(elem, elem_text):
     return job_ids, usernames, job_states
 
 
+@report
 def _get_statq_from_xml(fn, write_method=options.write_method):
     logging.debug("Parsing tree of %s" % fn)
     check_empty_file(fn)
@@ -108,6 +110,7 @@ class SGEStatMaker(StatMaker):
     def __init__(self, config):
         StatMaker.__init__(self, config)
 
+    @report
     def convert_qstat_to_yaml(self, orig_file, out_file, write_method):
         out_file = out_file.rsplit('/', 1)[1]
         try:
@@ -149,13 +152,7 @@ class SGEStatMaker(StatMaker):
 
         if options.TAR >= 1:
             tree.write(orig_file)  # TODO anonymize rest of the sensitive information within xml file
-            tar_out = tarfile.open(os.path.join(self.config['savepath'], QTOP_TARFN), mode='a')
-            try:
-                logging.debug('Adding %s to tarball...' % orig_file)
-                tar_out.add(orig_file)
-            finally:
-                logging.debug('Closing tarball...')
-                tar_out.close()
+            add_to_tar(orig_file, self.config['savepath'])
 
         self.dump_all(SGEStatMaker.fd, self.stat_mapping[write_method])
 
@@ -189,15 +186,12 @@ class SGEStatMaker(StatMaker):
         finally:
             out_file.close()
         if options.TAR >= 1:
-            tar_out = tarfile.open(os.path.join(self.config['savepath'], QTOP_TARFN), mode='a')
-            try:
-                logging.debug('Adding %s to tarball...' % SGEStatMaker.temp_filepath)
-                tar_out.add(SGEStatMaker.temp_filepath)
-            finally:
-                logging.debug('Closing tarball...')
-                tar_out.close()
+            add_to_tar(SGEStatMaker.temp_filepath, self.config['savepath'])
 
+    def __repr__(self):
+        return 'SGEStatMaker Instance'
 
+@report
 def _calc_everything(fn, write_method):
     logging.debug('Parsing tree of %s' % fn)
     anonymize = anonymize_func()

@@ -6,6 +6,7 @@ QTOP_TARFN = 'qtop_tar_$USER.tar.gz'
 # QTOP_LOGFILE = '$HOME/.local/qtop/logs/qtop_%s.log'  % os.getpid()
 QTOP_LOGFILE = os.path.expandvars(QTOP_LOGFILE)
 QTOP_TARFN = os.path.expandvars(QTOP_TARFN)
+savepath = os.path.expandvars('/tmp/qtop_results_$USER')
 USERPATH = os.path.expandvars('$HOME/.local/qtop')
 SYSTEMCONFDIR = '/etc'
 MAX_CORE_ALLOWED = 150000  # not used anywhere

@@ -103,13 +103,7 @@ class StatMaker:
             write_func, kwargs, _ = write_func_args
             write_func(fout, **kwargs)
             if options.TAR >= 1:
-                tar_out = tarfile.open(os.path.join(self.config['savepath'], QTOP_TARFN), mode='a')
-                try:
-                    logging.debug('adding qstat file to tarball...')
-                    tar_out.add(out_file)
-                finally:
-                    logging.debug('closing tarball')
-                    tar_out.close()
+                add_to_tar(out_file, self.config['savepath'])
 
 
 class QStatMaker(StatMaker):
@@ -267,8 +261,8 @@ parser.add_option("-w", "--watch", dest="WATCH", action="store_true", default=Fa
                   help="Mimic shell's watch behaviour")
 parser.add_option("-y", "--readexistingyaml", action="store_true", dest="YAML_EXISTS", default=False,
                   help="Do not remake yaml input files, read from the existing ones")
-parser.add_option("-z", "--quiet", action="store_false", dest="verbose", default=True,
-                  help="Don't print status messages to stdout. Not doing anything at the moment.")
+# parser.add_option("-z", "--quiet", action="store_false", dest="verbose", default=True,
+#                   help="Don't print status messages to stdout. Not doing anything at the moment.")
 parser.add_option("-t", "--tarball", action="count", dest="TAR", default=False,
                   help="Create a tarball file. A single t creates a tarball with  the log, original input files, "
                        "yaml files and output. "
@@ -277,7 +271,9 @@ parser.add_option("-t", "--tarball", action="count", dest="TAR", default=False,
 (options, args) = parser.parse_args()
 # log_level = logging.WARNING  # default
 
-if options.verbose == 1:
+if not options.verbose:
+    log_level = logging.WARN
+elif options.verbose == 1:
     log_level = logging.INFO
 elif options.verbose >= 2:
     log_level = logging.DEBUG
@@ -291,8 +287,10 @@ mkdir_p(QTOP_LOGFILE_PATH)
 logger = logging.getLogger()
 logger.setLevel(logging.DEBUG)
 
-formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s', "%Y-%m-%d %H:%M:%S")  #this adds time
-# formatter = logging.Formatter('%(levelname)s - %(message)s')
+if options.verbose >= 3:
+    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s', "%Y-%m-%d %H:%M:%S")  # this prepends date time
+else:
+    formatter = logging.Formatter('%(levelname)s - %(message)s')
 
 fh = logging.FileHandler(QTOP_LOGFILE)
 fh.setLevel(log_level)
@@ -311,6 +309,7 @@ logging.info("STARTING NEW LOG ENTRY...")
 logging.info("=" * 50)
 logging.info("\n\n")
 
+logging.debug('Verbosity level = %s' % options.verbose)
 logging.debug("input, output isatty: %s\t%s" % (stdin.isatty(), stdout.isatty()))
 if options.COLOR == 'AUTO':
     options.COLOR = 'ON' if (os.environ.get("QTOP_COLOR", stdout.isatty()) in ("ON", True)) else 'OFF'
@@ -393,3 +392,48 @@ def anonymize_func():
         return stored_dict[s][0]
 
     return _anonymize_func
+
+
+def add_to_tar(file_to_add, savepath, tar_file=QTOP_TARFN):
+    """
+    opens tar tar_file in path savepath and adds file file_to_add
+    """
+    tar_out = tarfile.open(os.path.join(savepath, tar_file), mode='a')
+    try:
+        logging.debug('Adding %s to tarball...' % file_to_add)
+        tar_out.add(file_to_add)
+    finally:
+        logging.debug('Closing tarball...')
+        tar_out.close()
+
+# TODO remove to remove here on!
+__report_indent = [0]
+
+
+def report(fn):
+    """Decorator to print information about a function
+    call for use while debugging.
+    Prints function name, arguments, and call number
+    when the function is called. Prints this information
+    again along with the return value when the function
+    returns.
+    """
+
+    def wrap(*params, **kwargs):
+        call = wrap.callcount = wrap.callcount + 1
+
+        indent = ' ' * __report_indent[0]
+        fc = "%s(%s)" % (fn.__name__, ', '.join(
+            [a.__repr__() for a in params] +
+            ["%s = %s" % (a, repr(b)) for a,b in kwargs.items()]
+        ))
+
+        logging.debug("%s%s called [#%s]" % (indent, fc, call))
+        __report_indent[0] += 1
+        ret = fn(*params,**kwargs)
+        __report_indent[0] -= 1
+        logging.debug("%s%s returned %s [#%s]" % (indent, fc, repr(ret), call))
+
+        return ret
+    wrap.callcount = 0
+    return wrap

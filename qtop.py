@@ -27,7 +27,7 @@ import contextlib
 # modules
 from constants import *
 import common_module
-from common_module import logging, options, sections_off  #, anonymize_func
+from common_module import logging, options, sections_off, report  #, anonymize_func
 import plugin_pbs, plugin_oar, plugin_sge
 from plugin_pbs import *
 from plugin_oar import *
@@ -1207,6 +1207,7 @@ def exec_func_tuples(func_tuples):
         yield ffunc(*args, **kwargs)
 
 
+@report
 def get_worker_nodes(scheduler):
     d = {}
     d['pbs'] = plugin_pbs._get_worker_nodes
@@ -1548,6 +1549,8 @@ def safe_exit_with_file_close(handle, name, stdout, delete_file=False):
     if delete_file:
         unlink(name)  # this deletes the file
     # sys.stdout = stdout
+    if options.TAR >= 1:
+        add_to_tar(QTOP_LOGFILE, self.config['savepath'])
     sys.exit(0)
 
 
@@ -1611,9 +1614,10 @@ if __name__ == '__main__':
                 input_filenames = get_input_filenames()
 
                 # reset_yaml_files()  # either that or having a pid appended in the filename
-                if options.TAR >= 1:
+                if options.TAR >= 1:  # clears any preexisting tar files
                     tar_out = tarfile.open(os.path.join(config['savepath'], QTOP_TARFN), mode='w')
                     tar_out.close()
+                    add_to_tar(os.path.join(realpath(QTOPPATH), QTOPCONF_YAML), savepath)
                 if not options.YAML_EXISTS:
                     convert_to_yaml(scheduler, INPUT_FNs_commands, input_filenames)
                 yaml_files = get_yaml_files(scheduler, input_filenames)
@@ -1667,6 +1671,7 @@ if __name__ == '__main__':
                 cat_command = 'clear;tail -n+%s %s | head -n%s' % (v_start, name, line_offset)
                 NOT_FOUND = subprocess.call(cat_command, stdout=stdout, stderr=stdout, shell=True)
 
+
                 while sys.stdin in select.select([sys.stdin], [], [], timeout)[0]:
                     read_char = sys.stdin.read(1)
                     if read_char:
@@ -1683,9 +1688,12 @@ if __name__ == '__main__':
                 os.chdir(QTOPPATH)
                 unlink(name)
 
+            if options.TAR:
+                add_to_tar(name, config['savepath'])
         except (KeyboardInterrupt, EOFError):
             safe_exit_with_file_close(handle, name, stdout)
         else:
-            pass
+            if options.TAR >= 1:
+                add_to_tar(QTOP_LOGFILE, config['savepath'])
 
 
