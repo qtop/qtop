@@ -2,7 +2,7 @@ __author__ = 'sfranky'
 import tarfile
 import os
 from xml.etree import ElementTree as etree
-from common_module import logging, check_empty_file, StatMaker, get_new_temp_file, options, anonymize_func, report, add_to_tar
+from common_module import logging, check_empty_file, StatMaker, get_new_temp_file, options, anonymize_func, report, add_to_sample
 from constants import *
 
 
@@ -146,9 +146,9 @@ class SGEStatMaker(StatMaker):
         suffix = '.' + suffix
         SGEStatMaker.fd, SGEStatMaker.temp_filepath = get_new_temp_file(prefix=prefix, suffix=suffix, config=self.config)
 
-        if options.TAR >= 1:
+        if options.SAMPLE >= 1:
             tree.write(orig_file)  # TODO anonymize rest of the sensitive information within xml file
-            # add_to_tar(orig_file, self.config['savepath'])
+            # add_to_sample(orig_file, self.config['savepath'])
 
         self.dump_all(SGEStatMaker.fd, self.stat_mapping[write_method])
 
@@ -181,8 +181,8 @@ class SGEStatMaker(StatMaker):
             write_func(out_file, **kwargs)
         finally:
             out_file.close()
-        # if options.TAR >= 1:
-        #     add_to_tar(SGEStatMaker.temp_filepath, self.config['savepath'])
+        # if options.SAMPLE >= 1:
+        #     add_to_sample(SGEStatMaker.temp_filepath, self.config['savepath'])
 
     def __repr__(self):
         return 'SGEStatMaker Instance'

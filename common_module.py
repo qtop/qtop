@@ -259,12 +259,13 @@ parser.add_option("-w", "--watch", dest="WATCH", action="store_true", default=Fa
                   help="Mimic shell's watch behaviour")
 parser.add_option("-y", "--readexistingyaml", action="store_true", dest="YAML_EXISTS", default=False,
                   help="Do not remake yaml input files, read from the existing ones")
+# TODO: implement this!
 # parser.add_option("-z", "--quiet", action="store_false", dest="verbose", default=True,
 #                   help="Don't print status messages to stdout. Not doing anything at the moment.")
-parser.add_option("-t", "--tarball", action="count", dest="TAR", default=False,
-                  help="Create a tarball file. A single t creates a tarball with  the log, original input files, "
+parser.add_option("-S", "--sample", action="count", dest="SAMPLE", default=False,
+                  help="Create a sample file. A single S creates a tarball with the log, original input files, "
                        "yaml files and output. "
-                       "Two 't's additionaly include the qtop_conf yaml file, and qtop source.")
+                       "Two 's's additionaly include the qtop_conf yaml file, and qtop source.")
 
 (options, args) = parser.parse_args()
 # log_level = logging.WARNING  # default
@@ -392,20 +393,20 @@ def anonymize_func():
     return _anonymize_func
 
 
-def add_to_tar(filepath_to_add, savepath, tar_file=QTOP_TARFN):
+def add_to_sample(filepath_to_add, savepath, sample_file=QTOP_SAMPLE_FILENAME, sample_method=tarfile):
     """
-    opens tar tar_file in path savepath and adds file filepath_to_add
+    opens sample_file in path savepath and adds file filepath_to_add
     """
-    tar_out = tarfile.open(os.path.join(savepath, tar_file), mode='a')
+    sample_out = sample_method.open(os.path.join(savepath, sample_file), mode='a')
     path, fn = filepath_to_add.rsplit('/', 1)
     try:
-        logging.debug('Adding %s to tarball...' % filepath_to_add)
-        tar_out.add(filepath_to_add, arcname=fn)
+        logging.debug('Adding %s to sample...' % filepath_to_add)
+        sample_out.add(filepath_to_add, arcname=fn)
     finally:
-        logging.debug('Closing tarball...')
-        tar_out.close()
+        logging.debug('Closing sample...')
+        sample_out.close()
 
-# TODO r to remove here on!
+# TODO remember to remove here on!
 __report_indent = [0]
 
 

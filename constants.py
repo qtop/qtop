@@ -2,10 +2,10 @@ import os
 
 QTOPCONF_YAML = 'qtopconf.yaml'
 QTOP_LOGFILE = '$HOME/.local/qtop/logs/qtop.log'
-QTOP_TARFN = 'qtop_tar_$USER.tar'
+QTOP_SAMPLE_FILENAME = 'qtop_sample_$USER_$DATE_$TIME.tar'
 # QTOP_LOGFILE = '$HOME/.local/qtop/logs/qtop_%s.log'  % os.getpid()
 QTOP_LOGFILE = os.path.expandvars(QTOP_LOGFILE)
-QTOP_TARFN = os.path.expandvars(QTOP_TARFN)
+QTOP_SAMPLE_FILENAME = os.path.expandvars(QTOP_SAMPLE_FILENAME)
 savepath = os.path.expandvars('/tmp/qtop_results_$USER')
 USERPATH = os.path.expandvars('$HOME/.local/qtop')
 SYSTEMCONFDIR = '/etc'

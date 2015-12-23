@@ -8,7 +8,7 @@ except ImportError:
 
 import yaml_parser as yaml
 from constants import *
-from common_module import logging, check_empty_file, options, anonymize_func, add_to_tar
+from common_module import logging, check_empty_file, options, anonymize_func, add_to_sample
 
 
 # def get_queues_info(fn, write_method):
@@ -42,8 +42,8 @@ def convert_pbsnodes_to_yaml(orig_file, out_file, write_method):
     """
     all_pbs_values = _get_pbsnodes_values(orig_file, out_file, write_method)
     _pbsnodes_dump_all(all_pbs_values, out_file, pbsnodes_savemethod_mapping[write_method])
-    # if options.TAR:
-    #     add_to_tar(out_file, savepath)
+    # if options.SAMPLE:
+    #     add_to_sample(out_file, savepath)
 
 
 def _get_pbsnodes_values(orig_file, out_file, write_method):

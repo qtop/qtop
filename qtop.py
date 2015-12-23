@@ -1230,7 +1230,6 @@ def get_jobs_info(scheduler):
 def get_yaml_files(scheduler, filenames):
     SGEStatMaker.temp_filepath = None if scheduler != 'sge' else SGEStatMaker.temp_filepath
     args = {}
-    # import wdb; wdb.set_trace()
     args['pbs'] = {
         'get_worker_nodes': [filenames.get('pbsnodes_file_out')],
         'get_jobs_info': [filenames.get('qstat_file_out')],
@@ -1549,8 +1548,8 @@ def safe_exit_with_file_close(handle, name, stdout, delete_file=False):
     if delete_file:
         unlink(name)  # this deletes the file
     # sys.stdout = stdout
-    if options.TAR >= 1:
-        add_to_tar(QTOP_LOGFILE, self.config['savepath'])
+    if options.SAMPLE >= 1:
+        add_to_sample(QTOP_LOGFILE, self.config['savepath'])
     sys.exit(0)
 
 
@@ -1614,15 +1613,16 @@ if __name__ == '__main__':
                 input_filenames = get_input_filenames()
 
                 # reset_yaml_files()  # either that or having a pid appended in the filename
-                if options.TAR >= 1:  # clears any preexisting tar files
-                    tar_out = tarfile.open(os.path.join(config['savepath'], QTOP_TARFN), mode='w')
+                if options.SAMPLE >= 1:  # clears any preexisting tar files
+                    tar_out = tarfile.open(os.path.join(config['savepath'], QTOP_SAMPLE_FILENAME), mode='w')
                     tar_out.close()
-                    add_to_tar(os.path.join(realpath(QTOPPATH), QTOPCONF_YAML), savepath)
+                if options.SAMPLE >= 2:
+                    add_to_sample(os.path.join(realpath(QTOPPATH), QTOPCONF_YAML), savepath)
 
                 if not options.YAML_EXISTS:
                     convert_to_yaml(scheduler, INPUT_FNs_commands, input_filenames)
-                    if options.TAR >=1:
-                        [add_to_tar(input_filenames[fn], savepath) for fn in input_filenames if os.path.isfile(input_filenames[fn])]
+                    if options.SAMPLE >=1:
+                        [add_to_sample(input_filenames[fn], savepath) for fn in input_filenames if os.path.isfile(input_filenames[fn])]
 
                 yaml_files = get_yaml_files(scheduler, input_filenames)
 
@@ -1691,12 +1691,10 @@ if __name__ == '__main__':
                 os.chdir(QTOPPATH)
                 unlink(name)
 
-            if options.TAR:
-                add_to_tar(name, config['savepath'])
+            if options.SAMPLE:
+                add_to_sample(name, config['savepath'])
         except (KeyboardInterrupt, EOFError):
             safe_exit_with_file_close(handle, name, stdout)
         else:
-            if options.TAR >= 1:
-                add_to_tar(QTOP_LOGFILE, config['savepath'])
-
-
+            if options.SAMPLE >= 1:
+                add_to_sample(QTOP_LOGFILE, config['savepath'])
