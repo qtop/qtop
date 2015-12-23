@@ -102,8 +102,6 @@ class StatMaker:
         with open(out_file, 'w') as fout:
             write_func, kwargs, _ = write_func_args
             write_func(fout, **kwargs)
-            if options.TAR >= 1:
-                add_to_tar(out_file, self.config['savepath'])
 
 
 class QStatMaker(StatMaker):
