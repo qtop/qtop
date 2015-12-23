@@ -263,5 +263,3 @@ def _calc_everything(fn, write_method):
     logging.debug('Closing %s' % fn)
     logging.info('worker_nodes contains %s entries' % len(worker_nodes))
     return worker_nodes
-
-
