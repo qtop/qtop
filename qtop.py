@@ -27,7 +27,7 @@ import contextlib
 # modules
 from constants import *
 import common_module
-from common_module import logging, options, sections_off  #, anonymize_func
+from common_module import logging, options, sections_off, report  #, anonymize_func
 import plugin_pbs, plugin_oar, plugin_sge
 from plugin_pbs import *
 from plugin_oar import *
@@ -1563,6 +1563,8 @@ def safe_exit_with_file_close(handle, name, stdout, delete_file=False):
     if delete_file:
         unlink(name)  # this deletes the file
     # sys.stdout = stdout
+    if options.SAMPLE >= 1:
+        add_to_sample(QTOP_LOGFILE, self.config['savepath'])
     sys.exit(0)
 
 
@@ -1626,12 +1628,20 @@ if __name__ == '__main__':
                 input_filenames = get_input_filenames()
 
                 # reset_yaml_files()  # either that or having a pid appended in the filename
+                if options.SAMPLE >= 1:  # clears any preexisting tar files
+                    tar_out = tarfile.open(os.path.join(config['savepath'], QTOP_SAMPLE_FILENAME), mode='w')
+                    tar_out.close()
+                if options.SAMPLE >= 2:
+                    add_to_sample(os.path.join(realpath(QTOPPATH), QTOPCONF_YAML), savepath)
+
                 if not options.YAML_EXISTS:
                     convert_to_yaml(scheduler, INPUT_FNs_commands, input_filenames)
+                    if options.SAMPLE >=1:
+                        [add_to_sample(input_filenames[fn], savepath) for fn in input_filenames if os.path.isfile(input_filenames[fn])]
+
                 yaml_files = get_yaml_files(scheduler, input_filenames)
 
                 worker_nodes = get_worker_nodes(scheduler)(*yaml_files['get_worker_nodes'])
-                # import wdb; wdb.set_trace()
                 job_ids, user_names, job_states, _ = get_jobs_info(scheduler)(*yaml_files['get_jobs_info'])
                 total_running_jobs, total_queued_jobs, qstatq_lod = get_queues_info(scheduler)(*yaml_files['get_queues_info'])
                 deprecate_old_yaml_files(*yaml_files['get_jobs_info'])
@@ -1679,6 +1689,7 @@ if __name__ == '__main__':
                 cat_command = 'clear;tail -n+%s %s | head -n%s' % (v_start, name, line_offset)
                 NOT_FOUND = subprocess.call(cat_command, stdout=stdout, stderr=stdout, shell=True)
 
+
                 while sys.stdin in select.select([sys.stdin], [], [], timeout)[0]:
                     read_char = sys.stdin.read(1)
                     if read_char:
@@ -1695,9 +1706,10 @@ if __name__ == '__main__':
                 os.chdir(QTOPPATH)
                 unlink(name)
 
+            if options.SAMPLE:
+                add_to_sample(name, config['savepath'])
         except (KeyboardInterrupt, EOFError):
             safe_exit_with_file_close(handle, name, stdout)
         else:
-            pass
-
-
+            if options.SAMPLE >= 1:
+                add_to_sample(QTOP_LOGFILE, config['savepath'])

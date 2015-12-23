@@ -1,13 +1,14 @@
 __author__ = 'sfranky'
-from xml.etree import ElementTree as etree
-from common_module import logging, check_empty_file, StatMaker, get_new_temp_file, options, anonymize_func
+import tarfile
 import os
+from xml.etree import ElementTree as etree
+from common_module import logging, check_empty_file, StatMaker, get_new_temp_file, options, anonymize_func, report, add_to_sample
+from constants import *
 
 
 def _get_worker_nodes(fn, write_method=options.write_method):
     worker_nodes = _calc_everything(fn, write_method)
     return worker_nodes
-
 
 def extract_job_info(elem, elem_text):
     """
@@ -126,13 +127,13 @@ class SGEStatMaker(StatMaker):
             queue_name_elems = queue_elem.findall('resource')
             for queue_name_elem in queue_name_elems:
                 if queue_name_elem.attrib.get('name') == 'qname':
-                    queue_name = queue_name_elem.text if not options.ANONYMIZE else self.anonymize(queue_name_elem.text, 'qs')
                     # import wdb; wdb.set_trace()
+                    queue_name_elem.text = queue_name_elem.text if not options.ANONYMIZE else self.anonymize(queue_name_elem.text, 'qs')
                     break
             else:
                 raise ValueError("No such queue name")
 
-            self._extract_job_info(queue_elem, 'job_list', queue_name=queue_name)  # puts it into self.l
+            self._extract_job_info(queue_elem, 'job_list', queue_name=queue_name_elem.text)  # puts it into self.l
 
         job_info_elem = root.find('./job_info')
         if job_info_elem is None:
@@ -144,6 +145,11 @@ class SGEStatMaker(StatMaker):
         prefix += '_'
         suffix = '.' + suffix
         SGEStatMaker.fd, SGEStatMaker.temp_filepath = get_new_temp_file(prefix=prefix, suffix=suffix, config=self.config)
+
+        if options.SAMPLE >= 1:
+            tree.write(orig_file)  # TODO anonymize rest of the sensitive information within xml file
+            # add_to_sample(orig_file, self.config['savepath'])
+
         self.dump_all(SGEStatMaker.fd, self.stat_mapping[write_method])
 
     def _extract_job_info(self, elem, elem_text, queue_name):
@@ -161,9 +167,7 @@ class SGEStatMaker(StatMaker):
         if not self.l:
             logging.info('No jobs found in XML file!')
 
-
-    @staticmethod
-    def dump_all(fd, write_func_args):
+    def dump_all(self, fd, write_func_args):
         """
         dumps the content of qstat/qstat_q files in the selected write_method format
         fd here is already a file descriptor
@@ -171,10 +175,17 @@ class SGEStatMaker(StatMaker):
         # prefix, suffix  = out_file.split('.')
         # out_file = get_new_temp_file(prefix=prefix, suffix=suffix)
         out_file = os.fdopen(fd, 'w')
-        logging.debug('File state: %s' % out_file)
-        write_func, kwargs, _ = write_func_args
-        write_func(out_file, **kwargs)
-        out_file.close()
+        try:
+            logging.debug('File state: %s' % out_file)
+            write_func, kwargs, _ = write_func_args
+            write_func(out_file, **kwargs)
+        finally:
+            out_file.close()
+        # if options.SAMPLE >= 1:
+        #     add_to_sample(SGEStatMaker.temp_filepath, self.config['savepath'])
+
+    def __repr__(self):
+        return 'SGEStatMaker Instance'
 
 
 def _calc_everything(fn, write_method):
@@ -252,5 +263,3 @@ def _calc_everything(fn, write_method):
     logging.debug('Closing %s' % fn)
     logging.info('worker_nodes contains %s entries' % len(worker_nodes))
     return worker_nodes
-
-

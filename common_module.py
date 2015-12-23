@@ -4,6 +4,7 @@ from sys import stdin, stdout
 from optparse import OptionParser
 from tempfile import mkstemp
 import os
+import tarfile
 import re
 from itertools import count
 import errno
@@ -94,8 +95,7 @@ class StatMaker:
         fout.write('Total_running: ' + '"' + last_line['Total_running'] + '"' + '\n')
         fout.write('...\n')
 
-    @staticmethod
-    def dump_all(out_file, write_func_args):
+    def dump_all(self, out_file, write_func_args):
         """
         dumps the content of qstat/qstat_q files in the selected write_method format
         """
@@ -257,16 +257,23 @@ parser.add_option("-W", "--writemethod", dest="write_method", action="store", de
                   choices=['txtyaml', 'json'],
                   help="Set the method used for dumping information, json, yaml, or native python (yaml format)")
 parser.add_option("-w", "--watch", dest="WATCH", action="store_true", default=False,
-                  help="mimic shell's watch behaviour")
+                  help="Mimic shell's watch behaviour")
 parser.add_option("-y", "--readexistingyaml", action="store_true", dest="YAML_EXISTS", default=False,
                   help="Do not remake yaml input files, read from the existing ones")
-parser.add_option("-z", "--quiet", action="store_false", dest="verbose", default=True,
-                  help="don't print status messages to stdout. Not doing anything at the moment.")
+# TODO: implement this!
+# parser.add_option("-z", "--quiet", action="store_false", dest="verbose", default=True,
+#                   help="Don't print status messages to stdout. Not doing anything at the moment.")
+parser.add_option("-S", "--sample", action="count", dest="SAMPLE", default=False,
+                  help="Create a sample file. A single S creates a tarball with the log, original input files, "
+                       "yaml files and output. "
+                       "Two 's's additionaly include the qtop_conf yaml file, and qtop source.")
 
 (options, args) = parser.parse_args()
 # log_level = logging.WARNING  # default
 
-if options.verbose == 1:
+if not options.verbose:
+    log_level = logging.WARN
+elif options.verbose == 1:
     log_level = logging.INFO
 elif options.verbose >= 2:
     log_level = logging.DEBUG
@@ -280,8 +287,10 @@ mkdir_p(QTOP_LOGFILE_PATH)
 logger = logging.getLogger()
 logger.setLevel(logging.DEBUG)
 
-formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s', "%Y-%m-%d %H:%M:%S")  #this adds time
-# formatter = logging.Formatter('%(levelname)s - %(message)s')
+if options.verbose >= 3:
+    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s', "%Y-%m-%d %H:%M:%S")  # this prepends date time
+else:
+    formatter = logging.Formatter('%(levelname)s - %(message)s')
 
 fh = logging.FileHandler(QTOP_LOGFILE)
 fh.setLevel(log_level)
@@ -300,6 +309,7 @@ logging.info("STARTING NEW LOG ENTRY...")
 logging.info("=" * 50)
 logging.info("\n\n")
 
+logging.debug('Verbosity level = %s' % options.verbose)
 logging.debug("input, output isatty: %s\t%s" % (stdin.isatty(), stdout.isatty()))
 if options.COLOR == 'AUTO':
     options.COLOR = 'ON' if (os.environ.get("QTOP_COLOR", stdout.isatty()) in ("ON", True)) else 'OFF'
@@ -382,3 +392,49 @@ def anonymize_func():
         return stored_dict[s][0]
 
     return _anonymize_func
+
+
+def add_to_sample(filepath_to_add, savepath, sample_file=QTOP_SAMPLE_FILENAME, sample_method=tarfile):
+    """
+    opens sample_file in path savepath and adds file filepath_to_add
+    """
+    sample_out = sample_method.open(os.path.join(savepath, sample_file), mode='a')
+    path, fn = filepath_to_add.rsplit('/', 1)
+    try:
+        logging.debug('Adding %s to sample...' % filepath_to_add)
+        sample_out.add(filepath_to_add, arcname=fn)
+    finally:
+        logging.debug('Closing sample...')
+        sample_out.close()
+
+# TODO remember to remove here on!
+__report_indent = [0]
+
+
+def report(fn):
+    """Decorator to print information about a function
+    call for use while debugging.
+    Prints function name, arguments, and call number
+    when the function is called. Prints this information
+    again along with the return value when the function
+    returns.
+    """
+
+    def wrap(*params, **kwargs):
+        call = wrap.callcount = wrap.callcount + 1
+
+        indent = ' ' * __report_indent[0]
+        fc = "%s(%s)" % (fn.__name__, ', '.join(
+            [a.__repr__() for a in params] +
+            ["%s = %s" % (a, repr(b)) for a,b in kwargs.items()]
+        ))
+
+        logging.debug("%s%s called [#%s]" % (indent, fc, call))
+        __report_indent[0] += 1
+        ret = fn(*params,**kwargs)
+        __report_indent[0] -= 1
+        logging.debug("%s%s returned %s [#%s]" % (indent, fc, repr(ret), call))
+
+        return ret
+    wrap.callcount = 0
+    return wrap

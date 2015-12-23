@@ -64,9 +64,6 @@ class OarStatMaker(QStatMaker):
         self.dump_all(out_file, self.stat_mapping[write_method])
 
 
-# def get_queues_info(fn, write_method):
-#     return lambda *args, **kwargs: (0, 0, [])
-
 def _read_oarnodes_s_yaml(fn_s, write_method):  # todo: fix write_method not being used
     assert os.path.isfile(fn_s)
     anonymize = anonymize_func()

@@ -2,8 +2,11 @@ import os
 
 QTOPCONF_YAML = 'qtopconf.yaml'
 QTOP_LOGFILE = '$HOME/.local/qtop/logs/qtop.log'
+QTOP_SAMPLE_FILENAME = 'qtop_sample_$USER_$DATE_$TIME.tar'
 # QTOP_LOGFILE = '$HOME/.local/qtop/logs/qtop_%s.log'  % os.getpid()
 QTOP_LOGFILE = os.path.expandvars(QTOP_LOGFILE)
+QTOP_SAMPLE_FILENAME = os.path.expandvars(QTOP_SAMPLE_FILENAME)
+savepath = os.path.expandvars('/tmp/qtop_results_$USER')
 USERPATH = os.path.expandvars('$HOME/.local/qtop')
 SYSTEMCONFDIR = '/etc'
 MAX_CORE_ALLOWED = 150000  # not used anywhere
