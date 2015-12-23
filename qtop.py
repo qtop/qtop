@@ -1621,7 +1621,6 @@ if __name__ == '__main__':
 
                 if not options.YAML_EXISTS:
                     convert_to_yaml(scheduler, INPUT_FNs_commands, input_filenames)
-                    # import wdb; wdb.set_trace()
                     if options.TAR >=1:
                         [add_to_tar(input_filenames[fn], savepath) for fn in input_filenames if os.path.isfile(input_filenames[fn])]
 

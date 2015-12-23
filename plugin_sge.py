@@ -181,11 +181,12 @@ class SGEStatMaker(StatMaker):
             write_func(out_file, **kwargs)
         finally:
             out_file.close()
-        if options.TAR >= 1:
-            add_to_tar(SGEStatMaker.temp_filepath, self.config['savepath'])
+        # if options.TAR >= 1:
+        #     add_to_tar(SGEStatMaker.temp_filepath, self.config['savepath'])
 
     def __repr__(self):
         return 'SGEStatMaker Instance'
+
 
 def _calc_everything(fn, write_method):
     logging.debug('Parsing tree of %s' % fn)
