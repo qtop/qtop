@@ -1207,7 +1207,6 @@ def exec_func_tuples(func_tuples):
         yield ffunc(*args, **kwargs)
 
 
-@report
 def get_worker_nodes(scheduler):
     d = {}
     d['pbs'] = plugin_pbs._get_worker_nodes
@@ -1231,6 +1230,7 @@ def get_jobs_info(scheduler):
 def get_yaml_files(scheduler, filenames):
     SGEStatMaker.temp_filepath = None if scheduler != 'sge' else SGEStatMaker.temp_filepath
     args = {}
+    # import wdb; wdb.set_trace()
     args['pbs'] = {
         'get_worker_nodes': [filenames.get('pbsnodes_file_out')],
         'get_jobs_info': [filenames.get('qstat_file_out')],
@@ -1618,12 +1618,15 @@ if __name__ == '__main__':
                     tar_out = tarfile.open(os.path.join(config['savepath'], QTOP_TARFN), mode='w')
                     tar_out.close()
                     add_to_tar(os.path.join(realpath(QTOPPATH), QTOPCONF_YAML), savepath)
+
                 if not options.YAML_EXISTS:
                     convert_to_yaml(scheduler, INPUT_FNs_commands, input_filenames)
+                    # import wdb; wdb.set_trace()
+                    [add_to_tar(input_filenames[fn], savepath) for fn in input_filenames if os.path.isfile(input_filenames[fn])]
+
                 yaml_files = get_yaml_files(scheduler, input_filenames)
 
                 worker_nodes = get_worker_nodes(scheduler)(*yaml_files['get_worker_nodes'])
-                # import wdb; wdb.set_trace()
                 job_ids, user_names, job_states, _ = get_jobs_info(scheduler)(*yaml_files['get_jobs_info'])
                 total_running_jobs, total_queued_jobs, qstatq_lod = get_queues_info(scheduler)(*yaml_files['get_queues_info'])
                 deprecate_old_yaml_files(*yaml_files['get_jobs_info'])

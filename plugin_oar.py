@@ -64,6 +64,7 @@ class OarStatMaker(QStatMaker):
         self.dump_all(out_file, self.stat_mapping[write_method])
 
 
+
 # def get_queues_info(fn, write_method):
 #     return lambda *args, **kwargs: (0, 0, [])
 
