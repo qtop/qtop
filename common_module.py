@@ -394,14 +394,15 @@ def anonymize_func():
     return _anonymize_func
 
 
-def add_to_tar(file_to_add, savepath, tar_file=QTOP_TARFN):
+def add_to_tar(filepath_to_add, savepath, tar_file=QTOP_TARFN):
     """
-    opens tar tar_file in path savepath and adds file file_to_add
+    opens tar tar_file in path savepath and adds file filepath_to_add
     """
     tar_out = tarfile.open(os.path.join(savepath, tar_file), mode='a')
+    path, fn = filepath_to_add.rsplit('/', 1)
     try:
-        logging.debug('Adding %s to tarball...' % file_to_add)
-        tar_out.add(file_to_add)
+        logging.debug('Adding %s to tarball...' % filepath_to_add)
+        tar_out.add(filepath_to_add, arcname=fn)
     finally:
         logging.debug('Closing tarball...')
         tar_out.close()
