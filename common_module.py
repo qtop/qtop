@@ -438,3 +438,9 @@ def report(fn):
         return ret
     wrap.callcount = 0
     return wrap
+
+
+class JobNotFound(Exception):
+    def __init__(self, job_state):
+        Exception.__init__(self, "Job state %s not found" % job_state)
+        self.job_state = job_state

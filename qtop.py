@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 ################################################
-#              qtop v.0.8.4                    #
+#              qtop v.0.8.5                    #
 #     Licensed under MIT-GPL licenses          #
 #                     Sotiris Fragkiskos       #
 #                     Fotis Georgatos          #
@@ -70,7 +70,6 @@ def colorize(text, color_func=None, pattern='NoPattern', bg_color=None):
     prints text colored according to a unix account pattern color.
     If color is given, pattern is not needed.
     """
-    # bg_color = code_of_color['BlueBG']
     bg_color = '' if not bg_color else bg_color
     try:
         ansi_color = code_of_color[color_func] if color_func else code_of_color[color_of_account[pattern]]
@@ -135,7 +134,7 @@ def decide_remapping(cluster_dict, _all_letters, _all_str_digits_with_empties):
 
 
 def calculate_cluster(worker_nodes):
-    logging.debug('FORCE_NAMES is: %s' % options.FORCE_NAMES)
+    logging.debug('option FORCE_NAMES is: %s' % options.FORCE_NAMES)
     NAMED_WNS = 0 if not options.FORCE_NAMES else 1
     cluster_dict = dict()
     for key in ['working_cores', 'total_cores', 'max_np', 'highest_wn', 'offline_down_nodes']:
@@ -285,7 +284,12 @@ def calculate_job_counts(user_names, job_states):
     expand_useraccounts_symbols(config, user_names)
     state_abbrevs = config['state_abbreviations'][scheduler]
 
-    job_counts = create_job_counts(user_names, job_states, state_abbrevs)
+    try:
+        job_counts = create_job_counts(user_names, job_states, state_abbrevs)
+    except JobNotFound as e:
+        logging.critical('Job state %s not found. You may wish to add '
+                         'that node state inside %s in state_abbreviations section.\n' % (e.job_state, QTOPCONF_YAML))
+
     user_alljobs_sorted_lot = produce_user_lot(user_names)
 
     id_of_username = {}
@@ -338,10 +342,8 @@ def create_job_counts(user_names, job_states, state_abbrevs):
         try:
             x_of_user = state_abbrevs[job_state]
         except KeyError:
-            logging.critical('Job state %s not found.'
-                             'You may wish to add that node state inside %s in state_abbreviations section.\n'
-                             'Exiting...' % (job_state, QTOPCONF_YAML))
-            sys.exit(1)
+            raise JobNotFound(job_state)
+
         job_counts[x_of_user][user_name] = job_counts[x_of_user].get(user_name, 0) + 1
 
     for user_name in job_counts['running_of_user']:

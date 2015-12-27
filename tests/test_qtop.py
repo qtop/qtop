@@ -1,7 +1,10 @@
-__author__ = 'sfranky'
-
-import re
 import pytest
+import re
+
+from nose.tools import assert_raises
+
+from qtop import create_job_counts
+from common_module import JobNotFound
 
 
 @pytest.mark.parametrize('domain_name, match',
@@ -40,3 +43,27 @@ def test_re_node(domain_name, match):
 def test_batch_nodes_sorting(domain_name, number):
     domain_name = domain_name.split('.', 1)[0]
     assert int(re.sub(r'[A-Za-z_-]+', '', domain_name) or -1) == number
+
+
+def test_create_job_counts():  # user_names, job_states, state_abbrevs
+    user_names = ['sotiris', 'kostas', 'yannis', 'petros']
+    state_abbrevs = {'C': 'cancelled_of_user', 'E': 'exiting_of_user', 'r': 'running_of_user'}
+    job_states = ['r', 'E', 'r', 'C']
+    assert create_job_counts(user_names, job_states, state_abbrevs) == {
+        'cancelled_of_user': {'sotiris': 0, 'yannis': 0, 'petros': 1},
+        'exiting_of_user': {'sotiris': 0, 'kostas': 1, 'yannis': 0},
+        'running_of_user': {'sotiris': 1, 'yannis': 1},
+    }
+
+
+def test_create_job_counts_raises_jobnotfound():  # user_names, job_states, state_abbrevs
+    user_names = ['sotiris', 'kostas', 'yannis', 'petros']
+    state_abbrevs = {'C': 'cancelled_of_user', 'E': 'exiting_of_user', 'r': 'running_of_user'}
+    job_states = ['r', 'E', 'x', 'C']
+    with pytest.raises(JobNotFound) as e:
+        create_job_counts(user_names, job_states, state_abbrevs) == {
+        'cancelled_of_user': {'sotiris': 0, 'yannis': 0, 'petros': 1},
+        'exiting_of_user': {'sotiris': 0, 'kostas': 1, 'yannis': 0},
+        'running_of_user': {'sotiris': 1, 'yannis': 1},
+    }
+
