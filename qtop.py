@@ -1589,7 +1589,7 @@ if __name__ == '__main__':
     with raw_mode(sys.stdin):
         try:
             while True:
-                handle, name = get_new_temp_file(prefix='qtop_', suffix='.out')
+                handle, output_fp = get_new_temp_file(prefix='qtop_', suffix='.out')
                 sys.stdout = os.fdopen(handle, 'w')  # redirect everything to file, creates file object out of handle
                 # sys.stdout = open(fout, 'w', -1)  # redirect everything to file
                 transposed_matrices = []
@@ -1669,16 +1669,16 @@ if __name__ == '__main__':
                 sys.stdout.close()
                 sys.stdout = stdout  # sys.stdout is back to its normal function (i.e. screen output)
 
-                num_lines = sum(1 for line in open(name, 'r')) if not num_lines else num_lines
+                num_lines = sum(1 for line in open(output_fp, 'r')) if not num_lines else num_lines
                 ansi_escape = re.compile(r'\x1b[^m]*m')  # matches ANSI escape characters
-                max_line_len = max(len(ansi_escape.sub('', line.strip())) for line in open(name, 'r')) \
+                max_line_len = max(len(ansi_escape.sub('', line.strip())) for line in open(output_fp, 'r')) \
                     if not max_line_len else max_line_len
 
                 logging.debug('Total nr of lines: %s' % num_lines)
                 logging.debug('Max line length: %s' % max_line_len)
 
                 if not options.WATCH:
-                    cat_command = 'clear;cat %s' % name
+                    cat_command = 'clear;cat %s' % output_fp
                     NOT_FOUND = subprocess.call(cat_command, stdout=stdout, stderr=stdout, shell=True)
                     break
 
@@ -1686,7 +1686,7 @@ if __name__ == '__main__':
                 # justification for implementation:
                 # http://unix.stackexchange.com/questions/47407/cat-line-x-to-line-y-on-a-huge-file
                 line_offset = v_stop - v_start
-                cat_command = 'clear;tail -n+%s %s | head -n%s' % (v_start, name, line_offset)
+                cat_command = 'clear;tail -n+%s %s | head -n%s' % (v_start, output_fp, line_offset)
                 NOT_FOUND = subprocess.call(cat_command, stdout=stdout, stderr=stdout, shell=True)
 
 
@@ -1704,12 +1704,12 @@ if __name__ == '__main__':
                 pressed_char_hex = '%02x' % ord(read_char) # read_char has an initial value that resets the display ('72')
                 h_start, h_stop, v_start, v_stop = control_movement(pressed_char_hex, h_start, h_stop, v_start, v_stop)
                 os.chdir(QTOPPATH)
-                unlink(name)
+                unlink(output_fp)
 
             if options.SAMPLE:
-                add_to_sample(name, config['savepath'])
+                add_to_sample(output_fp, config['savepath'])
         except (KeyboardInterrupt, EOFError):
-            safe_exit_with_file_close(handle, name, stdout)
+            safe_exit_with_file_close(handle, output_fp, stdout)
         else:
             if options.SAMPLE >= 1:
                 add_to_sample(QTOP_LOGFILE, config['savepath'])
