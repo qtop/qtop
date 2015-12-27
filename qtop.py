@@ -1547,10 +1547,15 @@ def control_movement(pressed_char_hex, h_start, h_stop, v_start, v_stop):
         '67': scroll_top,  # g
         '72': reset_display,  # r
         '71': quit_program,  # q
-        '0a': lambda a,b,c,d:(a,b,c,d),  # Enter
+        '0a': lambda a,b,c,d:(a,b,c,d),  # Enter, do nothing
     }
-    h_start, h_stop, v_start, v_stop = key_actions[pressed_char_hex](h_start, h_stop, v_start, v_stop)
-    # logging.debug('\n\tv_start: %s\n\tv_stop: %s\n\th_start: %s\n\th_stop: %s' % (v_start, v_stop, h_start, h_stop))
+    try:
+        move_func = key_actions[pressed_char_hex]
+    except KeyError:  # if an unbound keypress is made, do nothing
+        move_func = lambda a, b, c, d: (a, b, c, d)
+
+    h_start, h_stop, v_start, v_stop = move_func(h_start, h_stop, v_start, v_stop)
+
     logging.debug('Area Displayed: (h_start, v_start) --> (h_stop, v_stop) '
                   '\n\t(%(h_start)s, %(v_start)s) --> (%(h_stop)s, %(v_stop)s)' %
                   {'v_start': v_start, 'v_stop': v_stop, 'h_start': h_start, 'h_stop': h_stop})
