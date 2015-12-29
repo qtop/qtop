@@ -462,3 +462,7 @@ class FileNotFound(Exception):
         Exception.__init__(self, msg)
         logging.critical(msg)
         self.fn = fn
+
+
+class SchedulerNotSpecified(Exception):
+    pass

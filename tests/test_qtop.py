@@ -1,10 +1,13 @@
 import pytest
 import re
 
-from nose.tools import assert_raises
+from qtop import create_job_counts, get_selected_batch_system, load_yaml_config
+from common_module import JobNotFound, SchedulerNotSpecified, NoSchedulerFound
 
-from qtop import create_job_counts, pick_batch_system
-from common_module import JobNotFound
+
+@pytest.fixture
+def config():
+    return {}
 
 
 @pytest.mark.parametrize('domain_name, match',
@@ -71,12 +74,54 @@ def test_create_job_counts_raises_jobnotfound():  # user_names, job_states, stat
 @pytest.mark.parametrize('cmdline_switch, env_var, config_file_batch_option, returned_scheduler',
      (
          (None, None, 'sge', 'sge'),
-         ('auto', None, 'sge', 'sge'),
+         ('sge', None, None, 'sge'),
          ('oar', None, 'sge', 'oar'),
+         ('sge', None, 'auto', 'sge'),
+         ('sge', 'auto', None, 'sge'),
          ('oar', 'pbs', 'sge', 'oar'),
-         ('auto', 'pbs', 'sge', 'pbs'),
      ),
 )
-def test_pick_batch_system(cmdline_switch, env_var, config_file_batch_option, returned_scheduler):
-    assert pick_batch_system(cmdline_switch, env_var, config_file_batch_option) == returned_scheduler
+def test_get_selected_batch_system(cmdline_switch, env_var, config_file_batch_option, returned_scheduler, monkeypatch,
+                                   config):
+    monkeypatch.setitem(config, "schedulers", ['oar', 'sge', 'pbs'])
+    assert get_selected_batch_system(cmdline_switch, env_var, config_file_batch_option, config["schedulers"]) == \
+           returned_scheduler
+
+
+@pytest.mark.parametrize('cmdline_switch, env_var, config_file_batch_option, returned_scheduler',
+     (
+         ('auto', None, 'sge', 'should_raise_SchedulerNotSpecified'),
+         ('auto', 'pbs', 'sge', 'should_raise_SchedulerNotSpecified'),
+         (None, 'auto', 'sge', 'should_raise_SchedulerNotSpecified'),
+         (None, None, 'auto', 'should_raise_SchedulerNotSpecified'),
+     ),
+)
+def test_get_selected_batch_system_raises_scheduler_not_specified(
+        cmdline_switch,
+        env_var,
+        config_file_batch_option,
+        returned_scheduler,
+        monkeypatch,
+        config):
+    monkeypatch.setitem(config, "schedulers", ['oar', 'sge', 'pbs'])
+    with pytest.raises(SchedulerNotSpecified) as e:
+        get_selected_batch_system(cmdline_switch, env_var, config_file_batch_option, config["schedulers"]) == returned_scheduler
+
+
+@pytest.mark.parametrize('cmdline_switch, env_var, config_file_batch_option, returned_scheduler',
+     (
+         (None, None, None, 'should_raise_NoSchedulerFound'),
+         (None, None, 'NotAScheduler', 'should_raise_NoSchedulerFound'),
+     ),
+)
+def test_get_selected_batch_system_raises_no_scheduler_found(
+        cmdline_switch,
+        env_var,
+        config_file_batch_option,
+        returned_scheduler,
+        monkeypatch,
+        config):
+    monkeypatch.setitem(config, "schedulers", ['oar', 'sge', 'pbs'])
+    with pytest.raises(NoSchedulerFound) as e:
+        get_selected_batch_system(cmdline_switch, env_var, config_file_batch_option, config["schedulers"]) == returned_scheduler
 

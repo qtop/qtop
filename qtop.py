@@ -1210,8 +1210,6 @@ def convert_to_yaml(scheduler, INPUT_FNs_commands, filenames, write_method=optio
 
     for _file in INPUT_FNs_commands:
         file_orig, file_out = filenames[_file], filenames[_file + '_out']
-        if not os.path.isfile(file_orig):
-            raise FileNotFound(file_orig)
         converter_func = converters[_file]
         logging.debug('Executing %(func)s \n\t'
                       'on: %(file_orig)s,\n\t' % {"func": converter_func.__name__, "file_orig": file_orig, "file_out": file_out})
@@ -1293,6 +1291,7 @@ def auto_get_avail_batch_system():
     If the auto option is set in either env variable QTOP_SCHEDULER, QTOPCONF_YAML or in cmdline switch -b,
     qtop tries to determine which of the known batch commands are available in the current system.
     """
+    # TODO pbsnodes etc should not be hardcoded!
     for (batch_command, system) in [('pbsnodes', 'pbs'), ('oarnodes', 'oar'), ('qstat', 'sge')]:
         NOT_FOUND = subprocess.call(['which', batch_command], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         if not NOT_FOUND:
@@ -1302,25 +1301,21 @@ def auto_get_avail_batch_system():
     raise NoSchedulerFound
 
 
-def pick_batch_system(cmdline_switch, env_var, config_file_batch_option):
+def get_selected_batch_system(cmdline_switch, env_var, config_file_batch_option, schedulers):
     """
-    If the User has selected through either a cmdline switch, env variable, or config file,
-    a specific batch system, pick that system. Otherwise, if 'auto' is indicated anywhere, qtop
-    will attempt to make a guess.
-    Default option is auto, through the qtopconf config file.
+    If the User has selected a specific batch system,
+    through either a cmdline switch, env variable, or config file, pick that system.
     """
     for scheduler in (cmdline_switch, env_var, config_file_batch_option):
-        if scheduler and scheduler != 'auto':
+        if scheduler == 'auto':
+            raise SchedulerNotSpecified
+        elif scheduler in schedulers:
             logging.info('User-selected scheduler: %s' % scheduler)
             return scheduler
-
-    try: # auto-detect
-        scheduler = auto_get_avail_batch_system()
-    except NoSchedulerFound:
-        raise # (re-raises NoSchedulerFound)
+        elif scheduler and scheduler not in schedulers:  # a scheduler that does not exist is inputted
+            raise NoSchedulerFound
     else:
-        logging.debug('Selected scheduler is %s' % scheduler)
-        return scheduler
+        raise NoSchedulerFound
 
 
 def execute_shell_batch_commands(batch_system_commands, filenames, _file):
@@ -1401,6 +1396,8 @@ def get_input_filenames(INPUT_FNs_commands, extension):
         if not options.SOURCEDIR:
             execute_shell_batch_commands(batch_system_commands, filenames, _file)
 
+        if not os.path.isfile(filenames[_file]):
+            raise FileNotFound(filenames[_file])
     return filenames
 
 
@@ -1610,6 +1607,28 @@ def prepare_files():
 
     return INPUT_FNs_commands, inout_filenames
 
+
+def get_batch_system(cmdline_switch, env_var, config_file_batch_option):
+    """
+    Qtop first checks in cmdline switches, environmental variables and the config files, in this order,
+    for the scheduler type. If it's not indicated and "auto" is, it will attempt to guess the scheduler type
+    from the scheduler shell commands available in the linux system.
+    """
+    try:
+        scheduler = get_selected_batch_system(cmdline_switch, env_var, config_file_batch_option, config['schedulers'])
+    except SchedulerNotSpecified:  # it now must be auto-detected
+        try:
+            scheduler = auto_get_avail_batch_system()
+        except NoSchedulerFound:
+            raise  # (re-raises NoSchedulerFound)
+        else:
+            logging.debug('Selected scheduler is %s' % scheduler)
+            return scheduler
+    except NoSchedulerFound:
+        raise
+    else:
+        return scheduler
+
 if __name__ == '__main__':
 
     stdout = sys.stdout
@@ -1664,10 +1683,7 @@ if __name__ == '__main__':
                 logging.debug('Working directory is now: %s' % options.workdir)
                 os.chdir(options.workdir)
 
-                try:
-                    scheduler = pick_batch_system(options.BATCH_SYSTEM, os.environ.get('QTOP_SCHEDULER'), config['scheduler'])
-                except NoSchedulerFound:
-                    raise
+                scheduler = get_batch_system(options.BATCH_SYSTEM, os.environ.get('QTOP_SCHEDULER'), config['scheduler'])
 
                 INPUT_FNs_commands, inout_filenames = prepare_files()
 
