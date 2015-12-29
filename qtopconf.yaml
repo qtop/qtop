@@ -1,9 +1,11 @@
 # Default configuration file for qtop.
-# IMPORTANT: a blank line MUST be left after every line of python code.
+# IMPORTANT: a blank line MUST be left after every line of *python code*.
 
 # scheduler possible values (currently supported): pbs, oar, sge
 # auto will try to detect available batch commands in the current system
+# env variable QTOP_SCHEDULER should be unset if QTOPCONF_YAML is set to auto
 scheduler: auto
+
 # where to save output from batch commands and their conversion to yaml
 savepath: /tmp/qtop_results_$USER
 

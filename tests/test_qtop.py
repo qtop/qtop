@@ -3,7 +3,7 @@ import re
 
 from nose.tools import assert_raises
 
-from qtop import create_job_counts
+from qtop import create_job_counts, pick_batch_system
 from common_module import JobNotFound
 
 
@@ -62,8 +62,21 @@ def test_create_job_counts_raises_jobnotfound():  # user_names, job_states, stat
     job_states = ['r', 'E', 'x', 'C']
     with pytest.raises(JobNotFound) as e:
         create_job_counts(user_names, job_states, state_abbrevs) == {
-        'cancelled_of_user': {'sotiris': 0, 'yannis': 0, 'petros': 1},
-        'exiting_of_user': {'sotiris': 0, 'kostas': 1, 'yannis': 0},
-        'running_of_user': {'sotiris': 1, 'yannis': 1},
-    }
+            'cancelled_of_user': {'sotiris': 0, 'yannis': 0, 'petros': 1},
+            'exiting_of_user': {'sotiris': 0, 'kostas': 1, 'yannis': 0},
+            'running_of_user': {'sotiris': 1, 'yannis': 1},
+        }
+
+
+@pytest.mark.parametrize('cmdline_switch, env_var, config_file_batch_option, returned_scheduler',
+     (
+         (None, None, 'sge', 'sge'),
+         ('auto', None, 'sge', 'sge'),
+         ('oar', None, 'sge', 'oar'),
+         ('oar', 'pbs', 'sge', 'oar'),
+         ('auto', 'pbs', 'sge', 'pbs'),
+     ),
+)
+def test_pick_batch_system(cmdline_switch, env_var, config_file_batch_option, returned_scheduler):
+    assert pick_batch_system(cmdline_switch, env_var, config_file_batch_option) == returned_scheduler
 

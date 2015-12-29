@@ -1210,6 +1210,8 @@ def convert_to_yaml(scheduler, INPUT_FNs_commands, filenames, write_method=optio
 
     for _file in INPUT_FNs_commands:
         file_orig, file_out = filenames[_file], filenames[_file + '_out']
+        if not os.path.isfile(file_orig):
+            raise FileNotFound(file_orig)
         converter_func = converters[_file]
         logging.debug('Executing %(func)s \n\t'
                       'on: %(file_orig)s,\n\t' % {"func": converter_func.__name__, "file_orig": file_orig, "file_out": file_out})
@@ -1265,7 +1267,15 @@ def get_yaml_files(scheduler, filenames):
     return args[scheduler]
 
 
-def get_filenames_commands():
+def finalize_filepaths_schedulercommands():
+    """
+    returns a dictionary with contents of the form
+    {fn : (filepath, schedulercommand)}, e.g.
+    {'pbsnodes_file': ('/tmp/qtop_results_$USER/pbsnodes_a.txt', 'pbsnodes -a')}
+    if the -s switch (set sourcedir) has been invoked, or
+    {'pbsnodes_file': ('/tmp/qtop_results_$USER/pbsnodes_a<some_pid>.txt', 'pbsnodes -a')}
+    if ran without the -s switch.
+    """
     d = dict()
     # date = time.strftime("%Y%m%d")  #TODO
     # fn_append = "_" + str(date) if not options.SOURCEDIR else ""
@@ -1280,31 +1290,37 @@ def get_filenames_commands():
 
 def auto_get_avail_batch_system():
     """
-    If the auto option exists in env variable QTOP_SCHEDULER or in QTOPCONF_YAML
-    (QTOP_SCHEDULER should be unset if QTOPCONF_YAML is set to auto)
+    If the auto option is set in either env variable QTOP_SCHEDULER, QTOPCONF_YAML or in cmdline switch -b,
     qtop tries to determine which of the known batch commands are available in the current system.
     """
-    if not os.environ.get('QTOP_SCHEDULER', config['scheduler']) == 'auto':
-        return None
     for (batch_command, system) in [('pbsnodes', 'pbs'), ('oarnodes', 'oar'), ('qstat', 'sge')]:
         NOT_FOUND = subprocess.call(['which', batch_command], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         if not NOT_FOUND:
+            logging.debug('Auto-detected scheduler: %s' % system)
             return system
+
+    raise NoSchedulerFound
+
+
+def pick_batch_system(cmdline_switch, env_var, config_file_batch_option):
+    """
+    If the User has selected through either a cmdline switch, env variable, or config file,
+    a specific batch system, pick that system. Otherwise, if 'auto' is indicated anywhere, qtop
+    will attempt to make a guess.
+    Default option is auto, through the qtopconf config file.
+    """
+    for scheduler in (cmdline_switch, env_var, config_file_batch_option):
+        if scheduler and scheduler != 'auto':
+            logging.info('User-selected scheduler: %s' % scheduler)
+            return scheduler
+
+    try: # auto-detect
+        scheduler = auto_get_avail_batch_system()
+    except NoSchedulerFound:
+        raise # (re-raises NoSchedulerFound)
     else:
-        return None
-
-
-def pick_batch_system():
-    avail_batch_system = auto_get_avail_batch_system()
-    scheduler = options.BATCH_SYSTEM or avail_batch_system or config['scheduler']
-    logging.debug('cmdline switch option scheduler: %s' % options.BATCH_SYSTEM or "None")
-    logging.debug('Autodetected scheduler: %s' % avail_batch_system or "None")
-    if scheduler == 'auto':
-        logging.critical('No suitable scheduler was found. '
-                         'Please define one in a switch or env variable or in %s' % QTOPCONF_YAML)
-        raise (ValueError, 'No suitable scheduler was found.')
-    logging.debug('Selected scheduler is %s' % scheduler)
-    return scheduler
+        logging.debug('Selected scheduler is %s' % scheduler)
+        return scheduler
 
 
 def execute_shell_batch_commands(batch_system_commands, filenames, _file):
@@ -1369,10 +1385,12 @@ def get_detail_of_name(account_jobs_table):
     return detail_of_name
 
 
-def get_input_filenames():
-
-    parser_extension_mapping = {'txtyaml': 'yaml', 'json': 'json'}
-    extension = parser_extension_mapping[options.write_method]
+def get_input_filenames(INPUT_FNs_commands, extension):
+    """
+    If the user didn't specify --via the -s switch-- a dir where ready-made data files already exist,
+    the appropriate batch commands are executed, as indicated in QTOPCONF,
+    and results are saved with the respective filenames.
+    """
     logging.info('Selected method for storing data structures is: %s' % extension)
 
     filenames = dict()
@@ -1381,17 +1399,22 @@ def get_input_filenames():
         filenames[_file], batch_system_commands[_file] = INPUT_FNs_commands[_file]
 
         if not options.SOURCEDIR:
-            # if user didn't specify a dir where ready-made data files already exist,
-            # execute the appropriate batch commands and fetch results to the respective files
             execute_shell_batch_commands(batch_system_commands, filenames, _file)
-        else:
-            pass
 
+    return filenames
+
+
+def prepare_output_filepaths(filenames, INPUT_FNs_commands, extension):
+    """
+    The filepaths of the future output files (structures converted to json/yaml) are appended to the filenames dict
+    """
+    for _file in INPUT_FNs_commands:
         filenames[_file + '_out'] = '{filename}_{writemethod}.{ext}'.format(
             filename=INPUT_FNs_commands[_file][0].rsplit('.')[0],
             writemethod=options.write_method,
             ext=extension
         )
+
     return filenames
 
 
@@ -1523,6 +1546,7 @@ def reset_display(h_start, h_stop, v_start, v_stop):  # "R", reset display
     h_stop = config['term_size'][1]
     return h_start, h_stop, v_start, v_stop
 
+
 def quit_program(h_start, h_stop, v_start, v_stop):  # "q", quit
     try:
         raise KeyboardInterrupt
@@ -1574,6 +1598,17 @@ def safe_exit_with_file_close(handle, name, stdout, delete_file=False):
         add_to_sample(QTOP_LOGFILE, self.config['savepath'])
     sys.exit(0)
 
+
+
+def prepare_files():
+    parser_extension_mapping = {'txtyaml': 'yaml', 'json': 'json'}
+    extension = parser_extension_mapping[options.write_method]
+
+    INPUT_FNs_commands = finalize_filepaths_schedulercommands()
+    inout_filenames = get_input_filenames(INPUT_FNs_commands, extension)
+    inout_filenames = prepare_output_filepaths(inout_filenames, INPUT_FNs_commands, extension)
+
+    return INPUT_FNs_commands, inout_filenames
 
 if __name__ == '__main__':
 
@@ -1629,10 +1664,12 @@ if __name__ == '__main__':
                 logging.debug('Working directory is now: %s' % options.workdir)
                 os.chdir(options.workdir)
 
-                scheduler = pick_batch_system()
+                try:
+                    scheduler = pick_batch_system(options.BATCH_SYSTEM, os.environ.get('QTOP_SCHEDULER'), config['scheduler'])
+                except NoSchedulerFound:
+                    raise
 
-                INPUT_FNs_commands = get_filenames_commands()
-                input_filenames = get_input_filenames()
+                INPUT_FNs_commands, inout_filenames = prepare_files()
 
                 # reset_yaml_files()  # either that or having a pid appended in the filename
                 if options.SAMPLE >= 1:  # clears any preexisting tar files
@@ -1642,11 +1679,12 @@ if __name__ == '__main__':
                     add_to_sample(os.path.join(realpath(QTOPPATH), QTOPCONF_YAML), savepath)
 
                 if not options.YAML_EXISTS:
-                    convert_to_yaml(scheduler, INPUT_FNs_commands, input_filenames)
+                    convert_to_yaml(scheduler, INPUT_FNs_commands, inout_filenames)
                     if options.SAMPLE >=1:
-                        [add_to_sample(input_filenames[fn], savepath) for fn in input_filenames if os.path.isfile(input_filenames[fn])]
+                        [add_to_sample(inout_filenames[fn], savepath) for fn in inout_filenames
+                         if os.path.isfile(inout_filenames[fn])]
 
-                yaml_files = get_yaml_files(scheduler, input_filenames)
+                yaml_files = get_yaml_files(scheduler, inout_filenames)
 
                 worker_nodes = get_worker_nodes(scheduler)(*yaml_files['get_worker_nodes'])
                 job_ids, user_names, job_states, _ = get_jobs_info(scheduler)(*yaml_files['get_jobs_info'])
