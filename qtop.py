@@ -1290,6 +1290,8 @@ def auto_get_avail_batch_system():
     """
     If the auto option is set in either env variable QTOP_SCHEDULER, QTOPCONF_YAML or in cmdline switch -b,
     qtop tries to determine which of the known batch commands are available in the current system.
+    Priority is pbsnodes > oarnodes > qstat,
+    i.e. first command to be found is to be considered crucial for identifying the scheduler type
     """
     # TODO pbsnodes etc should not be hardcoded!
     for (batch_command, system) in [('pbsnodes', 'pbs'), ('oarnodes', 'oar'), ('qstat', 'sge')]:

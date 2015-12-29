@@ -74,6 +74,7 @@ def test_create_job_counts_raises_jobnotfound():  # user_names, job_states, stat
 @pytest.mark.parametrize('cmdline_switch, env_var, config_file_batch_option, returned_scheduler',
      (
          (None, None, 'sge', 'sge'),
+         (None, 'oar', 'sge', 'oar'),
          ('sge', None, None, 'sge'),
          ('oar', None, 'sge', 'oar'),
          ('sge', None, 'auto', 'sge'),
