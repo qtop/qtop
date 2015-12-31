@@ -8,6 +8,7 @@ import tarfile
 import re
 from itertools import count
 import errno
+
 try:
     import ujson as json
 except ImportError:
@@ -56,7 +57,6 @@ def handle_exception(exc_type, exc_value, exc_traceback):
 
 
 class StatMaker:
-
     def __init__(self, config):
         self.l = list()
         self.config = config
@@ -105,7 +105,6 @@ class StatMaker:
 
 
 class QStatMaker(StatMaker):
-
     def __init__(self, config):
         StatMaker.__init__(self, config)
         self.user_q_search = r'^(?P<host_name>(?P<job_id>[0-9-]+)\.(?P<domain>[\w-]+))\s+' \
@@ -227,7 +226,7 @@ parser.add_option("-a", "--blindremapping", action="store_true", dest="BLINDREMA
                   help="This may be used in situations where node names are not a pure arithmetic seq (eg. rocks clusters)")
 parser.add_option("-A", "--anonymize", action="store_true", dest="ANONYMIZE", default=False,
                   help="Masks unix account names and workernode names for security reasons (sending bug reports etc.)")
-parser.add_option("-b", "--batchSystem", action="store", type="string", dest="BATCH_SYSTEM", default=None)
+parser.add_option("-b", "--batchSystem", action="store", dest="BATCH_SYSTEM", default=None)
 parser.add_option("-c", "--COLOR", action="store", dest="COLOR", default="AUTO", choices=['ON', 'OFF', 'AUTO'],
                   help="Enable/Disable color in qtop output. AUTO detects tty (for watch -d)")
 parser.add_option("-C", "--classic", action="store_true", dest="CLASSIC", default=False,
@@ -407,6 +406,7 @@ def add_to_sample(filepath_to_add, savepath, sample_file=QTOP_SAMPLE_FILENAME, s
         logging.debug('Closing sample...')
         sample_out.close()
 
+
 # TODO remember to remove here on!
 __report_indent = [0]
 
@@ -426,15 +426,46 @@ def report(fn):
         indent = ' ' * __report_indent[0]
         fc = "%s(%s)" % (fn.__name__, ', '.join(
             [a.__repr__() for a in params] +
-            ["%s = %s" % (a, repr(b)) for a,b in kwargs.items()]
+            ["%s = %s" % (a, repr(b)) for a, b in kwargs.items()]
         ))
 
         logging.debug("%s%s called [#%s]" % (indent, fc, call))
         __report_indent[0] += 1
-        ret = fn(*params,**kwargs)
+        ret = fn(*params, **kwargs)
         __report_indent[0] -= 1
         logging.debug("%s%s returned %s [#%s]" % (indent, fc, repr(ret), call))
 
         return ret
+
     wrap.callcount = 0
     return wrap
+
+
+class JobNotFound(Exception):
+    def __init__(self, job_state):
+        Exception.__init__(self, "Job state %s not found" % job_state)
+        self.job_state = job_state
+
+
+class NoSchedulerFound(Exception):
+    def __init__(self):
+        msg = 'No suitable scheduler was found. ' \
+              'Please define one in a switch or env variable or in %s' % QTOPCONF_YAML
+        Exception.__init__(self, msg)
+        logging.critical(msg)
+
+
+class FileNotFound(Exception):
+    def __init__(self, fn):
+        msg = "File %s not found.\nMaybe the correct scheduler is not specified?" % fn
+        Exception.__init__(self, msg)
+        logging.critical(msg)
+        self.fn = fn
+
+
+class SchedulerNotSpecified(Exception):
+    pass
+
+
+class InvalidScheduler(Exception):
+    pass

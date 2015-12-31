@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 ################################################
-#              qtop v.0.8.4                    #
+#              qtop v.0.8.5                    #
 #     Licensed under MIT-GPL licenses          #
 #                     Sotiris Fragkiskos       #
 #                     Fotis Georgatos          #
@@ -70,7 +70,6 @@ def colorize(text, color_func=None, pattern='NoPattern', bg_color=None):
     prints text colored according to a unix account pattern color.
     If color is given, pattern is not needed.
     """
-    # bg_color = code_of_color['BlueBG']
     bg_color = '' if not bg_color else bg_color
     try:
         ansi_color = code_of_color[color_func] if color_func else code_of_color[color_of_account[pattern]]
@@ -135,7 +134,7 @@ def decide_remapping(cluster_dict, _all_letters, _all_str_digits_with_empties):
 
 
 def calculate_cluster(worker_nodes):
-    logging.debug('FORCE_NAMES is: %s' % options.FORCE_NAMES)
+    logging.debug('option FORCE_NAMES is: %s' % options.FORCE_NAMES)
     NAMED_WNS = 0 if not options.FORCE_NAMES else 1
     cluster_dict = dict()
     for key in ['working_cores', 'total_cores', 'max_np', 'highest_wn', 'offline_down_nodes']:
@@ -285,7 +284,12 @@ def calculate_job_counts(user_names, job_states):
     expand_useraccounts_symbols(config, user_names)
     state_abbrevs = config['state_abbreviations'][scheduler]
 
-    job_counts = create_job_counts(user_names, job_states, state_abbrevs)
+    try:
+        job_counts = create_job_counts(user_names, job_states, state_abbrevs)
+    except JobNotFound as e:
+        logging.critical('Job state %s not found. You may wish to add '
+                         'that node state inside %s in state_abbreviations section.\n' % (e.job_state, QTOPCONF_YAML))
+
     user_alljobs_sorted_lot = produce_user_lot(user_names)
 
     id_of_username = {}
@@ -338,10 +342,8 @@ def create_job_counts(user_names, job_states, state_abbrevs):
         try:
             x_of_user = state_abbrevs[job_state]
         except KeyError:
-            logging.critical('Job state %s not found.'
-                             'You may wish to add that node state inside %s in state_abbreviations section.\n'
-                             'Exiting...' % (job_state, QTOPCONF_YAML))
-            sys.exit(1)
+            raise JobNotFound(job_state)
+
         job_counts[x_of_user][user_name] = job_counts[x_of_user].get(user_name, 0) + 1
 
     for user_name in job_counts['running_of_user']:
@@ -1263,7 +1265,16 @@ def get_yaml_files(scheduler, filenames):
     return args[scheduler]
 
 
-def get_filenames_commands():
+def finalize_filepaths_schedulercommands():
+    """
+    returns a dictionary with contents of the form
+    {fn : (filepath, schedulercommand)}, e.g.
+    {'pbsnodes_file': ('<TMPDIR>/qtop_results_$USER/pbsnodes_a.txt', 'pbsnodes -a')}
+    if the -s switch (set sourcedir) has been invoked, or
+    {'pbsnodes_file': ('<TMPDIR>/qtop_results_$USER/pbsnodes_a<some_pid>.txt', 'pbsnodes -a')}
+    if ran without the -s switch.
+    TMPDIR is defined in constants.py
+    """
     d = dict()
     # date = time.strftime("%Y%m%d")  #TODO
     # fn_append = "_" + str(date) if not options.SOURCEDIR else ""
@@ -1278,31 +1289,43 @@ def get_filenames_commands():
 
 def auto_get_avail_batch_system():
     """
-    If the auto option exists in env variable QTOP_SCHEDULER or in QTOPCONF_YAML
-    (QTOP_SCHEDULER should be unset if QTOPCONF_YAML is set to auto)
+    If the auto option is set in either env variable QTOP_SCHEDULER, QTOPCONF_YAML or in cmdline switch -b,
     qtop tries to determine which of the known batch commands are available in the current system.
+    Priority is pbsnodes > oarnodes > qstat,
+    i.e. first command to be found is to be considered crucial for identifying the scheduler type
     """
-    if not os.environ.get('QTOP_SCHEDULER', config['scheduler']) == 'auto':
-        return None
+    # TODO pbsnodes etc should not be hardcoded!
     for (batch_command, system) in [('pbsnodes', 'pbs'), ('oarnodes', 'oar'), ('qstat', 'sge')]:
         NOT_FOUND = subprocess.call(['which', batch_command], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         if not NOT_FOUND:
+            logging.debug('Auto-detected scheduler: %s' % system)
             return system
+
+    raise NoSchedulerFound
+
+
+def get_selected_batch_system(cmdline_switch, env_var, config_file_batch_option, schedulers):
+    """
+    If the User has selected a specific batch system,
+    through either a cmdline switch, env variable, or config file, pick that system.
+    """
+    if cmdline_switch and cmdline_switch.lower() not in ['sge', 'oar', 'pbs']:
+        raise InvalidScheduler
+    for scheduler in (cmdline_switch, env_var, config_file_batch_option):
+        try:
+            scheduler = scheduler.lower()
+        except AttributeError:
+            pass
+
+        if scheduler == 'auto':
+            raise SchedulerNotSpecified
+        elif scheduler in schedulers:
+            logging.info('User-selected scheduler: %s' % scheduler)
+            return scheduler
+        elif scheduler and scheduler not in schedulers:  # a scheduler that does not exist is inputted
+            raise NoSchedulerFound
     else:
-        return None
-
-
-def pick_batch_system():
-    avail_batch_system = auto_get_avail_batch_system()
-    scheduler = options.BATCH_SYSTEM or avail_batch_system or config['scheduler']
-    logging.debug('cmdline switch option scheduler: %s' % options.BATCH_SYSTEM or "None")
-    logging.debug('Autodetected scheduler: %s' % avail_batch_system or "None")
-    if scheduler == 'auto':
-        logging.critical('No suitable scheduler was found. '
-                         'Please define one in a switch or env variable or in %s' % QTOPCONF_YAML)
-        raise (ValueError, 'No suitable scheduler was found.')
-    logging.debug('Selected scheduler is %s' % scheduler)
-    return scheduler
+        raise NoSchedulerFound
 
 
 def execute_shell_batch_commands(batch_system_commands, filenames, _file):
@@ -1367,10 +1390,12 @@ def get_detail_of_name(account_jobs_table):
     return detail_of_name
 
 
-def get_input_filenames():
-
-    parser_extension_mapping = {'txtyaml': 'yaml', 'json': 'json'}
-    extension = parser_extension_mapping[options.write_method]
+def get_input_filenames(INPUT_FNs_commands, extension):
+    """
+    If the user didn't specify --via the -s switch-- a dir where ready-made data files already exist,
+    the appropriate batch commands are executed, as indicated in QTOPCONF,
+    and results are saved with the respective filenames.
+    """
     logging.info('Selected method for storing data structures is: %s' % extension)
 
     filenames = dict()
@@ -1379,17 +1404,24 @@ def get_input_filenames():
         filenames[_file], batch_system_commands[_file] = INPUT_FNs_commands[_file]
 
         if not options.SOURCEDIR:
-            # if user didn't specify a dir where ready-made data files already exist,
-            # execute the appropriate batch commands and fetch results to the respective files
             execute_shell_batch_commands(batch_system_commands, filenames, _file)
-        else:
-            pass
 
+        if not os.path.isfile(filenames[_file]):
+            raise FileNotFound(filenames[_file])
+    return filenames
+
+
+def prepare_output_filepaths(filenames, INPUT_FNs_commands, extension):
+    """
+    The filepaths of the future output files (structures converted to json/yaml) are appended to the filenames dict
+    """
+    for _file in INPUT_FNs_commands:
         filenames[_file + '_out'] = '{filename}_{writemethod}.{ext}'.format(
             filename=INPUT_FNs_commands[_file][0].rsplit('.')[0],
             writemethod=options.write_method,
             ext=extension
         )
+
     return filenames
 
 
@@ -1521,6 +1553,7 @@ def reset_display(h_start, h_stop, v_start, v_stop):  # "R", reset display
     h_stop = config['term_size'][1]
     return h_start, h_stop, v_start, v_stop
 
+
 def quit_program(h_start, h_stop, v_start, v_stop):  # "q", quit
     try:
         raise KeyboardInterrupt
@@ -1545,10 +1578,15 @@ def control_movement(pressed_char_hex, h_start, h_stop, v_start, v_stop):
         '67': scroll_top,  # g
         '72': reset_display,  # r
         '71': quit_program,  # q
-        '0a': lambda a,b,c,d:(a,b,c,d),  # Enter
+        '0a': lambda a,b,c,d: (a,b,c,d),  # Enter, do nothing
     }
-    h_start, h_stop, v_start, v_stop = key_actions[pressed_char_hex](h_start, h_stop, v_start, v_stop)
-    # logging.debug('\n\tv_start: %s\n\tv_stop: %s\n\th_start: %s\n\th_stop: %s' % (v_start, v_stop, h_start, h_stop))
+    try:
+        move_func = key_actions[pressed_char_hex]
+    except KeyError:  # if an unbound keypress is made, do nothing
+        move_func = lambda a, b, c, d: (a, b, c, d)
+
+    h_start, h_stop, v_start, v_stop = move_func(h_start, h_stop, v_start, v_stop)
+
     logging.debug('Area Displayed: (h_start, v_start) --> (h_stop, v_stop) '
                   '\n\t(%(h_start)s, %(v_start)s) --> (%(h_stop)s, %(v_stop)s)' %
                   {'v_start': v_start, 'v_stop': v_stop, 'h_start': h_start, 'h_stop': h_stop})
@@ -1567,6 +1605,42 @@ def safe_exit_with_file_close(handle, name, stdout, delete_file=False):
         add_to_sample(QTOP_LOGFILE, self.config['savepath'])
     sys.exit(0)
 
+
+
+def prepare_files():
+    parser_extension_mapping = {'txtyaml': 'yaml', 'json': 'json'}
+    extension = parser_extension_mapping[options.write_method]
+
+    INPUT_FNs_commands = finalize_filepaths_schedulercommands()
+    in_out_filenames = get_input_filenames(INPUT_FNs_commands, extension)
+    in_out_filenames = prepare_output_filepaths(in_out_filenames, INPUT_FNs_commands, extension)
+
+    return INPUT_FNs_commands, in_out_filenames
+
+
+def get_batch_system(cmdline_switch, env_var, config_file_batch_option):
+    """
+    Qtop first checks in cmdline switches, environmental variables and the config files, in this order,
+    for the scheduler type. If it's not indicated and "auto" is, it will attempt to guess the scheduler type
+    from the scheduler shell commands available in the linux system.
+    """
+    try:
+        scheduler = get_selected_batch_system(cmdline_switch, env_var, config_file_batch_option, config['schedulers'])
+    except SchedulerNotSpecified:  # it now must be auto-detected
+        try:
+            scheduler = auto_get_avail_batch_system()
+        except NoSchedulerFound:
+            raise  # (re-raises NoSchedulerFound)
+        else:
+            logging.debug('Selected scheduler is %s' % scheduler)
+            return scheduler
+    except NoSchedulerFound:
+        raise
+    except InvalidScheduler:
+        logging.critical("Selected scheduler system not supported. Available choices are 'PBS', 'SGE', 'OAR'.")
+        raise
+    else:
+        return scheduler
 
 if __name__ == '__main__':
 
@@ -1589,7 +1663,7 @@ if __name__ == '__main__':
     with raw_mode(sys.stdin):
         try:
             while True:
-                handle, name = get_new_temp_file(prefix='qtop_', suffix='.out')
+                handle, output_fp = get_new_temp_file(prefix='qtop_', suffix='.out')
                 sys.stdout = os.fdopen(handle, 'w')  # redirect everything to file, creates file object out of handle
                 # sys.stdout = open(fout, 'w', -1)  # redirect everything to file
                 transposed_matrices = []
@@ -1622,10 +1696,9 @@ if __name__ == '__main__':
                 logging.debug('Working directory is now: %s' % options.workdir)
                 os.chdir(options.workdir)
 
-                scheduler = pick_batch_system()
+                scheduler = get_batch_system(options.BATCH_SYSTEM, os.environ.get('QTOP_SCHEDULER'), config['scheduler'])
 
-                INPUT_FNs_commands = get_filenames_commands()
-                input_filenames = get_input_filenames()
+                INPUT_FNs_commands, in_out_filenames = prepare_files()
 
                 # reset_yaml_files()  # either that or having a pid appended in the filename
                 if options.SAMPLE >= 1:  # clears any preexisting tar files
@@ -1635,11 +1708,12 @@ if __name__ == '__main__':
                     add_to_sample(os.path.join(realpath(QTOPPATH), QTOPCONF_YAML), savepath)
 
                 if not options.YAML_EXISTS:
-                    convert_to_yaml(scheduler, INPUT_FNs_commands, input_filenames)
+                    convert_to_yaml(scheduler, INPUT_FNs_commands, in_out_filenames)
                     if options.SAMPLE >=1:
-                        [add_to_sample(input_filenames[fn], savepath) for fn in input_filenames if os.path.isfile(input_filenames[fn])]
+                        [add_to_sample(in_out_filenames[fn], savepath) for fn in in_out_filenames
+                         if os.path.isfile(in_out_filenames[fn])]
 
-                yaml_files = get_yaml_files(scheduler, input_filenames)
+                yaml_files = get_yaml_files(scheduler, in_out_filenames)
 
                 worker_nodes = get_worker_nodes(scheduler)(*yaml_files['get_worker_nodes'])
                 job_ids, user_names, job_states, _ = get_jobs_info(scheduler)(*yaml_files['get_jobs_info'])
@@ -1669,16 +1743,16 @@ if __name__ == '__main__':
                 sys.stdout.close()
                 sys.stdout = stdout  # sys.stdout is back to its normal function (i.e. screen output)
 
-                num_lines = sum(1 for line in open(name, 'r')) if not num_lines else num_lines
+                num_lines = sum(1 for line in open(output_fp, 'r')) if not num_lines else num_lines
                 ansi_escape = re.compile(r'\x1b[^m]*m')  # matches ANSI escape characters
-                max_line_len = max(len(ansi_escape.sub('', line.strip())) for line in open(name, 'r')) \
+                max_line_len = max(len(ansi_escape.sub('', line.strip())) for line in open(output_fp, 'r')) \
                     if not max_line_len else max_line_len
 
                 logging.debug('Total nr of lines: %s' % num_lines)
                 logging.debug('Max line length: %s' % max_line_len)
 
                 if not options.WATCH:
-                    cat_command = 'clear;cat %s' % name
+                    cat_command = 'clear;cat %s' % output_fp
                     NOT_FOUND = subprocess.call(cat_command, stdout=stdout, stderr=stdout, shell=True)
                     break
 
@@ -1686,7 +1760,7 @@ if __name__ == '__main__':
                 # justification for implementation:
                 # http://unix.stackexchange.com/questions/47407/cat-line-x-to-line-y-on-a-huge-file
                 line_offset = v_stop - v_start
-                cat_command = 'clear;tail -n+%s %s | head -n%s' % (v_start, name, line_offset)
+                cat_command = 'clear;tail -n+%s %s | head -n%s' % (v_start, output_fp, line_offset)
                 NOT_FOUND = subprocess.call(cat_command, stdout=stdout, stderr=stdout, shell=True)
 
 
@@ -1704,12 +1778,12 @@ if __name__ == '__main__':
                 pressed_char_hex = '%02x' % ord(read_char) # read_char has an initial value that resets the display ('72')
                 h_start, h_stop, v_start, v_stop = control_movement(pressed_char_hex, h_start, h_stop, v_start, v_stop)
                 os.chdir(QTOPPATH)
-                unlink(name)
+                unlink(output_fp)
 
             if options.SAMPLE:
-                add_to_sample(name, config['savepath'])
+                add_to_sample(output_fp, config['savepath'])
         except (KeyboardInterrupt, EOFError):
-            safe_exit_with_file_close(handle, name, stdout)
+            safe_exit_with_file_close(handle, output_fp, stdout)
         else:
             if options.SAMPLE >= 1:
                 add_to_sample(QTOP_LOGFILE, config['savepath'])
