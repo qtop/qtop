@@ -1269,10 +1269,11 @@ def finalize_filepaths_schedulercommands():
     """
     returns a dictionary with contents of the form
     {fn : (filepath, schedulercommand)}, e.g.
-    {'pbsnodes_file': ('/tmp/qtop_results_$USER/pbsnodes_a.txt', 'pbsnodes -a')}
+    {'pbsnodes_file': ('<TMPDIR>/qtop_results_$USER/pbsnodes_a.txt', 'pbsnodes -a')}
     if the -s switch (set sourcedir) has been invoked, or
-    {'pbsnodes_file': ('/tmp/qtop_results_$USER/pbsnodes_a<some_pid>.txt', 'pbsnodes -a')}
+    {'pbsnodes_file': ('<TMPDIR>/qtop_results_$USER/pbsnodes_a<some_pid>.txt', 'pbsnodes -a')}
     if ran without the -s switch.
+    TMPDIR is defined in constants.py
     """
     d = dict()
     # date = time.strftime("%Y%m%d")  #TODO
@@ -1308,7 +1309,14 @@ def get_selected_batch_system(cmdline_switch, env_var, config_file_batch_option,
     If the User has selected a specific batch system,
     through either a cmdline switch, env variable, or config file, pick that system.
     """
+    if cmdline_switch and cmdline_switch.lower() not in ['sge', 'oar', 'pbs']:
+        raise InvalidScheduler
     for scheduler in (cmdline_switch, env_var, config_file_batch_option):
+        try:
+            scheduler = scheduler.lower()
+        except AttributeError:
+            pass
+
         if scheduler == 'auto':
             raise SchedulerNotSpecified
         elif scheduler in schedulers:
@@ -1570,7 +1578,7 @@ def control_movement(pressed_char_hex, h_start, h_stop, v_start, v_stop):
         '67': scroll_top,  # g
         '72': reset_display,  # r
         '71': quit_program,  # q
-        '0a': lambda a,b,c,d:(a,b,c,d),  # Enter, do nothing
+        '0a': lambda a,b,c,d: (a,b,c,d),  # Enter, do nothing
     }
     try:
         move_func = key_actions[pressed_char_hex]
@@ -1604,10 +1612,10 @@ def prepare_files():
     extension = parser_extension_mapping[options.write_method]
 
     INPUT_FNs_commands = finalize_filepaths_schedulercommands()
-    inout_filenames = get_input_filenames(INPUT_FNs_commands, extension)
-    inout_filenames = prepare_output_filepaths(inout_filenames, INPUT_FNs_commands, extension)
+    in_out_filenames = get_input_filenames(INPUT_FNs_commands, extension)
+    in_out_filenames = prepare_output_filepaths(in_out_filenames, INPUT_FNs_commands, extension)
 
-    return INPUT_FNs_commands, inout_filenames
+    return INPUT_FNs_commands, in_out_filenames
 
 
 def get_batch_system(cmdline_switch, env_var, config_file_batch_option):
@@ -1627,6 +1635,9 @@ def get_batch_system(cmdline_switch, env_var, config_file_batch_option):
             logging.debug('Selected scheduler is %s' % scheduler)
             return scheduler
     except NoSchedulerFound:
+        raise
+    except InvalidScheduler:
+        logging.critical("Selected scheduler system not supported. Available choices are 'PBS', 'SGE', 'OAR'.")
         raise
     else:
         return scheduler
@@ -1687,7 +1698,7 @@ if __name__ == '__main__':
 
                 scheduler = get_batch_system(options.BATCH_SYSTEM, os.environ.get('QTOP_SCHEDULER'), config['scheduler'])
 
-                INPUT_FNs_commands, inout_filenames = prepare_files()
+                INPUT_FNs_commands, in_out_filenames = prepare_files()
 
                 # reset_yaml_files()  # either that or having a pid appended in the filename
                 if options.SAMPLE >= 1:  # clears any preexisting tar files
@@ -1697,12 +1708,12 @@ if __name__ == '__main__':
                     add_to_sample(os.path.join(realpath(QTOPPATH), QTOPCONF_YAML), savepath)
 
                 if not options.YAML_EXISTS:
-                    convert_to_yaml(scheduler, INPUT_FNs_commands, inout_filenames)
+                    convert_to_yaml(scheduler, INPUT_FNs_commands, in_out_filenames)
                     if options.SAMPLE >=1:
-                        [add_to_sample(inout_filenames[fn], savepath) for fn in inout_filenames
-                         if os.path.isfile(inout_filenames[fn])]
+                        [add_to_sample(in_out_filenames[fn], savepath) for fn in in_out_filenames
+                         if os.path.isfile(in_out_filenames[fn])]
 
-                yaml_files = get_yaml_files(scheduler, inout_filenames)
+                yaml_files = get_yaml_files(scheduler, in_out_filenames)
 
                 worker_nodes = get_worker_nodes(scheduler)(*yaml_files['get_worker_nodes'])
                 job_ids, user_names, job_states, _ = get_jobs_info(scheduler)(*yaml_files['get_jobs_info'])
