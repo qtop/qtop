@@ -1309,7 +1309,7 @@ def get_selected_batch_system(cmdline_switch, env_var, config_file_batch_option,
     If the User has selected a specific batch system,
     through either a cmdline switch, env variable, or config file, pick that system.
     """
-    if cmdline_switch and cmdline_switch.lower() not in ['sge', 'oar', 'pbs']:
+    if cmdline_switch and cmdline_switch.lower() not in ['sge', 'oar', 'pbs', 'auto']:
         raise InvalidScheduler
     for scheduler in (cmdline_switch, env_var, config_file_batch_option):
         try:
