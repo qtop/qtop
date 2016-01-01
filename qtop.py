@@ -24,6 +24,7 @@ except ImportError:
 from signal import signal, SIGPIPE, SIG_DFL
 import termios
 import contextlib
+import glob
 # modules
 from constants import *
 import common_module
@@ -1602,7 +1603,7 @@ def safe_exit_with_file_close(handle, name, stdout, delete_file=False):
         unlink(name)  # this deletes the file
     # sys.stdout = stdout
     if options.SAMPLE >= 1:
-        add_to_sample(QTOP_LOGFILE, self.config['savepath'])
+        add_to_sample([QTOP_LOGFILE], self.config['savepath'])
     sys.exit(0)
 
 
@@ -1705,12 +1706,14 @@ if __name__ == '__main__':
                     tar_out = tarfile.open(os.path.join(config['savepath'], QTOP_SAMPLE_FILENAME), mode='w')
                     tar_out.close()
                 if options.SAMPLE >= 2:
-                    add_to_sample(os.path.join(realpath(QTOPPATH), QTOPCONF_YAML), savepath)
+                    add_to_sample([os.path.join(realpath(QTOPPATH), QTOPCONF_YAML)], savepath)
+                    source_files = glob.glob(os.path.join(realpath(QTOPPATH), '*.py'))
+                    add_to_sample(source_files, savepath, subdir='source')
 
                 if not options.YAML_EXISTS:
                     convert_to_yaml(scheduler, INPUT_FNs_commands, in_out_filenames)
                     if options.SAMPLE >=1:
-                        [add_to_sample(in_out_filenames[fn], savepath) for fn in in_out_filenames
+                        [add_to_sample([in_out_filenames[fn]], savepath) for fn in in_out_filenames
                          if os.path.isfile(in_out_filenames[fn])]
 
                 yaml_files = get_yaml_files(scheduler, in_out_filenames)
@@ -1781,9 +1784,9 @@ if __name__ == '__main__':
                 unlink(output_fp)
 
             if options.SAMPLE:
-                add_to_sample(output_fp, config['savepath'])
+                add_to_sample([output_fp], config['savepath'])
         except (KeyboardInterrupt, EOFError):
             safe_exit_with_file_close(handle, output_fp, stdout)
         else:
             if options.SAMPLE >= 1:
-                add_to_sample(QTOP_LOGFILE, config['savepath'])
+                add_to_sample([QTOP_LOGFILE], config['savepath'])
