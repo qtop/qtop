@@ -243,11 +243,12 @@ parser.add_option("-m", "--noMasking", action="store_true", dest="NOMASKING", de
                   help="Don't mask early empty WNs (default: if the first 30 WNs are unused, counting starts from 31).")
 parser.add_option("-o", "--option", action="append", dest="OPTION", type="string", default=None,
                   help="Override respective option in QTOPCONF_YAML file")
+parser.add_option("-O", "--onlysavetofile", action="store_true", dest="ONLYSAVETOFILE", default=False,
+                  help="Do not print results to stdout")
 parser.add_option("-r", "--removeemptycorelines", dest="REM_EMPTY_CORELINES", action="store_true", default=False,
                   help="Set the method used for dumping information, json, yaml, or native python (yaml format)")
 parser.add_option("-s", "--SetSourceDir", dest="SOURCEDIR",
                   help="Set the source directory where pbsnodes and qstat reside")
-parser.add_option("-S", "--savetofile", action="store_true", dest="SAVETOFILE", default=False)
 parser.add_option("-T", "--Transpose", dest="TRANSPOSE", action="store_true", default=False,
                   help="mimic shell's watch behaviour")
 parser.add_option("-v", "--verbose", dest="verbose", action="count",

@@ -45,7 +45,7 @@ def raw_mode(file):
     Taken from http://stackoverflow.com/questions/11918999/key-listeners-in-python/11919074#11919074
     Exits program with ^C or ^D
     """
-    if options.SAVETOFILE:
+    if options.ONLYSAVETOFILE:
         yield
     else:
         try:
@@ -1755,6 +1755,8 @@ if __name__ == '__main__':
                 logging.debug('Max line length: %s' % max_line_len)
 
                 if not options.WATCH:
+                    if options.ONLYSAVETOFILE:
+                        break
                     cat_command = 'clear;cat %s' % output_fp
                     NOT_FOUND = subprocess.call(cat_command, stdout=stdout, stderr=stdout, shell=True)
                     break
