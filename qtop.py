@@ -1619,7 +1619,7 @@ def prepare_files():
     return INPUT_FNs_commands, in_out_filenames
 
 
-def get_batch_system(cmdline_switch, env_var, config_file_batch_option):
+def decide_batch_system(cmdline_switch, env_var, config_file_batch_option):
     """
     Qtop first checks in cmdline switches, environmental variables and the config files, in this order,
     for the scheduler type. If it's not indicated and "auto" is, it will attempt to guess the scheduler type
@@ -1642,6 +1642,7 @@ def get_batch_system(cmdline_switch, env_var, config_file_batch_option):
         raise
     else:
         return scheduler
+
 
 if __name__ == '__main__':
 
@@ -1697,7 +1698,7 @@ if __name__ == '__main__':
                 logging.debug('Working directory is now: %s' % options.workdir)
                 os.chdir(options.workdir)
 
-                scheduler = get_batch_system(options.BATCH_SYSTEM, os.environ.get('QTOP_SCHEDULER'), config['scheduler'])
+                scheduler = decide_batch_system(options.BATCH_SYSTEM, os.environ.get('QTOP_SCHEDULER'), config['scheduler'])
 
                 INPUT_FNs_commands, in_out_filenames = prepare_files()
 
