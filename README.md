@@ -1,10 +1,19 @@
+
+# qtop.py [![Build Status](https://travis-ci.org/lookfwd/qtop.svg?branch=master)](https://travis-ci.org/lookfwd/qtop)
+
+## Description
+
+The command-line tool to tame queueing or scheduling systems and some more
+
+## License
+
+## Version
+
+## Homepage
 ----------------------------------------------------------------------------------------
 
-[![Build Status](https://travis-ci.org/lookfwd/qtop.svg?branch=master)](https://travis-ci.org/lookfwd/qtop)
-
-Name: qtop.py
-Description: The command-line tool to tame queueing or scheduling systems and some more
-License: MIT/GPL
+: 
+License: 
 Version: 0.8.5 / Date: December 12, 2015
 Homepage: https://github.com/qtop/qtop
 
