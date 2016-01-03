@@ -1,4 +1,7 @@
 ========================================================================================
+
+[![Build Status](https://travis-ci.org/lookfwd/qtop.svg?branch=master)](https://travis-ci.org/lookfwd/qtop)
+
 Name: qtop.py
 Description: The command-line tool to tame queueing or scheduling systems and some more
 License: MIT/GPL
