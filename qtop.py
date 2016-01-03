@@ -1224,12 +1224,36 @@ def exec_func_tuples(func_tuples):
         yield ffunc(*args, **kwargs)
 
 
-def get_worker_nodes(scheduler):
-    d = {}
-    d['pbs'] = plugin_pbs._get_worker_nodes
-    d['oar'] = plugin_oar._get_worker_nodes
-    d['sge'] = plugin_sge._get_worker_nodes
-    return d[scheduler]
+class PbsBatchSystem(object):
+    def __init__(self, config_file):
+        # See get_yaml_files()
+        self._get_worker_nodes = in_out_filenames.get('pbsnodes_file_out')
+        self._get_jobs_info = in_out_filenames.get('qstat_file_out')
+        self._get_queues_info = in_out_filenames.get('qstatq_file_out')
+
+    def get_worker_nodes(self):
+        return plugin_pbs._get_worker_nodes(self._get_worker_nodes)
+
+class OarBatchSystem(object):
+    def __init__(self, in_out_filenames):
+        # See get_yaml_files()
+        self._get_worker_nodes_s = in_out_filenames.get('oarnodes_s_file')
+        self._get_worker_nodes_y = in_out_filenames.get('oarnodes_y_file')
+        self._get_jobs_info = in_out_filenames.get('oarstat_file_out')
+        self._get_queues_info = in_out_filenames.get('oarstat_file')
+
+    def get_worker_nodes(self):
+        return plugin_oar._get_worker_nodes(self._get_worker_nodes_s, self._get_worker_nodes_y)
+
+class SgeBatchSystem(object):
+    def __init__(self, in_out_filenames):
+        # See get_yaml_files()
+        self._get_worker_nodes = in_out_filenames.get('sge_file_stat')
+        self._get_jobs_info = SGEStatMaker.temp_filepath
+        self._get_queues_info = in_out_filenames.get('sge_file_stat')
+
+    def get_worker_nodes(self):
+        return plugin_sge._get_worker_nodes(self._get_worker_nodes)
 
 
 def get_queues_info(scheduler):
@@ -1713,9 +1737,17 @@ if __name__ == '__main__':
                         [add_to_sample(in_out_filenames[fn], savepath) for fn in in_out_filenames
                          if os.path.isfile(in_out_filenames[fn])]
 
+                if scheduler == "pbs":
+                    scheduling_system = PbsBatchSystem(in_out_filenames)
+                elif scheduler == "oar":
+                    scheduling_system = OarBatchSystem(in_out_filenames)
+                elif scheduler == "sge":
+                    scheduling_system = SgeBatchSystem(in_out_filenames)
+
+                worker_nodes = scheduling_system.get_worker_nodes()
+
                 yaml_files = get_yaml_files(scheduler, in_out_filenames)
 
-                worker_nodes = get_worker_nodes(scheduler)(*yaml_files['get_worker_nodes'])
                 job_ids, user_names, job_states, _ = get_jobs_info(scheduler)(*yaml_files['get_jobs_info'])
                 total_running_jobs, total_queued_jobs, qstatq_lod = get_queues_info(scheduler)(*yaml_files['get_queues_info'])
                 deprecate_old_yaml_files(*yaml_files['get_jobs_info'])
