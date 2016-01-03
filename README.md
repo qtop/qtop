@@ -1,4 +1,4 @@
-========================================================================================
+----------------------------------------------------------------------------------------
 
 [![Build Status](https://travis-ci.org/lookfwd/qtop.svg?branch=master)](https://travis-ci.org/lookfwd/qtop)
 
@@ -20,4 +20,4 @@ We hope to build an active open source community that drives the future of this 
 both by providing feedback and by actively contributing to the source code.
 
 This program is currently in development mode, with experimental features. If it works, peace :)
-========================================================================================
+----------------------------------------------------------------------------------------
