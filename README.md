@@ -1,6 +1,6 @@
 # qtop.py [![Build Status](https://travis-ci.org/lookfwd/qtop.svg?branch=master)](https://travis-ci.org/lookfwd/qtop)
 
-Ported in Python by Sotiris Fragkiskos / Original bash version created by Fotis Georgatos
+Ported in Python by Sotiris Fragkiskos / Original bash version by Fotis Georgatos
 
 ## Summary
 qtop.py is the python rewrite of qtop, a tool to monitor Torque, PBS, OAR or SGE clusters, etc.
