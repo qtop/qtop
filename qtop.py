@@ -1224,36 +1224,59 @@ def exec_func_tuples(func_tuples):
         yield ffunc(*args, **kwargs)
 
 
-class PbsBatchSystem(object):
+class PBSBatchSystem(object):
     def __init__(self, config_file):
-        # See get_yaml_files()
-        self._get_worker_nodes = in_out_filenames.get('pbsnodes_file_out')
-        self._get_jobs_info = in_out_filenames.get('qstat_file_out')
-        self._get_queues_info = in_out_filenames.get('qstatq_file_out')
+        self.pbsnodes_file_out = in_out_filenames.get('pbsnodes_file_out')
+        self.qstat_file_out = in_out_filenames.get('qstat_file_out')
+        self.qstatq_file_out = in_out_filenames.get('qstatq_file_out')
 
     def get_worker_nodes(self):
-        return plugin_pbs._get_worker_nodes(self._get_worker_nodes)
+        return plugin_pbs._get_worker_nodes(self.pbsnodes_file_out)
 
-class OarBatchSystem(object):
+    def get_jobs_info(self):
+        return common_module.get_jobs_info(self.qstat_file_out)
+
+    def get_queues_info(self):
+        return plugin_pbs._read_qstatq_yaml(self.qstatq_file_out)
+
+
+class OARBatchSystem(object):
     def __init__(self, in_out_filenames):
-        # See get_yaml_files()
-        self._get_worker_nodes_s = in_out_filenames.get('oarnodes_s_file')
-        self._get_worker_nodes_y = in_out_filenames.get('oarnodes_y_file')
-        self._get_jobs_info = in_out_filenames.get('oarstat_file_out')
-        self._get_queues_info = in_out_filenames.get('oarstat_file')
+        self.oarnodes_s_file = in_out_filenames.get('oarnodes_s_file')
+        self.oarnodes_y_file = in_out_filenames.get('oarnodes_y_file')
+        self.oarstat_file_out = in_out_filenames.get('oarstat_file_out')
+        self.oarstat_file = in_out_filenames.get('oarstat_file')
 
     def get_worker_nodes(self):
-        return plugin_oar._get_worker_nodes(self._get_worker_nodes_s, self._get_worker_nodes_y)
+        return plugin_oar._get_worker_nodes(self.oarnodes_s_file, self.oarnodes_y_file)
 
-class SgeBatchSystem(object):
+    def get_jobs_info(self):
+        return common_module.get_jobs_info(self.oarstat_file_out)
+
+    def get_queues_info(self):
+        """
+        OAR does not provide this info.
+        """
+        total_running_jobs = 0
+        total_queued_jobs = 0
+        qstatq_lod = []
+        return (total_running_jobs, total_queued_jobs, qstatq_lod)
+
+
+class SGEBatchSystem(object):
     def __init__(self, in_out_filenames):
-        # See get_yaml_files()
-        self._get_worker_nodes = in_out_filenames.get('sge_file_stat')
-        self._get_jobs_info = SGEStatMaker.temp_filepath
-        self._get_queues_info = in_out_filenames.get('sge_file_stat')
+        self.sge_file_stat = in_out_filenames.get('sge_file_stat')
+        self.temp_filepath = SGEStatMaker.temp_filepath
+        # self.sge_file_stat = in_out_filenames.get('sge_file_stat')
 
     def get_worker_nodes(self):
-        return plugin_sge._get_worker_nodes(self._get_worker_nodes)
+        return plugin_sge._get_worker_nodes(self.sge_file_stat)
+
+    def get_jobs_info(self):
+        return common_module.get_jobs_info(self.temp_filepath)
+
+    def get_queues_info(self):
+        return plugin_sge._get_statq_from_xml(self.sge_file_stat)
 
 
 def get_queues_info(scheduler):
@@ -1266,27 +1289,6 @@ def get_queues_info(scheduler):
 
 def get_jobs_info(scheduler):
     return common_module.get_jobs_info
-
-
-def get_yaml_files(scheduler, filenames):
-    SGEStatMaker.temp_filepath = None if scheduler != 'sge' else SGEStatMaker.temp_filepath
-    args = {}
-    args['pbs'] = {
-        'get_worker_nodes': [filenames.get('pbsnodes_file_out')],
-        'get_jobs_info': [filenames.get('qstat_file_out')],
-        'get_queues_info': [filenames.get('qstatq_file_out')]
-    }
-    args['oar'] = {
-        'get_worker_nodes': [filenames.get('oarnodes_s_file'), filenames.get('oarnodes_y_file')],
-        'get_jobs_info': [filenames.get('oarstat_file_out')],
-        'get_queues_info': [filenames.get('oarstat_file')],
-    }
-    args['sge'] = {
-        'get_worker_nodes': [filenames.get('sge_file_stat')],
-        'get_jobs_info': [SGEStatMaker.temp_filepath],
-        'get_queues_info': [filenames.get('sge_file_stat')],
-    }
-    return args[scheduler]
 
 
 def finalize_filepaths_schedulercommands():
@@ -1463,7 +1465,7 @@ def check_python_version():
         sys.exit(1)
 
 
-def deprecate_old_yaml_files(filepath):
+def deprecate_old_yaml_files():
     """
     deletes older yaml files in savepath directory.
     experimental and loosely untested
@@ -1738,19 +1740,18 @@ if __name__ == '__main__':
                          if os.path.isfile(in_out_filenames[fn])]
 
                 if scheduler == "pbs":
-                    scheduling_system = PbsBatchSystem(in_out_filenames)
+                    scheduling_system = PBSBatchSystem(in_out_filenames)
                 elif scheduler == "oar":
-                    scheduling_system = OarBatchSystem(in_out_filenames)
+                    scheduling_system = OARBatchSystem(in_out_filenames)
                 elif scheduler == "sge":
-                    scheduling_system = SgeBatchSystem(in_out_filenames)
+                    scheduling_system = SGEBatchSystem(in_out_filenames)
 
                 worker_nodes = scheduling_system.get_worker_nodes()
+                job_ids, user_names, job_states, _ = scheduling_system.get_jobs_info()
+                total_running_jobs, total_queued_jobs, qstatq_lod = scheduling_system.get_queues_info()
 
-                yaml_files = get_yaml_files(scheduler, in_out_filenames)
+                deprecate_old_yaml_files()
 
-                job_ids, user_names, job_states, _ = get_jobs_info(scheduler)(*yaml_files['get_jobs_info'])
-                total_running_jobs, total_queued_jobs, qstatq_lod = get_queues_info(scheduler)(*yaml_files['get_queues_info'])
-                deprecate_old_yaml_files(*yaml_files['get_jobs_info'])
                 #  MAIN ##################################
                 logging.info('CALCULATION AREA')
                 cluster_dict, NAMED_WNS = calculate_cluster(worker_nodes)
