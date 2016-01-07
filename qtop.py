@@ -1723,12 +1723,6 @@ if __name__ == '__main__':
                 if options.SAMPLE >= 2:
                     add_to_sample(os.path.join(realpath(QTOPPATH), QTOPCONF_YAML), savepath)
 
-                # if not options.YAML_EXISTS:
-                #     convert_to_yaml(scheduler, INPUT_FNs_commands, in_out_filenames)
-                #     if options.SAMPLE >=1:
-                #         [add_to_sample(in_out_filenames[fn], savepath) for fn in in_out_filenames
-                #          if os.path.isfile(in_out_filenames[fn])]
-
                 if scheduler == "pbs":
                     scheduling_system = PBSBatchSystem(in_out_filenames)
                 elif scheduler == "oar":
