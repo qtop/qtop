@@ -243,11 +243,12 @@ parser.add_option("-m", "--noMasking", action="store_true", dest="NOMASKING", de
                   help="Don't mask early empty WNs (default: if the first 30 WNs are unused, counting starts from 31).")
 parser.add_option("-o", "--option", action="append", dest="OPTION", type="string", default=None,
                   help="Override respective option in QTOPCONF_YAML file")
+parser.add_option("-O", "--onlysavetofile", action="store_true", dest="ONLYSAVETOFILE", default=False,
+                  help="Do not print results to stdout")
 parser.add_option("-r", "--removeemptycorelines", dest="REM_EMPTY_CORELINES", action="store_true", default=False,
                   help="Set the method used for dumping information, json, yaml, or native python (yaml format)")
 parser.add_option("-s", "--SetSourceDir", dest="SOURCEDIR",
                   help="Set the source directory where pbsnodes and qstat reside")
-parser.add_option("-S", "--savetofile", action="store_true", dest="SAVETOFILE", default=False)
 parser.add_option("-T", "--Transpose", dest="TRANSPOSE", action="store_true", default=False,
                   help="mimic shell's watch behaviour")
 parser.add_option("-v", "--verbose", dest="verbose", action="count",
@@ -393,16 +394,19 @@ def anonymize_func():
     return _anonymize_func
 
 
-def add_to_sample(filepath_to_add, savepath, sample_file=QTOP_SAMPLE_FILENAME, sample_method=tarfile):
+def add_to_sample(filepaths_to_add, savepath, sample_file=QTOP_SAMPLE_FILENAME, sample_method=tarfile, subdir=None):
     """
-    opens sample_file in path savepath and adds file filepath_to_add
+    opens sample_file in path savepath and adds files filepaths_to_add
     """
     sample_out = sample_method.open(os.path.join(savepath, sample_file), mode='a')
-    path, fn = filepath_to_add.rsplit('/', 1)
-    try:
-        logging.debug('Adding %s to sample...' % filepath_to_add)
-        sample_out.add(filepath_to_add, arcname=fn)
-    finally:
+    for filepath_to_add in filepaths_to_add:
+        path, fn = filepath_to_add.rsplit('/', 1)
+        try:
+            logging.debug('Adding %s to sample...' % filepath_to_add)
+            sample_out.add(filepath_to_add, arcname=fn if not subdir else os.path.join(subdir,fn))
+        except tarfile.TarError:  # TODO: test what could go wrong here
+            logging.error('There seems to be something wrong with the tarfile. Skipping...')
+    else:
         logging.debug('Closing sample...')
         sample_out.close()
 

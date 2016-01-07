@@ -24,6 +24,7 @@ except ImportError:
 from signal import signal, SIGPIPE, SIG_DFL
 import termios
 import contextlib
+import glob
 # modules
 from constants import *
 import common_module
@@ -44,7 +45,7 @@ def raw_mode(file):
     Taken from http://stackoverflow.com/questions/11918999/key-listeners-in-python/11919074#11919074
     Exits program with ^C or ^D
     """
-    if options.SAVETOFILE:
+    if options.ONLYSAVETOFILE:
         yield
     else:
         try:
@@ -1618,7 +1619,7 @@ def safe_exit_with_file_close(handle, name, stdout, delete_file=False):
         unlink(name)  # this deletes the file
     # sys.stdout = stdout
     if options.SAMPLE >= 1:
-        add_to_sample(QTOP_LOGFILE, self.config['savepath'])
+        add_to_sample([QTOP_LOGFILE], self.config['savepath'])
     sys.exit(0)
 
 
@@ -1634,7 +1635,7 @@ def prepare_files():
     return INPUT_FNs_commands, in_out_filenames
 
 
-def get_batch_system(cmdline_switch, env_var, config_file_batch_option):
+def decide_batch_system(cmdline_switch, env_var, config_file_batch_option):
     """
     Qtop first checks in cmdline switches, environmental variables and the config files, in this order,
     for the scheduler type. If it's not indicated and "auto" is, it will attempt to guess the scheduler type
@@ -1712,7 +1713,7 @@ if __name__ == '__main__':
                 logging.debug('Working directory is now: %s' % options.workdir)
                 os.chdir(options.workdir)
 
-                scheduler = get_batch_system(options.BATCH_SYSTEM, os.environ.get('QTOP_SCHEDULER'), config['scheduler'])
+                scheduler = decide_batch_system(options.BATCH_SYSTEM, os.environ.get('QTOP_SCHEDULER'), config['scheduler'])
 
                 INPUT_FNs_commands, in_out_filenames = prepare_files()
 
@@ -1721,7 +1722,9 @@ if __name__ == '__main__':
                     tar_out = tarfile.open(os.path.join(config['savepath'], QTOP_SAMPLE_FILENAME), mode='w')
                     tar_out.close()
                 if options.SAMPLE >= 2:
-                    add_to_sample(os.path.join(realpath(QTOPPATH), QTOPCONF_YAML), savepath)
+                    add_to_sample([os.path.join(realpath(QTOPPATH), QTOPCONF_YAML)], savepath)
+                    source_files = glob.glob(os.path.join(realpath(QTOPPATH), '*.py'))
+                    add_to_sample(source_files, savepath, subdir='source')
 
                 if scheduler == "pbs":
                     scheduling_system = PBSBatchSystem(in_out_filenames)
@@ -1775,6 +1778,8 @@ if __name__ == '__main__':
                 logging.debug('Max line length: %s' % max_line_len)
 
                 if not options.WATCH:
+                    if options.ONLYSAVETOFILE:
+                        break
                     cat_command = 'clear;cat %s' % output_fp
                     NOT_FOUND = subprocess.call(cat_command, stdout=stdout, stderr=stdout, shell=True)
                     break
@@ -1804,9 +1809,9 @@ if __name__ == '__main__':
                 unlink(output_fp)
 
             if options.SAMPLE:
-                add_to_sample(output_fp, config['savepath'])
+                add_to_sample([output_fp], config['savepath'])
         except (KeyboardInterrupt, EOFError):
             safe_exit_with_file_close(handle, output_fp, stdout)
         else:
             if options.SAMPLE >= 1:
-                add_to_sample(QTOP_LOGFILE, config['savepath'])
+                add_to_sample([QTOP_LOGFILE], config['savepath'])
