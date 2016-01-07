@@ -1279,18 +1279,6 @@ class SGEBatchSystem(object):
         return plugin_sge._get_statq_from_xml(self.sge_file_stat)
 
 
-def get_queues_info(scheduler):
-    d = {}
-    d['pbs'] = plugin_pbs._read_qstatq_yaml
-    d['oar'] = lambda *args, **kwargs: (0, 0, [])
-    d['sge'] = plugin_sge._get_statq_from_xml
-    return d[scheduler]
-
-
-def get_jobs_info(scheduler):
-    return common_module.get_jobs_info
-
-
 def finalize_filepaths_schedulercommands():
     """
     returns a dictionary with contents of the form
