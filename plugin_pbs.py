@@ -36,7 +36,7 @@ def _get_worker_nodes(fn, write_method=options.write_method):
     return worker_nodes
 
 
-def convert_pbsnodes_to_yaml(orig_file, out_file, write_method):
+def convert_pbsnodes_to_yaml(orig_file, out_file, write_method=options.write_method):
     """
     reads PBSNODES_ORIG_FN sequentially and puts its information into a new yaml file
     """
