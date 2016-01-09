@@ -1198,40 +1198,6 @@ def exec_func_tuples(func_tuples):
         yield ffunc(*args, **kwargs)
 
 
-
-
-
-class OARBatchSystem(object):
-    def __init__(self, in_out_filenames, config):
-        self.oarnodes_s_file = in_out_filenames.get('oarnodes_s_file')
-        self.oarnodes_y_file = in_out_filenames.get('oarnodes_y_file')
-        self.oarstat_file_out = in_out_filenames.get('oarstat_file_out')
-        self.oarstat_file = in_out_filenames.get('oarstat_file')
-
-        self.config = config
-
-    def get_worker_nodes(self):
-        return plugin_oar._get_worker_nodes(self.oarnodes_s_file, self.oarnodes_y_file)
-
-    def get_jobs_info(self):
-        return common_module.get_jobs_info(self.oarstat_file_out)
-
-    def get_queues_info(self):
-        """
-        OAR does not provide this info.
-        """
-        total_running_jobs = 0
-        total_queued_jobs = 0
-        qstatq_lod = []
-        return (total_running_jobs, total_queued_jobs, qstatq_lod)
-
-    def convert_inputs(self):
-        return self._serialise_qstat()
-
-    def _serialise_qstat(self):
-        return OarStatMaker(config).serialise_qstat(self.oarstat_file, self.oarstat_file_out, options.write_method)
-
-
 def finalize_filepaths_schedulercommands():
     """
     returns a dictionary with contents of the form
