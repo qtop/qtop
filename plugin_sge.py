@@ -172,8 +172,6 @@ class SGEStatMaker(StatMaker):
         dumps the content of qstat/qstat_q files in the selected write_method format
         fd here is already a file descriptor
         """
-        # prefix, suffix  = out_file.split('.')
-        # out_file = get_new_temp_file(prefix=prefix, suffix=suffix)
         out_file = os.fdopen(fd, 'w')
         try:
             logging.debug('File state: %s' % out_file)
@@ -181,8 +179,6 @@ class SGEStatMaker(StatMaker):
             write_func(out_file, **kwargs)
         finally:
             out_file.close()
-        # if options.SAMPLE >= 1:
-        #     add_to_sample(SGEStatMaker.temp_filepath, self.config['savepath'])
 
     def __repr__(self):
         return 'SGEStatMaker Instance'

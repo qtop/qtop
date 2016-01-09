@@ -326,8 +326,9 @@ sys.excepthook = handle_exception
 
 def get_jobs_info(fn, write_method=options.write_method):
     """
-    reads qstat YAML file and populates four lists. Returns the lists
+    reads qstat YAML/json file and populates four lists. Returns the lists
     ex read_qstat_yaml
+    Common for PBS, OAR, SGE
     """
     job_ids, usernames, job_states, queue_names = [], [], [], []
 
