@@ -12,9 +12,6 @@ from common_module import logging, check_empty_file, options, anonymize_func, ad
 import common_module
 
 
-# def get_queues_info(fn, write_method):
-#     return read_qstatq_yaml(fn_write_method)
-
 class PBSBatchSystem(object):
     def __init__(self, in_out_filenames, config):
         self.pbsnodes_file = in_out_filenames.get('pbsnodes_file')
@@ -26,6 +23,11 @@ class PBSBatchSystem(object):
 
         self.config = config
 
+    def convert_inputs(self):
+        self._serialise_pbs_input(self.pbsnodes_file, self.pbsnodes_file_out)
+        self._serialise_qstatq(self.qstatq_file, self.qstatq_file_out)
+        self._serialise_qstat(self.qstat_file, self.qstat_file_out)
+
     def get_worker_nodes(self):
         return self._read_serialised_pbsnodes(self.pbsnodes_file_out)
 
@@ -35,19 +37,23 @@ class PBSBatchSystem(object):
     def get_queues_info(self):
         return self._read_serialised_qstatq(self.qstatq_file_out)
 
-    def convert_inputs(self):
-        self._serialise_pbs_input()
-        self._serialise_qstatq()
-        self._serialise_qstat()
+    def _serialise_pbs_input(self, orig_file, out_file, write_method=options.write_method):
+        """
+        reads PBSNODES_ORIG_FN sequentially and puts its information into a new yaml file
+        """
+        all_pbs_values = self._get_pbsnodes_values(orig_file, out_file)
 
-    def _serialise_pbs_input(self):
-        return self.serialize_pbsnodes_data(self.pbsnodes_file, self.pbsnodes_file_out)
+        with open(out_file, 'w') as fout:
+            if write_method == 'txtyaml':
+                self._pbsnodes_write_lines(all_pbs_values, fout)
+            elif write_method == 'json':
+                json.dump(all_pbs_values, fout)
 
-    def _serialise_qstatq(self):
-        return QStatMaker(self.config).convert_qstatq_to_yaml(self.qstatq_file, self.qstatq_file_out, options.write_method)
+    def _serialise_qstatq(self, qstatq_file, qstatq_file_out, write_method=options.write_method):
+        return QStatMaker(self.config).convert_qstatq_to_yaml(qstatq_file, qstatq_file_out, write_method)
 
-    def _serialise_qstat(self):
-        return QStatMaker(self.config).convert_qstat_to_yaml(self.qstat_file, self.qstat_file_out, options.write_method)
+    def _serialise_qstat(self, qstat_file, qstat_file_out, write_method=options.write_method):
+        return QStatMaker(self.config).convert_qstat_to_yaml(qstat_file, qstat_file_out, write_method)
 
     @staticmethod
     def _read_serialised_pbsnodes(fn, write_method=options.write_method):
@@ -66,7 +72,8 @@ class PBSBatchSystem(object):
         # this doesn't seem to be the case anymore, DONT KNOW WHY!!
         return pbs_nodes
 
-    def _read_serialised_qstatq(self, fn, write_method=options.write_method):
+    @staticmethod
+    def _read_serialised_qstatq( fn, write_method=options.write_method):
         """
         Parses the generated qstatq yaml/json file and extracts
         the information necessary for building the
@@ -81,18 +88,6 @@ class PBSBatchSystem(object):
             total = qstatq_list.pop()
             total_running_jobs, total_queued_jobs = total['Total_running'], total['Total_queued']
         return int(eval(total_running_jobs)), int(eval(total_queued_jobs)), qstatq_list
-
-    def serialize_pbsnodes_data(self, orig_file, out_file, write_method=options.write_method):
-        """
-        reads PBSNODES_ORIG_FN sequentially and puts its information into a new yaml file
-        """
-        all_pbs_values = self._get_pbsnodes_values(orig_file, out_file)
-
-        with open(out_file, 'w') as fout:
-            if write_method == 'txtyaml':
-                self._pbsnodes_write_lines(all_pbs_values, fout)
-            elif write_method == 'json':
-                json.dump(all_pbs_values, fout)
 
     def _get_pbsnodes_values(self, orig_file, out_file):
         check_empty_file(orig_file)
