@@ -125,7 +125,7 @@ class QStatMaker(StatMaker):
                                    r'(?:\d+)\s+' \
                                    r'(?:\w*)'
 
-    def convert_qstat_to_yaml(self, orig_file, out_file, write_method):
+    def serialise_qstat(self, orig_file, out_file, write_method):
         check_empty_file(orig_file)
         with open(orig_file, 'r') as fin:
             _ = fin.readline()  # header
@@ -147,9 +147,10 @@ class QStatMaker(StatMaker):
                 for line in fin:
                     qstat_values = self.process_line(re_search, line, re_match_positions)
                     self.l.append(qstat_values)
+
         self.dump_all(out_file, self.stat_mapping[write_method])  # self.l,
 
-    def convert_qstatq_to_yaml(self, orig_file, out_file, write_method):
+    def serialise_qstatq(self, orig_file, out_file, write_method):
         """
         reads QSTATQ_ORIG_FN sequentially and puts useful data in respective yaml file
         Searches for lines in the following format:
@@ -197,6 +198,7 @@ class QStatMaker(StatMaker):
                         temp_dict[key] = value
                     self.l.append(temp_dict)
             self.l.append({'Total_running': total_running_jobs, 'Total_queued': total_queued_jobs})
+
         self.dump_all(out_file, self.statq_mapping[write_method])
 
     def process_line(self, re_search, line, re_match_positions):

@@ -3,12 +3,9 @@ import tarfile
 import os
 from xml.etree import ElementTree as etree
 from common_module import logging, check_empty_file, StatMaker, get_new_temp_file, options, anonymize_func, report, add_to_sample
+import common_module
 from constants import *
 
-
-def _get_worker_nodes(fn, write_method=options.write_method):
-    worker_nodes = _calc_everything(fn, write_method)
-    return worker_nodes
 
 def extract_job_info(elem, elem_text):
     """
@@ -22,92 +19,11 @@ def extract_job_info(elem, elem_text):
     return job_ids, usernames, job_states
 
 
-def _get_statq_from_xml(fn, write_method=options.write_method):
-    logging.debug("Parsing tree of %s" % fn)
-    check_empty_file(fn)
-    anonymize = anonymize_func()
-    with open(fn, mode='rb') as fin:
-        try:
-            tree = etree.parse(fin)
-        except etree.ParseError:
-            logging.critical("Something happened during the parsing of the XML file. Exiting...")
-        except:
-            logging.debug("XML file state %s" % fin)
-            logging.debug("thinking...")
-            import sys
-            sys.exit(1)
-
-        root = tree.getroot()
-        qstatq_list = []
-        # for queue_elem in root.iter('Queue-List'):  # python 2.7-only
-        for queue_elem in root.findall('queue_info/Queue-List'):
-            # queue_name = queue_elem.find('./resource[@name="qname"]').text  # python 2.7-only
-            queue_names = queue_elem.findall('resource')
-            for _queue_name in queue_names:
-                if _queue_name.attrib.get('name') == 'qname':
-                    queue_name = _queue_name.text if not options.ANONYMIZE else anonymize(_queue_name.text, 'qs')
-                    break
-            else:
-                raise ValueError("No such resource")
-            FOUND = False
-            for exist_d in qstatq_list:
-                if queue_name == exist_d['queue_name']:
-                    # exist_d['run'] += len(queue_elem.findall('./job_list[@state="running"]'))  # python 2.7 only
-                    jobs = queue_elem.findall('job_list')
-                    run_count = 0
-                    for _run in jobs:
-                        if _run.attrib.get('state') == 'running':
-                            run_count += 1
-                    exist_d['run'] += run_count
-                    FOUND = True
-                    break
-            if FOUND:
-                continue
-
-            d = dict()
-            d['queue_name'] = queue_name
-            try:
-                d['state'] = queue_elem.find('./state').text
-            except AttributeError:
-                d['state'] = '?'
-            except:
-                raise
-            # d['run'] = len(queue_elem.findall('./job_list[@state="running"]'))  # python 2.7 only
-            job_lists = queue_elem.findall('job_list')
-            run_count = 0
-            for _run in job_lists:
-                if _run.attrib.get('state') == 'running':
-                    run_count += 1
-            d['run'] = run_count
-            d['lm'] = 0
-            d['queued'] = 0
-            qstatq_list.append(d)
-
-        total_running_jobs = str(sum([d['run'] for d in qstatq_list]))
-        logging.info('Total running jobs found: %s' % total_running_jobs)
-        for d in qstatq_list:
-            d['run'] = str(d['run'])
-            d['queued'] = str(d['queued'])
-        # total_queued_jobs = str(len(root.findall('.//job_list[@state="pending"]')))  # python 2.7 only
-        total_queued_jobs_elems = root.findall('job_info/job_list')
-        pending_count = 0
-        for job in total_queued_jobs_elems:
-            if job.attrib.get('state') == 'pending':
-                pending_count += 1
-        total_queued_jobs = str(pending_count)
-        logging.info('Total queued jobs found: %s' % total_queued_jobs)
-        qstatq_list.append({'run': '0', 'queued': total_queued_jobs, 'queue_name': 'Pending', 'state': 'Q', 'lm': '0'})
-        logging.debug('qstatq_list contains %s elements' % len(qstatq_list))
-        # TODO: check validity. 'state' shouldnt just be 'Q'!
-    logging.debug("Closing %s" % fn)
-    return total_running_jobs, total_queued_jobs, qstatq_list
-
-
 class SGEStatMaker(StatMaker):
     def __init__(self, config):
         StatMaker.__init__(self, config)
 
-    def convert_qstat_to_yaml(self, orig_file, out_file, write_method):
+    def serialise_qstat(self, orig_file, out_file, write_method):
         out_file = out_file.rsplit('/', 1)[1]
         try:
             tree = etree.parse(orig_file)
@@ -121,13 +37,11 @@ class SGEStatMaker(StatMaker):
             raise
         else:
             root = tree.getroot()
-        # for queue_elem in root.iter('Queue-List'):  # 2.7 only
+
         for queue_elem in root.findall('queue_info/Queue-List'):
-            # queue_name = queue_elem.find('./resource[@name="qname"]').text  # 2.7 only
             queue_name_elems = queue_elem.findall('resource')
             for queue_name_elem in queue_name_elems:
                 if queue_name_elem.attrib.get('name') == 'qname':
-                    # import wdb; wdb.set_trace()
                     queue_name_elem.text = queue_name_elem.text if not options.ANONYMIZE else self.anonymize(queue_name_elem.text, 'qs')
                     break
             else:
@@ -184,78 +98,183 @@ class SGEStatMaker(StatMaker):
         return 'SGEStatMaker Instance'
 
 
-def _calc_everything(fn, write_method):
-    logging.debug('Parsing tree of %s' % fn)
-    anonymize = anonymize_func()
-    with open(fn, 'rb') as fin:
-        tree = etree.parse(fin)
-        root = tree.getroot()
-        worker_nodes = list()
-        existing_node_names = set()
-        # for queue_elem in root.iter('Queue-List'):  # 2.7-only
-        for queue_elem in root.findall('queue_info/Queue-List'):
-            worker_node = dict()
-            # worker_node['domainname'] = queue_elem.find('./resource[@name="hostname"]').text.split('.', 1)[0]  # 2.7 only
-            resources = queue_elem.findall('resource')
-            # TODO: find a way to loop ONCE for both hostname and qname!!
+class SGEBatchSystem(object):
+    def __init__(self, in_out_filenames, config):
+        self.sge_file_stat = in_out_filenames.get('sge_file_stat')
+        self.sge_file_stat_out = in_out_filenames.get('sge_file_stat_out')
+        # self.temp_filepath = SGEStatMaker.temp_filepath
+
+        self.config = config
+        self.sge_stat_maker = SGEStatMaker(self.config)
+
+    def convert_inputs(self):
+        return self._serialise_qstat()
+
+    def get_queues_info(self):
+        return self._get_statq_from_xml(self.sge_file_stat)
+
+    def get_worker_nodes(self):
+        return self._calc_everything(self.sge_file_stat, write_method=options.write_method)
+
+    @staticmethod
+    def get_jobs_info():
+        return common_module.get_jobs_info(SGEStatMaker.temp_filepath)
+
+    def _serialise_qstat(self):
+        return self.sge_stat_maker.serialise_qstat(self.sge_file_stat, self.sge_file_stat_out, options.write_method)
+
+    @staticmethod
+    def _get_statq_from_xml(self, fn, write_method=options.write_method):
+        logging.debug("Parsing tree of %s" % fn)
+        check_empty_file(fn)
+        anonymize = anonymize_func()
+
+        with open(fn, mode='rb') as fin:
             try:
-                slots_used = int(queue_elem.find('./slots_used').text)
-            except AttributeError:
-                slots_used = 0
-            count = 0
-            # worker_node.setdefault('qname', [])
-            for resource in resources:
-                if resource.attrib.get('name') == 'hostname':
-                    worker_node['domainname'] = resource.text if not options.ANONYMIZE else anonymize(resource.text, 'wns')
-                    count += 1
-                    if count == 2: break
-                elif resource.attrib.get('name') == 'qname':
-                    if not slots_used:
-                        worker_node['qname'] = set()
-                    else:
-                        worker_node['qname'] = set(resource.text[0]) \
-                            if not options.ANONYMIZE else set(anonymize(resource.text[0], 'qs'))
-                    count += 1
-                    if count == 2: break
-            else:
-                raise ValueError("No such resource")
+                tree = etree.parse(fin)
+            except etree.ParseError:
+                logging.critical("Something happened during the parsing of the XML file. Exiting...")
+            except:
+                logging.debug("XML file state %s" % fin)
+                logging.debug("thinking...")
+                import sys
+                sys.exit(1)
 
-            # worker_node['np'] = queue_elem.find('./resource[@name="num_proc"]').text  # python 2.7 only
-            resources = queue_elem.findall('resource')
-            for resource in resources:
-                if resource.attrib.get('name') == 'num_proc':
-                    worker_node['np'] = resource.text
-                    break
-            else:
-                # TODO: check this for bugs, maybe raise an exception in the future?
-                worker_node['np'] = 0
+            root = tree.getroot()
+            qstatq_list = []
 
-            try:
-                state = queue_elem.find('state').text
-            except AttributeError:
-                worker_node['state'] = '-'
-            else:
-                worker_node['state'] = state
+            for queue_elem in root.findall('queue_info/Queue-List'):
 
-            if worker_node['domainname'] not in existing_node_names:
-                job_ids, usernames, job_states = extract_job_info(queue_elem, 'job_list')
-                worker_node['core_job_map'] = [{'core': idx, 'job': job_id} for idx, job_id in enumerate(job_ids)]
-                worker_node['existing_busy_cores'] = len(worker_node['core_job_map'])
-                existing_node_names.update([worker_node['domainname']])
-                worker_nodes.append(worker_node)
-            else:
-                for existing_wn in worker_nodes:
-                    if worker_node['domainname'] != existing_wn['domainname']:
-                        continue
+                queue_names = queue_elem.findall('resource')
+                for _queue_name in queue_names:
+                    if _queue_name.attrib.get('name') == 'qname':
+                        queue_name = _queue_name.text if not options.ANONYMIZE else anonymize(_queue_name.text, 'qs')
+                        break
+                else:
+                    raise ValueError("No such resource")
+                FOUND = False
+                for exist_d in qstatq_list:
+                    if queue_name == exist_d['queue_name']:
+
+                        jobs = queue_elem.findall('job_list')
+                        run_count = 0
+                        for _run in jobs:
+                            if _run.attrib.get('state') == 'running':
+                                run_count += 1
+                        exist_d['run'] += run_count
+                        FOUND = True
+                        break
+                if FOUND:
+                    continue
+
+                d = dict()
+                d['queue_name'] = queue_name
+                try:
+                    d['state'] = queue_elem.find('./state').text
+                except AttributeError:
+                    d['state'] = '?'
+                except:
+                    raise
+
+                job_lists = queue_elem.findall('job_list')
+                run_count = 0
+                for _run in job_lists:
+                    if _run.attrib.get('state') == 'running':
+                        run_count += 1
+                d['run'] = run_count
+                d['lm'] = 0
+                d['queued'] = 0
+                qstatq_list.append(d)
+
+            total_running_jobs = str(sum([d['run'] for d in qstatq_list]))
+
+            logging.info('Total running jobs found: %s' % total_running_jobs)
+            for d in qstatq_list:
+                d['run'] = str(d['run'])
+                d['queued'] = str(d['queued'])
+
+            total_queued_jobs_elems = root.findall('job_info/job_list')
+            pending_count = 0
+            for job in total_queued_jobs_elems:
+                if job.attrib.get('state') == 'pending':
+                    pending_count += 1
+            total_queued_jobs = str(pending_count)
+            logging.info('Total queued jobs found: %s' % total_queued_jobs)
+            qstatq_list.append({'run': '0', 'queued': total_queued_jobs, 'queue_name': 'Pending', 'state': 'Q', 'lm': '0'})
+            logging.debug('qstatq_list contains %s elements' % len(qstatq_list))
+            # TODO: check validity. 'state' shouldnt just be 'Q'!
+        logging.debug("Closing %s" % fn)
+
+        return total_running_jobs, total_queued_jobs, qstatq_list
+
+    def _calc_everything(self, fn, write_method):
+        logging.debug('Parsing tree of %s' % fn)
+        anonymize = anonymize_func()
+        with open(fn, 'rb') as fin:
+            tree = etree.parse(fin)
+            root = tree.getroot()
+            worker_nodes = list()
+            existing_node_names = set()
+            for queue_elem in root.findall('queue_info/Queue-List'):
+                worker_node = dict()
+                resources = queue_elem.findall('resource')
+                # TODO: find a way to loop ONCE for both hostname and qname!!
+                try:
+                    slots_used = int(queue_elem.find('./slots_used').text)
+                except AttributeError:
+                    slots_used = 0
+                count = 0
+                for resource in resources:
+                    if resource.attrib.get('name') == 'hostname':
+                        worker_node['domainname'] = resource.text if not options.ANONYMIZE else anonymize(resource.text, 'wns')
+                        count += 1
+                        if count == 2: break
+                    elif resource.attrib.get('name') == 'qname':
+                        if not slots_used:
+                            worker_node['qname'] = set()
+                        else:
+                            worker_node['qname'] = set(resource.text[0]) \
+                                if not options.ANONYMIZE else set(anonymize(resource.text[0], 'qs'))
+                        count += 1
+                        if count == 2: break
+                else:
+                    raise ValueError("No such resource")
+
+                resources = queue_elem.findall('resource')
+                for resource in resources:
+                    if resource.attrib.get('name') == 'num_proc':
+                        worker_node['np'] = resource.text
+                        break
+                else:
+                    # TODO: check this for bugs, maybe raise an exception in the future?
+                    worker_node['np'] = 0
+
+                try:
+                    state = queue_elem.find('state').text
+                except AttributeError:
+                    worker_node['state'] = '-'
+                else:
+                    worker_node['state'] = state
+
+                if worker_node['domainname'] not in existing_node_names:
                     job_ids, usernames, job_states = extract_job_info(queue_elem, 'job_list')
-                    core_jobs = [{'core': idx, 'job': job_id}
-                                 for idx, job_id in enumerate(job_ids, existing_wn['existing_busy_cores'])]
-                    existing_wn['core_job_map'].extend(core_jobs)
-                    # don't change the node state to free.
-                    # Just keep the state reported in the last queue mentioning the node.
-                    existing_wn['state'] = (worker_node['state'] == '-') and existing_wn['state'] or worker_node['state']
-                    existing_wn['qname'].update(worker_node['qname'])
-                    break
-    logging.debug('Closing %s' % fn)
-    logging.info('worker_nodes contains %s entries' % len(worker_nodes))
-    return worker_nodes
+                    worker_node['core_job_map'] = [{'core': idx, 'job': job_id} for idx, job_id in enumerate(job_ids)]
+                    worker_node['existing_busy_cores'] = len(worker_node['core_job_map'])
+                    existing_node_names.update([worker_node['domainname']])
+                    worker_nodes.append(worker_node)
+                else:
+                    for existing_wn in worker_nodes:
+                        if worker_node['domainname'] != existing_wn['domainname']:
+                            continue
+                        job_ids, usernames, job_states = extract_job_info(queue_elem, 'job_list')
+                        core_jobs = [{'core': idx, 'job': job_id}
+                                     for idx, job_id in enumerate(job_ids, existing_wn['existing_busy_cores'])]
+                        existing_wn['core_job_map'].extend(core_jobs)
+                        # don't change the node state to free.
+                        # Just keep the state reported in the last queue mentioning the node.
+                        existing_wn['state'] = (worker_node['state'] == '-') and existing_wn['state'] or worker_node['state']
+                        existing_wn['qname'].update(worker_node['qname'])
+                        break
+        logging.debug('Closing %s' % fn)
+        logging.info('worker_nodes contains %s entries' % len(worker_nodes))
+        return worker_nodes

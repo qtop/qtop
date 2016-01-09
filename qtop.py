@@ -1226,34 +1226,10 @@ class OARBatchSystem(object):
         return (total_running_jobs, total_queued_jobs, qstatq_lod)
 
     def convert_inputs(self):
-        return self._convert_qstat_to_yaml()
+        return self._serialise_qstat()
 
-    def _convert_qstat_to_yaml(self):
-        return OarStatMaker(config).convert_qstat_to_yaml(self.oarstat_file, self.oarstat_file_out, options.write_method)
-
-
-class SGEBatchSystem(object):
-    def __init__(self, in_out_filenames, config):
-        self.sge_file_stat = in_out_filenames.get('sge_file_stat')
-        self.sge_file_stat_out = in_out_filenames.get('sge_file_stat_out')
-        # self.temp_filepath = SGEStatMaker.temp_filepath
-
-        self.config = config
-
-    def get_worker_nodes(self):
-        return plugin_sge._get_worker_nodes(self.sge_file_stat)
-
-    def get_jobs_info(self):
-        return common_module.get_jobs_info(SGEStatMaker.temp_filepath)
-
-    def get_queues_info(self):
-        return plugin_sge._get_statq_from_xml(self.sge_file_stat)
-
-    def convert_inputs(self):
-        return self._convert_qstat_to_yaml()
-
-    def _convert_qstat_to_yaml(self):
-        return SGEStatMaker(config).convert_qstat_to_yaml(self.sge_file_stat, self.sge_file_stat_out, options.write_method)
+    def _serialise_qstat(self):
+        return OarStatMaker(config).serialise_qstat(self.oarstat_file, self.oarstat_file_out, options.write_method)
 
 
 def finalize_filepaths_schedulercommands():
