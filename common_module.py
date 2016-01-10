@@ -57,6 +57,10 @@ def handle_exception(exc_type, exc_value, exc_traceback):
 
 
 class StatMaker:
+    """
+    Converts to yaml/json some of the input files
+    coming from PBS, OAR, SGE Batch systems
+    """
     def __init__(self, config):
         self.config = config
         self.anonymize = anonymize_func()
