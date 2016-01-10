@@ -333,36 +333,49 @@ sections_off = {
 sys.excepthook = handle_exception
 
 
-def get_jobs_info(fn, write_method=options.write_method):
-    """
-    reads qstat YAML/json file and populates four lists. Returns the lists
-    ex read_qstat_yaml
-    Common for PBS, OAR, SGE
-    """
-    job_ids, usernames, job_states, queue_names = [], [], [], []
+class GenericBatchSystem(object):
+    def __init__(self):
+        pass
 
-    with open(fn) as fin:
-        try:
-            qstats = (write_method.endswith('yaml')) and yaml.load_all(fin) or json.load(fin)
-        except StopIteration:
-            logging.warning('File %s is empty. (No jobs found or Error!)')
-        else:
-            for qstat in qstats:
-                job_ids.append(str(qstat['JobId']))
-                usernames.append(qstat['UnixAccount'])
-                job_states.append(qstat['S'])
-                queue_names.append(qstat['Queue'])
-    # os.remove(fn)  # that DELETES the file!! why did I do that?!!
-    logging.debug('job_ids, usernames, job_states, queue_names lengths: '
-        '%(job_ids)s, %(usernames)s, %(job_states)s, %(queue_names)s'
-        % {
-        "job_ids": len(job_ids),
-        "usernames": len(usernames),
-        "job_states": len(job_states),
-        "queue_names": len(queue_names)
-        }
-    )
-    return job_ids, usernames, job_states, queue_names
+    def convert_inputs(self):
+        raise NotImplementedError
+
+    def get_queues_info(self):
+        raise NotImplementedError
+
+    def get_worker_nodes(self):
+        raise NotImplementedError
+
+    def get_jobs_info(self, fn, write_method=options.write_method):
+        """
+        reads qstat YAML/json file and populates four lists. Returns the lists
+        ex read_qstat_yaml
+        Common for PBS, OAR, SGE
+        """
+        job_ids, usernames, job_states, queue_names = [], [], [], []
+
+        with open(fn) as fin:
+            try:
+                qstats = (write_method.endswith('yaml')) and yaml.load_all(fin) or json.load(fin)
+            except StopIteration:
+                logging.warning('File %s is empty. (No jobs found or Error!)')
+            else:
+                for qstat in qstats:
+                    job_ids.append(str(qstat['JobId']))
+                    usernames.append(qstat['UnixAccount'])
+                    job_states.append(qstat['S'])
+                    queue_names.append(qstat['Queue'])
+        # os.remove(fn)  # that DELETES the file!! why did I do that?!!
+        logging.debug('job_ids, usernames, job_states, queue_names lengths: '
+            '%(job_ids)s, %(usernames)s, %(job_states)s, %(queue_names)s'
+            % {
+            "job_ids": len(job_ids),
+            "usernames": len(usernames),
+            "job_states": len(job_states),
+            "queue_names": len(queue_names)
+            }
+        )
+        return job_ids, usernames, job_states, queue_names
 
 
 def anonymize_func():
@@ -419,40 +432,6 @@ def add_to_sample(filepaths_to_add, savepath, sample_file=QTOP_SAMPLE_FILENAME, 
     else:
         logging.debug('Closing sample...')
         sample_out.close()
-
-
-# TODO remember to remove here on!
-__report_indent = [0]
-
-
-def report(fn):
-    """Decorator to print information about a function
-    call for use while debugging.
-    Prints function name, arguments, and call number
-    when the function is called. Prints this information
-    again along with the return value when the function
-    returns.
-    """
-
-    def wrap(*params, **kwargs):
-        call = wrap.callcount = wrap.callcount + 1
-
-        indent = ' ' * __report_indent[0]
-        fc = "%s(%s)" % (fn.__name__, ', '.join(
-            [a.__repr__() for a in params] +
-            ["%s = %s" % (a, repr(b)) for a, b in kwargs.items()]
-        ))
-
-        logging.debug("%s%s called [#%s]" % (indent, fc, call))
-        __report_indent[0] += 1
-        ret = fn(*params, **kwargs)
-        __report_indent[0] -= 1
-        logging.debug("%s%s returned %s [#%s]" % (indent, fc, repr(ret), call))
-
-        return ret
-
-    wrap.callcount = 0
-    return wrap
 
 
 class JobNotFound(Exception):

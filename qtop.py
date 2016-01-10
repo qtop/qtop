@@ -28,7 +28,7 @@ import glob
 # modules
 from constants import *
 import common_module
-from common_module import logging, options, sections_off, report  #, anonymize_func
+from common_module import logging, options, sections_off
 import plugin_pbs, plugin_oar, plugin_sge
 from plugin_pbs import *
 from plugin_oar import *

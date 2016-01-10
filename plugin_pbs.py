@@ -8,11 +8,11 @@ except ImportError:
 
 import yaml_parser as yaml
 from constants import *
-from common_module import logging, check_empty_file, options, anonymize_func, add_to_sample, QStatMaker
+from common_module import logging, check_empty_file, options, anonymize_func, add_to_sample, QStatMaker, GenericBatchSystem
 import common_module
 
 
-class PBSBatchSystem(object):
+class PBSBatchSystem(GenericBatchSystem):
     def __init__(self, in_out_filenames, config):
         self.pbsnodes_file = in_out_filenames.get('pbsnodes_file')
         self.pbsnodes_file_out = in_out_filenames.get('pbsnodes_file_out')
@@ -33,7 +33,7 @@ class PBSBatchSystem(object):
         return self._read_serialised_pbsnodes(self.pbsnodes_file_out)
 
     def get_jobs_info(self):
-        return common_module.get_jobs_info(self.qstat_file_out)
+        return GenericBatchSystem.get_jobs_info(self, self.qstat_file_out)
 
     def get_queues_info(self):
         return self._read_serialised_qstatq(self.qstatq_file_out)

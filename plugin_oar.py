@@ -36,7 +36,7 @@ class OarStatMaker(QStatMaker):
         self.dump_all(all_values, out_file, write_method)
 
 
-class OARBatchSystem(object):
+class OARBatchSystem(GenericBatchSystem):
     def __init__(self, in_out_filenames, config):
         self.oarnodes_s_file = in_out_filenames.get('oarnodes_s_file')
         self.oarnodes_y_file = in_out_filenames.get('oarnodes_y_file')
@@ -53,7 +53,7 @@ class OARBatchSystem(object):
         return self._get_worker_nodes(self.oarnodes_s_file, self.oarnodes_y_file)
 
     def get_jobs_info(self):
-        return common_module.get_jobs_info(self.oarstat_file_out)
+        return GenericBatchSystem.get_jobs_info(self, self.oarstat_file_out)
 
     @staticmethod
     def get_queues_info():

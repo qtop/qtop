@@ -6,8 +6,8 @@ try:
 except ImportError:
     import json
 from xml.etree import ElementTree as etree
-from common_module import logging, check_empty_file, StatMaker, get_new_temp_file, options, anonymize_func, report, add_to_sample
-import common_module
+from common_module import logging, check_empty_file, StatMaker, get_new_temp_file, options, anonymize_func, \
+    add_to_sample, GenericBatchSystem
 from constants import *
 
 
@@ -117,7 +117,7 @@ class SGEStatMaker(StatMaker):
         return 'SGEStatMaker Instance'
 
 
-class SGEBatchSystem(object):
+class SGEBatchSystem(GenericBatchSystem):
     def __init__(self, in_out_filenames, config):
         self.sge_file_stat = in_out_filenames.get('sge_file_stat')
         self.sge_file_stat_out = in_out_filenames.get('sge_file_stat_out')
@@ -135,9 +135,8 @@ class SGEBatchSystem(object):
     def get_worker_nodes(self):
         return self._get_worker_nodes_from_xml(self.sge_file_stat)
 
-    @staticmethod
-    def get_jobs_info():
-        return common_module.get_jobs_info(SGEStatMaker.temp_filepath)
+    def get_jobs_info(self):
+        return GenericBatchSystem.get_jobs_info(self, SGEStatMaker.temp_filepath)
 
     def _serialise_qstat(self):
         return self.sge_stat_maker.serialise_qstat(self.sge_file_stat, self.sge_file_stat_out, options.write_method)
