@@ -14,6 +14,7 @@ from constants import *
 def extract_job_info(elem, elem_text):
     """
     inside elem, iterates over subelems named elem_text and extracts relevant job information
+    TODO: check difference between extract_job_info and _extract_job_info
     """
     job_ids, usernames, job_states = [], [], []
     for subelem in elem.findall(elem_text):
@@ -56,7 +57,6 @@ class SGEStatMaker(StatMaker):
                 all_values = self._extract_job_info(all_values, queue_elem, 'job_list', queue_name=queue_name_elem.text)
             except ValueError:
                 logging.info('No jobs found in XML file!')
-                raise
 
         job_info_elem = root.find('./job_info')
         if job_info_elem is None:
@@ -82,6 +82,7 @@ class SGEStatMaker(StatMaker):
     def _extract_job_info(self, all_values, elem, elem_text, queue_name):
         """
         inside elem, iterates over subelems named elem_text and extracts relevant job information
+        TODO: check difference between extract_job_info and _extract_job_info
         """
         for subelem in elem.findall(elem_text):
             qstat_values = dict()

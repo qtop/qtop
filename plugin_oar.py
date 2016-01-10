@@ -29,7 +29,7 @@ class OarStatMaker(QStatMaker):
             re_match_positions = ('job_id', 'user', 'job_state', 'queue')
             re_search = self.user_q_search
             for line in fin:
-                qstat_values = self.process_line(re_search, line, re_match_positions)
+                qstat_values = self._process_line(re_search, line, re_match_positions)
                 all_values.append(qstat_values)
 
         logging.debug('File state after OarStatMaker.serialise_qstat: %(fin)s' % {"fin": fin})

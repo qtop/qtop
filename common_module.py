@@ -87,16 +87,6 @@ class StatMaker:
         fout.write('Total_running: ' + '"' + last_line['Total_running'] + '"' + '\n')
         fout.write('...\n')
 
-    def dump_all_q(self, values, out_file, write_method):
-        """
-        dumps the content of qstat/qstat_q files in the selected write_method format
-        """
-        with open(out_file, 'w') as fout:
-            if write_method == 'txtyaml':
-                self.statq_write_lines(values, fout)
-            elif write_method == 'json':
-                json.dump(values, fout)
-
     def dump_all(self, values, out_file, write_method):
         """
         dumps the content of qstat/qstat_q files in the selected write_method format
@@ -140,18 +130,18 @@ class QStatMaker(StatMaker):
             re_match_positions = ('job_id', 'user', 'state', 'queue_name')  # was: (1, 5, 7, 8), (1, 4, 5, 8)
             try:  # first qstat line determines which format qstat follows.
                 re_search = self.user_q_search
-                qstat_values = self.process_line(re_search, line, re_match_positions)
+                qstat_values = self._process_line(re_search, line, re_match_positions)
                 all_qstat_values.append(qstat_values)
                 # unused: _job_nr, _ce_name, _name, _time_use = m.group(2), m.group(3), m.group(4), m.group(6)
             except AttributeError:  # this means 'prior' exists in qstat, it's another format
                 re_search = self.user_q_search_prior
-                qstat_values = self.process_line(re_search, line, re_match_positions)
+                qstat_values = self._process_line(re_search, line, re_match_positions)
                 all_qstat_values.append(qstat_values)
                 # unused:  _prior, _name, _submit, _start_at, _queue_domain, _slots, _ja_taskID =
                 # m.group(2), m.group(3), m.group(6), m.group(7), m.group(9), m.group(10), m.group(11)
             finally:  # hence the rest of the lines should follow either try's or except's same format
                 for line in fin:
-                    qstat_values = self.process_line(re_search, line, re_match_positions)
+                    qstat_values = self._process_line(re_search, line, re_match_positions)
                     all_qstat_values.append(qstat_values)
 
         self.dump_all(all_qstat_values, out_file, write_method)
@@ -218,7 +208,7 @@ class QStatMaker(StatMaker):
             elif write_method == 'json':
                 json.dump(values, fout)
 
-    def process_line(self, re_search, line, re_match_positions):
+    def _process_line(self, re_search, line, re_match_positions):
         qstat_values = dict()
         m = re.search(re_search, line.strip())
         try:
