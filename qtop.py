@@ -1303,8 +1303,8 @@ def get_detail_of_name(account_jobs_table):
     p = subprocess.Popen(passwd_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     output, err = p.communicate("something here")
     if 'No such file or directory' in err:
-        logging.error('You have to set a proper command to get the passwd file in your %s file.' % QTOPCONF_YAML)
-        logging.error('Error returned by getent: %s\nCommand issued: %s' % (err, passwd_command))
+        logging.warn('You have to set a proper command to get the passwd file in your %s file.' % QTOPCONF_YAML)
+        logging.warn('Error returned by getent: %s\nCommand issued: %s' % (err, passwd_command))
 
     # with open(fn, mode='r') as fin:
     detail_of_name = dict()
