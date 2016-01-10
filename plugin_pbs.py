@@ -22,7 +22,7 @@ class PBSBatchSystem(object):
         self.qstatq_file_out = in_out_filenames.get('qstatq_file_out')
 
         self.config = config
-        self.qstat_maker = QStatMaker(self.config)  # TODO FIX ASAP, _serialise_qstat(q) should only use 1 instance (this one)
+        self.qstat_maker = QStatMaker(self.config)
 
     def convert_inputs(self):
         self._serialise_pbs_input(self.pbsnodes_file, self.pbsnodes_file_out)
@@ -51,10 +51,10 @@ class PBSBatchSystem(object):
                 json.dump(all_pbs_values, fout)
 
     def _serialise_qstatq(self, qstatq_file, qstatq_file_out, write_method=options.write_method):
-        return QStatMaker(self.config).serialise_qstatq(qstatq_file, qstatq_file_out, write_method)  # TODO FIX ASAP
+        return self.qstat_maker.serialise_qstatq(qstatq_file, qstatq_file_out, write_method)  # TODO FIX ASAP
 
     def _serialise_qstat(self, qstat_file, qstat_file_out, write_method=options.write_method):
-        return QStatMaker(self.config).serialise_qstat(qstat_file, qstat_file_out, write_method)  # TODO FIX ASAP
+        return self.qstat_maker.serialise_qstat(qstat_file, qstat_file_out, write_method)  # TODO FIX ASAP
 
     @staticmethod
     def _read_serialised_pbsnodes(fn, write_method=options.write_method):

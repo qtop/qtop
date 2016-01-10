@@ -58,21 +58,12 @@ def handle_exception(exc_type, exc_value, exc_traceback):
 
 class StatMaker:
     def __init__(self, config):
-        self.l = list()
         self.config = config
         self.anonymize = anonymize_func()
 
-        self.stat_mapping = {
-            'txtyaml': (self.stat_write_lines, {}, 'yaml'),
-            'json': (json.dump, {}, 'json')
-        }
-
-        self.statq_mapping = {
-            'txtyaml': (self.statq_write_lines, {}, 'yaml'),
-            'json': (json.dump, {}, 'json')}
-
-    def stat_write_lines(self, fout):
-        for qstat_values in self.l:
+    @staticmethod
+    def stat_write_lines(values, fout):
+        for qstat_values in values:
             fout.write('---\n')
             fout.write('JobId: ' + qstat_values['JobId'] + '\n')
             fout.write('UnixAccount: ' + qstat_values['UnixAccount'] + '\n')
@@ -80,9 +71,10 @@ class StatMaker:
             fout.write('Queue: ' + qstat_values['Queue'] + '\n')
             fout.write('...\n')
 
-    def statq_write_lines(self, fout):
-        last_line = self.l.pop()
-        for qstatq_values in self.l:
+    @staticmethod
+    def statq_write_lines(all_qstatq_values, fout):
+        last_line = all_qstatq_values.pop()
+        for qstatq_values in all_qstatq_values:
             fout.write('---\n')
             fout.write('queue_name: ' + qstatq_values['queue_name'] + '\n')
             fout.write('state: ' + qstatq_values['state'] + '\n')  # job state
@@ -95,13 +87,25 @@ class StatMaker:
         fout.write('Total_running: ' + '"' + last_line['Total_running'] + '"' + '\n')
         fout.write('...\n')
 
-    def dump_all(self, out_file, write_func_args):
+    def dump_all_q(self, values, out_file, write_method):
         """
         dumps the content of qstat/qstat_q files in the selected write_method format
         """
         with open(out_file, 'w') as fout:
-            write_func, kwargs, _ = write_func_args
-            write_func(fout, **kwargs)
+            if write_method == 'txtyaml':
+                self.statq_write_lines(values, fout)
+            elif write_method == 'json':
+                json.dump(values, fout)
+
+    def dump_all(self, values, out_file, write_method):
+        """
+        dumps the content of qstat/qstat_q files in the selected write_method format
+        """
+        with open(out_file, 'w') as fout:
+            if write_method == 'txtyaml':
+                self.stat_write_lines(values, fout)
+            elif write_method == 'json':
+                json.dump(values, fout)
 
 
 class QStatMaker(StatMaker):
@@ -127,6 +131,8 @@ class QStatMaker(StatMaker):
 
     def serialise_qstat(self, orig_file, out_file, write_method):
         check_empty_file(orig_file)
+
+        all_qstat_values = list()
         with open(orig_file, 'r') as fin:
             _ = fin.readline()  # header
             fin.readline()
@@ -135,20 +141,20 @@ class QStatMaker(StatMaker):
             try:  # first qstat line determines which format qstat follows.
                 re_search = self.user_q_search
                 qstat_values = self.process_line(re_search, line, re_match_positions)
-                self.l.append(qstat_values)
+                all_qstat_values.append(qstat_values)
                 # unused: _job_nr, _ce_name, _name, _time_use = m.group(2), m.group(3), m.group(4), m.group(6)
             except AttributeError:  # this means 'prior' exists in qstat, it's another format
                 re_search = self.user_q_search_prior
                 qstat_values = self.process_line(re_search, line, re_match_positions)
-                self.l.append(qstat_values)
+                all_qstat_values.append(qstat_values)
                 # unused:  _prior, _name, _submit, _start_at, _queue_domain, _slots, _ja_taskID =
                 # m.group(2), m.group(3), m.group(6), m.group(7), m.group(9), m.group(10), m.group(11)
             finally:  # hence the rest of the lines should follow either try's or except's same format
                 for line in fin:
                     qstat_values = self.process_line(re_search, line, re_match_positions)
-                    self.l.append(qstat_values)
+                    all_qstat_values.append(qstat_values)
 
-        self.dump_all(out_file, self.stat_mapping[write_method])  # self.l,
+        self.dump_all(all_qstat_values, out_file, write_method)
 
     def serialise_qstatq(self, orig_file, out_file, write_method):
         """
@@ -169,6 +175,7 @@ class QStatMaker(StatMaker):
                        r'(?P<state>[DE] R)'
         run_qd_search = '^\s*(?P<tot_run>\d+)\s+(?P<tot_queued>\d+)'  # this picks up the last line contents
 
+        all_values = list()
         with open(orig_file, 'r') as fin:
             fin.next()
             fin.next()
@@ -196,10 +203,20 @@ class QStatMaker(StatMaker):
                                        ('lm', lm),
                                        ('state', state)]:
                         temp_dict[key] = value
-                    self.l.append(temp_dict)
-            self.l.append({'Total_running': total_running_jobs, 'Total_queued': total_queued_jobs})
+                    all_values.append(temp_dict)
+            all_values.append({'Total_running': total_running_jobs, 'Total_queued': total_queued_jobs})
 
-        self.dump_all(out_file, self.statq_mapping[write_method])
+        self.dump_statq(all_values, out_file, write_method)
+
+    def dump_statq(self, values, out_file, write_method):
+        """
+        dumps the content of qstat/qstat_q files in the selected write_method format
+        """
+        with open(out_file, 'w') as fout:
+            if write_method == 'txtyaml':
+                self.statq_write_lines(values, fout)
+            elif write_method == 'json':
+                json.dump(values, fout)
 
     def process_line(self, re_search, line, re_match_positions):
         qstat_values = dict()

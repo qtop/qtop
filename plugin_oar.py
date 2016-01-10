@@ -1,5 +1,4 @@
 __author__ = 'sfranky'
-# import yaml
 import os
 from common_module import *
 import common_module
@@ -22,6 +21,7 @@ class OarStatMaker(QStatMaker):
                              r'(?P<queue>default|besteffort)'
 
     def serialise_qstat(self, orig_file, out_file, write_method):
+        all_values = list()
         with open(orig_file, 'r') as fin:
             logging.debug('File state before OarStatMaker.serialise_qstat: %(fin)s' % {"fin": fin})
             _ = fin.readline()  # header
@@ -30,10 +30,10 @@ class OarStatMaker(QStatMaker):
             re_search = self.user_q_search
             for line in fin:
                 qstat_values = self.process_line(re_search, line, re_match_positions)
-                self.l.append(qstat_values)
+                all_values.append(qstat_values)
 
         logging.debug('File state after OarStatMaker.serialise_qstat: %(fin)s' % {"fin": fin})
-        self.dump_all(out_file, self.stat_mapping[write_method])
+        self.dump_all(all_values, out_file, write_method)
 
 
 class OARBatchSystem(object):

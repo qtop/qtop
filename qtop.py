@@ -1650,6 +1650,7 @@ if __name__ == '__main__':
                     scheduling_system = SGEBatchSystem(in_out_filenames, config)
 
                 if not options.YAML_EXISTS:
+                    # import wdb; wdb.set_trace()
                     scheduling_system.convert_inputs()
                     if options.SAMPLE >= 1:
                         [add_to_sample(in_out_filenames[fn], savepath) for fn in in_out_filenames

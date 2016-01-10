@@ -1,6 +1,10 @@
 __author__ = 'sfranky'
 import tarfile
 import os
+try:
+    import ujson as json
+except ImportError:
+    import json
 from xml.etree import ElementTree as etree
 from common_module import logging, check_empty_file, StatMaker, get_new_temp_file, options, anonymize_func, report, add_to_sample
 import common_module
@@ -25,6 +29,7 @@ class SGEStatMaker(StatMaker):
 
     def serialise_qstat(self, orig_file, out_file, write_method):
         out_file = out_file.rsplit('/', 1)[1]
+        all_values = list()
         try:
             tree = etree.parse(orig_file)
         except etree.ParseError:
@@ -47,13 +52,21 @@ class SGEStatMaker(StatMaker):
             else:
                 raise ValueError("No such queue name")
 
-            self._extract_job_info(queue_elem, 'job_list', queue_name=queue_name_elem.text)  # puts it into self.l
+            try:
+                all_values = self._extract_job_info(all_values, queue_elem, 'job_list', queue_name=queue_name_elem.text)
+            except ValueError:
+                logging.info('No jobs found in XML file!')
+                raise
 
         job_info_elem = root.find('./job_info')
         if job_info_elem is None:
             logging.debug('No pending jobs found!')
         else:
-            self._extract_job_info(job_info_elem, 'job_list', queue_name='Pending')  # puts it into self.l
+            try:
+                all_values = self._extract_job_info(all_values, job_info_elem, 'job_list', queue_name='Pending')
+            except ValueError:
+                logging.info('No jobs found in XML file!')
+
 
         prefix, suffix = out_file.split('.')
         prefix += '_'
@@ -64,9 +77,9 @@ class SGEStatMaker(StatMaker):
             tree.write(orig_file)  # TODO anonymize rest of the sensitive information within xml file
             # add_to_sample(orig_file, self.config['savepath'])
 
-        self.dump_all(SGEStatMaker.fd, self.stat_mapping[write_method])
+        self.dump_all(all_values, SGEStatMaker.fd, write_method)
 
-    def _extract_job_info(self, elem, elem_text, queue_name):
+    def _extract_job_info(self, all_values, elem, elem_text, queue_name):
         """
         inside elem, iterates over subelems named elem_text and extracts relevant job information
         """
@@ -77,22 +90,27 @@ class SGEStatMaker(StatMaker):
                 if not options.ANONYMIZE else self.anonymize(subelem.find('./JB_owner').text, 'users')
             qstat_values['S'] = subelem.find('./state').text
             qstat_values['Queue'] = queue_name
-            self.l.append(qstat_values)
-        if not self.l:
-            logging.info('No jobs found in XML file!')
+            all_values.append(qstat_values)
+        if not all_values:
+            raise ValueError('No jobs found in XML file!')
 
-    def dump_all(self, fd, write_func_args):
+        return all_values
+
+    def dump_all(self, values, fd, write_method=options.write_method):
         """
         dumps the content of qstat/qstat_q files in the selected write_method format
         fd here is already a file descriptor
+        values is a list
         """
-        out_file = os.fdopen(fd, 'w')
+        fout = os.fdopen(fd, 'w')
         try:
-            logging.debug('File state: %s' % out_file)
-            write_func, kwargs, _ = write_func_args
-            write_func(out_file, **kwargs)
+            logging.debug('File state: %s' % fout)
+            if write_method == 'txtyaml':
+                self.stat_write_lines(values, fout)
+            elif write_method == 'json':
+                json.dump(values, fout)
         finally:
-            out_file.close()
+            fout.close()
 
     def __repr__(self):
         return 'SGEStatMaker Instance'
@@ -114,7 +132,7 @@ class SGEBatchSystem(object):
         return self._get_statq_from_xml(self.sge_file_stat)
 
     def get_worker_nodes(self):
-        return self._calc_everything(self.sge_file_stat, write_method=options.write_method)
+        return self._calc_everything(self.sge_file_stat)
 
     @staticmethod
     def get_jobs_info():
@@ -124,7 +142,7 @@ class SGEBatchSystem(object):
         return self.sge_stat_maker.serialise_qstat(self.sge_file_stat, self.sge_file_stat_out, options.write_method)
 
     @staticmethod
-    def _get_statq_from_xml(self, fn, write_method=options.write_method):
+    def _get_statq_from_xml(fn):
         logging.debug("Parsing tree of %s" % fn)
         check_empty_file(fn)
         anonymize = anonymize_func()
@@ -207,7 +225,7 @@ class SGEBatchSystem(object):
 
         return total_running_jobs, total_queued_jobs, qstatq_list
 
-    def _calc_everything(self, fn, write_method):
+    def _calc_everything(self, fn, write_method=options.write_method):
         logging.debug('Parsing tree of %s' % fn)
         anonymize = anonymize_func()
         with open(fn, 'rb') as fin:
