@@ -133,7 +133,7 @@ class SGEBatchSystem(object):
         return self._get_statq_from_xml(self.sge_file_stat)
 
     def get_worker_nodes(self):
-        return self._calc_everything(self.sge_file_stat)
+        return self._get_worker_nodes_from_xml(self.sge_file_stat)
 
     @staticmethod
     def get_jobs_info():
@@ -226,7 +226,7 @@ class SGEBatchSystem(object):
 
         return total_running_jobs, total_queued_jobs, qstatq_list
 
-    def _calc_everything(self, fn, write_method=options.write_method):
+    def _get_worker_nodes_from_xml(self, fn, write_method=options.write_method):
         logging.debug('Parsing tree of %s' % fn)
         anonymize = anonymize_func()
         with open(fn, 'rb') as fin:

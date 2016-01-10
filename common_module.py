@@ -73,8 +73,8 @@ class StatMaker:
 
     @staticmethod
     def statq_write_lines(all_qstatq_values, fout):
-        last_line = all_qstatq_values.pop()
-        for qstatq_values in all_qstatq_values:
+        last_line = all_qstatq_values[-1]
+        for qstatq_values in all_qstatq_values[:-1]:
             fout.write('---\n')
             fout.write('queue_name: ' + qstatq_values['queue_name'] + '\n')
             fout.write('state: ' + qstatq_values['state'] + '\n')  # job state
