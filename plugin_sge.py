@@ -5,9 +5,9 @@ try:
     import ujson as json
 except ImportError:
     import json
+from serialiser import *
 from xml.etree import ElementTree as etree
-from common_module import logging, check_empty_file, StatMaker, get_new_temp_file, options, anonymize_func, \
-    add_to_sample, GenericBatchSystem
+from common_module import logging, check_empty_file, get_new_temp_file, options, anonymize_func
 from constants import *
 
 

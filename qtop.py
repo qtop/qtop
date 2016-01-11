@@ -27,9 +27,9 @@ import contextlib
 import glob
 # modules
 from constants import *
+import serialiser
 import common_module
 from common_module import logging, options, sections_off
-import plugin_pbs, plugin_oar, plugin_sge
 from plugin_pbs import *
 from plugin_oar import *
 from plugin_sge import *
@@ -1575,6 +1575,16 @@ def decide_batch_system(cmdline_switch, env_var, config_file_batch_option):
     else:
         return scheduler
 
+
+def scheduler_factory(scheduler, in_out_filenames, config):
+    if scheduler == "pbs":
+        return PBSBatchSystem(in_out_filenames, config)
+    elif scheduler == "oar":
+        return OARBatchSystem(in_out_filenames, config)
+    elif scheduler == "sge":
+        return SGEBatchSystem(in_out_filenames, config)
+
+
 if __name__ == '__main__':
 
     stdout = sys.stdout
@@ -1642,12 +1652,13 @@ if __name__ == '__main__':
                     source_files = glob.glob(os.path.join(realpath(QTOPPATH), '*.py'))
                     add_to_sample(source_files, savepath, subdir='source')
 
-                if scheduler == "pbs":
-                    scheduling_system = PBSBatchSystem(in_out_filenames, config)
-                elif scheduler == "oar":
-                    scheduling_system = OARBatchSystem(in_out_filenames, config)
-                elif scheduler == "sge":
-                    scheduling_system = SGEBatchSystem(in_out_filenames, config)
+                # if scheduler == "pbs":
+                #     scheduling_system = PBSBatchSystem(in_out_filenames, config)
+                # elif scheduler == "oar":
+                #     scheduling_system = OARBatchSystem(in_out_filenames, config)
+                # elif scheduler == "sge":
+                #     scheduling_system = SGEBatchSystem(in_out_filenames, config)
+                scheduling_system = scheduler_factory(scheduler, in_out_filenames, config)
 
                 if not options.YAML_EXISTS:
                     # import wdb; wdb.set_trace()

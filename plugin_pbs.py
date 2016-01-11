@@ -8,7 +8,8 @@ except ImportError:
 
 import yaml_parser as yaml
 from constants import *
-from common_module import logging, check_empty_file, options, anonymize_func, add_to_sample, QStatMaker, GenericBatchSystem
+from serialiser import *
+from common_module import logging, check_empty_file, options, anonymize_func, add_to_sample
 import common_module
 
 

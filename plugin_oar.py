@@ -1,7 +1,7 @@
 __author__ = 'sfranky'
 import os
+from serialiser import *
 from common_module import *
-import common_module
 import yaml_parser as yaml
 try:
     from collections import OrderedDict
