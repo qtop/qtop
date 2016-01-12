@@ -1571,6 +1571,8 @@ def decide_batch_system(cmdline_switch, env_var, config_file_batch_option):
         raise
     except InvalidScheduler:
         logging.critical("Selected scheduler system not supported. Available choices are 'PBS', 'SGE', 'OAR'.")
+        logging.critical("For help, try ./qtop.py --help")
+        logging.critical("Log file created in %s" % expandvars(QTOP_LOGFILE))
         raise
     else:
         return scheduler

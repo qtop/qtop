@@ -4,6 +4,7 @@ from sys import stdin, stdout
 from optparse import OptionParser
 from tempfile import mkstemp
 import os
+from os.path import expandvars
 import tarfile
 import re
 from itertools import count
@@ -89,11 +90,11 @@ parser.add_option("-o", "--option", action="append", dest="OPTION", type="string
 parser.add_option("-O", "--onlysavetofile", action="store_true", dest="ONLYSAVETOFILE", default=False,
                   help="Do not print results to stdout")
 parser.add_option("-r", "--removeemptycorelines", dest="REM_EMPTY_CORELINES", action="store_true", default=False,
-                  help="Set the method used for dumping information, json, yaml, or native python (yaml format)")
+                  help="If a whole row consists of empty core lines, remove the row")
 parser.add_option("-s", "--SetSourceDir", dest="SOURCEDIR",
                   help="Set the source directory where pbsnodes and qstat reside")
 parser.add_option("-T", "--Transpose", dest="TRANSPOSE", action="store_true", default=False,
-                  help="mimic shell's watch behaviour")
+                  help="Rotate matrices' positioning by 90 degrees")
 parser.add_option("-v", "--verbose", dest="verbose", action="count",
                   help="Increase verbosity (specify multiple times for more)")
 parser.add_option("-W", "--writemethod", dest="write_method", action="store", default="txtyaml",
@@ -233,7 +234,8 @@ class JobNotFound(Exception):
 class NoSchedulerFound(Exception):
     def __init__(self):
         msg = 'No suitable scheduler was found. ' \
-              'Please define one in a switch or env variable or in %s' % QTOPCONF_YAML
+              'Please define one in a switch or env variable or in %s.\n' \
+              'For more help, try ./qtop.py --help\nLog file created in %s' % (QTOPCONF_YAML, expandvars(QTOP_LOGFILE))
         Exception.__init__(self, msg)
         logging.critical(msg)
 
