@@ -210,12 +210,13 @@ def add_to_sample(filepaths_to_add, savepath, sample_file=QTOP_SAMPLE_FILENAME, 
     """
     opens sample_file in path savepath and adds files filepaths_to_add
     """
+    assert isinstance(filepaths_to_add, list)
     sample_out = sample_method.open(os.path.join(savepath, sample_file), mode='a')
     for filepath_to_add in filepaths_to_add:
         path, fn = filepath_to_add.rsplit('/', 1)
         try:
             logging.debug('Adding %s to sample...' % filepath_to_add)
-            sample_out.add(filepath_to_add, arcname=fn if not subdir else os.path.join(subdir,fn))
+            sample_out.add(filepath_to_add, arcname=fn if not subdir else os.path.join(subdir, fn))
         except tarfile.TarError:  # TODO: test what could go wrong here
             logging.error('There seems to be something wrong with the tarfile. Skipping...')
     else:

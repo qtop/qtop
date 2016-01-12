@@ -29,7 +29,7 @@ import glob
 from constants import *
 import serialiser
 import common_module
-from common_module import logging, options, sections_off
+from common_module import logging, options, sections_off, add_to_sample
 from plugin_pbs import *
 from plugin_oar import *
 from plugin_sge import *
@@ -1655,10 +1655,9 @@ if __name__ == '__main__':
                 scheduling_system = scheduler_factory(scheduler, in_out_filenames, config)
 
                 if not options.YAML_EXISTS:
-                    # import wdb; wdb.set_trace()
                     scheduling_system.convert_inputs()
                     if options.SAMPLE >= 1:
-                        [add_to_sample(in_out_filenames[fn], savepath) for fn in in_out_filenames
+                        [add_to_sample([in_out_filenames[fn]], savepath) for fn in in_out_filenames
                          if os.path.isfile(in_out_filenames[fn])]
 
                 worker_nodes = scheduling_system.get_worker_nodes()
@@ -1687,6 +1686,7 @@ if __name__ == '__main__':
                     display_func, args = display_parts[part][0], display_parts[part][1]
                     display_func(*args) if not sections_off[idx] else None
                 print "\nLog file created in %s" % expandvars(QTOP_LOGFILE)
+                if options.SAMPLE: print "Sample files saved in %s/%s" % (savepath, QTOP_SAMPLE_FILENAME)
                 sys.stdout.flush()
                 sys.stdout.close()
                 sys.stdout = stdout  # sys.stdout is back to its normal function (i.e. screen output)
