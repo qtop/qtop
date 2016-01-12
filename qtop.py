@@ -412,12 +412,12 @@ def fill_node_cores_column(_node, core_user_map, id_of_username, max_np_range, u
 
         '''
         the height of the matrix is determined by the highest-core WN existing. If other WNs have less cores,
-        these positions are filled with '#'s.
+        these positions are filled with '#'s, or whatever is defined in config['non_existent_node_symbol'].
         '''
         for core in own_np_empty_range:
             core_user_map['Core' + str(core) + 'line'] += ['_']
         for core in non_existent_cores:
-            core_user_map['Core' + str(core) + 'line'] += ['#']
+            core_user_map['Core' + str(core) + 'line'] += [config['non_existent_node_symbol']]
 
     cluster_dict['workernode_dict'][_node]['core_user_column'] = [core_user_map[line][-1] for line in core_user_map]
 
@@ -583,8 +583,8 @@ def is_matrix_coreless(workernodes_occupancy):
         cpu_core_line = core_user_map['Core' + str(ind) + 'line'][print_char_start:print_char_stop]
         if options.REM_EMPTY_CORELINES and \
             (
-                ('#' * (print_char_stop - print_char_start) == cpu_core_line) or \
-                ('#' * (len(cpu_core_line)) == cpu_core_line)
+                (config['non_existent_node_symbol'] * (print_char_stop - print_char_start) == cpu_core_line) or \
+                (config['non_existent_node_symbol'] * (len(cpu_core_line)) == cpu_core_line)
             ):
             lines.append('*')
 
@@ -746,8 +746,8 @@ def get_core_lines(core_user_map, print_char_start, print_char_stop, pattern_of_
         cpu_core_line = core_user_map['Core' + str(ind) + 'line'][print_char_start:print_char_stop]
         if options.REM_EMPTY_CORELINES and \
             (
-                ('#' * (print_char_stop - print_char_start) == cpu_core_line) or \
-                ('#' * (len(cpu_core_line)) == cpu_core_line)
+                (config['non_existent_node_symbol'] * (print_char_stop - print_char_start) == cpu_core_line) or \
+                (config['non_existent_node_symbol'] * (len(cpu_core_line)) == cpu_core_line)
             ):
             continue
         cpu_core_line = insert_separators(cpu_core_line, SEPARATOR, config['vertical_separator_every_X_columns'])
@@ -942,7 +942,7 @@ def make_pattern_of_id(wns_occupancy):
 
         pattern_of_id[uid] = account if account in color_of_account else 'account_not_colored'
 
-    pattern_of_id['#'] = '#'
+    pattern_of_id[config['non_existent_node_symbol']] = '#'
     pattern_of_id['_'] = '_'
     pattern_of_id[SEPARATOR] = 'account_not_colored'
     wns_occupancy['pattern_of_id'] = pattern_of_id
@@ -1617,7 +1617,6 @@ if __name__ == '__main__':
             while True:
                 handle, output_fp = get_new_temp_file(prefix='qtop_', suffix='.out')
                 sys.stdout = os.fdopen(handle, 'w')  # redirect everything to file, creates file object out of handle
-                # sys.stdout = open(fout, 'w', -1)  # redirect everything to file
                 transposed_matrices = []
                 config = load_yaml_config()
 
