@@ -55,8 +55,7 @@ class OARBatchSystem(GenericBatchSystem):
     def get_jobs_info(self):
         return GenericBatchSystem.get_jobs_info(self, self.oarstat_file_out)
 
-    @staticmethod
-    def get_queues_info():
+    def get_queues_info(self):
         """
         OAR does not provide this info.
         """

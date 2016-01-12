@@ -1652,12 +1652,6 @@ if __name__ == '__main__':
                     source_files = glob.glob(os.path.join(realpath(QTOPPATH), '*.py'))
                     add_to_sample(source_files, savepath, subdir='source')
 
-                # if scheduler == "pbs":
-                #     scheduling_system = PBSBatchSystem(in_out_filenames, config)
-                # elif scheduler == "oar":
-                #     scheduling_system = OARBatchSystem(in_out_filenames, config)
-                # elif scheduler == "sge":
-                #     scheduling_system = SGEBatchSystem(in_out_filenames, config)
                 scheduling_system = scheduler_factory(scheduler, in_out_filenames, config)
 
                 if not options.YAML_EXISTS:
