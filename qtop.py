@@ -1306,7 +1306,6 @@ def get_detail_of_name(account_jobs_table):
         logging.warn('You have to set a proper command to get the passwd file in your %s file.' % QTOPCONF_YAML)
         logging.warn('Error returned by getent: %s\nCommand issued: %s' % (err, passwd_command))
 
-    # with open(fn, mode='r') as fin:
     detail_of_name = dict()
     for line in output.split('\n'):
         try:
@@ -1496,6 +1495,14 @@ def quit_program(h_start, h_stop, v_start, v_stop):  # "q", quit
 
 
 def control_movement(pressed_char_hex, h_start, h_stop, v_start, v_stop):
+    """
+    Basic vi-like movement is implemented for the -w switch (linux watch-like behaviour for qtop).
+    h, j, k, l for left, down, up, right, respectively.
+    Both g/G and Shift+j/k go to top/bottom of the matrices
+    0 and $ go to far left/right of the matrix, respectively.
+    r resets the screen to its initial position (if you've drifted away from the vieweable part of a matrix).
+    q quits qtop.
+    """
     key_actions = {
         '6a': scroll_down,  # j
         '20': scroll_down,  # spacebar
