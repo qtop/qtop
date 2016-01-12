@@ -1620,10 +1620,9 @@ if __name__ == '__main__':
                 transposed_matrices = []
                 config = load_yaml_config()
 
-                if options.OPTION:
-                    for opt in options.OPTION:
-                        key, val = get_key_val_from_option_string(opt)
-                        config[key] = val
+                for opt in options.OPTION:
+                    key, val = get_key_val_from_option_string(opt)
+                    config[key] = val
 
                 if config['faster_xml_parsing']:
                     try:
@@ -1633,7 +1632,7 @@ if __name__ == '__main__':
                         from xml.etree import ElementTree as etree
 
                 if options.TRANSPOSE:
-                    config['transpose_wn_matrices'] = 'False'
+                    config['transpose_wn_matrices'] = 'False' if config['transpose_wn_matrices'] == 'True' else 'True'
 
                 SEPARATOR = config['vertical_separator'].translate(None, "'")  # alias
                 USER_CUT_MATRIX_WIDTH = int(config['workernodes_matrix'][0]['wn id lines']['user_cut_matrix_width'])  # alias

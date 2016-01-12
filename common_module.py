@@ -85,7 +85,7 @@ parser.add_option("-g", "--get_gecos_via_getent_passwd", action="store_true", de
                   help="get user details by issuing getent passwd for all users mentioned in qtop input files.")
 parser.add_option("-m", "--noMasking", action="store_true", dest="NOMASKING", default=False,
                   help="Don't mask early empty WNs (default: if the first 30 WNs are unused, counting starts from 31).")
-parser.add_option("-o", "--option", action="append", dest="OPTION", type="string", default=None,
+parser.add_option("-o", "--option", action="append", dest="OPTION", type="string", default=[],
                   help="Override respective option in QTOPCONF_YAML file")
 parser.add_option("-O", "--onlysavetofile", action="store_true", dest="ONLYSAVETOFILE", default=False,
                   help="Do not print results to stdout")
