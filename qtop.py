@@ -27,9 +27,9 @@ import contextlib
 import glob
 # modules
 from constants import *
+import serialiser
 import common_module
-from common_module import logging, options, sections_off, report  #, anonymize_func
-import plugin_pbs, plugin_oar, plugin_sge
+from common_module import logging, options, sections_off
 from plugin_pbs import *
 from plugin_oar import *
 from plugin_sge import *
@@ -1198,90 +1198,6 @@ def exec_func_tuples(func_tuples):
         yield ffunc(*args, **kwargs)
 
 
-class PBSBatchSystem(object):
-    def __init__(self, config_file):
-        self.pbsnodes_file = in_out_filenames.get('pbsnodes_file')
-        self.pbsnodes_file_out = in_out_filenames.get('pbsnodes_file_out')
-        self.qstat_file = in_out_filenames.get('qstat_file')
-        self.qstat_file_out = in_out_filenames.get('qstat_file_out')
-        self.qstatq_file = in_out_filenames.get('qstatq_file')
-        self.qstatq_file_out = in_out_filenames.get('qstatq_file_out')
-
-    def get_worker_nodes(self):
-        return plugin_pbs._get_worker_nodes(self.pbsnodes_file_out)
-
-    def get_jobs_info(self):
-        return common_module.get_jobs_info(self.qstat_file_out)
-
-    def get_queues_info(self):
-        return plugin_pbs._read_qstatq_yaml(self.qstatq_file_out)
-
-    def convert_inputs_to_yaml(self):
-        self._convert_pbs_input_to_yaml()
-        self._convert_qstatq_to_yaml()
-        self._convert_qstat_to_yaml()
-
-    def _convert_pbs_input_to_yaml(self):
-        return convert_pbsnodes_to_yaml(self.pbsnodes_file, self.pbsnodes_file_out, options.write_method)
-
-    def _convert_qstatq_to_yaml(self):
-        return QStatMaker(config).convert_qstatq_to_yaml(self.qstatq_file, self.qstatq_file_out, options.write_method)
-
-    def _convert_qstat_to_yaml(self):
-        return QStatMaker(config).convert_qstat_to_yaml(self.qstat_file, self.qstat_file_out, options.write_method)
-
-
-class OARBatchSystem(object):
-    def __init__(self, in_out_filenames):
-        self.oarnodes_s_file = in_out_filenames.get('oarnodes_s_file')
-        self.oarnodes_y_file = in_out_filenames.get('oarnodes_y_file')
-        self.oarstat_file_out = in_out_filenames.get('oarstat_file_out')
-        self.oarstat_file = in_out_filenames.get('oarstat_file')
-
-    def get_worker_nodes(self):
-        return plugin_oar._get_worker_nodes(self.oarnodes_s_file, self.oarnodes_y_file)
-
-    def get_jobs_info(self):
-        return common_module.get_jobs_info(self.oarstat_file_out)
-
-    def get_queues_info(self):
-        """
-        OAR does not provide this info.
-        """
-        total_running_jobs = 0
-        total_queued_jobs = 0
-        qstatq_lod = []
-        return (total_running_jobs, total_queued_jobs, qstatq_lod)
-
-    def convert_inputs_to_yaml(self):
-        return self._convert_qstat_to_yaml()
-
-    def _convert_qstat_to_yaml(self):
-        return OarStatMaker(config).convert_qstat_to_yaml(self.oarstat_file, self.oarstat_file_out, options.write_method)
-
-
-class SGEBatchSystem(object):
-    def __init__(self, in_out_filenames):
-        self.sge_file_stat = in_out_filenames.get('sge_file_stat')
-        self.sge_file_stat_out = in_out_filenames.get('sge_file_stat_out')
-        # self.temp_filepath = SGEStatMaker.temp_filepath
-
-    def get_worker_nodes(self):
-        return plugin_sge._get_worker_nodes(self.sge_file_stat)
-
-    def get_jobs_info(self):
-        return common_module.get_jobs_info(SGEStatMaker.temp_filepath)
-
-    def get_queues_info(self):
-        return plugin_sge._get_statq_from_xml(self.sge_file_stat)
-
-    def convert_inputs_to_yaml(self):
-        return self._convert_qstat_to_yaml()
-
-    def _convert_qstat_to_yaml(self):
-        return SGEStatMaker(config).convert_qstat_to_yaml(self.sge_file_stat, self.sge_file_stat_out, options.write_method)
-
-
 def finalize_filepaths_schedulercommands():
     """
     returns a dictionary with contents of the form
@@ -1387,8 +1303,8 @@ def get_detail_of_name(account_jobs_table):
     p = subprocess.Popen(passwd_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     output, err = p.communicate("something here")
     if 'No such file or directory' in err:
-        logging.error('You have to set a proper command to get the passwd file in your %s file.' % QTOPCONF_YAML)
-        logging.error('Error returned by getent: %s\nCommand issued: %s' % (err, passwd_command))
+        logging.warn('You have to set a proper command to get the passwd file in your %s file.' % QTOPCONF_YAML)
+        logging.warn('Error returned by getent: %s\nCommand issued: %s' % (err, passwd_command))
 
     # with open(fn, mode='r') as fin:
     detail_of_name = dict()
@@ -1659,6 +1575,16 @@ def decide_batch_system(cmdline_switch, env_var, config_file_batch_option):
     else:
         return scheduler
 
+
+def scheduler_factory(scheduler, in_out_filenames, config):
+    if scheduler == "pbs":
+        return PBSBatchSystem(in_out_filenames, config)
+    elif scheduler == "oar":
+        return OARBatchSystem(in_out_filenames, config)
+    elif scheduler == "sge":
+        return SGEBatchSystem(in_out_filenames, config)
+
+
 if __name__ == '__main__':
 
     stdout = sys.stdout
@@ -1726,15 +1652,11 @@ if __name__ == '__main__':
                     source_files = glob.glob(os.path.join(realpath(QTOPPATH), '*.py'))
                     add_to_sample(source_files, savepath, subdir='source')
 
-                if scheduler == "pbs":
-                    scheduling_system = PBSBatchSystem(in_out_filenames)
-                elif scheduler == "oar":
-                    scheduling_system = OARBatchSystem(in_out_filenames)
-                elif scheduler == "sge":
-                    scheduling_system = SGEBatchSystem(in_out_filenames)
+                scheduling_system = scheduler_factory(scheduler, in_out_filenames, config)
 
                 if not options.YAML_EXISTS:
-                    scheduling_system.convert_inputs_to_yaml()
+                    # import wdb; wdb.set_trace()
+                    scheduling_system.convert_inputs()
                     if options.SAMPLE >= 1:
                         [add_to_sample(in_out_filenames[fn], savepath) for fn in in_out_filenames
                          if os.path.isfile(in_out_filenames[fn])]
