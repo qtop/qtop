@@ -29,7 +29,7 @@ import glob
 from constants import *
 import serialiser
 import common_module
-from common_module import logging, options, sections_off
+from common_module import logging, options, sections_off, add_to_sample
 from plugin_pbs import *
 from plugin_oar import *
 from plugin_sge import *
@@ -412,12 +412,12 @@ def fill_node_cores_column(_node, core_user_map, id_of_username, max_np_range, u
 
         '''
         the height of the matrix is determined by the highest-core WN existing. If other WNs have less cores,
-        these positions are filled with '#'s.
+        these positions are filled with '#'s, or whatever is defined in config['non_existent_node_symbol'].
         '''
         for core in own_np_empty_range:
             core_user_map['Core' + str(core) + 'line'] += ['_']
         for core in non_existent_cores:
-            core_user_map['Core' + str(core) + 'line'] += ['#']
+            core_user_map['Core' + str(core) + 'line'] += [config['non_existent_node_symbol']]
 
     cluster_dict['workernode_dict'][_node]['core_user_column'] = [core_user_map[line][-1] for line in core_user_map]
 
@@ -583,8 +583,8 @@ def is_matrix_coreless(workernodes_occupancy):
         cpu_core_line = core_user_map['Core' + str(ind) + 'line'][print_char_start:print_char_stop]
         if options.REM_EMPTY_CORELINES and \
             (
-                ('#' * (print_char_stop - print_char_start) == cpu_core_line) or \
-                ('#' * (len(cpu_core_line)) == cpu_core_line)
+                (config['non_existent_node_symbol'] * (print_char_stop - print_char_start) == cpu_core_line) or \
+                (config['non_existent_node_symbol'] * (len(cpu_core_line)) == cpu_core_line)
             ):
             lines.append('*')
 
@@ -746,8 +746,8 @@ def get_core_lines(core_user_map, print_char_start, print_char_stop, pattern_of_
         cpu_core_line = core_user_map['Core' + str(ind) + 'line'][print_char_start:print_char_stop]
         if options.REM_EMPTY_CORELINES and \
             (
-                ('#' * (print_char_stop - print_char_start) == cpu_core_line) or \
-                ('#' * (len(cpu_core_line)) == cpu_core_line)
+                (config['non_existent_node_symbol'] * (print_char_stop - print_char_start) == cpu_core_line) or \
+                (config['non_existent_node_symbol'] * (len(cpu_core_line)) == cpu_core_line)
             ):
             continue
         cpu_core_line = insert_separators(cpu_core_line, SEPARATOR, config['vertical_separator_every_X_columns'])
@@ -942,7 +942,7 @@ def make_pattern_of_id(wns_occupancy):
 
         pattern_of_id[uid] = account if account in color_of_account else 'account_not_colored'
 
-    pattern_of_id['#'] = '#'
+    pattern_of_id[config['non_existent_node_symbol']] = '#'
     pattern_of_id['_'] = '_'
     pattern_of_id[SEPARATOR] = 'account_not_colored'
     wns_occupancy['pattern_of_id'] = pattern_of_id
@@ -1306,7 +1306,6 @@ def get_detail_of_name(account_jobs_table):
         logging.warn('You have to set a proper command to get the passwd file in your %s file.' % QTOPCONF_YAML)
         logging.warn('Error returned by getent: %s\nCommand issued: %s' % (err, passwd_command))
 
-    # with open(fn, mode='r') as fin:
     detail_of_name = dict()
     for line in output.split('\n'):
         try:
@@ -1496,6 +1495,14 @@ def quit_program(h_start, h_stop, v_start, v_stop):  # "q", quit
 
 
 def control_movement(pressed_char_hex, h_start, h_stop, v_start, v_stop):
+    """
+    Basic vi-like movement is implemented for the -w switch (linux watch-like behaviour for qtop).
+    h, j, k, l for left, down, up, right, respectively.
+    Both g/G and Shift+j/k go to top/bottom of the matrices
+    0 and $ go to far left/right of the matrix, respectively.
+    r resets the screen to its initial position (if you've drifted away from the vieweable part of a matrix).
+    q quits qtop.
+    """
     key_actions = {
         '6a': scroll_down,  # j
         '20': scroll_down,  # spacebar
@@ -1571,6 +1578,8 @@ def decide_batch_system(cmdline_switch, env_var, config_file_batch_option):
         raise
     except InvalidScheduler:
         logging.critical("Selected scheduler system not supported. Available choices are 'PBS', 'SGE', 'OAR'.")
+        logging.critical("For help, try ./qtop.py --help")
+        logging.critical("Log file created in %s" % expandvars(QTOP_LOGFILE))
         raise
     else:
         return scheduler
@@ -1608,14 +1617,12 @@ if __name__ == '__main__':
             while True:
                 handle, output_fp = get_new_temp_file(prefix='qtop_', suffix='.out')
                 sys.stdout = os.fdopen(handle, 'w')  # redirect everything to file, creates file object out of handle
-                # sys.stdout = open(fout, 'w', -1)  # redirect everything to file
                 transposed_matrices = []
                 config = load_yaml_config()
 
-                if options.OPTION:
-                    for opt in options.OPTION:
-                        key, val = get_key_val_from_option_string(opt)
-                        config[key] = val
+                for opt in options.OPTION:
+                    key, val = get_key_val_from_option_string(opt)
+                    config[key] = val
 
                 if config['faster_xml_parsing']:
                     try:
@@ -1625,7 +1632,7 @@ if __name__ == '__main__':
                         from xml.etree import ElementTree as etree
 
                 if options.TRANSPOSE:
-                    config['transpose_wn_matrices'] = 'False'
+                    config['transpose_wn_matrices'] = 'False' if config['transpose_wn_matrices'] == 'True' else 'True'
 
                 SEPARATOR = config['vertical_separator'].translate(None, "'")  # alias
                 USER_CUT_MATRIX_WIDTH = int(config['workernodes_matrix'][0]['wn id lines']['user_cut_matrix_width'])  # alias
@@ -1655,10 +1662,9 @@ if __name__ == '__main__':
                 scheduling_system = scheduler_factory(scheduler, in_out_filenames, config)
 
                 if not options.YAML_EXISTS:
-                    # import wdb; wdb.set_trace()
                     scheduling_system.convert_inputs()
                     if options.SAMPLE >= 1:
-                        [add_to_sample(in_out_filenames[fn], savepath) for fn in in_out_filenames
+                        [add_to_sample([in_out_filenames[fn]], savepath) for fn in in_out_filenames
                          if os.path.isfile(in_out_filenames[fn])]
 
                 worker_nodes = scheduling_system.get_worker_nodes()
@@ -1687,6 +1693,7 @@ if __name__ == '__main__':
                     display_func, args = display_parts[part][0], display_parts[part][1]
                     display_func(*args) if not sections_off[idx] else None
                 print "\nLog file created in %s" % expandvars(QTOP_LOGFILE)
+                if options.SAMPLE: print "Sample files saved in %s/%s" % (savepath, QTOP_SAMPLE_FILENAME)
                 sys.stdout.flush()
                 sys.stdout.close()
                 sys.stdout = stdout  # sys.stdout is back to its normal function (i.e. screen output)

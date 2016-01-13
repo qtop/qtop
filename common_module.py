@@ -4,6 +4,7 @@ from sys import stdin, stdout
 from optparse import OptionParser
 from tempfile import mkstemp
 import os
+from os.path import expandvars
 import tarfile
 import re
 from itertools import count
@@ -30,7 +31,7 @@ def mkdir_p(path):
 
 def check_empty_file(orig_file):
     if not os.path.getsize(orig_file) > 0:
-        logging.critical('Your %s file is empty! Please check your directory. Exiting ...' % orig_file)
+        logging.critical('%s is empty! Maybe there are no queues/jobs?. \nExiting ...' % orig_file)
         sys.exit(0)
 
 
@@ -84,16 +85,16 @@ parser.add_option("-g", "--get_gecos_via_getent_passwd", action="store_true", de
                   help="get user details by issuing getent passwd for all users mentioned in qtop input files.")
 parser.add_option("-m", "--noMasking", action="store_true", dest="NOMASKING", default=False,
                   help="Don't mask early empty WNs (default: if the first 30 WNs are unused, counting starts from 31).")
-parser.add_option("-o", "--option", action="append", dest="OPTION", type="string", default=None,
+parser.add_option("-o", "--option", action="append", dest="OPTION", type="string", default=[],
                   help="Override respective option in QTOPCONF_YAML file")
 parser.add_option("-O", "--onlysavetofile", action="store_true", dest="ONLYSAVETOFILE", default=False,
                   help="Do not print results to stdout")
 parser.add_option("-r", "--removeemptycorelines", dest="REM_EMPTY_CORELINES", action="store_true", default=False,
-                  help="Set the method used for dumping information, json, yaml, or native python (yaml format)")
+                  help="If a whole row consists of empty core lines, remove the row")
 parser.add_option("-s", "--SetSourceDir", dest="SOURCEDIR",
                   help="Set the source directory where pbsnodes and qstat reside")
 parser.add_option("-T", "--Transpose", dest="TRANSPOSE", action="store_true", default=False,
-                  help="mimic shell's watch behaviour")
+                  help="Rotate matrices' positioning by 90 degrees")
 parser.add_option("-v", "--verbose", dest="verbose", action="count",
                   help="Increase verbosity (specify multiple times for more)")
 parser.add_option("-W", "--writemethod", dest="write_method", action="store", default="txtyaml",
@@ -210,12 +211,13 @@ def add_to_sample(filepaths_to_add, savepath, sample_file=QTOP_SAMPLE_FILENAME, 
     """
     opens sample_file in path savepath and adds files filepaths_to_add
     """
+    assert isinstance(filepaths_to_add, list)
     sample_out = sample_method.open(os.path.join(savepath, sample_file), mode='a')
     for filepath_to_add in filepaths_to_add:
         path, fn = filepath_to_add.rsplit('/', 1)
         try:
             logging.debug('Adding %s to sample...' % filepath_to_add)
-            sample_out.add(filepath_to_add, arcname=fn if not subdir else os.path.join(subdir,fn))
+            sample_out.add(filepath_to_add, arcname=fn if not subdir else os.path.join(subdir, fn))
         except tarfile.TarError:  # TODO: test what could go wrong here
             logging.error('There seems to be something wrong with the tarfile. Skipping...')
     else:
@@ -232,7 +234,8 @@ class JobNotFound(Exception):
 class NoSchedulerFound(Exception):
     def __init__(self):
         msg = 'No suitable scheduler was found. ' \
-              'Please define one in a switch or env variable or in %s' % QTOPCONF_YAML
+              'Please define one in a switch or env variable or in %s.\n' \
+              'For more help, try ./qtop.py --help\nLog file created in %s' % (QTOPCONF_YAML, expandvars(QTOP_LOGFILE))
         Exception.__init__(self, msg)
         logging.critical(msg)
 
