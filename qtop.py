@@ -716,7 +716,7 @@ def display_user_accounts_pool_mappings(workernodes_occupancy=None):
     try:
         account_jobs_table = workernodes_occupancy['account_jobs_table']
         pattern_of_id = workernodes_occupancy['pattern_of_id']
-    except TypeError:
+    except KeyError:
         account_jobs_table = dict()
         pattern_of_id = dict()
 

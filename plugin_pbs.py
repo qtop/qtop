@@ -67,14 +67,12 @@ class PBSBatchSystem(GenericBatchSystem):
         pbs_nodes = []
 
         with open(fn) as fin:
-            try:
-                _nodes = (write_method.endswith('yaml')) and yaml.load_all(fin) or json.load(fin)
-            except StopIteration:
-                logging.warning('File %s is empty. (No jobs found or Error!)')
-                _nodes = []
-            finally:
-                for node in _nodes:
-                    pbs_nodes.append(node)
+            if write_method.endswith('yaml'):
+                _nodes = yaml.load_all(fin)
+            else:
+                _nodes = json.load(fin)
+            for node in _nodes:
+                pbs_nodes.append(node)
         return pbs_nodes
 
     @staticmethod
@@ -87,19 +85,21 @@ class PBSBatchSystem(GenericBatchSystem):
         qstatq_list = []
         logging.debug("Opening %s" % fn)
         with open(fn, 'r') as fin:
-            try:
-                qstatqs_total = (write_method.endswith('yaml')) and yaml.load_all(fin) or json.load(fin)
-            except StopIteration:
-                logging.warning('File %s is empty. (No jobs found or Error!)')
-                qstatqs_total = []
-                total_running_jobs, total_queued_jobs = 0, 0
-                return total_running_jobs, total_queued_jobs, qstatq_list
+            if write_method.endswith('yaml'):
+                qstatqs_total = yaml.load_all(fin)
             else:
-                for qstatq in qstatqs_total:
-                    qstatq_list.append(qstatq)
-                total = qstatq_list.pop()
-                total_running_jobs, total_queued_jobs = total['Total_running'], total['Total_queued']
-        return int(eval(total_running_jobs)), int(eval(total_queued_jobs)), qstatq_list
+                qstatqs_total = json.load(fin)
+
+        for qstatq in qstatqs_total[:-1]:
+            qstatq_list.append(qstatq)
+        for _total in qstatqs_total[-1:]:  # this is at most one item
+            total_running_jobs, total_queued_jobs = _total['Total_running'], _total['Total_queued']
+            break
+        else:
+            total_running_jobs, total_queued_jobs = 0, 0
+
+        # logging.critical('total is: %s' % qstatqs_total[-1:])
+        return int(eval(str(total_running_jobs))), int(eval(str(total_queued_jobs))), qstatq_list
 
     def _get_pbsnodes_values(self, orig_file, out_file):
         try:
