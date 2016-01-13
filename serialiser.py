@@ -30,7 +30,6 @@ class StatMaker:
 
     @staticmethod
     def statq_write_lines(all_qstatq_values, fout):
-        last_line = all_qstatq_values[-1]
         for qstatq_values in all_qstatq_values[:-1]:
             fout.write('---\n')
             fout.write('queue_name: ' + qstatq_values['queue_name'] + '\n')
@@ -39,10 +38,15 @@ class StatMaker:
             fout.write('run: ' + qstatq_values['run'] + '\n')  # job state
             fout.write('queued: ' + qstatq_values['queued'] + '\n')
             fout.write('...\n')
-        fout.write('---\n')
-        fout.write('Total_queued: ' + '"' + last_line['Total_queued'] + '"' + '\n')
-        fout.write('Total_running: ' + '"' + last_line['Total_running'] + '"' + '\n')
-        fout.write('...\n')
+        try:
+            last_line = all_qstatq_values[-1]
+        except IndexError:  # all_qstatq_values is an empty list
+            pass
+        else:
+            fout.write('---\n')
+            fout.write('Total_queued: ' + '"' + last_line['Total_queued'] + '"' + '\n')
+            fout.write('Total_running: ' + '"' + last_line['Total_running'] + '"' + '\n')
+            fout.write('...\n')
 
     def dump_all(self, values, out_file, write_method):
         """
@@ -78,31 +82,34 @@ class QStatMaker(StatMaker):
                                    r'(?:\w*)'
 
     def serialise_qstat(self, orig_file, out_file, write_method):
-        check_empty_file(orig_file)
-
-        all_qstat_values = list()
-        with open(orig_file, 'r') as fin:
-            _ = fin.readline()  # header
-            fin.readline()
-            line = fin.readline()
-            re_match_positions = ('job_id', 'user', 'state', 'queue_name')  # was: (1, 5, 7, 8), (1, 4, 5, 8)
-            try:  # first qstat line determines which format qstat follows.
-                re_search = self.user_q_search
-                qstat_values = self._process_line(re_search, line, re_match_positions)
-                all_qstat_values.append(qstat_values)
-                # unused: _job_nr, _ce_name, _name, _time_use = m.group(2), m.group(3), m.group(4), m.group(6)
-            except AttributeError:  # this means 'prior' exists in qstat, it's another format
-                re_search = self.user_q_search_prior
-                qstat_values = self._process_line(re_search, line, re_match_positions)
-                all_qstat_values.append(qstat_values)
-                # unused:  _prior, _name, _submit, _start_at, _queue_domain, _slots, _ja_taskID =
-                # m.group(2), m.group(3), m.group(6), m.group(7), m.group(9), m.group(10), m.group(11)
-            finally:  # hence the rest of the lines should follow either try's or except's same format
-                for line in fin:
+        try:
+            check_empty_file(orig_file)
+        except FileEmptyError:
+            all_qstat_values = []
+        else:
+            all_qstat_values = list()
+            with open(orig_file, 'r') as fin:
+                _ = fin.readline()  # header
+                fin.readline()
+                line = fin.readline()
+                re_match_positions = ('job_id', 'user', 'state', 'queue_name')  # was: (1, 5, 7, 8), (1, 4, 5, 8)
+                try:  # first qstat line determines which format qstat follows.
+                    re_search = self.user_q_search
                     qstat_values = self._process_line(re_search, line, re_match_positions)
                     all_qstat_values.append(qstat_values)
-
-        self.dump_all(all_qstat_values, out_file, write_method)
+                    # unused: _job_nr, _ce_name, _name, _time_use = m.group(2), m.group(3), m.group(4), m.group(6)
+                except AttributeError:  # this means 'prior' exists in qstat, it's another format
+                    re_search = self.user_q_search_prior
+                    qstat_values = self._process_line(re_search, line, re_match_positions)
+                    all_qstat_values.append(qstat_values)
+                    # unused:  _prior, _name, _submit, _start_at, _queue_domain, _slots, _ja_taskID =
+                    # m.group(2), m.group(3), m.group(6), m.group(7), m.group(9), m.group(10), m.group(11)
+                finally:  # hence the rest of the lines should follow either try's or except's same format
+                    for line in fin:
+                        qstat_values = self._process_line(re_search, line, re_match_positions)
+                        all_qstat_values.append(qstat_values)
+        finally:
+            self.dump_all(all_qstat_values, out_file, write_method)
 
     def serialise_qstatq(self, orig_file, out_file, write_method):
         """
@@ -111,50 +118,54 @@ class QStatMaker(StatMaker):
         biomed             --      --    72:00:00   --   31   0 --   E R
         (except for the last line, which contains two sums and is parsed separately)
         """
-        check_empty_file(orig_file)
-        anonymize = anonymize_func()
-        queue_search = r'^(?P<queue_name>[\w.-]+)\s+' \
-                       r'(?:--|[0-9]+[mgtkp]b[a-z]*)\s+' \
-                       r'(?:--|\d+:\d+:?\d*:?)\s+' \
-                       r'(?:--|\d+:\d+:?\d+:?)\s+(--)\s+' \
-                       r'(?P<run>\d+)\s+' \
-                       r'(?P<queued>\d+)\s+' \
-                       r'(?P<lm>--|\d+)\s+' \
-                       r'(?P<state>[DE] R)'
-        run_qd_search = '^\s*(?P<tot_run>\d+)\s+(?P<tot_queued>\d+)'  # this picks up the last line contents
+        try:
+            check_empty_file(orig_file)
+        except FileEmptyError:
+            all_values = []
+        else:
+            anonymize = anonymize_func()
+            queue_search = r'^(?P<queue_name>[\w.-]+)\s+' \
+                           r'(?:--|[0-9]+[mgtkp]b[a-z]*)\s+' \
+                           r'(?:--|\d+:\d+:?\d*:?)\s+' \
+                           r'(?:--|\d+:\d+:?\d+:?)\s+(--)\s+' \
+                           r'(?P<run>\d+)\s+' \
+                           r'(?P<queued>\d+)\s+' \
+                           r'(?P<lm>--|\d+)\s+' \
+                           r'(?P<state>[DE] R)'
+            run_qd_search = '^\s*(?P<tot_run>\d+)\s+(?P<tot_queued>\d+)'  # this picks up the last line contents
 
-        all_values = list()
-        with open(orig_file, 'r') as fin:
-            fin.next()
-            fin.next()
-            # server_name = fin.next().split(': ')[1].strip()
-            fin.next()
-            fin.next().strip()  # the headers line should later define the keys in temp_dict, should they be different
-            fin.next()
-            for line in fin:
-                line = line.strip()
-                m = re.search(queue_search, line)
-                n = re.search(run_qd_search, line)
-                temp_dict = {}
-                try:
-                    queue_name = m.group('queue_name') if not options.ANONYMIZE else anonymize(m.group('queue_name'), 'qs')
-                    run, queued, lm, state = m.group('run'), m.group('queued'), m.group('lm'), m.group('state')
-                except AttributeError:
+            all_values = list()
+            with open(orig_file, 'r') as fin:
+                fin.next()
+                fin.next()
+                # server_name = fin.next().split(': ')[1].strip()
+                fin.next()
+                fin.next().strip()  # the headers line should later define the keys in temp_dict, should they be different
+                fin.next()
+                for line in fin:
+                    line = line.strip()
+                    m = re.search(queue_search, line)
+                    n = re.search(run_qd_search, line)
+                    temp_dict = {}
                     try:
-                        total_running_jobs, total_queued_jobs = n.group('tot_run'), n.group('tot_queued')
+                        queue_name = m.group('queue_name') if not options.ANONYMIZE else anonymize(m.group('queue_name'), 'qs')
+                        run, queued, lm, state = m.group('run'), m.group('queued'), m.group('lm'), m.group('state')
                     except AttributeError:
-                        continue
-                else:
-                    for key, value in [('queue_name', queue_name),
-                                       ('run', run),
-                                       ('queued', queued),
-                                       ('lm', lm),
-                                       ('state', state)]:
-                        temp_dict[key] = value
-                    all_values.append(temp_dict)
-            all_values.append({'Total_running': total_running_jobs, 'Total_queued': total_queued_jobs})
-
-        self.dump_statq(all_values, out_file, write_method)
+                        try:
+                            total_running_jobs, total_queued_jobs = n.group('tot_run'), n.group('tot_queued')
+                        except AttributeError:
+                            continue
+                    else:
+                        for key, value in [('queue_name', queue_name),
+                                           ('run', run),
+                                           ('queued', queued),
+                                           ('lm', lm),
+                                           ('state', state)]:
+                            temp_dict[key] = value
+                        all_values.append(temp_dict)
+                all_values.append({'Total_running': total_running_jobs, 'Total_queued': total_queued_jobs})
+        finally:
+            self.dump_statq(all_values, out_file, write_method)
 
     def dump_statq(self, values, out_file, write_method):
         """
@@ -206,7 +217,9 @@ class GenericBatchSystem(object):
             try:
                 qstats = (write_method.endswith('yaml')) and yaml.load_all(fin) or json.load(fin)
             except StopIteration:
+                # import wdb; wdb.set_trace()
                 logging.warning('File %s is empty. (No jobs found or Error!)')
+                qstats = []
             else:
                 for qstat in qstats:
                     job_ids.append(str(qstat['JobId']))

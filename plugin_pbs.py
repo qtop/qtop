@@ -67,11 +67,14 @@ class PBSBatchSystem(GenericBatchSystem):
         pbs_nodes = []
 
         with open(fn) as fin:
-            _nodes = (write_method.endswith('yaml')) and yaml.load_all(fin) or json.load(fin)
-            for node in _nodes:
-                pbs_nodes.append(node)
-        # pbs_nodes.pop() if not pbs_nodes[-1] else None # until i figure out why the last node is None
-        # this doesn't seem to be the case anymore, DONT KNOW WHY!!
+            try:
+                _nodes = (write_method.endswith('yaml')) and yaml.load_all(fin) or json.load(fin)
+            except StopIteration:
+                logging.warning('File %s is empty. (No jobs found or Error!)')
+                _nodes = []
+            finally:
+                for node in _nodes:
+                    pbs_nodes.append(node)
         return pbs_nodes
 
     @staticmethod
@@ -84,15 +87,27 @@ class PBSBatchSystem(GenericBatchSystem):
         qstatq_list = []
         logging.debug("Opening %s" % fn)
         with open(fn, 'r') as fin:
-            qstatqs_total = (write_method.endswith('yaml')) and yaml.load_all(fin) or json.load(fin)
-            for qstatq in qstatqs_total:
-                qstatq_list.append(qstatq)
-            total = qstatq_list.pop()
-            total_running_jobs, total_queued_jobs = total['Total_running'], total['Total_queued']
+            try:
+                qstatqs_total = (write_method.endswith('yaml')) and yaml.load_all(fin) or json.load(fin)
+            except StopIteration:
+                logging.warning('File %s is empty. (No jobs found or Error!)')
+                qstatqs_total = []
+                total_running_jobs, total_queued_jobs = 0, 0
+                return total_running_jobs, total_queued_jobs, qstatq_list
+            else:
+                for qstatq in qstatqs_total:
+                    qstatq_list.append(qstatq)
+                total = qstatq_list.pop()
+                total_running_jobs, total_queued_jobs = total['Total_running'], total['Total_queued']
         return int(eval(total_running_jobs)), int(eval(total_queued_jobs)), qstatq_list
 
     def _get_pbsnodes_values(self, orig_file, out_file):
-        check_empty_file(orig_file)
+        try:
+            check_empty_file(orig_file)
+        except FileEmptyError:
+            all_pbs_values = []
+            return all_pbs_values
+
         raw_blocks = self._read_all_blocks(orig_file)
         all_pbs_values = []
         anonymize = anonymize_func()

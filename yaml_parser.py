@@ -279,17 +279,21 @@ def safe_load(fin, DEF_INDENT=2):
 
 def load_all(fin):
     list_of_dicts = []
-    # with open(fn, mode='r') as fin:
     get_lines = get_line(fin)
-    line = next(get_lines)
-    while line:
-        block, line = read_yaml_config_block(line, fin, get_lines)
-        block = convert_dash_key_in_dict(block)
-        list_of_dicts.append(block)
-        try:
-            line = next(get_lines)
-        except StopIteration:
-            line = ''
+    try:
+        line = next(get_lines)
+    except StopIteration:
+        raise
+        # return [""]  # must be true otherwise and/or trick fails
+    else:
+        while line:
+            block, line = read_yaml_config_block(line, fin, get_lines)
+            block = convert_dash_key_in_dict(block)
+            list_of_dicts.append(block)
+            try:
+                line = next(get_lines)
+            except StopIteration:
+                line = ''
 
     return list_of_dicts
 
