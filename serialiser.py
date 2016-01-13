@@ -217,7 +217,6 @@ class GenericBatchSystem(object):
             try:
                 qstats = (write_method.endswith('yaml')) and yaml.load_all(fin) or json.load(fin)
             except StopIteration:
-                # import wdb; wdb.set_trace()
                 logging.warning('File %s is empty. (No jobs found or Error!)')
                 qstats = []
             else:
