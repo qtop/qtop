@@ -130,7 +130,7 @@ sorting:
       len(d['domainname'].split('.', 1)[0].split('-')[0]),
       #int(d['domainname'].split('.', 1)[0].split('-')[1]),
       #int(re.sub(r'[A-Za-z_-]+', '', d['domainname'].split('.', 1)[0].split('-')[0]) or -1),  # by number
-      int(re.sub(r'[A-Za-z _.-]+', '', d['domainname']))
+      int(re.sub(r'[A-Za-z _.-]+', '', d['domainname']) or "0")
       )
 
 #  user_sort: |  # by node state
@@ -195,11 +195,11 @@ workernodes_matrix:
      label: Node state
      max_len: 5
      systems: [sge, oar, pbs]
- - queue name:  # TODO: this only works for SGE systems
-     yaml_key: qname
-     label: queue name
-     max_len: 2
-     systems: [sge]
+ # - queue name:  # TODO: this only works for SGE systems
+ #     yaml_key: qname
+ #     label: queue name
+ #     max_len: 2
+ #     systems: [sge]
  - core user map:
      options1: {}
      options2: {}

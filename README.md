@@ -13,6 +13,25 @@ both by providing feedback and by actively contributing to the source code.
 
 This program is currently in development mode, with experimental features. If it works, peace :)
 
+## Getting started
+
+We use vagrant and [a docker container with a Torque/PBS server](https://hub.docker.com/r/agaveapi/torque/) as a demo environment. Should run fine in any environment with native Docker or Docker + VirtualBox + AMD-V or VT-x hardware support enabled.
+
+    git clone https://github.com/qtop/qtop.git
+    cd qtop
+    
+    vagrant up           # This will take ~5 minutes and download half a GB
+    
+    vagrant ssh          # Give password: "testuser" when asked
+    
+    # Submit 20 jobs:
+    for i in `seq 1 20`; do qsub ~/torque.submit; done
+    
+    # Run qtop
+    cd qtop              # Your files are here.
+    python qtop.py -w    # qtop auto-detects PBS mode in this case
+
+
 ## Profile
 
 ```
