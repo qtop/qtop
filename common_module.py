@@ -31,7 +31,7 @@ def mkdir_p(path):
 
 def check_empty_file(orig_file):
     if not os.path.getsize(orig_file) > 0:
-        logging.critical('Your %s file is empty! Please check your directory. Exiting ...' % orig_file)
+        logging.critical('%s is empty! Maybe there are no queues/jobs?. \nExiting ...' % orig_file)
         sys.exit(0)
 
 

@@ -196,11 +196,11 @@ workernodes_matrix:
      label: Node state
      max_len: 5
      systems: [sge, oar, pbs]
- - queue name:  # TODO: this only works for SGE systems
-     yaml_key: qname
-     label: queue name
-     max_len: 2
-     systems: [sge]
+# - queue name:  # TODO: this only works for SGE systems
+#     yaml_key: qname
+#     label: queue name
+#     max_len: 2
+#     systems: [sge]
  - core user map:
      options1: {}
      options2: {}
