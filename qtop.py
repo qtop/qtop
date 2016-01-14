@@ -100,7 +100,7 @@ def decide_remapping(cluster_dict, _all_letters, _all_str_digits_with_empties):
     - one or two unnumbered nodes (should just be put in the end of the cluster)
     """
     if not cluster_dict['total_wn']:  # if nothing is running on the cluster
-        raise EmptySystem
+        return
 
 
     # all needed for decide_remapping
@@ -143,7 +143,9 @@ def decide_remapping(cluster_dict, _all_letters, _all_str_digits_with_empties):
 
 def calculate_cluster(worker_nodes):
     if not worker_nodes:
-        raise EmptySystem
+        cluster_dict, NAMED_WNS = dict(), 0
+        return cluster_dict, NAMED_WNS
+
     logging.debug('option FORCE_NAMES is: %s' % options.FORCE_NAMES)
     NAMED_WNS = 0 if not options.FORCE_NAMES else 1
     cluster_dict = dict()
@@ -186,10 +188,7 @@ def calculate_cluster(worker_nodes):
         finally:
             cluster_dict['workernode_list'].append(cur_node_nr)
 
-    try:
-        decide_remapping(cluster_dict, _all_letters, _all_str_digits_with_empties)
-    except EmptySystem:
-        pass
+    decide_remapping(cluster_dict, _all_letters, _all_str_digits_with_empties)
 
     # cluster_dict['workernode_dict'] creation
     nodes_drop = map_batch_nodes_to_wn_dicts(cluster_dict, worker_nodes, options.REMAP)
@@ -888,7 +887,8 @@ def calculate_wn_occupancy(cluster_dict, user_names, job_states, job_ids, config
     config = calculate_split_screen_size(config)  # term_columns
 
     if not cluster_dict:
-        raise EmptySystem
+        workernodes_occupancy, cluster_dict = dict(), dict()
+        return workernodes_occupancy, cluster_dict
 
     wns_occupancy = dict()
     create_account_jobs_table(user_names, job_states, wns_occupancy) # account_jobs_table, id_of_username
@@ -1704,16 +1704,10 @@ if __name__ == '__main__':
 
                 #  MAIN ##################################
                 logging.info('CALCULATION AREA')
-                try:
-                    cluster_dict, NAMED_WNS = calculate_cluster(worker_nodes)
-                except EmptySystem:
-                    cluster_dict, NAMED_WNS = dict(), 0
+                cluster_dict, NAMED_WNS = calculate_cluster(worker_nodes)
 
-                try:
-                    workernodes_occupancy, cluster_dict, config = calculate_wn_occupancy(cluster_dict, user_names, job_states,
+                workernodes_occupancy, cluster_dict, config = calculate_wn_occupancy(cluster_dict, user_names, job_states,
                                                                                          job_ids, config)
-                except EmptySystem:
-                    workernodes_occupancy, cluster_dict = dict(), dict()
 
                 h_stop = config['h_stop'] if h_stop is None else h_stop
                 v_stop = config['v_stop'] if v_stop is None else v_stop
