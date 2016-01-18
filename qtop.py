@@ -8,15 +8,11 @@
 ################################################
 
 from operator import itemgetter
-import datetime
 from itertools import izip, izip_longest
 import subprocess
-import time
-import sys
 import select
-import os
 from os import unlink, close
-from os.path import realpath, expandvars, getmtime
+from os.path import realpath, getmtime
 try:
     from collections import OrderedDict
 except ImportError:
@@ -25,11 +21,6 @@ from signal import signal, SIGPIPE, SIG_DFL
 import termios
 import contextlib
 import glob
-# modules
-from constants import *
-import serialiser
-import common_module
-from common_module import logging, options, sections_off, add_to_sample
 from plugin_pbs import *
 from plugin_oar import *
 from plugin_sge import *
@@ -689,7 +680,7 @@ def display_matrix(workernodes_occupancy):
 
         for line_tuple in izip_longest(*[tpl[2] for tpl in transposed_matrices], fillvalue='  '):
             join_prints(*line_tuple, sep=config.get('horizontal_separator', None))
-        logging.debug('Printed horizontally from %s to %s' % (config['h_start'], h_stop))
+        logging.debug('Printed horizontally from %s to %s' % (viewport.get_config('h_start'), viewport.get_h_stop()))
     print
 
 
@@ -857,8 +848,9 @@ def join_prints(*args, **kwargs):
         joined_list.extend(d)
         joined_list.append(kwargs['sep'])
 
-    print "".join(joined_list[h_start:h_stop])
+    print "".join(joined_list[viewport.get_h_start():viewport.get_h_stop()])
     workernodes_occupancy.setdefault('max_full_line_len', len(joined_list))
+    viewport.set_max_full_line_len(workernodes_occupancy.get('max_full_line_len', None))
 
 
 def get_yaml_key_part(major_key):
@@ -1068,16 +1060,15 @@ def calculate_split_screen_size(config):
             try:
                 term_height, term_columns = fix_config_list(config['term_size'])
             except KeyError:
-                config['term_size'] = fallback_term_size
+                # Bug... the following gets discarded
+                #config['term_size'] = fallback_term_size
+                term_height, term_columns = fallback_term_size
         except KeyError:
-            config['term_size'] = fallback_term_size
-            term_height, term_columns = config['term_size']
-    finally:
-        logging.debug('Set terminal size is: %s * %s' % (term_height, term_columns))
-        config['term_size'] = [int(term_height), int(term_columns)]
-        config['h_start'] = h_start
-        config['v_stop'], config['h_stop'] = config['term_size']
-        return config
+            term_height, term_columns = fallback_term_size
+
+    logging.debug('Set terminal size is: %s * %s' % (term_height, term_columns))
+
+    viewport.reset_term_size(int(term_height), int(term_columns))
 
 
 def sort_batch_nodes(batch_nodes):
@@ -1417,114 +1408,7 @@ def deprecate_old_yaml_files():
             os.remove(curpath)
 
 
-def scroll_down(h_start, h_stop, v_start, v_stop):
-    logging.debug('v_start: %s' % v_start)
-
-    if v_stop < num_lines:
-        v_start += config['term_size'][0]
-        v_stop += config['term_size'][0]  # - 10
-        logging.info('Going down...')
-        config['v_stop'] = v_stop
-    else:
-        logging.info('Staying put')
-    return h_start, h_stop, v_start, v_stop
-
-
-def scroll_bottom(h_start, h_stop, v_start, v_stop):
-    logging.debug('v_start: %s' % v_start)
-
-    v_start = num_lines - config['term_size'][0]
-    v_stop = num_lines
-    logging.info('Going to the bottom...')
-    config['v_stop'] = v_stop
-    return h_start, h_stop, v_start, v_stop
-
-
-def scroll_top(h_start, h_stop, v_start, v_stop):
-    logging.debug('v_start: %s' % v_start)
-
-    v_start = 0
-    v_stop = config['term_size'][0]
-    logging.info('Going to the top...')
-    config['v_stop'] = v_stop
-    return h_start, h_stop, v_start, v_stop
-
-
-def scroll_up(h_start, h_stop, v_start, v_stop):
-    if v_start - config['term_size'][0] >= 0:
-        v_start -= config['term_size'][0]
-        v_stop -= config['term_size'][0]
-        logging.info('Going up...')
-    else:
-        v_start = 1
-        v_stop = config['term_size'][0]
-        logging.info('Staying put')
-    config['v_stop'] = v_stop
-    return h_start, h_stop, v_start, v_stop
-
-
-def scroll_right(h_start, h_stop, v_start, v_stop):  # 'l', right
-    h_start += config['term_size'][1]/2
-    config['h_start'] = h_start
-    h_stop += config['term_size'][1]/2
-    config['h_stop'] = h_stop
-    logging.info('Going right...')
-    return config['h_start'], config['h_stop'], v_start, v_stop
-
-
-def scroll_far_right(h_start, h_stop, v_start, v_stop):  # 'l', right
-    h_start = workernodes_occupancy['max_full_line_len'] - config['term_size'][1]
-    config['h_start'] = h_start
-    h_stop = workernodes_occupancy['max_full_line_len']
-    config['h_stop'] = h_stop
-    logging.info('h_start: %s' % h_start)
-    logging.info('max_line_len: %s' % max_line_len)
-    logging.info('config["term_size"][1] %s' % config['term_size'][1])
-    logging.info('h_stop: %s' % h_stop)
-    logging.info('Going far right...')
-    return config['h_start'], config['h_stop'], v_start, v_stop
-
-
-def scroll_left(h_start, h_stop, v_start, v_stop):
-    if h_start >= config['term_size'][1] / 2:
-        h_start -= config['term_size'][1]/2
-    if h_start > 0:
-        h_stop -= config['term_size'][1]/2
-    else:
-        h_stop = config['term_size'][1]
-    config['h_start'] = h_start
-    config['h_stop'] = h_stop
-    logging.info('Going left...')
-    return h_start, h_stop, v_start, v_stop
-
-
-def scroll_far_left(h_start, h_stop, v_start, v_stop):
-    h_start = 0
-    h_stop = config['term_size'][1]
-    config['h_start'] = h_start
-    config['h_stop'] = h_stop
-    logging.info('Going far left...')
-    return h_start, h_stop, v_start, v_stop
-
-
-def reset_display(h_start, h_stop, v_start, v_stop):  # "R", reset display
-    v_start = 1
-    v_stop = config['term_size'][0]
-    config['v_stop'] = v_stop
-    h_start = 0
-    h_stop = config['term_size'][1]
-    return h_start, h_stop, v_start, v_stop
-
-
-def quit_program(h_start, h_stop, v_start, v_stop):  # "q", quit
-    try:
-        raise KeyboardInterrupt
-    except KeyboardInterrupt:
-        print '  Exiting...'
-        sys.exit(0)
-
-
-def control_movement(pressed_char_hex, h_start, h_stop, v_start, v_stop):
+def control_movement(pressed_char_hex):
     """
     Basic vi-like movement is implemented for the -w switch (linux watch-like behaviour for qtop).
     h, j, k, l for left, down, up, right, respectively.
@@ -1533,35 +1417,60 @@ def control_movement(pressed_char_hex, h_start, h_stop, v_start, v_stop):
     r resets the screen to its initial position (if you've drifted away from the vieweable part of a matrix).
     q quits qtop.
     """
-    key_actions = {
-        '6a': scroll_down,  # j
-        '20': scroll_down,  # spacebar
-        '6b': scroll_up,  # k
-        '7f': scroll_up,  # Backspace
-        '6c': scroll_right,  # l
-        '24': scroll_far_right,  # $
-        '68': scroll_left,  # h
-        '30': scroll_far_left,  # 0
-        '4a': scroll_bottom,  # S-j
-        '47': scroll_bottom,  # G
-        '4b': scroll_top,  # S-k
-        '67': scroll_top,  # g
-        '72': reset_display,  # r
-        '71': quit_program,  # q
-        '0a': lambda a,b,c,d: (a,b,c,d),  # Enter, do nothing
-    }
-    try:
-        move_func = key_actions[pressed_char_hex]
-    except KeyError:  # if an unbound keypress is made, do nothing
-        move_func = lambda a, b, c, d: (a, b, c, d)
+    if pressed_char_hex in ['6a', '20']:  # j, spacebar
+        logging.debug('v_start: %s' % self.get_v_start())
+        if viewport.scroll_down():
+            logging.info('Going down...')
+        else:
+            logging.info('Staying put')
 
-    h_start, h_stop, v_start, v_stop = move_func(h_start, h_stop, v_start, v_stop)
+    elif pressed_char_hex in ['6b', '7f']:  # k, Backspace
+        if viewport.scroll_up():
+            logging.info('Going up...')
+        else:
+            logging.info('Staying put')
+
+    elif pressed_char_hex in ['6c']:  # l
+        logging.info('Going right...')
+        viewport.scroll_right()
+
+    elif pressed_char_hex in ['24']:  # $
+        logging.info('Going far right...')
+        viewport.scroll_far_right()
+        logging.info('h_start: %s' % viewport.get_h_start())
+        logging.info('max_line_len: %s' % max_line_len)
+        logging.info('config["term_size"][1] %s' % config['term_size'][1])
+        logging.info('h_stop: %s' % viewport.get_h_stop())
+
+    elif pressed_char_hex in ['68']:  # h
+        logging.info('Going left...')
+        viewport.scroll_left()
+
+    elif pressed_char_hex in ['30']:   # 0
+        logging.info('Going far left...')
+        viewport.scroll_far_left()
+
+    elif pressed_char_hex in ['4a', '47']:  # S-j, G
+        logging.info('Going to the bottom...')
+        logging.debug('v_start: %s' % self.get_v_start())
+        viewport.scroll_bottom()
+
+    elif pressed_char_hex in ['4b', '67']:  # S-k, g
+        logging.info('Going to the top...')
+        logging.debug('v_start: %s' % viewport.get_v_start())
+        viewport.scroll_top()
+
+    elif pressed_char_hex in ['72']:  # r
+        viewport.reset_display()
+
+    elif pressed_char_hex in ['71']:  # q
+        print '  Exiting...'
+        sys.exit(0)
 
     logging.debug('Area Displayed: (h_start, v_start) --> (h_stop, v_stop) '
                   '\n\t(%(h_start)s, %(v_start)s) --> (%(h_stop)s, %(v_stop)s)' %
-                  {'v_start': v_start, 'v_stop': v_stop, 'h_start': h_start, 'h_stop': h_stop})
-
-    return h_start, h_stop, v_start, v_stop
+                  {'v_start': viewport.get_v_start(), 'v_stop': viewport.get_v_stop(),
+                   'h_start': viewport.get_h_start(), 'h_stop': viewport.get_h_stop()})
 
 
 def safe_exit_with_file_close(handle, name, stdout, delete_file=False):
@@ -1627,12 +1536,9 @@ def scheduler_factory(scheduler, in_out_filenames, config):
 if __name__ == '__main__':
 
     stdout = sys.stdout
-    v_start = 1
-    v_stop = None
-    h_start = 0
-    h_stop = None
+
+    viewport = Viewport()
     read_char = 'r'  # initial value, resets view position to beginning
-    num_lines = 0
     max_line_len = 0
     timeout = 1
 
@@ -1662,7 +1568,10 @@ if __name__ == '__main__':
                         from xml.etree import ElementTree as etree
 
                 if options.TRANSPOSE:
-                    config['transpose_wn_matrices'] = 'False' if config['transpose_wn_matrices'] == 'True' else 'True'
+                    config['transpose_wn_matrices'] = not config['transpose_wn_matrices']
+
+                # After this place config is *logically* immutable
+                viewport.init_from_config(config)
 
                 SEPARATOR = config['vertical_separator'].translate(None, "'")  # alias
                 USER_CUT_MATRIX_WIDTH = int(config['workernodes_matrix'][0]['wn id lines']['user_cut_matrix_width'])  # alias
@@ -1705,12 +1614,9 @@ if __name__ == '__main__':
                 #  MAIN ##################################
                 logging.info('CALCULATION AREA')
                 cluster_dict, NAMED_WNS = calculate_cluster(worker_nodes)
-
-                workernodes_occupancy, cluster_dict, config = calculate_wn_occupancy(cluster_dict, user_names, job_states,
-                                                                                         job_ids, config)
-
-                h_stop = config['h_stop'] if h_stop is None else h_stop
-                v_stop = config['v_stop'] if v_stop is None else v_stop
+                workernodes_occupancy, cluster_dict = calculate_wn_occupancy(cluster_dict, user_names, job_states, job_ids)
+                viewport.set_max_full_line_len(workernodes_occupancy.get('max_full_line_len', None))
+                viewport.reset_stops_from_config()
 
                 display_parts = {
                     'job_accounting_summary': (display_job_accounting_summary, (cluster_dict, total_running_jobs, total_queued_jobs, qstatq_lod)),
@@ -1730,12 +1636,16 @@ if __name__ == '__main__':
                 sys.stdout.close()
                 sys.stdout = stdout  # sys.stdout is back to its normal function (i.e. screen output)
 
-                num_lines = sum(1 for line in open(output_fp, 'r')) if not num_lines else num_lines
+                if not viewport.get_num_lines():
+                    # This takes care of closing the file as well.
+                    with open(output_fp, 'r') as f:
+                        viewport.set_num_lines(len(f.readlines()))
+
                 ansi_escape = re.compile(r'\x1b[^m]*m')  # matches ANSI escape characters
                 max_line_len = max(len(ansi_escape.sub('', line.strip())) for line in open(output_fp, 'r')) \
                     if not max_line_len else max_line_len
 
-                logging.debug('Total nr of lines: %s' % num_lines)
+                logging.debug('Total nr of lines: %s' % viewport.get_num_lines())
                 logging.debug('Max line length: %s' % max_line_len)
 
                 if not options.WATCH:
@@ -1748,8 +1658,8 @@ if __name__ == '__main__':
 
                 # justification for implementation:
                 # http://unix.stackexchange.com/questions/47407/cat-line-x-to-line-y-on-a-huge-file
-                line_offset = v_stop - v_start
-                cat_command = 'clear;tail -n+%s %s | head -n%s' % (v_start, output_fp, line_offset)
+                line_offset = viewport.get_v_stop() - viewport.get_v_start()
+                cat_command = 'clear;tail -n+%s %s | head -n%s' % (viewport.get_v_start(), output_fp, line_offset)
                 NOT_FOUND = subprocess.call(cat_command, stdout=stdout, stderr=stdout, shell=True)
 
 
@@ -1765,7 +1675,7 @@ if __name__ == '__main__':
                     read_char = '\n' if (state == new_state) else 'r'
                     logging.debug("Auto-advancing by pressing <Enter>")
                 pressed_char_hex = '%02x' % ord(read_char) # read_char has an initial value that resets the display ('72')
-                h_start, h_stop, v_start, v_stop = control_movement(pressed_char_hex, h_start, h_stop, v_start, v_stop)
+                control_movement(pressed_char_hex)
                 os.chdir(QTOPPATH)
                 unlink(output_fp)
 
