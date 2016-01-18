@@ -99,6 +99,9 @@ def decide_remapping(cluster_dict, _all_letters, _all_str_digits_with_empties):
     Reasons not enough to warrant remapping (intended future behaviour)
     - one or two unnumbered nodes (should just be put in the end of the cluster)
     """
+    if not cluster_dict['total_wn']:  # if nothing is running on the cluster
+        return
+
 
     # all needed for decide_remapping
     cluster_dict['node_subclusters'] = set(_all_letters)
@@ -120,21 +123,29 @@ def decide_remapping(cluster_dict, _all_letters, _all_str_digits_with_empties):
 
     if logging.getLogger().isEnabledFor(logging.DEBUG) and options.REMAP:
         user_request = options.BLINDREMAP and 'The user has requested it (blindremap switch)' or False
+
         subclusters = len(cluster_dict['node_subclusters']) > 1 and \
             'there are different WN namings, e.g. wn001, wn002, ..., ps001, ps002, ... etc' or False
+
         exotic_starting = min(cluster_dict['workernode_list']) >= config['exotic_starting_wn_nr'] and \
             'the first starting numbering of a WN is very high and thus would require too much unused space' or False
+
         percentage_unassigned = len(cluster_dict['_all_str_digits_with_empties']) != len(cluster_dict['all_str_digits']) and \
             'more than %s of nodes have are down/offline' % float(config['percentage']) or False
+
         numbering_collisions = min(cluster_dict['workernode_list']) >= config['exotic_starting_wn_nr'] and \
             'there are numbering collisions' or False
+
         print
         logging.debug('Remapping decided due to: \n\t %s' % filter(None,
             [user_request, subclusters, exotic_starting, percentage_unassigned, numbering_collisions]))
-    # max(cluster_dict['workernode_list']) was cluster_dict['highest_wn']
 
 
 def calculate_cluster(worker_nodes):
+    if not worker_nodes:
+        cluster_dict, NAMED_WNS = dict(), 0
+        return cluster_dict, NAMED_WNS
+
     logging.debug('option FORCE_NAMES is: %s' % options.FORCE_NAMES)
     NAMED_WNS = 0 if not options.FORCE_NAMES else 1
     cluster_dict = dict()
@@ -237,7 +248,9 @@ def display_job_accounting_summary(cluster_dict, total_running_jobs, total_queue
             print '=== WARNING: --- Remapping WN names and retrying heuristics... good luck with this... ---'
         else:
             logging.warning('=== WARNING: --- Remapping WN names and retrying heuristics... good luck with this... ---')
+
     ansi_delete_char = "\015"  # this removes the first ever character (space) appearing in the output
+
     print '%(del)s%(name)s report tool. All bugs added by sfranky@gmail.com. Cross fingers now...' \
         % {'name': 'PBS' if options.CLASSIC else 'Queueing System', 'del': ansi_delete_char}
 
@@ -250,11 +263,11 @@ def display_job_accounting_summary(cluster_dict, total_running_jobs, total_queue
           '   %(total_run_jobs)s+%(total_q_jobs)s %(jobs)s (R + Q) %(reported_by)s' % \
           {
               'Usage Totals': colorize('Usage Totals', 'Yellow'),
-              'online_nodes': colorize(str(cluster_dict['total_wn'] - cluster_dict['offline_down_nodes']), 'Red_L'),
-              'total_nodes': colorize(str(cluster_dict['total_wn']), 'Red_L'),
+              'online_nodes': colorize(str(cluster_dict.get('total_wn', 0) - cluster_dict.get('offline_down_nodes', 0)), 'Red_L'),
+              'total_nodes': colorize(str(cluster_dict.get('total_wn', 0)), 'Red_L'),
               'Nodes': colorize('Nodes', 'Red_L'),
-              'working_cores': colorize(str(cluster_dict['working_cores']), 'Green_L'),
-              'total_cores': colorize(str(cluster_dict['total_cores']), 'Green_L'),
+              'working_cores': colorize(str(cluster_dict.get('working_cores', 0)), 'Green_L'),
+              'total_cores': colorize(str(cluster_dict.get('total_cores', 0)), 'Green_L'),
               'Cores': colorize('cores', 'Green_L'),
               'total_run_jobs': colorize(str(int(total_running_jobs)), 'Blue_L'),
               'total_q_jobs': colorize(str(int(total_queued_jobs)), 'Blue_L'),
@@ -397,7 +410,7 @@ def fill_node_cores_column(_node, core_user_map, id_of_username, max_np_range, u
             core, job = str(corejob['core']), str(corejob['job'])
             try:
                 user = user_of_job_id[job]
-            except KeyError, KeyErrorValue:
+            except KeyError as KeyErrorValue:
                 logging.critical('There seems to be a problem with the qstat output. '
                                  'A Job (ID %s) has gone rogue. '
                                  'Please check with the SysAdmin.' % (str(KeyErrorValue)))
@@ -622,7 +635,8 @@ def display_matrix(workernodes_occupancy):
     occupancy_parts needs to be redefined for each matrix, because of changed parameter values
     """
     # global transposed_matrices
-    if is_matrix_coreless(workernodes_occupancy):
+    if (not all([workernodes_occupancy, workernodes_occupancy.get('id_of_username', 0)])) or is_matrix_coreless(
+            workernodes_occupancy):
         return
     print_char_start = workernodes_occupancy['print_char_start']
     print_char_stop = workernodes_occupancy['print_char_stop']
@@ -697,7 +711,15 @@ def print_mult_attr_line(print_char_start, print_char_stop, transposed_matrices,
         print attr_line + "=" + label
 
 
-def display_user_accounts_pool_mappings(account_jobs_table, pattern_of_id):
+def display_user_accounts_pool_mappings(workernodes_occupancy=None):
+    try:
+        account_jobs_table = workernodes_occupancy['account_jobs_table']
+        pattern_of_id = workernodes_occupancy['pattern_of_id']
+    except KeyError:
+        account_jobs_table = dict()
+        pattern_of_id = dict()
+
+
     detail_of_name = get_detail_of_name(account_jobs_table)
     print colorize('\n===> ', 'Gray_D') + \
           colorize('User accounts and pool mappings', 'White') + \
@@ -760,6 +782,8 @@ def calc_core_userid_matrix(cluster_dict, wns_occupancy, job_ids, user_names):
     _core_user_map = OrderedDict()
     max_np_range = [str(x) for x in range(cluster_dict['max_np'])]
     user_of_job_id = dict(izip(job_ids, user_names))
+    if not user_of_job_id:
+        return
 
     for core_nr in max_np_range:
         _core_user_map['Core%sline' % str(core_nr)] = []  # Cpu0line, Cpu1line, Cpu2line, .. = '','','', ..
@@ -853,15 +877,20 @@ def get_yaml_key_part(major_key):
             yield yaml_key, part_name
 
 
-def calculate_wn_occupancy(cluster_dict, user_names, job_states, job_ids):
+def calculate_wn_occupancy(cluster_dict, user_names, job_states, job_ids, config):
     """
     Prints the Worker Nodes Occupancy table.
     if there are non-uniform WNs in pbsnodes.yaml, e.g. wn01, wn02, gn01, gn02, ...,  remapping is performed.
     Otherwise, for uniform WNs, i.e. all using the same numbering scheme, wn01, wn02, ... proceeds as normal.
     Number of Extra tables needed is calculated inside the calc_all_wnid_label_lines function below
     """
+    config = calculate_split_screen_size(config)  # term_columns
+
+    if not cluster_dict:
+        workernodes_occupancy, cluster_dict = dict(), dict()
+        return workernodes_occupancy, cluster_dict
+
     wns_occupancy = dict()
-    calculate_split_screen_size()  # term_columns
     create_account_jobs_table(user_names, job_states, wns_occupancy) # account_jobs_table, id_of_username
     make_pattern_of_id(wns_occupancy)  # pattern_of_id
 
@@ -874,7 +903,7 @@ def calculate_wn_occupancy(cluster_dict, user_names, job_states, job_ids):
         wns_occupancy[part_name] = calc_general_multiline_attr(cluster_dict, part_name, yaml_key)
 
     calc_core_userid_matrix(cluster_dict, wns_occupancy, job_ids, user_names)  # core user map
-    return wns_occupancy, cluster_dict
+    return wns_occupancy, cluster_dict, config
 
 
 def print_core_lines(core_user_map, print_char_start, print_char_stop, transposed_matrices, pattern_of_id, attrs, options1,
@@ -1024,7 +1053,7 @@ def load_yaml_config():
     return config
 
 
-def calculate_split_screen_size():
+def calculate_split_screen_size(config):
     """
     Calculates where to break the matrix into more matrices, because of the window size.
     """
@@ -1048,6 +1077,7 @@ def calculate_split_screen_size():
         config['term_size'] = [int(term_height), int(term_columns)]
         config['h_start'] = h_start
         config['v_stop'], config['h_stop'] = config['term_size']
+        return config
 
 
 def sort_batch_nodes(batch_nodes):
@@ -1670,20 +1700,22 @@ if __name__ == '__main__':
                 worker_nodes = scheduling_system.get_worker_nodes()
                 job_ids, user_names, job_states, _ = scheduling_system.get_jobs_info()
                 total_running_jobs, total_queued_jobs, qstatq_lod = scheduling_system.get_queues_info()
-
                 deprecate_old_yaml_files()
 
                 #  MAIN ##################################
                 logging.info('CALCULATION AREA')
                 cluster_dict, NAMED_WNS = calculate_cluster(worker_nodes)
-                workernodes_occupancy, cluster_dict = calculate_wn_occupancy(cluster_dict, user_names, job_states, job_ids)
+
+                workernodes_occupancy, cluster_dict, config = calculate_wn_occupancy(cluster_dict, user_names, job_states,
+                                                                                         job_ids, config)
+
                 h_stop = config['h_stop'] if h_stop is None else h_stop
                 v_stop = config['v_stop'] if v_stop is None else v_stop
 
                 display_parts = {
                     'job_accounting_summary': (display_job_accounting_summary, (cluster_dict, total_running_jobs, total_queued_jobs, qstatq_lod)),
                     'workernodes_matrix': (display_wn_occupancy, (workernodes_occupancy, cluster_dict)),
-                    'user_accounts_pool_mappings': (display_user_accounts_pool_mappings, (workernodes_occupancy['account_jobs_table'], workernodes_occupancy['pattern_of_id']))
+                    'user_accounts_pool_mappings': (display_user_accounts_pool_mappings, (workernodes_occupancy,))
                 }
                 logging.info('DISPLAY AREA')
 
@@ -1728,7 +1760,7 @@ if __name__ == '__main__':
                         break
                 else:
                     state = config['term_size']
-                    calculate_split_screen_size()
+                    config = calculate_split_screen_size(config)
                     new_state = config['term_size']
                     read_char = '\n' if (state == new_state) else 'r'
                     logging.debug("Auto-advancing by pressing <Enter>")
@@ -1739,7 +1771,8 @@ if __name__ == '__main__':
 
             if options.SAMPLE:
                 add_to_sample([output_fp], config['savepath'])
-        except (KeyboardInterrupt, EOFError):
+        except (KeyboardInterrupt, EOFError) as e:
+            repr(e)
             safe_exit_with_file_close(handle, output_fp, stdout)
         else:
             if options.SAMPLE >= 1:

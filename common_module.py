@@ -30,9 +30,8 @@ def mkdir_p(path):
 
 
 def check_empty_file(orig_file):
-    if not os.path.getsize(orig_file) > 0:
-        logging.critical('%s is empty! Maybe there are no queues/jobs?. \nExiting ...' % orig_file)
-        sys.exit(0)
+    if os.path.getsize(orig_file) == 0:
+        raise FileEmptyError(orig_file)
 
 
 def get_new_temp_file(suffix, prefix, config=None):  # **kwargs
@@ -158,6 +157,7 @@ logging.debug("input, output isatty: %s\t%s" % (stdin.isatty(), stdout.isatty())
 if options.COLOR == 'AUTO':
     options.COLOR = 'ON' if (os.environ.get("QTOP_COLOR", stdout.isatty()) in ("ON", True)) else 'OFF'
 logging.debug("options.COLOR is now set to: %s" % options.COLOR)
+options.REMAP = False  # Default value
 
 sections_off = {
     1: options.sect_1_off,
@@ -248,9 +248,21 @@ class FileNotFound(Exception):
         self.fn = fn
 
 
+class FileEmptyError(Exception):
+    def __init__(self, fn):
+        msg = "File %s is empty.\n" \
+              "Is your batch scheduler loaded with jobs?" % fn
+        Exception.__init__(self, msg)
+        logging.warning(msg)
+        self.fn = fn
+
+
 class SchedulerNotSpecified(Exception):
     pass
 
 
 class InvalidScheduler(Exception):
+    pass
+
+class EmptySystem(Exception):
     pass
