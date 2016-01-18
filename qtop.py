@@ -1624,6 +1624,17 @@ def scheduler_factory(scheduler, in_out_filenames, config):
         return SGEBatchSystem(in_out_filenames, config)
 
 
+Document = namedtuple('Document', ['worker_nodes', 'job_ids', 'user_names', 'job_states', 'total_running_jobs',
+                                   'total_queued_jobs', 'qstatq_lod'])
+
+
+def get_document(scheduling_system):
+    worker_nodes = scheduling_system.get_worker_nodes()
+    job_ids, user_names, job_states, _ = scheduling_system.get_jobs_info()
+    total_running_jobs, total_queued_jobs, qstatq_lod = scheduling_system.get_queues_info()
+    return Document(worker_nodes, job_ids, user_names, job_states, total_running_jobs, total_queued_jobs, qstatq_lod)
+
+
 if __name__ == '__main__':
 
     stdout = sys.stdout
@@ -1697,23 +1708,33 @@ if __name__ == '__main__':
                         [add_to_sample([in_out_filenames[fn]], savepath) for fn in in_out_filenames
                          if os.path.isfile(in_out_filenames[fn])]
 
-                worker_nodes = scheduling_system.get_worker_nodes()
-                job_ids, user_names, job_states, _ = scheduling_system.get_jobs_info()
-                total_running_jobs, total_queued_jobs, qstatq_lod = scheduling_system.get_queues_info()
+                document = get_document(scheduling_system)
+
+                def save_document(document):
+                    import tempfile
+                    tf = tempfile.NamedTemporaryFile()
+                    import json
+                    with open(tf.name, 'w') as outfile:
+                        json.dump(document, outfile)
+
+                # Will become document meber one day
+                save_document(document)
+
                 deprecate_old_yaml_files()
 
                 #  MAIN ##################################
                 logging.info('CALCULATION AREA')
-                cluster_dict, NAMED_WNS = calculate_cluster(worker_nodes)
+                cluster_dict, NAMED_WNS = calculate_cluster(document.worker_nodes)
 
-                workernodes_occupancy, cluster_dict, config = calculate_wn_occupancy(cluster_dict, user_names, job_states,
-                                                                                         job_ids, config)
+                workernodes_occupancy, cluster_dict, config = calculate_wn_occupancy(cluster_dict, document.user_names,
+                                                                                     document.job_states,
+                                                                                     document.job_ids, config)
 
                 h_stop = config['h_stop'] if h_stop is None else h_stop
                 v_stop = config['v_stop'] if v_stop is None else v_stop
 
                 display_parts = {
-                    'job_accounting_summary': (display_job_accounting_summary, (cluster_dict, total_running_jobs, total_queued_jobs, qstatq_lod)),
+                    'job_accounting_summary': (display_job_accounting_summary, (cluster_dict, document.total_running_jobs, document.total_queued_jobs, document.qstatq_lod)),
                     'workernodes_matrix': (display_wn_occupancy, (workernodes_occupancy, cluster_dict)),
                     'user_accounts_pool_mappings': (display_user_accounts_pool_mappings, (workernodes_occupancy,))
                 }
