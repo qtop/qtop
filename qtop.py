@@ -15,6 +15,7 @@ import time
 import sys
 import select
 import os
+import json
 from collections import namedtuple
 from os import unlink, close
 from os.path import realpath, expandvars, getmtime
@@ -844,7 +845,7 @@ def transpose_matrix(d, colored=False, reverse=False):
     returns a transposed matrix
     """
     pattern_of_id = workernodes_occupancy['pattern_of_id']
-    for tuple in izip_longest(*[[char for char in d[k]] for k in d], fillvalue=" "):
+    for tuple in izip_longest(*[[char for char in d[k]] for k in d], fiDllvalue=" "):
         if any(j != " " for j in tuple):
             tuple = colored and [colorize(j, '', pattern_of_id[j]) if j in pattern_of_id else j for j in tuple] or list(tuple)
             tuple[:] = tuple[::-1] if reverse else tuple
@@ -1625,8 +1626,12 @@ def scheduler_factory(scheduler, in_out_filenames, config):
         return SGEBatchSystem(in_out_filenames, config)
 
 
-Document = namedtuple('Document', ['worker_nodes', 'job_ids', 'user_names', 'job_states', 'total_running_jobs',
-                                   'total_queued_jobs', 'qstatq_lod'])
+class Document(namedtuple('Document', ['worker_nodes', 'job_ids', 'user_names', 'job_states', 'total_running_jobs', 'total_queued_jobs', 'qstatq_lod'])):
+    __slots__ = ()
+    
+    def save(self, filename):
+        with open(filename, 'w') as outfile:
+            json.dump(document, outfile)
 
 
 def get_document(scheduling_system):
@@ -1711,15 +1716,10 @@ if __name__ == '__main__':
 
                 document = get_document(scheduling_system)
 
-                def save_document(document):
-                    import tempfile
-                    tf = tempfile.NamedTemporaryFile()
-                    import json
-                    with open(tf.name, 'w') as outfile:
-                        json.dump(document, outfile)
-
                 # Will become document meber one day
-                save_document(document)
+                import tempfile
+                tf = tempfile.NamedTemporaryFile()
+                document.save(tf.name)
 
                 deprecate_old_yaml_files()
 
