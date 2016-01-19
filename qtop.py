@@ -15,6 +15,7 @@ import time
 import sys
 import select
 import os
+from collections import namedtuple
 from os import unlink, close
 from os.path import realpath, expandvars, getmtime
 try:
