@@ -15,6 +15,8 @@ import time
 import sys
 import select
 import os
+import json
+from collections import namedtuple
 from os import unlink, close
 from os.path import realpath, expandvars, getmtime
 try:
@@ -843,7 +845,7 @@ def transpose_matrix(d, colored=False, reverse=False):
     returns a transposed matrix
     """
     pattern_of_id = workernodes_occupancy['pattern_of_id']
-    for tuple in izip_longest(*[[char for char in d[k]] for k in d], fillvalue=" "):
+    for tuple in izip_longest(*[[char for char in d[k]] for k in d], fiDllvalue=" "):
         if any(j != " " for j in tuple):
             tuple = colored and [colorize(j, '', pattern_of_id[j]) if j in pattern_of_id else j for j in tuple] or list(tuple)
             tuple[:] = tuple[::-1] if reverse else tuple
@@ -1624,6 +1626,21 @@ def scheduler_factory(scheduler, in_out_filenames, config):
         return SGEBatchSystem(in_out_filenames, config)
 
 
+class Document(namedtuple('Document', ['worker_nodes', 'job_ids', 'user_names', 'job_states', 'total_running_jobs', 'total_queued_jobs', 'qstatq_lod'])):
+    __slots__ = ()
+    
+    def save(self, filename):
+        with open(filename, 'w') as outfile:
+            json.dump(document, outfile)
+
+
+def get_document(scheduling_system):
+    worker_nodes = scheduling_system.get_worker_nodes()
+    job_ids, user_names, job_states, _ = scheduling_system.get_jobs_info()
+    total_running_jobs, total_queued_jobs, qstatq_lod = scheduling_system.get_queues_info()
+    return Document(worker_nodes, job_ids, user_names, job_states, total_running_jobs, total_queued_jobs, qstatq_lod)
+
+
 if __name__ == '__main__':
 
     stdout = sys.stdout
@@ -1697,23 +1714,28 @@ if __name__ == '__main__':
                         [add_to_sample([in_out_filenames[fn]], savepath) for fn in in_out_filenames
                          if os.path.isfile(in_out_filenames[fn])]
 
-                worker_nodes = scheduling_system.get_worker_nodes()
-                job_ids, user_names, job_states, _ = scheduling_system.get_jobs_info()
-                total_running_jobs, total_queued_jobs, qstatq_lod = scheduling_system.get_queues_info()
+                document = get_document(scheduling_system)
+
+                # Will become document meber one day
+                import tempfile
+                tf = tempfile.NamedTemporaryFile()
+                document.save(tf.name)
+
                 deprecate_old_yaml_files()
 
                 #  MAIN ##################################
                 logging.info('CALCULATION AREA')
-                cluster_dict, NAMED_WNS = calculate_cluster(worker_nodes)
+                cluster_dict, NAMED_WNS = calculate_cluster(document.worker_nodes)
 
-                workernodes_occupancy, cluster_dict, config = calculate_wn_occupancy(cluster_dict, user_names, job_states,
-                                                                                         job_ids, config)
+                workernodes_occupancy, cluster_dict, config = calculate_wn_occupancy(cluster_dict, document.user_names,
+                                                                                     document.job_states,
+                                                                                     document.job_ids, config)
 
                 h_stop = config['h_stop'] if h_stop is None else h_stop
                 v_stop = config['v_stop'] if v_stop is None else v_stop
 
                 display_parts = {
-                    'job_accounting_summary': (display_job_accounting_summary, (cluster_dict, total_running_jobs, total_queued_jobs, qstatq_lod)),
+                    'job_accounting_summary': (display_job_accounting_summary, (cluster_dict, document.total_running_jobs, document.total_queued_jobs, document.qstatq_lod)),
                     'workernodes_matrix': (display_wn_occupancy, (workernodes_occupancy, cluster_dict)),
                     'user_accounts_pool_mappings': (display_user_accounts_pool_mappings, (workernodes_occupancy,))
                 }
