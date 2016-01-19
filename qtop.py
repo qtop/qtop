@@ -1572,7 +1572,7 @@ if __name__ == '__main__':
 
                 # After this place config is *logically* immutable
                 viewport.reset_term_size(*calculate_split_screen_size(config))
-                viewport.init_from_config(config)
+                # viewport.init_from_config(config)
 
                 SEPARATOR = config['vertical_separator'].translate(None, "'")  # alias
                 USER_CUT_MATRIX_WIDTH = int(config['workernodes_matrix'][0]['wn id lines']['user_cut_matrix_width'])  # alias

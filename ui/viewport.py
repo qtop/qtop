@@ -61,6 +61,7 @@ class Viewport(object):
         self.config['term_size'] = [term_height, term_columns]
         self.config['h_start'] = self.h_start
         self.config['v_stop'], self.config['h_stop'] = self.config['term_size']
+        self.config['v_start'] = self.v_start
 
     def scroll_down(self):
 
