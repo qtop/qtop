@@ -1418,7 +1418,7 @@ def control_movement(pressed_char_hex):
     q quits qtop.
     """
     if pressed_char_hex in ['6a', '20']:  # j, spacebar
-        logging.debug('v_start: %s' % self.get_v_start())
+        logging.debug('v_start: %s' % viewport.get_v_start())
         if viewport.scroll_down():
             logging.info('Going down...')
         else:
@@ -1452,7 +1452,7 @@ def control_movement(pressed_char_hex):
 
     elif pressed_char_hex in ['4a', '47']:  # S-j, G
         logging.info('Going to the bottom...')
-        logging.debug('v_start: %s' % self.get_v_start())
+        logging.debug('v_start: %s' % viewport.get_v_start())
         viewport.scroll_bottom()
 
     elif pressed_char_hex in ['4b', '67']:  # S-k, g
@@ -1481,7 +1481,7 @@ def safe_exit_with_file_close(handle, name, stdout, delete_file=False):
         unlink(name)  # this deletes the file
     # sys.stdout = stdout
     if options.SAMPLE >= 1:
-        add_to_sample([QTOP_LOGFILE], self.config['savepath'])
+        add_to_sample([QTOP_LOGFILE], config['savepath'])
     sys.exit(0)
 
 
@@ -1670,9 +1670,9 @@ if __name__ == '__main__':
                         logging.debug('Pressed %s' % read_char)
                         break
                 else:
-                    state = config['term_size']
+                    state = viewport.config['term_size']
                     viewport.reset_term_size(*calculate_split_screen_size(config))
-                    new_state = config['term_size']
+                    new_state = viewport.config['term_size']
                     read_char = '\n' if (state == new_state) else 'r'
                     logging.debug("Auto-advancing by pressing <Enter>")
                 pressed_char_hex = '%02x' % ord(read_char) # read_char has an initial value that resets the display ('72')
