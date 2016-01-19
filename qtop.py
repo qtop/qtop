@@ -27,6 +27,7 @@ from plugin_sge import *
 from math import ceil
 from colormap import color_of_account, code_of_color
 from yaml_parser import read_yaml_natively, fix_config_list, convert_dash_key_in_dict
+from ui.viewport import Viewport
 
 
 @contextlib.contextmanager
@@ -490,8 +491,8 @@ def find_matrices_width(wns_occupancy, cluster_dict, DEADWEIGHT=11):
     start = 0
     wn_number = cluster_dict['highest_wn']
     workernode_list = cluster_dict['workernode_list']
-    # was: term_columns = wns_occupancy['term_columns']
-    term_columns = config['term_size'][1]
+    # term_columns = config['term_size'][1]
+    term_columns = viewport.get_h_term_size()
     min_masking_threshold = int(config['workernodes_matrix'][0]['wn id lines']['min_masking_threshold'])
     if options.NOMASKING and min(workernode_list) > min_masking_threshold:
         # exclude unneeded first empty nodes from the matrix
@@ -635,7 +636,7 @@ def display_matrix(workernodes_occupancy):
     core_user_map = workernodes_occupancy['core user map']
     extra_matrices_nr = workernodes_occupancy['extra_matrices_nr']
     # term_columns = workernodes_occupancy['term_columns']
-    term_columns = config['term_size'][1]
+    term_columns = viewport.get_h_term_size()
     pattern_of_id = workernodes_occupancy['pattern_of_id']
 
     occupancy_parts = {
@@ -869,14 +870,14 @@ def get_yaml_key_part(major_key):
             yield yaml_key, part_name
 
 
-def calculate_wn_occupancy(cluster_dict, user_names, job_states, job_ids, config):
+def calculate_wn_occupancy(cluster_dict, user_names, job_states, job_ids):
     """
     Prints the Worker Nodes Occupancy table.
     if there are non-uniform WNs in pbsnodes.yaml, e.g. wn01, wn02, gn01, gn02, ...,  remapping is performed.
     Otherwise, for uniform WNs, i.e. all using the same numbering scheme, wn01, wn02, ... proceeds as normal.
     Number of Extra tables needed is calculated inside the calc_all_wnid_label_lines function below
     """
-    config = calculate_split_screen_size(config)  # term_columns
+    # config = calculate_split_screen_size(config)  # term_columns
 
     if not cluster_dict:
         workernodes_occupancy, cluster_dict = dict(), dict()
@@ -895,7 +896,7 @@ def calculate_wn_occupancy(cluster_dict, user_names, job_states, job_ids, config
         wns_occupancy[part_name] = calc_general_multiline_attr(cluster_dict, part_name, yaml_key)
 
     calc_core_userid_matrix(cluster_dict, wns_occupancy, job_ids, user_names)  # core user map
-    return wns_occupancy, cluster_dict, config
+    return wns_occupancy, cluster_dict
 
 
 def print_core_lines(core_user_map, print_char_start, print_char_stop, transposed_matrices, pattern_of_id, attrs, options1,
@@ -1067,8 +1068,7 @@ def calculate_split_screen_size(config):
             term_height, term_columns = fallback_term_size
 
     logging.debug('Set terminal size is: %s * %s' % (term_height, term_columns))
-
-    viewport.reset_term_size(int(term_height), int(term_columns))
+    return int(term_height), int(term_columns)
 
 
 def sort_batch_nodes(batch_nodes):
@@ -1571,6 +1571,7 @@ if __name__ == '__main__':
                     config['transpose_wn_matrices'] = not config['transpose_wn_matrices']
 
                 # After this place config is *logically* immutable
+                viewport.reset_term_size(*calculate_split_screen_size(config))
                 viewport.init_from_config(config)
 
                 SEPARATOR = config['vertical_separator'].translate(None, "'")  # alias
@@ -1670,7 +1671,7 @@ if __name__ == '__main__':
                         break
                 else:
                     state = config['term_size']
-                    config = calculate_split_screen_size(config)
+                    viewport.reset_term_size(*calculate_split_screen_size(config))
                     new_state = config['term_size']
                     read_char = '\n' if (state == new_state) else 'r'
                     logging.debug("Auto-advancing by pressing <Enter>")

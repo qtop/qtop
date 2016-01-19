@@ -2,21 +2,21 @@
 
 class Viewport(object):
 
-    def __init__(self, limits_provider):
+    def __init__(self):
         self.v_start = 1
         self.v_stop = None
         self.h_start = 0
         self.h_stop = None
-        self.limits_provider = limits_provider
+        # self.limits_provider = limits_provider
         self.num_lines = 0
         self.max_full_line_len = None
         self.config = {}
 
     def reset_stops_from_config(self):
         if self.h_stop is None:
-            self.h_stop = self.limits_provider.get_config('h_stop')
+            self.h_stop = self.get_config('h_stop')
         if self.v_stop is None:
-            self.v_stop = self.limits_provider.get_config('v_stop')
+            self.v_stop = self.get_config('v_stop')
 
     def set_max_full_line_len(self, max_full_line_len):
         self.max_full_line_len = max_full_line_len
@@ -40,7 +40,7 @@ class Viewport(object):
         return self.h_stop
 
     def init_from_config(self, config):
-        for key in ['h_start', 'h_stop', 'v_stop', 'term_size']:
+        for key in ['h_start', 'h_stop', 'v_stop']:
             self.config[key] = config.get(key, None)
 
     def get_v_term_size(self):
