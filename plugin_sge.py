@@ -295,4 +295,6 @@ class SGEBatchSystem(GenericBatchSystem):
                         break
         logging.debug('Closing %s' % fn)
         logging.info('worker_nodes contains %s entries' % len(worker_nodes))
+        for worker_node in worker_nodes:
+            worker_node['qname'] = list(worker_node['qname'])
         return worker_nodes
