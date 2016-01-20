@@ -845,7 +845,7 @@ def transpose_matrix(d, colored=False, reverse=False):
     returns a transposed matrix
     """
     pattern_of_id = workernodes_occupancy['pattern_of_id']
-    for tuple in izip_longest(*[[char for char in d[k]] for k in d], fiDllvalue=" "):
+    for tuple in izip_longest(*[[char for char in d[k]] for k in d], fillvalue=" "):
         if any(j != " " for j in tuple):
             tuple = colored and [colorize(j, '', pattern_of_id[j]) if j in pattern_of_id else j for j in tuple] or list(tuple)
             tuple[:] = tuple[::-1] if reverse else tuple
