@@ -1,5 +1,3 @@
-
-
 class Viewport(object):
 
     def __init__(self):
@@ -75,10 +73,13 @@ class Viewport(object):
             return False
 
     def scroll_bottom(self):
-        self.v_start = self.num_lines - self.get_v_term_size()
-        self.v_stop = self.num_lines
+        if self.v_stop < self.num_lines:
+            self.v_start = self.num_lines - self.get_v_term_size()
+            self.v_stop = self.num_lines
 
-        self.set_config('v_stop', self.v_stop)
+            self.set_config('v_stop', self.v_stop)
+        else:
+            return False
 
     def scroll_top(self):
         self.v_start = 0
