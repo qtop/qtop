@@ -555,7 +555,7 @@ def display_wnid_lines(start, stop, highest_wn, wn_vert_labels, **kwargs):
 
 def print_wnid_lines(d, start, stop, end_labels, transposed_matrices, color_func, args):
     colors = iter(color_func(*args))
-    if eval(config['transpose_wn_matrices']):
+    if config['transpose_wn_matrices']:
         tuple = [None, 'wnid_lines', transpose_matrix(d)]
         transposed_matrices.append(tuple)
         return
@@ -675,7 +675,7 @@ def display_matrix(workernodes_occupancy):
         fn, args, kwargs = occupancy_parts[part][0], occupancy_parts[part][1], occupancy_parts[part][2]
         fn(*args, **kwargs)
 
-    if eval(config['transpose_wn_matrices']):
+    if config['transpose_wn_matrices']:
         order = config['occupancy_column_order']
         for idx, (item, matrix) in enumerate(zip(order, transposed_matrices)):
             matrix[0] = order.index(matrix[1])
@@ -693,7 +693,7 @@ def print_mult_attr_line(print_char_start, print_char_stop, transposed_matrices,
     """
     attr_lines can be e.g. Node state lines
     """
-    if eval(config['transpose_wn_matrices']):
+    if config['transpose_wn_matrices']:
         tuple = [None, label, transpose_matrix(attr_lines)]
         transposed_matrices.append(tuple)
         return
@@ -905,7 +905,7 @@ def calculate_wn_occupancy(cluster_dict, user_names, job_states, job_ids):
 def print_core_lines(core_user_map, print_char_start, print_char_stop, transposed_matrices, pattern_of_id, attrs, options1,
                      options2):
     signal(SIGPIPE, SIG_DFL)
-    if eval(config['transpose_wn_matrices']):
+    if config['transpose_wn_matrices']:
         tuple = [None, 'core_map', transpose_matrix(core_user_map, colored=True)]
         transposed_matrices.append(tuple)
         return
@@ -932,7 +932,7 @@ def print_core_lines(core_user_map, print_char_start, print_char_stop, transpose
 
 
 def display_wn_occupancy(workernodes_occupancy, cluster_dict):
-    if eval(config['transpose_wn_matrices']):
+    if config['transpose_wn_matrices']:
         order = config['occupancy_column_order']
         note = "/".join(order)
     else:
@@ -941,7 +941,7 @@ def display_wn_occupancy(workernodes_occupancy, cluster_dict):
           + colorize('(%s)', 'Gray_D') % note
 
     display_matrix(workernodes_occupancy)
-    if not eval(config['transpose_wn_matrices']):
+    if not config['transpose_wn_matrices']:
         display_remaining_matrices(workernodes_occupancy)
 
 
@@ -1045,6 +1045,8 @@ def load_yaml_config():
     else:
         logging.debug('%s files will be saved in directory %s.' % (config['scheduler'], user_selected_save_path))
     config['savepath'] = user_selected_save_path
+
+    config['transpose_wn_matrices'] = eval(config['transpose_wn_matrices'])
 
     return config
 
@@ -1585,7 +1587,7 @@ if __name__ == '__main__':
                         from xml.etree import ElementTree as etree
 
                 if options.TRANSPOSE:
-                    config['transpose_wn_matrices'] = 'False' if config['transpose_wn_matrices'] == 'True' else 'True'
+                    config['transpose_wn_matrices'] = not config['transpose_wn_matrices']
 
                 # After this place config is *logically* immutable
                 viewport.reset_term_size(*calculate_split_screen_size(config))
