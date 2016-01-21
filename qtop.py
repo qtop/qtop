@@ -610,7 +610,7 @@ def display_remaining_matrices(wn_occupancy, DEADWEIGHT=11):
     """
     extra_matrices_nr = wn_occupancy['extra_matrices_nr']
     # term_columns = wn_occupancy['term_columns']
-    term_columns = config['term_size'][1]
+    term_columns = viewport.config['term_size'][1]
 
     # need node_state, temp
     for matrix in range(extra_matrices_nr):
@@ -1059,10 +1059,10 @@ def calculate_split_screen_size(config):
     except ValueError:
         logging.warn("Failed to autodetect terminal size. Trying values in %s." % QTOPCONF_YAML)
         try:
-            term_height, term_columns = config['term_size']
+            term_height, term_columns = viewport.config['term_size']
         except ValueError:
             try:
-                term_height, term_columns = fix_config_list(config['term_size'])
+                term_height, term_columns = fix_config_list(viewport.config['term_size'])
             except KeyError:
                 # Bug... the following gets discarded
                 #config['term_size'] = fallback_term_size
@@ -1442,7 +1442,7 @@ def control_movement(pressed_char_hex):
         viewport.scroll_far_right()
         logging.info('h_start: %s' % viewport.get_h_start())
         logging.info('max_line_len: %s' % max_line_len)
-        logging.info('config["term_size"][1] %s' % config['term_size'][1])
+        logging.info('config["term_size"][1] %s' % viewport.config['term_size'][1])
         logging.info('h_stop: %s' % viewport.get_h_stop())
 
     elif pressed_char_hex in ['68']:  # h
