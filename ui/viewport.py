@@ -73,13 +73,15 @@ class Viewport(object):
             return False
 
     def scroll_bottom(self):
+        success = False
         if self.v_stop < self.num_lines:
             self.v_start = self.num_lines - self.get_v_term_size()
             self.v_stop = self.num_lines
 
             self.set_config('v_stop', self.v_stop)
-        else:
-            return False
+            success = True
+
+        return success
 
     def scroll_top(self):
         self.v_start = 0
@@ -107,7 +109,7 @@ class Viewport(object):
         self.set_config('h_start', self.h_start)
         self.set_config('h_stop', self.h_stop)
 
-    def scroll_far_right(self):  # 'l', right
+    def scroll_far_right(self):  # '$', right
         self.h_start = self.max_full_line_len - self.get_h_term_size()
         self.h_stop = self.max_full_line_len
 

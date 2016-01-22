@@ -1458,7 +1458,10 @@ def control_movement(pressed_char_hex):
     elif pressed_char_hex in ['4a', '47']:  # S-j, G
         logging.info('Going to the bottom...')
         logging.debug('v_start: %s' % viewport.get_v_start())
-        viewport.scroll_bottom()
+        if viewport.scroll_bottom():
+            logging.info('Going to the bottom...')
+        else:
+            logging.info('Staying put')
 
     elif pressed_char_hex in ['4b', '67']:  # S-k, g
         logging.info('Going to the top...')
