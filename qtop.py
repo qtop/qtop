@@ -1053,7 +1053,8 @@ def load_yaml_config():
 
 def calculate_split_screen_size(config):
     """
-    Calculates where to break the matrix into more matrices, because of the window size.
+    If the workernode matrix has to be split into sub-matrices because of screen limitations,
+    this will calculate the maximum size of each sub-matrix
     """
     fallback_term_size = [53, 176]
     try:

@@ -1,4 +1,3 @@
-import pytest
 from ui.viewport import Viewport
 
 
