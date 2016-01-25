@@ -1672,6 +1672,8 @@ if __name__ == '__main__':
                     # This takes care of closing the file as well.
                     with open(output_fp, 'r') as f:
                         viewport.set_max_height(len(f.readlines()))
+                        if not viewport.get_max_height():
+                            raise ValueError("There is no output from qtop *whatsoever*. Weird.")
 
                 ansi_escape = re.compile(r'\x1b[^m]*m')  # matches ANSI escape characters
                 max_line_len = max(len(ansi_escape.sub('', line.strip())) for line in open(output_fp, 'r')) \
