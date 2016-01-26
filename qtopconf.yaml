@@ -231,6 +231,7 @@ extract_info:
 # The latter is useful when there are a lot of users starting with the same letter.
 fill_with_user_firstletter: False
 # If set to true, lines represent worker nodes, wherease if set to false, columns do.
+# Default is True
 transpose_wn_matrices: True
 occupancy_column_order:
   - wnid_lines

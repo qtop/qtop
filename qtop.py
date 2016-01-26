@@ -494,7 +494,6 @@ def find_matrices_width(wns_occupancy, cluster_dict, DEADWEIGHT=11):
     start = 0
     wn_number = cluster_dict['highest_wn']
     workernode_list = cluster_dict['workernode_list']
-    # term_columns = config['term_size'][1]
     term_columns = viewport.get_h_term_size()
     min_masking_threshold = int(config['workernodes_matrix'][0]['wn id lines']['min_masking_threshold'])
     if options.NOMASKING and min(workernode_list) > min_masking_threshold:
@@ -554,12 +553,12 @@ def display_wnid_lines(start, stop, highest_wn, wn_vert_labels, **kwargs):
 
 
 def print_wnid_lines(d, start, stop, end_labels, transposed_matrices, color_func, args):
-    colors = iter(color_func(*args))
-    if eval(config['transpose_wn_matrices']):
+    if config['transpose_wn_matrices']:
         tuple = [None, 'wnid_lines', transpose_matrix(d)]
         transposed_matrices.append(tuple)
         return
 
+    colors = iter(color_func(*args))
     for line_nr, end_label, color in zip(d, end_labels, colors):
         wn_id_str = insert_separators(d[line_nr][start:stop], SEPARATOR, config['vertical_separator_every_X_columns'])
         wn_id_str = ''.join([colorize(elem, color) for elem in wn_id_str])
@@ -610,7 +609,7 @@ def display_remaining_matrices(wn_occupancy, DEADWEIGHT=11):
     """
     extra_matrices_nr = wn_occupancy['extra_matrices_nr']
     # term_columns = wn_occupancy['term_columns']
-    term_columns = viewport.config['term_size'][1]
+    term_columns = viewport.term_size[1]
 
     # need node_state, temp
     for matrix in range(extra_matrices_nr):
@@ -638,8 +637,7 @@ def display_matrix(workernodes_occupancy):
     wn_vert_labels = workernodes_occupancy['wn_vert_labels']
     core_user_map = workernodes_occupancy['core user map']
     extra_matrices_nr = workernodes_occupancy['extra_matrices_nr']
-    # term_columns = workernodes_occupancy['term_columns']
-    term_columns = viewport.get_h_term_size()
+    # term_columns = viewport.get_h_term_size()
     pattern_of_id = workernodes_occupancy['pattern_of_id']
 
     occupancy_parts = {
@@ -675,7 +673,7 @@ def display_matrix(workernodes_occupancy):
         fn, args, kwargs = occupancy_parts[part][0], occupancy_parts[part][1], occupancy_parts[part][2]
         fn(*args, **kwargs)
 
-    if eval(config['transpose_wn_matrices']):
+    if config['transpose_wn_matrices']:
         order = config['occupancy_column_order']
         for idx, (item, matrix) in enumerate(zip(order, transposed_matrices)):
             matrix[0] = order.index(matrix[1])
@@ -683,8 +681,14 @@ def display_matrix(workernodes_occupancy):
         transposed_matrices.sort(key=lambda item: item[0])
 
         for line_tuple in izip_longest(*[tpl[2] for tpl in transposed_matrices], fillvalue='  '):
-            join_prints(*line_tuple, sep=config.get('horizontal_separator', None))
-        logging.debug('Printed horizontally from %s to %s' % (viewport.get_config('h_start'), viewport.get_h_stop()))
+            joined_list = join_prints(*line_tuple, sep=config.get('horizontal_separator', None))
+
+        max_width = len(joined_list)
+        viewport.set_max_width(max_width)
+
+        logging.debug('Printed horizontally from %s to %s' % (viewport.h_start, viewport.h_stop))
+    else:
+        viewport.set_max_width(viewport.get_h_term_size())
     print
 
 
@@ -693,7 +697,7 @@ def print_mult_attr_line(print_char_start, print_char_stop, transposed_matrices,
     """
     attr_lines can be e.g. Node state lines
     """
-    if eval(config['transpose_wn_matrices']):
+    if config['transpose_wn_matrices']:
         tuple = [None, label, transpose_matrix(attr_lines)]
         transposed_matrices.append(tuple)
         return
@@ -852,9 +856,10 @@ def join_prints(*args, **kwargs):
         joined_list.extend(d)
         joined_list.append(kwargs['sep'])
 
-    print "".join(joined_list[viewport.get_h_start():viewport.get_h_stop()])
-    workernodes_occupancy.setdefault('max_full_line_len', len(joined_list))
-    viewport.set_max_full_line_len(workernodes_occupancy.get('max_full_line_len', None))
+    print "".join(joined_list[viewport.h_start:viewport.h_stop])
+    return joined_list
+
+
 
 
 def get_yaml_key_part(major_key):
@@ -905,7 +910,7 @@ def calculate_wn_occupancy(cluster_dict, user_names, job_states, job_ids):
 def print_core_lines(core_user_map, print_char_start, print_char_stop, transposed_matrices, pattern_of_id, attrs, options1,
                      options2):
     signal(SIGPIPE, SIG_DFL)
-    if eval(config['transpose_wn_matrices']):
+    if config['transpose_wn_matrices']:
         tuple = [None, 'core_map', transpose_matrix(core_user_map, colored=True)]
         transposed_matrices.append(tuple)
         return
@@ -932,7 +937,7 @@ def print_core_lines(core_user_map, print_char_start, print_char_stop, transpose
 
 
 def display_wn_occupancy(workernodes_occupancy, cluster_dict):
-    if eval(config['transpose_wn_matrices']):
+    if config['transpose_wn_matrices']:
         order = config['occupancy_column_order']
         note = "/".join(order)
     else:
@@ -941,7 +946,7 @@ def display_wn_occupancy(workernodes_occupancy, cluster_dict):
           + colorize('(%s)', 'Gray_D') % note
 
     display_matrix(workernodes_occupancy)
-    if not eval(config['transpose_wn_matrices']):
+    if not config['transpose_wn_matrices']:
         display_remaining_matrices(workernodes_occupancy)
 
 
@@ -1046,12 +1051,15 @@ def load_yaml_config():
         logging.debug('%s files will be saved in directory %s.' % (config['scheduler'], user_selected_save_path))
     config['savepath'] = user_selected_save_path
 
+    config['transpose_wn_matrices'] = eval(config['transpose_wn_matrices'])  # TODO config should not be writeable!!
+
     return config
 
 
 def calculate_split_screen_size(config):
     """
-    Calculates where to break the matrix into more matrices, because of the window size.
+    If the workernode matrix has to be split into sub-matrices because of screen limitations,
+    this will calculate the maximum size of each sub-matrix
     """
     fallback_term_size = [53, 176]
     try:
@@ -1059,15 +1067,15 @@ def calculate_split_screen_size(config):
     except ValueError:
         logging.warn("Failed to autodetect terminal size. Trying values in %s." % QTOPCONF_YAML)
         try:
-            term_height, term_columns = viewport.config['term_size']
+            term_height, term_columns = viewport.term_size
         except ValueError:
             try:
-                term_height, term_columns = fix_config_list(viewport.config['term_size'])
+                term_height, term_columns = fix_config_list(viewport.term_size)
             except KeyError:
                 # Bug... the following gets discarded
                 #config['term_size'] = fallback_term_size
                 term_height, term_columns = fallback_term_size
-        except KeyError:
+        except (KeyError, TypeError):  # TypeError if None was returned i.e. no setting in QTOPCONF_YAML
             term_height, term_columns = fallback_term_size
 
     logging.debug('Set terminal size is: %s * %s' % (term_height, term_columns))
@@ -1421,7 +1429,7 @@ def control_movement(pressed_char_hex):
     q quits qtop.
     """
     if pressed_char_hex in ['6a', '20']:  # j, spacebar
-        logging.debug('v_start: %s' % viewport.get_v_start())
+        logging.debug('v_start: %s' % viewport.v_start)
         if viewport.scroll_down():
             logging.info('Going down...')
         else:
@@ -1440,10 +1448,10 @@ def control_movement(pressed_char_hex):
     elif pressed_char_hex in ['24']:  # $
         logging.info('Going far right...')
         viewport.scroll_far_right()
-        logging.info('h_start: %s' % viewport.get_h_start())
+        logging.info('h_start: %s' % viewport.h_start)
         logging.info('max_line_len: %s' % max_line_len)
-        logging.info('config["term_size"][1] %s' % viewport.config['term_size'][1])
-        logging.info('h_stop: %s' % viewport.get_h_stop())
+        logging.info('config["term_size"][1] %s' % viewport.term_size[1])
+        logging.info('h_stop: %s' % viewport.h_stop)
 
     elif pressed_char_hex in ['68']:  # h
         logging.info('Going left...')
@@ -1455,12 +1463,15 @@ def control_movement(pressed_char_hex):
 
     elif pressed_char_hex in ['4a', '47']:  # S-j, G
         logging.info('Going to the bottom...')
-        logging.debug('v_start: %s' % viewport.get_v_start())
-        viewport.scroll_bottom()
+        logging.debug('v_start: %s' % viewport.v_start)
+        if viewport.scroll_bottom():
+            logging.info('Going to the bottom...')
+        else:
+            logging.info('Staying put')
 
     elif pressed_char_hex in ['4b', '67']:  # S-k, g
         logging.info('Going to the top...')
-        logging.debug('v_start: %s' % viewport.get_v_start())
+        logging.debug('v_start: %s' % viewport.v_start)
         viewport.scroll_top()
 
     elif pressed_char_hex in ['72']:  # r
@@ -1472,8 +1483,8 @@ def control_movement(pressed_char_hex):
 
     logging.debug('Area Displayed: (h_start, v_start) --> (h_stop, v_stop) '
                   '\n\t(%(h_start)s, %(v_start)s) --> (%(h_stop)s, %(v_stop)s)' %
-                  {'v_start': viewport.get_v_start(), 'v_stop': viewport.get_v_stop(),
-                   'h_start': viewport.get_h_start(), 'h_stop': viewport.get_h_stop()})
+                  {'v_start': viewport.v_start, 'v_stop': viewport.v_stop,
+                   'h_start': viewport.h_start, 'h_stop': viewport.h_stop})
 
 
 def safe_exit_with_file_close(handle, name, stdout, delete_file=False):
@@ -1585,11 +1596,10 @@ if __name__ == '__main__':
                         from xml.etree import ElementTree as etree
 
                 if options.TRANSPOSE:
-                    config['transpose_wn_matrices'] = 'False' if config['transpose_wn_matrices'] == 'True' else 'True'
+                    config['transpose_wn_matrices'] = not config['transpose_wn_matrices']
 
                 # After this place config is *logically* immutable
-                viewport.reset_term_size(*calculate_split_screen_size(config))
-                # viewport.init_from_config(config)
+                viewport.set_term_size(*calculate_split_screen_size(config))
 
                 SEPARATOR = config['vertical_separator'].translate(None, "'")  # alias
                 USER_CUT_MATRIX_WIDTH = int(config['workernodes_matrix'][0]['wn id lines']['user_cut_matrix_width'])  # alias
@@ -1638,8 +1648,7 @@ if __name__ == '__main__':
                 cluster_dict, NAMED_WNS = calculate_cluster(document.worker_nodes)
                 workernodes_occupancy, cluster_dict = calculate_wn_occupancy(cluster_dict, document.user_names,
                                                                              document.job_states, document.job_ids)
-                viewport.set_max_full_line_len(workernodes_occupancy.get('max_full_line_len', None))
-                viewport.reset_stops_from_config()
+                # viewport.set_term_size(*calculate_split_screen_size(config))
 
                 display_parts = {
                     'job_accounting_summary': (display_job_accounting_summary, (cluster_dict, document.total_running_jobs, document.total_queued_jobs, document.qstatq_lod)),
@@ -1659,16 +1668,18 @@ if __name__ == '__main__':
                 sys.stdout.close()
                 sys.stdout = stdout  # sys.stdout is back to its normal function (i.e. screen output)
 
-                if not viewport.get_num_lines():
+                if not viewport.get_max_height():
                     # This takes care of closing the file as well.
                     with open(output_fp, 'r') as f:
-                        viewport.set_num_lines(len(f.readlines()))
+                        viewport.set_max_height(len(f.readlines()))
+                        if not viewport.get_max_height():
+                            raise ValueError("There is no output from qtop *whatsoever*. Weird.")
 
                 ansi_escape = re.compile(r'\x1b[^m]*m')  # matches ANSI escape characters
                 max_line_len = max(len(ansi_escape.sub('', line.strip())) for line in open(output_fp, 'r')) \
                     if not max_line_len else max_line_len
 
-                logging.debug('Total nr of lines: %s' % viewport.get_num_lines())
+                logging.debug('Total nr of lines: %s' % viewport.get_max_height())
                 logging.debug('Max line length: %s' % max_line_len)
 
                 if not options.WATCH:
@@ -1681,8 +1692,8 @@ if __name__ == '__main__':
 
                 # justification for implementation:
                 # http://unix.stackexchange.com/questions/47407/cat-line-x-to-line-y-on-a-huge-file
-                line_offset = viewport.get_v_stop() - viewport.get_v_start()
-                cat_command = 'clear;tail -n+%s %s | head -n%s' % (viewport.get_v_start(), output_fp, line_offset)
+                # line_offset = viewport.v_stop - viewport.v_start
+                cat_command = 'clear;tail -n+%s %s | head -n%s' % (viewport.v_start, output_fp, viewport.get_v_term_size())
                 NOT_FOUND = subprocess.call(cat_command, stdout=stdout, stderr=stdout, shell=True)
 
 
@@ -1692,9 +1703,9 @@ if __name__ == '__main__':
                         logging.debug('Pressed %s' % read_char)
                         break
                 else:
-                    state = viewport.config['term_size']
-                    viewport.reset_term_size(*calculate_split_screen_size(config))
-                    new_state = viewport.config['term_size']
+                    state = viewport.term_size
+                    viewport.set_term_size(*calculate_split_screen_size(config))
+                    new_state = viewport.term_size
                     read_char = '\n' if (state == new_state) else 'r'
                     logging.debug("Auto-advancing by pressing <Enter>")
                 pressed_char_hex = '%02x' % ord(read_char) # read_char has an initial value that resets the display ('72')
