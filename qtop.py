@@ -304,7 +304,7 @@ def calculate_job_counts(user_names, job_states):
     id_of_username = {}
     for _id, user_allcount in enumerate(user_alljobs_sorted_lot):
         id_of_username[user_allcount[0]] = user_allcount[0][0] \
-            if eval(config['fill_with_user_firstletter']) else config['possible_ids'][_id]
+            if config['fill_with_user_firstletter'] else config['possible_ids'][_id]
 
     # Calculates and prints what is actually below the id|  R + Q /all | unix account etc line
     for state_abbrev in state_abbrevs:
@@ -333,7 +333,7 @@ def create_account_jobs_table(user_names, job_states, wns_occupancy):
     # TODO: unix account id needs to be recomputed at this point. fix.
     for quintuplet, new_uid in zip(account_jobs_table, config['possible_ids']):
         unix_account = quintuplet[-1]
-        quintuplet[0] = id_of_username[unix_account] = unix_account[0] if eval(config['fill_with_user_firstletter']) else \
+        quintuplet[0] = id_of_username[unix_account] = unix_account[0] if config['fill_with_user_firstletter'] else \
             new_uid
     wns_occupancy['account_jobs_table'] = account_jobs_table
     wns_occupancy['id_of_username'] = id_of_username
@@ -1051,7 +1051,8 @@ def load_yaml_config():
         logging.debug('%s files will be saved in directory %s.' % (config['scheduler'], user_selected_save_path))
     config['savepath'] = user_selected_save_path
 
-    config['transpose_wn_matrices'] = eval(config['transpose_wn_matrices'])  # TODO config should not be writeable!!
+    for key in ['transpose_wn_matrices', 'fill_with_user_firstletter', 'reverse', 'faster_xml_parsing']:
+        config[key] = eval(config[key])  # TODO config should not be writeable!!
 
     return config
 
@@ -1084,7 +1085,7 @@ def calculate_split_screen_size(config):
 
 def sort_batch_nodes(batch_nodes):
     try:
-        batch_nodes.sort(key=eval(config['sorting']['user_sort']), reverse=eval(config['sorting']['reverse']))
+        batch_nodes.sort(key=eval(config['sorting']['user_sort']), reverse=config['sorting']['reverse'])
     except (IndexError, ValueError):
         logging.critical("There's (probably) something wrong in your sorting lambda in %s." % QTOPCONF_YAML)
         raise
@@ -1588,6 +1589,7 @@ if __name__ == '__main__':
                     key, val = get_key_val_from_option_string(opt)
                     config[key] = val
 
+                import wdb; wdb.set_trace()
                 if config['faster_xml_parsing']:
                     try:
                         from lxml import etree
@@ -1648,7 +1650,6 @@ if __name__ == '__main__':
                 cluster_dict, NAMED_WNS = calculate_cluster(document.worker_nodes)
                 workernodes_occupancy, cluster_dict = calculate_wn_occupancy(cluster_dict, document.user_names,
                                                                              document.job_states, document.job_ids)
-                # viewport.set_term_size(*calculate_split_screen_size(config))
 
                 display_parts = {
                     'job_accounting_summary': (display_job_accounting_summary, (cluster_dict, document.total_running_jobs, document.total_queued_jobs, document.qstatq_lod)),
@@ -1657,7 +1658,7 @@ if __name__ == '__main__':
                 }
                 logging.info('DISPLAY AREA')
 
-                print "\033c",  # the comma here is to avoid losing the whole first line. An empty char still remains, though.
+                print "\033c",  # comma is to avoid losing the whole first line. An empty char still remains, though.
 
                 for idx, part in enumerate(config['user_display_parts'], 1):
                     display_func, args = display_parts[part][0], display_parts[part][1]
@@ -1689,13 +1690,11 @@ if __name__ == '__main__':
                     NOT_FOUND = subprocess.call(cat_command, stdout=stdout, stderr=stdout, shell=True)
                     break
 
-
                 # justification for implementation:
                 # http://unix.stackexchange.com/questions/47407/cat-line-x-to-line-y-on-a-huge-file
                 # line_offset = viewport.v_stop - viewport.v_start
                 cat_command = 'clear;tail -n+%s %s | head -n%s' % (viewport.v_start, output_fp, viewport.get_v_term_size())
                 NOT_FOUND = subprocess.call(cat_command, stdout=stdout, stderr=stdout, shell=True)
-
 
                 while sys.stdin in select.select([sys.stdin], [], [], timeout)[0]:
                     read_char = sys.stdin.read(1)
