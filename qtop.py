@@ -1051,8 +1051,9 @@ def load_yaml_config():
         logging.debug('%s files will be saved in directory %s.' % (config['scheduler'], user_selected_save_path))
     config['savepath'] = user_selected_save_path
 
-    for key in ['transpose_wn_matrices', 'fill_with_user_firstletter', 'reverse', 'faster_xml_parsing']:
+    for key in ['transpose_wn_matrices', 'fill_with_user_firstletter', 'faster_xml_parsing']:
         config[key] = eval(config[key])  # TODO config should not be writeable!!
+    config['sorting']['reverse'] = eval(config['sorting']['reverse'])  # TODO config should not be writeable!!
 
     return config
 
@@ -1589,7 +1590,6 @@ if __name__ == '__main__':
                     key, val = get_key_val_from_option_string(opt)
                     config[key] = val
 
-                import wdb; wdb.set_trace()
                 if config['faster_xml_parsing']:
                     try:
                         from lxml import etree
