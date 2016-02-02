@@ -144,21 +144,17 @@ def test_scroll_far_right_attaches_to_right_screen_edge():
 """
 This is a quick'n'clean way to run many edge cases without re-writing the whole bloody initialisation every time!!
 """
-@pytest.mark.parametrize(
-    'init_vstart, init_hstart, term_size, max_width, max_height, expect_h_start, expect_h_stop, expect_v_start, expect_v_stop',
+@pytest.mark.parametrize('init_vstart, init_hstart, term_size, max_width, max_height, expected',
     (
-            (0, 0, [53, 176], 200, 200, 24, 200, 0, 53),  # test1
-            (0, 100, [53, 176], 200, 200, 24, 200, 0, 53),  # test2 etc
+        (0, 0, [53, 176], 200, 200, (24, 200, 0, 53)),  # test1
+        (0, 100, [53, 176], 200, 200, (24, 200, 0, 53)),  # test2 etc
     ),
-    )
-def test_after_scroll_right(init_vstart, init_hstart, term_size, max_width, max_height, expect_h_start, expect_h_stop,
-                            expect_v_start, expect_v_stop):
+)
+def test_after_scroll_right(init_vstart, init_hstart, term_size, max_width, max_height, expected):
     viewport = Viewport(init_hstart, init_vstart)
     viewport.set_term_size(*term_size)
     viewport.set_max_width(max_width)
     viewport.set_max_height(max_height)
     viewport.scroll_right()
-    assert expect_h_start == viewport.h_start  # corrected behaviour: last element should touch right screen edge, if possible!
-    assert expect_h_stop == viewport.h_stop  # (not scroll endelessly to the right)
-    assert expect_v_start == viewport.v_start
-    assert expect_v_stop == viewport.v_stop
+    # corrected behaviour: last element should touch right screen edge, if possible!
+    assert expected == (viewport.h_start, viewport.h_stop, viewport.v_start, viewport.v_stop)
