@@ -13,13 +13,15 @@ def test_defaults():
 def test_after_set_term_size():
     viewport = Viewport()
     viewport.set_term_size(53, 176)
-    assert 53 == viewport.get_v_term_size()
-    assert 176 == viewport.get_h_term_size()
+    assert 53 == viewport.v_term_size
+    assert 176 == viewport.h_term_size
 
 
 def test_after_scroll_left():
     viewport = Viewport()
     viewport.set_term_size(53, 176)
+    viewport.set_max_width(200)
+    viewport.set_max_height(200)
     viewport.scroll_left()
     assert 0 == viewport.h_start
     assert 176 == viewport.h_stop  # BUG?? or assert(10 == viewport.h_stop) is a BUG
@@ -118,7 +120,7 @@ def test_after_scroll_down_scroll_up():
 
 
 def test_after_reset_to_starting_position():
-    viewport = Viewport(500, 400)
+    viewport = Viewport(400, 500)
     viewport.set_term_size(53, 176)
     viewport.set_max_width(500)
     viewport.set_max_height(500)
@@ -144,17 +146,36 @@ def test_scroll_far_right_attaches_to_right_screen_edge():
 """
 This is a quick'n'clean way to run many edge cases without re-writing the whole bloody initialisation every time!!
 """
-@pytest.mark.parametrize('init_vstart, init_hstart, term_size, max_width, max_height, expected',
+@pytest.mark.parametrize('init_vstart, init_hstart, term_size, max_matrix_dim, expected',
     (
-        (0, 0, [53, 176], 200, 200, (24, 200, 0, 53)),  # test1
-        (0, 100, [53, 176], 200, 200, (24, 200, 0, 53)),  # test2 etc
+        (0, 0, [53, 176], (200, 200), (0, 53, 24, 200)),  # test1
+        (0, 100, [53, 176], (400, 400), (0, 53, 188, 364)),  # test2 etc
+        (0, 100, [53, 176], (400, 200), (0, 53, 100, 276)),
+        (0, 199, [53, 176], (400, 200), (0, 53, 199, 375)),
     ),
 )
-def test_after_scroll_right(init_vstart, init_hstart, term_size, max_width, max_height, expected):
-    viewport = Viewport(init_hstart, init_vstart)
+def test_after_scroll_right(init_vstart, init_hstart, term_size, max_matrix_dim, expected):
+    viewport = Viewport(init_vstart, init_hstart)
     viewport.set_term_size(*term_size)
-    viewport.set_max_width(max_width)
-    viewport.set_max_height(max_height)
+    viewport.set_max_width(max_matrix_dim[1])
+    viewport.set_max_height(max_matrix_dim[0])
     viewport.scroll_right()
     # corrected behaviour: last element should touch right screen edge, if possible!
-    assert expected == (viewport.h_start, viewport.h_stop, viewport.v_start, viewport.v_stop)
+    assert expected == (viewport.v_start, viewport.v_stop, viewport.h_start, viewport.h_stop)
+
+
+@pytest.mark.parametrize('init_vstart, init_hstart, term_size, max_matrix_dim, expected',
+                         (
+                                 (0, 0, [30, 120], (200, 200), (170, 200, 0, 120)),
+                                 # (0, 100, [53, 176], (400, 400), (188, 364, 0, 53)),  # test2 etc
+                                 # (0, 100, [53, 176], (400, 200), (100, 276, 0, 53)),
+                                 # (0, 199, [53, 176], (400, 200), (199, 375, 0, 53)),
+                         ),
+                         )
+def test_after_scroll_bottom(init_vstart, init_hstart, term_size, max_matrix_dim, expected):
+    viewport = Viewport(init_vstart, init_hstart)
+    viewport.set_term_size(*term_size)
+    viewport.set_max_width(max_matrix_dim[1])
+    viewport.set_max_height(max_matrix_dim[0])
+    viewport.scroll_bottom()
+    assert expected == (viewport.v_start, viewport.v_stop, viewport.h_start, viewport.h_stop)

@@ -494,7 +494,7 @@ def find_matrices_width(wns_occupancy, cluster_dict, DEADWEIGHT=11):
     start = 0
     wn_number = cluster_dict['highest_wn']
     workernode_list = cluster_dict['workernode_list']
-    term_columns = viewport.get_h_term_size()
+    term_columns = viewport.h_term_size
     min_masking_threshold = int(config['workernodes_matrix'][0]['wn id lines']['min_masking_threshold'])
     if options.NOMASKING and min(workernode_list) > min_masking_threshold:
         # exclude unneeded first empty nodes from the matrix
@@ -1069,7 +1069,7 @@ def calculate_split_screen_size(config):
     except ValueError:
         logging.warn("Failed to autodetect terminal size. Trying values in %s." % QTOPCONF_YAML)
         try:
-            term_height, term_columns = viewport.term_size
+            term_height, term_columns = viewport.v_term_size, viewport.h_term_size
         except ValueError:
             try:
                 term_height, term_columns = fix_config_list(viewport.term_size)
@@ -1693,7 +1693,7 @@ if __name__ == '__main__':
                 # justification for implementation:
                 # http://unix.stackexchange.com/questions/47407/cat-line-x-to-line-y-on-a-huge-file
                 # line_offset = viewport.v_stop - viewport.v_start
-                cat_command = 'clear;tail -n+%s %s | head -n%s' % (viewport.v_start, output_fp, viewport.get_v_term_size())
+                cat_command = 'clear;tail -n+%s %s | head -n%s' % (viewport.v_start, output_fp, viewport.v_term_size)
                 NOT_FOUND = subprocess.call(cat_command, stdout=stdout, stderr=stdout, shell=True)
 
                 while sys.stdin in select.select([sys.stdin], [], [], timeout)[0]:
@@ -1702,9 +1702,9 @@ if __name__ == '__main__':
                         logging.debug('Pressed %s' % read_char)
                         break
                 else:
-                    state = viewport.term_size
+                    state = viewport.get_term_size()
                     viewport.set_term_size(*calculate_split_screen_size(config))
-                    new_state = viewport.term_size
+                    new_state = viewport.get_term_size()
                     read_char = '\n' if (state == new_state) else 'r'
                     logging.debug("Auto-advancing by pressing <Enter>")
                 pressed_char_hex = '%02x' % ord(read_char) # read_char has an initial value that resets the display ('72')
