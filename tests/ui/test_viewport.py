@@ -41,6 +41,32 @@ def test_after_scroll_right():
     assert 53 == viewport.v_stop
 
 
+def test_after_scroll_down():
+    viewport = Viewport()
+    viewport.set_term_size(50, 120)
+    viewport.set_max_width(400)
+    viewport.set_max_height(200)
+    viewport.scroll_down()
+    assert (0, 120) == (viewport.h_start, viewport.h_stop)
+    assert (50, 100) == (viewport.v_start, viewport.v_stop)
+
+
+def test_after_double_scroll_down():
+    viewport = Viewport()
+    viewport.set_term_size(50, 120)
+    viewport.set_max_width(400)
+    viewport.set_max_height(200)
+    viewport.scroll_down()
+    assert (0, 120) == (viewport.h_start, viewport.h_stop)
+    assert (50, 100) == (viewport.v_start, viewport.v_stop)
+    viewport.scroll_down()
+    assert (0, 120) == (viewport.h_start, viewport.h_stop)
+    assert (100, 150) == (viewport.v_start, viewport.v_stop)
+    viewport.scroll_down()
+    assert (0, 120) == (viewport.h_start, viewport.h_stop)
+    assert (150, 200) == (viewport.v_start, viewport.v_stop)
+
+
 def test_after_scroll_right_with_nowhere_to_go():
     viewport = Viewport(hstart=400 - 176)
     viewport.set_term_size(53, 176)
@@ -166,10 +192,9 @@ def test_after_scroll_right(init_vstart, init_hstart, term_size, max_matrix_dim,
 
 @pytest.mark.parametrize('init_vstart, init_hstart, term_size, max_matrix_dim, expected',
                          (
-                                 (0, 0, [30, 120], (200, 200), (170, 200, 0, 120)),
-                                 # (0, 100, [53, 176], (400, 400), (188, 364, 0, 53)),  # test2 etc
-                                 # (0, 100, [53, 176], (400, 200), (100, 276, 0, 53)),
-                                 # (0, 199, [53, 176], (400, 200), (199, 375, 0, 53)),
+                                 (0, 0, [30, 120], (200, 200), (170, 200, 0, 120)),  # from top to bottom
+                                 (40, 50, [30, 120], (200, 200), (170, 200, 50, 170)),  # from random to bottom
+                                 (170, 50, [30, 120], (200, 200), (170, 200, 50, 170)),  # from bottom to bottom
                          ),
                          )
 def test_after_scroll_bottom(init_vstart, init_hstart, term_size, max_matrix_dim, expected):
