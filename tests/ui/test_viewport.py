@@ -191,12 +191,12 @@ def test_after_scroll_right(init_vstart, init_hstart, term_size, max_matrix_dim,
 
 
 @pytest.mark.parametrize('init_vstart, init_hstart, term_size, max_matrix_dim, expected',
-                         (
-                                 (0, 0, [30, 120], (200, 200), (170, 200, 0, 120)),  # from top to bottom
-                                 (40, 50, [30, 120], (200, 200), (170, 200, 50, 170)),  # from random to bottom
-                                 (170, 50, [30, 120], (200, 200), (170, 200, 50, 170)),  # from bottom to bottom
-                         ),
-                         )
+     (
+         (0, 0, [30, 120], (200, 200), (170, 200, 0, 120)),  # from top to bottom
+         (40, 50, [30, 120], (200, 200), (170, 200, 50, 170)),  # from random to bottom
+         (170, 50, [30, 120], (200, 200), (170, 200, 50, 170)),  # from bottom to bottom
+     ),
+)
 def test_after_scroll_bottom(init_vstart, init_hstart, term_size, max_matrix_dim, expected):
     viewport = Viewport(init_vstart, init_hstart)
     viewport.set_term_size(*term_size)
