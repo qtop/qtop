@@ -6,7 +6,7 @@ import yaml_parser as yaml
 try:
     from collections import OrderedDict
 except ImportError:
-    from ordereddict import OrderedDict
+    from legacy.ordereddict import OrderedDict
 
 
 class OarStatMaker(QStatMaker):
