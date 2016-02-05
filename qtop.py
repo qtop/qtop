@@ -13,7 +13,10 @@ import subprocess
 import select
 import os
 import json
-from collections import namedtuple
+try:
+    from collections import namedtuple
+except ImportError:
+    from legacy.namedtuple import namedtuple
 from os import unlink, close
 from os.path import realpath, getmtime
 try:
