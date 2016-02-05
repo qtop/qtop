@@ -19,7 +19,7 @@ from os.path import realpath, getmtime
 try:
     from collections import OrderedDict
 except ImportError:
-    from ordereddict import OrderedDict
+    from legacy.ordereddict import OrderedDict
 from signal import signal, SIGPIPE, SIG_DFL
 import termios
 import contextlib
