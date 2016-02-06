@@ -1603,6 +1603,14 @@ class TextDisplay(object):
         print "".join(joined_list[self.viewport.h_start:self.viewport.h_stop])
         return joined_list
 
+def get_output_size(max_height, output_fp):
+    if not max_height:
+        with open(output_fp, 'r') as f:
+            max_height = len(f.readlines())
+            if not max_height:
+                raise ValueError("There is no output from qtop *whatsoever*. Weird.")
+    return max_height
+
 if __name__ == '__main__':
 
     stdout = sys.stdout
@@ -1701,12 +1709,7 @@ if __name__ == '__main__':
                 sys.stdout.close()
                 sys.stdout = stdout  # sys.stdout is back to its normal function (i.e. screen output)
 
-                if not viewport.max_height:
-                    # This takes care of closing the file as well.
-                    with open(output_fp, 'r') as f:
-                        viewport.max_height = len(f.readlines())
-                        if not viewport.max_height:
-                            raise ValueError("There is no output from qtop *whatsoever*. Weird.")
+                viewport.max_height = get_output_size(viewport.max_height, output_fp)
 
                 ansi_escape = re.compile(r'\x1b[^m]*m')  # matches ANSI escape characters
                 max_line_len = max(len(ansi_escape.sub('', line.strip())) for line in open(output_fp, 'r')) \
