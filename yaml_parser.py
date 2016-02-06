@@ -279,28 +279,14 @@ def safe_load(fin, DEF_INDENT=2):
 
 def load_all(fin):
     list_of_dicts = []
-    # with open(fn, mode='r') as fin:
     get_lines = get_line(fin)
-    line = next(get_lines)
-    while line:
-        block, line = read_yaml_config_block(line, fin, get_lines)
-        block = convert_dash_key_in_dict(block)
-        list_of_dicts.append(block)
+    while True:
         try:
             line = next(get_lines)
         except StopIteration:
-            line = ''
+            break
+        block, line = read_yaml_config_block(line, fin, get_lines)
+        block = convert_dash_key_in_dict(block)
+        list_of_dicts.append(block)
 
     return list_of_dicts
-
-
-if __name__ == '__main__':
-    LOCAL_QTOPCONF_YAML = '$HOME/.local/qtop/qtopconf.yaml'
-    # LOCAL_QTOPCONF_YAML = '/home/sfranky/PycharmProjects/results/gef_8e3OrbuWti6wAR59UMqR7Q/pbsnodes_a_txtyaml.yaml'
-    # LOCAL_QTOPCONF_YAML = '/home/sfranky/PycharmProjects/results/gef_8e3OrbuWti6wAR59UMqR7Q/testkey8.yaml'
-    f = os.path.expandvars(LOCAL_QTOPCONF_YAML)
-    config = read_yaml_natively(f)
-    # with open(f, mode='r') as fn:
-    #     config = load_all(fn)
-        # pass
-    pass

@@ -1,6 +1,6 @@
 # qtop.py [![Build Status](https://travis-ci.org/qtop/qtop.svg)](https://travis-ci.org/qtop/qtop)
 
-Ported in Python by Sotiris Fragkiskos / Original bash version by Fotis Georgatos
+Python port by Sotiris Fragkiskos / Original bash version by Fotis Georgatos
 
 ## Summary
 qtop.py is the python rewrite of qtop, a tool to monitor Torque, PBS, OAR or SGE clusters, etc.
@@ -13,11 +13,22 @@ both by providing feedback and by actively contributing to the source code.
 
 This program is currently in development mode, with experimental features. If it works, peace :)
 
+## Usage
+To try qtop, you just have to do:
+
+```
+git clone https://github.com/qtop/qtop.git
+cd qtop
+./qtop.py 
+```
+
+Try ```--help``` for all available options.
+
 ## Profile
 
 ```
 Description: The command-line tool to tame queueing or scheduling systems and some more
 License: MIT/GPL
-Version: 0.8.5 / Date: December 12, 2015
+Version: 0.8.6 / Date: February 7, 2016
 Homepage: https://github.com/qtop/qtop
 ```

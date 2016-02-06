@@ -1,52 +1,63 @@
 #!/usr/bin/env python
 
 ################################################
-#              qtop v.0.8.4                    #
+#              qtop v.0.8.6                    #
 #     Licensed under MIT-GPL licenses          #
 #                     Sotiris Fragkiskos       #
 #                     Fotis Georgatos          #
 ################################################
 
 from operator import itemgetter
-import datetime
 from itertools import izip, izip_longest
 import subprocess
-import time
-import sys
 import select
 import os
+import json
+try:
+    from collections import namedtuple
+except ImportError:
+    from legacy.namedtuple import namedtuple
 from os import unlink, close
-from os.path import realpath, expandvars, getmtime
+from os.path import realpath, getmtime
 try:
     from collections import OrderedDict
 except ImportError:
-    from ordereddict import OrderedDict
+    from legacy.ordereddict import OrderedDict
 from signal import signal, SIGPIPE, SIG_DFL
 import termios
 import contextlib
-# modules
-from constants import *
-import common_module
-from common_module import logging, options, sections_off  #, anonymize_func
-import plugin_pbs, plugin_oar, plugin_sge
+import glob
 from plugin_pbs import *
 from plugin_oar import *
 from plugin_sge import *
 from math import ceil
 from colormap import color_of_account, code_of_color
 from yaml_parser import read_yaml_natively, fix_config_list, convert_dash_key_in_dict
+from ui.viewport import Viewport
 
 
 @contextlib.contextmanager
 def raw_mode(file):
-    old_attrs = termios.tcgetattr(file.fileno())
-    new_attrs = old_attrs[:]
-    new_attrs[3] = new_attrs[3] & ~(termios.ECHO | termios.ICANON)
-    try:
-        termios.tcsetattr(file.fileno(), termios.TCSADRAIN, new_attrs)
+    """
+    Simple key listener implementation
+    Taken from http://stackoverflow.com/questions/11918999/key-listeners-in-python/11919074#11919074
+    Exits program with ^C or ^D
+    """
+    if options.ONLYSAVETOFILE:
         yield
-    finally:
-        termios.tcsetattr(file.fileno(), termios.TCSADRAIN, old_attrs)
+    else:
+        try:
+            old_attrs = termios.tcgetattr(file.fileno())
+        except:
+            yield
+        else:
+            new_attrs = old_attrs[:]
+            new_attrs[3] = new_attrs[3] & ~(termios.ECHO | termios.ICANON)
+            try:
+                termios.tcsetattr(file.fileno(), termios.TCSADRAIN, new_attrs)
+                yield
+            finally:
+                termios.tcsetattr(file.fileno(), termios.TCSADRAIN, old_attrs)
 
 # TODO make the following work with py files instead of qtop.colormap files
 # if not options.COLORFILE:
@@ -58,7 +69,6 @@ def colorize(text, color_func=None, pattern='NoPattern', bg_color=None):
     prints text colored according to a unix account pattern color.
     If color is given, pattern is not needed.
     """
-    # bg_color = code_of_color['BlueBG']
     bg_color = '' if not bg_color else bg_color
     try:
         ansi_color = code_of_color[color_func] if color_func else code_of_color[color_of_account[pattern]]
@@ -87,6 +97,9 @@ def decide_remapping(cluster_dict, _all_letters, _all_str_digits_with_empties):
     Reasons not enough to warrant remapping (intended future behaviour)
     - one or two unnumbered nodes (should just be put in the end of the cluster)
     """
+    if not cluster_dict['total_wn']:  # if nothing is running on the cluster
+        return
+
 
     # all needed for decide_remapping
     cluster_dict['node_subclusters'] = set(_all_letters)
@@ -108,22 +121,30 @@ def decide_remapping(cluster_dict, _all_letters, _all_str_digits_with_empties):
 
     if logging.getLogger().isEnabledFor(logging.DEBUG) and options.REMAP:
         user_request = options.BLINDREMAP and 'The user has requested it (blindremap switch)' or False
+
         subclusters = len(cluster_dict['node_subclusters']) > 1 and \
             'there are different WN namings, e.g. wn001, wn002, ..., ps001, ps002, ... etc' or False
+
         exotic_starting = min(cluster_dict['workernode_list']) >= config['exotic_starting_wn_nr'] and \
             'the first starting numbering of a WN is very high and thus would require too much unused space' or False
+
         percentage_unassigned = len(cluster_dict['_all_str_digits_with_empties']) != len(cluster_dict['all_str_digits']) and \
             'more than %s of nodes have are down/offline' % float(config['percentage']) or False
+
         numbering_collisions = min(cluster_dict['workernode_list']) >= config['exotic_starting_wn_nr'] and \
             'there are numbering collisions' or False
+
         print
         logging.debug('Remapping decided due to: \n\t %s' % filter(None,
             [user_request, subclusters, exotic_starting, percentage_unassigned, numbering_collisions]))
-    # max(cluster_dict['workernode_list']) was cluster_dict['highest_wn']
 
 
 def calculate_cluster(worker_nodes):
-    logging.debug('FORCE_NAMES is: %s' % options.FORCE_NAMES)
+    if not worker_nodes:
+        cluster_dict, NAMED_WNS = dict(), 0
+        return cluster_dict, NAMED_WNS
+
+    logging.debug('option FORCE_NAMES is: %s' % options.FORCE_NAMES)
     NAMED_WNS = 0 if not options.FORCE_NAMES else 1
     cluster_dict = dict()
     for key in ['working_cores', 'total_cores', 'max_np', 'highest_wn', 'offline_down_nodes']:
@@ -225,7 +246,9 @@ def display_job_accounting_summary(cluster_dict, total_running_jobs, total_queue
             print '=== WARNING: --- Remapping WN names and retrying heuristics... good luck with this... ---'
         else:
             logging.warning('=== WARNING: --- Remapping WN names and retrying heuristics... good luck with this... ---')
+
     ansi_delete_char = "\015"  # this removes the first ever character (space) appearing in the output
+
     print '%(del)s%(name)s report tool. All bugs added by sfranky@gmail.com. Cross fingers now...' \
         % {'name': 'PBS' if options.CLASSIC else 'Queueing System', 'del': ansi_delete_char}
 
@@ -238,11 +261,11 @@ def display_job_accounting_summary(cluster_dict, total_running_jobs, total_queue
           '   %(total_run_jobs)s+%(total_q_jobs)s %(jobs)s (R + Q) %(reported_by)s' % \
           {
               'Usage Totals': colorize('Usage Totals', 'Yellow'),
-              'online_nodes': colorize(str(cluster_dict['total_wn'] - cluster_dict['offline_down_nodes']), 'Red_L'),
-              'total_nodes': colorize(str(cluster_dict['total_wn']), 'Red_L'),
+              'online_nodes': colorize(str(cluster_dict.get('total_wn', 0) - cluster_dict.get('offline_down_nodes', 0)), 'Red_L'),
+              'total_nodes': colorize(str(cluster_dict.get('total_wn', 0)), 'Red_L'),
               'Nodes': colorize('Nodes', 'Red_L'),
-              'working_cores': colorize(str(cluster_dict['working_cores']), 'Green_L'),
-              'total_cores': colorize(str(cluster_dict['total_cores']), 'Green_L'),
+              'working_cores': colorize(str(cluster_dict.get('working_cores', 0)), 'Green_L'),
+              'total_cores': colorize(str(cluster_dict.get('total_cores', 0)), 'Green_L'),
               'Cores': colorize('cores', 'Green_L'),
               'total_run_jobs': colorize(str(int(total_running_jobs)), 'Blue_L'),
               'total_q_jobs': colorize(str(int(total_queued_jobs)), 'Blue_L'),
@@ -273,13 +296,18 @@ def calculate_job_counts(user_names, job_states):
     expand_useraccounts_symbols(config, user_names)
     state_abbrevs = config['state_abbreviations'][scheduler]
 
-    job_counts = create_job_counts(user_names, job_states, state_abbrevs)
+    try:
+        job_counts = create_job_counts(user_names, job_states, state_abbrevs)
+    except JobNotFound as e:
+        logging.critical('Job state %s not found. You may wish to add '
+                         'that node state inside %s in state_abbreviations section.\n' % (e.job_state, QTOPCONF_YAML))
+
     user_alljobs_sorted_lot = produce_user_lot(user_names)
 
     id_of_username = {}
     for _id, user_allcount in enumerate(user_alljobs_sorted_lot):
         id_of_username[user_allcount[0]] = user_allcount[0][0] \
-            if eval(config['fill_with_user_firstletter']) else config['possible_ids'][_id]
+            if config['fill_with_user_firstletter'] else config['possible_ids'][_id]
 
     # Calculates and prints what is actually below the id|  R + Q /all | unix account etc line
     for state_abbrev in state_abbrevs:
@@ -308,7 +336,7 @@ def create_account_jobs_table(user_names, job_states, wns_occupancy):
     # TODO: unix account id needs to be recomputed at this point. fix.
     for quintuplet, new_uid in zip(account_jobs_table, config['possible_ids']):
         unix_account = quintuplet[-1]
-        quintuplet[0] = id_of_username[unix_account] = unix_account[0] if eval(config['fill_with_user_firstletter']) else \
+        quintuplet[0] = id_of_username[unix_account] = unix_account[0] if config['fill_with_user_firstletter'] else \
             new_uid
     wns_occupancy['account_jobs_table'] = account_jobs_table
     wns_occupancy['id_of_username'] = id_of_username
@@ -326,10 +354,8 @@ def create_job_counts(user_names, job_states, state_abbrevs):
         try:
             x_of_user = state_abbrevs[job_state]
         except KeyError:
-            logging.critical('Job state %s not found.'
-                             'You may wish to add that node state inside %s in state_abbreviations section.\n'
-                             'Exiting...' % (job_state, QTOPCONF_YAML))
-            sys.exit(1)
+            raise JobNotFound(job_state)
+
         job_counts[x_of_user][user_name] = job_counts[x_of_user].get(user_name, 0) + 1
 
     for user_name in job_counts['running_of_user']:
@@ -382,7 +408,7 @@ def fill_node_cores_column(_node, core_user_map, id_of_username, max_np_range, u
             core, job = str(corejob['core']), str(corejob['job'])
             try:
                 user = user_of_job_id[job]
-            except KeyError, KeyErrorValue:
+            except KeyError as KeyErrorValue:
                 logging.critical('There seems to be a problem with the qstat output. '
                                  'A Job (ID %s) has gone rogue. '
                                  'Please check with the SysAdmin.' % (str(KeyErrorValue)))
@@ -397,12 +423,12 @@ def fill_node_cores_column(_node, core_user_map, id_of_username, max_np_range, u
 
         '''
         the height of the matrix is determined by the highest-core WN existing. If other WNs have less cores,
-        these positions are filled with '#'s.
+        these positions are filled with '#'s, or whatever is defined in config['non_existent_node_symbol'].
         '''
         for core in own_np_empty_range:
             core_user_map['Core' + str(core) + 'line'] += ['_']
         for core in non_existent_cores:
-            core_user_map['Core' + str(core) + 'line'] += ['#']
+            core_user_map['Core' + str(core) + 'line'] += [config['non_existent_node_symbol']]
 
     cluster_dict['workernode_dict'][_node]['core_user_column'] = [core_user_map[line][-1] for line in core_user_map]
 
@@ -471,8 +497,7 @@ def find_matrices_width(wns_occupancy, cluster_dict, DEADWEIGHT=11):
     start = 0
     wn_number = cluster_dict['highest_wn']
     workernode_list = cluster_dict['workernode_list']
-    # was: term_columns = wns_occupancy['term_columns']
-    term_columns = config['term_size'][1]
+    term_columns = viewport.h_term_size
     min_masking_threshold = int(config['workernodes_matrix'][0]['wn id lines']['min_masking_threshold'])
     if options.NOMASKING and min(workernode_list) > min_masking_threshold:
         # exclude unneeded first empty nodes from the matrix
@@ -531,12 +556,12 @@ def display_wnid_lines(start, stop, highest_wn, wn_vert_labels, **kwargs):
 
 
 def print_wnid_lines(d, start, stop, end_labels, transposed_matrices, color_func, args):
-    colors = iter(color_func(*args))
-    if eval(config['transpose_wn_matrices']):
+    if config['transpose_wn_matrices']:
         tuple = [None, 'wnid_lines', transpose_matrix(d)]
         transposed_matrices.append(tuple)
         return
 
+    colors = iter(color_func(*args))
     for line_nr, end_label, color in zip(d, end_labels, colors):
         wn_id_str = insert_separators(d[line_nr][start:stop], SEPARATOR, config['vertical_separator_every_X_columns'])
         wn_id_str = ''.join([colorize(elem, color) for elem in wn_id_str])
@@ -568,8 +593,8 @@ def is_matrix_coreless(workernodes_occupancy):
         cpu_core_line = core_user_map['Core' + str(ind) + 'line'][print_char_start:print_char_stop]
         if options.REM_EMPTY_CORELINES and \
             (
-                ('#' * (print_char_stop - print_char_start) == cpu_core_line) or \
-                ('#' * (len(cpu_core_line)) == cpu_core_line)
+                (config['non_existent_node_symbol'] * (print_char_stop - print_char_start) == cpu_core_line) or \
+                (config['non_existent_node_symbol'] * (len(cpu_core_line)) == cpu_core_line)
             ):
             lines.append('*')
 
@@ -587,7 +612,7 @@ def display_remaining_matrices(wn_occupancy, DEADWEIGHT=11):
     """
     extra_matrices_nr = wn_occupancy['extra_matrices_nr']
     # term_columns = wn_occupancy['term_columns']
-    term_columns = config['term_size'][1]
+    term_columns = viewport.term_size[1]
 
     # need node_state, temp
     for matrix in range(extra_matrices_nr):
@@ -607,15 +632,15 @@ def display_matrix(workernodes_occupancy):
     occupancy_parts needs to be redefined for each matrix, because of changed parameter values
     """
     # global transposed_matrices
-    if is_matrix_coreless(workernodes_occupancy):
+    if (not all([workernodes_occupancy, workernodes_occupancy.get('id_of_username', 0)])) or is_matrix_coreless(
+            workernodes_occupancy):
         return
     print_char_start = workernodes_occupancy['print_char_start']
     print_char_stop = workernodes_occupancy['print_char_stop']
     wn_vert_labels = workernodes_occupancy['wn_vert_labels']
     core_user_map = workernodes_occupancy['core user map']
     extra_matrices_nr = workernodes_occupancy['extra_matrices_nr']
-    # term_columns = workernodes_occupancy['term_columns']
-    term_columns = config['term_size'][1]
+    # term_columns = viewport.get_h_term_size()
     pattern_of_id = workernodes_occupancy['pattern_of_id']
 
     occupancy_parts = {
@@ -651,7 +676,7 @@ def display_matrix(workernodes_occupancy):
         fn, args, kwargs = occupancy_parts[part][0], occupancy_parts[part][1], occupancy_parts[part][2]
         fn(*args, **kwargs)
 
-    if eval(config['transpose_wn_matrices']):
+    if config['transpose_wn_matrices']:
         order = config['occupancy_column_order']
         for idx, (item, matrix) in enumerate(zip(order, transposed_matrices)):
             matrix[0] = order.index(matrix[1])
@@ -659,8 +684,14 @@ def display_matrix(workernodes_occupancy):
         transposed_matrices.sort(key=lambda item: item[0])
 
         for line_tuple in izip_longest(*[tpl[2] for tpl in transposed_matrices], fillvalue='  '):
-            join_prints(*line_tuple, sep=config.get('horizontal_separator', None))
-        logging.debug('Printed horizontally from %s to %s' % (config['h_start'], h_stop))
+            joined_list = join_prints(*line_tuple, sep=config.get('horizontal_separator', None))
+
+        max_width = len(joined_list)
+        viewport.set_max_width(max_width)
+
+        logging.debug('Printed horizontally from %s to %s' % (viewport.h_start, viewport.h_stop))
+    else:
+        viewport.set_max_width(viewport.get_h_term_size())
     print
 
 
@@ -669,7 +700,7 @@ def print_mult_attr_line(print_char_start, print_char_stop, transposed_matrices,
     """
     attr_lines can be e.g. Node state lines
     """
-    if eval(config['transpose_wn_matrices']):
+    if config['transpose_wn_matrices']:
         tuple = [None, label, transpose_matrix(attr_lines)]
         transposed_matrices.append(tuple)
         return
@@ -682,7 +713,15 @@ def print_mult_attr_line(print_char_start, print_char_stop, transposed_matrices,
         print attr_line + "=" + label
 
 
-def display_user_accounts_pool_mappings(account_jobs_table, pattern_of_id):
+def display_user_accounts_pool_mappings(workernodes_occupancy=None):
+    try:
+        account_jobs_table = workernodes_occupancy['account_jobs_table']
+        pattern_of_id = workernodes_occupancy['pattern_of_id']
+    except KeyError:
+        account_jobs_table = dict()
+        pattern_of_id = dict()
+
+
     detail_of_name = get_detail_of_name(account_jobs_table)
     print colorize('\n===> ', 'Gray_D') + \
           colorize('User accounts and pool mappings', 'White') + \
@@ -731,8 +770,8 @@ def get_core_lines(core_user_map, print_char_start, print_char_stop, pattern_of_
         cpu_core_line = core_user_map['Core' + str(ind) + 'line'][print_char_start:print_char_stop]
         if options.REM_EMPTY_CORELINES and \
             (
-                ('#' * (print_char_stop - print_char_start) == cpu_core_line) or \
-                ('#' * (len(cpu_core_line)) == cpu_core_line)
+                (config['non_existent_node_symbol'] * (print_char_stop - print_char_start) == cpu_core_line) or \
+                (config['non_existent_node_symbol'] * (len(cpu_core_line)) == cpu_core_line)
             ):
             continue
         cpu_core_line = insert_separators(cpu_core_line, SEPARATOR, config['vertical_separator_every_X_columns'])
@@ -745,6 +784,8 @@ def calc_core_userid_matrix(cluster_dict, wns_occupancy, job_ids, user_names):
     _core_user_map = OrderedDict()
     max_np_range = [str(x) for x in range(cluster_dict['max_np'])]
     user_of_job_id = dict(izip(job_ids, user_names))
+    if not user_of_job_id:
+        return
 
     for core_nr in max_np_range:
         _core_user_map['Core%sline' % str(core_nr)] = []  # Cpu0line, Cpu1line, Cpu2line, .. = '','','', ..
@@ -818,8 +859,10 @@ def join_prints(*args, **kwargs):
         joined_list.extend(d)
         joined_list.append(kwargs['sep'])
 
-    print "".join(joined_list[h_start:h_stop])
-    workernodes_occupancy.setdefault('max_full_line_len', len(joined_list))
+    print "".join(joined_list[viewport.h_start:viewport.h_stop])
+    return joined_list
+
+
 
 
 def get_yaml_key_part(major_key):
@@ -845,8 +888,13 @@ def calculate_wn_occupancy(cluster_dict, user_names, job_states, job_ids):
     Otherwise, for uniform WNs, i.e. all using the same numbering scheme, wn01, wn02, ... proceeds as normal.
     Number of Extra tables needed is calculated inside the calc_all_wnid_label_lines function below
     """
+    # config = calculate_split_screen_size(config)  # term_columns
+
+    if not cluster_dict:
+        workernodes_occupancy, cluster_dict = dict(), dict()
+        return workernodes_occupancy, cluster_dict
+
     wns_occupancy = dict()
-    calculate_split_screen_size()  # term_columns
     create_account_jobs_table(user_names, job_states, wns_occupancy) # account_jobs_table, id_of_username
     make_pattern_of_id(wns_occupancy)  # pattern_of_id
 
@@ -865,7 +913,7 @@ def calculate_wn_occupancy(cluster_dict, user_names, job_states, job_ids):
 def print_core_lines(core_user_map, print_char_start, print_char_stop, transposed_matrices, pattern_of_id, attrs, options1,
                      options2):
     signal(SIGPIPE, SIG_DFL)
-    if eval(config['transpose_wn_matrices']):
+    if config['transpose_wn_matrices']:
         tuple = [None, 'core_map', transpose_matrix(core_user_map, colored=True)]
         transposed_matrices.append(tuple)
         return
@@ -892,7 +940,7 @@ def print_core_lines(core_user_map, print_char_start, print_char_stop, transpose
 
 
 def display_wn_occupancy(workernodes_occupancy, cluster_dict):
-    if eval(config['transpose_wn_matrices']):
+    if config['transpose_wn_matrices']:
         order = config['occupancy_column_order']
         note = "/".join(order)
     else:
@@ -901,7 +949,7 @@ def display_wn_occupancy(workernodes_occupancy, cluster_dict):
           + colorize('(%s)', 'Gray_D') % note
 
     display_matrix(workernodes_occupancy)
-    if not eval(config['transpose_wn_matrices']):
+    if not config['transpose_wn_matrices']:
         display_remaining_matrices(workernodes_occupancy)
 
 
@@ -927,7 +975,7 @@ def make_pattern_of_id(wns_occupancy):
 
         pattern_of_id[uid] = account if account in color_of_account else 'account_not_colored'
 
-    pattern_of_id['#'] = '#'
+    pattern_of_id[config['non_existent_node_symbol']] = '#'
     pattern_of_id['_'] = '_'
     pattern_of_id[SEPARATOR] = 'account_not_colored'
     wns_occupancy['pattern_of_id'] = pattern_of_id
@@ -1006,12 +1054,17 @@ def load_yaml_config():
         logging.debug('%s files will be saved in directory %s.' % (config['scheduler'], user_selected_save_path))
     config['savepath'] = user_selected_save_path
 
+    for key in ['transpose_wn_matrices', 'fill_with_user_firstletter', 'faster_xml_parsing']:
+        config[key] = eval(config[key])  # TODO config should not be writeable!!
+    config['sorting']['reverse'] = eval(config['sorting']['reverse'])  # TODO config should not be writeable!!
+
     return config
 
 
-def calculate_split_screen_size():
+def calculate_split_screen_size(config):
     """
-    Calculates where to break the matrix into more matrices, because of the window size.
+    If the workernode matrix has to be split into sub-matrices because of screen limitations,
+    this will calculate the maximum size of each sub-matrix
     """
     fallback_term_size = [53, 176]
     try:
@@ -1019,22 +1072,24 @@ def calculate_split_screen_size():
     except ValueError:
         logging.warn("Failed to autodetect terminal size. Trying values in %s." % QTOPCONF_YAML)
         try:
-            term_height, term_columns = config['term_size']
+            term_height, term_columns = viewport.v_term_size, viewport.h_term_size
         except ValueError:
             try:
-                term_height, term_columns = fix_config_list(config['term_size'])
+                term_height, term_columns = fix_config_list(viewport.term_size)
             except KeyError:
-                config['term_size'] = fallback_term_size
-    finally:
-        logging.debug('Set terminal size is: %s * %s' % (term_height, term_columns))
-        config['term_size'] = [int(term_height), int(term_columns)]
-        config['h_start'] = h_start
-        config['v_stop'], config['h_stop'] = config['term_size']
+                # Bug... the following gets discarded
+                #config['term_size'] = fallback_term_size
+                term_height, term_columns = fallback_term_size
+        except (KeyError, TypeError):  # TypeError if None was returned i.e. no setting in QTOPCONF_YAML
+            term_height, term_columns = fallback_term_size
+
+    logging.debug('Set terminal size is: %s * %s' % (term_height, term_columns))
+    return int(term_height), int(term_columns)
 
 
 def sort_batch_nodes(batch_nodes):
     try:
-        batch_nodes.sort(key=eval(config['sorting']['user_sort']), reverse=eval(config['sorting']['reverse']))
+        batch_nodes.sort(key=eval(config['sorting']['user_sort']), reverse=config['sorting']['reverse'])
     except (IndexError, ValueError):
         logging.critical("There's (probably) something wrong in your sorting lambda in %s." % QTOPCONF_YAML)
         raise
@@ -1172,33 +1227,6 @@ def map_batch_nodes_to_wn_dicts(cluster_dict, batch_nodes, options_remap):
     return nodes_drop
 
 
-def convert_to_yaml(scheduler, INPUT_FNs_commands, filenames, write_method=options.write_method):
-
-    yaml_converter = {
-        'pbs': {
-            'pbsnodes_file': convert_pbsnodes_to_yaml,
-            'qstatq_file': QStatMaker(config).convert_qstatq_to_yaml,
-            'qstat_file': QStatMaker(config).convert_qstat_to_yaml,
-        },
-        'oar': {
-            'oarnodes_s_file': lambda x, y, z: None,
-            'oarnodes_y_file': lambda x, y, z: None,
-            'oarstat_file': OarStatMaker(config).convert_qstat_to_yaml,
-        },
-        'sge': {
-            'sge_file_stat': SGEStatMaker(config).convert_qstat_to_yaml,
-        }
-    }
-    converters = yaml_converter[scheduler]
-
-    for _file in INPUT_FNs_commands:
-        file_orig, file_out = filenames[_file], filenames[_file + '_out']
-        converter_func = converters[_file]
-        logging.debug('Executing %(func)s \n\t'
-                      'on: %(file_orig)s,\n\t' % {"func": converter_func.__name__, "file_orig": file_orig, "file_out": file_out})
-        converter_func(file_orig, file_out, write_method)
-
-
 def exec_func_tuples(func_tuples):
     _commands = iter(func_tuples)
     for command in _commands:
@@ -1207,48 +1235,16 @@ def exec_func_tuples(func_tuples):
         yield ffunc(*args, **kwargs)
 
 
-def get_worker_nodes(scheduler):
-    d = {}
-    d['pbs'] = plugin_pbs._get_worker_nodes
-    d['oar'] = plugin_oar._get_worker_nodes
-    d['sge'] = plugin_sge._get_worker_nodes
-    return d[scheduler]
-
-
-def get_queues_info(scheduler):
-    d = {}
-    d['pbs'] = plugin_pbs._read_qstatq_yaml
-    d['oar'] = lambda *args, **kwargs: (0, 0, [])
-    d['sge'] = plugin_sge._get_statq_from_xml
-    return d[scheduler]
-
-
-def get_jobs_info(scheduler):
-    return common_module.get_jobs_info
-
-
-def get_yaml_files(scheduler, filenames):
-    SGEStatMaker.temp_filepath = None if scheduler != 'sge' else SGEStatMaker.temp_filepath
-    args = {}
-    args['pbs'] = {
-        'get_worker_nodes': [filenames.get('pbsnodes_file_out')],
-        'get_jobs_info': [filenames.get('qstat_file_out')],
-        'get_queues_info': [filenames.get('qstatq_file_out')]
-    }
-    args['oar'] = {
-        'get_worker_nodes': [filenames.get('oarnodes_s_file'), filenames.get('oarnodes_y_file')],
-        'get_jobs_info': [filenames.get('oarstat_file_out')],
-        'get_queues_info': [filenames.get('oarstat_file')],
-    }
-    args['sge'] = {
-        'get_worker_nodes': [filenames.get('sge_file_stat')],
-        'get_jobs_info': [SGEStatMaker.temp_filepath],
-        'get_queues_info': [filenames.get('sge_file_stat')],
-    }
-    return args[scheduler]
-
-
-def get_filenames_commands():
+def finalize_filepaths_schedulercommands():
+    """
+    returns a dictionary with contents of the form
+    {fn : (filepath, schedulercommand)}, e.g.
+    {'pbsnodes_file': ('<TMPDIR>/qtop_results_$USER/pbsnodes_a.txt', 'pbsnodes -a')}
+    if the -s switch (set sourcedir) has been invoked, or
+    {'pbsnodes_file': ('<TMPDIR>/qtop_results_$USER/pbsnodes_a<some_pid>.txt', 'pbsnodes -a')}
+    if ran without the -s switch.
+    TMPDIR is defined in constants.py
+    """
     d = dict()
     # date = time.strftime("%Y%m%d")  #TODO
     # fn_append = "_" + str(date) if not options.SOURCEDIR else ""
@@ -1263,31 +1259,43 @@ def get_filenames_commands():
 
 def auto_get_avail_batch_system():
     """
-    If the auto option exists in env variable QTOP_SCHEDULER or in QTOPCONF_YAML
-    (QTOP_SCHEDULER should be unset if QTOPCONF_YAML is set to auto)
+    If the auto option is set in either env variable QTOP_SCHEDULER, QTOPCONF_YAML or in cmdline switch -b,
     qtop tries to determine which of the known batch commands are available in the current system.
+    Priority is pbsnodes > oarnodes > qstat,
+    i.e. first command to be found is to be considered crucial for identifying the scheduler type
     """
-    if not os.environ.get('QTOP_SCHEDULER', config['scheduler']) == 'auto':
-        return None
+    # TODO pbsnodes etc should not be hardcoded!
     for (batch_command, system) in [('pbsnodes', 'pbs'), ('oarnodes', 'oar'), ('qstat', 'sge')]:
         NOT_FOUND = subprocess.call(['which', batch_command], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         if not NOT_FOUND:
+            logging.debug('Auto-detected scheduler: %s' % system)
             return system
+
+    raise NoSchedulerFound
+
+
+def get_selected_batch_system(cmdline_switch, env_var, config_file_batch_option, schedulers):
+    """
+    If the User has selected a specific batch system,
+    through either a cmdline switch, env variable, or config file, pick that system.
+    """
+    if cmdline_switch and cmdline_switch.lower() not in ['sge', 'oar', 'pbs', 'auto']:
+        raise InvalidScheduler
+    for scheduler in (cmdline_switch, env_var, config_file_batch_option):
+        try:
+            scheduler = scheduler.lower()
+        except AttributeError:
+            pass
+
+        if scheduler == 'auto':
+            raise SchedulerNotSpecified
+        elif scheduler in schedulers:
+            logging.info('User-selected scheduler: %s' % scheduler)
+            return scheduler
+        elif scheduler and scheduler not in schedulers:  # a scheduler that does not exist is inputted
+            raise NoSchedulerFound
     else:
-        return None
-
-
-def pick_batch_system():
-    avail_batch_system = auto_get_avail_batch_system()
-    scheduler = options.BATCH_SYSTEM or avail_batch_system or config['scheduler']
-    logging.debug('cmdline switch option scheduler: %s' % options.BATCH_SYSTEM or "None")
-    logging.debug('Autodetected scheduler: %s' % avail_batch_system or "None")
-    if scheduler == 'auto':
-        logging.critical('No suitable scheduler was found. '
-                         'Please define one in a switch or env variable or in %s' % QTOPCONF_YAML)
-        raise (ValueError, 'No suitable scheduler was found.')
-    logging.debug('Selected scheduler is %s' % scheduler)
-    return scheduler
+        raise NoSchedulerFound
 
 
 def execute_shell_batch_commands(batch_system_commands, filenames, _file):
@@ -1332,10 +1340,9 @@ def get_detail_of_name(account_jobs_table):
     p = subprocess.Popen(passwd_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     output, err = p.communicate("something here")
     if 'No such file or directory' in err:
-        logging.error('You have to set a proper command to get the passwd file in your %s file.' % QTOPCONF_YAML)
-        logging.error('Error returned by getent: %s\nCommand issued: %s' % (err, passwd_command))
+        logging.warn('You have to set a proper command to get the passwd file in your %s file.' % QTOPCONF_YAML)
+        logging.warn('Error returned by getent: %s\nCommand issued: %s' % (err, passwd_command))
 
-    # with open(fn, mode='r') as fin:
     detail_of_name = dict()
     for line in output.split('\n'):
         try:
@@ -1352,10 +1359,12 @@ def get_detail_of_name(account_jobs_table):
     return detail_of_name
 
 
-def get_input_filenames():
-
-    parser_extension_mapping = {'txtyaml': 'yaml', 'json': 'json'}
-    extension = parser_extension_mapping[options.write_method]
+def get_input_filenames(INPUT_FNs_commands, extension):
+    """
+    If the user didn't specify --via the -s switch-- a dir where ready-made data files already exist,
+    the appropriate batch commands are executed, as indicated in QTOPCONF,
+    and results are saved with the respective filenames.
+    """
     logging.info('Selected method for storing data structures is: %s' % extension)
 
     filenames = dict()
@@ -1364,17 +1373,24 @@ def get_input_filenames():
         filenames[_file], batch_system_commands[_file] = INPUT_FNs_commands[_file]
 
         if not options.SOURCEDIR:
-            # if user didn't specify a dir where ready-made data files already exist,
-            # execute the appropriate batch commands and fetch results to the respective files
             execute_shell_batch_commands(batch_system_commands, filenames, _file)
-        else:
-            pass
 
+        if not os.path.isfile(filenames[_file]):
+            raise FileNotFound(filenames[_file])
+    return filenames
+
+
+def prepare_output_filepaths(filenames, INPUT_FNs_commands, extension):
+    """
+    The filepaths of the future output files (structures converted to json/yaml) are appended to the filenames dict
+    """
+    for _file in INPUT_FNs_commands:
         filenames[_file + '_out'] = '{filename}_{writemethod}.{ext}'.format(
             filename=INPUT_FNs_commands[_file][0].rsplit('.')[0],
             writemethod=options.write_method,
             ext=extension
         )
+
     return filenames
 
 
@@ -1392,7 +1408,7 @@ def check_python_version():
         sys.exit(1)
 
 
-def deprecate_old_yaml_files(filepath):
+def deprecate_old_yaml_files():
     """
     deletes older yaml files in savepath directory.
     experimental and loosely untested
@@ -1408,137 +1424,72 @@ def deprecate_old_yaml_files(filepath):
             os.remove(curpath)
 
 
-def scroll_down(h_start, h_stop, v_start, v_stop):
-    logging.debug('v_start: %s' % v_start)
+def control_movement(pressed_char_hex):
+    """
+    Basic vi-like movement is implemented for the -w switch (linux watch-like behaviour for qtop).
+    h, j, k, l for left, down, up, right, respectively.
+    Both g/G and Shift+j/k go to top/bottom of the matrices
+    0 and $ go to far left/right of the matrix, respectively.
+    r resets the screen to its initial position (if you've drifted away from the vieweable part of a matrix).
+    q quits qtop.
+    """
+    if pressed_char_hex in ['6a', '20']:  # j, spacebar
+        logging.debug('v_start: %s' % viewport.v_start)
+        if viewport.scroll_down():
+            logging.info('Going down...')
+        else:
+            logging.info('Staying put')
 
-    if v_stop < num_lines:
-        v_start += config['term_size'][0]
-        v_stop += config['term_size'][0]  # - 10
-        logging.info('Going down...')
-        config['v_stop'] = v_stop
-    else:
-        logging.info('Staying put')
-    return h_start, h_stop, v_start, v_stop
+    elif pressed_char_hex in ['6b', '7f']:  # k, Backspace
+        if viewport.scroll_up():
+            logging.info('Going up...')
+        else:
+            logging.info('Staying put')
 
+    elif pressed_char_hex in ['6c']:  # l
+        logging.info('Going right...')
+        viewport.scroll_right()
 
-def scroll_bottom(h_start, h_stop, v_start, v_stop):
-    logging.debug('v_start: %s' % v_start)
+    elif pressed_char_hex in ['24']:  # $
+        logging.info('Going far right...')
+        viewport.scroll_far_right()
+        logging.info('h_start: %s' % viewport.h_start)
+        logging.info('max_line_len: %s' % max_line_len)
+        logging.info('config["term_size"][1] %s' % viewport.term_size[1])
+        logging.info('h_stop: %s' % viewport.h_stop)
 
-    v_start = num_lines - config['term_size'][0]
-    v_stop = num_lines
-    logging.info('Going to the bottom...')
-    config['v_stop'] = v_stop
-    return h_start, h_stop, v_start, v_stop
+    elif pressed_char_hex in ['68']:  # h
+        logging.info('Going left...')
+        viewport.scroll_left()
 
+    elif pressed_char_hex in ['30']:   # 0
+        logging.info('Going far left...')
+        viewport.scroll_far_left()
 
-def scroll_top(h_start, h_stop, v_start, v_stop):
-    logging.debug('v_start: %s' % v_start)
+    elif pressed_char_hex in ['4a', '47']:  # S-j, G
+        logging.info('Going to the bottom...')
+        logging.debug('v_start: %s' % viewport.v_start)
+        if viewport.scroll_bottom():
+            logging.info('Going to the bottom...')
+        else:
+            logging.info('Staying put')
 
-    v_start = 0
-    v_stop = config['term_size'][0]
-    logging.info('Going to the top...')
-    config['v_stop'] = v_stop
-    return h_start, h_stop, v_start, v_stop
+    elif pressed_char_hex in ['4b', '67']:  # S-k, g
+        logging.info('Going to the top...')
+        logging.debug('v_start: %s' % viewport.v_start)
+        viewport.scroll_top()
 
+    elif pressed_char_hex in ['72']:  # r
+        viewport.reset_display()
 
-def scroll_up(h_start, h_stop, v_start, v_stop):
-    if v_start - config['term_size'][0] >= 0:
-        v_start -= config['term_size'][0]
-        v_stop -= config['term_size'][0]
-        logging.info('Going up...')
-    else:
-        v_start = 1
-        v_stop = config['term_size'][0]
-        logging.info('Staying put')
-    config['v_stop'] = v_stop
-    return h_start, h_stop, v_start, v_stop
-
-
-def scroll_right(h_start, h_stop, v_start, v_stop):  # 'l', right
-    h_start += config['term_size'][1]/2
-    config['h_start'] = h_start
-    h_stop += config['term_size'][1]/2
-    config['h_stop'] = h_stop
-    logging.info('Going right...')
-    return config['h_start'], config['h_stop'], v_start, v_stop
-
-
-def scroll_far_right(h_start, h_stop, v_start, v_stop):  # 'l', right
-    h_start = workernodes_occupancy['max_full_line_len'] - config['term_size'][1]
-    config['h_start'] = h_start
-    h_stop = workernodes_occupancy['max_full_line_len']
-    config['h_stop'] = h_stop
-    logging.info('h_start: %s' % h_start)
-    logging.info('max_line_len: %s' % max_line_len)
-    logging.info('config["term_size"][1] %s' % config['term_size'][1])
-    logging.info('h_stop: %s' % h_stop)
-    logging.info('Going far right...')
-    return config['h_start'], config['h_stop'], v_start, v_stop
-
-
-def scroll_left(h_start, h_stop, v_start, v_stop):
-    if h_start >= config['term_size'][1] / 2:
-        h_start -= config['term_size'][1]/2
-    if h_start > 0:
-        h_stop -= config['term_size'][1]/2
-    else:
-        h_stop = config['term_size'][1]
-    config['h_start'] = h_start
-    config['h_stop'] = h_stop
-    logging.info('Going left...')
-    return h_start, h_stop, v_start, v_stop
-
-
-def scroll_far_left(h_start, h_stop, v_start, v_stop):
-    h_start = 0
-    h_stop = config['term_size'][1]
-    config['h_start'] = h_start
-    config['h_stop'] = h_stop
-    logging.info('Going far left...')
-    return h_start, h_stop, v_start, v_stop
-
-
-def reset_display(h_start, h_stop, v_start, v_stop):  # "R", reset display
-    v_start = 1
-    v_stop = config['term_size'][0]
-    config['v_stop'] = v_stop
-    h_start = 0
-    h_stop = config['term_size'][1]
-    return h_start, h_stop, v_start, v_stop
-
-def quit_program(h_start, h_stop, v_start, v_stop):  # "q", quit
-    try:
-        raise KeyboardInterrupt
-    except KeyboardInterrupt:
+    elif pressed_char_hex in ['71']:  # q
         print '  Exiting...'
         sys.exit(0)
 
-
-def control_movement(pressed_char_hex, h_start, h_stop, v_start, v_stop):
-    key_actions = {
-        '6a': scroll_down,  # j
-        '20': scroll_down,  # spacebar
-        '6b': scroll_up,  # k
-        '7f': scroll_up,  # Backspace
-        '6c': scroll_right,  # l
-        '24': scroll_far_right,  # $
-        '68': scroll_left,  # h
-        '30': scroll_far_left,  # 0
-        '4a': scroll_bottom,  # S-j
-        '47': scroll_bottom,  # G
-        '4b': scroll_top,  # S-k
-        '67': scroll_top,  # g
-        '72': reset_display,  # r
-        '71': quit_program,  # q
-        '0a': lambda a,b,c,d:(a,b,c,d),  # Enter
-    }
-    h_start, h_stop, v_start, v_stop = key_actions[pressed_char_hex](h_start, h_stop, v_start, v_stop)
-    # logging.debug('\n\tv_start: %s\n\tv_stop: %s\n\th_start: %s\n\th_stop: %s' % (v_start, v_stop, h_start, h_stop))
     logging.debug('Area Displayed: (h_start, v_start) --> (h_stop, v_stop) '
                   '\n\t(%(h_start)s, %(v_start)s) --> (%(h_stop)s, %(v_stop)s)' %
-                  {'v_start': v_start, 'v_stop': v_stop, 'h_start': h_start, 'h_stop': h_stop})
-
-    return h_start, h_stop, v_start, v_stop
+                  {'v_start': viewport.v_start, 'v_stop': viewport.v_stop,
+                   'h_start': viewport.h_start, 'h_stop': viewport.h_stop})
 
 
 def safe_exit_with_file_close(handle, name, stdout, delete_file=False):
@@ -1548,18 +1499,79 @@ def safe_exit_with_file_close(handle, name, stdout, delete_file=False):
     if delete_file:
         unlink(name)  # this deletes the file
     # sys.stdout = stdout
+    if options.SAMPLE >= 1:
+        add_to_sample([QTOP_LOGFILE], config['savepath'])
     sys.exit(0)
+
+
+
+def prepare_files():
+    parser_extension_mapping = {'txtyaml': 'yaml', 'json': 'json'}
+    extension = parser_extension_mapping[options.write_method]
+
+    INPUT_FNs_commands = finalize_filepaths_schedulercommands()
+    in_out_filenames = get_input_filenames(INPUT_FNs_commands, extension)
+    in_out_filenames = prepare_output_filepaths(in_out_filenames, INPUT_FNs_commands, extension)
+
+    return INPUT_FNs_commands, in_out_filenames
+
+
+def decide_batch_system(cmdline_switch, env_var, config_file_batch_option):
+    """
+    Qtop first checks in cmdline switches, environmental variables and the config files, in this order,
+    for the scheduler type. If it's not indicated and "auto" is, it will attempt to guess the scheduler type
+    from the scheduler shell commands available in the linux system.
+    """
+    try:
+        scheduler = get_selected_batch_system(cmdline_switch, env_var, config_file_batch_option, config['schedulers'])
+    except SchedulerNotSpecified:  # it now must be auto-detected
+        try:
+            scheduler = auto_get_avail_batch_system()
+        except NoSchedulerFound:
+            raise  # (re-raises NoSchedulerFound)
+        else:
+            logging.debug('Selected scheduler is %s' % scheduler)
+            return scheduler
+    except NoSchedulerFound:
+        raise
+    except InvalidScheduler:
+        logging.critical("Selected scheduler system not supported. Available choices are 'PBS', 'SGE', 'OAR'.")
+        logging.critical("For help, try ./qtop.py --help")
+        logging.critical("Log file created in %s" % expandvars(QTOP_LOGFILE))
+        raise
+    else:
+        return scheduler
+
+
+def scheduler_factory(scheduler, in_out_filenames, config):
+    if scheduler == "pbs":
+        return PBSBatchSystem(in_out_filenames, config)
+    elif scheduler == "oar":
+        return OARBatchSystem(in_out_filenames, config)
+    elif scheduler == "sge":
+        return SGEBatchSystem(in_out_filenames, config)
+
+
+class Document(namedtuple('Document', ['worker_nodes', 'job_ids', 'user_names', 'job_states', 'total_running_jobs', 'total_queued_jobs', 'qstatq_lod'])):
+
+    def save(self, filename):
+        with open(filename, 'w') as outfile:
+            json.dump(document, outfile)
+
+
+def get_document(scheduling_system):
+    worker_nodes = scheduling_system.get_worker_nodes()
+    job_ids, user_names, job_states, _ = scheduling_system.get_jobs_info()
+    total_running_jobs, total_queued_jobs, qstatq_lod = scheduling_system.get_queues_info()
+    return Document(worker_nodes, job_ids, user_names, job_states, total_running_jobs, total_queued_jobs, qstatq_lod)
 
 
 if __name__ == '__main__':
 
     stdout = sys.stdout
-    v_start = 1
-    v_stop = None
-    h_start = 0
-    h_stop = None
+
+    viewport = Viewport()
     read_char = 'r'  # initial value, resets view position to beginning
-    num_lines = 0
     max_line_len = 0
     timeout = 1
 
@@ -1572,16 +1584,14 @@ if __name__ == '__main__':
     with raw_mode(sys.stdin):
         try:
             while True:
-                handle, name = get_new_temp_file(prefix='qtop_', suffix='.out')
+                handle, output_fp = get_new_temp_file(prefix='qtop_', suffix='.out')
                 sys.stdout = os.fdopen(handle, 'w')  # redirect everything to file, creates file object out of handle
-                # sys.stdout = open(fout, 'w', -1)  # redirect everything to file
                 transposed_matrices = []
                 config = load_yaml_config()
 
-                if options.OPTION:
-                    for opt in options.OPTION:
-                        key, val = get_key_val_from_option_string(opt)
-                        config[key] = val
+                for opt in options.OPTION:
+                    key, val = get_key_val_from_option_string(opt)
+                    config[key] = val
 
                 if config['faster_xml_parsing']:
                     try:
@@ -1589,6 +1599,12 @@ if __name__ == '__main__':
                     except ImportError:
                         logging.warn('Module lxml is missing. Try issuing "pip install lxml". Reverting to xml module.')
                         from xml.etree import ElementTree as etree
+
+                if options.TRANSPOSE:
+                    config['transpose_wn_matrices'] = not config['transpose_wn_matrices']
+
+                # After this place config is *logically* immutable
+                viewport.set_term_size(*calculate_split_screen_size(config))
 
                 SEPARATOR = config['vertical_separator'].translate(None, "'")  # alias
                 USER_CUT_MATRIX_WIDTH = int(config['workernodes_matrix'][0]['wn id lines']['user_cut_matrix_width'])  # alias
@@ -1602,63 +1618,85 @@ if __name__ == '__main__':
                 logging.debug('Working directory is now: %s' % options.workdir)
                 os.chdir(options.workdir)
 
-                scheduler = pick_batch_system()
+                scheduler = decide_batch_system(options.BATCH_SYSTEM, os.environ.get('QTOP_SCHEDULER'), config['scheduler'])
 
-                INPUT_FNs_commands = get_filenames_commands()
-                input_filenames = get_input_filenames()
+                INPUT_FNs_commands, in_out_filenames = prepare_files()
 
                 # reset_yaml_files()  # either that or having a pid appended in the filename
-                if not options.YAML_EXISTS:
-                    convert_to_yaml(scheduler, INPUT_FNs_commands, input_filenames)
-                yaml_files = get_yaml_files(scheduler, input_filenames)
+                if options.SAMPLE >= 1:  # clears any preexisting tar files
+                    tar_out = tarfile.open(os.path.join(config['savepath'], QTOP_SAMPLE_FILENAME), mode='w')
+                    tar_out.close()
+                if options.SAMPLE >= 2:
+                    add_to_sample([os.path.join(realpath(QTOPPATH), QTOPCONF_YAML)], savepath)
+                    source_files = glob.glob(os.path.join(realpath(QTOPPATH), '*.py'))
+                    add_to_sample(source_files, savepath, subdir='source')
 
-                worker_nodes = get_worker_nodes(scheduler)(*yaml_files['get_worker_nodes'])
-                # import wdb; wdb.set_trace()
-                job_ids, user_names, job_states, _ = get_jobs_info(scheduler)(*yaml_files['get_jobs_info'])
-                total_running_jobs, total_queued_jobs, qstatq_lod = get_queues_info(scheduler)(*yaml_files['get_queues_info'])
-                deprecate_old_yaml_files(*yaml_files['get_jobs_info'])
+                scheduling_system = scheduler_factory(scheduler, in_out_filenames, config)
+
+                if not options.YAML_EXISTS:
+                    scheduling_system.convert_inputs()
+                    if options.SAMPLE >= 1:
+                        [add_to_sample([in_out_filenames[fn]], savepath) for fn in in_out_filenames
+                         if os.path.isfile(in_out_filenames[fn])]
+
+                document = get_document(scheduling_system)
+
+                # Will become document member one day
+                import tempfile
+                tf = tempfile.NamedTemporaryFile()
+                document.save(tf.name)
+
+                deprecate_old_yaml_files()
+
                 #  MAIN ##################################
                 logging.info('CALCULATION AREA')
-                cluster_dict, NAMED_WNS = calculate_cluster(worker_nodes)
-                workernodes_occupancy, cluster_dict = calculate_wn_occupancy(cluster_dict, user_names, job_states, job_ids)
-                h_stop = config['h_stop'] if h_stop is None else h_stop
-                v_stop = config['v_stop'] if v_stop is None else v_stop
+                cluster_dict, NAMED_WNS = calculate_cluster(document.worker_nodes)
+                workernodes_occupancy, cluster_dict = calculate_wn_occupancy(cluster_dict, document.user_names,
+                                                                             document.job_states, document.job_ids)
 
                 display_parts = {
-                    'job_accounting_summary': (display_job_accounting_summary, (cluster_dict, total_running_jobs, total_queued_jobs, qstatq_lod)),
+                    'job_accounting_summary': (display_job_accounting_summary, (cluster_dict, document.total_running_jobs, document.total_queued_jobs, document.qstatq_lod)),
                     'workernodes_matrix': (display_wn_occupancy, (workernodes_occupancy, cluster_dict)),
-                    'user_accounts_pool_mappings': (display_user_accounts_pool_mappings, (workernodes_occupancy['account_jobs_table'], workernodes_occupancy['pattern_of_id']))
+                    'user_accounts_pool_mappings': (display_user_accounts_pool_mappings, (workernodes_occupancy,))
                 }
                 logging.info('DISPLAY AREA')
 
-                print "\033c",  # the comma here is to avoid losing the whole first line. An empty char still remains, though.
+                print "\033c",  # comma is to avoid losing the whole first line. An empty char still remains, though.
 
                 for idx, part in enumerate(config['user_display_parts'], 1):
                     display_func, args = display_parts[part][0], display_parts[part][1]
                     display_func(*args) if not sections_off[idx] else None
                 print "\nLog file created in %s" % expandvars(QTOP_LOGFILE)
+                if options.SAMPLE: print "Sample files saved in %s/%s" % (savepath, QTOP_SAMPLE_FILENAME)
                 sys.stdout.flush()
                 sys.stdout.close()
                 sys.stdout = stdout  # sys.stdout is back to its normal function (i.e. screen output)
 
-                num_lines = sum(1 for line in open(name, 'r')) if not num_lines else num_lines
+                if not viewport.get_max_height():
+                    # This takes care of closing the file as well.
+                    with open(output_fp, 'r') as f:
+                        viewport.set_max_height(len(f.readlines()))
+                        if not viewport.get_max_height():
+                            raise ValueError("There is no output from qtop *whatsoever*. Weird.")
+
                 ansi_escape = re.compile(r'\x1b[^m]*m')  # matches ANSI escape characters
-                max_line_len = max(len(ansi_escape.sub('', line.strip())) for line in open(name, 'r')) \
+                max_line_len = max(len(ansi_escape.sub('', line.strip())) for line in open(output_fp, 'r')) \
                     if not max_line_len else max_line_len
 
-                logging.debug('Total nr of lines: %s' % num_lines)
+                logging.debug('Total nr of lines: %s' % viewport.get_max_height())
                 logging.debug('Max line length: %s' % max_line_len)
 
                 if not options.WATCH:
-                    cat_command = 'clear;cat %s' % name
+                    if options.ONLYSAVETOFILE:
+                        break
+                    cat_command = 'clear;cat %s' % output_fp
                     NOT_FOUND = subprocess.call(cat_command, stdout=stdout, stderr=stdout, shell=True)
                     break
 
-
                 # justification for implementation:
                 # http://unix.stackexchange.com/questions/47407/cat-line-x-to-line-y-on-a-huge-file
-                line_offset = v_stop - v_start
-                cat_command = 'clear;tail -n+%s %s | head -n%s' % (v_start, name, line_offset)
+                # line_offset = viewport.v_stop - viewport.v_start
+                cat_command = 'clear;tail -n+%s %s | head -n%s' % (viewport.v_start, output_fp, viewport.v_term_size)
                 NOT_FOUND = subprocess.call(cat_command, stdout=stdout, stderr=stdout, shell=True)
 
                 while sys.stdin in select.select([sys.stdin], [], [], timeout)[0]:
@@ -1667,19 +1705,21 @@ if __name__ == '__main__':
                         logging.debug('Pressed %s' % read_char)
                         break
                 else:
-                    state = config['term_size']
-                    calculate_split_screen_size()
-                    new_state = config['term_size']
+                    state = viewport.get_term_size()
+                    viewport.set_term_size(*calculate_split_screen_size(config))
+                    new_state = viewport.get_term_size()
                     read_char = '\n' if (state == new_state) else 'r'
                     logging.debug("Auto-advancing by pressing <Enter>")
                 pressed_char_hex = '%02x' % ord(read_char) # read_char has an initial value that resets the display ('72')
-                h_start, h_stop, v_start, v_stop = control_movement(pressed_char_hex, h_start, h_stop, v_start, v_stop)
+                control_movement(pressed_char_hex)
                 os.chdir(QTOPPATH)
-                unlink(name)
+                unlink(output_fp)
 
-        except (KeyboardInterrupt, EOFError):
-            safe_exit_with_file_close(handle, name, stdout)
+            if options.SAMPLE:
+                add_to_sample([output_fp], config['savepath'])
+        except (KeyboardInterrupt, EOFError) as e:
+            repr(e)
+            safe_exit_with_file_close(handle, output_fp, stdout)
         else:
-            pass
-
-
+            if options.SAMPLE >= 1:
+                add_to_sample([QTOP_LOGFILE], config['savepath'])
