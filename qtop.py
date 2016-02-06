@@ -240,54 +240,6 @@ def nodes_with_jobs(worker_nodes):
             yield pbs_node
 
 
-def display_job_accounting_summary(cluster_dict, document):
-    total_running_jobs = document.total_running_jobs
-    total_queued_jobs = document.total_queued_jobs
-    qstatq_lod = document.qstatq_lod
-
-    if options.REMAP:
-        if options.CLASSIC:
-            print '=== WARNING: --- Remapping WN names and retrying heuristics... good luck with this... ---'
-        else:
-            logging.warning('=== WARNING: --- Remapping WN names and retrying heuristics... good luck with this... ---')
-
-    ansi_delete_char = "\015"  # this removes the first ever character (space) appearing in the output
-
-    print '%(del)s%(name)s report tool. All bugs added by sfranky@gmail.com. Cross fingers now...' \
-        % {'name': 'PBS' if options.CLASSIC else 'Queueing System', 'del': ansi_delete_char}
-
-    if not options.WATCH:
-        print 'Please try: watch -d %s/qtop.py -s <SOURCEDIR>\n' % QTOPPATH
-    print colorize('===> ', 'Gray_D') + colorize('Job accounting summary', 'White') + colorize(' <=== ', 'Gray_D') + \
-          '%s WORKDIR = %s' % (colorize(str(datetime.datetime.today())[:-7], 'White'), QTOPPATH)
-
-    print '%(Usage Totals)s:\t%(online_nodes)s/%(total_nodes)s %(Nodes)s | %(working_cores)s/%(total_cores)s %(Cores)s |' \
-          '   %(total_run_jobs)s+%(total_q_jobs)s %(jobs)s (R + Q) %(reported_by)s' % \
-          {
-              'Usage Totals': colorize('Usage Totals', 'Yellow'),
-              'online_nodes': colorize(str(cluster_dict.get('total_wn', 0) - cluster_dict.get('offline_down_nodes', 0)), 'Red_L'),
-              'total_nodes': colorize(str(cluster_dict.get('total_wn', 0)), 'Red_L'),
-              'Nodes': colorize('Nodes', 'Red_L'),
-              'working_cores': colorize(str(cluster_dict.get('working_cores', 0)), 'Green_L'),
-              'total_cores': colorize(str(cluster_dict.get('total_cores', 0)), 'Green_L'),
-              'Cores': colorize('cores', 'Green_L'),
-              'total_run_jobs': colorize(str(int(total_running_jobs)), 'Blue_L'),
-              'total_q_jobs': colorize(str(int(total_queued_jobs)), 'Blue_L'),
-              'jobs': colorize('jobs', 'Blue_L'),
-              'reported_by': 'reported by qstat - q' if options.CLASSIC else ''
-          }
-
-    print '%(queues)s: | ' % {'queues': colorize('Queues', 'Yellow')},
-    for q in qstatq_lod:
-        q_name, q_running_jobs, q_queued_jobs = q['queue_name'], q['run'], q['queued']
-        account = q_name if q_name in color_of_account else 'account_not_colored'
-        print "{qname}{star}: {run} {q}|".format(
-            qname=colorize(q_name, '', account),
-            star=colorize('*', 'Red_L') if q['state'].startswith('D') or q['state'].endswith('S') else '',
-            run=colorize(q_running_jobs, '', account),
-            q='+ ' + colorize(q_queued_jobs, '', account) + ' ' if q_queued_jobs != '0' else ''),
-    print colorize('* implies blocked', 'Red') + '\n'
-    # TODO unhardwire states from star kwarg
 
 
 def calculate_job_counts(user_names, job_states):
@@ -717,53 +669,6 @@ def print_mult_attr_line(print_char_start, print_char_stop, transposed_matrices,
         print attr_line + "=" + label
 
 
-def display_user_accounts_pool_mappings(workernodes_occupancy=None):
-    try:
-        account_jobs_table = workernodes_occupancy['account_jobs_table']
-        pattern_of_id = workernodes_occupancy['pattern_of_id']
-    except KeyError:
-        account_jobs_table = dict()
-        pattern_of_id = dict()
-
-
-    detail_of_name = get_detail_of_name(account_jobs_table)
-    print colorize('\n===> ', 'Gray_D') + \
-          colorize('User accounts and pool mappings', 'White') + \
-          colorize(' <=== ', 'Gray_d') + \
-          colorize("  ('all' also includes those in C and W states, as reported by qstat)"
-                   if options.CLASSIC else "  ('all' includes any jobs beyond R and W)", 'Gray_D')
-
-    print '   R +    Q /  all |    unix account | id| %(msg)s' % \
-          {'msg': 'Grid certificate DN (info only available under elevated privileges)' if options.CLASSIC else
-          'GECOS field or Grid certificate DN'}
-    for line in account_jobs_table:
-        uid, runningjobs, queuedjobs, alljobs, user = line[0], line[1], line[2], line[3], line[4]
-        account = pattern_of_id[uid]
-        if options.COLOR == 'OFF' or account == 'account_not_colored' or color_of_account[account] == 'reset':
-            extra_width = 0
-            account = 'account_not_colored'
-        else:
-            extra_width = 12
-        print_string = '{1:>{width4}} + {2:>{width4}} / {3:>{width4}} {sep} ' \
-                       '{4:>{width15}} {sep} ' \
-                       '{0:<{width2}}{sep} ' \
-                       '{5:<{width40}} {sep}'.format(
-            colorize(str(uid), '', account),
-            colorize(str(runningjobs), '', account),
-            colorize(str(queuedjobs), '', account),
-            colorize(str(alljobs), '', account),
-            colorize(user, '', account),
-            colorize(detail_of_name.get(user, ''), '', account),
-            sep=colorize(SEPARATOR, '', account),
-            width2=2 + extra_width,
-            width3=3 + extra_width,
-            width4=4 + extra_width,
-            width15=15 + extra_width,
-            width40=40 + extra_width,
-        )
-        print print_string
-
-
 def get_core_lines(core_user_map, print_char_start, print_char_stop, pattern_of_id, attrs):
     """
     prints all coreX lines, except cores that don't show up
@@ -945,20 +850,6 @@ def print_core_lines(core_user_map, print_char_start, print_char_stop, transpose
                 sys.stderr.close()
             except IOError:
                 pass
-
-
-def display_wn_occupancy(workernodes_occupancy, cluster_dict):
-    if config['transpose_wn_matrices']:
-        order = config['occupancy_column_order']
-        note = "/".join(order)
-    else:
-        note = 'you can read vertically the node IDs; nodes in free state are noted with - '
-    print colorize('===> ', 'Gray_D') + colorize('Worker Nodes occupancy', 'White') + colorize(' <=== ', 'Gray_D') \
-          + colorize('(%s)', 'Gray_D') % note
-
-    display_matrix(workernodes_occupancy)
-    if not config['transpose_wn_matrices']:
-        display_remaining_matrices(workernodes_occupancy)
 
 
 def make_pattern_of_id(wns_occupancy):
@@ -1574,6 +1465,158 @@ def get_document(scheduling_system):
     return Document(worker_nodes, job_ids, user_names, job_states, total_running_jobs, total_queued_jobs, qstatq_lod)
 
 
+class TextDisplay(object):
+
+    def __init__(self, cluster_dict, workernodes_occupancy, document, config):
+        self.cluster_dict = cluster_dict
+        self.workernodes_occupancy = workernodes_occupancy
+        self.document = document
+
+        self.display_selected_sections()
+
+    def display_selected_sections(self):
+        """
+        This prints out the qtop sections selected by the user.
+        The selection can be made in two different ways:
+        a) in the QTOPCONF_YAML file, in user_display_parts, where the three sections are named in a list
+        b) through cmdline arguments -n, where n is 1,2,3. More than one can be chained together,
+        e.g. -13 will exclude sections 1 and 3
+        """
+        sections_off = {
+            1: options.sect_1_off,
+            2: options.sect_2_off,
+            3: options.sect_3_off
+        }
+        display_parts = {
+            'job_accounting_summary': (self.display_job_accounting_summary, (self.cluster_dict, self.document)),
+            'workernodes_matrix': (self.display_wn_occupancy, (workernodes_occupancy, self.cluster_dict)),
+            'user_accounts_pool_mappings': (self.display_user_accounts_pool_mappings, (workernodes_occupancy,))
+        }
+
+        print "\033c",  # comma is to avoid losing the whole first line. An empty char still remains, though.
+
+        for idx, part in enumerate(config['user_display_parts'], 1):
+            display_func, args = display_parts[part][0], display_parts[part][1]
+            display_func(*args) if not sections_off[idx] else None
+
+    def display_job_accounting_summary(self, cluster_dict, document):
+        """
+        Displays qtop's first section
+        """
+        total_running_jobs = document.total_running_jobs
+        total_queued_jobs = document.total_queued_jobs
+        qstatq_lod = document.qstatq_lod
+
+        if options.REMAP:
+            if options.CLASSIC:
+                print '=== WARNING: --- Remapping WN names and retrying heuristics... good luck with this... ---'
+            else:
+                logging.warning('=== WARNING: --- Remapping WN names and retrying heuristics... good luck with this... ---')
+
+        ansi_delete_char = "\015"  # this removes the first ever character (space) appearing in the output
+
+        print '%(del)s%(name)s report tool. All bugs added by sfranky@gmail.com. Cross fingers now...' \
+              % {'name': 'PBS' if options.CLASSIC else 'Queueing System', 'del': ansi_delete_char}
+
+        if not options.WATCH:
+            print 'Please try: watch -d %s/qtop.py -s <SOURCEDIR>\n' % QTOPPATH
+        print colorize('===> ', 'Gray_D') + colorize('Job accounting summary', 'White') + colorize(' <=== ', 'Gray_D') + \
+              '%s WORKDIR = %s' % (colorize(str(datetime.datetime.today())[:-7], 'White'), QTOPPATH)
+
+        print '%(Usage Totals)s:\t%(online_nodes)s/%(total_nodes)s %(Nodes)s | %(working_cores)s/%(total_cores)s %(Cores)s |' \
+              '   %(total_run_jobs)s+%(total_q_jobs)s %(jobs)s (R + Q) %(reported_by)s' % \
+              {
+                  'Usage Totals': colorize('Usage Totals', 'Yellow'),
+                  'online_nodes': colorize(str(cluster_dict.get('total_wn', 0) - cluster_dict.get('offline_down_nodes', 0)),
+                                           'Red_L'),
+                  'total_nodes': colorize(str(cluster_dict.get('total_wn', 0)), 'Red_L'),
+                  'Nodes': colorize('Nodes', 'Red_L'),
+                  'working_cores': colorize(str(cluster_dict.get('working_cores', 0)), 'Green_L'),
+                  'total_cores': colorize(str(cluster_dict.get('total_cores', 0)), 'Green_L'),
+                  'Cores': colorize('cores', 'Green_L'),
+                  'total_run_jobs': colorize(str(int(total_running_jobs)), 'Blue_L'),
+                  'total_q_jobs': colorize(str(int(total_queued_jobs)), 'Blue_L'),
+                  'jobs': colorize('jobs', 'Blue_L'),
+                  'reported_by': 'reported by qstat - q' if options.CLASSIC else ''
+              }
+
+        print '%(queues)s: | ' % {'queues': colorize('Queues', 'Yellow')},
+        for q in qstatq_lod:
+            q_name, q_running_jobs, q_queued_jobs = q['queue_name'], q['run'], q['queued']
+            account = q_name if q_name in color_of_account else 'account_not_colored'
+            print "{qname}{star}: {run} {q}|".format(
+                qname=colorize(q_name, '', account),
+                star=colorize('*', 'Red_L') if q['state'].startswith('D') or q['state'].endswith('S') else '',
+                run=colorize(q_running_jobs, '', account),
+                q='+ ' + colorize(q_queued_jobs, '', account) + ' ' if q_queued_jobs != '0' else ''),
+        print colorize('* implies blocked', 'Red') + '\n'
+        # TODO unhardwire states from star kwarg
+
+    def display_wn_occupancy(self, workernodes_occupancy, cluster_dict):
+        """
+        Displays qtop's second section, the main worker node matrices.
+        """
+        if config['transpose_wn_matrices']:
+            order = config['occupancy_column_order']
+            note = "/".join(order)
+        else:
+            note = 'you can read vertically the node IDs; nodes in free state are noted with - '
+        print colorize('===> ', 'Gray_D') + colorize('Worker Nodes occupancy', 'White') + colorize(' <=== ', 'Gray_D') \
+              + colorize('(%s)', 'Gray_D') % note
+
+        display_matrix(workernodes_occupancy)
+        if not config['transpose_wn_matrices']:
+            display_remaining_matrices(workernodes_occupancy)
+
+    def display_user_accounts_pool_mappings(self, workernodes_occupancy=None):
+        """
+        Displays qtop's third section
+        """
+        try:
+            account_jobs_table = workernodes_occupancy['account_jobs_table']
+            pattern_of_id = workernodes_occupancy['pattern_of_id']
+        except KeyError:
+            account_jobs_table = dict()
+            pattern_of_id = dict()
+
+        detail_of_name = get_detail_of_name(account_jobs_table)
+        print colorize('\n===> ', 'Gray_D') + \
+              colorize('User accounts and pool mappings', 'White') + \
+              colorize(' <=== ', 'Gray_d') + \
+              colorize("  ('all' also includes those in C and W states, as reported by qstat)"
+                       if options.CLASSIC else "  ('all' includes any jobs beyond R and W)", 'Gray_D')
+
+        print '   R +    Q /  all |    unix account | id| %(msg)s' % \
+              {'msg': 'Grid certificate DN (info only available under elevated privileges)' if options.CLASSIC else
+              'GECOS field or Grid certificate DN'}
+        for line in account_jobs_table:
+            uid, runningjobs, queuedjobs, alljobs, user = line[0], line[1], line[2], line[3], line[4]
+            account = pattern_of_id[uid]
+            if options.COLOR == 'OFF' or account == 'account_not_colored' or color_of_account[account] == 'reset':
+                extra_width = 0
+                account = 'account_not_colored'
+            else:
+                extra_width = 12
+            print_string = '{1:>{width4}} + {2:>{width4}} / {3:>{width4}} {sep} ' \
+                           '{4:>{width15}} {sep} ' \
+                           '{0:<{width2}}{sep} ' \
+                           '{5:<{width40}} {sep}'.format(
+                colorize(str(uid), '', account),
+                colorize(str(runningjobs), '', account),
+                colorize(str(queuedjobs), '', account),
+                colorize(str(alljobs), '', account),
+                colorize(user, '', account),
+                colorize(detail_of_name.get(user, ''), '', account),
+                sep=colorize(SEPARATOR, '', account),
+                width2=2 + extra_width,
+                width3=3 + extra_width,
+                width4=4 + extra_width,
+                width15=15 + extra_width,
+                width40=40 + extra_width,
+            )
+            print print_string
+
+
 if __name__ == '__main__':
 
     stdout = sys.stdout
@@ -1657,40 +1700,32 @@ if __name__ == '__main__':
                 deprecate_old_yaml_files()
 
                 #  MAIN ##################################
-                logging.info('CALCULATION AREA')
                 cluster_dict, NAMED_WNS = calculate_cluster(document.worker_nodes)
                 workernodes_occupancy, cluster_dict = calculate_wn_occupancy(cluster_dict, document)
 
-                display_parts = {
-                    'job_accounting_summary': (display_job_accounting_summary, (cluster_dict, document)),
-                    'workernodes_matrix': (display_wn_occupancy, (workernodes_occupancy, cluster_dict)),
-                    'user_accounts_pool_mappings': (display_user_accounts_pool_mappings, (workernodes_occupancy,))
-                }
-                logging.info('DISPLAY AREA')
+                display = TextDisplay(cluster_dict, workernodes_occupancy, document, config)
 
-                print "\033c",  # comma is to avoid losing the whole first line. An empty char still remains, though.
-
-                for idx, part in enumerate(config['user_display_parts'], 1):
-                    display_func, args = display_parts[part][0], display_parts[part][1]
-                    display_func(*args) if not sections_off[idx] else None
                 print "\nLog file created in %s" % expandvars(QTOP_LOGFILE)
-                if options.SAMPLE: print "Sample files saved in %s/%s" % (savepath, QTOP_SAMPLE_FILENAME)
+
+                if options.SAMPLE:
+                    print "Sample files saved in %s/%s" % (savepath, QTOP_SAMPLE_FILENAME)
+
                 sys.stdout.flush()
                 sys.stdout.close()
                 sys.stdout = stdout  # sys.stdout is back to its normal function (i.e. screen output)
 
-                if not viewport.get_max_height():
+                if not viewport.max_height:
                     # This takes care of closing the file as well.
                     with open(output_fp, 'r') as f:
-                        viewport.set_max_height(len(f.readlines()))
-                        if not viewport.get_max_height():
+                        viewport.max_height = len(f.readlines())
+                        if not viewport.max_height:
                             raise ValueError("There is no output from qtop *whatsoever*. Weird.")
 
                 ansi_escape = re.compile(r'\x1b[^m]*m')  # matches ANSI escape characters
                 max_line_len = max(len(ansi_escape.sub('', line.strip())) for line in open(output_fp, 'r')) \
                     if not max_line_len else max_line_len
 
-                logging.debug('Total nr of lines: %s' % viewport.get_max_height())
+                logging.debug('Total nr of lines: %s' % viewport.max_height)
                 logging.debug('Max line length: %s' % max_line_len)
 
                 if not options.WATCH:
