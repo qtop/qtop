@@ -20,7 +20,7 @@ def test_after_set_term_size():
 def test_after_scroll_left():
     viewport = Viewport()
     viewport.set_term_size(53, 176)
-    viewport.set_max_width(200)
+    viewport.max_width = 200
     viewport.max_height = 200
     viewport.scroll_left()
     assert 0 == viewport.h_start
@@ -32,7 +32,7 @@ def test_after_scroll_left():
 def test_after_scroll_right():
     viewport = Viewport()
     viewport.set_term_size(53, 176)
-    viewport.set_max_width(400)
+    viewport.max_width = 400
     viewport.max_height = 200
     viewport.scroll_right()
     assert 176 / 2 == viewport.h_start  # corrected behaviour: last element should touch right screen edge, if possible!
@@ -44,7 +44,7 @@ def test_after_scroll_right():
 def test_after_scroll_down():
     viewport = Viewport()
     viewport.set_term_size(50, 120)
-    viewport.set_max_width(400)
+    viewport.max_width = 400
     viewport.max_height = 200
     viewport.scroll_down()
     assert (0, 120) == (viewport.h_start, viewport.h_stop)
@@ -54,7 +54,7 @@ def test_after_scroll_down():
 def test_after_double_scroll_down():
     viewport = Viewport()
     viewport.set_term_size(50, 120)
-    viewport.set_max_width(400)
+    viewport.max_width = 400
     viewport.max_height = 200
     viewport.scroll_down()
     assert (0, 120) == (viewport.h_start, viewport.h_stop)
@@ -70,7 +70,7 @@ def test_after_double_scroll_down():
 def test_after_scroll_right_with_nowhere_to_go():
     viewport = Viewport(hstart=400 - 176)
     viewport.set_term_size(53, 176)
-    viewport.set_max_width(400)
+    viewport.max_width = 400
     viewport.max_height = 200
     viewport.scroll_right()
     assert 400 - 176 == viewport.h_start  # OK, shouldn't move!
@@ -82,7 +82,7 @@ def test_after_scroll_right_with_nowhere_to_go():
 def test_after_scroll_right_when_not_all_space_available_to_the_right():
     viewport = Viewport()
     viewport.set_term_size(53, 176)
-    viewport.set_max_width(200)
+    viewport.max_width = 200
     viewport.max_height = 200
     viewport.scroll_right()
     assert 200 - 176 == viewport.h_start  # corrected behaviour: last element should touch right screen edge, if possible!
@@ -148,7 +148,7 @@ def test_after_scroll_down_scroll_up():
 def test_after_reset_to_starting_position():
     viewport = Viewport(400, 500)
     viewport.set_term_size(53, 176)
-    viewport.set_max_width(500)
+    viewport.max_width = 500
     viewport.max_height = 500
     viewport.reset_display()
     assert 0 == viewport.v_start
@@ -160,7 +160,7 @@ def test_after_reset_to_starting_position():
 def test_scroll_far_right_attaches_to_right_screen_edge():
     viewport = Viewport(200, 200)
     viewport.set_term_size(53, 176)
-    viewport.set_max_width(400)
+    viewport.max_width = 400
     viewport.max_height = 400
     viewport.scroll_far_right()
     assert 400 - 176 == viewport.h_start
@@ -183,7 +183,7 @@ This is a quick'n'clean way to run many edge cases without re-writing the whole 
 def test_after_scroll_right(init_vstart, init_hstart, term_size, max_matrix_dim, expected):
     viewport = Viewport(init_vstart, init_hstart)
     viewport.set_term_size(*term_size)
-    viewport.set_max_width(max_matrix_dim[1])
+    viewport.max_width = max_matrix_dim[1]
     viewport.max_height = max_matrix_dim[0]
     viewport.scroll_right()
     # corrected behaviour: last element should touch right screen edge, if possible!
@@ -200,7 +200,7 @@ def test_after_scroll_right(init_vstart, init_hstart, term_size, max_matrix_dim,
 def test_after_scroll_bottom(init_vstart, init_hstart, term_size, max_matrix_dim, expected):
     viewport = Viewport(init_vstart, init_hstart)
     viewport.set_term_size(*term_size)
-    viewport.set_max_width(max_matrix_dim[1])
+    viewport.max_width = max_matrix_dim[1]
     viewport.max_height = max_matrix_dim[0]
     viewport.scroll_bottom()
     assert expected == (viewport.v_start, viewport.v_stop, viewport.h_start, viewport.h_stop)

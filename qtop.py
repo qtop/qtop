@@ -557,100 +557,6 @@ def is_matrix_coreless(workernodes_occupancy):
     return len(lines) == len(core_user_map)
 
 
-def display_remaining_matrices(wn_occupancy, DEADWEIGHT=11):
-    """
-    If the WNs are more than a screenful (width-wise), this calculates the extra matrices needed to display them.
-    DEADWEIGHT is the space taken by the {__XXXX__} labels on the right of the CoreX map
-
-    if the first matrix has e.g. 10 machines with 64 cores,
-    and the remaining 190 machines have 8 cores, this doesn't print the non-existent
-    56 cores from the next matrix on.
-    """
-    extra_matrices_nr = wn_occupancy['extra_matrices_nr']
-    # term_columns = wn_occupancy['term_columns']
-    term_columns = viewport.term_size[1]
-
-    # need node_state, temp
-    for matrix in range(extra_matrices_nr):
-        wn_occupancy['print_char_start'] = wn_occupancy['print_char_stop']
-        if USER_CUT_MATRIX_WIDTH:
-            wn_occupancy['print_char_stop'] += USER_CUT_MATRIX_WIDTH
-        else:
-            wn_occupancy['print_char_stop'] += term_columns - DEADWEIGHT
-        wn_occupancy['print_char_stop'] = min(wn_occupancy['print_char_stop'], cluster_dict['total_wn']) \
-            if options.REMAP else min(wn_occupancy['print_char_stop'], cluster_dict['highest_wn'])
-
-        display_matrix(wn_occupancy)
-
-
-def display_matrix(workernodes_occupancy):
-    """
-    occupancy_parts needs to be redefined for each matrix, because of changed parameter values
-    """
-    # global transposed_matrices
-    if (not all([workernodes_occupancy, workernodes_occupancy.get('id_of_username', 0)])) or is_matrix_coreless(
-            workernodes_occupancy):
-        return
-    print_char_start = workernodes_occupancy['print_char_start']
-    print_char_stop = workernodes_occupancy['print_char_stop']
-    wn_vert_labels = workernodes_occupancy['wn_vert_labels']
-    core_user_map = workernodes_occupancy['core user map']
-    extra_matrices_nr = workernodes_occupancy['extra_matrices_nr']
-    # term_columns = viewport.get_h_term_size()
-    pattern_of_id = workernodes_occupancy['pattern_of_id']
-
-    occupancy_parts = {
-        'wn id lines':
-            (
-                display_wnid_lines,
-                (print_char_start, print_char_stop, cluster_dict['highest_wn'], wn_vert_labels),
-                {'inner_attrs': None}
-            ),
-        'core user map':
-            (
-                print_core_lines,
-                (core_user_map, print_char_start, print_char_stop, transposed_matrices, pattern_of_id),
-                {'attrs': None}
-            ),
-    }
-
-    # custom part
-    for yaml_key, part_name in get_yaml_key_part('workernodes_matrix'):
-        new_occupancy_part = {
-            part_name:
-                (
-                    print_mult_attr_line,  # func
-                    (print_char_start, print_char_stop, transposed_matrices),  # args
-                    {'attr_lines': workernodes_occupancy[part_name]}  # kwargs
-                )
-        }
-        occupancy_parts.update(new_occupancy_part)
-
-    for part_dict in config['workernodes_matrix']:
-        part = [k for k in part_dict][0]
-        occupancy_parts[part][2].update(part_dict[part])  # get extra options from user
-        fn, args, kwargs = occupancy_parts[part][0], occupancy_parts[part][1], occupancy_parts[part][2]
-        fn(*args, **kwargs)
-
-    if config['transpose_wn_matrices']:
-        order = config['occupancy_column_order']
-        for idx, (item, matrix) in enumerate(zip(order, transposed_matrices)):
-            matrix[0] = order.index(matrix[1])
-
-        transposed_matrices.sort(key=lambda item: item[0])
-
-        for line_tuple in izip_longest(*[tpl[2] for tpl in transposed_matrices], fillvalue='  '):
-            joined_list = join_prints(*line_tuple, sep=config.get('horizontal_separator', None))
-
-        max_width = len(joined_list)
-        viewport.set_max_width(max_width)
-
-        logging.debug('Printed horizontally from %s to %s' % (viewport.h_start, viewport.h_stop))
-    else:
-        viewport.set_max_width(viewport.get_h_term_size())
-    print
-
-
 def print_mult_attr_line(print_char_start, print_char_stop, transposed_matrices, attr_lines, label, color_func=None,
                          **kwargs):  # NEW!
     """
@@ -761,19 +667,6 @@ def transpose_matrix(d, colored=False, reverse=False):
             yield tuple
 
 
-def join_prints(*args, **kwargs):
-    joined_list = []
-    for d in args:
-        sys.stdout.softspace = False # if i want to omit in-between column spaces
-        joined_list.extend(d)
-        joined_list.append(kwargs['sep'])
-
-    print "".join(joined_list[viewport.h_start:viewport.h_stop])
-    return joined_list
-
-
-
-
 def get_yaml_key_part(major_key):
     """
     only return the list items of the yaml major_key if a yaml key subkey exists
@@ -827,19 +720,13 @@ def print_core_lines(core_user_map, print_char_start, print_char_stop, transpose
                      options2):
     signal(SIGPIPE, SIG_DFL)
     if config['transpose_wn_matrices']:
-        tuple = [None, 'core_map', transpose_matrix(core_user_map, colored=True)]
-        transposed_matrices.append(tuple)
+        tuple_ = [None, 'core_map', transpose_matrix(core_user_map, colored=True)]
+        transposed_matrices.append(tuple_)
         return
     for core_line in get_core_lines(core_user_map, print_char_start, print_char_stop, pattern_of_id, attrs):
         try:
             print core_line
         except IOError:
-            # This tries to handle the broken pipe exception that occurs when doing "| head"
-            # stdout is closed, no point in continuing
-            # Attempt to close them explicitly to prevent cleanup problems
-            # Results are not always best. misbehaviour with watch -d,
-            # output gets corrupted in the terminal afterwards without watch.
-            # TODO Find fix.
             try:
                 signal(SIGPIPE, SIG_DFL)
                 print core_line
@@ -1403,7 +1290,6 @@ def safe_exit_with_file_close(handle, name, stdout, delete_file=False):
     sys.exit(0)
 
 
-
 def prepare_files():
     parser_extension_mapping = {'txtyaml': 'yaml', 'json': 'json'}
     extension = parser_extension_mapping[options.write_method]
@@ -1467,12 +1353,11 @@ def get_document(scheduling_system):
 
 class TextDisplay(object):
 
-    def __init__(self, cluster_dict, workernodes_occupancy, document, config):
+    def __init__(self, cluster_dict, workernodes_occupancy, document, config, viewport):
         self.cluster_dict = cluster_dict
         self.workernodes_occupancy = workernodes_occupancy
         self.document = document
-
-        self.display_selected_sections()
+        self.viewport = viewport
 
     def display_selected_sections(self):
         """
@@ -1481,8 +1366,9 @@ class TextDisplay(object):
         a) in the QTOPCONF_YAML file, in user_display_parts, where the three sections are named in a list
         b) through cmdline arguments -n, where n is 1,2,3. More than one can be chained together,
         e.g. -13 will exclude sections 1 and 3
+        Cmdline arguments should only be able to choose from what is available in QTOPCONF_YAML, though.
         """
-        sections_off = {
+        sections_off = { # cmdline argument -n
             1: options.sect_1_off,
             2: options.sect_2_off,
             3: options.sect_3_off
@@ -1564,9 +1450,9 @@ class TextDisplay(object):
         print colorize('===> ', 'Gray_D') + colorize('Worker Nodes occupancy', 'White') + colorize(' <=== ', 'Gray_D') \
               + colorize('(%s)', 'Gray_D') % note
 
-        display_matrix(workernodes_occupancy)
+        self.display_matrix(workernodes_occupancy)
         if not config['transpose_wn_matrices']:
-            display_remaining_matrices(workernodes_occupancy)
+            self.display_remaining_matrices(workernodes_occupancy)
 
     def display_user_accounts_pool_mappings(self, workernodes_occupancy=None):
         """
@@ -1616,6 +1502,106 @@ class TextDisplay(object):
             )
             print print_string
 
+    def display_matrix(self, workernodes_occupancy):
+        """
+        occupancy_parts needs to be redefined for each matrix, because of changed parameter values
+        """
+        # global transposed_matrices
+        if (not all([workernodes_occupancy, workernodes_occupancy.get('id_of_username', 0)])) or is_matrix_coreless(
+                workernodes_occupancy):
+            return
+        print_char_start = workernodes_occupancy['print_char_start']
+        print_char_stop = workernodes_occupancy['print_char_stop']
+        wn_vert_labels = workernodes_occupancy['wn_vert_labels']
+        core_user_map = workernodes_occupancy['core user map']
+        extra_matrices_nr = workernodes_occupancy['extra_matrices_nr']
+        pattern_of_id = workernodes_occupancy['pattern_of_id']
+
+        occupancy_parts = {
+            'wn id lines':
+                (
+                    display_wnid_lines,
+                    (print_char_start, print_char_stop, cluster_dict['highest_wn'], wn_vert_labels),
+                    {'inner_attrs': None}
+                ),
+            'core user map':
+                (
+                    print_core_lines,
+                    (core_user_map, print_char_start, print_char_stop, transposed_matrices, pattern_of_id),
+                    {'attrs': None}
+                ),
+        }
+
+        # custom part
+        for yaml_key, part_name in get_yaml_key_part('workernodes_matrix'):
+            new_occupancy_part = {
+                part_name:
+                    (
+                        print_mult_attr_line,  # func
+                        (print_char_start, print_char_stop, transposed_matrices),  # args
+                        {'attr_lines': workernodes_occupancy[part_name]}  # kwargs
+                    )
+            }
+            occupancy_parts.update(new_occupancy_part)
+
+        for part_dict in config['workernodes_matrix']:
+            part = [k for k in part_dict][0]
+            occupancy_parts[part][2].update(part_dict[part])  # get extra options from user
+            fn, args, kwargs = occupancy_parts[part][0], occupancy_parts[part][1], occupancy_parts[part][2]
+            fn(*args, **kwargs)
+
+        if config['transpose_wn_matrices']:
+            order = config['occupancy_column_order']
+            for idx, (item, matrix) in enumerate(zip(order, transposed_matrices)):
+                matrix[0] = order.index(matrix[1])
+
+            transposed_matrices.sort(key=lambda item: item[0])
+
+            for line_tuple in izip_longest(*[tpl[2] for tpl in transposed_matrices], fillvalue='  '):
+                joined_list = self.join_prints(*line_tuple, sep=config.get('horizontal_separator', None))
+
+            max_width = len(joined_list)
+            self.viewport.max_width = max_width
+
+            logging.debug('Printed horizontally from %s to %s' % (self.viewport.h_start, self.viewport.h_stop))
+        else:
+            self.viewport.max_width = self.viewport.get_term_size()[1]
+        print
+
+    def display_remaining_matrices(self, wn_occupancy, DEADWEIGHT=11):
+        """
+        If the WNs are more than a screenful (width-wise), this calculates the extra matrices needed to display them.
+        DEADWEIGHT is the space taken by the {__XXXX__} labels on the right of the CoreX map
+
+        if the first matrix has e.g. 10 machines with 64 cores,
+        and the remaining 190 machines have 8 cores, this doesn't print the non-existent
+        56 cores from the next matrix on.
+        """
+        extra_matrices_nr = wn_occupancy['extra_matrices_nr']
+        # term_columns = wn_occupancy['term_columns']
+        term_columns = viewport.term_size[1]
+
+        # need node_state, temp
+        for matrix in range(extra_matrices_nr):
+            wn_occupancy['print_char_start'] = wn_occupancy['print_char_stop']
+            if USER_CUT_MATRIX_WIDTH:
+                wn_occupancy['print_char_stop'] += USER_CUT_MATRIX_WIDTH
+            else:
+                wn_occupancy['print_char_stop'] += term_columns - DEADWEIGHT
+            wn_occupancy['print_char_stop'] = min(wn_occupancy['print_char_stop'], cluster_dict['total_wn']) \
+                if options.REMAP else min(wn_occupancy['print_char_stop'], cluster_dict['highest_wn'])
+
+            self.display_matrix(wn_occupancy)
+
+    def join_prints(self, *args, **kwargs):
+        joined_list = []
+        for d in args:
+            sys.stdout.softspace = False  # if i want to omit in-between column spaces
+            joined_list.extend(d)
+            joined_list.append(kwargs['sep'])
+
+        print "".join(joined_list[self.viewport.h_start:self.viewport.h_stop])
+        return joined_list
 
 if __name__ == '__main__':
 
@@ -1703,7 +1689,8 @@ if __name__ == '__main__':
                 cluster_dict, NAMED_WNS = calculate_cluster(document.worker_nodes)
                 workernodes_occupancy, cluster_dict = calculate_wn_occupancy(cluster_dict, document)
 
-                display = TextDisplay(cluster_dict, workernodes_occupancy, document, config)
+                display = TextDisplay(cluster_dict, workernodes_occupancy, document, config, viewport)
+                display.display_selected_sections()
 
                 print "\nLog file created in %s" % expandvars(QTOP_LOGFILE)
 
