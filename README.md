@@ -29,6 +29,6 @@ Try ```--help``` for all available options.
 ```
 Description: The command-line tool to tame queueing or scheduling systems and some more
 License: MIT/GPL
-Version: 0.8.5 / Date: December 12, 2015
+Version: 0.8.6 / Date: February 7, 2016
 Homepage: https://github.com/qtop/qtop
 ```
