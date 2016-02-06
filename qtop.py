@@ -240,7 +240,11 @@ def nodes_with_jobs(worker_nodes):
             yield pbs_node
 
 
-def display_job_accounting_summary(cluster_dict, total_running_jobs, total_queued_jobs, qstatq_list):
+def display_job_accounting_summary(cluster_dict, document):
+    total_running_jobs = document.total_running_jobs
+    total_queued_jobs = document.total_queued_jobs
+    qstatq_lod = document.qstatq_lod
+
     if options.REMAP:
         if options.CLASSIC:
             print '=== WARNING: --- Remapping WN names and retrying heuristics... good luck with this... ---'
@@ -274,7 +278,7 @@ def display_job_accounting_summary(cluster_dict, total_running_jobs, total_queue
           }
 
     print '%(queues)s: | ' % {'queues': colorize('Queues', 'Yellow')},
-    for q in qstatq_list:
+    for q in qstatq_lod:
         q_name, q_running_jobs, q_queued_jobs = q['queue_name'], q['run'], q['queued']
         account = q_name if q_name in color_of_account else 'account_not_colored'
         print "{qname}{star}: {run} {q}|".format(
@@ -881,7 +885,7 @@ def get_yaml_key_part(major_key):
             yield yaml_key, part_name
 
 
-def calculate_wn_occupancy(cluster_dict, user_names, job_states, job_ids):
+def calculate_wn_occupancy(cluster_dict, document):
     """
     Prints the Worker Nodes Occupancy table.
     if there are non-uniform WNs in pbsnodes.yaml, e.g. wn01, wn02, gn01, gn02, ...,  remapping is performed.
@@ -889,6 +893,10 @@ def calculate_wn_occupancy(cluster_dict, user_names, job_states, job_ids):
     Number of Extra tables needed is calculated inside the calc_all_wnid_label_lines function below
     """
     # config = calculate_split_screen_size(config)  # term_columns
+
+    user_names = document.user_names
+    job_states = document.job_states
+    job_ids = document.job_ids
 
     if not cluster_dict:
         workernodes_occupancy, cluster_dict = dict(), dict()
@@ -1651,11 +1659,10 @@ if __name__ == '__main__':
                 #  MAIN ##################################
                 logging.info('CALCULATION AREA')
                 cluster_dict, NAMED_WNS = calculate_cluster(document.worker_nodes)
-                workernodes_occupancy, cluster_dict = calculate_wn_occupancy(cluster_dict, document.user_names,
-                                                                             document.job_states, document.job_ids)
+                workernodes_occupancy, cluster_dict = calculate_wn_occupancy(cluster_dict, document)
 
                 display_parts = {
-                    'job_accounting_summary': (display_job_accounting_summary, (cluster_dict, document.total_running_jobs, document.total_queued_jobs, document.qstatq_lod)),
+                    'job_accounting_summary': (display_job_accounting_summary, (cluster_dict, document)),
                     'workernodes_matrix': (display_wn_occupancy, (workernodes_occupancy, cluster_dict)),
                     'user_accounts_pool_mappings': (display_user_accounts_pool_mappings, (workernodes_occupancy,))
                 }
