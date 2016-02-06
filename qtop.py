@@ -1603,6 +1603,7 @@ class TextDisplay(object):
         print "".join(joined_list[self.viewport.h_start:self.viewport.h_stop])
         return joined_list
 
+
 def get_output_size(max_height, output_fp):
     if not max_height:
         with open(output_fp, 'r') as f:
@@ -1610,6 +1611,16 @@ def get_output_size(max_height, output_fp):
             if not max_height:
                 raise ValueError("There is no output from qtop *whatsoever*. Weird.")
     return max_height
+
+
+def print_y_lines_of_file_starting_from_x(file, x, y):
+    """
+    Prints part of the qtop output to the terminal (as fast as possible!)
+    Justification for implementation:
+    http://unix.stackexchange.com/questions/47407/cat-line-x-to-line-y-on-a-huge-file
+    """
+    return 'clear;tail -n+%s %s | head -n%s' % (x, file, y)
+
 
 if __name__ == '__main__':
 
@@ -1718,18 +1729,15 @@ if __name__ == '__main__':
                 logging.debug('Total nr of lines: %s' % viewport.max_height)
                 logging.debug('Max line length: %s' % max_line_len)
 
-                if not options.WATCH:
+                if not options.WATCH:  # one-off display of qtop output, will exit afterwards
                     if options.ONLYSAVETOFILE:
                         break
                     cat_command = 'clear;cat %s' % output_fp
-                    NOT_FOUND = subprocess.call(cat_command, stdout=stdout, stderr=stdout, shell=True)
+                    _ = subprocess.call(cat_command, stdout=stdout, stderr=stdout, shell=True)
                     break
 
-                # justification for implementation:
-                # http://unix.stackexchange.com/questions/47407/cat-line-x-to-line-y-on-a-huge-file
-                # line_offset = viewport.v_stop - viewport.v_start
-                cat_command = 'clear;tail -n+%s %s | head -n%s' % (viewport.v_start, output_fp, viewport.v_term_size)
-                NOT_FOUND = subprocess.call(cat_command, stdout=stdout, stderr=stdout, shell=True)
+                cat_command = print_y_lines_of_file_starting_from_x(file=output_fp, x=viewport.v_start, y=viewport.v_term_size)
+                _ = subprocess.call(cat_command, stdout=stdout, stderr=stdout, shell=True)
 
                 while sys.stdin in select.select([sys.stdin], [], [], timeout)[0]:
                     read_char = sys.stdin.read(1)
