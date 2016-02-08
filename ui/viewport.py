@@ -86,15 +86,6 @@ class Viewport(BaseViewport):
     def get_term_size(self):
         return self.v_term_size, self.h_term_size
 
-    def set_max_width(self, max_width):
-        self.max_width = max_width
-
-    def set_max_height(self, max_height):
-        self.max_height = max_height
-
-    def get_max_height(self):
-        return self.max_height
-
     def scroll_down(self):
         success = False
         if self.v_stop < self.max_height:

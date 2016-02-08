@@ -162,12 +162,6 @@ if options.COLOR == 'AUTO':
 logging.debug("options.COLOR is now set to: %s" % options.COLOR)
 options.REMAP = False  # Default value
 
-sections_off = {
-    1: options.sect_1_off,
-    2: options.sect_2_off,
-    3: options.sect_3_off
-}
-
 sys.excepthook = handle_exception
 
 
