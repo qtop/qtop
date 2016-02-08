@@ -141,8 +141,10 @@ fh.setFormatter(formatter)
 logger.addHandler(fh)
 
 fh = logging.StreamHandler()
-fh.setLevel(logging.ERROR)  # if options.DEBUG else fh.setLevel(logging.ERROR)->this resulted in uncaught exceptions not
-# printing to stderr !!
+fh.setLevel(logging.ERROR)
+# TODO originally:
+# fh.setLevel(logging.ERROR) if options.DEBUG else fh.setLevel(logging.ERROR)
+# ->this resulted in uncaught exceptions not printing to stderr !!
 fh.setFormatter(formatter)
 logger.addHandler(fh)
 logger.disabled = False  # maybe make this a cmdline switch? -D ?
