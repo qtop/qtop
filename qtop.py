@@ -391,6 +391,7 @@ def fill_node_cores_column(_node, core_user_map, id_of_username, max_np_range, u
     state_np_corejob was: [state, np, (core0, job1), (core1, job1), ....]
     will be a dict!
     """
+    # what is the state of core_user_map here?
     state_np_corejob = cluster_dict['workernode_dict'][_node]
     state = state_np_corejob['state']
     np = state_np_corejob['np']
