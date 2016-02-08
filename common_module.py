@@ -141,7 +141,10 @@ fh.setFormatter(formatter)
 logger.addHandler(fh)
 
 fh = logging.StreamHandler()
-fh.setLevel(logging.ERROR) if options.DEBUG else fh.setLevel(logging.CRITICAL)
+fh.setLevel(logging.ERROR)
+# TODO originally:
+# fh.setLevel(logging.ERROR) if options.DEBUG else fh.setLevel(logging.ERROR)
+# ->this resulted in uncaught exceptions not printing to stderr !!
 fh.setFormatter(formatter)
 logger.addHandler(fh)
 logger.disabled = False  # maybe make this a cmdline switch? -D ?
@@ -158,12 +161,6 @@ if options.COLOR == 'AUTO':
     options.COLOR = 'ON' if (os.environ.get("QTOP_COLOR", stdout.isatty()) in ("ON", True)) else 'OFF'
 logging.debug("options.COLOR is now set to: %s" % options.COLOR)
 options.REMAP = False  # Default value
-
-sections_off = {
-    1: options.sect_1_off,
-    2: options.sect_2_off,
-    3: options.sect_3_off
-}
 
 sys.excepthook = handle_exception
 
