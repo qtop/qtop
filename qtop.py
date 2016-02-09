@@ -1360,7 +1360,7 @@ class TextDisplay(object):
         self.document = document
         self.viewport = viewport
 
-    def display_selected_sections(self):
+    def display_selected_sections(self, savepath, QTOP_SAMPLE_FILENAME, QTOP_LOGFILE):
         """
         This prints out the qtop sections selected by the user.
         The selection can be made in two different ways:
@@ -1385,6 +1385,10 @@ class TextDisplay(object):
         for idx, part in enumerate(config['user_display_parts'], 1):
             display_func, args = display_parts[part][0], display_parts[part][1]
             display_func(*args) if not sections_off[idx] else None
+
+        print "\nLog file created in %s" % expandvars(QTOP_LOGFILE)
+        if options.SAMPLE:
+            print "Sample files saved in %s/%s" % (savepath, QTOP_SAMPLE_FILENAME)
 
     def display_job_accounting_summary(self, cluster_dict, document):
         """
@@ -1606,6 +1610,9 @@ class TextDisplay(object):
 
 
 def get_output_size(max_height, max_line_len, output_fp):
+    """
+    Returns the char dimensions of the entirety of the qtop output file
+    """
     ansi_escape = re.compile(r'\x1b[^m]*m')  # matches ANSI escape characters
 
     if not max_height:
@@ -1673,12 +1680,11 @@ def init_sample_file(options):
 
 if __name__ == '__main__':
 
-    stdout = sys.stdout
+    stdout = sys.stdout  # keep a copy of the initial value of sys.stdout
 
     viewport = Viewport()  # controls the part of the qtop matrix shown on screen
     read_char = 'r'  # initial value, resets view position to beginning
     max_line_len = 0
-    timeout = 1
 
     check_python_version()
     initial_cwd = os.getcwd()
@@ -1727,12 +1733,7 @@ if __name__ == '__main__':
                 workernodes_occupancy, cluster_dict = calculate_wn_occupancy(cluster_dict, document)
 
                 display = TextDisplay(cluster_dict, workernodes_occupancy, document, config, viewport)
-                display.display_selected_sections()
-
-                print "\nLog file created in %s" % expandvars(QTOP_LOGFILE)
-
-                if options.SAMPLE:
-                    print "Sample files saved in %s/%s" % (savepath, QTOP_SAMPLE_FILENAME)
+                display.display_selected_sections(savepath, QTOP_SAMPLE_FILENAME, QTOP_LOGFILE)
 
                 sys.stdout.flush()
                 sys.stdout.close()
@@ -1751,7 +1752,7 @@ if __name__ == '__main__':
                     _ = subprocess.call(cat_command, stdout=stdout, stderr=stdout, shell=True)
 
                     # this will wait for user input for a while, otherwise it will auto-refresh the display
-                    while sys.stdin in select.select([sys.stdin], [], [], timeout)[0]:
+                    while sys.stdin in select.select([sys.stdin], [], [], KEYPRESS_TIMEOUT)[0]:
                         read_char = sys.stdin.read(1)
                         if read_char:
                             logging.debug('Pressed %s' % read_char)
