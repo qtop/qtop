@@ -396,12 +396,11 @@ def insert_separators(orig_str, separator, pos, stopaftern=0):
     """
     inserts separator into orig_str every pos-th position, optionally stopping after stopaftern times.
     """
-    pos = int(pos)
     if not pos:  # default value is zero, means no vertical separators
         return orig_str
     else:
         sep_str = orig_str[:]  # insert initial vertical separator
-
+        separator = separator if isinstance(sep_str, str) else list(separator)
         times = len(orig_str) / pos if not stopaftern else stopaftern
         sep_str = sep_str[:pos] + separator + sep_str[pos:]
         for i in range(2, times + 1):
@@ -841,7 +840,7 @@ def load_yaml_config():
         logging.debug('%s files will be saved in directory %s.' % (config['scheduler'], user_selected_save_path))
     config['savepath'] = user_selected_save_path
 
-    for key in ['transpose_wn_matrices', 'fill_with_user_firstletter', 'faster_xml_parsing']:
+    for key in ['transpose_wn_matrices', 'fill_with_user_firstletter', 'faster_xml_parsing', 'vertical_separator_every_X_columns']:
         config[key] = eval(config[key])  # TODO config should not be writeable!!
     config['sorting']['reverse'] = eval(config['sorting']['reverse'])  # TODO config should not be writeable!!
 

@@ -168,6 +168,8 @@ user_display_parts:
 vertical_separator: '|'
 # Put vertical_separator every X columns.
 vertical_separator_every_X_columns: 0
+# Put vertical_separator in case of overspill (SGE systems only).
+separator_after_overspill: True
 
 workernodes_matrix:
  - wn id lines:

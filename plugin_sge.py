@@ -281,6 +281,7 @@ class SGEBatchSystem(GenericBatchSystem):
                 worker_node['existing_busy_cores'] = len(worker_node['core_job_map'])
                 existing_node_names.update([worker_node['domainname']])
                 worker_nodes.append(worker_node)
+                worker_node['np'] = max(int(worker_node['np']), len(worker_node['core_job_map']))
             else:
                 for existing_wn in worker_nodes:
                     if worker_node['domainname'] != existing_wn['domainname']:
