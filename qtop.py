@@ -141,14 +141,14 @@ def decide_remapping(cluster_dict, _all_letters, _all_str_digits_with_empties):
 
 def calculate_cluster(worker_nodes):
     if not worker_nodes:
-        cluster_dict, NAMED_WNS = dict(), 0
+        cluster_dict = dict()
+        NAMED_WNS = 0
         return cluster_dict, NAMED_WNS
 
     logging.debug('option FORCE_NAMES is: %s' % options.FORCE_NAMES)
-    NAMED_WNS = 0 if not options.FORCE_NAMES else 1
-    cluster_dict = dict()
-    for key in ['working_cores', 'total_cores', 'max_np', 'highest_wn', 'offline_down_nodes']:
-        cluster_dict[key] = 0
+    NAMED_WNS = 1 if options.FORCE_NAMES else 0
+
+    cluster_dict = dict.fromkeys(['working_cores', 'total_cores', 'max_np', 'highest_wn', 'offline_down_nodes'], 0)
     cluster_dict['node_subclusters'] = set()
     cluster_dict['workernode_dict'] = {}
     cluster_dict['workernode_dict_remapped'] = {}  # { remapnr: [state, np, (core0, job1), (core1, job1), ....]}
@@ -347,6 +347,7 @@ def fill_node_cores_column(_node, core_user_map, id_of_username, max_np_range, u
     state_np_corejob was: [state, np, (core0, job1), (core1, job1), ....]
     will be a dict!
     """
+    # what is the state of core_user_map here?
     state_np_corejob = cluster_dict['workernode_dict'][_node]
     state = state_np_corejob['state']
     np = state_np_corejob['np']
@@ -395,12 +396,11 @@ def insert_separators(orig_str, separator, pos, stopaftern=0):
     """
     inserts separator into orig_str every pos-th position, optionally stopping after stopaftern times.
     """
-    pos = int(pos)
     if not pos:  # default value is zero, means no vertical separators
         return orig_str
     else:
         sep_str = orig_str[:]  # insert initial vertical separator
-
+        separator = separator if isinstance(sep_str, str) else list(separator)
         times = len(orig_str) / pos if not stopaftern else stopaftern
         sep_str = sep_str[:pos] + separator + sep_str[pos:]
         for i in range(2, times + 1):
@@ -513,8 +513,8 @@ def display_wnid_lines(start, stop, highest_wn, wn_vert_labels, **kwargs):
 
 def print_wnid_lines(d, start, stop, end_labels, transposed_matrices, color_func, args):
     if config['transpose_wn_matrices']:
-        tuple = [None, 'wnid_lines', transpose_matrix(d)]
-        transposed_matrices.append(tuple)
+        tuple_ = [None, 'wnid_lines', transpose_matrix(d)]
+        transposed_matrices.append(tuple_)
         return
 
     colors = iter(color_func(*args))
@@ -563,9 +563,10 @@ def print_mult_attr_line(print_char_start, print_char_stop, transposed_matrices,
     attr_lines can be e.g. Node state lines
     """
     if config['transpose_wn_matrices']:
-        tuple = [None, label, transpose_matrix(attr_lines)]
-        transposed_matrices.append(tuple)
+        tuple_ = [None, label, transpose_matrix(attr_lines)]
+        transposed_matrices.append(tuple_)
         return
+
     # TODO: fix option parameter, inserted for testing purposes
     for line in attr_lines:
         line = attr_lines[line][print_char_start:print_char_stop]
@@ -723,6 +724,7 @@ def print_core_lines(core_user_map, print_char_start, print_char_stop, transpose
         tuple_ = [None, 'core_map', transpose_matrix(core_user_map, colored=True)]
         transposed_matrices.append(tuple_)
         return
+
     for core_line in get_core_lines(core_user_map, print_char_start, print_char_stop, pattern_of_id, attrs):
         try:
             print core_line
@@ -840,7 +842,7 @@ def load_yaml_config():
         logging.debug('%s files will be saved in directory %s.' % (config['scheduler'], user_selected_save_path))
     config['savepath'] = user_selected_save_path
 
-    for key in ['transpose_wn_matrices', 'fill_with_user_firstletter', 'faster_xml_parsing']:
+    for key in ['transpose_wn_matrices', 'fill_with_user_firstletter', 'faster_xml_parsing', 'vertical_separator_every_X_columns']:
         config[key] = eval(config[key])  # TODO config should not be writeable!!
     config['sorting']['reverse'] = eval(config['sorting']['reverse'])  # TODO config should not be writeable!!
 
@@ -1510,6 +1512,7 @@ class TextDisplay(object):
         if (not all([workernodes_occupancy, workernodes_occupancy.get('id_of_username', 0)])) or is_matrix_coreless(
                 workernodes_occupancy):
             return
+
         print_char_start = workernodes_occupancy['print_char_start']
         print_char_stop = workernodes_occupancy['print_char_stop']
         wn_vert_labels = workernodes_occupancy['wn_vert_labels']
