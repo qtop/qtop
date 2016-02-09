@@ -273,7 +273,8 @@ def calculate_job_counts(user_names, job_states):
     return job_counts, user_alljobs_sorted_lot, id_of_username
 
 
-def create_account_jobs_table(user_names, job_states, wns_occupancy):
+def create_account_jobs_table(user_names, job_states):
+    wns_occupancy = dict()
     job_counts, user_alljobs_sorted_lot, id_of_username = calculate_job_counts(user_names, job_states)
     account_jobs_table = []
     for user_alljobs in user_alljobs_sorted_lot:
@@ -295,6 +296,7 @@ def create_account_jobs_table(user_names, job_states, wns_occupancy):
             new_uid
     wns_occupancy['account_jobs_table'] = account_jobs_table
     wns_occupancy['id_of_username'] = id_of_username
+    return wns_occupancy
 
 
 def create_job_counts(user_names, job_states, state_abbrevs):
@@ -643,8 +645,6 @@ def calculate_wn_occupancy(cluster_dict, document):
     Otherwise, for uniform WNs, i.e. all using the same numbering scheme, wn01, wn02, ... proceeds as normal.
     Number of Extra tables needed is calculated inside the calc_all_wnid_label_lines function below
     """
-    # config = calculate_split_screen_size(config)  # term_columns
-
     user_names = document.user_names
     job_states = document.job_states
     job_ids = document.job_ids
@@ -653,8 +653,7 @@ def calculate_wn_occupancy(cluster_dict, document):
         workernodes_occupancy, cluster_dict = dict(), dict()
         return workernodes_occupancy, cluster_dict
 
-    wns_occupancy = dict()
-    create_account_jobs_table(user_names, job_states, wns_occupancy) # account_jobs_table, id_of_username
+    wns_occupancy = create_account_jobs_table(user_names, job_states) # account_jobs_table, id_of_username
     make_pattern_of_id(wns_occupancy)  # pattern_of_id
 
     find_matrices_width(wns_occupancy, cluster_dict)  # print_char_start, print_char_stop, extra_matrices_nr

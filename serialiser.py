@@ -56,6 +56,7 @@ class StatMaker:
 
         return _anonymize_func
 
+
 class QStatMaker(StatMaker):
     def __init__(self, config):
         StatMaker.__init__(self, config)
@@ -120,7 +121,7 @@ class QStatMaker(StatMaker):
         except FileEmptyError:
             all_values = []
         else:
-            anonymize = anonymize_func()
+            anonymize = self.anonymize_func()
             queue_search = r'^(?P<queue_name>[\w.-]+)\s+' \
                            r'(?:--|[0-9]+[mgtkp]b[a-z]*)\s+' \
                            r'(?:--|\d+:\d+:?\d*:?)\s+' \
