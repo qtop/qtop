@@ -27,6 +27,7 @@ from signal import signal, SIGPIPE, SIG_DFL
 import termios
 import contextlib
 import glob
+import tempfile
 from plugin_pbs import *
 from plugin_oar import *
 from plugin_sge import *
@@ -238,8 +239,6 @@ def nodes_with_jobs(worker_nodes):
     for _, pbs_node in worker_nodes.iteritems():
         if 'core_job_map' in pbs_node:
             yield pbs_node
-
-
 
 
 def calculate_job_counts(user_names, job_states):
@@ -557,8 +556,7 @@ def is_matrix_coreless(workernodes_occupancy):
     return len(lines) == len(core_user_map)
 
 
-def print_mult_attr_line(print_char_start, print_char_stop, transposed_matrices, attr_lines, label, color_func=None,
-                         **kwargs):  # NEW!
+def print_mult_attr_line(print_char_start, print_char_stop, transposed_matrices, attr_lines, label, color_func=None, **kwargs):
     """
     attr_lines can be e.g. Node state lines
     """
@@ -775,6 +773,8 @@ def load_yaml_config():
     $HOME/.local/qtop/
     in that order.
     """
+    # TODO: conversion to int should be handled internally in native yaml parser
+    # TODO: fix_config_list should be handled internally in native yaml parser
     config = read_yaml_natively(os.path.join(realpath(QTOPPATH), QTOPCONF_YAML))
     logging.info('Default configuration dictionary loaded. Length: %s items' % len(config))
 
@@ -1194,7 +1194,7 @@ def check_python_version():
         sys.exit(1)
 
 
-def deprecate_old_yaml_files():
+def remove_stale_yaml_files():
     """
     deletes older yaml files in savepath directory.
     experimental and loosely untested
@@ -1337,7 +1337,8 @@ def scheduler_factory(scheduler, in_out_filenames, config):
         return SGEBatchSystem(in_out_filenames, config)
 
 
-class Document(namedtuple('Document', ['worker_nodes', 'job_ids', 'user_names', 'job_states', 'total_running_jobs', 'total_queued_jobs', 'qstatq_lod'])):
+class Document(namedtuple('Document',
+    ['worker_nodes', 'job_ids', 'user_names', 'job_states', 'total_running_jobs', 'total_queued_jobs', 'qstatq_lod'])):
 
     def save(self, filename):
         with open(filename, 'w') as outfile:
@@ -1604,13 +1605,22 @@ class TextDisplay(object):
         return joined_list
 
 
-def get_output_size(max_height, output_fp):
+def get_output_size(max_height, max_line_len, output_fp):
+    ansi_escape = re.compile(r'\x1b[^m]*m')  # matches ANSI escape characters
+
     if not max_height:
         with open(output_fp, 'r') as f:
             max_height = len(f.readlines())
             if not max_height:
                 raise ValueError("There is no output from qtop *whatsoever*. Weird.")
-    return max_height
+
+    max_line_len = max(len(ansi_escape.sub('', line.strip())) for line in open(output_fp, 'r')) \
+        if not max_line_len else max_line_len
+
+    logging.debug('Total nr of lines: %s' % viewport.max_height)
+    logging.debug('Max line length: %s' % max_line_len)
+
+    return max_height, max_line_len
 
 
 def print_y_lines_of_file_starting_from_x(file, x, y):
@@ -1622,11 +1632,50 @@ def print_y_lines_of_file_starting_from_x(file, x, y):
     return 'clear;tail -n+%s %s | head -n%s' % (x, file, y)
 
 
+def update_config_with_cmdline_vars(options, config):
+    for opt in options.OPTION:
+        key, val = get_key_val_from_option_string(opt)
+        config[key] = val
+
+    if options.TRANSPOSE:
+        config['transpose_wn_matrices'] = not config['transpose_wn_matrices']
+
+    return config
+
+
+def attempt_faster_xml_parsing(config):
+    if config['faster_xml_parsing']:
+        try:
+            from lxml import etree
+        except ImportError:
+            logging.warn('Module lxml is missing. Try issuing "pip install lxml". Reverting to xml module.')
+            from xml.etree import ElementTree as etree
+
+
+def init_dirs(options):
+    options.SOURCEDIR = realpath(options.SOURCEDIR) if options.SOURCEDIR else None
+    logging.debug("User-defined source directory: %s" % options.SOURCEDIR)
+    options.workdir = options.SOURCEDIR or config['savepath']
+    logging.debug('Working directory is now: %s' % options.workdir)
+    os.chdir(options.workdir)
+    return options
+
+
+def init_sample_file(options):
+    if options.SAMPLE >= 1:  # clears any preexisting tar files
+        tar_out = tarfile.open(os.path.join(config['savepath'], QTOP_SAMPLE_FILENAME), mode='w')
+        tar_out.close()
+    if options.SAMPLE >= 2:
+        add_to_sample([os.path.join(realpath(QTOPPATH), QTOPCONF_YAML)], savepath)
+        source_files = glob.glob(os.path.join(realpath(QTOPPATH), '*.py'))
+        add_to_sample(source_files, savepath, subdir='source')
+
+
 if __name__ == '__main__':
 
     stdout = sys.stdout
 
-    viewport = Viewport()
+    viewport = Viewport()  # controls the part of the qtop matrix shown on screen
     read_char = 'r'  # initial value, resets view position to beginning
     max_line_len = 0
     timeout = 1
@@ -1640,52 +1689,23 @@ if __name__ == '__main__':
     with raw_mode(sys.stdin):
         try:
             while True:
-                handle, output_fp = get_new_temp_file(prefix='qtop_', suffix='.out')
+                handle, output_fp = get_new_temp_file(prefix='qtop_', suffix='.out')  # qtop output is saved to this file
                 sys.stdout = os.fdopen(handle, 'w')  # redirect everything to file, creates file object out of handle
                 transposed_matrices = []
                 config = load_yaml_config()
+                config = update_config_with_cmdline_vars(options, config)
+                attempt_faster_xml_parsing(config)
 
-                for opt in options.OPTION:
-                    key, val = get_key_val_from_option_string(opt)
-                    config[key] = val
-
-                if config['faster_xml_parsing']:
-                    try:
-                        from lxml import etree
-                    except ImportError:
-                        logging.warn('Module lxml is missing. Try issuing "pip install lxml". Reverting to xml module.')
-                        from xml.etree import ElementTree as etree
-
-                if options.TRANSPOSE:
-                    config['transpose_wn_matrices'] = not config['transpose_wn_matrices']
-
-                # After this place config is *logically* immutable
-                viewport.set_term_size(*calculate_split_screen_size(config))
+                viewport.set_term_size(*calculate_split_screen_size(config))  # After here, config is *logically* immutable
 
                 SEPARATOR = config['vertical_separator'].translate(None, "'")  # alias
                 USER_CUT_MATRIX_WIDTH = int(config['workernodes_matrix'][0]['wn id lines']['user_cut_matrix_width'])  # alias
                 ALT_LABEL_HIGHLIGHT_COLORS = fix_config_list(config['workernodes_matrix'][0]['wn id lines']['alt_label_highlight_colors'])
-                # TODO: int should be handled internally in native yaml parser
-                # TODO: fix_config_list should be handled internally in native yaml parser
-
-                options.SOURCEDIR = realpath(options.SOURCEDIR) if options.SOURCEDIR else None
-                logging.debug("User-defined source directory: %s" % options.SOURCEDIR)
-                options.workdir = options.SOURCEDIR or config['savepath']
-                logging.debug('Working directory is now: %s' % options.workdir)
-                os.chdir(options.workdir)
+                options = init_dirs(options)
 
                 scheduler = decide_batch_system(options.BATCH_SYSTEM, os.environ.get('QTOP_SCHEDULER'), config['scheduler'])
-
                 INPUT_FNs_commands, in_out_filenames = prepare_files()
-
-                # reset_yaml_files()  # either that or having a pid appended in the filename
-                if options.SAMPLE >= 1:  # clears any preexisting tar files
-                    tar_out = tarfile.open(os.path.join(config['savepath'], QTOP_SAMPLE_FILENAME), mode='w')
-                    tar_out.close()
-                if options.SAMPLE >= 2:
-                    add_to_sample([os.path.join(realpath(QTOPPATH), QTOPCONF_YAML)], savepath)
-                    source_files = glob.glob(os.path.join(realpath(QTOPPATH), '*.py'))
-                    add_to_sample(source_files, savepath, subdir='source')
+                init_sample_file(options)
 
                 scheduling_system = scheduler_factory(scheduler, in_out_filenames, config)
 
@@ -1697,12 +1717,10 @@ if __name__ == '__main__':
 
                 document = get_document(scheduling_system)
 
-                # Will become document member one day
-                import tempfile
-                tf = tempfile.NamedTemporaryFile()
+                tf = tempfile.NamedTemporaryFile()  # Will become document member one day
                 document.save(tf.name)
 
-                deprecate_old_yaml_files()
+                remove_stale_yaml_files()
 
                 #  MAIN ##################################
                 cluster_dict, NAMED_WNS = calculate_cluster(document.worker_nodes)
@@ -1720,43 +1738,39 @@ if __name__ == '__main__':
                 sys.stdout.close()
                 sys.stdout = stdout  # sys.stdout is back to its normal function (i.e. screen output)
 
-                viewport.max_height = get_output_size(viewport.max_height, output_fp)
+                viewport.max_height, max_line_len = get_output_size(viewport.max_height, max_line_len, output_fp)
 
-                ansi_escape = re.compile(r'\x1b[^m]*m')  # matches ANSI escape characters
-                max_line_len = max(len(ansi_escape.sub('', line.strip())) for line in open(output_fp, 'r')) \
-                    if not max_line_len else max_line_len
-
-                logging.debug('Total nr of lines: %s' % viewport.max_height)
-                logging.debug('Max line length: %s' % max_line_len)
-
-                if not options.WATCH:  # one-off display of qtop output, will exit afterwards
-                    if options.ONLYSAVETOFILE:
-                        break
+                if options.ONLYSAVETOFILE:  # no display of qtop output
+                    break
+                elif not options.WATCH:  # one-off display of qtop output, will exit afterwards (no --watch cmdline switch)
                     cat_command = 'clear;cat %s' % output_fp
                     _ = subprocess.call(cat_command, stdout=stdout, stderr=stdout, shell=True)
                     break
+                else:  # --watch
+                    cat_command = print_y_lines_of_file_starting_from_x(file=output_fp, x=viewport.v_start, y=viewport.v_term_size)
+                    _ = subprocess.call(cat_command, stdout=stdout, stderr=stdout, shell=True)
 
-                cat_command = print_y_lines_of_file_starting_from_x(file=output_fp, x=viewport.v_start, y=viewport.v_term_size)
-                _ = subprocess.call(cat_command, stdout=stdout, stderr=stdout, shell=True)
+                    # this will wait for user input for a while, otherwise it will auto-refresh the display
+                    while sys.stdin in select.select([sys.stdin], [], [], timeout)[0]:
+                        read_char = sys.stdin.read(1)
+                        if read_char:
+                            logging.debug('Pressed %s' % read_char)
+                            break
+                    else:
+                        state = viewport.get_term_size()
+                        viewport.set_term_size(*calculate_split_screen_size(config))
+                        new_state = viewport.get_term_size()
+                        read_char = '\n' if (state == new_state) else 'r'
+                        logging.debug("Auto-advancing by pressing <Enter>")
 
-                while sys.stdin in select.select([sys.stdin], [], [], timeout)[0]:
-                    read_char = sys.stdin.read(1)
-                    if read_char:
-                        logging.debug('Pressed %s' % read_char)
-                        break
-                else:
-                    state = viewport.get_term_size()
-                    viewport.set_term_size(*calculate_split_screen_size(config))
-                    new_state = viewport.get_term_size()
-                    read_char = '\n' if (state == new_state) else 'r'
-                    logging.debug("Auto-advancing by pressing <Enter>")
-                pressed_char_hex = '%02x' % ord(read_char) # read_char has an initial value that resets the display ('72')
-                control_movement(pressed_char_hex)
-                os.chdir(QTOPPATH)
-                unlink(output_fp)
+                    pressed_char_hex = '%02x' % ord(read_char) # read_char has an initial value that resets the display ('72')
+                    control_movement(pressed_char_hex)
+                    os.chdir(QTOPPATH)
+                    unlink(output_fp)
 
             if options.SAMPLE:
                 add_to_sample([output_fp], config['savepath'])
+
         except (KeyboardInterrupt, EOFError) as e:
             repr(e)
             safe_exit_with_file_close(handle, output_fp, stdout)
