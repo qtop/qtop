@@ -480,36 +480,6 @@ def find_matrices_width(wns_occupancy, cluster_dict, DEADWEIGHT=11):
     wns_occupancy['print_char_stop'] = stop
 
 
-def display_wnid_lines(start, stop, highest_wn, wn_vert_labels, **kwargs):
-    """
-    Prints the Worker Node ID lines, after it colors them and adds separators to them.
-    highest_wn determines the number of WN ID lines needed  (1/2/3/4+?)
-    """
-    d = OrderedDict()
-    end_labels = config['workernodes_matrix'][0]['wn id lines']['end_labels']
-
-    if not NAMED_WNS:
-        node_str_width = len(str(highest_wn))  # 4 for thousands of nodes, nr of horizontal lines to be displayed
-
-        for node_nr in range(1, node_str_width + 1):
-            d[str(node_nr)] = "".join(wn_vert_labels[str(node_nr)])
-        end_labels_iter = iter(end_labels[str(node_str_width)])
-        print_wnid_lines(d, start, stop, end_labels_iter, transposed_matrices,
-                         color_func=color_plainly, args=('White', 'Gray_L', start > 0))
-        # start > 0 is just a test for a possible future condition
-
-    elif NAMED_WNS or options.FORCE_NAMES:  # names (e.g. fruits) instead of numbered WNs
-        node_str_width = len(wn_vert_labels)  # key, nr of horizontal lines to be displayed
-
-        # for longer full-labeled wn ids, add more end-labels (far-right) towards the bottom
-        for num in range(8, len(wn_vert_labels) + 1):
-            end_labels.setdefault(str(num), end_labels['7'] + num * ['={___ID___}'])
-
-        end_labels_iter = iter(end_labels[str(node_str_width)])
-        print_wnid_lines(wn_vert_labels, start, stop, end_labels_iter, transposed_matrices,
-                         color_func=highlight_alternately, args=(ALT_LABEL_HIGHLIGHT_COLORS))
-
-
 def print_wnid_lines(d, start, stop, end_labels, transposed_matrices, color_func, args):
     if config['transpose_wn_matrices']:
         tuple_ = [None, 'wnid_lines', transpose_matrix(d)]
@@ -521,22 +491,6 @@ def print_wnid_lines(d, start, stop, end_labels, transposed_matrices, color_func
         wn_id_str = insert_separators(d[line_nr][start:stop], SEPARATOR, config['vertical_separator_every_X_columns'])
         wn_id_str = ''.join([colorize(elem, color) for elem in wn_id_str])
         print wn_id_str + end_label
-
-
-def highlight_alternately(color_a, color_b):
-    highlight = {0: color_a, 1: color_b}  # should obviously be customizable
-    selection = 0
-    while True:
-        selection = 0 if selection else 1
-        yield highlight[selection]
-
-
-def color_plainly(color_0, color_1, condition):
-    while condition:
-        yield color_0
-    else:
-        while not condition:
-            yield color_1
 
 
 def is_matrix_coreless(workernodes_occupancy):
@@ -713,30 +667,6 @@ def calculate_wn_occupancy(cluster_dict, document):
 
     calc_core_userid_matrix(cluster_dict, wns_occupancy, job_ids, user_names)  # core user map
     return wns_occupancy, cluster_dict
-
-
-def print_core_lines(core_user_map, print_char_start, print_char_stop, transposed_matrices, pattern_of_id, attrs, options1,
-                     options2):
-    signal(SIGPIPE, SIG_DFL)
-    if config['transpose_wn_matrices']:
-        tuple_ = [None, 'core_map', transpose_matrix(core_user_map, colored=True)]
-        transposed_matrices.append(tuple_)
-        return
-
-    for core_line in get_core_lines(core_user_map, print_char_start, print_char_stop, pattern_of_id, attrs):
-        try:
-            print core_line
-        except IOError:
-            try:
-                signal(SIGPIPE, SIG_DFL)
-                print core_line
-                sys.stdout.close()
-            except IOError:
-                pass
-            try:
-                sys.stderr.close()
-            except IOError:
-                pass
 
 
 def make_pattern_of_id(wns_occupancy):
@@ -1528,13 +1458,13 @@ class TextDisplay(object):
         occupancy_parts = {
             'wn id lines':
                 (
-                    display_wnid_lines,
+                    self.display_wnid_lines,
                     (print_char_start, print_char_stop, cluster_dict['highest_wn'], wn_vert_labels),
                     {'inner_attrs': None}
                 ),
             'core user map':
                 (
-                    print_core_lines,
+                    self.print_core_lines,
                     (core_user_map, print_char_start, print_char_stop, transposed_matrices, pattern_of_id),
                     {'attrs': None}
                 ),
@@ -1610,6 +1540,72 @@ class TextDisplay(object):
 
         print "".join(joined_list[self.viewport.h_start:self.viewport.h_stop])
         return joined_list
+
+    def print_core_lines(self, core_user_map, print_char_start, print_char_stop, transposed_matrices, pattern_of_id, attrs,
+                         options1, options2):
+        signal(SIGPIPE, SIG_DFL)
+        if config['transpose_wn_matrices']:
+            tuple_ = [None, 'core_map', transpose_matrix(core_user_map, colored=True)]
+            transposed_matrices.append(tuple_)
+            return
+
+        for core_line in get_core_lines(core_user_map, print_char_start, print_char_stop, pattern_of_id, attrs):
+            try:
+                print core_line
+            except IOError:
+                try:
+                    signal(SIGPIPE, SIG_DFL)
+                    print core_line
+                    sys.stdout.close()
+                except IOError:
+                    pass
+                try:
+                    sys.stderr.close()
+                except IOError:
+                    pass
+
+    def display_wnid_lines(self, start, stop, highest_wn, wn_vert_labels, **kwargs):
+        """
+        Prints the Worker Node ID lines, after it colors them and adds separators to them.
+        highest_wn determines the number of WN ID lines needed  (1/2/3/4+?)
+        """
+        d = OrderedDict()
+        end_labels = config['workernodes_matrix'][0]['wn id lines']['end_labels']
+
+        if not NAMED_WNS:
+            node_str_width = len(str(highest_wn))  # 4 for thousands of nodes, nr of horizontal lines to be displayed
+
+            for node_nr in range(1, node_str_width + 1):
+                d[str(node_nr)] = "".join(wn_vert_labels[str(node_nr)])
+            end_labels_iter = iter(end_labels[str(node_str_width)])
+            print_wnid_lines(d, start, stop, end_labels_iter, transposed_matrices,
+                             color_func=self.color_plainly, args=('White', 'Gray_L', start > 0))
+            # start > 0 is just a test for a possible future condition
+
+        elif NAMED_WNS or options.FORCE_NAMES:  # names (e.g. fruits) instead of numbered WNs
+            node_str_width = len(wn_vert_labels)  # key, nr of horizontal lines to be displayed
+
+            # for longer full-labeled wn ids, add more end-labels (far-right) towards the bottom
+            for num in range(8, len(wn_vert_labels) + 1):
+                end_labels.setdefault(str(num), end_labels['7'] + num * ['={___ID___}'])
+
+            end_labels_iter = iter(end_labels[str(node_str_width)])
+            print_wnid_lines(wn_vert_labels, start, stop, end_labels_iter, transposed_matrices,
+                             color_func=self.highlight_alternately, args=(ALT_LABEL_HIGHLIGHT_COLORS))
+
+    def highlight_alternately(self, color_a, color_b):
+        highlight = {0: color_a, 1: color_b}  # should obviously be customizable
+        selection = 0
+        while True:
+            selection = 0 if selection else 1
+            yield highlight[selection]
+
+    def color_plainly(self, color_0, color_1, condition):
+        while condition:
+            yield color_0
+        else:
+            while not condition:
+                yield color_1
 
 
 def get_output_size(max_height, max_line_len, output_fp):
