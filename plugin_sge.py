@@ -11,24 +11,11 @@ from common_module import logging, check_empty_file, get_new_temp_file, options,
 from constants import *
 
 
-def extract_job_info(elem, elem_text):
-    """
-    inside elem, iterates over subelems named elem_text and extracts relevant job information
-    TODO: check difference between extract_job_info and _extract_job_info
-    """
-    job_ids, usernames, job_states = [], [], []
-    for subelem in elem.findall(elem_text):
-        job_ids.append(subelem.find('./JB_job_number').text)
-        usernames.append(subelem.find('./JB_owner').text)
-        job_states.append(subelem.find('./state').text)
-    return job_ids, usernames, job_states
-
-
 class SGEStatMaker(StatMaker):
     def __init__(self, config):
         StatMaker.__init__(self, config)
 
-    def serialise_qstat(self, orig_file, out_file, write_method):
+    def get_qstat(self, orig_file, out_file, write_method):
         out_file = out_file.rsplit('/', 1)[1]
         all_values = list()
         try:
@@ -67,7 +54,6 @@ class SGEStatMaker(StatMaker):
             except ValueError:
                 logging.info('No jobs found in XML file!')
 
-
         prefix, suffix = out_file.split('.')
         prefix += '_'
         suffix = '.' + suffix
@@ -75,9 +61,7 @@ class SGEStatMaker(StatMaker):
 
         if options.SAMPLE >= 1:
             tree.write(orig_file)  # TODO anonymize rest of the sensitive information within xml file
-            # add_to_sample(orig_file, self.config['savepath'])
-
-        self.dump_all(all_values, SGEStatMaker.fd, write_method)
+        return all_values
 
     def _extract_job_info(self, all_values, elem, elem_text, queue_name):
         """
@@ -97,57 +81,24 @@ class SGEStatMaker(StatMaker):
 
         return all_values
 
-    def dump_all(self, values, fd, write_method=options.write_method):
-        """
-        dumps the content of qstat/qstat_q files in the selected write_method format
-        fd here is already a file descriptor
-        values is a list
-        """
-        fout = os.fdopen(fd, 'w')
-        try:
-            logging.debug('File state: %s' % fout)
-            if write_method == 'txtyaml':
-                self.stat_write_lines(values, fout)
-            elif write_method == 'json':
-                json.dump(values, fout)
-        finally:
-            fout.close()
-
-    def __repr__(self):
-        return 'SGEStatMaker Instance'
-
 
 class SGEBatchSystem(GenericBatchSystem):
     def __init__(self, in_out_filenames, config):
         self.sge_file_stat = in_out_filenames.get('sge_file_stat')
         self.sge_file_stat_out = in_out_filenames.get('sge_file_stat_out')
         # self.temp_filepath = SGEStatMaker.temp_filepath
-
         self.config = config
         self.sge_stat_maker = SGEStatMaker(self.config)
 
     def convert_inputs(self):
-        return self._serialise_qstat()
+        pass
 
     def get_queues_info(self):
-        return self._get_statq_from_xml(self.sge_file_stat)
-
-    def get_worker_nodes(self):
-        return self._get_worker_nodes_from_xml(self.sge_file_stat)
-
-    def get_jobs_info(self):
-        return GenericBatchSystem.get_jobs_info(self, SGEStatMaker.temp_filepath)
-
-    def _serialise_qstat(self):
-        return self.sge_stat_maker.serialise_qstat(self.sge_file_stat, self.sge_file_stat_out, options.write_method)
-
-    @staticmethod
-    def _get_statq_from_xml(fn):
-        logging.debug("Parsing tree of %s" % fn)
-        check_empty_file(fn)
+        logging.debug("Parsing tree of %s" % self.sge_file_stat)
+        check_empty_file(self.sge_file_stat)
         anonymize = anonymize_func()
 
-        with open(fn, mode='rb') as fin:
+        with open(self.sge_file_stat, mode='rb') as fin:
             try:
                 tree = etree.parse(fin)
             except etree.ParseError:
@@ -221,17 +172,17 @@ class SGEBatchSystem(GenericBatchSystem):
             qstatq_list.append({'run': '0', 'queued': total_queued_jobs, 'queue_name': 'Pending', 'state': 'Q', 'lm': '0'})
             logging.debug('qstatq_list contains %s elements' % len(qstatq_list))
             # TODO: check validity. 'state' shouldnt just be 'Q'!
-        logging.debug("Closing %s" % fn)
+        logging.debug("Closing %s" % self.sge_file_stat)
 
         return total_running_jobs, total_queued_jobs, qstatq_list
 
-    def _get_worker_nodes_from_xml(self, fn, write_method=options.write_method):
-        logging.debug('Parsing tree of %s' % fn)
+    def get_worker_nodes(self):
+        logging.debug('Parsing tree of %s' % self.sge_file_stat)
         anonymize = anonymize_func()
 
-        with open(fn, 'rb') as fin:
+        with open(self.sge_file_stat, 'rb') as fin:
             tree = etree.parse(fin)
- 
+
         root = tree.getroot()
         worker_nodes = list()
         existing_node_names = set()
@@ -276,7 +227,7 @@ class SGEBatchSystem(GenericBatchSystem):
                 worker_node['state'] = state
 
             if worker_node['domainname'] not in existing_node_names:
-                job_ids, usernames, job_states = extract_job_info(queue_elem, 'job_list')
+                job_ids, usernames, job_states = self.extract_job_info(queue_elem, 'job_list')
                 worker_node['core_job_map'] = [{'core': idx, 'job': job_id} for idx, job_id in enumerate(job_ids)]
                 worker_node['existing_busy_cores'] = len(worker_node['core_job_map'])
                 existing_node_names.update([worker_node['domainname']])
@@ -286,7 +237,7 @@ class SGEBatchSystem(GenericBatchSystem):
                 for existing_wn in worker_nodes:
                     if worker_node['domainname'] != existing_wn['domainname']:
                         continue
-                    job_ids, usernames, job_states = extract_job_info(queue_elem, 'job_list')
+                    job_ids, usernames, job_states = self.extract_job_info(queue_elem, 'job_list')
                     core_jobs = [{'core': idx, 'job': job_id}
                                  for idx, job_id in enumerate(job_ids, existing_wn['existing_busy_cores'])]
                     existing_wn['core_job_map'].extend(core_jobs)
@@ -296,8 +247,42 @@ class SGEBatchSystem(GenericBatchSystem):
                     existing_wn['qname'].update(worker_node['qname'])
                     existing_wn['np'] = max(int(existing_wn['np']), len(existing_wn['core_job_map']))
                     break
-        logging.debug('Closing %s' % fn)
+        logging.debug('Closing %s' % self.sge_file_stat)
         logging.info('worker_nodes contains %s entries' % len(worker_nodes))
         for worker_node in worker_nodes:
             worker_node['qname'] = list(worker_node['qname'])
         return worker_nodes
+
+    def get_jobs_info(self):
+        job_ids, usernames, job_states, queue_names = [], [], [], []
+
+        all_values = self.sge_stat_maker.get_qstat(self.sge_file_stat, self.sge_file_stat_out, options.write_method)
+        # TODO: needs better glueing
+        for qstat in all_values:
+            job_ids.append(str(qstat['JobId']))
+            usernames.append(qstat['UnixAccount'])
+            job_states.append(qstat['S'])
+            queue_names.append(qstat['Queue'])
+
+        logging.debug('job_ids, usernames, job_states, queue_names lengths: '
+                      '%(job_ids)s, %(usernames)s, %(job_states)s, %(queue_names)s'
+                      % {
+                          "job_ids": len(job_ids),
+                          "usernames": len(usernames),
+                          "job_states": len(job_states),
+                          "queue_names": len(queue_names)
+                      }
+                      )
+        return job_ids, usernames, job_states, queue_names
+
+    def extract_job_info(self, elem, elem_text):
+        """
+        inside elem, iterates over subelems named elem_text and extracts relevant job information
+        TODO: check difference between extract_job_info and _extract_job_info
+        """
+        job_ids, usernames, job_states = [], [], []
+        for subelem in elem.findall(elem_text):
+            job_ids.append(subelem.find('./JB_job_number').text)
+            usernames.append(subelem.find('./JB_owner').text)
+            job_states.append(subelem.find('./state').text)
+        return job_ids, usernames, job_states

@@ -26,12 +26,50 @@ class PBSBatchSystem(GenericBatchSystem):
         self.qstat_maker = QStatMaker(self.config)
 
     def convert_inputs(self):
-        self._serialise_pbs_input(self.pbsnodes_file, self.pbsnodes_file_out)
+        # self._serialise_pbs_input(self.pbsnodes_file, self.pbsnodes_file_out)
         self._serialise_qstatq(self.qstatq_file, self.qstatq_file_out)
         self._serialise_qstat(self.qstat_file, self.qstat_file_out)
 
     def get_worker_nodes(self):
-        return self._read_serialised_pbsnodes(self.pbsnodes_file_out)
+        try:
+            check_empty_file(self.pbsnodes_file)
+        except FileEmptyError:
+            all_pbs_values = []
+            return all_pbs_values
+
+        raw_blocks = self._read_all_blocks(self.pbsnodes_file)
+        all_pbs_values = []
+        anonymize = anonymize_func()
+        for block in raw_blocks:
+            pbs_values = dict()
+            pbs_values['domainname'] = block['domainname'] if not options.ANONYMIZE else anonymize(block['domainname'], 'wns')
+
+            nextchar = block['state'][0]
+            state = (nextchar == 'f') and "-" or nextchar
+
+            pbs_values['state'] = state
+            try:
+                pbs_values['np'] = block['np']
+            except KeyError:
+                pbs_values['np'] = block['pcpus']  # handle torque cases  # todo : to check
+
+            if block.get('gpus') > 0:  # this should be rare.
+                pbs_values['gpus'] = block['gpus']
+            try:  # this should turn up more often, hence the try/except.
+                _ = block['jobs']
+            except KeyError:
+                pass
+            else:
+                pbs_values['core_job_map'] = []
+                jobs = block['jobs'].split(',')
+                for job, core in self._get_jobs_cores(jobs):
+                    _d = dict()
+                    _d['job'] = job
+                    _d['core'] = core
+                    pbs_values['core_job_map'].append(_d)
+            finally:
+                all_pbs_values.append(pbs_values)
+        return all_pbs_values
 
     def get_jobs_info(self):
         return GenericBatchSystem.get_jobs_info(self, self.qstat_file_out)
@@ -39,17 +77,17 @@ class PBSBatchSystem(GenericBatchSystem):
     def get_queues_info(self):
         return self._read_serialised_qstatq(self.qstatq_file_out)
 
-    def _serialise_pbs_input(self, orig_file, out_file, write_method=options.write_method):
-        """
-        reads PBSNODES_ORIG_FN sequentially and puts its information into a new yaml file
-        """
-        all_pbs_values = self._get_pbsnodes_values(orig_file, out_file)
-
-        with open(out_file, 'w') as fout:
-            if write_method == 'txtyaml':
-                self._pbsnodes_write_lines(all_pbs_values, fout)
-            elif write_method == 'json':
-                json.dump(all_pbs_values, fout)
+    # def _serialise_pbs_input(self, orig_file, out_file, write_method=options.write_method):
+    #     """
+    #     reads PBSNODES_ORIG_FN sequentially and puts its information into a new yaml file
+    #     """
+    #     all_pbs_values = self._get_pbsnodes_values(orig_file, out_file)
+    #
+    #     with open(out_file, 'w') as fout:
+    #         if write_method == 'txtyaml':
+    #             self._pbsnodes_write_lines(all_pbs_values, fout)
+    #         elif write_method == 'json':
+    #             json.dump(all_pbs_values, fout)
 
     def _serialise_qstatq(self, qstatq_file, qstatq_file_out, write_method=options.write_method):
         return self.qstat_maker.serialise_qstatq(qstatq_file, qstatq_file_out, write_method)  # TODO FIX ASAP
@@ -100,47 +138,6 @@ class PBSBatchSystem(GenericBatchSystem):
 
         # logging.critical('total is: %s' % qstatqs_total[-1:])
         return int(eval(str(total_running_jobs))), int(eval(str(total_queued_jobs))), qstatq_list
-
-    def _get_pbsnodes_values(self, orig_file, out_file):
-        try:
-            check_empty_file(orig_file)
-        except FileEmptyError:
-            all_pbs_values = []
-            return all_pbs_values
-
-        raw_blocks = self._read_all_blocks(orig_file)
-        all_pbs_values = []
-        anonymize = anonymize_func()
-        for block in raw_blocks:
-            pbs_values = dict()
-            pbs_values['domainname'] = block['domainname'] if not options.ANONYMIZE else anonymize(block['domainname'], 'wns')
-
-            nextchar = block['state'][0]
-            state = (nextchar == 'f') and "-" or nextchar
-
-            pbs_values['state'] = state
-            try:
-                pbs_values['np'] = block['np']
-            except KeyError:
-                pbs_values['np'] = block['pcpus']  # handle torque cases  # todo : to check
-
-            if block.get('gpus') > 0:  # this should be rare.
-                pbs_values['gpus'] = block['gpus']
-            try:  # this should turn up more often, hence the try/except.
-                _ = block['jobs']
-            except KeyError:
-                pass
-            else:
-                pbs_values['core_job_map'] = []
-                jobs = block['jobs'].split(',')
-                for job, core in self._get_jobs_cores(jobs):
-                    _d = dict()
-                    _d['job'] = job
-                    _d['core'] = core
-                    pbs_values['core_job_map'].append(_d)
-            finally:
-                all_pbs_values.append(pbs_values)
-        return all_pbs_values
 
     def _pbsnodes_write_lines(self, l, fout):
         for _block in l:

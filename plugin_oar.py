@@ -20,7 +20,7 @@ class OarStatMaker(QStatMaker):
                              r'(?P<job_state>[RWF])\s+' \
                              r'(?P<queue>default|besteffort)'
 
-    def serialise_qstat(self, orig_file, out_file, write_method):
+    def get_qstat(self, orig_file):
         all_values = list()
         with open(orig_file, 'r') as fin:
             logging.debug('File state before OarStatMaker.serialise_qstat: %(fin)s' % {"fin": fin})
@@ -32,8 +32,9 @@ class OarStatMaker(QStatMaker):
                 qstat_values = self._process_line(re_search, line, re_match_positions)
                 all_values.append(qstat_values)
 
-        logging.debug('File state after OarStatMaker.serialise_qstat: %(fin)s' % {"fin": fin})
-        self.dump_all(all_values, out_file, write_method)
+        # logging.debug('File state after OarStatMaker.serialise_qstat: %(fin)s' % {"fin": fin})
+        # self.dump_all(all_values, out_file, write_method)
+        return all_values
 
 
 class OARBatchSystem(GenericBatchSystem):
@@ -47,30 +48,13 @@ class OARBatchSystem(GenericBatchSystem):
         self.oar_stat_maker = OarStatMaker(self.config)
 
     def convert_inputs(self):
-        return self._serialise_qstat()
+        pass
+        # return self.oar_stat_maker.serialise_qstat(self.oarstat_file, self.oarstat_file_out, options.write_method)
 
     def get_worker_nodes(self):
-        return self._get_worker_nodes(self.oarnodes_s_file, self.oarnodes_y_file)
-
-    def get_jobs_info(self):
-        return GenericBatchSystem.get_jobs_info(self, self.oarstat_file_out)
-
-    def get_queues_info(self):
-        """
-        OAR does not provide this info.
-        """
-        total_running_jobs = 0
-        total_queued_jobs = 0
-        qstatq_lod = []
-        return total_running_jobs, total_queued_jobs, qstatq_lod
-
-    def _serialise_qstat(self):
-        return self.oar_stat_maker.serialise_qstat(self.oarstat_file, self.oarstat_file_out, options.write_method)
-
-    def _get_worker_nodes(self, fn_s, fn_y, write_method=options.write_method):
-        # ex def read_oarnodes_yaml(fn_s, fn_y, write_method):
-        nodes_resids = self._read_oarnodes_s_yaml(fn_s, write_method)
-        resids_jobs = self._read_oarnodes_y_textyaml(fn_y)
+        # ex read_oarnodes_yaml(fn_s, fn_y, write_method)
+        nodes_resids = self._read_oarnodes_s_yaml(self.oarnodes_s_file)
+        resids_jobs = self._read_oarnodes_y_textyaml(self.oarnodes_y_file)
 
         nodes_jobs = {}
         for node in nodes_resids:
@@ -95,7 +79,37 @@ class OARBatchSystem(GenericBatchSystem):
         logging.info('worker_nodes contains %s entries' % len(worker_nodes))
         return worker_nodes
 
-    def _read_oarnodes_s_yaml(self, fn_s, write_method=options.write_method):  # todo: fix write_method not being used
+    def get_jobs_info(self):
+        job_ids, usernames, job_states, queue_names = [], [], [], []
+        qstats = self.oar_stat_maker.get_qstat(self.oarstat_file)
+        # TODO: clumsily glued, should be more naturally connected
+        for qstat in qstats:
+            job_ids.append(str(qstat['JobId']))
+            usernames.append(qstat['UnixAccount'])
+            job_states.append(qstat['S'])
+            queue_names.append(qstat['Queue'])
+
+        logging.debug('job_ids, usernames, job_states, queue_names lengths: '
+                      '%(job_ids)s, %(usernames)s, %(job_states)s, %(queue_names)s'
+                      % {
+                          "job_ids": len(job_ids),
+                          "usernames": len(usernames),
+                          "job_states": len(job_states),
+                          "queue_names": len(queue_names)
+                      }
+                      )
+        return job_ids, usernames, job_states, queue_names
+
+    def get_queues_info(self):
+        """
+        OAR does not provide this info.
+        """
+        total_running_jobs = 0
+        total_queued_jobs = 0
+        qstatq_lod = []
+        return total_running_jobs, total_queued_jobs, qstatq_lod
+
+    def _read_oarnodes_s_yaml(self, fn_s):  # todo: fix write_method not being used
         assert os.path.isfile(fn_s)
         anonymize = anonymize_func()
         logging.debug('File %s exists: %s' % (fn_s, os.path.isfile(fn_s)))
