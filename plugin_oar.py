@@ -23,7 +23,7 @@ class OarStatMaker(QStatMaker):
     def get_qstat(self, orig_file):
         all_values = list()
         with open(orig_file, 'r') as fin:
-            logging.debug('File state before OarStatMaker.serialise_qstat: %(fin)s' % {"fin": fin})
+            logging.debug('File state before OarStatMaker.get_qstat: %(fin)s' % {"fin": fin})
             _ = fin.readline()  # header
             fin.readline()  # dashes
             re_match_positions = ('job_id', 'user', 'job_state', 'queue')
@@ -32,8 +32,6 @@ class OarStatMaker(QStatMaker):
                 qstat_values = self._process_line(re_search, line, re_match_positions)
                 all_values.append(qstat_values)
 
-        # logging.debug('File state after OarStatMaker.serialise_qstat: %(fin)s' % {"fin": fin})
-        # self.dump_all(all_values, out_file, write_method)
         return all_values
 
 
@@ -46,10 +44,6 @@ class OARBatchSystem(GenericBatchSystem):
 
         self.config = config
         self.oar_stat_maker = OarStatMaker(self.config)
-
-    def convert_inputs(self):
-        pass
-        # return self.oar_stat_maker.serialise_qstat(self.oarstat_file, self.oarstat_file_out, options.write_method)
 
     def get_worker_nodes(self):
         # ex read_oarnodes_yaml(fn_s, fn_y, write_method)
@@ -111,7 +105,7 @@ class OARBatchSystem(GenericBatchSystem):
 
     def _read_oarnodes_s_yaml(self, fn_s):  # todo: fix write_method not being used
         assert os.path.isfile(fn_s)
-        anonymize = anonymize_func()
+        anonymize = self.oar_stat_maker.anonymize_func()
         logging.debug('File %s exists: %s' % (fn_s, os.path.isfile(fn_s)))
         try:
             assert os.stat(fn_s).st_size != 0

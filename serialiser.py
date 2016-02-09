@@ -16,48 +16,45 @@ class StatMaker:
 
     def __init__(self, config):
         self.config = config
-        self.anonymize = anonymize_func()
+        self.anonymize = self.anonymize_func()
 
-    @staticmethod
-    def stat_write_lines(values, fout):
-        for qstat_values in values:
-            fout.write('---\n')
-            fout.write('JobId: ' + qstat_values['JobId'] + '\n')
-            fout.write('UnixAccount: ' + qstat_values['UnixAccount'] + '\n')
-            fout.write('S: ' + qstat_values['S'] + '\n')  # job state
-            fout.write('Queue: ' + qstat_values['Queue'] + '\n')
-            fout.write('...\n')
-
-    @staticmethod
-    def statq_write_lines(all_qstatq_values, fout):
-        for qstatq_values in all_qstatq_values[:-1]:
-            fout.write('---\n')
-            fout.write('queue_name: ' + qstatq_values['queue_name'] + '\n')
-            fout.write('state: ' + qstatq_values['state'] + '\n')  # job state
-            fout.write('lm: ' + qstatq_values['lm'] + '\n')
-            fout.write('run: ' + qstatq_values['run'] + '\n')  # job state
-            fout.write('queued: ' + qstatq_values['queued'] + '\n')
-            fout.write('...\n')
-        try:
-            last_line = all_qstatq_values[-1]
-        except IndexError:  # all_qstatq_values is an empty list
-            pass
-        else:
-            fout.write('---\n')
-            fout.write('Total_queued: ' + '"' + last_line['Total_queued'] + '"' + '\n')
-            fout.write('Total_running: ' + '"' + last_line['Total_running'] + '"' + '\n')
-            fout.write('...\n')
-
-    def dump_all(self, values, out_file, write_method):
+    def anonymize_func(self):
         """
-        dumps the content of qstat/qstat_q files in the selected write_method format
+        creates and returns an _anonymize_func object (closure)
+        Anonymisation can be used by the user for providing feedback to the developers.
+        The logs and the output should no longer contain sensitive information about the clusters ran by the user.
         """
-        with open(out_file, 'w') as fout:
-            if write_method == 'txtyaml':
-                self.stat_write_lines(values, fout)
-            elif write_method == 'json':
-                json.dump(values, fout)
+        counters = {}
+        stored_dict = {}
+        for key in ['users', 'wns', 'qs']:
+            counters[key] = count()
 
+        maps = {
+            'users': '_anon_user_',
+            'wns': '_anon_wn_',
+            'qs': '_anon_q_'
+        }
+
+        def _anonymize_func(s, a_type):
+            """
+            d4-p4-04 --> d_anon_wn_0
+            d4-p4-05 --> d_anon_wn_1
+            biomed017--> b_anon_user_0
+            alice    --> a_anon_q_0
+            """
+            dup_counter = counters[a_type]
+
+            s_type = maps[a_type]
+            cnt = '0'
+            new_name_parts = [s[0], s_type, cnt]
+            if s not in stored_dict:
+                cnt = str(dup_counter.next())
+                new_name_parts.pop()
+                new_name_parts.append(cnt)
+            stored_dict.setdefault(s, (''.join(new_name_parts), s_type))
+            return stored_dict[s][0]
+
+        return _anonymize_func
 
 class QStatMaker(StatMaker):
     def __init__(self, config):
@@ -81,7 +78,7 @@ class QStatMaker(StatMaker):
                                    r'(?:\d+)\s+' \
                                    r'(?:\w*)'
 
-    def serialise_qstat(self, orig_file, out_file, write_method):
+    def get_qstat(self, orig_file):
         try:
             check_empty_file(orig_file)
         except FileEmptyError:
@@ -109,9 +106,9 @@ class QStatMaker(StatMaker):
                         qstat_values = self._process_line(re_search, line, re_match_positions)
                         all_qstat_values.append(qstat_values)
         finally:
-            self.dump_all(all_qstat_values, out_file, write_method)
+            return all_qstat_values
 
-    def serialise_qstatq(self, orig_file, out_file, write_method):
+    def serialise_qstatq(self, orig_file, out_file):
         """
         reads QSTATQ_ORIG_FN sequentially and puts useful data in respective yaml file
         Searches for lines in the following format:
@@ -165,17 +162,7 @@ class QStatMaker(StatMaker):
                         all_values.append(temp_dict)
                 all_values.append({'Total_running': total_running_jobs, 'Total_queued': total_queued_jobs})
         finally:
-            self.dump_statq(all_values, out_file, write_method)
-
-    def dump_statq(self, values, out_file, write_method):
-        """
-        dumps the content of qstat/qstat_q files in the selected write_method format
-        """
-        with open(out_file, 'w') as fout:
-            if write_method == 'txtyaml':
-                self.statq_write_lines(values, fout)
-            elif write_method == 'json':
-                json.dump(values, fout)
+            return all_values
 
     def _process_line(self, re_search, line, re_match_positions):
         qstat_values = dict()
@@ -196,28 +183,19 @@ class GenericBatchSystem(object):
     def __init__(self):
         pass
 
-    def convert_inputs(self):
-        raise NotImplementedError
-
     def get_queues_info(self):
         raise NotImplementedError
 
     def get_worker_nodes(self):
         raise NotImplementedError
 
-    def get_jobs_info(self, fn, write_method=options.write_method):
+    def get_jobs_info(self, qstats):
         """
         reads qstat YAML/json file and populates four lists. Returns the lists
         ex read_qstat_yaml
         Common for PBS, OAR, SGE
         """
         job_ids, usernames, job_states, queue_names = [], [], [], []
-
-        with open(fn) as fin:
-            if write_method.endswith('yaml'):
-                qstats = yaml.load_all(fin)
-            else:
-                qstats = json.load(fin)
 
         for qstat in qstats:
             job_ids.append(str(qstat['JobId']))

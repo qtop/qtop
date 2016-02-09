@@ -1715,7 +1715,6 @@ if __name__ == '__main__':
                 scheduling_system = scheduler_factory(scheduler, in_out_filenames, config)
 
                 if not options.YAML_EXISTS:
-                    scheduling_system.convert_inputs()
                     if options.SAMPLE >= 1:
                         [add_to_sample([in_out_filenames[fn]], savepath) for fn in in_out_filenames
                          if os.path.isfile(in_out_filenames[fn])]

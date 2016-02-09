@@ -7,7 +7,7 @@ except ImportError:
     import json
 from serialiser import *
 from xml.etree import ElementTree as etree
-from common_module import logging, check_empty_file, get_new_temp_file, options, anonymize_func
+from common_module import logging, check_empty_file, get_new_temp_file, options
 from constants import *
 
 
@@ -90,13 +90,10 @@ class SGEBatchSystem(GenericBatchSystem):
         self.config = config
         self.sge_stat_maker = SGEStatMaker(self.config)
 
-    def convert_inputs(self):
-        pass
-
     def get_queues_info(self):
         logging.debug("Parsing tree of %s" % self.sge_file_stat)
         check_empty_file(self.sge_file_stat)
-        anonymize = anonymize_func()
+        anonymize = self.sge_stat_maker.anonymize_func()
 
         with open(self.sge_file_stat, mode='rb') as fin:
             try:
@@ -178,7 +175,7 @@ class SGEBatchSystem(GenericBatchSystem):
 
     def get_worker_nodes(self):
         logging.debug('Parsing tree of %s' % self.sge_file_stat)
-        anonymize = anonymize_func()
+        anonymize = self.sge_stat_maker.anonymize_func()
 
         with open(self.sge_file_stat, 'rb') as fin:
             tree = etree.parse(fin)

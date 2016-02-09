@@ -165,45 +165,6 @@ options.REMAP = False  # Default value
 sys.excepthook = handle_exception
 
 
-def anonymize_func():
-    """
-    creates and returns an _anonymize_func object (closure)
-    Anonymisation can be used by the user for providing feedback to the developers.
-    The logs and the output should no longer contain sensitive information about the clusters ran by the user.
-    """
-    counters = {}
-    stored_dict = {}
-    for key in ['users', 'wns', 'qs']:
-        counters[key] = count()
-
-    maps = {
-        'users': '_anon_user_',
-        'wns': '_anon_wn_',
-        'qs': '_anon_q_'
-    }
-
-    def _anonymize_func(s, a_type):
-        """
-        d4-p4-04 --> d_anon_wn_0
-        d4-p4-05 --> d_anon_wn_1
-        biomed017--> b_anon_user_0
-        alice    --> a_anon_q_0
-        """
-        dup_counter = counters[a_type]
-
-        s_type = maps[a_type]
-        cnt = '0'
-        new_name_parts = [s[0], s_type, cnt]
-        if s not in stored_dict:
-            cnt = str(dup_counter.next())
-            new_name_parts.pop()
-            new_name_parts.append(cnt)
-        stored_dict.setdefault(s, (''.join(new_name_parts), s_type))
-        return stored_dict[s][0]
-
-    return _anonymize_func
-
-
 def add_to_sample(filepaths_to_add, savepath, sample_file=QTOP_SAMPLE_FILENAME, sample_method=tarfile, subdir=None):
     """
     opens sample_file in path savepath and adds files filepaths_to_add
