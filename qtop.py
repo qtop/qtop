@@ -141,12 +141,12 @@ def decide_remapping(cluster_dict, _all_letters, _all_str_digits_with_empties):
 
 def calculate_cluster(worker_nodes):
     if not worker_nodes:
-    	cluster_dict = dict()
-    	NAMED_WNS = 0
+        cluster_dict = dict()
+        NAMED_WNS = 0
         return cluster_dict, NAMED_WNS
 
     logging.debug('option FORCE_NAMES is: %s' % options.FORCE_NAMES)
-    NAMED_WNS = 1 if options.FORCE_NAMES else NAMED_WNS
+    NAMED_WNS = 1 if options.FORCE_NAMES else 0
 
     cluster_dict = dict.fromkeys(['working_cores', 'total_cores', 'max_np', 'highest_wn', 'offline_down_nodes'], 0)
     cluster_dict['node_subclusters'] = set()
