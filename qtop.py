@@ -513,8 +513,8 @@ def display_wnid_lines(start, stop, highest_wn, wn_vert_labels, **kwargs):
 
 def print_wnid_lines(d, start, stop, end_labels, transposed_matrices, color_func, args):
     if config['transpose_wn_matrices']:
-        tuple = [None, 'wnid_lines', transpose_matrix(d)]
-        transposed_matrices.append(tuple)
+        tuple_ = [None, 'wnid_lines', transpose_matrix(d)]
+        transposed_matrices.append(tuple_)
         return
 
     colors = iter(color_func(*args))
@@ -563,9 +563,10 @@ def print_mult_attr_line(print_char_start, print_char_stop, transposed_matrices,
     attr_lines can be e.g. Node state lines
     """
     if config['transpose_wn_matrices']:
-        tuple = [None, label, transpose_matrix(attr_lines)]
-        transposed_matrices.append(tuple)
+        tuple_ = [None, label, transpose_matrix(attr_lines)]
+        transposed_matrices.append(tuple_)
         return
+
     # TODO: fix option parameter, inserted for testing purposes
     for line in attr_lines:
         line = attr_lines[line][print_char_start:print_char_stop]
@@ -723,6 +724,7 @@ def print_core_lines(core_user_map, print_char_start, print_char_stop, transpose
         tuple_ = [None, 'core_map', transpose_matrix(core_user_map, colored=True)]
         transposed_matrices.append(tuple_)
         return
+
     for core_line in get_core_lines(core_user_map, print_char_start, print_char_stop, pattern_of_id, attrs):
         try:
             print core_line
@@ -1510,6 +1512,7 @@ class TextDisplay(object):
         if (not all([workernodes_occupancy, workernodes_occupancy.get('id_of_username', 0)])) or is_matrix_coreless(
                 workernodes_occupancy):
             return
+
         print_char_start = workernodes_occupancy['print_char_start']
         print_char_stop = workernodes_occupancy['print_char_stop']
         wn_vert_labels = workernodes_occupancy['wn_vert_labels']
