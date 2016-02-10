@@ -205,7 +205,8 @@ def calculate_cluster(worker_nodes):
         for node in range(1, cluster_dict['highest_wn'] + 1):
             if node not in cluster_dict['workernode_dict']:
                 cluster_dict['workernode_dict'][node] = {'state': '?', 'np': 0, 'domainname': 'N/A', 'host': 'N/A'}
-                default_values_for_empty_nodes = dict([(yaml_key, '?') for yaml_key, part_name in get_yaml_key_part('workernodes_matrix')])
+                default_values_for_empty_nodes = dict([(yaml_key, '?') for yaml_key, part_name, _ in get_yaml_key_part(
+                    outermost_key='workernodes_matrix')])
                 cluster_dict['workernode_dict'][node].update(default_values_for_empty_nodes)
 
     do_name_remapping(cluster_dict)
@@ -603,7 +604,7 @@ def calc_general_multiline_attr(cluster_dict, part_name, yaml_key):  # NEW
         multiline_map[attr_line] = ''.join(multiline_map[attr_line])
         if line == user_max_len:
             break
-
+    # import wdb; wdb.set_trace()  # scheduler in part_options['systems']
     return multiline_map
 
 
@@ -620,20 +621,22 @@ def transpose_matrix(d, colored=False, reverse=False):
             yield tuple
 
 
-def get_yaml_key_part(major_key):
+def get_yaml_key_part(outermost_key):
     """
-    only return the list items of the yaml major_key if a yaml key subkey exists
+    only return the list items of the yaml outermost_key if a yaml key subkey exists
     (this signals a user-inserted value)
     """
-    # e.g. major_key = 'workernodes_matrix'
-    for part in config[major_key]:
+    # e.g. outermost_key = 'workernodes_matrix'
+    for part in config[outermost_key]:
         part_name = [i for i in part][0]
         part_options = part[part_name]
         # label = part_options.get('label')
         # part_nr_lines = int(part_options['max_len'])
         yaml_key = part_options.get('yaml_key')
+        # if no systems line exists, all systems are supported, and thus the current
+        systems = fix_config_list(part_options.get('systems', [scheduler]))
         if yaml_key:
-            yield yaml_key, part_name
+            yield yaml_key, part_name, systems
 
 
 def calculate_wn_occupancy(cluster_dict, document):
@@ -659,8 +662,9 @@ def calculate_wn_occupancy(cluster_dict, document):
 
     # For-loop below only for user-inserted/customizeable values.
     # e.g. wns_occupancy['node_state'] = ...workernode_dict[node]['state'] for node in workernode_dict...
-    for yaml_key, part_name in get_yaml_key_part('workernodes_matrix'):
-        wns_occupancy[part_name] = calc_general_multiline_attr(cluster_dict, part_name, yaml_key)
+    for yaml_key, part_name, systems in get_yaml_key_part(outermost_key='workernodes_matrix'):
+        if scheduler in systems:
+            wns_occupancy[part_name] = calc_general_multiline_attr(cluster_dict, part_name, yaml_key)
 
     calc_core_userid_matrix(cluster_dict, wns_occupancy, job_ids, user_names)  # core user map
     return wns_occupancy, cluster_dict
@@ -1418,7 +1422,6 @@ class TextDisplay(object):
         """
         occupancy_parts needs to be redefined for each matrix, because of changed parameter values
         """
-        # global transposed_matrices
         if (not all([workernodes_occupancy, workernodes_occupancy.get('id_of_username', 0)])) or is_matrix_coreless(
                 workernodes_occupancy):
             return
@@ -1446,7 +1449,9 @@ class TextDisplay(object):
         }
 
         # custom part
-        for yaml_key, part_name in get_yaml_key_part('workernodes_matrix'):
+        for yaml_key, part_name, systems in get_yaml_key_part(outermost_key='workernodes_matrix'):
+            # import wdb; wdb.set_trace()
+            if scheduler not in systems: continue
             new_occupancy_part = {
                 part_name:
                     (
@@ -1459,7 +1464,10 @@ class TextDisplay(object):
 
         for part_dict in config['workernodes_matrix']:
             part = [k for k in part_dict][0]
-            occupancy_parts[part][2].update(part_dict[part])  # get extra options from user
+            key_vals = part_dict[part]
+            if scheduler not in fix_config_list(key_vals.get('systems',[scheduler])):
+                continue
+            occupancy_parts[part][2].update(key_vals)  # get extra options from user
             fn, args, kwargs = occupancy_parts[part][0], occupancy_parts[part][1], occupancy_parts[part][2]
             fn(*args, **kwargs)
 
