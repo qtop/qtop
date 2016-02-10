@@ -468,9 +468,9 @@ def find_matrices_width(wns_occupancy, cluster_dict, DEADWEIGHT=11):
     else:
         raise (NotImplementedError, "Not foreseen")
 
-    if USER_CUT_MATRIX_WIDTH:  # if the user defines a custom cut (in the configuration file)
-        stop = start + USER_CUT_MATRIX_WIDTH
-        wns_occupancy['extra_matrices_nr'] = wn_number / USER_CUT_MATRIX_WIDTH
+    if config['USER_CUT_MATRIX_WIDTH']:  # if the user defines a custom cut (in the configuration file)
+        stop = start + config['USER_CUT_MATRIX_WIDTH']
+        wns_occupancy['extra_matrices_nr'] = wn_number / config['USER_CUT_MATRIX_WIDTH']
     elif extra_matrices_nr:  # if more matrices are needed due to lack of space, cut every matrix so that if fits to screen
         stop = start + term_columns - DEADWEIGHT
         wns_occupancy['extra_matrices_nr'] = extra_matrices_nr
@@ -490,7 +490,7 @@ def print_wnid_lines(d, start, stop, end_labels, transposed_matrices, color_func
 
     colors = iter(color_func(*args))
     for line_nr, end_label, color in zip(d, end_labels, colors):
-        wn_id_str = insert_separators(d[line_nr][start:stop], SEPARATOR, config['vertical_separator_every_X_columns'])
+        wn_id_str = insert_separators(d[line_nr][start:stop], config['SEPARATOR'], config['vertical_separator_every_X_columns'])
         wn_id_str = ''.join([colorize(elem, color) for elem in wn_id_str])
         print wn_id_str + end_label
 
@@ -525,7 +525,7 @@ def print_mult_attr_line(print_char_start, print_char_stop, transposed_matrices,
     for line in attr_lines:
         line = attr_lines[line][print_char_start:print_char_stop]
         # TODO: maybe put attr_line and label as kwd arguments? collect them as **kwargs
-        attr_line = insert_separators(line, SEPARATOR, config['vertical_separator_every_X_columns'])
+        attr_line = insert_separators(line, config['SEPARATOR'], config['vertical_separator_every_X_columns'])
         attr_line = ''.join([colorize(char, color_func) for char in attr_line])
         print attr_line + "=" + label
 
@@ -544,7 +544,7 @@ def get_core_lines(core_user_map, print_char_start, print_char_stop, pattern_of_
                 (config['non_existent_node_symbol'] * (len(cpu_core_line)) == cpu_core_line)
             ):
             continue
-        cpu_core_line = insert_separators(cpu_core_line, SEPARATOR, config['vertical_separator_every_X_columns'])
+        cpu_core_line = insert_separators(cpu_core_line, config['SEPARATOR'], config['vertical_separator_every_X_columns'])
         cpu_core_line = ''.join([colorize(elem, '', pattern_of_id[elem]) for elem in cpu_core_line if elem in pattern_of_id])
         yield cpu_core_line + colorize('=Core' + str(ind), '', 'account_not_colored')
 
@@ -692,7 +692,7 @@ def make_pattern_of_id(wns_occupancy):
 
     pattern_of_id[config['non_existent_node_symbol']] = '#'
     pattern_of_id['_'] = '_'
-    pattern_of_id[SEPARATOR] = 'account_not_colored'
+    pattern_of_id[config['SEPARATOR']] = 'account_not_colored'
     wns_occupancy['pattern_of_id'] = pattern_of_id
 
 
@@ -774,7 +774,9 @@ def load_yaml_config():
     for key in ['transpose_wn_matrices', 'fill_with_user_firstletter', 'faster_xml_parsing', 'vertical_separator_every_X_columns']:
         config[key] = eval(config[key])  # TODO config should not be writeable!!
     config['sorting']['reverse'] = eval(config['sorting']['reverse'])  # TODO config should not be writeable!!
-
+    config['ALT_LABEL_COLORS'] = fix_config_list(config['workernodes_matrix'][0]['wn id lines']['alt_label_colors'])
+    config['SEPARATOR'] = config['vertical_separator'].translate(None, "'")
+    config['USER_CUT_MATRIX_WIDTH'] = int(config['workernodes_matrix'][0]['wn id lines']['user_cut_matrix_width'])
     return config
 
 
@@ -1429,7 +1431,7 @@ class TextDisplay(object):
                 colorize(str(alljobs), '', account),
                 colorize(user, '', account),
                 colorize(detail_of_name.get(user, ''), '', account),
-                sep=colorize(SEPARATOR, '', account),
+                sep=colorize(config['SEPARATOR'], '', account),
                 width2=2 + extra_width,
                 width3=3 + extra_width,
                 width4=4 + extra_width,
@@ -1521,8 +1523,8 @@ class TextDisplay(object):
         # need node_state, temp
         for matrix in range(extra_matrices_nr):
             wn_occupancy['print_char_start'] = wn_occupancy['print_char_stop']
-            if USER_CUT_MATRIX_WIDTH:
-                wn_occupancy['print_char_stop'] += USER_CUT_MATRIX_WIDTH
+            if config['USER_CUT_MATRIX_WIDTH']:
+                wn_occupancy['print_char_stop'] += config['USER_CUT_MATRIX_WIDTH']
             else:
                 wn_occupancy['print_char_stop'] += term_columns - DEADWEIGHT
             wn_occupancy['print_char_stop'] = min(wn_occupancy['print_char_stop'], cluster_dict['total_wn']) \
@@ -1590,7 +1592,7 @@ class TextDisplay(object):
 
             end_labels_iter = iter(end_labels[str(node_str_width)])
             print_wnid_lines(wn_vert_labels, start, stop, end_labels_iter, transposed_matrices,
-                             color_func=self.highlight_alternately, args=(ALT_LABEL_COLORS))
+                             color_func=self.highlight_alternately, args=(config['ALT_LABEL_COLORS']))
 
     def highlight_alternately(self, color_a, color_b):
         highlight = {0: color_a, 1: color_b}  # should obviously be customizable
@@ -1699,12 +1701,7 @@ if __name__ == '__main__':
                 config = load_yaml_config()
                 config = update_config_with_cmdline_vars(options, config)
                 attempt_faster_xml_parsing(config)
-
                 viewport.set_term_size(*calculate_split_screen_size(config))  # After here, config is *logically* immutable
-
-                SEPARATOR = config['vertical_separator'].translate(None, "'")
-                USER_CUT_MATRIX_WIDTH = int(config['workernodes_matrix'][0]['wn id lines']['user_cut_matrix_width'])
-                ALT_LABEL_COLORS = fix_config_list(config['workernodes_matrix'][0]['wn id lines']['alt_label_colors'])
                 options = init_dirs(options)
 
                 scheduler = decide_batch_system(options.BATCH_SYSTEM, os.environ.get('QTOP_SCHEDULER'), config['scheduler'])
