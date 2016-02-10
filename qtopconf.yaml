@@ -190,7 +190,7 @@ workernodes_matrix:
        6: ['={_SPACE__}', '={__FOR___}', '={__SALE__}', '={_Worker_}', '={__Node__}', '={___ID___}']
        7: ['={__PLACE_}', '={__YOUR__}', '={_ADVERT_}', '={__HERE__}', '={_Worker_}', '={__Node__}', '={___ID___}']
      # native yaml parser: two consecutive unindents are not allowed. Must have an unindented key-value after nested keys:
-     alt_label_highlight_colors: [White, Blue_L]
+     alt_label_colors: [White, Blue_L]
 # - temperature:
 #     yaml key: temperature  # how it's found in the yaml file
 #     label: Temperature (C)  # how to label it on the qtop matrix

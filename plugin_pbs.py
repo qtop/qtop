@@ -1,16 +1,9 @@
-import re
-import sys
-import os
 try:
     import ujson as json
 except ImportError:
     import json
-
-import yaml_parser as yaml
-from constants import *
 from serialiser import *
-from common_module import logging, check_empty_file, options, add_to_sample
-import common_module
+from common_module import check_empty_file, options
 
 
 class PBSBatchSystem(GenericBatchSystem):
@@ -23,7 +16,7 @@ class PBSBatchSystem(GenericBatchSystem):
         self.qstatq_file_out = in_out_filenames.get('qstatq_file_out')
 
         self.config = config
-        self.qstat_maker = QStatMaker(self.config)
+        self.qstat_maker = QStatExtractor(self.config)
 
     def get_worker_nodes(self):
         try:
@@ -71,29 +64,13 @@ class PBSBatchSystem(GenericBatchSystem):
         return GenericBatchSystem.get_jobs_info(self, qstats)
 
     def get_queues_info(self):
-        return self._read_serialised_qstatq(self.qstatq_file_out)
-
-    def _serialise_qstatq(self, qstatq_file, qstatq_file_out, write_method=options.write_method):
-        return self.qstat_maker.serialise_qstatq(qstatq_file, qstatq_file_out, write_method)  # TODO FIX ASAP
-
-    def _serialise_qstat(self, qstat_file, qstat_file_out, write_method=options.write_method):
-        all_qstat_values = self.qstat_maker.get_qstat(qstat_file, qstat_file_out, write_method)  # TODO FIX ASAP
-        return all_qstat_values
-
-    @staticmethod
-    def _read_serialised_qstatq( fn, write_method=options.write_method):
         """
         Parses the generated qstatq yaml/json file and extracts
         the information necessary for building the
         user accounts and pool mappings table.
         """
         qstatq_list = []
-        logging.debug("Opening %s" % fn)
-        with open(fn, 'r') as fin:
-            if write_method.endswith('yaml'):
-                qstatqs_total = yaml.load_all(fin)
-            else:
-                qstatqs_total = json.load(fin)
+        qstatqs_total = self.qstat_maker.extract_qstatq(self.qstatq_file)
 
         for qstatq in qstatqs_total[:-1]:
             qstatq_list.append(qstatq)
@@ -103,31 +80,7 @@ class PBSBatchSystem(GenericBatchSystem):
         else:
             total_running_jobs, total_queued_jobs = 0, 0
 
-        # logging.critical('total is: %s' % qstatqs_total[-1:])
         return int(eval(str(total_running_jobs))), int(eval(str(total_queued_jobs))), qstatq_list
-
-    def _pbsnodes_write_lines(self, l, fout):
-        for _block in l:
-            fout.write('---\n')
-            fout.write('domainname: ' + _block['domainname'] + '\n')
-            fout.write('state: ' + _block['state'] + '\n')
-            fout.write('np: ' + _block['np'] + '\n')
-            if _block.get('gpus') > 0:
-                fout.write('gpus: ' + _block['gpus'] + '\n')
-            try:  # this should turn up more often, hence the try/except.
-                core_job_map = _block['core_job_map']
-            except KeyError:
-                pass
-            else:
-                self._write_jobs_cores(core_job_map, fout)
-            fout.write('...\n')
-
-    @staticmethod
-    def _write_jobs_cores(job_cores, fout):
-        fout.write('core_job_map: \n')
-        for job_core in job_cores:
-            fout.write('  - core: ' + job_core['core'] + '\n')
-            fout.write('    job: ' + job_core['job'] + '\n')
 
     @staticmethod
     def _get_jobs_cores(jobs):  # block['jobs']

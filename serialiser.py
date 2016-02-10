@@ -8,7 +8,7 @@ except ImportError:
 from common_module import *
 
 
-class StatMaker:
+class StatExtractor:
     """
     Converts to yaml/json some of the input files
     coming from PBS, OAR, SGE Batch systems
@@ -57,9 +57,9 @@ class StatMaker:
         return _anonymize_func
 
 
-class QStatMaker(StatMaker):
+class QStatExtractor(StatExtractor):
     def __init__(self, config):
-        StatMaker.__init__(self, config)
+        StatExtractor.__init__(self, config)
         self.user_q_search = r'^(?P<host_name>(?P<job_id>[0-9-]+)\.(?P<domain>[\w-]+))\s+' \
                              r'(?P<name>[\w%.=+/-]+)\s+' \
                              r'(?P<user>[A-Za-z0-9.]+)\s+' \
@@ -109,9 +109,9 @@ class QStatMaker(StatMaker):
         finally:
             return all_qstat_values
 
-    def serialise_qstatq(self, orig_file, out_file):
+    def extract_qstatq(self, orig_file):
         """
-        reads QSTATQ_ORIG_FN sequentially and puts useful data in respective yaml file
+        reads QSTATQ_ORIG_FN sequentially and returns useful data
         Searches for lines in the following format:
         biomed             --      --    72:00:00   --   31   0 --   E R
         (except for the last line, which contains two sums and is parsed separately)

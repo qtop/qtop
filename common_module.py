@@ -101,8 +101,6 @@ parser.add_option("-W", "--writemethod", dest="write_method", action="store", de
                   help="Set the method used for dumping information, json, yaml, or native python (yaml format)")
 parser.add_option("-w", "--watch", dest="WATCH", action="store_true", default=False,
                   help="Mimic shell's watch behaviour")
-parser.add_option("-y", "--readexistingyaml", action="store_true", dest="YAML_EXISTS", default=False,
-                  help="Do not remake yaml input files, read from the existing ones")
 # TODO: implement this!
 # parser.add_option("-z", "--quiet", action="store_false", dest="verbose", default=True,
 #                   help="Don't print status messages to stdout. Not doing anything at the moment.")

@@ -1,22 +1,19 @@
 __author__ = 'sfranky'
-import tarfile
-import os
 try:
     import ujson as json
 except ImportError:
     import json
 from serialiser import *
 from xml.etree import ElementTree as etree
-from common_module import logging, check_empty_file, get_new_temp_file, options
+from common_module import logging, check_empty_file, options
 from constants import *
 
 
-class SGEStatMaker(StatMaker):
+class SGEStatExtractor(StatExtractor):
     def __init__(self, config):
-        StatMaker.__init__(self, config)
+        StatExtractor.__init__(self, config)
 
-    def get_qstat(self, orig_file, out_file, write_method):
-        out_file = out_file.rsplit('/', 1)[1]
+    def get_qstat(self, orig_file):
         all_values = list()
         try:
             tree = etree.parse(orig_file)
@@ -54,11 +51,6 @@ class SGEStatMaker(StatMaker):
             except ValueError:
                 logging.info('No jobs found in XML file!')
 
-        prefix, suffix = out_file.split('.')
-        prefix += '_'
-        suffix = '.' + suffix
-        SGEStatMaker.fd, SGEStatMaker.temp_filepath = get_new_temp_file(prefix=prefix, suffix=suffix, config=self.config)
-
         if options.SAMPLE >= 1:
             tree.write(orig_file)  # TODO anonymize rest of the sensitive information within xml file
         return all_values
@@ -85,10 +77,8 @@ class SGEStatMaker(StatMaker):
 class SGEBatchSystem(GenericBatchSystem):
     def __init__(self, in_out_filenames, config):
         self.sge_file_stat = in_out_filenames.get('sge_file_stat')
-        self.sge_file_stat_out = in_out_filenames.get('sge_file_stat_out')
-        # self.temp_filepath = SGEStatMaker.temp_filepath
         self.config = config
-        self.sge_stat_maker = SGEStatMaker(self.config)
+        self.sge_stat_maker = SGEStatExtractor(self.config)
 
     def get_queues_info(self):
         logging.debug("Parsing tree of %s" % self.sge_file_stat)
@@ -253,7 +243,7 @@ class SGEBatchSystem(GenericBatchSystem):
     def get_jobs_info(self):
         job_ids, usernames, job_states, queue_names = [], [], [], []
 
-        all_values = self.sge_stat_maker.get_qstat(self.sge_file_stat, self.sge_file_stat_out, options.write_method)
+        all_values = self.sge_stat_maker.get_qstat(self.sge_file_stat)
         # TODO: needs better glueing
         for qstat in all_values:
             job_ids.append(str(qstat['JobId']))

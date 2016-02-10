@@ -1125,20 +1125,20 @@ def check_python_version():
         sys.exit(1)
 
 
-def remove_stale_yaml_files():
-    """
-    deletes older yaml files in savepath directory.
-    experimental and loosely untested
-    """
-    time_alive = int(config['auto_delete_old_yaml_files_after_few_hours'])
-    user_selected_save_path = realpath(expandvars(config['savepath']))
-    for f in os.listdir(user_selected_save_path):
-        if not f.endswith('yaml'):
-            continue
-        curpath = os.path.join(user_selected_save_path, f)
-        file_modified = datetime.datetime.fromtimestamp(getmtime(curpath))
-        if datetime.datetime.now() - file_modified > datetime.timedelta(hours=time_alive):
-            os.remove(curpath)
+# def remove_stale_yaml_files():
+#     """
+#     deletes older yaml files in savepath directory.
+#     experimental and loosely untested
+#     """
+#     time_alive = int(config['auto_delete_old_yaml_files_after_few_hours'])
+#     user_selected_save_path = realpath(expandvars(config['savepath']))
+#     for f in os.listdir(user_selected_save_path):
+#         if not f.endswith('yaml'):
+#             continue
+#         curpath = os.path.join(user_selected_save_path, f)
+#         file_modified = datetime.datetime.fromtimestamp(getmtime(curpath))
+#         if datetime.datetime.now() - file_modified > datetime.timedelta(hours=time_alive):
+#             os.remove(curpath)
 
 
 def control_movement(pressed_char_hex):
@@ -1590,7 +1590,7 @@ class TextDisplay(object):
 
             end_labels_iter = iter(end_labels[str(node_str_width)])
             print_wnid_lines(wn_vert_labels, start, stop, end_labels_iter, transposed_matrices,
-                             color_func=self.highlight_alternately, args=(ALT_LABEL_HIGHLIGHT_COLORS))
+                             color_func=self.highlight_alternately, args=(ALT_LABEL_COLORS))
 
     def highlight_alternately(self, color_a, color_b):
         highlight = {0: color_a, 1: color_b}  # should obviously be customizable
@@ -1702,9 +1702,9 @@ if __name__ == '__main__':
 
                 viewport.set_term_size(*calculate_split_screen_size(config))  # After here, config is *logically* immutable
 
-                SEPARATOR = config['vertical_separator'].translate(None, "'")  # alias
-                USER_CUT_MATRIX_WIDTH = int(config['workernodes_matrix'][0]['wn id lines']['user_cut_matrix_width'])  # alias
-                ALT_LABEL_HIGHLIGHT_COLORS = fix_config_list(config['workernodes_matrix'][0]['wn id lines']['alt_label_highlight_colors'])
+                SEPARATOR = config['vertical_separator'].translate(None, "'")
+                USER_CUT_MATRIX_WIDTH = int(config['workernodes_matrix'][0]['wn id lines']['user_cut_matrix_width'])
+                ALT_LABEL_COLORS = fix_config_list(config['workernodes_matrix'][0]['wn id lines']['alt_label_colors'])
                 options = init_dirs(options)
 
                 scheduler = decide_batch_system(options.BATCH_SYSTEM, os.environ.get('QTOP_SCHEDULER'), config['scheduler'])
@@ -1713,17 +1713,14 @@ if __name__ == '__main__':
 
                 scheduling_system = scheduler_factory(scheduler, in_out_filenames, config)
 
-                if not options.YAML_EXISTS:
-                    if options.SAMPLE >= 1:
-                        [add_to_sample([in_out_filenames[fn]], savepath) for fn in in_out_filenames
-                         if os.path.isfile(in_out_filenames[fn])]
+                if options.SAMPLE >= 1:
+                    [add_to_sample([in_out_filenames[fn]], savepath) for fn in in_out_filenames
+                     if os.path.isfile(in_out_filenames[fn])]
 
                 document = get_document(scheduling_system)
 
                 tf = tempfile.NamedTemporaryFile()  # Will become document member one day
                 document.save(tf.name)
-
-                remove_stale_yaml_files()
 
                 #  MAIN ##################################
                 cluster_dict, NAMED_WNS = calculate_cluster(document.worker_nodes)

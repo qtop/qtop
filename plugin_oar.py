@@ -1,5 +1,3 @@
-__author__ = 'sfranky'
-import os
 from serialiser import *
 from common_module import *
 import yaml_parser as yaml
@@ -9,9 +7,9 @@ except ImportError:
     from legacy.ordereddict import OrderedDict
 
 
-class OarStatMaker(QStatMaker):
+class OarStatExtractor(QStatExtractor):
     def __init__(self, config):
-        StatMaker.__init__(self, config)
+        StatExtractor.__init__(self, config)
         self.user_q_search = r'^(?P<job_id>[0-9]+)\s+' \
                              r'(?P<name>[0-9A-Za-z_.-]+)?\s+' \
                              r'(?P<user>[0-9A-Za-z_.-]+)\s+' \
@@ -23,7 +21,7 @@ class OarStatMaker(QStatMaker):
     def get_qstat(self, orig_file):
         all_values = list()
         with open(orig_file, 'r') as fin:
-            logging.debug('File state before OarStatMaker.get_qstat: %(fin)s' % {"fin": fin})
+            logging.debug('File state before OarStatExtractor.get_qstat: %(fin)s' % {"fin": fin})
             _ = fin.readline()  # header
             fin.readline()  # dashes
             re_match_positions = ('job_id', 'user', 'job_state', 'queue')
@@ -43,10 +41,9 @@ class OARBatchSystem(GenericBatchSystem):
         self.oarstat_file = in_out_filenames.get('oarstat_file')
 
         self.config = config
-        self.oar_stat_maker = OarStatMaker(self.config)
+        self.oar_stat_maker = OarStatExtractor(self.config)
 
     def get_worker_nodes(self):
-        # ex read_oarnodes_yaml(fn_s, fn_y, write_method)
         nodes_resids = self._read_oarnodes_s_yaml(self.oarnodes_s_file)
         resids_jobs = self._read_oarnodes_y_textyaml(self.oarnodes_y_file)
 
