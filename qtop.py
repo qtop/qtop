@@ -14,24 +14,21 @@ import select
 import os
 import json
 try:
-    from collections import namedtuple
+    from collections import namedtuple, OrderedDict
 except ImportError:
     from legacy.namedtuple import namedtuple
+    from legacy.ordereddict import OrderedDict
 from os import unlink, close
 from os.path import realpath, getmtime
-try:
-    from collections import OrderedDict
-except ImportError:
-    from legacy.ordereddict import OrderedDict
 from signal import signal, SIGPIPE, SIG_DFL
 import termios
 import contextlib
 import glob
 import tempfile
+from math import ceil
 from plugins.pbs import *
 from plugins.oar import *
 from plugins.sge import *
-from math import ceil
 from colormap import color_of_account, code_of_color
 from yaml_parser import read_yaml_natively, fix_config_list, convert_dash_key_in_dict
 from ui.viewport import Viewport
@@ -1709,7 +1706,7 @@ if __name__ == '__main__':
 
                 document = get_document(scheduling_system)
 
-                tf = tempfile.NamedTemporaryFile()  # Will become document member one day
+                tf = tempfile.NamedTemporaryFile(delete=False, dir=savepath)  # Will become document member one day
                 document.save(tf.name)
 
                 #  MAIN ##################################

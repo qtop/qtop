@@ -2,7 +2,7 @@ import logging
 import sys
 from sys import stdin, stdout
 from optparse import OptionParser
-from tempfile import mkstemp
+import tempfile
 import os
 from os.path import expandvars
 import tarfile
@@ -35,12 +35,15 @@ def check_empty_file(orig_file):
 
 
 def get_new_temp_file(suffix, prefix, config=None):  # **kwargs
+    """
+    Using mkstemp instead of NamedTemporaryFile because a file descriptor
+    is needed to redirect sys.stdout to.
+    """
     savepath = config['savepath'] if config else None
-    fd, temp_filepath = mkstemp(suffix=suffix, prefix=prefix, dir=savepath)  # **kwargs
+    fd, temp_filepath = tempfile.mkstemp(suffix=suffix, prefix=prefix, dir=savepath)  # **kwargs
     logging.debug('temp_filepath: %s' % temp_filepath)
     # out_file = os.fdopen(fd, 'w')
     return fd, temp_filepath
-    # return out_file
 
 
 def handle_exception(exc_type, exc_value, exc_traceback):
@@ -96,18 +99,20 @@ parser.add_option("-T", "--Transpose", dest="TRANSPOSE", action="store_true", de
                   help="Rotate matrices' positioning by 90 degrees")
 parser.add_option("-v", "--verbose", dest="verbose", action="count",
                   help="Increase verbosity (specify multiple times for more)")
-parser.add_option("-W", "--writemethod", dest="write_method", action="store", default="txtyaml",
-                  choices=['txtyaml', 'json'],
-                  help="Set the method used for dumping information, json, yaml, or native python (yaml format)")
+# TODO: dumping to intermediate yaml files has been deprecated.
+# It is now possible, instead, to dump an all-including python structure into a json file (the "document")
+# parser.add_option("-W", "--writemethod", dest="write_method", action="store", default="txtyaml",
+#                   choices=['json'],
+#                   help="Set the method used for dumping information, json, yaml, or native python (yaml format)")
 parser.add_option("-w", "--watch", dest="WATCH", action="store_true", default=False,
                   help="Mimic shell's watch behaviour")
 # TODO: implement this!
 # parser.add_option("-z", "--quiet", action="store_false", dest="verbose", default=True,
 #                   help="Don't print status messages to stdout. Not doing anything at the moment.")
 parser.add_option("-L", "--sample", action="count", dest="SAMPLE", default=False,
-                  help="Create a sample file. A single S creates a tarball with the log, scheduler output files, "
+                  help="Create a sample file. A single L creates a tarball with the log, scheduler output files, "
                        "qtop output. "
-                       "Two 's's additionaly include the qtop_conf yaml file, and qtop source.")
+                       "Two L's additionaly include the qtop_conf yaml file, and qtop source.")
 
 (options, args) = parser.parse_args()
 # log_level = logging.WARNING  # default

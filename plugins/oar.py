@@ -99,7 +99,7 @@ class OARBatchSystem(GenericBatchSystem):
         qstatq_lod = []
         return total_running_jobs, total_queued_jobs, qstatq_lod
 
-    def _read_oarnodes_s_yaml(self, fn_s):  # todo: fix write_method not being used
+    def _read_oarnodes_s_yaml(self, fn_s):
         assert os.path.isfile(fn_s)
         anonymize = self.oar_stat_maker.anonymize_func()
         logging.debug('File %s exists: %s' % (fn_s, os.path.isfile(fn_s)))
