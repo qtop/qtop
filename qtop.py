@@ -951,7 +951,7 @@ def exec_func_tuples(func_tuples):
         yield ffunc(*args, **kwargs)
 
 
-def finalize_filepaths_schedulercommands():
+def finalize_filepaths_schedulercommands(options, config):
     """
     returns a dictionary with contents of the form
     {fn : (filepath, schedulercommand)}, e.g.
@@ -1190,8 +1190,8 @@ def safe_exit_with_file_close(handle, name, stdout, delete_file=False):
     sys.exit(0)
 
 
-def prepare_files():
-    INPUT_FNs_commands = finalize_filepaths_schedulercommands()
+def fetch_scheduler_files(options, config):
+    INPUT_FNs_commands = finalize_filepaths_schedulercommands(options, config)
     scheduler_output_filenames = get_input_filenames(INPUT_FNs_commands)
     return scheduler_output_filenames
 
@@ -1631,9 +1631,21 @@ def init_dirs(options):
 
 
 def init_sample_file(options):
-    if options.SAMPLE >= 1:  # clears any preexisting tar files
+    """
+    If the user wants to give feedback to the developers for a bugfix via the -L cmdline switch,
+    this initialises a tar file, and adds:
+    * the scheduler output files (-L),
+    * and source files (-LL)
+    to the tar file
+    """
+    if options.SAMPLE >= 1:
+        # clears any preexisting tar files
         tar_out = tarfile.open(os.path.join(config['savepath'], QTOP_SAMPLE_FILENAME), mode='w')
         tar_out.close()
+        # add all scheduler output files to sample
+        [add_to_sample([scheduler_output_filenames[fn]], savepath) for fn in scheduler_output_filenames
+         if os.path.isfile(scheduler_output_filenames[fn])]
+
     if options.SAMPLE >= 2:
         add_to_sample([os.path.join(realpath(QTOPPATH), QTOPCONF_YAML)], savepath)
         source_files = glob.glob(os.path.join(realpath(QTOPPATH), '*.py'))
@@ -1668,14 +1680,10 @@ if __name__ == '__main__':
                 # After here, config is *logically* immutable
                 viewport.set_term_size(*calculate_term_size(config, FALLBACK_TERMSIZE))
                 scheduler = decide_batch_system(options.BATCH_SYSTEM, os.environ.get('QTOP_SCHEDULER'), config['scheduler'])
-                scheduler_output_filenames = prepare_files()
+                scheduler_output_filenames = fetch_scheduler_files(options, config)
                 init_sample_file(options)
 
                 scheduling_system = scheduler_factory(scheduler, scheduler_output_filenames, config)
-
-                if options.SAMPLE >= 1:
-                    [add_to_sample([scheduler_output_filenames[fn]], savepath) for fn in scheduler_output_filenames
-                     if os.path.isfile(scheduler_output_filenames[fn])]
 
                 document = get_document(scheduling_system)
 
@@ -1691,7 +1699,7 @@ if __name__ == '__main__':
 
                 sys.stdout.flush()
                 sys.stdout.close()
-                sys.stdout = stdout  # sys.stdout is back to its normal function (i.e. screen output)
+                sys.stdout = stdout  # sys.stdout is back to its normal function (i.e. prints to screen)
 
                 viewport.max_height, max_line_len = get_output_size(viewport.max_height, max_line_len, output_fp)
 
