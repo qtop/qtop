@@ -1110,7 +1110,7 @@ def check_python_version():
         sys.exit(1)
 
 
-def control_movement(pressed_char_hex):
+def control_movement(read_char):
     """
     Basic vi-like movement is implemented for the -w switch (linux watch-like behaviour for qtop).
     h, j, k, l for left, down, up, right, respectively.
@@ -1119,6 +1119,8 @@ def control_movement(pressed_char_hex):
     r resets the screen to its initial position (if you've drifted away from the vieweable part of a matrix).
     q quits qtop.
     """
+    pressed_char_hex = '%02x' % ord(read_char)  # read_char has an initial value that resets the display ('72')
+
     if pressed_char_hex in ['6a', '20']:  # j, spacebar
         logging.debug('v_start: %s' % viewport.v_start)
         if viewport.scroll_down():
@@ -1651,13 +1653,33 @@ def init_sample_file(options):
         source_files = glob.glob(os.path.join(realpath(QTOPPATH), '*.py'))
         add_to_sample(source_files, savepath, subdir='source')
 
+def wait_for_keypress_or_autorefresh():
+    """
+    This will make qtop wait for user input for a while,
+    otherwise it will auto-refresh the display
+    """
+    read_char = 'r'  # initial value, resets view position to beginning
+
+    while sys.stdin in select.select([sys.stdin], [], [], KEYPRESS_TIMEOUT)[0]:
+        read_char = sys.stdin.read(1)
+        if read_char:
+            logging.debug('Pressed %s' % read_char)
+            break
+    else:
+        state = viewport.get_term_size()
+        viewport.set_term_size(*calculate_term_size(config, FALLBACK_TERMSIZE))
+        new_state = viewport.get_term_size()
+        read_char = '\n' if (state == new_state) else 'r'
+        logging.debug("Auto-advancing by pressing <Enter>")
+
+    return read_char
+
 
 if __name__ == '__main__':
 
     stdout = sys.stdout  # keep a copy of the initial value of sys.stdout
 
     viewport = Viewport()  # controls the part of the qtop matrix shown on screen
-    read_char = 'r'  # initial value, resets view position to beginning
     max_line_len = 0
 
     check_python_version()
@@ -1713,23 +1735,11 @@ if __name__ == '__main__':
                     cat_command = print_y_lines_of_file_starting_from_x(file=output_fp, x=viewport.v_start, y=viewport.v_term_size)
                     _ = subprocess.call(cat_command, stdout=stdout, stderr=stdout, shell=True)
 
-                    # this will wait for user input for a while, otherwise it will auto-refresh the display
-                    while sys.stdin in select.select([sys.stdin], [], [], KEYPRESS_TIMEOUT)[0]:
-                        read_char = sys.stdin.read(1)
-                        if read_char:
-                            logging.debug('Pressed %s' % read_char)
-                            break
-                    else:
-                        state = viewport.get_term_size()
-                        viewport.set_term_size(*calculate_term_size(config, FALLBACK_TERMSIZE))
-                        new_state = viewport.get_term_size()
-                        read_char = '\n' if (state == new_state) else 'r'
-                        logging.debug("Auto-advancing by pressing <Enter>")
+                    read_char = wait_for_keypress_or_autorefresh()
+                    control_movement(read_char)
 
-                    pressed_char_hex = '%02x' % ord(read_char) # read_char has an initial value that resets the display ('72')
-                    control_movement(pressed_char_hex)
-                    os.chdir(QTOPPATH)
-                    unlink(output_fp)
+                os.chdir(QTOPPATH)
+                unlink(output_fp)
 
             if options.SAMPLE:
                 add_to_sample([output_fp], config['savepath'])
