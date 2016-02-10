@@ -18,10 +18,10 @@ class OarStatExtractor(StatExtractor):
                              r'(?P<job_state>[RWF])\s+' \
                              r'(?P<queue>default|besteffort)'
 
-    def get_qstat(self, orig_file):
+    def extract_qstat(self, orig_file):
         all_values = list()
         with open(orig_file, 'r') as fin:
-            logging.debug('File state before OarStatExtractor.get_qstat: %(fin)s' % {"fin": fin})
+            logging.debug('File state before OarStatExtractor.extract_qstat: %(fin)s' % {"fin": fin})
             _ = fin.readline()  # header
             fin.readline()  # dashes
             re_match_positions = ('job_id', 'user', 'job_state', 'queue')
@@ -71,7 +71,7 @@ class OARBatchSystem(GenericBatchSystem):
 
     def get_jobs_info(self):
         job_ids, usernames, job_states, queue_names = [], [], [], []
-        qstats = self.oar_stat_maker.get_qstat(self.oarstat_file)
+        qstats = self.oar_stat_maker.extract_qstat(self.oarstat_file)
         # TODO: clumsily glued, should be more naturally connected
         for qstat in qstats:
             job_ids.append(str(qstat['JobId']))

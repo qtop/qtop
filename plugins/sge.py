@@ -13,7 +13,7 @@ class SGEStatExtractor(StatExtractor):
     def __init__(self, config):
         StatExtractor.__init__(self, config)
 
-    def get_qstat(self, orig_file):
+    def extract_qstat(self, orig_file):
         all_values = list()
         try:
             tree = etree.parse(orig_file)
@@ -243,7 +243,7 @@ class SGEBatchSystem(GenericBatchSystem):
     def get_jobs_info(self):
         job_ids, usernames, job_states, queue_names = [], [], [], []
 
-        all_values = self.sge_stat_maker.get_qstat(self.sge_file_stat)
+        all_values = self.sge_stat_maker.extract_qstat(self.sge_file_stat)
         # TODO: needs better glueing
         for qstat in all_values:
             job_ids.append(str(qstat['JobId']))

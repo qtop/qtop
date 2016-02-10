@@ -6,7 +6,7 @@ from serialiser import *
 from common_module import check_empty_file, options
 
 
-class QStatExtractor(StatExtractor):
+class PBSStatExtractor(StatExtractor):
     def __init__(self, config):
         StatExtractor.__init__(self, config)
         self.user_q_search = r'^(?P<host_name>(?P<job_id>[0-9-]+)\.(?P<domain>[\w-]+))\s+' \
@@ -28,7 +28,7 @@ class QStatExtractor(StatExtractor):
                                    r'(?:\d+)\s+' \
                                    r'(?:\w*)'
 
-    def get_qstat(self, orig_file):
+    def extract_qstat(self, orig_file):
         try:
             check_empty_file(orig_file)
         except FileEmptyError:
@@ -122,7 +122,7 @@ class PBSBatchSystem(GenericBatchSystem):
         self.qstatq_file = scheduler_output_filenames.get('qstatq_file')
 
         self.config = config
-        self.qstat_maker = QStatExtractor(self.config)
+        self.qstat_maker = PBSStatExtractor(self.config)
 
     def get_worker_nodes(self):
         try:
@@ -173,7 +173,7 @@ class PBSBatchSystem(GenericBatchSystem):
         """
         job_ids, usernames, job_states, queue_names = [], [], [], []
 
-        qstats = self.qstat_maker.get_qstat(self.qstat_file)
+        qstats = self.qstat_maker.extract_qstat(self.qstat_file)
         for qstat in qstats:
             job_ids.append(str(qstat['JobId']))
             usernames.append(qstat['UnixAccount'])
