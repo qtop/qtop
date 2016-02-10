@@ -780,12 +780,11 @@ def load_yaml_config():
     return config
 
 
-def calculate_split_screen_size(config):
+def calculate_term_size(config, fallback_term_size):
     """
     If the workernode matrix has to be split into sub-matrices because of screen limitations,
     this will calculate the maximum size of each sub-matrix
     """
-    fallback_term_size = [53, 176]
     try:
         term_height, term_columns = os.popen('stty size', 'r').read().split()
     except ValueError:
@@ -796,8 +795,6 @@ def calculate_split_screen_size(config):
             try:
                 term_height, term_columns = fix_config_list(viewport.get_term_size())
             except KeyError:
-                # Bug... the following gets discarded
-                #config['term_size'] = fallback_term_size
                 term_height, term_columns = fallback_term_size
         except (KeyError, TypeError):  # TypeError if None was returned i.e. no setting in QTOPCONF_YAML
             term_height, term_columns = fallback_term_size
@@ -1099,20 +1096,6 @@ def get_input_filenames(INPUT_FNs_commands):
     return filenames
 
 
-# def prepare_output_filepaths(filenames, INPUT_FNs_commands, extension):
-#     """
-#     The filepaths of the future output files (structures converted to json/yaml) are appended to the filenames dict
-#     """
-#     for _file in INPUT_FNs_commands:
-#         filenames[_file + '_out'] = '{filename}_{writemethod}.{ext}'.format(
-#             filename=INPUT_FNs_commands[_file][0].rsplit('.')[0],
-#             writemethod=options.write_method,
-#             ext=extension
-#         )
-#
-#     return filenames
-
-
 def get_key_val_from_option_string(string):
     key, val = string.split('=')
     return key, val
@@ -1125,22 +1108,6 @@ def check_python_version():
     except AssertionError:
         logging.critical("Only python versions 2.6.x and 2.7.x are supported. Exiting")
         sys.exit(1)
-
-
-# def remove_stale_yaml_files():
-#     """
-#     deletes older yaml files in savepath directory.
-#     experimental and loosely untested
-#     """
-#     time_alive = int(config['auto_delete_old_yaml_files_after_few_hours'])
-#     user_selected_save_path = realpath(expandvars(config['savepath']))
-#     for f in os.listdir(user_selected_save_path):
-#         if not f.endswith('yaml'):
-#             continue
-#         curpath = os.path.join(user_selected_save_path, f)
-#         file_modified = datetime.datetime.fromtimestamp(getmtime(curpath))
-#         if datetime.datetime.now() - file_modified > datetime.timedelta(hours=time_alive):
-#             os.remove(curpath)
 
 
 def control_movement(pressed_char_hex):
@@ -1687,7 +1654,7 @@ if __name__ == '__main__':
     CURPATH = os.path.expanduser(initial_cwd)  # where qtop was invoked from
     QTOPPATH = os.path.dirname(realpath(sys.argv[0]))  # dir where qtop resides
 
-    with raw_mode(sys.stdin):
+    with raw_mode(sys.stdin):  # key listener implementation
         try:
             while True:
                 handle, output_fp = get_new_temp_file(prefix='qtop_', suffix='.out')  # qtop output is saved to this file
@@ -1698,7 +1665,8 @@ if __name__ == '__main__':
                 options = init_dirs(options)
 
                 transposed_matrices = []
-                viewport.set_term_size(*calculate_split_screen_size(config))  # After here, config is *logically* immutable
+                # After here, config is *logically* immutable
+                viewport.set_term_size(*calculate_term_size(config, FALLBACK_TERMSIZE))
                 scheduler = decide_batch_system(options.BATCH_SYSTEM, os.environ.get('QTOP_SCHEDULER'), config['scheduler'])
                 scheduler_output_filenames = prepare_files()
                 init_sample_file(options)
@@ -1727,7 +1695,7 @@ if __name__ == '__main__':
 
                 viewport.max_height, max_line_len = get_output_size(viewport.max_height, max_line_len, output_fp)
 
-                if options.ONLYSAVETOFILE:  # no display of qtop output
+                if options.ONLYSAVETOFILE:  # no display of qtop output, will exit
                     break
                 elif not options.WATCH:  # one-off display of qtop output, will exit afterwards (no --watch cmdline switch)
                     cat_command = 'clear;cat %s' % output_fp
@@ -1745,7 +1713,7 @@ if __name__ == '__main__':
                             break
                     else:
                         state = viewport.get_term_size()
-                        viewport.set_term_size(*calculate_split_screen_size(config))
+                        viewport.set_term_size(*calculate_term_size(config, FALLBACK_TERMSIZE))
                         new_state = viewport.get_term_size()
                         read_char = '\n' if (state == new_state) else 'r'
                         logging.debug("Auto-advancing by pressing <Enter>")

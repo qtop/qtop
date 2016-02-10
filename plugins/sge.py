@@ -214,7 +214,7 @@ class SGEBatchSystem(GenericBatchSystem):
                 worker_node['state'] = state
 
             if worker_node['domainname'] not in existing_node_names:
-                job_ids, usernames, job_states = self.extract_job_info(queue_elem, 'job_list')
+                job_ids, usernames, job_states = self._extract_job_info(queue_elem, 'job_list')
                 worker_node['core_job_map'] = [{'core': idx, 'job': job_id} for idx, job_id in enumerate(job_ids)]
                 worker_node['existing_busy_cores'] = len(worker_node['core_job_map'])
                 existing_node_names.update([worker_node['domainname']])
@@ -224,7 +224,7 @@ class SGEBatchSystem(GenericBatchSystem):
                 for existing_wn in worker_nodes:
                     if worker_node['domainname'] != existing_wn['domainname']:
                         continue
-                    job_ids, usernames, job_states = self.extract_job_info(queue_elem, 'job_list')
+                    job_ids, usernames, job_states = self._extract_job_info(queue_elem, 'job_list')
                     core_jobs = [{'core': idx, 'job': job_id}
                                  for idx, job_id in enumerate(job_ids, existing_wn['existing_busy_cores'])]
                     existing_wn['core_job_map'].extend(core_jobs)
@@ -262,7 +262,7 @@ class SGEBatchSystem(GenericBatchSystem):
                       )
         return job_ids, usernames, job_states, queue_names
 
-    def extract_job_info(self, elem, elem_text):
+    def _extract_job_info(self, elem, elem_text):
         """
         inside elem, iterates over subelems named elem_text and extracts relevant job information
         TODO: check difference between extract_job_info and _extract_job_info
