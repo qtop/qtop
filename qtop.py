@@ -1013,8 +1013,12 @@ def get_selected_batch_system(cmdline_switch, env_var, config_file_batch_option,
 
 
 def execute_shell_batch_commands(batch_system_commands, filenames, _file):
+    """
+    scheduler-specific commands are invoked from the shell and their output is saved *atomically* to files,
+    as defined by the user in QTOPCONF_YAML
+    """
     _batch_system_command = batch_system_commands[_file].strip()
-    with open(filenames[_file], mode='w') as fin:
+    with tempfile.NamedTemporaryFile('w', dir=savepath, delete=False) as fin:
         logging.debug('Command: "%s" -- result will be saved in: %s' % (_batch_system_command, filenames[_file]))
         logging.debug('\tFile state before subprocess call: %(fin)s' % {"fin": fin})
         logging.debug('\tWaiting on subprocess.call...')
@@ -1026,9 +1030,17 @@ def execute_shell_batch_commands(batch_system_commands, filenames, _file):
             logging.exception('A message from your shell: %s' % error)
             logging.critical('%s could not be executed. Maybe try "module load %s"?' % (_batch_system_command, scheduler))
             sys.exit(1)
+        tempname = fin.name
+        logging.debug('File state after subprocess call: %(fin)s' % {"fin": fin})
+    os.rename(tempname, filenames[_file])
 
-    logging.debug('File state after subprocess call: %(fin)s' % {"fin": fin})
     return filenames[_file]
+
+
+# with tempfile.NamedTemporaryFile('w', dir=os.path.dirname(filename), delete=False) as fin:
+#     fin.write(model.output())
+#     tempname = fin.name
+# os.rename(tempname, filename)
 
 
 def get_detail_of_name(account_jobs_table):
@@ -1706,9 +1718,8 @@ if __name__ == '__main__':
                 scheduling_system = scheduler_factory(scheduler, scheduler_output_filenames, config)
 
                 document = get_document(scheduling_system)
-
-                tf = tempfile.NamedTemporaryFile(delete=False, dir=savepath)  # Will become document member one day
-                document.save(tf.name)
+                tf = tempfile.NamedTemporaryFile(delete=True, dir=savepath)  # Will become document member one day
+                document.save(tf.name)  # dump json document to a file
 
                 #  MAIN ##################################
                 cluster_dict, NAMED_WNS = calculate_cluster(document.worker_nodes)
