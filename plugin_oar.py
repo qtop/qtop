@@ -34,11 +34,10 @@ class OarStatExtractor(QStatExtractor):
 
 
 class OARBatchSystem(GenericBatchSystem):
-    def __init__(self, in_out_filenames, config):
-        self.oarnodes_s_file = in_out_filenames.get('oarnodes_s_file')
-        self.oarnodes_y_file = in_out_filenames.get('oarnodes_y_file')
-        self.oarstat_file_out = in_out_filenames.get('oarstat_file_out')
-        self.oarstat_file = in_out_filenames.get('oarstat_file')
+    def __init__(self, scheduler_output_filenames, config):
+        self.oarnodes_s_file = scheduler_output_filenames.get('oarnodes_s_file')
+        self.oarnodes_y_file = scheduler_output_filenames.get('oarnodes_y_file')
+        self.oarstat_file = scheduler_output_filenames.get('oarstat_file')
 
         self.config = config
         self.oar_stat_maker = OarStatExtractor(self.config)

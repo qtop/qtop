@@ -7,13 +7,10 @@ from common_module import check_empty_file, options
 
 
 class PBSBatchSystem(GenericBatchSystem):
-    def __init__(self, in_out_filenames, config):
-        self.pbsnodes_file = in_out_filenames.get('pbsnodes_file')
-        self.pbsnodes_file_out = in_out_filenames.get('pbsnodes_file_out')
-        self.qstat_file = in_out_filenames.get('qstat_file')
-        self.qstat_file_out = in_out_filenames.get('qstat_file_out')
-        self.qstatq_file = in_out_filenames.get('qstatq_file')
-        self.qstatq_file_out = in_out_filenames.get('qstatq_file_out')
+    def __init__(self, scheduler_output_filenames, config):
+        self.pbsnodes_file = scheduler_output_filenames.get('pbsnodes_file')
+        self.qstat_file = scheduler_output_filenames.get('qstat_file')
+        self.qstatq_file = scheduler_output_filenames.get('qstatq_file')
 
         self.config = config
         self.qstat_maker = QStatExtractor(self.config)

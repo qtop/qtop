@@ -1033,6 +1033,7 @@ def execute_shell_batch_commands(batch_system_commands, filenames, _file):
             sys.exit(1)
 
     logging.debug('File state after subprocess call: %(fin)s' % {"fin": fin})
+    return filenames[_file]
 
 
 def get_detail_of_name(account_jobs_table):
@@ -1078,13 +1079,12 @@ def get_detail_of_name(account_jobs_table):
     return detail_of_name
 
 
-def get_input_filenames(INPUT_FNs_commands, extension):
+def get_input_filenames(INPUT_FNs_commands):
     """
     If the user didn't specify --via the -s switch-- a dir where ready-made data files already exist,
     the appropriate batch commands are executed, as indicated in QTOPCONF,
     and results are saved with the respective filenames.
     """
-    logging.info('Selected method for storing data structures is: %s' % extension)
 
     filenames = dict()
     batch_system_commands = dict()
@@ -1092,25 +1092,25 @@ def get_input_filenames(INPUT_FNs_commands, extension):
         filenames[_file], batch_system_commands[_file] = INPUT_FNs_commands[_file]
 
         if not options.SOURCEDIR:
-            execute_shell_batch_commands(batch_system_commands, filenames, _file)
+            filenames[_file] = execute_shell_batch_commands(batch_system_commands, filenames, _file)
 
         if not os.path.isfile(filenames[_file]):
             raise FileNotFound(filenames[_file])
     return filenames
 
 
-def prepare_output_filepaths(filenames, INPUT_FNs_commands, extension):
-    """
-    The filepaths of the future output files (structures converted to json/yaml) are appended to the filenames dict
-    """
-    for _file in INPUT_FNs_commands:
-        filenames[_file + '_out'] = '{filename}_{writemethod}.{ext}'.format(
-            filename=INPUT_FNs_commands[_file][0].rsplit('.')[0],
-            writemethod=options.write_method,
-            ext=extension
-        )
-
-    return filenames
+# def prepare_output_filepaths(filenames, INPUT_FNs_commands, extension):
+#     """
+#     The filepaths of the future output files (structures converted to json/yaml) are appended to the filenames dict
+#     """
+#     for _file in INPUT_FNs_commands:
+#         filenames[_file + '_out'] = '{filename}_{writemethod}.{ext}'.format(
+#             filename=INPUT_FNs_commands[_file][0].rsplit('.')[0],
+#             writemethod=options.write_method,
+#             ext=extension
+#         )
+#
+#     return filenames
 
 
 def get_key_val_from_option_string(string):
@@ -1224,14 +1224,9 @@ def safe_exit_with_file_close(handle, name, stdout, delete_file=False):
 
 
 def prepare_files():
-    parser_extension_mapping = {'txtyaml': 'yaml', 'json': 'json'}
-    extension = parser_extension_mapping[options.write_method]
-
     INPUT_FNs_commands = finalize_filepaths_schedulercommands()
-    in_out_filenames = get_input_filenames(INPUT_FNs_commands, extension)
-    in_out_filenames = prepare_output_filepaths(in_out_filenames, INPUT_FNs_commands, extension)
-
-    return INPUT_FNs_commands, in_out_filenames
+    scheduler_output_filenames = get_input_filenames(INPUT_FNs_commands)
+    return scheduler_output_filenames
 
 
 def decide_batch_system(cmdline_switch, env_var, config_file_batch_option):
@@ -1261,13 +1256,13 @@ def decide_batch_system(cmdline_switch, env_var, config_file_batch_option):
         return scheduler
 
 
-def scheduler_factory(scheduler, in_out_filenames, config):
+def scheduler_factory(scheduler, scheduler_output_filenames, config):
     if scheduler == "pbs":
-        return PBSBatchSystem(in_out_filenames, config)
+        return PBSBatchSystem(scheduler_output_filenames, config)
     elif scheduler == "oar":
-        return OARBatchSystem(in_out_filenames, config)
+        return OARBatchSystem(scheduler_output_filenames, config)
     elif scheduler == "sge":
-        return SGEBatchSystem(in_out_filenames, config)
+        return SGEBatchSystem(scheduler_output_filenames, config)
 
 
 class Document(namedtuple('Document',
@@ -1697,22 +1692,22 @@ if __name__ == '__main__':
             while True:
                 handle, output_fp = get_new_temp_file(prefix='qtop_', suffix='.out')  # qtop output is saved to this file
                 sys.stdout = os.fdopen(handle, 'w')  # redirect everything to file, creates file object out of handle
-                transposed_matrices = []
                 config = load_yaml_config()
                 config = update_config_with_cmdline_vars(options, config)
                 attempt_faster_xml_parsing(config)
-                viewport.set_term_size(*calculate_split_screen_size(config))  # After here, config is *logically* immutable
                 options = init_dirs(options)
 
+                transposed_matrices = []
+                viewport.set_term_size(*calculate_split_screen_size(config))  # After here, config is *logically* immutable
                 scheduler = decide_batch_system(options.BATCH_SYSTEM, os.environ.get('QTOP_SCHEDULER'), config['scheduler'])
-                INPUT_FNs_commands, in_out_filenames = prepare_files()
+                scheduler_output_filenames = prepare_files()
                 init_sample_file(options)
 
-                scheduling_system = scheduler_factory(scheduler, in_out_filenames, config)
+                scheduling_system = scheduler_factory(scheduler, scheduler_output_filenames, config)
 
                 if options.SAMPLE >= 1:
-                    [add_to_sample([in_out_filenames[fn]], savepath) for fn in in_out_filenames
-                     if os.path.isfile(in_out_filenames[fn])]
+                    [add_to_sample([scheduler_output_filenames[fn]], savepath) for fn in scheduler_output_filenames
+                     if os.path.isfile(scheduler_output_filenames[fn])]
 
                 document = get_document(scheduling_system)
 

@@ -75,8 +75,8 @@ class SGEStatExtractor(StatExtractor):
 
 
 class SGEBatchSystem(GenericBatchSystem):
-    def __init__(self, in_out_filenames, config):
-        self.sge_file_stat = in_out_filenames.get('sge_file_stat')
+    def __init__(self, scheduler_output_filenames, config):
+        self.sge_file_stat = scheduler_output_filenames.get('sge_file_stat')
         self.config = config
         self.sge_stat_maker = SGEStatExtractor(self.config)
 
