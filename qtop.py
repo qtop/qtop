@@ -780,11 +780,11 @@ def load_yaml_config():
     return config
 
 
-def calculate_term_size(config, fallback_term_size):
+def calculate_term_size(config, FALLBACK_TERM_SIZE):
     """
-    If the workernode matrix has to be split into sub-matrices because of screen limitations,
-    this will calculate the maximum size of each sub-matrix
+    Gets the dimensions of the terminal window where qtop will be displayed.
     """
+    fallback_term_size = config.get('term_size', FALLBACK_TERM_SIZE)
     try:
         term_height, term_columns = os.popen('stty size', 'r').read().split()
     except ValueError:
