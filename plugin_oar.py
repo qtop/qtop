@@ -7,7 +7,7 @@ except ImportError:
     from legacy.ordereddict import OrderedDict
 
 
-class OarStatExtractor(QStatExtractor):
+class OarStatExtractor(StatExtractor):
     def __init__(self, config):
         StatExtractor.__init__(self, config)
         self.user_q_search = r'^(?P<job_id>[0-9]+)\s+' \
