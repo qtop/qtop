@@ -27,7 +27,7 @@ class OarStatExtractor(StatExtractor):
             re_match_positions = ('job_id', 'user', 'job_state', 'queue')
             re_search = self.user_q_search
             for line in fin:
-                qstat_values = self._process_line(re_search, line, re_match_positions)
+                qstat_values = self._process_qstat_line(re_search, line, re_match_positions)
                 all_values.append(qstat_values)
 
         return all_values

@@ -18,7 +18,11 @@ class StatExtractor:
         self.config = config
         self.anonymize = self.anonymize_func()
 
-    def _process_line(self, re_search, line, re_match_positions):
+    def _process_qstat_line(self, re_search, line, re_match_positions):
+        """
+        extracts data from a tabular qstat-like file
+        returns a list
+        """
         qstat_values = dict()
         m = re.search(re_search, line.strip())
         try:
