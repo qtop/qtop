@@ -12,6 +12,7 @@ from itertools import izip, izip_longest
 import subprocess
 import select
 import os
+import re
 import json
 try:
     from collections import namedtuple, OrderedDict
