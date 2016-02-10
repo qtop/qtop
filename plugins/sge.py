@@ -161,7 +161,8 @@ class SGEBatchSystem(GenericBatchSystem):
             # TODO: check validity. 'state' shouldnt just be 'Q'!
         logging.debug("Closing %s" % self.sge_file_stat)
 
-        return total_running_jobs, total_queued_jobs, qstatq_list
+        # return total_running_jobs, total_queued_jobs, qstatq_list
+        return int(eval(str(total_running_jobs))), int(eval(str(total_queued_jobs))), qstatq_list
 
     def get_worker_nodes(self):
         logging.debug('Parsing tree of %s' % self.sge_file_stat)
