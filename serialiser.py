@@ -1,5 +1,5 @@
 """
-Contains classes necessary to convert input sources to yaml/json format.
+TODO: ??
 """
 try:
     import ujson as json

@@ -28,9 +28,9 @@ import termios
 import contextlib
 import glob
 import tempfile
-from plugin_pbs import *
-from plugin_oar import *
-from plugin_sge import *
+from plugins.pbs import *
+from plugins.oar import *
+from plugins.sge import *
 from math import ceil
 from colormap import color_of_account, code_of_color
 from yaml_parser import read_yaml_natively, fix_config_list, convert_dash_key_in_dict
