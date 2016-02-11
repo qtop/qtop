@@ -5,6 +5,8 @@ def fix_config_list(config_list):
     """
     transforms a list of the form ['a, b'] to ['a', 'b']
     """
+    if not config_list:
+        return []
     t = config_list
     item = t[0]
     list_items = item.split(',')
