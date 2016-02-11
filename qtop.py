@@ -604,7 +604,6 @@ def calc_general_multiline_attr(cluster_dict, part_name, yaml_key):  # NEW
         multiline_map[attr_line] = ''.join(multiline_map[attr_line])
         if line == user_max_len:
             break
-    # import wdb; wdb.set_trace()  # scheduler in part_options['systems']
     return multiline_map
 
 
@@ -1041,12 +1040,6 @@ def execute_shell_batch_commands(batch_system_commands, filenames, _file):
     return filenames[_file]
 
 
-# with tempfile.NamedTemporaryFile('w', dir=os.path.dirname(filename), delete=False) as fin:
-#     fin.write(model.output())
-#     tempname = fin.name
-# os.rename(tempname, filename)
-
-
 def get_detail_of_name(account_jobs_table):
     """
     Reads file $HOME/.local/qtop/getent_passwd.txt or whatever is put in QTOPCONF_YAML
@@ -1450,7 +1443,6 @@ class TextDisplay(object):
 
         # custom part
         for yaml_key, part_name, systems in get_yaml_key_part(outermost_key='workernodes_matrix'):
-            # import wdb; wdb.set_trace()
             if scheduler not in systems: continue
             new_occupancy_part = {
                 part_name:
@@ -1565,7 +1557,7 @@ class TextDisplay(object):
                              color_func=self.color_plainly, args=('White', 'Gray_L', start > 0))
             # start > 0 is just a test for a possible future condition
 
-        elif NAMED_WNS or options.FORCE_NAMES:  # names (e.g. fruits) instead of numbered WNs
+        elif NAMED_WNS or options.FORCE_NAMES:  # the actual names of the worker nodes instead of numbered WNs
             node_str_width = len(wn_vert_labels)  # key, nr of horizontal lines to be displayed
 
             # for longer full-labeled wn ids, add more end-labels (far-right) towards the bottom

@@ -152,6 +152,7 @@ parser.add_option("-v", "--verbose", dest="verbose", action="count",
                   help="Increase verbosity (specify multiple times for more)")
 # TODO: dumping to intermediate yaml files has been deprecated.
 # It is now possible, instead, to dump an all-including python structure into a json file (the "document")
+# This exists, but is not yet tunable.
 # parser.add_option("-W", "--writemethod", dest="write_method", action="store", default="txtyaml",
 #                   choices=['json'],
 #                   help="Set the method used for dumping information, json, yaml, or native python (yaml format)")

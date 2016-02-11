@@ -1,5 +1,5 @@
 """
-TODO: ??
+TODO: better organised the information in here
 """
 from common_module import *
 import re
@@ -37,8 +37,8 @@ class StatExtractor:
     def anonymize_func(self):
         """
         creates and returns an _anonymize_func object (closure)
-        Anonymisation can be used by the user for providing feedback to the developers.
-        The logs and the output should no longer contain sensitive information about the clusters ran by the user.
+        Anonymisation can be used by the user for providing feedback to the developers, without leaking cluster's private data.
+        i.e. the logs and the output should no longer contain sensitive information about the clusters ran by the user.
         """
         counters = {}
         stored_dict = {}
