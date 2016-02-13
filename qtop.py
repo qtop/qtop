@@ -173,10 +173,7 @@ def calculate_cluster(worker_nodes):
         cluster_dict['total_cores'] += int(node.get('np'))
         cluster_dict['max_np'] = max(cluster_dict['max_np'], int(node['np']))
         cluster_dict['offline_down_nodes'] += 1 if node['state'] in 'do' else 0
-        try:
-            cluster_dict['working_cores'] += len(node['core_job_map'])
-        except KeyError:
-            pass
+        cluster_dict['working_cores'] += len(node.get('core_job_map', 0))
 
         try:
             cur_node_nr = int(node_str_digits)
@@ -638,16 +635,13 @@ def get_yaml_key_part(outermost_key):
             yield yaml_key, part_name, systems
 
 
-def calculate_wn_occupancy(cluster_dict, document):
+def calculate_wn_occupancy(cluster_dict, user_names, job_states, job_ids):
     """
     Prints the Worker Nodes Occupancy table.
     if there are non-uniform WNs in pbsnodes.yaml, e.g. wn01, wn02, gn01, gn02, ...,  remapping is performed.
     Otherwise, for uniform WNs, i.e. all using the same numbering scheme, wn01, wn02, ... proceeds as normal.
     Number of Extra tables needed is calculated inside the calc_all_wnid_label_lines function below
     """
-    user_names = document.user_names
-    job_states = document.job_states
-    job_ids = document.job_ids
 
     if not cluster_dict:
         workernodes_occupancy, cluster_dict = dict(), dict()
@@ -1250,10 +1244,11 @@ class Document(namedtuple('Document',
 
 
 def get_document(scheduling_system):
-    worker_nodes = scheduling_system.get_worker_nodes()
-    job_ids, user_names, job_states, _ = scheduling_system.get_jobs_info()
-    total_running_jobs, total_queued_jobs, qstatq_lod = scheduling_system.get_queues_info()
-    return Document(worker_nodes, job_ids, user_names, job_states, total_running_jobs, total_queued_jobs, qstatq_lod)
+    # worker_nodes = scheduling_system.get_worker_nodes()
+    # job_ids, user_names, job_states, _ = scheduling_system.get_jobs_info()
+    # total_running_jobs, total_queued_jobs, qstatq_lod = scheduling_system.get_queues_info()
+    # return Document(worker_nodes, job_ids, user_names, job_states, total_running_jobs, total_queued_jobs, qstatq_lod)
+    return Document(workernodes_occupancy, cluster_dict)
 
 
 class TextDisplay(object):
@@ -1715,15 +1710,25 @@ if __name__ == '__main__':
                 scheduler_output_filenames = fetch_scheduler_files(options, config)
                 init_sample_file(options)
 
+                # MAIN ##### Gather data ###############
+
                 scheduling_system = scheduler_factory(scheduler, scheduler_output_filenames, config)
+                worker_nodes = scheduling_system.get_worker_nodes()
+                job_ids, user_names, job_states, _ = scheduling_system.get_jobs_info()
+                total_running_jobs, total_queued_jobs, qstatq_lod = scheduling_system.get_queues_info()
+                # maybe add dump input data in here
+
+                # MAIN ##### Process data ###############
+
+                cluster_dict, NAMED_WNS = calculate_cluster(worker_nodes)
+                workernodes_occupancy, cluster_dict = calculate_wn_occupancy(cluster_dict, user_names, job_states, job_ids)
+
+                # MAIN ##### Export data ###############
 
                 document = get_document(scheduling_system)
                 tf = tempfile.NamedTemporaryFile(delete=True, dir=savepath)  # Will become document member one day
                 document.save(tf.name)  # dump json document to a file
 
-                #  MAIN ##################################
-                cluster_dict, NAMED_WNS = calculate_cluster(document.worker_nodes)
-                workernodes_occupancy, cluster_dict = calculate_wn_occupancy(cluster_dict, document)
 
                 display = TextDisplay(cluster_dict, workernodes_occupancy, document, config, viewport)
                 display.display_selected_sections(savepath, QTOP_SAMPLE_FILENAME, QTOP_LOGFILE)
