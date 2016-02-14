@@ -141,11 +141,7 @@ def decide_remapping(cluster_dict, _all_letters, _all_str_digits_with_empties):
 def calculate_cluster(worker_nodes):
     if not worker_nodes:
         cluster_dict = dict()
-        NAMED_WNS = 0
-        return cluster_dict, NAMED_WNS
-
-    logging.debug('option FORCE_NAMES is: %s' % options.FORCE_NAMES)
-    NAMED_WNS = 1 if options.FORCE_NAMES else 0
+        return cluster_dict
 
     cluster_dict = dict.fromkeys(['working_cores', 'total_cores', 'max_np', 'highest_wn', 'offline_down_nodes'], 0)
     cluster_dict['node_subclusters'] = set()
@@ -184,32 +180,33 @@ def calculate_cluster(worker_nodes):
 
     decide_remapping(cluster_dict, _all_letters, _all_str_digits_with_empties)
 
-    # cluster_dict['workernode_dict'] creation
-    nodes_drop = map_batch_nodes_to_wn_dicts(cluster_dict, worker_nodes, options.REMAP)
-
-    # this amount has to be chopped off of the end of workernode_list_remapped
-    nodes_drop_slice_end = None if (nodes_drop == 0) else nodes_drop
     if options.REMAP:
+        # cluster_dict['workernode_dict'] creation
+        # this amount has to be chopped off of the end of workernode_list_remapped
+        nodes_drop = map_batch_nodes_to_wn_dicts(cluster_dict, worker_nodes, options.REMAP)
+        nodes_drop_slice_end = None if not nodes_drop else nodes_drop
+
         cluster_dict['total_wn'] += nodes_drop
         cluster_dict['highest_wn'] = cluster_dict['total_wn']
         cluster_dict['workernode_list'] = cluster_dict['workernode_list_remapped'][:nodes_drop_slice_end]
         cluster_dict['workernode_dict'] = cluster_dict['workernode_dict_remapped']
     else:
         cluster_dict['highest_wn'] = max(cluster_dict['workernode_list'])
-
-    # fill in non-existent WN nodes (absent from pbsnodes file) with default values and count them
-    if not options.REMAP:
-        for node in range(1, cluster_dict['highest_wn'] + 1):
-            if node not in cluster_dict['workernode_dict']:
-                cluster_dict['workernode_dict'][node] = {'state': '?', 'np': 0, 'domainname': 'N/A', 'host': 'N/A'}
-                default_values_for_empty_nodes = dict([(yaml_key, '?') for yaml_key, part_name, _ in get_yaml_key_part(
-                    outermost_key='workernodes_matrix')])
-                cluster_dict['workernode_dict'][node].update(default_values_for_empty_nodes)
+        cluster_dict = fill_non_existent_wn_nodes(cluster_dict)
 
     do_name_remapping(cluster_dict)
+    return cluster_dict
 
-    return cluster_dict, NAMED_WNS
 
+def fill_non_existent_wn_nodes(cluster_dict):
+    """fill in non-existent WN nodes (absent from pbsnodes file) with default values and count them"""
+    for node in range(1, cluster_dict['highest_wn'] + 1):
+        if node not in cluster_dict['workernode_dict']:
+            cluster_dict['workernode_dict'][node] = {'state': '?', 'np': 0, 'domainname': 'N/A', 'host': 'N/A'}
+            default_values_for_empty_nodes = dict([(yaml_key, '?') for yaml_key, part_name, _ in get_yaml_key_part(
+                outermost_key='workernodes_matrix')])
+            cluster_dict['workernode_dict'][node].update(default_values_for_empty_nodes)
+    return cluster_dict
 
 def do_name_remapping(cluster_dict):
     """
@@ -406,7 +403,7 @@ def insert_separators(orig_str, separator, pos, stopaftern=0):
         return sep_str
 
 
-def calc_all_wnid_label_lines(cluster_dict, wns_occupancy):  # (total_wn) in case of multiple cluster_dict['node_subclusters']
+def calc_all_wnid_label_lines(cluster_dict, wns_occupancy, NAMED_WNS):  # (total_wn) in case of multiple cluster_dict['node_subclusters']
     """
     calculates the Worker Node ID number line widths. expressed by hxxxxs in the following form, e.g. for hundreds of nodes:
     '1': [ 00000000... ]
@@ -642,16 +639,19 @@ def calculate_wn_occupancy(cluster_dict, user_names, job_states, job_ids):
     Otherwise, for uniform WNs, i.e. all using the same numbering scheme, wn01, wn02, ... proceeds as normal.
     Number of Extra tables needed is calculated inside the calc_all_wnid_label_lines function below
     """
+    logging.debug('option FORCE_NAMES is: %s' % options.FORCE_NAMES)
+    NAMED_WNS = 1 if options.FORCE_NAMES else 0
 
     if not cluster_dict:
-        workernodes_occupancy, cluster_dict = dict(), dict()
-        return workernodes_occupancy, cluster_dict
+        wns_occupancy, cluster_dict = dict(), dict()
+        return wns_occupancy, cluster_dict,
+
 
     wns_occupancy = create_account_jobs_table(user_names, job_states) # account_jobs_table, id_of_username
     make_pattern_of_id(wns_occupancy)  # pattern_of_id
 
     find_matrices_width(wns_occupancy, cluster_dict)  # print_char_start, print_char_stop, extra_matrices_nr
-    calc_all_wnid_label_lines(cluster_dict, wns_occupancy)  # wn_vert_labels
+    calc_all_wnid_label_lines(cluster_dict, wns_occupancy, NAMED_WNS)  # wn_vert_labels
 
     # For-loop below only for user-inserted/customizeable values.
     # e.g. wns_occupancy['node_state'] = ...workernode_dict[node]['state'] for node in workernode_dict...
@@ -660,7 +660,7 @@ def calculate_wn_occupancy(cluster_dict, user_names, job_states, job_ids):
             wns_occupancy[part_name] = calc_general_multiline_attr(cluster_dict, part_name, yaml_key)
 
     calc_core_userid_matrix(cluster_dict, wns_occupancy, job_ids, user_names)  # core user map
-    return wns_occupancy, cluster_dict
+    return wns_occupancy, cluster_dict, NAMED_WNS
 
 
 def make_pattern_of_id(wns_occupancy):
@@ -1720,12 +1720,13 @@ if __name__ == '__main__':
 
                 # MAIN ##### Process data ###############
 
-                cluster_dict, NAMED_WNS = calculate_cluster(worker_nodes)
-                workernodes_occupancy, cluster_dict = calculate_wn_occupancy(cluster_dict, user_names, job_states, job_ids)
+                cluster_dict = calculate_cluster(worker_nodes)
+                workernodes_occupancy, cluster_dict, NAMED_WNS = calculate_wn_occupancy(cluster_dict, user_names, job_states, job_ids)
 
                 # MAIN ##### Export data ###############
 
-                document = get_document(scheduling_system)
+                # document = get_document(scheduling_system)
+                document = Document(workernodes_occupancy, cluster_dict)
                 tf = tempfile.NamedTemporaryFile(delete=True, dir=savepath)  # Will become document member one day
                 document.save(tf.name)  # dump json document to a file
 
