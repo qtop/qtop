@@ -81,7 +81,7 @@ def colorize(text, color_func=None, pattern='NoPattern', bg_color=None):
         return text
 
 
-def decide_remapping(cluster):
+def decide_remapping(cluster, all_str_digits_with_empties):
     """
     Cases where remapping is enforced are:
     - the user has requested it (blindremap switch)
@@ -99,15 +99,15 @@ def decide_remapping(cluster):
     if not cluster['total_wn']:  # if nothing is running on the cluster
         return
 
-    cluster['all_str_digits'] = filter(lambda x: x != "", cluster['_all_str_digits_with_empties'])
-    cluster['all_digits'] = [int(digit) for digit in cluster['all_str_digits']]
+    all_str_digits = filter(lambda x: x != "", all_str_digits_with_empties)
+    all_digits = [int(digit) for digit in all_str_digits]
 
     if options.BLINDREMAP or \
             len(cluster['node_subclusters']) > 1 or \
             min(cluster['workernode_list']) >= config['exotic_starting_wn_nr'] or \
             cluster['offline_down_nodes'] >= cluster['total_wn'] * config['percentage'] or \
-            len(cluster['_all_str_digits_with_empties']) != len(cluster['all_str_digits']) or \
-            len(cluster['all_digits']) != len(cluster['all_str_digits']):
+            len(all_str_digits_with_empties) != len(all_str_digits) or \
+            len(all_digits) != len(all_str_digits):
         options.REMAP = True
     else:
         options.REMAP = False
@@ -123,7 +123,7 @@ def decide_remapping(cluster):
         exotic_starting = min(cluster['workernode_list']) >= config['exotic_starting_wn_nr'] and \
             'the first starting numbering of a WN is very high and thus would require too much unused space' or False
 
-        percentage_unassigned = len(cluster['_all_str_digits_with_empties']) != len(cluster['all_str_digits']) and \
+        percentage_unassigned = len(all_str_digits_with_empties) != len(all_str_digits) and \
             'more than %s of nodes have are down/offline' % float(config['percentage']) or False
 
         numbering_collisions = min(cluster['workernode_list']) >= config['exotic_starting_wn_nr'] and \
@@ -132,7 +132,6 @@ def decide_remapping(cluster):
         print
         logging.debug('Remapping decided due to: \n\t %s' % filter(None,
             [user_request, subclusters, exotic_starting, percentage_unassigned, numbering_collisions]))
-    del cluster['_all_str_digits_with_empties']
 
 
 def calculate_cluster(worker_nodes, cluster):
@@ -140,6 +139,7 @@ def calculate_cluster(worker_nodes, cluster):
         cluster = dict()
         return cluster
 
+    all_str_digits_with_empties = list()
     re_nodename = r'(^[A-Za-z0-9-]+)(?=\.|$)' if not options.ANONYMIZE else r'\w_anon_\w+'
     for node in worker_nodes:
         nodename_match = re.search(re_nodename, node['domainname'])
@@ -149,7 +149,7 @@ def calculate_cluster(worker_nodes, cluster):
         node_str_digits = "".join(re.findall(r'\d+', _nodename))
 
         cluster['node_subclusters'].update([node_letters])
-        cluster['_all_str_digits_with_empties'].append(node_str_digits)
+        all_str_digits_with_empties.append(node_str_digits)
 
         cluster['total_cores'] += int(node.get('np'))
         cluster['max_np'] = max(cluster['max_np'], int(node['np']))
@@ -163,11 +163,10 @@ def calculate_cluster(worker_nodes, cluster):
         finally:
             cluster['workernode_list'].append(cur_node_nr)
 
-    decide_remapping(cluster)
+    decide_remapping(cluster, all_str_digits_with_empties)
 
     if options.REMAP:
-        # cluster['workernode_dict'] creation
-        # this amount has to be chopped off of the end of workernode_list_remapped
+        # nodes_drop: this amount has to be chopped off of the end of workernode_list_remapped
         nodes_drop, cluster, workernode_dict, workernode_dict_remapped = map_batch_nodes_to_wn_dicts(cluster, worker_nodes,
                                                                                             options.REMAP)
         cluster['workernode_dict'] = workernode_dict
@@ -184,6 +183,8 @@ def calculate_cluster(worker_nodes, cluster):
 
     cluster = do_name_remapping(cluster)
     del cluster['node_subclusters']  # sets not JSON serialisable!!
+    del cluster['workernode_list_remapped']
+    del cluster['workernode_dict_remapped']
     return cluster
 
 
@@ -1688,7 +1689,6 @@ def init_cluster(worker_nodes, total_running_jobs, total_queued_jobs, qstatq_lod
     cluster['workernode_list_remapped'] = range(1, cluster['total_wn'] + 1)  # leave xrange aside for now
 
     cluster['node_subclusters'] = set()
-    cluster['_all_str_digits_with_empties'] = []
     cluster['total_running_jobs'] = total_running_jobs
     cluster['total_queued_jobs'] = total_queued_jobs
     cluster['qstatq_lod'] = qstatq_lod
@@ -1740,7 +1740,7 @@ if __name__ == '__main__':
 
                 # MAIN ##### Export data ###############
                 document = Document(wns_occupancy, cluster)
-                tf = tempfile.NamedTemporaryFile(delete=False, dir=savepath)  # Will become document member one day
+                tf = tempfile.NamedTemporaryFile(delete=False, suffix='.json', dir=savepath)  # Will become doc member one day
                 document.save(tf.name)  # dump json document to a file
 
                 display = TextDisplay(document, config, viewport)
