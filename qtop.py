@@ -132,6 +132,7 @@ def decide_remapping(cluster):
         print
         logging.debug('Remapping decided due to: \n\t %s' % filter(None,
             [user_request, subclusters, exotic_starting, percentage_unassigned, numbering_collisions]))
+    del cluster['_all_str_digits_with_empties']
 
 
 def calculate_cluster(worker_nodes, cluster):
@@ -213,10 +214,11 @@ def do_name_remapping(cluster):
             state_corejob_dn['host'] = label_max_len and state_corejob_dn['host'][-label_max_len:] or state_corejob_dn['host']
     return cluster
 
-def nodes_with_jobs(worker_nodes):
-    for _, pbs_node in worker_nodes.iteritems():
-        if 'core_job_map' in pbs_node:
-            yield pbs_node
+# TODO: remove? (useless?)
+# def nodes_with_jobs(worker_nodes):
+#     for _, pbs_node in worker_nodes.iteritems():
+#         if 'core_job_map' in pbs_node:
+#             yield pbs_node
 
 
 def calculate_job_counts(user_names, job_states):
@@ -318,13 +320,27 @@ def expand_useraccounts_symbols(config, user_list):
             config['possible_ids'].append(str(i)[0])
 
 
+def assigned_corejobs(corejobs, user_of_job_id):
+    """
+    Generator that yields only those core-job pairs that successfully match to a user
+    """
+    for corejob in corejobs:
+        core, job = str(corejob['core']), str(corejob['job'])
+        try:
+            user = user_of_job_id[job]
+        except KeyError as KeyErrorValue:
+            logging.critical('There seems to be a problem with the qstat output. '
+                     'A Job (ID %s) has gone rogue. '
+                     'Please check with the SysAdmin.' % (str(KeyErrorValue)))
+            raise KeyError
+        else:
+            yield user, core
+
+
 def fill_node_cores_column(_node, core_user_map, id_of_username, max_np_range, user_of_job_id):
     """
     Calculates the actual contents of the map by filling in a status string for each CPU line
-    state_np_corejob was: [state, np, (core0, job1), (core1, job1), ....]
-    will be a dict!
     """
-    # what is the state of core_user_map here?
     state_np_corejob = cluster['workernode_dict'][_node]
     state = state_np_corejob['state']
     np = state_np_corejob['np']
@@ -334,37 +350,27 @@ def fill_node_cores_column(_node, core_user_map, id_of_username, max_np_range, u
         for core_line in core_user_map:
             core_user_map[core_line] += [config['non_existent_node_symbol']]
     else:
-        _own_np = int(np)
-        own_np_range = [str(x) for x in range(_own_np)]
-        own_np_empty_range = own_np_range[:]
+        node_cores = [str(x) for x in range(int(np))]
+        node_free_cores = node_cores[:]
 
-        for corejob in corejobs:
-            core, job = str(corejob['core']), str(corejob['job'])
-            try:
-                user = user_of_job_id[job]
-            except KeyError as KeyErrorValue:
-                logging.critical('There seems to be a problem with the qstat output. '
-                                 'A Job (ID %s) has gone rogue. '
-                                 'Please check with the SysAdmin.' % (str(KeyErrorValue)))
-                raise KeyError
-            else:
-                # filling = eval(config['fill_with_user_firstletter']) and str(user[0]) or str(id_of_username[user])
-                filling = str(id_of_username[user])
-                core_user_map['Core' + str(core) + 'line'] += [filling]
-                own_np_empty_range.remove(core)
+        for (user, core) in assigned_corejobs(corejobs, user_of_job_id):
+            id_ = str(id_of_username[user])
+            core_user_map['Core' + str(core) + 'line'] += [id_]
+            node_free_cores.remove(core)  # this is an assigned core, hence it doesn't belong to the node's free cores
 
-        non_existent_cores = [item for item in max_np_range if item not in own_np_range]
+        non_existent_cores = [item for item in max_np_range if item not in node_cores]
 
         '''
-        the height of the matrix is determined by the highest-core WN existing. If other WNs have less cores,
-        these positions are filled with '#'s, or whatever is defined in config['non_existent_node_symbol'].
+        One of the two dimenstions of the matrix is determined by the highest-core WN existing. If other WNs have less cores,
+        these positions are filled with '#'s (or whatever is defined in config['non_existent_node_symbol']).
         '''
-        for core in own_np_empty_range:
+        non_existent_node_symbol = config['non_existent_node_symbol']
+        for core in node_free_cores:
             core_user_map['Core' + str(core) + 'line'] += ['_']
         for core in non_existent_cores:
-            core_user_map['Core' + str(core) + 'line'] += [config['non_existent_node_symbol']]
+            core_user_map['Core' + str(core) + 'line'] += [non_existent_node_symbol]
 
-    cluster['workernode_dict'][_node]['core_user_column'] = [core_user_map[line][-1] for line in core_user_map]
+    cluster['workernode_dict'][_node]['core_user_vector'] = "".join([core_user_map[line][-1] for line in core_user_map])
 
     return core_user_map
 
@@ -1230,12 +1236,13 @@ class Document(namedtuple('Document', ['wns_occupancy', 'cluster'])):
             json.dump(document, outfile)
 
 
-def get_document(scheduling_system):
-    # worker_nodes = scheduling_system.get_worker_nodes()
-    # job_ids, user_names, job_states, _ = scheduling_system.get_jobs_info()
-    # total_running_jobs, total_queued_jobs, qstatq_lod = scheduling_system.get_queues_info()
-    # return Document(worker_nodes, job_ids, user_names, job_states, total_running_jobs, total_queued_jobs, qstatq_lod)
-    return Document(wns_occupancy, cluster)
+# TODO: remove
+# def get_document(scheduling_system):
+#     # worker_nodes = scheduling_system.get_worker_nodes()
+#     # job_ids, user_names, job_states, _ = scheduling_system.get_jobs_info()
+#     # total_running_jobs, total_queued_jobs, qstatq_lod = scheduling_system.get_queues_info()
+#     # return Document(worker_nodes, job_ids, user_names, job_states, total_running_jobs, total_queued_jobs, qstatq_lod)
+#     return Document(wns_occupancy, cluster)
 
 
 class TextDisplay(object):
@@ -1721,7 +1728,7 @@ if __name__ == '__main__':
                 worker_nodes = scheduling_system.get_worker_nodes()
                 job_ids, user_names, job_states, _ = scheduling_system.get_jobs_info()
                 total_running_jobs, total_queued_jobs, qstatq_lod = scheduling_system.get_queues_info()
-                # maybe add dump input data in here?
+                # TODO: maybe add dump input data in here in the future?
 
                 # MAIN ##### Process data ###############
                 cluster = init_cluster(worker_nodes, total_running_jobs, total_queued_jobs, qstatq_lod)
@@ -1729,9 +1736,8 @@ if __name__ == '__main__':
                 wns_occupancy = calculate_wn_occupancy(cluster, user_names, job_states, job_ids)
 
                 # MAIN ##### Export data ###############
-                # document = get_document(scheduling_system)
                 document = Document(wns_occupancy, cluster)
-                tf = tempfile.NamedTemporaryFile(delete=True, dir=savepath)  # Will become document member one day
+                tf = tempfile.NamedTemporaryFile(delete=False, dir=savepath)  # Will become document member one day
                 document.save(tf.name)  # dump json document to a file
 
                 display = TextDisplay(document, config, viewport)
