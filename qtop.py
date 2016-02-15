@@ -154,7 +154,7 @@ def calculate_cluster(worker_nodes, cluster):
         cluster['total_cores'] += int(node.get('np'))
         cluster['max_np'] = max(cluster['max_np'], int(node['np']))
         cluster['offline_down_nodes'] += 1 if node['state'] in 'do' else 0
-        cluster['working_cores'] += len(node.get('core_job_map', []))  # bugfix. 0 would lead to a TypeError
+        cluster['working_cores'] += len(node.get('core_job_map', dict()))  # bugfix. 0 would lead to a TypeError
 
         try:
             cur_node_nr = int(node_str_digits)
@@ -168,7 +168,10 @@ def calculate_cluster(worker_nodes, cluster):
     if options.REMAP:
         # cluster['workernode_dict'] creation
         # this amount has to be chopped off of the end of workernode_list_remapped
-        nodes_drop, cluster = map_batch_nodes_to_wn_dicts(cluster, worker_nodes, options.REMAP)
+        nodes_drop, cluster, workernode_dict, workernode_dict_remapped = map_batch_nodes_to_wn_dicts(cluster, worker_nodes,
+                                                                                            options.REMAP)
+        cluster['workernode_dict'] = workernode_dict
+        cluster['workernode_dict_remapped'] = workernode_dict_remapped
         cluster['total_wn'] += nodes_drop
         cluster['highest_wn'] = cluster['total_wn']
 
@@ -324,8 +327,10 @@ def assigned_corejobs(corejobs, user_of_job_id):
     """
     Generator that yields only those core-job pairs that successfully match to a user
     """
-    for corejob in corejobs:
-        core, job = str(corejob['core']), str(corejob['job'])
+    for core in corejobs:
+    # for corejob in corejobs:
+        # core, job = str(corejob['core']), str(corejob['job'])
+        job = str(corejobs[core])
         try:
             user = user_of_job_id[job]
         except KeyError as KeyErrorValue:
@@ -334,7 +339,7 @@ def assigned_corejobs(corejobs, user_of_job_id):
                      'Please check with the SysAdmin.' % (str(KeyErrorValue)))
             raise KeyError
         else:
-            yield user, core
+            yield user, str(core)
 
 
 def fill_node_cores_column(_node, core_user_map, id_of_username, max_np_range, user_of_job_id):
@@ -344,7 +349,7 @@ def fill_node_cores_column(_node, core_user_map, id_of_username, max_np_range, u
     state_np_corejob = cluster['workernode_dict'][_node]
     state = state_np_corejob['state']
     np = state_np_corejob['np']
-    corejobs = state_np_corejob.get('core_job_map', '')
+    corejobs = state_np_corejob.get('core_job_map', dict())
 
     if state == '?':  # for non-existent machines
         for core_line in core_user_map:
@@ -395,10 +400,9 @@ def insert_separators(orig_str, separator, pos, stopaftern=0):
 def calc_all_wnid_label_lines(cluster, wns_occupancy, NAMED_WNS):  # (total_wn) in case of multiple cluster['node_subclusters']
     """
     calculates the Worker Node ID number line widths. expressed by hxxxxs in the following form, e.g. for hundreds of nodes:
-    '1': [ 00000000... ]
-    '2': [ 0000000001111111... ]
-    '3': [ 12345678901234567....]
-    where list contents are strings: '0', '1' etc
+    '1': "00000000..."
+    '2': "0000000001111111..."
+    '3': "12345678901234567..."
     """
     highest_wn = cluster['highest_wn']
     if NAMED_WNS or options.FORCE_NAMES:
@@ -421,6 +425,8 @@ def calc_all_wnid_label_lines(cluster, wns_occupancy, NAMED_WNS):  # (total_wn) 
             for place in range(1, node_str_width + 1):
                 wn_vert_labels[str(place)].append(string[place - 1])
 
+    for wn in wn_vert_labels.keys():
+        wn_vert_labels[wn] = "".join(wn_vert_labels[wn])
     return wn_vert_labels
 
 
@@ -925,10 +931,7 @@ def map_batch_nodes_to_wn_dicts(cluster, batch_nodes, options_remap):
         workernode_dict[cur_node_nr] = batch_node
         workernode_dict_remapped[idx] = batch_node
 
-    cluster['workernode_dict'] = workernode_dict
-    cluster['workernode_dict_remapped'] = workernode_dict_remapped
-
-    return nodes_drop, cluster
+    return nodes_drop, cluster, workernode_dict, workernode_dict_remapped
 
 
 def exec_func_tuples(func_tuples):
@@ -1540,7 +1543,7 @@ class TextDisplay(object):
             node_str_width = len(str(highest_wn))  # 4 for thousands of nodes, nr of horizontal lines to be displayed
 
             for node_nr in range(1, node_str_width + 1):
-                d[str(node_nr)] = "".join(wn_vert_labels[str(node_nr)])
+                d[str(node_nr)] = wn_vert_labels[str(node_nr)]
             end_labels_iter = iter(end_labels[str(node_str_width)])
             print_wnid_lines(d, start, stop, end_labels_iter, transposed_matrices,
                              color_func=self.color_plainly, args=('White', 'Gray_L', start > 0))

@@ -154,13 +154,8 @@ class PBSBatchSystem(GenericBatchSystem):
             except KeyError:
                 pass
             else:
-                pbs_values['core_job_map'] = []
                 jobs = block['jobs'].split(',')
-                for job, core in self._get_jobs_cores(jobs):
-                    _d = dict()
-                    _d['job'] = job
-                    _d['core'] = core
-                    pbs_values['core_job_map'].append(_d)
+                pbs_values['core_job_map'] = dict((core, job) for job, core in self._get_jobs_cores(jobs))
             finally:
                 all_pbs_values.append(pbs_values)
         return all_pbs_values
