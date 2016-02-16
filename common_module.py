@@ -146,6 +146,9 @@ parser.add_option("-r", "--removeemptycorelines", dest="REM_EMPTY_CORELINES", ac
                   help="If a whole row consists of empty core lines, remove the row")
 parser.add_option("-s", "--SetSourceDir", dest="SOURCEDIR",
                   help="Set the source directory where pbsnodes and qstat reside")
+parser.add_option("-S", "--StrictCheck", dest="STRICTCHECK", action="store_true",
+                  help="Do a check on the quality of the scheduler output by comparing "
+                       "the reported total running jobs against the actual ones found/displayed in qtop")
 parser.add_option("-T", "--Transpose", dest="TRANSPOSE", action="store_true", default=False,
                   help="Rotate matrices' positioning by 90 degrees")
 parser.add_option("-v", "--verbose", dest="verbose", action="count",

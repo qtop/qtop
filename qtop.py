@@ -1699,6 +1699,21 @@ def init_cluster(worker_nodes, total_running_jobs, total_queued_jobs, qstatq_lod
     return cluster
 
 
+def count_jobs_strict(core_user_map):
+    count = 0
+    for k in core_user_map:
+        just_jobs = core_user_map[k].translate(None, "#_")
+        count += len(just_jobs)
+    return count
+
+
+def strict_check_jobs(wns_occupancy, cluster):
+    counted_jobs = count_jobs_strict(wns_occupancy['core user map'])
+    if counted_jobs != cluster['total_running_jobs']:
+        print "Counted jobs (%s) -- Total running jobs reported (%s) MISMATCH!" \
+              % (counted_jobs, cluster['total_running_jobs'])
+
+
 if __name__ == '__main__':
 
     stdout = sys.stdout  # keep a copy of the initial value of sys.stdout
@@ -1749,6 +1764,8 @@ if __name__ == '__main__':
 
                 display = TextDisplay(document, config, viewport)
                 display.display_selected_sections(savepath, QTOP_SAMPLE_FILENAME, QTOP_LOGFILE)
+                if options.STRICTCHECK:
+                    strict_check_jobs(wns_occupancy, cluster)
 
                 sys.stdout.flush()
                 sys.stdout.close()
