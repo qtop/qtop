@@ -207,7 +207,7 @@ class SGEBatchSystem(GenericBatchSystem):
 
             if worker_node['domainname'] not in existing_node_names:
                 job_ids, usernames, job_states = self._extract_job_info(queue_elem, 'job_list')
-                worker_node['core_job_map'] = [{'core': idx, 'job': job_id} for idx, job_id in enumerate(job_ids)]
+                worker_node['core_job_map'] = dict((idx, job_id) for idx, job_id in enumerate(job_ids))
                 worker_node['existing_busy_cores'] = len(worker_node['core_job_map'])
                 existing_node_names.update([worker_node['domainname']])
                 worker_nodes.append(worker_node)
@@ -217,9 +217,8 @@ class SGEBatchSystem(GenericBatchSystem):
                     if worker_node['domainname'] != existing_wn['domainname']:
                         continue
                     job_ids, usernames, job_states = self._extract_job_info(queue_elem, 'job_list')
-                    core_jobs = [{'core': idx, 'job': job_id}
-                                 for idx, job_id in enumerate(job_ids, existing_wn['existing_busy_cores'])]
-                    existing_wn['core_job_map'].extend(core_jobs)
+                    core_jobs = dict((idx, job_id) for idx, job_id in enumerate(job_ids, existing_wn['existing_busy_cores']))
+                    existing_wn['core_job_map'].update(core_jobs)
                     # don't change the node state to free.
                     # Just keep the state reported in the last queue mentioning the node.
                     existing_wn['state'] = (worker_node['state'] == '-') and existing_wn['state'] or worker_node['state']

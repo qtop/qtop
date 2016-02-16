@@ -6,7 +6,7 @@ import re
 from itertools import count
 
 
-class StatExtractor:
+class StatExtractor(object):
     """
     Extracts qstat/qstatq information from files coming from the respective batch system commmands
     (PBS, OAR, SGE etc)
