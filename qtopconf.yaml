@@ -84,7 +84,8 @@ state_abbreviations:
 percentage: 0.8 # if less than PERCENTAGE x 100% of the matrices have jobs, perform a blind remap
 possible_ids: 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz # IDs of unix accounts, for the lower part of qtop
 non_existent_node_symbol: #
-# set the terminal window size manually so that the matrices can expand accordingly.
+# Term size is autodetected. If that fails, a value is read from here.
+# If commented out, will get a fallback_terms_size from within constants.py
 #term_size: [53, 176]
 #term_size: [53, 126]  # for smaller screens, namely 1366 x 768
 user_color_mappings:  # order should be from more generic-->more specific
@@ -153,7 +154,7 @@ filtering:
 #    - 'E'
 
 # what parts of qtop to display
-user_display_parts: # job_accounting_summary should be disabled for OAR systems.
+user_display_parts:
  - job_accounting_summary
  - workernodes_matrix
  - user_accounts_pool_mappings
@@ -168,6 +169,10 @@ user_display_parts: # job_accounting_summary should be disabled for OAR systems.
 vertical_separator: '|'
 # Put vertical_separator every X columns.
 vertical_separator_every_X_columns: 0
+# Put vertical_separator in case of overspill (SGE systems only).
+separator_after_overspill: True
+# TODO (not implemented)
+overspill_separator: '*'
 
 workernodes_matrix:
  - wn id lines:
@@ -186,7 +191,7 @@ workernodes_matrix:
        6: ['={_SPACE__}', '={__FOR___}', '={__SALE__}', '={_Worker_}', '={__Node__}', '={___ID___}']
        7: ['={__PLACE_}', '={__YOUR__}', '={_ADVERT_}', '={__HERE__}', '={_Worker_}', '={__Node__}', '={___ID___}']
      # native yaml parser: two consecutive unindents are not allowed. Must have an unindented key-value after nested keys:
-     alt_label_highlight_colors: [White, Blue_L]
+     alt_label_colors: [White, Blue_L]
 # - temperature:
 #     yaml key: temperature  # how it's found in the yaml file
 #     label: Temperature (C)  # how to label it on the qtop matrix
@@ -197,11 +202,11 @@ workernodes_matrix:
      label: Node state
      max_len: 5
      systems: [sge, oar, pbs]
-# - queue name:  # TODO: this only works for SGE systems
-#     yaml_key: qname
-#     label: queue name
-#     max_len: 2
-#     systems: [sge]
+ - queue name:  # TODO: this only works for SGE systems
+     yaml_key: qname
+     label: queue name
+     max_len: 2
+     systems: [sge]
  - core user map:
      options1: {}
      options2: {}
