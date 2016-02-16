@@ -1233,7 +1233,8 @@ def scheduler_factory(scheduler, scheduler_output_filenames, config):
         return SGEBatchSystem(scheduler_output_filenames, config)
 
 
-# class Document(namedtuple('Document', ['worker_nodes', 'job_ids', 'user_names', 'job_states', 'total_running_jobs', 'total_queued_jobs', 'qstatq_lod'])):
+# TODO: was: class Document(namedtuple(
+# 'Document', ['worker_nodes', 'job_ids', 'user_names', 'job_states', 'total_running_jobs', 'total_queued_jobs', 'qstatq_lod']))
 class Document(namedtuple('Document', ['wns_occupancy', 'cluster'])):
 
     def save(self, filename):
