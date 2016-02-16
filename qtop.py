@@ -361,7 +361,7 @@ def fill_node_cores_column(_node, core_user_map, id_of_username, max_np_range, u
 
         for (user, core) in assigned_corejobs(corejobs, user_of_job_id):
             id_ = str(id_of_username[user])
-            core_user_map['Core' + str(core) + 'line'] += [id_]
+            core_user_map['Core' + str(core) + 'vector'] += [id_]
             node_free_cores.remove(core)  # this is an assigned core, hence it doesn't belong to the node's free cores
 
         non_existent_cores = [item for item in max_np_range if item not in node_cores]
@@ -372,9 +372,9 @@ def fill_node_cores_column(_node, core_user_map, id_of_username, max_np_range, u
         '''
         non_existent_node_symbol = config['non_existent_node_symbol']
         for core in node_free_cores:
-            core_user_map['Core' + str(core) + 'line'] += ['_']
+            core_user_map['Core' + str(core) + 'vector'] += ['_']
         for core in non_existent_cores:
-            core_user_map['Core' + str(core) + 'line'] += [non_existent_node_symbol]
+            core_user_map['Core' + str(core) + 'vector'] += [non_existent_node_symbol]
 
     cluster['workernode_dict'][_node]['core_user_vector'] = "".join([core_user_map[line][-1] for line in core_user_map])
 
@@ -486,14 +486,15 @@ def print_wnid_lines(d, start, stop, end_labels, transposed_matrices, color_func
 def is_matrix_coreless(wns_occupancy):
     print_char_start = wns_occupancy['print_char_start']
     print_char_stop = wns_occupancy['print_char_stop']
+    non_existent_node_symbol = config['non_existent_node_symbol']
     lines = []
     core_user_map = wns_occupancy['core user map']
     for ind, k in enumerate(core_user_map):
-        cpu_core_line = core_user_map['Core' + str(ind) + 'line'][print_char_start:print_char_stop]
+        cpu_core_line = core_user_map['Core' + str(ind) + 'vector'][print_char_start:print_char_stop]
         if options.REM_EMPTY_CORELINES and \
             (
-                (config['non_existent_node_symbol'] * (print_char_stop - print_char_start) == cpu_core_line) or \
-                (config['non_existent_node_symbol'] * (len(cpu_core_line)) == cpu_core_line)
+                (non_existent_node_symbol * (print_char_stop - print_char_start) == cpu_core_line) or \
+                (non_existent_node_symbol * (len(cpu_core_line)) == cpu_core_line)
             ):
             lines.append('*')
 
@@ -525,7 +526,7 @@ def get_core_lines(core_user_map, print_char_start, print_char_stop, pattern_of_
     """
     # TODO: is there a way to use is_matrix_coreless in here? avoid duplication of code
     for ind, k in enumerate(core_user_map):
-        cpu_core_line = core_user_map['Core' + str(ind) + 'line'][print_char_start:print_char_stop]
+        cpu_core_line = core_user_map['Core' + str(ind) + 'vector'][print_char_start:print_char_stop]
         if options.REM_EMPTY_CORELINES and \
             (
                 (config['non_existent_node_symbol'] * (print_char_stop - print_char_start) == cpu_core_line) or \
@@ -546,7 +547,7 @@ def calc_core_userid_matrix(cluster, wns_occupancy, job_ids, user_names):
         return
 
     for core_nr in max_np_range:
-        core_user_map['Core%sline' % str(core_nr)] = []  # Cpu0line, Cpu1line, Cpu2line, .. = '','','', ..
+        core_user_map['Core%svector' % str(core_nr)] = []  # Cpu0line, Cpu1line, Cpu2line, .. = '','','', ..
 
     for _node in cluster['workernode_dict']:
         # state_np_corejob = cluster['workernode_dict'][_node]
@@ -1437,6 +1438,7 @@ class TextDisplay(object):
         # custom part
         for yaml_key, part_name, systems in get_yaml_key_part(outermost_key='workernodes_matrix'):
             if scheduler not in systems: continue
+
             new_occupancy_part = {
                 part_name:
                     (
@@ -1453,8 +1455,9 @@ class TextDisplay(object):
             if scheduler not in fix_config_list(key_vals.get('systems',[scheduler])):
                 continue
             occupancy_parts[part][2].update(key_vals)  # get extra options from user
-            fn, args, kwargs = occupancy_parts[part][0], occupancy_parts[part][1], occupancy_parts[part][2]
-            fn(*args, **kwargs)
+
+            func_, args, kwargs = occupancy_parts[part][0], occupancy_parts[part][1], occupancy_parts[part][2]
+            func_(*args, **kwargs)
 
         if config['transpose_wn_matrices']:
             order = config['occupancy_column_order']
