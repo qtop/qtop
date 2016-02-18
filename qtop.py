@@ -63,7 +63,7 @@ def raw_mode(file):
 #     options.COLORFILE = os.path.expandvars('$HOME/qtop/qtop/qtop.colormap')
 
 
-def colorize(text, color_func=None, pattern='NoPattern', bg_color=None):
+def colorize(text, color_func=None, pattern='NoPattern', bg_color=None, bold=False):
     """
     prints text colored according to a unix account pattern color.
     If color is given, pattern is not needed.
@@ -74,6 +74,8 @@ def colorize(text, color_func=None, pattern='NoPattern', bg_color=None):
     except KeyError:
         return text
     else:
+        if bold and ansi_color[0] in '01':
+            ansi_color = '1' + ansi_color[1:]
         if ((options.COLOR == 'ON') and pattern != 'account_not_colored' and text != ' '):
             text = "\033[%(fg_color)s%(bg_color)sm%(text)s\033[0;m" \
                    % {'fg_color': ansi_color, 'bg_color': bg_color, 'text': text}
@@ -1233,22 +1235,11 @@ def scheduler_factory(scheduler, scheduler_output_filenames, config):
         return SGEBatchSystem(scheduler_output_filenames, config)
 
 
-# TODO: was: class Document(namedtuple(
-# 'Document', ['worker_nodes', 'job_ids', 'user_names', 'job_states', 'total_running_jobs', 'total_queued_jobs', 'qstatq_lod']))
 class Document(namedtuple('Document', ['wns_occupancy', 'cluster'])):
 
     def save(self, filename):
         with open(filename, 'w') as outfile:
             json.dump(document, outfile)
-
-
-# TODO: remove
-# def get_document(scheduling_system):
-#     # worker_nodes = scheduling_system.get_worker_nodes()
-#     # job_ids, user_names, job_states, _ = scheduling_system.get_jobs_info()
-#     # total_running_jobs, total_queued_jobs, qstatq_lod = scheduling_system.get_queues_info()
-#     # return Document(worker_nodes, job_ids, user_names, job_states, total_running_jobs, total_queued_jobs, qstatq_lod)
-#     return Document(wns_occupancy, cluster)
 
 
 class TextDisplay(object):
@@ -1288,6 +1279,8 @@ class TextDisplay(object):
         print "\nLog file created in %s" % expandvars(QTOP_LOGFILE)
         if options.SAMPLE:
             print "Sample files saved in %s/%s" % (savepath, QTOP_SAMPLE_FILENAME)
+        if options.STRICTCHECK:
+            strict_check_jobs(wns_occupancy, cluster)
 
     def display_job_accounting_summary(self, cluster, document):
         """
@@ -1376,33 +1369,37 @@ class TextDisplay(object):
               colorize("  ('all' also includes those in C and W states, as reported by qstat)"
                        if options.CLASSIC else "  ('all' includes any jobs beyond R and W)", 'Gray_D')
 
-        print '   R +    Q /  all |    unix account | id| %(msg)s' % \
+        print '   R +    Q /  all |       unix account [id] %(msg)s' % \
               {'msg': 'Grid certificate DN (info only available under elevated privileges)' if options.CLASSIC else
-              'GECOS field or Grid certificate DN'}
+              '      GECOS field or Grid certificate DN |'}
         for line in account_jobs_table:
-            uid, runningjobs, queuedjobs, alljobs, user = line[0], line[1], line[2], line[3], line[4]
+            uid, runningjobs, queuedjobs, alljobs, user = line
             account = pattern_of_id[uid]
-            if options.COLOR == 'OFF' or account == 'account_not_colored' or color_of_account[account] == 'reset':
-                extra_width = 0
-                account = 'account_not_colored'
+            if (
+                options.COLOR == 'OFF'
+                or account == 'account_not_colored'
+                or color_of_account[account] == 'reset'):
+                    conditional_width = 0
+                    account = 'account_not_colored'
             else:
-                extra_width = 12
+                conditional_width = 12
+
             print_string = '{1:>{width4}} + {2:>{width4}} / {3:>{width4}} {sep} ' \
-                           '{4:>{width15}} {sep} ' \
-                           '{0:<{width2}}{sep} ' \
+                           '{4:>{width18}} ' \
+                           '[ {0:<{width1}}] ' \
                            '{5:<{width40}} {sep}'.format(
-                colorize(str(uid), '', account),
+                colorize(str(uid), '', account, bold=False),
                 colorize(str(runningjobs), '', account),
                 colorize(str(queuedjobs), '', account),
                 colorize(str(alljobs), '', account),
                 colorize(user, '', account),
                 colorize(detail_of_name.get(user, ''), '', account),
                 sep=colorize(config['SEPARATOR'], '', account),
-                width2=2 + extra_width,
-                width3=3 + extra_width,
-                width4=4 + extra_width,
-                width15=15 + extra_width,
-                width40=40 + extra_width,
+                width1=1 + conditional_width,
+                width3=3 + conditional_width,
+                width4=4 + conditional_width,
+                width18=18 + conditional_width,
+                width40=40 + conditional_width,
             )
             print print_string
 
@@ -1739,7 +1736,6 @@ if __name__ == '__main__':
                 options = init_dirs(options)
 
                 transposed_matrices = []
-                # After here, config is *logically* immutable
                 viewport.set_term_size(*calculate_term_size(config, FALLBACK_TERMSIZE))
                 scheduler = decide_batch_system(options.BATCH_SYSTEM, os.environ.get('QTOP_SCHEDULER'), config['scheduler'])
                 scheduler_output_filenames = fetch_scheduler_files(options, config)
@@ -1764,8 +1760,6 @@ if __name__ == '__main__':
 
                 display = TextDisplay(document, config, viewport)
                 display.display_selected_sections(savepath, QTOP_SAMPLE_FILENAME, QTOP_LOGFILE)
-                if options.STRICTCHECK:
-                    strict_check_jobs(wns_occupancy, cluster)
 
                 sys.stdout.flush()
                 sys.stdout.close()
