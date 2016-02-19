@@ -169,8 +169,8 @@ def calculate_cluster(worker_nodes, cluster):
 
     if options.REMAP:
         # nodes_drop: this amount has to be chopped off of the end of workernode_list_remapped
-        nodes_drop, cluster, workernode_dict, workernode_dict_remapped = map_batch_nodes_to_wn_dicts(cluster, worker_nodes,
-                                                                                            options.REMAP)
+        nodes_drop, cluster, workernode_dict, workernode_dict_remapped = map_worker_nodes_to_wn_dict(cluster, worker_nodes,
+                                                                                                     options.REMAP)
         cluster['workernode_dict'] = workernode_dict
         cluster['workernode_dict_remapped'] = workernode_dict_remapped
         cluster['total_wn'] += nodes_drop
@@ -630,7 +630,7 @@ def get_yaml_key_part(outermost_key):
             yield yaml_key, part_name, systems
 
 
-def calculate_wn_occupancy(cluster, user_names, job_states, job_ids):
+def calculate_wn_occupancy(cluster, user_names, job_states, job_ids, job_queues):
     """
     Prints the Worker Nodes Occupancy table.
     if there are non-uniform WNs in pbsnodes.yaml, e.g. wn01, wn02, gn01, gn02, ...,  remapping is performed.
@@ -795,7 +795,7 @@ def calculate_term_size(config, FALLBACK_TERM_SIZE):
     return int(term_height), int(term_columns)
 
 
-def sort_batch_nodes(batch_nodes):
+def sort_worker_nodes(batch_nodes):
     try:
         batch_nodes.sort(key=eval(config['sorting']['user_sort']), reverse=config['sorting']['reverse'])
     except (IndexError, ValueError):
@@ -907,7 +907,7 @@ def filter_batch_nodes(batch_nodes, filter_rules=None):
         return batch_nodes
 
 
-def map_batch_nodes_to_wn_dicts(cluster, batch_nodes, options_remap):
+def map_worker_nodes_to_wn_dict(cluster, worker_nodes, options_remap):
     """
     For filtering to take place,
     1) a filter should be defined in QTOPCONF_YAML
@@ -920,16 +920,16 @@ def map_batch_nodes_to_wn_dicts(cluster, batch_nodes, options_remap):
     user_filtering = config['filtering'] and config['filtering'][0]
 
     if user_sorting and options_remap:
-        sort_batch_nodes(batch_nodes)
+        sort_worker_nodes(worker_nodes)
 
     if user_filtering and options_remap:
-        batch_nodes_before = len(batch_nodes)
-        batch_nodes = filter_batch_nodes(batch_nodes, config['filtering'])
-        batch_nodes_after = len(batch_nodes)
-        nodes_drop = batch_nodes_after - batch_nodes_before
+        worker_nodes_before = len(worker_nodes)
+        worker_nodes = filter_worker_nodes(worker_nodes, config['filtering'])
+        worker_nodes_after = len(worker_nodes)
+        nodes_drop = worker_nodes_after - worker_nodes_before
 
-    for (batch_node, (idx, cur_node_nr)) in zip(batch_nodes, enumerate(cluster['workernode_list'])):
-        # Seemingly there is an error in the for loop because batch_nodes and workernode_list
+    for (batch_node, (idx, cur_node_nr)) in zip(worker_nodes, enumerate(cluster['workernode_list'])):
+        # Seemingly there is an error in the for loop because worker_nodes and workernode_list
         # have different lengths if there's a filter in place, but it is OK, since
         # it is just the idx counter that is taken into account in remapping.
         workernode_dict[cur_node_nr] = batch_node
@@ -1711,6 +1711,11 @@ def strict_check_jobs(wns_occupancy, cluster):
               % (counted_jobs, cluster['total_running_jobs'])
 
 
+def get_jobs_of_busy_worker_nodes(worker_nodes):
+    for worker_node in worker_nodes:
+        yield worker_node, worker_node['core_job_map'].values()
+
+
 if __name__ == '__main__':
 
     stdout = sys.stdout  # keep a copy of the initial value of sys.stdout
@@ -1744,14 +1749,23 @@ if __name__ == '__main__':
                 # MAIN ##### Gather data ###############
                 scheduling_system = scheduler_factory(scheduler, scheduler_output_filenames, config)
                 worker_nodes = scheduling_system.get_worker_nodes()
-                job_ids, user_names, job_states, _ = scheduling_system.get_jobs_info()
+                job_ids, user_names, job_states, job_queues = scheduling_system.get_jobs_info()
                 total_running_jobs, total_queued_jobs, qstatq_lod = scheduling_system.get_queues_info()
                 # TODO: maybe add dump input data in here in the future?
 
                 # MAIN ##### Process data ###############
+                for d in worker_nodes:
+                    if 'qname' in d:
+                        break
+                    queue_of_job_id = dict(izip(job_ids, job_queues))
+                    for (worker_node, _job_ids) in get_jobs_of_busy_worker_nodes(worker_nodes):
+                        worker_node.setdefault('qname', set()).update((queue_of_job_id[job_id][0] for job_id in _job_ids))
+                        worker_node['qname'] = list(worker_node['qname'])
+
+
                 cluster = init_cluster(worker_nodes, total_running_jobs, total_queued_jobs, qstatq_lod)
                 cluster = calculate_cluster(worker_nodes, cluster)
-                wns_occupancy = calculate_wn_occupancy(cluster, user_names, job_states, job_ids)
+                wns_occupancy = calculate_wn_occupancy(cluster, user_names, job_states, job_ids, job_queues)
 
                 # MAIN ##### Export data ###############
                 document = Document(wns_occupancy, cluster)

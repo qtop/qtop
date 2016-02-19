@@ -152,7 +152,7 @@ class PBSBatchSystem(GenericBatchSystem):
             try:  # this should turn up more often, hence the try/except.
                 _ = block['jobs']
             except KeyError:
-                pass
+                pbs_values['core_job_map'] = dict()  # change of behaviour: all entries should contain the key even if no value
             else:
                 jobs = block['jobs'].split(',')
                 pbs_values['core_job_map'] = dict((core, job) for job, core in self._get_jobs_cores(jobs))
