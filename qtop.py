@@ -584,7 +584,7 @@ def calc_general_multiline_attr(cluster, part_name, yaml_key):  # NEW
 
     for _node in cluster['workernode_dict']:
         state_np_corejob = cluster['workernode_dict'][_node]
-        # distribute_state_to_lines
+        # distribute state, qname etc to lines
         for attr_line, ch in izip_longest(multiline_map, state_np_corejob[yaml_key], fillvalue=' '):
             try:
                 multiline_map[attr_line].append(ch)
@@ -609,7 +609,7 @@ def transpose_matrix(d, colored=False, reverse=False):
         if any(j != " " for j in tuple):
             tuple = colored and [colorize(j, '', pattern_of_id[j]) if j in pattern_of_id else j for j in tuple] or list(tuple)
             tuple[:] = tuple[::-1] if reverse else tuple
-            yield tuple
+        yield tuple
 
 
 def get_yaml_key_part(outermost_key):
