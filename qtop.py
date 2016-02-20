@@ -1777,24 +1777,25 @@ if __name__ == '__main__':
                 scheduler_output_filenames = fetch_scheduler_files(options, config)
                 init_sample_file(options)
 
-                # MAIN ##### Gather data ###############
+                ###### Gather data ###############
                 scheduling_system = scheduler_factory(scheduler, scheduler_output_filenames, config)
                 worker_nodes = scheduling_system.get_worker_nodes()
                 job_ids, user_names, job_states, job_queues = scheduling_system.get_jobs_info()
                 total_running_jobs, total_queued_jobs, qstatq_lod = scheduling_system.get_queues_info()
                 # TODO: maybe add dump input data in here in the future?
 
-                # MAIN ##### Process data ###############
+                ###### Process data ###############
                 worker_nodes = get_qnames_per_worker_node(worker_nodes)
                 cluster = init_cluster(worker_nodes, total_running_jobs, total_queued_jobs, qstatq_lod)
                 cluster = calculate_cluster(worker_nodes, cluster)
                 wns_occupancy = calculate_wn_occupancy(cluster, user_names, job_states, job_ids, job_queues)
 
-                # MAIN ##### Export data ###############
+                ###### Export data ###############
                 document = Document(wns_occupancy, cluster)
                 tf = tempfile.NamedTemporaryFile(delete=False, suffix='.json', dir=savepath)  # Will become doc member one day
                 document.save(tf.name)  # dump json document to a file
 
+                ###### Display data ###############
                 display = TextDisplay(document, config, viewport)
                 display.display_selected_sections(savepath, QTOP_SAMPLE_FILENAME, QTOP_LOGFILE)
 
