@@ -1732,6 +1732,21 @@ def get_jobs_of_busy_worker_nodes(worker_nodes):
         yield worker_node, worker_node['core_job_map'].values()
 
 
+def get_qnames_per_worker_node(worker_nodes):
+    """
+    This gets the first letter of the queues associated with each worker node.
+    SGE systems already contain this information.
+    """
+    for d in worker_nodes:
+        if 'qname' in d:
+            break
+        queue_of_job_id = dict(izip(job_ids, job_queues))
+        for (worker_node, _job_ids) in get_jobs_of_busy_worker_nodes(worker_nodes):
+            worker_node.setdefault('qname', set()).update((queue_of_job_id[job_id][0] for job_id in _job_ids))
+            worker_node['qname'] = list(worker_node['qname'])
+    return worker_nodes
+
+
 if __name__ == '__main__':
 
     stdout = sys.stdout  # keep a copy of the initial value of sys.stdout
@@ -1770,15 +1785,7 @@ if __name__ == '__main__':
                 # TODO: maybe add dump input data in here in the future?
 
                 # MAIN ##### Process data ###############
-                for d in worker_nodes:
-                    if 'qname' in d:
-                        break
-                    queue_of_job_id = dict(izip(job_ids, job_queues))
-                    for (worker_node, _job_ids) in get_jobs_of_busy_worker_nodes(worker_nodes):
-                        worker_node.setdefault('qname', set()).update((queue_of_job_id[job_id][0] for job_id in _job_ids))
-                        worker_node['qname'] = list(worker_node['qname'])
-
-
+                worker_nodes = get_qnames_per_worker_node(worker_nodes)
                 cluster = init_cluster(worker_nodes, total_running_jobs, total_queued_jobs, qstatq_lod)
                 cluster = calculate_cluster(worker_nodes, cluster)
                 wns_occupancy = calculate_wn_occupancy(cluster, user_names, job_states, job_ids, job_queues)
