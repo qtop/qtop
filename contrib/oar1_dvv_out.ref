@@ -2,7 +2,7 @@
 c Queueing System report tool. All bugs added by sfranky@gmail.com. Cross fingers now...
 Please try: watch -d /home/sfranky/PycharmProjects/qtop/qtop.py -s <SOURCEDIR>
 
-[1;30m===> [0;m[1;37mJob accounting summary[0;m[1;30m <=== [0;m[1;37m2016-02-18 02:46:13[0;m WORKDIR = /home/sfranky/PycharmProjects/qtop
+[1;30m===> [0;m[1;37mJob accounting summary[0;m[1;30m <=== [0;m[1;37m2016-02-20 09:03:54[0;m WORKDIR = /home/sfranky/PycharmProjects/qtop
 [1;33mUsage Totals[0;m:	[1;31m172[0;m/[1;31m183[0;m [1;31mNodes[0;m | [1;32m1349[0;m/[1;32m2520[0;m [1;32mcores[0;m |   [1;34m0[0;m+[1;34m0[0;m [1;34mjobs[0;m (R + Q) 
 [1;33mQueues[0;m: |  [0;31m* implies blocked[0;m
 

@@ -1111,6 +1111,22 @@ def check_python_version():
         sys.exit(1)
 
 
+def deprecate_old_json_files():
+    """
+    deletes older json files in savepath directory.
+    experimental and loosely untested
+    """
+    time_alive = int(config['auto_delete_old_json_files_after_few_hours'])
+    user_selected_save_path = realpath(expandvars(config['savepath']))
+    for f in os.listdir(user_selected_save_path):
+        if not f.endswith('json'):
+            continue
+        curpath = os.path.join(user_selected_save_path, f)
+        file_modified = datetime.datetime.fromtimestamp(getmtime(curpath))
+        if datetime.datetime.now() - file_modified > datetime.timedelta(hours=time_alive):
+            os.remove(curpath)
+
+
 def control_movement(read_char):
     """
     Basic vi-like movement is implemented for the -w switch (linux watch-like behaviour for qtop).
