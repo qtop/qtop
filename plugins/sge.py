@@ -263,8 +263,8 @@ class SGEBatchSystem(GenericBatchSystem):
                 if not slots_used:
                     worker_node['qname'] = set()
                 else:
-                    worker_node['qname'] = set(qname) \
-                        if not options.ANONYMIZE else set(anonymize(qname, 'qs'))
+                    # if slots are reportedly used, the queue will be displayed even if no actual running jobs exist
+                    worker_node['qname'] = set(qname) if not options.ANONYMIZE else set(anonymize(qname, 'qs'))
                 count += 1
             elif resource.attrib.get('name') == 'num_proc':
                 worker_node['np'] = resource.text
@@ -272,8 +272,8 @@ class SGEBatchSystem(GenericBatchSystem):
             if count == 3:
                 break
         else:
-            # was: raise ValueError("No such resource")
-            worker_node['np'] = 0  # TODO: no 'np' found most probably. To check!
+            # out of the 3, np information is the most likely to be missing from a node
+            worker_node['np'] = 0
 
         return worker_node
 

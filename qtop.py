@@ -583,9 +583,9 @@ def calc_general_multiline_attr(cluster, part_name, yaml_key):  # NEW
         multiline_map['attr%sline' % str(line_nr)] = []
 
     for _node in cluster['workernode_dict']:
-        state_np_corejob = cluster['workernode_dict'][_node]
+        node_attrs = cluster['workernode_dict'][_node]
         # distribute state, qname etc to lines
-        for attr_line, ch in izip_longest(multiline_map, state_np_corejob[yaml_key], fillvalue=' '):
+        for attr_line, ch in izip_longest(multiline_map, node_attrs[yaml_key], fillvalue=' '):
             try:
                 multiline_map[attr_line].append(ch)
             except KeyError:
