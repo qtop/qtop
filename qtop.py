@@ -881,7 +881,7 @@ def filter_list_in_by_name_pattern(batch_nodes, the_list=None):
     return batch_nodes
 
 
-def filter_batch_nodes(batch_nodes, filter_rules=None):
+def filter_worker_nodes(batch_nodes, filter_rules=None):
     """
     Filters specific nodes according to the filter rules in QTOPCONF_YAML
     """
