@@ -472,19 +472,6 @@ def find_matrices_width(wns_occupancy, cluster, DEADWEIGHT=11):
     return start, stop, extra_matrices_nr
 
 
-def print_wnid_lines(d, start, stop, end_labels, transposed_matrices, color_func, args):
-    if config['transpose_wn_matrices']:
-        tuple_ = [None, 'wnid_lines', transpose_matrix(d)]
-        transposed_matrices.append(tuple_)
-        return
-
-    colors = iter(color_func(*args))
-    for line_nr, end_label, color in zip(d, end_labels, colors):
-        wn_id_str = insert_separators(d[line_nr][start:stop], config['SEPARATOR'], config['vertical_separator_every_X_columns'])
-        wn_id_str = ''.join([colorize(elem, color) for elem in wn_id_str])
-        print wn_id_str + end_label
-
-
 def is_matrix_coreless(wns_occupancy):
     print_char_start = wns_occupancy['print_char_start']
     print_char_stop = wns_occupancy['print_char_stop']
@@ -605,11 +592,11 @@ def transpose_matrix(d, colored=False, reverse=False):
     returns a transposed matrix
     """
     pattern_of_id = wns_occupancy['pattern_of_id']
-    for tuple in izip_longest(*[[char for char in d[k]] for k in d], fillvalue=" "):
-        if any(j != " " for j in tuple):
-            tuple = colored and [colorize(j, '', pattern_of_id[j]) if j in pattern_of_id else j for j in tuple] or list(tuple)
-            tuple[:] = tuple[::-1] if reverse else tuple
-        yield tuple
+    for tpl in izip_longest(*[[char for char in d[k]] for k in d], fillvalue=" "):
+        if any(j != " " for j in tpl):
+            tpl = colored and [colorize(j, '', pattern_of_id[j]) if j in pattern_of_id else j for j in tpl] or list(tpl)
+            tpl[:] = tpl[::-1] if reverse else tpl
+        yield tpl
 
 
 def get_yaml_key_part(outermost_key):
@@ -1265,6 +1252,7 @@ class TextDisplay(object):
         self.wns_occupancy = document.wns_occupancy
         self.document = document
         self.viewport = viewport
+        self.config = config
 
     def display_selected_sections(self, savepath, QTOP_SAMPLE_FILENAME, QTOP_LOGFILE):
         """
@@ -1425,8 +1413,10 @@ class TextDisplay(object):
         """
         occupancy_parts needs to be redefined for each matrix, because of changed parameter values
         """
-        if (not all([wns_occupancy, wns_occupancy.get('id_of_username', 0)])) or is_matrix_coreless(
-                wns_occupancy):
+        if (
+            (not all([wns_occupancy, wns_occupancy.get('id_of_username', 0)]))
+             or is_matrix_coreless(wns_occupancy)
+        ):
             return
 
         print_char_start = wns_occupancy['print_char_start']
@@ -1565,8 +1555,8 @@ class TextDisplay(object):
             for node_nr in range(1, node_str_width + 1):
                 d[str(node_nr)] = wn_vert_labels[str(node_nr)]
             end_labels_iter = iter(end_labels[str(node_str_width)])
-            print_wnid_lines(d, start, stop, end_labels_iter, transposed_matrices,
-                             color_func=self.color_plainly, args=('White', 'Gray_L', start > 0))
+            self.print_wnid_lines(d, start, stop, end_labels_iter, transposed_matrices,
+                                  color_func=self.color_plainly, args=('White', 'Gray_L', start > 0))
             # start > 0 is just a test for a possible future condition
 
         elif NAMED_WNS or options.FORCE_NAMES:  # the actual names of the worker nodes instead of numbered WNs
@@ -1577,7 +1567,7 @@ class TextDisplay(object):
                 end_labels.setdefault(str(num), end_labels['7'] + num * ['={___ID___}'])
 
             end_labels_iter = iter(end_labels[str(node_str_width)])
-            print_wnid_lines(wn_vert_labels, start, stop, end_labels_iter, transposed_matrices,
+            self.print_wnid_lines(wn_vert_labels, start, stop, end_labels_iter, transposed_matrices,
                              color_func=self.highlight_alternately, args=(config['ALT_LABEL_COLORS']))
 
     def highlight_alternately(self, color_a, color_b):
@@ -1593,6 +1583,18 @@ class TextDisplay(object):
         else:
             while not condition:
                 yield color_1
+
+    def print_wnid_lines(self, d, start, stop, end_labels, transposed_matrices, color_func, args):
+        if self.config['transpose_wn_matrices']:
+            tuple_ = [None, 'wnid_lines', transpose_matrix(d)]
+            transposed_matrices.append(tuple_)
+            return
+
+        colors = iter(color_func(*args))
+        for line_nr, end_label, color in zip(d, end_labels, colors):
+            wn_id_str = insert_separators(d[line_nr][start:stop], config['SEPARATOR'], config['vertical_separator_every_X_columns'])
+            wn_id_str = ''.join([colorize(elem, color) for elem in wn_id_str])
+            print wn_id_str + end_label
 
 
 def get_output_size(max_height, max_line_len, output_fp):
