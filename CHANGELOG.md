@@ -1,3 +1,18 @@
+## 0.8.7
+  - overspill feature (aka oversubscribe/overcommitment) for SGE systems
+  - strict checking cmdline var (will compare reported nr. of jobs against displayed/found jobs)
+  - added support for queuename display for OAR and PBS (SGE already there!)
+  - id column is now more readable (put in brackets)
+  - fixed long-standing bug that would report incorrectly the queues of jobs in a node, in some cases
+  - restored deprecated document file deletion
+  - huge refactoring of the codebase
+
+## 0.8.6
+  - Support for python 2.6 for early RHEL6 distros
+  - Added tarball creation for better user reporting
+  - Added Viewport class
+  - Several bugfixes
+
 ## 0.8.4
   - Watch replacement with simple pager included (with full color functionality, compatible with older RHEL6 systems)
   - GECOS field completed by a less "intruding" command
