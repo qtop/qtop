@@ -62,8 +62,6 @@ class OARBatchSystem(GenericBatchSystem):
             d['np'] = nr_of_jobs
             # d['core_job_map'] = [{'core': idx, 'job': job[0]} for idx, job in enumerate(nodes_jobs[node]) if job[0] is not None]
             d['core_job_map'] = dict((idx, job[0]) for idx, job in enumerate(nodes_jobs[node]) if job[0] is not None)
-            if not d['core_job_map']:
-                del d['core_job_map']
             d['state'] = self._calculate_oar_state(nodes_jobs[node], nr_of_jobs, node_state_mapping)
             worker_nodes.append(d)
 
