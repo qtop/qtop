@@ -1355,17 +1355,19 @@ class TextDisplay(object):
         """
         Displays qtop's second section, the main worker node matrices.
         """
+        self.display_basic_legend()
+        self.display_matrix(wns_occupancy)
+        if not config['transpose_wn_matrices']:
+            self.display_remaining_matrices(wns_occupancy)
+
+    def display_basic_legend(self):
+        """Displays the Worker Nodes occupancy label plus columns explanation"""
         if config['transpose_wn_matrices']:
-            order = config['occupancy_column_order']
-            note = "/".join(order)
+            note = "/".join(config['occupancy_column_order'])
         else:
             note = 'you can read vertically the node IDs; nodes in free state are noted with - '
         print colorize('===> ', 'Gray_D') + colorize('Worker Nodes occupancy', 'White') + colorize(' <=== ', 'Gray_D') \
               + colorize('(%s)', 'Gray_D') % note
-
-        self.display_matrix(wns_occupancy)
-        if not config['transpose_wn_matrices']:
-            self.display_remaining_matrices(wns_occupancy)
 
     def display_user_accounts_pool_mappings(self, wns_occupancy=None):
         """
