@@ -5,6 +5,8 @@ def fix_config_list(config_list):
     """
     transforms a list of the form ['a, b'] to ['a', 'b']
     """
+    if not config_list:
+        return []
     t = config_list
     item = t[0]
     list_items = item.split(',')
@@ -57,7 +59,7 @@ def get_line(fin, verbatim=False, SEPARATOR=None, DEF_INDENT=2):
         list_line = verbatim and [d_indent, line] or [d_indent] + line.split(None or SEPARATOR, 1)
 
         if len(list_line) > 1:
-            if list_line[1].startswith('"') or list_line[1].startswith("'"):
+            if list_line[1].startswith(('"', "'")):
                 list_line[1] = list_line[1][1:-1]
         else:
             pass
