@@ -1185,8 +1185,8 @@ def decide_batch_system(cmdline_switch, env_var, config_file_batch_option, sched
     for the scheduler type. If it's not indicated and "auto" is, it will attempt to guess the scheduler type
     from the scheduler shell commands available in the linux system.
     """
-    if cmdline_switch and cmdline_switch.lower() not in ['sge', 'oar', 'pbs', 'auto']:
-        logging.critical("Selected scheduler system not supported. Available choices are 'PBS', 'SGE', 'OAR'.")
+    if cmdline_switch and cmdline_switch.lower() not in ['sge', 'oar', 'pbs', 'auto', 'demo']:
+        logging.critical("Selected scheduler system not supported. Available choices are 'PBS', 'SGE', 'OAR', 'demo'.")
         logging.critical("For help, try ./qtop.py --help")
         logging.critical("Log file created in %s" % expandvars(QTOP_LOGFILE))
         raise InvalidScheduler
