@@ -985,30 +985,6 @@ def auto_get_avail_batch_system():
     raise NoSchedulerFound
 
 
-def get_selected_batch_system(cmdline_switch, env_var, config_file_batch_option, schedulers):
-    """
-    If the User has selected a specific batch system,
-    through either a cmdline switch, env variable, or config file, pick that system.
-    """
-    if cmdline_switch and cmdline_switch.lower() not in ['sge', 'oar', 'pbs', 'auto']:
-        raise InvalidScheduler
-    for scheduler in (cmdline_switch, env_var, config_file_batch_option):
-        try:
-            scheduler = scheduler.lower()
-        except AttributeError:
-            pass
-
-        if scheduler == 'auto':
-            raise SchedulerNotSpecified
-        elif scheduler in schedulers:
-            logging.info('User-selected scheduler: %s' % scheduler)
-            return scheduler
-        elif scheduler and scheduler not in schedulers:  # a scheduler that does not exist is inputted
-            raise NoSchedulerFound
-    else:
-        raise NoSchedulerFound
-
-
 def execute_shell_batch_commands(batch_system_commands, filenames, _file):
     """
     scheduler-specific commands are invoked from the shell and their output is saved *atomically* to files,
@@ -1215,31 +1191,33 @@ def fetch_scheduler_files(options, config):
     return scheduler_output_filenames
 
 
-def decide_batch_system(cmdline_switch, env_var, config_file_batch_option):
+def decide_batch_system(cmdline_switch, env_var, config_file_batch_option, schedulers):
     """
     Qtop first checks in cmdline switches, environmental variables and the config files, in this order,
     for the scheduler type. If it's not indicated and "auto" is, it will attempt to guess the scheduler type
     from the scheduler shell commands available in the linux system.
     """
-    try:
-        scheduler = get_selected_batch_system(cmdline_switch, env_var, config_file_batch_option, config['schedulers'])
-    except SchedulerNotSpecified:  # it now must be auto-detected
-        try:
-            scheduler = auto_get_avail_batch_system()
-        except NoSchedulerFound:
-            raise  # (re-raises NoSchedulerFound)
-        else:
-            logging.debug('Selected scheduler is %s' % scheduler)
-            return scheduler
-    except NoSchedulerFound:
-        raise
-    except InvalidScheduler:
+    if cmdline_switch and cmdline_switch.lower() not in ['sge', 'oar', 'pbs', 'auto']:
         logging.critical("Selected scheduler system not supported. Available choices are 'PBS', 'SGE', 'OAR'.")
         logging.critical("For help, try ./qtop.py --help")
         logging.critical("Log file created in %s" % expandvars(QTOP_LOGFILE))
-        raise
+        raise InvalidScheduler
+    for scheduler in (cmdline_switch, env_var, config_file_batch_option):
+        if scheduler is None:
+            continue
+        scheduler = scheduler.lower()
+
+        if scheduler == 'auto':
+            scheduler = auto_get_avail_batch_system()
+            logging.debug('Selected scheduler is %s' % scheduler)
+            return scheduler
+        elif scheduler in schedulers:
+            logging.info('User-selected scheduler: %s' % scheduler)
+            return scheduler
+        elif scheduler and scheduler not in schedulers:  # a scheduler that does not exist is inputted
+            raise NoSchedulerFound
     else:
-        return scheduler
+        raise NoSchedulerFound
 
 
 def scheduler_factory(scheduler, scheduler_output_filenames, config):
@@ -1773,7 +1751,12 @@ if __name__ == '__main__':
 
                 transposed_matrices = []
                 viewport.set_term_size(*calculate_term_size(config, FALLBACK_TERMSIZE))
-                scheduler = decide_batch_system(options.BATCH_SYSTEM, os.environ.get('QTOP_SCHEDULER'), config['scheduler'])
+                scheduler = decide_batch_system(
+                    options.BATCH_SYSTEM,
+                    os.environ.get('QTOP_SCHEDULER'),
+                    config['scheduler'],
+                    config['schedulers'],
+                )
                 scheduler_output_filenames = fetch_scheduler_files(options, config)
                 init_sample_file(options)
 
