@@ -85,3 +85,7 @@ class GenericBatchSystem(object):
 
     def get_jobs_info(self, qstats):
         raise NotImplementedError
+
+    @staticmethod
+    def get_mnemonic():
+        raise NotImplementedError

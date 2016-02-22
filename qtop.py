@@ -26,13 +26,14 @@ import termios
 import contextlib
 import glob
 import tempfile
+import sys
+from common_module import *
+from plugins import *
 from math import ceil
-from plugins.pbs import *
-from plugins.oar import *
-from plugins.sge import *
 from colormap import color_of_account, code_of_color
 from yaml_parser import read_yaml_natively, fix_config_list, convert_dash_key_in_dict
 from ui.viewport import Viewport
+from serialiser import GenericBatchSystem
 
 
 @contextlib.contextmanager
@@ -1220,15 +1221,6 @@ def decide_batch_system(cmdline_switch, env_var, config_file_batch_option, sched
         raise NoSchedulerFound
 
 
-def scheduler_factory(scheduler, scheduler_output_filenames, config):
-    if scheduler == "pbs":
-        return PBSBatchSystem(scheduler_output_filenames, config)
-    elif scheduler == "oar":
-        return OARBatchSystem(scheduler_output_filenames, config)
-    elif scheduler == "sge":
-        return SGEBatchSystem(scheduler_output_filenames, config)
-
-
 class Document(namedtuple('Document', ['wns_occupancy', 'cluster'])):
 
     def save(self, filename):
@@ -1725,7 +1717,31 @@ def get_qnames_per_worker_node(worker_nodes):
     return worker_nodes
 
 
+def discover_batch_systems():
+    batch_systems = set()
+
+    # Find all the classes that extend GenericBatchSystem
+    to_scan = [GenericBatchSystem]
+    while to_scan:
+        parent = to_scan.pop()
+        for child in parent.__subclasses__():
+            if child not in batch_systems:
+                batch_systems.add(child)
+                to_scan.append(child)
+
+    # Extract those class's mnemonics
+    available_batch_systems = {}
+    for batch_system in batch_systems:
+        mnemonic = batch_system.get_mnemonic()
+        assert mnemonic
+        assert mnemonic not in available_batch_systems, "Duplicate for mnemonic: '%s'" % mnemonic
+        available_batch_systems[mnemonic] = batch_system
+
+    return available_batch_systems
+
+
 if __name__ == '__main__':
+    available_batch_systems = discover_batch_systems()
 
     stdout = sys.stdout  # keep a copy of the initial value of sys.stdout
 
@@ -1761,7 +1777,7 @@ if __name__ == '__main__':
                 init_sample_file(options)
 
                 ###### Gather data ###############
-                scheduling_system = scheduler_factory(scheduler, scheduler_output_filenames, config)
+                scheduling_system = available_batch_systems[scheduler](scheduler_output_filenames, config)
                 worker_nodes = scheduling_system.get_worker_nodes()
                 job_ids, user_names, job_states, job_queues = scheduling_system.get_jobs_info()
                 total_running_jobs, total_queued_jobs, qstatq_lod = scheduling_system.get_queues_info()
