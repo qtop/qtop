@@ -34,6 +34,11 @@ class OarStatExtractor(StatExtractor):
 
 
 class OARBatchSystem(GenericBatchSystem):
+
+    @staticmethod
+    def get_mnemonic():
+        return "oar"
+
     def __init__(self, scheduler_output_filenames, config):
         self.oarnodes_s_file = scheduler_output_filenames.get('oarnodes_s_file')
         self.oarnodes_y_file = scheduler_output_filenames.get('oarnodes_y_file')
