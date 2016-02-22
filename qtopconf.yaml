@@ -23,6 +23,7 @@ schedulers:
   sge:
     sge_file_stat: %(savepath)s/qstat%(pid)s.F.xml.stdout, qstat -F -xml -u '*'
   demo:
+    demo_file: %(savepath)s/demo%(pid)s.txt, echo 'Demo here'
 
 
 # Utilises lxml module. Needs to be installed in your system.
