@@ -24,6 +24,8 @@ class DemoBatchSystem(GenericBatchSystem):
         self.scheduler_output_filenames = scheduler_output_filenames
         self.config = config
         self.jobs = list()  # needed just for the demo to work
+        self.running_jobs_nr = 0
+        self.queued_jobs_nr = 0
         self.total_nps = 0
 
     def get_worker_nodes(self):
@@ -70,11 +72,13 @@ class DemoBatchSystem(GenericBatchSystem):
         job_states = [random.choice("Q R C E W".split()) for _ in job_ids]
         usernames = [random.choice("alice023 alibs lhc154 fotis Atlassm".split()) for _ in job_ids]
         queue_names = [random.choice("Urgent Foobar Priori".split()) for _ in job_ids]
+        self.running_jobs_nr = job_states.count('R')
+        self.queued_jobs_nr = job_states.count('Q')
         return job_ids, usernames, job_states, queue_names
 
     def get_queues_info(self):
-        total_running_jobs = 110  # these are reported directly by qstat in PBS; if not, they are calculated.
-        total_queued_jobs = 100
+        total_running_jobs = self.running_jobs_nr  # these are reported directly by qstat in PBS; if not, they are calculated.
+        total_queued_jobs = self.queued_jobs_nr
 
         qstatq_list = list()
         queues = "Urgent Foobar Priori".split()
@@ -82,7 +86,6 @@ class DemoBatchSystem(GenericBatchSystem):
             qstatq = dict()
             qstatq['run'] = random.randint(0, 15)
             qstatq['queued'] = str(random.randint(0, 15))
-            # qstatq['queue_name'] = random.choice("Urgent Foobar Priori".split())
             qstatq['queue_name'] = queues.pop()
             qstatq['state'] = random.choice("Q R C E W".split())
             qstatq['lm'] = random.randint(0, 100)
