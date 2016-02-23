@@ -42,7 +42,7 @@ class DemoBatchSystem(GenericBatchSystem):
                 str(random.randint(0,10)),
                 random.choice(['foo.com', 'bar.com', 'baz.com'])])
             worker_node["state"] = random.choice(["-", "b", "d"])
-            worker_node["gpus"] = random.choice([0, 2, 4, 8, 16, 24, 32])
+            # worker_node["gpus"] = random.choice([0, 2, 4, 8, 16, 24, 32])  # currently not displayed
             worker_node["np"] = random.choice([8, 16, 24, 32])
             self.total_nps += worker_node["np"]
 

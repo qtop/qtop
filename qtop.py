@@ -1271,9 +1271,12 @@ class TextDisplay(object):
                 logging.warning('=== WARNING: --- Remapping WN names and retrying heuristics... good luck with this... ---')
 
         ansi_delete_char = "\015"  # this removes the first ever character (space) appearing in the output
-
         print '%(del)s%(name)s report tool. All bugs added by sfranky@gmail.com. Cross fingers now...' \
               % {'name': 'PBS' if options.CLASSIC else 'Queueing System', 'del': ansi_delete_char}
+        if scheduler == 'demo':
+            msg = "This data is simulated. As soon as you connect to one of the supported scheduling systems,\n" \
+                  "you will see live data from your cluster. Press q to Quit."
+            print colorize(msg, 'Blue')
 
         if not options.WATCH:
             print 'Please try: watch -d %s/qtop.py -s <SOURCEDIR>\n' % QTOPPATH
