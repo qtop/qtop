@@ -114,7 +114,7 @@ class DemoBatchSystem(GenericBatchSystem):
         job_ids = self.jobs
         # These are used in the upper and lower parts of qtop in the statistics part
         job_states = [random.choice("Q R C E W".split()) for _ in job_ids]
-        usernames = [random.choice("bill john gus anthony thomas".split()) for _ in job_ids]
+        usernames = [random.choice("alice023 john lhc154 fotis thomas".split()) for _ in job_ids]
         queue_names = [random.choice("Urgent Foobar Urgent Foobar Priori".split()) for _ in job_ids]
         return job_ids, usernames, job_states, queue_names
 
