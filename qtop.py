@@ -1279,7 +1279,8 @@ class TextDisplay(object):
             print colorize(msg, 'Blue')
 
         if not options.WATCH:
-            print 'Please try it with watch: %s/qtop.py -s <SOURCEDIR> -w\n' % QTOPPATH
+            print 'Please try it with watch: %s/qtop.py -s <SOURCEDIR> -w [<every_nr_of_sec>]\n' \
+                  '...and thank you for watching ;)\n' % QTOPPATH
         print colorize('===> ', 'Gray_D') + colorize('Job accounting summary', 'White') + colorize(' <=== ', 'Gray_D') + \
               '%s WORKDIR = %s' % (colorize(str(datetime.datetime.today())[:-7], 'White'), QTOPPATH)
 
