@@ -65,8 +65,8 @@ class DemoBatchSystem(GenericBatchSystem):
         job_ids = self.jobs
         # These are used in the upper and lower parts of qtop in the statistics part
         job_states = [random.choice("Q R C E W".split()) for _ in job_ids]
-        usernames = [random.choice("alice023 cmsmu lhc154 fotis Atlassm".split()) for _ in job_ids]
-        queue_names = [random.choice("Urgent Foobar Urgent Foobar Priori".split()) for _ in job_ids]
+        usernames = [random.choice("alice023 alibs lhc154 fotis Atlassm".split()) for _ in job_ids]
+        queue_names = [random.choice("Urgent Foobar Priori".split()) for _ in job_ids]
         return job_ids, usernames, job_states, queue_names
 
     def get_queues_info(self):
@@ -74,11 +74,13 @@ class DemoBatchSystem(GenericBatchSystem):
         total_queued_jobs = 100
 
         qstatq_list = list()
+        queues = "Urgent Foobar Priori".split()
         for i in range(QUEUES):
             qstatq = dict()
             qstatq['run'] = random.randint(0, 15)
             qstatq['queued'] = str(random.randint(0, 15))
-            qstatq['queue_name'] = random.choice("Urgent Foobar Priori".split())
+            # qstatq['queue_name'] = random.choice("Urgent Foobar Priori".split())
+            qstatq['queue_name'] = queues.pop()
             qstatq['state'] = random.choice("Q R C E W".split())
             qstatq['lm'] = random.randint(0, 100)
             qstatq_list.append(qstatq)

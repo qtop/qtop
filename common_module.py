@@ -132,7 +132,7 @@ def watch_callback(option, opt_str, value, parser):
         value.append(arg)
     # import pdb; pdb.set_trace()
     if not value:
-        value.append(1)
+        value.append(0)
     del parser.rargs[:len(value)]
     setattr(parser.values, option.dest, value)
 

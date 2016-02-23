@@ -1821,7 +1821,7 @@ if __name__ == '__main__':
                     cat_command = print_y_lines_of_file_starting_from_x(file=output_fp, x=viewport.v_start, y=viewport.v_term_size)
                     _ = subprocess.call(cat_command, stdout=stdout, stderr=stdout, shell=True)
 
-                    read_char = wait_for_keypress_or_autorefresh(int(options.WATCH[0]))
+                    read_char = wait_for_keypress_or_autorefresh(int(options.WATCH[0]) or KEYPRESS_TIMEOUT)
                     control_movement(read_char)
 
                 os.chdir(QTOPPATH)
