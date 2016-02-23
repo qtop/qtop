@@ -168,11 +168,11 @@ def calculate_cluster(worker_nodes, cluster):
 
     decide_remapping(cluster, all_str_digits_with_empties)
 
+    # nodes_drop: this amount has to be chopped off of the end of workernode_list_remapped
+    nodes_drop, cluster, workernode_dict, workernode_dict_remapped = map_worker_nodes_to_wn_dict(cluster, worker_nodes,
+                                                                                                 options.REMAP)
+    cluster['workernode_dict'] = workernode_dict
     if options.REMAP:
-        # nodes_drop: this amount has to be chopped off of the end of workernode_list_remapped
-        nodes_drop, cluster, workernode_dict, workernode_dict_remapped = map_worker_nodes_to_wn_dict(cluster, worker_nodes,
-                                                                                                     options.REMAP)
-        cluster['workernode_dict'] = workernode_dict
         cluster['workernode_dict_remapped'] = workernode_dict_remapped
         cluster['total_wn'] += nodes_drop
         cluster['highest_wn'] = cluster['total_wn']
