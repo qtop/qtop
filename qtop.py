@@ -1279,7 +1279,7 @@ class TextDisplay(object):
             print colorize(msg, 'Blue')
 
         if not options.WATCH:
-            print 'Please try: watch -d %s/qtop.py -s <SOURCEDIR>\n' % QTOPPATH
+            print 'Please try it with watch: %s/qtop.py -s <SOURCEDIR> -w\n' % QTOPPATH
         print colorize('===> ', 'Gray_D') + colorize('Job accounting summary', 'White') + colorize(' <=== ', 'Gray_D') + \
               '%s WORKDIR = %s' % (colorize(str(datetime.datetime.today())[:-7], 'White'), QTOPPATH)
 
@@ -1650,7 +1650,7 @@ def init_sample_file(options):
         source_files = glob.glob(os.path.join(realpath(QTOPPATH), '*.py'))
         add_to_sample(source_files, savepath, subdir='source')
 
-def wait_for_keypress_or_autorefresh():
+def wait_for_keypress_or_autorefresh(KEYPRESS_TIMEOUT=1):
     """
     This will make qtop wait for user input for a while,
     otherwise it will auto-refresh the display
@@ -1821,7 +1821,7 @@ if __name__ == '__main__':
                     cat_command = print_y_lines_of_file_starting_from_x(file=output_fp, x=viewport.v_start, y=viewport.v_term_size)
                     _ = subprocess.call(cat_command, stdout=stdout, stderr=stdout, shell=True)
 
-                    read_char = wait_for_keypress_or_autorefresh()
+                    read_char = wait_for_keypress_or_autorefresh(int(options.WATCH[0]))
                     control_movement(read_char)
 
                 os.chdir(QTOPPATH)

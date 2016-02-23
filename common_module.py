@@ -111,6 +111,32 @@ class EmptySystem(Exception):
     pass
 
 
+def watch_callback(option, opt_str, value, parser):
+    assert value is None
+    value = []
+
+    def floatable(str):
+        try:
+            float(str)
+            return True
+        except ValueError:
+            return False
+
+    for arg in parser.rargs:
+        # stop on --foo like options
+        if arg[:2] == "--" and len(arg) > 2:
+            break
+        # stop on -a, but not on -3 or -3.0
+        if arg[:1] == "-" and len(arg) > 1 and not floatable(arg):
+            break
+        value.append(arg)
+    # import pdb; pdb.set_trace()
+    if not value:
+        value.append(1)
+    del parser.rargs[:len(value)]
+    setattr(parser.values, option.dest, value)
+
+
 parser = OptionParser()  # for more details see http://docs.python.org/library/optparse.html
 
 parser.add_option("-1", "--disablesection1", action="store_true", dest="sect_1_off", default=False,
@@ -159,8 +185,8 @@ parser.add_option("-v", "--verbose", dest="verbose", action="count",
 # parser.add_option("-W", "--writemethod", dest="write_method", action="store", default="txtyaml",
 #                   choices=['json'],
 #                   help="Set the method used for dumping information, json, yaml, or native python (yaml format)")
-parser.add_option("-w", "--watch", dest="WATCH", action="store_true", default=False,
-                  help="Mimic shell's watch behaviour")
+parser.add_option("-w", "--watch", dest="WATCH", help="Mimic shell's watch behaviour",
+                  action="callback", callback=watch_callback)
 # TODO: implement this!
 # parser.add_option("-z", "--quiet", action="store_false", dest="verbose", default=True,
 #                   help="Don't print status messages to stdout. Not doing anything at the moment.")
