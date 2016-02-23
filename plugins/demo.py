@@ -1,5 +1,6 @@
-from serialiser import *
 import random
+import itertools
+from serialiser import *
 WORKER_NODES = 50
 QUEUES = 3
 
@@ -35,12 +36,14 @@ class DemoBatchSystem(GenericBatchSystem):
         """
 
         worker_nodes = list()
+        iter_names = itertools.cycle(['dn', 'pc', 'wn'])
+        iter_domains = itertools.cycle(['foo.com', 'bar.com', 'baz.com'])
         for i in range(WORKER_NODES):
             worker_node = dict()
             worker_node["domainname"] = "".join([
-                random.choice(['dn', 'pc', 'wn']),
-                str(random.randint(0,10)),
-                random.choice(['foo.com', 'bar.com', 'baz.com'])])
+                next(iter_names),
+                str(i),
+                next(iter_domains)])
             worker_node["state"] = random.choice(["-", "b", "d"])
             # worker_node["gpus"] = random.choice([0, 2, 4, 8, 16, 24, 32])  # currently not displayed
             worker_node["np"] = random.choice([8, 16, 24, 32])
