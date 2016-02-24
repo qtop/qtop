@@ -53,7 +53,7 @@ class DemoBatchSystem(GenericBatchSystem):
 
             # pick a series of random core/random job nr pairs
             worker_node["core_job_map"] = dict()
-            for i in range(random.randint(0, worker_node["np"])):
+            for ii in range(random.randint(0, worker_node["np"])):
                 if worker_node["state"] == "d": break
                 random_job_id = "j" + str(random.randint(0, 500))
                 random_core = random.choice(range(worker_node["np"]))
