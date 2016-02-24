@@ -1,8 +1,163 @@
 import random
 import itertools
+import time
 from serialiser import *
+from collections import defaultdict
+
 WORKER_NODES = 50
-QUEUES = 3
+QUEUES = "Urgent Foobar Priori".split()
+
+AVG_JOB_DURATION = 5  # In units of refresh period (e.g. 2 seconds)
+DESIRED_GRID_UTILIZATION = 0.75  # The grid won't be scheduled beydond this ratio
+
+NODE_REPAIR_PROBABILITY = 0.03
+NODE_FAILURE_PROBABILITY = 0.01
+
+QUEUE_STATE_CHANGE_PROBABILITY = 0.05
+
+class LittleGridSimulator(object):
+
+    def __init__(self):
+        # Initialize seeds from time
+        e_time = int(time.time())
+
+        rest, markov_iters = divmod(e_time, 100)
+        _, cores_seed = divmod(rest, 1000) # Change board every 100 seconds
+
+        random.seed(cores_seed)
+
+        # -- Step 1. Setup random grid
+
+        # Create random cores per worker node
+        self.nps = []
+        for i in range(WORKER_NODES):
+            self.nps.append(random.choice([8, 16, 24, 32]))
+
+        self.total_nps = sum(self.nps)
+
+        # Create random node names...
+        iter_names = itertools.cycle(['dn', 'pc', 'wn'])
+        iter_domains = itertools.cycle(['foo.com', 'bar.com', 'baz.com'])
+
+        self.domain_names = []
+        for i in range(WORKER_NODES):
+            domainname = "".join([
+                next(iter_names),
+                str(i),
+                next(iter_domains)])
+            self.domain_names.append(domainname)
+
+        # Setup random node states
+        self.node_state = []
+        p_all = NODE_REPAIR_PROBABILITY + NODE_FAILURE_PROBABILITY
+        for i in range(WORKER_NODES):
+
+            if NODE_REPAIR_PROBABILITY < random.random() * p_all:
+                state = random.choice(["-", "b"])
+            else:
+                state = random.choice(["d"])
+
+            self.node_state.append(state)
+
+        # Set all cores in all nodes to unscheduled state
+        self.core_job_map = defaultdict(list)
+        for node in range(WORKER_NODES):
+            for core in range(self.nps[node]):
+                self.core_job_map[node].append(None)
+
+        # -- Step 2. Setup random workload
+        jobcnt = 0
+        self.queue_jobs = defaultdict(list)
+        self.job_meta = {}
+        self.job_state = {}
+        self.queue_state = {}
+        for queue_name in QUEUES:
+            # Add a random number of jobs into each queue
+            for jobs in xrange(random.randint(100, 3000)):
+                job_id = "j%d" % jobcnt
+                username = random.choice("alice023 alibs lhc154 fotis Atlassm".split())
+                self.queue_jobs[queue_name].append(job_id)
+                self.job_state[job_id] = 'Q'  # Initialy everything queued
+                self.job_meta[job_id] = (queue_name, username)
+                jobcnt += 1
+            self.queue_state[queue_name] = random.choice("Q R C E W".split())
+
+        # -- Step 3. Do a few iterations (at least 10) on the state of the cluster
+        p_job_die = 1. / AVG_JOB_DURATION
+        for _ in (xrange(10 + markov_iters)):
+
+            # Step 3.a Clear all jobs which where scheduled to die
+            for node in range(WORKER_NODES):
+                for core, job_id in enumerate(self.core_job_map[node]):
+                    if job_id:
+                        if self.job_state[job_id] != 'R':
+                            self.core_job_map[node][core] = None
+
+
+            # Step 3.b A few jobs will be scheduled to die...
+            for node in range(WORKER_NODES):
+                for core, job_id in enumerate(self.core_job_map[node]):
+                    if job_id:
+                        if random.random() < p_job_die:
+                            self.job_state[job_id] = random.choice("C E W".split())
+
+
+            # Step 3.c Make a few servers fail or get rapaired
+            for node in range(WORKER_NODES):
+                if self.node_state[node] == "d":
+                    if random.random() < NODE_REPAIR_PROBABILITY:
+                        # We have a repair... ready to schedule
+                        self.node_state[node] = random.choice(["-", "b"])
+                else:
+                    if random.random() < NODE_FAILURE_PROBABILITY:
+                        # We have a failure. All jobs completed (if only!)
+                        self.node_state[node] = "d"
+                        for core, job_id in enumerate(self.core_job_map[node]):
+                            if job_id:
+                                self.core_job_map[node][core] = None
+                                self.job_state[job_id] = random.choice("C E W".split())
+
+
+            # Step 3.d Find available slots in the system...
+            empty_slots = []
+            utilized_slots = 0
+            for node in range(WORKER_NODES):
+                if self.node_state[node] != "d":
+                    for core, job_id in enumerate(self.core_job_map[node]):
+                        if job_id:
+                            utilized_slots += 1
+                        else:
+                            empty_slots.append((node, core))
+
+            total_available_capacity = utilized_slots + len(empty_slots)
+
+
+            # Step 3.e Schedule up to the desired allocation...
+            desired_allocated_slots = int(total_available_capacity * DESIRED_GRID_UTILIZATION)
+
+            to_schedule = int(desired_allocated_slots - utilized_slots)
+
+            if to_schedule > 0:
+
+                # Pick the first `to_schedule` random slots
+                random.shuffle(empty_slots)
+                lucky_slots = empty_slots[:to_schedule]
+
+                # and give them jobs from the queues
+                for node, core in lucky_slots:
+                    queue_names = self.queue_jobs.keys()
+                    random.shuffle(queue_names)
+                    for queue_name in queue_names:
+                        if self.queue_jobs[queue_name]:
+                            job_id = self.queue_jobs[queue_name].pop()
+                            self.core_job_map[node][core] = job_id
+                            self.job_state[job_id] = 'R'
+                            break
+
+            # Shuffle queue states as well, every now and then
+            for queue_name in QUEUES:
+                if random.random() < QUEUE_STATE_CHANGE_PROBABILITY:
+                    self.queue_state[queue_name] = random.choice("Q R C E W".split())
 
 
 class DemoBatchSystem(GenericBatchSystem):
@@ -23,10 +178,8 @@ class DemoBatchSystem(GenericBatchSystem):
         """
         self.scheduler_output_filenames = scheduler_output_filenames
         self.config = config
-        self.jobs = list()  # needed just for the demo to work
-        self.running_jobs_nr = 0
-        self.queued_jobs_nr = 0
-        self.total_nps = 0
+        self.sim = LittleGridSimulator()
+
 
     def get_worker_nodes(self):
         """
@@ -37,58 +190,72 @@ class DemoBatchSystem(GenericBatchSystem):
         and generally the first letter of the word describing the state is used.
         """
 
-        worker_nodes = list()
-        iter_names = itertools.cycle(['dn', 'pc', 'wn'])
-        iter_domains = itertools.cycle(['foo.com', 'bar.com', 'baz.com'])
-        for i in range(WORKER_NODES):
-            worker_node = dict()
-            worker_node["domainname"] = "".join([
-                next(iter_names),
-                str(i),
-                next(iter_domains)])
-            worker_node["state"] = random.choice(["-", "b", "d"])
-            # worker_node["gpus"] = random.choice([0, 2, 4, 8, 16, 24, 32])  # currently not displayed
-            worker_node["np"] = random.choice([8, 16, 24, 32])
-            self.total_nps += worker_node["np"]
+        worker_nodes = []
 
-            # pick a series of random core/random job nr pairs
-            worker_node["core_job_map"] = dict()
-            for i in range(random.randint(0, worker_node["np"])):
-                if worker_node["state"] == "d": break
-                random_job_id = "j" + str(random.randint(0, 500))
-                random_core = random.choice(range(worker_node["np"]))
-                worker_node["core_job_map"][random_core] = random_job_id
-                self.jobs.append(random_job_id)
+        for node in range(WORKER_NODES):
+
+            # Create a map core=>jobid
+            core_job_map = {}
+            for core, job_id in enumerate(self.sim.core_job_map[node]):
+                if job_id:
+                    core_job_map[core] = job_id
+
+            worker_node = {
+                "domainname": self.sim.domain_names[node],
+                "state": self.sim.node_state[node],
+                "np": self.sim.nps[node],
+                "core_job_map": core_job_map
+            }
+
             worker_nodes.append(worker_node)
-
+        
         return worker_nodes
 
     def get_jobs_info(self):
         """
         These 4 lists have to be of the same length (TODO: maybe make a tuple out of them or consider an alternative structure?)
         """
-        job_ids = self.jobs
-        # These are used in the upper and lower parts of qtop in the statistics part
-        job_states = [random.choice("Q R C E W".split()) for _ in job_ids]
-        usernames = [random.choice("alice023 alibs lhc154 fotis Atlassm".split()) for _ in job_ids]
-        queue_names = [random.choice("Urgent Foobar Priori".split()) for _ in job_ids]
-        self.running_jobs_nr = job_states.count('R')
-        self.queued_jobs_nr = job_states.count('Q')
+        job_ids = []
+        usernames = []
+        job_states = []
+        queue_names = []
+        for node in range(WORKER_NODES):
+            for core, job_id in enumerate(self.sim.core_job_map[node]):
+                if job_id:
+                    job_ids.append(job_id)
+                    
+                    queue_name, username = self.sim.job_meta[job_id]
+                    usernames.append(username)
+                    queue_names.append(queue_name)
+
+                    job_states.append(self.sim.job_state[job_id])
+
         return job_ids, usernames, job_states, queue_names
 
     def get_queues_info(self):
-        total_running_jobs = self.running_jobs_nr  # these are reported directly by qstat in PBS; if not, they are calculated.
-        total_queued_jobs = self.queued_jobs_nr
+        total_running_jobs = 0  # these are reported directly by qstat in PBS; if not, they are calculated.
+        run_for_queue = defaultdict(int)
+        for node in range(WORKER_NODES):
+            for core, job_id in enumerate(self.sim.core_job_map[node]):
+                if job_id:
+                    total_running_jobs += 1
+                    queue_name, _ = self.sim.job_meta[job_id]
+                    run_for_queue[queue_name] += 1
+
+        total_queued_jobs = 0
+        for queue_name in QUEUES:
+            total_queued_jobs += len(self.sim.queue_jobs[queue_name])
 
         qstatq_list = list()
-        queues = "Urgent Foobar Priori".split()
-        for i in range(QUEUES):
-            qstatq = dict()
-            qstatq['run'] = random.randint(0, 15)
-            qstatq['queued'] = str(random.randint(0, 15))
-            qstatq['queue_name'] = queues.pop()
-            qstatq['state'] = random.choice("Q R C E W".split())
-            qstatq['lm'] = random.randint(0, 100)
+        
+        for queue_name in QUEUES:
+            qstatq = {
+                'queue_name': queue_name,
+                'run': run_for_queue[queue_name],
+                'queued': str(len(self.sim.queue_jobs[queue_name])),
+                'state': self.sim.queue_state[queue_name],
+                'lm': random.randint(0, 100),
+            }
             qstatq_list.append(qstatq)
 
         return total_running_jobs, total_queued_jobs, qstatq_list
