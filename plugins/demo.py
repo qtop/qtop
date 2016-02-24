@@ -70,7 +70,7 @@ class LittleGridSimulator(object):
         p_job_die = 1. / AVG_JOB_DURATION
         first = True
         for _ in (xrange(10 + markov_iters)):
-            # Step 3.a Clear all jobs which were scheduled to die
+            # Step 3.a Add a random number of jobs into each queue
             if first or self.get_total_queued() == 0:
                 self.init_jobs()
                 first = False
@@ -79,7 +79,7 @@ class LittleGridSimulator(object):
             for node in range(WORKER_NODES):
                 for core, job_id in enumerate(self.core_job_map[node]):
                     if job_id:
-                        if self.job_state[job_id] != 'R':
+                        if self.job_state.get(job_id, 'Not_existing!') != 'R':
                             self.core_job_map[node][core] = None
 
 
@@ -91,7 +91,7 @@ class LittleGridSimulator(object):
                             self.job_state[job_id] = random.choice("C E W".split())
 
 
-            # Step 3.d Make a few servers fail or get rapaired
+            # Step 3.d Make a few servers fail or get repaired
             for node in range(WORKER_NODES):
                 if self.node_state[node] == "d":
                     if random.random() < NODE_REPAIR_PROBABILITY:
@@ -164,7 +164,7 @@ class LittleGridSimulator(object):
             # Add a random number of jobs into each queue
             for jobs in xrange(random.randint(100, 3000)):
                 job_id = "j%d" % jobcnt
-                username = random.choice("alice023 alibs lhc154 fotis Atlassm".split())
+                username = random.choice("alice023 cms347 cms125 lhcbplt01 cms360 Atlassm".split())
                 self.queue_jobs[queue_name].append(job_id)
                 self.job_state[job_id] = 'Q'  # Initialy everything queued
                 self.job_meta[job_id] = (queue_name, username)
