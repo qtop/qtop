@@ -70,12 +70,12 @@ class LittleGridSimulator(object):
         p_job_die = 1. / AVG_JOB_DURATION
         first = True
         for _ in (xrange(10 + markov_iters)):
-            # Step 3.a Clear all jobs which where scheduled to die
+            # Step 3.a Clear all jobs which were scheduled to die
             if first or self.get_total_queued() == 0:
                 self.init_jobs()
                 first = False
 
-            # Step 3.b Clear all jobs which where scheduled to die
+            # Step 3.b Clear all jobs which were scheduled to die
             for node in range(WORKER_NODES):
                 for core, job_id in enumerate(self.core_job_map[node]):
                     if job_id:
