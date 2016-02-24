@@ -1018,6 +1018,7 @@ def get_detail_of_name(account_jobs_table):
         passwd_command = passwd_command.split()
     else:
         passwd_command = extract_info.get('user_details_cache').split()
+        passwd_command[-1] = os.path.expandvars(passwd_command[-1])
 
     p = subprocess.Popen(passwd_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     output, err = p.communicate("something here")
@@ -1272,7 +1273,7 @@ class TextDisplay(object):
 
         ansi_delete_char = "\015"  # this removes the first ever character (space) appearing in the output
         print '%(del)s%(name)s report tool. All bugs added by sfranky@gmail.com. Cross fingers now...' \
-              % {'name': 'PBS' if options.CLASSIC else 'Queueing System', 'del': ansi_delete_char}
+              % {'name': 'PBS' if options.CLASSIC else './qtop.py ## Queueing System', 'del': ansi_delete_char}
         if scheduler == 'demo':
             msg = "This data is simulated. As soon as you connect to one of the supported scheduling systems,\n" \
                   "you will see live data from your cluster. Press q to Quit."

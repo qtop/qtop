@@ -4,8 +4,8 @@ import time
 from serialiser import *
 from collections import defaultdict
 
-WORKER_NODES = 50
-QUEUES = "Urgent Foobar Priori".split()
+WORKER_NODES = 80
+QUEUES = "urgent transfer batch".split()
 
 AVG_JOB_DURATION = 5  # In units of refresh period (e.g. 2 seconds)
 DESIRED_GRID_UTILIZATION = 0.75  # The grid won't be scheduled beydond this ratio
@@ -14,6 +14,7 @@ NODE_REPAIR_PROBABILITY = 0.03
 NODE_FAILURE_PROBABILITY = 0.01
 
 QUEUE_STATE_CHANGE_PROBABILITY = 0.05
+
 
 class LittleGridSimulator(object):
 
@@ -67,6 +68,7 @@ class LittleGridSimulator(object):
 
         # -- Step 2. Do a few iterations (at least 10) on the state of the cluster
         p_job_die = 1. / AVG_JOB_DURATION
+        first = True
         for _ in (xrange(10 + markov_iters)):
             # Step 3.a Clear all jobs which where scheduled to die
             if first or self.get_total_queued() == 0:
@@ -168,6 +170,7 @@ class LittleGridSimulator(object):
                 self.job_meta[job_id] = (queue_name, username)
                 jobcnt += 1
             self.queue_state[queue_name] = random.choice("Q R C E W".split())
+
 
 class DemoBatchSystem(GenericBatchSystem):
     """
