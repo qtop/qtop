@@ -1,5 +1,4 @@
-
-c Queueing System report tool. All bugs added by sfranky@gmail.com. Cross fingers now...
+c ./qtop.py ## Queueing System report tool. All bugs added by sfranky@gmail.com. Cross fingers now...
 Please try it with watch: /home/sfranky/PycharmProjects/qtop/qtop.py -s <SOURCEDIR> -w [<every_nr_of_sec>]
 ...and thank you for watching ;)
 
