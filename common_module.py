@@ -185,8 +185,9 @@ parser.add_option("-v", "--verbose", dest="verbose", action="count",
 # parser.add_option("-W", "--writemethod", dest="write_method", action="store", default="txtyaml",
 #                   choices=['json'],
 #                   help="Set the method used for dumping information, json, yaml, or native python (yaml format)")
-parser.add_option("-w", "--watch", dest="WATCH", help="Mimic shell's watch behaviour",
-                  action="callback", callback=watch_callback)
+parser.add_option("-w", "--watch", dest="WATCH", action="callback", callback=watch_callback,
+                    help="Mimic shell's watch behaviour. Use with optional argument, e.g. '-w 10' to refresh every 10 seconds "
+                         "instead of the default which is 2 seconds.")
 # TODO: implement this!
 # parser.add_option("-z", "--quiet", action="store_false", dest="verbose", default=True,
 #                   help="Don't print status messages to stdout. Not doing anything at the moment.")
