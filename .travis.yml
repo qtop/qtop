@@ -11,3 +11,8 @@ install:
 # command to run tests
 script: python -m pytest
 
+deploy:
+  provider: script
+  script: contrib/func_tests.sh
+#  on:
+#  	branch: develop
