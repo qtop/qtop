@@ -1,3 +1,6 @@
+## 0.8.8
+  - created a shiny new demo out of a demo mini-grid scheduler (!)
+
 ## 0.8.7
   - added support for queuename display for OAR and PBS (SGE already there!)
   - overspill feature (aka oversubscribe/overcommitment) for SGE systems
