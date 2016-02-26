@@ -1,6 +1,6 @@
-
-c Queueing System report tool. All bugs added by sfranky@gmail.com. Cross fingers now...
-Please try: watch -d /home/sfranky/PycharmProjects/qtop/qtop.py -s <SOURCEDIR>
+c ./qtop.py ## Queueing System report tool. All bugs added by sfranky@gmail.com. Cross fingers now...
+Please try it with watch: /home/sfranky/PycharmProjects/qtop/qtop.py -s <SOURCEDIR> -w [<every_nr_of_sec>]
+...and thank you for watching ;)
 
 [1;30m===> [0;m[1;37mJob accounting summary[0;m[1;30m <=== [0;m[1;37m2016-02-20 09:05:00[0;m WORKDIR = /home/sfranky/PycharmProjects/qtop
 [1;33mUsage Totals[0;m:	[1;31m819[0;m/[1;31m829[0;m [1;31mNodes[0;m | [1;32m7629[0;m/[1;32m7872[0;m [1;32mcores[0;m |   [1;34m7590[0;m+[1;34m3365[0;m [1;34mjobs[0;m (R + Q) 

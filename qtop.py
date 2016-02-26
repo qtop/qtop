@@ -168,11 +168,11 @@ def calculate_cluster(worker_nodes, cluster):
 
     decide_remapping(cluster, all_str_digits_with_empties)
 
+    # nodes_drop: this amount has to be chopped off of the end of workernode_list_remapped
+    nodes_drop, cluster, workernode_dict, workernode_dict_remapped = map_worker_nodes_to_wn_dict(cluster, worker_nodes,
+                                                                                                 options.REMAP)
+    cluster['workernode_dict'] = workernode_dict
     if options.REMAP:
-        # nodes_drop: this amount has to be chopped off of the end of workernode_list_remapped
-        nodes_drop, cluster, workernode_dict, workernode_dict_remapped = map_worker_nodes_to_wn_dict(cluster, worker_nodes,
-                                                                                                     options.REMAP)
-        cluster['workernode_dict'] = workernode_dict
         cluster['workernode_dict_remapped'] = workernode_dict_remapped
         cluster['total_wn'] += nodes_drop
         cluster['highest_wn'] = cluster['total_wn']
@@ -1018,6 +1018,7 @@ def get_detail_of_name(account_jobs_table):
         passwd_command = passwd_command.split()
     else:
         passwd_command = extract_info.get('user_details_cache').split()
+        passwd_command[-1] = os.path.expandvars(passwd_command[-1])
 
     p = subprocess.Popen(passwd_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     output, err = p.communicate("something here")
@@ -1271,12 +1272,16 @@ class TextDisplay(object):
                 logging.warning('=== WARNING: --- Remapping WN names and retrying heuristics... good luck with this... ---')
 
         ansi_delete_char = "\015"  # this removes the first ever character (space) appearing in the output
-
         print '%(del)s%(name)s report tool. All bugs added by sfranky@gmail.com. Cross fingers now...' \
-              % {'name': 'PBS' if options.CLASSIC else 'Queueing System', 'del': ansi_delete_char}
+              % {'name': 'PBS' if options.CLASSIC else './qtop.py ## Queueing System', 'del': ansi_delete_char}
+        if scheduler == 'demo':
+            msg = "This data is simulated. As soon as you connect to one of the supported scheduling systems,\n" \
+                  "you will see live data from your cluster. Press q to Quit."
+            print colorize(msg, 'Blue')
 
         if not options.WATCH:
-            print 'Please try: watch -d %s/qtop.py -s <SOURCEDIR>\n' % QTOPPATH
+            print 'Please try it with watch: %s/qtop.py -s <SOURCEDIR> -w [<every_nr_of_sec>]\n' \
+                  '...and thank you for watching ;)\n' % QTOPPATH
         print colorize('===> ', 'Gray_D') + colorize('Job accounting summary', 'White') + colorize(' <=== ', 'Gray_D') + \
               '%s WORKDIR = %s' % (colorize(str(datetime.datetime.today())[:-7], 'White'), QTOPPATH)
 
@@ -1647,7 +1652,7 @@ def init_sample_file(options):
         source_files = glob.glob(os.path.join(realpath(QTOPPATH), '*.py'))
         add_to_sample(source_files, savepath, subdir='source')
 
-def wait_for_keypress_or_autorefresh():
+def wait_for_keypress_or_autorefresh(KEYPRESS_TIMEOUT=1):
     """
     This will make qtop wait for user input for a while,
     otherwise it will auto-refresh the display
@@ -1818,7 +1823,7 @@ if __name__ == '__main__':
                     cat_command = print_y_lines_of_file_starting_from_x(file=output_fp, x=viewport.v_start, y=viewport.v_term_size)
                     _ = subprocess.call(cat_command, stdout=stdout, stderr=stdout, shell=True)
 
-                    read_char = wait_for_keypress_or_autorefresh()
+                    read_char = wait_for_keypress_or_autorefresh(int(options.WATCH[0]) or KEYPRESS_TIMEOUT)
                     control_movement(read_char)
 
                 os.chdir(QTOPPATH)
