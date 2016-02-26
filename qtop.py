@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 ################################################
-#              qtop v.0.8.7                    #
+#              qtop v.0.8.8                    #
 #     Licensed under MIT-GPL licenses          #
 #                     Sotiris Fragkiskos       #
 #                     Fotis Georgatos          #
@@ -26,13 +26,14 @@ import termios
 import contextlib
 import glob
 import tempfile
+import sys
+from common_module import *
+from plugins import *
 from math import ceil
-from plugins.pbs import *
-from plugins.oar import *
-from plugins.sge import *
 from colormap import color_of_account, code_of_color
 from yaml_parser import read_yaml_natively, fix_config_list, convert_dash_key_in_dict
 from ui.viewport import Viewport
+from serialiser import GenericBatchSystem
 
 
 @contextlib.contextmanager
@@ -167,11 +168,11 @@ def calculate_cluster(worker_nodes, cluster):
 
     decide_remapping(cluster, all_str_digits_with_empties)
 
+    # nodes_drop: this amount has to be chopped off of the end of workernode_list_remapped
+    nodes_drop, cluster, workernode_dict, workernode_dict_remapped = map_worker_nodes_to_wn_dict(cluster, worker_nodes,
+                                                                                                 options.REMAP)
+    cluster['workernode_dict'] = workernode_dict
     if options.REMAP:
-        # nodes_drop: this amount has to be chopped off of the end of workernode_list_remapped
-        nodes_drop, cluster, workernode_dict, workernode_dict_remapped = map_worker_nodes_to_wn_dict(cluster, worker_nodes,
-                                                                                                     options.REMAP)
-        cluster['workernode_dict'] = workernode_dict
         cluster['workernode_dict_remapped'] = workernode_dict_remapped
         cluster['total_wn'] += nodes_drop
         cluster['highest_wn'] = cluster['total_wn']
@@ -472,19 +473,6 @@ def find_matrices_width(wns_occupancy, cluster, DEADWEIGHT=11):
     return start, stop, extra_matrices_nr
 
 
-def print_wnid_lines(d, start, stop, end_labels, transposed_matrices, color_func, args):
-    if config['transpose_wn_matrices']:
-        tuple_ = [None, 'wnid_lines', transpose_matrix(d)]
-        transposed_matrices.append(tuple_)
-        return
-
-    colors = iter(color_func(*args))
-    for line_nr, end_label, color in zip(d, end_labels, colors):
-        wn_id_str = insert_separators(d[line_nr][start:stop], config['SEPARATOR'], config['vertical_separator_every_X_columns'])
-        wn_id_str = ''.join([colorize(elem, color) for elem in wn_id_str])
-        print wn_id_str + end_label
-
-
 def is_matrix_coreless(wns_occupancy):
     print_char_start = wns_occupancy['print_char_start']
     print_char_stop = wns_occupancy['print_char_stop']
@@ -605,11 +593,11 @@ def transpose_matrix(d, colored=False, reverse=False):
     returns a transposed matrix
     """
     pattern_of_id = wns_occupancy['pattern_of_id']
-    for tuple in izip_longest(*[[char for char in d[k]] for k in d], fillvalue=" "):
-        if any(j != " " for j in tuple):
-            tuple = colored and [colorize(j, '', pattern_of_id[j]) if j in pattern_of_id else j for j in tuple] or list(tuple)
-            tuple[:] = tuple[::-1] if reverse else tuple
-        yield tuple
+    for tpl in izip_longest(*[[char for char in d[k]] for k in d], fillvalue=" "):
+        if any(j != " " for j in tpl):
+            tpl = colored and [colorize(j, '', pattern_of_id[j]) if j in pattern_of_id else j for j in tpl] or list(tpl)
+            tpl[:] = tpl[::-1] if reverse else tpl
+        yield tpl
 
 
 def get_yaml_key_part(outermost_key):
@@ -881,7 +869,7 @@ def filter_list_in_by_name_pattern(batch_nodes, the_list=None):
     return batch_nodes
 
 
-def filter_batch_nodes(batch_nodes, filter_rules=None):
+def filter_worker_nodes(batch_nodes, filter_rules=None):
     """
     Filters specific nodes according to the filter rules in QTOPCONF_YAML
     """
@@ -985,30 +973,6 @@ def auto_get_avail_batch_system():
     raise NoSchedulerFound
 
 
-def get_selected_batch_system(cmdline_switch, env_var, config_file_batch_option, schedulers):
-    """
-    If the User has selected a specific batch system,
-    through either a cmdline switch, env variable, or config file, pick that system.
-    """
-    if cmdline_switch and cmdline_switch.lower() not in ['sge', 'oar', 'pbs', 'auto']:
-        raise InvalidScheduler
-    for scheduler in (cmdline_switch, env_var, config_file_batch_option):
-        try:
-            scheduler = scheduler.lower()
-        except AttributeError:
-            pass
-
-        if scheduler == 'auto':
-            raise SchedulerNotSpecified
-        elif scheduler in schedulers:
-            logging.info('User-selected scheduler: %s' % scheduler)
-            return scheduler
-        elif scheduler and scheduler not in schedulers:  # a scheduler that does not exist is inputted
-            raise NoSchedulerFound
-    else:
-        raise NoSchedulerFound
-
-
 def execute_shell_batch_commands(batch_system_commands, filenames, _file):
     """
     scheduler-specific commands are invoked from the shell and their output is saved *atomically* to files,
@@ -1054,6 +1018,7 @@ def get_detail_of_name(account_jobs_table):
         passwd_command = passwd_command.split()
     else:
         passwd_command = extract_info.get('user_details_cache').split()
+        passwd_command[-1] = os.path.expandvars(passwd_command[-1])
 
     p = subprocess.Popen(passwd_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     output, err = p.communicate("something here")
@@ -1215,40 +1180,33 @@ def fetch_scheduler_files(options, config):
     return scheduler_output_filenames
 
 
-def decide_batch_system(cmdline_switch, env_var, config_file_batch_option):
+def decide_batch_system(cmdline_switch, env_var, config_file_batch_option, schedulers):
     """
     Qtop first checks in cmdline switches, environmental variables and the config files, in this order,
     for the scheduler type. If it's not indicated and "auto" is, it will attempt to guess the scheduler type
     from the scheduler shell commands available in the linux system.
     """
-    try:
-        scheduler = get_selected_batch_system(cmdline_switch, env_var, config_file_batch_option, config['schedulers'])
-    except SchedulerNotSpecified:  # it now must be auto-detected
-        try:
-            scheduler = auto_get_avail_batch_system()
-        except NoSchedulerFound:
-            raise  # (re-raises NoSchedulerFound)
-        else:
-            logging.debug('Selected scheduler is %s' % scheduler)
-            return scheduler
-    except NoSchedulerFound:
-        raise
-    except InvalidScheduler:
-        logging.critical("Selected scheduler system not supported. Available choices are 'PBS', 'SGE', 'OAR'.")
+    if cmdline_switch and cmdline_switch.lower() not in ['sge', 'oar', 'pbs', 'auto', 'demo']:
+        logging.critical("Selected scheduler system not supported. Available choices are 'PBS', 'SGE', 'OAR', 'demo'.")
         logging.critical("For help, try ./qtop.py --help")
         logging.critical("Log file created in %s" % expandvars(QTOP_LOGFILE))
-        raise
+        raise InvalidScheduler
+    for scheduler in (cmdline_switch, env_var, config_file_batch_option):
+        if scheduler is None:
+            continue
+        scheduler = scheduler.lower()
+
+        if scheduler == 'auto':
+            scheduler = auto_get_avail_batch_system()
+            logging.debug('Selected scheduler is %s' % scheduler)
+            return scheduler
+        elif scheduler in schedulers:
+            logging.info('User-selected scheduler: %s' % scheduler)
+            return scheduler
+        elif scheduler and scheduler not in schedulers:  # a scheduler that does not exist is inputted
+            raise NoSchedulerFound
     else:
-        return scheduler
-
-
-def scheduler_factory(scheduler, scheduler_output_filenames, config):
-    if scheduler == "pbs":
-        return PBSBatchSystem(scheduler_output_filenames, config)
-    elif scheduler == "oar":
-        return OARBatchSystem(scheduler_output_filenames, config)
-    elif scheduler == "sge":
-        return SGEBatchSystem(scheduler_output_filenames, config)
+        raise NoSchedulerFound
 
 
 class Document(namedtuple('Document', ['wns_occupancy', 'cluster'])):
@@ -1265,6 +1223,7 @@ class TextDisplay(object):
         self.wns_occupancy = document.wns_occupancy
         self.document = document
         self.viewport = viewport
+        self.config = config
 
     def display_selected_sections(self, savepath, QTOP_SAMPLE_FILENAME, QTOP_LOGFILE):
         """
@@ -1313,12 +1272,16 @@ class TextDisplay(object):
                 logging.warning('=== WARNING: --- Remapping WN names and retrying heuristics... good luck with this... ---')
 
         ansi_delete_char = "\015"  # this removes the first ever character (space) appearing in the output
-
         print '%(del)s%(name)s report tool. All bugs added by sfranky@gmail.com. Cross fingers now...' \
-              % {'name': 'PBS' if options.CLASSIC else 'Queueing System', 'del': ansi_delete_char}
+              % {'name': 'PBS' if options.CLASSIC else './qtop.py ## Queueing System', 'del': ansi_delete_char}
+        if scheduler == 'demo':
+            msg = "This data is simulated. As soon as you connect to one of the supported scheduling systems,\n" \
+                  "you will see live data from your cluster. Press q to Quit."
+            print colorize(msg, 'Blue')
 
         if not options.WATCH:
-            print 'Please try: watch -d %s/qtop.py -s <SOURCEDIR>\n' % QTOPPATH
+            print 'Please try it with watch: %s/qtop.py -s <SOURCEDIR> -w [<every_nr_of_sec>]\n' \
+                  '...and thank you for watching ;)\n' % QTOPPATH
         print colorize('===> ', 'Gray_D') + colorize('Job accounting summary', 'White') + colorize(' <=== ', 'Gray_D') + \
               '%s WORKDIR = %s' % (colorize(str(datetime.datetime.today())[:-7], 'White'), QTOPPATH)
 
@@ -1355,17 +1318,19 @@ class TextDisplay(object):
         """
         Displays qtop's second section, the main worker node matrices.
         """
+        self.display_basic_legend()
+        self.display_matrix(wns_occupancy)
+        if not config['transpose_wn_matrices']:
+            self.display_remaining_matrices(wns_occupancy)
+
+    def display_basic_legend(self):
+        """Displays the Worker Nodes occupancy label plus columns explanation"""
         if config['transpose_wn_matrices']:
-            order = config['occupancy_column_order']
-            note = "/".join(order)
+            note = "/".join(config['occupancy_column_order'])
         else:
             note = 'you can read vertically the node IDs; nodes in free state are noted with - '
         print colorize('===> ', 'Gray_D') + colorize('Worker Nodes occupancy', 'White') + colorize(' <=== ', 'Gray_D') \
               + colorize('(%s)', 'Gray_D') % note
-
-        self.display_matrix(wns_occupancy)
-        if not config['transpose_wn_matrices']:
-            self.display_remaining_matrices(wns_occupancy)
 
     def display_user_accounts_pool_mappings(self, wns_occupancy=None):
         """
@@ -1423,8 +1388,10 @@ class TextDisplay(object):
         """
         occupancy_parts needs to be redefined for each matrix, because of changed parameter values
         """
-        if (not all([wns_occupancy, wns_occupancy.get('id_of_username', 0)])) or is_matrix_coreless(
-                wns_occupancy):
+        if (
+            (not all([wns_occupancy, wns_occupancy.get('id_of_username', 0)]))
+             or is_matrix_coreless(wns_occupancy)
+        ):
             return
 
         print_char_start = wns_occupancy['print_char_start']
@@ -1563,8 +1530,8 @@ class TextDisplay(object):
             for node_nr in range(1, node_str_width + 1):
                 d[str(node_nr)] = wn_vert_labels[str(node_nr)]
             end_labels_iter = iter(end_labels[str(node_str_width)])
-            print_wnid_lines(d, start, stop, end_labels_iter, transposed_matrices,
-                             color_func=self.color_plainly, args=('White', 'Gray_L', start > 0))
+            self.print_wnid_lines(d, start, stop, end_labels_iter, transposed_matrices,
+                                  color_func=self.color_plainly, args=('White', 'Gray_L', start > 0))
             # start > 0 is just a test for a possible future condition
 
         elif NAMED_WNS or options.FORCE_NAMES:  # the actual names of the worker nodes instead of numbered WNs
@@ -1575,7 +1542,7 @@ class TextDisplay(object):
                 end_labels.setdefault(str(num), end_labels['7'] + num * ['={___ID___}'])
 
             end_labels_iter = iter(end_labels[str(node_str_width)])
-            print_wnid_lines(wn_vert_labels, start, stop, end_labels_iter, transposed_matrices,
+            self.print_wnid_lines(wn_vert_labels, start, stop, end_labels_iter, transposed_matrices,
                              color_func=self.highlight_alternately, args=(config['ALT_LABEL_COLORS']))
 
     def highlight_alternately(self, color_a, color_b):
@@ -1591,6 +1558,18 @@ class TextDisplay(object):
         else:
             while not condition:
                 yield color_1
+
+    def print_wnid_lines(self, d, start, stop, end_labels, transposed_matrices, color_func, args):
+        if self.config['transpose_wn_matrices']:
+            tuple_ = [None, 'wnid_lines', transpose_matrix(d)]
+            transposed_matrices.append(tuple_)
+            return
+
+        colors = iter(color_func(*args))
+        for line_nr, end_label, color in zip(d, end_labels, colors):
+            wn_id_str = insert_separators(d[line_nr][start:stop], config['SEPARATOR'], config['vertical_separator_every_X_columns'])
+            wn_id_str = ''.join([colorize(elem, color) for elem in wn_id_str])
+            print wn_id_str + end_label
 
 
 def get_output_size(max_height, max_line_len, output_fp):
@@ -1673,7 +1652,7 @@ def init_sample_file(options):
         source_files = glob.glob(os.path.join(realpath(QTOPPATH), '*.py'))
         add_to_sample(source_files, savepath, subdir='source')
 
-def wait_for_keypress_or_autorefresh():
+def wait_for_keypress_or_autorefresh(KEYPRESS_TIMEOUT=1):
     """
     This will make qtop wait for user input for a while,
     otherwise it will auto-refresh the display
@@ -1747,7 +1726,31 @@ def get_qnames_per_worker_node(worker_nodes):
     return worker_nodes
 
 
+def discover_batch_systems():
+    batch_systems = set()
+
+    # Find all the classes that extend GenericBatchSystem
+    to_scan = [GenericBatchSystem]
+    while to_scan:
+        parent = to_scan.pop()
+        for child in parent.__subclasses__():
+            if child not in batch_systems:
+                batch_systems.add(child)
+                to_scan.append(child)
+
+    # Extract those class's mnemonics
+    available_batch_systems = {}
+    for batch_system in batch_systems:
+        mnemonic = batch_system.get_mnemonic()
+        assert mnemonic
+        assert mnemonic not in available_batch_systems, "Duplicate for mnemonic: '%s'" % mnemonic
+        available_batch_systems[mnemonic] = batch_system
+
+    return available_batch_systems
+
+
 if __name__ == '__main__':
+    available_batch_systems = discover_batch_systems()
 
     stdout = sys.stdout  # keep a copy of the initial value of sys.stdout
 
@@ -1773,12 +1776,17 @@ if __name__ == '__main__':
 
                 transposed_matrices = []
                 viewport.set_term_size(*calculate_term_size(config, FALLBACK_TERMSIZE))
-                scheduler = decide_batch_system(options.BATCH_SYSTEM, os.environ.get('QTOP_SCHEDULER'), config['scheduler'])
+                scheduler = decide_batch_system(
+                    options.BATCH_SYSTEM,
+                    os.environ.get('QTOP_SCHEDULER'),
+                    config['scheduler'],
+                    config['schedulers'],
+                )
                 scheduler_output_filenames = fetch_scheduler_files(options, config)
                 init_sample_file(options)
 
                 ###### Gather data ###############
-                scheduling_system = scheduler_factory(scheduler, scheduler_output_filenames, config)
+                scheduling_system = available_batch_systems[scheduler](scheduler_output_filenames, config)
                 worker_nodes = scheduling_system.get_worker_nodes()
                 job_ids, user_names, job_states, job_queues = scheduling_system.get_jobs_info()
                 total_running_jobs, total_queued_jobs, qstatq_lod = scheduling_system.get_queues_info()
@@ -1815,7 +1823,7 @@ if __name__ == '__main__':
                     cat_command = print_y_lines_of_file_starting_from_x(file=output_fp, x=viewport.v_start, y=viewport.v_term_size)
                     _ = subprocess.call(cat_command, stdout=stdout, stderr=stdout, shell=True)
 
-                    read_char = wait_for_keypress_or_autorefresh()
+                    read_char = wait_for_keypress_or_autorefresh(int(options.WATCH[0]) or KEYPRESS_TIMEOUT)
                     control_movement(read_char)
 
                 os.chdir(QTOPPATH)

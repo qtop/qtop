@@ -22,6 +22,9 @@ schedulers:
     oarstat_file: %(savepath)s/oarstat%(pid)s.txt, oarstat
   sge:
     sge_file_stat: %(savepath)s/qstat%(pid)s.F.xml.stdout, qstat -F -xml -u '*'
+  demo:
+    demo_file: %(savepath)s/demo%(pid)s.txt, echo 'Demo here'
+
 
 # Utilises lxml module. Needs to be installed in your system.
 # Might result in segmentation fault in some systems.
@@ -64,6 +67,18 @@ state_abbreviations:
     s: suspended_of_user
     S: suspended_by_the_queue
     shite: testing_of_user
+  pbs:
+    Q: queued_of_user
+    R: running_of_user
+    C: cancelled_of_user
+    E: exiting_of_user
+    W: waiting_of_user
+  demo:
+    Q: queued_of_user
+    R: running_of_user
+    C: cancelled_of_user
+    E: exiting_of_user
+    W: waiting_of_user
 
 # original OAR abbreviations:
 # state_abbreviations = {
@@ -187,9 +202,9 @@ workernodes_matrix:
        2: ['={_Worker_}', '={__Node__}']
        3: ['={_Worker_}', '={__Node__}', '={___ID___}']
        4: ['={________}', '={_Worker_}', '={__Node__}', '={___ID___}']
-       5: ['={__FOR___}', '={__SALE__}', '={_Worker_}', '={__Node__}', '={___ID___}']
-       6: ['={_SPACE__}', '={__FOR___}', '={__SALE__}', '={_Worker_}', '={__Node__}', '={___ID___}']
-       7: ['={__PLACE_}', '={__YOUR__}', '={_ADVERT_}', '={__HERE__}', '={_Worker_}', '={__Node__}', '={___ID___}']
+       5: ['={________}', '={________}', '={_Worker_}', '={__Node__}', '={___ID___}']
+       6: ['={________}', '={________}', '={________}', '={_Worker_}', '={__Node__}', '={___ID___}']
+       7: ['={________}', '={________}', '={________}', '={________}', '={_Worker_}', '={__Node__}', '={___ID___}']
      # native yaml parser: two consecutive unindents are not allowed. Must have an unindented key-value after nested keys:
      alt_label_colors: [White, Blue_L]
 # - temperature:
@@ -201,12 +216,12 @@ workernodes_matrix:
      yaml_key: state
      label: Node state
      max_len: 5
-     systems: [sge, oar, pbs]
+     systems: [sge, oar, pbs, demo]
  - queue name:
      yaml_key: qname
      label: queue name
      max_len: 13
-     systems: [sge, oar, pbs]
+     systems: [sge, oar, pbs, demo]
  - core user map:
      options1: {}
      options2: {}

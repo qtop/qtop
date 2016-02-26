@@ -116,6 +116,11 @@ class PBSStatExtractor(StatExtractor):
 
 
 class PBSBatchSystem(GenericBatchSystem):
+
+    @staticmethod
+    def get_mnemonic():
+        return "pbs"
+
     def __init__(self, scheduler_output_filenames, config):
         self.pbsnodes_file = scheduler_output_filenames.get('pbsnodes_file')
         self.qstat_file = scheduler_output_filenames.get('qstat_file')
