@@ -1173,7 +1173,7 @@ def fetch_scheduler_files(options, config):
     return scheduler_output_filenames
 
 
-def decide_batch_system(cmdline_switch, env_var, config_file_batch_option, schedulers):
+def decide_batch_system(cmdline_switch, env_var, config_file_batch_option, schedulers, available_batch_systems, config):
     """
     Qtop first checks in cmdline switches, environmental variables and the config files, in this order,
     for the scheduler type. If it's not indicated and "auto" is, it will attempt to guess the scheduler type
@@ -1775,6 +1775,8 @@ if __name__ == '__main__':
                     os.environ.get('QTOP_SCHEDULER'),
                     config['scheduler'],
                     config['schedulers'],
+                    available_batch_systems,
+                    config,
                 )
                 scheduler_output_filenames = fetch_scheduler_files(options, config)
                 init_sample_file(options)

@@ -85,10 +85,13 @@ def test_create_job_counts_raises_jobnotfound():  # user_names, job_states, stat
 def test_get_selected_batch_system(cmdline_switch, env_var, config_file_batch_option, returned_scheduler):
     # monkeypatch.setitem(config, "schedulers", ['oar', 'sge', 'pbs'])
     schedulers = ['sge', 'oar', 'pbs']
+    available_batch_systems = {'sge': None, 'oar': None, 'pbs': None}
     assert decide_batch_system(cmdline_switch,
         env_var,
         config_file_batch_option,
         schedulers,
+        available_batch_systems,
+        config,
     ) == returned_scheduler
 
 
@@ -107,8 +110,17 @@ def test_get_selected_batch_system_raises_no_scheduler_not_specified(
         returned_scheduler,
 ):
     schedulers = ['sge', 'oar', 'pbs']
+    available_batch_systems = {'sge': None, 'oar': None, 'pbs': None}
+    config = {'signature_commands': {'pbs': 'pbsnodes', 'oar': 'oarnodes', 'sge': 'qhost', 'demo': 'echo'}}
+
     with pytest.raises(NoSchedulerFound) as e:
-        decide_batch_system(cmdline_switch, env_var, config_file_batch_option, schedulers) == returned_scheduler
+        decide_batch_system(cmdline_switch,
+                            env_var,
+                            config_file_batch_option,
+                            schedulers,
+                            available_batch_systems,
+                            config,
+                            ) == returned_scheduler
 
 
 @pytest.mark.parametrize('cmdline_switch, env_var, config_file_batch_option, returned_scheduler',
@@ -124,6 +136,13 @@ def test_get_selected_batch_system_raises_no_scheduler_found(
         returned_scheduler,
 ):
     schedulers = ['sge', 'oar', 'pbs']
+    available_batch_systems = {'sge':None, 'oar':None, 'pbs':None}
     with pytest.raises(NoSchedulerFound) as e:
-        decide_batch_system(cmdline_switch, env_var, config_file_batch_option, schedulers) == returned_scheduler
+        decide_batch_system(cmdline_switch,
+                            env_var,
+                            config_file_batch_option,
+                            schedulers,
+                            available_batch_systems,
+                            config,
+                            ) == returned_scheduler
 
