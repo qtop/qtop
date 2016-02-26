@@ -192,7 +192,7 @@ def calculate_cluster(worker_nodes, cluster):
 
 
 def fill_non_existent_wn_nodes(cluster):
-    """fill in non-existent WN nodes (absent from pbsnodes file) with default values and count them"""
+    """fill in non-existent WN nodes (absent from input files) with default values and count them"""
     for node in range(1, cluster['highest_wn'] + 1):
         if node not in cluster['workernode_dict']:
             cluster['workernode_dict'][node] = {'state': '?', 'np': 0, 'domainname': 'N/A', 'host': 'N/A'}
@@ -220,12 +220,6 @@ def do_name_remapping(cluster):
             # was: label_max_len = config['wn_labels_max_len']
             state_corejob_dn['host'] = label_max_len and state_corejob_dn['host'][-label_max_len:] or state_corejob_dn['host']
     return cluster
-
-# TODO: remove? (useless?)
-# def nodes_with_jobs(worker_nodes):
-#     for _, pbs_node in worker_nodes.iteritems():
-#         if 'core_job_map' in pbs_node:
-#             yield pbs_node
 
 
 def calculate_job_counts(user_names, job_states):
@@ -956,19 +950,18 @@ def finalize_filepaths_schedulercommands(options, config):
     return d
 
 
-def auto_get_avail_batch_system():
+def auto_get_avail_batch_system(config):
     """
     If the auto option is set in either env variable QTOP_SCHEDULER, QTOPCONF_YAML or in cmdline switch -b,
     qtop tries to determine which of the known batch commands are available in the current system.
-    Priority is pbsnodes > oarnodes > qstat,
-    i.e. first command to be found is to be considered crucial for identifying the scheduler type
     """
     # TODO pbsnodes etc should not be hardcoded!
-    for (batch_command, system) in [('pbsnodes', 'pbs'), ('oarnodes', 'oar'), ('qstat', 'sge')]:
+    for (system, batch_command) in config['signature_commands'].items():
         NOT_FOUND = subprocess.call(['which', batch_command], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         if not NOT_FOUND:
-            logging.debug('Auto-detected scheduler: %s' % system)
-            return system
+            if system != 'demo':
+                logging.debug('Auto-detected scheduler: %s' % system)
+                return system
 
     raise NoSchedulerFound
 
@@ -1186,8 +1179,9 @@ def decide_batch_system(cmdline_switch, env_var, config_file_batch_option, sched
     for the scheduler type. If it's not indicated and "auto" is, it will attempt to guess the scheduler type
     from the scheduler shell commands available in the linux system.
     """
-    if cmdline_switch and cmdline_switch.lower() not in ['sge', 'oar', 'pbs', 'auto', 'demo']:
-        logging.critical("Selected scheduler system not supported. Available choices are 'PBS', 'SGE', 'OAR', 'demo'.")
+    avail_systems = available_batch_systems.keys() + ['auto']
+    if cmdline_switch and cmdline_switch.lower() not in avail_systems:
+        logging.critical("Selected scheduler system not supported. Available choices are %s." % ", ".join(avail_systems))
         logging.critical("For help, try ./qtop.py --help")
         logging.critical("Log file created in %s" % expandvars(QTOP_LOGFILE))
         raise InvalidScheduler
@@ -1197,7 +1191,7 @@ def decide_batch_system(cmdline_switch, env_var, config_file_batch_option, sched
         scheduler = scheduler.lower()
 
         if scheduler == 'auto':
-            scheduler = auto_get_avail_batch_system()
+            scheduler = auto_get_avail_batch_system(config)
             logging.debug('Selected scheduler is %s' % scheduler)
             return scheduler
         elif scheduler in schedulers:
@@ -1726,7 +1720,7 @@ def get_qnames_per_worker_node(worker_nodes):
     return worker_nodes
 
 
-def discover_batch_systems():
+def discover_qtop_batch_systems():
     batch_systems = set()
 
     # Find all the classes that extend GenericBatchSystem
@@ -1750,7 +1744,7 @@ def discover_batch_systems():
 
 
 if __name__ == '__main__':
-    available_batch_systems = discover_batch_systems()
+    available_batch_systems = discover_qtop_batch_systems()
 
     stdout = sys.stdout  # keep a copy of the initial value of sys.stdout
 

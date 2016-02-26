@@ -82,16 +82,16 @@ class SGEBatchSystem(GenericBatchSystem):
         return "sge"
 
     def __init__(self, scheduler_output_filenames, config):
-        self.sge_file_stat = scheduler_output_filenames.get('sge_file_stat')
+        self.sge_file = scheduler_output_filenames.get('sge_file')
         self.config = config
         self.sge_stat_maker = SGEStatExtractor(self.config)
 
     def get_queues_info(self):
-        logging.debug("Parsing tree of %s" % self.sge_file_stat)
-        check_empty_file(self.sge_file_stat)
+        logging.debug("Parsing tree of %s" % self.sge_file)
+        check_empty_file(self.sge_file)
         anonymize = self.sge_stat_maker.anonymize_func()
 
-        tree = self._get_xml_tree(self.sge_file_stat)
+        tree = self._get_xml_tree(self.sge_file)
         root = tree.getroot()
 
         qstatq_list = []
@@ -156,15 +156,15 @@ class SGEBatchSystem(GenericBatchSystem):
         qstatq_list.append({'run': '0', 'queued': total_queued_jobs, 'queue_name': 'Pending', 'state': 'Q', 'lm': '0'})
         logging.debug('qstatq_list contains %s elements' % len(qstatq_list))
         # TODO: check validity. 'state' shouldnt just be 'Q'!
-        logging.debug("Closing %s" % self.sge_file_stat)
+        logging.debug("Closing %s" % self.sge_file)
 
         return total_running_jobs, int(eval(str(total_queued_jobs))), qstatq_list
 
     def get_worker_nodes(self):
-        logging.debug('Parsing tree of %s' % self.sge_file_stat)
+        logging.debug('Parsing tree of %s' % self.sge_file)
         anonymize = self.sge_stat_maker.anonymize_func()
 
-        with open(self.sge_file_stat, 'rb') as fin:
+        with open(self.sge_file, 'rb') as fin:
             tree = etree.parse(fin)
 
         root = tree.getroot()
@@ -198,7 +198,7 @@ class SGEBatchSystem(GenericBatchSystem):
                     existing_wn['np'] = max(int(existing_wn['np']), len(existing_wn['core_job_map']))
                     break
 
-        logging.debug('Closing %s' % self.sge_file_stat)
+        logging.debug('Closing %s' % self.sge_file)
         logging.info('worker_nodes contains %s entries' % len(worker_nodes))
         for worker_node in worker_nodes:
             worker_node['qname'] = list(worker_node['qname'])
@@ -207,7 +207,7 @@ class SGEBatchSystem(GenericBatchSystem):
     def get_jobs_info(self):
         job_ids, usernames, job_states, queue_names = [], [], [], []
 
-        all_values = self.sge_stat_maker.extract_qstat(self.sge_file_stat)
+        all_values = self.sge_stat_maker.extract_qstat(self.sge_file)
         # TODO: needs better glueing
         for qstat in all_values:
             job_ids.append(str(qstat['JobId']))

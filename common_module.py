@@ -171,7 +171,7 @@ parser.add_option("-O", "--onlysavetofile", action="store_true", dest="ONLYSAVET
 parser.add_option("-r", "--removeemptycorelines", dest="REM_EMPTY_CORELINES", action="store_true", default=False,
                   help="If a whole row consists of empty core lines, remove the row")
 parser.add_option("-s", "--SetSourceDir", dest="SOURCEDIR",
-                  help="Set the source directory where pbsnodes and qstat reside")
+                  help="Set the source directory where the batch scheduler output files reside")
 parser.add_option("-S", "--StrictCheck", dest="STRICTCHECK", action="store_true",
                   help="Do a check on the quality of the scheduler output by comparing "
                        "the reported total running jobs against the actual ones found/displayed in qtop")
