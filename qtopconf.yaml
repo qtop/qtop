@@ -1,4 +1,6 @@
 # Default configuration file for qtop.
+# DO NOT OVERWRITE this file with your own settings. Instead, 
+# create a new qtopconf.yaml in ~/.local/qtop/
 # IMPORTANT: a blank line MUST be left after every line of *python code*.
 
 # scheduler possible values (currently supported): pbs, oar, sge
@@ -67,6 +69,10 @@ state_abbreviations:
     s: suspended_of_user
     S: suspended_by_the_queue
     shite: testing_of_user
+    Rs: suspended_of_user
+    Rq: queued_of_user
+    Rt: transferring_of_user
+    Rr: running_of_user    
   pbs:
     Q: queued_of_user
     R: running_of_user
@@ -133,26 +139,15 @@ remapping:
 # WARNING: not working properly in native yaml parser
 # - -: ""  # removes dashes for shortening (can also replace them with something else, e.g. _
 
-sorting:
-  # by_namelen_by_nr, roughly groups the nodes by name and then by number. Experimental!
-#  user_sort: |
-#      lambda d: (
-#      len(d['domainname'].split('.', 1)[0].split('-')[0]),
-#      ord(d['domainname'][0]),
-#      int(re.sub(r'[A-Za-z_-]+', '', d['domainname'].split('.', 1)[0].split('-')[0]) or -1)
-#      )
+sorting:  # this is here so that you can customise it to your heart's delight!!
   user_sort: |
       lambda d: (
-      d['np'], # first sort by number of cores
-      ord(d['domainname'][0]), # then by first letter
-      len(d['domainname'].split('.', 1)[0].split('-')[0]),
-      #int(d['domainname'].split('.', 1)[0].split('-')[1]),
-      #int(re.sub(r'[A-Za-z_-]+', '', d['domainname'].split('.', 1)[0].split('-')[0]) or -1),  # by number
-      int(re.sub(r'[A-Za-z _.-]+', '', d['domainname']))
+      d['np'], # sort by number of cores
+      ord(d['domainname'][0]), # sort by first letter
+      len(d['domainname'].split('.', 1)[0].split('-')[0]),  # by name?
+      int(re.sub(r'[A-Za-z _.-]+', '', d['domainname']) or "0"),
       )
 
-#  user_sort: |  # by node state
-#       lambda d: ord(d['state'])
   reverse: False
 
 filtering:
