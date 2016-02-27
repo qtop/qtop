@@ -67,6 +67,10 @@ state_abbreviations:
     s: suspended_of_user
     S: suspended_by_the_queue
     shite: testing_of_user
+    Rs: suspended_of_user
+    Rq: queued_of_user
+    Rt: transferring_of_user
+    Rr: running_of_user    
   pbs:
     Q: queued_of_user
     R: running_of_user
@@ -148,7 +152,7 @@ sorting:
       len(d['domainname'].split('.', 1)[0].split('-')[0]),
       #int(d['domainname'].split('.', 1)[0].split('-')[1]),
       #int(re.sub(r'[A-Za-z_-]+', '', d['domainname'].split('.', 1)[0].split('-')[0]) or -1),  # by number
-      int(re.sub(r'[A-Za-z _.-]+', '', d['domainname']))
+      int(re.sub(r'[A-Za-z _.-]+', '', d['domainname']) or "0")
       )
 
 #  user_sort: |  # by node state
