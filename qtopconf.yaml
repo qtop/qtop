@@ -1,4 +1,6 @@
 # Default configuration file for qtop.
+# DO NOT OVERWRITE this file with your own settings. Instead, 
+# create a new qtopconf.yaml in ~/.local/qtop/
 # IMPORTANT: a blank line MUST be left after every line of *python code*.
 
 # scheduler possible values (currently supported): pbs, oar, sge
