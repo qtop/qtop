@@ -1727,6 +1727,17 @@ def get_sample_filename(SAMPLE_FILENAME, config):
 
 
 if __name__ == '__main__':
+    options, args = utils.parse_qtop_cmdline_args()
+    utils.init_logging(options)
+
+    if options.COLOR == 'AUTO':
+        options.COLOR = 'ON' if (os.environ.get("QTOP_COLOR", stdout.isatty()) in ("ON", True)) else 'OFF'
+    logging.debug("options.COLOR is now set to: %s" % options.COLOR)
+
+    options.REMAP = False  # Default value
+
+    sys.excepthook = handle_exception  # TODO: check if I really need this any more
+
     available_batch_systems = discover_qtop_batch_systems()
 
     stdout = sys.stdout  # keep a copy of the initial value of sys.stdout
@@ -1770,7 +1781,7 @@ if __name__ == '__main__':
 
                 ###### Gather data ###############
                 #
-                scheduling_system = available_batch_systems[scheduler](scheduler_output_filenames, config)
+                scheduling_system = available_batch_systems[scheduler](scheduler_output_filenames, config, options)
                 worker_nodes = scheduling_system.get_worker_nodes()
                 job_ids, user_names, job_states, job_queues = scheduling_system.get_jobs_info()
                 total_running_jobs, total_queued_jobs, qstatq_lod = scheduling_system.get_queues_info()

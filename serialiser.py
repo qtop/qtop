@@ -12,8 +12,9 @@ class StatExtractor(object):
     (PBS, OAR, SGE etc)
     """
 
-    def __init__(self, config):
+    def __init__(self, config, options):
         self.config = config
+        self.options = options
         self.anonymize = self.anonymize_func()
 
     def _process_qstat_line(self, re_search, line, re_match_positions):
@@ -29,7 +30,7 @@ class StatExtractor(object):
             print line.strip()
             sys.exit(0)
         job_id = job_id.split('.')[0]
-        user = user if not options.ANONYMIZE else self.anonymize(user, 'users')
+        user = user if not self.options.ANONYMIZE else self.anonymize(user, 'users')
         for key, value in [('JobId', job_id), ('UnixAccount', user), ('S', job_state), ('Queue', queue)]:
             qstat_values[key] = value
         return qstat_values
