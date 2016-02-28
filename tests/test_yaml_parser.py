@@ -62,12 +62,12 @@ def test_detect_indentation_level(fin, t):
         ),
         (
             [
-                '    sge_file_stat: qstat.F.xml.stdout',
+                '    sge_file: qstat.F.xml.stdout',
                 '\n',
                 'faster_xml_parsing: False'
             ],
             [
-                [2, 'sge_file_stat:', 'qstat.F.xml.stdout'],
+                [2, 'sge_file:', 'qstat.F.xml.stdout'],
                 [-2],
                 [0, 'faster_xml_parsing:', 'False'],
             ]

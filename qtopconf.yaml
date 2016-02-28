@@ -23,10 +23,15 @@ schedulers:
     oarnodes_y_file: %(savepath)s/oarnodes_Y%(pid)s.txt, oarnodes -Y
     oarstat_file: %(savepath)s/oarstat%(pid)s.txt, oarstat
   sge:
-    sge_file_stat: %(savepath)s/qstat%(pid)s.F.xml.stdout, qstat -F -xml -u '*'
+    sge_file: %(savepath)s/qstat%(pid)s.F.xml.stdout, qstat -F -xml -u '*'
   demo:
     demo_file: %(savepath)s/demo%(pid)s.txt, echo 'Demo here'
 
+signature_commands:  # commands used to uniquely identify the scheduler installed
+  pbs: pbsnodes
+  oar: oarnodes
+  sge: qacct
+  demo: echo
 
 # Utilises lxml module. Needs to be installed in your system.
 # Might result in segmentation fault in some systems.
