@@ -27,10 +27,10 @@ schedulers:
   demo:
     demo_file: %(savepath)s/demo%(pid)s.txt, echo 'Demo here'
 
-signature_commands:
+signature_commands:  # commands used to uniquely identify the scheduler installed
   pbs: pbsnodes
   oar: oarnodes
-  sge: qhost
+  sge: qacct
   demo: echo
 
 # Utilises lxml module. Needs to be installed in your system.
