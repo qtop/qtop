@@ -1755,6 +1755,13 @@ def discover_batch_systems():
     return available_batch_systems
 
 
+def get_sample_filename(config):
+    if config['overwrite_sample_file']:
+        SAMPLE_FILENAME = SAMPLE_FILENAME % {'datetime': ''}
+    else:
+        SAMPLE_FILENAME = SAMPLE_FILENAME \
+                               % {'datetime': '_' + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")}
+
 if __name__ == '__main__':
     available_batch_systems = discover_batch_systems()
 
@@ -1779,11 +1786,7 @@ if __name__ == '__main__':
                 sys.stdout = os.fdopen(handle, 'w')  # redirect everything to file, creates file object out of handle
                 config = load_yaml_config()
                 config = update_config_with_cmdline_vars(options, config)
-                if config['overwrite_sample_file']:
-                    SAMPLE_FILENAME = SAMPLE_FILENAME % {'datetime': ''}
-                else:
-                    SAMPLE_FILENAME = SAMPLE_FILENAME \
-                                           % {'datetime': '_' + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")}
+
                 attempt_faster_xml_parsing(config)
                 options = init_dirs(options)
 
@@ -1796,6 +1799,7 @@ if __name__ == '__main__':
                     config['schedulers'],
                 )
                 scheduler_output_filenames = fetch_scheduler_files(options, config)
+                SAMPLE_FILENAME = get_sample_filename(config)
                 init_sample_file(options, config, SAMPLE_FILENAME)
 
                 ###### Gather data ###############
