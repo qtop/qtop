@@ -49,7 +49,7 @@ def handle_exception(exc_type, exc_value, exc_traceback):
     logger.error("Uncaught exception", exc_info=(exc_type, exc_value, exc_traceback))
 
 
-def add_to_sample(filepaths_to_add, savepath, sample_file=QTOP_SAMPLE_FILENAME, sample_method=tarfile, subdir=None):
+def add_to_sample(filepaths_to_add, savepath, sample_file, sample_method=tarfile, subdir=None):
     """
     opens sample_file in path savepath and adds files filepaths_to_add
     """

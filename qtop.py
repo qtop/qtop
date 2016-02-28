@@ -14,6 +14,7 @@ import select
 import os
 import re
 import json
+import datetime
 try:
     from collections import namedtuple, OrderedDict
 except ImportError:
@@ -745,7 +746,11 @@ def load_yaml_config():
         logging.debug('%s files will be saved in directory %s.' % (config['scheduler'], user_selected_save_path))
     config['savepath'] = user_selected_save_path
 
-    for key in ['transpose_wn_matrices', 'fill_with_user_firstletter', 'faster_xml_parsing', 'vertical_separator_every_X_columns']:
+    for key in ('transpose_wn_matrices',
+                'fill_with_user_firstletter',
+                'faster_xml_parsing',
+                'vertical_separator_every_X_columns',
+                'overwrite_sample_file'):
         config[key] = eval(config[key])  # TODO config should not be writeable!!
     config['sorting']['reverse'] = eval(config['sorting']['reverse'])  # TODO config should not be writeable!!
     config['ALT_LABEL_COLORS'] = fix_config_list(config['workernodes_matrix'][0]['wn id lines']['alt_label_colors'])
@@ -1163,7 +1168,7 @@ def safe_exit_with_file_close(handle, name, stdout, delete_file=False):
         unlink(name)  # this deletes the file
     # sys.stdout = stdout
     if options.SAMPLE >= 1:
-        add_to_sample([QTOP_LOGFILE], config['savepath'])
+        add_to_sample([QTOP_LOGFILE], config['savepath'], SAMPLE_FILENAME)
     sys.exit(0)
 
 
@@ -1219,7 +1224,7 @@ class TextDisplay(object):
         self.viewport = viewport
         self.config = config
 
-    def display_selected_sections(self, savepath, QTOP_SAMPLE_FILENAME, QTOP_LOGFILE):
+    def display_selected_sections(self, savepath, SAMPLE_FILENAME, QTOP_LOGFILE):
         """
         This prints out the qtop sections selected by the user.
         The selection can be made in two different ways:
@@ -1247,7 +1252,7 @@ class TextDisplay(object):
 
         print "\nLog file created in %s" % expandvars(QTOP_LOGFILE)
         if options.SAMPLE:
-            print "Sample files saved in %s/%s" % (savepath, QTOP_SAMPLE_FILENAME)
+            print "Sample files saved in %s/%s" % (savepath, SAMPLE_FILENAME)
         if options.STRICTCHECK:
             strict_check_jobs(wns_occupancy, cluster)
 
@@ -1599,6 +1604,7 @@ def print_y_lines_of_file_starting_from_x(file, x, y):
 def update_config_with_cmdline_vars(options, config):
     for opt in options.OPTION:
         key, val = get_key_val_from_option_string(opt)
+        val = eval(val) if ('True' in val or 'False' in val) else val
         config[key] = val
 
     if options.TRANSPOSE:
@@ -1625,7 +1631,7 @@ def init_dirs(options):
     return options
 
 
-def init_sample_file(options):
+def init_sample_file(options, config, SAMPLE_FILENAME):
     """
     If the user wants to give feedback to the developers for a bugfix via the -L cmdline switch,
     this initialises a tar file, and adds:
@@ -1635,16 +1641,16 @@ def init_sample_file(options):
     """
     if options.SAMPLE >= 1:
         # clears any preexisting tar files
-        tar_out = tarfile.open(os.path.join(config['savepath'], QTOP_SAMPLE_FILENAME), mode='w')
+        tar_out = tarfile.open(os.path.join(config['savepath'], SAMPLE_FILENAME), mode='w')
         tar_out.close()
         # add all scheduler output files to sample
-        [add_to_sample([scheduler_output_filenames[fn]], savepath) for fn in scheduler_output_filenames
+        [add_to_sample([scheduler_output_filenames[fn]], savepath, SAMPLE_FILENAME) for fn in scheduler_output_filenames
          if os.path.isfile(scheduler_output_filenames[fn])]
 
     if options.SAMPLE >= 2:
-        add_to_sample([os.path.join(realpath(QTOPPATH), QTOPCONF_YAML)], savepath)
+        add_to_sample([os.path.join(realpath(QTOPPATH), QTOPCONF_YAML)], savepath, SAMPLE_FILENAME)
         source_files = glob.glob(os.path.join(realpath(QTOPPATH), '*.py'))
-        add_to_sample(source_files, savepath, subdir='source')
+        add_to_sample(source_files, savepath, SAMPLE_FILENAME, subdir='source')
 
 def wait_for_keypress_or_autorefresh(KEYPRESS_TIMEOUT=1):
     """
@@ -1743,6 +1749,14 @@ def discover_qtop_batch_systems():
     return available_batch_systems
 
 
+def get_sample_filename(SAMPLE_FILENAME, config):
+    if config['overwrite_sample_file']:
+        SAMPLE_FILENAME = SAMPLE_FILENAME % {'datetime': ''}
+    else:
+        SAMPLE_FILENAME = SAMPLE_FILENAME \
+                               % {'datetime': '_' + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")}
+    return SAMPLE_FILENAME
+
 if __name__ == '__main__':
     available_batch_systems = discover_qtop_batch_systems()
 
@@ -1757,6 +1771,8 @@ if __name__ == '__main__':
     logging.debug('Initial qtop directory: %s' % initial_cwd)
     CURPATH = os.path.expanduser(initial_cwd)  # where qtop was invoked from
     QTOPPATH = os.path.dirname(realpath(sys.argv[0]))  # dir where qtop resides
+    SAMPLE_FILENAME = 'qtop_sample_${USER}%(datetime)s.tar'
+    SAMPLE_FILENAME = os.path.expandvars(SAMPLE_FILENAME)
 
     with raw_mode(sys.stdin):  # key listener implementation
         try:
@@ -1765,6 +1781,7 @@ if __name__ == '__main__':
                 sys.stdout = os.fdopen(handle, 'w')  # redirect everything to file, creates file object out of handle
                 config = load_yaml_config()
                 config = update_config_with_cmdline_vars(options, config)
+
                 attempt_faster_xml_parsing(config)
                 options = init_dirs(options)
 
@@ -1779,9 +1796,11 @@ if __name__ == '__main__':
                     config,
                 )
                 scheduler_output_filenames = fetch_scheduler_files(options, config)
-                init_sample_file(options)
+                SAMPLE_FILENAME = get_sample_filename(SAMPLE_FILENAME, config)
+                init_sample_file(options, config, SAMPLE_FILENAME)
 
                 ###### Gather data ###############
+                #
                 scheduling_system = available_batch_systems[scheduler](scheduler_output_filenames, config)
                 worker_nodes = scheduling_system.get_worker_nodes()
                 job_ids, user_names, job_states, job_queues = scheduling_system.get_jobs_info()
@@ -1789,19 +1808,22 @@ if __name__ == '__main__':
                 # TODO: maybe add dump input data in here in the future?
 
                 ###### Process data ###############
+                #
                 worker_nodes = get_qnames_per_worker_node(worker_nodes)
                 cluster = init_cluster(worker_nodes, total_running_jobs, total_queued_jobs, qstatq_lod)
                 cluster = calculate_cluster(worker_nodes, cluster)
                 wns_occupancy = calculate_wn_occupancy(cluster, user_names, job_states, job_ids, job_queues)
 
                 ###### Export data ###############
+                #
                 document = Document(wns_occupancy, cluster)
                 tf = tempfile.NamedTemporaryFile(delete=False, suffix='.json', dir=savepath)  # Will become doc member one day
                 document.save(tf.name)  # dump json document to a file
 
                 ###### Display data ###############
+                #
                 display = TextDisplay(document, config, viewport)
-                display.display_selected_sections(savepath, QTOP_SAMPLE_FILENAME, QTOP_LOGFILE)
+                display.display_selected_sections(savepath, SAMPLE_FILENAME, QTOP_LOGFILE)
 
                 sys.stdout.flush()
                 sys.stdout.close()
@@ -1826,11 +1848,11 @@ if __name__ == '__main__':
                 unlink(output_fp)
 
             if options.SAMPLE:
-                add_to_sample([output_fp], config['savepath'])
+                add_to_sample([output_fp], config['savepath'], SAMPLE_FILENAME)
 
         except (KeyboardInterrupt, EOFError) as e:
             repr(e)
             safe_exit_with_file_close(handle, output_fp, stdout)
         else:
             if options.SAMPLE >= 1:
-                add_to_sample([QTOP_LOGFILE], config['savepath'])
+                add_to_sample([QTOP_LOGFILE], config['savepath'], SAMPLE_FILENAME)
