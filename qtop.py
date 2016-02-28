@@ -20,7 +20,6 @@ try:
 except ImportError:
     from legacy.namedtuple import namedtuple
     from legacy.ordereddict import OrderedDict
-from os import unlink, close
 from os.path import realpath, getmtime
 from signal import signal, SIGPIPE, SIG_DFL
 import termios
@@ -28,6 +27,7 @@ import contextlib
 import glob
 import tempfile
 import sys
+import fileutils
 from common_module import *
 from plugins import *
 from math import ceil
@@ -201,6 +201,7 @@ def fill_non_existent_wn_nodes(cluster):
                 outermost_key='workernodes_matrix')])
             cluster['workernode_dict'][node].update(default_values_for_empty_nodes)
     return cluster
+
 
 def do_name_remapping(cluster):
     """
@@ -740,7 +741,7 @@ def load_yaml_config():
 
     user_selected_save_path = realpath(expandvars(config['savepath']))
     if not os.path.exists(user_selected_save_path):
-        mkdir_p(user_selected_save_path)
+        fileutils.mkdir_p(user_selected_save_path)
         logging.debug('Directory %s created.' % user_selected_save_path)
     else:
         logging.debug('%s files will be saved in directory %s.' % (config['scheduler'], user_selected_save_path))
@@ -1056,7 +1057,7 @@ def get_input_filenames(INPUT_FNs_commands):
             filenames[_file] = execute_shell_batch_commands(batch_system_commands, filenames, _file)
 
         if not os.path.isfile(filenames[_file]):
-            raise FileNotFound(filenames[_file])
+            raise fileutils.FileNotFound(filenames[_file])
     return filenames
 
 
@@ -1158,18 +1159,6 @@ def control_movement(read_char):
                   '\n\t(%(h_start)s, %(v_start)s) --> (%(h_stop)s, %(v_stop)s)' %
                   {'v_start': viewport.v_start, 'v_stop': viewport.v_stop,
                    'h_start': viewport.h_start, 'h_stop': viewport.h_stop})
-
-
-def safe_exit_with_file_close(handle, name, stdout, delete_file=False):
-    sys.stdout.flush()
-    sys.stdout.close()
-    close(handle)
-    if delete_file:
-        unlink(name)  # this deletes the file
-    # sys.stdout = stdout
-    if options.SAMPLE >= 1:
-        add_to_sample([QTOP_LOGFILE], config['savepath'], SAMPLE_FILENAME)
-    sys.exit(0)
 
 
 def fetch_scheduler_files(options, config):
@@ -1631,27 +1620,6 @@ def init_dirs(options):
     return options
 
 
-def init_sample_file(options, config, SAMPLE_FILENAME):
-    """
-    If the user wants to give feedback to the developers for a bugfix via the -L cmdline switch,
-    this initialises a tar file, and adds:
-    * the scheduler output files (-L),
-    * and source files (-LL)
-    to the tar file
-    """
-    if options.SAMPLE >= 1:
-        # clears any preexisting tar files
-        tar_out = tarfile.open(os.path.join(config['savepath'], SAMPLE_FILENAME), mode='w')
-        tar_out.close()
-        # add all scheduler output files to sample
-        [add_to_sample([scheduler_output_filenames[fn]], savepath, SAMPLE_FILENAME) for fn in scheduler_output_filenames
-         if os.path.isfile(scheduler_output_filenames[fn])]
-
-    if options.SAMPLE >= 2:
-        add_to_sample([os.path.join(realpath(QTOPPATH), QTOPCONF_YAML)], savepath, SAMPLE_FILENAME)
-        source_files = glob.glob(os.path.join(realpath(QTOPPATH), '*.py'))
-        add_to_sample(source_files, savepath, SAMPLE_FILENAME, subdir='source')
-
 def wait_for_keypress_or_autorefresh(KEYPRESS_TIMEOUT=1):
     """
     This will make qtop wait for user input for a while,
@@ -1757,6 +1725,7 @@ def get_sample_filename(SAMPLE_FILENAME, config):
                                % {'datetime': '_' + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")}
     return SAMPLE_FILENAME
 
+
 if __name__ == '__main__':
     available_batch_systems = discover_qtop_batch_systems()
 
@@ -1777,7 +1746,7 @@ if __name__ == '__main__':
     with raw_mode(sys.stdin):  # key listener implementation
         try:
             while True:
-                handle, output_fp = get_new_temp_file(prefix='qtop_', suffix='.out')  # qtop output is saved to this file
+                handle, output_fp = fileutils.get_new_temp_file(prefix='qtop_', suffix='.out')  # qtop output is saved to this file
                 sys.stdout = os.fdopen(handle, 'w')  # redirect everything to file, creates file object out of handle
                 config = load_yaml_config()
                 config = update_config_with_cmdline_vars(options, config)
@@ -1797,7 +1766,7 @@ if __name__ == '__main__':
                 )
                 scheduler_output_filenames = fetch_scheduler_files(options, config)
                 SAMPLE_FILENAME = get_sample_filename(SAMPLE_FILENAME, config)
-                init_sample_file(options, config, SAMPLE_FILENAME)
+                fileutils.init_sample_file(options, config, SAMPLE_FILENAME, scheduler_output_filenames, QTOPCONF_YAML, QTOPPATH)
 
                 ###### Gather data ###############
                 #
@@ -1845,14 +1814,14 @@ if __name__ == '__main__':
                     control_movement(read_char)
 
                 os.chdir(QTOPPATH)
-                unlink(output_fp)
+                os.unlink(output_fp)
 
             if options.SAMPLE:
-                add_to_sample([output_fp], config['savepath'], SAMPLE_FILENAME)
+                fileutils.add_to_sample([output_fp], config['savepath'], SAMPLE_FILENAME)
 
         except (KeyboardInterrupt, EOFError) as e:
             repr(e)
-            safe_exit_with_file_close(handle, output_fp, stdout)
+            fileutils.safe_exit_with_file_close(handle, output_fp, stdout, options, config, QTOP_LOGFILE, SAMPLE_FILENAME)
         else:
             if options.SAMPLE >= 1:
-                add_to_sample([QTOP_LOGFILE], config['savepath'], SAMPLE_FILENAME)
+                fileutils.add_to_sample([QTOP_LOGFILE], config['savepath'], SAMPLE_FILENAME)

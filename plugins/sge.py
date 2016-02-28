@@ -6,7 +6,8 @@ except ImportError:
 import sys
 from serialiser import *
 from xml.etree import ElementTree as etree
-from common_module import logging, check_empty_file, options
+from common_module import logging, options
+import fileutils
 from constants import *
 
 
@@ -88,7 +89,7 @@ class SGEBatchSystem(GenericBatchSystem):
 
     def get_queues_info(self):
         logging.debug("Parsing tree of %s" % self.sge_file)
-        check_empty_file(self.sge_file)
+        fileutils.check_empty_file(self.sge_file)
         anonymize = self.sge_stat_maker.anonymize_func()
 
         tree = self._get_xml_tree(self.sge_file)

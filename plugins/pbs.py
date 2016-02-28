@@ -3,7 +3,8 @@ try:
 except ImportError:
     import json
 from serialiser import *
-from common_module import check_empty_file, options
+from common_module import options
+import fileutils
 
 
 class PBSStatExtractor(StatExtractor):
@@ -30,8 +31,8 @@ class PBSStatExtractor(StatExtractor):
 
     def extract_qstat(self, orig_file):
         try:
-            check_empty_file(orig_file)
-        except FileEmptyError:
+            fileutils.check_empty_file(orig_file)
+        except fileutils.FileEmptyError:
             all_qstat_values = []
         else:
             all_qstat_values = list()
@@ -66,8 +67,8 @@ class PBSStatExtractor(StatExtractor):
         (except for the last line, which contains two sums and is parsed separately)
         """
         try:
-            check_empty_file(orig_file)
-        except FileEmptyError:
+            fileutils.check_empty_file(orig_file)
+        except fileutils.FileEmptyError:
             all_values = []
         else:
             anonymize = self.anonymize_func()
@@ -131,8 +132,8 @@ class PBSBatchSystem(GenericBatchSystem):
 
     def get_worker_nodes(self):
         try:
-            check_empty_file(self.pbsnodes_file)
-        except FileEmptyError:
+            fileutils.check_empty_file(self.pbsnodes_file)
+        except fileutils.FileEmptyError:
             all_pbs_values = []
             return all_pbs_values
 

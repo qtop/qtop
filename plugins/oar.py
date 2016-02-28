@@ -164,3 +164,6 @@ class OARBatchSystem(GenericBatchSystem):
             return state
         else:
             return node_state_mapping[states[0]]
+
+
+#TODO shouldn't oar have a check_empty_file() here too??
