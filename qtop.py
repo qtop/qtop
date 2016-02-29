@@ -33,7 +33,6 @@ from constants import (TMPDIR, SYSTEMCONFDIR, QTOPCONF_YAML, QTOP_LOGFILE, savep
     MAX_UNIX_ACCOUNTS, KEYPRESS_TIMEOUT, FALLBACK_TERMSIZE)
 import fileutils
 import utils
-from common_module import handle_exception, JobNotFound, NoSchedulerFound, SchedulerNotSpecified, InvalidScheduler
 from plugins import *
 from math import ceil
 from colormap import color_of_account, code_of_color
@@ -974,7 +973,7 @@ def auto_get_avail_batch_system(config):
                 logging.debug('Auto-detected scheduler: %s' % system)
                 return system
 
-    raise NoSchedulerFound
+    raise SchedulerNotSpecified
 
 
 def execute_shell_batch_commands(batch_system_commands, filenames, _file):
@@ -1728,6 +1727,43 @@ def process_options(options):
     logging.debug("options.COLOR is now set to: %s" % options.COLOR)
     options.REMAP = False  # Default value
     return options
+
+
+def handle_exception(exc_type, exc_value, exc_traceback):
+    """
+    This, when replacing sys.excepthook,
+    will log uncaught exceptions to the logging module instead
+    of printing them to stdout.
+    """
+    if issubclass(exc_type, KeyboardInterrupt):
+        sys.__excepthook__(exc_type, exc_value, exc_traceback)
+        return
+
+    logging.error("Uncaught exception", exc_info=(exc_type, exc_value, exc_traceback))
+
+
+class JobNotFound(Exception):
+    def __init__(self, job_state):
+        Exception.__init__(self, "Job state %s not found" % job_state)
+        self.job_state = job_state
+
+
+class NoSchedulerFound(Exception):
+    def __init__(self):
+        msg = 'No suitable scheduler was found. ' \
+              'Please define one in a switch or env variable or in %s.\n' \
+              'For more help, try ./qtop.py --help\nLog file created in %s' \
+              % (QTOPCONF_YAML, os.path.expandvars(QTOP_LOGFILE))
+        Exception.__init__(self, msg)
+        logging.critical(msg)
+
+
+class SchedulerNotSpecified(Exception):
+    pass
+
+
+class InvalidScheduler(Exception):
+    pass
 
 
 if __name__ == '__main__':

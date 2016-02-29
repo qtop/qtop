@@ -3,10 +3,10 @@ try:
     import ujson as json
 except ImportError:
     import json
+import logging
 import sys
 from serialiser import StatExtractor, GenericBatchSystem
 from xml.etree import ElementTree as etree
-from common_module import logging
 import fileutils
 
 
