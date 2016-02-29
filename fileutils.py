@@ -36,15 +36,8 @@ def get_new_temp_file(suffix, prefix, config=None):  # **kwargs
     return fd, temp_filepath
 
 
-def safe_exit_with_file_close(handle,
-                              name,
-                              stdout,
-                              options,
-                              config,
-                              qtop_logfile,
-                              sample_filename,
-                              delete_file=False,
-                              ):
+def safe_exit_with_file_close(handle, name, stdout, options, config,
+                              qtop_logfile, sample_filename, delete_file=False):
     sys.stdout.flush()
     sys.stdout.close()
     os.close(handle)
