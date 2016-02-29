@@ -1708,20 +1708,21 @@ def process_options(options):
         options.COLOR = 'ON' if (os.environ.get("QTOP_COLOR", sys.stdout.isatty()) in ("ON", True)) else 'OFF'
     logging.debug("options.COLOR is now set to: %s" % options.COLOR)
     options.REMAP = False  # Default value
-    return options
+    NAMED_WNS = 1 if options.FORCE_NAMES else 0
+    return options, NAMED_WNS
 
 
-def handle_exception(exc_type, exc_value, exc_traceback):
-    """
-    This, when replacing sys.excepthook,
-    will log uncaught exceptions to the logging module instead
-    of printing them to stdout.
-    """
-    if issubclass(exc_type, KeyboardInterrupt):
-        sys.__excepthook__(exc_type, exc_value, exc_traceback)
-        return
-
-    logging.error("Uncaught exception", exc_info=(exc_type, exc_value, exc_traceback))
+# def handle_exception(exc_type, exc_value, exc_traceback):
+#     """
+#     This, when replacing sys.excepthook,
+#     will log uncaught exceptions to the logging module instead
+#     of printing them to stdout.
+#     """
+#     if issubclass(exc_type, KeyboardInterrupt):
+#         sys.__excepthook__(exc_type, exc_value, exc_traceback)
+#         return
+#
+#     logging.error("Uncaught exception", exc_info=(exc_type, exc_value, exc_traceback))
 
 
 class JobNotFound(Exception):
@@ -1751,9 +1752,9 @@ class InvalidScheduler(Exception):
 if __name__ == '__main__':
     options, args = utils.parse_qtop_cmdline_args()
     utils.init_logging(options)
-    options = process_options(options)
-
-    sys.excepthook = handle_exception  # TODO: check if I really need this any more
+    options, NAMED_WNS = process_options(options)
+    # TODO: check if this is really needed any more
+    # sys.excepthook = handle_exception
 
     available_batch_systems = discover_qtop_batch_systems()
 
@@ -1761,7 +1762,6 @@ if __name__ == '__main__':
 
     viewport = Viewport()  # controls the part of the qtop matrix shown on screen
     max_line_len = 0
-    NAMED_WNS = 1 if options.FORCE_NAMES else 0
 
     check_python_version()
     initial_cwd = os.getcwd()
