@@ -36,7 +36,7 @@ import utils
 from plugins import *
 from math import ceil
 from colormap import color_of_account, code_of_color
-from yaml_parser import read_yaml_natively, fix_config_list, convert_dash_key_in_dict
+import yaml_parser as yaml
 from ui.viewport import Viewport
 from serialiser import GenericBatchSystem
 
@@ -202,7 +202,7 @@ def fill_non_existent_wn_nodes(cluster):
         if node not in cluster['workernode_dict']:
             cluster['workernode_dict'][node] = {'state': '?', 'np': 0, 'domainname': 'N/A', 'host': 'N/A'}
             default_values_for_empty_nodes = dict([(yaml_key, '?') for yaml_key, part_name, _ in get_yaml_key_part(
-                outermost_key='workernodes_matrix')])
+                config, scheduler, outermost_key='workernodes_matrix')])
             cluster['workernode_dict'][node].update(default_values_for_empty_nodes)
     return cluster
 
@@ -600,24 +600,6 @@ def transpose_matrix(d, colored=False, reverse=False):
         yield tpl
 
 
-def get_yaml_key_part(outermost_key):
-    """
-    only return the list items of the yaml outermost_key if a yaml key subkey exists
-    (this signals a user-inserted value)
-    """
-    # e.g. outermost_key = 'workernodes_matrix'
-    for part in config[outermost_key]:
-        part_name = [i for i in part][0]
-        part_options = part[part_name]
-        # label = part_options.get('label')
-        # part_nr_lines = int(part_options['max_len'])
-        yaml_key = part_options.get('yaml_key')
-        # if no systems line exists, all systems are supported, and thus the current
-        systems = fix_config_list(part_options.get('systems', [scheduler]))
-        if yaml_key:
-            yield yaml_key, part_name, systems
-
-
 def calculate_wn_occupancy(cluster, user_names, job_states, job_ids, job_queues):
     """
     Prints the Worker Nodes Occupancy table.
@@ -640,7 +622,7 @@ def calculate_wn_occupancy(cluster, user_names, job_states, job_ids, job_queues)
 
     # For-loop below only for user-inserted/customizeable values.
     # e.g. wns_occupancy['node_state'] = ...workernode_dict[node]['state'] for node in workernode_dict...
-    for yaml_key, part_name, systems in get_yaml_key_part(outermost_key='workernodes_matrix'):
+    for yaml_key, part_name, systems in yaml.get_yaml_key_part(config, scheduler, outermost_key='workernodes_matrix'):
         if scheduler in systems:
             wns_occupancy[part_name] = calc_general_multiline_attr(cluster, part_name, yaml_key)
 
@@ -686,11 +668,11 @@ def load_yaml_config():
     """
     # TODO: conversion to int should be handled internally in native yaml parser
     # TODO: fix_config_list should be handled internally in native yaml parser
-    config = read_yaml_natively(os.path.join(realpath(QTOPPATH), QTOPCONF_YAML))
+    config = yaml.parse(os.path.join(realpath(QTOPPATH), QTOPCONF_YAML))
     logging.info('Default configuration dictionary loaded. Length: %s items' % len(config))
 
     try:
-        config_env = read_yaml_natively(os.path.join(SYSTEMCONFDIR, QTOPCONF_YAML))
+        config_env = yaml.parse(os.path.join(SYSTEMCONFDIR, QTOPCONF_YAML))
     except IOError:
         config_env = {}
         logging.info('%s could not be found in %s/' % (QTOPCONF_YAML, SYSTEMCONFDIR))
@@ -699,7 +681,7 @@ def load_yaml_config():
         logging.info('Env configuration dictionary loaded. Length: %s items' % len(config_env))
 
     try:
-        config_user = read_yaml_natively(os.path.join(USERPATH, QTOPCONF_YAML))
+        config_user = yaml.parse(os.path.join(USERPATH, QTOPCONF_YAML))
     except IOError:
         config_user = {}
         logging.info('User %s could not be found in %s/' % (QTOPCONF_YAML, USERPATH))
@@ -712,10 +694,10 @@ def load_yaml_config():
 
     if options.CONFFILE:
         try:
-            config_user_custom = read_yaml_natively(os.path.join(USERPATH, options.CONFFILE))
+            config_user_custom = yaml.parse(os.path.join(USERPATH, options.CONFFILE))
         except IOError:
             try:
-                config_user_custom = read_yaml_natively(os.path.join(CURPATH, options.CONFFILE))
+                config_user_custom = yaml.parse(os.path.join(CURPATH, options.CONFFILE))
             except IOError:
                 config_user_custom = {}
                 logging.info('Custom User %s could not be found in %s/ or current dir' % (options.CONFFILE, CURPATH))
@@ -758,7 +740,7 @@ def load_yaml_config():
                 'overwrite_sample_file'):
         config[key] = eval(config[key])  # TODO config should not be writeable!!
     config['sorting']['reverse'] = eval(config['sorting']['reverse'])  # TODO config should not be writeable!!
-    config['ALT_LABEL_COLORS'] = fix_config_list(config['workernodes_matrix'][0]['wn id lines']['alt_label_colors'])
+    config['ALT_LABEL_COLORS'] = yaml.fix_config_list(config['workernodes_matrix'][0]['wn id lines']['alt_label_colors'])
     config['SEPARATOR'] = config['vertical_separator'].translate(None, "'")
     config['USER_CUT_MATRIX_WIDTH'] = int(config['workernodes_matrix'][0]['wn id lines']['user_cut_matrix_width'])
     return config
@@ -777,7 +759,7 @@ def calculate_term_size(config, FALLBACK_TERM_SIZE):
             term_height, term_columns = viewport.v_term_size, viewport.h_term_size
         except ValueError:
             try:
-                term_height, term_columns = fix_config_list(viewport.get_term_size())
+                term_height, term_columns = yaml.fix_config_list(viewport.get_term_size())
             except KeyError:
                 term_height, term_columns = fallback_term_size
         except (KeyError, TypeError):  # TypeError if None was returned i.e. no setting in QTOPCONF_YAML
@@ -1409,7 +1391,7 @@ class TextDisplay(object):
         }
 
         # custom part
-        for yaml_key, part_name, systems in get_yaml_key_part(outermost_key='workernodes_matrix'):
+        for yaml_key, part_name, systems in yaml.get_yaml_key_part(config, scheduler, outermost_key='workernodes_matrix'):
             if scheduler not in systems: continue
 
             new_occupancy_part = {
@@ -1425,7 +1407,7 @@ class TextDisplay(object):
         for part_dict in config['workernodes_matrix']:
             part = [k for k in part_dict][0]
             key_vals = part_dict[part]
-            if scheduler not in fix_config_list(key_vals.get('systems',[scheduler])):
+            if scheduler not in yaml.fix_config_list(key_vals.get('systems',[scheduler])):
                 continue
             occupancy_parts[part][2].update(key_vals)  # get extra options from user
 
