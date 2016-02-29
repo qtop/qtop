@@ -1077,7 +1077,7 @@ def deprecate_old_json_files():
             os.remove(curpath)
 
 
-def control_movement(read_char):
+def control_movement(viewport, read_char):
     """
     Basic vi-like movement is implemented for the -w switch (linux watch-like behaviour for qtop).
     h, j, k, l for left, down, up, right, respectively.
@@ -1545,6 +1545,13 @@ class TextDisplay(object):
             wn_id_str = ''.join([colorize(elem, color) for elem in wn_id_str])
             print wn_id_str + end_label
 
+    def print_y_lines_of_file_starting_from_x(self, file, x, y):
+        """
+        Prints part of the qtop output to the terminal (as fast as possible!)
+        Justification for implementation:
+        http://unix.stackexchange.com/questions/47407/cat-line-x-to-line-y-on-a-huge-file
+        """
+        return 'clear;tail -n+%s %s | head -n%s' % (x, file, y)
 
 def get_output_size(max_height, max_line_len, output_fp):
     """
@@ -1565,15 +1572,6 @@ def get_output_size(max_height, max_line_len, output_fp):
     logging.debug('Max line length: %s' % max_line_len)
 
     return max_height, max_line_len
-
-
-def print_y_lines_of_file_starting_from_x(file, x, y):
-    """
-    Prints part of the qtop output to the terminal (as fast as possible!)
-    Justification for implementation:
-    http://unix.stackexchange.com/questions/47407/cat-line-x-to-line-y-on-a-huge-file
-    """
-    return 'clear;tail -n+%s %s | head -n%s' % (x, file, y)
 
 
 def update_config_with_cmdline_vars(options, config):
@@ -1606,7 +1604,7 @@ def init_dirs(options):
     return options
 
 
-def wait_for_keypress_or_autorefresh(KEYPRESS_TIMEOUT=1):
+def wait_for_keypress_or_autorefresh(viewport, KEYPRESS_TIMEOUT=1):
     """
     This will make qtop wait for user input for a while,
     otherwise it will auto-refresh the display
@@ -1785,13 +1783,8 @@ if __name__ == '__main__':
                 transposed_matrices = []
                 viewport.set_term_size(*calculate_term_size(config, FALLBACK_TERMSIZE))
                 scheduler = decide_batch_system(
-                    options.BATCH_SYSTEM,
-                    os.environ.get('QTOP_SCHEDULER'),
-                    config['scheduler'],
-                    config['schedulers'],
-                    available_batch_systems,
-                    config,
-                )
+                    options.BATCH_SYSTEM, os.environ.get('QTOP_SCHEDULER'), config['scheduler'],
+                    config['schedulers'], available_batch_systems, config)
                 scheduler_output_filenames = fetch_scheduler_files(options, config)
                 SAMPLE_FILENAME = fileutils.get_sample_filename(SAMPLE_FILENAME, config)
                 fileutils.init_sample_file(options, config, SAMPLE_FILENAME, scheduler_output_filenames, QTOPCONF_YAML, QTOPPATH)
@@ -1835,11 +1828,12 @@ if __name__ == '__main__':
                     _ = subprocess.call(cat_command, stdout=stdout, stderr=stdout, shell=True)
                     break
                 else:  # --watch
-                    cat_command = print_y_lines_of_file_starting_from_x(file=output_fp, x=viewport.v_start, y=viewport.v_term_size)
+                    cat_command = display.print_y_lines_of_file_starting_from_x(file=output_fp, x=viewport.v_start,
+                                                                                y=viewport.v_term_size)
                     _ = subprocess.call(cat_command, stdout=stdout, stderr=stdout, shell=True)
 
-                    read_char = wait_for_keypress_or_autorefresh(int(options.WATCH[0]) or KEYPRESS_TIMEOUT)
-                    control_movement(read_char)
+                    read_char = wait_for_keypress_or_autorefresh(viewport, int(options.WATCH[0]) or KEYPRESS_TIMEOUT)
+                    control_movement(viewport, read_char)
 
                 os.chdir(QTOPPATH)
                 os.unlink(output_fp)
