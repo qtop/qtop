@@ -1,7 +1,7 @@
 import random
 import itertools
 import time
-from serialiser import *
+from serialiser import GenericBatchSystem
 from collections import defaultdict
 
 WORKER_NODES = 80
