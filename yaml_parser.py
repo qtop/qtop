@@ -1,6 +1,7 @@
 import os
 import logging
 
+
 def fix_config_list(config_list):
     """
     transforms a list of the form ['a, b'] to ['a', 'b']

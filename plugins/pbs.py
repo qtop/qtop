@@ -2,9 +2,9 @@ try:
     import ujson as json
 except ImportError:
     import json
-import os
 import logging
-from serialiser import *
+import re
+from serialiser import StatExtractor, GenericBatchSystem
 import fileutils
 
 

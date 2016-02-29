@@ -1,7 +1,5 @@
-"""
-TODO: better organised the information in here
-"""
 import re
+import sys
 from itertools import count
 
 
