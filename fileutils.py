@@ -6,6 +6,7 @@ import tarfile
 import sys
 import constants
 import glob
+import datetime
 
 
 def mkdir_p(path):
@@ -94,6 +95,15 @@ def add_to_sample(filepaths_to_add, savepath, sample_file, sample_method=tarfile
     else:
         logging.debug('Closing sample...')
         sample_out.close()
+
+
+def get_sample_filename(SAMPLE_FILENAME, config):
+    if config['overwrite_sample_file']:
+        SAMPLE_FILENAME = SAMPLE_FILENAME % {'datetime': ''}
+    else:
+        SAMPLE_FILENAME = SAMPLE_FILENAME \
+                               % {'datetime': '_' + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")}
+    return SAMPLE_FILENAME
 
 
 class FileNotFound(Exception):

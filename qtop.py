@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 ################################################
-#              qtop v.0.8.8                    #
+#              qtop v.0.8.9-pre                #
 #     Licensed under MIT-GPL licenses          #
 #                     Sotiris Fragkiskos       #
 #                     Fotis Georgatos          #
@@ -1717,24 +1717,18 @@ def discover_qtop_batch_systems():
     return available_batch_systems
 
 
-def get_sample_filename(SAMPLE_FILENAME, config):
-    if config['overwrite_sample_file']:
-        SAMPLE_FILENAME = SAMPLE_FILENAME % {'datetime': ''}
-    else:
-        SAMPLE_FILENAME = SAMPLE_FILENAME \
-                               % {'datetime': '_' + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")}
-    return SAMPLE_FILENAME
+def process_options(options):
+    if options.COLOR == 'AUTO':
+        options.COLOR = 'ON' if (os.environ.get("QTOP_COLOR", stdout.isatty()) in ("ON", True)) else 'OFF'
+    logging.debug("options.COLOR is now set to: %s" % options.COLOR)
+    options.REMAP = False  # Default value
+    return options
 
 
 if __name__ == '__main__':
     options, args = utils.parse_qtop_cmdline_args()
     utils.init_logging(options)
-
-    if options.COLOR == 'AUTO':
-        options.COLOR = 'ON' if (os.environ.get("QTOP_COLOR", stdout.isatty()) in ("ON", True)) else 'OFF'
-    logging.debug("options.COLOR is now set to: %s" % options.COLOR)
-
-    options.REMAP = False  # Default value
+    options = process_options(options)
 
     sys.excepthook = handle_exception  # TODO: check if I really need this any more
 
@@ -1776,7 +1770,7 @@ if __name__ == '__main__':
                     config,
                 )
                 scheduler_output_filenames = fetch_scheduler_files(options, config)
-                SAMPLE_FILENAME = get_sample_filename(SAMPLE_FILENAME, config)
+                SAMPLE_FILENAME = fileutils.get_sample_filename(SAMPLE_FILENAME, config)
                 fileutils.init_sample_file(options, config, SAMPLE_FILENAME, scheduler_output_filenames, QTOPCONF_YAML, QTOPPATH)
 
                 ###### Gather data ###############
