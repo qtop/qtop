@@ -20,6 +20,7 @@ try:
 except ImportError:
     from legacy.namedtuple import namedtuple
     from legacy.ordereddict import OrderedDict
+import os
 from os.path import realpath, getmtime
 from signal import signal, SIGPIPE, SIG_DFL
 import termios
@@ -27,8 +28,12 @@ import contextlib
 import glob
 import tempfile
 import sys
+import logging
+from constants import (TMPDIR, SYSTEMCONFDIR, QTOPCONF_YAML, QTOP_LOGFILE, savepath, USERPATH, MAX_CORE_ALLOWED,
+    MAX_UNIX_ACCOUNTS, KEYPRESS_TIMEOUT, FALLBACK_TERMSIZE)
 import fileutils
-from common_module import *
+import utils
+from common_module import handle_exception, JobNotFound, NoSchedulerFound, SchedulerNotSpecified, InvalidScheduler
 from plugins import *
 from math import ceil
 from colormap import color_of_account, code_of_color
@@ -739,7 +744,7 @@ def load_yaml_config():
     for symbol in symbol_map:
         config['possible_ids'].append(symbol)
 
-    user_selected_save_path = realpath(expandvars(config['savepath']))
+    user_selected_save_path = os.path.realpath(os.path.expandvars(config['savepath']))
     if not os.path.exists(user_selected_save_path):
         fileutils.mkdir_p(user_selected_save_path)
         logging.debug('Directory %s created.' % user_selected_save_path)
@@ -1081,7 +1086,7 @@ def deprecate_old_json_files():
     experimental and loosely untested
     """
     time_alive = int(config['auto_delete_old_json_files_after_few_hours'])
-    user_selected_save_path = realpath(expandvars(config['savepath']))
+    user_selected_save_path = os.path.realpath(os.path.expandvars(config['savepath']))
     for f in os.listdir(user_selected_save_path):
         if not f.endswith('json'):
             continue
@@ -1177,7 +1182,7 @@ def decide_batch_system(cmdline_switch, env_var, config_file_batch_option, sched
     if cmdline_switch and cmdline_switch.lower() not in avail_systems:
         logging.critical("Selected scheduler system not supported. Available choices are %s." % ", ".join(avail_systems))
         logging.critical("For help, try ./qtop.py --help")
-        logging.critical("Log file created in %s" % expandvars(QTOP_LOGFILE))
+        logging.critical("Log file created in %s" % os.path.expandvars(QTOP_LOGFILE))
         raise InvalidScheduler
     for scheduler in (cmdline_switch, env_var, config_file_batch_option):
         if scheduler is None:
@@ -1239,7 +1244,7 @@ class TextDisplay(object):
             display_func, args = display_parts[part][0], display_parts[part][1]
             display_func(*args) if not sections_off[idx] else None
 
-        print "\nLog file created in %s" % expandvars(QTOP_LOGFILE)
+        print "\nLog file created in %s" % os.path.expandvars(QTOP_LOGFILE)
         if options.SAMPLE:
             print "Sample files saved in %s/%s" % (savepath, SAMPLE_FILENAME)
         if options.STRICTCHECK:
@@ -1719,7 +1724,7 @@ def discover_qtop_batch_systems():
 
 def process_options(options):
     if options.COLOR == 'AUTO':
-        options.COLOR = 'ON' if (os.environ.get("QTOP_COLOR", stdout.isatty()) in ("ON", True)) else 'OFF'
+        options.COLOR = 'ON' if (os.environ.get("QTOP_COLOR", sys.stdout.isatty()) in ("ON", True)) else 'OFF'
     logging.debug("options.COLOR is now set to: %s" % options.COLOR)
     options.REMAP = False  # Default value
     return options

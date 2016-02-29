@@ -2,7 +2,7 @@ import logging
 import sys
 from optparse import OptionParser
 import fileutils
-from constants import *
+from constants import QTOP_LOGFILE
 
 
 def init_logging(options):

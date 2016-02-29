@@ -1,9 +1,6 @@
 import logging
-import sys
-from sys import stdin, stdout
-from os.path import expandvars
-from constants import *
-import utils
+import os
+import constants
 
 
 def handle_exception(exc_type, exc_value, exc_traceback):
@@ -29,7 +26,8 @@ class NoSchedulerFound(Exception):
     def __init__(self):
         msg = 'No suitable scheduler was found. ' \
               'Please define one in a switch or env variable or in %s.\n' \
-              'For more help, try ./qtop.py --help\nLog file created in %s' % (QTOPCONF_YAML, expandvars(QTOP_LOGFILE))
+              'For more help, try ./qtop.py --help\nLog file created in %s' \
+              % (constants.QTOPCONF_YAML, os.path.expandvars(constants.QTOP_LOGFILE))
         Exception.__init__(self, msg)
         logging.critical(msg)
 

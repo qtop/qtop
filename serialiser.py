@@ -1,7 +1,6 @@
 """
 TODO: better organised the information in here
 """
-from common_module import *
 import re
 from itertools import count
 

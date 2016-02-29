@@ -1,5 +1,5 @@
-from common_module import *
-
+import os
+import logging
 
 def fix_config_list(config_list):
     """

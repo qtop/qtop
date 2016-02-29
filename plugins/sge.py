@@ -8,7 +8,6 @@ from serialiser import *
 from xml.etree import ElementTree as etree
 from common_module import logging
 import fileutils
-from constants import *
 
 
 class SGEStatExtractor(StatExtractor):
