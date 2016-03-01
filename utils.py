@@ -82,6 +82,8 @@ def parse_qtop_cmdline_args():
                            "the reported total running jobs against the actual ones found/displayed in qtop")
     parser.add_option("-T", "--Transpose", dest="TRANSPOSE", action="store_true", default=False,
                       help="Rotate matrices' positioning by 90 degrees")
+    parser.add_option("-B", "--web", dest="WEB", action="store_true", default=False,
+                      help="Enable web interface in 8080")
     parser.add_option("-v", "--verbose", dest="verbose", action="count",
                       help="Increase verbosity (specify multiple times for more)")
     parser.add_option("-w", "--watch", dest="WATCH", action="callback", callback=_watch_callback,
