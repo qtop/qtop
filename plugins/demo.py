@@ -182,7 +182,7 @@ class DemoBatchSystem(GenericBatchSystem):
     def get_mnemonic():
         return "demo"
 
-    def __init__(self, scheduler_output_filenames, config):
+    def __init__(self, scheduler_output_filenames, config, options):
         """
         config corresponds to the QTOPCONF_YAML file distributed with qtop.
         Custom QTOPCONF files can be created and placed either
