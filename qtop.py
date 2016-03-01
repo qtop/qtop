@@ -39,6 +39,7 @@ from colormap import color_of_account, code_of_color
 import yaml_parser as yaml
 from ui.viewport import Viewport
 from serialiser import GenericBatchSystem
+from web import Web
 
 
 @contextlib.contextmanager
@@ -560,6 +561,8 @@ def calc_general_multiline_attr(cluster, part_name, yaml_key):  # NEW
         logging.critical("%s lines in the matrix are not supported for %s systems. "
                          "Please remove appropriate lines from conf file. Exiting..."
                          % (part_name, config['scheduler'] ))
+
+        web.stop()
         sys.exit(1)
     min_len = min(user_max_len, real_max_len)
     max_len = max(user_max_len, real_max_len)
@@ -975,6 +978,8 @@ def execute_shell_batch_commands(batch_system_commands, filenames, _file):
         if error:
             logging.exception('A message from your shell: %s' % error)
             logging.critical('%s could not be executed. Maybe try "module load %s"?' % (_batch_system_command, scheduler))
+
+            web.stop()
             sys.exit(1)
         tempname = fin.name
         logging.debug('File state after subprocess call: %(fin)s' % {"fin": fin})
@@ -1058,6 +1063,8 @@ def check_python_version():
         assert sys.version_info[1] in (6,7)
     except AssertionError:
         logging.critical("Only python versions 2.6.x and 2.7.x are supported. Exiting")
+
+        web.stop()
         sys.exit(1)
 
 
@@ -1139,6 +1146,8 @@ def control_movement(viewport, read_char):
 
     elif pressed_char_hex in ['71']:  # q
         print '  Exiting...'
+
+        web.stop()
         sys.exit(0)
 
     logging.debug('Area Displayed: (h_start, v_start) --> (h_stop, v_stop) '
@@ -1765,6 +1774,10 @@ if __name__ == '__main__':
     SAMPLE_FILENAME = 'qtop_sample_${USER}%(datetime)s.tar'
     SAMPLE_FILENAME = os.path.expandvars(SAMPLE_FILENAME)
 
+    web = Web(initial_cwd)
+    if options.WEB:
+        web.start()
+
     with raw_mode(sys.stdin):  # key listener implementation
         try:
             while True:
@@ -1805,6 +1818,7 @@ if __name__ == '__main__':
                 document = Document(wns_occupancy, cluster)
                 tf = tempfile.NamedTemporaryFile(delete=False, suffix='.json', dir=savepath)  # Will become doc member one day
                 document.save(tf.name)  # dump json document to a file
+                web.set_filename(tf.name)
 
                 ###### Display data ###############
                 #
