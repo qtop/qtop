@@ -81,7 +81,8 @@ class Web(object):
         self.server.start()
 
     def set_filename(self, filename):
-        self.q.put("setfilename " + filename)
+        if self.started:
+            self.q.put("setfilename " + filename)
 
     def stop(self):
         if self.started:
