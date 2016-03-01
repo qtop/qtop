@@ -1,8 +1,7 @@
 import pytest
 import re
 
-from qtop import create_job_counts, decide_batch_system, load_yaml_config
-from common_module import JobNotFound, SchedulerNotSpecified, NoSchedulerFound
+from qtop import create_job_counts, decide_batch_system, load_yaml_config, JobNotFound, SchedulerNotSpecified, NoSchedulerFound
 
 
 @pytest.fixture
@@ -103,7 +102,7 @@ def test_get_selected_batch_system(cmdline_switch, env_var, config_file_batch_op
          (None, None, 'auto', 'should_raise_SchedulerNotSpecified'),
      ),
 )
-def test_get_selected_batch_system_raises_no_scheduler_not_specified(
+def test_get_selected_batch_system_raises_scheduler_not_specified(
         cmdline_switch,
         env_var,
         config_file_batch_option,
@@ -113,7 +112,7 @@ def test_get_selected_batch_system_raises_no_scheduler_not_specified(
     available_batch_systems = {'sge': None, 'oar': None, 'pbs': None}
     config = {'signature_commands': {'pbs': 'pbsnodes', 'oar': 'oarnodes', 'sge': 'qhost', 'demo': 'echo'}}
 
-    with pytest.raises(NoSchedulerFound) as e:
+    with pytest.raises(SchedulerNotSpecified) as e:
         decide_batch_system(cmdline_switch,
                             env_var,
                             config_file_batch_option,

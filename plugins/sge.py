@@ -3,16 +3,16 @@ try:
     import ujson as json
 except ImportError:
     import json
+import logging
 import sys
-from serialiser import *
+from serialiser import StatExtractor, GenericBatchSystem
 from xml.etree import ElementTree as etree
-from common_module import logging, check_empty_file, options
-from constants import *
+import fileutils
 
 
 class SGEStatExtractor(StatExtractor):
-    def __init__(self, config):
-        StatExtractor.__init__(self, config)
+    def __init__(self, config, options):
+        StatExtractor.__init__(self, config, options)
 
     def extract_qstat(self, orig_file):
         all_values = list()
@@ -33,7 +33,7 @@ class SGEStatExtractor(StatExtractor):
             queue_name_elems = queue_elem.findall('resource')
             for queue_name_elem in queue_name_elems:
                 if queue_name_elem.attrib.get('name') == 'qname':
-                    queue_name_elem.text = queue_name_elem.text if not options.ANONYMIZE else self.anonymize(queue_name_elem.text, 'qs')
+                    queue_name_elem.text = queue_name_elem.text if not self.options.ANONYMIZE else self.anonymize(queue_name_elem.text, 'qs')
                     break
             else:
                 raise ValueError("No such queue name")
@@ -52,7 +52,7 @@ class SGEStatExtractor(StatExtractor):
             except ValueError:
                 logging.info('No jobs found in XML file!')
 
-        if options.SAMPLE >= 1:
+        if self.options.SAMPLE >= 1:
             tree.write(orig_file)  # TODO anonymize rest of the sensitive information within xml file
         return all_values
 
@@ -65,7 +65,7 @@ class SGEStatExtractor(StatExtractor):
             qstat_values = dict()
             qstat_values['JobId'] = subelem.find('./JB_job_number').text
             qstat_values['UnixAccount'] = subelem.find('./JB_owner').text \
-                if not options.ANONYMIZE else self.anonymize(subelem.find('./JB_owner').text, 'users')
+                if not self.options.ANONYMIZE else self.anonymize(subelem.find('./JB_owner').text, 'users')
             qstat_values['S'] = subelem.find('./state').text
             qstat_values['Queue'] = queue_name
             all_values.append(qstat_values)
@@ -81,14 +81,15 @@ class SGEBatchSystem(GenericBatchSystem):
     def get_mnemonic():
         return "sge"
 
-    def __init__(self, scheduler_output_filenames, config):
+    def __init__(self, scheduler_output_filenames, config, options):
         self.sge_file = scheduler_output_filenames.get('sge_file')
         self.config = config
-        self.sge_stat_maker = SGEStatExtractor(self.config)
+        self.options = options
+        self.sge_stat_maker = SGEStatExtractor(self.config, self.options)
 
     def get_queues_info(self):
         logging.debug("Parsing tree of %s" % self.sge_file)
-        check_empty_file(self.sge_file)
+        fileutils.check_empty_file(self.sge_file)
         anonymize = self.sge_stat_maker.anonymize_func()
 
         tree = self._get_xml_tree(self.sge_file)
@@ -100,7 +101,7 @@ class SGEBatchSystem(GenericBatchSystem):
             queue_names = queue_elem.findall('resource')
             for _queue_name in queue_names:
                 if _queue_name.attrib.get('name') == 'qname':
-                    queue_name = _queue_name.text if not options.ANONYMIZE else anonymize(_queue_name.text, 'qs')
+                    queue_name = _queue_name.text if not self.options.ANONYMIZE else anonymize(_queue_name.text, 'qs')
                     break
             else:
                 raise ValueError("No such resource")
@@ -261,7 +262,7 @@ class SGEBatchSystem(GenericBatchSystem):
         resources = queue_elem.findall('resource')
         for resource in resources:
             if resource.attrib.get('name') == 'hostname':
-                worker_node['domainname'] = resource.text if not options.ANONYMIZE else anonymize(resource.text, 'wns')
+                worker_node['domainname'] = resource.text if not self.options.ANONYMIZE else anonymize(resource.text, 'wns')
                 count += 1
             elif resource.attrib.get('name') == 'qname':
                 qname = resource.text[0]
@@ -269,7 +270,7 @@ class SGEBatchSystem(GenericBatchSystem):
                     worker_node['qname'] = set()
                 else:
                     # if slots are reportedly used, the queue will be displayed even if no actual running jobs exist
-                    worker_node['qname'] = set(qname) if not options.ANONYMIZE else set(anonymize(qname, 'qs'))
+                    worker_node['qname'] = set(qname) if not self.options.ANONYMIZE else set(anonymize(qname, 'qs'))
                 count += 1
             elif resource.attrib.get('name') == 'num_proc':
                 worker_node['np'] = resource.text

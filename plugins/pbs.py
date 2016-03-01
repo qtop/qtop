@@ -2,13 +2,15 @@ try:
     import ujson as json
 except ImportError:
     import json
-from serialiser import *
-from common_module import check_empty_file, options
+import logging
+import re
+from serialiser import StatExtractor, GenericBatchSystem
+import fileutils
 
 
 class PBSStatExtractor(StatExtractor):
-    def __init__(self, config):
-        StatExtractor.__init__(self, config)
+    def __init__(self, config, options):
+        StatExtractor.__init__(self, config, options)
         self.user_q_search = r'^(?P<host_name>(?P<job_id>[0-9-]+)\.(?P<domain>[\w-]+))\s+' \
                              r'(?P<name>[\w%.=+/-]+)\s+' \
                              r'(?P<user>[A-Za-z0-9.]+)\s+' \
@@ -30,8 +32,8 @@ class PBSStatExtractor(StatExtractor):
 
     def extract_qstat(self, orig_file):
         try:
-            check_empty_file(orig_file)
-        except FileEmptyError:
+            fileutils.check_empty_file(orig_file)
+        except fileutils.FileEmptyError:
             all_qstat_values = []
         else:
             all_qstat_values = list()
@@ -66,8 +68,8 @@ class PBSStatExtractor(StatExtractor):
         (except for the last line, which contains two sums and is parsed separately)
         """
         try:
-            check_empty_file(orig_file)
-        except FileEmptyError:
+            fileutils.check_empty_file(orig_file)
+        except fileutils.FileEmptyError:
             all_values = []
         else:
             anonymize = self.anonymize_func()
@@ -95,7 +97,7 @@ class PBSStatExtractor(StatExtractor):
                     n = re.search(run_qd_search, line)
                     temp_dict = {}
                     try:
-                        queue_name = m.group('queue_name') if not options.ANONYMIZE else anonymize(m.group('queue_name'), 'qs')
+                        queue_name = m.group('queue_name') if not self.options.ANONYMIZE else anonymize(m.group('queue_name'), 'qs')
                         run, queued, lm, state = m.group('run'), m.group('queued'), m.group('lm'), m.group('state')
                     except AttributeError:
                         try:
@@ -121,18 +123,19 @@ class PBSBatchSystem(GenericBatchSystem):
     def get_mnemonic():
         return "pbs"
 
-    def __init__(self, scheduler_output_filenames, config):
+    def __init__(self, scheduler_output_filenames, config, options):
         self.pbsnodes_file = scheduler_output_filenames.get('pbsnodes_file')
         self.qstat_file = scheduler_output_filenames.get('qstat_file')
         self.qstatq_file = scheduler_output_filenames.get('qstatq_file')
 
         self.config = config
-        self.qstat_maker = PBSStatExtractor(self.config)
+        self.options = options
+        self.qstat_maker = PBSStatExtractor(self.config, self.options)
 
     def get_worker_nodes(self):
         try:
-            check_empty_file(self.pbsnodes_file)
-        except FileEmptyError:
+            fileutils.check_empty_file(self.pbsnodes_file)
+        except fileutils.FileEmptyError:
             all_pbs_values = []
             return all_pbs_values
 
@@ -141,7 +144,7 @@ class PBSBatchSystem(GenericBatchSystem):
         anonymize = self.qstat_maker.anonymize_func()
         for block in raw_blocks:
             pbs_values = dict()
-            pbs_values['domainname'] = block['domainname'] if not options.ANONYMIZE else anonymize(block['domainname'], 'wns')
+            pbs_values['domainname'] = block['domainname'] if not self.options.ANONYMIZE else anonymize(block['domainname'], 'wns')
 
             nextchar = block['state'][0]
             state = (nextchar == 'f') and "-" or nextchar
