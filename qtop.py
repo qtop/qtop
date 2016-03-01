@@ -1658,23 +1658,22 @@ def strict_check_jobs(wns_occupancy, cluster):
               % (counted_jobs, cluster['total_running_jobs'])
 
 
-def get_jobs_of_busy_worker_nodes(worker_nodes):
-    for worker_node in worker_nodes:
-        yield worker_node, worker_node['core_job_map'].values()
-
-
-def get_qnames_per_worker_node(worker_nodes):
+def ensure_worker_nodes_have_qnames(worker_nodes):
     """
     This gets the first letter of the queues associated with each worker node.
     SGE systems already contain this information.
     """
-    for d in worker_nodes:
-        if 'qname' in d:
-            break
-        queue_of_job_id = dict(izip(job_ids, job_queues))
-        for (worker_node, _job_ids) in get_jobs_of_busy_worker_nodes(worker_nodes):
-            worker_node.setdefault('qname', set()).update((queue_of_job_id[job_id][0] for job_id in _job_ids))
-            worker_node['qname'] = list(worker_node['qname'])
+    if not worker_nodes or 'qname' in worker_nodes[0]:
+        return worker_nodes
+
+    # job_ids? job_queues? Where do those come from?
+    job_to_queue = dict(izip(job_ids, job_queues))
+
+    for worker_node in worker_nodes:
+        my_jobs = worker_node['core_job_map'].values()
+        my_queues = set(job_to_queue[job_id][0] for job_id in my_jobs)
+        worker_node['qname'] = list(set(my_queues))
+
     return worker_nodes
 
 
@@ -1799,7 +1798,7 @@ if __name__ == '__main__':
 
                 ###### Process data ###############
                 #
-                worker_nodes = get_qnames_per_worker_node(worker_nodes)
+                worker_nodes = ensure_worker_nodes_have_qnames(worker_nodes)
                 cluster = init_cluster(worker_nodes, total_running_jobs, total_queued_jobs, qstatq_lod)
                 cluster = calculate_cluster(worker_nodes, cluster)
                 wns_occupancy = calculate_wn_occupancy(cluster, user_names, job_states, job_ids, job_queues)
