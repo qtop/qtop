@@ -202,7 +202,7 @@ def fill_non_existent_wn_nodes(cluster):
     for node in range(1, cluster['highest_wn'] + 1):
         if node not in cluster['workernode_dict']:
             cluster['workernode_dict'][node] = {'state': '?', 'np': 0, 'domainname': 'N/A', 'host': 'N/A'}
-            default_values_for_empty_nodes = dict([(yaml_key, '?') for yaml_key, part_name, _ in get_yaml_key_part(
+            default_values_for_empty_nodes = dict([(yaml_key, '?') for yaml_key, part_name, _ in yaml.get_yaml_key_part(
                 config, scheduler, outermost_key='workernodes_matrix')])
             cluster['workernode_dict'][node].update(default_values_for_empty_nodes)
     return cluster
