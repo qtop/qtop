@@ -15,7 +15,7 @@ class PBSStatExtractor(StatExtractor):
                              r'(?P<name>[\w%.=+/-]+)\s+' \
                              r'(?P<user>[A-Za-z0-9.]+)\s+' \
                              r'(?P<time>\d+:\d+:?\d*|0)\s+' \
-                             r'(?P<state>[CWRQE])\s+' \
+                             r'(?P<state>[CWRQEH])\s+' \
                              r'(?P<queue_name>\w+)'
 
         self.user_q_search_prior = r'\s{0,2}' \
@@ -53,12 +53,13 @@ class PBSStatExtractor(StatExtractor):
                     all_qstat_values.append(qstat_values)
                     # unused:  _prior, _name, _submit, _start_at, _queue_domain, _slots, _ja_taskID =
                     # m.group(2), m.group(3), m.group(6), m.group(7), m.group(9), m.group(10), m.group(11)
-                finally:  # hence the rest of the lines should follow either try's or except's same format
-                    for line in fin:
-                        qstat_values = self._process_qstat_line(re_search, line, re_match_positions)
-                        all_qstat_values.append(qstat_values)
-        finally:
-            return all_qstat_values
+
+                # hence the rest of the lines should follow either try's or except's same format
+                for line in fin:
+                    qstat_values = self._process_qstat_line(re_search, line, re_match_positions)
+                    all_qstat_values.append(qstat_values)
+
+        return all_qstat_values
 
     def extract_qstatq(self, orig_file):
         """
