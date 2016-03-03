@@ -84,6 +84,7 @@ state_abbreviations:
     C: cancelled_of_user
     E: exiting_of_user
     W: waiting_of_user
+    H: holding_of_user
   demo:
     Q: queued_of_user
     R: running_of_user
