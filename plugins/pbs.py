@@ -273,7 +273,13 @@ class PBSBatchSystem(GenericBatchSystem):
     @staticmethod
     def get_corejob_from_range(core, job):
         subcores = core.split(',')
-        coreranges = [map(str, range(*map(int, subcore.split('-')))) if '-' in subcore else subcore for subcore in subcores]
+        for subcore in subcores:
+            if '-' in subcore:
+                range_ = map(int, subcore.split('-')) # [5,10]
+                range_[-1] += 1
+                coreranges = [map(str, range(*range_))]
+            else:
+                coreranges = subcore
         coreranges = list(itertools.chain.from_iterable(coreranges))
         for corerange in coreranges:
             yield corerange, job
