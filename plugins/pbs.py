@@ -164,7 +164,7 @@ class PBSBatchSystem(GenericBatchSystem):
             except KeyError:
                 pbs_values['core_job_map'] = dict()  # change of behaviour: all entries should contain the key even if no value
             else:
-                jobs = re.split(r'(?<=[A-Za-z]),\s?', block['jobs'], flags=re.IGNORECASE)
+                jobs = re.split(r'(?<=[A-Za-z]),\s?', block['jobs'])
                 pbs_values['core_job_map'] = dict((core, job) for job, core in self._get_jobs_cores(jobs))
             finally:
                 all_pbs_values.append(pbs_values)
@@ -271,15 +271,16 @@ class PBSBatchSystem(GenericBatchSystem):
         return block
 
     @staticmethod
-    def get_corejob_from_range(core, job):
-        subcores = core.split(',')
-        for subcore in subcores:
-            if '-' in subcore:
-                range_ = map(int, subcore.split('-')) # [5,10]
+    def get_corejob_from_range(core_selections, job):
+        _cores = list()
+        subselections = core_selections.split(',')
+        for subselection in subselections:
+            if '-' in subselection:
+                range_ = map(int, subselection.split('-'))
                 range_[-1] += 1
-                coreranges = [map(str, range(*range_))]
+                _cores.extend([map(str, range(*range_))])
             else:
-                coreranges = subcore
-        coreranges = list(itertools.chain.from_iterable(coreranges))
-        for corerange in coreranges:
-            yield corerange, job
+                _cores.append([subselection])
+        all_cores = list(itertools.chain.from_iterable(_cores))
+        for core in all_cores:
+            yield core, job
