@@ -1560,7 +1560,10 @@ class TextDisplay(object):
         Justification for implementation:
         http://unix.stackexchange.com/questions/47407/cat-line-x-to-line-y-on-a-huge-file
         """
-        return 'clear;tail -n+%s %s | head -n%s' % (x, file, y)
+        pre_cat_command = '(clear;tail -n+%s %s | head -n%s) > /tmp/qtop_fitted.out' % (x, file, y)
+        _ = subprocess.call(pre_cat_command, stdout=stdout, stderr=stdout, shell=True)
+        cat_command = 'clear;cat %s' % "/tmp/qtop_fitted.out"
+        return cat_command
 
 def get_output_size(max_height, max_line_len, output_fp):
     """
