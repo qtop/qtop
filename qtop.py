@@ -1561,7 +1561,7 @@ class TextDisplay(object):
         http://unix.stackexchange.com/questions/47407/cat-line-x-to-line-y-on-a-huge-file
         """
         temp_f = tempfile.NamedTemporaryFile(delete=False, suffix='.out', dir=TMPDIR)
-        pre_cat_command = 'clear;(tail -n+%s %s | head -n%s) > %s' % (x, file, y-1, temp_f.name)
+        pre_cat_command = '(tail -n+%s %s | head -n%s) > %s;clear;' % (x, file, y-1, temp_f.name)
         _ = subprocess.call(pre_cat_command, stdout=stdout, stderr=stdout, shell=True)
         cat_command = 'cat %s' % temp_f.name
         return cat_command
