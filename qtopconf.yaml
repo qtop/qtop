@@ -123,14 +123,14 @@ user_color_mappings:  # order should be from more generic-->more specific
 # - '\w*lhc\w*': Cyan_L
 # - '\w+00\d': Blue
 # - '\w*cms\w*': Red_L
- - '\w*cms048': Blue
- - '\w*cms193': Gray_L
- - '\w*atl\w+': Cyan_L
- - 'snielsen': Blue
- - 'ekalesaki': Cyan_L
- - 'zzhang': Red_L
- - 'mmravlak': Red_L
- - 'dbobbili': Cyan_L
+ - \w*cms048: Blue
+ - \w*cms193: Gray_L
+ - \w*atl\w+: Cyan_L
+ - snielsen: Blue
+ - ekalesaki: Cyan_L
+ - zzhang: Red_L
+ - mmravlak: Red_L
+ - dbobbili: Cyan_L
 
 # if cluster numbering should start on a number # above this, do automatic blind remapping
 exotic_starting_wn_nr: 9000

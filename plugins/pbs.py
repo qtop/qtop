@@ -6,6 +6,7 @@ import logging
 import re
 from serialiser import StatExtractor, GenericBatchSystem
 import fileutils
+import itertools
 
 
 class PBSStatExtractor(StatExtractor):
@@ -158,12 +159,13 @@ class PBSBatchSystem(GenericBatchSystem):
 
             if block.get('gpus') > 0:  # this should be rare.
                 pbs_values['gpus'] = block['gpus']
+
             try:  # this should turn up more often, hence the try/except.
                 _ = block['jobs']
             except KeyError:
                 pbs_values['core_job_map'] = dict()  # change of behaviour: all entries should contain the key even if no value
             else:
-                jobs = block['jobs'].split(',')
+                jobs = re.split(r'(?<=[A-Za-z]),\s?', block['jobs'])
                 pbs_values['core_job_map'] = dict((core, job) for job, core in self._get_jobs_cores(jobs))
             finally:
                 all_pbs_values.append(pbs_values)
@@ -219,15 +221,19 @@ class PBSBatchSystem(GenericBatchSystem):
         """
         Generator that takes str of this format
         '0/10102182.f-batch01.grid.sinica.edu.tw, 1/10102106.f-batch01.grid.sinica.edu.tw, 2/10102339.f-batch01.grid.sinica.edu.tw, 3/10104007.f-batch01.grid.sinica.edu.tw'
-        and spits tuples of the format (job,core)
+        and spits tuples of the format (0, 10102182)    (job,core)
         """
         for core_job in jobs:
             core, job = core_job.strip().split('/')
-            # core, job = job['core'], job['job']
-            if len(core) > len(job):  # PBS vs torque?
-                core, job = job, core
-            job = job.strip().split('/')[0].split('.')[0]
-            yield job, core
+            if (',' in core) or ('-' in core):
+                for (subcore, subjob) in PBSBatchSystem.get_corejob_from_range(core, job):
+                    subjob = subjob.strip().split('/')[0].split('.')[0]
+                    yield subjob, subcore
+            else:
+                if len(core) > len(job):  # PBS vs torque?
+                    core, job = job, core
+                job = job.strip().split('/')[0].split('.')[0]
+                yield job, core
 
     def _read_all_blocks(self, orig_file):
         """
@@ -264,3 +270,18 @@ class PBSBatchSystem(GenericBatchSystem):
                 else:
                     block[key.strip()] = value.strip()
         return block
+
+    @staticmethod
+    def get_corejob_from_range(core_selections, job):
+        _cores = list()
+        subselections = core_selections.split(',')
+        for subselection in subselections:
+            if '-' in subselection:
+                range_ = map(int, subselection.split('-'))
+                range_[-1] += 1
+                _cores.extend([map(str, range(*range_))])
+            else:
+                _cores.append([subselection])
+        all_cores = list(itertools.chain.from_iterable(_cores))
+        for core in all_cores:
+            yield core, job
