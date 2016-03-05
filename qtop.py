@@ -494,24 +494,6 @@ def is_matrix_coreless(wns_occupancy):
     return len(lines) == len(core_user_map)
 
 
-def print_mult_attr_line(print_char_start, print_char_stop, transposed_matrices, attr_lines, label, color_func=None, **kwargs):
-    """
-    attr_lines can be e.g. Node state lines
-    """
-    if config['transpose_wn_matrices']:
-        tuple_ = [None, label, transpose_matrix(attr_lines)]
-        transposed_matrices.append(tuple_)
-        return
-
-    # TODO: fix option parameter, inserted for testing purposes
-    for line in attr_lines:
-        line = attr_lines[line][print_char_start:print_char_stop]
-        # TODO: maybe put attr_line and label as kwd arguments? collect them as **kwargs
-        attr_line = insert_separators(line, config['SEPARATOR'], config['vertical_separator_every_X_columns'])
-        attr_line = ''.join([colorize(char, color_func) for char in attr_line])
-        print attr_line + "=" + label
-
-
 def get_core_lines(core_user_map, print_char_start, print_char_stop, uid_to_uid_re_pat, attrs):
     """
     prints all coreX lines, except cores that don't show up
@@ -1403,13 +1385,14 @@ class TextDisplay(object):
             new_occupancy_part = {
                 part_name:
                     (
-                        print_mult_attr_line,  # func
+                        self.print_mult_attr_line,  # func
                         (print_char_start, print_char_stop, transposed_matrices),  # args
                         {'attr_lines': wns_occupancy[part_name]}  # kwargs
                     )
             }
             occupancy_parts.update(new_occupancy_part)
 
+        # get info from QTOPCONF_YAML
         for part_dict in config['workernodes_matrix']:
             part = [k for k in part_dict][0]
             key_vals = part_dict[part]
@@ -1562,6 +1545,25 @@ class TextDisplay(object):
         _ = subprocess.call(pre_cat_command, stdout=stdout, stderr=stdout, shell=True)
         cat_command = 'clear;cat %s' % temp_f.name
         return cat_command
+
+    @staticmethod
+    def print_mult_attr_line(print_char_start, print_char_stop, transposed_matrices, attr_lines, label, color_func=None, **kwargs):
+        """
+        attr_lines can be e.g. Node state lines
+        """
+        if config['transpose_wn_matrices']:
+            tuple_ = [None, label, transpose_matrix(attr_lines)]
+            transposed_matrices.append(tuple_)
+            return
+
+        # TODO: fix option parameter, inserted for testing purposes
+        for line in attr_lines:
+            line = attr_lines[line][print_char_start:print_char_stop]
+            # TODO: maybe put attr_line and label as kwd arguments? collect them as **kwargs
+            attr_line = insert_separators(line, config['SEPARATOR'], config['vertical_separator_every_X_columns'])
+            attr_line = ''.join([colorize(char, color_func) for char in attr_line])
+            print attr_line + "=" + label
+
 
 def get_output_size(max_height, max_line_len, output_fp):
     """
