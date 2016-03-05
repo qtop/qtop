@@ -1291,8 +1291,8 @@ class TextDisplay(object):
             print "{qname}{star}: {run} {q}|".format(
                 qname=colorize(q_name, '', pattern=queue_name, mapping=queue_to_color),
                 star=colorize('*', 'Red_L') if q['state'].startswith('D') or q['state'].endswith('S') else '',
-                run=colorize(q_running_jobs, '', queue_name),
-                q='+ ' + colorize(q_queued_jobs, '', queue_name) + ' ' if q_queued_jobs != '0' else ''),
+                run=colorize(q_running_jobs, '', pattern=queue_name, mapping=queue_to_color),
+                q='+ ' + colorize(q_queued_jobs, '', queue_name, mapping=queue_to_color) + ' ' if q_queued_jobs != '0' else ''),
         print colorize('* implies blocked', 'Red') + '\n'
         # TODO unhardwire states from star kwarg
 

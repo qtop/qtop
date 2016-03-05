@@ -99,7 +99,7 @@ userid_pat_to_color_default = OrderedDict(
         ('nlv', 'Red_L'),
         ('ncfk', 'Green_L'),
         ('usatlas', 'Red'),
-        #( CMS VO commonly found pool account name)s
+        #( CMS VO commonly found pool account names)
         ('cmssgm', 'Green_L'),
         ('cmsplt', 'Green_L'),
         ('pltcms', 'Green_L'),
@@ -154,7 +154,7 @@ userid_pat_to_color_default = OrderedDict(
         ('calic', 'Cyan'),
         ('sgmalice', 'Cyan'),
         ('sgmali', 'Cyan'),
-        #( LHCb VO commonly found pool account name)s
+        #( LHCb VO commonly found pool account names)
         ('pdlhcb', 'Pink'),
         ('prdlhcb', 'Pink'),
         ('prdlhb', 'Pink'),
@@ -192,7 +192,7 @@ userid_pat_to_color_default = OrderedDict(
         ('dteamusr', 'Brown'),
         ('dteam', 'Brown'),
         ('dte', 'Brown'),
-        #( OPS VO commonly found pool account name)s
+        #( OPS VO commonly found pool account names)
         ('opsplt', 'Yellow'),
         ('opsusr', 'Yellow'),
         ('opssgm', 'Yellow'),
@@ -209,9 +209,9 @@ userid_pat_to_color_default = OrderedDict(
         ('opsiber', 'Yellow'),
         ('opsib', 'Yellow'),
         ('ops', 'Yellow'),
-        #( Other VOs from the EGEE-I,II,III er)a
+        #( Other VOs from the EGEE-I,II,III era)
         ('egee', 'Blue_L'),
-        #( Biomed V)O
+        #( Biomed VO)
         ('biomedusr', 'Blue_L'),
         ('biomed', 'Blue_L'),
         ('biomd', 'Blue_L'),
@@ -262,7 +262,7 @@ userid_pat_to_color_default = OrderedDict(
         ('balticgrid', 'Blue_L'),
         ('digmedia', 'Blue_L'),
         ('dmedia', 'Blue_L'),
-        #( Hone V)O
+        #( Hone VO)
         ('prdhone', 'Cyan_L'),
         ('prdhne', 'Cyan_L'),
         ('prdhon', 'Cyan_L'),
@@ -272,7 +272,7 @@ userid_pat_to_color_default = OrderedDict(
         ('phone', 'Cyan_L'),
         ('hone', 'Cyan_L'),
         ('honp', 'Cyan_L'),
-        #( Other (High Energy) Physics VO)s
+        #( Other (High Energy) Physics VOs)
         ('sixto', 'Cyan_L'),
         ('sixt', 'Cyan_L'),
         ('babaradm', 'Cyan_L'),
@@ -311,8 +311,8 @@ userid_pat_to_color_default = OrderedDict(
         ('scier', 'Cyan_L'),
         ('planck', 'Cyan_L'),
         ('kaust', 'Brown'),
-        #( Extras; these are really randomly found user names; needed for scree)n
-        #( clarity while in color mor)e
+        #( Extras; these are really randomly found user names; needed for screen)
+        #( clarity while in color more)
         ('mwilli', 'Brown'),
         ('por', 'Blue'),
         ('dorisf', 'Cyan'),
@@ -368,10 +368,10 @@ color_to_code = {
 
 queue_to_color = OrderedDict(
     [
+        ('Pending', 'Yellow'),
+        ('whole', 'Purple'),
         (r'grid\d+M', 'Red_L'),
         ('dteam.*', 'Red_L'),
         ('alice', 'Red_L'),
-        ('whole', 'Purple'),
-        ('Pending', 'Yellow'),
     ]
 )
