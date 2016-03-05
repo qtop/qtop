@@ -92,145 +92,6 @@ def colorize(text, color_func=None, pattern='NoPattern', mapping=None, bg_color=
         return text
 
 
-def decide_remapping(cluster, all_str_digits_with_empties):
-    """
-    Cases where remapping is enforced are:
-    - the user has requested it (blindremap switch)
-    - there are different WN namings, e.g. wn001, wn002, ..., ps001, ps002, ... etc
-    - the first starting numbering of a WN is very high and thus would require too much unused space
-    #- the numbering is strange, say the highest numbered node is named wn12500 but the total amount of WNs is 8000????
-    - more than PERCENTAGE*nodes have no jobs assigned
-    - there are numbering collisions,
-        e.g. there's a ps001 and a wn001, or a 0x001 and a 0x1, which all would be displayed in position 1
-        or there are non-numbered wns
-
-    Reasons not enough to warrant remapping (intended future behaviour)
-    - one or two unnumbered nodes (should just be put in the end of the cluster)
-    """
-    if not cluster['total_wn']:  # if nothing is running on the cluster
-        return
-
-    all_str_digits = filter(lambda x: x != "", all_str_digits_with_empties)
-    all_digits = [int(digit) for digit in all_str_digits]
-
-    if options.BLINDREMAP or \
-            len(cluster['node_subclusters']) > 1 or \
-            min(cluster['workernode_list']) >= config['exotic_starting_wn_nr'] or \
-            cluster['offline_down_nodes'] >= cluster['total_wn'] * config['percentage'] or \
-            len(all_str_digits_with_empties) != len(all_str_digits) or \
-            len(all_digits) != len(all_str_digits):
-        options.REMAP = True
-    else:
-        options.REMAP = False
-    logging.info('Blind Remapping [user selected]: %s,'
-                  '\n\t\t\t\t\t\t\t\t  Decided Remapping: %s' % (options.BLINDREMAP, options.REMAP))
-
-    if logging.getLogger().isEnabledFor(logging.DEBUG) and options.REMAP:
-        user_request = options.BLINDREMAP and 'The user has requested it (blindremap switch)' or False
-
-        subclusters = len(cluster['node_subclusters']) > 1 and \
-            'there are different WN namings, e.g. wn001, wn002, ..., ps001, ps002, ... etc' or False
-
-        exotic_starting = min(cluster['workernode_list']) >= config['exotic_starting_wn_nr'] and \
-            'the first starting numbering of a WN is very high and thus would require too much unused space' or False
-
-        percentage_unassigned = len(all_str_digits_with_empties) != len(all_str_digits) and \
-            'more than %s of nodes have are down/offline' % float(config['percentage']) or False
-
-        numbering_collisions = min(cluster['workernode_list']) >= config['exotic_starting_wn_nr'] and \
-            'there are numbering collisions' or False
-
-        print
-        logging.debug('Remapping decided due to: \n\t %s' % filter(None,
-            [user_request, subclusters, exotic_starting, percentage_unassigned, numbering_collisions]))
-
-
-def calculate_cluster(worker_nodes, cluster):
-    if not worker_nodes:
-        cluster = dict()
-        return cluster
-
-    all_str_digits_with_empties = list()
-    re_nodename = r'(^[A-Za-z0-9-]+)(?=\.|$)' if not options.ANONYMIZE else r'\w_anon_\w+'
-    for node in worker_nodes:
-        nodename_match = re.search(re_nodename, node['domainname'])
-        _nodename = nodename_match.group(0)
-
-        node_letters = ''.join(re.findall(r'\D+', _nodename))
-        node_str_digits = "".join(re.findall(r'\d+', _nodename))
-
-        cluster['node_subclusters'].update([node_letters])
-        all_str_digits_with_empties.append(node_str_digits)
-
-        cluster['total_cores'] += int(node.get('np'))
-        cluster['max_np'] = max(cluster['max_np'], int(node['np']))
-        cluster['offline_down_nodes'] += 1 if node['state'] in 'do' else 0
-        cluster['working_cores'] += len(node.get('core_job_map', dict()))  # bugfix. 0 would lead to a TypeError
-
-        try:
-            cur_node_nr = int(node_str_digits)
-        except ValueError:
-            cur_node_nr = _nodename
-        finally:
-            cluster['workernode_list'].append(cur_node_nr)
-
-    decide_remapping(cluster, all_str_digits_with_empties)
-
-    # nodes_drop: this amount has to be chopped off of the end of workernode_list_remapped
-    nodes_drop, cluster, workernode_dict, workernode_dict_remapped = map_worker_nodes_to_wn_dict(cluster, worker_nodes,
-                                                                                                 options.REMAP)
-    cluster['workernode_dict'] = workernode_dict
-    if options.REMAP:
-        cluster['workernode_dict_remapped'] = workernode_dict_remapped
-        cluster['total_wn'] += nodes_drop
-        cluster['highest_wn'] = cluster['total_wn']
-
-        nodes_drop_slice_end = None if not nodes_drop else nodes_drop
-        cluster['workernode_list'] = cluster['workernode_list_remapped'][:nodes_drop_slice_end]
-        cluster['workernode_dict'] = cluster['workernode_dict_remapped']
-    else:
-        cluster['highest_wn'] = max(cluster['workernode_list'])
-        cluster = fill_non_existent_wn_nodes(cluster)
-
-    cluster = do_name_remapping(cluster)
-    del cluster['node_subclusters']  # sets not JSON serialisable!!
-    del cluster['workernode_list_remapped']
-    del cluster['workernode_dict_remapped']
-    return cluster
-
-
-def fill_non_existent_wn_nodes(cluster):
-    """fill in non-existent WN nodes (absent from input files) with default values and count them"""
-    for node in range(1, cluster['highest_wn'] + 1):
-        if node not in cluster['workernode_dict']:
-            cluster['workernode_dict'][node] = {'state': '?', 'np': 0, 'domainname': 'N/A', 'host': 'N/A'}
-            default_values_for_empty_nodes = dict([(yaml_key, '?') for yaml_key, part_name, _ in yaml.get_yaml_key_part(
-                config, scheduler, outermost_key='workernodes_matrix')])
-            cluster['workernode_dict'][node].update(default_values_for_empty_nodes)
-    return cluster
-
-
-def do_name_remapping(cluster):
-    """
-    renames hostnames according to user remapping in conf file (for the wn id label lines)
-    """
-    label_max_len = int(config['workernodes_matrix'][0]['wn id lines']['max_len'])
-    for _, state_corejob_dn in cluster['workernode_dict'].items():
-        _host = state_corejob_dn['domainname'].split('.', 1)[0]
-        changed = False
-        for remap_line in config['remapping']:
-            pat, repl = remap_line.items()[0]
-            repl = eval(repl) if repl.startswith('lambda') else repl
-            if re.search(pat, _host):
-                changed = True
-                state_corejob_dn['host'] = _host = re.sub(pat, repl, _host)
-        else:
-            state_corejob_dn['host'] = _host if not changed else state_corejob_dn['host']
-            # was: label_max_len = config['wn_labels_max_len']
-            state_corejob_dn['host'] = label_max_len and state_corejob_dn['host'][-label_max_len:] or state_corejob_dn['host']
-    return cluster
-
-
 def calculate_job_counts(user_names, job_states):
     """
     Calculates and prints what is actually below the id|  R + Q /all | unix account etc line
@@ -353,7 +214,7 @@ def fill_node_cores_column(_node, core_user_map, id_of_username, max_np_range, u
     """
     Calculates the actual contents of the map by filling in a status string for each CPU line
     """
-    state_np_corejob = cluster['workernode_dict'][_node]
+    state_np_corejob = cluster.workernode_dict[_node]
     state = state_np_corejob['state']
     np = state_np_corejob['np']
     corejobs = state_np_corejob.get('core_job_map', dict())
@@ -382,7 +243,7 @@ def fill_node_cores_column(_node, core_user_map, id_of_username, max_np_range, u
         for core in non_existent_cores:
             core_user_map['Core' + str(core) + 'vector'] += [non_existent_node_symbol]
 
-    cluster['workernode_dict'][_node]['core_user_vector'] = "".join([core_user_map[line][-1] for line in core_user_map])
+    cluster.workernode_dict[_node]['core_user_vector'] = "".join([core_user_map[line][-1] for line in core_user_map])
 
     return core_user_map
 
@@ -404,16 +265,16 @@ def insert_separators(orig_str, separator, pos, stopaftern=0):
         return sep_str
 
 
-def calc_all_wnid_label_lines(cluster, wns_occupancy, NAMED_WNS):  # (total_wn) in case of multiple cluster['node_subclusters']
+def calc_all_wnid_label_lines(cluster, wns_occupancy, NAMED_WNS):  # (total_wn) in case of multiple cluster.node_subclusters
     """
     calculates the Worker Node ID number line widths. expressed by hxxxxs in the following form, e.g. for hundreds of nodes:
     '1': "00000000..."
     '2': "0000000001111111..."
     '3': "12345678901234567..."
     """
-    highest_wn = cluster['highest_wn']
+    highest_wn = cluster.highest_wn
     if NAMED_WNS or options.FORCE_NAMES:
-        workernode_dict = cluster['workernode_dict']
+        workernode_dict = cluster.workernode_dict
         hosts = [state_corejob_dn['host'] for _, state_corejob_dn in workernode_dict.items()]
         node_str_width = len(max(hosts, key=len))
         wn_vert_labels = OrderedDict((str(place), []) for place in range(1, node_str_width + 1))
@@ -444,11 +305,11 @@ def find_matrices_width(wns_occupancy, cluster, DEADWEIGHT=11):
     case 2: wn_number is BiggestWrittenNode, WNList is WNList
     DEADWEIGHT is the space taken by the {__XXXX__} labels on the right of the CoreX map
 
-    uses cluster['highest_wn'], cluster['workernode_list']
+    uses cluster.highest_wn, cluster.workernode_list
     """
     start = 0
-    wn_number = cluster['highest_wn']
-    workernode_list = cluster['workernode_list']
+    wn_number = cluster.highest_wn
+    workernode_list = cluster.workernode_list
     term_columns = viewport.h_term_size
     min_masking_threshold = int(config['workernodes_matrix'][0]['wn id lines']['min_masking_threshold'])
     if options.NOMASKING and min(workernode_list) > min_masking_threshold:
@@ -458,7 +319,7 @@ def find_matrices_width(wns_occupancy, cluster, DEADWEIGHT=11):
     # Extra matrices may be needed if the WNs are more than the screen width can hold.
     if wn_number > start:  # start will either be 1 or (masked >= config['min_masking_threshold'] + 1)
         extra_matrices_nr = int(ceil(abs(wn_number - start) / float(term_columns - DEADWEIGHT))) - 1
-    elif options.REMAP:  # was: ***wn_number < start*** and len(cluster['node_subclusters']) > 1:  # Remapping
+    elif options.REMAP:  # was: ***wn_number < start*** and len(cluster.node_subclusters) > 1:  # Remapping
         extra_matrices_nr = int(ceil(wn_number / float(term_columns - DEADWEIGHT))) - 1
     else:
         raise (NotImplementedError, "Not foreseen")
@@ -497,7 +358,7 @@ def is_matrix_coreless(wns_occupancy):
 def calc_core_userid_matrix(cluster, wns_occupancy, job_ids, user_names):
     id_of_username = wns_occupancy['id_of_username']
     core_user_map = OrderedDict()
-    max_np_range = [str(x) for x in range(cluster['max_np'])]
+    max_np_range = [str(x) for x in range(cluster.max_np)]
     user_of_job_id = dict(izip(job_ids, user_names))
     if not user_of_job_id:
         return
@@ -505,8 +366,8 @@ def calc_core_userid_matrix(cluster, wns_occupancy, job_ids, user_names):
     for core_nr in max_np_range:
         core_user_map['Core%svector' % str(core_nr)] = []  # Cpu0line, Cpu1line, Cpu2line, .. = '','','', ..
 
-    for _node in cluster['workernode_dict']:
-        # state_np_corejob = cluster['workernode_dict'][_node]
+    for _node in cluster.workernode_dict:
+        # state_np_corejob = cluster.workernode_dict[_node]
         core_user_map = fill_node_cores_column(_node, core_user_map, id_of_username, max_np_range, user_of_job_id)
 
     for coreline in core_user_map:
@@ -521,7 +382,7 @@ def calc_general_multiline_attr(cluster, part_name, yaml_key, config):  # NEW
     part_name_idx = config['workernodes_matrix'].index(elem_identifier)
     user_max_len = int(config['workernodes_matrix'][part_name_idx][part_name]['max_len'])
     try:
-        real_max_len = max([len(cluster['workernode_dict'][_node][yaml_key]) for _node in cluster['workernode_dict']])
+        real_max_len = max([len(cluster.workernode_dict[_node][yaml_key]) for _node in cluster.workernode_dict])
     except KeyError:
         logging.critical("%s lines in the matrix are not supported for %s systems. "
                          "Please remove appropriate lines from conf file. Exiting..."
@@ -538,15 +399,15 @@ def calc_general_multiline_attr(cluster, part_name, yaml_key, config):  # NEW
     for line_nr in range(1, min_len + 1):
         multiline_map['attr%sline' % str(line_nr)] = []
 
-    for _node in cluster['workernode_dict']:
-        node_attrs = cluster['workernode_dict'][_node]
+    for _node in cluster.workernode_dict:
+        node_attrs = cluster.workernode_dict[_node]
         # distribute state, qname etc to lines
         for attr_line, ch in izip_longest(multiline_map, node_attrs[yaml_key], fillvalue=' '):
             try:
                 multiline_map[attr_line].append(ch)
             except KeyError:
                 break
-        # TODO: is this really needed?: cluster['workernode_dict'][_node]['state_column']
+        # TODO: is this really needed?: cluster.workernode_dict[_node]['state_column']
 
     for line, attr_line in enumerate(multiline_map, 1):
         multiline_map[attr_line] = ''.join(multiline_map[attr_line])
@@ -834,37 +695,6 @@ def filter_worker_nodes(batch_nodes, filter_rules=None):
         return batch_nodes
 
 
-def map_worker_nodes_to_wn_dict(cluster, worker_nodes, options_remap):
-    """
-    For filtering to take place,
-    1) a filter should be defined in QTOPCONF_YAML
-    2) remap should be either selected by the user or enforced by the circumstances
-    """
-    nodes_drop = 0  # count change in nodes after filtering
-    workernode_dict = dict()
-    workernode_dict_remapped = dict()
-    user_sorting = config['sorting'] and config['sorting'].values()[0]
-    user_filtering = config['filtering'] and config['filtering'][0]
-
-    if user_sorting and options_remap:
-        sort_worker_nodes(worker_nodes)
-
-    if user_filtering and options_remap:
-        worker_nodes_before = len(worker_nodes)
-        worker_nodes = filter_worker_nodes(worker_nodes, config['filtering'])
-        worker_nodes_after = len(worker_nodes)
-        nodes_drop = worker_nodes_after - worker_nodes_before
-
-    for (batch_node, (idx, cur_node_nr)) in zip(worker_nodes, enumerate(cluster['workernode_list'])):
-        # Seemingly there is an error in the for loop because worker_nodes and workernode_list
-        # have different lengths if there's a filter in place, but it is OK, since
-        # it is just the idx counter that is taken into account in remapping.
-        workernode_dict[cur_node_nr] = batch_node
-        workernode_dict_remapped[idx] = batch_node
-
-    return nodes_drop, cluster, workernode_dict, workernode_dict_remapped
-
-
 def exec_func_tuples(func_tuples):
     _commands = iter(func_tuples)
     for command in _commands:
@@ -1126,11 +956,22 @@ def decide_batch_system(cmdline_switch, env_var, config_file_batch_option, sched
         raise NoSchedulerFound
 
 
-class Document(namedtuple('Document', ['wns_occupancy', 'cluster'])):
+class Document(object):
+
+    def __init__(self, cluster, wns_occupancy):
+        self.cluster = cluster
+        self.wns_occupancy = wns_occupancy
+        self.cluster_info = (
+            self.wns_occupancy,
+            self.cluster.worker_nodes,
+            self.cluster.total_running_jobs,
+            self.cluster.total_queued_jobs,
+            self.cluster.workernode_list,
+            self.cluster.workernode_dict)
 
     def save(self, filename):
         with open(filename, 'w') as outfile:
-            json.dump(document, outfile)
+            json.dump(self.cluster_info, outfile)
 
 
 class TextDisplay(object):
@@ -1178,9 +1019,9 @@ class TextDisplay(object):
         """
         Displays qtop's first section
         """
-        total_running_jobs = cluster['total_running_jobs']
-        total_queued_jobs = cluster['total_queued_jobs']
-        qstatq_lod = cluster['qstatq_lod']
+        total_running_jobs = cluster.total_running_jobs
+        total_queued_jobs = cluster.total_queued_jobs
+        qstatq_lod = cluster.qstatq_lod
 
         if options.REMAP:
             if options.CLASSIC:
@@ -1206,11 +1047,11 @@ class TextDisplay(object):
               '   %(total_run_jobs)s+%(total_q_jobs)s %(jobs)s (R + Q) %(reported_by)s' % \
               {
                   'Usage Totals': colorize('Usage Totals', 'Yellow'),
-                  'online_nodes': colorize(str(cluster.get('total_wn', 0) - cluster.get('offline_down_nodes', 0)), 'Red_L'),
-                  'total_nodes': colorize(str(cluster.get('total_wn', 0)), 'Red_L'),
+                  'online_nodes': colorize(str(cluster.total_wn - cluster.offline_down_nodes), 'Red_L'),
+                  'total_nodes': colorize(str(cluster.total_wn), 'Red_L'),
                   'Nodes': colorize('Nodes', 'Red_L'),
-                  'working_cores': colorize(str(cluster.get('working_cores', 0)), 'Green_L'),
-                  'total_cores': colorize(str(cluster.get('total_cores', 0)), 'Green_L'),
+                  'working_cores': colorize(str(cluster.working_cores), 'Green_L'),
+                  'total_cores': colorize(str(cluster.total_cores), 'Green_L'),
                   'Cores': colorize('cores', 'Green_L'),
                   'total_run_jobs': colorize(str(int(total_running_jobs)), 'Blue_L'),
                   'total_q_jobs': colorize(str(int(total_queued_jobs)), 'Blue_L'),
@@ -1319,7 +1160,7 @@ class TextDisplay(object):
             'wn id lines':
                 (
                     self.display_wnid_lines,
-                    (print_char_start, print_char_stop, cluster['highest_wn'], wn_vert_labels),
+                    (print_char_start, print_char_stop, cluster.highest_wn, wn_vert_labels),
                     {'inner_attrs': None}
                 ),
             'core user map':
@@ -1393,8 +1234,8 @@ class TextDisplay(object):
                 wn_occupancy['print_char_stop'] += config['USER_CUT_MATRIX_WIDTH']
             else:
                 wn_occupancy['print_char_stop'] += term_columns - DEADWEIGHT
-            wn_occupancy['print_char_stop'] = min(wn_occupancy['print_char_stop'], cluster['total_wn']) \
-                if options.REMAP else min(wn_occupancy['print_char_stop'], cluster['highest_wn'])
+            wn_occupancy['print_char_stop'] = min(wn_occupancy['print_char_stop'], cluster.total_wn) \
+                if options.REMAP else min(wn_occupancy['print_char_stop'], cluster.highest_wn)
 
             self.display_matrix(wn_occupancy)
 
@@ -1549,6 +1390,193 @@ class TextDisplay(object):
                 [colorize(elem, '', uid_to_uid_re_pat[elem]) for elem in cpu_core_line if elem in uid_to_uid_re_pat])
             yield cpu_core_line + colorize('=Core' + str(ind), '', 'account_not_colored')
 
+
+class Cluster(object):
+    def __init__(self, worker_nodes, total_running_jobs, total_queued_jobs, qstatq_lod):
+        self.worker_nodes = worker_nodes
+        self.total_running_jobs = total_running_jobs
+        self.total_queued_jobs = total_queued_jobs
+        self.qstatq_lod = qstatq_lod
+
+        self.working_cores = 0
+        self.total_cores = 0
+        self.max_np = 0
+        self.highest_wn = 0
+        self.offline_down_nodes = 0
+        self.node_subclusters = set()
+        self.workernode_dict = {}
+        self.workernode_dict_remapped = {}  # { remapnr: [state, np, (core0, job1), (core1, job1), ....]}
+
+        self.total_wn = len(self.worker_nodes)  # == existing_nodes
+        self.workernode_list = []
+        self.workernode_list_remapped = range(1, self.total_wn + 1)  # leave xrange aside for now
+
+        self.node_subclusters = set()
+
+    def calculate(self):
+        if not self.worker_nodes:
+            return None  # TODO ? what to return instead of cluster?
+
+        all_str_digits_with_empties = list()
+        re_nodename = r'(^[A-Za-z0-9-]+)(?=\.|$)' if not options.ANONYMIZE else r'\w_anon_\w+'
+
+        for node in self.worker_nodes:
+            nodename_match = re.search(re_nodename, node['domainname'])
+            _nodename = nodename_match.group(0)
+
+            node_letters = ''.join(re.findall(r'\D+', _nodename))
+            node_str_digits = "".join(re.findall(r'\d+', _nodename))
+
+            self.node_subclusters.update([node_letters])
+            all_str_digits_with_empties.append(node_str_digits)
+
+            self.total_cores += int(node.get('np'))
+            self.max_np = max(self.max_np, int(node['np']))
+            self.offline_down_nodes += 1 if node['state'] in 'do' else 0
+            self.working_cores += len(node.get('core_job_map', dict()))  # bugfix. 0 would lead to a TypeError
+
+            try:
+                cur_node_nr = int(node_str_digits)
+            except ValueError:
+                cur_node_nr = _nodename
+            finally:
+                self.workernode_list.append(cur_node_nr)
+
+        self.decide_remapping(all_str_digits_with_empties)
+
+        # nodes_drop: this amount has to be chopped off of the end of workernode_list_remapped
+        nodes_drop, workernode_dict, workernode_dict_remapped = self.map_worker_nodes_to_wn_dict(options.REMAP)
+        self.workernode_dict = workernode_dict
+
+        if options.REMAP:
+            self.workernode_dict_remapped = workernode_dict_remapped
+            self.total_wn += nodes_drop
+            self.highest_wn = self.total_wn
+
+            nodes_drop_slice_end = None if not nodes_drop else nodes_drop
+            self.workernode_list = self.workernode_list_remapped[:nodes_drop_slice_end]
+            self.workernode_dict = self.workernode_dict_remapped
+        else:
+            self.highest_wn = max(self.workernode_list)
+            self.fill_non_existent_wn_nodes()
+
+        self.do_name_remapping()
+        del self.node_subclusters  # sets not JSON serialisable!!
+        del self.workernode_list_remapped
+        del self.workernode_dict_remapped
+
+    def decide_remapping(self, all_str_digits_with_empties):
+        """
+        Cases where remapping is enforced are:
+        - the user has requested it (blindremap switch)
+        - there are different WN namings, e.g. wn001, wn002, ..., ps001, ps002, ... etc
+        - the first starting numbering of a WN is very high and thus would require too much unused space
+        #- the numbering is strange, say the highest numbered node is named wn12500 but the total amount of WNs is 8000????
+        - more than PERCENTAGE*nodes have no jobs assigned
+        - there are numbering collisions,
+            e.g. there's a ps001 and a wn001, or a 0x001 and a 0x1, which all would be displayed in position 1
+            or there are non-numbered wns
+
+        Reasons not enough to warrant remapping (intended future behaviour)
+        - one or two unnumbered nodes (should just be put in the end of the cluster)
+        """
+        if not self.total_wn:  # if nothing is running on the cluster
+            return
+
+        all_str_digits = filter(lambda x: x != "", all_str_digits_with_empties)
+        all_digits = [int(digit) for digit in all_str_digits]
+
+        if options.BLINDREMAP or \
+                len(self.node_subclusters) > 1 or \
+                min(self.workernode_list) >= config['exotic_starting_wn_nr'] or \
+                self.offline_down_nodes >= self.total_wn * config['percentage'] or \
+                len(all_str_digits_with_empties) != len(all_str_digits) or \
+                len(all_digits) != len(all_str_digits):
+            options.REMAP = True
+        else:
+            options.REMAP = False
+        logging.info('Blind Remapping [user selected]: %s,'
+                     '\n\t\t\t\t\t\t\t\t  Decided Remapping: %s' % (options.BLINDREMAP, options.REMAP))
+
+        if logging.getLogger().isEnabledFor(logging.DEBUG) and options.REMAP:
+            user_request = options.BLINDREMAP and 'The user has requested it (blindremap switch)' or False
+
+            subclusters = len(self.node_subclusters) > 1 and \
+                          'there are different WN namings, e.g. wn001, wn002, ..., ps001, ps002, ... etc' or False
+
+            exotic_starting = min(self.workernode_list) >= config['exotic_starting_wn_nr'] and \
+                              'first starting numbering of a WN very high; would thus require too much unused space' or False
+
+            percentage_unassigned = len(all_str_digits_with_empties) != len(all_str_digits) and \
+                                    'more than %s of nodes have are down/offline' % float(config['percentage']) or False
+
+            numbering_collisions = min(self.workernode_list) >= config['exotic_starting_wn_nr'] and \
+                                   'there are numbering collisions' or False
+
+            print
+            logging.debug('Remapping decided due to: \n\t %s' % filter(
+                None, [user_request, subclusters, exotic_starting, percentage_unassigned, numbering_collisions]))
+
+    def do_name_remapping(self):
+        """
+        renames hostnames according to user remapping in conf file (for the wn id label lines)
+        """
+        label_max_len = int(config['workernodes_matrix'][0]['wn id lines']['max_len'])
+        for _, state_corejob_dn in self.workernode_dict.items():
+            _host = state_corejob_dn['domainname'].split('.', 1)[0]
+            changed = False
+            for remap_line in config['remapping']:
+                pat, repl = remap_line.items()[0]
+                repl = eval(repl) if repl.startswith('lambda') else repl
+                if re.search(pat, _host):
+                    changed = True
+                    state_corejob_dn['host'] = _host = re.sub(pat, repl, _host)
+            else:
+                state_corejob_dn['host'] = _host if not changed else state_corejob_dn['host']
+                # was: label_max_len = config['wn_labels_max_len']
+                state_corejob_dn['host'] = label_max_len and state_corejob_dn['host'][-label_max_len:] or state_corejob_dn['host']
+
+
+    def fill_non_existent_wn_nodes(self):
+        """fill in non-existent WN nodes (absent from input files) with default values and count them"""
+        for node in range(1, self.highest_wn + 1):
+            if node not in self.workernode_dict:
+                self.workernode_dict[node] = {'state': '?', 'np': 0, 'domainname': 'N/A', 'host': 'N/A'}
+                default_values_for_empty_nodes = dict([(yaml_key, '?') for yaml_key, part_name, _ in yaml.get_yaml_key_part(
+                    config, scheduler, outermost_key='workernodes_matrix')])
+                self.workernode_dict[node].update(default_values_for_empty_nodes)
+
+    def map_worker_nodes_to_wn_dict(self, options_remap):
+        """
+        For filtering to take place,
+        1) a filter should be defined in QTOPCONF_YAML
+        2) remap should be either selected by the user or enforced by the circumstances
+        """
+        nodes_drop = 0  # count change in nodes after filtering
+        workernode_dict = dict()
+        workernode_dict_remapped = dict()
+        user_sorting = config['sorting'] and config['sorting'].values()[0]
+        user_filtering = config['filtering'] and config['filtering'][0]
+
+        if user_sorting and options_remap:
+            sort_worker_nodes(self.worker_nodes)
+
+        if user_filtering and options_remap:
+            worker_nodes_before = len(self.worker_nodes)
+            self.worker_nodes = filter_worker_nodes(self.worker_nodes, config['filtering'])
+            worker_nodes_after = len(self.worker_nodes)
+            nodes_drop = worker_nodes_after - worker_nodes_before
+
+        for (batch_node, (idx, cur_node_nr)) in zip(self.worker_nodes, enumerate(self.workernode_list)):
+            # Seemingly there is an error in the for loop because self.worker_nodes and workernode_list
+            # have different lengths if there's a filter in place, but it is OK, since
+            # it is just the idx counter that is taken into account in remapping.
+            workernode_dict[cur_node_nr] = batch_node
+            workernode_dict_remapped[idx] = batch_node
+
+        return nodes_drop, workernode_dict, workernode_dict_remapped
+
+
 def get_output_size(max_height, max_line_len, output_fp):
     """
     Returns the char dimensions of the entirety of the qtop output file
@@ -1622,23 +1650,6 @@ def wait_for_keypress_or_autorefresh(viewport, KEYPRESS_TIMEOUT=1):
     return read_char
 
 
-def init_cluster(worker_nodes, total_running_jobs, total_queued_jobs, qstatq_lod):
-    cluster = dict.fromkeys(['working_cores', 'total_cores', 'max_np', 'highest_wn', 'offline_down_nodes'], 0)
-    cluster['node_subclusters'] = set()
-    cluster['workernode_dict'] = {}
-    cluster['workernode_dict_remapped'] = {}  # { remapnr: [state, np, (core0, job1), (core1, job1), ....]}
-
-    cluster['total_wn'] = len(worker_nodes)  # == existing_nodes
-    cluster['workernode_list'] = []
-    cluster['workernode_list_remapped'] = range(1, cluster['total_wn'] + 1)  # leave xrange aside for now
-
-    cluster['node_subclusters'] = set()
-    cluster['total_running_jobs'] = total_running_jobs
-    cluster['total_queued_jobs'] = total_queued_jobs
-    cluster['qstatq_lod'] = qstatq_lod
-    return cluster
-
-
 def count_jobs_strict(core_user_map):
     count = 0
     for k in core_user_map:
@@ -1649,9 +1660,9 @@ def count_jobs_strict(core_user_map):
 
 def strict_check_jobs(wns_occupancy, cluster):
     counted_jobs = count_jobs_strict(wns_occupancy['core user map'])
-    if counted_jobs != cluster['total_running_jobs']:
+    if counted_jobs != cluster.total_running_jobs:
         print "Counted jobs (%s) -- Total running jobs reported (%s) MISMATCH!" \
-              % (counted_jobs, cluster['total_running_jobs'])
+              % (counted_jobs, cluster.total_running_jobs)
 
 
 def ensure_worker_nodes_have_qnames(worker_nodes, job_ids, job_queues):
@@ -1796,14 +1807,15 @@ if __name__ == '__main__':
                 ###### Process data ###############
                 #
                 worker_nodes = ensure_worker_nodes_have_qnames(worker_nodes, job_ids, job_queues)
-                cluster = init_cluster(worker_nodes, total_running_jobs, total_queued_jobs, qstatq_lod)
-                cluster = calculate_cluster(worker_nodes, cluster)
+                cluster = Cluster(worker_nodes, total_running_jobs, total_queued_jobs, qstatq_lod)
+                cluster.calculate()
                 wns_occupancy = calculate_wn_occupancy(cluster, user_names, job_states, job_ids, job_queues, config,
                                                        userid_pat_to_color)
 
                 ###### Export data ###############
                 #
-                document = Document(wns_occupancy, cluster)
+                document = Document(cluster, wns_occupancy)
+
                 tf = tempfile.NamedTemporaryFile(delete=False, suffix='.json', dir=savepath)  # Will become doc member one day
                 document.save(tf.name)  # dump json document to a file
                 web.set_filename(tf.name)
