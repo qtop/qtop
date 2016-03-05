@@ -70,28 +70,6 @@ def raw_mode(file):
 #     options.COLORFILE = os.path.expandvars('$HOME/qtop/qtop/qtop.colormap')
 
 
-def colorize(text, color_func=None, pattern='NoPattern', mapping=None, bg_color=None, bold=False):
-    """
-    prints text colored according to a unix account pattern color.
-    If color is given directly as color_func, pattern is not needed.
-    """
-    bg_color = 'NOBG' if not bg_color else bg_color
-    if not mapping:
-        mapping = userid_pat_to_color
-    try:
-        ansi_color = color_to_code[color_func] if color_func else color_to_code[mapping[pattern]]
-    except KeyError:
-        return text
-    else:
-        if bold and ansi_color[0] in '01':
-            ansi_color = '1' + ansi_color[1:]
-        if ((options.COLOR == 'ON') and pattern != 'account_not_colored' and text != ' '):
-            text = "\033[%(fg_color)s%(bg_color)sm%(text)s\033[0;m" \
-                   % {'fg_color': ansi_color, 'bg_color': color_to_code[bg_color], 'text': text}
-
-        return text
-
-
 def calculate_job_counts(user_names, job_states):
     """
     Calculates and prints what is actually below the id|  R + Q /all | unix account etc line
@@ -1036,40 +1014,40 @@ class TextDisplay(object):
         if scheduler == 'demo':
             msg = "This data is simulated. As soon as you connect to one of the supported scheduling systems,\n" \
                   "you will see live data from your cluster. Press q to Quit."
-            print colorize(msg, 'Blue')
+            print self.colorize(msg, 'Blue')
 
         if not options.WATCH:
             print 'Please try it with watch: %s/qtop.py -s <SOURCEDIR> -w [<every_nr_of_sec>]\n' \
                   '...and thank you for watching ;)\n' % QTOPPATH
-        print colorize('===> ', 'Gray_D') + colorize('Job accounting summary', 'White') + colorize(' <=== ', 'Gray_D') + \
-              '%s WORKDIR = %s' % (colorize(str(datetime.datetime.today())[:-7], 'White'), QTOPPATH)
+        print self.colorize('===> ', 'Gray_D') + self.colorize('Job accounting summary', 'White') + self.colorize(' <=== ', 'Gray_D') + \
+              '%s WORKDIR = %s' % (self.colorize(str(datetime.datetime.today())[:-7], 'White'), QTOPPATH)
 
         print '%(Usage Totals)s:\t%(online_nodes)s/%(total_nodes)s %(Nodes)s | %(working_cores)s/%(total_cores)s %(Cores)s |' \
               '   %(total_run_jobs)s+%(total_q_jobs)s %(jobs)s (R + Q) %(reported_by)s' % \
               {
-                  'Usage Totals': colorize('Usage Totals', 'Yellow'),
-                  'online_nodes': colorize(str(cluster.total_wn - cluster.offline_down_nodes), 'Red_L'),
-                  'total_nodes': colorize(str(cluster.total_wn), 'Red_L'),
-                  'Nodes': colorize('Nodes', 'Red_L'),
-                  'working_cores': colorize(str(cluster.working_cores), 'Green_L'),
-                  'total_cores': colorize(str(cluster.total_cores), 'Green_L'),
-                  'Cores': colorize('cores', 'Green_L'),
-                  'total_run_jobs': colorize(str(int(total_running_jobs)), 'Blue_L'),
-                  'total_q_jobs': colorize(str(int(total_queued_jobs)), 'Blue_L'),
-                  'jobs': colorize('jobs', 'Blue_L'),
+                  'Usage Totals': self.colorize('Usage Totals', 'Yellow'),
+                  'online_nodes': self.colorize(str(cluster.total_wn - cluster.offline_down_nodes), 'Red_L'),
+                  'total_nodes': self.colorize(str(cluster.total_wn), 'Red_L'),
+                  'Nodes': self.colorize('Nodes', 'Red_L'),
+                  'working_cores': self.colorize(str(cluster.working_cores), 'Green_L'),
+                  'total_cores': self.colorize(str(cluster.total_cores), 'Green_L'),
+                  'Cores': self.colorize('cores', 'Green_L'),
+                  'total_run_jobs': self.colorize(str(int(total_running_jobs)), 'Blue_L'),
+                  'total_q_jobs': self.colorize(str(int(total_queued_jobs)), 'Blue_L'),
+                  'jobs': self.colorize('jobs', 'Blue_L'),
                   'reported_by': 'reported by qstat - q' if options.CLASSIC else ''
               }
 
-        print '%(queues)s: | ' % {'queues': colorize('Queues', 'Yellow')},
+        print '%(queues)s: | ' % {'queues': self.colorize('Queues', 'Yellow')},
         for q in qstatq_lod:
             q_name, q_running_jobs, q_queued_jobs = q['queue_name'], q['run'], q['queued']
             queue_name = q_name if q_name in queue_to_color else 'account_not_colored'
             print "{qname}{star}: {run} {q}|".format(
-                qname=colorize(q_name, '', pattern=queue_name, mapping=queue_to_color),
-                star=colorize('*', 'Red_L') if q['state'].startswith('D') or q['state'].endswith('S') else '',
-                run=colorize(q_running_jobs, '', pattern=queue_name, mapping=queue_to_color),
-                q='+ ' + colorize(q_queued_jobs, '', queue_name, mapping=queue_to_color) + ' ' if q_queued_jobs != '0' else ''),
-        print colorize('* implies blocked', 'Red') + '\n'
+                qname=self.colorize(q_name, '', pattern=queue_name, mapping=queue_to_color),
+                star=self.colorize('*', 'Red_L') if q['state'].startswith('D') or q['state'].endswith('S') else '',
+                run=self.colorize(q_running_jobs, '', pattern=queue_name, mapping=queue_to_color),
+                q='+ ' + self.colorize(q_queued_jobs, '', queue_name, mapping=queue_to_color) + ' ' if q_queued_jobs != '0' else ''),
+        print self.colorize('* implies blocked', 'Red') + '\n'
         # TODO unhardwire states from star kwarg
 
     def display_wn_occupancy(self, wns_occupancy, cluster):
@@ -1083,12 +1061,15 @@ class TextDisplay(object):
 
     def display_basic_legend(self):
         """Displays the Worker Nodes occupancy label plus columns explanation"""
-        if config['transpose_wn_matrices']:
-            note = "/".join(config['occupancy_column_order'])
+        if self.config['transpose_wn_matrices']:
+            note = "/".join(self.config['occupancy_column_order'])
         else:
             note = 'you can read vertically the node IDs; nodes in free state are noted with - '
-        print colorize('===> ', 'Gray_D') + colorize('Worker Nodes occupancy', 'White') + colorize(' <=== ', 'Gray_D') \
-              + colorize('(%s)', 'Gray_D') % note
+
+        print self.colorize('===> ', 'Gray_D') + \
+              self.colorize('Worker Nodes occupancy', 'White') + \
+              self.colorize(' <=== ', 'Gray_D') + \
+              self.colorize('(%s)', 'Gray_D') % note
 
     def display_user_accounts_pool_mappings(self, wns_occupancy=None):
         """
@@ -1102,10 +1083,10 @@ class TextDisplay(object):
             uid_to_uid_re_pat = dict()
 
         detail_of_name = get_detail_of_name(account_jobs_table)
-        print colorize('\n===> ', 'Gray_D') + \
-              colorize('User accounts and pool mappings', 'White') + \
-              colorize(' <=== ', 'Gray_d') + \
-              colorize("  ('all' also includes those in C and W states, as reported by qstat)"
+        print self.colorize('\n===> ', 'Gray_D') + \
+              self.colorize('User accounts and pool mappings', 'White') + \
+              self.colorize(' <=== ', 'Gray_d') + \
+              self.colorize("  ('all' also includes those in C and W states, as reported by qstat)"
                        if options.CLASSIC else "  ('all' includes any jobs beyond R and W)", 'Gray_D')
 
         print '   R +    Q /  all |       unix account [id] %(msg)s' % \
@@ -1125,13 +1106,13 @@ class TextDisplay(object):
                            '{4:>{width18}} '
                            '[ {0:<{width1}}] '
                            '{5:<{width40}} {sep}').format(
-                                colorize(str(uid), '', userid_pat, bold=False),
-                                colorize(str(runningjobs), '', userid_pat),
-                                colorize(str(queuedjobs), '', userid_pat),
-                                colorize(str(alljobs), '', userid_pat),
-                                colorize(user, '', userid_pat),
-                                colorize(detail_of_name.get(user, ''), '', userid_pat),
-                                sep=colorize(config['SEPARATOR'], '', userid_pat),
+                                self.colorize(str(uid), '', userid_pat, bold=False),
+                                self.colorize(str(runningjobs), '', userid_pat),
+                                self.colorize(str(queuedjobs), '', userid_pat),
+                                self.colorize(str(alljobs), '', userid_pat),
+                                self.colorize(user, '', userid_pat),
+                                self.colorize(detail_of_name.get(user, ''), '', userid_pat),
+                                sep=self.colorize(config['SEPARATOR'], '', userid_pat),
                                 width1=1 + conditional_width,
                                 width3=3 + conditional_width,
                                 width4=4 + conditional_width,
@@ -1179,7 +1160,7 @@ class TextDisplay(object):
             new_occupancy_part = {
                 part_name:
                     (
-                        TextDisplay.print_mult_attr_line,  # func
+                        self.print_mult_attr_line,  # func
                         (print_char_start, print_char_stop, transposed_matrices),  # args
                         {'attr_lines': wns_occupancy[part_name]}  # kwargs
                     )
@@ -1254,7 +1235,7 @@ class TextDisplay(object):
                          options1, options2):
         signal(SIGPIPE, SIG_DFL)
         if config['transpose_wn_matrices']:
-            tuple_ = [None, 'core_map', TextDisplay.transpose_matrix(core_user_map, colored=True)]
+            tuple_ = [None, 'core_map', self.transpose_matrix(core_user_map, colored=True)]
             transposed_matrices.append(tuple_)
             return
 
@@ -1318,14 +1299,14 @@ class TextDisplay(object):
 
     def print_wnid_lines(self, d, start, stop, end_labels, transposed_matrices, color_func, args):
         if self.config['transpose_wn_matrices']:
-            tuple_ = [None, 'wnid_lines', TextDisplay.transpose_matrix(d)]
+            tuple_ = [None, 'wnid_lines', self.transpose_matrix(d)]
             transposed_matrices.append(tuple_)
             return
 
         colors = iter(color_func(*args))
         for line_nr, end_label, color in zip(d, end_labels, colors):
             wn_id_str = insert_separators(d[line_nr][start:stop], config['SEPARATOR'], config['vertical_separator_every_X_columns'])
-            wn_id_str = ''.join([colorize(elem, color) for elem in wn_id_str])
+            wn_id_str = ''.join([self.colorize(elem, color) for elem in wn_id_str])
             print wn_id_str + end_label
 
     def print_y_lines_of_file_starting_from_x(self, file, x, y):
@@ -1340,13 +1321,13 @@ class TextDisplay(object):
         cat_command = 'clear;cat %s' % temp_f.name
         return cat_command
 
-    @staticmethod
-    def print_mult_attr_line(print_char_start, print_char_stop, transposed_matrices, attr_lines, label, color_func=None, **kwargs):
+    def print_mult_attr_line(self, print_char_start, print_char_stop, transposed_matrices, attr_lines, label, color_func=None,
+                             **kwargs):
         """
         attr_lines can be e.g. Node state lines
         """
         if config['transpose_wn_matrices']:
-            tuple_ = [None, label, TextDisplay.transpose_matrix(attr_lines)]
+            tuple_ = [None, label, self.transpose_matrix(attr_lines)]
             transposed_matrices.append(tuple_)
             return
 
@@ -1355,21 +1336,8 @@ class TextDisplay(object):
             line = attr_lines[line][print_char_start:print_char_stop]
             # TODO: maybe put attr_line and label as kwd arguments? collect them as **kwargs
             attr_line = insert_separators(line, config['SEPARATOR'], config['vertical_separator_every_X_columns'])
-            attr_line = ''.join([colorize(char, color_func) for char in attr_line])
+            attr_line = ''.join([self.colorize(char, color_func) for char in attr_line])
             print attr_line + "=" + label
-
-    @staticmethod
-    def transpose_matrix(d, colored=False, reverse=False):
-        """
-        takes a dictionary whose values are lists of strings (=matrix)
-        returns a transposed matrix
-        """
-        uid_to_uid_re_pat = wns_occupancy['uid_to_uid_re_pat']
-        for tpl in izip_longest(*[[char for char in d[k]] for k in d], fillvalue=" "):
-            if any(j != " " for j in tpl):
-                tpl = colored and [colorize(j, '', uid_to_uid_re_pat[j]) if j in uid_to_uid_re_pat else j for j in tpl] or list(tpl)
-                tpl[:] = tpl[::-1] if reverse else tpl
-            yield tpl
 
     @staticmethod
     def get_core_lines(core_user_map, print_char_start, print_char_stop, uid_to_uid_re_pat, attrs):
@@ -1388,8 +1356,42 @@ class TextDisplay(object):
                 continue
             cpu_core_line = insert_separators(cpu_core_line, config['SEPARATOR'], config['vertical_separator_every_X_columns'])
             cpu_core_line = ''.join(
-                [colorize(elem, '', uid_to_uid_re_pat[elem]) for elem in cpu_core_line if elem in uid_to_uid_re_pat])
-            yield cpu_core_line + colorize('=Core' + str(ind), '', 'account_not_colored')
+                [self.colorize(elem, '', uid_to_uid_re_pat[elem]) for elem in cpu_core_line if elem in uid_to_uid_re_pat])
+            yield cpu_core_line + self.colorize('=Core' + str(ind), '', 'account_not_colored')
+
+    def colorize(self, text, color_func=None, pattern='NoPattern', mapping=None, bg_color=None, bold=False):
+        """
+        prints text colored according to a unix account pattern color.
+        If color is given directly as color_func, pattern is not needed.
+        """
+        bg_color = 'NOBG' if not bg_color else bg_color
+        if not mapping:
+            mapping = userid_pat_to_color
+        try:
+            ansi_color = color_to_code[color_func] if color_func else color_to_code[mapping[pattern]]
+        except KeyError:
+            return text
+        else:
+            if bold and ansi_color[0] in '01':
+                ansi_color = '1' + ansi_color[1:]
+            if ((options.COLOR == 'ON') and pattern != 'account_not_colored' and text != ' '):
+                text = "\033[%(fg_color)s%(bg_color)sm%(text)s\033[0;m" \
+                       % {'fg_color': ansi_color, 'bg_color': color_to_code[bg_color], 'text': text}
+
+            return text
+
+    def transpose_matrix(self, d, colored=False, reverse=False):
+        """
+        takes a dictionary whose values are lists of strings (=matrix)
+        returns a transposed matrix
+        """
+        uid_to_uid_re_pat = wns_occupancy['uid_to_uid_re_pat']
+        for tpl in izip_longest(*[[char for char in d[k]] for k in d], fillvalue=" "):
+            if any(j != " " for j in tpl):
+                tpl = colored and [self.colorize(j, '', uid_to_uid_re_pat[j]) if j in uid_to_uid_re_pat else j for j in
+                                   tpl] or list(tpl)
+                tpl[:] = tpl[::-1] if reverse else tpl
+            yield tpl
 
 
 class Cluster(object):
