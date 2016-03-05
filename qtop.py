@@ -35,7 +35,7 @@ import fileutils
 import utils
 from plugins import *
 from math import ceil
-from colormap import color_of_account, code_of_color
+from colormap import userid_pat_to_color_default, color_to_code, queue_to_color
 import yaml_parser as yaml
 from ui.viewport import Viewport
 from serialiser import GenericBatchSystem
@@ -70,14 +70,16 @@ def raw_mode(file):
 #     options.COLORFILE = os.path.expandvars('$HOME/qtop/qtop/qtop.colormap')
 
 
-def colorize(text, color_func=None, pattern='NoPattern', bg_color=None, bold=False):
+def colorize(text, color_func=None, pattern='NoPattern', mapping=None, bg_color=None, bold=False):
     """
     prints text colored according to a unix account pattern color.
-    If color is given, pattern is not needed.
+    If color is given directly as color_func, pattern is not needed.
     """
-    bg_color = '' if not bg_color else bg_color
+    bg_color = 'NOBG' if not bg_color else bg_color
+    if not mapping:
+        mapping = userid_pat_to_color
     try:
-        ansi_color = code_of_color[color_func] if color_func else code_of_color[color_of_account[pattern]]
+        ansi_color = color_to_code[color_func] if color_func else color_to_code[mapping[pattern]]
     except KeyError:
         return text
     else:
@@ -85,7 +87,7 @@ def colorize(text, color_func=None, pattern='NoPattern', bg_color=None, bold=Fal
             ansi_color = '1' + ansi_color[1:]
         if ((options.COLOR == 'ON') and pattern != 'account_not_colored' and text != ' '):
             text = "\033[%(fg_color)s%(bg_color)sm%(text)s\033[0;m" \
-                   % {'fg_color': ansi_color, 'bg_color': bg_color, 'text': text}
+                   % {'fg_color': ansi_color, 'bg_color': color_to_code[bg_color], 'text': text}
 
         return text
 
@@ -510,7 +512,7 @@ def print_mult_attr_line(print_char_start, print_char_stop, transposed_matrices,
         print attr_line + "=" + label
 
 
-def get_core_lines(core_user_map, print_char_start, print_char_stop, pattern_of_id, attrs):
+def get_core_lines(core_user_map, print_char_start, print_char_stop, uid_to_uid_re_pat, attrs):
     """
     prints all coreX lines, except cores that don't show up
     anywhere in the given matrix
@@ -525,7 +527,7 @@ def get_core_lines(core_user_map, print_char_start, print_char_stop, pattern_of_
             ):
             continue
         cpu_core_line = insert_separators(cpu_core_line, config['SEPARATOR'], config['vertical_separator_every_X_columns'])
-        cpu_core_line = ''.join([colorize(elem, '', pattern_of_id[elem]) for elem in cpu_core_line if elem in pattern_of_id])
+        cpu_core_line = ''.join([colorize(elem, '', uid_to_uid_re_pat[elem]) for elem in cpu_core_line if elem in uid_to_uid_re_pat])
         yield cpu_core_line + colorize('=Core' + str(ind), '', 'account_not_colored')
 
 
@@ -550,7 +552,7 @@ def calc_core_userid_matrix(cluster, wns_occupancy, job_ids, user_names):
     return core_user_map
 
 
-def calc_general_multiline_attr(cluster, part_name, yaml_key):  # NEW
+def calc_general_multiline_attr(cluster, part_name, yaml_key, config):  # NEW
     multiline_map = OrderedDict()
     elem_identifier = [d for d in config['workernodes_matrix'] if part_name in d][0]  # jeeez
     part_name_idx = config['workernodes_matrix'].index(elem_identifier)
@@ -595,15 +597,15 @@ def transpose_matrix(d, colored=False, reverse=False):
     takes a dictionary whose values are lists of strings (=matrix)
     returns a transposed matrix
     """
-    pattern_of_id = wns_occupancy['pattern_of_id']
+    uid_to_uid_re_pat = wns_occupancy['uid_to_uid_re_pat']
     for tpl in izip_longest(*[[char for char in d[k]] for k in d], fillvalue=" "):
         if any(j != " " for j in tpl):
-            tpl = colored and [colorize(j, '', pattern_of_id[j]) if j in pattern_of_id else j for j in tpl] or list(tpl)
+            tpl = colored and [colorize(j, '', uid_to_uid_re_pat[j]) if j in uid_to_uid_re_pat else j for j in tpl] or list(tpl)
             tpl[:] = tpl[::-1] if reverse else tpl
         yield tpl
 
 
-def calculate_wn_occupancy(cluster, user_names, job_states, job_ids, job_queues):
+def calculate_wn_occupancy(cluster, user_names, job_states, job_ids, job_queues, config, userid_pat_to_color):
     """
     Prints the Worker Nodes Occupancy table.
     if there are non-uniform WNs in pbsnodes.yaml, e.g. wn01, wn02, gn01, gn02, ...,  remapping is performed.
@@ -617,7 +619,7 @@ def calculate_wn_occupancy(cluster, user_names, job_states, job_ids, job_queues)
 
     wns_occupancy['account_jobs_table'], \
     wns_occupancy['id_of_username'] = create_account_jobs_table(user_names, job_states)
-    wns_occupancy['pattern_of_id'] = make_pattern_of_id(wns_occupancy)  # pattern_of_id
+    wns_occupancy['uid_to_uid_re_pat'] = make_uid_to_uid_re_pat(wns_occupancy, config, userid_pat_to_color)
     wns_occupancy['print_char_start'], \
     wns_occupancy['print_char_stop'], \
     wns_occupancy['extra_matrices_nr'] = find_matrices_width(wns_occupancy, cluster)
@@ -627,38 +629,35 @@ def calculate_wn_occupancy(cluster, user_names, job_states, job_ids, job_queues)
     # e.g. wns_occupancy['node_state'] = ...workernode_dict[node]['state'] for node in workernode_dict...
     for yaml_key, part_name, systems in yaml.get_yaml_key_part(config, scheduler, outermost_key='workernodes_matrix'):
         if scheduler in systems:
-            wns_occupancy[part_name] = calc_general_multiline_attr(cluster, part_name, yaml_key)
+            wns_occupancy[part_name] = calc_general_multiline_attr(cluster, part_name, yaml_key, config)
 
     wns_occupancy['core user map'] = calc_core_userid_matrix(cluster, wns_occupancy, job_ids, user_names)
     return wns_occupancy
 
 
-def make_pattern_of_id(wns_occupancy):
+def make_uid_to_uid_re_pat(wns_occupancy, config, userid_pat_to_color):
     """
     First strips the numbers off of the unix accounts and tries to match this against the given color table in colormap.
     Additionally, it will try to apply the regex rules given by the user in qtopconf.yaml, overriding the colormap.
     The last matched regex is valid.
     If no matching was possible, there will be no coloring applied.
     """
-    pattern_of_id = {}
+    uid_to_uid_re_pat = {}
     for line in wns_occupancy['account_jobs_table']:
         uid, user = line[0], line[4]
-        account = re.search('[A-Za-z]+', user).group(0)  #
-        for re_account_color in config['user_color_mappings']:
-            re_account = re_account_color.keys()[0]
-            try:
-                _ = re.search(re_account, user).group(0)
-            except AttributeError:
+        account_letters = re.search('[A-Za-z]+', user).group(0)
+        for re_account in userid_pat_to_color:
+            match = re.search(re_account, user)
+            if match is None:
                 continue  # keep trying
-            else:
-                account = re_account  # colors the text according to the regex given by the user in qtopconf
+            account_letters = re_account  # colors the text according to the regex given by the user in qtopconf
 
-        pattern_of_id[uid] = account if account in color_of_account else 'account_not_colored'
+        uid_to_uid_re_pat[uid] = account_letters if account_letters in userid_pat_to_color else 'account_not_colored'
 
-    pattern_of_id[config['non_existent_node_symbol']] = '#'
-    pattern_of_id['_'] = '_'
-    pattern_of_id[config['SEPARATOR']] = 'account_not_colored'
-    return pattern_of_id
+    uid_to_uid_re_pat[config['non_existent_node_symbol']] = '#'
+    uid_to_uid_re_pat['_'] = '_'
+    uid_to_uid_re_pat[config['SEPARATOR']] = 'account_not_colored'
+    return uid_to_uid_re_pat
 
 
 def load_yaml_config():
@@ -718,7 +717,8 @@ def load_yaml_config():
     symbol_map = dict([(chr(x), x) for x in range(33, 48) + range(58, 64) + range(91, 96) + range(123, 126)])
 
     if config['user_color_mappings']:
-        [color_of_account.update(d) for d in config['user_color_mappings']]
+        userid_pat_to_color = userid_pat_to_color_default.copy()
+        [userid_pat_to_color.update(d) for d in config['user_color_mappings']]
     else:
         config['user_color_mappings'] = list()
     if config['remapping']:
@@ -746,7 +746,7 @@ def load_yaml_config():
     config['ALT_LABEL_COLORS'] = yaml.fix_config_list(config['workernodes_matrix'][0]['wn id lines']['alt_label_colors'])
     config['SEPARATOR'] = config['vertical_separator'].translate(None, "'")
     config['USER_CUT_MATRIX_WIDTH'] = int(config['workernodes_matrix'][0]['wn id lines']['user_cut_matrix_width'])
-    return config
+    return config, userid_pat_to_color
 
 
 def calculate_term_size(config, FALLBACK_TERM_SIZE):
@@ -1272,8 +1272,7 @@ class TextDisplay(object):
               '   %(total_run_jobs)s+%(total_q_jobs)s %(jobs)s (R + Q) %(reported_by)s' % \
               {
                   'Usage Totals': colorize('Usage Totals', 'Yellow'),
-                  'online_nodes': colorize(str(cluster.get('total_wn', 0) - cluster.get('offline_down_nodes', 0)),
-                                           'Red_L'),
+                  'online_nodes': colorize(str(cluster.get('total_wn', 0) - cluster.get('offline_down_nodes', 0)), 'Red_L'),
                   'total_nodes': colorize(str(cluster.get('total_wn', 0)), 'Red_L'),
                   'Nodes': colorize('Nodes', 'Red_L'),
                   'working_cores': colorize(str(cluster.get('working_cores', 0)), 'Green_L'),
@@ -1288,12 +1287,12 @@ class TextDisplay(object):
         print '%(queues)s: | ' % {'queues': colorize('Queues', 'Yellow')},
         for q in qstatq_lod:
             q_name, q_running_jobs, q_queued_jobs = q['queue_name'], q['run'], q['queued']
-            account = q_name if q_name in color_of_account else 'account_not_colored'
+            queue_name = q_name if q_name in queue_to_color else 'account_not_colored'
             print "{qname}{star}: {run} {q}|".format(
-                qname=colorize(q_name, '', account),
+                qname=colorize(q_name, '', pattern=queue_name, mapping=queue_to_color),
                 star=colorize('*', 'Red_L') if q['state'].startswith('D') or q['state'].endswith('S') else '',
-                run=colorize(q_running_jobs, '', account),
-                q='+ ' + colorize(q_queued_jobs, '', account) + ' ' if q_queued_jobs != '0' else ''),
+                run=colorize(q_running_jobs, '', queue_name),
+                q='+ ' + colorize(q_queued_jobs, '', queue_name) + ' ' if q_queued_jobs != '0' else ''),
         print colorize('* implies blocked', 'Red') + '\n'
         # TODO unhardwire states from star kwarg
 
@@ -1321,10 +1320,10 @@ class TextDisplay(object):
         """
         try:
             account_jobs_table = wns_occupancy['account_jobs_table']
-            pattern_of_id = wns_occupancy['pattern_of_id']
+            uid_to_uid_re_pat = wns_occupancy['uid_to_uid_re_pat']
         except KeyError:
             account_jobs_table = dict()
-            pattern_of_id = dict()
+            uid_to_uid_re_pat = dict()
 
         detail_of_name = get_detail_of_name(account_jobs_table)
         print colorize('\n===> ', 'Gray_D') + \
@@ -1338,32 +1337,30 @@ class TextDisplay(object):
               '      GECOS field or Grid certificate DN |'}
         for line in account_jobs_table:
             uid, runningjobs, queuedjobs, alljobs, user = line
-            account = pattern_of_id[uid]
-            if (
-                options.COLOR == 'OFF'
-                or account == 'account_not_colored'
-                or color_of_account[account] == 'reset'):
-                    conditional_width = 0
-                    account = 'account_not_colored'
+            userid_pat = uid_to_uid_re_pat[uid]
+
+            if (options.COLOR == 'OFF' or userid_pat == 'account_not_colored' or userid_pat_to_color[userid_pat] == 'reset'):
+                conditional_width = 0
+                userid_pat = 'account_not_colored'
             else:
                 conditional_width = 12
 
-            print_string = '{1:>{width4}} + {2:>{width4}} / {3:>{width4}} {sep} ' \
-                           '{4:>{width18}} ' \
-                           '[ {0:<{width1}}] ' \
-                           '{5:<{width40}} {sep}'.format(
-                colorize(str(uid), '', account, bold=False),
-                colorize(str(runningjobs), '', account),
-                colorize(str(queuedjobs), '', account),
-                colorize(str(alljobs), '', account),
-                colorize(user, '', account),
-                colorize(detail_of_name.get(user, ''), '', account),
-                sep=colorize(config['SEPARATOR'], '', account),
-                width1=1 + conditional_width,
-                width3=3 + conditional_width,
-                width4=4 + conditional_width,
-                width18=18 + conditional_width,
-                width40=40 + conditional_width,
+            print_string = ('{1:>{width4}} + {2:>{width4}} / {3:>{width4}} {sep} '
+                           '{4:>{width18}} '
+                           '[ {0:<{width1}}] '
+                           '{5:<{width40}} {sep}').format(
+                                colorize(str(uid), '', userid_pat, bold=False),
+                                colorize(str(runningjobs), '', userid_pat),
+                                colorize(str(queuedjobs), '', userid_pat),
+                                colorize(str(alljobs), '', userid_pat),
+                                colorize(user, '', userid_pat),
+                                colorize(detail_of_name.get(user, ''), '', userid_pat),
+                                sep=colorize(config['SEPARATOR'], '', userid_pat),
+                                width1=1 + conditional_width,
+                                width3=3 + conditional_width,
+                                width4=4 + conditional_width,
+                                width18=18 + conditional_width,
+                                width40=40 + conditional_width,
             )
             print print_string
 
@@ -1382,7 +1379,7 @@ class TextDisplay(object):
         wn_vert_labels = wns_occupancy['wn_vert_labels']
         core_user_map = wns_occupancy['core user map']
         extra_matrices_nr = wns_occupancy['extra_matrices_nr']
-        pattern_of_id = wns_occupancy['pattern_of_id']
+        uid_to_uid_re_pat = wns_occupancy['uid_to_uid_re_pat']
 
         occupancy_parts = {
             'wn id lines':
@@ -1394,7 +1391,7 @@ class TextDisplay(object):
             'core user map':
                 (
                     self.print_core_lines,
-                    (core_user_map, print_char_start, print_char_stop, transposed_matrices, pattern_of_id),
+                    (core_user_map, print_char_start, print_char_stop, transposed_matrices, uid_to_uid_re_pat),
                     {'attrs': None}
                 ),
         }
@@ -1476,7 +1473,7 @@ class TextDisplay(object):
         print "".join(joined_list[self.viewport.h_start:self.viewport.h_stop])
         return joined_list
 
-    def print_core_lines(self, core_user_map, print_char_start, print_char_stop, transposed_matrices, pattern_of_id, attrs,
+    def print_core_lines(self, core_user_map, print_char_start, print_char_stop, transposed_matrices, uid_to_uid_re_pat, attrs,
                          options1, options2):
         signal(SIGPIPE, SIG_DFL)
         if config['transpose_wn_matrices']:
@@ -1484,7 +1481,7 @@ class TextDisplay(object):
             transposed_matrices.append(tuple_)
             return
 
-        for core_line in get_core_lines(core_user_map, print_char_start, print_char_stop, pattern_of_id, attrs):
+        for core_line in get_core_lines(core_user_map, print_char_start, print_char_stop, uid_to_uid_re_pat, attrs):
             try:
                 print core_line
             except IOError:
@@ -1787,7 +1784,7 @@ if __name__ == '__main__':
             while True:
                 handle, output_fp = fileutils.get_new_temp_file(prefix='qtop_', suffix='.out')  # qtop output is saved to this file
                 sys.stdout = os.fdopen(handle, 'w')  # redirect everything to file, creates file object out of handle
-                config = load_yaml_config()
+                config, userid_pat_to_color = load_yaml_config()  # TODO account_to_color is updated in here !!
                 config = update_config_with_cmdline_vars(options, config)
 
                 attempt_faster_xml_parsing(config)
@@ -1815,7 +1812,8 @@ if __name__ == '__main__':
                 worker_nodes = ensure_worker_nodes_have_qnames(worker_nodes, job_ids, job_queues)
                 cluster = init_cluster(worker_nodes, total_running_jobs, total_queued_jobs, qstatq_lod)
                 cluster = calculate_cluster(worker_nodes, cluster)
-                wns_occupancy = calculate_wn_occupancy(cluster, user_names, job_states, job_ids, job_queues)
+                wns_occupancy = calculate_wn_occupancy(cluster, user_names, job_states, job_ids, job_queues, config,
+                                                       userid_pat_to_color)
 
                 ###### Export data ###############
                 #
