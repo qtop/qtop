@@ -21,7 +21,7 @@ except ImportError:
     from legacy.namedtuple import namedtuple
     from legacy.ordereddict import OrderedDict
 import os
-from os.path import realpath, getmtime
+from os.path import realpath
 from signal import signal, SIGPIPE, SIG_DFL
 import termios
 import contextlib
@@ -494,25 +494,6 @@ def is_matrix_coreless(wns_occupancy):
     return len(lines) == len(core_user_map)
 
 
-def get_core_lines(core_user_map, print_char_start, print_char_stop, uid_to_uid_re_pat, attrs):
-    """
-    prints all coreX lines, except cores that don't show up
-    anywhere in the given matrix
-    """
-    # TODO: is there a way to use is_matrix_coreless in here? avoid duplication of code
-    for ind, k in enumerate(core_user_map):
-        cpu_core_line = core_user_map['Core' + str(ind) + 'vector'][print_char_start:print_char_stop]
-        if options.REM_EMPTY_CORELINES and \
-            (
-                (config['non_existent_node_symbol'] * (print_char_stop - print_char_start) == cpu_core_line) or \
-                (config['non_existent_node_symbol'] * (len(cpu_core_line)) == cpu_core_line)
-            ):
-            continue
-        cpu_core_line = insert_separators(cpu_core_line, config['SEPARATOR'], config['vertical_separator_every_X_columns'])
-        cpu_core_line = ''.join([colorize(elem, '', uid_to_uid_re_pat[elem]) for elem in cpu_core_line if elem in uid_to_uid_re_pat])
-        yield cpu_core_line + colorize('=Core' + str(ind), '', 'account_not_colored')
-
-
 def calc_core_userid_matrix(cluster, wns_occupancy, job_ids, user_names):
     id_of_username = wns_occupancy['id_of_username']
     core_user_map = OrderedDict()
@@ -572,19 +553,6 @@ def calc_general_multiline_attr(cluster, part_name, yaml_key, config):  # NEW
         if line == user_max_len:
             break
     return multiline_map
-
-
-def transpose_matrix(d, colored=False, reverse=False):
-    """
-    takes a dictionary whose values are lists of strings (=matrix)
-    returns a transposed matrix
-    """
-    uid_to_uid_re_pat = wns_occupancy['uid_to_uid_re_pat']
-    for tpl in izip_longest(*[[char for char in d[k]] for k in d], fillvalue=" "):
-        if any(j != " " for j in tpl):
-            tpl = colored and [colorize(j, '', uid_to_uid_re_pat[j]) if j in uid_to_uid_re_pat else j for j in tpl] or list(tpl)
-            tpl[:] = tpl[::-1] if reverse else tpl
-        yield tpl
 
 
 def calculate_wn_occupancy(cluster, user_names, job_states, job_ids, job_queues, config, userid_pat_to_color):
@@ -1050,22 +1018,6 @@ def check_python_version():
         sys.exit(1)
 
 
-def deprecate_old_json_files():
-    """
-    deletes older json files in savepath directory.
-    experimental and loosely untested
-    """
-    time_alive = int(config['auto_delete_old_json_files_after_few_hours'])
-    user_selected_save_path = os.path.realpath(os.path.expandvars(config['savepath']))
-    for f in os.listdir(user_selected_save_path):
-        if not f.endswith('json'):
-            continue
-        curpath = os.path.join(user_selected_save_path, f)
-        file_modified = datetime.datetime.fromtimestamp(getmtime(curpath))
-        if datetime.datetime.now() - file_modified > datetime.timedelta(hours=time_alive):
-            os.remove(curpath)
-
-
 def control_movement(viewport, read_char):
     """
     Basic vi-like movement is implemented for the -w switch (linux watch-like behaviour for qtop).
@@ -1385,7 +1337,7 @@ class TextDisplay(object):
             new_occupancy_part = {
                 part_name:
                     (
-                        self.print_mult_attr_line,  # func
+                        TextDisplay.print_mult_attr_line,  # func
                         (print_char_start, print_char_stop, transposed_matrices),  # args
                         {'attr_lines': wns_occupancy[part_name]}  # kwargs
                     )
@@ -1460,11 +1412,11 @@ class TextDisplay(object):
                          options1, options2):
         signal(SIGPIPE, SIG_DFL)
         if config['transpose_wn_matrices']:
-            tuple_ = [None, 'core_map', transpose_matrix(core_user_map, colored=True)]
+            tuple_ = [None, 'core_map', TextDisplay.transpose_matrix(core_user_map, colored=True)]
             transposed_matrices.append(tuple_)
             return
 
-        for core_line in get_core_lines(core_user_map, print_char_start, print_char_stop, uid_to_uid_re_pat, attrs):
+        for core_line in TextDisplay.get_core_lines(core_user_map, print_char_start, print_char_stop, uid_to_uid_re_pat, attrs):
             try:
                 print core_line
             except IOError:
@@ -1524,7 +1476,7 @@ class TextDisplay(object):
 
     def print_wnid_lines(self, d, start, stop, end_labels, transposed_matrices, color_func, args):
         if self.config['transpose_wn_matrices']:
-            tuple_ = [None, 'wnid_lines', transpose_matrix(d)]
+            tuple_ = [None, 'wnid_lines', TextDisplay.transpose_matrix(d)]
             transposed_matrices.append(tuple_)
             return
 
@@ -1552,7 +1504,7 @@ class TextDisplay(object):
         attr_lines can be e.g. Node state lines
         """
         if config['transpose_wn_matrices']:
-            tuple_ = [None, label, transpose_matrix(attr_lines)]
+            tuple_ = [None, label, TextDisplay.transpose_matrix(attr_lines)]
             transposed_matrices.append(tuple_)
             return
 
@@ -1564,6 +1516,38 @@ class TextDisplay(object):
             attr_line = ''.join([colorize(char, color_func) for char in attr_line])
             print attr_line + "=" + label
 
+    @staticmethod
+    def transpose_matrix(d, colored=False, reverse=False):
+        """
+        takes a dictionary whose values are lists of strings (=matrix)
+        returns a transposed matrix
+        """
+        uid_to_uid_re_pat = wns_occupancy['uid_to_uid_re_pat']
+        for tpl in izip_longest(*[[char for char in d[k]] for k in d], fillvalue=" "):
+            if any(j != " " for j in tpl):
+                tpl = colored and [colorize(j, '', uid_to_uid_re_pat[j]) if j in uid_to_uid_re_pat else j for j in tpl] or list(tpl)
+                tpl[:] = tpl[::-1] if reverse else tpl
+            yield tpl
+
+    @staticmethod
+    def get_core_lines(core_user_map, print_char_start, print_char_stop, uid_to_uid_re_pat, attrs):
+        """
+        prints all coreX lines, except cores that don't show up
+        anywhere in the given matrix
+        """
+        # TODO: is there a way to use is_matrix_coreless in here? avoid duplication of code
+        for ind, k in enumerate(core_user_map):
+            cpu_core_line = core_user_map['Core' + str(ind) + 'vector'][print_char_start:print_char_stop]
+            if options.REM_EMPTY_CORELINES and \
+                    (
+                                (config['non_existent_node_symbol'] * (print_char_stop - print_char_start) == cpu_core_line) or \
+                                    (config['non_existent_node_symbol'] * (len(cpu_core_line)) == cpu_core_line)
+                    ):
+                continue
+            cpu_core_line = insert_separators(cpu_core_line, config['SEPARATOR'], config['vertical_separator_every_X_columns'])
+            cpu_core_line = ''.join(
+                [colorize(elem, '', uid_to_uid_re_pat[elem]) for elem in cpu_core_line if elem in uid_to_uid_re_pat])
+            yield cpu_core_line + colorize('=Core' + str(ind), '', 'account_not_colored')
 
 def get_output_size(max_height, max_line_len, output_fp):
     """

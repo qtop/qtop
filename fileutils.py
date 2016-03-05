@@ -115,3 +115,18 @@ class FileEmptyError(Exception):
         logging.warning(msg)
         self.fn = fn
 
+
+def deprecate_old_json_files(config):  # TODO include !!
+    """
+    deletes older json files in savepath directory.
+    experimental and loosely untested
+    """
+    time_alive = int(config['auto_delete_old_json_files_after_few_hours'])
+    user_selected_save_path = os.path.realpath(os.path.expandvars(config['savepath']))
+    for f in os.listdir(user_selected_save_path):
+        if not f.endswith('json'):
+            continue
+        curpath = os.path.join(user_selected_save_path, f)
+        file_modified = datetime.datetime.fromtimestamp(os.path.getmtime(curpath))
+        if datetime.datetime.now() - file_modified > datetime.timedelta(hours=time_alive):
+            os.remove(curpath)
