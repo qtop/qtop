@@ -183,7 +183,7 @@ user_display_parts:
 # - wn id lines
 # - node state
 # - temperature
-# - core user map
+# - core_user_map
 
 # character used for vertical separator in WN occupancy matrix
 vertical_separator: '|'
@@ -227,7 +227,7 @@ workernodes_matrix:
      label: queue name
      max_len: 13
      systems: [sge, oar, pbs, demo]
- - core user map:
+ - core_user_map:
      options1: {}
      options2: {}
 
