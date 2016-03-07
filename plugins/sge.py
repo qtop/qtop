@@ -265,12 +265,12 @@ class SGEBatchSystem(GenericBatchSystem):
                 worker_node['domainname'] = resource.text if not self.options.ANONYMIZE else anonymize(resource.text, 'wns')
                 count += 1
             elif resource.attrib.get('name') == 'qname':
-                qname = resource.text[0]
+                qname = resource.text
                 if not slots_used:
                     worker_node['qname'] = set()
                 else:
                     # if slots are reportedly used, the queue will be displayed even if no actual running jobs exist
-                    worker_node['qname'] = set(qname) if not self.options.ANONYMIZE else set(anonymize(qname, 'qs'))
+                    worker_node['qname'] = set([qname]) if not self.options.ANONYMIZE else set([anonymize(qname, 'qs')])
                 count += 1
             elif resource.attrib.get('name') == 'num_proc':
                 worker_node['np'] = resource.text

@@ -523,6 +523,12 @@ def ensure_worker_nodes_have_qnames(worker_nodes, jobs_dict):
         worker_node['qname'] = list(my_queues)
     return worker_nodes
 
+def keep_queue_initials_only(worker_nodes):
+    # TODO remove monstrosity!
+    for worker_node in worker_nodes:
+        worker_node['qname'] = [q[0] for q in worker_node['qname']]
+    return worker_nodes
+
 
 def discover_qtop_batch_systems():
     batch_systems = set()
@@ -858,23 +864,23 @@ class WNOccupancy(object):
 
     def _calc_core_userid_matrix(self, job_ids, user_names):
         core_user_map = OrderedDict()
-        max_np_range = [str(x) for x in range(self.cluster.max_np)]
         user_of_job_id = dict(izip(job_ids, user_names))
         if not user_of_job_id:
             return
 
-        for core_nr in max_np_range:
+        for core_nr in self.cluster.max_np_range:
             core_user_map['Core%svector' % str(core_nr)] = []  # Cpu0line, Cpu1line, Cpu2line, .. = '','','', ..
 
         for _node in self.cluster.workernode_dict:
-            core_user_map = self._fill_node_cores_column(_node, core_user_map, self.user_to_id, max_np_range, user_of_job_id)
+            core_user_map = self._fill_node_cores_column(_node, core_user_map, self.user_to_id, self.cluster.max_np_range,
+                                                         user_of_job_id)
 
         for coreline in core_user_map:
             core_user_map[coreline] = ''.join(core_user_map[coreline])
 
         return core_user_map
 
-    def _fill_node_cores_column(self, _node, core_user_map, user_to_id, max_np_range, user_of_job_id):
+    def _fill_node_cores_column(self, _node, core_user_map, user_to_id, _max_np_range, user_of_job_id):
         """
         Calculates the actual contents of the map by filling in a status string for each CPU line
         """
@@ -895,7 +901,7 @@ class WNOccupancy(object):
                 core_user_map['Core' + str(core) + 'vector'] += [id_]
                 node_free_cores.remove(core)  # this is an assigned core, hence it doesn't belong to the node's free cores
 
-            non_existent_cores = [item for item in max_np_range if item not in node_cores]
+            non_existent_cores = [item for item in _max_np_range if item not in node_cores]
 
             '''
             One of the two dimenstions of the matrix is determined by the highest-core WN existing. If other WNs have less cores,
@@ -1454,7 +1460,7 @@ class Cluster(object):
 
         self.working_cores = 0
         self.total_cores = 0
-        self.max_np = 0
+        self.max_np_range = []
         self.highest_wn = 0
         self.offline_down_nodes = 0
         self.node_subclusters = set()
@@ -1470,27 +1476,30 @@ class Cluster(object):
         self.wn_filter = None
 
         self.all_str_digits_with_empties = list()
-        self.calculate()
 
-    def calculate(self):
+        self.analyse()
+
+    def analyse(self):
 
         if not self.worker_nodes:
             return None  # TODO ? what to return instead of cluster?
 
         re_nodename = r'(^[A-Za-z0-9-]+)(?=\.|$)' if not self.options.ANONYMIZE else r'\w_anon_\w+'
 
+        max_np = 0
         for node in self.worker_nodes:
             nodename_match = re.search(re_nodename, node['domainname'])
             _nodename = nodename_match.group(0)
 
-            node_letters = ''.join(re.findall(r'\D+', _nodename))
-            self.node_subclusters.update([node_letters])
+            # get subclusters by name change
+            _node_letters = ''.join(re.findall(r'\D+', _nodename))
+            self.node_subclusters.update([_node_letters])
 
             node_str_digits = "".join(re.findall(r'\d+', _nodename))
             self.all_str_digits_with_empties.append(node_str_digits)
 
-            self.total_cores += int(node.get('np'))
-            self.max_np = max(self.max_np, int(node['np']))
+            self.total_cores += int(node.get('np'))  # for stats only
+            max_np = max(max_np, int(node['np']))
             self.offline_down_nodes += 1 if node['state'] in 'do' else 0
             self.working_cores += len(node.get('core_job_map', dict()))
 
@@ -1501,6 +1510,7 @@ class Cluster(object):
             finally:
                 self.workernode_list.append(_cur_node_nr)
 
+        self.max_np_range = [str(x) for x in range(max_np)]
         self.options.REMAP = self.decide_remapping()
 
         # nodes_drop: this amount has to be chopped off of the end of workernode_list_remapped
@@ -1542,15 +1552,15 @@ class Cluster(object):
         if not self.total_wn:  # if nothing is running on the cluster
             return None
 
-        all_str_digits = filter(lambda x: x != "", self.all_str_digits_with_empties)
-        all_digits = [int(digit) for digit in all_str_digits]
+        _all_str_digits = filter(lambda x: x != "", self.all_str_digits_with_empties)
+        _all_digits = [int(digit) for digit in _all_str_digits]
 
         if options.BLINDREMAP or \
                         len(self.node_subclusters) > 1 or \
                         min(self.workernode_list) >= config['exotic_starting_wn_nr'] or \
                         self.offline_down_nodes >= self.total_wn * config['percentage'] or \
-                        len(self.all_str_digits_with_empties) != len(all_str_digits) or \
-                        len(all_digits) != len(all_str_digits):
+                        len(self.all_str_digits_with_empties) != len(_all_str_digits) or \
+                        len(_all_digits) != len(_all_str_digits):
             REMAP = True
         else:
             REMAP = False
@@ -1566,7 +1576,7 @@ class Cluster(object):
             exotic_starting = min(self.workernode_list) >= config['exotic_starting_wn_nr'] and \
                               'first starting numbering of a WN very high; would thus require too much unused space' or False
 
-            percentage_unassigned = len(self.all_str_digits_with_empties) != len(all_str_digits) and \
+            percentage_unassigned = len(self.all_str_digits_with_empties) != len(_all_str_digits) and \
                                     'more than %s of nodes have are down/offline' % float(config['percentage']) or False
 
             numbering_collisions = min(self.workernode_list) >= config['exotic_starting_wn_nr'] and \
@@ -1576,7 +1586,7 @@ class Cluster(object):
             logging.debug('Remapping decided due to: \n\t %s' % filter(
                 None, [user_request, subclusters, exotic_starting, percentage_unassigned, numbering_collisions]))
 
-            return REMAP
+        return REMAP
 
     def do_name_remapping(self):
         """
@@ -1622,14 +1632,14 @@ class Cluster(object):
         user_filtering = self.config['filtering'] and self.config['filtering'][0]
 
         if user_sorting and options_remap:
-            self.sort_worker_nodes()
+            self.worker_nodes = self._sort_worker_nodes()
 
         if user_filtering and options_remap:
-            worker_nodes_before = len(self.worker_nodes)
+            len_wn_before = len(self.worker_nodes)
             self.wn_filter = self.WNFilter(self.worker_nodes)
             self.worker_nodes = self.wn_filter.filter_worker_nodes(filter_rules=config['filtering'])
-            worker_nodes_after = len(self.worker_nodes)
-            nodes_drop = worker_nodes_after - worker_nodes_before
+            len_wn_after = len(self.worker_nodes)
+            nodes_drop = len_wn_after - len_wn_before
 
         for (batch_node, (idx, cur_node_nr)) in zip(self.worker_nodes, enumerate(self.workernode_list)):
             # Seemingly there is an error in the for loop because self.worker_nodes and workernode_list
@@ -1640,12 +1650,13 @@ class Cluster(object):
 
         return nodes_drop, workernode_dict, workernode_dict_remapped
 
-    def sort_worker_nodes(self):
+    def _sort_worker_nodes(self):
         try:
             self.worker_nodes.sort(key=eval(self.config['sorting']['user_sort']), reverse=self.config['sorting']['reverse'])
         except (IndexError, ValueError):
             logging.critical("There's (probably) something wrong in your sorting lambda in %s." % QTOPCONF_YAML)
             raise
+        return self.worker_nodes
 
 
 class WNFilter(object):
@@ -1822,17 +1833,18 @@ if __name__ == '__main__':
                 scheduling_system = available_batch_systems[scheduler](scheduler_output_filenames, config, options)
 
                 job_ids, user_names, job_states, job_queues = scheduling_system.get_jobs_info()
-                total_running_jobs, total_queued_jobs, qstatq_lod = scheduling_system.get_queues_info()
+                total_running_jobs, total_queued_jobs, qstatq_lod = scheduling_system.get_queues_info() # callthis elsewhere
                 worker_nodes = scheduling_system.get_worker_nodes()
 
-                Job_UserStateQ = namedtuple('Job_UserStateQ', ['user_name', 'job_state', 'job_queue'])
-                jobs_dict = dict((job_id, Job_UserStateQ(user_name, job_state, job_queue))
+                JobDoc = namedtuple('JobDoc', ['user_name', 'job_state', 'job_queue'])
+                jobs_dict = dict((job_id, JobDoc(user_name, job_state, job_queue))
                     for job_id, user_name, job_state, job_queue in izip(job_ids, user_names, job_states, job_queues))
 
-                Q_LimNameQdRnState = namedtuple('Q_LimNameQdRnState', ['lm', 'queued', 'run', 'state'])
-                queues_dict = OrderedDict((qstatq['queue_name'], (Q_LimNameQdRnState(str(qstatq['lm']), qstatq['queued'],
+                QDoc = namedtuple('QDoc', ['lm', 'queued', 'run', 'state'])
+                queues_dict = OrderedDict((qstatq['queue_name'], (QDoc(str(qstatq['lm']), qstatq['queued'],
                                                            qstatq['run'], qstatq['state']))) for qstatq in qstatq_lod)
                 worker_nodes = ensure_worker_nodes_have_qnames(worker_nodes, jobs_dict)  # TODO is this bad to have beforehand?
+                worker_nodes = keep_queue_initials_only(worker_nodes)
 
                 ###### Export data ###############
                 #
