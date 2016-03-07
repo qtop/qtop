@@ -587,6 +587,9 @@ class WNOccupancy(object):
             job_queues.append(value.job_queue)
         return user_names, job_states, job_queues
 
+    def get_dyn_var(self, var_name):
+        return getattr(self, var_name)
+
     def calculate(self, document, userid_pat_to_color):
         """
         Prints the Worker Nodes Occupancy table.
@@ -614,7 +617,7 @@ class WNOccupancy(object):
         # e.g. wns_occupancy['node_state'] = ...workernode_dict[node]['state'] for node in workernode_dict...
         for yaml_key, part_name, systems in yaml.get_yaml_key_part(config, scheduler, outermost_key='workernodes_matrix'):
             if scheduler in systems:
-                self.part_name = self.calc_general_multiline_attr(part_name, yaml_key, config)
+                self.__setattr__(part_name, self.calc_general_multiline_attr(part_name, yaml_key, config))
 
         self.core_user_map = self._calc_core_userid_matrix(job_ids, user_names)
 
@@ -1155,11 +1158,8 @@ class TextDisplay(object):
         """
         occupancy_parts needs to be redefined for each matrix, because of changed parameter values
         """
-        if (
-                    (not wns_occupancy.user_to_id)
-                # (not all([wns_occupancy, wns_occupancy.user_to_id)]))
-                or self.wns_occupancy.is_matrix_coreless()
-        ):
+        # was: (not all([wns_occupancy, wns_occupancy.user_to_id)]))
+        if ((not wns_occupancy.user_to_id) or self.wns_occupancy.is_matrix_coreless()):
             return
 
         print_char_start = wns_occupancy.print_char_start
@@ -1193,7 +1193,7 @@ class TextDisplay(object):
                     (
                         self.print_mult_attr_line,  # func
                         (print_char_start, print_char_stop, transposed_matrices),  # args
-                        {'attr_lines': wns_occupancy.part_name}  # kwargs
+                        {'attr_lines': wns_occupancy.get_dyn_var(part_name)}  # kwargs
                     )
             }
             occupancy_parts.update(new_occupancy_part)
@@ -1830,7 +1830,7 @@ if __name__ == '__main__':
                     for job_id, user_name, job_state, job_queue in izip(job_ids, user_names, job_states, job_queues))
 
                 Q_LimNameQdRnState = namedtuple('Q_LimNameQdRnState', ['lm', 'queued', 'run', 'state'])
-                queues_dict = dict((qstatq['queue_name'], (Q_LimNameQdRnState(str(qstatq['lm']), qstatq['queued'],
+                queues_dict = OrderedDict((qstatq['queue_name'], (Q_LimNameQdRnState(str(qstatq['lm']), qstatq['queued'],
                                                            qstatq['run'], qstatq['state']))) for qstatq in qstatq_lod)
                 worker_nodes = ensure_worker_nodes_have_qnames(worker_nodes, jobs_dict)  # TODO is this bad to have beforehand?
 
