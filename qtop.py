@@ -166,10 +166,13 @@ def calculate_term_size(config, FALLBACK_TERM_SIZE):
     fallback_term_size = config.get('term_size', FALLBACK_TERM_SIZE)
     try:
         term_height, term_columns = os.popen('stty size', 'r').read().split()
+        logging.debug('0.this resulted in v, h:%s, %s' % (term_height, term_columns))
     except ValueError:
-        logging.warn("Failed to autodetect terminal size. Trying values in %s." % QTOPCONF_YAML)
+        logging.warn("Failed to autodetect terminal size. (Running in an IDE?) Trying values in %s." % QTOPCONF_YAML)
         try:
-            term_height, term_columns = viewport.v_term_size, viewport.h_term_size
+            term_height, term_columns = viewport.get_term_size()
+            if not all(term_height, term_columns):
+                raise ValueError
         except ValueError:
             try:
                 term_height, term_columns = yaml.fix_config_list(viewport.get_term_size())
@@ -523,6 +526,11 @@ def ensure_worker_nodes_have_qnames(worker_nodes, jobs_dict):
         worker_node['qname'] = list(my_queues)
     return worker_nodes
 
+def assign_color_to_each_qname(worker_nodes):
+    q_to_color = dict()
+    for worker_node in worker_nodes:
+        worker_node['qname'] = [q[0] for q in worker_node['qname']]
+
 def keep_queue_initials_only(worker_nodes):
     # TODO remove monstrosity!
     for worker_node in worker_nodes:
@@ -788,6 +796,8 @@ class WNOccupancy(object):
             stop = start + wn_number
             extra_matrices_nr = 0
 
+        logging.debug('reported term_columns, DEADWEIGHT: %s\t%s' % (term_columns, DEADWEIGHT))
+        logging.debug('reported start/stop lengths: %s--> %s' % (start, stop))
         return start, stop, extra_matrices_nr
 
     def calc_all_wnid_label_lines(self, NAMED_WNS):  # (total_wn) in case of multiple cluster.node_subclusters
@@ -1199,7 +1209,8 @@ class TextDisplay(object):
                     (
                         self.print_mult_attr_line,  # func
                         (print_char_start, print_char_stop, transposed_matrices),  # args
-                        {'attr_lines': wns_occupancy.get_dyn_var(part_name)}  # kwargs
+                        {'attr_lines': wns_occupancy.get_dyn_var(part_name),
+                         'q_to_color': queue_to_color}  # kwargs
                     )
             }
             occupancy_parts.update(new_occupancy_part)
@@ -1370,8 +1381,8 @@ class TextDisplay(object):
             return
 
         # TODO: fix option parameter, inserted for testing purposes
-        for line in attr_lines:
-            line = attr_lines[line][print_char_start:print_char_stop]
+        for _line in attr_lines:
+            line = attr_lines[_line][print_char_start:print_char_stop]
             # TODO: maybe put attr_line and label as kwd arguments? collect them as **kwargs
             attr_line = self._insert_separators(line, config['SEPARATOR'], config['vertical_separator_every_X_columns'])
             attr_line = ''.join([self.colorize(char, color_func) for char in attr_line])
