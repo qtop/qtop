@@ -182,111 +182,6 @@ def calculate_term_size(config, FALLBACK_TERM_SIZE):
     return int(term_height), int(term_columns)
 
 
-class WNFilter(object):
-    def __init__(self, worker_nodes):
-        self.worker_nodes = worker_nodes
-
-    def _filter_list_out(self, the_list=None):
-        if not the_list:
-            the_list = []
-        for idx, node in enumerate(self.worker_nodes):
-            if idx in the_list:
-                node['mark'] = '*'
-        self.worker_nodes = filter(lambda item: not item.get('mark'), self.worker_nodes)
-        return self.worker_nodes
-
-
-    def _filter_list_out_by_name(self, the_list=None):
-        if not the_list:
-            the_list = []
-        else:
-            the_list[:] = [eval(i) for i in the_list]
-        for idx, node in enumerate(self.worker_nodes):
-            if node['domainname'].split('.', 1)[0] in the_list:
-                node['mark'] = '*'
-        self.worker_nodes = filter(lambda item: not item.get('mark'), self.worker_nodes)
-        return self.worker_nodes
-
-
-    def _filter_list_in_by_name(self, the_list=None):
-        if not the_list:
-            the_list = []
-        else:
-            the_list[:] = [eval(i) for i in the_list]
-        for idx, node in enumerate(self.worker_nodes):
-            if node['domainname'].split('.', 1)[0] not in the_list:
-                node['mark'] = '*'
-        self.worker_nodes = filter(lambda item: not item.get('mark'), self.worker_nodes)
-        return self.worker_nodes
-
-
-    def _filter_list_out_by_node_state(self, the_list=None):
-        if not the_list:
-            the_list = []
-        for idx, node in enumerate(self.worker_nodes):
-            if node['state'] in the_list:
-                node['mark'] = '*'
-        self.worker_nodes = filter(lambda item: not item.get('mark'), self.worker_nodes)
-        return self.worker_nodes
-
-
-    def _filter_list_out_by_name_pattern(self, the_list=None):
-        if not the_list:
-            the_list = []
-
-        for idx, node in enumerate(self.worker_nodes):
-            for pattern in the_list:
-                match = re.search(pattern, node['domainname'].split('.', 1)[0])
-                try:
-                    match.group(0)
-                except AttributeError:
-                    pass
-                else:
-                    node['mark'] = '*'
-        self.worker_nodes = filter(lambda item: not item.get('mark'), self.worker_nodes)
-        return self.worker_nodes
-
-
-    def _filter_list_in_by_name_pattern(self, the_list=None):
-        if not the_list:
-            the_list = []
-
-        for idx, node in enumerate(self.worker_nodes):
-            for pattern in the_list:
-                match = re.search(pattern, node['domainname'].split('.', 1)[0])
-                try:
-                    match.group(0)
-                except AttributeError:
-                    node['mark'] = '*'
-                else:
-                    pass
-        self.worker_nodes = filter(lambda item: not item.get('mark'), self.worker_nodes)
-        return self.worker_nodes
-
-
-    def filter_worker_nodes(self, filter_rules=None):
-        """
-        Filters specific nodes according to the filter rules in QTOPCONF_YAML
-        """
-
-        filter_types = {
-            'list_out': self._filter_list_out,
-            'list_out_by_name': self._filter_list_out_by_name,
-            'list_in_by_name': self._filter_list_in_by_name,
-            'list_out_by_name_pattern': self._filter_list_out_by_name_pattern,
-            'list_in_by_name_pattern': self._filter_list_in_by_name_pattern,
-            'list_out_by_node_state': self._filter_list_out_by_node_state
-        }
-
-        if filter_rules:
-            logging.warning("WN Occupancy view is filtered.")  # TODO display this somewhere in qtop!
-            for rule in filter_rules:
-                filter_func = filter_types[rule.keys()[0]]
-                args = rule.values()[0]
-                self.worker_nodes = filter_func(args)
-        return self.worker_nodes
-
-
 def finalize_filepaths_schedulercommands(options, config):
     """
     returns a dictionary with contents of the form
@@ -1751,6 +1646,105 @@ class Cluster(object):
         except (IndexError, ValueError):
             logging.critical("There's (probably) something wrong in your sorting lambda in %s." % QTOPCONF_YAML)
             raise
+
+
+class WNFilter(object):
+    def __init__(self, worker_nodes):
+        self.worker_nodes = worker_nodes
+
+    def _filter_list_out(self, the_list=None):
+        if not the_list:
+            the_list = []
+        for idx, node in enumerate(self.worker_nodes):
+            if idx in the_list:
+                node['mark'] = '*'
+        self.worker_nodes = filter(lambda item: not item.get('mark'), self.worker_nodes)
+        return self.worker_nodes
+
+    def _filter_list_out_by_name(self, the_list=None):
+        if not the_list:
+            the_list = []
+        else:
+            the_list[:] = [eval(i) for i in the_list]
+        for idx, node in enumerate(self.worker_nodes):
+            if node['domainname'].split('.', 1)[0] in the_list:
+                node['mark'] = '*'
+        self.worker_nodes = filter(lambda item: not item.get('mark'), self.worker_nodes)
+        return self.worker_nodes
+
+    def _filter_list_in_by_name(self, the_list=None):
+        if not the_list:
+            the_list = []
+        else:
+            the_list[:] = [eval(i) for i in the_list]
+        for idx, node in enumerate(self.worker_nodes):
+            if node['domainname'].split('.', 1)[0] not in the_list:
+                node['mark'] = '*'
+        self.worker_nodes = filter(lambda item: not item.get('mark'), self.worker_nodes)
+        return self.worker_nodes
+
+    def _filter_list_out_by_node_state(self, the_list=None):
+        if not the_list:
+            the_list = []
+        for idx, node in enumerate(self.worker_nodes):
+            if node['state'] in the_list:
+                node['mark'] = '*'
+        self.worker_nodes = filter(lambda item: not item.get('mark'), self.worker_nodes)
+        return self.worker_nodes
+
+    def _filter_list_out_by_name_pattern(self, the_list=None):
+        if not the_list:
+            the_list = []
+
+        for idx, node in enumerate(self.worker_nodes):
+            for pattern in the_list:
+                match = re.search(pattern, node['domainname'].split('.', 1)[0])
+                try:
+                    match.group(0)
+                except AttributeError:
+                    pass
+                else:
+                    node['mark'] = '*'
+        self.worker_nodes = filter(lambda item: not item.get('mark'), self.worker_nodes)
+        return self.worker_nodes
+
+    def _filter_list_in_by_name_pattern(self, the_list=None):
+        if not the_list:
+            the_list = []
+
+        for idx, node in enumerate(self.worker_nodes):
+            for pattern in the_list:
+                match = re.search(pattern, node['domainname'].split('.', 1)[0])
+                try:
+                    match.group(0)
+                except AttributeError:
+                    node['mark'] = '*'
+                else:
+                    pass
+        self.worker_nodes = filter(lambda item: not item.get('mark'), self.worker_nodes)
+        return self.worker_nodes
+
+    def filter_worker_nodes(self, filter_rules=None):
+        """
+        Filters specific nodes according to the filter rules in QTOPCONF_YAML
+        """
+
+        filter_types = {
+            'list_out': self._filter_list_out,
+            'list_out_by_name': self._filter_list_out_by_name,
+            'list_in_by_name': self._filter_list_in_by_name,
+            'list_out_by_name_pattern': self._filter_list_out_by_name_pattern,
+            'list_in_by_name_pattern': self._filter_list_in_by_name_pattern,
+            'list_out_by_node_state': self._filter_list_out_by_node_state
+        }
+
+        if filter_rules:
+            logging.warning("WN Occupancy view is filtered.")  # TODO display this somewhere in qtop!
+            for rule in filter_rules:
+                filter_func = filter_types[rule.keys()[0]]
+                args = rule.values()[0]
+                self.worker_nodes = filter_func(args)
+        return self.worker_nodes
 
 
 class JobNotFound(Exception):
