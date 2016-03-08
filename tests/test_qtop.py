@@ -1,7 +1,7 @@
 import pytest
 import re
 
-from qtop import create_job_counts, decide_batch_system, load_yaml_config, JobNotFound, SchedulerNotSpecified, NoSchedulerFound
+from qtop import WNOccupancy, decide_batch_system, load_yaml_config, JobNotFound, SchedulerNotSpecified, NoSchedulerFound
 
 
 @pytest.fixture
@@ -51,19 +51,26 @@ def test_create_job_counts():  # user_names, job_states, state_abbrevs
     user_names = ['sotiris', 'kostas', 'yannis', 'petros']
     state_abbrevs = {'C': 'cancelled_of_user', 'E': 'exiting_of_user', 'r': 'running_of_user'}
     job_states = ['r', 'E', 'r', 'C']
-    assert create_job_counts(user_names, job_states, state_abbrevs) == {
+    class Document(object): jobs_dict = {}
+    document = Document()
+
+    wns_occupancy = WNOccupancy(None, None, document, None)
+    assert wns_occupancy._create_user_job_counts(user_names, job_states, state_abbrevs) == {
         'cancelled_of_user': {'sotiris': 0, 'yannis': 0, 'petros': 1},
         'exiting_of_user': {'sotiris': 0, 'kostas': 1, 'yannis': 0},
         'running_of_user': {'sotiris': 1, 'yannis': 1},
     }
 
 
-def test_create_job_counts_raises_jobnotfound():  # user_names, job_states, state_abbrevs
+def test_create_user_job_counts_raises_jobnotfound():  # user_names, job_states, state_abbrevs
     user_names = ['sotiris', 'kostas', 'yannis', 'petros']
     state_abbrevs = {'C': 'cancelled_of_user', 'E': 'exiting_of_user', 'r': 'running_of_user'}
     job_states = ['r', 'E', 'x', 'C']
+    class Document(object): jobs_dict = {}
+    document = Document()
+    wns_occupancy = WNOccupancy(None, None, document, None)
     with pytest.raises(JobNotFound) as e:
-        create_job_counts(user_names, job_states, state_abbrevs) == {
+        wns_occupancy._create_user_job_counts(user_names, job_states, state_abbrevs) == {
             'cancelled_of_user': {'sotiris': 0, 'yannis': 0, 'petros': 1},
             'exiting_of_user': {'sotiris': 0, 'kostas': 1, 'yannis': 0},
             'running_of_user': {'sotiris': 1, 'yannis': 1},
