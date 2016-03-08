@@ -582,6 +582,7 @@ def process_options(options):
 #
 #     logging.error("Uncaught exception", exc_info=(exc_type, exc_value, exc_traceback))
 
+
 class WNOccupancy(object):
     def __init__(self, cluster, config, document, userid_pat_to_color):
         self.cluster = cluster
@@ -619,8 +620,8 @@ class WNOccupancy(object):
         user_to_id = self._create_id_for_users(user_alljobs_sorted_lot)
         user_job_per_state_counts = self._calculate_user_job_counts(self.user_names, self.job_states, user_alljobs_sorted_lot,
                                                                     user_to_id)
-        account_jobs_table = self._create_sort_acct_jobs_table(user_job_per_state_counts, user_alljobs_sorted_lot, user_to_id)
-        self.account_jobs_table, self.user_to_id = self._create_account_jobs_table(user_to_id, account_jobs_table)
+        _account_jobs_table = self._create_sort_acct_jobs_table(user_job_per_state_counts, user_alljobs_sorted_lot, user_to_id)
+        self.account_jobs_table, self.user_to_id = self._create_account_jobs_table(user_to_id, _account_jobs_table)
         self.uid_to_uid_re_pat = self.make_uid_to_uid_re_pat(userid_pat_to_color)
 
         # TODO extract to another class?
@@ -1120,7 +1121,7 @@ class TextDisplay(object):
               self.colorize(' <=== ', 'Gray_D') + \
               self.colorize('(%s)', 'Gray_D') % note
 
-    def display_user_accounts_pool_mappings(self, wns_occupancy=None):
+    def display_user_accounts_pool_mappings(self, wns_occupancy):
         """
         Displays qtop's third section
         """
@@ -1460,8 +1461,8 @@ class TextDisplay(object):
 
 
 class Cluster(object):
-    def __init__(self, document, WNFilter, config, options):
-        self.worker_nodes = document.worker_nodes
+    def __init__(self, document, worker_nodes, WNFilter, config, options):
+        self.worker_nodes = worker_nodes
         self.jobs_dict = document.jobs_dict
         self.queues_dict = document.queues_dict  # ex qstatq_lod is now list of namedtuples
         self.total_running_jobs = document.total_running_jobs
@@ -1864,7 +1865,6 @@ if __name__ == '__main__':
                 queues_dict = OrderedDict((qstatq['queue_name'], (QDoc(str(qstatq['lm']), qstatq['queued'],
                                                            qstatq['run'], qstatq['state']))) for qstatq in qstatq_lod)
                 worker_nodes = ensure_worker_nodes_have_qnames(worker_nodes, jobs_dict)  # TODO is this bad to have beforehand?
-                worker_nodes = keep_queue_initials_only(worker_nodes)
 
                 ###### Export data ###############
                 #
@@ -1875,7 +1875,8 @@ if __name__ == '__main__':
 
                 ###### Process data ###############
                 #
-                cluster = Cluster(document, WNFilter, config, options)
+                worker_nodes = keep_queue_initials_only(document.worker_nodes)
+                cluster = Cluster(document, worker_nodes, WNFilter, config, options)
                 wns_occupancy = WNOccupancy(cluster, config, document, userid_pat_to_color)
                 ###### Display data ###############
                 #
