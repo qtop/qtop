@@ -1104,10 +1104,13 @@ class TextDisplay(object):
         """
         Displays qtop's second section, the main worker node matrices.
         """
+        print_char_start = self.wns_occupancy.print_char_start
+        print_char_stop = self.wns_occupancy.print_char_stop
+
         self.display_basic_legend()
-        self.display_matrix(wns_occupancy)
+        self.display_matrix(wns_occupancy, print_char_start, print_char_stop)
         if not config['transpose_wn_matrices']:
-            self.display_remaining_matrices(wns_occupancy)
+            self.display_remaining_matrices(wns_occupancy, print_char_start, print_char_stop)
 
     def display_basic_legend(self):
         """Displays the Worker Nodes occupancy label plus columns explanation"""
@@ -1171,7 +1174,7 @@ class TextDisplay(object):
             )
             print print_string
 
-    def display_matrix(self, wns_occupancy):
+    def display_matrix(self, wns_occupancy, print_char_start, print_char_stop):
         """
         occupancy_parts needs to be redefined for each matrix, because of changed parameter values
         """
@@ -1179,8 +1182,6 @@ class TextDisplay(object):
         if ((not wns_occupancy.user_to_id) or self.wns_occupancy.is_matrix_coreless()):
             return
 
-        print_char_start = wns_occupancy.print_char_start
-        print_char_stop = wns_occupancy.print_char_stop
         wn_vert_labels = wns_occupancy.wn_vert_labels
         core_user_map = wns_occupancy.core_user_map
         extra_matrices_nr = wns_occupancy.extra_matrices_nr
@@ -1245,7 +1246,7 @@ class TextDisplay(object):
             self.viewport.max_width = self.viewport.get_term_size()[1]
         print
 
-    def display_remaining_matrices(self, wns_occupancy, DEADWEIGHT=11):
+    def display_remaining_matrices(self, wns_occupancy, print_char_start, print_char_stop, DEADWEIGHT=11):
         """
         If the WNs are more than a screenful (width-wise), this calculates the extra matrices needed to display them.
         DEADWEIGHT is the space taken by the {__XXXX__} labels on the right of the CoreX map
@@ -1260,15 +1261,15 @@ class TextDisplay(object):
 
         # need node_state, temp
         for matrix in range(extra_matrices_nr):
-            wns_occupancy.print_char_start = wns_occupancy.print_char_stop
+            print_char_start = print_char_stop
             if config['USER_CUT_MATRIX_WIDTH']:
-                wns_occupancy.print_char_stop += config['USER_CUT_MATRIX_WIDTH']
+                print_char_stop += config['USER_CUT_MATRIX_WIDTH']
             else:
-                wns_occupancy.print_char_stop += term_columns - DEADWEIGHT
-            wns_occupancy.print_char_stop = min(wns_occupancy.print_char_stop, cluster.total_wn) \
-                if options.REMAP else min(wns_occupancy.print_char_stop, cluster.highest_wn)
+                print_char_stop += term_columns - DEADWEIGHT
+            print_char_stop = min(print_char_stop, cluster.total_wn) \
+                if options.REMAP else min(print_char_stop, cluster.highest_wn)
 
-            self.display_matrix(wns_occupancy)
+            self.display_matrix(wns_occupancy, print_char_start, print_char_stop)
 
     def join_prints(self, *args, **kwargs):
         joined_list = []
