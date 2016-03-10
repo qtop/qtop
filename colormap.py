@@ -363,6 +363,7 @@ color_to_code = {
     'MagentaBG': ';45',
     'CyanBG': ';46',
     'Gray2BG': ';47',
+    '': '',
     'NOBG': '',
 }
 
@@ -373,5 +374,18 @@ queue_to_color = OrderedDict(
         (r'grid\d+M', 'Red_L'),
         ('dteam.*', 'Red_L'),
         ('alice', 'Red_L'),
+        ('cta', 'Pink'),
+        ('grid3000M', 'Purple'),
+        ('grid500M', 'Pink'),
+        ('grid1000M', 'Red_L'),
+        ('grid2000M', 'Red'),
+    ]
+)
+
+nodestate_to_color = OrderedDict(
+    [
+        ('r', 'Gray'),
+        ('d', 'Gray'),
+        ('o', 'Gray'),
     ]
 )

@@ -124,3 +124,35 @@ def _watch_callback(option, opt_str, value, parser):
     else:
         del parser.rargs[:len(value)]
     setattr(parser.values, option.dest, value)
+
+
+class ColorStr(object):
+    def __init__(self, colorfunc, string='', color=''):
+        self.str = string
+        self.color = color
+        self.initial = self.str[0]
+        self.color_initial = ''
+        self.index = 0
+        self.stop = len(self.str)
+
+    def __str__(self):
+        # self.color_initial = colorfunc(self.initial, color_func=self.color)
+        # return self.color_initial
+        return self.initial
+
+    def __repr__(self):
+        # self.color_initial = colorfunc(self.initial, color_func=self.color)
+        # return self.color_initial
+        return self.initial
+
+    def __len__(self):
+        return len(self.initial)
+
+    def __iter__(self):
+        return self
+
+    def next(self):
+        if self.index == self.stop:
+            raise StopIteration
+        self.index += 1
+        return self.initial

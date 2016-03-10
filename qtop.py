@@ -35,7 +35,7 @@ import fileutils
 import utils
 from plugins import *
 from math import ceil
-from colormap import userid_pat_to_color_default, color_to_code, queue_to_color
+from colormap import userid_pat_to_color_default, color_to_code, queue_to_color, nodestate_to_color
 import yaml_parser as yaml
 from ui.viewport import Viewport
 from serialiser import GenericBatchSystem
@@ -531,10 +531,25 @@ def assign_color_to_each_qname(worker_nodes):
     for worker_node in worker_nodes:
         worker_node['qname'] = [q[0] for q in worker_node['qname']]
 
-def keep_queue_initials_only(worker_nodes):
+def keep_queue_initials_only_and_colorize(worker_nodes, queue_to_color):
     # TODO remove monstrosity!
     for worker_node in worker_nodes:
-        worker_node['qname'] = [q[0] for q in worker_node['qname']]
+        color_q_list = []
+        for queue in worker_node['qname']:
+            color_q = utils.ColorStr(colorize, queue, color=queue_to_color.get(queue, ''))
+            color_q_list.append(color_q)
+        worker_node['qname'] = color_q_list
+    return worker_nodes
+
+
+def colorize_nodestate(worker_nodes, nodestate_to_color, ffunc):
+    # TODO remove monstrosity!
+    for worker_node in worker_nodes:
+        total_color_nodestate = []
+        for nodestate in worker_node['state']:
+            color_nodestate = utils.ColorStr(colorize, nodestate, color=nodestate_to_color.get(nodestate, ''))
+            total_color_nodestate.append(color_nodestate)
+        worker_node['state'] = total_color_nodestate
     return worker_nodes
 
 
@@ -629,7 +644,6 @@ class WNOccupancy(object):
         self.wn_vert_labels = self.calc_all_wnid_label_lines(NAMED_WNS)
 
         # For-loop below only for user-inserted/customizeable values.
-        # e.g. wns_occupancy['node_state'] = ...workernode_dict[node]['state'] for node in workernode_dict...
         for yaml_key, part_name, systems in yaml.get_yaml_key_part(config, scheduler, outermost_key='workernodes_matrix'):
             if scheduler in systems:
                 self.__setattr__(part_name, self.calc_general_multiline_attr(part_name, yaml_key, config))
@@ -834,7 +848,6 @@ class WNOccupancy(object):
         return wn_vert_labels
 
     def calc_general_multiline_attr(self, part_name, yaml_key, config):  # NEW
-        multiline_map = OrderedDict()
         elem_identifier = [d for d in config['workernodes_matrix'] if part_name in d][0]  # jeeez
         part_name_idx = config['workernodes_matrix'].index(elem_identifier)
         user_max_len = int(config['workernodes_matrix'][part_name_idx][part_name]['max_len'])
@@ -854,6 +867,7 @@ class WNOccupancy(object):
                 "Some longer %(attr)ss have been cropped due to %(attr)s length restriction by user" % {"attr": part_name})
 
         # initialisation of lines
+        multiline_map = OrderedDict()
         for line_nr in range(1, min_len + 1):
             multiline_map['attr%sline' % str(line_nr)] = []
 
@@ -862,13 +876,15 @@ class WNOccupancy(object):
             # distribute state, qname etc to lines
             for attr_line, ch in izip_longest(multiline_map, node_attrs[yaml_key], fillvalue=' '):
                 try:
+                    if ch == ' ':
+                        ch = utils.ColorStr(colorize, ' ')
                     multiline_map[attr_line].append(ch)
                 except KeyError:
                     break
                     # TODO: is this really needed?: self.cluster.workernode_dict[_node]['state_column']
 
         for line, attr_line in enumerate(multiline_map, 1):
-            multiline_map[attr_line] = ''.join(multiline_map[attr_line])
+            # multiline_map[attr_line] = ''.join(multiline_map[attr_line])
             if line == user_max_len:
                 break
         return multiline_map
@@ -1202,7 +1218,7 @@ class TextDisplay(object):
                 ),
         }
 
-        # custom part
+        # custom part, e.g. Node state, queue state etc
         for yaml_key, part_name, systems in yaml.get_yaml_key_part(config, scheduler, outermost_key='workernodes_matrix'):
             if scheduler not in systems: continue
 
@@ -1211,13 +1227,12 @@ class TextDisplay(object):
                     (
                         self.print_mult_attr_line,  # func
                         (print_char_start, print_char_stop, transposed_matrices),  # args
-                        {'attr_lines': wns_occupancy.get_dyn_var(part_name),
-                         'q_to_color': queue_to_color}  # kwargs
+                        {'attr_lines': wns_occupancy.get_dyn_var(part_name), 'coloring': queue_to_color}  # kwargs
                     )
             }
             occupancy_parts.update(new_occupancy_part)
 
-        # get info from QTOPCONF_YAML
+        # get additional info from QTOPCONF_YAML
         for part_dict in config['workernodes_matrix']:
             part = [k for k in part_dict][0]
             key_vals = part_dict[part]
@@ -1234,8 +1249,9 @@ class TextDisplay(object):
                 matrix[0] = order.index(matrix[1])
 
             transposed_matrices.sort(key=lambda item: item[0])
-
-            for line_tuple in izip_longest(*[tpl[2] for tpl in transposed_matrices], fillvalue='  '):
+            ###TRY###
+            for line_tuple in izip_longest(*[tpl[2] for tpl in transposed_matrices], fillvalue=utils.ColorStr(colorize,'  ',
+                                                                                                              color='Purple',)):
                 joined_list = self.join_prints(*line_tuple, sep=config.get('horizontal_separator', None))
 
             max_width = len(joined_list)
@@ -1275,17 +1291,20 @@ class TextDisplay(object):
         joined_list = []
         for d in args:
             sys.stdout.softspace = False  # if i want to omit in-between column spaces
-            joined_list.extend(d)
-            joined_list.append(kwargs['sep'])
-
-        print "".join(joined_list[self.viewport.h_start:self.viewport.h_stop])
+            joined_list.extend([utils.ColorStr(colorize, string=char) if isinstance(char, str) and len(char) == 1 else char
+            for char in d])
+            joined_list.append(utils.ColorStr(colorize, string=kwargs['sep']))
+        # import wdb; wdb.set_trace()
+        # print "".join([self.colorize(char, color_func='White') for char in joined_list[self.viewport.h_start:self.viewport.h_stop]])
+        print "".join([self.colorize(char.initial, color_func=char.color) if isinstance(char, utils.ColorStr) else char for char in joined_list[self.viewport.h_start:self.viewport.h_stop]])
         return joined_list
 
     def print_core_lines(self, core_user_map, print_char_start, print_char_stop, transposed_matrices, uid_to_uid_re_pat, attrs,
                          options1, options2):
         signal(SIGPIPE, SIG_DFL)
         if config['transpose_wn_matrices']:
-            tuple_ = [None, 'core_map', self.transpose_matrix(core_user_map, colored=True)]
+            # tuple_ = [None, 'core_map', self.transpose_matrix(core_user_map)]
+            tuple_ = [None, 'core_map', self.transpose_matrix(core_user_map, colored=True, coloring_pat=uid_to_uid_re_pat)]
             transposed_matrices.append(tuple_)
             return
 
@@ -1378,7 +1397,7 @@ class TextDisplay(object):
         attr_lines can be e.g. Node state lines
         """
         if config['transpose_wn_matrices']:
-            tuple_ = [None, label, self.transpose_matrix(attr_lines)]
+            tuple_ = [None, label, self.transpose_matrix(attr_lines, colored=True, coloring_pat=None)]
             transposed_matrices.append(tuple_)
             return
 
@@ -1387,7 +1406,7 @@ class TextDisplay(object):
             line = attr_lines[_line][print_char_start:print_char_stop]
             # TODO: maybe put attr_line and label as kwd arguments? collect them as **kwargs
             attr_line = self._insert_separators(line, config['SEPARATOR'], config['vertical_separator_every_X_columns'])
-            attr_line = ''.join([self.colorize(char, color_func) for char in attr_line])
+            attr_line = ''.join([self.colorize(char.initial, color_func=char.color) for char in attr_line])
             print attr_line + "=" + label
 
     def get_core_lines(self, core_user_map, print_char_start, print_char_stop, uid_to_uid_re_pat, attrs):
@@ -1431,16 +1450,17 @@ class TextDisplay(object):
 
             return text
 
-    def transpose_matrix(self, d, colored=False, reverse=False):
+    def transpose_matrix(self, d, colored=False, reverse=False, coloring_pat=None):
         """
         takes a dictionary whose values are lists of strings (=matrix)
         returns a transposed matrix
+        colors it in the meantime, if instructed to via colored
         """
         uid_to_uid_re_pat = wns_occupancy.uid_to_uid_re_pat
         for tpl in izip_longest(*[[char for char in d[k]] for k in d], fillvalue=" "):
             if any(j != " " for j in tpl):
-                tpl = colored and [self.colorize(j, '', uid_to_uid_re_pat[j]) if j in uid_to_uid_re_pat else j for j in
-                                   tpl] or list(tpl)
+                tpl = (colored and coloring_pat) and \
+                      [self.colorize(txt, '', coloring_pat[txt]) if txt in coloring_pat else txt for txt in tpl] or list(tpl)
                 tpl[:] = tpl[::-1] if reverse else tpl
             yield tpl
 
@@ -1543,7 +1563,8 @@ class Cluster(object):
 
             self.total_cores += int(node.get('np'))  # for stats only
             max_np = max(max_np, int(node['np']))
-            self.offdown_nodes += 1 if node['state'] in 'do' else 0
+            self.offdown_nodes += 1 if ('d' in str(node['state']) or 'o' in str(node['state']))  else 0
+            # self.offdown_nodes += 1 if node['state'] in 'do' else 0
             self.working_cores += len(node.get('core_job_map', dict()))
 
             try:
@@ -1679,6 +1700,28 @@ class Cluster(object):
             logging.critical("There's (probably) something wrong in your sorting lambda in %s." % QTOPCONF_YAML)
             raise
         return self.worker_nodes
+
+
+def colorize(text, color_func=None, pattern='NoPattern', mapping=None, bg_color=None, bold=False):
+    """
+    prints text colored according to a unix account pattern color.
+    If color is given directly as color_func, pattern is not needed.
+    """
+    bg_color = 'NOBG' if not bg_color else bg_color
+    if not mapping:
+        mapping = userid_pat_to_color
+    try:
+        ansi_color = color_to_code[color_func] if color_func else color_to_code[mapping[pattern]]
+    except KeyError:
+        return text
+    else:
+        if bold and ansi_color[0] in '01':
+            ansi_color = '1' + ansi_color[1:]
+        if ((options.COLOR == 'ON') and pattern != 'account_not_colored' and text != ' '):
+            text = "\033[%(fg_color)s%(bg_color)sm%(text)s\033[0;m" \
+                   % {'fg_color': ansi_color, 'bg_color': color_to_code[bg_color], 'text': text}
+
+        return text
 
 
 class WNFilter(object):
@@ -1876,7 +1919,8 @@ if __name__ == '__main__':
 
                 ###### Process data ###############
                 #
-                worker_nodes = keep_queue_initials_only(document.worker_nodes)
+                worker_nodes = keep_queue_initials_only_and_colorize(document.worker_nodes, queue_to_color)
+                worker_nodes = colorize_nodestate(document.worker_nodes, nodestate_to_color, colorize)
                 cluster = Cluster(document, worker_nodes, WNFilter, config, options)
                 wns_occupancy = WNOccupancy(cluster, config, document, userid_pat_to_color)
                 ###### Display data ###############
