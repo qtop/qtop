@@ -536,7 +536,7 @@ def keep_queue_initials_only_and_colorize(worker_nodes, queue_to_color):
     for worker_node in worker_nodes:
         color_q_list = []
         for queue in worker_node['qname']:
-            color_q = utils.ColorStr(colorize, queue, color=queue_to_color.get(queue, ''))
+            color_q = utils.ColorStr(queue, color=queue_to_color.get(queue, ''))
             color_q_list.append(color_q)
         worker_node['qname'] = color_q_list
     return worker_nodes
@@ -547,7 +547,7 @@ def colorize_nodestate(worker_nodes, nodestate_to_color, ffunc):
     for worker_node in worker_nodes:
         total_color_nodestate = []
         for nodestate in worker_node['state']:
-            color_nodestate = utils.ColorStr(colorize, nodestate, color=nodestate_to_color.get(nodestate, ''))
+            color_nodestate = utils.ColorStr(nodestate, color=nodestate_to_color.get(nodestate, ''))
             total_color_nodestate.append(color_nodestate)
         worker_node['state'] = total_color_nodestate
     return worker_nodes
@@ -877,7 +877,7 @@ class WNOccupancy(object):
             for attr_line, ch in izip_longest(multiline_map, node_attrs[yaml_key], fillvalue=' '):
                 try:
                     if ch == ' ':
-                        ch = utils.ColorStr(colorize, ' ')
+                        ch = utils.ColorStr(' ')
                     multiline_map[attr_line].append(ch)
                 except KeyError:
                     break
@@ -1250,8 +1250,7 @@ class TextDisplay(object):
 
             transposed_matrices.sort(key=lambda item: item[0])
             ###TRY###
-            for line_tuple in izip_longest(*[tpl[2] for tpl in transposed_matrices], fillvalue=utils.ColorStr(colorize,'  ',
-                                                                                                              color='Purple',)):
+            for line_tuple in izip_longest(*[tpl[2] for tpl in transposed_matrices], fillvalue=utils.ColorStr('  ', color='Purple', )):
                 joined_list = self.join_prints(*line_tuple, sep=config.get('horizontal_separator', None))
 
             max_width = len(joined_list)
@@ -1291,9 +1290,9 @@ class TextDisplay(object):
         joined_list = []
         for d in args:
             sys.stdout.softspace = False  # if i want to omit in-between column spaces
-            joined_list.extend([utils.ColorStr(colorize, string=char) if isinstance(char, str) and len(char) == 1 else char
+            joined_list.extend([utils.ColorStr(string=char) if isinstance(char, str) and len(char) == 1 else char
             for char in d])
-            joined_list.append(utils.ColorStr(colorize, string=kwargs['sep']))
+            joined_list.append(utils.ColorStr(string=kwargs['sep']))
         # import wdb; wdb.set_trace()
         # print "".join([self.colorize(char, color_func='White') for char in joined_list[self.viewport.h_start:self.viewport.h_stop]])
         print "".join([self.colorize(char.initial, color_func=char.color) if isinstance(char, utils.ColorStr) else char for char in joined_list[self.viewport.h_start:self.viewport.h_stop]])

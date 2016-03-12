@@ -127,7 +127,10 @@ def _watch_callback(option, opt_str, value, parser):
 
 
 class ColorStr(object):
-    def __init__(self, colorfunc, string='', color=''):
+    """
+    ColorStr instances are normal strings with color information attached to them
+    """
+    def __init__(self, string='', color=''):
         self.str = string
         self.color = color
         self.initial = self.str[0]
@@ -136,13 +139,9 @@ class ColorStr(object):
         self.stop = len(self.str)
 
     def __str__(self):
-        # self.color_initial = colorfunc(self.initial, color_func=self.color)
-        # return self.color_initial
         return self.initial
 
     def __repr__(self):
-        # self.color_initial = colorfunc(self.initial, color_func=self.color)
-        # return self.color_initial
         return self.initial
 
     def __len__(self):
