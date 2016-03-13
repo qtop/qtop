@@ -1703,8 +1703,21 @@ class Cluster(object):
 
 def colorize(text, color_func=None, pattern='NoPattern', mapping=None, bg_color=None, bold=False):
     """
-    prints text colored according to a unix account pattern color.
-    If color is given directly as color_func, pattern is not needed.
+    prints colored text according to at least one of the keyword arguments available:
+    color_func can be a direct ansi color name or a function providing a color name.
+    If color is given directly as color_func, pattern/mapping are not needed.
+    If no color_func and no mapping are defined, the default mapping is used,
+    which is userid_pat_to_color, mapping an account name to a color.
+    A pattern must then be given, which is the key of the mapping.
+    Other mappings available are: nodestate_to_color, queue_to_color.
+    Examples:
+    s = ColorStr(string='This is some text', color='Red_L')
+    print colorize(s, color_func=s.color), # Red_L is applied directly
+    print colorize(s.str, pattern='alicesgm') # mapping defaults to userid_pat_to_color
+    print colorize(s.str, color_func=s.color, bg_color='BlueBG') # bg and fg colors applied directly
+
+    state = ColorStr('running. coloring according to node state')
+    print colorize(state.str, mapping=nodestate_to_color, pattern=state.initial)
     """
     bg_color = 'NOBG' if not bg_color else bg_color
     if not mapping:

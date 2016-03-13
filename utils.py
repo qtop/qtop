@@ -128,21 +128,23 @@ def _watch_callback(option, opt_str, value, parser):
 
 class ColorStr(object):
     """
-    ColorStr instances are normal strings with color information attached to them
+    ColorStr instances are normal strings with color information attached to them,
+    to be used with colorize(), e.g.
+    print colorize(s.str, color_func=s.color)
+    print colorize(s, mapping=nodestate_to_color, pattern=s.initial
     """
     def __init__(self, string='', color=''):
         self.str = string
         self.color = color
         self.initial = self.str[0]
-        self.color_initial = ''
         self.index = 0
         self.stop = len(self.str)
 
     def __str__(self):
-        return self.initial
+        return str(self.initial)
 
     def __repr__(self):
-        return self.initial
+        return repr(self.initial)
 
     def __len__(self):
         return len(self.initial)
@@ -155,3 +157,5 @@ class ColorStr(object):
             raise StopIteration
         self.index += 1
         return self.initial
+
+
