@@ -344,9 +344,11 @@ color_to_code = {
     'White': '1;37',
     'Red': '0;31',
     'Red_L': '1;31',
+    'Red_LOnGrayBG': '1;31;40',
     'Green': '0;32',
     'Green_L': '1;32',
     'Purple': '0;35',
+    'PurpleOnGrayBG': '0;35;40',
     'Pink': '1;35',
     'Brown': '0;33',
     'Yellow': '1;33',
@@ -386,6 +388,6 @@ nodestate_to_color = OrderedDict(
     [
         ('r', 'Gray'),
         ('d', 'Gray'),
-        ('o', 'Gray'),
+        ('o', 'MaroonBG'),
     ]
 )
