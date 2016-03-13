@@ -2,6 +2,7 @@ import logging
 import sys
 from optparse import OptionParser
 import fileutils
+from colormap import *
 from constants import QTOP_LOGFILE
 
 
