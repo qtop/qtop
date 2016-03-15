@@ -1542,7 +1542,8 @@ class Cluster(object):
 
             self.total_cores += int(node.get('np'))  # for stats only
             max_np = max(max_np, int(node['np']))
-            self.offdown_nodes += 1 if ('d' in str(node['state']) or 'o' in str(node['state']))  else 0
+            self.offdown_nodes += 1 if "".join(([n.str for n in node['state']])) in 'do'  else 0
+            # self.offdown_nodes += 1 if ('d' in node['state'] or 'o' in node['state'])  else 0
             # self.offdown_nodes += 1 if node['state'] in 'do' else 0
             self.working_cores += len(node.get('core_job_map', dict()))
 

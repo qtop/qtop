@@ -390,5 +390,6 @@ nodestate_to_color = OrderedDict(
         ('r', 'Blue'),
         ('d', 'Gray'),
         ('o', 'MaroonBG'),
+        ('au', 'Red_LOnGrayBG'),
     ]
 )
