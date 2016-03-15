@@ -35,7 +35,7 @@ import fileutils
 import utils
 from plugins import *
 from math import ceil
-from colormap import userid_pat_to_color_default, color_to_code, queue_to_color, nodestate_to_color
+from colormap import userid_pat_to_color_default, color_to_code, queue_to_color, nodestate_to_color_default
 import yaml_parser as yaml
 from ui.viewport import Viewport
 from serialiser import GenericBatchSystem
@@ -131,6 +131,13 @@ def load_yaml_config():
         [userid_pat_to_color.update(d) for d in config['user_color_mappings']]
     else:
         config['user_color_mappings'] = list()
+
+    if config['nodestate_color_mappings']:
+        nodestate_to_color = nodestate_to_color_default.copy()
+        [nodestate_to_color.update(d) for d in config['nodestate_color_mappings']]
+    else:
+        config['nodestate_color_mappings'] = list()
+
     if config['remapping']:
         pass
     else:
@@ -156,7 +163,7 @@ def load_yaml_config():
     config['ALT_LABEL_COLORS'] = yaml.fix_config_list(config['workernodes_matrix'][0]['wn id lines']['alt_label_colors'])
     config['SEPARATOR'] = config['vertical_separator'].translate(None, "'")
     config['USER_CUT_MATRIX_WIDTH'] = int(config['workernodes_matrix'][0]['wn id lines']['user_cut_matrix_width'])
-    return config, userid_pat_to_color
+    return config, userid_pat_to_color, nodestate_to_color
 
 
 def calculate_term_size(config, FALLBACK_TERM_SIZE):
@@ -1871,7 +1878,7 @@ if __name__ == '__main__':
             while True:
                 handle, output_fp = fileutils.get_new_temp_file(prefix='qtop_', suffix='.out')  # qtop output is saved to this file
                 sys.stdout = os.fdopen(handle, 'w')  # redirect everything to file, creates file object out of handle
-                config, userid_pat_to_color = load_yaml_config()  # TODO account_to_color is updated in here !!
+                config, userid_pat_to_color, nodestate_to_color = load_yaml_config()  # TODO account_to_color is updated in here !!
                 config = update_config_with_cmdline_vars(options, config)
 
                 attempt_faster_xml_parsing(config)

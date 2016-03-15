@@ -384,12 +384,11 @@ queue_to_color = OrderedDict(
     ]
 )
 
-nodestate_to_color = OrderedDict(
+nodestate_to_color_default = OrderedDict(
     [
         ('hqw', 'PurpleOnGrayBG'),
         ('r', 'Blue'),
         ('d', 'Gray'),
         ('o', 'MaroonBG'),
-        ('au', 'Red_LOnGrayBG'),
     ]
 )
