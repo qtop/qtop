@@ -243,9 +243,9 @@ class SGEBatchSystem(GenericBatchSystem):
         finally:
             return _state
 
-    def _extract_queues(self, path, root):
+    def _extract_queues(self, xpath, root):
         qstatq_list = []
-        for queue_elem in root.findall(path):
+        for queue_elem in root.findall(xpath):
 
             queue_names = queue_elem.findall('resource')
             for _queue_name in queue_names:
@@ -287,8 +287,8 @@ class SGEBatchSystem(GenericBatchSystem):
 
         return qstatq_list
 
-    def _get_total_queued_jobs(self, path, root):
-        total_queued_jobs_elems = root.findall(path)
+    def _get_total_queued_jobs(self, xpath, root):
+        total_queued_jobs_elems = root.findall(xpath)
         pending_count = 0
         for job in total_queued_jobs_elems:
             if job.attrib.get('state') == 'pending':

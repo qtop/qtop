@@ -545,10 +545,10 @@ def keep_queue_initials_only_and_colorize(worker_nodes, queue_to_color):
 def colorize_nodestate(worker_nodes, nodestate_to_color, ffunc):
     # TODO remove monstrosity!
     for worker_node in worker_nodes:
+        full_nodestate = worker_node['state']  # actual node state
         total_color_nodestate = []
-        for nodestate in worker_node['state']:
-            color_nodestate = utils.ColorStr(string=nodestate)
-            # color_nodestate = utils.ColorStr(nodestate, color=nodestate_to_color.get(nodestate, ''))
+        for nodestate in worker_node['state']:  # split nodestate for displaying purposes
+            color_nodestate = utils.ColorStr(nodestate, color=nodestate_to_color.get(full_nodestate, ''))
             total_color_nodestate.append(color_nodestate)
         worker_node['state'] = total_color_nodestate
     return worker_nodes
@@ -647,7 +647,7 @@ class WNOccupancy(object):
         # For-loop below only for user-inserted/customizeable values.
         for yaml_key, part_name, systems in yaml.get_yaml_key_part(config, scheduler, outermost_key='workernodes_matrix'):
             if scheduler in systems:
-                self.__setattr__(part_name, self.calc_general_multiline_attr(part_name, yaml_key, config))
+                self.__setattr__(part_name, self.calc_general_mult_attr_line(part_name, yaml_key, config))
 
         self.core_user_map = self._calc_core_userid_matrix(job_ids, user_names)
 
@@ -848,7 +848,7 @@ class WNOccupancy(object):
             wn_vert_labels[wn] = "".join(wn_vert_labels[wn])
         return wn_vert_labels
 
-    def calc_general_multiline_attr(self, part_name, yaml_key, config):  # NEW
+    def calc_general_mult_attr_line(self, part_name, yaml_key, config):  # NEW
         elem_identifier = [d for d in config['workernodes_matrix'] if part_name in d][0]  # jeeez
         part_name_idx = config['workernodes_matrix'].index(elem_identifier)
         user_max_len = int(config['workernodes_matrix'][part_name_idx][part_name]['max_len'])

@@ -386,7 +386,8 @@ queue_to_color = OrderedDict(
 
 nodestate_to_color = OrderedDict(
     [
-        ('r', 'Gray'),
+        ('hqw', 'PurpleOnGrayBG'),
+        ('r', 'Blue'),
         ('d', 'Gray'),
         ('o', 'MaroonBG'),
     ]

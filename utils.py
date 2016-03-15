@@ -142,10 +142,10 @@ class ColorStr(object):
         self.stop = len(self.str)
 
     def __str__(self):
-        return str(self.initial)
+        return str(self.str)
 
     def __repr__(self):
-        return repr(self.initial)
+        return repr(self.str)
 
     def __len__(self):
         return len(self.initial)
@@ -157,6 +157,7 @@ class ColorStr(object):
         if self.index == self.stop:
             raise StopIteration
         self.index += 1
-        return self.initial
+        # return self.initial
+        return self
 
 
