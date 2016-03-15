@@ -547,7 +547,8 @@ def colorize_nodestate(worker_nodes, nodestate_to_color, ffunc):
     for worker_node in worker_nodes:
         total_color_nodestate = []
         for nodestate in worker_node['state']:
-            color_nodestate = utils.ColorStr(nodestate, color=nodestate_to_color.get(nodestate, ''))
+            color_nodestate = utils.ColorStr(string=nodestate)
+            # color_nodestate = utils.ColorStr(nodestate, color=nodestate_to_color.get(nodestate, ''))
             total_color_nodestate.append(color_nodestate)
         worker_node['state'] = total_color_nodestate
     return worker_nodes
