@@ -1298,16 +1298,14 @@ class TextDisplay(object):
             joined_list.extend([utils.ColorStr(string=char) if isinstance(char, str) and len(char) == 1 else char
             for char in d])
             joined_list.append(utils.ColorStr(string=kwargs['sep']))
-        # import wdb; wdb.set_trace()
-        # print "".join([colorize(char, color_func='White') for char in joined_list[self.viewport.h_start:self.viewport.h_stop]])
-        print "".join([colorize(char.initial, color_func=char.color) if isinstance(char, utils.ColorStr) else char for char in joined_list[self.viewport.h_start:self.viewport.h_stop]])
+        print "".join([colorize(char.initial, color_func=char.color) if isinstance(char, utils.ColorStr) else char
+                       for char in joined_list[self.viewport.h_start:self.viewport.h_stop]])
         return joined_list
 
     def print_core_lines(self, core_user_map, print_char_start, print_char_stop, transposed_matrices, uid_to_uid_re_pat, attrs,
                          options1, options2):
         signal(SIGPIPE, SIG_DFL)
         if config['transpose_wn_matrices']:
-            # tuple_ = [None, 'core_map', self.transpose_matrix(core_user_map)]
             tuple_ = [None, 'core_map', self.transpose_matrix(core_user_map, colored=True, coloring_pat=uid_to_uid_re_pat)]
             transposed_matrices.append(tuple_)
             return

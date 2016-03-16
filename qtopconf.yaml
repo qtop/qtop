@@ -137,7 +137,7 @@ queue_color_mappings:
   - dteam\w+: Cyan_L
 
 nodestate_color_mappings:
- - au: Green
+ - au: BlackOnRed
  - d: Red_LOnGrayBG
 
 # if cluster numbering should start on a number # above this, do automatic blind remapping
