@@ -900,9 +900,8 @@ class WNOccupancy(object):
     def _calc_core_userid_matrix(self, job_ids, user_names):
         core_user_map = OrderedDict()
         user_of_job_id = dict(izip(job_ids, user_names))
-        if not user_of_job_id:
-            return
-
+        # if not user_of_job_id:
+        #     return
         for core_nr in self.cluster.core_span:
             core_user_map['Core%svector' % str(core_nr)] = []  # Cpu0line, Cpu1line, Cpu2line, .. = '','','', ..
 
@@ -923,10 +922,11 @@ class WNOccupancy(object):
         state = state_np_corejob['state']
         np = state_np_corejob['np']
         corejobs = state_np_corejob.get('core_job_map', dict())
+        non_existent_node_symbol = config['non_existent_node_symbol']
 
         if state == '?':  # for non-existent machines
             for core_line in core_user_map:
-                core_user_map[core_line] += [config['non_existent_node_symbol']]
+                core_user_map[core_line] += [non_existent_node_symbol]
         else:
             node_cores = [str(x) for x in range(int(np))]
             node_free_cores = node_cores[:]
@@ -939,10 +939,9 @@ class WNOccupancy(object):
             non_existent_cores = [item for item in _core_span if item not in node_cores]
 
             '''
-            One of the two dimenstions of the matrix is determined by the highest-core WN existing. If other WNs have less cores,
+            One of the two dimensions of the matrix is determined by the highest-core WN existing. If other WNs have less cores,
             these positions are filled with '#'s (or whatever is defined in config['non_existent_node_symbol']).
             '''
-            non_existent_node_symbol = config['non_existent_node_symbol']
             for core in node_free_cores:
                 core_user_map['Core' + str(core) + 'vector'] += ['_']
             for core in non_existent_cores:
@@ -957,8 +956,6 @@ class WNOccupancy(object):
         Generator that yields only those core-job pairs that successfully match to a user
         """
         for core in corejobs:
-            # for corejob in corejobs:
-            # core, job = str(corejob['core']), str(corejob['job'])
             job = str(corejobs[core])
             try:
                 user = user_of_job_id[job]
@@ -1202,8 +1199,8 @@ class TextDisplay(object):
         """
         occupancy_parts needs to be redefined for each matrix, because of changed parameter values
         """
-        # was: (not all([wns_occupancy, wns_occupancy.user_to_id)]))
-        if ((not wns_occupancy.user_to_id) or self.wns_occupancy.is_matrix_coreless()):
+        # was: (not wns_occupancy.user_to_id) or is_matrix_coreless
+        if self.wns_occupancy.is_matrix_coreless():
             return
 
         wn_vert_labels = wns_occupancy.wn_vert_labels

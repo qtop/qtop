@@ -138,7 +138,7 @@ queue_color_mappings:
 
 nodestate_color_mappings:
  - au: Green
- - dr: Red_LOnGrayBG
+ - d: Red_LOnGrayBG
 
 # if cluster numbering should start on a number # above this, do automatic blind remapping
 exotic_starting_wn_nr: 9000
