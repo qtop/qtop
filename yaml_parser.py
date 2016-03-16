@@ -74,7 +74,7 @@ def convert_dash_key_in_dict(d):
     try:
         assert isinstance(d, dict)
     except AssertionError:
-        return d
+        return d  # TODO: Maybe this should fail, not be muted
 
     for key_out in d:
         if not (isinstance(d[key_out], dict) or len(d[key_out]) == 1):

@@ -2,6 +2,7 @@ import logging
 import sys
 from optparse import OptionParser
 import fileutils
+from colormap import *
 from constants import QTOP_LOGFILE
 
 
@@ -124,3 +125,40 @@ def _watch_callback(option, opt_str, value, parser):
     else:
         del parser.rargs[:len(value)]
     setattr(parser.values, option.dest, value)
+
+
+class ColorStr(object):
+    """
+    ColorStr instances are normal strings with color information attached to them,
+    to be used with colorize(), e.g.
+    print colorize(s.str, color_func=s.color)
+    print colorize(s, mapping=nodestate_to_color, pattern=s.initial
+    """
+    def __init__(self, string='', color=''):
+        self.str = string
+        self.color = color
+        self.initial = self.str[0]
+        self.index = 0
+        self.stop = len(self.str)
+
+    def __str__(self):
+        return str(self.str)
+
+    def __repr__(self):
+        return repr(self.str)
+
+    def __len__(self):
+        return len(self.initial)
+
+    def __iter__(self):
+        return self
+
+    def next(self):
+        if self.index == self.stop:
+            raise StopIteration
+        self.index += 1
+        # return self.initial
+        return self
+
+    def __contains__(self, item):
+        return True if item in self.str else False
