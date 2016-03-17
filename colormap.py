@@ -212,6 +212,7 @@ userid_pat_to_color_default = OrderedDict(
         #( Other VOs from the EGEE-I,II,III era)
         ('egee', 'Blue_L'),
         #( Biomed VO)
+        ('bio', 'Blue_L'),
         ('biomedusr', 'Blue_L'),
         ('biomed', 'Blue_L'),
         ('biomd', 'Blue_L'),
@@ -219,7 +220,6 @@ userid_pat_to_color_default = OrderedDict(
         ('biocw', 'Blue_L'),
         ('biostats', 'Blue_L'),
         ('biotech', 'Blue_L'),
-        ('bio', 'Blue_L'),
         #( Gear V)O
         ('gearsgm', 'Blue_L'),
         ('gearprd', 'Blue_L'),
@@ -334,7 +334,6 @@ userid_pat_to_color_default = OrderedDict(
         ('#', 'Gray_D'),
         ('account_not_colored', 'reset'),
         ('NoPattern', 'White'),
-        ('Pending', 'Yellow'),
     ]
 )
 

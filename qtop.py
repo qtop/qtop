@@ -8,7 +8,7 @@
 ################################################
 
 from operator import itemgetter
-from itertools import izip, izip_longest
+from itertools import izip, izip_longest, cycle
 import subprocess
 import select
 import os
@@ -775,7 +775,7 @@ class WNOccupancy(object):
                     continue  # keep trying
                 account_letters = re_account  # colors the text according to the regex given by the user in qtopconf
 
-            uid_to_uid_re_pat[uid] = account_letters if account_letters in userid_pat_to_color else 'account_not_colored'
+            uid_to_uid_re_pat[uid] = account_letters if account_letters in userid_pat_to_color else 'NoPattern'
 
         # TODO: remove these from here
         uid_to_uid_re_pat[self.config['non_existent_node_symbol']] = '#'
@@ -1180,13 +1180,13 @@ class TextDisplay(object):
                             '{4:>{width18}} '
                             '[ {0:<{width1}}] '
                             '{5:<{width40}} {sep}').format(
-                colorize(str(uid), '', userid_pat, bold=False),
-                colorize(str(runningjobs), '', userid_pat),
-                colorize(str(queuedjobs), '', userid_pat),
-                colorize(str(alljobs), '', userid_pat),
-                colorize(user, '', userid_pat),
-                colorize(detail_of_name.get(user, ''), '', userid_pat),
-                sep=colorize(config['SEPARATOR'], '', userid_pat),
+                colorize(str(uid), pattern=userid_pat),
+                colorize(str(runningjobs), pattern=userid_pat),
+                colorize(str(queuedjobs), pattern=userid_pat),
+                colorize(str(alljobs), pattern=userid_pat),
+                colorize(user, pattern=userid_pat),
+                colorize(detail_of_name.get(user, ''), pattern=userid_pat),
+                sep=colorize(config['SEPARATOR'], pattern=userid_pat),
                 width1=1 + conditional_width,
                 width3=3 + conditional_width,
                 width4=4 + conditional_width,
@@ -1355,11 +1355,9 @@ class TextDisplay(object):
                                   color_func=self.highlight_alternately, args=(config['ALT_LABEL_COLORS']))
 
     def highlight_alternately(self, color_a, color_b):
-        highlight = {0: color_a, 1: color_b}  # should obviously be customizable
-        selection = 0
-        while True:
-            selection = 0 if selection else 1
-            yield highlight[selection]
+        colors = cycle([color_a, color_b])
+        for color in colors:
+            yield color
 
     def color_plainly(self, color_0, color_1, condition):
         while condition:
@@ -1374,11 +1372,11 @@ class TextDisplay(object):
             transposed_matrices.append(tuple_)
             return
 
-        colors = iter(color_func(*args))
-        for line_nr, end_label, color in zip(d, end_labels, colors):
-            wn_id_str = self._insert_separators(d[line_nr][start:stop], config['SEPARATOR'],
-                                                config['vertical_separator_every_X_columns'])
-            wn_id_str = ''.join([colorize(elem, color) for elem in wn_id_str])
+        separators = config['vertical_separator_every_X_columns']
+        for line_nr, end_label in zip(d, end_labels):
+            colors = iter(color_func(*args))
+            wn_id_str = self._insert_separators(d[line_nr][start:stop], config['SEPARATOR'], separators)
+            wn_id_str = ''.join([colorize(elem, next(colors)) for elem in wn_id_str])
             print wn_id_str + end_label
 
     def print_y_lines_of_file_starting_from_x(self, file, x, y):
