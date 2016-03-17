@@ -1411,24 +1411,25 @@ class TextDisplay(object):
             attr_line = ''.join([colorize(char.initial, color_func=char.color) for char in attr_line])
             print attr_line + "=" + label
 
-    def get_core_lines(self, core_user_map, print_char_start, print_char_stop, uid_to_uid_re_pat, attrs):
+    def get_core_lines(self, core_user_map, print_char_start, print_char_stop, coloring_pattern, attrs):
         """
         prints all coreX lines, except cores that don't show up
         anywhere in the given matrix
         """
         # TODO: is there a way to use is_matrix_coreless in here? avoid duplication of code
+        non_existent_symbol = config['non_existent_node_symbol']
         for ind, k in enumerate(core_user_map):
             cpu_core_line = core_user_map['Core' + str(ind) + 'vector'][print_char_start:print_char_stop]
             if options.REM_EMPTY_CORELINES and \
                     (
-                                (config['non_existent_node_symbol'] * (print_char_stop - print_char_start) == cpu_core_line) or \
-                                    (config['non_existent_node_symbol'] * (len(cpu_core_line)) == cpu_core_line)
+                        (non_existent_symbol * (print_char_stop - print_char_start) == cpu_core_line) or
+                            (non_existent_symbol * (len(cpu_core_line)) == cpu_core_line)
                     ):
                 continue
             cpu_core_line = self._insert_separators(cpu_core_line, config['SEPARATOR'],
                                                     config['vertical_separator_every_X_columns'])
-            cpu_core_line = ''.join(
-                [colorize(elem, '', uid_to_uid_re_pat[elem]) for elem in cpu_core_line if elem in uid_to_uid_re_pat])
+            colored_core_x = [colorize(elem, '', coloring_pattern[elem]) for elem in cpu_core_line if elem in coloring_pattern]
+            cpu_core_line = ''.join(colored_core_x)
             yield cpu_core_line + colorize('=Core' + str(ind), '', 'account_not_colored')
 
     def transpose_matrix(self, d, colored=False, reverse=False, coloring_pat=None):
