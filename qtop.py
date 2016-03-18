@@ -886,6 +886,8 @@ class WNOccupancy(object):
                 try:
                     if ch == ' ':
                         ch = utils.ColorStr(' ')
+                    elif ch == '?':
+                        ch = utils.ColorStr('?', color="Gray_D")
                     multiline_map[attr_line].append(ch)
                 except KeyError:
                     break
@@ -1232,7 +1234,8 @@ class TextDisplay(object):
                     (
                         self.print_mult_attr_line,  # func
                         (print_char_start, print_char_stop, transposed_matrices),  # args
-                        {'attr_lines': wns_occupancy.get_dyn_var(part_name), 'coloring': queue_to_color}  # kwargs
+                        {'attr_lines': getattr(wns_occupancy, part_name), 'coloring': queue_to_color}  # kwargs
+                        # {'attr_lines': wns_occupancy.get_dyn_var(part_name), 'coloring': queue_to_color}  # kwargs
                     )
             }
             occupancy_parts.update(new_occupancy_part)
@@ -1374,7 +1377,7 @@ class TextDisplay(object):
 
         separators = config['vertical_separator_every_X_columns']
         for line_nr, end_label in zip(d, end_labels):
-            colors = iter(color_func(*args))
+            colors = color_func(*args)
             wn_id_str = self._insert_separators(d[line_nr][start:stop], config['SEPARATOR'], separators)
             wn_id_str = ''.join([colorize(elem, next(colors)) for elem in wn_id_str])
             print wn_id_str + end_label
