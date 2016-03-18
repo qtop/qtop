@@ -272,3 +272,4 @@ horizontal_separator: '|'
 
 auto_delete_old_json_files_after_few_hours: 1 # (hours)
 overwrite_sample_file: True  # True (default) writes to tar using the same constant filename, False appends a timestamp
+mapping: userid_pat_to_color

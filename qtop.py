@@ -132,6 +132,9 @@ def load_yaml_config():
     else:
         config['user_color_mappings'] = list()
 
+    if config['mapping']:
+        mapping = userid_pat_to_color
+
     if config['nodestate_color_mappings']:
         nodestate_to_color = nodestate_to_color_default.copy()
         [nodestate_to_color.update(d) for d in config['nodestate_color_mappings']]
@@ -529,7 +532,7 @@ def ensure_worker_nodes_have_qnames(worker_nodes, jobs_dict):
 
     for worker_node in worker_nodes:
         my_jobs = worker_node['core_job_map'].values()
-        my_queues = set(jobs_dict[job_id][2] for job_id in my_jobs)
+        my_queues = set(jobs_dict[job_id].job_queue for job_id in my_jobs)
         worker_node['qname'] = list(my_queues)
     return worker_nodes
 
@@ -625,8 +628,8 @@ class WNOccupancy(object):
             job_queues.append(value.job_queue)
         return user_names, job_states, job_queues
 
-    def get_dyn_var(self, var_name):
-        return getattr(self, var_name)
+    # def get_dyn_var(self, var_name):
+    #     return getattr(self, var_name)
 
     def calculate(self, document, userid_pat_to_color):
         """
@@ -641,11 +644,12 @@ class WNOccupancy(object):
 
         user_alljobs_sorted_lot = self._produce_user_lot(self.user_names)
         user_to_id = self._create_id_for_users(user_alljobs_sorted_lot)
+        # job_to_queue = dict((job_id, job_doc.job_queue) for job_id, job_doc in jobs_dict.items())
         user_job_per_state_counts = self._calculate_user_job_counts(self.user_names, self.job_states, user_alljobs_sorted_lot,
                                                                     user_to_id)
         _account_jobs_table = self._create_sort_acct_jobs_table(user_job_per_state_counts, user_alljobs_sorted_lot, user_to_id)
         self.account_jobs_table, self.user_to_id = self._create_account_jobs_table(user_to_id, _account_jobs_table)
-        self.uid_to_uid_re_pat = self.make_uid_to_uid_re_pat(userid_pat_to_color)
+        self.userid_to_userid_re_pat = self.make_pattern_out_of_mapping(mapping=userid_pat_to_color)
 
         # TODO extract to another class?
         self.print_char_start, self.print_char_stop, self.extra_matrices_nr = self.find_matrices_width()
@@ -656,13 +660,14 @@ class WNOccupancy(object):
             if scheduler in systems:
                 self.__setattr__(part_name, self.calc_general_mult_attr_line(part_name, yaml_key, config))
 
-        self.core_user_map = self._calc_core_userid_matrix(job_ids, user_names)
+        self.core_user_map = self._calc_core_userid_matrix(job_ids, user_names, self.user_to_id, job_queues)
 
     def _create_account_jobs_table(self, user_to_id, account_jobs_table):
         # TODO: unix account id needs to be recomputed at this point. fix.
         for quintuplet, new_uid in zip(account_jobs_table, config['possible_ids']):
             unix_account = quintuplet[-1]
-            quintuplet[0] = user_to_id[unix_account] = unix_account[0] if config['fill_with_user_firstletter'] else new_uid
+            quintuplet[0] = user_to_id[unix_account] = utils.ColorStr(unix_account[0], color='Red_L') \
+                if config['fill_with_user_firstletter'] else utils.ColorStr(new_uid, color='Red_L')
 
         return account_jobs_table, user_to_id
 
@@ -752,36 +757,36 @@ class WNOccupancy(object):
         user_to_id = {}
         for id_, user_allcount in enumerate(user_alljobs_sorted_lot):
             if self.config['fill_with_user_firstletter']:
-                user_to_id[user_allcount[0]] = user_allcount[0][0]
+                user_to_id[user_allcount[0]] = utils.ColorStr(user_allcount[0][0])
             else:
-                user_to_id[user_allcount[0]] = self.config['possible_ids'][id_]
+                user_to_id[user_allcount[0]] = utils.ColorStr(self.config['possible_ids'][id_])
 
         return user_to_id
 
-    def make_uid_to_uid_re_pat(self, userid_pat_to_color):
+    def make_pattern_out_of_mapping(self, mapping):
         """
         First strips the numbers off of the unix accounts and tries to match this against the given color table in colormap.
         Additionally, it will try to apply the regex rules given by the user in qtopconf.yaml, overriding the colormap.
         The last matched regex is valid.
         If no matching was possible, there will be no coloring applied.
         """
-        uid_to_uid_re_pat = {}
+        pattern = {}
         for line in self.account_jobs_table:
             uid, user = line[0], line[4]
             account_letters = re.search('[A-Za-z]+', user).group(0)
-            for re_account in userid_pat_to_color:
+            for re_account in mapping:
                 match = re.search(re_account, user)
                 if match is None:
                     continue  # keep trying
                 account_letters = re_account  # colors the text according to the regex given by the user in qtopconf
 
-            uid_to_uid_re_pat[uid] = account_letters if account_letters in userid_pat_to_color else 'NoPattern'
+            pattern[uid] = account_letters if account_letters in mapping else 'NoPattern'
 
         # TODO: remove these from here
-        uid_to_uid_re_pat[self.config['non_existent_node_symbol']] = '#'
-        uid_to_uid_re_pat['_'] = '_'
-        uid_to_uid_re_pat[self.config['SEPARATOR']] = 'account_not_colored'
-        return uid_to_uid_re_pat
+        pattern[self.config['non_existent_node_symbol']] = '#'
+        pattern['_'] = '_'
+        pattern[self.config['SEPARATOR']] = 'account_not_colored'
+        return pattern
 
     def find_matrices_width(self, DEADWEIGHT=11):
         """
@@ -899,24 +904,24 @@ class WNOccupancy(object):
                 break
         return multiline_map
 
-    def _calc_core_userid_matrix(self, job_ids, user_names):
+    def _calc_core_userid_matrix(self, job_ids, user_names, user_to_id, queues):
         core_user_map = OrderedDict()
-        user_of_job_id = dict(izip(job_ids, user_names))
-        # if not user_of_job_id:
+        jobid_to_user_to_queue = dict(izip(job_ids, izip(user_names, queues)))
+        # if not jobid_to_user:
         #     return
         for core_nr in self.cluster.core_span:
             core_user_map['Core%svector' % str(core_nr)] = []  # Cpu0line, Cpu1line, Cpu2line, .. = '','','', ..
 
         for _node in self.cluster.workernode_dict:
-            core_user_map = self._fill_node_cores_column(_node, core_user_map, self.user_to_id, self.cluster.core_span,
-                                                         user_of_job_id)
+            core_user_map = self._fill_node_cores_vector(_node, core_user_map, user_to_id, self.cluster.core_span,
+                                                         jobid_to_user_to_queue)
 
-        for coreline in core_user_map:
-            core_user_map[coreline] = ''.join(core_user_map[coreline])
+        # for coreline in core_user_map:
+            # core_user_map[coreline] = ''.join(core_user_map[coreline])
 
         return core_user_map
 
-    def _fill_node_cores_column(self, _node, core_user_map, user_to_id, _core_span, user_of_job_id):
+    def _fill_node_cores_vector(self, _node, core_user_map, user_to_id, _core_span, jobid_to_user_to_queue):
         """
         Calculates the actual contents of the map by filling in a status string for each CPU line
         """
@@ -933,8 +938,11 @@ class WNOccupancy(object):
             node_cores = [str(x) for x in range(int(np))]
             node_free_cores = node_cores[:]
 
-            for (user, core) in self._assigned_corejobs(corejobs, user_of_job_id):
-                id_ = str(user_to_id[user])
+            for (user, core, queue) in self._assigned_corejobs(corejobs, jobid_to_user_to_queue):
+                id_ = user_to_id[user]
+                # import wdb; wdb.set_trace()
+                id_.color = queue_to_color.get(queue, 'Gray_L')
+                # id_ = str(user_to_id[user])
                 core_user_map['Core' + str(core) + 'vector'] += [id_]
                 node_free_cores.remove(core)  # this is an assigned core, hence it doesn't belong to the node's free cores
 
@@ -945,29 +953,30 @@ class WNOccupancy(object):
             these positions are filled with '#'s (or whatever is defined in config['non_existent_node_symbol']).
             '''
             for core in node_free_cores:
-                core_user_map['Core' + str(core) + 'vector'] += ['_']
+                core_user_map['Core' + str(core) + 'vector'] += [utils.ColorStr('_', color='Gray_D')]
             for core in non_existent_cores:
-                core_user_map['Core' + str(core) + 'vector'] += [non_existent_node_symbol]
+                core_user_map['Core' + str(core) + 'vector'] += [utils.ColorStr(non_existent_node_symbol, color='Gray_D')]
 
-        cluster.workernode_dict[_node]['core_user_vector'] = "".join([core_user_map[line][-1] for line in core_user_map])
-
+        # cluster.workernode_dict[_node]['core_user_vector'] = "".join([core_user_map[line][-1] for line in core_user_map])
+        # import wdb; wdb.set_trace()
         return core_user_map
 
-    def _assigned_corejobs(self, corejobs, user_of_job_id):
+    def _assigned_corejobs(self, corejobs, jobid_to_user_to_queue):
         """
         Generator that yields only those core-job pairs that successfully match to a user
         """
-        for core in corejobs:
-            job = str(corejobs[core])
+        for core, _job in corejobs.items():
+            job = str(_job)
             try:
-                user = user_of_job_id[job]
+                user_queue = jobid_to_user_to_queue[job]
             except KeyError as KeyErrorValue:
                 logging.critical('There seems to be a problem with the qstat output. '
                                  'A Job (ID %s) has gone rogue. '
                                  'Please check with the SysAdmin.' % (str(KeyErrorValue)))
                 raise KeyError
             else:
-                yield user, str(core)
+                user, queue = user_queue
+                yield user, str(core), queue
 
     def is_matrix_coreless(self):
         print_char_start = self.print_char_start
@@ -1153,10 +1162,10 @@ class TextDisplay(object):
         """
         try:
             account_jobs_table = self.wns_occupancy.account_jobs_table
-            uid_to_uid_re_pat = self.wns_occupancy.uid_to_uid_re_pat
+            userid_to_userid_re_pat = self.wns_occupancy.userid_to_userid_re_pat
         except KeyError:
             account_jobs_table = dict()
-            uid_to_uid_re_pat = dict()
+            userid_to_userid_re_pat = dict()
 
         detail_of_name = get_detail_of_name(account_jobs_table)
         print colorize('\n===> ', 'Gray_D') + \
@@ -1170,7 +1179,7 @@ class TextDisplay(object):
               '      GECOS field or Grid certificate DN |'}
         for line in account_jobs_table:
             uid, runningjobs, queuedjobs, alljobs, user = line
-            userid_pat = uid_to_uid_re_pat[uid]
+            userid_pat = userid_to_userid_re_pat[uid]
 
             if (options.COLOR == 'OFF' or userid_pat == 'account_not_colored' or userid_pat_to_color[userid_pat] == 'reset'):
                 conditional_width = 0
@@ -1208,7 +1217,8 @@ class TextDisplay(object):
         wn_vert_labels = wns_occupancy.wn_vert_labels
         core_user_map = wns_occupancy.core_user_map
         extra_matrices_nr = wns_occupancy.extra_matrices_nr
-        uid_to_uid_re_pat = wns_occupancy.uid_to_uid_re_pat
+        userid_to_userid_re_pat = wns_occupancy.userid_to_userid_re_pat
+        mapping = config['mapping']
 
         occupancy_parts = {
             'wn id lines':
@@ -1220,7 +1230,7 @@ class TextDisplay(object):
             'core_user_map':
                 (
                     self.print_core_lines,
-                    (core_user_map, print_char_start, print_char_stop, transposed_matrices, uid_to_uid_re_pat),
+                    (core_user_map, print_char_start, print_char_stop, transposed_matrices, userid_to_userid_re_pat, mapping),
                     {'attrs': None}
                 ),
         }
@@ -1305,15 +1315,17 @@ class TextDisplay(object):
                        for char in joined_list[self.viewport.h_start:self.viewport.h_stop]])
         return joined_list
 
-    def print_core_lines(self, core_user_map, print_char_start, print_char_stop, transposed_matrices, uid_to_uid_re_pat, attrs,
-                         options1, options2):
+    def print_core_lines(self, core_user_map, print_char_start, print_char_stop, transposed_matrices, userid_to_userid_re_pat,
+                         mapping, attrs, options1, options2):
         signal(SIGPIPE, SIG_DFL)
         if config['transpose_wn_matrices']:
-            tuple_ = [None, 'core_map', self.transpose_matrix(core_user_map, colored=True, coloring_pat=uid_to_uid_re_pat)]
+            tuple_ = [None, 'core_map', self.transpose_matrix(core_user_map, colored=False,
+                                                              coloring_pat=userid_to_userid_re_pat)]
             transposed_matrices.append(tuple_)
             return
 
-        for core_line in self.get_core_lines(core_user_map, print_char_start, print_char_stop, uid_to_uid_re_pat, attrs):
+        for core_line in self.get_core_lines(core_user_map, print_char_start, print_char_stop,
+                                             userid_to_userid_re_pat, mapping, attrs):
             try:
                 print core_line
             except IOError:
@@ -1412,7 +1424,7 @@ class TextDisplay(object):
             attr_line = ''.join([colorize(char.initial, color_func=char.color) for char in attr_line])
             print attr_line + "=" + label
 
-    def get_core_lines(self, core_user_map, print_char_start, print_char_stop, coloring_pattern, attrs):
+    def get_core_lines(self, core_user_map, print_char_start, print_char_stop, coloring_pattern, mapping, attrs):
         """
         prints all coreX lines, except cores that don't show up
         anywhere in the given matrix
@@ -1429,7 +1441,9 @@ class TextDisplay(object):
                 continue
             cpu_core_line = self._insert_separators(cpu_core_line, config['SEPARATOR'],
                                                     config['vertical_separator_every_X_columns'])
-            colored_core_x = [colorize(elem, '', coloring_pattern[elem]) for elem in cpu_core_line if elem in coloring_pattern]
+            # import wdb; wdb.set_trace()
+            colored_core_x = [colorize(elem, color_func=elem.color) for elem in cpu_core_line]
+            # colored_core_x = [colorize(elem, '', coloring_pattern[elem]) for elem in cpu_core_line if elem in coloring_pattern]
             cpu_core_line = ''.join(colored_core_x)
             yield cpu_core_line + colorize('=Core' + str(ind), '', 'account_not_colored')
 
@@ -1439,7 +1453,6 @@ class TextDisplay(object):
         returns a transposed matrix
         colors it in the meantime, if instructed to via colored
         """
-        uid_to_uid_re_pat = wns_occupancy.uid_to_uid_re_pat
         for tpl in izip_longest(*[[char for char in d[k]] for k in d], fillvalue=" "):
             if any(j != " " for j in tpl):
                 tpl = (colored and coloring_pat) and \
