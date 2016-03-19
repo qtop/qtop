@@ -161,4 +161,7 @@ class ColorStr(object):
         return self
 
     def __contains__(self, item):
-        return True if item in self.str else False
+        return item in self.str
+
+    def __equals__(self, other):
+        return self.str == other.str

@@ -935,23 +935,15 @@ class WNOccupancy(object):
             for core_line in core_user_map:
                 core_user_map[core_line] += [non_existent_node_symbol]
         else:
-            node_cores = [str(x) for x in range(int(np))]
-            node_free_cores = node_cores[:]
-
-            for (user, core, queue) in self._assigned_corejobs(corejobs, jobid_to_user_to_queue):
-                id_ = user_to_id[user]
-                # import wdb; wdb.set_trace()
-                id_.color = queue_to_color.get(queue, 'Gray_L')
-                # id_ = str(user_to_id[user])
-                core_user_map['Core' + str(core) + 'vector'] += [id_]
-                node_free_cores.remove(core)  # this is an assigned core, hence it doesn't belong to the node's free cores
-
-            non_existent_cores = [item for item in _core_span if item not in node_cores]
-
+            mapping = self.config['mapping']
+            core_user_map, node_free_cores, node_cores = self.color_core_and_remove(np, core_user_map, corejobs,
+                                                                                    jobid_to_user_to_queue,
+                                                                                    mapping)
             '''
             One of the two dimensions of the matrix is determined by the highest-core WN existing. If other WNs have less cores,
             these positions are filled with '#'s (or whatever is defined in config['non_existent_node_symbol']).
             '''
+            non_existent_cores = [item for item in _core_span if item not in node_cores]
             for core in node_free_cores:
                 core_user_map['Core' + str(core) + 'vector'] += [utils.ColorStr('_', color='Gray_D')]
             for core in non_existent_cores:
@@ -960,6 +952,24 @@ class WNOccupancy(object):
         # cluster.workernode_dict[_node]['core_user_vector'] = "".join([core_user_map[line][-1] for line in core_user_map])
         # import wdb; wdb.set_trace()
         return core_user_map
+
+    def color_core_and_remove(self, np, core_user_map, corejobs, jobid_to_user_to_queue, _mapping):
+        node_cores = [str(x) for x in range(int(np))]
+        node_free_cores = node_cores[:]
+        queue_or_user_map = {
+            'userid_pat_to_color': 'user',
+            'queue_to_color': 'queue'
+        }
+        mapping = globals()[_mapping]
+        queue_or_user = queue_or_user_map[_mapping]
+        for (user, core, queue) in self._assigned_corejobs(corejobs, jobid_to_user_to_queue):
+            id_ = self.user_to_id[user]
+            user = self.userid_to_userid_re_pat[id_]
+            id_.color = mapping.get(locals()[queue_or_user], 'Gray_D')
+            # locals()[queue_or_user] transforms 'user'=> user,  'queue'=> queue depending on qtopconf yaml's "mapping"
+            core_user_map['Core' + str(core) + 'vector'] += [id_]
+            node_free_cores.remove(core)  # this is an assigned core, hence it doesn't belong to the node's free cores
+        return core_user_map, node_free_cores, node_cores
 
     def _assigned_corejobs(self, corejobs, jobid_to_user_to_queue):
         """

@@ -131,6 +131,7 @@ user_color_mappings:  # order should be from more generic-->more specific
  - zzhang: Red_L
  - mmravlak: Red_L
  - dbobbili: Cyan_L
+ - patls021: Cyan_L
 
 queue_color_mappings:
   - alice: Red_L
@@ -272,4 +273,5 @@ horizontal_separator: '|'
 
 auto_delete_old_json_files_after_few_hours: 1 # (hours)
 overwrite_sample_file: True  # True (default) writes to tar using the same constant filename, False appends a timestamp
-mapping: userid_pat_to_color
+mapping: userid_pat_to_color # core colors map to userid number
+#mapping: queue_to_color # core colors map to queues
