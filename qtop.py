@@ -340,7 +340,7 @@ def check_python_version():
         sys.exit(1)
 
 
-def control_movement(viewport, read_char):
+def control_qtop(viewport, read_char):
     """
     Basic vi-like movement is implemented for the -w switch (linux watch-like behaviour for qtop).
     h, j, k, l for left, down, up, right, respectively.
@@ -399,6 +399,12 @@ def control_movement(viewport, read_char):
 
     elif pressed_char_hex in ['72']:  # r
         viewport.reset_display()
+
+    elif pressed_char_hex in ['74']:  # t
+        dynamic_config['transpose_wn_matrices'] = change_matrix_orientation.next()
+
+    elif pressed_char_hex in ['6d']:  # m
+        dynamic_config['mapping'] = change_mapping.next()
 
     elif pressed_char_hex in ['71']:  # q
         print '  Exiting...'
@@ -644,7 +650,6 @@ class WNOccupancy(object):
 
         user_alljobs_sorted_lot = self._produce_user_lot(self.user_names)
         user_to_id = self._create_id_for_users(user_alljobs_sorted_lot)
-        # job_to_queue = dict((job_id, job_doc.job_queue) for job_id, job_doc in jobs_dict.items())
         user_job_per_state_counts = self._calculate_user_job_counts(self.user_names, self.job_states, user_alljobs_sorted_lot,
                                                                     user_to_id)
         _account_jobs_table = self._create_sort_acct_jobs_table(user_job_per_state_counts, user_alljobs_sorted_lot, user_to_id)
@@ -935,7 +940,7 @@ class WNOccupancy(object):
             for core_line in core_user_map:
                 core_user_map[core_line] += [non_existent_node_symbol]
         else:
-            mapping = self.config['mapping']
+            mapping = dynamic_config.get('mapping', self.config['mapping'])
             core_user_map, node_free_cores, node_cores = self.color_core_and_remove(np, core_user_map, corejobs,
                                                                                     jobid_to_user_to_queue,
                                                                                     mapping)
@@ -1151,12 +1156,12 @@ class TextDisplay(object):
 
         self.display_basic_legend()
         self.display_matrix(wns_occupancy, print_char_start, print_char_stop)
-        if not config['transpose_wn_matrices']:
+        if not dynamic_config.get('transpose_wn_matrices', config['transpose_wn_matrices']):
             self.display_remaining_matrices(wns_occupancy, print_char_start, print_char_stop)
 
     def display_basic_legend(self):
         """Displays the Worker Nodes occupancy label plus columns explanation"""
-        if self.config['transpose_wn_matrices']:
+        if dynamic_config.get('transpose_wn_matrices', self.config['transpose_wn_matrices']):
             note = "/".join(self.config['occupancy_column_order'])
         else:
             note = 'you can read vertically the node IDs; nodes in free state are noted with - '
@@ -1271,7 +1276,7 @@ class TextDisplay(object):
             func_, args, kwargs = occupancy_parts[part][0], occupancy_parts[part][1], occupancy_parts[part][2]
             func_(*args, **kwargs)
 
-        if config['transpose_wn_matrices']:
+        if dynamic_config.get('transpose_wn_matrices', config['transpose_wn_matrices']):
             order = config['occupancy_column_order']
             for idx, (item, matrix) in enumerate(zip(order, transposed_matrices)):
                 matrix[0] = order.index(matrix[1])
@@ -1328,7 +1333,7 @@ class TextDisplay(object):
     def print_core_lines(self, core_user_map, print_char_start, print_char_stop, transposed_matrices, userid_to_userid_re_pat,
                          mapping, attrs, options1, options2):
         signal(SIGPIPE, SIG_DFL)
-        if config['transpose_wn_matrices']:
+        if dynamic_config.get('transpose_wn_matrices', config['transpose_wn_matrices']):
             tuple_ = [None, 'core_map', self.transpose_matrix(core_user_map, colored=False,
                                                               coloring_pat=userid_to_userid_re_pat)]
             transposed_matrices.append(tuple_)
@@ -1392,7 +1397,7 @@ class TextDisplay(object):
                 yield color_1
 
     def print_wnid_lines(self, d, start, stop, end_labels, transposed_matrices, color_func, args):
-        if self.config['transpose_wn_matrices']:
+        if dynamic_config.get('transpose_wn_matrices', self.config['transpose_wn_matrices']):
             tuple_ = [None, 'wnid_lines', self.transpose_matrix(d)]
             transposed_matrices.append(tuple_)
             return
@@ -1421,7 +1426,7 @@ class TextDisplay(object):
         """
         attr_lines can be e.g. Node state lines
         """
-        if config['transpose_wn_matrices']:
+        if dynamic_config.get('transpose_wn_matrices', config['transpose_wn_matrices']):
             tuple_ = [None, label, self.transpose_matrix(attr_lines, colored=True, coloring_pat=None)]
             transposed_matrices.append(tuple_)
             return
@@ -1877,6 +1882,9 @@ if __name__ == '__main__':
     available_batch_systems = discover_qtop_batch_systems()
 
     stdout = sys.stdout  # keep a copy of the initial value of sys.stdout
+    dynamic_config = dict()
+    change_mapping = cycle(['queue_to_color', 'userid_pat_to_color'])
+    change_matrix_orientation = cycle([True, False])
 
     viewport = Viewport()  # controls the part of the qtop matrix shown on screen
     max_line_len = 0
@@ -1966,7 +1974,7 @@ if __name__ == '__main__':
                     _ = subprocess.call(cat_command, stdout=stdout, stderr=stdout, shell=True)
 
                     read_char = wait_for_keypress_or_autorefresh(viewport, int(options.WATCH[0]) or KEYPRESS_TIMEOUT)
-                    control_movement(viewport, read_char)
+                    control_qtop(viewport, read_char)
 
                 os.chdir(QTOPPATH)
                 os.unlink(output_fp)
