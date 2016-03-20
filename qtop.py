@@ -904,7 +904,6 @@ class WNOccupancy(object):
                     # TODO: is this really needed?: self.cluster.workernode_dict[_node]['state_column']
 
         for line, attr_line in enumerate(multiline_map, 1):
-            # multiline_map[attr_line] = ''.join(multiline_map[attr_line])
             if line == user_max_len:
                 break
         return multiline_map
@@ -912,17 +911,12 @@ class WNOccupancy(object):
     def _calc_core_userid_matrix(self, job_ids, user_names, user_to_id, queues):
         core_user_map = OrderedDict()
         jobid_to_user_to_queue = dict(izip(job_ids, izip(user_names, queues)))
-        # if not jobid_to_user:
-        #     return
         for core_nr in self.cluster.core_span:
             core_user_map['Core%svector' % str(core_nr)] = []  # Cpu0line, Cpu1line, Cpu2line, .. = '','','', ..
 
         for _node in self.cluster.workernode_dict:
             core_user_map = self._fill_node_cores_vector(_node, core_user_map, user_to_id, self.cluster.core_span,
                                                          jobid_to_user_to_queue)
-
-        # for coreline in core_user_map:
-            # core_user_map[coreline] = ''.join(core_user_map[coreline])
 
         return core_user_map
 
@@ -954,8 +948,6 @@ class WNOccupancy(object):
             for core in non_existent_cores:
                 core_user_map['Core' + str(core) + 'vector'] += [utils.ColorStr(non_existent_node_symbol, color='Gray_D')]
 
-        # cluster.workernode_dict[_node]['core_user_vector'] = "".join([core_user_map[line][-1] for line in core_user_map])
-        # import wdb; wdb.set_trace()
         return core_user_map
 
     def color_core_and_remove(self, np, core_user_map, corejobs, jobid_to_user_to_queue, _mapping):
@@ -971,7 +963,7 @@ class WNOccupancy(object):
             id_ = self.user_to_id[user]
             user = self.userid_to_userid_re_pat[id_]
             id_.color = mapping.get(locals()[queue_or_user], 'Gray_D')
-            # locals()[queue_or_user] transforms 'user'=> user,  'queue'=> queue depending on qtopconf yaml's "mapping"
+            # locals()[queue_or_user] transforms 'user'=> user,  'queue'=> queue, depending on qtopconf yaml's "mapping"
             core_user_map['Core' + str(core) + 'vector'] += [id_]
             node_free_cores.remove(core)  # this is an assigned core, hence it doesn't belong to the node's free cores
         return core_user_map, node_free_cores, node_cores
@@ -1260,7 +1252,6 @@ class TextDisplay(object):
                         self.print_mult_attr_line,  # func
                         (print_char_start, print_char_stop, transposed_matrices),  # args
                         {'attr_lines': getattr(wns_occupancy, part_name), 'coloring': queue_to_color}  # kwargs
-                        # {'attr_lines': wns_occupancy.get_dyn_var(part_name), 'coloring': queue_to_color}  # kwargs
                     )
             }
             occupancy_parts.update(new_occupancy_part)
@@ -1456,9 +1447,7 @@ class TextDisplay(object):
                 continue
             cpu_core_line = self._insert_separators(cpu_core_line, config['SEPARATOR'],
                                                     config['vertical_separator_every_X_columns'])
-            # import wdb; wdb.set_trace()
             colored_core_x = [colorize(elem, color_func=elem.color) for elem in cpu_core_line]
-            # colored_core_x = [colorize(elem, '', coloring_pattern[elem]) for elem in cpu_core_line if elem in coloring_pattern]
             cpu_core_line = ''.join(colored_core_x)
             yield cpu_core_line + colorize('=Core' + str(ind), '', 'account_not_colored')
 
@@ -1575,8 +1564,6 @@ class Cluster(object):
             self.total_cores += int(node.get('np'))  # for stats only
             max_np = max(max_np, int(node['np']))
             self.offdown_nodes += 1 if "".join(([n.str for n in node['state']])) in 'do'  else 0
-            # self.offdown_nodes += 1 if ('d' in node['state'] or 'o' in node['state'])  else 0
-            # self.offdown_nodes += 1 if node['state'] in 'do' else 0
             self.working_cores += len(node.get('core_job_map', dict()))
 
             try:
