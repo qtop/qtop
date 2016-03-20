@@ -398,9 +398,13 @@ def control_qtop(viewport, read_char):
         viewport.reset_display()
 
     elif pressed_char_hex in ['74']:  # t
-        dynamic_config['transpose_wn_matrices'] = change_matrix_orientation.next()
+        logging.info('Transposing matrix...')
+        dynamic_config['transpose_wn_matrices'] = not dynamic_config.get('transpose_wn_matrices',
+                                                                         config['transpose_wn_matrices'])
+        viewport.reset_display()
 
     elif pressed_char_hex in ['6d']:  # m
+        logging.info('Changing core coloring...')
         dynamic_config['core_coloring'] = change_mapping.next()
 
     elif pressed_char_hex in ['71']:  # q
@@ -1870,7 +1874,6 @@ if __name__ == '__main__':
     stdout = sys.stdout  # keep a copy of the initial value of sys.stdout
     dynamic_config = dict()
     change_mapping = cycle(['queue_to_color', 'userid_pat_to_color'])
-    change_matrix_orientation = cycle([True, False])
 
     viewport = Viewport()  # controls the part of the qtop matrix shown on screen
     max_line_len = 0
