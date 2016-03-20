@@ -165,3 +165,7 @@ class ColorStr(object):
 
     def __equals__(self, other):
         return self.str == other.str
+
+    @classmethod
+    def from_other_color_str(cls, color_str):
+        return cls(string=color_str.str)

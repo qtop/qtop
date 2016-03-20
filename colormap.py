@@ -444,6 +444,7 @@ queue_to_color = OrderedDict(
         ('grid500M', 'Pink'),
         ('grid1000M', 'Red_L'),
         ('grid2000M', 'Red'),
+        ('grid3000M', 'Blue'),
         ('grid4000M', 'Yellow'),
         ('transfer', 'Yellow'),
         ('urgent', 'Red'),

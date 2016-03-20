@@ -779,7 +779,7 @@ class WNOccupancy(object):
                     continue  # keep trying
                 account_letters = re_account  # colors the text according to the regex given by the user in qtopconf
 
-            pattern[uid] = account_letters if account_letters in mapping else 'NoPattern'
+            pattern[str(uid)] = account_letters if account_letters in mapping else 'NoPattern'
 
         # TODO: remove these from here
         pattern[self.config['non_existent_node_symbol']] = '#'
@@ -947,16 +947,18 @@ class WNOccupancy(object):
     def color_cores_and_return_unused(self, node_cores, core_user_map, corejobs, _core_coloring, jobid_to_user_to_queue):
         """
         Adds color information to the core job, returns free cores.
-        locals()[queue_or_user] transforms 'user'=> user,  'queue'=> queue, depending on qtopconf yaml's "core_coloring"
+        locals()[queue_or_user] transforms either 'user'=> user or 'queue'=> queue
+        depending on qtopconf yaml's "core_coloring",
+        or on runtime in watch mode, if user presses appropriate keybinding
         """
         node_free_cores = node_cores[:]
-        queue_or_user_map = {'userid_pat_to_color': 'user', 'queue_to_color': 'queue'}
+        queue_or_user_map = {'userid_pat_to_color': 'user_pat', 'queue_to_color': 'queue'}
         core_coloring_user_choice = globals()[_core_coloring]
         queue_or_user_str = queue_or_user_map[_core_coloring]
 
         for (user, core, queue) in self._assigned_corejobs(corejobs, jobid_to_user_to_queue):
-            id_ = self.user_to_id[user]
-            user = self.userid_to_userid_re_pat[id_]
+            id_ = utils.ColorStr.from_other_color_str(self.user_to_id[user])
+            user_pat = self.userid_to_userid_re_pat[str(id_)]  # in case it is used below
             id_.color = core_coloring_user_choice.get(locals()[queue_or_user_str], 'White') # queue or user decided on runtime
             core_user_map['Core' + str(core) + 'vector'].append(id_)
             node_free_cores.remove(core)  # this is an assigned core, hence it doesn't belong to the node's free cores
@@ -1181,7 +1183,7 @@ class TextDisplay(object):
               '      GECOS field or Grid certificate DN |'}
         for line in account_jobs_table:
             uid, runningjobs, queuedjobs, alljobs, user = line
-            userid_pat = userid_to_userid_re_pat[uid]
+            userid_pat = userid_to_userid_re_pat[str(uid)]
 
             if (options.COLOR == 'OFF' or userid_pat == 'account_not_colored' or userid_pat_to_color[userid_pat] == 'reset'):
                 conditional_width = 0
