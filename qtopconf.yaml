@@ -273,7 +273,7 @@ horizontal_separator: '|'
 
 auto_delete_old_json_files_after_few_hours: 1 # (hours)
 overwrite_sample_file: True  # True (default) writes to tar using the same constant filename, False appends a timestamp
-# core_colors can be either:
+# core_coloring can be either:
 #  - userid_pat_to_color, which paints core jobs according to the userid color, or
 #  - queue_to_color, which paints core jobs according to queue color
-core_colors: userid_pat_to_color
+core_coloring: userid_pat_to_color

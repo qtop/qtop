@@ -401,7 +401,7 @@ def control_qtop(viewport, read_char):
         dynamic_config['transpose_wn_matrices'] = change_matrix_orientation.next()
 
     elif pressed_char_hex in ['6d']:  # m
-        dynamic_config['core_colors'] = change_mapping.next()
+        dynamic_config['core_coloring'] = change_mapping.next()
 
     elif pressed_char_hex in ['71']:  # q
         print '  Exiting...'
@@ -905,18 +905,18 @@ class WNOccupancy(object):
     def _calc_core_matrix(self, job_ids, user_names, user_to_id, queues):
         core_user_map = OrderedDict()
         jobid_to_user_to_queue = dict(izip(job_ids, izip(user_names, queues)))
-        core_colors = dynamic_config.get('core_colors', self.config['core_colors'])
+        core_coloring = dynamic_config.get('core_coloring', self.config['core_coloring'])
 
         for core_nr in self.cluster.core_span:
             core_user_map['Core%svector' % str(core_nr)] = []  # Cpu0vector, Cpu1vector, Cpu2vector, ... = [],[],[], ...
 
         for _node in self.cluster.workernode_dict:
             core_user_map = self._fill_node_cores_vector(_node, core_user_map, user_to_id, self.cluster.core_span,
-                                                         jobid_to_user_to_queue, core_colors)
+                                                         jobid_to_user_to_queue, core_coloring)
 
         return core_user_map
 
-    def _fill_node_cores_vector(self, _node, core_user_map, user_to_id, _core_span, jobid_to_user_to_queue, core_colors):
+    def _fill_node_cores_vector(self, _node, core_user_map, user_to_id, _core_span, jobid_to_user_to_queue, core_coloring):
         """
         Calculates the actual contents of the map by filling in a status string for each CPU line
         One of the two dimensions of the matrix is determined by the highest-core WN existing. If other WNs have less cores,
@@ -934,7 +934,7 @@ class WNOccupancy(object):
         else:
             node_cores = [str(x) for x in range(int(np))]
             core_user_map, node_free_cores = self.color_cores_and_return_unused(node_cores, core_user_map, corejobs,
-                                                                                core_colors, jobid_to_user_to_queue)
+                                                                                core_coloring, jobid_to_user_to_queue)
             for core in node_free_cores:
                 core_user_map['Core' + str(core) + 'vector'].append(utils.ColorStr('_', color='Gray_D'))
 
@@ -944,20 +944,20 @@ class WNOccupancy(object):
 
         return core_user_map
 
-    def color_cores_and_return_unused(self, node_cores, core_user_map, corejobs, _core_colors, jobid_to_user_to_queue):
+    def color_cores_and_return_unused(self, node_cores, core_user_map, corejobs, _core_coloring, jobid_to_user_to_queue):
         """
         Adds color information to the core job, returns free cores.
-        locals()[queue_or_user] transforms 'user'=> user,  'queue'=> queue, depending on qtopconf yaml's "core_colors"
+        locals()[queue_or_user] transforms 'user'=> user,  'queue'=> queue, depending on qtopconf yaml's "core_coloring"
         """
         node_free_cores = node_cores[:]
         queue_or_user_map = {'userid_pat_to_color': 'user', 'queue_to_color': 'queue'}
-        core_colors = globals()[_core_colors]
-        queue_or_user = queue_or_user_map[_core_colors]
+        core_coloring_user_choice = globals()[_core_coloring]
+        queue_or_user_str = queue_or_user_map[_core_coloring]
 
         for (user, core, queue) in self._assigned_corejobs(corejobs, jobid_to_user_to_queue):
             id_ = self.user_to_id[user]
-            # user = self.userid_to_userid_re_pat[id_]
-            id_.color = core_colors.get(locals()[queue_or_user], 'White')
+            user = self.userid_to_userid_re_pat[id_]
+            id_.color = core_coloring_user_choice.get(locals()[queue_or_user_str], 'White') # queue or user decided on runtime
             core_user_map['Core' + str(core) + 'vector'].append(id_)
             node_free_cores.remove(core)  # this is an assigned core, hence it doesn't belong to the node's free cores
 
@@ -1220,7 +1220,7 @@ class TextDisplay(object):
         core_user_map = wns_occupancy.core_user_map
         extra_matrices_nr = wns_occupancy.extra_matrices_nr
         userid_to_userid_re_pat = wns_occupancy.userid_to_userid_re_pat
-        mapping = config['core_colors']
+        mapping = config['core_coloring']
 
         occupancy_parts = {
             'wn id lines':
