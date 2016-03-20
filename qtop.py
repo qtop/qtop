@@ -132,9 +132,6 @@ def load_yaml_config():
     else:
         config['user_color_mappings'] = list()
 
-    if config['mapping']:
-        mapping = userid_pat_to_color
-
     if config['nodestate_color_mappings']:
         nodestate_to_color = nodestate_to_color_default.copy()
         [nodestate_to_color.update(d) for d in config['nodestate_color_mappings']]
@@ -404,7 +401,7 @@ def control_qtop(viewport, read_char):
         dynamic_config['transpose_wn_matrices'] = change_matrix_orientation.next()
 
     elif pressed_char_hex in ['6d']:  # m
-        dynamic_config['mapping'] = change_mapping.next()
+        dynamic_config['core_colors'] = change_mapping.next()
 
     elif pressed_char_hex in ['71']:  # q
         print '  Exiting...'
@@ -633,9 +630,6 @@ class WNOccupancy(object):
             job_states.append(value.job_state)
             job_queues.append(value.job_queue)
         return user_names, job_states, job_queues
-
-    # def get_dyn_var(self, var_name):
-    #     return getattr(self, var_name)
 
     def calculate(self, document, userid_pat_to_color):
         """
@@ -934,10 +928,10 @@ class WNOccupancy(object):
             for core_line in core_user_map:
                 core_user_map[core_line] += [non_existent_node_symbol]
         else:
-            mapping = dynamic_config.get('mapping', self.config['mapping'])
+            core_colors = dynamic_config.get('core_colors', self.config['core_colors'])
             core_user_map, node_free_cores, node_cores = self.color_core_and_remove(np, core_user_map, corejobs,
                                                                                     jobid_to_user_to_queue,
-                                                                                    mapping)
+                                                                                    core_colors)
             '''
             One of the two dimensions of the matrix is determined by the highest-core WN existing. If other WNs have less cores,
             these positions are filled with '#'s (or whatever is defined in config['non_existent_node_symbol']).
@@ -950,20 +944,20 @@ class WNOccupancy(object):
 
         return core_user_map
 
-    def color_core_and_remove(self, np, core_user_map, corejobs, jobid_to_user_to_queue, _mapping):
+    def color_core_and_remove(self, np, core_user_map, corejobs, jobid_to_user_to_queue, _core_colors):
         node_cores = [str(x) for x in range(int(np))]
         node_free_cores = node_cores[:]
         queue_or_user_map = {
             'userid_pat_to_color': 'user',
             'queue_to_color': 'queue'
         }
-        mapping = globals()[_mapping]
-        queue_or_user = queue_or_user_map[_mapping]
+        core_colors = globals()[_core_colors]
+        queue_or_user = queue_or_user_map[_core_colors]
         for (user, core, queue) in self._assigned_corejobs(corejobs, jobid_to_user_to_queue):
             id_ = self.user_to_id[user]
             user = self.userid_to_userid_re_pat[id_]
-            id_.color = mapping.get(locals()[queue_or_user], 'Gray_D')
-            # locals()[queue_or_user] transforms 'user'=> user,  'queue'=> queue, depending on qtopconf yaml's "mapping"
+            id_.color = core_colors.get(locals()[queue_or_user], 'Gray_D')
+            # locals()[queue_or_user] transforms 'user'=> user,  'queue'=> queue, depending on qtopconf yaml's "core_colors"
             core_user_map['Core' + str(core) + 'vector'] += [id_]
             node_free_cores.remove(core)  # this is an assigned core, hence it doesn't belong to the node's free cores
         return core_user_map, node_free_cores, node_cores
@@ -1225,7 +1219,7 @@ class TextDisplay(object):
         core_user_map = wns_occupancy.core_user_map
         extra_matrices_nr = wns_occupancy.extra_matrices_nr
         userid_to_userid_re_pat = wns_occupancy.userid_to_userid_re_pat
-        mapping = config['mapping']
+        mapping = config['core_colors']
 
         occupancy_parts = {
             'wn id lines':
