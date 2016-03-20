@@ -659,7 +659,7 @@ class WNOccupancy(object):
             if scheduler in systems:
                 self.__setattr__(part_name, self.calc_general_mult_attr_line(part_name, yaml_key, config))
 
-        self.core_user_map = self._calc_core_userid_matrix(job_ids, user_names, self.user_to_id, job_queues)
+        self.core_user_map = self._calc_core_matrix(job_ids, user_names, self.user_to_id, job_queues)
 
     def _create_account_jobs_table(self, user_to_id, account_jobs_table):
         # TODO: unix account id needs to be recomputed at this point. fix.
@@ -902,21 +902,25 @@ class WNOccupancy(object):
                 break
         return multiline_map
 
-    def _calc_core_userid_matrix(self, job_ids, user_names, user_to_id, queues):
+    def _calc_core_matrix(self, job_ids, user_names, user_to_id, queues):
         core_user_map = OrderedDict()
         jobid_to_user_to_queue = dict(izip(job_ids, izip(user_names, queues)))
+        core_colors = dynamic_config.get('core_colors', self.config['core_colors'])
+
         for core_nr in self.cluster.core_span:
-            core_user_map['Core%svector' % str(core_nr)] = []  # Cpu0line, Cpu1line, Cpu2line, .. = '','','', ..
+            core_user_map['Core%svector' % str(core_nr)] = []  # Cpu0vector, Cpu1vector, Cpu2vector, ... = [],[],[], ...
 
         for _node in self.cluster.workernode_dict:
             core_user_map = self._fill_node_cores_vector(_node, core_user_map, user_to_id, self.cluster.core_span,
-                                                         jobid_to_user_to_queue)
+                                                         jobid_to_user_to_queue, core_colors)
 
         return core_user_map
 
-    def _fill_node_cores_vector(self, _node, core_user_map, user_to_id, _core_span, jobid_to_user_to_queue):
+    def _fill_node_cores_vector(self, _node, core_user_map, user_to_id, _core_span, jobid_to_user_to_queue, core_colors):
         """
         Calculates the actual contents of the map by filling in a status string for each CPU line
+        One of the two dimensions of the matrix is determined by the highest-core WN existing. If other WNs have less cores,
+        these positions are filled with '#'s (or whatever is defined in config['non_existent_node_symbol']).
         """
         state_np_corejob = cluster.workernode_dict[_node]
         state = state_np_corejob['state']
@@ -926,41 +930,38 @@ class WNOccupancy(object):
 
         if state == '?':  # for non-existent machines
             for core_line in core_user_map:
-                core_user_map[core_line] += [non_existent_node_symbol]
+                core_user_map[core_line].append(utils.ColorStr(non_existent_node_symbol, color='Gray_D'))
         else:
-            core_colors = dynamic_config.get('core_colors', self.config['core_colors'])
-            core_user_map, node_free_cores, node_cores = self.color_core_and_remove(np, core_user_map, corejobs,
-                                                                                    jobid_to_user_to_queue,
-                                                                                    core_colors)
-            '''
-            One of the two dimensions of the matrix is determined by the highest-core WN existing. If other WNs have less cores,
-            these positions are filled with '#'s (or whatever is defined in config['non_existent_node_symbol']).
-            '''
-            non_existent_cores = [item for item in _core_span if item not in node_cores]
+            node_cores = [str(x) for x in range(int(np))]
+            core_user_map, node_free_cores = self.color_cores_and_return_unused(node_cores, core_user_map, corejobs,
+                                                                                core_colors, jobid_to_user_to_queue)
             for core in node_free_cores:
-                core_user_map['Core' + str(core) + 'vector'] += [utils.ColorStr('_', color='Gray_D')]
-            for core in non_existent_cores:
-                core_user_map['Core' + str(core) + 'vector'] += [utils.ColorStr(non_existent_node_symbol, color='Gray_D')]
+                core_user_map['Core' + str(core) + 'vector'].append(utils.ColorStr('_', color='Gray_D'))
+
+            non_existent_node_cores = [core for core in _core_span if core not in node_cores]
+            for core in non_existent_node_cores:
+                core_user_map['Core' + str(core) + 'vector'].append(utils.ColorStr(non_existent_node_symbol, color='Gray_D'))
 
         return core_user_map
 
-    def color_core_and_remove(self, np, core_user_map, corejobs, jobid_to_user_to_queue, _core_colors):
-        node_cores = [str(x) for x in range(int(np))]
+    def color_cores_and_return_unused(self, node_cores, core_user_map, corejobs, _core_colors, jobid_to_user_to_queue):
+        """
+        Adds color information to the core job, returns free cores.
+        locals()[queue_or_user] transforms 'user'=> user,  'queue'=> queue, depending on qtopconf yaml's "core_colors"
+        """
         node_free_cores = node_cores[:]
-        queue_or_user_map = {
-            'userid_pat_to_color': 'user',
-            'queue_to_color': 'queue'
-        }
+        queue_or_user_map = {'userid_pat_to_color': 'user', 'queue_to_color': 'queue'}
         core_colors = globals()[_core_colors]
         queue_or_user = queue_or_user_map[_core_colors]
+
         for (user, core, queue) in self._assigned_corejobs(corejobs, jobid_to_user_to_queue):
             id_ = self.user_to_id[user]
-            user = self.userid_to_userid_re_pat[id_]
-            id_.color = core_colors.get(locals()[queue_or_user], 'Gray_D')
-            # locals()[queue_or_user] transforms 'user'=> user,  'queue'=> queue, depending on qtopconf yaml's "core_colors"
-            core_user_map['Core' + str(core) + 'vector'] += [id_]
+            # user = self.userid_to_userid_re_pat[id_]
+            id_.color = core_colors.get(locals()[queue_or_user], 'White')
+            core_user_map['Core' + str(core) + 'vector'].append(id_)
             node_free_cores.remove(core)  # this is an assigned core, hence it doesn't belong to the node's free cores
-        return core_user_map, node_free_cores, node_cores
+
+        return core_user_map, node_free_cores
 
     def _assigned_corejobs(self, corejobs, jobid_to_user_to_queue):
         """
@@ -1315,8 +1316,8 @@ class TextDisplay(object):
                        for char in joined_list[self.viewport.h_start:self.viewport.h_stop]])
         return joined_list
 
-    def print_core_lines(self, core_user_map, print_char_start, print_char_stop, transposed_matrices, userid_to_userid_re_pat,
-                         mapping, attrs, options1, options2):
+    def print_core_lines(self, core_user_map, print_char_start, print_char_stop, transposed_matrices,
+                         userid_to_userid_re_pat, mapping, attrs, options1, options2):
         signal(SIGPIPE, SIG_DFL)
         if dynamic_config.get('transpose_wn_matrices', config['transpose_wn_matrices']):
             tuple_ = [None, 'core_map', self.transpose_matrix(core_user_map, colored=False,
@@ -1432,18 +1433,20 @@ class TextDisplay(object):
         # TODO: is there a way to use is_matrix_coreless in here? avoid duplication of code
         non_existent_symbol = config['non_existent_node_symbol']
         for ind, k in enumerate(core_user_map):
-            cpu_core_line = core_user_map['Core' + str(ind) + 'vector'][print_char_start:print_char_stop]
+            core_x_vector = core_user_map[k][print_char_start:print_char_stop]
+
             if options.REM_EMPTY_CORELINES and \
                     (
-                        (non_existent_symbol * (print_char_stop - print_char_start) == cpu_core_line) or
-                            (non_existent_symbol * (len(cpu_core_line)) == cpu_core_line)
+                        (non_existent_symbol * (print_char_stop - print_char_start) == core_x_vector) or
+                            (non_existent_symbol * (len(core_x_vector)) == core_x_vector)
                     ):
                 continue
-            cpu_core_line = self._insert_separators(cpu_core_line, config['SEPARATOR'],
+
+            core_x_vector = self._insert_separators(core_x_vector, config['SEPARATOR'],
                                                     config['vertical_separator_every_X_columns'])
-            colored_core_x = [colorize(elem, color_func=elem.color) for elem in cpu_core_line]
-            cpu_core_line = ''.join(colored_core_x)
-            yield cpu_core_line + colorize('=Core' + str(ind), '', 'account_not_colored')
+            colored_core_x = [colorize(elem, color_func=elem.color) for elem in core_x_vector]
+            core_x_vector = ''.join([str(item) for item in colored_core_x])
+            yield core_x_vector + colorize('=Core' + str(ind), pattern='account_not_colored')
 
     def transpose_matrix(self, d, colored=False, reverse=False, coloring_pat=None):
         """
