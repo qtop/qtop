@@ -1,4 +1,4 @@
-# qtop.py [![Build Status](https://travis-ci.org/qtop/qtop.svg)](https://travis-ci.org/qtop/qtop)
+# qtop.py [![Build Status](https://travis-ci.org/qtop/qtop.svg)](https://travis-ci.org/qtop/qtop) ![python versions](https://img.shields.io/badge/python-2.5%2C%202.6%2C%202.7-blue.svg)
 
 Python port by Sotiris Fragkiskos / Original bash version by Fotis Georgatos
 
