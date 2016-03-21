@@ -131,13 +131,14 @@ user_color_mappings:  # order should be from more generic-->more specific
  - zzhang: Red_L
  - mmravlak: Red_L
  - dbobbili: Cyan_L
+ - patls021: Cyan_L
 
 queue_color_mappings:
   - alice: Red_L
   - dteam\w+: Cyan_L
 
 nodestate_color_mappings:
- - au: Green
+ - au: BlackOnRed
  - d: Red_LOnGrayBG
 
 # if cluster numbering should start on a number # above this, do automatic blind remapping
@@ -272,3 +273,7 @@ horizontal_separator: '|'
 
 auto_delete_old_json_files_after_few_hours: 1 # (hours)
 overwrite_sample_file: True  # True (default) writes to tar using the same constant filename, False appends a timestamp
+# core_coloring can be either:
+#  - userid_pat_to_color, which paints core jobs according to the userid color, or
+#  - queue_to_color, which paints core jobs according to queue color
+core_coloring: userid_pat_to_color
