@@ -173,7 +173,7 @@ def calculate_term_size(config, FALLBACK_TERM_SIZE):
     fallback_term_size = config.get('term_size', FALLBACK_TERM_SIZE)
     try:
         term_height, term_columns = os.popen('stty size', 'r').read().split()
-        logging.debug('0.this resulted in v, h:%s, %s' % (term_height, term_columns))
+        logging.debug('Reading the terminal resulted in v, h:%s, %s' % (term_height, term_columns))
     except ValueError:
         logging.warn("Failed to autodetect terminal size. (Running in an IDE?) Trying values in %s." % QTOPCONF_YAML)
         try:
@@ -455,7 +455,7 @@ def decide_batch_system(cmdline_switch, env_var, config_file_batch_option, sched
         raise NoSchedulerFound
 
 
-def get_output_size(max_height, max_line_len, output_fp):
+def get_output_size(max_line_len, output_fp, max_height=0):
     """
     Returns the char dimensions of the entirety of the qtop output file
     """
@@ -470,7 +470,7 @@ def get_output_size(max_height, max_line_len, output_fp):
     max_line_len = max(len(ansi_escape.sub('', line.strip())) for line in open(output_fp, 'r')) \
         if not max_line_len else max_line_len
 
-    logging.debug('Total nr of lines: %s' % viewport.max_height)
+    logging.debug('Total nr of lines: %s' % max_height)
     logging.debug('Max line length: %s' % max_line_len)
 
     return max_height, max_line_len
@@ -1949,7 +1949,7 @@ if __name__ == '__main__':
                 sys.stdout.close()
                 sys.stdout = stdout  # sys.stdout is back to its normal function (i.e. prints to screen)
 
-                viewport.max_height, max_line_len = get_output_size(viewport.max_height, max_line_len, output_fp)
+                viewport.max_height, max_line_len = get_output_size(max_line_len, output_fp)
 
                 if options.ONLYSAVETOFILE:  # no display of qtop output, will exit
                     break
