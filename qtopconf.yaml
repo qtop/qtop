@@ -147,10 +147,11 @@ remapping:
 # - "([A-Za-z]+)([1-9]|[1-9][0-9]|[0-9][0-9][0-9])$": |
 #     lambda m: m.group(1)+str(int(m.group(2))+250)
      # e.g. wn100 --> wn350, wn101 --> wn351 and so on
-# - 'torvalds(\d+)': 'tor\1'
-# - 'gridlab(\d+)': 'glab\1'
-# - 'gridmon(\d*)': 'mon\1'
- - '(.*?)cluster(.*?)': \1-\2  # remove "cluster" word from all node names
+# - torvalds(\d+): tor\1
+# - gridlab(\d+): glab\1
+# - gridmon(\d*): mon\1
+ # - ^da-(.*?): ca\1
+ # - (.*?)cluster(.*?): \1-\2  # remove "cluster" word from all node names
 # WARNING: not working properly in native yaml parser
 # - -: ""  # removes dashes for shortening (can also replace them with something else, e.g. _
 
@@ -168,9 +169,9 @@ sorting:  # this is here so that you can customise it to your heart's delight!!
 filtering:
  # - list_out_by_node_state: ['hqw','au']
  # - list_out: [3,4]
-  # - list_in_by_name: ['da-p8-02',]
+ # - list_in_by_name: ['da-p8-02',]
  # - list_out_by_name: ['da-p8-03',]
-  # - list_out_by_name: [gaia-74, gaia-73, gaia-81, gaia-80, gaia-87, gaia-75, gaia-77, gaia-76, gaia-79, gaia-78]
+ # - list_out_by_name: [gaia-74, gaia-73, gaia-81, gaia-80, gaia-87, gaia-75, gaia-77, gaia-76, gaia-79, gaia-78]
  # - list_out_by_name_pattern:  ['^da-p6','^da-p7']
    # - ^da-p4
    # - p5
