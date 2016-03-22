@@ -1744,8 +1744,6 @@ class WNFilter(object):
         self.worker_nodes = worker_nodes
 
     def _filter_list_out(self, the_list=None):
-        if not the_list:
-            the_list = []
         for idx, node in enumerate(self.worker_nodes):
             if idx in the_list:
                 node['mark'] = '*'
@@ -1753,10 +1751,6 @@ class WNFilter(object):
         return self.worker_nodes
 
     def _filter_list_out_by_name(self, the_list=None):
-        if not the_list:
-            the_list = []
-        else:
-            the_list[:] = [eval(i) for i in the_list]
         for idx, node in enumerate(self.worker_nodes):
             if node['domainname'].split('.', 1)[0] in the_list:
                 node['mark'] = '*'
@@ -1764,10 +1758,6 @@ class WNFilter(object):
         return self.worker_nodes
 
     def _filter_list_in_by_name(self, the_list=None):
-        if not the_list:
-            the_list = []
-        else:
-            the_list[:] = [eval(i) for i in the_list]
         for idx, node in enumerate(self.worker_nodes):
             if node['domainname'].split('.', 1)[0] not in the_list:
                 node['mark'] = '*'
@@ -1775,20 +1765,16 @@ class WNFilter(object):
         return self.worker_nodes
 
     def _filter_list_out_by_node_state(self, the_list=None):
-        if not the_list:
-            the_list = []
         for idx, node in enumerate(self.worker_nodes):
-            if node['state'] in the_list:
+            if set(["".join(state.str for state in node['state'])]) & set(the_list):
                 node['mark'] = '*'
         self.worker_nodes = filter(lambda item: not item.get('mark'), self.worker_nodes)
         return self.worker_nodes
 
     def _filter_list_out_by_name_pattern(self, the_list=None):
-        if not the_list:
-            the_list = []
-
         for idx, node in enumerate(self.worker_nodes):
-            for pattern in the_list:
+            patterns = the_list.values()[0] if isinstance(the_list, dict) else the_list
+            for pattern in patterns:
                 match = re.search(pattern, node['domainname'].split('.', 1)[0])
                 try:
                     match.group(0)
@@ -1800,9 +1786,6 @@ class WNFilter(object):
         return self.worker_nodes
 
     def _filter_list_in_by_name_pattern(self, the_list=None):
-        if not the_list:
-            the_list = []
-
         for idx, node in enumerate(self.worker_nodes):
             for pattern in the_list:
                 match = re.search(pattern, node['domainname'].split('.', 1)[0])
@@ -1833,8 +1816,9 @@ class WNFilter(object):
             logging.warning("WN Occupancy view is filtered.")  # TODO display this somewhere in qtop!
             for rule in filter_rules:
                 filter_func = filter_types[rule.keys()[0]]
-                args = rule.values()[0]
-                self.worker_nodes = filter_func(args)
+                the_list = rule.values()[0]
+                if the_list:
+                    self.worker_nodes = filter_func(the_list)
         return self.worker_nodes
 
 

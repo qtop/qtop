@@ -166,17 +166,16 @@ sorting:  # this is here so that you can customise it to your heart's delight!!
   reverse: False
 
 filtering:
-#  - list_out: [0, 1, 2, 3, 16]
-#   - list_in_by_name: ['gaia-73', 'gaia-80', 'gaia-81']
-#  - list_out_by_name: [gaia-73, gaia-80, gaia-81]
+ # - list_out_by_node_state: ['hqw','au']
+ # - list_out: [3,4]
+  # - list_in_by_name: ['da-p8-02',]
+ # - list_out_by_name: ['da-p8-03',]
   # - list_out_by_name: [gaia-74, gaia-73, gaia-81, gaia-80, gaia-87, gaia-75, gaia-77, gaia-76, gaia-79, gaia-78]
-#  - list_out_by_name_pattern: ['moonshot', 'p5']
-#    - ^wn
-#    - ^ps
-#    - p5
-#  - ranges_out: 1-12, 30-42
-#  - list_out_by_node_state:
-#    - 'E'
+ # - list_out_by_name_pattern:  ['^da-p6','^da-p7']
+   # - ^da-p4
+   # - p5
+   # - ^da-p8
+   # - ^da-p6
 
 # what parts of qtop to display
 user_display_parts:
