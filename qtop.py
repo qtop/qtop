@@ -441,8 +441,10 @@ def control_qtop(viewport, read_char, cluster):
                  'eight': colorize("(8)", color_func='Red_L'),
                  }
         dynamic_config['filtering'] = []
+        new_attrs[3] = new_attrs[3] & ~(termios.ECHO | termios.ICANON)
+        termios.tcsetattr(sys.__stdin__.fileno(), termios.TCSADRAIN, old_attrs)
         while True:
-            filter_choice = raw_input('\nChoose Filter command, or Enter to exit:-> ')
+            filter_choice = raw_input('\nChoose Filter command, or Enter to exit:-> ',)
             if not filter_choice: break
             try:
                 filter_choice = int(filter_choice)
@@ -457,6 +459,8 @@ def control_qtop(viewport, read_char, cluster):
                 filter_args.append(user_input)
 
             dynamic_config['filtering'].append({filter_map[filter_choice]: filter_args})
+        termios.tcsetattr(sys.__stdin__.fileno(), termios.TCSADRAIN, new_attrs)
+        viewport.reset_display()
 
     logging.debug('Area Displayed: (h_start, v_start) --> (h_stop, v_stop) '
                   '\n\t(%(h_start)s, %(v_start)s) --> (%(h_stop)s, %(v_stop)s)' %
@@ -1920,6 +1924,8 @@ if __name__ == '__main__':
     options, dynamic_config['force_names'] = process_options(options)
     # TODO: check if this is really needed any more
     # sys.excepthook = handle_exception
+    old_attrs = termios.tcgetattr(0)
+    new_attrs = old_attrs[:]
 
     available_batch_systems = discover_qtop_batch_systems()
 
