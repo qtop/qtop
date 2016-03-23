@@ -421,8 +421,9 @@ def control_qtop(viewport, read_char, cluster):
             3: 'list_out_by_name',
             4: 'list_out_by_name_pattern',
             5: 'list_in_by_node_state',
-            6: 'list_in_by_name',
-            7: 'list_in_by_name_pattern',
+            6: 'list_in',
+            7: 'list_in_by_name',
+            8: 'list_in_by_name_pattern',
         }
         print 'Filter out nodes by:\n%(one)s state %(two)s number' \
               ' %(three)s name %(four)s name regex pattern' % {
@@ -431,10 +432,11 @@ def control_qtop(viewport, read_char, cluster):
                     'three': colorize("(3)", color_func='Red_L'),
                     'four': colorize("(4)", color_func='Red_L')
         }
-        print 'Filter in nodes by:\n%(five)s state %(six)s name  %(seven)s name regex pattern' \
+        print 'Filter in nodes by:\n%(five)s state %(six)s number %(seven)s name  %(eight)s name regex pattern' \
               % {'five': colorize("(5)", color_func='Red_L'),
                  'six': colorize("(6)", color_func='Red_L'),
                  'seven': colorize("(7)", color_func='Red_L'),
+                 'eight': colorize("(8)", color_func='Red_L'),
                  }
         dynamic_config['filtering'] = []
         while True:
@@ -449,7 +451,6 @@ def control_qtop(viewport, read_char, cluster):
             filter_args = []
             while True:
                 user_input = raw_input('\nEnter argument, or Enter to exit:-> ')
-                # import wdb; wdb.set_trace()
                 if not user_input: break
                 filter_args.append(user_input)
 
@@ -1830,6 +1831,14 @@ class WNFilter(object):
         worker_nodes = filter(lambda item: item.get('mark'), self.worker_nodes)
         return worker_nodes
 
+    def filter_list_in(self, the_list=None):
+        for idx, node in enumerate(self.worker_nodes):
+            # import wdb; wdb.set_trace()
+            if str(idx) in the_list:
+                node['mark'] = '*'
+        worker_nodes = filter(lambda item: item.get('mark'), self.worker_nodes)
+        return worker_nodes
+
     def filter_list_in_by_name(self, the_list=None):
         for idx, node in enumerate(self.worker_nodes):
             if node['domainname'].split('.', 1)[0] in the_list:
@@ -1859,6 +1868,7 @@ class WNFilter(object):
 
         filter_types = {
             'list_out': self.filter_list_out,
+            'list_in': self.filter_list_in,
             'list_out_by_name': self.filter_list_out_by_name,
             'list_in_by_name': self.filter_list_in_by_name,
             'list_out_by_name_pattern': self.filter_list_out_by_name_pattern,
