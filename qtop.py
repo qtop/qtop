@@ -337,7 +337,7 @@ def check_python_version():
         sys.exit(1)
 
 
-def control_qtop(viewport, read_char):
+def control_qtop(viewport, read_char, cluster):
     """
     Basic vi-like movement is implemented for the -w switch (linux watch-like behaviour for qtop).
     h, j, k, l for left, down, up, right, respectively.
@@ -409,9 +409,40 @@ def control_qtop(viewport, read_char):
 
     elif pressed_char_hex in ['71']:  # q
         print '  Exiting...'
-
         web.stop()
         sys.exit(0)
+
+    elif pressed_char_hex in ['66']:  # f
+        # import wdb; wdb.set_trace()
+        cluster.wn_filter = cluster.WNFilter(cluster.worker_nodes)
+        filter_map = {
+            1: 'list_out_by_node_state',
+            2: 'list_out',
+            3: 'list_out_by_name',
+            4: 'list_out_by_name_pattern',
+            5: 'list_in_by_name'
+        }
+        print 'Available filters. Filter out by:\n%(one)s by node state %(two)s by node number' \
+              ' %(three)s by node name %(four)s by node name regex pattern' % {
+                    'one': colorize("(1)", color_func='Red_L'),
+                    'two': colorize("(2)", color_func='Red_L'),
+                    'three': colorize("(3)", color_func='Red_L'),
+                    'four': colorize("(4)", color_func='Red_L')
+        }
+        print 'Filter in by: %(five)s node name' % {'five': colorize("(5)", color_func='Red_L')}
+        dynamic_config['filtering'] = []
+        while True:
+            filter_choice = raw_input('\nChoose Filter command, or Enter to exit:-> ')
+            if not filter_choice: break
+            filter_choice = int(filter_choice)
+            filter_args = []
+            while True:
+                user_input = raw_input('\nEnter argument, or Enter to exit:-> ')
+                # import wdb; wdb.set_trace()
+                if not user_input: break
+                filter_args.append(user_input)
+
+            dynamic_config['filtering'].append({filter_map[filter_choice]: filter_args})
 
     logging.debug('Area Displayed: (h_start, v_start) --> (h_stop, v_stop) '
                   '\n\t(%(h_start)s, %(v_start)s) --> (%(h_stop)s, %(v_stop)s)' %
@@ -1674,7 +1705,10 @@ class Cluster(object):
         workernode_dict = dict()
         workernode_dict_remapped = dict()
         user_sorting = self.config['sorting'] and self.config['sorting'].values()[0]
-        user_filtering = self.config['filtering'] and self.config['filtering'][0]
+        # import wdb; wdb.set_trace()
+        user_filters = dynamic_config.get('filtering', self.config['filtering'])
+        user_filtering = user_filters and user_filters[0]
+        # user_filtering = self.config['filtering'] and self.config['filtering'][0]
 
         if user_sorting and options_remap:
             self.worker_nodes = self._sort_worker_nodes()
@@ -1682,7 +1716,7 @@ class Cluster(object):
         if user_filtering and options_remap:
             len_wn_before = len(self.worker_nodes)
             self.wn_filter = self.WNFilter(self.worker_nodes)
-            self.worker_nodes = self.wn_filter.filter_worker_nodes(filter_rules=config['filtering'])
+            self.worker_nodes = self.wn_filter.filter_worker_nodes(filter_rules=user_filters)
             len_wn_after = len(self.worker_nodes)
             nodes_drop = len_wn_after - len_wn_before
 
@@ -1743,35 +1777,35 @@ class WNFilter(object):
     def __init__(self, worker_nodes):
         self.worker_nodes = worker_nodes
 
-    def _filter_list_out(self, the_list=None):
+    def filter_list_out(self, the_list=None):
         for idx, node in enumerate(self.worker_nodes):
             if idx in the_list:
                 node['mark'] = '*'
         self.worker_nodes = filter(lambda item: not item.get('mark'), self.worker_nodes)
         return self.worker_nodes
 
-    def _filter_list_out_by_name(self, the_list=None):
+    def filter_list_out_by_name(self, the_list=None):
         for idx, node in enumerate(self.worker_nodes):
             if node['domainname'].split('.', 1)[0] in the_list:
                 node['mark'] = '*'
         self.worker_nodes = filter(lambda item: not item.get('mark'), self.worker_nodes)
         return self.worker_nodes
 
-    def _filter_list_in_by_name(self, the_list=None):
+    def filter_list_in_by_name(self, the_list=None):
         for idx, node in enumerate(self.worker_nodes):
             if node['domainname'].split('.', 1)[0] not in the_list:
                 node['mark'] = '*'
         self.worker_nodes = filter(lambda item: not item.get('mark'), self.worker_nodes)
         return self.worker_nodes
 
-    def _filter_list_out_by_node_state(self, the_list=None):
+    def filter_list_out_by_node_state(self, the_list=None):
         for idx, node in enumerate(self.worker_nodes):
             if set(["".join(state.str for state in node['state'])]) & set(the_list):
                 node['mark'] = '*'
         self.worker_nodes = filter(lambda item: not item.get('mark'), self.worker_nodes)
         return self.worker_nodes
 
-    def _filter_list_out_by_name_pattern(self, the_list=None):
+    def filter_list_out_by_name_pattern(self, the_list=None):
         for idx, node in enumerate(self.worker_nodes):
             patterns = the_list.values()[0] if isinstance(the_list, dict) else the_list
             for pattern in patterns:
@@ -1785,7 +1819,7 @@ class WNFilter(object):
         self.worker_nodes = filter(lambda item: not item.get('mark'), self.worker_nodes)
         return self.worker_nodes
 
-    def _filter_list_in_by_name_pattern(self, the_list=None):
+    def filter_list_in_by_name_pattern(self, the_list=None):
         for idx, node in enumerate(self.worker_nodes):
             for pattern in the_list:
                 match = re.search(pattern, node['domainname'].split('.', 1)[0])
@@ -1804,12 +1838,12 @@ class WNFilter(object):
         """
 
         filter_types = {
-            'list_out': self._filter_list_out,
-            'list_out_by_name': self._filter_list_out_by_name,
-            'list_in_by_name': self._filter_list_in_by_name,
-            'list_out_by_name_pattern': self._filter_list_out_by_name_pattern,
-            'list_in_by_name_pattern': self._filter_list_in_by_name_pattern,
-            'list_out_by_node_state': self._filter_list_out_by_node_state
+            'list_out': self.filter_list_out,
+            'list_out_by_name': self.filter_list_out_by_name,
+            'list_in_by_name': self.filter_list_in_by_name,
+            'list_out_by_name_pattern': self.filter_list_out_by_name_pattern,
+            'list_in_by_name_pattern': self.filter_list_in_by_name_pattern,
+            'list_out_by_node_state': self.filter_list_out_by_node_state
         }
 
         if filter_rules:
@@ -1947,7 +1981,7 @@ if __name__ == '__main__':
                     _ = subprocess.call(cat_command, stdout=stdout, stderr=stdout, shell=True)
 
                     read_char = wait_for_keypress_or_autorefresh(viewport, int(options.WATCH[0]) or KEYPRESS_TIMEOUT)
-                    control_qtop(viewport, read_char)
+                    control_qtop(viewport, read_char, cluster)
 
                 os.chdir(QTOPPATH)
                 os.unlink(output_fp)
