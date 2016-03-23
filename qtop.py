@@ -412,8 +412,10 @@ def control_qtop(viewport, read_char, cluster):
         web.stop()
         sys.exit(0)
 
+    elif pressed_char_hex in ['46']:  # F
+        dynamic_config['force_names'] = not dynamic_config['force_names']
+
     elif pressed_char_hex in ['66']:  # f
-        # import wdb; wdb.set_trace()
         cluster.wn_filter = cluster.WNFilter(cluster.worker_nodes)
         filter_map = {
             1: 'list_out_by_node_state',
@@ -699,7 +701,7 @@ class WNOccupancy(object):
 
         # TODO extract to another class?
         self.print_char_start, self.print_char_stop, self.extra_matrices_nr = self.find_matrices_width()
-        self.wn_vert_labels = self.calc_all_wnid_label_lines(NAMED_WNS)
+        self.wn_vert_labels = self.calc_all_wnid_label_lines(dynamic_config['force_names'])
 
         # For-loop below only for user-inserted/customizeable values.
         for yaml_key, part_name, systems in yaml.get_yaml_key_part(config, scheduler, outermost_key='workernodes_matrix'):
@@ -882,7 +884,7 @@ class WNOccupancy(object):
         '3': "12345678901234567..."
         """
         highest_wn = self.cluster.highest_wn
-        if NAMED_WNS or options.FORCE_NAMES:
+        if NAMED_WNS:  #  or options.FORCE_NAMES
             workernode_dict = self.cluster.workernode_dict
             hosts = [state_corejob_dn['host'] for _, state_corejob_dn in workernode_dict.items()]
             node_str_width = len(max(hosts, key=len))
@@ -1398,7 +1400,7 @@ class TextDisplay(object):
         d = OrderedDict()
         end_labels = config['workernodes_matrix'][0]['wn id lines']['end_labels']
 
-        if not NAMED_WNS:
+        if not dynamic_config['force_names']:
             node_str_width = len(str(highest_wn))  # 4 for thousands of nodes, nr of horizontal lines to be displayed
 
             for node_nr in range(1, node_str_width + 1):
@@ -1408,7 +1410,7 @@ class TextDisplay(object):
                                   color_func=self.color_plainly, args=('White', 'Gray_L', start > 0))
             # start > 0 is just a test for a possible future condition
 
-        elif NAMED_WNS or options.FORCE_NAMES:  # the actual names of the worker nodes instead of numbered WNs
+        elif dynamic_config['force_names']:  # the actual names of the WNs instead of numbered WNs [was: or options.FORCE_NAMES]
             node_str_width = len(wn_vert_labels)  # key, nr of horizontal lines to be displayed
 
             # for longer full-labeled wn ids, add more end-labels (far-right) towards the bottom
@@ -1914,14 +1916,14 @@ class InvalidScheduler(Exception):
 if __name__ == '__main__':
     options, args = utils.parse_qtop_cmdline_args()
     utils.init_logging(options)
-    options, NAMED_WNS = process_options(options)
+    dynamic_config = dict()
+    options, dynamic_config['force_names'] = process_options(options)
     # TODO: check if this is really needed any more
     # sys.excepthook = handle_exception
 
     available_batch_systems = discover_qtop_batch_systems()
 
     stdout = sys.stdout  # keep a copy of the initial value of sys.stdout
-    dynamic_config = dict()
     change_mapping = cycle(['queue_to_color', 'userid_pat_to_color'])
 
     viewport = Viewport()  # controls the part of the qtop matrix shown on screen
