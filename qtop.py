@@ -424,14 +424,14 @@ def control_qtop(viewport, read_char, cluster):
             6: 'list_in_by_name',
             7: 'list_in_by_name_pattern',
         }
-        print 'Filter out by:\n%(one)s node state %(two)s node number' \
-              ' %(three)s node name %(four)s node name regex pattern' % {
+        print 'Filter out nodes by:\n%(one)s state %(two)s number' \
+              ' %(three)s name %(four)s name regex pattern' % {
                     'one': colorize("(1)", color_func='Red_L'),
                     'two': colorize("(2)", color_func='Red_L'),
                     'three': colorize("(3)", color_func='Red_L'),
                     'four': colorize("(4)", color_func='Red_L')
         }
-        print 'Filter in by:\n%(five)s node state %(six)s node name  %(seven)s node name regex pattern' \
+        print 'Filter in nodes by:\n%(five)s state %(six)s name  %(seven)s name regex pattern' \
               % {'five': colorize("(5)", color_func='Red_L'),
                  'six': colorize("(6)", color_func='Red_L'),
                  'seven': colorize("(7)", color_func='Red_L'),
