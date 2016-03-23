@@ -1415,7 +1415,7 @@ class TextDisplay(object):
 
             # for longer full-labeled wn ids, add more end-labels (far-right) towards the bottom
             for num in range(8, len(wn_vert_labels) + 1):
-                end_labels.setdefault(str(num), end_labels['7'] + num * ['={___ID___}'])
+                end_labels.setdefault(str(num), end_labels['7'] + num * ['={________}'])
 
             end_labels_iter = iter(end_labels[str(node_str_width)])
             self.print_wnid_lines(wn_vert_labels, start, stop, end_labels_iter, transposed_matrices,
