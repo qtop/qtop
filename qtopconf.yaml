@@ -173,6 +173,7 @@ filtering:
  # - list_out_by_name: ['da-p8-03',]
  # - list_out_by_name: [gaia-74, gaia-73, gaia-81, gaia-80, gaia-87, gaia-75, gaia-77, gaia-76, gaia-79, gaia-78]
  # - list_out_by_name_pattern:  ['^da-p6','^da-p7']
+ # - list_in_by_name_pattern:  ['^da-p6','^da-p7']
    # - ^da-p4
    # - p5
    # - ^da-p8

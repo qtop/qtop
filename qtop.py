@@ -420,21 +420,32 @@ def control_qtop(viewport, read_char, cluster):
             2: 'list_out',
             3: 'list_out_by_name',
             4: 'list_out_by_name_pattern',
-            5: 'list_in_by_name'
+            5: 'list_in_by_node_state',
+            6: 'list_in_by_name',
+            7: 'list_in_by_name_pattern',
         }
-        print 'Available filters. Filter out by:\n%(one)s by node state %(two)s by node number' \
-              ' %(three)s by node name %(four)s by node name regex pattern' % {
+        print 'Filter out by:\n%(one)s node state %(two)s node number' \
+              ' %(three)s node name %(four)s node name regex pattern' % {
                     'one': colorize("(1)", color_func='Red_L'),
                     'two': colorize("(2)", color_func='Red_L'),
                     'three': colorize("(3)", color_func='Red_L'),
                     'four': colorize("(4)", color_func='Red_L')
         }
-        print 'Filter in by: %(five)s node name' % {'five': colorize("(5)", color_func='Red_L')}
+        print 'Filter in by:\n%(five)s node state %(six)s node name  %(seven)s node name regex pattern' \
+              % {'five': colorize("(5)", color_func='Red_L'),
+                 'six': colorize("(6)", color_func='Red_L'),
+                 'seven': colorize("(7)", color_func='Red_L'),
+                 }
         dynamic_config['filtering'] = []
         while True:
             filter_choice = raw_input('\nChoose Filter command, or Enter to exit:-> ')
             if not filter_choice: break
-            filter_choice = int(filter_choice)
+            try:
+                filter_choice = int(filter_choice)
+            except ValueError:
+                break
+            else:
+                if filter_choice not in filter_map: break
             filter_args = []
             while True:
                 user_input = raw_input('\nEnter argument, or Enter to exit:-> ')
@@ -1781,29 +1792,22 @@ class WNFilter(object):
         for idx, node in enumerate(self.worker_nodes):
             if idx in the_list:
                 node['mark'] = '*'
-        self.worker_nodes = filter(lambda item: not item.get('mark'), self.worker_nodes)
-        return self.worker_nodes
+        worker_nodes = filter(lambda item: not item.get('mark'), self.worker_nodes)
+        return worker_nodes
 
     def filter_list_out_by_name(self, the_list=None):
         for idx, node in enumerate(self.worker_nodes):
             if node['domainname'].split('.', 1)[0] in the_list:
                 node['mark'] = '*'
-        self.worker_nodes = filter(lambda item: not item.get('mark'), self.worker_nodes)
-        return self.worker_nodes
-
-    def filter_list_in_by_name(self, the_list=None):
-        for idx, node in enumerate(self.worker_nodes):
-            if node['domainname'].split('.', 1)[0] not in the_list:
-                node['mark'] = '*'
-        self.worker_nodes = filter(lambda item: not item.get('mark'), self.worker_nodes)
-        return self.worker_nodes
+        worker_nodes = filter(lambda item: not item.get('mark'), self.worker_nodes)
+        return worker_nodes
 
     def filter_list_out_by_node_state(self, the_list=None):
         for idx, node in enumerate(self.worker_nodes):
             if set(["".join(state.str for state in node['state'])]) & set(the_list):
                 node['mark'] = '*'
-        self.worker_nodes = filter(lambda item: not item.get('mark'), self.worker_nodes)
-        return self.worker_nodes
+        worker_nodes = filter(lambda item: not item.get('mark'), self.worker_nodes)
+        return worker_nodes
 
     def filter_list_out_by_name_pattern(self, the_list=None):
         for idx, node in enumerate(self.worker_nodes):
@@ -1816,21 +1820,37 @@ class WNFilter(object):
                     pass
                 else:
                     node['mark'] = '*'
-        self.worker_nodes = filter(lambda item: not item.get('mark'), self.worker_nodes)
-        return self.worker_nodes
+        worker_nodes = filter(lambda item: not item.get('mark'), self.worker_nodes)
+        return worker_nodes
+
+    def filter_list_in_by_node_state(self, the_list=None):
+        for idx, node in enumerate(self.worker_nodes):
+            if set(["".join(state.str for state in node['state'])]) & set(the_list):
+                node['mark'] = '*'
+        worker_nodes = filter(lambda item: item.get('mark'), self.worker_nodes)
+        return worker_nodes
+
+    def filter_list_in_by_name(self, the_list=None):
+        for idx, node in enumerate(self.worker_nodes):
+            if node['domainname'].split('.', 1)[0] in the_list:
+                node['mark'] = '*'
+        worker_nodes = filter(lambda item: item.get('mark'), self.worker_nodes)
+        return worker_nodes
 
     def filter_list_in_by_name_pattern(self, the_list=None):
         for idx, node in enumerate(self.worker_nodes):
-            for pattern in the_list:
+            patterns = the_list.values()[0] if isinstance(the_list, dict) else the_list
+            for pattern in patterns:
                 match = re.search(pattern, node['domainname'].split('.', 1)[0])
                 try:
                     match.group(0)
                 except AttributeError:
-                    node['mark'] = '*'
-                else:
                     pass
-        self.worker_nodes = filter(lambda item: not item.get('mark'), self.worker_nodes)
-        return self.worker_nodes
+                else:
+                    node['mark'] = '*'
+        worker_nodes = filter(lambda item: item.get('mark'), self.worker_nodes)
+        # import wdb; wdb.set_trace()
+        return worker_nodes
 
     def filter_worker_nodes(self, filter_rules=None):
         """
@@ -1843,7 +1863,8 @@ class WNFilter(object):
             'list_in_by_name': self.filter_list_in_by_name,
             'list_out_by_name_pattern': self.filter_list_out_by_name_pattern,
             'list_in_by_name_pattern': self.filter_list_in_by_name_pattern,
-            'list_out_by_node_state': self.filter_list_out_by_node_state
+            'list_out_by_node_state': self.filter_list_out_by_node_state,
+            'list_in_by_node_state': self.filter_list_in_by_node_state
         }
 
         if filter_rules:
