@@ -1735,15 +1735,15 @@ class Cluster(object):
         user_filters = dynamic_config.get('filtering', self.config['filtering'])
         user_filtering = user_filters and user_filters[0]
 
-        if user_sorting and options_remap:
-            self.worker_nodes = self._sort_worker_nodes()
-
         if user_filtering and options_remap:
             len_wn_before = len(self.worker_nodes)
             self.wn_filter = self.WNFilter(self.worker_nodes)
             self.worker_nodes = self.wn_filter.filter_worker_nodes(filter_rules=user_filters)
             len_wn_after = len(self.worker_nodes)
             nodes_drop = len_wn_after - len_wn_before
+
+        if user_sorting and options_remap:
+            self.worker_nodes = self._sort_worker_nodes()
 
         for (batch_node, (idx, cur_node_nr)) in zip(self.worker_nodes, enumerate(self.workernode_list)):
             # Seemingly there is an error in the for loop because self.worker_nodes and workernode_list
