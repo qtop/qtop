@@ -1,3 +1,10 @@
+## 0.8.9-pre
+
+  - filtering options available in watch mode (-w)
+  - matrix transposable in watch mode
+  - queue info can now be colored, three different queues with the same initials can be colored distinctly
+ 
+
 ## 0.8.8
   - created a shiny new demo out of a demo mini-grid scheduler (!)
 
