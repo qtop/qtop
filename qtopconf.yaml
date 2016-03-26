@@ -162,15 +162,16 @@ sorting:
 
   reverse: False
 
+## exclude filters gradually cut off selected nodes from the last set of remaining nodes
+## include filters do a consecutive selection, e.g. from 100 nodes 30 are selected, then the next include filter will select 10 out of those and so on.
+## or_include filters select the union of the selections.
+## Filters can only be combined if they are the same kind, i.e. exclude with exclude, or_include with or_include
+## IMPORTANT: single-item lists need to end in a comma! e.g. ['^gaia-',]
 filtering:
- ## exclude filters gradually cut off selected nodes from the last set of remaining nodes
- ## include filters do a consecutive selection, e.g. from 100 nodes 30 are selected, then the next include filter will select 10 out of those and so on.
- ## or_include filters select the union of the selections.
- ## Filters can only be combined if they are the same kind, i.e. exclude with exclude, or_include with or_include
  # - exclude_node_states: ['hqw','au']
  # - exclude_numbers: [3,4]
  # - exclude_name_patterns:  ['^da-p6','^da-p7']
- # - include_name_patterns:  ['^da-p6','^da-p7']
+ # - include_name_patterns:  ['^da-p6',]
  # - include_node_states: ['hqw','au']
  # - include_numbers: [3,4]
  # - or_include_numbers: [3,4]
