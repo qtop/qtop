@@ -167,17 +167,24 @@ sorting:  # this is here so that you can customise it to your heart's delight!!
   reverse: False
 
 filtering:
- # - list_out_by_node_state: ['hqw','au']
- # - list_out: [3,4]
- # - list_in_by_name: ['da-p8-02',]
- # - list_out_by_name: ['da-p8-03',]
- # - list_out_by_name: [gaia-74, gaia-73, gaia-81, gaia-80, gaia-87, gaia-75, gaia-77, gaia-76, gaia-79, gaia-78]
- # - list_out_by_name_pattern:  ['^da-p6','^da-p7']
- # - list_in_by_name_pattern:  ['^da-p6','^da-p7']
+ ## exclude filters gradually cut off selected nodes from the last set of remaining nodes
+ ## include filters do a consecutive selection, e.g. from 100 nodes 30 are selected, then the next include filter will select 10 out of those and so on.
+ ## or_include filters select the union of the selections.
+ ## Filters can only be combined if they are the same kind, i.e. exclude with exclude, or_include with or_include
+ # - exclude_node_states: ['hqw','au']
+ # - exclude_numbers: [3,4]
+ # - exclude_name_patterns:  ['^da-p6','^da-p7']
+ # - include_name_patterns:  ['^da-p6','^da-p7']
+ # - include_node_states: ['hqw','au']
+ # - include_numbers: [3,4]
+ # - or_include_numbers: [3,4]
+ # - or_include_node_states: ['hqw','au']
+ # - or_include_name_patterns: ['^da-p6','^da-p7']
    # - ^da-p4
    # - p5
    # - ^da-p8
    # - ^da-p6
+ # - ranges_out: 1-12, 30-42 # TODO
 
 # what parts of qtop to display
 user_display_parts:

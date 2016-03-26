@@ -418,44 +418,53 @@ def control_qtop(viewport, read_char, cluster):
     elif pressed_char_hex in ['66']:  # f
         cluster.wn_filter = cluster.WNFilter(cluster.worker_nodes)
         filter_map = {
-            1: 'list_out_by_node_state',
-            2: 'list_out',
-            3: 'list_out_by_name',
-            4: 'list_out_by_name_pattern',
-            5: 'list_in_by_node_state',
-            6: 'list_in',
-            7: 'list_in_by_name',
-            8: 'list_in_by_name_pattern',
+            1: 'exclude_node_states',
+            2: 'exclude_numbers',
+            3: 'exclude_name_patterns',
+            4: 'or_include_node_states',
+            5: 'or_include_numbers',
+            6: 'or_include_name_patterns',
+            7: 'include_node_states',
+            8: 'include_numbers',
+            9: 'include_name_patterns',
         }
         print 'Filter out nodes by:\n%(one)s state %(two)s number' \
-              ' %(three)s name %(four)s name regex pattern' % {
+              ' %(three)s name substring or RegEx pattern' % {
                     'one': colorize("(1)", color_func='Red_L'),
                     'two': colorize("(2)", color_func='Red_L'),
                     'three': colorize("(3)", color_func='Red_L'),
-                    'four': colorize("(4)", color_func='Red_L')
         }
-        print 'Filter in nodes by:\n%(five)s state %(six)s number %(seven)s name  %(eight)s name regex pattern' \
-              % {'five': colorize("(5)", color_func='Red_L'),
+        print 'Filter in nodes by:\n(any) %(four)s state %(five)s number %(six)s name substring or RegEx pattern\n' \
+              '(all) %(seven)s state %(eight)s number %(nine)s name substring or RegEx pattern' \
+              % {'four': colorize("(4)", color_func='Red_L'),
+                 'five': colorize("(5)", color_func='Red_L'),
                  'six': colorize("(6)", color_func='Red_L'),
                  'seven': colorize("(7)", color_func='Red_L'),
                  'eight': colorize("(8)", color_func='Red_L'),
+                 'nine': colorize("(9)", color_func='Red_L'),
                  }
-        dynamic_config['filtering'] = []
         new_attrs[3] = new_attrs[3] & ~(termios.ECHO | termios.ICANON)
         termios.tcsetattr(sys.__stdin__.fileno(), termios.TCSADRAIN, old_attrs)
+
+        dynamic_config['filtering'] = []
         while True:
             filter_choice = raw_input('\nChoose Filter command, or Enter to exit:-> ',)
-            if not filter_choice: break
+            if not filter_choice:
+                break
+
             try:
                 filter_choice = int(filter_choice)
             except ValueError:
                 break
             else:
-                if filter_choice not in filter_map: break
+                if filter_choice not in filter_map:
+                    break
+
             filter_args = []
             while True:
                 user_input = raw_input('\nEnter argument, or Enter to exit:-> ')
-                if not user_input: break
+                if not user_input:
+                    break
                 filter_args.append(user_input)
 
             dynamic_config['filtering'].append({filter_map[filter_choice]: filter_args})
@@ -1723,10 +1732,8 @@ class Cluster(object):
         workernode_dict = dict()
         workernode_dict_remapped = dict()
         user_sorting = self.config['sorting'] and self.config['sorting'].values()[0]
-        # import wdb; wdb.set_trace()
         user_filters = dynamic_config.get('filtering', self.config['filtering'])
         user_filtering = user_filters and user_filters[0]
-        # user_filtering = self.config['filtering'] and self.config['filtering'][0]
 
         if user_sorting and options_remap:
             self.worker_nodes = self._sort_worker_nodes()
@@ -1795,30 +1802,21 @@ class WNFilter(object):
     def __init__(self, worker_nodes):
         self.worker_nodes = worker_nodes
 
-    def filter_list_out(self, the_list=None):
-        for idx, node in enumerate(self.worker_nodes):
-            if idx in the_list:
+    def mark_list_by_number(self, nodes, arg_list=None):
+        for idx, node in enumerate(nodes):
+            if str(idx) in arg_list:
                 node['mark'] = '*'
-        worker_nodes = filter(lambda item: not item.get('mark'), self.worker_nodes)
-        return worker_nodes
+        return nodes
 
-    def filter_list_out_by_name(self, the_list=None):
-        for idx, node in enumerate(self.worker_nodes):
-            if node['domainname'].split('.', 1)[0] in the_list:
+    def mark_list_by_node_state(self, nodes, arg_list=None):
+        for idx, node in enumerate(nodes):
+            if set(["".join(state.str for state in node['state'])]) & set(arg_list):
                 node['mark'] = '*'
-        worker_nodes = filter(lambda item: not item.get('mark'), self.worker_nodes)
-        return worker_nodes
+        return nodes
 
-    def filter_list_out_by_node_state(self, the_list=None):
-        for idx, node in enumerate(self.worker_nodes):
-            if set(["".join(state.str for state in node['state'])]) & set(the_list):
-                node['mark'] = '*'
-        worker_nodes = filter(lambda item: not item.get('mark'), self.worker_nodes)
-        return worker_nodes
-
-    def filter_list_out_by_name_pattern(self, the_list=None):
-        for idx, node in enumerate(self.worker_nodes):
-            patterns = the_list.values()[0] if isinstance(the_list, dict) else the_list
+    def mark_list_by_name_pattern(self, nodes, arg_list=None):
+        for idx, node in enumerate(nodes):
+            patterns = arg_list.values()[0] if isinstance(arg_list, dict) else arg_list
             for pattern in patterns:
                 match = re.search(pattern, node['domainname'].split('.', 1)[0])
                 try:
@@ -1827,69 +1825,49 @@ class WNFilter(object):
                     pass
                 else:
                     node['mark'] = '*'
-        worker_nodes = filter(lambda item: not item.get('mark'), self.worker_nodes)
-        return worker_nodes
+        return nodes
 
-    def filter_list_in_by_node_state(self, the_list=None):
-        for idx, node in enumerate(self.worker_nodes):
-            if set(["".join(state.str for state in node['state'])]) & set(the_list):
-                node['mark'] = '*'
-        worker_nodes = filter(lambda item: item.get('mark'), self.worker_nodes)
-        return worker_nodes
+    def keep_marked(self, t, rule, final_pass=False):
+        if (rule.startswith('or_') and not final_pass) or (not rule.startswith('or_') and final_pass):
+            return t
+        nodes = filter(lambda item: item.get('mark'), t)
+        for item in nodes:
+            if item.get('mark'):
+                del item['mark']
+        return nodes
 
-    def filter_list_in(self, the_list=None):
-        for idx, node in enumerate(self.worker_nodes):
-            # import wdb; wdb.set_trace()
-            if str(idx) in the_list:
-                node['mark'] = '*'
-        worker_nodes = filter(lambda item: item.get('mark'), self.worker_nodes)
-        return worker_nodes
-
-    def filter_list_in_by_name(self, the_list=None):
-        for idx, node in enumerate(self.worker_nodes):
-            if node['domainname'].split('.', 1)[0] in the_list:
-                node['mark'] = '*'
-        worker_nodes = filter(lambda item: item.get('mark'), self.worker_nodes)
-        return worker_nodes
-
-    def filter_list_in_by_name_pattern(self, the_list=None):
-        for idx, node in enumerate(self.worker_nodes):
-            patterns = the_list.values()[0] if isinstance(the_list, dict) else the_list
-            for pattern in patterns:
-                match = re.search(pattern, node['domainname'].split('.', 1)[0])
-                try:
-                    match.group(0)
-                except AttributeError:
-                    pass
-                else:
-                    node['mark'] = '*'
-        worker_nodes = filter(lambda item: item.get('mark'), self.worker_nodes)
-        # import wdb; wdb.set_trace()
-        return worker_nodes
+    def keep_unmarked(self, t, rule, final_pass=False):
+        return filter(lambda item: not item.get('mark'), t)
 
     def filter_worker_nodes(self, filter_rules=None):
         """
-        Filters specific nodes according to the filter rules in QTOPCONF_YAML
+        Keeps specific nodes according to the filter rules in QTOPCONF_YAML
         """
-
         filter_types = {
-            'list_out': self.filter_list_out,
-            'list_in': self.filter_list_in,
-            'list_out_by_name': self.filter_list_out_by_name,
-            'list_in_by_name': self.filter_list_in_by_name,
-            'list_out_by_name_pattern': self.filter_list_out_by_name_pattern,
-            'list_in_by_name_pattern': self.filter_list_in_by_name_pattern,
-            'list_out_by_node_state': self.filter_list_out_by_node_state,
-            'list_in_by_node_state': self.filter_list_in_by_node_state
+            'exclude_numbers': (self.mark_list_by_number, self.keep_unmarked),
+            'exclude_node_states': (self.mark_list_by_node_state, self.keep_unmarked),
+            'exclude_name_patterns': (self.mark_list_by_name_pattern, self.keep_unmarked),
+            'or_include_numbers': (self.mark_list_by_number, self.keep_marked),
+            'or_include_node_states': (self.mark_list_by_node_state, self.keep_marked),
+            'or_include_name_patterns': (self.mark_list_by_name_pattern, self.keep_marked),
+            'include_numbers': (self.mark_list_by_number, self.keep_marked),
+            'include_node_states': (self.mark_list_by_node_state, self.keep_marked),
+            'include_name_patterns': (self.mark_list_by_name_pattern, self.keep_marked),
         }
 
         if filter_rules:
             logging.warning("WN Occupancy view is filtered.")  # TODO display this somewhere in qtop!
-            for rule in filter_rules:
-                filter_func = filter_types[rule.keys()[0]]
-                the_list = rule.values()[0]
-                if the_list:
-                    self.worker_nodes = filter_func(the_list)
+            nodes = self.worker_nodes[:]
+            for filter_rule in filter_rules:
+                rule, args = filter_rule.items()[0]
+                mark_func, keep = filter_types[rule]
+                nodes = mark_func(nodes, args)
+                nodes = keep(nodes, rule)
+            else:
+                nodes = keep(nodes, rule, final_pass=True)
+
+            self.worker_nodes = dict((v['domainname'], v) for v in nodes).values()
+
         return self.worker_nodes
 
 
