@@ -1,18 +1,21 @@
-# Default configuration file for qtop.
-# DO NOT OVERWRITE this file with your own settings. Instead, 
-# create a new qtopconf.yaml in ~/.local/qtop/
-# IMPORTANT: a blank line MUST be left after every line of *python code*.
+## Default configuration file for qtop.
+## DO NOT OVERWRITE this file with your own settings. Instead, 
+## create a new qtopconf.yaml in ~/.local/qtop/ (you can copy this one if you want)
+## IMPORTANT: a blank line MUST be left after every line of *python code*.
+## Lines beginning with double hash are comments
+## Lines beginning with single hash are commands commented out that you could try out.
+## Available colors and fg-bg combinations depicted in colormap.py, in color_to_code
 
-# scheduler possible values (currently supported): pbs, oar, sge
-# auto will try to detect available batch commands in the current system
+## scheduler possible values (currently supported): pbs, oar, sge
+## auto will try to detect available batch commands in the current system
 scheduler: auto
 
-# where to save output from batch commands and their conversion to yaml
+## where to save output from batch commands and their conversion to json
 savepath: /tmp/qtop_results_$USER
 
-# batch commands, filenames to save their output in
-# If user sets a sourcedir, qtop expects to find the respective
-# filenames below, minus the _pid.
+## batch commands, filenames to save their output in
+## If user sets a sourcedir, qtop expects to find the respective
+## filenames below, minus the _pid.
 schedulers:
   pbs:
     pbsnodes_file: %(savepath)s/pbsnodes_a%(pid)s.txt, pbsnodes -a
@@ -27,17 +30,18 @@ schedulers:
   demo:
     demo_file: %(savepath)s/demo%(pid)s.txt, echo 'Demo here'
 
-signature_commands:  # commands used to uniquely identify the scheduler installed
+## commands used to uniquely identify the scheduler installed
+signature_commands:
   pbs: pbsnodes
   oar: oarnodes
   sge: qacct
   demo: echo
 
-# Utilises lxml module. Needs to be installed in your system.
-# Might result in segmentation fault in some systems.
+## Utilises lxml module. Needs to be installed in your system.
+## Might result in segmentation fault in some systems.
 faster_xml_parsing: False
 
-# Meaning of queue state abbreviations
+## Meaning of queue state abbreviations
 state_abbreviations:
   pbs:
     Q: queued_of_user
@@ -45,6 +49,7 @@ state_abbreviations:
     C: cancelled_of_user
     E: exiting_of_user
     W: waiting_of_user
+    H: holding_of_user
   oar:
     E: Error
     F: Finishing
@@ -56,7 +61,7 @@ state_abbreviations:
     T: exiting_of_user
     S: cancelled_of_user
   sge:
-    # ref: http://www.softpanorama.org/HPC/Grid_engine/Reference/qstat.shtml
+    ## ref: http://www.softpanorama.org/HPC/Grid_engine/Reference/qstat.shtml
     r: running_of_user
     E: exiting_of_user  # not real
     qw: queued_of_user
@@ -78,13 +83,6 @@ state_abbreviations:
     Rq: queued_of_user
     Rt: transferring_of_user
     Rr: running_of_user    
-  pbs:
-    Q: queued_of_user
-    R: running_of_user
-    C: cancelled_of_user
-    E: exiting_of_user
-    W: waiting_of_user
-    H: holding_of_user
   demo:
     Q: queued_of_user
     R: running_of_user
@@ -92,29 +90,29 @@ state_abbreviations:
     E: exiting_of_user
     W: waiting_of_user
 
-# original OAR abbreviations:
-# state_abbreviations = {
-#     'W': 'Waiting',
-#     'L': 'toLaunch',
-#     'L': 'Launching',
-#     'H': 'Hold',
-#     'R': 'Running',
-#     'T': 'Terminated',
-#     'E': 'Error',
-#     'E': 'toError',
-#     'F': 'Finishing',
-#     'S': 'Suspended',
-#     'S': 'Resuming',
-#     'W': 'toAckReservation',
-# }
+## original OAR abbreviations:
+## state_abbreviations = {
+##     'W': 'Waiting',
+##     'L': 'toLaunch',
+##     'L': 'Launching',
+##     'H': 'Hold',
+##     'R': 'Running',
+##     'T': 'Terminated',
+##     'E': 'Error',
+##     'E': 'toError',
+##     'F': 'Finishing',
+##     'S': 'Suspended',
+##     'S': 'Resuming',
+##     'W': 'toAckReservation',
+## }
 
 percentage: 0.8 # if less than PERCENTAGE x 100% of the matrices have jobs, perform a blind remap
 possible_ids: 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz # IDs of unix accounts, for the lower part of qtop
 non_existent_node_symbol: #
-# Term size is autodetected. If that fails, a value is read from here.
-# If commented out, will get a fallback_terms_size from within constants.py
-#term_size: [53, 176]
-#term_size: [53, 126]  # for smaller screens, namely 1366 x 768
+## Term size is autodetected. If that fails, a value is read from here.
+## If commented out, will get a fallback_terms_size from within constants.py
+# term_size: [53, 176]
+# term_size: [53, 126]  # for smaller screens, namely 1366 x 768
 user_color_mappings:  # order should be from more generic-->more specific
 # - \w+: Gray_D  # enabling this cancels all saved accounts in colormap.py
 # - [\d]+: Gray_D
@@ -126,42 +124,40 @@ user_color_mappings:  # order should be from more generic-->more specific
  - \w*cms048: Blue
  - \w*cms193: Gray_L
  - \w*atl\w+: Red
- - snielsen: Blue
- - ekalesaki: Cyan_L
- - zzhang: Red_L
- - mmravlak: Red_L
- - dbobbili: Cyan_L
- - patls021: Cyan_L
 
 queue_color_mappings:
   - alice: Red_L
   - dteam\w+: Cyan_L
 
-nodestate_color_mappings:
+nodestate_color_mappings:  
  - au: BlackOnRed
  - d: Red_LOnGrayBG
 
-# if cluster numbering should start on a number # above this, do automatic blind remapping
+## if cluster numbering should start on a number # above this, do automatic blind remapping
 exotic_starting_wn_nr: 9000
 remapping:
 # - "([A-Za-z]+)([1-9]|[1-9][0-9]|[0-9][0-9][0-9])$": |
 #     lambda m: m.group(1)+str(int(m.group(2))+250)
-     # e.g. wn100 --> wn350, wn101 --> wn351 and so on
+     ## e.g. wn100 --> wn350, wn101 --> wn351 and so on
 # - torvalds(\d+): tor\1
 # - gridlab(\d+): glab\1
 # - gridmon(\d*): mon\1
  # - ^da-(.*?): ca\1
  # - (.*?)cluster(.*?): \1-\2  # remove "cluster" word from all node names
-# WARNING: not working properly in native yaml parser
+## WARNING: not working properly in native yaml parser
 # - -: ""  # removes dashes for shortening (can also replace them with something else, e.g. _
 
-sorting:  # this is here so that you can customise it to your heart's delight!!
+## re-arranging lines will sort nodes with the respective sorting priority (first line has top priority)
+sorting:  
   user_sort: |
-      lambda d: (
-      d['np'], # sort by number of cores
-      ord(d['domainname'][0]), # sort by first letter
-      len(d['domainname'].split('.', 1)[0].split('-')[0]),  # by name?
-      int(re.sub(r'[A-Za-z _.-]+', '', d['domainname']) or "0"),
+      lambda node: (
+      len(node['domainname'].split('.', 1)[0].split('-')[0]),                                      # sort by name length, until first dash or dot
+      int(re.sub(r'[A-Za-z _.-]+', '', node['domainname']) or "0"),                                # sort strictly by all numbers in name (joined)
+      # int(re.sub(r'[A-Za-z_.-]+', '', node['domainname'].split('.', 1)[0].split('-')[0]) or -1),   # sort by number adjacent to first word
+      # ord(node['domainname'][0]),                                                                  # sort by first letter
+      # ord(str(node['state'][0])),                                                                  # sort by node state
+      # node['np']                                                                                   # sort by number of cores
+      # 0,                                                                                           # no sorting, MUST comment out other sorting options
       )
 
   reverse: False
@@ -179,42 +175,42 @@ filtering:
  # - include_numbers: [3,4]
  # - or_include_numbers: [3,4]
  # - or_include_node_states: ['hqw','au']
- # - or_include_name_patterns: ['^da-p6','^da-p7']
-   # - ^da-p4
-   # - p5
+ # - or_include_name_patterns: ['^da-p6','^da-p7','^da-p8']
+ # - or_include_name_patterns: 
+   # - ^da-p[67]
    # - ^da-p8
-   # - ^da-p6
- # - ranges_out: 1-12, 30-42 # TODO
+ # - ranges_out: 1-12, 30-42 # TODO, not working
 
-# what parts of qtop to display
+## what parts of qtop to display
 user_display_parts:
  - job_accounting_summary
  - workernodes_matrix
  - user_accounts_pool_mappings
 
+
 #wn_occupancy:
 # - wn id lines
 # - node state
-# - temperature
+# - temperature  # not working. For illustrative purposes
 # - core_user_map
 
-# character used for vertical separator in WN occupancy matrix
+## character used for vertical separator in WN occupancy matrix
 vertical_separator: '|'
-# Put vertical_separator every X columns.
+## Put vertical_separator every X columns.
 vertical_separator_every_X_columns: 0
-# Put vertical_separator in case of overspill (SGE systems only).
+## Put vertical_separator in case of overspill (SGE systems only).
 separator_after_overspill: True
-# TODO (not implemented)
+## TODO (not implemented)
 overspill_separator: '*'
 
 workernodes_matrix:
  - wn id lines:
      max_len: 22
-     # Masking/clipping functionality. How high should the # earliest node number be (e.g. 50), to make the previous WNs vanish
+     ## Masking/clipping functionality. How high should the # earliest node number be (e.g. 50), to make the previous WNs vanish
      min_masking_threshold: 9
-     # Change this to an int if you want a custom cut matrix length
+     ## Change this to an int if you want a custom cut matrix length
      user_cut_matrix_width: 0
-     # customised end labels
+     ## customised end labels
      end_labels:
        1: ['={__WNID__}',]
        2: ['={_Worker_}', '={__Node__}']
@@ -223,9 +219,9 @@ workernodes_matrix:
        5: ['={________}', '={________}', '={_Worker_}', '={__Node__}', '={___ID___}']
        6: ['={________}', '={________}', '={________}', '={_Worker_}', '={__Node__}', '={___ID___}']
        7: ['={________}', '={________}', '={________}', '={________}', '={_Worker_}', '={__Node__}', '={___ID___}']
-     # native yaml parser BUG/TODO: two consecutive unindents are not allowed. Must have an unindented key-value after nested keys:
+     ## native yaml parser BUG/TODO: two consecutive unindents are not allowed. Must have an unindented key-value after nested keys:
      alt_label_colors: [White, Blue_L]
-# - temperature:
+# - temperature:  # not working, for illustrative purposes
 #     yaml key: temperature  # how it's found in the yaml file
 #     label: Temperature (C)  # how to label it on the qtop matrix
 #     option: {}
@@ -244,20 +240,6 @@ workernodes_matrix:
      options1: {}
      options2: {}
 
-
-# INFO: available colours.
-#Blue Blue_L
-#Brown
-#Cyan Cyan_L
-#Gray_D Gray_L
-#Green Green_L
-#normal
-#Pink
-#Purple
-#Red Red_L
-#White
-#Yellow
-
 extract_info:
   user_details_cache: cat -E $HOME/.local/qtop/getent_passwd.txt # this gets cached GECOS field info
   user_details_realtime: getent passwd %s # alternative method to get details in realtime
@@ -265,12 +247,12 @@ extract_info:
   regex: |
     re.search('(?<=<)[^<>]+(?=>)', field).group(0)
 
-# If set to true, wn_occupancy matrices contain the first letter of the user
-# owning the job. If false, it will show a mapped single-letter id instead.
-# The latter is useful when there are a lot of users starting with the same letter.
+## If set to true, wn_occupancy matrices contain the first letter of the user
+## owning the job. If false, it will show a mapped single-letter id instead.
+## The latter is useful when there are a lot of users starting with the same letter.
 fill_with_user_firstletter: False
-# If set to true, lines represent worker nodes, wherease if set to false, columns do.
-# Default is True
+## If set to true, lines represent worker nodes, wherease if set to false, columns do.
+## Default is True
 transpose_wn_matrices: True
 occupancy_column_order:
   - wnid_lines
@@ -281,7 +263,7 @@ horizontal_separator: '|'
 
 auto_delete_old_json_files_after_few_hours: 1 # (hours)
 overwrite_sample_file: True  # True (default) writes to tar using the same constant filename, False appends a timestamp
-# core_coloring can be either:
-#  - userid_pat_to_color, which paints core jobs according to the userid color, or
-#  - queue_to_color, which paints core jobs according to queue color
+## core_coloring can be either:
+##  - userid_pat_to_color, which paints core jobs according to the userid color, or
+##  - queue_to_color, which paints core jobs according to queue color
 core_coloring: userid_pat_to_color
