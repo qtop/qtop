@@ -337,7 +337,7 @@ def check_python_version():
         sys.exit(1)
 
 
-def control_qtop(viewport, read_char):
+def control_qtop(viewport, read_char, cluster):
     """
     Basic vi-like movement is implemented for the -w switch (linux watch-like behaviour for qtop).
     h, j, k, l for left, down, up, right, respectively.
@@ -409,9 +409,67 @@ def control_qtop(viewport, read_char):
 
     elif pressed_char_hex in ['71']:  # q
         print '  Exiting...'
-
         web.stop()
         sys.exit(0)
+
+    elif pressed_char_hex in ['46']:  # F
+        dynamic_config['force_names'] = not dynamic_config['force_names']
+
+    elif pressed_char_hex in ['66']:  # f
+        cluster.wn_filter = cluster.WNFilter(cluster.worker_nodes)
+        filter_map = {
+            1: 'exclude_node_states',
+            2: 'exclude_numbers',
+            3: 'exclude_name_patterns',
+            4: 'or_include_node_states',
+            5: 'or_include_numbers',
+            6: 'or_include_name_patterns',
+            7: 'include_node_states',
+            8: 'include_numbers',
+            9: 'include_name_patterns',
+        }
+        print 'Filter out nodes by:\n%(one)s state %(two)s number' \
+              ' %(three)s name substring or RegEx pattern' % {
+                    'one': colorize("(1)", color_func='Red_L'),
+                    'two': colorize("(2)", color_func='Red_L'),
+                    'three': colorize("(3)", color_func='Red_L'),
+        }
+        print 'Filter in nodes by:\n(any) %(four)s state %(five)s number %(six)s name substring or RegEx pattern\n' \
+              '(all) %(seven)s state %(eight)s number %(nine)s name substring or RegEx pattern' \
+              % {'four': colorize("(4)", color_func='Red_L'),
+                 'five': colorize("(5)", color_func='Red_L'),
+                 'six': colorize("(6)", color_func='Red_L'),
+                 'seven': colorize("(7)", color_func='Red_L'),
+                 'eight': colorize("(8)", color_func='Red_L'),
+                 'nine': colorize("(9)", color_func='Red_L'),
+                 }
+        new_attrs[3] = new_attrs[3] & ~(termios.ECHO | termios.ICANON)
+        termios.tcsetattr(sys.__stdin__.fileno(), termios.TCSADRAIN, old_attrs)
+
+        dynamic_config['filtering'] = []
+        while True:
+            filter_choice = raw_input('\nChoose Filter command, or Enter to exit:-> ',)
+            if not filter_choice:
+                break
+
+            try:
+                filter_choice = int(filter_choice)
+            except ValueError:
+                break
+            else:
+                if filter_choice not in filter_map:
+                    break
+
+            filter_args = []
+            while True:
+                user_input = raw_input('\nEnter argument, or Enter to exit:-> ')
+                if not user_input:
+                    break
+                filter_args.append(user_input)
+
+            dynamic_config['filtering'].append({filter_map[filter_choice]: filter_args})
+        termios.tcsetattr(sys.__stdin__.fileno(), termios.TCSADRAIN, new_attrs)
+        viewport.reset_display()
 
     logging.debug('Area Displayed: (h_start, v_start) --> (h_stop, v_stop) '
                   '\n\t(%(h_start)s, %(v_start)s) --> (%(h_stop)s, %(v_stop)s)' %
@@ -656,7 +714,7 @@ class WNOccupancy(object):
 
         # TODO extract to another class?
         self.print_char_start, self.print_char_stop, self.extra_matrices_nr = self.find_matrices_width()
-        self.wn_vert_labels = self.calc_all_wnid_label_lines(NAMED_WNS)
+        self.wn_vert_labels = self.calc_all_wnid_label_lines(dynamic_config['force_names'])
 
         # For-loop below only for user-inserted/customizeable values.
         for yaml_key, part_name, systems in yaml.get_yaml_key_part(config, scheduler, outermost_key='workernodes_matrix'):
@@ -839,7 +897,7 @@ class WNOccupancy(object):
         '3': "12345678901234567..."
         """
         highest_wn = self.cluster.highest_wn
-        if NAMED_WNS or options.FORCE_NAMES:
+        if NAMED_WNS:  #  or options.FORCE_NAMES
             workernode_dict = self.cluster.workernode_dict
             hosts = [state_corejob_dn['host'] for _, state_corejob_dn in workernode_dict.items()]
             node_str_width = len(max(hosts, key=len))
@@ -1355,7 +1413,7 @@ class TextDisplay(object):
         d = OrderedDict()
         end_labels = config['workernodes_matrix'][0]['wn id lines']['end_labels']
 
-        if not NAMED_WNS:
+        if not dynamic_config['force_names']:
             node_str_width = len(str(highest_wn))  # 4 for thousands of nodes, nr of horizontal lines to be displayed
 
             for node_nr in range(1, node_str_width + 1):
@@ -1365,12 +1423,12 @@ class TextDisplay(object):
                                   color_func=self.color_plainly, args=('White', 'Gray_L', start > 0))
             # start > 0 is just a test for a possible future condition
 
-        elif NAMED_WNS or options.FORCE_NAMES:  # the actual names of the worker nodes instead of numbered WNs
+        elif dynamic_config['force_names']:  # the actual names of the WNs instead of numbered WNs [was: or options.FORCE_NAMES]
             node_str_width = len(wn_vert_labels)  # key, nr of horizontal lines to be displayed
 
             # for longer full-labeled wn ids, add more end-labels (far-right) towards the bottom
             for num in range(8, len(wn_vert_labels) + 1):
-                end_labels.setdefault(str(num), end_labels['7'] + num * ['={___ID___}'])
+                end_labels.setdefault(str(num), end_labels['7'] + num * ['={________}'])
 
             end_labels_iter = iter(end_labels[str(node_str_width)])
             self.print_wnid_lines(wn_vert_labels, start, stop, end_labels_iter, transposed_matrices,
@@ -1674,17 +1732,18 @@ class Cluster(object):
         workernode_dict = dict()
         workernode_dict_remapped = dict()
         user_sorting = self.config['sorting'] and self.config['sorting'].values()[0]
-        user_filtering = self.config['filtering'] and self.config['filtering'][0]
-
-        if user_sorting and options_remap:
-            self.worker_nodes = self._sort_worker_nodes()
+        user_filters = dynamic_config.get('filtering', self.config['filtering'])
+        user_filtering = user_filters and user_filters[0]
 
         if user_filtering and options_remap:
             len_wn_before = len(self.worker_nodes)
             self.wn_filter = self.WNFilter(self.worker_nodes)
-            self.worker_nodes = self.wn_filter.filter_worker_nodes(filter_rules=config['filtering'])
+            self.worker_nodes = self.wn_filter.filter_worker_nodes(filter_rules=user_filters)
             len_wn_after = len(self.worker_nodes)
             nodes_drop = len_wn_after - len_wn_before
+
+        if user_sorting and options_remap:
+            self.worker_nodes = self._sort_worker_nodes()
 
         for (batch_node, (idx, cur_node_nr)) in zip(self.worker_nodes, enumerate(self.workernode_list)):
             # Seemingly there is an error in the for loop because self.worker_nodes and workernode_list
@@ -1743,52 +1802,22 @@ class WNFilter(object):
     def __init__(self, worker_nodes):
         self.worker_nodes = worker_nodes
 
-    def _filter_list_out(self, the_list=None):
-        if not the_list:
-            the_list = []
-        for idx, node in enumerate(self.worker_nodes):
-            if idx in the_list:
+    def mark_list_by_number(self, nodes, arg_list=None):
+        for idx, node in enumerate(nodes):
+            if str(idx) in arg_list:
                 node['mark'] = '*'
-        self.worker_nodes = filter(lambda item: not item.get('mark'), self.worker_nodes)
-        return self.worker_nodes
+        return nodes
 
-    def _filter_list_out_by_name(self, the_list=None):
-        if not the_list:
-            the_list = []
-        else:
-            the_list[:] = [eval(i) for i in the_list]
-        for idx, node in enumerate(self.worker_nodes):
-            if node['domainname'].split('.', 1)[0] in the_list:
+    def mark_list_by_node_state(self, nodes, arg_list=None):
+        for idx, node in enumerate(nodes):
+            if set(["".join(state.str for state in node['state'])]) & set(arg_list):
                 node['mark'] = '*'
-        self.worker_nodes = filter(lambda item: not item.get('mark'), self.worker_nodes)
-        return self.worker_nodes
+        return nodes
 
-    def _filter_list_in_by_name(self, the_list=None):
-        if not the_list:
-            the_list = []
-        else:
-            the_list[:] = [eval(i) for i in the_list]
-        for idx, node in enumerate(self.worker_nodes):
-            if node['domainname'].split('.', 1)[0] not in the_list:
-                node['mark'] = '*'
-        self.worker_nodes = filter(lambda item: not item.get('mark'), self.worker_nodes)
-        return self.worker_nodes
-
-    def _filter_list_out_by_node_state(self, the_list=None):
-        if not the_list:
-            the_list = []
-        for idx, node in enumerate(self.worker_nodes):
-            if node['state'] in the_list:
-                node['mark'] = '*'
-        self.worker_nodes = filter(lambda item: not item.get('mark'), self.worker_nodes)
-        return self.worker_nodes
-
-    def _filter_list_out_by_name_pattern(self, the_list=None):
-        if not the_list:
-            the_list = []
-
-        for idx, node in enumerate(self.worker_nodes):
-            for pattern in the_list:
+    def mark_list_by_name_pattern(self, nodes, arg_list=None):
+        for idx, node in enumerate(nodes):
+            patterns = arg_list.values()[0] if isinstance(arg_list, dict) else arg_list
+            for pattern in patterns:
                 match = re.search(pattern, node['domainname'].split('.', 1)[0])
                 try:
                     match.group(0)
@@ -1796,45 +1825,49 @@ class WNFilter(object):
                     pass
                 else:
                     node['mark'] = '*'
-        self.worker_nodes = filter(lambda item: not item.get('mark'), self.worker_nodes)
-        return self.worker_nodes
+        return nodes
 
-    def _filter_list_in_by_name_pattern(self, the_list=None):
-        if not the_list:
-            the_list = []
+    def keep_marked(self, t, rule, final_pass=False):
+        if (rule.startswith('or_') and not final_pass) or (not rule.startswith('or_') and final_pass):
+            return t
+        nodes = filter(lambda item: item.get('mark'), t)
+        for item in nodes:
+            if item.get('mark'):
+                del item['mark']
+        return nodes
 
-        for idx, node in enumerate(self.worker_nodes):
-            for pattern in the_list:
-                match = re.search(pattern, node['domainname'].split('.', 1)[0])
-                try:
-                    match.group(0)
-                except AttributeError:
-                    node['mark'] = '*'
-                else:
-                    pass
-        self.worker_nodes = filter(lambda item: not item.get('mark'), self.worker_nodes)
-        return self.worker_nodes
+    def keep_unmarked(self, t, rule, final_pass=False):
+        return filter(lambda item: not item.get('mark'), t)
 
     def filter_worker_nodes(self, filter_rules=None):
         """
-        Filters specific nodes according to the filter rules in QTOPCONF_YAML
+        Keeps specific nodes according to the filter rules in QTOPCONF_YAML
         """
-
         filter_types = {
-            'list_out': self._filter_list_out,
-            'list_out_by_name': self._filter_list_out_by_name,
-            'list_in_by_name': self._filter_list_in_by_name,
-            'list_out_by_name_pattern': self._filter_list_out_by_name_pattern,
-            'list_in_by_name_pattern': self._filter_list_in_by_name_pattern,
-            'list_out_by_node_state': self._filter_list_out_by_node_state
+            'exclude_numbers': (self.mark_list_by_number, self.keep_unmarked),
+            'exclude_node_states': (self.mark_list_by_node_state, self.keep_unmarked),
+            'exclude_name_patterns': (self.mark_list_by_name_pattern, self.keep_unmarked),
+            'or_include_numbers': (self.mark_list_by_number, self.keep_marked),
+            'or_include_node_states': (self.mark_list_by_node_state, self.keep_marked),
+            'or_include_name_patterns': (self.mark_list_by_name_pattern, self.keep_marked),
+            'include_numbers': (self.mark_list_by_number, self.keep_marked),
+            'include_node_states': (self.mark_list_by_node_state, self.keep_marked),
+            'include_name_patterns': (self.mark_list_by_name_pattern, self.keep_marked),
         }
 
         if filter_rules:
             logging.warning("WN Occupancy view is filtered.")  # TODO display this somewhere in qtop!
-            for rule in filter_rules:
-                filter_func = filter_types[rule.keys()[0]]
-                args = rule.values()[0]
-                self.worker_nodes = filter_func(args)
+            nodes = self.worker_nodes[:]
+            for filter_rule in filter_rules:
+                rule, args = filter_rule.items()[0]
+                mark_func, keep = filter_types[rule]
+                nodes = mark_func(nodes, args)
+                nodes = keep(nodes, rule)
+            else:
+                nodes = keep(nodes, rule, final_pass=True)
+
+            self.worker_nodes = dict((v['domainname'], v) for v in nodes).values()
+
         return self.worker_nodes
 
 
@@ -1865,14 +1898,16 @@ class InvalidScheduler(Exception):
 if __name__ == '__main__':
     options, args = utils.parse_qtop_cmdline_args()
     utils.init_logging(options)
-    options, NAMED_WNS = process_options(options)
+    dynamic_config = dict()
+    options, dynamic_config['force_names'] = process_options(options)
     # TODO: check if this is really needed any more
     # sys.excepthook = handle_exception
+    old_attrs = termios.tcgetattr(0)
+    new_attrs = old_attrs[:]
 
     available_batch_systems = discover_qtop_batch_systems()
 
     stdout = sys.stdout  # keep a copy of the initial value of sys.stdout
-    dynamic_config = dict()
     change_mapping = cycle(['queue_to_color', 'userid_pat_to_color'])
 
     viewport = Viewport()  # controls the part of the qtop matrix shown on screen
@@ -1963,7 +1998,7 @@ if __name__ == '__main__':
                     _ = subprocess.call(cat_command, stdout=stdout, stderr=stdout, shell=True)
 
                     read_char = wait_for_keypress_or_autorefresh(viewport, int(options.WATCH[0]) or KEYPRESS_TIMEOUT)
-                    control_qtop(viewport, read_char)
+                    control_qtop(viewport, read_char, cluster)
 
                 os.chdir(QTOPPATH)
                 os.unlink(output_fp)
