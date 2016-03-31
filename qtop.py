@@ -159,7 +159,7 @@ def load_yaml_config():
                 'vertical_separator_every_X_columns',
                 'overwrite_sample_file'):
         config[key] = eval(config[key])  # TODO config should not be writeable!!
-    config['sorting']['reverse'] = eval(config['sorting']['reverse'])  # TODO config should not be writeable!!
+    config['sorting']['reverse'] = eval(config['sorting'].get('reverse', "0"))  # TODO config should not be writeable!!
     config['ALT_LABEL_COLORS'] = yaml.fix_config_list(config['workernodes_matrix'][0]['wn id lines']['alt_label_colors'])
     config['SEPARATOR'] = config['vertical_separator'].translate(None, "'")
     config['USER_CUT_MATRIX_WIDTH'] = int(config['workernodes_matrix'][0]['wn id lines']['user_cut_matrix_width'])
@@ -415,6 +415,49 @@ def control_qtop(viewport, read_char, cluster):
     elif pressed_char_hex in ['46']:  # F
         dynamic_config['force_names'] = not dynamic_config['force_names']
 
+    elif pressed_char_hex in ['73']:  # s
+        sort_map = {
+            1: "sort_by_first_word",
+            2: "sort_by_first_word_length",
+            3: "sort_by_all_numbers",
+            4: "sort_by_number_adjacent_to_first_word",
+            5: "sort_by_first_letter",
+            6: "sort_by_node_state",
+            7: "sort_by_nr_of_cores",
+            8: "sort_by_custom_definition",
+        }
+
+        print 'Type in sort order. This can be a single number or a sequence of numbers,\n' \
+              'e.g. to sort first by first word, then by all numbers then by first name length, type 132, then <enter>.'
+
+        for nr, sort_method in sort_map.items():
+            print '(%s): %s' % (colorize(nr, color_func='Red_L'), sort_method.split('_', 1)[1])
+
+        new_attrs[3] = new_attrs[3] & ~(termios.ECHO | termios.ICANON)
+        termios.tcsetattr(sys.__stdin__.fileno(), termios.TCSADRAIN, old_attrs)
+
+        dynamic_config['user_sort'] = []
+        while True:
+            sort_choice = raw_input('\nChoose sorting order, or Enter to exit:-> ', )
+            if not sort_choice:
+                break
+
+            try:
+                sort_order = [int(m) for m in sort_choice]
+            except ValueError:
+                break
+            else:
+                if not set(sort_order).issubset(set(sort_map.keys())):
+                    continue
+
+            sort_args = [sort_map[i] for i in sort_order]
+            dynamic_config['user_sort'] = sort_args
+            break
+
+        termios.tcsetattr(sys.__stdin__.fileno(), termios.TCSADRAIN, new_attrs)
+        viewport.reset_display()
+
+
     elif pressed_char_hex in ['66']:  # f
         cluster.wn_filter = cluster.WNFilter(cluster.worker_nodes)
         filter_map = {
@@ -468,6 +511,7 @@ def control_qtop(viewport, read_char, cluster):
                 filter_args.append(user_input)
 
             dynamic_config['filtering'].append({filter_map[filter_choice]: filter_args})
+
         termios.tcsetattr(sys.__stdin__.fileno(), termios.TCSADRAIN, new_attrs)
         viewport.reset_display()
 
@@ -1731,7 +1775,7 @@ class Cluster(object):
         nodes_drop = 0  # count change in nodes after filtering
         workernode_dict = dict()
         workernode_dict_remapped = dict()
-        user_sorting = self.config['sorting'] and self.config['sorting'].values()[0]
+        user_sorting = dynamic_config.get('user_sort', 0) or (self.config['sorting'] and self.config['sorting'].values()[0])
         user_filters = dynamic_config.get('filtering', self.config['filtering'])
         user_filtering = user_filters and user_filters[0]
 
@@ -1755,8 +1799,23 @@ class Cluster(object):
         return nodes_drop, workernode_dict, workernode_dict_remapped
 
     def _sort_worker_nodes(self):
+        order = {
+            "sort_by_first_word" : "node['domainname'].split('.', 1)[0].split('-')[0]",
+            "sort_by_first_word_length" : "len(node['domainname'].split('.', 1)[0].split('-')[0])",
+            "sort_by_all_numbers" : 'int(re.sub(r"[A-Za-z _.-]+", "", node["domainname"]) or "0")',
+            "sort_by_num_adjacent_to_first_word" : "int(re.sub(r'[A-Za-z_.-]+', '', node['domainname'].split('.', 1)[0].split('-')[0]) or -1)",
+            "sort_by_first_letter" : "ord(node['domainname'][0])",
+            "sort_by_node_state" : "ord(str(node['state'][0]))",
+            "sort_by_nr_of_cores" : "node['np']",
+            "sort_by_custom_definition" : "0",
+        }
+
+        sort = ", ".join(order[k] for k in dynamic_config.get('user_sort', []))
+        sort_sequence = "lambda node: (" + sort + ")"
+
         try:
-            self.worker_nodes.sort(key=eval(self.config['sorting']['user_sort']), reverse=self.config['sorting']['reverse'])
+            self.worker_nodes.sort(key=eval(sort_sequence), reverse=self.config['sorting']['reverse'])
+            # self.worker_nodes.sort(key=eval(self.config['sorting']['user_sort']), reverse=self.config['sorting']['reverse'])
         except (IndexError, ValueError):
             logging.critical("There's (probably) something wrong in your sorting lambda in %s." % QTOPCONF_YAML)
             raise
