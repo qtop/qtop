@@ -428,6 +428,7 @@ def control_qtop(viewport, read_char, cluster):
             9: ("sort_by_custom_definition", []),
             0: ("sort_reset", []),
         }
+        custom_choice = '9'
 
         print 'Type in sort order. This can be a single number or a sequence of numbers,\n' \
               'e.g. to sort first by first word, then by all numbers then by first name length, type 132, then <enter>.'
@@ -443,9 +444,9 @@ def control_qtop(viewport, read_char, cluster):
             sort_choice = raw_input('\nChoose sorting order, or Enter to exit:-> ', )
             if not sort_choice:
                 break
-            if '9' in sort_choice:
+            if custom_choice in sort_choice:
                 custom = raw_input('\nType in custom sorting (python RegEx, for examples check configuration file): ')
-                sort_map[8][1].append(custom)
+                sort_map[int(custom_choice)][1].append(custom)
 
             try:
                 sort_order = [int(m) for m in sort_choice]
@@ -1702,17 +1703,19 @@ class Cluster(object):
         - one or two unnumbered nodes (should just be put in the end of the cluster)
         """
         if not self.total_wn:  # if nothing is running on the cluster
-            return None
+            return False
 
         _all_str_digits = filter(lambda x: x != "", all_str_digits_with_empties)
         _all_digits = [int(digit) for digit in _all_str_digits]
 
-        if options.BLINDREMAP or \
-                        len(self.node_subclusters) > 1 or \
-                        min(self.workernode_list) >= config['exotic_starting_wn_nr'] or \
-                        self.offdown_nodes >= self.total_wn * config['percentage'] or \
-                        len(all_str_digits_with_empties) != len(_all_str_digits) or \
-                        len(_all_digits) != len(_all_str_digits):
+        if (
+                options.BLINDREMAP or
+                len(self.node_subclusters) > 1 or
+                min(self.workernode_list) >= config['exotic_starting_wn_nr'] or
+                self.offdown_nodes >= self.total_wn * config['percentage'] or
+                len(all_str_digits_with_empties) != len(_all_str_digits) or
+                len(_all_digits) != len(_all_str_digits)
+        ):
             REMAP = True
         else:
             REMAP = False
@@ -1780,7 +1783,8 @@ class Cluster(object):
         nodes_drop = 0  # count change in nodes after filtering
         workernode_dict = dict()
         workernode_dict_remapped = dict()
-        user_sorting = dynamic_config.get('user_sort', (self.config['sorting'] and self.config['sorting'].values()[0]))
+        _sorting_from_conf = self.config['sorting']
+        user_sorting = dynamic_config.get('user_sort', (_sorting_from_conf and _sorting_from_conf.values()[0]))
         user_filters = dynamic_config.get('filtering', self.config['filtering'])
         user_filtering = user_filters and user_filters[0]
 
@@ -1791,7 +1795,7 @@ class Cluster(object):
             len_wn_after = len(self.worker_nodes)
             nodes_drop = len_wn_after - len_wn_before
 
-        if user_sorting and options_remap:
+        if user_sorting or options_remap:
             self.worker_nodes = self._sort_worker_nodes()
 
         for (batch_node, (idx, cur_node_nr)) in zip(self.worker_nodes, enumerate(self.workernode_list)):
@@ -1816,8 +1820,15 @@ class Cluster(object):
             "sort_by_custom_definition" : "",
             "sort_reset" : "0",
         }
-        # following join content also takes custom definition argument into account
-        sort_str = ", ".join(order[k[0]] or k[1][0] for k in dynamic_config.get('user_sort', []))
+        if dynamic_config.get('user_sort'):  # live user sorting overrides yaml config sorting
+            # following join content also takes custom definition argument into account
+            # import wdb; wdb.set_trace()
+            sort_str = ", ".join(order[k[0]] or k[1][0] for k in dynamic_config.get('user_sort', []))
+        elif self.config.get('sorting', {}).get('user_sort'):
+            sort_str = ", ".join(order[k] for k in self.config['sorting']['user_sort'])
+        else:
+            return self.worker_nodes
+
         sort_sequence = "lambda node: (" + sort_str + ")"
         try:
             self.worker_nodes.sort(key=eval(sort_sequence), reverse=self.config['sorting']['reverse'])
