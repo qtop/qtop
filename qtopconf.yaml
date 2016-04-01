@@ -149,15 +149,15 @@ remapping:
 
 ## re-arranging lines will sort nodes with the respective sorting priority (first line has top priority)
 sorting:
-#   user_sort: 
-#     - sort_by_first_word
-#     - sort_by_first_word_len
-#     - sort_by_all_nums
-#     - sort_by_num_adj_to_first_word
-#     - sort_by_first_letter
-#     - sort_by_node_state
-#     - sort_by_nr_of_cores
-#     - sort_by_custom
+  # user_sort: 
+  #   - sort_by_first_word
+  #   - sort_by_first_word_length
+  #   - sort_by_all_numbers
+  #   - sort_by_num_adjacent_to_first_word
+  #   - sort_by_first_letter
+  #   - sort_by_node_state
+  #   - sort_by_nr_of_cores
+  #   - sort_by_custom
 
    reverse: False
 
@@ -169,7 +169,7 @@ sorting:
 #       # int(re.sub(r'[A-Za-z_.-]+', '', node['domainname'].split('.', 1)[0].split('-')[0]) or -1),   # sort by number adjacent to first word
 #       # ord(node['domainname'][0]),                                                                  # sort by first letter
 #       # ord(str(node['state'][0])),                                                                  # sort by node state
-#       # node['np']                                                                                   # sort by number of cores
+#       # int(node['np'])                                                                              # sort by number of cores
 #       # 0,                                                                                           # no sorting, MUST comment out other sorting options
 #       )
 

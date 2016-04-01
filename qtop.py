@@ -424,7 +424,8 @@ def control_qtop(viewport, read_char, cluster):
             5: ("sort_by_first_letter", []),
             6: ("sort_by_node_state", []),
             7: ("sort_by_nr_of_cores", []),
-            8: ("sort_by_custom_definition", []),
+            8: ("sort_by_core_occupancy", []),
+            9: ("sort_by_custom_definition", []),
             0: ("sort_reset", []),
         }
 
@@ -442,7 +443,7 @@ def control_qtop(viewport, read_char, cluster):
             sort_choice = raw_input('\nChoose sorting order, or Enter to exit:-> ', )
             if not sort_choice:
                 break
-            if '8' in sort_choice:
+            if '9' in sort_choice:
                 custom = raw_input('\nType in custom sorting (python RegEx, for examples check configuration file): ')
                 sort_map[8][1].append(custom)
 
@@ -1811,10 +1812,11 @@ class Cluster(object):
             "sort_by_first_letter" : "ord(node['domainname'][0])",
             "sort_by_node_state" : "ord(str(node['state'][0]))",
             "sort_by_nr_of_cores" : "int(node['np'])",
+            "sort_by_core_occupancy" : "len(node['core_job_map'])",
             "sort_by_custom_definition" : "",
             "sort_reset" : "0",
         }
-
+        # following join content also takes custom definition argument into account
         sort_str = ", ".join(order[k[0]] or k[1][0] for k in dynamic_config.get('user_sort', []))
         sort_sequence = "lambda node: (" + sort_str + ")"
         try:
@@ -1822,6 +1824,14 @@ class Cluster(object):
         except (IndexError, ValueError):
             logging.critical("There's (probably) something wrong in your sorting lambda in %s." % QTOPCONF_YAML)
             raise
+        except KeyError as e:
+            import wdb; wdb.set_trace()
+            msg = "Worker Nodes don't contain '%s' as a key." % e.message
+            logging.error(colorize(msg, color_func='Red_L'))
+        except NameError as e:
+            msg = "Wrong input '%s'. Please check the examples in qtopconf.yaml." % e.message
+            logging.error(colorize(msg, color_func='Red_L'))
+
         return self.worker_nodes
 
 
