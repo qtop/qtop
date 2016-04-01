@@ -426,7 +426,7 @@ def control_qtop(viewport, read_char, cluster):
             '7': ("sort_by_nr_of_cores", []),
             '8': ("sort_by_core_occupancy", []),
             '9': ("sort_by_custom_definition", []),
-            's': ("sort_by_all_letters", []),
+            's': ("sort_by_all_nonnumbers", []),
             '0': ("sort_reset", []),
         }
         custom_choice = '9'
@@ -1813,12 +1813,12 @@ class Cluster(object):
             "sort_by_first_word" : "node['domainname'].split('.', 1)[0].split('-')[0]",
             "sort_by_first_word_length" : "len(node['domainname'].split('.', 1)[0].split('-')[0])",
             "sort_by_all_numbers" : 'int(re.sub(r"[A-Za-z _.-]+", "", node["domainname"]) or "0")',
-            "sort_by_num_adjacent_to_first_word" : "int(re.sub(r'[A-Za-z_.-]+', '', node['domainname'].split('.', 1)[0].split('-')[0]) or -1)",
+            "sort_by_number_adjacent_to_first_word" : "int(re.sub(r'[A-Za-z_.-]+', '', node['domainname'].split('.', 1)[0].split('-')[0]) or -1)",
             "sort_by_first_letter" : "ord(node['domainname'][0])",
             "sort_by_node_state" : "ord(str(node['state'][0]))",
             "sort_by_nr_of_cores" : "int(node['np'])",
             "sort_by_core_occupancy" : "len(node['core_job_map'])",
-            "sort_by_all_letters" : 're.sub(r"[^A-Za-z _.-]+", "", node["domainname"]) or "0"',
+            "sort_by_all_nonnumbers" : 're.sub(r"[^A-Za-z _.-]+", "", node["domainname"]) or "0"',
             "sort_by_custom_definition" : "",
             "sort_reset" : "0",
         }
