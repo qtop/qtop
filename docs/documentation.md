@@ -5,14 +5,14 @@
   * [Output walkthrough](#output-walkthrough)
   * [Watchmode](#watch-mode)
   * [Customisation](#customisation)
-  * [Command-line arguments]()
-  * [Usage tips]()
+  * [Command-line arguments]() (TODO)
+  * [Usage tips]() (TODO)
 
 ## Introduction
 
 ### Background
 
-qtop.py is based on the same-titled bash script (well, minus the .py!) written by fgeorgatos# long ago. The main reason for rewriting it from scratch in python was the drive to add some much-needed functionality, which was getting harder and harder to do in bash. The new version of qtop.py is much more extendable, so as to be able to cooperate with more Local Resource Management Systems (LRMSs), such as Oracle/Sun Grid Engine (SGE/GE), LSF, LoadLeveler, OAR, SLURM etc. It's also less buggy, with most of the bugs of the old version eradicated.
+qtop.py is based on the same-titled bash script (well, minus the .py!) written by @fgeorgatos long ago. The main reason for rewriting it from scratch in python was the drive to add some much-needed functionality, which was getting harder and harder to do in bash. The new version of qtop.py is much more extendable, so as to be able to cooperate with more Local Resource Management Systems (LRMSs), such as Oracle/Sun Grid Engine (SGE/GE), LSF, LoadLeveler, OAR, SLURM etc. It's also less buggy, with most of the bugs of the old version eradicated.
 
 ### Goals
 
@@ -175,19 +175,6 @@ Anyone brave enough to dive into `yaml_parser.py`, or better still, rewrite the 
 
 #### Scheduler configuration area
 
-There are two ways to run qtop.py, data-wise: 
-  1. run it on a Computing Element (or similar) where qtop.py itself invokes the commands needed to gather the cluster information
-  2. run it wherever, after the cluster information has been stored locally for qtop to read.
-
-In this area of the configuration file, two key elements are set for each scheduler:
-  * the needed shell commands to run on the Computing Element
-  * the filepath where the cluster information is (to be) saved
-
-So, let's say your nick is Mike and are administering an OAR cluster. If you just invoke:
-```
-./qtop.py -b oar
-```
-then qtop is going to invoke `oarnodes -s -Y`, `oarnodes -Y`, `oarstat` consecutively, and store it in `/tmp/qtop_results_mike/pbsnodes_a.txt`, `/tmp/qtop_results_mike/qstat_q.txt` and `/tmp/qtop_results_mike/qstat.txt`, respectively.
 
 ---
     savepath: /tmp/qtop_results_$USER
@@ -206,6 +193,32 @@ then qtop is going to invoke `oarnodes -s -Y`, `oarnodes -Y`, `oarstat` consecut
         demo_file: %(savepath)s/demo%(pid)s.txt, echo 'Demo here'
 ---
 
+There are two ways to run qtop.py, data-wise: 
+  1. run it on a Computing Element (or similar) where qtop.py itself invokes the commands needed to gather the cluster information
+  2. run it wherever, after the cluster information has been stored locally for qtop to read.
+
+In this area of the configuration file, two key elements are set for each scheduler:
+  * the needed shell commands to run on the Computing Element
+  * the filepath where the cluster information is to be saved
+
+So, let's say your nick is Mike and you are administering an OAR cluster. If you just invoke:
+```
+./qtop.py -b oar
+```
+then qtop is going to invoke `oarnodes -s -Y`, `oarnodes -Y`, `oarstat` consecutively, and store it, respectively, in 
+```
+/tmp/qtop_results_mike/oarnodes_s_Y.txt
+/tmp/qtop_results_mike/oarnodes_Y.txt
+/tmp/qtop_results_mike/oarstat.txt
+```
+
+If, instead, you invoke it as follows:
+```
+./qtop.py -b oar -s <path-to-cluster-information>
+```
+qtop will search for `oarnodes_s_Y.txt`, `oarnodes_Y.txt` and `oarstat.txt` in `<path-to-cluster-information>` (retrieved by you, earlier). 
+
+
 qtop also has a scheduler-type discovery system, meaning it will try to guess which scheduler system is installed in your system. The keys below let the user decide which command it should be that uniquely characterises the scheduler. If, for example, qtop can successfully find `qacct` on the system where qtop is executed, it will decide SGE is installed.
 
 ---
@@ -223,4 +236,38 @@ qtop also has a scheduler-type discovery system, meaning it will try to guess wh
 ---
 
 As the input data coming from SGE systems is in XML format, the natural choice for parsing XML data in python is the **lxml** module. That, however, is not in the standard library, and thus requires an extra download. For users that are unable/unwilling to install extra modules in their systems, the standard library slower alternative is used instead.
+
+#### Color mappings
+
+---
+    user_color_mappings:  # order should be from more generic-->more specific
+    # - \w+: Gray_D  # enabling this cancels all saved accounts in colormap.py
+    # - [\d]+: Gray_D
+    # - [A-Za-z]+0\d{2}: Red_L
+    # - [A-Za-z]+15\d: Gray_D
+    # - \w*lhc\w*: Cyan_L
+    # - \w+00\d: Blue
+    # - \w*cms\w*: Red_L
+     - \w*cms048: Blue
+     - \w*cms193: Gray_L
+     - \w*atl\w+: Red
+     - snielsen: Blue
+     - ekalesaki: Cyan_L
+     - zzhang: Red_L
+     - mmravlak: Red_L
+     - dbobbili: Cyan_L
+     - patls021: Cyan_L
+
+    queue_color_mappings:
+      - alice: Red_L
+      - dteam\w+: Cyan_L
+
+    nodestate_color_mappings:
+     - au: BlackOnRed
+     - d: Red_LOnGrayBG
+---
+
+This is a list of color mappings, using [regular expressions](https://docs.python.org/2/library/re.html). The standard RegEx python module `re` is used for parsing. Order here matters, so the early expressions get overwritten by the later ones. Colors with backgrounds can also be used, for all the color combinations available, check `color_to_code` dictionary in `colormap.py`.
+
+In there, you will also find a ton of ready-made colormaps (`userid_pat_to_color_default` dictionary), with a primary focus on user ids found in CERN clusters. 
 
