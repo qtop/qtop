@@ -243,6 +243,7 @@ As the input data coming from SGE systems is in XML format, the natural choice f
 
 #### Color mappings
 
+```yaml
 ---
     user_color_mappings:  # order should be from more generic-->more specific
     # - \w+: Gray_D  # enabling this cancels all saved accounts in colormap.py
@@ -270,6 +271,7 @@ As the input data coming from SGE systems is in XML format, the natural choice f
      - au: BlackOnRed
      - d: Red_LOnGrayBG
 ---
+```
 
 This is a list of color mappings, using [regular expressions](https://docs.python.org/2/library/re.html). The standard RegEx python module `re` is used for parsing. Order here matters, so the early expressions get overwritten by the later ones. Colors with backgrounds can also be used, for all the color combinations available, check `color_to_code` dictionary in `colormap.py`.
 
