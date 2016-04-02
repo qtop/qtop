@@ -416,20 +416,19 @@ def control_qtop(viewport, read_char, cluster):
         dynamic_config['force_names'] = not dynamic_config['force_names']
 
     elif pressed_char_hex in ['73']:  # s
-        sort_map = {
-            '1': ("sort_by_first_word", []),
-            '2': ("sort_by_first_word_length", []),
-            '3': ("sort_by_all_numbers", []),
-            '4': ("sort_by_number_adjacent_to_first_word", []),
-            '5': ("sort_by_first_letter", []),
-            '6': ("sort_by_node_state", []),
-            '7': ("sort_by_nr_of_cores", []),
-            '8': ("sort_by_core_occupancy", []),
-            '9': ("sort_by_custom_definition", []),
-            's': ("sort_by_all_letters", []),
-            '0': ("sort_reset", []),
-        }
-        custom_choice = '9'
+        sort_map = OrderedDict()
+
+        sort_map['0'] = ("sort_reset", [])
+        sort_map['1'] = ("sort_by_nodename_notnum", [])
+        sort_map['2'] = ("sort_by_nodename_notnum_length", [])
+        sort_map['3'] = ("sort_by_all_numbers", [])
+        sort_map['4'] = ("sort_by_first_letter", [])
+        sort_map['5'] = ("sort_by_node_state", [])
+        sort_map['6'] = ("sort_by_nr_of_cores", [])
+        sort_map['7'] = ("sort_by_core_occupancy", [])
+        sort_map['8'] = ("sort_by_custom_definition", [])
+
+        custom_choice = '8'
 
         print 'Type in sort order. This can be a single number or a sequence of numbers,\n' \
               'e.g. to sort first by first word, then by all numbers then by first name length, type 132, then <enter>.'
@@ -1810,17 +1809,17 @@ class Cluster(object):
 
     def _sort_worker_nodes(self):
         order = {
-            "sort_by_first_word" : "node['domainname'].split('.', 1)[0].split('-')[0]",
-            "sort_by_first_word_length" : "len(node['domainname'].split('.', 1)[0].split('-')[0])",
+            "sort_by_nodename_notnum" : 're.sub(r"[^A-Za-z _.-]+", "", node["domainname"]) or "0"',
+            "sort_by_nodename_notnum_length" : "len(node['domainname'].split('.', 1)[0].split('-')[0])",
             "sort_by_all_numbers" : 'int(re.sub(r"[A-Za-z _.-]+", "", node["domainname"]) or "0")',
-            "sort_by_num_adjacent_to_first_word" : "int(re.sub(r'[A-Za-z_.-]+', '', node['domainname'].split('.', 1)[0].split('-')[0]) or -1)",
             "sort_by_first_letter" : "ord(node['domainname'][0])",
             "sort_by_node_state" : "ord(str(node['state'][0]))",
             "sort_by_nr_of_cores" : "int(node['np'])",
             "sort_by_core_occupancy" : "len(node['core_job_map'])",
-            "sort_by_all_letters" : 're.sub(r"[^A-Za-z _.-]+", "", node["domainname"]) or "0"',
             "sort_by_custom_definition" : "",
             "sort_reset" : "0",
+            # "sort_by_num_adjacent_to_first_word" : "int(re.sub(r'[A-Za-z_.-]+', '', node['domainname'].split('.', 1)[0].split('-')[0]) or -1)",
+            # "sort_by_first_word" : "node['domainname'].split('.', 1)[0].split('-')[0]",
         }
         if dynamic_config.get('user_sort'):  # live user sorting overrides yaml config sorting
             # following join content also takes custom definition argument into account
@@ -1837,7 +1836,6 @@ class Cluster(object):
             logging.critical("There's (probably) something wrong in your sorting lambda in %s." % QTOPCONF_YAML)
             raise
         except KeyError as e:
-            import wdb; wdb.set_trace()
             msg = "Worker Nodes don't contain '%s' as a key." % e.message
             logging.error(colorize(msg, color_func='Red_L'))
         except NameError as e:
