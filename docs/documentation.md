@@ -54,7 +54,7 @@ The information that qtop.py conveys when ran can be divided into three sections
   * number of jobs (running/queued)
   * queue names, along with running/queued jobs info for every queue
   
-  ![Accounting Summary](/images/accounting_summary.png "Accounting Summary")
+  ![Accounting Summary](docs/images/accounting_summary.png "Accounting Summary")
 
 If a queue is denoted as blocked in the LRMS, it will be marked with an asterisk.
 
@@ -69,16 +69,16 @@ The default characteristics are the node state, the names of the queues involved
 This, however, is customisable: as long as there are characteristics of interest existing in the LRMS input file, the User should be able to describe the characteristic inside the config file and have a new vector spawn inside the matrix.
 
 One dimension is used to array the worker nodes and another to expand the worker node characteristics (individual cores, node state, associated queues etc).
-![worker nodes occupancy](/images/wn_occupancy.png "Worker Nodes occupancy")
+![worker nodes occupancy](docs/images/wn_occupancy.png "Worker Nodes occupancy")
 
 The default elements displayed are:
 
 ###### Worker node ID (virtual or real node name)
-  ![worker nodes ID](/images/wnid.png "Worker Nodes ID")
+  ![worker nodes ID](docs/images/wnid.png "Worker Nodes ID")
   The options here are either the real full name of the worker nodes, or a numbering scheme. If the worker node numbering is atypical, e.g. from `pc23` there's a jump to `pc-b-145`, the standard representation scheme will represent such gaps with non-existent worker nodes, which might not always be desirable. Hence, a remapping mechanism will be put in place, giving consistent numbering starting from zero, to all nodes belonging to the cluster.
 
 ###### Node state
-  ![Node state](/images/node_state.png "Node state")
+  ![Node state](docs/images/node_state.png "Node state")
   The node state is denoted with the first letter of the following: 
     * **j**ob-exclusive
     * **b**usy
@@ -88,11 +88,11 @@ The default elements displayed are:
   The symbol "**-**" is used when the node is free.
 
 ###### Queue names
-  ![Queue name](/images/queue_name.png "Queue name")
+  ![Queue name](docs/images/queue_name.png "Queue name")
   The queue names sector shows the initials of the queue names loaded with jobs running on the specific worker node. The full names of the queues show up earlier in the Accounting Summary, color-coded in the same way. So if you have queues all starting with the same letter, e.g. grid3000M, grid2000M, grid5000M, the colouring will help you see which is
 
 ###### Job allocation table
-  ![Cores](/images/cores.png "Cores")
+  ![Cores](docs/images/cores.png "Cores")
   The jobs are displayed via their owner, who is given a single-character ID. The mapping is shown on the [User account information](#user-account-information) section.
   An underscore '_' denotes a free core.
   A hash symbol '#' means that the core in this position does not exist on this worker node. If, for example, a hundred-node cluster consists of 96 worker nodes of 32 cores and 4 worker nodes of 16 cores, the last 16 core position in those 4 worker nodes will be substituted with the hash symbol.
