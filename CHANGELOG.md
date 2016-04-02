@@ -1,8 +1,14 @@
 ## 0.8.9-pre
 
-  - filtering options available in watch mode (-w)
-  - matrix transposable in watch mode
+  - watch mode (-w)
+    + node sorting with custom presets/user-inserted RegEx sorts
+    + node filtering
+    + matrix transposition
+    + toggle full nodename display/numbering
+    + toggle coloring code (user-id based/queue name-based)
   - queue info can now be colored, three different queues with the same initials can be colored distinctly
+  - a good first amount of documentation
+  - small bugfixes
  
 
 ## 0.8.8
