@@ -75,10 +75,12 @@ The default elements displayed are:
 
 ###### Worker node ID (virtual or real node name)
   ![worker nodes ID](images/wnid.png "Worker Nodes ID")
+  
   The options here are either the real full name of the worker nodes, or a numbering scheme. If the worker node numbering is atypical, e.g. from `pc23` there's a jump to `pc-b-145`, the standard representation scheme will represent such gaps with non-existent worker nodes, which might not always be desirable. Hence, a remapping mechanism will be put in place, giving consistent numbering starting from zero, to all nodes belonging to the cluster.
 
 ###### Node state
   ![Node state](images/node_state.png "Node state")
+  
   The node state is denoted with the first letter of the following: 
     * **j**ob-exclusive
     * **b**usy
@@ -89,10 +91,12 @@ The default elements displayed are:
 
 ###### Queue names
   ![Queue name](images/queue_name.png "Queue name")
+  
   The queue names sector shows the initials of the queue names loaded with jobs running on the specific worker node. The full names of the queues show up earlier in the Accounting Summary, color-coded in the same way. So if you have queues all starting with the same letter, e.g. grid3000M, grid2000M, grid5000M, the colouring will help you see which is
 
 ###### Job allocation table
   ![Cores](images/cores.png "Cores")
+  
   The jobs are displayed via their owner, who is given a single-character ID. The mapping is shown on the [User account information](#user-account-information) section.
   An underscore '_' denotes a free core.
   A hash symbol '#' means that the core in this position does not exist on this worker node. If, for example, a hundred-node cluster consists of 96 worker nodes of 32 cores and 4 worker nodes of 16 cores, the last 16 core position in those 4 worker nodes will be substituted with the hash symbol.
