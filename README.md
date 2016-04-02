@@ -35,6 +35,10 @@ To run a demo, just run
 
 Try ```--help``` for all available options.
 
+## Documentation
+
+Documentation/tutorial [here](docs/documentation.md)
+
 ## Profile
 
 ```
