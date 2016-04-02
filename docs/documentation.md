@@ -179,7 +179,7 @@ Anyone brave enough to dive into `yaml_parser.py`, or better still, rewrite the 
 
 #### Scheduler configuration area
 
-
+```yaml
 ---
     savepath: /tmp/qtop_results_$USER
     schedulers:
@@ -196,6 +196,7 @@ Anyone brave enough to dive into `yaml_parser.py`, or better still, rewrite the 
       demo:
         demo_file: %(savepath)s/demo%(pid)s.txt, echo 'Demo here'
 ---
+```
 
 There are two ways to run qtop.py, data-wise: 
   1. run it on a Computing Element (or similar) where qtop.py itself invokes the commands needed to gather the cluster information
@@ -224,7 +225,7 @@ qtop will search for `oarnodes_s_Y.txt`, `oarnodes_Y.txt` and `oarstat.txt` in `
 
 
 qtop also has a scheduler-type discovery system, meaning it will try to guess which scheduler system is installed in your system. The keys below let the user decide which command it should be that uniquely characterises the scheduler. If, for example, qtop can successfully find `qacct` on the system where qtop is executed, it will decide SGE is installed.
-
+```yaml
 ---
     signature_commands:
       pbs: pbsnodes
@@ -232,12 +233,15 @@ qtop also has a scheduler-type discovery system, meaning it will try to guess wh
       sge: qacct
       demo: echo
 ---
+```
 
 #### XML parsing
 
+```yaml
 ---
     faster_xml_parsing: False
 ---
+```
 
 As the input data coming from SGE systems is in XML format, the natural choice for parsing XML data in python is the **lxml** module. That, however, is not in the standard library, and thus requires an extra download. For users that are unable/unwilling to install extra modules in their systems, the standard library slower alternative is used instead.
 
