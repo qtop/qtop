@@ -148,19 +148,31 @@ remapping:
 # - -: ""  # removes dashes for shortening (can also replace them with something else, e.g. _
 
 ## re-arranging lines will sort nodes with the respective sorting priority (first line has top priority)
-sorting:  
-  user_sort: |
-      lambda node: (
-      len(node['domainname'].split('.', 1)[0].split('-')[0]),                                      # sort by name length, until first dash or dot
-      int(re.sub(r'[A-Za-z _.-]+', '', node['domainname']) or "0"),                                # sort strictly by all numbers in name (joined)
-      # int(re.sub(r'[A-Za-z_.-]+', '', node['domainname'].split('.', 1)[0].split('-')[0]) or -1),   # sort by number adjacent to first word
-      # ord(node['domainname'][0]),                                                                  # sort by first letter
-      # ord(str(node['state'][0])),                                                                  # sort by node state
-      # node['np']                                                                                   # sort by number of cores
-      # 0,                                                                                           # no sorting, MUST comment out other sorting options
-      )
+sorting:
+   user_sort:
+     - sort by nodename-notnum
+     - sort by all numbers
+  #   - sort by core occupancy
+  #   - sort by first letter
+  #   - sort by node state
+  #   - sort by nr of cores
+  #   - sort by custom definition
 
-  reverse: False
+   reverse: False
+
+# sorting:  
+#   user_sort: |
+#       lambda node: (
+#       len(node['domainname'].split('.', 1)[0].split('-')[0]),                                      # sort by name length, until first dash or dot
+#       int(re.sub(r"[A-Za-z _.-]+", "", node["domainname"]) or "0"),                                # sort strictly by all numbers in name (joined)
+#       # int(re.sub(r'[A-Za-z_.-]+', '', node['domainname'].split('.', 1)[0].split('-')[0]) or -1),   # sort by number adjacent to first word
+#       # ord(node['domainname'][0]),                                                                  # sort by first letter
+#       # ord(str(node['state'][0])),                                                                  # sort by node state
+#       # int(node['np'])                                                                              # sort by number of cores
+#       # 0,                                                                                           # no sorting, MUST comment out other sorting options
+#       )
+
+#   reverse: False
 
 ## exclude filters gradually cut off selected nodes from the last set of remaining nodes
 ## include filters do a consecutive selection, e.g. from 100 nodes 30 are selected, then the next include filter will select 10 out of those and so on.

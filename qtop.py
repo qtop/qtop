@@ -159,7 +159,7 @@ def load_yaml_config():
                 'vertical_separator_every_X_columns',
                 'overwrite_sample_file'):
         config[key] = eval(config[key])  # TODO config should not be writeable!!
-    config['sorting']['reverse'] = eval(config['sorting']['reverse'])  # TODO config should not be writeable!!
+    config['sorting']['reverse'] = eval(config['sorting'].get('reverse', "0"))  # TODO config should not be writeable!!
     config['ALT_LABEL_COLORS'] = yaml.fix_config_list(config['workernodes_matrix'][0]['wn id lines']['alt_label_colors'])
     config['SEPARATOR'] = config['vertical_separator'].translate(None, "'")
     config['USER_CUT_MATRIX_WIDTH'] = int(config['workernodes_matrix'][0]['wn id lines']['user_cut_matrix_width'])
@@ -415,6 +415,55 @@ def control_qtop(viewport, read_char, cluster):
     elif pressed_char_hex in ['46']:  # F
         dynamic_config['force_names'] = not dynamic_config['force_names']
 
+    elif pressed_char_hex in ['73']:  # s
+        sort_map = OrderedDict()
+
+        sort_map['0'] = ("sort reset", [])
+        sort_map['1'] = ("sort by nodename-notnum", [])
+        sort_map['2'] = ("sort by nodename-notnum length", [])
+        sort_map['3'] = ("sort by all numbers", [])
+        sort_map['4'] = ("sort by first letter", [])
+        sort_map['5'] = ("sort by node state", [])
+        sort_map['6'] = ("sort by nr of cores", [])
+        sort_map['7'] = ("sort by core occupancy", [])
+        sort_map['8'] = ("sort by custom definition", [])
+
+        custom_choice = '8'
+
+        print 'Type in sort order. This can be a single number or a sequence of numbers,\n' \
+              'e.g. to sort first by first word, then by all numbers then by first name length, type 132, then <enter>.'
+
+        for nr, sort_method in sort_map.items():
+            print '(%s): %s' % (colorize(nr, color_func='Red_L'), sort_method[0])
+
+        new_attrs[3] = new_attrs[3] & ~(termios.ECHO | termios.ICANON)
+        termios.tcsetattr(sys.__stdin__.fileno(), termios.TCSADRAIN, old_attrs)
+
+        dynamic_config['user_sort'] = []
+        while True:
+            sort_choice = raw_input('\nChoose sorting order, or Enter to exit:-> ', )
+            if not sort_choice:
+                break
+            if custom_choice in sort_choice:
+                custom = raw_input('\nType in custom sorting (python RegEx, for examples check configuration file): ')
+                sort_map[custom_choice][1].append(custom)
+
+            try:
+                sort_order = [m for m in sort_choice]
+            except ValueError:
+                break
+            else:
+                if not set(sort_order).issubset(set(sort_map.keys())):
+                    continue
+
+            sort_args = [sort_map[i] for i in sort_order]
+            dynamic_config['user_sort'] = sort_args
+            break
+
+        termios.tcsetattr(sys.__stdin__.fileno(), termios.TCSADRAIN, new_attrs)
+        viewport.reset_display()
+
+
     elif pressed_char_hex in ['66']:  # f
         cluster.wn_filter = cluster.WNFilter(cluster.worker_nodes)
         filter_map = {
@@ -468,6 +517,7 @@ def control_qtop(viewport, read_char, cluster):
                 filter_args.append(user_input)
 
             dynamic_config['filtering'].append({filter_map[filter_choice]: filter_args})
+
         termios.tcsetattr(sys.__stdin__.fileno(), termios.TCSADRAIN, new_attrs)
         viewport.reset_display()
 
@@ -1653,17 +1703,19 @@ class Cluster(object):
         - one or two unnumbered nodes (should just be put in the end of the cluster)
         """
         if not self.total_wn:  # if nothing is running on the cluster
-            return None
+            return False
 
         _all_str_digits = filter(lambda x: x != "", all_str_digits_with_empties)
         _all_digits = [int(digit) for digit in _all_str_digits]
 
-        if options.BLINDREMAP or \
-                        len(self.node_subclusters) > 1 or \
-                        min(self.workernode_list) >= config['exotic_starting_wn_nr'] or \
-                        self.offdown_nodes >= self.total_wn * config['percentage'] or \
-                        len(all_str_digits_with_empties) != len(_all_str_digits) or \
-                        len(_all_digits) != len(_all_str_digits):
+        if (
+                options.BLINDREMAP or
+                len(self.node_subclusters) > 1 or
+                min(self.workernode_list) >= config['exotic_starting_wn_nr'] or
+                self.offdown_nodes >= self.total_wn * config['percentage'] or
+                len(all_str_digits_with_empties) != len(_all_str_digits) or
+                len(_all_digits) != len(_all_str_digits)
+        ):
             REMAP = True
         else:
             REMAP = False
@@ -1731,7 +1783,8 @@ class Cluster(object):
         nodes_drop = 0  # count change in nodes after filtering
         workernode_dict = dict()
         workernode_dict_remapped = dict()
-        user_sorting = self.config['sorting'] and self.config['sorting'].values()[0]
+        _sorting_from_conf = self.config['sorting']
+        user_sorting = dynamic_config.get('user_sort', (_sorting_from_conf and _sorting_from_conf.values()[0]))
         user_filters = dynamic_config.get('filtering', self.config['filtering'])
         user_filtering = user_filters and user_filters[0]
 
@@ -1742,7 +1795,7 @@ class Cluster(object):
             len_wn_after = len(self.worker_nodes)
             nodes_drop = len_wn_after - len_wn_before
 
-        if user_sorting and options_remap:
+        if user_sorting:
             self.worker_nodes = self._sort_worker_nodes()
 
         for (batch_node, (idx, cur_node_nr)) in zip(self.worker_nodes, enumerate(self.workernode_list)):
@@ -1755,11 +1808,40 @@ class Cluster(object):
         return nodes_drop, workernode_dict, workernode_dict_remapped
 
     def _sort_worker_nodes(self):
+        order = {
+            "sort by nodename-notnum" : 're.sub(r"[^A-Za-z _.-]+", "", node["domainname"]) or "0"',
+            "sort by nodename-notnum length" : "len(node['domainname'].split('.', 1)[0].split('-')[0])",
+            "sort by all numbers" : 'int(re.sub(r"[A-Za-z _.-]+", "", node["domainname"]) or "0")',
+            "sort by first letter" : "ord(node['domainname'][0])",
+            "sort by node state" : "ord(str(node['state'][0]))",
+            "sort by nr of cores" : "int(node['np'])",
+            "sort by core occupancy" : "len(node['core_job_map'])",
+            "sort by custom definition" : "",
+            "sort reset" : "0",
+            # "sort_by_num_adjacent_to_first_word" : "int(re.sub(r'[A-Za-z_.-]+', '', node['domainname'].split('.', 1)[0].split('-')[0]) or -1)",
+            # "sort_by_first_word" : "node['domainname'].split('.', 1)[0].split('-')[0]",
+        }
+        if dynamic_config.get('user_sort'):  # live user sorting overrides yaml config sorting
+            # following join content also takes custom definition argument into account
+            sort_str = ", ".join(order[k[0]] or k[1][0] for k in dynamic_config.get('user_sort', []))
+        elif self.config.get('sorting', {}).get('user_sort'):
+            sort_str = ", ".join(order[k] for k in self.config['sorting']['user_sort'])
+        else:
+            return self.worker_nodes
+
+        sort_sequence = "lambda node: (" + sort_str + ")"
         try:
-            self.worker_nodes.sort(key=eval(self.config['sorting']['user_sort']), reverse=self.config['sorting']['reverse'])
+            self.worker_nodes.sort(key=eval(sort_sequence), reverse=self.config['sorting']['reverse'])
         except (IndexError, ValueError):
             logging.critical("There's (probably) something wrong in your sorting lambda in %s." % QTOPCONF_YAML)
             raise
+        except KeyError as e:
+            msg = "Worker Nodes don't contain '%s' as a key." % e.message
+            logging.error(colorize(msg, color_func='Red_L'))
+        except NameError as e:
+            msg = "Wrong input '%s'. Please check the examples in qtopconf.yaml." % e.message
+            logging.error(colorize(msg, color_func='Red_L'))
+
         return self.worker_nodes
 
 
