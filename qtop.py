@@ -418,15 +418,15 @@ def control_qtop(viewport, read_char, cluster):
     elif pressed_char_hex in ['73']:  # s
         sort_map = OrderedDict()
 
-        sort_map['0'] = ("sort_reset", [])
-        sort_map['1'] = ("sort_by_nodename_notnum", [])
-        sort_map['2'] = ("sort_by_nodename_notnum_length", [])
-        sort_map['3'] = ("sort_by_all_numbers", [])
-        sort_map['4'] = ("sort_by_first_letter", [])
-        sort_map['5'] = ("sort_by_node_state", [])
-        sort_map['6'] = ("sort_by_nr_of_cores", [])
-        sort_map['7'] = ("sort_by_core_occupancy", [])
-        sort_map['8'] = ("sort_by_custom_definition", [])
+        sort_map['0'] = ("sort reset", [])
+        sort_map['1'] = ("sort by nodename-notnum", [])
+        sort_map['2'] = ("sort by nodename-notnum length", [])
+        sort_map['3'] = ("sort by all numbers", [])
+        sort_map['4'] = ("sort by first letter", [])
+        sort_map['5'] = ("sort by node state", [])
+        sort_map['6'] = ("sort by nr of cores", [])
+        sort_map['7'] = ("sort by core occupancy", [])
+        sort_map['8'] = ("sort by custom definition", [])
 
         custom_choice = '8'
 
@@ -434,7 +434,7 @@ def control_qtop(viewport, read_char, cluster):
               'e.g. to sort first by first word, then by all numbers then by first name length, type 132, then <enter>.'
 
         for nr, sort_method in sort_map.items():
-            print '(%s): %s' % (colorize(nr, color_func='Red_L'), sort_method[0].split('_', 1)[1])
+            print '(%s): %s' % (colorize(nr, color_func='Red_L'), sort_method[0])
 
         new_attrs[3] = new_attrs[3] & ~(termios.ECHO | termios.ICANON)
         termios.tcsetattr(sys.__stdin__.fileno(), termios.TCSADRAIN, old_attrs)
@@ -1795,7 +1795,7 @@ class Cluster(object):
             len_wn_after = len(self.worker_nodes)
             nodes_drop = len_wn_after - len_wn_before
 
-        if user_sorting or options_remap:
+        if user_sorting:
             self.worker_nodes = self._sort_worker_nodes()
 
         for (batch_node, (idx, cur_node_nr)) in zip(self.worker_nodes, enumerate(self.workernode_list)):
@@ -1809,15 +1809,15 @@ class Cluster(object):
 
     def _sort_worker_nodes(self):
         order = {
-            "sort_by_nodename_notnum" : 're.sub(r"[^A-Za-z _.-]+", "", node["domainname"]) or "0"',
-            "sort_by_nodename_notnum_length" : "len(node['domainname'].split('.', 1)[0].split('-')[0])",
-            "sort_by_all_numbers" : 'int(re.sub(r"[A-Za-z _.-]+", "", node["domainname"]) or "0")',
-            "sort_by_first_letter" : "ord(node['domainname'][0])",
-            "sort_by_node_state" : "ord(str(node['state'][0]))",
-            "sort_by_nr_of_cores" : "int(node['np'])",
-            "sort_by_core_occupancy" : "len(node['core_job_map'])",
-            "sort_by_custom_definition" : "",
-            "sort_reset" : "0",
+            "sort by nodename-notnum" : 're.sub(r"[^A-Za-z _.-]+", "", node["domainname"]) or "0"',
+            "sort by nodename-notnum length" : "len(node['domainname'].split('.', 1)[0].split('-')[0])",
+            "sort by all numbers" : 'int(re.sub(r"[A-Za-z _.-]+", "", node["domainname"]) or "0")',
+            "sort by first letter" : "ord(node['domainname'][0])",
+            "sort by node state" : "ord(str(node['state'][0]))",
+            "sort by nr of cores" : "int(node['np'])",
+            "sort by core occupancy" : "len(node['core_job_map'])",
+            "sort by custom definition" : "",
+            "sort reset" : "0",
             # "sort_by_num_adjacent_to_first_word" : "int(re.sub(r'[A-Za-z_.-]+', '', node['domainname'].split('.', 1)[0].split('-')[0]) or -1)",
             # "sort_by_first_word" : "node['domainname'].split('.', 1)[0].split('-')[0]",
         }

@@ -150,16 +150,13 @@ remapping:
 ## re-arranging lines will sort nodes with the respective sorting priority (first line has top priority)
 sorting:
    user_sort:
-     - sort_by_nodename_notnum
-     - sort_by_all_numbers
-  #   - sort_by_first_word
-  #   - sort_by_first_word_length
-  #   - sort_by_core_occupancy
-  #   - sort_by_num_adjacent_to_first_word
-  #   - sort_by_first_letter
-  #   - sort_by_node_state
-  #   - sort_by_nr_of_cores
-  #   - sort_by_custom
+     - sort by nodename-notnum
+     - sort by all numbers
+  #   - sort by core occupancy
+  #   - sort by first letter
+  #   - sort by node state
+  #   - sort by nr of cores
+  #   - sort by custom definition
 
    reverse: False
 
