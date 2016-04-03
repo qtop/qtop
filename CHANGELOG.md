@@ -1,4 +1,4 @@
-## 0.8.9-pre
+## 0.8.9
 
   - watch mode (-w)
     + (s) node sorting with custom presets/user-inserted RegEx sorts
