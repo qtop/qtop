@@ -12,11 +12,11 @@
 
 ### Background
 
-qtop.py is based on the same-titled bash script (well, minus the .py!) written by @fgeorgatos long ago. The main reason for rewriting it from scratch in python was the drive to add some much-needed functionality, which was getting harder and harder to do in bash. The new version of qtop.py is much more extendable, so as to be able to cooperate with more Local Resource Management Systems (LRMSs), such as Oracle/Sun Grid Engine (SGE/GE), LSF, LoadLeveler, OAR, SLURM etc. It's also less buggy, with most of the bugs of the old version eradicated.
+qtop.py is based on the same-titled bash script (well, minus the .py!) written by @fgeorgatos long ago. The main reason for rewriting it from scratch in python was the drive to add some much-needed functionality, which was getting harder and harder to do in bash. The new version of qtop.py is much more extendable, so as to be able to cooperate with more Local Resource Management Systems, such as Oracle/Sun Grid Engine (SGE/GE), LSF, LoadLeveler, OAR, SLURM etc. It's also less buggy, with most of the bugs of the old version eradicated ...and new ones introduced ;-)
 
 ### Goals
 
-qtop.py is a tool written to summarize, textually and visually, the state of an LRMS, along with some relevant information around clusters, Grid-specific or independent. It gathers information from the LRMS and organises them in a compact yet illustrative format, for easy access. 
+qtop.py is a tool written to summarize, textually and visually, the state of an Resource Management System, along with some relevant information around clusters, Grid-specific or independent. It gathers information from the Resource Management System and organises them in a compact yet illustrative format, for easy access. 
 Expandability and configurability were deemed very important and were taken into account from the very early stages of designing qtop.py. 
 What's more, it is intended that the information that qtop.py gathers is reused by other developers or system administrators, either for other purposes or in different visualisation formats/media. For this reason, qtop.py exports the gathered information to a convenient json format.
 Also, we have gone to great lengths to keep qtop.py dependency-free. That means, you don't have to download or install anything extra; qtop.py works out of the box!
@@ -27,7 +27,7 @@ The absolute simplest way to get qtop.py to display _anything_ is by invoking it
 ```
 ./qtop.py -b demo
 ```
-The `-b` switch must always be followed by one of the supported batch systems (as of version 0.8.9, pbs, sge, oar, demo).
+When used, the `-b` switch must always be followed by one of the supported batch systems (as of version 0.8.9, pbs, sge, oar, demo).
 
 That should create and destroy fictional jobs in fictional machines from fictional users, 
 and display all that in a colorful, yet much unhelpful way. You see, the data produced is going to be probably more than a screenful, and so most of it is going to scroll up and away. If you want to start making any sense of it, you're better off trying this:
@@ -56,7 +56,7 @@ The information that qtop.py conveys when ran can be divided into three sections
   
   ![Accounting Summary](images/accounting_summary.png "Accounting Summary")
 
-If a queue is denoted as blocked in the LRMS, it will be marked with an asterisk.
+If a queue is denoted as blocked in the Resource Management System, it will be marked with an asterisk.
 
 ##### Worker Nodes Occupancy
 
@@ -66,7 +66,7 @@ We'll be referring to the first form in our examples, which was also the origina
 
 The default characteristics are the node state, the names of the queues involved and the job per core allocation table.
 
-This, however, is customisable: as long as there are characteristics of interest existing in the LRMS input file, the User should be able to describe the characteristic inside the config file and have a new vector spawn inside the matrix.
+This, however, is customisable: as long as there are characteristics of interest existing in the Resource Management System input file, the User should be able to describe the characteristic inside the config file and have a new vector spawn inside the matrix.
 
 One dimension is used to array the worker nodes and another to expand the worker node characteristics (individual cores, node state, associated queues etc).
 ![worker nodes occupancy](images/wn_occupancy.png "Worker Nodes occupancy")
@@ -81,7 +81,7 @@ The default elements displayed are:
 ###### Node state
   ![Node state](images/node_state.png "Node state")
   
-  The node state is denoted with the first letter of the following: 
+  The node state is denoted with the first letter of the following, fi. for PBS:
     * **j**ob-exclusive
     * **b**usy
     * **o**ffline
@@ -162,7 +162,7 @@ Customisation is achieved by means of editing a configuration file. Modifying mo
 #### YAML Format (?)
 
 YAML was chosen as it is human-readable and should thus be easier for people to read and modify to their liking.
-That said, the configuration file is in a YAML-**like** format. It does not faithfully follow the format 100%, as it was written quickly and haphazardly. It was decided against using the standard PyYAML module for two reasons: 
+That said, the configuration file is in a YAML-**like** format. It does not faithfully follow the format 100%, as it was written quickly. It was decided against using the standard PyYAML module for two reasons: 
 
   1. support for python 2.5 was recently dropped, while we, on the other hand, aim to keep supporting it
   2. we would very much like qtop to have zero dependencies, so that users can just download and run it on their potentially "sui generis" systems, without the need to download **any** extra packages.
@@ -245,6 +245,37 @@ qtop also has a scheduler-type discovery system, meaning it will try to guess wh
 
 As the input data coming from SGE systems is in XML format, the natural choice for parsing XML data in python is the **lxml** module. That, however, is not in the standard library, and thus requires an extra download. For users that are unable/unwilling to install extra modules in their systems, the standard library slower alternative is used instead.
 
+#### State abbreviations
+
+```yaml
+---
+    # Meaning of queue state abbreviations
+    state_abbreviations:
+      pbs:
+        Q: queued_of_user
+        R: running_of_user
+        C: cancelled_of_user
+        E: exiting_of_user
+        W: waiting_of_user
+      oar:
+        E: Error
+        F: Finishing
+        S: Resuming
+        H: Hold
+        L: waiting_of_user
+        W: queued_of_user
+        R: running_of_user
+        T: exiting_of_user
+        S: cancelled_of_user
+      sge:
+         etc etc
+
+---
+```
+
+Since every scheduler has its own set of states, here is the place where you can inform qtop what states your particular scheduler uses.
+For now, these are not linked to any special behaviour, but this should change in the future.
+
 #### Color mappings
 
 ```yaml
@@ -277,7 +308,14 @@ As the input data coming from SGE systems is in XML format, the natural choice f
 ---
 ```
 
-This is a list of color mappings, using [regular expressions](https://docs.python.org/2/library/re.html). The standard RegEx python module `re` is used for parsing. Order here matters, so the early expressions get overwritten by the later ones. Colors with backgrounds can also be used, for all the color combinations available, check `color_to_code` dictionary in `colormap.py`.
+Color mappings apply for now to three types of items:
+* user ids
+* queue name initials (in the queue name lines/columns)
+* node state
 
-In there, you will also find a ton of ready-made colormaps (`userid_pat_to_color_default` dictionary), with a primary focus on user ids found in CERN clusters. 
+Color mappings can be described using [regular expressions](https://docs.python.org/2/library/re.html). The standard RegEx python module `re` is used for parsing. Order here matters, so the expressions on the top of the list get overwritten by expressions on the bottom. 
+
+Colors with backgrounds can also be used: for all the color combinations available, check `color_to_code` dictionary in `colormap.py`.
+
+In there, you will also find a ton of ready-made colormaps (`userid_pat_to_color_default` dictionary), with a primary focus on user ids found in Large Hadron Collider related clusters (WLCG grid). 
 
