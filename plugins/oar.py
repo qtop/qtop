@@ -1,5 +1,6 @@
-from serialiser import *
-from common_module import *
+from serialiser import StatExtractor, GenericBatchSystem
+import logging
+import os
 import yaml_parser as yaml
 try:
     from collections import OrderedDict
@@ -8,8 +9,8 @@ except ImportError:
 
 
 class OarStatExtractor(StatExtractor):
-    def __init__(self, config):
-        StatExtractor.__init__(self, config)
+    def __init__(self, config, options):
+        StatExtractor.__init__(self, config, options)
         self.user_q_search = r'^(?P<job_id>[0-9]+)\s+' \
                              r'(?P<name>[0-9A-Za-z_.-]+)?\s+' \
                              r'(?P<user>[0-9A-Za-z_.-]+)\s+' \
@@ -39,13 +40,14 @@ class OARBatchSystem(GenericBatchSystem):
     def get_mnemonic():
         return "oar"
 
-    def __init__(self, scheduler_output_filenames, config):
+    def __init__(self, scheduler_output_filenames, config, options):
         self.oarnodes_s_file = scheduler_output_filenames.get('oarnodes_s_file')
         self.oarnodes_y_file = scheduler_output_filenames.get('oarnodes_y_file')
         self.oarstat_file = scheduler_output_filenames.get('oarstat_file')
 
         self.config = config
-        self.oar_stat_maker = OarStatExtractor(self.config)
+        self.options = options
+        self.oar_stat_maker = OarStatExtractor(self.config, self.options)
 
     def get_worker_nodes(self):
         nodes_resids = self._read_oarnodes_s_yaml(self.oarnodes_s_file)
@@ -113,7 +115,7 @@ class OARBatchSystem(GenericBatchSystem):
             logging.critical('File %s is empty!! Exiting...\n' % fn_s)
             raise
         data = yaml.safe_load(fn_s, DEF_INDENT=4)
-        if options.ANONYMIZE:
+        if self.options.ANONYMIZE:
             nodes_resids = dict([(anonymize(node, 'wns'), resid_state.items()) for node, resid_state in data.items()])
         else:
             nodes_resids = dict([(node, resid_state.items()) for node, resid_state in data.items()])
@@ -164,3 +166,6 @@ class OARBatchSystem(GenericBatchSystem):
             return state
         else:
             return node_state_mapping[states[0]]
+
+
+#TODO shouldn't oar have a check_empty_file() here too??

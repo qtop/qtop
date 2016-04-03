@@ -2,18 +2,21 @@ try:
     import ujson as json
 except ImportError:
     import json
-from serialiser import *
-from common_module import check_empty_file, options
+import logging
+import re
+from serialiser import StatExtractor, GenericBatchSystem
+import fileutils
+import itertools
 
 
 class PBSStatExtractor(StatExtractor):
-    def __init__(self, config):
-        StatExtractor.__init__(self, config)
+    def __init__(self, config, options):
+        StatExtractor.__init__(self, config, options)
         self.user_q_search = r'^(?P<host_name>(?P<job_id>[0-9-]+)\.(?P<domain>[\w-]+))\s+' \
                              r'(?P<name>[\w%.=+/-]+)\s+' \
                              r'(?P<user>[A-Za-z0-9.]+)\s+' \
                              r'(?P<time>\d+:\d+:?\d*|0)\s+' \
-                             r'(?P<state>[CWRQE])\s+' \
+                             r'(?P<state>[CWRQEH])\s+' \
                              r'(?P<queue_name>\w+)'
 
         self.user_q_search_prior = r'\s{0,2}' \
@@ -30,8 +33,8 @@ class PBSStatExtractor(StatExtractor):
 
     def extract_qstat(self, orig_file):
         try:
-            check_empty_file(orig_file)
-        except FileEmptyError:
+            fileutils.check_empty_file(orig_file)
+        except fileutils.FileEmptyError:
             all_qstat_values = []
         else:
             all_qstat_values = list()
@@ -51,12 +54,13 @@ class PBSStatExtractor(StatExtractor):
                     all_qstat_values.append(qstat_values)
                     # unused:  _prior, _name, _submit, _start_at, _queue_domain, _slots, _ja_taskID =
                     # m.group(2), m.group(3), m.group(6), m.group(7), m.group(9), m.group(10), m.group(11)
-                finally:  # hence the rest of the lines should follow either try's or except's same format
-                    for line in fin:
-                        qstat_values = self._process_qstat_line(re_search, line, re_match_positions)
-                        all_qstat_values.append(qstat_values)
-        finally:
-            return all_qstat_values
+
+                # hence the rest of the lines should follow either try's or except's same format
+                for line in fin:
+                    qstat_values = self._process_qstat_line(re_search, line, re_match_positions)
+                    all_qstat_values.append(qstat_values)
+
+        return all_qstat_values
 
     def extract_qstatq(self, orig_file):
         """
@@ -66,8 +70,8 @@ class PBSStatExtractor(StatExtractor):
         (except for the last line, which contains two sums and is parsed separately)
         """
         try:
-            check_empty_file(orig_file)
-        except FileEmptyError:
+            fileutils.check_empty_file(orig_file)
+        except fileutils.FileEmptyError:
             all_values = []
         else:
             anonymize = self.anonymize_func()
@@ -95,7 +99,7 @@ class PBSStatExtractor(StatExtractor):
                     n = re.search(run_qd_search, line)
                     temp_dict = {}
                     try:
-                        queue_name = m.group('queue_name') if not options.ANONYMIZE else anonymize(m.group('queue_name'), 'qs')
+                        queue_name = m.group('queue_name') if not self.options.ANONYMIZE else anonymize(m.group('queue_name'), 'qs')
                         run, queued, lm, state = m.group('run'), m.group('queued'), m.group('lm'), m.group('state')
                     except AttributeError:
                         try:
@@ -121,18 +125,19 @@ class PBSBatchSystem(GenericBatchSystem):
     def get_mnemonic():
         return "pbs"
 
-    def __init__(self, scheduler_output_filenames, config):
+    def __init__(self, scheduler_output_filenames, config, options):
         self.pbsnodes_file = scheduler_output_filenames.get('pbsnodes_file')
         self.qstat_file = scheduler_output_filenames.get('qstat_file')
         self.qstatq_file = scheduler_output_filenames.get('qstatq_file')
 
         self.config = config
-        self.qstat_maker = PBSStatExtractor(self.config)
+        self.options = options
+        self.qstat_maker = PBSStatExtractor(self.config, self.options)
 
     def get_worker_nodes(self):
         try:
-            check_empty_file(self.pbsnodes_file)
-        except FileEmptyError:
+            fileutils.check_empty_file(self.pbsnodes_file)
+        except fileutils.FileEmptyError:
             all_pbs_values = []
             return all_pbs_values
 
@@ -141,7 +146,7 @@ class PBSBatchSystem(GenericBatchSystem):
         anonymize = self.qstat_maker.anonymize_func()
         for block in raw_blocks:
             pbs_values = dict()
-            pbs_values['domainname'] = block['domainname'] if not options.ANONYMIZE else anonymize(block['domainname'], 'wns')
+            pbs_values['domainname'] = block['domainname'] if not self.options.ANONYMIZE else anonymize(block['domainname'], 'wns')
 
             nextchar = block['state'][0]
             state = (nextchar == 'f') and "-" or nextchar
@@ -154,12 +159,13 @@ class PBSBatchSystem(GenericBatchSystem):
 
             if block.get('gpus') > 0:  # this should be rare.
                 pbs_values['gpus'] = block['gpus']
+
             try:  # this should turn up more often, hence the try/except.
                 _ = block['jobs']
             except KeyError:
                 pbs_values['core_job_map'] = dict()  # change of behaviour: all entries should contain the key even if no value
             else:
-                jobs = block['jobs'].split(',')
+                jobs = re.split(r'(?<=[A-Za-z]),\s?', block['jobs'])
                 pbs_values['core_job_map'] = dict((core, job) for job, core in self._get_jobs_cores(jobs))
             finally:
                 all_pbs_values.append(pbs_values)
@@ -215,15 +221,19 @@ class PBSBatchSystem(GenericBatchSystem):
         """
         Generator that takes str of this format
         '0/10102182.f-batch01.grid.sinica.edu.tw, 1/10102106.f-batch01.grid.sinica.edu.tw, 2/10102339.f-batch01.grid.sinica.edu.tw, 3/10104007.f-batch01.grid.sinica.edu.tw'
-        and spits tuples of the format (job,core)
+        and spits tuples of the format (0, 10102182)    (job,core)
         """
         for core_job in jobs:
             core, job = core_job.strip().split('/')
-            # core, job = job['core'], job['job']
-            if len(core) > len(job):  # PBS vs torque?
-                core, job = job, core
-            job = job.strip().split('/')[0].split('.')[0]
-            yield job, core
+            if (',' in core) or ('-' in core):
+                for (subcore, subjob) in PBSBatchSystem.get_corejob_from_range(core, job):
+                    subjob = subjob.strip().split('/')[0].split('.')[0]
+                    yield subjob, subcore
+            else:
+                if len(core) > len(job):  # PBS vs torque?
+                    core, job = job, core
+                job = job.strip().split('/')[0].split('.')[0]
+                yield job, core
 
     def _read_all_blocks(self, orig_file):
         """
@@ -260,3 +270,18 @@ class PBSBatchSystem(GenericBatchSystem):
                 else:
                     block[key.strip()] = value.strip()
         return block
+
+    @staticmethod
+    def get_corejob_from_range(core_selections, job):
+        _cores = list()
+        subselections = core_selections.split(',')
+        for subselection in subselections:
+            if '-' in subselection:
+                range_ = map(int, subselection.split('-'))
+                range_[-1] += 1
+                _cores.extend([map(str, range(*range_))])
+            else:
+                _cores.append([subselection])
+        all_cores = list(itertools.chain.from_iterable(_cores))
+        for core in all_cores:
+            yield core, job

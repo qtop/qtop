@@ -1,4 +1,4 @@
-# qtop.py [![Build Status](https://travis-ci.org/qtop/qtop.svg)](https://travis-ci.org/qtop/qtop)
+# qtop.py [![Build Status](https://travis-ci.org/qtop/qtop.svg)](https://travis-ci.org/qtop/qtop) ![python versions](https://img.shields.io/badge/python-2.5%2C%202.6%2C%202.7-blue.svg)
 
 Python port by Sotiris Fragkiskos / Original bash version by Fotis Georgatos
 
@@ -35,11 +35,15 @@ To run a demo, just run
 
 Try ```--help``` for all available options.
 
+## Documentation
+
+Documentation/tutorial [here](docs/documentation.md).
+
 ## Profile
 
 ```
 Description: The command-line tool to tame queueing or scheduling systems and some more
 License: MIT/GPL
-Version: 0.8.8 / Date: February 26, 2016
+Version: 0.8.9 / Date: April 3, 2016
 Homepage: https://github.com/qtop/qtop
 ```

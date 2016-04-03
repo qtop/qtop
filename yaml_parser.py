@@ -1,4 +1,5 @@
-from common_module import *
+import os
+import logging
 
 
 def fix_config_list(config_list):
@@ -73,7 +74,7 @@ def convert_dash_key_in_dict(d):
     try:
         assert isinstance(d, dict)
     except AssertionError:
-        return d
+        return d  # TODO: Maybe this should fail, not be muted
 
     for key_out in d:
         if not (isinstance(d[key_out], dict) or len(d[key_out]) == 1):
@@ -92,7 +93,7 @@ def convert_dash_key_in_dict(d):
     return d
 
 
-def read_yaml_natively(fn, DEF_INDENT=2):
+def parse(fn, DEF_INDENT=2):
     raw_key_values = {}
     with open(fn, mode='r') as fin:
         try:
@@ -102,7 +103,7 @@ def read_yaml_natively(fn, DEF_INDENT=2):
             raise
         except IOError:
             raise
-        logging.debug('File state before read_yaml_natively: %s' % fin)
+        logging.debug('File state before parse: %s' % fin)
         get_lines = get_line(fin, DEF_INDENT=DEF_INDENT)  # TODO: weird
         line = next(get_lines)
         while line:
@@ -112,7 +113,7 @@ def read_yaml_natively(fn, DEF_INDENT=2):
                 block[k] = convert_dash_key_in_dict(block[k])
             raw_key_values.update(block)
 
-    logging.debug('File state after read_yaml_natively: %s' % fin)
+    logging.debug('File state after parse: %s' % fin)
     a_dict = dict([(key, value) for key, value in raw_key_values.items()])
     return a_dict
 
@@ -274,7 +275,7 @@ def process_code(fin):
 
 
 def safe_load(fin, DEF_INDENT=2):
-    a_dict = read_yaml_natively(fin, DEF_INDENT)
+    a_dict = parse(fin, DEF_INDENT)
     logging.debug("YAML dict length: %s" % len(a_dict))
     return a_dict
 
@@ -292,3 +293,19 @@ def load_all(fin):
         list_of_dicts.append(block)
 
     return list_of_dicts
+
+
+def get_yaml_key_part(config, scheduler, outermost_key):
+    """
+    only return the list items of the yaml outermost_key if a yaml key subkey exists
+    (this signals a user-inserted value)
+    """
+    # e.g. outermost_key = 'workernodes_matrix'
+    for part in config[outermost_key]:
+        part_name = [i for i in part][0]
+        part_options = part[part_name]
+        yaml_key = part_options.get('yaml_key')
+        # if no systems line exists, all systems are supported, and thus the current
+        systems = fix_config_list(part_options.get('systems', [scheduler]))
+        if yaml_key:
+            yield yaml_key, part_name, systems

@@ -3,16 +3,16 @@ try:
     import ujson as json
 except ImportError:
     import json
+import logging
 import sys
-from serialiser import *
+from serialiser import StatExtractor, GenericBatchSystem
 from xml.etree import ElementTree as etree
-from common_module import logging, check_empty_file, options
-from constants import *
+import fileutils
 
 
 class SGEStatExtractor(StatExtractor):
-    def __init__(self, config):
-        StatExtractor.__init__(self, config)
+    def __init__(self, config, options):
+        StatExtractor.__init__(self, config, options)
 
     def extract_qstat(self, orig_file):
         all_values = list()
@@ -33,7 +33,7 @@ class SGEStatExtractor(StatExtractor):
             queue_name_elems = queue_elem.findall('resource')
             for queue_name_elem in queue_name_elems:
                 if queue_name_elem.attrib.get('name') == 'qname':
-                    queue_name_elem.text = queue_name_elem.text if not options.ANONYMIZE else self.anonymize(queue_name_elem.text, 'qs')
+                    queue_name_elem.text = queue_name_elem.text if not self.options.ANONYMIZE else self.anonymize(queue_name_elem.text, 'qs')
                     break
             else:
                 raise ValueError("No such queue name")
@@ -52,7 +52,7 @@ class SGEStatExtractor(StatExtractor):
             except ValueError:
                 logging.info('No jobs found in XML file!')
 
-        if options.SAMPLE >= 1:
+        if self.options.SAMPLE >= 1:
             tree.write(orig_file)  # TODO anonymize rest of the sensitive information within xml file
         return all_values
 
@@ -65,7 +65,7 @@ class SGEStatExtractor(StatExtractor):
             qstat_values = dict()
             qstat_values['JobId'] = subelem.find('./JB_job_number').text
             qstat_values['UnixAccount'] = subelem.find('./JB_owner').text \
-                if not options.ANONYMIZE else self.anonymize(subelem.find('./JB_owner').text, 'users')
+                if not self.options.ANONYMIZE else self.anonymize(subelem.find('./JB_owner').text, 'users')
             qstat_values['S'] = subelem.find('./state').text
             qstat_values['Queue'] = queue_name
             all_values.append(qstat_values)
@@ -81,90 +81,43 @@ class SGEBatchSystem(GenericBatchSystem):
     def get_mnemonic():
         return "sge"
 
-    def __init__(self, scheduler_output_filenames, config):
-        self.sge_file_stat = scheduler_output_filenames.get('sge_file_stat')
+    def __init__(self, scheduler_output_filenames, config, options):
+        self.sge_file = scheduler_output_filenames.get('sge_file')
         self.config = config
-        self.sge_stat_maker = SGEStatExtractor(self.config)
+        self.options = options
+        self.sge_stat_maker = SGEStatExtractor(self.config, self.options)
 
     def get_queues_info(self):
-        logging.debug("Parsing tree of %s" % self.sge_file_stat)
-        check_empty_file(self.sge_file_stat)
+        logging.debug("Parsing tree of %s" % self.sge_file)
+        fileutils.check_empty_file(self.sge_file)
         anonymize = self.sge_stat_maker.anonymize_func()
 
-        tree = self._get_xml_tree(self.sge_file_stat)
+        tree = self._get_xml_tree(self.sge_file)
         root = tree.getroot()
 
-        qstatq_list = []
-        for queue_elem in root.findall('queue_info/Queue-List'):
-
-            queue_names = queue_elem.findall('resource')
-            for _queue_name in queue_names:
-                if _queue_name.attrib.get('name') == 'qname':
-                    queue_name = _queue_name.text if not options.ANONYMIZE else anonymize(_queue_name.text, 'qs')
-                    break
-            else:
-                raise ValueError("No such resource")
-
-            FOUND = False
-            for exist_d in qstatq_list:
-                if queue_name == exist_d['queue_name']:
-
-                    jobs = queue_elem.findall('job_list')
-                    run_count = 0
-                    for _run in jobs:
-                        if _run.attrib.get('state') == 'running':
-                            run_count += 1
-                    exist_d['run'] += run_count
-                    FOUND = True
-                    break
-            if FOUND:
-                continue
-
-            d = dict()
-            d['queue_name'] = queue_name
-            try:
-                d['state'] = queue_elem.find('./state').text
-            except AttributeError:
-                d['state'] = '?'
-            except:
-                raise
-
-            job_lists = queue_elem.findall('job_list')
-            run_count = 0
-            for _run in job_lists:
-                if _run.attrib.get('state') == 'running':
-                    run_count += 1
-            d['run'] = run_count
-            d['lm'] = 0
-            d['queued'] = 0
-            qstatq_list.append(d)
+        qstatq_list = self._extract_queues('queue_info/Queue-List', root)
 
         total_running_jobs = sum([d['run'] for d in qstatq_list])
-
         logging.info('Total running jobs found: %s' % total_running_jobs)
+
         for d in qstatq_list:
             d['run'] = str(d['run'])
             d['queued'] = str(d['queued'])
 
-        total_queued_jobs_elems = root.findall('job_info/job_list')
-        pending_count = 0
-        for job in total_queued_jobs_elems:
-            if job.attrib.get('state') == 'pending':
-                pending_count += 1
-        total_queued_jobs = str(pending_count)
-        logging.info('Total queued jobs found: %s' % total_queued_jobs)
+        total_queued_jobs = self._get_total_queued_jobs('job_info/job_list', root)
+
         qstatq_list.append({'run': '0', 'queued': total_queued_jobs, 'queue_name': 'Pending', 'state': 'Q', 'lm': '0'})
         logging.debug('qstatq_list contains %s elements' % len(qstatq_list))
         # TODO: check validity. 'state' shouldnt just be 'Q'!
-        logging.debug("Closing %s" % self.sge_file_stat)
+        logging.debug("Closing %s" % self.sge_file)
 
         return total_running_jobs, int(eval(str(total_queued_jobs))), qstatq_list
 
     def get_worker_nodes(self):
-        logging.debug('Parsing tree of %s' % self.sge_file_stat)
+        logging.debug('Parsing tree of %s' % self.sge_file)
         anonymize = self.sge_stat_maker.anonymize_func()
 
-        with open(self.sge_file_stat, 'rb') as fin:
+        with open(self.sge_file, 'rb') as fin:
             tree = etree.parse(fin)
 
         root = tree.getroot()
@@ -198,7 +151,7 @@ class SGEBatchSystem(GenericBatchSystem):
                     existing_wn['np'] = max(int(existing_wn['np']), len(existing_wn['core_job_map']))
                     break
 
-        logging.debug('Closing %s' % self.sge_file_stat)
+        logging.debug('Closing %s' % self.sge_file)
         logging.info('worker_nodes contains %s entries' % len(worker_nodes))
         for worker_node in worker_nodes:
             worker_node['qname'] = list(worker_node['qname'])
@@ -207,7 +160,7 @@ class SGEBatchSystem(GenericBatchSystem):
     def get_jobs_info(self):
         job_ids, usernames, job_states, queue_names = [], [], [], []
 
-        all_values = self.sge_stat_maker.extract_qstat(self.sge_file_stat)
+        all_values = self.sge_stat_maker.extract_qstat(self.sge_file)
         # TODO: needs better glueing
         for qstat in all_values:
             job_ids.append(str(qstat['JobId']))
@@ -261,15 +214,15 @@ class SGEBatchSystem(GenericBatchSystem):
         resources = queue_elem.findall('resource')
         for resource in resources:
             if resource.attrib.get('name') == 'hostname':
-                worker_node['domainname'] = resource.text if not options.ANONYMIZE else anonymize(resource.text, 'wns')
+                worker_node['domainname'] = resource.text if not self.options.ANONYMIZE else anonymize(resource.text, 'wns')
                 count += 1
             elif resource.attrib.get('name') == 'qname':
-                qname = resource.text[0]
+                qname = resource.text
                 if not slots_used:
                     worker_node['qname'] = set()
                 else:
                     # if slots are reportedly used, the queue will be displayed even if no actual running jobs exist
-                    worker_node['qname'] = set(qname) if not options.ANONYMIZE else set(anonymize(qname, 'qs'))
+                    worker_node['qname'] = set([qname]) if not self.options.ANONYMIZE else set([anonymize(qname, 'qs')])
                 count += 1
             elif resource.attrib.get('name') == 'num_proc':
                 worker_node['np'] = resource.text
@@ -289,3 +242,58 @@ class SGEBatchSystem(GenericBatchSystem):
             _state = '-'
         finally:
             return _state
+
+    def _extract_queues(self, xpath, root):
+        qstatq_list = []
+        for queue_elem in root.findall(xpath):
+
+            queue_names = queue_elem.findall('resource')
+            for _queue_name in queue_names:
+                if _queue_name.attrib.get('name') == 'qname':
+                    queue_name = _queue_name.text if not self.options.ANONYMIZE else anonymize(_queue_name.text, 'qs')
+                    break
+            else:
+                raise ValueError("No such resource")
+
+            for exist_d in qstatq_list:
+                if queue_name == exist_d['queue_name']:
+
+                    jobs = queue_elem.findall('job_list')
+                    run_count = 0
+                    for _run in jobs:
+                        if _run.attrib.get('state') == 'running':
+                            run_count += 1
+                    exist_d['run'] += run_count
+                    break
+            else:  # first instance of queue in the xml
+                d = dict()
+                d['queue_name'] = queue_name
+                try:
+                    d['state'] = queue_elem.find('./state').text
+                except AttributeError:
+                    d['state'] = '?'
+                except:
+                    raise
+
+                job_lists = queue_elem.findall('job_list')
+                run_count = 0
+                for _run in job_lists:
+                    if _run.attrib.get('state') == 'running':
+                        run_count += 1
+                d['run'] = run_count
+                d['lm'] = 0
+                d['queued'] = 0
+                qstatq_list.append(d)
+
+        return qstatq_list
+
+    def _get_total_queued_jobs(self, xpath, root):
+        total_queued_jobs_elems = root.findall(xpath)
+        pending_count = 0
+        for job in total_queued_jobs_elems:
+            if job.attrib.get('state') == 'pending':
+                pending_count += 1
+        total_queued_jobs = str(pending_count)
+        logging.info('Total queued jobs found: %s' % total_queued_jobs)
+
+        return total_queued_jobs

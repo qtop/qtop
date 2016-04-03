@@ -1,8 +1,5 @@
-"""
-TODO: better organised the information in here
-"""
-from common_module import *
 import re
+import sys
 from itertools import count
 
 
@@ -12,8 +9,9 @@ class StatExtractor(object):
     (PBS, OAR, SGE etc)
     """
 
-    def __init__(self, config):
+    def __init__(self, config, options):
         self.config = config
+        self.options = options
         self.anonymize = self.anonymize_func()
 
     def _process_qstat_line(self, re_search, line, re_match_positions):
@@ -23,13 +21,14 @@ class StatExtractor(object):
         """
         qstat_values = dict()
         m = re.search(re_search, line.strip())
+
         try:
             job_id, user, job_state, queue = [m.group(x) for x in re_match_positions]
         except AttributeError:
-            print line.strip()
-            sys.exit(0)
+            sys.__stdout__.write('Line: %s not properly parsed by regex expression.\n' % line.strip())
+            raise
         job_id = job_id.split('.')[0]
-        user = user if not options.ANONYMIZE else self.anonymize(user, 'users')
+        user = user if not self.options.ANONYMIZE else self.anonymize(user, 'users')
         for key, value in [('JobId', job_id), ('UnixAccount', user), ('S', job_state), ('Queue', queue)]:
             qstat_values[key] = value
         return qstat_values

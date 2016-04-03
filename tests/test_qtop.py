@@ -1,8 +1,7 @@
 import pytest
 import re
 
-from qtop import create_job_counts, decide_batch_system, load_yaml_config
-from common_module import JobNotFound, SchedulerNotSpecified, NoSchedulerFound
+from qtop import WNOccupancy, decide_batch_system, load_yaml_config, JobNotFound, SchedulerNotSpecified, NoSchedulerFound
 
 
 @pytest.fixture
@@ -52,19 +51,26 @@ def test_create_job_counts():  # user_names, job_states, state_abbrevs
     user_names = ['sotiris', 'kostas', 'yannis', 'petros']
     state_abbrevs = {'C': 'cancelled_of_user', 'E': 'exiting_of_user', 'r': 'running_of_user'}
     job_states = ['r', 'E', 'r', 'C']
-    assert create_job_counts(user_names, job_states, state_abbrevs) == {
+    class Document(object): jobs_dict = {}
+    document = Document()
+
+    wns_occupancy = WNOccupancy(None, None, document, None)
+    assert wns_occupancy._create_user_job_counts(user_names, job_states, state_abbrevs) == {
         'cancelled_of_user': {'sotiris': 0, 'yannis': 0, 'petros': 1},
         'exiting_of_user': {'sotiris': 0, 'kostas': 1, 'yannis': 0},
         'running_of_user': {'sotiris': 1, 'yannis': 1},
     }
 
 
-def test_create_job_counts_raises_jobnotfound():  # user_names, job_states, state_abbrevs
+def test_create_user_job_counts_raises_jobnotfound():  # user_names, job_states, state_abbrevs
     user_names = ['sotiris', 'kostas', 'yannis', 'petros']
     state_abbrevs = {'C': 'cancelled_of_user', 'E': 'exiting_of_user', 'r': 'running_of_user'}
     job_states = ['r', 'E', 'x', 'C']
+    class Document(object): jobs_dict = {}
+    document = Document()
+    wns_occupancy = WNOccupancy(None, None, document, None)
     with pytest.raises(JobNotFound) as e:
-        create_job_counts(user_names, job_states, state_abbrevs) == {
+        wns_occupancy._create_user_job_counts(user_names, job_states, state_abbrevs) == {
             'cancelled_of_user': {'sotiris': 0, 'yannis': 0, 'petros': 1},
             'exiting_of_user': {'sotiris': 0, 'kostas': 1, 'yannis': 0},
             'running_of_user': {'sotiris': 1, 'yannis': 1},
@@ -85,10 +91,13 @@ def test_create_job_counts_raises_jobnotfound():  # user_names, job_states, stat
 def test_get_selected_batch_system(cmdline_switch, env_var, config_file_batch_option, returned_scheduler):
     # monkeypatch.setitem(config, "schedulers", ['oar', 'sge', 'pbs'])
     schedulers = ['sge', 'oar', 'pbs']
+    available_batch_systems = {'sge': None, 'oar': None, 'pbs': None}
     assert decide_batch_system(cmdline_switch,
         env_var,
         config_file_batch_option,
         schedulers,
+        available_batch_systems,
+        config,
     ) == returned_scheduler
 
 
@@ -100,15 +109,24 @@ def test_get_selected_batch_system(cmdline_switch, env_var, config_file_batch_op
          (None, None, 'auto', 'should_raise_SchedulerNotSpecified'),
      ),
 )
-def test_get_selected_batch_system_raises_no_scheduler_not_specified(
+def test_get_selected_batch_system_raises_scheduler_not_specified(
         cmdline_switch,
         env_var,
         config_file_batch_option,
         returned_scheduler,
 ):
     schedulers = ['sge', 'oar', 'pbs']
-    with pytest.raises(NoSchedulerFound) as e:
-        decide_batch_system(cmdline_switch, env_var, config_file_batch_option, schedulers) == returned_scheduler
+    available_batch_systems = {'sge': None, 'oar': None, 'pbs': None}
+    config = {'signature_commands': {'pbs': 'pbsnodes', 'oar': 'oarnodes', 'sge': 'qhost', 'demo': 'echo'}}
+
+    with pytest.raises(SchedulerNotSpecified) as e:
+        decide_batch_system(cmdline_switch,
+                            env_var,
+                            config_file_batch_option,
+                            schedulers,
+                            available_batch_systems,
+                            config,
+                            ) == returned_scheduler
 
 
 @pytest.mark.parametrize('cmdline_switch, env_var, config_file_batch_option, returned_scheduler',
@@ -124,6 +142,13 @@ def test_get_selected_batch_system_raises_no_scheduler_found(
         returned_scheduler,
 ):
     schedulers = ['sge', 'oar', 'pbs']
+    available_batch_systems = {'sge':None, 'oar':None, 'pbs':None}
     with pytest.raises(NoSchedulerFound) as e:
-        decide_batch_system(cmdline_switch, env_var, config_file_batch_option, schedulers) == returned_scheduler
+        decide_batch_system(cmdline_switch,
+                            env_var,
+                            config_file_batch_option,
+                            schedulers,
+                            available_batch_systems,
+                            config,
+                            ) == returned_scheduler
 
