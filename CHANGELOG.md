@@ -1,3 +1,16 @@
+## 0.8.9
+
+  - watch mode (-w)
+    + (s) node sorting with custom presets/user-inserted RegEx sorts
+    + (f) node filtering
+    + (t) matrix transposition
+    + (F) toggle full nodename display/numbering
+    + (m) toggle coloring code (user-id based/queue name-based)
+  - queue info can now be colored, three different queues with the same initials can be colored distinctly
+  - a good first amount of documentation
+  - small bugfixes
+ 
+
 ## 0.8.8
   - created a shiny new demo out of a demo mini-grid scheduler (!)
 
