@@ -647,7 +647,7 @@ def ensure_worker_nodes_have_qnames(worker_nodes, jobs_dict):
 
     for worker_node in worker_nodes:
         my_jobs = worker_node['core_job_map'].values()
-        my_queues = set(jobs_dict[job_id].job_queue for job_id in my_jobs)
+        my_queues = set(jobs_dict[re.sub(r'\[\d+\]', r'[]', job_id)].job_queue for job_id in my_jobs)  # also takes care of job arrays
         worker_node['qname'] = list(my_queues)
     return worker_nodes
 
@@ -1082,7 +1082,7 @@ class WNOccupancy(object):
         Generator that yields only those core-job pairs that successfully match to a user
         """
         for core, _job in corejobs.items():
-            job = str(_job)
+            job = re.sub(r'\[\d+\]', '[]', str(_job))  # also takes care of job arrays
             try:
                 user_queue = jobid_to_user_to_queue[job]
             except KeyError as KeyErrorValue:
