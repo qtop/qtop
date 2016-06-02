@@ -68,6 +68,8 @@ state_abbreviations:
     C: cancelled_of_user  # not real
     W: waiting_of_user  # not real
     R: restarting_of_user
+    hr: hr_of_user
+    hRq: hRq_of_user
     Eqw: Eqw_of_user
     hqw: hold_of_user
     t: transferring_of_user
