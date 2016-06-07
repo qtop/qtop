@@ -313,6 +313,7 @@ userid_pat_to_color_default = OrderedDict(
         ('kaust', 'Brown'),
         #( Extras; these are really randomly found user names; needed for screen)
         #( clarity while in color more)
+        ('j', 'Yellow'),       ## yes, let's start editing the colormap file around here ;-)
         ('mwilli', 'Brown'),
         ('por', 'Blue'),
         ('dorisf', 'Cyan'),
@@ -323,8 +324,10 @@ userid_pat_to_color_default = OrderedDict(
         ('train', 'Blue_L'),
         ('pkoro', 'Brown'),
         ('fotis', 'Blue'),
-        ('astrelchenko', 'Cyan'),
-        ('tchristoudias', 'Brown'),
+        ('fgeorgatos', 'Blue'),
+        ('fgeor', 'Blue'),
+        ('svc', 'Cyan'),
+        ('svc_hpc', 'Green'),
         ('dashed', 'Gray_L'),
         ('purple', 'Purple'),
         ('Red', 'Red'),
