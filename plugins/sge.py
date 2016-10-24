@@ -121,7 +121,7 @@ class SGEBatchSystem(GenericBatchSystem):
             tree = etree.parse(fin)
 
         root = tree.getroot()
-        worker_nodes = list()
+        existing_wns = list()
         existing_node_names = set()
 
         for queue_elem in root.findall('queue_info/Queue-List'):
@@ -135,15 +135,16 @@ class SGEBatchSystem(GenericBatchSystem):
                 worker_node['np'] = max(int(worker_node['np']), len(worker_node['core_job_map']))
 
                 existing_node_names.update([worker_node['domainname']])
-                worker_nodes.append(worker_node)
+                existing_wns.append(worker_node)
             else:
-                for existing_wn in worker_nodes:
+                for existing_wn in existing_wns:
                     if worker_node['domainname'] != existing_wn['domainname']:
                         continue
 
                     job_ids, _, _ = self._extract_job_info(queue_elem, 'job_list')
                     core_jobs = dict((idx, job_id) for idx, job_id in enumerate(job_ids, existing_wn['existing_busy_cores']))
                     existing_wn['core_job_map'].update(core_jobs)
+                    existing_wn['existing_busy_cores'] = len(existing_wn['core_job_map'])
                     # don't change the node state to free.
                     # Just keep the state reported in the last queue mentioning the node.
                     existing_wn['state'] = (worker_node['state'] == '-') and existing_wn['state'] or worker_node['state']
@@ -152,10 +153,11 @@ class SGEBatchSystem(GenericBatchSystem):
                     break
 
         logging.debug('Closing %s' % self.sge_file)
-        logging.info('worker_nodes contains %s entries' % len(worker_nodes))
-        for worker_node in worker_nodes:
-            worker_node['qname'] = list(worker_node['qname'])
-        return worker_nodes
+        logging.info('existing_wns contains %s entries' % len(existing_wns))
+        for existing_wn in existing_wns:
+            existing_wn['qname'] = list(existing_wn['qname'])
+
+        return existing_wns
 
     def get_jobs_info(self):
         job_ids, usernames, job_states, queue_names = [], [], [], []
@@ -232,7 +234,7 @@ class SGEBatchSystem(GenericBatchSystem):
         else:
             # out of the 3, np information is the most likely to be missing from a node
             worker_node['np'] = 0
-
+        # import wdb; wdb.set_trace()
         return worker_node
 
     def _get_state(self, queue_elem):
