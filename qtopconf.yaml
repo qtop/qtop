@@ -72,6 +72,7 @@ state_abbreviations:
     hRq: hRq_of_user
     Eqw: Eqw_of_user
     hqw: hold_of_user
+    hRq: hRq_of_user
     t: transferring_of_user
     T: threshold_reached
     ht: ht_of_user
