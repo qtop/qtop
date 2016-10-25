@@ -234,7 +234,7 @@ class SGEBatchSystem(GenericBatchSystem):
         else:
             # out of the 3, np information is the most likely to be missing from a node
             worker_node['np'] = 0
-        # import wdb; wdb.set_trace()
+
         return worker_node
 
     def _get_state(self, queue_elem):
