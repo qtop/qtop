@@ -1308,11 +1308,11 @@ class TextDisplay(object):
               colorize('User accounts and pool mappings', 'White') + \
               colorize(' <=== ', 'Gray_d') + \
               colorize("  ('all' also includes those in C and W states, as reported by qstat)"
-                            if options.CLASSIC else "  ('all' includes any jobs beyond R and W)", 'Gray_D')
+                            if options.CLASSIC else "(sorting according to total nr. of jobs)", 'Gray_D')
 
-        print '   R +    Q /  all | nodes |      unix account [id] %(msg)s' % \
+        print '[id] unix account      |jobs >=   R +    Q | nodes | %(msg)s' % \
               {'msg': 'Grid certificate DN (info only available under elevated privileges)' if options.CLASSIC else
-              '      GECOS field or Grid certificate DN |'}
+              '     GECOS field or Grid certificate DN |'}
         for line in account_jobs_table:
             uid, runningjobs, queuedjobs, alljobs, user, num_of_nodes = line
             userid_pat = userid_to_userid_re_pat[str(uid)]
@@ -1323,10 +1323,10 @@ class TextDisplay(object):
             else:
                 conditional_width = 12
 
-            print_string = ('{1:>{width4}} + {2:>{width4}} / {3:>{width4}} {sep} '
+            print_string = ('[ {0:<{width1}}] '
+                            '{4:<{width18}}{sep}'
+                            '{3:>{width4}}   {1:>{width4}}   {2:>{width4}} {sep} '
                             '{6:>{width5}} {sep}'
-                            '{4:>{width18}} '
-                            '[ {0:<{width1}}] '
                             '{5:<{width40}} {sep}').format(
                 colorize(str(uid), pattern=userid_pat),
                 colorize(str(runningjobs), pattern=userid_pat),
