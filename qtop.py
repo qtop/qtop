@@ -1225,7 +1225,7 @@ class TextDisplay(object):
                 logging.warning('=== WARNING: --- Remapping WN names and retrying heuristics... good luck with this... ---')
 
         ansi_delete_char = "\015"  # this removes the first ever character (space) appearing in the output
-        print '%(del)s%(name)s report tool. All bugs added by sfranky@gmail.com. Cross fingers now...' \
+        print '%(del)s%(name)s report tool. For feedback and updates, see: https://github.com/qtop/qtop' \
               % {'name': 'PBS' if options.CLASSIC else './qtop.py ## Queueing System', 'del': ansi_delete_char}
         if scheduler == 'demo':
             msg = "This data is simulated. As soon as you connect to one of the supported scheduling systems,\n" \
@@ -1239,11 +1239,14 @@ class TextDisplay(object):
                                                                                                                   'Gray_D') + \
               '%s WORKDIR = %s' % (colorize(str(datetime.datetime.today())[:-7], 'White'), QTOPPATH)
 
-        print '%(Usage Totals)s:\t%(online_nodes)s/%(total_nodes)s %(Nodes)s | %(working_cores)s/%(total_cores)s %(Cores)s |' \
+        print '%(Summary)s: Total:%(total_nodes)s Up:%(online_nodes)s Free:%(available_nodes)s %(Nodes)s | %(' \
+              'working_cores)s/%(' \
+              'total_cores)s %(Cores)s |' \
               '   %(total_run_jobs)s+%(total_q_jobs)s %(jobs)s (R + Q) %(reported_by)s' % \
               {
-                  'Usage Totals': colorize('Usage Totals', 'Yellow'),
+                  'Summary': colorize('Summary', 'Yellow'),
                   'online_nodes': colorize(str(cluster.total_wn - cluster.offdown_nodes), 'Red_L'),
+                  'available_nodes': colorize(str(cluster.available_wn), 'Red_L'),
                   'total_nodes': colorize(str(cluster.total_wn), 'Red_L'),
                   'Nodes': colorize('Nodes', 'Red_L'),
                   'working_cores': colorize(str(cluster.working_cores), 'Green_L'),
@@ -1255,7 +1258,7 @@ class TextDisplay(object):
                   'reported_by': 'reported by qstat - q' if options.CLASSIC else ''
               }
 
-        print '%(queues)s: | ' % {'queues': colorize('Queues', 'Yellow')},
+        print ' %(queues)s: ' % {'queues': colorize('Queues', 'Yellow')},
         for _queue_name, q_tuple in qstatq_lod.items():
             q_running_jobs, q_queued_jobs, q_state = q_tuple.run, q_tuple.queued, q_tuple.state
             account = _queue_name if _queue_name in queue_to_color else 'account_not_colored'
@@ -1634,6 +1637,7 @@ class Cluster(object):
         self.workernode_dict = {}
         self.workernode_dict_remapped = {}  # { remapnr: [state, np, (core0, job1), (core1, job1), ....]}
 
+        self.available_wn = sum([len(node['state']) for node in self.worker_nodes if str(node['state'][0]) == '-'])
         self.total_wn = len(self.worker_nodes)  # == existing_nodes
         self.workernode_list = []
         self.workernode_list_remapped = range(1, self.total_wn + 1)  # leave xrange aside for now
