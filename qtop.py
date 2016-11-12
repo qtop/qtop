@@ -16,7 +16,7 @@ import re
 import json
 import datetime
 try:
-    from collections import namedtuple, OrderedDict
+    from collections import namedtuple, OrderedDict, Counter
 except ImportError:
     from legacy.namedtuple import namedtuple
     from legacy.ordereddict import OrderedDict
@@ -731,6 +731,7 @@ class WNOccupancy(object):
         self.document = document
         self.account_jobs_table = list()
         self.user_to_id = dict()
+        self.jobid_to_user_to_queue = dict()
         self.user_names, self.job_states, self.job_queues = self._get_usernames_states_queues(document.jobs_dict)
 
         self.calculate(document, userid_pat_to_color)
@@ -754,6 +755,10 @@ class WNOccupancy(object):
             return self  # TODO fix
         # document.jobs_dict => job_id: job name/state/queue
 
+        self.jobid_to_user_to_queue = dict(izip(job_ids, izip(user_names, job_queues)))
+        self.user_machine_use = self.calculate_user_node_use(cluster, self.jobid_to_user_to_queue, job_ids, user_names,
+                                                             job_queues)
+
         user_alljobs_sorted_lot = self._produce_user_lot(self.user_names)
         user_to_id = self._create_id_for_users(user_alljobs_sorted_lot)
         user_job_per_state_counts = self._calculate_user_job_counts(self.user_names, self.job_states, user_alljobs_sorted_lot,
@@ -771,7 +776,7 @@ class WNOccupancy(object):
             if scheduler in systems:
                 self.__setattr__(part_name, self.calc_general_mult_attr_line(part_name, yaml_key, config))
 
-        self.core_user_map = self._calc_core_matrix(job_ids, user_names, self.user_to_id, job_queues)
+        self.core_user_map = self._calc_core_matrix(self.user_to_id, self.jobid_to_user_to_queue)
 
     def _create_account_jobs_table(self, user_to_id, account_jobs_table):
         # TODO: unix account id needs to be recomputed at this point. fix.
@@ -793,7 +798,8 @@ class WNOccupancy(object):
                     user_job_per_state_counts['running_of_user'][user],
                     user_job_per_state_counts['queued_of_user'][user],
                     alljobs_of_user,
-                    user
+                    user,
+                    self.user_machine_use[user]
                 ]
             )
         account_jobs_table.sort(key=itemgetter(3, 4), reverse=True)  # sort by All jobs, then unix account
@@ -1014,9 +1020,9 @@ class WNOccupancy(object):
                 break
         return multiline_map
 
-    def _calc_core_matrix(self, job_ids, user_names, user_to_id, queues):
+    def _calc_core_matrix(self, user_to_id, jobid_to_user_to_queue):
         core_user_map = OrderedDict()
-        jobid_to_user_to_queue = dict(izip(job_ids, izip(user_names, queues)))
+
         core_coloring = dynamic_config.get('core_coloring', self.config['core_coloring'])
 
         for core_nr in self.cluster.core_span:
@@ -1123,6 +1129,20 @@ class WNOccupancy(object):
             just_jobs = core_user_map[k].translate(None, "#_")
             count += len(just_jobs)
         return count
+
+    def calculate_user_node_use(self, cluster, jobid_to_user_to_queue, job_ids, user_names, job_queues):
+        """
+        This calculates the number of nodes each user has jobs in (shown in User accounts and pool mappings)
+        """
+        user_machines = []
+        jobid_to_user_to_queue = dict(izip(job_ids, izip(user_names, job_queues)))
+        # TODO why use variables from outer scope above?
+        for node in cluster.workernode_dict:
+            cluster.workernode_dict[node]['node_user_set'] = set([jobid_to_user_to_queue[job][0] for job in
+                                                                  cluster.workernode_dict[node]['node_job_set']])
+            user_machines.extend(list(cluster.workernode_dict[node]['node_user_set']))
+
+        return Counter(user_machines)
 
 
 class Document(namedtuple('Document', ['worker_nodes', 'jobs_dict', 'queues_dict', 'total_running_jobs', 'total_queued_jobs'])):
@@ -1290,11 +1310,11 @@ class TextDisplay(object):
               colorize("  ('all' also includes those in C and W states, as reported by qstat)"
                             if options.CLASSIC else "  ('all' includes any jobs beyond R and W)", 'Gray_D')
 
-        print '   R +    Q /  all |       unix account [id] %(msg)s' % \
+        print '   R +    Q /  all | nodes |      unix account [id] %(msg)s' % \
               {'msg': 'Grid certificate DN (info only available under elevated privileges)' if options.CLASSIC else
               '      GECOS field or Grid certificate DN |'}
         for line in account_jobs_table:
-            uid, runningjobs, queuedjobs, alljobs, user = line
+            uid, runningjobs, queuedjobs, alljobs, user, num_of_nodes = line
             userid_pat = userid_to_userid_re_pat[str(uid)]
 
             if (options.COLOR == 'OFF' or userid_pat == 'account_not_colored' or userid_pat_to_color[userid_pat] == 'reset'):
@@ -1304,6 +1324,7 @@ class TextDisplay(object):
                 conditional_width = 12
 
             print_string = ('{1:>{width4}} + {2:>{width4}} / {3:>{width4}} {sep} '
+                            '{6:>{width5}} {sep}'
                             '{4:>{width18}} '
                             '[ {0:<{width1}}] '
                             '{5:<{width40}} {sep}').format(
@@ -1313,10 +1334,12 @@ class TextDisplay(object):
                 colorize(str(alljobs), pattern=userid_pat),
                 colorize(user, pattern=userid_pat),
                 colorize(detail_of_name.get(user, ''), pattern=userid_pat),
+                colorize(num_of_nodes, pattern=userid_pat),
                 sep=colorize(config['SEPARATOR'], pattern=userid_pat),
                 width1=1 + conditional_width,
                 width3=3 + conditional_width,
                 width4=4 + conditional_width,
+                width5=5 + conditional_width,
                 width18=18 + conditional_width,
                 width40=40 + conditional_width,
             )
@@ -1654,6 +1677,7 @@ class Cluster(object):
             self.workernode_dict = self.fill_non_existent_wn_nodes(self.workernode_dict)
 
         self.workernode_dict = self.do_name_remapping(self.workernode_dict)
+        self._calculate_jobs_per_node(self.workernode_dict)
         del self.node_subclusters  # sets are not JSON serialisable!!
         del self.workernode_list_remapped
         del self.workernode_dict_remapped
@@ -1843,6 +1867,11 @@ class Cluster(object):
             logging.error(colorize(msg, color_func='Red_L'))
 
         return self.worker_nodes
+
+    def _calculate_jobs_per_node(self, workernode_dict):
+        for node in workernode_dict:
+            node_job_set = set(workernode_dict[node]['core_job_map'].values())
+            workernode_dict[node]['node_job_set'] = node_job_set
 
 
 def colorize(text, color_func=None, pattern='NoPattern', mapping=None, bg_color=None, bold=False):
