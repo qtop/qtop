@@ -278,7 +278,7 @@ occupancy_column_order:
   - queue name
 horizontal_separator: '|'
 
-auto_delete_old_json_files_after_x_minutes: 60 # (minutes)
+auto_delete_old_output_files_after_x_minutes: 2 # (minutes)
 overwrite_sample_file: True  # True (default) writes to tar using the same constant filename, False appends a timestamp
 ## core_coloring can be either:
 ##  - userid_pat_to_color, which paints core jobs according to the userid color, or
