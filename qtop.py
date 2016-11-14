@@ -20,6 +20,7 @@ try:
 except ImportError:
     from legacy.namedtuple import namedtuple
     from legacy.ordereddict import OrderedDict
+    from legacy.counter import Counter
 import os
 from os.path import realpath
 from signal import signal, SIGPIPE, SIG_DFL
