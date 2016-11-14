@@ -782,14 +782,14 @@ class WNOccupancy(object):
     def _create_account_jobs_table(self, user_to_id, account_jobs_table):
         # TODO: unix account id needs to be recomputed at this point. fix.
         for quintuplet, new_uid in zip(account_jobs_table, config['possible_ids']):
-            unix_account = quintuplet[-1]
+            unix_account = quintuplet[4]
             quintuplet[0] = user_to_id[unix_account] = utils.ColorStr(unix_account[0], color='Red_L') \
                 if config['fill_with_user_firstletter'] else utils.ColorStr(new_uid, color='Red_L')
 
         return account_jobs_table, user_to_id
 
     def _create_sort_acct_jobs_table(self, user_job_per_state_counts, user_all_jobs_sorted, user_to_id):
-        """Calculates what is actually below the id|  R + Q /all | unix account etc line"""
+        """Calculates what is actually below the id|  jobs>=R + Q | unix account etc line"""
         account_jobs_table = []
         for user_alljobs in user_all_jobs_sorted:
             user, alljobs_of_user = user_alljobs
@@ -1316,7 +1316,7 @@ class TextDisplay(object):
 
         print '[id] unix account      |jobs >=   R +    Q | nodes | %(msg)s' % \
               {'msg': 'Grid certificate DN (info only available under elevated privileges)' if options.CLASSIC else
-              '     GECOS field or Grid certificate DN |'}
+              '      GECOS field or Grid certificate DN |'}
         for line in account_jobs_table:
             uid, runningjobs, queuedjobs, alljobs, user, num_of_nodes = line
             userid_pat = userid_to_userid_re_pat[str(uid)]
@@ -1330,7 +1330,7 @@ class TextDisplay(object):
             print_string = ('[ {0:<{width1}}] '
                             '{4:<{width18}}{sep}'
                             '{3:>{width4}}   {1:>{width4}}   {2:>{width4}} {sep} '
-                            '{6:>{width5}} {sep}'
+                            '{6:>{width5}} {sep} '
                             '{5:<{width40}} {sep}').format(
                 colorize(str(uid), pattern=userid_pat),
                 colorize(str(runningjobs), pattern=userid_pat),
