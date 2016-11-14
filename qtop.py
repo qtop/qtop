@@ -1199,7 +1199,8 @@ class TextDisplay(object):
             'user_accounts_pool_mappings': (self.display_user_accounts_pool_mappings, (self.wns_occupancy,))
         }
 
-        print "\033c",  # comma is to avoid losing the whole first line. An empty char still remains, though.
+        if options.WATCH:
+            print "\033c",  # comma is to avoid losing the whole first line. An empty char still remains, though.
 
         for idx, part in enumerate(config['user_display_parts'], 1):
             display_func, args = display_parts[part][0], display_parts[part][1]
@@ -2105,7 +2106,7 @@ if __name__ == '__main__':
                 if options.ONLYSAVETOFILE:  # no display of qtop output, will exit
                     break
                 elif not options.WATCH:  # one-off display of qtop output, will exit afterwards (no --watch cmdline switch)
-                    cat_command = 'clear;cat %s' % output_fp
+                    cat_command = 'cat %s' % output_fp  # TODO was clear;cat ...
                     _ = subprocess.call(cat_command, stdout=stdout, stderr=stdout, shell=True)
                     break
                 else:  # --watch
