@@ -1541,7 +1541,7 @@ class TextDisplay(object):
         Justification for implementation:
         http://unix.stackexchange.com/questions/47407/cat-line-x-to-line-y-on-a-huge-file
         """
-        temp_f = tempfile.NamedTemporaryFile(delete=False, suffix='.out', dir=TMPDIR)
+        temp_f = tempfile.NamedTemporaryFile(delete=False, suffix='.out', dir=config['savepath'])
         pre_cat_command = '(tail -n+%s %s | head -n%s) > %s' % (x, file, y - 1, temp_f.name)
         _ = subprocess.call(pre_cat_command, stdout=stdout, stderr=stdout, shell=True)
         cat_command = 'clear;cat %s' % temp_f.name
@@ -2117,6 +2117,7 @@ if __name__ == '__main__':
 
                 os.chdir(QTOPPATH)
                 os.unlink(output_fp)
+                fileutils.deprecate_old_output_files(config)
 
             if options.SAMPLE:
                 fileutils.add_to_sample([output_fp], config['savepath'], SAMPLE_FILENAME)
