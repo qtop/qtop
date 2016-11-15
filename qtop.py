@@ -2070,7 +2070,7 @@ if __name__ == '__main__':
                 worker_nodes = scheduling_system.get_worker_nodes()
 
                 JobDoc = namedtuple('JobDoc', ['user_name', 'job_state', 'job_queue'])
-                jobs_dict = dict((job_id, JobDoc(user_name, job_state, job_queue))
+                jobs_dict = dict((re.sub(r'\[\]$', '', job_id), JobDoc(user_name, job_state, job_queue))
                     for job_id, user_name, job_state, job_queue in izip(job_ids, user_names, job_states, job_queues))
 
                 QDoc = namedtuple('QDoc', ['lm', 'queued', 'run', 'state'])
