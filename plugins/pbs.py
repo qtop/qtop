@@ -16,7 +16,7 @@ class PBSStatExtractor(StatExtractor):
                              r'(?P<name>[\w%.=+/{}-]+)\s+' \
                              r'(?P<user>[A-Za-z0-9.]+)\s+' \
                              r'(?P<time>\d+:\d+:?\d*|0)\s+' \
-                             r'(?P<state>[CWRQEH])\s+' \
+                             r'(?P<state>[BCEFHMQRSTUWX])\s+' \
                              r'(?P<queue_name>\w+)'
 
         self.user_q_search_prior = r'\s{0,2}' \
@@ -165,7 +165,7 @@ class PBSBatchSystem(GenericBatchSystem):
             except KeyError:
                 pbs_values['core_job_map'] = dict()  # change of behaviour: all entries should contain the key even if no value
             else:
-                jobs = re.split(r'(?<=[A-Za-z]),\s?', block['jobs'])
+                jobs = re.split(r'(?<=[A-Za-z0-9]),\s?', block['jobs'])
                 pbs_values['core_job_map'] = dict((core, job) for job, core in self._get_jobs_cores(jobs))
             finally:
                 all_pbs_values.append(pbs_values)
@@ -181,7 +181,7 @@ class PBSBatchSystem(GenericBatchSystem):
 
         qstats = self.qstat_maker.extract_qstat(self.qstat_file)
         for qstat in qstats:
-            job_ids.append(str(qstat['JobId']))
+            job_ids.append(re.sub(r'\[\]$', '', str(qstat['JobId'])))
             usernames.append(qstat['UnixAccount'])
             job_states.append(qstat['S'])
             queue_names.append(qstat['Queue'])
@@ -233,6 +233,7 @@ class PBSBatchSystem(GenericBatchSystem):
                 if len(core) > len(job):  # PBS vs torque?
                     core, job = job, core
                 job = job.strip().split('/')[0].split('.')[0]
+                job = re.sub(r'\[\d*\]$', '', job)
                 yield job, core
 
     def _read_all_blocks(self, orig_file):
