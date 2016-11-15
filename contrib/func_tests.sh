@@ -15,7 +15,7 @@ grep -v 'WORKDIR\|Please try it with watch\|Log file created in' contrib/sger_dv
 
 echo "Testing oar..."
 grep -v 'WORKDIR\|Please try it with watch\|Log file created in' contrib/oar1_dvv_out.ref > /tmp/qtop_testfile
-./qtop.py -c ON -s contrib -Fardvvv -b oar \
+./qtop.py -c ON -s contrib -FAardvvv -b oar \
     | grep -v 'WORKDIR\|Please try it with watch\|Log file created in' | diff - /tmp/qtop_testfile
 
 echo "Testing pbs..."
