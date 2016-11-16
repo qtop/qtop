@@ -54,7 +54,7 @@ state_abbreviations:
     F: finished_of_user
     M: moved_of_user
     S: suspended_of_user
-    T: transisting_of_user
+    T: transiting_of_user
     U: suspended_useractive_of_user
     X: expired_of_user
   oar:
