@@ -49,14 +49,14 @@ state_abbreviations:
     C: cancelled_of_user
     E: exiting_of_user
     W: waiting_of_user
-    H: holding_of_user
-    B: busy_of_user
-    F: failed_of_user
-    M: moo_of_user
+    H: held_of_user
+    B: begun_of_user
+    F: finished_of_user
+    M: moved_of_user
     S: suspended_of_user
-    T: exiting_of_user
-    U: ufo_of_user
-    X: exiting_of_user
+    T: transisting_of_user
+    U: suspended_useractive_of_user
+    X: expired_of_user
   oar:
     E: Error
     F: Finishing
