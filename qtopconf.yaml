@@ -92,6 +92,7 @@ state_abbreviations:
     ERq: ERq_of_user
     Rq: queued_of_user
     Rs: suspended_of_user
+    Rq: queued_of_user
     Rt: transferring_of_user
     Rr: running_of_user    
   demo:
