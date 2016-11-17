@@ -41,6 +41,7 @@ import yaml_parser as yaml
 from ui.viewport import Viewport
 from serialiser import GenericBatchSystem
 from web import Web
+import time
 
 
 # TODO make the following work with py files instead of qtop.colormap files
@@ -1537,17 +1538,17 @@ class TextDisplay(object):
             wn_id_str = ''.join([colorize(elem, next(colors)) for elem in wn_id_str])
             print wn_id_str + end_label
 
-    def print_y_lines_of_file_starting_from_x(self, file, x, y):
+    def show_part_view(self, file, x, y):
         """
         Prints part of the qtop output to the terminal (as fast as possible!)
         Justification for implementation:
         http://unix.stackexchange.com/questions/47407/cat-line-x-to-line-y-on-a-huge-file
         """
-        temp_f = tempfile.NamedTemporaryFile(delete=False, suffix='_partview.out', dir=config['savepath'])
+        timestr = time.strftime("%Y%m%d-%H%M%S")
+        temp_f = tempfile.NamedTemporaryFile(delete=False, suffix='-{}_partview.out'.format(timestr), dir=config['savepath'])
         pre_cat_command = '(tail -n+%s %s | head -n%s) > %s' % (x, file, y - 1, temp_f.name)
         _ = subprocess.call(pre_cat_command, stdout=stdout, stderr=stdout, shell=True)
-        cat_command = 'clear;cat %s' % temp_f.name
-        return cat_command
+        return temp_f.name
 
     def print_mult_attr_line(self, print_char_start, print_char_stop, transposed_matrices, attr_lines, label, color_func=None,
                              **kwargs):
@@ -2037,6 +2038,9 @@ if __name__ == '__main__':
     QTOPPATH = os.path.dirname(realpath(sys.argv[0]))  # dir where qtop resides
     SAMPLE_FILENAME = 'qtop_sample_${USER}%(datetime)s.tar'
     SAMPLE_FILENAME = os.path.expandvars(SAMPLE_FILENAME)
+    REC_FP = '/tmp/qtop_results_{}/*{}*_partview.out'.format(os.path.expandvars('${USER}'), options.REPLAY)
+
+    rec_files = iter(glob.glob(REC_FP)[::-1])
 
     web = Web(initial_cwd)
     if options.WEB:
@@ -2107,12 +2111,19 @@ if __name__ == '__main__':
                 if options.ONLYSAVETOFILE:  # no display of qtop output, will exit
                     break
                 elif not options.WATCH:  # one-off display of qtop output, will exit afterwards (no --watch cmdline switch)
-                    cat_command = 'cat %s' % output_fp  # TODO was clear;cat ...
+                    cat_command = 'cat %s' % output_fp  # not clearing the screen beforehand is the intended behaviour here
                     _ = subprocess.call(cat_command, stdout=stdout, stderr=stdout, shell=True)
                     break
                 else:  # --watch
-                    cat_command = display.print_y_lines_of_file_starting_from_x(file=output_fp, x=viewport.v_start,
-                                                                                y=viewport.v_term_size)
+                    if options.REPLAY:
+                        try:
+                            output_partview_fp = next(rec_files)
+                        except StopIteration:
+                            logging.critical('No (more) recorded instances available to show! Exiting...')
+                            break
+                    else:
+                        output_partview_fp = display.show_part_view(file=output_fp, x=viewport.v_start, y=viewport.v_term_size)
+                    cat_command = 'clear;cat %s' % output_partview_fp
                     _ = subprocess.call(cat_command, stdout=stdout, stderr=stdout, shell=True)
 
                     read_char = wait_for_keypress_or_autorefresh(viewport, int(options.WATCH[0]) or KEYPRESS_TIMEOUT)
