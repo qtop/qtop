@@ -48,6 +48,18 @@ import time
 # if not options.COLORFILE:
 #     options.COLORFILE = os.path.expandvars('$HOME/qtop/qtop/qtop.colormap')
 
+def get_date_obj_from_str(s):
+    try:
+        obj = datetime.datetime.strptime(s, "%Y%m%dT%H%M%S")
+    except ValueError:
+        try:
+            obj = datetime.datetime.strptime(s, "%Y%m%dT%H%M%S")
+        except ValueError:
+            raise
+    return obj
+
+
+
 @contextlib.contextmanager
 def raw_mode(file):
     """
@@ -1544,8 +1556,8 @@ class TextDisplay(object):
         Justification for implementation:
         http://unix.stackexchange.com/questions/47407/cat-line-x-to-line-y-on-a-huge-file
         """
-        timestr = time.strftime("%Y%m%d-%H%M%S")
-        temp_f = tempfile.NamedTemporaryFile(delete=False, suffix='-{}_partview.out'.format(timestr), dir=config['savepath'])
+        timestr = time.strftime("%Y%m%dT%H%M%S")
+        temp_f = tempfile.NamedTemporaryFile(delete=False, suffix='_partview%s.out' % timestr, dir=config['savepath'])
         pre_cat_command = '(tail -n+%s %s | head -n%s) > %s' % (x, file, y - 1, temp_f.name)
         _ = subprocess.call(pre_cat_command, stdout=stdout, stderr=stdout, shell=True)
         return temp_f.name
@@ -2038,9 +2050,20 @@ if __name__ == '__main__':
     QTOPPATH = os.path.dirname(realpath(sys.argv[0]))  # dir where qtop resides
     SAMPLE_FILENAME = 'qtop_sample_${USER}%(datetime)s.tar'
     SAMPLE_FILENAME = os.path.expandvars(SAMPLE_FILENAME)
-    REC_FP = '/tmp/qtop_results_{}/*{}*_partview.out'.format(os.path.expandvars('${USER}'), options.REPLAY)
+    if options.REPLAY:
+        watch_start_datetime_obj = get_date_obj_from_str(options.REPLAY[0])
+        REC_FP_ALL = '/tmp/qtop_results_%s/*_partview*.out' % os.path.expandvars('${USER}')
+        rec_files = glob.iglob(REC_FP_ALL)  # [::-1] sort after eliminating irrelevants, dummy!!
+        useful_frames = []
+        for f in rec_files:
+            # captured_fp_datetime = f.rsplit('_partview')[1][:-4]  # one way to do it?
+            f_last_modified_date = datetime.datetime.fromtimestamp(os.path.getmtime(f))  # better?
+            if abs(watch_start_datetime_obj - f_last_modified_date) < datetime.timedelta(minutes=int(options.REPLAY[1])):
+                useful_frames.append(f)
+            # if datetime.datetime.now() - f_last_modified_date < datetime.timedelta(minutes=60):  # how old should it be?
+        useful_frames = iter(useful_frames[::-1])
+        REC_FP = '/tmp/qtop_results_%s/*_partview_%s.out' % (os.path.expandvars('${USER}'), options.REPLAY[0])
 
-    rec_files = iter(glob.glob(REC_FP)[::-1])
 
     web = Web(initial_cwd)
     if options.WEB:
@@ -2117,7 +2140,7 @@ if __name__ == '__main__':
                 else:  # --watch
                     if options.REPLAY:
                         try:
-                            output_partview_fp = next(rec_files)
+                            output_partview_fp = next(useful_frames)
                         except StopIteration:
                             logging.critical('No (more) recorded instances available to show! Exiting...')
                             break
