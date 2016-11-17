@@ -1290,7 +1290,7 @@ class TextDisplay(object):
         if dynamic_config.get('transpose_wn_matrices', self.config['transpose_wn_matrices']):
             note = "/".join(self.config['occupancy_column_order'])
         else:
-            note = 'you can read vertically the node IDs; nodes in free state are noted with - '
+            note = 'you can read vertically the node IDs'
 
         print colorize('===> ', 'Gray_D') + \
               colorize('Worker Nodes occupancy', 'White') + \
@@ -1543,7 +1543,7 @@ class TextDisplay(object):
         Justification for implementation:
         http://unix.stackexchange.com/questions/47407/cat-line-x-to-line-y-on-a-huge-file
         """
-        temp_f = tempfile.NamedTemporaryFile(delete=False, suffix='.out', dir=config['savepath'])
+        temp_f = tempfile.NamedTemporaryFile(delete=False, suffix='_partview.out', dir=config['savepath'])
         pre_cat_command = '(tail -n+%s %s | head -n%s) > %s' % (x, file, y - 1, temp_f.name)
         _ = subprocess.call(pre_cat_command, stdout=stdout, stderr=stdout, shell=True)
         cat_command = 'clear;cat %s' % temp_f.name
@@ -2045,10 +2045,11 @@ if __name__ == '__main__':
     with raw_mode(sys.stdin):  # key listener implementation
         try:
             while True:
-                handle, output_fp = fileutils.get_new_temp_file(prefix='qtop_', suffix='.out')  # qtop output is saved to this file
-                sys.stdout = os.fdopen(handle, 'w')  # redirect everything to file, creates file object out of handle
                 config, userid_pat_to_color, nodestate_to_color = load_yaml_config()  # TODO account_to_color is updated in here !!
                 config = update_config_with_cmdline_vars(options, config)
+                handle, output_fp = fileutils.get_new_temp_file(prefix='qtop_', suffix='.out', config=config)  # qtop output is
+                sys.stdout = os.fdopen(handle, 'w')  # redirect everything to file, creates file object out of handle
+                # saved here
 
                 attempt_faster_xml_parsing(config)
                 options = init_dirs(options)
