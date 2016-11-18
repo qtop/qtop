@@ -78,11 +78,15 @@ def parse_qtop_cmdline_args():
                       help="Do not print results to stdout")
     parser.add_option("-r", "--removeemptycorelines", dest="REM_EMPTY_CORELINES", action="store_true", default=False,
                       help="If a whole row consists of empty core lines, remove the row")
-    parser.add_option("-R", "--replay", action="append", type="string", dest="REPLAY", default=[],
-                      help="instant replay from a specific moment in time for the cluster, and for a specific duration. "
-                           "The value inputted should be of the form <yyyymmddThhmmss>, e.g. -R 20161117T102300."
-                           "A second value is for now mandatory and denotes the desired length of the playback in minutes,"
-                           "e.g. -R 20161117T102300 -R2")
+    parser.add_option("-R", "--replay", action="store", type="string", dest="REPLAY", nargs=2,
+                      help="instant replay from a specific moment in time for the "
+                           "cluster, and for a specified duration. The value "
+                           "inputted should be in either of the following formats: "
+                           "yyyymmddTHHMMSS, e.g. 20161118T182300, (explicit form) "
+                           "HHMM, e.g. 1823 (current day is implied),\t\t "
+                           "mmddTHHMM, e.g. 1118 T1823(current year is implied).  "
+                           "A second value is mandatory and denotes the desired "
+                           "length of the playback in minutes, e.g. -R 1823 2")
     parser.add_option("-s", "--SetSourceDir", dest="SOURCEDIR",
                       help="Set the source directory where the batch scheduler output files reside")
     parser.add_option("-S", "--StrictCheck", dest="STRICTCHECK", action="store_true",
@@ -107,10 +111,13 @@ def parse_qtop_cmdline_args():
 
 
 def _watch_callback(option, opt_str, value, parser):
+    """
+    This is the official example from optparse for variable arguments
+    """
     assert value is None
     value = []
 
-    def floatable(str):
+    def is_floatable(str):
         try:
             float(str)
             return True
@@ -122,7 +129,7 @@ def _watch_callback(option, opt_str, value, parser):
         if arg[:2] == "--" and len(arg) > 2:
             break
         # stop on -a, but not on -3 or -3.0
-        if arg[:1] == "-" and len(arg) > 1 and not floatable(arg):
+        if arg[:1] == "-" and len(arg) > 1 and not is_floatable(arg):
             break
         value.append(arg)
     if not value:  # zero arguments!

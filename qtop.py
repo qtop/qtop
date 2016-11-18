@@ -49,13 +49,22 @@ import time
 #     options.COLORFILE = os.path.expandvars('$HOME/qtop/qtop/qtop.colormap')
 
 def get_date_obj_from_str(s):
-    try:
+    """
+    expects string s to be in either of the following formats:
+    yyyymmddTHHMMSS, e.g. 20161118T182300
+    HHMM, e.g. 1823 (current day is implied)
+    mmddTHHMM, e.g. 1118T1823 (current year is implied)
+    returns a datetime object
+    """
+    now = datetime.datetime.today()
+    if 'T' in s and len(s) == 15:
         obj = datetime.datetime.strptime(s, "%Y%m%dT%H%M%S")
-    except ValueError:
-        try:
-            obj = datetime.datetime.strptime(s, "%Y%m%dT%H%M%S")
-        except ValueError:
-            raise
+    elif len(s) == 4:
+        _obj = datetime.datetime.strptime(s, "%H%M")
+        obj = now.replace(hour=_obj.hour, minute=_obj.minute, second=0)
+    elif len(s) == 9:
+        _obj = datetime.datetime.strptime(s, "%m%dT%H%M")
+        obj = _obj.replace(year=now.year, second=0)
     return obj
 
 
@@ -1249,7 +1258,7 @@ class TextDisplay(object):
 
         if not options.WATCH:
             print 'Please try it with watch: %s/qtop.py -s <SOURCEDIR> -w [<every_nr_of_sec>]\n' \
-                  '...and thank you for watching ;)\n' % QTOPPATH
+                  '...and thank you for ..watching ;)\n' % QTOPPATH
         print colorize('===> ', 'Gray_D') + colorize('Job accounting summary', 'White') + colorize(' <=== ',
                                                                                                                   'Gray_D') + \
               '%s WORKDIR = %s' % (colorize(str(datetime.datetime.today())[:-7], 'White'), QTOPPATH)
@@ -2053,7 +2062,7 @@ if __name__ == '__main__':
     if options.REPLAY:
         watch_start_datetime_obj = get_date_obj_from_str(options.REPLAY[0])
         REC_FP_ALL = '/tmp/qtop_results_%s/*_partview*.out' % os.path.expandvars('${USER}')
-        rec_files = glob.iglob(REC_FP_ALL)  # [::-1] sort after eliminating irrelevants, dummy!!
+        rec_files = glob.iglob(REC_FP_ALL)
         useful_frames = []
         for f in rec_files:
             # captured_fp_datetime = f.rsplit('_partview')[1][:-4]  # one way to do it?
