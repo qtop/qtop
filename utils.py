@@ -85,8 +85,10 @@ def parse_qtop_cmdline_args():
                            "yyyymmddTHHMMSS, e.g. 20161118T182300, (explicit form) "
                            "HHMM, e.g. 1823 (current day is implied),\t\t "
                            "mmddTHHMM, e.g. 1118 T1823(current year is implied).  "
-                           "A second value is mandatory and denotes the desired "
-                           "length of the playback in minutes, e.g. -R 1823 2")
+                           "A second value is optional and denotes the desired "
+                           "length of the playback, e.g. -R 1823 1m, "
+                           "or -R 1800 1h. A default duration of 2m is used, if"
+                           "no value is given.")
     parser.add_option("-s", "--SetSourceDir", dest="SOURCEDIR",
                       help="Set the source directory where the batch scheduler output files reside")
     parser.add_option("-S", "--StrictCheck", dest="STRICTCHECK", action="store_true",
