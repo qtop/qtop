@@ -41,11 +41,24 @@ import yaml_parser as yaml
 from ui.viewport import Viewport
 from serialiser import GenericBatchSystem
 from web import Web
+import time
 
 
 # TODO make the following work with py files instead of qtop.colormap files
 # if not options.COLORFILE:
 #     options.COLORFILE = os.path.expandvars('$HOME/qtop/qtop/qtop.colormap')
+
+def get_date_obj_from_str(s):
+    try:
+        obj = datetime.datetime.strptime(s, "%Y%m%dT%H%M%S")
+    except ValueError:
+        try:
+            obj = datetime.datetime.strptime(s, "%Y%m%dT%H%M%S")
+        except ValueError:
+            raise
+    return obj
+
+
 
 @contextlib.contextmanager
 def raw_mode(file):
@@ -1290,7 +1303,7 @@ class TextDisplay(object):
         if dynamic_config.get('transpose_wn_matrices', self.config['transpose_wn_matrices']):
             note = "/".join(self.config['occupancy_column_order'])
         else:
-            note = 'you can read vertically the node IDs; nodes in free state are noted with - '
+            note = 'you can read vertically the node IDs'
 
         print colorize('===> ', 'Gray_D') + \
               colorize('Worker Nodes occupancy', 'White') + \
@@ -1537,17 +1550,17 @@ class TextDisplay(object):
             wn_id_str = ''.join([colorize(elem, next(colors)) for elem in wn_id_str])
             print wn_id_str + end_label
 
-    def print_y_lines_of_file_starting_from_x(self, file, x, y):
+    def show_part_view(self, file, x, y):
         """
         Prints part of the qtop output to the terminal (as fast as possible!)
         Justification for implementation:
         http://unix.stackexchange.com/questions/47407/cat-line-x-to-line-y-on-a-huge-file
         """
-        temp_f = tempfile.NamedTemporaryFile(delete=False, suffix='.out', dir=config['savepath'])
+        timestr = time.strftime("%Y%m%dT%H%M%S")
+        temp_f = tempfile.NamedTemporaryFile(delete=False, suffix='_partview%s.out' % timestr, dir=config['savepath'])
         pre_cat_command = '(tail -n+%s %s | head -n%s) > %s' % (x, file, y - 1, temp_f.name)
         _ = subprocess.call(pre_cat_command, stdout=stdout, stderr=stdout, shell=True)
-        cat_command = 'clear;cat %s' % temp_f.name
-        return cat_command
+        return temp_f.name
 
     def print_mult_attr_line(self, print_char_start, print_char_stop, transposed_matrices, attr_lines, label, color_func=None,
                              **kwargs):
@@ -2037,6 +2050,20 @@ if __name__ == '__main__':
     QTOPPATH = os.path.dirname(realpath(sys.argv[0]))  # dir where qtop resides
     SAMPLE_FILENAME = 'qtop_sample_${USER}%(datetime)s.tar'
     SAMPLE_FILENAME = os.path.expandvars(SAMPLE_FILENAME)
+    if options.REPLAY:
+        watch_start_datetime_obj = get_date_obj_from_str(options.REPLAY[0])
+        REC_FP_ALL = '/tmp/qtop_results_%s/*_partview*.out' % os.path.expandvars('${USER}')
+        rec_files = glob.iglob(REC_FP_ALL)  # [::-1] sort after eliminating irrelevants, dummy!!
+        useful_frames = []
+        for f in rec_files:
+            # captured_fp_datetime = f.rsplit('_partview')[1][:-4]  # one way to do it?
+            f_last_modified_date = datetime.datetime.fromtimestamp(os.path.getmtime(f))  # better?
+            if abs(watch_start_datetime_obj - f_last_modified_date) < datetime.timedelta(minutes=int(options.REPLAY[1])):
+                useful_frames.append(f)
+            # if datetime.datetime.now() - f_last_modified_date < datetime.timedelta(minutes=60):  # how old should it be?
+        useful_frames = iter(useful_frames[::-1])
+        REC_FP = '/tmp/qtop_results_%s/*_partview_%s.out' % (os.path.expandvars('${USER}'), options.REPLAY[0])
+
 
     web = Web(initial_cwd)
     if options.WEB:
@@ -2045,10 +2072,11 @@ if __name__ == '__main__':
     with raw_mode(sys.stdin):  # key listener implementation
         try:
             while True:
-                handle, output_fp = fileutils.get_new_temp_file(prefix='qtop_', suffix='.out')  # qtop output is saved to this file
-                sys.stdout = os.fdopen(handle, 'w')  # redirect everything to file, creates file object out of handle
                 config, userid_pat_to_color, nodestate_to_color = load_yaml_config()  # TODO account_to_color is updated in here !!
                 config = update_config_with_cmdline_vars(options, config)
+                handle, output_fp = fileutils.get_new_temp_file(prefix='qtop_', suffix='.out', config=config)  # qtop output is
+                sys.stdout = os.fdopen(handle, 'w')  # redirect everything to file, creates file object out of handle
+                # saved here
 
                 attempt_faster_xml_parsing(config)
                 options = init_dirs(options)
@@ -2106,12 +2134,19 @@ if __name__ == '__main__':
                 if options.ONLYSAVETOFILE:  # no display of qtop output, will exit
                     break
                 elif not options.WATCH:  # one-off display of qtop output, will exit afterwards (no --watch cmdline switch)
-                    cat_command = 'cat %s' % output_fp  # TODO was clear;cat ...
+                    cat_command = 'cat %s' % output_fp  # not clearing the screen beforehand is the intended behaviour here
                     _ = subprocess.call(cat_command, stdout=stdout, stderr=stdout, shell=True)
                     break
                 else:  # --watch
-                    cat_command = display.print_y_lines_of_file_starting_from_x(file=output_fp, x=viewport.v_start,
-                                                                                y=viewport.v_term_size)
+                    if options.REPLAY:
+                        try:
+                            output_partview_fp = next(useful_frames)
+                        except StopIteration:
+                            logging.critical('No (more) recorded instances available to show! Exiting...')
+                            break
+                    else:
+                        output_partview_fp = display.show_part_view(file=output_fp, x=viewport.v_start, y=viewport.v_term_size)
+                    cat_command = 'clear;cat %s' % output_partview_fp
                     _ = subprocess.call(cat_command, stdout=stdout, stderr=stdout, shell=True)
 
                     read_char = wait_for_keypress_or_autorefresh(viewport, int(options.WATCH[0]) or KEYPRESS_TIMEOUT)

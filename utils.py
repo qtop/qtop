@@ -78,6 +78,11 @@ def parse_qtop_cmdline_args():
                       help="Do not print results to stdout")
     parser.add_option("-r", "--removeemptycorelines", dest="REM_EMPTY_CORELINES", action="store_true", default=False,
                       help="If a whole row consists of empty core lines, remove the row")
+    parser.add_option("-R", "--replay", action="append", type="string", dest="REPLAY", default=[],
+                      help="instant replay from a specific moment in time for the cluster, and for a specific duration. "
+                           "The value inputted should be of the form <yyyymmddThhmmss>, e.g. -R 20161117T102300."
+                           "A second value is for now mandatory and denotes the desired length of the playback in minutes,"
+                           "e.g. -R 20161117T102300 -R2")
     parser.add_option("-s", "--SetSourceDir", dest="SOURCEDIR",
                       help="Set the source directory where the batch scheduler output files reside")
     parser.add_option("-S", "--StrictCheck", dest="STRICTCHECK", action="store_true",
