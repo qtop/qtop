@@ -78,7 +78,7 @@ def parse_qtop_cmdline_args():
                       help="Do not print results to stdout")
     parser.add_option("-r", "--removeemptycorelines", dest="REM_EMPTY_CORELINES", action="store_true", default=False,
                       help="If a whole row consists of empty core lines, remove the row")
-    parser.add_option("-R", "--replay", action="store", type="string", dest="REPLAY", nargs=2,
+    parser.add_option("-R", "--replay", action="callback", dest="REPLAY", callback=_watch_callback,
                       help="instant replay from a specific moment in time for the "
                            "cluster, and for a specified duration. The value "
                            "inputted should be in either of the following formats: "
