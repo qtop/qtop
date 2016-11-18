@@ -1937,6 +1937,50 @@ def colorize(text, color_func=None, pattern='NoPattern', mapping=None, bg_color=
         return text
 
 
+def parse_user_replay_duration(duration):
+    """
+    the func accepts a duration str in either (h)ours, (m)inutes, or (s)econds, using the respective suffix,
+    e.g. '5h', or '10m', or '30s'
+    A tuple is returned, e.g. (5, 'hours')
+    """
+    assert duration.endswith(('h', 'm', 's'))
+
+    quantity, user_unit_suffix = duration[:-1], duration[-1]
+    units = {'m': 'minutes', 's': 'seconds', 'h': 'hours'}
+    user_unit = units[user_unit_suffix]
+
+    return int(quantity), user_unit
+
+def pick_frames_to_replay(savepath):
+    """
+    getting the respective info from cmdline switch -R,
+    pick the relevant qtop output from savepath to replay
+    :return:
+    """
+    if len(options.REPLAY) == 1:  # add default arg, if no replay duration is set in the cmdline
+        options.REPLAY.append('2m')
+
+    quantity, user_unit = parse_user_replay_duration(options.REPLAY[1])
+    watch_start_datetime_obj = get_date_obj_from_str(options.REPLAY[0])
+    REC_FP_ALL = savepath + '/*_partview*.out'
+    rec_files = glob.iglob(REC_FP_ALL)
+    useful_frames = []
+
+    def get_timedelta_from_user_duration(delta_func, extra_kw_args):
+        return delta_func(**extra_kw_args)
+
+    for rec_file in rec_files:
+        rec_file_last_modified_date = datetime.datetime.fromtimestamp(os.path.getmtime(rec_file))
+        td = get_timedelta_from_user_duration(datetime.timedelta, {user_unit: quantity})
+        if abs(watch_start_datetime_obj - rec_file_last_modified_date) < td:
+            useful_frames.append(rec_file)
+
+    useful_frames = iter(useful_frames[::-1])
+    # TODO, check, REC_FP = savepath + '*_partview_%s.out' % options.REPLAY[0]
+    return useful_frames, options.REPLAY
+
+
+
 class WNFilter(object):
     def __init__(self, worker_nodes):
         self.worker_nodes = worker_nodes
@@ -2053,20 +2097,6 @@ if __name__ == '__main__':
     max_line_len = 0
 
 
-    def parse_user_replay_duration(duration):
-        """
-        the func accepts a duration str in either (h)ours, (m)inutes, or (s)econds, using the respective suffix,
-        e.g. '5h', or '10m'
-        A tuple is returned, e.g. (5, 'hours')
-        """
-        assert duration.endswith(('h', 'm', 's'))
-
-        quantity, user_unit_suffix = duration[:-1], duration[-1]
-        units = {'m': 'minutes', 's': 'seconds', 'h': 'hours'}
-        user_unit = units[user_unit_suffix]
-
-        return int(quantity), user_unit
-
     check_python_version()
     initial_cwd = os.getcwd()
     logging.debug('Initial qtop directory: %s' % initial_cwd)
@@ -2075,27 +2105,8 @@ if __name__ == '__main__':
     SAMPLE_FILENAME = 'qtop_sample_${USER}%(datetime)s.tar'
     SAMPLE_FILENAME = os.path.expandvars(SAMPLE_FILENAME)
     if options.REPLAY:
-        if len(options.REPLAY) == 1:  # default arg if no replay duration is set in the cmdline
-            options.REPLAY.append('2m')
-
-        quantity, user_unit = parse_user_replay_duration(options.REPLAY[1])
-        watch_start_datetime_obj = get_date_obj_from_str(options.REPLAY[0])
-        REC_FP_ALL = '/tmp/qtop_results_%s/*_partview*.out' % os.path.expandvars('${USER}')
-        rec_files = glob.iglob(REC_FP_ALL)
-        useful_frames = []
-        def get_timedelta_from_user_duration(anotherfunc, extra_kw_args):
-            return anotherfunc(**extra_kw_args)
-
-        for f in rec_files:
-            # captured_fp_datetime = f.rsplit('_partview')[1][:-4]  # one way to do it?
-            f_last_modified_date = datetime.datetime.fromtimestamp(os.path.getmtime(f))  # better?
-            td = get_timedelta_from_user_duration(datetime.timedelta, {user_unit: quantity})
-            if abs(watch_start_datetime_obj - f_last_modified_date) < td:
-                useful_frames.append(f)
-            # if datetime.datetime.now() - f_last_modified_date < datetime.timedelta(minutes=60):  # how old should it be?
-        useful_frames = iter(useful_frames[::-1])
-        REC_FP = '/tmp/qtop_results_%s/*_partview_%s.out' % (os.path.expandvars('${USER}'), options.REPLAY[0])
-
+        options.WATCH = [0]  # enforce that --watch mode is on, even if not in cmdline switch
+        useful_frames, options.REPLAY = pick_frames_to_replay(savepath)
 
     web = Web(initial_cwd)
     if options.WEB:
