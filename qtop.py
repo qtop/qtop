@@ -1944,6 +1944,10 @@ def parse_user_replay_duration(duration):
     A tuple is returned, e.g. (5, 'hours')
     """
     assert duration.endswith(('h', 'm', 's'))
+    try:
+        int(duration[:-1])
+    except ValueError:
+        logging.critical('Replay duration given must be a number followed by the letter h/m/s. Exiting.')
 
     quantity, user_unit_suffix = duration[:-1], duration[-1]
     units = {'m': 'minutes', 's': 'seconds', 'h': 'hours'}
