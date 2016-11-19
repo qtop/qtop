@@ -54,6 +54,7 @@ def get_date_obj_from_str(s):
     yyyymmddTHHMMSS, e.g. 20161118T182300
     HHMM, e.g. 1823 (current day is implied)
     mmddTHHMM, e.g. 1118T1823 (current year is implied)
+    If it's in format 2 or 3, the current day or the current year, respectively, are assumed.
     returns a datetime object
     """
     now = datetime.datetime.today()
@@ -65,6 +66,9 @@ def get_date_obj_from_str(s):
     elif len(s) == 9:
         _obj = datetime.datetime.strptime(s, "%m%dT%H%M")
         obj = _obj.replace(year=now.year, second=0)
+    else:
+        logging.critical('The datetime format inputted is incorrect.\n'
+                         'Try one of the formats: yyyymmddTHHMMSS, HHMM, mmddTHHMM.')
     return obj
 
 
@@ -1937,24 +1941,6 @@ def colorize(text, color_func=None, pattern='NoPattern', mapping=None, bg_color=
         return text
 
 
-def parse_user_replay_duration(duration):
-    """
-    the func accepts a duration str in either (h)ours, (m)inutes, or (s)econds, using the respective suffix,
-    e.g. '5h', or '10m', or '30s'
-    A tuple is returned, e.g. (5, 'hours')
-    """
-    assert duration.endswith(('h', 'm', 's'))
-    try:
-        int(duration[:-1])
-    except ValueError:
-        logging.critical('Replay duration given must be a number followed by the letter h/m/s. Exiting.')
-
-    quantity, user_unit_suffix = duration[:-1], duration[-1]
-    units = {'m': 'minutes', 's': 'seconds', 'h': 'hours'}
-    user_unit = units[user_unit_suffix]
-
-    return int(quantity), user_unit
-
 def pick_frames_to_replay(savepath):
     """
     getting the respective info from cmdline switch -R,
@@ -1964,19 +1950,16 @@ def pick_frames_to_replay(savepath):
     if len(options.REPLAY) == 1:  # add default arg, if no replay duration is set in the cmdline
         options.REPLAY.append('2m')
 
-    quantity, user_unit = parse_user_replay_duration(options.REPLAY[1])
+    quantity, user_unit = fileutils.parse_time_input(options.REPLAY[1])
     watch_start_datetime_obj = get_date_obj_from_str(options.REPLAY[0])
     REC_FP_ALL = savepath + '/*_partview*.out'
     rec_files = glob.iglob(REC_FP_ALL)
     useful_frames = []
 
-    def get_timedelta_from_user_duration(delta_func, extra_kw_args):
-        return delta_func(**extra_kw_args)
-
     for rec_file in rec_files:
         rec_file_last_modified_date = datetime.datetime.fromtimestamp(os.path.getmtime(rec_file))
-        td = get_timedelta_from_user_duration(datetime.timedelta, {user_unit: quantity})
-        if abs(watch_start_datetime_obj - rec_file_last_modified_date) < td:
+        time_delta = fileutils.get_timedelta(datetime.timedelta, {user_unit: quantity})
+        if abs(watch_start_datetime_obj - rec_file_last_modified_date) < time_delta:
             useful_frames.append(rec_file)
 
     useful_frames = iter(useful_frames[::-1])
