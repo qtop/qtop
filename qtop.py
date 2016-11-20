@@ -50,26 +50,31 @@ import time
 
 def get_date_obj_from_str(s):
     """
-    expects string s to be in either of the following formats:
+    Expects string s to be in either of the following formats:
     yyyymmddTHHMMSS, e.g. 20161118T182300
     HHMM, e.g. 1823 (current day is implied)
     mmddTHHMM, e.g. 1118T1823 (current year is implied)
-    If it's in format 2 or 3, the current day or the current year, respectively, are assumed.
+    If it's in format #3, the the current year is assumed.
+    If it's in format #2, either the current or the previous day is assumed,
+    depending on whether the time inputted is future or past.
+    Optional ":/-" separators are also accepted between pretty much anywhere.
     returns a datetime object
     """
-    now = datetime.datetime.today()
+    now = datetime.datetime.now()
+    s = ''.join([x for x in s if x not in ':/-'])
     if 'T' in s and len(s) == 15:
-        obj = datetime.datetime.strptime(s, "%Y%m%dT%H%M%S")
+        inp_datetime = datetime.datetime.strptime(s, "%Y%m%dT%H%M%S")
     elif len(s) == 4:
-        _obj = datetime.datetime.strptime(s, "%H%M")
-        obj = now.replace(hour=_obj.hour, minute=_obj.minute, second=0)
+        _inp_datetime = datetime.datetime.strptime(s, "%H%M")
+        _inp_datetime = now.replace(hour=_inp_datetime.hour, minute=_inp_datetime.minute, second=0)
+        inp_datetime = _inp_datetime if now > _inp_datetime else _inp_datetime.replace(day=_inp_datetime.day-1)
     elif len(s) == 9:
-        _obj = datetime.datetime.strptime(s, "%m%dT%H%M")
-        obj = _obj.replace(year=now.year, second=0)
+        _inp_datetime = datetime.datetime.strptime(s, "%m%dT%H%M")
+        inp_datetime = _inp_datetime.replace(year=now.year, second=0)
     else:
         logging.critical('The datetime format inputted is incorrect.\n'
                          'Try one of the formats: yyyymmddTHHMMSS, HHMM, mmddTHHMM.')
-    return obj
+    return inp_datetime
 
 
 
@@ -2093,6 +2098,7 @@ if __name__ == '__main__':
     SAMPLE_FILENAME = os.path.expandvars(SAMPLE_FILENAME)
     if options.REPLAY:
         options.WATCH = [0]  # enforce that --watch mode is on, even if not in cmdline switch
+        options.BATCH_SYSTEM = 'demo'
         useful_frames, options.REPLAY = pick_frames_to_replay(savepath)
 
     web = Web(initial_cwd)
