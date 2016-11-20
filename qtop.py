@@ -1574,7 +1574,8 @@ class TextDisplay(object):
         http://unix.stackexchange.com/questions/47407/cat-line-x-to-line-y-on-a-huge-file
         """
         timestr = time.strftime("%Y%m%dT%H%M%S")
-        temp_f = tempfile.NamedTemporaryFile(delete=False, suffix='_partview%s.out' % timestr, dir=config['savepath'])
+        temp_f = tempfile.NamedTemporaryFile(delete=False, suffix='_qtop_partview.out', prefix='%s_' % timestr, dir=config[
+            'savepath'])
         pre_cat_command = '(tail -n+%s %s | head -n%s) > %s' % (x, file, y - 1, temp_f.name)
         _ = subprocess.call(pre_cat_command, stdout=stdout, stderr=stdout, shell=True)
         return temp_f.name
@@ -1961,7 +1962,7 @@ def pick_frames_to_replay(savepath):
     useful_frames = []
 
     for rec_file in rec_files:
-        rec_file_last_modified_date = datetime.datetime.fromtimestamp(os.path.getmtime(rec_file))
+        rec_file_last_modified_date = datetime.datetime.strptime(rec_file.rsplit('/',1)[-1][:15], "%Y%m%dT%H%M%S")
         time_delta = fileutils.get_timedelta(datetime.timedelta, {user_unit: quantity})
         if abs(watch_start_datetime_obj - rec_file_last_modified_date) < time_delta:
             useful_frames.append(rec_file)
