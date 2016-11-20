@@ -48,7 +48,7 @@ import time
 # if not options.COLORFILE:
 #     options.COLORFILE = os.path.expandvars('$HOME/qtop/qtop/qtop.colormap')
 
-def get_date_obj_from_str(s):
+def get_date_obj_from_str(s, now):
     """
     Expects string s to be in either of the following formats:
     yyyymmddTHHMMSS, e.g. 20161118T182300
@@ -60,7 +60,6 @@ def get_date_obj_from_str(s):
     Optional ":/-" separators are also accepted between pretty much anywhere.
     returns a datetime object
     """
-    now = datetime.datetime.now()
     s = ''.join([x for x in s if x not in ':/-'])
     if 'T' in s and len(s) == 15:
         inp_datetime = datetime.datetime.strptime(s, "%Y%m%dT%H%M%S")
@@ -1956,7 +1955,7 @@ def pick_frames_to_replay(savepath):
         options.REPLAY.append('2m')
 
     quantity, user_unit = fileutils.parse_time_input(options.REPLAY[1])
-    watch_start_datetime_obj = get_date_obj_from_str(options.REPLAY[0])
+    watch_start_datetime_obj = get_date_obj_from_str(options.REPLAY[0], datetime.datetime.now())
     REC_FP_ALL = savepath + '/*_partview*.out'
     rec_files = glob.iglob(REC_FP_ALL)
     useful_frames = []
