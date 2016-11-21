@@ -155,28 +155,29 @@ The options available in watch mode, as of version 0.8.9 are:
 |     t   | transpose matrix               |
 |     q   | quit qtop                      |
 
-## Instant Replay (NEW!)
+## Instant Replay
 
-The output of qtop is kept in /tmp/qtop_results_$USER (configurable in qtopconf.yaml), so that
-Users can "replay" the state of their system from a particular point in time.
-By default, the output is kept for the last 24 hours, but this is also configurable in qtopconf.yaml.
+The output of qtop is kept in `/tmp/qtop_results_$USER` (configurable in `qtopconf.yaml`), so that
+users can "replay" the state of their system from a particular point in time.
+By default, the output is kept for the last 24 hours, but this is also configurable in `qtopconf.yaml`.
 
 To replay from a specific point in time, the User must invoke:
 ```
-./qtop.py -R DATETIME [<DURATION>]
+./qtop.py -R DATETIME [DURATION]
 ```
-where DATETIME can either be 
-  * yyyymmddTHHMMSS, e.g. 20161118T182300 (explicit form)
-  * HHMM, e.g. 1823 (current day is implied, or the previous day, depending)
-  * mmddTHHMM, e.g. 1118T1823 (current year is implied)
+where `DATETIME` can either be 
+  * `yyyymmddTHHMMSS`, e.g. `20161118T182300` (explicit form)
+  * `HHMM`, e.g. `1823` (current day is implied, or the previous day, depending)
+  * `mmddTHHMM`, e.g. `1118T1823` (current year is implied)
 
-Colons, slashes and dashes are also supported, so the User can type, e.g. 18:23, or 2016/11/18T18:23, instead.
+Colons, slashes and dashes are also supported, so the User can type, e.g. 18:23, or 11/18T18:23, instead.
 
-A second value, DURATION, is optional and denotes the desired length of the playback, e.g. 
+A second value, `DURATION`, is optional and denotes the desired length of the playback.
+The notation for duration is `X<unit>`, where unit can either be `h`, `m`, `s`. Example:
 ```
-./qtop.py -R 1823 1m, or -R 1800 1h 
+./qtop.py -R 1823 1h
 ```
-A default duration of 2m is used, if no value is given.
+A default duration of `2m` is used, if no value is given.
 
 ## Customisation 
 
