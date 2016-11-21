@@ -116,17 +116,44 @@ class FileEmptyError(Exception):
         self.fn = fn
 
 
-def deprecate_old_output_files(config):  # TODO include !!
+def deprecate_old_output_files(config):
     """
-    deletes older json files in savepath directory.
-    experimental and loosely untested
+    deletes older json and .out files in savepath directory.
     """
-    time_alive = int(config['auto_delete_old_output_files_after_x_minutes'])
+    _time_alive, user_unit = parse_time_input(config['auto_delete_old_output_files_after_x_minutes'])
     user_selected_save_path = os.path.realpath(os.path.expandvars(config['savepath']))
+    time_alive = get_timedelta(datetime.timedelta, {user_unit: _time_alive})
     for f in os.listdir(user_selected_save_path):
         if (not f.endswith(('json', '.out'))) or f.endswith('rec.out'):
             continue
         curpath = os.path.join(user_selected_save_path, f)
         file_modified = datetime.datetime.fromtimestamp(os.path.getmtime(curpath))
-        if datetime.datetime.now() - file_modified > datetime.timedelta(minutes=time_alive):
+        if datetime.datetime.now() - file_modified > time_alive:
             os.remove(curpath)
+
+
+def get_timedelta(delta_func, extra_kw_args):
+    """
+    This solely exists to allow timedelta.timedelta's keyword argument (minutes/seconds/hours=...)
+    to be selected with a variable.
+    """
+    return delta_func(**extra_kw_args)
+
+
+def parse_time_input(_time):
+    """
+    the func accepts a _time str in either (h)ours, (m)inutes, or (s)econds, using the respective suffix,
+    e.g. '5h', or '10m', or '30s'
+    A tuple is returned, e.g. (5, 'hours')
+    """
+    assert _time.endswith(('h', 'm', 's'))
+    try:
+        int(_time[:-1])
+    except ValueError:
+        logging.critical('Time input given must be a number followed by the letter h/m/s. Exiting.')
+
+    quantity, user_unit_suffix = _time[:-1], _time[-1]
+    units = {'m': 'minutes', 's': 'seconds', 'h': 'hours'}
+    user_unit = units[user_unit_suffix]
+
+    return int(quantity), user_unit

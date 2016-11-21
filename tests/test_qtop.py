@@ -1,7 +1,9 @@
 import pytest
 import re
+import datetime
 
-from qtop import WNOccupancy, decide_batch_system, load_yaml_config, JobNotFound, SchedulerNotSpecified, NoSchedulerFound
+from qtop import WNOccupancy, decide_batch_system, load_yaml_config, JobNotFound, SchedulerNotSpecified, NoSchedulerFound, \
+    get_date_obj_from_str
 
 
 @pytest.fixture
@@ -152,3 +154,21 @@ def test_get_selected_batch_system_raises_no_scheduler_found(
                             config,
                             ) == returned_scheduler
 
+
+@pytest.mark.parametrize('s, now, day_meant',
+                             (
+                                     ('21:00',
+                                      datetime.datetime(year=2016, month=11, day=20, hour=1, minute=10, second=0),
+                                      datetime.datetime(year=2016, month=11, day=19, hour=20, minute=10, second=0).day),
+                                     ('21:00',
+                                      datetime.datetime(year=2016, month=11, day=20, hour=22, minute=10, second=0),
+                                      datetime.datetime(year=2016, month=11, day=20, hour=20, minute=10, second=0).day),
+                             ),
+                         )
+def test_get_date_obj_from_str(s, now, day_meant):
+    """
+    Two cases:
+    at 01:00 in the morning, the user inputs 21:00 (the previous day is implied)
+    at 22:10 at night, the user inputs again 21:00 (the same day is implied)
+    """
+    assert get_date_obj_from_str(s, now).day == day_meant

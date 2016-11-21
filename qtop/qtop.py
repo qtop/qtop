@@ -48,15 +48,32 @@ import time
 # if not options.COLORFILE:
 #     options.COLORFILE = os.path.expandvars('$HOME/qtop/qtop/qtop.colormap')
 
-def get_date_obj_from_str(s):
-    try:
-        obj = datetime.datetime.strptime(s, "%Y%m%dT%H%M%S")
-    except ValueError:
-        try:
-            obj = datetime.datetime.strptime(s, "%Y%m%dT%H%M%S")
-        except ValueError:
-            raise
-    return obj
+def get_date_obj_from_str(s, now):
+    """
+    Expects string s to be in either of the following formats:
+    yyyymmddTHHMMSS, e.g. 20161118T182300
+    HHMM, e.g. 1823 (current day is implied)
+    mmddTHHMM, e.g. 1118T1823 (current year is implied)
+    If it's in format #3, the the current year is assumed.
+    If it's in format #2, either the current or the previous day is assumed,
+    depending on whether the time provided is future or past.
+    Optional ":/-" separators are also accepted between pretty much anywhere.
+    returns a datetime object
+    """
+    s = ''.join([x for x in s if x not in ':/-'])
+    if 'T' in s and len(s) == 15:
+        inp_datetime = datetime.datetime.strptime(s, "%Y%m%dT%H%M%S")
+    elif len(s) == 4:
+        _inp_datetime = datetime.datetime.strptime(s, "%H%M")
+        _inp_datetime = now.replace(hour=_inp_datetime.hour, minute=_inp_datetime.minute, second=0)
+        inp_datetime = _inp_datetime if now > _inp_datetime else _inp_datetime.replace(day=_inp_datetime.day-1)
+    elif len(s) == 9:
+        _inp_datetime = datetime.datetime.strptime(s, "%m%dT%H%M")
+        inp_datetime = _inp_datetime.replace(year=now.year, second=0)
+    else:
+        logging.critical('The datetime format provided is incorrect.\n'
+                         'Try one of the formats: yyyymmddTHHMMSS, HHMM, mmddTHHMM.')
+    return inp_datetime
 
 
 
@@ -1249,7 +1266,7 @@ class TextDisplay(object):
 
         if not options.WATCH:
             print 'Please try it with watch: %s/qtop.py -s <SOURCEDIR> -w [<every_nr_of_sec>]\n' \
-                  '...and thank you for watching ;)\n' % QTOPPATH
+                  '...and thank you for ..watching ;)\n' % QTOPPATH
         print colorize('===> ', 'Gray_D') + colorize('Job accounting summary', 'White') + colorize(' <=== ',
                                                                                                                   'Gray_D') + \
               '%s WORKDIR = %s' % (colorize(str(datetime.datetime.today())[:-7], 'White'), QTOPPATH)
@@ -1557,7 +1574,8 @@ class TextDisplay(object):
         http://unix.stackexchange.com/questions/47407/cat-line-x-to-line-y-on-a-huge-file
         """
         timestr = time.strftime("%Y%m%dT%H%M%S")
-        temp_f = tempfile.NamedTemporaryFile(delete=False, suffix='_partview%s.out' % timestr, dir=config['savepath'])
+        temp_f = tempfile.NamedTemporaryFile(delete=False, suffix='.out', prefix='qtop_partview_%s_' % timestr, dir=config[
+            'savepath'])
         pre_cat_command = '(tail -n+%s %s | head -n%s) > %s' % (x, file, y - 1, temp_f.name)
         _ = subprocess.call(pre_cat_command, stdout=stdout, stderr=stdout, shell=True)
         return temp_f.name
@@ -1928,6 +1946,33 @@ def colorize(text, color_func=None, pattern='NoPattern', mapping=None, bg_color=
         return text
 
 
+def pick_frames_to_replay(savepath):
+    """
+    getting the respective info from cmdline switch -R,
+    pick the relevant qtop output from savepath to replay
+    :return:
+    """
+    if len(options.REPLAY) == 1:  # add default arg, if no replay duration is set in the cmdline
+        options.REPLAY.append('2m')
+
+    quantity, user_unit = fileutils.parse_time_input(options.REPLAY[1])
+    watch_start_datetime_obj = get_date_obj_from_str(options.REPLAY[0], datetime.datetime.now())
+    REC_FP_ALL = savepath + '/*_partview*.out'
+    rec_files = glob.iglob(REC_FP_ALL)
+    useful_frames = []
+
+    for rec_file in rec_files:
+        rec_file_last_modified_date = datetime.datetime.strptime(rec_file.rsplit('/',1)[-1].split('_')[2], "%Y%m%dT%H%M%S")
+        time_delta = fileutils.get_timedelta(datetime.timedelta, {user_unit: quantity})
+        if abs(watch_start_datetime_obj - rec_file_last_modified_date) < time_delta:
+            useful_frames.append(rec_file)
+
+    useful_frames = iter(useful_frames[::-1])
+    # TODO, check, REC_FP = savepath + '*_partview_%s.out' % options.REPLAY[0]
+    return useful_frames, options.REPLAY
+
+
+
 class WNFilter(object):
     def __init__(self, worker_nodes):
         self.worker_nodes = worker_nodes
@@ -2043,6 +2088,7 @@ if __name__ == '__main__':
     viewport = Viewport()  # controls the part of the qtop matrix shown on screen
     max_line_len = 0
 
+
     check_python_version()
     initial_cwd = os.getcwd()
     logging.debug('Initial qtop directory: %s' % initial_cwd)
@@ -2051,19 +2097,9 @@ if __name__ == '__main__':
     SAMPLE_FILENAME = 'qtop_sample_${USER}%(datetime)s.tar'
     SAMPLE_FILENAME = os.path.expandvars(SAMPLE_FILENAME)
     if options.REPLAY:
-        watch_start_datetime_obj = get_date_obj_from_str(options.REPLAY[0])
-        REC_FP_ALL = '/tmp/qtop_results_%s/*_partview*.out' % os.path.expandvars('${USER}')
-        rec_files = glob.iglob(REC_FP_ALL)  # [::-1] sort after eliminating irrelevants, dummy!!
-        useful_frames = []
-        for f in rec_files:
-            # captured_fp_datetime = f.rsplit('_partview')[1][:-4]  # one way to do it?
-            f_last_modified_date = datetime.datetime.fromtimestamp(os.path.getmtime(f))  # better?
-            if abs(watch_start_datetime_obj - f_last_modified_date) < datetime.timedelta(minutes=int(options.REPLAY[1])):
-                useful_frames.append(f)
-            # if datetime.datetime.now() - f_last_modified_date < datetime.timedelta(minutes=60):  # how old should it be?
-        useful_frames = iter(useful_frames[::-1])
-        REC_FP = '/tmp/qtop_results_%s/*_partview_%s.out' % (os.path.expandvars('${USER}'), options.REPLAY[0])
-
+        options.WATCH = [0]  # enforce that --watch mode is on, even if not in cmdline switch
+        options.BATCH_SYSTEM = 'demo'
+        useful_frames, options.REPLAY = pick_frames_to_replay(savepath)
 
     web = Web(initial_cwd)
     if options.WEB:
