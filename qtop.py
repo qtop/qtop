@@ -56,7 +56,7 @@ def get_date_obj_from_str(s, now):
     mmddTHHMM, e.g. 1118T1823 (current year is implied)
     If it's in format #3, the the current year is assumed.
     If it's in format #2, either the current or the previous day is assumed,
-    depending on whether the time inputted is future or past.
+    depending on whether the time provided is future or past.
     Optional ":/-" separators are also accepted between pretty much anywhere.
     returns a datetime object
     """
@@ -71,7 +71,7 @@ def get_date_obj_from_str(s, now):
         _inp_datetime = datetime.datetime.strptime(s, "%m%dT%H%M")
         inp_datetime = _inp_datetime.replace(year=now.year, second=0)
     else:
-        logging.critical('The datetime format inputted is incorrect.\n'
+        logging.critical('The datetime format provided is incorrect.\n'
                          'Try one of the formats: yyyymmddTHHMMSS, HHMM, mmddTHHMM.')
     return inp_datetime
 
@@ -1574,7 +1574,7 @@ class TextDisplay(object):
         http://unix.stackexchange.com/questions/47407/cat-line-x-to-line-y-on-a-huge-file
         """
         timestr = time.strftime("%Y%m%dT%H%M%S")
-        temp_f = tempfile.NamedTemporaryFile(delete=False, suffix='_qtop_partview.out', prefix='%s_' % timestr, dir=config[
+        temp_f = tempfile.NamedTemporaryFile(delete=False, suffix='.out', prefix='qtop_partview_%s_' % timestr, dir=config[
             'savepath'])
         pre_cat_command = '(tail -n+%s %s | head -n%s) > %s' % (x, file, y - 1, temp_f.name)
         _ = subprocess.call(pre_cat_command, stdout=stdout, stderr=stdout, shell=True)
@@ -1962,7 +1962,7 @@ def pick_frames_to_replay(savepath):
     useful_frames = []
 
     for rec_file in rec_files:
-        rec_file_last_modified_date = datetime.datetime.strptime(rec_file.rsplit('/',1)[-1][:15], "%Y%m%dT%H%M%S")
+        rec_file_last_modified_date = datetime.datetime.strptime(rec_file.rsplit('/',1)[-1].split('_')[2], "%Y%m%dT%H%M%S")
         time_delta = fileutils.get_timedelta(datetime.timedelta, {user_unit: quantity})
         if abs(watch_start_datetime_obj - rec_file_last_modified_date) < time_delta:
             useful_frames.append(rec_file)

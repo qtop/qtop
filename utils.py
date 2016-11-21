@@ -81,7 +81,7 @@ def parse_qtop_cmdline_args():
     parser.add_option("-R", "--replay", action="callback", dest="REPLAY", callback=_watch_callback,
                       help="instant replay from a specific moment in time for the "
                            "cluster, and for a specified duration. The value "
-                           "inputted should be in either of the following formats: "
+                           "provided should be in either of the following formats: "
                            "yyyymmddTHHMMSS, e.g. 20161118T182300, (explicit form) "
                            "HHMM, e.g. 1823 (current day is implied),\t\t "
                            "mmddTHHMM, e.g. 1118 T1823(current year is implied).  "
