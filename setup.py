@@ -10,7 +10,7 @@ with open("README.rst", 'r') as f:
 
 setup(
     name='qtop',
-    version='0.9',
+    version='0.9.0rc1',
     description="""qtop: the fast text mode way to monitor your cluster's utilization and status;
       the time has come to take back control of your cluster's scheduling business""",
     license="MIT",
