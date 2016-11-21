@@ -49,7 +49,7 @@ The information that qtop.py conveys when ran can be divided into three sections
 
 ##### Accounting Summary
 
-  * number of nodes (available/total)
+  * number of nodes (Total:available (online):Free (non-exclusive))
   * number of cores (available/total)
   * number of jobs (running/queued)
   * queue names, along with running/queued jobs info for every queue
@@ -102,6 +102,7 @@ The default elements displayed are:
   A hash symbol '#' means that the core in this position does not exist on this worker node. If, for example, a hundred-node cluster consists of 96 worker nodes of 32 cores and 4 worker nodes of 16 cores, the last 16 core position in those 4 worker nodes will be substituted with the hash symbol.
 
 ##### User account information
+  ![user accounts](images/user_accounts.png "User accounts and pool mappings")
 
   * `id` is a symbol denoting a unique unix account
   * the jobs of every user, with distinct mention for the running jobs vs. the total number of jobs (including the finished ones)
