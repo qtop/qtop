@@ -5,7 +5,7 @@ import sys
 if sys.version_info < (2, 5):
     sys.exit('Sorry, Python < 2.5 is not supported')
 
-with open("README.md", 'r') as f:
+with open("README.rst", 'r') as f:
     long_description = f.read()
 
 setup(
