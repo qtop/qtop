@@ -1,5 +1,8 @@
 # qtop.py [![Build Status](https://travis-ci.org/qtop/qtop.svg)](https://travis-ci.org/qtop/qtop) ![python versions](https://img.shields.io/badge/python-2.5%2C%202.6%2C%202.7-blue.svg)
 
+qtop: the fast text mode way to monitor your cluster's utilization and status; 
+  the time has come to take back the control of your cluster's scheduling business
+
 Python port by Sotiris Fragkiskos / Original bash version by Fotis Georgatos
 
 ## Summary
