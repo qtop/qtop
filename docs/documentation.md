@@ -4,6 +4,7 @@
   * [Quickstart](#quickstart)
   * [Output walkthrough](#output-walkthrough)
   * [Watchmode](#watch-mode)
+  * [Instant Replay](#instant-replay)
   * [Customisation](#customisation)
   * [Command-line arguments]() (TODO)
   * [Usage tips]() (TODO)
@@ -162,16 +163,16 @@ By default, the output is kept for the last 24 hours, but this is also configura
 
 To replay from a specific point in time, the User must invoke:
 ```
-./qtop.py -R <datetime> [<duration>]
+./qtop.py -R DATETIME [<DURATION>]
 ```
-where <datetime> can either be 
+where DATETIME can either be 
   * yyyymmddTHHMMSS, e.g. 20161118T182300 (explicit form)
   * HHMM, e.g. 1823 (current day is implied, or the previous day, depending)
   * mmddTHHMM, e.g. 1118T1823 (current year is implied)
 
 Colons, slashes and dashes are also supported, so the User can type, e.g. 18:23, or 2016/11/18T18:23, instead.
 
-A second value, <duration> is optional and denotes the desired length of the playback, e.g. 
+A second value, DURATION, is optional and denotes the desired length of the playback, e.g. 
 ```
 ./qtop.py -R 1823 1m, or -R 1800 1h 
 ```
