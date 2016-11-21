@@ -179,6 +179,8 @@ The notation for duration is `X<unit>`, where unit can either be `h`, `m`, `s`. 
 ```
 A default duration of `2m` is used, if no value is given.
 
+_Important_: What is displayed on screen during instant replay is what was displayed at that particular moment. If the User was navigating up and down while using filters, this is what is going to be displayed.
+
 ## Customisation 
 
 Customisation is achieved by means of editing a configuration file. Modifying most of the keys available in the configuration file can affect the behaviour of qtop in a live manner, if running in [watch mode](#watch-mode).
