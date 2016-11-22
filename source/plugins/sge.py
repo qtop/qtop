@@ -5,9 +5,9 @@ except ImportError:
     import json
 import logging
 import sys
-from serialiser import StatExtractor, GenericBatchSystem
+from source.serialiser import StatExtractor, GenericBatchSystem
 from xml.etree import ElementTree as etree
-import fileutils
+import source.fileutils as fileutils
 
 
 class SGEStatExtractor(StatExtractor):

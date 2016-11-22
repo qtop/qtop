@@ -4,8 +4,8 @@ except ImportError:
     import json
 import logging
 import re
-from serialiser import StatExtractor, GenericBatchSystem
-import fileutils
+from source.serialiser import StatExtractor, GenericBatchSystem
+import source.fileutils as fileutils
 import itertools
 
 

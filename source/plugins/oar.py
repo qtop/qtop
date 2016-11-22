@@ -1,11 +1,11 @@
-from serialiser import StatExtractor, GenericBatchSystem
+from source.serialiser import StatExtractor, GenericBatchSystem
 import logging
 import os
-import yaml_parser as yaml
+import source.yaml_parser as yaml
 try:
     from collections import OrderedDict
 except ImportError:
-    from legacy.ordereddict import OrderedDict
+    from source.legacy.ordereddict import OrderedDict
 
 
 class OarStatExtractor(StatExtractor):
