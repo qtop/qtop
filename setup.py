@@ -10,7 +10,7 @@ with open("README.rst", 'r') as f:
 
 setup(
     name='qtop',
-    version='0.9.0rc4',
+    version='0.9.0rc5',
     description="""qtop: the fast text mode way to monitor your cluster's utilization and status;
       the time has come to take back control of your cluster's scheduling business""",
     license="MIT",
@@ -23,4 +23,6 @@ setup(
               'source.plugins',
               'source.ui'
               ],
+    package_dir={'source': 'source'},
+    package_data={'source': ['qtopconf.yaml']}
 )
