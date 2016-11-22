@@ -4,6 +4,7 @@
   * [Quickstart](#quickstart)
   * [Output walkthrough](#output-walkthrough)
   * [Watchmode](#watch-mode)
+  * [Instant Replay](#instant-replay)
   * [Customisation](#customisation)
   * [Command-line arguments]() (TODO)
   * [Usage tips]() (TODO)
@@ -49,7 +50,7 @@ The information that qtop.py conveys when ran can be divided into three sections
 
 ##### Accounting Summary
 
-  * number of nodes (available/total)
+  * number of nodes (Total:available (online):Free (non-exclusive))
   * number of cores (available/total)
   * number of jobs (running/queued)
   * queue names, along with running/queued jobs info for every queue
@@ -102,6 +103,7 @@ The default elements displayed are:
   A hash symbol '#' means that the core in this position does not exist on this worker node. If, for example, a hundred-node cluster consists of 96 worker nodes of 32 cores and 4 worker nodes of 16 cores, the last 16 core position in those 4 worker nodes will be substituted with the hash symbol.
 
 ##### User account information
+  ![user accounts](images/user_accounts.png "User accounts and pool mappings")
 
   * `id` is a symbol denoting a unique unix account
   * the jobs of every user, with distinct mention for the running jobs vs. the total number of jobs (including the finished ones)
@@ -152,6 +154,32 @@ The options available in watch mode, as of version 0.8.9 are:
 |     s   | apply sorting                  |
 |     t   | transpose matrix               |
 |     q   | quit qtop                      |
+
+## Instant Replay
+
+The output of qtop is kept in `/tmp/qtop_results_$USER` (configurable in `qtopconf.yaml`), so that
+users can "replay" the state of their system from a particular point in time.
+By default, the output is kept for the last 24 hours, but this is also configurable in `qtopconf.yaml`.
+
+To replay from a specific point in time, the User must invoke:
+```
+./qtop.py -R DATETIME [DURATION]
+```
+where `DATETIME` can either be 
+  * `yyyymmddTHHMMSS`, e.g. `20161118T182300` (explicit form)
+  * `HHMM`, e.g. `1823` (current day is implied, or the previous day, depending)
+  * `mmddTHHMM`, e.g. `1118T1823` (current year is implied)
+
+Colons, slashes and dashes are also supported, so the User can type, e.g. 18:23, or 11/18T18:23, instead.
+
+A second value, `DURATION`, is optional and denotes the desired length of the playback.
+The notation for duration is `X<unit>`, where unit can either be `h`, `m`, `s`. Example:
+```
+./qtop.py -R 1823 1h
+```
+A default duration of `2m` is used, if no value is given.
+
+_Important_: What is displayed on screen during instant replay is what was displayed at that particular moment. If the User was navigating up and down while using filters, this is what is going to be displayed.
 
 ## Customisation 
 

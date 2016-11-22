@@ -9,6 +9,6 @@ install:
 #  - pip install -r requirements.txt
 
 # command to run tests
-script: python -m pytest
+script: pwd;python -m pytest
 
-after_script: cd contrib/ ;./func_tests.sh
+after_script: cd qtop/contrib/ ;./func_tests.sh

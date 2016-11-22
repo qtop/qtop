@@ -32,15 +32,15 @@ import sys
 import logging
 from constants import (TMPDIR, SYSTEMCONFDIR, QTOPCONF_YAML, QTOP_LOGFILE, savepath, USERPATH, MAX_CORE_ALLOWED,
     MAX_UNIX_ACCOUNTS, KEYPRESS_TIMEOUT, FALLBACK_TERMSIZE)
-import fileutils
-import utils
-from plugins import *
+from source import fileutils
+from source import utils
+from source.plugins import *
 from math import ceil
-from colormap import userid_pat_to_color_default, color_to_code, queue_to_color, nodestate_to_color_default
-import yaml_parser as yaml
-from ui.viewport import Viewport
-from serialiser import GenericBatchSystem
-from web import Web
+from source.colormap import userid_pat_to_color_default, color_to_code, queue_to_color, nodestate_to_color_default
+import source.yaml_parser as yaml
+from source.ui.viewport import Viewport
+from source.serialiser import GenericBatchSystem
+from source.web import Web
 import time
 
 

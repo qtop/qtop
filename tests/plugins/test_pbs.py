@@ -1,4 +1,4 @@
-from plugins import pbs
+from source.plugins import pbs
 import pytest
 
 

@@ -1,7 +1,7 @@
 try:
     from collections import OrderedDict
 except ImportError:
-    from legacy.ordereddict import OrderedDict
+    from source.legacy.ordereddict import OrderedDict
 
 # example color maps
 userid_pat_to_color_default = OrderedDict(
