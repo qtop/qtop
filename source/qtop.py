@@ -1952,6 +1952,9 @@ def pick_frames_to_replay(savepath):
     pick the relevant qtop output from savepath to replay
     :return:
     """
+    if options.REPLAY[0] == 0:  # add default arg, if no replay start time is set in the cmdline
+        some_mins_ago = datetime.datetime.now() - datetime.timedelta(minutes=2)
+        options.REPLAY[0] = some_mins_ago.strftime("%Y%m%dT%H%M%S")
     if len(options.REPLAY) == 1:  # add default arg, if no replay duration is set in the cmdline
         options.REPLAY.append('2m')
 
@@ -1964,7 +1967,7 @@ def pick_frames_to_replay(savepath):
     for rec_file in rec_files:
         rec_file_last_modified_date = datetime.datetime.strptime(rec_file.rsplit('/',1)[-1].split('_')[2], "%Y%m%dT%H%M%S")
         time_delta = fileutils.get_timedelta(datetime.timedelta, {user_unit: quantity})
-        if abs(watch_start_datetime_obj - rec_file_last_modified_date) < time_delta:
+        if datetime.timedelta(seconds=0) < rec_file_last_modified_date - watch_start_datetime_obj < time_delta:
             useful_frames.append(rec_file)
 
     useful_frames = iter(useful_frames[::-1])
