@@ -286,7 +286,7 @@ occupancy_column_order:
   - queue name
 horizontal_separator: '|'
 
-auto_delete_old_output_files_after_x: 24h  # (m)inutes, (s)econds also supported
+auto_delete_old_output_files_after: 24h  # (m)inutes, (s)econds also supported
 replay_last: 2m   # when --replay is invoked, this is the time qtop will automatically replay from if no datetime/duration is given
 overwrite_sample_file: True  # True (default) writes to tar using the same constant filename, False appends a timestamp
 ## core_coloring can be either:
