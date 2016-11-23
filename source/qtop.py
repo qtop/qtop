@@ -1950,7 +1950,6 @@ def pick_frames_to_replay(savepath):
     """
     getting the respective info from cmdline switch -R,
     pick the relevant qtop output from savepath to replay
-    :return:
     """
     if options.REPLAY[0] == 0:  # add default arg, if no replay start time is set in the cmdline
         time_delta = fileutils.get_timedelta(fileutils.parse_time_input(config['replay_last']))
@@ -1971,7 +1970,6 @@ def pick_frames_to_replay(savepath):
             useful_frames.append(rec_file)
 
     useful_frames = iter(useful_frames[::-1])
-    # TODO, check, REC_FP = savepath + '*_partview_%s.out' % options.REPLAY[0]
     return useful_frames, options.REPLAY
 
 
