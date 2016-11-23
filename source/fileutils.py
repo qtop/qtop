@@ -120,9 +120,8 @@ def deprecate_old_output_files(config):
     """
     deletes older json and .out files in savepath directory.
     """
-    _time_alive, user_unit = parse_time_input(config['auto_delete_old_output_files_after_x_minutes'])
+    time_alive = get_timedelta(parse_time_input(config['auto_delete_old_output_files_after']))
     user_selected_save_path = os.path.realpath(os.path.expandvars(config['savepath']))
-    time_alive = get_timedelta(datetime.timedelta, {user_unit: _time_alive})
     for f in os.listdir(user_selected_save_path):
         if (not f.endswith(('json', '.out'))) or f.endswith('rec.out'):
             continue
@@ -132,12 +131,12 @@ def deprecate_old_output_files(config):
             os.remove(curpath)
 
 
-def get_timedelta(delta_func, extra_kw_args):
+def get_timedelta(extra_kw_args):
     """
     This solely exists to allow timedelta.timedelta's keyword argument (minutes/seconds/hours=...)
     to be selected with a variable.
     """
-    return delta_func(**extra_kw_args)
+    return datetime.timedelta(**extra_kw_args)
 
 
 def parse_time_input(_time):
@@ -156,4 +155,4 @@ def parse_time_input(_time):
     units = {'m': 'minutes', 's': 'seconds', 'h': 'hours'}
     user_unit = units[user_unit_suffix]
 
-    return int(quantity), user_unit
+    return {user_unit: int(quantity)}

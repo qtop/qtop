@@ -5,8 +5,11 @@ import sys
 if sys.version_info < (2, 5):
     sys.exit('Sorry, Python < 2.5 is not supported')
 
-with open("README.rst", 'r') as f:
+f = open("README.rst", 'r')
+try:
     long_description = f.read()
+finally:
+    f.close()
 
 setup(
     name='qtop',

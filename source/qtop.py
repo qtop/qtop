@@ -1240,7 +1240,7 @@ class TextDisplay(object):
         if options.SAMPLE:
             print "Sample files saved in %s/%s" % (savepath, SAMPLE_FILENAME)
         if options.STRICTCHECK:
-            strict_check_jobs(wns_occupancy, cluster)
+            WNOccupancy.strict_check_jobs(wns_occupancy, cluster)
 
     def display_job_accounting_summary(self, cluster, document):
         """
@@ -1950,12 +1950,15 @@ def pick_frames_to_replay(savepath):
     """
     getting the respective info from cmdline switch -R,
     pick the relevant qtop output from savepath to replay
-    :return:
     """
+    if options.REPLAY[0] == 0:  # add default arg, if no replay start time is set in the cmdline
+        time_delta = fileutils.get_timedelta(fileutils.parse_time_input(config['replay_last']))
+        some_time_ago = datetime.datetime.now() - time_delta
+        options.REPLAY[0] = some_time_ago.strftime("%Y%m%dT%H%M%S")
     if len(options.REPLAY) == 1:  # add default arg, if no replay duration is set in the cmdline
         options.REPLAY.append('2m')
 
-    quantity, user_unit = fileutils.parse_time_input(options.REPLAY[1])
+    time_delta = fileutils.get_timedelta(fileutils.parse_time_input(options.REPLAY[1]))
     watch_start_datetime_obj = get_date_obj_from_str(options.REPLAY[0], datetime.datetime.now())
     REC_FP_ALL = savepath + '/*_partview*.out'
     rec_files = glob.iglob(REC_FP_ALL)
@@ -1963,12 +1966,10 @@ def pick_frames_to_replay(savepath):
 
     for rec_file in rec_files:
         rec_file_last_modified_date = datetime.datetime.strptime(rec_file.rsplit('/',1)[-1].split('_')[2], "%Y%m%dT%H%M%S")
-        time_delta = fileutils.get_timedelta(datetime.timedelta, {user_unit: quantity})
-        if abs(watch_start_datetime_obj - rec_file_last_modified_date) < time_delta:
+        if datetime.timedelta(seconds=0) < rec_file_last_modified_date - watch_start_datetime_obj < time_delta:
             useful_frames.append(rec_file)
 
     useful_frames = iter(useful_frames[::-1])
-    # TODO, check, REC_FP = savepath + '*_partview_%s.out' % options.REPLAY[0]
     return useful_frames, options.REPLAY
 
 
@@ -2099,6 +2100,7 @@ if __name__ == '__main__':
     if options.REPLAY:
         options.WATCH = [0]  # enforce that --watch mode is on, even if not in cmdline switch
         options.BATCH_SYSTEM = 'demo'
+        config, _, _ = load_yaml_config()
         useful_frames, options.REPLAY = pick_frames_to_replay(savepath)
 
     web = Web(initial_cwd)
