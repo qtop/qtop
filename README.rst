@@ -80,7 +80,7 @@ Profile
     Version: 0.9.0 / Date: 2016-11-30
     Homepage: https://github.com/qtop/qtop
 
-.. _here: docs/documentation.md
+.. _here: docs/documentation.rst
 
 .. |Build Status| image:: https://travis-ci.org/qtop/qtop.svg
    :target: https://travis-ci.org/qtop/qtop
