@@ -11,7 +11,7 @@ Georgatos
 Summary
 -------
 
-.. figure:: contrib/qtop_demo.gif
+.. figure:: qtop_py/contrib/qtop_demo.gif
    :alt: Demo run of qtop with artificial data
 
    Example
@@ -25,7 +25,7 @@ and extended.
 This is an initial release of the source code, and work continues to
 make it better. We hope to build an active open source community that
 drives the future of this tool, both by providing feedback and by
-actively contributing to the source code.
+actively contributing to the qtop_py code.
 
 This program is currently in development mode, with experimental
 features. If it works, peace :)

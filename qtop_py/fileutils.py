@@ -69,7 +69,7 @@ def init_sample_file(options, config, SAMPLE_FILENAME, scheduler_output_filename
     if options.SAMPLE >= 2:
         add_to_sample([os.path.join(os.path.realpath(QTOPPATH), QTOPCONF_YAML)], savepath, SAMPLE_FILENAME)
         source_files = glob.glob(os.path.join(os.path.realpath(QTOPPATH), '*.py'))
-        add_to_sample(source_files, savepath, SAMPLE_FILENAME, subdir='source')
+        add_to_sample(source_files, savepath, SAMPLE_FILENAME, subdir='qtop_py')
 
 
 def add_to_sample(filepaths_to_add, savepath, sample_file, sample_method=tarfile, subdir=None):

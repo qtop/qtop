@@ -13,7 +13,7 @@ finally:
 
 setup(
     name='qtop',
-    version='0.9.0rc5',
+    version='0.9.0rc7',
     description="""qtop: the fast text mode way to monitor your cluster's utilization and status;
       the time has come to take back control of your cluster's scheduling business""",
     license="MIT",
@@ -21,11 +21,12 @@ setup(
     author='Sotiris Fragkiskos',
     author_email='sfranky@gmail.com',
     url="https://github.com/qtop/qtop",
-    packages=['source',
-              'source.legacy',
-              'source.plugins',
-              'source.ui'
+    packages=['qtop_py',
+              'qtop_py.legacy',
+              'qtop_py.plugins',
+              'qtop_py.ui'
               ],
-    package_dir={'source': 'source'},
-    package_data={'source': ['qtopconf.yaml']}
+    package_dir={'qtop_py': 'qtop_py'},
+    package_data={'qtop_py': ['../qtopconf.yaml', '../qtop.py']},
+    scripts=['qtop']
 )

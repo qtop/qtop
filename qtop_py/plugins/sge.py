@@ -5,9 +5,9 @@ except ImportError:
     import json
 import logging
 import sys
-from source.serialiser import StatExtractor, GenericBatchSystem
+from qtop_py.serialiser import StatExtractor, GenericBatchSystem
 from xml.etree import ElementTree as etree
-import source.fileutils as fileutils
+import qtop_py.fileutils as fileutils
 
 
 class SGEStatExtractor(StatExtractor):
