@@ -325,8 +325,8 @@ mode <#watch-mode>`__.
 The configuration file (qtopconf.yaml)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-YAML Format (?)
-^^^^^^^^^^^^^^^
+YAML Format 
+'''''''''''
 
 YAML was chosen as it is human-readable and should thus be easier for
 people to read and modify to their liking. That said, the configuration
@@ -359,7 +359,7 @@ you can see used in the configuration file, really!) and none of the
 flashy features that YAML sports.
 
 Scheduler configuration area
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+''''''''''''''''''''''''''''
 
 .. code:: yaml
 
@@ -433,7 +433,7 @@ installed.
     ---
 
 XML parsing
-^^^^^^^^^^^
+'''''''''''
 
 .. code:: yaml
 
@@ -449,7 +449,7 @@ in their systems, the standard library slower alternative is used
 instead.
 
 State abbreviations
-^^^^^^^^^^^^^^^^^^^
+'''''''''''''''''''
 
 .. code:: yaml
 
@@ -483,7 +483,7 @@ these are not linked to any special behaviour, but this should change in
 the future.
 
 Color mappings
-^^^^^^^^^^^^^^
+''''''''''''''
 
 .. code:: yaml
 
@@ -532,4 +532,3 @@ In there, you will also find a ton of ready-made colormaps
 user ids found in Large Hadron Collider related clusters (WLCG grid).
 
 .. |worker nodes occupancy| image:: images/wn_occupancy.png
-
