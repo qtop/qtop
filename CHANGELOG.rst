@@ -2,9 +2,9 @@
 -----
 
 -  Added -R feature to replay last frames; recording is automatic!
--  Added setup.py; ``pip install --user qtop`` should work
+-  Added setup.py, ``pip install --user qtop`` should work
 -  Added ``--version``, in case anyone wondered about it
--  Added a nodes column per user, in 3rd section containing user info
+-  Added a nodes column per user in the 3rd section where user info is presented
 -  Summary in the 1st section now shows ``Total:, Up:, Free:`` nodes
 -  Bail out if python version is <2.5
 -  Supplied ``qtop`` launcher script, for better system integration
