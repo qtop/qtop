@@ -3,26 +3,26 @@
 
 -  Added -R feature to replay last frames; recording is automatic!
 -  Added setup.py, ``pip install --user qtop`` should work
--  Added --version, in case anyone wondered about it
--  Summary now shows Total:,Up:,Free: nodes
+-  Added ``--version``, in case anyone wondered about it
+-  Added a new nodes per user column in the 3rd section
+-  Summary in the 1st section now shows Total, Up, Free nodes
 -  Bail out if python version is <2.5
--  Report a nodes column per user, in 3rd section over user info
 -  Bugfix to avoid /tmp getting crowded with temporary files
 -  Bugfixes on PBS (jobid arrays, node states etc)
 -  Bugfixes on SGE (job states added, all jobs now visible)
 -  Bugfixes on OAR (nodes per user are also visible)
--  Convert documentation files to .rst format
+-  Converted documentation files to .rst format
 
 0.8.9
 -----
 
 -  watch mode (-w)
 
-   - (s) node sorting with custom presets/user-inserted RegEx sorts
-   - (f) node filtering
-   - (t) matrix transposition
-   - (F) toggle full nodename display/numbering
-   - (m) toggle coloring code (user-id based/queue name-based)
+   - ((s)) node sorting with custom presets/user-inserted RegEx sorts
+   - ((f)) node filtering
+   - ((t)) matrix transposition
+   - ((F)) toggle full nodename display/numbering
+   - ((m)) toggle coloring code (user-id based/queue name-based)
 -  queue info can now be colored, three different queues with the same initials can be colored distinctly
 -  a good first amount of documentation
 -  small bugfixes
