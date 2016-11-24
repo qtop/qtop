@@ -6,6 +6,8 @@
 #                     Sotiris Fragkiskos       #
 #                     Fotis Georgatos          #
 ################################################
+import sys
+here = sys.path[0]
 
 from operator import itemgetter
 from itertools import izip, izip_longest, cycle
@@ -30,7 +32,7 @@ import glob
 import tempfile
 import sys
 import logging
-from constants import (TMPDIR, SYSTEMCONFDIR, QTOPCONF_YAML, QTOP_LOGFILE, savepath, USERPATH, MAX_CORE_ALLOWED,
+from source.constants import (TMPDIR, SYSTEMCONFDIR, QTOPCONF_YAML, QTOP_LOGFILE, savepath, USERPATH, MAX_CORE_ALLOWED,
     MAX_UNIX_ACCOUNTS, KEYPRESS_TIMEOUT, FALLBACK_TERMSIZE)
 from source import fileutils
 from source import utils

@@ -13,7 +13,7 @@ finally:
 
 setup(
     name='qtop',
-    version='0.9.0rc5',
+    version='0.9.0rc7',
     description="""qtop: the fast text mode way to monitor your cluster's utilization and status;
       the time has come to take back control of your cluster's scheduling business""",
     license="MIT",
@@ -27,5 +27,6 @@ setup(
               'source.ui'
               ],
     package_dir={'source': 'source'},
-    package_data={'source': ['qtopconf.yaml']}
+    package_data={'source': ['qtopconf.yaml']},
+    scripts=['qtop.py']
 )

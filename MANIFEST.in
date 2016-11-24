@@ -3,6 +3,8 @@ include CONTRIBUTING.md
 include Makefile
 include MANIFEST.in
 include MIT-license.txt
+include qtopconf.yaml
+include qtop.py
 include source/colormap.py
 include source/constants.py
 include source/contrib/func_tests.sh
@@ -33,8 +35,6 @@ include source/plugins/__init__.py
 include source/plugins/oar.py
 include source/plugins/pbs.py
 include source/plugins/sge.py
-include source/qtopconf.yaml
-include source/qtop.py
 include source/serialiser.py
 include source/ui/__init__.py
 include source/ui/viewport.py
