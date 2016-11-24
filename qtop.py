@@ -2076,6 +2076,9 @@ class InvalidScheduler(Exception):
 
 if __name__ == '__main__':
     options, args = utils.parse_qtop_cmdline_args()
+    if options.version:
+        print 'qtop current version: ' + __version__
+        sys.exit(0)
     utils.init_logging(options)
     dynamic_config = dict()
     options, dynamic_config['force_names'] = process_options(options)

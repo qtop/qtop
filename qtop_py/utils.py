@@ -101,6 +101,8 @@ def parse_qtop_cmdline_args():
                       help="Enable web interface in 8080")
     parser.add_option("-v", "--verbose", dest="verbose", action="count",
                       help="Increase verbosity (specify multiple times for more)")
+    parser.add_option("-V", "--version", dest="version", action="store_true",
+                      help="Print qtop version")
     parser.add_option("-w", "--watch", dest="WATCH", action="callback", callback=_watch_callback,
                       help="Mimic shell's watch behaviour. Use with optional argument, e.g. '-w 10' to refresh every 10 sec"
                            "instead of the default which is 2 sec.")
