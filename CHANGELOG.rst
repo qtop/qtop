@@ -1,17 +1,19 @@
 0.9.0
 -----
 
--  Added -R feature to replay last frames; recording is automatic!
--  Added setup.py, ``pip install --user qtop`` should work
--  Added ``--version``, in case anyone wondered about it
--  Added a new nodes per user column in the 3rd section
--  Summary in the 1st section now shows Total, Up, Free nodes
--  Bail out if python version is <2.5
--  Bugfix to avoid /tmp getting crowded with temporary files
--  Bugfixes on PBS (jobid arrays, node states etc)
--  Bugfixes on SGE (job states added, all jobs now visible)
--  Bugfixes on OAR (nodes per user are also visible)
--  Converted documentation files to .rst format
+- Added -R feature to replay last frames; recording is automatic!
+- Added setup.py; ``pip install --user qtop`` should now work
+- Added ``--version`` in case anyone wondered about it
+- Added a nodes column per user, in 3rd section containing user info
+- Summary now shows ``Total:, Up:, Free:`` nodes
+- Bail out if python version is <2.5
+- Supplied ``qtop`` launcher script, for better system integration
+- Create timestamped intermediate files, to improve 
+- Bugfix to avoid /tmp getting crowded with temporary files
+- Bugfixes on PBS (jobid arrays, node states etc)
+- Bugfixes on SGE (job states added, all jobs now visible, userid is correct)
+- Bugfixes on OAR (nodes per user are also visible)
+- Converted documentation files to .rst format
 
 0.8.9
 -----
