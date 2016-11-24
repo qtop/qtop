@@ -20,9 +20,9 @@ import datetime
 try:
     from collections import namedtuple, OrderedDict, Counter
 except ImportError:
-    from legacy.namedtuple import namedtuple
-    from legacy.ordereddict import OrderedDict
-    from legacy.counter import Counter
+    from source.legacy.namedtuple import namedtuple
+    from source.legacy.ordereddict import OrderedDict
+    from source.legacy.counter import Counter
 import os
 from os.path import realpath
 from signal import signal, SIGPIPE, SIG_DFL
