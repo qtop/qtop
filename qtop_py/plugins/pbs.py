@@ -4,8 +4,8 @@ except ImportError:
     import json
 import logging
 import re
-from source.serialiser import StatExtractor, GenericBatchSystem
-import source.fileutils as fileutils
+from qtop_py.serialiser import StatExtractor, GenericBatchSystem
+import qtop_py.fileutils as fileutils
 import itertools
 
 

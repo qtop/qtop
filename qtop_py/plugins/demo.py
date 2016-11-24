@@ -1,7 +1,7 @@
 import random
 import itertools
 import time
-from source.serialiser import GenericBatchSystem
+from qtop_py.serialiser import GenericBatchSystem
 from collections import defaultdict
 
 WORKER_NODES = 80

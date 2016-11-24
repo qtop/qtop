@@ -1,11 +1,11 @@
-from source.serialiser import StatExtractor, GenericBatchSystem
+from qtop_py.serialiser import StatExtractor, GenericBatchSystem
 import logging
 import os
-import source.yaml_parser as yaml
+import qtop_py.yaml_parser as yaml
 try:
     from collections import OrderedDict
 except ImportError:
-    from source.legacy.ordereddict import OrderedDict
+    from qtop_py.legacy.ordereddict import OrderedDict
 
 
 class OarStatExtractor(StatExtractor):

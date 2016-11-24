@@ -1,4 +1,4 @@
-from source.plugins import pbs
+from qtop_py.plugins import pbs
 import pytest
 
 
