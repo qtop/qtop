@@ -2,9 +2,9 @@ import logging
 import sys
 from optparse import OptionParser
 import fileutils
-# import source.fileutils as fileutils
-from source.colormap import *
-from source.constants import QTOP_LOGFILE
+# import qtop_py.fileutils as fileutils
+from qtop_py.colormap import *
+from qtop_py.constants import QTOP_LOGFILE
 
 
 def init_logging(options):
@@ -101,12 +101,14 @@ def parse_qtop_cmdline_args():
                       help="Enable web interface in 8080")
     parser.add_option("-v", "--verbose", dest="verbose", action="count",
                       help="Increase verbosity (specify multiple times for more)")
+    parser.add_option("-V", "--version", dest="version", action="store_true",
+                      help="Print qtop version")
     parser.add_option("-w", "--watch", dest="WATCH", action="callback", callback=_watch_callback,
                       help="Mimic shell's watch behaviour. Use with optional argument, e.g. '-w 10' to refresh every 10 sec"
                            "instead of the default which is 2 sec.")
     parser.add_option("-L", "--sample", action="count", dest="SAMPLE", default=False,
                       help="Create a sample file. A single L creates a tarball with the log, scheduler output files, "
-                           "qtop output. Two L's additionaly include the qtop_conf yaml file, and qtop source.")
+                           "qtop output. Two L's additionaly include the qtop_conf yaml file, and qtop qtop_py.")
     # parser.add_option("-f", "--setCOLORMAPFILE", action="store", type="string", dest="COLORFILE")  # TODO
 
     (options, args) = parser.parse_args()

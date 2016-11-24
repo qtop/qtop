@@ -1,4 +1,4 @@
-from source.ui.viewport import Viewport
+from qtop_py.ui.viewport import Viewport
 import pytest
 
 

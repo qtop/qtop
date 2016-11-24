@@ -1,11 +1,14 @@
 #!/usr/bin/env python
+__version__="0.9.0"
 
 ################################################
-#              qtop v.0.8.9                    #
-#     Licensed under MIT-GPL licenses          #
+#                   qtop                       #
+#     Licensed under MIT license               #
 #                     Sotiris Fragkiskos       #
 #                     Fotis Georgatos          #
 ################################################
+import sys
+here = sys.path[0]
 
 from operator import itemgetter
 from itertools import izip, izip_longest, cycle
@@ -18,9 +21,9 @@ import datetime
 try:
     from collections import namedtuple, OrderedDict, Counter
 except ImportError:
-    from legacy.namedtuple import namedtuple
-    from legacy.ordereddict import OrderedDict
-    from legacy.counter import Counter
+    from qtop_py.legacy.namedtuple import namedtuple
+    from qtop_py.legacy.ordereddict import OrderedDict
+    from qtop_py.legacy.counter import Counter
 import os
 from os.path import realpath
 from signal import signal, SIGPIPE, SIG_DFL
@@ -30,17 +33,17 @@ import glob
 import tempfile
 import sys
 import logging
-from constants import (TMPDIR, SYSTEMCONFDIR, QTOPCONF_YAML, QTOP_LOGFILE, savepath, USERPATH, MAX_CORE_ALLOWED,
+from qtop_py.constants import (TMPDIR, SYSTEMCONFDIR, QTOPCONF_YAML, QTOP_LOGFILE, savepath, USERPATH, MAX_CORE_ALLOWED,
     MAX_UNIX_ACCOUNTS, KEYPRESS_TIMEOUT, FALLBACK_TERMSIZE)
-from source import fileutils
-from source import utils
-from source.plugins import *
+from qtop_py import fileutils
+from qtop_py import utils
+from qtop_py.plugins import *
 from math import ceil
-from source.colormap import userid_pat_to_color_default, color_to_code, queue_to_color, nodestate_to_color_default
-import source.yaml_parser as yaml
-from source.ui.viewport import Viewport
-from source.serialiser import GenericBatchSystem
-from source.web import Web
+from qtop_py.colormap import userid_pat_to_color_default, color_to_code, queue_to_color, nodestate_to_color_default
+import qtop_py.yaml_parser as yaml
+from qtop_py.ui.viewport import Viewport
+from qtop_py.serialiser import GenericBatchSystem
+from qtop_py.web import Web
 import time
 
 
@@ -2073,6 +2076,9 @@ class InvalidScheduler(Exception):
 
 if __name__ == '__main__':
     options, args = utils.parse_qtop_cmdline_args()
+    if options.version:
+        print 'qtop current version: ' + __version__
+        sys.exit(0)
     utils.init_logging(options)
     dynamic_config = dict()
     options, dynamic_config['force_names'] = process_options(options)

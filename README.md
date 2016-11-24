@@ -7,7 +7,7 @@ Python port by Sotiris Fragkiskos / Original bash version by Fotis Georgatos
 
 ## Summary
 
-![Example](contrib/qtop_demo.gif "Demo run of qtop with artificial data")
+![Example](qtop_py/contrib/qtop_demo.gif "Demo run of qtop with artificial data")
 
 qtop.py is the python rewrite of qtop, a tool to monitor Torque, PBS, OAR or SGE clusters, etc.
 This release provides for the *anonymization* feature, which is handy for debugging it without data leaks.
