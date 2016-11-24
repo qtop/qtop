@@ -11,7 +11,7 @@ Georgatos
 Summary
 -------
 
-.. figure:: contrib/qtop_demo.gif
+.. figure:: qtop_py/contrib/qtop_demo.gif
    :alt: Demo run of qtop with artificial data
 
    Example
