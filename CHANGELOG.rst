@@ -1,15 +1,16 @@
-0.9.0
------
+0.9.20161130
+------------
 
+-  Summary in the 1st section now shows ``Total:, Up:, Free:`` nodes
+-  Added a nodes column per user in the 3rd section where user info is presented
 -  Added -R feature to replay last frames; recording is automatic!
 -  Added setup.py, ``pip install --user qtop`` should work
 -  Added ``--version``, in case anyone wondered about it
--  Added a nodes column per user in the 3rd section where user info is presented
--  Summary in the 1st section now shows ``Total:, Up:, Free:`` nodes
 -  Bail out if python version is <2.5
 -  Supplied ``qtop`` launcher script, for better system integration
 -  Create timestamped intermediate files, to improve ability to look back
 -  Bugfix to avoid /tmp getting crowded with temporary files
+-  Bugfix for grepping and pipelining qtop's output (1st attempt to treat #206)
 -  Bugfixes on PBS (jobid arrays, node states etc)
 -  Bugfixes on SGE (job states added, all jobs now visible, userid is correct)
 -  Bugfixes on OAR (nodes per user are also visible)
