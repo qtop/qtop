@@ -17,35 +17,51 @@ Summary
    Example
 
 qtop.py is the python rewrite of qtop, a tool to monitor Torque, PBS,
-OAR or SGE clusters, etc. This release provides for the *anonymization*
-feature, which is handy for debugging it without data leaks. qtop is and
-will remain a work-in-progress project; it is intended to be built upon
-and extended.
+OAR or SGE clusters, etc. This release provides for the *instant replay*
+feature, which is handy for debugging scheduling mishaps as they occur. 
+qtop is and will remain a work-in-progress project; it is intended to 
+be built upon and extended - please come along ;)
 
 This is an initial release of the source code, and work continues to
 make it better. We hope to build an active open source community that
 drives the future of this tool, both by providing feedback and by
-actively contributing to the qtop_py code.
+actively contributing to the source code.
 
-This program is currently in development mode, with experimental
-features. If it works, peace :)
+This program is currently in pre-release mode, with experimental features. If it works, peace :)
 
-Usage
------
+Installation
+------------
 
-To try qtop, you just have to do:
+To install qtop, you can either do
 
 ::
 
     git clone https://github.com/qtop/qtop.git
     cd qtop
-    ./qtop.py 
+    ./qtop --version
+
+or
+
+::
+
+    pip install qtop --user ## run it without --user to install it as root
+    $HOME/.local/bin/qtop --version
+
+Usage
+-----
 
 To run a demo, just run
 
 ::
 
-    ./qtop.py -b demo -Tw
+    ./qtop -b demo -FTgw  ## show demo, -F for full node names, -T to transpose the matrix, -g for full GECOS field, and -w for watch mode
+
+Otherwise, for daily usage you can run
+
+::
+
+    ./qtop -b sge -Fgw ## replace sge with pbs or oar, depending on your setup (this is often picked up automagically) 
+
 
 Try ``--help`` for all available options.
 
@@ -59,12 +75,12 @@ Profile
 
 ::
 
-    Description: The command-line tool to tame queueing or scheduling systems and some more
-    License: MIT/GPL
-    Version: 0.8.9 / Date: April 3, 2016
+    Description: the fast text mode way to monitor your cluster’s utilization and status; the time has come to take back control of your cluster’s scheduling business
+    License: MIT
+    Version: 0.9.20161130 / Date: 2016-11-30
     Homepage: https://github.com/qtop/qtop
 
-.. _here: docs/documentation.md
+.. _here: docs/documentation.rst
 
 .. |Build Status| image:: https://travis-ci.org/qtop/qtop.svg
    :target: https://travis-ci.org/qtop/qtop

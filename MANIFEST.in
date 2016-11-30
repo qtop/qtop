@@ -1,5 +1,5 @@
-include CHANGELOG.md
-include CONTRIBUTING.md
+include CHANGELOG.rst
+include CONTRIBUTING.rst
 include Makefile
 include MANIFEST.in
 include MIT-license.txt
@@ -43,7 +43,7 @@ include qtop_py/utils.py
 include qtop_py/web/index.html
 include qtop_py/web.py
 include qtop_py/yaml_parser.py
-include README.md
+include qtop_py/qtop.sh
 include README.rst
 include setup.py
 include tests/plugins/__init__.py
