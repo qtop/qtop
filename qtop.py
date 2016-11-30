@@ -2084,7 +2084,10 @@ if __name__ == '__main__':
     options, dynamic_config['force_names'] = process_options(options)
     # TODO: check if this is really needed any more
     # sys.excepthook = handle_exception
-    old_attrs = termios.tcgetattr(0)
+    try:
+        old_attrs = termios.tcgetattr(0)
+    except termios.error:
+        old_attrs = ''
     new_attrs = old_attrs[:]
 
     available_batch_systems = discover_qtop_batch_systems()
