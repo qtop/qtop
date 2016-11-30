@@ -27,10 +27,6 @@ include qtop_py/inputs/jobstatuses.sh
 include qtop_py/inputs/jobsubmits.sh
 include qtop_py/inputs/qtop-input.jdl
 include qtop_py/inputs/qtop-input.sh
-include qtop_py/legacy/counter.py
-include qtop_py/legacy/__init__.py
-include qtop_py/legacy/namedtuple.py
-include qtop_py/legacy/ordereddict.py
 include qtop_py/plugins/demo.py
 include qtop_py/plugins/__init__.py
 include qtop_py/plugins/oar.py

@@ -1,7 +1,7 @@
 try:
     from collections import OrderedDict
 except ImportError:
-    from qtop_py.legacy.ordereddict import OrderedDict
+    from backport_collections import OrderedDict
 
 # example color maps
 userid_pat_to_color_default = OrderedDict(

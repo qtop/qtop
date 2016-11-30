@@ -15,6 +15,7 @@
 -  Bugfixes on SGE (job states added, all jobs now visible, userid is correct)
 -  Bugfixes on OAR (nodes per user are also visible)
 -  Converted documentation files to .rst format
+-  Use backport_collections on python 2.6
 
 0.8.9
 -----

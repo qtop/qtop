@@ -5,7 +5,7 @@ import qtop_py.yaml_parser as yaml
 try:
     from collections import OrderedDict
 except ImportError:
-    from qtop_py.legacy.ordereddict import OrderedDict
+    from backport_collections import OrderedDict
 
 
 class OarStatExtractor(StatExtractor):
