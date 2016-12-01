@@ -1270,9 +1270,7 @@ class TextDisplay(object):
         if not options.WATCH:
             print 'Please try it with watch: %s/qtop.py -s <SOURCEDIR> -w [<every_nr_of_sec>]\n' \
                   '...and thank you for ..watching ;)\n' % QTOPPATH
-        print colorize('===> ', 'Gray_D') + colorize('Job accounting summary', 'White') + colorize(' <=== ',
-                                                                                                                  'Gray_D') + \
-              '%s WORKDIR = %s' % (colorize(str(datetime.datetime.today())[:-7], 'White'), QTOPPATH)
+        print colorize('===> ', 'Gray_D') + colorize('Job accounting summary', 'White') + colorize(' <=== ', 'Gray_D')
 
         print '%(Summary)s: Total:%(total_nodes)s Up:%(online_nodes)s Free:%(available_nodes)s %(Nodes)s | %(' \
               'working_cores)s/%(' \
