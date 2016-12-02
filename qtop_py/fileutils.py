@@ -39,7 +39,10 @@ def safe_exit_with_file_close(handle, name, stdout, options, _savepath,
                               qtop_logfile, sample_filename, delete_file=False):
     sys.stdout.flush()
     sys.stdout.close()
-    os.close(handle)
+    try:
+        os.close(handle)
+    except OSError:
+        pass
     if delete_file:
         os.unlink(name)  # this deletes the file
     # sys.stdout = stdout
