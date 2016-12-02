@@ -90,18 +90,20 @@ def raw_mode(file):
     if options.ONLYSAVETOFILE:
         yield
     else:
-        try:
-            old_attrs = termios.tcgetattr(file.fileno())
-        except:
-            yield
-        else:
-            new_attrs = old_attrs[:]
-            new_attrs[3] = new_attrs[3] & ~(termios.ECHO | termios.ICANON)
+        if options.WATCH:
             try:
-                termios.tcsetattr(file.fileno(), termios.TCSADRAIN, new_attrs)
+                old_attrs = termios.tcgetattr(file.fileno())
+            except:
                 yield
-            finally:
-                termios.tcsetattr(file.fileno(), termios.TCSADRAIN, old_attrs)
+            else:
+                new_attrs = old_attrs[:]
+                new_attrs[3] = new_attrs[3] & ~(termios.ECHO | termios.ICANON)
+                try:
+                    termios.tcsetattr(file.fileno(), termios.TCSADRAIN, new_attrs)
+                    yield
+                finally:
+                    termios.tcsetattr(file.fileno(), termios.TCSADRAIN, old_attrs)
+        yield
 
 
 def load_yaml_config():
@@ -2081,11 +2083,12 @@ if __name__ == '__main__':
     utils.init_logging(options)
     dynamic_config = dict()
     options, dynamic_config['force_names'] = process_options(options)
-    try:
-        old_attrs = termios.tcgetattr(0)
-    except termios.error:
-        old_attrs = ''
-    new_attrs = old_attrs[:]
+    if options.WATCH:
+        try:
+            old_attrs = termios.tcgetattr(0)
+        except termios.error:
+            old_attrs = ''
+        new_attrs = old_attrs[:]
 
     available_batch_systems = discover_qtop_batch_systems()
 
