@@ -4,7 +4,6 @@ import errno
 import tempfile
 import tarfile
 import sys
-import constants
 import glob
 import datetime
 
