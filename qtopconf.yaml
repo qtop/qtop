@@ -10,7 +10,8 @@
 ## auto will try to detect available batch commands in the current system
 scheduler: auto
 
-## where to save output from batch commands and their conversion to json
+## where to save output from batch commands and their intermediate conversion to json format
+## users can select e.g. /dev/shm (ram disk) instead of /tmp for faster processing, or even $TMP or $TMPDIR
 savepath: /tmp/qtop_results_$USER
 
 ## batch commands, filenames to save their output in
