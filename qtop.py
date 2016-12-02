@@ -1830,7 +1830,7 @@ class Cluster(object):
         """fill in non-existent WN nodes (absent from input files) with default values and count them"""
         for node in range(1, self.highest_wn + 1):
             if node not in workernode_dict:
-                workernode_dict[node] = {'state': '?', 'np': 0, 'domainname': 'N/A', 'host': 'N/A'}
+                workernode_dict[node] = {'state': '?', 'np': 0, 'domainname': 'N/A', 'host': 'N/A', 'core_job_map': {}}
                 default_values_for_empty_nodes = dict([(yaml_key, '?') for yaml_key, part_name, _ in yaml.get_yaml_key_part(
                     config, scheduler, outermost_key='workernodes_matrix')])
                 workernode_dict[node].update(default_values_for_empty_nodes)
