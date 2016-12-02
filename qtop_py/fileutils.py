@@ -24,19 +24,18 @@ def check_empty_file(orig_file):
         raise FileEmptyError(orig_file)
 
 
-def get_new_temp_file(suffix, prefix, config=None):  # **kwargs
+def get_new_temp_file(_savepath, suffix, prefix):  # **kwargs
     """
     Using mkstemp instead of NamedTemporaryFile because a file descriptor
     is needed to redirect sys.stdout to.
     """
-    savepath = config['savepath'] if config else None
-    fd, temp_filepath = tempfile.mkstemp(suffix=suffix, prefix=prefix, dir=savepath)  # **kwargs
+    fd, temp_filepath = tempfile.mkstemp(suffix=suffix, prefix=prefix, dir=_savepath)  # **kwargs
     logging.debug('temp_filepath: %s' % temp_filepath)
     # out_file = os.fdopen(fd, 'w')
     return fd, temp_filepath
 
 
-def safe_exit_with_file_close(handle, name, stdout, options, config,
+def safe_exit_with_file_close(handle, name, stdout, options, _savepath,
                               qtop_logfile, sample_filename, delete_file=False):
     sys.stdout.flush()
     sys.stdout.close()
@@ -45,11 +44,11 @@ def safe_exit_with_file_close(handle, name, stdout, options, config,
         os.unlink(name)  # this deletes the file
     # sys.stdout = stdout
     if options.SAMPLE >= 1:
-        add_to_sample([qtop_logfile], config['savepath'], sample_filename)
+        add_to_sample([qtop_logfile], _savepath, sample_filename)
     sys.exit(0)
 
 
-def init_sample_file(options, config, SAMPLE_FILENAME, scheduler_output_filenames, QTOPCONF_YAML, QTOPPATH):
+def init_sample_file(options, _savepath, SAMPLE_FILENAME, scheduler_output_filenames, QTOPCONF_YAML, QTOPPATH):
     """
     If the user wants to give feedback to the developers for a bugfix via the -L cmdline switch,
     this initialises a tar file, and adds:
@@ -57,27 +56,26 @@ def init_sample_file(options, config, SAMPLE_FILENAME, scheduler_output_filename
     * and source files (-LL)
     to the tar file
     """
-    savepath = constants.savepath
     if options.SAMPLE >= 1:
         # clears any preexisting tar files
-        tar_out = tarfile.open(os.path.join(config['savepath'], SAMPLE_FILENAME), mode='w')
+        tar_out = tarfile.open(os.path.join(_savepath, SAMPLE_FILENAME), mode='w')
         tar_out.close()
         # add all scheduler output files to sample
-        [add_to_sample([scheduler_output_filenames[fn]], savepath, SAMPLE_FILENAME)
+        [add_to_sample([scheduler_output_filenames[fn]], _savepath, SAMPLE_FILENAME)
          for fn in scheduler_output_filenames if os.path.isfile(scheduler_output_filenames[fn])]
 
     if options.SAMPLE >= 2:
-        add_to_sample([os.path.join(os.path.realpath(QTOPPATH), QTOPCONF_YAML)], savepath, SAMPLE_FILENAME)
+        add_to_sample([os.path.join(os.path.realpath(QTOPPATH), QTOPCONF_YAML)], _savepath, SAMPLE_FILENAME)
         source_files = glob.glob(os.path.join(os.path.realpath(QTOPPATH), '*.py'))
-        add_to_sample(source_files, savepath, SAMPLE_FILENAME, subdir='qtop_py')
+        add_to_sample(source_files, _savepath, SAMPLE_FILENAME, subdir='qtop_py')
 
 
-def add_to_sample(filepaths_to_add, savepath, sample_file, sample_method=tarfile, subdir=None):
+def add_to_sample(filepaths_to_add, _savepath, sample_file, sample_method=tarfile, subdir=None):
     """
     opens sample_file in path savepath and adds files filepaths_to_add
     """
     assert isinstance(filepaths_to_add, list)
-    sample_out = sample_method.open(os.path.join(savepath, sample_file), mode='a')
+    sample_out = sample_method.open(os.path.join(_savepath, sample_file), mode='a')
     for filepath_to_add in filepaths_to_add:
         path, fn = filepath_to_add.rsplit('/', 1)
         try:
@@ -121,11 +119,11 @@ def deprecate_old_output_files(config):
     deletes older json and .out files in savepath directory.
     """
     time_alive = get_timedelta(parse_time_input(config['auto_delete_old_output_files_after']))
-    user_selected_save_path = os.path.realpath(os.path.expandvars(config['savepath']))
-    for f in os.listdir(user_selected_save_path):
+    _savepath = config['savepath']
+    for f in os.listdir(_savepath):
         if (not f.endswith(('json', '.out'))) or f.endswith('rec.out'):
             continue
-        curpath = os.path.join(user_selected_save_path, f)
+        curpath = os.path.join(_savepath, f)
         file_modified = datetime.datetime.fromtimestamp(os.path.getmtime(curpath))
         if datetime.datetime.now() - file_modified > time_alive:
             os.remove(curpath)

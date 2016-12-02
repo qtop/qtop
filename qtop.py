@@ -33,7 +33,7 @@ import glob
 import tempfile
 import sys
 import logging
-from qtop_py.constants import (TMPDIR, SYSTEMCONFDIR, QTOPCONF_YAML, QTOP_LOGFILE, savepath, USERPATH, MAX_CORE_ALLOWED,
+from qtop_py.constants import (SYSTEMCONFDIR, QTOPCONF_YAML, QTOP_LOGFILE, USERPATH, MAX_CORE_ALLOWED,
     MAX_UNIX_ACCOUNTS, KEYPRESS_TIMEOUT, FALLBACK_TERMSIZE)
 from qtop_py import fileutils
 from qtop_py import utils
@@ -179,13 +179,14 @@ def load_yaml_config():
     for symbol in symbol_map:
         config['possible_ids'].append(symbol)
 
-    user_selected_save_path = os.path.realpath(os.path.expandvars(config['savepath']))
-    if not os.path.exists(user_selected_save_path):
-        fileutils.mkdir_p(user_selected_save_path)
-        logging.debug('Directory %s created.' % user_selected_save_path)
+    _savepath = os.path.realpath(os.path.expandvars(config['savepath']))
+
+    if not os.path.exists(_savepath):
+        fileutils.mkdir_p(_savepath)
+        logging.debug('Directory %s created.' % _savepath)
     else:
-        logging.debug('%s files will be saved in directory %s.' % (config['scheduler'], user_selected_save_path))
-    config['savepath'] = user_selected_save_path
+        logging.debug('%s files will be saved in directory %s.' % (config['scheduler'], _savepath))
+    config['savepath'] = _savepath
 
     for key in ('transpose_wn_matrices',
                 'fill_with_user_firstletter',
@@ -230,11 +231,10 @@ def finalize_filepaths_schedulercommands(options, config):
     """
     returns a dictionary with contents of the form
     {fn : (filepath, schedulercommand)}, e.g.
-    {'pbsnodes_file': ('<TMPDIR>/qtop_results_$USER/pbsnodes_a.txt', 'pbsnodes -a')}
+    {'pbsnodes_file': ('savepath/pbsnodes_a.txt', 'pbsnodes -a')}
     if the -s switch (set sourcedir) has been invoked, or
-    {'pbsnodes_file': ('<TMPDIR>/qtop_results_$USER/pbsnodes_a<some_pid>.txt', 'pbsnodes -a')}
+    {'pbsnodes_file': ('savepath/pbsnodes_a<some_pid>.txt', 'pbsnodes -a')}
     if ran without the -s switch.
-    TMPDIR is defined in constants.py
     """
     d = dict()
     # date = time.strftime("%Y%m%d")  #TODO
@@ -264,13 +264,13 @@ def auto_get_avail_batch_system(config):
     raise SchedulerNotSpecified
 
 
-def execute_shell_batch_commands(batch_system_commands, filenames, _file):
+def execute_shell_batch_commands(batch_system_commands, filenames, _file, _savepath):
     """
     scheduler-specific commands are invoked from the shell and their output is saved *atomically* to files,
     as defined by the user in QTOPCONF_YAML
     """
     _batch_system_command = batch_system_commands[_file].strip()
-    with tempfile.NamedTemporaryFile('w', dir=savepath, delete=False) as fin:
+    with tempfile.NamedTemporaryFile('w', dir=_savepath, delete=False) as fin:
         logging.debug('Command: "%s" -- result will be saved in: %s' % (_batch_system_command, filenames[_file]))
         logging.debug('\tFile state before subprocess call: %(fin)s' % {"fin": fin})
         logging.debug('\tWaiting on subprocess.call...')
@@ -335,7 +335,7 @@ def get_detail_of_name(account_jobs_table):
     return detail_of_name
 
 
-def get_input_filenames(INPUT_FNs_commands):
+def get_input_filenames(INPUT_FNs_commands, config):
     """
     If the user didn't specify --via the -s switch-- a dir where ready-made data files already exist,
     the appropriate batch commands are executed, as indicated in QTOPCONF,
@@ -348,7 +348,8 @@ def get_input_filenames(INPUT_FNs_commands):
         filenames[_file], batch_system_commands[_file] = INPUT_FNs_commands[_file]
 
         if not options.SOURCEDIR:
-            filenames[_file] = execute_shell_batch_commands(batch_system_commands, filenames, _file)
+            _savepath = os.path.realpath(os.path.expandvars(config['savepath']))
+            filenames[_file] = execute_shell_batch_commands(batch_system_commands, filenames, _file, _savepath)
 
         if not os.path.isfile(filenames[_file]):
             raise fileutils.FileNotFound(filenames[_file])
@@ -563,7 +564,7 @@ def control_qtop(viewport, read_char, cluster):
 
 def fetch_scheduler_files(options, config):
     INPUT_FNs_commands = finalize_filepaths_schedulercommands(options, config)
-    scheduler_output_filenames = get_input_filenames(INPUT_FNs_commands)
+    scheduler_output_filenames = get_input_filenames(INPUT_FNs_commands, config)
     return scheduler_output_filenames
 
 
@@ -639,10 +640,10 @@ def attempt_faster_xml_parsing(config):
             from xml.etree import ElementTree as etree
 
 
-def init_dirs(options):
+def init_dirs(options, _savepath):
     options.SOURCEDIR = realpath(options.SOURCEDIR) if options.SOURCEDIR else None
     logging.debug("User-defined source directory: %s" % options.SOURCEDIR)
-    options.workdir = options.SOURCEDIR or config['savepath']
+    options.workdir = options.SOURCEDIR or _savepath
     logging.debug('Working directory is now: %s' % options.workdir)
     os.chdir(options.workdir)
     return options
@@ -1212,7 +1213,7 @@ class TextDisplay(object):
         self.config = config
         self.wns_occupancy = wns_occupancy
 
-    def display_selected_sections(self, savepath, SAMPLE_FILENAME, QTOP_LOGFILE):
+    def display_selected_sections(self, _savepath, SAMPLE_FILENAME, QTOP_LOGFILE):
         """
         This prints out the qtop sections selected by the user.
         The selection can be made in two different ways:
@@ -1241,7 +1242,7 @@ class TextDisplay(object):
 
         print "\nLog file created in %s" % os.path.expandvars(QTOP_LOGFILE)
         if options.SAMPLE:
-            print "Sample files saved in %s/%s" % (savepath, SAMPLE_FILENAME)
+            print "Sample files saved in %s/%s" % (_savepath, SAMPLE_FILENAME)
         if options.STRICTCHECK:
             WNOccupancy.strict_check_jobs(wns_occupancy, cluster)
 
@@ -1947,7 +1948,7 @@ def colorize(text, color_func=None, pattern='NoPattern', mapping=None, bg_color=
         return text
 
 
-def pick_frames_to_replay(savepath):
+def pick_frames_to_replay(_savepath):
     """
     getting the respective info from cmdline switch -R,
     pick the relevant qtop output from savepath to replay
@@ -1961,7 +1962,7 @@ def pick_frames_to_replay(savepath):
 
     time_delta = fileutils.get_timedelta(fileutils.parse_time_input(options.REPLAY[1]))
     watch_start_datetime_obj = get_date_obj_from_str(options.REPLAY[0], datetime.datetime.now())
-    REC_FP_ALL = savepath + '/*_partview*.out'
+    REC_FP_ALL = _savepath + '/*_partview*.out'
     rec_files = glob.iglob(REC_FP_ALL)
     useful_frames = []
 
@@ -2080,8 +2081,6 @@ if __name__ == '__main__':
     utils.init_logging(options)
     dynamic_config = dict()
     options, dynamic_config['force_names'] = process_options(options)
-    # TODO: check if this is really needed any more
-    # sys.excepthook = handle_exception
     try:
         old_attrs = termios.tcgetattr(0)
     except termios.error:
@@ -2108,7 +2107,7 @@ if __name__ == '__main__':
         options.WATCH = [0]  # enforce that --watch mode is on, even if not in cmdline switch
         options.BATCH_SYSTEM = 'demo'
         config, _, _ = load_yaml_config()
-        useful_frames, options.REPLAY = pick_frames_to_replay(savepath)
+        useful_frames, options.REPLAY = pick_frames_to_replay(config['savepath'])
 
     web = Web(initial_cwd)
     if options.WEB:
@@ -2117,14 +2116,15 @@ if __name__ == '__main__':
     with raw_mode(sys.stdin):  # key listener implementation
         try:
             while True:
-                config, userid_pat_to_color, nodestate_to_color = load_yaml_config()  # TODO account_to_color is updated in here !!
+                config, userid_pat_to_color, nodestate_to_color = load_yaml_config()  # TODO account_to_color is updated here !!
                 config = update_config_with_cmdline_vars(options, config)
-                handle, output_fp = fileutils.get_new_temp_file(prefix='qtop_', suffix='.out', config=config)  # qtop output is
+                savepath = config['savepath']
+                handle, output_fp = fileutils.get_new_temp_file(savepath, prefix='qtop_', suffix='.out')  # qtop output is
                 sys.stdout = os.fdopen(handle, 'w')  # redirect everything to file, creates file object out of handle
                 # saved here
 
                 attempt_faster_xml_parsing(config)
-                options = init_dirs(options)
+                options = init_dirs(options, savepath)
 
                 transposed_matrices = []
                 viewport.set_term_size(*calculate_term_size(config, FALLBACK_TERMSIZE))
@@ -2133,7 +2133,8 @@ if __name__ == '__main__':
                     config['schedulers'], available_batch_systems, config)
                 scheduler_output_filenames = fetch_scheduler_files(options, config)
                 SAMPLE_FILENAME = fileutils.get_sample_filename(SAMPLE_FILENAME, config)
-                fileutils.init_sample_file(options, config, SAMPLE_FILENAME, scheduler_output_filenames, QTOPCONF_YAML, QTOPPATH)
+                fileutils.init_sample_file(options, savepath, SAMPLE_FILENAME, scheduler_output_filenames, QTOPCONF_YAML,
+                                           QTOPPATH)
 
                 ###### Gather data ###############
                 #
@@ -2202,11 +2203,11 @@ if __name__ == '__main__':
                 fileutils.deprecate_old_output_files(config)
 
             if options.SAMPLE:
-                fileutils.add_to_sample([output_fp], config['savepath'], SAMPLE_FILENAME)
+                fileutils.add_to_sample([output_fp], savepath, SAMPLE_FILENAME)
 
         except (KeyboardInterrupt, EOFError) as e:
             repr(e)
-            fileutils.safe_exit_with_file_close(handle, output_fp, stdout, options, config, QTOP_LOGFILE, SAMPLE_FILENAME)
+            fileutils.safe_exit_with_file_close(handle, output_fp, stdout, options, savepath, QTOP_LOGFILE, SAMPLE_FILENAME)
         else:
             if options.SAMPLE >= 1:
-                fileutils.add_to_sample([QTOP_LOGFILE], config['savepath'], SAMPLE_FILENAME)
+                fileutils.add_to_sample([QTOP_LOGFILE], savepath, SAMPLE_FILENAME)
