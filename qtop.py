@@ -654,7 +654,7 @@ def init_dirs(options, _savepath):
     return options
 
 
-def wait_for_keypress_or_autorefresh(viewport, KEYPRESS_TIMEOUT=1):
+def wait_for_keypress_or_autorefresh(viewport, FALLBACK_TERMSIZE, KEYPRESS_TIMEOUT=1):
     """
     This will make qtop wait for user input for a while,
     otherwise it will auto-refresh the display
@@ -2202,7 +2202,8 @@ if __name__ == '__main__':
                     cat_command = 'clear;cat %s' % output_partview_fp
                     _ = subprocess.call(cat_command, stdout=stdout, stderr=stdout, shell=True)
 
-                    read_char = wait_for_keypress_or_autorefresh(viewport, int(options.WATCH[0]) or KEYPRESS_TIMEOUT)
+                    read_char = wait_for_keypress_or_autorefresh(viewport, FALLBACK_TERMSIZE, int(options.WATCH[0]) or
+                                                                 KEYPRESS_TIMEOUT)
                     control_qtop(viewport, read_char, cluster, new_attrs)
 
                 os.chdir(QTOPPATH)
