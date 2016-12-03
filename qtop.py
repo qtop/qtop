@@ -208,22 +208,25 @@ def calculate_term_size(config, FALLBACK_TERM_SIZE):
     Gets the dimensions of the terminal window where qtop will be displayed.
     """
     fallback_term_size = config.get('term_size', FALLBACK_TERM_SIZE)
-    try:
-        term_height, term_columns = os.popen('stty size', 'r').read().split()
-        logging.debug('Reading the terminal resulted in v, h:%s, %s' % (term_height, term_columns))
-    except ValueError:
-        logging.warn("Failed to autodetect terminal size. (Running in an IDE?) Trying values in %s." % QTOPCONF_YAML)
+    if sys.stdout.isatty():
         try:
-            term_height, term_columns = viewport.get_term_size()
-            if not all(term_height, term_columns):
-                raise ValueError
+            term_height, term_columns = os.popen('stty size', 'r').read().split()
+            logging.debug('Reading the terminal resulted in v, h:%s, %s' % (term_height, term_columns))
         except ValueError:
+            logging.warn("Failed to autodetect terminal size. (Running in an IDE?) Trying values in %s." % QTOPCONF_YAML)
             try:
-                term_height, term_columns = yaml.fix_config_list(viewport.get_term_size())
-            except KeyError:
+                term_height, term_columns = viewport.get_term_size()
+                if not all(term_height, term_columns):
+                    raise ValueError
+            except ValueError:
+                try:
+                    term_height, term_columns = yaml.fix_config_list(viewport.get_term_size())
+                except KeyError:
+                    term_height, term_columns = fallback_term_size
+            except (KeyError, TypeError):  # TypeError if None was returned i.e. no setting in QTOPCONF_YAML
                 term_height, term_columns = fallback_term_size
-        except (KeyError, TypeError):  # TypeError if None was returned i.e. no setting in QTOPCONF_YAML
-            term_height, term_columns = fallback_term_size
+    else:
+        term_height, term_columns = fallback_term_size
 
     logging.debug('Set terminal size is: %s * %s' % (term_height, term_columns))
     return int(term_height), int(term_columns)
@@ -374,7 +377,7 @@ def check_python_version():
         sys.exit(1)
 
 
-def control_qtop(viewport, read_char, cluster):
+def control_qtop(viewport, read_char, cluster, new_attrs):
     """
     Basic vi-like movement is implemented for the -w switch (linux watch-like behaviour for qtop).
     h, j, k, l for left, down, up, right, respectively.
@@ -2083,7 +2086,7 @@ if __name__ == '__main__':
     utils.init_logging(options)
     dynamic_config = dict()
     options, dynamic_config['force_names'] = process_options(options)
-    if options.WATCH:
+    if options.WATCH:  # this is needed for the filtering/sorting options
         try:
             old_attrs = termios.tcgetattr(0)
         except termios.error:
@@ -2195,11 +2198,12 @@ if __name__ == '__main__':
                             break
                     else:
                         output_partview_fp = display.show_part_view(file=output_fp, x=viewport.v_start, y=viewport.v_term_size)
+
                     cat_command = 'clear;cat %s' % output_partview_fp
                     _ = subprocess.call(cat_command, stdout=stdout, stderr=stdout, shell=True)
 
                     read_char = wait_for_keypress_or_autorefresh(viewport, int(options.WATCH[0]) or KEYPRESS_TIMEOUT)
-                    control_qtop(viewport, read_char, cluster)
+                    control_qtop(viewport, read_char, cluster, new_attrs)
 
                 os.chdir(QTOPPATH)
                 os.unlink(output_fp)
@@ -2211,6 +2215,6 @@ if __name__ == '__main__':
         except (KeyboardInterrupt, EOFError) as e:
             repr(e)
             fileutils.safe_exit_with_file_close(handle, output_fp, stdout, options, savepath, QTOP_LOGFILE, SAMPLE_FILENAME)
-        else:
+        finally:
             if options.SAMPLE >= 1:
                 fileutils.add_to_sample([QTOP_LOGFILE], savepath, SAMPLE_FILENAME)
