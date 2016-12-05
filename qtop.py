@@ -451,7 +451,7 @@ def control_qtop(viewport, read_char, cluster, new_attrs):
         dynamic_config['core_coloring'] = change_mapping.next()
 
     elif pressed_char_hex in ['71']:  # q
-        print '  Exiting...'
+        print '\nExiting. Thank you for ..watching ;)\n'
         web.stop()
         sys.exit(0)
 
@@ -1277,8 +1277,7 @@ class TextDisplay(object):
             print colorize(msg, 'Blue')
 
         if not options.WATCH:
-            print 'Please try it with watch: %s/qtop.py -s <SOURCEDIR> -w [<every_nr_of_sec>]\n' \
-                  '...and thank you for ..watching ;)\n' % QTOPPATH
+            print 'Please try it with watch: %s/qtop.py -s <SOURCEDIR> -w [<every_nr_of_sec>]' % QTOPPATH
         print colorize('===> ', 'Gray_D') + colorize('Job accounting summary', 'White') + colorize(' <=== ', 'Gray_D')
 
         print '%(Summary)s: Total:%(total_nodes)s Up:%(online_nodes)s Free:%(available_nodes)s %(Nodes)s | %(' \
