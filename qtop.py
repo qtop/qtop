@@ -208,25 +208,26 @@ def calculate_term_size(config, FALLBACK_TERM_SIZE):
     Gets the dimensions of the terminal window where qtop will be displayed.
     """
     fallback_term_size = config.get('term_size', FALLBACK_TERM_SIZE)
-    if sys.stdout.isatty():
+
+    try:
+        term_height, term_columns = os.popen('stty size', 'r').read().split()
+        logging.debug('term_height, term_columns stty: {}, {}'.format(term_height, term_columns))
+        logging.debug('Reading the terminal resulted in v, h:%s, %s' % (term_height, term_columns))
+    except ValueError:
+        logging.warn("Failed to autodetect terminal size. (Running in an IDE?) Trying values in %s." % QTOPCONF_YAML)
         try:
-            term_height, term_columns = os.popen('stty size', 'r').read().split()
-            logging.debug('Reading the terminal resulted in v, h:%s, %s' % (term_height, term_columns))
+            term_height, term_columns = viewport.get_term_size()
+            if not all(term_height, term_columns):
+                raise ValueError
         except ValueError:
-            logging.warn("Failed to autodetect terminal size. (Running in an IDE?) Trying values in %s." % QTOPCONF_YAML)
             try:
-                term_height, term_columns = viewport.get_term_size()
-                if not all(term_height, term_columns):
-                    raise ValueError
-            except ValueError:
-                try:
-                    term_height, term_columns = yaml.fix_config_list(viewport.get_term_size())
-                except KeyError:
-                    term_height, term_columns = fallback_term_size
-            except (KeyError, TypeError):  # TypeError if None was returned i.e. no setting in QTOPCONF_YAML
+                term_height, term_columns = yaml.fix_config_list(viewport.get_term_size())
+            except KeyError:
                 term_height, term_columns = fallback_term_size
-    else:
-        term_height, term_columns = fallback_term_size
+                logging.debug('fallback Terminal size v, h:%s, %s' % (term_height, term_columns))
+        except (KeyError, TypeError):  # TypeError if None was returned i.e. no setting in QTOPCONF_YAML
+            term_height, term_columns = fallback_term_size
+            logging.debug('fallback Terminal size v, h:%s, %s' % (term_height, term_columns))
 
     logging.debug('Set terminal size is: %s * %s' % (term_height, term_columns))
     return int(term_height), int(term_columns)
@@ -2126,7 +2127,6 @@ if __name__ == '__main__':
                 config = update_config_with_cmdline_vars(options, config)
                 savepath = config['savepath']
                 handle, output_fp = fileutils.get_new_temp_file(savepath, prefix='qtop_', suffix='.out')  # qtop output is
-                sys.stdout = os.fdopen(handle, 'w')  # redirect everything to file, creates file object out of handle
                 # saved here
 
                 attempt_faster_xml_parsing(config)
@@ -2134,6 +2134,7 @@ if __name__ == '__main__':
 
                 transposed_matrices = []
                 viewport.set_term_size(*calculate_term_size(config, FALLBACK_TERMSIZE))
+                sys.stdout = os.fdopen(handle, 'w')  # redirect everything to file, creates file object out of handle
                 scheduler = decide_batch_system(
                     options.BATCH_SYSTEM, os.environ.get('QTOP_SCHEDULER'), config['scheduler'],
                     config['schedulers'], available_batch_systems, config)
