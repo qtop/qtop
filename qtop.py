@@ -209,17 +209,13 @@ def calculate_term_size(config, FALLBACK_TERM_SIZE):
     """
     fallback_term_size = config.get('term_size', FALLBACK_TERM_SIZE)
 
-    try:
-        _command = subprocess.Popen('stty size', stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
-        tty_size, _error = _command.communicate()
-        if not _error:
-            term_height, term_columns = [int(x) for x in tty_size.strip().split()]
-        else:
-            raise ValueError
-        logging.debug('term_height, term_columns stty: %s, %s' % (term_height, term_columns))
-        logging.debug('Reading the terminal resulted in v, h:%s, %s' % (term_height, term_columns))
-    except ValueError:
-        logging.warn("Failed to autodetect terminal size. (Running in an IDE?) Trying values in %s." % QTOPCONF_YAML)
+    _command = subprocess.Popen('stty size', stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+    tty_size, error = _command.communicate()
+    if not error:
+        term_height, term_columns = [int(x) for x in tty_size.strip().split()]
+        logging.debug('terminal size v, h from "stty size": %s, %s' % (term_height, term_columns))
+    else:
+        logging.warn("Failed to autodetect terminal size. (Running in an IDE?in a pipe?) Trying values in %s." % QTOPCONF_YAML)
         try:
             term_height, term_columns = viewport.get_term_size()
             if not all(term_height, term_columns):
@@ -229,12 +225,13 @@ def calculate_term_size(config, FALLBACK_TERM_SIZE):
                 term_height, term_columns = yaml.fix_config_list(viewport.get_term_size())
             except KeyError:
                 term_height, term_columns = fallback_term_size
-                logging.debug('fallback Terminal size v, h:%s, %s' % (term_height, term_columns))
+                logging.debug('(hardcoded) fallback terminal size v, h:%s, %s' % (term_height, term_columns))
+            else:
+                logging.debug('fallback terminal size v, h:%s, %s' % (term_height, term_columns))
         except (KeyError, TypeError):  # TypeError if None was returned i.e. no setting in QTOPCONF_YAML
             term_height, term_columns = fallback_term_size
-            logging.debug('fallback Terminal size v, h:%s, %s' % (term_height, term_columns))
+            logging.debug('(hardcoded) fallback terminal size v, h:%s, %s' % (term_height, term_columns))
 
-    logging.debug('Set terminal size is: %s * %s' % (term_height, term_columns))
     return int(term_height), int(term_columns)
 
 
