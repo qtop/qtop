@@ -210,8 +210,13 @@ def calculate_term_size(config, FALLBACK_TERM_SIZE):
     fallback_term_size = config.get('term_size', FALLBACK_TERM_SIZE)
 
     try:
-        term_height, term_columns = os.popen('stty size', 'r').read().split()
-        logging.debug('term_height, term_columns stty: {}, {}'.format(term_height, term_columns))
+        _command = subprocess.Popen('stty size', stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+        tty_size, _error = _command.communicate()
+        if not _error:
+            term_height, term_columns = [int(x) for x in tty_size.strip().split()]
+        else:
+            raise ValueError
+        logging.debug('term_height, term_columns stty: %s, %s' % (term_height, term_columns))
         logging.debug('Reading the terminal resulted in v, h:%s, %s' % (term_height, term_columns))
     except ValueError:
         logging.warn("Failed to autodetect terminal size. (Running in an IDE?) Trying values in %s." % QTOPCONF_YAML)
