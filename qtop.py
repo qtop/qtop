@@ -2106,7 +2106,7 @@ if __name__ == '__main__':
 
     available_batch_systems = discover_qtop_batch_systems()
 
-    stdout = sys.stdout  # keep a copy of the initial value of sys.stdout
+    stdout = sys.stdout  # keep a copy of the initial vshowalue of sys.stdout
     change_mapping = cycle(['queue_to_color', 'userid_pat_to_color'])
     h_counter = cycle([0, 1])
 
