@@ -564,6 +564,14 @@ def control_qtop(viewport, read_char, cluster, new_attrs):
         termios.tcsetattr(sys.__stdin__.fileno(), termios.TCSADRAIN, new_attrs)
         viewport.reset_display()
 
+    elif pressed_char_hex in ['48', '3F']:  # H, ?
+        viewport.reset_display()
+        logging.debug('opening help...')
+        if not h_counter.next() % 2:  # enter helpfile
+            dynamic_config['output_fp'] = help_main_switch[0]
+        else:  # exit helpfile
+            del dynamic_config['output_fp']
+
     logging.debug('Area Displayed: (h_start, v_start) --> (h_stop, v_stop) '
                   '\n\t(%(h_start)s, %(v_start)s) --> (%(h_stop)s, %(v_stop)s)' %
                   {'v_start': viewport.v_start, 'v_stop': viewport.v_stop,
@@ -1269,7 +1277,7 @@ class TextDisplay(object):
                 logging.warning('=== WARNING: --- Remapping WN names and retrying heuristics... good luck with this... ---')
 
         ansi_delete_char = "\015"  # this removes the first ever character (space) appearing in the output
-        print '%(del)s%(name)s report tool.\n' \
+        print '%(del)s%(name)s report tool. Press H for help\n' \
               '          ## For feedback and updates, see: https://github.com/qtop/qtop' \
               % {'name': 'PBS' if options.CLASSIC else './qtop.py ## Queueing System', 'del': ansi_delete_char}
         if scheduler == 'demo':
@@ -2099,7 +2107,10 @@ if __name__ == '__main__':
     available_batch_systems = discover_qtop_batch_systems()
 
     stdout = sys.stdout  # keep a copy of the initial value of sys.stdout
+    help_fp = '/home/sfranky/PycharmProjects/qtop/helpfile.txt'
     change_mapping = cycle(['queue_to_color', 'userid_pat_to_color'])
+    h_counter = cycle([0, 1])
+    help_main_switch = [help_fp, ]  # output_fp is not yet defined, will be appended later
 
     viewport = Viewport()  # controls the part of the qtop matrix shown on screen
     max_line_len = 0
@@ -2128,8 +2139,9 @@ if __name__ == '__main__':
                 config, userid_pat_to_color, nodestate_to_color = load_yaml_config()  # TODO account_to_color is updated here !!
                 config = update_config_with_cmdline_vars(options, config)
                 savepath = config['savepath']
-                handle, output_fp = fileutils.get_new_temp_file(savepath, prefix='qtop_', suffix='.out')  # qtop output is
-                # saved here
+                # qtop output is saved here
+                handle, output_fp = fileutils.get_new_temp_file(savepath, prefix='qtop_', suffix='.out')
+                help_main_switch.append(output_fp)
 
                 attempt_faster_xml_parsing(config)
                 options = init_dirs(options, savepath)
@@ -2200,8 +2212,10 @@ if __name__ == '__main__':
                             logging.critical('No (more) recorded instances available to show! Exiting...')
                             break
                     else:
-                        output_partview_fp = display.show_part_view(file=output_fp, x=viewport.v_start, y=viewport.v_term_size)
-
+                        output_partview_fp = display.show_part_view(file=dynamic_config.get('output_fp', output_fp),
+                                                                    x=viewport.v_start,
+                                                                    y=viewport.v_term_size)
+                        logging.debug('dynamic_config filename in main loop: %s' % dynamic_config.get('output_fp', output_fp))
                     cat_command = 'clear;cat %s' % output_partview_fp
                     _ = subprocess.call(cat_command, stdout=stdout, stderr=stdout, shell=True)
 
@@ -2209,6 +2223,7 @@ if __name__ == '__main__':
                                                                  KEYPRESS_TIMEOUT)
                     control_qtop(viewport, read_char, cluster, new_attrs)
 
+                help_main_switch.pop()
                 os.chdir(QTOPPATH)
                 os.unlink(output_fp)
                 fileutils.deprecate_old_output_files(config)
