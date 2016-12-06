@@ -36,6 +36,7 @@ def get_new_temp_file(_savepath, suffix, prefix):  # **kwargs
 
 def safe_exit_with_file_close(handle, name, stdout, options, _savepath,
                               qtop_logfile, sample_filename, delete_file=False):
+    sys.stdout.write('\nExiting. Thank you for ..watching ;)\n')
     sys.stdout.flush()
     sys.stdout.close()
     try:

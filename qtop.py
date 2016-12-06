@@ -90,18 +90,20 @@ def raw_mode(file):
     if options.ONLYSAVETOFILE:
         yield
     else:
-        try:
-            old_attrs = termios.tcgetattr(file.fileno())
-        except:
-            yield
-        else:
-            new_attrs = old_attrs[:]
-            new_attrs[3] = new_attrs[3] & ~(termios.ECHO | termios.ICANON)
+        if options.WATCH:
             try:
-                termios.tcsetattr(file.fileno(), termios.TCSADRAIN, new_attrs)
+                old_attrs = termios.tcgetattr(file.fileno())
+            except:
                 yield
-            finally:
-                termios.tcsetattr(file.fileno(), termios.TCSADRAIN, old_attrs)
+            else:
+                new_attrs = old_attrs[:]
+                new_attrs[3] = new_attrs[3] & ~(termios.ECHO | termios.ICANON)
+                try:
+                    termios.tcsetattr(file.fileno(), termios.TCSADRAIN, new_attrs)
+                    yield
+                finally:
+                    termios.tcsetattr(file.fileno(), termios.TCSADRAIN, old_attrs)
+        yield
 
 
 def load_yaml_config():
@@ -206,11 +208,14 @@ def calculate_term_size(config, FALLBACK_TERM_SIZE):
     Gets the dimensions of the terminal window where qtop will be displayed.
     """
     fallback_term_size = config.get('term_size', FALLBACK_TERM_SIZE)
-    try:
-        term_height, term_columns = os.popen('stty size', 'r').read().split()
-        logging.debug('Reading the terminal resulted in v, h:%s, %s' % (term_height, term_columns))
-    except ValueError:
-        logging.warn("Failed to autodetect terminal size. (Running in an IDE?) Trying values in %s." % QTOPCONF_YAML)
+
+    _command = subprocess.Popen('stty size', stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+    tty_size, error = _command.communicate()
+    if not error:
+        term_height, term_columns = [int(x) for x in tty_size.strip().split()]
+        logging.debug('terminal size v, h from "stty size": %s, %s' % (term_height, term_columns))
+    else:
+        logging.warn("Failed to autodetect terminal size. (Running in an IDE?in a pipe?) Trying values in %s." % QTOPCONF_YAML)
         try:
             term_height, term_columns = viewport.get_term_size()
             if not all(term_height, term_columns):
@@ -220,10 +225,13 @@ def calculate_term_size(config, FALLBACK_TERM_SIZE):
                 term_height, term_columns = yaml.fix_config_list(viewport.get_term_size())
             except KeyError:
                 term_height, term_columns = fallback_term_size
+                logging.debug('(hardcoded) fallback terminal size v, h:%s, %s' % (term_height, term_columns))
+            else:
+                logging.debug('fallback terminal size v, h:%s, %s' % (term_height, term_columns))
         except (KeyError, TypeError):  # TypeError if None was returned i.e. no setting in QTOPCONF_YAML
             term_height, term_columns = fallback_term_size
+            logging.debug('(hardcoded) fallback terminal size v, h:%s, %s' % (term_height, term_columns))
 
-    logging.debug('Set terminal size is: %s * %s' % (term_height, term_columns))
     return int(term_height), int(term_columns)
 
 
@@ -372,7 +380,7 @@ def check_python_version():
         sys.exit(1)
 
 
-def control_qtop(viewport, read_char, cluster):
+def control_qtop(viewport, read_char, cluster, new_attrs):
     """
     Basic vi-like movement is implemented for the -w switch (linux watch-like behaviour for qtop).
     h, j, k, l for left, down, up, right, respectively.
@@ -443,7 +451,7 @@ def control_qtop(viewport, read_char, cluster):
         dynamic_config['core_coloring'] = change_mapping.next()
 
     elif pressed_char_hex in ['71']:  # q
-        print '  Exiting...'
+        print '\nExiting. Thank you for ..watching ;)\n'
         web.stop()
         sys.exit(0)
 
@@ -649,7 +657,7 @@ def init_dirs(options, _savepath):
     return options
 
 
-def wait_for_keypress_or_autorefresh(viewport, KEYPRESS_TIMEOUT=1):
+def wait_for_keypress_or_autorefresh(viewport, FALLBACK_TERMSIZE, KEYPRESS_TIMEOUT=1):
     """
     This will make qtop wait for user input for a while,
     otherwise it will auto-refresh the display
@@ -1261,7 +1269,8 @@ class TextDisplay(object):
                 logging.warning('=== WARNING: --- Remapping WN names and retrying heuristics... good luck with this... ---')
 
         ansi_delete_char = "\015"  # this removes the first ever character (space) appearing in the output
-        print '%(del)s%(name)s report tool. For feedback and updates, see: https://github.com/qtop/qtop' \
+        print '%(del)s%(name)s report tool.\n' \
+              '          ## For feedback and updates, see: https://github.com/qtop/qtop' \
               % {'name': 'PBS' if options.CLASSIC else './qtop.py ## Queueing System', 'del': ansi_delete_char}
         if scheduler == 'demo':
             msg = "This data is simulated. As soon as you connect to one of the supported scheduling systems,\n" \
@@ -1269,8 +1278,7 @@ class TextDisplay(object):
             print colorize(msg, 'Blue')
 
         if not options.WATCH:
-            print 'Please try it with watch: %s/qtop.py -s <SOURCEDIR> -w [<every_nr_of_sec>]\n' \
-                  '...and thank you for ..watching ;)\n' % QTOPPATH
+            print 'Please try it with watch: %s/qtop.py -s <SOURCEDIR> -w [<every_nr_of_sec>]' % QTOPPATH
         print colorize('===> ', 'Gray_D') + colorize('Job accounting summary', 'White') + colorize(' <=== ', 'Gray_D')
 
         print '%(Summary)s: Total:%(total_nodes)s Up:%(online_nodes)s Free:%(available_nodes)s %(Nodes)s | %(' \
@@ -2081,11 +2089,12 @@ if __name__ == '__main__':
     utils.init_logging(options)
     dynamic_config = dict()
     options, dynamic_config['force_names'] = process_options(options)
-    try:
-        old_attrs = termios.tcgetattr(0)
-    except termios.error:
-        old_attrs = ''
-    new_attrs = old_attrs[:]
+    if options.WATCH:  # this is needed for the filtering/sorting options
+        try:
+            old_attrs = termios.tcgetattr(0)
+        except termios.error:
+            old_attrs = ''
+        new_attrs = old_attrs[:]
 
     available_batch_systems = discover_qtop_batch_systems()
 
@@ -2120,7 +2129,6 @@ if __name__ == '__main__':
                 config = update_config_with_cmdline_vars(options, config)
                 savepath = config['savepath']
                 handle, output_fp = fileutils.get_new_temp_file(savepath, prefix='qtop_', suffix='.out')  # qtop output is
-                sys.stdout = os.fdopen(handle, 'w')  # redirect everything to file, creates file object out of handle
                 # saved here
 
                 attempt_faster_xml_parsing(config)
@@ -2128,6 +2136,7 @@ if __name__ == '__main__':
 
                 transposed_matrices = []
                 viewport.set_term_size(*calculate_term_size(config, FALLBACK_TERMSIZE))
+                sys.stdout = os.fdopen(handle, 'w')  # redirect everything to file, creates file object out of handle
                 scheduler = decide_batch_system(
                     options.BATCH_SYSTEM, os.environ.get('QTOP_SCHEDULER'), config['scheduler'],
                     config['schedulers'], available_batch_systems, config)
@@ -2192,11 +2201,13 @@ if __name__ == '__main__':
                             break
                     else:
                         output_partview_fp = display.show_part_view(file=output_fp, x=viewport.v_start, y=viewport.v_term_size)
+
                     cat_command = 'clear;cat %s' % output_partview_fp
                     _ = subprocess.call(cat_command, stdout=stdout, stderr=stdout, shell=True)
 
-                    read_char = wait_for_keypress_or_autorefresh(viewport, int(options.WATCH[0]) or KEYPRESS_TIMEOUT)
-                    control_qtop(viewport, read_char, cluster)
+                    read_char = wait_for_keypress_or_autorefresh(viewport, FALLBACK_TERMSIZE, int(options.WATCH[0]) or
+                                                                 KEYPRESS_TIMEOUT)
+                    control_qtop(viewport, read_char, cluster, new_attrs)
 
                 os.chdir(QTOPPATH)
                 os.unlink(output_fp)
@@ -2208,6 +2219,6 @@ if __name__ == '__main__':
         except (KeyboardInterrupt, EOFError) as e:
             repr(e)
             fileutils.safe_exit_with_file_close(handle, output_fp, stdout, options, savepath, QTOP_LOGFILE, SAMPLE_FILENAME)
-        else:
+        finally:
             if options.SAMPLE >= 1:
                 fileutils.add_to_sample([QTOP_LOGFILE], savepath, SAMPLE_FILENAME)
