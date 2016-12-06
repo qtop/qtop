@@ -1269,7 +1269,8 @@ class TextDisplay(object):
                 logging.warning('=== WARNING: --- Remapping WN names and retrying heuristics... good luck with this... ---')
 
         ansi_delete_char = "\015"  # this removes the first ever character (space) appearing in the output
-        print '%(del)s%(name)s report tool. For feedback and updates, see: https://github.com/qtop/qtop' \
+        print '%(del)s%(name)s report tool.\n' \
+              '          ## For feedback and updates, see: https://github.com/qtop/qtop' \
               % {'name': 'PBS' if options.CLASSIC else './qtop.py ## Queueing System', 'del': ansi_delete_char}
         if scheduler == 'demo':
             msg = "This data is simulated. As soon as you connect to one of the supported scheduling systems,\n" \
