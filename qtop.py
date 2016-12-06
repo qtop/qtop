@@ -564,7 +564,7 @@ def control_qtop(viewport, read_char, cluster, new_attrs):
         termios.tcsetattr(sys.__stdin__.fileno(), termios.TCSADRAIN, new_attrs)
         viewport.reset_display()
 
-    elif pressed_char_hex in ['48', '3F']:  # H, ?
+    elif pressed_char_hex in ['48', '3f']:  # H, ?
         viewport.reset_display()
         logging.debug('opening help...')
         if not h_counter.next() % 2:  # enter helpfile
@@ -1277,7 +1277,7 @@ class TextDisplay(object):
                 logging.warning('=== WARNING: --- Remapping WN names and retrying heuristics... good luck with this... ---')
 
         ansi_delete_char = "\015"  # this removes the first ever character (space) appearing in the output
-        print '%(del)s%(name)s report tool. Press H for help\n' \
+        print '%(del)s%(name)s report tool. Press ? for help\n' \
               '          ## For feedback and updates, see: https://github.com/qtop/qtop' \
               % {'name': 'PBS' if options.CLASSIC else './qtop.py ## Queueing System', 'del': ansi_delete_char}
         if scheduler == 'demo':
@@ -2107,10 +2107,8 @@ if __name__ == '__main__':
     available_batch_systems = discover_qtop_batch_systems()
 
     stdout = sys.stdout  # keep a copy of the initial value of sys.stdout
-    help_fp = '/home/sfranky/PycharmProjects/qtop/helpfile.txt'
     change_mapping = cycle(['queue_to_color', 'userid_pat_to_color'])
     h_counter = cycle([0, 1])
-    help_main_switch = [help_fp, ]  # output_fp is not yet defined, will be appended later
 
     viewport = Viewport()  # controls the part of the qtop matrix shown on screen
     max_line_len = 0
@@ -2121,6 +2119,8 @@ if __name__ == '__main__':
     logging.debug('Initial qtop directory: %s' % initial_cwd)
     CURPATH = os.path.expanduser(initial_cwd)  # where qtop was invoked from
     QTOPPATH = os.path.dirname(realpath(sys.argv[0]))  # dir where qtop resides
+    HELP_FP = os.path.join(QTOPPATH, 'helpfile.txt')
+    help_main_switch = [HELP_FP, ]  # output_fp is not yet defined, will be appended later
     SAMPLE_FILENAME = 'qtop_sample_${USER}%(datetime)s.tar'
     SAMPLE_FILENAME = os.path.expandvars(SAMPLE_FILENAME)
     if options.REPLAY:
