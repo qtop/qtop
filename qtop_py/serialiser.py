@@ -79,7 +79,7 @@ class GenericBatchSystem(object):
     def get_queues_info(self):
         raise NotImplementedError
 
-    def get_worker_nodes(self, job_ids):
+    def get_worker_nodes(self, job_ids, options):
         raise NotImplementedError
 
     def get_jobs_info(self, qstats):

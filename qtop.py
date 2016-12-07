@@ -2163,7 +2163,7 @@ if __name__ == '__main__':
 
                 job_ids, user_names, job_states, job_queues = scheduling_system.get_jobs_info()
                 total_running_jobs, total_queued_jobs, qstatq_lod = scheduling_system.get_queues_info() # callthis elsewhere
-                worker_nodes = scheduling_system.get_worker_nodes(job_ids)
+                worker_nodes = scheduling_system.get_worker_nodes(job_ids, options)
 
                 JobDoc = namedtuple('JobDoc', ['user_name', 'job_state', 'job_queue'])
                 jobs_dict = dict((re.sub(r'\[\]$', '', job_id), JobDoc(user_name, job_state, job_queue))
@@ -2237,3 +2237,4 @@ if __name__ == '__main__':
         finally:
             if options.SAMPLE >= 1:
                 fileutils.add_to_sample([QTOP_LOGFILE], savepath, SAMPLE_FILENAME)
+            logging.debug('_read_oar_node_y called %s times' % scheduling_system._read_oar_node_y_textyaml.count())
