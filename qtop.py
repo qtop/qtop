@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-__version__="0.9.20161130"
 
 ################################################
 #                   qtop                       #
@@ -44,6 +43,7 @@ import qtop_py.yaml_parser as yaml
 from qtop_py.ui.viewport import Viewport
 from qtop_py.serialiser import GenericBatchSystem
 from qtop_py.web import Web
+from qtop_py import __version__
 import time
 
 

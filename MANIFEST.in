@@ -1,5 +1,6 @@
 include CHANGELOG.rst
 include CONTRIBUTING.rst
+include helpfile.txt
 include Makefile
 include MANIFEST.in
 include MIT-license.txt
