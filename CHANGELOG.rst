@@ -1,3 +1,14 @@
+0.9.20161207
+------------
+
+-  Feature enhancement: online help available with ``?`` ; #257
+-  Feature enhancement: unhardwire ``__version__``, make it visible across code; #259 
+-  Feature enhancement: Remove ``WORKDIR`` from banner, it was no longer serving a purpose; #243
+-  Bugfix around missing ``core_job_map``, when not remapping; #253
+-  Bugfix unhardwire ``/tmp``, make the choice of intermediate directory liberal; #254, #255
+-  Bugfix under linux watch mode, fix watch issues of various types; #206, #248, #256
+-  Bugfix around jobid consistency of input files in OAR - handle gracefully and report in debug log; #258
+
 0.9.20161130
 ------------
 
