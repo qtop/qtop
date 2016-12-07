@@ -1,4 +1,5 @@
 from setuptools import setup
+from qtop_py import __version__
 
 import sys
 
@@ -13,7 +14,7 @@ finally:
 
 setup(
     name='qtop',
-    version='0.9.20161130',
+    version=__version__,
     description="""qtop: the fast text mode way to monitor your cluster's utilization and status;
       the time has come to take back control of your cluster's scheduling business""",
     license="MIT",
