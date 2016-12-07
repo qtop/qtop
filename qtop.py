@@ -2237,4 +2237,3 @@ if __name__ == '__main__':
         finally:
             if options.SAMPLE >= 1:
                 fileutils.add_to_sample([QTOP_LOGFILE], savepath, SAMPLE_FILENAME)
-            logging.debug('_read_oar_node_y called %s times' % scheduling_system._read_oar_node_y_textyaml.count())
