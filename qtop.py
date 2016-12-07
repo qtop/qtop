@@ -2163,7 +2163,7 @@ if __name__ == '__main__':
 
                 job_ids, user_names, job_states, job_queues = scheduling_system.get_jobs_info()
                 total_running_jobs, total_queued_jobs, qstatq_lod = scheduling_system.get_queues_info() # callthis elsewhere
-                worker_nodes = scheduling_system.get_worker_nodes()
+                worker_nodes = scheduling_system.get_worker_nodes(job_ids)
 
                 JobDoc = namedtuple('JobDoc', ['user_name', 'job_state', 'job_queue'])
                 jobs_dict = dict((re.sub(r'\[\]$', '', job_id), JobDoc(user_name, job_state, job_queue))

@@ -49,7 +49,7 @@ class OARBatchSystem(GenericBatchSystem):
         self.options = options
         self.oar_stat_maker = OarStatExtractor(self.config, self.options)
 
-    def get_worker_nodes(self):
+    def get_worker_nodes(self, job_ids):
         nodes_resids = self._read_oarnodes_s_yaml(self.oarnodes_s_file)
         resids_jobs = self._read_oarnodes_y_textyaml(self.oarnodes_y_file)
 
@@ -68,7 +68,7 @@ class OARBatchSystem(GenericBatchSystem):
             nr_of_jobs = len(nodes_jobs[node])
             d['np'] = nr_of_jobs
             # d['core_job_map'] = [{'core': idx, 'job': job[0]} for idx, job in enumerate(nodes_jobs[node]) if job[0] is not None]
-            d['core_job_map'] = dict((idx, job[0]) for idx, job in enumerate(nodes_jobs[node]) if job[0] is not None)
+            d['core_job_map'] = dict((idx, job[0]) for idx, job in enumerate(nodes_jobs[node]) if job[0] is not None and job[0] in job_ids)
             d['state'] = self._calculate_oar_state(nodes_jobs[node], nr_of_jobs, node_state_mapping)
             worker_nodes.append(d)
 
