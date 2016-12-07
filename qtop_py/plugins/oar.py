@@ -54,7 +54,7 @@ class OARBatchSystem(GenericBatchSystem):
         nodes_resids = self._read_oarnodes_s_yaml(self.oarnodes_s_file)
         resids_jobs = self._read_oarnodes_y_textyaml(self.oarnodes_y_file)
 
-        discrepancy = self._check_job_discrepancy(job_ids_oarstat, resids_jobs, options)
+        job_discrepancy = self._check_job_discrepancy(job_ids_oarstat, resids_jobs, options)
 
         nodes_jobs = {}
         for node in nodes_resids:
@@ -70,7 +70,8 @@ class OARBatchSystem(GenericBatchSystem):
             d['domainname'] = node
             nr_of_jobs = len(nodes_jobs[node])
             d['np'] = nr_of_jobs
-            d['core_job_map'] = dict((idx, job[0]) for idx, job in enumerate(nodes_jobs[node]) if job[0] is not None and job[0] in job_ids_oarstat)
+            d['core_job_map'] = dict((idx, job[0]) for idx, job in enumerate(nodes_jobs[node]) if job[0] is not None and
+                                     job[0] not in job_discrepancy)
             d['state'] = self._calculate_oar_state(nodes_jobs[node], nr_of_jobs, node_state_mapping)
             worker_nodes.append(d)
 
@@ -181,8 +182,8 @@ class OARBatchSystem(GenericBatchSystem):
     def _check_job_discrepancy(self, job_ids_oarstat, resids_jobs, options):
         """
         compares job_ids reported by oarstat with job_ids reported by oarnodes_s_Y
-        A debug msg is printed twice in the beginning, if displaying a cluster instance
-        in watch mode, otherwise it is printed forever.
+        A debug msg is printed twice in the beginning, if displaying a cluster instance (-s switch)
+        in watch mode, otherwise it is printed forever, every time a discrepancy is detected anew.
         """
         set_jobs_in_oarnodes = set(resids_jobs.values())
         set_jobs_in_oarnodes.discard(None)
