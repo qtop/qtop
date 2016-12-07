@@ -2,6 +2,7 @@ from qtop_py.serialiser import StatExtractor, GenericBatchSystem
 import logging
 import os
 import qtop_py.yaml_parser as yaml
+from qtop_py.utils import CountCalls
 try:
     from collections import OrderedDict
 except ImportError:
@@ -49,9 +50,11 @@ class OARBatchSystem(GenericBatchSystem):
         self.options = options
         self.oar_stat_maker = OarStatExtractor(self.config, self.options)
 
-    def get_worker_nodes(self):
+    def get_worker_nodes(self, job_ids_oarstat, options):
         nodes_resids = self._read_oarnodes_s_yaml(self.oarnodes_s_file)
         resids_jobs = self._read_oarnodes_y_textyaml(self.oarnodes_y_file)
+
+        job_discrepancy = self._check_job_discrepancy(job_ids_oarstat, resids_jobs, options)
 
         nodes_jobs = {}
         for node in nodes_resids:
@@ -67,8 +70,8 @@ class OARBatchSystem(GenericBatchSystem):
             d['domainname'] = node
             nr_of_jobs = len(nodes_jobs[node])
             d['np'] = nr_of_jobs
-            # d['core_job_map'] = [{'core': idx, 'job': job[0]} for idx, job in enumerate(nodes_jobs[node]) if job[0] is not None]
-            d['core_job_map'] = dict((idx, job[0]) for idx, job in enumerate(nodes_jobs[node]) if job[0] is not None)
+            d['core_job_map'] = dict((idx, job[0]) for idx, job in enumerate(nodes_jobs[node]) if job[0] is not None and
+                                     job[0] not in job_discrepancy)
             d['state'] = self._calculate_oar_state(nodes_jobs[node], nr_of_jobs, node_state_mapping)
             worker_nodes.append(d)
 
@@ -132,22 +135,31 @@ class OARBatchSystem(GenericBatchSystem):
                 oar_node, line = self._read_oar_node_y_textyaml(fin, line)
                 oar_nodes.update(oar_node)
 
-            resids_jobs = dict([(resid, info.get('jobs', None)) for resid, info in oar_nodes.items()])
+        resids_jobs = dict([(resid, info['jobs']) for resid, info in oar_nodes.items()])
         return resids_jobs
 
     @staticmethod
+    @CountCalls
     def _read_oar_node_y_textyaml(fin, line):
+        """
+        reads one res-id block at a time, skipping all information except its job
+        """
         _oarnode = dict()
 
         res_id = line.strip(': ')
-        _oarnode[int(res_id)] = dict()
 
         line = fin.readline().strip()
         while line and not line[0].isdigit():
-            key, value = line.strip().split(': ')
-            _oarnode[int(res_id)][key] = value
+            if line.startswith('jobs'):
+                key, value = line.split(': ')
+                _oarnode[int(res_id)] = dict()
+                _oarnode[int(res_id)][key] = value
+                break
+            line = fin.readline().strip()
+        while line and not line[0].isdigit():  # no need to check every line for jobs key anymore!
             line = fin.readline().strip()
 
+        _oarnode.setdefault(int(res_id), {'jobs': None})
         return _oarnode, line
 
     def _calculate_oar_state(self, jobid_state_lot, nr_of_jobs, node_state_mapping):
@@ -167,5 +179,27 @@ class OARBatchSystem(GenericBatchSystem):
         else:
             return node_state_mapping[states[0]]
 
+    def _check_job_discrepancy(self, job_ids_oarstat, resids_jobs, options):
+        """
+        compares job_ids reported by oarstat with job_ids reported by oarnodes_s_Y
+        A debug msg is printed twice in the beginning, if displaying a cluster instance (-s switch)
+        in watch mode, otherwise it is printed forever, every time a discrepancy is detected anew.
+        """
+        set_jobs_in_oarnodes = set(resids_jobs.values())
+        set_jobs_in_oarnodes.discard(None)
+        discrepancy = set_jobs_in_oarnodes.difference(set(job_ids_oarstat))
+        if discrepancy and \
+            (
+                (self.report_discrepancy.count() < 2 and options.SOURCEDIR) or
+                (not options.SOURCEDIR)
+            ):
+                discr_str = ', '.join(str(c) for c in list(discrepancy))
+                self.report_discrepancy(self, discr_str)
+        return discrepancy
 
-#TODO shouldn't oar have a check_empty_file() here too??
+    @CountCalls
+    def report_discrepancy(self, discrepancy):
+        logging.error("Job-id(s) %s unaccounted for in OAR's input files!!" % discrepancy)
+
+
+# TODO shouldn't oar have a check_empty_file() here too??

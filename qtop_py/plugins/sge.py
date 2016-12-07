@@ -113,7 +113,7 @@ class SGEBatchSystem(GenericBatchSystem):
 
         return total_running_jobs, int(eval(str(total_queued_jobs))), qstatq_list
 
-    def get_worker_nodes(self):
+    def get_worker_nodes(self, job_ids, options):
         logging.debug('Parsing tree of %s' % self.sge_file)
         anonymize = self.sge_stat_maker.anonymize_func()
 
