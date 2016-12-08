@@ -165,7 +165,8 @@ class PBSBatchSystem(GenericBatchSystem):
             except KeyError:
                 pbs_values['core_job_map'] = dict()  # change of behaviour: all entries should contain the key even if no value
             else:
-                jobs = re.split(r'(?<=[A-Za-z0-9]),\s?', block['jobs'])
+                # jobs = re.split(r'(?<=[A-Za-z0-9]),\s?', block['jobs'])
+                jobs = re.findall(r'[0-9][0-9,-]*/[^,]+', block['jobs'])
                 pbs_values['core_job_map'] = dict((core, job) for job, core in self._get_jobs_cores(jobs))
             finally:
                 all_pbs_values.append(pbs_values)
