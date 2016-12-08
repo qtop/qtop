@@ -321,11 +321,18 @@ def get_detail_of_name(account_jobs_table):
         passwd_command = extract_info.get('user_details_cache').split()
         passwd_command[-1] = os.path.expandvars(passwd_command[-1])
 
-    p = subprocess.Popen(passwd_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    output, err = p.communicate("something here")
-    if 'No such file or directory' in err:
-        logging.warn('You have to set a proper command to get the passwd file in your %s file.' % QTOPCONF_YAML)
-        logging.warn('Error returned by getent: %s\nCommand issued: %s' % (err, passwd_command))
+    try:
+        p = subprocess.Popen(passwd_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    except OSError:
+        logging.critical('\nCommand "%s" could not be found in your system. \nEither remove -G switch or modify the command in '
+                         'qtopconf.yaml (value of key: %s).\nExiting...' % (colorize(passwd_command[0], color_func='Red_L'),
+                         'user_details_realtime'))
+        sys.exit(0)
+    else:
+        output, err = p.communicate("something here")
+        if 'No such file or directory' in err:
+            logging.warn('You have to set a proper command to get the passwd file in your %s file.' % QTOPCONF_YAML)
+            logging.warn('Error returned by getent: %s\nCommand issued: %s' % (err, passwd_command))
 
     detail_of_name = dict()
     for line in output.split('\n'):
