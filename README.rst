@@ -54,13 +54,13 @@ To run a demo, just run
 
 ::
 
-    ./qtop -b demo -FTgw  ## show demo, -F for full node names, -T to transpose the matrix, -g for full GECOS field, and -w for watch mode
+    ./qtop -b demo -FGTw  ## show demo, -F for full node names, -T to transpose the matrix, -G for full GECOS field, and -w for watch mode
 
 Otherwise, for daily usage you can run
 
 ::
 
-    ./qtop -b sge -Fgw ## replace sge with pbs or oar, depending on your setup (this is often picked up automagically) 
+    ./qtop -b sge -FGw ## replace sge with pbs or oar, depending on your setup (this is often picked up automagically) 
 
 
 Try ``--help`` for all available options.
