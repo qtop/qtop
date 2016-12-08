@@ -54,7 +54,7 @@ To run a demo, just run
 
 ::
 
-    ./qtop -b demo -FGTw  ## show demo, -F for full node names, -T to transpose the matrix, -g for full GECOS field, and -w for watch mode
+    ./qtop -b demo -FGTw  ## show demo, -F for full node names, -T to transpose the matrix, -G for full GECOS field, and -w for watch mode
 
 Otherwise, for daily usage you can run
 
