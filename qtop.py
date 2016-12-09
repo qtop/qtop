@@ -245,8 +245,6 @@ def finalize_filepaths_schedulercommands(options, config):
     if ran without the -s switch.
     """
     d = dict()
-    # date = time.strftime("%Y%m%d")  #TODO
-    # fn_append = "_" + str(date) if not options.SOURCEDIR else ""
     fn_append = "_" + str(os.getpid()) if not options.SOURCEDIR else ""
     for fn, path_command in config['schedulers'][scheduler].items():
         path, command = path_command.strip().split(', ')
@@ -677,42 +675,27 @@ def wait_for_keypress_or_autorefresh(viewport, FALLBACK_TERMSIZE, KEYPRESS_TIMEO
     This will make qtop wait for user input for a while,
     otherwise it will auto-refresh the display
     """
-    read_char = 'r'  # initial value, resets view position to beginning
+    _read_char = 'r'  # initial value, resets view position to beginning
 
     while sys.stdin in select.select([sys.stdin], [], [], KEYPRESS_TIMEOUT)[0]:
-        read_char = sys.stdin.read(1)
-        if read_char:
-            logging.debug('Pressed %s' % read_char)
+        _read_char = sys.stdin.read(1)
+        if _read_char:
+            logging.debug('Pressed %s' % _read_char)
             break
     else:
         state = viewport.get_term_size()
         viewport.set_term_size(*calculate_term_size(config, FALLBACK_TERMSIZE))
         new_state = viewport.get_term_size()
-        read_char = '\n' if (state == new_state) else 'r'
+        _read_char = '\n' if (state == new_state) else 'r'
         logging.debug("Auto-advancing by pressing <Enter>")
 
-    return read_char
+    return _read_char
 
-
-def ensure_worker_nodes_have_qnames(worker_nodes, jobs_dict):
-# def ensure_worker_nodes_have_qnames(worker_nodes, job_ids, job_queues):
-    """
-    This gets the first letter of the queues associated with each worker node.
-    SGE systems already contain this information.
-    """
-    if (not worker_nodes) or ('qname' in worker_nodes[0]):
-        return worker_nodes
-
-    for worker_node in worker_nodes:
-        my_jobs = worker_node['core_job_map'].values()
-        my_queues = set(jobs_dict[re.sub(r'\[\d+\]', r'[]', job_id)].job_queue for job_id in my_jobs)  # also takes care of job arrays
-        worker_node['qname'] = list(my_queues)
-    return worker_nodes
 
 def assign_color_to_each_qname(worker_nodes):
-    q_to_color = dict()
     for worker_node in worker_nodes:
         worker_node['qname'] = [q[0] for q in worker_node['qname']]
+
 
 def keep_queue_initials_only_and_colorize(worker_nodes, queue_to_color):
     # TODO remove monstrosity!
@@ -783,7 +766,7 @@ def process_options(options):
 
 
 class WNOccupancy(object):
-    def __init__(self, cluster, config, document, userid_pat_to_color):
+    def __init__(self, cluster, config, document, userid_pat_to_color, job_ids):
         self.cluster = cluster
         self.config = config
         self.document = document
@@ -791,6 +774,7 @@ class WNOccupancy(object):
         self.user_to_id = dict()
         self.jobid_to_user_to_queue = dict()
         self.user_names, self.job_states, self.job_queues = self._get_usernames_states_queues(document.jobs_dict)
+        self.job_ids = job_ids
 
         self.calculate(document, userid_pat_to_color)
 
@@ -813,8 +797,8 @@ class WNOccupancy(object):
             return self  # TODO fix
         # document.jobs_dict => job_id: job name/state/queue
 
-        self.jobid_to_user_to_queue = dict(izip(job_ids, izip(user_names, job_queues)))
-        self.user_machine_use = self.calculate_user_node_use(cluster, self.jobid_to_user_to_queue, job_ids, user_names,
+        self.jobid_to_user_to_queue = dict(izip(self.job_ids, izip(user_names, job_queues)))
+        self.user_machine_use = self.calculate_user_node_use(cluster, self.jobid_to_user_to_queue, self.job_ids, user_names,
                                                              job_queues)
 
         user_alljobs_sorted_lot = self._produce_user_lot(self.user_names)
@@ -2169,31 +2153,35 @@ if __name__ == '__main__':
                 scheduling_system = available_batch_systems[scheduler](scheduler_output_filenames, config, options)
 
                 job_ids, user_names, job_states, job_queues = scheduling_system.get_jobs_info()
-                total_running_jobs, total_queued_jobs, qstatq_lod = scheduling_system.get_queues_info() # callthis elsewhere
-                worker_nodes = scheduling_system.get_worker_nodes(job_ids, options)
+                total_running_jobs, total_queued_jobs, qstatq_lod = scheduling_system.get_queues_info()
+                worker_nodes = scheduling_system.get_worker_nodes(job_ids, job_queues, options)
 
                 JobDoc = namedtuple('JobDoc', ['user_name', 'job_state', 'job_queue'])
-                jobs_dict = dict((re.sub(r'\[\]$', '', job_id), JobDoc(user_name, job_state, job_queue))
-                    for job_id, user_name, job_state, job_queue in izip(job_ids, user_names, job_states, job_queues))
+                jobs_dict = dict((re.sub(r'\[\]$', '', job_id), JobDoc(user_name, job_state, job_queue)) for
+                                 job_id, user_name, job_state, job_queue in izip(job_ids, user_names, job_states, job_queues))
 
                 QDoc = namedtuple('QDoc', ['lm', 'queued', 'run', 'state'])
-                queues_dict = OrderedDict((qstatq['queue_name'], (QDoc(str(qstatq['lm']), qstatq['queued'],
-                                                           qstatq['run'], qstatq['state']))) for qstatq in qstatq_lod)
-                worker_nodes = ensure_worker_nodes_have_qnames(worker_nodes, jobs_dict)  # TODO is this bad to have beforehand?
+                queues_dict = OrderedDict(
+                    (qstatq['queue_name'], (QDoc(str(qstatq['lm']), qstatq['queued'], qstatq['run'], qstatq['state'])))
+                    for qstatq in qstatq_lod)
 
                 ###### Export data ###############
                 #
                 document = Document(worker_nodes, jobs_dict, queues_dict, total_running_jobs, total_queued_jobs)
-                tf = tempfile.NamedTemporaryFile(delete=False, suffix='.json', dir=savepath)  # Will become doc member one day
-                document.save(tf.name)  # dump json document to a file
-                web.set_filename(tf.name)
+                if options.EXPORT or options.WEB:
+                    # TODO: Will become doc member one day
+                    json_file = tempfile.NamedTemporaryFile(delete=False, suffix='.json', dir=savepath)
+                    document.save(json_file.name)
+                if options.WEB:
+                    web.set_filename(json_file.name)
 
                 ###### Process data ###############
                 #
                 worker_nodes = keep_queue_initials_only_and_colorize(document.worker_nodes, queue_to_color)
                 worker_nodes = colorize_nodestate(document.worker_nodes, nodestate_to_color, colorize)
                 cluster = Cluster(document, worker_nodes, WNFilter, config, options)
-                wns_occupancy = WNOccupancy(cluster, config, document, userid_pat_to_color)
+                wns_occupancy = WNOccupancy(cluster, config, document, userid_pat_to_color, job_ids)
+
                 ###### Display data ###############
                 #
                 display = TextDisplay(document, config, viewport, wns_occupancy, cluster)

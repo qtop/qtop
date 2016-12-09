@@ -55,7 +55,7 @@ def test_create_job_counts():  # user_names, job_states, state_abbrevs
     class Document(object): jobs_dict = {}
     document = Document()
 
-    wns_occupancy = WNOccupancy(None, None, document, None)
+    wns_occupancy = WNOccupancy(None, None, document, None, None)
     assert wns_occupancy._create_user_job_counts(user_names, job_states, state_abbrevs) == {
         'cancelled_of_user': {'sotiris': 0, 'yannis': 0, 'petros': 1},
         'exiting_of_user': {'sotiris': 0, 'kostas': 1, 'yannis': 0},
@@ -69,7 +69,7 @@ def test_create_user_job_counts_raises_jobnotfound():  # user_names, job_states,
     job_states = ['r', 'E', 'x', 'C']
     class Document(object): jobs_dict = {}
     document = Document()
-    wns_occupancy = WNOccupancy(None, None, document, None)
+    wns_occupancy = WNOccupancy(None, None, document, None, None)
     with pytest.raises(JobNotFound) as e:
         wns_occupancy._create_user_job_counts(user_names, job_states, state_abbrevs) == {
             'cancelled_of_user': {'sotiris': 0, 'yannis': 0, 'petros': 1},

@@ -79,7 +79,7 @@ class GenericBatchSystem(object):
     def get_queues_info(self):
         raise NotImplementedError
 
-    def get_worker_nodes(self, job_ids, options):
+    def get_worker_nodes(self, job_ids, job_queues, options):
         raise NotImplementedError
 
     def get_jobs_info(self, qstats):
@@ -88,3 +88,18 @@ class GenericBatchSystem(object):
     @staticmethod
     def get_mnemonic():
         raise NotImplementedError
+
+    @staticmethod
+    def ensure_worker_nodes_have_qnames(_worker_nodes, job_ids, job_queues):
+        """
+        This gets the queues associated with each worker node.
+        SGE systems already contain this information.
+        """
+        if not _worker_nodes:
+            return _worker_nodes
+        job_ids_queues = dict(zip(job_ids, job_queues))
+        for worker_node in _worker_nodes:
+            my_jobs = worker_node['core_job_map'].values()
+            my_queues = set(job_ids_queues[re.sub(r'\[\d+\]', r'[]', job_id)] for job_id in my_jobs)  # also for job arrays
+            worker_node['qname'] = list(my_queues)
+        return _worker_nodes

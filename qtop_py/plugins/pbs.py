@@ -134,7 +134,7 @@ class PBSBatchSystem(GenericBatchSystem):
         self.options = options
         self.qstat_maker = PBSStatExtractor(self.config, self.options)
 
-    def get_worker_nodes(self, job_ids, options):
+    def get_worker_nodes(self, job_ids, job_queues, options):
         try:
             fileutils.check_empty_file(self.pbsnodes_file)
         except fileutils.FileEmptyError:
@@ -169,6 +169,8 @@ class PBSBatchSystem(GenericBatchSystem):
                 pbs_values['core_job_map'] = dict((core, job) for job, core in self._get_jobs_cores(jobs))
             finally:
                 all_pbs_values.append(pbs_values)
+
+        all_pbs_values = self.ensure_worker_nodes_have_qnames(all_pbs_values, job_ids, job_queues)
         return all_pbs_values
 
     def get_jobs_info(self):
