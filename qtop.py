@@ -1145,19 +1145,18 @@ class WNOccupancy(object):
     def is_matrix_coreless(self):
         print_char_start = self.print_char_start
         print_char_stop = self.print_char_stop
-        non_existent_node_symbol = self.config['non_existent_node_symbol']
-        lines = []
+        non_existent_symbol = self.config['non_existent_node_symbol']
+        print_char_delta = print_char_stop - print_char_start
+        lines = 0
         core_user_map = self.core_user_map
-        for ind, k in enumerate(core_user_map):
-            cpu_core_line = core_user_map['Core' + str(ind) + 'vector'][print_char_start:print_char_stop]
-            if options.REM_EMPTY_CORELINES and \
-                    (
-                                (non_existent_node_symbol * (print_char_stop - print_char_start) == cpu_core_line) or \
-                                    (non_existent_node_symbol * (len(cpu_core_line)) == cpu_core_line)
-                    ):
-                lines.append('*')
 
-        return len(lines) == len(core_user_map)
+        for ind, k in enumerate(core_user_map):
+            core_x_vector = core_user_map['Core' + str(ind) + 'vector'][print_char_start:print_char_stop]
+            core_x_str = ''.join(str(x) for x in core_x_vector)
+            if WNOccupancy.coreline_not_there(non_existent_symbol, options.REM_EMPTY_CORELINES, print_char_delta, core_x_str) or \
+                    WNOccupancy.coreline_unused(non_existent_symbol, options.REM_EMPTY_CORELINES, print_char_delta, core_x_str):
+                lines += 1
+        return lines == len(core_user_map)
 
     def strict_check_jobs(self, cluster):
         counted_jobs = WNOccupancy._count_jobs_strict(self.core_user_map)
@@ -1185,6 +1184,24 @@ class WNOccupancy(object):
             user_machines.extend(list(cluster.workernode_dict[node]['node_user_set']))
 
         return Counter(user_machines)
+
+    @staticmethod
+    def coreline_not_there(symbol, switch, delta, core_x_str):
+        """
+        Checks if a line consists of only not-really-there cores, i.e. core 32 on a line of 24-core machines
+        (being there because there are other machines with 32 cores on an adjacent matrix)
+        """
+        return switch == 1 and ((symbol * delta == core_x_str) or (symbol * len(core_x_str) == core_x_str))
+
+    @staticmethod
+    def coreline_unused(symbol, switch, print_length, core_x_str):
+        """
+        Checks if a line consists of either not-really-there cores or unused cores
+        """
+        all_symbols_in_line = set(core_x_str)
+        unused_symbols = set(['_', symbol])
+        only_unused_symbols_in_line = all_symbols_in_line.issubset(unused_symbols)
+        return switch == 2 and only_unused_symbols_in_line and (print_length == len(core_x_str))
 
 
 class Document(namedtuple('Document', ['worker_nodes', 'jobs_dict', 'queues_dict', 'total_running_jobs', 'total_queued_jobs'])):
@@ -1611,16 +1628,13 @@ class TextDisplay(object):
         prints all coreX lines, except cores that don't show up
         anywhere in the given matrix
         """
-        # TODO: is there a way to use is_matrix_coreless in here? avoid duplication of code
         non_existent_symbol = config['non_existent_node_symbol']
+        delta = print_char_stop - print_char_start
         for ind, k in enumerate(core_user_map):
-            core_x_vector = core_user_map[k][print_char_start:print_char_stop]
-
-            if options.REM_EMPTY_CORELINES and \
-                    (
-                        (non_existent_symbol * (print_char_stop - print_char_start) == core_x_vector) or
-                            (non_existent_symbol * (len(core_x_vector)) == core_x_vector)
-                    ):
+            core_x_vector = core_user_map['Core' + str(ind) + 'vector'][print_char_start:print_char_stop]
+            core_x_str = ''.join(str(x) for x in core_x_vector)
+            if WNOccupancy.coreline_not_there(non_existent_symbol, options.REM_EMPTY_CORELINES, delta, core_x_str) or \
+                    WNOccupancy.coreline_unused(non_existent_symbol, options.REM_EMPTY_CORELINES, delta, core_x_str):
                 continue
 
             core_x_vector = self._insert_separators(core_x_vector, config['SEPARATOR'],
@@ -1705,7 +1719,6 @@ class Cluster(object):
         self.core_span = [str(x) for x in range(max_np)]
         self.options.REMAP = self.decide_remapping(_all_str_digits_with_empties)
 
-        # nodes_drop: this amount has to be chopped off of the end of workernode_list_remapped
         nodes_drop, workernode_dict, workernode_dict_remapped = self.map_worker_nodes_to_wn_dict(self.options.REMAP)
         self.workernode_dict = workernode_dict
 
@@ -1849,6 +1862,7 @@ class Cluster(object):
         1) a filter should be defined in QTOPCONF_YAML
         2) remap should be either selected by the user or enforced by the circumstances
         """
+        # nodes_drop: this amount has to be chopped off of the end of workernode_list_remapped
         nodes_drop = 0  # count change in nodes after filtering
         workernode_dict = dict()
         workernode_dict_remapped = dict()
