@@ -2165,11 +2165,11 @@ if __name__ == '__main__':
                     (qstatq['queue_name'], (QDoc(str(qstatq['lm']), qstatq['queued'], qstatq['run'], qstatq['state'])))
                     for qstatq in qstatq_lod)
 
+                document = Document(worker_nodes, jobs_dict, queues_dict, total_running_jobs, total_queued_jobs)
+
                 ###### Export data ###############
                 #
-                document = Document(worker_nodes, jobs_dict, queues_dict, total_running_jobs, total_queued_jobs)
                 if options.EXPORT or options.WEB:
-                    # TODO: Will become doc member one day
                     json_file = tempfile.NamedTemporaryFile(delete=False, suffix='.json', dir=savepath)
                     document.save(json_file.name)
                 if options.WEB:
