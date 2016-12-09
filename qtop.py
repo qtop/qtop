@@ -2130,8 +2130,9 @@ if __name__ == '__main__':
                 config, userid_pat_to_color, nodestate_to_color = load_yaml_config()  # TODO account_to_color is updated here !!
                 config = update_config_with_cmdline_vars(options, config)
                 savepath = config['savepath']
+                timestr = time.strftime("%Y%m%dT%H%M%S")
                 # qtop output is saved here
-                handle, output_fp = fileutils.get_new_temp_file(savepath, prefix='qtop_', suffix='.out')
+                handle, output_fp = fileutils.get_new_temp_file(savepath, prefix='qtop_fullview_%s_' % timestr, suffix='.out')
                 help_main_switch.append(output_fp)
 
                 attempt_faster_xml_parsing(config)
