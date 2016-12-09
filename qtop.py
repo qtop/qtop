@@ -1576,14 +1576,13 @@ class TextDisplay(object):
             wn_id_str = ''.join([colorize(elem, next(colors)) for elem in wn_id_str])
             print wn_id_str + end_label
 
-    def show_part_view(self, file, x, y):
+    def show_part_view(self, _timestr, file, x, y):
         """
         Prints part of the qtop output to the terminal (as fast as possible!)
         Justification for implementation:
         http://unix.stackexchange.com/questions/47407/cat-line-x-to-line-y-on-a-huge-file
         """
-        timestr = time.strftime("%Y%m%dT%H%M%S")
-        temp_f = tempfile.NamedTemporaryFile(delete=False, suffix='.out', prefix='qtop_partview_%s_' % timestr, dir=config[
+        temp_f = tempfile.NamedTemporaryFile(delete=False, suffix='.out', prefix='qtop_partview_%s_' % _timestr, dir=config[
             'savepath'])
         pre_cat_command = '(tail -n+%s %s | head -n%s) > %s' % (x, file, y - 1, temp_f.name)
         _ = subprocess.call(pre_cat_command, stdout=stdout, stderr=stdout, shell=True)
@@ -2171,7 +2170,8 @@ if __name__ == '__main__':
                 ###### Export data ###############
                 #
                 if options.EXPORT or options.WEB:
-                    json_file = tempfile.NamedTemporaryFile(delete=False, suffix='.json', dir=savepath)
+                    json_file = tempfile.NamedTemporaryFile(delete=False, prefix='qtop_json_%s_' % timestr,
+                                                            suffix='.json', dir=savepath)
                     document.save(json_file.name)
                 if options.WEB:
                     web.set_filename(json_file.name)
@@ -2208,7 +2208,8 @@ if __name__ == '__main__':
                             logging.critical('No (more) recorded instances available to show! Exiting...')
                             break
                     else:
-                        output_partview_fp = display.show_part_view(file=dynamic_config.get('output_fp', output_fp),
+                        output_partview_fp = display.show_part_view(timestr,
+                                                                    file=dynamic_config.get('output_fp', output_fp),
                                                                     x=viewport.v_start,
                                                                     y=viewport.v_term_size)
                         logging.debug('dynamic_config filename in main loop: %s' % dynamic_config.get('output_fp', output_fp))
