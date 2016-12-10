@@ -1286,9 +1286,11 @@ class TextDisplay(object):
                 logging.warning('=== WARNING: --- Remapping WN names and retrying heuristics... good luck with this... ---')
 
         ansi_delete_char = "\015"  # this removes the first ever character (space) appearing in the output
-        print '%(del)s%(name)s report tool. Press ? for help\n' \
-              '          ## For feedback and updates, see: https://github.com/qtop/qtop' \
-              % {'name': 'PBS' if options.CLASSIC else './qtop.py ## Queueing System', 'del': ansi_delete_char}
+        print '%(del)s%(name)s \n          ## For feedback and updates, see: %(link)s' \
+              % {'name': 'PBS' if options.CLASSIC else colorize('./qtop.py ## Queueing System report tool. Press ? for help', 'Cyan_L'),
+                 'del': ansi_delete_char,
+                 'link': colorize('https://github.com/qtop/qtop', 'Cyan_L')
+                 }
         if scheduler == 'demo':
             msg = "This data is simulated. As soon as you connect to one of the supported scheduling systems,\n" \
                   "you will see live data from your cluster. Press q to Quit."
@@ -1296,7 +1298,8 @@ class TextDisplay(object):
 
         if not options.WATCH:
             print 'Please try it with watch: %s/qtop.py -s <SOURCEDIR> -w [<every_nr_of_sec>]' % QTOPPATH
-        print colorize('===> ', 'Gray_D') + colorize('Job accounting summary', 'White') + colorize(' <=== ', 'Gray_D')
+        print colorize('===> ', 'Gray_D') + colorize('Job accounting summary', 'White') + colorize(' <=== ', 'Gray_D') + \
+              colorize(str(datetime.datetime.today())[:-7], 'White')
 
         print '%(Summary)s: Total:%(total_nodes)s Up:%(online_nodes)s Free:%(available_nodes)s %(Nodes)s | %(' \
               'working_cores)s/%(' \
