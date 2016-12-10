@@ -103,7 +103,8 @@ def raw_mode(file):
                     yield
                 finally:
                     termios.tcsetattr(file.fileno(), termios.TCSADRAIN, old_attrs)
-        yield
+        else:
+            yield
 
 
 def load_yaml_config():
@@ -2116,7 +2117,7 @@ if __name__ == '__main__':
     utils.init_logging(options)
     dynamic_config = dict()
     options, dynamic_config['force_names'] = process_options(options)
-    if options.WATCH:  # this is needed for the filtering/sorting options
+    if options.WATCH or options.REPLAY:  # this is needed for the filtering/sorting options
         try:
             old_attrs = termios.tcgetattr(0)
         except termios.error:
