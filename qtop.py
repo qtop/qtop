@@ -570,13 +570,18 @@ def control_qtop(viewport, read_char, cluster, new_attrs):
         termios.tcsetattr(sys.__stdin__.fileno(), termios.TCSADRAIN, new_attrs)
         viewport.reset_display()
 
-    elif pressed_char_hex in ['48', '3f']:  # H, ?
+    elif pressed_char_hex in ['3f']:  # ?
         viewport.reset_display()
         logging.debug('opening help...')
         if not h_counter.next() % 2:  # enter helpfile
             dynamic_config['output_fp'] = help_main_switch[0]
         else:  # exit helpfile
             del dynamic_config['output_fp']
+
+    elif pressed_char_hex in ['63']:  # c
+        logging.debug('toggling corelines displayed')
+        dynamic_config['rem_empty_corelines'] = (dynamic_config.get('rem_empty_corelines', config['rem_empty_corelines']) +1) %3
+        logging.debug('dynamic config corelines: %s' % dynamic_config['rem_empty_corelines'])
 
     logging.debug('Area Displayed: (h_start, v_start) --> (h_stop, v_stop) '
                   '\n\t(%(h_start)s, %(v_start)s) --> (%(h_stop)s, %(v_stop)s)' %
@@ -642,6 +647,7 @@ def get_output_size(max_line_len, output_fp, max_height=0):
 
 
 def update_config_with_cmdline_vars(options, config):
+    config['rem_empty_corelines'] = int(config['rem_empty_corelines'])
     for opt in options.OPTION:
         key, val = get_key_val_from_option_string(opt)
         val = eval(val) if ('True' in val or 'False' in val) else val
@@ -649,6 +655,9 @@ def update_config_with_cmdline_vars(options, config):
 
     if options.TRANSPOSE:
         config['transpose_wn_matrices'] = not config['transpose_wn_matrices']
+
+    if options.REM_EMPTY_CORELINES:
+        config['rem_empty_corelines'] += options.REM_EMPTY_CORELINES
 
     return config
 
@@ -1150,12 +1159,13 @@ class WNOccupancy(object):
         print_char_delta = print_char_stop - print_char_start
         lines = 0
         core_user_map = self.core_user_map
+        remove_corelines = dynamic_config.get('rem_empty_corelines', config['rem_empty_corelines']) + 1
 
         for ind, k in enumerate(core_user_map):
             core_x_vector = core_user_map['Core' + str(ind) + 'vector'][print_char_start:print_char_stop]
             core_x_str = ''.join(str(x) for x in core_x_vector)
-            if WNOccupancy.coreline_not_there(non_existent_symbol, options.REM_EMPTY_CORELINES, print_char_delta, core_x_str) or \
-                    WNOccupancy.coreline_unused(non_existent_symbol, options.REM_EMPTY_CORELINES, print_char_delta, core_x_str):
+            if WNOccupancy.coreline_not_there(non_existent_symbol, remove_corelines, print_char_delta, core_x_str) or \
+                    WNOccupancy.coreline_unused(non_existent_symbol, remove_corelines, print_char_delta, core_x_str):
                 lines += 1
         return lines == len(core_user_map)
 
@@ -1192,7 +1202,7 @@ class WNOccupancy(object):
         Checks if a line consists of only not-really-there cores, i.e. core 32 on a line of 24-core machines
         (being there because there are other machines with 32 cores on an adjacent matrix)
         """
-        return switch == 1 and ((symbol * delta == core_x_str) or (symbol * len(core_x_str) == core_x_str))
+        return switch == 2 and ((symbol * delta == core_x_str) or (symbol * len(core_x_str) == core_x_str))
 
     @staticmethod
     def coreline_unused(symbol, switch, print_length, core_x_str):
@@ -1202,7 +1212,7 @@ class WNOccupancy(object):
         all_symbols_in_line = set(core_x_str)
         unused_symbols = set(['_', symbol])
         only_unused_symbols_in_line = all_symbols_in_line.issubset(unused_symbols)
-        return switch == 2 and only_unused_symbols_in_line and (print_length == len(core_x_str))
+        return switch == 3 and only_unused_symbols_in_line and (print_length == len(core_x_str))
 
 
 class Document(namedtuple('Document', ['worker_nodes', 'jobs_dict', 'queues_dict', 'total_running_jobs', 'total_queued_jobs'])):
@@ -1522,6 +1532,7 @@ class TextDisplay(object):
                          userid_to_userid_re_pat, mapping, attrs, options1, options2):
 
         signal(SIGPIPE, SIG_DFL)
+        remove_corelines = dynamic_config.get('rem_empty_corelines', config['rem_empty_corelines']) + 1
 
         # if corelines vertical (transposed matrix)
         if dynamic_config.get('transpose_wn_matrices', config['transpose_wn_matrices']):
@@ -1530,8 +1541,8 @@ class TextDisplay(object):
             for ind, k in enumerate(core_user_map.keys()):
                 core_x_vector = core_user_map['Core' + str(ind) + 'vector'][print_char_start:print_char_stop]
                 core_x_str = ''.join(str(x) for x in core_x_vector)
-                if WNOccupancy.coreline_not_there(non_existent_symbol, options.REM_EMPTY_CORELINES, delta, core_x_str) or \
-                        WNOccupancy.coreline_unused(non_existent_symbol, options.REM_EMPTY_CORELINES, delta, core_x_str):
+                if WNOccupancy.coreline_not_there(non_existent_symbol, remove_corelines, delta, core_x_str) or \
+                        WNOccupancy.coreline_unused(non_existent_symbol, remove_corelines, delta, core_x_str):
                     del core_user_map[k]
 
             tuple_ = [None, 'core_map', self.transpose_matrix(core_user_map, colored=False, coloring_pat=userid_to_userid_re_pat)]
@@ -1646,11 +1657,12 @@ class TextDisplay(object):
         """
         non_existent_symbol = config['non_existent_node_symbol']
         delta = print_char_stop - print_char_start
+        remove_corelines = dynamic_config.get('rem_empty_corelines', config['rem_empty_corelines']) + 1
         for ind, k in enumerate(core_user_map):
             core_x_vector = core_user_map['Core' + str(ind) + 'vector'][print_char_start:print_char_stop]
             core_x_str = ''.join(str(x) for x in core_x_vector)
-            if WNOccupancy.coreline_not_there(non_existent_symbol, options.REM_EMPTY_CORELINES, delta, core_x_str) or \
-                    WNOccupancy.coreline_unused(non_existent_symbol, options.REM_EMPTY_CORELINES, delta, core_x_str):
+            if WNOccupancy.coreline_not_there(non_existent_symbol, remove_corelines, delta, core_x_str) or \
+                    WNOccupancy.coreline_unused(non_existent_symbol, remove_corelines, delta, core_x_str):
                 continue
 
             core_x_vector = self._insert_separators(core_x_vector, config['SEPARATOR'],

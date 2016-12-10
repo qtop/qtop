@@ -122,6 +122,7 @@ state_abbreviations:
 percentage: 0.8 # if less than PERCENTAGE x 100% of the matrices have jobs, perform a blind remap
 possible_ids: 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz # IDs of unix accounts, for the lower part of qtop
 non_existent_node_symbol: #
+rem_empty_corelines: 0 # (possible values: 0, 1, 2)
 ## Term size is autodetected. If that fails, a value is read from here.
 ## If commented out, will get a fallback_terms_size from within constants.py
 # term_size: [53, 176]
