@@ -2076,7 +2076,10 @@ class WNFilter(object):
             else:
                 nodes = keep(nodes, rule, final_pass=True)
 
-            self.worker_nodes = dict((v['domainname'], v) for v in nodes).values()
+            if len(nodes):
+                self.worker_nodes = dict((v['domainname'], v) for v in nodes).values()
+            else:
+                logging.error(colorize('Selected filter results in empty worker node set. Cancelling.', 'Red_L'))
 
         return self.worker_nodes
 
