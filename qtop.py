@@ -1516,28 +1516,40 @@ class TextDisplay(object):
 
     def print_core_lines(self, core_user_map, print_char_start, print_char_stop, transposed_matrices,
                          userid_to_userid_re_pat, mapping, attrs, options1, options2):
+
         signal(SIGPIPE, SIG_DFL)
+
+        # if corelines vertical (transposed matrix)
         if dynamic_config.get('transpose_wn_matrices', config['transpose_wn_matrices']):
-            tuple_ = [None, 'core_map', self.transpose_matrix(core_user_map, colored=False,
-                                                              coloring_pat=userid_to_userid_re_pat)]
+            non_existent_symbol = config['non_existent_node_symbol']
+            delta = print_char_stop - print_char_start
+            for ind, k in enumerate(core_user_map.keys()):
+                core_x_vector = core_user_map['Core' + str(ind) + 'vector'][print_char_start:print_char_stop]
+                core_x_str = ''.join(str(x) for x in core_x_vector)
+                if WNOccupancy.coreline_not_there(non_existent_symbol, options.REM_EMPTY_CORELINES, delta, core_x_str) or \
+                        WNOccupancy.coreline_unused(non_existent_symbol, options.REM_EMPTY_CORELINES, delta, core_x_str):
+                    del core_user_map[k]
+
+            tuple_ = [None, 'core_map', self.transpose_matrix(core_user_map, colored=False, coloring_pat=userid_to_userid_re_pat)]
             transposed_matrices.append(tuple_)
             return
-
-        for core_line in self.get_core_lines(core_user_map, print_char_start, print_char_stop,
-                                             userid_to_userid_re_pat, mapping, attrs):
-            try:
-                print core_line
-            except IOError:
+        else:
+            # if corelines horizontal (non-transposed matrix)
+            for core_line in self.get_core_lines(core_user_map, print_char_start, print_char_stop,
+                                                 userid_to_userid_re_pat, mapping, attrs):
                 try:
-                    signal(SIGPIPE, SIG_DFL)
                     print core_line
-                    sys.stdout.close()
                 except IOError:
-                    pass
-                try:
-                    sys.stderr.close()
-                except IOError:
-                    pass
+                    try:
+                        signal(SIGPIPE, SIG_DFL)
+                        print core_line
+                        sys.stdout.close()
+                    except IOError:
+                        pass
+                    try:
+                        sys.stderr.close()
+                    except IOError:
+                        pass
 
     def display_wnid_lines(self, start, stop, highest_wn, wn_vert_labels, **kwargs):
         """
@@ -1625,7 +1637,7 @@ class TextDisplay(object):
 
     def get_core_lines(self, core_user_map, print_char_start, print_char_stop, coloring_pattern, mapping, attrs):
         """
-        prints all coreX lines, except cores that don't show up
+        yields all coreX lines, except cores that don't show up
         anywhere in the given matrix
         """
         non_existent_symbol = config['non_existent_node_symbol']
