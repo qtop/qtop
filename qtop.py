@@ -1156,7 +1156,7 @@ class WNOccupancy(object):
         print_char_start = self.print_char_start
         print_char_stop = self.print_char_stop
         non_existent_symbol = self.config['non_existent_node_symbol']
-        print_char_delta = print_char_stop - print_char_start
+        delta = print_char_stop - print_char_start
         lines = 0
         core_user_map = self.core_user_map
         remove_corelines = dynamic_config.get('rem_empty_corelines', config['rem_empty_corelines']) + 1
@@ -1164,8 +1164,7 @@ class WNOccupancy(object):
         for ind, k in enumerate(core_user_map):
             core_x_vector = core_user_map['Core' + str(ind) + 'vector'][print_char_start:print_char_stop]
             core_x_str = ''.join(str(x) for x in core_x_vector)
-            if WNOccupancy.coreline_not_there(non_existent_symbol, remove_corelines, print_char_delta, core_x_str) or \
-                    WNOccupancy.coreline_unused(non_existent_symbol, remove_corelines, print_char_delta, core_x_str):
+            if WNOccupancy.coreline_notthere_or_unused(non_existent_symbol, remove_corelines, delta, core_x_str):
                 lines += 1
         return lines == len(core_user_map)
 
@@ -1213,6 +1212,11 @@ class WNOccupancy(object):
         unused_symbols = set(['_', symbol])
         only_unused_symbols_in_line = all_symbols_in_line.issubset(unused_symbols)
         return switch == 3 and only_unused_symbols_in_line and (print_length == len(core_x_str))
+
+    @staticmethod
+    def coreline_notthere_or_unused(symbol, switch, delta, core_x_str):
+        return WNOccupancy.coreline_not_there(symbol, switch, delta, core_x_str) \
+                or WNOccupancy.coreline_unused(symbol, switch, delta, core_x_str)
 
 
 class Document(namedtuple('Document', ['worker_nodes', 'jobs_dict', 'queues_dict', 'total_running_jobs', 'total_queued_jobs'])):
@@ -1541,8 +1545,7 @@ class TextDisplay(object):
             for ind, k in enumerate(core_user_map.keys()):
                 core_x_vector = core_user_map['Core' + str(ind) + 'vector'][print_char_start:print_char_stop]
                 core_x_str = ''.join(str(x) for x in core_x_vector)
-                if WNOccupancy.coreline_not_there(non_existent_symbol, remove_corelines, delta, core_x_str) or \
-                        WNOccupancy.coreline_unused(non_existent_symbol, remove_corelines, delta, core_x_str):
+                if WNOccupancy.coreline_notthere_or_unused(non_existent_symbol, remove_corelines, delta, core_x_str):
                     del core_user_map[k]
 
             tuple_ = [None, 'core_map', self.transpose_matrix(core_user_map, colored=False, coloring_pat=userid_to_userid_re_pat)]
@@ -1661,8 +1664,7 @@ class TextDisplay(object):
         for ind, k in enumerate(core_user_map):
             core_x_vector = core_user_map['Core' + str(ind) + 'vector'][print_char_start:print_char_stop]
             core_x_str = ''.join(str(x) for x in core_x_vector)
-            if WNOccupancy.coreline_not_there(non_existent_symbol, remove_corelines, delta, core_x_str) or \
-                    WNOccupancy.coreline_unused(non_existent_symbol, remove_corelines, delta, core_x_str):
+            if WNOccupancy.coreline_notthere_or_unused(non_existent_symbol, remove_corelines, delta, core_x_str):
                 continue
 
             core_x_vector = self._insert_separators(core_x_vector, config['SEPARATOR'],
