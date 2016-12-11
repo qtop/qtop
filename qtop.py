@@ -51,6 +51,19 @@ import time
 # if not options.COLORFILE:
 #     options.COLORFILE = os.path.expandvars('$HOME/qtop/qtop/qtop.colormap')
 
+def gauge_core_vectors(core_user_map, print_char_start, print_char_stop, coreline_notthere_or_unused, non_existent_symbol,
+                          remove_corelines):
+    """
+    generator that loops over each core user vector and yields a boolean stating whether the core vector can be omitted via
+    REM_EMPTY_CORELINES or its respective switch
+    """
+    delta = print_char_stop - print_char_start
+    for ind, k in enumerate(core_user_map):
+        core_x_vector = core_user_map['Core' + str(ind) + 'vector'][print_char_start:print_char_stop]
+        core_x_str = ''.join(str(x) for x in core_x_vector)
+        yield coreline_notthere_or_unused(non_existent_symbol, remove_corelines, delta, core_x_str), k, core_x_vector, ind
+
+
 def get_date_obj_from_str(s, now):
     """
     Expects string s to be in either of the following formats:
@@ -1156,15 +1169,17 @@ class WNOccupancy(object):
         print_char_start = self.print_char_start
         print_char_stop = self.print_char_stop
         non_existent_symbol = self.config['non_existent_node_symbol']
-        delta = print_char_stop - print_char_start
         lines = 0
         core_user_map = self.core_user_map
         remove_corelines = dynamic_config.get('rem_empty_corelines', config['rem_empty_corelines']) + 1
 
-        for ind, k in enumerate(core_user_map):
-            core_x_vector = core_user_map['Core' + str(ind) + 'vector'][print_char_start:print_char_stop]
-            core_x_str = ''.join(str(x) for x in core_x_vector)
-            if WNOccupancy.coreline_notthere_or_unused(non_existent_symbol, remove_corelines, delta, core_x_str):
+        for is_corevector_removable, k, core_x_vector, ind in gauge_core_vectors(core_user_map,
+                                                                                print_char_start,
+                                                                                print_char_stop,
+                                                                                WNOccupancy.coreline_notthere_or_unused,
+                                                                                non_existent_symbol,
+                                                                                remove_corelines):
+            if is_corevector_removable:
                 lines += 1
         return lines == len(core_user_map)
 
@@ -1541,11 +1556,13 @@ class TextDisplay(object):
         # if corelines vertical (transposed matrix)
         if dynamic_config.get('transpose_wn_matrices', config['transpose_wn_matrices']):
             non_existent_symbol = config['non_existent_node_symbol']
-            delta = print_char_stop - print_char_start
-            for ind, k in enumerate(core_user_map.keys()):
-                core_x_vector = core_user_map['Core' + str(ind) + 'vector'][print_char_start:print_char_stop]
-                core_x_str = ''.join(str(x) for x in core_x_vector)
-                if WNOccupancy.coreline_notthere_or_unused(non_existent_symbol, remove_corelines, delta, core_x_str):
+            for is_corevector_removable, k, core_x_vector, ind in gauge_core_vectors(core_user_map,
+                                                                                    print_char_start,
+                                                                                    print_char_stop,
+                                                                                    WNOccupancy.coreline_notthere_or_unused,
+                                                                                    non_existent_symbol,
+                                                                                    remove_corelines):
+                if is_corevector_removable:
                     del core_user_map[k]
 
             tuple_ = [None, 'core_map', self.transpose_matrix(core_user_map, colored=False, coloring_pat=userid_to_userid_re_pat)]
@@ -1659,12 +1676,14 @@ class TextDisplay(object):
         anywhere in the given matrix
         """
         non_existent_symbol = config['non_existent_node_symbol']
-        delta = print_char_stop - print_char_start
         remove_corelines = dynamic_config.get('rem_empty_corelines', config['rem_empty_corelines']) + 1
-        for ind, k in enumerate(core_user_map):
-            core_x_vector = core_user_map['Core' + str(ind) + 'vector'][print_char_start:print_char_stop]
-            core_x_str = ''.join(str(x) for x in core_x_vector)
-            if WNOccupancy.coreline_notthere_or_unused(non_existent_symbol, remove_corelines, delta, core_x_str):
+        for is_corevector_removable, k, core_x_vector, ind in gauge_core_vectors(core_user_map,
+                                                                                print_char_start,
+                                                                                print_char_stop,
+                                                                                WNOccupancy.coreline_notthere_or_unused,
+                                                                                non_existent_symbol,
+                                                                                remove_corelines):
+            if is_corevector_removable:
                 continue
 
             core_x_vector = self._insert_separators(core_x_vector, config['SEPARATOR'],
