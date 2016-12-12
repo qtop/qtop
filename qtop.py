@@ -413,6 +413,7 @@ def control_qtop(viewport, read_char, cluster, new_attrs):
     if pressed_char_hex in ['6a', '20']:  # j, spacebar
         logging.debug('v_start: %s' % viewport.v_start)
         if viewport.scroll_down():
+            # TODO  make variable for **s, maybe factorize whole print line
             print '%s Going down...' % colorize('***', 'Green_L')
         else:
             print '%s Staying put' % colorize('***', 'Green_L')
@@ -471,7 +472,7 @@ def control_qtop(viewport, read_char, cluster, new_attrs):
         print '%s Changing to %s' % (colorize('***', 'Green_L'), msg)
 
     elif pressed_char_hex in ['71']:  # q
-        print '%s \nExiting. Thank you for ..watching ;)\n'
+        print colorize('\nExiting. Thank you for ..watching ;)\n', 'Cyan_L')
         web.stop()
         sys.exit(0)
 
