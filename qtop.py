@@ -61,7 +61,7 @@ def gauge_core_vectors(core_user_map, print_char_start, print_char_stop, corelin
     for ind, k in enumerate(core_user_map):
         core_x_vector = core_user_map['Core' + str(ind) + 'vector'][print_char_start:print_char_stop]
         core_x_str = ''.join(str(x) for x in core_x_vector)
-        yield coreline_notthere_or_unused(non_existent_symbol, remove_corelines, delta, core_x_str), k, core_x_vector, ind
+        yield core_x_vector, ind, k, coreline_notthere_or_unused(non_existent_symbol, remove_corelines, delta, core_x_str)
 
 
 def get_date_obj_from_str(s, now):
@@ -1165,20 +1165,20 @@ class WNOccupancy(object):
                 user, queue = user_queue
                 yield user, str(core), queue
 
-    def is_matrix_coreless(self):
-        print_char_start = self.print_char_start
-        print_char_stop = self.print_char_stop
+    def is_matrix_coreless(self, print_char_start, print_char_stop):
+        # print_char_start = self.print_char_start
+        # print_char_stop = self.print_char_stop
         non_existent_symbol = self.config['non_existent_node_symbol']
         lines = 0
         core_user_map = self.core_user_map
         remove_corelines = dynamic_config.get('rem_empty_corelines', config['rem_empty_corelines']) + 1
 
-        for is_corevector_removable, k, core_x_vector, ind in gauge_core_vectors(core_user_map,
-                                                                                print_char_start,
-                                                                                print_char_stop,
-                                                                                WNOccupancy.coreline_notthere_or_unused,
-                                                                                non_existent_symbol,
-                                                                                remove_corelines):
+        for core_x_vector, ind, k, is_corevector_removable in gauge_core_vectors(core_user_map,
+                                                                                 print_char_start,
+                                                                                 print_char_stop,
+                                                                                 WNOccupancy.coreline_notthere_or_unused,
+                                                                                 non_existent_symbol,
+                                                                                 remove_corelines):
             if is_corevector_removable:
                 lines += 1
         return lines == len(core_user_map)
@@ -1371,6 +1371,7 @@ class TextDisplay(object):
 
         self.display_basic_legend()
         self.display_matrix(wns_occupancy, print_char_start, print_char_stop)
+        # the transposed matrix is one continuous block, doesn't make sense to break into more matrices
         if not dynamic_config.get('transpose_wn_matrices', config['transpose_wn_matrices']):
             self.display_remaining_matrices(wns_occupancy, print_char_start, print_char_stop)
 
@@ -1443,8 +1444,7 @@ class TextDisplay(object):
         """
         occupancy_parts needs to be redefined for each matrix, because of changed parameter values
         """
-        # was: (not wns_occupancy.user_to_id) or is_matrix_coreless
-        if self.wns_occupancy.is_matrix_coreless():
+        if self.wns_occupancy.is_matrix_coreless(print_char_start, print_char_stop):
             return
 
         wn_vert_labels = wns_occupancy.wn_vert_labels
@@ -1521,7 +1521,6 @@ class TextDisplay(object):
         56 cores from the next matrix on.
         """
         extra_matrices_nr = wns_occupancy.extra_matrices_nr
-        # term_columns = wns_occupancy.term_columns
         term_columns = viewport.h_term_size
 
         # need node_state, temp
@@ -1556,7 +1555,7 @@ class TextDisplay(object):
         # if corelines vertical (transposed matrix)
         if dynamic_config.get('transpose_wn_matrices', config['transpose_wn_matrices']):
             non_existent_symbol = config['non_existent_node_symbol']
-            for is_corevector_removable, k, core_x_vector, ind in gauge_core_vectors(core_user_map,
+            for core_x_vector, ind, k, is_corevector_removable in gauge_core_vectors(core_user_map,
                                                                                     print_char_start,
                                                                                     print_char_stop,
                                                                                     WNOccupancy.coreline_notthere_or_unused,
@@ -1677,12 +1676,12 @@ class TextDisplay(object):
         """
         non_existent_symbol = config['non_existent_node_symbol']
         remove_corelines = dynamic_config.get('rem_empty_corelines', config['rem_empty_corelines']) + 1
-        for is_corevector_removable, k, core_x_vector, ind in gauge_core_vectors(core_user_map,
-                                                                                print_char_start,
-                                                                                print_char_stop,
-                                                                                WNOccupancy.coreline_notthere_or_unused,
-                                                                                non_existent_symbol,
-                                                                                remove_corelines):
+        for core_x_vector, ind, k, is_corevector_removable in gauge_core_vectors(core_user_map,
+                                                                                 print_char_start,
+                                                                                 print_char_stop,
+                                                                                 WNOccupancy.coreline_notthere_or_unused,
+                                                                                 non_existent_symbol,
+                                                                                 remove_corelines):
             if is_corevector_removable:
                 continue
 
