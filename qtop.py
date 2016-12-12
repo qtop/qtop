@@ -51,6 +51,19 @@ import time
 # if not options.COLORFILE:
 #     options.COLORFILE = os.path.expandvars('$HOME/qtop/qtop/qtop.colormap')
 
+def gauge_core_vectors(core_user_map, print_char_start, print_char_stop, coreline_notthere_or_unused, non_existent_symbol,
+                          remove_corelines):
+    """
+    generator that loops over each core user vector and yields a boolean stating whether the core vector can be omitted via
+    REM_EMPTY_CORELINES or its respective switch
+    """
+    delta = print_char_stop - print_char_start
+    for ind, k in enumerate(core_user_map):
+        core_x_vector = core_user_map['Core' + str(ind) + 'vector'][print_char_start:print_char_stop]
+        core_x_str = ''.join(str(x) for x in core_x_vector)
+        yield core_x_vector, ind, k, coreline_notthere_or_unused(non_existent_symbol, remove_corelines, delta, core_x_str)
+
+
 def get_date_obj_from_str(s, now):
     """
     Expects string s to be in either of the following formats:
@@ -103,7 +116,8 @@ def raw_mode(file):
                     yield
                 finally:
                     termios.tcsetattr(file.fileno(), termios.TCSADRAIN, old_attrs)
-        yield
+        else:
+            yield
 
 
 def load_yaml_config():
@@ -399,22 +413,23 @@ def control_qtop(viewport, read_char, cluster, new_attrs):
     if pressed_char_hex in ['6a', '20']:  # j, spacebar
         logging.debug('v_start: %s' % viewport.v_start)
         if viewport.scroll_down():
-            logging.info('Going down...')
+            # TODO  make variable for **s, maybe factorize whole print line
+            print '%s Going down...' % colorize('***', 'Green_L')
         else:
-            logging.info('Staying put')
+            print '%s Staying put' % colorize('***', 'Green_L')
 
     elif pressed_char_hex in ['6b', '7f']:  # k, Backspace
         if viewport.scroll_up():
-            logging.info('Going up...')
+            print '%s Going up...' % colorize('***', 'Green_L')
         else:
-            logging.info('Staying put')
+            print '%s Staying put' % colorize('***', 'Green_L')
 
     elif pressed_char_hex in ['6c']:  # l
-        logging.info('Going right...')
+        print '%s Going right...' % colorize('***', 'Green_L')
         viewport.scroll_right()
 
     elif pressed_char_hex in ['24']:  # $
-        logging.info('Going far right...')
+        print '%s Going far right...' % colorize('***', 'Green_L')
         viewport.scroll_far_right()
         logging.info('h_start: %s' % viewport.h_start)
         logging.info('max_line_len: %s' % max_line_len)
@@ -422,46 +437,48 @@ def control_qtop(viewport, read_char, cluster, new_attrs):
         logging.info('h_stop: %s' % viewport.h_stop)
 
     elif pressed_char_hex in ['68']:  # h
-        logging.info('Going left...')
+        print '%s Going left...' % colorize('***', 'Green_L')
         viewport.scroll_left()
 
     elif pressed_char_hex in ['30']:   # 0
-        logging.info('Going far left...')
+        print '%s Going far left...' % colorize('***', 'Green_L')
         viewport.scroll_far_left()
 
     elif pressed_char_hex in ['4a', '47']:  # S-j, G
-        logging.info('Going to the bottom...')
         logging.debug('v_start: %s' % viewport.v_start)
         if viewport.scroll_bottom():
-            logging.info('Going to the bottom...')
+            print '%s Going to the bottom...' % colorize('***', 'Green_L')
         else:
-            logging.info('Staying put')
+            print '%s Staying put' % colorize('***', 'Green_L')
 
     elif pressed_char_hex in ['4b', '67']:  # S-k, g
-        logging.info('Going to the top...')
+        print '%s Going to the top...' % colorize('***', 'Green_L')
         logging.debug('v_start: %s' % viewport.v_start)
         viewport.scroll_top()
 
-    elif pressed_char_hex in ['72']:  # r
+    elif pressed_char_hex in ['52']:  # R
+        print '%s Resetting display...' % colorize('***', 'Green_L')
         viewport.reset_display()
 
     elif pressed_char_hex in ['74']:  # t
-        logging.info('Transposing matrix...')
+        print '%s Transposing matrix...' % colorize('***', 'Green_L')
         dynamic_config['transpose_wn_matrices'] = not dynamic_config.get('transpose_wn_matrices',
                                                                          config['transpose_wn_matrices'])
         viewport.reset_display()
 
     elif pressed_char_hex in ['6d']:  # m
-        logging.info('Changing core coloring...')
-        dynamic_config['core_coloring'] = change_mapping.next()
+        new_mapping, msg = change_mapping.next()
+        dynamic_config['core_coloring'] = new_mapping
+        print '%s Changing to %s' % (colorize('***', 'Green_L'), msg)
 
     elif pressed_char_hex in ['71']:  # q
-        print '\nExiting. Thank you for ..watching ;)\n'
+        print colorize('\nExiting. Thank you for ..watching ;)\n', 'Cyan_L')
         web.stop()
         sys.exit(0)
 
     elif pressed_char_hex in ['46']:  # F
         dynamic_config['force_names'] = not dynamic_config['force_names']
+        print '%s Toggling full-name/incremental nr WN labels' % colorize('***', 'Green_L')
 
     elif pressed_char_hex in ['73']:  # s
         sort_map = OrderedDict()
@@ -569,13 +586,25 @@ def control_qtop(viewport, read_char, cluster, new_attrs):
         termios.tcsetattr(sys.__stdin__.fileno(), termios.TCSADRAIN, new_attrs)
         viewport.reset_display()
 
-    elif pressed_char_hex in ['48', '3f']:  # H, ?
+    elif pressed_char_hex in ['3f']:  # ?
         viewport.reset_display()
-        logging.debug('opening help...')
+        print '%s opening help...' % colorize('***', 'Green_L')
         if not h_counter.next() % 2:  # enter helpfile
             dynamic_config['output_fp'] = help_main_switch[0]
         else:  # exit helpfile
             del dynamic_config['output_fp']
+
+    elif pressed_char_hex in ['72']:  # r
+        logging.debug('toggling corelines displayed')
+        dynamic_config['rem_empty_corelines'] = (dynamic_config.get('rem_empty_corelines', config['rem_empty_corelines']) +1) %3
+        if dynamic_config['rem_empty_corelines'] == 1:
+            print '%s Hiding not-really-there ("#") corelines' % colorize('***', 'Green_L')
+        elif dynamic_config['rem_empty_corelines'] == 2:
+            print '%s Hiding all unused ("#" and "_") corelines' % colorize('***', 'Green_L')
+        else:
+            print '%s Showing all corelines' % colorize('***', 'Green_L')
+
+        logging.debug('dynamic config corelines: %s' % dynamic_config['rem_empty_corelines'])
 
     logging.debug('Area Displayed: (h_start, v_start) --> (h_stop, v_stop) '
                   '\n\t(%(h_start)s, %(v_start)s) --> (%(h_stop)s, %(v_stop)s)' %
@@ -641,6 +670,7 @@ def get_output_size(max_line_len, output_fp, max_height=0):
 
 
 def update_config_with_cmdline_vars(options, config):
+    config['rem_empty_corelines'] = int(config['rem_empty_corelines'])
     for opt in options.OPTION:
         key, val = get_key_val_from_option_string(opt)
         val = eval(val) if ('True' in val or 'False' in val) else val
@@ -648,6 +678,9 @@ def update_config_with_cmdline_vars(options, config):
 
     if options.TRANSPOSE:
         config['transpose_wn_matrices'] = not config['transpose_wn_matrices']
+
+    if options.REM_EMPTY_CORELINES:
+        config['rem_empty_corelines'] += options.REM_EMPTY_CORELINES
 
     return config
 
@@ -675,7 +708,7 @@ def wait_for_keypress_or_autorefresh(viewport, FALLBACK_TERMSIZE, KEYPRESS_TIMEO
     This will make qtop wait for user input for a while,
     otherwise it will auto-refresh the display
     """
-    _read_char = 'r'  # initial value, resets view position to beginning
+    _read_char = 'R'  # initial value, resets view position to beginning
 
     while sys.stdin in select.select([sys.stdin], [], [], KEYPRESS_TIMEOUT)[0]:
         _read_char = sys.stdin.read(1)
@@ -1142,22 +1175,23 @@ class WNOccupancy(object):
                 user, queue = user_queue
                 yield user, str(core), queue
 
-    def is_matrix_coreless(self):
-        print_char_start = self.print_char_start
-        print_char_stop = self.print_char_stop
-        non_existent_node_symbol = self.config['non_existent_node_symbol']
-        lines = []
+    def is_matrix_coreless(self, print_char_start, print_char_stop):
+        # print_char_start = self.print_char_start
+        # print_char_stop = self.print_char_stop
+        non_existent_symbol = self.config['non_existent_node_symbol']
+        lines = 0
         core_user_map = self.core_user_map
-        for ind, k in enumerate(core_user_map):
-            cpu_core_line = core_user_map['Core' + str(ind) + 'vector'][print_char_start:print_char_stop]
-            if options.REM_EMPTY_CORELINES and \
-                    (
-                                (non_existent_node_symbol * (print_char_stop - print_char_start) == cpu_core_line) or \
-                                    (non_existent_node_symbol * (len(cpu_core_line)) == cpu_core_line)
-                    ):
-                lines.append('*')
+        remove_corelines = dynamic_config.get('rem_empty_corelines', config['rem_empty_corelines']) + 1
 
-        return len(lines) == len(core_user_map)
+        for core_x_vector, ind, k, is_corevector_removable in gauge_core_vectors(core_user_map,
+                                                                                 print_char_start,
+                                                                                 print_char_stop,
+                                                                                 WNOccupancy.coreline_notthere_or_unused,
+                                                                                 non_existent_symbol,
+                                                                                 remove_corelines):
+            if is_corevector_removable:
+                lines += 1
+        return lines == len(core_user_map)
 
     def strict_check_jobs(self, cluster):
         counted_jobs = WNOccupancy._count_jobs_strict(self.core_user_map)
@@ -1185,6 +1219,29 @@ class WNOccupancy(object):
             user_machines.extend(list(cluster.workernode_dict[node]['node_user_set']))
 
         return Counter(user_machines)
+
+    @staticmethod
+    def coreline_not_there(symbol, switch, delta, core_x_str):
+        """
+        Checks if a line consists of only not-really-there cores, i.e. core 32 on a line of 24-core machines
+        (being there because there are other machines with 32 cores on an adjacent matrix)
+        """
+        return switch == 2 and ((symbol * delta == core_x_str) or (symbol * len(core_x_str) == core_x_str))
+
+    @staticmethod
+    def coreline_unused(symbol, switch, print_length, core_x_str):
+        """
+        Checks if a line consists of either not-really-there cores or unused cores
+        """
+        all_symbols_in_line = set(core_x_str)
+        unused_symbols = set(['_', symbol])
+        only_unused_symbols_in_line = all_symbols_in_line.issubset(unused_symbols)
+        return switch == 3 and only_unused_symbols_in_line and (print_length == len(core_x_str))
+
+    @staticmethod
+    def coreline_notthere_or_unused(symbol, switch, delta, core_x_str):
+        return WNOccupancy.coreline_not_there(symbol, switch, delta, core_x_str) \
+                or WNOccupancy.coreline_unused(symbol, switch, delta, core_x_str)
 
 
 class Document(namedtuple('Document', ['worker_nodes', 'jobs_dict', 'queues_dict', 'total_running_jobs', 'total_queued_jobs'])):
@@ -1268,9 +1325,11 @@ class TextDisplay(object):
                 logging.warning('=== WARNING: --- Remapping WN names and retrying heuristics... good luck with this... ---')
 
         ansi_delete_char = "\015"  # this removes the first ever character (space) appearing in the output
-        print '%(del)s%(name)s report tool. Press ? for help\n' \
-              '          ## For feedback and updates, see: https://github.com/qtop/qtop' \
-              % {'name': 'PBS' if options.CLASSIC else './qtop.py ## Queueing System', 'del': ansi_delete_char}
+        print '%(del)s%(name)s \n          ## For feedback and updates, see: %(link)s' \
+              % {'name': 'PBS' if options.CLASSIC else colorize('./qtop.py ## Queueing System report tool. Press ? for help', 'Cyan_L'),
+                 'del': ansi_delete_char,
+                 'link': colorize('https://github.com/qtop/qtop', 'Cyan_L')
+                 }
         if scheduler == 'demo':
             msg = "This data is simulated. As soon as you connect to one of the supported scheduling systems,\n" \
                   "you will see live data from your cluster. Press q to Quit."
@@ -1278,14 +1337,15 @@ class TextDisplay(object):
 
         if not options.WATCH:
             print 'Please try it with watch: %s/qtop.py -s <SOURCEDIR> -w [<every_nr_of_sec>]' % QTOPPATH
-        print colorize('===> ', 'Gray_D') + colorize('Job accounting summary', 'White') + colorize(' <=== ', 'Gray_D')
+        print colorize('===> ', 'Gray_D') + colorize('Job accounting summary', 'White') + colorize(' <=== ', 'Gray_D') + \
+              colorize(str(datetime.datetime.today())[:-7], 'White')
 
         print '%(Summary)s: Total:%(total_nodes)s Up:%(online_nodes)s Free:%(available_nodes)s %(Nodes)s | %(' \
               'working_cores)s/%(' \
               'total_cores)s %(Cores)s |' \
               '   %(total_run_jobs)s+%(total_q_jobs)s %(jobs)s (R + Q) %(reported_by)s' % \
               {
-                  'Summary': colorize('Summary', 'Yellow'),
+                  'Summary': colorize('Summary', 'Cyan_L'),
                   'online_nodes': colorize(str(cluster.total_wn - cluster.offdown_nodes), 'Red_L'),
                   'available_nodes': colorize(str(cluster.available_wn), 'Red_L'),
                   'total_nodes': colorize(str(cluster.total_wn), 'Red_L'),
@@ -1299,7 +1359,7 @@ class TextDisplay(object):
                   'reported_by': 'reported by qstat - q' if options.CLASSIC else ''
               }
 
-        print ' %(queues)s: ' % {'queues': colorize('Queues', 'Yellow')},
+        print ' %(queues)s: ' % {'queues': colorize('Queues', 'Cyan_L')},
         for _queue_name, q_tuple in qstatq_lod.items():
             q_running_jobs, q_queued_jobs, q_state = q_tuple.run, q_tuple.queued, q_tuple.state
             account = _queue_name if _queue_name in queue_to_color else 'account_not_colored'
@@ -1321,6 +1381,7 @@ class TextDisplay(object):
 
         self.display_basic_legend()
         self.display_matrix(wns_occupancy, print_char_start, print_char_stop)
+        # the transposed matrix is one continuous block, doesn't make sense to break into more matrices
         if not dynamic_config.get('transpose_wn_matrices', config['transpose_wn_matrices']):
             self.display_remaining_matrices(wns_occupancy, print_char_start, print_char_stop)
 
@@ -1393,8 +1454,7 @@ class TextDisplay(object):
         """
         occupancy_parts needs to be redefined for each matrix, because of changed parameter values
         """
-        # was: (not wns_occupancy.user_to_id) or is_matrix_coreless
-        if self.wns_occupancy.is_matrix_coreless():
+        if self.wns_occupancy.is_matrix_coreless(print_char_start, print_char_stop):
             return
 
         wn_vert_labels = wns_occupancy.wn_vert_labels
@@ -1471,7 +1531,6 @@ class TextDisplay(object):
         56 cores from the next matrix on.
         """
         extra_matrices_nr = wns_occupancy.extra_matrices_nr
-        # term_columns = wns_occupancy.term_columns
         term_columns = viewport.h_term_size
 
         # need node_state, temp
@@ -1499,28 +1558,42 @@ class TextDisplay(object):
 
     def print_core_lines(self, core_user_map, print_char_start, print_char_stop, transposed_matrices,
                          userid_to_userid_re_pat, mapping, attrs, options1, options2):
+
         signal(SIGPIPE, SIG_DFL)
+        remove_corelines = dynamic_config.get('rem_empty_corelines', config['rem_empty_corelines']) + 1
+
+        # if corelines vertical (transposed matrix)
         if dynamic_config.get('transpose_wn_matrices', config['transpose_wn_matrices']):
-            tuple_ = [None, 'core_map', self.transpose_matrix(core_user_map, colored=False,
-                                                              coloring_pat=userid_to_userid_re_pat)]
+            non_existent_symbol = config['non_existent_node_symbol']
+            for core_x_vector, ind, k, is_corevector_removable in gauge_core_vectors(core_user_map,
+                                                                                    print_char_start,
+                                                                                    print_char_stop,
+                                                                                    WNOccupancy.coreline_notthere_or_unused,
+                                                                                    non_existent_symbol,
+                                                                                    remove_corelines):
+                if is_corevector_removable:
+                    del core_user_map[k]
+
+            tuple_ = [None, 'core_map', self.transpose_matrix(core_user_map, colored=False, coloring_pat=userid_to_userid_re_pat)]
             transposed_matrices.append(tuple_)
             return
-
-        for core_line in self.get_core_lines(core_user_map, print_char_start, print_char_stop,
-                                             userid_to_userid_re_pat, mapping, attrs):
-            try:
-                print core_line
-            except IOError:
+        else:
+            # if corelines horizontal (non-transposed matrix)
+            for core_line in self.get_core_lines(core_user_map, print_char_start, print_char_stop,
+                                                 userid_to_userid_re_pat, mapping, attrs):
                 try:
-                    signal(SIGPIPE, SIG_DFL)
                     print core_line
-                    sys.stdout.close()
                 except IOError:
-                    pass
-                try:
-                    sys.stderr.close()
-                except IOError:
-                    pass
+                    try:
+                        signal(SIGPIPE, SIG_DFL)
+                        print core_line
+                        sys.stdout.close()
+                    except IOError:
+                        pass
+                    try:
+                        sys.stderr.close()
+                    except IOError:
+                        pass
 
     def display_wnid_lines(self, start, stop, highest_wn, wn_vert_labels, **kwargs):
         """
@@ -1608,19 +1681,18 @@ class TextDisplay(object):
 
     def get_core_lines(self, core_user_map, print_char_start, print_char_stop, coloring_pattern, mapping, attrs):
         """
-        prints all coreX lines, except cores that don't show up
+        yields all coreX lines, except cores that don't show up
         anywhere in the given matrix
         """
-        # TODO: is there a way to use is_matrix_coreless in here? avoid duplication of code
         non_existent_symbol = config['non_existent_node_symbol']
-        for ind, k in enumerate(core_user_map):
-            core_x_vector = core_user_map[k][print_char_start:print_char_stop]
-
-            if options.REM_EMPTY_CORELINES and \
-                    (
-                        (non_existent_symbol * (print_char_stop - print_char_start) == core_x_vector) or
-                            (non_existent_symbol * (len(core_x_vector)) == core_x_vector)
-                    ):
+        remove_corelines = dynamic_config.get('rem_empty_corelines', config['rem_empty_corelines']) + 1
+        for core_x_vector, ind, k, is_corevector_removable in gauge_core_vectors(core_user_map,
+                                                                                 print_char_start,
+                                                                                 print_char_stop,
+                                                                                 WNOccupancy.coreline_notthere_or_unused,
+                                                                                 non_existent_symbol,
+                                                                                 remove_corelines):
+            if is_corevector_removable:
                 continue
 
             core_x_vector = self._insert_separators(core_x_vector, config['SEPARATOR'],
@@ -1705,7 +1777,6 @@ class Cluster(object):
         self.core_span = [str(x) for x in range(max_np)]
         self.options.REMAP = self.decide_remapping(_all_str_digits_with_empties)
 
-        # nodes_drop: this amount has to be chopped off of the end of workernode_list_remapped
         nodes_drop, workernode_dict, workernode_dict_remapped = self.map_worker_nodes_to_wn_dict(self.options.REMAP)
         self.workernode_dict = workernode_dict
 
@@ -1849,6 +1920,7 @@ class Cluster(object):
         1) a filter should be defined in QTOPCONF_YAML
         2) remap should be either selected by the user or enforced by the circumstances
         """
+        # nodes_drop: this amount has to be chopped off of the end of workernode_list_remapped
         nodes_drop = 0  # count change in nodes after filtering
         workernode_dict = dict()
         workernode_dict_remapped = dict()
@@ -2050,7 +2122,10 @@ class WNFilter(object):
             else:
                 nodes = keep(nodes, rule, final_pass=True)
 
-            self.worker_nodes = dict((v['domainname'], v) for v in nodes).values()
+            if len(nodes):
+                self.worker_nodes = dict((v['domainname'], v) for v in nodes).values()
+            else:
+                logging.error(colorize('Selected filter results in empty worker node set. Cancelling.', 'Red_L'))
 
         return self.worker_nodes
 
@@ -2087,7 +2162,7 @@ if __name__ == '__main__':
     utils.init_logging(options)
     dynamic_config = dict()
     options, dynamic_config['force_names'] = process_options(options)
-    if options.WATCH:  # this is needed for the filtering/sorting options
+    if options.WATCH or options.REPLAY:  # this is needed for the filtering/sorting options
         try:
             old_attrs = termios.tcgetattr(0)
         except termios.error:
@@ -2097,7 +2172,7 @@ if __name__ == '__main__':
     available_batch_systems = discover_qtop_batch_systems()
 
     stdout = sys.stdout  # keep a copy of the initial value of sys.stdout
-    change_mapping = cycle(['queue_to_color', 'userid_pat_to_color'])
+    change_mapping = cycle([('queue_to_color', 'color by queue'), ('userid_pat_to_color', 'color by user')])
     h_counter = cycle([0, 1])
 
     viewport = Viewport()  # controls the part of the qtop matrix shown on screen
