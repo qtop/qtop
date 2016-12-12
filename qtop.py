@@ -413,22 +413,22 @@ def control_qtop(viewport, read_char, cluster, new_attrs):
     if pressed_char_hex in ['6a', '20']:  # j, spacebar
         logging.debug('v_start: %s' % viewport.v_start)
         if viewport.scroll_down():
-            print 'Going down...'
+            print '%s Going down...' % colorize('***', 'Green_L')
         else:
-            print 'Staying put'
+            print '%s Staying put' % colorize('***', 'Green_L')
 
     elif pressed_char_hex in ['6b', '7f']:  # k, Backspace
         if viewport.scroll_up():
-            print 'Going up...'
+            print '%s Going up...' % colorize('***', 'Green_L')
         else:
-            print 'Staying put'
+            print '%s Staying put' % colorize('***', 'Green_L')
 
     elif pressed_char_hex in ['6c']:  # l
-        print 'Going right...'
+        print '%s Going right...' % colorize('***', 'Green_L')
         viewport.scroll_right()
 
     elif pressed_char_hex in ['24']:  # $
-        print 'Going far right...'
+        print '%s Going far right...' % colorize('***', 'Green_L')
         viewport.scroll_far_right()
         logging.info('h_start: %s' % viewport.h_start)
         logging.info('max_line_len: %s' % max_line_len)
@@ -436,31 +436,31 @@ def control_qtop(viewport, read_char, cluster, new_attrs):
         logging.info('h_stop: %s' % viewport.h_stop)
 
     elif pressed_char_hex in ['68']:  # h
-        print 'Going left...'
+        print '%s Going left...' % colorize('***', 'Green_L')
         viewport.scroll_left()
 
     elif pressed_char_hex in ['30']:   # 0
-        print 'Going far left...'
+        print '%s Going far left...' % colorize('***', 'Green_L')
         viewport.scroll_far_left()
 
     elif pressed_char_hex in ['4a', '47']:  # S-j, G
         logging.debug('v_start: %s' % viewport.v_start)
         if viewport.scroll_bottom():
-            print 'Going to the bottom...'
+            print '%s Going to the bottom...' % colorize('***', 'Green_L')
         else:
-            print 'Staying put'
+            print '%s Staying put' % colorize('***', 'Green_L')
 
     elif pressed_char_hex in ['4b', '67']:  # S-k, g
-        print 'Going to the top...'
+        print '%s Going to the top...' % colorize('***', 'Green_L')
         logging.debug('v_start: %s' % viewport.v_start)
         viewport.scroll_top()
 
     elif pressed_char_hex in ['52']:  # R
-        print 'Resetting display...'
+        print '%s Resetting display...' % colorize('***', 'Green_L')
         viewport.reset_display()
 
     elif pressed_char_hex in ['74']:  # t
-        print 'Transposing matrix...'
+        print '%s Transposing matrix...' % colorize('***', 'Green_L')
         dynamic_config['transpose_wn_matrices'] = not dynamic_config.get('transpose_wn_matrices',
                                                                          config['transpose_wn_matrices'])
         viewport.reset_display()
@@ -468,16 +468,16 @@ def control_qtop(viewport, read_char, cluster, new_attrs):
     elif pressed_char_hex in ['6d']:  # m
         new_mapping, msg = change_mapping.next()
         dynamic_config['core_coloring'] = new_mapping
-        print 'Changing to %s' % msg
+        print '%s Changing to %s' % (colorize('***', 'Green_L'), msg)
 
     elif pressed_char_hex in ['71']:  # q
-        print '\nExiting. Thank you for ..watching ;)\n'
+        print '%s \nExiting. Thank you for ..watching ;)\n'
         web.stop()
         sys.exit(0)
 
     elif pressed_char_hex in ['46']:  # F
         dynamic_config['force_names'] = not dynamic_config['force_names']
-        print 'Toggling full-name/incremental nr WN labels'
+        print '%s Toggling full-name/incremental nr WN labels' % colorize('***', 'Green_L')
 
     elif pressed_char_hex in ['73']:  # s
         sort_map = OrderedDict()
@@ -587,7 +587,7 @@ def control_qtop(viewport, read_char, cluster, new_attrs):
 
     elif pressed_char_hex in ['3f']:  # ?
         viewport.reset_display()
-        print 'opening help...'
+        print '%s opening help...' % colorize('***', 'Green_L')
         if not h_counter.next() % 2:  # enter helpfile
             dynamic_config['output_fp'] = help_main_switch[0]
         else:  # exit helpfile
@@ -597,11 +597,11 @@ def control_qtop(viewport, read_char, cluster, new_attrs):
         logging.debug('toggling corelines displayed')
         dynamic_config['rem_empty_corelines'] = (dynamic_config.get('rem_empty_corelines', config['rem_empty_corelines']) +1) %3
         if dynamic_config['rem_empty_corelines'] == 1:
-            print 'Hiding not-really-there ("#") corelines'
+            print '%s Hiding not-really-there ("#") corelines' % colorize('***', 'Green_L')
         elif dynamic_config['rem_empty_corelines'] == 2:
-            print 'Hiding all unused ("#" and "_") corelines'
+            print '%s Hiding all unused ("#" and "_") corelines' % colorize('***', 'Green_L')
         else:
-            print 'Showing all corelines'
+            print '%s Showing all corelines' % colorize('***', 'Green_L')
 
         logging.debug('dynamic config corelines: %s' % dynamic_config['rem_empty_corelines'])
 
@@ -1344,7 +1344,7 @@ class TextDisplay(object):
               'total_cores)s %(Cores)s |' \
               '   %(total_run_jobs)s+%(total_q_jobs)s %(jobs)s (R + Q) %(reported_by)s' % \
               {
-                  'Summary': colorize('Summary', 'Yellow'),
+                  'Summary': colorize('Summary', 'Cyan_L'),
                   'online_nodes': colorize(str(cluster.total_wn - cluster.offdown_nodes), 'Red_L'),
                   'available_nodes': colorize(str(cluster.available_wn), 'Red_L'),
                   'total_nodes': colorize(str(cluster.total_wn), 'Red_L'),
@@ -1358,7 +1358,7 @@ class TextDisplay(object):
                   'reported_by': 'reported by qstat - q' if options.CLASSIC else ''
               }
 
-        print ' %(queues)s: ' % {'queues': colorize('Queues', 'Yellow')},
+        print ' %(queues)s: ' % {'queues': colorize('Queues', 'Cyan_L')},
         for _queue_name, q_tuple in qstatq_lod.items():
             q_running_jobs, q_queued_jobs, q_state = q_tuple.run, q_tuple.queued, q_tuple.state
             account = _queue_name if _queue_name in queue_to_color else 'account_not_colored'
