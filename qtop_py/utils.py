@@ -2,7 +2,6 @@ import logging
 import sys
 from optparse import OptionParser
 import fileutils
-# import qtop_py.fileutils as fileutils
 from qtop_py.colormap import *
 from qtop_py.constants import QTOP_LOGFILE
 

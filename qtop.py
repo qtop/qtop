@@ -413,22 +413,22 @@ def control_qtop(viewport, read_char, cluster, new_attrs):
     if pressed_char_hex in ['6a', '20']:  # j, spacebar
         logging.debug('v_start: %s' % viewport.v_start)
         if viewport.scroll_down():
-            logging.info('Going down...')
+            print 'Going down...'
         else:
-            logging.info('Staying put')
+            print 'Staying put'
 
     elif pressed_char_hex in ['6b', '7f']:  # k, Backspace
         if viewport.scroll_up():
-            logging.info('Going up...')
+            print 'Going up...'
         else:
-            logging.info('Staying put')
+            print 'Staying put'
 
     elif pressed_char_hex in ['6c']:  # l
-        logging.info('Going right...')
+        print 'Going right...'
         viewport.scroll_right()
 
     elif pressed_char_hex in ['24']:  # $
-        logging.info('Going far right...')
+        print 'Going far right...'
         viewport.scroll_far_right()
         logging.info('h_start: %s' % viewport.h_start)
         logging.info('max_line_len: %s' % max_line_len)
@@ -436,38 +436,40 @@ def control_qtop(viewport, read_char, cluster, new_attrs):
         logging.info('h_stop: %s' % viewport.h_stop)
 
     elif pressed_char_hex in ['68']:  # h
-        logging.info('Going left...')
+        print 'Going left...'
         viewport.scroll_left()
 
     elif pressed_char_hex in ['30']:   # 0
-        logging.info('Going far left...')
+        print 'Going far left...'
         viewport.scroll_far_left()
 
     elif pressed_char_hex in ['4a', '47']:  # S-j, G
-        logging.info('Going to the bottom...')
+        print 'Going to the bottom...'
         logging.debug('v_start: %s' % viewport.v_start)
         if viewport.scroll_bottom():
-            logging.info('Going to the bottom...')
+            print 'Going to the bottom...'
         else:
-            logging.info('Staying put')
+            print 'Staying put'
 
     elif pressed_char_hex in ['4b', '67']:  # S-k, g
-        logging.info('Going to the top...')
+        print 'Going to the top...'
         logging.debug('v_start: %s' % viewport.v_start)
         viewport.scroll_top()
 
     elif pressed_char_hex in ['52']:  # R
+        print 'Resetting display...'
         viewport.reset_display()
 
     elif pressed_char_hex in ['74']:  # t
-        logging.info('Transposing matrix...')
+        print 'Transposing matrix...'
         dynamic_config['transpose_wn_matrices'] = not dynamic_config.get('transpose_wn_matrices',
                                                                          config['transpose_wn_matrices'])
         viewport.reset_display()
 
     elif pressed_char_hex in ['6d']:  # m
-        logging.info('Changing core coloring...')
-        dynamic_config['core_coloring'] = change_mapping.next()
+        new_mapping, msg = change_mapping.next()
+        dynamic_config['core_coloring'] = new_mapping
+        print 'Changing to %s' % msg
 
     elif pressed_char_hex in ['71']:  # q
         print '\nExiting. Thank you for ..watching ;)\n'
@@ -476,6 +478,7 @@ def control_qtop(viewport, read_char, cluster, new_attrs):
 
     elif pressed_char_hex in ['46']:  # F
         dynamic_config['force_names'] = not dynamic_config['force_names']
+        print 'Toggling full-name/incremental nr WN labels'
 
     elif pressed_char_hex in ['73']:  # s
         sort_map = OrderedDict()
@@ -585,7 +588,7 @@ def control_qtop(viewport, read_char, cluster, new_attrs):
 
     elif pressed_char_hex in ['3f']:  # ?
         viewport.reset_display()
-        logging.debug('opening help...')
+        print 'opening help...'
         if not h_counter.next() % 2:  # enter helpfile
             dynamic_config['output_fp'] = help_main_switch[0]
         else:  # exit helpfile
@@ -594,6 +597,13 @@ def control_qtop(viewport, read_char, cluster, new_attrs):
     elif pressed_char_hex in ['72']:  # r
         logging.debug('toggling corelines displayed')
         dynamic_config['rem_empty_corelines'] = (dynamic_config.get('rem_empty_corelines', config['rem_empty_corelines']) +1) %3
+        if dynamic_config['rem_empty_corelines'] == 1:
+            print 'Hiding not-really-there ("#") corelines'
+        elif dynamic_config['rem_empty_corelines'] == 2:
+            print 'Hiding all unused ("#" and "_") corelines'
+        else:
+            print 'Showing all corelines'
+
         logging.debug('dynamic config corelines: %s' % dynamic_config['rem_empty_corelines'])
 
     logging.debug('Area Displayed: (h_start, v_start) --> (h_stop, v_stop) '
@@ -698,7 +708,7 @@ def wait_for_keypress_or_autorefresh(viewport, FALLBACK_TERMSIZE, KEYPRESS_TIMEO
     This will make qtop wait for user input for a while,
     otherwise it will auto-refresh the display
     """
-    _read_char = 'r'  # initial value, resets view position to beginning
+    _read_char = 'R'  # initial value, resets view position to beginning
 
     while sys.stdin in select.select([sys.stdin], [], [], KEYPRESS_TIMEOUT)[0]:
         _read_char = sys.stdin.read(1)
@@ -2162,7 +2172,7 @@ if __name__ == '__main__':
     available_batch_systems = discover_qtop_batch_systems()
 
     stdout = sys.stdout  # keep a copy of the initial value of sys.stdout
-    change_mapping = cycle(['queue_to_color', 'userid_pat_to_color'])
+    change_mapping = cycle([('queue_to_color', 'color by queue'), ('userid_pat_to_color', 'color by user')])
     h_counter = cycle([0, 1])
 
     viewport = Viewport()  # controls the part of the qtop matrix shown on screen
