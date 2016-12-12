@@ -456,7 +456,7 @@ def control_qtop(viewport, read_char, cluster, new_attrs):
         logging.debug('v_start: %s' % viewport.v_start)
         viewport.scroll_top()
 
-    elif pressed_char_hex in ['72']:  # r
+    elif pressed_char_hex in ['52']:  # R
         viewport.reset_display()
 
     elif pressed_char_hex in ['74']:  # t
@@ -591,7 +591,7 @@ def control_qtop(viewport, read_char, cluster, new_attrs):
         else:  # exit helpfile
             del dynamic_config['output_fp']
 
-    elif pressed_char_hex in ['63']:  # c
+    elif pressed_char_hex in ['72']:  # r
         logging.debug('toggling corelines displayed')
         dynamic_config['rem_empty_corelines'] = (dynamic_config.get('rem_empty_corelines', config['rem_empty_corelines']) +1) %3
         logging.debug('dynamic config corelines: %s' % dynamic_config['rem_empty_corelines'])
