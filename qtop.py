@@ -444,7 +444,6 @@ def control_qtop(viewport, read_char, cluster, new_attrs):
         viewport.scroll_far_left()
 
     elif pressed_char_hex in ['4a', '47']:  # S-j, G
-        print 'Going to the bottom...'
         logging.debug('v_start: %s' % viewport.v_start)
         if viewport.scroll_bottom():
             print 'Going to the bottom...'
