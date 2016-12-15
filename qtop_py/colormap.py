@@ -4,6 +4,7 @@ except ImportError:
     from qtop_py.legacy.ordereddict import OrderedDict
 
 # example color maps
+# order should be from more generic-->more specific
 user_to_color_default = OrderedDict(
     [
         ('[a-z][_a-z0-9.-]*', 'Gray_L'),  # catch-all rule for many more names
