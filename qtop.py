@@ -591,17 +591,22 @@ def control_qtop(viewport, read_char, cluster, new_attrs):
     elif pressed_char_hex in ['48']:  # H
         cluster.wn_filter = cluster.WNFilter(cluster.worker_nodes)
         filter_map = {
-            4: 'or_include_user_pat', # 'user_pat_or',
-            5: 'or_include_queue',  # 'queue_or',
-            7: 'include_user_pat',
-            8: 'include_queue',
+            1: 'or_include_user_id',
+            2: 'or_include_user_pat',
+            3: 'or_include_queue',
+            4: 'include_user_id',
+            5: 'include_user_pat',
+            6: 'include_queue',
         }
-        print 'Highlight cores by:\n(any) %(four)s userID %(five)s queue\n' \
-              '(all) %(seven)s userID %(eight)s queue ' \
-              % {'four': colorize("(4)", color_func='Red_L'),
+        print 'Highlight cores by:\n' \
+              '(any) %(one)s userID %(two)s user name (regex) %(three)s queue\n' \
+              '(all) %(four)s userID %(five)s user name (regex) %(six)s queue' \
+              % {'one': colorize("(1)", color_func='Red_L'),
+                 'two': colorize("(2)", color_func='Red_L'),
+                 'three': colorize("(3)", color_func='Red_L'),
+                 'four': colorize("(4)", color_func='Red_L'),
                  'five': colorize("(5)", color_func='Red_L'),
-                 'seven': colorize("(7)", color_func='Red_L'),
-                 'eight': colorize("(8)", color_func='Red_L'),
+                 'six': colorize("(6)", color_func='Red_L'),
                  }
         new_attrs[3] = new_attrs[3] & ~(termios.ECHO | termios.ICANON)
         termios.tcsetattr(sys.__stdin__.fileno(), termios.TCSADRAIN, old_attrs)
@@ -1212,6 +1217,7 @@ class WNOccupancy(object):
         selected_pat_to_color_map = globals()[_core_coloring]
         _highlighted_queues_or_users = dynamic_config.get('q_filtering', self.config['q_filtering'])
 
+        self.id_to_user = dict(izip((str(x) for x in self.user_to_id.itervalues()), self.user_to_id.iterkeys()))
         for (user, core, queue) in self._valid_corejobs(corejobs, jobid_to_user_to_queue):
             id_ = utils.ColorStr.from_other_color_str(self.user_to_id[user])
             user_pat = self.userid_to_userid_re_pat[str(id_)]  # in case it is used in viewed_pattern
@@ -1220,7 +1226,14 @@ class WNOccupancy(object):
             and_or_func = any
 
             for user_queue_to_highlight, type, and_or_func in WNOccupancy.get_hl_q_or_users(_highlighted_queues_or_users):
-                actual_user_queue = user if type == 'user_pat' else queue
+                if (type == 'user_pat'):
+                    actual_user_queue = user
+                elif (type == 'user_id'):
+                    actual_user_queue = user
+                    user_queue_to_highlight = self.id_to_user[user_queue_to_highlight]
+                elif type == 'queue':
+                    actual_user_queue = queue
+                # actual_user_queue = user if type == 'user_pat' else queue
                 matches.append(re.match(user_queue_to_highlight, actual_user_queue))
             if and_or_func(match.group(0) for match in matches if match is not None):
                 id_.color = selected_pat_to_color_map.get(viewed_pattern, 'White')  # queue or user decided on runtime
