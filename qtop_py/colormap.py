@@ -4,7 +4,8 @@ except ImportError:
     from qtop_py.legacy.ordereddict import OrderedDict
 
 # example color maps
-userid_pat_to_color_default = OrderedDict(
+# order should be from more generic-->more specific
+user_to_color_default = OrderedDict(
     [
         ('[a-z][_a-z0-9.-]*', 'Gray_L'),  # catch-all rule for many more names
         ('Atlassm', 'Red_L'),
@@ -136,24 +137,24 @@ userid_pat_to_color_default = OrderedDict(
         ('icms', 'Green'),
         ('cms', 'Green'),
         #( ALICE VO commonly found pool account name)s
-        ('alicesgm', 'Cyan'),
+        ('ali', 'Cyan'),
+        ('alis', 'Cyan'),
         ('alice', 'Cyan'),
         ('alisc', 'Cyan'),
         ('alisgm', 'Cyan'),
         ('alisg', 'Cyan'),
         ('alibs', 'Cyan'),
-        ('alis', 'Cyan'),
         ('alikn', 'Cyan'),
-        ('ali', 'Cyan'),
+        ('sali', 'Cyan'),
         ('ialice', 'Cyan'),
         ('salice', 'Cyan'),
-        ('sali', 'Cyan'),
         ('caliceuser', 'Cyan'),
         ('caliceusr', 'Cyan'),
-        ('calice', 'Cyan'),
         ('calic', 'Cyan'),
-        ('sgmalice', 'Cyan'),
+        ('calice', 'Cyan'),
         ('sgmali', 'Cyan'),
+        ('sgmalice', 'Cyan'),
+        ('alicesgm', 'Cyan'),
         #( LHCb VO commonly found pool account names)
         ('pdlhcb', 'Pink'),
         ('prdlhcb', 'Pink'),
@@ -213,11 +214,11 @@ userid_pat_to_color_default = OrderedDict(
         ('egee', 'Blue_L'),
         #( Biomed VO)
         ('bio', 'Blue_L'),
-        ('biomedusr', 'Blue_L'),
-        ('biomed', 'Blue_L'),
-        ('biomd', 'Blue_L'),
-        ('biome', 'Blue_L'),
         ('biocw', 'Blue_L'),
+        ('biome', 'Blue_L'),
+        ('biomd', 'Blue_L'),
+        ('biomed', 'Blue_L'),
+        ('biomedusr', 'Blue_L'),
         ('biostats', 'Blue_L'),
         ('biotech', 'Blue_L'),
         #( Gear V)O

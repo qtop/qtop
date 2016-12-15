@@ -38,7 +38,7 @@ from qtop_py import fileutils
 from qtop_py import utils
 from qtop_py.plugins import *
 from math import ceil
-from qtop_py.colormap import userid_pat_to_color_default, color_to_code, queue_to_color, nodestate_to_color_default
+from qtop_py.colormap import user_to_color_default, color_to_code, queue_to_color, nodestate_to_color_default
 import qtop_py.yaml_parser as yaml
 from qtop_py.ui.viewport import Viewport
 from qtop_py.serialiser import GenericBatchSystem
@@ -177,8 +177,8 @@ def load_yaml_config():
     symbol_map = dict([(chr(x), x) for x in range(33, 48) + range(58, 64) + range(91, 96) + range(123, 126)])
 
     if config['user_color_mappings']:
-        userid_pat_to_color = userid_pat_to_color_default.copy()
-        [userid_pat_to_color.update(d) for d in config['user_color_mappings']]
+        user_to_color = user_to_color_default.copy()
+        [user_to_color.update(d) for d in config['user_color_mappings']]
     else:
         config['user_color_mappings'] = list()
 
@@ -214,7 +214,7 @@ def load_yaml_config():
     config['ALT_LABEL_COLORS'] = yaml.fix_config_list(config['workernodes_matrix'][0]['wn id lines']['alt_label_colors'])
     config['SEPARATOR'] = config['vertical_separator'].translate(None, "'")
     config['USER_CUT_MATRIX_WIDTH'] = int(config['workernodes_matrix'][0]['wn id lines']['user_cut_matrix_width'])
-    return config, userid_pat_to_color, nodestate_to_color
+    return config, user_to_color, nodestate_to_color
 
 
 def calculate_term_size(config, FALLBACK_TERM_SIZE):
@@ -541,6 +541,7 @@ def control_qtop(viewport, read_char, cluster, new_attrs):
             7: 'include_node_states',
             8: 'include_numbers',
             9: 'include_name_patterns',
+            10: 'include_queues'
         }
         print 'Filter out nodes by:\n%(one)s state %(two)s number' \
               ' %(three)s name substring or RegEx pattern' % {
@@ -549,13 +550,14 @@ def control_qtop(viewport, read_char, cluster, new_attrs):
                     'three': colorize("(3)", color_func='Red_L'),
         }
         print 'Filter in nodes by:\n(any) %(four)s state %(five)s number %(six)s name substring or RegEx pattern\n' \
-              '(all) %(seven)s state %(eight)s number %(nine)s name substring or RegEx pattern' \
+              '(all) %(seven)s state %(eight)s number %(nine)s name substring or RegEx pattern %(ten)s queue' \
               % {'four': colorize("(4)", color_func='Red_L'),
                  'five': colorize("(5)", color_func='Red_L'),
                  'six': colorize("(6)", color_func='Red_L'),
                  'seven': colorize("(7)", color_func='Red_L'),
                  'eight': colorize("(8)", color_func='Red_L'),
                  'nine': colorize("(9)", color_func='Red_L'),
+                 'ten': colorize("(10)", color_func='Red_L'),
                  }
         new_attrs[3] = new_attrs[3] & ~(termios.ECHO | termios.ICANON)
         termios.tcsetattr(sys.__stdin__.fileno(), termios.TCSADRAIN, old_attrs)
@@ -582,6 +584,55 @@ def control_qtop(viewport, read_char, cluster, new_attrs):
                 filter_args.append(user_input)
 
             dynamic_config['filtering'].append({filter_map[filter_choice]: filter_args})
+
+        termios.tcsetattr(sys.__stdin__.fileno(), termios.TCSADRAIN, new_attrs)
+        viewport.reset_display()
+
+    elif pressed_char_hex in ['48']:  # H
+        cluster.wn_filter = cluster.WNFilter(cluster.worker_nodes)
+        filter_map = {
+            1: 'or_include_user_id',
+            2: 'or_include_user_pat',
+            3: 'or_include_queue',
+            4: 'include_user_id',
+            5: 'include_user_pat',
+            6: 'include_queue',
+        }
+        print 'Highlight cores by:\n' \
+              '(any) %(one)s userID %(two)s user name (regex) %(three)s queue\n' \
+              '(all) %(four)s userID %(five)s user name (regex) %(six)s queue' \
+              % {'one': colorize("(1)", color_func='Red_L'),
+                 'two': colorize("(2)", color_func='Red_L'),
+                 'three': colorize("(3)", color_func='Red_L'),
+                 'four': colorize("(4)", color_func='Red_L'),
+                 'five': colorize("(5)", color_func='Red_L'),
+                 'six': colorize("(6)", color_func='Red_L'),
+                 }
+        new_attrs[3] = new_attrs[3] & ~(termios.ECHO | termios.ICANON)
+        termios.tcsetattr(sys.__stdin__.fileno(), termios.TCSADRAIN, old_attrs)
+
+        dynamic_config['highlight'] = []
+        while True:
+            filter_choice = raw_input('\nChoose Highlight command, or Enter to exit:-> ',)
+            if not filter_choice:
+                break
+
+            try:
+                filter_choice = int(filter_choice)
+            except ValueError:
+                break
+            else:
+                if filter_choice not in filter_map:
+                    break
+
+            filter_args = []
+            while True:
+                user_input = raw_input('\nEnter argument, or Enter to exit:-> ')
+                if not user_input:
+                    break
+                filter_args.append(user_input)
+
+            dynamic_config['highlight'].append({filter_map[filter_choice]: filter_args})
 
         termios.tcsetattr(sys.__stdin__.fileno(), termios.TCSADRAIN, new_attrs)
         viewport.reset_display()
@@ -799,7 +850,7 @@ def process_options(options):
 
 
 class WNOccupancy(object):
-    def __init__(self, cluster, config, document, userid_pat_to_color, job_ids):
+    def __init__(self, cluster, config, document, user_to_color, job_ids):
         self.cluster = cluster
         self.config = config
         self.document = document
@@ -809,7 +860,7 @@ class WNOccupancy(object):
         self.user_names, self.job_states, self.job_queues = self._get_usernames_states_queues(document.jobs_dict)
         self.job_ids = job_ids
 
-        self.calculate(document, userid_pat_to_color)
+        self.calculate(document, user_to_color)
 
     def _get_usernames_states_queues(self, jobs_dict):
         user_names, job_states, job_queues = list(), list(), list()
@@ -819,7 +870,7 @@ class WNOccupancy(object):
             job_queues.append(value.job_queue)
         return user_names, job_states, job_queues
 
-    def calculate(self, document, userid_pat_to_color):
+    def calculate(self, document, user_to_color):
         """
         Prints the Worker Nodes Occupancy table.
         if there are non-uniform WNs in pbsnodes.yaml, e.g. wn01, wn02, gn01, gn02, ...,  remapping is performed.
@@ -840,7 +891,7 @@ class WNOccupancy(object):
                                                                     user_to_id)
         _account_jobs_table = self._create_sort_acct_jobs_table(user_job_per_state_counts, user_alljobs_sorted_lot, user_to_id)
         self.account_jobs_table, self.user_to_id = self._create_account_jobs_table(user_to_id, _account_jobs_table)
-        self.userid_to_userid_re_pat = self.make_pattern_out_of_mapping(mapping=userid_pat_to_color)
+        self.userid_to_userid_re_pat = self.make_pattern_out_of_mapping(mapping=user_to_color)
 
         # TODO extract to another class?
         self.print_char_start, self.print_char_stop, self.extra_matrices_nr = self.find_matrices_width()
@@ -959,18 +1010,18 @@ class WNOccupancy(object):
         """
         First strips the numbers off of the unix accounts and tries to match this against the given color table in colormap.
         Additionally, it will try to apply the regex rules given by the user in qtopconf.yaml, overriding the colormap.
-        The last matched regex is valid.
+        The first matched regex holds (loops from bottom to top in the pattern list).
         If no matching was possible, there will be no coloring applied.
         """
         pattern = {}
         for line in self.account_jobs_table:
             uid, user = line[0], line[4]
             account_letters = re.search('[A-Za-z]+', user).group(0)
-            for re_account in mapping:
+            for re_account in mapping.keys()[::-1]:
                 match = re.search(re_account, user)
-                if match is None:
-                    continue  # keep trying
-                account_letters = re_account  # colors the text according to the regex given by the user in qtopconf
+                if match is not None:
+                    account_letters = re_account  # colors the text according to the regex given by the user in qtopconf
+                    break
 
             pattern[str(uid)] = account_letters if account_letters in mapping else 'NoPattern'
 
@@ -1120,22 +1171,35 @@ class WNOccupancy(object):
         np = state_np_corejob['np']
         corejobs = state_np_corejob.get('core_job_map', dict())
         non_existent_node_symbol = config['non_existent_node_symbol']
+        gray_hash = utils.ColorStr(non_existent_node_symbol, color='Gray_D')
+        gray_underscore = utils.ColorStr('_', color='Gray_D')
 
         if state == '?':  # for non-existent machines
             for core_line in core_user_map:
-                core_user_map[core_line].append(utils.ColorStr(non_existent_node_symbol, color='Gray_D'))
+                core_user_map[core_line].append(gray_hash)
         else:
             node_cores = [str(x) for x in range(int(np))]
             core_user_map, node_free_cores = self.color_cores_and_return_unused(node_cores, core_user_map, corejobs,
                                                                                 core_coloring, jobid_to_user_to_queue)
             for core in node_free_cores:
-                core_user_map['Core' + str(core) + 'vector'].append(utils.ColorStr('_', color='Gray_D'))
+                core_user_map['Core' + str(core) + 'vector'].append(gray_underscore)
 
             non_existent_node_cores = [core for core in _core_span if core not in node_cores]
             for core in non_existent_node_cores:
-                core_user_map['Core' + str(core) + 'vector'].append(utils.ColorStr(non_existent_node_symbol, color='Gray_D'))
+                core_user_map['Core' + str(core) + 'vector'].append(gray_hash)
 
         return core_user_map
+
+    @staticmethod
+    def get_hl_q_or_users(_highlighted_queues_or_users):
+        for selection_users_queues in _highlighted_queues_or_users:
+            selection = selection_users_queues.keys()[0]
+            users_queues = selection_users_queues[selection]
+            and_or, type = selection.rsplit('include_')
+            and_or_func = all if not and_or else any
+
+            for user_queue in users_queues:
+                yield user_queue, type, and_or_func
 
     def color_cores_and_return_unused(self, node_cores, core_user_map, corejobs, _core_coloring, jobid_to_user_to_queue):
         """
@@ -1145,20 +1209,43 @@ class WNOccupancy(object):
         or on runtime in watch mode, if user presses appropriate keybinding
         """
         node_free_cores = node_cores[:]
-        queue_or_user_map = {'userid_pat_to_color': 'user_pat', 'queue_to_color': 'queue'}
-        core_coloring_user_choice = globals()[_core_coloring]
+        queue_or_user_map = {'user_to_color': 'user_pat', 'queue_to_color': 'queue'}
         queue_or_user_str = queue_or_user_map[_core_coloring]
 
-        for (user, core, queue) in self._assigned_corejobs(corejobs, jobid_to_user_to_queue):
+        selected_pat_to_color_map = globals()[_core_coloring]
+        _highlighted_queues_or_users = dynamic_config.get('highlight', self.config['highlight'])
+
+        self.id_to_user = dict(izip((str(x) for x in self.user_to_id.itervalues()), self.user_to_id.iterkeys()))
+        for (user, core, queue) in self._valid_corejobs(corejobs, jobid_to_user_to_queue):
             id_ = utils.ColorStr.from_other_color_str(self.user_to_id[user])
-            user_pat = self.userid_to_userid_re_pat[str(id_)]  # in case it is used below
-            id_.color = core_coloring_user_choice.get(locals()[queue_or_user_str], 'White') # queue or user decided on runtime
+            user_pat = self.userid_to_userid_re_pat[str(id_)]  # in case it is used in viewed_pattern
+            viewed_pattern = locals()[queue_or_user_str]  # either a queue or userid pattern
+            matches = []
+            and_or_func = any
+
+            for user_queue_to_highlight, type, and_or_func in WNOccupancy.get_hl_q_or_users(_highlighted_queues_or_users):
+                if (type == 'user_pat'):
+                    actual_user_queue = user
+                elif (type == 'user_id'):
+                    actual_user_queue = user
+                    user_queue_to_highlight = self.id_to_user[user_queue_to_highlight]
+                elif type == 'queue':
+                    actual_user_queue = queue
+
+                matches.append(re.match(user_queue_to_highlight, actual_user_queue))
+
+            if not _highlighted_queues_or_users or and_or_func(match.group(0) if match is not None else None for match in matches):
+                id_.color = selected_pat_to_color_map.get(viewed_pattern, 'White')  # queue or user decided on runtime
+            else:
+                id_.color = 'Gray_D'
+
+            id_.q = queue
             core_user_map['Core' + str(core) + 'vector'].append(id_)
             node_free_cores.remove(core)  # this is an assigned core, hence it doesn't belong to the node's free cores
 
         return core_user_map, node_free_cores
 
-    def _assigned_corejobs(self, corejobs, jobid_to_user_to_queue):
+    def _valid_corejobs(self, corejobs, jobid_to_user_to_queue):
         """
         Generator that yields only those core-job pairs that successfully match to a user
         """
@@ -1359,7 +1446,7 @@ class TextDisplay(object):
                   'reported_by': 'reported by qstat - q' if options.CLASSIC else ''
               }
 
-        print ' %(queues)s: ' % {'queues': colorize('Queues', 'Cyan_L')},
+        print '%(queues)s :' % {'queues': colorize('Queues', 'Cyan_L')},
         for _queue_name, q_tuple in qstatq_lod.items():
             q_running_jobs, q_queued_jobs, q_state = q_tuple.run, q_tuple.queued, q_tuple.state
             account = _queue_name if _queue_name in queue_to_color else 'account_not_colored'
@@ -1422,7 +1509,7 @@ class TextDisplay(object):
             uid, runningjobs, queuedjobs, alljobs, user, num_of_nodes = line
             userid_pat = userid_to_userid_re_pat[str(uid)]
 
-            if (options.COLOR == 'OFF' or userid_pat == 'account_not_colored' or userid_pat_to_color[userid_pat] == 'reset'):
+            if (options.COLOR == 'OFF' or userid_pat == 'account_not_colored' or user_to_color[userid_pat] == 'reset'):
                 conditional_width = 0
                 userid_pat = 'account_not_colored'
             else:
@@ -1997,13 +2084,13 @@ def colorize(text, color_func=None, pattern='NoPattern', mapping=None, bg_color=
     color_func can be a direct ansi color name or a function providing a color name.
     If color is given directly as color_func, pattern/mapping are not needed.
     If no color_func and no mapping are defined, the default mapping is used,
-    which is userid_pat_to_color, mapping an account name to a color.
+    which is user_to_color, mapping an account name to a color.
     A pattern must then be given, which is the key of the mapping.
     Other mappings available are: nodestate_to_color, queue_to_color.
     Examples:
     s = ColorStr(string='This is some text', color='Red_L')
     print colorize(s, color_func=s.color), # Red_L is applied directly
-    print colorize(s.str, pattern='alicesgm') # mapping defaults to userid_pat_to_color
+    print colorize(s.str, pattern='alicesgm') # mapping defaults to user_to_color
     print colorize(s.str, color_func=s.color, bg_color='BlueBG') # bg and fg colors applied directly
 
     state = ColorStr('running. coloring according to node state')
@@ -2011,7 +2098,7 @@ def colorize(text, color_func=None, pattern='NoPattern', mapping=None, bg_color=
     """
     bg_color = 'NOBG' if not bg_color else bg_color
     if not mapping:
-        mapping = userid_pat_to_color
+        mapping = user_to_color
     try:
         ansi_color = color_to_code[color_func] if color_func else color_to_code[mapping[pattern]]
     except KeyError:
@@ -2019,7 +2106,7 @@ def colorize(text, color_func=None, pattern='NoPattern', mapping=None, bg_color=
     else:
         if bold and ansi_color[0] in '01':
             ansi_color = '1' + ansi_color[1:]
-        if ((options.COLOR == 'ON') and pattern != 'account_not_colored' and text != ' '):
+        if options.COLOR == 'ON' and pattern != 'account_not_colored' and text != ' ':
             text = "\033[%(fg_color)s%(bg_color)sm%(text)s\033[0;m" \
                    % {'fg_color': ansi_color, 'bg_color': color_to_code[bg_color], 'text': text}
 
@@ -2057,6 +2144,12 @@ def pick_frames_to_replay(_savepath):
 class WNFilter(object):
     def __init__(self, worker_nodes):
         self.worker_nodes = worker_nodes
+
+    def mark_list_by_queue(self, nodes, arg_list=None):
+        for idx, node in enumerate(nodes[:]):
+            if set(arg_list) & set([x.str for x in node['qname']]):
+                node['mark'] = '*'
+        return nodes
 
     def mark_list_by_number(self, nodes, arg_list=None):
         for idx, node in enumerate(nodes):
@@ -2106,13 +2199,16 @@ class WNFilter(object):
             'or_include_numbers': (self.mark_list_by_number, self.keep_marked),
             'or_include_node_states': (self.mark_list_by_node_state, self.keep_marked),
             'or_include_name_patterns': (self.mark_list_by_name_pattern, self.keep_marked),
+            'include_queues': (self.mark_list_by_queue, self.keep_marked),
             'include_numbers': (self.mark_list_by_number, self.keep_marked),
             'include_node_states': (self.mark_list_by_node_state, self.keep_marked),
             'include_name_patterns': (self.mark_list_by_name_pattern, self.keep_marked),
         }
 
         if filter_rules:
-            logging.warning("WN Occupancy view is filtered.")  # TODO display this somewhere in qtop!
+            # TODO display this somewhere in qtop!
+            if WNFilter.report_filtered_view.count() < 2:
+                WNFilter.report_filtered_view()
             nodes = self.worker_nodes[:]
             for filter_rule in filter_rules:
                 rule, args = filter_rule.items()[0]
@@ -2129,6 +2225,10 @@ class WNFilter(object):
 
         return self.worker_nodes
 
+    @staticmethod
+    @utils.CountCalls
+    def report_filtered_view():
+        logging.error("%s WN Occupancy view is filtered." % colorize('***', 'Green_L'))
 
 class JobNotFound(Exception):
     def __init__(self, job_state):
@@ -2172,7 +2272,7 @@ if __name__ == '__main__':
     available_batch_systems = discover_qtop_batch_systems()
 
     stdout = sys.stdout  # keep a copy of the initial value of sys.stdout
-    change_mapping = cycle([('queue_to_color', 'color by queue'), ('userid_pat_to_color', 'color by user')])
+    change_mapping = cycle([('queue_to_color', 'color by queue'), ('user_to_color', 'color by user')])
     h_counter = cycle([0, 1])
 
     viewport = Viewport()  # controls the part of the qtop matrix shown on screen
@@ -2201,7 +2301,7 @@ if __name__ == '__main__':
     with raw_mode(sys.stdin):  # key listener implementation
         try:
             while True:
-                config, userid_pat_to_color, nodestate_to_color = load_yaml_config()  # TODO account_to_color is updated here !!
+                config, user_to_color, nodestate_to_color = load_yaml_config()  # TODO account_to_color is updated here !!
                 config = update_config_with_cmdline_vars(options, config)
                 savepath = config['savepath']
                 timestr = time.strftime("%Y%m%dT%H%M%S")
@@ -2256,7 +2356,7 @@ if __name__ == '__main__':
                 worker_nodes = keep_queue_initials_only_and_colorize(document.worker_nodes, queue_to_color)
                 worker_nodes = colorize_nodestate(document.worker_nodes, nodestate_to_color, colorize)
                 cluster = Cluster(document, worker_nodes, WNFilter, config, options)
-                wns_occupancy = WNOccupancy(cluster, config, document, userid_pat_to_color, job_ids)
+                wns_occupancy = WNOccupancy(cluster, config, document, user_to_color, job_ids)
 
                 ###### Display data ###############
                 #
