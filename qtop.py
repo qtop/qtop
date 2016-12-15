@@ -1447,7 +1447,7 @@ class TextDisplay(object):
                   'reported_by': 'reported by qstat - q' if options.CLASSIC else ''
               }
 
-        print ' %(queues)s: ' % {'queues': colorize('Queues', 'Cyan_L')},
+        print '%(queues)s :' % {'queues': colorize('Queues', 'Cyan_L')},
         for _queue_name, q_tuple in qstatq_lod.items():
             q_running_jobs, q_queued_jobs, q_state = q_tuple.run, q_tuple.queued, q_tuple.state
             account = _queue_name if _queue_name in queue_to_color else 'account_not_colored'
