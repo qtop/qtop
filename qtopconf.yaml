@@ -211,6 +211,12 @@ filtering:
    # - ^da-p8
  # - ranges_out: 1-12, 30-42 # TODO, not working
 
+## Highlight selected usernames (regex expression), userIDs, and/or Queues
+q_filtering:
+  #- or_include_user_pat: ['biomed017']
+  #- or_include_queue: ['whole', 'grid500M']
+  #- or_include_user_id: ['0', '1']
+
 ## what parts of qtop to display
 user_display_parts:
  - job_accounting_summary

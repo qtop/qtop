@@ -632,10 +632,10 @@ def control_qtop(viewport, read_char, cluster, new_attrs):
                     break
                 filter_args.append(user_input)
 
-            dynamic_config['q_filtering'].append({filter_map[filter_choice]: filter_args})   #(user_queue, and_or, filter_args))
+            dynamic_config['q_filtering'].append({filter_map[filter_choice]: filter_args})
 
-        from pprint import pprint
-        pprint(dynamic_config['q_filtering'])
+        # from pprint import pprint
+        # pprint(dynamic_config['q_filtering'])
         termios.tcsetattr(sys.__stdin__.fileno(), termios.TCSADRAIN, new_attrs)
         viewport.reset_display()
 
@@ -1233,9 +1233,10 @@ class WNOccupancy(object):
                     user_queue_to_highlight = self.id_to_user[user_queue_to_highlight]
                 elif type == 'queue':
                     actual_user_queue = queue
-                # actual_user_queue = user if type == 'user_pat' else queue
+
                 matches.append(re.match(user_queue_to_highlight, actual_user_queue))
-            if and_or_func(match.group(0) for match in matches if match is not None):
+
+            if not _highlighted_queues_or_users or and_or_func(match.group(0) for match in matches if match is not None):
                 id_.color = selected_pat_to_color_map.get(viewed_pattern, 'White')  # queue or user decided on runtime
             else:
                 id_.color = 'Gray_D'
