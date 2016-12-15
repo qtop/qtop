@@ -611,7 +611,7 @@ def control_qtop(viewport, read_char, cluster, new_attrs):
         new_attrs[3] = new_attrs[3] & ~(termios.ECHO | termios.ICANON)
         termios.tcsetattr(sys.__stdin__.fileno(), termios.TCSADRAIN, old_attrs)
 
-        dynamic_config['q_filtering'] = []
+        dynamic_config['highlight'] = []
         while True:
             filter_choice = raw_input('\nChoose Highlight command, or Enter to exit:-> ',)
             if not filter_choice:
@@ -632,10 +632,8 @@ def control_qtop(viewport, read_char, cluster, new_attrs):
                     break
                 filter_args.append(user_input)
 
-            dynamic_config['q_filtering'].append({filter_map[filter_choice]: filter_args})
+            dynamic_config['highlight'].append({filter_map[filter_choice]: filter_args})
 
-        # from pprint import pprint
-        # pprint(dynamic_config['q_filtering'])
         termios.tcsetattr(sys.__stdin__.fileno(), termios.TCSADRAIN, new_attrs)
         viewport.reset_display()
 
@@ -1215,7 +1213,7 @@ class WNOccupancy(object):
         queue_or_user_str = queue_or_user_map[_core_coloring]
 
         selected_pat_to_color_map = globals()[_core_coloring]
-        _highlighted_queues_or_users = dynamic_config.get('q_filtering', self.config['q_filtering'])
+        _highlighted_queues_or_users = dynamic_config.get('highlight', self.config['highlight'])
 
         self.id_to_user = dict(izip((str(x) for x in self.user_to_id.itervalues()), self.user_to_id.iterkeys()))
         for (user, core, queue) in self._valid_corejobs(corejobs, jobid_to_user_to_queue):
@@ -1236,7 +1234,7 @@ class WNOccupancy(object):
 
                 matches.append(re.match(user_queue_to_highlight, actual_user_queue))
 
-            if not _highlighted_queues_or_users or and_or_func(match.group(0) for match in matches if match is not None):
+            if not _highlighted_queues_or_users or and_or_func(match.group(0) if match is not None else None for match in matches):
                 id_.color = selected_pat_to_color_map.get(viewed_pattern, 'White')  # queue or user decided on runtime
             else:
                 id_.color = 'Gray_D'
