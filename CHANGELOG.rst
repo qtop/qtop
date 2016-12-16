@@ -1,3 +1,13 @@
+0.9.20161216
+------------
+-  Feature enhancement: key H: highlight users and queues by string or regex #272
+-  Feature enhancement: add -rr option: filter out unused core lines #270, #271
+-  Feature enhancement: harmonize output filenames for window/full view and json exports #269
+-  Bugfix: -r Option to remove empty core lines now works as advertised #267
+-  Bugfix: fix for more arcane pbs node names in pbsnodes #266
+-  Bugfix: fix for PBS plugin fails when jobs use non-consecutive CPUs #265
+-  Bugfix: fix for adding -G flag under demo resulted in a crash, when `getent` was missing #262
+
 0.9.20161207
 ------------
 

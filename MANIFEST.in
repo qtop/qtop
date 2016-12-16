@@ -46,6 +46,7 @@ include qtop_py/web.py
 include qtop_py/yaml_parser.py
 include qtop_py/qtop.sh
 include README.rst
+include ROADMAP.rst
 include setup.py
 include tests/plugins/__init__.py
 include tests/plugins/test_pbs.py
