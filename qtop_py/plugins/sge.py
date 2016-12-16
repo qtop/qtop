@@ -11,8 +11,9 @@ import qtop_py.fileutils as fileutils
 
 
 class SGEStatExtractor(StatExtractor):
-    def __init__(self, config, options):
+    def __init__(self, config, options, scheduler_output_filenames):
         StatExtractor.__init__(self, config, options)
+        self.scheduler_output_filenames = scheduler_output_filenames
 
     def get_xml_tree(self, xml_file):
         with open(xml_file, mode='rb') as fin:
@@ -101,7 +102,7 @@ class SGEBatchSystem(GenericBatchSystem):
         self.sge_file = scheduler_output_filenames.get('sge_file')
         self.config = config
         self.options = options
-        self.sge_stat_maker = SGEStatExtractor(self.config, self.options)
+        self.sge_stat_maker = SGEStatExtractor(self.config, self.options, scheduler_output_filenames)
         if self.options.ANONYMIZE:
             self.anonymize = self.sge_stat_maker.anonymize_func()
         else:
@@ -176,7 +177,9 @@ class SGEBatchSystem(GenericBatchSystem):
 
         # last to be reading the xml file, can now write back if anonymizing..
         if self.options.SAMPLE >= 1:
-            tree.write(self.sge_stat_maker.orig_file + '_anon')
+            anon_file = self.sge_stat_maker.orig_file + '_anon'
+            self.sge_stat_maker.scheduler_output_filenames['sge_file'] = anon_file
+            tree.write(anon_file)
         return existing_wns
 
     def get_jobs_info(self):
