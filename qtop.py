@@ -2273,6 +2273,9 @@ if __name__ == '__main__':
     utils.init_logging(options)
     dynamic_config = dict()
     options, dynamic_config['force_names'] = process_options(options)
+    if options.ANONYMIZE and not options.EXPERIMENTAL:
+        print 'Anonymize should be ran with --experimental switch!! Exiting...'
+        sys.exit(1)
     if options.WATCH or options.REPLAY:  # this is needed for the filtering/sorting options
         try:
             old_attrs = termios.tcgetattr(0)

@@ -67,6 +67,8 @@ def parse_qtop_cmdline_args():
                       help="print debugging messages in stdout, not just in the log file.")
     parser.add_option("-E", "--export", action="store_true", dest="EXPORT", default=False,
                       help="export cluster data to json")
+    parser.add_option("-e", "--experimental", action="store_true", dest="EXPERIMENTAL", default=False,
+                      help="this is mandatory for some highly experimental features! Enter at own risk.")
     parser.add_option("-F", "--ForceNames", action="store_true", dest="FORCE_NAMES", default=False,
                       help="force names to show up instead of numbered WNs even for very small numbers of WNs")
     parser.add_option("-f", "--setCUSTOMCONFFILE", action="store", type="string", dest="CONFFILE")
