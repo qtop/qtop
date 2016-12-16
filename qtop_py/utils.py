@@ -2,7 +2,6 @@ import logging
 import sys
 from optparse import OptionParser
 import fileutils
-# import qtop_py.fileutils as fileutils
 from qtop_py.colormap import *
 from qtop_py.constants import QTOP_LOGFILE
 
@@ -66,6 +65,8 @@ def parse_qtop_cmdline_args():
                       help="tries to mimic legacy qtop display as much as possible")
     parser.add_option("-d", "--debug", action="store_true", dest="DEBUG", default=False,
                       help="print debugging messages in stdout, not just in the log file.")
+    parser.add_option("-E", "--export", action="store_true", dest="EXPORT", default=False,
+                      help="export cluster data to json")
     parser.add_option("-F", "--ForceNames", action="store_true", dest="FORCE_NAMES", default=False,
                       help="force names to show up instead of numbered WNs even for very small numbers of WNs")
     parser.add_option("-f", "--setCUSTOMCONFFILE", action="store", type="string", dest="CONFFILE")
@@ -77,8 +78,9 @@ def parse_qtop_cmdline_args():
                       help="Override respective option in QTOPCONF_YAML file")
     parser.add_option("-O", "--onlysavetofile", action="store_true", dest="ONLYSAVETOFILE", default=False,
                       help="Do not print results to stdout")
-    parser.add_option("-r", "--removeemptycorelines", dest="REM_EMPTY_CORELINES", action="store_true", default=False,
-                      help="If a whole row consists of empty core lines, remove the row")
+    parser.add_option("-r", "--removeemptycorelines", dest="REM_EMPTY_CORELINES", action="count", default=False,
+                      help="If a whole row consists of not-really-there ('#') core lines, remove the row."
+                           "If doubled (-rr), remove the row even if it also consists of free, unused cores ('_').")
     parser.add_option("-R", "--replay", action="callback", dest="REPLAY", callback=_watch_callback,
                       help="instant replay from a specific moment in time for the "
                            "cluster, and for a specified duration. The value "
@@ -149,7 +151,7 @@ class ColorStr(object):
     ColorStr instances are normal strings with color information attached to them,
     to be used with colorize(), e.g.
     print colorize(s.str, color_func=s.color)
-    print colorize(s, mapping=nodestate_to_color, pattern=s.initial
+    print colorize(s, mapping=nodestate_to_color, pattern=s.initial)
     """
     def __init__(self, string='', color=''):
         self.str = string

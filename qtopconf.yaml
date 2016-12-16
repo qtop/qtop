@@ -122,6 +122,10 @@ state_abbreviations:
 percentage: 0.8 # if less than PERCENTAGE x 100% of the matrices have jobs, perform a blind remap
 possible_ids: 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz # IDs of unix accounts, for the lower part of qtop
 non_existent_node_symbol: #
+## Option to remove unneeded corelines taking up precious screen space.
+## 0 removes nothing, 1 removes corelines consisting entirely of '#'s,
+## 2 removes corelines consisting of '#'s and '_'s.
+rem_empty_corelines: 0
 ## Term size is autodetected. If that fails, a value is read from here.
 ## If commented out, will get a fallback_terms_size from within constants.py
 # term_size: [53, 176]
@@ -207,6 +211,15 @@ filtering:
    # - ^da-p8
  # - ranges_out: 1-12, 30-42 # TODO, not working
 
+## Highlight selected usernames (regex expression), userIDs, and/or Queues
+
+highlight:
+  #- or_include_user_pat: ['biomed017']
+  #- or_include_queue: ['whole', 'grid500M']
+  #- or_include_user_id: ['0', '1']
+  #- include_queue: ['whole']
+  #- include_user_pat: ['biomed\d+']
+
 ## what parts of qtop to display
 user_display_parts:
  - job_accounting_summary
@@ -291,6 +304,6 @@ auto_delete_old_output_files_after: 24h  # (m)inutes, (s)econds also supported
 replay_last: 2m   # when --replay is invoked, this is the time qtop will automatically replay from if no datetime/duration is given
 overwrite_sample_file: True  # True (default) writes to tar using the same constant filename, False appends a timestamp
 ## core_coloring can be either:
-##  - userid_pat_to_color, which paints core jobs according to the userid color, or
+##  - user_to_color, which paints core jobs according to the userid color, or
 ##  - queue_to_color, which paints core jobs according to queue color
-core_coloring: userid_pat_to_color
+core_coloring: user_to_color

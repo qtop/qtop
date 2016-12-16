@@ -95,8 +95,7 @@ def get_sample_filename(SAMPLE_FILENAME, config):
     if config['overwrite_sample_file']:
         SAMPLE_FILENAME = SAMPLE_FILENAME % {'datetime': ''}
     else:
-        SAMPLE_FILENAME = SAMPLE_FILENAME \
-                               % {'datetime': '_' + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")}
+        SAMPLE_FILENAME = SAMPLE_FILENAME % {'datetime': '_' + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")}
     return SAMPLE_FILENAME
 
 
