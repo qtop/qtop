@@ -15,6 +15,7 @@ Navigation
 
   [1;36;49mf:[0;m  apply filtering
   [1;36;49mF:[0;m  toggle full name nodes/numbered nodes
+  [1;36;49mH:[0;m  apply highlighting
   [1;36;49mm:[0;m  toggle color represents user ids/queues
   [1;36;49mr:[0;m  toggle show all/real/used cores
   [1;36;49ms:[0;m  apply sorting
