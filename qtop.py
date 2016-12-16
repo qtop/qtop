@@ -2019,8 +2019,12 @@ class Cluster(object):
         if user_filtering and options_remap:
             len_wn_before = len(self.worker_nodes)
             self.wn_filter = self.WNFilter(self.worker_nodes)
-            self.worker_nodes, self.offdown_nodes, self.available_wn = self.wn_filter.filter_worker_nodes(
-                self.offdown_nodes, self.available_wn, filter_rules=user_filters)
+            self.worker_nodes, self.offdown_nodes, self.available_wn, self.working_cores, self.total_cores = \
+                self.wn_filter.filter_worker_nodes(self.offdown_nodes,
+                                                   self.available_wn,
+                                                   self.working_cores,
+                                                   self.total_cores,
+                                                   filter_rules=user_filters)
             len_wn_after = len(self.worker_nodes)
             nodes_drop = len_wn_after - len_wn_before
 
@@ -2189,7 +2193,7 @@ class WNFilter(object):
     def keep_unmarked(self, t, rule, final_pass=False):
         return filter(lambda item: not item.get('mark'), t)
 
-    def filter_worker_nodes(self, offdown_nodes, avail_nodes, filter_rules=None):
+    def filter_worker_nodes(self, offdown_nodes, avail_nodes, working_cores, total_cores, filter_rules=None):
         """
         Keeps specific nodes according to the filter rules in QTOPCONF_YAML
         """
@@ -2225,10 +2229,12 @@ class WNFilter(object):
                                      self.worker_nodes])
                 avail_nodes = self.available_wn = sum(
                     [len(node['state']) for node in self.worker_nodes if str(node['state'][0]) == '-'])
+                working_cores = sum(len(node.get('core_job_map', dict())) for node in self.worker_nodes)
+                total_cores = sum(int(node.get('np')) for node in self.worker_nodes)
             else:
                 logging.error(colorize('Selected filter results in empty worker node set. Cancelling.', 'Red_L'))
 
-        return self.worker_nodes, offdown_nodes, avail_nodes
+        return self.worker_nodes, offdown_nodes, avail_nodes, working_cores, total_cores
 
     @staticmethod
     @utils.CountCalls
