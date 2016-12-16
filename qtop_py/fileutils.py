@@ -63,9 +63,6 @@ def init_sample_file(options, _savepath, SAMPLE_FILENAME, scheduler_output_filen
         # clears any preexisting tar files
         tar_out = tarfile.open(os.path.join(_savepath, SAMPLE_FILENAME), mode='w')
         tar_out.close()
-        # add all scheduler output files to sample
-        [add_to_sample([scheduler_output_filenames[fn]], _savepath, SAMPLE_FILENAME)
-         for fn in scheduler_output_filenames if os.path.isfile(scheduler_output_filenames[fn])]
 
     if options.SAMPLE >= 2:
         add_to_sample([os.path.join(os.path.realpath(QTOPPATH), QTOPCONF_YAML)], _savepath, SAMPLE_FILENAME)

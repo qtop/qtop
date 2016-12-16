@@ -12,7 +12,7 @@ class StatExtractor(object):
     def __init__(self, config, options):
         self.config = config
         self.options = options
-        self.anonymize = self.anonymize_func()
+        self.anonymize = self.anonymize_func() if self.options.ANONYMIZE else self.eponymize_func()
 
     def _process_qstat_line(self, re_search, line, re_match_positions):
         """
@@ -41,13 +41,15 @@ class StatExtractor(object):
         """
         counters = {}
         stored_dict = {}
-        for key in ['users', 'wns', 'qs']:
+        for key in ['users', 'wns', 'qs', 'jobnums', 'jobnames']:
             counters[key] = count()
 
         maps = {
             'users': '_anon_user_',
             'wns': '_anon_wn_',
-            'qs': '_anon_q_'
+            'qs': '_anon_q_',
+            'jobnums': '_anon_jn_',
+            'jobnames': '_anon_nm_'
         }
 
         def _anonymize_func(s, a_type):
@@ -71,6 +73,16 @@ class StatExtractor(object):
 
         return _anonymize_func
 
+    def eponymize_func(self):
+        def _eponymize_func(s, a_type):
+            return s
+        return _eponymize_func
+
+    def anonymize_queue_list_nametag(self, queue_list_nametag):
+        name, nodename = queue_list_nametag.text.split('@')
+        name = self.anonymize(name, 'qs')
+        nodename = self.anonymize(nodename, 'wns')
+        return name + '@' + nodename
 
 class GenericBatchSystem(object):
     def __init__(self):

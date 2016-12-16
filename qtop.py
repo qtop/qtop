@@ -2420,3 +2420,6 @@ if __name__ == '__main__':
         finally:
             if options.SAMPLE >= 1:
                 fileutils.add_to_sample([QTOP_LOGFILE], savepath, SAMPLE_FILENAME)
+                # add all scheduler output files to sample
+                [fileutils.add_to_sample([scheduler_output_filenames[fn]], savepath, SAMPLE_FILENAME)
+                 for fn in scheduler_output_filenames if os.path.isfile(scheduler_output_filenames[fn])]
