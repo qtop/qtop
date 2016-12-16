@@ -1433,9 +1433,9 @@ class TextDisplay(object):
               '   %(total_run_jobs)s+%(total_q_jobs)s %(jobs)s (R + Q) %(reported_by)s' % \
               {
                   'Summary': colorize('Summary', 'Cyan_L'),
+                  'total_nodes': colorize(str(cluster.total_wn), 'Red_L'),
                   'online_nodes': colorize(str(cluster.total_wn - cluster.offdown_nodes), 'Red_L'),
                   'available_nodes': colorize(str(cluster.available_wn), 'Red_L'),
-                  'total_nodes': colorize(str(cluster.total_wn), 'Red_L'),
                   'Nodes': colorize('Nodes', 'Red_L'),
                   'working_cores': colorize(str(cluster.working_cores), 'Green_L'),
                   'total_cores': colorize(str(cluster.total_cores), 'Green_L'),
@@ -2019,7 +2019,8 @@ class Cluster(object):
         if user_filtering and options_remap:
             len_wn_before = len(self.worker_nodes)
             self.wn_filter = self.WNFilter(self.worker_nodes)
-            self.worker_nodes = self.wn_filter.filter_worker_nodes(filter_rules=user_filters)
+            self.worker_nodes, self.offdown_nodes, self.available_wn = self.wn_filter.filter_worker_nodes(
+                self.offdown_nodes, self.available_wn, filter_rules=user_filters)
             len_wn_after = len(self.worker_nodes)
             nodes_drop = len_wn_after - len_wn_before
 
@@ -2188,7 +2189,7 @@ class WNFilter(object):
     def keep_unmarked(self, t, rule, final_pass=False):
         return filter(lambda item: not item.get('mark'), t)
 
-    def filter_worker_nodes(self, filter_rules=None):
+    def filter_worker_nodes(self, offdown_nodes, avail_nodes, filter_rules=None):
         """
         Keeps specific nodes according to the filter rules in QTOPCONF_YAML
         """
@@ -2220,10 +2221,14 @@ class WNFilter(object):
 
             if len(nodes):
                 self.worker_nodes = dict((v['domainname'], v) for v in nodes).values()
+                offdown_nodes = sum([1 if "".join(([n.str for n in node['state']])) in 'do'  else 0 for node in
+                                     self.worker_nodes])
+                avail_nodes = self.available_wn = sum(
+                    [len(node['state']) for node in self.worker_nodes if str(node['state'][0]) == '-'])
             else:
                 logging.error(colorize('Selected filter results in empty worker node set. Cancelling.', 'Red_L'))
 
-        return self.worker_nodes
+        return self.worker_nodes, offdown_nodes, avail_nodes
 
     @staticmethod
     @utils.CountCalls
