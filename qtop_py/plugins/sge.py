@@ -41,7 +41,7 @@ class SGEStatExtractor(StatExtractor):
             try:
                 all_values = self._extract_job_info(all_values, queue_elem, 'job_list', queue_name=queue_name_elem.text)
             except ValueError:
-                logging.info('No jobs found in XML file!')
+                logging.warn('No jobs found in XML file!')
 
         job_info_elem = root.find('./job_info')
         if job_info_elem is None:
@@ -50,7 +50,7 @@ class SGEStatExtractor(StatExtractor):
             try:
                 all_values = self._extract_job_info(all_values, job_info_elem, 'job_list', queue_name='Pending')
             except ValueError:
-                logging.info('No jobs found in XML file!')
+                logging.warn('No jobs found in XML file!')
 
         if self.options.SAMPLE >= 1:
             tree.write(orig_file)  # TODO anonymize rest of the sensitive information within xml file
@@ -188,6 +188,9 @@ class SGEBatchSystem(GenericBatchSystem):
         """
         job_ids, usernames, job_states = [], [], []
         for subelem in elem.findall(elem_text):
+            state = subelem.get('state')
+            if state != 'running':
+                continue
             job_ids.append(subelem.find('./JB_job_number').text)
             usernames.append(subelem.find('./JB_owner').text)
             job_states.append(subelem.find('./state').text)
