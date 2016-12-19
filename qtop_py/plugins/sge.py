@@ -112,8 +112,6 @@ class SGEBatchSystem(GenericBatchSystem):
         logging.debug("Parsing tree of %s" % self.sge_file)
         fileutils.check_empty_file(self.sge_file)
 
-        # tree = self.get_xml_tree(self.sge_file)
-        # root = tree.getroot()
         tree, root = self.sge_stat_maker.tree, self.sge_stat_maker.root
 
         qstatq_list = self._extract_queues('queue_info/Queue-List', root)

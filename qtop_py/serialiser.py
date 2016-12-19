@@ -1,6 +1,7 @@
 import re
 import sys
 from itertools import count
+import logging
 
 
 class StatExtractor(object):
@@ -25,10 +26,10 @@ class StatExtractor(object):
         try:
             job_id, user, job_state, queue = [m.group(x) for x in re_match_positions]
         except AttributeError:
-            sys.__stdout__.write('Line: %s not properly parsed by regex expression.\n' % line.strip())
+            logging.warn('Line: %s not properly parsed by regex expression. Assuming alternative qstat format.' % line.strip())
             raise
         job_id = job_id.split('.')[0]
-        user = user if not self.options.ANONYMIZE else self.anonymize(user, 'users')
+        user = self.anonymize(user, 'users')
         for key, value in [('JobId', job_id), ('UnixAccount', user), ('S', job_state), ('Queue', queue)]:
             qstat_values[key] = value
         return qstat_values
