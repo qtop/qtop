@@ -334,7 +334,6 @@ user_to_color_default = OrderedDict(
         ('Red', 'Red'),
         ('DGray', 'Gray_D'),
         ('Brown', 'Brown'),
-        ('_', 'White'),
         ('#', 'Gray_D'),
         ('account_not_colored', 'reset'),
         ('NoPattern', 'White'),

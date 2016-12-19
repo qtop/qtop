@@ -1853,7 +1853,7 @@ class Cluster(object):
         if not self.worker_nodes:
             return None  # TODO ? what to return instead of cluster?
 
-        re_nodename = r'(^[A-Za-z0-9-]+)(?=\.|$)' if not self.options.ANONYMIZE else r'\w_anon_\w+'
+        re_nodename = r'(^[A-Za-z0-9-]+)(?=\.|$)' if not self.options.ANONYMIZE else r'\w_anon_wn_\d+'
 
         self.node_subclusters, self.workernode_list, self.offdown_nodes, self.working_cores, max_np, \
             _all_str_digits_with_empties = self.get_wn_list_and_stats(self.workernode_list,
