@@ -51,6 +51,32 @@ import time
 # if not options.COLORFILE:
 #     options.COLORFILE = os.path.expandvars('$HOME/qtop/qtop/qtop.colormap')
 
+def compress_colored_line(s):
+    t = [item for item in re.split(r'\x1b\[0;m', s) if item != '']
+
+    sts = []
+    st = []
+    colors = []
+    prev_code = t[0][:-1]
+    colors.append(prev_code)
+    for idx, code_letter in enumerate(t):
+        code, letter = code_letter[:-1], code_letter[-1]
+        if prev_code == code:
+            st.append(letter)
+        else:
+            sts.append(st)
+            st = []
+            st.append(letter)
+            colors.append(code)
+        prev_code = code
+    sts.append(st)
+
+    final_t = []
+    for color, seq in zip(colors, sts):
+        final_t.append(color + "".join(seq) + '\x1b[0;m')
+    return "".join(final_t)
+
+
 def gauge_core_vectors(core_user_map, print_char_start, print_char_stop, coreline_notthere_or_unused, non_existent_symbol,
                           remove_corelines):
     """
@@ -1641,8 +1667,9 @@ class TextDisplay(object):
             joined_list.extend([utils.ColorStr(string=char) if isinstance(char, str) and len(char) == 1 else char
             for char in d])
             joined_list.append(utils.ColorStr(string=kwargs['sep']))
-        print "".join([colorize(char.initial, color_func=char.color) if isinstance(char, utils.ColorStr) else char
-                       for char in joined_list[self.viewport.h_start:self.viewport.h_stop]])
+        s = "".join([colorize(char.initial, color_func=char.color) if isinstance(char, utils.ColorStr) else char
+                     for char in joined_list[self.viewport.h_start:self.viewport.h_stop]])
+        print compress_colored_line(s)
         return joined_list
 
     def print_core_lines(self, core_user_map, print_char_start, print_char_stop, transposed_matrices,
@@ -1670,12 +1697,13 @@ class TextDisplay(object):
             # if corelines horizontal (non-transposed matrix)
             for core_line in self.get_core_lines(core_user_map, print_char_start, print_char_stop,
                                                  userid_to_userid_re_pat, mapping, attrs):
+                core_line_zipped = compress_colored_line(core_line)
                 try:
-                    print core_line
+                    print core_line_zipped
                 except IOError:
                     try:
                         signal(SIGPIPE, SIG_DFL)
-                        print core_line
+                        print core_line_zipped
                         sys.stdout.close()
                     except IOError:
                         pass
@@ -2113,7 +2141,7 @@ def colorize(text, color_func=None, pattern='NoPattern', mapping=None, bg_color=
     else:
         if bold and ansi_color[0] in '01':
             ansi_color = '1' + ansi_color[1:]
-        if options.COLOR == 'ON' and pattern != 'account_not_colored' and text != ' ':
+        if options.COLOR == 'ON' and pattern != 'account_not_colored':
             text = "\033[%(fg_color)s%(bg_color)sm%(text)s\033[0;m" \
                    % {'fg_color': ansi_color, 'bg_color': color_to_code[bg_color], 'text': text}
 
