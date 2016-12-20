@@ -4,7 +4,8 @@
 -  Feature enhancement: report version #276
 -  Feature enhancement: some more fixes on help page, visible with ``?`` #273
 -  Bugfix: fix for Anonymisation feature temporarily unavailable until completely implemented (use ``--experimental``) #170
--  Bugfix: fix for stacktrace while collecting anonymized sample (which worked fine otherwise) #280, #281
+-  Bugfix: fix for stacktrace while collecting anonymized sample (which by then worked fine otherwise) #280, #281
+-  Bugfix: fix for when in filtered view, summary now reflects filtered jobs/cores #276
 -  Bugfix: fix for svc.* no longer with Cyan color #278
 -  Bugfix: fix-anonymize-SGE-and-optimisations #276
 -  Bugfix: fix broken coloring #276
