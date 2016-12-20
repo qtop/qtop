@@ -52,6 +52,7 @@ import time
 #     options.COLORFILE = os.path.expandvars('$HOME/qtop/qtop/qtop.colormap')
 
 def compress_colored_line(s):
+    ## TODO: black sheep
     t = [item for item in re.split(r'\x1b\[0;m', s) if item != '']
 
     sts = []
