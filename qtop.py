@@ -20,9 +20,9 @@ import datetime
 try:
     from collections import namedtuple, OrderedDict, Counter
 except ImportError:
-    from qtop_py.legacy.namedtuple import namedtuple
-    from qtop_py.legacy.ordereddict import OrderedDict
-    from qtop_py.legacy.counter import Counter
+    from backport_collections import namedtuple
+    from backport_collections import OrderedDict
+    from backport_collections import Counter
 import os
 from os.path import realpath
 from signal import signal, SIGPIPE, SIG_DFL

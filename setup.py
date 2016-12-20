@@ -6,6 +6,10 @@ import sys
 if sys.version_info < (2, 5):
     sys.exit('Sorry, Python < 2.5 is not supported')
 
+requires=[]
+if sys.version_info < (2, 7):
+    requires=['backport_collections']
+
 f = open("README.rst", 'r')
 try:
     long_description = f.read()
@@ -23,11 +27,12 @@ setup(
     author_email='sfranky@gmail.com',
     url="https://github.com/qtop/qtop",
     packages=['qtop_py',
-              'qtop_py.legacy',
               'qtop_py.plugins',
               'qtop_py.ui'
               ],
     package_dir={'qtop_py': 'qtop_py'},
     package_data={'qtop_py': ['../qtopconf.yaml', '../qtop.py']},
-    scripts=['qtop']
+    scripts=['qtop'],
+    install_requires=requires,
+    test_require=requires,
 )
