@@ -1,12 +1,24 @@
+0.9.20161221
+------------
+-  Feature enhancement: Need for speed: compression of ansi codes #279
+-  Feature enhancement: report version #276
+-  Feature enhancement: some more fixes on help page, visible with ``?`` #273
+-  Bugfix: fix for Anonymisation feature temporarily unavailable until completely implemented (use ``--experimental``) #170
+-  Bugfix: fix for stacktrace while collecting anonymized sample (which by then worked fine otherwise) #280, #281
+-  Bugfix: fix for when in filtered view, summary now reflects filtered jobs/cores #276
+-  Bugfix: fix for svc.* no longer with Cyan color #278
+-  Bugfix: fix-anonymize-SGE-and-optimisations #276
+-  Bugfix: fix broken coloring #276
+
 0.9.20161216
 ------------
--  Feature enhancement: key H: highlight users and queues by string or regex #272
--  Feature enhancement: add -rr option: filter out unused core lines #270, #271
+-  Feature enhancement: key ``H``: highlight users and queues by string or regex #272
+-  Feature enhancement: add -``rr`` option: filter out unused core lines #270, #271
 -  Feature enhancement: harmonize output filenames for window/full view and json exports #269
 -  Bugfix: -r Option to remove empty core lines now works as advertised #267
 -  Bugfix: fix for more arcane pbs node names in pbsnodes #266
 -  Bugfix: fix for PBS plugin fails when jobs use non-consecutive CPUs #265
--  Bugfix: fix for adding -G flag under demo resulted in a crash, when `getent` was missing #262
+-  Bugfix: fix for adding ``-G`` flag under demo resulted in a crash, when ``getent`` was missing #262
 
 0.9.20161207
 ------------
@@ -35,18 +47,18 @@
 -  Bugfixes on PBS (jobid arrays, node states etc)
 -  Bugfixes on SGE (job states added, all jobs now visible, userid is correct)
 -  Bugfixes on OAR (nodes per user are also visible)
--  Converted documentation files to .rst format
+-  Converted documentation files to ``.rst`` format
 
 0.8.9
 -----
 
--  watch mode (-w)
+-  watch mode ``(-w)``
 
-   - ((s)) node sorting with custom presets/user-inserted RegEx sorts
-   - ((f)) node filtering
-   - ((t)) matrix transposition
-   - ((F)) toggle full nodename display/numbering
-   - ((m)) toggle coloring code (user-id based/queue name-based)
+   - ``((s))`` node sorting with custom presets/user-inserted RegEx sorts
+   - ``((f))`` node filtering
+   - ``((t))`` matrix transposition
+   - ``((F))`` toggle full nodename display/numbering
+   - ``((m))`` toggle coloring code (user-id based/queue name-based)
 -  queue info can now be colored, three different queues with the same initials can be colored distinctly
 -  a good first amount of documentation
 -  small bugfixes
@@ -73,8 +85,7 @@
 0.8.6
 -----
 
--  Support for python 2.6 for early RHEL6/Centos6/ScientificLinux6
-   distros
+-  Support for python 2.6 for early RHEL6/Centos6/ScientificLinux6 distros
 -  Added tarball creation for better user reporting
 -  Added Viewport class
 -  Several bugfixes
@@ -120,22 +131,22 @@
 0.8.0
 -----
 
--  Wrapping together support for PBS, OAR, SGE
+-  Wrapping together support for ``PBS`, ``OAR``, ``SGE``
 
 0.7.3
 -----
 
--  Support for OAR
+-  Support for ``OAR``
 
 0.7.2
 -----
 
--  Introduce support for SGE
+-  Introduce support for ``SGE``
 
 0.7.1
 -----
 
--  Finalise support for PBS
+-  Finalise support for ``PBS``
 
 0.7
 ---
@@ -163,7 +174,7 @@ Bugfixes: - got rid of all global variables (experimental)
 0.6.5
 -----
 
-Enhancements: - PBS now supported
+Enhancements: - ``PBS`` now supported
 
 0.6.4
 -----
@@ -190,14 +201,12 @@ Enhancements: - Custom-cut matrices (horizontally, too!), -o switch
 0.5.2
 -----
 
-Enhancements: - Custom-cut matrices (vertically, not horizontally),
-width set by user.
+Enhancements: - Custom-cut matrices (vertically, not horizontally), width set by user.
 
 0.5.1
 -----
 
-Enhancements: - If more than 20% of the WNs are empty, perform a blind
-remap. - Code Cleanup
+Enhancements: - If more than 20% of the WNs are empty, perform a blind remap. - Code Cleanup
 
 0.5.0
 -----
@@ -207,24 +216,21 @@ Bugfixes: - Major rewrite of matrices calculation fixed
 New features: - true blind remapping !!
 
 Enhancements: - exotic cases of very high numbering schemes now handled
-- more qstat entries successfully parsed - case of many unix accounts
-(>62) now handled
+- more qstat entries successfully parsed - case of many unix accounts (>62) now handled
 
 0.4.1
 -----
 
-Bugfixes: - now understands additional probable names for pbsnodes,qstat
-and qstat-q data files
+Bugfixes: - now understands additional probable names for ``pbsnodes``, ``qstat`` and ``qstat-q`` data files
 
 0.4.0
 -----
 
-Bugfixes: - corrected colorless switch to have ON/OFF option (default
-ON) - qstat\_q didn’t recognize some faulty cpu time entries - now
+Bugfixes: - corrected colorless switch to have ON/OFF option (default ON) - 
+``qstat_q`` didn’t recognize some faulty cpu time entries - now
 descriptions are in white, as before.
 
-Enhancements: - Queues in the job accounting summary section are now
-coloured
+Enhancements: - Queues in the job accounting summary section are now coloured
 
 0.3.0
 -----
@@ -232,7 +238,7 @@ coloured
 Enhancements: - command-line arguments (mostly empty for now)! -
 non-numbered WNs can now be displayed instead of numbered WN IDs
 
-New features: - implement colorless switch (-c)
+New features: - implement colorless switch ``(-c)``
 
 Bugfixes: - fixed issue with single named WN - better regex pattern and
 algorithm for catching complicated numbered WN domain names
@@ -261,11 +267,9 @@ now handled
 0.2.6
 -----
 
-Bugfixes: - fixed some names not being detected (%,= chars missing from
-regex)
+Bugfixes: - fixed some names not being detected (``%``,``=`` chars missing from regex)
 
-Enhancements: - changed name to qtop, introduced configuration file
-qtop.conf and colormap file qtop.colormap
+Enhancements: - changed name to ``qtop``, introduced configuration file ``qtop.conf`` and colormap file ``qtop.colormap``
 
 0.2.5
 -----
@@ -285,20 +289,17 @@ paths - refactored code around cpu\_core\_dict functionality
 
 Bugfixes: - corrected regex search pattern in make\_qstat to recognize
 usernames like spec101u1 (number followed by number followed by letter)
-now handles non-uniform setups - R + Q / all: all did not display
-everything (E status)
+now handles non-uniform setups - R + Q / all: all did not display everything (E status)
 
 0.2.2
 -----
 
-Enhancements: - masking/clipping functionality (when nodes start from
-e.g. wn101, empty columns 1-100 are ommited)
+Enhancements: - masking/clipping functionality (when nodes start from e.g. wn101, empty columns 1-100 are ommited)
 
 0.2.1
 -----
 
-Enhancements: - Hashes displaying when the node has less cores than the
-max declared by a WN (its np variable)
+Enhancements: - Hashes displaying when the node has less cores than the max declared by a WN (its np variable)
 
 0.2.0
 -----
@@ -329,8 +330,7 @@ Bugfixes: - ReadPbsNodes function (write in yaml format using Pyyaml)
 0.1.5
 -----
 
-Bugfixes: - implemented saving to 3 separate files, QSTAT\_ORIG\_FILE,
-QSTATQ\_ORIG\_FILE, PBSNODES\_ORIG\_FILE
+Bugfixes: - implemented saving to 3 separate files: ``QSTAT_ORIG_FILE``, ``QSTATQ_ORIG_FILE``, ``PBSNODES_ORIG_FILE``
 
 0.1.4
 -----
@@ -348,16 +348,14 @@ Bugfixes: - fixed tabs-to-spaces. Formatting should be correct now.
 0.1.2
 -----
 
-Enhancements: - script reads qtop-input.out files from each job and
-displays status for each job
+Enhancements: - script reads qtop-input.out files from each job and displays status for each job
 
 0.1.1
 -----
 
-Enhancements: - changed implementation in get\_state()
+Enhancements: - changed implementation in ``get_state()``
 
 0.1.0
 -----
 
-Enhancements: - just read a pbsnodes-a output file and gather the
-results in a single line
+Enhancements: - just read a pbsnodes-a output file and gather the results in a single line
