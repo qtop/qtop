@@ -47,7 +47,7 @@ def safe_exit_with_file_close(handle, name, stdout, options, _savepath,
         os.unlink(name)  # this deletes the file
     # sys.stdout = stdout
     if options.SAMPLE >= 1:
-        add_to_sample([qtop_logfile], _savepath, sample_filename)
+        _ = add_to_sample([qtop_logfile], _savepath, sample_filename)
     sys.exit(0)
 
 
@@ -62,20 +62,20 @@ def init_sample_file(options, _savepath, SAMPLE_FILENAME, scheduler_output_filen
     if options.SAMPLE >= 1:
         # clears any preexisting tar files
         tar_out = tarfile.open(os.path.join(_savepath, SAMPLE_FILENAME), mode='w')
-        tar_out.close()
 
     if options.SAMPLE >= 2:
-        add_to_sample([os.path.join(os.path.realpath(QTOPPATH), QTOPCONF_YAML)], _savepath, SAMPLE_FILENAME)
+        tar_out = add_to_sample([os.path.join(os.path.realpath(QTOPPATH), QTOPCONF_YAML)], tar_out)
         source_files = glob.glob(os.path.join(os.path.realpath(QTOPPATH), '*.py'))
-        add_to_sample(source_files, _savepath, SAMPLE_FILENAME, subdir='qtop_py')
+        tar_out = add_to_sample(source_files, tar_out, subdir='qtop_py')
+    return tar_out
 
 
-def add_to_sample(filepaths_to_add, _savepath, sample_file, sample_method=tarfile, subdir=None):
+def add_to_sample(filepaths_to_add, sample_out, sample_method=tarfile, subdir=None):
+    # def add_to_sample(filepaths_to_add, _savepath, sample_file, sample_method=tarfile, subdir=None):
     """
     opens sample_file in path savepath and adds files filepaths_to_add
     """
     assert isinstance(filepaths_to_add, list)
-    sample_out = sample_method.open(os.path.join(_savepath, sample_file), mode='a')
     for filepath_to_add in filepaths_to_add:
         path, fn = filepath_to_add.rsplit('/', 1)
         try:
@@ -83,9 +83,10 @@ def add_to_sample(filepaths_to_add, _savepath, sample_file, sample_method=tarfil
             sample_out.add(filepath_to_add, arcname=fn if not subdir else os.path.join(subdir, fn))
         except tarfile.TarError:  # TODO: test what could go wrong here
             logging.error('There seems to be something wrong with the tarfile. Skipping...')
-    else:
-        logging.debug('Closing sample...')
-        sample_out.close()
+    # else:
+        # logging.debug('Closing sample...')
+        # sample_out.close()
+    return sample_out
 
 
 def get_sample_filename(SAMPLE_FILENAME, config):

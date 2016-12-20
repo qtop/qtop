@@ -2365,8 +2365,8 @@ if __name__ == '__main__':
                     config['schedulers'], available_batch_systems, config)
                 scheduler_output_filenames = fetch_scheduler_files(options, config)
                 SAMPLE_FILENAME = fileutils.get_sample_filename(SAMPLE_FILENAME, config)
-                fileutils.init_sample_file(options, savepath, SAMPLE_FILENAME, scheduler_output_filenames, QTOPCONF_YAML,
-                                           QTOPPATH)
+                fileutils.tar_out = fileutils.init_sample_file(options, savepath, SAMPLE_FILENAME, scheduler_output_filenames,
+                                                   QTOPCONF_YAML, QTOPPATH)
 
                 ###### Gather data ###############
                 #
@@ -2446,14 +2446,16 @@ if __name__ == '__main__':
                 fileutils.deprecate_old_output_files(config)
 
             if options.SAMPLE:
-                fileutils.add_to_sample([output_fp], savepath, SAMPLE_FILENAME)
+                fileutils.tar_out = fileutils.add_to_sample([output_fp], fileutils.tar_out)
 
         except (KeyboardInterrupt, EOFError) as e:
             repr(e)
             fileutils.safe_exit_with_file_close(handle, output_fp, stdout, options, savepath, QTOP_LOGFILE, SAMPLE_FILENAME)
         finally:
             if options.SAMPLE >= 1:
-                fileutils.add_to_sample([QTOP_LOGFILE], savepath, SAMPLE_FILENAME)
+                fileutils.tar_out = fileutils.add_to_sample([QTOP_LOGFILE], fileutils.tar_out)
                 # add all scheduler output files to sample
-                [fileutils.add_to_sample([scheduler_output_filenames[fn]], savepath, SAMPLE_FILENAME)
-                for fn in scheduler_output_filenames if os.path.isfile(scheduler_output_filenames[fn])]
+                for fn in scheduler_output_filenames:
+                    if os.path.isfile(scheduler_output_filenames[fn]):
+                        fileutils.tar_out = fileutils.add_to_sample([scheduler_output_filenames[fn]], fileutils.tar_out)
+                fileutils.tar_out.close()
