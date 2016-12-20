@@ -1412,10 +1412,12 @@ class TextDisplay(object):
                 logging.warning('=== WARNING: --- Remapping WN names and retrying heuristics... good luck with this... ---')
 
         ansi_delete_char = "\015"  # this removes the first ever character (space) appearing in the output
-        print '%(del)s%(name)s \n          ## For feedback and updates, see: %(link)s' \
-              % {'name': 'PBS' if options.CLASSIC else colorize('./qtop.py ## Queueing System report tool. Press ? for help', 'Cyan_L'),
+        print '%(del)s%(name)s \nv%(version)s ## For feedback and updates, see: %(link)s' \
+              % {'name': 'PBS' if options.CLASSIC else colorize('./qtop.py     ## Queueing System report tool. Press ? for '
+                                                                'help', 'Cyan_L'),
                  'del': ansi_delete_char,
-                 'link': colorize('https://github.com/qtop/qtop', 'Cyan_L')
+                 'link': colorize('https://github.com/qtop/qtop', 'Cyan_L'),
+                 'version': __version__
                  }
         if scheduler == 'demo':
             msg = "This data is simulated. As soon as you connect to one of the supported scheduling systems,\n" \
@@ -1433,9 +1435,9 @@ class TextDisplay(object):
               '   %(total_run_jobs)s+%(total_q_jobs)s %(jobs)s (R + Q) %(reported_by)s' % \
               {
                   'Summary': colorize('Summary', 'Cyan_L'),
+                  'total_nodes': colorize(str(cluster.total_wn), 'Red_L'),
                   'online_nodes': colorize(str(cluster.total_wn - cluster.offdown_nodes), 'Red_L'),
                   'available_nodes': colorize(str(cluster.available_wn), 'Red_L'),
-                  'total_nodes': colorize(str(cluster.total_wn), 'Red_L'),
                   'Nodes': colorize('Nodes', 'Red_L'),
                   'working_cores': colorize(str(cluster.working_cores), 'Green_L'),
                   'total_cores': colorize(str(cluster.total_cores), 'Green_L'),
@@ -1853,7 +1855,7 @@ class Cluster(object):
         if not self.worker_nodes:
             return None  # TODO ? what to return instead of cluster?
 
-        re_nodename = r'(^[A-Za-z0-9-]+)(?=\.|$)' if not self.options.ANONYMIZE else r'\w_anon_\w+'
+        re_nodename = r'(^[A-Za-z0-9-]+)(?=\.|$)' if not self.options.ANONYMIZE else r'\w_anon_wn_\d+'
 
         self.node_subclusters, self.workernode_list, self.offdown_nodes, self.working_cores, max_np, \
             _all_str_digits_with_empties = self.get_wn_list_and_stats(self.workernode_list,
@@ -2019,7 +2021,12 @@ class Cluster(object):
         if user_filtering and options_remap:
             len_wn_before = len(self.worker_nodes)
             self.wn_filter = self.WNFilter(self.worker_nodes)
-            self.worker_nodes = self.wn_filter.filter_worker_nodes(filter_rules=user_filters)
+            self.worker_nodes, self.offdown_nodes, self.available_wn, self.working_cores, self.total_cores = \
+                self.wn_filter.filter_worker_nodes(self.offdown_nodes,
+                                                   self.available_wn,
+                                                   self.working_cores,
+                                                   self.total_cores,
+                                                   filter_rules=user_filters)
             len_wn_after = len(self.worker_nodes)
             nodes_drop = len_wn_after - len_wn_before
 
@@ -2188,7 +2195,7 @@ class WNFilter(object):
     def keep_unmarked(self, t, rule, final_pass=False):
         return filter(lambda item: not item.get('mark'), t)
 
-    def filter_worker_nodes(self, filter_rules=None):
+    def filter_worker_nodes(self, offdown_nodes, avail_nodes, working_cores, total_cores, filter_rules=None):
         """
         Keeps specific nodes according to the filter rules in QTOPCONF_YAML
         """
@@ -2220,10 +2227,16 @@ class WNFilter(object):
 
             if len(nodes):
                 self.worker_nodes = dict((v['domainname'], v) for v in nodes).values()
+                offdown_nodes = sum([1 if "".join(([n.str for n in node['state']])) in 'do'  else 0 for node in
+                                     self.worker_nodes])
+                avail_nodes = self.available_wn = sum(
+                    [len(node['state']) for node in self.worker_nodes if str(node['state'][0]) == '-'])
+                working_cores = sum(len(node.get('core_job_map', dict())) for node in self.worker_nodes)
+                total_cores = sum(int(node.get('np')) for node in self.worker_nodes)
             else:
                 logging.error(colorize('Selected filter results in empty worker node set. Cancelling.', 'Red_L'))
 
-        return self.worker_nodes
+        return self.worker_nodes, offdown_nodes, avail_nodes, working_cores, total_cores
 
     @staticmethod
     @utils.CountCalls
@@ -2262,6 +2275,9 @@ if __name__ == '__main__':
     utils.init_logging(options)
     dynamic_config = dict()
     options, dynamic_config['force_names'] = process_options(options)
+    if options.ANONYMIZE and not options.EXPERIMENTAL:
+        print 'Anonymize should be ran with --experimental switch!! Exiting...'
+        sys.exit(1)
     if options.WATCH or options.REPLAY:  # this is needed for the filtering/sorting options
         try:
             old_attrs = termios.tcgetattr(0)
@@ -2409,3 +2425,6 @@ if __name__ == '__main__':
         finally:
             if options.SAMPLE >= 1:
                 fileutils.add_to_sample([QTOP_LOGFILE], savepath, SAMPLE_FILENAME)
+                # add all scheduler output files to sample
+                [fileutils.add_to_sample([scheduler_output_filenames[fn]], savepath, SAMPLE_FILENAME)
+                for fn in scheduler_output_filenames if os.path.isfile(scheduler_output_filenames[fn])]

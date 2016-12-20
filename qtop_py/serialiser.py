@@ -1,6 +1,7 @@
 import re
 import sys
 from itertools import count
+import logging
 
 
 class StatExtractor(object):
@@ -12,7 +13,7 @@ class StatExtractor(object):
     def __init__(self, config, options):
         self.config = config
         self.options = options
-        self.anonymize = self.anonymize_func()
+        self.anonymize = self.anonymize_func() if self.options.ANONYMIZE else self.eponymize_func()
 
     def _process_qstat_line(self, re_search, line, re_match_positions):
         """
@@ -25,10 +26,10 @@ class StatExtractor(object):
         try:
             job_id, user, job_state, queue = [m.group(x) for x in re_match_positions]
         except AttributeError:
-            sys.__stdout__.write('Line: %s not properly parsed by regex expression.\n' % line.strip())
+            logging.warn('Line: %s not properly parsed by regex expression. Assuming alternative qstat format.' % line.strip())
             raise
         job_id = job_id.split('.')[0]
-        user = user if not self.options.ANONYMIZE else self.anonymize(user, 'users')
+        user = self.anonymize(user, 'users')
         for key, value in [('JobId', job_id), ('UnixAccount', user), ('S', job_state), ('Queue', queue)]:
             qstat_values[key] = value
         return qstat_values
@@ -41,13 +42,16 @@ class StatExtractor(object):
         """
         counters = {}
         stored_dict = {}
-        for key in ['users', 'wns', 'qs']:
+        for key in ['users', 'wns', 'qs', 'jobnums', 'jobnames', 'jobtimes']:
             counters[key] = count()
 
         maps = {
             'users': '_anon_user_',
             'wns': '_anon_wn_',
-            'qs': '_anon_q_'
+            'qs': '_anon_q_',
+            'jobnums': '_anon_jn_',
+            'jobnames': '_anon_nm_',
+            'jobtimes': 'never'
         }
 
         def _anonymize_func(s, a_type):
@@ -71,6 +75,16 @@ class StatExtractor(object):
 
         return _anonymize_func
 
+    def eponymize_func(self):
+        def _eponymize_func(s, a_type):
+            return s
+        return _eponymize_func
+
+    def anonymize_queue_list_nametag(self, queue_list_nametag):
+        name, nodename = queue_list_nametag.text.split('@')
+        name = self.anonymize(name, 'qs')
+        nodename = self.anonymize(nodename, 'wns')
+        return name + '@' + nodename
 
 class GenericBatchSystem(object):
     def __init__(self):
