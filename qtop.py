@@ -1412,10 +1412,12 @@ class TextDisplay(object):
                 logging.warning('=== WARNING: --- Remapping WN names and retrying heuristics... good luck with this... ---')
 
         ansi_delete_char = "\015"  # this removes the first ever character (space) appearing in the output
-        print '%(del)s%(name)s \n          ## For feedback and updates, see: %(link)s' \
-              % {'name': 'PBS' if options.CLASSIC else colorize('./qtop.py ## Queueing System report tool. Press ? for help', 'Cyan_L'),
+        print '%(del)s%(name)s \nv%(version)s ## For feedback and updates, see: %(link)s' \
+              % {'name': 'PBS' if options.CLASSIC else colorize('./qtop.py     ## Queueing System report tool. Press ? for '
+                                                                'help', 'Cyan_L'),
                  'del': ansi_delete_char,
-                 'link': colorize('https://github.com/qtop/qtop', 'Cyan_L')
+                 'link': colorize('https://github.com/qtop/qtop', 'Cyan_L'),
+                 'version': __version__
                  }
         if scheduler == 'demo':
             msg = "This data is simulated. As soon as you connect to one of the supported scheduling systems,\n" \
