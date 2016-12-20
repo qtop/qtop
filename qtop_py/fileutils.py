@@ -6,6 +6,7 @@ import tarfile
 import sys
 import glob
 import datetime
+import time
 
 
 def mkdir_p(path):
@@ -76,6 +77,7 @@ def add_to_sample(filepaths_to_add, _savepath, sample_file, sample_method=tarfil
     """
     assert isinstance(filepaths_to_add, list)
     sample_out = sample_method.open(os.path.join(_savepath, sample_file), mode='a')
+    time.sleep(0.2)
     for filepath_to_add in filepaths_to_add:
         path, fn = filepath_to_add.rsplit('/', 1)
         try:
