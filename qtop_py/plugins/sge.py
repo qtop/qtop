@@ -79,6 +79,9 @@ class SGEStatExtractor(StatExtractor):
             owner = subelem.find('./JB_owner').text = self.anonymize(subelem.find('./JB_owner').text, 'users')
             job_num = subelem.find('./JB_job_number').text = self.anonymize(subelem.find('./JB_job_number').text, 'jobnums')
             subelem.find('./JB_name').text = self.anonymize(subelem.find('./JB_name').text, 'jobnames')
+            subm_time = subelem.find('./JB_submission_time')
+            if subm_time is not None:
+                subm_time.text = self.anonymize(subelem.find('./JB_submission_time').text, 'jobtimes')
             queue_name = self.anonymize(queue_name, 'qs')
             qstat_values = dict()
             qstat_values['JobId'] = job_num
@@ -222,6 +225,7 @@ class SGEBatchSystem(GenericBatchSystem):
             owner = subelem.find('./JB_owner').text = self.anonymize(subelem.find('./JB_owner').text, 'users')
             job_num = subelem.find('./JB_job_number').text = self.anonymize(subelem.find('./JB_job_number').text, 'jobnums')
             subelem.find('./JB_name').text = self.anonymize(subelem.find('./JB_name').text, 'jobnames')
+            subelem.find('./JAT_start_time').text = self.anonymize(subelem.find('./JAT_start_time').text, 'jobtimes')
             job_ids.append(job_num)
             usernames.append(owner)
             job_states.append(subelem.find('./state').text)

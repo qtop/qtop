@@ -42,7 +42,7 @@ class StatExtractor(object):
         """
         counters = {}
         stored_dict = {}
-        for key in ['users', 'wns', 'qs', 'jobnums', 'jobnames']:
+        for key in ['users', 'wns', 'qs', 'jobnums', 'jobnames', 'jobtimes']:
             counters[key] = count()
 
         maps = {
@@ -50,7 +50,8 @@ class StatExtractor(object):
             'wns': '_anon_wn_',
             'qs': '_anon_q_',
             'jobnums': '_anon_jn_',
-            'jobnames': '_anon_nm_'
+            'jobnames': '_anon_nm_',
+            'jobtimes': 'never'
         }
 
         def _anonymize_func(s, a_type):
