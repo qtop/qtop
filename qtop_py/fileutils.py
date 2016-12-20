@@ -6,7 +6,6 @@ import tarfile
 import sys
 import glob
 import datetime
-import time
 
 
 def mkdir_p(path):
@@ -63,7 +62,6 @@ def init_sample_file(options, _savepath, SAMPLE_FILENAME, scheduler_output_filen
     if options.SAMPLE >= 1:
         # clears any preexisting tar files
         tar_out = tarfile.open(os.path.join(_savepath, SAMPLE_FILENAME), mode='w')
-        # tar_out.close()
 
     if options.SAMPLE >= 2:
         tar_out = add_to_sample([os.path.join(os.path.realpath(QTOPPATH), QTOPCONF_YAML)], tar_out)
@@ -78,8 +76,6 @@ def add_to_sample(filepaths_to_add, sample_out, sample_method=tarfile, subdir=No
     opens sample_file in path savepath and adds files filepaths_to_add
     """
     assert isinstance(filepaths_to_add, list)
-    # sample_out = sample_method.open(os.path.join(_savepath, sample_file), mode='a')
-    # time.sleep(0.2)
     for filepath_to_add in filepaths_to_add:
         path, fn = filepath_to_add.rsplit('/', 1)
         try:

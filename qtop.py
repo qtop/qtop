@@ -2429,5 +2429,4 @@ if __name__ == '__main__':
                 for fn in scheduler_output_filenames:
                     if os.path.isfile(scheduler_output_filenames[fn]):
                         fileutils.tar_out = fileutils.add_to_sample([scheduler_output_filenames[fn]], fileutils.tar_out)
-                # [fileutils.add_to_sample([scheduler_output_filenames[fn]], savepath, SAMPLE_FILENAME)
-                # for fn in scheduler_output_filenames if os.path.isfile(scheduler_output_filenames[fn])]
+                fileutils.tar_out.close()
