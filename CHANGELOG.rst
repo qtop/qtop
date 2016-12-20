@@ -1,3 +1,12 @@
+0.9.20161221
+------------
+-  Feature enhancement: Need for speed: compression of ansi codes #279
+-  Feature enhancement: report version #276
+-  Feature enhancement: some more fixes on help page, visible with ``?`` #273
+-  Bugfix: fix for stacktrace while collecting anonymized sample (which worked fine otherwise) #280, #281
+-  Bugfix: fix for svc.* no longer with Cyan color #278
+-  Bugfix: fix-anonymize-SGE-and-optimisations, fix broken coloring, report version #276
+
 0.9.20161216
 ------------
 -  Feature enhancement: key H: highlight users and queues by string or regex #272
