@@ -6,7 +6,8 @@
 -  Bugfix: fix for Anonymisation feature temporarily unavailable until completely implemented (use ``--experimental``) #170
 -  Bugfix: fix for stacktrace while collecting anonymized sample (which worked fine otherwise) #280, #281
 -  Bugfix: fix for svc.* no longer with Cyan color #278
--  Bugfix: fix-anonymize-SGE-and-optimisations, fix broken coloring, report version #276
+-  Bugfix: fix-anonymize-SGE-and-optimisations #276
+-  Bugfix: fix broken coloring #276
 
 0.9.20161216
 ------------
