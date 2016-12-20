@@ -178,7 +178,7 @@ class SGEBatchSystem(GenericBatchSystem):
 
         # last to be reading the xml file, can now write back if anonymizing..
         if self.options.SAMPLE >= 1:
-            anon_file = self.sge_stat_maker.orig_file + '_anon'
+            anon_file = self.sge_stat_maker.orig_file + '%s' % ('_anon' if self.options.ANONYMIZE else '')
             self.sge_stat_maker.scheduler_output_filenames['sge_file'] = anon_file
             tree.write(anon_file)
         return existing_wns
