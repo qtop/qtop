@@ -2,6 +2,8 @@ import os
 import logging
 
 
+## TODO: black sheep
+
 def fix_config_list(config_list):
     """
     transforms a list of the form ['a, b'] to ['a', 'b']
