@@ -1,3 +1,7 @@
+0.9.20161222
+------------
+-  Bugfix: hotfix for ``tar_out`` issue #283, #284
+
 0.9.20161221
 ------------
 -  Feature enhancement: Need for speed: compression of ansi codes #279
