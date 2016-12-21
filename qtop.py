@@ -2365,8 +2365,9 @@ if __name__ == '__main__':
                     config['schedulers'], available_batch_systems, config)
                 scheduler_output_filenames = fetch_scheduler_files(options, config)
                 SAMPLE_FILENAME = fileutils.get_sample_filename(SAMPLE_FILENAME, config)
-                fileutils.tar_out = fileutils.init_sample_file(options, savepath, SAMPLE_FILENAME, scheduler_output_filenames,
-                                                   QTOPCONF_YAML, QTOPPATH)
+                if options.SAMPLE:
+                    fileutils.tar_out = fileutils.init_sample_file(options, savepath, SAMPLE_FILENAME,
+                                                                   scheduler_output_filenames, QTOPCONF_YAML, QTOPPATH)
 
                 ###### Gather data ###############
                 #
