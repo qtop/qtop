@@ -21,10 +21,8 @@ class StatExtractor(object):
         if not any([m1, m2]):
             logging.critical("Line: %s not matched to any known PBS format or unexpected character. Exiting...' % line.strip()")
             sys.exit(1)
-        elif m1:
-            return self.user_q_search
-        elif m2:
-            return self.user_q_search_prior
+
+        return self.user_q_search if m1 else self.user_q_search_prior  # else being m2
 
     def _process_qstat_line(self, re_search, line):
         """
