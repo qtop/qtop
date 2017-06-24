@@ -19,7 +19,7 @@ class StatExtractor(object):
         m1 = re.search(self.user_q_search, line.strip())
         m2 = re.search(self.user_q_search_prior, line.strip())
         if not any([m1, m2]):
-            logging.critical("Line: %s not matched to any known pbs format or unexpected character. Exiting...' % line.strip()")
+            logging.critical("Line: %s not matched to any known PBS format or unexpected character. Exiting...' % line.strip()")
             sys.exit(1)
         elif m1:
             return self.user_q_search
@@ -129,23 +129,3 @@ class GenericBatchSystem(object):
             my_queues = set(job_ids_queues[re.sub(r'\[\d+\]', r'[]', job_id)] for job_id in my_jobs)  # also for job arrays
             worker_node['qname'] = list(my_queues)
         return _worker_nodes
-
-
-class BatchSystem(object):
-    def __init__(self, batch_system):
-        self.delegate = batch_system
-
-    def get_queues_info(self):
-        self.delegate.get_queues_info()
-
-    def get_worker_nodes(self):
-        self.delegate.get_worker_nodes()
-
-    def get_jobs_info(self, qstats):
-        self.delegate.get_jobs_info(qstats)
-
-    def get_mnemonic(self):
-        pass
-
-
-bs = BatchSystem('sge')
