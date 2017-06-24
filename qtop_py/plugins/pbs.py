@@ -37,29 +37,21 @@ class PBSStatExtractor(StatExtractor):
         except fileutils.FileEmptyError:
             logging.error('File %s seems to be empty.' % orig_file)
             all_qstat_values = []
-        else:
-            all_qstat_values = list()
-            with open(orig_file, 'r') as fin:
-                _ = fin.readline()  # header
-                fin.readline()
-                line = fin.readline()
-                re_match_positions = ('job_id', 'user', 'state', 'queue_name')  # was: (1, 5, 7, 8), (1, 4, 5, 8)
-                try:  # first qstat line determines which format qstat follows.
-                    re_search = self.user_q_search
-                    qstat_values = self._process_qstat_line(re_search, line, re_match_positions)
-                    # unused: _job_nr, _ce_name, _name, _time_use = m.group(2), m.group(3), m.group(4), m.group(6)
-                except AttributeError:  # this means 'prior' exists in qstat, it's another format
-                    re_search = self.user_q_search_prior
-                    qstat_values = self._process_qstat_line(re_search, line, re_match_positions)
-                    # unused:  _prior, _name, _submit, _start_at, _queue_domain, _slots, _ja_taskID =
-                    # m.group(2), m.group(3), m.group(6), m.group(7), m.group(9), m.group(10), m.group(11)
-                finally:
-                    all_qstat_values.append(qstat_values)
 
-                # hence the rest of the lines should follow either try's or except's same format
-                for line in fin:
-                    qstat_values = self._process_qstat_line(re_search, line, re_match_positions)
-                    all_qstat_values.append(qstat_values)
+        all_qstat_values = list()
+        with open(orig_file, 'r') as fin:
+            _ = fin.readline()  # header
+            fin.readline()  # unimportant
+            line = fin.readline()  # any qstat line determines which format qstat follows.
+            self.re_match_positions = ('job_id', 'user', 'state', 'queue_name')  # was: (1, 5, 7, 8), (1, 4, 5, 8)
+            re_search = self.decide_format(line)
+
+            qstat_values = self._process_qstat_line(re_search, line)
+            all_qstat_values.append(qstat_values)
+
+            for line in fin:
+                qstat_values = self._process_qstat_line(re_search, line)
+                all_qstat_values.append(qstat_values)
 
         return all_qstat_values
 
