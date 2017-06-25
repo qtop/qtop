@@ -142,7 +142,7 @@ class SGEBatchSystem(GenericBatchSystem):
 
         existing_wns = list()
         existing_node_names = set()
-
+        whole_queues = self.config['whole_queues']
         for queue_elem in root.findall('queue_info/Queue-List'):
             worker_node = self._get_host_qname_np(queue_elem)
             worker_node['state'] = self._get_state(queue_elem)
@@ -150,6 +150,10 @@ class SGEBatchSystem(GenericBatchSystem):
             if worker_node['domainname'] not in existing_node_names:
                 job_ids, _, _ = self._extract_job_info(queue_elem, 'job_list')
                 worker_node['core_job_map'] = dict((idx, job_id) for idx, job_id in enumerate(job_ids))
+                if [q for q in whole_queues if q in worker_node['qname']]:
+                    job = worker_node['core_job_map'][0]
+                    for core in range(int(worker_node['np'])):
+                        worker_node['core_job_map'][core] = job
                 worker_node['existing_busy_cores'] = len(worker_node['core_job_map'])
                 worker_node['np'] = max(int(worker_node['np']), len(worker_node['core_job_map']))
 
