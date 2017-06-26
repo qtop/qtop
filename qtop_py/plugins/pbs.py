@@ -168,7 +168,7 @@ class PBSBatchSystem(GenericBatchSystem):
 
     @staticmethod
     def get_jobs_from_jobline(jobline):
-        #  return re.split(r'(?<=[A-Za-z0-9]),\s?', block['jobs'])
+        #  return re.split(r'(?<=[A-Za-z0-9]),\s?', jobline)
         return re.findall(r'[0-9][0-9.,\[\]a-z-]*/[^,]+', jobline)
 
 
