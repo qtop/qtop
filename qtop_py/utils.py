@@ -4,6 +4,7 @@ from optparse import OptionParser
 import fileutils
 from qtop_py.colormap import *
 from qtop_py.constants import QTOP_LOGFILE
+from qtop_py import __version__
 
 
 def init_logging(options):
@@ -116,6 +117,10 @@ def parse_qtop_cmdline_args():
     # parser.add_option("-f", "--setCOLORMAPFILE", action="store", type="string", dest="COLORFILE")  # TODO
 
     (options, args) = parser.parse_args()
+    if options.version:
+        print 'qtop current version: ' + __version__
+        sys.exit(0)
+
     return options, args
 
 

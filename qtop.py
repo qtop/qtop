@@ -422,7 +422,7 @@ def check_python_version():
     except AssertionError:
         logging.critical("Only python versions 2.6.x and 2.7.x are supported. Exiting")
 
-        web.stop()
+        # web.stop() TODO why is that here???
         sys.exit(1)
 
 
@@ -2296,13 +2296,11 @@ class InvalidScheduler(Exception):
     pass
 
 
-if __name__ == '__main__':
+def initialize_qtop():
     options, args = utils.parse_qtop_cmdline_args()
-    if options.version:
-        print 'qtop current version: ' + __version__
-        sys.exit(0)
     utils.init_logging(options)
     dynamic_config = dict()
+    old_attrs, new_attrs = '', ''
     options, dynamic_config['force_names'] = process_options(options)
     if options.ANONYMIZE and not options.EXPERIMENTAL:
         print 'Anonymize should be ran with --experimental switch!! Exiting...'
@@ -2315,15 +2313,11 @@ if __name__ == '__main__':
         new_attrs = old_attrs[:]
 
     available_batch_systems = discover_qtop_batch_systems()
-
     stdout = sys.stdout  # keep a copy of the initial value of sys.stdout
     change_mapping = cycle([('queue_to_color', 'color by queue'), ('user_to_color', 'color by user')])
     h_counter = cycle([0, 1])
-
     viewport = Viewport()  # controls the part of the qtop matrix shown on screen
     max_line_len = 0
-
-
     check_python_version()
     initial_cwd = os.getcwd()
     logging.debug('Initial qtop directory: %s' % initial_cwd)
@@ -2331,11 +2325,34 @@ if __name__ == '__main__':
     QTOPPATH = os.path.dirname(realpath(sys.argv[0]))  # dir where qtop resides
     HELP_FP = os.path.join(QTOPPATH, 'helpfile.txt')
     help_main_switch = [HELP_FP, ]  # output_fp is not yet defined, will be appended later
-    SAMPLE_FILENAME = 'qtop_sample_${USER}%(datetime)s.tar'
-    SAMPLE_FILENAME = os.path.expandvars(SAMPLE_FILENAME)
+    SAMPLE_FILENAME = os.path.expandvars('qtop_sample_${USER}%(datetime)s.tar')
+
+    return options, args, dynamic_config, old_attrs, new_attrs, available_batch_systems, stdout, change_mapping, \
+           h_counter, viewport, max_line_len, initial_cwd, CURPATH, QTOPPATH, HELP_FP, help_main_switch, SAMPLE_FILENAME
+
+if __name__ == '__main__':
+
+    options, \
+    args, \
+    dynamic_config, \
+    old_attrs, \
+    new_attrs, \
+    available_batch_systems, \
+    stdout, \
+    change_mapping, \
+    h_counter, \
+    viewport, \
+    max_line_len, \
+    initial_cwd, \
+    CURPATH, \
+    QTOPPATH, \
+    HELP_FP, \
+    help_main_switch, \
+    SAMPLE_FILENAME = initialize_qtop()
+
     if options.REPLAY:
         options.WATCH = [0]  # enforce that --watch mode is on, even if not in cmdline switch
-        options.BATCH_SYSTEM = 'demo'
+        options.BATCH_SYSTEM = 'demo'  # default state
         config, _, _ = load_yaml_config()
         useful_frames, options.REPLAY = pick_frames_to_replay(config['savepath'])
 
