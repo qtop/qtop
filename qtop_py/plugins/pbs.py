@@ -158,14 +158,19 @@ class PBSBatchSystem(GenericBatchSystem):
             except KeyError:
                 pbs_values['core_job_map'] = dict()  # change of behaviour: all entries should contain the key even if no value
             else:
-                # jobs = re.split(r'(?<=[A-Za-z0-9]),\s?', block['jobs'])
-                jobs = re.findall(r'[0-9][0-9,-]*/[^,]+', block['jobs'])
+                jobs = PBSBatchSystem.get_jobs_from_jobline(block['jobs'])
                 pbs_values['core_job_map'] = dict((core, job) for job, core in self._get_jobs_cores(jobs))
             finally:
                 all_pbs_values.append(pbs_values)
 
         all_pbs_values = self.ensure_worker_nodes_have_qnames(all_pbs_values, job_ids, job_queues)
         return all_pbs_values
+
+    @staticmethod
+    def get_jobs_from_jobline(jobline):
+        #  return re.split(r'(?<=[A-Za-z0-9]),\s?', block['jobs'])
+        return re.findall(r'[0-9][0-9.,\[\]a-z-]*/[^,]+', jobline)
+
 
     def get_jobs_info(self):
         """
