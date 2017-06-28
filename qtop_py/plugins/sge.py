@@ -135,14 +135,16 @@ class SGEBatchSystem(GenericBatchSystem):
 
         return total_running_jobs, int(eval(str(total_queued_jobs))), qstatq_list
 
-    def get_worker_nodes(self, job_ids, job_queues, options):
+    def get_worker_nodes(self, job_ids, job_queues, options, dynamic_config):
         logging.debug('Parsing tree of %s' % self.sge_file)
 
         tree, root = self.sge_stat_maker.tree, self.sge_stat_maker.root
 
         existing_wns = list()
         existing_node_names = set()
-
+        defined_whole_queues = []
+        if (dynamic_config.get('rem_empty_corelines', options.REM_EMPTY_CORELINES) != 2):
+            defined_whole_queues = self.config['whole_queues']
         for queue_elem in root.findall('queue_info/Queue-List'):
             worker_node = self._get_host_qname_np(queue_elem)
             worker_node['state'] = self._get_state(queue_elem)
@@ -150,6 +152,11 @@ class SGEBatchSystem(GenericBatchSystem):
             if worker_node['domainname'] not in existing_node_names:
                 job_ids, _, _ = self._extract_job_info(queue_elem, 'job_list')
                 worker_node['core_job_map'] = dict((idx, job_id) for idx, job_id in enumerate(job_ids))
+                actual_whole_queues = [q for q in defined_whole_queues if q in worker_node['qname']]
+                if actual_whole_queues:
+                    job = worker_node['core_job_map'][0]
+                    for core in range(int(worker_node['np'])):
+                        worker_node['core_job_map'][core] = job
                 worker_node['existing_busy_cores'] = len(worker_node['core_job_map'])
                 worker_node['np'] = max(int(worker_node['np']), len(worker_node['core_job_map']))
 

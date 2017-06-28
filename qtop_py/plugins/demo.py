@@ -193,7 +193,7 @@ class DemoBatchSystem(GenericBatchSystem):
         self.sim = LittleGridSimulator()
 
 
-    def get_worker_nodes(self, job_ids, job_queues, options):
+    def get_worker_nodes(self, job_ids, job_queues, options, dynamic_config):
         """
         Possible node states are:
         "-": free
