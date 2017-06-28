@@ -127,7 +127,7 @@ class PBSBatchSystem(GenericBatchSystem):
         self.options = options
         self.qstat_maker = PBSStatExtractor(self.config, self.options)
 
-    def get_worker_nodes(self, job_ids, job_queues, options):
+    def get_worker_nodes(self, job_ids, job_queues, options, dynamic_config):
         try:
             fileutils.check_empty_file(self.pbsnodes_file)
         except fileutils.FileEmptyError:
