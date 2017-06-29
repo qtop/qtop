@@ -307,3 +307,7 @@ overwrite_sample_file: True  # True (default) writes to tar using the same const
 ##  - user_to_color, which paints core jobs according to the userid color, or
 ##  - queue_to_color, which paints core jobs according to queue color
 core_coloring: user_to_color
+## queues inserted below will take up all the cores of the node that is associated with the queue
+whole_queues:
+  - world
+  - whole
