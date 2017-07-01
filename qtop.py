@@ -32,51 +32,25 @@ import glob
 import tempfile
 import sys
 import logging
+from math import ceil
+import time
+
 from qtop_py.constants import (SYSTEMCONFDIR, QTOPCONF_YAML, QTOP_LOGFILE, USERPATH, MAX_CORE_ALLOWED,
     MAX_UNIX_ACCOUNTS, KEYPRESS_TIMEOUT, FALLBACK_TERMSIZE)
 from qtop_py import fileutils
 from qtop_py import utils
 from qtop_py.plugins import *
-from math import ceil
 from qtop_py.colormap import user_to_color_default, color_to_code, queue_to_color, nodestate_to_color_default
 import qtop_py.yaml_parser as yaml
 from qtop_py.ui.viewport import Viewport
 from qtop_py.serialiser import GenericBatchSystem
 from qtop_py.web import Web
 from qtop_py import __version__
-import time
 
 
 # TODO make the following work with py files instead of qtop.colormap files
 # if not options.COLORFILE:
 #     options.COLORFILE = os.path.expandvars('$HOME/qtop/qtop/qtop.colormap')
-
-def compress_colored_line(s):
-    ## TODO: black sheep
-    t = [item for item in re.split(r'\x1b\[0;m', s) if item != '']
-
-    sts = []
-    st = []
-    colors = []
-    prev_code = t[0][:-1]
-    colors.append(prev_code)
-    for idx, code_letter in enumerate(t):
-        code, letter = code_letter[:-1], code_letter[-1]
-        if prev_code == code:
-            st.append(letter)
-        else:
-            sts.append(st)
-            st = []
-            st.append(letter)
-            colors.append(code)
-        prev_code = code
-    sts.append(st)
-
-    final_t = []
-    for color, seq in zip(colors, sts):
-        final_t.append(color + "".join(seq) + '\x1b[0;m')
-    return "".join(final_t)
-
 
 def gauge_core_vectors(core_user_map, print_char_start, print_char_stop, coreline_notthere_or_unused, non_existent_symbol,
                           remove_corelines):
@@ -855,12 +829,14 @@ def discover_qtop_batch_systems():
 
 
 def process_options(options):
+    dynamic_config = dict()
+
     if options.COLOR == 'AUTO':
         options.COLOR = 'ON' if (os.environ.get("QTOP_COLOR", sys.stdout.isatty()) in ("ON", True)) else 'OFF'
     logging.debug("options.COLOR is now set to: %s" % options.COLOR)
     options.REMAP = False  # Default value
-    NAMED_WNS = 1 if options.FORCE_NAMES else 0
-    return options, NAMED_WNS
+    dynamic_config['force_names'] = 1 if options.FORCE_NAMES else 0
+    return options, dynamic_config
 
 
 # def handle_exception(exc_type, exc_value, exc_traceback):
@@ -1391,7 +1367,7 @@ class TextDisplay(object):
         self.config = config
         self.wns_occupancy = wns_occupancy
 
-    def display_selected_sections(self, _savepath, SAMPLE_FILENAME, QTOP_LOGFILE):
+    def display_selected_sections(self, _savepath, QTOP_LOGFILE):
         """
         This prints out the qtop sections selected by the user.
         The selection can be made in two different ways:
@@ -1418,9 +1394,6 @@ class TextDisplay(object):
             display_func, args = display_parts[part][0], display_parts[part][1]
             display_func(*args) if not sections_off[idx] else None
 
-        print "\nLog file created in %s" % os.path.expandvars(QTOP_LOGFILE)
-        if options.SAMPLE:
-            print "Sample files saved in %s/%s" % (_savepath, SAMPLE_FILENAME)
         if options.STRICTCHECK:
             WNOccupancy.strict_check_jobs(wns_occupancy, cluster)
 
@@ -1670,7 +1643,7 @@ class TextDisplay(object):
             joined_list.append(utils.ColorStr(string=kwargs['sep']))
         s = "".join([colorize(char.initial, color_func=char.color) if isinstance(char, utils.ColorStr) else char
                      for char in joined_list[self.viewport.h_start:self.viewport.h_stop]])
-        print compress_colored_line(s)
+        print utils.compress_colored_line(s)
         return joined_list
 
     def print_core_lines(self, core_user_map, print_char_start, print_char_stop, transposed_matrices,
@@ -1698,7 +1671,7 @@ class TextDisplay(object):
             # if corelines horizontal (non-transposed matrix)
             for core_line in self.get_core_lines(core_user_map, print_char_start, print_char_stop,
                                                  userid_to_userid_re_pat, mapping, attrs):
-                core_line_zipped = compress_colored_line(core_line)
+                core_line_zipped = utils.compress_colored_line(core_line)
                 try:
                     print core_line_zipped
                 except IOError:
@@ -2299,12 +2272,15 @@ class InvalidScheduler(Exception):
 def initialize_qtop():
     options, args = utils.parse_qtop_cmdline_args()
     utils.init_logging(options)
-    dynamic_config = dict()
+    check_python_version()
+    options, dynamic_config = process_options(options)
+
     old_attrs, new_attrs = '', ''
-    options, dynamic_config['force_names'] = process_options(options)
+
     if options.ANONYMIZE and not options.EXPERIMENTAL:
         print 'Anonymize should be ran with --experimental switch!! Exiting...'
         sys.exit(1)
+
     if options.WATCH or options.REPLAY:  # this is needed for the filtering/sorting options
         try:
             old_attrs = termios.tcgetattr(0)
@@ -2318,17 +2294,17 @@ def initialize_qtop():
     h_counter = cycle([0, 1])
     viewport = Viewport()  # controls the part of the qtop matrix shown on screen
     max_line_len = 0
-    check_python_version()
+
     initial_cwd = os.getcwd()
     logging.debug('Initial qtop directory: %s' % initial_cwd)
     CURPATH = os.path.expanduser(initial_cwd)  # where qtop was invoked from
-    QTOPPATH = os.path.dirname(realpath(sys.argv[0]))  # dir where qtop resides
+    QTOPPATH = os.path.dirname(realpath(sys.argv[0]))  #  where qtop resides
     HELP_FP = os.path.join(QTOPPATH, 'helpfile.txt')
     help_main_switch = [HELP_FP, ]  # output_fp is not yet defined, will be appended later
-    SAMPLE_FILENAME = os.path.expandvars('qtop_sample_${USER}%(datetime)s.tar')
+
 
     return options, args, dynamic_config, old_attrs, new_attrs, available_batch_systems, stdout, change_mapping, \
-           h_counter, viewport, max_line_len, initial_cwd, CURPATH, QTOPPATH, HELP_FP, help_main_switch, SAMPLE_FILENAME
+           h_counter, viewport, max_line_len, initial_cwd, CURPATH, QTOPPATH, HELP_FP, help_main_switch
 
 if __name__ == '__main__':
 
@@ -2347,8 +2323,7 @@ if __name__ == '__main__':
     CURPATH, \
     QTOPPATH, \
     HELP_FP, \
-    help_main_switch, \
-    SAMPLE_FILENAME = initialize_qtop()
+    help_main_switch = initialize_qtop()
 
     if options.REPLAY:
         options.WATCH = [0]  # enforce that --watch mode is on, even if not in cmdline switch
@@ -2365,6 +2340,7 @@ if __name__ == '__main__':
             while True:
                 config, user_to_color, nodestate_to_color = load_yaml_config()  # TODO account_to_color is updated here !!
                 config = update_config_with_cmdline_vars(options, config)
+                sample = fileutils.Sample(options)
                 savepath = config['savepath']
                 timestr = time.strftime("%Y%m%dT%H%M%S")
                 # qtop output is saved here
@@ -2381,10 +2357,9 @@ if __name__ == '__main__':
                     options.BATCH_SYSTEM, os.environ.get('QTOP_SCHEDULER'), config['scheduler'],
                     config['schedulers'], available_batch_systems, config)
                 scheduler_output_filenames = fetch_scheduler_files(options, config)
-                SAMPLE_FILENAME = fileutils.get_sample_filename(SAMPLE_FILENAME, config)
+                sample.set_sample_filename_format_from_conf(config)
                 if options.SAMPLE:
-                    fileutils.tar_out = fileutils.init_sample_file(options, savepath, SAMPLE_FILENAME,
-                                                                   scheduler_output_filenames, QTOPCONF_YAML, QTOPPATH)
+                    sample.init_sample_file(savepath, scheduler_output_filenames, QTOPCONF_YAML, QTOPPATH)
 
                 ###### Gather data ###############
                 #
@@ -2424,7 +2399,7 @@ if __name__ == '__main__':
                 ###### Display data ###############
                 #
                 display = TextDisplay(document, config, viewport, wns_occupancy, cluster)
-                display.display_selected_sections(savepath, SAMPLE_FILENAME, QTOP_LOGFILE)
+                display.display_selected_sections(savepath, QTOP_LOGFILE)
 
                 sys.stdout.flush()
                 sys.stdout.close()
@@ -2464,16 +2439,13 @@ if __name__ == '__main__':
                 fileutils.deprecate_old_output_files(config)
 
             if options.SAMPLE:
-                fileutils.tar_out = fileutils.add_to_sample([output_fp], fileutils.tar_out)
+                sample.add_to_sample([output_fp])
 
         except (KeyboardInterrupt, EOFError) as e:
             repr(e)
-            fileutils.safe_exit_with_file_close(handle, output_fp, stdout, options, savepath, QTOP_LOGFILE, SAMPLE_FILENAME)
+            fileutils.exit_safe(handle, output_fp, stdout, options, savepath, QTOP_LOGFILE, sample)
         finally:
-            if options.SAMPLE >= 1:
-                fileutils.tar_out = fileutils.add_to_sample([QTOP_LOGFILE], fileutils.tar_out)
-                # add all scheduler output files to sample
-                for fn in scheduler_output_filenames:
-                    if os.path.isfile(scheduler_output_filenames[fn]):
-                        fileutils.tar_out = fileutils.add_to_sample([scheduler_output_filenames[fn]], fileutils.tar_out)
-                fileutils.tar_out.close()
+            print "\nLog file created in %s" % os.path.expandvars(QTOP_LOGFILE)
+            if options.SAMPLE:
+                print "Sample files saved in %s/%s" % (config['savepath'], sample.SAMPLE_FILENAME)
+            sample.handle_sample(scheduler_output_filenames, QTOP_LOGFILE, options)

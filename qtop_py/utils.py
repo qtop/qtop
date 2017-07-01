@@ -2,6 +2,7 @@ import logging
 import sys
 from optparse import OptionParser
 import fileutils
+import re
 from qtop_py.colormap import *
 from qtop_py.constants import QTOP_LOGFILE
 from qtop_py import __version__
@@ -221,3 +222,30 @@ class CountCalls(object):
     def counts():
         "Return a dict of {function: # of calls} for all registered functions."
         return dict([(f.__name__, CountCalls.__instances[f].__numcalls) for f in CountCalls.__instances])
+
+
+def compress_colored_line(s):
+    ## TODO: black sheep
+    t = [item for item in re.split(r'\x1b\[0;m', s) if item != '']
+
+    sts = []
+    st = []
+    colors = []
+    prev_code = t[0][:-1]
+    colors.append(prev_code)
+    for idx, code_letter in enumerate(t):
+        code, letter = code_letter[:-1], code_letter[-1]
+        if prev_code == code:
+            st.append(letter)
+        else:
+            sts.append(st)
+            st = []
+            st.append(letter)
+            colors.append(code)
+        prev_code = code
+    sts.append(st)
+
+    final_t = []
+    for color, seq in zip(colors, sts):
+        final_t.append(color + "".join(seq) + '\x1b[0;m')
+    return "".join(final_t)
