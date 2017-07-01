@@ -23,14 +23,15 @@ def check_empty_file(orig_file):
         raise FileEmptyError(orig_file)
 
 
-def get_new_temp_file(_savepath, suffix, prefix):  # **kwargs
+def get_new_temp_file(_savepath, suffix, prefix):
     """
-    Using mkstemp instead of NamedTemporaryFile because a file descriptor
+    Creates new temp file to store the output to be displayed.
+    Using mkstemp instead of NamedTemporaryFile, because a file descriptor
     is needed to redirect sys.stdout to.
     """
     fd, temp_filepath = tempfile.mkstemp(suffix=suffix, prefix=prefix, dir=_savepath)  # **kwargs
     logging.debug('temp_filepath: %s' % temp_filepath)
-    # out_file = os.fdopen(fd, 'w')
+
     return fd, temp_filepath
 
 

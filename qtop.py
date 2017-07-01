@@ -177,7 +177,7 @@ def load_yaml_config():
     config['possible_ids'] = list(config['possible_ids'])
     symbol_map = dict([(chr(x), x) for x in range(33, 48) + range(58, 64) + range(91, 96) + range(123, 126)])
 
-    if config['user_color_mappings']:
+    if config['user_color_mappings']: # TODO What if this key is not found in the conf file?
         user_to_color = user_to_color_default.copy()
         [user_to_color.update(d) for d in config['user_color_mappings']]
     else:
@@ -2343,7 +2343,7 @@ if __name__ == '__main__':
                 sample = fileutils.Sample(options)
                 savepath = config['savepath']
                 timestr = time.strftime("%Y%m%dT%H%M%S")
-                # qtop output is saved here
+
                 handle, output_fp = fileutils.get_new_temp_file(savepath, prefix='qtop_fullview_%s_' % timestr, suffix='.out')
                 help_main_switch.append(output_fp)
 
