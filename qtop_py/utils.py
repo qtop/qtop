@@ -317,10 +317,13 @@ class Configurator(object):
 
     def init_dirs(self):
         options = self.cmd_options
+
         options.SOURCEDIR = realpath(options.SOURCEDIR) if options.SOURCEDIR else None
         logging.debug("User-defined source directory: %s" % options.SOURCEDIR)
+
         options.workdir = options.SOURCEDIR or self.savepath
         logging.debug('Working directory is now: %s' % options.workdir)
+
         os.chdir(options.workdir)
 
     def load_yaml_config(self):

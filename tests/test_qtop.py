@@ -2,7 +2,8 @@ import pytest
 import re
 import datetime
 import sys
-from qtop import WNOccupancy, decide_batch_system, load_yaml_config, JobNotFound, SchedulerNotSpecified, NoSchedulerFound, get_date_obj_from_str
+from qtop import WNOccupancy, decide_batch_system, JobNotFound, SchedulerNotSpecified, NoSchedulerFound, get_date_obj_from_str
+import qtop_py.utils
 
 
 @pytest.fixture
