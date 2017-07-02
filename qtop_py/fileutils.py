@@ -114,9 +114,9 @@ def parse_time_input(_time):
 
 class Sample(object):
 
-    def __init__(self, options):
+    def __init__(self, conf):
         self.tar_out = None
-        self.options = options
+        self.options = conf.cmd_options
         self.SAMPLE_FILENAME = os.path.expandvars('qtop_sample_${USER}%(datetime)s.tar')
 
         # self.init_sample_file(self, options, _savepath, scheduler_output_filenames, QTOPCONF_YAML, QTOPPATH)

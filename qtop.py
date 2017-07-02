@@ -106,116 +106,19 @@ def raw_mode(file):
     else:
         if options.WATCH:
             try:
-                old_attrs = termios.tcgetattr(file.fileno())
+                conf.old_attrs = termios.tcgetattr(file.fileno())
             except:
                 yield
             else:
-                new_attrs = old_attrs[:]
-                new_attrs[3] = new_attrs[3] & ~(termios.ECHO | termios.ICANON)
+                conf.new_attrs = conf.old_attrs[:]
+                conf.new_attrs[3] = conf.new_attrs[3] & ~(termios.ECHO | termios.ICANON)
                 try:
-                    termios.tcsetattr(file.fileno(), termios.TCSADRAIN, new_attrs)
+                    termios.tcsetattr(file.fileno(), termios.TCSADRAIN, conf.new_attrs)
                     yield
                 finally:
-                    termios.tcsetattr(file.fileno(), termios.TCSADRAIN, old_attrs)
+                    termios.tcsetattr(file.fileno(), termios.TCSADRAIN, conf.old_attrs)
         else:
             yield
-
-
-def load_yaml_config():
-    """
-    Loads ./QTOPCONF_YAML into a dictionary and then tries to update the dictionary
-    with the same-named conf file found in:
-    /env
-    $HOME/.local/qtop/
-    in that order.
-    """
-    # TODO: conversion to int should be handled internally in native yaml parser
-    # TODO: fix_config_list should be handled internally in native yaml parser
-    config = yaml.parse(os.path.join(realpath(QTOPPATH), QTOPCONF_YAML))
-    logging.info('Default configuration dictionary loaded. Length: %s items' % len(config))
-
-    try:
-        config_env = yaml.parse(os.path.join(SYSTEMCONFDIR, QTOPCONF_YAML))
-    except IOError:
-        config_env = {}
-        logging.info('%s could not be found in %s/' % (QTOPCONF_YAML, SYSTEMCONFDIR))
-    else:
-        logging.info('Env %s found in %s/' % (QTOPCONF_YAML, SYSTEMCONFDIR))
-        logging.info('Env configuration dictionary loaded. Length: %s items' % len(config_env))
-
-    try:
-        config_user = yaml.parse(os.path.join(USERPATH, QTOPCONF_YAML))
-    except IOError:
-        config_user = {}
-        logging.info('User %s could not be found in %s/' % (QTOPCONF_YAML, USERPATH))
-    else:
-        logging.info('User %s found in %s/' % (QTOPCONF_YAML, USERPATH))
-        logging.info('User configuration dictionary loaded. Length: %s items' % len(config_user))
-
-    config.update(config_env)
-    config.update(config_user)
-
-    if options.CONFFILE:
-        try:
-            config_user_custom = yaml.parse(os.path.join(USERPATH, options.CONFFILE))
-        except IOError:
-            try:
-                config_user_custom = yaml.parse(os.path.join(CURPATH, options.CONFFILE))
-            except IOError:
-                config_user_custom = {}
-                logging.info('Custom User %s could not be found in %s/ or current dir' % (options.CONFFILE, CURPATH))
-            else:
-                logging.info('Custom User %s found in %s/' % (QTOPCONF_YAML, CURPATH))
-                logging.info('Custom User configuration dictionary loaded. Length: %s items' % len(config_user_custom))
-        else:
-            logging.info('Custom User %s found in %s/' % (QTOPCONF_YAML, USERPATH))
-            logging.info('Custom User configuration dictionary loaded. Length: %s items' % len(config_user_custom))
-        config.update(config_user_custom)
-
-    logging.info('Updated main dictionary. Length: %s items' % len(config))
-
-    config['possible_ids'] = list(config['possible_ids'])
-    symbol_map = dict([(chr(x), x) for x in range(33, 48) + range(58, 64) + range(91, 96) + range(123, 126)])
-
-    if config['user_color_mappings']: # TODO What if this key is not found in the conf file?
-        user_to_color = user_to_color_default.copy()
-        [user_to_color.update(d) for d in config['user_color_mappings']]
-    else:
-        config['user_color_mappings'] = list()
-
-    if config['nodestate_color_mappings']:
-        nodestate_to_color = nodestate_to_color_default.copy()
-        [nodestate_to_color.update(d) for d in config['nodestate_color_mappings']]
-    else:
-        config['nodestate_color_mappings'] = list()
-
-    if config['remapping']:
-        pass
-    else:
-        config['remapping'] = list()
-    for symbol in symbol_map:
-        config['possible_ids'].append(symbol)
-
-    _savepath = os.path.realpath(os.path.expandvars(config['savepath']))
-
-    if not os.path.exists(_savepath):
-        fileutils.mkdir_p(_savepath)
-        logging.debug('Directory %s created.' % _savepath)
-    else:
-        logging.debug('%s files will be saved in directory %s.' % (config['scheduler'], _savepath))
-    config['savepath'] = _savepath
-
-    for key in ('transpose_wn_matrices',
-                'fill_with_user_firstletter',
-                'faster_xml_parsing',
-                'vertical_separator_every_X_columns',
-                'overwrite_sample_file'):
-        config[key] = eval(config[key])  # TODO config should not be writeable!!
-    config['sorting']['reverse'] = eval(config['sorting'].get('reverse', "0"))  # TODO config should not be writeable!!
-    config['ALT_LABEL_COLORS'] = yaml.fix_config_list(config['workernodes_matrix'][0]['wn id lines']['alt_label_colors'])
-    config['SEPARATOR'] = config['vertical_separator'].translate(None, "'")
-    config['USER_CUT_MATRIX_WIDTH'] = int(config['workernodes_matrix'][0]['wn id lines']['user_cut_matrix_width'])
-    return config, user_to_color, nodestate_to_color
 
 
 def calculate_term_size(config, FALLBACK_TERM_SIZE):
@@ -384,23 +287,7 @@ def get_input_filenames(INPUT_FNs_commands, config):
     return filenames
 
 
-def get_key_val_from_option_string(string):
-    key, val = string.split('=')
-    return key, val
-
-
-def check_python_version():
-    try:
-        assert sys.version_info[0] == 2
-        assert sys.version_info[1] in (6,7)
-    except AssertionError:
-        logging.critical("Only python versions 2.6.x and 2.7.x are supported. Exiting")
-
-        # web.stop() TODO why is that here???
-        sys.exit(1)
-
-
-def control_qtop(viewport, read_char, cluster, new_attrs):
+def control_qtop(viewport, read_char, cluster, conf):
     """
     Basic vi-like movement is implemented for the -w switch (linux watch-like behaviour for qtop).
     h, j, k, l for left, down, up, right, respectively.
@@ -502,8 +389,8 @@ def control_qtop(viewport, read_char, cluster, new_attrs):
         for nr, sort_method in sort_map.items():
             print '(%s): %s' % (colorize(nr, color_func='Red_L'), sort_method[0])
 
-        new_attrs[3] = new_attrs[3] & ~(termios.ECHO | termios.ICANON)
-        termios.tcsetattr(sys.__stdin__.fileno(), termios.TCSADRAIN, old_attrs)
+        conf.new_attrs[3] = conf.new_attrs[3] & ~(termios.ECHO | termios.ICANON)
+        termios.tcsetattr(sys.__stdin__.fileno(), termios.TCSADRAIN, conf.old_attrs)
 
         dynamic_config['user_sort'] = []
         while True:
@@ -526,7 +413,7 @@ def control_qtop(viewport, read_char, cluster, new_attrs):
             dynamic_config['user_sort'] = sort_args
             break
 
-        termios.tcsetattr(sys.__stdin__.fileno(), termios.TCSADRAIN, new_attrs)
+        termios.tcsetattr(sys.__stdin__.fileno(), termios.TCSADRAIN, conf.new_attrs)
         viewport.reset_display()
 
 
@@ -560,8 +447,8 @@ def control_qtop(viewport, read_char, cluster, new_attrs):
                  'nine': colorize("(9)", color_func='Red_L'),
                  'ten': colorize("(10)", color_func='Red_L'),
                  }
-        new_attrs[3] = new_attrs[3] & ~(termios.ECHO | termios.ICANON)
-        termios.tcsetattr(sys.__stdin__.fileno(), termios.TCSADRAIN, old_attrs)
+        conf.new_attrs[3] = conf.new_attrs[3] & ~(termios.ECHO | termios.ICANON)
+        termios.tcsetattr(sys.__stdin__.fileno(), termios.TCSADRAIN, conf.old_attrs)
 
         dynamic_config['filtering'] = []
         while True:
@@ -586,7 +473,7 @@ def control_qtop(viewport, read_char, cluster, new_attrs):
 
             dynamic_config['filtering'].append({filter_map[filter_choice]: filter_args})
 
-        termios.tcsetattr(sys.__stdin__.fileno(), termios.TCSADRAIN, new_attrs)
+        termios.tcsetattr(sys.__stdin__.fileno(), termios.TCSADRAIN, conf.new_attrs)
         viewport.reset_display()
 
     elif pressed_char_hex in ['48']:  # H
@@ -609,8 +496,8 @@ def control_qtop(viewport, read_char, cluster, new_attrs):
                  'five': colorize("(5)", color_func='Red_L'),
                  'six': colorize("(6)", color_func='Red_L'),
                  }
-        new_attrs[3] = new_attrs[3] & ~(termios.ECHO | termios.ICANON)
-        termios.tcsetattr(sys.__stdin__.fileno(), termios.TCSADRAIN, old_attrs)
+        conf.new_attrs[3] = conf.new_attrs[3] & ~(termios.ECHO | termios.ICANON)
+        termios.tcsetattr(sys.__stdin__.fileno(), termios.TCSADRAIN, conf.old_attrs)
 
         dynamic_config['highlight'] = []
         while True:
@@ -635,14 +522,14 @@ def control_qtop(viewport, read_char, cluster, new_attrs):
 
             dynamic_config['highlight'].append({filter_map[filter_choice]: filter_args})
 
-        termios.tcsetattr(sys.__stdin__.fileno(), termios.TCSADRAIN, new_attrs)
+        termios.tcsetattr(sys.__stdin__.fileno(), termios.TCSADRAIN, conf.new_attrs)
         viewport.reset_display()
 
     elif pressed_char_hex in ['3f']:  # ?
         viewport.reset_display()
         print '%s opening help...' % colorize('***', 'Green_L')
         if not h_counter.next() % 2:  # enter helpfile
-            dynamic_config['output_fp'] = help_main_switch[0]
+            dynamic_config['output_fp'] = screens[0]
         else:  # exit helpfile
             del dynamic_config['output_fp']
 
@@ -721,22 +608,6 @@ def get_output_size(max_line_len, output_fp, max_height=0):
     return max_height, max_line_len
 
 
-def update_config_with_cmdline_vars(options, config):
-    config['rem_empty_corelines'] = int(config['rem_empty_corelines'])
-    for opt in options.OPTION:
-        key, val = get_key_val_from_option_string(opt)
-        val = eval(val) if ('True' in val or 'False' in val) else val
-        config[key] = val
-
-    if options.TRANSPOSE:
-        config['transpose_wn_matrices'] = not config['transpose_wn_matrices']
-
-    if options.REM_EMPTY_CORELINES:
-        config['rem_empty_corelines'] += options.REM_EMPTY_CORELINES
-
-    return config
-
-
 def attempt_faster_xml_parsing(config):
     if config['faster_xml_parsing']:
         try:
@@ -744,15 +615,6 @@ def attempt_faster_xml_parsing(config):
         except ImportError:
             logging.warn('Module lxml is missing. Try issuing "pip install lxml". Reverting to xml module.')
             from xml.etree import ElementTree as etree
-
-
-def init_dirs(options, _savepath):
-    options.SOURCEDIR = realpath(options.SOURCEDIR) if options.SOURCEDIR else None
-    logging.debug("User-defined source directory: %s" % options.SOURCEDIR)
-    options.workdir = options.SOURCEDIR or _savepath
-    logging.debug('Working directory is now: %s' % options.workdir)
-    os.chdir(options.workdir)
-    return options
 
 
 def wait_for_keypress_or_autorefresh(viewport, FALLBACK_TERMSIZE, KEYPRESS_TIMEOUT=1):
@@ -826,17 +688,6 @@ def discover_qtop_batch_systems():
         available_batch_systems[mnemonic] = batch_system
 
     return available_batch_systems
-
-
-def process_options(options):
-    dynamic_config = dict()
-
-    if options.COLOR == 'AUTO':
-        options.COLOR = 'ON' if (os.environ.get("QTOP_COLOR", sys.stdout.isatty()) in ("ON", True)) else 'OFF'
-    logging.debug("options.COLOR is now set to: %s" % options.COLOR)
-    options.REMAP = False  # Default value
-    dynamic_config['force_names'] = 1 if options.FORCE_NAMES else 0
-    return options, dynamic_config
 
 
 # def handle_exception(exc_type, exc_value, exc_traceback):
@@ -1215,7 +1066,7 @@ class WNOccupancy(object):
         queue_or_user_map = {'user_to_color': 'user_pat', 'queue_to_color': 'queue'}
         queue_or_user_str = queue_or_user_map[_core_coloring]
 
-        selected_pat_to_color_map = globals()[_core_coloring]
+        selected_pat_to_color_map = conf.__dict__[_core_coloring]
         _highlighted_queues_or_users = dynamic_config.get('highlight', self.config['highlight'])
 
         self.id_to_user = dict(izip((str(x) for x in self.user_to_id.itervalues()), self.user_to_id.iterkeys()))
@@ -1511,7 +1362,7 @@ class TextDisplay(object):
             uid, runningjobs, queuedjobs, alljobs, user, num_of_nodes = line
             userid_pat = userid_to_userid_re_pat[str(uid)]
 
-            if (options.COLOR == 'OFF' or userid_pat == 'account_not_colored' or user_to_color[userid_pat] == 'reset'):
+            if (options.COLOR == 'OFF' or userid_pat == 'account_not_colored' or conf.user_to_color[userid_pat] == 'reset'):
                 conditional_width = 0
                 userid_pat = 'account_not_colored'
             else:
@@ -2107,7 +1958,7 @@ def colorize(text, color_func=None, pattern='NoPattern', mapping=None, bg_color=
     """
     bg_color = 'NOBG' if not bg_color else bg_color
     if not mapping:
-        mapping = user_to_color
+        mapping = conf.user_to_color
     try:
         ansi_color = color_to_code[color_func] if color_func else color_to_code[mapping[pattern]]
     except KeyError:
@@ -2122,13 +1973,17 @@ def colorize(text, color_func=None, pattern='NoPattern', mapping=None, bg_color=
         return text
 
 
-def pick_frames_to_replay(_savepath):
+def pick_frames_to_replay(conf):
     """
     getting the respective info from cmdline switch -R,
     pick the relevant qtop output from savepath to replay
     """
+    _savepath = conf.savepath
+    conf.options.WATCH = [0]  # enforce that --watch mode is on, even if not in cmdline switch
+    conf.options.BATCH_SYSTEM = 'demo'  # default state
+
     if options.REPLAY[0] == 0:  # add default arg, if no replay start time is set in the cmdline
-        time_delta = fileutils.get_timedelta(fileutils.parse_time_input(config['replay_last']))
+        time_delta = fileutils.get_timedelta(fileutils.parse_time_input(conf.config['replay_last']))
         some_time_ago = datetime.datetime.now() - time_delta
         options.REPLAY[0] = some_time_ago.strftime("%Y%m%dT%H%M%S")
     if len(options.REPLAY) == 1:  # add default arg, if no replay duration is set in the cmdline
@@ -2146,7 +2001,7 @@ def pick_frames_to_replay(_savepath):
             useful_frames.append(rec_file)
 
     useful_frames = iter(useful_frames[::-1])
-    return useful_frames, options.REPLAY
+    return useful_frames
 
 
 
@@ -2270,23 +2125,8 @@ class InvalidScheduler(Exception):
 
 
 def initialize_qtop():
-    options, args = utils.parse_qtop_cmdline_args()
-    utils.init_logging(options)
-    check_python_version()
-    options, dynamic_config = process_options(options)
-
-    old_attrs, new_attrs = '', ''
-
-    if options.ANONYMIZE and not options.EXPERIMENTAL:
-        print 'Anonymize should be ran with --experimental switch!! Exiting...'
-        sys.exit(1)
-
-    if options.WATCH or options.REPLAY:  # this is needed for the filtering/sorting options
-        try:
-            old_attrs = termios.tcgetattr(0)
-        except termios.error:
-            old_attrs = ''
-        new_attrs = old_attrs[:]
+    conf = utils.conf
+    conf.auto_config()
 
     available_batch_systems = discover_qtop_batch_systems()
     stdout = sys.stdout  # keep a copy of the initial value of sys.stdout
@@ -2295,60 +2135,43 @@ def initialize_qtop():
     viewport = Viewport()  # controls the part of the qtop matrix shown on screen
     max_line_len = 0
 
-    initial_cwd = os.getcwd()
-    logging.debug('Initial qtop directory: %s' % initial_cwd)
-    CURPATH = os.path.expanduser(initial_cwd)  # where qtop was invoked from
-    QTOPPATH = os.path.dirname(realpath(sys.argv[0]))  #  where qtop resides
-    HELP_FP = os.path.join(QTOPPATH, 'helpfile.txt')
-    help_main_switch = [HELP_FP, ]  # output_fp is not yet defined, will be appended later
+    conf.initialize_paths()
+    screens = [conf.HELP_FP, ]  # output_fp is not yet defined, will be appended later
 
-
-    return options, args, dynamic_config, old_attrs, new_attrs, available_batch_systems, stdout, change_mapping, \
-           h_counter, viewport, max_line_len, initial_cwd, CURPATH, QTOPPATH, HELP_FP, help_main_switch
+    return available_batch_systems, stdout, change_mapping, h_counter, viewport, max_line_len, screens
 
 if __name__ == '__main__':
 
-    options, \
-    args, \
-    dynamic_config, \
-    old_attrs, \
-    new_attrs, \
-    available_batch_systems, \
-    stdout, \
-    change_mapping, \
-    h_counter, \
-    viewport, \
-    max_line_len, \
-    initial_cwd, \
-    CURPATH, \
-    QTOPPATH, \
-    HELP_FP, \
-    help_main_switch = initialize_qtop()
+    available_batch_systems, stdout, change_mapping, h_counter, viewport, max_line_len, screens = initialize_qtop()
+    conf = utils.conf
+    conf.load_yaml_config()
+    conf.process_yaml_config()
+    config = conf.config
+    options = conf.cmd_options
+    dynamic_config = conf.dynamic_config
+    QTOPPATH = conf.QTOPPATH
 
     if options.REPLAY:
-        options.WATCH = [0]  # enforce that --watch mode is on, even if not in cmdline switch
-        options.BATCH_SYSTEM = 'demo'  # default state
-        config, _, _ = load_yaml_config()
-        useful_frames, options.REPLAY = pick_frames_to_replay(config['savepath'])
+        useful_frames = pick_frames_to_replay(conf)  # WAS conf.config['savepath'] CHECK!! 20170702
 
-    web = Web(initial_cwd)
+    web = Web(conf.initial_cwd)
     if options.WEB:
         web.start()
 
     with raw_mode(sys.stdin):  # key listener implementation
         try:
             while True:
-                config, user_to_color, nodestate_to_color = load_yaml_config()  # TODO account_to_color is updated here !!
-                config = update_config_with_cmdline_vars(options, config)
-                sample = fileutils.Sample(options)
-                savepath = config['savepath']
+                # conf.process_yaml_config()  # TODO user_to_color is updated here !!
+                conf.update_config_with_cmdline_vars()
+                sample = fileutils.Sample(conf)
+                savepath = conf.savepath
                 timestr = time.strftime("%Y%m%dT%H%M%S")
 
                 handle, output_fp = fileutils.get_new_temp_file(savepath, prefix='qtop_fullview_%s_' % timestr, suffix='.out')
-                help_main_switch.append(output_fp)
+                screens.append(output_fp)
 
-                attempt_faster_xml_parsing(config)
-                options = init_dirs(options, savepath)
+                attempt_faster_xml_parsing(conf.config)
+                conf.init_dirs()
 
                 transposed_matrices = []
                 viewport.set_term_size(*calculate_term_size(config, FALLBACK_TERMSIZE))
@@ -2392,13 +2215,13 @@ if __name__ == '__main__':
                 ###### Process data ###############
                 #
                 worker_nodes = keep_queue_initials_only_and_colorize(document.worker_nodes, queue_to_color)
-                worker_nodes = colorize_nodestate(document.worker_nodes, nodestate_to_color, colorize)
+                worker_nodes = colorize_nodestate(document.worker_nodes, conf.nodestate_to_color, colorize)
                 cluster = Cluster(document, worker_nodes, WNFilter, config, options)
-                wns_occupancy = WNOccupancy(cluster, config, document, user_to_color, job_ids)
+                wns_occupancy = WNOccupancy(cluster, config, document, conf.user_to_color, job_ids)
 
                 ###### Display data ###############
                 #
-                display = TextDisplay(document, config, viewport, wns_occupancy, cluster)
+                display = TextDisplay(document, conf.config, viewport, wns_occupancy, cluster)
                 display.display_selected_sections(savepath, QTOP_LOGFILE)
 
                 sys.stdout.flush()
@@ -2431,9 +2254,9 @@ if __name__ == '__main__':
 
                     read_char = wait_for_keypress_or_autorefresh(viewport, FALLBACK_TERMSIZE, int(options.WATCH[0]) or
                                                                  KEYPRESS_TIMEOUT)
-                    control_qtop(viewport, read_char, cluster, new_attrs)
+                    control_qtop(viewport, read_char, cluster, conf)
 
-                help_main_switch.pop()
+                screens.pop()
                 os.chdir(QTOPPATH)
                 os.unlink(output_fp)
                 fileutils.deprecate_old_output_files(config)
