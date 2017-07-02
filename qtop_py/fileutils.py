@@ -35,7 +35,7 @@ def get_new_temp_file(_savepath, suffix, prefix):
     return fd, temp_filepath
 
 
-def exit_safe(handle, name, stdout, options, _savepath, qtop_logfile, sample, delete_file=False):
+def exit_safe(handle, name, conf, sample, delete_file=False):
     sys.stdout.write('\nExiting. Thank you for ..watching ;)\n')
     sys.stdout.flush()
     sys.stdout.close()
@@ -48,8 +48,8 @@ def exit_safe(handle, name, stdout, options, _savepath, qtop_logfile, sample, de
     if delete_file:
         os.unlink(name)  # this deletes the file
 
-    if options.SAMPLE >= 1:
-        sample.add_to_sample([qtop_logfile], _savepath)
+    if conf.cmd_options.SAMPLE >= 1:
+        sample.add_to_sample([conf.QTOP_LOGFILE], conf.savepath)
     sys.exit(0)
 
 
