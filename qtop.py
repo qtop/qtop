@@ -622,11 +622,6 @@ def wait_for_keypress_or_autorefresh(viewport, FALLBACK_TERMSIZE, KEYPRESS_TIMEO
     return _read_char
 
 
-def assign_color_to_each_qname(worker_nodes):
-    for worker_node in worker_nodes:
-        worker_node['qname'] = [q[0] for q in worker_node['qname']]
-
-
 def keep_queue_initials_only_and_colorize(worker_nodes, queue_to_color):
     # TODO remove monstrosity!
     for worker_node in worker_nodes:
