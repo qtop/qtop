@@ -5,9 +5,9 @@ import fileutils
 import re
 import os
 import termios
+from itertools import cycle
 from os.path import realpath
 from qtop_py.colormap import *
-from qtop_py.constants import QTOP_LOGFILE
 import qtop_py.yaml_parser as yaml
 from qtop_py import __version__
 from qtop_py.constants import (SYSTEMCONFDIR, QTOPCONF_YAML, QTOP_LOGFILE, USERPATH, MAX_CORE_ALLOWED,
@@ -150,11 +150,14 @@ class Configurator(object):
         self.user_to_color = None
         self.nodestate_to_color = None
         self.queue_to_color = queue_to_color
+        self.QTOP_LOGFILE = QTOP_LOGFILE
+        self.change_mapping = cycle([('queue_to_color', 'color by queue'), ('user_to_color', 'color by user')])
+        self.h_counter = cycle([0, 1])  # switches between main screen and helpfile
 
     def auto_config(self):
         self.parse_qtop_cmdline_args()
         self.init_logging()
-        self.process_options()
+        self.process_cmd_options()
         self.force_experimental_anonymize()
         self.check_python_version()
         self.adjust_term_attrs()
@@ -273,7 +276,7 @@ class Configurator(object):
         logging.debug('Verbosity level = %s' % self.cmd_options.verbose)
         logging.debug("input, output isatty: %s\t%s" % (sys.stdin.isatty(), sys.stdout.isatty()))
 
-    def process_options(self):
+    def process_cmd_options(self):
         if self.cmd_options.COLOR == 'AUTO':
             self.cmd_options.COLOR = 'ON' if (os.environ.get("QTOP_COLOR", sys.stdout.isatty()) in ("ON", True)) else 'OFF'
         logging.debug("self.cmd_options.COLOR is now set to: %s" % self.cmd_options.COLOR)

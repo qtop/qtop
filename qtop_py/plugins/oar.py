@@ -21,16 +21,17 @@ class OarStatExtractor(StatExtractor):
                              r'(?P<job_state>[RWF])\s+' \
                              r'(?P<queue>default|besteffort)'
 
+        self.re_match_positions = ('job_id', 'user', 'job_state', 'queue')
+
     def extract_qstat(self, orig_file):
         all_values = list()
         with open(orig_file, 'r') as fin:
             logging.debug('File state before OarStatExtractor.extract_qstat: %(fin)s' % {"fin": fin})
             _ = fin.readline()  # header
             fin.readline()  # dashes
-            re_match_positions = ('job_id', 'user', 'job_state', 'queue')
             re_search = self.user_q_search
             for line in fin:
-                qstat_values = self._process_qstat_line(re_search, line, re_match_positions)
+                qstat_values = self._process_qstat_line(re_search, line)
                 all_values.append(qstat_values)
 
         return all_values

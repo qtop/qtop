@@ -135,12 +135,12 @@ def calculate_term_size(config, FALLBACK_TERM_SIZE):
     else:
         logging.warn("Failed to autodetect terminal size. (Running in an IDE?in a pipe?) Trying values in %s." % QTOPCONF_YAML)
         try:
-            term_height, term_columns = viewport.get_term_size()
+            term_height, term_columns = display.viewport.get_term_size()
             if not all(term_height, term_columns):
                 raise ValueError
         except ValueError:
             try:
-                term_height, term_columns = yaml.fix_config_list(viewport.get_term_size())
+                term_height, term_columns = yaml.fix_config_list(display.viewport.get_term_size())
             except KeyError:
                 term_height, term_columns = fallback_term_size
                 logging.debug('(hardcoded) fallback terminal size v, h:%s, %s' % (term_height, term_columns))
@@ -287,7 +287,7 @@ def get_input_filenames(INPUT_FNs_commands, config):
     return filenames
 
 
-def control_qtop(viewport, read_char, cluster, conf):
+def control_qtop(display, read_char, cluster, conf):
     """
     Basic vi-like movement is implemented for the -w switch (linux watch-like behaviour for qtop).
     h, j, k, l for left, down, up, right, respectively.
@@ -297,6 +297,8 @@ def control_qtop(viewport, read_char, cluster, conf):
     q quits qtop.
     """
     pressed_char_hex = '%02x' % ord(read_char)  # read_char has an initial value that resets the display ('72')
+    dynamic_config = conf.dynamic_config
+    viewport = display.viewport
 
     if pressed_char_hex in ['6a', '20']:  # j, spacebar
         logging.debug('v_start: %s' % viewport.v_start)
@@ -320,7 +322,7 @@ def control_qtop(viewport, read_char, cluster, conf):
         print '%s Going far right...' % colorize('***', 'Green_L')
         viewport.scroll_far_right()
         logging.info('h_start: %s' % viewport.h_start)
-        logging.info('max_line_len: %s' % max_line_len)
+        # logging.info('max_line_len: %s' % max_line_len)  # TODO for now not accessible
         logging.info('config["term_size"][1] %s' % viewport.h_term_size)
         logging.info('h_stop: %s' % viewport.h_stop)
 
@@ -355,7 +357,7 @@ def control_qtop(viewport, read_char, cluster, conf):
         viewport.reset_display()
 
     elif pressed_char_hex in ['6d']:  # m
-        new_mapping, msg = change_mapping.next()
+        new_mapping, msg = conf.change_mapping.next()
         dynamic_config['core_coloring'] = new_mapping
         print '%s Changing to %s' % (colorize('***', 'Green_L'), msg)
 
@@ -528,8 +530,8 @@ def control_qtop(viewport, read_char, cluster, conf):
     elif pressed_char_hex in ['3f']:  # ?
         viewport.reset_display()
         print '%s opening help...' % colorize('***', 'Green_L')
-        if not h_counter.next() % 2:  # enter helpfile
-            dynamic_config['output_fp'] = screens[0]
+        if not conf.h_counter.next() % 2:
+            dynamic_config['output_fp'] = display.screens[0]
         else:  # exit helpfile
             del dynamic_config['output_fp']
 
@@ -587,29 +589,10 @@ def decide_batch_system(cmdline_switch, env_var, config_file_batch_option, sched
         raise NoSchedulerFound
 
 
-def get_output_size(max_line_len, output_fp, max_height=0):
-    """
-    Returns the char dimensions of the entirety of the qtop output file
-    """
-    ansi_escape = re.compile(r'\x1b[^m]*m')  # matches ANSI escape characters
-
-    if not max_height:
-        with open(output_fp, 'r') as f:
-            max_height = len(f.readlines())
-            if not max_height:
-                raise ValueError("There is no output from qtop *whatsoever*. Weird.")
-
-    max_line_len = max(len(ansi_escape.sub('', line.strip())) for line in open(output_fp, 'r')) \
-        if not max_line_len else max_line_len
-
-    logging.debug('Total nr of lines: %s' % max_height)
-    logging.debug('Max line length: %s' % max_line_len)
-
-    return max_height, max_line_len
 
 
-def attempt_faster_xml_parsing(config):
-    if config['faster_xml_parsing']:
+def attempt_faster_xml_parsing(conf):
+    if conf.config['faster_xml_parsing']:
         try:
             from lxml import etree
         except ImportError:
@@ -704,7 +687,7 @@ def discover_qtop_batch_systems():
 
 
 class WNOccupancy(object):
-    def __init__(self, cluster, config, document, user_to_color, job_ids):
+    def __init__(self, cluster, config, display, document, user_to_color, job_ids):
         self.cluster = cluster
         self.config = config
         self.document = document
@@ -713,6 +696,7 @@ class WNOccupancy(object):
         self.jobid_to_user_to_queue = dict()
         self.user_names, self.job_states, self.job_queues = self._get_usernames_states_queues(document.jobs_dict)
         self.job_ids = job_ids
+        self.display = display
 
         self.calculate(document, user_to_color)
 
@@ -897,7 +881,7 @@ class WNOccupancy(object):
         start = 0
         wn_number = cluster.highest_wn
         workernode_list = cluster.workernode_list
-        term_columns = viewport.h_term_size
+        term_columns = display.viewport.h_term_size
         min_masking_threshold = int(config['workernodes_matrix'][0]['wn id lines']['min_masking_threshold'])
         if options.NOMASKING and min(workernode_list) > min_masking_threshold:
             # exclude unneeded first empty nodes from the matrix
@@ -1210,12 +1194,25 @@ class Document(namedtuple('Document', ['worker_nodes', 'jobs_dict', 'queues_dict
 #
 
 class TextDisplay(object):
-    def __init__(self, document, config, viewport, wns_occupancy, cluster):
+
+    def __init__(self, conf, viewport):
+        self.conf = conf
+        self.config = self.conf.config
+        self.transposed_matrices = []
+        self.cluster = None
+        self.wns_occupancy = None
+        self.document = None
+        self.viewport = None
+        self.wns_occupancy = None
+        self.max_line_len = 0
+        self.max_height = 0
+        self.viewport = viewport  # controls the part of the qtop matrix shown on screen
+        self.screens = [conf.HELP_FP, ]  # output_fp is not yet defined, will be appended later
+
+    def init_display(self, document, config, wns_occupancy, cluster):
         self.cluster = cluster
         self.wns_occupancy = wns_occupancy
         self.document = document
-        self.viewport = viewport
-        self.config = config
         self.wns_occupancy = wns_occupancy
 
     def display_selected_sections(self, _savepath, QTOP_LOGFILE):
@@ -1413,7 +1410,7 @@ class TextDisplay(object):
             'core_user_map':
                 (
                     self.print_core_lines,
-                    (core_user_map, print_char_start, print_char_stop, transposed_matrices, userid_to_userid_re_pat, mapping),
+                    (core_user_map, print_char_start, print_char_stop, userid_to_userid_re_pat, mapping),
                     {'attrs': None}
                 ),
         }
@@ -1426,7 +1423,7 @@ class TextDisplay(object):
                 part_name:
                     (
                         self.print_mult_attr_line,  # func
-                        (print_char_start, print_char_stop, transposed_matrices),  # args
+                        (print_char_start, print_char_stop),  # args
                         {'attr_lines': getattr(wns_occupancy, part_name), 'coloring': queue_to_color}  # kwargs
                     )
             }
@@ -1445,12 +1442,12 @@ class TextDisplay(object):
 
         if dynamic_config.get('transpose_wn_matrices', config['transpose_wn_matrices']):
             order = config['occupancy_column_order']
-            for idx, (item, matrix) in enumerate(zip(order, transposed_matrices)):
+            for idx, (item, matrix) in enumerate(zip(order, self.transposed_matrices)):
                 matrix[0] = order.index(matrix[1])
 
-            transposed_matrices.sort(key=lambda item: item[0])
+            self.transposed_matrices.sort(key=lambda item: item[0])
             ###TRY###
-            for line_tuple in izip_longest(*[tpl[2] for tpl in transposed_matrices], fillvalue=utils.ColorStr('  ', color='Purple', )):
+            for line_tuple in izip_longest(*[tpl[2] for tpl in self.transposed_matrices], fillvalue=utils.ColorStr('  ', color='Purple', )):
                 joined_list = self.join_prints(*line_tuple, sep=config.get('horizontal_separator', None))
 
             max_width = len(joined_list)
@@ -1471,7 +1468,7 @@ class TextDisplay(object):
         56 cores from the next matrix on.
         """
         extra_matrices_nr = wns_occupancy.extra_matrices_nr
-        term_columns = viewport.h_term_size
+        term_columns = self.viewport.h_term_size
 
         # need node_state, temp
         for matrix in range(extra_matrices_nr):
@@ -1497,7 +1494,7 @@ class TextDisplay(object):
         print utils.compress_colored_line(s)
         return joined_list
 
-    def print_core_lines(self, core_user_map, print_char_start, print_char_stop, transposed_matrices,
+    def print_core_lines(self, core_user_map, print_char_start, print_char_stop,
                          userid_to_userid_re_pat, mapping, attrs, options1, options2):
 
         signal(SIGPIPE, SIG_DFL)
@@ -1516,7 +1513,7 @@ class TextDisplay(object):
                     del core_user_map[k]
 
             tuple_ = [None, 'core_map', self.transpose_matrix(core_user_map, colored=False, coloring_pat=userid_to_userid_re_pat)]
-            transposed_matrices.append(tuple_)
+            self.transposed_matrices.append(tuple_)
             return
         else:
             # if corelines horizontal (non-transposed matrix)
@@ -1551,7 +1548,7 @@ class TextDisplay(object):
             for node_nr in range(1, node_str_width + 1):
                 d[str(node_nr)] = wn_vert_labels[str(node_nr)]
             end_labels_iter = iter(end_labels[str(node_str_width)])
-            self.print_wnid_lines(d, start, stop, end_labels_iter, transposed_matrices,
+            self.print_wnid_lines(d, start, stop, end_labels_iter,
                                   color_func=self.color_plainly, args=('White', 'Gray_L', start > 0))
             # start > 0 is just a test for a possible future condition
 
@@ -1563,7 +1560,7 @@ class TextDisplay(object):
                 end_labels.setdefault(str(num), end_labels['7'] + num * ['={________}'])
 
             end_labels_iter = iter(end_labels[str(node_str_width)])
-            self.print_wnid_lines(wn_vert_labels, start, stop, end_labels_iter, transposed_matrices,
+            self.print_wnid_lines(wn_vert_labels, start, stop, end_labels_iter,
                                   color_func=self.highlight_alternately, args=(config['ALT_LABEL_COLORS']))
 
     def highlight_alternately(self, color_a, color_b):
@@ -1578,10 +1575,10 @@ class TextDisplay(object):
             while not condition:
                 yield color_1
 
-    def print_wnid_lines(self, d, start, stop, end_labels, transposed_matrices, color_func, args):
+    def print_wnid_lines(self, d, start, stop, end_labels, color_func, args):
         if dynamic_config.get('transpose_wn_matrices', self.config['transpose_wn_matrices']):
             tuple_ = [None, 'wnid_lines', self.transpose_matrix(d)]
-            transposed_matrices.append(tuple_)
+            self.transposed_matrices.append(tuple_)
             return
 
         separators = config['vertical_separator_every_X_columns']
@@ -1601,16 +1598,17 @@ class TextDisplay(object):
             'savepath'])
         pre_cat_command = '(tail -n+%s %s | head -n%s) > %s' % (x, file, y - 1, temp_f.name)
         _ = subprocess.call(pre_cat_command, stdout=stdout, stderr=stdout, shell=True)
+        logging.debug('dynamic_config filename in main loop: %s' % file)
         return temp_f.name
 
-    def print_mult_attr_line(self, print_char_start, print_char_stop, transposed_matrices, attr_lines, label, color_func=None,
+    def print_mult_attr_line(self, print_char_start, print_char_stop, attr_lines, label, color_func=None,
                              **kwargs):
         """
         attr_lines can be e.g. Node state lines
         """
         if dynamic_config.get('transpose_wn_matrices', config['transpose_wn_matrices']):
             tuple_ = [None, label, self.transpose_matrix(attr_lines, colored=True, coloring_pat=None)]
-            transposed_matrices.append(tuple_)
+            self.transposed_matrices.append(tuple_)
             return
 
         # TODO: fix option parameter, inserted for testing purposes
@@ -1671,6 +1669,28 @@ class TextDisplay(object):
                 sep_str = sep_str[:pos * i + i - 1] + separator + sep_str[pos * i + i - 1:]
             sep_str += separator  # insert initial vertical separator
             return sep_str
+
+    def clear_matrices(self):
+        self.transposed_matrices = []
+
+    def set_max_line_height(self, output_fp):
+        """
+        Returns the char dimensions of the entirety of the qtop output file
+        """
+        ansi_escape = re.compile(r'\x1b[^m]*m')  # matches ANSI escape characters
+
+        if not self.max_height:
+            with open(output_fp, 'r') as f:
+                self.max_height = len(f.readlines())
+                if not self.max_height:
+                    raise ValueError("There is no output from qtop *whatsoever*. Weird.")
+
+        self.viewport.max_height = display.max_height
+        self.max_line_len = max(len(ansi_escape.sub('', line.strip())) for line in open(output_fp, 'r')) \
+            if not self.max_line_len else self.max_line_len
+
+        logging.debug('Total nr of lines: %s' % self.max_height)
+        logging.debug('Max line length: %s' % self.max_line_len)
 
 
 class Cluster(object):
@@ -2124,32 +2144,24 @@ class InvalidScheduler(Exception):
     pass
 
 
-def initialize_qtop():
-    conf = utils.conf
-    conf.auto_config()
-
-    available_batch_systems = discover_qtop_batch_systems()
-    stdout = sys.stdout  # keep a copy of the initial value of sys.stdout
-    change_mapping = cycle([('queue_to_color', 'color by queue'), ('user_to_color', 'color by user')])
-    h_counter = cycle([0, 1])
-    viewport = Viewport()  # controls the part of the qtop matrix shown on screen
-    max_line_len = 0
-
-    conf.initialize_paths()
-    screens = [conf.HELP_FP, ]  # output_fp is not yet defined, will be appended later
-
-    return available_batch_systems, stdout, change_mapping, h_counter, viewport, max_line_len, screens
-
 if __name__ == '__main__':
 
-    available_batch_systems, stdout, change_mapping, h_counter, viewport, max_line_len, screens = initialize_qtop()
+    stdout = sys.stdout  # keep a copy of the initial value of sys.stdout
+
     conf = utils.conf
+    conf.auto_config()
+    available_batch_systems = discover_qtop_batch_systems()
+    conf.initialize_paths()
     conf.load_yaml_config()
-    conf.process_yaml_config()
+    display = TextDisplay(conf, Viewport())
+    conf.process_yaml_config() # TODO user_to_color is updated here !!
+    conf.update_config_with_cmdline_vars()
+
     config = conf.config
     options = conf.cmd_options
     dynamic_config = conf.dynamic_config
     QTOPPATH = conf.QTOPPATH
+    attempt_faster_xml_parsing(conf)
 
     if options.REPLAY:
         useful_frames = pick_frames_to_replay(conf)  # WAS conf.config['savepath'] CHECK!! 20170702
@@ -2161,27 +2173,27 @@ if __name__ == '__main__':
     with raw_mode(sys.stdin):  # key listener implementation
         try:
             while True:
-                # conf.process_yaml_config()  # TODO user_to_color is updated here !!
-                conf.update_config_with_cmdline_vars()
                 sample = fileutils.Sample(conf)
                 savepath = conf.savepath
                 timestr = time.strftime("%Y%m%dT%H%M%S")
 
-                handle, output_fp = fileutils.get_new_temp_file(savepath, prefix='qtop_fullview_%s_' % timestr, suffix='.out')
-                screens.append(output_fp)
+                handle, output_fp = fileutils.get_new_temp_file(savepath,
+                                                                prefix='qtop_fullview_%s_' % timestr,
+                                                                suffix='.out')
+                display.screens.append(output_fp)
 
-                attempt_faster_xml_parsing(conf.config)
                 conf.init_dirs()
 
-                transposed_matrices = []
-                viewport.set_term_size(*calculate_term_size(config, FALLBACK_TERMSIZE))
+                display.clear_matrices()
+                display.viewport.set_term_size(*calculate_term_size(config, FALLBACK_TERMSIZE))
                 sys.stdout = os.fdopen(handle, 'w')  # redirect everything to file, creates file object out of handle
+
                 scheduler = decide_batch_system(
                     options.BATCH_SYSTEM, os.environ.get('QTOP_SCHEDULER'), config['scheduler'],
                     config['schedulers'], available_batch_systems, config)
                 scheduler_output_filenames = fetch_scheduler_files(options, config)
-                sample.set_sample_filename_format_from_conf(config)
                 if options.SAMPLE:
+                    sample.set_sample_filename_format_from_conf(config)
                     sample.init_sample_file(savepath, scheduler_output_filenames, QTOPCONF_YAML, QTOPPATH)
 
                 ###### Gather data ###############
@@ -2217,18 +2229,18 @@ if __name__ == '__main__':
                 worker_nodes = keep_queue_initials_only_and_colorize(document.worker_nodes, queue_to_color)
                 worker_nodes = colorize_nodestate(document.worker_nodes, conf.nodestate_to_color, colorize)
                 cluster = Cluster(document, worker_nodes, WNFilter, config, options)
-                wns_occupancy = WNOccupancy(cluster, config, document, conf.user_to_color, job_ids)
+                wns_occupancy = WNOccupancy(cluster, config, display, document, conf.user_to_color, job_ids)
 
                 ###### Display data ###############
                 #
-                display = TextDisplay(document, conf.config, viewport, wns_occupancy, cluster)
+                display.init_display(document, conf.config, wns_occupancy, cluster)
                 display.display_selected_sections(savepath, QTOP_LOGFILE)
 
                 sys.stdout.flush()
                 sys.stdout.close()
                 sys.stdout = stdout  # sys.stdout is back to its normal function (i.e. prints to screen)
 
-                viewport.max_height, max_line_len = get_output_size(max_line_len, output_fp)
+                display.set_max_line_height(output_fp)
 
                 if options.ONLYSAVETOFILE:  # no display of qtop output, will exit
                     break
@@ -2244,19 +2256,20 @@ if __name__ == '__main__':
                             logging.critical('No (more) recorded instances available to show! Exiting...')
                             break
                     else:
+                        output_file = dynamic_config.get('output_fp', output_fp)
                         output_partview_fp = display.show_part_view(timestr,
-                                                                    file=dynamic_config.get('output_fp', output_fp),
-                                                                    x=viewport.v_start,
-                                                                    y=viewport.v_term_size)
-                        logging.debug('dynamic_config filename in main loop: %s' % dynamic_config.get('output_fp', output_fp))
+                                                                    file=output_file,
+                                                                    x=display.viewport.v_start,
+                                                                    y=display.viewport.v_term_size)
+
                     cat_command = 'clear;cat %s' % output_partview_fp
                     _ = subprocess.call(cat_command, stdout=stdout, stderr=stdout, shell=True)
 
-                    read_char = wait_for_keypress_or_autorefresh(viewport, FALLBACK_TERMSIZE, int(options.WATCH[0]) or
+                    read_char = wait_for_keypress_or_autorefresh(display.viewport, FALLBACK_TERMSIZE, int(options.WATCH[0]) or
                                                                  KEYPRESS_TIMEOUT)
-                    control_qtop(viewport, read_char, cluster, conf)
+                    control_qtop(display, read_char, cluster, conf)
 
-                screens.pop()
+                display.screens.pop()
                 os.chdir(QTOPPATH)
                 os.unlink(output_fp)
                 fileutils.deprecate_old_output_files(config)
@@ -2266,9 +2279,9 @@ if __name__ == '__main__':
 
         except (KeyboardInterrupt, EOFError) as e:
             repr(e)
-            fileutils.exit_safe(handle, output_fp, stdout, options, savepath, QTOP_LOGFILE, sample)
+            fileutils.exit_safe(handle, output_fp, conf, sample)
         finally:
             print "\nLog file created in %s" % os.path.expandvars(QTOP_LOGFILE)
             if options.SAMPLE:
                 print "Sample files saved in %s/%s" % (config['savepath'], sample.SAMPLE_FILENAME)
-            sample.handle_sample(scheduler_output_filenames, QTOP_LOGFILE, options)
+                sample.handle_sample(scheduler_output_filenames, QTOP_LOGFILE, options)
