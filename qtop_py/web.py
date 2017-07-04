@@ -80,7 +80,8 @@ class Web(object):
         self.server = Process(target=http_server, args=(self.q, ))
         self.server.start()
 
-    def set_filename(self, filename):
+    def set_filename(self, json_file):
+        filename = json_file.name
         if self.started:
             self.q.put("setfilename " + filename)
 

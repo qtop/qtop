@@ -622,27 +622,8 @@ def wait_for_keypress_or_autorefresh(viewport, FALLBACK_TERMSIZE, KEYPRESS_TIMEO
     return _read_char
 
 
-def keep_queue_initials_only_and_colorize(worker_nodes, queue_to_color):
-    # TODO remove monstrosity!
-    for worker_node in worker_nodes:
-        color_q_list = []
-        for queue in worker_node['qname']:
-            color_q = utils.ColorStr(queue, color=queue_to_color.get(queue, ''))
-            color_q_list.append(color_q)
-        worker_node['qname'] = color_q_list
-    return worker_nodes
 
 
-def colorize_nodestate(worker_nodes, nodestate_to_color, ffunc):
-    # TODO remove monstrosity!
-    for worker_node in worker_nodes:
-        full_nodestate = worker_node['state']  # actual node state
-        total_color_nodestate = []
-        for nodestate in worker_node['state']:  # split nodestate for displaying purposes
-            color_nodestate = utils.ColorStr(nodestate, color=nodestate_to_color.get(full_nodestate, ''))
-            total_color_nodestate.append(color_nodestate)
-        worker_node['state'] = total_color_nodestate
-    return worker_nodes
 
 
 def discover_qtop_batch_systems():
@@ -682,18 +663,15 @@ def discover_qtop_batch_systems():
 
 
 class WNOccupancy(object):
-    def __init__(self, cluster, config, display, document, user_to_color, job_ids):
+    def __init__(self, cluster):
         self.cluster = cluster
-        self.config = config
-        self.document = document
+        document = cluster.document
+        conf = cluster.conf
+        self.config = conf.config
         self.account_jobs_table = list()
         self.user_to_id = dict()
         self.jobid_to_user_to_queue = dict()
         self.user_names, self.job_states, self.job_queues = self._get_usernames_states_queues(document.jobs_dict)
-        self.job_ids = job_ids
-        self.display = display
-
-        self.calculate(document, user_to_color)
 
     def _get_usernames_states_queues(self, jobs_dict):
         user_names, job_states, job_queues = list(), list(), list()
@@ -703,7 +681,7 @@ class WNOccupancy(object):
             job_queues.append(value.job_queue)
         return user_names, job_states, job_queues
 
-    def calculate(self, document, user_to_color):
+    def calculate(self, user_to_color, h_term_size, job_ids):
         """
         Prints the Worker Nodes Occupancy table.
         if there are non-uniform WNs in pbsnodes.yaml, e.g. wn01, wn02, gn01, gn02, ...,  remapping is performed.
@@ -711,11 +689,12 @@ class WNOccupancy(object):
         Number of Extra tables needed is calculated inside the calc_all_wnid_label_lines function below
         """
         if not self.cluster:
-            return self  # TODO fix
+            raise ValueError("Cluster should not be empty. Exiting...")
+            # return self  # TODO fix
         # document.jobs_dict => job_id: job name/state/queue
 
-        self.jobid_to_user_to_queue = dict(izip(self.job_ids, izip(user_names, job_queues)))
-        self.user_machine_use = self.calculate_user_node_use(cluster, self.jobid_to_user_to_queue, self.job_ids, user_names,
+        self.jobid_to_user_to_queue = dict(izip(job_ids, izip(user_names, job_queues)))
+        self.user_machine_use = self.calculate_user_node_use(cluster, self.jobid_to_user_to_queue, job_ids, user_names,
                                                              job_queues)
 
         user_alljobs_sorted_lot = self._produce_user_lot(self.user_names)
@@ -727,7 +706,7 @@ class WNOccupancy(object):
         self.userid_to_userid_re_pat = self.make_pattern_out_of_mapping(mapping=user_to_color)
 
         # TODO extract to another class?
-        self.print_char_start, self.print_char_stop, self.extra_matrices_nr = self.find_matrices_width()
+        self.print_char_start, self.print_char_stop, self.extra_matrices_nr = self.find_matrices_width(h_term_size)
         self.wn_vert_labels = self.calc_all_wnid_label_lines(dynamic_config['force_names'])
 
         # For-loop below only for user-inserted/customizeable values.
@@ -764,7 +743,8 @@ class WNOccupancy(object):
         account_jobs_table.sort(key=itemgetter(3, 4), reverse=True)  # sort by All jobs, then unix account
         return account_jobs_table
 
-    def _create_user_job_counts(self, user_names, job_states, state_abbrevs):
+    @staticmethod
+    def create_user_job_counts(user_names, job_states, state_abbrevs):
         """
         counting of e.g. R, Q, C, W, E attached to each user
         """
@@ -809,7 +789,7 @@ class WNOccupancy(object):
         state_abbrevs = self.config['state_abbreviations'][scheduler]
 
         try:
-            user_job_per_state_counts = self._create_user_job_counts(user_names, job_states, state_abbrevs)
+            user_job_per_state_counts = WNOccupancy.create_user_job_counts(user_names, job_states, state_abbrevs)
         except JobNotFound as e:
             logging.critical('Job state %s not found. You may wish to add '
                              'that node state inside %s in state_abbreviations section.\n' % (e.job_state, QTOPCONF_YAML))
@@ -864,7 +844,7 @@ class WNOccupancy(object):
         pattern[self.config['SEPARATOR']] = 'account_not_colored'
         return pattern
 
-    def find_matrices_width(self, DEADWEIGHT=11):
+    def find_matrices_width(self, h_term_size, DEADWEIGHT=11):
         """
         masking/clipping functionality: if the earliest node number is high (e.g. 130), the first 129 WNs need not show up.
         case 1: wn_number is RemapNr, WNList is WNListRemapped
@@ -876,7 +856,8 @@ class WNOccupancy(object):
         start = 0
         wn_number = cluster.highest_wn
         workernode_list = cluster.workernode_list
-        term_columns = display.viewport.h_term_size
+        term_columns = h_term_size
+        # term_columns = display.viewport.h_term_size
         min_masking_threshold = int(config['workernodes_matrix'][0]['wn id lines']['min_masking_threshold'])
         if options.NOMASKING and min(workernode_list) > min_masking_threshold:
             # exclude unneeded first empty nodes from the matrix
@@ -1165,9 +1146,35 @@ class WNOccupancy(object):
 
 
 class Document(namedtuple('Document', ['worker_nodes', 'jobs_dict', 'queues_dict', 'total_running_jobs', 'total_queued_jobs'])):
-    def save(self, filename):
+    def saveas(self, json_file):
+        filename = json_file.name
         with open(filename, 'w') as outfile:
-            json.dump(document, outfile)
+            json.dump(self, outfile)
+
+    def process(self, conf, colorize):
+        nodestate_to_color = conf.nodestate_to_color
+        self.keep_queue_initials_only_and_colorize(queue_to_color)
+        self.colorize_nodestate(conf, colorize)
+
+    def keep_queue_initials_only_and_colorize(self, queue_to_color):
+        # TODO remove monstrosity!
+        for worker_node in self.worker_nodes:
+            color_q_list = []
+            for queue in worker_node['qname']:
+                color_q = utils.ColorStr(queue, color=queue_to_color.get(queue, ''))
+                color_q_list.append(color_q)
+            worker_node['qname'] = color_q_list
+
+    def colorize_nodestate(self, conf, ffunc):
+        nodestate_to_color = conf.nodestate_to_color
+        # TODO remove monstrosity!
+        for worker_node in self.worker_nodes:
+            full_nodestate = worker_node['state']  # actual node state
+            total_color_nodestate = []
+            for nodestate in worker_node['state']:  # split nodestate for displaying purposes
+                color_nodestate = utils.ColorStr(nodestate, color=nodestate_to_color.get(full_nodestate, ''))
+                total_color_nodestate.append(color_nodestate)
+            worker_node['state'] = total_color_nodestate
 
 
 # class Document(object):
@@ -1689,15 +1696,19 @@ class TextDisplay(object):
 
 
 class Cluster(object):
-    def __init__(self, document, worker_nodes, WNFilter, config, options):
-        self.worker_nodes = worker_nodes
+    def __init__(self, document, conf):
+        self.document = document
+        self.conf = conf
+        self.worker_nodes = document.worker_nodes
         self.jobs_dict = document.jobs_dict
         self.queues_dict = document.queues_dict  # ex qstatq_lod is now list of namedtuples
         self.total_running_jobs = document.total_running_jobs
         self.total_queued_jobs = document.total_queued_jobs
-        self.config = config
-        self.options = options
+        self.config = conf.config
+        self.options = conf.cmd_options
+        self.WNFilter = None
 
+        self.wn_filter = None
         self.working_cores = 0
         self.offdown_nodes = 0
         self.total_cores = 0
@@ -1712,29 +1723,18 @@ class Cluster(object):
         self.workernode_list = []
         self.workernode_list_remapped = range(1, self.total_wn + 1)  # leave xrange aside for now
 
-        self.node_subclusters = set()
+
+    def analyse(self, WNFilter):
         self.WNFilter = WNFilter
-        self.wn_filter = None
-
-        self.analyse()
-
-    def analyse(self):
-
         if not self.worker_nodes:
-            return None  # TODO ? what to return instead of cluster?
+            raise ValueError("Empty Worker Node list. Exiting...")
 
-        re_nodename = r'(^[A-Za-z0-9-]+)(?=\.|$)' if not self.options.ANONYMIZE else r'\w_anon_wn_\d+'
-
-        self.node_subclusters, self.workernode_list, self.offdown_nodes, self.working_cores, max_np, \
-            _all_str_digits_with_empties = self.get_wn_list_and_stats(self.workernode_list,
-                                                                          self.node_subclusters,
-                                                                          self.worker_nodes,
-                                                                          re_nodename)
+        max_np, _all_str_digits_with_empties = self.get_wn_list_and_stats()
 
         self.core_span = [str(x) for x in range(max_np)]
         self.options.REMAP = self.decide_remapping(_all_str_digits_with_empties)
 
-        nodes_drop, workernode_dict, workernode_dict_remapped = self.map_worker_nodes_to_wn_dict(self.options.REMAP)
+        nodes_drop, workernode_dict, workernode_dict_remapped = self.map_worker_nodes_to_wn_dict()
         self.workernode_dict = workernode_dict
 
         if self.options.REMAP:
@@ -1755,16 +1755,19 @@ class Cluster(object):
         del self.workernode_list_remapped
         del self.workernode_dict_remapped
 
-    def get_wn_list_and_stats(self, workernode_list, node_subclusters, worker_nodes, re_nodename):
+    def get_wn_list_and_stats(self):
         max_np = 0
+        re_nodename = r'(^[A-Za-z0-9-]+)(?=\.|$)' if not self.options.ANONYMIZE else r'\w_anon_wn_\d+'
         all_str_digits_with_empties = list()
+        worker_nodes = self.worker_nodes
+
         for node in worker_nodes:
             nodename_match = re.search(re_nodename, node['domainname'])
             _nodename = nodename_match.group(0)
 
             # get subclusters by name change
             _node_letters = ''.join(re.findall(r'\D+', _nodename))
-            node_subclusters.update([_node_letters])
+            self.node_subclusters.update([_node_letters])
 
             node_str_digits = "".join(re.findall(r'\d+', _nodename))
             all_str_digits_with_empties.append(node_str_digits)
@@ -1780,9 +1783,10 @@ class Cluster(object):
                 _cur_node_nr = _nodename
 
             # create workernode_list
-            workernode_list.append(_cur_node_nr)
+            self.workernode_list.append(_cur_node_nr)
 
-        return node_subclusters, workernode_list, self.offdown_nodes, self.working_cores, max_np, all_str_digits_with_empties
+        # node_subclusters, workernode_list, offdown_nodes, working_cores changed here
+        return max_np, all_str_digits_with_empties
 
     def decide_remapping(self, all_str_digits_with_empties):
         """
@@ -1871,7 +1875,7 @@ class Cluster(object):
                 workernode_dict[node].update(default_values_for_empty_nodes)
         return workernode_dict
 
-    def map_worker_nodes_to_wn_dict(self, options_remap):
+    def map_worker_nodes_to_wn_dict(self):
         """
         For filtering to take place,
         1) a filter should be defined in QTOPCONF_YAML
@@ -1882,19 +1886,17 @@ class Cluster(object):
         workernode_dict = dict()
         workernode_dict_remapped = dict()
         _sorting_from_conf = self.config['sorting']
-        user_sorting = dynamic_config.get('user_sort', (_sorting_from_conf and _sorting_from_conf.values()[0]))
+        _first_sort_by = _sorting_from_conf.values
+
+        user_sorting = dynamic_config.get('user_sort', (_sorting_from_conf and _first_sort_by()[0]))
         user_filters = dynamic_config.get('filtering', self.config['filtering'])
         user_filtering = user_filters and user_filters[0]
 
-        if user_filtering and options_remap:
+        if user_filtering and self.options.REMAP:
             len_wn_before = len(self.worker_nodes)
             self.wn_filter = self.WNFilter(self.worker_nodes)
-            self.worker_nodes, self.offdown_nodes, self.available_wn, self.working_cores, self.total_cores = \
-                self.wn_filter.filter_worker_nodes(self.offdown_nodes,
-                                                   self.available_wn,
-                                                   self.working_cores,
-                                                   self.total_cores,
-                                                   filter_rules=user_filters)
+            # modified: self.worker_nodes, self.offdown_nodes, self.available_wn, self.working_cores, self.total_cores
+            self.wn_filter.filter_worker_nodes(filter_rules=user_filters)
             len_wn_after = len(self.worker_nodes)
             nodes_drop = len_wn_after - len_wn_before
 
@@ -1902,8 +1904,8 @@ class Cluster(object):
             self.worker_nodes = self._sort_worker_nodes()
 
         for (batch_node, (idx, cur_node_nr)) in zip(self.worker_nodes, enumerate(self.workernode_list)):
-            # Seemingly there is an error in the for loop because self.worker_nodes and workernode_list
-            # have different lengths if there's a filter in place, but it is OK, since
+            # It looks as if there's an error in the for loop, because self.worker_nodes and workernode_list
+            # have different lengths if there's a filter in place, BUT it is OK, since
             # it is just the idx counter that is taken into account in remapping.
             workernode_dict[cur_node_nr] = batch_node
             workernode_dict_remapped[idx] = batch_node
@@ -2067,10 +2069,15 @@ class WNFilter(object):
     def keep_unmarked(self, t, rule, final_pass=False):
         return filter(lambda item: not item.get('mark'), t)
 
-    def filter_worker_nodes(self, offdown_nodes, avail_nodes, working_cores, total_cores, filter_rules=None):
+    def filter_worker_nodes(self, filter_rules=None):
         """
         Keeps specific nodes according to the filter rules in QTOPCONF_YAML
         """
+        offdown_nodes = self.offdown_nodes
+        avail_nodes = self.avail_nodes
+        working_cores = self.working_cores
+        total_cores = self.total_cores
+
         filter_types = {
             'exclude_numbers': (self.mark_list_by_number, self.keep_unmarked),
             'exclude_node_states': (self.mark_list_by_node_state, self.keep_unmarked),
@@ -2210,21 +2217,22 @@ if __name__ == '__main__':
 
                 document = Document(worker_nodes, jobs_dict, queues_dict, total_running_jobs, total_queued_jobs)
 
+                ###### Process data ###############
+                #
+                document.process(conf, colorize)
+                cluster = Cluster(document, conf)
+                cluster.analyse(WNFilter)
+                wns_occupancy = WNOccupancy(cluster)
+                wns_occupancy.calculate(conf.user_to_color, display.viewport.h_term_size, job_ids)
+
                 ###### Export data ###############
                 #
                 if options.EXPORT or options.WEB:
                     json_file = tempfile.NamedTemporaryFile(delete=False, prefix='qtop_json_%s_' % timestr,
                                                             suffix='.json', dir=savepath)
-                    document.save(json_file.name)
+                    document.saveas(json_file)
                 if options.WEB:
-                    web.set_filename(json_file.name)
-
-                ###### Process data ###############
-                #
-                worker_nodes = keep_queue_initials_only_and_colorize(document.worker_nodes, queue_to_color)
-                worker_nodes = colorize_nodestate(document.worker_nodes, conf.nodestate_to_color, colorize)
-                cluster = Cluster(document, worker_nodes, WNFilter, config, options)
-                wns_occupancy = WNOccupancy(cluster, config, display, document, conf.user_to_color, job_ids)
+                    web.set_filename(json_file)
 
                 ###### Display data ###############
                 #
