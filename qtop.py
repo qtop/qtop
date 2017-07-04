@@ -65,35 +65,6 @@ def gauge_core_vectors(core_user_map, print_char_start, print_char_stop, corelin
         yield core_x_vector, ind, k, coreline_notthere_or_unused(non_existent_symbol, remove_corelines, delta, core_x_str)
 
 
-def get_date_obj_from_str(s, now):
-    """
-    Expects string s to be in either of the following formats:
-    yyyymmddTHHMMSS, e.g. 20161118T182300
-    HHMM, e.g. 1823 (current day is implied)
-    mmddTHHMM, e.g. 1118T1823 (current year is implied)
-    If it's in format #3, the the current year is assumed.
-    If it's in format #2, either the current or the previous day is assumed,
-    depending on whether the time provided is future or past.
-    Optional ":/-" separators are also accepted between pretty much anywhere.
-    returns a datetime object
-    """
-    s = ''.join([x for x in s if x not in ':/-'])
-    if 'T' in s and len(s) == 15:
-        inp_datetime = datetime.datetime.strptime(s, "%Y%m%dT%H%M%S")
-    elif len(s) == 4:
-        _inp_datetime = datetime.datetime.strptime(s, "%H%M")
-        _inp_datetime = now.replace(hour=_inp_datetime.hour, minute=_inp_datetime.minute, second=0)
-        inp_datetime = _inp_datetime if now > _inp_datetime else _inp_datetime.replace(day=_inp_datetime.day-1)
-    elif len(s) == 9:
-        _inp_datetime = datetime.datetime.strptime(s, "%m%dT%H%M")
-        inp_datetime = _inp_datetime.replace(year=now.year, second=0)
-    else:
-        logging.critical('The datetime format provided is incorrect.\n'
-                         'Try one of the formats: yyyymmddTHHMMSS, HHMM, mmddTHHMM.')
-    return inp_datetime
-
-
-
 @contextlib.contextmanager
 def raw_mode(file):
     """
@@ -119,38 +90,6 @@ def raw_mode(file):
                     termios.tcsetattr(file.fileno(), termios.TCSADRAIN, conf.old_attrs)
         else:
             yield
-
-
-def calculate_term_size(config, FALLBACK_TERM_SIZE):
-    """
-    Gets the dimensions of the terminal window where qtop will be displayed.
-    """
-    fallback_term_size = config.get('term_size', FALLBACK_TERM_SIZE)
-
-    _command = subprocess.Popen('stty size', stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
-    tty_size, error = _command.communicate()
-    if not error:
-        term_height, term_columns = [int(x) for x in tty_size.strip().split()]
-        logging.debug('terminal size v, h from "stty size": %s, %s' % (term_height, term_columns))
-    else:
-        logging.warn("Failed to autodetect terminal size. (Running in an IDE?in a pipe?) Trying values in %s." % QTOPCONF_YAML)
-        try:
-            term_height, term_columns = display.viewport.get_term_size()
-            if not all(term_height, term_columns):
-                raise ValueError
-        except ValueError:
-            try:
-                term_height, term_columns = yaml.fix_config_list(display.viewport.get_term_size())
-            except KeyError:
-                term_height, term_columns = fallback_term_size
-                logging.debug('(hardcoded) fallback terminal size v, h:%s, %s' % (term_height, term_columns))
-            else:
-                logging.debug('fallback terminal size v, h:%s, %s' % (term_height, term_columns))
-        except (KeyError, TypeError):  # TypeError if None was returned i.e. no setting in QTOPCONF_YAML
-            term_height, term_columns = fallback_term_size
-            logging.debug('(hardcoded) fallback terminal size v, h:%s, %s' % (term_height, term_columns))
-
-    return int(term_height), int(term_columns)
 
 
 def finalize_filepaths_schedulercommands(options, config):
@@ -589,8 +528,6 @@ def decide_batch_system(cmdline_switch, env_var, config_file_batch_option, sched
         raise NoSchedulerFound
 
 
-
-
 def attempt_faster_xml_parsing(conf):
     if conf.config['faster_xml_parsing']:
         try:
@@ -600,13 +537,13 @@ def attempt_faster_xml_parsing(conf):
             from xml.etree import ElementTree as etree
 
 
-def wait_for_keypress_or_autorefresh(viewport, FALLBACK_TERMSIZE, KEYPRESS_TIMEOUT=1):
+def wait_for_keypress_or_autorefresh(display, FALLBACK_TERMSIZE, KEYPRESS_TIMEOUT=1):
     """
     This will make qtop wait for user input for a while,
     otherwise it will auto-refresh the display
     """
     _read_char = 'R'  # initial value, resets view position to beginning
-
+    viewport = display.viewport
     while sys.stdin in select.select([sys.stdin], [], [], KEYPRESS_TIMEOUT)[0]:
         _read_char = sys.stdin.read(1)
         if _read_char:
@@ -614,16 +551,13 @@ def wait_for_keypress_or_autorefresh(viewport, FALLBACK_TERMSIZE, KEYPRESS_TIMEO
             break
     else:
         state = viewport.get_term_size()
-        viewport.set_term_size(*calculate_term_size(config, FALLBACK_TERMSIZE))
+        term_size = display.calculate_term_size(FALLBACK_TERMSIZE)
+        viewport.set_term_size(*term_size)
         new_state = viewport.get_term_size()
         _read_char = '\n' if (state == new_state) else 'r'
         logging.debug("Auto-advancing by pressing <Enter>")
 
     return _read_char
-
-
-
-
 
 
 def discover_qtop_batch_systems():
@@ -647,19 +581,6 @@ def discover_qtop_batch_systems():
         available_batch_systems[mnemonic] = batch_system
 
     return available_batch_systems
-
-
-# def handle_exception(exc_type, exc_value, exc_traceback):
-#     """
-#     This, when replacing sys.excepthook,
-#     will log uncaught exceptions to the logging module instead
-#     of printing them to stdout.
-#     """
-#     if issubclass(exc_type, KeyboardInterrupt):
-#         sys.__excepthook__(exc_type, exc_value, exc_traceback)
-#         return
-#
-#     logging.error("Uncaught exception", exc_info=(exc_type, exc_value, exc_traceback))
 
 
 class WNOccupancy(object):
@@ -1211,13 +1132,13 @@ class TextDisplay(object):
         self.viewport = viewport  # controls the part of the qtop matrix shown on screen
         self.screens = [conf.HELP_FP, ]  # output_fp is not yet defined, will be appended later
 
-    def init_display(self, document, config, wns_occupancy, cluster):
-        self.cluster = cluster
-        self.wns_occupancy = wns_occupancy
-        self.document = document
-        self.wns_occupancy = wns_occupancy
+    def init_display(self, output_fp, FALLBACK_TERMSIZE):
+        self.screens.append(output_fp)
+        self.clear_matrices()
+        term_size = self.calculate_term_size(FALLBACK_TERMSIZE)
+        self.viewport.set_term_size(*term_size)
 
-    def display_selected_sections(self, _savepath, QTOP_LOGFILE):
+    def display_selected_sections(self, _savepath, QTOP_LOGFILE, document, wns_occupancy, cluster):
         """
         This prints out the qtop sections selected by the user.
         The selection can be made in two different ways:
@@ -1226,6 +1147,10 @@ class TextDisplay(object):
         e.g. -13 will exclude sections 1 and 3
         Cmdline arguments should only be able to choose from what is available in QTOPCONF_YAML, though.
         """
+        self.document = document
+        self.wns_occupancy = wns_occupancy
+        self.cluster = cluster
+
         sections_off = {  # cmdline argument -n
             1: options.sect_1_off,
             2: options.sect_2_off,
@@ -1694,6 +1619,39 @@ class TextDisplay(object):
         logging.debug('Total nr of lines: %s' % self.max_height)
         logging.debug('Max line length: %s' % self.max_line_len)
 
+    def calculate_term_size(self, FALLBACK_TERM_SIZE):
+        """
+        Gets the dimensions of the terminal window where qtop will be displayed.
+        """
+        config = self.conf.config
+        fallback_term_size = config.get('term_size', FALLBACK_TERM_SIZE)
+
+        _command = subprocess.Popen('stty size', stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+        tty_size, error = _command.communicate()
+        if not error:
+            term_height, term_columns = [int(x) for x in tty_size.strip().split()]
+            logging.debug('terminal size v, h from "stty size": %s, %s' % (term_height, term_columns))
+        else:
+            logging.warn(
+                "Failed to autodetect terminal size. (Running in an IDE?in a pipe?) Trying values in %s." % QTOPCONF_YAML)
+            try:
+                term_height, term_columns = self.viewport.get_term_size()
+                if not all(term_height, term_columns):
+                    raise ValueError
+            except ValueError:
+                try:
+                    term_height, term_columns = yaml.fix_config_list(self.viewport.get_term_size())
+                except KeyError:
+                    term_height, term_columns = fallback_term_size
+                    logging.debug('(hardcoded) fallback terminal size v, h:%s, %s' % (term_height, term_columns))
+                else:
+                    logging.debug('fallback terminal size v, h:%s, %s' % (term_height, term_columns))
+            except (KeyError, TypeError):  # TypeError if None was returned i.e. no setting in QTOPCONF_YAML
+                term_height, term_columns = fallback_term_size
+                logging.debug('(hardcoded) fallback terminal size v, h:%s, %s' % (term_height, term_columns))
+
+        return int(term_height), int(term_columns)
+
 
 class Cluster(object):
     def __init__(self, document, conf):
@@ -2007,7 +1965,7 @@ def pick_frames_to_replay(conf):
         options.REPLAY.append('2m')
 
     time_delta = fileutils.get_timedelta(fileutils.parse_time_input(options.REPLAY[1]))
-    watch_start_datetime_obj = get_date_obj_from_str(options.REPLAY[0], datetime.datetime.now())
+    watch_start_datetime_obj = utils.get_date_obj_from_str(options.REPLAY[0], datetime.datetime.now())
     REC_FP_ALL = _savepath + '/*_partview*.out'
     rec_files = glob.iglob(REC_FP_ALL)
     useful_frames = []
@@ -2182,12 +2140,8 @@ if __name__ == '__main__':
                 handle, output_fp = fileutils.get_new_temp_file(savepath,
                                                                 prefix='qtop_fullview_%s_' % timestr,
                                                                 suffix='.out')
-                display.screens.append(output_fp)
-
                 conf.init_dirs()
-
-                display.clear_matrices()
-                display.viewport.set_term_size(*calculate_term_size(config, FALLBACK_TERMSIZE))
+                display.init_display(output_fp, FALLBACK_TERMSIZE)
                 sys.stdout = os.fdopen(handle, 'w')  # redirect everything to file, creates file object out of handle
 
                 scheduler = decide_batch_system(
@@ -2236,8 +2190,7 @@ if __name__ == '__main__':
 
                 ###### Display data ###############
                 #
-                display.init_display(document, conf.config, wns_occupancy, cluster)
-                display.display_selected_sections(savepath, QTOP_LOGFILE)
+                display.display_selected_sections(savepath, QTOP_LOGFILE, document, wns_occupancy, cluster)
 
                 sys.stdout.flush()
                 sys.stdout.close()
@@ -2268,7 +2221,7 @@ if __name__ == '__main__':
                     cat_command = 'clear;cat %s' % output_partview_fp
                     _ = subprocess.call(cat_command, stdout=stdout, stderr=stdout, shell=True)
 
-                    read_char = wait_for_keypress_or_autorefresh(display.viewport, FALLBACK_TERMSIZE, int(options.WATCH[0]) or
+                    read_char = wait_for_keypress_or_autorefresh(display, FALLBACK_TERMSIZE, int(options.WATCH[0]) or
                                                                  KEYPRESS_TIMEOUT)
                     control_qtop(display, read_char, cluster, conf)
 
