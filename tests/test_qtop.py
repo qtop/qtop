@@ -2,7 +2,7 @@ import pytest
 import re
 import datetime
 import sys
-from qtop import WNOccupancy, decide_batch_system, JobNotFound, SchedulerNotSpecified, NoSchedulerFound, get_date_obj_from_str
+from qtop import WNOccupancy, decide_batch_system, JobNotFound, SchedulerNotSpecified, NoSchedulerFound
 import qtop_py.utils
 
 
@@ -166,4 +166,4 @@ def test_get_date_obj_from_str(s, now, day_meant):
     at 01:00 in the morning, the user inputs 21:00 (the previous day is implied)
     at 22:10 at night, the user inputs again 21:00 (the same day is implied)
     """
-    assert get_date_obj_from_str(s, now).day == day_meant
+    assert qtop_py.utils.get_date_obj_from_str(s, now).day == day_meant

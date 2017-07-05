@@ -1709,6 +1709,7 @@ class Cluster(object):
 
         self.workernode_dict = self.do_name_remapping(self.workernode_dict)
         self._calculate_jobs_per_node(self.workernode_dict)
+
         del self.node_subclusters  # sets are not JSON serialisable!!
         del self.workernode_list_remapped
         del self.workernode_dict_remapped
@@ -2177,6 +2178,7 @@ if __name__ == '__main__':
                 cluster = Cluster(document, conf)
                 cluster.analyse(WNFilter)
                 wns_occupancy = WNOccupancy(cluster)
+                # TODO: the cut into matrices should be put in the display data part. No viewport in calculations.
                 wns_occupancy.calculate(conf.user_to_color, display.viewport.h_term_size, job_ids)
 
                 ###### Export data ###############

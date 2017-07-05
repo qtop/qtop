@@ -7,11 +7,41 @@ import os
 import termios
 from itertools import cycle
 from os.path import realpath
+import datetime
 from qtop_py.colormap import *
 import qtop_py.yaml_parser as yaml
 from qtop_py import __version__
 from qtop_py.constants import (SYSTEMCONFDIR, QTOPCONF_YAML, QTOP_LOGFILE, USERPATH, MAX_CORE_ALLOWED,
     MAX_UNIX_ACCOUNTS, KEYPRESS_TIMEOUT, FALLBACK_TERMSIZE)
+
+
+def get_date_obj_from_str(s, now):
+    """
+    Expects string s to be in either of the following formats:
+    yyyymmddTHHMMSS, e.g. 20161118T182300
+    HHMM, e.g. 1823 (current day is implied)
+    mmddTHHMM, e.g. 1118T1823 (current year is implied)
+    If it's in format #3, the the current year is assumed.
+    If it's in format #2, either the current or the previous day is assumed,
+    depending on whether the time provided is future or past.
+    Optional ":/-" separators are also accepted between pretty much anywhere.
+    returns a datetime object
+    """
+    s = ''.join([x for x in s if x not in ':/-'])
+    if 'T' in s and len(s) == 15:
+        inp_datetime = datetime.datetime.strptime(s, "%Y%m%dT%H%M%S")
+    elif len(s) == 4:
+        _inp_datetime = datetime.datetime.strptime(s, "%H%M")
+        _inp_datetime = now.replace(hour=_inp_datetime.hour, minute=_inp_datetime.minute, second=0)
+        inp_datetime = _inp_datetime if now > _inp_datetime else _inp_datetime.replace(day=_inp_datetime.day-1)
+    elif len(s) == 9:
+        _inp_datetime = datetime.datetime.strptime(s, "%m%dT%H%M")
+        inp_datetime = _inp_datetime.replace(year=now.year, second=0)
+    else:
+        logging.critical('The datetime format provided is incorrect.\n'
+                         'Try one of the formats: yyyymmddTHHMMSS, HHMM, mmddTHHMM.')
+    return inp_datetime
+
 
 
 def _watch_callback(option, opt_str, value, parser):
