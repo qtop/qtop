@@ -92,25 +92,6 @@ def raw_mode(file):
             yield
 
 
-def finalize_filepaths_schedulercommands(options, config):
-    """
-    returns a dictionary with contents of the form
-    {fn : (filepath, schedulercommand)}, e.g.
-    {'pbsnodes_file': ('savepath/pbsnodes_a.txt', 'pbsnodes -a')}
-    if the -s switch (set sourcedir) has been invoked, or
-    {'pbsnodes_file': ('savepath/pbsnodes_a<some_pid>.txt', 'pbsnodes -a')}
-    if ran without the -s switch.
-    """
-    d = dict()
-    fn_append = "_" + str(os.getpid()) if not options.SOURCEDIR else ""
-    for fn, path_command in config['schedulers'][scheduler].items():
-        path, command = path_command.strip().split(', ')
-        path = path % {"savepath": options.workdir, "pid": fn_append}
-        command = command % {"savepath": options.workdir}
-        d[fn] = (path, command)
-    return d
-
-
 def auto_get_avail_batch_system(config):
     """
     If the auto option is set in either env variable QTOP_SCHEDULER, QTOPCONF_YAML or in cmdline switch -b,
@@ -154,12 +135,13 @@ def execute_shell_batch_commands(batch_system_commands, filenames, _file, _savep
     return filenames[_file]
 
 
-def get_detail_of_name(account_jobs_table):
+def get_detail_of_name(conf, account_jobs_table):
     """
     Reads file $HOME/.local/qtop/getent_passwd.txt or whatever is put in QTOPCONF_YAML
     and extracts the fullname of the users. This shall be printed in User Accounts
     and Pool Mappings.
     """
+    config = conf.config
     extract_info = config.get('extract_info', None)
     if not extract_info:
         return dict()
@@ -205,25 +187,6 @@ def get_detail_of_name(account_jobs_table):
     return detail_of_name
 
 
-def get_input_filenames(INPUT_FNs_commands, config):
-    """
-    If the user didn't specify --via the -s switch-- a dir where ready-made data files already exist,
-    the appropriate batch commands are executed, as indicated in QTOPCONF,
-    and results are saved with the respective filenames.
-    """
-
-    filenames = dict()
-    batch_system_commands = dict()
-    for _file in INPUT_FNs_commands:
-        filenames[_file], batch_system_commands[_file] = INPUT_FNs_commands[_file]
-
-        if not options.SOURCEDIR:
-            _savepath = os.path.realpath(os.path.expandvars(config['savepath']))
-            filenames[_file] = execute_shell_batch_commands(batch_system_commands, filenames, _file, _savepath)
-
-        if not os.path.isfile(filenames[_file]):
-            raise fileutils.FileNotFound(filenames[_file])
-    return filenames
 
 
 def control_qtop(display, read_char, cluster, conf):
@@ -492,10 +455,6 @@ def control_qtop(display, read_char, cluster, conf):
                    'h_start': viewport.h_start, 'h_stop': viewport.h_stop})
 
 
-def fetch_scheduler_files(options, config):
-    INPUT_FNs_commands = finalize_filepaths_schedulercommands(options, config)
-    scheduler_output_filenames = get_input_filenames(INPUT_FNs_commands, config)
-    return scheduler_output_filenames
 
 
 def decide_batch_system(cmdline_switch, env_var, config_file_batch_option, schedulers, available_batch_systems, config):
@@ -560,29 +519,6 @@ def wait_for_keypress_or_autorefresh(display, FALLBACK_TERMSIZE, KEYPRESS_TIMEOU
     return _read_char
 
 
-def discover_qtop_batch_systems():
-    batch_systems = set()
-
-    # Find all the classes that extend GenericBatchSystem
-    to_scan = [GenericBatchSystem]
-    while to_scan:
-        parent = to_scan.pop()
-        for child in parent.__subclasses__():
-            if child not in batch_systems:
-                batch_systems.add(child)
-                to_scan.append(child)
-
-    # Extract those class's mnemonics
-    available_batch_systems = {}
-    for batch_system in batch_systems:
-        mnemonic = batch_system.get_mnemonic()
-        assert mnemonic
-        assert mnemonic not in available_batch_systems, "Duplicate for mnemonic: '%s'" % mnemonic
-        available_batch_systems[mnemonic] = batch_system
-
-    return available_batch_systems
-
-
 class WNOccupancy(object):
     def __init__(self, cluster):
         self.cluster = cluster
@@ -602,7 +538,7 @@ class WNOccupancy(object):
             job_queues.append(value.job_queue)
         return user_names, job_states, job_queues
 
-    def calculate(self, user_to_color, h_term_size, job_ids):
+    def calculate(self, user_to_color, h_term_size, job_ids, scheduler_name):
         """
         Prints the Worker Nodes Occupancy table.
         if there are non-uniform WNs in pbsnodes.yaml, e.g. wn01, wn02, gn01, gn02, ...,  remapping is performed.
@@ -618,10 +554,9 @@ class WNOccupancy(object):
         self.user_machine_use = self.calculate_user_node_use(cluster, self.jobid_to_user_to_queue, job_ids, user_names,
                                                              job_queues)
 
-        user_alljobs_sorted_lot = self._produce_user_lot(self.user_names)
+        user_alljobs_sorted_lot = self._get_user_alljobcount_sorted_lot(self.user_names)
         user_to_id = self._create_id_for_users(user_alljobs_sorted_lot)
-        user_job_per_state_counts = self._calculate_user_job_counts(self.user_names, self.job_states, user_alljobs_sorted_lot,
-                                                                    user_to_id)
+        user_job_per_state_counts = self._calculate_user_job_counts(user_alljobs_sorted_lot, user_to_id, scheduler_name)
         _account_jobs_table = self._create_sort_acct_jobs_table(user_job_per_state_counts, user_alljobs_sorted_lot, user_to_id)
         self.account_jobs_table, self.user_to_id = self._create_account_jobs_table(user_to_id, _account_jobs_table)
         self.userid_to_userid_re_pat = self.make_pattern_out_of_mapping(mapping=user_to_color)
@@ -631,8 +566,8 @@ class WNOccupancy(object):
         self.wn_vert_labels = self.calc_all_wnid_label_lines(dynamic_config['force_names'])
 
         # For-loop below only for user-inserted/customizeable values.
-        for yaml_key, part_name, systems in yaml.get_yaml_key_part(config, scheduler, outermost_key='workernodes_matrix'):
-            if scheduler in systems:
+        for yaml_key, part_name, systems in yaml.get_yaml_key_part(config, scheduler_name, outermost_key='workernodes_matrix'):
+            if scheduler_name in systems:
                 self.__setattr__(part_name, self.calc_general_mult_attr_line(part_name, yaml_key, config))
 
         self.core_user_map = self._calc_core_matrix(self.user_to_id, self.jobid_to_user_to_queue)
@@ -687,7 +622,7 @@ class WNOccupancy(object):
 
         return user_job_per_state_counts
 
-    def _produce_user_lot(self, _user_names):
+    def _get_user_alljobcount_sorted_lot(self, _user_names):
         """
         Produces a list of tuples (lot) of the form (user account, all jobs count) in descending order.
         Used in the user accounts and poolmappings table
@@ -699,18 +634,18 @@ class WNOccupancy(object):
         user_alljobs_sorted_lot = sorted(user_to_alljobs_count.items(), key=itemgetter(1), reverse=True)
         return user_alljobs_sorted_lot
 
-    def _calculate_user_job_counts(self, user_names, job_states, user_alljobs_sorted_lot, user_to_id):
+    def _calculate_user_job_counts(self, user_alljobs_sorted_lot, user_to_id, scheduler_name):
         """
         Calculates and prints what is actually below the id|  R + Q /all | unix account etc line
         :param user_names: list
         :param job_states: list
         :return: (list, list, dict)
         """
-        self.config = self._expand_useraccounts_symbols(self.config, user_names)
-        state_abbrevs = self.config['state_abbreviations'][scheduler]
+        self.config = self._expand_useraccounts_symbols(self.config, self.user_names)
+        state_abbrevs = self.config['state_abbreviations'][scheduler_name]
 
         try:
-            user_job_per_state_counts = WNOccupancy.create_user_job_counts(user_names, job_states, state_abbrevs)
+            user_job_per_state_counts = WNOccupancy.create_user_job_counts(self.user_names, self.job_states, state_abbrevs)
         except JobNotFound as e:
             logging.critical('Job state %s not found. You may wish to add '
                              'that node state inside %s in state_abbreviations section.\n' % (e.job_state, QTOPCONF_YAML))
@@ -1123,7 +1058,6 @@ class TextDisplay(object):
         self.config = self.conf.config
         self.transposed_matrices = []
         self.cluster = None
-        self.wns_occupancy = None
         self.document = None
         self.viewport = None
         self.wns_occupancy = None
@@ -1157,25 +1091,27 @@ class TextDisplay(object):
             3: options.sect_3_off
         }
         display_parts = {
-            'job_accounting_summary': (self.display_job_accounting_summary, (self.cluster, self.document)),
-            'workernodes_matrix': (self.display_wns_occupancy, (self.wns_occupancy, self.cluster)),
-            'user_accounts_pool_mappings': (self.display_user_accounts_pool_mappings, (self.wns_occupancy,))
+            'job_accounting_summary': self.display_job_accounting_summary ,
+            'workernodes_matrix': self.display_matrices,
+            'user_accounts_pool_mappings': self.display_user_accounts_pool_mappings
         }
 
         if options.WATCH:
             print "\033c",  # comma is to avoid losing the whole first line. An empty char still remains, though.
 
         for idx, part in enumerate(config['user_display_parts'], 1):
-            display_func, args = display_parts[part][0], display_parts[part][1]
-            display_func(*args) if not sections_off[idx] else None
+            display_func = display_parts[part]
+            display_func() if not sections_off[idx] else None
 
         if options.STRICTCHECK:
             WNOccupancy.strict_check_jobs(wns_occupancy, cluster)
 
-    def display_job_accounting_summary(self, cluster, document):
+    def display_job_accounting_summary(self):
         """
         Displays qtop's first section
         """
+        cluster = self.cluster
+        document = self.document
         total_running_jobs = cluster.total_running_jobs
         total_queued_jobs = cluster.total_queued_jobs
         qstatq_lod = cluster.queues_dict
@@ -1236,12 +1172,14 @@ class TextDisplay(object):
         print colorize('* implies blocked', 'Red') + '\n'
         # TODO unhardwire states from star kwarg
 
-    def display_wns_occupancy(self, wns_occupancy, cluster):
+    def display_matrices(self):
         """
         Displays qtop's second section, the main worker node matrices.
         """
         print_char_start = self.wns_occupancy.print_char_start
         print_char_stop = self.wns_occupancy.print_char_stop
+        wns_occupancy = self.wns_occupancy
+        cluster = self.cluster
 
         self.display_basic_legend()
         self.display_matrix(wns_occupancy, print_char_start, print_char_stop)
@@ -1261,10 +1199,11 @@ class TextDisplay(object):
               colorize(' <=== ', 'Gray_D') + \
               colorize('(%s)', 'Gray_D') % note
 
-    def display_user_accounts_pool_mappings(self, wns_occupancy):
+    def display_user_accounts_pool_mappings(self):
         """
         Displays qtop's third section
         """
+        wns_occupancy = self.wns_occupancy
         try:
             account_jobs_table = self.wns_occupancy.account_jobs_table
             userid_to_userid_re_pat = self.wns_occupancy.userid_to_userid_re_pat
@@ -1272,7 +1211,7 @@ class TextDisplay(object):
             account_jobs_table = dict()
             userid_to_userid_re_pat = dict()
 
-        detail_of_name = get_detail_of_name(account_jobs_table)
+        detail_of_name = get_detail_of_name(self.conf, account_jobs_table)
         print colorize('\n===> ', 'Gray_D') + \
               colorize('User accounts and pool mappings', 'White') + \
               colorize(' <=== ', 'Gray_d') + \
@@ -1343,8 +1282,8 @@ class TextDisplay(object):
         }
 
         # custom part, e.g. Node state, queue state etc
-        for yaml_key, part_name, systems in yaml.get_yaml_key_part(config, scheduler, outermost_key='workernodes_matrix'):
-            if scheduler not in systems: continue
+        for yaml_key, part_name, systems in yaml.get_yaml_key_part(config, scheduler.scheduler_name, outermost_key='workernodes_matrix'):
+            if scheduler.scheduler_name not in systems: continue
 
             new_occupancy_part = {
                 part_name:
@@ -1360,7 +1299,7 @@ class TextDisplay(object):
         for part_dict in config['workernodes_matrix']:
             part = [k for k in part_dict][0]
             key_vals = part_dict[part]
-            if scheduler not in yaml.fix_config_list(key_vals.get('systems', [scheduler])):
+            if scheduler.scheduler_name not in yaml.fix_config_list(key_vals.get('systems', [scheduler.scheduler_name])):
                 continue
             occupancy_parts[part][2].update(key_vals)  # get extra options from user
 
@@ -2105,13 +2044,115 @@ class InvalidScheduler(Exception):
     pass
 
 
+
+class SchedulerRouter(object):
+    def __init__(self, conf):
+        self.conf = conf
+        self.options = conf.cmd_options
+        self.config = conf.config
+        self.available_batch_systems = self._discover_qtop_batch_systems()
+        self.scheduler_name = decide_batch_system(options.BATCH_SYSTEM, os.environ.get('QTOP_SCHEDULER'),
+                                             config['scheduler'], config['schedulers'], self.available_batch_systems, config)
+        self.scheduler_output_filenames = self._fetch_scheduler_files()
+
+    def _pick_scheduler(self):
+        return self.available_batch_systems[self.scheduler_name](self.scheduler_output_filenames, config, options)
+
+    def _decide_batch_system(self):
+        pass
+
+    def _discover_qtop_batch_systems(self):
+        batch_systems = set()
+
+        # Find all the classes that extend GenericBatchSystem
+        to_scan = [GenericBatchSystem]
+        while to_scan:
+            parent = to_scan.pop()
+            for child in parent.__subclasses__():
+                if child not in batch_systems:
+                    batch_systems.add(child)
+                    to_scan.append(child)
+
+        # Extract those class's mnemonics
+        available_batch_systems = {}
+        for batch_system in batch_systems:
+            mnemonic = batch_system.get_mnemonic()
+            assert mnemonic
+            assert mnemonic not in available_batch_systems, "Duplicate for mnemonic: '%s'" % mnemonic
+            available_batch_systems[mnemonic] = batch_system
+
+        return available_batch_systems
+
+    def get_jobs_info(self):
+        self.scheduler = self._pick_scheduler()
+        return self.scheduler.get_jobs_info()
+
+    def get_queues_info(self):
+        # scheduler = self._pick_scheduler()
+        return self.scheduler.get_queues_info()
+
+    def get_worker_nodes(self, job_ids, job_queues, conf):
+        # scheduler = self._pick_scheduler()
+        return self.scheduler.get_worker_nodes(job_ids, job_queues, conf)
+
+    def _fetch_scheduler_files(self):
+        options = self.conf.cmd_options
+        config = self.config
+        INPUT_FNs_commands = self._finalize_filepaths_schedulercommands(options, config)
+        scheduler_output_filenames = self._get_input_filenames(INPUT_FNs_commands, config)
+        return scheduler_output_filenames
+
+    def _finalize_filepaths_schedulercommands(self, options, config):
+        """
+        returns a dictionary with contents of the form
+        {fn : (filepath, schedulercommand)}, e.g.
+        {'pbsnodes_file': ('savepath/pbsnodes_a.txt', 'pbsnodes -a')}
+        if the -s switch (set sourcedir) has been invoked, or
+        {'pbsnodes_file': ('savepath/pbsnodes_a<some_pid>.txt', 'pbsnodes -a')}
+        if ran without the -s switch.
+        """
+        d = dict()
+        fn_append = "_" + str(os.getpid()) if not options.SOURCEDIR else ""
+        for fn, path_command in config['schedulers'][self.scheduler_name].items():
+            path, command = path_command.strip().split(', ')
+            path = path % {"savepath": options.workdir, "pid": fn_append}
+            command = command % {"savepath": options.workdir}
+            d[fn] = (path, command)
+        return d
+
+    def _get_input_filenames(self, INPUT_FNs_commands, config):
+        """
+        If the user didn't specify --via the -s switch-- a dir where ready-made data files already exist,
+        the appropriate batch commands are executed, as indicated in QTOPCONF,
+        and results are saved with the respective filenames.
+        """
+
+        filenames = dict()
+        batch_system_commands = dict()
+        for _file in INPUT_FNs_commands:
+            filenames[_file], batch_system_commands[_file] = INPUT_FNs_commands[_file]
+
+            if not options.SOURCEDIR:
+                _savepath = os.path.realpath(os.path.expandvars(config['savepath']))
+                filenames[_file] = execute_shell_batch_commands(batch_system_commands, filenames, _file, _savepath)
+
+            if not os.path.isfile(filenames[_file]):
+                raise fileutils.FileNotFound(filenames[_file])
+        return filenames
+
+    # def _fetch_scheduler_files(self, options, config):
+    #     INPUT_FNs_commands = self._finalize_filepaths_schedulercommands(options, config)
+    #     scheduler_output_filenames = self._get_input_filenames(INPUT_FNs_commands, config)
+    #     return scheduler_output_filenames
+
+
 if __name__ == '__main__':
 
     stdout = sys.stdout  # keep a copy of the initial value of sys.stdout
 
     conf = utils.conf
     conf.auto_config()
-    available_batch_systems = discover_qtop_batch_systems()
+    # available_batch_systems = discover_qtop_batch_systems()
     conf.initialize_paths()
     conf.load_yaml_config()
     display = TextDisplay(conf, Viewport())
@@ -2145,21 +2186,16 @@ if __name__ == '__main__':
                 display.init_display(output_fp, FALLBACK_TERMSIZE)
                 sys.stdout = os.fdopen(handle, 'w')  # redirect everything to file, creates file object out of handle
 
-                scheduler = decide_batch_system(
-                    options.BATCH_SYSTEM, os.environ.get('QTOP_SCHEDULER'), config['scheduler'],
-                    config['schedulers'], available_batch_systems, config)
-                scheduler_output_filenames = fetch_scheduler_files(options, config)
+                scheduler = SchedulerRouter(conf)
                 if options.SAMPLE:
                     sample.set_sample_filename_format_from_conf(config)
-                    sample.init_sample_file(savepath, scheduler_output_filenames, QTOPCONF_YAML, QTOPPATH)
+                    sample.init_sample_file(savepath, scheduler.scheduler_output_filenames, QTOPCONF_YAML, QTOPPATH)
 
                 ###### Gather data ###############
                 #
-                scheduling_system = available_batch_systems[scheduler](scheduler_output_filenames, config, options)
-
-                job_ids, user_names, job_states, job_queues = scheduling_system.get_jobs_info()
-                total_running_jobs, total_queued_jobs, qstatq_lod = scheduling_system.get_queues_info()
-                worker_nodes = scheduling_system.get_worker_nodes(job_ids, job_queues, options, dynamic_config)
+                job_ids, user_names, job_states, job_queues = scheduler.get_jobs_info()
+                total_running_jobs, total_queued_jobs, qstatq_lod = scheduler.get_queues_info()
+                worker_nodes = scheduler.get_worker_nodes(job_ids, job_queues, conf)
 
                 JobDoc = namedtuple('JobDoc', ['user_name', 'job_state', 'job_queue'])
                 jobs_dict = dict((re.sub(r'\[\]$', '', job_id), JobDoc(user_name, job_state, job_queue)) for
@@ -2179,7 +2215,7 @@ if __name__ == '__main__':
                 cluster.analyse(WNFilter)
                 wns_occupancy = WNOccupancy(cluster)
                 # TODO: the cut into matrices should be put in the display data part. No viewport in calculations.
-                wns_occupancy.calculate(conf.user_to_color, display.viewport.h_term_size, job_ids)
+                wns_occupancy.calculate(conf.user_to_color, display.viewport.h_term_size, job_ids, scheduler.scheduler_name)
 
                 ###### Export data ###############
                 #
@@ -2242,4 +2278,4 @@ if __name__ == '__main__':
             print "\nLog file created in %s" % os.path.expandvars(QTOP_LOGFILE)
             if options.SAMPLE:
                 print "Sample files saved in %s/%s" % (config['savepath'], sample.SAMPLE_FILENAME)
-                sample.handle_sample(scheduler_output_filenames, QTOP_LOGFILE, options)
+                sample.handle_sample(scheduler.scheduler_output_filenames, QTOP_LOGFILE, options)

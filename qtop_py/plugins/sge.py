@@ -135,7 +135,9 @@ class SGEBatchSystem(GenericBatchSystem):
 
         return total_running_jobs, int(eval(str(total_queued_jobs))), qstatq_list
 
-    def get_worker_nodes(self, job_ids, job_queues, options, dynamic_config):
+    def get_worker_nodes(self, job_ids, job_queues, conf):
+        options = conf.cmd_options
+        dynamic_config = conf.dynamic_config
         logging.debug('Parsing tree of %s' % self.sge_file)
 
         tree, root = self.sge_stat_maker.tree, self.sge_stat_maker.root

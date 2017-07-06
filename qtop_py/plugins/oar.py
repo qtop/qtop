@@ -52,7 +52,9 @@ class OARBatchSystem(GenericBatchSystem):
         self.options = options
         self.oar_stat_maker = OarStatExtractor(self.config, self.options)
 
-    def get_worker_nodes(self, job_ids_oarstat, job_queues, options, dynamic_config):
+    def get_worker_nodes(self, job_ids_oarstat, job_queues, conf):
+        options = conf.cmd_options
+        dynamic_config = conf.dynamic_config
         nodes_resids = self._read_oarnodes_s_yaml(self.oarnodes_s_file)
         resids_jobs = self._read_oarnodes_y_textyaml(self.oarnodes_y_file)
 
