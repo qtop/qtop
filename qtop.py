@@ -975,7 +975,7 @@ class Document(namedtuple('Document', ['worker_nodes', 'jobs_dict', 'queues_dict
         with open(filename, 'w') as outfile:
             json.dump(self, outfile)
 
-    def process(self, conf, colorize):
+    def process(self, conf):
         nodestate_to_color = conf.nodestate_to_color
         self.keep_queue_initials_only_and_colorize(queue_to_color)
         self.colorize_nodestate(conf)
@@ -1594,7 +1594,7 @@ class Cluster(object):
         if not self.worker_nodes:
             raise ValueError("Empty Worker Node list. Exiting...")
 
-        max_np, _all_str_digits_with_empties = self.get_wn_list_and_stats()
+        max_np, _all_str_digits_with_empties = self._get_wn_list_and_stats()
 
         self.core_span = [str(x) for x in range(max_np)]
         self.options.REMAP = self.decide_remapping(_all_str_digits_with_empties)
@@ -1621,7 +1621,7 @@ class Cluster(object):
         del self.workernode_list_remapped
         del self.workernode_dict_remapped
 
-    def get_wn_list_and_stats(self):
+    def _get_wn_list_and_stats(self):
         max_np = 0
         re_nodename = r'(^[A-Za-z0-9-]+)(?=\.|$)' if not self.options.ANONYMIZE else r'\w_anon_wn_\d+'
         all_str_digits_with_empties = list()
@@ -2019,7 +2019,7 @@ class SchedulerRouter(object):
         self.config = conf.config
         self.scheduler = None
         self.available_batch_systems = self._discover_qtop_batch_systems()
-        self.scheduler_name = self._decide_batch_system(os.environ.get('QTOP_SCHEDULER'))
+        self.scheduler_name = self._decide_batch_system(self.conf.env['QTOP_SCHEDULER'])
         self.scheduler_output_filenames = self._fetch_scheduler_files()
 
     def _pick_scheduler(self):
@@ -2206,7 +2206,7 @@ if __name__ == '__main__':
 
                 ###### Process data ###############
                 #
-                document.process(conf, colorize)
+                document.process(conf)
                 cluster = Cluster(document, conf)
                 cluster.analyse(WNFilter)
                 wns_occupancy = WNOccupancy(cluster)

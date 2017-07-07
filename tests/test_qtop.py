@@ -1,8 +1,10 @@
 import pytest
+from collections import namedtuple
 import re
+import os
 import datetime
 import sys
-from qtop import WNOccupancy, decide_batch_system, JobNotFound, SchedulerNotSpecified, NoSchedulerFound
+from qtop import WNOccupancy, SchedulerRouter, JobNotFound, SchedulerNotSpecified, NoSchedulerFound
 import qtop_py.utils
 
 
@@ -89,7 +91,12 @@ def test_get_selected_batch_system(cmdline_switch, env_var, config_file_batch_op
     # monkeypatch.setitem(config, "schedulers", ['oar', 'sge', 'pbs'])
     schedulers = ['sge', 'oar', 'pbs']
     available_batch_systems = {'sge': None, 'oar': None, 'pbs': None}
-    assert decide_batch_system(cmdline_switch,
+    Conf = namedtuple('Conf',['options', 'config', "cmd_options", "env"])
+    conf = Conf("options", "config" ,{"BATCH_SYSTEM":"sge"}, {"QTOP_SCHEDULER":"sge", "QTOP_COLOR":"ON"})
+
+    scheduler = SchedulerRouter(conf)
+
+    assert scheduler._decide_batch_system(cmdline_switch,
         env_var,
         config_file_batch_option,
         schedulers,
@@ -140,8 +147,10 @@ def test_get_selected_batch_system_raises_no_scheduler_found(
 ):
     schedulers = ['sge', 'oar', 'pbs']
     available_batch_systems = {'sge':None, 'oar':None, 'pbs':None}
+    conf = {'options': "options", 'config': "config", "cmd_options": "cmd_options"}
+    scheduler = SchedulerRouter(conf)
     with pytest.raises(NoSchedulerFound) as e:
-        decide_batch_system(cmdline_switch,
+        scheduler._decide_batch_system(cmdline_switch,
                             env_var,
                             config_file_batch_option,
                             schedulers,

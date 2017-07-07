@@ -177,6 +177,7 @@ class Configurator(object):
         self.new_attrs = ""
         self.config = None
         self.options = None
+        self.env = {}
         self.user_to_color = None
         self.nodestate_to_color = None
         self.queue_to_color = queue_to_color
@@ -191,6 +192,8 @@ class Configurator(object):
         self.force_experimental_anonymize()
         self.check_python_version()
         self.adjust_term_attrs()
+        self.env.update({"QTOP_SCHEDULER": os.environ.get("QTOP_SCHEDULER")})
+        self.env.update({ "QTOP_COLOR": os.environ.get("QTOP_ON")})
 
     def parse_qtop_cmdline_args(self):
         parser = OptionParser()  # for more details see http://docs.python.org/library/optparse.html
@@ -308,7 +311,8 @@ class Configurator(object):
 
     def process_cmd_options(self):
         if self.cmd_options.COLOR == 'AUTO':
-            self.cmd_options.COLOR = 'ON' if (os.environ.get("QTOP_COLOR", sys.stdout.isatty()) in ("ON", True)) else 'OFF'
+            qtop_color = self.conf.env.get("QTOP_COLOR", sys.stdout.isatty())
+            self.cmd_options.COLOR = 'ON' if (qtop_color in ("ON", True)) else 'OFF'
         logging.debug("self.cmd_options.COLOR is now set to: %s" % self.cmd_options.COLOR)
         self.cmd_options.REMAP = False  # Default value
         self.dynamic_config['force_names'] = 1 if self.cmd_options.FORCE_NAMES else 0
