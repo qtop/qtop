@@ -455,38 +455,6 @@ def control_qtop(display, read_char, cluster, conf):
                    'h_start': viewport.h_start, 'h_stop': viewport.h_stop})
 
 
-
-
-def decide_batch_system(cmdline_switch, env_var, config_file_batch_option, schedulers, available_batch_systems, config):
-    """
-    Qtop first checks in cmdline switches, environmental variables and the config files, in this order,
-    for the scheduler type. If it's not indicated and "auto" is, it will attempt to guess the scheduler type
-    from the scheduler shell commands available in the linux system.
-    """
-    avail_systems = available_batch_systems.keys() + ['auto']
-    if cmdline_switch and cmdline_switch.lower() not in avail_systems:
-        logging.critical("Selected scheduler system not supported. Available choices are %s." % ", ".join(avail_systems))
-        logging.critical("For help, try ./qtop.py --help")
-        logging.critical("Log file created in %s" % os.path.expandvars(QTOP_LOGFILE))
-        raise InvalidScheduler
-    for scheduler in (cmdline_switch, env_var, config_file_batch_option):
-        if scheduler is None:
-            continue
-        scheduler = scheduler.lower()
-
-        if scheduler == 'auto':
-            scheduler = auto_get_avail_batch_system(config)
-            logging.debug('Selected scheduler is %s' % scheduler)
-            return scheduler
-        elif scheduler in schedulers:
-            logging.info('User-selected scheduler: %s' % scheduler)
-            return scheduler
-        elif scheduler and scheduler not in schedulers:  # a scheduler that does not exist is inputted
-            raise NoSchedulerFound
-    else:
-        raise NoSchedulerFound
-
-
 def attempt_faster_xml_parsing(conf):
     if conf.config['faster_xml_parsing']:
         try:
@@ -1010,7 +978,7 @@ class Document(namedtuple('Document', ['worker_nodes', 'jobs_dict', 'queues_dict
     def process(self, conf, colorize):
         nodestate_to_color = conf.nodestate_to_color
         self.keep_queue_initials_only_and_colorize(queue_to_color)
-        self.colorize_nodestate(conf, colorize)
+        self.colorize_nodestate(conf)
 
     def keep_queue_initials_only_and_colorize(self, queue_to_color):
         # TODO remove monstrosity!
@@ -1021,7 +989,7 @@ class Document(namedtuple('Document', ['worker_nodes', 'jobs_dict', 'queues_dict
                 color_q_list.append(color_q)
             worker_node['qname'] = color_q_list
 
-    def colorize_nodestate(self, conf, ffunc):
+    def colorize_nodestate(self, conf):
         nodestate_to_color = conf.nodestate_to_color
         # TODO remove monstrosity!
         for worker_node in self.worker_nodes:
@@ -2044,22 +2012,52 @@ class InvalidScheduler(Exception):
     pass
 
 
-
 class SchedulerRouter(object):
     def __init__(self, conf):
         self.conf = conf
         self.options = conf.cmd_options
         self.config = conf.config
+        self.scheduler = None
         self.available_batch_systems = self._discover_qtop_batch_systems()
-        self.scheduler_name = decide_batch_system(options.BATCH_SYSTEM, os.environ.get('QTOP_SCHEDULER'),
-                                             config['scheduler'], config['schedulers'], self.available_batch_systems, config)
+        self.scheduler_name = self._decide_batch_system(os.environ.get('QTOP_SCHEDULER'))
         self.scheduler_output_filenames = self._fetch_scheduler_files()
 
     def _pick_scheduler(self):
-        return self.available_batch_systems[self.scheduler_name](self.scheduler_output_filenames, config, options)
+        return self.available_batch_systems[self.scheduler_name](self.scheduler_output_filenames, self.conf)
 
-    def _decide_batch_system(self):
-        pass
+    def _decide_batch_system(self, env_var):
+        """
+        Qtop first checks in cmdline switches, environmental variables and the config files, in this order,
+        for the scheduler type. If it's not indicated and "auto" is, it will attempt to guess the scheduler type
+        from the scheduler shell commands available in the linux system.
+        """
+        config = self.conf.config
+        cmdline_switch = self.conf.cmd_options.BATCH_SYSTEM
+        config_file_batch_option = self.conf.config['scheduler']
+        schedulers = self.conf.config['schedulers']
+        avail_systems = self.available_batch_systems.keys() + ['auto']
+        if cmdline_switch and cmdline_switch.lower() not in avail_systems:
+            logging.critical(
+                "Selected scheduler system not supported. Available choices are %s." % ", ".join(avail_systems))
+            logging.critical("For help, try ./qtop.py --help")
+            logging.critical("Log file created in %s" % os.path.expandvars(QTOP_LOGFILE))
+            raise InvalidScheduler
+        for scheduler in (cmdline_switch, env_var, config_file_batch_option):
+            if scheduler is None:
+                continue
+            scheduler = scheduler.lower()
+
+            if scheduler == 'auto':
+                scheduler = auto_get_avail_batch_system(config)
+                logging.debug('Selected scheduler is %s' % scheduler)
+                return scheduler
+            elif scheduler in schedulers:
+                logging.info('User-selected scheduler: %s' % scheduler)
+                return scheduler
+            elif scheduler and scheduler not in schedulers:  # a scheduler that does not exist is inputted
+                raise NoSchedulerFound
+        else:
+            raise NoSchedulerFound
 
     def _discover_qtop_batch_systems(self):
         batch_systems = set()
@@ -2088,11 +2086,9 @@ class SchedulerRouter(object):
         return self.scheduler.get_jobs_info()
 
     def get_queues_info(self):
-        # scheduler = self._pick_scheduler()
         return self.scheduler.get_queues_info()
 
     def get_worker_nodes(self, job_ids, job_queues, conf):
-        # scheduler = self._pick_scheduler()
         return self.scheduler.get_worker_nodes(job_ids, job_queues, conf)
 
     def _fetch_scheduler_files(self):
@@ -2152,7 +2148,6 @@ if __name__ == '__main__':
 
     conf = utils.conf
     conf.auto_config()
-    # available_batch_systems = discover_qtop_batch_systems()
     conf.initialize_paths()
     conf.load_yaml_config()
     display = TextDisplay(conf, Viewport())
@@ -2198,12 +2193,13 @@ if __name__ == '__main__':
                 worker_nodes = scheduler.get_worker_nodes(job_ids, job_queues, conf)
 
                 JobDoc = namedtuple('JobDoc', ['user_name', 'job_state', 'job_queue'])
-                jobs_dict = dict((re.sub(r'\[\]$', '', job_id), JobDoc(user_name, job_state, job_queue)) for
-                                 job_id, user_name, job_state, job_queue in izip(job_ids, user_names, job_states, job_queues))
+                jobs_dict = dict(
+                    (re.sub(r'\[\]$', '', job_id), JobDoc(user_name, job_state, job_queue))
+                     for job_id, user_name, job_state, job_queue in izip(job_ids, user_names, job_states, job_queues))
 
                 QDoc = namedtuple('QDoc', ['lm', 'queued', 'run', 'state'])
                 queues_dict = OrderedDict(
-                    (qstatq['queue_name'], (QDoc(str(qstatq['lm']), qstatq['queued'], qstatq['run'], qstatq['state'])))
+                    (qstatq['queue_name'], (QDoc(str(qstatq['lm']), qstatq['queued'], qstatq['run'], qstatq['state']) ))
                     for qstatq in qstatq_lod)
 
                 document = Document(worker_nodes, jobs_dict, queues_dict, total_running_jobs, total_queued_jobs)
@@ -2259,8 +2255,8 @@ if __name__ == '__main__':
                     cat_command = 'clear;cat %s' % output_partview_fp
                     _ = subprocess.call(cat_command, stdout=stdout, stderr=stdout, shell=True)
 
-                    read_char = wait_for_keypress_or_autorefresh(display, FALLBACK_TERMSIZE, int(options.WATCH[0]) or
-                                                                 KEYPRESS_TIMEOUT)
+                    read_char = wait_for_keypress_or_autorefresh(display, FALLBACK_TERMSIZE,
+                                                                 int(options.WATCH[0]) or KEYPRESS_TIMEOUT)
                     control_qtop(display, read_char, cluster, conf)
 
                 display.screens.pop()

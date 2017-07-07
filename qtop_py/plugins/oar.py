@@ -43,13 +43,14 @@ class OARBatchSystem(GenericBatchSystem):
     def get_mnemonic():
         return "oar"
 
-    def __init__(self, scheduler_output_filenames, config, options):
+    def __init__(self, scheduler_output_filenames, conf):
+
         self.oarnodes_s_file = scheduler_output_filenames.get('oarnodes_s_file')
         self.oarnodes_y_file = scheduler_output_filenames.get('oarnodes_y_file')
         self.oarstat_file = scheduler_output_filenames.get('oarstat_file')
-
-        self.config = config
-        self.options = options
+        self.conf = conf
+        self.config = conf.config
+        self.options = conf.cmd_options
         self.oar_stat_maker = OarStatExtractor(self.config, self.options)
 
     def get_worker_nodes(self, job_ids_oarstat, job_queues, conf):
