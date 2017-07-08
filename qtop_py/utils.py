@@ -311,7 +311,7 @@ class Configurator(object):
 
     def process_cmd_options(self):
         if self.cmd_options.COLOR == 'AUTO':
-            qtop_color = self.conf.env.get("QTOP_COLOR", sys.stdout.isatty())
+            qtop_color = self.env.get("QTOP_COLOR", sys.stdout.isatty())
             self.cmd_options.COLOR = 'ON' if (qtop_color in ("ON", True)) else 'OFF'
         logging.debug("self.cmd_options.COLOR is now set to: %s" % self.cmd_options.COLOR)
         self.cmd_options.REMAP = False  # Default value
@@ -474,6 +474,8 @@ class Configurator(object):
         config['USER_CUT_MATRIX_WIDTH'] = int(config['workernodes_matrix'][0]['wn id lines']['user_cut_matrix_width'])
         self.user_to_color = user_to_color
         self.nodestate_to_color = nodestate_to_color
+        self.min_masking_threshold = int(config['workernodes_matrix'][0]['wn id lines']['min_masking_threshold'])
+
 
     def update_config_with_cmdline_vars(self):
         config = self.config
