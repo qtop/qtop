@@ -4,7 +4,8 @@ import re
 import os
 import datetime
 import sys
-from qtop import WNOccupancy, SchedulerRouter, JobNotFound, SchedulerNotSpecified, NoSchedulerFound
+from qtop import WNOccupancy, SchedulerRouter, SchedulerNotSpecified, NoSchedulerFound
+from WNOccupancy import JobNotFound
 import qtop_py.utils
 
 

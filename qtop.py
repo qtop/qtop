@@ -1043,11 +1043,9 @@ class TextDisplay(object):
 
 
 class Cluster(object):
-    def __init__(self, conf, worker_nodes, job_ids, user_names, job_states, job_queues, total_running_jobs, total_queued_jobs, qstatq_lod):
+    def __init__(self, conf, worker_nodes, job_ids, user_names, job_states, job_queues, total_running_jobs, total_queued_jobs, qstatq_lod, WNFilter):
         self.conf = conf
         self.worker_nodes = worker_nodes
-        # self.worker_nodes = document.worker_nodes
-        # self.jobs_dict = jobs_dict
         # self.queues_dict = queues_dict  # ex qstatq_lod is now list of namedtuples
         self.total_running_jobs = total_running_jobs
         self.total_queued_jobs = total_queued_jobs
@@ -1058,7 +1056,7 @@ class Cluster(object):
         self.job_queues = job_queues
         self.config = conf.config
         self.options = conf.cmd_options
-        self.WNFilter = None
+        self.WNFilter = WNFilter
 
         self.wn_filter = None
         self.working_cores = 0
@@ -1075,10 +1073,10 @@ class Cluster(object):
         self.workernode_list = []
         self.workernode_list_remapped = range(1, self.total_wn + 1)  # leave xrange aside for now
 
-    def process(self, WNFilter):
+    def process(self):
         self._keep_queue_initials_only_and_colorize(queue_to_color)
         self._colorize_nodestate()
-        self._calculate_WN_dict(WNFilter)
+        self._calculate_WN_dict()
 
     def _keep_queue_initials_only_and_colorize(self, queue_to_color):
         # TODO remove monstrosity!
@@ -1101,7 +1099,7 @@ class Cluster(object):
             worker_node['state'] = total_color_nodestate
 
 
-    def _calculate_WN_dict(self, WNFilter):
+    def _calculate_WN_dict(self):
         if not self.worker_nodes:
             raise ValueError("Empty Worker Node list. Exiting...")
 
@@ -1110,7 +1108,7 @@ class Cluster(object):
         self.core_span = [str(x) for x in range(max_np)]
         self.options.REMAP = self.decide_remapping(_all_str_digits_with_empties)
 
-        nodes_drop, workernode_dict, workernode_dict_remapped = self.map_worker_nodes_to_wn_dict(WNFilter)
+        nodes_drop, workernode_dict, workernode_dict_remapped = self.map_worker_nodes_to_wn_dict()
         self.workernode_dict = workernode_dict
 
         if self.options.REMAP:
@@ -1252,7 +1250,7 @@ class Cluster(object):
                 workernode_dict[node].update(default_values_for_empty_nodes)
         return workernode_dict
 
-    def map_worker_nodes_to_wn_dict(self, WNFilter):
+    def map_worker_nodes_to_wn_dict(self):
         """
         For filtering to take place,
         1) a filter should be defined in QTOPCONF_YAML
@@ -1271,9 +1269,9 @@ class Cluster(object):
 
         if user_filtering and self.options.REMAP:
             len_wn_before = len(self.worker_nodes)
-            wn_filter = WNFilter(self.worker_nodes)
+            self.wn_filter = self.WNFilter(self.worker_nodes)
             # modified: self.worker_nodes, self.offdown_nodes, self.available_wn, self.working_cores, self.total_cores
-            wn_filter.filter_worker_nodes(filter_rules=user_filters)
+            self.worker_nodes, self.available_wn, self.working_cores, self.total_cores = self.wn_filter.filter_worker_nodes(filter_rules=user_filters)
             len_wn_after = len(self.worker_nodes)
             nodes_drop = len_wn_after - len_wn_before
 
@@ -1450,10 +1448,8 @@ class WNFilter(object):
         """
         Keeps specific nodes according to the filter rules in QTOPCONF_YAML
         """
-        offdown_nodes = self.offdown_nodes
-        avail_nodes = self.avail_nodes
-        working_cores = self.working_cores
-        total_cores = self.total_cores
+        working_cores = cluster.working_cores
+        total_cores = cluster.total_cores
 
         filter_types = {
             'exclude_numbers': (self.mark_list_by_number, self.keep_unmarked),
@@ -1483,16 +1479,16 @@ class WNFilter(object):
 
             if len(nodes):
                 self.worker_nodes = dict((v['domainname'], v) for v in nodes).values()
-                offdown_nodes = sum([1 if "".join(([n.str for n in node['state']])) in 'do'  else 0 for node in
+                cluster.offdown_nodes = sum([1 if "".join(([n.str for n in node['state']])) in 'do'  else 0 for node in
                                      self.worker_nodes])
-                avail_nodes = self.available_wn = sum(
+                self.available_wn = sum(
                     [len(node['state']) for node in self.worker_nodes if str(node['state'][0]) == '-'])
                 working_cores = sum(len(node.get('core_job_map', dict())) for node in self.worker_nodes)
                 total_cores = sum(int(node.get('np')) for node in self.worker_nodes)
             else:
                 logging.error(colorize('Selected filter results in empty worker node set. Cancelling.', 'Red_L'))
 
-        return self.worker_nodes, offdown_nodes, avail_nodes, working_cores, total_cores
+        return self.worker_nodes, self.available_wn, working_cores, total_cores
 
     @staticmethod
     @utils.CountCalls
@@ -1702,8 +1698,11 @@ if __name__ == '__main__':
 
                 ###### Process data ###############
                 #
-                cluster = Cluster(conf, worker_nodes, job_ids, user_names, job_states, job_queues, total_running_jobs, total_queued_jobs, qstatq_lod)
-                cluster.process(WNFilter)
+                args = (conf, worker_nodes, job_ids, user_names, job_states,
+                        job_queues, total_running_jobs, total_queued_jobs, qstatq_lod, WNFilter)
+
+                cluster = Cluster(*args)
+                cluster.process()
                 wns_occupancy = WNOccupancy.WNOccupancy(cluster)
                 # TODO: the cut into matrices should be put in the display data part. No viewport in calculations.
                 wns_occupancy.calculate(conf.user_to_color, display.viewport.h_term_size, job_ids, scheduler.scheduler_name)
