@@ -117,9 +117,8 @@ class Sample(object):
     def __init__(self, conf):
         self.tar_out = None
         self.options = conf.cmd_options
+        self.conf = conf
         self.SAMPLE_FILENAME = os.path.expandvars('qtop_sample_${USER}%(datetime)s.tar')
-
-        # self.init_sample_file(self, options, _savepath, scheduler_output_filenames, QTOPCONF_YAML, QTOPPATH)
 
     def init_sample_file(self, _savepath, scheduler_output_filenames, QTOPCONF_YAML, QTOPPATH):
         """
@@ -134,11 +133,17 @@ class Sample(object):
             self.tar_out = tarfile.open(os.path.join(_savepath, self.SAMPLE_FILENAME), mode='w')
 
         if self.options.SAMPLE >= 2:
-            self.add_to_sample([os.path.join(os.path.realpath(QTOPPATH), QTOPCONF_YAML)])
             source_files = glob.glob(os.path.join(os.path.realpath(QTOPPATH), '*.py'))
-            self.add_to_sample(source_files, subdir='qtop_py')
+            source_files_qtop_py = glob.glob(os.path.join(os.path.realpath(QTOPPATH + '/qtop_py'), '*.py'))
+            self.add_to_sample([os.path.join(os.path.realpath(QTOPPATH), QTOPCONF_YAML)])
+            self.add_to_sample(source_files)
+            self.add_to_sample(source_files_qtop_py, subdir='qtop_py')
 
-    def handle_sample(self, scheduler_output_filenames, qtop_logfile, options):
+    def handle_sample(self, scheduler_output_filenames, output_fp, qtop_logfile, options):
+        if options.SAMPLE:
+            self.add_to_sample([output_fp])
+            print "Sample files saved in %s/%s" % (self.conf.config['savepath'], self.SAMPLE_FILENAME)
+
         if options.SAMPLE >= 1:
             self.add_to_sample([qtop_logfile])
             # add all scheduler output files to sample

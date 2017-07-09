@@ -1772,14 +1772,9 @@ if __name__ == '__main__':
                 os.unlink(output_fp)
                 fileutils.deprecate_old_output_files(config)
 
-            if options.SAMPLE:
-                sample.add_to_sample([output_fp])
-
         except (KeyboardInterrupt, EOFError) as e:
             repr(e)
             fileutils.exit_safe(handle, output_fp, conf, sample)
         finally:
             print "\nLog file created in %s" % os.path.expandvars(QTOP_LOGFILE)
-            if options.SAMPLE:
-                print "Sample files saved in %s/%s" % (config['savepath'], sample.SAMPLE_FILENAME)
-                sample.handle_sample(scheduler.scheduler_output_filenames, QTOP_LOGFILE, options)
+            sample.handle_sample(scheduler.scheduler_output_filenames, output_fp, QTOP_LOGFILE, options)
