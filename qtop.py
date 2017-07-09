@@ -536,7 +536,7 @@ class TextDisplay(object):
         self.wns_occupancy = wns_occupancy
         self.cluster = cluster
 
-        sections_off = {  # cmdline argument -n
+        sections_off = {  # cmdline argument -n, where n in [1,2,3]
             1: options.sect_1_off,
             2: options.sect_2_off,
             3: options.sect_3_off
@@ -1639,11 +1639,6 @@ class SchedulerRouter(object):
                 raise fileutils.FileNotFound(filenames[_file])
         return filenames
 
-    # def _fetch_scheduler_files(self, options, config):
-    #     INPUT_FNs_commands = self._finalize_filepaths_schedulercommands(options, config)
-    #     scheduler_output_filenames = self._get_input_filenames(INPUT_FNs_commands, config)
-    #     return scheduler_output_filenames
-
 
 if __name__ == '__main__':
 
@@ -1673,7 +1668,6 @@ if __name__ == '__main__':
     with raw_mode(sys.stdin):  # key listener implementation
         try:
             while True:
-                sample = fileutils.Sample(conf)
                 savepath = conf.savepath
                 timestr = time.strftime("%Y%m%dT%H%M%S")
 
@@ -1687,6 +1681,7 @@ if __name__ == '__main__':
                 scheduler = SchedulerRouter(conf)
 
                 if options.SAMPLE:
+                    sample = fileutils.Sample(conf)
                     sample.set_sample_filename_format_from_conf(config)
                     sample.init_sample_file(savepath, scheduler.scheduler_output_filenames, QTOPCONF_YAML, QTOPPATH)
 
@@ -1727,6 +1722,7 @@ if __name__ == '__main__':
                                                             suffix='.json',
                                                             dir=savepath)
                     document.saveas(json_file)
+
                 if options.WEB:
                     web.set_filename(json_file)
 
