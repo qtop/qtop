@@ -140,9 +140,8 @@ class Sample(object):
             self.add_to_sample(source_files_qtop_py, subdir='qtop_py')
 
     def handle_sample(self, scheduler_output_filenames, output_fp, qtop_logfile, options):
-        if options.SAMPLE:
-            self.add_to_sample([output_fp])
-            print "Sample files saved in %s/%s" % (self.conf.config['savepath'], self.SAMPLE_FILENAME)
+        self.add_to_sample([output_fp])
+        print "Sample files saved in %s/%s" % (self.conf.config['savepath'], self.SAMPLE_FILENAME)
 
         if options.SAMPLE >= 1:
             self.add_to_sample([qtop_logfile])

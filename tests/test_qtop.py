@@ -4,8 +4,8 @@ import re
 import os
 import datetime
 import sys
-from qtop import WNOccupancy, SchedulerRouter, SchedulerNotSpecified, NoSchedulerFound
-from WNOccupancy import JobNotFound
+from qtop import SchedulerRouter, SchedulerNotSpecified, NoSchedulerFound
+from qtop_py.WNOccupancy import JobNotFound, WNOccupancy
 import qtop_py.utils
 
 
@@ -88,22 +88,20 @@ def test_create_user_job_counts_raises_jobnotfound():  # user_names, job_states,
          ('oar', 'pbs', 'sge', 'oar'),
      ),
 )
-def test_get_selected_batch_system(cmdline_switch, env_var, config_file_batch_option, returned_scheduler):
-    # monkeypatch.setitem(config, "schedulers", ['oar', 'sge', 'pbs'])
+def test_get_selected_batch_system(cmdline_switch, env_var, config_file_batch_option, returned_scheduler, monkeypatch):
     schedulers = ['sge', 'oar', 'pbs']
     available_batch_systems = {'sge': None, 'oar': None, 'pbs': None}
-    Conf = namedtuple('Conf',['options', 'config', "cmd_options", "env"])
-    conf = Conf("options", "config" ,{"BATCH_SYSTEM":"sge"}, {"QTOP_SCHEDULER":"sge", "QTOP_COLOR":"ON"})
+    conf = qtop_py.utils.conf
+    CmdOptions = namedtuple('CmdOptions', ["BATCH_SYSTEM", "SOURCEDIR"])
+    conf.cmd_options = CmdOptions(cmdline_switch, None)
 
     scheduler = SchedulerRouter(conf)
+    scheduler.available_batch_systems = available_batch_systems
+    monkeypatch.setitem(scheduler.conf.env, 'QTOP_SCHEDULER', env_var)
+    monkeypatch.setitem(scheduler.conf.config, 'schedulers', schedulers)
+    monkeypatch.setitem(scheduler.conf.config, 'scheduler', config_file_batch_option)
 
-    assert scheduler._decide_batch_system(cmdline_switch,
-        env_var,
-        config_file_batch_option,
-        schedulers,
-        available_batch_systems,
-        config,
-    ) == returned_scheduler
+    assert scheduler._decide_batch_system(env_var) == returned_scheduler
 
 
 @pytest.mark.parametrize('cmdline_switch, env_var, config_file_batch_option, returned_scheduler',
@@ -119,19 +117,29 @@ def test_get_selected_batch_system_raises_scheduler_not_specified(
         env_var,
         config_file_batch_option,
         returned_scheduler,
+        monkeypatch,
 ):
     schedulers = ['sge', 'oar', 'pbs']
     available_batch_systems = {'sge': None, 'oar': None, 'pbs': None}
-    config = {'signature_commands': {'pbs': 'pbsnodes', 'oar': 'oarnodes', 'sge': 'qhost', 'demo': 'echo'}}
+    signature_commands = {
+        'pbs': 'pbsnodes',
+        'oar': 'oarnodes',
+        'sge': 'qacct',
+        'demo': 'echo',
+    }
+    conf = qtop_py.utils.conf
+    CmdOptions = namedtuple('CmdOptions', ["BATCH_SYSTEM", "SOURCEDIR"])
+    conf.cmd_options = CmdOptions(cmdline_switch, None)
+
+    scheduler = SchedulerRouter(conf)
+    scheduler.available_batch_systems = available_batch_systems
+    monkeypatch.setitem(scheduler.conf.env, 'QTOP_SCHEDULER', env_var)
+    monkeypatch.setitem(scheduler.conf.config, 'schedulers', schedulers)
+    monkeypatch.setitem(scheduler.conf.config, 'scheduler', config_file_batch_option)
+    monkeypatch.setitem(scheduler.conf.config, 'signature_commands', signature_commands)
 
     with pytest.raises(SchedulerNotSpecified) as e:
-        decide_batch_system(cmdline_switch,
-                            env_var,
-                            config_file_batch_option,
-                            schedulers,
-                            available_batch_systems,
-                            config,
-                            ) == returned_scheduler
+        scheduler._decide_batch_system(env_var) == returned_scheduler
 
 
 @pytest.mark.parametrize('cmdline_switch, env_var, config_file_batch_option, returned_scheduler',
@@ -145,19 +153,31 @@ def test_get_selected_batch_system_raises_no_scheduler_found(
         env_var,
         config_file_batch_option,
         returned_scheduler,
+        monkeypatch,
 ):
+    # schedulers = ['sge', 'oar', 'pbs']
+    # available_batch_systems = {'sge':None, 'oar':None, 'pbs':None}
+    # conf = {'options': "options", 'config': "config", "cmd_options": "cmd_options"}
     schedulers = ['sge', 'oar', 'pbs']
-    available_batch_systems = {'sge':None, 'oar':None, 'pbs':None}
-    conf = {'options': "options", 'config': "config", "cmd_options": "cmd_options"}
+    available_batch_systems = {'sge': None, 'oar': None, 'pbs': None}
+    signature_commands = {
+        'pbs': 'pbsnodes',
+        'oar': 'oarnodes',
+        'sge': 'qacct',
+        'demo': 'echo',
+    }
+    conf = qtop_py.utils.conf
+    CmdOptions = namedtuple('CmdOptions', ["BATCH_SYSTEM", "SOURCEDIR"])
+    conf.cmd_options = CmdOptions(cmdline_switch, None)
+
     scheduler = SchedulerRouter(conf)
+    scheduler.available_batch_systems = available_batch_systems
+    monkeypatch.setitem(scheduler.conf.env, 'QTOP_SCHEDULER', env_var)
+    monkeypatch.setitem(scheduler.conf.config, 'schedulers', schedulers)
+    monkeypatch.setitem(scheduler.conf.config, 'scheduler', config_file_batch_option)
+    monkeypatch.setitem(scheduler.conf.config, 'signature_commands', signature_commands)
     with pytest.raises(NoSchedulerFound) as e:
-        scheduler._decide_batch_system(cmdline_switch,
-                            env_var,
-                            config_file_batch_option,
-                            schedulers,
-                            available_batch_systems,
-                            config,
-                            ) == returned_scheduler
+        scheduler._decide_batch_system(env_var) == returned_scheduler
 
 
 @pytest.mark.parametrize('s, now, day_meant',

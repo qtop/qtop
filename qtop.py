@@ -12,7 +12,7 @@ here = sys.path[0]
 from itertools import izip, izip_longest, cycle
 import subprocess
 import select
-import os
+# import concurrent.futures
 import re
 import json
 import datetime
@@ -43,7 +43,7 @@ import qtop_py.yaml_parser as yaml
 from qtop_py.ui.viewport import Viewport
 from qtop_py.serialiser import GenericBatchSystem
 from qtop_py.web import Web
-import WNOccupancy
+from qtop_py.WNOccupancy import WNOccupancy
 from qtop_py import __version__
 
 
@@ -79,20 +79,7 @@ def raw_mode(file):
             yield
 
 
-def auto_get_avail_batch_system(config):
-    """
-    If the auto option is set in either env variable QTOP_SCHEDULER, QTOPCONF_YAML or in cmdline switch -b,
-    qtop tries to determine which of the known batch commands are available in the current system.
-    """
-    # TODO pbsnodes etc should not be hardcoded!
-    for (system, batch_command) in config['signature_commands'].items():
-        NOT_FOUND = subprocess.call(['which', batch_command], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        if not NOT_FOUND:
-            if system != 'demo':
-                logging.debug('Auto-detected scheduler: %s' % system)
-                return system
 
-    raise SchedulerNotSpecified
 
 
 def execute_shell_batch_commands(batch_system_commands, filenames, _file, _savepath):
@@ -1521,6 +1508,8 @@ class SchedulerRouter(object):
         self.options = conf.cmd_options
         self.config = conf.config
         self.scheduler = None
+
+    def get_scheduler(self):
         self.available_batch_systems = self._discover_qtop_batch_systems()
         self.scheduler_name = self._decide_batch_system(self.conf.env['QTOP_SCHEDULER'])
         self.scheduler_output_filenames = self._fetch_scheduler_files()
@@ -1551,7 +1540,7 @@ class SchedulerRouter(object):
             scheduler = scheduler.lower()
 
             if scheduler == 'auto':
-                scheduler = auto_get_avail_batch_system(config)
+                scheduler = self._auto_get_avail_batch_system()
                 logging.debug('Selected scheduler is %s' % scheduler)
                 return scheduler
             elif scheduler in schedulers:
@@ -1583,6 +1572,22 @@ class SchedulerRouter(object):
             available_batch_systems[mnemonic] = batch_system
 
         return available_batch_systems
+
+    def _auto_get_avail_batch_system(self):
+        """
+        If the auto option is set in either env variable QTOP_SCHEDULER, QTOPCONF_YAML or in cmdline switch -b,
+        qtop tries to determine which of the known batch commands are available in the current system.
+        """
+        # TODO pbsnodes etc should not be hardcoded!
+        for (system, batch_command) in self.conf.config['signature_commands'].items():
+            NOT_FOUND = subprocess.call(['which', batch_command], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            if not NOT_FOUND:
+                if system != 'demo':
+                    logging.debug('Auto-detected scheduler: %s' % system)
+                    return system
+
+        raise SchedulerNotSpecified
+
 
     def get_jobs_info(self):
         self.scheduler = self._pick_scheduler()
@@ -1679,6 +1684,7 @@ if __name__ == '__main__':
                 sys.stdout = os.fdopen(handle, 'w')  # redirect everything to file, creates file object out of handle
 
                 scheduler = SchedulerRouter(conf)
+                scheduler.get_scheduler()
 
                 if options.SAMPLE:
                     sample = fileutils.Sample(conf)
@@ -1698,7 +1704,7 @@ if __name__ == '__main__':
 
                 cluster = Cluster(*args)
                 cluster.process()
-                wns_occupancy = WNOccupancy.WNOccupancy(cluster)
+                wns_occupancy = WNOccupancy(cluster)
                 # TODO: the cut into matrices should be put in the display data part. No viewport in calculations.
                 wns_occupancy.calculate(conf.user_to_color, display.viewport.h_term_size, job_ids, scheduler.scheduler_name)
 
@@ -1773,4 +1779,5 @@ if __name__ == '__main__':
             fileutils.exit_safe(handle, output_fp, conf, sample)
         finally:
             print "\nLog file created in %s" % os.path.expandvars(QTOP_LOGFILE)
-            sample.handle_sample(scheduler.scheduler_output_filenames, output_fp, QTOP_LOGFILE, options)
+            if options.SAMPLE:
+                sample.handle_sample(scheduler.scheduler_output_filenames, output_fp, QTOP_LOGFILE, options)

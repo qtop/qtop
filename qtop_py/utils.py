@@ -175,7 +175,7 @@ class Configurator(object):
         self.dynamic_config = dict()
         self.old_attrs = ""
         self.new_attrs = ""
-        self.config = None
+        self.config = {}
         self.options = None
         self.env = {}
         self.user_to_color = None
