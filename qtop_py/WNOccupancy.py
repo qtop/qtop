@@ -2,7 +2,12 @@ from operator import itemgetter
 from math import ceil
 import logging
 import sys
-from collections import Counter
+try:
+    from collections import namedtuple, OrderedDict, Counter
+except ImportError:
+    from qtop_py.legacy.namedtuple import namedtuple
+    from qtop_py.legacy.ordereddict import OrderedDict
+    from qtop_py.legacy.counter import Counter
 from itertools import izip, izip_longest
 import re
 import qtop_py.yaml_parser as yaml
