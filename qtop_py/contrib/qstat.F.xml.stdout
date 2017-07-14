@@ -88,7 +88,7 @@
         <JAT_start_time>2015-09-02T19:09:00</JAT_start_time>
         <slots>1</slots>
       </job_list>
-      <job_list state="Pending">
+      <job_list state="running">
         <JB_job_number>3645590</JB_job_number>
         <JAT_prio>0.65288</JAT_prio>
         <JB_name>cremi_712098291</JB_name>
