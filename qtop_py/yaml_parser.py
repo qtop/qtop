@@ -297,7 +297,7 @@ def load_all(fin):
     return list_of_dicts
 
 
-def get_yaml_key_part(config, scheduler, outermost_key):
+def get_yaml_key_part(config, scheduler_name, outermost_key):
     """
     only return the list items of the yaml outermost_key if a yaml key subkey exists
     (this signals a user-inserted value)
@@ -308,6 +308,6 @@ def get_yaml_key_part(config, scheduler, outermost_key):
         part_options = part[part_name]
         yaml_key = part_options.get('yaml_key')
         # if no systems line exists, all systems are supported, and thus the current
-        systems = fix_config_list(part_options.get('systems', [scheduler]))
+        systems = fix_config_list(part_options.get('systems', [scheduler_name]))
         if yaml_key:
             yield yaml_key, part_name, systems
