@@ -118,16 +118,17 @@ class PBSBatchSystem(GenericBatchSystem):
     def get_mnemonic():
         return "pbs"
 
-    def __init__(self, scheduler_output_filenames, config, options):
+    def __init__(self, scheduler_output_filenames, conf):
         self.pbsnodes_file = scheduler_output_filenames.get('pbsnodes_file')
         self.qstat_file = scheduler_output_filenames.get('qstat_file')
         self.qstatq_file = scheduler_output_filenames.get('qstatq_file')
-
-        self.config = config
-        self.options = options
+        self.conf = conf
+        self.config = conf.config
+        self.options = conf.cmd_options
         self.qstat_maker = PBSStatExtractor(self.config, self.options)
 
-    def get_worker_nodes(self, job_ids, job_queues, options, dynamic_config):
+    def get_worker_nodes(self, job_ids, job_queues, conf):
+        # options, dynamic_config = conf.cmd_options, conf.dynamic_config
         try:
             fileutils.check_empty_file(self.pbsnodes_file)
         except fileutils.FileEmptyError:

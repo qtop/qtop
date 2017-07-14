@@ -21,16 +21,17 @@ class OarStatExtractor(StatExtractor):
                              r'(?P<job_state>[RWF])\s+' \
                              r'(?P<queue>default|besteffort)'
 
+        self.re_match_positions = ('job_id', 'user', 'job_state', 'queue')
+
     def extract_qstat(self, orig_file):
         all_values = list()
         with open(orig_file, 'r') as fin:
             logging.debug('File state before OarStatExtractor.extract_qstat: %(fin)s' % {"fin": fin})
             _ = fin.readline()  # header
             fin.readline()  # dashes
-            re_match_positions = ('job_id', 'user', 'job_state', 'queue')
             re_search = self.user_q_search
             for line in fin:
-                qstat_values = self._process_qstat_line(re_search, line, re_match_positions)
+                qstat_values = self._process_qstat_line(re_search, line)
                 all_values.append(qstat_values)
 
         return all_values
@@ -42,16 +43,19 @@ class OARBatchSystem(GenericBatchSystem):
     def get_mnemonic():
         return "oar"
 
-    def __init__(self, scheduler_output_filenames, config, options):
+    def __init__(self, scheduler_output_filenames, conf):
+
         self.oarnodes_s_file = scheduler_output_filenames.get('oarnodes_s_file')
         self.oarnodes_y_file = scheduler_output_filenames.get('oarnodes_y_file')
         self.oarstat_file = scheduler_output_filenames.get('oarstat_file')
-
-        self.config = config
-        self.options = options
+        self.conf = conf
+        self.config = conf.config
+        self.options = conf.cmd_options
         self.oar_stat_maker = OarStatExtractor(self.config, self.options)
 
-    def get_worker_nodes(self, job_ids_oarstat, job_queues, options, dynamic_config):
+    def get_worker_nodes(self, job_ids_oarstat, job_queues, conf):
+        options = conf.cmd_options
+        dynamic_config = conf.dynamic_config
         nodes_resids = self._read_oarnodes_s_yaml(self.oarnodes_s_file)
         resids_jobs = self._read_oarnodes_y_textyaml(self.oarnodes_y_file)
 

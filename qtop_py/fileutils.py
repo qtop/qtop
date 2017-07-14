@@ -23,78 +23,34 @@ def check_empty_file(orig_file):
         raise FileEmptyError(orig_file)
 
 
-def get_new_temp_file(_savepath, suffix, prefix):  # **kwargs
+def get_new_temp_file(_savepath, suffix, prefix):
     """
-    Using mkstemp instead of NamedTemporaryFile because a file descriptor
+    Creates new temp file to store the output to be displayed.
+    Using mkstemp instead of NamedTemporaryFile, because a file descriptor
     is needed to redirect sys.stdout to.
     """
     fd, temp_filepath = tempfile.mkstemp(suffix=suffix, prefix=prefix, dir=_savepath)  # **kwargs
     logging.debug('temp_filepath: %s' % temp_filepath)
-    # out_file = os.fdopen(fd, 'w')
+
     return fd, temp_filepath
 
 
-def safe_exit_with_file_close(handle, name, stdout, options, _savepath,
-                              qtop_logfile, sample_filename, delete_file=False):
+def exit_safe(handle, name, conf, sample, delete_file=False):
     sys.stdout.write('\nExiting. Thank you for ..watching ;)\n')
     sys.stdout.flush()
     sys.stdout.close()
+
     try:
         os.close(handle)
     except OSError:
         pass
+
     if delete_file:
         os.unlink(name)  # this deletes the file
-    # sys.stdout = stdout
-    if options.SAMPLE >= 1:
-        _ = add_to_sample([qtop_logfile], _savepath, sample_filename)
+
+    if conf.cmd_options.SAMPLE >= 1:
+        sample.add_to_sample([conf.QTOP_LOGFILE], conf.savepath)
     sys.exit(0)
-
-
-def init_sample_file(options, _savepath, SAMPLE_FILENAME, scheduler_output_filenames, QTOPCONF_YAML, QTOPPATH):
-    """
-    If the user wants to give feedback to the developers for a bugfix via the -L cmdline switch,
-    this initialises a tar file, and adds:
-    * the scheduler output files (-L),
-    * and source files (-LL)
-    to the tar file
-    """
-    if options.SAMPLE >= 1:
-        # clears any preexisting tar files
-        tar_out = tarfile.open(os.path.join(_savepath, SAMPLE_FILENAME), mode='w')
-
-    if options.SAMPLE >= 2:
-        tar_out = add_to_sample([os.path.join(os.path.realpath(QTOPPATH), QTOPCONF_YAML)], tar_out)
-        source_files = glob.glob(os.path.join(os.path.realpath(QTOPPATH), '*.py'))
-        tar_out = add_to_sample(source_files, tar_out, subdir='qtop_py')
-    return tar_out
-
-
-def add_to_sample(filepaths_to_add, sample_out, sample_method=tarfile, subdir=None):
-    # def add_to_sample(filepaths_to_add, _savepath, sample_file, sample_method=tarfile, subdir=None):
-    """
-    opens sample_file in path savepath and adds files filepaths_to_add
-    """
-    assert isinstance(filepaths_to_add, list)
-    for filepath_to_add in filepaths_to_add:
-        path, fn = filepath_to_add.rsplit('/', 1)
-        try:
-            logging.debug('Adding %s to sample...' % filepath_to_add)
-            sample_out.add(filepath_to_add, arcname=fn if not subdir else os.path.join(subdir, fn))
-        except tarfile.TarError:  # TODO: test what could go wrong here
-            logging.error('There seems to be something wrong with the tarfile. Skipping...')
-    # else:
-        # logging.debug('Closing sample...')
-        # sample_out.close()
-    return sample_out
-
-
-def get_sample_filename(SAMPLE_FILENAME, config):
-    if config['overwrite_sample_file']:
-        SAMPLE_FILENAME = SAMPLE_FILENAME % {'datetime': ''}
-    else:
-        SAMPLE_FILENAME = SAMPLE_FILENAME % {'datetime': '_' + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")}
-    return SAMPLE_FILENAME
 
 
 class FileNotFound(Exception):
@@ -154,3 +110,64 @@ def parse_time_input(_time):
     user_unit = units[user_unit_suffix]
 
     return {user_unit: int(quantity)}
+
+
+class Sample(object):
+
+    def __init__(self, conf):
+        self.tar_out = None
+        self.options = conf.cmd_options
+        self.conf = conf
+        self.SAMPLE_FILENAME = os.path.expandvars('qtop_sample_${USER}%(datetime)s.tar')
+
+    def init_sample_file(self, _savepath, scheduler_output_filenames, QTOPCONF_YAML, QTOPPATH):
+        """
+        If the user wants to give feedback to the developers for a bugfix via the -L cmdline switch,
+        this initialises a tar file, and adds:
+        * the scheduler output files (-L),
+        * and source files (-LL)
+        to the tar file
+        """
+        if self.options.SAMPLE >= 1:
+            # clears any preexisting tar files
+            self.tar_out = tarfile.open(os.path.join(_savepath, self.SAMPLE_FILENAME), mode='w')
+
+        if self.options.SAMPLE >= 2:
+            source_files = glob.glob(os.path.join(os.path.realpath(QTOPPATH), '*.py'))
+            source_files_qtop_py = glob.glob(os.path.join(os.path.realpath(QTOPPATH + '/qtop_py'), '*.py'))
+            self.add_to_sample([os.path.join(os.path.realpath(QTOPPATH), QTOPCONF_YAML)])
+            self.add_to_sample(source_files)
+            self.add_to_sample(source_files_qtop_py, subdir='qtop_py')
+
+    def handle_sample(self, scheduler_output_filenames, output_fp, qtop_logfile, options):
+        self.add_to_sample([output_fp])
+        print "Sample files saved in %s/%s" % (self.conf.config['savepath'], self.SAMPLE_FILENAME)
+
+        if options.SAMPLE >= 1:
+            self.add_to_sample([qtop_logfile])
+            # add all scheduler output files to sample
+            for fn in scheduler_output_filenames:
+                if os.path.isfile(scheduler_output_filenames[fn]):
+                    self.add_to_sample([scheduler_output_filenames[fn]])
+            self.tar_out.close()
+
+
+    def add_to_sample(self, filepaths_to_add, sample_method=tarfile, subdir=None):
+        """
+        opens sample_file in path savepath and adds files filepaths_to_add
+        """
+        assert isinstance(filepaths_to_add, list)
+
+        for fp in filepaths_to_add:
+            path, fn = fp.rsplit('/', 1)
+            try:
+                logging.debug('Adding %s to sample...' % fp)
+                self.tar_out.add(fp, arcname=fn if not subdir else os.path.join(subdir, fn))
+            except tarfile.TarError:  # TODO: test what could go wrong here
+                logging.error('There seems to be something wrong with the tarfile. Skipping...')
+
+    def set_sample_filename_format_from_conf(self, config):
+        if config['overwrite_sample_file']:
+            self.SAMPLE_FILENAME = self.SAMPLE_FILENAME % {'datetime': ''}
+        else:
+            self.SAMPLE_FILENAME = self.SAMPLE_FILENAME % {'datetime': '_' + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")}

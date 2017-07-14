@@ -101,10 +101,11 @@ class SGEBatchSystem(GenericBatchSystem):
     def get_mnemonic():
         return "sge"
 
-    def __init__(self, scheduler_output_filenames, config, options):
+    def __init__(self, scheduler_output_filenames, conf):
         self.sge_file = scheduler_output_filenames.get('sge_file')
-        self.config = config
-        self.options = options
+        self.conf = conf
+        self.config = self.conf.config
+        self.options = self.conf.cmd_options
         self.sge_stat_maker = SGEStatExtractor(self.config, self.options, scheduler_output_filenames)
         if self.options.ANONYMIZE:
             self.anonymize = self.sge_stat_maker.anonymize_func()
@@ -135,7 +136,9 @@ class SGEBatchSystem(GenericBatchSystem):
 
         return total_running_jobs, int(eval(str(total_queued_jobs))), qstatq_list
 
-    def get_worker_nodes(self, job_ids, job_queues, options, dynamic_config):
+    def get_worker_nodes(self, job_ids, job_queues, conf):
+        options = conf.cmd_options
+        dynamic_config = conf.dynamic_config
         logging.debug('Parsing tree of %s' % self.sge_file)
 
         tree, root = self.sge_stat_maker.tree, self.sge_stat_maker.root
