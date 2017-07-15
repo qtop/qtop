@@ -39,7 +39,7 @@ class WNOccupancy(object):
         self.account_jobs_table = list()
         self.user_to_id = dict()
         self.jobid_to_user_to_queue = dict()
-        self.user_machine_use = None  # Counter Object
+        self.user_node_use = None  # Counter Object
         self.user_names, self.job_states, self.job_queues = self.cluster.user_names, self.cluster.job_states, self.cluster.job_queues
         # self.user_names, self.job_states, self.job_queues = self._get_usernames_states_queues(document.jobs_dict)
 
@@ -64,7 +64,7 @@ class WNOccupancy(object):
         # document.jobs_dict => job_id: job name/state/queue
 
         self.jobid_to_user_to_queue = dict(izip(job_ids, izip(self.user_names, self.job_queues)))
-        self.user_machine_use = self._calculate_user_node_use(self.cluster)
+        self.user_node_use = self._calculate_user_node_use()
 
         user_alljobs_sorted_lot = self._get_user_alljobcount_sorted_lot(self.user_names)
         user_to_id = self._create_id_for_users(user_alljobs_sorted_lot)
@@ -104,7 +104,7 @@ class WNOccupancy(object):
                     user_job_per_state_counts['queued_of_user'][user],
                     alljobs_nr_of_user,
                     user,
-                    self.user_machine_use[user]
+                    self.user_node_use[user]
                 ]
             )
         account_jobs_table.sort(key=itemgetter(3, 4), reverse=True)  # sort by All jobs, then unix account
@@ -477,13 +477,13 @@ class WNOccupancy(object):
             count += len(just_jobs)
         return count
 
-    def _calculate_user_node_use(self, cluster):
+    def _calculate_user_node_use(self):
         """
         This calculates the number of nodes each user has jobs in (shown in User accounts and pool mappings)
         """
         user_nodes = []
 
-        for (node_idx, node) in cluster.workernode_dict.items():
+        for (node_idx, node) in self.cluster.workernode_dict.items():
             node['node_user_set'] = set([self.jobid_to_user_to_queue[job][0] for job in node['node_job_set']])
             user_nodes.extend(list(node['node_user_set']))
 
