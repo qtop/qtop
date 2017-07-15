@@ -1623,8 +1623,7 @@ if __name__ == '__main__':
                 cluster = Cluster(*args)
                 cluster.process()
                 wns_occupancy = WNOccupancy(cluster, colorize)
-                # TODO: the cut into matrices should be put in the display data part. No viewport in calculations.
-                wns_occupancy.calculate(conf.user_to_color, display.viewport.h_term_size, job_ids, scheduler.scheduler_name)
+                wns_occupancy.calculate_account_jobs(conf.user_to_color, job_ids, scheduler.scheduler_name)
 
                 ###### Export data ###############
                 #
@@ -1652,6 +1651,7 @@ if __name__ == '__main__':
 
                 ###### Display data ###############
                 #
+                wns_occupancy.calculate_matrices(display.viewport.h_term_size, scheduler.scheduler_name)
                 display.display_selected_sections(savepath, QTOP_LOGFILE, document, wns_occupancy, cluster)
 
                 sys.stdout.flush()
@@ -1662,8 +1662,8 @@ if __name__ == '__main__':
 
                 if options.ONLYSAVETOFILE:  # no display of qtop output, will exit
                     break
-                elif not options.WATCH:  # one-off display of qtop output, will exit afterwards (no --watch cmdline switch)
-                    cat_command = 'cat %s' % output_fp  # not clearing the screen beforehand is the intended behaviour here
+                elif not options.WATCH:  # one-off display of qtop output, exits afterwards (no --watch cmdline switch)
+                    cat_command = 'cat %s' % output_fp  # not clearing the screen beforehand is intended
                     _ = subprocess.call(cat_command, stdout=stdout, stderr=stdout, shell=True)
                     break
                 else:  # --watch

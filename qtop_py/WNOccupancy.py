@@ -26,6 +26,7 @@ except ImportError:
     from qtop_py.legacy.ordereddict import OrderedDict
     from qtop_py.legacy.counter import Counter
 
+
 class JobNotFound(Exception):
     def __init__(self, job_state):
         Exception.__init__(self, "Job state %s not found" % job_state)
@@ -47,6 +48,8 @@ class WNOccupancy(object):
         self.user_names, self.job_states, self.job_queues = self.cluster.user_names, self.cluster.job_states, self.cluster.job_queues
         # self.user_names, self.job_states, self.job_queues = self._get_usernames_states_queues(document.jobs_dict)
         self.detail_of_name = dict()
+        self.print_char_start, self.print_char_stop, self.extra_matrices_nr = None, None, None
+        self.wn_vert_labels = dict()
 
     def _get_usernames_states_queues(self, jobs_dict):
         user_names, job_states, job_queues = list(), list(), list()
@@ -56,12 +59,9 @@ class WNOccupancy(object):
             job_queues.append(value.job_queue)
         return user_names, job_states, job_queues
 
-    def calculate(self, user_to_color, h_term_size, job_ids, scheduler_name):
+    def calculate_account_jobs(self, user_to_color, job_ids, scheduler_name):
         """
-        Prints the Worker Nodes Occupancy table.
-        if there are non-uniform WNs in pbsnodes.yaml, e.g. wn01, wn02, gn01, gn02, ...,  remapping is performed.
-        Otherwise, for uniform WNs, i.e. all using the same numbering scheme, wn01, wn02, ... proceeds as normal.
-        Number of Extra tables needed is calculated inside the calc_all_wnid_label_lines function below
+        Calculates information mostly for user accounts and poolmappings, but also for the main matrices
         """
         if not self.cluster:
             raise ValueError("Cluster should not be empty. Exiting...")
@@ -70,43 +70,14 @@ class WNOccupancy(object):
 
         self.jobid_to_user_to_queue = dict(izip(job_ids, izip(self.user_names, self.job_queues)))
         self.user_node_use = self._calculate_user_node_use()
-
-        x_of_user_to_user_to_jobcounts = self._calculate_user_job_counts(scheduler_name)
-        self.account_jobs_table, self.user_to_id = self._create_account_jobs_table(x_of_user_to_user_to_jobcounts)
+        self.account_jobs_table, self.user_to_id = self._create_account_jobs_table(scheduler_name)
         self.userid_to_userid_re_pat = self.make_pattern_out_of_mapping(mapping=user_to_color)
-        self.detail_of_name = self.get_detail_of_name()
+        self.detail_of_name = self.get_detail_of_name()  # will be used later from TextDisplay
 
-        # TODO extract to another class?
-        self.print_char_start, self.print_char_stop, self.extra_matrices_nr = self.find_matrices_width(h_term_size)
-        self.wn_vert_labels = self.calc_all_wnid_label_lines(self.dynamic_config['force_names'])
-
-        # For-loop below only for user-inserted/customizeable values.
-        for yaml_key, part_name, systems in yaml.get_yaml_key_part(self.config, scheduler_name, outermost_key='workernodes_matrix'):
-            if scheduler_name in systems:
-                self.__setattr__(part_name, self.calc_general_mult_attr_line(part_name, yaml_key, self.config))
-
-        self.core_user_map = self._calc_core_matrix(self.user_to_id, self.jobid_to_user_to_queue)
-
-    def _create_account_jobs_table(self, x_of_user_to_user_to_jobcounts):
-        """
-        Calculates and prints what is actually below the id|  R + Q /all | unix account etc line
-        :param user_to_id:
-        :param account_jobs_table:
-        :return:
-        """
-        account_jobs_table = self._create_sort_acct_jobs_table(x_of_user_to_user_to_jobcounts)
-        user_to_id = {}
-        for sextuplet, new_uid in zip(account_jobs_table, self.config['possible_ids']):
-            unix_account = sextuplet[4]
-            initial_to_color = unix_account[0] if self.conf.config['fill_with_user_firstletter'] else new_uid
-            sextuplet[0] = utils.ColorStr(initial_to_color, color='Red_L')
-            user_to_id[unix_account] = sextuplet[0]
-
-        return account_jobs_table, user_to_id
-
-    def _create_sort_acct_jobs_table(self, x_of_user_to_user_to_jobcounts):
+    def _create_account_jobs_table(self, scheduler_name):
         """Calculates what is actually below the id|  jobs>=R + Q | unix account etc line"""
         account_jobs_table = []
+        x_of_user_to_user_to_jobcounts = self._calculate_user_job_counts(scheduler_name)
         user_alljobs_sorted_lot = self._get_user_alljobcount_sorted_lot(self.user_names)
         for (user, alljobs_nr_of_user) in user_alljobs_sorted_lot:
             account_jobs_table.append(
@@ -121,7 +92,16 @@ class WNOccupancy(object):
                 ]
             )
         account_jobs_table.sort(key=itemgetter(3, 4), reverse=True)  # sort by All jobs, then unix account
-        return account_jobs_table
+
+        user_to_id = {}
+        for sextuplet, new_uid in zip(account_jobs_table, self.config['possible_ids']):
+            unix_account = sextuplet[4]
+            initial_to_color = unix_account[0] if self.conf.config['fill_with_user_firstletter'] else new_uid
+            sextuplet[0] = utils.ColorStr(initial_to_color, color='Red_L')
+            user_to_id[unix_account] = sextuplet[0]
+
+        return account_jobs_table, user_to_id
+        # return account_jobs_table
 
     @staticmethod
     def create_user_job_counts(user_names, job_states, state_abbrevs):
@@ -221,7 +201,7 @@ class WNOccupancy(object):
             start = min(workernode_list) - 1
         return start
 
-    def find_matrices_width(self, h_term_size, DEADWEIGHT=11):
+    def _find_matrices_width(self, h_term_size, DEADWEIGHT=11):
         """
         masking/clipping functionality: if the earliest node number is high (e.g. 130), the first 129 WNs need not show up.
         case 1: wn_number is RemapNr, WNList is WNListRemapped
@@ -258,13 +238,14 @@ class WNOccupancy(object):
         logging.debug('reported start/stop lengths: %s--> %s' % (start, stop))
         return start, stop, extra_matrices_nr
 
-    def calc_all_wnid_label_lines(self, NAMED_WNS):  # (total_wn) in case of multiple cluster.node_subclusters
+    def calc_all_wnid_label_lines(self):  # (total_wn) in case of multiple cluster.node_subclusters
         """
         calculates the Worker Node ID number line widths. expressed by hxxxxs in the following form, e.g. for hundreds of nodes:
         '1': "00000000..."
         '2': "0000000001111111..."
         '3': "12345678901234567..."
         """
+        NAMED_WNS = self.dynamic_config['force_names']
         highest_wn = self.cluster.highest_wn
         if NAMED_WNS:  #  or options.FORCE_NAMES
             workernode_dict = self.cluster.workernode_dict
@@ -577,3 +558,20 @@ class WNOccupancy(object):
                 finally:
                     detail_of_name[user] = detail
         return detail_of_name
+
+    def calculate_matrices(self, h_term_size, scheduler_name):
+        """
+        Prints the Worker Nodes Occupancy table.
+        if there are non-uniform WNs in pbsnodes.yaml, e.g. wn01, wn02, gn01, gn02, ...,  remapping is performed.
+        Otherwise, for uniform WNs, i.e. all using the same numbering scheme, wn01, wn02, ... proceeds as normal.
+        Number of Extra tables needed is calculated inside the calc_all_wnid_label_lines function below
+        """
+        self.print_char_start, self.print_char_stop, self.extra_matrices_nr = self._find_matrices_width(h_term_size)
+        self.wn_vert_labels = self.calc_all_wnid_label_lines()
+
+        # Loop below only for user-inserted/customizeable values.
+        for yaml_key, part_name, systems in yaml.get_yaml_key_part(self.config, scheduler_name, outermost_key='workernodes_matrix'):
+            if scheduler_name in systems:
+                self.__setattr__(part_name, self.calc_general_mult_attr_line(part_name, yaml_key, self.config))
+
+        self.core_user_map = self._calc_core_matrix(self.user_to_id, self.jobid_to_user_to_queue)
