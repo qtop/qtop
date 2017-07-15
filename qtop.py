@@ -109,60 +109,6 @@ def execute_shell_batch_commands(batch_system_commands, filenames, _file, _savep
     return filenames[_file]
 
 
-def get_detail_of_name(conf, account_jobs_table):
-    """
-    Reads file $HOME/.local/qtop/getent_passwd.txt or whatever is put in QTOPCONF_YAML
-    and extracts the fullname of the users. This shall be printed in User Accounts
-    and Pool Mappings.
-    """
-    config = conf.config
-    extract_info = config.get('extract_info', None)
-    if not extract_info:
-        return dict()
-
-    sep = ':'
-    field_idx = int(extract_info.get('field_to_use', 5))
-    regex = extract_info.get('regex', None)
-
-    if options.GET_GECOS:
-        users = ' '.join([line[4] for line in account_jobs_table])
-        passwd_command = extract_info.get('user_details_realtime') % users
-        passwd_command = passwd_command.split()
-    else:
-        passwd_command = extract_info.get('user_details_cache').split()
-        passwd_command[-1] = os.path.expandvars(passwd_command[-1])
-
-    try:
-        p = subprocess.Popen(passwd_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    except OSError:
-        logging.critical('\nCommand "%s" could not be found in your system. \nEither remove -G switch or modify the command in '
-                         'qtopconf.yaml (value of key: %s).\nExiting...' % (colorize(passwd_command[0], color_func='Red_L'),
-                         'user_details_realtime'))
-        sys.exit(0)
-    else:
-        output, err = p.communicate("something here")
-        if 'No such file or directory' in err:
-            logging.warn('You have to set a proper command to get the passwd file in your %s file.' % QTOPCONF_YAML)
-            logging.warn('Error returned by getent: %s\nCommand issued: %s' % (err, passwd_command))
-
-    detail_of_name = dict()
-    for line in output.split('\n'):
-        try:
-            user, field = line.strip().split(sep)[0:field_idx:field_idx - 1]
-        except ValueError:
-            break
-        else:
-            try:
-                detail = eval(regex)
-            except (AttributeError, TypeError):
-                detail = field.strip()
-            finally:
-                detail_of_name[user] = detail
-    return detail_of_name
-
-
-
-
 def control_qtop(display, read_char, cluster, conf):
     """
     Basic vi-like movement is implemented for the -w switch (linux watch-like behaviour for qtop).
@@ -469,26 +415,6 @@ class Document(namedtuple('Document', ['worker_nodes', 'jobs_dict', 'queues_dict
             json.dump(self, outfile)
 
 
-
-
-# class Document(object):
-#
-#     def __init__(self, cluster, wns_occupancy):
-#         self.cluster = cluster
-#         self.wns_occupancy = wns_occupancy
-#         self.cluster_info = (
-#             self.wns_occupancy,
-#             self.cluster.worker_nodes,
-#             self.cluster.total_running_jobs,
-#             self.cluster.total_queued_jobs,
-#             self.cluster.workernode_list,
-#             self.cluster.workernode_dict)
-#
-#     def save(self, filename):
-#         with open(filename, 'w') as outfile:
-#             json.dump(self.cluster_info, outfile)
-#
-
 class TextDisplay(object):
 
     def __init__(self, conf, viewport):
@@ -642,15 +568,6 @@ class TextDisplay(object):
         """
         Displays qtop's third section
         """
-        wns_occupancy = self.wns_occupancy
-        try:
-            account_jobs_table = self.wns_occupancy.account_jobs_table
-            userid_to_userid_re_pat = self.wns_occupancy.userid_to_userid_re_pat
-        except KeyError:
-            account_jobs_table = dict()
-            userid_to_userid_re_pat = dict()
-
-        detail_of_name = get_detail_of_name(self.conf, account_jobs_table)
         print colorize('\n===> ', 'Gray_D') + \
               colorize('User accounts and pool mappings', 'White') + \
               colorize(' <=== ', 'Gray_d') + \
@@ -660,11 +577,12 @@ class TextDisplay(object):
         print '[id] unix account      |jobs >=   R +    Q | nodes | %(msg)s' % \
               {'msg': 'Grid certificate DN (info only available under elevated privileges)' if options.CLASSIC else
               '      GECOS field or Grid certificate DN |'}
-        for line in account_jobs_table:
-            uid, runningjobs, queuedjobs, alljobs, user, num_of_nodes = line
-            userid_pat = userid_to_userid_re_pat[str(uid)]
 
-            if (options.COLOR == 'OFF' or userid_pat == 'account_not_colored' or conf.user_to_color[userid_pat] == 'reset'):
+        for line in self.wns_occupancy.account_jobs_table:
+            uid, runningjobs, queuedjobs, alljobs, user, num_of_nodes = line
+            userid_pat = self.wns_occupancy.userid_to_userid_re_pat[str(uid)]
+
+            if options.COLOR == 'OFF' or userid_pat == 'account_not_colored' or conf.user_to_color[userid_pat] == 'reset':
                 conditional_width = 0
                 userid_pat = 'account_not_colored'
             else:
@@ -680,7 +598,7 @@ class TextDisplay(object):
                 colorize(str(queuedjobs), pattern=userid_pat),
                 colorize(str(alljobs), pattern=userid_pat),
                 colorize(user, pattern=userid_pat),
-                colorize(detail_of_name.get(user, ''), pattern=userid_pat),
+                colorize(self.wns_occupancy.detail_of_name.get(user, ''), pattern=userid_pat),
                 colorize(num_of_nodes, pattern=userid_pat),
                 sep=colorize(config['SEPARATOR'], pattern=userid_pat),
                 width1=1 + conditional_width,
@@ -1704,7 +1622,7 @@ if __name__ == '__main__':
 
                 cluster = Cluster(*args)
                 cluster.process()
-                wns_occupancy = WNOccupancy(cluster)
+                wns_occupancy = WNOccupancy(cluster, colorize)
                 # TODO: the cut into matrices should be put in the display data part. No viewport in calculations.
                 wns_occupancy.calculate(conf.user_to_color, display.viewport.h_term_size, job_ids, scheduler.scheduler_name)
 

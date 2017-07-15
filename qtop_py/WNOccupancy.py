@@ -2,6 +2,8 @@ from operator import itemgetter
 from math import ceil
 import logging
 import sys
+import os
+import subprocess
 try:
     from collections import namedtuple, OrderedDict, Counter
 except ImportError:
@@ -31,17 +33,20 @@ class JobNotFound(Exception):
 
 
 class WNOccupancy(object):
-    def __init__(self, cluster):
+    def __init__(self, cluster, colorize):
         self.cluster = cluster
         self.conf = cluster.conf
         self.config = self.conf.config
         self.dynamic_config = self.conf.dynamic_config
+        self.colorize = colorize
         self.account_jobs_table = list()
         self.user_to_id = dict()
         self.jobid_to_user_to_queue = dict()
         self.user_node_use = None  # Counter Object
+        self.userid_to_userid_re_pat = dict()
         self.user_names, self.job_states, self.job_queues = self.cluster.user_names, self.cluster.job_states, self.cluster.job_queues
         # self.user_names, self.job_states, self.job_queues = self._get_usernames_states_queues(document.jobs_dict)
+        self.detail_of_name = dict()
 
     def _get_usernames_states_queues(self, jobs_dict):
         user_names, job_states, job_queues = list(), list(), list()
@@ -60,18 +65,16 @@ class WNOccupancy(object):
         """
         if not self.cluster:
             raise ValueError("Cluster should not be empty. Exiting...")
-            # return self  # TODO fix
+
         # document.jobs_dict => job_id: job name/state/queue
 
         self.jobid_to_user_to_queue = dict(izip(job_ids, izip(self.user_names, self.job_queues)))
         self.user_node_use = self._calculate_user_node_use()
 
-        user_alljobs_sorted_lot = self._get_user_alljobcount_sorted_lot(self.user_names)
-        user_to_id = self._create_id_for_users(user_alljobs_sorted_lot)
-        user_job_per_state_counts = self._calculate_user_job_counts(user_alljobs_sorted_lot, user_to_id, scheduler_name)
-        _account_jobs_table = self._create_sort_acct_jobs_table(user_job_per_state_counts, user_alljobs_sorted_lot, user_to_id)
-        self.account_jobs_table, self.user_to_id = self._create_account_jobs_table(user_to_id, _account_jobs_table)
+        x_of_user_to_user_to_jobcounts = self._calculate_user_job_counts(scheduler_name)
+        self.account_jobs_table, self.user_to_id = self._create_account_jobs_table(x_of_user_to_user_to_jobcounts)
         self.userid_to_userid_re_pat = self.make_pattern_out_of_mapping(mapping=user_to_color)
+        self.detail_of_name = self.get_detail_of_name()
 
         # TODO extract to another class?
         self.print_char_start, self.print_char_stop, self.extra_matrices_nr = self.find_matrices_width(h_term_size)
@@ -84,24 +87,34 @@ class WNOccupancy(object):
 
         self.core_user_map = self._calc_core_matrix(self.user_to_id, self.jobid_to_user_to_queue)
 
-    def _create_account_jobs_table(self, user_to_id, account_jobs_table):
-        # TODO: unix account id needs to be recomputed at this point. fix.
-        for quintuplet, new_uid in zip(account_jobs_table, self.config['possible_ids']):
-            unix_account = quintuplet[4]
-            quintuplet[0] = user_to_id[unix_account] = utils.ColorStr(unix_account[0], color='Red_L') \
-                if self.conf.config['fill_with_user_firstletter'] else utils.ColorStr(new_uid, color='Red_L')
+    def _create_account_jobs_table(self, x_of_user_to_user_to_jobcounts):
+        """
+        Calculates and prints what is actually below the id|  R + Q /all | unix account etc line
+        :param user_to_id:
+        :param account_jobs_table:
+        :return:
+        """
+        account_jobs_table = self._create_sort_acct_jobs_table(x_of_user_to_user_to_jobcounts)
+        user_to_id = {}
+        for sextuplet, new_uid in zip(account_jobs_table, self.config['possible_ids']):
+            unix_account = sextuplet[4]
+            initial_to_color = unix_account[0] if self.conf.config['fill_with_user_firstletter'] else new_uid
+            sextuplet[0] = utils.ColorStr(initial_to_color, color='Red_L')
+            user_to_id[unix_account] = sextuplet[0]
 
         return account_jobs_table, user_to_id
 
-    def _create_sort_acct_jobs_table(self, user_job_per_state_counts, user_all_jobs_sorted, user_to_id):
+    def _create_sort_acct_jobs_table(self, x_of_user_to_user_to_jobcounts):
         """Calculates what is actually below the id|  jobs>=R + Q | unix account etc line"""
         account_jobs_table = []
-        for (user, alljobs_nr_of_user) in user_all_jobs_sorted:
+        user_alljobs_sorted_lot = self._get_user_alljobcount_sorted_lot(self.user_names)
+        for (user, alljobs_nr_of_user) in user_alljobs_sorted_lot:
             account_jobs_table.append(
                 [
-                    user_to_id[user],
-                    user_job_per_state_counts['running_of_user'][user],
-                    user_job_per_state_counts['queued_of_user'][user],
+                    # user_to_id[user],
+                    "",
+                    x_of_user_to_user_to_jobcounts['running_of_user'][user],
+                    x_of_user_to_user_to_jobcounts['queued_of_user'][user],
                     alljobs_nr_of_user,
                     user,
                     self.user_node_use[user]
@@ -115,9 +128,9 @@ class WNOccupancy(object):
         """
         counting of e.g. R, Q, C, W, E attached to each user
         """
-        user_job_per_state_counts = dict()
+        x_of_user_to_user_to_jobcounts = dict()
         for state_of_user in state_abbrevs.values():
-            user_job_per_state_counts[state_of_user] = dict()
+            x_of_user_to_user_to_jobcounts[state_of_user] = dict()
 
         for user_name, job_state in zip(user_names, job_states):
             try:
@@ -125,66 +138,53 @@ class WNOccupancy(object):
             except KeyError:
                 raise JobNotFound(job_state)
 
-            user_job_per_state_counts[x_of_user][user_name] = user_job_per_state_counts[x_of_user].get(user_name, 0) + 1
+            x_of_user_to_user_to_jobcounts[x_of_user][user_name] = x_of_user_to_user_to_jobcounts[x_of_user].get(user_name, 0) + 1
 
-        for user_name in user_job_per_state_counts['running_of_user']:
-            [user_job_per_state_counts[x_of_user].setdefault(user_name, 0) for x_of_user in user_job_per_state_counts if
+        for user_name in x_of_user_to_user_to_jobcounts['running_of_user']:
+            [x_of_user_to_user_to_jobcounts[x_of_user].setdefault(user_name, 0) for x_of_user in x_of_user_to_user_to_jobcounts if
              x_of_user != 'running_of_user']
 
-        return user_job_per_state_counts
+        return x_of_user_to_user_to_jobcounts
 
     def _get_user_alljobcount_sorted_lot(self, _user_names):
         """
         Produces a list of tuples (lot) of the form (user account, all jobs count) in descending order.
-        Used in the user accounts and poolmappings table
+        Used in the "user accounts and poolmappings" table
         """
         user_to_alljobs_count = {}
         for user_name in set(_user_names):
             user_to_alljobs_count[user_name] = _user_names.count(user_name)
 
-        user_alljobs_sorted_lot = sorted(user_to_alljobs_count.items(), key=itemgetter(1), reverse=True)
-        return user_alljobs_sorted_lot
+        return sorted(user_to_alljobs_count.items(), key=itemgetter(1), reverse=True)
 
-    def _calculate_user_job_counts(self, user_alljobs_sorted_lot, user_to_id, scheduler_name):
+    def _calculate_user_job_counts(self, scheduler_name):
         """
-        Calculates and prints what is actually below the id|  R + Q /all | unix account etc line
-        :param user_names: list
-        :param job_states: list
-        :return: (list, list, dict)
+        # TODO: write pydoc
         """
-        self.config = self._expand_useraccounts_symbols(self.config, self.user_names)
+        self._expand_useraccounts_symbols(self.user_names)
         state_abbrevs = self.config['state_abbreviations'][scheduler_name]
 
         try:
-            user_job_per_state_counts = WNOccupancy.create_user_job_counts(self.user_names, self.job_states, state_abbrevs)
+            x_of_user_to_user_to_jobcounts = WNOccupancy.create_user_job_counts(self.user_names, self.job_states, state_abbrevs)
         except JobNotFound as e:
             logging.critical('Job state %s not found. You may wish to add '
                              'that node state inside %s in state_abbreviations section.\n' % (e.job_state, QTOPCONF_YAML))
 
         for state_abbrev, state_of_user in state_abbrevs.items():
-            missing_uids = set(user_to_id).difference(user_job_per_state_counts[state_of_user])
-            [user_job_per_state_counts[state_of_user].setdefault(missing_uid, 0) for missing_uid in missing_uids]
+            missing_uids = set(self.user_names).difference(x_of_user_to_user_to_jobcounts[state_of_user])
+            [x_of_user_to_user_to_jobcounts[state_of_user].setdefault(missing_uid, 0) for missing_uid in missing_uids]
 
-        return user_job_per_state_counts
+        return x_of_user_to_user_to_jobcounts
 
-    def _expand_useraccounts_symbols(self, config, user_list):
+    def _expand_useraccounts_symbols(self, user_list):
         """
         In case there are more users than the sum number of all numbers and small/capital letters of the alphabet
         """
         if len(user_list) > MAX_UNIX_ACCOUNTS:
+            possible_ids = []
             for i in xrange(MAX_UNIX_ACCOUNTS, len(user_list) + MAX_UNIX_ACCOUNTS):
-                config['possible_ids'].append(str(i)[0])
-        return config
-
-    def _create_id_for_users(self, user_alljobs_sorted_lot):
-        user_to_id = {}
-        for id_, user_allcount in enumerate(user_alljobs_sorted_lot):
-            if self.config['fill_with_user_firstletter']:
-                user_to_id[user_allcount[0]] = utils.ColorStr(user_allcount[0][0])
-            else:
-                user_to_id[user_allcount[0]] = utils.ColorStr(self.config['possible_ids'][id_])
-
-        return user_to_id
+                possible_ids.append(str(i)[0])
+            self.config['possible_ids'].extend(possible_ids)
 
     def make_pattern_out_of_mapping(self, mapping):
         """
@@ -523,3 +523,57 @@ class WNOccupancy(object):
             core_x_str = ''.join(str(x) for x in core_x_vector)
             yield core_x_vector, ind, k, self.coreline_notthere_or_unused(non_existent_symbol, remove_corelines, delta,
                                                                           core_x_str)
+
+    def get_detail_of_name(self):
+        """
+        Reads file $HOME/.local/qtop/getent_passwd.txt or whatever is put in QTOPCONF_YAML
+        and extracts the fullname of the users. This shall be printed in User Accounts
+        and Pool Mappings.
+        """
+        conf = self.conf
+        account_jobs_table = self.account_jobs_table
+        config = self.conf.config
+        extract_info = config.get('extract_info', None)
+        if not extract_info:
+            return dict()
+
+        sep = ':'
+        field_idx = int(extract_info.get('field_to_use', 5))
+        regex = extract_info.get('regex', None)
+
+        if self.conf.cmd_options.GET_GECOS:
+            users = ' '.join([line[4] for line in account_jobs_table])
+            passwd_command = extract_info.get('user_details_realtime') % users
+            passwd_command = passwd_command.split()
+        else:
+            passwd_command = extract_info.get('user_details_cache').split()
+            passwd_command[-1] = os.path.expandvars(passwd_command[-1])
+
+        try:
+            p = subprocess.Popen(passwd_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        except OSError:
+            logging.critical(
+                '\nCommand "%s" could not be found in your system. \nEither remove -G switch or modify the command in '
+                'qtopconf.yaml (value of key: %s).\nExiting...' % (self.colorize(passwd_command[0], color_func='Red_L'),
+                                                                   'user_details_realtime'))
+            sys.exit(0)
+        else:
+            output, err = p.communicate("something here")
+            if 'No such file or directory' in err:
+                logging.warn('You have to set a proper command to get the passwd file in your %s file.' % QTOPCONF_YAML)
+                logging.warn('Error returned by getent: %s\nCommand issued: %s' % (err, passwd_command))
+
+        detail_of_name = dict()
+        for line in output.split('\n'):
+            try:
+                user, field = line.strip().split(sep)[0:field_idx:field_idx - 1]
+            except ValueError:
+                break
+            else:
+                try:
+                    detail = eval(regex)
+                except (AttributeError, TypeError):
+                    detail = field.strip()
+                finally:
+                    detail_of_name[user] = detail
+        return detail_of_name
