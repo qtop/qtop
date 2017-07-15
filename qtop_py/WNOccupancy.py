@@ -39,6 +39,7 @@ class WNOccupancy(object):
         self.account_jobs_table = list()
         self.user_to_id = dict()
         self.jobid_to_user_to_queue = dict()
+        self.user_machine_use = None  # Counter Object
         self.user_names, self.job_states, self.job_queues = self.cluster.user_names, self.cluster.job_states, self.cluster.job_queues
         # self.user_names, self.job_states, self.job_queues = self._get_usernames_states_queues(document.jobs_dict)
 
@@ -63,8 +64,7 @@ class WNOccupancy(object):
         # document.jobs_dict => job_id: job name/state/queue
 
         self.jobid_to_user_to_queue = dict(izip(job_ids, izip(self.user_names, self.job_queues)))
-        self.user_machine_use = self.calculate_user_node_use(self.cluster, self.jobid_to_user_to_queue, job_ids, self.user_names,
-                                                             self.job_queues)
+        self.user_machine_use = self._calculate_user_node_use(self.cluster)
 
         user_alljobs_sorted_lot = self._get_user_alljobcount_sorted_lot(self.user_names)
         user_to_id = self._create_id_for_users(user_alljobs_sorted_lot)
@@ -96,14 +96,13 @@ class WNOccupancy(object):
     def _create_sort_acct_jobs_table(self, user_job_per_state_counts, user_all_jobs_sorted, user_to_id):
         """Calculates what is actually below the id|  jobs>=R + Q | unix account etc line"""
         account_jobs_table = []
-        for user_alljobs in user_all_jobs_sorted:
-            user, alljobs_of_user = user_alljobs
+        for (user, alljobs_nr_of_user) in user_all_jobs_sorted:
             account_jobs_table.append(
                 [
                     user_to_id[user],
                     user_job_per_state_counts['running_of_user'][user],
                     user_job_per_state_counts['queued_of_user'][user],
-                    alljobs_of_user,
+                    alljobs_nr_of_user,
                     user,
                     self.user_machine_use[user]
                 ]
@@ -478,19 +477,17 @@ class WNOccupancy(object):
             count += len(just_jobs)
         return count
 
-    def calculate_user_node_use(self, cluster, jobid_to_user_to_queue, job_ids, user_names, job_queues):
+    def _calculate_user_node_use(self, cluster):
         """
         This calculates the number of nodes each user has jobs in (shown in User accounts and pool mappings)
         """
-        user_machines = []
-        jobid_to_user_to_queue = dict(izip(job_ids, izip(user_names, job_queues)))
-        # TODO why use variables from outer scope above?
-        for node in cluster.workernode_dict:
-            cluster.workernode_dict[node]['node_user_set'] = set([jobid_to_user_to_queue[job][0] for job in
-                                                                  cluster.workernode_dict[node]['node_job_set']])
-            user_machines.extend(list(cluster.workernode_dict[node]['node_user_set']))
+        user_nodes = []
 
-        return Counter(user_machines)
+        for (node_idx, node) in cluster.workernode_dict.items():
+            node['node_user_set'] = set([self.jobid_to_user_to_queue[job][0] for job in node['node_job_set']])
+            user_nodes.extend(list(node['node_user_set']))
+
+        return Counter(user_nodes)
 
     @staticmethod
     def coreline_not_there(symbol, switch, delta, core_x_str):
