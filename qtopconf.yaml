@@ -261,10 +261,11 @@ workernodes_matrix:
      ## native yaml parser BUG/TODO: two consecutive unindents are not allowed. Must have an unindented key-value after nested keys:
      alt_label_colors: [White, Blue_L]
 # - temperature:  # not working, for illustrative purposes
-#     yaml key: temperature  # how it's found in the yaml file
+#     yaml_key: temperature  # how it's found in the yaml file
 #     label: Temperature (C)  # how to label it on the qtop matrix
 #     option: {}
 #     max_len: 1
+#     systems: [sge]
  - node state:
      yaml_key: state
      label: Node state
@@ -311,3 +312,13 @@ core_coloring: user_to_color
 whole_queues:
   - world
   - whole
+
+accounts_and_mappings:
+  - id
+  - unixaccount
+  - jobs
+  - running
+  - queued
+  - nodes
+  - gecos
+  - group

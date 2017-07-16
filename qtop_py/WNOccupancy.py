@@ -61,7 +61,7 @@ class WNOccupancy(object):
 
     def calculate_account_jobs(self, user_to_color, job_ids, scheduler_name):
         """
-        Calculates information mostly for user accounts and poolmappings, but also for the main matrices
+        Calculates information mostly for user accounts and poolmappings, also for the main matrices
         """
         if not self.cluster:
             raise ValueError("Cluster should not be empty. Exiting...")
@@ -82,8 +82,7 @@ class WNOccupancy(object):
         for (user, alljobs_nr_of_user) in user_alljobs_sorted_lot:
             account_jobs_table.append(
                 [
-                    # user_to_id[user],
-                    "",
+                    "",  # user_to_id[user], to be populated
                     x_of_user_to_user_to_jobcounts['running_of_user'][user],
                     x_of_user_to_user_to_jobcounts['queued_of_user'][user],
                     alljobs_nr_of_user,
@@ -559,13 +558,15 @@ class WNOccupancy(object):
                     detail_of_name[user] = detail
         return detail_of_name
 
-    def calculate_matrices(self, h_term_size, scheduler_name):
+    def calculate_matrices(self, display, scheduler):
         """
         Prints the Worker Nodes Occupancy table.
         if there are non-uniform WNs in pbsnodes.yaml, e.g. wn01, wn02, gn01, gn02, ...,  remapping is performed.
         Otherwise, for uniform WNs, i.e. all using the same numbering scheme, wn01, wn02, ... proceeds as normal.
         Number of Extra tables needed is calculated inside the calc_all_wnid_label_lines function below
         """
+        h_term_size = display.viewport.h_term_size
+        scheduler_name = scheduler.scheduler_name
         self.print_char_start, self.print_char_stop, self.extra_matrices_nr = self._find_matrices_width(h_term_size)
         self.wn_vert_labels = self.calc_all_wnid_label_lines()
 

@@ -568,18 +568,20 @@ class TextDisplay(object):
         """
         Displays qtop's third section
         """
-        print colorize('\n===> ', 'Gray_D') + \
+        section_header = colorize('\n===> ', 'Gray_D') + \
               colorize('User accounts and pool mappings', 'White') + \
               colorize(' <=== ', 'Gray_d') + \
               colorize("  ('all' also includes those in C and W states, as reported by qstat)"
                             if options.CLASSIC else "(sorting according to total nr. of jobs)", 'Gray_D')
 
-        print '[id] unix account      |jobs >=   R +    Q | nodes | %(msg)s' % \
+        header = '[id] unix account      |jobs >=   R +    Q | nodes | %(msg)s' % \
               {'msg': 'Grid certificate DN (info only available under elevated privileges)' if options.CLASSIC else
               '      GECOS field or Grid certificate DN |'}
 
-        for line in self.wns_occupancy.account_jobs_table:
-            uid, runningjobs, queuedjobs, alljobs, user, num_of_nodes = line
+        print section_header
+        print header
+
+        for (uid, runningjobs, queuedjobs, alljobs, user, num_of_nodes) in self.wns_occupancy.account_jobs_table:
             userid_pat = self.wns_occupancy.userid_to_userid_re_pat[str(uid)]
 
             if options.COLOR == 'OFF' or userid_pat == 'account_not_colored' or conf.user_to_color[userid_pat] == 'reset':
@@ -588,26 +590,30 @@ class TextDisplay(object):
             else:
                 conditional_width = 12
 
-            print_string = ('[ {0:<{width1}}] '
-                            '{4:<{width18}}{sep}'
-                            '{3:>{width4}}   {1:>{width4}}   {2:>{width4}} {sep} '
-                            '{6:>{width5}} {sep} '
-                            '{5:<{width40}} {sep}').format(
-                colorize(str(uid), pattern=userid_pat),
-                colorize(str(runningjobs), pattern=userid_pat),
-                colorize(str(queuedjobs), pattern=userid_pat),
-                colorize(str(alljobs), pattern=userid_pat),
-                colorize(user, pattern=userid_pat),
-                colorize(self.wns_occupancy.detail_of_name.get(user, ''), pattern=userid_pat),
-                colorize(num_of_nodes, pattern=userid_pat),
-                sep=colorize(config['SEPARATOR'], pattern=userid_pat),
-                width1=1 + conditional_width,
-                width3=3 + conditional_width,
-                width4=4 + conditional_width,
-                width5=5 + conditional_width,
-                width18=18 + conditional_width,
-                width40=40 + conditional_width,
-            )
+            table = {
+                'uid': colorize(str(uid), pattern=userid_pat),
+                'runningjobs': colorize(str(runningjobs), pattern=userid_pat),
+                'queuedjobs': colorize(str(queuedjobs), pattern=userid_pat),
+                'alljobs': colorize(str(alljobs), pattern=userid_pat),
+                'user': colorize(user, pattern=userid_pat),
+                'detail': colorize(self.wns_occupancy.detail_of_name.get(user, ''), pattern=userid_pat),
+                'num_of_nodes': colorize(num_of_nodes, pattern=userid_pat),
+                'sep': colorize(config['SEPARATOR'], pattern=userid_pat),
+                'width1': 1 + conditional_width,
+                'width3': 3 + conditional_width,
+                'width4': 4 + conditional_width,
+                'width5': 5 + conditional_width,
+                'width18': 18 + conditional_width,
+                'width40': 40 + conditional_width,
+            }
+
+            print_string = (
+                '[ {0[uid]:<{0[width1]}}] '
+                '{0[user]:<{0[width18]}}{0[sep]}'
+                '{0[alljobs]:>{0[width4]}}   {0[runningjobs]:>{0[width4]}}   {0[queuedjobs]:>{0[width4]}} {0[sep]} '
+                '{0[num_of_nodes]:>{0[width5]}} {0[sep]} '
+                '{0[detail]:<{0[width40]}} {0[sep]}').format(table)
+
             print print_string
 
     def display_matrix(self, wns_occupancy, print_char_start, print_char_stop):
@@ -1003,7 +1009,6 @@ class Cluster(object):
                 total_color_nodestate.append(color_nodestate)
             worker_node['state'] = total_color_nodestate
 
-
     def _calculate_WN_dict(self):
         if not self.worker_nodes:
             raise ValueError("Empty Worker Node list. Exiting...")
@@ -1146,12 +1151,19 @@ class Cluster(object):
         return workernode_dict
 
     def fill_non_existent_wn_nodes(self, workernode_dict):
-        """fill in non-existent WN nodes (absent from input files) with default values and count them"""
+        """
+        fills in non-existent WN nodes (absent from input files) with default values and counts them
+        """
         for node in range(1, self.highest_wn + 1):
             if node not in workernode_dict:
-                workernode_dict[node] = {'state': '?', 'np': 0, 'domainname': 'N/A', 'host': 'N/A', 'core_job_map': {}}
-                default_values_for_empty_nodes = dict([(yaml_key, '?') for yaml_key, part_name, _ in yaml.get_yaml_key_part(
-                    config, scheduler.scheduler_name, outermost_key='workernodes_matrix')])
+                workernode_dict[node] = {'state': '?',
+                                         'np': 0,
+                                         'domainname': 'N/A',
+                                         'host': 'N/A',
+                                         'core_job_map': {}
+                                         }
+                get_part = yaml.get_yaml_key_part(config, scheduler.scheduler_name, outermost_key='workernodes_matrix')
+                default_values_for_empty_nodes = dict([(yaml_key, '?') for yaml_key, part_name, _ in get_part])
                 workernode_dict[node].update(default_values_for_empty_nodes)
         return workernode_dict
 
@@ -1651,7 +1663,7 @@ if __name__ == '__main__':
 
                 ###### Display data ###############
                 #
-                wns_occupancy.calculate_matrices(display.viewport.h_term_size, scheduler.scheduler_name)
+                wns_occupancy.calculate_matrices(display, scheduler)
                 display.display_selected_sections(savepath, QTOP_LOGFILE, document, wns_occupancy, cluster)
 
                 sys.stdout.flush()
