@@ -316,9 +316,16 @@ whole_queues:
 accounts_and_mappings:
   - id
   - unixaccount
+  - separator_pipe
   - jobs
+  - separator_ge
   - running
+  - separator_plus
   - queued
+  - separator_pipe
   - nodes
+  - separator_pipe
   - gecos
+  - separator_pipe
   - group
+  - separator_pipe

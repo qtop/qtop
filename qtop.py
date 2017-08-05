@@ -578,6 +578,11 @@ class TextDisplay(object):
               {'msg': 'Grid certificate DN (info only available under elevated privileges)' if options.CLASSIC else
               '      GECOS field or Grid certificate DN |'}
 
+        user_columns = self.config['accounts_and_mappings']
+        accounts_table = AccountsTable()
+        accounts_table.set_columns(user_columns)
+        header = accounts_table.produce_header_line()
+
         print section_header
         print header
 
@@ -591,7 +596,7 @@ class TextDisplay(object):
                 conditional_width = 12
 
             table = {
-                'uid': colorize(str(uid), pattern=userid_pat),
+                'id': colorize(str(uid), pattern=userid_pat),
                 'runningjobs': colorize(str(runningjobs), pattern=userid_pat),
                 'queuedjobs': colorize(str(queuedjobs), pattern=userid_pat),
                 'alljobs': colorize(str(alljobs), pattern=userid_pat),
@@ -608,7 +613,7 @@ class TextDisplay(object):
             }
 
             print_string = (
-                '[ {0[uid]:<{0[width1]}}] '
+                '[ {0[id]:<{0[width1]}}] '
                 '{0[user]:<{0[width18]}}{0[sep]}'
                 '{0[alljobs]:>{0[width4]}}   {0[runningjobs]:>{0[width4]}}   {0[queuedjobs]:>{0[width4]}} {0[sep]} '
                 '{0[num_of_nodes]:>{0[width5]}} {0[sep]} '
@@ -1311,6 +1316,35 @@ def pick_frames_to_replay(conf):
 
     useful_frames = iter(useful_frames[::-1])
     return useful_frames
+
+
+class AccountsTable(object):
+    def __init__(self):
+        self.table = {}
+        self.columns = []
+        self.avail_columns = {
+            'id': {'header': '[id]', 'values': ''},
+            'unixaccount': {'header': ' unix account     '},
+            'jobs': {'header': 'jobs '},
+            'running': {'header': '   R'},
+            'queued': {'header':  '    Q'},
+            'nodes': {'header': ' nodes'},
+            'gecos': {'header': '       GECOS field or Grid certificate DN'},
+            'group': {'header': '               Group '}
+        }
+        self.separators = {'separator_ge': {'header': '>='},
+                           'separator_pipe': {'header': ' |'},
+                           'separator_plus': {'header': ' +'}
+                           }
+
+    def set_columns(self, elements):
+        a = '[id] unix account      |jobs >=   R +    Q | nodes | %(msg)s'
+        self.avail_columns.update(self.separators)
+        self.columns = [element for element in elements if element in self.avail_columns]
+        return self.columns
+
+    def produce_header_line(self):
+        return ''.join([self.avail_columns[column]['header'] for column in self.columns])
 
 
 
