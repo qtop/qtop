@@ -23,6 +23,7 @@ except ImportError:
     from qtop_py.legacy.ordereddict import OrderedDict
     from qtop_py.legacy.counter import Counter
 import os
+from operator import itemgetter
 from os.path import realpath
 from signal import signal, SIGPIPE, SIG_DFL
 import termios
@@ -50,6 +51,12 @@ from qtop_py import __version__
 # TODO make the following work with py files instead of qtop.colormap files
 # if not options.COLORFILE:
 #     options.COLORFILE = os.path.expandvars('$HOME/qtop/qtop/qtop.colormap')
+
+
+class JobNotFound(Exception):
+    def __init__(self, job_state):
+        Exception.__init__(self, "Job state %s not found" % job_state)
+        self.job_state = job_state
 
 
 @contextlib.contextmanager
@@ -569,25 +576,27 @@ class TextDisplay(object):
         Displays qtop's third section
         """
         section_header = colorize('\n===> ', 'Gray_D') + \
-              colorize('User accounts and pool mappings', 'White') + \
+              colorize('User accounts information', 'White') + \
               colorize(' <=== ', 'Gray_d') + \
               colorize("  ('all' also includes those in C and W states, as reported by qstat)"
                             if options.CLASSIC else "(sorting according to total nr. of jobs)", 'Gray_D')
 
-        header = '[id] unix account      |jobs >=   R +    Q | nodes | %(msg)s' % \
-              {'msg': 'Grid certificate DN (info only available under elevated privileges)' if options.CLASSIC else
-              '      GECOS field or Grid certificate DN |'}
+        # header = '[id] unix account      |jobs >=   R +    Q | nodes | %(msg)s' % \
+        #       {'msg': 'Grid certificate DN (info only available under elevated privileges)' if options.CLASSIC else
+        #       '      GECOS field or Grid certificate DN |'}
 
-        user_columns = self.config['accounts_and_mappings']
-        accounts_table = AccountsTable()
-        accounts_table.set_columns(user_columns)
+        # accounts_table = AccountsTable()
+        #
+        # user_columns = self.config['accounts_and_mappings']
+        # accounts_table.set_columns(user_columns)
         header = accounts_table.produce_header_line()
 
         print section_header
         print header
-
-        for (uid, runningjobs, queuedjobs, alljobs, user, num_of_nodes) in self.wns_occupancy.account_jobs_table:
+        groups = self.wns_occupancy.group_of_name
+        for (uid, running_of_user, queued_of_user, alljobs, cancelled_of_user, user, num_of_nodes) in self.wns_occupancy.account_jobs_table:
             userid_pat = self.wns_occupancy.userid_to_userid_re_pat[str(uid)]
+            group = groups.get(user, "")
 
             if options.COLOR == 'OFF' or userid_pat == 'account_not_colored' or conf.user_to_color[userid_pat] == 'reset':
                 conditional_width = 0
@@ -597,12 +606,14 @@ class TextDisplay(object):
 
             table = {
                 'id': colorize(str(uid), pattern=userid_pat),
-                'runningjobs': colorize(str(runningjobs), pattern=userid_pat),
-                'queuedjobs': colorize(str(queuedjobs), pattern=userid_pat),
+                'running_of_user': colorize(str(running_of_user), pattern=userid_pat),
+                'queued_of_user': colorize(str(queued_of_user), pattern=userid_pat),
+                'cancelled_of_user': colorize(str(cancelled_of_user), pattern=userid_pat),
                 'alljobs': colorize(str(alljobs), pattern=userid_pat),
                 'user': colorize(user, pattern=userid_pat),
                 'detail': colorize(self.wns_occupancy.detail_of_name.get(user, ''), pattern=userid_pat),
                 'num_of_nodes': colorize(num_of_nodes, pattern=userid_pat),
+                'group': colorize(group, pattern=userid_pat),
                 'sep': colorize(config['SEPARATOR'], pattern=userid_pat),
                 'width1': 1 + conditional_width,
                 'width3': 3 + conditional_width,
@@ -615,9 +626,20 @@ class TextDisplay(object):
             print_string = (
                 '[ {0[id]:<{0[width1]}}] '
                 '{0[user]:<{0[width18]}}{0[sep]}'
-                '{0[alljobs]:>{0[width4]}}   {0[runningjobs]:>{0[width4]}}   {0[queuedjobs]:>{0[width4]}} {0[sep]} '
+                '{0[alljobs]:>{0[width4]}}   {0[running_of_user]:>{0[width4]}}   {0[queued_of_user]:>{0[width4]}} {0[sep]} '
                 '{0[num_of_nodes]:>{0[width5]}} {0[sep]} '
                 '{0[detail]:<{0[width40]}} {0[sep]}').format(table)
+
+            _id = '[ {0[id]:<{0[width1]}}] '
+            _user = '{0[user]:<{0[width18]}}{0[sep]}'
+            _alljobs = '{0[alljobs]:>{0[width4]}}   {0[running_of_user]:>{0[width4]}}   {0[queued_of_user]:>{0[width4]}} '
+            _cancelled_jobs = '{0[cancelled_of_user]:>{0[width5]}} {0[sep]} '
+            _num_of_nodes = '{0[num_of_nodes]:>{0[width5]}} {0[sep]} '
+            _detail = '{0[detail]:<{0[width40]}} {0[sep]} '
+            _group = '{0[group]:<{0[width18]}} {0[sep]} '
+
+            print_string = ''.join(el.format(table) for el in (_id, _user, _alljobs, _cancelled_jobs, _num_of_nodes, _group, _detail))
+
 
             print print_string
 
@@ -959,7 +981,7 @@ class TextDisplay(object):
 
 
 class Cluster(object):
-    def __init__(self, conf, worker_nodes, job_ids, user_names, job_states, job_queues, total_running_jobs, total_queued_jobs, qstatq_lod, WNFilter):
+    def __init__(self, conf, worker_nodes, job_ids, user_names, job_states, job_queues, total_running_jobs, total_queued_jobs, qstatq_lod, WNFilter, queue_to_color):
         self.conf = conf
         self.worker_nodes = worker_nodes
         # self.queues_dict = queues_dict  # ex qstatq_lod is now list of namedtuples
@@ -983,19 +1005,23 @@ class Cluster(object):
         self.node_subclusters = set()
         self.workernode_dict = {}
         self.workernode_dict_remapped = {}  # { remapnr: [state, np, (core0, job1), (core1, job1), ....]}
-
-        self.available_wn = sum([len(node['state']) for node in self.worker_nodes if str(node['state'][0]) == '-'])
-        self.total_wn = len(self.worker_nodes)  # == existing_nodes
         self.workernode_list = []
-        self.workernode_list_remapped = range(1, self.total_wn + 1)  # leave xrange aside for now
+        self.workernode_list_remapped = 0
+        self.available_wn = 0
+        self.total_wn = 0
 
     def process(self):
-        self._keep_queue_initials_only_and_colorize(queue_to_color)
-        self._colorize_nodestate()
-        self._calculate_WN_dict()
+        self.available_wn = sum([len(node['state']) for node in self.worker_nodes if str(node['state'][0]) == '-'])
+        self.total_wn = len(self.worker_nodes)  # == existing_nodes
+        self.workernode_list_remapped = range(1, self.total_wn + 1)  # leave xrange aside for now
 
-    def _keep_queue_initials_only_and_colorize(self, queue_to_color):
+        self._keep_queue_initials_only_and_colorize()  # works on self.worker_nodes
+        self._colorize_nodestate()  # works on self.worker_nodes
+        self._calculate_WN_dict()  # works on self.workernode_dict
+
+    def _keep_queue_initials_only_and_colorize(self):
         # TODO remove monstrosity!
+        queue_to_color = self.conf.queue_to_color
         for worker_node in self.worker_nodes:
             color_q_list = []
             for queue in worker_node['qname']:
@@ -1021,7 +1047,7 @@ class Cluster(object):
         max_np, _all_str_digits_with_empties = self._get_wn_list_and_stats()
 
         self.core_span = [str(x) for x in range(max_np)]
-        self.options.REMAP = self.decide_remapping(_all_str_digits_with_empties)
+        self.options.REMAP = self._decide_remapping(_all_str_digits_with_empties)
 
         nodes_drop, workernode_dict, workernode_dict_remapped = self.map_worker_nodes_to_wn_dict()
         self.workernode_dict = workernode_dict
@@ -1078,7 +1104,7 @@ class Cluster(object):
         # node_subclusters, workernode_list, offdown_nodes, working_cores changed here
         return max_np, all_str_digits_with_empties
 
-    def decide_remapping(self, all_str_digits_with_empties):
+    def _decide_remapping(self, all_str_digits_with_empties):
         """
         Cases where remapping is enforced are:
         - the user has requested it (blindremap switch)
@@ -1319,34 +1345,225 @@ def pick_frames_to_replay(conf):
 
 
 class AccountsTable(object):
-    def __init__(self):
-        self.table = {}
+    def __init__(self, conf, scheduler_name):
+        self.account_jobs_table = None
+        self.conf = conf
         self.columns = []
-        self.avail_columns = {
-            'id': {'header': '[id]', 'values': ''},
-            'unixaccount': {'header': ' unix account     '},
-            'jobs': {'header': 'jobs '},
-            'running': {'header': '   R'},
-            'queued': {'header':  '    Q'},
-            'nodes': {'header': ' nodes'},
-            'gecos': {'header': '       GECOS field or Grid certificate DN'},
-            'group': {'header': '               Group '}
+        self.user_names = None
+        self.job_states = None
+        self.config = conf.config
+        self.scheduler_name = scheduler_name
+        self.state_abbrevs = None  # kapou edw na kalesw ta states gia na jerw ti einai available!!
+        self.supported_columns = {}
+        self.separators = {'separator_ge': {'header': '>=', 'value': '  '},
+                           'separator_pipe': {'header': ' |', 'value': '  '},
+                           'separator_plus': {'header': ' +', 'value': '  '}
         }
-        self.separators = {'separator_ge': {'header': '>='},
-                           'separator_pipe': {'header': ' |'},
-                           'separator_plus': {'header': ' +'}
-                           }
+        self.user_node_use = None
+        self.detail_of_name = None
+        self.group_of_name = None
 
-    def set_columns(self, elements):
-        a = '[id] unix account      |jobs >=   R +    Q | nodes | %(msg)s'
-        self.avail_columns.update(self.separators)
-        self.columns = [element for element in elements if element in self.avail_columns]
-        return self.columns
+    def set_columns(self, elems):
+        """'[id] unix account      |jobs >=   R +    Q | nodes | %(msg)s'"""
+        return dict((elem, self.supported_columns[elem]) for elem in elems if elem in self.supported_columns)
 
-    def produce_header_line(self):
-        return ''.join([self.avail_columns[column]['header'] for column in self.columns])
+    def produce_header_line(self):  # TODO duplicate?
+        return ''.join([self.supported_columns[column]['header'] for column in self.columns])
+
+    def get_supported_columns(self):
+        self.state_abbrevs = self.config['state_abbreviations'][self.scheduler_name]
+        self.supported_columns = {  # default columns, scheduler-agnostic
+            'id': {'header': '[id]', 'value': ''},
+            'unixaccount': {'header': ' unix account     ', 'value': ''},
+            # 'all_of_user': {'header': 'jobs '},
+            # 'running_of_user': {'header': '   R'},
+            # 'queued_of_user': {'header': '    Q'},
+            # 'cancelled_of_user': {'header': '   CNC'},
+            'nodes': {'header': ' nodes', 'value': self.user_node_use},
+            'gecos': {'header': ' GECOS field or Grid certificate DN      ', 'value': self.detail_of_name},
+            'group': {'header': ' Group             ', 'value': self.group_of_name},
+            'nodes': {'header': 'Nodes', 'value': self.user_node_use}
+        }
+        self.supported_columns.update(self.separators)
+
+        for abbrev, state_of_user in self.state_abbrevs.items():
+            self.supported_columns[state_of_user] = {'header': abbrev}
+        return self.supported_columns
+
+    def process(self, wns_occupancy):
+        self.user_names = wns_occupancy.user_names
+        self.job_states = wns_occupancy.job_states
+        self.user_node_use = wns_occupancy.calculate_user_node_use()
+        self.detail_of_name = wns_occupancy.get_detail_of_name()  # will be used later from TextDisplay
+        self.group_of_name = wns_occupancy.get_group_of_name()
+        self.account_jobs_table = self.create_account_jobs_table(scheduler.scheduler_name)
+        wns_occupancy.user_to_id = self.user_to_id
+
+###
+
+    def create_account_jobs_table(self, scheduler_name):
+        """
+        Calculates what is actually below the id|  jobs>=R + Q | unix account etc line
+        """
+        user_columns = self.config['accounts_and_mappings']
+        state_abbrevs = self.config['state_abbreviations'][scheduler_name]
+        self.supported_columns = self.get_supported_columns()
+        self.columns = self.set_columns(user_columns)
+
+        rows = []  # account_jobs_table = []
+
+        x_of_user_to_user_to_jobcounts = self.get_user_jobcounts_by_state(scheduler_name, state_abbrevs)
+        # user_alljobs_sorted_lot = sorted(alljobs_of_users.items(), key=itemgetter(1), reverse=True)
+        user_alljobs_lot = x_of_user_to_user_to_jobcounts['all_of_user'].items()  # lot: (user, all jobs count)
+        for column in self.columns:
+            if column in x_of_user_to_user_to_jobcounts:
+                self.columns[column]['value'] = x_of_user_to_user_to_jobcounts[column]
 
 
+        header_row = []
+        for column_name in self.columns:
+            header_row.append(self.supported_columns[column_name]['header'])
+
+        for user_name in set(self.user_names):
+            row = []
+            rows.append(row)
+            for column_name in self.columns:
+                cell = self.columns[column_name]['value']
+                if isinstance(cell, str):
+                    row.append(cell)
+                elif isinstance(cell, dict):
+                    row.append(cell.get(user_name, 'NoUser'))
+
+        # for (user_name, alljobs_nr_of_user) in user_alljobs_lot:
+        #     row = []
+        #     rows.append(row)
+        #     for column_name in self.accounts_table.columns:
+        #         row.append("")  # id
+        #         row.append(user_name)
+        #         if column_name in x_of_user_to_user_to_jobcounts:
+        #             row.append(x_of_user_to_user_to_jobcounts[column_name][user_name])
+        #         else:
+        #             pass
+        #         # row.append(alljobs_nr_of_user)
+        #         row.append(self.user_node_use[user_name])
+
+        rows.sort(key=itemgetter(3, 1), reverse=True)
+
+        # for (user_name, alljobs_nr_of_user) in user_alljobs_lot:
+        #     row = []
+        #     for x_of_user, user_to_jobcounts in x_of_user_to_user_to_jobcounts.items():
+        #
+        #         for user, count in user_to_jobcounts.items():
+        #             row.append(count)
+        #     account_jobs_table.append(
+        #         [
+        #             "",  # user_to_id[user], to be populated
+        #             user_name,  # then sort by
+        #             x_of_user_to_user_to_jobcounts['running_of_user'][user_name],
+        #             x_of_user_to_user_to_jobcounts['queued_of_user'][user_name],
+        #             x_of_user_to_user_to_jobcounts['cancelled_of_user'][user_name],
+        #             # TODO More to be added here
+        #             alljobs_nr_of_user,  # first sort by
+        #             self.user_node_use[user_name]
+        #         ]
+        #     )
+        # account_jobs_table.sort(key=itemgetter(5, 1), reverse=True)  # sort by All jobs count, then user_name
+
+
+        ######################
+        # lot: (user, all jobs count)
+        # user_alljobs_lot = alljobs_of_users.items()
+        # for (user_name, alljobs_nr_of_user) in user_alljobs_lot:
+        #     account_jobs_table.append(
+        #         [
+        #             "",  # user_to_id[user], to be populated
+        #             user_name,  # then sort by
+        #             x_of_user_to_user_to_jobcounts['running_of_user'][user_name],
+        #             x_of_user_to_user_to_jobcounts['queued_of_user'][user_name],
+        #             x_of_user_to_user_to_jobcounts['cancelled_of_user'][user_name],
+        #             # TODO More to be added here
+        #             alljobs_nr_of_user,  # first sort by
+        #             self.user_node_use[user_name]
+        #         ]
+        #     )
+        # account_jobs_table.sort(key=itemgetter(5, 1), reverse=True)  # sort by All jobs count, then user_name
+        ######################
+
+        # add new id, coloring
+        user_to_id = {}
+        for row, new_uid in zip(rows, self.config['possible_ids']):
+            user_name = row[1]
+            initial_to_color = user_name[0] if self.conf.config['fill_with_user_firstletter'] else new_uid
+
+            row[0] = utils.ColorStr(initial_to_color, color='Red_L')
+            user_to_id[user_name] = row[0]
+
+        self.user_to_id = user_to_id
+        self.header_row = header_row
+        return rows
+
+
+    def get_user_jobcounts_by_state(self, scheduler_name, state_abbrevs):
+        """
+        Counts user jobs by state
+        """
+        self._expand_useraccounts_symbols()
+
+        try:
+            x_of_user_to_user_to_jobcounts = self._count_states_of_users(state_abbrevs)
+        except JobNotFound as e:
+            logging.critical('Job state %s not found. You may wish to add '
+                             'that node state inside %s in the state_abbreviations section.\n'
+                             % (e.job_state, QTOPCONF_YAML))
+
+        x_of_user_to_user_to_jobcounts['all_of_user'] = self.count_alljobs_of_users()
+        return x_of_user_to_user_to_jobcounts
+
+
+    def _count_states_of_users(self, state_abbrevs):
+        """
+        counting of e.g. R, Q, C, W, E attached to each user
+        """
+        x_of_user_to_user_to_jobcounts = dict()
+        for state_of_user in state_abbrevs.values():
+            x_of_user_to_user_to_jobcounts[state_of_user] = dict()
+
+        for user_name, job_state in zip(self.user_names, self.job_states):
+            try:
+                x_of_user = state_abbrevs[job_state]
+            except KeyError:
+                raise JobNotFound(job_state)
+
+            x_of_user_to_user_to_jobcounts[x_of_user][user_name] = x_of_user_to_user_to_jobcounts[x_of_user].get(user_name, 0) + 1
+
+        # fill-in zero values
+        for state_abbrev, x_of_user in state_abbrevs.items():
+            users_in_state_to_jobcounts = x_of_user_to_user_to_jobcounts[x_of_user]
+            users_in_state = users_in_state_to_jobcounts.keys()
+            users_not_in_this_state = set(self.user_names).difference(users_in_state)
+            [users_in_state_to_jobcounts.setdefault(user, 0) for user in users_not_in_this_state]
+
+        return x_of_user_to_user_to_jobcounts
+
+    def _expand_useraccounts_symbols(self):
+        """
+        In case there are more users than the sum number of all numbers and small/capital letters of the alphabet
+        """
+        if len(self.user_names) > MAX_UNIX_ACCOUNTS:
+            possible_ids = []
+            for i in xrange(MAX_UNIX_ACCOUNTS, len(self.user_names) + MAX_UNIX_ACCOUNTS):
+                possible_ids.append(str(i)[0])
+            self.config['possible_ids'].extend(possible_ids)
+
+    def count_alljobs_of_users(self):
+        user_to_alljobs_count = {}
+        for user_name in set(self.user_names):
+            user_to_alljobs_count[user_name] = self.user_names.count(user_name)
+
+        return user_to_alljobs_count
+
+
+####
 
 class WNFilter(object):
     def __init__(self, worker_nodes):
@@ -1618,7 +1835,7 @@ if __name__ == '__main__':
     conf.initialize_paths()
     conf.load_yaml_config()
     display = TextDisplay(conf, Viewport())
-    conf.process_yaml_config() # TODO user_to_color is updated here !!
+    conf.process_yaml_config()  # TODO user_to_color is updated here !!
     conf.update_config_with_cmdline_vars()
 
     config = conf.config
@@ -1664,12 +1881,16 @@ if __name__ == '__main__':
                 ###### Process data ###############
                 #
                 args = (conf, worker_nodes, job_ids, user_names, job_states,
-                        job_queues, total_running_jobs, total_queued_jobs, qstatq_lod, WNFilter)
+                        job_queues, total_running_jobs, total_queued_jobs, qstatq_lod, WNFilter, queue_to_color)
 
                 cluster = Cluster(*args)
                 cluster.process()
+                accounts_table = AccountsTable(conf, scheduler.scheduler_name)
                 wns_occupancy = WNOccupancy(cluster, colorize)
-                wns_occupancy.calculate_account_jobs(conf.user_to_color, job_ids, scheduler.scheduler_name)
+                wns_occupancy.calculate_account_jobs(job_ids)
+                accounts_table.process(wns_occupancy)
+                wns_occupancy.userid_to_userid_re_pat = wns_occupancy.make_pattern_out_of_mapping(mapping=wns_occupancy.conf.user_to_color)
+
 
                 ###### Export data ###############
                 #

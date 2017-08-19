@@ -1,4 +1,3 @@
-from operator import itemgetter
 from math import ceil
 import logging
 import sys
@@ -27,12 +26,6 @@ except ImportError:
     from qtop_py.legacy.counter import Counter
 
 
-class JobNotFound(Exception):
-    def __init__(self, job_state):
-        Exception.__init__(self, "Job state %s not found" % job_state)
-        self.job_state = job_state
-
-
 class WNOccupancy(object):
     def __init__(self, cluster, colorize):
         self.cluster = cluster
@@ -40,130 +33,43 @@ class WNOccupancy(object):
         self.config = self.conf.config
         self.dynamic_config = self.conf.dynamic_config
         self.colorize = colorize
+        self.user_names = self.cluster.user_names
+        self.job_states = self.cluster.job_states
+        self.job_queues = self.cluster.job_queues
+
         self.account_jobs_table = list()
         self.user_to_id = dict()
         self.jobid_to_user_to_queue = dict()
         self.user_node_use = None  # Counter Object
         self.userid_to_userid_re_pat = dict()
-        self.user_names, self.job_states, self.job_queues = self.cluster.user_names, self.cluster.job_states, self.cluster.job_queues
-        # self.user_names, self.job_states, self.job_queues = self._get_usernames_states_queues(document.jobs_dict)
         self.detail_of_name = dict()
-        self.print_char_start, self.print_char_stop, self.extra_matrices_nr = None, None, None
+        self.print_char_start = None
+        self.print_char_stop = None
+        self.extra_matrices_nr = None
         self.wn_vert_labels = dict()
+        self.accounts_table = None
+        self.header_row = None
 
-    def _get_usernames_states_queues(self, jobs_dict):
-        user_names, job_states, job_queues = list(), list(), list()
-        for key, value in jobs_dict.items():
-            user_names.append(value.user_name)
-            job_states.append(value.job_state)
-            job_queues.append(value.job_queue)
-        return user_names, job_states, job_queues
-
-    def calculate_account_jobs(self, user_to_color, job_ids, scheduler_name):
+    def calculate_account_jobs(self, job_ids):
         """
         Calculates information mostly for user accounts and poolmappings, also for the main matrices
         """
         if not self.cluster:
             raise ValueError("Cluster should not be empty. Exiting...")
 
-        # document.jobs_dict => job_id: job name/state/queue
-
+        user_to_color = self.conf.user_to_color
         self.jobid_to_user_to_queue = dict(izip(job_ids, izip(self.user_names, self.job_queues)))
-        self.user_node_use = self._calculate_user_node_use()
-        self.account_jobs_table, self.user_to_id = self._create_account_jobs_table(scheduler_name)
-        self.userid_to_userid_re_pat = self.make_pattern_out_of_mapping(mapping=user_to_color)
-        self.detail_of_name = self.get_detail_of_name()  # will be used later from TextDisplay
 
-    def _create_account_jobs_table(self, scheduler_name):
-        """Calculates what is actually below the id|  jobs>=R + Q | unix account etc line"""
-        account_jobs_table = []
-        x_of_user_to_user_to_jobcounts = self._calculate_user_job_counts(scheduler_name)
-        user_alljobs_sorted_lot = self._get_user_alljobcount_sorted_lot(self.user_names)
-        for (user, alljobs_nr_of_user) in user_alljobs_sorted_lot:
-            account_jobs_table.append(
-                [
-                    "",  # user_to_id[user], to be populated
-                    x_of_user_to_user_to_jobcounts['running_of_user'][user],
-                    x_of_user_to_user_to_jobcounts['queued_of_user'][user],
-                    alljobs_nr_of_user,
-                    user,
-                    self.user_node_use[user]
-                ]
-            )
-        account_jobs_table.sort(key=itemgetter(3, 4), reverse=True)  # sort by All jobs, then unix account
+        # self.accounts_table = accounts_table
+        # self.accounts_table.user_node_use = self.user_node_use = self._calculate_user_node_use()
+        # self.accounts_table.detail_of_name = self.detail_of_name = self.get_detail_of_name()  # will be used later from TextDisplay
+        # self.accounts_table.group_of_name = self.group_of_name = self.get_group_of_name()  # will be used later from TextDisplay
+        # self.account_jobs_table =  self._create_account_jobs_table(scheduler_name)
+        # here accounts_table.process is executed instead of the above 4 methods
 
-        user_to_id = {}
-        for sextuplet, new_uid in zip(account_jobs_table, self.config['possible_ids']):
-            unix_account = sextuplet[4]
-            initial_to_color = unix_account[0] if self.conf.config['fill_with_user_firstletter'] else new_uid
-            sextuplet[0] = utils.ColorStr(initial_to_color, color='Red_L')
-            user_to_id[unix_account] = sextuplet[0]
+        # self.userid_to_userid_re_pat = self.make_pattern_out_of_mapping(mapping=user_to_color)
 
-        return account_jobs_table, user_to_id
-        # return account_jobs_table
 
-    @staticmethod
-    def create_user_job_counts(user_names, job_states, state_abbrevs):
-        """
-        counting of e.g. R, Q, C, W, E attached to each user
-        """
-        x_of_user_to_user_to_jobcounts = dict()
-        for state_of_user in state_abbrevs.values():
-            x_of_user_to_user_to_jobcounts[state_of_user] = dict()
-
-        for user_name, job_state in zip(user_names, job_states):
-            try:
-                x_of_user = state_abbrevs[job_state]
-            except KeyError:
-                raise JobNotFound(job_state)
-
-            x_of_user_to_user_to_jobcounts[x_of_user][user_name] = x_of_user_to_user_to_jobcounts[x_of_user].get(user_name, 0) + 1
-
-        for user_name in x_of_user_to_user_to_jobcounts['running_of_user']:
-            [x_of_user_to_user_to_jobcounts[x_of_user].setdefault(user_name, 0) for x_of_user in x_of_user_to_user_to_jobcounts if
-             x_of_user != 'running_of_user']
-
-        return x_of_user_to_user_to_jobcounts
-
-    def _get_user_alljobcount_sorted_lot(self, _user_names):
-        """
-        Produces a list of tuples (lot) of the form (user account, all jobs count) in descending order.
-        Used in the "user accounts and poolmappings" table
-        """
-        user_to_alljobs_count = {}
-        for user_name in set(_user_names):
-            user_to_alljobs_count[user_name] = _user_names.count(user_name)
-
-        return sorted(user_to_alljobs_count.items(), key=itemgetter(1), reverse=True)
-
-    def _calculate_user_job_counts(self, scheduler_name):
-        """
-        # TODO: write pydoc
-        """
-        self._expand_useraccounts_symbols(self.user_names)
-        state_abbrevs = self.config['state_abbreviations'][scheduler_name]
-
-        try:
-            x_of_user_to_user_to_jobcounts = WNOccupancy.create_user_job_counts(self.user_names, self.job_states, state_abbrevs)
-        except JobNotFound as e:
-            logging.critical('Job state %s not found. You may wish to add '
-                             'that node state inside %s in state_abbreviations section.\n' % (e.job_state, QTOPCONF_YAML))
-
-        for state_abbrev, state_of_user in state_abbrevs.items():
-            missing_uids = set(self.user_names).difference(x_of_user_to_user_to_jobcounts[state_of_user])
-            [x_of_user_to_user_to_jobcounts[state_of_user].setdefault(missing_uid, 0) for missing_uid in missing_uids]
-
-        return x_of_user_to_user_to_jobcounts
-
-    def _expand_useraccounts_symbols(self, user_list):
-        """
-        In case there are more users than the sum number of all numbers and small/capital letters of the alphabet
-        """
-        if len(user_list) > MAX_UNIX_ACCOUNTS:
-            possible_ids = []
-            for i in xrange(MAX_UNIX_ACCOUNTS, len(user_list) + MAX_UNIX_ACCOUNTS):
-                possible_ids.append(str(i)[0])
-            self.config['possible_ids'].extend(possible_ids)
 
     def make_pattern_out_of_mapping(self, mapping):
         """
@@ -174,7 +80,7 @@ class WNOccupancy(object):
         """
         pattern = {}
         for line in self.account_jobs_table:
-            uid, user = line[0], line[4]
+            uid, user = line[0], line[5]
             account_letters = re.search('[A-Za-z]+', user).group(0)
             for re_account in mapping.keys()[::-1]:
                 match = re.search(re_account, user)
@@ -457,7 +363,7 @@ class WNOccupancy(object):
             count += len(just_jobs)
         return count
 
-    def _calculate_user_node_use(self):
+    def calculate_user_node_use(self):
         """
         This calculates the number of nodes each user has jobs in (shown in User accounts and pool mappings)
         """
@@ -518,11 +424,11 @@ class WNOccupancy(object):
             return dict()
 
         sep = ':'
-        field_idx = int(extract_info.get('field_to_use', 5))
-        regex = extract_info.get('regex', None)
+        user_field_idx = int(extract_info.get('user_field', 5))
+        regex = extract_info.get('user_regex', None)
 
         if self.conf.cmd_options.GET_GECOS:
-            users = ' '.join([line[4] for line in account_jobs_table])
+            users = ' '.join([line[5] for line in account_jobs_table])
             passwd_command = extract_info.get('user_details_realtime') % users
             passwd_command = passwd_command.split()
         else:
@@ -546,7 +452,7 @@ class WNOccupancy(object):
         detail_of_name = dict()
         for line in output.split('\n'):
             try:
-                user, field = line.strip().split(sep)[0:field_idx:field_idx - 1]
+                user, field = line.strip().split(sep)[0:user_field_idx:user_field_idx - 1]
             except ValueError:
                 break
             else:
@@ -557,6 +463,60 @@ class WNOccupancy(object):
                 finally:
                     detail_of_name[user] = detail
         return detail_of_name
+
+    def get_group_of_name(self):
+        """
+        Gets the user group via cmd id -nG <user>.
+        This shall be printed in User Accounts and Pool Mappings.
+        """
+        conf = self.conf
+        account_jobs_table = self.account_jobs_table
+        config = self.conf.config
+        extract_info = config.get('extract_info', None)
+        if not extract_info:
+            return dict()
+
+        sep = ' '
+        grp_field_idx = int(extract_info.get('grp_field', 1))  # should later be regexable
+        users = ' '.join([line[5] for line in account_jobs_table])
+        user_group_command = extract_info.get('user_group_cmd', None) % users
+        # lines = user_group_command.split(';')
+        # args_len = len(lines)
+        # try:
+        # pr = dict()
+        #     pr['0'] = subprocess.Popen(lines[0].split(), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        #     idx = 1
+        #     while idx <= args_len:
+        #         pr[str(idx)] = subprocess.Popen(lines[idx], stdin=pr[str(idx-1)], stdout=subprocess.PIPE); pr[str(idx-1)].stdout.close()
+        #         idx += 1
+        try:
+            p = subprocess.Popen(user_group_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+        except OSError:
+            logging.critical(
+                '\nCommand "%s" could not be found in your system. \nEither remove -G switch or modify the command in '
+                'qtopconf.yaml (value of key: %s).\nExiting...' % (self.colorize(user_group_command[0], color_func='Red_L'),
+                                                                   'user_details_realtime'))
+            sys.exit(0)
+        else:
+            # output, err = pr[str(idx-1)].communicate("something here")
+            output, err= p.communicate("something here")
+            if 'No such file or directory' in err:
+                logging.warn('You have to set a proper command to get the passwd file in your %s file.' % QTOPCONF_YAML)
+                logging.warn('Error returned by getent: %s\nCommand issued: %s' % (err, user_group_command))
+
+        detail_of_group = dict()
+        for line in output.split('\n'):
+            try:
+                user, group = line.strip().split(sep)
+            except ValueError:
+                continue
+            else:
+                detail_of_group[user] = group
+
+        detail_of_group['sotiris'] = 'a_group'
+        detail_of_group['alicesgm'] = 'alico'
+        detail_of_group['biomed017'] = 'biomed'
+        return detail_of_group
 
     def calculate_matrices(self, display, scheduler):
         """

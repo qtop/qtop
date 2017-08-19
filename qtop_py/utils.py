@@ -43,7 +43,6 @@ def get_date_obj_from_str(s, now):
     return inp_datetime
 
 
-
 def _watch_callback(option, opt_str, value, parser):
     """
     This is the official example from optparse for variable arguments
@@ -168,6 +167,7 @@ def compress_colored_line(s):
     for color, seq in zip(colors, sts):
         final_t.append(color + "".join(seq) + '\x1b[0;m')
     return "".join(final_t)
+
 
 class Configurator(object):
     def __init__(self):

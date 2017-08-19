@@ -283,8 +283,10 @@ workernodes_matrix:
 extract_info:
   user_details_cache: cat -E $HOME/.local/qtop/getent_passwd.txt # this gets cached GECOS field info
   user_details_realtime: getent passwd %s # alternative method to get details in realtime
-  field_to_use: 5
-  regex: |
+  user_field: 5
+  user_group_cmd: for user in %s; do id -nG sfranky; done
+  grp_field: 1
+  user_regex: |
     re.search('(?<=<)[^<>]+(?=>)', field).group(0)
 
 ## If set to true, wn_occupancy matrices contain the first letter of the user
@@ -313,19 +315,22 @@ whole_queues:
   - world
   - whole
 
+## third section definitions
 accounts_and_mappings:
   - id
   - unixaccount
   - separator_pipe
-  - jobs
+  - all_of_user
   - separator_ge
-  - running
+  - running_of_user
   - separator_plus
-  - queued
+  - queued_of_user
+  - separator_plus
+  - cancelled_of_user
   - separator_pipe
   - nodes
   - separator_pipe
-  - gecos
-  - separator_pipe
   - group
+  - separator_pipe
+  - gecos
   - separator_pipe
