@@ -582,23 +582,13 @@ class TextDisplay(object):
               colorize("  ('all' also includes those in C and W states, as reported by qstat)"
                             if options.CLASSIC else "(sorting according to total nr. of jobs)", 'Gray_D')
 
-        # header = '[id] unix account      |jobs >=   R +    Q | nodes | %(msg)s' % \
-        #       {'msg': 'Grid certificate DN (info only available under elevated privileges)' if options.CLASSIC else
-        #       '      GECOS field or Grid certificate DN |'}
-
-        # accounts_table = AccountsTable()
-        #
-        # user_columns = self.config['accounts_and_mappings']
-        # accounts_table.set_columns(user_columns)
         header = accounts_table.produce_header_line(self.accounts_table.header_row)
-        # header_row = self.accounts_table.header_row
 
         print section_header
         print header
 
         groups = self.accounts_table.group_of_name
         for row in self.accounts_table.table:
-            # (uid, running_of_user, queued_of_user, alljobs, cancelled_of_user, user, num_of_nodes)
             userid_pat = self.wns_occupancy.userid_to_userid_re_pat[str(row.id)]
             group = groups.get(row.unixaccount, "")
 
@@ -636,18 +626,20 @@ class TextDisplay(object):
 
             print_format = {
             'id': '[ {0[id]:<{0[width1]}}] ',
-            'unixaccount': '{0[user]:<{0[width18]}}{0[sep]}',
-            'all_of_user': '{0[alljobs]:>{0[width4]}}',
+            'unixaccount': '{0[user]:<{0[width18]}}',
+            'all_of_user': '{0[alljobs]:>{0[width3]}}',
             'running_of_user': '{0[running_of_user]:>{0[width4]}}',
             'queued_of_user': '{0[queued_of_user]:>{0[width4]}} ',
-            'cancelled_of_user': '{0[cancelled_of_user]:>{0[width5]}} {0[sep]} ',
-            'nodes': '{0[num_of_nodes]:>{0[width5]}} {0[sep]} ',
-            'gecos': '{0[gecos]:<{0[width40]}} {0[sep]} ',
-            'group': '{0[group]:<{0[width18]}} {0[sep]} ',
+            'cancelled_of_user': '{0[cancelled_of_user]:>{0[width3]}}',
+            'nodes': '{0[num_of_nodes]:>{0[width5]}}',
+            'gecos': '{0[gecos]:<{0[width40]}}  ',
+            'group': '{0[group]:<{0[width18]}} ',
+            'separator_ge': '   ',
+            'separator_plus': '  ',
+            'separator_pipe': '|',
             }
 
-            # id, unixaccount, all_of_user, cancelled_of_user, nodes, group, detail_of_user
-            print_string = ''.join([print_format[el].format(f_table) if not el.startswith('sep') else ' ' for el in self.config['accounts_and_mappings']])
+            print_string = ''.join([print_format[el].format(f_table) for el in self.config['accounts_and_mappings']])
 
             print print_string
 
@@ -1365,7 +1357,7 @@ class AccountsTable(object):
         self.state_abbrevs = None  # kapou edw na kalesw ta states gia na jerw ti einai available!!
         self.supported_columns = {}
         self.separators = {'separator_ge': {'header': '>=', 'value': '  '},
-                           'separator_pipe': {'header': ' |', 'value': '  '},
+                           'separator_pipe': {'header': ' |', 'value': ' '},
                            'separator_plus': {'header': ' +', 'value': '  '}
         }
         self.user_node_use = None
@@ -1382,6 +1374,10 @@ class AccountsTable(object):
         return ''.join([self.supported_columns[column]['header'] for column in self.user_columns])
 
     def get_supported_columns(self):
+        """
+        also sets some header widths
+        :return:
+        """
         self.state_abbrevs = self.config['state_abbreviations'][self.scheduler_name]
         supported_columns = {  # default columns, scheduler-agnostic
             'id': {'header': '[id]', 'value': ''},
@@ -1390,15 +1386,14 @@ class AccountsTable(object):
             # 'running_of_user': {'header': '   R'},
             # 'queued_of_user': {'header': '    Q'},
             # 'cancelled_of_user': {'header': '   CNC'},
-            'nodes': {'header': ' nodes', 'value': self.user_node_use},
+            'nodes': {'header': ' Nodes', 'value': self.user_node_use},
             'gecos': {'header': ' GECOS field or Grid certificate DN      ', 'value': self.detail_of_name},
-            'group': {'header': ' Group             ', 'value': self.group_of_name},
-            'nodes': {'header': 'Nodes', 'value': self.user_node_use}
+            'group': {'header': ' Group            ', 'value': self.group_of_name},
         }
         supported_columns.update(self.separators)
 
         for abbrev, state_of_user in self.state_abbrevs.items():
-            supported_columns[state_of_user] = {'header': abbrev}
+            supported_columns[state_of_user] = {'header': abbrev.rjust(3)}
         return supported_columns
 
     def process(self, wns_occupancy):

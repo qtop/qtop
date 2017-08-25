@@ -324,9 +324,9 @@ accounts_and_mappings:
   - separator_ge
   - running_of_user
   - separator_plus
-  - queued_of_user
-  - separator_plus
   - cancelled_of_user
+  - separator_plus
+  - queued_of_user
   - separator_pipe
   - nodes
   - separator_pipe
