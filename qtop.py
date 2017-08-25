@@ -434,6 +434,7 @@ class TextDisplay(object):
         self.wns_occupancy = None
         self.max_line_len = 0
         self.max_height = 0
+        self.accounts_table = None
         self.viewport = viewport  # controls the part of the qtop matrix shown on screen
         self.screens = [conf.HELP_FP, ]  # output_fp is not yet defined, will be appended later
 
@@ -593,8 +594,10 @@ class TextDisplay(object):
 
         print section_header
         print header
-        groups = self.wns_occupancy.group_of_name
-        for (uid, running_of_user, queued_of_user, alljobs, cancelled_of_user, user, num_of_nodes) in self.wns_occupancy.account_jobs_table:
+        groups = self.accounts_table.group_of_name
+        header_row = self.accounts_table.header_row
+        for row in self.accounts_table.table:
+            # (uid, running_of_user, queued_of_user, alljobs, cancelled_of_user, user, num_of_nodes)
             userid_pat = self.wns_occupancy.userid_to_userid_re_pat[str(uid)]
             group = groups.get(user, "")
 
@@ -1278,6 +1281,7 @@ class Cluster(object):
             workernode_dict[node]['node_job_set'] = node_job_set
 
 
+# TODO this should be moved outside qtop for easy module-level access (not as a function parameter!!)
 def colorize(text, color_func=None, pattern='NoPattern', mapping=None, bg_color=None, bold=False):
     """
     prints colored text according to at least one of the keyword arguments available:
@@ -1346,7 +1350,7 @@ def pick_frames_to_replay(conf):
 
 class AccountsTable(object):
     def __init__(self, conf, scheduler_name):
-        self.account_jobs_table = None
+        self.table = None
         self.conf = conf
         self.columns = []
         self.user_names = None
@@ -1362,6 +1366,8 @@ class AccountsTable(object):
         self.user_node_use = None
         self.detail_of_name = None
         self.group_of_name = None
+        self.user_to_id = None
+        self.header_row = None
 
     def set_columns(self, elems):
         """'[id] unix account      |jobs >=   R +    Q | nodes | %(msg)s'"""
@@ -1374,8 +1380,8 @@ class AccountsTable(object):
         self.state_abbrevs = self.config['state_abbreviations'][self.scheduler_name]
         self.supported_columns = {  # default columns, scheduler-agnostic
             'id': {'header': '[id]', 'value': ''},
-            'unixaccount': {'header': ' unix account     ', 'value': ''},
-            # 'all_of_user': {'header': 'jobs '},
+            'unixaccount': {'header': ' unix account     ', 'value': dict((user_name, user_name) for user_name in user_names)},
+            'all_of_user': {'header': 'jobs ', 'value': ''},
             # 'running_of_user': {'header': '   R'},
             # 'queued_of_user': {'header': '    Q'},
             # 'cancelled_of_user': {'header': '   CNC'},
@@ -1396,7 +1402,7 @@ class AccountsTable(object):
         self.user_node_use = wns_occupancy.calculate_user_node_use()
         self.detail_of_name = wns_occupancy.get_detail_of_name()  # will be used later from TextDisplay
         self.group_of_name = wns_occupancy.get_group_of_name()
-        self.account_jobs_table = self.create_account_jobs_table(scheduler.scheduler_name)
+        self.table = self.create_account_jobs_table(scheduler.scheduler_name)
         wns_occupancy.user_to_id = self.user_to_id
 
 ###
@@ -1404,17 +1410,20 @@ class AccountsTable(object):
     def create_account_jobs_table(self, scheduler_name):
         """
         Calculates what is actually below the id|  jobs>=R + Q | unix account etc line
+        TODO: This should be a list of named tuples
         """
         user_columns = self.config['accounts_and_mappings']
         state_abbrevs = self.config['state_abbreviations'][scheduler_name]
         self.supported_columns = self.get_supported_columns()
         self.columns = self.set_columns(user_columns)
 
-        rows = []  # account_jobs_table = []
+        rows = []
 
         x_of_user_to_user_to_jobcounts = self.get_user_jobcounts_by_state(scheduler_name, state_abbrevs)
         # user_alljobs_sorted_lot = sorted(alljobs_of_users.items(), key=itemgetter(1), reverse=True)
-        user_alljobs_lot = x_of_user_to_user_to_jobcounts['all_of_user'].items()  # lot: (user, all jobs count)
+        # user_alljobs_lot = x_of_user_to_user_to_jobcounts['all_of_user'].items()  # lot: (user, all jobs count)
+
+        # fill x_of_user-only columns (state columns)
         for column in self.columns:
             if column in x_of_user_to_user_to_jobcounts:
                 self.columns[column]['value'] = x_of_user_to_user_to_jobcounts[column]
@@ -1422,7 +1431,7 @@ class AccountsTable(object):
 
         header_row = []
         for column_name in self.columns:
-            header_row.append(self.supported_columns[column_name]['header'])
+            header_row.append(self.columns[column_name]['header'])
 
         for user_name in set(self.user_names):
             row = []
@@ -1432,7 +1441,7 @@ class AccountsTable(object):
                 if isinstance(cell, str):
                     row.append(cell)
                 elif isinstance(cell, dict):
-                    row.append(cell.get(user_name, 'NoUser'))
+                    row.append(cell.get(user_name, 0))
 
         # for (user_name, alljobs_nr_of_user) in user_alljobs_lot:
         #     row = []
@@ -1447,7 +1456,7 @@ class AccountsTable(object):
         #         # row.append(alljobs_nr_of_user)
         #         row.append(self.user_node_use[user_name])
 
-        rows.sort(key=itemgetter(3, 1), reverse=True)
+        rows.sort(key=itemgetter(5, 1), reverse=True)
 
         # for (user_name, alljobs_nr_of_user) in user_alljobs_lot:
         #     row = []
@@ -1455,7 +1464,7 @@ class AccountsTable(object):
         #
         #         for user, count in user_to_jobcounts.items():
         #             row.append(count)
-        #     account_jobs_table.append(
+        #     table.append(
         #         [
         #             "",  # user_to_id[user], to be populated
         #             user_name,  # then sort by
@@ -1467,14 +1476,14 @@ class AccountsTable(object):
         #             self.user_node_use[user_name]
         #         ]
         #     )
-        # account_jobs_table.sort(key=itemgetter(5, 1), reverse=True)  # sort by All jobs count, then user_name
+        # table.sort(key=itemgetter(5, 1), reverse=True)  # sort by All jobs count, then user_name
 
 
         ######################
         # lot: (user, all jobs count)
         # user_alljobs_lot = alljobs_of_users.items()
         # for (user_name, alljobs_nr_of_user) in user_alljobs_lot:
-        #     account_jobs_table.append(
+        #     table.append(
         #         [
         #             "",  # user_to_id[user], to be populated
         #             user_name,  # then sort by
@@ -1486,17 +1495,17 @@ class AccountsTable(object):
         #             self.user_node_use[user_name]
         #         ]
         #     )
-        # account_jobs_table.sort(key=itemgetter(5, 1), reverse=True)  # sort by All jobs count, then user_name
+        # table.sort(key=itemgetter(5, 1), reverse=True)  # sort by All jobs count, then user_name
         ######################
 
         # add new id, coloring
         user_to_id = {}
         for row, new_uid in zip(rows, self.config['possible_ids']):
-            user_name = row[1]
+            user_name = row[8]
             initial_to_color = user_name[0] if self.conf.config['fill_with_user_firstletter'] else new_uid
 
-            row[0] = utils.ColorStr(initial_to_color, color='Red_L')
-            user_to_id[user_name] = row[0]
+            row[11] = utils.ColorStr(initial_to_color, color='Red_L')
+            user_to_id[user_name] = row[11]
 
         self.user_to_id = user_to_id
         self.header_row = header_row
@@ -1887,9 +1896,10 @@ if __name__ == '__main__':
                 cluster.process()
                 accounts_table = AccountsTable(conf, scheduler.scheduler_name)
                 wns_occupancy = WNOccupancy(cluster, colorize)
-                wns_occupancy.calculate_account_jobs(job_ids)
+                wns_occupancy.jobid_to_user_to_queue = dict(izip(job_ids, izip(wns_occupancy.user_names, wns_occupancy.job_queues)))
+                # wns_occupancy.calculate_account_jobs(job_ids)
                 accounts_table.process(wns_occupancy)
-                wns_occupancy.userid_to_userid_re_pat = wns_occupancy.make_pattern_out_of_mapping(mapping=wns_occupancy.conf.user_to_color)
+                wns_occupancy.userid_to_userid_re_pat = wns_occupancy.make_pattern_out_of_mapping(accounts_table, mapping=wns_occupancy.conf.user_to_color)
 
 
                 ###### Export data ###############
@@ -1919,6 +1929,7 @@ if __name__ == '__main__':
                 ###### Display data ###############
                 #
                 wns_occupancy.calculate_matrices(display, scheduler)
+                display.accounts_table = accounts_table
                 display.display_selected_sections(savepath, QTOP_LOGFILE, document, wns_occupancy, cluster)
 
                 sys.stdout.flush()

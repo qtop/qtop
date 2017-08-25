@@ -37,8 +37,9 @@ class WNOccupancy(object):
         self.job_states = self.cluster.job_states
         self.job_queues = self.cluster.job_queues
 
-        self.account_jobs_table = list()
+        self.table = list()
         self.user_to_id = dict()
+        self.id_to_user = None
         self.jobid_to_user_to_queue = dict()
         self.user_node_use = None  # Counter Object
         self.userid_to_userid_re_pat = dict()
@@ -50,28 +51,28 @@ class WNOccupancy(object):
         self.accounts_table = None
         self.header_row = None
 
-    def calculate_account_jobs(self, job_ids):
-        """
-        Calculates information mostly for user accounts and poolmappings, also for the main matrices
-        """
-        if not self.cluster:
-            raise ValueError("Cluster should not be empty. Exiting...")
+    # def calculate_account_jobs(self, job_ids):
+    #     """
+    #     Calculates information mostly for user accounts and poolmappings, also for the main matrices
+    #     """
+    #     if not self.cluster:
+    #         raise ValueError("Cluster should not be empty. Exiting...")
+    #
+    #     # user_to_color = self.conf.user_to_color
+    #     self.jobid_to_user_to_queue = dict(izip(job_ids, izip(self.user_names, self.job_queues))) <--this is now out in qtop.py
+    #
+    #     # self.accounts_table = accounts_table
+    #     # self.accounts_table.user_node_use = self.user_node_use = self._calculate_user_node_use()
+    #     # self.accounts_table.detail_of_name = self.detail_of_name = self.get_detail_of_name()  # will be used later from TextDisplay
+    #     # self.accounts_table.group_of_name = self.group_of_name = self.get_group_of_name()  # will be used later from TextDisplay
+    #     # self.table =  self._create_account_jobs_table(scheduler_name)
+    #     # here accounts_table.process is executed instead of the above 4 methods
+    #
+    #     # self.userid_to_userid_re_pat = self.make_pattern_out_of_mapping(mapping=user_to_color)
 
-        user_to_color = self.conf.user_to_color
-        self.jobid_to_user_to_queue = dict(izip(job_ids, izip(self.user_names, self.job_queues)))
-
-        # self.accounts_table = accounts_table
-        # self.accounts_table.user_node_use = self.user_node_use = self._calculate_user_node_use()
-        # self.accounts_table.detail_of_name = self.detail_of_name = self.get_detail_of_name()  # will be used later from TextDisplay
-        # self.accounts_table.group_of_name = self.group_of_name = self.get_group_of_name()  # will be used later from TextDisplay
-        # self.account_jobs_table =  self._create_account_jobs_table(scheduler_name)
-        # here accounts_table.process is executed instead of the above 4 methods
-
-        # self.userid_to_userid_re_pat = self.make_pattern_out_of_mapping(mapping=user_to_color)
 
 
-
-    def make_pattern_out_of_mapping(self, mapping):
+    def make_pattern_out_of_mapping(self, accounts_table, mapping):
         """
         First strips the numbers off of the unix accounts and tries to match this against the given color table in colormap.
         Additionally, it will try to apply the regex rules given by the user in qtopconf.yaml, overriding the colormap.
@@ -79,8 +80,9 @@ class WNOccupancy(object):
         If no matching was possible, there will be no coloring applied.
         """
         pattern = {}
-        for line in self.account_jobs_table:
-            uid, user = line[0], line[5]
+        self.table = accounts_table.table
+        for line in self.table:
+            uid, user = line[11], line[8]
             account_letters = re.search('[A-Za-z]+', user).group(0)
             for re_account in mapping.keys()[::-1]:
                 match = re.search(re_account, user)
@@ -417,7 +419,7 @@ class WNOccupancy(object):
         and Pool Mappings.
         """
         conf = self.conf
-        account_jobs_table = self.account_jobs_table
+        table = self.table
         config = self.conf.config
         extract_info = config.get('extract_info', None)
         if not extract_info:
@@ -428,7 +430,7 @@ class WNOccupancy(object):
         regex = extract_info.get('user_regex', None)
 
         if self.conf.cmd_options.GET_GECOS:
-            users = ' '.join([line[5] for line in account_jobs_table])
+            users = ' '.join([line[5] for line in table])
             passwd_command = extract_info.get('user_details_realtime') % users
             passwd_command = passwd_command.split()
         else:
@@ -470,7 +472,7 @@ class WNOccupancy(object):
         This shall be printed in User Accounts and Pool Mappings.
         """
         conf = self.conf
-        account_jobs_table = self.account_jobs_table
+        table = self.table
         config = self.conf.config
         extract_info = config.get('extract_info', None)
         if not extract_info:
@@ -478,7 +480,7 @@ class WNOccupancy(object):
 
         sep = ' '
         grp_field_idx = int(extract_info.get('grp_field', 1))  # should later be regexable
-        users = ' '.join([line[5] for line in account_jobs_table])
+        users = ' '.join([line[5] for line in table])
         user_group_command = extract_info.get('user_group_cmd', None) % users
         # lines = user_group_command.split(';')
         # args_len = len(lines)
