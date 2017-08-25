@@ -590,16 +590,17 @@ class TextDisplay(object):
         #
         # user_columns = self.config['accounts_and_mappings']
         # accounts_table.set_columns(user_columns)
-        header = accounts_table.produce_header_line()
+        header = accounts_table.produce_header_line(self.accounts_table.header_row)
+        # header_row = self.accounts_table.header_row
 
         print section_header
         print header
+
         groups = self.accounts_table.group_of_name
-        header_row = self.accounts_table.header_row
         for row in self.accounts_table.table:
             # (uid, running_of_user, queued_of_user, alljobs, cancelled_of_user, user, num_of_nodes)
-            userid_pat = self.wns_occupancy.userid_to_userid_re_pat[str(uid)]
-            group = groups.get(user, "")
+            userid_pat = self.wns_occupancy.userid_to_userid_re_pat[str(row.id)]
+            group = groups.get(row.unixaccount, "")
 
             if options.COLOR == 'OFF' or userid_pat == 'account_not_colored' or conf.user_to_color[userid_pat] == 'reset':
                 conditional_width = 0
@@ -607,16 +608,16 @@ class TextDisplay(object):
             else:
                 conditional_width = 12
 
-            table = {
-                'id': colorize(str(uid), pattern=userid_pat),
-                'running_of_user': colorize(str(running_of_user), pattern=userid_pat),
-                'queued_of_user': colorize(str(queued_of_user), pattern=userid_pat),
-                'cancelled_of_user': colorize(str(cancelled_of_user), pattern=userid_pat),
-                'alljobs': colorize(str(alljobs), pattern=userid_pat),
-                'user': colorize(user, pattern=userid_pat),
-                'detail': colorize(self.wns_occupancy.detail_of_name.get(user, ''), pattern=userid_pat),
-                'num_of_nodes': colorize(num_of_nodes, pattern=userid_pat),
-                'group': colorize(group, pattern=userid_pat),
+            f_table = {
+                'id': colorize(str(row.id), pattern=userid_pat),
+                'running_of_user': colorize(str(row.running_of_user), pattern=userid_pat),
+                'queued_of_user': colorize(str(row.queued_of_user), pattern=userid_pat),
+                'cancelled_of_user': colorize(str(row.cancelled_of_user), pattern=userid_pat),
+                'alljobs': colorize(str(row.all_of_user), pattern=userid_pat),
+                'user': colorize(row.unixaccount, pattern=userid_pat),
+                'gecos': colorize(self.wns_occupancy.detail_of_name.get(row.unixaccount, ''), pattern=userid_pat),
+                'num_of_nodes': colorize(row.nodes, pattern=userid_pat),
+                'group': colorize(row.group, pattern=userid_pat),
                 'sep': colorize(config['SEPARATOR'], pattern=userid_pat),
                 'width1': 1 + conditional_width,
                 'width3': 3 + conditional_width,
@@ -626,23 +627,27 @@ class TextDisplay(object):
                 'width40': 40 + conditional_width,
             }
 
-            print_string = (
-                '[ {0[id]:<{0[width1]}}] '
-                '{0[user]:<{0[width18]}}{0[sep]}'
-                '{0[alljobs]:>{0[width4]}}   {0[running_of_user]:>{0[width4]}}   {0[queued_of_user]:>{0[width4]}} {0[sep]} '
-                '{0[num_of_nodes]:>{0[width5]}} {0[sep]} '
-                '{0[detail]:<{0[width40]}} {0[sep]}').format(table)
+            # print_string = (
+            #     '[ {0[id]:<{0[width1]}}] '
+            #     '{0[user]:<{0[width18]}}{0[sep]}'
+            #     '{0[alljobs]:>{0[width4]}}   {0[running_of_user]:>{0[width4]}}   {0[queued_of_user]:>{0[width4]}} {0[sep]} '
+            #     '{0[num_of_nodes]:>{0[width5]}} {0[sep]} '
+            #     '{0[detail]:<{0[width40]}} {0[sep]}').format(f_table)
 
-            _id = '[ {0[id]:<{0[width1]}}] '
-            _user = '{0[user]:<{0[width18]}}{0[sep]}'
-            _alljobs = '{0[alljobs]:>{0[width4]}}   {0[running_of_user]:>{0[width4]}}   {0[queued_of_user]:>{0[width4]}} '
-            _cancelled_jobs = '{0[cancelled_of_user]:>{0[width5]}} {0[sep]} '
-            _num_of_nodes = '{0[num_of_nodes]:>{0[width5]}} {0[sep]} '
-            _detail = '{0[detail]:<{0[width40]}} {0[sep]} '
-            _group = '{0[group]:<{0[width18]}} {0[sep]} '
+            print_format = {
+            'id': '[ {0[id]:<{0[width1]}}] ',
+            'unixaccount': '{0[user]:<{0[width18]}}{0[sep]}',
+            'all_of_user': '{0[alljobs]:>{0[width4]}}',
+            'running_of_user': '{0[running_of_user]:>{0[width4]}}',
+            'queued_of_user': '{0[queued_of_user]:>{0[width4]}} ',
+            'cancelled_of_user': '{0[cancelled_of_user]:>{0[width5]}} {0[sep]} ',
+            'nodes': '{0[num_of_nodes]:>{0[width5]}} {0[sep]} ',
+            'gecos': '{0[gecos]:<{0[width40]}} {0[sep]} ',
+            'group': '{0[group]:<{0[width18]}} {0[sep]} ',
+            }
 
-            print_string = ''.join(el.format(table) for el in (_id, _user, _alljobs, _cancelled_jobs, _num_of_nodes, _group, _detail))
-
+            # id, unixaccount, all_of_user, cancelled_of_user, nodes, group, detail_of_user
+            print_string = ''.join([print_format[el].format(f_table) if not el.startswith('sep') else ' ' for el in self.config['accounts_and_mappings']])
 
             print print_string
 
@@ -1371,14 +1376,14 @@ class AccountsTable(object):
 
     def set_columns(self, elems):
         """'[id] unix account      |jobs >=   R +    Q | nodes | %(msg)s'"""
-        return dict((elem, self.supported_columns[elem]) for elem in elems if elem in self.supported_columns)
+        return dict((elem, self.supported_columns[elem]) for elem in elems if elem in self.user_columns)
 
-    def produce_header_line(self):  # TODO duplicate?
-        return ''.join([self.supported_columns[column]['header'] for column in self.columns])
+    def produce_header_line(self, header_tpl):  # TODO duplicate?
+        return ''.join([self.supported_columns[column]['header'] for column in self.user_columns])
 
     def get_supported_columns(self):
         self.state_abbrevs = self.config['state_abbreviations'][self.scheduler_name]
-        self.supported_columns = {  # default columns, scheduler-agnostic
+        supported_columns = {  # default columns, scheduler-agnostic
             'id': {'header': '[id]', 'value': ''},
             'unixaccount': {'header': ' unix account     ', 'value': dict((user_name, user_name) for user_name in user_names)},
             'all_of_user': {'header': 'jobs ', 'value': ''},
@@ -1390,11 +1395,11 @@ class AccountsTable(object):
             'group': {'header': ' Group             ', 'value': self.group_of_name},
             'nodes': {'header': 'Nodes', 'value': self.user_node_use}
         }
-        self.supported_columns.update(self.separators)
+        supported_columns.update(self.separators)
 
         for abbrev, state_of_user in self.state_abbrevs.items():
-            self.supported_columns[state_of_user] = {'header': abbrev}
-        return self.supported_columns
+            supported_columns[state_of_user] = {'header': abbrev}
+        return supported_columns
 
     def process(self, wns_occupancy):
         self.user_names = wns_occupancy.user_names
@@ -1402,7 +1407,7 @@ class AccountsTable(object):
         self.user_node_use = wns_occupancy.calculate_user_node_use()
         self.detail_of_name = wns_occupancy.get_detail_of_name()  # will be used later from TextDisplay
         self.group_of_name = wns_occupancy.get_group_of_name()
-        self.table = self.create_account_jobs_table(scheduler.scheduler_name)
+        self.table = self.create_account_jobs_table(scheduler.scheduler_name)  # The rows are created here (now list of namedtuples)
         wns_occupancy.user_to_id = self.user_to_id
 
 ###
@@ -1412,10 +1417,10 @@ class AccountsTable(object):
         Calculates what is actually below the id|  jobs>=R + Q | unix account etc line
         TODO: This should be a list of named tuples
         """
-        user_columns = self.config['accounts_and_mappings']
+        self.user_columns = self.config['accounts_and_mappings']
         state_abbrevs = self.config['state_abbreviations'][scheduler_name]
-        self.supported_columns = self.get_supported_columns()
-        self.columns = self.set_columns(user_columns)
+        self.supported_columns = self.get_supported_columns()  #shouldn't this be deleted after creating self.columns?
+        self.columns = self.set_columns(self.user_columns)
 
         rows = []
 
@@ -1428,11 +1433,9 @@ class AccountsTable(object):
             if column in x_of_user_to_user_to_jobcounts:
                 self.columns[column]['value'] = x_of_user_to_user_to_jobcounts[column]
 
-
-        header_row = []
-        for column_name in self.columns:
-            header_row.append(self.columns[column_name]['header'])
-
+        # user_columns2 = [col if self.user_columns.count(col) == 1 else col + '1' for col in self.user_columns]
+        row_tpl = namedtuple('row_tpl', self.columns)
+        header_row = row_tpl(*[self.columns[column_name]['header'] for column_name in self.columns])
         for user_name in set(self.user_names):
             row = []
             rows.append(row)
@@ -1500,16 +1503,19 @@ class AccountsTable(object):
 
         # add new id, coloring
         user_to_id = {}
+        lot = []
         for row, new_uid in zip(rows, self.config['possible_ids']):
             user_name = row[8]
             initial_to_color = user_name[0] if self.conf.config['fill_with_user_firstletter'] else new_uid
 
             row[11] = utils.ColorStr(initial_to_color, color='Red_L')
             user_to_id[user_name] = row[11]
+            tpl = row_tpl(*row)
+            lot.append(tpl)
 
         self.user_to_id = user_to_id
         self.header_row = header_row
-        return rows
+        return lot
 
 
     def get_user_jobcounts_by_state(self, scheduler_name, state_abbrevs):
