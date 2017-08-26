@@ -599,8 +599,8 @@ class TextDisplay(object):
                 conditional_width = 12
 
             print_format = {
-                'id': '[ {0[id]:<{0[width1]}}] ',
-                'unixaccount': '{0[user]:<{0[width18]}}',
+                'id': '[ {0[id]:<{0[width1]}}]',
+                'unixaccount': ' {0[user]:<{0[width18]}}',
                 'all_of_user': '{0[alljobs]:>{0[width4]}}',
                 # 'running_of_user': '{0[running_of_user]:>{0[width3]}}',
                 'generic': '{0[generic]:>{0[width3]}}',
@@ -610,6 +610,7 @@ class TextDisplay(object):
                 'gecos': '{0[gecos]:<{0[width40]}}',
                 'group': '{0[group]:<{0[width18]}}',
                 'separator_ge': '   ',
+                'separator_le': '   ',
                 'separator_plus': '  ',
                 'separator_pipe': '|',
             }
@@ -1359,6 +1360,7 @@ class AccountsTable(object):
         self.state_abbrevs = None  # kapou edw na kalesw ta states gia na jerw ti einai available!!
         self.supported_columns = {}
         self.separators = {'separator_ge': {'header': ' >=', 'value': '     '},
+                           'separator_le': {'header': ' <=', 'value': '     '},
                            'separator_pipe': {'header': '|', 'value': ' '},
                            'separator_plus': {'header': ' +', 'value': '  '}
         }
@@ -1422,7 +1424,7 @@ class AccountsTable(object):
         self.user_columns_lst = self.config['accounts_and_mappings']
         self.state_abbrevs = self.config['state_abbreviations'][scheduler_name]
         self.supported_columns = self.get_supported_columns() #  shouldn't this be deleted after creating self.columns?
-        self.columns = self.set_columns(self.user_columns_lst)
+        self.columns = self.set_columns(self.user_columns_lst)  # unique, since coming from dict, needed for namedTuple
 
         rows = []
 

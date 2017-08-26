@@ -333,10 +333,10 @@ accounts_and_mappings:
   - separator_plus
   - queued_of_user
   - separator_pipe
+  - gecos
+  - separator_pipe
   - nodes
   - separator_pipe
   - group
-  - separator_pipe
-  - gecos
   - separator_pipe
 
