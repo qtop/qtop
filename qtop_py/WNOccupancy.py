@@ -82,7 +82,7 @@ class WNOccupancy(object):
         pattern = {}
         self.table = accounts_table.table
         for line in self.table:
-            uid, user = line[11], line[8]
+            uid, user = line.id, line.unixaccount
             account_letters = re.search('[A-Za-z]+', user).group(0)
             for re_account in mapping.keys()[::-1]:
                 match = re.search(re_account, user)

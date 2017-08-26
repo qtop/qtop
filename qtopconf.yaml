@@ -316,6 +316,11 @@ whole_queues:
   - whole
 
 ## third section definitions
+## Here, besides the hardcoded columns, you can add any of the state abbreviations in the relevant section above,
+## depending on your scheduler type, e.g.
+## - ERROR for OAR1 systems
+## - moved_of_user for PBS systems
+## The order here will be preserved in qtop
 accounts_and_mappings:
   - id
   - unixaccount
@@ -334,3 +339,4 @@ accounts_and_mappings:
   - separator_pipe
   - gecos
   - separator_pipe
+

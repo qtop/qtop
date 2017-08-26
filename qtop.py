@@ -23,7 +23,7 @@ except ImportError:
     from qtop_py.legacy.ordereddict import OrderedDict
     from qtop_py.legacy.counter import Counter
 import os
-from operator import itemgetter
+from operator import itemgetter, attrgetter
 from os.path import realpath
 from signal import signal, SIGPIPE, SIG_DFL
 import termios
@@ -598,11 +598,27 @@ class TextDisplay(object):
             else:
                 conditional_width = 12
 
+            print_format = {
+                'id': '[ {0[id]:<{0[width1]}}] ',
+                'unixaccount': '{0[user]:<{0[width18]}}',
+                'all_of_user': '{0[alljobs]:>{0[width4]}}',
+                # 'running_of_user': '{0[running_of_user]:>{0[width3]}}',
+                'generic': '{0[generic]:>{0[width3]}}',
+                # 'queued_of_user':  '{0[queued_of_user]:>{0[width3]}}',
+                # 'cancelled_of_user': '{0[cancelled_of_user]:>{0[width3]}}',
+                'nodes': '{0[num_of_nodes]:>{0[width5]}}',
+                'gecos': '{0[gecos]:<{0[width40]}}',
+                'group': '{0[group]:<{0[width18]}}',
+                'separator_ge': '   ',
+                'separator_plus': '  ',
+                'separator_pipe': '|',
+            }
+
             f_table = {
                 'id': colorize(str(row.id), pattern=userid_pat),
-                'running_of_user': colorize(str(row.running_of_user), pattern=userid_pat),
-                'queued_of_user': colorize(str(row.queued_of_user), pattern=userid_pat),
-                'cancelled_of_user': colorize(str(row.cancelled_of_user), pattern=userid_pat),
+                # 'running_of_user': colorize(str(row.running_of_user), pattern=userid_pat),
+                # 'queued_of_user': colorize(str(row.queued_of_user), pattern=userid_pat),
+                # 'cancelled_of_user': colorize(str(row.cancelled_of_user), pattern=userid_pat),
                 'alljobs': colorize(str(row.all_of_user), pattern=userid_pat),
                 'user': colorize(row.unixaccount, pattern=userid_pat),
                 'gecos': colorize(self.wns_occupancy.detail_of_name.get(row.unixaccount, ''), pattern=userid_pat),
@@ -613,35 +629,21 @@ class TextDisplay(object):
                 'width3': 3 + conditional_width,
                 'width4': 4 + conditional_width,
                 'width5': 5 + conditional_width,
+                'width6': 6 + conditional_width,
                 'width18': 18 + conditional_width,
                 'width40': 40 + conditional_width,
             }
 
-            # print_string = (
-            #     '[ {0[id]:<{0[width1]}}] '
-            #     '{0[user]:<{0[width18]}}{0[sep]}'
-            #     '{0[alljobs]:>{0[width4]}}   {0[running_of_user]:>{0[width4]}}   {0[queued_of_user]:>{0[width4]}} {0[sep]} '
-            #     '{0[num_of_nodes]:>{0[width5]}} {0[sep]} '
-            #     '{0[detail]:<{0[width40]}} {0[sep]}').format(f_table)
-
-            print_format = {
-            'id': '[ {0[id]:<{0[width1]}}] ',
-            'unixaccount': '{0[user]:<{0[width18]}}',
-            'all_of_user': '{0[alljobs]:>{0[width3]}}',
-            'running_of_user': '{0[running_of_user]:>{0[width4]}}',
-            'queued_of_user': '{0[queued_of_user]:>{0[width4]}} ',
-            'cancelled_of_user': '{0[cancelled_of_user]:>{0[width3]}}',
-            'nodes': '{0[num_of_nodes]:>{0[width5]}}',
-            'gecos': '{0[gecos]:<{0[width40]}}  ',
-            'group': '{0[group]:<{0[width18]}} ',
-            'separator_ge': '   ',
-            'separator_plus': '  ',
-            'separator_pipe': '|',
-            }
+            for el in self.config['accounts_and_mappings']:
+                if el not in print_format:
+                    d1 = {el: '{0[' + el + ']:>{0[width3]}}'}
+                    print_format.update(d1)
+                    d2 = {el: colorize(str(getattr(row, el)), pattern=userid_pat)}
+                    f_table.update(d2)
 
             print_string = ''.join([print_format[el].format(f_table) for el in self.config['accounts_and_mappings']])
-
             print print_string
+
 
     def display_matrix(self, wns_occupancy, print_char_start, print_char_stop):
         """
@@ -1356,8 +1358,8 @@ class AccountsTable(object):
         self.scheduler_name = scheduler_name
         self.state_abbrevs = None  # kapou edw na kalesw ta states gia na jerw ti einai available!!
         self.supported_columns = {}
-        self.separators = {'separator_ge': {'header': '>=', 'value': '  '},
-                           'separator_pipe': {'header': ' |', 'value': ' '},
+        self.separators = {'separator_ge': {'header': ' >=', 'value': '     '},
+                           'separator_pipe': {'header': '|', 'value': ' '},
                            'separator_plus': {'header': ' +', 'value': '  '}
         }
         self.user_node_use = None
@@ -1368,7 +1370,13 @@ class AccountsTable(object):
 
     def set_columns(self, elems):
         """'[id] unix account      |jobs >=   R +    Q | nodes | %(msg)s'"""
-        return dict((elem, self.supported_columns[elem]) for elem in elems if elem in self.user_columns)
+        try:
+            d = dict((elem, self.supported_columns[elem]) for elem in elems if elem in self.user_columns)
+        except KeyError, e:
+            logging.critical('The column %s you indicated in qtopconf is not available for your system. \nExiting...' % e)
+            sys.exit(1)
+        else:
+            return d
 
     def produce_header_line(self, header_tpl):  # TODO duplicate?
         return ''.join([self.supported_columns[column]['header'] for column in self.user_columns])
@@ -1381,14 +1389,11 @@ class AccountsTable(object):
         self.state_abbrevs = self.config['state_abbreviations'][self.scheduler_name]
         supported_columns = {  # default columns, scheduler-agnostic
             'id': {'header': '[id]', 'value': ''},
-            'unixaccount': {'header': ' unix account     ', 'value': dict((user_name, user_name) for user_name in user_names)},
-            'all_of_user': {'header': 'jobs ', 'value': ''},
-            # 'running_of_user': {'header': '   R'},
-            # 'queued_of_user': {'header': '    Q'},
-            # 'cancelled_of_user': {'header': '   CNC'},
-            'nodes': {'header': ' Nodes', 'value': self.user_node_use},
-            'gecos': {'header': ' GECOS field or Grid certificate DN      ', 'value': self.detail_of_name},
-            'group': {'header': ' Group            ', 'value': self.group_of_name},
+            'unixaccount': {'header': ' unix account'.ljust(19), 'value': dict((user_name, user_name) for user_name in user_names)},
+            'all_of_user': {'header': 'jobs', 'value': ''},
+            'nodes': {'header': 'Nodes', 'value': self.user_node_use},
+            'gecos': {'header': 'GECOS field or Grid certificate DN'.ljust(40), 'value': self.detail_of_name},
+            'group': {'header': 'Group'.ljust(18), 'value': self.group_of_name},
         }
         supported_columns.update(self.separators)
 
@@ -1420,17 +1425,15 @@ class AccountsTable(object):
         rows = []
 
         x_of_user_to_user_to_jobcounts = self.get_user_jobcounts_by_state(scheduler_name, state_abbrevs)
-        # user_alljobs_sorted_lot = sorted(alljobs_of_users.items(), key=itemgetter(1), reverse=True)
-        # user_alljobs_lot = x_of_user_to_user_to_jobcounts['all_of_user'].items()  # lot: (user, all jobs count)
 
         # fill x_of_user-only columns (state columns)
         for column in self.columns:
             if column in x_of_user_to_user_to_jobcounts:
                 self.columns[column]['value'] = x_of_user_to_user_to_jobcounts[column]
 
-        # user_columns2 = [col if self.user_columns.count(col) == 1 else col + '1' for col in self.user_columns]
-        row_tpl = namedtuple('row_tpl', self.columns)
+        row_tpl = namedtuple('row_tpl', self.columns)  # random order but we don't care, they re gonna be called by name
         header_row = row_tpl(*[self.columns[column_name]['header'] for column_name in self.columns])
+        order = [column_name for column_name in self.columns]
         for user_name in set(self.user_names):
             row = []
             rows.append(row)
@@ -1441,70 +1444,19 @@ class AccountsTable(object):
                 elif isinstance(cell, dict):
                     row.append(cell.get(user_name, 0))
 
-        # for (user_name, alljobs_nr_of_user) in user_alljobs_lot:
-        #     row = []
-        #     rows.append(row)
-        #     for column_name in self.accounts_table.columns:
-        #         row.append("")  # id
-        #         row.append(user_name)
-        #         if column_name in x_of_user_to_user_to_jobcounts:
-        #             row.append(x_of_user_to_user_to_jobcounts[column_name][user_name])
-        #         else:
-        #             pass
-        #         # row.append(alljobs_nr_of_user)
-        #         row.append(self.user_node_use[user_name])
-
-        rows.sort(key=itemgetter(5, 1), reverse=True)
-
-        # for (user_name, alljobs_nr_of_user) in user_alljobs_lot:
-        #     row = []
-        #     for x_of_user, user_to_jobcounts in x_of_user_to_user_to_jobcounts.items():
-        #
-        #         for user, count in user_to_jobcounts.items():
-        #             row.append(count)
-        #     table.append(
-        #         [
-        #             "",  # user_to_id[user], to be populated
-        #             user_name,  # then sort by
-        #             x_of_user_to_user_to_jobcounts['running_of_user'][user_name],
-        #             x_of_user_to_user_to_jobcounts['queued_of_user'][user_name],
-        #             x_of_user_to_user_to_jobcounts['cancelled_of_user'][user_name],
-        #             # TODO More to be added here
-        #             alljobs_nr_of_user,  # first sort by
-        #             self.user_node_use[user_name]
-        #         ]
-        #     )
-        # table.sort(key=itemgetter(5, 1), reverse=True)  # sort by All jobs count, then user_name
-
-
-        ######################
-        # lot: (user, all jobs count)
-        # user_alljobs_lot = alljobs_of_users.items()
-        # for (user_name, alljobs_nr_of_user) in user_alljobs_lot:
-        #     table.append(
-        #         [
-        #             "",  # user_to_id[user], to be populated
-        #             user_name,  # then sort by
-        #             x_of_user_to_user_to_jobcounts['running_of_user'][user_name],
-        #             x_of_user_to_user_to_jobcounts['queued_of_user'][user_name],
-        #             x_of_user_to_user_to_jobcounts['cancelled_of_user'][user_name],
-        #             # TODO More to be added here
-        #             alljobs_nr_of_user,  # first sort by
-        #             self.user_node_use[user_name]
-        #         ]
-        #     )
-        # table.sort(key=itemgetter(5, 1), reverse=True)  # sort by All jobs count, then user_name
-        ######################
+        rows.sort(key=itemgetter(order.index('all_of_user'), order.index('unixaccount')), reverse=True)
 
         # add new id, coloring
         user_to_id = {}
         lot = []
+        user_idx = order.index('unixaccount')
+        id_idx = order.index('id')
         for row, new_uid in zip(rows, self.config['possible_ids']):
-            user_name = row[8]
+            user_name = row[user_idx]
             initial_to_color = user_name[0] if self.conf.config['fill_with_user_firstletter'] else new_uid
 
-            row[11] = utils.ColorStr(initial_to_color, color='Red_L')
-            user_to_id[user_name] = row[11]
+            row[id_idx] = utils.ColorStr(initial_to_color, color='Red_L')
+            user_to_id[user_name] = row[id_idx]
             tpl = row_tpl(*row)
             lot.append(tpl)
 
