@@ -1371,7 +1371,7 @@ class AccountsTable(object):
     def set_columns(self, elems):
         """'[id] unix account      |jobs >=   R +    Q | nodes | %(msg)s'"""
         try:
-            d = dict((elem, self.supported_columns[elem]) for elem in elems if elem in self.user_columns)
+            d = dict((elem, self.supported_columns[elem]) for elem in elems if elem in self.user_columns_lst)
         except KeyError, e:
             logging.critical('The column %s you indicated in qtopconf is not available for your system. \nExiting...' % e)
             sys.exit(1)
@@ -1379,17 +1379,18 @@ class AccountsTable(object):
             return d
 
     def produce_header_line(self, header_tpl):  # TODO duplicate?
-        return ''.join([self.supported_columns[column]['header'] for column in self.user_columns])
+        return ''.join([self.supported_columns[column]['header'] for column in self.user_columns_lst])
 
     def get_supported_columns(self):
         """
-        also sets some header widths
-        :return:
+        Initializes all the columns that qtop can display for the specific scheduler type.
+        Also sets the header widths and some values that are known beforehand.
+        Returns a dict.
         """
-        self.state_abbrevs = self.config['state_abbreviations'][self.scheduler_name]
-        supported_columns = {  # default columns, scheduler-agnostic
+        # default columns that are available regardless of scheduler type
+        supported_columns = {
             'id': {'header': '[id]', 'value': ''},
-            'unixaccount': {'header': ' unix account'.ljust(19), 'value': dict((user_name, user_name) for user_name in user_names)},
+            'unixaccount': {'header': ' unix account'.ljust(19), 'value': dict((user_name, user_name) for user_name in user_names)},  ##???
             'all_of_user': {'header': 'jobs', 'value': ''},
             'nodes': {'header': 'Nodes', 'value': self.user_node_use},
             'gecos': {'header': 'GECOS field or Grid certificate DN'.ljust(40), 'value': self.detail_of_name},
@@ -1397,6 +1398,7 @@ class AccountsTable(object):
         }
         supported_columns.update(self.separators)
 
+        # add specific scheduler-dependent columns
         for abbrev, state_of_user in self.state_abbrevs.items():
             supported_columns[state_of_user] = {'header': abbrev.rjust(3)}
         return supported_columns
@@ -1417,14 +1419,14 @@ class AccountsTable(object):
         Calculates what is actually below the id|  jobs>=R + Q | unix account etc line
         TODO: This should be a list of named tuples
         """
-        self.user_columns = self.config['accounts_and_mappings']
-        state_abbrevs = self.config['state_abbreviations'][scheduler_name]
-        self.supported_columns = self.get_supported_columns()  #shouldn't this be deleted after creating self.columns?
-        self.columns = self.set_columns(self.user_columns)
+        self.user_columns_lst = self.config['accounts_and_mappings']
+        self.state_abbrevs = self.config['state_abbreviations'][scheduler_name]
+        self.supported_columns = self.get_supported_columns() #  shouldn't this be deleted after creating self.columns?
+        self.columns = self.set_columns(self.user_columns_lst)
 
         rows = []
 
-        x_of_user_to_user_to_jobcounts = self.get_user_jobcounts_by_state(scheduler_name, state_abbrevs)
+        x_of_user_to_user_to_jobcounts = self.get_user_jobcounts_by_state(scheduler_name, self.state_abbrevs)
 
         # fill x_of_user-only columns (state columns)
         for column in self.columns:
