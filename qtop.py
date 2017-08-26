@@ -592,11 +592,16 @@ class TextDisplay(object):
             userid_pat = self.wns_occupancy.userid_to_userid_re_pat[str(row.id)]
             group = groups.get(row.unixaccount, "")
 
-            if options.COLOR == 'OFF' or userid_pat == 'account_not_colored' or conf.user_to_color[userid_pat] == 'reset':
+            colour = conf.user_to_color[userid_pat]
+            if options.COLOR == 'OFF' or userid_pat == 'account_not_colored' or colour == 'reset':
                 conditional_width = 0
                 userid_pat = 'account_not_colored'
-            else:
+            elif 'On' not in colour and colour.endswith('BG'):
+                conditional_width = 11
+            elif 'On' not in colour:
                 conditional_width = 12
+            else:
+                conditional_width = 15
 
             print_format = {
                 'id': '[ {0[id]:<{0[width1]}}]',
