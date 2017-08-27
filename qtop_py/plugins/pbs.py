@@ -13,7 +13,7 @@ class PBSStatExtractor(StatExtractor):
     def __init__(self, config, options):
         StatExtractor.__init__(self, config, options)
         self.user_q_search = r'^(?P<host_name>(?P<job_id>[0-9\[\]-]+)\.(?P<domain>[\w-]+))\s+' \
-                             r'(?P<name>[\w@%:.=+/{}-]+)\s+' \
+                             r'(?P<name>[\w&@%:.=+/{}-]+)\s+' \
                              r'(?P<user>[A-Za-z0-9.]+)\s+' \
                              r'(?P<time>\d+:\d+:?\d*|0)\s+' \
                              r'(?P<state>[BCEFHMQRSTUWX])\s+' \
