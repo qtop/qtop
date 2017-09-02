@@ -534,7 +534,6 @@ class TextDisplay(object):
         print '%(queues)s :' % {'queues': colorize('Queues', 'Cyan_L')},
         for a_dict in qstatq_lod:
             _queue_name, q_running_jobs, q_queued_jobs, q_state = a_dict['queue_name'], a_dict['run'], a_dict['queued'], a_dict['state']
-            # q_running_jobs, q_queued_jobs, q_state = q_tuple.run, q_tuple.queued, q_tuple.state
             account = _queue_name if _queue_name in queue_to_color else 'account_not_colored'
             print "{qname}{star}: {run} {q}|".format(
                 qname=colorize(_queue_name, '', pattern=account, mapping=queue_to_color),
@@ -588,9 +587,10 @@ class TextDisplay(object):
         print header
 
         groups = self.accounts_table.group_of_name
+        details = self.accounts_table.detail_of_name
+
         for row in self.accounts_table.table:
             userid_pat = self.wns_occupancy.userid_to_userid_re_pat[str(row.id)]
-            group = groups.get(row.unixaccount, "")
 
             colour = conf.user_to_color[userid_pat]
             if options.COLOR == 'OFF' or userid_pat == 'account_not_colored' or colour == 'reset':
@@ -607,8 +607,8 @@ class TextDisplay(object):
                 'id': '[ {0[id]:<{0[width1]}}]',
                 'unixaccount': ' {0[user]:<{0[width18]}}',
                 'all_of_user': '{0[alljobs]:>{0[width4]}}',
-                # 'running_of_user': '{0[running_of_user]:>{0[width3]}}',
                 'generic': '{0[generic]:>{0[width3]}}',
+                # 'running_of_user': '{0[running_of_user]:>{0[width3]}}',
                 # 'queued_of_user':  '{0[queued_of_user]:>{0[width3]}}',
                 # 'cancelled_of_user': '{0[cancelled_of_user]:>{0[width3]}}',
                 'nodes': '{0[num_of_nodes]:>{0[width5]}}',
@@ -627,9 +627,9 @@ class TextDisplay(object):
                 # 'cancelled_of_user': colorize(str(row.cancelled_of_user), pattern=userid_pat),
                 'alljobs': colorize(str(row.all_of_user), pattern=userid_pat),
                 'user': colorize(row.unixaccount, pattern=userid_pat),
-                'gecos': colorize(self.accounts_table.detail_of_name.get(row.unixaccount, 'N/A'), pattern=userid_pat),
+                'group': colorize(groups.get(row.unixaccount, "N/A"), pattern=userid_pat),
+                'gecos': colorize(details.get(row.unixaccount, "N/A"), pattern=userid_pat),
                 'num_of_nodes': colorize(row.nodes, pattern=userid_pat),
-                'group': colorize(group, pattern=userid_pat),
                 'sep': colorize(config['SEPARATOR'], pattern=userid_pat),
                 'width1': 1 + conditional_width,
                 'width3': 3 + conditional_width,
@@ -640,16 +640,16 @@ class TextDisplay(object):
                 'width40': 40 + conditional_width,
             }
 
-            for el in self.config['accounts_and_mappings']:
-                if el not in print_format:
-                    d1 = {el: '{0[' + el + ']:>{0[width3]}}'}
-                    print_format.update(d1)
-                    d2 = {el: colorize(str(getattr(row, el)), pattern=userid_pat)}
-                    f_table.update(d2)
+            # for the columns that don't have a format described above
+            for col in self.config['accounts_and_mappings']:
+                if col not in print_format:
+                    col_format = {col: '{0[' + col + ']:>{0[width3]}}'}
+                    print_format.update(col_format)
+                    col_print = {col: colorize(str(getattr(row, col)), pattern=userid_pat)}
+                    f_table.update(col_print)
 
-            print_string = ''.join([print_format[el].format(f_table) for el in self.config['accounts_and_mappings']])
+            print_string = ''.join([print_format[col].format(f_table) for col in self.config['accounts_and_mappings']])
             print print_string
-
 
     def display_matrix(self, wns_occupancy, print_char_start, print_char_stop):
         """
