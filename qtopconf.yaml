@@ -284,7 +284,7 @@ extract_info:
   user_details_cache: cat -E $HOME/.local/qtop/getent_passwd.txt # this gets cached GECOS field info
   user_details_realtime: getent passwd %s # alternative method to get details in realtime
   user_field: 5
-  user_group_cmd: for user in %s; do id -nG sfranky; done
+  user_group_cmd: for user in %s; do id -nG $user; done
   grp_field: 1
   user_regex: |
     re.search('(?<=<)[^<>]+(?=>)', field).group(0)

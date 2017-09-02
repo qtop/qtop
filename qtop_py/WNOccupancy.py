@@ -412,14 +412,13 @@ class WNOccupancy(object):
             yield core_x_vector, ind, k, self.coreline_notthere_or_unused(non_existent_symbol, remove_corelines, delta,
                                                                           core_x_str)
 
-    def get_detail_of_name(self):
+    def get_detail_of_name(self, table):
         """
         Reads file $HOME/.local/qtop/getent_passwd.txt or whatever is put in QTOPCONF_YAML
         and extracts the fullname of the users. This shall be printed in User Accounts
         and Pool Mappings.
         """
         conf = self.conf
-        table = self.table
         config = self.conf.config
         extract_info = config.get('extract_info', None)
         if not extract_info:
@@ -430,7 +429,7 @@ class WNOccupancy(object):
         regex = extract_info.get('user_regex', None)
 
         if self.conf.cmd_options.GET_GECOS:
-            users = ' '.join([line[5] for line in table])
+            users = ' '.join([line[8] for line in table])  ## todo: replace index with order.index (changes everytime?)
             passwd_command = extract_info.get('user_details_realtime') % users
             passwd_command = passwd_command.split()
         else:
@@ -466,13 +465,12 @@ class WNOccupancy(object):
                     detail_of_name[user] = detail
         return detail_of_name
 
-    def get_group_of_name(self):
+    def get_group_of_name(self, table):
         """
         Gets the user group via cmd id -nG <user>.
         This shall be printed in User Accounts and Pool Mappings.
         """
         conf = self.conf
-        table = self.table
         config = self.conf.config
         extract_info = config.get('extract_info', None)
         if not extract_info:
@@ -480,7 +478,7 @@ class WNOccupancy(object):
 
         sep = ' '
         grp_field_idx = int(extract_info.get('grp_field', 1))  # should later be regexable
-        users = ' '.join([line[5] for line in table])
+        users = ' '.join([line[8] for line in table])  # TODO: fix index to order.index
         user_group_command = extract_info.get('user_group_cmd', None) % users
         # lines = user_group_command.split(';')
         # args_len = len(lines)

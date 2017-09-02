@@ -627,9 +627,9 @@ class TextDisplay(object):
                 # 'cancelled_of_user': colorize(str(row.cancelled_of_user), pattern=userid_pat),
                 'alljobs': colorize(str(row.all_of_user), pattern=userid_pat),
                 'user': colorize(row.unixaccount, pattern=userid_pat),
-                'gecos': colorize(self.wns_occupancy.detail_of_name.get(row.unixaccount, ''), pattern=userid_pat),
+                'gecos': colorize(self.accounts_table.detail_of_name.get(row.unixaccount, 'N/A'), pattern=userid_pat),
                 'num_of_nodes': colorize(row.nodes, pattern=userid_pat),
-                'group': colorize(row.group, pattern=userid_pat),
+                'group': colorize(group, pattern=userid_pat),
                 'sep': colorize(config['SEPARATOR'], pattern=userid_pat),
                 'width1': 1 + conditional_width,
                 'width3': 3 + conditional_width,
@@ -1400,8 +1400,8 @@ class AccountsTable(object):
             'unixaccount': {'header': ' unix account'.ljust(19), 'value': dict((user_name, user_name) for user_name in user_names)},  ##???
             'all_of_user': {'header': 'jobs', 'value': ''},
             'nodes': {'header': 'Nodes', 'value': self.user_node_use},
-            'gecos': {'header': 'GECOS field or Grid certificate DN'.ljust(40), 'value': self.detail_of_name},
-            'group': {'header': 'Group'.ljust(18), 'value': self.group_of_name},
+            'gecos': {'header': 'GECOS field or Grid certificate DN'.ljust(40), 'value': ""},  # self.detail_of_name is still None
+            'group': {'header': 'Group'.ljust(18), 'value': ""},  # self.group_of_name is still None
         }
         supported_columns.update(self.separators)
 
@@ -1414,9 +1414,9 @@ class AccountsTable(object):
         self.user_names = wns_occupancy.user_names
         self.job_states = wns_occupancy.job_states
         self.user_node_use = wns_occupancy.calculate_user_node_use()
-        self.detail_of_name = wns_occupancy.get_detail_of_name()  # will be used later from TextDisplay
-        self.group_of_name = wns_occupancy.get_group_of_name()
         self.table = self.create_account_jobs_table(scheduler.scheduler_name)  # The rows are created here (now list of namedtuples)
+        self.group_of_name = wns_occupancy.get_group_of_name(self.table)
+        self.detail_of_name = wns_occupancy.get_detail_of_name(self.table)  # will be used later from TextDisplay
         wns_occupancy.user_to_id = self.user_to_id
 
 ###
@@ -1433,7 +1433,7 @@ class AccountsTable(object):
 
         rows = []
 
-        x_of_user_to_user_to_jobcounts = self.get_user_jobcounts_by_state(scheduler_name, self.state_abbrevs)
+        x_of_user_to_user_to_jobcounts = self.get_user_jobcounts_by_state()
 
         # fill x_of_user-only columns (state columns)
         for column in self.columns:
@@ -1447,11 +1447,11 @@ class AccountsTable(object):
             row = []
             rows.append(row)
             for column_name in self.columns:
-                cell = self.columns[column_name]['value']
-                if isinstance(cell, str):
-                    row.append(cell)
-                elif isinstance(cell, dict):
-                    row.append(cell.get(user_name, 0))
+                value = self.columns[column_name]['value']
+                if isinstance(value, str):
+                    row.append(value)
+                elif isinstance(value, dict):
+                    row.append(value.get(user_name, 0))
 
         rows.sort(key=itemgetter(order.index('all_of_user'), order.index('unixaccount')), reverse=True)
 
@@ -1474,14 +1474,14 @@ class AccountsTable(object):
         return lot
 
 
-    def get_user_jobcounts_by_state(self, scheduler_name, state_abbrevs):
+    def get_user_jobcounts_by_state(self):
         """
         Counts user jobs by state
         """
         self._expand_useraccounts_symbols()
 
         try:
-            x_of_user_to_user_to_jobcounts = self._count_states_of_users(state_abbrevs)
+            x_of_user_to_user_to_jobcounts = self._count_states_of_users()
         except JobNotFound as e:
             logging.critical('Job state %s not found. You may wish to add '
                              'that node state inside %s in the state_abbreviations section.\n'
@@ -1491,10 +1491,11 @@ class AccountsTable(object):
         return x_of_user_to_user_to_jobcounts
 
 
-    def _count_states_of_users(self, state_abbrevs):
+    def _count_states_of_users(self):
         """
         counting of e.g. R, Q, C, W, E attached to each user
         """
+        state_abbrevs = self.state_abbrevs
         x_of_user_to_user_to_jobcounts = dict()
         for state_of_user in state_abbrevs.values():
             x_of_user_to_user_to_jobcounts[state_of_user] = dict()

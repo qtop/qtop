@@ -4,8 +4,8 @@ import re
 import os
 import datetime
 import sys
-from qtop import SchedulerRouter, SchedulerNotSpecified, NoSchedulerFound
-from qtop_py.WNOccupancy import JobNotFound, WNOccupancy
+from qtop import SchedulerRouter, SchedulerNotSpecified, NoSchedulerFound, JobNotFound, AccountsTable
+from qtop_py.WNOccupancy import WNOccupancy
 import qtop_py.utils
 
 
@@ -52,25 +52,41 @@ def test_batch_nodes_sorting(domain_name, number):
     assert int(re.sub(r'[A-Za-z_-]+', '', domain_name) or -1) == number
 
 
-def test_create_job_counts():  # user_names, job_states, state_abbrevs
+def test_count_states_of_users(monkeypatch):  # user_names, job_states, state_abbrevs
     user_names = ['sotiris', 'kostas', 'yannis', 'petros']
     state_abbrevs = {'C': 'cancelled_of_user', 'E': 'exiting_of_user', 'r': 'running_of_user'}
     job_states = ['r', 'E', 'r', 'C']
 
-    assert WNOccupancy.create_user_job_counts(user_names, job_states, state_abbrevs) == {
+    # available_batch_systems = {'sge': None, 'oar': None, 'pbs': None}
+    conf = qtop_py.utils.conf
+    # CmdOptions = namedtuple('CmdOptions', ["BATCH_SYSTEM", "SOURCEDIR"])
+    # conf.cmd_options = CmdOptions(cmdline_switch, None)
+
+    accounts_table = AccountsTable(conf, 'pbs')
+    accounts_table.user_names = user_names
+    accounts_table.state_abbrevs = state_abbrevs
+    accounts_table.job_states = job_states
+    # monkeypatch.setitem(scheduler.conf.env, 'QTOP_SCHEDULER', env_var)
+    # monkeypatch.setitem(accounts_table, 'user_names', user_names)
+    # monkeypatch.setitem(accounts_table, 'state_abbrevs', state_abbrevs)
+    # monkeypatch.setitem(accounts_table, 'job_states', job_states)
+    # monkeypatch.setitem(scheduler.conf.config, 'scheduler', config_file_batch_option)
+
+
+    assert accounts_table._count_states_of_users() == {
         'cancelled_of_user': {'sotiris': 0, 'yannis': 0, 'petros': 1},
         'exiting_of_user': {'sotiris': 0, 'kostas': 1, 'yannis': 0},
         'running_of_user': {'sotiris': 1, 'yannis': 1},
     }
 
 
-def test_create_user_job_counts_raises_jobnotfound():  # user_names, job_states, state_abbrevs
+def test_count_states_of_users_raises_jobnotfound():  # user_names, job_states, state_abbrevs
     user_names = ['sotiris', 'kostas', 'yannis', 'petros']
     state_abbrevs = {'C': 'cancelled_of_user', 'E': 'exiting_of_user', 'r': 'running_of_user'}
     job_states = ['r', 'E', 'x', 'C']
 
     with pytest.raises(JobNotFound) as e:
-        WNOccupancy.create_user_job_counts(user_names, job_states, state_abbrevs) == {
+        AccountsTable._count_states_of_users(user_names, job_states, state_abbrevs) == {
             'cancelled_of_user': {'sotiris': 0, 'yannis': 0, 'petros': 1},
             'exiting_of_user': {'sotiris': 0, 'kostas': 1, 'yannis': 0},
             'running_of_user': {'sotiris': 1, 'yannis': 1},
