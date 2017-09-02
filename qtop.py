@@ -414,7 +414,6 @@ def wait_for_keypress_or_autorefresh(display, FALLBACK_TERMSIZE, KEYPRESS_TIMEOU
     return _read_char
 
 
-
 class Document(namedtuple('Document', ['worker_nodes', 'jobs_dict', 'queues_dict', 'total_running_jobs', 'total_queued_jobs'])):
     def saveas(self, json_file):
         filename = json_file.name
@@ -1057,7 +1056,7 @@ class Cluster(object):
         self.core_span = [str(x) for x in range(max_np)]
         self.options.REMAP = self._decide_remapping(_all_str_digits_with_empties)
 
-        nodes_drop, workernode_dict, workernode_dict_remapped = self.map_worker_nodes_to_wn_dict()
+        nodes_drop, workernode_dict, workernode_dict_remapped = self._map_worker_nodes_to_wn_dict()
         self.workernode_dict = workernode_dict
 
         if self.options.REMAP:
@@ -1127,6 +1126,7 @@ class Cluster(object):
         Reasons not enough to warrant remapping (intended future behaviour)
         - one or two unnumbered nodes (should just be put in the end of the cluster)
         """
+        config = self.config
         if not self.total_wn:  # if nothing is running on the cluster
             return False
 
@@ -1206,7 +1206,7 @@ class Cluster(object):
                 workernode_dict[node].update(default_values_for_empty_nodes)
         return workernode_dict
 
-    def map_worker_nodes_to_wn_dict(self):
+    def _map_worker_nodes_to_wn_dict(self):
         """
         For filtering to take place,
         1) a filter should be defined in QTOPCONF_YAML
@@ -1227,7 +1227,7 @@ class Cluster(object):
             len_wn_before = len(self.worker_nodes)
             self.wn_filter = self.WNFilter(self.worker_nodes)
             # modified: self.worker_nodes, self.offdown_nodes, self.available_wn, self.working_cores, self.total_cores
-            self.worker_nodes, self.available_wn, self.working_cores, self.total_cores = self.wn_filter.filter_worker_nodes(filter_rules=user_filters)
+            self.worker_nodes, self.available_wn, self.working_cores, self.total_cores = self.wn_filter._filter_worker_nodes(filter_rules=user_filters)
             len_wn_after = len(self.worker_nodes)
             nodes_drop = len_wn_after - len_wn_before
 
@@ -1313,9 +1313,9 @@ def colorize(text, color_func=None, pattern='NoPattern', mapping=None, bg_color=
     except KeyError:
         return text
     else:
-        if bold and ansi_color[0] in '01':
-            ansi_color = '1' + ansi_color[1:]
         if options.COLOR == 'ON' and pattern != 'account_not_colored':
+            if bold and ansi_color[0] in '01':
+                ansi_color = '1' + ansi_color[1:]
             text = "\033[%(fg_color)s%(bg_color)sm%(text)s\033[0;m" \
                    % {'fg_color': ansi_color, 'bg_color': color_to_code[bg_color], 'text': text}
 
@@ -1410,14 +1410,15 @@ class AccountsTable(object):
             supported_columns[state_of_user] = {'header': abbrev.rjust(3)}
         return supported_columns
 
-    def process(self, wns_occupancy):
+    def process(self, wns_occupancy, scheduler):
         self.user_names = wns_occupancy.user_names
         self.job_states = wns_occupancy.job_states
         self.user_node_use = wns_occupancy.calculate_user_node_use()
-        self.table = self.create_account_jobs_table(scheduler.scheduler_name)  # The rows are created here (now list of namedtuples)
+        self.table = self.create_account_jobs_table(scheduler.scheduler_name) #  The rows are created here (now list of namedtuples)
         self.group_of_name = wns_occupancy.get_group_of_name(self.table)
         self.detail_of_name = wns_occupancy.get_detail_of_name(self.table)  # will be used later from TextDisplay
         wns_occupancy.user_to_id = self.user_to_id
+        wns_occupancy.userid_to_userid_re_pat = self._make_pattern_out_of_mapping(mapping=self.conf.user_to_color)
 
 ###
 
@@ -1534,6 +1535,31 @@ class AccountsTable(object):
 
         return user_to_alljobs_count
 
+    def _make_pattern_out_of_mapping(self, mapping):
+        """
+        First strips the numbers off of the unix accounts and tries to match this against the given color table in colormap.
+        Additionally, it will try to apply the regex rules given by the user in qtopconf.yaml, overriding the colormap.
+        The first matched regex holds (loops from bottom to top in the pattern list).
+        If no matching was possible, no coloring will be applied.
+        """
+        pattern = {}
+        for line in self.table:
+            uid, user = line.id, line.unixaccount
+            account_letters = re.search('[A-Za-z]+', user).group(0)
+            for re_account in mapping.keys()[::-1]:
+                match = re.search(re_account, user)
+                if match is not None:
+                    account_letters = re_account  # colors the text according to the regex given by the user in qtopconf
+                    break
+
+            pattern[str(uid)] = account_letters if account_letters in mapping else 'NoPattern'
+
+        # TODO: remove these from here
+        pattern[self.config['non_existent_node_symbol']] = '#'
+        pattern['_'] = '_'
+        pattern[self.config['SEPARATOR']] = 'account_not_colored'
+        return pattern
+
 
 ####
 
@@ -1584,7 +1610,7 @@ class WNFilter(object):
     def keep_unmarked(self, t, rule, final_pass=False):
         return filter(lambda item: not item.get('mark'), t)
 
-    def filter_worker_nodes(self, filter_rules=None):
+    def _filter_worker_nodes(self, filter_rules=None):
         """
         Keeps specific nodes according to the filter rules in QTOPCONF_YAML
         """
@@ -1619,7 +1645,7 @@ class WNFilter(object):
 
             if len(nodes):
                 self.worker_nodes = dict((v['domainname'], v) for v in nodes).values()
-                cluster.offdown_nodes = sum([1 if "".join(([n.str for n in node['state']])) in 'do'  else 0 for node in
+                cluster.offdown_nodes = sum([1 if "".join(([n.str for n in node['state']])) in 'do' else 0 for node in
                                      self.worker_nodes])
                 self.available_wn = sum(
                     [len(node['state']) for node in self.worker_nodes if str(node['state'][0]) == '-'])
@@ -1859,11 +1885,8 @@ if __name__ == '__main__':
                 cluster.process()
                 accounts_table = AccountsTable(conf, scheduler.scheduler_name)
                 wns_occupancy = WNOccupancy(cluster, colorize)
-                wns_occupancy.jobid_to_user_to_queue = dict(izip(job_ids, izip(wns_occupancy.user_names, wns_occupancy.job_queues)))
-                # wns_occupancy.calculate_account_jobs(job_ids)
-                accounts_table.process(wns_occupancy)
-                wns_occupancy.userid_to_userid_re_pat = wns_occupancy.make_pattern_out_of_mapping(accounts_table, mapping=wns_occupancy.conf.user_to_color)
-
+                wns_occupancy.process()
+                accounts_table.process(wns_occupancy, scheduler)
 
                 ###### Export data ###############
                 #

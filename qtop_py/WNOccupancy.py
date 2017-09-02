@@ -34,13 +34,14 @@ class WNOccupancy(object):
         self.dynamic_config = self.conf.dynamic_config
         self.colorize = colorize
         self.user_names = self.cluster.user_names
+        self.job_ids = self.cluster.job_ids
         self.job_states = self.cluster.job_states
         self.job_queues = self.cluster.job_queues
 
         self.table = list()
         self.user_to_id = dict()
         self.id_to_user = None
-        self.jobid_to_user_to_queue = dict()
+        self.jobid_to_user_to_queue = None
         self.user_node_use = None  # Counter Object
         self.userid_to_userid_re_pat = dict()
         self.detail_of_name = dict()
@@ -48,56 +49,7 @@ class WNOccupancy(object):
         self.print_char_stop = None
         self.extra_matrices_nr = None
         self.wn_vert_labels = dict()
-        self.accounts_table = None
         self.header_row = None
-
-    # def calculate_account_jobs(self, job_ids):
-    #     """
-    #     Calculates information mostly for user accounts and poolmappings, also for the main matrices
-    #     """
-    #     if not self.cluster:
-    #         raise ValueError("Cluster should not be empty. Exiting...")
-    #
-    #     # user_to_color = self.conf.user_to_color
-    #     self.jobid_to_user_to_queue = dict(izip(job_ids, izip(self.user_names, self.job_queues))) <--this is now out in qtop.py
-    #
-    #     # self.accounts_table = accounts_table
-    #     # self.accounts_table.user_node_use = self.user_node_use = self._calculate_user_node_use()
-    #     # self.accounts_table.detail_of_name = self.detail_of_name = self.get_detail_of_name()  # will be used later from TextDisplay
-    #     # self.accounts_table.group_of_name = self.group_of_name = self.get_group_of_name()  # will be used later from TextDisplay
-    #     # self.table =  self._create_account_jobs_table(scheduler_name)
-    #     # here accounts_table.process is executed instead of the above 4 methods
-    #
-    #     # self.userid_to_userid_re_pat = self.make_pattern_out_of_mapping(mapping=user_to_color)
-
-
-
-    def make_pattern_out_of_mapping(self, accounts_table, mapping):
-        """
-        First strips the numbers off of the unix accounts and tries to match this against the given color table in colormap.
-        Additionally, it will try to apply the regex rules given by the user in qtopconf.yaml, overriding the colormap.
-        The first matched regex holds (loops from bottom to top in the pattern list).
-        If no matching was possible, there will be no coloring applied.
-        """
-        pattern = {}
-        self.table = accounts_table.table
-        for line in self.table:
-            uid, user = line.id, line.unixaccount
-            account_letters = re.search('[A-Za-z]+', user).group(0)
-            for re_account in mapping.keys()[::-1]:
-                match = re.search(re_account, user)
-                if match is not None:
-                    account_letters = re_account  # colors the text according to the regex given by the user in qtopconf
-                    break
-
-            pattern[str(uid)] = account_letters if account_letters in mapping else 'NoPattern'
-
-        # TODO: remove these from here
-        pattern[self.config['non_existent_node_symbol']] = '#'
-        pattern['_'] = '_'
-        pattern[self.config['SEPARATOR']] = 'account_not_colored'
-        return pattern
-
 
     def set_start(self):
         workernode_list = self.cluster.workernode_list
@@ -480,15 +432,6 @@ class WNOccupancy(object):
         grp_field_idx = int(extract_info.get('grp_field', 1))  # should later be regexable
         users = ' '.join([line[8] for line in table])  # TODO: fix index to order.index
         user_group_command = extract_info.get('user_group_cmd', None) % users
-        # lines = user_group_command.split(';')
-        # args_len = len(lines)
-        # try:
-        # pr = dict()
-        #     pr['0'] = subprocess.Popen(lines[0].split(), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        #     idx = 1
-        #     while idx <= args_len:
-        #         pr[str(idx)] = subprocess.Popen(lines[idx], stdin=pr[str(idx-1)], stdout=subprocess.PIPE); pr[str(idx-1)].stdout.close()
-        #         idx += 1
         try:
             p = subprocess.Popen(user_group_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
         except OSError:
@@ -536,3 +479,7 @@ class WNOccupancy(object):
                 self.__setattr__(part_name, self.calc_general_mult_attr_line(part_name, yaml_key, self.config))
 
         self.core_user_map = self._calc_core_matrix(self.user_to_id, self.jobid_to_user_to_queue)
+
+    def process(self):
+        # also included self.calculate_account_jobs(self.job_ids)
+        self.jobid_to_user_to_queue = dict(izip(self.job_ids, izip(self.user_names, self.job_queues)))  # TODOTODAY: shove this somewhere
