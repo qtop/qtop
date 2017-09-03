@@ -246,7 +246,7 @@ def control_qtop(display, read_char, cluster, conf):
 
 
     elif pressed_char_hex in ['66']:  # f
-        cluster.wn_filter = cluster.WNFilter(cluster.worker_nodes)
+        cluster.wn_filter = WNFilter()  # was: arg: cluster.worker_nodes
         filter_map = {
             1: 'exclude_node_states',
             2: 'exclude_numbers',
@@ -305,7 +305,7 @@ def control_qtop(display, read_char, cluster, conf):
         viewport.reset_display()
 
     elif pressed_char_hex in ['48']:  # H
-        cluster.wn_filter = cluster.WNFilter(cluster.worker_nodes)
+        cluster.wn_filter = WNFilter()  # was: arg: cluster.worker_nodes
         filter_map = {
             1: 'or_include_user_id',
             2: 'or_include_user_pat',
@@ -976,20 +976,19 @@ class TextDisplay(object):
 
 
 class Cluster(object):
-    def __init__(self, worker_nodes, job_ids, user_names, job_states, job_queues, total_running_jobs, total_queued_jobs, qstatq_lod, WNFilter, conf):
+
+    def __init__(self, conf):
         self.conf = conf
-        self.worker_nodes = worker_nodes
-        # self.queues_dict = queues_dict  # ex qstatq_lod is now list of namedtuples
-        self.total_running_jobs = total_running_jobs
-        self.total_queued_jobs = total_queued_jobs
-        self.qstatq_lod = qstatq_lod
-        self.job_ids = job_ids
-        self.user_names = user_names
-        self.job_states = job_states
-        self.job_queues = job_queues
         self.config = conf.config
         self.options = conf.cmd_options
-        self.WNFilter = WNFilter
+        self.job_ids = None
+        self.user_names = None
+        self.job_states = None
+        self.job_queues = None
+        self.total_running_jobs = None
+        self.total_queued_jobs = None
+        self.qstatq_lod = None
+        self.worker_nodes = None
 
         self.wn_filter = None
         self.working_cores = 0
@@ -1005,13 +1004,49 @@ class Cluster(object):
         self.available_wn = 0
         self.total_wn = 0
 
-    def process(self):
+    def gather_data(self, scheduler):
+        self.job_ids, self.user_names, self.job_states, self.job_queues = scheduler.get_jobs_info()
+        self.total_running_jobs, self.total_queued_jobs, self.qstatq_lod = scheduler.get_queues_info()
+        self.worker_nodes = scheduler.get_worker_nodes(self.job_ids, self.job_queues, conf)
+
+    # def __init__(self, worker_nodes, job_ids, user_names, job_states, job_queues, total_running_jobs, total_queued_jobs, qstatq_lod, WNFilter, conf):
+    #     self.conf = conf
+    #     self.worker_nodes = worker_nodes
+    #     # self.queues_dict = queues_dict  # ex qstatq_lod is now list of namedtuples
+    #     self.total_running_jobs = total_running_jobs
+    #     self.total_queued_jobs = total_queued_jobs
+    #     self.qstatq_lod = qstatq_lod
+    #     self.job_ids = job_ids
+    #     self.user_names = user_names
+    #     self.job_states = job_states
+    #     self.job_queues = job_queues
+    #     self.config = conf.config
+    #     self.options = conf.cmd_options
+    #     self.WNFilter = WNFilter
+    #
+    #     self.wn_filter = None
+    #     self.working_cores = 0
+    #     self.offdown_nodes = 0
+    #     self.total_cores = 0
+    #     self.core_span = []
+    #     self.highest_wn = 0
+    #     self.node_subclusters = set()
+    #     self.workernode_dict = {}
+    #     self.workernode_dict_remapped = {}  # { remapnr: [state, np, (core0, job1), (core1, job1), ....]}
+    #     self.workernode_list = []
+    #     self.workernode_list_remapped = 0
+    #     self.available_wn = 0
+    #     self.total_wn = 0
+
+    def process(self, wn_filter):
         self.available_wn = sum([len(node['state']) for node in self.worker_nodes if str(node['state'][0]) == '-'])
         self.total_wn = len(self.worker_nodes)  # == existing_nodes
         self.workernode_list_remapped = range(1, self.total_wn + 1)  # leave xrange aside for now
 
         self._keep_queue_initials_only_and_colorize()  # works on self.worker_nodes
         self._colorize_nodestate()  # works on self.worker_nodes
+        self.wn_filter = wn_filter
+        self.wn_filter.worker_nodes = self.worker_nodes
         self._calculate_WN_dict()  # works on self.workernode_dict
 
     def _keep_queue_initials_only_and_colorize(self):
@@ -1213,7 +1248,7 @@ class Cluster(object):
 
         if user_filtering and self.options.REMAP:
             len_wn_before = len(self.worker_nodes)
-            self.wn_filter = self.WNFilter(self.worker_nodes)
+            # self.wn_filter = WNFilter()  # was: arg: self.worker_nodes
             # modified: self.worker_nodes, self.offdown_nodes, self.available_wn, self.working_cores, self.total_cores
             self.worker_nodes, self.available_wn, self.working_cores, self.total_cores = self.wn_filter._filter_worker_nodes(filter_rules=user_filters)
             len_wn_after = len(self.worker_nodes)
@@ -1385,7 +1420,7 @@ class AccountsTable(object):
         # default columns that are available regardless of scheduler type
         supported_columns = {
             'id': {'header': '[id]', 'value': ''},
-            'unixaccount': {'header': ' unix account'.ljust(19), 'value': dict((user_name, user_name) for user_name in user_names)},  ##???
+            'unixaccount': {'header': ' unix account'.ljust(19), 'value': dict((user_name, user_name) for user_name in wns_occupancy.user_names)},  ##???
             'all_of_user': {'header': 'jobs', 'value': ''},
             'nodes': {'header': 'Nodes', 'value': self.user_node_use},
             'gecos': {'header': 'GECOS field or Grid certificate DN'.ljust(40), 'value': ""},  # self.detail_of_name is still None
@@ -1402,7 +1437,7 @@ class AccountsTable(object):
         self.user_names = wns_occupancy.user_names
         self.job_states = wns_occupancy.job_states
         self.user_node_use = wns_occupancy.calculate_user_node_use()
-        self.table = self.create_account_jobs_table(scheduler.scheduler_name) #  The rows are created here (now list of namedtuples)
+        self.table = self.create_account_jobs_table(scheduler.scheduler_name)  # The rows are created here (now list of namedtuples)
         self.group_of_name = wns_occupancy.get_group_of_name(self.table)
         self.detail_of_name = wns_occupancy.get_detail_of_name(self.table)  # will be used later from TextDisplay
         wns_occupancy.user_to_id = self.user_to_id
@@ -1552,8 +1587,8 @@ class AccountsTable(object):
 ####
 
 class WNFilter(object):
-    def __init__(self, worker_nodes):
-        self.worker_nodes = worker_nodes
+    def __init__(self):
+        self.worker_nodes = None
 
     def mark_list_by_queue(self, nodes, arg_list=None):
         for idx, node in enumerate(nodes[:]):
@@ -1641,6 +1676,7 @@ class WNFilter(object):
                 total_cores = sum(int(node.get('np')) for node in self.worker_nodes)
             else:
                 logging.error(colorize('Selected filter results in empty worker node set. Cancelling.', 'Red_L'))
+                self.available_wn = 0
 
         return self.worker_nodes, self.available_wn, working_cores, total_cores
 
@@ -1859,17 +1895,12 @@ if __name__ == '__main__':
 
                 ###### Gather data ###############
                 #
-                job_ids, user_names, job_states, job_queues = scheduler.get_jobs_info()
-                total_running_jobs, total_queued_jobs, qstatq_lod = scheduler.get_queues_info()
-                worker_nodes = scheduler.get_worker_nodes(job_ids, job_queues, conf)
+                cluster = Cluster(conf)
+                cluster.gather_data(scheduler)
 
                 ###### Process data ###############
                 #
-                args = (worker_nodes, job_ids, user_names, job_states,
-                        job_queues, total_running_jobs, total_queued_jobs, qstatq_lod, WNFilter, conf)
-
-                cluster = Cluster(*args)
-                cluster.process()
+                cluster.process(WNFilter())
                 accounts_table = AccountsTable(conf, scheduler.scheduler_name)
                 wns_occupancy = WNOccupancy(cluster, colorize)
                 wns_occupancy.process()
@@ -1878,6 +1909,12 @@ if __name__ == '__main__':
                 ###### Export data ###############
                 #
                 JobDoc = namedtuple('JobDoc', ['user_name', 'job_state', 'job_queue'])
+                job_ids, user_names, job_states, job_queues = cluster.job_ids, cluster.user_names, cluster.job_states, cluster.job_queues
+                qstatq_lod = cluster.qstatq_lod
+                total_running_jobs = cluster.total_running_jobs
+                total_queued_jobs = cluster.total_queued_jobs
+                worker_nodes = cluster.worker_nodes
+
                 jobs_dict = dict(
                     (re.sub(r'\[\]$', '', job_id), JobDoc(user_name, job_state, job_queue))
                      for job_id, user_name, job_state, job_queue in izip(job_ids, user_names, job_states, job_queues))
