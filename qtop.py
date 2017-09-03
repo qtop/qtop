@@ -53,6 +53,38 @@ from qtop_py import __version__
 #     options.COLORFILE = os.path.expandvars('$HOME/qtop/qtop/qtop.colormap')
 
 
+def export_data(cluster, options):
+    JobDoc = namedtuple('JobDoc', ['user_name', 'job_state', 'job_queue'])
+    job_ids, user_names, job_states, job_queues = cluster.job_ids, cluster.user_names, cluster.job_states, cluster.job_queues
+    qstatq_lod = cluster.qstatq_lod
+    total_running_jobs = cluster.total_running_jobs
+    total_queued_jobs = cluster.total_queued_jobs
+    worker_nodes = cluster.worker_nodes
+
+    jobs_dict = dict(
+        (re.sub(r'\[\]$', '', job_id), JobDoc(user_name, job_state, job_queue))
+        for job_id, user_name, job_state, job_queue in izip(job_ids, user_names, job_states, job_queues))
+
+    QDoc = namedtuple('QDoc', ['lm', 'queued', 'run', 'state'])
+    queues_dict = OrderedDict(
+        (qstatq['queue_name'], (QDoc(str(qstatq['lm']), qstatq['queued'], qstatq['run'], qstatq['state'])))
+        for qstatq in qstatq_lod)
+
+    document = Document(worker_nodes, jobs_dict, queues_dict, total_running_jobs, total_queued_jobs)
+
+    if options.EXPORT or options.WEB:
+        json_file = tempfile.NamedTemporaryFile(delete=False,
+                                                prefix='qtop_json_%s_' % timestr,
+                                                suffix='.json',
+                                                dir=savepath)
+        document.saveas(json_file)
+
+    if options.WEB:
+        web.set_filename(json_file)
+
+    return document
+
+
 class JobNotFound(Exception):
     def __init__(self, job_state):
         Exception.__init__(self, "Job state %s not found" % job_state)
@@ -1893,48 +1925,16 @@ if __name__ == '__main__':
                     sample.set_sample_filename_format_from_conf(config)
                     sample.init_sample_file(savepath, scheduler.scheduler_output_filenames, QTOPCONF_YAML, QTOPPATH)
 
-                ###### Gather data ###############
-                #
                 cluster = Cluster(conf)
                 cluster.gather_data(scheduler)
 
-                ###### Process data ###############
-                #
                 cluster.process(WNFilter())
                 accounts_table = AccountsTable(conf, scheduler.scheduler_name)
                 wns_occupancy = WNOccupancy(cluster, colorize)
                 wns_occupancy.process()
                 accounts_table.process(wns_occupancy, scheduler)
 
-                ###### Export data ###############
-                #
-                JobDoc = namedtuple('JobDoc', ['user_name', 'job_state', 'job_queue'])
-                job_ids, user_names, job_states, job_queues = cluster.job_ids, cluster.user_names, cluster.job_states, cluster.job_queues
-                qstatq_lod = cluster.qstatq_lod
-                total_running_jobs = cluster.total_running_jobs
-                total_queued_jobs = cluster.total_queued_jobs
-                worker_nodes = cluster.worker_nodes
-
-                jobs_dict = dict(
-                    (re.sub(r'\[\]$', '', job_id), JobDoc(user_name, job_state, job_queue))
-                     for job_id, user_name, job_state, job_queue in izip(job_ids, user_names, job_states, job_queues))
-
-                QDoc = namedtuple('QDoc', ['lm', 'queued', 'run', 'state'])
-                queues_dict = OrderedDict(
-                    (qstatq['queue_name'], (QDoc(str(qstatq['lm']), qstatq['queued'], qstatq['run'], qstatq['state']) ))
-                    for qstatq in qstatq_lod)
-
-                document = Document(worker_nodes, jobs_dict, queues_dict, total_running_jobs, total_queued_jobs)
-
-                if options.EXPORT or options.WEB:
-                    json_file = tempfile.NamedTemporaryFile(delete=False,
-                                                            prefix='qtop_json_%s_' % timestr,
-                                                            suffix='.json',
-                                                            dir=savepath)
-                    document.saveas(json_file)
-
-                if options.WEB:
-                    web.set_filename(json_file)
+                document = export_data(cluster, options)
 
                 ###### Display data ###############
                 #
