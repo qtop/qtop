@@ -86,9 +86,6 @@ def raw_mode(file):
             yield
 
 
-
-
-
 def execute_shell_batch_commands(batch_system_commands, filenames, _file, _savepath):
     """
     scheduler-specific commands are invoked from the shell and their output is saved *atomically* to files,
@@ -380,15 +377,6 @@ def control_qtop(display, read_char, cluster, conf):
                   '\n\t(%(h_start)s, %(v_start)s) --> (%(h_stop)s, %(v_stop)s)' %
                   {'v_start': viewport.v_start, 'v_stop': viewport.v_stop,
                    'h_start': viewport.h_start, 'h_stop': viewport.h_stop})
-
-
-def attempt_faster_xml_parsing(conf):
-    if conf.config['faster_xml_parsing']:
-        try:
-            from lxml import etree
-        except ImportError:
-            logging.warn('Module lxml is missing. Try issuing "pip install lxml". Reverting to xml module.')
-            from xml.etree import ElementTree as etree
 
 
 def wait_for_keypress_or_autorefresh(display, FALLBACK_TERMSIZE, KEYPRESS_TIMEOUT=1):
@@ -988,7 +976,7 @@ class TextDisplay(object):
 
 
 class Cluster(object):
-    def __init__(self, conf, worker_nodes, job_ids, user_names, job_states, job_queues, total_running_jobs, total_queued_jobs, qstatq_lod, WNFilter, queue_to_color):
+    def __init__(self, worker_nodes, job_ids, user_names, job_states, job_queues, total_running_jobs, total_queued_jobs, qstatq_lod, WNFilter, conf):
         self.conf = conf
         self.worker_nodes = worker_nodes
         # self.queues_dict = queues_dict  # ex qstatq_lod is now list of namedtuples
@@ -1840,7 +1828,6 @@ if __name__ == '__main__':
     options = conf.cmd_options
     dynamic_config = conf.dynamic_config
     QTOPPATH = conf.QTOPPATH
-    attempt_faster_xml_parsing(conf)
 
     if options.REPLAY:
         useful_frames = pick_frames_to_replay(conf)  # WAS conf.config['savepath'] CHECK!! 20170702
@@ -1878,8 +1865,8 @@ if __name__ == '__main__':
 
                 ###### Process data ###############
                 #
-                args = (conf, worker_nodes, job_ids, user_names, job_states,
-                        job_queues, total_running_jobs, total_queued_jobs, qstatq_lod, WNFilter, queue_to_color)
+                args = (worker_nodes, job_ids, user_names, job_states,
+                        job_queues, total_running_jobs, total_queued_jobs, qstatq_lod, WNFilter, conf)
 
                 cluster = Cluster(*args)
                 cluster.process()

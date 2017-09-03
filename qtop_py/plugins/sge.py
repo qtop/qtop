@@ -15,7 +15,16 @@ class SGEStatExtractor(StatExtractor):
         StatExtractor.__init__(self, config, options)
         self.scheduler_output_filenames = scheduler_output_filenames
 
+    def _attempt_faster_xml_parsing(self):
+        if self.config['faster_xml_parsing']:
+            try:
+                from lxml import etree
+            except ImportError:
+                logging.warn('Module lxml is missing. Try issuing "pip install lxml". Reverting to xml module.')
+                from xml.etree import ElementTree as etree
+
     def get_xml_tree(self, xml_file):
+        self._attempt_faster_xml_parsing()
         with open(xml_file, mode='rb') as fin:
             try:
                 tree = etree.parse(fin)
