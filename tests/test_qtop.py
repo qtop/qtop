@@ -5,7 +5,7 @@ import os
 import datetime
 import sys
 from qtop import SchedulerRouter, SchedulerNotSpecified, NoSchedulerFound, JobNotFound, AccountsTable
-from qtop_py.WNOccupancy import WNOccupancy
+from qtop_py.MatrixProcessor import MatrixProcessor
 import qtop_py.utils
 
 

@@ -26,17 +26,17 @@ except ImportError:
     from qtop_py.legacy.counter import Counter
 
 
-class WNOccupancy(object):
-    def __init__(self, cluster, colorize):
-        self.cluster = cluster
-        self.conf = cluster.conf
+class MatrixProcessor(object):
+    def __init__(self, cluster_proc, colorize):
+        self.cluster_proc = cluster_proc
+        self.conf = cluster_proc.conf
         self.config = self.conf.config
         self.dynamic_config = self.conf.dynamic_config
         self.colorize = colorize
-        self.user_names = self.cluster.user_names
-        self.job_ids = self.cluster.job_ids
-        self.job_states = self.cluster.job_states
-        self.job_queues = self.cluster.job_queues
+        self.user_names = self.cluster_proc.user_names
+        self.job_ids = self.cluster_proc.job_ids
+        self.job_states = self.cluster_proc.job_states
+        self.job_queues = self.cluster_proc.job_queues
 
         self.table = list()
         self.user_to_id = dict()
@@ -51,8 +51,8 @@ class WNOccupancy(object):
         self.wn_vert_labels = dict()
         self.header_row = None
 
-    def set_start(self):
-        workernode_list = self.cluster.workernode_list
+    def _set_start(self):
+        workernode_list = self.cluster_proc.workernode_list
         start = 0
 
         if self.conf.cmd_options.NOMASKING and min(workernode_list) > self.conf.min_masking_threshold:
@@ -67,14 +67,12 @@ class WNOccupancy(object):
         case 2: wn_number is BiggestWrittenNode, WNList is WNList
         DEADWEIGHT is the space taken by the {__XXXX__} labels on the right of the CoreX map
 
-        uses cluster.highest_wn, cluster.workernode_list
+        uses cluster_proc.highest_wn, cluster_proc.workernode_list
         """
-        wn_number = self.cluster.highest_wn
+        wn_number = self.cluster_proc.highest_wn
         term_columns = h_term_size # term_columns = display.viewport.h_term_size
 
-
-
-        start = self.set_start()
+        start = self._set_start()
 
         # Extra matrices may be needed if the WNs are more than the screen width can hold.
         if wn_number > start:  # start will either be 1 or (masked >= config['min_masking_threshold'] + 1)
@@ -105,9 +103,9 @@ class WNOccupancy(object):
         '3': "12345678901234567..."
         """
         NAMED_WNS = self.dynamic_config['force_names']
-        highest_wn = self.cluster.highest_wn
+        highest_wn = self.cluster_proc.highest_wn
         if NAMED_WNS:  #  or options.FORCE_NAMES
-            workernode_dict = self.cluster.workernode_dict
+            workernode_dict = self.cluster_proc.workernode_dict
             hosts = [state_corejob_dn['host'] for _, state_corejob_dn in workernode_dict.items()]
             node_str_width = len(max(hosts, key=len))
             wn_vert_labels = OrderedDict((str(place), []) for place in range(1, node_str_width + 1))
@@ -135,7 +133,7 @@ class WNOccupancy(object):
         part_name_idx = config['workernodes_matrix'].index(elem_identifier)
         user_max_len = int(config['workernodes_matrix'][part_name_idx][part_name]['max_len'])
         try:
-            real_max_len = max([len(self.cluster.workernode_dict[_node][yaml_key]) for _node in self.cluster.workernode_dict])
+            real_max_len = max([len(self.cluster_proc.workernode_dict[_node][yaml_key]) for _node in self.cluster_proc.workernode_dict])
         except KeyError:
             logging.critical("%s lines in the matrix are not supported for %s systems. "
                              "Please remove appropriate lines from conf file. Exiting..."
@@ -154,8 +152,8 @@ class WNOccupancy(object):
         for line_nr in range(1, min_len + 1):
             multiline_map['attr%sline' % str(line_nr)] = []
 
-        for _node in self.cluster.workernode_dict:
-            node_attrs = self.cluster.workernode_dict[_node]
+        for _node in self.cluster_proc.workernode_dict:
+            node_attrs = self.cluster_proc.workernode_dict[_node]
             # distribute state, qname etc to lines
             for attr_line, ch in izip_longest(multiline_map, node_attrs[yaml_key], fillvalue=' '):
                 try:
@@ -178,11 +176,11 @@ class WNOccupancy(object):
 
         core_coloring = self.conf.dynamic_config.get('core_coloring', self.config['core_coloring'])
 
-        for core_nr in self.cluster.core_span:
+        for core_nr in self.cluster_proc.core_span:
             core_user_map['Core%svector' % str(core_nr)] = []  # Cpu0vector, Cpu1vector, Cpu2vector, ... = [],[],[], ...
 
-        for _node in self.cluster.workernode_dict:
-            core_user_map = self._fill_node_cores_vector(_node, core_user_map, user_to_id, self.cluster.core_span,
+        for _node in self.cluster_proc.workernode_dict:
+            core_user_map = self._fill_node_cores_vector(_node, core_user_map, user_to_id, self.cluster_proc.core_span,
                                                          jobid_to_user_to_queue, core_coloring)
 
         return core_user_map
@@ -193,7 +191,7 @@ class WNOccupancy(object):
         One of the two dimensions of the matrix is determined by the highest-core WN existing. If other WNs have less cores,
         these positions are filled with '#'s (or whatever is defined in config['non_existent_node_symbol']).
         """
-        state_np_corejob = self.cluster.workernode_dict[_node]
+        state_np_corejob = self.cluster_proc.workernode_dict[_node]
         state = state_np_corejob['state']
         np = state_np_corejob['np']
         corejobs = state_np_corejob.get('core_job_map', dict())
@@ -250,7 +248,7 @@ class WNOccupancy(object):
             matches = []
             and_or_func = any
 
-            for user_queue_to_highlight, type, and_or_func in WNOccupancy.get_hl_q_or_users(_highlighted_queues_or_users):
+            for user_queue_to_highlight, type, and_or_func in MatrixProcessor.get_hl_q_or_users(_highlighted_queues_or_users):
                 if (type == 'user_pat'):
                     actual_user_queue = user
                 elif (type == 'user_id'):
@@ -305,7 +303,7 @@ class WNOccupancy(object):
         return lines == len(core_user_map)
 
     def strict_check_jobs(self, cluster):
-        counted_jobs = WNOccupancy._count_jobs_strict(self.core_user_map)
+        counted_jobs = MatrixProcessor._count_jobs_strict(self.core_user_map)
         if counted_jobs != cluster.total_running_jobs:
             print "Counted jobs (%s) -- Total running jobs reported (%s) MISMATCH!" % (counted_jobs, cluster.total_running_jobs)
 
@@ -323,7 +321,7 @@ class WNOccupancy(object):
         """
         user_nodes = []
 
-        for (node_idx, node) in self.cluster.workernode_dict.items():
+        for (node_idx, node) in self.cluster_proc.workernode_dict.items():
             node['node_user_set'] = set([self.jobid_to_user_to_queue[job][0] for job in node['node_job_set']])
             user_nodes.extend(list(node['node_user_set']))
 
@@ -349,8 +347,8 @@ class WNOccupancy(object):
 
     @staticmethod
     def coreline_notthere_or_unused(symbol, switch, delta, core_x_str):
-        return WNOccupancy.coreline_not_there(symbol, switch, delta, core_x_str) \
-                or WNOccupancy.coreline_unused(symbol, switch, delta, core_x_str)
+        return MatrixProcessor.coreline_not_there(symbol, switch, delta, core_x_str) \
+                or MatrixProcessor.coreline_unused(symbol, switch, delta, core_x_str)
 
     def gauge_core_vectors(self, core_user_map, print_char_start, print_char_stop, non_existent_symbol, remove_corelines):
         """

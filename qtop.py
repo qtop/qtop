@@ -44,7 +44,7 @@ import qtop_py.yaml_parser as yaml
 from qtop_py.ui.viewport import Viewport
 from qtop_py.serialiser import GenericBatchSystem
 from qtop_py.web import Web
-from qtop_py.WNOccupancy import WNOccupancy
+from qtop_py.MatrixProcessor import MatrixProcessor
 from qtop_py import __version__
 
 
@@ -450,7 +450,7 @@ class TextDisplay(object):
         self.cluster = None
         self.document = None
         self.viewport = None
-        self.wns_occupancy = None
+        self.matrix_proc = None
         self.max_line_len = 0
         self.max_height = 0
         self.accounts_table = None
@@ -463,7 +463,7 @@ class TextDisplay(object):
         term_size = self.calculate_term_size(FALLBACK_TERMSIZE)
         self.viewport.set_term_size(*term_size)
 
-    def display_selected_sections(self, _savepath, QTOP_LOGFILE, document, wns_occupancy, cluster):
+    def display_selected_sections(self, _savepath, QTOP_LOGFILE, document, matrix_proc, cluster):
         """
         This prints out the qtop sections selected by the user.
         The selection can be made in two different ways:
@@ -473,7 +473,7 @@ class TextDisplay(object):
         Cmdline arguments should only be able to choose from what is available in QTOPCONF_YAML, though.
         """
         self.document = document
-        self.wns_occupancy = wns_occupancy
+        self.matrix_proc = matrix_proc
         self.cluster = cluster
 
         sections_off = {  # cmdline argument -n, where n in [1,2,3]
@@ -495,7 +495,7 @@ class TextDisplay(object):
             display_func() if not sections_off[idx] else None
 
         if options.STRICTCHECK:
-            WNOccupancy.strict_check_jobs(wns_occupancy, cluster)
+            MatrixProcessor.strict_check_jobs(matrix_proc, cluster)
 
     def display_job_accounting_summary(self):
         """
@@ -567,16 +567,16 @@ class TextDisplay(object):
         """
         Displays qtop's second section, the main worker node matrices.
         """
-        print_char_start = self.wns_occupancy.print_char_start
-        print_char_stop = self.wns_occupancy.print_char_stop
-        wns_occupancy = self.wns_occupancy
+        print_char_start = self.matrix_proc.print_char_start
+        print_char_stop = self.matrix_proc.print_char_stop
+        matrix_proc = self.matrix_proc
         cluster = self.cluster
 
         self.display_basic_legend()
-        self.display_matrix(wns_occupancy, print_char_start, print_char_stop)
+        self.display_matrix(matrix_proc, print_char_start, print_char_stop)
         # the transposed matrix is one continuous block, doesn't make sense to break into more matrices
         if not dynamic_config.get('transpose_wn_matrices', config['transpose_wn_matrices']):
-            self.display_remaining_matrices(wns_occupancy, print_char_start, print_char_stop)
+            self.display_remaining_matrices(matrix_proc, print_char_start, print_char_stop)
 
     def display_basic_legend(self):
         """Displays the Worker Nodes occupancy label plus columns explanation"""
@@ -609,7 +609,7 @@ class TextDisplay(object):
         details = self.accounts_table.detail_of_name
 
         for row in self.accounts_table.table:
-            userid_pat = self.wns_occupancy.userid_to_userid_re_pat[str(row.id)]
+            userid_pat = self.matrix_proc.userid_to_userid_re_pat[str(row.id)]
 
             colour = conf.user_to_color[userid_pat]
             if options.COLOR == 'OFF' or userid_pat == 'account_not_colored' or colour == 'reset':
@@ -670,24 +670,24 @@ class TextDisplay(object):
             print_string = ''.join([print_format[col].format(f_table) for col in self.config['accounts_and_mappings']])
             print print_string
 
-    def display_matrix(self, wns_occupancy, print_char_start, print_char_stop):
+    def display_matrix(self, matrix_proc, print_char_start, print_char_stop):
         """
         occupancy_parts needs to be redefined for each matrix, because of changed parameter values
         """
-        if self.wns_occupancy.is_matrix_coreless(print_char_start, print_char_stop):
+        if self.matrix_proc.is_matrix_coreless(print_char_start, print_char_stop):
             return
 
-        wn_vert_labels = wns_occupancy.wn_vert_labels
-        core_user_map = wns_occupancy.core_user_map
-        extra_matrices_nr = wns_occupancy.extra_matrices_nr
-        userid_to_userid_re_pat = wns_occupancy.userid_to_userid_re_pat
+        wn_vert_labels = matrix_proc.wn_vert_labels
+        core_user_map = matrix_proc.core_user_map
+        extra_matrices_nr = matrix_proc.extra_matrices_nr
+        userid_to_userid_re_pat = matrix_proc.userid_to_userid_re_pat
         mapping = config['core_coloring']
 
         occupancy_parts = {
             'wn id lines':
                 (
                     self.display_wnid_lines,
-                    (print_char_start, print_char_stop, cluster.highest_wn, wn_vert_labels),
+                    (print_char_start, print_char_stop, cluster_proc.highest_wn, wn_vert_labels),
                     {'inner_attrs': None}
                 ),
             'core_user_map':
@@ -707,7 +707,7 @@ class TextDisplay(object):
                     (
                         self.print_mult_attr_line,  # func
                         (print_char_start, print_char_stop),  # args
-                        {'attr_lines': getattr(wns_occupancy, part_name), 'coloring': queue_to_color}  # kwargs
+                        {'attr_lines': getattr(matrix_proc, part_name), 'coloring': queue_to_color}  # kwargs
                     )
             }
             occupancy_parts.update(new_occupancy_part)
@@ -741,7 +741,7 @@ class TextDisplay(object):
             self.viewport.max_width = self.viewport.get_term_size()[1]
         print
 
-    def display_remaining_matrices(self, wns_occupancy, print_char_start, print_char_stop, DEADWEIGHT=11):
+    def display_remaining_matrices(self, matrix_proc, print_char_start, print_char_stop, DEADWEIGHT=11):
         """
         If the WNs are more than a screenful (width-wise), this calculates the extra matrices needed to display them.
         DEADWEIGHT is the space taken by the {__XXXX__} labels on the right of the CoreX map
@@ -750,7 +750,7 @@ class TextDisplay(object):
         and the remaining 190 machines have 8 cores, this doesn't print the non-existent
         56 cores from the next matrix on.
         """
-        extra_matrices_nr = wns_occupancy.extra_matrices_nr
+        extra_matrices_nr = matrix_proc.extra_matrices_nr
         term_columns = self.viewport.h_term_size
 
         # need node_state, temp
@@ -760,10 +760,10 @@ class TextDisplay(object):
                 print_char_stop += config['USER_CUT_MATRIX_WIDTH']
             else:
                 print_char_stop += term_columns - DEADWEIGHT
-            print_char_stop = min(print_char_stop, cluster.total_wn) \
-                if options.REMAP else min(print_char_stop, cluster.highest_wn)
+            print_char_stop = min(print_char_stop, cluster_proc.total_wn) \
+                if options.REMAP else min(print_char_stop, cluster_proc.highest_wn)
 
-            self.display_matrix(wns_occupancy, print_char_start, print_char_stop)
+            self.display_matrix(matrix_proc, print_char_start, print_char_stop)
 
     def join_prints(self, *args, **kwargs):
         joined_list = []
@@ -786,7 +786,7 @@ class TextDisplay(object):
         # if corelines vertical (transposed matrix)
         if dynamic_config.get('transpose_wn_matrices', config['transpose_wn_matrices']):
             non_existent_symbol = config['non_existent_node_symbol']
-            for core_x_vector, ind, k, is_corevector_removable in self.wns_occupancy.gauge_core_vectors(core_user_map,
+            for core_x_vector, ind, k, is_corevector_removable in self.matrix_proc.gauge_core_vectors(core_user_map,
                                                                                     print_char_start,
                                                                                     print_char_stop,
                                                                                     non_existent_symbol,
@@ -908,7 +908,7 @@ class TextDisplay(object):
         """
         non_existent_symbol = config['non_existent_node_symbol']
         remove_corelines = dynamic_config.get('rem_empty_corelines', config['rem_empty_corelines']) + 1
-        for core_x_vector, ind, k, is_corevector_removable in self.wns_occupancy.gauge_core_vectors(core_user_map,
+        for core_x_vector, ind, k, is_corevector_removable in self.matrix_proc.gauge_core_vectors(core_user_map,
                                                                                  print_char_start,
                                                                                  print_char_stop,
                                                                                  non_existent_symbol,
@@ -1007,7 +1007,7 @@ class TextDisplay(object):
         return int(term_height), int(term_columns)
 
 
-class Cluster(object):
+class ClusterProcessor(object):
 
     def __init__(self, conf):
         self.conf = conf
@@ -1452,7 +1452,7 @@ class AccountsTable(object):
         # default columns that are available regardless of scheduler type
         supported_columns = {
             'id': {'header': '[id]', 'value': ''},
-            'unixaccount': {'header': ' unix account'.ljust(19), 'value': dict((user_name, user_name) for user_name in wns_occupancy.user_names)},  ##???
+            'unixaccount': {'header': ' unix account'.ljust(19), 'value': dict((user_name, user_name) for user_name in matrix_proc.user_names)},  ##???
             'all_of_user': {'header': 'jobs', 'value': ''},
             'nodes': {'header': 'Nodes', 'value': self.user_node_use},
             'gecos': {'header': 'GECOS field or Grid certificate DN'.ljust(40), 'value': ""},  # self.detail_of_name is still None
@@ -1465,19 +1465,20 @@ class AccountsTable(object):
             supported_columns[state_of_user] = {'header': abbrev.rjust(3)}
         return supported_columns
 
-    def process(self, wns_occupancy, scheduler):
-        self.user_names = wns_occupancy.user_names
-        self.job_states = wns_occupancy.job_states
-        self.user_node_use = wns_occupancy.calculate_user_node_use()
-        self.table = self.create_account_jobs_table(scheduler.scheduler_name)  # The rows are created here (now list of namedtuples)
-        self.group_of_name = wns_occupancy.get_group_of_name(self.table)
-        self.detail_of_name = wns_occupancy.get_detail_of_name(self.table)  # will be used later from TextDisplay
-        wns_occupancy.user_to_id = self.user_to_id
-        wns_occupancy.userid_to_userid_re_pat = self._make_pattern_out_of_mapping(mapping=self.conf.user_to_color)
+    def process(self, matrix_proc, scheduler):
+        self.user_names = matrix_proc.user_names
+        self.job_states = matrix_proc.job_states
+
+        self.user_node_use = matrix_proc.calculate_user_node_use()
+        self.table = self._create_account_jobs_table(scheduler.scheduler_name)  # The rows are created here (now list of namedtuples)
+        self.group_of_name = matrix_proc.get_group_of_name(self.table)
+        self.detail_of_name = matrix_proc.get_detail_of_name(self.table)  # will be used later from TextDisplay
+        matrix_proc.user_to_id = self.user_to_id
+        matrix_proc.userid_to_userid_re_pat = self._make_pattern_out_of_mapping(mapping=self.conf.user_to_color)
 
 ###
 
-    def create_account_jobs_table(self, scheduler_name):
+    def _create_account_jobs_table(self, scheduler_name):
         """
         Calculates what is actually below the id|  jobs>=R + Q | unix account etc line
         TODO: This should be a list of named tuples
@@ -1669,8 +1670,8 @@ class WNFilter(object):
         """
         Keeps specific nodes according to the filter rules in QTOPCONF_YAML
         """
-        working_cores = cluster.working_cores
-        total_cores = cluster.total_cores
+        working_cores = cluster_proc.working_cores
+        total_cores = cluster_proc.total_cores
 
         filter_types = {
             'exclude_numbers': (self.mark_list_by_number, self.keep_unmarked),
@@ -1700,8 +1701,8 @@ class WNFilter(object):
 
             if len(nodes):
                 self.worker_nodes = dict((v['domainname'], v) for v in nodes).values()
-                cluster.offdown_nodes = sum([1 if "".join(([n.str for n in node['state']])) in 'do' else 0 for node in
-                                     self.worker_nodes])
+                cluster_proc.offdown_nodes = sum([1 if "".join(([n.str for n in node['state']])) in 'do' else 0 for node in
+                                                  self.worker_nodes])
                 self.available_wn = sum(
                     [len(node['state']) for node in self.worker_nodes if str(node['state'][0]) == '-'])
                 working_cores = sum(len(node.get('core_job_map', dict())) for node in self.worker_nodes)
@@ -1925,22 +1926,22 @@ if __name__ == '__main__':
                     sample.set_sample_filename_format_from_conf(config)
                     sample.init_sample_file(savepath, scheduler.scheduler_output_filenames, QTOPCONF_YAML, QTOPPATH)
 
-                cluster = Cluster(conf)
-                cluster.gather_data(scheduler)
+                cluster_proc = ClusterProcessor(conf)
+                cluster_proc.gather_data(scheduler)
 
-                cluster.process(WNFilter())
+                cluster_proc.process(WNFilter())
                 accounts_table = AccountsTable(conf, scheduler.scheduler_name)
-                wns_occupancy = WNOccupancy(cluster, colorize)
-                wns_occupancy.process()
-                accounts_table.process(wns_occupancy, scheduler)
+                matrix_proc = MatrixProcessor(cluster_proc, colorize)
+                matrix_proc.process()
+                accounts_table.process(matrix_proc, scheduler)
 
-                document = export_data(cluster, options)
+                document = export_data(cluster_proc, options)
 
                 ###### Display data ###############
                 #
-                wns_occupancy.calculate_matrices(display, scheduler)
+                matrix_proc.calculate_matrices(display, scheduler)
                 display.accounts_table = accounts_table
-                display.display_selected_sections(savepath, QTOP_LOGFILE, document, wns_occupancy, cluster)
+                display.display_selected_sections(savepath, QTOP_LOGFILE, document, matrix_proc, cluster_proc)
 
                 sys.stdout.flush()
                 sys.stdout.close()
@@ -1973,7 +1974,7 @@ if __name__ == '__main__':
 
                     read_char = wait_for_keypress_or_autorefresh(display, FALLBACK_TERMSIZE,
                                                                  int(options.WATCH[0]) or KEYPRESS_TIMEOUT)
-                    control_qtop(display, read_char, cluster, conf)
+                    control_qtop(display, read_char, cluster_proc, conf)
 
                 display.screens.pop()
                 os.chdir(QTOPPATH)
