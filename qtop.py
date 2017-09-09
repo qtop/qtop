@@ -1470,9 +1470,11 @@ class AccountsTable(object):
         self.job_states = matrix_proc.job_states
 
         self.user_node_use = matrix_proc.calculate_user_node_use()
-        self.table = self._create_account_jobs_table(scheduler.scheduler_name)  # The rows are created here (now list of namedtuples)
-        self.group_of_name = matrix_proc.get_group_of_name(self.table)
-        self.detail_of_name = matrix_proc.get_detail_of_name(self.table)  # will be used later from TextDisplay
+        # The rows of the table are created here (list of namedtuples)
+        self.table = self._create_account_jobs_table(scheduler.scheduler_name)
+        users = ' '.join([line[8] for line in self.table])  ## todo: replace index with order.index (changes everytime?)
+        self.group_of_name = self._get_group_of_name(users)
+        self.detail_of_name = self._get_detail_of_name(users)  # will be used later from TextDisplay
         matrix_proc.user_to_id = self.user_to_id
         matrix_proc.userid_to_userid_re_pat = self._make_pattern_out_of_mapping(mapping=self.conf.user_to_color)
 
@@ -1530,7 +1532,6 @@ class AccountsTable(object):
         self.header_row = header_row
         return lot
 
-
     def get_user_jobcounts_by_state(self):
         """
         Counts user jobs by state
@@ -1546,7 +1547,6 @@ class AccountsTable(object):
 
         x_of_user_to_user_to_jobcounts['all_of_user'] = self.count_alljobs_of_users()
         return x_of_user_to_user_to_jobcounts
-
 
     def _count_states_of_users(self):
         """
@@ -1615,6 +1615,101 @@ class AccountsTable(object):
         pattern['_'] = '_'
         pattern[self.config['SEPARATOR']] = 'account_not_colored'
         return pattern
+
+    def _get_detail_of_name(self, users):
+        """
+        Reads file $HOME/.local/qtop/getent_passwd.txt or whatever is put in QTOPCONF_YAML
+        and extracts the fullname of the users. This shall be printed in User Accounts
+        and Pool Mappings.
+        """
+        detail_of_name = dict()
+        extract_info = self.conf.config.get('extract_info', None)
+        if not extract_info:
+            return detail_of_name
+
+        sep = ':'
+        user_field_idx = int(extract_info.get('user_field', 5))
+        regex = extract_info.get('user_regex', None)
+
+        if self.conf.cmd_options.GET_GECOS:
+            passwd_command = extract_info.get('user_details_realtime') % users
+            passwd_command = passwd_command.split()
+        else:
+            passwd_command = extract_info.get('user_details_cache').split()
+            passwd_command[-1] = os.path.expandvars(passwd_command[-1])
+
+        try:
+            p = subprocess.Popen(passwd_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        except OSError:
+            logging.critical(
+                '\nCommand "%s" could not be found in your system. \nEither remove -G switch or modify the command in '
+                'qtopconf.yaml (value of key: %s).\nExiting...' % (self.colorize(passwd_command[0], color_func='Red_L'),
+                                                                   'user_details_realtime'))
+            sys.exit(0)
+        else:
+            output, err = p.communicate("something here")
+            if 'No such file or directory' in err:
+                logging.warn('You have to set a proper command to get the passwd file in your %s file.' % QTOPCONF_YAML)
+                logging.warn('Error returned by getent: %s\nCommand issued: %s' % (err, passwd_command))
+
+        for line in output.split('\n'):
+            try:
+                user, field = line.strip().split(sep)[0:user_field_idx:user_field_idx - 1]
+            except ValueError:
+                break
+            else:
+                try:
+                    detail = eval(regex)
+                except (AttributeError, TypeError):
+                    detail = field.strip()
+                finally:
+                    detail_of_name[user] = detail
+        return detail_of_name
+
+    def _get_group_of_name(self, users):
+        """
+        Gets the user group via cmd id -nG <user>.
+        This shall be printed in User Accounts and Pool Mappings.
+        """
+        detail_of_group = dict()
+        extract_info = self.conf.config.get('extract_info', None)
+        if not extract_info:
+            return detail_of_group
+
+        sep = ' '
+        # grp_field_idx = int(extract_info.get('grp_field', 1))  # should later be regexable
+        # users should be inserted as parameter and not computed here?
+
+        user_group_command = extract_info.get('user_group_cmd', None) % users
+        try:
+            p = subprocess.Popen(user_group_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+        except OSError:
+            logging.critical(
+                '\nCommand "%s" could not be found in your system. \nEither remove -G switch or modify the command in '
+                'qtopconf.yaml (value of key: %s).\nExiting...' % (
+                self.colorize(user_group_command[0], color_func='Red_L'),
+                'user_details_realtime'))
+            sys.exit(0)
+        else:
+            output, err = p.communicate("something here")
+            if 'No such file or directory' in err:
+                logging.warn('You have to set a proper command to get the passwd file in your %s file.' % QTOPCONF_YAML)
+                logging.warn('Error returned by getent: %s\nCommand issued: %s' % (err, user_group_command))
+
+        for line in output.split('\n'):
+            try:
+                user, group = line.strip().split(sep)
+            except ValueError:
+                continue
+            else:
+                detail_of_group[user] = group
+
+        # for testing purposes
+        detail_of_group['sotiris'] = 'a_group'
+        detail_of_group['alicesgm'] = 'alico'
+        detail_of_group['biomed017'] = 'biomed'
+
+        return detail_of_group
 
 
 ####
