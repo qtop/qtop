@@ -60,7 +60,7 @@ class MatrixProcessor(object):
             start = min(workernode_list) - 1
         return start
 
-    def _find_matrices_width(self, h_term_size, DEADWEIGHT=11):
+    def _find_nr_and_size_of_matrices(self, h_term_size, DEADWEIGHT=11):
         """
         masking/clipping functionality: if the earliest node number is high (e.g. 130), the first 129 WNs need not show up.
         case 1: wn_number is RemapNr, WNList is WNListRemapped
@@ -68,32 +68,31 @@ class MatrixProcessor(object):
         DEADWEIGHT is the space taken by the {__XXXX__} labels on the right of the CoreX map
 
         uses cluster_proc.highest_wn, cluster_proc.workernode_list
+        h_term_size = display.viewport.h_term_size is essentially term_columns
         """
-        wn_number = self.cluster_proc.highest_wn
-        term_columns = h_term_size # term_columns = display.viewport.h_term_size
-
-        start = self._set_start()
+        highest_wn = self.cluster_proc.highest_wn
+        start = self.print_char_start
 
         # Extra matrices may be needed if the WNs are more than the screen width can hold.
-        if wn_number > start:  # start will either be 1 or (masked >= config['min_masking_threshold'] + 1)
-            extra_matrices_nr = int(ceil(abs(wn_number - start) / float(term_columns - DEADWEIGHT))) - 1
-        elif self.conf.cmd_options.REMAP:  # was: ***wn_number < start*** and len(cluster.node_subclusters) > 1:  # Remapping
-            extra_matrices_nr = int(ceil(wn_number / float(term_columns - DEADWEIGHT))) - 1
-        else:
-            raise (NotImplementedError, "Not foreseen")
+        if highest_wn > start:
+            # start will either be 1 or (masked >= config['min_masking_threshold'] + 1)
+            extra_matrices_nr = int(ceil(abs(highest_wn - start) / float(h_term_size - DEADWEIGHT))) - 1
+        elif self.conf.cmd_options.REMAP:
+            extra_matrices_nr = int(ceil(highest_wn / float(h_term_size - DEADWEIGHT))) - 1
 
         if self.conf.config['USER_CUT_MATRIX_WIDTH']:  # if the user defines a custom cut (in the configuration file)
             stop = start + self.conf.config['USER_CUT_MATRIX_WIDTH']
-            self.extra_matrices_nr = wn_number / self.conf.config['USER_CUT_MATRIX_WIDTH']
-        elif extra_matrices_nr:  # if more matrices are needed due to lack of space, cut every matrix so that if fits to screen
-            stop = start + term_columns - DEADWEIGHT
+            extra_matrices_nr = highest_wn / self.conf.config['USER_CUT_MATRIX_WIDTH']
+        elif extra_matrices_nr:
+            # if more matrices are needed due to lack of screen space, cut every matrix so that if fits to screen
+            stop = start + h_term_size - DEADWEIGHT
         else:  # just one matrix, small cluster!
-            stop = start + wn_number
+            stop = start + highest_wn
             extra_matrices_nr = 0
 
-        logging.debug('reported term_columns, DEADWEIGHT: %s\t%s' % (term_columns, DEADWEIGHT))
+        logging.debug('reported h_term_size, DEADWEIGHT: %s\t%s' % (h_term_size, DEADWEIGHT))
         logging.debug('reported start/stop lengths: %s--> %s' % (start, stop))
-        return start, stop, extra_matrices_nr
+        return stop, extra_matrices_nr
 
     def calc_all_wnid_label_lines(self):  # (total_wn) in case of multiple cluster.node_subclusters
         """
@@ -371,7 +370,8 @@ class MatrixProcessor(object):
         """
         h_term_size = display.viewport.h_term_size
         scheduler_name = scheduler.scheduler_name
-        self.print_char_start, self.print_char_stop, self.extra_matrices_nr = self._find_matrices_width(h_term_size)
+        self.print_char_start = self._set_start()
+        self.print_char_stop, self.extra_matrices_nr = self._find_nr_and_size_of_matrices(h_term_size)
         self.wn_vert_labels = self.calc_all_wnid_label_lines()
 
         # Loop below only for user-inserted/customizeable values.

@@ -1443,7 +1443,7 @@ class AccountsTable(object):
     def produce_header_line(self, header_tpl):  # TODO duplicate?
         return ''.join([self.supported_columns[column]['header'] for column in self.user_columns_lst])
 
-    def get_supported_columns(self):
+    def _get_supported_columns(self):
         """
         Initializes all the columns that qtop can display for the specific scheduler type.
         Also sets the header widths and some values that are known beforehand.
@@ -1478,8 +1478,6 @@ class AccountsTable(object):
         matrix_proc.user_to_id = self.user_to_id
         matrix_proc.userid_to_userid_re_pat = self._make_pattern_out_of_mapping(mapping=self.conf.user_to_color)
 
-###
-
     def _create_account_jobs_table(self, scheduler_name):
         """
         Calculates what is actually below the id|  jobs>=R + Q | unix account etc line
@@ -1487,12 +1485,12 @@ class AccountsTable(object):
         """
         self.user_columns_lst = self.config['accounts_and_mappings']
         self.state_abbrevs = self.config['state_abbreviations'][scheduler_name]
-        self.supported_columns = self.get_supported_columns() #  shouldn't this be deleted after creating self.columns?
+        self.supported_columns = self._get_supported_columns() #  shouldn't this be deleted after creating self.columns?
         self.columns = self.set_columns(self.user_columns_lst)  # unique, since coming from dict, needed for namedTuple
 
         rows = []
 
-        x_of_user_to_user_to_jobcounts = self.get_user_jobcounts_by_state()
+        x_of_user_to_user_to_jobcounts = self._get_user_jobcounts_by_state()
 
         # fill x_of_user-only columns (state columns)
         for column in self.columns:
@@ -1532,7 +1530,7 @@ class AccountsTable(object):
         self.header_row = header_row
         return lot
 
-    def get_user_jobcounts_by_state(self):
+    def _get_user_jobcounts_by_state(self):
         """
         Counts user jobs by state
         """
@@ -1704,7 +1702,7 @@ class AccountsTable(object):
             else:
                 detail_of_group[user] = group
 
-        # for testing purposes
+        # TODO: REMOVE. for testing purposes
         detail_of_group['sotiris'] = 'a_group'
         detail_of_group['alicesgm'] = 'alico'
         detail_of_group['biomed017'] = 'biomed'
@@ -1814,7 +1812,6 @@ class WNFilter(object):
         logging.error("%s WN Occupancy view is filtered." % colorize('***', 'Green_L'))
 
 
-
 class NoSchedulerFound(Exception):
     def __init__(self):
         msg = 'No suitable scheduler was found. ' \
@@ -1918,7 +1915,6 @@ class SchedulerRouter(object):
                     return system
 
         raise SchedulerNotSpecified
-
 
     def get_jobs_info(self):
         self.scheduler = self._pick_scheduler()
