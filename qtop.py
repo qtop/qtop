@@ -482,7 +482,7 @@ class TextDisplay(object):
             3: options.sect_3_off
         }
         display_parts = {
-            'job_accounting_summary': self.display_job_accounting_summary ,
+            'job_accounting_summary': self.display_job_accounting_summary,
             'workernodes_matrix': self.display_matrices,
             'user_accounts_pool_mappings': self.display_user_accounts_pool_mappings
         }
@@ -1647,8 +1647,8 @@ class AccountsTable(object):
         else:
             output, err = p.communicate("something here")
             if 'No such file or directory' in err:
-                logging.warn('You have to set a proper command to get the passwd file in your %s file.' % QTOPCONF_YAML)
-                logging.warn('Error returned by getent: %s\nCommand issued: %s' % (err, passwd_command))
+                logging.warn('You have to set a proper command in %s to get the passwd file.' % QTOPCONF_YAML)
+                logging.warn('Error returned: %s\nCommand issued: %s' % (err, passwd_command))
 
         for line in output.split('\n'):
             try:
@@ -1682,17 +1682,13 @@ class AccountsTable(object):
         try:
             p = subprocess.Popen(user_group_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
         except OSError:
-            logging.critical(
-                '\nCommand "%s" could not be found in your system. \nEither remove -G switch or modify the command in '
-                'qtopconf.yaml (value of key: %s).\nExiting...' % (
-                self.colorize(user_group_command[0], color_func='Red_L'),
-                'user_details_realtime'))
+            logging.critical('\nCommand "%s" could not be found in your system. \n')
             sys.exit(0)
         else:
             output, err = p.communicate("something here")
             if 'No such file or directory' in err:
-                logging.warn('You have to set a proper command to get the passwd file in your %s file.' % QTOPCONF_YAML)
-                logging.warn('Error returned by getent: %s\nCommand issued: %s' % (err, user_group_command))
+                logging.warn('You have to set a proper command in %s to get the groups.' % QTOPCONF_YAML)
+                logging.warn('Error returned: %s\nCommand issued: %s' % (err, user_group_command))
 
         for line in output.split('\n'):
             try:
@@ -2029,7 +2025,6 @@ if __name__ == '__main__':
                 document = export_data(cluster_proc, options)
 
                 ###### Display data ###############
-                #
                 matrix_proc.calculate_matrices(display, scheduler)
                 display.accounts_table = accounts_table
                 display.display_selected_sections(savepath, QTOP_LOGFILE, document, matrix_proc, cluster_proc)
