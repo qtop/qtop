@@ -5,6 +5,7 @@ except ImportError:
     import json
 import logging
 import sys
+from itertools import izip, izip_longest, cycle
 from qtop_py.serialiser import StatExtractor, GenericBatchSystem
 from xml.etree import ElementTree as etree
 import qtop_py.fileutils as fileutils
@@ -154,7 +155,7 @@ class SGEBatchSystem(GenericBatchSystem):
 
             if worker_node['domainname'] not in existing_node_names:
                 job_ids, _, _ = self._extract_job_info(queue_elem, 'job_list')
-                worker_node['core_job_map'] = dict((idx, job_id) for idx, job_id in enumerate(job_ids))
+                worker_node['core_job_map'] = self.core_job_map(job_ids, slots)
                 actual_whole_queues = [q for q in defined_whole_queues if q in worker_node['qname']]
                 if actual_whole_queues:
                     job = worker_node['core_job_map'][0]
@@ -170,8 +171,8 @@ class SGEBatchSystem(GenericBatchSystem):
                     if worker_node['domainname'] != existing_wn['domainname']:
                         continue
 
-                    job_ids, _, _ = self._extract_job_info(queue_elem, 'job_list')
-                    core_jobs = dict((idx, job_id) for idx, job_id in enumerate(job_ids, existing_wn['existing_busy_cores']))
+                    job_ids, _, _, slots = self._extract_job_info(queue_elem, 'job_list')
+                    core_jobs = self.core_job_map(job_ids, slots)
                     existing_wn['core_job_map'].update(core_jobs)
                     existing_wn['existing_busy_cores'] = len(existing_wn['core_job_map'])
                     # don't change the node state to free.
@@ -193,6 +194,19 @@ class SGEBatchSystem(GenericBatchSystem):
             tree.write(anon_file)
         return existing_wns
 
+    
+    def core_job_map (self, job_ids, slots):
+        c = 0
+        core_job = {}
+        for job, slots in izip(job_ids, slots):
+            for i in range(0,slots):
+                core_job[c] = job
+                c += 1
+            
+        return core_job
+    
+
+    
     def get_jobs_info(self):
         job_ids, usernames, job_states, queue_names = [], [], [], []
 
@@ -226,7 +240,7 @@ class SGEBatchSystem(GenericBatchSystem):
         inside elem, iterates over subelems named elem_text and extracts relevant job information
         TODO: check difference between extract_job_info and _extract_job_info
         """
-        job_ids, usernames, job_states = [], [], []
+        job_ids, usernames, job_states, slots = [], [], [], []
         for subelem in elem.findall(elem_text):
             state = subelem.get('state')
             if state != 'running':
@@ -236,10 +250,12 @@ class SGEBatchSystem(GenericBatchSystem):
             job_num = subelem.find('./JB_job_number').text = self.anonymize(subelem.find('./JB_job_number').text, 'jobnums')
             subelem.find('./JB_name').text = self.anonymize(subelem.find('./JB_name').text, 'jobnames')
             subelem.find('./JAT_start_time').text = self.anonymize(subelem.find('./JAT_start_time').text, 'jobtimes')
+            slot_num = int(subelem.find('./slots').text)
             job_ids.append(job_num)
             usernames.append(owner)
+            slots.append(slot_num)
             job_states.append(subelem.find('./state').text)
-        return job_ids, usernames, job_states
+        return job_ids, usernames, job_states, slots
 
     def _get_host_qname_np(self, queue_elem):
         worker_node = dict()
