@@ -154,7 +154,7 @@ class SGEBatchSystem(GenericBatchSystem):
             worker_node['state'] = self._get_state(queue_elem)
 
             if worker_node['domainname'] not in existing_node_names:
-                job_ids, _, _ = self._extract_job_info(queue_elem, 'job_list')
+                job_ids, _, _, slots = self._extract_job_info(queue_elem, 'job_list')
                 worker_node['core_job_map'] = self.core_job_map(job_ids, slots)
                 actual_whole_queues = [q for q in defined_whole_queues if q in worker_node['qname']]
                 if actual_whole_queues:
@@ -194,7 +194,8 @@ class SGEBatchSystem(GenericBatchSystem):
             tree.write(anon_file)
         return existing_wns
 
-    
+
+    # One job can use multiple slots / cores.
     def core_job_map (self, job_ids, slots):
         c = 0
         core_job = {}
