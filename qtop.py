@@ -322,7 +322,11 @@ def execute_shell_batch_commands(batch_system_commands, filenames, _file, _savep
         logging.debug('\tFile state before subprocess call: %(fin)s' % {"fin": fin})
         logging.debug('\tWaiting on subprocess.call...')
 
-        command = subprocess.Popen(_batch_system_command, stdout=fin, stderr=subprocess.PIPE, shell=True)
+        # splitting the command passed in so only the first item in a command
+        # from the yaml file is executed with the rest of the line treated as
+        # arguments, this enables shell=false, and keeps us from having
+        # injected commands
+        command = subprocess.Popen(_batch_system_command.split(), stdout=fin, stderr=subprocess.PIPE, shell=False)
         error = command.communicate()[1]
         command.wait()
         if error:
