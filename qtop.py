@@ -250,7 +250,7 @@ def calculate_term_size(config, FALLBACK_TERM_SIZE):
     """
     fallback_term_size = config.get('term_size', FALLBACK_TERM_SIZE)
 
-    _command = subprocess.Popen('stty size', stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+    _command = subprocess.Popen(['/bin/stty', 'size'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=False)
     tty_size, error = _command.communicate()
     if not error:
         term_height, term_columns = [int(x) for x in tty_size.strip().split()]
