@@ -250,7 +250,7 @@ def calculate_term_size(config, FALLBACK_TERM_SIZE):
     """
     fallback_term_size = config.get('term_size', FALLBACK_TERM_SIZE)
 
-    _command = subprocess.Popen('stty size', stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+    _command = subprocess.Popen(['/bin/stty', 'size'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     tty_size, error = _command.communicate()
     if not error:
         term_height, term_columns = [int(x) for x in tty_size.strip().split()]
@@ -302,7 +302,7 @@ def auto_get_avail_batch_system(config):
     """
     # TODO pbsnodes etc should not be hardcoded!
     for (system, batch_command) in config['signature_commands'].items():
-        NOT_FOUND = subprocess.call(['which', batch_command], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        NOT_FOUND = subprocess.call(['/usr/bin/which', batch_command], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         if not NOT_FOUND:
             if system != 'demo':
                 logging.debug('Auto-detected scheduler: %s' % system)
@@ -322,7 +322,11 @@ def execute_shell_batch_commands(batch_system_commands, filenames, _file, _savep
         logging.debug('\tFile state before subprocess call: %(fin)s' % {"fin": fin})
         logging.debug('\tWaiting on subprocess.call...')
 
-        command = subprocess.Popen(_batch_system_command, stdout=fin, stderr=subprocess.PIPE, shell=True)
+        # splitting the command passed in so only the first item in a command
+        # from the yaml file is executed with the rest of the line treated as
+        # arguments, this enables shell=False, and keeps us from having
+        # injected commands
+        command = subprocess.Popen(_batch_system_command.split(), stdout=fin, stderr=subprocess.PIPE)
         error = command.communicate()[1]
         command.wait()
         if error:
@@ -1775,8 +1779,14 @@ class TextDisplay(object):
         """
         temp_f = tempfile.NamedTemporaryFile(delete=False, suffix='.out', prefix='qtop_partview_%s_' % _timestr, dir=config[
             'savepath'])
-        pre_cat_command = '(tail -n+%s %s | head -n%s) > %s' % (x, file, y - 1, temp_f.name)
-        _ = subprocess.call(pre_cat_command, stdout=stdout, stderr=stdout, shell=True)
+        tail_command = ['tail', '-n+'+str(x), file]
+        head_command = ['head', '-n'+str(y - 1)]
+        f = open(temp_f.name, 'w')
+        process_tail = subprocess.Popen(tail_command, stdout=subprocess.PIPE)
+        process_head = subprocess.Popen(head_command, stdin=process_head.stdout, stdout=f)
+        process_tail.stdout.close()
+        _ = process_head.communicate()
+        f.close()
         return temp_f.name
 
     def print_mult_attr_line(self, print_char_start, print_char_stop, transposed_matrices, attr_lines, label, color_func=None,
@@ -2418,8 +2428,8 @@ if __name__ == '__main__':
                 if options.ONLYSAVETOFILE:  # no display of qtop output, will exit
                     break
                 elif not options.WATCH:  # one-off display of qtop output, will exit afterwards (no --watch cmdline switch)
-                    cat_command = 'cat %s' % output_fp  # not clearing the screen beforehand is the intended behaviour here
-                    _ = subprocess.call(cat_command, stdout=stdout, stderr=stdout, shell=True)
+                    cat_command = ['/bin/cat', output_fp]  # not clearing the screen beforehand is the intended behaviour here
+                    _ = subprocess.call(cat_command, stdout=stdout, stderr=stdout)
                     break
                 else:  # --watch
                     if options.REPLAY:
@@ -2434,8 +2444,10 @@ if __name__ == '__main__':
                                                                     x=viewport.v_start,
                                                                     y=viewport.v_term_size)
                         logging.debug('dynamic_config filename in main loop: %s' % dynamic_config.get('output_fp', output_fp))
-                    cat_command = 'clear;cat %s' % output_partview_fp
-                    _ = subprocess.call(cat_command, stdout=stdout, stderr=stdout, shell=True)
+                    clear_ommand = ['/usr/bin/clear']
+                    cat_command = ['/bin/cat', output_partview_fp]
+                    _ = subprocess.call(clear_command, stdout=stdout, stderr=stdout)
+                    _ = subprocess.call(cat_command, stdout=stdout, stderr=stdout)
 
                     read_char = wait_for_keypress_or_autorefresh(viewport, FALLBACK_TERMSIZE, int(options.WATCH[0]) or
                                                                  KEYPRESS_TIMEOUT)
