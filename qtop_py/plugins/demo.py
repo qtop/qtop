@@ -69,7 +69,7 @@ class LittleGridSimulator(object):
         # -- Step 2. Do a few iterations (at least 10) on the state of the cluster
         p_job_die = 1. / AVG_JOB_DURATION
         first = True
-        for _ in (xrange(10 + markov_iters)):
+        for _ in range(10 + markov_iters):
             # Step 3.a Add a random number of jobs into each queue
             if first or self.get_total_queued() == 0:
                 self.init_jobs()
@@ -134,7 +134,7 @@ class LittleGridSimulator(object):
 
                 # and give them jobs from the queues
                 for node, core in lucky_slots:
-                    queue_names = self.queue_jobs.keys()
+                    queue_names = list(self.queue_jobs.keys())
                     random.shuffle(queue_names)
                     for queue_name in queue_names:
                         if self.queue_jobs[queue_name]:
@@ -162,7 +162,7 @@ class LittleGridSimulator(object):
         self.queue_state = {}
         for queue_name in QUEUES:
             # Add a random number of jobs into each queue
-            for jobs in xrange(random.randint(100, 3000)):
+            for jobs in range(random.randint(100, 3000)):
                 job_id = "j%d" % jobcnt
                 username = random.choice("alice023 cms347 cms125 lhcbplt01 cms360 Atlassm".split())
                 self.queue_jobs[queue_name].append(job_id)

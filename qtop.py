@@ -10,19 +10,14 @@ import sys
 here = sys.path[0]
 
 from operator import itemgetter
-from itertools import izip, izip_longest, cycle
+from itertools import zip_longest, cycle, chain
 import subprocess
 import select
 import os
 import re
 import json
 import datetime
-try:
-    from collections import namedtuple, OrderedDict, Counter
-except ImportError:
-    from qtop_py.legacy.namedtuple import namedtuple
-    from qtop_py.legacy.ordereddict import OrderedDict
-    from qtop_py.legacy.counter import Counter
+from collections import namedtuple, OrderedDict, Counter
 import os
 from os.path import realpath
 from signal import signal, SIGPIPE, SIG_DFL
@@ -445,22 +440,22 @@ def control_qtop(viewport, read_char, cluster, new_attrs):
         logging.debug('v_start: %s' % viewport.v_start)
         if viewport.scroll_down():
             # TODO  make variable for **s, maybe factorize whole print line
-            print '%s Going down...' % colorize('***', 'Green_L')
+            print('%s Going down...' % colorize('***', 'Green_L'))
         else:
-            print '%s Staying put' % colorize('***', 'Green_L')
+            print('%s Staying put' % colorize('***', 'Green_L'))
 
     elif pressed_char_hex in ['6b', '7f']:  # k, Backspace
         if viewport.scroll_up():
-            print '%s Going up...' % colorize('***', 'Green_L')
+            print('%s Going up...' % colorize('***', 'Green_L'))
         else:
-            print '%s Staying put' % colorize('***', 'Green_L')
+            print('%s Staying put' % colorize('***', 'Green_L'))
 
     elif pressed_char_hex in ['6c']:  # l
-        print '%s Going right...' % colorize('***', 'Green_L')
+        print('%s Going right...' % colorize('***', 'Green_L'))
         viewport.scroll_right()
 
     elif pressed_char_hex in ['24']:  # $
-        print '%s Going far right...' % colorize('***', 'Green_L')
+        print('%s Going far right...' % colorize('***', 'Green_L'))
         viewport.scroll_far_right()
         logging.info('h_start: %s' % viewport.h_start)
         logging.info('max_line_len: %s' % max_line_len)
@@ -468,48 +463,48 @@ def control_qtop(viewport, read_char, cluster, new_attrs):
         logging.info('h_stop: %s' % viewport.h_stop)
 
     elif pressed_char_hex in ['68']:  # h
-        print '%s Going left...' % colorize('***', 'Green_L')
+        print('%s Going left...' % colorize('***', 'Green_L'))
         viewport.scroll_left()
 
     elif pressed_char_hex in ['30']:   # 0
-        print '%s Going far left...' % colorize('***', 'Green_L')
+        print('%s Going far left...' % colorize('***', 'Green_L'))
         viewport.scroll_far_left()
 
     elif pressed_char_hex in ['4a', '47']:  # S-j, G
         logging.debug('v_start: %s' % viewport.v_start)
         if viewport.scroll_bottom():
-            print '%s Going to the bottom...' % colorize('***', 'Green_L')
+            print('%s Going to the bottom...' % colorize('***', 'Green_L'))
         else:
-            print '%s Staying put' % colorize('***', 'Green_L')
+            print('%s Staying put' % colorize('***', 'Green_L'))
 
     elif pressed_char_hex in ['4b', '67']:  # S-k, g
-        print '%s Going to the top...' % colorize('***', 'Green_L')
+        print('%s Going to the top...' % colorize('***', 'Green_L'))
         logging.debug('v_start: %s' % viewport.v_start)
         viewport.scroll_top()
 
     elif pressed_char_hex in ['52']:  # R
-        print '%s Resetting display...' % colorize('***', 'Green_L')
+        print('%s Resetting display...' % colorize('***', 'Green_L'))
         viewport.reset_display()
 
     elif pressed_char_hex in ['74']:  # t
-        print '%s Transposing matrix...' % colorize('***', 'Green_L')
+        print('%s Transposing matrix...' % colorize('***', 'Green_L'))
         dynamic_config['transpose_wn_matrices'] = not dynamic_config.get('transpose_wn_matrices',
                                                                          config['transpose_wn_matrices'])
         viewport.reset_display()
 
     elif pressed_char_hex in ['6d']:  # m
-        new_mapping, msg = change_mapping.next()
+        new_mapping, msg = next(change_mapping)
         dynamic_config['core_coloring'] = new_mapping
-        print '%s Changing to %s' % (colorize('***', 'Green_L'), msg)
+        print('%s Changing to %s' % (colorize('***', 'Green_L'), msg))
 
     elif pressed_char_hex in ['71']:  # q
-        print colorize('\nExiting. Thank you for ..watching ;)\n', 'Cyan_L')
+        print(colorize('\nExiting. Thank you for ..watching ;)\n', 'Cyan_L'))
         web.stop()
         sys.exit(0)
 
     elif pressed_char_hex in ['46']:  # F
         dynamic_config['force_names'] = not dynamic_config['force_names']
-        print '%s Toggling full-name/incremental nr WN labels' % colorize('***', 'Green_L')
+        print('%s Toggling full-name/incremental nr WN labels' % colorize('***', 'Green_L'))
 
     elif pressed_char_hex in ['73']:  # s
         sort_map = OrderedDict()
@@ -526,11 +521,11 @@ def control_qtop(viewport, read_char, cluster, new_attrs):
 
         custom_choice = '8'
 
-        print 'Type in sort order. This can be a single number or a sequence of numbers,\n' \
-              'e.g. to sort first by first word, then by all numbers then by first name length, type 132, then <enter>.'
+        print('Type in sort order. This can be a single number or a sequence of numbers,\n' \
+              'e.g. to sort first by first word, then by all numbers then by first name length, type 132, then <enter>.')
 
         for nr, sort_method in sort_map.items():
-            print '(%s): %s' % (colorize(nr, color_func='Red_L'), sort_method[0])
+            print('(%s): %s' % (colorize(nr, color_func='Red_L'), sort_method[0]))
 
         new_attrs[3] = new_attrs[3] & ~(termios.ECHO | termios.ICANON)
         termios.tcsetattr(sys.__stdin__.fileno(), termios.TCSADRAIN, old_attrs)
@@ -574,13 +569,13 @@ def control_qtop(viewport, read_char, cluster, new_attrs):
             9: 'include_name_patterns',
             10: 'include_queues'
         }
-        print 'Filter out nodes by:\n%(one)s state %(two)s number' \
+        print('Filter out nodes by:\n%(one)s state %(two)s number' \
               ' %(three)s name substring or RegEx pattern' % {
                     'one': colorize("(1)", color_func='Red_L'),
                     'two': colorize("(2)", color_func='Red_L'),
                     'three': colorize("(3)", color_func='Red_L'),
-        }
-        print 'Filter in nodes by:\n(any) %(four)s state %(five)s number %(six)s name substring or RegEx pattern\n' \
+        })
+        print('Filter in nodes by:\n(any) %(four)s state %(five)s number %(six)s name substring or RegEx pattern\n' \
               '(all) %(seven)s state %(eight)s number %(nine)s name substring or RegEx pattern %(ten)s queue' \
               % {'four': colorize("(4)", color_func='Red_L'),
                  'five': colorize("(5)", color_func='Red_L'),
@@ -589,7 +584,7 @@ def control_qtop(viewport, read_char, cluster, new_attrs):
                  'eight': colorize("(8)", color_func='Red_L'),
                  'nine': colorize("(9)", color_func='Red_L'),
                  'ten': colorize("(10)", color_func='Red_L'),
-                 }
+                 })
         new_attrs[3] = new_attrs[3] & ~(termios.ECHO | termios.ICANON)
         termios.tcsetattr(sys.__stdin__.fileno(), termios.TCSADRAIN, old_attrs)
 
@@ -629,7 +624,7 @@ def control_qtop(viewport, read_char, cluster, new_attrs):
             5: 'include_user_pat',
             6: 'include_queue',
         }
-        print 'Highlight cores by:\n' \
+        print('Highlight cores by:\n' \
               '(any) %(one)s userID %(two)s user name (regex) %(three)s queue\n' \
               '(all) %(four)s userID %(five)s user name (regex) %(six)s queue' \
               % {'one': colorize("(1)", color_func='Red_L'),
@@ -638,7 +633,7 @@ def control_qtop(viewport, read_char, cluster, new_attrs):
                  'four': colorize("(4)", color_func='Red_L'),
                  'five': colorize("(5)", color_func='Red_L'),
                  'six': colorize("(6)", color_func='Red_L'),
-                 }
+                 })
         new_attrs[3] = new_attrs[3] & ~(termios.ECHO | termios.ICANON)
         termios.tcsetattr(sys.__stdin__.fileno(), termios.TCSADRAIN, old_attrs)
 
@@ -670,8 +665,8 @@ def control_qtop(viewport, read_char, cluster, new_attrs):
 
     elif pressed_char_hex in ['3f']:  # ?
         viewport.reset_display()
-        print '%s opening help...' % colorize('***', 'Green_L')
-        if not h_counter.next() % 2:  # enter helpfile
+        print('%s opening help...' % colorize('***', 'Green_L'))
+        if not next(h_counter) % 2:  # enter helpfile
             dynamic_config['output_fp'] = help_main_switch[0]
         else:  # exit helpfile
             del dynamic_config['output_fp']
@@ -680,11 +675,11 @@ def control_qtop(viewport, read_char, cluster, new_attrs):
         logging.debug('toggling corelines displayed')
         dynamic_config['rem_empty_corelines'] = (dynamic_config.get('rem_empty_corelines', config['rem_empty_corelines']) +1) %3
         if dynamic_config['rem_empty_corelines'] == 1:
-            print '%s Hiding not-really-there ("#") corelines' % colorize('***', 'Green_L')
+            print('%s Hiding not-really-there ("#") corelines' % colorize('***', 'Green_L'))
         elif dynamic_config['rem_empty_corelines'] == 2:
-            print '%s Hiding all unused ("#" and "_") corelines' % colorize('***', 'Green_L')
+            print('%s Hiding all unused ("#" and "_") corelines' % colorize('***', 'Green_L'))
         else:
-            print '%s Showing all corelines' % colorize('***', 'Green_L')
+            print('%s Showing all corelines' % colorize('***', 'Green_L'))
 
         logging.debug('dynamic config corelines: %s' % dynamic_config['rem_empty_corelines'])
 
@@ -706,7 +701,7 @@ def decide_batch_system(cmdline_switch, env_var, config_file_batch_option, sched
     for the scheduler type. If it's not indicated and "auto" is, it will attempt to guess the scheduler type
     from the scheduler shell commands available in the linux system.
     """
-    avail_systems = available_batch_systems.keys() + ['auto']
+    avail_systems = list(available_batch_systems.keys()) + ['auto']
     if cmdline_switch and cmdline_switch.lower() not in avail_systems:
         logging.critical("Selected scheduler system not supported. Available choices are %s." % ", ".join(avail_systems))
         logging.critical("For help, try ./qtop.py --help")
@@ -912,9 +907,9 @@ class WNOccupancy(object):
             return self  # TODO fix
         # document.jobs_dict => job_id: job name/state/queue
 
-        self.jobid_to_user_to_queue = dict(izip(self.job_ids, izip(user_names, job_queues)))
-        self.user_machine_use = self.calculate_user_node_use(cluster, self.jobid_to_user_to_queue, self.job_ids, user_names,
-                                                             job_queues)
+        self.jobid_to_user_to_queue = dict(zip(self.job_ids, zip(self.user_names, self.job_queues)))
+        self.user_machine_use = self.calculate_user_node_use(self.cluster, self.jobid_to_user_to_queue, self.job_ids, self.user_names,
+                                                             self.job_queues)
 
         user_alljobs_sorted_lot = self._produce_user_lot(self.user_names)
         user_to_id = self._create_id_for_users(user_alljobs_sorted_lot)
@@ -1023,7 +1018,7 @@ class WNOccupancy(object):
         In case there are more users than the sum number of all numbers and small/capital letters of the alphabet
         """
         if len(user_list) > MAX_UNIX_ACCOUNTS:
-            for i in xrange(MAX_UNIX_ACCOUNTS, len(user_list) + MAX_UNIX_ACCOUNTS):
+            for i in range(MAX_UNIX_ACCOUNTS, len(user_list) + MAX_UNIX_ACCOUNTS):
                 config['possible_ids'].append(str(i)[0])
         return config
 
@@ -1048,7 +1043,7 @@ class WNOccupancy(object):
         for line in self.account_jobs_table:
             uid, user = line[0], line[4]
             account_letters = re.search('[A-Za-z]+', user).group(0)
-            for re_account in mapping.keys()[::-1]:
+            for re_account in list(mapping.keys())[::-1]:
                 match = re.search(re_account, user)
                 if match is not None:
                     account_letters = re_account  # colors the text according to the regex given by the user in qtopconf
@@ -1086,7 +1081,7 @@ class WNOccupancy(object):
         elif options.REMAP:  # was: ***wn_number < start*** and len(cluster.node_subclusters) > 1:  # Remapping
             extra_matrices_nr = int(ceil(wn_number / float(term_columns - DEADWEIGHT))) - 1
         else:
-            raise (NotImplementedError, "Not foreseen")
+            raise NotImplementedError
 
         if config['USER_CUT_MATRIX_WIDTH']:  # if the user defines a custom cut (in the configuration file)
             stop = start + config['USER_CUT_MATRIX_WIDTH']
@@ -1130,7 +1125,7 @@ class WNOccupancy(object):
                 for place in range(1, node_str_width + 1):
                     wn_vert_labels[str(place)].append(string[place - 1])
 
-        for wn in wn_vert_labels.keys():
+        for wn in list(wn_vert_labels.keys()):
             wn_vert_labels[wn] = "".join(wn_vert_labels[wn])
         return wn_vert_labels
 
@@ -1161,7 +1156,7 @@ class WNOccupancy(object):
         for _node in self.cluster.workernode_dict:
             node_attrs = self.cluster.workernode_dict[_node]
             # distribute state, qname etc to lines
-            for attr_line, ch in izip_longest(multiline_map, node_attrs[yaml_key], fillvalue=' '):
+            for attr_line, ch in zip_longest(multiline_map, node_attrs[yaml_key], fillvalue=' '):
                 try:
                     if ch == ' ':
                         ch = utils.ColorStr(' ')
@@ -1224,7 +1219,7 @@ class WNOccupancy(object):
     @staticmethod
     def get_hl_q_or_users(_highlighted_queues_or_users):
         for selection_users_queues in _highlighted_queues_or_users:
-            selection = selection_users_queues.keys()[0]
+            selection = list(selection_users_queues.keys())[0]
             users_queues = selection_users_queues[selection]
             and_or, type = selection.rsplit('include_')
             and_or_func = all if not and_or else any
@@ -1246,7 +1241,7 @@ class WNOccupancy(object):
         selected_pat_to_color_map = globals()[_core_coloring]
         _highlighted_queues_or_users = dynamic_config.get('highlight', self.config['highlight'])
 
-        self.id_to_user = dict(izip((str(x) for x in self.user_to_id.itervalues()), self.user_to_id.iterkeys()))
+        self.id_to_user = dict(zip((str(x) for x in self.user_to_id.values()), self.user_to_id.keys()))
         for (user, core, queue) in self._valid_corejobs(corejobs, jobid_to_user_to_queue):
             id_ = utils.ColorStr.from_other_color_str(self.user_to_id[user])
             user_pat = self.userid_to_userid_re_pat[str(id_)]  # in case it is used in viewed_pattern
@@ -1314,7 +1309,7 @@ class WNOccupancy(object):
     def strict_check_jobs(self, cluster):
         counted_jobs = WNOccupancy._count_jobs_strict(self.core_user_map)
         if counted_jobs != cluster.total_running_jobs:
-            print "Counted jobs (%s) -- Total running jobs reported (%s) MISMATCH!" % (counted_jobs, cluster.total_running_jobs)
+            print("Counted jobs (%s) -- Total running jobs reported (%s) MISMATCH!" % (counted_jobs, cluster.total_running_jobs))
 
     @staticmethod
     def _count_jobs_strict(core_user_map):
@@ -1329,11 +1324,11 @@ class WNOccupancy(object):
         This calculates the number of nodes each user has jobs in (shown in User accounts and pool mappings)
         """
         user_machines = []
-        jobid_to_user_to_queue = dict(izip(job_ids, izip(user_names, job_queues)))
+        jobid_to_user_to_queue = dict(zip(job_ids, zip(user_names, job_queues)))
         # TODO why use variables from outer scope above?
-        for node in cluster.workernode_dict:
+        for node in cluster.workernode_dict.keys():
             cluster.workernode_dict[node]['node_user_set'] = set([jobid_to_user_to_queue[job][0] for job in
-                                                                  cluster.workernode_dict[node]['node_job_set']])
+                                                                  cluster.workernode_dict[node]['node_job_set'] if jobid_to_user_to_queue.get(job)])
             user_machines.extend(list(cluster.workernode_dict[node]['node_user_set']))
 
         return Counter(user_machines)
@@ -1438,29 +1433,29 @@ class TextDisplay(object):
 
         if options.REMAP:
             if options.CLASSIC:
-                print '=== WARNING: --- Remapping WN names and retrying heuristics... good luck with this... ---'
+                print('=== WARNING: --- Remapping WN names and retrying heuristics... good luck with this... ---')
             else:
                 logging.warning('=== WARNING: --- Remapping WN names and retrying heuristics... good luck with this... ---')
 
         ansi_delete_char = "\015"  # this removes the first ever character (space) appearing in the output
-        print '%(del)s%(name)s \nv%(version)s ## For feedback and updates, see: %(link)s' \
+        print('%(del)s%(name)s \nv%(version)s ## For feedback and updates, see: %(link)s' \
               % {'name': 'PBS' if options.CLASSIC else colorize('./qtop.py     ## Queueing System report tool. Press ? for '
                                                                 'help', 'Cyan_L'),
                  'del': ansi_delete_char,
                  'link': colorize('https://github.com/qtop/qtop', 'Cyan_L'),
                  'version': __version__
-                 }
+                 })
         if scheduler == 'demo':
             msg = "This data is simulated. As soon as you connect to one of the supported scheduling systems,\n" \
                   "you will see live data from your cluster. Press q to Quit."
-            print colorize(msg, 'Blue')
+            print(colorize(msg, 'Blue'))
 
         if not options.WATCH:
-            print 'Please try it with watch: %s/qtop.py -s <SOURCEDIR> -w [<every_nr_of_sec>]' % QTOPPATH
-        print colorize('===> ', 'Gray_D') + colorize('Job accounting summary', 'White') + colorize(' <=== ', 'Gray_D') + \
-              colorize(str(datetime.datetime.today())[:-7], 'White')
+            print('Please try it with watch: %s/qtop.py -s <SOURCEDIR> -w [<every_nr_of_sec>]' % QTOPPATH)
+        print(colorize('===> ', 'Gray_D') + colorize('Job accounting summary', 'White') + colorize(' <=== ', 'Gray_D') + \
+              colorize(str(datetime.datetime.today())[:-7], 'White'))
 
-        print '%(Summary)s: Total:%(total_nodes)s Up:%(online_nodes)s Free:%(available_nodes)s %(Nodes)s | %(' \
+        print('%(Summary)s: Total:%(total_nodes)s Up:%(online_nodes)s Free:%(available_nodes)s %(Nodes)s | %(' \
               'working_cores)s/%(' \
               'total_cores)s %(Cores)s |' \
               '   %(total_run_jobs)s+%(total_q_jobs)s %(jobs)s (R + Q) %(reported_by)s' % \
@@ -1477,19 +1472,19 @@ class TextDisplay(object):
                   'total_q_jobs': colorize(str(int(total_queued_jobs)), 'Blue_L'),
                   'jobs': colorize('jobs', 'Blue_L'),
                   'reported_by': 'reported by qstat - q' if options.CLASSIC else ''
-              }
+              })
 
-        print '%(queues)s :' % {'queues': colorize('Queues', 'Cyan_L')},
+        print('%(queues)s :' % {'queues': colorize('Queues', 'Cyan_L')}, end=' ')
         for _queue_name, q_tuple in qstatq_lod.items():
             q_running_jobs, q_queued_jobs, q_state = q_tuple.run, q_tuple.queued, q_tuple.state
             account = _queue_name if _queue_name in queue_to_color else 'account_not_colored'
-            print "{qname}{star}: {run} {q}|".format(
+            print("{qname}{star}: {run} {q}|".format(
                 qname=colorize(_queue_name, '', pattern=account, mapping=queue_to_color),
                 star=colorize('*', 'Red_L') if q_tuple.state.startswith('D') or q_tuple.state.endswith('S') else '',
                 run=colorize(q_running_jobs, '', pattern=account, mapping=queue_to_color),
                 q='+ ' + colorize(q_queued_jobs, '', account,
-                                       mapping=queue_to_color) + ' ' if q_queued_jobs != '0' else ''),
-        print colorize('* implies blocked', 'Red') + '\n'
+                                       mapping=queue_to_color) + ' ' if q_queued_jobs != '0' else ''), end=' ')
+        print(colorize('* implies blocked', 'Red') + '\n')
         # TODO unhardwire states from star kwarg
 
     def display_wns_occupancy(self, wns_occupancy, cluster):
@@ -1512,10 +1507,10 @@ class TextDisplay(object):
         else:
             note = 'you can read vertically the node IDs'
 
-        print colorize('===> ', 'Gray_D') + \
+        print(colorize('===> ', 'Gray_D') + \
               colorize('Worker Nodes occupancy', 'White') + \
               colorize(' <=== ', 'Gray_D') + \
-              colorize('(%s)', 'Gray_D') % note
+              colorize('(%s)', 'Gray_D') % note)
 
     def display_user_accounts_pool_mappings(self, wns_occupancy):
         """
@@ -1529,15 +1524,15 @@ class TextDisplay(object):
             userid_to_userid_re_pat = dict()
 
         detail_of_name = get_detail_of_name(account_jobs_table)
-        print colorize('\n===> ', 'Gray_D') + \
+        print(colorize('\n===> ', 'Gray_D') + \
               colorize('User accounts and pool mappings', 'White') + \
               colorize(' <=== ', 'Gray_d') + \
               colorize("  ('all' also includes those in C and W states, as reported by qstat)"
-                            if options.CLASSIC else "(sorting according to total nr. of jobs)", 'Gray_D')
+                            if options.CLASSIC else "(sorting according to total nr. of jobs)", 'Gray_D'))
 
-        print '[id] unix account      |jobs >=   R +    Q | nodes | %(msg)s' % \
-              {'msg': 'Grid certificate DN (info only available under elevated privileges)' if options.CLASSIC else
-              '      GECOS field or Grid certificate DN |'}
+        print('[id] unix account      |jobs >=   R +    Q | nodes | %(msg)s' % \
+              {'msg': 'Grid certificate DN (info only available under elevated privileges)' if self.args.CLASSIC else
+              '      GECOS field or Grid certificate DN |'})
         for line in account_jobs_table:
             uid, runningjobs, queuedjobs, alljobs, user, num_of_nodes = line
             userid_pat = userid_to_userid_re_pat[str(uid)]
@@ -1568,7 +1563,7 @@ class TextDisplay(object):
                 width18=18 + conditional_width,
                 width40=40 + conditional_width,
             )
-            print print_string
+            print(print_string)
 
     def display_matrix(self, wns_occupancy, print_char_start, print_char_stop):
         """
@@ -1630,7 +1625,7 @@ class TextDisplay(object):
 
             transposed_matrices.sort(key=lambda item: item[0])
             ###TRY###
-            for line_tuple in izip_longest(*[tpl[2] for tpl in transposed_matrices], fillvalue=utils.ColorStr('  ', color='Purple', )):
+            for line_tuple in zip_longest(*[tpl[2] for tpl in transposed_matrices], fillvalue=utils.ColorStr('  ', color='Purple', )):
                 joined_list = self.join_prints(*line_tuple, sep=config.get('horizontal_separator', None))
 
             max_width = len(joined_list)
@@ -1639,7 +1634,7 @@ class TextDisplay(object):
             logging.debug('Printed horizontally from %s to %s' % (self.viewport.h_start, self.viewport.h_stop))
         else:
             self.viewport.max_width = self.viewport.get_term_size()[1]
-        print
+        print()
 
     def display_remaining_matrices(self, wns_occupancy, print_char_start, print_char_stop, DEADWEIGHT=11):
         """
@@ -1674,7 +1669,7 @@ class TextDisplay(object):
             joined_list.append(utils.ColorStr(string=kwargs['sep']))
         s = "".join([colorize(char.initial, color_func=char.color) if isinstance(char, utils.ColorStr) else char
                      for char in joined_list[self.viewport.h_start:self.viewport.h_stop]])
-        print compress_colored_line(s)
+        print(compress_colored_line(s))
         return joined_list
 
     def print_core_lines(self, core_user_map, print_char_start, print_char_stop, transposed_matrices,
@@ -1704,11 +1699,11 @@ class TextDisplay(object):
                                                  userid_to_userid_re_pat, mapping, attrs):
                 core_line_zipped = compress_colored_line(core_line)
                 try:
-                    print core_line_zipped
+                    print(core_line_zipped)
                 except IOError:
                     try:
                         signal(SIGPIPE, SIG_DFL)
-                        print core_line_zipped
+                        print(core_line_zipped)
                         sys.stdout.close()
                     except IOError:
                         pass
@@ -1769,7 +1764,7 @@ class TextDisplay(object):
             colors = color_func(*args)
             wn_id_str = self._insert_separators(d[line_nr][start:stop], config['SEPARATOR'], separators)
             wn_id_str = ''.join([colorize(elem, next(colors)) for elem in wn_id_str])
-            print wn_id_str + end_label
+            print(wn_id_str + end_label)
 
     def show_part_view(self, _timestr, file, x, y):
         """
@@ -1783,7 +1778,7 @@ class TextDisplay(object):
         head_command = ['head', '-n'+str(y - 1)]
         f = open(temp_f.name, 'w')
         process_tail = subprocess.Popen(tail_command, stdout=subprocess.PIPE)
-        process_head = subprocess.Popen(head_command, stdin=process_head.stdout, stdout=f)
+        process_head = subprocess.Popen(head_command, stdin=process_tail.stdout, stdout=f)
         process_tail.stdout.close()
         _ = process_head.communicate()
         f.close()
@@ -1805,7 +1800,7 @@ class TextDisplay(object):
             # TODO: maybe put attr_line and label as kwd arguments? collect them as **kwargs
             attr_line = self._insert_separators(line, config['SEPARATOR'], config['vertical_separator_every_X_columns'])
             attr_line = ''.join([colorize(char.initial, color_func=char.color) for char in attr_line])
-            print attr_line + "=" + label
+            print(attr_line + "=" + label)
 
     def get_core_lines(self, core_user_map, print_char_start, print_char_stop, coloring_pattern, mapping, attrs):
         """
@@ -1835,7 +1830,7 @@ class TextDisplay(object):
         returns a transposed matrix
         colors it in the meantime, if instructed to via colored
         """
-        for tpl in izip_longest(*[[char for char in d[k]] for k in d], fillvalue=" "):
+        for tpl in zip_longest(*[[char for char in d[k]] for k in d], fillvalue=" "):
             if any(j != " " for j in tpl):
                 tpl = (colored and coloring_pat) and \
                       [colorize(txt, '', coloring_pat[txt]) if txt in coloring_pat else txt for txt in tpl] or list(tpl)
@@ -1881,7 +1876,7 @@ class Cluster(object):
         self.available_wn = sum([len(node['state']) for node in self.worker_nodes if str(node['state'][0]) == '-'])
         self.total_wn = len(self.worker_nodes)  # == existing_nodes
         self.workernode_list = []
-        self.workernode_list_remapped = range(1, self.total_wn + 1)  # leave xrange aside for now
+        self.workernode_list_remapped = range(1, self.total_wn + 1)  # leave range aside for now
 
         self.node_subclusters = set()
         self.WNFilter = WNFilter
@@ -1973,13 +1968,13 @@ class Cluster(object):
         if not self.total_wn:  # if nothing is running on the cluster
             return False
 
-        _all_str_digits = filter(lambda x: x != "", all_str_digits_with_empties)
+        _all_str_digits = list(filter(lambda x: x != "", all_str_digits_with_empties))
         _all_digits = [int(digit) for digit in _all_str_digits]
 
         if (
                 options.BLINDREMAP or
                 len(self.node_subclusters) > 1 or
-                min(self.workernode_list) >= config['exotic_starting_wn_nr'] or
+                min(self.workernode_list) >= int(config['exotic_starting_wn_nr']) or
                 self.offdown_nodes >= self.total_wn * config['percentage'] or
                 len(all_str_digits_with_empties) != len(_all_str_digits) or
                 len(_all_digits) != len(_all_str_digits)
@@ -1996,16 +1991,16 @@ class Cluster(object):
             subclusters = len(self.node_subclusters) > 1 and \
                           'there are different WN namings, e.g. wn001, wn002, ..., ps001, ps002, ... etc' or False
 
-            exotic_starting = min(self.workernode_list) >= config['exotic_starting_wn_nr'] and \
+            exotic_starting = min(self.workernode_list) >= int(config['exotic_starting_wn_nr']) and \
                               'first starting numbering of a WN very high; would thus require too much unused space' or False
 
             percentage_unassigned = len(all_str_digits_with_empties) != len(_all_str_digits) and \
                                     'more than %s of nodes have are down/offline' % float(config['percentage']) or False
 
-            numbering_collisions = min(self.workernode_list) >= config['exotic_starting_wn_nr'] and \
+            numbering_collisions = min(self.workernode_list) >= int(config['exotic_starting_wn_nr']) and \
                                    'there are numbering collisions' or False
 
-            print
+            print()
             logging.debug('Remapping decided due to: \n\t %s' % filter(
                 None, [user_request, subclusters, exotic_starting, percentage_unassigned, numbering_collisions]))
 
@@ -2053,7 +2048,7 @@ class Cluster(object):
         workernode_dict = dict()
         workernode_dict_remapped = dict()
         _sorting_from_conf = self.config['sorting']
-        user_sorting = dynamic_config.get('user_sort', (_sorting_from_conf and _sorting_from_conf.values()[0]))
+        user_sorting = dynamic_config.get('user_sort', (_sorting_from_conf and list(_sorting_from_conf.values())[0]))
         user_filters = dynamic_config.get('filtering', self.config['filtering'])
         user_filtering = user_filters and user_filters[0]
 
@@ -2389,7 +2384,7 @@ if __name__ == '__main__':
 
                 JobDoc = namedtuple('JobDoc', ['user_name', 'job_state', 'job_queue'])
                 jobs_dict = dict((re.sub(r'\[\]$', '', job_id), JobDoc(user_name, job_state, job_queue)) for
-                                 job_id, user_name, job_state, job_queue in izip(job_ids, user_names, job_states, job_queues))
+                                 job_id, user_name, job_state, job_queue in zip(job_ids, user_names, job_states, job_queues))
 
                 QDoc = namedtuple('QDoc', ['lm', 'queued', 'run', 'state'])
                 queues_dict = OrderedDict(
@@ -2444,7 +2439,7 @@ if __name__ == '__main__':
                                                                     x=viewport.v_start,
                                                                     y=viewport.v_term_size)
                         logging.debug('dynamic_config filename in main loop: %s' % dynamic_config.get('output_fp', output_fp))
-                    clear_ommand = ['/usr/bin/clear']
+                    clear_command = ['/usr/bin/clear']
                     cat_command = ['/bin/cat', output_partview_fp]
                     _ = subprocess.call(clear_command, stdout=stdout, stderr=stdout)
                     _ = subprocess.call(cat_command, stdout=stdout, stderr=stdout)

@@ -1,29 +1,29 @@
 import logging
 import sys
 from optparse import OptionParser
-import fileutils
+from qtop_py import fileutils
 from qtop_py.colormap import *
 from qtop_py.constants import QTOP_LOGFILE
 
 
 def init_logging(options):
+    formatter = logging.Formatter('%(levelname)s - %(message)s')
+
     if not options.verbose:
         log_level = logging.WARN
     elif options.verbose == 1:
         log_level = logging.INFO
-    elif options.verbose >= 2:
+    elif options.verbose == 2:
         log_level = logging.DEBUG
+    elif options.verbose >= 3:
+        log_level = logging.DEBUG
+        # this prepends date/time
+        formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s', "%Y-%m-%d %H:%M:%S")
 
     fileutils.mkdir_p(QTOP_LOGFILE.rsplit('/', 1)[0])  # logfile path
 
     logger = logging.getLogger()
     logger.setLevel(logging.DEBUG)
-
-    if options.verbose >= 3:
-        # this prepends date/time
-        formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s', "%Y-%m-%d %H:%M:%S")
-    else:
-        formatter = logging.Formatter('%(levelname)s - %(message)s')
 
     fh = logging.FileHandler(QTOP_LOGFILE)
     fh.setLevel(log_level)

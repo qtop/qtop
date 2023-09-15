@@ -84,7 +84,7 @@ class PBSStatExtractor(StatExtractor):
                            r'(?P<queued>\d+)\s+' \
                            r'(?P<lm>--|\d+)\s+' \
                            r'(?P<state>[DE] R)'
-            run_qd_search = '^\s*(?P<tot_run>\d+)\s+(?P<tot_queued>\d+)'  # this picks up the last line contents
+            run_qd_search = r'^\s*(?P<tot_run>\d+)\s+(?P<tot_queued>\d+)'  # this picks up the last line contents
 
             all_values = list()
             with open(orig_file, 'r') as fin:
@@ -282,7 +282,7 @@ class PBSBatchSystem(GenericBatchSystem):
         subselections = core_selections.split(',')
         for subselection in subselections:
             if '-' in subselection:
-                range_ = map(int, subselection.split('-'))
+                range_ = list(map(int, subselection.split('-')))
                 range_[-1] += 1
                 _cores.extend([map(str, range(*range_))])
             else:
