@@ -153,12 +153,16 @@ class PBSBatchSystem(GenericBatchSystem):
             state = (nextchar == 'f') and "-" or nextchar
 
             pbs_values['state'] = state
-            try:
-                pbs_values['np'] = block['np']
-            except KeyError:
-                pbs_values['np'] = block['pcpus']  # handle torque cases  # todo : to check
 
-            if block.get('gpus') > 0:  # this should be rare.
+            # find attribute for number of cores, default is 0
+            if block.get('np'):
+                pbs_values['np'] = block['np']
+            elif block.get('pcpus'):
+                pbs_values['np'] = block['pcpus']
+            else:
+                pbs_values['np'] = block.get('resources_available.ncpus', 0)
+
+            if block.get('gpus', 0) > 0:  # this should be rare.
                 pbs_values['gpus'] = block['gpus']
 
             try:  # this should turn up more often, hence the try/except.
