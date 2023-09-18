@@ -2,7 +2,7 @@ import pytest
 import re
 import datetime
 import sys
-from qtop import WNOccupancy, decide_batch_system, load_yaml_config, JobNotFound, SchedulerNotSpecified, NoSchedulerFound, get_date_obj_from_str
+from qtop_py.qtop import WNOccupancy, decide_batch_system, load_yaml_config, JobNotFound, SchedulerNotSpecified, NoSchedulerFound, get_date_obj_from_str
 
 
 @pytest.fixture
@@ -27,7 +27,7 @@ def config():
         ),
     )
 def test_re_node(domain_name, match):
-    re_node = '([A-Za-z0-9-]+)(?=\.|$)'
+    re_node = r'([A-Za-z0-9-]+)(?=\.|$)'
     m = re.search(re_node, domain_name)
     try:
         assert m.group(0) == match

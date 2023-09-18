@@ -369,8 +369,8 @@ def get_detail_of_name(account_jobs_table):
     else:
         output, err = p.communicate("something here")
         if 'No such file or directory' in err:
-            logging.warn('You have to set a proper command to get the passwd file in your %s file.' % QTOPCONF_YAML)
-            logging.warn('Error returned by getent: %s\nCommand issued: %s' % (err, passwd_command))
+            logging.warning('You have to set a proper command to get the passwd file in your %s file.' % QTOPCONF_YAML)
+            logging.warning('Error returned by getent: %s\nCommand issued: %s' % (err, passwd_command))
 
     detail_of_name = dict()
     for line in output.split('\n'):
@@ -1972,10 +1972,10 @@ class Cluster(object):
         _all_digits = [int(digit) for digit in _all_str_digits]
 
         if (
-                args.BLINDREMAP or
+                self.args.BLINDREMAP or
                 len(self.node_subclusters) > 1 or
-                min(self.workernode_list) >= int(config['exotic_starting_wn_nr']) or
-                self.offdown_nodes >= self.total_wn * config['percentage'] or
+                min(self.workernode_list) >= int(self.config['exotic_starting_wn_nr']) or
+                self.offdown_nodes >= self.total_wn * float(self.config['percentage']) or
                 len(all_str_digits_with_empties) != len(_all_str_digits) or
                 len(_all_digits) != len(_all_str_digits)
         ):
@@ -1983,21 +1983,21 @@ class Cluster(object):
         else:
             REMAP = False
         logging.info('Blind Remapping [user selected]: %s,'
-                     '\n\t\t\t\t\t\t\t\t  Decided Remapping: %s' % (args.BLINDREMAP, REMAP))
+                     '\n\t\t\t\t\t\t\t\t  Decided Remapping: %s' % (self.args.BLINDREMAP, REMAP))
 
         if logging.getLogger().isEnabledFor(logging.DEBUG) and REMAP:
-            user_request = args.BLINDREMAP and 'The user has requested it (blindremap switch)' or False
+            user_request = self.args.BLINDREMAP and 'The user has requested it (blindremap switch)' or False
 
             subclusters = len(self.node_subclusters) > 1 and \
                           'there are different WN namings, e.g. wn001, wn002, ..., ps001, ps002, ... etc' or False
 
-            exotic_starting = min(self.workernode_list) >= int(config['exotic_starting_wn_nr']) and \
+            exotic_starting = min(self.workernode_list) >= int(self.config['exotic_starting_wn_nr']) and \
                               'first starting numbering of a WN very high; would thus require too much unused space' or False
 
             percentage_unassigned = len(all_str_digits_with_empties) != len(_all_str_digits) and \
-                                    'more than %s of nodes have are down/offline' % float(config['percentage']) or False
+                                    'more than %s of nodes have are down/offline' % float(self.config['percentage']) or False
 
-            numbering_collisions = min(self.workernode_list) >= int(config['exotic_starting_wn_nr']) and \
+            numbering_collisions = min(self.workernode_list) >= int(self.config['exotic_starting_wn_nr']) and \
                                    'there are numbering collisions' or False
 
             print()
@@ -2010,11 +2010,11 @@ class Cluster(object):
         """
         renames hostnames according to user remapping in conf file (for the wn id label lines)
         """
-        label_max_len = int(config['workernodes_matrix'][0]['wn id lines']['max_len'])
+        label_max_len = int(self.config['workernodes_matrix'][0]['wn id lines']['max_len'])
         for _, state_corejob_dn in workernode_dict.items():
             _host = state_corejob_dn['domainname'].split('.', 1)[0]
             changed = False
-            for remap_line in config['remapping']:
+            for remap_line in self.config['remapping']:
                 pat, repl = remap_line.items()[0]
                 repl = eval(repl) if repl.startswith('lambda') else repl
                 if re.search(pat, _host):
@@ -2033,7 +2033,7 @@ class Cluster(object):
             if node not in workernode_dict:
                 workernode_dict[node] = {'state': '?', 'np': 0, 'domainname': 'N/A', 'host': 'N/A', 'core_job_map': {}}
                 default_values_for_empty_nodes = dict([(yaml_key, '?') for yaml_key, part_name, _ in yaml.get_yaml_key_part(
-                    config, scheduler, outermost_key='workernodes_matrix')])
+                    self.config, scheduler, outermost_key='workernodes_matrix')])
                 workernode_dict[node].update(default_values_for_empty_nodes)
         return workernode_dict
 
@@ -2301,7 +2301,11 @@ class InvalidScheduler(Exception):
     pass
 
 
-if __name__ == '__main__':
+
+def main():
+    # define global vars which are used out of scope
+    global CURPATH, QTOPPATH, HELP_FP, SAMPLE_FILENAME, scheduler, config, dynamic_config, cluster, viewport, user_to_color, args, transposed_matrices
+
     args = utils.parse_qtop_cmdline_args()
     if args.version:
         print('qtop current version: ' + __version__)
@@ -2333,7 +2337,7 @@ if __name__ == '__main__':
     initial_cwd = os.getcwd()
     logging.debug('Initial qtop directory: %s' % initial_cwd)
     CURPATH = os.path.expanduser(initial_cwd)  # where qtop was invoked from
-    QTOPPATH = os.path.dirname(realpath(sys.argv[0]))  # dir where qtop resides
+    QTOPPATH = os.path.dirname(realpath(__loader__.name))  # dir where qtop resides
     HELP_FP = os.path.join(QTOPPATH, 'helpfile.txt')
     help_main_switch = [HELP_FP, ]  # output_fp is not yet defined, will be appended later
     SAMPLE_FILENAME = 'qtop_sample_${USER}%(datetime)s.tar'
@@ -2467,3 +2471,7 @@ if __name__ == '__main__':
                     if os.path.isfile(scheduler_output_filenames[fn]):
                         fileutils.tar_out = fileutils.add_to_sample([scheduler_output_filenames[fn]], fileutils.tar_out)
                 fileutils.tar_out.close()
+
+
+if __name__ == '__main__':
+    main()

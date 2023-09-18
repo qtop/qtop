@@ -1,4 +1,4 @@
 #!/bin/bash
 
-python -m qtop "$@"
+python -m qtop_py.cli "$@"
 
