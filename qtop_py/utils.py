@@ -158,9 +158,9 @@ class ColorStr(object):
     def __init__(self, string='', color=''):
         self.str = string
         self.color = color
-        self.initial = self.str[0]
+        self.initial = self.str[0] if self.str else ''
         self.index = 0
-        self.stop = len(self.str)
+        self.stop = len(self.str) if self.str else 0
 
     def __str__(self):
         return str(self.str)
