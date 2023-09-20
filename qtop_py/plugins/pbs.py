@@ -12,10 +12,10 @@ import itertools
 class PBSStatExtractor(StatExtractor):
     def __init__(self, config, options):
         StatExtractor.__init__(self, config, options)
-        self.user_q_search = r'^(?P<host_name>(?P<job_id>[0-9\[\]-]+)\.(?P<domain>[\w-]+))\s+' \
-                             r'(?P<name>[\w%.=+/{}-]+)\s+' \
-                             r'(?P<user>[A-Za-z0-9.]+)\s+' \
-                             r'(?P<time>\d+:\d+:?\d*|0)\s+' \
+        self.user_q_search = r'^(?P<host_name>(?P<job_id>[0-9\[\]-]+)\.(?P<domain>[\w*-]+))\s+' \
+                             r'(?P<name>[\w%.=+/{}*-]+)\s+' \
+                             r'(?P<user>[A-Za-z0-9.*]+)\s+' \
+                             r'(?P<time>\d+:\d*:?\d*\*?|0)\s+' \
                              r'(?P<state>[BCEFHMQRSTUWX])\s+' \
                              r'(?P<queue_name>\w+)'
 
@@ -171,7 +171,7 @@ class PBSBatchSystem(GenericBatchSystem):
                 pbs_values['core_job_map'] = dict()  # change of behaviour: all entries should contain the key even if no value
             else:
                 # jobs = re.split(r'(?<=[A-Za-z0-9]),\s?', block['jobs'])
-                jobs = re.findall(r'[0-9][0-9,-]*/[^,]+', block['jobs'])
+                jobs = re.findall(r'[0-9][0-9a-zA-Z\[\],.-]*\/[^,]+', block['jobs'])
                 pbs_values['core_job_map'] = dict((core, job) for job, core in self._get_jobs_cores(jobs))
             finally:
                 all_pbs_values.append(pbs_values)
@@ -227,19 +227,24 @@ class PBSBatchSystem(GenericBatchSystem):
     @staticmethod
     def _get_jobs_cores(jobs):  # block['jobs']
         """
-        Generator that takes str of this format
+        Generator that takes job ids in this format (for Torque):
         '0/10102182.f-batch01.grid.sinica.edu.tw, 1/10102106.f-batch01.grid.sinica.edu.tw, 2/10102339.f-batch01.grid.sinica.edu.tw, 3/10104007.f-batch01.grid.sinica.edu.tw'
+        or this format (for PBS Pro):
+        '2257887.cluster-pbs5/0, 2257887.cluster-pbs5/1, 2257887.cluster-pbs5/2, 2257887.cluster-pbs5/3, 2257887.cluster-pbs5/4'
         and spits tuples of the format (0, 10102182)    (job,core)
         """
         for core_job in jobs:
-            core, job = core_job.strip().split('/')
-            if (',' in core) or ('-' in core):
+            part1, part2 = core_job.strip().split('/')
+            if re.search(r'^\d+[,-]?[\d,-]*$', part1): # Torque job id
+                core, job = part1, part2
+            elif re.match(r'[\w.-]+', part1): # PBS Pro job id
+                job, core = part1, part2
+
+            if (',' in core) or ('-' in core): # job id with subjobs
                 for (subcore, subjob) in PBSBatchSystem.get_corejob_from_range(core, job):
                     subjob = subjob.strip().split('/')[0].split('.')[0]
-                    yield subjob, subcore
-            else:
-                if len(core) > len(job):  # PBS vs torque?
-                    core, job = job, core
+                    yield subjob, subcore # TODO: int or no int?
+            else: # job id without subjobs
                 job = job.strip().split('/')[0].split('.')[0]
                 job = re.sub(r'\[\d*\]$', '', job)
                 yield job, core

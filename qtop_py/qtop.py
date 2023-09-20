@@ -1026,8 +1026,11 @@ class WNOccupancy(object):
         for id_, user_allcount in enumerate(user_alljobs_sorted_lot):
             if self.config['fill_with_user_firstletter']:
                 user_to_id[user_allcount[0]] = utils.ColorStr(user_allcount[0][0])
-            else:
+            elif len(self.config['possible_ids']) > id_:
                 user_to_id[user_allcount[0]] = utils.ColorStr(self.config['possible_ids'][id_])
+            else:
+                # If there are more users than possible ids use # for all remaining users
+                user_to_id[user_allcount[0]] = utils.ColorStr('#')
 
         return user_to_id
 
@@ -1537,7 +1540,7 @@ class TextDisplay(object):
             uid, runningjobs, queuedjobs, alljobs, user, num_of_nodes = line
             userid_pat = userid_to_userid_re_pat[str(uid)]
 
-            if (self.args.COLOR == 'OFF' or userid_pat == 'account_not_colored' or user_to_color[userid_pat] == 'reset'):
+            if (self.args.COLOR == 'OFF' or userid_pat == 'account_not_colored' or user_to_color.get(userid_pat) == 'reset'):
                 conditional_width = 0
                 userid_pat = 'account_not_colored'
             else:
