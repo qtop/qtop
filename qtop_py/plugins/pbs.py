@@ -116,6 +116,7 @@ class PBSStatExtractor(StatExtractor):
         try:
             fileutils.check_empty_file(orig_file)
         except fileutils.FileEmptyError:
+            logging.error('File %s seems to be empty.' % orig_file)
             all_values = []
         else:
             anonymize = self.anonymize_func()
@@ -131,12 +132,12 @@ class PBSStatExtractor(StatExtractor):
 
             all_values = list()
             with open(orig_file, 'r') as fin:
-                fin.next()
-                fin.next()
+                fin.readline()
+                fin.readline()
                 # server_name = fin.next().split(': ')[1].strip()
-                fin.next()
-                fin.next().strip()  # the headers line should later define the keys in temp_dict, should they be different
-                fin.next()
+                fin.readline()
+                fin.readline() #.strip()  # the headers line should later define the keys in temp_dict, should they be different
+                fin.readline()
                 for line in fin:
                     line = line.strip()
                     m = re.search(queue_search, line)
