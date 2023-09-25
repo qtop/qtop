@@ -32,40 +32,83 @@ class PBSStatExtractor(StatExtractor):
                                    r'(?:\w*)'
 
     def extract_qstat(self, orig_file):
+        """
+        reads qstat.txt and parses the output file
+        the data is returned in the following format:
+        [
+            {
+                "JobId": "1234",
+                "JobName: "My Job",
+                "Queue": "workq",
+                "UnixAccount": "user1",
+                "S": "Q"
+            }
+        ]
+        """
         try:
             fileutils.check_empty_file(orig_file)
         except fileutils.FileEmptyError:
             logging.error('File %s seems to be empty.' % orig_file)
             all_qstat_values = []
         else:
-            all_qstat_values = list()
-            with open(orig_file, 'r') as fin:
-                _ = fin.readline()  # header
-                fin.readline()
-                line = fin.readline()
-                re_match_positions = ('job_id', 'user', 'state', 'queue_name')  # was: (1, 5, 7, 8), (1, 4, 5, 8)
-                try:  # first qstat line determines which format qstat follows.
-                    re_search = self.user_q_search
-                    qstat_values = self._process_qstat_line(re_search, line, re_match_positions)
-                    # unused: _job_nr, _ce_name, _name, _time_use = m.group(2), m.group(3), m.group(4), m.group(6)
-                except AttributeError:  # this means 'prior' exists in qstat, it's another format
-                    re_search = self.user_q_search_prior
-                    qstat_values = self._process_qstat_line(re_search, line, re_match_positions)
-                    # unused:  _prior, _name, _submit, _start_at, _queue_domain, _slots, _ja_taskID =
-                    # m.group(2), m.group(3), m.group(6), m.group(7), m.group(9), m.group(10), m.group(11)
-                finally:
-                    all_qstat_values.append(qstat_values)
+            try:
+                with open(orig_file) as f:
+                    _ = json.load(f)
+            except json.JSONDecodeError:
+                logging.info('Extracting qstat output using regex')
+                all_qstat_values = self._extract_qstat_regex(orig_file)
+            else:
+                logging.info('Extracting qstat output using json')
+                all_qstat_values = self._extract_qstat_json(orig_file)
 
-                # hence the rest of the lines should follow either try's or except's same format
-                for line in fin:
-                    qstat_values = self._process_qstat_line(re_search, line, re_match_positions)
-                    all_qstat_values.append(qstat_values)
-
+        return all_qstat_values
+    
+    def _extract_qstat_regex(self, qstat_file):
+        all_qstat_values = list()
+        with open(qstat_file, 'r') as fin:
+            _ = fin.readline()  # header
+            fin.readline() # horizontal row
+            line = fin.readline() # first line
+            re_match_positions = ('job_id', 'user', 'state', 'queue_name')  # was: (1, 5, 7, 8), (1, 4, 5, 8)
+            try:  # first qstat line determines which format qstat follows.
+                re_search = self.user_q_search
+                qstat_values = self._process_qstat_line(re_search, line, re_match_positions)
+                # unused: _job_nr, _ce_name, _name, _time_use = m.group(2), m.group(3), m.group(4), m.group(6)
+            except AttributeError:  # this means 'prior' exists in qstat, it's another format
+                re_search = self.user_q_search_prior
+                qstat_values = self._process_qstat_line(re_search, line, re_match_positions)
+                # unused:  _prior, _name, _submit, _start_at, _queue_domain, _slots, _ja_taskID =
+                # m.group(2), m.group(3), m.group(6), m.group(7), m.group(9), m.group(10), m.group(11)
+            finally:
+                all_qstat_values.append(qstat_values)
+            
+            # hence the rest of the lines should follow either try's or except's same format
+            for line in fin:
+                qstat_values = self._process_qstat_line(re_search, line, re_match_positions)
+                all_qstat_values.append(qstat_values)
+            
+        return all_qstat_values
+    
+    def _extract_qstat_json(self, qstat_file):
+        all_qstat_values = list()
+        with open(qstat_file, 'r') as fin:
+            data = json.load(fin)
+            jobs = data["Jobs"]
+            for job_id, job in jobs.items():
+                qstat_values = dict()
+                user = job["Job_Owner"].split('@')[0]
+                user = self.anonymize(user, 'users')
+                qstat_values["JobId"] = job_id.split('.')[0]
+                qstat_values["Queue"] = job["queue"]
+                qstat_values["JobName"] = job["Job_Name"]
+                qstat_values["UnixAccount"] = user
+                qstat_values["S"] = job["job_state"]
+                all_qstat_values.append(qstat_values)
         return all_qstat_values
 
     def extract_qstatq(self, orig_file):
         """
-        reads QSTATQ_ORIG_FN sequentially and returns useful data
+        reads qstat_q.txt and parses the data
         Searches for lines in the following format:
         biomed             --      --    72:00:00   --   31   0 --   E R
         (except for the last line, which contains two sums and is parsed separately)
@@ -118,6 +161,12 @@ class PBSStatExtractor(StatExtractor):
                 all_values.append({'Total_running': total_running_jobs, 'Total_queued': total_queued_jobs})
         finally:
             return all_values
+
+    def _extract_qstatq_regex():
+        pass
+    
+    def _extract_qstatq_json():
+        pass
 
 
 class PBSBatchSystem(GenericBatchSystem):
