@@ -7,7 +7,6 @@ from qtop_py.constants import QTOP_LOGFILE
 
 
 def init_logging(options):
-    formatter = logging.Formatter('%(levelname)s - %(message)s')
 
     if not options.verbose:
         log_level = logging.WARN
@@ -18,7 +17,8 @@ def init_logging(options):
     elif options.verbose >= 3:
         log_level = logging.DEBUG
         # this prepends date/time
-        formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s', "%Y-%m-%d %H:%M:%S")
+
+    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s', "%Y-%m-%d %H:%M:%S")
 
     fileutils.mkdir_p(QTOP_LOGFILE.rsplit('/', 1)[0])  # logfile path
 
