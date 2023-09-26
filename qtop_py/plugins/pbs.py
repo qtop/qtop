@@ -86,7 +86,7 @@ class PBSStatExtractor(StatExtractor):
             for line in fin:
                 qstat_values = self._process_qstat_line(re_search, line, re_match_positions)
                 all_qstat_values.append(qstat_values)
-            
+
         return all_qstat_values
     
     def _extract_qstat_json(self, qstat_file):
@@ -109,65 +109,99 @@ class PBSStatExtractor(StatExtractor):
     def extract_qstatq(self, orig_file):
         """
         reads qstat_q.txt and parses the data
-        Searches for lines in the following format:
-        biomed             --      --    72:00:00   --   31   0 --   E R
-        (except for the last line, which contains two sums and is parsed separately)
+        returns the data in the following format:
+        [
+            {
+                "queue_name": "worq",
+                "run": "63",
+                "queued": "4",
+                "lm": "",
+                "state": "E"
+            }
+        ]
         """
         try:
             fileutils.check_empty_file(orig_file)
         except fileutils.FileEmptyError:
             logging.error('File %s seems to be empty.' % orig_file)
-            all_values = []
+            all_qstatq_values = []
         else:
-            anonymize = self.anonymize_func()
-            queue_search = r'^(?P<queue_name>[\w.-]+)\s+' \
-                           r'(?:--|[0-9]+[mgtkp]b[a-z]*)\s+' \
-                           r'(?:--|\d+:\d+:?\d*:?)\s+' \
-                           r'(?:--|\d+:\d+:?\d+:?)\s+(--)\s+' \
-                           r'(?P<run>\d+)\s+' \
-                           r'(?P<queued>\d+)\s+' \
-                           r'(?P<lm>--|\d+)\s+' \
-                           r'(?P<state>[DE] R)'
-            run_qd_search = r'^\s*(?P<tot_run>\d+)\s+(?P<tot_queued>\d+)'  # this picks up the last line contents
+            try:
+                with open(orig_file) as f:
+                    _ = json.load(f)
+            except json.JSONDecodeError:
+                logging.info('Extracting qstat_q output using regex')
+                all_qstatq_values = self._extract_qstatq_regex(orig_file)
+            else:
+                logging.info('Extracting qstat_q output using json')
+                all_qstatq_values = self._extract_qstatq_json(orig_file)
 
-            all_values = list()
-            with open(orig_file, 'r') as fin:
-                fin.readline()
-                fin.readline()
-                # server_name = fin.next().split(': ')[1].strip()
-                fin.readline()
-                fin.readline() #.strip()  # the headers line should later define the keys in temp_dict, should they be different
-                fin.readline()
-                for line in fin:
-                    line = line.strip()
-                    m = re.search(queue_search, line)
-                    n = re.search(run_qd_search, line)
-                    temp_dict = {}
+        return all_qstatq_values
+
+    def _extract_qstatq_regex(self, qstatq_file):
+        anonymize = self.anonymize_func()
+        queue_search = r'^(?P<queue_name>[\w.-]+)\s+' \
+                        r'(?:--|[0-9]+[mgtkp]b[a-z]*)\s+' \
+                        r'(?:--|\d+:\d+:?\d*:?)\s+' \
+                        r'(?:--|\d+:\d+:?\d+:?)\s+(--)\s+' \
+                        r'(?P<run>\d+)\s+' \
+                        r'(?P<queued>\d+)\s+' \
+                        r'(?P<lm>--|\d+)\s+' \
+                        r'(?P<state>[DE] R)'
+        run_qd_search = r'^\s*(?P<tot_run>\d+)\s+(?P<tot_queued>\d+)'  # this picks up the last line contents
+
+        all_qstatq_values = list()
+        with open(qstatq_file, 'r') as fin:
+            fin.readline()
+            fin.readline()
+            # server_name = fin.next().split(': ')[1].strip()
+            fin.readline()
+            fin.readline() #.strip()  # the headers line should later define the keys in temp_dict, should they be different
+            fin.readline()
+            for line in fin:
+                line = line.strip()
+                m = re.search(queue_search, line)
+                n = re.search(run_qd_search, line)
+                temp_dict = {}
+                try:
+                    queue_name = m.group('queue_name') if not self.options.ANONYMIZE else anonymize(m.group('queue_name'), 'qs')
+                    run, queued, lm, state = m.group('run'), m.group('queued'), m.group('lm'), m.group('state')
+                except AttributeError:
                     try:
-                        queue_name = m.group('queue_name') if not self.options.ANONYMIZE else anonymize(m.group('queue_name'), 'qs')
-                        run, queued, lm, state = m.group('run'), m.group('queued'), m.group('lm'), m.group('state')
+                        total_running_jobs, total_queued_jobs = n.group('tot_run'), n.group('tot_queued')
                     except AttributeError:
-                        try:
-                            total_running_jobs, total_queued_jobs = n.group('tot_run'), n.group('tot_queued')
-                        except AttributeError:
-                            continue
-                    else:
-                        for key, value in [('queue_name', queue_name),
-                                           ('run', run),
-                                           ('queued', queued),
-                                           ('lm', lm),
-                                           ('state', state)]:
-                            temp_dict[key] = value
-                        all_values.append(temp_dict)
-                all_values.append({'Total_running': total_running_jobs, 'Total_queued': total_queued_jobs})
-        finally:
-            return all_values
+                        continue
+                else:
+                    for key, value in [('queue_name', queue_name),
+                                        ('run', run),
+                                        ('queued', queued),
+                                        ('lm', lm),
+                                        ('state', state)]:
+                        temp_dict[key] = value
+                    all_qstatq_values.append(temp_dict)
+            all_qstatq_values.append({'Total_running': total_running_jobs, 'Total_queued': total_queued_jobs})
 
-    def _extract_qstatq_regex():
-        pass
+        return all_qstatq_values
     
-    def _extract_qstatq_json():
-        pass
+    def _extract_qstatq_json(self, qstatq_file):
+        anonymize = self.anonymize_func()
+        all_qstatq_values = list()
+        with open(qstatq_file, 'r') as fin:
+            data = json.load(fin)
+            queues = data["Queue"]
+            for queue_name, queue in queues.items():
+                qstatq_values = dict()
+                queue_name = queue_name if not self.options.ANONYMIZE else anonymize(queue_name)
+                qstatq_values["queue_name"] = queue_name
+                qstatq_values["run"] = queue["state_count"].split(" ")[4].split(":")[1]
+                qstatq_values["queued"] = queue["state_count"].split(" ")[1].split(":")[1]
+                qstatq_values["lm"] = "--" # TODO: find value in json
+                qstatq_values["state"] = "E" if queue["enabled"] == "True" else "D"
+                all_qstatq_values.append(qstatq_values)
+            total_running_jobs = sum([int(item["run"]) for item in all_qstatq_values])
+            total_queued_jobs = sum([int(item["queued"]) for item in all_qstatq_values])
+            all_qstatq_values.append({'Total_running': total_running_jobs, 'Total_queued': total_queued_jobs})
+        return all_qstatq_values
 
 
 class PBSBatchSystem(GenericBatchSystem):
