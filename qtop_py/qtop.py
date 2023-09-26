@@ -2307,7 +2307,7 @@ class InvalidScheduler(Exception):
 
 def main():
     # define global vars which are used out of scope
-    global CURPATH, QTOPPATH, HELP_FP, SAMPLE_FILENAME, scheduler, config, dynamic_config, cluster, viewport, user_to_color, args, transposed_matrices, h_counter, help_main_switch, web
+    global CURPATH, QTOPPATH, HELP_FP, SAMPLE_FILENAME, scheduler, config, dynamic_config, cluster, viewport, user_to_color, args, transposed_matrices, h_counter, help_main_switch, web, document
 
     args = utils.parse_qtop_cmdline_args()
     if args.version:
