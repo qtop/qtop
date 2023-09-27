@@ -1628,7 +1628,7 @@ class TextDisplay(object):
 
             transposed_matrices.sort(key=lambda item: item[0])
             ###TRY###
-            for line_tuple in zip_longest(*[tpl[2] for tpl in transposed_matrices], fillvalue=utils.ColorStr('  ', color='Purple', )):
+            for line_tuple in zip_longest(*[tpl[2] for tpl in transposed_matrices], fillvalue=[utils.ColorStr('  ', color='Purple', )]):
                 joined_list = self.join_prints(*line_tuple, sep=config.get('horizontal_separator', None))
 
             max_width = len(joined_list)
@@ -2223,7 +2223,7 @@ class WNFilter(object):
     def keep_marked(self, t, rule, final_pass=False):
         if (rule.startswith('or_') and not final_pass) or (not rule.startswith('or_') and final_pass):
             return t
-        nodes = filter(lambda item: item.get('mark'), t)
+        nodes = list(filter(lambda item: item.get('mark'), t))
         for item in nodes:
             if item.get('mark'):
                 del item['mark']
@@ -2255,15 +2255,14 @@ class WNFilter(object):
                 WNFilter.report_filtered_view()
             nodes = self.worker_nodes[:]
             for filter_rule in filter_rules:
-                rule, args = filter_rule.items()[0]
+                rule, args = list(filter_rule.items())[0]
                 mark_func, keep = filter_types[rule]
                 nodes = mark_func(nodes, args)
-                nodes = keep(nodes, rule)
+                nodes = list(keep(nodes, rule))
             else:
-                nodes = keep(nodes, rule, final_pass=True)
-
+                nodes = list(keep(nodes, rule, final_pass=True))
             if len(nodes):
-                self.worker_nodes = dict((v['domainname'], v) for v in nodes).values()
+                self.worker_nodes = list(dict((v['domainname'], v) for v in nodes).values())
                 offdown_nodes = sum([1 if "".join(([n.str for n in node['state']])) in 'do'  else 0 for node in
                                      self.worker_nodes])
                 avail_nodes = self.available_wn = sum(
