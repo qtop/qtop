@@ -1629,7 +1629,7 @@ class TextDisplay(object):
             transposed_matrices.sort(key=lambda item: item[0])
             ###TRY###
             for line_tuple in zip_longest(*[tpl[2] for tpl in transposed_matrices], fillvalue=[utils.ColorStr('  ', color='Purple', )]):
-                joined_list = self.join_prints(*line_tuple, sep=config.get('horizontal_separator', None))
+                joined_list = self.join_prints(*line_tuple, sep=config.get('horizontal_separator', None), nocutoff=self.args.LESS)
 
             max_width = len(joined_list)
             self.viewport.max_width = max_width
@@ -1670,7 +1670,12 @@ class TextDisplay(object):
             joined_list.extend([utils.ColorStr(string=char) if isinstance(char, str) and len(char) == 1 else char
             for char in d])
             joined_list.append(utils.ColorStr(string=kwargs['sep']))
-        s = "".join([colorize(char.initial, color_func=char.color) if isinstance(char, utils.ColorStr) else char
+        # display the full output if nocutoff is True
+        if kwargs.get('nocutoff', False):
+            s = "".join([colorize(char.initial, color_func=char.color) if isinstance(char, utils.ColorStr) else char
+                     for char in joined_list])
+        else:
+            s = "".join([colorize(char.initial, color_func=char.color) if isinstance(char, utils.ColorStr) else char
                      for char in joined_list[self.viewport.h_start:self.viewport.h_stop]])
         print(compress_colored_line(s))
         return joined_list

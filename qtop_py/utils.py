@@ -74,6 +74,8 @@ def parse_qtop_cmdline_args():
     parser.add_argument("-f", "--setCUSTOMCONFFILE", action="store", dest="CONFFILE")
     parser.add_argument("-G", "--get_GECOS_via_getent_passwd", action="store_true", dest="GET_GECOS", default=False,
                       help="get user details by issuing getent passwd for all users mentioned in qtop input files.")
+    parser.add_argument("-l", "--less", action="store_true", dest="LESS",
+                      help="Allow matrix to overflow in width. This allows to pipe the output into less -RS")
     parser.add_argument("-m", "--noMasking", action="store_true", dest="NOMASKING", default=False,
                       help="Don't mask early empty WNs (default: if the first 30 WNs are unused, counting starts from 31).")
     parser.add_argument("-o", "--option", action="append", dest="OPTION", default=[],
