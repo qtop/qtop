@@ -147,7 +147,7 @@ class PBSStatExtractor(StatExtractor):
                         r'(?P<run>\d+)\s+' \
                         r'(?P<queued>\d+)\s+' \
                         r'(?P<lm>--|\d+)\s+' \
-                        r'(?P<state>[DE] R)'
+                        r'(?P<state>[DE] [RS])'
         run_qd_search = r'^\s*(?P<tot_run>\d+)\s+(?P<tot_queued>\d+)'  # this picks up the last line contents
 
         all_qstatq_values = list()
