@@ -2374,7 +2374,10 @@ def main():
                 args = init_dirs(args, savepath)
 
                 transposed_matrices = []
-                viewport.set_term_size(*calculate_term_size(config, FALLBACK_TERMSIZE))
+                if args.LESS:
+                    viewport.set_term_size(500, 9999)
+                else:
+                    viewport.set_term_size(*calculate_term_size(config, FALLBACK_TERMSIZE))
                 sys.stdout = os.fdopen(handle, 'w')  # redirect everything to file, creates file object out of handle
                 scheduler = decide_batch_system(
                     args.BATCH_SYSTEM, os.environ.get('QTOP_SCHEDULER'), config['scheduler'],
