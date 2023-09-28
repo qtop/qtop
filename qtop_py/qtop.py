@@ -1435,10 +1435,7 @@ class TextDisplay(object):
         qstatq_lod = cluster.queues_dict
 
         if self.args.REMAP:
-            if self.args.CLASSIC:
-                print('=== WARNING: --- Remapping WN names and retrying heuristics... good luck with this... ---')
-            else:
-                logging.warning('=== WARNING: --- Remapping WN names and retrying heuristics... good luck with this... ---')
+            logging.warning('Remapping WN names and retrying heuristics')
 
         ansi_delete_char = "\015"  # this removes the first ever character (space) appearing in the output
         print('%(del)s%(name)s \nv%(version)s ## For feedback and updates, see: %(link)s' \
