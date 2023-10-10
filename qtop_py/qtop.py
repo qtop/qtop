@@ -80,7 +80,7 @@ def gauge_core_vectors(core_user_map, print_char_start, print_char_stop, corelin
     REM_EMPTY_CORELINES or its respective switch
     """
     delta = print_char_stop - print_char_start
-    for ind, k in enumerate(core_user_map):
+    for ind, k in enumerate(core_user_map.copy()):
         core_x_vector = core_user_map['Core' + str(ind) + 'vector'][print_char_start:print_char_stop]
         core_x_str = ''.join(str(x) for x in core_x_vector)
         yield core_x_vector, ind, k, coreline_notthere_or_unused(non_existent_symbol, remove_corelines, delta, core_x_str)
