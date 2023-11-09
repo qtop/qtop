@@ -1,3 +1,6 @@
+# Copyright 2023 Hewlett Packard Enterprise Development LP
+# SPDX-License-Identifier: MIT
+
 import logging
 import sys
 from argparse import ArgumentParser

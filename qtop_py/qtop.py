@@ -6,6 +6,10 @@
 #                     Sotiris Fragkiskos       #
 #                     Fotis Georgatos          #
 ################################################
+
+# Copyright 2023 Hewlett Packard Enterprise Development LP
+# SPDX-License-Identifier: MIT
+
 import sys
 here = sys.path[0]
 

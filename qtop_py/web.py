@@ -1,3 +1,6 @@
+# Copyright 2023 Hewlett Packard Enterprise Development LP
+# SPDX-License-Identifier: MIT
+
 from http.server import SimpleHTTPRequestHandler
 from socketserver import TCPServer
 from multiprocessing import Process, Queue

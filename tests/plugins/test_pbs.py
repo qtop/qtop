@@ -1,3 +1,6 @@
+# Copyright 2023 Hewlett Packard Enterprise Development LP
+# SPDX-License-Identifier: MIT
+
 from qtop_py.plugins import pbs
 import pytest
 
