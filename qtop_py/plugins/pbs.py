@@ -1,3 +1,6 @@
+# Copyright 2023 Hewlett Packard Enterprise Development LP
+# SPDX-License-Identifier: MIT
+
 try:
     import ujson as json
 except ImportError:
