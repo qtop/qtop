@@ -1,3 +1,15 @@
+
+0.9.20231110
+------------
+-  Feature enhancement: Migrate to Python 3
+-  Removed: support for Python 2
+-  Feature enhancement: Use argparse instead of optparse
+-  Feature enhancement: Migrate to pyproject.toml
+-  Feature enhancement: Add CI Pipeline
+-  Feature enhancement: Use JSON output for PBS Plugin
+-  Bugfix: Fix parsing of CPU cores in PBS plugin
+-  Bugfix: Add full width output for piping into less
+
 0.9.20161222
 ------------
 -  Bugfix: hotfix for ``tar_out`` issue #283, #284
