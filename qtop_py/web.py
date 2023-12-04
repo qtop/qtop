@@ -1,5 +1,8 @@
-from SimpleHTTPServer import SimpleHTTPRequestHandler
-import SocketServer
+# Copyright 2023 Hewlett Packard Enterprise Development LP
+# SPDX-License-Identifier: MIT
+
+from http.server import SimpleHTTPRequestHandler
+from socketserver import TCPServer
 from multiprocessing import Process, Queue
 from threading import Thread
 import os
@@ -49,7 +52,7 @@ class Web(object):
                         # Default behaviour
                         SimpleHTTPRequestHandler.do_GET(self)
 
-            class MyTCPServer(SocketServer.TCPServer):
+            class MyTCPServer(TCPServer):
                 # Undocumented. Getting rid of "address already in use" errors
                 allow_reuse_address = True
 

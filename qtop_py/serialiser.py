@@ -1,3 +1,6 @@
+# Copyright 2023 Hewlett Packard Enterprise Development LP
+# SPDX-License-Identifier: MIT
+
 import re
 import sys
 from itertools import count
@@ -67,7 +70,7 @@ class StatExtractor(object):
             cnt = '0'
             new_name_parts = [s[0], s_type, cnt]
             if s not in stored_dict:
-                cnt = str(dup_counter.next())
+                cnt = str(next(dup_counter))
                 new_name_parts.pop()
                 new_name_parts.append(cnt)
             stored_dict.setdefault(s, (''.join(new_name_parts), s_type))
@@ -114,6 +117,6 @@ class GenericBatchSystem(object):
         job_ids_queues = dict(zip(job_ids, job_queues))
         for worker_node in _worker_nodes:
             my_jobs = worker_node['core_job_map'].values()
-            my_queues = set(job_ids_queues[re.sub(r'\[\d+\]', r'[]', job_id)] for job_id in my_jobs)  # also for job arrays
+            my_queues = set(job_ids_queues.get(re.sub(r'\[\d+\]', r'[]', job_id)) for job_id in my_jobs)  # also for job arrays
             worker_node['qname'] = list(my_queues)
         return _worker_nodes

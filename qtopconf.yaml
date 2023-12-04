@@ -20,8 +20,8 @@ savepath: /tmp/qtop_results_$USER
 schedulers:
   pbs:
     pbsnodes_file: %(savepath)s/pbsnodes_a%(pid)s.txt, pbsnodes -a
-    qstatq_file: %(savepath)s/qstat_q%(pid)s.txt, qstat -q
-    qstat_file: %(savepath)s/qstat%(pid)s.txt, qstat
+    qstatq_file: %(savepath)s/qstat_q%(pid)s.txt, qstat -Q -f -F json
+    qstat_file: %(savepath)s/qstat%(pid)s.txt, qstat -f -F json
   oar:
     oarnodes_s_file: %(savepath)s/oarnodes_s_Y%(pid)s.txt, oarnodes -s -Y
     oarnodes_y_file: %(savepath)s/oarnodes_Y%(pid)s.txt, oarnodes -Y

@@ -4,10 +4,7 @@ import os
 import re
 import qtop_py.yaml_parser as yaml
 from qtop_py.utils import CountCalls
-try:
-    from collections import OrderedDict
-except ImportError:
-    from qtop_py.legacy.ordereddict import OrderedDict
+from collections import OrderedDict
 
 
 class OarStatExtractor(StatExtractor):

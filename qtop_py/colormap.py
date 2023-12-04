@@ -1,7 +1,4 @@
-try:
-    from collections import OrderedDict
-except ImportError:
-    from qtop_py.legacy.ordereddict import OrderedDict
+from collections import OrderedDict
 
 # example color maps
 # order should be from more generic-->more specific

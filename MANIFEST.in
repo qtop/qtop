@@ -3,10 +3,11 @@ include CONTRIBUTING.rst
 include helpfile.txt
 include Makefile
 include MANIFEST.in
-include MIT-license.txt
+include LICENSE
 include qtopconf.yaml
 include qtop.py
 include qtop
+include qtop_py/cli.py
 include qtop_py/colormap.py
 include qtop_py/constants.py
 include qtop_py/contrib/func_tests.sh
@@ -28,10 +29,6 @@ include qtop_py/inputs/jobstatuses.sh
 include qtop_py/inputs/jobsubmits.sh
 include qtop_py/inputs/qtop-input.jdl
 include qtop_py/inputs/qtop-input.sh
-include qtop_py/legacy/counter.py
-include qtop_py/legacy/__init__.py
-include qtop_py/legacy/namedtuple.py
-include qtop_py/legacy/ordereddict.py
 include qtop_py/plugins/demo.py
 include qtop_py/plugins/__init__.py
 include qtop_py/plugins/oar.py
