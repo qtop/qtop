@@ -33,3 +33,6 @@ ignore = []
 
 # Assuming you're developing for Python 3.10
 target-version = "py310" ##
+
+## FG customisations
+line-length = 188 # this is temporary to reduce line noise
