@@ -30,21 +30,20 @@ class Web(object):
             shared = SharedVars()
 
             class MyHandler(SimpleHTTPRequestHandler):
-                ''' Overriding the default behaviour just for api.json'''
+                """Overriding the default behaviour just for api.json"""
 
                 def log_message(self, format, *args):
-                    '''quiet!'''
+                    """quiet!"""
                     pass
 
                 def do_GET(self):
                     # Handle the case of api.json...
                     if self.path == "/api.json" and shared.filename:
-                        with open(shared.filename, 'r') as f:
+                        with open(shared.filename, "r") as f:
                             read_data = f.read()
 
                         self.send_response(200)
-                        self.send_header("Content-type",
-                                         "Content-Type: application/json")
+                        self.send_header("Content-type", "Content-Type: application/json")
                         self.send_header("Content-length", len(read_data))
                         self.end_headers()
                         self.wfile.write(read_data)
@@ -80,7 +79,7 @@ class Web(object):
                     # be picked up by server's thread
                     shared.filename = command.split()[1]
 
-        self.server = Process(target=http_server, args=(self.q, ))
+        self.server = Process(target=http_server, args=(self.q,))
         self.server.start()
 
     def set_filename(self, filename):
