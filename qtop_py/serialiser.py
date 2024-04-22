@@ -1,3 +1,6 @@
+# Copyright 2023 Hewlett Packard Enterprise Development LP
+# SPDX-License-Identifier: MIT
+
 import re
 import sys
 from itertools import count
@@ -26,11 +29,11 @@ class StatExtractor(object):
         try:
             job_id, user, job_state, queue = [m.group(x) for x in re_match_positions]
         except AttributeError:
-            logging.warn('Line: %s not properly parsed by regex expression. Assuming alternative qstat format.' % line.strip())
+            logging.warn("Line: %s not properly parsed by regex expression. Assuming alternative qstat format." % line.strip())
             raise
-        job_id = job_id.split('.')[0]
-        user = self.anonymize(user, 'users')
-        for key, value in [('JobId', job_id), ('UnixAccount', user), ('S', job_state), ('Queue', queue)]:
+        job_id = job_id.split(".")[0]
+        user = self.anonymize(user, "users")
+        for key, value in [("JobId", job_id), ("UnixAccount", user), ("S", job_state), ("Queue", queue)]:
             qstat_values[key] = value
         return qstat_values
 
@@ -42,17 +45,10 @@ class StatExtractor(object):
         """
         counters = {}
         stored_dict = {}
-        for key in ['users', 'wns', 'qs', 'jobnums', 'jobnames', 'jobtimes']:
+        for key in ["users", "wns", "qs", "jobnums", "jobnames", "jobtimes"]:
             counters[key] = count()
 
-        maps = {
-            'users': '_anon_user_',
-            'wns': '_anon_wn_',
-            'qs': '_anon_q_',
-            'jobnums': '_anon_jn_',
-            'jobnames': '_anon_nm_',
-            'jobtimes': 'never'
-        }
+        maps = {"users": "_anon_user_", "wns": "_anon_wn_", "qs": "_anon_q_", "jobnums": "_anon_jn_", "jobnames": "_anon_nm_", "jobtimes": "never"}
 
         def _anonymize_func(s, a_type):
             """
@@ -64,13 +60,13 @@ class StatExtractor(object):
             dup_counter = counters[a_type]
 
             s_type = maps[a_type]
-            cnt = '0'
+            cnt = "0"
             new_name_parts = [s[0], s_type, cnt]
             if s not in stored_dict:
-                cnt = str(dup_counter.next())
+                cnt = str(next(dup_counter))
                 new_name_parts.pop()
                 new_name_parts.append(cnt)
-            stored_dict.setdefault(s, (''.join(new_name_parts), s_type))
+            stored_dict.setdefault(s, ("".join(new_name_parts), s_type))
             return stored_dict[s][0]
 
         return _anonymize_func
@@ -78,13 +74,15 @@ class StatExtractor(object):
     def eponymize_func(self):
         def _eponymize_func(s, a_type):
             return s
+
         return _eponymize_func
 
     def anonymize_queue_list_nametag(self, queue_list_nametag):
-        name, nodename = queue_list_nametag.text.split('@')
-        name = self.anonymize(name, 'qs')
-        nodename = self.anonymize(nodename, 'wns')
-        return name + '@' + nodename
+        name, nodename = queue_list_nametag.text.split("@")
+        name = self.anonymize(name, "qs")
+        nodename = self.anonymize(nodename, "wns")
+        return name + "@" + nodename
+
 
 class GenericBatchSystem(object):
     def __init__(self):
@@ -113,7 +111,7 @@ class GenericBatchSystem(object):
             return _worker_nodes
         job_ids_queues = dict(zip(job_ids, job_queues))
         for worker_node in _worker_nodes:
-            my_jobs = worker_node['core_job_map'].values()
-            my_queues = set(job_ids_queues[re.sub(r'\[\d+\]', r'[]', job_id)] for job_id in my_jobs)  # also for job arrays
-            worker_node['qname'] = list(my_queues)
+            my_jobs = worker_node["core_job_map"].values()
+            my_queues = set(job_ids_queues.get(re.sub(r"\[\d+\]", r"[]", job_id)) for job_id in my_jobs)  # also for job arrays
+            worker_node["qname"] = list(my_queues)
         return _worker_nodes
