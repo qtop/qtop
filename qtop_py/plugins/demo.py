@@ -20,13 +20,12 @@ QUEUE_STATE_CHANGE_PROBABILITY = 0.05
 
 
 class LittleGridSimulator(object):
-
     def __init__(self):
         # Initialize seeds from time
         e_time = int(time.time())
 
         rest, markov_iters = divmod(e_time, 100)
-        _, cores_seed = divmod(rest, 1000) # Change board every 100 seconds
+        _, cores_seed = divmod(rest, 1000)  # Change board every 100 seconds
 
         random.seed(cores_seed)
 
@@ -40,22 +39,18 @@ class LittleGridSimulator(object):
         self.total_nps = sum(self.nps)
 
         # Create random node names...
-        iter_names = itertools.cycle(['dn', 'pc', 'wn'])
-        iter_domains = itertools.cycle(['foo.com', 'bar.com', 'baz.com'])
+        iter_names = itertools.cycle(["dn", "pc", "wn"])
+        iter_domains = itertools.cycle(["foo.com", "bar.com", "baz.com"])
 
         self.domain_names = []
         for i in range(WORKER_NODES):
-            domainname = "".join([
-                next(iter_names),
-                str(i),
-                next(iter_domains)])
+            domainname = "".join([next(iter_names), str(i), next(iter_domains)])
             self.domain_names.append(domainname)
 
         # Setup random node states
         self.node_state = []
         p_all = NODE_REPAIR_PROBABILITY + NODE_FAILURE_PROBABILITY
         for i in range(WORKER_NODES):
-
             if NODE_REPAIR_PROBABILITY < random.random() * p_all:
                 state = random.choice(["-", "b"])
             else:
@@ -70,7 +65,7 @@ class LittleGridSimulator(object):
                 self.core_job_map[node].append(None)
 
         # -- Step 2. Do a few iterations (at least 10) on the state of the cluster
-        p_job_die = 1. / AVG_JOB_DURATION
+        p_job_die = 1.0 / AVG_JOB_DURATION
         first = True
         for _ in range(10 + markov_iters):
             # Step 3.a Add a random number of jobs into each queue
@@ -82,9 +77,8 @@ class LittleGridSimulator(object):
             for node in range(WORKER_NODES):
                 for core, job_id in enumerate(self.core_job_map[node]):
                     if job_id:
-                        if self.job_state.get(job_id, 'Not_existing!') != 'R':
+                        if self.job_state.get(job_id, "Not_existing!") != "R":
                             self.core_job_map[node][core] = None
-
 
             # Step 3.c A few jobs will be scheduled to die...
             for node in range(WORKER_NODES):
@@ -92,7 +86,6 @@ class LittleGridSimulator(object):
                     if job_id:
                         if random.random() < p_job_die:
                             self.job_state[job_id] = random.choice("C E W".split())
-
 
             # Step 3.d Make a few servers fail or get repaired
             for node in range(WORKER_NODES):
@@ -109,7 +102,6 @@ class LittleGridSimulator(object):
                                 self.core_job_map[node][core] = None
                                 self.job_state[job_id] = random.choice("C E W".split())
 
-
             # Step 3.f Find available slots in the system...
             empty_slots = []
             utilized_slots = 0
@@ -123,14 +115,12 @@ class LittleGridSimulator(object):
 
             total_available_capacity = utilized_slots + len(empty_slots)
 
-
             # Step 3.g Schedule up to the desired allocation...
             desired_allocated_slots = int(total_available_capacity * DESIRED_GRID_UTILIZATION)
 
             to_schedule = int(desired_allocated_slots - utilized_slots)
 
             if to_schedule > 0:
-
                 # Pick the first `to_schedule` random slots
                 random.shuffle(empty_slots)
                 lucky_slots = empty_slots[:to_schedule]
@@ -143,7 +133,7 @@ class LittleGridSimulator(object):
                         if self.queue_jobs[queue_name]:
                             job_id = self.queue_jobs[queue_name].pop()
                             self.core_job_map[node][core] = job_id
-                            self.job_state[job_id] = 'R'
+                            self.job_state[job_id] = "R"
                             break
 
             # Shuffle queue states as well, every now and then
@@ -169,7 +159,7 @@ class LittleGridSimulator(object):
                 job_id = "j%d" % jobcnt
                 username = random.choice("alice023 cms347 cms125 lhcbplt01 cms360 Atlassm".split())
                 self.queue_jobs[queue_name].append(job_id)
-                self.job_state[job_id] = 'Q'  # Initialy everything queued
+                self.job_state[job_id] = "Q"  # Initialy everything queued
                 self.job_meta[job_id] = (queue_name, username)
                 jobcnt += 1
             self.queue_state[queue_name] = random.choice("Q R C E W".split())
@@ -195,7 +185,6 @@ class DemoBatchSystem(GenericBatchSystem):
         self.config = config
         self.sim = LittleGridSimulator()
 
-
     def get_worker_nodes(self, job_ids, job_queues, options):
         """
         Possible node states are:
@@ -208,19 +197,13 @@ class DemoBatchSystem(GenericBatchSystem):
         worker_nodes = []
 
         for node in range(WORKER_NODES):
-
             # Create a map core=>jobid
             core_job_map = {}
             for core, job_id in enumerate(self.sim.core_job_map[node]):
                 if job_id:
                     core_job_map[core] = job_id
 
-            worker_node = {
-                "domainname": self.sim.domain_names[node],
-                "state": self.sim.node_state[node],
-                "np": self.sim.nps[node],
-                "core_job_map": core_job_map
-            }
+            worker_node = {"domainname": self.sim.domain_names[node], "state": self.sim.node_state[node], "np": self.sim.nps[node], "core_job_map": core_job_map}
 
             worker_nodes.append(worker_node)
         worker_nodes = self.ensure_worker_nodes_have_qnames(worker_nodes, job_ids, job_queues)
@@ -238,7 +221,7 @@ class DemoBatchSystem(GenericBatchSystem):
             for core, job_id in enumerate(self.sim.core_job_map[node]):
                 if job_id:
                     job_ids.append(job_id)
-                    
+
                     queue_name, username = self.sim.job_meta[job_id]
                     usernames.append(username)
                     queue_names.append(queue_name)
@@ -260,14 +243,14 @@ class DemoBatchSystem(GenericBatchSystem):
         total_queued_jobs = self.sim.get_total_queued()
 
         qstatq_list = list()
-        
+
         for queue_name in QUEUES:
             qstatq = {
-                'queue_name': queue_name,
-                'run': run_for_queue[queue_name],
-                'queued': str(len(self.sim.queue_jobs[queue_name])),
-                'state': self.sim.queue_state[queue_name],
-                'lm': random.randint(0, 100),
+                "queue_name": queue_name,
+                "run": run_for_queue[queue_name],
+                "queued": str(len(self.sim.queue_jobs[queue_name])),
+                "state": self.sim.queue_state[queue_name],
+                "lm": random.randint(0, 100),
             }
             qstatq_list.append(qstatq)
 

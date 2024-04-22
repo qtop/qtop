@@ -1,14 +1,18 @@
 
+0.9.20240422
+------------
+-  Feature enhancement: codebase improved via ruff: pass #1
+
 0.9.20231110
 ------------
--  Feature enhancement: Migrate to Python 3
--  Removed: support for Python 2
--  Feature enhancement: Use argparse instead of optparse
--  Feature enhancement: Migrate to pyproject.toml
--  Feature enhancement: Add CI Pipeline
--  Feature enhancement: Use JSON output for PBS Plugin
--  Bugfix: Fix parsing of CPU cores in PBS plugin
--  Bugfix: Add full width output for piping into less
+-  Removed: support for Python 2, fixes #108
+-  Feature enhancement: Migrate to Python 3, fixes #108
+-  Feature enhancement: Use argparse instead of optparse, fixes #311
+-  Feature enhancement: Migrate to pyproject.toml, fixes #313
+-  Feature enhancement: Add CI Pipeline, fixes #313
+-  Feature enhancement: Use JSON output for PBS Plugin, fixes #315
+-  Bugfix: Fix parsing of CPU cores in PBS plugin, fixes #312
+-  Bugfix: Add full width output for piping into less, fixes #316
 
 0.9.20161222
 ------------

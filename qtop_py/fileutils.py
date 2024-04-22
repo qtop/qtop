@@ -29,14 +29,13 @@ def get_new_temp_file(_savepath, suffix, prefix):  # **kwargs
     is needed to redirect sys.stdout to.
     """
     fd, temp_filepath = tempfile.mkstemp(suffix=suffix, prefix=prefix, dir=_savepath)  # **kwargs
-    logging.debug('temp_filepath: %s' % temp_filepath)
+    logging.debug("temp_filepath: %s" % temp_filepath)
     # out_file = os.fdopen(fd, 'w')
     return fd, temp_filepath
 
 
-def safe_exit_with_file_close(handle, name, stdout, options, _savepath,
-                              qtop_logfile, sample_filename, delete_file=False):
-    sys.stdout.write('\nExiting. Thank you for ..watching ;)\n')
+def safe_exit_with_file_close(handle, name, stdout, options, _savepath, qtop_logfile, sample_filename, delete_file=False):
+    sys.stdout.write("\nExiting. Thank you for ..watching ;)\n")
     sys.stdout.flush()
     sys.stdout.close()
     try:
@@ -61,12 +60,12 @@ def init_sample_file(options, _savepath, SAMPLE_FILENAME, scheduler_output_filen
     """
     if options.SAMPLE >= 1:
         # clears any preexisting tar files
-        tar_out = tarfile.open(os.path.join(_savepath, SAMPLE_FILENAME), mode='w')
+        tar_out = tarfile.open(os.path.join(_savepath, SAMPLE_FILENAME), mode="w")
 
     if options.SAMPLE >= 2:
         tar_out = add_to_sample([os.path.join(os.path.realpath(QTOPPATH), QTOPCONF_YAML)], tar_out)
-        source_files = glob.glob(os.path.join(os.path.realpath(QTOPPATH), '*.py'))
-        tar_out = add_to_sample(source_files, tar_out, subdir='qtop_py')
+        source_files = glob.glob(os.path.join(os.path.realpath(QTOPPATH), "*.py"))
+        tar_out = add_to_sample(source_files, tar_out, subdir="qtop_py")
     return tar_out
 
 
@@ -77,23 +76,23 @@ def add_to_sample(filepaths_to_add, sample_out, sample_method=tarfile, subdir=No
     """
     assert isinstance(filepaths_to_add, list)
     for filepath_to_add in filepaths_to_add:
-        path, fn = filepath_to_add.rsplit('/', 1)
+        path, fn = filepath_to_add.rsplit("/", 1)
         try:
-            logging.debug('Adding %s to sample...' % filepath_to_add)
+            logging.debug("Adding %s to sample..." % filepath_to_add)
             sample_out.add(filepath_to_add, arcname=fn if not subdir else os.path.join(subdir, fn))
         except tarfile.TarError:  # TODO: test what could go wrong here
-            logging.error('There seems to be something wrong with the tarfile. Skipping...')
+            logging.error("There seems to be something wrong with the tarfile. Skipping...")
     # else:
-        # logging.debug('Closing sample...')
-        # sample_out.close()
+    # logging.debug('Closing sample...')
+    # sample_out.close()
     return sample_out
 
 
 def get_sample_filename(SAMPLE_FILENAME, config):
-    if config['overwrite_sample_file']:
-        SAMPLE_FILENAME = SAMPLE_FILENAME % {'datetime': ''}
+    if config["overwrite_sample_file"]:
+        SAMPLE_FILENAME = SAMPLE_FILENAME % {"datetime": ""}
     else:
-        SAMPLE_FILENAME = SAMPLE_FILENAME % {'datetime': '_' + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")}
+        SAMPLE_FILENAME = SAMPLE_FILENAME % {"datetime": "_" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")}
     return SAMPLE_FILENAME
 
 
@@ -107,8 +106,7 @@ class FileNotFound(Exception):
 
 class FileEmptyError(Exception):
     def __init__(self, fn):
-        msg = "File %s is empty.\n" \
-              "Is your batch scheduler loaded with jobs?" % fn
+        msg = "File %s is empty.\n" "Is your batch scheduler loaded with jobs?" % fn
         Exception.__init__(self, msg)
         logging.warning(msg)
         self.fn = fn
@@ -118,10 +116,10 @@ def deprecate_old_output_files(config):
     """
     deletes older json and .out files in savepath directory.
     """
-    time_alive = get_timedelta(parse_time_input(config['auto_delete_old_output_files_after']))
-    _savepath = config['savepath']
+    time_alive = get_timedelta(parse_time_input(config["auto_delete_old_output_files_after"]))
+    _savepath = config["savepath"]
     for f in os.listdir(_savepath):
-        if (not f.endswith(('json', '.out'))) or f.endswith('rec.out'):
+        if (not f.endswith(("json", ".out"))) or f.endswith("rec.out"):
             continue
         curpath = os.path.join(_savepath, f)
         file_modified = datetime.datetime.fromtimestamp(os.path.getmtime(curpath))
@@ -143,14 +141,14 @@ def parse_time_input(_time):
     e.g. '5h', or '10m', or '30s'
     A tuple is returned, e.g. (5, 'hours')
     """
-    assert _time.endswith(('h', 'm', 's'))
+    assert _time.endswith(("h", "m", "s"))
     try:
         int(_time[:-1])
     except ValueError:
-        logging.critical('Time input given must be a number followed by the letter h/m/s. Exiting.')
+        logging.critical("Time input given must be a number followed by the letter h/m/s. Exiting.")
 
     quantity, user_unit_suffix = _time[:-1], _time[-1]
-    units = {'m': 'minutes', 's': 'seconds', 'h': 'hours'}
+    units = {"m": "minutes", "s": "seconds", "h": "hours"}
     user_unit = units[user_unit_suffix]
 
     return {user_unit: int(quantity)}
