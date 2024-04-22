@@ -7,6 +7,7 @@ import logging
 
 ## TODO: black sheep
 
+
 def fix_config_list(config_list):
     """
     transforms a list of the form ['a, b'] to ['a', 'b']
@@ -15,7 +16,7 @@ def fix_config_list(config_list):
         return []
     t = config_list
     item = t[0]
-    list_items = item.split(',')
+    list_items = item.split(",")
     return [nr.strip() for nr in list_items]
 
 
@@ -45,16 +46,16 @@ def get_line(fin, verbatim=False, SEPARATOR=None, DEF_INDENT=2):
         -DEF_INDENT / 2: -1,
         -DEF_INDENT: -1,
         -3 * int(float(DEF_INDENT) / 2): -2,
-        - 2 * DEF_INDENT: -2,
+        -2 * DEF_INDENT: -2,
     }
     for line in fin:
-        if line.lstrip().startswith('#') or line.strip() == '---':
+        if line.lstrip().startswith("#") or line.strip() == "---":
             continue
-        elif ' #' in line and not line.endswith('#\n'):
-            line = line.split(' #', 1)[0]
+        elif " #" in line and not line.endswith("#\n"):
+            line = line.split(" #", 1)[0]
 
         prev_indent = indent
-        indent = len(line) - len(line.lstrip(' '))
+        indent = len(line) - len(line.lstrip(" "))
         diff = indent - prev_indent
         try:
             d_indent = indenter[diff]
@@ -86,7 +87,7 @@ def convert_dash_key_in_dict(d):
             continue
         try:
             for key_in in d[key_out]:
-                if key_in == '-' and key_out != 'state':
+                if key_in == "-" and key_out != "state":
                     d[key_out] = d[key_out][key_in]
                 # elif key_in == '-' and key_out == 'state':
                 #     d[key_out] = eval(d[key_out])
@@ -100,15 +101,15 @@ def convert_dash_key_in_dict(d):
 
 def parse(fn, DEF_INDENT=2):
     raw_key_values = {}
-    with open(fn, mode='r') as fin:
+    with open(fn, mode="r") as fin:
         try:
             assert os.stat(fn).st_size != 0
         except AssertionError:
-            logging.critical('File %s is empty!! Exiting...\n' % fn)
+            logging.critical("File %s is empty!! Exiting...\n" % fn)
             raise
         except IOError:
             raise
-        logging.debug('File state before parse: %s' % fin)
+        logging.debug("File state before parse: %s" % fin)
         get_lines = get_line(fin, DEF_INDENT=DEF_INDENT)  # TODO: weird
         line = next(get_lines)
         while line:
@@ -118,7 +119,7 @@ def parse(fn, DEF_INDENT=2):
                 block[k] = convert_dash_key_in_dict(block[k])
             raw_key_values.update(block)
 
-    logging.debug('File state after parse: %s' % fin)
+    logging.debug("File state after parse: %s" % fin)
     a_dict = dict([(key, value) for key, value in raw_key_values.items()])
     return a_dict
 
@@ -138,23 +139,21 @@ def read_yaml_config_block(line, fin, get_lines):
         try:
             line = next(get_lines)
         except StopIteration:  # EO(config)F
-            return {}, ''
+            return {}, ""
 
     while len(line) > 1:  # as long as a blank line is not reached (i.e. block is not complete)
         # if line[0] == 0 or (line[0] != 0 and line[1] == '-'):  # same level
         # key_value used below belongs to previous line. It will work for first block line because of short circuit logic
-        if line[0] == 0 \
-                or (line[0] == 1 and (next(iter(key_value)) == '-'))\
-                or (line[0] == -1 and line[1] == '-'):  # same level or entry level
+        if line[0] == 0 or (line[0] == 1 and (next(iter(key_value)) == "-")) or (line[0] == -1 and line[1] == "-"):  # same level or entry level
             key_value, container = process_line(line, fin, get_lines, parent_container)
             for k in key_value:
                 pass  # assign dict's sole key to k
-            if parent_container == {} or '-' not in parent_container:
+            if parent_container == {} or "-" not in parent_container:
                 parent_container[k] = key_value[k]
-            elif '-' in parent_container and '-' not in key_value:
-                last_item = parent_container['-'].pop()
+            elif "-" in parent_container and "-" not in key_value:
+                last_item = parent_container["-"].pop()
                 key_value.update(last_item)
-                parent_container['-'].append(key_value)
+                parent_container["-"].append(key_value)
             else:
                 parent_container.setdefault(k, []).extend(key_value[k])  # was waiting for a list, but a str came in!
             if container == {}:
@@ -169,19 +168,18 @@ def read_yaml_config_block(line, fin, get_lines):
             if parent_container == {}:  # above it is a key waiting to be filled with values
                 parent_container[k] = key_value[k]
             else:
-                parent_container.setdefault(k, []).append(key_value[k]) if isinstance(key_value[k], str) else \
-                    parent_container.setdefault(k, []).extend(key_value[k])
+                parent_container.setdefault(k, []).append(key_value[k]) if isinstance(key_value[k], str) else parent_container.setdefault(k, []).extend(key_value[k])
             if container == {}:
                 open_containers.append(container)
                 parent_container = open_containers[-1]  # point towards latest container (key_value's value)
 
-        elif line[0] == -2 and line[1] == '-':  # go up two levels
+        elif line[0] == -2 and line[1] == "-":  # go up two levels
             key_value, container = process_line(line, fin, get_lines, parent_container)
             len(open_containers) > 1 and open_containers.pop() or None
             for k in key_value:
                 pass  # assign dict's sole key to k
-            if open_containers[-1].get('-'):
-                open_containers[-1].setdefault('-', []).extend(key_value[k])
+            if open_containers[-1].get("-"):
+                open_containers[-1].setdefault("-", []).extend(key_value[k])
             else:
                 open_containers[-1][k] = key_value[k]
             if container == {}:
@@ -195,8 +193,8 @@ def read_yaml_config_block(line, fin, get_lines):
             len(open_containers) > 1 and open_containers.pop() or None
             for k in key_value:
                 pass  # assign dict's sole key to k
-            if open_containers[-1].get('-'):
-                open_containers[-1].setdefault('-', []).extend(key_value[k])
+            if open_containers[-1].get("-"):
+                open_containers[-1].setdefault("-", []).extend(key_value[k])
             else:
                 open_containers[-1][k] = key_value[k]
             if container == {}:
@@ -208,9 +206,9 @@ def read_yaml_config_block(line, fin, get_lines):
         try:
             line = next(get_lines)
         except StopIteration:
-            return block, ''
+            return block, ""
         else:
-            if line[-1] == '...':
+            if line[-1] == "...":
                 return block, line
     return block, line
 
@@ -220,39 +218,39 @@ def process_line(list_line, fin, get_lines, parent_container):
 
     if len(list_line) == 2:  # key-only, so what's in the line following should be written in a new container
         container = {}
-        return {key.rstrip(':'): container}, container
+        return {key.rstrip(":"): container}, container
 
     elif len(list_line) == 3:
         container = list_line[2]
 
-        if container.endswith(':'):  # key: '-'           - testkey:
+        if container.endswith(":"):  # key: '-'           - testkey:
             parent_key = key
             key = container
             new_container = {}
-            return {parent_key: [{key.rstrip(':'): new_container}]}, new_container  #list
+            return {parent_key: [{key.rstrip(":"): new_container}]}, new_container  # list
 
-        elif ': ' in container:  # key: '-'               - testkey: testvalue
+        elif ": " in container:  # key: '-'               - testkey: testvalue
             parent_key = key
             key, container = container.split(None, 1)
             # container = [container[1:-1]] if container.startswith('[') else container
-            container = container[1:-1].split(', ') if container.startswith('[') else container
+            container = container[1:-1].split(", ") if container.startswith("[") else container
             container = "" if container in ("''", '""') else container
             if len(container) == 1 and isinstance(container, list) and isinstance(container[0], str):
                 try:
                     container = list(eval(container[0]))
                 except NameError:
                     pass
-            return {'-': [{key.rstrip(':'): container}]}, container  #list
+            return {"-": [{key.rstrip(":"): container}]}, container  # list
 
-        elif container.endswith('|'):
+        elif container.endswith("|"):
             container = process_code(fin)
-            return {key.rstrip(':'): container}, parent_container
+            return {key.rstrip(":"): container}, parent_container
 
         else:  # simple value
-            if key == '-':  # i.e.  - testvalue
-                return {'-': [container]}, container  # was parent_container******was :[container]}, container
+            if key == "-":  # i.e.  - testvalue
+                return {"-": [container]}, container  # was parent_container******was :[container]}, container
             else:  # i.e. testkey: testvalue
-                container = [container[1:-1]] if container.startswith('[') else container  #list
+                container = [container[1:-1]] if container.startswith("[") else container  # list
                 if len(container) == 1 and isinstance(container, list) and isinstance(container[0], str):
                     try:
                         container = list(eval(container[0]))
@@ -260,7 +258,7 @@ def process_line(list_line, fin, get_lines, parent_container):
                         pass
                 elif container.startswith("'") and container.endswith("'"):
                     container = eval(container)
-                return {key.rstrip(':'): container}, container  # was parent_container#str
+                return {key.rstrip(":"): container}, container  # was parent_container#str
     else:
         raise ValueError("Didn't anticipate that!")
 
@@ -271,12 +269,12 @@ def process_code(fin):
     line = next(get_code)
     code = []
     while line[0] > -1:
-        code.append(' ' + line[-1])
+        code.append(" " + line[-1])
         try:
             line = next(get_code)
         except StopIteration:
             break
-    return '\n'.join([c.strip() for c in code]).strip()
+    return "\n".join([c.strip() for c in code]).strip()
 
 
 def safe_load(fin, DEF_INDENT=2):
@@ -309,8 +307,8 @@ def get_yaml_key_part(config, scheduler, outermost_key):
     for part in config[outermost_key]:
         part_name = [i for i in part][0]
         part_options = part[part_name]
-        yaml_key = part_options.get('yaml_key')
+        yaml_key = part_options.get("yaml_key")
         # if no systems line exists, all systems are supported, and thus the current
-        systems = fix_config_list(part_options.get('systems', [scheduler]))
+        systems = fix_config_list(part_options.get("systems", [scheduler]))
         if yaml_key:
             yield yaml_key, part_name, systems
