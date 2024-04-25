@@ -1,5 +1,12 @@
-# Copyright 2023 Hewlett Packard Enterprise Development LP
-# SPDX-License-Identifier: MIT
+##
+## qtop is a tool to monitor queuing systems - https://github.com/qtop/qtop
+##
+## Copyright (c) 2016-2024 Fotis Georgatos
+## Copyright (c) 2016-2024 Sotiris Fragkiskos
+## Copyright (c) 2023 Hewlett Packard Enterprise Development LP
+##
+## SPDX-License-Identifier: MIT
+##
 
 import logging
 import sys
