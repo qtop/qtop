@@ -77,7 +77,7 @@ Profile
 
     Description: the fast text mode way to monitor your cluster’s utilization and status; the time has come to take back control of your cluster’s scheduling business
     License: MIT
-    Version: 0.9.20161222 / Date: 2016-12-22
+    Version: 0.9.20241013 / Date: 2024-10-13
     Homepage: https://github.com/qtop/qtop
 
 .. _here: docs/documentation.rst
