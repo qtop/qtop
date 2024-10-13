@@ -172,7 +172,10 @@ def test_scroll_far_right_attaches_to_right_screen_edge():
 """
 This is a quick'n'clean way to run many edge cases without re-writing the whole bloody initialisation every time!!
 """
-@pytest.mark.parametrize('init_vstart, init_hstart, term_size, max_matrix_dim, expected',
+
+
+@pytest.mark.parametrize(
+    "init_vstart, init_hstart, term_size, max_matrix_dim, expected",
     (
         (0, 0, [53, 176], (200, 200), (0, 53, 24, 200)),  # test1
         (0, 100, [53, 176], (400, 400), (0, 53, 188, 364)),  # test2 etc
@@ -190,12 +193,13 @@ def test_after_scroll_right(init_vstart, init_hstart, term_size, max_matrix_dim,
     assert expected == (viewport.v_start, viewport.v_stop, viewport.h_start, viewport.h_stop)
 
 
-@pytest.mark.parametrize('init_vstart, init_hstart, term_size, max_matrix_dim, expected',
-     (
-         (0, 0, [30, 120], (200, 200), (170, 200, 0, 120)),  # from top to bottom
-         (40, 50, [30, 120], (200, 200), (170, 200, 50, 170)),  # from random to bottom
-         (170, 50, [30, 120], (200, 200), (170, 200, 50, 170)),  # from bottom to bottom
-     ),
+@pytest.mark.parametrize(
+    "init_vstart, init_hstart, term_size, max_matrix_dim, expected",
+    (
+        (0, 0, [30, 120], (200, 200), (170, 200, 0, 120)),  # from top to bottom
+        (40, 50, [30, 120], (200, 200), (170, 200, 50, 170)),  # from random to bottom
+        (170, 50, [30, 120], (200, 200), (170, 200, 50, 170)),  # from bottom to bottom
+    ),
 )
 def test_after_scroll_bottom(init_vstart, init_hstart, term_size, max_matrix_dim, expected):
     viewport = Viewport(init_vstart, init_hstart)

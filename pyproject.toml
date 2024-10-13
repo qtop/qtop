@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "qtop"
+dynamic = ["version"]
+description = """
+    qtop: the fast text mode way to monitor your cluster's utilization and status;
+    the time has come to take back control of your cluster's scheduling business"""
+readme = "README.rst"
+authors = [
+    { name="Sotiris Fragkiskos", email="sfranky@gmail.com"},
+]
+requires-python = ">=3"
+
+[project.urls]
+"Homepage" = "https://github.com/qtop/qtop"
+
+[project.scripts]
+qtop = "qtop_py.qtop:main"
+
+[tool.setuptools.dynamic]
+version = {attr = "qtop_py.__version__"}
+
+[tool.setuptools]
+packages = ["qtop_py"]
+
+[tool.ruff]
+# Enable pycodestyle (`E`) and Pyflakes (`F`) codes by default.
+lint.select = ["E", "F", "I"] ##
+lint.ignore = ["E722"]
+
+# Assuming you're developing for Python 3.10
+target-version = "py310" ##
+
+## FG customisations
+line-length = 188 # this is temporary to reduce line noise
