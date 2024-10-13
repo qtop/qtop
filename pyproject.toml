@@ -11,6 +11,7 @@ description = """
 readme = "README.rst"
 authors = [
     { name="Sotiris Fragkiskos", email="sfranky@gmail.com"},
+    { name="Fotis Georgatos", email="kefalonia@gmail.com"},
 ]
 requires-python = ">=3"
 
@@ -35,4 +36,4 @@ lint.ignore = ["E722"]
 target-version = "py310" ##
 
 ## FG customisations
-line-length = 188 # this is temporary to reduce line noise
+line-length = 188 # this is temporary to reduce noise over line lengths

@@ -1,4 +1,8 @@
 
+0.9.20241013
+------------
+-  Documentation update: get paraphernalia files in shape for release
+
 0.9.20240422
 ------------
 -  Feature enhancement: codebase improved via ruff: pass #1
