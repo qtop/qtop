@@ -205,10 +205,28 @@ class PBSStatExtractor(StatExtractor):
                 qstatq_values = dict()
                 queue_name = queue_name if not self.options.ANONYMIZE else anonymize(queue_name)
                 qstatq_values["queue_name"] = queue_name
-                qstatq_values["run"] = queue["state_count"].split(" ")[4].split(":")[1]
-                qstatq_values["queued"] = queue["state_count"].split(" ")[1].split(":")[1]
+                
+                # Parse state_count more robustly - handle different PBS versions/cluster formats
+                # state_count format can vary: "Transit:0 Queued:5 Held:0 Waiting:0 Running:10 Exiting:0"
+                # or similar variations. Use regex to extract values safely.
+                state_count = queue.get("state_count", "")
+                run_match = re.search(r"Running[:\s]+(\d+)", state_count, re.IGNORECASE)
+                queued_match = re.search(r"Queued[:\s]+(\d+)", state_count, re.IGNORECASE)
+                
+                if run_match:
+                    qstatq_values["run"] = run_match.group(1)
+                else:
+                    logging.warning("Could not parse 'Running' count from state_count: '%s' for queue '%s'. Using 0." % (state_count, queue_name))
+                    qstatq_values["run"] = "0"
+                
+                if queued_match:
+                    qstatq_values["queued"] = queued_match.group(1)
+                else:
+                    logging.warning("Could not parse 'Queued' count from state_count: '%s' for queue '%s'. Using 0." % (state_count, queue_name))
+                    qstatq_values["queued"] = "0"
+                
                 qstatq_values["lm"] = "--"  # TODO: find value in json
-                qstatq_values["state"] = "E" if queue["enabled"] == "True" else "D"
+                qstatq_values["state"] = "E" if queue.get("enabled", "False") == "True" else "D"
                 all_qstatq_values.append(qstatq_values)
             total_running_jobs = sum([int(item["run"]) for item in all_qstatq_values])
             total_queued_jobs = sum([int(item["queued"]) for item in all_qstatq_values])
