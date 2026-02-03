@@ -209,6 +209,7 @@ class PBSStatExtractor(StatExtractor):
                 # Parse state_count more robustly - handle different PBS versions/cluster formats
                 # state_count format can vary: "Transit:0 Queued:5 Held:0 Waiting:0 Running:10 Exiting:0"
                 # or similar variations. Use regex to extract values safely.
+                
                 state_count = queue.get("state_count", "")
                 run_match = re.search(r"Running[:\s]+(\d+)", state_count, re.IGNORECASE)
                 queued_match = re.search(r"Queued[:\s]+(\d+)", state_count, re.IGNORECASE)
