@@ -1,0 +1,1 @@
+Nenhum código foi fornecido, portanto não há nada a corrigir.
