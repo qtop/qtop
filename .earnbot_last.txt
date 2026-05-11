@@ -1,20 +1,24 @@
-Implemented and committed on branch `earnbot/sec-qtop-qtop-337`.
+Implemented a minimal, issue-focused change on branch `earnbot/sec-qtop-qtop-337`.
 
-- Commit: `9c586a7`
-- Files changed:
-  - [docs/documentation.rst](/Users/zheliu/Documents/Codex/2026-05-11/now-go-out-and-make-at-2/data/work/qtop__qtop/docs/documentation.rst)
+- Changed files:
+  - [`.github/ISSUE_TEMPLATE/cluster-diff-debug.md`](/Users/zheliu/Documents/Codex/2026-05-11/now-go-out-and-make-at-2/data/work/qtop__qtop/.github/ISSUE_TEMPLATE/cluster-diff-debug.md)
 
-Why this addresses issue #337:
-- Tightened the differential-debugging instructions to make the “first step” explicit and reproducible for cross-cluster bug hunting:
-  - captures the exact run command and pinned version context per snapshot,
-  - uses deterministic full-view file selection before diffing,
-  - extracts the first meaningful diff hunk,
-  - explicitly requires confirming both snapshots were from the same pinned build.
-- This directly documents the requested workflow for working/failing run comparison without changing runtime behavior.
+- What this fixes:
+  - Adds a dedicated bug-report template for differential debugging that explicitly requires:
+    - both working/failing screenshots,
+    - reproducible paired runs (same pinned version),
+    - required first-pass diff artifacts,
+    - and an explicit latest-version reproducibility check.
+  - This documents and enforces the exact reporting workflow requested in issue #337.
 
-Verification run:
-- `python3 -m compileall -q qtop_py && echo "compileall_ok"`
-- `git status --short` (only pre-existing untracked `.omx/state/active-sessions/mcp-16373.json` was present).
+- Commit:
+  - `dd37261` — `docs: add differential debugging issue template`
 
-Security impact (one line):
-- No executable code paths changed; only documentation text was updated, so there is no security behavior impact.
+- Verification run:
+  - `git add .github/ISSUE_TEMPLATE/cluster-diff-debug.md && git commit -m "docs: add differential debugging issue template"`
+
+- Security impact (1-line):
+  - No production/runtime behavior changes; only adds reporting/documentation content, so no direct security surface impact.
+
+- Assumptions:
+  - I treated this as a process/documentation issue (the issue asks for explicit differential-debugging artifacts, not an internal code defect).
