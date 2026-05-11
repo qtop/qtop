@@ -3,6 +3,7 @@ qtop.py guide
 
 -  `Introduction <#introduction>`__
 -  `Quickstart <#quickstart>`__
+-  `Differential debugging <#differential-debugging>`__
 -  `Output walkthrough <#output-walkthrough>`__
 -  `Watchmode <#watch-mode>`__
 -  `Instant Replay <#instant-replay>`__
@@ -77,6 +78,49 @@ Most of what you can see on screen is customisable **on-the-fly** by
 editing a `configuration file <#customisation>`__. Some modifications
 can also be accomplished by using the aforementioned
 `keybindings <#keyboard-shortcuts>`__.
+
+Differential debugging
+----------------------
+
+If you need to report a cluster-specific issue, the fastest safe first
+step is to capture a reproducible pair of runs and run a textual diff
+before deep debugging.
+
+For each cluster run (working and failing), use the same pinned qtop
+version and command:
+
+::
+
+    ./qtop.py -b <scheduler> -L -L
+
+The double ``-L`` stores a tarball named
+``qtop_sample_<USER>_YYYYMMDD-HHMMSS.tar`` in
+``savepath``. It includes the qtop output, the scheduler input files, the
+runtime log, and source files.
+
+Then collect one screenshot from each run (for example, one frame of
+``./qtop.py -b <scheduler>`` output) and save it as ``working.png`` and
+``failing.png`` using your terminal capture tool.
+
+Next, perform a first differential pass:
+
+::
+
+    tar -tf <runA_sample>.tar
+    tar -xf <runA_sample>.tar -C /tmp/qtop_cluster_a
+    tar -xf <runB_sample>.tar -C /tmp/qtop_cluster_b
+    diff -u /tmp/qtop_cluster_a/qtop_fullview_*.out \
+      /tmp/qtop_cluster_b/qtop_fullview_*.out | head
+
+If needed, also diff scheduler inputs (for example ``qstat``/``oarstat``/
+``pbsnodes`` files) to isolate where the behavior first diverges.
+
+Finally, include in the report:
+
+* qtop version from both environments (`./qtop --version`)
+* both screenshots
+* the first non-empty diff hunk from the above command
+* whether the issue reproduces on the latest qtop version
 
 Output walkthrough
 ------------------
