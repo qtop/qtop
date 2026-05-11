@@ -1,0 +1,20 @@
+Done on branch `earnbot/sec-qtop-qtop-337`.
+
+- Commit: `df12fd3`
+- Files changed:
+  - [docs/documentation.rst](/Users/zheliu/Documents/Codex/2026-05-11/now-go-out-and-make-at-2/data/work/qtop__qtop/docs/documentation.rst)
+
+Why this addresses issue #337:
+- Added a minimal, issue-scoped “Differential debugging” section in the user guide.
+- Documents the first-step workflow requested in the issue: capture a working/failing run pair with reproducible `-L -L` sample tarballs, collect screenshots, and run an initial textual diff between `qtop_fullview_*.out` (plus optional scheduler input diff).
+- Adds explicit reporting checklist including `./qtop --version` and whether the behavior reproduces on the latest version.
+
+Verification run:
+- `python3 -m qtop_py.cli --help | head -n 30`
+
+Assumptions:
+- I treated this as a bug-hunting/documentation request (no code defect was identified in current runtime flow) and therefore avoided behavioral/runtime code changes.
+- I assumed we should not fabricate screenshots/diffs and only provide the documented process.
+
+Security impact:
+- No security impact; this is documentation-only and introduces no executable behavior changes.
