@@ -1,20 +1,20 @@
-Done on branch `earnbot/sec-qtop-qtop-337`.
+Implemented and committed on branch `earnbot/sec-qtop-qtop-337`.
 
-- Commit: `df12fd3`
+- Commit: `9c586a7`
 - Files changed:
   - [docs/documentation.rst](/Users/zheliu/Documents/Codex/2026-05-11/now-go-out-and-make-at-2/data/work/qtop__qtop/docs/documentation.rst)
 
 Why this addresses issue #337:
-- Added a minimal, issue-scoped “Differential debugging” section in the user guide.
-- Documents the first-step workflow requested in the issue: capture a working/failing run pair with reproducible `-L -L` sample tarballs, collect screenshots, and run an initial textual diff between `qtop_fullview_*.out` (plus optional scheduler input diff).
-- Adds explicit reporting checklist including `./qtop --version` and whether the behavior reproduces on the latest version.
+- Tightened the differential-debugging instructions to make the “first step” explicit and reproducible for cross-cluster bug hunting:
+  - captures the exact run command and pinned version context per snapshot,
+  - uses deterministic full-view file selection before diffing,
+  - extracts the first meaningful diff hunk,
+  - explicitly requires confirming both snapshots were from the same pinned build.
+- This directly documents the requested workflow for working/failing run comparison without changing runtime behavior.
 
 Verification run:
-- `python3 -m qtop_py.cli --help | head -n 30`
+- `python3 -m compileall -q qtop_py && echo "compileall_ok"`
+- `git status --short` (only pre-existing untracked `.omx/state/active-sessions/mcp-16373.json` was present).
 
-Assumptions:
-- I treated this as a bug-hunting/documentation request (no code defect was identified in current runtime flow) and therefore avoided behavioral/runtime code changes.
-- I assumed we should not fabricate screenshots/diffs and only provide the documented process.
-
-Security impact:
-- No security impact; this is documentation-only and introduces no executable behavior changes.
+Security impact (one line):
+- No executable code paths changed; only documentation text was updated, so there is no security behavior impact.
