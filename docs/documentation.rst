@@ -100,7 +100,8 @@ runtime log, and source files.
 
 Then collect one screenshot from each run (for example, one frame of
 ``./qtop.py -b <scheduler>`` output) and save it as ``working.png`` and
-``failing.png`` using your terminal capture tool.
+``failing.png`` using your terminal capture tool. Keep a note of the exact
+command and pinned version for each run.
 
 Next, perform a first differential pass:
 
@@ -109,8 +110,9 @@ Next, perform a first differential pass:
     tar -tf <runA_sample>.tar
     tar -xf <runA_sample>.tar -C /tmp/qtop_cluster_a
     tar -xf <runB_sample>.tar -C /tmp/qtop_cluster_b
-    diff -u /tmp/qtop_cluster_a/qtop_fullview_*.out \
-      /tmp/qtop_cluster_b/qtop_fullview_*.out | head
+    A_VIEW=$(ls /tmp/qtop_cluster_a/qtop_fullview_*.out | sort | tail -n 1)
+    B_VIEW=$(ls /tmp/qtop_cluster_b/qtop_fullview_*.out | sort | tail -n 1)
+    diff -u "$A_VIEW" "$B_VIEW" | sed -n '/^@@/,+6p' | head
 
 If needed, also diff scheduler inputs (for example ``qstat``/``oarstat``/
 ``pbsnodes`` files) to isolate where the behavior first diverges.
@@ -118,6 +120,7 @@ If needed, also diff scheduler inputs (for example ``qstat``/``oarstat``/
 Finally, include in the report:
 
 * qtop version from both environments (`./qtop --version`)
+* confirmation that the same pinned version was used for both snapshots
 * both screenshots
 * the first non-empty diff hunk from the above command
 * whether the issue reproduces on the latest qtop version
