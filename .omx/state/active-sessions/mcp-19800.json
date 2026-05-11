@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "repoRoot": "/Users/zheliu/Documents/Codex/2026-05-11/now-go-out-and-make-at-2/data/work/qtop__qtop",
+  "branch": "earnbot/sec-qtop-qtop-337",
+  "taskName": "Session start: mcp-connect",
+  "latestTaskPreview": "Session start: mcp-connect",
+  "agentName": "unknown",
+  "cliName": "unknown",
+  "worktreePath": "/Users/zheliu/Documents/Codex/2026-05-11/now-go-out-and-make-at-2/data/work/qtop__qtop",
+  "taskMode": "",
+  "openspecTier": "",
+  "taskRoutingReason": "colony hook cwd binding",
+  "startedAt": "2026-05-11T19:19:16.382Z",
+  "lastHeartbeatAt": "2026-05-11T19:19:16.382Z",
+  "state": "working",
+  "sessionKey": "mcp-19800"
+}

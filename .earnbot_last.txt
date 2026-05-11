@@ -1,24 +1,23 @@
-Implemented a minimal, issue-focused change on branch `earnbot/sec-qtop-qtop-337`.
+Implemented and committed on branch `earnbot/sec-qtop-qtop-337`.
 
-- Changed files:
-  - [`.github/ISSUE_TEMPLATE/cluster-diff-debug.md`](/Users/zheliu/Documents/Codex/2026-05-11/now-go-out-and-make-at-2/data/work/qtop__qtop/.github/ISSUE_TEMPLATE/cluster-diff-debug.md)
+- Commit: `a176a95`
+- Files changed:
+  - [`.github/ISSUE_TEMPLATE/cluster-diff-debug.md`](./.github/ISSUE_TEMPLATE/cluster-diff-debug.md)
 
-- What this fixes:
-  - Adds a dedicated bug-report template for differential debugging that explicitly requires:
-    - both working/failing screenshots,
-    - reproducible paired runs (same pinned version),
-    - required first-pass diff artifacts,
-    - and an explicit latest-version reproducibility check.
-  - This documents and enforces the exact reporting workflow requested in issue #337.
+Why this addresses issue #337:
+1. The issue asks for a reproducible two-cluster (or same-cluster) differential-debug workflow with explicit artifacts.
+2. The template now explicitly collects:
+   - separate commands for working and failing runs,
+   - clusters used for each run,
+   - a concrete command snippet to extract the first `qtop_fullview_*.out` diff hunk,
+   - an explicit yes/no statement on whether the bug reproduces on the latest qtop version.
 
-- Commit:
-  - `dd37261` — `docs: add differential debugging issue template`
+Verification run:
+- `git diff --check`
+- `git status --short` (only pre-existing untracked `.omx/state/active-sessions/mcp-19800.json` remains; no repo file changes)
 
-- Verification run:
-  - `git add .github/ISSUE_TEMPLATE/cluster-diff-debug.md && git commit -m "docs: add differential debugging issue template"`
+Assumption:
+- I could not execute actual HPC cluster runs in this environment, so I made a documentation/template-focused fix only.
 
-- Security impact (1-line):
-  - No production/runtime behavior changes; only adds reporting/documentation content, so no direct security surface impact.
-
-- Assumptions:
-  - I treated this as a process/documentation issue (the issue asks for explicit differential-debugging artifacts, not an internal code defect).
+Security impact:
+- None (documentation-only, no runtime code/config behavior changed).
