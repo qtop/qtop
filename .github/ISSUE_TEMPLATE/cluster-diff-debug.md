@@ -16,9 +16,9 @@ assignees: ""
 
 ### Required artifacts (mandatory)
 
-- [ ] One working screenshot (`working.png`) from a single frame of `./qtop.py -b <scheduler>`
-- [ ] One failing screenshot (`failing.png`) from a single frame of `./qtop.py -b <scheduler>`
-- [ ] `./qtop.py -b <scheduler> -L -L` run output tarball for both runs
+- [ ] One working screenshot (`working.png`) from a single frame of `./qtop -b <scheduler>`
+- [ ] One failing screenshot (`failing.png`) from a single frame of `./qtop -b <scheduler>`
+- [ ] `./qtop -b <scheduler> -L -L` run output tarball for both runs
 - [ ] The first non-empty `qtop_fullview_*.out` diff hunk between the two runs
 
 Use for example:
@@ -34,6 +34,7 @@ diff -u "$A_VIEW" "$B_VIEW" | sed -n '/^@@/,+6p' | head
 ### Differential-debugging checklist
 
 - [ ] Same pinned qtop version was used for both working and failing runs
+- [ ] Explicitly record the exact pinned qtop command and `qtop --version` output for both runs
 - [ ] Reproducible pair of runs was executed on the same or different clusters
 - [ ] Initial scheduler/input diff was checked (for example, `qstat`, `oarstat`, `pbsnodes`, etc.)
 - [ ] Verified whether the issue reproduces on the latest qtop version

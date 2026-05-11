@@ -91,7 +91,7 @@ version and command:
 
 ::
 
-    ./qtop.py -b <scheduler> -L -L
+    ./qtop -b <scheduler> -L -L
 
 The double ``-L`` stores a tarball named
 ``qtop_sample_<USER>_YYYYMMDD-HHMMSS.tar`` in
@@ -99,7 +99,8 @@ The double ``-L`` stores a tarball named
 runtime log, and source files.
 
 Then collect one screenshot from each run (for example, one frame of
-``./qtop.py -b <scheduler>`` output) and save it as ``working.png`` and
+``./qtop -b <scheduler>`` output, or
+``python3 -m qtop_py.cli -b <scheduler>`` if invoking via module) and save it as ``working.png`` and
 ``failing.png`` using your terminal capture tool. Keep a note of the exact
 command and pinned version for each run.
 
