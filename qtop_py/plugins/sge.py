@@ -263,8 +263,7 @@ class SGEBatchSystem(GenericBatchSystem):
             _state = queue_elem.find("state").text
         except AttributeError:
             _state = "-"
-        finally:
-            return _state
+        return _state
 
     def _extract_queues(self, xpath, root):
         qstatq_list = []
