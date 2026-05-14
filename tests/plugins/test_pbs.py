@@ -9,7 +9,9 @@
 ##
 
 from qtop_py.plugins import pbs
+from qtop_py.qtop import Cluster, WNOccupancy
 import pytest
+from types import SimpleNamespace
 
 
 @pytest.mark.parametrize('core_selections, result',
@@ -38,3 +40,46 @@ def test_get_jobs_cores(jobs, result):
     result = iter(result)
     for job, core in pbs.PBSBatchSystem._get_jobs_cores(jobs):
         assert (job, core) == next(result)
+
+
+def test_extract_qstat_prior_format_accepts_four_digit_year(tmp_path):
+    qstat_file = tmp_path / "qstat.txt"
+    qstat_file.write_text(
+        """job-ID  prior   name       user         state submit/start at     queue                          slots ja-task-ID
+-----------------------------------------------------------------------------------------------------------------
+7214019 0.50103 cccreamcel dteam013     r     08/10/2012 01:46:34 medium@ccwsge0443.in2p3.fr         1
+""",
+        encoding="utf-8",
+    )
+
+    extractor = pbs.PBSStatExtractor({}, SimpleNamespace(ANONYMIZE=False))
+
+    assert extractor._extract_qstat_regex(str(qstat_file)) == [
+        {
+            "JobId": "7214019",
+            "UnixAccount": "dteam013",
+            "S": "R",
+            "Queue": "medium@ccwsge0443.in2p3.fr",
+        }
+    ]
+
+
+def test_valid_corejobs_skips_stale_pbsnodes_job():
+    corejobs = {"0": "26304097", "1": "7214019"}
+    jobs = {"7214019": ("dteam013", "medium")}
+
+    assert list(WNOccupancy._valid_corejobs(None, corejobs, jobs)) == [
+        ("dteam013", "1", "medium"),
+    ]
+
+
+def test_decide_remapping_handles_mixed_numeric_and_named_nodes():
+    cluster = Cluster.__new__(Cluster)
+    cluster.total_wn = 2
+    cluster.args = SimpleNamespace(BLINDREMAP=False)
+    cluster.node_subclusters = {"wn"}
+    cluster.workernode_list = [1, "login"]
+    cluster.config = {"exotic_starting_wn_nr": "9000", "percentage": "0.8"}
+    cluster.offdown_nodes = 0
+
+    assert cluster.decide_remapping(["1", ""]) is True
