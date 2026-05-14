@@ -1,7 +1,7 @@
 
 [1;36m./qtop.py     ## Queueing System report tool. Press ? for help[0;m 
 v0.9.20241013 ## For feedback and updates, see: [1;36mhttps://github.com/qtop/qtop[0;m
-Please try it with watch: C:\Users\adyge\Documents\New project 7\qtop/qtop.py -s <SOURCEDIR> -w [<every_nr_of_sec>]
+Please try it with watch: ./qtop.py -s <SOURCEDIR> -w [<every_nr_of_sec>]
 [1;30m===> [0;m[1;37mJob accounting summary[0;m[1;30m <=== [0;m[1;37m2026-05-14 15:50:49[0;m
 [1;36mSummary[0;m: Total:[1;31m294[0;m Up:[1;31m282[0;m Free:[1;31m258[0;m [1;31mNodes[0;m | [1;32m614[0;m/[1;32m2352[0;m [1;32mcores[0;m |   [1;34m614[0;m+[1;34m128[0;m [1;34mjobs[0;m (R + Q) 
 [1;36mQueues[0;m : egee_long: 183 | unina_long: 0 | grisu_long: 225 + 1 | studenti: 0 | pi2s2_infinite: 0 | unina_short: 0 | uninacert: 0 | cresco_long: 0 | pi2s2_short: 0 | atlas: 192 + 127 | cresco_short: 0 | atlas_dtc: 0 | spaci_long: 0 | egee_short: 5 | develop: 0 | cybr_infinite: 0 | egeecert: 1 | unina_hpc: 0 | grisu_short: 8 | cybr_long: 0 | spaci_short: 0 | spaci_infinite: 0 | cybr_short: 0 | pi2s2_long: 0 | unina_infinite: 0 | cresco_infinite: 0 | [0;31m* implies blocked[0;m

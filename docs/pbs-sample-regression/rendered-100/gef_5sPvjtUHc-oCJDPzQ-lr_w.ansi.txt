@@ -1,6 +1,6 @@
 [1;36m./qtop.py     ## Queueing System report tool. Press ? for help[0;m 
 v0.9.20241013 ## For feedback and updates, see: [1;36mhttps://github.com/qtop/qtop[0;m
-Please try it with watch: C:\Users\adyge\Documents\New project 7\qtop/qtop.py -s <SOURCEDIR> -w [<every_nr_of_sec>]
+Please try it with watch: ./qtop.py -s <SOURCEDIR> -w [<every_nr_of_sec>]
 [1;30m===> [0;m[1;37mJob accounting summary[0;m[1;30m <=== [0;m[1;37m2026-05-14 15:50:54[0;m
 [1;36mSummary[0;m: Total:[1;31m76[0;m Up:[1;31m37[0;m Free:[1;31m37[0;m [1;31mNodes[0;m | [1;32m612[0;m/[1;32m1844[0;m [1;32mcores[0;m |   [1;34m611[0;m+[1;34m1903[0;m [1;34mjobs[0;m (R + Q) 
 [1;36mQueues[0;m : gisela: 0 | dzero: 66 + 105 | france: 0 | asia: 0 | dteam: 2 | eumed: 0 + 200 | biomed: 0 + 76 | ops: 0 | atlas: 454 + 1501 | euchina: 0 | cppm: 0 + 1 | lhcb: 89 | formation: 0 + 20 | [1;35mcta[0;m: [1;35m0[0;m | hone: 0 | sdj: 0 | egeode: 0 | esr: 0 | [0;31m* implies blocked[0;m

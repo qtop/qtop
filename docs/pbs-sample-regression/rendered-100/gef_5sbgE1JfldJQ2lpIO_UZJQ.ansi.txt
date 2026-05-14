@@ -1,7 +1,7 @@
 
 [1;36m./qtop.py     ## Queueing System report tool. Press ? for help[0;m 
 v0.9.20241013 ## For feedback and updates, see: [1;36mhttps://github.com/qtop/qtop[0;m
-Please try it with watch: C:\Users\adyge\Documents\New project 7\qtop/qtop.py -s <SOURCEDIR> -w [<every_nr_of_sec>]
+Please try it with watch: ./qtop.py -s <SOURCEDIR> -w [<every_nr_of_sec>]
 [1;30m===> [0;m[1;37mJob accounting summary[0;m[1;30m <=== [0;m[1;37m2026-05-14 15:50:54[0;m
 [1;36mSummary[0;m: Total:[1;31m16[0;m Up:[1;31m13[0;m Free:[1;31m13[0;m [1;31mNodes[0;m | [1;32m1[0;m/[1;32m238[0;m [1;32mcores[0;m |   [1;34m1[0;m+[1;34m0[0;m [1;34mjobs[0;m (R + Q) 
 [1;36mQueues[0;m : test1: 0 | na48-long: 0 | babar: 0 | hdfsqueue: 0 | ise-infinite: 0 | superb-short: 0 | cms-infinite: 0 | cms-short: 0 | theo-short: 0 | theo-infinite: 0 | erna-medium: 0 | theophys: 0 | na48-short: 0 | virgo-short: 0 | cert: 1 | superb-infinite: 0 | erna-short: 0 | glast: 0 | cms-medium: 0 | babar-short: 0 | erna-long: 0 | virgo: 0 | test: 0 | glast-long: 0 | erna-infinite: 0 | na48-infinite: 0 | na48-medium: 0 | wnodes: 0 | cloudtf: 0 | glast-infinite: 0 | theo-medium: 0 | ise-long: 0 | cms: 0 | glast-medium: 0 | theo-long: 0 | virgo-long: 0 | superb-medium: 0 | superb-long: 0 | glast-short: 0 | virgo-infinite: 0 | superbvo: 0 | babar-medium: 0 | babar-long: 0 | grid: 0 | virgo-medium: 0 | babar-infinite: 0 | ise-short: 0 | cms-long: 0 | ise-medium: 0 | [0;31m* implies blocked[0;m

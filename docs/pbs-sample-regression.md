@@ -19,4 +19,3 @@ The PR evidence lives under `docs/pbs-sample-regression/`:
 * `rendered-100/` contains 100 ANSI-coloured qtop renders
 * `rendered-100-manifest.csv` lists the 100 samples provided as PR evidence
 * `validation-all-manifest.csv` records the full local validation run, where all 447 archived PBS samples passed
-* `screenshots/` contains the required before/after bug screenshots and largest-run screenshots

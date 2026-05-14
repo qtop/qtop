@@ -1,6 +1,6 @@
 [1;36m./qtop.py     ## Queueing System report tool. Press ? for help[0;m 
 v0.9.20241013 ## For feedback and updates, see: [1;36mhttps://github.com/qtop/qtop[0;m
-Please try it with watch: C:\Users\adyge\Documents\New project 7\qtop/qtop.py -s <SOURCEDIR> -w [<every_nr_of_sec>]
+Please try it with watch: ./qtop.py -s <SOURCEDIR> -w [<every_nr_of_sec>]
 [1;30m===> [0;m[1;37mJob accounting summary[0;m[1;30m <=== [0;m[1;37m2026-05-14 15:50:54[0;m
 [1;36mSummary[0;m: Total:[1;31m3[0;m Up:[1;31m1[0;m Free:[1;31m1[0;m [1;31mNodes[0;m | [1;32m1[0;m/[1;32m32[0;m [1;32mcores[0;m |   [1;34m1[0;m+[1;34m0[0;m [1;34mjobs[0;m (R + Q) 
 [1;36mQueues[0;m : dzero[1;31m*[0;m: 0 | hone[1;31m*[0;m: 0 | gridpp[1;31m*[0;m: 0 | camont[1;31m*[0;m: 0 | biomed[1;31m*[0;m: 0 | [1;31malice[0;m[1;31m*[0;m: [1;31m0[0;m | cms: 0 | cedar[1;31m*[0;m: 0 | na48[1;31m*[0;m: 0 | londongrid: 0 | ngs.ac.uk[1;31m*[0;m: 0 | dteam: 1 | pheno[1;31m*[0;m: 0 | ilc[1;31m*[0;m: 0 | mice[1;31m*[0;m: 0 | atlas: 0 | geant4[1;31m*[0;m: 0 | ops: 0 | lhcb[1;31m*[0;m: 0 | totalep[1;31m*[0;m: 0 | snemo[1;31m*[0;m: 0 | zeus[1;31m*[0;m: 0 | [0;31m* implies blocked[0;m

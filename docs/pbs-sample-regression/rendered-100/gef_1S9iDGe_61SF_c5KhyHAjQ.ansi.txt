@@ -1,6 +1,6 @@
 [1;36m./qtop.py     ## Queueing System report tool. Press ? for help[0;m 
 v0.9.20241013 ## For feedback and updates, see: [1;36mhttps://github.com/qtop/qtop[0;m
-Please try it with watch: C:\Users\adyge\Documents\New project 7\qtop/qtop.py -s <SOURCEDIR> -w [<every_nr_of_sec>]
+Please try it with watch: ./qtop.py -s <SOURCEDIR> -w [<every_nr_of_sec>]
 [1;30m===> [0;m[1;37mJob accounting summary[0;m[1;30m <=== [0;m[1;37m2026-05-14 15:50:52[0;m
 [1;36mSummary[0;m: Total:[1;31m96[0;m Up:[1;31m91[0;m Free:[1;31m91[0;m [1;31mNodes[0;m | [1;32m841[0;m/[1;32m1143[0;m [1;32mcores[0;m |   [1;34m841[0;m+[1;34m55[0;m [1;34mjobs[0;m (R + Q) 
 [1;36mQueues[0;m : lpnhe: 0 | ops: 0 | vo.panda.gsi.de: 0 | [1;31malice[0;m: [1;31m837[0;m + [1;31m55[0;m | dteam: 1 | sdj: 0 | apc: 0 | agata: 0 | ipno: 3 | llr: 0 | grif: 0 | psud: 0 | irfu: 0 | omp: 0 | lal: 0 | formation.idgri: 0 | mure.in2p3.fr: 0 | hess_experiment: 0 | [0;31m* implies blocked[0;m

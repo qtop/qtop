@@ -1,7 +1,7 @@
 
 [1;36m./qtop.py     ## Queueing System report tool. Press ? for help[0;m 
 v0.9.20241013 ## For feedback and updates, see: [1;36mhttps://github.com/qtop/qtop[0;m
-Please try it with watch: C:\Users\adyge\Documents\New project 7\qtop/qtop.py -s <SOURCEDIR> -w [<every_nr_of_sec>]
+Please try it with watch: ./qtop.py -s <SOURCEDIR> -w [<every_nr_of_sec>]
 [1;30m===> [0;m[1;37mJob accounting summary[0;m[1;30m <=== [0;m[1;37m2026-05-14 15:50:56[0;m
 [1;36mSummary[0;m: Total:[1;31m103[0;m Up:[1;31m101[0;m Free:[1;31m94[0;m [1;31mNodes[0;m | [1;32m1239[0;m/[1;32m1419[0;m [1;32mcores[0;m |   [1;34m1239[0;m+[1;34m217[0;m [1;34mjobs[0;m (R + Q) 
 [1;36mQueues[0;m : hess_experiment: 0 | t2k.org: 0 | apc: 0 | esr: 0 | cms: 1138 + 140 | hone: 0 | planck: 0 | psud: 0 | lapp: 0 | [1;31malice[0;m: [1;31m0[0;m | ipno: 0 | lpnhe: 0 | glast.org: 0 | proactive: 0 | biomed: 0 + 71 | geant4: 0 | egeode: 0 | compchem: 26 | supernemo: 0 | complex_systems: 0 | astro: 0 | irfu: 0 | grif: 0 | dzero: 0 | ops: 0 | cppm: 0 | vo.gridcl.fr: 0 | calice: 0 | desktopgrid.vo: 59 | ilc: 0 | vo.ucad.sn: 0 | lal: 0 | lhcb: 0 | sdj: 0 | fusion: 0 | vo.cta.in2p3.fr: 0 | dteam: 1 | auger: 15 + 4 | na4.vo.eu_egee: 0 | llr: 0 + 2 | [0;31m* implies blocked[0;m

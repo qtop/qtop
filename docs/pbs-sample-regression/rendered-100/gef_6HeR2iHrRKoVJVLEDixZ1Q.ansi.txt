@@ -1,6 +1,6 @@
 [1;36m./qtop.py     ## Queueing System report tool. Press ? for help[0;m 
 v0.9.20241013 ## For feedback and updates, see: [1;36mhttps://github.com/qtop/qtop[0;m
-Please try it with watch: C:\Users\adyge\Documents\New project 7\qtop/qtop.py -s <SOURCEDIR> -w [<every_nr_of_sec>]
+Please try it with watch: ./qtop.py -s <SOURCEDIR> -w [<every_nr_of_sec>]
 [1;30m===> [0;m[1;37mJob accounting summary[0;m[1;30m <=== [0;m[1;37m2026-05-14 15:50:55[0;m
 [1;36mSummary[0;m: Total:[1;31m24[0;m Up:[1;31m20[0;m Free:[1;31m20[0;m [1;31mNodes[0;m | [1;32m146[0;m/[1;32m576[0;m [1;32mcores[0;m |   [1;34m146[0;m+[1;34m457[0;m [1;34mjobs[0;m (R + Q) 
 [1;36mQueues[0;m : complex_systems: 0 | auger: 0 + 438 | fusion: 0 | ops: 0 | compchem: 144 + 9 | vo.cta.in2p3.fr: 0 | astro: 0 | eumed: 0 + 6 | m3pec: 0 | dzero: 0 | icecube: 0 | renabi: 0 | egeode: 0 | sdj: 0 | lpta.in2p3.fr: 0 | biomed: 0 + 1 | geant4: 0 | vo.msfg.fr: 0 | theophys: 1 | dteam: 1 | hone: 0 + 3 | gilda: 0 | esr: 0 | vo.mcia.fr: 0 | vo.iscpif.fr: 0 | formation: 0 | france_grilles: 0 | planck: 0 | [0;31m* implies blocked[0;m

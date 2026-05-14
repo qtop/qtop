@@ -1,6 +1,6 @@
 [1;36m./qtop.py     ## Queueing System report tool. Press ? for help[0;m 
 v0.9.20241013 ## For feedback and updates, see: [1;36mhttps://github.com/qtop/qtop[0;m
-Please try it with watch: C:\Users\adyge\Documents\New project 7\qtop/qtop.py -s <SOURCEDIR> -w [<every_nr_of_sec>]
+Please try it with watch: ./qtop.py -s <SOURCEDIR> -w [<every_nr_of_sec>]
 [1;30m===> [0;m[1;37mJob accounting summary[0;m[1;30m <=== [0;m[1;37m2026-05-14 15:50:55[0;m
 [1;36mSummary[0;m: Total:[1;31m153[0;m Up:[1;31m127[0;m Free:[1;31m4[0;m [1;31mNodes[0;m | [1;32m1160[0;m/[1;32m1388[0;m [1;32mcores[0;m |   [1;34m1160[0;m+[1;34m383[0;m [1;34mjobs[0;m (R + Q) 
 [1;36mQueues[0;m : glong_sl5: 1156 + 279 | short[1;31m*[0;m: 0 | test[1;31m*[0;m: 0 | neuro[1;31m*[0;m: 0 | pic_test_atlas[1;31m*[0;m: 0 | gmedium_sl5: 3 + 91 | at3[1;31m*[0;m: 0 | at2ifae_analy[1;31m*[0;m: 0 | long[1;31m*[0;m: 0 | gshort_sl5: 1 + 13 | at2ifae[1;31m*[0;m: 0 | medium[1;31m*[0;m: 0 | at3_xxl[1;31m*[0;m: 0 | [0;31m* implies blocked[0;m

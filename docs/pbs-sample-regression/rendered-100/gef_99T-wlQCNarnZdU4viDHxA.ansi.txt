@@ -1,6 +1,6 @@
 [1;36m./qtop.py     ## Queueing System report tool. Press ? for help[0;m 
 v0.9.20241013 ## For feedback and updates, see: [1;36mhttps://github.com/qtop/qtop[0;m
-Please try it with watch: C:\Users\adyge\Documents\New project 7\qtop/qtop.py -s <SOURCEDIR> -w [<every_nr_of_sec>]
+Please try it with watch: ./qtop.py -s <SOURCEDIR> -w [<every_nr_of_sec>]
 [1;30m===> [0;m[1;37mJob accounting summary[0;m[1;30m <=== [0;m[1;37m2026-05-14 15:50:57[0;m
 [1;36mSummary[0;m: Total:[1;31m14[0;m Up:[1;31m13[0;m Free:[1;31m13[0;m [1;31mNodes[0;m | [1;32m15[0;m/[1;32m224[0;m [1;32mcores[0;m |   [1;34m10[0;m+[1;34m193[0;m [1;34mjobs[0;m (R + Q) 
 [1;36mQueues[0;m : vo.mcia.fr: 0 | planck: 0 | ops: 0 + 6 | dteam: 1 | sdj: 0 + 1 | astro.vo.eu_ege: 0 | eumed: 0 + 1 | fusion: 0 | egeode: 0 | geant4: 0 | esr: 0 + 42 | vo.cta.in2p3.fr: 1 + 7 | biomed: 3 + 5 | hone: 0 + 2 | formation.idgri: 0 | glast.org: 0 | enmr.eu: 5 + 5 | auger: 0 + 124 | magic: 0 | virgo: 0 | icecube: 0 | argo: 0 | apc.univ_paris7: 0 | ams02.cern.ch: 0 | france_grilles: 0 | [0;31m* implies blocked[0;m

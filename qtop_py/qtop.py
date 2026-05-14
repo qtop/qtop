@@ -28,17 +28,9 @@ import json
 import datetime
 from collections import namedtuple, OrderedDict, Counter
 import os
-import shutil
 from os.path import realpath
-from signal import signal, SIG_DFL
-try:
-    from signal import SIGPIPE
-except ImportError:
-    SIGPIPE = None
-try:
-    import termios
-except ImportError:
-    termios = None
+from signal import signal, SIGPIPE, SIG_DFL
+import termios
 import contextlib
 import glob
 import tempfile
@@ -255,38 +247,27 @@ def calculate_term_size(config, FALLBACK_TERM_SIZE):
     """
     fallback_term_size = config.get("term_size", FALLBACK_TERM_SIZE)
 
-    def _fallback_from_config():
-        if isinstance(fallback_term_size, (list, tuple)) and len(fallback_term_size) == 2:
-            return fallback_term_size
-        return yaml.fix_config_list(fallback_term_size)
-
-    try:
-        _command = subprocess.Popen(["/bin/stty", "size"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        tty_size, error = _command.communicate()
-    except FileNotFoundError:
-        tty_size, error = b"", b"stty not found"
-
-    if not error and tty_size:
+    _command = subprocess.Popen(["/bin/stty", "size"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    tty_size, error = _command.communicate()
+    if not error:
         term_height, term_columns = [int(x) for x in tty_size.strip().split()]
         logging.debug('terminal size v, h from "stty size": %s, %s' % (term_height, term_columns))
     else:
         logging.warn("Failed to autodetect terminal size. (Running in an IDE?in a pipe?) Trying values in %s." % QTOPCONF_YAML)
         try:
             term_height, term_columns = viewport.get_term_size()
-            if not all((term_height, term_columns)):
+            if not all(term_height, term_columns):
                 raise ValueError
         except ValueError:
             try:
-                term_height, term_columns = _fallback_from_config()
-            except (AttributeError, KeyError, TypeError):
-                terminal_size = shutil.get_terminal_size(fallback=(int(FALLBACK_TERM_SIZE[1]), int(FALLBACK_TERM_SIZE[0])))
-                term_height, term_columns = terminal_size.lines, terminal_size.columns
+                term_height, term_columns = yaml.fix_config_list(viewport.get_term_size())
+            except KeyError:
+                term_height, term_columns = fallback_term_size
                 logging.debug("(hardcoded) fallback terminal size v, h:%s, %s" % (term_height, term_columns))
             else:
                 logging.debug("fallback terminal size v, h:%s, %s" % (term_height, term_columns))
         except (KeyError, TypeError):  # TypeError if None was returned i.e. no setting in QTOPCONF_YAML
-            terminal_size = shutil.get_terminal_size(fallback=(int(FALLBACK_TERM_SIZE[1]), int(FALLBACK_TERM_SIZE[0])))
-            term_height, term_columns = terminal_size.lines, terminal_size.columns
+            term_height, term_columns = fallback_term_size
             logging.debug("(hardcoded) fallback terminal size v, h:%s, %s" % (term_height, term_columns))
 
     return int(term_height), int(term_columns)
@@ -318,7 +299,8 @@ def auto_get_avail_batch_system(config):
     """
     # TODO pbsnodes etc should not be hardcoded!
     for system, batch_command in config["signature_commands"].items():
-        if shutil.which(batch_command):
+        NOT_FOUND = subprocess.call(["/usr/bin/which", batch_command], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        if not NOT_FOUND:
             if system != "demo":
                 logging.debug("Auto-detected scheduler: %s" % system)
                 return system
@@ -378,27 +360,20 @@ def get_detail_of_name(account_jobs_table):
     else:
         passwd_command = extract_info.get("user_details_cache").split()
         passwd_command[-1] = os.path.expandvars(passwd_command[-1])
-        if not os.path.exists(passwd_command[-1]):
-            return dict()
-        with open(passwd_command[-1], encoding="utf-8") as passwd_cache:
-            output = passwd_cache.read()
-        err = ""
-        passwd_command = []
 
-    if passwd_command:
-        try:
-            p = subprocess.Popen(passwd_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding="utf-8")
-        except OSError:
-            logging.critical(
-                '\nCommand "%s" could not be found in your system. \nEither remove -G switch or modify the command in '
-                "qtopconf.yaml (value of key: %s).\nExiting..." % (colorize(passwd_command[0], color_func="Red_L"), "user_details_realtime")
-            )
-            sys.exit(0)
-        else:
-            output, err = p.communicate("something here")
-            if "No such file or directory" in err:
-                logging.warning("You have to set a proper command to get the passwd file in your %s file." % QTOPCONF_YAML)
-                logging.warning("Error returned by getent: %s\nCommand issued: %s" % (err, passwd_command))
+    try:
+        p = subprocess.Popen(passwd_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding="utf-8")
+    except OSError:
+        logging.critical(
+            '\nCommand "%s" could not be found in your system. \nEither remove -G switch or modify the command in '
+            "qtopconf.yaml (value of key: %s).\nExiting..." % (colorize(passwd_command[0], color_func="Red_L"), "user_details_realtime")
+        )
+        sys.exit(0)
+    else:
+        output, err = p.communicate("something here")
+        if "No such file or directory" in err:
+            logging.warning("You have to set a proper command to get the passwd file in your %s file." % QTOPCONF_YAML)
+            logging.warning("Error returned by getent: %s\nCommand issued: %s" % (err, passwd_command))
 
     detail_of_name = dict()
     for line in output.split("\n"):
@@ -1713,8 +1688,7 @@ class TextDisplay(object):
         return joined_list
 
     def print_core_lines(self, core_user_map, print_char_start, print_char_stop, transposed_matrices, userid_to_userid_re_pat, mapping, attrs, options1, options2):
-        if SIGPIPE is not None:
-            signal(SIGPIPE, SIG_DFL)
+        signal(SIGPIPE, SIG_DFL)
         remove_corelines = dynamic_config.get("rem_empty_corelines", config["rem_empty_corelines"]) + 1
 
         # if corelines vertical (transposed matrix)
@@ -1737,8 +1711,7 @@ class TextDisplay(object):
                     print(core_line_zipped)
                 except IOError:
                     try:
-                        if SIGPIPE is not None:
-                            signal(SIGPIPE, SIG_DFL)
+                        signal(SIGPIPE, SIG_DFL)
                         print(core_line_zipped)
                         sys.stdout.close()
                     except IOError:

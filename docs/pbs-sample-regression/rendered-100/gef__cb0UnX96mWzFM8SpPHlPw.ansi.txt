@@ -1,7 +1,7 @@
 
 [1;36m./qtop.py     ## Queueing System report tool. Press ? for help[0;m 
 v0.9.20241013 ## For feedback and updates, see: [1;36mhttps://github.com/qtop/qtop[0;m
-Please try it with watch: C:\Users\adyge\Documents\New project 7\qtop/qtop.py -s <SOURCEDIR> -w [<every_nr_of_sec>]
+Please try it with watch: ./qtop.py -s <SOURCEDIR> -w [<every_nr_of_sec>]
 [1;30m===> [0;m[1;37mJob accounting summary[0;m[1;30m <=== [0;m[1;37m2026-05-14 15:50:59[0;m
 [1;36mSummary[0;m: Total:[1;31m291[0;m Up:[1;31m289[0;m Free:[1;31m220[0;m [1;31mNodes[0;m | [1;32m6169[0;m/[1;32m8077[0;m [1;32mcores[0;m |   [1;34m6169[0;m+[1;34m1516[0;m [1;34mjobs[0;m (R + Q) 
 [1;36mQueues[0;m : extralong: 0 | iwrtest: 4 + 20 | gridka: 0 | offline[1;31m*[0;m: 0 | glexec[1;31m*[0;m: 0 | default: 0 | ops: 0 | short: 0 | long: 0 | e-long: 0 | dgiseq: 0 | test: 0 | aliceXL: 1674 + 180 | aliceL: 0 | aliceXS: 0 | aliceS: 0 | cmsXS: 0 + 1 | cmsS: 0 + 2 | lhcbS: 0 + 60 | lhcbXS: 0 | atlasXS: 0 + 2 | atlasS: 0 + 4 | augerXS: 0 | augerS: 0 | sgmXL: 0 | atlasXL: 1191 + 339 | atlasL: 0 + 5 | cmsL: 0 + 10 | cmsXL: 1221 + 491 | cdfXL: 0 | babar_sk: 0 | babarXL: 0 | babarXS: 0 | babarS: 0 | babarL: 0 | cdfXS: 0 | cdfS: 0 | dzeroXS: 0 | lhcbL: 0 | lhcbXL: 0 | dzeroL: 0 | cdfL: 0 | compaXL: 0 | compaXS: 0 | compaS: 0 | compaL: 0 | dzeroXL: 0 | dzeroS: 0 | lhcbXXL: 1696 + 229 | dech: 0 | pps: 0 | belleS: 0 | belleXS: 0 | gLite3: 2 | augerL: 102 + 56 | augerXXL: 139 + 66 | magic[1;31m*[0;m: 0 | geclipse[1;31m*[0;m: 0 | honeXL[1;31m*[0;m: 0 | augerXL: 140 + 48 | belleXL: 0 | cmsXXL: 0 | belleXXL: 0 | atlasXXL: 0 | belleL: 0 | core4XL: 0 | core8XL: 0 + 3 | [0;31m* implies blocked[0;m
