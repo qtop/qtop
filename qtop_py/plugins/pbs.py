@@ -24,11 +24,11 @@ class PBSStatExtractor(StatExtractor):
         StatExtractor.__init__(self, config, options)
         self.user_q_search = (
             r"^(?P<host_name>(?P<job_id>[0-9\[\]-]+)\.(?P<domain>[\w*-]+))\s+"
-            r"(?P<name>[\w%.=+/{}*-]+)\s+"
-            r"(?P<user>[A-Za-z0-9.*]+)\s+"
+            r"(?P<name>\S+)\s+"
+            r"(?P<user>[\w.*-]+)\s+"
             r"(?P<time>\d+:\d*:?\d*\*?|0)\s+"
             r"(?P<state>[BCEFHMQRSTUWX])\s+"
-            r"(?P<queue_name>\w+)"
+            r"(?P<queue_name>[\w@.-]+)"
         )
 
         self.user_q_search_prior = (
@@ -37,12 +37,12 @@ class PBSStatExtractor(StatExtractor):
             r"(?:[0-9]\.[0-9]+)\s+"
             r"(?:[\w.-]+)\s+"
             r"(?P<user>[\w.-]+)\s+"
-            r"(?P<state>[a-z])\s+"
-            r"(?:\d{2}/\d{2}/\d{2}|0)\s+"
+            r"(?P<state>[A-Za-z])\s+"
+            r"(?:\d{2}/\d{2}/(?:\d{4}|\d{2})|0)\s+"
             r"(?:\d+:\d+:\d*|0)\s+"
-            r"(?P<queue_name>\w+@[\w.-]+)\s+"
-            r"(?:\d+)\s+"
-            r"(?:\w*)"
+            r"(?P<queue_name>[\w.-]+@[\w.-]+)\s+"
+            r"(?:\d+)"
+            r"(?:\s+\w*)?"
         )
 
     def extract_qstat(self, orig_file):
@@ -82,23 +82,25 @@ class PBSStatExtractor(StatExtractor):
         with open(qstat_file, "r") as fin:
             _ = fin.readline()  # header
             fin.readline()  # horizontal row
-            line = fin.readline()  # first line
             re_match_positions = ("job_id", "user", "state", "queue_name")  # was: (1, 5, 7, 8), (1, 4, 5, 8)
-            try:  # first qstat line determines which format qstat follows.
-                re_search = self.user_q_search
-                qstat_values = self._process_qstat_line(re_search, line, re_match_positions)
-                # unused: _job_nr, _ce_name, _name, _time_use = m.group(2), m.group(3), m.group(4), m.group(6)
-            except AttributeError:  # this means 'prior' exists in qstat, it's another format
-                re_search = self.user_q_search_prior
-                qstat_values = self._process_qstat_line(re_search, line, re_match_positions)
-                # unused:  _prior, _name, _submit, _start_at, _queue_domain, _slots, _ja_taskID =
-                # m.group(2), m.group(3), m.group(6), m.group(7), m.group(9), m.group(10), m.group(11)
-            finally:
-                all_qstat_values.append(qstat_values)
-
-            # hence the rest of the lines should follow either try's or except's same format
+            re_search = None
             for line in fin:
-                qstat_values = self._process_qstat_line(re_search, line, re_match_positions)
+                stripped_line = line.strip()
+                if not stripped_line:
+                    continue
+
+                if re_search is None:
+                    for candidate in (self.user_q_search, self.user_q_search_prior):
+                        if re.search(candidate, stripped_line):
+                            re_search = candidate
+                            break
+
+                if re_search is None or not re.search(re_search, stripped_line):
+                    logging.warning("Skipping unparsed qstat line: %s" % stripped_line)
+                    continue
+
+                qstat_values = self._process_qstat_line(re_search, stripped_line, re_match_positions)
+                qstat_values["S"] = qstat_values["S"].upper()
                 all_qstat_values.append(qstat_values)
 
         return all_qstat_values
@@ -167,6 +169,7 @@ class PBSStatExtractor(StatExtractor):
         run_qd_search = r"^\s*(?P<tot_run>\d+)\s+(?P<tot_queued>\d+)"  # this picks up the last line contents
 
         all_qstatq_values = list()
+        total_running_jobs, total_queued_jobs = "0", "0"
         with open(qstatq_file, "r") as fin:
             fin.readline()
             fin.readline()
@@ -365,7 +368,7 @@ class PBSBatchSystem(GenericBatchSystem):
         reading = True
         while reading:
             line = fin.readline()
-            if line == "\n":
+            if line in ("", "\n"):
                 reading = False
             else:
                 try:

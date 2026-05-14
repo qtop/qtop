@@ -1,0 +1,26 @@
+
+[1;36m./qtop.py     ## Queueing System report tool. Press ? for help[0;m 
+v0.9.20241013 ## For feedback and updates, see: [1;36mhttps://github.com/qtop/qtop[0;m
+Please try it with watch: C:\Users\adyge\Documents\New project 7\qtop/qtop.py -s <SOURCEDIR> -w [<every_nr_of_sec>]
+[1;30m===> [0;m[1;37mJob accounting summary[0;m[1;30m <=== [0;m[1;37m2026-05-14 15:50:52[0;m
+[1;36mSummary[0;m: Total:[1;31m5[0;m Up:[1;31m4[0;m Free:[1;31m4[0;m [1;31mNodes[0;m | [1;32m19[0;m/[1;32m73[0;m [1;32mcores[0;m |   [1;34m17[0;m+[1;34m0[0;m [1;34mjobs[0;m (R + Q) 
+[1;36mQueues[0;m : eumed: 12 | cert: 3 | indicate: 0 | grid: 0 | decide: 0 | euother: 0 | enmr: 2 | express: 0 | [0;31m* implies blocked[0;m
+
+[1;30m===> [0;m[1;37mWorker Nodes occupancy[0;m[1;30m <=== [0;m[1;30m(wnid_lines/core_map/Node state/queue name)[0;m
+[1;37m1|[0;m[1;30m_###################[0;m[1;37m|[0;m[;41mo[0;m[1;37m|   |[0;m
+[1;37m2|[0;m[1;30m______[0;m[1;37m00[0;m[1;30m__[0;m[1;37m0[0;m[1;30m_______##[0;m[1;37m|-|e  |[0;m
+[1;37m3|[0;m[1;30m___[0;m[1;37m0[0;m[1;30m_[0;m[1;37m0[0;m[1;30m__[0;m[1;37m0[0;m[1;30m___[0;m[1;37m0[0;m[1;30m_######[0;m[1;37m|-|e  |[0;m
+[1;37m4|[0;m[1;33m111[0;m[0;33m5[0;m[1;30m________________[0;m[1;37m|-|c  |[0;m
+[1;37m5|[0;m[1;30m__[0;m[1;37m0000[0;m[1;34m223[0;m[1;30m_________[0;m[1;37m0[0;m[1;30m_[0;m[1;37m|-|eeg|[0;m
+
+[1;30m
+===> [0;m[1;37mUser accounts and pool mappings[0;m <=== [1;30m(sorting according to total nr. of jobs)[0;m
+[id] unix account      |jobs >=   R +    Q | nodes |       GECOS field or Grid certificate DN |
+[ [1;37m0[0;m] [1;37meumed012[0;m          [1;37m|[0;m  [1;37m12[0;m     [1;37m12[0;m      [1;37m0[0;m [1;37m|[0;m     [1;37m3[0;m [1;37m|[0;m [1;37m[0;m                                         [1;37m|[0;m
+[ [1;33m1[0;m] [1;33msgmops020[0;m         [1;33m|[0;m   [1;33m2[0;m      [1;33m2[0;m      [1;33m0[0;m [1;33m|[0;m     [1;33m1[0;m [1;33m|[0;m [1;33m[0;m                                         [1;33m|[0;m
+[ [1;34m2[0;m] [1;34menmr006[0;m           [1;34m|[0;m   [1;34m2[0;m      [1;34m2[0;m      [1;34m0[0;m [1;34m|[0;m     [1;34m1[0;m [1;34m|[0;m [1;34m[0;m                                         [1;34m|[0;m
+[ [1;34m3[0;m] [1;34mbiomed020[0;m         [1;34m|[0;m   [1;34m2[0;m      [1;34m0[0;m      [1;34m0[0;m [1;34m|[0;m     [1;34m1[0;m [1;34m|[0;m [1;34m[0;m                                         [1;34m|[0;m
+[ [1;33m4[0;m] [1;33mops015[0;m            [1;33m|[0;m   [1;33m1[0;m      [1;33m0[0;m      [1;33m0[0;m [1;33m|[0;m     [1;33m0[0;m [1;33m|[0;m [1;33m[0;m                                         [1;33m|[0;m
+[ [0;33m5[0;m] [0;33mdteam041[0;m          [0;33m|[0;m   [0;33m1[0;m      [0;33m1[0;m      [0;33m0[0;m [0;33m|[0;m     [0;33m1[0;m [0;33m|[0;m [0;33m[0;m                                         [0;33m|[0;m
+
+Log file created in $HOME/.local/qtop/logs/qtop.log

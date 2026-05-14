@@ -1,0 +1,25 @@
+
+[1;36m./qtop.py     ## Queueing System report tool. Press ? for help[0;m 
+v0.9.20241013 ## For feedback and updates, see: [1;36mhttps://github.com/qtop/qtop[0;m
+Please try it with watch: C:\Users\adyge\Documents\New project 7\qtop/qtop.py -s <SOURCEDIR> -w [<every_nr_of_sec>]
+[1;30m===> [0;m[1;37mJob accounting summary[0;m[1;30m <=== [0;m[1;37m2026-05-14 15:50:50[0;m
+[1;36mSummary[0;m: Total:[1;31m9[0;m Up:[1;31m1[0;m Free:[1;31m1[0;m [1;31mNodes[0;m | [1;32m1[0;m/[1;32m36[0;m [1;32mcores[0;m |   [1;34m1[0;m+[1;34m0[0;m [1;34mjobs[0;m (R + Q) 
+[1;36mQueues[0;m : ops: 0 | euasia: 0 | dteam: 1 | [0;31m* implies blocked[0;m
+
+[1;30m===> [0;m[1;37mWorker Nodes occupancy[0;m[1;30m <=== [0;m[1;30m(wnid_lines/core_map/Node state/queue name)[0;m
+[1;37m1|[0;m[0;33m0[0;m[1;30m___[0;m[1;37m|-|d|[0;m
+[1;37m2|[0;m[1;30m____[0;m[1;37m|[0;m[1;31;40md[0;m[1;37m| |[0;m
+[1;37m3|[0;m[1;30m____[0;m[1;37m|[0;m[1;31;40md[0;m[1;37m| |[0;m
+[1;37m4|[0;m[1;30m____[0;m[1;37m|[0;m[1;31;40md[0;m[1;37m| |[0;m
+[1;37m5|[0;m[1;30m____[0;m[1;37m|[0;m[1;31;40md[0;m[1;37m| |[0;m
+[1;37m6|[0;m[1;30m____[0;m[1;37m|[0;m[1;31;40md[0;m[1;37m| |[0;m
+[1;37m7|[0;m[1;30m____[0;m[1;37m|[0;m[1;31;40md[0;m[1;37m| |[0;m
+[1;37m8|[0;m[1;30m____[0;m[1;37m|[0;m[1;31;40md[0;m[1;37m| |[0;m
+[1;37m9|[0;m[1;30m____[0;m[1;37m|[0;m[1;31;40md[0;m[1;37m| |[0;m
+
+[1;30m
+===> [0;m[1;37mUser accounts and pool mappings[0;m <=== [1;30m(sorting according to total nr. of jobs)[0;m
+[id] unix account      |jobs >=   R +    Q | nodes |       GECOS field or Grid certificate DN |
+[ [0;33m0[0;m] [0;33mdteam032[0;m          [0;33m|[0;m   [0;33m1[0;m      [0;33m1[0;m      [0;33m0[0;m [0;33m|[0;m     [0;33m1[0;m [0;33m|[0;m [0;33m[0;m                                         [0;33m|[0;m
+
+Log file created in $HOME/.local/qtop/logs/qtop.log

@@ -51,3 +51,5 @@ include tests/test_qtop.py
 include tests/test_yaml_parser.py
 include tests/ui/__init__.py
 include tests/ui/test_viewport.py
+include tools/validate_pbs_samples.py
+include docs/pbs-sample-regression.md

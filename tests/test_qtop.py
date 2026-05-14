@@ -8,11 +8,13 @@
 ## SPDX-License-Identifier: MIT
 ##
 
-import pytest
 import re
 import datetime
 import sys
-from qtop_py.qtop import WNOccupancy, decide_batch_system, load_yaml_config, JobNotFound, SchedulerNotSpecified, NoSchedulerFound, get_date_obj_from_str
+from types import SimpleNamespace
+
+import pytest
+from qtop_py.qtop import Cluster, WNOccupancy, decide_batch_system, load_yaml_config, JobNotFound, SchedulerNotSpecified, NoSchedulerFound, get_date_obj_from_str
 
 
 @pytest.fixture
@@ -30,6 +32,7 @@ def config():
         ("wn123.grid.ucc.ie", "wn123"),
         ("lcg123.gridpp.rl.ac.uk", "lcg123"),
         ("compute-123-123", "compute-123-123"),
+        ("trueno_ita00.csic.es", "trueno_ita00"),
         ("wn-hp-123.egi.local", "wn-hp-123"),
         ("woinic-123.egi.local", "woinic-123"),
         ("wn123-ara.bifi.unizar.es", "wn123-ara"),
@@ -38,7 +41,7 @@ def config():
     ),
 )
 def test_re_node(domain_name, match):
-    re_node = r"([A-Za-z0-9-]+)(?=\.|$)"
+    re_node = r"([A-Za-z0-9_-]+)(?=\.|$)"
     m = re.search(re_node, domain_name)
     try:
         assert m.group(0) == match
@@ -58,6 +61,25 @@ def test_re_node(domain_name, match):
 def test_batch_nodes_sorting(domain_name, number):
     domain_name = domain_name.split(".", 1)[0]
     assert int(re.sub(r"[A-Za-z_-]+", "", domain_name) or -1) == number
+
+
+def test_decide_remapping_handles_mixed_numbered_and_named_nodes():
+    cluster = Cluster.__new__(Cluster)
+    cluster.args = SimpleNamespace(BLINDREMAP=False)
+    cluster.config = {"exotic_starting_wn_nr": "30", "percentage": "0.8"}
+    cluster.node_subclusters = {"node"}
+    cluster.workernode_list = [1, "login"]
+    cluster.total_wn = 2
+    cluster.offdown_nodes = 0
+
+    assert cluster.decide_remapping(["1", ""]) is True
+
+
+def test_valid_corejobs_skips_jobs_missing_from_qstat():
+    corejobs = {"0": "1234", "1": "stale"}
+    jobid_to_user_to_queue = {"1234": ("alice", "workq")}
+
+    assert list(WNOccupancy._valid_corejobs(None, corejobs, jobid_to_user_to_queue)) == [("alice", "0", "workq")]
 
 
 def test_create_job_counts():  # user_names, job_states, state_abbrevs

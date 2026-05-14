@@ -28,9 +28,17 @@ import json
 import datetime
 from collections import namedtuple, OrderedDict, Counter
 import os
+import shutil
 from os.path import realpath
-from signal import signal, SIGPIPE, SIG_DFL
-import termios
+from signal import signal, SIG_DFL
+try:
+    from signal import SIGPIPE
+except ImportError:
+    SIGPIPE = None
+try:
+    import termios
+except ImportError:
+    termios = None
 import contextlib
 import glob
 import tempfile
@@ -247,27 +255,38 @@ def calculate_term_size(config, FALLBACK_TERM_SIZE):
     """
     fallback_term_size = config.get("term_size", FALLBACK_TERM_SIZE)
 
-    _command = subprocess.Popen(["/bin/stty", "size"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    tty_size, error = _command.communicate()
-    if not error:
+    def _fallback_from_config():
+        if isinstance(fallback_term_size, (list, tuple)) and len(fallback_term_size) == 2:
+            return fallback_term_size
+        return yaml.fix_config_list(fallback_term_size)
+
+    try:
+        _command = subprocess.Popen(["/bin/stty", "size"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        tty_size, error = _command.communicate()
+    except FileNotFoundError:
+        tty_size, error = b"", b"stty not found"
+
+    if not error and tty_size:
         term_height, term_columns = [int(x) for x in tty_size.strip().split()]
         logging.debug('terminal size v, h from "stty size": %s, %s' % (term_height, term_columns))
     else:
         logging.warn("Failed to autodetect terminal size. (Running in an IDE?in a pipe?) Trying values in %s." % QTOPCONF_YAML)
         try:
             term_height, term_columns = viewport.get_term_size()
-            if not all(term_height, term_columns):
+            if not all((term_height, term_columns)):
                 raise ValueError
         except ValueError:
             try:
-                term_height, term_columns = yaml.fix_config_list(viewport.get_term_size())
-            except KeyError:
-                term_height, term_columns = fallback_term_size
+                term_height, term_columns = _fallback_from_config()
+            except (AttributeError, KeyError, TypeError):
+                terminal_size = shutil.get_terminal_size(fallback=(int(FALLBACK_TERM_SIZE[1]), int(FALLBACK_TERM_SIZE[0])))
+                term_height, term_columns = terminal_size.lines, terminal_size.columns
                 logging.debug("(hardcoded) fallback terminal size v, h:%s, %s" % (term_height, term_columns))
             else:
                 logging.debug("fallback terminal size v, h:%s, %s" % (term_height, term_columns))
         except (KeyError, TypeError):  # TypeError if None was returned i.e. no setting in QTOPCONF_YAML
-            term_height, term_columns = fallback_term_size
+            terminal_size = shutil.get_terminal_size(fallback=(int(FALLBACK_TERM_SIZE[1]), int(FALLBACK_TERM_SIZE[0])))
+            term_height, term_columns = terminal_size.lines, terminal_size.columns
             logging.debug("(hardcoded) fallback terminal size v, h:%s, %s" % (term_height, term_columns))
 
     return int(term_height), int(term_columns)
@@ -299,8 +318,7 @@ def auto_get_avail_batch_system(config):
     """
     # TODO pbsnodes etc should not be hardcoded!
     for system, batch_command in config["signature_commands"].items():
-        NOT_FOUND = subprocess.call(["/usr/bin/which", batch_command], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        if not NOT_FOUND:
+        if shutil.which(batch_command):
             if system != "demo":
                 logging.debug("Auto-detected scheduler: %s" % system)
                 return system
@@ -360,20 +378,27 @@ def get_detail_of_name(account_jobs_table):
     else:
         passwd_command = extract_info.get("user_details_cache").split()
         passwd_command[-1] = os.path.expandvars(passwd_command[-1])
+        if not os.path.exists(passwd_command[-1]):
+            return dict()
+        with open(passwd_command[-1], encoding="utf-8") as passwd_cache:
+            output = passwd_cache.read()
+        err = ""
+        passwd_command = []
 
-    try:
-        p = subprocess.Popen(passwd_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding="utf-8")
-    except OSError:
-        logging.critical(
-            '\nCommand "%s" could not be found in your system. \nEither remove -G switch or modify the command in '
-            "qtopconf.yaml (value of key: %s).\nExiting..." % (colorize(passwd_command[0], color_func="Red_L"), "user_details_realtime")
-        )
-        sys.exit(0)
-    else:
-        output, err = p.communicate("something here")
-        if "No such file or directory" in err:
-            logging.warning("You have to set a proper command to get the passwd file in your %s file." % QTOPCONF_YAML)
-            logging.warning("Error returned by getent: %s\nCommand issued: %s" % (err, passwd_command))
+    if passwd_command:
+        try:
+            p = subprocess.Popen(passwd_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding="utf-8")
+        except OSError:
+            logging.critical(
+                '\nCommand "%s" could not be found in your system. \nEither remove -G switch or modify the command in '
+                "qtopconf.yaml (value of key: %s).\nExiting..." % (colorize(passwd_command[0], color_func="Red_L"), "user_details_realtime")
+            )
+            sys.exit(0)
+        else:
+            output, err = p.communicate("something here")
+            if "No such file or directory" in err:
+                logging.warning("You have to set a proper command to get the passwd file in your %s file." % QTOPCONF_YAML)
+                logging.warning("Error returned by getent: %s\nCommand issued: %s" % (err, passwd_command))
 
     detail_of_name = dict()
     for line in output.split("\n"):
@@ -1085,9 +1110,13 @@ class WNOccupancy(object):
         workernode_list = cluster.workernode_list
         term_columns = viewport.h_term_size
         min_masking_threshold = int(config["workernodes_matrix"][0]["wn id lines"]["min_masking_threshold"])
-        if args.NOMASKING and min(workernode_list) > min_masking_threshold:
+        numeric_workernodes = [node for node in workernode_list if isinstance(node, int)]
+        if not workernode_list or wn_number <= 0:
+            return start, start, 0
+
+        if args.NOMASKING and numeric_workernodes and min(numeric_workernodes) > min_masking_threshold:
             # exclude unneeded first empty nodes from the matrix
-            start = min(workernode_list) - 1
+            start = min(numeric_workernodes) - 1
 
         # Extra matrices may be needed if the WNs are more than the screen width can hold.
         if wn_number > start:  # start will either be 1 or (masked >= config['min_masking_threshold'] + 1)
@@ -1147,6 +1176,8 @@ class WNOccupancy(object):
         elem_identifier = [d for d in config["workernodes_matrix"] if part_name in d][0]  # jeeez
         part_name_idx = config["workernodes_matrix"].index(elem_identifier)
         user_max_len = int(config["workernodes_matrix"][part_name_idx][part_name]["max_len"])
+        if not self.cluster.workernode_dict:
+            return OrderedDict()
         try:
             real_max_len = max([len(self.cluster.workernode_dict[_node][yaml_key]) for _node in self.cluster.workernode_dict])
         except KeyError:
@@ -1275,8 +1306,15 @@ class WNOccupancy(object):
                 id_.color = "Gray_D"
 
             id_.q = queue
-            core_user_map["Core" + str(core) + "vector"].append(id_)
-            node_free_cores.remove(core)  # this is an assigned core, hence it doesn't belong to the node's free cores
+            core_vector = "Core" + str(core) + "vector"
+            if core_vector not in core_user_map:
+                logging.warning("Skipping job on core %s outside the advertised node core range." % core)
+                continue
+            core_user_map[core_vector].append(id_)
+            if core in node_free_cores:
+                node_free_cores.remove(core)  # this is an assigned core, hence it doesn't belong to the node's free cores
+            else:
+                logging.warning("Skipping duplicate or invalid core assignment for core %s." % core)
 
         return core_user_map, node_free_cores
 
@@ -1289,8 +1327,8 @@ class WNOccupancy(object):
             try:
                 user_queue = jobid_to_user_to_queue[job]
             except KeyError as KeyErrorValue:
-                logging.critical("There seems to be a problem with the qstat output. " "A Job (ID %s) has gone rogue. " "Please check with the SysAdmin." % (str(KeyErrorValue)))
-                raise KeyError
+                logging.warning("Skipping PBS job ID %s because it is listed in pbsnodes but not in qstat." % str(KeyErrorValue))
+                continue
             else:
                 user, queue = user_queue
                 yield user, str(core), queue
@@ -1675,7 +1713,8 @@ class TextDisplay(object):
         return joined_list
 
     def print_core_lines(self, core_user_map, print_char_start, print_char_stop, transposed_matrices, userid_to_userid_re_pat, mapping, attrs, options1, options2):
-        signal(SIGPIPE, SIG_DFL)
+        if SIGPIPE is not None:
+            signal(SIGPIPE, SIG_DFL)
         remove_corelines = dynamic_config.get("rem_empty_corelines", config["rem_empty_corelines"]) + 1
 
         # if corelines vertical (transposed matrix)
@@ -1698,7 +1737,8 @@ class TextDisplay(object):
                     print(core_line_zipped)
                 except IOError:
                     try:
-                        signal(SIGPIPE, SIG_DFL)
+                        if SIGPIPE is not None:
+                            signal(SIGPIPE, SIG_DFL)
                         print(core_line_zipped)
                         sys.stdout.close()
                     except IOError:
@@ -1875,7 +1915,7 @@ class Cluster(object):
         if not self.worker_nodes:
             return None  # TODO ? what to return instead of cluster?
 
-        re_nodename = r"(^[A-Za-z0-9-]+)(?=\.|$)" if not self.args.ANONYMIZE else r"\w_anon_wn_\d+"
+        re_nodename = r"(^[A-Za-z0-9_-]+)(?=\.|$)" if not self.args.ANONYMIZE else r"\w_anon_wn_\d+"
 
         self.node_subclusters, self.workernode_list, self.offdown_nodes, self.working_cores, max_np, _all_str_digits_with_empties = self.get_wn_list_and_stats(
             self.workernode_list, self.node_subclusters, self.worker_nodes, re_nodename
@@ -1910,6 +1950,9 @@ class Cluster(object):
         all_str_digits_with_empties = list()
         for node in worker_nodes:
             nodename_match = re.search(re_nodename, node["domainname"])
+            if not nodename_match:
+                logging.warning("Skipping worker node with unsupported name: %s" % node["domainname"])
+                continue
             _nodename = nodename_match.group(0)
 
             # get subclusters by name change
@@ -1954,14 +1997,18 @@ class Cluster(object):
 
         _all_str_digits = list(filter(lambda x: x != "", all_str_digits_with_empties))
         _all_digits = [int(digit) for digit in _all_str_digits]
+        numeric_nodes = [node for node in self.workernode_list if isinstance(node, int)]
+        has_unnumbered_nodes = len(all_str_digits_with_empties) != len(_all_str_digits)
+        has_numbering_collisions = len(set(_all_digits)) != len(_all_digits)
+        exotic_starting = numeric_nodes and min(numeric_nodes) >= int(self.config["exotic_starting_wn_nr"])
 
         if (
             self.args.BLINDREMAP
             or len(self.node_subclusters) > 1
-            or min(self.workernode_list) >= int(self.config["exotic_starting_wn_nr"])
+            or exotic_starting
             or self.offdown_nodes >= self.total_wn * float(self.config["percentage"])
-            or len(all_str_digits_with_empties) != len(_all_str_digits)
-            or len(_all_digits) != len(_all_str_digits)
+            or has_unnumbered_nodes
+            or has_numbering_collisions
         ):
             REMAP = True
         else:
@@ -1974,15 +2021,17 @@ class Cluster(object):
             subclusters = len(self.node_subclusters) > 1 and "there are different WN namings, e.g. wn001, wn002, ..., ps001, ps002, ... etc" or False
 
             exotic_starting = (
-                min(self.workernode_list) >= int(self.config["exotic_starting_wn_nr"]) and "first starting numbering of a WN very high; would thus require too much unused space" or False
+                exotic_starting and "first starting numbering of a WN very high; would thus require too much unused space" or False
             )
 
-            percentage_unassigned = len(all_str_digits_with_empties) != len(_all_str_digits) and "more than %s of nodes have are down/offline" % float(self.config["percentage"]) or False
+            percentage_unassigned = self.offdown_nodes >= self.total_wn * float(self.config["percentage"]) and "more than %s of nodes have are down/offline" % float(self.config["percentage"]) or False
 
-            numbering_collisions = min(self.workernode_list) >= int(self.config["exotic_starting_wn_nr"]) and "there are numbering collisions" or False
+            unnumbered_nodes = has_unnumbered_nodes and "there are non-numbered worker nodes" or False
+
+            numbering_collisions = has_numbering_collisions and "there are numbering collisions" or False
 
             print()
-            logging.debug("Remapping decided due to: \n\t %s" % filter(None, [user_request, subclusters, exotic_starting, percentage_unassigned, numbering_collisions]))
+            logging.debug("Remapping decided due to: \n\t %s" % filter(None, [user_request, subclusters, exotic_starting, percentage_unassigned, unnumbered_nodes, numbering_collisions]))
 
         return REMAP
 
