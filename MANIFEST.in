@@ -1,12 +1,13 @@
 include CHANGELOG.rst
-include CONTRIBUTING.rst
+include CONTRIBUTING.md
 include helpfile.txt
 include Makefile
 include MANIFEST.in
 include LICENSE
 include qtopconf.yaml
-include qtop.py
 include qtop
+include README.md
+include pyproject.toml
 include qtop_py/cli.py
 include qtop_py/colormap.py
 include qtop_py/constants.py
@@ -41,10 +42,7 @@ include qtop_py/utils.py
 include qtop_py/web/index.html
 include qtop_py/web.py
 include qtop_py/yaml_parser.py
-include qtop_py/qtop.sh
-include README.rst
 include ROADMAP.rst
-include setup.py
 include tests/plugins/__init__.py
 include tests/plugins/test_pbs.py
 include tests/test_qtop.py
