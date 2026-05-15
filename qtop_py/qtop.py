@@ -22,7 +22,6 @@ from operator import itemgetter
 from itertools import zip_longest, cycle, chain
 import subprocess
 import select
-import shutil
 import os
 import re
 import json
@@ -275,16 +274,9 @@ def calculate_term_size(config, FALLBACK_TERM_SIZE):
     """
     fallback_term_size = config.get("term_size", FALLBACK_TERM_SIZE)
 
-    stty = shutil.which("stty")
-    tty_size, error = b"", True
-    if stty:
-        try:
-            _command = subprocess.Popen([stty, "size"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        except OSError:
-            pass
-        else:
-            tty_size, error = _command.communicate()
-    if not error and tty_size.strip():
+    _command = subprocess.Popen(["/bin/stty", "size"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    tty_size, error = _command.communicate()
+    if not error:
         term_height, term_columns = [int(x) for x in tty_size.strip().split()]
         logging.debug('terminal size v, h from "stty size": %s, %s' % (term_height, term_columns))
     else:
@@ -334,7 +326,8 @@ def auto_get_avail_batch_system(config):
     """
     # TODO pbsnodes etc should not be hardcoded!
     for system, batch_command in config["signature_commands"].items():
-        if shutil.which(batch_command):
+        NOT_FOUND = subprocess.call(["/usr/bin/which", batch_command], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        if not NOT_FOUND:
             if system != "demo":
                 logging.debug("Auto-detected scheduler: %s" % system)
                 return system
