@@ -1289,8 +1289,8 @@ class WNOccupancy(object):
             try:
                 user_queue = jobid_to_user_to_queue[job]
             except KeyError as KeyErrorValue:
-                logging.critical("There seems to be a problem with the qstat output. " "A Job (ID %s) has gone rogue. " "Please check with the SysAdmin." % (str(KeyErrorValue)))
-                raise KeyError
+                logging.warning("There seems to be a problem with the qstat output. " "A Job (ID %s) has gone rogue. " "Skipping this core assignment." % (str(KeyErrorValue)))
+                continue
             else:
                 user, queue = user_queue
                 yield user, str(core), queue
@@ -1954,11 +1954,12 @@ class Cluster(object):
 
         _all_str_digits = list(filter(lambda x: x != "", all_str_digits_with_empties))
         _all_digits = [int(digit) for digit in _all_str_digits]
+        lowest_numeric_wn = min(_all_digits) if _all_digits else 0
 
         if (
             self.args.BLINDREMAP
             or len(self.node_subclusters) > 1
-            or min(self.workernode_list) >= int(self.config["exotic_starting_wn_nr"])
+            or lowest_numeric_wn >= int(self.config["exotic_starting_wn_nr"])
             or self.offdown_nodes >= self.total_wn * float(self.config["percentage"])
             or len(all_str_digits_with_empties) != len(_all_str_digits)
             or len(_all_digits) != len(_all_str_digits)
@@ -1973,13 +1974,11 @@ class Cluster(object):
 
             subclusters = len(self.node_subclusters) > 1 and "there are different WN namings, e.g. wn001, wn002, ..., ps001, ps002, ... etc" or False
 
-            exotic_starting = (
-                min(self.workernode_list) >= int(self.config["exotic_starting_wn_nr"]) and "first starting numbering of a WN very high; would thus require too much unused space" or False
-            )
+            exotic_starting = lowest_numeric_wn >= int(self.config["exotic_starting_wn_nr"]) and "first starting numbering of a WN very high; would thus require too much unused space" or False
 
             percentage_unassigned = len(all_str_digits_with_empties) != len(_all_str_digits) and "more than %s of nodes have are down/offline" % float(self.config["percentage"]) or False
 
-            numbering_collisions = min(self.workernode_list) >= int(self.config["exotic_starting_wn_nr"]) and "there are numbering collisions" or False
+            numbering_collisions = lowest_numeric_wn >= int(self.config["exotic_starting_wn_nr"]) and "there are numbering collisions" or False
 
             print()
             logging.debug("Remapping decided due to: \n\t %s" % filter(None, [user_request, subclusters, exotic_starting, percentage_unassigned, numbering_collisions]))
