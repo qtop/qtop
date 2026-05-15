@@ -1,0 +1,6 @@
+wn001 mix 8 batch
+wn002 alloc 8 batch
+wn003 alloc 8 urgent
+wn004 alloc 8 urgent
+wn005 idle 8 batch
+wn006 down 8 batch

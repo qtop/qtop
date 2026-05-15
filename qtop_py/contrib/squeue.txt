@@ -1,0 +1,7 @@
+101001 batch alice01 RUNNING 4 wn001
+101002 batch cms001 RUNNING 2 wn001
+101003 batch alice01 RUNNING 8 wn002
+101004 urgent atl001 RUNNING 16 wn[003-004]
+101005 batch alice02 PENDING 4 (Priority)
+101006 batch cms002 PENDING 8 (Resources)
+101007 urgent atl002 PENDING 8 (Priority)

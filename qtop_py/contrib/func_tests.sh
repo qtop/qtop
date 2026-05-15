@@ -22,3 +22,8 @@ echo "Testing pbs..."
 grep -v 'WORKDIR\|Please try it with watch\|Log file created in' contrib/pbs_dvv_out.ref > /tmp/qtop_testfile
 ./qtop.py -c ON -s contrib -raF -b pbs \
     | grep -v 'WORKDIR\|Please try it with watch\|Log file created in' | diff - /tmp/qtop_testfile
+
+echo "Testing slurm..."
+grep -v 'WORKDIR\|Please try it with watch\|Log file created in' contrib/slurm_dvv_out.ref > /tmp/qtop_testfile
+./qtop.py -c ON -s contrib -raF -b slurm \
+    | grep -v 'WORKDIR\|Please try it with watch\|Log file created in' | diff - /tmp/qtop_testfile
