@@ -1,0 +1,2 @@
+gpu001|gpu*|mix|8
+gpu002|gpu*|down|8

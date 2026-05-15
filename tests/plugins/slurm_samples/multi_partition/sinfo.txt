@@ -1,0 +1,3 @@
+shared001|compute*|alloc|16
+shared001|debug|alloc|16
+shared002|compute*|idle|16

@@ -1,0 +1,2 @@
+301|frank|R|debug|shared001
+302|grace|PD|compute|(Resources)
