@@ -59,6 +59,9 @@ def compress_colored_line(s):
     ## TODO: black sheep
     t = [item for item in re.split(r"\x1b\[0;m", s) if item != ""]
 
+    if not t or "\x1b" not in s:
+        return s
+
     sts = []
     st = []
     colors = []

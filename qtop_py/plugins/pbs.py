@@ -93,8 +93,7 @@ class PBSStatExtractor(StatExtractor):
                 qstat_values = self._process_qstat_line(re_search, line, re_match_positions)
                 # unused:  _prior, _name, _submit, _start_at, _queue_domain, _slots, _ja_taskID =
                 # m.group(2), m.group(3), m.group(6), m.group(7), m.group(9), m.group(10), m.group(11)
-            finally:
-                all_qstat_values.append(qstat_values)
+            all_qstat_values.append(qstat_values)
 
             # hence the rest of the lines should follow either try's or except's same format
             for line in fin:
@@ -167,6 +166,7 @@ class PBSStatExtractor(StatExtractor):
         run_qd_search = r"^\s*(?P<tot_run>\d+)\s+(?P<tot_queued>\d+)"  # this picks up the last line contents
 
         all_qstatq_values = list()
+        total_running_jobs, total_queued_jobs = 0, 0  # initialize to avoid UnboundLocalError
         with open(qstatq_file, "r") as fin:
             fin.readline()
             fin.readline()
@@ -330,6 +330,8 @@ class PBSBatchSystem(GenericBatchSystem):
                 core, job = part1, part2
             elif re.match(r"[\w.-]+", part1):  # PBS Pro job id
                 job, core = part1, part2
+            else:
+                continue  # skip unrecognized format
 
             if ("," in core) or ("-" in core):  # job id with subjobs
                 for subcore, subjob in PBSBatchSystem.get_corejob_from_range(core, job):

@@ -119,6 +119,10 @@ class GenericBatchSystem(object):
         job_ids_queues = dict(zip(job_ids, job_queues))
         for worker_node in _worker_nodes:
             my_jobs = worker_node["core_job_map"].values()
-            my_queues = set(job_ids_queues.get(re.sub(r"\[\d+\]", r"[]", job_id)) for job_id in my_jobs)  # also for job arrays
+            my_queues = set(
+                q for q in
+                (job_ids_queues.get(re.sub(r"\[\d+\]", r"[]", job_id)) for job_id in my_jobs)
+                if q is not None
+            )  # also for job arrays; filter out None for unknown job_ids
             worker_node["qname"] = list(my_queues)
         return _worker_nodes
