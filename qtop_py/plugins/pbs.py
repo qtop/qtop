@@ -19,16 +19,28 @@ import qtop_py.fileutils as fileutils
 import itertools
 
 
+PBS_REQUEST_STATES = {
+    "RUNNING": "R",
+    "WAITING": "W",
+    "QUEUED": "Q",
+    "HELD": "H",
+    "EXITING": "E",
+    "FINISHED": "F",
+    "SUSPENDED": "S",
+    "TRANSITING": "T",
+}
+
+
 class PBSStatExtractor(StatExtractor):
     def __init__(self, config, options):
         StatExtractor.__init__(self, config, options)
         self.user_q_search = (
             r"^(?P<host_name>(?P<job_id>[0-9\[\]-]+)\.(?P<domain>[\w*-]+))\s+"
-            r"(?P<name>[\w%.=+/{}*-]+)\s+"
-            r"(?P<user>[A-Za-z0-9.*]+)\s+"
+            r"(?P<name>\S+)\s+"
+            r"(?P<user>[A-Za-z0-9.*-]+)\s+"
             r"(?P<time>\d+:\d*:?\d*\*?|0)\s+"
             r"(?P<state>[BCEFHMQRSTUWX])\s+"
-            r"(?P<queue_name>\w+)"
+            r"(?P<queue_name>[\w.-]+)"
         )
 
         self.user_q_search_prior = (
@@ -37,12 +49,21 @@ class PBSStatExtractor(StatExtractor):
             r"(?:[0-9]\.[0-9]+)\s+"
             r"(?:[\w.-]+)\s+"
             r"(?P<user>[\w.-]+)\s+"
-            r"(?P<state>[a-z])\s+"
-            r"(?:\d{2}/\d{2}/\d{2}|0)\s+"
-            r"(?:\d+:\d+:\d*|0)\s+"
-            r"(?P<queue_name>\w+@[\w.-]+)\s+"
-            r"(?:\d+)\s+"
-            r"(?:\w*)"
+            r"(?P<state>[A-Za-z]+)\s+"
+            r"(?:\d{2}/\d{2}/\d{4}|0)\s+"
+            r"(?:\d+:\d+:\d+|0)\s+"
+            r"(?P<queue_name>[\w.-]+@[\w.-]+)\s+"
+            r"(?:\d+)"
+            r"\s*"
+            r"(?:\w*)?"
+        )
+
+        self.user_q_search_request = (
+            r"^\s*\d+:\s+"
+            r"(?P<name>\S+)\s+"
+            r"(?P<job_id>\d+)\s+"
+            r"(?P<user>[\w.-]+)\s+"
+            r"(?P<state>[A-Z]+)"
         )
 
     def extract_qstat(self, orig_file):
@@ -80,28 +101,51 @@ class PBSStatExtractor(StatExtractor):
     def _extract_qstat_regex(self, qstat_file):
         all_qstat_values = list()
         with open(qstat_file, "r") as fin:
-            _ = fin.readline()  # header
-            fin.readline()  # horizontal row
-            line = fin.readline()  # first line
-            re_match_positions = ("job_id", "user", "state", "queue_name")  # was: (1, 5, 7, 8), (1, 4, 5, 8)
-            try:  # first qstat line determines which format qstat follows.
-                re_search = self.user_q_search
-                qstat_values = self._process_qstat_line(re_search, line, re_match_positions)
-                # unused: _job_nr, _ce_name, _name, _time_use = m.group(2), m.group(3), m.group(4), m.group(6)
-            except AttributeError:  # this means 'prior' exists in qstat, it's another format
-                re_search = self.user_q_search_prior
-                qstat_values = self._process_qstat_line(re_search, line, re_match_positions)
-                # unused:  _prior, _name, _submit, _start_at, _queue_domain, _slots, _ja_taskID =
-                # m.group(2), m.group(3), m.group(6), m.group(7), m.group(9), m.group(10), m.group(11)
-            finally:
-                all_qstat_values.append(qstat_values)
-
-            # hence the rest of the lines should follow either try's or except's same format
             for line in fin:
-                qstat_values = self._process_qstat_line(re_search, line, re_match_positions)
-                all_qstat_values.append(qstat_values)
+                qstat_values = self._process_qstat_text_line(line)
+
+                if qstat_values:
+                    all_qstat_values.append(qstat_values)
 
         return all_qstat_values
+
+    def _process_qstat_text_line(self, line):
+        line = line.strip()
+
+        if not line or line.startswith("-") or line.startswith(("Job id", "job-ID")):
+            return None
+
+        if " type=BATCH;" in line or "REQUEST NAME" in line or re.search(r"^\d+\s+run;\s+\d+\s+wait;", line):
+            return None
+
+        if " " not in line:
+            return None
+
+        for re_search in (self.user_q_search, self.user_q_search_prior):
+            try:
+                return self._process_qstat_line(re_search, line, ("job_id", "user", "state", "queue_name"))
+            except AttributeError:
+                pass
+
+        return self._process_qstat_request_line(line)
+
+    def _process_qstat_request_line(self, line):
+        match = re.search(self.user_q_search_request, line)
+
+        if match is None:
+            logging.warning("Line: %s not properly parsed by regex expression. Skipping." % line.strip())
+            return None
+
+        job_id = match.group("job_id")
+        user = self.anonymize(match.group("user"), "users")
+        state = PBS_REQUEST_STATES.get(match.group("state"), match.group("state")[0])
+
+        return {
+            "JobId": job_id,
+            "UnixAccount": user,
+            "S": state,
+            "Queue": "",
+        }
 
     def _extract_qstat_json(self, qstat_file):
         all_qstat_values = list()
