@@ -8,12 +8,12 @@ dynamic = ["version"]
 description = """
     qtop: the fast text mode way to monitor your cluster's utilization and status;
     the time has come to take back control of your cluster's scheduling business"""
-readme = "README.rst"
+readme = "README.md"
 authors = [
     { name="Sotiris Fragkiskos", email="sfranky@gmail.com"},
     { name="Fotis Georgatos", email="kefalonia@gmail.com"},
 ]
-requires-python = ">=3"
+requires-python = ">=3.6"
 
 [project.urls]
 "Homepage" = "https://github.com/qtop/qtop"
@@ -25,7 +25,7 @@ qtop = "qtop_py.qtop:main"
 version = {attr = "qtop_py.__version__"}
 
 [tool.setuptools]
-packages = ["qtop_py"]
+packages = ["qtop_py", "qtop_py.plugins", "qtop_py.ui"]
 
 [tool.ruff]
 # Enable pycodestyle (`E`) and Pyflakes (`F`) codes by default.
