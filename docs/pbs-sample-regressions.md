@@ -35,6 +35,7 @@ This PR adds a lightweight path toward `make test` integration:
 ```bash
 make test
 make test-pbs-samples PBS_SAMPLES_DIR=../qtop-test-repo/qtop5/results PBS_SAMPLE_LIMIT=100
+make test-pbs-samples PBS_SAMPLES_DIR=../qtop-test-repo/qtop5/results PBS_SAMPLE_LIMIT=10 PBS_MAX_FAILURES=50 PBS_SAMPLE_TIMEOUT=20
 ```
 
 The proposed regression flow is:
@@ -50,8 +51,11 @@ The proposed regression flow is:
 python3 -m pytest tests/test_pbs_sample_regressions.py -q
 python3 tools/validate_pbs_samples.py ../qtop-test-repo/qtop5/results --limit 10 --output /tmp/qtop-pbs-golden-10
 python3 tools/validate_pbs_samples.py ../qtop-test-repo/qtop5/results --limit 100 --output /tmp/qtop-pbs-rendered-100
+python3 tools/validate_pbs_samples.py ../qtop-test-repo/qtop5/results --limit 10 --max-failures 50 --timeout 20 --output /tmp/qtop-pbs-failure-count-10
 ```
 
-Observed local golden-output check after this patch: `validated=10 output=/tmp/qtop-pbs-golden-10`.
+Observed local golden-output check after this patch: `rendered=10 passed=10 failed=0 scanned=10 output=/tmp/qtop-pbs-golden-10`.
 
-Observed local sample sweep after this patch: `validated=100 output=/tmp/qtop-pbs-rendered-100`.
+Observed local sample sweep after this patch: `rendered=100 passed=100 failed=0 scanned=100 output=/tmp/qtop-pbs-rendered-100`.
+
+Observed local full-corpus failure-count check after this patch: `rendered=10 passed=447 failed=0 scanned=447 output=/tmp/qtop-pbs-failure-count-10`.
