@@ -15,6 +15,7 @@
 ##
 
 import sys
+import ast
 
 here = sys.path[0]
 
@@ -26,10 +27,18 @@ import os
 import re
 import json
 import datetime
+import shutil
 from collections import namedtuple, OrderedDict, Counter
 from os.path import realpath
-from signal import signal, SIGPIPE, SIG_DFL
-import termios
+from signal import signal, SIG_DFL
+try:
+    from signal import SIGPIPE
+except ImportError:
+    SIGPIPE = None
+try:
+    import termios
+except ImportError:
+    termios = None
 import contextlib
 import glob
 import tempfile
@@ -46,6 +55,21 @@ from qtop_py.serialiser import GenericBatchSystem
 from qtop_py.web import Web
 from qtop_py import __version__
 import time
+
+
+def _coerce_config_value(value):
+    """Safely coerce simple config scalars without evaluating code."""
+    if not isinstance(value, str):
+        return value
+    try:
+        return ast.literal_eval(value)
+    except (SyntaxError, ValueError):
+        return value
+
+
+def _restore_sigpipe_default():
+    if SIGPIPE is not None:
+        signal(SIGPIPE, SIG_DFL)
 
 
 # TODO make the following work with py files instead of qtop.colormap files
@@ -126,7 +150,7 @@ def raw_mode(file):
     Taken from http://stackoverflow.com/questions/11918999/key-listeners-in-python/11919074#11919074
     Exits program with ^C or ^D
     """
-    if args.ONLYSAVETOFILE:
+    if args.ONLYSAVETOFILE or termios is None:
         yield
     else:
         if args.WATCH:
@@ -231,8 +255,8 @@ def load_yaml_config():
     config["savepath"] = _savepath
 
     for key in ("transpose_wn_matrices", "fill_with_user_firstletter", "faster_xml_parsing", "vertical_separator_every_X_columns", "overwrite_sample_file"):
-        config[key] = eval(config[key])  # TODO config should not be writeable!!
-    config["sorting"]["reverse"] = eval(config["sorting"].get("reverse", "0"))  # TODO config should not be writeable!!
+        config[key] = _coerce_config_value(config[key])
+    config["sorting"]["reverse"] = _coerce_config_value(config["sorting"].get("reverse", "0"))
     config["ALT_LABEL_COLORS"] = yaml.fix_config_list(config["workernodes_matrix"][0]["wn id lines"]["alt_label_colors"])
     config["SEPARATOR"] = config["vertical_separator"].replace("'", "")
     config["USER_CUT_MATRIX_WIDTH"] = int(config["workernodes_matrix"][0]["wn id lines"]["user_cut_matrix_width"])
@@ -297,8 +321,7 @@ def auto_get_avail_batch_system(config):
     """
     # TODO pbsnodes etc should not be hardcoded!
     for system, batch_command in config["signature_commands"].items():
-        NOT_FOUND = subprocess.call(["/usr/bin/which", batch_command], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        if not NOT_FOUND:
+        if shutil.which(batch_command):
             if system != "demo":
                 logging.debug("Auto-detected scheduler: %s" % system)
                 return system
@@ -764,8 +787,7 @@ def update_config_with_cmdline_vars(args, config):
     config["rem_empty_corelines"] = int(config["rem_empty_corelines"])
     for opt in args.OPTION:
         key, val = get_key_val_from_option_string(opt)
-        val = eval(val) if ("True" in val or "False" in val) else val
-        config[key] = val
+        config[key] = _coerce_config_value(val)
 
     if args.TRANSPOSE:
         config["transpose_wn_matrices"] = not config["transpose_wn_matrices"]
@@ -1680,7 +1702,7 @@ class TextDisplay(object):
         return joined_list
 
     def print_core_lines(self, core_user_map, print_char_start, print_char_stop, transposed_matrices, userid_to_userid_re_pat, mapping, attrs, options1, options2):
-        signal(SIGPIPE, SIG_DFL)
+        _restore_sigpipe_default()
         remove_corelines = dynamic_config.get("rem_empty_corelines", config["rem_empty_corelines"]) + 1
 
         # if corelines vertical (transposed matrix)
@@ -1703,7 +1725,7 @@ class TextDisplay(object):
                     print(core_line_zipped)
                 except IOError:
                     try:
-                        signal(SIGPIPE, SIG_DFL)
+                        _restore_sigpipe_default()
                         print(core_line_zipped)
                         sys.stdout.close()
                     except IOError:
@@ -2310,11 +2332,15 @@ def main():
         print("Anonymize should be ran with --experimental switch!! Exiting...")
         sys.exit(1)
     if args.WATCH or args.REPLAY:  # this is needed for the filtering/sorting options
-        try:
-            old_attrs = termios.tcgetattr(0)
-        except termios.error:
+        if termios is None:
             old_attrs = ""
-        new_attrs = old_attrs[:]
+            new_attrs = ""
+        else:
+            try:
+                old_attrs = termios.tcgetattr(0)
+            except termios.error:
+                old_attrs = ""
+            new_attrs = old_attrs[:]
 
     available_batch_systems = discover_qtop_batch_systems()
 

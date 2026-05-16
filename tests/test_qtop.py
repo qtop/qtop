@@ -8,11 +8,12 @@
 ## SPDX-License-Identifier: MIT
 ##
 
-import pytest
 import re
 import datetime
-import sys
-from qtop_py.qtop import WNOccupancy, decide_batch_system, load_yaml_config, JobNotFound, SchedulerNotSpecified, NoSchedulerFound, get_date_obj_from_str
+
+import pytest
+
+from qtop_py.qtop import WNOccupancy, decide_batch_system, load_yaml_config, JobNotFound, SchedulerNotSpecified, NoSchedulerFound, get_date_obj_from_str, _coerce_config_value
 
 
 @pytest.fixture
@@ -195,3 +196,18 @@ def test_get_date_obj_from_str(s, now, day_meant):
     at 22:10 at night, the user inputs again 21:00 (the same day is implied)
     """
     assert get_date_obj_from_str(s, now).day == day_meant
+
+
+@pytest.mark.parametrize(
+    "raw, expected",
+    (
+        ("True", True),
+        ("False", False),
+        ("0", 0),
+        ("3", 3),
+        ("['pbs', 'sge']", ["pbs", "sge"]),
+        ("__import__('os').system('echo unsafe')", "__import__('os').system('echo unsafe')"),
+    ),
+)
+def test_coerce_config_value_without_eval(raw, expected):
+    assert _coerce_config_value(raw) == expected
