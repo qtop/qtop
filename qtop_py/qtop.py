@@ -29,8 +29,19 @@ import datetime
 from collections import namedtuple, OrderedDict, Counter
 import os
 from os.path import realpath
-from signal import signal, SIGPIPE, SIG_DFL
-import termios
+import signal as _signal
+try:
+    from signal import signal, SIGPIPE, SIG_DFL
+except ImportError:  # Windows does not have SIGPIPE
+    SIGPIPE = None
+    SIG_DFL = None
+    signal = _signal.signal
+try:
+    import termios
+    _HAS_TERMIOS = True
+except ImportError:  # Windows
+    termios = None
+    _HAS_TERMIOS = False
 import contextlib
 import glob
 import tempfile
@@ -233,8 +244,8 @@ def load_yaml_config():
     config["savepath"] = _savepath
 
     for key in ("transpose_wn_matrices", "fill_with_user_firstletter", "faster_xml_parsing", "vertical_separator_every_X_columns", "overwrite_sample_file"):
-        config[key] = eval(config[key])  # TODO config should not be writeable!!
-    config["sorting"]["reverse"] = eval(config["sorting"].get("reverse", "0"))  # TODO config should not be writeable!!
+        config[key] = int(config[key])  # safe replacement for eval(); these are always numeric strings
+    config["sorting"]["reverse"] = int(config["sorting"].get("reverse", "0"))
     config["ALT_LABEL_COLORS"] = yaml.fix_config_list(config["workernodes_matrix"][0]["wn id lines"]["alt_label_colors"])
     config["SEPARATOR"] = config["vertical_separator"].replace("'", "")
     config["USER_CUT_MATRIX_WIDTH"] = int(config["workernodes_matrix"][0]["wn id lines"]["user_cut_matrix_width"])
@@ -1675,7 +1686,8 @@ class TextDisplay(object):
         return joined_list
 
     def print_core_lines(self, core_user_map, print_char_start, print_char_stop, transposed_matrices, userid_to_userid_re_pat, mapping, attrs, options1, options2):
-        signal(SIGPIPE, SIG_DFL)
+        if SIGPIPE is not None:
+            signal(SIGPIPE, SIG_DFL)
         remove_corelines = dynamic_config.get("rem_empty_corelines", config["rem_empty_corelines"]) + 1
 
         # if corelines vertical (transposed matrix)
@@ -1698,7 +1710,8 @@ class TextDisplay(object):
                     print(core_line_zipped)
                 except IOError:
                     try:
-                        signal(SIGPIPE, SIG_DFL)
+                        if SIGPIPE is not None:
+                            signal(SIGPIPE, SIG_DFL)
                         print(core_line_zipped)
                         sys.stdout.close()
                     except IOError:
