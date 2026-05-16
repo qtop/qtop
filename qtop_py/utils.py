@@ -194,8 +194,8 @@ class ColorStr(object):
     """
     ColorStr instances are normal strings with color information attached to them,
     to be used with colorize(), e.g.
-    print colorize(s.str, color_func=s.color)
-    print colorize(s, mapping=nodestate_to_color, pattern=s.initial)
+    print(colorize(s.str, color_func=s.color))
+    print(colorize(s, mapping=nodestate_to_color, pattern=s.initial))
     """
 
     def __init__(self, string="", color=""):

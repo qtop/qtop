@@ -1,6 +1,21 @@
-   - repo: https://github.com/astral-sh/ruff-pre-commit
-     # Ruff version.
-     rev: v0.0.292
-     hooks:
-       - id: ruff
-         args: [--fix] ##
+# Modern pre-commit hooks for qtop
+# Install: pip install pre-commit && pre-commit install
+# Run manually: pre-commit run --all-files
+---
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: check-yaml
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+      - id: check-added-large-files
+        args: ['--maxkb=2000']
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.9.0
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format
+        # optional: auto-format with ruff format

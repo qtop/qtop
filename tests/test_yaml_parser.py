@@ -9,7 +9,7 @@ from qtop_py.yaml_parser import fix_config_list, get_line, convert_dash_key_in_d
         (["schedulers"], [0, "schedulers"]),
         (["  pbs"], [1, "pbs"]),
         (["   - r'moonshot'"], [2, "-", "r'moonshot'"]),
-        ([" - '\w*cms048': Blue"], [1, "-", "'\\w*cms048': Blue"]),
+        ([r"- '\w*cms048': Blue"], [1, "-", r"'\w*cms048': Blue"]),
         (["term_size: [53, 176]"], [0, "term_size:", "[53, 176]"]),
     ),
 )
