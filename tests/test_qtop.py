@@ -13,6 +13,7 @@ import re
 
 import pytest
 
+import qtop_py.qtop as qtop_module
 from qtop_py.qtop import (
     JobNotFound,
     NoSchedulerFound,
@@ -61,6 +62,17 @@ def test_update_config_with_cmdline_vars_does_not_eval_expressions():
 
     assert updated["feature"] is True
     assert updated["unsafe"] == "True and (1 / 0)"
+
+
+def test_reset_sigpipe_restores_default_handler(monkeypatch):
+    calls = []
+
+    monkeypatch.setattr(qtop_module, "SIGPIPE", 13)
+    monkeypatch.setattr(qtop_module, "signal", lambda sig, handler: calls.append((sig, handler)))
+
+    qtop_module.reset_sigpipe()
+
+    assert calls == [(13, qtop_module.SIG_DFL)]
 
 
 @pytest.mark.parametrize(

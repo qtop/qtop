@@ -156,7 +156,7 @@ def raw_mode(file):
 
 def reset_sigpipe():
     if SIGPIPE is not None:
-        reset_sigpipe()
+        signal(SIGPIPE, SIG_DFL)
 
 
 def parse_config_literal(value, parse_int=True):
