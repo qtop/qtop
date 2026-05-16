@@ -31,7 +31,7 @@ GOLDEN_PBS_SAMPLES = (
 def render_sample(sample_dir, output_dir, save_output=True, timeout=8):
     proc = subprocess.Popen(
         ["./qtop", "-b", "pbs", "-s", str(sample_dir), "-c", "ON"],
-        text=True,
+        universal_newlines=True,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         start_new_session=True,
