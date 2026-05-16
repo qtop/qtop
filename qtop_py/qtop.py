@@ -22,14 +22,22 @@ from operator import itemgetter
 from itertools import zip_longest, cycle, chain
 import subprocess
 import select
+import shutil
 import os
 import re
 import json
 import datetime
 from collections import namedtuple, OrderedDict, Counter
 from os.path import realpath
-from signal import signal, SIGPIPE, SIG_DFL
-import termios
+from signal import SIG_DFL, signal
+try:
+    from signal import SIGPIPE
+except ImportError:
+    SIGPIPE = None
+try:
+    import termios
+except ImportError:
+    termios = None
 import contextlib
 import glob
 import tempfile
@@ -126,7 +134,7 @@ def raw_mode(file):
     Taken from http://stackoverflow.com/questions/11918999/key-listeners-in-python/11919074#11919074
     Exits program with ^C or ^D
     """
-    if args.ONLYSAVETOFILE:
+    if args.ONLYSAVETOFILE or termios is None:
         yield
     else:
         if args.WATCH:
@@ -144,6 +152,30 @@ def raw_mode(file):
                     termios.tcsetattr(file.fileno(), termios.TCSADRAIN, old_attrs)
         else:
             yield
+
+
+def reset_sigpipe():
+    if SIGPIPE is not None:
+        reset_sigpipe()
+
+
+def parse_config_literal(value, parse_int=True):
+    if isinstance(value, (bool, int)):
+        return value
+    if not isinstance(value, str):
+        return value
+
+    stripped_value = value.strip()
+    if stripped_value == "True":
+        return True
+    if stripped_value == "False":
+        return False
+    if parse_int:
+        try:
+            return int(stripped_value)
+        except ValueError:
+            pass
+    return value
 
 
 def load_yaml_config():
@@ -231,8 +263,8 @@ def load_yaml_config():
     config["savepath"] = _savepath
 
     for key in ("transpose_wn_matrices", "fill_with_user_firstletter", "faster_xml_parsing", "vertical_separator_every_X_columns", "overwrite_sample_file"):
-        config[key] = eval(config[key])  # TODO config should not be writeable!!
-    config["sorting"]["reverse"] = eval(config["sorting"].get("reverse", "0"))  # TODO config should not be writeable!!
+        config[key] = parse_config_literal(config[key])
+    config["sorting"]["reverse"] = parse_config_literal(config["sorting"].get("reverse", "0"))
     config["ALT_LABEL_COLORS"] = yaml.fix_config_list(config["workernodes_matrix"][0]["wn id lines"]["alt_label_colors"])
     config["SEPARATOR"] = config["vertical_separator"].replace("'", "")
     config["USER_CUT_MATRIX_WIDTH"] = int(config["workernodes_matrix"][0]["wn id lines"]["user_cut_matrix_width"])
@@ -297,8 +329,7 @@ def auto_get_avail_batch_system(config):
     """
     # TODO pbsnodes etc should not be hardcoded!
     for system, batch_command in config["signature_commands"].items():
-        NOT_FOUND = subprocess.call(["/usr/bin/which", batch_command], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        if not NOT_FOUND:
+        if shutil.which(batch_command):
             if system != "demo":
                 logging.debug("Auto-detected scheduler: %s" % system)
                 return system
@@ -764,7 +795,7 @@ def update_config_with_cmdline_vars(args, config):
     config["rem_empty_corelines"] = int(config["rem_empty_corelines"])
     for opt in args.OPTION:
         key, val = get_key_val_from_option_string(opt)
-        val = eval(val) if ("True" in val or "False" in val) else val
+        val = parse_config_literal(val, parse_int=False)
         config[key] = val
 
     if args.TRANSPOSE:
@@ -1703,7 +1734,7 @@ class TextDisplay(object):
                     print(core_line_zipped)
                 except IOError:
                     try:
-                        signal(SIGPIPE, SIG_DFL)
+                        reset_sigpipe()
                         print(core_line_zipped)
                         sys.stdout.close()
                     except IOError:

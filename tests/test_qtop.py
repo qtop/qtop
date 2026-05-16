@@ -8,16 +8,59 @@
 ## SPDX-License-Identifier: MIT
 ##
 
-import pytest
-import re
 import datetime
-import sys
-from qtop_py.qtop import WNOccupancy, decide_batch_system, load_yaml_config, JobNotFound, SchedulerNotSpecified, NoSchedulerFound, get_date_obj_from_str
+import re
+
+import pytest
+
+from qtop_py.qtop import (
+    JobNotFound,
+    NoSchedulerFound,
+    SchedulerNotSpecified,
+    WNOccupancy,
+    decide_batch_system,
+    get_date_obj_from_str,
+    parse_config_literal,
+    update_config_with_cmdline_vars,
+)
 
 
 @pytest.fixture
 def config():
     return {}
+
+
+@pytest.mark.parametrize(
+    "value, expected",
+    (
+        ("True", True),
+        ("False", False),
+        ("1", 1),
+        ("0", 0),
+        (True, True),
+        (False, False),
+    ),
+)
+def test_parse_config_literal_handles_known_literals(value, expected):
+    assert parse_config_literal(value) == expected
+
+
+def test_parse_config_literal_does_not_eval_expressions():
+    assert parse_config_literal("True and (1 / 0)") == "True and (1 / 0)"
+
+
+def test_update_config_with_cmdline_vars_does_not_eval_expressions():
+    class Args(object):
+        OPTION = ["feature=True", "unsafe=True and (1 / 0)"]
+        TRANSPOSE = False
+        REM_EMPTY_CORELINES = 0
+
+    config = {"rem_empty_corelines": "0"}
+
+    updated = update_config_with_cmdline_vars(Args(), config)
+
+    assert updated["feature"] is True
+    assert updated["unsafe"] == "True and (1 / 0)"
 
 
 @pytest.mark.parametrize(
@@ -88,7 +131,7 @@ def test_create_user_job_counts_raises_jobnotfound():  # user_names, job_states,
 
     document = Document()
     wns_occupancy = WNOccupancy(None, None, document, None, None)
-    with pytest.raises(JobNotFound) as e:
+    with pytest.raises(JobNotFound):
         wns_occupancy._create_user_job_counts(user_names, job_states, state_abbrevs) == {
             "cancelled_of_user": {"sotiris": 0, "yannis": 0, "petros": 1},
             "exiting_of_user": {"sotiris": 0, "kostas": 1, "yannis": 0},
@@ -144,7 +187,7 @@ def test_get_selected_batch_system_raises_scheduler_not_specified(
     available_batch_systems = {"sge": None, "oar": None, "pbs": None}
     config = {"signature_commands": {"pbs": "pbsnodes", "oar": "oarnodes", "sge": "qhost", "demo": "echo"}}
 
-    with pytest.raises(SchedulerNotSpecified) as e:
+    with pytest.raises(SchedulerNotSpecified):
         decide_batch_system(
             cmdline_switch,
             env_var,
@@ -170,7 +213,7 @@ def test_get_selected_batch_system_raises_no_scheduler_found(
 ):
     schedulers = ["sge", "oar", "pbs"]
     available_batch_systems = {"sge": None, "oar": None, "pbs": None}
-    with pytest.raises(NoSchedulerFound) as e:
+    with pytest.raises(NoSchedulerFound):
         decide_batch_system(
             cmdline_switch,
             env_var,
