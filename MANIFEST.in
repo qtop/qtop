@@ -11,3 +11,4 @@ include ROADMAP.rst
 recursive-include docs *.md *.rst
 recursive-include qtop_py *.py *.html *.gif *.ref *.txt *.sh *.jdl
 recursive-include tests *.py
+recursive-include tools *.py
