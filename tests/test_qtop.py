@@ -12,12 +12,33 @@ import pytest
 import re
 import datetime
 import sys
-from qtop_py.qtop import WNOccupancy, decide_batch_system, load_yaml_config, JobNotFound, SchedulerNotSpecified, NoSchedulerFound, get_date_obj_from_str
+from qtop_py.qtop import WNOccupancy, decide_batch_system, load_yaml_config, JobNotFound, SchedulerNotSpecified, NoSchedulerFound, get_date_obj_from_str, parse_config_literal
 
 
 @pytest.fixture
 def config():
     return {}
+
+
+@pytest.mark.parametrize(
+    "raw_value, expected_value",
+    (
+        ("True", True),
+        ("False", False),
+        ("0", 0),
+        ("1", 1),
+        ("['Red', 'Blue']", ["Red", "Blue"]),
+        ("not a literal", "not a literal"),
+        (True, True),
+    ),
+)
+def test_parse_config_literal(raw_value, expected_value):
+    assert parse_config_literal(raw_value) == expected_value
+
+
+def test_parse_config_literal_does_not_execute_code():
+    raw_value = "__import__('os').system('echo should_not_run')"
+    assert parse_config_literal(raw_value) == raw_value
 
 
 @pytest.mark.parametrize(
