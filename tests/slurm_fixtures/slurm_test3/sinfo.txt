@@ -1,0 +1,12 @@
+gpu01|alloc|8|gpu:4|99.9
+gpu02|alloc|8|gpu:4|99.8
+gpu03|alloc|8|gpu:4|100.0
+gpu04|alloc|8|gpu:4|99.5
+gpu05|alloc|8|gpu:4|97.2
+gpu06|alloc|8|gpu:4|98.1
+gpu07|mixed|8|gpu:4|45.0
+gpu08|idle|8|gpu:4|0.0
+node01|alloc|32|gpu:0|30.2
+node02|idle|32|gpu:0|0.0
+maint01|alloc|32|gpu:0|5.0
+maint02|drain|32|gpu:0|0.0

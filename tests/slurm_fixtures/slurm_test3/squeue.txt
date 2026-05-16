@@ -1,0 +1,10 @@
+3001|researchA|RUNNING|gpu|train_resnet|gpu[01-04]
+3002|researchB|RUNNING|gpu|train_bert|gpu[05-06]
+3003|researchC|PENDING|gpu|train_gpt|(Resources)
+3004|researchD|PENDING|gpu|inference|(Resources)
+3005|researchE|PENDING|gpu|finetune|(Priority)
+3006|sysadmin|RUNNING|maintenance|health_check|maint01
+3007|researchA|COMPLETING|gpu|old_train|gpu07
+3008|researchB|FAILED|gpu|failed_job|(None)
+3009|researchF|RUNNING|normal|cpu_task|node01
+3010|researchG|PENDING|normal|waiting|(None)

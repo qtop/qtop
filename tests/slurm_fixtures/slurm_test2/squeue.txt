@@ -1,0 +1,13 @@
+2001|user1|RUNNING|batch|genome_align|wn[01-04]
+2002|user2|RUNNING|batch|protein_fold|wn[05-08]
+2003|user3|RUNNING|batch|md_simulation|wn09
+2004|user4|PENDING|batch|blast_search|(Resources)
+2005|user5|PENDING|batch|rnaseq|(Priority)
+2006|user1|RUNNING|express|quickjob|wn10
+2007|user2|PENDING|express|fasttest|(Resources)
+2008|user3|RUNNING|batch|assembly|wn[11-12]
+2009|user6|RUNNING|batch|annotation|wn13
+2010|user7|PENDING|batch|classification|(None)
+2011|user8|RUNNING|batch|variant_call|wn14
+2012|user9|PENDING|batch|mapping|(Resources)
+2013|user1|SUSPENDED|batch|paused_job|wn15

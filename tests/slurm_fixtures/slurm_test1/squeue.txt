@@ -1,0 +1,10 @@
+1001|alice|RUNNING|normal|simulation_a|node[01-02]
+1002|bob|RUNNING|normal|analysis_b|node03
+1003|carol|RUNNING|gpu|deep_train|gpu01
+1004|alice|PENDING|normal|simulation_c|(Resources)
+1005|dave|PENDING|normal|preprocess|(Priority)
+1006|eve|RUNNING|highmem|memjob|bigmem01
+1007|bob|PENDING|gpu|gpu_pending|(Resources)
+1008|frank|RUNNING|normal|postprocess|node04
+1009|alice|RUNNING|normal|montecarlo|node05
+1010|carol|PENDING|highmem|biganalysis|(None)

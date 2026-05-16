@@ -1,0 +1,12 @@
+node01|alloc|32|gpu:0|98.5
+node02|alloc|32|gpu:0|87.2
+node03|alloc|32|gpu:0|100.0
+node04|alloc|32|gpu:0|76.4
+node05|alloc|32|gpu:0|95.1
+node06|idle|32|gpu:0|0.1
+node07|idle|32|gpu:0|0.0
+node08|idle|32|gpu:0|0.2
+gpu01|alloc|16|gpu:2|99.9
+gpu02|idle|16|gpu:2|0.0
+bigmem01|alloc|64|gpu:0|45.3
+bigmem02|idle|64|gpu:0|0.0
