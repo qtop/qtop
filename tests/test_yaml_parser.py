@@ -1,5 +1,5 @@
 import pytest
-from qtop_py.yaml_parser import fix_config_list, get_line, convert_dash_key_in_dict, parse, read_yaml_config_block, process_line, process_code, safe_load, load_all, get_yaml_key_part
+from qtop_py.yaml_parser import fix_config_list, get_line, convert_dash_key_in_dict, parse, read_yaml_config_block, process_line, process_code, safe_load, load_all, get_yaml_key_part, parse_config_value
 
 
 @pytest.mark.parametrize(
@@ -256,6 +256,28 @@ def test_read_yaml_config_block(line_in, line_out, fin, block_out):
 )
 def test_process_code(fin, code):
     assert process_code(fin) == code
+
+
+@pytest.mark.parametrize(
+    "value, expected",
+    (
+        ("[53, 176]", [53, 176]),
+        ("[White, Blue_L]", ["White", "Blue_L"]),
+        ("['^gaia-',]", ["^gaia-"]),
+        ("'literal value'", "literal value"),
+    ),
+)
+def test_parse_config_value_without_eval(value, expected):
+    assert parse_config_value(value) == expected
+
+
+def test_parse_config_value_does_not_execute_python():
+    payload = "__import__('os').system('echo should-not-run')"
+    assert parse_config_value(payload) == payload
+
+
+def test_fix_config_list_accepts_already_parsed_list():
+    assert fix_config_list(["White", "Blue_L"]) == ["White", "Blue_L"]
 
 
 # @pytest.mark.current

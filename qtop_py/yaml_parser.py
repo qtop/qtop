@@ -10,6 +10,7 @@
 
 import os
 import logging
+import ast
 
 
 ## TODO: black sheep
@@ -21,10 +22,49 @@ def fix_config_list(config_list):
     """
     if not config_list:
         return []
+    if isinstance(config_list, list) and len(config_list) > 1:
+        return config_list
     t = config_list
     item = t[0]
     list_items = item.split(",")
     return [nr.strip() for nr in list_items]
+
+
+def _strip_matching_quotes(value):
+    if len(value) >= 2 and value[0] == value[-1] and value[0] in ("'", '"'):
+        return value[1:-1]
+    return value
+
+
+def parse_config_value(value):
+    """
+    Parse the small inline value syntax supported by qtopconf.yaml.
+
+    The historical parser used eval() for bracketed values and quoted strings.
+    Keep the same permissive behavior for unquoted list items, but avoid
+    executing arbitrary Python from configuration files.
+    """
+    if not isinstance(value, str):
+        return value
+
+    value = value.strip()
+    if value.startswith("[") and value.endswith("]"):
+        try:
+            parsed = ast.literal_eval(value)
+        except (SyntaxError, ValueError):
+            inner = value[1:-1].strip()
+            if not inner:
+                return []
+            return [_strip_matching_quotes(item.strip()) for item in inner.split(",")]
+        return parsed if isinstance(parsed, list) else [parsed]
+
+    if value.startswith(("'", '"')) and value.endswith(("'", '"')):
+        try:
+            return ast.literal_eval(value)
+        except (SyntaxError, ValueError):
+            return _strip_matching_quotes(value)
+
+    return value
 
 
 def get_line(fin, verbatim=False, SEPARATOR=None, DEF_INDENT=2):
@@ -239,14 +279,7 @@ def process_line(list_line, fin, get_lines, parent_container):
         elif ": " in container:  # key: '-'               - testkey: testvalue
             parent_key = key
             key, container = container.split(None, 1)
-            # container = [container[1:-1]] if container.startswith('[') else container
-            container = container[1:-1].split(", ") if container.startswith("[") else container
-            container = "" if container in ("''", '""') else container
-            if len(container) == 1 and isinstance(container, list) and isinstance(container[0], str):
-                try:
-                    container = list(eval(container[0]))
-                except NameError:
-                    pass
+            container = "" if container in ("''", '""') else parse_config_value(container)
             return {"-": [{key.rstrip(":"): container}]}, container  # list
 
         elif container.endswith("|"):
@@ -257,14 +290,7 @@ def process_line(list_line, fin, get_lines, parent_container):
             if key == "-":  # i.e.  - testvalue
                 return {"-": [container]}, container  # was parent_container******was :[container]}, container
             else:  # i.e. testkey: testvalue
-                container = [container[1:-1]] if container.startswith("[") else container  # list
-                if len(container) == 1 and isinstance(container, list) and isinstance(container[0], str):
-                    try:
-                        container = list(eval(container[0]))
-                    except NameError:
-                        pass
-                elif container.startswith("'") and container.endswith("'"):
-                    container = eval(container)
+                container = parse_config_value(container)
                 return {key.rstrip(":"): container}, container  # was parent_container#str
     else:
         raise ValueError("Didn't anticipate that!")
