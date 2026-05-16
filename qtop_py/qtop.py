@@ -26,10 +26,18 @@ import os
 import re
 import json
 import datetime
+import shutil
 from collections import namedtuple, OrderedDict, Counter
 from os.path import realpath
-from signal import signal, SIGPIPE, SIG_DFL
-import termios
+from signal import SIG_DFL, signal
+try:
+    from signal import SIGPIPE
+except ImportError:
+    SIGPIPE = None
+try:
+    import termios
+except ImportError:
+    termios = None
 import contextlib
 import glob
 import tempfile
@@ -51,6 +59,16 @@ import time
 # TODO make the following work with py files instead of qtop.colormap files
 # if not args.COLORFILE:
 #     args.COLORFILE = os.path.expandvars('$HOME/qtop/qtop/qtop.colormap')
+
+
+def reset_sigpipe():
+    if SIGPIPE is not None:
+        signal(SIGPIPE, SIG_DFL)
+
+
+def write_file_to_stdout(path, output):
+    with open(path, "r") as rendered_output:
+        output.write(rendered_output.read())
 
 
 def compress_colored_line(s):
@@ -129,7 +147,7 @@ def raw_mode(file):
     if args.ONLYSAVETOFILE:
         yield
     else:
-        if args.WATCH:
+        if args.WATCH and termios is not None:
             try:
                 old_attrs = termios.tcgetattr(file.fileno())
             except:
@@ -245,8 +263,12 @@ def calculate_term_size(config, FALLBACK_TERM_SIZE):
     """
     fallback_term_size = config.get("term_size", FALLBACK_TERM_SIZE)
 
-    _command = subprocess.Popen(["/bin/stty", "size"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    tty_size, error = _command.communicate()
+    stty = shutil.which("stty")
+    if stty:
+        _command = subprocess.Popen([stty, "size"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        tty_size, error = _command.communicate()
+    else:
+        tty_size, error = b"", True
     if not error:
         term_height, term_columns = [int(x) for x in tty_size.strip().split()]
         logging.debug('terminal size v, h from "stty size": %s, %s' % (term_height, term_columns))
@@ -297,8 +319,8 @@ def auto_get_avail_batch_system(config):
     """
     # TODO pbsnodes etc should not be hardcoded!
     for system, batch_command in config["signature_commands"].items():
-        NOT_FOUND = subprocess.call(["/usr/bin/which", batch_command], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        if not NOT_FOUND:
+        command_name = batch_command.split()[0]
+        if shutil.which(command_name):
             if system != "demo":
                 logging.debug("Auto-detected scheduler: %s" % system)
                 return system
@@ -362,6 +384,12 @@ def get_detail_of_name(account_jobs_table):
     try:
         p = subprocess.Popen(passwd_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding="utf-8")
     except OSError:
+        if not args.GET_GECOS:
+            logging.warning(
+                'Command "%s" could not be found. Continuing without cached user details.'
+                % colorize(passwd_command[0], color_func="Red_L")
+            )
+            return dict()
         logging.critical(
             '\nCommand "%s" could not be found in your system. \nEither remove -G switch or modify the command in '
             "qtopconf.yaml (value of key: %s).\nExiting..." % (colorize(passwd_command[0], color_func="Red_L"), "user_details_realtime")
@@ -1680,7 +1708,7 @@ class TextDisplay(object):
         return joined_list
 
     def print_core_lines(self, core_user_map, print_char_start, print_char_stop, transposed_matrices, userid_to_userid_re_pat, mapping, attrs, options1, options2):
-        signal(SIGPIPE, SIG_DFL)
+        reset_sigpipe()
         remove_corelines = dynamic_config.get("rem_empty_corelines", config["rem_empty_corelines"]) + 1
 
         # if corelines vertical (transposed matrix)
@@ -1703,7 +1731,7 @@ class TextDisplay(object):
                     print(core_line_zipped)
                 except IOError:
                     try:
-                        signal(SIGPIPE, SIG_DFL)
+                        reset_sigpipe()
                         print(core_line_zipped)
                         sys.stdout.close()
                     except IOError:
@@ -2309,12 +2337,15 @@ def main():
     if args.ANONYMIZE and not args.EXPERIMENTAL:
         print("Anonymize should be ran with --experimental switch!! Exiting...")
         sys.exit(1)
-    if args.WATCH or args.REPLAY:  # this is needed for the filtering/sorting options
+    if (args.WATCH or args.REPLAY) and termios is not None:  # this is needed for the filtering/sorting options
         try:
             old_attrs = termios.tcgetattr(0)
         except termios.error:
             old_attrs = ""
         new_attrs = old_attrs[:]
+    else:
+        old_attrs = ""
+        new_attrs = ""
 
     available_batch_systems = discover_qtop_batch_systems()
 
@@ -2419,8 +2450,7 @@ def main():
                 if args.ONLYSAVETOFILE:  # no display of qtop output, will exit
                     break
                 elif not args.WATCH:  # one-off display of qtop output, will exit afterwards (no --watch cmdline switch)
-                    cat_command = ["/bin/cat", output_fp]  # not clearing the screen beforehand is the intended behaviour here
-                    _ = subprocess.call(cat_command, stdout=stdout, stderr=stdout)
+                    write_file_to_stdout(output_fp, stdout)  # not clearing the screen beforehand is the intended behaviour here
                     break
                 else:  # --watch
                     if args.REPLAY:
@@ -2432,10 +2462,10 @@ def main():
                     else:
                         output_partview_fp = display.show_part_view(timestr, file=dynamic_config.get("output_fp", output_fp), x=viewport.v_start, y=viewport.v_term_size)
                         logging.debug("dynamic_config filename in main loop: %s" % dynamic_config.get("output_fp", output_fp))
-                    clear_command = ["/usr/bin/clear"]
-                    cat_command = ["/bin/cat", output_partview_fp]
-                    _ = subprocess.call(clear_command, stdout=stdout, stderr=stdout)
-                    _ = subprocess.call(cat_command, stdout=stdout, stderr=stdout)
+                    clear_command = shutil.which("clear")
+                    if clear_command:
+                        _ = subprocess.call([clear_command], stdout=stdout, stderr=stdout)
+                    write_file_to_stdout(output_partview_fp, stdout)
 
                     read_char = wait_for_keypress_or_autorefresh(viewport, FALLBACK_TERMSIZE, int(args.WATCH) or KEYPRESS_TIMEOUT)
                     control_qtop(viewport, read_char, cluster, new_attrs)
