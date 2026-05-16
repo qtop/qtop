@@ -46,6 +46,27 @@ from qtop_py.serialiser import GenericBatchSystem
 from qtop_py.web import Web
 from qtop_py import __version__
 import time
+import ast
+
+
+def _safe_eval(value):
+    """Safely evaluate a config value without using eval().
+
+    Handles booleans (True/False), integers, floats, lists, and tuples
+    via ast.literal_eval. Returns the original string for anything else.
+    """
+    if isinstance(value, (bool, int, float, list, tuple)):
+        return value
+    if not isinstance(value, str):
+        return value
+    stripped = value.strip()
+    # Fast path for common boolean/numeric strings
+    if stripped in ("True", "False", "None"):
+        return {"True": True, "False": False, "None": None}[stripped]
+    try:
+        return ast.literal_eval(stripped)
+    except (ValueError, SyntaxError):
+        return value
 
 
 # TODO make the following work with py files instead of qtop.colormap files
@@ -231,8 +252,8 @@ def load_yaml_config():
     config["savepath"] = _savepath
 
     for key in ("transpose_wn_matrices", "fill_with_user_firstletter", "faster_xml_parsing", "vertical_separator_every_X_columns", "overwrite_sample_file"):
-        config[key] = eval(config[key])  # TODO config should not be writeable!!
-    config["sorting"]["reverse"] = eval(config["sorting"].get("reverse", "0"))  # TODO config should not be writeable!!
+        config[key] = _safe_eval(config[key])
+    config["sorting"]["reverse"] = _safe_eval(config["sorting"].get("reverse", "0"))
     config["ALT_LABEL_COLORS"] = yaml.fix_config_list(config["workernodes_matrix"][0]["wn id lines"]["alt_label_colors"])
     config["SEPARATOR"] = config["vertical_separator"].replace("'", "")
     config["USER_CUT_MATRIX_WIDTH"] = int(config["workernodes_matrix"][0]["wn id lines"]["user_cut_matrix_width"])
@@ -764,7 +785,7 @@ def update_config_with_cmdline_vars(args, config):
     config["rem_empty_corelines"] = int(config["rem_empty_corelines"])
     for opt in args.OPTION:
         key, val = get_key_val_from_option_string(opt)
-        val = eval(val) if ("True" in val or "False" in val) else val
+        val = _safe_eval(val) if ("True" in val or "False" in val) else val
         config[key] = val
 
     if args.TRANSPOSE:
