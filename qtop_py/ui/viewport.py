@@ -113,14 +113,14 @@ class Viewport(BaseViewport):
     def scroll_right(self):
         if self.h_start + self.h_term_size >= self.max_width:
             return False
-        self.h_start += self.h_term_size / 2
+        self.h_start += self.h_term_size // 2
         return True
 
     def scroll_far_right(self):
         self.h_start = self.get_right_limit()
 
     def scroll_left(self):
-        self.h_start -= self.h_term_size / 2
+        self.h_start -= self.h_term_size // 2
 
     def scroll_far_left(self):
         self.h_start = 0
