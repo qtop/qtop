@@ -75,6 +75,9 @@ class TestSlurmStatExtractor:
             # anonymized user should start with underscore or mapped name
             assert result[0]["UnixAccount"] != "alice"
             assert result[0]["Queue"] != "batch"
+            # Check anonymization format (e.g. 'a_anon_user_0')
+            assert "_anon_" in result[0]["UnixAccount"]
+            assert "_anon_" in result[0]["Queue"]
         finally:
             os.unlink(fname)
 
@@ -246,7 +249,8 @@ debug           up     01:00:00       2          2/0/0/2    node[005-006]
             assert len(worker_nodes) == 1
             # Name should be anonymized
             assert worker_nodes[0]["domainname"] != "compute-node-001"
-            assert worker_nodes[0]["domainname"].startswith("_anon")
+            # Name should be anonymized (format: 'X_anon_wn_N')
+            assert "_anon_" in worker_nodes[0]["domainname"]
         finally:
             os.unlink(scontrol_fname)
 
@@ -390,6 +394,6 @@ class TestSlurmIntegration:
         assert "batch" not in queue_names
         assert "debug" not in queue_names
 
-        # All names should be anonymized (start with _anon)
+        # All names should be anonymized (contain '_anon_')
         for name in usernames + queue_names:
-            assert name.startswith("_anon")
+            assert "_anon_" in name
