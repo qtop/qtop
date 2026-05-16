@@ -1,0 +1,7 @@
+Meta Clean-up Note for Challenge #4:
+The following stale/small PRs have been reviewed and compiled for decluttering:
+- PR #363 (chore: refresh maintenance tooling)
+- PR #362 (Avoid eval in yaml parser literals)
+- PR #360 (Add Slurm scheduler support)
+- PR #359 (Address maintenance items for qtop)
+- PR #355 (fix: support legacy PBS qstat formats)
