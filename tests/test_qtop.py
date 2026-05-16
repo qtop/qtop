@@ -12,12 +12,27 @@ import pytest
 import re
 import datetime
 import sys
-from qtop_py.qtop import WNOccupancy, decide_batch_system, load_yaml_config, JobNotFound, SchedulerNotSpecified, NoSchedulerFound, get_date_obj_from_str
+from qtop_py.qtop import WNOccupancy, decide_batch_system, load_yaml_config, JobNotFound, SchedulerNotSpecified, NoSchedulerFound, get_date_obj_from_str, parse_config_scalar
 
 
 @pytest.fixture
 def config():
     return {}
+
+
+@pytest.mark.parametrize(
+    "raw, parsed",
+    (
+        ("True", True),
+        ("False", False),
+        ("0", 0),
+        ("42", 42),
+        ("'quoted'", "quoted"),
+        ("__import__('os').system('echo unsafe')", "__import__('os').system('echo unsafe')"),
+    ),
+)
+def test_parse_config_scalar_uses_safe_literals(raw, parsed):
+    assert parse_config_scalar(raw) == parsed
 
 
 @pytest.mark.parametrize(
