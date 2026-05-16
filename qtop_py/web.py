@@ -8,11 +8,11 @@
 ## SPDX-License-Identifier: MIT
 ##
 
-from http.server import SimpleHTTPRequestHandler
-from socketserver import TCPServer
-from multiprocessing import Process, Queue
-from threading import Thread
 import os
+from http.server import SimpleHTTPRequestHandler
+from multiprocessing import Process, Queue
+from socketserver import TCPServer
+from threading import Thread
 
 
 class Web(object):

@@ -8,8 +8,9 @@
 ## SPDX-License-Identifier: MIT
 ##
 
-from qtop_py.plugins import pbs
 import pytest
+
+from qtop_py.plugins import pbs
 
 
 @pytest.mark.parametrize('core_selections, result',

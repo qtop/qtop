@@ -8,15 +8,18 @@
 ## SPDX-License-Identifier: MIT
 ##
 
+import itertools
+import logging
+import re
+
 try:
     import ujson as json
 except ImportError:
     import json
-import logging
-import re
-from qtop_py.serialiser import StatExtractor, GenericBatchSystem
+
 import qtop_py.fileutils as fileutils
-import itertools
+import qtop_py.utils as utils
+from qtop_py.serialiser import GenericBatchSystem, StatExtractor
 
 
 class PBSStatExtractor(StatExtractor):
@@ -317,7 +320,7 @@ class PBSBatchSystem(GenericBatchSystem):
         else:
             total_running_jobs, total_queued_jobs = 0, 0
 
-        return int(eval(str(total_running_jobs))), int(eval(str(total_queued_jobs))), qstatq_list
+        return utils.parse_scheduler_total(total_running_jobs), utils.parse_scheduler_total(total_queued_jobs), qstatq_list
 
     @staticmethod
     def _get_jobs_cores(jobs):  # block['jobs']

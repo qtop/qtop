@@ -1,11 +1,11 @@
+import datetime
+import errno
+import glob
 import logging
 import os
-import errno
-import tempfile
-import tarfile
 import sys
-import glob
-import datetime
+import tarfile
+import tempfile
 
 
 def mkdir_p(path):

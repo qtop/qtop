@@ -1,5 +1,6 @@
-from qtop_py.ui.viewport import Viewport
 import pytest
+
+from qtop_py.ui.viewport import Viewport
 
 
 def test_defaults():
@@ -29,7 +30,7 @@ def test_after_scroll_left():
     assert 53 == viewport.v_stop
 
 
-def test_after_scroll_right():
+def test_scroll_right_from_origin():
     viewport = Viewport()
     viewport.set_term_size(53, 176)
     viewport.max_width = 400

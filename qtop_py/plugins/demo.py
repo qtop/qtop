@@ -8,11 +8,12 @@
 ## SPDX-License-Identifier: MIT
 ##
 
-import random
 import itertools
+import random
 import time
-from qtop_py.serialiser import GenericBatchSystem
 from collections import defaultdict
+
+from qtop_py.serialiser import GenericBatchSystem
 
 WORKER_NODES = 80
 QUEUES = "urgent transfer batch".split()

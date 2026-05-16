@@ -8,10 +8,9 @@
 ## SPDX-License-Identifier: MIT
 ##
 
-import re
-import sys
-from itertools import count
 import logging
+import re
+from itertools import count
 
 
 class StatExtractor(object):

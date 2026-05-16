@@ -10,6 +10,7 @@
 
 import re
 import sys
+
 from qtop_py.qtop import main
 
 if __name__ == "__main__":

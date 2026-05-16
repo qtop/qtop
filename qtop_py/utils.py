@@ -8,12 +8,39 @@
 ## SPDX-License-Identifier: MIT
 ##
 
+import ast
 import logging
+import re
 import sys
 from argparse import ArgumentParser
+
 from qtop_py import fileutils
-from qtop_py.colormap import *
 from qtop_py.constants import QTOP_LOGFILE
+
+_SCHEDULER_TOTAL_RE = re.compile(r"^\s*\d+\s*(?:\+\s*\d+\s*)*$")
+
+
+def parse_config_value(value):
+    if not isinstance(value, str):
+        return value
+
+    try:
+        return ast.literal_eval(value.strip())
+    except (SyntaxError, ValueError):
+        return value
+
+
+def parse_scheduler_total(value):
+    if isinstance(value, int):
+        return value
+
+    text = str(value).strip()
+    if not text:
+        return 0
+    if not _SCHEDULER_TOTAL_RE.match(text):
+        raise ValueError("Unsupported scheduler total expression: %r" % value)
+
+    return sum(int(part.strip()) for part in text.split("+"))
 
 
 def init_logging(options):

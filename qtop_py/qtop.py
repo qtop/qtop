@@ -14,38 +14,37 @@
 ## SPDX-License-Identifier: MIT
 ##
 
-import sys
-
-here = sys.path[0]
-
-from operator import itemgetter
-from itertools import zip_longest, cycle, chain
-import subprocess
-import select
+import contextlib
+import datetime
+import glob
+import json
+import logging
 import os
 import re
-import json
-import datetime
-from collections import namedtuple, OrderedDict, Counter
-from os.path import realpath
-from signal import signal, SIGPIPE, SIG_DFL
-import termios
-import contextlib
-import glob
+import select
+import subprocess
+import sys
 import tempfile
-import logging
-from qtop_py.constants import SYSTEMCONFDIR, QTOPCONF_YAML, QTOP_LOGFILE, USERPATH, MAX_CORE_ALLOWED, MAX_UNIX_ACCOUNTS, KEYPRESS_TIMEOUT, FALLBACK_TERMSIZE
-from qtop_py import fileutils
-from qtop_py import utils
-from qtop_py.plugins import *
-from math import ceil
-from qtop_py.colormap import user_to_color_default, color_to_code, queue_to_color, nodestate_to_color_default
-import qtop_py.yaml_parser as yaml
-from qtop_py.ui.viewport import Viewport
-from qtop_py.serialiser import GenericBatchSystem
-from qtop_py.web import Web
-from qtop_py import __version__
+import termios
 import time
+from collections import Counter, OrderedDict, namedtuple
+from itertools import chain, cycle, zip_longest
+from math import ceil
+from operator import itemgetter
+from os.path import realpath
+from signal import SIG_DFL, SIGPIPE, signal
+
+import qtop_py.yaml_parser as yaml
+from qtop_py import __version__, fileutils, utils
+from qtop_py.colormap import color_to_code, nodestate_to_color_default, queue_to_color, user_to_color_default
+from qtop_py.constants import FALLBACK_TERMSIZE, KEYPRESS_TIMEOUT, MAX_UNIX_ACCOUNTS, QTOP_LOGFILE, QTOPCONF_YAML, SYSTEMCONFDIR, USERPATH
+from qtop_py.plugins import demo, oar, pbs, sge
+from qtop_py.serialiser import GenericBatchSystem
+from qtop_py.ui.viewport import Viewport
+from qtop_py.web import Web
+
+here = sys.path[0]
+_LOADED_PLUGINS = (demo, oar, pbs, sge)
 
 
 # TODO make the following work with py files instead of qtop.colormap files
@@ -231,8 +230,8 @@ def load_yaml_config():
     config["savepath"] = _savepath
 
     for key in ("transpose_wn_matrices", "fill_with_user_firstletter", "faster_xml_parsing", "vertical_separator_every_X_columns", "overwrite_sample_file"):
-        config[key] = eval(config[key])  # TODO config should not be writeable!!
-    config["sorting"]["reverse"] = eval(config["sorting"].get("reverse", "0"))  # TODO config should not be writeable!!
+        config[key] = utils.parse_config_value(config[key])
+    config["sorting"]["reverse"] = utils.parse_config_value(config["sorting"].get("reverse", "0"))
     config["ALT_LABEL_COLORS"] = yaml.fix_config_list(config["workernodes_matrix"][0]["wn id lines"]["alt_label_colors"])
     config["SEPARATOR"] = config["vertical_separator"].replace("'", "")
     config["USER_CUT_MATRIX_WIDTH"] = int(config["workernodes_matrix"][0]["wn id lines"]["user_cut_matrix_width"])
@@ -533,13 +532,13 @@ def control_qtop(viewport, read_char, cluster, new_attrs):
 
         dynamic_config["user_sort"] = []
         while True:
-            sort_choice = raw_input(
+            sort_choice = input(
                 "\nChoose sorting order, or Enter to exit:-> ",
             )
             if not sort_choice:
                 break
             if custom_choice in sort_choice:
-                custom = raw_input("\nType in custom sorting (python RegEx, for examples check configuration file): ")
+                custom = input("\nType in custom sorting (python RegEx, for examples check configuration file): ")
                 sort_map[custom_choice][1].append(custom)
 
             try:
@@ -598,7 +597,7 @@ def control_qtop(viewport, read_char, cluster, new_attrs):
 
         dynamic_config["filtering"] = []
         while True:
-            filter_choice = raw_input(
+            filter_choice = input(
                 "\nChoose Filter command, or Enter to exit:-> ",
             )
             if not filter_choice:
@@ -614,7 +613,7 @@ def control_qtop(viewport, read_char, cluster, new_attrs):
 
             filter_args = []
             while True:
-                user_input = raw_input("\nEnter argument, or Enter to exit:-> ")
+                user_input = input("\nEnter argument, or Enter to exit:-> ")
                 if not user_input:
                     break
                 filter_args.append(user_input)
@@ -652,7 +651,7 @@ def control_qtop(viewport, read_char, cluster, new_attrs):
 
         dynamic_config["highlight"] = []
         while True:
-            filter_choice = raw_input(
+            filter_choice = input(
                 "\nChoose Highlight command, or Enter to exit:-> ",
             )
             if not filter_choice:
@@ -668,7 +667,7 @@ def control_qtop(viewport, read_char, cluster, new_attrs):
 
             filter_args = []
             while True:
-                user_input = raw_input("\nEnter argument, or Enter to exit:-> ")
+                user_input = input("\nEnter argument, or Enter to exit:-> ")
                 if not user_input:
                     break
                 filter_args.append(user_input)
@@ -764,7 +763,7 @@ def update_config_with_cmdline_vars(args, config):
     config["rem_empty_corelines"] = int(config["rem_empty_corelines"])
     for opt in args.OPTION:
         key, val = get_key_val_from_option_string(opt)
-        val = eval(val) if ("True" in val or "False" in val) else val
+        val = utils.parse_config_value(val)
         config[key] = val
 
     if args.TRANSPOSE:
@@ -779,10 +778,9 @@ def update_config_with_cmdline_vars(args, config):
 def attempt_faster_xml_parsing(config):
     if config["faster_xml_parsing"]:
         try:
-            from lxml import etree
+            import lxml.etree  # noqa: F401
         except ImportError:
             logging.warn('Module lxml is missing. Try issuing "pip install lxml". Reverting to xml module.')
-            from xml.etree import ElementTree as etree
 
 
 def init_dirs(args, _savepath):
@@ -1160,7 +1158,6 @@ class WNOccupancy(object):
             web.stop()
             sys.exit(1)
         min_len = min(user_max_len, real_max_len)
-        max_len = max(user_max_len, real_max_len)
         if real_max_len > user_max_len:
             logging.warn("Some longer %(attr)ss have been cropped due to %(attr)s length restriction by user" % {"attr": part_name})
 
@@ -1432,7 +1429,7 @@ class TextDisplay(object):
         if self.args.SAMPLE:
             print("Sample files saved in %s/%s" % (_savepath, SAMPLE_FILENAME))
         if self.args.STRICTCHECK:
-            WNOccupancy.strict_check_jobs(wns_occupancy, cluster)
+            WNOccupancy.strict_check_jobs(self.wns_occupancy, self.cluster)
 
     def display_job_accounting_summary(self, cluster, document):
         """
@@ -1486,7 +1483,7 @@ class TextDisplay(object):
 
         print("%(queues)s :" % {"queues": colorize("Queues", "Cyan_L")}, end=" ")
         for _queue_name, q_tuple in qstatq_lod.items():
-            q_running_jobs, q_queued_jobs, q_state = q_tuple.run, q_tuple.queued, q_tuple.state
+            q_running_jobs, q_queued_jobs = q_tuple.run, q_tuple.queued
             account = _queue_name if _queue_name in queue_to_color else "account_not_colored"
             print(
                 "{qname}{star}: {run} {q}|".format(
@@ -1565,7 +1562,6 @@ class TextDisplay(object):
                 colorize(num_of_nodes, pattern=userid_pat),
                 sep=colorize(config["SEPARATOR"], pattern=userid_pat),
                 width1=1 + conditional_width,
-                width3=3 + conditional_width,
                 width4=4 + conditional_width,
                 width5=5 + conditional_width,
                 width18=18 + conditional_width,
@@ -1582,7 +1578,6 @@ class TextDisplay(object):
 
         wn_vert_labels = wns_occupancy.wn_vert_labels
         core_user_map = wns_occupancy.core_user_map
-        extra_matrices_nr = wns_occupancy.extra_matrices_nr
         userid_to_userid_re_pat = wns_occupancy.userid_to_userid_re_pat
         mapping = config["core_coloring"]
 
@@ -2295,6 +2290,9 @@ def main():
         args, \
         transposed_matrices, \
         h_counter, \
+        max_line_len, \
+        change_mapping, \
+        old_attrs, \
         help_main_switch, \
         web, \
         document

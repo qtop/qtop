@@ -8,11 +8,21 @@
 ## SPDX-License-Identifier: MIT
 ##
 
-import pytest
-import re
 import datetime
-import sys
-from qtop_py.qtop import WNOccupancy, decide_batch_system, load_yaml_config, JobNotFound, SchedulerNotSpecified, NoSchedulerFound, get_date_obj_from_str
+import re
+
+import pytest
+
+from qtop_py import utils
+from qtop_py.qtop import (
+    JobNotFound,
+    NoSchedulerFound,
+    SchedulerNotSpecified,
+    WNOccupancy,
+    decide_batch_system,
+    discover_qtop_batch_systems,
+    get_date_obj_from_str,
+)
 
 
 @pytest.fixture
@@ -88,12 +98,48 @@ def test_create_user_job_counts_raises_jobnotfound():  # user_names, job_states,
 
     document = Document()
     wns_occupancy = WNOccupancy(None, None, document, None, None)
-    with pytest.raises(JobNotFound) as e:
+    with pytest.raises(JobNotFound):
         wns_occupancy._create_user_job_counts(user_names, job_states, state_abbrevs) == {
             "cancelled_of_user": {"sotiris": 0, "yannis": 0, "petros": 1},
             "exiting_of_user": {"sotiris": 0, "kostas": 1, "yannis": 0},
             "running_of_user": {"sotiris": 1, "yannis": 1},
         }
+
+
+@pytest.mark.parametrize(
+    "value, expected",
+    (
+        ("True", True),
+        ("False", False),
+        ("0", 0),
+        ("12", 12),
+        ("'left'", "left"),
+        ("lambda x: x", "lambda x: x"),
+    ),
+)
+def test_parse_config_value(value, expected):
+    assert utils.parse_config_value(value) == expected
+
+
+@pytest.mark.parametrize(
+    "value, expected",
+    (
+        (0, 0),
+        ("4", 4),
+        ("1 + 2 + 3", 6),
+    ),
+)
+def test_parse_scheduler_total(value, expected):
+    assert utils.parse_scheduler_total(value) == expected
+
+
+def test_parse_scheduler_total_rejects_code():
+    with pytest.raises(ValueError):
+        utils.parse_scheduler_total("__import__('os').system('true')")
+
+
+def test_discover_qtop_batch_systems_loads_plugins():
+    assert sorted(discover_qtop_batch_systems()) == ["demo", "oar", "pbs", "sge"]
 
 
 @pytest.mark.parametrize(
@@ -144,7 +190,7 @@ def test_get_selected_batch_system_raises_scheduler_not_specified(
     available_batch_systems = {"sge": None, "oar": None, "pbs": None}
     config = {"signature_commands": {"pbs": "pbsnodes", "oar": "oarnodes", "sge": "qhost", "demo": "echo"}}
 
-    with pytest.raises(SchedulerNotSpecified) as e:
+    with pytest.raises(SchedulerNotSpecified):
         decide_batch_system(
             cmdline_switch,
             env_var,
@@ -170,7 +216,7 @@ def test_get_selected_batch_system_raises_no_scheduler_found(
 ):
     schedulers = ["sge", "oar", "pbs"]
     available_batch_systems = {"sge": None, "oar": None, "pbs": None}
-    with pytest.raises(NoSchedulerFound) as e:
+    with pytest.raises(NoSchedulerFound):
         decide_batch_system(
             cmdline_switch,
             env_var,

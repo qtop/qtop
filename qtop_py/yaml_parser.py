@@ -8,9 +8,8 @@
 ## SPDX-License-Identifier: MIT
 ##
 
-import os
 import logging
-
+import os
 
 ## TODO: black sheep
 
@@ -148,10 +147,12 @@ def read_yaml_config_block(line, fin, get_lines):
         except StopIteration:  # EO(config)F
             return {}, ""
 
+    key_value = {}
     while len(line) > 1:  # as long as a blank line is not reached (i.e. block is not complete)
         # if line[0] == 0 or (line[0] != 0 and line[1] == '-'):  # same level
         # key_value used below belongs to previous line. It will work for first block line because of short circuit logic
-        if line[0] == 0 or (line[0] == 1 and (next(iter(key_value)) == "-")) or (line[0] == -1 and line[1] == "-"):  # same level or entry level
+        previous_key = next(iter(key_value), None)
+        if line[0] == 0 or (line[0] == 1 and previous_key == "-") or (line[0] == -1 and line[1] == "-"):  # same level or entry level
             key_value, container = process_line(line, fin, get_lines, parent_container)
             for k in key_value:
                 pass  # assign dict's sole key to k
