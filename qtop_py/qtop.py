@@ -26,10 +26,21 @@ import os
 import re
 import json
 import datetime
+import ast
+import shutil
 from collections import namedtuple, OrderedDict, Counter
 from os.path import realpath
-from signal import signal, SIGPIPE, SIG_DFL
-import termios
+from signal import signal, SIG_DFL
+
+try:
+    from signal import SIGPIPE
+except ImportError:
+    SIGPIPE = None
+
+try:
+    import termios
+except ImportError:
+    termios = None
 import contextlib
 import glob
 import tempfile
@@ -78,6 +89,25 @@ def compress_colored_line(s):
     for color, seq in zip(colors, sts):
         final_t.append(color + "".join(seq) + "\x1b[0;m")
     return "".join(final_t)
+
+
+def _parse_config_value(value):
+    if not isinstance(value, str):
+        return value
+    try:
+        return ast.literal_eval(value)
+    except (SyntaxError, ValueError):
+        return value
+
+
+def _reset_sigpipe():
+    if SIGPIPE is not None:
+        signal(SIGPIPE, SIG_DFL)
+
+
+def _print_file(path, stream):
+    with open(path, mode="r") as fin:
+        stream.write(fin.read())
 
 
 def gauge_core_vectors(core_user_map, print_char_start, print_char_stop, coreline_notthere_or_unused, non_existent_symbol, remove_corelines):
@@ -231,8 +261,8 @@ def load_yaml_config():
     config["savepath"] = _savepath
 
     for key in ("transpose_wn_matrices", "fill_with_user_firstletter", "faster_xml_parsing", "vertical_separator_every_X_columns", "overwrite_sample_file"):
-        config[key] = eval(config[key])  # TODO config should not be writeable!!
-    config["sorting"]["reverse"] = eval(config["sorting"].get("reverse", "0"))  # TODO config should not be writeable!!
+        config[key] = _parse_config_value(config[key])
+    config["sorting"]["reverse"] = _parse_config_value(config["sorting"].get("reverse", "0"))
     config["ALT_LABEL_COLORS"] = yaml.fix_config_list(config["workernodes_matrix"][0]["wn id lines"]["alt_label_colors"])
     config["SEPARATOR"] = config["vertical_separator"].replace("'", "")
     config["USER_CUT_MATRIX_WIDTH"] = int(config["workernodes_matrix"][0]["wn id lines"]["user_cut_matrix_width"])
@@ -245,7 +275,15 @@ def calculate_term_size(config, FALLBACK_TERM_SIZE):
     """
     fallback_term_size = config.get("term_size", FALLBACK_TERM_SIZE)
 
-    _command = subprocess.Popen(["/bin/stty", "size"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    try:
+        _command = subprocess.Popen(["/bin/stty", "size"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    except OSError:
+        fallback_height, fallback_columns = fallback_term_size
+        term_size = shutil.get_terminal_size(fallback=(int(fallback_columns), int(fallback_height)))
+        term_height, term_columns = term_size.lines, term_size.columns
+        logging.debug("terminal size v, h from shutil: %s, %s" % (term_height, term_columns))
+        return int(term_height), int(term_columns)
+
     tty_size, error = _command.communicate()
     if not error:
         term_height, term_columns = [int(x) for x in tty_size.strip().split()]
@@ -297,8 +335,8 @@ def auto_get_avail_batch_system(config):
     """
     # TODO pbsnodes etc should not be hardcoded!
     for system, batch_command in config["signature_commands"].items():
-        NOT_FOUND = subprocess.call(["/usr/bin/which", batch_command], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        if not NOT_FOUND:
+        batch_executable = batch_command.split()[0]
+        if shutil.which(batch_executable):
             if system != "demo":
                 logging.debug("Auto-detected scheduler: %s" % system)
                 return system
@@ -359,19 +397,29 @@ def get_detail_of_name(account_jobs_table):
         passwd_command = extract_info.get("user_details_cache").split()
         passwd_command[-1] = os.path.expandvars(passwd_command[-1])
 
-    try:
-        p = subprocess.Popen(passwd_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding="utf-8")
-    except OSError:
-        logging.critical(
-            '\nCommand "%s" could not be found in your system. \nEither remove -G switch or modify the command in '
-            "qtopconf.yaml (value of key: %s).\nExiting..." % (colorize(passwd_command[0], color_func="Red_L"), "user_details_realtime")
-        )
-        sys.exit(0)
+    if not args.GET_GECOS and passwd_command[0] == "cat":
+        try:
+            with open(passwd_command[-1], mode="r") as fin:
+                output = fin.read()
+        except OSError as exc:
+            output, err = "", str(exc)
+        else:
+            err = ""
     else:
-        output, err = p.communicate("something here")
-        if "No such file or directory" in err:
-            logging.warning("You have to set a proper command to get the passwd file in your %s file." % QTOPCONF_YAML)
-            logging.warning("Error returned by getent: %s\nCommand issued: %s" % (err, passwd_command))
+        try:
+            p = subprocess.Popen(passwd_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding="utf-8")
+        except OSError:
+            logging.critical(
+                '\nCommand "%s" could not be found in your system. \nEither remove -G switch or modify the command in '
+                "qtopconf.yaml (value of key: %s).\nExiting..." % (colorize(passwd_command[0], color_func="Red_L"), "user_details_realtime")
+            )
+            sys.exit(0)
+        else:
+            output, err = p.communicate("something here")
+
+    if "No such file or directory" in err:
+        logging.warning("You have to set a proper command to get the passwd file in your %s file." % QTOPCONF_YAML)
+        logging.warning("Error returned by getent: %s\nCommand issued: %s" % (err, passwd_command))
 
     detail_of_name = dict()
     for line in output.split("\n"):
@@ -764,8 +812,7 @@ def update_config_with_cmdline_vars(args, config):
     config["rem_empty_corelines"] = int(config["rem_empty_corelines"])
     for opt in args.OPTION:
         key, val = get_key_val_from_option_string(opt)
-        val = eval(val) if ("True" in val or "False" in val) else val
-        config[key] = val
+        config[key] = _parse_config_value(val)
 
     if args.TRANSPOSE:
         config["transpose_wn_matrices"] = not config["transpose_wn_matrices"]
@@ -1680,7 +1727,7 @@ class TextDisplay(object):
         return joined_list
 
     def print_core_lines(self, core_user_map, print_char_start, print_char_stop, transposed_matrices, userid_to_userid_re_pat, mapping, attrs, options1, options2):
-        signal(SIGPIPE, SIG_DFL)
+        _reset_sigpipe()
         remove_corelines = dynamic_config.get("rem_empty_corelines", config["rem_empty_corelines"]) + 1
 
         # if corelines vertical (transposed matrix)
@@ -1703,7 +1750,7 @@ class TextDisplay(object):
                     print(core_line_zipped)
                 except IOError:
                     try:
-                        signal(SIGPIPE, SIG_DFL)
+                        _reset_sigpipe()
                         print(core_line_zipped)
                         sys.stdout.close()
                     except IOError:
@@ -2419,8 +2466,7 @@ def main():
                 if args.ONLYSAVETOFILE:  # no display of qtop output, will exit
                     break
                 elif not args.WATCH:  # one-off display of qtop output, will exit afterwards (no --watch cmdline switch)
-                    cat_command = ["/bin/cat", output_fp]  # not clearing the screen beforehand is the intended behaviour here
-                    _ = subprocess.call(cat_command, stdout=stdout, stderr=stdout)
+                    _print_file(output_fp, stdout)
                     break
                 else:  # --watch
                     if args.REPLAY:

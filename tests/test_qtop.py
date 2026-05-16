@@ -8,11 +8,13 @@
 ## SPDX-License-Identifier: MIT
 ##
 
-import pytest
 import re
 import datetime
 import sys
-from qtop_py.qtop import WNOccupancy, decide_batch_system, load_yaml_config, JobNotFound, SchedulerNotSpecified, NoSchedulerFound, get_date_obj_from_str
+
+import pytest
+
+from qtop_py.qtop import WNOccupancy, decide_batch_system, load_yaml_config, JobNotFound, SchedulerNotSpecified, NoSchedulerFound, get_date_obj_from_str, _parse_config_value
 
 
 @pytest.fixture
@@ -76,6 +78,21 @@ def test_create_job_counts():  # user_names, job_states, state_abbrevs
         "exiting_of_user": {"sotiris": 0, "kostas": 1, "yannis": 0},
         "running_of_user": {"sotiris": 1, "yannis": 1},
     }
+
+
+@pytest.mark.parametrize(
+    "raw_value, parsed_value",
+    (
+        ("True", True),
+        ("False", False),
+        ("0", 0),
+        ("[4, 12]", [4, 12]),
+        ("user_to_color", "user_to_color"),
+        (False, False),
+    ),
+)
+def test_parse_config_value(raw_value, parsed_value):
+    assert _parse_config_value(raw_value) == parsed_value
 
 
 def test_create_user_job_counts_raises_jobnotfound():  # user_names, job_states, state_abbrevs
