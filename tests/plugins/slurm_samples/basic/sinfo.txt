@@ -1,0 +1,5 @@
+# command: sinfo -N -h -o %N|%P|%t|%c
+node001|compute*|mix|16
+node002|compute*|alloc|16
+node003|debug|idle|16
+node004|debug|down|16

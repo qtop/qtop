@@ -1,0 +1,6 @@
+# command: sinfo -N -h -o %N|%P|%t|%c
+gpu01|gpu*|mix|64
+gpu01|long|mix|64
+gpu02|gpu*|idle|64
+gpu03|gpu*|drain|64
+login01|interactive|alloc|8

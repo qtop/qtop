@@ -1,0 +1,4 @@
+# command: squeue -h -o %i|%P|%u|%T|%C|%R
+1001|compute|alice|RUNNING|8|node001
+1002|compute|bob|RUNNING|12|node[001-002]
+1003|debug|carol|PENDING|4|(Resources)

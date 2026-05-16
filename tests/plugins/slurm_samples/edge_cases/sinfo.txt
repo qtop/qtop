@@ -1,0 +1,6 @@
+# command: sinfo -N -h -o %N|%P|%t|%c
+compute001|batch*|allocated|32
+compute002|batch*|mixed|32
+compute003|batch*|mixed|32
+compute007|batch*|mixed|32
+shared01|debug|reserved|8

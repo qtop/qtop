@@ -1,0 +1,4 @@
+# command: squeue -h -o %i|%P|%u|%T|%C|%R
+3001_7|batch|heidi|RUNNING|48|compute[001-003,007]
+3002|debug|ivan|SUSPENDED|2|shared01
+3003|batch|judy|REQUEUE_HOLD|4|(Dependency)
