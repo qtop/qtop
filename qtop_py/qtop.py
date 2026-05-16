@@ -15,12 +15,14 @@
 ##
 
 import sys
+from ast import literal_eval
 
 here = sys.path[0]
 
 from operator import itemgetter
 from itertools import zip_longest, cycle, chain
 import subprocess
+import shutil
 import select
 import os
 import re
@@ -28,8 +30,17 @@ import json
 import datetime
 from collections import namedtuple, OrderedDict, Counter
 from os.path import realpath
-from signal import signal, SIGPIPE, SIG_DFL
-import termios
+try:
+    from signal import signal, SIGPIPE, SIG_DFL
+except ImportError:  # pragma: no cover - Windows does not expose SIGPIPE
+    from signal import signal, SIG_DFL
+
+    SIGPIPE = None
+
+try:
+    import termios
+except ImportError:  # pragma: no cover - termios is Unix-only
+    termios = None
 import contextlib
 import glob
 import tempfile
@@ -51,6 +62,22 @@ import time
 # TODO make the following work with py files instead of qtop.colormap files
 # if not args.COLORFILE:
 #     args.COLORFILE = os.path.expandvars('$HOME/qtop/qtop/qtop.colormap')
+
+
+def parse_config_scalar(value):
+    """Safely parse simple scalar values from qtopconf/user overrides."""
+    if not isinstance(value, str):
+        return value
+
+    try:
+        return literal_eval(value)
+    except (SyntaxError, ValueError):
+        return value
+
+
+def reset_sigpipe():
+    if SIGPIPE is not None:
+        signal(SIGPIPE, SIG_DFL)
 
 
 def compress_colored_line(s):
@@ -127,6 +154,8 @@ def raw_mode(file):
     Exits program with ^C or ^D
     """
     if args.ONLYSAVETOFILE:
+        yield
+    elif termios is None:
         yield
     else:
         if args.WATCH:
@@ -231,8 +260,8 @@ def load_yaml_config():
     config["savepath"] = _savepath
 
     for key in ("transpose_wn_matrices", "fill_with_user_firstletter", "faster_xml_parsing", "vertical_separator_every_X_columns", "overwrite_sample_file"):
-        config[key] = eval(config[key])  # TODO config should not be writeable!!
-    config["sorting"]["reverse"] = eval(config["sorting"].get("reverse", "0"))  # TODO config should not be writeable!!
+        config[key] = parse_config_scalar(config[key])
+    config["sorting"]["reverse"] = parse_config_scalar(config["sorting"].get("reverse", "0"))
     config["ALT_LABEL_COLORS"] = yaml.fix_config_list(config["workernodes_matrix"][0]["wn id lines"]["alt_label_colors"])
     config["SEPARATOR"] = config["vertical_separator"].replace("'", "")
     config["USER_CUT_MATRIX_WIDTH"] = int(config["workernodes_matrix"][0]["wn id lines"]["user_cut_matrix_width"])
@@ -297,8 +326,7 @@ def auto_get_avail_batch_system(config):
     """
     # TODO pbsnodes etc should not be hardcoded!
     for system, batch_command in config["signature_commands"].items():
-        NOT_FOUND = subprocess.call(["/usr/bin/which", batch_command], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        if not NOT_FOUND:
+        if shutil.which(batch_command):
             if system != "demo":
                 logging.debug("Auto-detected scheduler: %s" % system)
                 return system
@@ -764,8 +792,7 @@ def update_config_with_cmdline_vars(args, config):
     config["rem_empty_corelines"] = int(config["rem_empty_corelines"])
     for opt in args.OPTION:
         key, val = get_key_val_from_option_string(opt)
-        val = eval(val) if ("True" in val or "False" in val) else val
-        config[key] = val
+        config[key] = parse_config_scalar(val)
 
     if args.TRANSPOSE:
         config["transpose_wn_matrices"] = not config["transpose_wn_matrices"]
@@ -1680,7 +1707,7 @@ class TextDisplay(object):
         return joined_list
 
     def print_core_lines(self, core_user_map, print_char_start, print_char_stop, transposed_matrices, userid_to_userid_re_pat, mapping, attrs, options1, options2):
-        signal(SIGPIPE, SIG_DFL)
+        reset_sigpipe()
         remove_corelines = dynamic_config.get("rem_empty_corelines", config["rem_empty_corelines"]) + 1
 
         # if corelines vertical (transposed matrix)
@@ -1703,7 +1730,7 @@ class TextDisplay(object):
                     print(core_line_zipped)
                 except IOError:
                     try:
-                        signal(SIGPIPE, SIG_DFL)
+                        reset_sigpipe()
                         print(core_line_zipped)
                         sys.stdout.close()
                     except IOError:
