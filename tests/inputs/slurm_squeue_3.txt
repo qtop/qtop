@@ -1,0 +1,11 @@
+             JOBID PARTITION     NAME     USER STATE       TIME TIME_LIMIT  NODES NODELIST(REASON)
+               50001      batch compute_physics  alice  R       8:30:00     48:00:00      4     node[001-004]
+               50002      batch  deep_learning    bob    R       4:15:00     24:00:00      2     node[005-006]
+               50003      gpu   炼丹            charlie R       2:00:00     12:00:00      1     gpu001
+               50004      batch    compile       dave   R       0:45      2:00:00      1     node007
+               50005      batch    waiting_job   alice  PD       0:00     96:00:00      8 (Resources)
+               50006      batch    priority_job  bob    PD       0:00     48:00:00      4 (Priority)
+               50007      gpu    gpu_wait       eve    PD       0:00     24:00:00      1 (GPU Resources)
+               50008      batch    completing    alice  CG       0:05     48:00:00      4     node[001-004]
+               50009      batch    failed_job    frank  F       0:30      1:00:00      1 (NonZeroExitCode)
+               50010      interactive job_10h      grace  R       9:45:00     12:00:00      1     node008

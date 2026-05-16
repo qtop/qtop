@@ -1,0 +1,4 @@
+PARTITION       AVAIL  TIMELIMIT  NODES  NODES(A/I/O/T)  NODELIST
+batch*          up     2-00:00:0      8          5/2/0/8    node[001-008]
+gpu             up     1-00:00:0      4          2/1/0/4    gpu[001-004]
+interactive     up     12:00:00       2          1/1/0/2    node[009-010]

@@ -28,6 +28,10 @@ schedulers:
     oarstat_file: %(savepath)s/oarstat%(pid)s.txt, oarstat
   sge:
     sge_file: %(savepath)s/qstat%(pid)s.F.xml.stdout, qstat -F -xml -u '*'
+  slurm:
+    squeue_file: %(savepath)s/squeue%(pid)s.txt, squeue -a -o '%all'
+    scontrol_file: %(savepath)s/scontrol_%(pid)s.txt, scontrol show node
+    sinfo_file: %(savepath)s/sinfo%(pid)s.txt, sinfo -a -N -l
   demo:
     demo_file: %(savepath)s/demo%(pid)s.txt, echo 'Demo here'
 
@@ -36,6 +40,7 @@ signature_commands:
   pbs: pbsnodes
   oar: oarnodes
   sge: qacct
+  slurm: sinfo
   demo: echo
 
 ## Utilises lxml module. Needs to be installed in your system.
@@ -97,6 +102,15 @@ state_abbreviations:
     Rq: queued_of_user
     Rt: transferring_of_user
     Rr: running_of_user    
+  slurm:
+    Q: queued_of_user
+    R: running_of_user
+    C: cancelled_of_user
+    E: exiting_of_user
+    F: failed_of_user
+    S: suspended_of_user
+    PR: preempted_of_user
+    TO: timeout_of_user
   demo:
     Q: queued_of_user
     R: running_of_user

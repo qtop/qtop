@@ -1,0 +1,38 @@
+NodeName=node001 State=ALLOCATED CPUs=64 CoresPerSocket=32 SocketsPerBoard=2 ThreadsPerCore=1 RealMemory=256000
+   Jobs=(50001) NumNodes=1 NumCPUs=16 Nodelist=node001
+   Partitions=batch
+NodeName=node002 State=ALLOCATED CPUs=64 CoresPerSocket=32 SocketsPerBoard=2 ThreadsPerCore=1 RealMemory=256000
+   Jobs=(50001) NumNodes=1 NumCPUs=16 Nodelist=node002
+   Partitions=batch
+NodeName=node003 State=ALLOCATED CPUs=64 CoresPerSocket=32 SocketsPerBoard=2 ThreadsPerCore=1 RealMemory=256000
+   Jobs=(50001) NumNodes=1 NumCPUs=16 Nodelist=node003
+   Partitions=batch
+NodeName=node004 State=ALLOCATED CPUs=64 CoresPerSocket=32 SocketsPerBoard=2 ThreadsPerCore=1 RealMemory=256000
+   Jobs=(50001,50008) NumNodes=1 NumCPUs=16 Nodelist=node004
+   Partitions=batch
+NodeName=node005 State=ALLOCATED CPUs=64 CoresPerSocket=32 SocketsPerBoard=2 ThreadsPerCore=1 RealMemory=256000
+   Jobs=(50002) NumNodes=1 NumCPUs=16 Nodelist=node005
+   Partitions=batch
+NodeName=node006 State=ALLOCATED CPUs=64 CoresPerSocket=32 SocketsPerBoard=2 ThreadsPerCore=1 RealMemory=256000
+   Jobs=(50002) NumNodes=1 NumCPUs=16 Nodelist=node006
+   Partitions=batch
+NodeName=node007 State=ALLOCATED CPUs=64 CoresPerSocket=32 SocketsPerBoard=2 ThreadsPerCore=1 RealMemory=256000
+   Jobs=(50004) NumNodes=1 NumCPUs=4 Nodelist=node007
+   Partitions=batch
+NodeName=node008 State=ALLOCATED CPUs=64 CoresPerSocket=32 SocketsPerBoard=2 ThreadsPerCore=1 RealMemory=256000
+   Jobs=(50010) NumNodes=1 NumCPUs=2 Nodelist=node008
+   Partitions=interactive
+NodeName=gpu001 State=ALLOCATED CPUs=64 CoresPerSocket=32 SocketsPerBoard=2 ThreadsPerCore=1 RealMemory=256000
+   Jobs=(50003) NumNodes=1 NumCPUs=8 Nodelist=gpu001
+   Partitions=gpu
+NodeName=gpu002 State=IDLE CPUs=64 CoresPerSocket=32 SocketsPerBoard=2 ThreadsPerCore=1 RealMemory=256000
+   Partitions=gpu
+NodeName=gpu003 State=DOWN CPUs=64 CoresPerSocket=32 SocketsPerBoard=2 ThreadsPerCore=1 RealMemory=256000
+   Reason=Cables Failed
+   Partitions=gpu
+NodeName=gpu004 State=MIXED CPUs=64 CoresPerSocket=32 SocketsPerBoard=2 ThreadsPerCore=1 RealMemory=256000
+   Partitions=gpu
+NodeName=node009 State=IDLE CPUs=64 CoresPerSocket=32 SocketsPerBoard=2 ThreadsPerCore=1 RealMemory=256000
+   Partitions=interactive
+NodeName=node010 State=RESERVED CPUs=64 CoresPerSocket=32 SocketsPerBoard=2 ThreadsPerCore=1 RealMemory=256000
+   Partitions=interactive

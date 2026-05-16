@@ -1,0 +1,9 @@
+             JOBID PARTITION     NAME     USER STATE       TIME TIME_LIMIT  NODES NODELIST(REASON)
+               99999    batch    submit   dave      R       5:00     10:00:00      1     node001
+              100000    batch    rank     eve       R       3:45     08:00:00      1     node002
+              100001    debug   quick    frank     PD       0:00     00:15:00      1 (Priority)
+              100002    batch   gpunote  grace     R       1:20     06:00:00      1     node003
+              100003    batch   test_hpc heidi     CG       0:10     02:00:00      1     node001
+              100004    interactive shell   ivan      R       0:05     01:00:00      1     node005
+              100005    debug   wait     jade      PD       0:00     00:10:00      1 (Resources)
+              100006    batch   cleanup  dave      CD       0:00     01:00:00      1     node001

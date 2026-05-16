@@ -110,8 +110,8 @@ def test_create_user_job_counts_raises_jobnotfound():  # user_names, job_states,
 )
 def test_get_selected_batch_system(cmdline_switch, env_var, config_file_batch_option, returned_scheduler):
     # monkeypatch.setitem(config, "schedulers", ['oar', 'sge', 'pbs'])
-    schedulers = ["sge", "oar", "pbs"]
-    available_batch_systems = {"sge": None, "oar": None, "pbs": None}
+    schedulers = ["sge", "oar", "pbs", "slurm"]
+    available_batch_systems = {"sge": None, "oar": None, "pbs": None, "slurm": None}
     assert (
         decide_batch_system(
             cmdline_switch,
@@ -140,8 +140,8 @@ def test_get_selected_batch_system_raises_scheduler_not_specified(
     config_file_batch_option,
     returned_scheduler,
 ):
-    schedulers = ["sge", "oar", "pbs"]
-    available_batch_systems = {"sge": None, "oar": None, "pbs": None}
+    schedulers = ["sge", "oar", "pbs", "slurm"]
+    available_batch_systems = {"sge": None, "oar": None, "pbs": None, "slurm": None}
     config = {"signature_commands": {"pbs": "pbsnodes", "oar": "oarnodes", "sge": "qhost", "demo": "echo"}}
 
     with pytest.raises(SchedulerNotSpecified) as e:
@@ -168,8 +168,8 @@ def test_get_selected_batch_system_raises_no_scheduler_found(
     config_file_batch_option,
     returned_scheduler,
 ):
-    schedulers = ["sge", "oar", "pbs"]
-    available_batch_systems = {"sge": None, "oar": None, "pbs": None}
+    schedulers = ["sge", "oar", "pbs", "slurm"]
+    available_batch_systems = {"sge": None, "oar": None, "pbs": None, "slurm": None}
     with pytest.raises(NoSchedulerFound) as e:
         decide_batch_system(
             cmdline_switch,

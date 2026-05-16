@@ -1,0 +1,20 @@
+NodeName=node001 State=ALLOCATED CPUs=16 CoresPerSocket=8 SocketsPerBoard=2 ThreadsPerCore=2 RealMemory=64000
+   Jobs=(12345) NumNodes=1 NumCPUs=4 Nodelist=node001
+   Partitions=batch
+NodeName=node002 State=ALLOCATED CPUs=16 CoresPerSocket=8 SocketsPerBoard=2 ThreadsPerCore=2 RealMemory=64000
+   Jobs=(12346) NumNodes=1 NumCPUs=8 Nodelist=node002,node003
+   Partitions=batch
+NodeName=node003 State=IDLE CPUs=16 CoresPerSocket=8 SocketsPerBoard=2 ThreadsPerCore=2 RealMemory=64000
+   Jobs=(12346) NumNodes=1 NumCPUs=8 Nodelist=node002,node003
+   Partitions=batch
+NodeName=node004 State=DRAINING CPUs=16 CoresPerSocket=8 SocketsPerBoard=2 ThreadsPerCore=2 RealMemory=64000
+   Jobs=(12348) NumNodes=1 NumCPUs=2 Nodelist=node004
+   Partitions=batch
+NodeName=node005 State=IDLE CPUs=16 CoresPerSocket=8 SocketsPerBoard=2 ThreadsPerCore=2 RealMemory=64000
+   Partitions=debug
+NodeName=node006 State=IDLE CPUs=16 CoresPerSocket=8 SocketsPerBoard=2 ThreadsPerCore=2 RealMemory=64000
+   Partitions=debug
+NodeName=node007 State=DOWN CPUs=16 CoresPerSocket=8 SocketsPerBoard=2 ThreadsPerCore=2 RealMemory=64000
+   Partitions=interactive
+NodeName=node008 State=MIXED CPUs=16 CoresPerSocket=8 SocketsPerBoard=2 ThreadsPerCore=2 RealMemory=64000
+   Partitions=interactive

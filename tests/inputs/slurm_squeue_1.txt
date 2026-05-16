@@ -1,0 +1,5 @@
+             JOBID PARTITION     NAME     USER STATE       TIME TIME_LIMIT  NODES NODELIST(REASON)
+               12345      batch    python  alice      R       1:00      2:00:00      1     node001
+               12346      batch    mpi_job    bob      R       0:30      4:00:00      2     node002,node003
+               12347      debug  shortjob    charlie   PD       0:00     00:30:00      1 (Resources)
+               12348      batch   longjob     alice   CG       0:05     12:00:00      1     node001
