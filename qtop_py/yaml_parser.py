@@ -10,9 +10,34 @@
 
 import os
 import logging
+from ast import literal_eval
 
 
 ## TODO: black sheep
+
+
+def _literal_list_or_value(value):
+    try:
+        literal = literal_eval(value)
+    except (SyntaxError, ValueError):
+        return value
+
+    if isinstance(literal, tuple):
+        return list(literal)
+    return literal
+
+
+def _parse_inline_list(value, split_unquoted=False):
+    if not value.startswith("["):
+        return value
+
+    inner_value = value[1:-1]
+    parsed_value = _literal_list_or_value(inner_value)
+    if parsed_value != inner_value:
+        return parsed_value
+    if split_unquoted:
+        return [item.strip() for item in inner_value.split(",")]
+    return [inner_value]
 
 
 def fix_config_list(config_list):
@@ -239,14 +264,8 @@ def process_line(list_line, fin, get_lines, parent_container):
         elif ": " in container:  # key: '-'               - testkey: testvalue
             parent_key = key
             key, container = container.split(None, 1)
-            # container = [container[1:-1]] if container.startswith('[') else container
-            container = container[1:-1].split(", ") if container.startswith("[") else container
+            container = _parse_inline_list(container, split_unquoted=True)
             container = "" if container in ("''", '""') else container
-            if len(container) == 1 and isinstance(container, list) and isinstance(container[0], str):
-                try:
-                    container = list(eval(container[0]))
-                except NameError:
-                    pass
             return {"-": [{key.rstrip(":"): container}]}, container  # list
 
         elif container.endswith("|"):
@@ -257,14 +276,9 @@ def process_line(list_line, fin, get_lines, parent_container):
             if key == "-":  # i.e.  - testvalue
                 return {"-": [container]}, container  # was parent_container******was :[container]}, container
             else:  # i.e. testkey: testvalue
-                container = [container[1:-1]] if container.startswith("[") else container  # list
-                if len(container) == 1 and isinstance(container, list) and isinstance(container[0], str):
-                    try:
-                        container = list(eval(container[0]))
-                    except NameError:
-                        pass
-                elif container.startswith("'") and container.endswith("'"):
-                    container = eval(container)
+                container = _parse_inline_list(container)
+                if isinstance(container, str) and container.startswith("'") and container.endswith("'"):
+                    container = literal_eval(container)
                 return {key.rstrip(":"): container}, container  # was parent_container#str
     else:
         raise ValueError("Didn't anticipate that!")
