@@ -1,0 +1,2 @@
+NodeName=long01|State=ALLOCATED|CPUTot=32
+NodeName=long02|State=MIXED|CPUTot=32

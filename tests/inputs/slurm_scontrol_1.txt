@@ -1,0 +1,2 @@
+NodeName=node01|State=ALLOCATED|CPUTot=16
+NodeName=node02|State=IDLE|CPUTot=16

@@ -1,0 +1,2 @@
+compute|3|0|up
+debug|0|1|up

@@ -1,0 +1,1 @@
+NodeName=gpu01|State=ALLOCATED|CPUTot=64
