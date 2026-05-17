@@ -291,3 +291,19 @@ def test_process_code(fin, code):
 def test_convert_dash_key_in_dict(dict_a, dict_b):
     # pass
     assert convert_dash_key_in_dict(dict_a) == dict_b
+
+
+@pytest.mark.parametrize(
+    "line_in, expected_value",
+    (
+        ([0, "testkey:", "[1, 2]"], [1, 2]),
+        ([0, "-", "testkey: [alpha, beta]"], ["alpha", "beta"]),
+        ([0, "testkey:", "'quoted value'"], "quoted value"),
+    ),
+)
+def test_process_line_uses_literal_parsing(line_in, expected_value):
+    key_container, container = process_line(line_in, [], iter(()), {})
+    value = key_container["-"][0]["testkey"] if line_in[1] == "-" else key_container["testkey"]
+
+    assert value == expected_value
+    assert container == expected_value
