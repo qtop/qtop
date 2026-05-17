@@ -29,8 +29,9 @@ GOLDEN_PBS_SAMPLES = (
 def render_sample(sample_dir, output_dir):
     proc = subprocess.run(
         [sys.executable, "-m", "qtop_py.cli", "-b", "pbs", "-s", str(sample_dir), "-c", "ON"],
-        text=True,
-        capture_output=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        universal_newlines=True,
         timeout=8,
     )
     if proc.returncode != 0 or not proc.stdout.strip():
