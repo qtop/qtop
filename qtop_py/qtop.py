@@ -34,6 +34,7 @@ import contextlib
 import glob
 import tempfile
 import logging
+from ast import literal_eval
 from qtop_py.constants import SYSTEMCONFDIR, QTOPCONF_YAML, QTOP_LOGFILE, USERPATH, MAX_CORE_ALLOWED, MAX_UNIX_ACCOUNTS, KEYPRESS_TIMEOUT, FALLBACK_TERMSIZE
 from qtop_py import fileutils
 from qtop_py import utils
@@ -46,6 +47,44 @@ from qtop_py.serialiser import GenericBatchSystem
 from qtop_py.web import Web
 from qtop_py import __version__
 import time
+
+
+SAFE_EVAL_GLOBALS = {
+    "__builtins__": {},
+    "int": int,
+    "len": len,
+    "ord": ord,
+    "re": re,
+    "str": str,
+}
+
+
+def safe_literal(value):
+    if not isinstance(value, str):
+        return value
+    try:
+        return literal_eval(value)
+    except (SyntaxError, ValueError):
+        return value
+
+
+def safe_bool(value):
+    literal_value = safe_literal(value)
+    if isinstance(literal_value, bool):
+        return literal_value
+    if isinstance(literal_value, int):
+        return bool(literal_value)
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in ("true", "yes", "on"):
+            return True
+        if normalized in ("false", "no", "off"):
+            return False
+    raise ValueError("Cannot parse %r as a boolean value" % value)
+
+
+def safe_eval(expression, local_names=None):
+    return eval(expression, SAFE_EVAL_GLOBALS, local_names or {})
 
 
 # TODO make the following work with py files instead of qtop.colormap files
@@ -230,9 +269,10 @@ def load_yaml_config():
         logging.debug("%s files will be saved in directory %s." % (config["scheduler"], _savepath))
     config["savepath"] = _savepath
 
-    for key in ("transpose_wn_matrices", "fill_with_user_firstletter", "faster_xml_parsing", "vertical_separator_every_X_columns", "overwrite_sample_file"):
-        config[key] = eval(config[key])  # TODO config should not be writeable!!
-    config["sorting"]["reverse"] = eval(config["sorting"].get("reverse", "0"))  # TODO config should not be writeable!!
+    for key in ("transpose_wn_matrices", "fill_with_user_firstletter", "faster_xml_parsing", "overwrite_sample_file"):
+        config[key] = safe_bool(config[key])
+    config["vertical_separator_every_X_columns"] = int(safe_literal(config["vertical_separator_every_X_columns"]))
+    config["sorting"]["reverse"] = safe_bool(config["sorting"].get("reverse", "0"))
     config["ALT_LABEL_COLORS"] = yaml.fix_config_list(config["workernodes_matrix"][0]["wn id lines"]["alt_label_colors"])
     config["SEPARATOR"] = config["vertical_separator"].replace("'", "")
     config["USER_CUT_MATRIX_WIDTH"] = int(config["workernodes_matrix"][0]["wn id lines"]["user_cut_matrix_width"])
@@ -381,7 +421,7 @@ def get_detail_of_name(account_jobs_table):
             break
         else:
             try:
-                detail = eval(regex)
+                detail = safe_eval(regex, {"field": field})
             except (AttributeError, TypeError):
                 detail = field.strip()
             finally:
@@ -764,7 +804,7 @@ def update_config_with_cmdline_vars(args, config):
     config["rem_empty_corelines"] = int(config["rem_empty_corelines"])
     for opt in args.OPTION:
         key, val = get_key_val_from_option_string(opt)
-        val = eval(val) if ("True" in val or "False" in val) else val
+        val = safe_literal(val)
         config[key] = val
 
     if args.TRANSPOSE:
@@ -2003,7 +2043,7 @@ class Cluster(object):
             changed = False
             for remap_line in self.config["remapping"]:
                 pat, repl = remap_line.items()[0]
-                repl = eval(repl) if repl.startswith("lambda") else repl
+                repl = safe_eval(repl) if repl.startswith("lambda") else repl
                 if re.search(pat, _host):
                     changed = True
                     state_corejob_dn["host"] = _host = re.sub(pat, repl, _host)
@@ -2082,7 +2122,7 @@ class Cluster(object):
 
         sort_sequence = "lambda node: (" + sort_str + ")"
         try:
-            self.worker_nodes.sort(key=eval(sort_sequence), reverse=self.config["sorting"]["reverse"])
+            self.worker_nodes.sort(key=safe_eval(sort_sequence), reverse=self.config["sorting"]["reverse"])
         except (IndexError, ValueError):
             logging.critical("There's (probably) something wrong in your sorting lambda in %s." % QTOPCONF_YAML)
             raise
