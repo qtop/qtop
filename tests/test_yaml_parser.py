@@ -258,6 +258,19 @@ def test_process_code(fin, code):
     assert process_code(fin) == code
 
 
+@pytest.mark.parametrize(
+    "line, expected",
+    (
+        ([0, "-", "key: [1, 2, 3]"], {"-": [{"key": ["1", "2", "3"]}]}),
+        ([0, "-", "key: [alpha, beta]"], {"-": [{"key": ["alpha", "beta"]}]}),
+        ([0, "-", "key: [abc-def]"], {"-": [{"key": ["abc-def"]}]}),
+    ),
+)
+def test_process_line_bracket_values(line, expected):
+    parsed, _ = process_line(line, [], iter(()), {})
+    assert parsed == expected
+
+
 # @pytest.mark.current
 @pytest.mark.parametrize(
     "dict_a, dict_b",
