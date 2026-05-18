@@ -12,7 +12,16 @@ import pytest
 import re
 import datetime
 import sys
-from qtop_py.qtop import WNOccupancy, decide_batch_system, load_yaml_config, JobNotFound, SchedulerNotSpecified, NoSchedulerFound, get_date_obj_from_str
+from qtop_py.qtop import (
+    WNOccupancy,
+    decide_batch_system,
+    load_yaml_config,
+    JobNotFound,
+    SchedulerNotSpecified,
+    NoSchedulerFound,
+    get_date_obj_from_str,
+    _safe_literal_config_value,
+)
 
 
 @pytest.fixture
@@ -195,3 +204,26 @@ def test_get_date_obj_from_str(s, now, day_meant):
     at 22:10 at night, the user inputs again 21:00 (the same day is implied)
     """
     assert get_date_obj_from_str(s, now).day == day_meant
+
+
+@pytest.mark.parametrize(
+    "raw_value, expected",
+    (
+        ("True", True),
+        ("False", False),
+        ("true", True),
+        ("false", False),
+        ("None", None),
+        ("0", 0),
+        ("12", 12),
+        ("['White', 'Blue_L']", ["White", "Blue_L"]),
+        (False, False),
+    ),
+)
+def test_safe_literal_config_value(raw_value, expected):
+    assert _safe_literal_config_value(raw_value) == expected
+
+
+def test_safe_literal_config_value_does_not_execute_code():
+    payload = "__import__('os').system('echo should-not-run')"
+    assert _safe_literal_config_value(payload) == payload

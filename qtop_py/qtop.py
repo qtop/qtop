@@ -15,6 +15,7 @@
 ##
 
 import sys
+import ast
 
 here = sys.path[0]
 
@@ -117,6 +118,28 @@ def get_date_obj_from_str(s, now):
     else:
         logging.critical("The datetime format provided is incorrect.\n" "Try one of the formats: yyyymmddTHHMMSS, HHMM, mmddTHHMM.")
     return inp_datetime
+
+
+def _safe_literal_config_value(value):
+    """
+    Convert scalar config values without executing arbitrary code.
+    """
+    if not isinstance(value, str):
+        return value
+
+    normalized_value = value.strip().lower()
+    if normalized_value == "true":
+        return True
+    if normalized_value == "false":
+        return False
+    if normalized_value == "none":
+        return None
+
+    try:
+        return ast.literal_eval(value)
+    except (SyntaxError, ValueError):
+        logging.warning("Config value %r is not a Python literal; keeping it unchanged.", value)
+        return value
 
 
 @contextlib.contextmanager
@@ -231,8 +254,8 @@ def load_yaml_config():
     config["savepath"] = _savepath
 
     for key in ("transpose_wn_matrices", "fill_with_user_firstletter", "faster_xml_parsing", "vertical_separator_every_X_columns", "overwrite_sample_file"):
-        config[key] = eval(config[key])  # TODO config should not be writeable!!
-    config["sorting"]["reverse"] = eval(config["sorting"].get("reverse", "0"))  # TODO config should not be writeable!!
+        config[key] = _safe_literal_config_value(config[key])  # TODO config should not be writeable!!
+    config["sorting"]["reverse"] = _safe_literal_config_value(config["sorting"].get("reverse", "0"))  # TODO config should not be writeable!!
     config["ALT_LABEL_COLORS"] = yaml.fix_config_list(config["workernodes_matrix"][0]["wn id lines"]["alt_label_colors"])
     config["SEPARATOR"] = config["vertical_separator"].replace("'", "")
     config["USER_CUT_MATRIX_WIDTH"] = int(config["workernodes_matrix"][0]["wn id lines"]["user_cut_matrix_width"])
