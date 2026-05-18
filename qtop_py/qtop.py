@@ -15,6 +15,7 @@
 ##
 
 import sys
+import ast
 
 here = sys.path[0]
 
@@ -25,16 +26,25 @@ import select
 import os
 import re
 import json
+import shutil
+import importlib.util
 import datetime
 from collections import namedtuple, OrderedDict, Counter
 from os.path import realpath
-from signal import signal, SIGPIPE, SIG_DFL
-import termios
+from signal import SIG_DFL, signal
+try:
+    from signal import SIGPIPE
+except ImportError:
+    SIGPIPE = None
+try:
+    import termios
+except ImportError:
+    termios = None
 import contextlib
 import glob
 import tempfile
 import logging
-from qtop_py.constants import SYSTEMCONFDIR, QTOPCONF_YAML, QTOP_LOGFILE, USERPATH, MAX_CORE_ALLOWED, MAX_UNIX_ACCOUNTS, KEYPRESS_TIMEOUT, FALLBACK_TERMSIZE
+from qtop_py.constants import SYSTEMCONFDIR, QTOPCONF_YAML, QTOP_LOGFILE, USERPATH, MAX_UNIX_ACCOUNTS, KEYPRESS_TIMEOUT, FALLBACK_TERMSIZE
 from qtop_py import fileutils
 from qtop_py import utils
 from qtop_py.plugins import *
@@ -128,6 +138,8 @@ def raw_mode(file):
     """
     if args.ONLYSAVETOFILE:
         yield
+    elif termios is None:
+        yield
     else:
         if args.WATCH:
             try:
@@ -144,6 +156,21 @@ def raw_mode(file):
                     termios.tcsetattr(file.fileno(), termios.TCSADRAIN, old_attrs)
         else:
             yield
+
+
+def reset_sigpipe():
+    if SIGPIPE is not None:
+        signal(SIGPIPE, SIG_DFL)
+
+
+def parse_config_literal(value):
+    if not isinstance(value, str):
+        return value
+
+    try:
+        return ast.literal_eval(value)
+    except (SyntaxError, ValueError):
+        return value
 
 
 def load_yaml_config():
@@ -231,8 +258,8 @@ def load_yaml_config():
     config["savepath"] = _savepath
 
     for key in ("transpose_wn_matrices", "fill_with_user_firstletter", "faster_xml_parsing", "vertical_separator_every_X_columns", "overwrite_sample_file"):
-        config[key] = eval(config[key])  # TODO config should not be writeable!!
-    config["sorting"]["reverse"] = eval(config["sorting"].get("reverse", "0"))  # TODO config should not be writeable!!
+        config[key] = parse_config_literal(config[key])
+    config["sorting"]["reverse"] = parse_config_literal(config["sorting"].get("reverse", "0"))
     config["ALT_LABEL_COLORS"] = yaml.fix_config_list(config["workernodes_matrix"][0]["wn id lines"]["alt_label_colors"])
     config["SEPARATOR"] = config["vertical_separator"].replace("'", "")
     config["USER_CUT_MATRIX_WIDTH"] = int(config["workernodes_matrix"][0]["wn id lines"]["user_cut_matrix_width"])
@@ -297,11 +324,9 @@ def auto_get_avail_batch_system(config):
     """
     # TODO pbsnodes etc should not be hardcoded!
     for system, batch_command in config["signature_commands"].items():
-        NOT_FOUND = subprocess.call(["/usr/bin/which", batch_command], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        if not NOT_FOUND:
-            if system != "demo":
-                logging.debug("Auto-detected scheduler: %s" % system)
-                return system
+        if system != "demo" and shutil.which(batch_command):
+            logging.debug("Auto-detected scheduler: %s" % system)
+            return system
 
     raise SchedulerNotSpecified
 
@@ -777,12 +802,8 @@ def update_config_with_cmdline_vars(args, config):
 
 
 def attempt_faster_xml_parsing(config):
-    if config["faster_xml_parsing"]:
-        try:
-            from lxml import etree
-        except ImportError:
-            logging.warn('Module lxml is missing. Try issuing "pip install lxml". Reverting to xml module.')
-            from xml.etree import ElementTree as etree
+    if config["faster_xml_parsing"] and importlib.util.find_spec("lxml") is None:
+        logging.warning('Module lxml is missing. Try issuing "pip install lxml". Reverting to xml module.')
 
 
 def init_dirs(args, _savepath):
@@ -1680,7 +1701,7 @@ class TextDisplay(object):
         return joined_list
 
     def print_core_lines(self, core_user_map, print_char_start, print_char_stop, transposed_matrices, userid_to_userid_re_pat, mapping, attrs, options1, options2):
-        signal(SIGPIPE, SIG_DFL)
+        reset_sigpipe()
         remove_corelines = dynamic_config.get("rem_empty_corelines", config["rem_empty_corelines"]) + 1
 
         # if corelines vertical (transposed matrix)
@@ -1703,7 +1724,7 @@ class TextDisplay(object):
                     print(core_line_zipped)
                 except IOError:
                     try:
-                        signal(SIGPIPE, SIG_DFL)
+                        reset_sigpipe()
                         print(core_line_zipped)
                         sys.stdout.close()
                     except IOError:

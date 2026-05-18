@@ -11,8 +11,7 @@
 import pytest
 import re
 import datetime
-import sys
-from qtop_py.qtop import WNOccupancy, decide_batch_system, load_yaml_config, JobNotFound, SchedulerNotSpecified, NoSchedulerFound, get_date_obj_from_str
+from qtop_py.qtop import WNOccupancy, decide_batch_system, JobNotFound, SchedulerNotSpecified, NoSchedulerFound, get_date_obj_from_str, parse_config_literal
 
 
 @pytest.fixture
@@ -94,6 +93,22 @@ def test_create_user_job_counts_raises_jobnotfound():  # user_names, job_states,
             "exiting_of_user": {"sotiris": 0, "kostas": 1, "yannis": 0},
             "running_of_user": {"sotiris": 1, "yannis": 1},
         }
+
+
+@pytest.mark.parametrize(
+    "value, expected",
+    (
+        ("True", True),
+        ("False", False),
+        ("0", 0),
+        ("1", 1),
+        ("[1, 2]", [1, 2]),
+        ("not a literal", "not a literal"),
+        (False, False),
+    ),
+)
+def test_parse_config_literal_without_eval(value, expected):
+    assert parse_config_literal(value) == expected
 
 
 @pytest.mark.parametrize(
