@@ -1,5 +1,8 @@
 [build-system]
-requires = ["setuptools>=61.0"]
+requires = [
+    "setuptools>=61.0; python_version >= '3.7'",
+    "setuptools<60; python_version < '3.7'",
+]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -23,15 +26,17 @@ qtop = "qtop_py.qtop:main"
 version = {attr = "qtop_py.__version__"}
 
 [tool.setuptools]
-packages = ["qtop_py"]
+packages = ["qtop_py", "qtop_py.plugins", "qtop_py.ui"]
 
 [tool.ruff]
 # Enable pycodestyle (`E`) and Pyflakes (`F`) codes by default.
-lint.select = ["E", "F", "I"] ##
-lint.ignore = ["E722"]
 
 # Assuming you're developing for Python 3.10
 target-version = "py310" ##
 
 ## FG customisations
 line-length = 188 # this is temporary to reduce noise over line lengths
+
+[tool.ruff.lint]
+select = ["E", "F", "I"] ##
+ignore = ["E722"]
