@@ -1,0 +1,9 @@
+wn001|alloc|short|4/0/0/4
+wn002|alloc|short|4/0/0/4
+wn003|mix*|short|2/2/0/4
+wn004|idle|short|0/4/0/4
+wn005|alloc|short|2/2/0/4
+wn010|mix|gpu|24/8/0/32
+wn011|alloc|gpu|16/16/0/32
+wn012|down*|gpu|0/0/32/32
+wn020|idle~|long|0/8/0/8

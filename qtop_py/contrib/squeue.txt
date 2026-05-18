@@ -1,0 +1,7 @@
+1001|short|alice|RUNNING|4|wn[001-002]
+1002|short|bob|RUNNING|2|wn003
+1003|long|carol|PENDING|8|(Resources)
+1004|short|alice|PENDING|1|(Priority)
+1005|gpu|dan|RUNNING|16|wn[010-011]
+1006|short|eve|COMPLETING|2|wn005
+1007|gpu|frank|RUNNING|8|wn010
