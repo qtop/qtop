@@ -14,38 +14,42 @@
 ## SPDX-License-Identifier: MIT
 ##
 
-import sys
-
-here = sys.path[0]
-
-from operator import itemgetter
-from itertools import zip_longest, cycle, chain
-import subprocess
-import select
+import contextlib
+import datetime
+import glob
+import json
+import logging
 import os
 import re
-import json
-import datetime
-from collections import namedtuple, OrderedDict, Counter
-from os.path import realpath
-from signal import signal, SIGPIPE, SIG_DFL
-import termios
-import contextlib
-import glob
+import select
+import shutil
+import signal as signal_module
+import subprocess
+import sys
 import tempfile
-import logging
-from qtop_py.constants import SYSTEMCONFDIR, QTOPCONF_YAML, QTOP_LOGFILE, USERPATH, MAX_CORE_ALLOWED, MAX_UNIX_ACCOUNTS, KEYPRESS_TIMEOUT, FALLBACK_TERMSIZE
-from qtop_py import fileutils
-from qtop_py import utils
-from qtop_py.plugins import *
-from math import ceil
-from qtop_py.colormap import user_to_color_default, color_to_code, queue_to_color, nodestate_to_color_default
-import qtop_py.yaml_parser as yaml
-from qtop_py.ui.viewport import Viewport
-from qtop_py.serialiser import GenericBatchSystem
-from qtop_py.web import Web
-from qtop_py import __version__
 import time
+from collections import Counter, OrderedDict, namedtuple
+from itertools import chain, cycle, zip_longest
+from math import ceil
+from operator import itemgetter
+from os.path import realpath
+
+import qtop_py.yaml_parser as yaml
+from qtop_py import __version__, fileutils, utils
+from qtop_py.colormap import color_to_code, nodestate_to_color_default, queue_to_color, user_to_color_default
+from qtop_py.constants import FALLBACK_TERMSIZE, KEYPRESS_TIMEOUT, MAX_CORE_ALLOWED, MAX_UNIX_ACCOUNTS, QTOP_LOGFILE, QTOPCONF_YAML, SYSTEMCONFDIR, USERPATH
+from qtop_py.plugins import *
+from qtop_py.serialiser import GenericBatchSystem
+from qtop_py.ui.viewport import Viewport
+from qtop_py.web import Web
+
+try:
+    import termios
+except ImportError:
+    termios = None
+
+here = sys.path[0]
+SIGPIPE = getattr(signal_module, "SIGPIPE", None)
 
 
 # TODO make the following work with py files instead of qtop.colormap files
@@ -126,7 +130,7 @@ def raw_mode(file):
     Taken from http://stackoverflow.com/questions/11918999/key-listeners-in-python/11919074#11919074
     Exits program with ^C or ^D
     """
-    if args.ONLYSAVETOFILE:
+    if args.ONLYSAVETOFILE or termios is None:
         yield
     else:
         if args.WATCH:
@@ -144,6 +148,27 @@ def raw_mode(file):
                     termios.tcsetattr(file.fileno(), termios.TCSADRAIN, old_attrs)
         else:
             yield
+
+
+def restore_sigpipe_default():
+    if SIGPIPE is not None:
+        signal_module.signal(SIGPIPE, signal_module.SIG_DFL)
+
+
+def parse_config_scalar(value):
+    if isinstance(value, (bool, int)):
+        return value
+
+    value = str(value).strip()
+    if value == "True":
+        return True
+    if value == "False":
+        return False
+
+    try:
+        return int(value)
+    except ValueError:
+        return value
 
 
 def load_yaml_config():
@@ -231,8 +256,8 @@ def load_yaml_config():
     config["savepath"] = _savepath
 
     for key in ("transpose_wn_matrices", "fill_with_user_firstletter", "faster_xml_parsing", "vertical_separator_every_X_columns", "overwrite_sample_file"):
-        config[key] = eval(config[key])  # TODO config should not be writeable!!
-    config["sorting"]["reverse"] = eval(config["sorting"].get("reverse", "0"))  # TODO config should not be writeable!!
+        config[key] = parse_config_scalar(config[key])  # TODO config should not be writeable!!
+    config["sorting"]["reverse"] = parse_config_scalar(config["sorting"].get("reverse", "0"))  # TODO config should not be writeable!!
     config["ALT_LABEL_COLORS"] = yaml.fix_config_list(config["workernodes_matrix"][0]["wn id lines"]["alt_label_colors"])
     config["SEPARATOR"] = config["vertical_separator"].replace("'", "")
     config["USER_CUT_MATRIX_WIDTH"] = int(config["workernodes_matrix"][0]["wn id lines"]["user_cut_matrix_width"])
@@ -297,8 +322,7 @@ def auto_get_avail_batch_system(config):
     """
     # TODO pbsnodes etc should not be hardcoded!
     for system, batch_command in config["signature_commands"].items():
-        NOT_FOUND = subprocess.call(["/usr/bin/which", batch_command], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        if not NOT_FOUND:
+        if shutil.which(batch_command):
             if system != "demo":
                 logging.debug("Auto-detected scheduler: %s" % system)
                 return system
@@ -764,7 +788,7 @@ def update_config_with_cmdline_vars(args, config):
     config["rem_empty_corelines"] = int(config["rem_empty_corelines"])
     for opt in args.OPTION:
         key, val = get_key_val_from_option_string(opt)
-        val = eval(val) if ("True" in val or "False" in val) else val
+        val = parse_config_scalar(val) if val in ("True", "False") else val
         config[key] = val
 
     if args.TRANSPOSE:
@@ -1680,7 +1704,7 @@ class TextDisplay(object):
         return joined_list
 
     def print_core_lines(self, core_user_map, print_char_start, print_char_stop, transposed_matrices, userid_to_userid_re_pat, mapping, attrs, options1, options2):
-        signal(SIGPIPE, SIG_DFL)
+        restore_sigpipe_default()
         remove_corelines = dynamic_config.get("rem_empty_corelines", config["rem_empty_corelines"]) + 1
 
         # if corelines vertical (transposed matrix)
@@ -1703,7 +1727,7 @@ class TextDisplay(object):
                     print(core_line_zipped)
                 except IOError:
                     try:
-                        signal(SIGPIPE, SIG_DFL)
+                        restore_sigpipe_default()
                         print(core_line_zipped)
                         sys.stdout.close()
                     except IOError:
@@ -2310,10 +2334,13 @@ def main():
         print("Anonymize should be ran with --experimental switch!! Exiting...")
         sys.exit(1)
     if args.WATCH or args.REPLAY:  # this is needed for the filtering/sorting options
-        try:
-            old_attrs = termios.tcgetattr(0)
-        except termios.error:
+        if termios is None:
             old_attrs = ""
+        else:
+            try:
+                old_attrs = termios.tcgetattr(0)
+            except termios.error:
+                old_attrs = ""
         new_attrs = old_attrs[:]
 
     available_batch_systems = discover_qtop_batch_systems()
