@@ -11,6 +11,8 @@
 import os
 import logging
 
+from qtop_py.config_parsing import parse_config_literal
+
 
 ## TODO: black sheep
 
@@ -243,10 +245,9 @@ def process_line(list_line, fin, get_lines, parent_container):
             container = container[1:-1].split(", ") if container.startswith("[") else container
             container = "" if container in ("''", '""') else container
             if len(container) == 1 and isinstance(container, list) and isinstance(container[0], str):
-                try:
-                    container = list(eval(container[0]))
-                except NameError:
-                    pass
+                parsed_container = parse_config_literal(container[0])
+                if parsed_container != container[0]:
+                    container = list(parsed_container)
             return {"-": [{key.rstrip(":"): container}]}, container  # list
 
         elif container.endswith("|"):
@@ -259,12 +260,11 @@ def process_line(list_line, fin, get_lines, parent_container):
             else:  # i.e. testkey: testvalue
                 container = [container[1:-1]] if container.startswith("[") else container  # list
                 if len(container) == 1 and isinstance(container, list) and isinstance(container[0], str):
-                    try:
-                        container = list(eval(container[0]))
-                    except NameError:
-                        pass
+                    parsed_container = parse_config_literal(container[0])
+                    if parsed_container != container[0]:
+                        container = list(parsed_container)
                 elif container.startswith("'") and container.endswith("'"):
-                    container = eval(container)
+                    container = parse_config_literal(container)
                 return {key.rstrip(":"): container}, container  # was parent_container#str
     else:
         raise ValueError("Didn't anticipate that!")

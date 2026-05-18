@@ -12,6 +12,7 @@ import pytest
 import re
 import datetime
 import sys
+from qtop_py.config_parsing import parse_config_bool, parse_config_int, parse_config_literal
 from qtop_py.qtop import WNOccupancy, decide_batch_system, load_yaml_config, JobNotFound, SchedulerNotSpecified, NoSchedulerFound, get_date_obj_from_str
 
 
@@ -195,3 +196,42 @@ def test_get_date_obj_from_str(s, now, day_meant):
     at 22:10 at night, the user inputs again 21:00 (the same day is implied)
     """
     assert get_date_obj_from_str(s, now).day == day_meant
+
+
+@pytest.mark.parametrize(
+    "value, expected",
+    (
+        ("True", True),
+        ("False", False),
+        ("yes", True),
+        ("0", False),
+        (1, True),
+    ),
+)
+def test_parse_config_bool(value, expected):
+    assert parse_config_bool(value) is expected
+
+
+@pytest.mark.parametrize(
+    "value, expected",
+    (
+        ("42", 42),
+        (7, 7),
+        (False, 0),
+    ),
+)
+def test_parse_config_int(value, expected):
+    assert parse_config_int(value) == expected
+
+
+@pytest.mark.parametrize(
+    "value, expected",
+    (
+        ("True", True),
+        ("False", False),
+        ("['White', 'Blue_L']", ["White", "Blue_L"]),
+        ("plain value", "plain value"),
+    ),
+)
+def test_parse_config_literal(value, expected):
+    assert parse_config_literal(value) == expected

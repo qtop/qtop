@@ -40,6 +40,7 @@ from qtop_py import utils
 from qtop_py.plugins import *
 from math import ceil
 from qtop_py.colormap import user_to_color_default, color_to_code, queue_to_color, nodestate_to_color_default
+from qtop_py.config_parsing import parse_config_bool, parse_config_int, parse_config_literal
 import qtop_py.yaml_parser as yaml
 from qtop_py.ui.viewport import Viewport
 from qtop_py.serialiser import GenericBatchSystem
@@ -230,9 +231,10 @@ def load_yaml_config():
         logging.debug("%s files will be saved in directory %s." % (config["scheduler"], _savepath))
     config["savepath"] = _savepath
 
-    for key in ("transpose_wn_matrices", "fill_with_user_firstletter", "faster_xml_parsing", "vertical_separator_every_X_columns", "overwrite_sample_file"):
-        config[key] = eval(config[key])  # TODO config should not be writeable!!
-    config["sorting"]["reverse"] = eval(config["sorting"].get("reverse", "0"))  # TODO config should not be writeable!!
+    for key in ("transpose_wn_matrices", "fill_with_user_firstletter", "faster_xml_parsing", "overwrite_sample_file"):
+        config[key] = parse_config_bool(config[key])
+    config["vertical_separator_every_X_columns"] = parse_config_int(config["vertical_separator_every_X_columns"])
+    config["sorting"]["reverse"] = parse_config_bool(config["sorting"].get("reverse", "0"))
     config["ALT_LABEL_COLORS"] = yaml.fix_config_list(config["workernodes_matrix"][0]["wn id lines"]["alt_label_colors"])
     config["SEPARATOR"] = config["vertical_separator"].replace("'", "")
     config["USER_CUT_MATRIX_WIDTH"] = int(config["workernodes_matrix"][0]["wn id lines"]["user_cut_matrix_width"])
@@ -764,7 +766,7 @@ def update_config_with_cmdline_vars(args, config):
     config["rem_empty_corelines"] = int(config["rem_empty_corelines"])
     for opt in args.OPTION:
         key, val = get_key_val_from_option_string(opt)
-        val = eval(val) if ("True" in val or "False" in val) else val
+        val = parse_config_literal(val)
         config[key] = val
 
     if args.TRANSPOSE:

@@ -1,4 +1,4 @@
-# qtop.py [![Build Status](https://travis-ci.org/qtop/qtop.svg)](https://travis-ci.org/qtop/qtop) ![python versions](https://img.shields.io/badge/python-2.5%2C%202.6%2C%202.7-blue.svg)
+# qtop.py [![pytest-qtop](https://github.com/qtop/qtop/actions/workflows/pytest.yml/badge.svg)](https://github.com/qtop/qtop/actions/workflows/pytest.yml) ![python versions](https://img.shields.io/badge/python-3.10%2B-blue.svg)
 
 qtop: the fast text mode way to monitor your cluster's utilization and
 status; the time has come to take back control of your cluster's

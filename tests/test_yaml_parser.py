@@ -9,7 +9,7 @@ from qtop_py.yaml_parser import fix_config_list, get_line, convert_dash_key_in_d
         (["schedulers"], [0, "schedulers"]),
         (["  pbs"], [1, "pbs"]),
         (["   - r'moonshot'"], [2, "-", "r'moonshot'"]),
-        ([" - '\w*cms048': Blue"], [1, "-", "'\\w*cms048': Blue"]),
+        ([" - '\\w*cms048': Blue"], [1, "-", "'\\w*cms048': Blue"]),
         (["term_size: [53, 176]"], [0, "term_size:", "[53, 176]"]),
     ),
 )
@@ -291,3 +291,19 @@ def test_process_code(fin, code):
 def test_convert_dash_key_in_dict(dict_a, dict_b):
     # pass
     assert convert_dash_key_in_dict(dict_a) == dict_b
+
+
+def test_process_line_parses_single_quoted_literals_without_eval():
+    line = [0, "testkey:", "'literal value'"]
+    key_value, container = process_line(line, [], iter(()), {})
+
+    assert key_value == {"testkey": "literal value"}
+    assert container == "literal value"
+
+
+def test_process_line_preserves_non_literal_values_without_eval():
+    line = [0, "testkey:", "__import__('os').system('echo unsafe')"]
+    key_value, container = process_line(line, [], iter(()), {})
+
+    assert key_value == {"testkey": "__import__('os').system('echo unsafe')"}
+    assert container == "__import__('os').system('echo unsafe')"
