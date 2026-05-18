@@ -1,0 +1,3 @@
+gpu01|alloc|compute|8/0/0/8
+gpu02|mix|compute|4/4/0/8
+gpu03|drain|long|0/8/0/8

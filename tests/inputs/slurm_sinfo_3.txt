@@ -1,0 +1,3 @@
+rack-a7|idle|short|0/16/0/16
+rack-a8|down|short|0/0/16/16
+rack-b01|allocated|short|1/15/0/16

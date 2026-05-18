@@ -1,0 +1,3 @@
+101|batch|alice|RUNNING|4|node[001-002]
+102|batch|bob|PENDING|2|(Resources)
+103|debug|carol|COMPLETING|1|node003

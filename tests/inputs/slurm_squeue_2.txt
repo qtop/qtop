@@ -1,0 +1,3 @@
+201|compute|dana|R|8|gpu[01-02]
+202|compute|erin|PD|1|(Priority)
+203|long|frank|SUSPENDED|2|gpu03
