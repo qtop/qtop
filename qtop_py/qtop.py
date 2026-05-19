@@ -761,7 +761,7 @@ def get_output_size(max_line_len, output_fp, max_height=0):
 
 
 def update_config_with_cmdline_vars(args, config):
-    config["rem_empty_corelines"] = int(config["rem_empty_corelines"])
+    config["rem_empty_corelines"] = int(config.get("rem_empty_corelines", 0))
     for opt in args.OPTION:
         key, val = get_key_val_from_option_string(opt)
         val = eval(val) if ("True" in val or "False" in val) else val

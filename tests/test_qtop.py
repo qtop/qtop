@@ -12,12 +12,40 @@ import pytest
 import re
 import datetime
 import sys
-from qtop_py.qtop import WNOccupancy, decide_batch_system, load_yaml_config, JobNotFound, SchedulerNotSpecified, NoSchedulerFound, get_date_obj_from_str
+from qtop_py.qtop import (
+    WNOccupancy,
+    decide_batch_system,
+    load_yaml_config,
+    JobNotFound,
+    SchedulerNotSpecified,
+    NoSchedulerFound,
+    get_date_obj_from_str,
+    update_config_with_cmdline_vars,
+)
 
 
 @pytest.fixture
 def config():
     return {}
+
+
+class CmdlineArgs(object):
+    OPTION = []
+    TRANSPOSE = False
+    REM_EMPTY_CORELINES = 0
+
+
+def test_update_config_defaults_missing_rem_empty_corelines():
+    args = CmdlineArgs()
+
+    assert update_config_with_cmdline_vars(args, {})["rem_empty_corelines"] == 0
+
+
+def test_update_config_applies_rem_empty_corelines_increment_with_default():
+    args = CmdlineArgs()
+    args.REM_EMPTY_CORELINES = 2
+
+    assert update_config_with_cmdline_vars(args, {})["rem_empty_corelines"] == 2
 
 
 @pytest.mark.parametrize(
