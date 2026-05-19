@@ -12,7 +12,7 @@ import pytest
 import re
 import datetime
 import sys
-from qtop_py.qtop import WNOccupancy, decide_batch_system, load_yaml_config, JobNotFound, SchedulerNotSpecified, NoSchedulerFound, get_date_obj_from_str
+from qtop_py.qtop import WNOccupancy, decide_batch_system, load_yaml_config, JobNotFound, SchedulerNotSpecified, NoSchedulerFound, get_date_obj_from_str, update_config_with_cmdline_vars
 
 
 @pytest.fixture
@@ -59,6 +59,20 @@ def test_load_yaml_config_does_not_execute_config_values(monkeypatch, tmp_path):
     assert config["vertical_separator_every_X_columns"] == 0
     assert config["overwrite_sample_file"] == dangerous_value
     assert not sentinel.exists()
+
+
+def test_cmdline_option_does_not_execute_boolean_values(tmp_path):
+    class Args:
+        OPTION = ["overwrite_sample_file=False or __import__('pathlib').Path(%r).touch()" % str(tmp_path / "executed")]
+        TRANSPOSE = False
+        REM_EMPTY_CORELINES = 0
+
+    config = {"rem_empty_corelines": "0"}
+
+    updated = update_config_with_cmdline_vars(Args(), config)
+
+    assert updated["overwrite_sample_file"] == Args.OPTION[0].split("=", 1)[1]
+    assert not (tmp_path / "executed").exists()
 
 
 @pytest.mark.parametrize(

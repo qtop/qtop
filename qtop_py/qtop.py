@@ -772,7 +772,7 @@ def update_config_with_cmdline_vars(args, config):
     config["rem_empty_corelines"] = int(config["rem_empty_corelines"])
     for opt in args.OPTION:
         key, val = get_key_val_from_option_string(opt)
-        val = eval(val) if ("True" in val or "False" in val) else val
+        val = literal_config_value(val) if ("True" in val or "False" in val) else val
         config[key] = val
 
     if args.TRANSPOSE:
