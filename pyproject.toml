@@ -1,36 +1,6 @@
 [build-system]
-requires = ["setuptools>=61.0"]
+requires = ["setuptools>=40.8"]
 build-backend = "setuptools.build_meta"
-
-[project]
-name = "qtop"
-dynamic = ["version"]
-description = "qtop: the fast text mode way to monitor your cluster's utilization and status"
-readme = "README.md"
-authors = [
-    { name="Sotiris Fragkiskos", email="sfranky@gmail.com"},
-    { name="Fotis Georgatos", email="kefalonia@gmail.com"},
-]
-requires-python = ">=3"
-
-[project.urls]
-"Homepage" = "https://github.com/qtop/qtop"
-
-[project.scripts]
-qtop = "qtop_py.qtop:main"
-
-[tool.setuptools.dynamic]
-version = {attr = "qtop_py.__version__"}
-
-[tool.setuptools]
-include-package-data = false
-
-[tool.setuptools.packages.find]
-include = ["qtop_py*"]
-namespaces = false
-
-[tool.setuptools.package-data]
-qtop_py = ["contrib/*", "inputs/*", "web/*"]
 
 [tool.ruff]
 # Enable pycodestyle (`E`) and Pyflakes (`F`) codes by default.
