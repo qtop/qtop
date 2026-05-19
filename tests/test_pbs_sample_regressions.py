@@ -42,6 +42,22 @@ def test_pbs_qstat_regex_skips_unmatched_lines(tmp_path):
     ]
 
 
+def test_pbs_qstat_regex_accepts_special_job_names(tmp_path):
+    qstat_file = tmp_path / "qstat.txt"
+    qstat_file.write_text(
+        "Job id           Name             User             Time Use S Queue\n"
+        "---------------- ---------------- ---------------- -------- - -----\n"
+        "807140.delta     Lambda&S10       haotian.teng     22:41:42 R gpu\n"
+        "1507877.delta    compile_sim_${h  i.xxxxxx         0 H normal\n"
+    )
+    extractor = PBSStatExtractor({}, SimpleNamespace(ANONYMIZE=False))
+
+    assert extractor._extract_qstat_regex(str(qstat_file)) == [
+        {"JobId": "807140", "UnixAccount": "haotian.teng", "S": "R", "Queue": "gpu"},
+        {"JobId": "1507877", "UnixAccount": "i.xxxxxx", "S": "H", "Queue": "normal"},
+    ]
+
+
 def test_decide_remapping_handles_mixed_numeric_and_named_nodes():
     cluster = qtop.Cluster.__new__(qtop.Cluster)
     cluster.total_wn = 2
