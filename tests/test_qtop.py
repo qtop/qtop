@@ -12,7 +12,7 @@ import pytest
 import re
 import datetime
 import sys
-from qtop_py.qtop import WNOccupancy, decide_batch_system, load_yaml_config, JobNotFound, SchedulerNotSpecified, NoSchedulerFound, get_date_obj_from_str
+from qtop_py.qtop import WNOccupancy, decide_batch_system, load_yaml_config, JobNotFound, SchedulerNotSpecified, NoSchedulerFound, get_date_obj_from_str, update_config_with_cmdline_vars
 
 
 @pytest.fixture
@@ -58,6 +58,32 @@ def test_load_yaml_config_does_not_execute_config_values(monkeypatch, tmp_path):
     assert config["transpose_wn_matrices"] is True
     assert config["vertical_separator_every_X_columns"] == 0
     assert config["overwrite_sample_file"] == dangerous_value
+    assert not sentinel.exists()
+
+
+def test_update_config_with_cmdline_vars_does_not_eval_values(tmp_path):
+    class Args:
+        OPTION = []
+        TRANSPOSE = False
+        REM_EMPTY_CORELINES = 0
+
+    sentinel = tmp_path / "executed"
+    dangerous_value = "__import__('pathlib').Path(%r).touch() or True" % str(sentinel)
+    Args.OPTION = [
+        "overwrite_sample_file=" + dangerous_value,
+        "faster_xml_parsing=True",
+        "vertical_separator_every_X_columns=3",
+    ]
+    config = {
+        "rem_empty_corelines": "0",
+        "transpose_wn_matrices": False,
+    }
+
+    update_config_with_cmdline_vars(Args(), config)
+
+    assert config["overwrite_sample_file"] == dangerous_value
+    assert config["faster_xml_parsing"] is True
+    assert config["vertical_separator_every_X_columns"] == 3
     assert not sentinel.exists()
 
 

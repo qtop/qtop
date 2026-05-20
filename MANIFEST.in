@@ -1,13 +1,8 @@
-include CHANGELOG.rst
-include CONTRIBUTING.md
-include helpfile.txt
-include Makefile
-include MANIFEST.in
-include LICENSE
-include qtopconf.yaml
-include qtop
-include README.md
-include ROADMAP.rst
+include CHANGELOG.rst CONTRIBUTING.md helpfile.txt LICENSE Makefile qtop qtopconf.yaml README.md ROADMAP.rst
 
-recursive-include qtop_py *.py *.sh *.jdl *.html *.txt *.ref *.gif *.stdout
+recursive-include qtop_py/contrib *.gif *.ref *.sh *.stdout *.txt
+recursive-include qtop_py/inputs *.jdl *.sh
+recursive-include qtop_py/web *.html
 recursive-include tests *.py
+
+global-exclude __pycache__ *.py[cod]
