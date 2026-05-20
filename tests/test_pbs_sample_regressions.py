@@ -1,18 +1,22 @@
 from collections import OrderedDict
-from types import SimpleNamespace
 
 from qtop_py import qtop
 from qtop_py.plugins.pbs import PBSStatExtractor
 
 
+class Attrs:
+    def __init__(self, **kwargs):
+        self.__dict__.update(kwargs)
+
+
 def test_find_matrices_width_handles_empty_worker_nodes():
-    qtop.cluster = SimpleNamespace(highest_wn=0, workernode_list=[])
-    qtop.viewport = SimpleNamespace(h_term_size=80)
+    qtop.cluster = Attrs(highest_wn=0, workernode_list=[])
+    qtop.viewport = Attrs(h_term_size=80)
     qtop.config = {
         "workernodes_matrix": [{"wn id lines": {"min_masking_threshold": 30}}],
         "USER_CUT_MATRIX_WIDTH": None,
     }
-    qtop.args = SimpleNamespace(NOMASKING=False, REMAP=False)
+    qtop.args = Attrs(NOMASKING=False, REMAP=False)
 
     occupancy = qtop.WNOccupancy.__new__(qtop.WNOccupancy)
 
@@ -21,7 +25,7 @@ def test_find_matrices_width_handles_empty_worker_nodes():
 
 def test_general_attribute_lines_handle_empty_worker_node_dict():
     occupancy = qtop.WNOccupancy.__new__(qtop.WNOccupancy)
-    occupancy.cluster = SimpleNamespace(workernode_dict={})
+    occupancy.cluster = Attrs(workernode_dict={})
     config = {"scheduler": "pbs", "workernodes_matrix": [{"state": {"max_len": 1}}]}
 
     assert occupancy.calc_general_mult_attr_line("state", "state", config) == OrderedDict()
@@ -35,7 +39,7 @@ def test_pbs_qstat_regex_skips_unmatched_lines(tmp_path):
         "this line does not match either supported qstat format\n"
         "1234.server      myjob            alice            00:01:00 R workq\n"
     )
-    extractor = PBSStatExtractor({}, SimpleNamespace(ANONYMIZE=False))
+    extractor = PBSStatExtractor({}, Attrs(ANONYMIZE=False))
 
     assert extractor._extract_qstat_regex(str(qstat_file)) == [
         {"JobId": "1234", "UnixAccount": "alice", "S": "R", "Queue": "workq"}
@@ -45,7 +49,7 @@ def test_pbs_qstat_regex_skips_unmatched_lines(tmp_path):
 def test_decide_remapping_handles_mixed_numeric_and_named_nodes():
     cluster = qtop.Cluster.__new__(qtop.Cluster)
     cluster.total_wn = 2
-    cluster.args = SimpleNamespace(BLINDREMAP=False)
+    cluster.args = Attrs(BLINDREMAP=False)
     cluster.node_subclusters = {"wn"}
     cluster.workernode_list = [1, "trueno_ita"]
     cluster.offdown_nodes = 0

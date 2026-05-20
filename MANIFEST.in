@@ -3,6 +3,7 @@ include CONTRIBUTING.md
 include helpfile.txt
 include Makefile
 include MANIFEST.in
+include pyproject.toml
 include LICENSE
 include qtopconf.yaml
 include qtop
@@ -11,3 +12,5 @@ include ROADMAP.rst
 
 recursive-include qtop_py *.py *.sh *.jdl *.html *.txt *.ref *.gif *.stdout
 recursive-include tests *.py
+recursive-include docs *.rst *.md *.png
+recursive-include tools *.py
