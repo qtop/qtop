@@ -59,7 +59,8 @@ def test_filtering_name_patterns_removes_nodes_without_user_remap(monkeypatch):
     monkeypatch.setattr(qtop, "args", args, raising=False)
     monkeypatch.setattr(qtop, "dynamic_config", {}, raising=False)
     monkeypatch.setattr(qtop, "user_to_color", {}, raising=False)
-    config = {"exotic_starting_wn_nr": 1000, "filtering": [{"exclude_name_patterns": ["wn002"]}], "percentage": 0.8, "remapping": [], "sorting": {}, "workernodes_matrix": [{"wn id lines": {"max_len": 0}}]}
+    config = dict(exotic_starting_wn_nr=1000, filtering=[{"exclude_name_patterns": ["wn002"]}], percentage=0.8, remapping=[], sorting={})
+    config["workernodes_matrix"] = [{"wn id lines": {"max_len": 0}}]
     nodes = [{"domainname": name, "state": [qtop.utils.ColorStr("-")], "np": 1, "core_job_map": {}} for name in ["wn001.example", "wn002.example", "wn003.example"]]
     document = SimpleNamespace(jobs_dict={}, queues_dict={}, total_running_jobs=0, total_queued_jobs=0)
 
