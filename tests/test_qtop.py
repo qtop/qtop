@@ -45,6 +45,20 @@ def test_filtering_name_patterns_removes_nodes_without_user_remap(monkeypatch):
     assert all(node["domainname"] != "N/A" for node in cluster.workernode_dict.values())
 
 
+def test_dynamic_empty_filtering_does_not_force_remapping(monkeypatch):
+    Args = type("Args", (object,), {"BLINDREMAP": False})
+    monkeypatch.setattr(qtop, "dynamic_config", {"filtering": []}, raising=False)
+    cluster = Cluster.__new__(Cluster)
+    cluster.total_wn = 3
+    cluster.args = Args()
+    cluster.node_subclusters = {"wn"}
+    cluster.workernode_list = [1, 2, 3]
+    cluster.offdown_nodes = 0
+    cluster.config = {"exotic_starting_wn_nr": 1000, "filtering": [{"exclude_name_patterns": ["wn002"]}], "percentage": 0.8}
+
+    assert cluster.decide_remapping(["1", "2", "3"]) is False
+
+
 def test_load_yaml_config_does_not_execute_config_values(monkeypatch, tmp_path):
     class Args:
         CONFFILE = None
