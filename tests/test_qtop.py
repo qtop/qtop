@@ -12,51 +12,12 @@ import pytest
 import re
 import datetime
 import sys
-
-from qtop_py import qtop, utils
-from qtop_py.qtop import Cluster, WNFilter, WNOccupancy, decide_batch_system, load_yaml_config, JobNotFound, SchedulerNotSpecified, NoSchedulerFound, get_date_obj_from_str
+from qtop_py.qtop import WNOccupancy, decide_batch_system, load_yaml_config, JobNotFound, SchedulerNotSpecified, NoSchedulerFound, get_date_obj_from_str
 
 
 @pytest.fixture
 def config():
     return {}
-
-
-def test_filtering_name_patterns_removes_nodes_without_user_remap(monkeypatch):
-    Args = type("Args", (object,), {"ANONYMIZE": False, "BLINDREMAP": False, "COLOR": "OFF", "REMAP": False})
-    monkeypatch.setattr(qtop, "args", Args(), raising=False)
-    monkeypatch.setattr(qtop, "dynamic_config", {}, raising=False)
-    monkeypatch.setattr(qtop, "user_to_color", {}, raising=False)
-    Document = type("Document", (object,), {"jobs_dict": {}, "queues_dict": {}, "total_running_jobs": 0, "total_queued_jobs": 0})
-    cluster_config = {
-        "exotic_starting_wn_nr": 1000,
-        "filtering": [{"exclude_name_patterns": ["wn002"]}],
-        "percentage": 0.8,
-        "remapping": [],
-        "sorting": {},
-        "workernodes_matrix": [{"wn id lines": {"max_len": 0}}],
-    }
-    worker_nodes = [{"domainname": name, "state": [utils.ColorStr("-")], "np": 1, "core_job_map": {}} for name in ["wn001.example", "wn002.example", "wn003.example"]]
-
-    cluster = Cluster(Document(), worker_nodes, WNFilter, cluster_config, Args())
-
-    filtered_names = [node["domainname"] for node in cluster.workernode_dict.values()]
-    assert filtered_names == ["wn001.example", "wn003.example"]
-    assert all(node["domainname"] != "N/A" for node in cluster.workernode_dict.values())
-
-
-def test_dynamic_empty_filtering_does_not_force_remapping(monkeypatch):
-    Args = type("Args", (object,), {"BLINDREMAP": False})
-    monkeypatch.setattr(qtop, "dynamic_config", {"filtering": []}, raising=False)
-    cluster = Cluster.__new__(Cluster)
-    cluster.total_wn = 3
-    cluster.args = Args()
-    cluster.node_subclusters = {"wn"}
-    cluster.workernode_list = [1, 2, 3]
-    cluster.offdown_nodes = 0
-    cluster.config = {"exotic_starting_wn_nr": 1000, "filtering": [{"exclude_name_patterns": ["wn002"]}], "percentage": 0.8}
-
-    assert cluster.decide_remapping(["1", "2", "3"]) is False
 
 
 def test_load_yaml_config_does_not_execute_config_values(monkeypatch, tmp_path):

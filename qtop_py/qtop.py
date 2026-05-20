@@ -1991,7 +1991,6 @@ class Cluster(object):
 
         if logging.getLogger().isEnabledFor(logging.DEBUG) and REMAP:
             user_request = self.args.BLINDREMAP and "The user has requested it (blindremap switch)" or False
-            filter_request = user_filtering and "filtering requires remapping to avoid re-adding filtered nodes as placeholders" or False
 
             subclusters = len(self.node_subclusters) > 1 and "there are different WN namings, e.g. wn001, wn002, ..., ps001, ps002, ... etc" or False
 
@@ -2002,7 +2001,7 @@ class Cluster(object):
             numbering_collisions = has_mixed_or_non_numeric_wns and "there are numbering collisions or non-numbered WNs" or False
 
             print()
-            logging.debug("Remapping decided due to: \n\t %s" % filter(None, [user_request, filter_request, subclusters, exotic_starting, percentage_unassigned, numbering_collisions]))
+            logging.debug("Remapping decided due to: \n\t %s" % filter(None, [user_request, user_filtering, subclusters, exotic_starting, percentage_unassigned, numbering_collisions]))
 
         return REMAP
 
