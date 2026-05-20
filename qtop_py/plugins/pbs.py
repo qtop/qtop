@@ -84,16 +84,30 @@ class PBSStatExtractor(StatExtractor):
             fin.readline()  # horizontal row
             line = fin.readline()  # first line
             re_match_positions = ("job_id", "user", "state", "queue_name")  # was: (1, 5, 7, 8), (1, 4, 5, 8)
+            re_search = None
             try:  # first qstat line determines which format qstat follows.
                 re_search = self.user_q_search
                 qstat_values = self._process_qstat_line(re_search, line, re_match_positions)
                 # unused: _job_nr, _ce_name, _name, _time_use = m.group(2), m.group(3), m.group(4), m.group(6)
             except AttributeError:  # this means 'prior' exists in qstat, it's another format
-                re_search = self.user_q_search_prior
-                qstat_values = self._process_qstat_line(re_search, line, re_match_positions)
+                try:
+                    re_search = self.user_q_search_prior
+                    qstat_values = self._process_qstat_line(re_search, line, re_match_positions)
+                except AttributeError:
+                    # First line doesn't match either format, skip it and try next line
+                    line = fin.readline()
+                    if not line:
+                        return all_qstat_values
+                    try:
+                        qstat_values = self._process_qstat_line(self.user_q_search, line, re_match_positions)
+                        re_search = self.user_q_search
+                    except AttributeError:
+                        re_search = self.user_q_search_prior
+                        qstat_values = self._process_qstat_line(re_search, line, re_match_positions)
                 # unused:  _prior, _name, _submit, _start_at, _queue_domain, _slots, _ja_taskID =
                 # m.group(2), m.group(3), m.group(6), m.group(7), m.group(9), m.group(10), m.group(11)
-            finally:
+
+            if qstat_values is not None:
                 all_qstat_values.append(qstat_values)
 
             # hence the rest of the lines should follow either try's or except's same format

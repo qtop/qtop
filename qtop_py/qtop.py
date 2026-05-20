@@ -1094,6 +1094,9 @@ class WNOccupancy(object):
             extra_matrices_nr = int(ceil(abs(wn_number - start) / float(term_columns - DEADWEIGHT))) - 1
         elif args.REMAP:  # was: ***wn_number < start*** and len(cluster.node_subclusters) > 1:  # Remapping
             extra_matrices_nr = int(ceil(wn_number / float(term_columns - DEADWEIGHT))) - 1
+        elif wn_number == 0 and not workernode_list:
+            # Empty cluster: no matrices needed
+            return (0, 0, 0)
         else:
             raise NotImplementedError
 
@@ -1147,9 +1150,11 @@ class WNOccupancy(object):
         elem_identifier = [d for d in config["workernodes_matrix"] if part_name in d][0]  # jeeez
         part_name_idx = config["workernodes_matrix"].index(elem_identifier)
         user_max_len = int(config["workernodes_matrix"][part_name_idx][part_name]["max_len"])
+        if not self.cluster.workernode_dict:
+            return OrderedDict()
         try:
             real_max_len = max([len(self.cluster.workernode_dict[_node][yaml_key]) for _node in self.cluster.workernode_dict])
-        except KeyError:
+        except (KeyError, ValueError):
             logging.critical("%s lines in the matrix are not supported for %s systems. " "Please remove appropriate lines from conf file. Exiting..." % (part_name, config["scheduler"]))
 
             web.stop()
@@ -1286,14 +1291,12 @@ class WNOccupancy(object):
         """
         for core, _job in corejobs.items():
             job = re.sub(r"\[\d+\]", "[]", str(_job))  # also takes care of job arrays
-            try:
-                user_queue = jobid_to_user_to_queue[job]
-            except KeyError as KeyErrorValue:
-                logging.critical("There seems to be a problem with the qstat output. " "A Job (ID %s) has gone rogue. " "Please check with the SysAdmin." % (str(KeyErrorValue)))
-                raise KeyError
-            else:
-                user, queue = user_queue
-                yield user, str(core), queue
+            user_queue = jobid_to_user_to_queue.get(job)
+            if user_queue is None:
+                # Job not found in qstat - skip this corejob (it will be displayed as free)
+                continue
+            user, queue = user_queue
+            yield user, str(core), queue
 
     def is_matrix_coreless(self, print_char_start, print_char_stop):
         # print_char_start = self.print_char_start
@@ -1955,10 +1958,11 @@ class Cluster(object):
         _all_str_digits = list(filter(lambda x: x != "", all_str_digits_with_empties))
         _all_digits = [int(digit) for digit in _all_str_digits]
 
+        _numeric_wns = [w for w in self.workernode_list if isinstance(w, (int, float))]
         if (
             self.args.BLINDREMAP
             or len(self.node_subclusters) > 1
-            or min(self.workernode_list) >= int(self.config["exotic_starting_wn_nr"])
+            or (_numeric_wns and min(_numeric_wns) >= int(self.config["exotic_starting_wn_nr"]))
             or self.offdown_nodes >= self.total_wn * float(self.config["percentage"])
             or len(all_str_digits_with_empties) != len(_all_str_digits)
             or len(_all_digits) != len(_all_str_digits)
