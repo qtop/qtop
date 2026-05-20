@@ -15,27 +15,28 @@
 ##
 
 import ast
-import sys
-
-here = sys.path[0]
-
-from operator import itemgetter
-from itertools import zip_longest, cycle, chain
-import subprocess
-import select
 import os
 import re
 import json
 import datetime
-from collections import namedtuple, OrderedDict, Counter
-from os.path import realpath
-from signal import signal, SIGPIPE, SIG_DFL
-import termios
-import contextlib
+import logging
+import subprocess
+import select
 import glob
 import tempfile
+import time
 import sys
-import logging
+from signal import signal, SIGPIPE, SIG_DFL
+from operator import itemgetter
+from itertools import zip_longest, cycle, chain
+from collections import namedtuple, OrderedDict, Counter
+from os.path import realpath
+
+import termios
+import contextlib
+
+here = sys.path[0]
+
 from qtop_py.constants import SYSTEMCONFDIR, QTOPCONF_YAML, QTOP_LOGFILE, USERPATH, MAX_CORE_ALLOWED, MAX_UNIX_ACCOUNTS, KEYPRESS_TIMEOUT, FALLBACK_TERMSIZE
 from qtop_py import fileutils
 from qtop_py import utils
@@ -47,7 +48,6 @@ from qtop_py.ui.viewport import Viewport
 from qtop_py.serialiser import GenericBatchSystem
 from qtop_py.web import Web
 from qtop_py import __version__
-import time
 
 
 # TODO make the following work with py files instead of qtop.colormap files
