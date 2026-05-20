@@ -1970,7 +1970,7 @@ class Cluster(object):
         numeric_workernodes = [wn for wn in self.workernode_list if isinstance(wn, int)]
         has_mixed_or_non_numeric_wns = len(numeric_workernodes) != len(self.workernode_list)
         has_exotic_starting_wn = bool(numeric_workernodes) and min(numeric_workernodes) >= int(self.config["exotic_starting_wn_nr"])
-        user_filters = dynamic_config.get("filtering", self.config["filtering"])
+        user_filters = globals().get("dynamic_config", {}).get("filtering") or self.config.get("filtering")
         user_filtering = user_filters and user_filters[0]
 
         if (
