@@ -1,6 +1,10 @@
-   - repo: https://github.com/astral-sh/ruff-pre-commit
-     # Ruff version.
-     rev: v0.0.292
-     hooks:
-       - id: ruff
-         args: [--fix] ##
+# Modernized pre-commit configuration for qtop
+# See https://pre-commit.com
+
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.11.4
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format

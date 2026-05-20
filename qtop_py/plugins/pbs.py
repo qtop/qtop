@@ -384,7 +384,7 @@ class PBSBatchSystem(GenericBatchSystem):
             if "-" in subselection:
                 range_ = list(map(int, subselection.split("-")))
                 range_[-1] += 1
-                _cores.extend([map(str, range(*range_))])
+                _cores.append(list(map(str, range(*range_))))
             else:
                 _cores.append([subselection])
         all_cores = list(itertools.chain.from_iterable(_cores))

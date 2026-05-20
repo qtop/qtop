@@ -14,6 +14,7 @@
 ## SPDX-License-Identifier: MIT
 ##
 
+import ast
 import sys
 
 here = sys.path[0]
@@ -27,7 +28,6 @@ import re
 import json
 import datetime
 from collections import namedtuple, OrderedDict, Counter
-import os
 from os.path import realpath
 from signal import signal, SIGPIPE, SIG_DFL
 import termios
@@ -233,8 +233,8 @@ def load_yaml_config():
     config["savepath"] = _savepath
 
     for key in ("transpose_wn_matrices", "fill_with_user_firstletter", "faster_xml_parsing", "vertical_separator_every_X_columns", "overwrite_sample_file"):
-        config[key] = eval(config[key])  # TODO config should not be writeable!!
-    config["sorting"]["reverse"] = eval(config["sorting"].get("reverse", "0"))  # TODO config should not be writeable!!
+        config[key] = ast.literal_eval(config[key])
+    config["sorting"]["reverse"] = ast.literal_eval(config["sorting"].get("reverse", "0"))
     config["ALT_LABEL_COLORS"] = yaml.fix_config_list(config["workernodes_matrix"][0]["wn id lines"]["alt_label_colors"])
     config["SEPARATOR"] = config["vertical_separator"].replace("'", "")
     config["USER_CUT_MATRIX_WIDTH"] = int(config["workernodes_matrix"][0]["wn id lines"]["user_cut_matrix_width"])
@@ -535,13 +535,13 @@ def control_qtop(viewport, read_char, cluster, new_attrs):
 
         dynamic_config["user_sort"] = []
         while True:
-            sort_choice = raw_input(
+            sort_choice = input(
                 "\nChoose sorting order, or Enter to exit:-> ",
             )
             if not sort_choice:
                 break
             if custom_choice in sort_choice:
-                custom = raw_input("\nType in custom sorting (python RegEx, for examples check configuration file): ")
+                custom = input("\nType in custom sorting (python RegEx, for examples check configuration file): ")
                 sort_map[custom_choice][1].append(custom)
 
             try:
@@ -600,7 +600,7 @@ def control_qtop(viewport, read_char, cluster, new_attrs):
 
         dynamic_config["filtering"] = []
         while True:
-            filter_choice = raw_input(
+            filter_choice = input(
                 "\nChoose Filter command, or Enter to exit:-> ",
             )
             if not filter_choice:
@@ -616,7 +616,7 @@ def control_qtop(viewport, read_char, cluster, new_attrs):
 
             filter_args = []
             while True:
-                user_input = raw_input("\nEnter argument, or Enter to exit:-> ")
+                user_input = input("\nEnter argument, or Enter to exit:-> ")
                 if not user_input:
                     break
                 filter_args.append(user_input)
@@ -654,7 +654,7 @@ def control_qtop(viewport, read_char, cluster, new_attrs):
 
         dynamic_config["highlight"] = []
         while True:
-            filter_choice = raw_input(
+            filter_choice = input(
                 "\nChoose Highlight command, or Enter to exit:-> ",
             )
             if not filter_choice:
@@ -670,7 +670,7 @@ def control_qtop(viewport, read_char, cluster, new_attrs):
 
             filter_args = []
             while True:
-                user_input = raw_input("\nEnter argument, or Enter to exit:-> ")
+                user_input = input("\nEnter argument, or Enter to exit:-> ")
                 if not user_input:
                     break
                 filter_args.append(user_input)
@@ -766,7 +766,7 @@ def update_config_with_cmdline_vars(args, config):
     config["rem_empty_corelines"] = int(config["rem_empty_corelines"])
     for opt in args.OPTION:
         key, val = get_key_val_from_option_string(opt)
-        val = eval(val) if ("True" in val or "False" in val) else val
+        val = ast.literal_eval(val) if (val in ("True", "False")) else val
         config[key] = val
 
     if args.TRANSPOSE:

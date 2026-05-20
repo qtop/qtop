@@ -8,6 +8,7 @@
 ## SPDX-License-Identifier: MIT
 ##
 
+import ast
 import os
 import logging
 
@@ -244,8 +245,8 @@ def process_line(list_line, fin, get_lines, parent_container):
             container = "" if container in ("''", '""') else container
             if len(container) == 1 and isinstance(container, list) and isinstance(container[0], str):
                 try:
-                    container = list(eval(container[0]))
-                except NameError:
+                    container = list(ast.literal_eval(container[0]))
+                except (ValueError, SyntaxError):
                     pass
             return {"-": [{key.rstrip(":"): container}]}, container  # list
 
@@ -260,11 +261,14 @@ def process_line(list_line, fin, get_lines, parent_container):
                 container = [container[1:-1]] if container.startswith("[") else container  # list
                 if len(container) == 1 and isinstance(container, list) and isinstance(container[0], str):
                     try:
-                        container = list(eval(container[0]))
-                    except NameError:
+                        container = list(ast.literal_eval(container[0]))
+                    except (ValueError, SyntaxError):
                         pass
                 elif container.startswith("'") and container.endswith("'"):
-                    container = eval(container)
+                    try:
+                        container = ast.literal_eval(container)
+                    except (ValueError, SyntaxError):
+                        pass
                 return {key.rstrip(":"): container}, container  # was parent_container#str
     else:
         raise ValueError("Didn't anticipate that!")
