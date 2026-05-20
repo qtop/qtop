@@ -1,13 +1,10 @@
 __author__ = "sfranky"
-try:
-    import ujson as json
-except ImportError:
-    import json
 import logging
 import sys
-from qtop_py.serialiser import StatExtractor, GenericBatchSystem
 from xml.etree import ElementTree as etree
+
 import qtop_py.fileutils as fileutils
+from qtop_py.serialiser import GenericBatchSystem, StatExtractor
 
 
 class SGEStatExtractor(StatExtractor):
@@ -36,7 +33,7 @@ class SGEStatExtractor(StatExtractor):
         all_values = list()
         self.orig_file = orig_file
         self.tree, self.root = self.get_xml_tree(orig_file)
-        tree, root = self.tree, self.root
+        root = self.root
 
         for queue_elem in root.findall("queue_info/Queue-List"):
             queue_name_elems = queue_elem.findall("resource")
@@ -114,7 +111,7 @@ class SGEBatchSystem(GenericBatchSystem):
         logging.debug("Parsing tree of %s" % self.sge_file)
         fileutils.check_empty_file(self.sge_file)
 
-        tree, root = self.sge_stat_maker.tree, self.sge_stat_maker.root
+        root = self.sge_stat_maker.root
 
         qstatq_list = self._extract_queues("queue_info/Queue-List", root)
 
@@ -132,7 +129,7 @@ class SGEBatchSystem(GenericBatchSystem):
         # TODO: check validity. 'state' shouldnt just be 'Q'!
         logging.debug("Closing %s" % self.sge_file)
 
-        return total_running_jobs, int(eval(str(total_queued_jobs))), qstatq_list
+        return total_running_jobs, int(total_queued_jobs), qstatq_list
 
     def get_worker_nodes(self, job_ids, job_queues, options):
         logging.debug("Parsing tree of %s" % self.sge_file)

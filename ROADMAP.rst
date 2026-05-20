@@ -4,7 +4,7 @@ Future Roadmap
 Wishlist for 1.0 (anytime in year 2025)
 
 *  [OK] Ensure that runs on 1000+ node clusters result in a functional tool without major hurdles
-*  [OK?] Test against several environments and deployment modes automatically (rhel?/ubuntu/debian X pip/git/virtualenv X python2.{5,6,7})
+*  [OK?] Test against several environments and deployment modes automatically (rhel?/ubuntu/debian X pip/git/virtualenv X supported Python 3 releases)
 *  Add support for SLURM - need at least 3 clusters traces to get things started - and human help
 *  Add support for LSF - need at least 3 clusters traces to get things started - and human help
 *  Dissociate presentation from calculation (currently it is tic-tac in a lockstep)

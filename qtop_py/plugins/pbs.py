@@ -12,11 +12,12 @@ try:
     import ujson as json
 except ImportError:
     import json
+import itertools
 import logging
 import re
-from qtop_py.serialiser import StatExtractor, GenericBatchSystem
+
 import qtop_py.fileutils as fileutils
-import itertools
+from qtop_py.serialiser import GenericBatchSystem, StatExtractor
 
 
 class PBSStatExtractor(StatExtractor):
@@ -317,7 +318,7 @@ class PBSBatchSystem(GenericBatchSystem):
         else:
             total_running_jobs, total_queued_jobs = 0, 0
 
-        return int(eval(str(total_running_jobs))), int(eval(str(total_queued_jobs))), qstatq_list
+        return int(total_running_jobs), int(total_queued_jobs), qstatq_list
 
     @staticmethod
     def _get_jobs_cores(jobs):  # block['jobs']

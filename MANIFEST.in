@@ -2,12 +2,17 @@ include CHANGELOG.rst
 include CONTRIBUTING.md
 include helpfile.txt
 include Makefile
-include MANIFEST.in
 include LICENSE
 include qtopconf.yaml
 include qtop
 include README.md
 include ROADMAP.rst
+include pyproject.toml
 
 recursive-include qtop_py *.py *.sh *.jdl *.html *.txt *.ref *.gif *.stdout
-recursive-include tests *.py
+graft docs
+graft tests
+graft tools
+
+global-exclude __pycache__
+global-exclude *.py[cod]

@@ -11,7 +11,7 @@ dynamic = ["version"]
 description = """
     qtop: the fast text mode way to monitor your cluster's utilization and status;
     the time has come to take back control of your cluster's scheduling business"""
-readme = "README.rst"
+readme = "README.md"
 authors = [
     { name="Sotiris Fragkiskos", email="sfranky@gmail.com"},
     { name="Fotis Georgatos", email="kefalonia@gmail.com"},
@@ -27,8 +27,8 @@ qtop = "qtop_py.qtop:main"
 [tool.setuptools.dynamic]
 version = {attr = "qtop_py.__version__"}
 
-[tool.setuptools]
-packages = ["qtop_py"]
+[tool.setuptools.packages.find]
+include = ["qtop_py", "qtop_py.*"]
 
 [tool.ruff]
 # Enable pycodestyle (`E`) and Pyflakes (`F`) codes by default.
@@ -40,3 +40,6 @@ target-version = "py310" ##
 
 ## FG customisations
 line-length = 188 # this is temporary to reduce noise over line lengths
+
+[tool.ruff.lint.per-file-ignores]
+"qtop_py/qtop.py" = ["F401", "F403", "F405", "F522", "F841"]

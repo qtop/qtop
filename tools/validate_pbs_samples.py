@@ -8,8 +8,10 @@ Usage:
 import argparse
 import json
 import subprocess
+import sys
 from pathlib import Path
 
+QTOP_ROOT = Path(__file__).resolve().parents[1]
 
 GOLDEN_PBS_SAMPLES = (
     "gef_yBVifVBTyE44AKnehzSrvA",
@@ -27,9 +29,10 @@ GOLDEN_PBS_SAMPLES = (
 
 def render_sample(sample_dir, output_dir):
     proc = subprocess.run(
-        ["./qtop", "-b", "pbs", "-s", str(sample_dir), "-c", "ON"],
+        [sys.executable, "-m", "qtop_py.cli", "-b", "pbs", "-s", str(sample_dir), "-c", "ON"],
         text=True,
         capture_output=True,
+        cwd=QTOP_ROOT,
         timeout=8,
     )
     if proc.returncode != 0 or not proc.stdout.strip():

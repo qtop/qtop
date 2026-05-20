@@ -14,40 +14,46 @@
 ## SPDX-License-Identifier: MIT
 ##
 
-import sys
-
-here = sys.path[0]
-
-from operator import itemgetter
-from itertools import zip_longest, cycle, chain
-import subprocess
-import select
+import datetime
+import json
 import os
 import re
-import json
-import datetime
-from collections import namedtuple, OrderedDict, Counter
+import select
+import shutil
+import subprocess
+import sys
+from collections import Counter, OrderedDict, namedtuple
+from itertools import chain, cycle, zip_longest
+from operator import itemgetter
 from os.path import realpath
-from signal import signal, SIGPIPE, SIG_DFL
-import termios
+from signal import SIG_DFL, signal
+
+try:
+    from signal import SIGPIPE
+except ImportError:
+    SIGPIPE = None
+try:
+    import termios
+except ImportError:
+    termios = None
 import contextlib
 import glob
-import tempfile
 import logging
-from ast import literal_eval
-from qtop_py.constants import SYSTEMCONFDIR, QTOPCONF_YAML, QTOP_LOGFILE, USERPATH, MAX_CORE_ALLOWED, MAX_UNIX_ACCOUNTS, KEYPRESS_TIMEOUT, FALLBACK_TERMSIZE
-from qtop_py import fileutils
-from qtop_py import utils
-from qtop_py.plugins import *
-from math import ceil
-from qtop_py.colormap import user_to_color_default, color_to_code, queue_to_color, nodestate_to_color_default
-import qtop_py.yaml_parser as yaml
-from qtop_py.ui.viewport import Viewport
-from qtop_py.serialiser import GenericBatchSystem
-from qtop_py.web import Web
-from qtop_py import __version__
+import tempfile
 import time
+from ast import literal_eval
+from math import ceil
 
+import qtop_py.yaml_parser as yaml
+from qtop_py import __version__, fileutils, utils
+from qtop_py.colormap import color_to_code, nodestate_to_color_default, queue_to_color, user_to_color_default
+from qtop_py.constants import FALLBACK_TERMSIZE, KEYPRESS_TIMEOUT, MAX_UNIX_ACCOUNTS, QTOP_LOGFILE, QTOPCONF_YAML, SYSTEMCONFDIR, USERPATH
+from qtop_py.plugins import *
+from qtop_py.serialiser import GenericBatchSystem
+from qtop_py.ui.viewport import Viewport
+from qtop_py.web import Web
+
+here = sys.path[0]
 
 # TODO make the following work with py files instead of qtop.colormap files
 # if not args.COLORFILE:
@@ -86,6 +92,11 @@ def literal_config_value(value):
         return literal_eval(value)
     except (ValueError, SyntaxError, TypeError):
         return value
+
+
+def reset_sigpipe_handler():
+    if SIGPIPE is not None:
+        signal(SIGPIPE, SIG_DFL)
 
 
 def gauge_core_vectors(core_user_map, print_char_start, print_char_stop, coreline_notthere_or_unused, non_existent_symbol, remove_corelines):
@@ -137,7 +148,7 @@ def raw_mode(file):
     if args.ONLYSAVETOFILE:
         yield
     else:
-        if args.WATCH:
+        if args.WATCH and termios is not None:
             try:
                 old_attrs = termios.tcgetattr(file.fileno())
             except:
@@ -251,32 +262,43 @@ def calculate_term_size(config, FALLBACK_TERM_SIZE):
     """
     Gets the dimensions of the terminal window where qtop will be displayed.
     """
-    fallback_term_size = config.get("term_size", FALLBACK_TERM_SIZE)
+    term_height, term_columns = _coerce_term_size(config.get("term_size"), FALLBACK_TERM_SIZE)
 
-    _command = subprocess.Popen(["/bin/stty", "size"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    tty_size, error = _command.communicate()
-    if not error:
+    try:
+        _command = subprocess.Popen(["/bin/stty", "size"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    except (FileNotFoundError, OSError):
+        tty_size, error = b"", b"stty unavailable"
+    else:
+        tty_size, error = _command.communicate()
+
+    if not error and tty_size.strip():
         term_height, term_columns = [int(x) for x in tty_size.strip().split()]
         logging.debug('terminal size v, h from "stty size": %s, %s' % (term_height, term_columns))
     else:
-        logging.warn("Failed to autodetect terminal size. (Running in an IDE?in a pipe?) Trying values in %s." % QTOPCONF_YAML)
-        try:
-            term_height, term_columns = viewport.get_term_size()
-            if not all(term_height, term_columns):
-                raise ValueError
-        except ValueError:
-            try:
-                term_height, term_columns = yaml.fix_config_list(viewport.get_term_size())
-            except KeyError:
-                term_height, term_columns = fallback_term_size
-                logging.debug("(hardcoded) fallback terminal size v, h:%s, %s" % (term_height, term_columns))
-            else:
-                logging.debug("fallback terminal size v, h:%s, %s" % (term_height, term_columns))
-        except (KeyError, TypeError):  # TypeError if None was returned i.e. no setting in QTOPCONF_YAML
-            term_height, term_columns = fallback_term_size
-            logging.debug("(hardcoded) fallback terminal size v, h:%s, %s" % (term_height, term_columns))
+        logging.warn("Failed to autodetect terminal size. (Running in an IDE?in a pipe?) Trying configured or fallback values.")
+        terminal_size = shutil.get_terminal_size((int(term_columns), int(term_height)))
+        term_height, term_columns = terminal_size.lines, terminal_size.columns
+        logging.debug("fallback terminal size v, h:%s, %s" % (term_height, term_columns))
 
     return int(term_height), int(term_columns)
+
+
+def _coerce_term_size(configured_term_size, fallback_term_size):
+    if not configured_term_size:
+        configured_term_size = fallback_term_size
+
+    try:
+        term_height, term_columns = configured_term_size
+    except (TypeError, ValueError):
+        term_height, term_columns = yaml.fix_config_list(configured_term_size)
+
+    return int(term_height), int(term_columns)
+
+
+def write_file_to_stream(filename, output_stream):
+    with open(filename, encoding="utf-8", errors="replace") as output_file:
+        output_stream.write(output_file.read())
+        output_stream.flush()
 
 
 def finalize_filepaths_schedulercommands(args, config):
@@ -305,8 +327,7 @@ def auto_get_avail_batch_system(config):
     """
     # TODO pbsnodes etc should not be hardcoded!
     for system, batch_command in config["signature_commands"].items():
-        NOT_FOUND = subprocess.call(["/usr/bin/which", batch_command], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        if not NOT_FOUND:
+        if shutil.which(batch_command):
             if system != "demo":
                 logging.debug("Auto-detected scheduler: %s" % system)
                 return system
@@ -370,6 +391,9 @@ def get_detail_of_name(account_jobs_table):
     try:
         p = subprocess.Popen(passwd_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding="utf-8")
     except OSError:
+        if not args.GET_GECOS:
+            logging.warning("Cached user details command %s is unavailable. Continuing without cached user details." % passwd_command[0])
+            return dict()
         logging.critical(
             '\nCommand "%s" could not be found in your system. \nEither remove -G switch or modify the command in '
             "qtopconf.yaml (value of key: %s).\nExiting..." % (colorize(passwd_command[0], color_func="Red_L"), "user_details_realtime")
@@ -772,7 +796,7 @@ def update_config_with_cmdline_vars(args, config):
     config["rem_empty_corelines"] = int(config["rem_empty_corelines"])
     for opt in args.OPTION:
         key, val = get_key_val_from_option_string(opt)
-        val = eval(val) if ("True" in val or "False" in val) else val
+        val = literal_config_value(val) if val in ("True", "False") else val
         config[key] = val
 
     if args.TRANSPOSE:
@@ -790,7 +814,6 @@ def attempt_faster_xml_parsing(config):
             from lxml import etree
         except ImportError:
             logging.warn('Module lxml is missing. Try issuing "pip install lxml". Reverting to xml module.')
-            from xml.etree import ElementTree as etree
 
 
 def init_dirs(args, _savepath):
@@ -1688,7 +1711,7 @@ class TextDisplay(object):
         return joined_list
 
     def print_core_lines(self, core_user_map, print_char_start, print_char_stop, transposed_matrices, userid_to_userid_re_pat, mapping, attrs, options1, options2):
-        signal(SIGPIPE, SIG_DFL)
+        reset_sigpipe_handler()
         remove_corelines = dynamic_config.get("rem_empty_corelines", config["rem_empty_corelines"]) + 1
 
         # if corelines vertical (transposed matrix)
@@ -1711,7 +1734,7 @@ class TextDisplay(object):
                     print(core_line_zipped)
                 except IOError:
                     try:
-                        signal(SIGPIPE, SIG_DFL)
+                        reset_sigpipe_handler()
                         print(core_line_zipped)
                         sys.stdout.close()
                     except IOError:
@@ -2317,7 +2340,7 @@ def main():
     if args.ANONYMIZE and not args.EXPERIMENTAL:
         print("Anonymize should be ran with --experimental switch!! Exiting...")
         sys.exit(1)
-    if args.WATCH or args.REPLAY:  # this is needed for the filtering/sorting options
+    if (args.WATCH or args.REPLAY) and termios is not None:  # this is needed for the filtering/sorting options
         try:
             old_attrs = termios.tcgetattr(0)
         except termios.error:
@@ -2427,8 +2450,7 @@ def main():
                 if args.ONLYSAVETOFILE:  # no display of qtop output, will exit
                     break
                 elif not args.WATCH:  # one-off display of qtop output, will exit afterwards (no --watch cmdline switch)
-                    cat_command = ["/bin/cat", output_fp]  # not clearing the screen beforehand is the intended behaviour here
-                    _ = subprocess.call(cat_command, stdout=stdout, stderr=stdout)
+                    write_file_to_stream(output_fp, stdout)  # not clearing the screen beforehand is the intended behaviour here
                     break
                 else:  # --watch
                     if args.REPLAY:
@@ -2440,10 +2462,9 @@ def main():
                     else:
                         output_partview_fp = display.show_part_view(timestr, file=dynamic_config.get("output_fp", output_fp), x=viewport.v_start, y=viewport.v_term_size)
                         logging.debug("dynamic_config filename in main loop: %s" % dynamic_config.get("output_fp", output_fp))
-                    clear_command = ["/usr/bin/clear"]
-                    cat_command = ["/bin/cat", output_partview_fp]
+                    clear_command = ["cmd", "/c", "cls"] if os.name == "nt" else ["clear"]
                     _ = subprocess.call(clear_command, stdout=stdout, stderr=stdout)
-                    _ = subprocess.call(cat_command, stdout=stdout, stderr=stdout)
+                    write_file_to_stream(output_partview_fp, stdout)
 
                     read_char = wait_for_keypress_or_autorefresh(viewport, FALLBACK_TERMSIZE, int(args.WATCH) or KEYPRESS_TIMEOUT)
                     control_qtop(viewport, read_char, cluster, new_attrs)
