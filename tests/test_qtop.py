@@ -12,6 +12,7 @@ import pytest
 import re
 import datetime
 import sys
+import qtop_py.qtop as qtop
 from qtop_py.qtop import WNOccupancy, decide_batch_system, load_yaml_config, JobNotFound, SchedulerNotSpecified, NoSchedulerFound, get_date_obj_from_str
 
 
@@ -59,6 +60,41 @@ def test_load_yaml_config_does_not_execute_config_values(monkeypatch, tmp_path):
     assert config["vertical_separator_every_X_columns"] == 0
     assert config["overwrite_sample_file"] == dangerous_value
     assert not sentinel.exists()
+
+
+def test_update_config_with_cmdline_vars_does_not_eval_option_values(tmp_path):
+    class Args:
+        OPTION = []
+        TRANSPOSE = False
+        REM_EMPTY_CORELINES = False
+
+    sentinel = tmp_path / "cmdline-executed"
+    dangerous_value = "__import__('pathlib').Path(%r).touch()" % str(sentinel)
+    Args.OPTION = ["overwrite_sample_file=%s" % dangerous_value]
+
+    config = {"rem_empty_corelines": "0"}
+
+    updated_config = qtop.update_config_with_cmdline_vars(Args(), config)
+
+    assert updated_config["overwrite_sample_file"] == dangerous_value
+    assert not sentinel.exists()
+
+
+def test_do_name_remapping_accepts_python3_dict_items():
+    cluster = qtop.Cluster.__new__(qtop.Cluster)
+    cluster.config = {
+        "workernodes_matrix": [{"wn id lines": {"max_len": 0}}],
+        "remapping": [{"^node": "host"}],
+    }
+    workernode_dict = {
+        "node001": {
+            "domainname": "node001.example.org",
+        }
+    }
+
+    remapped = cluster.do_name_remapping(workernode_dict)
+
+    assert remapped["node001"]["host"] == "host001"
 
 
 @pytest.mark.parametrize(

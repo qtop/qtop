@@ -36,7 +36,7 @@ class StatExtractor(object):
         try:
             job_id, user, job_state, queue = [m.group(x) for x in re_match_positions]
         except AttributeError:
-            logging.warn("Line: %s not properly parsed by regex expression. Assuming alternative qstat format." % line.strip())
+            logging.warning("Line: %s not properly parsed by regex expression. Assuming alternative qstat format." % line.strip())
             raise
         job_id = job_id.split(".")[0]
         user = self.anonymize(user, "users")

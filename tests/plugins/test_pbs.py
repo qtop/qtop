@@ -38,3 +38,23 @@ def test_get_jobs_cores(jobs, result):
     result = iter(result)
     for job, core in pbs.PBSBatchSystem._get_jobs_cores(jobs):
         assert (job, core) == next(result)
+
+
+def test_get_queues_info_does_not_eval_total_counts(tmp_path):
+    class QstatMaker:
+        def extract_qstatq(self, _qstatq_file):
+            sentinel = tmp_path / "pbs-total-executed"
+            dangerous_value = "__import__('pathlib').Path(%r).touch()" % str(sentinel)
+            return [
+                {"queue_name": "workq", "run": "1", "queued": "0", "lm": "--", "state": "E R"},
+                {"Total_running": dangerous_value, "Total_queued": "0"},
+            ]
+
+    batch_system = pbs.PBSBatchSystem.__new__(pbs.PBSBatchSystem)
+    batch_system.qstat_maker = QstatMaker()
+    batch_system.qstatq_file = "unused"
+
+    with pytest.raises(ValueError):
+        batch_system.get_queues_info()
+
+    assert not (tmp_path / "pbs-total-executed").exists()

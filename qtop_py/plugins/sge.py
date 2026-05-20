@@ -10,6 +10,10 @@ from xml.etree import ElementTree as etree
 import qtop_py.fileutils as fileutils
 
 
+def _parse_job_count(value):
+    return int(str(value).strip())
+
+
 class SGEStatExtractor(StatExtractor):
     def __init__(self, config, options, scheduler_output_filenames):
         StatExtractor.__init__(self, config, options)
@@ -56,7 +60,7 @@ class SGEStatExtractor(StatExtractor):
             try:
                 all_values = self._extract_job_info(all_values, queue_elem, "job_list", queue_name=queue_name_elem.text)
             except ValueError:
-                logging.warn("No jobs found in XML file!")
+                logging.warning("No jobs found in XML file!")
 
         # look for the remaining, pending jobs, found later in the xml file
         job_info_elem = root.find("./job_info")
@@ -66,7 +70,7 @@ class SGEStatExtractor(StatExtractor):
             try:
                 all_values = self._extract_job_info(all_values, job_info_elem, "job_list", queue_name="Pending")
             except ValueError:
-                logging.warn("No jobs found in XML file!")
+                logging.warning("No jobs found in XML file!")
 
         return all_values
 
@@ -132,7 +136,7 @@ class SGEBatchSystem(GenericBatchSystem):
         # TODO: check validity. 'state' shouldnt just be 'Q'!
         logging.debug("Closing %s" % self.sge_file)
 
-        return total_running_jobs, int(eval(str(total_queued_jobs))), qstatq_list
+        return total_running_jobs, _parse_job_count(total_queued_jobs), qstatq_list
 
     def get_worker_nodes(self, job_ids, job_queues, options):
         logging.debug("Parsing tree of %s" % self.sge_file)

@@ -28,12 +28,20 @@ import json
 import datetime
 from collections import namedtuple, OrderedDict, Counter
 from os.path import realpath
-from signal import signal, SIGPIPE, SIG_DFL
-import termios
+from signal import signal, SIG_DFL
+try:
+    from signal import SIGPIPE
+except ImportError:
+    SIGPIPE = None
+try:
+    import termios
+except ImportError:
+    termios = None
 import contextlib
 import glob
 import tempfile
 import logging
+import shutil
 from ast import literal_eval
 from qtop_py.constants import SYSTEMCONFDIR, QTOPCONF_YAML, QTOP_LOGFILE, USERPATH, MAX_CORE_ALLOWED, MAX_UNIX_ACCOUNTS, KEYPRESS_TIMEOUT, FALLBACK_TERMSIZE
 from qtop_py import fileutils
@@ -88,6 +96,11 @@ def literal_config_value(value):
         return value
 
 
+def reset_sigpipe_handler():
+    if SIGPIPE is not None:
+        signal(SIGPIPE, SIG_DFL)
+
+
 def gauge_core_vectors(core_user_map, print_char_start, print_char_stop, coreline_notthere_or_unused, non_existent_symbol, remove_corelines):
     """
     generator that loops over each core user vector and yields a boolean stating whether the core vector can be omitted via
@@ -134,7 +147,7 @@ def raw_mode(file):
     Taken from http://stackoverflow.com/questions/11918999/key-listeners-in-python/11919074#11919074
     Exits program with ^C or ^D
     """
-    if args.ONLYSAVETOFILE:
+    if args.ONLYSAVETOFILE or termios is None:
         yield
     else:
         if args.WATCH:
@@ -259,7 +272,7 @@ def calculate_term_size(config, FALLBACK_TERM_SIZE):
         term_height, term_columns = [int(x) for x in tty_size.strip().split()]
         logging.debug('terminal size v, h from "stty size": %s, %s' % (term_height, term_columns))
     else:
-        logging.warn("Failed to autodetect terminal size. (Running in an IDE?in a pipe?) Trying values in %s." % QTOPCONF_YAML)
+        logging.warning("Failed to autodetect terminal size. (Running in an IDE?in a pipe?) Trying values in %s." % QTOPCONF_YAML)
         try:
             term_height, term_columns = viewport.get_term_size()
             if not all(term_height, term_columns):
@@ -305,8 +318,7 @@ def auto_get_avail_batch_system(config):
     """
     # TODO pbsnodes etc should not be hardcoded!
     for system, batch_command in config["signature_commands"].items():
-        NOT_FOUND = subprocess.call(["/usr/bin/which", batch_command], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        if not NOT_FOUND:
+        if shutil.which(batch_command):
             if system != "demo":
                 logging.debug("Auto-detected scheduler: %s" % system)
                 return system
@@ -772,7 +784,7 @@ def update_config_with_cmdline_vars(args, config):
     config["rem_empty_corelines"] = int(config["rem_empty_corelines"])
     for opt in args.OPTION:
         key, val = get_key_val_from_option_string(opt)
-        val = eval(val) if ("True" in val or "False" in val) else val
+        val = literal_config_value(val)
         config[key] = val
 
     if args.TRANSPOSE:
@@ -789,7 +801,7 @@ def attempt_faster_xml_parsing(config):
         try:
             from lxml import etree
         except ImportError:
-            logging.warn('Module lxml is missing. Try issuing "pip install lxml". Reverting to xml module.')
+            logging.warning('Module lxml is missing. Try issuing "pip install lxml". Reverting to xml module.')
             from xml.etree import ElementTree as etree
 
 
@@ -1170,7 +1182,7 @@ class WNOccupancy(object):
         min_len = min(user_max_len, real_max_len)
         max_len = max(user_max_len, real_max_len)
         if real_max_len > user_max_len:
-            logging.warn("Some longer %(attr)ss have been cropped due to %(attr)s length restriction by user" % {"attr": part_name})
+            logging.warning("Some longer %(attr)ss have been cropped due to %(attr)s length restriction by user" % {"attr": part_name})
 
         # initialisation of lines
         multiline_map = OrderedDict()
@@ -1688,7 +1700,7 @@ class TextDisplay(object):
         return joined_list
 
     def print_core_lines(self, core_user_map, print_char_start, print_char_stop, transposed_matrices, userid_to_userid_re_pat, mapping, attrs, options1, options2):
-        signal(SIGPIPE, SIG_DFL)
+        reset_sigpipe_handler()
         remove_corelines = dynamic_config.get("rem_empty_corelines", config["rem_empty_corelines"]) + 1
 
         # if corelines vertical (transposed matrix)
@@ -1711,7 +1723,7 @@ class TextDisplay(object):
                     print(core_line_zipped)
                 except IOError:
                     try:
-                        signal(SIGPIPE, SIG_DFL)
+                        reset_sigpipe_handler()
                         print(core_line_zipped)
                         sys.stdout.close()
                     except IOError:
@@ -2010,7 +2022,7 @@ class Cluster(object):
             _host = state_corejob_dn["domainname"].split(".", 1)[0]
             changed = False
             for remap_line in self.config["remapping"]:
-                pat, repl = remap_line.items()[0]
+                pat, repl = next(iter(remap_line.items()))
                 repl = eval(repl) if repl.startswith("lambda") else repl
                 if re.search(pat, _host):
                     changed = True
