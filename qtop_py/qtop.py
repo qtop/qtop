@@ -1970,9 +1970,12 @@ class Cluster(object):
         numeric_workernodes = [wn for wn in self.workernode_list if isinstance(wn, int)]
         has_mixed_or_non_numeric_wns = len(numeric_workernodes) != len(self.workernode_list)
         has_exotic_starting_wn = bool(numeric_workernodes) and min(numeric_workernodes) >= int(self.config["exotic_starting_wn_nr"])
+        user_filters = dynamic_config.get("filtering", self.config["filtering"])
+        user_filtering = user_filters and user_filters[0]
 
         if (
             self.args.BLINDREMAP
+            or user_filtering
             or len(self.node_subclusters) > 1
             or has_exotic_starting_wn
             or self.offdown_nodes >= self.total_wn * float(self.config["percentage"])
@@ -1987,6 +1990,7 @@ class Cluster(object):
 
         if logging.getLogger().isEnabledFor(logging.DEBUG) and REMAP:
             user_request = self.args.BLINDREMAP and "The user has requested it (blindremap switch)" or False
+            filter_request = user_filtering and "filtering requires remapping to avoid re-adding filtered nodes as placeholders" or False
 
             subclusters = len(self.node_subclusters) > 1 and "there are different WN namings, e.g. wn001, wn002, ..., ps001, ps002, ... etc" or False
 
@@ -1997,7 +2001,7 @@ class Cluster(object):
             numbering_collisions = has_mixed_or_non_numeric_wns and "there are numbering collisions or non-numbered WNs" or False
 
             print()
-            logging.debug("Remapping decided due to: \n\t %s" % filter(None, [user_request, subclusters, exotic_starting, percentage_unassigned, numbering_collisions]))
+            logging.debug("Remapping decided due to: \n\t %s" % filter(None, [user_request, filter_request, subclusters, exotic_starting, percentage_unassigned, numbering_collisions]))
 
         return REMAP
 
