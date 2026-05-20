@@ -9,5 +9,11 @@ include qtop
 include README.md
 include ROADMAP.rst
 
-recursive-include qtop_py *.py *.sh *.jdl *.html *.txt *.ref *.gif *.stdout
+recursive-include qtop_py/contrib *.sh *.jdl *.html *.txt *.ref *.gif *.stdout
+recursive-include qtop_py/inputs *.sh *.jdl
+recursive-include qtop_py/web *.html
 recursive-include tests *.py
+recursive-include docs *.rst *.md *.png
+recursive-include tools *.py
+
+global-exclude __pycache__ *.py[cod] .DS_Store

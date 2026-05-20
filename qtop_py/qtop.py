@@ -772,8 +772,7 @@ def update_config_with_cmdline_vars(args, config):
     config["rem_empty_corelines"] = int(config["rem_empty_corelines"])
     for opt in args.OPTION:
         key, val = get_key_val_from_option_string(opt)
-        val = eval(val) if ("True" in val or "False" in val) else val
-        config[key] = val
+        config[key] = literal_config_value(val)
 
     if args.TRANSPOSE:
         config["transpose_wn_matrices"] = not config["transpose_wn_matrices"]

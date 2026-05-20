@@ -8,11 +8,13 @@
 ## SPDX-License-Identifier: MIT
 ##
 
-import pytest
-import re
 import datetime
+import re
 import sys
-from qtop_py.qtop import WNOccupancy, decide_batch_system, load_yaml_config, JobNotFound, SchedulerNotSpecified, NoSchedulerFound, get_date_obj_from_str
+
+import pytest
+
+from qtop_py.qtop import WNOccupancy, decide_batch_system, get_date_obj_from_str, JobNotFound, load_yaml_config, NoSchedulerFound, SchedulerNotSpecified, update_config_with_cmdline_vars
 
 
 @pytest.fixture
@@ -59,6 +61,26 @@ def test_load_yaml_config_does_not_execute_config_values(monkeypatch, tmp_path):
     assert config["vertical_separator_every_X_columns"] == 0
     assert config["overwrite_sample_file"] == dangerous_value
     assert not sentinel.exists()
+
+
+def test_update_config_with_cmdline_vars_does_not_execute_option_values(tmp_path):
+    class Args:
+        OPTION = [
+            "transpose_wn_matrices=True",
+            "vertical_separator_every_X_columns=12",
+            "overwrite_sample_file=__import__('pathlib').Path(%r).touch() or False" % str(tmp_path / "executed"),
+        ]
+        TRANSPOSE = False
+        REM_EMPTY_CORELINES = 0
+
+    config = {"rem_empty_corelines": "0"}
+
+    config = update_config_with_cmdline_vars(Args(), config)
+
+    assert config["transpose_wn_matrices"] is True
+    assert config["vertical_separator_every_X_columns"] == 12
+    assert config["overwrite_sample_file"].startswith("__import__")
+    assert not (tmp_path / "executed").exists()
 
 
 @pytest.mark.parametrize(

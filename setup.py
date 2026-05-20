@@ -27,6 +27,6 @@ setup(
     url="https://github.com/qtop/qtop",
     packages=find_packages(include=["qtop_py", "qtop_py.*"]),
     include_package_data=True,
-    python_requires=">=3",
+    python_requires=">=3.6",
     entry_points={"console_scripts": ["qtop=qtop_py.qtop:main"]},
 )
