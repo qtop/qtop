@@ -1,0 +1,3 @@
+gpu[01-02]|gpu*|mix|8
+cpu[001-004]|long|alloc|16
+cpu005|long|drain|16

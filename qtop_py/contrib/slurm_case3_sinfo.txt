@@ -1,0 +1,2 @@
+rack[1-2]n[01-02]|short*|idle|2
+wn010|maint|down|2

@@ -22,6 +22,7 @@ from operator import itemgetter
 from itertools import zip_longest, cycle, chain
 import subprocess
 import select
+import shutil
 import os
 import re
 import json
@@ -29,8 +30,16 @@ import datetime
 from collections import namedtuple, OrderedDict, Counter
 import os
 from os.path import realpath
-from signal import signal, SIGPIPE, SIG_DFL
-import termios
+try:
+    from signal import SIGPIPE, SIG_DFL, signal
+except ImportError:
+    from signal import SIG_DFL, signal
+
+    SIGPIPE = None
+try:
+    import termios
+except ImportError:
+    termios = None
 import contextlib
 import glob
 import tempfile
@@ -129,6 +138,8 @@ def raw_mode(file):
     Exits program with ^C or ^D
     """
     if args.ONLYSAVETOFILE:
+        yield
+    elif termios is None:
         yield
     else:
         if args.WATCH:
@@ -247,8 +258,11 @@ def calculate_term_size(config, FALLBACK_TERM_SIZE):
     """
     fallback_term_size = config.get("term_size", FALLBACK_TERM_SIZE)
 
-    _command = subprocess.Popen(["/bin/stty", "size"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    tty_size, error = _command.communicate()
+    try:
+        _command = subprocess.Popen(["/bin/stty", "size"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        tty_size, error = _command.communicate()
+    except OSError:
+        tty_size, error = b"", b"stty unavailable"
     if not error:
         term_height, term_columns = [int(x) for x in tty_size.strip().split()]
         logging.debug('terminal size v, h from "stty size": %s, %s' % (term_height, term_columns))
@@ -299,8 +313,7 @@ def auto_get_avail_batch_system(config):
     """
     # TODO pbsnodes etc should not be hardcoded!
     for system, batch_command in config["signature_commands"].items():
-        NOT_FOUND = subprocess.call(["/usr/bin/which", batch_command], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        if not NOT_FOUND:
+        if shutil.which(batch_command):
             if system != "demo":
                 logging.debug("Auto-detected scheduler: %s" % system)
                 return system
@@ -1675,7 +1688,8 @@ class TextDisplay(object):
         return joined_list
 
     def print_core_lines(self, core_user_map, print_char_start, print_char_stop, transposed_matrices, userid_to_userid_re_pat, mapping, attrs, options1, options2):
-        signal(SIGPIPE, SIG_DFL)
+        if SIGPIPE is not None:
+            signal(SIGPIPE, SIG_DFL)
         remove_corelines = dynamic_config.get("rem_empty_corelines", config["rem_empty_corelines"]) + 1
 
         # if corelines vertical (transposed matrix)
@@ -1698,7 +1712,8 @@ class TextDisplay(object):
                     print(core_line_zipped)
                 except IOError:
                     try:
-                        signal(SIGPIPE, SIG_DFL)
+                        if SIGPIPE is not None:
+                            signal(SIGPIPE, SIG_DFL)
                         print(core_line_zipped)
                         sys.stdout.close()
                     except IOError:
@@ -2304,8 +2319,8 @@ def main():
         sys.exit(1)
     if args.WATCH or args.REPLAY:  # this is needed for the filtering/sorting options
         try:
-            old_attrs = termios.tcgetattr(0)
-        except termios.error:
+            old_attrs = termios.tcgetattr(0) if termios is not None else ""
+        except Exception:
             old_attrs = ""
         new_attrs = old_attrs[:]
 

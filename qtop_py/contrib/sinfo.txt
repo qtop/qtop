@@ -1,0 +1,3 @@
+wn[001-002]|batch*|mix|4
+wn003|debug|alloc|8
+wn004|batch|idle|4
