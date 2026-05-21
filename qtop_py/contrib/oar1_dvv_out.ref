@@ -1,6 +1,6 @@
 
-./qtop.py ## Queueing System report tool. For feedback and updates, see: https://github.com/qtop/qtop
-Please try it with watch: /home/sfranky/PycharmProjects/qtop/qtop.py -s <SOURCEDIR> -w [<every_nr_of_sec>]
+qtop ## Queueing System report tool. For feedback and updates, see: https://github.com/qtop/qtop
+Please try it with watch: qtop -s <SOURCEDIR> -w [<every_nr_of_sec>]
 ...and thank you for watching ;)
 
 [1;30m===> [0;m[1;37mJob accounting summary[0;m[1;30m <=== [0;m[1;37m2016-11-15 22:57:26[0;m WORKDIR = /home/sfranky/PycharmProjects/qtop

@@ -784,6 +784,10 @@ def update_config_with_cmdline_vars(args, config):
     return config
 
 
+def watch_command_hint():
+    return "Please try it with watch: qtop -s <SOURCEDIR> -w [<every_nr_of_sec>]"
+
+
 def attempt_faster_xml_parsing(config):
     if config["faster_xml_parsing"]:
         try:
@@ -1457,7 +1461,7 @@ class TextDisplay(object):
         print(
             "%(del)s%(name)s \nv%(version)s ## For feedback and updates, see: %(link)s"
             % {
-                "name": "PBS" if self.args.CLASSIC else colorize("./qtop.py     ## Queueing System report tool. Press ? for " "help", "Cyan_L"),
+                "name": "PBS" if self.args.CLASSIC else colorize("qtop          ## Queueing System report tool. Press ? for " "help", "Cyan_L"),
                 "del": ansi_delete_char,
                 "link": colorize("https://github.com/qtop/qtop", "Cyan_L"),
                 "version": __version__,
@@ -1468,7 +1472,7 @@ class TextDisplay(object):
             print(colorize(msg, "Blue"))
 
         if not self.args.WATCH:
-            print("Please try it with watch: %s/qtop.py -s <SOURCEDIR> -w [<every_nr_of_sec>]" % QTOPPATH)
+            print(watch_command_hint())
         print(colorize("===> ", "Gray_D") + colorize("Job accounting summary", "White") + colorize(" <=== ", "Gray_D") + colorize(str(datetime.datetime.today())[:-7], "White"))
 
         print(

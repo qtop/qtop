@@ -236,3 +236,10 @@ def test_get_date_obj_from_str(s, now, day_meant):
     at 22:10 at night, the user inputs again 21:00 (the same day is implied)
     """
     assert get_date_obj_from_str(s, now).day == day_meant
+
+
+def test_watch_command_hint_uses_console_script():
+    from qtop_py.qtop import watch_command_hint
+
+    assert watch_command_hint() == "Please try it with watch: qtop -s <SOURCEDIR> -w [<every_nr_of_sec>]"
+    assert "qtop.py" not in watch_command_hint()
