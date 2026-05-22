@@ -1,11 +1,10 @@
 include CHANGELOG.rst
 include CONTRIBUTING.md
 include helpfile.txt
-include Makefile
-include MANIFEST.in
 include LICENSE
-include qtopconf.yaml
+include Makefile
 include qtop
+include qtopconf.yaml
 include README.md
 include ROADMAP.rst
 include requirements-ci.txt

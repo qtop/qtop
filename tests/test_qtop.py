@@ -15,16 +15,66 @@ import datetime
 from qtop_py.qtop import (
     WNOccupancy,
     decide_batch_system,
+    load_yaml_config,
     JobNotFound,
     SchedulerNotSpecified,
     NoSchedulerFound,
     get_date_obj_from_str,
+    update_config_with_cmdline_vars,
 )
 
 
 @pytest.fixture
 def config():
     return {}
+
+
+def test_load_yaml_config_does_not_execute_config_values(monkeypatch, tmp_path):
+    class Args:
+        CONFFILE = None
+
+    sentinel = tmp_path / "executed"
+    dangerous_value = "__import__('pathlib').Path(%r).touch()" % str(sentinel)
+
+    def parse_config(_path):
+        return {
+            "possible_ids": "01",
+            "user_color_mappings": [{"alice": "Blue"}],
+            "nodestate_color_mappings": [{"au": "BlackOnRed"}],
+            "remapping": [],
+            "savepath": str(tmp_path / "qtop-results"),
+            "scheduler": "pbs",
+            "transpose_wn_matrices": "True",
+            "fill_with_user_firstletter": "False",
+            "faster_xml_parsing": "False",
+            "vertical_separator_every_X_columns": "0",
+            "overwrite_sample_file": dangerous_value,
+            "sorting": {"reverse": "False"},
+            "workernodes_matrix": [
+                {
+                    "wn id lines": {
+                        "alt_label_colors": ["White, Blue_L"],
+                        "user_cut_matrix_width": "0",
+                    }
+                }
+            ],
+            "vertical_separator": "'|'",
+        }
+
+    import qtop_py.qtop as qtop
+
+    monkeypatch.setattr(qtop.yaml, "parse", parse_config)
+    monkeypatch.setattr(qtop, "QTOPPATH", str(tmp_path), raising=False)
+    monkeypatch.setattr(qtop, "SYSTEMCONFDIR", str(tmp_path / "system"))
+    monkeypatch.setattr(qtop, "USERPATH", str(tmp_path / "user"))
+    monkeypatch.setattr(qtop, "args", Args(), raising=False)
+
+    config, _, _ = load_yaml_config()
+
+    assert config["transpose_wn_matrices"] is True
+    assert config["vertical_separator_every_X_columns"] == 0
+    assert config["overwrite_sample_file"] == dangerous_value
+    assert not sentinel.exists()
 
 
 def test_sort_worker_nodes_uses_named_sort_keys(monkeypatch):
@@ -50,6 +100,24 @@ def test_sort_worker_nodes_rejects_custom_python_sorting(monkeypatch):
 
     with pytest.raises(ValueError, match="custom Python sorting expressions"):
         cluster._sort_worker_nodes()
+
+
+def test_update_config_with_cmdline_vars_does_not_eval_untrusted_option(tmp_path):
+    class Args:
+        OPTION = []
+        TRANSPOSE = False
+        REM_EMPTY_CORELINES = False
+
+    sentinel = tmp_path / "cmdline-eval-executed"
+    dangerous = "__import__('pathlib').Path(%r).touch() or True" % str(sentinel)
+    Args.OPTION = ["safe_flag=True", "danger=%s" % dangerous]
+
+    config = {"rem_empty_corelines": 0, "safe_flag": False}
+    updated = update_config_with_cmdline_vars(Args, config)
+
+    assert updated["safe_flag"] is True
+    assert updated["danger"] == dangerous
+    assert not sentinel.exists()
 
 
 @pytest.mark.parametrize(

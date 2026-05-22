@@ -1,4 +1,4 @@
-# qtop.py [![Build Status](https://travis-ci.org/qtop/qtop.svg)](https://travis-ci.org/qtop/qtop) ![python versions](https://img.shields.io/badge/python-2.5%2C%202.6%2C%202.7-blue.svg)
+# qtop.py [![build-qtop](https://github.com/qtop/qtop/actions/workflows/build.yml/badge.svg)](https://github.com/qtop/qtop/actions/workflows/build.yml) [![pytest-qtop](https://github.com/qtop/qtop/actions/workflows/pytest.yml/badge.svg)](https://github.com/qtop/qtop/actions/workflows/pytest.yml) ![python versions](https://img.shields.io/badge/python-3.6%20to%203.12-blue.svg)
 
 qtop: the fast text mode way to monitor your cluster's utilization and
 status; the time has come to take back control of your cluster's
@@ -56,7 +56,7 @@ Documentation/tutorial [here](docs/documentation.rst).
 
 ## Profile
 
-    Description: the fast text mode way to monitor your cluster’s utilization and status; the time has come to take back control of your cluster’s scheduling business
+    Description: the fast text mode way to monitor your cluster's utilization and status; the time has come to take back control of your cluster's scheduling business
     License: MIT
     Version: 0.9.20260602 / Date: 2026-06-02
     Homepage: https://github.com/qtop/qtop
