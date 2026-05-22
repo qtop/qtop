@@ -1,0 +1,16 @@
+NodeName=node101 Arch=x86_64 CoresPerSocket=16 CPUAlloc=32 CPUErr=0 CPUTot=32 CPULoad=32.0 State=ALLOCATED ThreadsPerCore=2
+NodeName=node102 Arch=x86_64 CoresPerSocket=16 CPUAlloc=32 CPUErr=0 CPUTot=32 CPULoad=32.0 State=ALLOCATED ThreadsPerCore=2
+NodeName=node103 Arch=x86_64 CoresPerSocket=16 CPUAlloc=32 CPUErr=0 CPUTot=32 CPULoad=31.5 State=ALLOCATED ThreadsPerCore=2
+NodeName=node104 Arch=x86_64 CoresPerSocket=16 CPUAlloc=32 CPUErr=0 CPUTot=32 CPULoad=32.0 State=ALLOCATED ThreadsPerCore=2
+NodeName=node105 Arch=x86_64 CoresPerSocket=16 CPUAlloc=32 CPUErr=0 CPUTot=32 CPULoad=30.0 State=ALLOCATED ThreadsPerCore=2
+NodeName=node106 Arch=x86_64 CoresPerSocket=16 CPUAlloc=32 CPUErr=0 CPUTot=32 CPULoad=32.0 State=ALLOCATED ThreadsPerCore=2
+NodeName=node107 Arch=x86_64 CoresPerSocket=16 CPUAlloc=32 CPUErr=0 CPUTot=32 CPULoad=32.0 State=ALLOCATED ThreadsPerCore=2
+NodeName=node108 Arch=x86_64 CoresPerSocket=16 CPUAlloc=32 CPUErr=0 CPUTot=32 CPULoad=31.0 State=ALLOCATED ThreadsPerCore=2
+NodeName=node109 Arch=x86_64 CoresPerSocket=16 CPUAlloc=32 CPUErr=0 CPUTot=32 CPULoad=32.0 State=ALLOCATED ThreadsPerCore=2
+NodeName=node110 Arch=x86_64 CoresPerSocket=16 CPUAlloc=32 CPUErr=0 CPUTot=32 CPULoad=32.0 State=ALLOCATED ThreadsPerCore=2
+NodeName=node111 Arch=x86_64 CoresPerSocket=16 CPUAlloc=32 CPUErr=0 CPUTot=32 CPULoad=30.5 State=ALLOCATED ThreadsPerCore=2
+NodeName=node112 Arch=x86_64 CoresPerSocket=16 CPUAlloc=32 CPUErr=0 CPUTot=32 CPULoad=32.0 State=ALLOCATED ThreadsPerCore=2
+NodeName=node113 Arch=x86_64 CoresPerSocket=16 CPUAlloc=32 CPUErr=0 CPUTot=32 CPULoad=32.0 State=ALLOCATED ThreadsPerCore=2
+NodeName=node114 Arch=x86_64 CoresPerSocket=16 CPUAlloc=32 CPUErr=0 CPUTot=32 CPULoad=31.0 State=ALLOCATED ThreadsPerCore=2
+NodeName=node115 Arch=x86_64 CoresPerSocket=16 CPUAlloc=32 CPUErr=0 CPUTot=32 CPULoad=32.0 State=ALLOCATED ThreadsPerCore=2
+NodeName=node116 Arch=x86_64 CoresPerSocket=16 CPUAlloc=32 CPUErr=0 CPUTot=32 CPULoad=32.0 State=ALLOCATED ThreadsPerCore=2

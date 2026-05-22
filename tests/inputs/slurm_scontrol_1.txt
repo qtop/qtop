@@ -1,0 +1,10 @@
+NodeName=node01 Arch=x86_64 CoresPerSocket=16 CPUAlloc=32 CPUErr=0 CPUTot=32 CPULoad=32.0 State=ALLOCATED ThreadsPerCore=2
+NodeName=node02 Arch=x86_64 CoresPerSocket=16 CPUAlloc=32 CPUErr=0 CPUTot=32 CPULoad=30.5 State=ALLOCATED ThreadsPerCore=2
+NodeName=node03 Arch=x86_64 CoresPerSocket=16 CPUAlloc=16 CPUErr=0 CPUTot=32 CPULoad=16.0 State=MIXED ThreadsPerCore=2
+NodeName=node04 Arch=x86_64 CoresPerSocket=16 CPUAlloc=0 CPUErr=0 CPUTot=32 CPULoad=0.0 State=IDLE ThreadsPerCore=2
+NodeName=node05 Arch=x86_64 CoresPerSocket=16 CPUAlloc=32 CPUErr=0 CPUTot=32 CPULoad=32.0 State=ALLOCATED ThreadsPerCore=2
+NodeName=node06 Arch=x86_64 CoresPerSocket=16 CPUAlloc=32 CPUErr=0 CPUTot=32 CPULoad=31.0 State=ALLOCATED ThreadsPerCore=2
+NodeName=node07 Arch=x86_64 CoresPerSocket=16 CPUAlloc=16 CPUErr=0 CPUTot=32 CPULoad=16.0 State=MIXED ThreadsPerCore=2
+NodeName=node08 Arch=x86_64 CoresPerSocket=16 CPUAlloc=0 CPUErr=0 CPUTot=32 CPULoad=0.0 State=DOWN ThreadsPerCore=2
+NodeName=node09 Arch=x86_64 CoresPerSocket=16 CPUAlloc=0 CPUErr=0 CPUTot=32 CPULoad=0.0 State=DRAINING ThreadsPerCore=2
+NodeName=node10 Arch=x86_64 CoresPerSocket=16 CPUAlloc=32 CPUErr=0 CPUTot=32 CPULoad=32.0 State=ALLOCATED ThreadsPerCore=2

@@ -1,0 +1,6 @@
+PARTITION AVAIL  TIMELIMIT  NODES  STATE NODES(A/I/O/T) CPUS MEMORY
+hpc       up    4:00:00     32  alloc      32/0/0/32    1024  2048000
+hpc       up    4:00:00     16  idle        0/16/0/16   512   1024000
+hpc       up    4:00:00      8  mix         4/4/0/8     256   512000
+hpc       up    4:00:00      4  down        0/0/4/4     128   256000
+hpc       up    4:00:00      2  drain       0/0/2/2     64    128000

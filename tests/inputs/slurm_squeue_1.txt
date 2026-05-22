@@ -1,0 +1,17 @@
+JOBID PARTITION     NAME     USER    STATE       TIME TIME_LEFT NODES NODELIST(REASON)
+12345     debug    simulation user1     R       2:15:30     4:45     4       node[01-04]
+12346     debug    analysis   user2     R       1:30:15     5:30     2       node[05-06]
+12347     debug    job3       user3     PD       0:00        N/A      1       (Resources)
+12348     debug    job4       user4     PD       0:00        N/A      1       (Priority)
+12349     debug    job5       user5     CG       0:45        N/A      1       node07
+12350     debug    job6       user6     F        0:10        N/A      1       node08
+12351     debug    job7       user7     CA       0:05        N/A      1       node09
+12352     debug    job8       user8     S        0:20        N/A      1       node10
+12353     debug    big_job    user9     R       5:45:10     12:15    8       node[11-18]
+12354     debug    job10      user10    R       0:30:22     1:30     1       node19
+12355     debug    job11      user11    PD       0:00        N/A      1       (Resources)
+12356     debug    job12      user12    R       3:20:45     8:40     4       node[20-23]
+12357     debug    job13      user13    R       1:15:10     2:45     2       node[24-25]
+12358     debug    job14      user14    PD       0:00        N/A      1       (Priority)
+12359     debug    job15      user15    R       0:45:30     1:15     1       node26
+12360     debug    job16      user16    CG       1:10:20     N/A      2       node[27-28]
