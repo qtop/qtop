@@ -1,0 +1,6 @@
+PARTITION AVAIL  TIMELIMIT  NODES  STATE NODES(A/I/O/T) CPUS MEMORY
+debug*    up    1:00:00      4  alloc       4/0/0/4     128   256000
+debug*    up    1:00:00      6  idle        0/6/0/6     192   384000
+debug*    up    1:00:00      2  mix         1/1/0/2     64    128000
+debug*    up    1:00:00      1  down        0/0/1/1     32    64000
+debug*    up    1:00:00      1  drain       0/0/1/1     32    64000
