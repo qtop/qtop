@@ -8,11 +8,13 @@
 ## SPDX-License-Identifier: MIT
 ##
 
-import pytest
-import re
 import datetime
-import sys
-from qtop_py.qtop import WNOccupancy, decide_batch_system, load_yaml_config, JobNotFound, SchedulerNotSpecified, NoSchedulerFound, get_date_obj_from_str
+import os
+import re
+
+import pytest
+
+from qtop_py.qtop import JobNotFound, NoSchedulerFound, SchedulerNotSpecified, WNOccupancy, decide_batch_system, get_date_obj_from_str, init_dirs, load_yaml_config
 
 
 @pytest.fixture
@@ -236,3 +238,36 @@ def test_get_date_obj_from_str(s, now, day_meant):
     at 22:10 at night, the user inputs again 21:00 (the same day is implied)
     """
     assert get_date_obj_from_str(s, now).day == day_meant
+
+
+def test_init_dirs(tmp_path):
+    class Args(object):
+        SOURCEDIR = None
+        workdir = None
+
+    d = tmp_path / "subdir"
+    d.mkdir()
+    args = Args()
+    args.SOURCEDIR = str(d)
+
+    old_cwd = os.getcwd()
+    try:
+        res = init_dirs(args, "/tmp")
+        assert res.SOURCEDIR == str(d)
+        assert res.workdir == str(d)
+        assert os.path.realpath(os.getcwd()) == os.path.realpath(str(d))
+    finally:
+        os.chdir(old_cwd)
+
+    f = tmp_path / "subdir" / "file.txt"
+    f.touch()
+    args = Args()
+    args.SOURCEDIR = str(f)
+    try:
+        res = init_dirs(args, "/tmp")
+        assert res.SOURCEDIR == str(d)
+        assert res.workdir == str(d)
+        assert os.path.realpath(os.getcwd()) == os.path.realpath(str(d))
+    finally:
+        os.chdir(old_cwd)
+
