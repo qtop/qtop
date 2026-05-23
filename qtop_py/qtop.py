@@ -797,6 +797,8 @@ def init_dirs(args, _savepath):
     args.SOURCEDIR = realpath(args.SOURCEDIR) if args.SOURCEDIR else None
     logging.debug("User-defined source directory: %s" % args.SOURCEDIR)
     args.workdir = args.SOURCEDIR or _savepath
+    if args.workdir and os.path.isfile(args.workdir):
+        args.workdir = os.path.dirname(args.workdir)
     logging.debug("Working directory is now: %s" % args.workdir)
     os.chdir(args.workdir)
     return args
