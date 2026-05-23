@@ -57,7 +57,7 @@ import time
 
 def compress_colored_line(s):
     ## TODO: black sheep
-    t = [item for item in re.split(r"\x1b\[0;m", s) if item != ""]
+  t = [item for item in s.split("\x1b[0;m") if item]
 
     sts = []
     st = []
