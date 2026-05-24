@@ -1,5 +1,5 @@
 # command: squeue -h -o %i|%P|%u|%T|%C|%R
-2001|gpu|dana|R|64|gpu01
+2001|gpu|dana|R|48|gpu01
 2002|long|erin|COMPLETING|16|gpu01
 2003|gpu|frank|PD|32|(Priority)
 2004|interactive|grace|RUNNING|2|login01

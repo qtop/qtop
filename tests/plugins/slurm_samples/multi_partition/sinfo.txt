@@ -3,4 +3,7 @@ gpu01|gpu*|mix|64
 gpu01|long|mix|64
 gpu02|gpu*|idle|64
 gpu03|gpu*|drain|64
+gpu04|gpu*|idle|64
+gpu05|gpu*|alloc|64
+gpu06|gpu*|mix|64
 login01|interactive|alloc|8

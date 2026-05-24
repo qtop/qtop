@@ -55,7 +55,7 @@ invoking it in demo mode:
     ./qtop.py -b demo
 
 When used, the ``-b`` switch must always be followed by one of the
-supported batch systems (as of version 0.8.9, pbs, sge, oar, demo).
+supported batch systems (pbs, slurm, sge, oar, demo).
 
 That should create and destroy fictional jobs in fictional machines from
 fictional users, and display all that in a colorful, yet much unhelpful
@@ -153,9 +153,11 @@ Node state
 
    Node state
 
-The node state is denoted with the first letter of the following, fi.
-for PBS: \* **j**\ ob-exclusive \* **b**\ usy \* **o**\ ffline \*
-**d**\ own
+The node state is denoted with the scheduler-specific abbreviation. For
+PBS this includes \* **j**\ ob-exclusive \* **b**\ usy \* **o**\ ffline
+\* **d**\ own; for Slurm this includes \* **a**\ llocated,
+\* **%**\ mixed, \* **r**\ eserved, \* **c**\ ompleting and
+\* **d**\ own/drain/fail.
 
 The symbol "**-**" is used when the node is free.
 
@@ -378,6 +380,9 @@ Scheduler configuration area
             oarstat_file: %(savepath)s/oarstat%(pid)s.txt, oarstat
           sge:
             sge_file: %(savepath)s/qstat%(pid)s.F.xml.stdout, qstat -F -xml -u '*'
+          slurm:
+            squeue_file: %(savepath)s/squeue%(pid)s.txt, squeue -h -o %%i|%%P|%%u|%%T|%%C|%%R
+            sinfo_file: %(savepath)s/sinfo%(pid)s.txt, sinfo -N -h -o %%N|%%P|%%t|%%c
           demo:
             demo_file: %(savepath)s/demo%(pid)s.txt, echo 'Demo here'
     ---
@@ -431,6 +436,7 @@ installed.
           pbs: pbsnodes
           oar: oarnodes
           sge: qacct
+          slurm: sinfo
           demo: echo
     ---
 
@@ -476,6 +482,25 @@ State abbreviations
             S: cancelled_of_user
           sge:
              etc etc
+          slurm:
+            R: running_of_user
+            PD: queued_of_user
+            CA: cancelled_of_user
+            CD: finished_of_user
+            CG: exiting_of_user
+            CF: configuring_of_user
+            F: failed_of_user
+            NF: failed_node_of_user
+            TO: timeout_of_user
+            PR: preempted_of_user
+            S: suspended_of_user
+            ST: stopped_of_user
+            BF: boot_failed_of_user
+            SE: special_exit_of_user
+            SO: staging_out_of_user
+            SI: signaling_of_user
+            RV: revoked_of_user
+            RH: requeue_hold_of_user
 
     ---
 

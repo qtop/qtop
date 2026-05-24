@@ -43,7 +43,7 @@ def repeated_core_map(*job_counts):
 
 
 @pytest.mark.parametrize(
-    "sample_name, expected_jobs, expected_queues, expected_nodes",
+    "sample_name, expected_jobs, expected_queues, expected_nodes, expected_cluster_cores",
     (
         (
             "basic",
@@ -54,18 +54,23 @@ def repeated_core_map(*job_counts):
                 "node002": ("a", ["compute"], repeated_core_map(("1002", 6))),
                 "node003": ("-", ["debug"], {}),
                 "node004": ("d", ["debug"], {}),
+                "node008": ("a", ["compute"], {}),
             },
+            320,
         ),
         (
             "multi_partition",
             (["2001", "2002", "2003", "2004"], ["dana", "erin", "frank", "grace"], ["R", "CG", "PD", "R"], ["gpu", "long", "gpu", "interactive"]),
             (3, 1, {"gpu": ("1", "1"), "long": ("1", "0"), "interactive": ("1", "0")}),
             {
-                "gpu01": ("%", ["gpu", "long"], 80),
+                "gpu01": ("%", ["gpu", "long"], 64),
                 "gpu02": ("-", ["gpu"], 0),
                 "gpu03": ("d", ["gpu"], 0),
+                "gpu05": ("a", ["gpu"], 0),
+                "gpu06": ("%", ["gpu"], 0),
                 "login01": ("a", ["interactive"], 2),
             },
+            392,
         ),
         (
             "edge_cases",
@@ -75,13 +80,15 @@ def repeated_core_map(*job_counts):
                 "compute001": ("a", ["batch"], 12),
                 "compute002": ("%", ["batch"], 12),
                 "compute003": ("%", ["batch"], 12),
+                "compute005": ("d", ["batch"], 0),
                 "compute007": ("%", ["batch"], 12),
                 "shared01": ("r", ["debug"], 2),
             },
+            328,
         ),
     ),
 )
-def test_slurm_command_traces_cover_qtop_contract(sample_name, expected_jobs, expected_queues, expected_nodes):
+def test_slurm_command_traces_cover_qtop_contract(sample_name, expected_jobs, expected_queues, expected_nodes, expected_cluster_cores):
     slurm = build_slurm(sample_name)
 
     assert slurm.get_jobs_info() == expected_jobs
@@ -92,7 +99,9 @@ def test_slurm_command_traces_cover_qtop_contract(sample_name, expected_jobs, ex
     assert queue_counts == expected_queues[2]
 
     worker_nodes = dict((node["domainname"], node) for node in slurm.get_worker_nodes(expected_jobs[0], expected_jobs[3], Options()))
-    assert set(worker_nodes) == set(expected_nodes)
+    assert sum(int(node["np"]) for node in worker_nodes.values()) == expected_cluster_cores
+    assert expected_cluster_cores > 256
+    assert set(expected_nodes).issubset(set(worker_nodes))
     for node_name, expected in expected_nodes.items():
         expected_state, expected_qnames, expected_core_map = expected
         assert worker_nodes[node_name]["state"] == expected_state

@@ -2,5 +2,11 @@
 compute001|batch*|allocated|32
 compute002|batch*|mixed|32
 compute003|batch*|mixed|32
+compute004|batch*|idle|32
+compute005|batch*|down|32
+compute006|batch*|idle|32
 compute007|batch*|mixed|32
+compute008|batch*|idle|32
+compute009|batch*|idle|32
+compute010|batch*|idle|32
 shared01|debug|reserved|8
