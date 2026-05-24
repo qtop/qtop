@@ -4,9 +4,10 @@ tests/plugins/test_slurm.py
 Conformance tests for the Slurm qtop plugin (3 synthetic test cases).
 """
 import os
+
 import pytest
 
-from qtop_py.plugins.slurm import SlurmStatExtractor, SlurmBatchSystem
+from qtop_py.plugins.slurm import SlurmBatchSystem
 
 FIXTURES_DIR = os.path.join(os.path.dirname(__file__), "..", "slurm_fixtures")
 

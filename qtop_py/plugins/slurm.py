@@ -9,8 +9,9 @@
 
 import logging
 import re
-from qtop_py.serialiser import StatExtractor, GenericBatchSystem
+
 import qtop_py.fileutils as fileutils
+from qtop_py.serialiser import GenericBatchSystem, StatExtractor
 
 
 class SlurmStatExtractor(StatExtractor):
