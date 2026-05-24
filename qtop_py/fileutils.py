@@ -1,11 +1,11 @@
+import datetime
+import errno
+import glob
 import logging
 import os
-import errno
-import tempfile
-import tarfile
 import sys
-import glob
-import datetime
+import tarfile
+import tempfile
 
 
 def mkdir_p(path):
@@ -122,9 +122,12 @@ def deprecate_old_output_files(config):
         if (not f.endswith(("json", ".out"))) or f.endswith("rec.out"):
             continue
         curpath = os.path.join(_savepath, f)
-        file_modified = datetime.datetime.fromtimestamp(os.path.getmtime(curpath))
-        if datetime.datetime.now() - file_modified > time_alive:
-            os.remove(curpath)
+        try:
+            file_modified = datetime.datetime.fromtimestamp(os.path.getmtime(curpath))
+            if datetime.datetime.now() - file_modified > time_alive:
+                os.remove(curpath)
+        except OSError as e:
+            logging.debug("Failed to clean up old output file %s: %s" % (curpath, e))
 
 
 def get_timedelta(extra_kw_args):
