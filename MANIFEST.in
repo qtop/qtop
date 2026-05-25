@@ -34,6 +34,7 @@ include qtop_py/plugins/__init__.py
 include qtop_py/plugins/oar.py
 include qtop_py/plugins/pbs.py
 include qtop_py/plugins/sge.py
+include qtop_py/plugins/slurm.py
 include qtop_py/serialiser.py
 include qtop_py/ui/__init__.py
 include qtop_py/ui/viewport.py
