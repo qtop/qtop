@@ -57,7 +57,7 @@ invoking it in demo mode:
     ./qtop.py -b demo
 
 When used, the ``-b`` switch must always be followed by one of the
-supported batch systems (as of version 0.8.9, pbs, sge, oar, demo).
+supported batch systems (as of version 0.8.9, pbs, sge, oar, slurm, demo).
 
 That should create and destroy fictional jobs in fictional machines from
 fictional users, and display all that in a colorful, yet much unhelpful
@@ -84,7 +84,7 @@ Demo case study
 ---------------
 
 Use demo mode when you want to learn qtop's display without access to a
-live PBS, SGE, or OAR cluster. The demo backend generates fictional
+live PBS, SGE, OAR, or Slurm cluster. The demo backend generates fictional
 worker nodes, jobs, queues, and users, so it is useful for checking the
 layout and keyboard workflow before pointing qtop at production
 scheduler data.
@@ -439,6 +439,9 @@ Scheduler configuration area
             oarstat_file: %(savepath)s/oarstat%(pid)s.txt, oarstat
           sge:
             sge_file: %(savepath)s/qstat%(pid)s.F.xml.stdout, qstat -F -xml -u '*'
+          slurm:
+            slurm_nodes_file: %(savepath)s/slurm_nodes%(pid)s.txt, scontrol show nodes -o
+            slurm_jobs_file: %(savepath)s/slurm_jobs%(pid)s.txt, squeue -h -o %i|%u|%t|%P|%N
           demo:
             demo_file: %(savepath)s/demo%(pid)s.txt, echo 'Demo here'
     ---
@@ -492,6 +495,7 @@ installed.
           pbs: pbsnodes
           oar: oarnodes
           sge: qacct
+          slurm: sinfo
           demo: echo
     ---
 
@@ -606,7 +610,7 @@ Input selection
 ~~~~~~~~~~~~~~~
 
 -  ``-b SYSTEM`` selects the scheduler backend. Common values are
-   ``demo``, ``pbs``, ``sge``, and ``oar``.
+   ``demo``, ``pbs``, ``sge``, ``oar``, and ``slurm``.
 -  ``-s DIRECTORY`` reads scheduler output files from ``DIRECTORY``
    instead of running scheduler commands live.
 -  ``-f FILE`` uses a custom qtop configuration file.
@@ -658,7 +662,7 @@ Usage tips
 
 -  Start with ``./qtop -b demo`` when testing terminal size, color, or
    keyboard navigation. It avoids accidental scheduler calls.
--  On a live cluster, pass ``-b pbs``, ``-b sge``, or ``-b oar`` when
+-  On a live cluster, pass ``-b pbs``, ``-b sge``, ``-b oar``, or ``-b slurm`` when
    auto-detection is not enough.
 -  Use ``-s`` when another process has already collected scheduler
    output files. This is helpful for debugging and for reproducing an

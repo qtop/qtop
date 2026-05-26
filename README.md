@@ -12,7 +12,7 @@ Georgatos
 ![Example](https://raw.githubusercontent.com/qtop/qtop/master/qtop_py/contrib/qtop_demo.gif)
 
 qtop.py is the python rewrite of qtop, a tool to monitor Torque, PBS,
-OAR or SGE clusters, etc. This release provides for the *instant replay*
+OAR, SGE, or Slurm clusters, etc. This release provides for the *instant replay*
 feature, which is handy for debugging scheduling mishaps as they occur.
 qtop is and will remain a work-in-progress project; it is intended to be
 built upon and extended - please come along ;)
@@ -46,7 +46,7 @@ To run a demo, just run
 
 Otherwise, for daily usage you can run
 
-    ./qtop -b sge -FGw ## replace sge with pbs or oar, depending on your setup (this is often picked up automagically) 
+    ./qtop -b sge -FGw ## replace sge with pbs, oar, or slurm, depending on your setup (this is often picked up automagically) 
 
 Try `--help` for all available options.
 
