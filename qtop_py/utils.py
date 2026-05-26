@@ -12,7 +12,7 @@ import logging
 import sys
 from argparse import ArgumentParser
 from qtop_py import fileutils
-from qtop_py.colormap import *
+from qtop_py.colormap import *  # noqa: F403  ## FIXME: this is a code-smell, because it can be tightened
 from qtop_py.constants import QTOP_LOGFILE
 
 

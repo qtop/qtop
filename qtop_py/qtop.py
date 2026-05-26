@@ -38,7 +38,7 @@ from ast import literal_eval
 from qtop_py.constants import SYSTEMCONFDIR, QTOPCONF_YAML, QTOP_LOGFILE, USERPATH, MAX_UNIX_ACCOUNTS, KEYPRESS_TIMEOUT, FALLBACK_TERMSIZE
 from qtop_py import fileutils
 from qtop_py import utils
-from qtop_py.plugins import *
+from qtop_py.plugins import *  # noqa: F403  ## FIXME: this is a code-smell, because it can be tightened
 from math import ceil
 from qtop_py.colormap import user_to_color_default, color_to_code, queue_to_color, nodestate_to_color_default
 import qtop_py.yaml_parser as yaml
