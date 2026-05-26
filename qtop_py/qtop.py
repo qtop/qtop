@@ -16,8 +16,6 @@
 
 import sys
 
-here = sys.path[0]
-
 from operator import itemgetter
 from itertools import zip_longest, cycle, chain
 import subprocess
@@ -47,6 +45,8 @@ from qtop_py.serialiser import GenericBatchSystem
 from qtop_py.web import Web
 from qtop_py import __version__
 import time
+
+here = sys.path[0]
 
 
 # TODO make the following work with py files instead of qtop.colormap files
