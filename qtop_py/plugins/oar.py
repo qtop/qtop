@@ -1,7 +1,7 @@
 from qtop_py.serialiser import StatExtractor, GenericBatchSystem
 import logging
 import os
-import re
+##import re
 import qtop_py.yaml_parser as yaml
 from qtop_py.utils import CountCalls
 from collections import OrderedDict

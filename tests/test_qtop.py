@@ -11,7 +11,6 @@
 import pytest
 import re
 import datetime
-import sys
 from qtop_py.qtop import WNOccupancy, decide_batch_system, load_yaml_config, JobNotFound, SchedulerNotSpecified, NoSchedulerFound, get_date_obj_from_str
 
 

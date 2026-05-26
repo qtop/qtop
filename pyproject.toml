@@ -41,12 +41,9 @@ target-version = "py37" ##
 ## FG customisations
 line-length = 188 # this is temporary to reduce noise over line lengths
 
-[tool.ruff.per-file-ignores]
-"qtop_py/plugins/oar.py" = ["F401"]
-"qtop_py/plugins/sge.py" = ["F401", "F841"]
-"qtop_py/qtop.py" = ["E402", "F401", "F403", "F405", "F841"]
-"qtop_py/serialiser.py" = ["F401"]
+[tool.ruff.lint.per-file-ignores]
+"qtop_py/plugins/sge.py" = ["F841"]
+"qtop_py/qtop.py" = ["E402", "F403", "F405", "F841"]
 "qtop_py/utils.py" = ["F403"]
-"tests/test_qtop.py" = ["F401", "F841"]
-"tests/test_yaml_parser.py" = ["F401"]
+"tests/test_qtop.py" = ["F841"]
 "tests/ui/test_viewport.py" = ["F811"]

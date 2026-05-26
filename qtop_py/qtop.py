@@ -35,7 +35,7 @@ import glob
 import tempfile
 import logging
 from ast import literal_eval
-from qtop_py.constants import SYSTEMCONFDIR, QTOPCONF_YAML, QTOP_LOGFILE, USERPATH, MAX_CORE_ALLOWED, MAX_UNIX_ACCOUNTS, KEYPRESS_TIMEOUT, FALLBACK_TERMSIZE
+from qtop_py.constants import SYSTEMCONFDIR, QTOPCONF_YAML, QTOP_LOGFILE, USERPATH, MAX_UNIX_ACCOUNTS, KEYPRESS_TIMEOUT, FALLBACK_TERMSIZE
 from qtop_py import fileutils
 from qtop_py import utils
 from qtop_py.plugins import *
@@ -790,7 +790,7 @@ def attempt_faster_xml_parsing(config):
             from lxml import etree
         except ImportError:
             logging.warn('Module lxml is missing. Try issuing "pip install lxml". Reverting to xml module.')
-            from xml.etree import ElementTree as etree
+            from xml.etree import ElementTree as etree  # noqa: F401
 
 
 def init_dirs(args, _savepath):
