@@ -33,7 +33,7 @@ packages = ["qtop_py"]
 [tool.ruff]
 # Enable pycodestyle (`E`) and Pyflakes (`F`) codes by default.
 lint.select = ["E", "F", "I"] ##
-lint.ignore = ["E722", "I001"]
+lint.ignore = ["I001"]
 
 # Ruff v0.0.292 cannot target Python 3.6; use its lowest supported target.
 target-version = "py37" ## FIXME, pin the ruff that is known to be compatible on rhel6 w. python3.6 and adjust

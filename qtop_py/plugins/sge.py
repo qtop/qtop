@@ -24,7 +24,7 @@ class SGEStatExtractor(StatExtractor):
                 raise
             except IOError:
                 raise
-            except:
+            except:  # noqa: E722  ## FIXME, ruff complaint
                 logging.debug("XML file state %s" % fin)
                 logging.debug("thinking...")
                 sys.exit(1)
