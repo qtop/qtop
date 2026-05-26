@@ -36,13 +36,11 @@ lint.select = ["E", "F", "I"] ##
 lint.ignore = ["E722", "I001"]
 
 # Ruff v0.0.292 cannot target Python 3.6; use its lowest supported target.
-target-version = "py37" ##
+target-version = "py37" ## FIXME, pin the ruff that is known to be compatible on rhel6 w. python3.6 and adjust
 
 ## FG customisations
-line-length = 188 # this is temporary to reduce noise over line lengths
+line-length = 188 # this is temporary measure,to reduce noise over line lengths
 
 [tool.ruff.lint.per-file-ignores]
-"qtop_py/plugins/sge.py" = ["F841"]
-"qtop_py/qtop.py" = ["E402", "F405", "F841"]
-"tests/test_qtop.py" = ["F841"]
+"qtop_py/qtop.py" = ["E402", "F405"]
 "tests/ui/test_viewport.py" = ["F811"]
