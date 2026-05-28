@@ -28,12 +28,22 @@ import json
 import datetime
 from collections import namedtuple, OrderedDict, Counter
 from os.path import realpath
-from signal import signal, SIGPIPE, SIG_DFL
-import termios
+from signal import signal, SIG_DFL
+
+try:
+    from signal import SIGPIPE
+except ImportError:
+    SIGPIPE = None
+
+try:
+    import termios
+except ImportError:
+    termios = None
 import contextlib
 import glob
 import tempfile
 import logging
+import shutil
 from qtop_py.constants import SYSTEMCONFDIR, QTOPCONF_YAML, QTOP_LOGFILE, USERPATH, MAX_CORE_ALLOWED, MAX_UNIX_ACCOUNTS, KEYPRESS_TIMEOUT, FALLBACK_TERMSIZE
 from qtop_py import fileutils
 from qtop_py import utils
@@ -224,7 +234,12 @@ def load_yaml_config():
     _savepath = os.path.realpath(os.path.expandvars(config["savepath"]))
 
     if not os.path.exists(_savepath):
-        fileutils.mkdir_p(_savepath)
+        try:
+            fileutils.mkdir_p(_savepath)
+        except OSError:
+            username = os.environ.get("USER") or os.environ.get("USERNAME") or "user"
+            _savepath = os.path.join(tempfile.gettempdir(), "qtop_results_%s" % username)
+            fileutils.mkdir_p(_savepath)
         logging.debug("Directory %s created." % _savepath)
     else:
         logging.debug("%s files will be saved in directory %s." % (config["scheduler"], _savepath))
@@ -245,16 +260,19 @@ def calculate_term_size(config, FALLBACK_TERM_SIZE):
     """
     fallback_term_size = config.get("term_size", FALLBACK_TERM_SIZE)
 
-    _command = subprocess.Popen(["/bin/stty", "size"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    tty_size, error = _command.communicate()
+    try:
+        _command = subprocess.Popen(["/bin/stty", "size"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        tty_size, error = _command.communicate()
+    except OSError:
+        tty_size, error = b"", b"stty unavailable"
     if not error:
         term_height, term_columns = [int(x) for x in tty_size.strip().split()]
         logging.debug('terminal size v, h from "stty size": %s, %s' % (term_height, term_columns))
     else:
         logging.warn("Failed to autodetect terminal size. (Running in an IDE?in a pipe?) Trying values in %s." % QTOPCONF_YAML)
         try:
-            term_height, term_columns = viewport.get_term_size()
-            if not all(term_height, term_columns):
+            term_columns, term_height = shutil.get_terminal_size(fallback=(fallback_term_size[1], fallback_term_size[0]))
+            if not all((term_height, term_columns)):
                 raise ValueError
         except ValueError:
             try:
@@ -1673,7 +1691,8 @@ class TextDisplay(object):
         return joined_list
 
     def print_core_lines(self, core_user_map, print_char_start, print_char_stop, transposed_matrices, userid_to_userid_re_pat, mapping, attrs, options1, options2):
-        signal(SIGPIPE, SIG_DFL)
+        if SIGPIPE is not None:
+            signal(SIGPIPE, SIG_DFL)
         remove_corelines = dynamic_config.get("rem_empty_corelines", config["rem_empty_corelines"]) + 1
 
         # if corelines vertical (transposed matrix)
@@ -1696,7 +1715,8 @@ class TextDisplay(object):
                     print(core_line_zipped)
                 except IOError:
                     try:
-                        signal(SIGPIPE, SIG_DFL)
+                        if SIGPIPE is not None:
+                            signal(SIGPIPE, SIG_DFL)
                         print(core_line_zipped)
                         sys.stdout.close()
                     except IOError:
@@ -2300,7 +2320,7 @@ def main():
     if args.ANONYMIZE and not args.EXPERIMENTAL:
         print("Anonymize should be ran with --experimental switch!! Exiting...")
         sys.exit(1)
-    if args.WATCH or args.REPLAY:  # this is needed for the filtering/sorting options
+    if termios is not None and (args.WATCH or args.REPLAY):  # this is needed for the filtering/sorting options
         try:
             old_attrs = termios.tcgetattr(0)
         except termios.error:
@@ -2410,8 +2430,8 @@ def main():
                 if args.ONLYSAVETOFILE:  # no display of qtop output, will exit
                     break
                 elif not args.WATCH:  # one-off display of qtop output, will exit afterwards (no --watch cmdline switch)
-                    cat_command = ["/bin/cat", output_fp]  # not clearing the screen beforehand is the intended behaviour here
-                    _ = subprocess.call(cat_command, stdout=stdout, stderr=stdout)
+                    with open(output_fp, "r") as output_file:
+                        stdout.write(output_file.read())
                     break
                 else:  # --watch
                     if args.REPLAY:
