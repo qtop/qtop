@@ -10,6 +10,7 @@
 
 from qtop_py.plugins import pbs
 import pytest
+from types import SimpleNamespace
 
 
 @pytest.mark.parametrize('core_selections, result',
@@ -38,3 +39,28 @@ def test_get_jobs_cores(jobs, result):
     result = iter(result)
     for job, core in pbs.PBSBatchSystem._get_jobs_cores(jobs):
         assert (job, core) == next(result)
+
+
+def test_get_worker_nodes_accepts_string_gpu_counts(tmp_path):
+    pbsnodes_file = tmp_path / "pbsnodes_a.txt"
+    pbsnodes_file.write_text(
+        "node001.example.org\n"
+        "     state = free\n"
+        "     np = 8\n"
+        "     gpus = 0\n"
+        "\n"
+    )
+    options = SimpleNamespace(ANONYMIZE=False)
+    batch_system = pbs.PBSBatchSystem({"pbsnodes_file": str(pbsnodes_file)}, {}, options)
+
+    worker_nodes = batch_system.get_worker_nodes([], [], options)
+
+    assert worker_nodes == [
+        {
+            "domainname": "node001.example.org",
+            "state": "-",
+            "np": "8",
+            "core_job_map": {},
+            "qname": [],
+        }
+    ]
