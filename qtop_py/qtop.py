@@ -769,7 +769,7 @@ def get_output_size(max_line_len, output_fp, max_height=0):
 
 
 def update_config_with_cmdline_vars(args, config):
-    config["rem_empty_corelines"] = int(config["rem_empty_corelines"])
+    config["rem_empty_corelines"] = int(config.get("rem_empty_corelines", 0))
     for opt in args.OPTION:
         key, val = get_key_val_from_option_string(opt)
         val = eval(val) if ("True" in val or "False" in val) else val
@@ -795,6 +795,8 @@ def attempt_faster_xml_parsing(config):
 
 def init_dirs(args, _savepath):
     args.SOURCEDIR = realpath(args.SOURCEDIR) if args.SOURCEDIR else None
+    if args.SOURCEDIR and os.path.isfile(args.SOURCEDIR):
+        args.SOURCEDIR = os.path.dirname(args.SOURCEDIR)
     logging.debug("User-defined source directory: %s" % args.SOURCEDIR)
     args.workdir = args.SOURCEDIR or _savepath
     logging.debug("Working directory is now: %s" % args.workdir)

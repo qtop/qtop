@@ -61,6 +61,28 @@ def test_load_yaml_config_does_not_execute_config_values(monkeypatch, tmp_path):
     assert not sentinel.exists()
 
 
+def test_update_config_defaults_missing_rem_empty_corelines():
+    from qtop_py.qtop import update_config_with_cmdline_vars
+
+    class Args(object):
+        OPTION = []
+        TRANSPOSE = False
+        REM_EMPTY_CORELINES = 0
+
+    assert update_config_with_cmdline_vars(Args(), {})["rem_empty_corelines"] == 0
+
+
+def test_update_config_applies_rem_empty_corelines_increment_with_default():
+    from qtop_py.qtop import update_config_with_cmdline_vars
+
+    class Args(object):
+        OPTION = []
+        TRANSPOSE = False
+        REM_EMPTY_CORELINES = 2
+
+    assert update_config_with_cmdline_vars(Args(), {})["rem_empty_corelines"] == 2
+
+
 @pytest.mark.parametrize(
     "domain_name, match",
     (
@@ -236,3 +258,25 @@ def test_get_date_obj_from_str(s, now, day_meant):
     at 22:10 at night, the user inputs again 21:00 (the same day is implied)
     """
     assert get_date_obj_from_str(s, now).day == day_meant
+
+
+def test_init_dirs_accepts_source_file_path(tmp_path, monkeypatch):
+    import os
+    from qtop_py.qtop import init_dirs
+
+    source_file = tmp_path / "qstat.F.xml.stdout"
+    source_file.write_text("<job_info />")
+    savepath = tmp_path / "save"
+    savepath.mkdir()
+
+    class Args(object):
+        SOURCEDIR = str(source_file)
+
+    chdir_calls = []
+    monkeypatch.setattr(os, "chdir", chdir_calls.append)
+
+    args = init_dirs(Args(), str(savepath))
+
+    assert args.SOURCEDIR == str(tmp_path)
+    assert args.workdir == str(tmp_path)
+    assert chdir_calls == [str(tmp_path)]
