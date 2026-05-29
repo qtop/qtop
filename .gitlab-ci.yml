@@ -1,0 +1,21 @@
+stages:
+  - test
+  - build
+
+test:
+  stage: test
+  image: python:3.10
+  script:
+    - pip install pytest ruff
+    - make lint
+    - make test
+
+build:
+  stage: build
+  image: python:3.10
+  script:
+    - pip install build twine
+    - make dist
+  artifacts:
+    paths:
+      - dist/
