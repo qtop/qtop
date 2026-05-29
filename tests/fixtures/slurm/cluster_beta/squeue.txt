@@ -1,0 +1,6 @@
+2001|frank|RUNNING|batch|beta[01-02]|80
+2002|grace|RUNNING|batch|beta03|20
+2003|heidi|RUNNING|gpu|beta04|20
+2004|ivan|RUNNING|gpu|beta05|10
+2005|judy|RUNNING|service|beta06|10
+2006|mallory|PENDING|batch|(null)|40

@@ -1,0 +1,3 @@
+debug*|mixed|2|64/64/0/128
+compute|mixed|2|32/96/0/128
+long|idle|4|8/248/0/256

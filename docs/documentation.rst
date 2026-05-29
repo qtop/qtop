@@ -55,7 +55,7 @@ invoking it in demo mode:
     ./qtop.py -b demo
 
 When used, the ``-b`` switch must always be followed by one of the
-supported batch systems (as of version 0.8.9, pbs, sge, oar, demo).
+supported batch systems (pbs, sge, oar, slurm, demo).
 
 That should create and destroy fictional jobs in fictional machines from
 fictional users, and display all that in a colorful, yet much unhelpful
@@ -153,9 +153,9 @@ Node state
 
    Node state
 
-The node state is denoted with the first letter of the following, fi.
-for PBS: \* **j**\ ob-exclusive \* **b**\ usy \* **o**\ ffline \*
-**d**\ own
+The node state is denoted with compact scheduler-specific state
+characters; for PBS and SLURM, qtop maps common states such as busy,
+allocated, mixed, offline and down to short display symbols.
 
 The symbol "**-**" is used when the node is free.
 
@@ -378,6 +378,10 @@ Scheduler configuration area
             oarstat_file: %(savepath)s/oarstat%(pid)s.txt, oarstat
           sge:
             sge_file: %(savepath)s/qstat%(pid)s.F.xml.stdout, qstat -F -xml -u '*'
+          slurm:
+            scontrol_file: %(savepath)s/scontrol_show_nodes%(pid)s.txt, scontrol show nodes -o
+            squeue_file: %(savepath)s/squeue%(pid)s.txt, squeue -h -o %%i|%%u|%%T|%%P|%%N|%%C
+            sinfo_file: %(savepath)s/sinfo%(pid)s.txt, sinfo -h -o %%P|%%T|%%D|%%C
           demo:
             demo_file: %(savepath)s/demo%(pid)s.txt, echo 'Demo here'
     ---
@@ -417,6 +421,9 @@ qtop will search for ``oarnodes_s_Y.txt``, ``oarnodes_Y.txt`` and
 ``oarstat.txt`` in ``<path-to-cluster-information>`` (retrieved by you,
 earlier).
 
+For SLURM replay runs, qtop expects ``scontrol_show_nodes.txt``,
+``squeue.txt`` and ``sinfo.txt`` in ``<path-to-cluster-information>``.
+
 qtop also has a scheduler-type discovery system, meaning it will try to
 guess which scheduler system is installed in your system. The keys below
 let the user decide which command it should be that uniquely
@@ -431,6 +438,7 @@ installed.
           pbs: pbsnodes
           oar: oarnodes
           sge: qacct
+          slurm: scontrol
           demo: echo
     ---
 
@@ -475,6 +483,8 @@ State abbreviations
             T: exiting_of_user
             S: cancelled_of_user
           sge:
+             etc etc
+          slurm:
              etc etc
 
     ---

@@ -1,0 +1,5 @@
+1001|alice|RUNNING|debug|alpha[001-002]|64
+1002|bob|RUNNING|compute|alpha[003-004]|32
+1003|carol|RUNNING|compute|alpha005|8
+1004|dave|RUNNING|long|alpha006|8
+1005|erin|PENDING|long|(null)|128

@@ -1,0 +1,5 @@
+3001|nina|RUNNING|short|gamma[001-002]|96
+3002|oliver|RUNNING|short|gamma003|24
+3003|peggy|RUNNING|research|gamma004|16
+3004|trent|RUNNING|research|gamma004|8
+3005|victor|PENDING|research|(null)|96

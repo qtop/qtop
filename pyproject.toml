@@ -13,7 +13,7 @@ authors = [
     { name="Sotiris Fragkiskos", email="sfranky@gmail.com"},
     { name="Fotis Georgatos", email="kefalonia@gmail.com"},
 ]
-requires-python = ">=3"
+requires-python = ">=3.6"
 
 [project.urls]
 "Homepage" = "https://github.com/qtop/qtop"
@@ -25,15 +25,15 @@ qtop = "qtop_py.qtop:main"
 version = {attr = "qtop_py.__version__"}
 
 [tool.setuptools]
-packages = ["qtop_py"]
+packages = ["qtop_py", "qtop_py.plugins", "qtop_py.ui"]
 
 [tool.ruff]
 # Enable pycodestyle (`E`) and Pyflakes (`F`) codes by default.
 lint.select = ["E", "F", "I"] ##
 lint.ignore = ["E722"]
 
-# Assuming you're developing for Python 3.10
-target-version = "py310" ##
+# Ruff 0.15 no longer accepts py36; code remains Python 3.6-compatible.
+target-version = "py37" ##
 
 ## FG customisations
 line-length = 188 # this is temporary to reduce noise over line lengths
