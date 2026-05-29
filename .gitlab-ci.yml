@@ -1,0 +1,16 @@
+stages:
+  - test
+
+ci:
+  image: python:3.10
+  stage: test
+  before_script:
+    - python -m pip install --upgrade pip
+    - python -m pip install pytest
+  script:
+    - make ci
+  artifacts:
+    when: always
+    paths:
+      - artifacts/sample-gate/
+

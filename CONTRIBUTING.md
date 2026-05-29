@@ -10,6 +10,23 @@ You may contribute in the following ways:
 * Help with outreach and onboard new contributors
 * Write and/or lead collaborations proposals, including grants or help with other fundraising or community efforts
 
+## Validation
+
+Before opening a pull request, run the shared validation target:
+
+```sh
+make ci
+```
+
+This runs the unit tests, validates the committed PBS/OAR/SGE scheduler samples
+against their reference output, and checks the diff for review hazards such as
+new `eval()` usage, control/bidi characters, or generated-looking binary paths.
+
+The sample gate uses the files in `qtop_py/contrib` as its source of truth. It
+normalizes run-specific lines such as the working directory and log path, then
+fails if any selected scheduler output differs from the committed reference.
+Captured stdout, stderr, and diffs are written under `artifacts/sample-gate/`.
+
 [1] https://wiki.linuxfoundation.org/dco
 
 [2] https://developercertificate.org/

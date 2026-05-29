@@ -28,11 +28,19 @@ import json
 import datetime
 from collections import namedtuple, OrderedDict, Counter
 from os.path import realpath
-from signal import signal, SIGPIPE, SIG_DFL
-import termios
+from signal import signal, SIG_DFL
+try:
+    from signal import SIGPIPE
+except ImportError:
+    SIGPIPE = None
+try:
+    import termios
+except ImportError:
+    termios = None
 import contextlib
 import glob
 import tempfile
+import shutil
 import logging
 from qtop_py.constants import SYSTEMCONFDIR, QTOPCONF_YAML, QTOP_LOGFILE, USERPATH, MAX_CORE_ALLOWED, MAX_UNIX_ACCOUNTS, KEYPRESS_TIMEOUT, FALLBACK_TERMSIZE
 from qtop_py import fileutils
@@ -46,6 +54,11 @@ from qtop_py.serialiser import GenericBatchSystem
 from qtop_py.web import Web
 from qtop_py import __version__
 import time
+
+
+def restore_default_sigpipe():
+    if SIGPIPE is not None:
+        signal(SIGPIPE, SIG_DFL)
 
 
 # TODO make the following work with py files instead of qtop.colormap files
@@ -129,7 +142,7 @@ def raw_mode(file):
     if args.ONLYSAVETOFILE:
         yield
     else:
-        if args.WATCH:
+        if args.WATCH and termios is not None:
             try:
                 old_attrs = termios.tcgetattr(file.fileno())
             except:
@@ -245,8 +258,12 @@ def calculate_term_size(config, FALLBACK_TERM_SIZE):
     """
     fallback_term_size = config.get("term_size", FALLBACK_TERM_SIZE)
 
-    _command = subprocess.Popen(["/bin/stty", "size"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    tty_size, error = _command.communicate()
+    stty = shutil.which("stty")
+    if stty:
+        _command = subprocess.Popen([stty, "size"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        tty_size, error = _command.communicate()
+    else:
+        tty_size, error = b"", b"stty not available"
     if not error:
         term_height, term_columns = [int(x) for x in tty_size.strip().split()]
         logging.debug('terminal size v, h from "stty size": %s, %s' % (term_height, term_columns))
@@ -297,8 +314,7 @@ def auto_get_avail_batch_system(config):
     """
     # TODO pbsnodes etc should not be hardcoded!
     for system, batch_command in config["signature_commands"].items():
-        NOT_FOUND = subprocess.call(["/usr/bin/which", batch_command], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        if not NOT_FOUND:
+        if shutil.which(batch_command):
             if system != "demo":
                 logging.debug("Auto-detected scheduler: %s" % system)
                 return system
@@ -351,6 +367,7 @@ def get_detail_of_name(account_jobs_table):
     field_idx = int(extract_info.get("field_to_use", 5))
     regex = extract_info.get("regex", None)
 
+    cache_output = None
     if args.GET_GECOS:
         users = " ".join([line[4] for line in account_jobs_table])
         passwd_command = extract_info.get("user_details_realtime") % users
@@ -358,20 +375,29 @@ def get_detail_of_name(account_jobs_table):
     else:
         passwd_command = extract_info.get("user_details_cache").split()
         passwd_command[-1] = os.path.expandvars(passwd_command[-1])
+        if passwd_command[0] == "cat" and not shutil.which("cat"):
+            try:
+                with open(passwd_command[-1], encoding="utf-8") as f:
+                    cache_output = f.read()
+            except OSError:
+                cache_output = ""
 
-    try:
-        p = subprocess.Popen(passwd_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding="utf-8")
-    except OSError:
-        logging.critical(
-            '\nCommand "%s" could not be found in your system. \nEither remove -G switch or modify the command in '
-            "qtopconf.yaml (value of key: %s).\nExiting..." % (colorize(passwd_command[0], color_func="Red_L"), "user_details_realtime")
-        )
-        sys.exit(0)
+    if cache_output is None:
+        try:
+            p = subprocess.Popen(passwd_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding="utf-8")
+        except OSError:
+            logging.critical(
+                '\nCommand "%s" could not be found in your system. \nEither remove -G switch or modify the command in '
+                "qtopconf.yaml (value of key: %s).\nExiting..." % (colorize(passwd_command[0], color_func="Red_L"), "user_details_realtime")
+            )
+            sys.exit(0)
+        else:
+            output, err = p.communicate("something here")
     else:
-        output, err = p.communicate("something here")
-        if "No such file or directory" in err:
-            logging.warning("You have to set a proper command to get the passwd file in your %s file." % QTOPCONF_YAML)
-            logging.warning("Error returned by getent: %s\nCommand issued: %s" % (err, passwd_command))
+        output, err = cache_output, ""
+    if "No such file or directory" in err:
+        logging.warning("You have to set a proper command to get the passwd file in your %s file." % QTOPCONF_YAML)
+        logging.warning("Error returned by getent: %s\nCommand issued: %s" % (err, passwd_command))
 
     detail_of_name = dict()
     for line in output.split("\n"):
@@ -1673,7 +1699,7 @@ class TextDisplay(object):
         return joined_list
 
     def print_core_lines(self, core_user_map, print_char_start, print_char_stop, transposed_matrices, userid_to_userid_re_pat, mapping, attrs, options1, options2):
-        signal(SIGPIPE, SIG_DFL)
+        restore_default_sigpipe()
         remove_corelines = dynamic_config.get("rem_empty_corelines", config["rem_empty_corelines"]) + 1
 
         # if corelines vertical (transposed matrix)
@@ -1696,7 +1722,7 @@ class TextDisplay(object):
                     print(core_line_zipped)
                 except IOError:
                     try:
-                        signal(SIGPIPE, SIG_DFL)
+                        restore_default_sigpipe()
                         print(core_line_zipped)
                         sys.stdout.close()
                     except IOError:
@@ -2302,8 +2328,10 @@ def main():
         sys.exit(1)
     if args.WATCH or args.REPLAY:  # this is needed for the filtering/sorting options
         try:
+            if termios is None:
+                raise OSError
             old_attrs = termios.tcgetattr(0)
-        except termios.error:
+        except (OSError, termios.error if termios is not None else OSError):
             old_attrs = ""
         new_attrs = old_attrs[:]
 
@@ -2410,8 +2438,13 @@ def main():
                 if args.ONLYSAVETOFILE:  # no display of qtop output, will exit
                     break
                 elif not args.WATCH:  # one-off display of qtop output, will exit afterwards (no --watch cmdline switch)
-                    cat_command = ["/bin/cat", output_fp]  # not clearing the screen beforehand is the intended behaviour here
-                    _ = subprocess.call(cat_command, stdout=stdout, stderr=stdout)
+                    cat = shutil.which("cat")
+                    if cat:
+                        cat_command = [cat, output_fp]  # not clearing the screen beforehand is the intended behaviour here
+                        _ = subprocess.call(cat_command, stdout=stdout, stderr=stdout)
+                    else:
+                        with open(output_fp, encoding="utf-8") as f:
+                            stdout.write(f.read())
                     break
                 else:  # --watch
                     if args.REPLAY:
