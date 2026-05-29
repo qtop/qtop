@@ -26,10 +26,36 @@ import os
 import re
 import json
 import datetime
+import shutil
 from collections import namedtuple, OrderedDict, Counter
 from os.path import realpath
-from signal import signal, SIGPIPE, SIG_DFL
-import termios
+from signal import SIG_DFL, signal
+
+try:
+    from signal import SIGPIPE
+except ImportError:
+    SIGPIPE = None
+
+try:
+    import termios
+except ImportError:
+    class _TermiosCompat:
+        class error(Exception):
+            pass
+
+        ECHO = 0
+        ICANON = 0
+        TCSADRAIN = 0
+
+        @staticmethod
+        def tcgetattr(_fileno):
+            raise _TermiosCompat.error("termios is unavailable on this platform")
+
+        @staticmethod
+        def tcsetattr(_fileno, _when, _attributes):
+            return None
+
+    termios = _TermiosCompat()
 import contextlib
 import glob
 import tempfile
@@ -51,6 +77,17 @@ import time
 # TODO make the following work with py files instead of qtop.colormap files
 # if not args.COLORFILE:
 #     args.COLORFILE = os.path.expandvars('$HOME/qtop/qtop/qtop.colormap')
+
+
+def reset_sigpipe():
+    if SIGPIPE is not None:
+        signal(SIGPIPE, SIG_DFL)
+
+
+def print_file(path, stream):
+    with open(path, "r", encoding="utf-8", errors="replace") as handle:
+        stream.write(handle.read())
+        stream.flush()
 
 
 def compress_colored_line(s):
@@ -245,8 +282,11 @@ def calculate_term_size(config, FALLBACK_TERM_SIZE):
     """
     fallback_term_size = config.get("term_size", FALLBACK_TERM_SIZE)
 
-    _command = subprocess.Popen(["/bin/stty", "size"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    tty_size, error = _command.communicate()
+    try:
+        _command = subprocess.Popen(["/bin/stty", "size"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        tty_size, error = _command.communicate()
+    except OSError:
+        tty_size, error = b"", b"stty unavailable"
     if not error:
         term_height, term_columns = [int(x) for x in tty_size.strip().split()]
         logging.debug('terminal size v, h from "stty size": %s, %s' % (term_height, term_columns))
@@ -297,8 +337,7 @@ def auto_get_avail_batch_system(config):
     """
     # TODO pbsnodes etc should not be hardcoded!
     for system, batch_command in config["signature_commands"].items():
-        NOT_FOUND = subprocess.call(["/usr/bin/which", batch_command], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        if not NOT_FOUND:
+        if shutil.which(batch_command):
             if system != "demo":
                 logging.debug("Auto-detected scheduler: %s" % system)
                 return system
@@ -362,11 +401,12 @@ def get_detail_of_name(account_jobs_table):
     try:
         p = subprocess.Popen(passwd_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding="utf-8")
     except OSError:
-        logging.critical(
-            '\nCommand "%s" could not be found in your system. \nEither remove -G switch or modify the command in '
-            "qtopconf.yaml (value of key: %s).\nExiting..." % (colorize(passwd_command[0], color_func="Red_L"), "user_details_realtime")
+        config_key = "user_details_realtime" if args.GET_GECOS else "user_details_cache"
+        logging.warning(
+            '\nCommand "%s" could not be found in your system. User details will be omitted. '
+            "Modify qtopconf.yaml (value of key: %s) to restore this optional output." % (colorize(passwd_command[0], color_func="Red_L"), config_key)
         )
-        sys.exit(0)
+        return dict()
     else:
         output, err = p.communicate("something here")
         if "No such file or directory" in err:
@@ -1673,7 +1713,7 @@ class TextDisplay(object):
         return joined_list
 
     def print_core_lines(self, core_user_map, print_char_start, print_char_stop, transposed_matrices, userid_to_userid_re_pat, mapping, attrs, options1, options2):
-        signal(SIGPIPE, SIG_DFL)
+        reset_sigpipe()
         remove_corelines = dynamic_config.get("rem_empty_corelines", config["rem_empty_corelines"]) + 1
 
         # if corelines vertical (transposed matrix)
@@ -1696,7 +1736,7 @@ class TextDisplay(object):
                     print(core_line_zipped)
                 except IOError:
                     try:
-                        signal(SIGPIPE, SIG_DFL)
+                        reset_sigpipe()
                         print(core_line_zipped)
                         sys.stdout.close()
                     except IOError:
@@ -2410,8 +2450,7 @@ def main():
                 if args.ONLYSAVETOFILE:  # no display of qtop output, will exit
                     break
                 elif not args.WATCH:  # one-off display of qtop output, will exit afterwards (no --watch cmdline switch)
-                    cat_command = ["/bin/cat", output_fp]  # not clearing the screen beforehand is the intended behaviour here
-                    _ = subprocess.call(cat_command, stdout=stdout, stderr=stdout)
+                    print_file(output_fp, stdout)  # not clearing the screen beforehand is the intended behaviour here
                     break
                 else:  # --watch
                     if args.REPLAY:
@@ -2424,9 +2463,9 @@ def main():
                         output_partview_fp = display.show_part_view(timestr, file=dynamic_config.get("output_fp", output_fp), x=viewport.v_start, y=viewport.v_term_size)
                         logging.debug("dynamic_config filename in main loop: %s" % dynamic_config.get("output_fp", output_fp))
                     clear_command = ["/usr/bin/clear"]
-                    cat_command = ["/bin/cat", output_partview_fp]
-                    _ = subprocess.call(clear_command, stdout=stdout, stderr=stdout)
-                    _ = subprocess.call(cat_command, stdout=stdout, stderr=stdout)
+                    if os.path.exists(clear_command[0]):
+                        _ = subprocess.call(clear_command, stdout=stdout, stderr=stdout)
+                    print_file(output_partview_fp, stdout)
 
                     read_char = wait_for_keypress_or_autorefresh(viewport, FALLBACK_TERMSIZE, int(args.WATCH) or KEYPRESS_TIMEOUT)
                     control_qtop(viewport, read_char, cluster, new_attrs)

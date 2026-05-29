@@ -1,0 +1,44 @@
+stages:
+  - test
+  - build
+
+variables:
+  SAMPLE_GATE_SCHEDULERS: "pbs,sge"
+  SAMPLE_GATE_MAX_FAILURES: "0"
+
+python-ci:
+  stage: test
+  image: python:3.12-slim
+  before_script:
+    - apt-get update && apt-get install -y --no-install-recommends git make && rm -rf /var/lib/apt/lists/*
+    - python -m pip install --upgrade pip
+    - python -m pip install pytest coverage build ruff
+  script:
+    - make ci BASE_REF="origin/${CI_MERGE_REQUEST_TARGET_BRANCH_NAME:-main}"
+  artifacts:
+    when: always
+    paths:
+      - artifacts/sample-gate
+
+python36-almalinux8:
+  stage: test
+  image: almalinux:8
+  before_script:
+    - dnf install -y git make python36 python36-pip
+    - python3.6 -m pip install "pytest<7" "coverage<7"
+  script:
+    - make PYTHON=python3.6 test sample-gate
+  artifacts:
+    when: always
+    paths:
+      - artifacts/sample-gate
+
+dist:
+  stage: build
+  image: python:3.12-slim
+  before_script:
+    - apt-get update && apt-get install -y --no-install-recommends make && rm -rf /var/lib/apt/lists/*
+    - python -m pip install --upgrade pip
+    - python -m pip install build
+  script:
+    - make dist

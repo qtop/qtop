@@ -19,3 +19,45 @@ You may contribute in the following ways:
 [4] https://contributing.md/ -> How Do I Submit a Good Bug Report?
 
 [5] https://www.conventionalcommits.org/en/v1.0.0/ or https://www.electronjs.org/docs/latest/development/pull-requests#step-5-commit
+
+## Local checks
+
+Use the Makefile as the shared entry point for local development and CI:
+
+```sh
+make help
+make ci
+```
+
+`make ci` runs the fortification diff check, unit tests with coverage, and the fast scheduler sample gate. GitHub Actions and GitLab CI call the same targets so their behavior does not drift.
+
+## Scheduler sample gate
+
+The default fast sample gate runs the committed PBS and SGE scheduler samples from `qtop_py/contrib`:
+
+```sh
+make sample-gate
+```
+
+The gate renders qtop output through `scripts/sample_gate.py`, removes volatile lines containing paths or log timestamps, records a diff against the checked-in references, and requires the rendered output to contain the expected summary/accounting sections:
+
+- `qtop_py/contrib/pbs_dvv_out.ref`
+- `qtop_py/contrib/sger_dvv_out.ref`
+
+Artifacts are written to `artifacts/sample-gate` as stdout, stderr, and unified diff files. The default policy is `SAMPLE_GATE_MAX_FAILURES=0`, so any command failure or missing required output section fails CI. Reference output drift is recorded for review; make it a hard failure with:
+
+```sh
+python scripts/sample_gate.py --schedulers pbs,sge --strict-reference
+```
+
+Run additional sample coverage with:
+
+```sh
+make sample-gate SAMPLE_GATE_SCHEDULERS=pbs,sge,oar
+```
+
+SLURM is not part of this gate yet because qtop does not currently ship a SLURM scheduler plugin or reference sample.
+
+## Fortification check
+
+`make fortifications` runs `git diff --check`, flags generated or binary-looking changes for manual review, detects control/bidirectional Unicode characters in added lines, and rejects new `eval(` usage. Existing `eval(` calls are tracked as legacy debt; do not add more.

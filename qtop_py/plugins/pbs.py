@@ -257,8 +257,12 @@ class PBSBatchSystem(GenericBatchSystem):
             else:
                 pbs_values["np"] = block.get("resources_available.ncpus", 0)
 
-            if block.get("gpus", 0) > 0:  # this should be rare.
-                pbs_values["gpus"] = block["gpus"]
+            try:
+                gpus = int(block.get("gpus", 0) or 0)
+            except (TypeError, ValueError):
+                gpus = 0
+            if gpus > 0:  # this should be rare.
+                pbs_values["gpus"] = gpus
 
             try:  # this should turn up more often, hence the try/except.
                 _ = block["jobs"]
