@@ -11,7 +11,20 @@
 import pytest
 import re
 import datetime
-from qtop_py.qtop import WNOccupancy, decide_batch_system, load_yaml_config, JobNotFound, SchedulerNotSpecified, NoSchedulerFound, get_date_obj_from_str
+from types import SimpleNamespace
+from qtop_py.qtop import (
+    WNOccupancy,
+    decide_batch_system,
+    extract_user_detail,
+    get_date_obj_from_str,
+    JobNotFound,
+    load_yaml_config,
+    NoSchedulerFound,
+    safe_remap_replacement,
+    SchedulerNotSpecified,
+    update_config_with_cmdline_vars,
+    worker_node_sort_key,
+)
 
 
 @pytest.fixture
@@ -58,6 +71,42 @@ def test_load_yaml_config_does_not_execute_config_values(monkeypatch, tmp_path):
     assert config["vertical_separator_every_X_columns"] == 0
     assert config["overwrite_sample_file"] == dangerous_value
     assert not sentinel.exists()
+
+
+def test_extract_user_detail_supports_configured_re_search():
+    regex = r"re.search('(?<=<)[^<>]+(?=>)', field).group(0)"
+    assert extract_user_detail(regex, "Example User <example@example.org>") == "example@example.org"
+    assert extract_user_detail(regex, "Example User") == "Example User"
+
+
+def test_cmdline_bool_parsing_does_not_execute_values(tmp_path):
+    sentinel = tmp_path / "executed"
+    args = SimpleNamespace(OPTION=["enabled=True", "payload=__import__('pathlib').Path(%r).touch()" % str(sentinel)], TRANSPOSE=False, REM_EMPTY_CORELINES=0)
+    config = {"rem_empty_corelines": "0"}
+
+    updated = update_config_with_cmdline_vars(args, config)
+
+    assert updated["enabled"] is True
+    assert updated["payload"].startswith("__import__")
+    assert not sentinel.exists()
+
+
+def test_lambda_remapping_is_not_executed(tmp_path):
+    sentinel = tmp_path / "executed"
+    replacement = "__import__('pathlib').Path(%r).touch()" % str(sentinel)
+
+    assert safe_remap_replacement("lambda m: %s" % replacement) is None
+    assert not sentinel.exists()
+
+
+def test_worker_node_sort_key_uses_named_sorters():
+    node = {"domainname": "wn01-03-003.example.org", "state": "R", "np": "16", "core_job_map": {"0": "alice"}}
+
+    assert worker_node_sort_key(node, ["sort by nodename-notnum", "sort by all numbers", "sort by nr of cores"]) == (
+        "wn--.example.org",
+        103003,
+        16,
+    )
 
 
 @pytest.mark.parametrize(

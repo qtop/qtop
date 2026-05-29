@@ -1,4 +1,4 @@
-.PHONY: test test-pbs-samples test-slurm-samples
+.PHONY: test test-pbs-samples test-slurm-samples fortifications
 
 PYTHON ?= python3
 PBS_SAMPLES_DIR ?= ../qtop-test-repo/qtop5/results
@@ -16,3 +16,6 @@ test-pbs-samples:
 test-slurm-samples:
 	$(PYTHON) -m pytest tests/plugins/test_slurm.py
 	$(PYTHON) tools/validate_slurm_samples.py $(SLURM_SAMPLES_DIR) --output $(SLURM_OUTPUT_DIR)
+
+fortifications:
+	$(PYTHON) tools/fortifications.py qtop_py tools tests

@@ -1,0 +1,11 @@
+stages:
+  - test
+
+pytest-qtop:
+  stage: test
+  image: python:3.10
+  before_script:
+    - pip install pytest
+  script:
+    - make fortifications
+    - python -m pytest
