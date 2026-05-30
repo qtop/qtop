@@ -1,0 +1,10 @@
+stages:
+  - test
+
+ci:
+  image: python:3.10
+  stage: test
+  before_script:
+    - pip install pytest
+  script:
+    - make ci

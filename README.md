@@ -54,6 +54,23 @@ Try `--help` for all available options.
 
 Documentation/tutorial [here](docs/documentation.rst).
 
+## Development checks
+
+Run the unit tests and bundled scheduler sample gate with:
+
+    make ci
+
+The sample gate replays the PBS, OAR, and SGE fixtures under
+`qtop_py/contrib` and compares qtop output with the checked-in reference
+files. To run only the sample gate:
+
+    make sample-gate
+
+Set `SAMPLE_MAX_FAILURES` when experimenting with CI changes that should report
+sample failures without failing the job, for example:
+
+    SAMPLE_MAX_FAILURES=1 make sample-gate
+
 ## Profile
 
     Description: the fast text mode way to monitor your cluster’s utilization and status; the time has come to take back control of your cluster’s scheduling business
