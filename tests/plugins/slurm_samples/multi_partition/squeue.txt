@@ -1,0 +1,3 @@
+301|frank|R|debug|2|shared001
+302|grace|PD|compute|1|(Resources)
+303|heidi|R|compute|2|shared[001-002]

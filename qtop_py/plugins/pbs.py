@@ -80,25 +80,29 @@ class PBSStatExtractor(StatExtractor):
     def _extract_qstat_regex(self, qstat_file):
         all_qstat_values = list()
         with open(qstat_file, "r") as fin:
-            _ = fin.readline()  # header
-            fin.readline()  # horizontal row
-            line = fin.readline()  # first line
             re_match_positions = ("job_id", "user", "state", "queue_name")  # was: (1, 5, 7, 8), (1, 4, 5, 8)
-            try:  # first qstat line determines which format qstat follows.
-                re_search = self.user_q_search
-                qstat_values = self._process_qstat_line(re_search, line, re_match_positions)
-                # unused: _job_nr, _ce_name, _name, _time_use = m.group(2), m.group(3), m.group(4), m.group(6)
-            except AttributeError:  # this means 'prior' exists in qstat, it's another format
-                re_search = self.user_q_search_prior
-                qstat_values = self._process_qstat_line(re_search, line, re_match_positions)
-                # unused:  _prior, _name, _submit, _start_at, _queue_domain, _slots, _ja_taskID =
-                # m.group(2), m.group(3), m.group(6), m.group(7), m.group(9), m.group(10), m.group(11)
-            finally:
-                all_qstat_values.append(qstat_values)
 
-            # hence the rest of the lines should follow either try's or except's same format
+            re_search = None
             for line in fin:
-                qstat_values = self._process_qstat_line(re_search, line, re_match_positions)
+                if not line.strip():
+                    continue
+
+                if re_search is None:
+                    for candidate in (self.user_q_search, self.user_q_search_prior):
+                        try:
+                            qstat_values = self._process_qstat_line(candidate, line, re_match_positions)
+                        except AttributeError:
+                            continue
+                        else:
+                            re_search = candidate
+                            all_qstat_values.append(qstat_values)
+                            break
+                    continue
+
+                try:
+                    qstat_values = self._process_qstat_line(re_search, line, re_match_positions)
+                except AttributeError:
+                    continue
                 all_qstat_values.append(qstat_values)
 
         return all_qstat_values
@@ -257,7 +261,7 @@ class PBSBatchSystem(GenericBatchSystem):
             else:
                 pbs_values["np"] = block.get("resources_available.ncpus", 0)
 
-            if block.get("gpus", 0) > 0:  # this should be rare.
+            if int(block.get("gpus", 0)) > 0:  # this should be rare.
                 pbs_values["gpus"] = block["gpus"]
 
             try:  # this should turn up more often, hence the try/except.

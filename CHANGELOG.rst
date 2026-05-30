@@ -1,10 +1,17 @@
+0.9.20260515
+------------
+-  Documentation: update CONTRIBUTING.md for AI-assisted PRs
+-  Bugfix: typecasting in qtop_py/plugins/pbs.py
+-  Bugfix: several bugs in relation to historic PBS samples input processing
+-  Feature enhancement: introduce logic for regression & golden output PBS tests
+
 0.9.20241027
 ------------
 -  Feature enhancement: codebase improved via deepsource: pass #1, imports fixed
 
 0.9.20241013
 ------------
--  Documentation update: get paraphernalia files in shape for release
+-  Documentation: get paraphernalia files in shape for release
 
 0.9.20240422
 ------------

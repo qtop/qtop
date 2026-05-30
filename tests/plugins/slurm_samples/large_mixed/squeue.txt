@@ -1,0 +1,6 @@
+501|alice|R|gpu|48|gpu[001-003]
+502|bob|R|gpu|64|gpu[004-007]
+503|carol|CG|gpu|16|gpu008
+504|dave|PD|gpu|16|(Priority)
+505|erin|CA|gpu|4|gpu009
+506|frank|R|gpu|32|gpu[010-011]

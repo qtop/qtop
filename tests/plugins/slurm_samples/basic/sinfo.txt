@@ -1,0 +1,3 @@
+node001|compute*|idle|4
+node002|compute*|alloc|4
+node003|long|idle|8

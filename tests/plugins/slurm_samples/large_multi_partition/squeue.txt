@@ -1,0 +1,6 @@
+601|frank|R|debug|16|shared001
+602|grace|PD|compute|8|(Resources)
+603|heidi|R|compute|32|shared[001-002]
+604|ivan|R|long|64|shared[003-006]
+605|judy|CG|compute|8|shared007
+606|ken|CA|compute|4|shared008

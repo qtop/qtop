@@ -1,6 +1,7 @@
-   - repo: https://github.com/astral-sh/ruff-pre-commit
-     # Ruff version.
-     rev: v0.0.292
-     hooks:
-       - id: ruff
-         args: [--fix] ##
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    # Ruff version.
+    rev: v0.0.292 ## Please do not bump the version unless you provide proof of rhel8/python3.6 compatibility
+    hooks:
+      - id: ruff
+        args: [--fix] ##

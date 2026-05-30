@@ -3,12 +3,14 @@ qtop.py guide
 
 -  `Introduction <#introduction>`__
 -  `Quickstart <#quickstart>`__
+-  `Demo case study <#demo-case-study>`__
+-  `Bundled scheduler case studies <#bundled-scheduler-case-studies>`__
 -  `Output walkthrough <#output-walkthrough>`__
 -  `Watchmode <#watch-mode>`__
 -  `Instant Replay <#instant-replay>`__
 -  `Customisation <#customisation>`__
--  `Command-line arguments <>`__ (TODO)
--  `Usage tips <>`__ (TODO)
+-  `Command-line arguments <#command-line-arguments>`__
+-  `Usage tips <#usage-tips>`__
 
 Introduction
 ------------
@@ -55,7 +57,7 @@ invoking it in demo mode:
     ./qtop.py -b demo
 
 When used, the ``-b`` switch must always be followed by one of the
-supported batch systems (as of version 0.8.9, pbs, sge, oar, demo).
+supported batch systems (pbs, sge, oar, slurm, demo).
 
 That should create and destroy fictional jobs in fictional machines from
 fictional users, and display all that in a colorful, yet much unhelpful
@@ -77,6 +79,65 @@ Most of what you can see on screen is customisable **on-the-fly** by
 editing a `configuration file <#customisation>`__. Some modifications
 can also be accomplished by using the aforementioned
 `keybindings <#keyboard-shortcuts>`__.
+
+Demo case study
+---------------
+
+Use demo mode when you want to learn qtop's display without access to a
+live PBS, SGE, OAR, or Slurm cluster. The demo backend generates fictional
+worker nodes, jobs, queues, and users, so it is useful for checking the
+layout and keyboard workflow before pointing qtop at production
+scheduler data.
+
+Start with a one-shot render:
+
+::
+
+    ./qtop -b demo
+
+Then try the same input with common display switches:
+
+::
+
+    ./qtop -b demo -FT
+
+This combines two useful view changes:
+
+-  ``-F`` shows full worker node names instead of compact numbers.
+-  ``-T`` transposes the worker-node matrix so nodes are rows instead
+   of columns.
+
+For a large demo view, let the output overflow horizontally and inspect
+it with ``less``:
+
+::
+
+    ./qtop -b demo -l | less -RS
+
+For an interactive session, use watch mode. The optional value after
+``-w`` is the refresh interval in seconds:
+
+::
+
+    ./qtop -b demo -w 10
+
+While in watch mode, the movement keys from `Keyboard
+shortcuts <#keyboard-shortcuts>`__ let you move through the matrix,
+transpose it, switch node ID display, apply filters, or quit.
+
+Bundled scheduler case studies
+------------------------------
+
+The ``qtop_py/contrib`` directory contains captured scheduler snapshots
+for quick checks without access to a live cluster:
+
+::
+
+    ./qtop -s qtop_py/contrib -c ON -Fadvv -b sge
+    ./qtop -s qtop_py/contrib -c ON -Frdvvv -b oar
+    ./qtop -s qtop_py/contrib -c ON -raF -b pbs
+
+Use ``-s`` for saved scheduler files and ``-b`` for the matching parser.
 
 Output walkthrough
 ------------------
@@ -378,6 +439,9 @@ Scheduler configuration area
             oarstat_file: %(savepath)s/oarstat%(pid)s.txt, oarstat
           sge:
             sge_file: %(savepath)s/qstat%(pid)s.F.xml.stdout, qstat -F -xml -u '*'
+          slurm:
+            squeue_file: %(savepath)s/squeue%(pid)s.txt, squeue -h -o %%i|%%u|%%t|%%P|%%C|%%N
+            sinfo_file: %(savepath)s/sinfo%(pid)s.txt, sinfo -N -h -o %%N|%%P|%%t|%%c
           demo:
             demo_file: %(savepath)s/demo%(pid)s.txt, echo 'Demo here'
     ---
@@ -417,6 +481,16 @@ qtop will search for ``oarnodes_s_Y.txt``, ``oarnodes_Y.txt`` and
 ``oarstat.txt`` in ``<path-to-cluster-information>`` (retrieved by you,
 earlier).
 
+For Slurm, qtop expects saved ``squeue`` and ``sinfo`` command traces
+matching the configured commands. For example:
+
+::
+
+    ./qtop.py -b slurm -s <path-to-slurm-command-traces>
+
+qtop will search for ``squeue.txt`` and ``sinfo.txt`` in
+``<path-to-slurm-command-traces>``.
+
 qtop also has a scheduler-type discovery system, meaning it will try to
 guess which scheduler system is installed in your system. The keys below
 let the user decide which command it should be that uniquely
@@ -431,6 +505,7 @@ installed.
           pbs: pbsnodes
           oar: oarnodes
           sge: qacct
+          slurm: sinfo
           demo: echo
     ---
 
@@ -476,6 +551,9 @@ State abbreviations
             S: cancelled_of_user
           sge:
              etc etc
+          slurm:
+            R: running_of_user
+            RH: hold_of_user  ## requeued_hold_of_user
 
     ---
 
@@ -532,5 +610,80 @@ available, check ``color_to_code`` dictionary in ``colormap.py``.
 In there, you will also find a ton of ready-made colormaps
 (``userid_pat_to_color_default`` dictionary), with a primary focus on
 user ids found in Large Hadron Collider related clusters (WLCG grid).
+
+Command-line arguments
+----------------------
+
+The command shown in the README, ``./qtop``, is the project wrapper
+script. Installed packages expose the same entry point as ``qtop``.
+Run ``./qtop --help`` to see the authoritative option list for your
+checkout.
+
+Input selection
+~~~~~~~~~~~~~~~
+
+-  ``-b SYSTEM`` selects the scheduler backend. Common values are
+   ``demo``, ``pbs``, ``sge``, ``oar``, and ``slurm``.
+-  ``-s DIRECTORY`` reads scheduler output files from ``DIRECTORY``
+   instead of running scheduler commands live.
+-  ``-f FILE`` uses a custom qtop configuration file.
+-  ``-o OPTION`` overrides an option from ``qtopconf.yaml``.
+
+Display controls
+~~~~~~~~~~~~~~~~
+
+-  ``-1`` hides the accounting summary section.
+-  ``-2`` hides the worker-node occupancy section.
+-  ``-3`` hides the user accounts and pool mappings section.
+-  ``-F`` forces full worker node names.
+-  ``-G`` resolves user details with ``getent passwd``.
+-  ``-T`` transposes the worker-node matrix.
+-  ``-l`` lets the matrix overflow horizontally, which is useful with
+   ``less -RS``.
+-  ``-m`` disables masking of early empty worker nodes.
+-  ``-r`` removes rows made only of absent core markers.
+-  ``-rr`` also removes rows made of free, unused cores.
+-  ``-c MODE`` sets color mode to ``ON``, ``OFF``, or ``AUTO``.
+
+Run modes
+~~~~~~~~~
+
+-  ``-w [SECS]`` enables watch mode. It refreshes every ``SECS``
+   seconds, or every 2 seconds when omitted.
+-  ``-R WHEN`` replays saved qtop output from a point in time.
+-  ``-E`` exports gathered cluster data to JSON.
+-  ``-O`` saves output without printing the rendered view to stdout.
+-  ``-B`` enables the web interface on port 8080.
+
+Debugging and support
+~~~~~~~~~~~~~~~~~~~~~
+
+-  ``-v`` increases verbosity. Repeat it for more detail.
+-  ``-d`` prints debug messages to stdout in addition to the log file.
+-  ``-S`` strictly compares reported running jobs against jobs displayed
+   by qtop.
+-  ``-L`` creates a sample archive for reports. Use ``-LL`` to also
+   include qtop's config and code.
+-  ``-A`` anonymizes account and worker node names. The help output
+   currently marks this as temporary and not ready for scheduler input
+   files.
+-  ``-V`` prints the qtop version.
+-  ``-h`` shows command help.
+
+Usage tips
+----------
+
+-  Start with ``./qtop -b demo`` when testing terminal size, color, or
+   keyboard navigation. It avoids accidental scheduler calls.
+-  On a live cluster, pass ``-b pbs``, ``-b sge``, ``-b oar``, or ``-b slurm`` when
+   auto-detection is not enough.
+-  Use ``-s`` when another process has already collected scheduler
+   output files. This is helpful for debugging and for reproducing an
+   issue away from the cluster login node.
+-  Combine ``-l`` with ``less -RS`` when the worker-node matrix is wider
+   than the terminal.
+-  Use ``-L`` when preparing a bug report. Review the archive before
+   sharing it, especially when scheduler output might include sensitive
+   hostnames or account names.
 
 .. |worker nodes occupancy| image:: images/wn_occupancy.png

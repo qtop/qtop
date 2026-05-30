@@ -10,9 +10,29 @@
 
 import os
 import logging
+from ast import literal_eval
 
 
 ## TODO: black sheep
+
+
+def literal_or_original(value):
+    try:
+        return literal_eval(value)
+    except (ValueError, SyntaxError):
+        return value
+
+
+def expand_single_literal_list(container):
+    if len(container) != 1 or not isinstance(container[0], str):
+        return container
+    literal_value = literal_or_original(container[0])
+    if literal_value == container[0]:
+        return container
+    try:
+        return list(literal_value)
+    except TypeError:
+        return container
 
 
 def fix_config_list(config_list):
@@ -136,6 +156,7 @@ def read_yaml_config_block(line, fin, get_lines):
     parent_container = block
     open_containers = list()
     open_containers.append(block)
+    key_value = {}
 
     # if len(line) > 1:  # non-empty line
     #     key_value, parent_container = process_line(line, fin, get_lines, parent_container)
@@ -151,7 +172,7 @@ def read_yaml_config_block(line, fin, get_lines):
     while len(line) > 1:  # as long as a blank line is not reached (i.e. block is not complete)
         # if line[0] == 0 or (line[0] != 0 and line[1] == '-'):  # same level
         # key_value used below belongs to previous line. It will work for first block line because of short circuit logic
-        if line[0] == 0 or (line[0] == 1 and (next(iter(key_value)) == "-")) or (line[0] == -1 and line[1] == "-"):  # same level or entry level
+        if line[0] == 0 or (line[0] == 1 and key_value and (next(iter(key_value)) == "-")) or (line[0] == -1 and line[1] == "-"):  # same level or entry level
             key_value, container = process_line(line, fin, get_lines, parent_container)
             for k in key_value:
                 pass  # assign dict's sole key to k
@@ -242,11 +263,8 @@ def process_line(list_line, fin, get_lines, parent_container):
             # container = [container[1:-1]] if container.startswith('[') else container
             container = container[1:-1].split(", ") if container.startswith("[") else container
             container = "" if container in ("''", '""') else container
-            if len(container) == 1 and isinstance(container, list) and isinstance(container[0], str):
-                try:
-                    container = list(eval(container[0]))
-                except NameError:
-                    pass
+            if isinstance(container, list):
+                container = expand_single_literal_list(container)
             return {"-": [{key.rstrip(":"): container}]}, container  # list
 
         elif container.endswith("|"):
@@ -258,13 +276,10 @@ def process_line(list_line, fin, get_lines, parent_container):
                 return {"-": [container]}, container  # was parent_container******was :[container]}, container
             else:  # i.e. testkey: testvalue
                 container = [container[1:-1]] if container.startswith("[") else container  # list
-                if len(container) == 1 and isinstance(container, list) and isinstance(container[0], str):
-                    try:
-                        container = list(eval(container[0]))
-                    except NameError:
-                        pass
+                if isinstance(container, list):
+                    container = expand_single_literal_list(container)
                 elif container.startswith("'") and container.endswith("'"):
-                    container = eval(container)
+                    container = literal_or_original(container)
                 return {key.rstrip(":"): container}, container  # was parent_container#str
     else:
         raise ValueError("Didn't anticipate that!")

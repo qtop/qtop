@@ -1,0 +1,6 @@
+401|alice|R|bulk|32|bulk[001-002]
+402|bob|R|bulk|64|bulk[003-006]
+403|carol|R|bulk|16|bulk007
+404|dave|PD|bulk|16|(Resources)
+405|erin|CG|bulk|8|bulk008
+406|frank|CA|bulk|4|bulk009

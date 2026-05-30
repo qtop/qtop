@@ -1,0 +1,4 @@
+201|alice|R|gpu|2|gpu001
+202|dave|R|gpu|1|gpu001
+203|erin|CG|gpu|1|gpu001
+204|frank|CA|gpu|1|gpu002

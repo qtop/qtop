@@ -16,8 +16,6 @@
 
 import sys
 
-here = sys.path[0]
-
 from operator import itemgetter
 from itertools import zip_longest, cycle, chain
 import subprocess
@@ -34,10 +32,11 @@ import contextlib
 import glob
 import tempfile
 import logging
-from qtop_py.constants import SYSTEMCONFDIR, QTOPCONF_YAML, QTOP_LOGFILE, USERPATH, MAX_CORE_ALLOWED, MAX_UNIX_ACCOUNTS, KEYPRESS_TIMEOUT, FALLBACK_TERMSIZE
+from ast import literal_eval
+from qtop_py.constants import SYSTEMCONFDIR, QTOPCONF_YAML, QTOP_LOGFILE, USERPATH, MAX_UNIX_ACCOUNTS, KEYPRESS_TIMEOUT, FALLBACK_TERMSIZE
 from qtop_py import fileutils
 from qtop_py import utils
-from qtop_py.plugins import *
+from qtop_py.plugins import *  # noqa: F403  ## FIXME: this is a code-smell, because it can be tightened
 from math import ceil
 from qtop_py.colormap import user_to_color_default, color_to_code, queue_to_color, nodestate_to_color_default
 import qtop_py.yaml_parser as yaml
@@ -46,6 +45,8 @@ from qtop_py.serialiser import GenericBatchSystem
 from qtop_py.web import Web
 from qtop_py import __version__
 import time
+
+here = sys.path[0]
 
 
 # TODO make the following work with py files instead of qtop.colormap files
@@ -78,6 +79,13 @@ def compress_colored_line(s):
     for color, seq in zip(colors, sts):
         final_t.append(color + "".join(seq) + "\x1b[0;m")
     return "".join(final_t)
+
+
+def literal_config_value(value):
+    try:
+        return literal_eval(value)
+    except (ValueError, SyntaxError, TypeError):
+        return value
 
 
 def gauge_core_vectors(core_user_map, print_char_start, print_char_stop, coreline_notthere_or_unused, non_existent_symbol, remove_corelines):
@@ -132,7 +140,7 @@ def raw_mode(file):
         if args.WATCH:
             try:
                 old_attrs = termios.tcgetattr(file.fileno())
-            except:
+            except:  # noqa: E722  ## FIXME, ruff complaint
                 yield
             else:
                 new_attrs = old_attrs[:]
@@ -231,8 +239,8 @@ def load_yaml_config():
     config["savepath"] = _savepath
 
     for key in ("transpose_wn_matrices", "fill_with_user_firstletter", "faster_xml_parsing", "vertical_separator_every_X_columns", "overwrite_sample_file"):
-        config[key] = eval(config[key])  # TODO config should not be writeable!!
-    config["sorting"]["reverse"] = eval(config["sorting"].get("reverse", "0"))  # TODO config should not be writeable!!
+        config[key] = literal_config_value(config[key])  # TODO config should not be writeable!!
+    config["sorting"]["reverse"] = literal_config_value(config["sorting"].get("reverse", "0"))  # TODO config should not be writeable!!
     config["ALT_LABEL_COLORS"] = yaml.fix_config_list(config["workernodes_matrix"][0]["wn id lines"]["alt_label_colors"])
     config["SEPARATOR"] = config["vertical_separator"].replace("'", "")
     config["USER_CUT_MATRIX_WIDTH"] = int(config["workernodes_matrix"][0]["wn id lines"]["user_cut_matrix_width"])
@@ -533,13 +541,13 @@ def control_qtop(viewport, read_char, cluster, new_attrs):
 
         dynamic_config["user_sort"] = []
         while True:
-            sort_choice = raw_input(
+            sort_choice = input(
                 "\nChoose sorting order, or Enter to exit:-> ",
             )
             if not sort_choice:
                 break
             if custom_choice in sort_choice:
-                custom = raw_input("\nType in custom sorting (python RegEx, for examples check configuration file): ")
+                custom = input("\nType in custom sorting (python RegEx, for examples check configuration file): ")
                 sort_map[custom_choice][1].append(custom)
 
             try:
@@ -598,7 +606,7 @@ def control_qtop(viewport, read_char, cluster, new_attrs):
 
         dynamic_config["filtering"] = []
         while True:
-            filter_choice = raw_input(
+            filter_choice = input(
                 "\nChoose Filter command, or Enter to exit:-> ",
             )
             if not filter_choice:
@@ -614,7 +622,7 @@ def control_qtop(viewport, read_char, cluster, new_attrs):
 
             filter_args = []
             while True:
-                user_input = raw_input("\nEnter argument, or Enter to exit:-> ")
+                user_input = input("\nEnter argument, or Enter to exit:-> ")
                 if not user_input:
                     break
                 filter_args.append(user_input)
@@ -652,7 +660,7 @@ def control_qtop(viewport, read_char, cluster, new_attrs):
 
         dynamic_config["highlight"] = []
         while True:
-            filter_choice = raw_input(
+            filter_choice = input(
                 "\nChoose Highlight command, or Enter to exit:-> ",
             )
             if not filter_choice:
@@ -668,7 +676,7 @@ def control_qtop(viewport, read_char, cluster, new_attrs):
 
             filter_args = []
             while True:
-                user_input = raw_input("\nEnter argument, or Enter to exit:-> ")
+                user_input = input("\nEnter argument, or Enter to exit:-> ")
                 if not user_input:
                     break
                 filter_args.append(user_input)
@@ -782,7 +790,7 @@ def attempt_faster_xml_parsing(config):
             from lxml import etree
         except ImportError:
             logging.warn('Module lxml is missing. Try issuing "pip install lxml". Reverting to xml module.')
-            from xml.etree import ElementTree as etree
+            from xml.etree import ElementTree as etree  # noqa: F401
 
 
 def init_dirs(args, _savepath):
@@ -953,16 +961,15 @@ class WNOccupancy(object):
     def _create_sort_acct_jobs_table(self, user_job_per_state_counts, user_all_jobs_sorted, user_to_id):
         """Calculates what is actually below the id|  jobs>=R + Q | unix account etc line"""
         account_jobs_table = []
-        for user_alljobs in user_all_jobs_sorted:
-            user, alljobs_of_user = user_alljobs
+        for user_name, total_jobs_for_user in user_all_jobs_sorted:
             account_jobs_table.append(
                 [
-                    user_to_id[user],
-                    user_job_per_state_counts["running_of_user"][user],
-                    user_job_per_state_counts["queued_of_user"][user],
-                    alljobs_of_user,
-                    user,
-                    self.user_machine_use[user],
+                    user_to_id[user_name],
+                    user_job_per_state_counts["running_of_user"][user_name],
+                    user_job_per_state_counts["queued_of_user"][user_name],
+                    total_jobs_for_user,
+                    user_name,
+                    self.user_machine_use[user_name],
                 ]
             )
         account_jobs_table.sort(key=itemgetter(3, 4), reverse=True)  # sort by All jobs, then unix account
@@ -973,19 +980,21 @@ class WNOccupancy(object):
         counting of e.g. R, Q, C, W, E attached to each user
         """
         user_job_per_state_counts = dict()
-        for state_of_user in state_abbrevs.values():
-            user_job_per_state_counts[state_of_user] = dict()
+        for state_count_key in state_abbrevs.values():
+            user_job_per_state_counts[state_count_key] = dict()
 
         for user_name, job_state in zip(user_names, job_states):
             try:
-                x_of_user = state_abbrevs[job_state]
+                state_count_key = state_abbrevs[job_state]
             except KeyError:
                 raise JobNotFound(job_state)
 
-            user_job_per_state_counts[x_of_user][user_name] = user_job_per_state_counts[x_of_user].get(user_name, 0) + 1
+            user_job_per_state_counts[state_count_key][user_name] = user_job_per_state_counts[state_count_key].get(user_name, 0) + 1
 
         for user_name in user_job_per_state_counts["running_of_user"]:
-            [user_job_per_state_counts[x_of_user].setdefault(user_name, 0) for x_of_user in user_job_per_state_counts if x_of_user != "running_of_user"]
+            for state_count_key in user_job_per_state_counts:
+                if state_count_key != "running_of_user":
+                    user_job_per_state_counts[state_count_key].setdefault(user_name, 0)
 
         return user_job_per_state_counts
 
@@ -1016,9 +1025,10 @@ class WNOccupancy(object):
         except JobNotFound as e:
             logging.critical("Job state %s not found. You may wish to add " "that node state inside %s in state_abbreviations section.\n" % (e.job_state, QTOPCONF_YAML))
 
-        for state_abbrev, state_of_user in state_abbrevs.items():
-            missing_uids = set(user_to_id).difference(user_job_per_state_counts[state_of_user])
-            [user_job_per_state_counts[state_of_user].setdefault(missing_uid, 0) for missing_uid in missing_uids]
+        for state_count_key in state_abbrevs.values():
+            missing_user_ids = set(user_to_id).difference(user_job_per_state_counts[state_count_key])
+            for missing_user_id in missing_user_ids:
+                user_job_per_state_counts[state_count_key].setdefault(missing_user_id, 0)
 
         return user_job_per_state_counts
 
@@ -1083,9 +1093,14 @@ class WNOccupancy(object):
         workernode_list = cluster.workernode_list
         term_columns = viewport.h_term_size
         min_masking_threshold = int(config["workernodes_matrix"][0]["wn id lines"]["min_masking_threshold"])
-        if args.NOMASKING and min(workernode_list) > min_masking_threshold:
+        if not wn_number or not workernode_list:
+            return 0, 0, 0
+
+        numeric_workernodes = [wn for wn in workernode_list if isinstance(wn, int)]
+        first_workernode = min(numeric_workernodes) if numeric_workernodes else 1
+        if args.NOMASKING and first_workernode > min_masking_threshold:
             # exclude unneeded first empty nodes from the matrix
-            start = min(workernode_list) - 1
+            start = first_workernode - 1
 
         # Extra matrices may be needed if the WNs are more than the screen width can hold.
         if wn_number > start:  # start will either be 1 or (masked >= config['min_masking_threshold'] + 1)
@@ -1093,7 +1108,7 @@ class WNOccupancy(object):
         elif args.REMAP:  # was: ***wn_number < start*** and len(cluster.node_subclusters) > 1:  # Remapping
             extra_matrices_nr = int(ceil(wn_number / float(term_columns - DEADWEIGHT))) - 1
         else:
-            raise NotImplementedError
+            extra_matrices_nr = 0
 
         if config["USER_CUT_MATRIX_WIDTH"]:  # if the user defines a custom cut (in the configuration file)
             stop = start + config["USER_CUT_MATRIX_WIDTH"]
@@ -1145,6 +1160,8 @@ class WNOccupancy(object):
         elem_identifier = [d for d in config["workernodes_matrix"] if part_name in d][0]  # jeeez
         part_name_idx = config["workernodes_matrix"].index(elem_identifier)
         user_max_len = int(config["workernodes_matrix"][part_name_idx][part_name]["max_len"])
+        if not self.cluster.workernode_dict:
+            return OrderedDict()
         try:
             real_max_len = max([len(self.cluster.workernode_dict[_node][yaml_key]) for _node in self.cluster.workernode_dict])
         except KeyError:
@@ -1153,7 +1170,7 @@ class WNOccupancy(object):
             web.stop()
             sys.exit(1)
         min_len = min(user_max_len, real_max_len)
-        max_len = max(user_max_len, real_max_len)
+        max_len = max(user_max_len, real_max_len)  # noqa: F841  ## FIXME, max_len unused
         if real_max_len > user_max_len:
             logging.warn("Some longer %(attr)ss have been cropped due to %(attr)s length restriction by user" % {"attr": part_name})
 
@@ -1287,8 +1304,8 @@ class WNOccupancy(object):
             try:
                 user_queue = jobid_to_user_to_queue[job]
             except KeyError as KeyErrorValue:
-                logging.critical("There seems to be a problem with the qstat output. " "A Job (ID %s) has gone rogue. " "Please check with the SysAdmin." % (str(KeyErrorValue)))
-                raise KeyError
+                logging.warning("There seems to be a problem with the qstat output. " "A Job (ID %s) has gone rogue. " "Please check with the SysAdmin." % (str(KeyErrorValue)))
+                continue
             else:
                 user, queue = user_queue
                 yield user, str(core), queue
@@ -1479,7 +1496,7 @@ class TextDisplay(object):
 
         print("%(queues)s :" % {"queues": colorize("Queues", "Cyan_L")}, end=" ")
         for _queue_name, q_tuple in qstatq_lod.items():
-            q_running_jobs, q_queued_jobs, q_state = q_tuple.run, q_tuple.queued, q_tuple.state
+            q_running_jobs, q_queued_jobs, q_state = q_tuple.run, q_tuple.queued, q_tuple.state  # noqa: F841  ## FIXME, q_state unused
             account = _queue_name if _queue_name in queue_to_color else "account_not_colored"
             print(
                 "{qname}{star}: {run} {q}|".format(
@@ -1558,7 +1575,6 @@ class TextDisplay(object):
                 colorize(num_of_nodes, pattern=userid_pat),
                 sep=colorize(config["SEPARATOR"], pattern=userid_pat),
                 width1=1 + conditional_width,
-                width3=3 + conditional_width,
                 width4=4 + conditional_width,
                 width5=5 + conditional_width,
                 width18=18 + conditional_width,
@@ -1575,7 +1591,7 @@ class TextDisplay(object):
 
         wn_vert_labels = wns_occupancy.wn_vert_labels
         core_user_map = wns_occupancy.core_user_map
-        extra_matrices_nr = wns_occupancy.extra_matrices_nr
+        extra_matrices_nr = wns_occupancy.extra_matrices_nr  # noqa: F841  ## FIXME, unused
         userid_to_userid_re_pat = wns_occupancy.userid_to_userid_re_pat
         mapping = config["core_coloring"]
 
@@ -1873,7 +1889,7 @@ class Cluster(object):
         if not self.worker_nodes:
             return None  # TODO ? what to return instead of cluster?
 
-        re_nodename = r"(^[A-Za-z0-9-]+)(?=\.|$)" if not self.args.ANONYMIZE else r"\w_anon_wn_\d+"
+        re_nodename = r"(^[A-Za-z0-9_-]+)(?=\.|$)" if not self.args.ANONYMIZE else r"\w_anon_wn_\d+"
 
         self.node_subclusters, self.workernode_list, self.offdown_nodes, self.working_cores, max_np, _all_str_digits_with_empties = self.get_wn_list_and_stats(
             self.workernode_list, self.node_subclusters, self.worker_nodes, re_nodename
@@ -1952,14 +1968,18 @@ class Cluster(object):
 
         _all_str_digits = list(filter(lambda x: x != "", all_str_digits_with_empties))
         _all_digits = [int(digit) for digit in _all_str_digits]
+        numeric_workernodes = [wn for wn in self.workernode_list if isinstance(wn, int)]
+        has_mixed_or_non_numeric_wns = len(numeric_workernodes) != len(self.workernode_list)
+        has_exotic_starting_wn = bool(numeric_workernodes) and min(numeric_workernodes) >= int(self.config["exotic_starting_wn_nr"])
 
         if (
             self.args.BLINDREMAP
             or len(self.node_subclusters) > 1
-            or min(self.workernode_list) >= int(self.config["exotic_starting_wn_nr"])
+            or has_exotic_starting_wn
             or self.offdown_nodes >= self.total_wn * float(self.config["percentage"])
             or len(all_str_digits_with_empties) != len(_all_str_digits)
             or len(_all_digits) != len(_all_str_digits)
+            or has_mixed_or_non_numeric_wns
         ):
             REMAP = True
         else:
@@ -1971,13 +1991,11 @@ class Cluster(object):
 
             subclusters = len(self.node_subclusters) > 1 and "there are different WN namings, e.g. wn001, wn002, ..., ps001, ps002, ... etc" or False
 
-            exotic_starting = (
-                min(self.workernode_list) >= int(self.config["exotic_starting_wn_nr"]) and "first starting numbering of a WN very high; would thus require too much unused space" or False
-            )
+            exotic_starting = has_exotic_starting_wn and "first starting numbering of a WN very high; would thus require too much unused space" or False
 
             percentage_unassigned = len(all_str_digits_with_empties) != len(_all_str_digits) and "more than %s of nodes have are down/offline" % float(self.config["percentage"]) or False
 
-            numbering_collisions = min(self.workernode_list) >= int(self.config["exotic_starting_wn_nr"]) and "there are numbering collisions" or False
+            numbering_collisions = has_mixed_or_non_numeric_wns and "there are numbering collisions or non-numbered WNs" or False
 
             print()
             logging.debug("Remapping decided due to: \n\t %s" % filter(None, [user_request, subclusters, exotic_starting, percentage_unassigned, numbering_collisions]))
@@ -2310,7 +2328,7 @@ def main():
     available_batch_systems = discover_qtop_batch_systems()
 
     stdout = sys.stdout  # keep a copy of the initial value of sys.stdout
-    change_mapping = cycle([("queue_to_color", "color by queue"), ("user_to_color", "color by user")])
+    change_mapping = cycle([("queue_to_color", "color by queue"), ("user_to_color", "color by user")])  # noqa: F841  ## FIXME or explain: change_mapping unused
     h_counter = cycle([0, 1])
 
     viewport = Viewport()  # controls the part of the qtop matrix shown on screen
