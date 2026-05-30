@@ -1,0 +1,19 @@
+image: python:3.10
+
+stages:
+  - test
+
+qtop-ci:
+  stage: test
+  variables:
+    MAX_FAILURES: "0"
+  before_script:
+    - python -m pip install --upgrade pip
+    - python -m pip install pytest pytest-cov
+  script:
+    - make ci
+  artifacts:
+    when: always
+    paths:
+      - artifacts/qtop-sample-gate/
+      - coverage.xml
