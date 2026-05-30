@@ -8,6 +8,7 @@ Usage:
 import argparse
 import json
 import subprocess
+import sys
 from pathlib import Path
 
 
@@ -27,9 +28,10 @@ GOLDEN_PBS_SAMPLES = (
 
 def render_sample(sample_dir, output_dir):
     proc = subprocess.run(
-        ["./qtop", "-b", "pbs", "-s", str(sample_dir), "-c", "ON"],
-        text=True,
-        capture_output=True,
+        [sys.executable, "-m", "qtop_py.cli", "-b", "pbs", "-s", str(sample_dir), "-c", "ON"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        universal_newlines=True,
         timeout=8,
     )
     if proc.returncode != 0 or not proc.stdout.strip():
@@ -49,6 +51,7 @@ def main() -> int:
     parser.add_argument("samples_dir", type=Path)
     parser.add_argument("--limit", type=int, default=100)
     parser.add_argument("--output", type=Path, default=Path("/tmp/qtop-pbs-rendered"))
+    parser.add_argument("--max-failures", type=int, default=0)
     parser.add_argument(
         "--skip-golden-samples",
         action="store_true",
@@ -59,6 +62,7 @@ def main() -> int:
     sample_dirs = sorted(path for path in args.samples_dir.iterdir() if path.is_dir())
     args.output.mkdir(parents=True, exist_ok=True)
     manifest = []
+    failures = []
     seen = set()
 
     if not args.skip_golden_samples:
@@ -80,14 +84,17 @@ def main() -> int:
             continue
         entry = render_sample(sample_dir, args.output)
         if entry is None:
+            failures.append(sample_dir.name)
+            if len(failures) > args.max_failures:
+                raise RuntimeError(f"PBS sample failures exceeded --max-failures={args.max_failures}: {failures}")
             continue
         manifest.append(entry)
         if len(manifest) >= args.limit:
             break
 
-    (args.output / "manifest.json").write_text(json.dumps(manifest, indent=2))
-    print(f"validated={len(manifest)} output={args.output}")
-    return 0 if len(manifest) >= args.limit else 1
+    (args.output / "manifest.json").write_text(json.dumps({"validated": manifest, "failures": failures}, indent=2))
+    print(f"validated={len(manifest)} failures={len(failures)} output={args.output}")
+    return 0 if len(manifest) >= args.limit and len(failures) <= args.max_failures else 1
 
 
 if __name__ == "__main__":

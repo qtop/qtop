@@ -117,7 +117,7 @@ def convert_dash_key_in_dict(d):
                 if key_in == "-" and key_out != "state":
                     d[key_out] = d[key_out][key_in]
                 # elif key_in == '-' and key_out == 'state':
-                #     d[key_out] = eval(d[key_out])
+                #     d[key_out] = literal_eval(d[key_out])
                 #     break
         except TypeError:
             return d

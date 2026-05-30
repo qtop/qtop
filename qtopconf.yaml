@@ -1,7 +1,7 @@
 ## Default configuration file for qtop.
 ## DO NOT OVERWRITE this file with your own settings. Instead, 
 ## create a new qtopconf.yaml in ~/.local/qtop/ (you can copy this one if you want)
-## IMPORTANT: a blank line MUST be left after every line of *python code*.
+## IMPORTANT: a blank line MUST be left after every multi-line example.
 ## Lines beginning with double hash are comments
 ## Lines beginning with single hash are commands commented out that you could try out.
 ## Available colors and fg-bg combinations depicted in colormap.py, in color_to_code
@@ -197,18 +197,7 @@ sorting:
    reverse: False
 
 # sorting:  
-#   user_sort: |
-#       lambda node: (
-#       len(node['domainname'].split('.', 1)[0].split('-')[0]),                                      # sort by name length, until first dash or dot
-#       int(re.sub(r"[A-Za-z _.-]+", "", node["domainname"]) or "0"),                                # sort strictly by all numbers in name (joined)
-#       # int(re.sub(r'[A-Za-z_.-]+', '', node['domainname'].split('.', 1)[0].split('-')[0]) or -1),   # sort by number adjacent to first word
-#       # ord(node['domainname'][0]),                                                                  # sort by first letter
-#       # ord(str(node['state'][0])),                                                                  # sort by node state
-#       # int(node['np'])                                                                              # sort by number of cores
-#       # 0,                                                                                           # no sorting, MUST comment out other sorting options
-#       )
-
-#   reverse: False
+## Custom executable sorting expressions are intentionally unsupported. Interactive custom sorting accepts a regex.
 
 ## exclude filters gradually cut off selected nodes from the last set of remaining nodes
 ## include filters do a consecutive selection, e.g. from 100 nodes 30 are selected, then the next include filter will select 10 out of those and so on.

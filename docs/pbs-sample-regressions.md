@@ -34,6 +34,8 @@ This PR adds a lightweight path toward `make test` integration:
 
 ```bash
 make test
+make test-ci
+make test-pbs-golden PBS_SAMPLES_DIR=../qtop-test-repo/qtop5/results
 make test-pbs-samples PBS_SAMPLES_DIR=../qtop-test-repo/qtop5/results PBS_SAMPLE_LIMIT=100
 ```
 
@@ -41,8 +43,14 @@ The proposed regression flow is:
 
 1. Keep small unit tests in `tests/test_pbs_sample_regressions.py` for each crash class, so ordinary CI catches the logic regressions quickly.
 2. Use `tools/validate_pbs_samples.py` for the larger archived PBS sweep. It renders samples with colour enabled, writes `.ans` files, and records a manifest under the selected output directory.
-3. Run `make test-pbs-samples` in jobs that have access to the external archived sample repository. This avoids vendoring the large historical trace corpus into `qtop`, while still making the regression sweep reproducible.
-4. The helper now forces a curated 10-sample golden set into the rendered output before filling the remaining slots. The set includes large-cluster samples from the review discussion, so `PBS_SAMPLE_LIMIT=10 make test-pbs-samples` validates exactly those golden outputs.
+3. Use `make test-ci` for ordinary CI. GitHub Actions and GitLab CI both call this shared Makefile entry point so the systems do not drift.
+4. `make test-ci` runs diff fortifications, the full pytest suite, and `make sample-validation`.
+5. `make sample-validation` runs the in-repository SGE and Slurm sample gate, then runs `make test-pbs-golden` whenever `PBS_SAMPLES_DIR` is available. CI checks out `qtop/qtop-test-repo` so the PBS gate runs on every PR there.
+6. The sample gate accepts `SAMPLE_MAX_FAILURES=0`; that value is forwarded to the PBS and Slurm renderers as `--max-failures 0`.
+7. Run `make test-pbs-samples` in longer jobs when the full archived sample sweep is wanted. This avoids vendoring the large historical trace corpus into `qtop`, while still making the regression sweep reproducible.
+8. The PBS helper forces a curated 10-sample golden set into the rendered output before filling the remaining slots. The set includes large-cluster samples from the review discussion, so `make test-pbs-golden` validates exactly those golden outputs.
+
+The GitHub workflow pins third-party actions to full commit SHAs and uses `permissions: contents: read`. A matching `.gitlab-ci.yml` mirrors the same `make test-ci` command and artifact paths. This follows the common cross-CI structure used by OSS Python projects where GitHub and GitLab jobs delegate to `make test`; one public example is the libvcs/Poetry CI discussion linked from https://github.com/orgs/python-poetry/discussions/4205.
 
 ## Local validation commands
 

@@ -36,16 +36,23 @@ def main():
     parser = argparse.ArgumentParser(description="Render all Slurm qtop command-trace samples.")
     parser.add_argument("samples_dir", help="Directory containing Slurm sample subdirectories")
     parser.add_argument("--output", default="/tmp/qtop-slurm-rendered", help="Directory for qtop rendered output")
+    parser.add_argument("--max-failures", type=int, default=0, help="Allowed failed sample renders")
     args = parser.parse_args()
 
     sample_dirs = list(iter_sample_dirs(args.samples_dir))
     if not sample_dirs:
         raise RuntimeError("No Slurm samples found in %s" % args.samples_dir)
 
+    failures = []
     for sample_name, sample_dir in sample_dirs:
-        run_qtop(sample_name, sample_dir, args.output)
+        try:
+            run_qtop(sample_name, sample_dir, args.output)
+        except RuntimeError as exc:
+            failures.append("%s: %s" % (sample_name, exc))
+            if len(failures) > args.max_failures:
+                raise
 
-    print("Validated %s Slurm samples" % len(sample_dirs))
+    print("Validated %s Slurm samples with %s failures" % (len(sample_dirs) - len(failures), len(failures)))
 
 
 if __name__ == "__main__":
