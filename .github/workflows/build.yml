@@ -1,0 +1,25 @@
+name: build-qtop
+
+on:
+  push:
+    branches:
+      - master
+      - 'releases/**'
+  pull_request:
+    branches:    
+      - master
+
+jobs:
+  build-project:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      - run: pip install build twine
+      - run: pyproject-build
+      - uses: actions/upload-artifact@v3
+        with:
+          name: qtop-dist
+          path: dist/

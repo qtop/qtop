@@ -1,0 +1,25 @@
+[1;36;49mqtop 0.9 - (C) 2016 Sotiris Fragkiskos, original bash script by Fotis Georgatos
+Released under MIT License. [39;49m
+
+Navigation
+
+[1;36;49mj/k:[0;m  go to down/up one screen
+[1;36;49mh/l:[0;m  go to left/right one screen
+[1;36;49mg/G:[0;m  go to top/bottom of matrix
+  [1;36;49m0:[0;m  go to left end of matrix
+  [1;36;49m$:[0;m  go to right end of matrix
+  [1;36;49mR:[0;m  Reset position/refresh
+  [1;36;49m?:[0;m  go to help (this screen)
+
+[1;37;49mOther[0;m
+
+  [1;36;49mf:[0;m  apply filtering
+  [1;36;49mF:[0;m  toggle full name nodes/numbered nodes
+  [1;36;49mH:[0;m  apply highlighting
+  [1;36;49mm:[0;m  toggle color represents user ids/queues
+  [1;36;49mr:[0;m  toggle show all/real/used cores
+  [1;36;49ms:[0;m  apply sorting
+  [1;36;49mt:[0;m  transpose matrix
+  [1;36;49mq:[0;m  quit qtop
+
+Press ? to return 
