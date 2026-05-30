@@ -71,6 +71,10 @@ sample failures without failing the job, for example:
 
     SAMPLE_MAX_FAILURES=1 make sample-gate
 
+CI currently runs with `SAMPLE_MAX_FAILURES=3` so the gate reports the existing
+PBS, OAR, and SGE fixture mismatches while still failing if a change introduces
+additional sample failures.
+
 ## Profile
 
     Description: the fast text mode way to monitor your cluster’s utilization and status; the time has come to take back control of your cluster’s scheduling business

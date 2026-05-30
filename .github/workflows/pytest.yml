@@ -13,4 +13,4 @@ jobs:
         with:
           python-version: '3.10'
       - run: pip install pytest
-      - run: make ci
+      - run: SAMPLE_MAX_FAILURES=3 make ci

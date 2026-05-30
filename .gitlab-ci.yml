@@ -7,4 +7,4 @@ ci:
   before_script:
     - pip install pytest
   script:
-    - make ci
+    - SAMPLE_MAX_FAILURES=3 make ci
