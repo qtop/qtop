@@ -1,0 +1,93 @@
+name: ci-qtop
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Set up Python
+        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
+        with:
+          python-version: "3.10"
+      - name: Install ruff
+        run: pip install ruff
+      - name: Lint check
+        run: ruff check qtop_py/ tests/
+      - name: Format check
+        run: ruff format --check qtop_py/ tests/
+
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.6", "3.10", "3.12"]
+      fail-fast: false
+    container:
+      image: ${{ matrix.python-version == '3.6' && 'almalinux:8' || 'ubuntu:latest' }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Set up Python (modern)
+        if: matrix.python-version != '3.6'
+        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install Python (AlmaLinux 8)
+        if: matrix.python-version == '3.6'
+        run: |
+          dnf install -y python3 python3-pip
+          python3 -m pip install --upgrade pip
+      - name: Install dependencies
+        run: pip install pytest
+      - name: Run tests
+        run: python -m pytest
+      - name: Upload test artifacts
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: pytest-results-${{ matrix.python-version }}
+          path: junit.xml
+          if-no-files-found: ignore
+
+  fortifications:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+      - name: Run fortifications check
+        run: make fortifications
+
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Set up Python
+        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
+        with:
+          python-version: "3.10"
+      - name: Install build tools
+        run: pip install build twine
+      - name: Build distribution
+        run: pyproject-build
+      - name: Upload distribution
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: qtop-dist
+          path: dist/
