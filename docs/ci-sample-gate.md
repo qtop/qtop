@@ -37,3 +37,16 @@ GitHub Actions and GitLab CI both call the Makefile target. This keeps the CI
 definition thin and makes the same check available to contributors before they
 push. The local proof of concept is `tools/validate_samples.py`, which uses only
 the Python standard library so it can run in early cluster-like environments.
+
+## Independent pattern reference
+
+This gate follows the same portable CI shape used by other open source projects:
+keep provider-specific YAML small, then delegate real validation to a checked-in
+command that contributors can run locally.
+
+- `neil-lindquist/ci-utils` is an OSS utility/example set for multiple CI
+  providers, including GitHub Actions and GitLab CI:
+  https://github.com/neil-lindquist/ci-utils
+- The Common Lisp Cookbook's CI guide shows GitLab CI jobs delegating to
+  `make test`, matching the same local-command-first structure used here:
+  https://lispcookbook.github.io/cl-cookbook/testing.html#continuous-integration
