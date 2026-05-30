@@ -24,6 +24,7 @@ Please follow common conventions for Open Source projects, f.i. align to Electro
 - A good bug report should be actionable, concise and detailed, allowing developers to reproduce the issue immediately
 - For new features or fixes, either open a new issue or leave a comment on a relevant case that is already open
 - Let's avoid storing artifacts in the main `qtop` repo and keep it light; use the repo `qtop-artifacts` instead.
+- For test and CI changes, run the fast local gate in `docs/ci.md` and include the command output in the pull request.
 
 ## Proof of humanity
 

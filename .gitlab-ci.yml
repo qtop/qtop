@@ -1,0 +1,27 @@
+stages:
+  - test
+
+fast-gates:
+  stage: test
+  image: python:3.10
+  before_script:
+    - python -m pip install 'pytest<8'
+  script:
+    - make ci
+  artifacts:
+    when: always
+    paths:
+      - build/qtop-*-rendered/
+
+alma8-python36:
+  stage: test
+  image: almalinux:8
+  before_script:
+    - dnf install -y python36 python36-pip make
+    - python3.6 -m pip install 'pytest<8'
+  script:
+    - make ci PYTHON=python3.6
+  artifacts:
+    when: always
+    paths:
+      - build/qtop-*-rendered/
