@@ -26,8 +26,15 @@ import json
 import datetime
 from collections import namedtuple, OrderedDict, Counter
 from os.path import realpath
-from signal import signal, SIGPIPE, SIG_DFL
-import termios
+from signal import signal, SIG_DFL
+try:
+    from signal import SIGPIPE
+except ImportError:
+    SIGPIPE = None
+try:
+    import termios
+except ImportError:
+    termios = None
 import contextlib
 import glob
 import tempfile
@@ -772,7 +779,7 @@ def update_config_with_cmdline_vars(args, config):
     config["rem_empty_corelines"] = int(config["rem_empty_corelines"])
     for opt in args.OPTION:
         key, val = get_key_val_from_option_string(opt)
-        val = eval(val) if ("True" in val or "False" in val) else val
+        val = val.lower() in ("true", "1") if isinstance(val, str) and val.lower() in ("true", "false", "1", "0") else val
         config[key] = val
 
     if args.TRANSPOSE:
@@ -1689,7 +1696,8 @@ class TextDisplay(object):
         return joined_list
 
     def print_core_lines(self, core_user_map, print_char_start, print_char_stop, transposed_matrices, userid_to_userid_re_pat, mapping, attrs, options1, options2):
-        signal(SIGPIPE, SIG_DFL)
+        if SIGPIPE is not None:
+            signal(SIGPIPE, SIG_DFL)
         remove_corelines = dynamic_config.get("rem_empty_corelines", config["rem_empty_corelines"]) + 1
 
         # if corelines vertical (transposed matrix)
@@ -1712,7 +1720,8 @@ class TextDisplay(object):
                     print(core_line_zipped)
                 except IOError:
                     try:
-                        signal(SIGPIPE, SIG_DFL)
+                        if SIGPIPE is not None:
+                            signal(SIGPIPE, SIG_DFL)
                         print(core_line_zipped)
                         sys.stdout.close()
                     except IOError:

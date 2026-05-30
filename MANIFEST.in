@@ -11,3 +11,5 @@ include ROADMAP.rst
 
 recursive-include qtop_py *.py *.sh *.jdl *.html *.txt *.ref *.gif *.stdout
 recursive-include tests *.py
+recursive-include tools *.py
+include .gitlab-ci.yml

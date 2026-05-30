@@ -1,0 +1,73 @@
+---
+image: python:3.10
+
+variables:
+  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+
+cache:
+  key: "$CI_JOB_NAME"
+  paths:
+    - .cache/pip
+
+stages:
+  - lint
+  - test
+  - fortify
+  - build
+
+ruff-lint:
+  stage: lint
+  script:
+    - pip install ruff
+    - make lint
+
+pytest:
+  stage: test
+  script:
+    - pip install pytest
+    - make test
+
+python3.6-almalinux8:
+  stage: test
+  image: almalinux:8
+  before_script:
+    - dnf install -y python3.6 python3-pip
+    - python3 -m pip install --upgrade pip
+    - pip3 install pytest
+  script:
+    - make test
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+
+fortify-check:
+  stage: fortify
+  script:
+    - pip install ruff
+    - make fortify
+  artifacts:
+    paths:
+      - fortify-report.txt
+    when: always
+    expire_in: 30 days
+
+sample-gate:
+  stage: test
+  script:
+    - pip install pytest pyyaml
+    - make sample-gate MAX_FAILURES=0
+  artifacts:
+    paths:
+      - /tmp/qtop-pbs-rendered/manifest.json
+      - /tmp/qtop-slurm-rendered/
+    when: always
+    expire_in: 30 days
+
+build-dist:
+  stage: build
+  script:
+    - pip install build
+    - make dist
+  artifacts:
+    paths:
+      - dist/
+    expire_in: 30 days
