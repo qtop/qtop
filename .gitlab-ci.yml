@@ -1,0 +1,58 @@
+stages:
+  - test
+  - build
+
+variables:
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  SAMPLE_OUTPUT_DIR: "artifacts/sample-gate"
+  SAMPLE_MAX_FAILURES: "0"
+
+pytest:
+  image: python:3.10-slim
+  stage: test
+  before_script:
+    - apt-get update && apt-get install -y --no-install-recommends make git && rm -rf /var/lib/apt/lists/*
+    - python -m pip install --upgrade pip
+    - python -m pip install pytest coverage ruff==0.0.292
+  script:
+    - make fortify BASE_REF=${CI_MERGE_REQUEST_TARGET_BRANCH_NAME:-origin/develop}
+    - make lint
+    - make test
+    - make coverage
+    - mkdir -p artifacts
+    - python -m coverage xml -o artifacts/coverage.xml
+    - make sample-gate SAMPLE_OUTPUT_DIR=$SAMPLE_OUTPUT_DIR SAMPLE_MAX_FAILURES=$SAMPLE_MAX_FAILURES
+  artifacts:
+    when: always
+    paths:
+      - artifacts/sample-gate/
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: artifacts/coverage.xml
+  coverage: '/TOTAL\s+\d+\s+\d+\s+(\d+)%/'
+
+almalinux8-sample-gate:
+  image: almalinux:8
+  stage: test
+  before_script:
+    - dnf install -y python36 make git
+  script:
+    - make sample-gate PYTHON=python3.6 SAMPLE_OUTPUT_DIR=$SAMPLE_OUTPUT_DIR SAMPLE_MAX_FAILURES=$SAMPLE_MAX_FAILURES
+  artifacts:
+    when: always
+    paths:
+      - artifacts/sample-gate/
+
+build:
+  image: python:3.10-slim
+  stage: build
+  before_script:
+    - apt-get update && apt-get install -y --no-install-recommends make && rm -rf /var/lib/apt/lists/*
+    - python -m pip install --upgrade pip
+    - python -m pip install build twine
+  script:
+    - make build
+  artifacts:
+    paths:
+      - dist/

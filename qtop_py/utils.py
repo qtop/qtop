@@ -10,10 +10,33 @@
 
 import logging
 import sys
+from ast import literal_eval
 from argparse import ArgumentParser
 from qtop_py import fileutils
 from qtop_py.colormap import *  # noqa: F403  ## FIXME: this is a code-smell, because it can be tightened
 from qtop_py.constants import QTOP_LOGFILE
+
+
+def safe_int(value):
+    """Convert scheduler totals without evaluating arbitrary expressions."""
+    if isinstance(value, int):
+        return value
+    parsed = literal_eval(str(value))
+    if isinstance(parsed, bool):
+        raise ValueError("boolean is not a valid integer total")
+    return int(parsed)
+
+
+def parse_boolish(value):
+    """Parse command-line config overrides for booleans without eval()."""
+    if isinstance(value, bool):
+        return value
+    lowered = str(value).strip().lower()
+    if lowered == "true":
+        return True
+    if lowered == "false":
+        return False
+    return value
 
 
 def init_logging(options):
