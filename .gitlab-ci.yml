@@ -1,0 +1,44 @@
+stages:
+  - lint
+  - test
+  - fortifications
+  - build
+
+image: python:3.10
+
+before_script:
+  - pip install ruff pytest build
+
+lint:
+  stage: lint
+  script:
+    - ruff check qtop_py/ tests/
+    - ruff format --check qtop_py/ tests/
+
+test:python3.10:
+  stage: test
+  script:
+    - python -m pytest
+
+test:python3.6:
+  stage: test
+  image: almalinux:8
+  before_script:
+    - dnf install -y python3 python3-pip
+    - python3 -m pip install pytest
+  script:
+    - python3 -m pytest
+
+fortifications:
+  stage: fortifications
+  script:
+    - make fortifications
+
+build:
+  stage: build
+  script:
+    - pyproject-build
+    - ls dist/
+  artifacts:
+    paths:
+      - dist/
