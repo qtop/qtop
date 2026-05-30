@@ -1,0 +1,28 @@
+:: ========================================
+:: qtop - Challenge #6 Commands
+:: PR: https://github.com/qtop/qtop/pull/454
+:: ========================================
+
+:: --- Kiểm tra git status ---
+cd "C:\Users\Ca\Desktop\New folder\qtop"
+git status
+
+:: --- Commit + push sau khi sửa ---
+git add .
+git commit -s -m "mo ta thay doi"
+git push origin improve-ci-cd-makefile
+
+:: --- Reopen PR nếu bị close ---
+gh pr reopen 454 --repo qtop/qtop
+
+:: --- Comment lên issue #433 ---
+gh issue comment 433 --repo qtop/qtop --body "noi dung comment"
+
+:: --- Xem remote ---
+git remote -v
+
+:: --- Sync fork với upstream ---
+git fetch upstream
+git checkout main
+git merge upstream/main
+git push origin main

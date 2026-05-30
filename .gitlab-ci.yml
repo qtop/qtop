@@ -1,0 +1,26 @@
+# GitLab CI mirror of GitHub Actions workflows.
+# Uses the same container image and test commands so a failure means
+# the same thing on both platforms.
+
+image: python:3.12
+
+stages:
+  - test
+  - lint
+
+pytest:
+  stage: test
+  script:
+    - pip install pytest pytest-cov
+    - python -m pytest --cov=qtop_py --cov-report=xml
+  artifacts:
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage.xml
+
+ruff:
+  stage: lint
+  script:
+    - pip install ruff
+    - ruff check qtop_py tests

@@ -3,23 +3,28 @@ name: build-qtop
 on:
   push:
     branches:
-      - master
+      - main
       - 'releases/**'
   pull_request:
     branches:
-      - master
+      - main
+
+permissions:
+  contents: read
 
 jobs:
   build-project:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v5.1.0
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0
         with:
           python-version: '3.12'
       - run: pip install build twine
       - run: pyproject-build
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v5.0.0
         with:
           name: qtop-dist
           path: dist/
