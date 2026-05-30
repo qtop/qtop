@@ -1,14 +1,126 @@
 name: pytest-qtop
 
-on: push
+on:
+  push:
+  pull_request:
+
+# Least-privilege default; jobs that need more declare it explicitly.
+permissions:
+  contents: read
 
 jobs:
-  run-pytest:
-    runs-on: ubuntu-latest
+  # -------------------------------------------------------------------------
+  # Modern Python matrix (3.9 – 3.12) on ubuntu-latest
+  # -------------------------------------------------------------------------
+  test:
+    name: "py${{ matrix.python-version }} / ${{ matrix.os }}"
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+        python-version: ["3.9", "3.10", "3.11", "3.12"]
+
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-python@v4
+      - name: Checkout
+        # actions/checkout v4.2.2
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - name: Set up Python ${{ matrix.python-version }}
+        # actions/setup-python v5.3.0
+        uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b
         with:
-          python-version: '3.10'
-      - run: pip install pytest
-      - run: python -m pytest
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install pytest pytest-cov ruff build
+
+      - name: Lint
+        run: make lint
+
+      - name: Unit tests + coverage
+        run: make coverage
+
+      - name: Upload coverage artifact
+        # actions/upload-artifact v4.4.3
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882
+        with:
+          name: coverage-py${{ matrix.python-version }}
+          path: coverage.xml
+          retention-days: 14
+
+  # -------------------------------------------------------------------------
+  # Sample gate: PBS / OAR / SGE reference outputs (shared with GitLab via make)
+  # --max-failures 0 means any diff causes CI to fail.
+  # -------------------------------------------------------------------------
+  sample-validate:
+    name: "sample-gate (PBS/OAR/SGE)"
+    runs-on: ubuntu-latest
+    needs: test
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - name: Set up Python
+        uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b
+        with:
+          python-version: "3.10"
+          cache: pip
+
+      - name: Install package
+        run: pip install -e .
+
+      - name: Run scheduler sample gate
+        run: make sample-validate MAX_FAILURES=0
+
+      - name: Upload sample-run log (so reviewers see expected output)
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882
+        if: always()
+        with:
+          name: sample-run-log
+          path: sample-artifacts/
+          retention-days: 30
+
+  # -------------------------------------------------------------------------
+  # Fortifications: unicode, bidi chars, stray eval, compiled artefacts
+  # -------------------------------------------------------------------------
+  fortify:
+    name: "fortify (security/health checks)"
+    runs-on: ubuntu-latest
+    needs: test
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+
+      - name: Run fortify checks
+        run: make fortify
+
+  # -------------------------------------------------------------------------
+  # AlmaLinux 8 container: covers the Python 3.9 on EL8 path
+  # (EL8 ships python3.9 via the application stream; 3.6 is EOL upstream)
+  # -------------------------------------------------------------------------
+  test-almalinux8:
+    name: "AlmaLinux 8 / python3.9 (EL8 compatibility)"
+    runs-on: ubuntu-latest
+    container:
+      image: almalinux:8
+
+    steps:
+      - name: Install system dependencies
+        run: |
+          dnf install -y python39 python39-pip git make
+          alternatives --set python3 /usr/bin/python3.9
+
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - name: Install Python test dependencies
+        run: python3.9 -m pip install pytest pytest-cov
+
+      - name: Unit tests (EL8 python3.9)
+        run: python3.9 -m pytest tests/ -v

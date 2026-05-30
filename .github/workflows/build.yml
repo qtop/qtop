@@ -3,23 +3,45 @@ name: build-qtop
 on:
   push:
     branches:
+      - main
       - master
-      - 'releases/**'
+      - "releases/**"
   pull_request:
-    branches:    
+    branches:
+      - main
       - master
+
+permissions:
+  contents: read
 
 jobs:
   build-project:
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-python@v4
+      - name: Checkout
+        # actions/checkout v4.2.2
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - name: Set up Python
+        # actions/setup-python v5.3.0
+        uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b
         with:
-          python-version: '3.10'
-      - run: pip install build twine
-      - run: pyproject-build
-      - uses: actions/upload-artifact@v3
+          python-version: "3.10"
+          cache: pip
+
+      - name: Build sdist + wheel
+        run: |
+          pip install build twine
+          make dist
+
+      - name: Check distribution
+        run: twine check dist/*
+
+      - name: Upload distribution artifacts
+        # actions/upload-artifact v4.4.3
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882
         with:
           name: qtop-dist
           path: dist/
+          retention-days: 30

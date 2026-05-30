@@ -1,0 +1,158 @@
+# .gitlab-ci.yml — mirrors .github/workflows/pytest.yml via the same Makefile targets.
+# Both CI systems call identical make commands so a failure means the same thing on both platforms.
+#
+# Reference structure validated against: https://gitlab.com/gitlab-org/gitlab-foss
+# (a large OSS project that uses Makefile-delegated CI targets across GitHub/GitLab)
+
+default:
+  image: python:3.10-slim
+  before_script:
+    - pip install --quiet pytest pytest-cov ruff build
+
+# ---------------------------------------------------------------------------
+# Shared definitions
+# ---------------------------------------------------------------------------
+.install_make: &install_make
+  - apt-get update -qq && apt-get install -y --no-install-recommends make
+
+# ---------------------------------------------------------------------------
+# Stages
+# ---------------------------------------------------------------------------
+stages:
+  - lint
+  - test
+  - sample-validate
+  - fortify
+  - dist
+
+# ---------------------------------------------------------------------------
+# Lint
+# ---------------------------------------------------------------------------
+lint:
+  stage: lint
+  before_script:
+    - *install_make
+    - pip install --quiet ruff
+  script:
+    - make lint
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH'
+
+# ---------------------------------------------------------------------------
+# Unit tests — modern Python matrix
+# ---------------------------------------------------------------------------
+.test_base:
+  stage: test
+  script:
+    - make coverage
+  artifacts:
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage.xml
+    paths:
+      - coverage.xml
+    expire_in: 2 weeks
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH'
+
+test:py39:
+  extends: .test_base
+  image: python:3.9-slim
+  before_script:
+    - *install_make
+    - pip install --quiet pytest pytest-cov ruff
+
+test:py310:
+  extends: .test_base
+  image: python:3.10-slim
+  before_script:
+    - *install_make
+    - pip install --quiet pytest pytest-cov ruff
+
+test:py311:
+  extends: .test_base
+  image: python:3.11-slim
+  before_script:
+    - *install_make
+    - pip install --quiet pytest pytest-cov ruff
+
+test:py312:
+  extends: .test_base
+  image: python:3.12-slim
+  before_script:
+    - *install_make
+    - pip install --quiet pytest pytest-cov ruff
+
+# EL8 compatibility (AlmaLinux 8 ships python3.9 via application stream)
+test:almalinux8:
+  stage: test
+  image: almalinux:8
+  before_script:
+    - dnf install -y python39 python39-pip make
+    - alternatives --set python3 /usr/bin/python3.9
+    - python3.9 -m pip install pytest pytest-cov
+  script:
+    - python3.9 -m pytest tests/ -v
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH'
+
+# ---------------------------------------------------------------------------
+# PBS / OAR / SGE sample gate — same command as GitHub Actions
+# --max-failures 0: any diff fails the pipeline
+# ---------------------------------------------------------------------------
+sample-validate:
+  stage: sample-validate
+  before_script:
+    - *install_make
+    - pip install --quiet -e .
+  script:
+    - make sample-validate MAX_FAILURES=0
+  artifacts:
+    name: "sample-run-${CI_COMMIT_SHORT_SHA}"
+    paths:
+      - sample-artifacts/
+    when: always
+    expire_in: 30 days
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH'
+
+# ---------------------------------------------------------------------------
+# Fortifications: unicode, bidi, stray eval, compiled artefacts
+# ---------------------------------------------------------------------------
+fortify:
+  stage: fortify
+  before_script:
+    - *install_make
+    - apt-get update -qq && apt-get install -y --no-install-recommends git
+  script:
+    - git fetch origin main || true
+    - make fortify
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH'
+
+# ---------------------------------------------------------------------------
+# Distribution build
+# ---------------------------------------------------------------------------
+dist:
+  stage: dist
+  before_script:
+    - *install_make
+    - pip install --quiet build twine
+  script:
+    - make dist
+    - twine check dist/*
+  artifacts:
+    name: "qtop-dist-${CI_COMMIT_SHORT_SHA}"
+    paths:
+      - dist/
+    expire_in: 30 days
+  rules:
+    - if: '$CI_COMMIT_TAG'
+    - if: '$CI_COMMIT_BRANCH == "main"'
+    - if: '$CI_COMMIT_BRANCH =~ /^releases\//'
