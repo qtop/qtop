@@ -8,10 +8,23 @@
 ## SPDX-License-Identifier: MIT
 ##
 
-import pytest
 import re
 import datetime
-from qtop_py.qtop import WNOccupancy, decide_batch_system, load_yaml_config, JobNotFound, SchedulerNotSpecified, NoSchedulerFound, get_date_obj_from_str
+
+import pytest
+
+from qtop_py.qtop import (
+    WNOccupancy,
+    bool_config_value,
+    decide_batch_system,
+    extract_regex_detail,
+    get_date_obj_from_str,
+    load_yaml_config,
+    JobNotFound,
+    NoSchedulerFound,
+    SchedulerNotSpecified,
+    update_config_with_cmdline_vars,
+)
 
 
 @pytest.fixture
@@ -58,6 +71,41 @@ def test_load_yaml_config_does_not_execute_config_values(monkeypatch, tmp_path):
     assert config["vertical_separator_every_X_columns"] == 0
     assert config["overwrite_sample_file"] == dangerous_value
     assert not sentinel.exists()
+
+
+def test_cmdline_bool_options_do_not_execute(tmp_path):
+    class Args:
+        OPTION = ["transpose_wn_matrices=__import__('pathlib').Path(%r).touch()" % str(tmp_path / "executed"), "fill_with_user_firstletter=True"]
+        TRANSPOSE = False
+        REM_EMPTY_CORELINES = 0
+
+    config = {"rem_empty_corelines": "0"}
+
+    updated = update_config_with_cmdline_vars(Args(), config)
+
+    assert updated["fill_with_user_firstletter"] is True
+    assert updated["transpose_wn_matrices"].startswith("__import__")
+    assert not (tmp_path / "executed").exists()
+
+
+@pytest.mark.parametrize(
+    "value, expected",
+    (
+        ("True", True),
+        ("False", False),
+        ("true", True),
+        ("false", False),
+        ("not-bool", "not-bool"),
+    ),
+)
+def test_bool_config_value(value, expected):
+    assert bool_config_value(value) == expected
+
+
+def test_extract_regex_detail_supports_qtopconf_expression():
+    regex = "re.search('(?<=<)[^<>]+(?=>)', field).group(0)"
+
+    assert extract_regex_detail(regex, "Alice Example <alice@example.org>") == "alice@example.org"
 
 
 @pytest.mark.parametrize(

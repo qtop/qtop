@@ -88,6 +88,31 @@ def literal_config_value(value):
         return value
 
 
+def bool_config_value(value):
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        lowered = value.strip().lower()
+        if lowered == "true":
+            return True
+        if lowered == "false":
+            return False
+    return value
+
+
+def extract_regex_detail(regex, field):
+    expression = (regex or "").strip()
+    if not expression:
+        return field.strip()
+
+    match = re.match(r"^re\.search\((?P<quote>['\"])(?P<pattern>.*)(?P=quote),\s*field\)\.group\((?P<group>\d+)\)$", expression, re.DOTALL)
+    if not match:
+        raise ValueError("Unsupported user detail regex expression in %s" % QTOPCONF_YAML)
+
+    found = re.search(match.group("pattern"), field)
+    return found.group(int(match.group("group")))
+
+
 def gauge_core_vectors(core_user_map, print_char_start, print_char_stop, coreline_notthere_or_unused, non_existent_symbol, remove_corelines):
     """
     generator that loops over each core user vector and yields a boolean stating whether the core vector can be omitted via
@@ -389,8 +414,8 @@ def get_detail_of_name(account_jobs_table):
             break
         else:
             try:
-                detail = eval(regex)
-            except (AttributeError, TypeError):
+                detail = extract_regex_detail(regex, field)
+            except (AttributeError, TypeError, ValueError, IndexError):
                 detail = field.strip()
             finally:
                 detail_of_name[user] = detail
@@ -524,10 +549,6 @@ def control_qtop(viewport, read_char, cluster, new_attrs):
         sort_map["5"] = ("sort by node state", [])
         sort_map["6"] = ("sort by nr of cores", [])
         sort_map["7"] = ("sort by core occupancy", [])
-        sort_map["8"] = ("sort by custom definition", [])
-
-        custom_choice = "8"
-
         print(
             "Type in sort order. This can be a single number or a sequence of numbers,\n"
             "e.g. to sort first by first word, then by all numbers then by first name length, type 132, then <enter>."
@@ -546,9 +567,6 @@ def control_qtop(viewport, read_char, cluster, new_attrs):
             )
             if not sort_choice:
                 break
-            if custom_choice in sort_choice:
-                custom = input("\nType in custom sorting (python RegEx, for examples check configuration file): ")
-                sort_map[custom_choice][1].append(custom)
 
             try:
                 sort_order = [m for m in sort_choice]
@@ -772,7 +790,7 @@ def update_config_with_cmdline_vars(args, config):
     config["rem_empty_corelines"] = int(config["rem_empty_corelines"])
     for opt in args.OPTION:
         key, val = get_key_val_from_option_string(opt)
-        val = eval(val) if ("True" in val or "False" in val) else val
+        val = bool_config_value(val)
         config[key] = val
 
     if args.TRANSPOSE:
@@ -2012,7 +2030,8 @@ class Cluster(object):
             changed = False
             for remap_line in self.config["remapping"]:
                 pat, repl = remap_line.items()[0]
-                repl = eval(repl) if repl.startswith("lambda") else repl
+                if isinstance(repl, str) and repl.strip().startswith("lambda"):
+                    raise ValueError("lambda remapping expressions are no longer supported because eval is disabled")
                 if re.search(pat, _host):
                     changed = True
                     state_corejob_dn["host"] = _host = re.sub(pat, repl, _host)
@@ -2069,37 +2088,43 @@ class Cluster(object):
 
     def _sort_worker_nodes(self):
         order = {
-            "sort by nodename-notnum": 're.sub(r"[^A-Za-z _.-]+", "", node["domainname"]) or "0"',
-            "sort by nodename-notnum length": "len(node['domainname'].split('.', 1)[0].split('-')[0])",
-            "sort by all numbers": 'int(re.sub(r"[A-Za-z _.-]+", "", node["domainname"]) or "0")',
-            "sort by first letter": "ord(node['domainname'][0])",
-            "sort by node state": "ord(str(node['state'][0]))",
-            "sort by nr of cores": "int(node['np'])",
-            "sort by core occupancy": "len(node['core_job_map'])",
-            "sort by custom definition": "",
-            "sort reset": "0",
+            "sort by nodename-notnum": lambda node: re.sub(r"[^A-Za-z _.-]+", "", node["domainname"]) or "0",
+            "sort by nodename-notnum length": lambda node: len(node["domainname"].split(".", 1)[0].split("-")[0]),
+            "sort by all numbers": lambda node: int(re.sub(r"[A-Za-z _.-]+", "", node["domainname"]) or "0"),
+            "sort by first letter": lambda node: ord(node["domainname"][0]),
+            "sort by node state": lambda node: ord(str(node["state"][0])),
+            "sort by nr of cores": lambda node: int(node["np"]),
+            "sort by core occupancy": lambda node: len(node["core_job_map"]),
+            "sort reset": lambda node: 0,
             # "sort_by_num_adjacent_to_first_word" : "int(re.sub(r'[A-Za-z_.-]+', '', node['domainname'].split('.', 1)[0].split('-')[0]) or -1)",
             # "sort_by_first_word" : "node['domainname'].split('.', 1)[0].split('-')[0]",
         }
         if dynamic_config.get("user_sort"):  # live user sorting overrides yaml config sorting
             # following join content also takes custom definition argument into account
-            sort_str = ", ".join(order[k[0]] or k[1][0] for k in dynamic_config.get("user_sort", []))
+            sort_labels = [k[0] for k in dynamic_config.get("user_sort", [])]
         elif self.config.get("sorting", {}).get("user_sort"):
-            sort_str = ", ".join(order[k] for k in self.config["sorting"]["user_sort"])
+            sort_labels = self.config["sorting"]["user_sort"]
         else:
             return self.worker_nodes
 
-        sort_sequence = "lambda node: (" + sort_str + ")"
+        def sort_key(node):
+            values = []
+            for label in sort_labels:
+                if label == "sort by custom definition":
+                    raise ValueError("custom Python sorting expressions are no longer supported")
+                values.append(order[label](node))
+            return tuple(values)
+
         try:
-            self.worker_nodes.sort(key=eval(sort_sequence), reverse=self.config["sorting"]["reverse"])
+            self.worker_nodes.sort(key=sort_key, reverse=self.config["sorting"]["reverse"])
         except (IndexError, ValueError):
-            logging.critical("There's (probably) something wrong in your sorting lambda in %s." % QTOPCONF_YAML)
+            logging.critical("There's (probably) something wrong in your sorting configuration in %s." % QTOPCONF_YAML)
             raise
         except KeyError as e:
-            msg = "Worker Nodes don't contain '%s' as a key." % e.message
+            msg = "Worker Nodes don't contain '%s' as a key." % str(e)
             logging.error(colorize(msg, color_func="Red_L"))
         except NameError as e:
-            msg = "Wrong input '%s'. Please check the examples in qtopconf.yaml." % e.message
+            msg = "Wrong input '%s'. Please check the examples in qtopconf.yaml." % str(e)
             logging.error(colorize(msg, color_func="Red_L"))
 
         return self.worker_nodes
