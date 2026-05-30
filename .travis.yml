@@ -1,14 +1,16 @@
+# Note: Primary CI has moved to GitHub Actions (.github/workflows/).
+# This Travis CI config is retained for reference only.
+# See Makefile for local test/lint/coverage commands.
+
 language: python
 
 python:
-  - "2.6"
-  - "2.7"
+  - "3.10"
+  - "3.12"
 
 install:
-#  - pip install .
-#  - pip install -r requirements.txt
+  - pip install pytest pytest-cov ruff
 
-# command to run tests
-script: pwd;python -m pytest
-
-after_script: cd qtop/contrib/ ;./func_tests.sh
+script:
+  - make lint
+  - make test
