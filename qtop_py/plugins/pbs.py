@@ -19,6 +19,10 @@ import qtop_py.fileutils as fileutils
 import itertools
 
 
+def _as_int(value):
+    return int(str(value).strip())
+
+
 class PBSStatExtractor(StatExtractor):
     def __init__(self, config, options):
         StatExtractor.__init__(self, config, options)
@@ -317,7 +321,7 @@ class PBSBatchSystem(GenericBatchSystem):
         else:
             total_running_jobs, total_queued_jobs = 0, 0
 
-        return int(eval(str(total_running_jobs))), int(eval(str(total_queued_jobs))), qstatq_list
+        return _as_int(total_running_jobs), _as_int(total_queued_jobs), qstatq_list
 
     @staticmethod
     def _get_jobs_cores(jobs):  # block['jobs']
