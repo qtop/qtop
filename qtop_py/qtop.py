@@ -88,6 +88,64 @@ def literal_config_value(value):
         return value
 
 
+def extract_detail_from_config_regex(field, regex):
+    """Support qtopconf's re.search(..., field).group(0) without eval()."""
+    regex = (regex or "").strip()
+    prefix = "re.search("
+    suffix = ").group(0)"
+    if regex.startswith(prefix) and regex.endswith(suffix):
+        inner = regex[len(prefix) : -len(suffix)]
+        pattern_text, separator, target = inner.rpartition(",")
+        if separator and target.strip() == "field":
+            try:
+                pattern = literal_eval(pattern_text.strip())
+            except (ValueError, SyntaxError, TypeError):
+                pattern = None
+            if pattern is not None:
+                match = re.search(pattern, field)
+                if match:
+                    return match.group(0)
+    return field.strip()
+
+
+def worker_node_sort_value(node, sort_name):
+    domainname = str(node.get("domainname", ""))
+    host_prefix = domainname.split(".", 1)[0]
+    first_word = host_prefix.split("-", 1)[0]
+
+    if sort_name == "sort by first word":
+        return first_word
+    if sort_name == "sort by nodename-notnum":
+        return re.sub(r"[^A-Za-z _.-]+", "", domainname) or "0"
+    if sort_name == "sort by nodename-notnum length":
+        return len(first_word)
+    if sort_name == "sort by all numbers":
+        return int(re.sub(r"[A-Za-z _.-]+", "", domainname) or "0")
+    if sort_name == "sort by first letter":
+        return ord(domainname[0]) if domainname else 0
+    if sort_name == "sort by node state":
+        state = str(node.get("state", ""))
+        return ord(state[0]) if state else 0
+    if sort_name == "sort by nr of cores":
+        return int(node.get("np", 0))
+    if sort_name == "sort by core occupancy":
+        return len(node.get("core_job_map", {}))
+    if sort_name == "sort reset":
+        return 0
+    raise KeyError(sort_name)
+
+
+def user_sort_names(user_sort):
+    names = []
+    for item in user_sort or []:
+        if isinstance(item, (list, tuple)):
+            if item:
+                names.append(item[0])
+        else:
+            names.append(item)
+    return names
+
+
 def gauge_core_vectors(core_user_map, print_char_start, print_char_stop, coreline_notthere_or_unused, non_existent_symbol, remove_corelines):
     """
     generator that loops over each core user vector and yields a boolean stating whether the core vector can be omitted via
@@ -388,12 +446,7 @@ def get_detail_of_name(account_jobs_table):
         except ValueError:
             break
         else:
-            try:
-                detail = eval(regex)
-            except (AttributeError, TypeError):
-                detail = field.strip()
-            finally:
-                detail_of_name[user] = detail
+            detail_of_name[user] = extract_detail_from_config_regex(field, regex)
     return detail_of_name
 
 
@@ -772,7 +825,7 @@ def update_config_with_cmdline_vars(args, config):
     config["rem_empty_corelines"] = int(config["rem_empty_corelines"])
     for opt in args.OPTION:
         key, val = get_key_val_from_option_string(opt)
-        val = eval(val) if ("True" in val or "False" in val) else val
+        val = literal_config_value(val) if val in ("True", "False") else val
         config[key] = val
 
     if args.TRANSPOSE:
@@ -2011,8 +2064,10 @@ class Cluster(object):
             _host = state_corejob_dn["domainname"].split(".", 1)[0]
             changed = False
             for remap_line in self.config["remapping"]:
-                pat, repl = remap_line.items()[0]
-                repl = eval(repl) if repl.startswith("lambda") else repl
+                pat, repl = next(iter(remap_line.items()))
+                if isinstance(repl, str) and repl.lstrip().startswith("lambda"):
+                    logging.warning("Skipping callable remapping for pattern %s; use a regex replacement string instead." % pat)
+                    continue
                 if re.search(pat, _host):
                     changed = True
                     state_corejob_dn["host"] = _host = re.sub(pat, repl, _host)
@@ -2068,38 +2123,24 @@ class Cluster(object):
         return nodes_drop, workernode_dict, workernode_dict_remapped
 
     def _sort_worker_nodes(self):
-        order = {
-            "sort by nodename-notnum": 're.sub(r"[^A-Za-z _.-]+", "", node["domainname"]) or "0"',
-            "sort by nodename-notnum length": "len(node['domainname'].split('.', 1)[0].split('-')[0])",
-            "sort by all numbers": 'int(re.sub(r"[A-Za-z _.-]+", "", node["domainname"]) or "0")',
-            "sort by first letter": "ord(node['domainname'][0])",
-            "sort by node state": "ord(str(node['state'][0]))",
-            "sort by nr of cores": "int(node['np'])",
-            "sort by core occupancy": "len(node['core_job_map'])",
-            "sort by custom definition": "",
-            "sort reset": "0",
-            # "sort_by_num_adjacent_to_first_word" : "int(re.sub(r'[A-Za-z_.-]+', '', node['domainname'].split('.', 1)[0].split('-')[0]) or -1)",
-            # "sort_by_first_word" : "node['domainname'].split('.', 1)[0].split('-')[0]",
-        }
         if dynamic_config.get("user_sort"):  # live user sorting overrides yaml config sorting
-            # following join content also takes custom definition argument into account
-            sort_str = ", ".join(order[k[0]] or k[1][0] for k in dynamic_config.get("user_sort", []))
+            sort_names = user_sort_names(dynamic_config.get("user_sort", []))
         elif self.config.get("sorting", {}).get("user_sort"):
-            sort_str = ", ".join(order[k] for k in self.config["sorting"]["user_sort"])
+            sort_names = user_sort_names(self.config["sorting"]["user_sort"])
         else:
             return self.worker_nodes
 
-        sort_sequence = "lambda node: (" + sort_str + ")"
+        sort_names = [name for name in sort_names if name != "sort by custom definition"]
+        if not sort_names:
+            return self.worker_nodes
+
         try:
-            self.worker_nodes.sort(key=eval(sort_sequence), reverse=self.config["sorting"]["reverse"])
-        except (IndexError, ValueError):
-            logging.critical("There's (probably) something wrong in your sorting lambda in %s." % QTOPCONF_YAML)
+            self.worker_nodes.sort(key=lambda node: tuple(worker_node_sort_value(node, name) for name in sort_names), reverse=self.config["sorting"]["reverse"])
+        except (IndexError, TypeError, ValueError):
+            logging.critical("There's (probably) something wrong in your sorting config in %s." % QTOPCONF_YAML)
             raise
         except KeyError as e:
-            msg = "Worker Nodes don't contain '%s' as a key." % e.message
-            logging.error(colorize(msg, color_func="Red_L"))
-        except NameError as e:
-            msg = "Wrong input '%s'. Please check the examples in qtopconf.yaml." % e.message
+            msg = "Wrong sorting key '%s'. Please check the examples in qtopconf.yaml." % str(e)
             logging.error(colorize(msg, color_func="Red_L"))
 
         return self.worker_nodes
