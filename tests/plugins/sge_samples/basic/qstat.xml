@@ -1,0 +1,29 @@
+<?xml version="1.0"?>
+<job_info>
+  <queue_info>
+    <Queue-List>
+      <name>compute.q@node001</name>
+      <resource name="qname">compute.q</resource>
+      <resource name="hostname">node001</resource>
+      <resource name="num_proc">4</resource>
+      <slots_used>1</slots_used>
+      <state>-</state>
+      <job_list state="running">
+        <JB_job_number>101</JB_job_number>
+        <JB_name>running-job</JB_name>
+        <JB_owner>alice</JB_owner>
+        <JAT_start_time>2026-05-31T00:00:00</JAT_start_time>
+        <state>r</state>
+      </job_list>
+    </Queue-List>
+  </queue_info>
+  <job_info>
+    <job_list state="pending">
+      <JB_job_number>102</JB_job_number>
+      <JB_name>queued-job</JB_name>
+      <JB_owner>bob</JB_owner>
+      <JB_submission_time>2026-05-31T00:01:00</JB_submission_time>
+      <state>qw</state>
+    </job_list>
+  </job_info>
+</job_info>
