@@ -10,6 +10,10 @@ from xml.etree import ElementTree as etree
 import qtop_py.fileutils as fileutils
 
 
+def _as_int(value):
+    return int(str(value).strip())
+
+
 class SGEStatExtractor(StatExtractor):
     def __init__(self, config, options, scheduler_output_filenames):
         StatExtractor.__init__(self, config, options)
@@ -132,7 +136,7 @@ class SGEBatchSystem(GenericBatchSystem):
         # TODO: check validity. 'state' shouldnt just be 'Q'!
         logging.debug("Closing %s" % self.sge_file)
 
-        return total_running_jobs, int(eval(str(total_queued_jobs))), qstatq_list
+        return total_running_jobs, _as_int(total_queued_jobs), qstatq_list
 
     def get_worker_nodes(self, job_ids, job_queues, options):
         logging.debug("Parsing tree of %s" % self.sge_file)
