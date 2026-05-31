@@ -88,6 +88,48 @@ def literal_config_value(value):
         return value
 
 
+def extract_detail_from_field(field, detail_regex):
+    """Apply the supported qtopconf user-detail regex without executing config text."""
+    if not detail_regex:
+        return field.strip()
+
+    detail_regex = detail_regex.strip()
+    regex_match = re.match(r"""^re\.search\((['"])(?P<pattern>.*)\1,\s*field\)\.group\((?P<group>\d+)\)$""", detail_regex)
+    if not regex_match:
+        logging.warning("Unsupported user-detail regex expression in %s; using the raw field.", QTOPCONF_YAML)
+        return field.strip()
+
+    match = re.search(regex_match.group("pattern"), field)
+    if match is None:
+        raise AttributeError
+    return match.group(int(regex_match.group("group")))
+
+
+def safe_remap_replacement(replacement):
+    if not isinstance(replacement, str) or not replacement.startswith("lambda"):
+        return replacement
+
+    # Backward-compatible support for the documented qtopconf example:
+    # lambda m: m.group(1)+str(int(m.group(2))+250)
+    match = re.match(
+        r"^lambda\s+m:\s*m\.group\((?P<prefix>\d+)\)\s*\+\s*"
+        r"str\(int\(m\.group\((?P<number>\d+)\)\)\s*\+\s*(?P<offset>\d+)\)$",
+        replacement.strip(),
+    )
+    if not match:
+        logging.warning("Unsupported remapping callable in %s; using literal replacement text.", QTOPCONF_YAML)
+        return replacement
+
+    prefix_group = int(match.group("prefix"))
+    number_group = int(match.group("number"))
+    offset = int(match.group("offset"))
+
+    def replace(match_obj):
+        return match_obj.group(prefix_group) + str(int(match_obj.group(number_group)) + offset)
+
+    return replace
+
+
 def gauge_core_vectors(core_user_map, print_char_start, print_char_stop, coreline_notthere_or_unused, non_existent_symbol, remove_corelines):
     """
     generator that loops over each core user vector and yields a boolean stating whether the core vector can be omitted via
@@ -389,7 +431,7 @@ def get_detail_of_name(account_jobs_table):
             break
         else:
             try:
-                detail = eval(regex)
+                detail = extract_detail_from_field(field, regex)
             except (AttributeError, TypeError):
                 detail = field.strip()
             finally:
@@ -772,8 +814,7 @@ def update_config_with_cmdline_vars(args, config):
     config["rem_empty_corelines"] = int(config["rem_empty_corelines"])
     for opt in args.OPTION:
         key, val = get_key_val_from_option_string(opt)
-        val = eval(val) if ("True" in val or "False" in val) else val
-        config[key] = val
+        config[key] = literal_config_value(val)
 
     if args.TRANSPOSE:
         config["transpose_wn_matrices"] = not config["transpose_wn_matrices"]
@@ -2011,8 +2052,8 @@ class Cluster(object):
             _host = state_corejob_dn["domainname"].split(".", 1)[0]
             changed = False
             for remap_line in self.config["remapping"]:
-                pat, repl = remap_line.items()[0]
-                repl = eval(repl) if repl.startswith("lambda") else repl
+                pat, repl = list(remap_line.items())[0]
+                repl = safe_remap_replacement(repl)
                 if re.search(pat, _host):
                     changed = True
                     state_corejob_dn["host"] = _host = re.sub(pat, repl, _host)
@@ -2069,29 +2110,32 @@ class Cluster(object):
 
     def _sort_worker_nodes(self):
         order = {
-            "sort by nodename-notnum": 're.sub(r"[^A-Za-z _.-]+", "", node["domainname"]) or "0"',
-            "sort by nodename-notnum length": "len(node['domainname'].split('.', 1)[0].split('-')[0])",
-            "sort by all numbers": 'int(re.sub(r"[A-Za-z _.-]+", "", node["domainname"]) or "0")',
-            "sort by first letter": "ord(node['domainname'][0])",
-            "sort by node state": "ord(str(node['state'][0]))",
-            "sort by nr of cores": "int(node['np'])",
-            "sort by core occupancy": "len(node['core_job_map'])",
-            "sort by custom definition": "",
-            "sort reset": "0",
-            # "sort_by_num_adjacent_to_first_word" : "int(re.sub(r'[A-Za-z_.-]+', '', node['domainname'].split('.', 1)[0].split('-')[0]) or -1)",
-            # "sort_by_first_word" : "node['domainname'].split('.', 1)[0].split('-')[0]",
+            "sort by nodename-notnum": lambda node: re.sub(r"[^A-Za-z _.-]+", "", node["domainname"]) or "0",
+            "sort by nodename-notnum length": lambda node: len(node["domainname"].split(".", 1)[0].split("-")[0]),
+            "sort by all numbers": lambda node: int(re.sub(r"[A-Za-z _.-]+", "", node["domainname"]) or "0"),
+            "sort by first letter": lambda node: ord(node["domainname"][0]),
+            "sort by node state": lambda node: ord(str(node["state"][0])),
+            "sort by nr of cores": lambda node: int(node["np"]),
+            "sort by core occupancy": lambda node: len(node["core_job_map"]),
+            "sort reset": lambda node: 0,
         }
+        sort_functions = []
         if dynamic_config.get("user_sort"):  # live user sorting overrides yaml config sorting
-            # following join content also takes custom definition argument into account
-            sort_str = ", ".join(order[k[0]] or k[1][0] for k in dynamic_config.get("user_sort", []))
+            for sort_name, custom_values in dynamic_config.get("user_sort", []):
+                if sort_name == "sort by custom definition":
+                    logging.warning("Custom Python sorting expressions are not evaluated; ignoring %s.", custom_values)
+                    continue
+                sort_functions.append(order[sort_name])
         elif self.config.get("sorting", {}).get("user_sort"):
-            sort_str = ", ".join(order[k] for k in self.config["sorting"]["user_sort"])
+            sort_functions = [order[sort_name] for sort_name in self.config["sorting"]["user_sort"]]
         else:
             return self.worker_nodes
 
-        sort_sequence = "lambda node: (" + sort_str + ")"
+        if not sort_functions:
+            return self.worker_nodes
+
         try:
-            self.worker_nodes.sort(key=eval(sort_sequence), reverse=self.config["sorting"]["reverse"])
+            self.worker_nodes.sort(key=lambda node: tuple(sort_func(node) for sort_func in sort_functions), reverse=self.config["sorting"]["reverse"])
         except (IndexError, ValueError):
             logging.critical("There's (probably) something wrong in your sorting lambda in %s." % QTOPCONF_YAML)
             raise

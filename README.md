@@ -54,6 +54,15 @@ Try `--help` for all available options.
 
 Documentation/tutorial [here](docs/documentation.rst).
 
+## Development
+
+Run the shared local and CI validation gate with:
+
+    make ci
+
+The scheduler sample gate and artifact policy are documented in
+[docs/ci-sample-gate.md](docs/ci-sample-gate.md).
+
 ## Profile
 
     Description: the fast text mode way to monitor your cluster’s utilization and status; the time has come to take back control of your cluster’s scheduling business

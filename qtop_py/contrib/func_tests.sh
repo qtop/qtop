@@ -1,24 +1,14 @@
 #! /bin/sh -
-# The following script runs three known test cases for qtop, one for each of PBS, OAR, SGE
-# No output after "Testing <scheduler>" means test passed. 
-# The test actually runs qtop over known scheduler output files, and then diffs them against the expected output. 
-# While diffing, one qtop output line is omitted 
-# (the one containing word "WORKDIR\|Please try it with watch\|Log file created in"), as it contains an everchanging timestamp.
+set -eu
 
-cd ..
+script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+repo_root=$(CDPATH= cd -- "$script_dir/../.." && pwd)
+python_cmd=${PYTHON:-python3}
 
-echo "(No news is good news!)"
-echo "Testing sge..."
-grep -v 'WORKDIR\|Please try it with watch\|Log file created in' contrib/sger_dvv_out.ref > /tmp/qtop_testfile
-./qtop.py -s contrib -c ON -Fadvv -b sge \
-    | grep -v 'WORKDIR\|Please try it with watch\|Log file created in' | diff - /tmp/qtop_testfile
+case "$python_cmd" in
+    /*) ;;
+    */*) python_cmd=$(CDPATH= cd -- "$(dirname -- "$python_cmd")" && pwd)/$(basename -- "$python_cmd") ;;
+esac
 
-echo "Testing oar..."
-grep -v 'WORKDIR\|Please try it with watch\|Log file created in' contrib/oar1_dvv_out.ref > /tmp/qtop_testfile
-./qtop.py -c ON -s contrib -FAardvvv -b oar \
-    | grep -v 'WORKDIR\|Please try it with watch\|Log file created in' | diff - /tmp/qtop_testfile
-
-echo "Testing pbs..."
-grep -v 'WORKDIR\|Please try it with watch\|Log file created in' contrib/pbs_dvv_out.ref > /tmp/qtop_testfile
-./qtop.py -c ON -s contrib -raF -b pbs \
-    | grep -v 'WORKDIR\|Please try it with watch\|Log file created in' | diff - /tmp/qtop_testfile
+cd "$repo_root"
+"$python_cmd" tools/sample_gate.py --output "${SAMPLE_GATE_OUTPUT:-artifacts/sample-gate}" --max-failures "${SAMPLE_GATE_MAX_FAILURES:-0}"

@@ -1,0 +1,28 @@
+stages:
+  - test
+
+qtop-ci:
+  image: python:3.12-slim
+  stage: test
+  before_script:
+    - apt-get update && apt-get install -y --no-install-recommends make && rm -rf /var/lib/apt/lists/*
+    - python -m pip install pytest
+  script:
+    - make ci PYTHON=python SAMPLE_GATE_OUTPUT=artifacts/sample-gate-gitlab
+  artifacts:
+    when: always
+    paths:
+      - artifacts/sample-gate-gitlab/
+
+qtop-python36-almalinux8:
+  image: almalinux:8
+  stage: test
+  before_script:
+    - dnf install -y make python36 python36-pip
+    - python3.6 -m pip install 'pip<22' 'setuptools<60' 'pytest<7'
+  script:
+    - make ci PYTHON=python3.6 SAMPLE_GATE_OUTPUT=artifacts/sample-gate-py36-gitlab
+  artifacts:
+    when: always
+    paths:
+      - artifacts/sample-gate-py36-gitlab/
