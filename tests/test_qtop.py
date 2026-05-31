@@ -8,10 +8,23 @@
 ## SPDX-License-Identifier: MIT
 ##
 
-import pytest
 import re
 import datetime
-from qtop_py.qtop import WNOccupancy, decide_batch_system, load_yaml_config, JobNotFound, SchedulerNotSpecified, NoSchedulerFound, get_date_obj_from_str
+
+import pytest
+
+from qtop_py.qtop import (
+    WNOccupancy,
+    compile_remap_replacement,
+    decide_batch_system,
+    extract_detail_from_field,
+    get_date_obj_from_str,
+    JobNotFound,
+    load_yaml_config,
+    NoSchedulerFound,
+    SchedulerNotSpecified,
+    update_config_with_cmdline_vars,
+)
 
 
 @pytest.fixture
@@ -58,6 +71,36 @@ def test_load_yaml_config_does_not_execute_config_values(monkeypatch, tmp_path):
     assert config["vertical_separator_every_X_columns"] == 0
     assert config["overwrite_sample_file"] == dangerous_value
     assert not sentinel.exists()
+
+
+def test_cmdline_option_values_are_not_executed(tmp_path):
+    class Args:
+        OPTION = []
+        TRANSPOSE = False
+        REM_EMPTY_CORELINES = False
+
+    sentinel = tmp_path / "executed"
+    Args.OPTION = ["custom=__import__('pathlib').Path(%r).touch()" % str(sentinel), "enabled=True"]
+
+    config = {"rem_empty_corelines": "0", "transpose_wn_matrices": False}
+
+    updated = update_config_with_cmdline_vars(Args(), config)
+
+    assert updated["custom"] == Args.OPTION[0].split("=", 1)[1]
+    assert updated["enabled"] is True
+    assert not sentinel.exists()
+
+
+def test_extract_detail_supports_configured_re_search():
+    regex = "re.search('(?<=<)[^<>]+(?=>)', field).group(0)"
+
+    assert extract_detail_from_field(regex, "Ada Lovelace <ada@example.com>") == "ada@example.com"
+
+
+def test_compile_remap_replacement_supports_offset_example():
+    replacement = compile_remap_replacement("lambda m: m.group(1)+str(int(m.group(2))+250)")
+
+    assert re.sub(r"([A-Za-z]+)([0-9]+)$", replacement, "wn100") == "wn350"
 
 
 @pytest.mark.parametrize(

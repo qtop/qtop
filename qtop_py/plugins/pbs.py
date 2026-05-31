@@ -317,7 +317,7 @@ class PBSBatchSystem(GenericBatchSystem):
         else:
             total_running_jobs, total_queued_jobs = 0, 0
 
-        return int(eval(str(total_running_jobs))), int(eval(str(total_queued_jobs))), qstatq_list
+        return int(str(total_running_jobs).strip()), int(str(total_queued_jobs).strip()), qstatq_list
 
     @staticmethod
     def _get_jobs_cores(jobs):  # block['jobs']

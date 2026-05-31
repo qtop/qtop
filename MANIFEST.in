@@ -4,10 +4,13 @@ include helpfile.txt
 include Makefile
 include MANIFEST.in
 include LICENSE
+include .gitlab-ci.yml
 include qtopconf.yaml
 include qtop
 include README.md
 include ROADMAP.rst
 
 recursive-include qtop_py *.py *.sh *.jdl *.html *.txt *.ref *.gif *.stdout
+recursive-include docs *.md
+recursive-include scripts *.py
 recursive-include tests *.py

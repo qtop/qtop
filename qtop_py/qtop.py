@@ -26,12 +26,35 @@ import json
 import datetime
 from collections import namedtuple, OrderedDict, Counter
 from os.path import realpath
-from signal import signal, SIGPIPE, SIG_DFL
-import termios
+from signal import signal, SIG_DFL
+
+try:
+    from signal import SIGPIPE
+except ImportError:
+    SIGPIPE = None
+try:
+    import termios
+except ImportError:
+    class _TermiosFallback:
+        ECHO = 0
+        ICANON = 0
+        TCSADRAIN = 0
+        error = OSError
+
+        @staticmethod
+        def tcgetattr(_file):
+            raise OSError("termios is not available on this platform")
+
+        @staticmethod
+        def tcsetattr(_file, _when, _attrs):
+            return None
+
+    termios = _TermiosFallback()
 import contextlib
 import glob
 import tempfile
 import logging
+import shutil
 from ast import literal_eval
 from qtop_py.constants import SYSTEMCONFDIR, QTOPCONF_YAML, QTOP_LOGFILE, USERPATH, MAX_UNIX_ACCOUNTS, KEYPRESS_TIMEOUT, FALLBACK_TERMSIZE
 from qtop_py import fileutils
@@ -86,6 +109,43 @@ def literal_config_value(value):
         return literal_eval(value)
     except (ValueError, SyntaxError, TypeError):
         return value
+
+
+def extract_detail_from_field(regex, field):
+    if not regex:
+        return field.strip()
+
+    regex = regex.strip()
+    configured = re.match(r"^re\.search\((['\"])(?P<pattern>.+?)\1,\s*field\)\.group\(0\)$", regex)
+    if configured:
+        match = re.search(configured.group("pattern"), field)
+        if match:
+            return match.group(0)
+
+    logging.warning("Unsupported extract_info.regex in %s; using the raw field.", QTOPCONF_YAML)
+    return field.strip()
+
+
+def compile_remap_replacement(repl):
+    if not repl.startswith("lambda"):
+        return repl
+
+    offset_remap = re.match(
+        r"^lambda\s+(?P<name>\w+):\s*(?P=name)\.group\((?P<prefix>\d+)\)\s*\+\s*str\(int\((?P=name)\.group\((?P<number>\d+)\)\)\s*\+\s*(?P<offset>\d+)\)$",
+        repl.strip(),
+    )
+    if offset_remap:
+        prefix_group = int(offset_remap.group("prefix"))
+        number_group = int(offset_remap.group("number"))
+        offset = int(offset_remap.group("offset"))
+
+        def replace(match):
+            return match.group(prefix_group) + str(int(match.group(number_group)) + offset)
+
+        return replace
+
+    logging.warning("Unsupported lambda remapping in %s; leaving host names unchanged.", QTOPCONF_YAML)
+    return lambda match: match.group(0)
 
 
 def gauge_core_vectors(core_user_map, print_char_start, print_char_stop, coreline_notthere_or_unused, non_existent_symbol, remove_corelines):
@@ -303,10 +363,8 @@ def auto_get_avail_batch_system(config):
     If the auto option is set in either env variable QTOP_SCHEDULER, QTOPCONF_YAML or in cmdline switch -b,
     qtop tries to determine which of the known batch commands are available in the current system.
     """
-    # TODO pbsnodes etc should not be hardcoded!
     for system, batch_command in config["signature_commands"].items():
-        NOT_FOUND = subprocess.call(["/usr/bin/which", batch_command], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        if not NOT_FOUND:
+        if shutil.which(batch_command):
             if system != "demo":
                 logging.debug("Auto-detected scheduler: %s" % system)
                 return system
@@ -388,12 +446,7 @@ def get_detail_of_name(account_jobs_table):
         except ValueError:
             break
         else:
-            try:
-                detail = eval(regex)
-            except (AttributeError, TypeError):
-                detail = field.strip()
-            finally:
-                detail_of_name[user] = detail
+            detail_of_name[user] = extract_detail_from_field(regex, field)
     return detail_of_name
 
 
@@ -772,8 +825,7 @@ def update_config_with_cmdline_vars(args, config):
     config["rem_empty_corelines"] = int(config["rem_empty_corelines"])
     for opt in args.OPTION:
         key, val = get_key_val_from_option_string(opt)
-        val = eval(val) if ("True" in val or "False" in val) else val
-        config[key] = val
+        config[key] = literal_config_value(val)
 
     if args.TRANSPOSE:
         config["transpose_wn_matrices"] = not config["transpose_wn_matrices"]
@@ -1689,7 +1741,8 @@ class TextDisplay(object):
         return joined_list
 
     def print_core_lines(self, core_user_map, print_char_start, print_char_stop, transposed_matrices, userid_to_userid_re_pat, mapping, attrs, options1, options2):
-        signal(SIGPIPE, SIG_DFL)
+        if SIGPIPE is not None:
+            signal(SIGPIPE, SIG_DFL)
         remove_corelines = dynamic_config.get("rem_empty_corelines", config["rem_empty_corelines"]) + 1
 
         # if corelines vertical (transposed matrix)
@@ -1712,7 +1765,8 @@ class TextDisplay(object):
                     print(core_line_zipped)
                 except IOError:
                     try:
-                        signal(SIGPIPE, SIG_DFL)
+                        if SIGPIPE is not None:
+                            signal(SIGPIPE, SIG_DFL)
                         print(core_line_zipped)
                         sys.stdout.close()
                     except IOError:
@@ -2012,7 +2066,7 @@ class Cluster(object):
             changed = False
             for remap_line in self.config["remapping"]:
                 pat, repl = remap_line.items()[0]
-                repl = eval(repl) if repl.startswith("lambda") else repl
+                repl = compile_remap_replacement(repl)
                 if re.search(pat, _host):
                     changed = True
                     state_corejob_dn["host"] = _host = re.sub(pat, repl, _host)
@@ -2069,31 +2123,30 @@ class Cluster(object):
 
     def _sort_worker_nodes(self):
         order = {
-            "sort by nodename-notnum": 're.sub(r"[^A-Za-z _.-]+", "", node["domainname"]) or "0"',
-            "sort by nodename-notnum length": "len(node['domainname'].split('.', 1)[0].split('-')[0])",
-            "sort by all numbers": 'int(re.sub(r"[A-Za-z _.-]+", "", node["domainname"]) or "0")',
-            "sort by first letter": "ord(node['domainname'][0])",
-            "sort by node state": "ord(str(node['state'][0]))",
-            "sort by nr of cores": "int(node['np'])",
-            "sort by core occupancy": "len(node['core_job_map'])",
-            "sort by custom definition": "",
-            "sort reset": "0",
-            # "sort_by_num_adjacent_to_first_word" : "int(re.sub(r'[A-Za-z_.-]+', '', node['domainname'].split('.', 1)[0].split('-')[0]) or -1)",
-            # "sort_by_first_word" : "node['domainname'].split('.', 1)[0].split('-')[0]",
+            "sort by nodename-notnum": lambda node: re.sub(r"[^A-Za-z _.-]+", "", node["domainname"]) or "0",
+            "sort by nodename-notnum length": lambda node: len(node["domainname"].split(".", 1)[0].split("-")[0]),
+            "sort by all numbers": lambda node: int(re.sub(r"[A-Za-z _.-]+", "", node["domainname"]) or "0"),
+            "sort by first letter": lambda node: ord(node["domainname"][0]),
+            "sort by node state": lambda node: ord(str(node["state"][0])),
+            "sort by nr of cores": lambda node: int(node["np"]),
+            "sort by core occupancy": lambda node: len(node["core_job_map"]),
+            "sort reset": lambda node: 0,
         }
         if dynamic_config.get("user_sort"):  # live user sorting overrides yaml config sorting
-            # following join content also takes custom definition argument into account
-            sort_str = ", ".join(order[k[0]] or k[1][0] for k in dynamic_config.get("user_sort", []))
+            sort_fns = []
+            for choice in dynamic_config.get("user_sort", []):
+                sort_fn = order.get(choice[0])
+                if sort_fn:
+                    sort_fns.append(sort_fn)
         elif self.config.get("sorting", {}).get("user_sort"):
-            sort_str = ", ".join(order[k] for k in self.config["sorting"]["user_sort"])
+            sort_fns = [order[k] for k in self.config["sorting"]["user_sort"] if k in order]
         else:
             return self.worker_nodes
 
-        sort_sequence = "lambda node: (" + sort_str + ")"
         try:
-            self.worker_nodes.sort(key=eval(sort_sequence), reverse=self.config["sorting"]["reverse"])
+            self.worker_nodes.sort(key=lambda node: tuple(sort_fn(node) for sort_fn in sort_fns), reverse=self.config["sorting"]["reverse"])
         except (IndexError, ValueError):
-            logging.critical("There's (probably) something wrong in your sorting lambda in %s." % QTOPCONF_YAML)
+            logging.critical("There's (probably) something wrong in your sorting configuration in %s." % QTOPCONF_YAML)
             raise
         except KeyError as e:
             msg = "Worker Nodes don't contain '%s' as a key." % e.message

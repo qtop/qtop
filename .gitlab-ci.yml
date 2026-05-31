@@ -1,0 +1,27 @@
+stages:
+  - test
+
+qtop-sample-gate:
+  image: python:3.10-slim
+  stage: test
+  script:
+    - python -m pip install --upgrade pip
+    - python -m pip install "pytest"
+    - make PYTHON=python SAMPLE_GATE_MAX_FAILURES=0 ci-sample-gate
+  artifacts:
+    when: always
+    paths:
+      - artifacts/qtop-sample-gate/
+
+qtop-python36-sample-gate:
+  image: almalinux:8
+  stage: test
+  before_script:
+    - dnf install -y make python36 python36-pip
+    - python3.6 -m pip install "pytest<7.1"
+  script:
+    - make PYTHON=python3.6 SAMPLE_GATE_MAX_FAILURES=0 sample-gate
+  artifacts:
+    when: always
+    paths:
+      - artifacts/qtop-sample-gate/
