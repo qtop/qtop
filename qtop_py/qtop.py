@@ -15,8 +15,21 @@
 ##
 
 import sys
+import ast
 
 here = sys.path[0]
+
+def _safe_lambda_eval(expr):
+    if not isinstance(expr, str):
+        return expr
+    try:
+        tree = ast.parse(expr, mode="eval")
+        if isinstance(tree.body, ast.Lambda):
+            code = compile(tree, "<config>", "eval")
+            return eval(code, {"__builtins__": {}}, {})
+    except (SyntaxError, ValueError, TypeError):
+        pass
+    return expr
 
 from operator import itemgetter
 from itertools import zip_longest, cycle, chain
@@ -231,8 +244,8 @@ def load_yaml_config():
     config["savepath"] = _savepath
 
     for key in ("transpose_wn_matrices", "fill_with_user_firstletter", "faster_xml_parsing", "vertical_separator_every_X_columns", "overwrite_sample_file"):
-        config[key] = eval(config[key])  # TODO config should not be writeable!!
-    config["sorting"]["reverse"] = eval(config["sorting"].get("reverse", "0"))  # TODO config should not be writeable!!
+        config[key] = ast.literal_eval(config[key])
+    config["sorting"]["reverse"] = ast.literal_eval(config["sorting"].get("reverse", "0"))
     config["ALT_LABEL_COLORS"] = yaml.fix_config_list(config["workernodes_matrix"][0]["wn id lines"]["alt_label_colors"])
     config["SEPARATOR"] = config["vertical_separator"].replace("'", "")
     config["USER_CUT_MATRIX_WIDTH"] = int(config["workernodes_matrix"][0]["wn id lines"]["user_cut_matrix_width"])
@@ -381,8 +394,9 @@ def get_detail_of_name(account_jobs_table):
             break
         else:
             try:
-                detail = eval(regex)
-            except (AttributeError, TypeError):
+                detail = re.compile(regex).search("")  # validate regex, discard result
+                detail = field.strip()
+            except (AttributeError, TypeError, re.error):
                 detail = field.strip()
             finally:
                 detail_of_name[user] = detail
@@ -764,7 +778,7 @@ def update_config_with_cmdline_vars(args, config):
     config["rem_empty_corelines"] = int(config["rem_empty_corelines"])
     for opt in args.OPTION:
         key, val = get_key_val_from_option_string(opt)
-        val = eval(val) if ("True" in val or "False" in val) else val
+        val = ast.literal_eval(val) if ("True" in val or "False" in val) else val
         config[key] = val
 
     if args.TRANSPOSE:
@@ -1994,7 +2008,7 @@ class Cluster(object):
             changed = False
             for remap_line in self.config["remapping"]:
                 pat, repl = remap_line.items()[0]
-                repl = eval(repl) if repl.startswith("lambda") else repl
+                repl = _safe_lambda_eval(repl) if repl.startswith("lambda") else repl
                 if re.search(pat, _host):
                     changed = True
                     state_corejob_dn["host"] = _host = re.sub(pat, repl, _host)
@@ -2073,7 +2087,8 @@ class Cluster(object):
 
         sort_sequence = "lambda node: (" + sort_str + ")"
         try:
-            self.worker_nodes.sort(key=eval(sort_sequence), reverse=self.config["sorting"]["reverse"])
+            sort_key = _safe_lambda_eval(sort_sequence) if "lambda" in sort_sequence else ast.literal_eval(sort_sequence)
+            self.worker_nodes.sort(key=sort_key, reverse=self.config["sorting"]["reverse"])
         except (IndexError, ValueError):
             logging.critical("There's (probably) something wrong in your sorting lambda in %s." % QTOPCONF_YAML)
             raise
