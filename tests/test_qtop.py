@@ -11,7 +11,17 @@
 import pytest
 import re
 import datetime
-from qtop_py.qtop import WNOccupancy, decide_batch_system, load_yaml_config, JobNotFound, SchedulerNotSpecified, NoSchedulerFound, get_date_obj_from_str
+from qtop_py.qtop import (
+    WNOccupancy,
+    decide_batch_system,
+    extract_detail_from_config_regex,
+    get_date_obj_from_str,
+    JobNotFound,
+    load_yaml_config,
+    NoSchedulerFound,
+    SchedulerNotSpecified,
+    worker_node_sort_value,
+)
 
 
 @pytest.fixture
@@ -58,6 +68,40 @@ def test_load_yaml_config_does_not_execute_config_values(monkeypatch, tmp_path):
     assert config["vertical_separator_every_X_columns"] == 0
     assert config["overwrite_sample_file"] == dangerous_value
     assert not sentinel.exists()
+
+
+def test_extract_detail_from_config_regex_does_not_execute_code(tmp_path):
+    sentinel = tmp_path / "executed"
+    dangerous_regex = "__import__('pathlib').Path(%r).touch()" % str(sentinel)
+
+    assert extract_detail_from_config_regex("Alice Example <alice@example.org>", dangerous_regex) == "Alice Example <alice@example.org>"
+    assert not sentinel.exists()
+
+
+def test_extract_detail_from_config_regex_supports_qtopconf_pattern():
+    regex = "re.search('(?<=<)[^<>]+(?=>)', field).group(0)"
+
+    assert extract_detail_from_config_regex("Alice Example <alice@example.org>", regex) == "alice@example.org"
+
+
+@pytest.mark.parametrize(
+    "sort_name, expected",
+    (
+        ("sort by first word", "wn123"),
+        ("sort by nodename-notnum", "wn-.grid.example.org"),
+        ("sort by nodename-notnum length", 5),
+        ("sort by all numbers", 12345),
+        ("sort by first letter", ord("w")),
+        ("sort by node state", ord("a")),
+        ("sort by nr of cores", 16),
+        ("sort by core occupancy", 2),
+        ("sort reset", 0),
+    ),
+)
+def test_worker_node_sort_value(sort_name, expected):
+    node = {"domainname": "wn123-45.grid.example.org", "state": "au", "np": "16", "core_job_map": {0: "a", 1: "b"}}
+
+    assert worker_node_sort_value(node, sort_name) == expected
 
 
 @pytest.mark.parametrize(
