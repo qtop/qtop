@@ -11,7 +11,20 @@
 import pytest
 import re
 import datetime
-from qtop_py.qtop import WNOccupancy, decide_batch_system, load_yaml_config, JobNotFound, SchedulerNotSpecified, NoSchedulerFound, get_date_obj_from_str
+from types import SimpleNamespace
+
+from qtop_py.qtop import (
+    Cluster,
+    WNOccupancy,
+    decide_batch_system,
+    extract_user_detail,
+    get_date_obj_from_str,
+    JobNotFound,
+    load_yaml_config,
+    NoSchedulerFound,
+    SchedulerNotSpecified,
+    update_config_with_cmdline_vars,
+)
 
 
 @pytest.fixture
@@ -58,6 +71,67 @@ def test_load_yaml_config_does_not_execute_config_values(monkeypatch, tmp_path):
     assert config["vertical_separator_every_X_columns"] == 0
     assert config["overwrite_sample_file"] == dangerous_value
     assert not sentinel.exists()
+
+
+def test_user_detail_regex_does_not_execute_config(tmp_path):
+    sentinel = tmp_path / "executed"
+    dangerous_regex = "__import__('pathlib').Path(%r).touch()" % str(sentinel)
+
+    assert extract_user_detail("Alice Example <alice@example.org>", dangerous_regex) == "Alice Example <alice@example.org>"
+    assert not sentinel.exists()
+
+
+def test_user_detail_regex_extracts_supported_search_group():
+    regex = "re.search('(?<=<)[^<>]+(?=>)', field).group(0)"
+
+    assert extract_user_detail("Alice Example <alice@example.org>", regex) == "alice@example.org"
+
+
+def test_cmdline_bool_option_does_not_execute_values(tmp_path):
+    sentinel = tmp_path / "executed"
+    dangerous_value = "__import__('pathlib').Path(%r).touch()" % str(sentinel)
+    args = SimpleNamespace(OPTION=["transpose_wn_matrices=True", "overwrite_sample_file=%s" % dangerous_value], TRANSPOSE=False, REM_EMPTY_CORELINES=0)
+    config = {"rem_empty_corelines": "0", "transpose_wn_matrices": False}
+
+    updated = update_config_with_cmdline_vars(args, config)
+
+    assert updated["transpose_wn_matrices"] is True
+    assert updated["overwrite_sample_file"] == dangerous_value
+    assert not sentinel.exists()
+
+
+def test_worker_node_sorting_does_not_execute_custom_definition(monkeypatch, tmp_path):
+    sentinel = tmp_path / "executed"
+    cluster = Cluster.__new__(Cluster)
+    cluster.config = {"sorting": {"user_sort": ["sort by custom definition"], "reverse": False}}
+    cluster.worker_nodes = [{"domainname": "wn002", "state": "-", "np": "2", "core_job_map": {}}, {"domainname": "wn001", "state": "-", "np": "1", "core_job_map": {}}]
+
+    import qtop_py.qtop as qtop
+
+    monkeypatch.setattr(
+        qtop,
+        "dynamic_config",
+        {"user_sort": [["sort by custom definition", ["__import__('pathlib').Path(%r).touch()" % str(sentinel)]]]},
+        raising=False,
+    )
+
+    assert cluster._sort_worker_nodes() == cluster.worker_nodes
+    assert not sentinel.exists()
+
+
+def test_worker_node_sorting_uses_fixed_sort_functions(monkeypatch):
+    cluster = Cluster.__new__(Cluster)
+    cluster.config = {"sorting": {"user_sort": ["sort by nodename-notnum", "sort by all numbers"], "reverse": False}}
+    cluster.worker_nodes = [
+        {"domainname": "wn010", "state": "-", "np": "2", "core_job_map": {}},
+        {"domainname": "wn002", "state": "-", "np": "1", "core_job_map": {}},
+    ]
+
+    import qtop_py.qtop as qtop
+
+    monkeypatch.setattr(qtop, "dynamic_config", {}, raising=False)
+
+    assert [node["domainname"] for node in cluster._sort_worker_nodes()] == ["wn002", "wn010"]
 
 
 @pytest.mark.parametrize(

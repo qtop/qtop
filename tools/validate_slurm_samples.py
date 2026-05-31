@@ -11,6 +11,7 @@ import argparse
 import os
 import subprocess
 import sys
+import tempfile
 
 
 def iter_sample_dirs(samples_dir):
@@ -25,6 +26,7 @@ def iter_sample_dirs(samples_dir):
 def run_qtop(sample_name, sample_dir, output_dir):
     env = os.environ.copy()
     env["QTOP_SCHEDULER"] = "slurm"
+    env["HOME"] = tempfile.mkdtemp(prefix="qtop-slurm-home-")
     os.makedirs(output_dir, exist_ok=True)
     command = [sys.executable, "-m", "qtop_py.cli", "-b", "slurm", "-s", sample_dir, "-O", "-o", "savepath=%s" % output_dir]
     completed = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env, universal_newlines=True)

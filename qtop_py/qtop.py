@@ -88,6 +88,25 @@ def literal_config_value(value):
         return value
 
 
+def safe_bool(value):
+    if isinstance(value, bool):
+        return value
+    if value == "True":
+        return True
+    if value == "False":
+        return False
+    return value
+
+
+def extract_user_detail(field, regex):
+    pattern_match = re.match(r"""re\.search\((?P<quote>['"])(?P<pattern>.*?)(?P=quote),\s*field\)\.group\(0\)$""", regex.strip())
+    if not pattern_match:
+        return field.strip()
+
+    match = re.search(pattern_match.group("pattern"), field)
+    return match.group(0) if match else field.strip()
+
+
 def gauge_core_vectors(core_user_map, print_char_start, print_char_stop, coreline_notthere_or_unused, non_existent_symbol, remove_corelines):
     """
     generator that loops over each core user vector and yields a boolean stating whether the core vector can be omitted via
@@ -388,12 +407,7 @@ def get_detail_of_name(account_jobs_table):
         except ValueError:
             break
         else:
-            try:
-                detail = eval(regex)
-            except (AttributeError, TypeError):
-                detail = field.strip()
-            finally:
-                detail_of_name[user] = detail
+            detail_of_name[user] = extract_user_detail(field, regex)
     return detail_of_name
 
 
@@ -772,8 +786,7 @@ def update_config_with_cmdline_vars(args, config):
     config["rem_empty_corelines"] = int(config["rem_empty_corelines"])
     for opt in args.OPTION:
         key, val = get_key_val_from_option_string(opt)
-        val = eval(val) if ("True" in val or "False" in val) else val
-        config[key] = val
+        config[key] = safe_bool(val)
 
     if args.TRANSPOSE:
         config["transpose_wn_matrices"] = not config["transpose_wn_matrices"]
@@ -2011,8 +2024,10 @@ class Cluster(object):
             _host = state_corejob_dn["domainname"].split(".", 1)[0]
             changed = False
             for remap_line in self.config["remapping"]:
-                pat, repl = remap_line.items()[0]
-                repl = eval(repl) if repl.startswith("lambda") else repl
+                pat, repl = list(remap_line.items())[0]
+                if isinstance(repl, str) and repl.startswith("lambda"):
+                    logging.warning("Skipping executable remapping expression for pattern %s; use a regular-expression replacement string instead.", pat)
+                    continue
                 if re.search(pat, _host):
                     changed = True
                     state_corejob_dn["host"] = _host = re.sub(pat, repl, _host)
@@ -2069,31 +2084,37 @@ class Cluster(object):
 
     def _sort_worker_nodes(self):
         order = {
-            "sort by nodename-notnum": 're.sub(r"[^A-Za-z _.-]+", "", node["domainname"]) or "0"',
-            "sort by nodename-notnum length": "len(node['domainname'].split('.', 1)[0].split('-')[0])",
-            "sort by all numbers": 'int(re.sub(r"[A-Za-z _.-]+", "", node["domainname"]) or "0")',
-            "sort by first letter": "ord(node['domainname'][0])",
-            "sort by node state": "ord(str(node['state'][0]))",
-            "sort by nr of cores": "int(node['np'])",
-            "sort by core occupancy": "len(node['core_job_map'])",
-            "sort by custom definition": "",
-            "sort reset": "0",
-            # "sort_by_num_adjacent_to_first_word" : "int(re.sub(r'[A-Za-z_.-]+', '', node['domainname'].split('.', 1)[0].split('-')[0]) or -1)",
-            # "sort_by_first_word" : "node['domainname'].split('.', 1)[0].split('-')[0]",
+            "sort by nodename-notnum": lambda node: re.sub(r"[^A-Za-z _.-]+", "", node["domainname"]) or "0",
+            "sort by nodename-notnum length": lambda node: len(node["domainname"].split(".", 1)[0].split("-")[0]),
+            "sort by all numbers": lambda node: int(re.sub(r"[A-Za-z _.-]+", "", node["domainname"]) or "0"),
+            "sort by first letter": lambda node: ord(node["domainname"][0]),
+            "sort by node state": lambda node: ord(str(node["state"][0])),
+            "sort by nr of cores": lambda node: int(node["np"]),
+            "sort by core occupancy": lambda node: len(node["core_job_map"]),
+            "sort reset": lambda node: 0,
         }
         if dynamic_config.get("user_sort"):  # live user sorting overrides yaml config sorting
-            # following join content also takes custom definition argument into account
-            sort_str = ", ".join(order[k[0]] or k[1][0] for k in dynamic_config.get("user_sort", []))
+            sort_functions = []
+            for sort_option in dynamic_config.get("user_sort", []):
+                sort_name = sort_option[0]
+                if sort_name == "sort by custom definition":
+                    logging.warning("Skipping custom executable sort definition from live config.")
+                    continue
+                sort_functions.append(order[sort_name])
         elif self.config.get("sorting", {}).get("user_sort"):
-            sort_str = ", ".join(order[k] for k in self.config["sorting"]["user_sort"])
+            sort_functions = []
+            for sort_name in self.config["sorting"]["user_sort"]:
+                if sort_name == "sort by custom definition":
+                    logging.warning("Skipping custom executable sort definition from %s.", QTOPCONF_YAML)
+                    continue
+                sort_functions.append(order[sort_name])
         else:
             return self.worker_nodes
 
-        sort_sequence = "lambda node: (" + sort_str + ")"
         try:
-            self.worker_nodes.sort(key=eval(sort_sequence), reverse=self.config["sorting"]["reverse"])
+            self.worker_nodes.sort(key=lambda node: tuple(sort_function(node) for sort_function in sort_functions), reverse=self.config["sorting"]["reverse"])
         except (IndexError, ValueError):
-            logging.critical("There's (probably) something wrong in your sorting lambda in %s." % QTOPCONF_YAML)
+            logging.critical("There's (probably) something wrong in your sorting configuration in %s." % QTOPCONF_YAML)
             raise
         except KeyError as e:
             msg = "Worker Nodes don't contain '%s' as a key." % e.message
