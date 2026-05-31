@@ -8,6 +8,7 @@
 ##
 
 import argparse
+import json
 import os
 import subprocess
 import sys
@@ -36,16 +37,30 @@ def main():
     parser = argparse.ArgumentParser(description="Render all Slurm qtop command-trace samples.")
     parser.add_argument("samples_dir", help="Directory containing Slurm sample subdirectories")
     parser.add_argument("--output", default="/tmp/qtop-slurm-rendered", help="Directory for qtop rendered output")
+    parser.add_argument("--max-failures", type=int, default=0, help="Maximum sample failures allowed before the gate fails")
     args = parser.parse_args()
 
     sample_dirs = list(iter_sample_dirs(args.samples_dir))
     if not sample_dirs:
         raise RuntimeError("No Slurm samples found in %s" % args.samples_dir)
 
+    os.makedirs(args.output, exist_ok=True)
+    failures = []
     for sample_name, sample_dir in sample_dirs:
-        run_qtop(sample_name, sample_dir, args.output)
+        try:
+            run_qtop(sample_name, sample_dir, args.output)
+        except RuntimeError as err:
+            failures.append({"sample": sample_name, "error": str(err)})
+            if len(failures) > args.max_failures:
+                break
 
-    print("Validated %s Slurm samples" % len(sample_dirs))
+    with open(os.path.join(args.output, "failures.json"), "w") as failure_file:
+        json.dump(failures, failure_file, indent=2)
+
+    validated = len(sample_dirs) - len(failures)
+    print("Validated %s Slurm samples; failures=%s; output=%s" % (validated, len(failures), args.output))
+    if len(failures) > args.max_failures:
+        raise RuntimeError("Slurm sample gate failed with %s failures" % len(failures))
 
 
 if __name__ == "__main__":
