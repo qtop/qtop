@@ -1,0 +1,22 @@
+image: python:3.10-slim
+
+stages:
+  - test
+
+variables:
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  SAMPLE_ARTIFACTS_DIR: "sample-artifacts"
+
+qtop-ci:
+  stage: test
+  before_script:
+    - apt-get update -qq
+    - apt-get install -y --no-install-recommends make
+    - python -m pip install pytest
+  script:
+    - make ci
+  artifacts:
+    when: always
+    paths:
+      - sample-artifacts/
+    expire_in: 14 days
