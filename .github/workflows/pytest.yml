@@ -1,6 +1,17 @@
 name: pytest-qtop
 
-on: push
+on:
+  push:
+    branches:
+      - main
+      - develop
+  pull_request:
+    branches:
+      - main
+      - develop
+
+permissions:
+  contents: read
 
 jobs:
   run-pytest:
@@ -11,4 +22,10 @@ jobs:
         with:
           python-version: '3.10'
       - run: pip install pytest
-      - run: python -m pytest
+      - run: make ci
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: qtop-sample-artifacts
+          path: sample-artifacts/
+          if-no-files-found: ignore
