@@ -1,4 +1,12 @@
 #!/usr/bin/env python3
+##
+## qtop is a tool to monitor queuing systems - https://github.com/qtop/qtop
+##
+## Copyright (c) 2026 Samyak Jain
+##
+## SPDX-License-Identifier: MIT
+##
+
 """Render bundled qtop contrib samples for the fast CI sample gate."""
 
 import argparse
