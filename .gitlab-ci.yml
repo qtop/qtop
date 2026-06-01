@@ -1,0 +1,15 @@
+stages:
+  - test
+
+sample-gate:
+  stage: test
+  image: python:3.10
+  script:
+    - python -m pip install --upgrade pip
+    - python -m pip install pytest
+    - make ci PYTHON=python
+  artifacts:
+    when: always
+    paths:
+      - artifacts/sample-gate/
+    expire_in: 14 days
