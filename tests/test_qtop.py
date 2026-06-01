@@ -11,7 +11,18 @@
 import pytest
 import re
 import datetime
-from qtop_py.qtop import WNOccupancy, decide_batch_system, load_yaml_config, JobNotFound, SchedulerNotSpecified, NoSchedulerFound, get_date_obj_from_str
+from qtop_py.qtop import (
+    WNOccupancy,
+    decide_batch_system,
+    extract_regex_detail,
+    load_yaml_config,
+    update_config_with_cmdline_vars,
+    JobNotFound,
+    SchedulerNotSpecified,
+    NoSchedulerFound,
+    get_date_obj_from_str,
+    get_detail_of_name,
+)
 
 
 @pytest.fixture
@@ -58,6 +69,81 @@ def test_load_yaml_config_does_not_execute_config_values(monkeypatch, tmp_path):
     assert config["vertical_separator_every_X_columns"] == 0
     assert config["overwrite_sample_file"] == dangerous_value
     assert not sentinel.exists()
+
+
+def test_extract_regex_detail_supports_configured_re_search():
+    field = "User Name <alice@example.org>"
+
+    assert extract_regex_detail("re.search('(?<=<)[^<>]+(?=>)', field).group(0)", field) == "alice@example.org"
+
+
+def test_get_detail_of_name_falls_back_for_unsupported_regex(monkeypatch):
+    import qtop_py.qtop as qtop
+
+    class Args:
+        GET_GECOS = False
+
+    class Process:
+        def communicate(self, _input):
+            return ("alice:x:1:1:Alice Example:/home/alice:/bin/sh\n", "")
+
+    monkeypatch.setattr(qtop, "args", Args(), raising=False)
+    monkeypatch.setattr(
+        qtop,
+        "config",
+        {
+            "extract_info": {
+                "field_to_use": "5",
+                "regex": "__import__('pathlib').Path('/tmp/should-not-run').touch()",
+                "user_details_cache": "cat /dev/null",
+            }
+        },
+        raising=False,
+    )
+    monkeypatch.setattr(qtop.subprocess, "Popen", lambda *args, **kwargs: Process())
+
+    assert get_detail_of_name([]) == {"alice": "Alice Example"}
+
+
+def test_update_config_with_cmdline_vars_does_not_execute_option_values(tmp_path):
+    class Args:
+        OPTION = ["enabled=True", "dangerous=__import__('pathlib').Path(%r).touch()" % str(tmp_path / "executed")]
+        TRANSPOSE = False
+        REM_EMPTY_CORELINES = 0
+
+    config = {"rem_empty_corelines": "0", "transpose_wn_matrices": True}
+
+    updated = update_config_with_cmdline_vars(Args(), config)
+
+    assert updated["enabled"] is True
+    assert updated["dangerous"].startswith("__import__")
+    assert not (tmp_path / "executed").exists()
+
+
+def test_sort_worker_nodes_uses_named_sort_keys(monkeypatch):
+    import qtop_py.qtop as qtop
+
+    monkeypatch.setattr(qtop, "dynamic_config", {}, raising=False)
+    cluster = qtop.Cluster.__new__(qtop.Cluster)
+    cluster.config = {"sorting": {"user_sort": ["sort by all numbers"], "reverse": False}}
+    cluster.worker_nodes = [
+        {"domainname": "node10", "state": "-", "np": "1", "core_job_map": {}},
+        {"domainname": "node2", "state": "-", "np": "1", "core_job_map": {}},
+    ]
+
+    assert [node["domainname"] for node in cluster._sort_worker_nodes()] == ["node2", "node10"]
+
+
+def test_sort_worker_nodes_rejects_custom_python_sorting(monkeypatch):
+    import qtop_py.qtop as qtop
+
+    monkeypatch.setattr(qtop, "dynamic_config", {}, raising=False)
+    cluster = qtop.Cluster.__new__(qtop.Cluster)
+    cluster.config = {"sorting": {"user_sort": ["sort by custom definition"], "reverse": False}}
+    cluster.worker_nodes = [{"domainname": "node1", "state": "-", "np": "1", "core_job_map": {}}]
+
+    with pytest.raises(ValueError, match="custom Python sorting expressions"):
+        cluster._sort_worker_nodes()
 
 
 @pytest.mark.parametrize(

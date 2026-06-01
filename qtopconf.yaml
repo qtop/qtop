@@ -172,9 +172,6 @@ nodestate_color_mappings:
 ## if cluster numbering should start on a number # above this, do automatic blind remapping
 exotic_starting_wn_nr: 9000
 remapping:
-# - "([A-Za-z]+)([1-9]|[1-9][0-9]|[0-9][0-9][0-9])$": |
-#     lambda m: m.group(1)+str(int(m.group(2))+250)
-     ## e.g. wn100 --> wn350, wn101 --> wn351 and so on
 # - torvalds(\d+): tor\1
 # - gridlab(\d+): glab\1
 # - gridmon(\d*): mon\1
@@ -192,23 +189,12 @@ sorting:
   #   - sort by first letter
   #   - sort by node state
   #   - sort by nr of cores
-  #   - sort by custom definition
+  #   custom Python sort expressions are not supported
 
    reverse: False
 
-# sorting:  
-#   user_sort: |
-#       lambda node: (
-#       len(node['domainname'].split('.', 1)[0].split('-')[0]),                                      # sort by name length, until first dash or dot
-#       int(re.sub(r"[A-Za-z _.-]+", "", node["domainname"]) or "0"),                                # sort strictly by all numbers in name (joined)
-#       # int(re.sub(r'[A-Za-z_.-]+', '', node['domainname'].split('.', 1)[0].split('-')[0]) or -1),   # sort by number adjacent to first word
-#       # ord(node['domainname'][0]),                                                                  # sort by first letter
-#       # ord(str(node['state'][0])),                                                                  # sort by node state
-#       # int(node['np'])                                                                              # sort by number of cores
-#       # 0,                                                                                           # no sorting, MUST comment out other sorting options
-#       )
-
-#   reverse: False
+## Custom Python sorting expressions are intentionally unsupported; use the
+## named sort options above so configuration does not execute code.
 
 ## exclude filters gradually cut off selected nodes from the last set of remaining nodes
 ## include filters do a consecutive selection, e.g. from 100 nodes 30 are selected, then the next include filter will select 10 out of those and so on.
