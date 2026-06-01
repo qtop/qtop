@@ -1,8 +1,11 @@
 .DEFAULT_GOAL := help
 
-.PHONY: help test test-pbs-samples test-slurm-samples fortifications lint format-check
+.PHONY: help test sample-gate test-pbs-samples test-slurm-samples fortifications lint format-check ci
 
 PYTHON ?= python3
+SAMPLE_GATE_SCHEDULERS ?= pbs,sge,slurm
+SAMPLE_GATE_MAX_FAILURES ?= 0
+SAMPLE_GATE_ARTIFACT_DIR ?= artifacts/sample-gate
 PBS_SAMPLES_DIR ?= ../qtop-test-repo/qtop5/results
 PBS_SAMPLE_LIMIT ?= 100
 PBS_OUTPUT_DIR ?= /tmp/qtop-pbs-rendered
@@ -16,6 +19,9 @@ help: ## Show this help
 
 test: ## Run the Python test suite
 	$(PYTHON) -m pytest
+
+sample-gate: ## Run fast committed PBS/SGE/SLURM qtop sample gates
+	$(PYTHON) tools/validate_scheduler_samples.py --schedulers $(SAMPLE_GATE_SCHEDULERS) --max-failures $(SAMPLE_GATE_MAX_FAILURES) --artifact-dir $(SAMPLE_GATE_ARTIFACT_DIR)
 
 test-pbs-samples: ## Run the larger archived PBS sample sweep
 	$(PYTHON) tools/validate_pbs_samples.py $(PBS_SAMPLES_DIR) --limit $(PBS_SAMPLE_LIMIT) --output $(PBS_OUTPUT_DIR)
@@ -31,3 +37,5 @@ lint: fortifications ## Run dependency-light source and diff health checks
 
 format-check: ## Check the branch diff for whitespace errors
 	git diff --check $(FORTIFY_BASE_REF)...HEAD
+
+ci: test sample-gate lint format-check ## Run the shared local validation path

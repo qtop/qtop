@@ -26,6 +26,9 @@ def run_qtop(sample_name, sample_dir, output_dir):
     env = os.environ.copy()
     env["QTOP_SCHEDULER"] = "slurm"
     os.makedirs(output_dir, exist_ok=True)
+    qtop_home = os.path.join(output_dir, ".home", sample_name)
+    os.makedirs(qtop_home, exist_ok=True)
+    env["HOME"] = qtop_home
     command = [sys.executable, "-m", "qtop_py.cli", "-b", "slurm", "-s", sample_dir, "-O", "-o", "savepath=%s" % output_dir]
     completed = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env, universal_newlines=True)
     if completed.returncode:
