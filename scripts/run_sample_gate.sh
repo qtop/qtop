@@ -22,7 +22,7 @@ run_case() {
     diff_file="$ARTIFACT_DIR/qtop-$scheduler.diff"
 
     echo "Running qtop sample gate for $scheduler"
-    if ! (cd qtop_py && "$PYTHON" qtop.py "$@") > "$output" 2> "$stderr"; then
+    if ! "$PYTHON" -m qtop_py.cli "$@" > "$output" 2> "$stderr"; then
         failures=$((failures + 1))
         echo "qtop execution failed for $scheduler; see $output and $stderr"
     fi
@@ -43,8 +43,8 @@ run_case() {
     fi
 }
 
-run_case sge qtop_py/contrib/sger_dvv_out.ref -s contrib -c ON -Fadvv -b sge
-run_case oar qtop_py/contrib/oar1_dvv_out.ref -s contrib -c ON -FAardvvv -b oar
-run_case pbs qtop_py/contrib/pbs_dvv_out.ref -s contrib -c ON -raF -b pbs
+run_case sge qtop_py/contrib/sger_dvv_out.ref -s qtop_py/contrib -c ON -Fadvv -b sge
+run_case oar qtop_py/contrib/oar1_dvv_out.ref -s qtop_py/contrib -c ON -FAardvvv -b oar
+run_case pbs qtop_py/contrib/pbs_dvv_out.ref -s qtop_py/contrib -c ON -raF -b pbs
 
 echo "Sample gate passed; artifacts written to $ARTIFACT_DIR"

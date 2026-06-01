@@ -18,6 +18,12 @@ jobs:
       - run: python -m pip install --upgrade pip
       - run: python -m pip install pytest
       - run: make ci PYTHON=python
+      - name: Show sample gate diagnostics
+        if: failure()
+        run: |
+          if [ -d artifacts/sample-gate ]; then
+            find artifacts/sample-gate -type f -maxdepth 1 -print -exec sed -n '1,160p' {} \;
+          fi
       - uses: actions/upload-artifact@v4
         if: always()
         with:
