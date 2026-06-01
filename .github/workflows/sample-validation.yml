@@ -16,10 +16,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
       - uses: actions/setup-python@v4
         with:
           python-version: "3.10"
       - run: pip install pytest
+      - run: make fortify FORTIFY_BASE=origin/develop
       - run: make test-samples SAMPLE_MAX_FAILURES=0 SLURM_OUTPUT_DIR=artifacts/qtop-slurm-rendered PBS_OUTPUT_DIR=artifacts/qtop-pbs-rendered
       - uses: actions/upload-artifact@v4
         if: always()

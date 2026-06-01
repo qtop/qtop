@@ -7,6 +7,7 @@ sample-validation:
   before_script:
     - pip install pytest
   script:
+    - make fortify FORTIFY_BASE=origin/develop
     - make test-samples SAMPLE_MAX_FAILURES=0 SLURM_OUTPUT_DIR=artifacts/qtop-slurm-rendered PBS_OUTPUT_DIR=artifacts/qtop-pbs-rendered
   artifacts:
     when: always
