@@ -19,6 +19,7 @@ import sys
 from operator import itemgetter
 from itertools import zip_longest, cycle, chain
 import subprocess
+import shutil
 import select
 import os
 import re
@@ -26,8 +27,16 @@ import json
 import datetime
 from collections import namedtuple, OrderedDict, Counter
 from os.path import realpath
-from signal import signal, SIGPIPE, SIG_DFL
-import termios
+from signal import signal
+try:
+    from signal import SIGPIPE, SIG_DFL
+except ImportError:
+    SIGPIPE = None
+    SIG_DFL = None
+try:
+    import termios
+except ImportError:
+    termios = None
 import contextlib
 import glob
 import tempfile
@@ -47,6 +56,18 @@ from qtop_py import __version__
 import time
 
 here = sys.path[0]
+
+
+def first_existing_path(*paths):
+    for path in paths:
+        if os.path.exists(path):
+            return path
+    return paths[0]
+
+
+def restore_sigpipe_default():
+    if SIGPIPE is not None:
+        signal(SIGPIPE, SIG_DFL)
 
 
 # TODO make the following work with py files instead of qtop.colormap files
@@ -137,7 +158,7 @@ def raw_mode(file):
     if args.ONLYSAVETOFILE:
         yield
     else:
-        if args.WATCH:
+        if args.WATCH and termios is not None:
             try:
                 old_attrs = termios.tcgetattr(file.fileno())
             except:  # noqa: E722  ## FIXME, ruff complaint
@@ -164,7 +185,11 @@ def load_yaml_config():
     """
     # TODO: conversion to int should be handled internally in native yaml parser
     # TODO: fix_config_list should be handled internally in native yaml parser
-    config = yaml.parse(os.path.join(realpath(QTOPPATH), QTOPCONF_YAML))
+    config_path = first_existing_path(
+        os.path.join(realpath(QTOPPATH), QTOPCONF_YAML),
+        os.path.join(os.path.dirname(realpath(QTOPPATH)), QTOPCONF_YAML),
+    )
+    config = yaml.parse(config_path)
     logging.info("Default configuration dictionary loaded. Length: %s items" % len(config))
 
     try:
@@ -305,8 +330,7 @@ def auto_get_avail_batch_system(config):
     """
     # TODO pbsnodes etc should not be hardcoded!
     for system, batch_command in config["signature_commands"].items():
-        NOT_FOUND = subprocess.call(["/usr/bin/which", batch_command], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        if not NOT_FOUND:
+        if shutil.which(batch_command):
             if system != "demo":
                 logging.debug("Auto-detected scheduler: %s" % system)
                 return system
@@ -1689,7 +1713,7 @@ class TextDisplay(object):
         return joined_list
 
     def print_core_lines(self, core_user_map, print_char_start, print_char_stop, transposed_matrices, userid_to_userid_re_pat, mapping, attrs, options1, options2):
-        signal(SIGPIPE, SIG_DFL)
+        restore_sigpipe_default()
         remove_corelines = dynamic_config.get("rem_empty_corelines", config["rem_empty_corelines"]) + 1
 
         # if corelines vertical (transposed matrix)
@@ -1712,7 +1736,7 @@ class TextDisplay(object):
                     print(core_line_zipped)
                 except IOError:
                     try:
-                        signal(SIGPIPE, SIG_DFL)
+                        restore_sigpipe_default()
                         print(core_line_zipped)
                         sys.stdout.close()
                     except IOError:
@@ -2318,12 +2342,15 @@ def main():
     if args.ANONYMIZE and not args.EXPERIMENTAL:
         print("Anonymize should be ran with --experimental switch!! Exiting...")
         sys.exit(1)
-    if args.WATCH or args.REPLAY:  # this is needed for the filtering/sorting options
+    if (args.WATCH or args.REPLAY) and termios is not None:  # this is needed for the filtering/sorting options
         try:
             old_attrs = termios.tcgetattr(0)
         except termios.error:
             old_attrs = ""
         new_attrs = old_attrs[:]
+    else:
+        old_attrs = ""
+        new_attrs = ""
 
     available_batch_systems = discover_qtop_batch_systems()
 
@@ -2339,7 +2366,10 @@ def main():
     logging.debug("Initial qtop directory: %s" % initial_cwd)
     CURPATH = os.path.expanduser(initial_cwd)  # where qtop was invoked from
     QTOPPATH = os.path.dirname(realpath(__loader__.name))  # dir where qtop resides
-    HELP_FP = os.path.join(QTOPPATH, "helpfile.txt")
+    HELP_FP = first_existing_path(
+        os.path.join(QTOPPATH, "helpfile.txt"),
+        os.path.join(os.path.dirname(QTOPPATH), "helpfile.txt"),
+    )
     help_main_switch = [
         HELP_FP,
     ]  # output_fp is not yet defined, will be appended later

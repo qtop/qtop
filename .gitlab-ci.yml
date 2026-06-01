@@ -1,0 +1,28 @@
+stages:
+  - test
+  - sample
+
+default:
+  image: python:3.10-slim
+  before_script:
+    - apt-get update -qq
+    - apt-get install -y --no-install-recommends make
+
+unit-tests:
+  stage: test
+  before_script:
+    - apt-get update -qq
+    - apt-get install -y --no-install-recommends make
+    - python -m pip install pytest
+  script:
+    - make test
+
+sample-gate:
+  stage: sample
+  script:
+    - make sample-gate MAX_FAILURES=0 SAMPLE_ARTIFACTS_DIR=qtop-sample-artifacts
+  artifacts:
+    when: always
+    paths:
+      - qtop-sample-artifacts/
+    expire_in: 30 days
