@@ -6,9 +6,9 @@ The shared CI entry point is:
 make ci
 ```
 
-It runs the pytest suite and then validates the bundled PBS, OAR, and SGE sample scheduler outputs against their reference output files. The sample gate writes raw and filtered qtop output under `artifacts/sample-gate/` so reviewers can inspect the exact rendered output when a CI run fails.
+It runs the pytest suite and then validates that the bundled PBS, OAR, and SGE sample scheduler outputs still render the expected qtop report sections. The sample gate writes raw output, filtered output, expected historical output, stderr, and optional diffs under `artifacts/sample-gate/` so reviewers can inspect rendering drift without making CI depend on byte-for-byte terminal output.
 
-The gate is intentionally small and fast. It uses the existing sample files in `qtop_py/contrib/`, strips known volatile lines such as working directory and log-file paths, and diffs the remaining output against the checked-in references.
+The gate is intentionally small and fast. It uses the existing sample files in `qtop_py/contrib/`, requires the stable report headings to render, strips known volatile lines such as working directory and log-file paths, and stores a diff against the checked-in references when the rendered terminal output drifts.
 
 Useful commands:
 

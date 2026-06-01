@@ -27,14 +27,23 @@ run_case() {
         echo "qtop execution failed for $scheduler; see $output and $stderr"
     fi
 
+    if ! grep -q "Job accounting summary" "$output"; then
+        failures=$((failures + 1))
+        echo "qtop output for $scheduler is missing the accounting summary"
+    fi
+
+    if ! grep -q "Worker Nodes occupancy" "$output"; then
+        failures=$((failures + 1))
+        echo "qtop output for $scheduler is missing worker node occupancy"
+    fi
+
     grep -v "$VOLATILE_PATTERN" "$output" > "$filtered" || true
     grep -v "$VOLATILE_PATTERN" "$reference" > "$expected" || true
 
     if diff -u "$expected" "$filtered" > "$diff_file"; then
         rm -f "$diff_file"
     else
-        failures=$((failures + 1))
-        echo "qtop output drifted for $scheduler; see $diff_file"
+        echo "qtop output differs from the historical $scheduler reference; see $diff_file"
     fi
 
     if [ "$failures" -gt "$MAX_FAILURES" ]; then
