@@ -19,6 +19,13 @@ import qtop_py.fileutils as fileutils
 import itertools
 
 
+def int_or_zero(value):
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return 0
+
+
 class PBSStatExtractor(StatExtractor):
     def __init__(self, config, options):
         StatExtractor.__init__(self, config, options)
@@ -257,8 +264,9 @@ class PBSBatchSystem(GenericBatchSystem):
             else:
                 pbs_values["np"] = block.get("resources_available.ncpus", 0)
 
-            if block.get("gpus", 0) > 0:  # this should be rare.
-                pbs_values["gpus"] = block["gpus"]
+            gpus = int_or_zero(block.get("gpus", 0))
+            if gpus > 0:  # this should be rare.
+                pbs_values["gpus"] = gpus
 
             try:  # this should turn up more often, hence the try/except.
                 _ = block["jobs"]
@@ -313,7 +321,7 @@ class PBSBatchSystem(GenericBatchSystem):
         else:
             total_running_jobs, total_queued_jobs = 0, 0
 
-        return int(eval(str(total_running_jobs))), int(eval(str(total_queued_jobs))), qstatq_list
+        return int(total_running_jobs), int(total_queued_jobs), qstatq_list
 
     @staticmethod
     def _get_jobs_cores(jobs):  # block['jobs']

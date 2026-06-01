@@ -8,11 +8,25 @@
 ## SPDX-License-Identifier: MIT
 ##
 
-import os
+import ast
 import logging
+import os
 
 
 ## TODO: black sheep
+
+
+def safe_literal(value):
+    """
+    Parse the small Python-literal subset that qtopconf historically accepted.
+    Values outside that subset are returned unchanged instead of being executed.
+    """
+    if not isinstance(value, str):
+        return value
+    try:
+        return ast.literal_eval(value)
+    except (SyntaxError, ValueError):
+        return value
 
 
 def fix_config_list(config_list):
@@ -97,7 +111,7 @@ def convert_dash_key_in_dict(d):
                 if key_in == "-" and key_out != "state":
                     d[key_out] = d[key_out][key_in]
                 # elif key_in == '-' and key_out == 'state':
-                #     d[key_out] = eval(d[key_out])
+                #     d[key_out] = d[key_out]
                 #     break
         except TypeError:
             return d
@@ -148,10 +162,12 @@ def read_yaml_config_block(line, fin, get_lines):
         except StopIteration:  # EO(config)F
             return {}, ""
 
+    key_value = {}
     while len(line) > 1:  # as long as a blank line is not reached (i.e. block is not complete)
         # if line[0] == 0 or (line[0] != 0 and line[1] == '-'):  # same level
         # key_value used below belongs to previous line. It will work for first block line because of short circuit logic
-        if line[0] == 0 or (line[0] == 1 and (next(iter(key_value)) == "-")) or (line[0] == -1 and line[1] == "-"):  # same level or entry level
+        previous_key = next(iter(key_value), None)
+        if line[0] == 0 or (line[0] == 1 and previous_key == "-") or (line[0] == -1 and line[1] == "-"):  # same level or entry level
             key_value, container = process_line(line, fin, get_lines, parent_container)
             for k in key_value:
                 pass  # assign dict's sole key to k
@@ -243,10 +259,8 @@ def process_line(list_line, fin, get_lines, parent_container):
             container = container[1:-1].split(", ") if container.startswith("[") else container
             container = "" if container in ("''", '""') else container
             if len(container) == 1 and isinstance(container, list) and isinstance(container[0], str):
-                try:
-                    container = list(eval(container[0]))
-                except NameError:
-                    pass
+                parsed = safe_literal(container[0])
+                container = list(parsed) if isinstance(parsed, (list, tuple)) else container
             return {"-": [{key.rstrip(":"): container}]}, container  # list
 
         elif container.endswith("|"):
@@ -259,12 +273,10 @@ def process_line(list_line, fin, get_lines, parent_container):
             else:  # i.e. testkey: testvalue
                 container = [container[1:-1]] if container.startswith("[") else container  # list
                 if len(container) == 1 and isinstance(container, list) and isinstance(container[0], str):
-                    try:
-                        container = list(eval(container[0]))
-                    except NameError:
-                        pass
+                    parsed = safe_literal(container[0])
+                    container = list(parsed) if isinstance(parsed, (list, tuple)) else container
                 elif container.startswith("'") and container.endswith("'"):
-                    container = eval(container)
+                    container = safe_literal(container)
                 return {key.rstrip(":"): container}, container  # was parent_container#str
     else:
         raise ValueError("Didn't anticipate that!")

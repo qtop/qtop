@@ -38,3 +38,9 @@ def test_get_jobs_cores(jobs, result):
     result = iter(result)
     for job, core in pbs.PBSBatchSystem._get_jobs_cores(jobs):
         assert (job, core) == next(result)
+
+
+def test_int_or_zero_accepts_pbs_text_values():
+    assert pbs.int_or_zero("0") == 0
+    assert pbs.int_or_zero("2") == 2
+    assert pbs.int_or_zero(None) == 0

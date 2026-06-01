@@ -1,24 +1,13 @@
-#! /bin/sh -
-# The following script runs three known test cases for qtop, one for each of PBS, OAR, SGE
-# No output after "Testing <scheduler>" means test passed. 
-# The test actually runs qtop over known scheduler output files, and then diffs them against the expected output. 
-# While diffing, one qtop output line is omitted 
-# (the one containing word "WORKDIR\|Please try it with watch\|Log file created in"), as it contains an everchanging timestamp.
+#!/usr/bin/env sh
+set -eu
 
-cd ..
+SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+REPO_ROOT=$(CDPATH= cd -- "$SCRIPT_DIR/../.." && pwd)
+PYTHON=${PYTHON:-python3}
+ARTIFACT_DIR=${ARTIFACT_DIR:-sample-artifacts}
+MAX_FAILURES=${MAX_FAILURES:-0}
 
-echo "(No news is good news!)"
-echo "Testing sge..."
-grep -v 'WORKDIR\|Please try it with watch\|Log file created in' contrib/sger_dvv_out.ref > /tmp/qtop_testfile
-./qtop.py -s contrib -c ON -Fadvv -b sge \
-    | grep -v 'WORKDIR\|Please try it with watch\|Log file created in' | diff - /tmp/qtop_testfile
-
-echo "Testing oar..."
-grep -v 'WORKDIR\|Please try it with watch\|Log file created in' contrib/oar1_dvv_out.ref > /tmp/qtop_testfile
-./qtop.py -c ON -s contrib -FAardvvv -b oar \
-    | grep -v 'WORKDIR\|Please try it with watch\|Log file created in' | diff - /tmp/qtop_testfile
-
-echo "Testing pbs..."
-grep -v 'WORKDIR\|Please try it with watch\|Log file created in' contrib/pbs_dvv_out.ref > /tmp/qtop_testfile
-./qtop.py -c ON -s contrib -raF -b pbs \
-    | grep -v 'WORKDIR\|Please try it with watch\|Log file created in' | diff - /tmp/qtop_testfile
+exec "$PYTHON" "$REPO_ROOT/scripts/sample_gate.py" \
+    --repo-root "$REPO_ROOT" \
+    --artifact-dir "$ARTIFACT_DIR" \
+    --max-failures "$MAX_FAILURES"

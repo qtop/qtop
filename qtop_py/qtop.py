@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 ##################################################
 ##                     qtop                     ##
@@ -14,6 +14,7 @@
 ## SPDX-License-Identifier: MIT
 ##
 
+import ast
 import sys
 
 here = sys.path[0]
@@ -26,6 +27,7 @@ import os
 import re
 import json
 import datetime
+import shutil
 from collections import namedtuple, OrderedDict, Counter
 from os.path import realpath
 from signal import signal, SIGPIPE, SIG_DFL
@@ -146,6 +148,19 @@ def raw_mode(file):
             yield
 
 
+def parse_config_literal(value):
+    """
+    Parse qtop configuration values as Python literals without executing code.
+    Non-literals stay as strings so existing regex and scheduler text survives.
+    """
+    if not isinstance(value, str):
+        return value
+    try:
+        return ast.literal_eval(value)
+    except (SyntaxError, ValueError):
+        return value
+
+
 def load_yaml_config():
     """
     Loads ./QTOPCONF_YAML into a dictionary and then tries to update the dictionary
@@ -231,8 +246,8 @@ def load_yaml_config():
     config["savepath"] = _savepath
 
     for key in ("transpose_wn_matrices", "fill_with_user_firstletter", "faster_xml_parsing", "vertical_separator_every_X_columns", "overwrite_sample_file"):
-        config[key] = eval(config[key])  # TODO config should not be writeable!!
-    config["sorting"]["reverse"] = eval(config["sorting"].get("reverse", "0"))  # TODO config should not be writeable!!
+        config[key] = parse_config_literal(config[key])
+    config["sorting"]["reverse"] = bool(parse_config_literal(config["sorting"].get("reverse", "0")))
     config["ALT_LABEL_COLORS"] = yaml.fix_config_list(config["workernodes_matrix"][0]["wn id lines"]["alt_label_colors"])
     config["SEPARATOR"] = config["vertical_separator"].replace("'", "")
     config["USER_CUT_MATRIX_WIDTH"] = int(config["workernodes_matrix"][0]["wn id lines"]["user_cut_matrix_width"])
@@ -297,8 +312,7 @@ def auto_get_avail_batch_system(config):
     """
     # TODO pbsnodes etc should not be hardcoded!
     for system, batch_command in config["signature_commands"].items():
-        NOT_FOUND = subprocess.call(["/usr/bin/which", batch_command], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        if not NOT_FOUND:
+        if shutil.which(batch_command):
             if system != "demo":
                 logging.debug("Auto-detected scheduler: %s" % system)
                 return system
@@ -335,6 +349,58 @@ def execute_shell_batch_commands(batch_system_commands, filenames, _file, _savep
     os.rename(tempname, filenames[_file])
 
     return filenames[_file]
+
+
+def _literal_regex_arg(node):
+    try:
+        return ast.literal_eval(node)
+    except (SyntaxError, ValueError):
+        return None
+
+
+def _legacy_re_search(regex_expr):
+    """
+    Convert the legacy qtopconf form
+    re.search('pattern', field).group(n) into a safe (pattern, group) pair.
+    """
+    try:
+        expr = ast.parse(regex_expr.strip(), mode="eval").body
+    except SyntaxError:
+        return regex_expr, 0
+
+    group = 0
+    search_call = expr
+    if isinstance(expr, ast.Call) and isinstance(expr.func, ast.Attribute) and expr.func.attr == "group":
+        search_call = expr.func.value
+        if expr.args:
+            parsed_group = _literal_regex_arg(expr.args[0])
+            if isinstance(parsed_group, (int, str)):
+                group = parsed_group
+
+    if not (isinstance(search_call, ast.Call) and isinstance(search_call.func, ast.Attribute) and search_call.func.attr == "search"):
+        return regex_expr, 0
+    if len(search_call.args) < 2:
+        return regex_expr, 0
+    if not (isinstance(search_call.args[1], ast.Name) and search_call.args[1].id == "field"):
+        return regex_expr, 0
+
+    pattern = _literal_regex_arg(search_call.args[0])
+    return (pattern, group) if isinstance(pattern, str) else (regex_expr, 0)
+
+
+def extract_detail_from_field(field, regex):
+    if not regex:
+        return field.strip()
+
+    pattern, group = _legacy_re_search(regex)
+    match = re.search(pattern, field)
+    if not match:
+        return field.strip()
+
+    try:
+        return match.group(group)
+    except IndexError:
+        return field.strip()
 
 
 def get_detail_of_name(account_jobs_table):
@@ -380,12 +446,7 @@ def get_detail_of_name(account_jobs_table):
         except ValueError:
             break
         else:
-            try:
-                detail = eval(regex)
-            except (AttributeError, TypeError):
-                detail = field.strip()
-            finally:
-                detail_of_name[user] = detail
+            detail_of_name[user] = extract_detail_from_field(field, regex)
     return detail_of_name
 
 
@@ -764,8 +825,7 @@ def update_config_with_cmdline_vars(args, config):
     config["rem_empty_corelines"] = int(config["rem_empty_corelines"])
     for opt in args.OPTION:
         key, val = get_key_val_from_option_string(opt)
-        val = eval(val) if ("True" in val or "False" in val) else val
-        config[key] = val
+        config[key] = parse_config_literal(val)
 
     if args.TRANSPOSE:
         config["transpose_wn_matrices"] = not config["transpose_wn_matrices"]
@@ -1993,8 +2053,10 @@ class Cluster(object):
             _host = state_corejob_dn["domainname"].split(".", 1)[0]
             changed = False
             for remap_line in self.config["remapping"]:
-                pat, repl = remap_line.items()[0]
-                repl = eval(repl) if repl.startswith("lambda") else repl
+                pat, repl = next(iter(remap_line.items()))
+                if isinstance(repl, str) and repl.lstrip().startswith("lambda"):
+                    logging.warning("Ignoring unsafe lambda remapping for pattern %s in %s.", pat, QTOPCONF_YAML)
+                    continue
                 if re.search(pat, _host):
                     changed = True
                     state_corejob_dn["host"] = _host = re.sub(pat, repl, _host)
@@ -2049,39 +2111,57 @@ class Cluster(object):
 
         return nodes_drop, workernode_dict, workernode_dict_remapped
 
+    @staticmethod
+    def _node_sort_value(sort_name, node):
+        domainname = node["domainname"]
+        if sort_name == "sort by nodename-notnum":
+            return re.sub(r"[^A-Za-z _.-]+", "", domainname) or "0"
+        if sort_name == "sort by nodename-notnum length":
+            return len(domainname.split(".", 1)[0].split("-")[0])
+        if sort_name == "sort by all numbers":
+            return int(re.sub(r"[A-Za-z _.-]+", "", domainname) or "0")
+        if sort_name == "sort by first letter":
+            return ord(domainname[0])
+        if sort_name == "sort by node state":
+            return ord(str(node["state"][0]))
+        if sort_name == "sort by nr of cores":
+            return int(node["np"])
+        if sort_name == "sort by core occupancy":
+            return len(node["core_job_map"])
+        if sort_name == "sort reset":
+            return 0
+        raise ValueError("Unsupported sort rule: %s" % sort_name)
+
     def _sort_worker_nodes(self):
-        order = {
-            "sort by nodename-notnum": 're.sub(r"[^A-Za-z _.-]+", "", node["domainname"]) or "0"',
-            "sort by nodename-notnum length": "len(node['domainname'].split('.', 1)[0].split('-')[0])",
-            "sort by all numbers": 'int(re.sub(r"[A-Za-z _.-]+", "", node["domainname"]) or "0")',
-            "sort by first letter": "ord(node['domainname'][0])",
-            "sort by node state": "ord(str(node['state'][0]))",
-            "sort by nr of cores": "int(node['np'])",
-            "sort by core occupancy": "len(node['core_job_map'])",
-            "sort by custom definition": "",
-            "sort reset": "0",
-            # "sort_by_num_adjacent_to_first_word" : "int(re.sub(r'[A-Za-z_.-]+', '', node['domainname'].split('.', 1)[0].split('-')[0]) or -1)",
-            # "sort_by_first_word" : "node['domainname'].split('.', 1)[0].split('-')[0]",
-        }
         if dynamic_config.get("user_sort"):  # live user sorting overrides yaml config sorting
             # following join content also takes custom definition argument into account
-            sort_str = ", ".join(order[k[0]] or k[1][0] for k in dynamic_config.get("user_sort", []))
+            sort_rules = [k[0] for k in dynamic_config.get("user_sort", [])]
         elif self.config.get("sorting", {}).get("user_sort"):
-            sort_str = ", ".join(order[k] for k in self.config["sorting"]["user_sort"])
+            sort_rules = self.config["sorting"]["user_sort"]
         else:
             return self.worker_nodes
 
-        sort_sequence = "lambda node: (" + sort_str + ")"
+        if isinstance(sort_rules, str):
+            logging.warning("Ignoring legacy custom sorting expression in %s.", QTOPCONF_YAML)
+            return self.worker_nodes
+
+        if "sort by custom definition" in sort_rules:
+            logging.warning("Ignoring unsafe custom sorting expression in %s.", QTOPCONF_YAML)
+            sort_rules = [rule for rule in sort_rules if rule != "sort by custom definition"]
+
+        if not sort_rules:
+            return self.worker_nodes
+
         try:
-            self.worker_nodes.sort(key=eval(sort_sequence), reverse=self.config["sorting"]["reverse"])
+            self.worker_nodes.sort(key=lambda node: tuple(self._node_sort_value(rule, node) for rule in sort_rules), reverse=self.config["sorting"]["reverse"])
         except (IndexError, ValueError):
-            logging.critical("There's (probably) something wrong in your sorting lambda in %s." % QTOPCONF_YAML)
+            logging.critical("There's (probably) something wrong in your sorting rule in %s." % QTOPCONF_YAML)
             raise
         except KeyError as e:
-            msg = "Worker Nodes don't contain '%s' as a key." % e.message
+            msg = "Worker Nodes don't contain '%s' as a key." % e
             logging.error(colorize(msg, color_func="Red_L"))
         except NameError as e:
-            msg = "Wrong input '%s'. Please check the examples in qtopconf.yaml." % e.message
+            msg = "Wrong input '%s'. Please check the examples in qtopconf.yaml." % e
             logging.error(colorize(msg, color_func="Red_L"))
 
         return self.worker_nodes

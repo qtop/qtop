@@ -1,0 +1,55 @@
+stages:
+  - test
+  - build
+
+default:
+  before_script:
+    - apt-get update
+    - apt-get install -y --no-install-recommends git make
+    - python -m pip install pytest pytest-cov ruff build twine
+
+test:
+  stage: test
+  image: python:${PYTHON_VERSION}-slim
+  parallel:
+    matrix:
+      - PYTHON_VERSION: ["3.9", "3.10", "3.11", "3.12", "3.13"]
+  script:
+    - make ci PYTHON=python MAX_FAILURES=0
+    - make coverage PYTHON=python
+  artifacts:
+    when: always
+    expire_in: 30 days
+    paths:
+      - coverage.xml
+      - sample-artifacts/
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage.xml
+
+almalinux8-python36:
+  stage: test
+  image: almalinux:8
+  before_script:
+    - dnf install -y make python3 python3-pip
+    - python3 -m pip install "pytest<7"
+  script:
+    - make test PYTHON=python3 PYTEST="python3 -m pytest"
+    - make sample-validate PYTHON=python3 MAX_FAILURES=0
+  artifacts:
+    when: always
+    expire_in: 30 days
+    paths:
+      - sample-artifacts/
+
+dist:
+  stage: build
+  image: python:3.12-slim
+  script:
+    - make dist PYTHON=python
+    - twine check dist/*
+  artifacts:
+    expire_in: 30 days
+    paths:
+      - dist/
