@@ -11,6 +11,9 @@ on:
       - main
       - develop
 
+permissions:
+  contents: read
+
 jobs:
   build-project:
     runs-on: ubuntu-latest

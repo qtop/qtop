@@ -1,0 +1,17 @@
+stages:
+  - test
+
+sample-validation:
+  stage: test
+  image: python:3.10
+  before_script:
+    - pip install pytest
+  script:
+    - make test-samples SAMPLE_MAX_FAILURES=0 SLURM_OUTPUT_DIR=artifacts/qtop-slurm-rendered PBS_OUTPUT_DIR=artifacts/qtop-pbs-rendered
+  artifacts:
+    when: always
+    expire_in: 7 days
+    paths:
+      - artifacts/qtop-contrib-rendered
+      - artifacts/qtop-slurm-rendered
+      - artifacts/qtop-pbs-rendered

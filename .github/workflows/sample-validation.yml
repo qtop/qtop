@@ -1,0 +1,32 @@
+name: sample-validation
+
+on:
+  pull_request:
+    branches:
+      - develop
+  push:
+    branches:
+      - develop
+
+permissions:
+  contents: read
+
+jobs:
+  sample-validation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: "3.10"
+      - run: pip install pytest
+      - run: make test-samples SAMPLE_MAX_FAILURES=0 SLURM_OUTPUT_DIR=artifacts/qtop-slurm-rendered PBS_OUTPUT_DIR=artifacts/qtop-pbs-rendered
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: qtop-sample-rendered-output
+          path: |
+            artifacts/qtop-contrib-rendered
+            artifacts/qtop-slurm-rendered
+            artifacts/qtop-pbs-rendered
+          if-no-files-found: ignore
