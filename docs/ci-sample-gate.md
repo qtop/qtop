@@ -10,11 +10,14 @@ It runs the pytest suite and then validates that the bundled PBS, OAR, and SGE s
 
 The gate is intentionally small and fast. It uses the existing sample files in `qtop_py/contrib/`, requires the stable report headings to render, strips known volatile lines such as working directory and log-file paths, and stores a diff against the checked-in references when the rendered terminal output drifts.
 
+In CI, `make ci` uses `sample-report` so sample artifacts are always uploaded for review without failing the required pytest run on terminal rendering drift. For stricter local validation, run `make sample-gate`.
+
 Useful commands:
 
 ```sh
 make test
 make sample-gate
+make sample-report
 make clean-artifacts
 ```
 
