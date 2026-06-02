@@ -2049,42 +2049,82 @@ class Cluster(object):
 
         return nodes_drop, workernode_dict, workernode_dict_remapped
 
-    def _sort_worker_nodes(self):
-        order = {
-            "sort by nodename-notnum": 're.sub(r"[^A-Za-z _.-]+", "", node["domainname"]) or "0"',
-            "sort by nodename-notnum length": "len(node['domainname'].split('.', 1)[0].split('-')[0])",
-            "sort by all numbers": 'int(re.sub(r"[A-Za-z _.-]+", "", node["domainname"]) or "0")',
-            "sort by first letter": "ord(node['domainname'][0])",
-            "sort by node state": "ord(str(node['state'][0]))",
-            "sort by nr of cores": "int(node['np'])",
-            "sort by core occupancy": "len(node['core_job_map'])",
-            "sort by custom definition": "",
-            "sort reset": "0",
-            # "sort_by_num_adjacent_to_first_word" : "int(re.sub(r'[A-Za-z_.-]+', '', node['domainname'].split('.', 1)[0].split('-')[0]) or -1)",
-            # "sort_by_first_word" : "node['domainname'].split('.', 1)[0].split('-')[0]",
-        }
-        if dynamic_config.get("user_sort"):  # live user sorting overrides yaml config sorting
-            # following join content also takes custom definition argument into account
-            sort_str = ", ".join(order[k[0]] or k[1][0] for k in dynamic_config.get("user_sort", []))
-        elif self.config.get("sorting", {}).get("user_sort"):
-            sort_str = ", ".join(order[k] for k in self.config["sorting"]["user_sort"])
-        else:
-            return self.worker_nodes
+    def sortworker_nodes(self):
+    order = {
+        "sort by nodename-notnum": lambda node: re.sub(
+            r"[^A-Za-z _.-]+", "", node["domainname"]
+        ) or "0",
+        "sort by nodename-notnum length": lambda node: len(
+            node["domainname"].split(".", 1)[0].split("-")[0]
+        ),
+        "sort by all numbers": lambda node: int(
+            re.sub(r"[A-Za-z _.-]+", "", node["domainname"]) or "0"
+        ),
+        "sort by first letter": lambda node: ord(node["domainname"][0]),
+        "sort by node state": lambda node: ord(str(node["state"][0])),
+        "sort by nr of cores": lambda node: int(node["np"]),
+        "sort by core occupancy": lambda node: len(node["corejobmap"]),
+        "sort by custom definition": lambda node: 0,
+        "sort reset": lambda node: 0,
+    }
 
-        sort_sequence = "lambda node: (" + sort_str + ")"
-        try:
-            self.worker_nodes.sort(key=eval(sort_sequence), reverse=self.config["sorting"]["reverse"])
-        except (IndexError, ValueError):
-            logging.critical("There's (probably) something wrong in your sorting lambda in %s." % QTOPCONF_YAML)
-            raise
-        except KeyError as e:
-            msg = "Worker Nodes don't contain '%s' as a key." % e.message
-            logging.error(colorize(msg, color_func="Red_L"))
-        except NameError as e:
-            msg = "Wrong input '%s'. Please check the examples in qtopconf.yaml." % e.message
-            logging.error(colorize(msg, color_func="Red_L"))
+    if dynamicconfig.get("usersort"):
+        sort_fns = []
 
+        for k in dynamicconfig.get("usersort", []):
+            if k[0] == "sort by custom definition" and len(k) > 1 and k[1]:
+                safe_globals = {
+                    "re": re,
+                    "int": int,
+                    "len": len,
+                    "ord": ord,
+                    "str": str,
+                }
+
+                fn = eval(
+                    "lambda node: " + k[1][0],
+                    {"__builtins__": {}},
+                    safe_globals,
+                )
+            else:
+                fn = order[k[0]]
+
+            sort_fns.append(fn)
+
+    elif self.config.get("sorting", {}).get("user_sort"):
+        sort_fns = [
+            order[k]
+            for k in self.config["sorting"]["user_sort"]
+        ]
+    else:
         return self.worker_nodes
+
+    def _key(node):
+        return tuple(fn(node) for fn in sort_fns)
+
+    try:
+        self.worker_nodes.sort(
+            key=_key,
+            reverse=self.config["sorting"]["reverse"],
+        )
+    except (IndexError, ValueError):
+        logging.critical(
+            "There's (probably) something wrong in your sorting config in %s."
+            % QTOPCONF_YAML
+        )
+        raise
+    except KeyError as e:
+        msg = "Worker Nodes don't contain '%s' as a key." % str(e)
+        logging.error(colorize(msg, colorfunc="RedL"))
+    except NameError as e:
+        msg = (
+            "Wrong input '%s'. Please check the examples in qtopconf.yaml."
+            % str(e)
+        )
+        logging.error(colorize(msg, colorfunc="RedL"))
+
+    return self.worker_nodes
+        
 
     def _calculate_jobs_per_node(self, workernode_dict):
         for node in workernode_dict:
