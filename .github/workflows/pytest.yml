@@ -1,14 +1,43 @@
 name: pytest-qtop
 
-on: push
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
 
 jobs:
   run-pytest:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-python@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
         with:
           python-version: '3.10'
       - run: pip install pytest
-      - run: python -m pytest
+      - run: make test PYTHON=python
+
+  sample-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.10'
+      - run: make sample-validate PYTHON=python SAMPLE_SCHEDULERS=slurm SAMPLE_MAX_FAILURES=0
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: qtop-sample-gate
+          path: artifacts/qtop-sample-gate/
+
+  fortifications:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.10'
+      - run: make fortifications PYTHON=python

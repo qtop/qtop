@@ -26,14 +26,21 @@ GOLDEN_PBS_SAMPLES = (
 
 
 def render_sample(sample_dir, output_dir):
-    proc = subprocess.run(
-        ["./qtop", "-b", "pbs", "-s", str(sample_dir), "-c", "ON"],
-        text=True,
-        capture_output=True,
-        timeout=8,
-    )
-    if proc.returncode != 0 or not proc.stdout.strip():
-        return None
+    try:
+        proc = subprocess.run(
+            ["./qtop", "-b", "pbs", "-s", str(sample_dir), "-c", "ON"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            universal_newlines=True,
+            timeout=8,
+        )
+    except subprocess.TimeoutExpired:
+        return None, "timeout while rendering PBS sample"
+
+    if proc.returncode != 0:
+        return None, "exit %s: %s" % (proc.returncode, "\n".join(proc.stderr.splitlines()[-5:]))
+    if not proc.stdout.strip():
+        return None, "empty stdout"
 
     output_file = output_dir / f"{sample_dir.name}.ans"
     output_file.write_text(proc.stdout)
@@ -41,13 +48,14 @@ def render_sample(sample_dir, output_dir):
         "sample": sample_dir.name,
         "output": output_file.name,
         "stderr_tail": proc.stderr.splitlines()[-5:],
-    }
+    }, None
 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("samples_dir", type=Path)
     parser.add_argument("--limit", type=int, default=100)
+    parser.add_argument("--max-failures", type=int, default=0)
     parser.add_argument("--output", type=Path, default=Path("/tmp/qtop-pbs-rendered"))
     parser.add_argument(
         "--skip-golden-samples",
@@ -59,16 +67,19 @@ def main() -> int:
     sample_dirs = sorted(path for path in args.samples_dir.iterdir() if path.is_dir())
     args.output.mkdir(parents=True, exist_ok=True)
     manifest = []
+    failures = []
     seen = set()
 
     if not args.skip_golden_samples:
         for sample in GOLDEN_PBS_SAMPLES[: args.limit]:
             sample_dir = args.samples_dir / sample
             if not sample_dir.is_dir():
-                raise FileNotFoundError(f"golden PBS sample not found: {sample_dir}")
-            entry = render_sample(sample_dir, args.output)
-            if entry is None:
-                raise RuntimeError(f"golden PBS sample failed to render: {sample_dir}")
+                failures.append({"sample": sample, "error": "golden PBS sample not found: %s" % sample_dir})
+                continue
+            entry, error = render_sample(sample_dir, args.output)
+            if error:
+                failures.append({"sample": sample, "error": error})
+                continue
             entry["golden"] = True
             manifest.append(entry)
             seen.add(sample_dir.name)
@@ -78,15 +89,22 @@ def main() -> int:
             break
         if sample_dir.name in seen:
             continue
-        entry = render_sample(sample_dir, args.output)
-        if entry is None:
+        entry, error = render_sample(sample_dir, args.output)
+        if error:
+            failures.append({"sample": sample_dir.name, "error": error})
+            if len(failures) > args.max_failures:
+                break
             continue
         manifest.append(entry)
         if len(manifest) >= args.limit:
             break
 
     (args.output / "manifest.json").write_text(json.dumps(manifest, indent=2))
-    print(f"validated={len(manifest)} output={args.output}")
+    if failures:
+        (args.output / "failures.json").write_text(json.dumps(failures, indent=2))
+    print("validated=%s failures=%s output=%s" % (len(manifest), len(failures), args.output))
+    if len(failures) > args.max_failures:
+        return 1
     return 0 if len(manifest) >= args.limit else 1
 
 

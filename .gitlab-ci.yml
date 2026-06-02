@@ -1,0 +1,49 @@
+stages:
+  - test
+  - samples
+  - fortify
+
+default:
+  image: python:3.10-slim
+
+unit-tests:
+  stage: test
+  before_script:
+    - apt-get update
+    - apt-get install -y --no-install-recommends make
+    - pip install pytest
+  script:
+    - make test PYTHON=python
+
+sample-gate:
+  stage: samples
+  before_script:
+    - apt-get update
+    - apt-get install -y --no-install-recommends make
+  script:
+    - make sample-validate PYTHON=python SAMPLE_SCHEDULERS=slurm SAMPLE_MAX_FAILURES=0
+  artifacts:
+    when: always
+    paths:
+      - artifacts/qtop-sample-gate/
+
+python36-sample-gate:
+  stage: samples
+  image: almalinux:8
+  before_script:
+    - dnf -y install make python36
+  script:
+    - python3.6 --version
+    - make sample-validate PYTHON=python3.6 SAMPLE_SCHEDULERS=slurm SAMPLE_MAX_FAILURES=0
+  artifacts:
+    when: always
+    paths:
+      - artifacts/qtop-sample-gate/
+
+fortifications:
+  stage: fortify
+  before_script:
+    - apt-get update
+    - apt-get install -y --no-install-recommends make
+  script:
+    - make fortifications PYTHON=python

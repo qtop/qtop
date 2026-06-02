@@ -8,15 +8,73 @@
 ## SPDX-License-Identifier: MIT
 ##
 
-import pytest
 import re
 import datetime
-from qtop_py.qtop import WNOccupancy, decide_batch_system, load_yaml_config, JobNotFound, SchedulerNotSpecified, NoSchedulerFound, get_date_obj_from_str
+
+import pytest
+
+from qtop_py.qtop import (
+    build_remap_replacement,
+    Cluster,
+    decide_batch_system,
+    extract_detail_from_field,
+    get_date_obj_from_str,
+    JobNotFound,
+    literal_cmdline_value,
+    load_yaml_config,
+    NoSchedulerFound,
+    SchedulerNotSpecified,
+    WNOccupancy,
+)
 
 
 @pytest.fixture
 def config():
     return {}
+
+
+@pytest.mark.parametrize(
+    "raw, expected",
+    (
+        ("True", True),
+        ("False", False),
+        ("maybeTrue", "maybeTrue"),
+        ("1", "1"),
+    ),
+)
+def test_literal_cmdline_value_only_parses_booleans(raw, expected):
+    assert literal_cmdline_value(raw) == expected
+
+
+@pytest.mark.parametrize(
+    "regex",
+    (
+        r"(?<=<)[^<>]+(?=>)",
+        r"re.search('(?<=<)[^<>]+(?=>)', field).group(0)",
+    ),
+)
+def test_extract_detail_from_field_supports_pattern_and_legacy_expression(regex):
+    assert extract_detail_from_field("Alice Example <alice@example.org>", regex) == "alice@example.org"
+
+
+def test_build_remap_replacement_supports_documented_offset_lambda():
+    repl = build_remap_replacement("lambda m: m.group(1)+str(int(m.group(2))+250)")
+
+    assert re.sub(r"([A-Za-z]+)([0-9]+)$", repl, "wn100") == "wn350"
+
+
+def test_sort_worker_nodes_uses_named_sorters_without_dynamic_evaluation(monkeypatch):
+    import qtop_py.qtop as qtop
+
+    cluster = Cluster.__new__(Cluster)
+    cluster.config = {"sorting": {"user_sort": ["sort by all numbers"], "reverse": False}}
+    cluster.worker_nodes = [
+        {"domainname": "node10", "state": "-", "np": "4", "core_job_map": {}},
+        {"domainname": "node2", "state": "-", "np": "4", "core_job_map": {}},
+    ]
+    monkeypatch.setattr(qtop, "dynamic_config", {}, raising=False)
+
+    assert [node["domainname"] for node in cluster._sort_worker_nodes()] == ["node2", "node10"]
 
 
 def test_load_yaml_config_does_not_execute_config_values(monkeypatch, tmp_path):
