@@ -37,3 +37,8 @@ target-version = "py310" ##
 
 ## FG customisations
 line-length = 188 # this is temporary to reduce noise over line lengths
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v --tb=short"
+junit_family = "xunit2"

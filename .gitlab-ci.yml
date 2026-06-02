@@ -1,0 +1,46 @@
+image: python:3.10
+
+stages:
+  - lint
+  - fortifications
+  - test
+  - coverage
+
+before_script:
+  - pip install pytest pytest-cov ruff build
+
+lint:
+  stage: lint
+  script:
+    - make lint
+  artifacts:
+    reports:
+      codequality: gl-code-quality-report.json
+
+fortifications:
+  stage: fortifications
+  script:
+    - make fortifications
+  artifacts:
+    when: always
+    paths:
+      - fortifications.log
+
+test:
+  stage: test
+  script:
+    - make test
+  artifacts:
+    when: always
+    reports:
+      junit: junit.xml
+
+coverage:
+  stage: coverage
+  script:
+    - make coverage
+  coverage: '/^TOTAL\s+\d+\s+\d+\s+(\d+%)/'
+  artifacts:
+    when: always
+    paths:
+      - htmlcov/

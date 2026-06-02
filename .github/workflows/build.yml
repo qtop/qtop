@@ -4,10 +4,13 @@ on:
   push:
     branches:
       - master
+      - main
       - 'releases/**'
   pull_request:
-    branches:    
+    branches:
       - master
+      - main
+      - develop
 
 jobs:
   build-project:
@@ -18,7 +21,7 @@ jobs:
         with:
           python-version: '3.10'
       - run: pip install build twine
-      - run: pyproject-build
+      - run: make dist
       - uses: actions/upload-artifact@v3
         with:
           name: qtop-dist

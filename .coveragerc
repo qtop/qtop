@@ -1,0 +1,11 @@
+[run]
+source = qtop_py
+omit = */tests/*,*/test*,*/.eggs/*
+
+[report]
+show_missing = true
+skip_covered = true
+skip_empty = true
+
+[html]
+directory = htmlcov

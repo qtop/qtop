@@ -1,14 +1,40 @@
-name: pytest-qtop
+name: ci-qtop
 
-on: push
+on:
+  push:
+    branches:
+      - master
+      - main
+      - develop
+  pull_request:
+    branches:
+      - master
+      - main
+      - develop
 
 jobs:
-  run-pytest:
+  ci:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
       - uses: actions/setup-python@v4
         with:
           python-version: '3.10'
-      - run: pip install pytest
-      - run: python -m pytest
+      - name: Install dependencies
+        run: |
+          pip install pytest pytest-cov ruff build
+      - name: Lint
+        run: make lint
+      - name: Fortifications
+        run: make fortifications
+      - name: Test
+        run: make test
+      - name: Coverage
+        run: make coverage
+      - name: Upload coverage artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: coverage-report
+          path: htmlcov/
