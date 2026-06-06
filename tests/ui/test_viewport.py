@@ -29,7 +29,7 @@ def test_after_scroll_left():
     assert 53 == viewport.v_stop
 
 
-def test_after_scroll_right_UNUSED():  # FIXME: cleanup as such
+def test_after_scroll_right_moves_half_page():
     viewport = Viewport()
     viewport.set_term_size(53, 176)
     viewport.max_width = 400
