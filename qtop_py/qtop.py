@@ -27,13 +27,21 @@ import json
 import datetime
 from collections import namedtuple, OrderedDict, Counter
 from os.path import realpath
-from signal import signal, SIGPIPE, SIG_DFL
-import termios
+from signal import signal, SIG_DFL
+try:
+    from signal import SIGPIPE
+except ImportError:
+    SIGPIPE = None
+try:
+    import termios
+except ImportError:
+    termios = None
 import contextlib
 import glob
 import tempfile
 import logging
 from ast import literal_eval
+import shutil
 from qtop_py.constants import SYSTEMCONFDIR, QTOPCONF_YAML, QTOP_LOGFILE, USERPATH, MAX_UNIX_ACCOUNTS, KEYPRESS_TIMEOUT, FALLBACK_TERMSIZE
 from qtop_py import fileutils
 from qtop_py import utils
@@ -151,10 +159,10 @@ def raw_mode(file):
     if args.ONLYSAVETOFILE:
         yield
     else:
-        if args.WATCH:
+        if args.WATCH and termios is not None:
             try:
                 old_attrs = termios.tcgetattr(file.fileno())
-            except:  # noqa: E722  ## FIXME, ruff complaint
+            except (termios.error, OSError):
                 yield
             else:
                 new_attrs = old_attrs[:]
@@ -267,28 +275,18 @@ def calculate_term_size(config, FALLBACK_TERM_SIZE):
     """
     fallback_term_size = config.get("term_size", FALLBACK_TERM_SIZE)
 
-    _command = subprocess.Popen(["/bin/stty", "size"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    tty_size, error = _command.communicate()
-    if not error:
+    try:
+        _command = subprocess.Popen(["stty", "size"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        tty_size, error = _command.communicate()
+        if error:
+            raise OSError(error.decode(errors="replace"))
         term_height, term_columns = [int(x) for x in tty_size.strip().split()]
         logging.debug('terminal size v, h from "stty size": %s, %s' % (term_height, term_columns))
-    else:
-        logging.warn("Failed to autodetect terminal size. (Running in an IDE?in a pipe?) Trying values in %s." % QTOPCONF_YAML)
-        try:
-            term_height, term_columns = viewport.get_term_size()
-            if not all(term_height, term_columns):
-                raise ValueError
-        except ValueError:
-            try:
-                term_height, term_columns = yaml.fix_config_list(viewport.get_term_size())
-            except KeyError:
-                term_height, term_columns = fallback_term_size
-                logging.debug("(hardcoded) fallback terminal size v, h:%s, %s" % (term_height, term_columns))
-            else:
-                logging.debug("fallback terminal size v, h:%s, %s" % (term_height, term_columns))
-        except (KeyError, TypeError):  # TypeError if None was returned i.e. no setting in QTOPCONF_YAML
-            term_height, term_columns = fallback_term_size
-            logging.debug("(hardcoded) fallback terminal size v, h:%s, %s" % (term_height, term_columns))
+    except (OSError, ValueError):
+        logging.warning("Failed to autodetect terminal size with stty. Using the platform terminal size or values in %s." % QTOPCONF_YAML)
+        terminal_size = shutil.get_terminal_size(fallback=(int(fallback_term_size[1]), int(fallback_term_size[0])))
+        term_height, term_columns = terminal_size.lines, terminal_size.columns
+        logging.debug("fallback terminal size v, h:%s, %s" % (term_height, term_columns))
 
     return int(term_height), int(term_columns)
 
@@ -319,8 +317,7 @@ def auto_get_avail_batch_system(config):
     """
     # TODO pbsnodes etc should not be hardcoded!
     for system, batch_command in config["signature_commands"].items():
-        NOT_FOUND = subprocess.call(["/usr/bin/which", batch_command], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        if not NOT_FOUND:
+        if shutil.which(batch_command):
             if system != "demo":
                 logging.debug("Auto-detected scheduler: %s" % system)
                 return system
@@ -1177,7 +1174,6 @@ class WNOccupancy(object):
             web.stop()
             sys.exit(1)
         min_len = min(user_max_len, real_max_len)
-        max_len = max(user_max_len, real_max_len)  # noqa: F841  ## FIXME, max_len unused
         if real_max_len > user_max_len:
             logging.warn("Some longer %(attr)ss have been cropped due to %(attr)s length restriction by user" % {"attr": part_name})
 
@@ -1503,7 +1499,7 @@ class TextDisplay(object):
 
         print("%(queues)s :" % {"queues": colorize("Queues", "Cyan_L")}, end=" ")
         for _queue_name, q_tuple in qstatq_lod.items():
-            q_running_jobs, q_queued_jobs, q_state = q_tuple.run, q_tuple.queued, q_tuple.state  # noqa: F841  ## FIXME, q_state unused
+            q_running_jobs, q_queued_jobs = q_tuple.run, q_tuple.queued
             account = _queue_name if _queue_name in queue_to_color else "account_not_colored"
             print(
                 "{qname}{star}: {run} {q}|".format(
@@ -1620,7 +1616,6 @@ class TextDisplay(object):
 
         wn_vert_labels = wns_occupancy.wn_vert_labels
         core_user_map = wns_occupancy.core_user_map
-        extra_matrices_nr = wns_occupancy.extra_matrices_nr  # noqa: F841  ## FIXME, unused
         userid_to_userid_re_pat = wns_occupancy.userid_to_userid_re_pat
         mapping = config["core_coloring"]
 
@@ -1718,7 +1713,8 @@ class TextDisplay(object):
         return joined_list
 
     def print_core_lines(self, core_user_map, print_char_start, print_char_stop, transposed_matrices, userid_to_userid_re_pat, mapping, attrs, options1, options2):
-        signal(SIGPIPE, SIG_DFL)
+        if SIGPIPE is not None:
+            signal(SIGPIPE, SIG_DFL)
         remove_corelines = dynamic_config.get("rem_empty_corelines", config["rem_empty_corelines"]) + 1
 
         # if corelines vertical (transposed matrix)
@@ -1741,7 +1737,8 @@ class TextDisplay(object):
                     print(core_line_zipped)
                 except IOError:
                     try:
-                        signal(SIGPIPE, SIG_DFL)
+                        if SIGPIPE is not None:
+                            signal(SIGPIPE, SIG_DFL)
                         print(core_line_zipped)
                         sys.stdout.close()
                     except IOError:
@@ -2314,14 +2311,21 @@ class NoSchedulerFound(Exception):
 
 
 class SchedulerNotSpecified(Exception):
-    pass
+    def __init__(self):
+        Exception.__init__(self, "No scheduler could be auto-detected. Select one with the -b option.")
 
 
 class InvalidScheduler(Exception):
-    pass
+    def __init__(self):
+        Exception.__init__(self, "The selected scheduler is not supported. Run qtop --help to list valid options.")
 
 
-def main():
+def display_file(filepath, output):
+    with open(filepath, "r") as source:
+        shutil.copyfileobj(source, output)
+
+
+def _main():
     # define global vars which are used out of scope
     global \
         CURPATH, \
@@ -2351,12 +2355,14 @@ def main():
     if args.ANONYMIZE and not args.EXPERIMENTAL:
         print("Anonymize should be ran with --experimental switch!! Exiting...")
         sys.exit(1)
-    if args.WATCH or args.REPLAY:  # this is needed for the filtering/sorting options
+    if (args.WATCH or args.REPLAY) and termios is not None:  # this is needed for the filtering/sorting options
         try:
             old_attrs = termios.tcgetattr(0)
         except termios.error:
             old_attrs = ""
         new_attrs = old_attrs[:]
+    else:
+        old_attrs = new_attrs = ""
 
     available_batch_systems = discover_qtop_batch_systems()
 
@@ -2461,8 +2467,7 @@ def main():
                 if args.ONLYSAVETOFILE:  # no display of qtop output, will exit
                     break
                 elif not args.WATCH:  # one-off display of qtop output, will exit afterwards (no --watch cmdline switch)
-                    cat_command = ["/bin/cat", output_fp]  # not clearing the screen beforehand is the intended behaviour here
-                    _ = subprocess.call(cat_command, stdout=stdout, stderr=stdout)
+                    display_file(output_fp, stdout)  # not clearing the screen beforehand is the intended behaviour here
                     break
                 else:  # --watch
                     if args.REPLAY:
@@ -2474,10 +2479,8 @@ def main():
                     else:
                         output_partview_fp = display.show_part_view(timestr, file=dynamic_config.get("output_fp", output_fp), x=viewport.v_start, y=viewport.v_term_size)
                         logging.debug("dynamic_config filename in main loop: %s" % dynamic_config.get("output_fp", output_fp))
-                    clear_command = ["/usr/bin/clear"]
-                    cat_command = ["/bin/cat", output_partview_fp]
-                    _ = subprocess.call(clear_command, stdout=stdout, stderr=stdout)
-                    _ = subprocess.call(cat_command, stdout=stdout, stderr=stdout)
+                    stdout.write("\033[2J\033[H")
+                    display_file(output_partview_fp, stdout)
 
                     read_char = wait_for_keypress_or_autorefresh(viewport, FALLBACK_TERMSIZE, int(args.WATCH) or KEYPRESS_TIMEOUT)
                     control_qtop(viewport, read_char, cluster, new_attrs)
@@ -2503,5 +2506,13 @@ def main():
                 fileutils.tar_out.close()
 
 
+def main():
+    try:
+        return _main()
+    except (InvalidScheduler, NoSchedulerFound, SchedulerNotSpecified) as error:
+        print("qtop: %s" % error, file=sys.stderr)
+        return 1
+
+
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
