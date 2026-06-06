@@ -37,17 +37,22 @@ from ast import literal_eval
 from qtop_py.constants import SYSTEMCONFDIR, QTOPCONF_YAML, QTOP_LOGFILE, USERPATH, MAX_UNIX_ACCOUNTS, KEYPRESS_TIMEOUT, FALLBACK_TERMSIZE
 from qtop_py import fileutils
 from qtop_py import utils
-from qtop_py.plugins import *  # noqa: F403  ## FIXME: this is a code-smell, because it can be tightened
+from qtop_py.plugins.demo import DemoBatchSystem
+from qtop_py.plugins.oar import OARBatchSystem
+from qtop_py.plugins.pbs import PBSBatchSystem
+from qtop_py.plugins.sge import SGEBatchSystem
+from qtop_py.plugins.slurm import SlurmBatchSystem
 from math import ceil
 from qtop_py.colormap import user_to_color_default, color_to_code, queue_to_color, nodestate_to_color_default
 import qtop_py.yaml_parser as yaml
 from qtop_py.ui.viewport import Viewport
-from qtop_py.serialiser import GenericBatchSystem
 from qtop_py.web import Web
 from qtop_py import __version__
 import time
 
 here = sys.path[0]
+
+PLUGIN_BATCH_SYSTEMS = (DemoBatchSystem, OARBatchSystem, PBSBatchSystem, SGEBatchSystem, SlurmBatchSystem)
 
 
 # TODO make the following work with py files instead of qtop.colormap files
@@ -447,7 +452,7 @@ def check_python_version():
         sys.exit(1)
 
 
-def control_qtop(viewport, read_char, cluster, new_attrs):
+def control_qtop(viewport, read_char, cluster, new_attrs, old_attrs, max_line_len, change_mapping):
     """
     Basic vi-like movement is implemented for the -w switch (linux watch-like behaviour for qtop).
     h, j, k, l for left, down, up, right, respectively.
@@ -860,20 +865,8 @@ def colorize_nodestate(worker_nodes, nodestate_to_color, ffunc):
 
 
 def discover_qtop_batch_systems():
-    batch_systems = set()
-
-    # Find all the classes that extend GenericBatchSystem
-    to_scan = [GenericBatchSystem]
-    while to_scan:
-        parent = to_scan.pop()
-        for child in parent.__subclasses__():
-            if child not in batch_systems:
-                batch_systems.add(child)
-                to_scan.append(child)
-
-    # Extract those class's mnemonics
     available_batch_systems = {}
-    for batch_system in batch_systems:
+    for batch_system in PLUGIN_BATCH_SYSTEMS:
         mnemonic = batch_system.get_mnemonic()
         assert mnemonic
         assert mnemonic not in available_batch_systems, "Duplicate for mnemonic: '%s'" % mnemonic
@@ -1449,7 +1442,7 @@ class TextDisplay(object):
         if self.args.SAMPLE:
             print("Sample files saved in %s/%s" % (_savepath, SAMPLE_FILENAME))
         if self.args.STRICTCHECK:
-            WNOccupancy.strict_check_jobs(wns_occupancy, cluster)
+            WNOccupancy.strict_check_jobs(self.wns_occupancy, self.cluster)
 
     def display_job_accounting_summary(self, cluster, document):
         """
@@ -2480,7 +2473,7 @@ def main():
                     _ = subprocess.call(cat_command, stdout=stdout, stderr=stdout)
 
                     read_char = wait_for_keypress_or_autorefresh(viewport, FALLBACK_TERMSIZE, int(args.WATCH) or KEYPRESS_TIMEOUT)
-                    control_qtop(viewport, read_char, cluster, new_attrs)
+                    control_qtop(viewport, read_char, cluster, new_attrs, old_attrs, max_line_len, change_mapping)
 
                 help_main_switch.pop()
                 os.chdir(QTOPPATH)

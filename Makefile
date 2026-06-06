@@ -1,10 +1,10 @@
 .DEFAULT_GOAL := help
 
-.PHONY: help ci-deps test coverage sample-gate test-pbs-samples test-slurm-samples fortifications ruff-check lint lint-fix format-check format-fix compat-py36 ci github-ci gitlab-ci build github-build gitlab-build dist version confirm
+.PHONY: help all rerun clean ci-deps test coverage sample-gate backend-validation backend-colour-artifacts test-pbs-samples test-slurm-samples fortifications ruff-check lint lint-fix format-check format-fix compat-py36 ci github-ci gitlab-ci build github-build gitlab-build dist version confirm
 
 PYTHON ?= python3
 PIP ?= $(PYTHON) -m pip
-SAMPLE_GATE_SCHEDULERS ?= pbs,sge,slurm
+SAMPLE_GATE_SCHEDULERS ?= pbs,sge,slurm,oar,demo
 SAMPLE_GATE_MAX_FAILURES ?= 0
 SAMPLE_GATE_ARTIFACT_DIR ?= artifacts/sample-gate
 PBS_SAMPLES_DIR ?= ../qtop-test-repo/qtop5/results
@@ -18,6 +18,15 @@ help: ## Show this help
 	@grep -E '^[a-zA-Z0-9_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
 		| awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
 
+all: ci ## Run the complete local validation path
+
+rerun: clean all ## Clean generated files, then run the complete validation path
+
+clean: confirm ## Remove generated validation and build output after confirmation
+	rm -rf artifacts build dist .coverage .pytest_cache .ruff_cache
+	find . -type d -name __pycache__ -prune -exec rm -rf {} +
+	find . -type f \( -name '*.pyc' -o -name '*.pyo' \) -delete
+
 ci-deps: ## Install pinned CI Python dependencies
 	$(PIP) install -r requirements-ci.txt
 
@@ -28,8 +37,12 @@ coverage: ## Run tests with coverage.py and print a terminal report
 	$(PYTHON) -m coverage run -m pytest
 	$(PYTHON) -m coverage report
 
-sample-gate: ## Run fast committed PBS/SGE/SLURM qtop sample gates
+sample-gate: ## Run fast PBS/SGE/Slurm/OAR/demo sample gates
 	$(PYTHON) tools/validate_scheduler_samples.py --schedulers $(SAMPLE_GATE_SCHEDULERS) --max-failures $(SAMPLE_GATE_MAX_FAILURES) --artifact-dir $(SAMPLE_GATE_ARTIFACT_DIR)
+
+backend-validation: sample-gate ## Validate PBS/SGE/Slurm/OAR/demo through one local-first path
+
+backend-colour-artifacts: sample-gate ## Render ANSI-colour text and SVG review artifacts for every backend
 
 test-pbs-samples: ## Run the larger archived PBS sample sweep
 	$(PYTHON) tools/validate_pbs_samples.py $(PBS_SAMPLES_DIR) --limit $(PBS_SAMPLE_LIMIT) --output $(PBS_OUTPUT_DIR)
@@ -59,7 +72,7 @@ compat-py36: ## Run dependency-light Python 3.6 compatibility checks
 	find qtop_py tools -name '*.py' -print | xargs $(PYTHON) -m py_compile
 	$(PYTHON) tools/validate_scheduler_samples.py --schedulers $(SAMPLE_GATE_SCHEDULERS) --max-failures $(SAMPLE_GATE_MAX_FAILURES) --artifact-dir $(SAMPLE_GATE_ARTIFACT_DIR)-py36
 
-ci: test sample-gate lint ruff-check format-check ## Run the shared local/CI validation path
+ci: test backend-validation lint format-check ## Run the shared local/CI validation path
 
 github-ci: ci ## GitHub Actions entry point for test validation
 

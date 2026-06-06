@@ -37,9 +37,7 @@ def test_pbs_qstat_regex_skips_unmatched_lines(tmp_path):
     )
     extractor = PBSStatExtractor({}, SimpleNamespace(ANONYMIZE=False))
 
-    assert extractor._extract_qstat_regex(str(qstat_file)) == [
-        {"JobId": "1234", "UnixAccount": "alice", "S": "R", "Queue": "workq"}
-    ]
+    assert extractor._extract_qstat_regex(str(qstat_file)) == [{"JobId": "1234", "UnixAccount": "alice", "S": "R", "Queue": "workq"}]
 
 
 def test_decide_remapping_handles_mixed_numeric_and_named_nodes():

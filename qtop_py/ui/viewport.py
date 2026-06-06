@@ -2,6 +2,7 @@ class BaseViewport(object):
     """
     Class that implements a basic viewport [window into the qtop matrix] and basic movement restrictions
     """
+
     def __init__(self, vstart=0, hstart=0):
         self._v_start = vstart
         self._v_stop = 0
@@ -43,6 +44,7 @@ class Viewport(BaseViewport):
     """
     Class that extends BaseViewport to provide the actual movements of the Viewport
     """
+
     @property
     def h_start(self):
         assert not (self.would_cross_left_limit(self._h_start) and self.would_cross_right_limit(self._h_start))

@@ -28,6 +28,11 @@ ROOT = Path(__file__).resolve().parents[1]
 ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
 CONTRIB = ROOT / "qtop_py" / "contrib"
 
+COMMON_RENDER_MARKERS = [
+    "Worker Nodes occupancy",
+    "User accounts and pool mappings",
+]
+
 STATIC_CASES = {
     "pbs": [
         {
@@ -57,6 +62,22 @@ STATIC_CASES = {
             ],
         }
     ],
+    "oar": [
+        {
+            "name": "oar-contrib",
+            "source": CONTRIB,
+            "args": ["-s", str(CONTRIB), "-c", "ON", "-F", "-b", "oar"],
+            "markers": COMMON_RENDER_MARKERS,
+        }
+    ],
+    "demo": [
+        {
+            "name": "demo-generated",
+            "source": ROOT,
+            "args": ["-c", "ON", "-F", "-b", "demo"],
+            "markers": COMMON_RENDER_MARKERS,
+        }
+    ],
 }
 
 SLURM_MARKERS_BY_SAMPLE = {
@@ -67,11 +88,6 @@ SLURM_MARKERS_BY_SAMPLE = {
     "mixed": ["Summary: Total:2 Up:1 Free:0 Nodes", "4/16 cores", "2+0 jobs"],
     "multi_partition": ["Summary: Total:2 Up:2 Free:1 Nodes", "4/32 cores", "2+1 jobs"],
 }
-
-COMMON_RENDER_MARKERS = [
-    "Worker Nodes occupancy",
-    "User accounts and pool mappings",
-]
 
 
 def normalize_output(text):
@@ -112,7 +128,8 @@ def write_svg_screenshot(path, text, max_lines=38, max_columns=132):
     rows = []
     for index, line in enumerate(clipped):
         rows.append(
-            '<text x="14" y="%s">%s</text>' % (
+            '<text x="14" y="%s">%s</text>'
+            % (
                 28 + index * 17,
                 html.escape(line.rstrip()),
             )

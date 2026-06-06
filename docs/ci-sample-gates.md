@@ -38,18 +38,19 @@ dynamically during the build.
 The every-PR gate is:
 
 ```bash
-make sample-gate SAMPLE_GATE_SCHEDULERS=pbs,sge,slurm SAMPLE_GATE_MAX_FAILURES=0
+make sample-gate SAMPLE_GATE_SCHEDULERS=pbs,sge,slurm,oar,demo SAMPLE_GATE_MAX_FAILURES=0
 ```
 
 Sources:
 
-- PBS: `qtop_py/contrib`
-- SGE: `qtop_py/contrib`
+- PBS, SGE, and OAR: `qtop_py/contrib`
 - Slurm: every directory under `tests/plugins/slurm_samples`
+- demo: generated locally by the demo backend
 
-The PBS and SGE cases intentionally reuse the historical contrib wrapper flags
-(`-raF` for PBS and `-Fadvv` for SGE) while still running through the shared
-Python gate, so the old manual path and the CI path exercise the same samples.
+The PBS, SGE, and OAR cases reuse the committed `qtop_py/contrib` scheduler
+captures. Slurm uses every directory under `tests/plugins/slurm_samples`, and
+demo renders a generated cluster. All five backends run through the shared
+Python gate, so local and CI validation exercise the same paths.
 
 Policy:
 
@@ -58,6 +59,9 @@ Policy:
 - Rendered qtop output, ANSI-stripped normalized output, SVG terminal
   screenshots, stderr, command lines, and `summary.json` are written under
   `artifacts/sample-gate/`, including for non-zero and timeout failures.
+- `stdout.ans` preserves ANSI colour sequences for human review. Run
+  `make backend-colour-artifacts` when the desired result is specifically the
+  five-backend coloured-output artifact set.
 - Each qtop subprocess receives an isolated `HOME` under its artifact
   directory, so log creation does not depend on a writable runner home.
 - CI uploads that artifact directory so reviewers can inspect the rendered
@@ -65,6 +69,44 @@ Policy:
 - `qtop_py/contrib/func_tests.sh` delegates to this same sample gate, so the
   historical manual wrapper exercises the current CI path instead of carrying a
   separate drift-prone shell implementation.
+
+The named local entry points are:
+
+```bash
+make backend-validation
+make backend-colour-artifacts
+```
+
+Both use the same implementation and fail on any backend regression. This
+keeps the validation logic out of provider-specific CI YAML.
+
+## Clean reruns
+
+`make all` runs the complete local validation path. To remove generated
+artifacts, caches, and build output before repeating it, use:
+
+```bash
+printf 'y\n' | make rerun
+```
+
+The destructive `clean` target requires `confirm`, so an accidental
+`make clean` does not silently remove local artifacts.
+
+## Issue #483 trace contract
+
+Issue #483 provides a base64-encoded, gzipped JSON trace for replay review. Do
+not commit the decoded trace because it may contain private cluster data.
+Decode it into a temporary directory, replay it locally, and compare the
+rendered artifact with these rules:
+
+- section 3 must contain one row for every displayed user symbol
+- `_` remains reserved for an unused core and must never identify a user
+- a bounded long tail may use `?` as the documented aggregate symbol
+- `-4` adds the account totals row; it must not change the meaning of symbols
+  or alter sections 1 and 2
+
+If the trace reveals a representation that cannot meet these rules, document
+the proposed symbol and leave deeper UI changes to the focused #483 follow-up.
 
 ## Python 3.6 / AlmaLinux 8 gate
 

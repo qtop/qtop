@@ -44,6 +44,7 @@ def test_sort_worker_nodes_uses_named_sort_keys(monkeypatch):
 
     assert [node["domainname"] for node in cluster._sort_worker_nodes()] == ["node2", "node10"]
 
+
 def test_sort_worker_nodes_rejects_custom_python_sorting(monkeypatch):
     import qtop_py.qtop as qtop
 
