@@ -20,7 +20,9 @@ help: ## Show this help
 
 all: ci ## Run the complete local validation path
 
-rerun: clean all ## Clean generated files, then run the complete validation path
+rerun: ## Clean generated files, then run the complete validation path
+	$(MAKE) clean
+	$(MAKE) all
 
 clean: confirm ## Remove generated validation and build output after confirmation
 	rm -rf artifacts build dist .coverage .pytest_cache .ruff_cache
