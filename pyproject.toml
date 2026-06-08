@@ -38,4 +38,4 @@ lint.ignore = ["I001"]  ## FIXME, ruff has a point
 target-version = "py37" ## FIXME, pin the ruff that is known to be compatible on rhel6 w. python3.6 and adjust
 
 ## FG customisations
-line-length = 188 # this is temporary measure,to reduce noise over line lengths
+line-length = 187 # this is temporary measure,to reduce noise over line lengths

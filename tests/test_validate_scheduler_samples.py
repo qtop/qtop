@@ -9,6 +9,7 @@ def test_discover_cases_covers_all_supported_backends():
 
     assert schedulers == {"pbs", "sge", "slurm", "oar", "demo"}
     assert {"pbs-contrib", "sge-contrib", "oar-contrib", "demo-generated"} <= names
+    assert any(name.startswith("slurm-") for name in names)
 
 
 def test_all_cases_request_coloured_output():

@@ -1706,7 +1706,9 @@ class TextDisplay(object):
         if kwargs.get("nocutoff", False):
             s = "".join([colorize(char.initial, color_func=char.color) if isinstance(char, utils.ColorStr) else char for char in joined_list])
         else:
-            s = "".join([colorize(char.initial, color_func=char.color) if isinstance(char, utils.ColorStr) else char for char in joined_list[self.viewport.h_start : self.viewport.h_stop]])
+            s = "".join(
+                [colorize(char.initial, color_func=char.color) if isinstance(char, utils.ColorStr) else char for char in joined_list[self.viewport.h_start : self.viewport.h_stop]]
+            )
         print(compress_colored_line(s))
         return joined_list
 

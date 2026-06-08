@@ -18,7 +18,7 @@ help: ## Show this help
 	@grep -E '^[a-zA-Z0-9_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
 		| awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
 
-all: ci ## Run the complete local validation path
+all: help ci-deps test coverage sample-gate backend-validation backend-colour-artifacts test-pbs-samples test-slurm-samples fortifications ruff-check lint format-check compat-py36 ci github-ci gitlab-ci build github-build gitlab-build dist version ## Run every non-mutating validation and build target
 
 rerun: ## Clean generated files, then run the complete validation path
 	$(MAKE) clean

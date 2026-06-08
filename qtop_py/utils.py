@@ -73,7 +73,8 @@ def parse_qtop_cmdline_args():
         action="store_true",
         dest="ANONYMIZE",
         default=False,
-        help="Masks unix account names and workernode names for security reasons (sending bug reports etc)." "Temporarily NOT to be used, as scheduler input files are not anonymised yet.",
+        help="Masks unix account names and workernode names for security reasons (sending bug reports etc)."
+        "Temporarily NOT to be used, as scheduler input files are not anonymised yet.",
     )
     parser.add_argument("-b", "--batchSystem", action="store", dest="BATCH_SYSTEM", default=None)
     parser.add_argument(
@@ -82,7 +83,9 @@ def parse_qtop_cmdline_args():
     parser.add_argument("-C", "--classic", action="store_true", dest="CLASSIC", default=False, help="tries to mimic legacy qtop display as much as possible")
     parser.add_argument("-d", "--debug", action="store_true", dest="DEBUG", default=False, help="print debugging messages in stdout, not just in the log file.")
     parser.add_argument("-E", "--export", action="store_true", dest="EXPORT", default=False, help="export cluster data to json")
-    parser.add_argument("-e", "--experimental", action="store_true", dest="EXPERIMENTAL", default=False, help="this is mandatory for some highly experimental features! Enter at own risk.")
+    parser.add_argument(
+        "-e", "--experimental", action="store_true", dest="EXPERIMENTAL", default=False, help="this is mandatory for some highly experimental features! Enter at own risk."
+    )
     parser.add_argument(
         "-F", "--ForceNames", action="store_true", dest="FORCE_NAMES", default=False, help="force names to show up instead of numbered WNs even for very small numbers of WNs"
     )
