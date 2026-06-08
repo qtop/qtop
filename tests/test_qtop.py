@@ -132,6 +132,54 @@ def test_create_user_job_counts_raises_jobnotfound():  # user_names, job_states,
         }
 
 
+def test_user_symbols_skip_underscore_and_group_long_tail():
+    wns_occupancy = WNOccupancy.__new__(WNOccupancy)
+    wns_occupancy.config = {
+        "fill_with_user_firstletter": False,
+        "possible_ids": ["0", "_", "1", "#"],
+    }
+
+    user_to_id = wns_occupancy._create_id_for_users(
+        [
+            ("alice", 4),
+            ("bob", 3),
+            ("charlie", 2),
+            ("dora", 1),
+        ]
+    )
+
+    assert str(user_to_id["alice"]) == "0"
+    assert str(user_to_id["bob"]) == "1"
+    assert str(user_to_id["charlie"]) == "#"
+    assert str(user_to_id["dora"]) == "#"
+
+
+def test_account_jobs_table_preserves_precomputed_user_symbols(monkeypatch):
+    monkeypatch.setattr(
+        qtop_module,
+        "config",
+        {
+            "fill_with_user_firstletter": False,
+            "possible_ids": ["0"],
+        },
+        raising=False,
+    )
+    wns_occupancy = WNOccupancy.__new__(WNOccupancy)
+    account_jobs_table = [
+        ["", 1, 0, 1, "alice", 1],
+        ["", 1, 0, 1, "overflow", 1],
+    ]
+    user_to_id = {
+        "alice": qtop_utils.ColorStr("0"),
+        "overflow": qtop_utils.ColorStr("#"),
+    }
+
+    account_jobs_table, user_to_id = wns_occupancy._create_account_jobs_table(user_to_id, account_jobs_table)
+
+    assert [str(row[0]) for row in account_jobs_table] == ["0", "#"]
+    assert str(user_to_id["overflow"]) == "#"
+
+
 @pytest.mark.parametrize("switch", ("-4", "--accounttotals"))
 def test_account_totals_cli_switch(monkeypatch, switch):
     monkeypatch.setattr(sys, "argv", ["qtop", switch])

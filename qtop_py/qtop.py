@@ -20,6 +20,7 @@ import sys
 from operator import itemgetter
 from itertools import zip_longest, cycle, chain
 import subprocess
+import shutil
 import select
 import os
 import re
@@ -27,8 +28,29 @@ import json
 import datetime
 from collections import namedtuple, OrderedDict, Counter
 from os.path import realpath
-from signal import signal, SIGPIPE, SIG_DFL
-import termios
+from signal import signal, SIG_DFL
+try:
+    from signal import SIGPIPE
+except ImportError:
+    SIGPIPE = None
+try:
+    import termios
+except ImportError:
+    class _TermiosFallback(object):
+        ECHO = 0
+        ICANON = 0
+        TCSADRAIN = 0
+        error = OSError
+
+        @staticmethod
+        def tcgetattr(*_args, **_kwargs):
+            raise OSError("termios is not available on this platform")
+
+        @staticmethod
+        def tcsetattr(*_args, **_kwargs):
+            raise OSError("termios is not available on this platform")
+
+    termios = _TermiosFallback()
 import contextlib
 import glob
 import tempfile
@@ -319,8 +341,7 @@ def auto_get_avail_batch_system(config):
     """
     # TODO pbsnodes etc should not be hardcoded!
     for system, batch_command in config["signature_commands"].items():
-        NOT_FOUND = subprocess.call(["/usr/bin/which", batch_command], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        if not NOT_FOUND:
+        if shutil.which(batch_command):
             if system != "demo":
                 logging.debug("Auto-detected scheduler: %s" % system)
                 return system
@@ -959,9 +980,11 @@ class WNOccupancy(object):
 
     def _create_account_jobs_table(self, user_to_id, account_jobs_table):
         # TODO: unix account id needs to be recomputed at this point. fix.
-        for quintuplet, new_uid in zip(account_jobs_table, config["possible_ids"]):
+        for quintuplet in account_jobs_table:
             unix_account = quintuplet[4]
-            quintuplet[0] = user_to_id[unix_account] = utils.ColorStr(unix_account[0], color="Red_L") if config["fill_with_user_firstletter"] else utils.ColorStr(new_uid, color="Red_L")
+            if config["fill_with_user_firstletter"]:
+                user_to_id[unix_account] = utils.ColorStr(unix_account[0], color="Red_L")
+            quintuplet[0] = user_to_id[unix_account]
 
         return account_jobs_table, user_to_id
 
@@ -1043,18 +1066,16 @@ class WNOccupancy(object):
         """
         In case there are more users than the sum number of all numbers and small/capital letters of the alphabet
         """
-        if len(user_list) > MAX_UNIX_ACCOUNTS:
-            for i in range(MAX_UNIX_ACCOUNTS, len(user_list) + MAX_UNIX_ACCOUNTS):
-                config["possible_ids"].append(str(i)[0])
         return config
 
     def _create_id_for_users(self, user_alljobs_sorted_lot):
         user_to_id = {}
+        possible_ids = [symbol for symbol in self.config["possible_ids"] if symbol not in ("_", "#")]
         for id_, user_allcount in enumerate(user_alljobs_sorted_lot):
             if self.config["fill_with_user_firstletter"]:
                 user_to_id[user_allcount[0]] = utils.ColorStr(user_allcount[0][0])
-            elif len(self.config["possible_ids"]) > id_:
-                user_to_id[user_allcount[0]] = utils.ColorStr(self.config["possible_ids"][id_])
+            elif len(possible_ids) > id_:
+                user_to_id[user_allcount[0]] = utils.ColorStr(possible_ids[id_])
             else:
                 # If there are more users than possible ids use # for all remaining users
                 user_to_id[user_allcount[0]] = utils.ColorStr("#")
@@ -1718,7 +1739,8 @@ class TextDisplay(object):
         return joined_list
 
     def print_core_lines(self, core_user_map, print_char_start, print_char_stop, transposed_matrices, userid_to_userid_re_pat, mapping, attrs, options1, options2):
-        signal(SIGPIPE, SIG_DFL)
+        if SIGPIPE is not None:
+            signal(SIGPIPE, SIG_DFL)
         remove_corelines = dynamic_config.get("rem_empty_corelines", config["rem_empty_corelines"]) + 1
 
         # if corelines vertical (transposed matrix)
@@ -1741,7 +1763,8 @@ class TextDisplay(object):
                     print(core_line_zipped)
                 except IOError:
                     try:
-                        signal(SIGPIPE, SIG_DFL)
+                        if SIGPIPE is not None:
+                            signal(SIGPIPE, SIG_DFL)
                         print(core_line_zipped)
                         sys.stdout.close()
                     except IOError:
