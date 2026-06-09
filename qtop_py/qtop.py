@@ -17,7 +17,7 @@
 import sys
 import argparse
 if '--version' in sys.argv or '-V' in sys.argv:
-    print("qtop 0.2")
+  print("qtop %s" % __version__)
     sys.exit(0)
     
 here = sys.path[0]
