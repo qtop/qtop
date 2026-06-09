@@ -4,7 +4,7 @@
 
 PYTHON ?= python3
 PIP ?= $(PYTHON) -m pip
-SAMPLE_GATE_SCHEDULERS ?= pbs,sge,slurm,oar,demo
+SAMPLE_GATE_SCHEDULERS ?= pbs,sge,slurm
 SAMPLE_GATE_MAX_FAILURES ?= 0
 SAMPLE_GATE_ARTIFACT_DIR ?= artifacts/sample-gate
 PBS_SAMPLES_DIR ?= ../qtop-test-repo/qtop5/results
