@@ -1,10 +1,10 @@
 .DEFAULT_GOAL := help
 
-.PHONY: help ci-deps test coverage sample-gate test-pbs-samples test-slurm-samples fortifications ruff-check lint lint-fix format-check format-fix compat-py36 ci github-ci gitlab-ci build github-build gitlab-build dist version confirm
+.PHONY: help ci-deps test coverage sample-gate test-pbs-samples test-slurm-samples fortifications ruff-check lint lint-fix format-check format-fix compat-py36 ci github-ci gitlab-ci build github-build gitlab-build dist version confirm clean all rerun render-backends
 
 PYTHON ?= python3
 PIP ?= $(PYTHON) -m pip
-SAMPLE_GATE_SCHEDULERS ?= pbs,sge,slurm
+SAMPLE_GATE_SCHEDULERS ?= pbs,sge,slurm,oar,demo
 SAMPLE_GATE_MAX_FAILURES ?= 0
 SAMPLE_GATE_ARTIFACT_DIR ?= artifacts/sample-gate
 PBS_SAMPLES_DIR ?= ../qtop-test-repo/qtop5/results
@@ -79,3 +79,19 @@ version: ## Print the package version
 
 confirm: ## Ask for human confirmation before release-like tasks
 	@echo "Are you sure? [y/N]" && read ans && [ $${ans:-N} = y ]
+
+clean: confirm ## Remove generated artifacts and caches
+	rm -rf artifacts/ /tmp/qtop-pbs-rendered /tmp/qtop-slurm-rendered
+	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
+	find . -type f -name '*.pyc' -delete 2>/dev/null || true
+
+all: ci ## Run the full local validation path (alias for ci)
+
+rerun: clean all ## Clean all artifacts then run full validation
+
+render-backends: ## Render coloured output for all batch backends (PBS/SGE/Slurm/OAR/demo)
+	@echo "=== demo ===" && $(PYTHON) qtop_py/qtop.py -b demo -1 -2 2>/dev/null || true
+	@echo "=== pbs ===" && $(PYTHON) tools/validate_scheduler_samples.py --schedulers pbs --max-failures 999 --artifact-dir artifacts/render-pbs 2>/dev/null || true
+	@echo "=== sge ===" && $(PYTHON) tools/validate_scheduler_samples.py --schedulers sge --max-failures 999 --artifact-dir artifacts/render-sge 2>/dev/null || true
+	@echo "=== slurm ===" && $(PYTHON) tools/validate_scheduler_samples.py --schedulers slurm --max-failures 999 --artifact-dir artifacts/render-slurm 2>/dev/null || true
+	@echo "=== oar ===" && $(PYTHON) tools/validate_scheduler_samples.py --schedulers oar --max-failures 999 --artifact-dir artifacts/render-oar 2>/dev/null || true
