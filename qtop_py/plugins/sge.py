@@ -34,9 +34,9 @@ class SGEStatExtractor(StatExtractor):
                 raise
             except IOError:
                 raise
-            except:  # noqa: E722  ## FIXME, ruff complaint
+            except Exception:
                 logging.debug("XML file state %s" % fin)
-                logging.debug("thinking...")
+                logging.debug("thinking...", exc_info=True)
                 sys.exit(1)
             else:
                 root = tree.getroot()
@@ -46,7 +46,7 @@ class SGEStatExtractor(StatExtractor):
         all_values = list()
         self.orig_file = orig_file
         self.tree, self.root = self.get_xml_tree(orig_file)
-        tree, root = self.tree, self.root  # noqa: F841  ## FIXME, tree unused
+        root = self.root
 
         for queue_elem in root.findall("queue_info/Queue-List"):
             queue_name_elems = queue_elem.findall("resource")
@@ -124,7 +124,7 @@ class SGEBatchSystem(GenericBatchSystem):
         logging.debug("Parsing tree of %s" % self.sge_file)
         fileutils.check_empty_file(self.sge_file)
 
-        tree, root = self.sge_stat_maker.tree, self.sge_stat_maker.root  # noqa: F841  ## FIXME, tree unused
+        root = self.sge_stat_maker.root
 
         qstatq_list = self._extract_queues("queue_info/Queue-List", root)
 
@@ -269,12 +269,10 @@ class SGEBatchSystem(GenericBatchSystem):
         return worker_node
 
     def _get_state(self, queue_elem):
-        try:
-            _state = queue_elem.find("state").text
-        except AttributeError:
-            _state = "-"
-        finally:
-            return _state
+        state = queue_elem.find("state")
+        if state is None:
+            return "-"
+        return state.text
 
     def _extract_queues(self, xpath, root):
         qstatq_list = []
@@ -303,8 +301,6 @@ class SGEBatchSystem(GenericBatchSystem):
                     d["state"] = queue_elem.find("./state").text
                 except AttributeError:
                     d["state"] = "?"
-                except:
-                    raise
 
                 job_lists = queue_elem.findall("job_list")
                 run_count = 0

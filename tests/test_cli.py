@@ -41,3 +41,4 @@ def test_expected_cli_scheduler_errors_are_concise(tmp_path, args, expected):
     assert result.returncode != 0
     assert expected in output
     assert "Traceback" not in output
+    assert "SyntaxWarning" not in output
