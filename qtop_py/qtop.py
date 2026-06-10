@@ -37,7 +37,6 @@ from ast import literal_eval
 from qtop_py.constants import SYSTEMCONFDIR, QTOPCONF_YAML, QTOP_LOGFILE, USERPATH, MAX_UNIX_ACCOUNTS, KEYPRESS_TIMEOUT, FALLBACK_TERMSIZE
 from qtop_py import fileutils
 from qtop_py import utils
-from qtop_py.plugins import *  # noqa: F403  ## FIXME: this is a code-smell, because it can be tightened
 from math import ceil
 from qtop_py.colormap import user_to_color_default, color_to_code, queue_to_color, nodestate_to_color_default
 import qtop_py.yaml_parser as yaml
@@ -45,6 +44,11 @@ from qtop_py.ui.viewport import Viewport
 from qtop_py.serialiser import GenericBatchSystem
 from qtop_py.web import Web
 from qtop_py import __version__
+import qtop_py.plugins.oar  # noqa: F401
+import qtop_py.plugins.pbs  # noqa: F401
+import qtop_py.plugins.sge  # noqa: F401
+import qtop_py.plugins.slurm  # noqa: F401
+import qtop_py.plugins.demo  # noqa: F401
 import time
 
 here = sys.path[0]
@@ -137,7 +141,7 @@ def get_date_obj_from_str(s, now):
         _inp_datetime = datetime.datetime.strptime(s, "%m%dT%H%M")
         inp_datetime = _inp_datetime.replace(year=now.year, second=0)
     else:
-        logging.critical("The datetime format provided is incorrect.\n" "Try one of the formats: yyyymmddTHHMMSS, HHMM, mmddTHHMM.")
+        logging.critical("The datetime format provided is incorrect.\nTry one of the formats: yyyymmddTHHMMSS, HHMM, mmddTHHMM.")
     return inp_datetime
 
 
@@ -447,7 +451,7 @@ def check_python_version():
         sys.exit(1)
 
 
-def control_qtop(viewport, read_char, cluster, new_attrs):
+def control_qtop(viewport, read_char, cluster, new_attrs, old_attrs):
     """
     Basic vi-like movement is implemented for the -w switch (linux watch-like behaviour for qtop).
     h, j, k, l for left, down, up, right, respectively.
@@ -480,8 +484,6 @@ def control_qtop(viewport, read_char, cluster, new_attrs):
         print("%s Going far right..." % colorize("***", "Green_L"))
         viewport.scroll_far_right()
         logging.info("h_start: %s" % viewport.h_start)
-        logging.info("max_line_len: %s" % max_line_len)
-        logging.info('config["term_size"][1] %s' % viewport.h_term_size)
         logging.info("h_stop: %s" % viewport.h_stop)
 
     elif pressed_char_hex in ["68"]:  # h
@@ -514,7 +516,11 @@ def control_qtop(viewport, read_char, cluster, new_attrs):
         viewport.reset_display()
 
     elif pressed_char_hex in ["6d"]:  # m
-        new_mapping, msg = next(change_mapping)
+        core_color_modes = [("queue_to_color", "color by queue"), ("user_to_color", "color by user")]
+        current_mode = dynamic_config.get("core_coloring", "user_to_color")
+        current_idx = next((i for i, (mode, _) in enumerate(core_color_modes) if mode == current_mode), 0)
+        next_idx = (current_idx + 1) % len(core_color_modes)
+        new_mapping, msg = core_color_modes[next_idx]
         dynamic_config["core_coloring"] = new_mapping
         print("%s Changing to %s" % (colorize("***", "Green_L"), msg))
 
@@ -716,7 +722,8 @@ def control_qtop(viewport, read_char, cluster, new_attrs):
 
     logging.debug(
         "Area Displayed: (h_start, v_start) --> (h_stop, v_stop) "
-        "\n\t(%(h_start)s, %(v_start)s) --> (%(h_stop)s, %(v_stop)s)" % {"v_start": viewport.v_start, "v_stop": viewport.v_stop, "h_start": viewport.h_start, "h_stop": viewport.h_stop}
+        "\n\t(%(h_start)s, %(v_start)s) --> (%(h_stop)s, %(v_stop)s)"
+        % {"v_start": viewport.v_start, "v_stop": viewport.v_stop, "h_start": viewport.h_start, "h_stop": viewport.h_stop}
     )
 
 
@@ -961,7 +968,9 @@ class WNOccupancy(object):
         # TODO: unix account id needs to be recomputed at this point. fix.
         for quintuplet, new_uid in zip(account_jobs_table, config["possible_ids"]):
             unix_account = quintuplet[4]
-            quintuplet[0] = user_to_id[unix_account] = utils.ColorStr(unix_account[0], color="Red_L") if config["fill_with_user_firstletter"] else utils.ColorStr(new_uid, color="Red_L")
+            quintuplet[0] = user_to_id[unix_account] = (
+                utils.ColorStr(unix_account[0], color="Red_L") if config["fill_with_user_firstletter"] else utils.ColorStr(new_uid, color="Red_L")
+            )
 
         return account_jobs_table, user_to_id
 
@@ -1030,7 +1039,7 @@ class WNOccupancy(object):
         try:
             user_job_per_state_counts = self._create_user_job_counts(user_names, job_states, state_abbrevs)
         except JobNotFound as e:
-            logging.critical("Job state %s not found. You may wish to add " "that node state inside %s in state_abbreviations section.\n" % (e.job_state, QTOPCONF_YAML))
+            logging.critical("Job state %s not found. You may wish to add that node state inside %s in state_abbreviations section.\n" % (e.job_state, QTOPCONF_YAML))
 
         for state_count_key in state_abbrevs.values():
             missing_user_ids = set(user_to_id).difference(user_job_per_state_counts[state_count_key])
@@ -1172,7 +1181,9 @@ class WNOccupancy(object):
         try:
             real_max_len = max([len(self.cluster.workernode_dict[_node][yaml_key]) for _node in self.cluster.workernode_dict])
         except KeyError:
-            logging.critical("%s lines in the matrix are not supported for %s systems. " "Please remove appropriate lines from conf file. Exiting..." % (part_name, config["scheduler"]))
+            logging.critical(
+                "%s lines in the matrix are not supported for %s systems. Please remove appropriate lines from conf file. Exiting..." % (part_name, config["scheduler"])
+            )
 
             web.stop()
             sys.exit(1)
@@ -1311,7 +1322,7 @@ class WNOccupancy(object):
             try:
                 user_queue = jobid_to_user_to_queue[job]
             except KeyError as KeyErrorValue:
-                logging.warning("There seems to be a problem with the qstat output. " "A Job (ID %s) has gone rogue. " "Please check with the SysAdmin." % (str(KeyErrorValue)))
+                logging.warning("There seems to be a problem with the qstat output. A Job (ID %s) has gone rogue. Please check with the SysAdmin." % (str(KeyErrorValue)))
                 continue
             else:
                 user, queue = user_queue
@@ -1411,7 +1422,7 @@ class Document(namedtuple("Document", ["worker_nodes", "jobs_dict", "queues_dict
 class TextDisplay(object):
     def __init__(self, document, config, viewport, wns_occupancy, cluster, args):
         self.cluster = cluster
-        self.wns_occupancy = wns_occupancy
+        self.wns_occupancy_obj = wns_occupancy
         self.document = document
         self.viewport = viewport
         self.config = config
@@ -1449,7 +1460,7 @@ class TextDisplay(object):
         if self.args.SAMPLE:
             print("Sample files saved in %s/%s" % (_savepath, SAMPLE_FILENAME))
         if self.args.STRICTCHECK:
-            WNOccupancy.strict_check_jobs(wns_occupancy, cluster)
+            WNOccupancy.strict_check_jobs(self.wns_occupancy_obj, cluster)
 
     def display_job_accounting_summary(self, cluster, document):
         """
@@ -1466,14 +1477,14 @@ class TextDisplay(object):
         print(
             "%(del)s%(name)s \nv%(version)s ## For feedback and updates, see: %(link)s"
             % {
-                "name": "PBS" if self.args.CLASSIC else colorize("./qtop.py     ## Queueing System report tool. Press ? for " "help", "Cyan_L"),
+                "name": "PBS" if self.args.CLASSIC else colorize("./qtop.py     ## Queueing System report tool. Press ? for help", "Cyan_L"),
                 "del": ansi_delete_char,
                 "link": colorize("https://github.com/qtop/qtop", "Cyan_L"),
                 "version": __version__,
             }
         )
         if scheduler == "demo":
-            msg = "This data is simulated. As soon as you connect to one of the supported scheduling systems,\n" "you will see live data from your cluster. Press q to Quit."
+            msg = "This data is simulated. As soon as you connect to one of the supported scheduling systems,\nyou will see live data from your cluster. Press q to Quit."
             print(colorize(msg, "Blue"))
 
         if not self.args.WATCH:
@@ -1572,7 +1583,7 @@ class TextDisplay(object):
             else:
                 conditional_width = 12
 
-            print_string = ("[ {0:<{width1}}] " "{4:<{width18}}{sep}" "{3:>{width4}}   {1:>{width4}}   {2:>{width4}} {sep} " "{6:>{width5}} {sep} " "{5:<{width40}} {sep}").format(
+            print_string = ("[ {0:<{width1}}] {4:<{width18}}{sep}{3:>{width4}}   {1:>{width4}}   {2:>{width4}} {sep} {6:>{width5}} {sep} {5:<{width40}} {sep}").format(
                 colorize(str(uid), pattern=userid_pat),
                 colorize(str(runningjobs), pattern=userid_pat),
                 colorize(str(queuedjobs), pattern=userid_pat),
@@ -1691,7 +1702,9 @@ class TextDisplay(object):
         if kwargs.get("nocutoff", False):
             s = "".join([colorize(char.initial, color_func=char.color) if isinstance(char, utils.ColorStr) else char for char in joined_list])
         else:
-            s = "".join([colorize(char.initial, color_func=char.color) if isinstance(char, utils.ColorStr) else char for char in joined_list[self.viewport.h_start : self.viewport.h_stop]])
+            s = "".join(
+                [colorize(char.initial, color_func=char.color) if isinstance(char, utils.ColorStr) else char for char in joined_list[self.viewport.h_start : self.viewport.h_stop]]
+            )
         print(compress_colored_line(s))
         return joined_list
 
@@ -1991,7 +2004,7 @@ class Cluster(object):
             REMAP = True
         else:
             REMAP = False
-        logging.info("Blind Remapping [user selected]: %s," "\n\t\t\t\t\t\t\t\t  Decided Remapping: %s" % (self.args.BLINDREMAP, REMAP))
+        logging.info("Blind Remapping [user selected]: %s,\n\t\t\t\t\t\t\t\t  Decided Remapping: %s" % (self.args.BLINDREMAP, REMAP))
 
         if logging.getLogger().isEnabledFor(logging.DEBUG) and REMAP:
             user_request = self.args.BLINDREMAP and "The user has requested it (blindremap switch)" or False
@@ -2000,7 +2013,9 @@ class Cluster(object):
 
             exotic_starting = has_exotic_starting_wn and "first starting numbering of a WN very high; would thus require too much unused space" or False
 
-            percentage_unassigned = len(all_str_digits_with_empties) != len(_all_str_digits) and "more than %s of nodes have are down/offline" % float(self.config["percentage"]) or False
+            percentage_unassigned = (
+                len(all_str_digits_with_empties) != len(_all_str_digits) and "more than %s of nodes have are down/offline" % float(self.config["percentage"]) or False
+            )
 
             numbering_collisions = has_mixed_or_non_numeric_wns and "there are numbering collisions or non-numbered WNs" or False
 
@@ -2035,7 +2050,9 @@ class Cluster(object):
         for node in range(1, self.highest_wn + 1):
             if node not in workernode_dict:
                 workernode_dict[node] = {"state": "?", "np": 0, "domainname": "N/A", "host": "N/A", "core_job_map": {}}
-                default_values_for_empty_nodes = dict([(yaml_key, "?") for yaml_key, part_name, _ in yaml.get_yaml_key_part(self.config, scheduler, outermost_key="workernodes_matrix")])
+                default_values_for_empty_nodes = dict(
+                    [(yaml_key, "?") for yaml_key, part_name, _ in yaml.get_yaml_key_part(self.config, scheduler, outermost_key="workernodes_matrix")]
+                )
                 workernode_dict[node].update(default_values_for_empty_nodes)
         return workernode_dict
 
@@ -2283,7 +2300,7 @@ class JobNotFound(Exception):
 
 class NoSchedulerFound(Exception):
     def __init__(self):
-        msg = "No suitable scheduler was found. " "Please define one in a switch or env variable or in %s.\n" "For more help, try ./qtop.py --help\nLog file created in %s" % (
+        msg = "No suitable scheduler was found. Please define one in a switch or env variable or in %s.\nFor more help, try ./qtop.py --help\nLog file created in %s" % (
             QTOPCONF_YAML,
             os.path.expandvars(QTOP_LOGFILE),
         )
@@ -2402,7 +2419,8 @@ def main():
 
                 JobDoc = namedtuple("JobDoc", ["user_name", "job_state", "job_queue"])
                 jobs_dict = dict(
-                    (re.sub(r"\[\]$", "", job_id), JobDoc(user_name, job_state, job_queue)) for job_id, user_name, job_state, job_queue in zip(job_ids, user_names, job_states, job_queues)
+                    (re.sub(r"\[\]$", "", job_id), JobDoc(user_name, job_state, job_queue))
+                    for job_id, user_name, job_state, job_queue in zip(job_ids, user_names, job_states, job_queues)
                 )
 
                 QDoc = namedtuple("QDoc", ["lm", "queued", "run", "state"])
@@ -2458,7 +2476,7 @@ def main():
                     _ = subprocess.call(cat_command, stdout=stdout, stderr=stdout)
 
                     read_char = wait_for_keypress_or_autorefresh(viewport, FALLBACK_TERMSIZE, int(args.WATCH) or KEYPRESS_TIMEOUT)
-                    control_qtop(viewport, read_char, cluster, new_attrs)
+                    control_qtop(viewport, read_char, cluster, new_attrs, old_attrs)
 
                 help_main_switch.pop()
                 os.chdir(QTOPPATH)

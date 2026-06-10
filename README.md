@@ -1,4 +1,4 @@
-# qtop.py [![Build Status](https://travis-ci.org/qtop/qtop.svg)](https://travis-ci.org/qtop/qtop) ![python versions](https://img.shields.io/badge/python-2.5%2C%202.6%2C%202.7-blue.svg)
+# qtop.py [![Build Status](https://travis-ci.org/qtop/qtop.svg)](https://travis-ci.org/qtop/qtop) ![python versions](https://img.shields.io/badge/python-3.6%2C%203.10%2C%203.12-blue.svg)
 
 qtop: the fast text mode way to monitor your cluster's utilization and
 status; the time has come to take back control of your cluster's
@@ -31,7 +31,7 @@ To install qtop, you can either do
 
     git clone https://github.com/qtop/qtop.git
     cd qtop
-    ./qtop --version
+    qtop --version
 
 or
 
@@ -42,11 +42,11 @@ or
 
 To run a demo, just run
 
-    ./qtop -b demo -FGTw  ## show demo, -F for full node names, -T to transpose the matrix, -G for full GECOS field, and -w for watch mode
+    qtop -b demo -FGTw  ## show demo, -F for full node names, -T to transpose the matrix, -G for full GECOS field, and -w for watch mode
 
 Otherwise, for daily usage you can run
 
-    ./qtop -b sge -FGw ## replace sge with pbs, oar or slurm, depending on your setup (this is often picked up automagically)
+    qtop -b sge -FGw ## replace sge with pbs, oar or slurm, depending on your setup (this is often picked up automagically)
 
 Try `--help` for all available options.
 

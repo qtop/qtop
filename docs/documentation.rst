@@ -54,7 +54,7 @@ invoking it in demo mode:
 
 ::
 
-    ./qtop.py -b demo
+    qtop -b demo
 
 When used, the ``-b`` switch must always be followed by one of the
 supported batch systems (pbs, sge, oar, slurm, demo).
@@ -67,7 +67,7 @@ to start making any sense of it, you're better off trying this:
 
 ::
 
-    ./qtop.py -b demo -w
+    qtop -b demo -w
 
 which keeps updating the screen with freshly made-up data, and also
 keeps you at the beginning of it. This is called the `watch
@@ -133,9 +133,9 @@ for quick checks without access to a live cluster:
 
 ::
 
-    ./qtop -s qtop_py/contrib -c ON -Fadvv -b sge
-    ./qtop -s qtop_py/contrib -c ON -Frdvvv -b oar
-    ./qtop -s qtop_py/contrib -c ON -raF -b pbs
+    qtop -s qtop_py/contrib -c ON -Fadvv -b sge
+    qtop -s qtop_py/contrib -c ON -Frdvvv -b oar
+    qtop -s qtop_py/contrib -c ON -raF -b pbs
 
 Use ``-s`` for saved scheduler files and ``-b`` for the matching parser.
 
@@ -353,7 +353,7 @@ To replay from a specific point in time, the User must invoke:
 
 ::
 
-    ./qtop.py -R DATETIME [DURATION]
+    qtop -R DATETIME [DURATION]
 
 where ``DATETIME`` can either be \* ``yyyymmddTHHMMSS``, e.g.
 ``20161118T182300`` (explicit form) \* ``HHMM``, e.g. ``1823`` (current
@@ -369,7 +369,7 @@ can either be ``h``, ``m``, ``s``. Example:
 
 ::
 
-    ./qtop.py -R 1823 1h
+    qtop -R 1823 1h
 
 A default duration of ``2m`` is used, if no value is given.
 
@@ -460,7 +460,7 @@ cluster. If you just invoke:
 
 ::
 
-    ./qtop.py -b oar
+    qtop -b oar
 
 then qtop is going to invoke ``oarnodes -s -Y``, ``oarnodes -Y``,
 ``oarstat`` consecutively, and store it, respectively, in
@@ -475,7 +475,7 @@ If, instead, you invoke it as follows:
 
 ::
 
-    ./qtop.py -b oar -s <path-to-cluster-information>
+    qtop -b oar -s <path-to-cluster-information>
 
 qtop will search for ``oarnodes_s_Y.txt``, ``oarnodes_Y.txt`` and
 ``oarstat.txt`` in ``<path-to-cluster-information>`` (retrieved by you,
@@ -486,7 +486,7 @@ matching the configured commands. For example:
 
 ::
 
-    ./qtop.py -b slurm -s <path-to-slurm-command-traces>
+    qtop -b slurm -s <path-to-slurm-command-traces>
 
 qtop will search for ``squeue.txt`` and ``sinfo.txt`` in
 ``<path-to-slurm-command-traces>``.
@@ -614,9 +614,9 @@ user ids found in Large Hadron Collider related clusters (WLCG grid).
 Command-line arguments
 ----------------------
 
-The command shown in the README, ``./qtop``, is the project wrapper
+The command shown in the README, ``qtop``, is the project wrapper
 script. Installed packages expose the same entry point as ``qtop``.
-Run ``./qtop --help`` to see the authoritative option list for your
+Run ``qtop --help`` to see the authoritative option list for your
 checkout.
 
 Input selection
@@ -673,7 +673,7 @@ Debugging and support
 Usage tips
 ----------
 
--  Start with ``./qtop -b demo`` when testing terminal size, color, or
+-  Start with ``qtop -b demo`` when testing terminal size, color, or
    keyboard navigation. It avoids accidental scheduler calls.
 -  On a live cluster, pass ``-b pbs``, ``-b sge``, ``-b oar``, or ``-b slurm`` when
    auto-detection is not enough.

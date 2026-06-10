@@ -13,6 +13,10 @@ However:
 
 If AI assistance materially contributed to a change, disclose it briefly in the pull request description.
 
+## qtop requires minimal runtime dependencies
+
+qtop is designed to run in early HPC cluster environments where package availability may be limited. The project intentionally keeps runtime dependencies minimal to ensure compatibility across different cluster configurations, including older systems like RHEL6/RHEL8 environments that may not have access to newer Python packages.
+
 ## General Conventions
 
 Please follow common conventions for Open Source projects, f.i. align to Electron framework if still in doubt:

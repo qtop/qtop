@@ -1,4 +1,4 @@
-include CHANGELOG.rst
+include CHANGELOG.md
 include CONTRIBUTING.md
 include helpfile.txt
 include Makefile
@@ -7,7 +7,7 @@ include LICENSE
 include qtopconf.yaml
 include qtop
 include README.md
-include ROADMAP.rst
+include ROADMAP.md
 include requirements-ci.txt
 include .gitlab-ci.yml
 recursive-include .github/workflows *.yml

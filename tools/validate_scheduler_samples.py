@@ -57,6 +57,29 @@ STATIC_CASES = {
             ],
         }
     ],
+    "oar": [
+        {
+            "name": "oar-contrib",
+            "source": CONTRIB,
+            "args": ["-s", str(CONTRIB), "-c", "ON", "-Frdvvv", "-b", "oar"],
+            "markers": [
+                "Worker Nodes occupancy",
+                "User accounts and pool mappings",
+            ],
+        }
+    ],
+    "demo": [
+        {
+            "name": "demo-generated",
+            "source": None,
+            "args": ["-c", "ON", "-b", "demo"],
+            "markers": [
+                "Summary:",
+                "Worker Nodes occupancy",
+                "User accounts and pool mappings",
+            ],
+        }
+    ],
 }
 
 SLURM_MARKERS_BY_SAMPLE = {
@@ -98,6 +121,8 @@ def output_text(value):
 
 
 def display_path(path):
+    if path is None:
+        return "generated"
     try:
         return str(path.relative_to(ROOT))
     except ValueError:
@@ -112,7 +137,8 @@ def write_svg_screenshot(path, text, max_lines=38, max_columns=132):
     rows = []
     for index, line in enumerate(clipped):
         rows.append(
-            '<text x="14" y="%s">%s</text>' % (
+            '<text x="14" y="%s">%s</text>'
+            % (
                 28 + index * 17,
                 html.escape(line.rstrip()),
             )
@@ -166,10 +192,11 @@ def run_case(case, artifact_dir, timeout):
     qtop_home = case_dir / "home"
     qtop_home.mkdir(parents=True, exist_ok=True)
 
-    command = [sys.executable, "-m", "qtop_py.cli"] + case.get(
-        "args",
-        ["-s", str(case["source"]), "-c", "ON", "-F", "-b", case["scheduler"]],
-    )
+    if "args" in case:
+        command = [sys.executable, "-m", "qtop_py.cli"] + case["args"]
+    else:
+        source_args = [] if case["source"] is None else ["-s", str(case["source"])]
+        command = [sys.executable, "-m", "qtop_py.cli"] + source_args + ["-c", "ON", "-F", "-b", case["scheduler"]]
     env = os.environ.copy()
     env["HOME"] = str(qtop_home)
     try:

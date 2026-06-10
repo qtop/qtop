@@ -4,7 +4,7 @@
 
 PYTHON ?= python3
 PIP ?= $(PYTHON) -m pip
-SAMPLE_GATE_SCHEDULERS ?= pbs,sge,slurm
+SAMPLE_GATE_SCHEDULERS ?= pbs,sge,slurm,oar,demo
 SAMPLE_GATE_MAX_FAILURES ?= 0
 SAMPLE_GATE_ARTIFACT_DIR ?= artifacts/sample-gate
 PBS_SAMPLES_DIR ?= ../qtop-test-repo/qtop5/results
@@ -12,7 +12,7 @@ PBS_SAMPLE_LIMIT ?= 447
 PBS_OUTPUT_DIR ?= /tmp/qtop-pbs-rendered
 SLURM_SAMPLES_DIR ?= tests/plugins/slurm_samples
 SLURM_OUTPUT_DIR ?= /tmp/qtop-slurm-rendered
-FORTIFY_BASE_REF ?= origin/develop
+FORTIFY_BASE_REF ?= origin/main
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z0-9_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -49,6 +49,12 @@ lint: fortifications ## Run dependency-light source and diff health checks
 format-check: ## Check the branch diff for whitespace errors
 	git diff --check $(FORTIFY_BASE_REF)...HEAD
 
+bump-version: ## Bump version automatically with current date
+	$(PYTHON) tools/bump_version.py
+
+bump-version-dry: ## Show what version bump would do (dry run)
+	$(PYTHON) tools/bump_version.py --dry-run
+
 compat-py36: ## Run dependency-light Python 3.6 compatibility checks
 	find qtop_py tools -name '*.py' -print | xargs $(PYTHON) -m py_compile
 	$(PYTHON) tools/validate_scheduler_samples.py --schedulers $(SAMPLE_GATE_SCHEDULERS) --max-failures $(SAMPLE_GATE_MAX_FAILURES) --artifact-dir $(SAMPLE_GATE_ARTIFACT_DIR)-py36
@@ -73,3 +79,24 @@ version: ## Print the package version
 
 confirm: ## Ask for human confirmation before release-like tasks
 	@echo "Are you sure? [y/N]" && read ans && [ $${ans:-N} = y ]
+
+clean: confirm ## Clean generated artifacts and temporary files
+	rm -rf artifacts/
+	rm -rf build/
+	rm -rf dist/
+	rm -rf qtop.egg-info/
+	find . -type f -name "*.pyc" -delete
+	find . -type d -name "__pycache__" -delete
+
+all: ci-deps test sample-gate lint ruff-check format-check build ## Run complete validation and build
+
+rerun: clean all ## Clean everything and rerun complete validation
+
+backend-validation: ## Run backend validation for all schedulers
+	$(PYTHON) tools/validate_scheduler_samples.py --schedulers $(SAMPLE_GATE_SCHEDULERS) --max-failures $(SAMPLE_GATE_MAX_FAILURES) --artifact-dir $(SAMPLE_GATE_ARTIFACT_DIR)
+
+backend-colour-artifacts: ## Generate colored output artifacts for backend validation
+	mkdir -p artifacts/colored-output
+	for scheduler in pbs sge slurm oar demo; do \
+		$(PYTHON) -c "import qtop_py.qtop; qtop_py.qtop.main()" -b $$scheduler -c ON -s qtop_py/contrib > artifacts/colored-output/$$scheduler-output.ans 2>&1 || true; \
+	done
