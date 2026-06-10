@@ -25,6 +25,9 @@ GENERATED_OR_BINARY = re.compile(
     re.IGNORECASE,
 )
 SKIP_DIRS = set([".git", ".tox", ".venv", "venv", "__pycache__", "artifacts", "build", "dist", "qtop.egg-info"])
+TEXT_SUFFIXES = set([".cfg", ".ini", ".json", ".md", ".py", ".rst", ".sh", ".toml", ".txt", ".yaml", ".yml"])
+TEXT_FILENAMES = set([".editorconfig", ".gitignore", ".pre-commit-config.yaml", "LICENSE", "Makefile", "qtop"])
+TEXT_FIXTURES = set(["helpfile.txt"])
 
 
 def run_git(args):
@@ -49,6 +52,20 @@ def iter_python_files():
                 yield Path(dirpath) / filename
 
 
+def iter_reviewable_text_files():
+    for dirpath, dirnames, filenames in os.walk(str(ROOT)):
+        dirnames[:] = [name for name in dirnames if name not in SKIP_DIRS]
+        for filename in filenames:
+            if filename in TEXT_FIXTURES:
+                continue
+            path = Path(dirpath) / filename
+            relative = str(path.relative_to(ROOT))
+            if GENERATED_OR_BINARY.search(relative):
+                continue
+            if path.suffix in TEXT_SUFFIXES or filename in TEXT_FILENAMES:
+                yield path
+
+
 def find_eval_calls():
     problems = []
     for path in iter_python_files():
@@ -64,9 +81,26 @@ def find_eval_calls():
     return problems
 
 
+def find_text_trust_issues():
+    problems = []
+    for path in iter_reviewable_text_files():
+        relative = str(path.relative_to(ROOT))
+        try:
+            lines = path.read_text(encoding="utf-8").splitlines()
+        except UnicodeDecodeError as exc:
+            problems.append("%s: unable to decode reviewable text as utf-8: %s" % (relative, exc))
+            continue
+        for lineno, line in enumerate(lines, 1):
+            if CONTROL_OR_BIDI.search(line):
+                problems.append("%s:%s control, bidi, or non-ASCII character found" % (relative, lineno))
+    return problems
+
+
 def parse_args():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--base-ref", default="origin/develop", help="Diff base for changed-file checks")
+    parser.add_argument("--full-tree", action="store_true", help="Scan reviewable text files, not only added diff lines")
+    parser.add_argument("--report", help="Write a plain-text report for CI artifacts")
     return parser.parse_args()
 
 
@@ -94,13 +128,29 @@ def main():
             break
 
     problems.extend(find_eval_calls())
+    if args.full_tree:
+        problems.extend(find_text_trust_issues())
+
+    report_lines = []
+    if problems:
+        report_lines.extend(problems)
+    else:
+        report_lines.append("fortifications: ok")
+        if args.full_tree:
+            report_lines.append("full-tree text trust audit: ok")
+
+    if args.report:
+        report_path = ROOT / args.report
+        report_path.parent.mkdir(parents=True, exist_ok=True)
+        report_path.write_text("\n".join(report_lines) + "\n", encoding="utf-8")
 
     if problems:
         for problem in problems:
             print(problem, file=sys.stderr)
         return 1
 
-    print("fortifications: ok")
+    for line in report_lines:
+        print(line)
     return 0
 
 
