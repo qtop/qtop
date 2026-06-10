@@ -21,11 +21,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 CONTROL_OR_BIDI = re.compile(r"[^\x09\x0a\x0d\x20-\x7e]|\u202a|\u202b|\u202c|\u202d|\u202e|\u2066|\u2067|\u2068|\u2069")
 GENERATED_OR_BINARY = re.compile(
-    r"(^|/)(m4|autogen|configure|Makefile\.in|cmake|tests?/files|fixtures?)/|"
-    r"\.(xz|lzma|gz|bin|dat|png|jpg|jpeg|gif|webp)$",
+    r"(^|/)(m4|autogen|configure|Makefile\.in|cmake|tests?/files|fixtures?)/|\.(xz|lzma|gz|bin|dat|png|jpg|jpeg|gif|webp)$",
     re.IGNORECASE,
 )
-SKIP_DIRS = set([".git", ".tox", ".venv", "__pycache__", "artifacts", "build", "dist", "qtop.egg-info"])
+SKIP_DIRS = set([".git", ".tox", ".venv", "venv", "__pycache__", "artifacts", "build", "dist", "qtop.egg-info"])
 
 
 def run_git(args):

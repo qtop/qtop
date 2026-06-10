@@ -34,11 +34,17 @@ packages = ["qtop_py"]
 lint.select = ["E", "F", "I"] ##
 lint.ignore = ["I001"]  ## FIXME, ruff has a point
 
-# Ruff v0.0.292 cannot target Python 3.6; use its lowest supported target.
-target-version = "py37" ## FIXME, pin the ruff that is known to be compatible on rhel6 w. python3.6 and adjust
+# Ruff 0.15.15 still exposes py37 as its lowest target; Python 3.6 runtime
+# compatibility stays covered by the separate compat-py36 gate.
+target-version = "py37"
 
 ## FG customisations
-line-length = 188 # this is temporary measure,to reduce noise over line lengths
+line-length = 180 # keep legacy output fixtures readable while reducing the previous 188-char ceiling
 
-[tool.ruff.lint.per-file-ignores]
-"qtop_py/qtop.py" = ["F405"]  ## FIXME, ruff has a point
+[tool.coverage.run]
+source = ["qtop_py"]
+omit = ["qtop_py/web.py", "qtop_py/web/*"]
+
+[tool.coverage.report]
+show_missing = true
+fail_under = 50

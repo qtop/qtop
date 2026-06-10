@@ -36,15 +36,15 @@ jobs:
     env:
       FORTIFY_BASE_REF: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || 'origin/develop' }}
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - uses: actions/checkout@v6.0.3
         with:
           fetch-depth: 0
-      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+      - uses: actions/setup-python@v6.2.0
         with:
           python-version: ${{ matrix.python-version }}
       - run: make ci-deps PYTHON=python
       - run: make github-ci PYTHON=python
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+      - uses: actions/upload-artifact@v7.0.1
         if: always()
         with:
           name: sample-gate-${{ matrix.python-version }}
@@ -57,14 +57,14 @@ jobs:
       - run: |
           dnf -y install git make findutils
           dnf -y install python36
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - uses: actions/checkout@v6.0.3
         with:
           fetch-depth: 0
       - run: |
           PYTHON_BIN="$(command -v python3.6)"
           "$PYTHON_BIN" --version
           make compat-py36 PYTHON="$PYTHON_BIN"
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+      - uses: actions/upload-artifact@v7.0.1
         if: always()
         with:
           name: sample-gate-python3.6-almalinux8
@@ -76,12 +76,12 @@ jobs:
       - almalinux-python36
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
-      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+      - uses: actions/checkout@v6.0.3
+      - uses: actions/setup-python@v6.2.0
         with:
           python-version: '3.12.3'
       - run: make github-build PYTHON=python
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+      - uses: actions/upload-artifact@v7.0.1
         with:
           name: qtop-dist
           path: dist/

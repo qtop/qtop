@@ -56,7 +56,14 @@ def parse_qtop_cmdline_args():
 
     parser.add_argument("-1", "--disablesection1", action="store_true", dest="sect_1_off", default=False, help="Disable first section of qtop, i.e. Job Accounting Summary")
     parser.add_argument("-2", "--disablesection2", action="store_true", dest="sect_2_off", default=False, help="Disable second section of qtop, i.e. Worker Node Occupancy")
-    parser.add_argument("-3", "--disablesection3", action="store_true", dest="sect_3_off", default=False, help="Disable third section of qtop, i.e. User Accounts and Pool Mappings")
+    parser.add_argument(
+        "-3",
+        "--disablesection3",
+        action="store_true",
+        dest="sect_3_off",
+        default=False,
+        help="Disable third section of qtop, i.e. User Accounts and Pool Mappings",
+    )
     parser.add_argument("-4", "--accounttotals", action="store_true", dest="SHOW_ACCOUNT_TOTALS", default=False, help="Show totals row in User Accounts and Pool Mappings")
     parser.add_argument(
         "-a",
@@ -64,7 +71,7 @@ def parse_qtop_cmdline_args():
         action="store_true",
         dest="BLINDREMAP",
         default=False,
-        help="This may be used in situations where node names are not a pure arithmetic seq " "(e.g. rocks clusters)",
+        help="This may be used in situations where node names are not a pure arithmetic seq (e.g. rocks clusters)",
     )
     # TODO . Must also anonymise input files, or at least exclude them from the tarball.
     parser.add_argument(
@@ -73,18 +80,37 @@ def parse_qtop_cmdline_args():
         action="store_true",
         dest="ANONYMIZE",
         default=False,
-        help="Masks unix account names and workernode names for security reasons (sending bug reports etc)." "Temporarily NOT to be used, as scheduler input files are not anonymised yet.",
+        help="Masks unix account names and workernode names for security reasons (sending bug reports etc)."
+        "Temporarily NOT to be used, as scheduler input files are not anonymised yet.",
     )
     parser.add_argument("-b", "--batchSystem", action="store", dest="BATCH_SYSTEM", default=None)
     parser.add_argument(
-        "-c", "--COLOR", action="store", dest="COLOR", default="AUTO", choices=["ON", "OFF", "AUTO"], help="Enable/Disable color in qtop output. AUTO detects tty (for watch -d)"
+        "-c",
+        "--COLOR",
+        action="store",
+        dest="COLOR",
+        default="AUTO",
+        choices=["ON", "OFF", "AUTO"],
+        help="Enable/Disable color in qtop output. AUTO detects tty (for watch -d)",
     )
     parser.add_argument("-C", "--classic", action="store_true", dest="CLASSIC", default=False, help="tries to mimic legacy qtop display as much as possible")
     parser.add_argument("-d", "--debug", action="store_true", dest="DEBUG", default=False, help="print debugging messages in stdout, not just in the log file.")
     parser.add_argument("-E", "--export", action="store_true", dest="EXPORT", default=False, help="export cluster data to json")
-    parser.add_argument("-e", "--experimental", action="store_true", dest="EXPERIMENTAL", default=False, help="this is mandatory for some highly experimental features! Enter at own risk.")
     parser.add_argument(
-        "-F", "--ForceNames", action="store_true", dest="FORCE_NAMES", default=False, help="force names to show up instead of numbered WNs even for very small numbers of WNs"
+        "-e",
+        "--experimental",
+        action="store_true",
+        dest="EXPERIMENTAL",
+        default=False,
+        help="this is mandatory for some highly experimental features! Enter at own risk.",
+    )
+    parser.add_argument(
+        "-F",
+        "--ForceNames",
+        action="store_true",
+        dest="FORCE_NAMES",
+        default=False,
+        help="force names to show up instead of numbered WNs even for very small numbers of WNs",
     )
     parser.add_argument("-f", "--setCUSTOMCONFFILE", action="store", dest="CONFFILE")
     parser.add_argument(
@@ -97,7 +123,12 @@ def parse_qtop_cmdline_args():
     )
     parser.add_argument("-l", "--less", action="store_true", dest="LESS", help="Allow matrix to overflow in width. This allows to pipe the output into less -RS")
     parser.add_argument(
-        "-m", "--noMasking", action="store_true", dest="NOMASKING", default=False, help="Don't mask early empty WNs (default: if the first 30 WNs are unused, counting starts from 31)."
+        "-m",
+        "--noMasking",
+        action="store_true",
+        dest="NOMASKING",
+        default=False,
+        help="Don't mask early empty WNs (default: if the first 30 WNs are unused, counting starts from 31).",
     )
     parser.add_argument("-o", "--option", action="append", dest="OPTION", default=[], help="Override respective option in QTOPCONF_YAML file")
     parser.add_argument("-O", "--onlysavetofile", action="store_true", dest="ONLYSAVETOFILE", default=False, help="Do not print results to stdout")
@@ -107,7 +138,7 @@ def parse_qtop_cmdline_args():
         dest="REM_EMPTY_CORELINES",
         action="count",
         default=False,
-        help="If a whole row consists of not-really-there ('#') core lines, remove the row." "If doubled (-rr), remove the row even if it also consists of free, unused cores ('_').",
+        help="If a whole row consists of not-really-there ('#') core lines, remove the row.If doubled (-rr), remove the row even if it also consists of free, unused cores ('_').",
     )
     parser.add_argument(
         "-R",
@@ -130,7 +161,7 @@ def parse_qtop_cmdline_args():
         "--StrictCheck",
         dest="STRICTCHECK",
         action="store_true",
-        help="Do a check on the quality of the scheduler output by comparing " "the reported total running jobs against the actual ones found/displayed in qtop",
+        help="Do a check on the quality of the scheduler output by comparing the reported total running jobs against the actual ones found/displayed in qtop",
     )
     parser.add_argument("-T", "--Transpose", dest="TRANSPOSE", action="store_true", default=False, help="Rotate matrices' positioning by 90 degrees")
     parser.add_argument("-B", "--web", dest="WEB", action="store_true", default=False, help="Enable web interface in 8080")

@@ -10,9 +10,10 @@
   early or bare HPC clusters.
 - Build tooling: add Makefile aliases for lint and format fix workflows.
 
-## 0.9.20260602
+## 0.9.20260610
 
 - Merged PR #444.
+- Completion of ci/cd baseline, with ground-truth validation.
 
 ## 0.9.20260515
 

@@ -62,5 +62,5 @@ Documentation/tutorial [here](docs/documentation.rst).
 
     Description: the fast text mode way to monitor your cluster's utilization and status; the time has come to take back control of your cluster's scheduling business
     License: MIT
-    Version: 0.9.20260602 / Date: 2026-06-02
+    Version: 0.9.20260610 / Date: 2026-06-10
     Homepage: https://github.com/qtop/qtop

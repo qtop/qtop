@@ -57,6 +57,35 @@ STATIC_CASES = {
             ],
         }
     ],
+    "oar": [
+        {
+            "name": "oar-contrib",
+            "source": CONTRIB,
+            "args": ["-s", str(CONTRIB), "-c", "ON", "-F", "-b", "oar"],
+            "markers": [
+                "Summary: Total:183 Up:172 Free:167 Nodes",
+                "1349/2520 cores",
+                "0+0 jobs",
+                "Worker Nodes occupancy",
+                "User accounts and pool mappings",
+            ],
+        }
+    ],
+    "demo": [
+        {
+            "name": "demo-generated",
+            "source": ROOT,
+            "args": ["-c", "ON", "-F", "-b", "demo"],
+            "markers": [
+                "This data is simulated",
+                "Summary: Total:",
+                "Nodes |",
+                "jobs (R + Q)",
+                "Worker Nodes occupancy",
+                "User accounts and pool mappings",
+            ],
+        }
+    ],
 }
 
 SLURM_MARKERS_BY_SAMPLE = {
@@ -112,7 +141,8 @@ def write_svg_screenshot(path, text, max_lines=38, max_columns=132):
     rows = []
     for index, line in enumerate(clipped):
         rows.append(
-            '<text x="14" y="%s">%s</text>' % (
+            '<text x="14" y="%s">%s</text>'
+            % (
                 28 + index * 17,
                 html.escape(line.rstrip()),
             )
@@ -236,7 +266,7 @@ def run_case(case, artifact_dir, timeout):
 
 def parse_args():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--schedulers", default="pbs,sge,slurm", help="Comma-separated scheduler gates to run")
+    parser.add_argument("--schedulers", default="pbs,sge,slurm,oar,demo", help="Comma-separated scheduler gates to run")
     parser.add_argument("--max-failures", type=int, default=0, help="Allowed failed cases before returning non-zero")
     parser.add_argument("--timeout", type=int, default=20, help="Per-case timeout in seconds")
     parser.add_argument("--artifact-dir", default="artifacts/sample-gate", help="Output directory for rendered qtop artifacts")

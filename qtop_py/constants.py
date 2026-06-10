@@ -10,3 +10,5 @@ MAX_CORE_ALLOWED = 150000  ## FIXME: not used anywhere atm, ntd?
 MAX_UNIX_ACCOUNTS = 87  # was : 62
 KEYPRESS_TIMEOUT = 2  # in sec, time to wait before autorefreshing display
 FALLBACK_TERMSIZE = [53, 176]
+SYMBOL_LONG_TAIL_USER = "*"
+SYMBOL_UNKNOWN_NODE_STATE = "?"

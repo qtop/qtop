@@ -106,7 +106,7 @@ class FileNotFound(Exception):
 
 class FileEmptyError(Exception):
     def __init__(self, fn):
-        msg = "File %s is empty.\n" "Is your batch scheduler loaded with jobs?" % fn
+        msg = "File %s is empty.\nIs your batch scheduler loaded with jobs?" % fn
         Exception.__init__(self, msg)
         logging.warning(msg)
         self.fn = fn

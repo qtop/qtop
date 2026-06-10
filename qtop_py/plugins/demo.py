@@ -210,7 +210,12 @@ class DemoBatchSystem(GenericBatchSystem):
                 if job_id:
                     core_job_map[core] = job_id
 
-            worker_node = {"domainname": self.sim.domain_names[node], "state": self.sim.node_state[node], "np": self.sim.nps[node], "core_job_map": core_job_map}
+            worker_node = {
+                "domainname": self.sim.domain_names[node],
+                "state": self.sim.node_state[node],
+                "np": self.sim.nps[node],
+                "core_job_map": core_job_map,
+            }
 
             worker_nodes.append(worker_node)
         worker_nodes = self.ensure_worker_nodes_have_qnames(worker_nodes, job_ids, job_queues)

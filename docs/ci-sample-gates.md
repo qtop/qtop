@@ -23,8 +23,9 @@ because the jobs only need repository read access plus artifact upload.
 
 `.github/workflows/build.yml` carries the PR-facing modern Python, AlmaLinux 8,
 and build lanes. `.github/workflows/pytest.yml` stays as a manual
-`workflow_dispatch` pytest check so the historical workflow path remains
-available without duplicating the full PR gate.
+`workflow_dispatch` validation check and calls the same `make github-ci` path,
+so the historical workflow remains available without carrying separate pytest
+logic.
 
 Python packages installed by CI, including transitive helper packages and ruff,
 are pinned in `requirements-ci.txt`; both GitHub Actions and GitLab CI install
@@ -38,18 +39,20 @@ dynamically during the build.
 The every-PR gate is:
 
 ```bash
-make sample-gate SAMPLE_GATE_SCHEDULERS=pbs,sge,slurm SAMPLE_GATE_MAX_FAILURES=0
+make sample-gate SAMPLE_GATE_SCHEDULERS=pbs,sge,slurm,oar,demo SAMPLE_GATE_MAX_FAILURES=0
 ```
 
 Sources:
 
-- PBS: `qtop_py/contrib`
-- SGE: `qtop_py/contrib`
+- PBS, SGE, and OAR: `qtop_py/contrib`
 - Slurm: every directory under `tests/plugins/slurm_samples`
+- demo: generated locally by the demo backend
 
-The PBS and SGE cases intentionally reuse the historical contrib wrapper flags
-(`-raF` for PBS and `-Fadvv` for SGE) while still running through the shared
-Python gate, so the old manual path and the CI path exercise the same samples.
+The PBS, SGE, and OAR cases intentionally reuse committed scheduler captures
+from `qtop_py/contrib`. Slurm uses every committed sample directory under
+`tests/plugins/slurm_samples`, and demo renders a generated cluster. All five
+backends run through the shared Python gate, so local, GitHub, and GitLab
+validation exercise the same command path.
 
 Policy:
 
@@ -58,6 +61,9 @@ Policy:
 - Rendered qtop output, ANSI-stripped normalized output, SVG terminal
   screenshots, stderr, command lines, and `summary.json` are written under
   `artifacts/sample-gate/`, including for non-zero and timeout failures.
+- `stdout.ans` preserves ANSI colour sequences for human review. Run
+  `make backend-colour-artifacts` when the desired result is explicitly the
+  five-backend coloured-output artifact set.
 - Each qtop subprocess receives an isolated `HOME` under its artifact
   directory, so log creation does not depend on a writable runner home.
 - CI uploads that artifact directory so reviewers can inspect the rendered
@@ -65,6 +71,68 @@ Policy:
 - `qtop_py/contrib/func_tests.sh` delegates to this same sample gate, so the
   historical manual wrapper exercises the current CI path instead of carrying a
   separate drift-prone shell implementation.
+
+The named local entry points are:
+
+```bash
+make backend-validation
+make backend-colour-artifacts
+```
+
+Both use the same implementation and fail on any backend regression. This
+keeps validation logic out of provider-specific CI YAML.
+
+## Clean reruns
+
+`make all` runs the local validation and build path. The optional archived PBS
+sample sweep is skipped with an explanatory message when the external corpus is
+not present. To remove generated artifacts, caches, and build output before
+repeating that path, use:
+
+```bash
+printf 'y\n' | make rerun
+```
+
+The destructive `clean` target requires `confirm`, so an accidental
+`make clean` does not silently remove local artifacts.
+
+## Issue #483 trace and symbol contract
+
+Issue #483 links a cluster trace for replay review. Decode or inspect any trace
+data only in a temporary directory and do not commit decoded cluster data unless
+it has been explicitly approved and anonymized.
+
+For an anonymized exported qtop JSON trace, use:
+
+```bash
+make trace-export-validation TRACE_JSON_B64=/path/to/qtop_json.json.b64 TRACE_FULLVIEW=/path/to/qtop_fullview.out
+```
+
+This target decodes `base64 -> gzip -> JSON`, rehydrates the exported qtop
+document, renders it locally, checks the account-symbol contract in both plain
+and colour-on output, checks that `-4` / `--accounttotals` adds the totals row,
+checks the combined colour/account-totals rendering, and writes generated
+artifacts under `artifacts/trace-export/`, including
+`rendered-color-accounttotals.ans` and an ANSI-stripped
+`rendered-color-accounttotals.out`.
+
+Expected output rules for this branch:
+
+- section 3 must preserve the same user symbols that the worker-node occupancy
+  matrix uses, even after the account table is sorted
+- `_` remains reserved for unused/free cores and must never identify a user
+- `#` remains reserved for non-existent node/core positions and must never
+  identify a user
+- `?` remains reserved for unknown node-state style output and help-facing
+  conventions, so it is not used as the long-tail user marker here
+- `*` is the bounded long-tail user marker for overflow or otherwise reserved
+  user initials
+- `*` is displayed without mapping it to one specific user's colour rule,
+  because it represents a grouped tail rather than a single account
+- the colour-on trace artifact must not render `_`, `#`, or `?` as user-account
+  identifiers after ANSI sequences are stripped for review
+- `-4` / `--accounttotals` currently adds the account totals row; it must not
+  change the meaning of user symbols or alter prior sections
 
 ## Python 3.6 / AlmaLinux 8 gate
 
@@ -92,8 +160,9 @@ The generated/binary path check is deliberately conservative because
 `make lint` keeps the dependency-light source and diff health checks available
 without installing Python packages, `make ruff-check` runs the repository's ruff
 configuration after `make ci-deps` has installed pinned CI dependencies, and
-`make format-check` checks whitespace errors in the branch diff against the
-same `FORTIFY_BASE_REF`.
+`make format-check` runs both `ruff format --check .` and
+`ruff format --check --diff .` before checking whitespace errors in the branch
+diff against the same `FORTIFY_BASE_REF`.
 
 ## Coverage roadmap
 
