@@ -1,0 +1,86 @@
+##
+## qtop is a tool to monitor queuing systems - https://github.com/qtop/qtop
+##
+## Copyright (c) 2016 Fotis Georgatos
+## Copyright (c) 2016 Sotiris Fragkiskos
+## Copyright (c) 2026 Vadik-x
+##
+## SPDX-License-Identifier: MIT
+##
+# Nightly interpreter/distro compatibility matrix (#488): 35 lanes covering
+# CPython 3.6 through 3.15-rc plus PyPy across Debian, Ubuntu, AlmaLinux,
+# Rocky, Fedora, openSUSE, Amazon Linux and Arch. Every lane routes through
+# ci/scripts/matrix_lane.sh and the Makefile contract, mirroring
+# ci/nightly-matrix.gitlab-ci.yml lane-for-lane (same order, same fields).
+#
+# Lane targets are git-free on purpose: the nightly matrix watches
+# interpreter/runtime drift; diff-health checks stay in MR/PR pipelines.
+# Experimental lanes (prerelease interpreters, EOL-archived or rolling
+# distros) never fail the workflow.
+
+name: nightly-matrix-qtop
+
+on:
+  schedule:
+    - cron: '30 2 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  lane:
+    name: ${{ matrix.image }} ${{ matrix.pybin }} ${{ matrix.target }}
+    runs-on: ubuntu-24.04
+    container: ${{ matrix.image }}
+    continue-on-error: ${{ matrix.experimental }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # -- stable lanes -------------------------------------------------
+          - { image: 'python:3.7-bullseye',  family: pythonimg, pkgs: '-', pybin: python, target: compat-py36, experimental: false }
+          - { image: 'python:3.8-bullseye',  family: pythonimg, pkgs: '-', pybin: python, target: ci, experimental: false }
+          - { image: 'python:3.9-bookworm',  family: pythonimg, pkgs: '-', pybin: python, target: ci, experimental: false }
+          - { image: 'python:3.10-bookworm', family: pythonimg, pkgs: '-', pybin: python, target: ci, experimental: false }
+          - { image: 'python:3.11-bookworm', family: pythonimg, pkgs: '-', pybin: python, target: ci, experimental: false }
+          - { image: 'python:3.12-bookworm', family: pythonimg, pkgs: '-', pybin: python, target: ci, experimental: false }
+          - { image: 'python:3.13-bookworm', family: pythonimg, pkgs: '-', pybin: python, target: ci, experimental: false }
+          - { image: 'python:3.14-bookworm', family: pythonimg, pkgs: '-', pybin: python, target: ci, experimental: false }
+          - { image: 'ubuntu:22.04', family: debian, pkgs: 'python3,python3-venv,python3-pip', pybin: python3, target: ci, experimental: false }
+          - { image: 'ubuntu:24.04', family: debian, pkgs: 'python3,python3-venv,python3-pip', pybin: python3, target: ci, experimental: false }
+          - { image: 'ubuntu:25.10', family: debian, pkgs: 'python3,python3-venv,python3-pip', pybin: python3, target: ci, experimental: false }
+          - { image: 'debian:bullseye', family: debian, pkgs: 'python3,python3-venv,python3-pip', pybin: python3, target: ci, experimental: false }
+          - { image: 'debian:bookworm', family: debian, pkgs: 'python3,python3-venv,python3-pip', pybin: python3, target: ci, experimental: false }
+          - { image: 'debian:trixie', family: debian, pkgs: 'python3,python3-venv,python3-pip', pybin: python3, target: ci, experimental: false }
+          - { image: 'almalinux:8', family: rhel, pkgs: 'python36', pybin: python3.6, target: compat-py36, experimental: false }
+          - { image: 'almalinux:8', family: rhel, pkgs: 'python3.12,python3.12-pip', pybin: python3.12, target: ci, experimental: false }
+          - { image: 'almalinux:9', family: rhel, pkgs: 'python3,python3-pip', pybin: python3, target: ci, experimental: false }
+          - { image: 'almalinux:9', family: rhel, pkgs: 'python3.12,python3.12-pip', pybin: python3.12, target: ci, experimental: false }
+          - { image: 'rockylinux:8', family: rhel, pkgs: 'python36', pybin: python3.6, target: compat-py36, experimental: false }
+          - { image: 'rockylinux:9', family: rhel, pkgs: 'python3,python3-pip', pybin: python3, target: ci, experimental: false }
+          - { image: 'rockylinux:9', family: rhel, pkgs: 'python3.11,python3.11-pip', pybin: python3.11, target: ci, experimental: false }
+          - { image: 'fedora:41', family: fedora, pkgs: 'python3,python3-pip', pybin: python3, target: ci, experimental: false }
+          - { image: 'fedora:42', family: fedora, pkgs: 'python3,python3-pip', pybin: python3, target: ci, experimental: false }
+          - { image: 'opensuse/leap:15.6', family: suse, pkgs: 'python3', pybin: python3, target: compat-py36, experimental: false }
+          - { image: 'opensuse/leap:15.6', family: suse, pkgs: 'python311,python311-pip', pybin: python3.11, target: ci, experimental: false }
+          - { image: 'amazonlinux:2023', family: amazon, pkgs: 'python3,python3-pip', pybin: python3, target: ci, experimental: false }
+          - { image: 'amazonlinux:2023', family: amazon, pkgs: 'python3.12,python3.12-pip', pybin: python3.12, target: ci, experimental: false }
+          # -- experimental lanes: prerelease / EOL-archived / rolling ------
+          - { image: 'python:3.6-buster', family: pythonimg, pkgs: '-', pybin: python, target: compat-py36, experimental: true }
+          - { image: 'python:3.15-rc', family: pythonimg, pkgs: '-', pybin: python, target: ci, experimental: true }
+          - { image: 'pypy:3.9', family: pypyimg, pkgs: '-', pybin: pypy3, target: ci, experimental: true }
+          - { image: 'pypy:3.10', family: pypyimg, pkgs: '-', pybin: pypy3, target: ci, experimental: true }
+          - { image: 'pypy:3.11', family: pypyimg, pkgs: '-', pybin: pypy3, target: ci, experimental: true }
+          - { image: 'ubuntu:20.04', family: debian, pkgs: 'python3,python3-venv,python3-pip', pybin: python3, target: ci, experimental: true }
+          - { image: 'debian:sid', family: debian, pkgs: 'python3,python3-venv,python3-pip', pybin: python3, target: ci, experimental: true }
+          - { image: 'archlinux:base', family: arch, pkgs: 'python,python-pip', pybin: python, target: ci, experimental: true }
+    steps:
+      - uses: actions/checkout@v6.0.3
+      - run: bash ci/scripts/matrix_lane.sh "${{ matrix.family }}" "${{ matrix.pkgs }}" "${{ matrix.pybin }}" "${{ matrix.target }}"
+      - uses: actions/upload-artifact@v7.0.1
+        if: always()
+        with:
+          name: nightly-lane-${{ strategy.job-index }}
+          path: artifacts/
+          if-no-files-found: ignore

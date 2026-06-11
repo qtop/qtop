@@ -1,0 +1,59 @@
+##
+## qtop is a tool to monitor queuing systems - https://github.com/qtop/qtop
+##
+## Copyright (c) 2016 Fotis Georgatos
+## Copyright (c) 2016 Sotiris Fragkiskos
+## Copyright (c) 2026 Vadik-x
+##
+## SPDX-License-Identifier: MIT
+##
+# OpenSSF Scorecard (#488): supply-chain health checks on the repository
+# itself. Publishes results to the OpenSSF API (badge + scorecard.dev
+# viewer), uploads the SARIF to GitHub code scanning, and keeps a copy as
+# a workflow artifact. Baseline measured via the public Scorecard REST API
+# on 2026-06-08: score 7.1, with SAST, Security-Policy, CII-Best-Practices
+# and Fuzzing as the obvious uplift candidates (see
+# docs/secure-coding-pyscg.md for the gap-to-action mapping).
+#
+# The GitLab twin (ci/scorecard.gitlab-ci.yml) runs the scorecard CLI on a
+# schedule against the same GitHub repository, so a pegged mirror reports
+# the same numbers.
+
+name: scorecard-qtop
+
+on:
+  schedule:
+    - cron: '17 4 * * 6'
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions: read-all
+
+jobs:
+  analysis:
+    name: scorecard analysis
+    runs-on: ubuntu-24.04
+    permissions:
+      security-events: write
+      id-token: write
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v6.0.3
+        with:
+          persist-credentials: false
+      - uses: ossf/scorecard-action@v2.4.2
+        with:
+          results_file: results.sarif
+          results_format: sarif
+          publish_results: true
+      - uses: actions/upload-artifact@v7.0.1
+        with:
+          name: scorecard-sarif
+          path: results.sarif
+          retention-days: 30
+      - uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: results.sarif

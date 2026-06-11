@@ -1,4 +1,4 @@
-# qtop [![build-qtop](https://github.com/qtop/qtop/actions/workflows/build.yml/badge.svg?branch=develop)](https://github.com/qtop/qtop/actions/workflows/build.yml) ![python versions](https://img.shields.io/badge/python-3.x-blue.svg)
+# qtop [![build-qtop](https://github.com/qtop/qtop/actions/workflows/build.yml/badge.svg?branch=develop)](https://github.com/qtop/qtop/actions/workflows/build.yml) ![python versions](https://img.shields.io/badge/python-3.x-blue.svg) [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/qtop/qtop/badge)](https://scorecard.dev/viewer/?uri=github.com/qtop/qtop)
 
 qtop: the fast text mode way to monitor your cluster's utilization and
 status; the time has come to take back control of your cluster's
