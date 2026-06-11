@@ -1,0 +1,29 @@
+##
+## qtop is a tool to monitor queuing systems - https://github.com/qtop/qtop
+##
+## Copyright (c) 2016 Fotis Georgatos
+## Copyright (c) 2016 Sotiris Fragkiskos
+## Copyright (c) 2026 Vadik-x
+##
+## SPDX-License-Identifier: MIT
+##
+# Build concern: package the sdist/wheel once the test concern is green.
+#
+# ``make gitlab-build`` wraps ``python -m build --no-isolation`` with the
+# pinned CI dependencies from requirements-ci.txt, so the artefacts produced
+# here match what a contributor builds locally with the same Makefile target.
+
+build:
+  image: python:3.12.3-bookworm
+  stage: build
+  needs:
+    - modern-python
+    - almalinux-python36
+  before_script:
+    - apt-get update
+    - apt-get install -y --no-install-recommends make
+  script:
+    - make gitlab-build PYTHON=python
+  artifacts:
+    paths:
+      - dist/

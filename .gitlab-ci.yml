@@ -1,51 +1,37 @@
+##
+## qtop is a tool to monitor queuing systems - https://github.com/qtop/qtop
+##
+## Copyright (c) 2016 Fotis Georgatos
+## Copyright (c) 2016 Sotiris Fragkiskos
+## Copyright (c) 2026 Vadik-x
+##
+## SPDX-License-Identifier: MIT
+##
+# Root pipeline: shared defaults plus one include per concern, mirroring the
+# layout of https://code.europa.eu/pvgis/pvgis/ (thin root ``.gitlab-ci.yml``,
+# per-concern child files under ``ci/``, CI-only helpers under ``ci/scripts/``).
+#
+# Concerns included below:
+#
+# - ``ci/test.gitlab-ci.yml`` -- merge-request/branch validation through the
+#                                 shared Makefile contract (``make gitlab-ci``)
+#                                 plus the dependency-light Python 3.6 gate.
+# - ``ci/build.gitlab-ci.yml`` -- sdist/wheel build on top of green tests.
+#
+# Job behaviour is intentionally identical to the previous monolithic file:
+# this realignment only changes *where* jobs are defined, not *what* they do.
+# Every job body stays a thin wrapper around a Makefile target so GitHub
+# Actions and GitLab CI remain behaviourally aligned; see docs/ci-structure.md.
+
+image: python:3.12.3-bookworm
+
+variables:
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+
 stages:
   - test
   - build
 
-modern-python:
-  image: python:3.12.3-bookworm
-  stage: test
-  before_script:
-    - apt-get update
-    - apt-get install -y --no-install-recommends make git
-    - make ci-deps PYTHON=python
-    - export TARGET_BRANCH="${CI_MERGE_REQUEST_TARGET_BRANCH_NAME:-develop}"
-    - git fetch origin "${TARGET_BRANCH}:refs/remotes/origin/${TARGET_BRANCH}"
-    - export FORTIFY_BASE_REF="origin/${TARGET_BRANCH}"
-  script:
-    - make gitlab-ci PYTHON=python
-  artifacts:
-    when: always
-    paths:
-      - artifacts/sample-gate/
-
-almalinux-python36:
-  image: almalinux:8
-  stage: test
-  before_script:
-    - dnf -y install make findutils
-    - dnf -y install python36
-  script:
-    - |
-      PYTHON_BIN="$(command -v python3.6)"
-      "$PYTHON_BIN" --version
-      make compat-py36 PYTHON="$PYTHON_BIN"
-  artifacts:
-    when: always
-    paths:
-      - artifacts/sample-gate-py36/
-
-build:
-  image: python:3.12.3-bookworm
-  stage: build
-  needs:
-    - modern-python
-    - almalinux-python36
-  before_script:
-    - apt-get update
-    - apt-get install -y --no-install-recommends make
-  script:
-    - make gitlab-build PYTHON=python
-  artifacts:
-    paths:
-      - dist/
+include:
+  - local: ci/test.gitlab-ci.yml
+  - local: ci/build.gitlab-ci.yml
