@@ -73,7 +73,9 @@ case "${FAMILY}" in
         dnf -y install make findutils which ${PKG_LIST}
         ;;
     suse)
-        zypper --non-interactive refresh
+        # refresh is best-effort: openSUSE mirrors intermittently return
+        # partial-refresh errors (exit 4); install fails on its own merit.
+        zypper --non-interactive refresh || true
         zypper --non-interactive install make which ${PKG_LIST}
         ;;
     arch)
