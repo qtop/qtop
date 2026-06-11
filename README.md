@@ -21,8 +21,8 @@ Work continues to make the tool better. We hope to build an active open
 source community that drives the future of qtop, both by providing
 feedback and by actively contributing to the source code.
 
-This program is currently in pre-release mode, with experimental
-features. If it works, peace :)
+The project is under active development — contributions and feedback
+are always welcome.
 
 qtop targets Python 3 and aims to remain runnable across several Linux
 distributions and HPC environments. The CI matrix includes modern Python
@@ -56,7 +56,12 @@ Try `--help` for all available options.
 
 ## Documentation
 
-Documentation/tutorial [here](docs/documentation.rst).
+Full documentation is [available here](docs/documentation.md).
+A quick-start guide is also [at the top level](Quickstart.md).
+
+You can also run qtop instantly in your browser using
+[GitHub Codespaces](https://github.com/features/codespaces) — just open the
+repo and create a Codespace; qtop is ready to go with no additional setup.
 
 ## Profile
 
