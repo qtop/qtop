@@ -67,14 +67,17 @@ case "${FAMILY}" in
             make ca-certificates ${PKG_LIST}
         ;;
     rhel|fedora|amazon)
-        dnf -y install make findutils ${PKG_LIST}
+        # "which" is required by qtop scheduler autodetection
+        # (qtop_py/qtop.py calls /usr/bin/which) and is absent from minimal
+        # images; discovered by the first live run of this matrix.
+        dnf -y install make findutils which ${PKG_LIST}
         ;;
     suse)
         zypper --non-interactive refresh
-        zypper --non-interactive install make ${PKG_LIST}
+        zypper --non-interactive install make which ${PKG_LIST}
         ;;
     arch)
-        pacman -Sy --noconfirm make ${PKG_LIST}
+        pacman -Sy --noconfirm make which ${PKG_LIST}
         ;;
     *)
         echo "unknown family: ${FAMILY}" >&2

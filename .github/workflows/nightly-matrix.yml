@@ -17,6 +17,14 @@
 # interpreter/runtime drift; diff-health checks stay in MR/PR pipelines.
 # Experimental lanes (prerelease interpreters, EOL-archived or rolling
 # distros) never fail the workflow.
+#
+# Findings already produced by this matrix (first live run, 2026-06-11):
+# - the pinned CI set's floor is Python 3.9 (importlib-metadata==8.7.1
+#   requires >=3.9), so the 3.8 lanes run the dependency-light gate;
+# - qtop scheduler autodetection shells out to /usr/bin/which, which is
+#   absent from minimal RHEL-family/Arch images (now installed per lane);
+# - openSUSE Leap base images lack tar, so checkout's tarball fallback
+#   cannot extract; the bootstrap step below installs git first.
 
 name: nightly-matrix-qtop
 
@@ -40,7 +48,8 @@ jobs:
         include:
           # -- stable lanes -------------------------------------------------
           - { image: 'python:3.7-bullseye',  family: pythonimg, pkgs: '-', pybin: python, target: compat-py36, experimental: false }
-          - { image: 'python:3.8-bullseye',  family: pythonimg, pkgs: '-', pybin: python, target: ci, experimental: false }
+          # 3.8 runs the dependency-light gate: the pinned CI set needs >=3.9.
+          - { image: 'python:3.8-bullseye',  family: pythonimg, pkgs: '-', pybin: python, target: compat-py36, experimental: false }
           - { image: 'python:3.9-bookworm',  family: pythonimg, pkgs: '-', pybin: python, target: ci, experimental: false }
           - { image: 'python:3.10-bookworm', family: pythonimg, pkgs: '-', pybin: python, target: ci, experimental: false }
           - { image: 'python:3.11-bookworm', family: pythonimg, pkgs: '-', pybin: python, target: ci, experimental: false }
@@ -72,10 +81,22 @@ jobs:
           - { image: 'pypy:3.9', family: pypyimg, pkgs: '-', pybin: pypy3, target: ci, experimental: true }
           - { image: 'pypy:3.10', family: pypyimg, pkgs: '-', pybin: pypy3, target: ci, experimental: true }
           - { image: 'pypy:3.11', family: pypyimg, pkgs: '-', pybin: pypy3, target: ci, experimental: true }
-          - { image: 'ubuntu:20.04', family: debian, pkgs: 'python3,python3-venv,python3-pip', pybin: python3, target: ci, experimental: true }
+          - { image: 'ubuntu:20.04', family: debian, pkgs: 'python3,python3-venv,python3-pip', pybin: python3, target: compat-py36, experimental: true }
           - { image: 'debian:sid', family: debian, pkgs: 'python3,python3-venv,python3-pip', pybin: python3, target: ci, experimental: true }
           - { image: 'archlinux:base', family: arch, pkgs: 'python,python-pip', pybin: python, target: ci, experimental: true }
     steps:
+      - name: bootstrap git for checkout (best effort; suse strictly needs it)
+        run: |
+          case "${{ matrix.family }}" in
+            debian)
+              apt-get update || true
+              DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends git ca-certificates || true
+              ;;
+            rhel|fedora|amazon) dnf -y install git || true ;;
+            suse) zypper --non-interactive refresh && zypper --non-interactive install git ;;
+            arch) pacman -Sy --noconfirm git || true ;;
+            *) echo "official image, git preinstalled" ;;
+          esac
       - uses: actions/checkout@v6.0.3
       - run: bash ci/scripts/matrix_lane.sh "${{ matrix.family }}" "${{ matrix.pkgs }}" "${{ matrix.pybin }}" "${{ matrix.target }}"
       - uses: actions/upload-artifact@v7.0.1

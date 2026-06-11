@@ -42,12 +42,14 @@ nightly-matrix:
   extends: .nightly-lane-base
   parallel:
     matrix:
-      - IMAGE: 'python:3.7-bullseye'
+      # 3.7 and 3.8 run the dependency-light gate: the pinned CI set needs
+      # >=3.9 (importlib-metadata==8.7.1), discovered by the first live run.
+      - IMAGE: ['python:3.7-bullseye', 'python:3.8-bullseye']
         FAMILY: pythonimg
         PKGS: '-'
         PYBIN: python
         TARGET: compat-py36
-      - IMAGE: ['python:3.8-bullseye', 'python:3.9-bookworm', 'python:3.10-bookworm', 'python:3.11-bookworm', 'python:3.12-bookworm', 'python:3.13-bookworm', 'python:3.14-bookworm']
+      - IMAGE: ['python:3.9-bookworm', 'python:3.10-bookworm', 'python:3.11-bookworm', 'python:3.12-bookworm', 'python:3.13-bookworm', 'python:3.14-bookworm']
         FAMILY: pythonimg
         PKGS: '-'
         PYBIN: python
@@ -127,7 +129,7 @@ nightly-matrix-experimental:
         FAMILY: debian
         PKGS: 'python3,python3-venv,python3-pip'
         PYBIN: python3
-        TARGET: ci
+        TARGET: compat-py36
       - IMAGE: 'debian:sid'
         FAMILY: debian
         PKGS: 'python3,python3-venv,python3-pip'
