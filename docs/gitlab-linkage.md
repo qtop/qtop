@@ -71,7 +71,18 @@ References:
 
 ## GitLab CI shape
 
-The normal GitLab lanes are intentionally close to GitHub Actions:
+The root `.gitlab-ci.yml` is now intentionally thin: it declares stages,
+repository-level variables, and local `ci/*.gitlab-ci.yml` includes. Job bodies
+live under `ci/` so the prerequisite PVGIS-style layout can be reviewed
+separately from the broader #488 experiment:
+
+- `ci/common.gitlab-ci.yml` defines the shared Python job setup.
+- `ci/test.gitlab-ci.yml` contains normal and scheduled test lanes.
+- `ci/coverage.gitlab-ci.yml` contains Cobertura publishing.
+- `ci/security.gitlab-ci.yml` contains GitLab security templates and Scorecard.
+- `ci/build.gitlab-ci.yml` contains package build publishing.
+
+The normal GitLab lanes remain intentionally close to GitHub Actions:
 
 - `modern-python` runs `make gitlab-ci` on Python 3.12.
 - `almalinux-python36` keeps the dependency-light RHEL8-family compatibility

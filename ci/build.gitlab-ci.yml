@@ -1,0 +1,15 @@
+build:
+  image: python:3.12.3-bookworm
+  stage: build
+  needs:
+    - modern-python
+    - almalinux-python36
+    - coverage-cobertura
+  before_script:
+    - apt-get update
+    - apt-get install -y --no-install-recommends make
+  script:
+    - make gitlab-build PYTHON=python
+  artifacts:
+    paths:
+      - dist/
