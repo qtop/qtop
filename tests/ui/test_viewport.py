@@ -29,7 +29,8 @@ def test_after_scroll_left():
     assert 53 == viewport.v_stop
 
 
-def test_after_scroll_right_UNUSED():  # FIXME: cleanup as such
+@pytest.mark.skip(reason="unused test, needs cleanup")
+def test_after_scroll_right_UNUSED():
     viewport = Viewport()
     viewport.set_term_size(53, 176)
     viewport.max_width = 400
