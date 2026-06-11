@@ -27,8 +27,16 @@ import json
 import datetime
 from collections import namedtuple, OrderedDict, Counter
 from os.path import realpath
-from signal import signal, SIGPIPE, SIG_DFL
-import termios
+try:
+    from signal import signal, SIGPIPE, SIG_DFL
+except ImportError:  # Windows
+    SIGPIPE = None
+    SIG_DFL = None
+    from signal import signal
+try:
+    import termios
+except ImportError:  # Windows
+    termios = None
 import contextlib
 import glob
 import tempfile
@@ -191,7 +199,7 @@ def raw_mode(file):
         if args.WATCH:
             try:
                 old_attrs = termios.tcgetattr(file.fileno())
-            except:  # noqa: E722  ## FIXME, ruff complaint
+            except Exception:  # broad catch for scheduler detection
                 yield
             else:
                 new_attrs = old_attrs[:]
