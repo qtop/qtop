@@ -1,8 +1,10 @@
 .DEFAULT_GOAL := help
 
-.PHONY: help all rerun clean ci-deps test coverage sample-gate backend-validation backend-colour-artifacts render-backends trace-export-validation test-pbs-samples test-slurm-samples fortifications ruff-check lint lint-fix format-check format-fix compat-py36 ci github-ci gitlab-ci build github-build gitlab-build dist version confirm
+.PHONY: help all rerun clean ci-deps test coverage coverage-xml coverage-matrix sample-gate backend-validation backend-colour-artifacts render-backends trace-export-validation test-pbs-samples test-slurm-samples fortifications ruff-check lint lint-fix format-check format-fix compat-py36 ci github-ci gitlab-ci gitlab-coverage build github-build gitlab-build dist version confirm
 
 PYTHON ?= python3
+PYTHON_MATRIX ?= python3.10 python3.12
+COVERAGE_ARTIFACT_DIR ?= artifacts/coverage
 PIP ?= $(PYTHON) -m pip
 SAMPLE_GATE_SCHEDULERS ?= pbs,sge,slurm,oar,demo
 SAMPLE_GATE_MAX_FAILURES ?= 0
@@ -40,6 +42,24 @@ test: ## Run the Python test suite
 coverage: ## Run tests with coverage.py and print a terminal report
 	$(PYTHON) -m coverage run -m pytest
 	$(PYTHON) -m coverage report
+
+coverage-xml: ## Run tests with coverage.py and write coverage.xml for CI artifacts
+	@mkdir -p "$(COVERAGE_ARTIFACT_DIR)"
+	$(PYTHON) -m coverage run -m pytest
+	$(PYTHON) -m coverage report
+	$(PYTHON) -m coverage xml -o "$(COVERAGE_ARTIFACT_DIR)/coverage.xml"
+
+coverage-matrix: ## Run coverage.xml generation for each interpreter in PYTHON_MATRIX
+	@set -eu; \
+	for interpreter in $(PYTHON_MATRIX); do \
+		if ! command -v "$$interpreter" >/dev/null 2>&1; then \
+			echo "Skipping coverage for $$interpreter: interpreter not found"; \
+			continue; \
+		fi; \
+		artifact_dir="artifacts/coverage-$$(echo "$$interpreter" | sed 's/[^A-Za-z0-9._-]/-/g')"; \
+		echo "==> coverage with $$interpreter -> $$artifact_dir"; \
+		$(MAKE) coverage-xml PYTHON="$$interpreter" COVERAGE_ARTIFACT_DIR="$$artifact_dir"; \
+	done
 
 sample-gate: ## Run fast committed PBS/SGE/Slurm/OAR/demo qtop sample gates
 	$(PYTHON) tools/validate_scheduler_samples.py --schedulers $(SAMPLE_GATE_SCHEDULERS) --max-failures $(SAMPLE_GATE_MAX_FAILURES) --artifact-dir $(SAMPLE_GATE_ARTIFACT_DIR)
@@ -99,6 +119,8 @@ ci: test backend-validation lint ruff-check format-check ## Run the shared local
 github-ci: ci ## GitHub Actions entry point for test validation
 
 gitlab-ci: ci ## GitLab CI entry point for test validation
+
+gitlab-coverage: coverage-matrix ## GitLab CI entry point for multi-Python coverage artifacts
 
 build: ci-deps ## Build source and wheel distributions with pinned CI build deps
 	$(PYTHON) -m build --no-isolation

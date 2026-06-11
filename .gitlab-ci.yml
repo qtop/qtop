@@ -1,23 +1,68 @@
+include:
+  - template: Jobs/SAST.gitlab-ci.yml
+  - template: Jobs/Secret-Detection.gitlab-ci.yml
+
 stages:
   - test
   - build
 
-modern-python:
-  image: python:3.12.3-bookworm
+variables:
+  # Semgrep is the primary Python SAST analyzer in the GitLab SAST template.
+  SAST_EXCLUDED_ANALYZERS: ""
+
+# Keep GitLab-managed security scanners in the shared test stage.
+sast:
+  stage: test
+
+semgrep-sast:
+  stage: test
+
+secret_detection:
+  stage: test
+
+.modern-python-base:
+  image: ubuntu:24.04
   stage: test
   before_script:
     - apt-get update
-    - apt-get install -y --no-install-recommends make git
-    - make ci-deps PYTHON=python
+    - apt-get install -y --no-install-recommends make git ca-certificates python3 python3-pip python3-venv
+    - python3 --version
+    - make ci-deps PYTHON=python3
     - export TARGET_BRANCH="${CI_MERGE_REQUEST_TARGET_BRANCH_NAME:-develop}"
-    - git fetch origin "${TARGET_BRANCH}:refs/remotes/origin/${TARGET_BRANCH}"
+    - git fetch origin "${TARGET_BRANCH}:refs/remotes/origin/${TARGET_BRANCH}" || true
     - export FORTIFY_BASE_REF="origin/${TARGET_BRANCH}"
+
+modern-python:
+  extends: .modern-python-base
   script:
-    - make gitlab-ci PYTHON=python
+    - make gitlab-ci PYTHON=python3
   artifacts:
     when: always
     paths:
       - artifacts/sample-gate/
+
+.coverage-matrix-base:
+  stage: test
+  before_script:
+    - apt-get update
+    - apt-get install -y --no-install-recommends make
+    - make ci-deps PYTHON=python
+  script:
+    - make coverage-xml PYTHON=python COVERAGE_ARTIFACT_DIR=artifacts/coverage-${PYTHON_LABEL}
+  artifacts:
+    when: always
+    paths:
+      - artifacts/coverage-${PYTHON_LABEL}/
+
+coverage-matrix:
+  extends: .coverage-matrix-base
+  parallel:
+    matrix:
+      - PYTHON_IMAGE: "python:3.10.14-bookworm"
+        PYTHON_LABEL: "python3.10"
+      - PYTHON_IMAGE: "python:3.12.3-bookworm"
+        PYTHON_LABEL: "python3.12"
+  image: $PYTHON_IMAGE
 
 almalinux-python36:
   image: almalinux:8
@@ -36,16 +81,19 @@ almalinux-python36:
       - artifacts/sample-gate-py36/
 
 build:
-  image: python:3.12.3-bookworm
+  extends: .modern-python-base
   stage: build
   needs:
     - modern-python
+    - coverage-matrix
     - almalinux-python36
   before_script:
     - apt-get update
-    - apt-get install -y --no-install-recommends make
+    - apt-get install -y --no-install-recommends make ca-certificates python3 python3-pip python3-venv
+    - python3 --version
+    - make ci-deps PYTHON=python3
   script:
-    - make gitlab-build PYTHON=python
+    - make gitlab-build PYTHON=python3
   artifacts:
     paths:
       - dist/
