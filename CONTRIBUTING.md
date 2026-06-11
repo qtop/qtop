@@ -29,9 +29,10 @@ Please follow common conventions for Open Source projects, f.i. align to Electro
 - For new features or fixes, either open a new issue or leave a comment on a relevant case that is already open
 - Let's avoid storing artifacts in the main `qtop` repo and keep it light; use the repo `qtop-artifacts` instead.
 
-## Proof of humanity
+## Proof of humanity - PoH
 
-Due to many incoming PRs, it is needed to extend the effort to deal with the advent of bots; part of this is yours.
+Due to many incoming PRs, it is needed to extend the effort to deal with the potential advent of the bots; part of this is yours.
+
 You give a greater chance of closer and faster attention to your PRs by showing some real humane effort:
 - Add (ORCID) in your PR subject iff your github profile is linked to your ORCID profile
 - Add (SCHOLAR) in your PR subject iff you have a verifiable google scholar profile
@@ -40,9 +41,17 @@ You give a greater chance of closer and faster attention to your PRs by showing 
 - Add (PRO) iff you have a github pro account
 - Add (human) iff you'd accept any challenge for PoH, including a live video call / >1 proof channels etc. No sending of personal data/documents though, that's a no-go zone. No bits of hard feelings :)
 
+These markers are optional context signals that may help maintainers prioritise review, challenge participation and reward eligibility when additional contributor context is useful, especially for bounty-related work. They serve to help and prioritize genuine effort and any PoH markers may require to respond to a follow-up challenge sequence.
+
+## Contribution options
+
 You may contribute in the following ways:
 * Write code
-* Review pull requests
+  - commit standards are not enforced [4] but please keep it reasonable
+  - force pushing harms review efforts, so don't do it once PR goes live
+  - preferred a PR naming scheme: `develop-2026mmddXY-WHY-THIS` : XY are your initials and WHY-THIS what your first intent is
+* Review/amend/factorize pull requests
+* Extract one more trace from a real cluster and anonymize it, to use it as a test-sample - very simple & very useful !
 * Maintain and improve a qtop repo and/or documentation
 * Help with outreach and onboard new contributors by assisting them directly
 * Write and/or lead collaborations proposals, including grants or other fundraising or help with community efforts
