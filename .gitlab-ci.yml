@@ -1,4 +1,4 @@
-# qtop GitLab CI — Challenge #9
+# qtop GitLab CI - Challenge #9
 # Mirrors GitHub Actions validation; adds security scanners and nightly matrix.
 # AI assistance: Claude Sonnet 4.6 (Anthropic)
 
@@ -7,19 +7,19 @@ stages:
   - security
   - nightly
 
-# ── Security templates ────────────────────────────────────────────────────
+# -- Security templates ----------------------------------------------------
 include:
   - template: Jobs/SAST.gitlab-ci.yml
   - template: Jobs/Secret-Detection.gitlab-ci.yml
   - template: Jobs/Dependency-Scanning.v2.gitlab-ci.yml
 
-# ── Default settings ──────────────────────────────────────────────────────
+# -- Default settings ------------------------------------------------------
 default:
   image: python:3.12
   before_script:
     - pip install -r requirements-ci.txt --quiet
 
-# ── Fast test gate (mirrors GitHub CI) ───────────────────────────────────
+# -- Fast test gate (mirrors GitHub CI) -----------------------------------
 test:
   stage: test
   script:
@@ -45,7 +45,7 @@ coverage:
         coverage_format: cobertura
         path: coverage.xml
 
-# ── Python 3.6 / AlmaLinux compat ────────────────────────────────────────
+# -- Python 3.6 / AlmaLinux compat ----------------------------------------
 compat-py36:
   stage: test
   image: almalinux:8
@@ -56,7 +56,7 @@ compat-py36:
     - pip3 install pytest --quiet
     - python3 -m pytest tests/ -q
 
-# ── Trust audit: bidi/unicode/strange characters ─────────────────────────
+# -- Trust audit: bidi/unicode/strange characters -------------------------
 trust-audit:
   stage: security
   image: python:3.12
@@ -84,7 +84,7 @@ trust-audit:
           print('Clean: no bidi/suspicious characters found')
       "
 
-# ── Nightly matrix: >30 distro×python combinations ───────────────────────
+# -- Nightly matrix: >30 distroxpython combinations -----------------------
 .nightly-base:
   stage: nightly
   rules:
