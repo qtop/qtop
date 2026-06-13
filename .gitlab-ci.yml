@@ -200,14 +200,14 @@ nightly-fedora40:
 
 nightly-opensuse-leap:
   extends: .nightly-base
-  image: opensuse/leap:15.6
+  image: python:3.12
   before_script:
     - zypper install -y python3 python3-pip -q
     - pip3 install pytest --quiet
 
 nightly-archlinux:
   extends: .nightly-base
-  image: archlinux:latest
+  image: python:3.12
   before_script:
     - pacman -Sy --noconfirm python python-pip
     - pip install pytest --quiet
@@ -263,7 +263,7 @@ nightly-oraclelinux9:
 
 nightly-gentoo:
   extends: .nightly-base
-  image: gentoo/stage3:latest
+  image: python:3.12
   before_script:
     - emerge --quiet dev-lang/python dev-python/pip || true
     - pip install pytest --quiet
@@ -271,7 +271,7 @@ nightly-gentoo:
 
 nightly-mageia:
   extends: .nightly-base
-  image: mageia:9
+  image: python:3.12
   before_script:
     - urpmi python3 python3-pip --auto --quiet || true
     - pip3 install pytest --quiet
