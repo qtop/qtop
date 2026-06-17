@@ -34,7 +34,7 @@ class SGEStatExtractor(StatExtractor):
                 raise
             except IOError:
                 raise
-            except:  # noqa: E722  ## FIXME, ruff complaint
+            except Exception:
                 logging.debug("XML file state %s" % fin)
                 logging.debug("thinking...")
                 sys.exit(1)
@@ -46,7 +46,7 @@ class SGEStatExtractor(StatExtractor):
         all_values = list()
         self.orig_file = orig_file
         self.tree, self.root = self.get_xml_tree(orig_file)
-        tree, root = self.tree, self.root  # noqa: F841  ## FIXME, tree unused
+        root = self.root
 
         for queue_elem in root.findall("queue_info/Queue-List"):
             queue_name_elems = queue_elem.findall("resource")
@@ -66,7 +66,7 @@ class SGEStatExtractor(StatExtractor):
             try:
                 all_values = self._extract_job_info(all_values, queue_elem, "job_list", queue_name=queue_name_elem.text)
             except ValueError:
-                logging.warn("No jobs found in XML file!")
+                logging.warning("No jobs found in XML file!")
 
         # look for the remaining, pending jobs, found later in the xml file
         job_info_elem = root.find("./job_info")
@@ -76,7 +76,7 @@ class SGEStatExtractor(StatExtractor):
             try:
                 all_values = self._extract_job_info(all_values, job_info_elem, "job_list", queue_name="Pending")
             except ValueError:
-                logging.warn("No jobs found in XML file!")
+                logging.warning("No jobs found in XML file!")
 
         return all_values
 
@@ -124,7 +124,7 @@ class SGEBatchSystem(GenericBatchSystem):
         logging.debug("Parsing tree of %s" % self.sge_file)
         fileutils.check_empty_file(self.sge_file)
 
-        tree, root = self.sge_stat_maker.tree, self.sge_stat_maker.root  # noqa: F841  ## FIXME, tree unused
+        root = self.sge_stat_maker.root
 
         qstatq_list = self._extract_queues("queue_info/Queue-List", root)
 

@@ -12,7 +12,7 @@ import random
 import itertools
 import time
 from qtop_py.serialiser import GenericBatchSystem
-from collections import defaultdict
+from collections import defaultdict, namedtuple
 
 WORKER_NODES = 80
 QUEUES = "urgent transfer batch".split()
@@ -24,6 +24,11 @@ NODE_REPAIR_PROBABILITY = 0.03
 NODE_FAILURE_PROBABILITY = 0.01
 
 QUEUE_STATE_CHANGE_PROBABILITY = 0.05
+
+# A single running-job record. Grouping the four attributes keeps the parallel
+# result lists returned by get_jobs_info() the same length by construction
+# (resolves the long-standing "make a tuple out of them" TODO there).
+_JobInfo = namedtuple("_JobInfo", ["job_id", "username", "job_state", "queue_name"])
 
 
 class LittleGridSimulator(object):
@@ -223,23 +228,26 @@ class DemoBatchSystem(GenericBatchSystem):
 
     def get_jobs_info(self):
         """
-        These 4 lists have to be of the same length (TODO: maybe make a tuple out of them or consider an alternative structure?)
+        Collect the demo scheduler's running-job records.
+
+        Each job's attributes are gathered into a single ``_JobInfo`` tuple, so
+        the four parallel lists below cannot drift out of sync -- they are all
+        projected from the same list of records. This resolves the long-standing
+        "maybe make a tuple out of them" TODO without changing the public return
+        contract: four equal-length lists in the order
+        (job_ids, usernames, job_states, queue_names).
         """
-        job_ids = []
-        usernames = []
-        job_states = []
-        queue_names = []
+        jobs = []
         for node in range(WORKER_NODES):
             for core, job_id in enumerate(self.sim.core_job_map[node]):
                 if job_id:
-                    job_ids.append(job_id)
-
                     queue_name, username = self.sim.job_meta[job_id]
-                    usernames.append(username)
-                    queue_names.append(queue_name)
+                    jobs.append(_JobInfo(job_id=job_id, username=username, job_state=self.sim.job_state[job_id], queue_name=queue_name))
 
-                    job_states.append(self.sim.job_state[job_id])
-
+        job_ids = [job.job_id for job in jobs]
+        usernames = [job.username for job in jobs]
+        job_states = [job.job_state for job in jobs]
+        queue_names = [job.queue_name for job in jobs]
         return job_ids, usernames, job_states, queue_names
 
     def get_queues_info(self):

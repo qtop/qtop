@@ -191,7 +191,7 @@ def raw_mode(file):
         if args.WATCH:
             try:
                 old_attrs = termios.tcgetattr(file.fileno())
-            except:  # noqa: E722  ## FIXME, ruff complaint
+            except Exception:
                 yield
             else:
                 new_attrs = old_attrs[:]
@@ -296,9 +296,17 @@ def load_yaml_config():
     return config, user_to_color, nodestate_to_color
 
 
-def calculate_term_size(config, FALLBACK_TERM_SIZE):
+def calculate_term_size(config, FALLBACK_TERM_SIZE, viewport):
     """
     Gets the dimensions of the terminal window where qtop will be displayed.
+
+    ``viewport`` is injected explicitly. Previously this function referenced a
+    module-global ``viewport`` that is never defined at module scope (it is a
+    local inside ``main``), so the entire autodetect-fallback branch raised
+    ``NameError`` whenever ``stty size`` failed -- e.g. when qtop runs inside an
+    IDE, behind a pipe, or in a headless CI shell. The guard ``all(a, b)`` was
+    also a bug (``all`` takes a single iterable), so it could never have worked
+    even if ``viewport`` had resolved.
     """
     fallback_term_size = config.get("term_size", FALLBACK_TERM_SIZE)
 
@@ -307,23 +315,15 @@ def calculate_term_size(config, FALLBACK_TERM_SIZE):
     if not error:
         term_height, term_columns = [int(x) for x in tty_size.strip().split()]
         logging.debug('terminal size v, h from "stty size": %s, %s' % (term_height, term_columns))
+        return int(term_height), int(term_columns)
+
+    logging.warning("Failed to autodetect terminal size. (Running in an IDE? in a pipe?) Falling back via %s / viewport." % QTOPCONF_YAML)
+    term_height, term_columns = viewport.get_term_size()
+    if not all([term_height, term_columns]):
+        term_height, term_columns = fallback_term_size
+        logging.debug("(hardcoded) fallback terminal size v, h: %s, %s" % (term_height, term_columns))
     else:
-        logging.warn("Failed to autodetect terminal size. (Running in an IDE?in a pipe?) Trying values in %s." % QTOPCONF_YAML)
-        try:
-            term_height, term_columns = viewport.get_term_size()
-            if not all(term_height, term_columns):
-                raise ValueError
-        except ValueError:
-            try:
-                term_height, term_columns = yaml.fix_config_list(viewport.get_term_size())
-            except KeyError:
-                term_height, term_columns = fallback_term_size
-                logging.debug("(hardcoded) fallback terminal size v, h:%s, %s" % (term_height, term_columns))
-            else:
-                logging.debug("fallback terminal size v, h:%s, %s" % (term_height, term_columns))
-        except (KeyError, TypeError):  # TypeError if None was returned i.e. no setting in QTOPCONF_YAML
-            term_height, term_columns = fallback_term_size
-            logging.debug("(hardcoded) fallback terminal size v, h:%s, %s" % (term_height, term_columns))
+        logging.debug("viewport-provided terminal size v, h: %s, %s" % (term_height, term_columns))
 
     return int(term_height), int(term_columns)
 
@@ -832,7 +832,7 @@ def attempt_faster_xml_parsing(config):
         try:
             from lxml import etree
         except ImportError:
-            logging.warn('Module lxml is missing. Try issuing "pip install lxml". Reverting to xml module.')
+            logging.warning('Module lxml is missing. Try issuing "pip install lxml". Reverting to xml module.')
             from xml.etree import ElementTree as etree  # noqa: F401
 
 
@@ -859,7 +859,7 @@ def wait_for_keypress_or_autorefresh(viewport, FALLBACK_TERMSIZE, KEYPRESS_TIMEO
             break
     else:
         state = viewport.get_term_size()
-        viewport.set_term_size(*calculate_term_size(config, FALLBACK_TERMSIZE))
+        viewport.set_term_size(*calculate_term_size(config, FALLBACK_TERMSIZE, viewport))
         new_state = viewport.get_term_size()
         _read_char = "\n" if (state == new_state) else "r"
         logging.debug("Auto-advancing by pressing <Enter>")
@@ -1206,7 +1206,7 @@ class WNOccupancy(object):
             sys.exit(1)
         min_len = min(user_max_len, real_max_len)
         if real_max_len > user_max_len:
-            logging.warn("Some longer %(attr)ss have been cropped due to %(attr)s length restriction by user" % {"attr": part_name})
+            logging.warning("Some longer %(attr)ss have been cropped due to %(attr)s length restriction by user" % {"attr": part_name})
 
         # initialisation of lines
         multiline_map = OrderedDict()
@@ -2446,7 +2446,7 @@ def main():
                 if args.LESS:
                     viewport.set_term_size(500, 9999)
                 else:
-                    viewport.set_term_size(*calculate_term_size(config, FALLBACK_TERMSIZE))
+                    viewport.set_term_size(*calculate_term_size(config, FALLBACK_TERMSIZE, viewport))
                 sys.stdout = os.fdopen(handle, "w")  # redirect everything to file, creates file object out of handle
                 scheduler = decide_batch_system(args.BATCH_SYSTEM, os.environ.get("QTOP_SCHEDULER"), config["scheduler"], config["schedulers"], available_batch_systems, config)
                 scheduler_output_filenames = fetch_scheduler_files(args, config)
