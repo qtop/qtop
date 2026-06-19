@@ -68,14 +68,20 @@ trust-audit:
       import os, sys
       suspicious = []
       bidi_chars = ['\u202a','\u202b','\u202c','\u202d','\u202e','\u2066','\u2067','\u2068','\u2069','\u200f']
-      for root, dirs, files in os.walk('qtop_py'):
-          dirs[:] = [d for d in dirs if d != '__pycache__']
+      skip_dirs = {'.git', '__pycache__', 'node_modules', '.venv'}
+      binary_exts = {'.png','.jpg','.jpeg','.gif','.ico','.pdf','.zip','.tar','.gz','.pyc','.so'}
+      for root, dirs, files in os.walk('.'):
+          dirs[:] = [d for d in dirs if d not in skip_dirs]
           for f in files:
-              if not f.endswith('.py'): continue
+              ext = os.path.splitext(f)[1].lower()
+              if ext in binary_exts: continue
               path = os.path.join(root, f)
-              content = open(path, encoding='utf-8', errors='replace').read()
+              try:
+                  text = open(path, encoding='utf-8', errors='replace').read()
+              except Exception:
+                  continue
               for ch in bidi_chars:
-                  if ch in content:
+                  if ch in text:
                       suspicious.append((path, repr(ch)))
       if suspicious:
           print('SUSPICIOUS:', suspicious)
