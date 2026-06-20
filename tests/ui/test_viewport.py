@@ -29,16 +29,7 @@ def test_after_scroll_left():
     assert 53 == viewport.v_stop
 
 
-def test_after_scroll_right_UNUSED():  # FIXME: cleanup as such
-    viewport = Viewport()
-    viewport.set_term_size(53, 176)
-    viewport.max_width = 400
-    viewport.max_height = 200
-    viewport.scroll_right()
-    assert 176 / 2 == viewport.h_start  # corrected behaviour: last element should touch right screen edge, if possible!
-    assert 176 / 2 + 176 == viewport.h_stop  # (not scroll endelessly to the right)
-    assert 0 == viewport.v_start
-    assert 53 == viewport.v_stop
+
 
 
 def test_after_scroll_down():
