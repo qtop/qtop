@@ -32,7 +32,6 @@ packages = ["qtop_py"]
 [tool.ruff]
 # Enable pycodestyle (`E`) and Pyflakes (`F`) codes by default.
 lint.select = ["E", "F", "I"] ##
-lint.ignore = ["I001"]  ## FIXME, ruff has a point
 
 # Ruff 0.15.15 still exposes py37 as its lowest target; Python 3.6 runtime
 # compatibility stays covered by the separate compat-py36 gate.
