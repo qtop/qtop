@@ -1,0 +1,14 @@
+coverage-cobertura:
+  extends: .python-job
+  stage: coverage
+  script:
+    - make coverage-xml PYTHON=python
+  coverage: '/TOTAL\s+\d+\s+\d+\s+(\d+%)/'
+  artifacts:
+    when: always
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: artifacts/coverage/coverage.xml
+    paths:
+      - artifacts/coverage/

@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 
-.PHONY: help all rerun clean ci-deps test coverage sample-gate backend-validation backend-colour-artifacts render-backends trace-export-validation test-pbs-samples test-slurm-samples fortifications ruff-check lint lint-fix format-check format-fix compat-py36 ci github-ci gitlab-ci build github-build gitlab-build dist version confirm
+.PHONY: help all rerun clean ci-deps test coverage coverage-xml sample-gate backend-validation backend-colour-artifacts render-backends trace-export-validation test-pbs-samples test-slurm-samples fortifications trust-audit ruff-check lint lint-fix format-check format-fix compat-py36 ci github-ci gitlab-ci build github-build gitlab-build dist version confirm
 
 PYTHON ?= python3
 PIP ?= $(PYTHON) -m pip
@@ -8,6 +8,8 @@ SAMPLE_GATE_SCHEDULERS ?= pbs,sge,slurm,oar,demo
 SAMPLE_GATE_MAX_FAILURES ?= 0
 SAMPLE_GATE_ARTIFACT_DIR ?= artifacts/sample-gate
 BACKEND_COLOUR_ARTIFACT_DIR ?= artifacts/backend-colour
+COVERAGE_XML ?= artifacts/coverage/coverage.xml
+TRUST_AUDIT_REPORT ?= artifacts/trust-audit/report.txt
 TRACE_JSON_B64 ?=
 TRACE_FULLVIEW ?=
 TRACE_ARTIFACT_DIR ?= artifacts/trace-export
@@ -40,6 +42,12 @@ test: ## Run the Python test suite
 coverage: ## Run tests with coverage.py and print a terminal report
 	$(PYTHON) -m coverage run -m pytest
 	$(PYTHON) -m coverage report
+
+coverage-xml: ## Run coverage.py and write a Cobertura-compatible XML artifact
+	mkdir -p $(dir $(COVERAGE_XML))
+	$(PYTHON) -m coverage run -m pytest
+	$(PYTHON) -m coverage report
+	$(PYTHON) -m coverage xml -o $(COVERAGE_XML)
 
 sample-gate: ## Run fast committed PBS/SGE/Slurm/OAR/demo qtop sample gates
 	$(PYTHON) tools/validate_scheduler_samples.py --schedulers $(SAMPLE_GATE_SCHEDULERS) --max-failures $(SAMPLE_GATE_MAX_FAILURES) --artifact-dir $(SAMPLE_GATE_ARTIFACT_DIR)
@@ -74,10 +82,14 @@ test-slurm-samples: ## Run Slurm parser tests and render committed Slurm samples
 fortifications: ## Check diff health and reject eval() call sites
 	$(PYTHON) tools/fortifications.py --base-ref $(FORTIFY_BASE_REF)
 
+trust-audit: ## Scan reviewable text files for control, bidi, or non-ASCII characters
+	mkdir -p $(dir $(TRUST_AUDIT_REPORT))
+	$(PYTHON) tools/fortifications.py --base-ref $(FORTIFY_BASE_REF) --full-tree --report $(TRUST_AUDIT_REPORT)
+
 ruff-check: ## Run ruff against the source tree
 	$(PYTHON) -m ruff check .
 
-lint: ruff-check fortifications ## Run dependency-light source and diff health checks
+lint: ruff-check fortifications trust-audit ## Run dependency-light source and diff health checks
 
 lint-fix: ## Auto-fix ruff lint issues where possible
 	$(PYTHON) -m ruff check --fix .

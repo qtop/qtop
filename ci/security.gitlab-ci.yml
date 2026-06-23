@@ -1,0 +1,23 @@
+include:
+  - template: Jobs/SAST.gitlab-ci.yml
+  - template: Jobs/Secret-Detection.gitlab-ci.yml
+  - template: Jobs/Dependency-Scanning.v2.gitlab-ci.yml
+  - template: Jobs/Code-Quality.gitlab-ci.yml
+
+openssf-scorecard:
+  image: golang:1.23-bookworm
+  stage: security
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule" || $CI_PIPELINE_SOURCE == "web"'
+  before_script:
+    - apt-get update
+    - apt-get install -y --no-install-recommends ca-certificates git
+    - go install github.com/ossf/scorecard/v5@latest
+  script:
+    - mkdir -p artifacts/scorecard
+    - scorecard --repo=https://github.com/qtop/qtop --format=json --show-details > artifacts/scorecard/scorecard.json
+  allow_failure: true
+  artifacts:
+    when: always
+    paths:
+      - artifacts/scorecard/

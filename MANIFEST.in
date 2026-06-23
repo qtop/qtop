@@ -11,6 +11,7 @@ include ROADMAP.md
 include requirements-ci.txt
 include .gitlab-ci.yml
 recursive-include .github/workflows *.yml
+recursive-include ci *.yml
 recursive-include docs *.md *.rst *.png
 recursive-include tools *.py
 
