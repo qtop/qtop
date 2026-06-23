@@ -28,8 +28,7 @@ def cli_main():
         if str(exc):
             sys.stderr.write("%s\n" % exc)
         return 1
+    except Exception as exc:
+        sys.stderr.write("Unexpected error: %s\nTry --help for usage information.\n" % exc)
+        return 1
 
-
-if __name__ == "__main__":
-    sys.argv[0] = re.sub(r"(-script\.pyw|\.exe)?$", "", sys.argv[0])
-    sys.exit(cli_main())
