@@ -39,6 +39,8 @@ def test_after_scroll_right_UNUSED():  # FIXME: cleanup as such
     assert 176 / 2 + 176 == viewport.h_stop  # (not scroll endelessly to the right)
     assert 0 == viewport.v_start
     assert 53 == viewport.v_stop
+    assert isinstance(viewport.h_start, int)
+    assert isinstance(viewport.h_stop, int)
 
 
 def test_after_scroll_down():
