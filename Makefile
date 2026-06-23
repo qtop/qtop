@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 
-.PHONY: help all rerun clean ci-deps test coverage sample-gate backend-validation backend-colour-artifacts render-backends trace-export-validation test-pbs-samples test-slurm-samples fortifications ruff-check lint lint-fix format-check format-fix compat-py36 ci github-ci gitlab-ci build github-build gitlab-build dist version confirm
+.PHONY: help all rerun clean ci-deps test coverage coverage-check sample-gate backend-validation backend-colour-artifacts render-backends trace-export-validation test-pbs-samples test-slurm-samples fortifications ruff-check lint lint-fix format-check format-fix compat-py36 ci github-ci gitlab-ci build github-build gitlab-build dist version confirm
 
 PYTHON ?= python3
 PIP ?= $(PYTHON) -m pip
@@ -40,6 +40,9 @@ test: ## Run the Python test suite
 coverage: ## Run tests with coverage.py and print a terminal report
 	$(PYTHON) -m coverage run -m pytest
 	$(PYTHON) -m coverage report
+
+coverage-check: coverage ## Run coverage and fail if below threshold (50%)
+	$(PYTHON) -m coverage report --fail-under=50
 
 sample-gate: ## Run fast committed PBS/SGE/Slurm/OAR/demo qtop sample gates
 	$(PYTHON) tools/validate_scheduler_samples.py --schedulers $(SAMPLE_GATE_SCHEDULERS) --max-failures $(SAMPLE_GATE_MAX_FAILURES) --artifact-dir $(SAMPLE_GATE_ARTIFACT_DIR)
@@ -94,7 +97,7 @@ compat-py36: ## Run dependency-light Python 3.6 compatibility checks
 	find qtop_py tools -name '*.py' -print | xargs $(PYTHON) -m py_compile
 	$(PYTHON) tools/validate_scheduler_samples.py --schedulers $(SAMPLE_GATE_SCHEDULERS) --max-failures $(SAMPLE_GATE_MAX_FAILURES) --artifact-dir $(SAMPLE_GATE_ARTIFACT_DIR)-py36
 
-ci: test backend-validation lint ruff-check format-check ## Run the shared local/CI validation path
+ci: test coverage-check backend-validation lint ruff-check format-check ## Run the shared local/CI validation path
 
 github-ci: ci ## GitHub Actions entry point for test validation
 

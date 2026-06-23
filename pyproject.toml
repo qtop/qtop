@@ -40,3 +40,11 @@ target-version = "py37"
 
 ## FG customisations
 line-length = 180 # keep legacy output fixtures readable while reducing the previous 188-char ceiling
+
+[tool.coverage.run]
+source = ["qtop_py"]
+omit = ["qtop_py/web.py", "qtop_py/web/*"]
+
+[tool.coverage.report]
+show_missing = true
+fail_under = 50
