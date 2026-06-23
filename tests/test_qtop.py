@@ -85,6 +85,45 @@ def test_sort_worker_nodes_rejects_custom_python_sorting(monkeypatch):
         cluster._sort_worker_nodes()
 
 
+def test_raw_mode_falls_back_when_termios_is_unavailable(monkeypatch):
+    monkeypatch.setattr(qtop_module, "args", SimpleNamespace(ONLYSAVETOFILE=False, WATCH=True), raising=False)
+    monkeypatch.setattr(qtop_module, "termios", None)
+
+    entered_context = []
+
+    class FakeInput:
+        def fileno(self):
+            return 0
+
+    with qtop_module.raw_mode(FakeInput()):
+        entered_context.append(True)
+
+    assert entered_context == [True]
+
+
+def test_restore_sigpipe_default_is_noop_when_sigpipe_is_unavailable(monkeypatch):
+    signal_calls = []
+    monkeypatch.setattr(qtop_module, "SIGPIPE", None)
+    monkeypatch.setattr(qtop_module, "signal", lambda *args: signal_calls.append(args))
+
+    qtop_module._restore_sigpipe_default()
+
+    assert signal_calls == []
+
+
+def test_calculate_term_size_uses_fallback_when_stty_is_unavailable(monkeypatch):
+    def raise_file_not_found(*args, **kwargs):
+        raise FileNotFoundError
+
+    def raise_key_error():
+        raise KeyError
+
+    monkeypatch.setattr(qtop_module.subprocess, "Popen", raise_file_not_found)
+    monkeypatch.setattr(qtop_module, "viewport", SimpleNamespace(get_term_size=raise_key_error), raising=False)
+
+    assert qtop_module.calculate_term_size({"term_size": [24, 80]}, [40, 120]) == (24, 80)
+
+
 @pytest.mark.parametrize(
     "domain_name, match",
     (

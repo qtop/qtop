@@ -22,13 +22,21 @@ from itertools import zip_longest, cycle
 import subprocess
 import select
 import os
+import shutil
 import re
 import json
 import datetime
 from collections import namedtuple, OrderedDict, Counter
 from os.path import realpath
-from signal import signal, SIGPIPE, SIG_DFL
-import termios
+from signal import SIG_DFL, signal
+try:
+    from signal import SIGPIPE
+except ImportError:
+    SIGPIPE = None
+try:
+    import termios
+except ImportError:
+    termios = None
 import contextlib
 import glob
 import tempfile
@@ -61,6 +69,17 @@ import time
 
 here = sys.path[0]
 PLUGIN_BATCH_SYSTEMS = (DemoBatchSystem, OARBatchSystem, PBSBatchSystem, SGEBatchSystem, SlurmBatchSystem)
+
+
+def _restore_sigpipe_default():
+    if SIGPIPE is not None:
+        signal(SIGPIPE, SIG_DFL)
+
+
+if termios is None:
+    TERMIOS_ERRORS = (AttributeError, OSError)
+else:
+    TERMIOS_ERRORS = (AttributeError, OSError, termios.error)
 
 
 def _configured_separator(config):
@@ -187,11 +206,13 @@ def raw_mode(file):
     """
     if args.ONLYSAVETOFILE:
         yield
+    elif termios is None:
+        yield
     else:
         if args.WATCH:
             try:
                 old_attrs = termios.tcgetattr(file.fileno())
-            except:  # noqa: E722  ## FIXME, ruff complaint
+            except TERMIOS_ERRORS:
                 yield
             else:
                 new_attrs = old_attrs[:]
@@ -302,13 +323,16 @@ def calculate_term_size(config, FALLBACK_TERM_SIZE):
     """
     fallback_term_size = config.get("term_size", FALLBACK_TERM_SIZE)
 
-    _command = subprocess.Popen(["/bin/stty", "size"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    tty_size, error = _command.communicate()
+    try:
+        _command = subprocess.Popen(["/bin/stty", "size"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        tty_size, error = _command.communicate()
+    except OSError:
+        tty_size, error = b"", b"stty unavailable"
     if not error:
         term_height, term_columns = [int(x) for x in tty_size.strip().split()]
         logging.debug('terminal size v, h from "stty size": %s, %s' % (term_height, term_columns))
     else:
-        logging.warn("Failed to autodetect terminal size. (Running in an IDE?in a pipe?) Trying values in %s." % QTOPCONF_YAML)
+        logging.warning("Failed to autodetect terminal size. (Running in an IDE?in a pipe?) Trying values in %s." % QTOPCONF_YAML)
         try:
             term_height, term_columns = viewport.get_term_size()
             if not all(term_height, term_columns):
@@ -354,8 +378,7 @@ def auto_get_avail_batch_system(config):
     """
     # TODO pbsnodes etc should not be hardcoded!
     for system, batch_command in config["signature_commands"].items():
-        NOT_FOUND = subprocess.call(["/usr/bin/which", batch_command], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        if not NOT_FOUND:
+        if shutil.which(batch_command):
             if system != "demo":
                 logging.debug("Auto-detected scheduler: %s" % system)
                 return system
@@ -1753,7 +1776,7 @@ class TextDisplay(object):
         return joined_list
 
     def print_core_lines(self, core_user_map, print_char_start, print_char_stop, transposed_matrices, userid_to_userid_re_pat, mapping, attrs, options1, options2):
-        signal(SIGPIPE, SIG_DFL)
+        _restore_sigpipe_default()
         remove_corelines = dynamic_config.get("rem_empty_corelines", config["rem_empty_corelines"]) + 1
 
         # if corelines vertical (transposed matrix)
@@ -1776,7 +1799,7 @@ class TextDisplay(object):
                     print(core_line_zipped)
                 except IOError:
                     try:
-                        signal(SIGPIPE, SIG_DFL)
+                        _restore_sigpipe_default()
                         print(core_line_zipped)
                         sys.stdout.close()
                     except IOError:
