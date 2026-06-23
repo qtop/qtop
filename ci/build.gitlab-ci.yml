@@ -1,0 +1,13 @@
+build:
+  stage: build
+  needs:
+    - modern-python
+    - almalinux-python36
+  before_script:
+    - apt-get update
+    - apt-get install -y --no-install-recommends make
+  script:
+    - make gitlab-build PYTHON=python
+  artifacts:
+    paths:
+      - dist/
