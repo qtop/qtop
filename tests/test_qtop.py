@@ -435,3 +435,44 @@ def test_get_date_obj_from_str(s, now, day_meant):
     at 22:10 at night, the user inputs again 21:00 (the same day is implied)
     """
     assert get_date_obj_from_str(s, now).day == day_meant
+
+
+def _make_args(sourcedir):
+    """Build a minimal args namespace with just SOURCEDIR set."""
+    return SimpleNamespace(SOURCEDIR=sourcedir)
+
+
+def test_init_dirs_keeps_directory_source(monkeypatch, tmp_path):
+    """When -s points at a real directory, init_dirs should keep it."""
+    monkeypatch.chdir(tmp_path)
+    args = _make_args(str(tmp_path))
+    result = qtop_module.init_dirs(args, str(tmp_path / "save"))
+    assert result.SOURCEDIR == str(tmp_path)
+    assert result.workdir == str(tmp_path)
+
+
+def test_init_dirs_strips_filename_when_source_is_a_file(monkeypatch, tmp_path):
+    """
+    Regression test for #291: when -s points at a file rather than a
+    directory, init_dirs should fall back to the directory containing the
+    file so os.chdir() does not crash with NotADirectoryError / EINVAL.
+    """
+    monkeypatch.chdir(tmp_path)
+    target_dir = tmp_path / "myqtoptest"
+    target_dir.mkdir()
+    target_file = target_dir / "qstat.F.xml.stdout"
+    target_file.write_text("dummy")
+    args = _make_args(str(target_file))
+    result = qtop_module.init_dirs(args, str(tmp_path / "save"))
+    assert result.SOURCEDIR == str(target_dir)
+    assert result.workdir == str(target_dir)
+
+
+def test_init_dirs_falls_back_to_savepath_when_source_is_unset(monkeypatch, tmp_path):
+    """When -s is not provided, workdir should be the savepath."""
+    monkeypatch.chdir(tmp_path)
+    savepath = str(tmp_path / "save")
+    args = _make_args(None)
+    result = qtop_module.init_dirs(args, savepath)
+    assert result.SOURCEDIR is None
+    assert result.workdir == savepath
