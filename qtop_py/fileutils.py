@@ -1,11 +1,12 @@
+import datetime
+import errno
+import glob
 import logging
 import os
-import errno
+import posixpath
+import sys
 import tempfile
 import tarfile
-import sys
-import glob
-import datetime
 
 
 def mkdir_p(path):
@@ -76,12 +77,13 @@ def add_to_sample(filepaths_to_add, sample_out, sample_method=tarfile, subdir=No
     """
     assert isinstance(filepaths_to_add, list)
     for filepath_to_add in filepaths_to_add:
-        path, fn = filepath_to_add.rsplit("/", 1)
+        filename = os.path.basename(filepath_to_add)
+        archive_name = filename if not subdir else posixpath.join(subdir, filename)
         try:
             logging.debug("Adding %s to sample..." % filepath_to_add)
-            sample_out.add(filepath_to_add, arcname=fn if not subdir else os.path.join(subdir, fn))
-        except tarfile.TarError:  # TODO: test what could go wrong here
-            logging.error("There seems to be something wrong with the tarfile. Skipping...")
+            sample_out.add(filepath_to_add, arcname=archive_name)
+        except (tarfile.TarError, OSError) as exc:
+            logging.error("Could not add %s to the sample archive: %s. Skipping...", filepath_to_add, exc)
     # else:
     # logging.debug('Closing sample...')
     # sample_out.close()
@@ -137,18 +139,18 @@ def get_timedelta(extra_kw_args):
 
 def parse_time_input(_time):
     """
-    the func accepts a _time str in either (h)ours, (m)inutes, or (s)econds, using the respective suffix,
+    The function accepts a _time str in either (h)ours, (m)inutes, or (s)econds, using the respective suffix,
     e.g. '5h', or '10m', or '30s'
-    A tuple is returned, e.g. (5, 'hours')
+    A dictionary is returned, e.g. {"hours": 5}.
     """
-    assert _time.endswith(("h", "m", "s"))
-    try:
-        int(_time[:-1])
-    except ValueError:
-        logging.critical("Time input given must be a number followed by the letter h/m/s. Exiting.")
-
-    quantity, user_unit_suffix = _time[:-1], _time[-1]
     units = {"m": "minutes", "s": "seconds", "h": "hours"}
-    user_unit = units[user_unit_suffix]
+    error_message = "Time input must be a number followed by h, m, or s."
+    if not isinstance(_time, str) or len(_time) < 2 or _time[-1] not in units:
+        raise ValueError(error_message)
 
-    return {user_unit: int(quantity)}
+    try:
+        quantity = int(_time[:-1])
+    except ValueError as exc:
+        raise ValueError(error_message) from exc
+
+    return {units[_time[-1]]: quantity}
