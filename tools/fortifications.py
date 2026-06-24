@@ -52,7 +52,7 @@ def iter_python_files():
 def find_eval_calls():
     problems = []
     for path in iter_python_files():
-        relative = str(path.relative_to(ROOT))
+        relative = path.relative_to(ROOT).as_posix()
         try:
             tree = ast.parse(path.read_text(encoding="utf-8"), filename=relative)
         except SyntaxError as exc:
@@ -61,6 +61,24 @@ def find_eval_calls():
         for node in ast.walk(tree):
             if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == "eval":
                 problems.append("%s:%s eval() call is not allowed" % (relative, getattr(node, "lineno", "?")))
+    return problems
+
+
+def find_star_imports():
+    problems = []
+    checked_roots = ("qtop_py", "tools")
+    for path in iter_python_files():
+        relative = path.relative_to(ROOT).as_posix()
+        if not relative.startswith(checked_roots):
+            continue
+        try:
+            tree = ast.parse(path.read_text(encoding="utf-8"), filename=relative)
+        except SyntaxError as exc:
+            problems.append("%s:%s syntax error while scanning imports: %s" % (relative, exc.lineno, exc.msg))
+            continue
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ImportFrom) and any(alias.name == "*" for alias in node.names):
+                problems.append("%s:%s wildcard import is not allowed" % (relative, getattr(node, "lineno", "?")))
     return problems
 
 
@@ -94,6 +112,7 @@ def main():
             break
 
     problems.extend(find_eval_calls())
+    problems.extend(find_star_imports())
 
     if problems:
         for problem in problems:

@@ -85,6 +85,37 @@ def test_sort_worker_nodes_rejects_custom_python_sorting(monkeypatch):
         cluster._sort_worker_nodes()
 
 
+def test_reset_sigpipe_is_noop_when_platform_has_no_sigpipe(monkeypatch):
+    calls = []
+
+    monkeypatch.setattr(qtop_module, "SIGPIPE", None)
+    monkeypatch.setattr(qtop_module, "signal", lambda *args: calls.append(args))
+
+    qtop_module.reset_sigpipe()
+
+    assert calls == []
+
+
+def test_reset_sigpipe_restores_default_when_available(monkeypatch):
+    calls = []
+
+    monkeypatch.setattr(qtop_module, "SIGPIPE", 13)
+    monkeypatch.setattr(qtop_module, "SIG_DFL", "default")
+    monkeypatch.setattr(qtop_module, "signal", lambda *args: calls.append(args))
+
+    qtop_module.reset_sigpipe()
+
+    assert calls == [(13, "default")]
+
+
+def test_raw_mode_is_noop_when_platform_has_no_termios(monkeypatch):
+    monkeypatch.setattr(qtop_module, "termios", None)
+    monkeypatch.setattr(qtop_module, "args", SimpleNamespace(ONLYSAVETOFILE=False, WATCH=True), raising=False)
+
+    with qtop_module.raw_mode(sys.stdin):
+        pass
+
+
 @pytest.mark.parametrize(
     "domain_name, match",
     (
