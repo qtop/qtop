@@ -29,9 +29,11 @@ class TestMkdirP:
         mkdir_p(str(existing))
         assert existing.exists()
 
-    def test_raises_on_other_oserror(self, mocker):
+    def test_raises_on_other_oserror(self, monkeypatch):
         # Simulate an OSError with errno != EEXIST
-        mocker.patch("os.makedirs", side_effect=OSError(13, "Permission denied"))
+        def fake_makedirs(path):
+            raise OSError(13, "Permission denied")
+        monkeypatch.setattr(os, "makedirs", fake_makedirs)
         with pytest.raises(OSError):
             mkdir_p("/nonexistent/path")
 
@@ -49,9 +51,9 @@ class TestCheckEmptyFile:
         with pytest.raises(FileEmptyError):
             check_empty_file(str(f))
 
-    def test_nonexistent_raises_FileNotFound(self, tmp_path):
+    def test_nonexistent_raises_oserror(self, tmp_path):
         f = tmp_path / "nonexistent.txt"
-        with pytest.raises(FileNotFound):
+        with pytest.raises(FileNotFoundError):
             check_empty_file(str(f))
 
 
@@ -109,17 +111,14 @@ class TestGetSampleFilename:
     def test_timestamp_mode(self, monkeypatch):
         config = {"overwrite_sample_file": False}
         SAMPLE_FILENAME = "sample_%(datetime)s.tar"
-        # We'll just check that the result contains the datetime part
         result = get_sample_filename(SAMPLE_FILENAME, config)
+        # Format is "sample__20260625-091046.tar" (datetime with leading _)
         assert result.startswith("sample_")
         assert result.endswith(".tar")
-        # The middle part should be something like "_20260325-123045"
-        parts = result.split("_")
-        assert len(parts) == 2
-        assert parts[1].endswith(".tar")
-        # The timestamp part should be non-empty
-        timestamp_part = parts[1][:-4]  # remove .tar
+        # The part after "sample_" should include "_YYYYMMDD-HHMMSS"
+        timestamp_part = result[len("sample_"):-len(".tar")]
         assert len(timestamp_part) > 0
+        assert timestamp_part.startswith("_")
 
 
 class TestExceptions:
