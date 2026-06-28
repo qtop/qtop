@@ -14,10 +14,17 @@ modern-python:
     - export FORTIFY_BASE_REF="origin/${TARGET_BRANCH}"
   script:
     - make gitlab-ci PYTHON=python
+  coverage: '/TOTAL\s+\d+\s+\d+\s+(\d+%)/'
   artifacts:
     when: always
     paths:
       - artifacts/sample-gate/
+      - coverage.xml
+      - htmlcov/
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage.xml
 
 almalinux-python36:
   image: almalinux:8

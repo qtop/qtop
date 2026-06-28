@@ -286,7 +286,29 @@ def main():
     for case in cases:
         result = run_case(case, artifact_dir, args.timeout)
         results.append(result)
-        print("%s: %s" % (result["name"], "ok" if result["ok"] else "failed"))
+        if result["ok"]:
+            print("%s: ok" % result["name"])
+        else:
+            print("%s: failed" % result["name"])
+            print("  Error: %s" % result.get("error", "unknown validation error"))
+            if result.get("missing_markers"):
+                print("  Missing markers: %s" % ", ".join("'%s'" % m for m in result["missing_markers"]))
+            if result.get("returncode") is not None:
+                print("  Exit code: %s" % result["returncode"])
+            # Display recent stderr log entries for quicker CI diagnosis
+            artifact = result.get("artifact")
+            if artifact:
+                case_dir = ROOT / artifact
+                stderr_path = case_dir / "stderr.log"
+                if stderr_path.exists():
+                    try:
+                        stderr_content = stderr_path.read_text(encoding="utf-8").strip()
+                        if stderr_content:
+                            print("  Stderr output (last 10 lines):")
+                            for line in stderr_content.splitlines()[-10:]:
+                                print("    %s" % line)
+                    except Exception:
+                        pass
 
     failures = [result for result in results if not result["ok"]]
     summary = {
