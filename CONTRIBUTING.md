@@ -29,6 +29,38 @@ Please follow common conventions for Open Source projects, f.i. align to Electro
 - For new features or fixes, either open a new issue or leave a comment on a relevant case that is already open
 - Let's avoid storing artifacts in the main `qtop` repo and keep it light; use the repo `qtop-artifacts` instead.
 
+## Testing & Validation Workflow
+
+Contributors should run local validation before submitting a pull request to ensure all changes pass the project's quality checks. The project uses a shared, local-first validation contract managed through the `Makefile`:
+
+- Run the full local/CI validation path (pytest unit tests, sample gates, linting, formatting checks, and fortifications):
+  ```bash
+  make ci
+  ```
+- Run the python test suite:
+  ```bash
+  make test
+  ```
+- Run tests with coverage and print terminal, HTML, and XML coverage reports:
+  ```bash
+  make coverage
+  ```
+- Run the fast committed scheduler validation sample gate:
+  ```bash
+  make sample-gate
+  ```
+- Run light source-health, formatting checks, and fortifications:
+  ```bash
+  make lint
+  make fortifications
+  ```
+- Clean up all local validation, coverage, build, and temporary artifacts:
+  ```bash
+  make clean
+  ```
+
+For more detailed information on validation gates and CI behavior, see the project documentation under `docs/`.
+
 ## Proof of humanity
 
 Due to many incoming PRs, it is needed to extend the effort to deal with the advent of bots; part of this is yours.

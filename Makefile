@@ -27,7 +27,7 @@ all: ci-deps test coverage backend-validation backend-colour-artifacts render-ba
 rerun: clean all ## Clean generated files, then rerun the complete local validation path
 
 clean: confirm ## Remove generated validation, build, and Python cache output
-	rm -rf artifacts build dist .coverage .pytest_cache .ruff_cache qtop.egg-info
+	rm -rf artifacts build dist .coverage .pytest_cache .ruff_cache qtop.egg-info coverage.xml htmlcov
 	find . -type d -name __pycache__ -prune -exec rm -rf {} +
 	find . -type f \( -name '*.pyc' -o -name '*.pyo' \) -delete
 
@@ -37,9 +37,11 @@ ci-deps: ## Install pinned CI Python dependencies
 test: ## Run the Python test suite
 	$(PYTHON) -m pytest
 
-coverage: ## Run tests with coverage.py and print a terminal report
+coverage: ## Run tests with coverage.py and print terminal/XML/HTML reports
 	$(PYTHON) -m coverage run -m pytest
 	$(PYTHON) -m coverage report
+	$(PYTHON) -m coverage xml
+	$(PYTHON) -m coverage html
 
 sample-gate: ## Run fast committed PBS/SGE/Slurm/OAR/demo qtop sample gates
 	$(PYTHON) tools/validate_scheduler_samples.py --schedulers $(SAMPLE_GATE_SCHEDULERS) --max-failures $(SAMPLE_GATE_MAX_FAILURES) --artifact-dir $(SAMPLE_GATE_ARTIFACT_DIR)
@@ -96,9 +98,9 @@ compat-py36: ## Run dependency-light Python 3.6 compatibility checks
 
 ci: test backend-validation lint ruff-check format-check ## Run the shared local/CI validation path
 
-github-ci: ci ## GitHub Actions entry point for test validation
+github-ci: coverage backend-validation lint ruff-check format-check ## GitHub Actions entry point for test validation
 
-gitlab-ci: ci ## GitLab CI entry point for test validation
+gitlab-ci: coverage backend-validation lint ruff-check format-check ## GitLab CI entry point for test validation
 
 build: ci-deps ## Build source and wheel distributions with pinned CI build deps
 	$(PYTHON) -m build --no-isolation
