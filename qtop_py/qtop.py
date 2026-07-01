@@ -16,6 +16,7 @@
 ##
 
 import sys
+import shlex
 
 from operator import itemgetter
 from itertools import zip_longest, cycle
@@ -25,6 +26,7 @@ import select
 import os
 import re
 import json
+import getpass
 import datetime
 from collections import namedtuple, OrderedDict, Counter
 from os.path import realpath
@@ -34,9 +36,10 @@ try:
     from signal import SIGPIPE
 except ImportError:
     SIGPIPE = None
+
 try:
     import termios
-except ImportError:
+except ImportError:  # pragma: no cover - exercised on Windows
     termios = None
 import contextlib
 import glob
@@ -75,6 +78,39 @@ PLUGIN_BATCH_SYSTEMS = (DemoBatchSystem, OARBatchSystem, PBSBatchSystem, SGEBatc
 def reset_sigpipe():
     if SIGPIPE is not None:
         signal(SIGPIPE, SIG_DFL)
+
+
+def _reset_sigpipe():
+    reset_sigpipe()
+
+
+def _termios_enabled(old_attrs=None, new_attrs=None):
+    return termios is not None and bool(old_attrs) and bool(new_attrs)
+
+
+def _resolved_savepath(path):
+    path = path.replace("$USER", os.environ.get("USER", getpass.getuser() or "user"))
+    path = os.path.expandvars(path)
+    if os.name == "nt" and path.startswith("/tmp/"):
+        path = os.path.join(tempfile.gettempdir(), path[len("/tmp/") :].replace("/", os.sep))
+    return os.path.realpath(path)
+
+
+def _print_file(path, stdout):
+    with open(path, "r", encoding="utf-8", errors="replace") as rendered:
+        stdout.write(rendered.read())
+        stdout.flush()
+
+
+def _clear_screen(stdout):
+    if os.name == "nt":
+        stdout.write("\033[2J\033[H")
+        stdout.flush()
+        return
+
+    clear_command = shutil.which("clear")
+    if clear_command:
+        _ = subprocess.call([clear_command], stdout=stdout, stderr=stdout)
 
 
 def _configured_separator(config):
@@ -202,6 +238,11 @@ def raw_mode(file):
     if args.ONLYSAVETOFILE:
         yield
     elif termios is None:
+        if args.WATCH:
+            try:
+                file.fileno()
+            except (AttributeError, OSError):
+                pass
         yield
     else:
         if args.WATCH:
@@ -294,7 +335,7 @@ def load_yaml_config():
         config["remapping"] = list()
     config["possible_ids"] = _available_possible_ids(config)
 
-    _savepath = os.path.realpath(os.path.expandvars(config["savepath"]))
+    _savepath = _resolved_savepath(config["savepath"])
 
     if not os.path.exists(_savepath):
         fileutils.mkdir_p(_savepath)
@@ -317,10 +358,18 @@ def calculate_term_size(config, FALLBACK_TERM_SIZE, viewport):
     Gets the dimensions of the terminal window where qtop will be displayed.
 
     ``viewport`` is passed explicitly so this helper does not depend on global
-    state. If ``stty`` is absent, cannot be started, or returns unusable output,
+    state. If the OS terminal query and ``stty`` are unavailable or unusable,
     the viewport size is used before the configured fallback.
     """
     fallback_term_size = config.get("term_size", FALLBACK_TERM_SIZE)
+
+    try:
+        size = os.get_terminal_size()
+    except OSError:
+        pass
+    else:
+        logging.debug("terminal size v, h from os.get_terminal_size(): %s, %s" % (size.lines, size.columns))
+        return size.lines, size.columns
 
     stty = shutil.which("stty")
     tty_size, error = b"", b"stty not found"
@@ -406,7 +455,14 @@ def execute_shell_batch_commands(batch_system_commands, filenames, _file, _savep
         # from the yaml file is executed with the rest of the line treated as
         # arguments, this enables shell=False, and keeps us from having
         # injected commands
-        command = subprocess.Popen(_batch_system_command.split(), stdout=fin, stderr=subprocess.PIPE)
+        command_args = shlex.split(_batch_system_command, posix=os.name != "nt")
+        use_shell = os.name == "nt" and command_args and command_args[0].lower() == "echo"
+        command = subprocess.Popen(
+            _batch_system_command if use_shell else command_args,
+            stdout=fin,
+            stderr=subprocess.PIPE,
+            shell=use_shell,
+        )
         error = command.communicate()[1]
         command.wait()
         if error:
@@ -441,8 +497,29 @@ def get_detail_of_name(account_jobs_table):
         passwd_command = extract_info.get("user_details_realtime") % users
         passwd_command = passwd_command.split()
     else:
+        cache_path = os.path.expandvars(extract_info.get("user_details_cache").split()[-1])
+        try:
+            with open(cache_path, "r", encoding="utf-8") as cache_file:
+                output = cache_file.read()
+        except OSError:
+            return dict()
+        else:
+            detail_of_name = dict()
+            for line in output.split("\n"):
+                try:
+                    user, field = line.strip().split(sep)[0 : field_idx : field_idx - 1]
+                except ValueError:
+                    break
+                else:
+                    try:
+                        detail = extract_regex_detail(regex, field)
+                    except (AttributeError, TypeError, ValueError):
+                        detail = field.strip()
+                    finally:
+                        detail_of_name[user] = detail
+            return detail_of_name
         passwd_command = extract_info.get("user_details_cache").split()
-        passwd_command[-1] = os.path.expandvars(passwd_command[-1])
+        passwd_command[-1] = cache_path
 
     try:
         p = subprocess.Popen(passwd_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding="utf-8")
@@ -610,8 +687,9 @@ def control_qtop(viewport, read_char, cluster, old_attrs, new_attrs):
         for nr, sort_method in sort_map.items():
             print("(%s): %s" % (colorize(nr, color_func="Red_L"), sort_method[0]))
 
-        new_attrs[3] = new_attrs[3] & ~(termios.ECHO | termios.ICANON)
-        termios.tcsetattr(sys.__stdin__.fileno(), termios.TCSADRAIN, old_attrs)
+        if _termios_enabled(old_attrs, new_attrs):
+            new_attrs[3] = new_attrs[3] & ~(termios.ECHO | termios.ICANON)
+            termios.tcsetattr(sys.__stdin__.fileno(), termios.TCSADRAIN, old_attrs)
 
         dynamic_config["user_sort"] = []
         while True:
@@ -633,7 +711,8 @@ def control_qtop(viewport, read_char, cluster, old_attrs, new_attrs):
             dynamic_config["user_sort"] = sort_args
             break
 
-        termios.tcsetattr(sys.__stdin__.fileno(), termios.TCSADRAIN, new_attrs)
+        if _termios_enabled(old_attrs, new_attrs):
+            termios.tcsetattr(sys.__stdin__.fileno(), termios.TCSADRAIN, new_attrs)
         viewport.reset_display()
 
     elif pressed_char_hex in ["66"]:  # f
@@ -672,8 +751,9 @@ def control_qtop(viewport, read_char, cluster, old_attrs, new_attrs):
                 "ten": colorize("(10)", color_func="Red_L"),
             }
         )
-        new_attrs[3] = new_attrs[3] & ~(termios.ECHO | termios.ICANON)
-        termios.tcsetattr(sys.__stdin__.fileno(), termios.TCSADRAIN, old_attrs)
+        if _termios_enabled(old_attrs, new_attrs):
+            new_attrs[3] = new_attrs[3] & ~(termios.ECHO | termios.ICANON)
+            termios.tcsetattr(sys.__stdin__.fileno(), termios.TCSADRAIN, old_attrs)
 
         dynamic_config["filtering"] = []
         while True:
@@ -700,7 +780,8 @@ def control_qtop(viewport, read_char, cluster, old_attrs, new_attrs):
 
             dynamic_config["filtering"].append({filter_map[filter_choice]: filter_args})
 
-        termios.tcsetattr(sys.__stdin__.fileno(), termios.TCSADRAIN, new_attrs)
+        if _termios_enabled(old_attrs, new_attrs):
+            termios.tcsetattr(sys.__stdin__.fileno(), termios.TCSADRAIN, new_attrs)
         viewport.reset_display()
 
     elif pressed_char_hex in ["48"]:  # H
@@ -726,8 +807,9 @@ def control_qtop(viewport, read_char, cluster, old_attrs, new_attrs):
                 "six": colorize("(6)", color_func="Red_L"),
             }
         )
-        new_attrs[3] = new_attrs[3] & ~(termios.ECHO | termios.ICANON)
-        termios.tcsetattr(sys.__stdin__.fileno(), termios.TCSADRAIN, old_attrs)
+        if _termios_enabled(old_attrs, new_attrs):
+            new_attrs[3] = new_attrs[3] & ~(termios.ECHO | termios.ICANON)
+            termios.tcsetattr(sys.__stdin__.fileno(), termios.TCSADRAIN, old_attrs)
 
         dynamic_config["highlight"] = []
         while True:
@@ -754,7 +836,8 @@ def control_qtop(viewport, read_char, cluster, old_attrs, new_attrs):
 
             dynamic_config["highlight"].append({filter_map[filter_choice]: filter_args})
 
-        termios.tcsetattr(sys.__stdin__.fileno(), termios.TCSADRAIN, new_attrs)
+        if _termios_enabled(old_attrs, new_attrs):
+            termios.tcsetattr(sys.__stdin__.fileno(), termios.TCSADRAIN, new_attrs)
         viewport.reset_display()
 
     elif pressed_char_hex in ["3f"]:  # ?
@@ -1781,7 +1864,7 @@ class TextDisplay(object):
         return joined_list
 
     def print_core_lines(self, core_user_map, print_char_start, print_char_stop, transposed_matrices, userid_to_userid_re_pat, mapping, attrs, options1, options2):
-        reset_sigpipe()
+        _reset_sigpipe()
         remove_corelines = dynamic_config.get("rem_empty_corelines", config["rem_empty_corelines"]) + 1
 
         # if corelines vertical (transposed matrix)
@@ -1804,7 +1887,7 @@ class TextDisplay(object):
                     print(core_line_zipped)
                 except IOError:
                     try:
-                        reset_sigpipe()
+                        _reset_sigpipe()
                         print(core_line_zipped)
                         sys.stdout.close()
                     except IOError:
@@ -2444,7 +2527,7 @@ def main():
         else:
             try:
                 old_attrs = termios.tcgetattr(0)
-            except termios.error:
+            except (AttributeError, termios.error):
                 old_attrs = ""
             new_attrs = old_attrs[:]
 
@@ -2552,8 +2635,7 @@ def main():
                 if args.ONLYSAVETOFILE:  # no display of qtop output, will exit
                     break
                 elif not args.WATCH:  # one-off display of qtop output, will exit afterwards (no --watch cmdline switch)
-                    cat_command = ["/bin/cat", output_fp]  # not clearing the screen beforehand is the intended behaviour here
-                    _ = subprocess.call(cat_command, stdout=stdout, stderr=stdout)
+                    _print_file(output_fp, stdout)  # not clearing the screen beforehand is the intended behaviour here
                     break
                 else:  # --watch
                     if args.REPLAY:
@@ -2565,10 +2647,8 @@ def main():
                     else:
                         output_partview_fp = display.show_part_view(timestr, file=dynamic_config.get("output_fp", output_fp), x=viewport.v_start, y=viewport.v_term_size)
                         logging.debug("dynamic_config filename in main loop: %s" % dynamic_config.get("output_fp", output_fp))
-                    clear_command = ["/usr/bin/clear"]
-                    cat_command = ["/bin/cat", output_partview_fp]
-                    _ = subprocess.call(clear_command, stdout=stdout, stderr=stdout)
-                    _ = subprocess.call(cat_command, stdout=stdout, stderr=stdout)
+                    _clear_screen(stdout)
+                    _print_file(output_partview_fp, stdout)
 
                     read_char = wait_for_keypress_or_autorefresh(viewport, FALLBACK_TERMSIZE, int(args.WATCH) or KEYPRESS_TIMEOUT)
                     control_qtop(viewport, read_char, cluster, old_attrs, new_attrs)
