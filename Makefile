@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 
-.PHONY: help all rerun clean ci-deps test coverage sample-gate backend-validation backend-colour-artifacts render-backends trace-export-validation test-pbs-samples test-slurm-samples fortifications ruff-check lint lint-fix format-check format-fix compat-py36 ci github-ci gitlab-ci build github-build gitlab-build dist version confirm
+.PHONY: help all rerun clean ci-deps test coverage coverage-report quick sample-gate backend-validation backend-colour-artifacts render-backends trace-export-validation test-pbs-samples test-slurm-samples fortifications ruff-check lint lint-fix format-check format-fix compat-py36 ci github-ci gitlab-ci build github-build gitlab-build dist version confirm
 
 PYTHON ?= python3
 PIP ?= $(PYTHON) -m pip
@@ -17,29 +17,46 @@ PBS_OUTPUT_DIR ?= /tmp/qtop-pbs-rendered
 SLURM_SAMPLES_DIR ?= tests/plugins/slurm_samples
 SLURM_OUTPUT_DIR ?= /tmp/qtop-slurm-rendered
 FORTIFY_BASE_REF ?= origin/develop
+COVERAGE_HTML_DIR ?= htmlcov
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z0-9_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
-		| awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
+		| awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-30s\033[0m %s\n", $$1, $$2}'
+
+# ============================================================================
+# Primary targets
+# ============================================================================
 
 all: ci-deps test coverage backend-validation backend-colour-artifacts render-backends trace-export-validation test-pbs-samples test-slurm-samples fortifications ruff-check lint format-check compat-py36 ci github-ci gitlab-ci build github-build gitlab-build dist version ## Run every local validation and build target
 
 rerun: clean all ## Clean generated files, then rerun the complete local validation path
 
-clean: confirm ## Remove generated validation, build, and Python cache output
-	rm -rf artifacts build dist .coverage .pytest_cache .ruff_cache qtop.egg-info
-	find . -type d -name __pycache__ -prune -exec rm -rf {} +
-	find . -type f \( -name '*.pyc' -o -name '*.pyo' \) -delete
+quick: ci-deps ## Run fast developer iteration (unit tests only, skip slow checks)
+	$(PYTHON) -m pytest -x --timeout=30 -m "not slow"
 
 ci-deps: ## Install pinned CI Python dependencies
 	$(PIP) install -r requirements-ci.txt
 
-test: ## Run the Python test suite
+# ============================================================================
+# Testing
+# ============================================================================
+
+test: ## Run the entire Python test suite
 	$(PYTHON) -m pytest
 
-coverage: ## Run tests with coverage.py and print a terminal report
+coverage: ## Run tests with coverage.py and print a terminal coverage report
 	$(PYTHON) -m coverage run -m pytest
 	$(PYTHON) -m coverage report
+
+coverage-report: ## Generate an HTML coverage report (opens in browser if available)
+	$(PYTHON) -m coverage run -m pytest
+	$(PYTHON) -m coverage report
+	$(PYTHON) -m coverage html --directory=$(COVERAGE_HTML_DIR)
+	@echo "Coverage HTML report written to $(COVERAGE_HTML_DIR)/index.html"
+
+# ============================================================================
+# Scheduler validation gates
+# ============================================================================
 
 sample-gate: ## Run fast committed PBS/SGE/Slurm/OAR/demo qtop sample gates
 	$(PYTHON) tools/validate_scheduler_samples.py --schedulers $(SAMPLE_GATE_SCHEDULERS) --max-failures $(SAMPLE_GATE_MAX_FAILURES) --artifact-dir $(SAMPLE_GATE_ARTIFACT_DIR)
@@ -71,6 +88,10 @@ test-slurm-samples: ## Run Slurm parser tests and render committed Slurm samples
 	$(PYTHON) -m pytest tests/plugins/test_slurm.py
 	$(PYTHON) tools/validate_slurm_samples.py $(SLURM_SAMPLES_DIR) --output $(SLURM_OUTPUT_DIR)
 
+# ============================================================================
+# Linting & formatting
+# ============================================================================
+
 fortifications: ## Check diff health and reject eval() call sites
 	$(PYTHON) tools/fortifications.py --base-ref $(FORTIFY_BASE_REF)
 
@@ -90,15 +111,27 @@ format-check: ## Check ruff formatting and branch diff whitespace
 format-fix: ## Auto-format Python files with ruff
 	$(PYTHON) -m ruff format .
 
+# ============================================================================
+# Compatibility
+# ============================================================================
+
 compat-py36: ## Run dependency-light Python 3.6 compatibility checks
 	find qtop_py tools -name '*.py' -print | xargs $(PYTHON) -m py_compile
 	$(PYTHON) tools/validate_scheduler_samples.py --schedulers $(SAMPLE_GATE_SCHEDULERS) --max-failures $(SAMPLE_GATE_MAX_FAILURES) --artifact-dir $(SAMPLE_GATE_ARTIFACT_DIR)-py36
+
+# ============================================================================
+# CI entry points
+# ============================================================================
 
 ci: test backend-validation lint ruff-check format-check ## Run the shared local/CI validation path
 
 github-ci: ci ## GitHub Actions entry point for test validation
 
 gitlab-ci: ci ## GitLab CI entry point for test validation
+
+# ============================================================================
+# Build & distribution
+# ============================================================================
 
 build: ci-deps ## Build source and wheel distributions with pinned CI build deps
 	$(PYTHON) -m build --no-isolation
@@ -111,6 +144,16 @@ dist: build ## Alias for build, matching common release target names
 
 version: ## Print the package version
 	$(PYTHON) -c "import qtop_py; print(qtop_py.__version__)"
+
+# ============================================================================
+# Cleanup
+# ============================================================================
+
+clean: confirm ## Remove generated validation, build, and Python cache output
+	rm -rf artifacts build dist .coverage .pytest_cache .ruff_cache qtop.egg-info
+	find . -type d -name __pycache__ -prune -exec rm -rf {} +
+	find . -type f \( -name '*.pyc' -o -name '*.pyo' \) -delete
+	rm -rf $(COVERAGE_HTML_DIR)
 
 confirm: ## Ask for human confirmation before release-like tasks
 	@echo "Are you sure? [y/N]" && read ans && [ $${ans:-N} = y ]

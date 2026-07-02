@@ -1,0 +1,40 @@
+##
+## CI Demo — companion project for qtop CI/CD patterns
+##
+## SPDX-License-Identifier: MIT
+##
+
+stages:
+  - test
+  - build
+
+test:
+  image: python:3.12-bookworm
+  stage: test
+  before_script:
+    - apt-get update
+    - apt-get install -y --no-install-recommends make
+    - make ci-deps PYTHON=python
+  script:
+    - make ci PYTHON=python
+    - make coverage PYTHON=python
+  artifacts:
+    when: always
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage.xml
+
+build:
+  image: python:3.12-bookworm
+  stage: build
+  needs:
+    - test
+  before_script:
+    - apt-get update
+    - apt-get install -y --no-install-recommends make
+  script:
+    - make build PYTHON=python
+  artifacts:
+    paths:
+      - dist/

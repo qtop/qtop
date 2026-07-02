@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=78.1.1"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ci-demo"
+dynamic = ["version"]
+description = "Companion project demonstrating qtop CI/CD patterns"
+requires-python = ">=3.10"
+
+[project.urls]
+"Homepage" = "https://github.com/qtop/qtop/tree/main/docs/examples/ci-demo"
+
+[tool.setuptools.dynamic]
+version = {attr = "ci_demo.__version__"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+target-version = "py310"
+lint.select = ["E", "F", "I"]
+line-length = 100
