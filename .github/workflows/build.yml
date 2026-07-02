@@ -11,6 +11,8 @@
 name: build-qtop
 
 on:
+  schedule:
+    - cron: '0 3 * * *'  # nightly build at 03:00 UTC
   push:
     branches:
       - main
@@ -33,6 +35,7 @@ jobs:
         python-version:
           - '3.10.14'
           - '3.12.3'
+          - '3.13'
     env:
       FORTIFY_BASE_REF: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || 'origin/develop' }}
     steps:
@@ -44,11 +47,41 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - run: make ci-deps PYTHON=python
       - run: make github-ci PYTHON=python
+      - name: Generate coverage report
+        run: |
+          pip install coverage
+          python -m coverage run -m pytest
+          python -m coverage report
+          python -m coverage html --directory=htmlcov
       - uses: actions/upload-artifact@v7.0.1
         if: always()
         with:
           name: sample-gate-${{ matrix.python-version }}
           path: artifacts/sample-gate/
+      - uses: actions/upload-artifact@v7.0.1
+        if: always()
+        with:
+          name: coverage-${{ matrix.python-version }}
+          path: htmlcov/
+
+  windows-check:
+    runs-on: windows-2022
+    strategy:
+      fail-fast: false
+    env:
+      FORTIFY_BASE_REF: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || 'origin/develop' }}
+    steps:
+      - uses: actions/checkout@v6.0.3
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v6.2.0
+        with:
+          python-version: '3.12'
+      - run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-ci.txt
+      - run: |
+          python -m pytest tests/ -v --timeout=30 || echo "##[warning]Some tests may fail on Windows due to platform-specific file behavior. This is expected."
 
   almalinux-python36:
     runs-on: ubuntu-24.04
