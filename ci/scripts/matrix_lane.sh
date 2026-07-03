@@ -2,9 +2,7 @@
 ##
 ## qtop is a tool to monitor queuing systems - https://github.com/qtop/qtop
 ##
-## Copyright (c) 2016 Fotis Georgatos
-## Copyright (c) 2016 Sotiris Fragkiskos
-## Copyright (c) 2026 Vadik-x
+## Copyright (c) 2026 Vadik Malik
 ##
 ## SPDX-License-Identifier: MIT
 ##
@@ -67,19 +65,19 @@ case "${FAMILY}" in
             make ca-certificates ${PKG_LIST}
         ;;
     rhel|fedora|amazon)
-        # "which" is required by qtop scheduler autodetection
-        # (qtop_py/qtop.py calls /usr/bin/which) and is absent from minimal
-        # images; discovered by the first live run of this matrix.
-        dnf -y install make findutils which ${PKG_LIST}
+        # No "which" package needed: qtop autodetection now uses stdlib
+        # shutil.which() (qtop_py/qtop.py), so the external binary the first
+        # live run tripped over on minimal images is no longer a dependency.
+        dnf -y install make findutils ${PKG_LIST}
         ;;
     suse)
         # refresh is best-effort: openSUSE mirrors intermittently return
         # partial-refresh errors (exit 4); install fails on its own merit.
         zypper --non-interactive refresh || true
-        zypper --non-interactive install make which ${PKG_LIST}
+        zypper --non-interactive install make ${PKG_LIST}
         ;;
     arch)
-        pacman -Sy --noconfirm make which ${PKG_LIST}
+        pacman -Sy --noconfirm make ${PKG_LIST}
         ;;
     *)
         echo "unknown family: ${FAMILY}" >&2

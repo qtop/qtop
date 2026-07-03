@@ -20,6 +20,7 @@ import sys
 from operator import itemgetter
 from itertools import zip_longest, cycle
 import subprocess
+import shutil
 import select
 import os
 import re
@@ -354,8 +355,11 @@ def auto_get_avail_batch_system(config):
     """
     # TODO pbsnodes etc should not be hardcoded!
     for system, batch_command in config["signature_commands"].items():
-        NOT_FOUND = subprocess.call(["/usr/bin/which", batch_command], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        if not NOT_FOUND:
+        # shutil.which() resolves the command against PATH using the stdlib,
+        # so qtop no longer shells out to a hardcoded /usr/bin/which (absent on
+        # minimal container images, and itself an external dependency). It
+        # returns the resolved path, or None when the command is not found.
+        if shutil.which(batch_command):
             if system != "demo":
                 logging.debug("Auto-detected scheduler: %s" % system)
                 return system

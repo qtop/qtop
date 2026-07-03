@@ -1,9 +1,7 @@
 ##
 ## qtop is a tool to monitor queuing systems - https://github.com/qtop/qtop
 ##
-## Copyright (c) 2016 Fotis Georgatos
-## Copyright (c) 2016 Sotiris Fragkiskos
-## Copyright (c) 2026 Vadik-x
+## Copyright (c) 2026 Vadik Malik
 ##
 ## SPDX-License-Identifier: MIT
 ##
@@ -16,7 +14,7 @@
 # (same order, same fields) so both forges watch the same surface.
 #
 # Activation (one-time, GitLab UI): Build > Pipeline schedules > New schedule
-#   - interval pattern: 30 2 * * *
+#   - interval pattern: 20 4 * * *
 #   - add variable NIGHTLY_MATRIX=1
 # A manual web-triggered pipeline with NIGHTLY_MATRIX=1 runs the same lanes
 # on demand. Regular branch/MR pipelines never run these jobs.

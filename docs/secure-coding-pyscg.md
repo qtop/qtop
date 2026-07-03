@@ -59,13 +59,16 @@ Proposed next steps:
    operator's trust domain -- state this explicitly in the config docs.
 3. The single partial-path call sites (`git` in `tools/`) are dev/CI-side
    tools resolving from PATH by design; annotate rather than change.
-4. Live-matrix discovery: scheduler autodetection shells out to a
-   *hardcoded* `/usr/bin/which` (`qtop_py/qtop.py:357`), which raises
-   `FileNotFoundError` on minimal images without the `which` package (5
-   test failures on AlmaLinux/Rocky/Fedora/Amazon/Arch lanes in the first
-   nightly-matrix run). Proposed fix: replace with stdlib
-   `shutil.which()` -- no new dependency, removes both the hardcoded path
-   and the external binary requirement.
+4. Live-matrix discovery, now FIXED in this PR: scheduler autodetection
+   used a *hardcoded* `/usr/bin/which` (`qtop_py/qtop.py:357`), which raised
+   `FileNotFoundError` on minimal images without the `which` package (5 test
+   failures on AlmaLinux/Rocky/Fedora/Amazon/Arch lanes in the first
+   nightly-matrix run, 27360317465). Replaced with stdlib `shutil.which()`:
+   no new dependency, removes both the hardcoded path and the external-binary
+   requirement, and lets the matrix drop its per-lane `which` install. No
+   regression: 139 tests still pass on 3.12 and 3.6, the
+   `scheduler_not_specified` tests pass, and the previously red lanes no
+   longer need `which` at all (before/after in the evidence repo).
 
 ### 3. Pseudo-random use -- acceptable, scope it
 

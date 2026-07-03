@@ -2,9 +2,7 @@
 ##
 ## qtop is a tool to monitor queuing systems - https://github.com/qtop/qtop
 ##
-## Copyright (c) 2016 Fotis Georgatos
-## Copyright (c) 2016 Sotiris Fragkiskos
-## Copyright (c) 2026 Vadik-x
+## Copyright (c) 2026 Vadik Malik
 ##
 ## SPDX-License-Identifier: MIT
 ##
@@ -94,14 +92,25 @@ SKIP_DIRS = set(
 MAX_BYTES = 5 * 1024 * 1024
 REPORT_CAP = 20
 
-# Files whose entire purpose is captured terminal output: ANSI escape
-# sequences and bare carriage returns are expected there and aggregate to a
-# single INFO finding. Any OTHER control/bidi/invisible character still
-# escalates normally, even inside these files.
+# Files whose entire purpose is captured terminal output, where ANSI escape
+# sequences and bare carriage returns are expected and aggregate to a single
+# INFO finding instead of thousands of control-character CRITICALs. Any OTHER
+# control/bidi/invisible character still escalates normally inside them.
+#   - qtop_py/contrib/  : recorded scheduler render fixtures (the *.ref files
+#                         the sample gates diff against) -- full of ESC colour
+#                         codes by design.
+#   - helpfile.txt      : qtop's in-app help screen, shipped as pre-rendered
+#                         terminal text (ANSI-coloured) and printed verbatim
+#                         by the tool, so it legitimately contains ESC codes.
 ANSI_FIXTURES = ("qtop_py/contrib/", "helpfile.txt")
 
 
 def is_ansi_fixture(rel):
+    """Return True if ``rel`` is a declared terminal-output fixture path.
+
+    Matches an ANSI_FIXTURES entry exactly or as a directory prefix, so both
+    ``helpfile.txt`` (exact) and everything under ``qtop_py/contrib/`` count.
+    """
     for prefix in ANSI_FIXTURES:
         if rel == prefix or rel.startswith(prefix):
             return True
@@ -109,6 +118,12 @@ def is_ansi_fixture(rel):
 
 
 def tracked_files(root):
+    """Yield every file git tracks under ``root`` (falls back to os.walk).
+
+    Using ``git ls-files`` keeps the audit aligned with what is actually
+    committed (ignoring untracked scratch files); if git is unavailable the
+    os.walk fallback skips SKIP_DIRS so results stay comparable.
+    """
     try:
         out = subprocess.check_output(["git", "ls-files", "-z"], cwd=str(root), stderr=subprocess.DEVNULL)
         names = [n for n in out.decode("utf-8", "replace").split("\0") if n]
@@ -123,6 +138,11 @@ def tracked_files(root):
 
 
 def codepoint_label(ch):
+    """Return a human-readable ``U+XXXX NAME`` label for a character.
+
+    Falls back to ``UNNAMED`` for codepoints unicodedata cannot name, so the
+    report never crashes on an obscure control character.
+    """
     try:
         name = unicodedata.name(ch)
     except ValueError:
@@ -131,6 +151,11 @@ def codepoint_label(ch):
 
 
 def is_homoglyph_risk(ch):
+    """Return True if ``ch`` falls in a homoglyph-prone Unicode range.
+
+    Covers Greek, Cyrillic, and fullwidth Latin blocks (HOMOGLYPH_RANGES) --
+    letters that look like ASCII but are not, a common spoofing vector.
+    """
     cp = ord(ch)
     for lo, hi in HOMOGLYPH_RANGES:
         if lo <= cp <= hi:
@@ -139,6 +164,11 @@ def is_homoglyph_risk(ch):
 
 
 def proof_line(text, col):
+    """Render an escaped one-line excerpt with a caret under column ``col``.
+
+    Long lines are windowed around the offending column so the proof stays
+    readable; the text is unicode-escaped so the report itself is pure ASCII.
+    """
     visual = text
     if len(visual) > 160:
         start = max(0, col - 40)
@@ -149,6 +179,13 @@ def proof_line(text, col):
 
 
 def scan_file(path, rel, findings):
+    """Scan one file and append (severity, path, line, col, msg, proof) rows.
+
+    Skips binary content and oversized files, decodes as UTF-8 (a decode
+    failure is itself a CRITICAL finding), then classifies every non-plain-ASCII
+    codepoint by severity. Inside ANSI_FIXTURES, ESC and bare CR are tallied
+    into one expected-INFO row instead of flooding the report.
+    """
     try:
         data = path.read_bytes()
     except OSError as exc:
@@ -209,6 +246,12 @@ def scan_file(path, rel, findings):
 
 
 def write_reports(findings, report_dir, scanned):
+    """Write report.txt + findings.json and return (counts, report_text).
+
+    Per-line detail is capped at REPORT_CAP entries for each (file, kind) so a
+    fixture-heavy tree stays reviewable; suppressed extras are summarised in a
+    NOTE line. findings.json always carries the full, uncapped list.
+    """
     report_dir.mkdir(parents=True, exist_ok=True)
     counts = {"CRITICAL": 0, "WARNING": 0, "INFO": 0}
     lines = []
@@ -241,6 +284,11 @@ def write_reports(findings, report_dir, scanned):
 
 
 def run_audit(root, report_dir, strict):
+    """Audit every tracked text file under ``root`` and return an exit code.
+
+    Prints non-INFO findings to stdout, always writes the full report, and
+    returns 1 on any CRITICAL (or on WARNING when ``strict`` is set), else 0.
+    """
     findings = []
     scanned = 0
     for path in sorted(tracked_files(root)):
@@ -266,6 +314,12 @@ def run_audit(root, report_dir, strict):
 
 
 def selftest(report_dir):
+    """Plant one file per payload class and prove each is detected.
+
+    Writes bidi/zero-width/homoglyph/control/line-separator samples to a temp
+    dir, scans them, and fails (returns 1) if any planted file escapes with no
+    CRITICAL/WARNING -- so the detector's own correctness is demonstrable.
+    """
     tmp = Path(tempfile.mkdtemp(prefix="repo-sanity-selftest-"))
     plants = {
         "planted_bidi.py": 'access = "user\u202e" # privileged \u202d"\n',
@@ -291,6 +345,7 @@ def selftest(report_dir):
 
 
 def parse_args():
+    """Parse CLI options (--report-dir, --strict, --selftest)."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--report-dir", default="artifacts/repo-sanity", help="Directory for report.txt and findings.json")
     parser.add_argument("--strict", action="store_true", help="Treat WARNING findings as fatal")
@@ -299,6 +354,7 @@ def parse_args():
 
 
 def main():
+    """Entry point: run --selftest, or audit the repo and return its code."""
     args = parse_args()
     report_dir = Path(args.report_dir)
     if args.selftest:
