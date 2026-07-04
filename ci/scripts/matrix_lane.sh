@@ -71,10 +71,19 @@ case "${FAMILY}" in
         dnf -y install make findutils ${PKG_LIST}
         ;;
     suse)
-        # refresh is best-effort: openSUSE mirrors intermittently return
-        # partial-refresh errors (exit 4); install fails on its own merit.
+        # openSUSE mirrors intermittently skip a repo, so zypper exits with an
+        # informational code (4 on refresh, 106 = repo-skipped on install) even
+        # though the packages install fine. Tolerate zypper's informational
+        # range (100-107) and let the interpreter check below be the real gate;
+        # a genuine "package not found" (104) still surfaces there / at build.
         zypper --non-interactive refresh || true
-        zypper --non-interactive install make ${PKG_LIST}
+        if zypper --non-interactive install make ${PKG_LIST}; then
+            :
+        else
+            rc=$?
+            [ "$rc" -ge 100 ] && [ "$rc" -le 107 ] || exit "$rc"
+            echo "note: zypper returned informational code $rc (repo skipped); continuing"
+        fi
         ;;
     arch)
         pacman -Sy --noconfirm make ${PKG_LIST}

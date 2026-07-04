@@ -98,7 +98,7 @@ jobs:
               DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends git ca-certificates || true
               ;;
             rhel|fedora|amazon) dnf -y install git || true ;;
-            suse) zypper --non-interactive refresh || true; zypper --non-interactive install git ;;
+            suse) zypper --non-interactive refresh || true; zypper --non-interactive install git || true ;;
             arch) pacman -Sy --noconfirm git || true ;;
             *) echo "official image, git preinstalled" ;;
           esac
