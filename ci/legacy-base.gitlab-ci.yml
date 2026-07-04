@@ -1,0 +1,48 @@
+# ci/legacy-base.gitlab-ci.yml
+modern-python:
+  image: python:3.12.3-bookworm
+  stage: test
+  before_script:
+    - apt-get update
+    - apt-get install -y --no-install-recommends make git
+    - make ci-deps PYTHON=python
+    - export TARGET_BRANCH="${CI_MERGE_REQUEST_TARGET_BRANCH_NAME:-develop}"
+    - git fetch origin "${TARGET_BRANCH}:refs/remotes/origin/${TARGET_BRANCH}"
+    - export FORTIFY_BASE_REF="origin/${TARGET_BRANCH}"
+  script:
+    - make gitlab-ci PYTHON=python
+  artifacts:
+    when: always
+    paths:
+      - artifacts/sample-gate/
+
+almalinux-python36:
+  image: almalinux:8
+  stage: test
+  before_script:
+    - dnf -y install make findutils
+    - dnf -y install python36
+  script:
+    - |
+      PYTHON_BIN="$(command -v python3.6)"
+      "$PYTHON_BIN" --version
+      make compat-py36 PYTHON="$PYTHON_BIN"
+  artifacts:
+    when: always
+    paths:
+      - artifacts/sample-gate-py36/
+
+build:
+  image: python:3.12.3-bookworm
+  stage: build
+  needs:
+    - modern-python
+    - almalinux-python36
+  before_script:
+    - apt-get update
+    - apt-get install -y --no-install-recommends make
+  script:
+    - make gitlab-build PYTHON=python
+  artifacts:
+    paths:
+      - dist/
