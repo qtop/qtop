@@ -3,4 +3,9 @@ unicode_trust_audit:
   stage: audit
   image: python:3.12.3-bookworm
   script:
-    - echo "Scaffolding BIDI/Unicode validation scanner"
+    - echo "Executing full-tree Unicode, BIDI, and confusable trust validation script..."
+    - python3 ci/scripts/audit_unicode.py
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_PIPELINE_SOURCE == "push"
