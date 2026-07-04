@@ -28,6 +28,9 @@ def cli_main():
         if str(exc):
             sys.stderr.write("%s\n" % exc)
         return 1
+    except Exception as exc:
+        sys.stderr.write("Error: %s\n" % exc)
+        return 1
 
 
 if __name__ == "__main__":
