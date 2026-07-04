@@ -1,0 +1,6 @@
+# ci/trust-audit.gitlab-ci.yml
+unicode_trust_audit:
+  stage: audit
+  image: python:3.12.3-bookworm
+  script:
+    - echo "Scaffolding BIDI/Unicode validation scanner"

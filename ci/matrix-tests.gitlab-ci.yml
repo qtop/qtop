@@ -1,0 +1,8 @@
+# ci/matrix-tests.gitlab-ci.yml
+nightly_distro_matrix:
+  stage: test
+  image: ubuntu:24.04
+  script:
+    - echo "Scaffolding matrix pipeline lane for Challenge 9"
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
