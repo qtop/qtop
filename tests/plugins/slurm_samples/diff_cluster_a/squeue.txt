@@ -1,0 +1,4 @@
+1001|alice|R|compute|2|node001
+1002|bob|R|compute|1|node002
+1003|carol|PD|long|1|(Priority)
+1004|dave|R|gpu|4|gpu001
