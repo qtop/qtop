@@ -1,0 +1,4 @@
+node001|compute*|alloc|4
+node002|compute*|idle|4
+node004|long|drain|8
+gpu001|gpu|alloc|8

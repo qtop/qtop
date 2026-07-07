@@ -22,12 +22,13 @@ requires-python = ">=3"
 
 [project.scripts]
 qtop = "qtop_py.qtop:main"
+qtop-diff = "qtop_py.diff:main"
 
 [tool.setuptools.dynamic]
 version = {attr = "qtop_py.__version__"}
 
-[tool.setuptools]
-packages = ["qtop_py"]
+[tool.setuptools.packages.find]
+include = ["qtop_py", "qtop_py.*"]
 
 [tool.ruff]
 # Enable pycodestyle (`E`) and Pyflakes (`F`) codes by default.
