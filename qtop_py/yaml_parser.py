@@ -103,25 +103,28 @@ def get_line(fin, verbatim=False, SEPARATOR=None, DEF_INDENT=2):
 
 def convert_dash_key_in_dict(d):
     """
-    takes a dict of the form {'-': [...]} and converts it to [...]
-    """
-    try:
-        assert isinstance(d, dict)
-    except AssertionError:
-        return d  # TODO: Maybe this should fail, not be muted
+    Convert parser-internal ``{"-": [...]}`` values to regular lists.
 
-    for key_out in d:
-        if not (isinstance(d[key_out], dict) or len(d[key_out]) == 1):
-            continue
-        try:
-            for key_in in d[key_out]:
-                if key_in == "-" and key_out != "state":
-                    d[key_out] = d[key_out][key_in]
-        except TypeError:
-            return d
-        except IndexError:
-            continue
-    return d
+    Dash containers can appear below lists and nested dictionaries, so walk the
+    complete value tree.  Only unwrap dictionaries whose sole key is ``-``;
+    otherwise a valid sibling key would be discarded.  ``state`` keeps its
+    historical literal-dash behavior.
+    """
+    if not isinstance(d, dict):
+        return d
+
+    def convert(value, parent_key=None):
+        if isinstance(value, list):
+            return [convert(item) for item in value]
+        if not isinstance(value, dict):
+            return value
+
+        converted = {key: convert(child, key) for key, child in value.items()}
+        if parent_key != "state" and set(converted) == {"-"}:
+            return converted["-"]
+        return converted
+
+    return {key: convert(value, key) for key, value in d.items()}
 
 
 def parse(fn, DEF_INDENT=2):
