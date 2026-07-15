@@ -22,7 +22,6 @@ import tempfile
 from collections import OrderedDict, namedtuple
 from contextlib import redirect_stdout
 from pathlib import Path
-from types import SimpleNamespace
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -56,7 +55,7 @@ def load_exported_document(path):
 
 
 def qtop_args(show_account_totals=False, color="OFF"):
-    return SimpleNamespace(
+    return argparse.Namespace(
         COLOR=color,
         CLASSIC=False,
         WATCH=False,
@@ -105,7 +104,7 @@ def render_document(document, show_account_totals=False, color="OFF", term_heigh
     config["extract_info"] = None
     qtop.config = config
     qtop.user_to_color = user_to_color
-    qtop.web = SimpleNamespace(stop=lambda: None)
+    qtop.web = argparse.Namespace(stop=lambda: None)
     qtop.viewport = qtop.Viewport()
     qtop.viewport.set_term_size(term_height, term_columns)
     qtop.transposed_matrices = []
