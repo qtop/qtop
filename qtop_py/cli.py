@@ -10,7 +10,7 @@
 
 import re
 import sys
-from qtop_py.qtop import InvalidScheduler, NoSchedulerFound, SchedulerNotSpecified, main
+from qtop_py.qtop import InvalidScheduler, InvalidSourceDirectory, NoSchedulerFound, SchedulerNotSpecified, main
 
 
 def cli_main():
@@ -27,6 +27,9 @@ def cli_main():
     except (InvalidScheduler, NoSchedulerFound) as exc:
         if str(exc):
             sys.stderr.write("%s\n" % exc)
+        return 1
+    except InvalidSourceDirectory as exc:
+        sys.stderr.write("%s\n" % exc)
         return 1
 
 

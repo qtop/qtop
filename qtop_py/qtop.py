@@ -841,7 +841,10 @@ def init_dirs(args, _savepath):
     logging.debug("User-defined source directory: %s" % args.SOURCEDIR)
     args.workdir = args.SOURCEDIR or _savepath
     logging.debug("Working directory is now: %s" % args.workdir)
-    os.chdir(args.workdir)
+    try:
+        os.chdir(args.workdir)
+    except OSError as exc:
+        raise InvalidSourceDirectory("Cannot use source directory %s: %s" % (args.workdir, exc.strerror))
     return args
 
 
@@ -2360,6 +2363,10 @@ class InvalidScheduler(Exception):
     pass
 
 
+class InvalidSourceDirectory(Exception):
+    pass
+
+
 def main():
     # define global vars which are used out of scope
     global \
@@ -2406,6 +2413,8 @@ def main():
 
     viewport = Viewport()  # controls the part of the qtop matrix shown on screen
     max_line_len = 0
+    sample_out = None
+    scheduler_output_filenames = {}
 
     check_python_version()
     initial_cwd = os.getcwd()
@@ -2452,7 +2461,7 @@ def main():
                 scheduler_output_filenames = fetch_scheduler_files(args, config)
                 SAMPLE_FILENAME = fileutils.get_sample_filename(SAMPLE_FILENAME, config)
                 if args.SAMPLE:
-                    fileutils.tar_out = fileutils.init_sample_file(args, savepath, SAMPLE_FILENAME, scheduler_output_filenames, QTOPCONF_YAML, QTOPPATH)
+                    sample_out = fileutils.init_sample_file(args, savepath, SAMPLE_FILENAME, scheduler_output_filenames, QTOPCONF_YAML, QTOPPATH)
 
                 ###### Gather data ###############
                 #
@@ -2529,19 +2538,19 @@ def main():
                 fileutils.deprecate_old_output_files(config)
 
             if args.SAMPLE:
-                fileutils.tar_out = fileutils.add_to_sample([output_fp], fileutils.tar_out)
+                sample_out = fileutils.add_to_sample([output_fp], sample_out)
 
         except (KeyboardInterrupt, EOFError) as e:
             repr(e)
             fileutils.safe_exit_with_file_close(handle, output_fp, stdout, args, savepath, QTOP_LOGFILE, SAMPLE_FILENAME)
         finally:
-            if args.SAMPLE >= 1:
-                fileutils.tar_out = fileutils.add_to_sample([QTOP_LOGFILE], fileutils.tar_out)
+            if sample_out is not None:
+                sample_out = fileutils.add_to_sample([QTOP_LOGFILE], sample_out)
                 # add all scheduler output files to sample
                 for fn in scheduler_output_filenames:
                     if os.path.isfile(scheduler_output_filenames[fn]):
-                        fileutils.tar_out = fileutils.add_to_sample([scheduler_output_filenames[fn]], fileutils.tar_out)
-                fileutils.tar_out.close()
+                        sample_out = fileutils.add_to_sample([scheduler_output_filenames[fn]], sample_out)
+                sample_out.close()
 
 
 if __name__ == "__main__":

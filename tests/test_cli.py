@@ -32,6 +32,8 @@ def run_cli(tmp_path, *args):
         (("-d",), "No scheduler could be auto-detected"),
         (("-bb",), "Selected scheduler system not supported"),
         (("-b", "not-a-scheduler"), "Selected scheduler system not supported"),
+        (("-s", "missing-source"), "Cannot use source directory"),
+        (("-L",), "No scheduler could be auto-detected"),
     ),
 )
 def test_expected_cli_scheduler_errors_are_concise(tmp_path, args, expected):
