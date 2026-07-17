@@ -41,9 +41,9 @@ This pattern ensures that Python 3.6 compatibility is actively tested rather tha
 
 Both CI platforms use identical artifact paths:
 
-- `artifacts/sample-gate/` — sample validation output
-- `artifacts/sample-gate-py36/` — Python 3.6 compatibility output
-- `dist/` — built package distributions
+- `artifacts/sample-gate/` - sample validation output
+- `artifacts/sample-gate-py36/` - Python 3.6 compatibility output
+- `dist/` - built package distributions
 
 **Why it matters:** Identical paths mean that CI migration or parallel runs produce comparable results, and local `make` invocations produce files in the same locations CI would.
 
@@ -88,4 +88,4 @@ This pattern is generic enough to apply to any Python project. For example:
 - **scikit-learn**: Uses a similar `Makefile`-driven CI pattern with `make test`, `make lint`, etc.
 - **Apache Airflow**: Uses shared CI scripts (`ci/`) called from both GitHub Actions and self-hosted CI
 
-The key insight is that **the Makefile is the contract** — if both CI platforms call it, they stay in sync.
+The key insight is that **the Makefile is the contract** - if both CI platforms call it, they stay in sync.

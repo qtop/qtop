@@ -58,7 +58,7 @@ Reviewers can inspect these artifacts to understand what qtop produces **before*
 
 The repository contains committed scheduler output samples that serve as the canonical validation corpus:
 
-- **SLURM samples**: `tests/plugins/slurm_samples/` — multiple cluster configurations (basic, mixed, large_cluster, multi_partition)
+- **SLURM samples**: `tests/plugins/slurm_samples/` - multiple cluster configurations (basic, mixed, large_cluster, multi_partition)
 - **PBS samples**: tested via `test_pbs_sample_regressions.py` against historical PBS corpus
 
 ### Archived PBS Samples (local/external)
