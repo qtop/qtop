@@ -44,24 +44,23 @@ from qtop_py.constants import (
     SYMBOL_LONG_TAIL_USER,
     SYMBOL_UNKNOWN_NODE_STATE,
 )
-from qtop_py import fileutils
-from qtop_py import utils
-from qtop_py.plugins.demo import DemoBatchSystem
-from qtop_py.plugins.oar import OARBatchSystem
-from qtop_py.plugins.pbs import PBSBatchSystem
-from qtop_py.plugins.sge import SGEBatchSystem
-from qtop_py.plugins.slurm import SlurmBatchSystem
-from math import ceil
-from qtop_py.colormap import user_to_color_default, color_to_code, queue_to_color, nodestate_to_color_default
-import qtop_py.yaml_parser as yaml
-from qtop_py.ui.viewport import Viewport
-from qtop_py.web import Web
-from qtop_py import __version__
-import time
+import importlib
+import pkgutil
+import qtop_py.plugins
 
-here = sys.path[0]
-PLUGIN_BATCH_SYSTEMS = (DemoBatchSystem, OARBatchSystem, PBSBatchSystem, SGEBatchSystem, SlurmBatchSystem)
+def get_plugin_batch_systems():
+    """Dynamically discover and load all batch system plugins."""
+    plugins = []
+    for loader, module_name, is_pkg in pkgutil.iter_modules(qtop_py.plugins.__path__):
+        module = importlib.import_module(f"qtop_py.plugins.{module_name}")
+        for attr_name in dir(module):
+            attr = getattr(module, attr_name)
+            # Check if it's a class and ends with 'BatchSystem' (excluding the base class itself)
+            if isinstance(attr, type) and attr_name.endswith("BatchSystem") and attr_name != "BatchSystem":
+                plugins.append(attr)
+    return tuple(plugins)
 
+PLUGIN_BATCH_SYSTEMS = get_plugin_batch_systems()
 
 def _configured_separator(config):
     separator = config.get("SEPARATOR", config.get("vertical_separator", "|"))
