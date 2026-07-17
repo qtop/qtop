@@ -27,6 +27,7 @@ import json
 import datetime
 from collections import namedtuple, OrderedDict, Counter
 from os.path import realpath
+
 try:
     from signal import signal, SIGPIPE, SIG_DFL
 except ImportError:
