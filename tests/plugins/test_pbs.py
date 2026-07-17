@@ -4,6 +4,7 @@
 ## Copyright (c) 2016 Fotis Georgatos
 ## Copyright (c) 2016 Sotiris Fragkiskos
 ## Copyright (c) 2023 Hewlett Packard Enterprise Development LP
+## Copyright (c) 2026 Mateo Rojas Vargas
 ##
 ## SPDX-License-Identifier: MIT
 ##
@@ -33,8 +34,10 @@ def test_get_corejob_from_range(core_selections, result, job=None):
         (["0/10102182.f-batch01.grid.sinica.edu.tw", "1/10102106.f-batch01.grid.sinica.edu.tw"], [("10102182", "0"), ("10102106", "1")]),
         (["2/10102339.f-batch01.grid.sinica.edu.tw", "3/10104007.f-batch01.grid.sinica.edu.tw"], [("10102339", "2"), ("10104007", "3")]),
         (["3-5/10102339.f-batch01.grid.sinica.edu.tw"], [("10102339", "3"), ("10102339", "4"), ("10102339", "5")]),
+        (["0-2/10102339[7].f-batch01.grid.sinica.edu.tw"], [("10102339", "0"), ("10102339", "1"), ("10102339", "2")]),
         (["2257887.cluster-pbs5/0", "2257887.cluster-pbs5/1"], [("2257887", "0"), ("2257887", "1")]),
         (["2257887.cluster-pbs5/2", "2257887.cluster-pbs5/3"], [("2257887", "2"), ("2257887", "3")]),
+        (["2257887[7].cluster-pbs5/0-2"], [("2257887", "0"), ("2257887", "1"), ("2257887", "2")]),
     ),
 )
 def test_get_jobs_cores(jobs, result):
