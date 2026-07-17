@@ -36,15 +36,16 @@ jobs:
     env:
       FORTIFY_BASE_REF: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || 'origin/develop' }}
     steps:
-      - uses: actions/checkout@v6.0.3
+      - uses: actions/checkout@9f698171ed81b15d1823a05fc7211befd50c8ae0 # v6.0.3
         with:
           fetch-depth: 0
-      - uses: actions/setup-python@v6.2.0
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: ${{ matrix.python-version }}
       - run: make ci-deps PYTHON=python
+      - run: make fortifications PYTHON=python
       - run: make github-ci PYTHON=python
-      - uses: actions/upload-artifact@v7.0.1
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
           name: sample-gate-${{ matrix.python-version }}
@@ -57,14 +58,14 @@ jobs:
       - run: |
           dnf -y install git make findutils
           dnf -y install python36
-      - uses: actions/checkout@v6.0.3
+      - uses: actions/checkout@9f698171ed81b15d1823a05fc7211befd50c8ae0 # v6.0.3
         with:
           fetch-depth: 0
       - run: |
           PYTHON_BIN="$(command -v python3.6)"
           "$PYTHON_BIN" --version
           make compat-py36 PYTHON="$PYTHON_BIN"
-      - uses: actions/upload-artifact@v7.0.1
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
           name: sample-gate-python3.6-almalinux8
@@ -76,12 +77,12 @@ jobs:
       - almalinux-python36
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v6.0.3
-      - uses: actions/setup-python@v6.2.0
+      - uses: actions/checkout@9f698171ed81b15d1823a05fc7211befd50c8ae0 # v6.0.3
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: '3.12.3'
       - run: make github-build PYTHON=python
-      - uses: actions/upload-artifact@v7.0.1
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: qtop-dist
           path: dist/
