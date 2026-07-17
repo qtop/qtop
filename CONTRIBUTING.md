@@ -29,6 +29,15 @@ Please follow common conventions for Open Source projects, f.i. align to Electro
 - For new features or fixes, either open a new issue or leave a comment on a relevant case that is already open
 - Let's avoid storing artifacts in the main `qtop` repo and keep it light; use the repo `qtop-artifacts` instead.
 
+## CI/CD and Testing
+
+- Before submitting a PR, run `make ci` locally to validate tests, linting, formatting, and sample gates
+- Run `make fortifications` for diff health checks (eval detection, control characters, binary file checks)
+- See `docs/sample-gate-configuration.md` for detailed guidance on sample gate configuration, artifact output, and failure policy
+- See `docs/reference-implementation-github-gitlab-pattern.md` for the cross-platform CI pattern used by this project
+- Python 3.6 compatibility is validated via an AlmaLinux 8 container job in both GitHub Actions and GitLab CI
+- Build artifacts are stored in `artifacts/` and `dist/` directories; avoid checking them into version control
+
 ## Proof of humanity
 
 Due to many incoming PRs, it is needed to extend the effort to deal with the advent of bots; part of this is yours.

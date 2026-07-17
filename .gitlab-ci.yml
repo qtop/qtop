@@ -13,6 +13,7 @@ modern-python:
     - git fetch origin "${TARGET_BRANCH}:refs/remotes/origin/${TARGET_BRANCH}"
     - export FORTIFY_BASE_REF="origin/${TARGET_BRANCH}"
   script:
+    - make fortifications PYTHON=python
     - make gitlab-ci PYTHON=python
   artifacts:
     when: always
