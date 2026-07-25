@@ -191,7 +191,7 @@ def raw_mode(file):
         if args.WATCH:
             try:
                 old_attrs = termios.tcgetattr(file.fileno())
-            except:  # noqa: E722  ## FIXME, ruff complaint
+            except (AttributeError, termios.error):  # termios unavailable on some platforms
                 yield
             else:
                 new_attrs = old_attrs[:]
