@@ -26,10 +26,19 @@ import os
 import re
 import json
 import datetime
+import shutil
 from collections import namedtuple, OrderedDict, Counter
 from os.path import realpath
-from signal import signal, SIGPIPE, SIG_DFL
-import termios
+from signal import SIG_DFL, signal
+
+try:
+    from signal import SIGPIPE
+except ImportError:
+    SIGPIPE = None
+try:
+    import termios
+except ImportError:
+    termios = None
 import contextlib
 import glob
 import tempfile
@@ -62,6 +71,11 @@ import time
 
 here = sys.path[0]
 PLUGIN_BATCH_SYSTEMS = (DemoBatchSystem, OARBatchSystem, PBSBatchSystem, SGEBatchSystem, SlurmBatchSystem)
+
+
+def reset_sigpipe():
+    if SIGPIPE is not None:
+        signal(SIGPIPE, SIG_DFL)
 
 
 def _configured_separator(config):
@@ -188,6 +202,8 @@ def raw_mode(file):
     """
     if args.ONLYSAVETOFILE:
         yield
+    elif termios is None:
+        yield
     else:
         if args.WATCH:
             try:
@@ -311,8 +327,12 @@ def calculate_term_size(config, FALLBACK_TERM_SIZE, viewport):
     """
     fallback_term_size = config.get("term_size", FALLBACK_TERM_SIZE)
 
-    _command = subprocess.Popen(["/bin/stty", "size"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    tty_size, error = _command.communicate()
+    stty = shutil.which("stty")
+    if stty:
+        _command = subprocess.Popen([stty, "size"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        tty_size, error = _command.communicate()
+    else:
+        tty_size, error = b"", b"stty not found"
     if not error:
         term_height, term_columns = [int(x) for x in tty_size.strip().split()]
         logging.debug('terminal size v, h from "stty size": %s, %s' % (term_height, term_columns))
@@ -355,14 +375,11 @@ def auto_get_avail_batch_system(config):
     """
     # TODO pbsnodes etc should not be hardcoded!
     for system, batch_command in config["signature_commands"].items():
-        # shutil.which() resolves the command against PATH using the stdlib,
-        # so qtop no longer shells out to a hardcoded /usr/bin/which (absent on
-        # minimal container images, and itself an external dependency). It
-        # returns the resolved path, or None when the command is not found.
-        if shutil.which(batch_command):
-            if system != "demo":
-                logging.debug("Auto-detected scheduler: %s" % system)
-                return system
+        if not shutil.which(batch_command):
+            continue
+        if system != "demo":
+            logging.debug("Auto-detected scheduler: %s" % system)
+            return system
 
     raise SchedulerNotSpecified
 
@@ -1757,7 +1774,7 @@ class TextDisplay(object):
         return joined_list
 
     def print_core_lines(self, core_user_map, print_char_start, print_char_stop, transposed_matrices, userid_to_userid_re_pat, mapping, attrs, options1, options2):
-        signal(SIGPIPE, SIG_DFL)
+        reset_sigpipe()
         remove_corelines = dynamic_config.get("rem_empty_corelines", config["rem_empty_corelines"]) + 1
 
         # if corelines vertical (transposed matrix)
@@ -1780,7 +1797,7 @@ class TextDisplay(object):
                     print(core_line_zipped)
                 except IOError:
                     try:
-                        signal(SIGPIPE, SIG_DFL)
+                        reset_sigpipe()
                         print(core_line_zipped)
                         sys.stdout.close()
                     except IOError:
@@ -2412,11 +2429,15 @@ def main():
         print("Anonymize should be ran with --experimental switch!! Exiting...")
         sys.exit(1)
     if args.WATCH or args.REPLAY:  # this is needed for the filtering/sorting options
-        try:
-            old_attrs = termios.tcgetattr(0)
-        except termios.error:
+        if termios is None:
             old_attrs = ""
-        new_attrs = old_attrs[:]
+            new_attrs = ""
+        else:
+            try:
+                old_attrs = termios.tcgetattr(0)
+            except termios.error:
+                old_attrs = ""
+            new_attrs = old_attrs[:]
 
     available_batch_systems = discover_qtop_batch_systems()
 
