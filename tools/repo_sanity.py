@@ -6,12 +6,11 @@
 ##
 ## SPDX-License-Identifier: MIT
 ##
-"""Full-tree text-trust audit for repo sanity and trustability (#488).
+"""Tracked-tree text-trust audit for repo sanity and trustability (#488).
 
 Complements tools/fortifications.py: fortifications guards the *diff* of a
-merge request, while this tool audits the *entire tracked tree* so trojan-
-source style payloads cannot ride in via history, generated files, or paths
-a reviewer never opened.
+merge request, while this tool audits tracked UTF-8 text files within the
+documented size and binary scope so hidden paths receive systematic review.
 
 Checks and severities:
 
@@ -41,6 +40,7 @@ as an escape sequence so the auditor passes its own audit.
 import argparse
 import json
 import os
+import re
 import subprocess
 import tempfile
 import unicodedata
@@ -92,29 +92,29 @@ SKIP_DIRS = set(
 MAX_BYTES = 5 * 1024 * 1024
 REPORT_CAP = 20
 
-# Files whose entire purpose is captured terminal output, where ANSI escape
-# sequences and bare carriage returns are expected and aggregate to a single
-# INFO finding instead of thousands of control-character CRITICALs. Any OTHER
-# control/bidi/invisible character still escalates normally inside them.
-#   - qtop_py/contrib/  : recorded scheduler render fixtures (the *.ref files
-#                         the sample gates diff against) -- full of ESC colour
-#                         codes by design.
-#   - helpfile.txt      : qtop's in-app help screen, shipped as pre-rendered
-#                         terminal text (ANSI-coloured) and printed verbatim
-#                         by the tool, so it legitimately contains ESC codes.
-ANSI_FIXTURES = ("qtop_py/contrib/", "helpfile.txt")
+# Exact terminal-output fixtures allowed to contain ANSI SGR colour sequences.
+# Other escape commands, including cursor controls and OSC payloads, remain
+# CRITICAL even in these files.
+ANSI_FIXTURES = set(
+    [
+        "qtop_py/contrib/oar1_dvv_out.ref",
+        "qtop_py/contrib/pbs_dvv_out.ref",
+        "qtop_py/contrib/sger_dvv_out.ref",
+        "helpfile.txt",
+    ]
+)
+ANSI_SGR_RE = re.compile(r"\x1b\[[0-9;]*m")
+LEGACY_CR_FIXTURES = ANSI_FIXTURES.difference(set(["helpfile.txt"]))
 
 
 def is_ansi_fixture(rel):
-    """Return True if ``rel`` is a declared terminal-output fixture path.
+    """Return True if ``rel`` is an exact declared terminal fixture."""
+    return rel in ANSI_FIXTURES
 
-    Matches an ANSI_FIXTURES entry exactly or as a directory prefix, so both
-    ``helpfile.txt`` (exact) and everything under ``qtop_py/contrib/`` count.
-    """
-    for prefix in ANSI_FIXTURES:
-        if rel == prefix or rel.startswith(prefix):
-            return True
-    return False
+
+def is_expected_fixture_cr(rel, lineno, col, line):
+    """Recognize the single historical leading CR in each scheduler render."""
+    return rel in LEGACY_CR_FIXTURES and lineno == 2 and col == 0 and line.startswith("\r./qtop.py ## Queueing System report tool.")
 
 
 def tracked_files(root):
@@ -183,8 +183,8 @@ def scan_file(path, rel, findings):
 
     Skips binary content and oversized files, decodes as UTF-8 (a decode
     failure is itself a CRITICAL finding), then classifies every non-plain-ASCII
-    codepoint by severity. Inside ANSI_FIXTURES, ESC and bare CR are tallied
-    into one expected-INFO row instead of flooding the report.
+    codepoint by severity. Inside ANSI_FIXTURES, only complete ANSI SGR colour
+    sequences and three exact historical leading CRs are accepted.
     """
     try:
         data = path.read_bytes()
@@ -216,10 +216,10 @@ def scan_file(path, rel, findings):
             o = ord(ch)
             if ch == "\t" or 0x20 <= o <= 0x7E:
                 continue
-            if ansi_fixture and ch == "\x1b":
+            if ansi_fixture and ch == "\x1b" and ANSI_SGR_RE.match(line, col):
                 esc_count += 1
                 continue
-            if ansi_fixture and ch == "\r":
+            if ansi_fixture and ch == "\r" and is_expected_fixture_cr(rel, lineno, col, line):
                 cr_count += 1
                 continue
             if ch == "\ufeff" and lineno == 1 and col == 0:
@@ -242,7 +242,7 @@ def scan_file(path, rel, findings):
         if nfkc != line:
             findings.append(("INFO", rel, lineno, 0, "line changes under NFKC normalisation", ""))
     if esc_count or cr_count:
-        findings.append(("INFO", rel, 0, 0, "terminal-output fixture: %d ANSI escapes, %d carriage returns (expected)" % (esc_count, cr_count), ""))
+        findings.append(("INFO", rel, 0, 0, "terminal-output fixture: %d ANSI SGR sequences, %d historical carriage returns" % (esc_count, cr_count), ""))
 
 
 def write_reports(findings, report_dir, scanned):
@@ -316,9 +316,9 @@ def run_audit(root, report_dir, strict):
 def selftest(report_dir):
     """Plant one file per payload class and prove each is detected.
 
-    Writes bidi/zero-width/homoglyph/control/line-separator samples to a temp
-    dir, scans them, and fails (returns 1) if any planted file escapes with no
-    CRITICAL/WARNING -- so the detector's own correctness is demonstrable.
+    Includes malicious terminal controls at exact allowlisted fixture paths,
+    proving the ANSI exception accepts colour sequences rather than arbitrary
+    escape commands.
     """
     tmp = Path(tempfile.mkdtemp(prefix="repo-sanity-selftest-"))
     plants = {
@@ -327,18 +327,32 @@ def selftest(report_dir):
         "planted_homoglyph.py": "p\u0430ssword_check = None  # Cyrillic small a\n",
         "planted_control.py": "header = 'x\x08x'\n",
         "planted_separator.py": "safe = True\u2028unsafe = True\n",
+        "qtop_py/contrib/oar1_dvv_out.ref": "\x1b]52;c;Y2xpcGJvYXJk\x07\n",
+        "qtop_py/contrib/pbs_dvv_out.ref": "visible text\rconcealed text\n",
+        "helpfile.txt": "\x1b[2Jconcealed heading\n",
     }
-    for name, payload in plants.items():
-        (tmp / name).write_text(payload, encoding="utf-8")
+    for rel, payload in plants.items():
+        path = tmp / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(payload, encoding="utf-8")
     findings = []
-    for path in sorted(tmp.iterdir()):
-        scan_file(path, str(path.name), findings)
-    counts, report = write_reports(findings, report_dir, len(plants))
+    for rel in sorted(plants):
+        scan_file(tmp / rel, rel, findings)
+    safe_rel = "qtop_py/contrib/sger_dvv_out.ref"
+    safe_path = tmp / safe_rel
+    safe_path.parent.mkdir(parents=True, exist_ok=True)
+    safe_path.write_text("\x1b[1;32mgreen\x1b[0;m\n", encoding="utf-8")
+    scan_file(safe_path, safe_rel, findings)
+    counts, report = write_reports(findings, report_dir, len(plants) + 1)
     print(report)
     hit = set(f[1] for f in findings if f[0] in ("CRITICAL", "WARNING"))
     missing = [name for name in sorted(plants) if name not in hit]
     if missing:
         print("SELFTEST FAILED: undetected plants: %s" % ", ".join(missing))
+        return 1
+    safe_failures = [finding for finding in findings if finding[1] == safe_rel and finding[0] in ("CRITICAL", "WARNING")]
+    if safe_failures:
+        print("SELFTEST FAILED: valid ANSI SGR sequence was rejected")
         return 1
     print("SELFTEST OK: all %d planted payloads detected (proof above)" % len(plants))
     return 0

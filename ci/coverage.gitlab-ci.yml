@@ -11,7 +11,7 @@
 # ``make coverage-xml`` only adds the Cobertura XML emission. GitLab picks
 # the percentage for the MR widget from the job log via ``coverage:`` and
 # renders per-line coverage in MR diffs from the Cobertura artifact.
-# Baseline at the time of writing: 139 tests, 45% total.
+# Current private reconciliation baseline: 180 tests, 50% total.
 #
 # The GitHub twin (.github/workflows/coverage.yml) uploads the same XML to
 # Codecov, so both forges read one Makefile target.
@@ -20,6 +20,7 @@ coverage-cobertura:
   stage: test
   rules:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_PIPELINE_SOURCE == "external_pull_request_event"'
     - if: '$CI_COMMIT_BRANCH == "develop"'
     - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
   before_script:

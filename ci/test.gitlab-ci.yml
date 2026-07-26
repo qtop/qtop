@@ -25,7 +25,7 @@ modern-python:
     - apt-get update
     - apt-get install -y --no-install-recommends make git
     - make ci-deps PYTHON=python
-    - export TARGET_BRANCH="${CI_MERGE_REQUEST_TARGET_BRANCH_NAME:-develop}"
+    - export TARGET_BRANCH="${CI_MERGE_REQUEST_TARGET_BRANCH_NAME:-${CI_EXTERNAL_PULL_REQUEST_TARGET_BRANCH_NAME:-develop}}"
     - git fetch origin "${TARGET_BRANCH}:refs/remotes/origin/${TARGET_BRANCH}"
     - export FORTIFY_BASE_REF="origin/${TARGET_BRANCH}"
   script:

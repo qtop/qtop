@@ -21,9 +21,10 @@
 #                           one recurring false positive on a high-entropy
 #                           sample job ID in tools/validate_pbs_samples.py.
 # - SAST IaC (KICS) ....... Free tier; covers the CI yaml itself.
-# - Dependency Scanning ... Job runs on all tiers; the vulnerability UI needs
-#                           Ultimate. Local pip-audit baseline on the pinned
-#                           CI set: pip 24.0 (5 advisories), pytest 8.2.2 (1).
+# - Dependency Scanning ... Ultimate feature. The v2 analyzer template is
+#                           configured explicitly for requirements-ci.txt.
+#                           Local pip-audit baseline: 7 advisories in 3 pinned
+#                           CI packages.
 # - License Compliance .... The old License-Scanning template was removed
 #                           upstream (GitLab 16.3); license data now rides on
 #                           Dependency Scanning (Ultimate). The free-tier
@@ -43,7 +44,9 @@ include:
   - template: Jobs/SAST.gitlab-ci.yml
   - template: Jobs/SAST-IaC.gitlab-ci.yml
   - template: Jobs/Secret-Detection.gitlab-ci.yml
-  - template: Jobs/Dependency-Scanning.gitlab-ci.yml
+  - template: Jobs/Dependency-Scanning.v2.gitlab-ci.yml
+    inputs:
+      pip_manifest_file_name_pattern: requirements-ci.txt
 
 variables:
   SAST_IMAGE_SUFFIX: ""
@@ -53,6 +56,7 @@ code-quality:
   stage: security
   rules:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_PIPELINE_SOURCE == "external_pull_request_event"'
     - if: '$CI_COMMIT_BRANCH == "develop"'
     - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
   before_script:
@@ -72,6 +76,7 @@ license-report:
   stage: security
   rules:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_PIPELINE_SOURCE == "external_pull_request_event"'
     - if: '$CI_COMMIT_BRANCH == "develop"'
     - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
   before_script:
@@ -89,6 +94,7 @@ repo-sanity:
   stage: security
   rules:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_PIPELINE_SOURCE == "external_pull_request_event"'
     - if: '$CI_COMMIT_BRANCH == "develop"'
     - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
   before_script:

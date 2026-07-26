@@ -7,15 +7,15 @@ the OpenSSF [Secure Coding Guide for Python](https://github.com/ossf/wg-best-pra
 
 ## Method
 
-All tools ran locally against a clean `develop` checkout (2026-06-11), plus
-the public OpenSSF Scorecard API. Full machine-readable reports live outside
-the main repo per CONTRIBUTING.md (artifact-light policy). Reproduce with:
+The tool baselines were refreshed on the private reconciliation branch on
+2026-07-26. Full machine-readable reports remain CI or review artifacts rather
+than tracked source files. Reproduce with:
 
 | Tool | Command | Result |
 |---|---|---|
-| bandit 1.8.x | `bandit -r qtop_py tools` | 54 findings: 51 low, 3 medium |
+| bandit 1.8.x | `bandit -r qtop_py tools` | 53 findings: 50 low, 3 medium |
 | semgrep (`p/python`, `p/security-audit`) | `semgrep scan --config p/python --config p/security-audit qtop_py tools` | 4 findings, all ERROR severity |
-| pip-audit | `pip-audit -r requirements-ci.txt` | 6 known vulnerabilities in 2 pinned CI deps |
+| pip-audit | `pip-audit -r requirements-ci.txt` | 7 known vulnerabilities in 3 pinned CI deps |
 | gitleaks 8.24 | `gitleaks dir .` | no leaks |
 | detect-secrets | `detect-secrets scan --all-files` | 3 candidates, all false positives |
 | repo-sanity (new) | `make repo-sanity` | 0 critical, 0 warning, 4 expected-fixture info |
@@ -66,9 +66,9 @@ Proposed next steps:
    nightly-matrix run, 27360317465). Replaced with stdlib `shutil.which()`:
    no new dependency, removes both the hardcoded path and the external-binary
    requirement, and lets the matrix drop its per-lane `which` install. No
-   regression: 139 tests still pass on 3.12 and 3.6, the
-   `scheduler_not_specified` tests pass, and the previously red lanes no
-   longer need `which` at all (before/after in the evidence repo).
+   regression: 180 tests and all 10 scheduler sample gates pass locally on
+   Python 3.12, while the dependency-light Python 3.6 compile and sample gate
+   also passes. The matrix lanes no longer need `which`.
 
 ### 3. Pseudo-random use -- acceptable, scope it
 
@@ -103,25 +103,25 @@ keeping the CLI flag override; CI-side only, low risk.
 pip-audit on `requirements-ci.txt`: `pip 24.0` carries 5 advisories
 (PYSEC-2026-196, GHSA-4xh5-x5gv-qwph, GHSA-6vgw-5pg2-w6jp,
 GHSA-58qw-9mgm-455v, GHSA-jp4c-xjxw-mgf9) and `pytest 8.2.2` one
-(GHSA-6w46-j5rx-g56g). These are CI-only dependencies -- the qtop runtime
-deliberately has none -- so exposure is the CI environment, not clusters.
-Proposed next steps: bump the two pins in a dedicated PR after the matrix
-proves them green; keep the Dependency Scanning job (added in this change)
-watching the set continuously.
+(GHSA-6w46-j5rx-g56g). `setuptools 78.1.1` adds one advisory. These are
+CI-only dependencies; the qtop runtime deliberately has none, so exposure is
+the CI environment, not clusters. Proposed next step: bump the three pins in a
+dedicated PR after the matrix proves them green. GitLab Dependency Scanning is
+an Ultimate feature, so `pip-audit` remains the portable local check.
 
 ### 7. Text and encoding trust
 
 Maps to PySCG `02_encoding_and_strings` (pyscg-0043/0044/0045, CWE-175/180/176).
 qtop already enforces ASCII-only diffs (`tools/fortifications.py`); this
-change adds `make repo-sanity` (`tools/repo_sanity.py`) auditing the *entire
-tracked tree* for Trojan-Source bidi controls, zero-width/invisible
+change adds `make repo-sanity` (`tools/repo_sanity.py`) auditing tracked UTF-8
+text files up to 5 MiB for Trojan-Source bidi controls, zero-width/invisible
 characters, unicode line separators, C0/C1 controls and homoglyph-prone
-letters. Current tree result: **0 critical, 0 warning**; the only non-ASCII
-content is ANSI escape sequences inside declared terminal-output fixtures
-(94,990 + 57,434 + 1,418 ESC in the three `.ref` files plus 34 in
-`helpfile.txt`), aggregated as expected INFO. Detector correctness is proven
-by `tools/repo_sanity.py --selftest`, which plants five payload classes and
-shows caret-pointer proof of each detection.
+letters. Binary and oversized files are explicitly out of scope. Current tree
+result: **0 critical, 0 warning** and 4 expected fixture INFO rows. Only exact
+fixture files and complete ANSI SGR colour sequences are allowlisted; OSC,
+cursor, and other terminal controls remain critical. The self-test plants
+eight payload classes, including malicious controls at allowlisted paths, and
+also proves that a valid SGR colour sequence remains accepted.
 
 ### 8. Secrets
 

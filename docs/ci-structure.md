@@ -20,11 +20,10 @@ ci/
 
 ## The Makefile contract
 
-Every CI job -- on either forge -- is a thin wrapper around a Makefile target.
-The Makefile is the single source of truth for *what* validation means; the
-CI files only decide *where and when* it runs. This keeps GitHub Actions and
-GitLab CI behaviourally identical and lets contributors reproduce any CI
-failure locally with the same command.
+Project-owned test, build, coverage, and reporting jobs use Makefile targets
+where practical. Included GitLab analyzers and OpenSSF Scorecard use their
+provider-native entry points. The Makefile remains the reproducible contract
+for qtop's own validation, but the two forges are not claimed to be identical.
 
 | Concern | Makefile target | GitHub Actions | GitLab CI |
 |---|---|---|---|
@@ -46,10 +45,10 @@ failure locally with the same command.
 
 - **Review isolation** -- security, matrix, coverage, and release changes stop
   competing for the same monolithic file; diffs stay per-concern.
-- **GitLab linkage** ([#488](https://github.com/qtop/qtop/issues/488)) -- a
-  pegged GitLab mirror picks up the same pipeline unchanged, because nothing
-  in `ci/` assumes which forge triggered the run; everything routes through
-  the Makefile.
+- **GitLab linkage** ([#488](https://github.com/qtop/qtop/issues/488)) -- the
+  same tracked configuration can validate upstream branch updates and
+  qualifying external pull requests. Account-side setup and GitLab tier
+  limitations are documented separately.
 - **Precedent** -- the structure is proven on
   [code.europa.eu/pvgis/pvgis](https://code.europa.eu/pvgis/pvgis/), the
   reference named in #488.

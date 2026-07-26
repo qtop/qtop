@@ -23,10 +23,11 @@
 #                                 compatibility matrix (#488).
 # - ``ci/scorecard.gitlab-ci.yml`` -- scheduled OpenSSF Scorecard run (#488).
 #
-# Every job body stays a thin wrapper around a Makefile target so GitHub
-# Actions and GitLab CI remain behaviourally aligned; see docs/ci-structure.md.
+# Project-owned validation jobs use Makefile targets where practical; included
+# GitLab analyzers and Scorecard keep their provider-native entry points.
 
-image: python:3.12.3-bookworm
+default:
+  image: python:3.12.3-bookworm
 
 variables:
   PIP_DISABLE_PIP_VERSION_CHECK: "1"

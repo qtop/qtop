@@ -12,8 +12,9 @@ steps cheap:
 - **Zero runtime dependencies** (deliberate, per CONTRIBUTING.md): the
   runtime SBOM is essentially "qtop itself plus the interpreter". The
   interesting inventory is the *build and CI* tool chain.
-- **Fully pinned CI dependencies** (`requirements-ci.txt`); Scorecard rates
-  Pinned-Dependencies 10/10.
+- Direct CI Python requirements are version-pinned, and the new GitHub actions
+  are commit-pinned. The `pip-licenses` helper still resolves unpinned
+  transitive packages, so the complete tool chain is not yet locked.
 - Gaps, per the 2026-06-08 Scorecard snapshot: Packaging -1 (no publish
   workflow), Signed-Releases -1 (no releases/signatures).
 
@@ -23,9 +24,8 @@ steps cheap:
    against the pinned CI venv and `cyclonedx-py` against the sdist/wheel in
    the existing `build` jobs; attach `sbom.cdx.json` as a CI artifact on
    both forges (the build concern already publishes `dist/`).
-2. **GitLab native route**: GitLab Dependency Scanning (wired in this
-   change) emits a CycloneDX report per pipeline on supported tiers; the
-   pegged mirror gets this for free once enabled.
+2. **GitLab native route**: GitLab Dependency Scanning can emit CycloneDX
+   reports on an eligible Ultimate project. It is not a free-tier guarantee.
 3. **SPDX alternative**: `syft dir:.` or `syft dist/*.whl` if the
    maintainers prefer SPDX; both formats can be published side by side.
 4. Attach SBOMs to GitHub Releases so consumers get inventory with the
