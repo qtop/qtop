@@ -198,6 +198,3 @@ class OARBatchSystem(GenericBatchSystem):
     @CountCalls
     def report_discrepancy(self, discrepancy):
         logging.error("Job-id(s) %s unaccounted for in OAR's input files!!" % discrepancy)
-
-
-# TODO shouldn't oar have a check_empty_file() here too??

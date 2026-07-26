@@ -142,6 +142,22 @@ def test_raw_mode_is_noop_when_platform_has_no_termios(monkeypatch):
         pass
 
 
+def test_scheduler_autodetection_skips_demo_and_missing_commands(monkeypatch):
+    available = {"echo": "/bin/echo", "qhost": "/usr/bin/qhost"}
+    monkeypatch.setattr(qtop_module.shutil, "which", available.get)
+    config = {"signature_commands": {"demo": "echo", "pbs": "pbsnodes", "sge": "qhost"}}
+
+    assert qtop_module.auto_get_avail_batch_system(config) == "sge"
+
+
+def test_scheduler_autodetection_fails_when_only_demo_is_available(monkeypatch):
+    monkeypatch.setattr(qtop_module.shutil, "which", lambda command: "/bin/echo" if command == "echo" else None)
+    config = {"signature_commands": {"demo": "echo", "pbs": "pbsnodes"}}
+
+    with pytest.raises(SchedulerNotSpecified):
+        qtop_module.auto_get_avail_batch_system(config)
+
+
 @pytest.mark.parametrize(
     "domain_name, match",
     (

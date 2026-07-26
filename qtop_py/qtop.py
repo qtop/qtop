@@ -26,7 +26,6 @@ import os
 import re
 import json
 import datetime
-import shutil
 from collections import namedtuple, OrderedDict, Counter
 from os.path import realpath
 from signal import SIG_DFL, signal
@@ -317,36 +316,44 @@ def calculate_term_size(config, FALLBACK_TERM_SIZE, viewport):
     """
     Gets the dimensions of the terminal window where qtop will be displayed.
 
-    ``viewport`` is injected explicitly. Previously this function referenced a
-    module-global ``viewport`` that is never defined at module scope (it is a
-    local inside ``main``), so the entire autodetect-fallback branch raised
-    ``NameError`` whenever ``stty size`` failed -- e.g. when qtop runs inside an
-    IDE, behind a pipe, or in a headless CI shell. The guard ``all(a, b)`` was
-    also a bug (``all`` takes a single iterable), so it could never have worked
-    even if ``viewport`` had resolved.
+    ``viewport`` is passed explicitly so this helper does not depend on global
+    state. If ``stty`` is absent, cannot be started, or returns unusable output,
+    the viewport size is used before the configured fallback.
     """
     fallback_term_size = config.get("term_size", FALLBACK_TERM_SIZE)
 
     stty = shutil.which("stty")
+    tty_size, error = b"", b"stty not found"
     if stty:
-        _command = subprocess.Popen([stty, "size"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        tty_size, error = _command.communicate()
-    else:
-        tty_size, error = b"", b"stty not found"
+        try:
+            command = subprocess.Popen([stty, "size"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            tty_size, error = command.communicate()
+        except OSError as exc:
+            error = exc
+
     if not error:
-        term_height, term_columns = [int(x) for x in tty_size.strip().split()]
-        logging.debug('terminal size v, h from "stty size": %s, %s' % (term_height, term_columns))
-        return int(term_height), int(term_columns)
+        try:
+            term_height, term_columns = [int(x) for x in tty_size.strip().split()]
+            if term_height <= 0 or term_columns <= 0:
+                raise ValueError("terminal dimensions must be positive")
+        except (TypeError, ValueError):
+            pass
+        else:
+            logging.debug('terminal size v, h from "stty size": %s, %s' % (term_height, term_columns))
+            return term_height, term_columns
 
     logging.warning("Failed to autodetect terminal size. (Running in an IDE? in a pipe?) Falling back via %s / viewport." % QTOPCONF_YAML)
-    term_height, term_columns = viewport.get_term_size()
-    if not all([term_height, term_columns]):
-        term_height, term_columns = fallback_term_size
+    try:
+        term_height, term_columns = [int(x) for x in viewport.get_term_size()]
+        if term_height <= 0 or term_columns <= 0:
+            raise ValueError("terminal dimensions must be positive")
+    except (AttributeError, KeyError, OSError, TypeError, ValueError):
+        term_height, term_columns = [int(x) for x in fallback_term_size]
         logging.debug("(hardcoded) fallback terminal size v, h: %s, %s" % (term_height, term_columns))
     else:
         logging.debug("viewport-provided terminal size v, h: %s, %s" % (term_height, term_columns))
 
-    return int(term_height), int(term_columns)
+    return term_height, term_columns
 
 
 def finalize_filepaths_schedulercommands(args, config):
@@ -2384,6 +2391,8 @@ class InvalidScheduler(Exception):
 def cli_error_message(error):
     if isinstance(error, SchedulerNotSpecified):
         return "No scheduler could be auto-detected. Select one with -b/--batchSystem, QTOP_SCHEDULER, or qtopconf.yaml."
+    if isinstance(error, NoSchedulerFound):
+        return ""
     return str(error)
 
 
