@@ -45,6 +45,7 @@ def test_expected_cli_scheduler_errors_are_concise(tmp_path, module, args, expec
     assert "Traceback" not in output
     assert "SchedulerNotSpecified" not in output
     assert "InvalidScheduler" not in output
+    assert "SyntaxWarning" not in output
 
 
 def test_packaging_entry_points_use_cli_wrapper():

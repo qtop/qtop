@@ -36,7 +36,7 @@ class SGEStatExtractor(StatExtractor):
                 raise
             except Exception:
                 logging.debug("XML file state %s" % fin)
-                logging.debug("thinking...")
+                logging.debug("thinking...", exc_info=True)
                 sys.exit(1)
             else:
                 root = tree.getroot()
@@ -269,12 +269,10 @@ class SGEBatchSystem(GenericBatchSystem):
         return worker_node
 
     def _get_state(self, queue_elem):
-        try:
-            _state = queue_elem.find("state").text
-        except AttributeError:
-            _state = "-"
-        finally:
-            return _state
+        state = queue_elem.find("state")
+        if state is None:
+            return "-"
+        return state.text
 
     def _extract_queues(self, xpath, root):
         qstatq_list = []
@@ -303,8 +301,6 @@ class SGEBatchSystem(GenericBatchSystem):
                     d["state"] = queue_elem.find("./state").text
                 except AttributeError:
                     d["state"] = "?"
-                except:
-                    raise
 
                 job_lists = queue_elem.findall("job_list")
                 run_count = 0

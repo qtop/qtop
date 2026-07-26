@@ -73,6 +73,32 @@ def test_sort_worker_nodes_uses_named_sort_keys(monkeypatch):
     assert [node["domainname"] for node in cluster._sort_worker_nodes()] == ["node2", "node10"]
 
 
+def test_raw_mode_allows_watch_mode_without_terminal_attrs(monkeypatch):
+    class NonTerminalFile:
+        def fileno(self):
+            raise OSError("not a terminal")
+
+    monkeypatch.setattr(qtop_module, "args", SimpleNamespace(ONLYSAVETOFILE=False, WATCH=True), raising=False)
+
+    entered_context = False
+    with qtop_module.raw_mode(NonTerminalFile()):
+        entered_context = True
+
+    assert entered_context
+
+
+def test_raw_mode_does_not_swallow_unexpected_fileno_errors(monkeypatch):
+    class BrokenFile:
+        def fileno(self):
+            raise RuntimeError("unexpected")
+
+    monkeypatch.setattr(qtop_module, "args", SimpleNamespace(ONLYSAVETOFILE=False, WATCH=True), raising=False)
+
+    with pytest.raises(RuntimeError, match="unexpected"):
+        with qtop_module.raw_mode(BrokenFile()):
+            pass
+
+
 def test_sort_worker_nodes_rejects_custom_python_sorting(monkeypatch):
     import qtop_py.qtop as qtop
 

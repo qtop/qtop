@@ -208,7 +208,7 @@ def raw_mode(file):
         if args.WATCH:
             try:
                 old_attrs = termios.tcgetattr(file.fileno())
-            except Exception:
+            except (AttributeError, OSError, termios.error):
                 yield
             else:
                 new_attrs = old_attrs[:]
