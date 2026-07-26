@@ -5,11 +5,12 @@
 ##
 ## SPDX-License-Identifier: MIT
 ##
-# Nightly interpreter/distro compatibility matrix (#488): 35 lanes covering
+# Nightly interpreter/distro compatibility matrix (#488): 38 lanes covering
 # CPython 3.6 through 3.15-rc plus PyPy across Debian, Ubuntu, AlmaLinux,
-# Rocky, Fedora, openSUSE, Amazon Linux and Arch. Every lane routes through
-# ci/scripts/matrix_lane.sh and the Makefile contract, mirroring
-# ci/nightly-matrix.gitlab-ci.yml lane-for-lane (same order, same fields).
+# Rocky, CentOS Stream, Oracle Linux, Fedora, openSUSE, Amazon Linux and Arch.
+# Every lane routes through ci/scripts/matrix_lane.sh and the Makefile
+# contract, mirroring ci/nightly-matrix.gitlab-ci.yml with the same lane
+# definitions.
 #
 # Lane targets are git-free on purpose: the nightly matrix watches
 # interpreter/runtime drift; diff-health checks stay in MR/PR pipelines.
@@ -80,6 +81,9 @@ jobs:
           - { image: 'rockylinux:8', family: rhel, pkgs: 'python36', pybin: python3.6, target: compat-py36 }
           - { image: 'rockylinux:9', family: rhel, pkgs: 'python3,python3-pip' }
           - { image: 'rockylinux:9', family: rhel, pkgs: 'python3.11,python3.11-pip', pybin: python3.11 }
+          - { image: 'quay.io/centos/centos:stream9', family: rhel, pkgs: 'python3,python3-pip' }
+          - { image: 'docker.io/library/oraclelinux:8', family: rhel, pkgs: 'python3,python3-pip', target: compat-py36 }
+          - { image: 'docker.io/library/oraclelinux:9', family: rhel, pkgs: 'python3,python3-pip' }
           - { image: 'fedora:41', family: fedora, pkgs: 'python3,python3-pip' }
           - { image: 'fedora:42', family: fedora, pkgs: 'python3,python3-pip' }
           - { image: 'opensuse/leap:15.6', family: suse, pkgs: 'python3', target: compat-py36 }

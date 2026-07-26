@@ -19,7 +19,7 @@
 #                                 templates plus code-quality, license and
 #                                 repo-sanity jobs (#488).
 # - ``ci/coverage.gitlab-ci.yml`` -- Cobertura coverage publishing (#488).
-# - ``ci/nightly-matrix.gitlab-ci.yml`` -- scheduled 35-lane distro x python
+# - ``ci/nightly-matrix.gitlab-ci.yml`` -- scheduled 38-lane distro x python
 #                                 compatibility matrix (#488).
 # - ``ci/scorecard.gitlab-ci.yml`` -- scheduled OpenSSF Scorecard run (#488).
 #

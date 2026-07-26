@@ -7,11 +7,12 @@
 ##
 # Nightly concern: interpreter/distro compatibility matrix (#488).
 #
-# 35 lanes covering CPython 3.6 through 3.15-rc plus PyPy across Debian,
-# Ubuntu, AlmaLinux, Rocky, Fedora, openSUSE, Amazon Linux and Arch, all
-# routed through ci/scripts/matrix_lane.sh and the Makefile contract. The
-# lane list mirrors .github/workflows/nightly-matrix.yml lane-for-lane
-# (same order, same fields) so both forges watch the same surface.
+# 38 lanes covering CPython 3.6 through 3.15-rc plus PyPy across Debian,
+# Ubuntu, AlmaLinux, Rocky, CentOS Stream, Oracle Linux, Fedora, openSUSE,
+# Amazon Linux and Arch, all routed through ci/scripts/matrix_lane.sh and the
+# Makefile contract. The lane list mirrors
+# .github/workflows/nightly-matrix.yml lane-for-lane so both forges watch the
+# same surface.
 #
 # Activation (one-time, GitLab UI): Build > Pipeline schedules > New schedule
 #   - interval pattern: 20 4 * * *
@@ -76,6 +77,21 @@ nightly-matrix:
         FAMILY: rhel
         PKGS: 'python3.11,python3.11-pip'
         PYBIN: python3.11
+        TARGET: ci
+      - IMAGE: 'quay.io/centos/centos:stream9'
+        FAMILY: rhel
+        PKGS: 'python3,python3-pip'
+        PYBIN: python3
+        TARGET: ci
+      - IMAGE: 'docker.io/library/oraclelinux:8'
+        FAMILY: rhel
+        PKGS: 'python3,python3-pip'
+        PYBIN: python3
+        TARGET: compat-py36
+      - IMAGE: 'docker.io/library/oraclelinux:9'
+        FAMILY: rhel
+        PKGS: 'python3,python3-pip'
+        PYBIN: python3
         TARGET: ci
       - IMAGE: ['fedora:41', 'fedora:42']
         FAMILY: fedora
