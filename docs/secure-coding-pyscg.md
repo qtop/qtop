@@ -17,7 +17,7 @@ than tracked source files. Reproduce with:
 | semgrep (`p/python`, `p/security-audit`) | `semgrep scan --config p/python --config p/security-audit qtop_py tools` | 4 findings, all ERROR severity |
 | pip-audit | `pip-audit -r requirements-ci.txt` | 7 known vulnerabilities in 3 pinned CI deps |
 | gitleaks 8.24 | `gitleaks dir .` | no leaks |
-| detect-secrets | `detect-secrets scan --all-files` | 3 candidates, all false positives |
+| detect-secrets | `git ls-files -z \| xargs -0 detect-secrets scan` | 1 tracked candidate, a false positive |
 | repo-sanity (new) | `make repo-sanity` | 0 critical, 0 warning, 4 expected-fixture info |
 | OpenSSF Scorecard | public REST API, 2026-06-08 snapshot | score 7.1 |
 
@@ -126,11 +126,12 @@ also proves that a valid SGR colour sequence remains accepted.
 
 ### 8. Secrets
 
-gitleaks: clean. detect-secrets: 3 candidates, all false positives (two
-cache CACHEDIR.TAG signatures outside the tracked tree and one high-entropy
-*sample job identifier* at `tools/validate_pbs_samples.py:22`). The configured
-GitLab Secret Detection template can check qualifying pipelines; expect and
-triage the same sample-ID false positive when it runs.
+gitleaks: clean. The tracked-file detect-secrets scan reports one
+high-entropy *sample job identifier* at `tools/validate_pbs_samples.py:22`, a
+false positive. Scanning generated artifacts and tool caches can add further
+non-source candidates. The configured GitLab Secret Detection template can
+check qualifying pipelines; expect and triage the sample-ID finding when it
+runs.
 
 ## Scorecard gap-to-action map (baseline 7.1, 2026-06-08)
 
