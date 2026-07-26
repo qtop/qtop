@@ -9,7 +9,7 @@
 ##
 
 import pytest
-from qtop_py.yaml_parser import get_line, convert_dash_key_in_dict, read_yaml_config_block, process_line, process_code
+from qtop_py.yaml_parser import get_line, convert_dash_key_in_dict, read_yaml_config_block, process_line, process_code, fix_config_list
 
 
 @pytest.mark.parametrize(
@@ -308,3 +308,26 @@ def test_process_line_expands_literal_tuple_list():
 def test_convert_dash_key_in_dict(dict_a, dict_b):
     # pass
     assert convert_dash_key_in_dict(dict_a) == dict_b
+
+
+@pytest.mark.parametrize(
+    "config_list, expected",
+    (
+        (["a, b"], ["a", "b"]),
+        (["a,b,c"], ["a", "b", "c"]),
+        (["single"], ["single"]),
+        (["  spaced ,  out "], ["spaced", "out"]),
+        ([], []),
+        (None, []),
+    ),
+)
+def test_fix_config_list_valid_inputs(config_list, expected):
+    assert fix_config_list(config_list) == expected
+
+
+@pytest.mark.parametrize("bad_first_element", ([53, 176], [None], [("a", "b")]))
+def test_fix_config_list_rejects_non_string_first_element(bad_first_element):
+    # A non-string first element previously produced a cryptic AttributeError
+    # from str.split deeper in the call; it now raises a clear TypeError.
+    with pytest.raises(TypeError):
+        fix_config_list(bad_first_element)

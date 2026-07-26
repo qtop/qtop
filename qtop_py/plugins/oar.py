@@ -4,6 +4,7 @@ import os
 
 ##import re
 import qtop_py.yaml_parser as yaml
+from qtop_py import fileutils
 from qtop_py.utils import CountCalls
 from collections import OrderedDict
 
@@ -23,6 +24,11 @@ class OarStatExtractor(StatExtractor):
 
     def extract_qstat(self, orig_file):
         all_values = list()
+        try:
+            fileutils.check_empty_file(orig_file)
+        except fileutils.FileEmptyError:
+            logging.error("File %s seems to be empty." % orig_file)
+            return all_values
         with open(orig_file, "r") as fin:
             logging.debug("File state before OarStatExtractor.extract_qstat: %(fin)s" % {"fin": fin})
             _ = fin.readline()  # header
