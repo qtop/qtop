@@ -21,7 +21,7 @@ requires-python = ">=3"
 "Homepage" = "https://github.com/qtop/qtop"
 
 [project.scripts]
-qtop = "qtop_py.qtop:main"
+qtop = "qtop_py.qtop:cli_main"
 
 [tool.setuptools.dynamic]
 version = {attr = "qtop_py.__version__"}

@@ -2364,6 +2364,22 @@ class InvalidScheduler(Exception):
     pass
 
 
+def cli_error_message(error):
+    if isinstance(error, SchedulerNotSpecified):
+        return "No scheduler could be auto-detected. Select one with -b/--batchSystem, QTOP_SCHEDULER, or qtopconf.yaml."
+    return str(error)
+
+
+def cli_main():
+    try:
+        return main() or 0
+    except (InvalidScheduler, NoSchedulerFound, SchedulerNotSpecified) as error:
+        message = cli_error_message(error)
+        if message:
+            sys.stderr.write("%s\n" % message)
+        return 1
+
+
 def main():
     # define global vars which are used out of scope
     global \
@@ -2549,4 +2565,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(cli_main())
