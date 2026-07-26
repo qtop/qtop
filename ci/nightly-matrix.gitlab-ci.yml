@@ -1,0 +1,140 @@
+##
+## qtop is a tool to monitor queuing systems - https://github.com/qtop/qtop
+##
+## Copyright (c) 2026 Vadik Malik
+##
+## SPDX-License-Identifier: MIT
+##
+# Nightly concern: interpreter/distro compatibility matrix (#488).
+#
+# 35 lanes covering CPython 3.6 through 3.15-rc plus PyPy across Debian,
+# Ubuntu, AlmaLinux, Rocky, Fedora, openSUSE, Amazon Linux and Arch, all
+# routed through ci/scripts/matrix_lane.sh and the Makefile contract. The
+# lane list mirrors .github/workflows/nightly-matrix.yml lane-for-lane
+# (same order, same fields) so both forges watch the same surface.
+#
+# Activation (one-time, GitLab UI): Build > Pipeline schedules > New schedule
+#   - interval pattern: 20 4 * * *
+#   - add variable NIGHTLY_MATRIX=1
+# A manual web-triggered pipeline with NIGHTLY_MATRIX=1 runs the same lanes
+# on demand. Regular branch/MR pipelines never run these jobs.
+#
+# Stable lanes gate the pipeline; experimental lanes (prerelease
+# interpreters, EOL-archived or rolling distros) are allow_failure.
+
+.nightly-lane-base:
+  stage: nightly
+  image: $IMAGE
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule" && $NIGHTLY_MATRIX == "1"'
+    - if: '$CI_PIPELINE_SOURCE == "web" && $NIGHTLY_MATRIX == "1"'
+  script:
+    - bash ci/scripts/matrix_lane.sh "$FAMILY" "$PKGS" "$PYBIN" "$TARGET"
+  artifacts:
+    when: always
+    paths:
+      - artifacts/
+    expire_in: 1 week
+
+nightly-matrix:
+  extends: .nightly-lane-base
+  parallel:
+    matrix:
+      # 3.7 and 3.8 run the dependency-light gate: the pinned CI set needs
+      # >=3.9 (importlib-metadata==8.7.1), discovered by the first live run.
+      - IMAGE: ['python:3.7-bullseye', 'python:3.8-bullseye']
+        FAMILY: pythonimg
+        PKGS: '-'
+        PYBIN: python
+        TARGET: compat-py36
+      - IMAGE: ['python:3.9-bookworm', 'python:3.10-bookworm', 'python:3.11-bookworm', 'python:3.12-bookworm', 'python:3.13-bookworm', 'python:3.14-bookworm']
+        FAMILY: pythonimg
+        PKGS: '-'
+        PYBIN: python
+        TARGET: ci
+      - IMAGE: ['ubuntu:22.04', 'ubuntu:24.04', 'ubuntu:25.10', 'debian:bullseye', 'debian:bookworm', 'debian:trixie']
+        FAMILY: debian
+        PKGS: 'python3,python3-venv,python3-pip'
+        PYBIN: python3
+        TARGET: ci
+      - IMAGE: ['almalinux:8', 'rockylinux:8']
+        FAMILY: rhel
+        PKGS: 'python36'
+        PYBIN: python3.6
+        TARGET: compat-py36
+      - IMAGE: ['almalinux:8', 'almalinux:9']
+        FAMILY: rhel
+        PKGS: 'python3.12,python3.12-pip'
+        PYBIN: python3.12
+        TARGET: ci
+      - IMAGE: ['almalinux:9', 'rockylinux:9']
+        FAMILY: rhel
+        PKGS: 'python3,python3-pip'
+        PYBIN: python3
+        TARGET: ci
+      - IMAGE: 'rockylinux:9'
+        FAMILY: rhel
+        PKGS: 'python3.11,python3.11-pip'
+        PYBIN: python3.11
+        TARGET: ci
+      - IMAGE: ['fedora:41', 'fedora:42']
+        FAMILY: fedora
+        PKGS: 'python3,python3-pip'
+        PYBIN: python3
+        TARGET: ci
+      - IMAGE: 'opensuse/leap:15.6'
+        FAMILY: suse
+        PKGS: 'python3'
+        PYBIN: python3
+        TARGET: compat-py36
+      - IMAGE: 'opensuse/leap:15.6'
+        FAMILY: suse
+        PKGS: 'python311,python311-pip'
+        PYBIN: python3.11
+        TARGET: ci
+      - IMAGE: 'amazonlinux:2023'
+        FAMILY: amazon
+        PKGS: 'python3,python3-pip'
+        PYBIN: python3
+        TARGET: ci
+      - IMAGE: 'amazonlinux:2023'
+        FAMILY: amazon
+        PKGS: 'python3.12,python3.12-pip'
+        PYBIN: python3.12
+        TARGET: ci
+
+nightly-matrix-experimental:
+  extends: .nightly-lane-base
+  allow_failure: true
+  parallel:
+    matrix:
+      - IMAGE: 'python:3.6-buster'
+        FAMILY: pythonimg
+        PKGS: '-'
+        PYBIN: python
+        TARGET: compat-py36
+      - IMAGE: 'python:3.15-rc'
+        FAMILY: pythonimg
+        PKGS: '-'
+        PYBIN: python
+        TARGET: ci
+      - IMAGE: ['pypy:3.9', 'pypy:3.10', 'pypy:3.11']
+        FAMILY: pypyimg
+        PKGS: '-'
+        PYBIN: pypy3
+        TARGET: ci
+      - IMAGE: 'ubuntu:20.04'
+        FAMILY: debian
+        PKGS: 'python3,python3-venv,python3-pip'
+        PYBIN: python3
+        TARGET: compat-py36
+      - IMAGE: 'debian:sid'
+        FAMILY: debian
+        PKGS: 'python3,python3-venv,python3-pip'
+        PYBIN: python3
+        TARGET: ci
+      - IMAGE: 'archlinux:base'
+        FAMILY: arch
+        PKGS: 'python,python-pip'
+        PYBIN: python
+        TARGET: ci

@@ -1,9 +1,7 @@
 ##
 ## qtop is a tool to monitor queuing systems - https://github.com/qtop/qtop
 ##
-## Copyright (c) 2016 Fotis Georgatos
-## Copyright (c) 2016 Sotiris Fragkiskos
-## Copyright (c) 2026 Vadik-x
+## Copyright (c) 2026 Vadik Malik
 ##
 ## SPDX-License-Identifier: MIT
 ##
@@ -17,9 +15,14 @@
 #                                 shared Makefile contract (``make gitlab-ci``)
 #                                 plus the dependency-light Python 3.6 gate.
 # - ``ci/build.gitlab-ci.yml`` -- sdist/wheel build on top of green tests.
+# - ``ci/security.gitlab-ci.yml`` -- SAST/Secret-Detection/Dependency-Scanning
+#                                 templates plus code-quality, license and
+#                                 repo-sanity jobs (#488).
+# - ``ci/coverage.gitlab-ci.yml`` -- Cobertura coverage publishing (#488).
+# - ``ci/nightly-matrix.gitlab-ci.yml`` -- scheduled 35-lane distro x python
+#                                 compatibility matrix (#488).
+# - ``ci/scorecard.gitlab-ci.yml`` -- scheduled OpenSSF Scorecard run (#488).
 #
-# Job behaviour is intentionally identical to the previous monolithic file:
-# this realignment only changes *where* jobs are defined, not *what* they do.
 # Every job body stays a thin wrapper around a Makefile target so GitHub
 # Actions and GitLab CI remain behaviourally aligned; see docs/ci-structure.md.
 
@@ -31,7 +34,13 @@ variables:
 stages:
   - test
   - build
+  - security
+  - nightly
 
 include:
   - local: ci/test.gitlab-ci.yml
   - local: ci/build.gitlab-ci.yml
+  - local: ci/security.gitlab-ci.yml
+  - local: ci/coverage.gitlab-ci.yml
+  - local: ci/nightly-matrix.gitlab-ci.yml
+  - local: ci/scorecard.gitlab-ci.yml

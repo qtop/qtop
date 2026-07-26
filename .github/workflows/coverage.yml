@@ -1,0 +1,52 @@
+##
+## qtop is a tool to monitor queuing systems - https://github.com/qtop/qtop
+##
+## Copyright (c) 2026 Vadik Malik
+##
+## SPDX-License-Identifier: MIT
+##
+# Coverage concern (#488), GitHub flavour: the same ``make coverage-xml``
+# Cobertura artifact that ci/coverage.gitlab-ci.yml publishes to GitLab is
+# uploaded here as a workflow artifact and pushed to Codecov. The Codecov
+# step is tokenless (public repo) and never fails the build: coverage is
+# signal, not a gate, at the current 45% baseline.
+
+name: coverage-qtop
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+  pull_request:
+    branches:
+      - main
+      - develop
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  coverage:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6.0.3
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v6.2.0
+        with:
+          python-version: '3.12.3'
+      - run: make ci-deps PYTHON=python
+      - run: make coverage-xml PYTHON=python
+      - uses: actions/upload-artifact@v7.0.1
+        if: always()
+        with:
+          name: coverage-cobertura-xml
+          path: artifacts/coverage/coverage.xml
+      - uses: codecov/codecov-action@v5
+        continue-on-error: true
+        with:
+          files: artifacts/coverage/coverage.xml
+          flags: pytest
+          fail_ci_if_error: false
