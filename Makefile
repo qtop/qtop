@@ -85,7 +85,7 @@ test-slurm-samples: ## Run Slurm parser tests and render committed Slurm samples
 fortifications: ## Check diff health and reject eval() call sites
 	$(PYTHON) tools/fortifications.py --base-ref $(FORTIFY_BASE_REF)
 
-repo-sanity: ## Audit the full tracked tree for bidi/invisible/confusable characters (text trust, qtop/qtop#488)
+repo-sanity: ## Audit tracked UTF-8 text for bidi/invisible/confusable characters (qtop/qtop#488)
 	$(PYTHON) tools/repo_sanity.py --report-dir $(REPO_SANITY_DIR)
 
 code-quality: ## Emit GitLab Code Quality JSON from ruff (upstream CodeClimate template is deprecated)

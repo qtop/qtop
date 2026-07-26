@@ -7,9 +7,10 @@
 ##
 # Coverage concern (#488), GitHub flavour: the same ``make coverage-xml``
 # Cobertura artifact that ci/coverage.gitlab-ci.yml publishes to GitLab is
-# uploaded here as a workflow artifact and offered to Codecov. Push and manual
-# runs use OIDC and fail if the upload fails. Pull requests use public-repo
-# tokenless upload as a non-gating signal. The current baseline is 50%.
+# uploaded here as a workflow artifact. Codecov remains disabled until a
+# maintainer activates qtop/qtop there and sets the repository variable
+# CODECOV_ENABLED=true. Once enabled, push/manual uploads use OIDC and PR
+# uploads stay non-gating. The current local baseline is 52%.
 
 name: coverage-qtop
 
@@ -46,6 +47,7 @@ jobs:
           name: coverage-cobertura-xml
           path: artifacts/coverage/coverage.xml
       - uses: codecov/codecov-action@0fb7174895f61a3b6b78fc075e0cd60383518dac # v5.5.5
+        if: vars.CODECOV_ENABLED == 'true'
         continue-on-error: ${{ github.event_name == 'pull_request' }}
         with:
           files: artifacts/coverage/coverage.xml

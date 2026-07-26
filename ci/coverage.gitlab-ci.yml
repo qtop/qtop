@@ -9,9 +9,9 @@
 #
 # ``make coverage`` already does the heavy lifting (the #488 hint is right);
 # ``make coverage-xml`` only adds the Cobertura XML emission. GitLab picks
-# the percentage for the MR widget from the job log via ``coverage:`` and
-# renders per-line coverage in MR diffs from the Cobertura artifact.
-# Current private reconciliation baseline: 180 tests, 50% total.
+# the percentage for its native MR widget from the job log via ``coverage:``
+# and renders per-line coverage in GitLab MR diffs from the Cobertura artifact.
+# Dated local integration baseline (2026-07-26): 180 tests, 52% total.
 #
 # The GitHub twin (.github/workflows/coverage.yml) uploads the same XML to
 # Codecov, so both forges read one Makefile target.

@@ -7,8 +7,8 @@ the OpenSSF [Secure Coding Guide for Python](https://github.com/ossf/wg-best-pra
 
 ## Method
 
-The tool baselines were refreshed on the private reconciliation branch on
-2026-07-26. Full machine-readable reports remain CI or review artifacts rather
+The tool baselines were refreshed on a local integration branch on 2026-07-26.
+Full machine-readable reports remain CI or review artifacts rather
 than tracked source files. Reproduce with:
 
 | Tool | Command | Result |
@@ -26,7 +26,7 @@ than tracked source files. Reproduce with:
 ### 1. Untrusted XML parsing -- highest priority
 
 `xml.etree.ElementTree` parses scheduler output directly:
-`qtop_py/plugins/sge.py:19,31` and `qtop_py/qtop.py:836` (bandit B314/B405,
+`qtop_py/plugins/sge.py:19,31` and `qtop_py/qtop.py:864` (bandit B314/B405,
 semgrep `use-defused-xml*`, 3 hits). PySCG's first release has **no CWE-611
 (XML external entity) page yet**, so this is both a qtop action item and an
 upstream-contribution opportunity.
@@ -46,8 +46,8 @@ Proposed next steps, compatible with qtop's zero-runtime-dependency rule
 
 ### 2. Subprocess use -- core function, document the boundary
 
-15 findings (bandit B603 x14, B607 x1; semgrep tainted-env x1 at
-`qtop_py/qtop.py:2521`). Maps to PySCG `04_neutralization/pyscg-0009`
+15 findings (bandit B603 x14, B607 x1; semgrep tainted-env x1 in qtop's
+scheduler command path). Maps to PySCG `04_neutralization/pyscg-0009`
 "Prevent OS Command Injection" (CWE-78). Invoking scheduler CLIs (qstat,
 qhost, sinfo, oarnodes) IS qtop's job; what PySCG asks for is hygiene around
 it, most of which qtop already has: list-form argv everywhere, no
@@ -60,12 +60,13 @@ Proposed next steps:
 3. The single partial-path call sites (`git` in `tools/`) are dev/CI-side
    tools resolving from PATH by design; annotate rather than change.
 4. Live-matrix discovery, now FIXED in this PR: scheduler autodetection
-   used a *hardcoded* `/usr/bin/which` (`qtop_py/qtop.py:357`), which raised
+   used a *hardcoded* `/usr/bin/which`, which raised
    `FileNotFoundError` on minimal images without the `which` package (5 test
    failures on AlmaLinux/Rocky/Fedora/Amazon/Arch lanes in the first
    nightly-matrix run, 27360317465). Replaced with stdlib `shutil.which()`:
    no new dependency, removes both the hardcoded path and the external-binary
-   requirement, and lets the matrix drop its per-lane `which` install. No
+   requirement, and lets the matrix drop its per-lane `which` install. The
+   current implementation uses `shutil.which()` at `qtop_py/qtop.py:385`. No
    regression: 180 tests and all 10 scheduler sample gates pass locally on
    Python 3.12, while the dependency-light Python 3.6 compile and sample gate
    also passes. The matrix lanes no longer need `which`.
@@ -127,9 +128,9 @@ also proves that a valid SGR colour sequence remains accepted.
 
 gitleaks: clean. detect-secrets: 3 candidates, all false positives (two
 cache CACHEDIR.TAG signatures outside the tracked tree and one high-entropy
-*sample job identifier* at `tools/validate_pbs_samples.py:22`). The GitLab
-Secret Detection template (added in this change) takes over continuously;
-expect and triage the same sample-ID false positive there.
+*sample job identifier* at `tools/validate_pbs_samples.py:22`). The configured
+GitLab Secret Detection template can check qualifying pipelines; expect and
+triage the same sample-ID false positive when it runs.
 
 ## Scorecard gap-to-action map (baseline 7.1, 2026-06-08)
 
@@ -147,7 +148,7 @@ expect and triage the same sample-ID false positive there.
 
 ## Priorities
 
-1. P1: XML hardening decision (finding 1) and the two CI-dep pin bumps
+1. P1: XML hardening decision (finding 1) and the three CI-dep pin bumps
    (finding 6).
 2. P2: assert conversion (finding 4), SECURITY.md, temp-path fix (finding 5).
 3. P3: random-use annotations (finding 3), PySCG upstream contributions

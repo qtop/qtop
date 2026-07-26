@@ -31,6 +31,10 @@ for qtop's own validation, but the two forges are not claimed to be identical.
 | Python 3.6 / RHEL8 floor | `make compat-py36` | `.github/workflows/build.yml` (`almalinux-python36`) | `ci/test.gitlab-ci.yml` (`almalinux-python36`) |
 | Package build | `make github-build` / `make gitlab-build` | `.github/workflows/build.yml` (`build`) | `ci/build.gitlab-ci.yml` (`build`) |
 
+The Cobertura artifact is always produced by the coverage workflow. Codecov
+publication stays disabled until a maintainer activates `qtop/qtop` in
+Codecov and sets the GitHub repository variable `CODECOV_ENABLED=true`.
+
 ## Adding a new concern
 
 1. Create `ci/<concern>.gitlab-ci.yml` with a header comment explaining what

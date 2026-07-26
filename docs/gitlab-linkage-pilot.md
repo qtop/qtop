@@ -57,8 +57,8 @@ by repository changes alone.
 | Scorecard | digest-pinned image and JSON artifact | schedule and GitHub token must be configured |
 | GitHub commit status | possible integration output | must be configured and verified; fork PRs are not covered |
 
-Local `pip-audit` remains the cross-tier dependency evidence. The current
-private reconciliation baseline is 7 advisories in 3 pinned CI packages.
+Local `pip-audit` remains the cross-tier dependency evidence. The dated local
+integration baseline on 2026-07-26 is 7 advisories in 3 pinned CI packages.
 
 ## Contributor impact
 

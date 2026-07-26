@@ -15,16 +15,14 @@ documented size and binary scope so hidden paths receive systematic review.
 Checks and severities:
 
 - CRITICAL  bidirectional control characters (Trojan Source, CVE-2021-42574),
-            zero-width/invisible characters, C0/C1 control characters other
-            than tab/newline/carriage-return, unicode line/paragraph
-            separators, undecodable (non-UTF-8) files.
+            zero-width/invisible characters, unexpected C0/C1 controls,
+            unicode line/paragraph separators, undecodable (non-UTF-8) files.
 - WARNING   homoglyph-prone letters (Greek/Cyrillic/fullwidth) in an
             otherwise ASCII tree, byte-order marks.
 - INFO      remaining non-ASCII codepoints (reported, never fatal), lines
             that change under NFKC normalisation, CRLF line endings, and
-            aggregated ANSI escape/carriage-return counts inside declared
-            terminal-output fixtures (see ANSI_FIXTURES), where ESC is the
-            point of the file rather than a smell.
+            complete ANSI SGR colour sequences inside four exact fixtures,
+            plus three exact historical leading carriage returns.
 
 Exit status: 1 if any CRITICAL finding (or WARNING with --strict), else 0.
 The text report caps identical (file, kind) detail at REPORT_CAP entries and
@@ -103,7 +101,7 @@ ANSI_FIXTURES = set(
         "helpfile.txt",
     ]
 )
-ANSI_SGR_RE = re.compile(r"\x1b\[[0-9;]*m")
+ANSI_SGR_RE = re.compile(r"\x1b\[[0-9;]{0,64}m")
 LEGACY_CR_FIXTURES = ANSI_FIXTURES.difference(set(["helpfile.txt"]))
 
 
@@ -320,42 +318,43 @@ def selftest(report_dir):
     proving the ANSI exception accepts colour sequences rather than arbitrary
     escape commands.
     """
-    tmp = Path(tempfile.mkdtemp(prefix="repo-sanity-selftest-"))
-    plants = {
-        "planted_bidi.py": 'access = "user\u202e" # privileged \u202d"\n',
-        "planted_zwsp.py": "def is\u200badmin():\n    return True\n",
-        "planted_homoglyph.py": "p\u0430ssword_check = None  # Cyrillic small a\n",
-        "planted_control.py": "header = 'x\x08x'\n",
-        "planted_separator.py": "safe = True\u2028unsafe = True\n",
-        "qtop_py/contrib/oar1_dvv_out.ref": "\x1b]52;c;Y2xpcGJvYXJk\x07\n",
-        "qtop_py/contrib/pbs_dvv_out.ref": "visible text\rconcealed text\n",
-        "helpfile.txt": "\x1b[2Jconcealed heading\n",
-    }
-    for rel, payload in plants.items():
-        path = tmp / rel
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(payload, encoding="utf-8")
-    findings = []
-    for rel in sorted(plants):
-        scan_file(tmp / rel, rel, findings)
-    safe_rel = "qtop_py/contrib/sger_dvv_out.ref"
-    safe_path = tmp / safe_rel
-    safe_path.parent.mkdir(parents=True, exist_ok=True)
-    safe_path.write_text("\x1b[1;32mgreen\x1b[0;m\n", encoding="utf-8")
-    scan_file(safe_path, safe_rel, findings)
-    counts, report = write_reports(findings, report_dir, len(plants) + 1)
-    print(report)
-    hit = set(f[1] for f in findings if f[0] in ("CRITICAL", "WARNING"))
-    missing = [name for name in sorted(plants) if name not in hit]
-    if missing:
-        print("SELFTEST FAILED: undetected plants: %s" % ", ".join(missing))
-        return 1
-    safe_failures = [finding for finding in findings if finding[1] == safe_rel and finding[0] in ("CRITICAL", "WARNING")]
-    if safe_failures:
-        print("SELFTEST FAILED: valid ANSI SGR sequence was rejected")
-        return 1
-    print("SELFTEST OK: all %d planted payloads detected (proof above)" % len(plants))
-    return 0
+    with tempfile.TemporaryDirectory(prefix="repo-sanity-selftest-") as tmp_name:
+        tmp = Path(tmp_name)
+        plants = {
+            "planted_bidi.py": 'access = "user\u202e" # privileged \u202d"\n',
+            "planted_zwsp.py": "def is\u200badmin():\n    return True\n",
+            "planted_homoglyph.py": "p\u0430ssword_check = None  # Cyrillic small a\n",
+            "planted_control.py": "header = 'x\x08x'\n",
+            "planted_separator.py": "safe = True\u2028unsafe = True\n",
+            "qtop_py/contrib/oar1_dvv_out.ref": "\x1b]52;c;Y2xpcGJvYXJk\x07\n",
+            "qtop_py/contrib/pbs_dvv_out.ref": "visible text\rconcealed text\n",
+            "helpfile.txt": "\x1b[2Jconcealed heading\n",
+        }
+        for rel, payload in plants.items():
+            path = tmp / rel
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(payload, encoding="utf-8")
+        findings = []
+        for rel in sorted(plants):
+            scan_file(tmp / rel, rel, findings)
+        safe_rel = "qtop_py/contrib/sger_dvv_out.ref"
+        safe_path = tmp / safe_rel
+        safe_path.parent.mkdir(parents=True, exist_ok=True)
+        safe_path.write_text("\x1b[1;32mgreen\x1b[0;m\n", encoding="utf-8")
+        scan_file(safe_path, safe_rel, findings)
+        counts, report = write_reports(findings, report_dir, len(plants) + 1)
+        print(report)
+        hit = set(f[1] for f in findings if f[0] in ("CRITICAL", "WARNING"))
+        missing = [name for name in sorted(plants) if name not in hit]
+        if missing:
+            print("SELFTEST FAILED: undetected plants: %s" % ", ".join(missing))
+            return 1
+        safe_failures = [finding for finding in findings if finding[1] == safe_rel and finding[0] in ("CRITICAL", "WARNING")]
+        if safe_failures:
+            print("SELFTEST FAILED: valid ANSI SGR sequence was rejected")
+            return 1
+        print("SELFTEST OK: all %d planted payloads detected (proof above)" % len(plants))
+        return 0
 
 
 def parse_args():
