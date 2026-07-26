@@ -28,6 +28,12 @@
 name: nightly-matrix-qtop
 
 on:
+  # A challenge branch push can validate its exact head in a contributor fork.
+  # workflow_dispatch alone is unavailable there until this workflow exists on
+  # the fork's default branch.
+  push:
+    branches:
+      - 'develop-202607-*'
   schedule:
     - cron: '20 4 * * *'
   workflow_dispatch:
