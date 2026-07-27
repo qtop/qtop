@@ -53,7 +53,7 @@ by repository changes alone.
 | Dependency Scanning | v2 analyzer configured for `requirements-ci.txt` | Ultimate; template rules cover branch and native GitLab MR pipelines |
 | Code Quality | ruff emits GitLab report JSON | artifact inspection depends on GitLab UI support |
 | Coverage | Cobertura XML and percentage regex | GitLab MR widgets require a GitLab MR; branch artifacts still work |
-| Nightly matrix | 35 scheduled lanes | schedule must be created account-side |
+| Nightly matrix | 38 scheduled lanes | schedule must be created account-side |
 | Scorecard | digest-pinned image and JSON artifact | schedule and GitHub token must be configured |
 | GitHub commit status | possible integration output | must be configured and verified; fork PRs are not covered |
 

@@ -25,8 +25,9 @@ than tracked source files. Reproduce with:
 
 ### 1. Untrusted XML parsing -- highest priority
 
-`xml.etree.ElementTree` parses scheduler output directly:
-`qtop_py/plugins/sge.py:19,31` and `qtop_py/qtop.py:864` (bandit B314/B405,
+Standard-library `xml.etree.ElementTree` is imported for scheduler XML
+handling at `qtop_py/plugins/sge.py:19` and `qtop_py/qtop.py:864`; the direct
+scheduler-output parse is at `qtop_py/plugins/sge.py:31` (bandit B314/B405,
 semgrep `use-defused-xml*`, 3 hits). PySCG's first release has **no CWE-611
 (XML external entity) page yet**, so this is both a qtop action item and an
 upstream-contribution opportunity.
@@ -85,7 +86,7 @@ switch those call sites to `secrets`/`SystemRandom` (stdlib, no new deps).
 ### 4. Asserts on runtime paths
 
 bandit B101 x12 (e.g. `qtop_py/fileutils.py:77,144`,
-`qtop_py/plugins/oar.py:108,112`). Maps to PySCG
+`qtop_py/plugins/oar.py:114,118`). Maps to PySCG
 `08_coding_standards/pyscg-0037` (CWE-617): asserts vanish under `python -O`,
 so they must not guard runtime invariants. Proposed next step: convert
 runtime-path asserts to explicit `raise` of qtop's existing error types;
