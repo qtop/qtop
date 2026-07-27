@@ -31,6 +31,12 @@ default:
 
 variables:
   PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  NIGHTLY_MATRIX:
+    value: "0"
+    options:
+      - "0"
+      - "1"
+    description: "Set to 1 for the full compatibility matrix in a manual pipeline."
 
 stages:
   - test
