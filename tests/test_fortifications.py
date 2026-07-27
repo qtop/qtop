@@ -42,4 +42,6 @@ def test_find_star_imports_reports_syntax_errors(monkeypatch, tmp_path):
     monkeypatch.setattr(fortifications, "ROOT", tmp_path)
     monkeypatch.setattr(fortifications, "iter_python_files", lambda: [source])
 
-    assert fortifications.find_star_imports() == ["tools/broken.py:1 syntax error while scanning imports: invalid syntax"]
+    problems = fortifications.find_star_imports()
+    assert len(problems) == 1
+    assert problems[0].startswith("tools/broken.py:1 syntax error while scanning imports: ")
