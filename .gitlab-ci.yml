@@ -29,6 +29,16 @@
 default:
   image: python:3.12.3-bookworm
 
+# Run the shared jobs in native merge-request pipelines, and switch away from
+# duplicate push pipelines once a same-project merge request is open.
+workflow:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_PIPELINE_SOURCE == "external_pull_request_event"'
+    - if: '$CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS && $CI_PIPELINE_SOURCE == "push"'
+      when: never
+    - when: always
+
 variables:
   PIP_DISABLE_PIP_VERSION_CHECK: "1"
   NIGHTLY_MATRIX:
