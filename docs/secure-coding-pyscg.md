@@ -118,12 +118,15 @@ qtop already enforces ASCII-only diffs (`tools/fortifications.py`); this
 change adds `make repo-sanity` (`tools/repo_sanity.py`) auditing tracked UTF-8
 text files up to 5 MiB for Trojan-Source bidi controls, zero-width/invisible
 characters, unicode line separators, C0/C1 controls and homoglyph-prone
-letters. Binary and oversized files are explicitly out of scope. Current tree
-result: **0 critical, 0 warning** and 4 expected fixture INFO rows. Only exact
-fixture files and complete ANSI SGR colour sequences are allowlisted; OSC,
-cursor, and other terminal controls remain critical. The self-test plants
-eight payload classes, including malicious controls at allowlisted paths, and
-also proves that a valid SGR colour sequence remains accepted.
+letters. File discovery requires `git ls-files`; there is no directory-walk
+fallback or tracked-path skip list, so committed text cannot hide under a
+normally generated directory. Binary and oversized files are explicitly out
+of scope. Current tree result: **0 critical, 0 warning** and 4 expected fixture
+INFO rows. Only exact fixture files and complete ANSI SGR colour sequences are
+allowlisted; OSC, cursor, and other terminal controls remain critical. The
+self-test plants eight payload classes, including undesired controls at
+allowlisted paths, and also proves that a valid SGR colour sequence remains
+accepted.
 
 ### 8. Secrets
 

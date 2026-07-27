@@ -99,7 +99,7 @@ repo-sanity:
     - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
   before_script:
     - apt-get update
-    - apt-get install -y --no-install-recommends make
+    - apt-get install -y --no-install-recommends git make
   script:
     - make repo-sanity PYTHON=python
   artifacts:

@@ -40,6 +40,7 @@ import json
 import os
 import re
 import subprocess
+import sys
 import tempfile
 import unicodedata
 from pathlib import Path
@@ -72,21 +73,6 @@ BINARY_SUFFIXES = set(
         ".woff2",
     ]
 )
-SKIP_DIRS = set(
-    [
-        ".git",
-        ".tox",
-        ".venv",
-        "venv",
-        "__pycache__",
-        "artifacts",
-        "build",
-        "dist",
-        "qtop.egg-info",
-        ".pytest_cache",
-        ".ruff_cache",
-    ]
-)
 MAX_BYTES = 5 * 1024 * 1024
 REPORT_CAP = 20
 
@@ -105,6 +91,10 @@ ANSI_SGR_RE = re.compile(r"\x1b\[[0-9;]{0,64}m")
 LEGACY_CR_FIXTURES = ANSI_FIXTURES.difference(set(["helpfile.txt"]))
 
 
+class TrackedFileDiscoveryError(RuntimeError):
+    """Raised when the tracked Git tree cannot be enumerated safely."""
+
+
 def is_ansi_fixture(rel):
     """Return True if ``rel`` is an exact declared terminal fixture."""
     return rel in ANSI_FIXTURES
@@ -116,23 +106,25 @@ def is_expected_fixture_cr(rel, lineno, col, line):
 
 
 def tracked_files(root):
-    """Yield every file git tracks under ``root`` (falls back to os.walk).
+    """Return every file Git tracks under ``root``.
 
     Using ``git ls-files`` keeps the audit aligned with what is actually
-    committed (ignoring untracked scratch files); if git is unavailable the
-    os.walk fallback skips SKIP_DIRS so results stay comparable.
+    committed and ignores untracked scratch files. Git is required: falling
+    back to a directory walk could silently scan a different set of files.
     """
     try:
         out = subprocess.check_output(["git", "ls-files", "-z"], cwd=str(root), stderr=subprocess.DEVNULL)
-        names = [n for n in out.decode("utf-8", "replace").split("\0") if n]
-        return [root / n for n in names]
-    except (OSError, subprocess.CalledProcessError):
-        found = []
-        for dirpath, dirnames, filenames in os.walk(str(root)):
-            dirnames[:] = [d for d in dirnames if d not in SKIP_DIRS]
-            for filename in filenames:
-                found.append(Path(dirpath) / filename)
-        return found
+    except OSError as exc:
+        raise TrackedFileDiscoveryError("Git is required to enumerate tracked files: %s" % exc)
+    except subprocess.CalledProcessError as exc:
+        raise TrackedFileDiscoveryError("'git ls-files' failed in %s with exit status %s; run repo-sanity from a valid Git worktree" % (root, exc.returncode))
+    names = [os.fsdecode(name) for name in out.split(b"\0") if name]
+    return [root / n for n in names]
+
+
+def report_path(rel):
+    """Return a UTF-8-safe report spelling for a repository-relative path."""
+    return rel.encode("utf-8", "backslashreplace").decode("utf-8")
 
 
 def codepoint_label(ch):
@@ -254,7 +246,7 @@ def write_reports(findings, report_dir, scanned):
     counts = {"CRITICAL": 0, "WARNING": 0, "INFO": 0}
     lines = []
     lines.append("repo-sanity text-trust audit")
-    lines.append("root: %s" % ROOT)
+    lines.append("root: <repo>")
     lines.append("files scanned: %d" % scanned)
     lines.append("")
     shown = {}
@@ -294,9 +286,7 @@ def run_audit(root, report_dir, strict):
             continue
         if path.suffix.lower() in BINARY_SUFFIXES:
             continue
-        rel = str(path.relative_to(root))
-        if any(part in SKIP_DIRS for part in Path(rel).parts):
-            continue
+        rel = report_path(str(path.relative_to(root)))
         scanned += 1
         scan_file(path, rel, findings)
     counts, report = write_reports(findings, report_dir, scanned)
@@ -314,7 +304,7 @@ def run_audit(root, report_dir, strict):
 def selftest(report_dir):
     """Plant one file per payload class and prove each is detected.
 
-    Includes malicious terminal controls at exact allowlisted fixture paths,
+    Includes undesired terminal controls at exact allowlisted fixture paths,
     proving the ANSI exception accepts colour sequences rather than arbitrary
     escape commands.
     """
@@ -372,7 +362,11 @@ def main():
     report_dir = Path(args.report_dir)
     if args.selftest:
         return selftest(report_dir)
-    return run_audit(ROOT, report_dir, args.strict)
+    try:
+        return run_audit(ROOT, report_dir, args.strict)
+    except TrackedFileDiscoveryError as exc:
+        print("repo-sanity error: %s" % exc, file=sys.stderr)
+        return 2
 
 
 if __name__ == "__main__":
