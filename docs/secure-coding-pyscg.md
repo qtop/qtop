@@ -7,15 +7,16 @@ the OpenSSF [Secure Coding Guide for Python](https://github.com/ossf/wg-best-pra
 
 ## Method
 
-The tool baselines were refreshed on a local integration branch on 2026-07-26.
-Full machine-readable reports remain CI or review artifacts rather
-than tracked source files. Reproduce with:
+The tool baselines were refreshed on a local integration branch on 2026-07-26,
+with the dependency baseline refreshed again on 2026-07-30. Full
+machine-readable reports remain CI or review artifacts rather than tracked
+source files. Reproduce with:
 
 | Tool | Command | Result |
 |---|---|---|
 | bandit 1.8.x | `bandit -r qtop_py tools` | 53 findings: 50 low, 3 medium |
 | semgrep (`p/python`, `p/security-audit`) | `semgrep scan --config p/python --config p/security-audit qtop_py tools` | 4 findings, all ERROR severity |
-| pip-audit | `pip-audit -r requirements-ci.txt` | 7 known vulnerabilities in 3 pinned CI deps |
+| pip-audit | `pip-audit -r requirements-ci.txt` | 1 known vulnerability in 1 pinned CI dependency |
 | gitleaks 8.24 | `gitleaks dir .` | no leaks |
 | detect-secrets | `git ls-files -z \| xargs -0 detect-secrets scan` | 1 tracked candidate, a false positive |
 | repo-sanity (new) | `make repo-sanity` | 0 critical, 0 warning, 4 expected-fixture info |
@@ -102,13 +103,18 @@ keeping the CLI flag override; CI-side only, low risk.
 
 ### 6. Dependency currency (pinned CI set)
 
-pip-audit on `requirements-ci.txt`: `pip 24.0` carries 5 advisories
-(PYSEC-2026-196, GHSA-4xh5-x5gv-qwph, GHSA-6vgw-5pg2-w6jp,
-GHSA-58qw-9mgm-455v, GHSA-jp4c-xjxw-mgf9) and `pytest 8.2.2` one
-(GHSA-6w46-j5rx-g56g). `setuptools 78.1.1` adds one advisory. These are
-CI-only dependencies; the qtop runtime deliberately has none, so exposure is
-the CI environment, not clusters. Proposed next step: bump the three pins in a
-dedicated PR after the matrix proves them green. GitLab Dependency Scanning is
+On Python 3.10 and newer, `requirements-ci.txt` now selects `pip 26.2` and
+`setuptools 83.0.0`; pip-audit reports no finding for either, clearing the six
+previously recorded packaging-tool advisories. `pytest 8.2.2` retains one
+finding (PYSEC-2026-1845, fixed in 9.0.3), so the modern CI baseline is one
+advisory in one pinned dependency.
+
+Both packaging-tool releases require Python 3.10 or newer. Python 3.9 matrix
+lanes therefore keep their image or virtual-environment bootstrap tools and
+use the pinned test dependencies, while Python 3.6--3.8 lanes remain on the
+dependency-light compatibility gate. This is a CI-only boundary: the qtop
+runtime deliberately has no dependencies. Proposed next step: assess pytest
+9.0.3 compatibility as a separate pin change. GitLab Dependency Scanning is
 an Ultimate feature, so `pip-audit` remains the portable local check.
 
 ### 7. Text and encoding trust

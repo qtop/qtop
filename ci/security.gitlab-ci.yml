@@ -23,8 +23,8 @@
 # - SAST IaC (KICS) ....... Free tier; covers the CI yaml itself.
 # - Dependency Scanning ... Ultimate feature. The v2 analyzer template is
 #                           configured explicitly for requirements-ci.txt.
-#                           Local pip-audit baseline: 7 advisories in 3 pinned
-#                           CI packages.
+#                           Python 3.12 pip-audit baseline: 1 advisory in 1
+#                           pinned CI package.
 # - License Compliance .... The old License-Scanning template was removed
 #                           upstream (GitLab 16.3); license data now rides on
 #                           Dependency Scanning (Ultimate). The free-tier
