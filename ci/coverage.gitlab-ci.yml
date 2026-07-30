@@ -13,8 +13,8 @@
 # and renders per-line coverage in GitLab MR diffs from the Cobertura artifact.
 # Dated local integration baseline (2026-07-26): 180 tests, 52% total.
 #
-# The GitHub twin (.github/workflows/coverage.yml) uploads the same XML to
-# Codecov, so both forges read one Makefile target.
+# The GitHub twin (.github/workflows/coverage.yml) stores the same XML as a
+# workflow artifact, so both forges read one Makefile target.
 
 coverage-cobertura:
   stage: test

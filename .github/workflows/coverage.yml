@@ -5,12 +5,10 @@
 ##
 ## SPDX-License-Identifier: MIT
 ##
-# Coverage concern (#488), GitHub flavour: the same ``make coverage-xml``
-# Cobertura artifact that ci/coverage.gitlab-ci.yml publishes to GitLab is
-# uploaded here as a workflow artifact. Codecov remains disabled until a
-# maintainer activates qtop/qtop there and sets the repository variable
-# CODECOV_ENABLED=true. Once enabled, push/manual uploads use OIDC and PR
-# uploads stay non-gating. The current local baseline is 52%.
+# Coverage concern (#488), GitHub flavour: ``make coverage-xml`` produces the
+# same Cobertura report that ci/coverage.gitlab-ci.yml publishes to GitLab.
+# GitHub stores it as a workflow artifact, so no external coverage service or
+# identity-token permission is required. The current validated baseline is 57%.
 
 name: coverage-qtop
 
@@ -27,7 +25,6 @@ on:
 
 permissions:
   contents: read
-  id-token: write
 
 jobs:
   coverage:
@@ -46,11 +43,3 @@ jobs:
         with:
           name: coverage-cobertura-xml
           path: artifacts/coverage/coverage.xml
-      - uses: codecov/codecov-action@0fb7174895f61a3b6b78fc075e0cd60383518dac # v5.5.5
-        if: vars.CODECOV_ENABLED == 'true'
-        continue-on-error: ${{ github.event_name == 'pull_request' }}
-        with:
-          files: artifacts/coverage/coverage.xml
-          flags: pytest
-          fail_ci_if_error: ${{ github.event_name != 'pull_request' }}
-          use_oidc: ${{ github.event_name != 'pull_request' }}

@@ -45,7 +45,7 @@ coverage: ## Run tests with coverage.py and print a terminal report
 	$(PYTHON) -m coverage run -m pytest
 	$(PYTHON) -m coverage report
 
-coverage-xml: ## Run tests under coverage.py and write a Cobertura XML report (GitLab/Codecov ready)
+coverage-xml: ## Run tests under coverage.py and write a CI-ready Cobertura XML report
 	$(PYTHON) -m coverage run -m pytest
 	$(PYTHON) -m coverage report
 	@mkdir -p $(dir $(COVERAGE_XML))
