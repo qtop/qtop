@@ -110,6 +110,14 @@ case "${TARGET}" in
             "${PYBIN}" -m venv /tmp/qtop-lane-venv
             LANE_PY=/tmp/qtop-lane-venv/bin/python
         fi
+        # pytest before 9.0.3 uses a predictable shared /tmp parent on Unix.
+        # The patched release requires Python >=3.10, so give every lane a
+        # random mode-0700 parent; this protects the Python 3.9 compatibility
+        # lanes that must retain pytest 8.2.2.
+        log "creating private pytest temp root"
+        PYTEST_PRIVATE_ROOT="$(mktemp -d)"
+        chmod 700 "${PYTEST_PRIVATE_ROOT}"
+        export PYTEST_ADDOPTS="${PYTEST_ADDOPTS:+${PYTEST_ADDOPTS} }--basetemp=${PYTEST_PRIVATE_ROOT}/basetemp"
         log "make ci-deps"
         make ci-deps PYTHON="${LANE_PY}"
         log "make nightly-ci"

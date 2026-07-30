@@ -9,7 +9,11 @@ packaging==24.2
 pip==26.2; python_version >= "3.10"
 pluggy==1.6.0
 pyproject-hooks==1.1.0
-pytest==8.2.2
+pygments==2.20.0; python_version >= "3.10"
+# pytest 9.0.3 fixes CVE-2025-71176 but requires Python 3.10 or newer.
+# Python 3.9 matrix lanes retain 8.2.2 behind a private pytest temp root.
+pytest==8.2.2; python_version < "3.10"
+pytest==9.0.3; python_version >= "3.10"
 ruff==0.15.15
 setuptools==83.0.0; python_version >= "3.10"
 tomli==2.4.1
