@@ -287,26 +287,25 @@ def test_process_line_expands_literal_tuple_list():
             {"testkey22": {"-": [{"testkey23": "testvalue23"}, {"testkey24": "testvalue24"}, {"testkey25": "testvalue25"}]}},
             {"testkey22": [{"testkey23": "testvalue23"}, {"testkey24": "testvalue24"}, {"testkey25": "testvalue25"}]},
         ),
-        # (
-        #     {'filt':
-        #          {'-':
-        #               [
-        #                   {'list_name': [1, 2, 3]},
-        #                   {'list_pattern': {'-': ['p5', 'moonshot']}}
-        #               ]
-        #          }
-        #     },
-        #     {'filt':
-        #          [
-        #              {'list_name': [1, 2, 3]},
-        #              {'list_pattern': ['p5', 'moonshot']}
-        #          ]
-        #     }
-        # ),
+        (
+            {"filt": {"-": [{"list_name": [1, 2, 3]}, {"list_pattern": {"-": ["p5", "moonshot"]}}]}},
+            {"filt": [{"list_name": [1, 2, 3]}, {"list_pattern": ["p5", "moonshot"]}]},
+        ),
+        (
+            {"count": 3, "enabled": True, "name": None},
+            {"count": 3, "enabled": True, "name": None},
+        ),
+        (
+            {"state": {"-": ["Q", "R"]}},
+            {"state": {"-": ["Q", "R"]}},
+        ),
+        (
+            {"mixed": {"-": ["value"], "description": "keep me"}},
+            {"mixed": {"-": ["value"], "description": "keep me"}},
+        ),
     ),
 )
 def test_convert_dash_key_in_dict(dict_a, dict_b):
-    # pass
     assert convert_dash_key_in_dict(dict_a) == dict_b
 
 
