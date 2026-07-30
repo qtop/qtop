@@ -1,0 +1,108 @@
+##
+## qtop is a tool to monitor queuing systems - https://github.com/qtop/qtop
+##
+## Copyright (c) 2026 Vadik Malik
+##
+## SPDX-License-Identifier: MIT
+##
+# Security concern (#488): what works out of the box on GitLab, explored
+# honestly. Template jobs land in the ``test`` stage (their own default);
+# custom jobs land in ``security``.
+#
+# Out-of-the-box status by feature (gitlab.com, June 2026):
+#
+# - SAST .................. Free tier. For Python the template dispatches the
+#                           Semgrep-based analyzer, which also satisfies the
+#                           "Semgrep analyzer" exploration point. Local
+#                           baseline: 4 ERROR findings (3x use-defused-xml,
+#                           1x tainted subprocess args); see
+#                           docs/secure-coding-pyscg.md.
+# - Secret Detection ...... Free tier. Local gitleaks baseline: clean. Expect
+#                           one recurring false positive on a high-entropy
+#                           sample job ID in tools/validate_pbs_samples.py.
+# - SAST IaC (KICS) ....... Free tier; covers the CI yaml itself.
+# - Dependency Scanning ... Ultimate feature. The v2 analyzer template is
+#                           configured explicitly for requirements-ci.txt.
+#                           Python 3.12 pip-audit baseline: no known
+#                           vulnerabilities in the selected CI packages.
+# - License Compliance .... The old License-Scanning template was removed
+#                           upstream (GitLab 16.3); license data now rides on
+#                           Dependency Scanning (Ultimate). The free-tier
+#                           ``license-report`` job below keeps an honest
+#                           equivalent via pip-licenses.
+# - Code Quality .......... The CodeClimate-based template is deprecated
+#                           upstream; the ``code-quality`` job below emits
+#                           the same report format natively from ruff.
+# - GitLab Advanced SAST .. Ultimate only. Enable by uncommenting
+#                           GITLAB_ADVANCED_SAST_ENABLED below on such a tier.
+# - DAST .................. Needs a running web target; gated on the
+#                           container/registry checklist item, which this
+#                           slice does not claim.
+# - Container Scanning .... Same gate as DAST; noted for completeness.
+
+include:
+  - template: Jobs/SAST.gitlab-ci.yml
+  - template: Jobs/SAST-IaC.gitlab-ci.yml
+  - template: Jobs/Secret-Detection.gitlab-ci.yml
+  - template: Jobs/Dependency-Scanning.v2.gitlab-ci.yml
+    inputs:
+      pip_manifest_file_name_pattern: requirements-ci.txt
+
+variables:
+  SAST_IMAGE_SUFFIX: ""
+  # GITLAB_ADVANCED_SAST_ENABLED: "true"   # Ultimate tier only
+
+code-quality:
+  stage: security
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_PIPELINE_SOURCE == "external_pull_request_event"'
+    - if: '$CI_COMMIT_BRANCH == "develop"'
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+  before_script:
+    - apt-get update
+    - apt-get install -y --no-install-recommends make
+    - make ci-deps PYTHON=python
+  script:
+    - make code-quality PYTHON=python
+  artifacts:
+    when: always
+    reports:
+      codequality: artifacts/code-quality/gl-code-quality-report.json
+    paths:
+      - artifacts/code-quality/
+
+license-report:
+  stage: security
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_PIPELINE_SOURCE == "external_pull_request_event"'
+    - if: '$CI_COMMIT_BRANCH == "develop"'
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+  before_script:
+    - apt-get update
+    - apt-get install -y --no-install-recommends make
+    - make ci-deps PYTHON=python
+  script:
+    - make license-report PYTHON=python
+  artifacts:
+    when: always
+    paths:
+      - artifacts/license/
+
+repo-sanity:
+  stage: security
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_PIPELINE_SOURCE == "external_pull_request_event"'
+    - if: '$CI_COMMIT_BRANCH == "develop"'
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+  before_script:
+    - apt-get update
+    - apt-get install -y --no-install-recommends git make
+  script:
+    - make repo-sanity PYTHON=python
+  artifacts:
+    when: always
+    paths:
+      - artifacts/repo-sanity/

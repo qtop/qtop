@@ -20,6 +20,7 @@ import sys
 from operator import itemgetter
 from itertools import zip_longest, cycle
 import subprocess
+import shutil
 import select
 import os
 import re
@@ -27,8 +28,16 @@ import json
 import datetime
 from collections import namedtuple, OrderedDict, Counter
 from os.path import realpath
-from signal import signal, SIGPIPE, SIG_DFL
-import termios
+from signal import SIG_DFL, signal
+
+try:
+    from signal import SIGPIPE
+except ImportError:
+    SIGPIPE = None
+try:
+    import termios
+except ImportError:
+    termios = None
 import contextlib
 import glob
 import tempfile
@@ -61,6 +70,11 @@ import time
 
 here = sys.path[0]
 PLUGIN_BATCH_SYSTEMS = (DemoBatchSystem, OARBatchSystem, PBSBatchSystem, SGEBatchSystem, SlurmBatchSystem)
+
+
+def reset_sigpipe():
+    if SIGPIPE is not None:
+        signal(SIGPIPE, SIG_DFL)
 
 
 def _configured_separator(config):
@@ -187,11 +201,13 @@ def raw_mode(file):
     """
     if args.ONLYSAVETOFILE:
         yield
+    elif termios is None:
+        yield
     else:
         if args.WATCH:
             try:
                 old_attrs = termios.tcgetattr(file.fileno())
-            except:  # noqa: E722  ## FIXME, ruff complaint
+            except (AttributeError, OSError, termios.error):
                 yield
             else:
                 new_attrs = old_attrs[:]
@@ -296,36 +312,48 @@ def load_yaml_config():
     return config, user_to_color, nodestate_to_color
 
 
-def calculate_term_size(config, FALLBACK_TERM_SIZE):
+def calculate_term_size(config, FALLBACK_TERM_SIZE, viewport):
     """
     Gets the dimensions of the terminal window where qtop will be displayed.
+
+    ``viewport`` is passed explicitly so this helper does not depend on global
+    state. If ``stty`` is absent, cannot be started, or returns unusable output,
+    the viewport size is used before the configured fallback.
     """
     fallback_term_size = config.get("term_size", FALLBACK_TERM_SIZE)
 
-    _command = subprocess.Popen(["/bin/stty", "size"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    tty_size, error = _command.communicate()
-    if not error:
-        term_height, term_columns = [int(x) for x in tty_size.strip().split()]
-        logging.debug('terminal size v, h from "stty size": %s, %s' % (term_height, term_columns))
-    else:
-        logging.warn("Failed to autodetect terminal size. (Running in an IDE?in a pipe?) Trying values in %s." % QTOPCONF_YAML)
+    stty = shutil.which("stty")
+    tty_size, error = b"", b"stty not found"
+    if stty:
         try:
-            term_height, term_columns = viewport.get_term_size()
-            if not all(term_height, term_columns):
-                raise ValueError
-        except ValueError:
-            try:
-                term_height, term_columns = yaml.fix_config_list(viewport.get_term_size())
-            except KeyError:
-                term_height, term_columns = fallback_term_size
-                logging.debug("(hardcoded) fallback terminal size v, h:%s, %s" % (term_height, term_columns))
-            else:
-                logging.debug("fallback terminal size v, h:%s, %s" % (term_height, term_columns))
-        except (KeyError, TypeError):  # TypeError if None was returned i.e. no setting in QTOPCONF_YAML
-            term_height, term_columns = fallback_term_size
-            logging.debug("(hardcoded) fallback terminal size v, h:%s, %s" % (term_height, term_columns))
+            command = subprocess.Popen([stty, "size"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            tty_size, error = command.communicate()
+        except OSError as exc:
+            error = exc
 
-    return int(term_height), int(term_columns)
+    if not error:
+        try:
+            term_height, term_columns = [int(x) for x in tty_size.strip().split()]
+            if term_height <= 0 or term_columns <= 0:
+                raise ValueError("terminal dimensions must be positive")
+        except (TypeError, ValueError):
+            pass
+        else:
+            logging.debug('terminal size v, h from "stty size": %s, %s' % (term_height, term_columns))
+            return term_height, term_columns
+
+    logging.warning("Failed to autodetect terminal size. (Running in an IDE? in a pipe?) Falling back via %s / viewport." % QTOPCONF_YAML)
+    try:
+        term_height, term_columns = [int(x) for x in viewport.get_term_size()]
+        if term_height <= 0 or term_columns <= 0:
+            raise ValueError("terminal dimensions must be positive")
+    except (AttributeError, KeyError, OSError, TypeError, ValueError):
+        term_height, term_columns = [int(x) for x in fallback_term_size]
+        logging.debug("(hardcoded) fallback terminal size v, h: %s, %s" % (term_height, term_columns))
+    else:
+        logging.debug("viewport-provided terminal size v, h: %s, %s" % (term_height, term_columns))
+
+    return term_height, term_columns
 
 
 def finalize_filepaths_schedulercommands(args, config):
@@ -354,11 +382,11 @@ def auto_get_avail_batch_system(config):
     """
     # TODO pbsnodes etc should not be hardcoded!
     for system, batch_command in config["signature_commands"].items():
-        NOT_FOUND = subprocess.call(["/usr/bin/which", batch_command], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        if not NOT_FOUND:
-            if system != "demo":
-                logging.debug("Auto-detected scheduler: %s" % system)
-                return system
+        if not shutil.which(batch_command):
+            continue
+        if system != "demo":
+            logging.debug("Auto-detected scheduler: %s" % system)
+            return system
 
     raise SchedulerNotSpecified
 
@@ -832,7 +860,7 @@ def attempt_faster_xml_parsing(config):
         try:
             from lxml import etree
         except ImportError:
-            logging.warn('Module lxml is missing. Try issuing "pip install lxml". Reverting to xml module.')
+            logging.warning('Module lxml is missing. Try issuing "pip install lxml". Reverting to xml module.')
             from xml.etree import ElementTree as etree  # noqa: F401
 
 
@@ -859,7 +887,7 @@ def wait_for_keypress_or_autorefresh(viewport, FALLBACK_TERMSIZE, KEYPRESS_TIMEO
             break
     else:
         state = viewport.get_term_size()
-        viewport.set_term_size(*calculate_term_size(config, FALLBACK_TERMSIZE))
+        viewport.set_term_size(*calculate_term_size(config, FALLBACK_TERMSIZE, viewport))
         new_state = viewport.get_term_size()
         _read_char = "\n" if (state == new_state) else "r"
         logging.debug("Auto-advancing by pressing <Enter>")
@@ -1206,7 +1234,7 @@ class WNOccupancy(object):
             sys.exit(1)
         min_len = min(user_max_len, real_max_len)
         if real_max_len > user_max_len:
-            logging.warn("Some longer %(attr)ss have been cropped due to %(attr)s length restriction by user" % {"attr": part_name})
+            logging.warning("Some longer %(attr)ss have been cropped due to %(attr)s length restriction by user" % {"attr": part_name})
 
         # initialisation of lines
         multiline_map = OrderedDict()
@@ -1753,7 +1781,7 @@ class TextDisplay(object):
         return joined_list
 
     def print_core_lines(self, core_user_map, print_char_start, print_char_stop, transposed_matrices, userid_to_userid_re_pat, mapping, attrs, options1, options2):
-        signal(SIGPIPE, SIG_DFL)
+        reset_sigpipe()
         remove_corelines = dynamic_config.get("rem_empty_corelines", config["rem_empty_corelines"]) + 1
 
         # if corelines vertical (transposed matrix)
@@ -1776,7 +1804,7 @@ class TextDisplay(object):
                     print(core_line_zipped)
                 except IOError:
                     try:
-                        signal(SIGPIPE, SIG_DFL)
+                        reset_sigpipe()
                         print(core_line_zipped)
                         sys.stdout.close()
                     except IOError:
@@ -2360,6 +2388,24 @@ class InvalidScheduler(Exception):
     pass
 
 
+def cli_error_message(error):
+    if isinstance(error, SchedulerNotSpecified):
+        return "No scheduler could be auto-detected. Select one with -b/--batchSystem, QTOP_SCHEDULER, or qtopconf.yaml."
+    if isinstance(error, NoSchedulerFound):
+        return ""
+    return str(error)
+
+
+def cli_main():
+    try:
+        return main() or 0
+    except (InvalidScheduler, NoSchedulerFound, SchedulerNotSpecified) as error:
+        message = cli_error_message(error)
+        if message:
+            sys.stderr.write("%s\n" % message)
+        return 1
+
+
 def main():
     # define global vars which are used out of scope
     global \
@@ -2392,11 +2438,15 @@ def main():
         print("Anonymize should be ran with --experimental switch!! Exiting...")
         sys.exit(1)
     if args.WATCH or args.REPLAY:  # this is needed for the filtering/sorting options
-        try:
-            old_attrs = termios.tcgetattr(0)
-        except termios.error:
+        if termios is None:
             old_attrs = ""
-        new_attrs = old_attrs[:]
+            new_attrs = ""
+        else:
+            try:
+                old_attrs = termios.tcgetattr(0)
+            except termios.error:
+                old_attrs = ""
+            new_attrs = old_attrs[:]
 
     available_batch_systems = discover_qtop_batch_systems()
 
@@ -2446,7 +2496,7 @@ def main():
                 if args.LESS:
                     viewport.set_term_size(500, 9999)
                 else:
-                    viewport.set_term_size(*calculate_term_size(config, FALLBACK_TERMSIZE))
+                    viewport.set_term_size(*calculate_term_size(config, FALLBACK_TERMSIZE, viewport))
                 sys.stdout = os.fdopen(handle, "w")  # redirect everything to file, creates file object out of handle
                 scheduler = decide_batch_system(args.BATCH_SYSTEM, os.environ.get("QTOP_SCHEDULER"), config["scheduler"], config["schedulers"], available_batch_systems, config)
                 scheduler_output_filenames = fetch_scheduler_files(args, config)
@@ -2545,4 +2595,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(cli_main())

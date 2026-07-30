@@ -1,0 +1,122 @@
+##
+## qtop is a tool to monitor queuing systems - https://github.com/qtop/qtop
+##
+## Copyright (c) 2026 Vadik Malik
+##
+## SPDX-License-Identifier: MIT
+##
+# Nightly interpreter/distro compatibility matrix (#488): 38 lanes covering
+# CPython 3.6 through 3.15-rc plus PyPy across Debian, Ubuntu, AlmaLinux,
+# Rocky, CentOS Stream, Oracle Linux, Fedora, openSUSE, Amazon Linux and Arch.
+# Every lane routes through ci/scripts/matrix_lane.sh and the Makefile
+# contract, mirroring ci/nightly-matrix.gitlab-ci.yml with the same lane
+# definitions.
+#
+# Lane targets are git-free on purpose: the nightly matrix watches
+# interpreter/runtime drift; diff-health checks stay in MR/PR pipelines.
+# Experimental lanes (prerelease interpreters, EOL-archived or rolling
+# distros) never fail the workflow.
+#
+# Findings from the first live runs (2026-06-11) and how they were resolved:
+# - the pinned CI set floors at Python 3.9 (importlib-metadata==8.7.1
+#   requires >=3.9), so the 3.7/3.8 lanes run the dependency-light gate;
+# - qtop autodetection used a hardcoded /usr/bin/which, which broke minimal
+#   RHEL-family/Arch images -- fixed in this PR by switching to stdlib
+#   shutil.which(), so no lane needs a "which" package anymore;
+# - openSUSE Leap base images lack tar (checkout's tarball fallback), so the
+#   bootstrap step below installs git first.
+
+name: nightly-matrix-qtop
+
+on:
+  # A challenge branch push can validate its exact head in a contributor fork.
+  # workflow_dispatch alone is unavailable there until this workflow exists on
+  # the fork's default branch.
+  push:
+    branches:
+      - 'develop-202607-*'
+  schedule:
+    - cron: '20 4 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  lane:
+    name: ${{ matrix.image }} ${{ matrix.pybin || 'python3' }} ${{ matrix.target || 'ci' }}
+    runs-on: ubuntu-24.04
+    container: ${{ matrix.image }}
+    continue-on-error: ${{ matrix.experimental || false }}
+    strategy:
+      fail-fast: false
+      # Readability: GitHub Actions matrix `include` has no native per-key
+      # defaults, so the defaults below are applied via `||` fallback in the
+      # job `name`, `continue-on-error`, and the run step. A lane may then omit
+      # any key equal to its default -- pkgs: '-', pybin: python3, target: ci,
+      # experimental: false -- and only non-default values are written out.
+      matrix:
+        include:
+          # -- stable lanes: CPython on official images (pybin: python) -----
+          - { image: 'python:3.7-bullseye',  family: pythonimg, pybin: python, target: compat-py36 }
+          # 3.8 also runs the compat gate: pinned CI deps need >=3.9.
+          - { image: 'python:3.8-bullseye',  family: pythonimg, pybin: python, target: compat-py36 }
+          - { image: 'python:3.9-bookworm',  family: pythonimg, pybin: python }
+          - { image: 'python:3.10-bookworm', family: pythonimg, pybin: python }
+          - { image: 'python:3.11-bookworm', family: pythonimg, pybin: python }
+          - { image: 'python:3.12-bookworm', family: pythonimg, pybin: python }
+          - { image: 'python:3.13-bookworm', family: pythonimg, pybin: python }
+          - { image: 'python:3.14-bookworm', family: pythonimg, pybin: python }
+          # -- stable lanes: distro system interpreters (defaults: python3, ci)
+          - { image: 'ubuntu:22.04', family: debian, pkgs: 'python3,python3-venv,python3-pip' }
+          - { image: 'ubuntu:24.04', family: debian, pkgs: 'python3,python3-venv,python3-pip' }
+          - { image: 'ubuntu:25.10', family: debian, pkgs: 'python3,python3-venv,python3-pip' }
+          - { image: 'debian:bullseye', family: debian, pkgs: 'python3,python3-venv,python3-pip' }
+          - { image: 'debian:bookworm', family: debian, pkgs: 'python3,python3-venv,python3-pip' }
+          - { image: 'debian:trixie', family: debian, pkgs: 'python3,python3-venv,python3-pip' }
+          - { image: 'almalinux:8', family: rhel, pkgs: 'python36', pybin: python3.6, target: compat-py36 }
+          - { image: 'almalinux:8', family: rhel, pkgs: 'python3.12,python3.12-pip', pybin: python3.12 }
+          - { image: 'almalinux:9', family: rhel, pkgs: 'python3,python3-pip' }
+          - { image: 'almalinux:9', family: rhel, pkgs: 'python3.12,python3.12-pip', pybin: python3.12 }
+          - { image: 'rockylinux:8', family: rhel, pkgs: 'python36', pybin: python3.6, target: compat-py36 }
+          - { image: 'rockylinux:9', family: rhel, pkgs: 'python3,python3-pip' }
+          - { image: 'rockylinux:9', family: rhel, pkgs: 'python3.11,python3.11-pip', pybin: python3.11 }
+          - { image: 'quay.io/centos/centos:stream9', family: rhel, pkgs: 'python3,python3-pip' }
+          - { image: 'docker.io/library/oraclelinux:8', family: rhel, pkgs: 'python3,python3-pip', target: compat-py36 }
+          - { image: 'docker.io/library/oraclelinux:9', family: rhel, pkgs: 'python3,python3-pip' }
+          - { image: 'fedora:41', family: fedora, pkgs: 'python3,python3-pip' }
+          - { image: 'fedora:42', family: fedora, pkgs: 'python3,python3-pip' }
+          - { image: 'opensuse/leap:15.6', family: suse, pkgs: 'python3', target: compat-py36 }
+          - { image: 'opensuse/leap:15.6', family: suse, pkgs: 'python311,python311-pip', pybin: python3.11 }
+          - { image: 'amazonlinux:2023', family: amazon, pkgs: 'python3,python3-pip' }
+          - { image: 'amazonlinux:2023', family: amazon, pkgs: 'python3.12,python3.12-pip', pybin: python3.12 }
+          # -- experimental lanes: prerelease / EOL-archived / rolling ------
+          - { image: 'python:3.6-buster', family: pythonimg, pybin: python, target: compat-py36, experimental: true }
+          - { image: 'python:3.15-rc', family: pythonimg, pybin: python, experimental: true }
+          - { image: 'pypy:3.9', family: pypyimg, pybin: pypy3, experimental: true }
+          - { image: 'pypy:3.10', family: pypyimg, pybin: pypy3, experimental: true }
+          - { image: 'pypy:3.11', family: pypyimg, pybin: pypy3, experimental: true }
+          - { image: 'ubuntu:20.04', family: debian, pkgs: 'python3,python3-venv,python3-pip', target: compat-py36, experimental: true }
+          - { image: 'debian:sid', family: debian, pkgs: 'python3,python3-venv,python3-pip', experimental: true }
+          - { image: 'archlinux:base', family: arch, pkgs: 'python,python-pip', pybin: python, experimental: true }
+    steps:
+      - name: bootstrap git for checkout (best effort; suse strictly needs it)
+        run: |
+          case "${{ matrix.family }}" in
+            debian)
+              apt-get update || true
+              DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends git ca-certificates || true
+              ;;
+            rhel|fedora|amazon) dnf -y install git || true ;;
+            suse) zypper --non-interactive refresh || true; zypper --non-interactive install git || true ;;
+            arch) pacman -Sy --noconfirm git || true ;;
+            *) echo "official image, git preinstalled" ;;
+          esac
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - run: bash ci/scripts/matrix_lane.sh "${{ matrix.family }}" "${{ matrix.pkgs || '-' }}" "${{ matrix.pybin || 'python3' }}" "${{ matrix.target || 'ci' }}"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: nightly-lane-${{ strategy.job-index }}
+          path: artifacts/
+          if-no-files-found: ignore

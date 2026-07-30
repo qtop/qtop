@@ -39,11 +39,17 @@ def expand_single_literal_list(container):
 def fix_config_list(config_list):
     """
     transforms a list of the form ['a, b'] to ['a', 'b']
+
+    Raises TypeError if the first element is not a string, surfacing a clear,
+    actionable error here instead of a cryptic AttributeError from ``str.split``
+    further down when the function is handed a non-string value (e.g. a list of
+    ints).
     """
     if not config_list:
         return []
-    t = config_list
-    item = t[0]
+    item = config_list[0]
+    if not isinstance(item, str):
+        raise TypeError("fix_config_list expected a list of strings; got first element of type %r" % type(item).__name__)
     list_items = item.split(",")
     return [nr.strip() for nr in list_items]
 

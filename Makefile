@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 
-.PHONY: help all rerun clean ci-deps test coverage sample-gate backend-validation backend-colour-artifacts render-backends trace-export-validation test-pbs-samples test-slurm-samples fortifications ruff-check lint lint-fix format-check format-fix compat-py36 ci github-ci gitlab-ci build github-build gitlab-build dist version confirm
+.PHONY: help all rerun clean ci-deps test coverage coverage-xml sample-gate backend-validation backend-colour-artifacts render-backends trace-export-validation test-pbs-samples test-slurm-samples fortifications repo-sanity code-quality license-report ruff-check lint lint-fix format-check format-fix compat-py36 ci nightly-ci github-ci gitlab-ci build github-build gitlab-build dist version confirm
 
 PYTHON ?= python3
 PIP ?= $(PYTHON) -m pip
@@ -17,6 +17,10 @@ PBS_OUTPUT_DIR ?= /tmp/qtop-pbs-rendered
 SLURM_SAMPLES_DIR ?= tests/plugins/slurm_samples
 SLURM_OUTPUT_DIR ?= /tmp/qtop-slurm-rendered
 FORTIFY_BASE_REF ?= origin/develop
+COVERAGE_XML ?= artifacts/coverage/coverage.xml
+REPO_SANITY_DIR ?= artifacts/repo-sanity
+CODE_QUALITY_JSON ?= artifacts/code-quality/gl-code-quality-report.json
+LICENSE_DIR ?= artifacts/license
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z0-9_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -40,6 +44,13 @@ test: ## Run the Python test suite
 coverage: ## Run tests with coverage.py and print a terminal report
 	$(PYTHON) -m coverage run -m pytest
 	$(PYTHON) -m coverage report
+
+coverage-xml: ## Run tests under coverage.py and write a CI-ready Cobertura XML report
+	$(PYTHON) -m coverage run -m pytest
+	$(PYTHON) -m coverage report
+	@mkdir -p $(dir $(COVERAGE_XML))
+	$(PYTHON) -m coverage xml -o $(COVERAGE_XML)
+	@echo "wrote $(COVERAGE_XML)"
 
 sample-gate: ## Run fast committed PBS/SGE/Slurm/OAR/demo qtop sample gates
 	$(PYTHON) tools/validate_scheduler_samples.py --schedulers $(SAMPLE_GATE_SCHEDULERS) --max-failures $(SAMPLE_GATE_MAX_FAILURES) --artifact-dir $(SAMPLE_GATE_ARTIFACT_DIR)
@@ -74,6 +85,21 @@ test-slurm-samples: ## Run Slurm parser tests and render committed Slurm samples
 fortifications: ## Check diff health and reject eval() call sites
 	$(PYTHON) tools/fortifications.py --base-ref $(FORTIFY_BASE_REF)
 
+repo-sanity: ## Audit tracked UTF-8 text for bidi/invisible/confusable characters (qtop/qtop#488)
+	$(PYTHON) tools/repo_sanity.py --report-dir $(REPO_SANITY_DIR)
+
+code-quality: ## Emit GitLab Code Quality JSON from ruff (upstream CodeClimate template is deprecated)
+	@mkdir -p $(dir $(CODE_QUALITY_JSON))
+	$(PYTHON) -m ruff check --output-format gitlab --exit-zero . > $(CODE_QUALITY_JSON)
+	@echo "wrote $(CODE_QUALITY_JSON)"
+
+license-report: ## Report licenses of the pinned CI dependency set (pip-licenses, pinned in-job)
+	$(PIP) install pip-licenses==5.0.0
+	@mkdir -p $(LICENSE_DIR)
+	$(PYTHON) -m piplicenses --format=markdown --with-urls > $(LICENSE_DIR)/ci-dependencies.md
+	$(PYTHON) -m piplicenses --format=json > $(LICENSE_DIR)/ci-dependencies.json
+	@echo "wrote $(LICENSE_DIR)"
+
 ruff-check: ## Run ruff against the source tree
 	$(PYTHON) -m ruff check .
 
@@ -99,6 +125,8 @@ ci: test backend-validation lint ruff-check format-check ## Run the shared local
 github-ci: ci ## GitHub Actions entry point for test validation
 
 gitlab-ci: ci ## GitLab CI entry point for test validation
+
+nightly-ci: test backend-validation ## Git-free validation path for nightly matrix lanes (interpreter compatibility, qtop/qtop#488)
 
 build: ci-deps ## Build source and wheel distributions with pinned CI build deps
 	$(PYTHON) -m build --no-isolation

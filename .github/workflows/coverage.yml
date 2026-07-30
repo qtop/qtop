@@ -1,23 +1,33 @@
 ##
 ## qtop is a tool to monitor queuing systems - https://github.com/qtop/qtop
 ##
-## Copyright (c) 2016 Fotis Georgatos
-## Copyright (c) 2016 Sotiris Fragkiskos
-## Copyright (c) 2026 Jacob Hatchett
+## Copyright (c) 2026 Vadik Malik
 ##
 ## SPDX-License-Identifier: MIT
 ##
+# Coverage concern (#488), GitHub flavour: ``make coverage-xml`` produces the
+# same Cobertura report that ci/coverage.gitlab-ci.yml publishes to GitLab.
+# GitHub stores it as a workflow artifact, so no external coverage service or
+# identity-token permission is required. The current validated baseline is 57%.
 
-name: pytest-qtop
+name: coverage-qtop
 
 on:
+  push:
+    branches:
+      - main
+      - develop
+  pull_request:
+    branches:
+      - main
+      - develop
   workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
-  run-pytest:
+  coverage:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
@@ -27,9 +37,9 @@ jobs:
         with:
           python-version: '3.12.3'
       - run: make ci-deps PYTHON=python
-      - run: make github-ci PYTHON=python
+      - run: make coverage-xml PYTHON=python
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
-          name: sample-gate-manual-pytest
-          path: artifacts/sample-gate/
+          name: coverage-cobertura-xml
+          path: artifacts/coverage/coverage.xml

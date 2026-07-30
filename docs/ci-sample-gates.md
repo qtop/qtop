@@ -58,14 +58,37 @@ Policy:
 
 - `SAMPLE_GATE_MAX_FAILURES=0` is the default and means any failed scheduler
   case fails CI.
-- Rendered qtop output, ANSI-stripped normalized output, SVG terminal
-  screenshots, stderr, command lines, and `summary.json` are written under
-  `artifacts/sample-gate/`, including for non-zero and timeout failures.
-- `stdout.ans` preserves ANSI colour sequences for human review. Run
+- Rendered qtop output, ANSI-stripped normalized output, colour-preserving SVG
+  terminal views, stderr, command lines, a per-case `summary.json`, and the
+  aggregate `summary.json` are written under `artifacts/sample-gate/`,
+  including for non-zero and timeout failures.
+- Every case proves the same semantic ANSI witnesses: gray section delimiters,
+  the white accounting title, cyan summary label, red node label, green core
+  label, blue job label, and red blocked-queue warning. Each witness must use
+  its expected SGR parameters and a closing reset; missing, malformed,
+  unsupported, unclosed, or wrongly mapped sequences fail the case. The JSON
+  evidence records the expected and observed SGR mappings without requiring
+  unstable full-output sequence counts from the generated demo backend.
+- The fixed SGE case additionally proves natural qtop mappings for one user,
+  one queue, and three node states. Because every matrix lane runs the full
+  sample gate, every lane produces this mapping evidence. These are
+  representative semantic witnesses, not a claim that every alias and
+  foreground/background combination in `color_to_code` appears in the
+  committed scheduler captures.
+- `stdout.ans` preserves ANSI colour sequences for human review only after the
+  output passes the SGR allowlist. Other terminal controls are never rendered;
+  rejected controls are escaped in review artifacts. The SVG renderer carries
+  allowlisted foreground, background, and bold state, XML-escapes text, and
+  contains no terminal escapes. Run
   `make backend-colour-artifacts` when the desired result is explicitly the
   five-backend coloured-output artifact set.
-- Each qtop subprocess receives an isolated `HOME` under its artifact
-  directory, so log creation does not depend on a writable runner home.
+- Artifact copies replace the runner's repository, isolated qtop home, and
+  Python executable paths with `<repo>`, `<qtop-home>`, and `<python>`.
+  Validation still runs against the original output before this
+  path-normalization step.
+- Each qtop subprocess receives an isolated temporary `HOME` outside the
+  artifact directory. It is removed after the case, including on failure or
+  timeout, so qtop logs and other home files are never uploaded.
 - CI uploads that artifact directory so reviewers can inspect the rendered
   output without rerunning locally.
 - `qtop_py/contrib/func_tests.sh` delegates to this same sample gate, so the

@@ -73,6 +73,32 @@ def test_sort_worker_nodes_uses_named_sort_keys(monkeypatch):
     assert [node["domainname"] for node in cluster._sort_worker_nodes()] == ["node2", "node10"]
 
 
+def test_raw_mode_allows_watch_mode_without_terminal_attrs(monkeypatch):
+    class NonTerminalFile:
+        def fileno(self):
+            raise OSError("not a terminal")
+
+    monkeypatch.setattr(qtop_module, "args", SimpleNamespace(ONLYSAVETOFILE=False, WATCH=True), raising=False)
+
+    entered_context = False
+    with qtop_module.raw_mode(NonTerminalFile()):
+        entered_context = True
+
+    assert entered_context
+
+
+def test_raw_mode_does_not_swallow_unexpected_fileno_errors(monkeypatch):
+    class BrokenFile:
+        def fileno(self):
+            raise RuntimeError("unexpected")
+
+    monkeypatch.setattr(qtop_module, "args", SimpleNamespace(ONLYSAVETOFILE=False, WATCH=True), raising=False)
+
+    with pytest.raises(RuntimeError, match="unexpected"):
+        with qtop_module.raw_mode(BrokenFile()):
+            pass
+
+
 def test_sort_worker_nodes_rejects_custom_python_sorting(monkeypatch):
     import qtop_py.qtop as qtop
 
@@ -83,6 +109,53 @@ def test_sort_worker_nodes_rejects_custom_python_sorting(monkeypatch):
 
     with pytest.raises(ValueError, match="custom Python sorting expressions"):
         cluster._sort_worker_nodes()
+
+
+def test_reset_sigpipe_is_noop_when_platform_has_no_sigpipe(monkeypatch):
+    calls = []
+
+    monkeypatch.setattr(qtop_module, "SIGPIPE", None)
+    monkeypatch.setattr(qtop_module, "signal", lambda *args: calls.append(args))
+
+    qtop_module.reset_sigpipe()
+
+    assert calls == []
+
+
+def test_reset_sigpipe_restores_default_when_available(monkeypatch):
+    calls = []
+
+    monkeypatch.setattr(qtop_module, "SIGPIPE", 13)
+    monkeypatch.setattr(qtop_module, "SIG_DFL", "default")
+    monkeypatch.setattr(qtop_module, "signal", lambda *args: calls.append(args))
+
+    qtop_module.reset_sigpipe()
+
+    assert calls == [(13, "default")]
+
+
+def test_raw_mode_is_noop_when_platform_has_no_termios(monkeypatch):
+    monkeypatch.setattr(qtop_module, "termios", None)
+    monkeypatch.setattr(qtop_module, "args", SimpleNamespace(ONLYSAVETOFILE=False, WATCH=True), raising=False)
+
+    with qtop_module.raw_mode(sys.stdin):
+        pass
+
+
+def test_scheduler_autodetection_skips_demo_and_missing_commands(monkeypatch):
+    available = {"echo": "/bin/echo", "qhost": "/usr/bin/qhost"}
+    monkeypatch.setattr(qtop_module.shutil, "which", available.get)
+    config = {"signature_commands": {"demo": "echo", "pbs": "pbsnodes", "sge": "qhost"}}
+
+    assert qtop_module.auto_get_avail_batch_system(config) == "sge"
+
+
+def test_scheduler_autodetection_fails_when_only_demo_is_available(monkeypatch):
+    monkeypatch.setattr(qtop_module.shutil, "which", lambda command: "/bin/echo" if command == "echo" else None)
+    config = {"signature_commands": {"demo": "echo", "pbs": "pbsnodes"}}
+
+    with pytest.raises(SchedulerNotSpecified):
+        qtop_module.auto_get_avail_batch_system(config)
 
 
 @pytest.mark.parametrize(

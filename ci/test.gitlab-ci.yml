@@ -1,0 +1,54 @@
+##
+## qtop is a tool to monitor queuing systems - https://github.com/qtop/qtop
+##
+## Copyright (c) 2026 Vadik Malik
+##
+## SPDX-License-Identifier: MIT
+##
+# Test concern: merge-request/branch validation.
+#
+# - ``modern-python`` -- the full shared validation path (``make gitlab-ci``:
+#   pytest, scheduler sample gates, ruff, fortifications, format checks) on the
+#   pinned modern interpreter. ``FORTIFY_BASE_REF`` follows the MR target branch
+#   so diff-health checks compare against the right base.
+# - ``almalinux-python36`` -- dependency-light Python 3.6 compatibility gate on
+#   AlmaLinux 8 (``make compat-py36``), matching the python3.6/rhel8 floor that
+#   several production clusters still run (see CONTRIBUTING.md).
+#
+# Both jobs are thin wrappers around Makefile targets so the same validation
+# can be reproduced locally and on GitHub Actions without divergence.
+
+modern-python:
+  image: python:3.12.3-bookworm
+  stage: test
+  variables:
+    GIT_DEPTH: "0"
+  before_script:
+    - apt-get update
+    - apt-get install -y --no-install-recommends make git
+    - make ci-deps PYTHON=python
+    - export TARGET_BRANCH="${CI_MERGE_REQUEST_TARGET_BRANCH_NAME:-${CI_EXTERNAL_PULL_REQUEST_TARGET_BRANCH_NAME:-develop}}"
+    - git fetch origin "${TARGET_BRANCH}:refs/remotes/origin/${TARGET_BRANCH}"
+    - export FORTIFY_BASE_REF="origin/${TARGET_BRANCH}"
+  script:
+    - make gitlab-ci PYTHON=python
+  artifacts:
+    when: always
+    paths:
+      - artifacts/sample-gate/
+
+almalinux-python36:
+  image: almalinux:8
+  stage: test
+  before_script:
+    - dnf -y install make findutils
+    - dnf -y install python36
+  script:
+    - |
+      PYTHON_BIN="$(command -v python3.6)"
+      "$PYTHON_BIN" --version
+      make compat-py36 PYTHON="$PYTHON_BIN"
+  artifacts:
+    when: always
+    paths:
+      - artifacts/sample-gate-py36/

@@ -1,51 +1,63 @@
+##
+## qtop is a tool to monitor queuing systems - https://github.com/qtop/qtop
+##
+## Copyright (c) 2026 Vadik Malik
+##
+## SPDX-License-Identifier: MIT
+##
+# Root pipeline: shared defaults plus one include per concern, mirroring the
+# layout of https://code.europa.eu/pvgis/pvgis/ (thin root ``.gitlab-ci.yml``,
+# per-concern child files under ``ci/``, CI-only helpers under ``ci/scripts/``).
+#
+# Concerns included below:
+#
+# - ``ci/test.gitlab-ci.yml`` -- merge-request/branch validation through the
+#                                 shared Makefile contract (``make gitlab-ci``)
+#                                 plus the dependency-light Python 3.6 gate.
+# - ``ci/build.gitlab-ci.yml`` -- sdist/wheel build on top of green tests.
+# - ``ci/security.gitlab-ci.yml`` -- SAST/Secret-Detection/Dependency-Scanning
+#                                 templates plus code-quality, license and
+#                                 repo-sanity jobs (#488).
+# - ``ci/coverage.gitlab-ci.yml`` -- Cobertura coverage publishing (#488).
+# - ``ci/nightly-matrix.gitlab-ci.yml`` -- scheduled 38-lane distro x python
+#                                 compatibility matrix (#488).
+# - ``ci/scorecard.gitlab-ci.yml`` -- scheduled OpenSSF Scorecard run (#488).
+#
+# Project-owned validation jobs use Makefile targets where practical; included
+# GitLab analyzers and Scorecard keep their provider-native entry points.
+
+default:
+  image: python:3.12.3-bookworm
+
+# Run the shared jobs in native merge-request pipelines, and switch away from
+# duplicate push pipelines once a same-project merge request is open.
+workflow:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_PIPELINE_SOURCE == "external_pull_request_event"'
+    - if: '$CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS && $CI_PIPELINE_SOURCE == "push"'
+      when: never
+    - when: always
+
+variables:
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  NIGHTLY_MATRIX:
+    value: "0"
+    options:
+      - "0"
+      - "1"
+    description: "Set to 1 for the full compatibility matrix in a manual pipeline."
+
 stages:
   - test
   - build
+  - security
+  - nightly
 
-modern-python:
-  image: python:3.12.3-bookworm
-  stage: test
-  before_script:
-    - apt-get update
-    - apt-get install -y --no-install-recommends make git
-    - make ci-deps PYTHON=python
-    - export TARGET_BRANCH="${CI_MERGE_REQUEST_TARGET_BRANCH_NAME:-develop}"
-    - git fetch origin "${TARGET_BRANCH}:refs/remotes/origin/${TARGET_BRANCH}"
-    - export FORTIFY_BASE_REF="origin/${TARGET_BRANCH}"
-  script:
-    - make gitlab-ci PYTHON=python
-  artifacts:
-    when: always
-    paths:
-      - artifacts/sample-gate/
-
-almalinux-python36:
-  image: almalinux:8
-  stage: test
-  before_script:
-    - dnf -y install make findutils
-    - dnf -y install python36
-  script:
-    - |
-      PYTHON_BIN="$(command -v python3.6)"
-      "$PYTHON_BIN" --version
-      make compat-py36 PYTHON="$PYTHON_BIN"
-  artifacts:
-    when: always
-    paths:
-      - artifacts/sample-gate-py36/
-
-build:
-  image: python:3.12.3-bookworm
-  stage: build
-  needs:
-    - modern-python
-    - almalinux-python36
-  before_script:
-    - apt-get update
-    - apt-get install -y --no-install-recommends make
-  script:
-    - make gitlab-build PYTHON=python
-  artifacts:
-    paths:
-      - dist/
+include:
+  - local: ci/test.gitlab-ci.yml
+  - local: ci/build.gitlab-ci.yml
+  - local: ci/security.gitlab-ci.yml
+  - local: ci/coverage.gitlab-ci.yml
+  - local: ci/nightly-matrix.gitlab-ci.yml
+  - local: ci/scorecard.gitlab-ci.yml

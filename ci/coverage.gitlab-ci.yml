@@ -1,0 +1,40 @@
+##
+## qtop is a tool to monitor queuing systems - https://github.com/qtop/qtop
+##
+## Copyright (c) 2026 Vadik Malik
+##
+## SPDX-License-Identifier: MIT
+##
+# Coverage concern (#488): Cobertura-style publishing, GitLab flavour.
+#
+# ``make coverage`` already does the heavy lifting (the #488 hint is right);
+# ``make coverage-xml`` only adds the Cobertura XML emission. GitLab picks
+# the percentage for its native MR widget from the job log via ``coverage:``
+# and renders per-line coverage in GitLab MR diffs from the Cobertura artifact.
+# Dated local integration baseline (2026-07-26): 180 tests, 52% total.
+#
+# The GitHub twin (.github/workflows/coverage.yml) stores the same XML as a
+# workflow artifact, so both forges read one Makefile target.
+
+coverage-cobertura:
+  stage: test
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_PIPELINE_SOURCE == "external_pull_request_event"'
+    - if: '$CI_COMMIT_BRANCH == "develop"'
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+  before_script:
+    - apt-get update
+    - apt-get install -y --no-install-recommends make
+    - make ci-deps PYTHON=python
+  script:
+    - make coverage-xml PYTHON=python
+  coverage: '/TOTAL.+ ([0-9]{1,3}%)/'
+  artifacts:
+    when: always
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: artifacts/coverage/coverage.xml
+    paths:
+      - artifacts/coverage/
