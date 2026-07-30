@@ -31,6 +31,11 @@ Please follow common conventions for Open Source projects, f.i. align to Electro
 
 ## Proof of humanity
 
+It is imperative that you are ready at any time to show your PR's correct
+functionality, be able to explain how it works and demo in live mode a run of
+qtop with colored output that has no issues of correctness (read: ansi codes
+rendered correctly, output is not garbled etc).
+
 Due to many incoming PRs, it is needed to extend the effort to deal with the advent of bots; part of this is yours.
 You give a greater chance of closer and faster attention to your PRs by showing some real humane effort:
 - Add (ORCID) in your PR subject iff your github profile is linked to your ORCID profile
