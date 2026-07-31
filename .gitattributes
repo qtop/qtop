@@ -1,0 +1,4 @@
+# Historical material under contrib/ is stored verbatim; do not flag the
+# trailing whitespace and tab layout of a 2012 file as a diff-health problem.
+contrib/qtop.sh -whitespace
+contrib/LICENSE -whitespace
