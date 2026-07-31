@@ -1,0 +1,11 @@
+Job id           Name             User             Time Use S Queue
+---------------- ---------------- ---------------- -------- - -----
+1001.server      sim_run_a        alice            02:15:30 R workq
+1002.server      sim_run_b        alice            01:45:20 R workq
+1003.server      sim_run_c        bob              03:22:10 R workq
+1004.server      sim_run_d        bob              00:55:40 R workq
+1005.server      analysis_1       carol            04:10:05 R workq
+1006.server      analysis_2       carol            02:30:15 R workq
+1007.server      analysis_3       dave             01:15:50 R workq
+1008.server      analysis_4       dave             00:45:30 R workq
+1009.server      pending_job      eve              00:00:00 Q workq
