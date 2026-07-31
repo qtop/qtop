@@ -4,12 +4,14 @@
 ## Copyright (c) 2016 Fotis Georgatos
 ## Copyright (c) 2016 Sotiris Fragkiskos
 ## Copyright (c) 2023 Hewlett Packard Enterprise Development LP
+## Copyright (c) 2026 Mateo Rojas
 ##
 ## SPDX-License-Identifier: MIT
 ##
 
 from qtop_py.plugins import pbs
 import pytest
+from types import SimpleNamespace
 
 
 @pytest.mark.parametrize(
@@ -41,3 +43,31 @@ def test_get_jobs_cores(jobs, result):
     result = iter(result)
     for job, core in pbs.PBSBatchSystem._get_jobs_cores(jobs):
         assert (job, core) == next(result)
+
+
+def test_qstatq_regex_derives_totals_when_summary_line_is_missing(tmp_path):
+    qstatq_file = tmp_path / "qstat_q.txt"
+    qstatq_file.write_text(
+        "Server: cluster\n"
+        "\n"
+        "Queue            Memory CPU Time Walltime Node Run Que Lm  State\n"
+        "---------------- ------ -------- -------- ---- --- --- --- -----\n"
+        "\n"
+        "workq            --     --       --       --   3   2   --  E R\n"
+        "short            --     --       --       --   1   4   --  E R\n"
+    )
+    extractor = pbs.PBSStatExtractor({}, SimpleNamespace(ANONYMIZE=False))
+
+    queues = extractor.extract_qstatq(str(qstatq_file))
+
+    assert queues[-1] == {"Total_running": 4, "Total_queued": 6}
+
+
+def test_qstatq_regex_returns_zero_totals_for_header_only_output(tmp_path):
+    qstatq_file = tmp_path / "qstat_q.txt"
+    qstatq_file.write_text(
+        "Server: cluster\n\nQueue            Memory CPU Time Walltime Node Run Que Lm  State\n---------------- ------ -------- -------- ---- --- --- --- -----\n\n"
+    )
+    extractor = pbs.PBSStatExtractor({}, SimpleNamespace(ANONYMIZE=False))
+
+    assert extractor.extract_qstatq(str(qstatq_file)) == [{"Total_running": 0, "Total_queued": 0}]

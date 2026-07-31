@@ -5,6 +5,7 @@
 ## Copyright (c) 2016 Sotiris Fragkiskos
 ## Copyright (c) 2023 Hewlett Packard Enterprise Development LP
 ## Copyright (c) 2026 Jacob Hatchett
+## Copyright (c) 2026 Mateo Rojas
 ##
 ## SPDX-License-Identifier: MIT
 ##
@@ -172,6 +173,8 @@ class PBSStatExtractor(StatExtractor):
         run_qd_search = r"^\s*(?P<tot_run>\d+)\s+(?P<tot_queued>\d+)"  # this picks up the last line contents
 
         all_qstatq_values = list()
+        total_running_jobs = None
+        total_queued_jobs = None
         with open(qstatq_file, "r") as fin:
             fin.readline()
             fin.readline()
@@ -196,6 +199,9 @@ class PBSStatExtractor(StatExtractor):
                     for key, value in [("queue_name", queue_name), ("run", run), ("queued", queued), ("lm", lm), ("state", state)]:
                         temp_dict[key] = value
                     all_qstatq_values.append(temp_dict)
+            if total_running_jobs is None or total_queued_jobs is None:
+                total_running_jobs = sum(int(queue["run"]) for queue in all_qstatq_values)
+                total_queued_jobs = sum(int(queue["queued"]) for queue in all_qstatq_values)
             all_qstatq_values.append({"Total_running": total_running_jobs, "Total_queued": total_queued_jobs})
 
         return all_qstatq_values
