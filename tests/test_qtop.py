@@ -13,8 +13,8 @@ import pytest
 import re
 import datetime
 import sys
+from argparse import Namespace
 from pathlib import Path
-from types import SimpleNamespace
 from qtop_py import qtop as qtop_module
 from qtop_py import utils as qtop_utils
 from qtop_py.constants import SYMBOL_LONG_TAIL_USER, SYMBOL_UNKNOWN_NODE_STATE
@@ -317,7 +317,7 @@ def test_load_yaml_config_keeps_user_symbol_pool_bounded(monkeypatch, tmp_path):
     monkeypatch.setattr(qtop_module, "SYSTEMCONFDIR", str(tmp_path / "etc"))
     monkeypatch.setattr(qtop_module, "USERPATH", str(tmp_path / "user"))
     monkeypatch.setattr(qtop_module, "CURPATH", str(tmp_path), raising=False)
-    monkeypatch.setattr(qtop_module, "args", SimpleNamespace(CONFFILE=None), raising=False)
+    monkeypatch.setattr(qtop_module, "args", Namespace(CONFFILE=None), raising=False)
     monkeypatch.setattr(qtop_module.fileutils, "mkdir_p", lambda path: None)
 
     config, _, _ = qtop_module.load_yaml_config()
