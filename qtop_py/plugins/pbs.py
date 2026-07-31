@@ -5,6 +5,7 @@
 ## Copyright (c) 2016 Sotiris Fragkiskos
 ## Copyright (c) 2023 Hewlett Packard Enterprise Development LP
 ## Copyright (c) 2026 Jacob Hatchett
+## Copyright (c) 2026 Mateo Rojas Vargas
 ##
 ## SPDX-License-Identifier: MIT
 ##
@@ -336,13 +337,13 @@ class PBSBatchSystem(GenericBatchSystem):
             elif re.match(r"[\w.-]+", part1):  # PBS Pro job id
                 job, core = part1, part2
 
+            job = job.strip().split("/", 1)[0].split(".", 1)[0]
+            job = re.sub(r"\[\d*\]$", "", job)
+
             if ("," in core) or ("-" in core):  # job id with subjobs
-                for subcore, subjob in PBSBatchSystem.get_corejob_from_range(core, job):
-                    subjob = subjob.strip().split("/")[0].split(".")[0]
-                    yield subjob, subcore  # TODO: int or no int?
+                for subcore, _job in PBSBatchSystem.get_corejob_from_range(core, job):
+                    yield job, subcore
             else:  # job id without subjobs
-                job = job.strip().split("/")[0].split(".")[0]
-                job = re.sub(r"\[\d*\]$", "", job)
                 yield job, core
 
     def _read_all_blocks(self, orig_file):
