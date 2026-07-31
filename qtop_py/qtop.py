@@ -867,6 +867,17 @@ def attempt_faster_xml_parsing(config):
 def init_dirs(args, _savepath):
     args.SOURCEDIR = realpath(args.SOURCEDIR) if args.SOURCEDIR else None
     logging.debug("User-defined source directory: %s" % args.SOURCEDIR)
+    # If the user passed -s pointing at a file (rather than a directory), fall
+    # back to the directory that contains it; otherwise os.chdir() would raise
+    # NotADirectoryError / OSError(EINVAL) and crash qtop at startup. See #291.
+    if args.SOURCEDIR and not os.path.isdir(args.SOURCEDIR):
+        dirname = os.path.dirname(args.SOURCEDIR)
+        if dirname and os.path.isdir(dirname):
+            logging.debug(
+                "SOURCEDIR %s is not a directory; using its dirname %s instead"
+                % (args.SOURCEDIR, dirname)
+            )
+            args.SOURCEDIR = dirname
     args.workdir = args.SOURCEDIR or _savepath
     logging.debug("Working directory is now: %s" % args.workdir)
     os.chdir(args.workdir)
