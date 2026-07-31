@@ -1195,6 +1195,8 @@ class WNOccupancy(object):
         highest_wn = self.cluster.highest_wn
         if NAMED_WNS:  #  or args.FORCE_NAMES
             workernode_dict = self.cluster.workernode_dict
+            if not workernode_dict:
+                return OrderedDict()
             hosts = [state_corejob_dn["host"] for _, state_corejob_dn in workernode_dict.items()]
             node_str_width = len(max(hosts, key=len))
             wn_vert_labels = OrderedDict((str(place), []) for place in range(1, node_str_width + 1))

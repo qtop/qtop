@@ -1,0 +1,6 @@
+
+server: empty-cluster.local
+
+Queue            Memory CPU Time Walltime Node  Run Que Lm  State
+---------------- ------ -------- -------- ----  --- --- --  -----
+                                                  0   0
