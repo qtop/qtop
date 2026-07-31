@@ -58,9 +58,17 @@ Try `--help` for all available options.
 
 Documentation/tutorial [here](docs/documentation.rst).
 
+## Historical reference material
+
+The original bash qtop that this tool grew out of is kept, verbatim and for
+reading only, as [`contrib/qtop.sh`](contrib/qtop.sh). It carries its own
+GPL-2.0-or-later licence and is deliberately excluded from the package, so
+installed qtop and the published sdist and wheel stay MIT-only. Read
+[`contrib/README.md`](contrib/README.md) before redistributing a clone.
+
 ## Profile
 
     Description: the fast text mode way to monitor your cluster's utilization and status; the time has come to take back control of your cluster's scheduling business
-    License: MIT
+    License: MIT (contrib/qtop.sh is GPL-2.0-or-later; see contrib/README.md)
     Version: 0.9.20260610 / Date: 2026-06-10
     Homepage: https://github.com/qtop/qtop
