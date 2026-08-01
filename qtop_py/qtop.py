@@ -2431,6 +2431,9 @@ def main():
     if args.version:
         print("qtop current version: " + __version__)
         sys.exit(0)
+    if args.ANONYMIZE and args.SAMPLE:
+        sys.stderr.write("Cannot combine --anonymize with --sample: sample archives include raw scheduler output files that are not anonymized.\n")
+        return 1
     utils.init_logging(args)
     dynamic_config = dict()
     args, dynamic_config["force_names"] = process_args(args)
