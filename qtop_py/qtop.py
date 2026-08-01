@@ -2396,6 +2396,12 @@ def cli_error_message(error):
     return str(error)
 
 
+def _write_output_file(output_fp, stdout):
+    """Copy a rendered output file to the requested stream without a shell."""
+    with open(output_fp, "r") as output_file:
+        stdout.write(output_file.read())
+
+
 def cli_main():
     try:
         return main() or 0
@@ -2552,8 +2558,7 @@ def main():
                 if args.ONLYSAVETOFILE:  # no display of qtop output, will exit
                     break
                 elif not args.WATCH:  # one-off display of qtop output, will exit afterwards (no --watch cmdline switch)
-                    cat_command = ["/bin/cat", output_fp]  # not clearing the screen beforehand is the intended behaviour here
-                    _ = subprocess.call(cat_command, stdout=stdout, stderr=stdout)
+                    _write_output_file(output_fp, stdout)  # not clearing the screen beforehand is the intended behaviour here
                     break
                 else:  # --watch
                     if args.REPLAY:
