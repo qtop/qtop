@@ -54,7 +54,16 @@ Otherwise, for daily usage you can run
 
 Try `--help` for all available options.
 
-## Documentation
+## Differential Debugging
+
+To perform differential debugging across two HPC clusters:
+
+1. Execute qtop on the first cluster and capture the output using `qstat -f -F json > cluster1_output.json`.
+2. Execute qtop on the second cluster and capture the output using `qstat -f -F json > cluster2_output.json`.
+3. Compare the outputs using a diff tool, e.g., `diff cluster1_output.json cluster2_output.json`.
+4. Document the differences and provide screenshots of the qtop runs on both clusters.
+
+**Note:** Ensure that qtop is pinned to the same version on both clusters for accurate comparison.
 
 Documentation/tutorial [here](docs/documentation.rst).
 
