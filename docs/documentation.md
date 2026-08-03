@@ -1,22 +1,19 @@
-qtop guide
-==========
+# qtop guide
 
--  `Introduction <#introduction>`__
--  `Quickstart <#quickstart>`__
--  `Demo case study <#demo-case-study>`__
--  `Bundled scheduler case studies <#bundled-scheduler-case-studies>`__
--  `Output walkthrough <#output-walkthrough>`__
--  `Watchmode <#watch-mode>`__
--  `Instant Replay <#instant-replay>`__
--  `Customisation <#customisation>`__
--  `Command-line arguments <#command-line-arguments>`__
--  `Usage tips <#usage-tips>`__
+- [Introduction](#introduction)
+- [Quickstart](#quickstart)
+- [Demo case study](#demo-case-study)
+- [Bundled scheduler case studies](#bundled-scheduler-case-studies)
+- [Output walkthrough](#output-walkthrough)
+- [Watchmode](#watch-mode)
+- [Instant Replay](#instant-replay)
+- [Customisation](#customisation)
+- [Command-line arguments](#command-line-arguments)
+- [Usage tips](#usage-tips)
 
-Introduction
-------------
+## Introduction
 
-Background
-~~~~~~~~~~
+### Background
 
 qtop's Python version is based on the original qtop bash script written
 by @fgeorgatos long ago. The main reason for rewriting it from scratch
@@ -28,8 +25,7 @@ It's also less buggy, with most of the bugs of the old version eradicated
 ...and new ones
 introduced ;-)
 
-Goals
-~~~~~
+### Goals
 
 qtop summarizes, textually and visually, the state of a Resource
 Management System, along with relevant cluster information. It gathers
@@ -44,17 +40,16 @@ gathered information to a convenient JSON format. The project also goes
 to great lengths to keep qtop dependency-free. That means, you don't
 have to download or install anything extra; qtop works out of the box!
 
-Quickstart
-----------
+## Quickstart
 
 The absolute simplest way to get qtop to display *anything* is by
 invoking it in demo mode:
 
-::
+```
 
     ./qtop -b demo
 
-When used, the ``-b`` switch must always be followed by one of the
+When used, the `-b` switch must always be followed by one of the
 supported batch systems (pbs, sge, oar, slurm, demo).
 
 That should create and destroy fictional jobs in fictional machines from
@@ -63,7 +58,7 @@ helpful way. The data produced will probably be more than a screenful,
 so most of it is going to scroll up and away. If you want to start
 making any sense of it, you're better off trying this:
 
-::
+```
 
     ./qtop -b demo -w
 
@@ -71,15 +66,14 @@ which keeps updating the screen with freshly made-up data, and also
 keeps you at the beginning of it. This is called the `watch
 mode <#watch-mode>`__. You'll notice that this time it's the end that
 you cannot see, so now would be a good time to introduce
-`keybindings <#keyboard-shortcuts>`__ to move around.
+[keybindings](#keyboard-shortcuts) to move around.
 
 Most of what you can see on screen is customisable **on-the-fly** by
-editing a `configuration file <#customisation>`__. Some modifications
+editing a [configuration file](#customisation). Some modifications
 can also be accomplished by using the aforementioned
-`keybindings <#keyboard-shortcuts>`__.
+[keybindings](#keyboard-shortcuts).
 
-Demo case study
----------------
+## Demo case study
 
 Use demo mode when you want to learn qtop's display without access to a
 live PBS, SGE, OAR, or Slurm cluster. The demo backend generates fictional
@@ -89,33 +83,33 @@ scheduler data.
 
 Start with a one-shot render:
 
-::
+```
 
     ./qtop -b demo
 
 Then try the same input with common display switches:
 
-::
+```
 
     ./qtop -b demo -FT
 
 This combines two useful view changes:
 
--  ``-F`` shows full worker node names instead of compact numbers.
--  ``-T`` transposes the worker-node matrix so nodes are rows instead
+- `-F` shows full worker node names instead of compact numbers.
+- `-T` transposes the worker-node matrix so nodes are rows instead
    of columns.
 
 For a large demo view, let the output overflow horizontally and inspect
-it with ``less``:
+it with `less`:
 
-::
+```
 
     ./qtop -b demo -l | less -RS
 
 For an interactive session, use watch mode. The optional value after
-``-w`` is the refresh interval in seconds:
+`-w` is the refresh interval in seconds:
 
-::
+```
 
     ./qtop -b demo -w 10
 
@@ -123,25 +117,22 @@ While in watch mode, the movement keys from `Keyboard
 shortcuts <#keyboard-shortcuts>`__ let you move through the matrix,
 transpose it, switch node ID display, apply filters, or quit.
 
-Bundled scheduler case studies
-------------------------------
+## Bundled scheduler case studies
 
-The ``qtop_py/contrib`` directory contains captured scheduler snapshots
+The `qtop_py/contrib` directory contains captured scheduler snapshots
 for quick checks without access to a live cluster:
 
-::
+```
 
     ./qtop -s qtop_py/contrib -c ON -Fadvv -b sge
     ./qtop -s qtop_py/contrib -c ON -Frdvvv -b oar
     ./qtop -s qtop_py/contrib -c ON -raF -b pbs
 
-Use ``-s`` for saved scheduler files and ``-b`` for the matching parser.
+Use `-s` for saved scheduler files and `-b` for the matching parser.
 
-Output walkthrough
-------------------
+## Output walkthrough
 
-The three qtop sections
-~~~~~~~~~~~~~~~~~~~~~~~
+### The three qtop sections
 
 The information that qtop conveys when run can be divided into three
 sections:
@@ -149,12 +140,11 @@ sections:
 Accounting Summary
 ''''''''''''''''''
 
--  number of nodes (Total:available (online):Free (non-exclusive))
--  number of cores (available/total)
--  number of jobs (running/queued)
--  queue names, along with running/queued jobs info for every queue
+- number of nodes (Total:available (online):Free (non-exclusive))
+- number of cores (available/total)
+- number of jobs (running/queued)
+- queue names, along with running/queued jobs info for every queue
 
-.. figure:: images/accounting_summary.png
    :alt: Accounting Summary
 
    Accounting Summary
@@ -190,14 +180,13 @@ The default elements displayed are:
 
 Worker node ID (virtual or real node name)
 
-.. figure:: images/wnid.png
    :alt: Worker Nodes ID
 
    worker nodes ID
 
 The options here are either the real full name of the worker nodes, or a
 numbering scheme. If the worker node numbering is atypical, e.g. from
-``pc23`` there's a jump to ``pc-b-145``, the standard representation
+`pc23` there's a jump to `pc-b-145`, the standard representation
 scheme will represent such gaps with non-existent worker nodes, which
 might not always be desirable. Hence, a remapping mechanism will be put
 in place, giving consistent numbering starting from zero, to all nodes
@@ -205,7 +194,6 @@ belonging to the cluster.
 
 Node state
 
-.. figure:: images/node_state.png
    :alt: Node state
 
    Node state
@@ -213,16 +201,15 @@ Node state
 The node state is denoted with the first letter of the state. For PBS,
 for example:
 
--  **j**: job-exclusive
--  **b**: busy
--  **o**: offline
--  **d**: down
+- **j**: job-exclusive
+- **b**: busy
+- **o**: offline
+- **d**: down
 
 The symbol "**-**" is used when the node is free.
 
 Queue names
 
-.. figure:: images/queue_name.png
    :alt: Queue name
 
    Queue name
@@ -235,7 +222,6 @@ grid2000M, grid5000M, the colouring will help you see which is which.
 
 Job allocation table
 
-.. figure:: images/cores.png
    :alt: Cores
 
    Cores
@@ -252,32 +238,30 @@ nodes will be substituted with the hash symbol.
 User account information
 ''''''''''''''''''''''''
 
-.. figure:: images/user_accounts.png
    :alt: User accounts and pool mappings
 
    user accounts
 
--  ``id`` is a symbol denoting a unique unix account
--  the jobs of every user, with distinct mention for the running jobs
+- `id` is a symbol denoting a unique unix account
+- the jobs of every user, with distinct mention for the running jobs
    vs. the total number of jobs (including the finished ones)
--  the name of the unix account
--  Grid certificate DN, or GECOS field
+- the name of the unix account
+- Grid certificate DN, or GECOS field
 
 The former is useful in Grid-connected clusters. It shows the owner of
 the pool account at the current time.
 
 *Note*: This can only be shown for root accounts, because of the
-dependence on ``edg-mkgridpool --list``
+dependence on `edg-mkgridpool --list`
 
 The GECOS field either retrieves information from a cached file
 (described in the config file) or gets information in realtime from
-``getent passwd``
+`getent passwd`
 
-Watch mode
-----------
+## Watch mode
 
 The watch mode is a step-up from the original implementation, where the
-user was able to run qtop with ``watch -d`` prepended, so as to be able
+user was able to run qtop with `watch -d` prepended, so as to be able
 to watch an almost real-time evolution of the system monitored. Alas,
 there was no way to retain qtop's coloring information with watch (not
 in older versions of watch, anyway). An in-house implementation of watch
@@ -287,106 +271,70 @@ ncurses-like fashion.
 
 The options available in watch mode, as of version 0.8.9 are:
 
--  navigation through a big matrix, as if more/less were used (more or
+- navigation through a big matrix, as if more/less were used (more or
    less ;) with vim-like commands
--  matrix transposition (switch between rows<->columns)
--  node ID type switch (from proper full node name to bare numbering)
--  coloring code switch (user id coloring/queue coloring)
--  real-time filtering of nodes according to name substring or
+- matrix transposition (switch between rows<->columns)
+- node ID type switch (from proper full node name to bare numbering)
+- coloring code switch (user id coloring/queue coloring)
+- real-time filtering of nodes according to name substring or
    RegEx/node state/node number
 
-Keyboard shortcuts
-~~~~~~~~~~~~~~~~~~
+### Keyboard shortcuts
 
 Navigation
 ''''''''''
 
-+------------+-------------------------------+
-| shortcut   | function                      |
-+============+===============================+
-| j/k        | go down/up one screen         |
-+------------+-------------------------------+
-| h/l        | go to left/right one screen   |
-+------------+-------------------------------+
-| g/G        | go to top/bottom of matrix    |
-+------------+-------------------------------+
-| 0          | go to left end of matrix      |
-+------------+-------------------------------+
-| $          | go to right end of matrix     |
-+------------+-------------------------------+
-| R          | reset position/refresh        |
-+------------+-------------------------------+
 
 Other
 '''''
 
-+------------+---------------------------------+
-| shortcut   | function                        |
-+============+=================================+
-| f          | apply filtering                 |
-+------------+---------------------------------+
-| F          | switch node ID type             |
-+------------+---------------------------------+
-| m          | switch coloring code            |
-+------------+---------------------------------+
-| r          | toggle show/all/real/used cores |
-+------------+---------------------------------+
-| s          | apply sorting                   |
-+------------+---------------------------------+
-| t          | transpose matrix                |
-+------------+---------------------------------+
-| q          | quit qtop                       |
-+------------+---------------------------------+
 
-Instant Replay
---------------
+## Instant Replay
 
-The output of qtop is kept in ``/tmp/qtop_results_$USER`` (configurable
-in ``qtopconf.yaml``), so that users can "replay" the state of their
+The output of qtop is kept in `/tmp/qtop_results_$USER` (configurable
+in `qtopconf.yaml`), so that users can "replay" the state of their
 system from a particular point in time. By default, the output is kept
 for the last 24 hours, but this is also configurable in
-``qtopconf.yaml``.
+`qtopconf.yaml`.
 
 To replay from a specific point in time, the User must invoke:
 
-::
+```
 
     ./qtop -R DATETIME [DURATION]
 
-where ``DATETIME`` can be one of:
+where `DATETIME` can be one of:
 
--  ``yyyymmddTHHMMSS``, e.g. ``20161118T182300`` (explicit form)
--  ``HHMM``, e.g. ``1823`` (current day is implied, or the previous day,
+- `yyyymmddTHHMMSS`, e.g. `20161118T182300` (explicit form)
+- `HHMM`, e.g. `1823` (current day is implied, or the previous day,
    depending)
--  ``mmddTHHMM``, e.g. ``1118T1823`` (current year is implied)
+- `mmddTHHMM`, e.g. `1118T1823` (current year is implied)
 
 Colons, slashes and dashes are also supported, so the User can type,
 e.g. 18:23, or 11/18T18:23, instead.
 
-A second value, ``DURATION``, is optional and denotes the desired length
-of the playback. The notation for duration is ``X<unit>``, where unit
-can either be ``h``, ``m``, ``s``. Example:
+A second value, `DURATION`, is optional and denotes the desired length
+of the playback. The notation for duration is `[X](unit)`, where unit
+can either be `h`, `m`, `s`. Example:
 
-::
+```
 
     ./qtop -R 1823 1h
 
-A default duration of ``2m`` is used, if no value is given.
+A default duration of `2m` is used, if no value is given.
 
 *Important*: What is displayed on screen during instant replay is what
 was displayed at that particular moment. If the User was navigating up
 and down while using filters, this is what is going to be displayed.
 
-Customisation
--------------
+## Customisation
 
 Customisation is achieved by means of editing a configuration file.
 Modifying most of the keys available in the configuration file can
 affect the behaviour of qtop in a live manner, if running in `watch
 mode <#watch-mode>`__.
 
-The configuration file (qtopconf.yaml)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+### The configuration file (qtopconf.yaml)
 
 YAML Format
 '''''''''''
@@ -403,13 +351,13 @@ stacks may not be available.
 This has, unfortunately, resulted in some "quirks" in the YAMLish format
 now used, such as:
 
--  having to end single-item lists in a comma, e.g. ``['^wn-26',]``
--  two consecutive unindents not being allowed. There must always exist
+- having to end single-item lists in a comma, e.g. `['^wn-26',]`
+- two consecutive unindents not being allowed. There must always exist
    a once-unindented key-value after nested keys
--  not being able to write arbitrarily deeply nested dictionary-like
+- not being able to write arbitrarily deeply nested dictionary-like
    structures, without fear it's going to break the universe.
 
-Anyone brave enough to dive into ``yaml_parser.py``, or better still,
+Anyone brave enough to dive into `yaml_parser.py`, or better still,
 rewrite the darn thing, is more than welcome to, by the way. It goes
 without saying that only a very basic implementation is required (what
 you can see used in the configuration file, really!) and none of the
@@ -418,7 +366,6 @@ flashy features that YAML sports.
 Scheduler configuration area
 ''''''''''''''''''''''''''''
 
-.. code:: yaml
 
     ---
         savepath: /tmp/qtop_results_$USER
@@ -455,20 +402,20 @@ from the cluster.
 In this area of the configuration file, two key elements are set for
 each scheduler:
 
--  the needed shell commands to run on the Computing Element
--  the filepath where the cluster information is to be saved
+- the needed shell commands to run on the Computing Element
+- the filepath where the cluster information is to be saved
 
 So, let's say your nick is Mike and you are administering an OAR
 cluster. If you just invoke:
 
-::
+```
 
     ./qtop -b oar
 
-then qtop is going to invoke ``oarnodes -s -Y``, ``oarnodes -Y``,
-``oarstat`` consecutively, and store it, respectively, in
+then qtop is going to invoke `oarnodes -s -Y`, `oarnodes -Y`,
+`oarstat` consecutively, and store it, respectively, in
 
-::
+```
 
     /tmp/qtop_results_mike/oarnodes_s_Y.txt
     /tmp/qtop_results_mike/oarnodes_Y.txt
@@ -476,32 +423,31 @@ then qtop is going to invoke ``oarnodes -s -Y``, ``oarnodes -Y``,
 
 If, instead, you invoke it as follows:
 
-::
+```
 
     ./qtop -b oar -s <path-to-cluster-information>
 
-qtop will search for ``oarnodes_s_Y.txt``, ``oarnodes_Y.txt`` and
-``oarstat.txt`` in ``<path-to-cluster-information>`` (retrieved by you,
+qtop will search for `oarnodes_s_Y.txt`, `oarnodes_Y.txt` and
+`oarstat.txt` in `<path-to-cluster-information>` (retrieved by you,
 earlier).
 
-For Slurm, qtop expects saved ``squeue`` and ``sinfo`` command traces
+For Slurm, qtop expects saved `squeue` and `sinfo` command traces
 matching the configured commands. For example:
 
-::
+```
 
     ./qtop -b slurm -s <path-to-slurm-command-traces>
 
-qtop will search for ``squeue.txt`` and ``sinfo.txt`` in
-``<path-to-slurm-command-traces>``.
+qtop will search for `squeue.txt` and `sinfo.txt` in
+`<path-to-slurm-command-traces>`.
 
 qtop also has a scheduler-type discovery system, meaning it will try to
 guess which scheduler system is installed in your system. The keys below
 let the user decide which command it should be that uniquely
 characterises the scheduler. If, for example, qtop can successfully find
-``qacct`` on the system where qtop is executed, it will decide SGE is
+`qacct` on the system where qtop is executed, it will decide SGE is
 installed.
 
-.. code:: yaml
 
     ---
         signature_commands:
@@ -515,7 +461,6 @@ installed.
 XML parsing
 '''''''''''
 
-.. code:: yaml
 
     ---
         faster_xml_parsing: False
@@ -531,7 +476,6 @@ instead.
 State abbreviations
 '''''''''''''''''''
 
-.. code:: yaml
 
     ---
         # Meaning of queue state abbreviations
@@ -568,7 +512,6 @@ the future.
 Color mappings
 ''''''''''''''
 
-.. code:: yaml
 
     ---
         user_color_mappings:  # order should be from more generic-->more specific
@@ -600,96 +543,89 @@ Color mappings
 
 Color mappings apply for now to three types of items:
 
--  user ids
--  queue name initials, in the queue name lines/columns
--  node state
+- user ids
+- queue name initials, in the queue name lines/columns
+- node state
 
 Color mappings can be described using `regular
 expressions <https://docs.python.org/3/library/re.html>`__. The standard
-Python regular-expression module ``re`` is used for parsing. Order here
+Python regular-expression module `re` is used for parsing. Order here
 matters, so the expressions on the top of the list get overwritten by
 expressions on the bottom.
 
 Colors with backgrounds can also be used: for all the color combinations
-available, check ``color_to_code`` dictionary in ``colormap.py``.
+available, check `color_to_code` dictionary in `colormap.py`.
 
 In there, you will also find a ton of ready-made colormaps
-(``userid_pat_to_color_default`` dictionary), with a primary focus on
+(`userid_pat_to_color_default` dictionary), with a primary focus on
 user ids found in Large Hadron Collider related clusters (WLCG grid).
 
-Command-line arguments
-----------------------
+## Command-line arguments
 
-The command shown in the README, ``./qtop``, is the project wrapper
-script. Installed packages expose the same entry point as ``qtop``.
-Run ``./qtop --help`` to see the authoritative option list for your
+The command shown in the README, `./qtop`, is the project wrapper
+script. Installed packages expose the same entry point as `qtop`.
+Run `./qtop --help` to see the authoritative option list for your
 checkout.
 
-Input selection
-~~~~~~~~~~~~~~~
+### Input selection
 
--  ``-b SYSTEM`` selects the scheduler backend. Common values are
-   ``demo``, ``pbs``, ``sge``, ``oar``, and ``slurm``.
--  ``-s DIRECTORY`` reads scheduler output files from ``DIRECTORY``
+- `-b SYSTEM` selects the scheduler backend. Common values are
+   `demo`, `pbs`, `sge`, `oar`, and `slurm`.
+- `-s DIRECTORY` reads scheduler output files from `DIRECTORY`
    instead of running scheduler commands live.
--  ``-f FILE`` uses a custom qtop configuration file.
--  ``-o OPTION`` overrides an option from ``qtopconf.yaml``.
+- `-f FILE` uses a custom qtop configuration file.
+- `-o OPTION` overrides an option from `qtopconf.yaml`.
 
-Display controls
-~~~~~~~~~~~~~~~~
+### Display controls
 
--  ``-1`` hides the accounting summary section.
--  ``-2`` hides the worker-node occupancy section.
--  ``-3`` hides the user accounts and pool mappings section.
--  ``-F`` forces full worker node names.
--  ``-G`` resolves user details with ``getent passwd``.
--  ``-T`` transposes the worker-node matrix.
--  ``-l`` lets the matrix overflow horizontally, which is useful with
-   ``less -RS``.
--  ``-m`` disables masking of early empty worker nodes.
--  ``-r`` removes rows made only of absent core markers.
--  ``-rr`` also removes rows made of free, unused cores.
--  ``-c MODE`` sets color mode to ``ON``, ``OFF``, or ``AUTO``.
+- `-1` hides the accounting summary section.
+- `-2` hides the worker-node occupancy section.
+- `-3` hides the user accounts and pool mappings section.
+- `-F` forces full worker node names.
+- `-G` resolves user details with `getent passwd`.
+- `-T` transposes the worker-node matrix.
+- `-l` lets the matrix overflow horizontally, which is useful with
+   `less -RS`.
+- `-m` disables masking of early empty worker nodes.
+- `-r` removes rows made only of absent core markers.
+- `-rr` also removes rows made of free, unused cores.
+- `-c MODE` sets color mode to `ON`, `OFF`, or `AUTO`.
 
-Run modes
-~~~~~~~~~
+### Run modes
 
--  ``-w [SECS]`` enables watch mode. It refreshes every ``SECS``
+- `-w [SECS]` enables watch mode. It refreshes every `SECS`
    seconds, or every 2 seconds when omitted.
--  ``-R WHEN`` replays saved qtop output from a point in time.
--  ``-E`` exports gathered cluster data to JSON.
--  ``-O`` saves output without printing the rendered view to stdout.
--  ``-B`` enables the web interface on port 8080.
+- `-R WHEN` replays saved qtop output from a point in time.
+- `-E` exports gathered cluster data to JSON.
+- `-O` saves output without printing the rendered view to stdout.
+- `-B` enables the web interface on port 8080.
 
-Debugging and support
-~~~~~~~~~~~~~~~~~~~~~
+### Debugging and support
 
--  ``-v`` increases verbosity. Repeat it for more detail.
--  ``-d`` prints debug messages to stdout in addition to the log file.
--  ``-S`` strictly compares reported running jobs against jobs displayed
+- `-v` increases verbosity. Repeat it for more detail.
+- `-d` prints debug messages to stdout in addition to the log file.
+- `-S` strictly compares reported running jobs against jobs displayed
    by qtop.
--  ``-L`` creates a sample archive for reports. Use ``-LL`` to also
+- `-L` creates a sample archive for reports. Use `-LL` to also
    include qtop's config and code.
--  ``-A`` anonymizes account and worker node names. The help output
+- `-A` anonymizes account and worker node names. The help output
    currently marks this as temporary and not ready for scheduler input
    files.
--  ``-V`` prints the qtop version.
--  ``-h`` shows command help.
+- `-V` prints the qtop version.
+- `-h` shows command help.
 
-Usage tips
-----------
+## Usage tips
 
--  Start with ``./qtop -b demo`` when testing terminal size, color, or
+- Start with `./qtop -b demo` when testing terminal size, color, or
    keyboard navigation. It avoids accidental scheduler calls.
--  On a live cluster, pass ``-b pbs``, ``-b sge``, ``-b oar``, or
-   ``-b slurm`` when auto-detection is not enough.
--  Use ``-s`` when another process has already collected scheduler
+- On a live cluster, pass `-b pbs`, `-b sge`, `-b oar`, or
+   `-b slurm` when auto-detection is not enough.
+- Use `-s` when another process has already collected scheduler
    output files. This is helpful for debugging and for reproducing an
    issue away from the cluster login node.
--  Combine ``-l`` with ``less -RS`` when the worker-node matrix is wider
+- Combine `-l` with `less -RS` when the worker-node matrix is wider
    than the terminal.
--  Use ``-L`` when preparing a bug report. Review the archive before
+- Use `-L` when preparing a bug report. Review the archive before
    sharing it, especially when scheduler output might include sensitive
    hostnames or account names.
 
-.. |worker nodes occupancy| image:: images/wn_occupancy.png
