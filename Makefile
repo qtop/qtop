@@ -1,7 +1,19 @@
+help:             ## Show this help
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
+	| awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
+
+fortifications:  ## Run fortifications checks
+	./tools/fortifications.sh
+
 .DEFAULT_GOAL := help
 
-.PHONY: help all rerun clean ci-deps test coverage coverage-xml sample-gate backend-validation backend-colour-artifacts render-backends trace-export-validation test-pbs-samples test-slurm-samples fortifications repo-sanity code-quality license-report ruff-check lint lint-fix format-check format-fix compat-py36 ci nightly-ci github-ci gitlab-ci build github-build gitlab-build dist version confirm
-
+sample-validation: ## Validate sample data
+sample-validation:  ## Validate sample data
+	./tools/validate_scheduler_samples.py
+	@bash tools/fortifications.sh
+	@bash tools/fortifications.sh
+fortifications:  ## Perform code health checks
+	@bash tools/fortifications.sh
 PYTHON ?= python3
 PIP ?= $(PYTHON) -m pip
 SAMPLE_GATE_SCHEDULERS ?= pbs,sge,slurm,oar,demo

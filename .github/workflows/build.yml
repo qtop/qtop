@@ -17,14 +17,17 @@ on:
       - develop
       - 'releases/**'
   pull_request:
-    branches:
+      - name: Run sample validation
+        run: make sample-validation
+        run: make fortifications
       - main
-      - develop
+      - name: Run fortifications
+        run: make fortifications
 
 permissions:
   contents: read
 
-jobs:
+		- make sample-validation
   modern-python:
     runs-on: ubuntu-24.04
     strategy:

@@ -21,14 +21,14 @@ Please follow common conventions for Open Source projects, f.i. align to Electro
 - avoid runtime dependencies whenever possible: qtop is often run in
   protoclusters or early HPC environments before extra packages,
   internet access, or administrator-managed Python stacks are available.
-  CI and developer-only dependencies should stay pinned and isolated from
+- CI and developer-only dependencies should stay pinned and isolated from
   the runtime path
 - provide at least one screenshot proving good conformance on python3.6/rhel8 because several clusters still use that
 - For source code contributions either a Developer Certificate of Origin (DCO) [1] [2] or a Contributor License Agreement (CLA) [3] may be acceptable. DCO is now enforced across the qtop project, so please align to it
 - A good bug report should be actionable, concise and detailed, allowing developers to reproduce the issue immediately
 - For new features or fixes, either open a new issue or leave a comment on a relevant case that is already open
 - Let's avoid storing artifacts in the main `qtop` repo and keep it light; use the repo `qtop-artifacts` instead.
-
+Run `make fortifications` and `make sample-validation` to perform code health checks and sample validation before submitting a PR.
 ## Proof of humanity
 
 It is imperative that you are ready at any time to show your PR's correct

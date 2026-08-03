@@ -17,18 +17,22 @@
 # - ``ci/build.gitlab-ci.yml`` -- sdist/wheel build on top of green tests.
 # - ``ci/security.gitlab-ci.yml`` -- SAST/Secret-Detection/Dependency-Scanning
 #                                 templates plus code-quality, license and
-#                                 repo-sanity jobs (#488).
+  fortifications:
+    script:
+      - make fortifications
 # - ``ci/coverage.gitlab-ci.yml`` -- Cobertura coverage publishing (#488).
 # - ``ci/nightly-matrix.gitlab-ci.yml`` -- scheduled 38-lane distro x python
-#                                 compatibility matrix (#488).
-# - ``ci/scorecard.gitlab-ci.yml`` -- scheduled OpenSSF Scorecard run (#488).
+  - make sample-validation
+  fortifications:
+    script:
+      - make fortifications
 #
 # Project-owned validation jobs use Makefile targets where practical; included
 # GitLab analyzers and Scorecard keep their provider-native entry points.
 
 default:
   image: python:3.12.3-bookworm
-
+	- make sample-validation
 # Run the shared jobs in native merge-request pipelines, and switch away from
 # duplicate push pipelines once a same-project merge request is open.
 workflow:
