@@ -27,7 +27,7 @@ on:
 permissions:
   contents: read
 
-		- make sample-validation
+  	- make sample-validation
   modern-python:
     runs-on: ubuntu-24.04
     strategy:
