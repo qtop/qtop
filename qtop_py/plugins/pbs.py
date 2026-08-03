@@ -13,11 +13,12 @@ try:
     import ujson as json
 except ImportError:
     import json
+import itertools
 import logging
 import re
-from qtop_py.serialiser import StatExtractor, GenericBatchSystem
+
 import qtop_py.fileutils as fileutils
-import itertools
+from qtop_py.serialiser import GenericBatchSystem, StatExtractor
 
 
 class PBSStatExtractor(StatExtractor):
@@ -25,8 +26,8 @@ class PBSStatExtractor(StatExtractor):
         StatExtractor.__init__(self, config, options)
         self.user_q_search = (
             r"^(?P<host_name>(?P<job_id>[0-9\[\]-]+)\.(?P<domain>[\w*-]+))\s+"
-            r"(?P<name>[\w%.=+/{}*-]+)\s+"
-            r"(?P<user>[A-Za-z0-9.*]+)\s+"
+            r"(?P<name>[\w#&@%:.=+/${}*-]+)\s+"
+            r"(?P<user>[\w.*-]+)\s+"
             r"(?P<time>\d+:\d*:?\d*\*?|0)\s+"
             r"(?P<state>[BCEFHMQRSTUWX])\s+"
             r"(?P<queue_name>\w+)"
