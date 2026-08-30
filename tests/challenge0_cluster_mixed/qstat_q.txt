@@ -1,0 +1,7 @@
+
+server: mixed-cluster.local
+
+Queue            Memory CPU Time Walltime Node  Run Que Lm  State
+---------------- ------ -------- -------- ----  --- --- --  -----
+workq              --   48:00:00 72:00:00   --    8   1 --   E R
+                                                  8   1

@@ -172,6 +172,8 @@ class PBSStatExtractor(StatExtractor):
         run_qd_search = r"^\s*(?P<tot_run>\d+)\s+(?P<tot_queued>\d+)"  # this picks up the last line contents
 
         all_qstatq_values = list()
+        total_running_jobs = "0"
+        total_queued_jobs = "0"
         with open(qstatq_file, "r") as fin:
             fin.readline()
             fin.readline()
