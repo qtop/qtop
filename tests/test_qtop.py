@@ -158,6 +158,52 @@ def test_scheduler_autodetection_fails_when_only_demo_is_available(monkeypatch):
         qtop_module.auto_get_avail_batch_system(config)
 
 
+def test_queue_colorization_returns_new_nodes_without_mutating_input():
+    worker_nodes = [
+        {
+            "domainname": "node1",
+            "state": "-",
+            "qname": ["batch", "urgent"],
+            "core_job_map": {},
+        }
+    ]
+
+    result = qtop_module.keep_queue_initials_only_and_colorize(
+        worker_nodes,
+        {"batch": "green", "urgent": "red"},
+    )
+
+    assert result is not worker_nodes
+    assert result[0] is not worker_nodes[0]
+    assert worker_nodes[0]["qname"] == ["batch", "urgent"]
+    assert [str(queue) for queue in result[0]["qname"]] == ["batch", "urgent"]
+    assert [queue.color for queue in result[0]["qname"]] == ["green", "red"]
+
+
+def test_node_state_colorization_returns_new_nodes_without_mutating_input():
+    worker_nodes = [
+        {
+            "domainname": "node1",
+            "state": "-X",
+            "qname": [qtop_utils.ColorStr("batch", color="green")],
+            "core_job_map": {},
+        }
+    ]
+
+    result = qtop_module.colorize_nodestate(
+        worker_nodes,
+        {"-X": "red"},
+        qtop_module.colorize,
+    )
+
+    assert result is not worker_nodes
+    assert result[0] is not worker_nodes[0]
+    assert worker_nodes[0]["state"] == "-X"
+    assert result[0]["qname"] is worker_nodes[0]["qname"]
+    assert [str(state) for state in result[0]["state"]] == ["-", "X"]
+    assert [state.color for state in result[0]["state"]] == ["red", "red"]
+
+
 @pytest.mark.parametrize(
     "domain_name, match",
     (
