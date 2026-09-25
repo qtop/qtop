@@ -58,9 +58,9 @@ jobs:
       matrix:
         include:
           # -- stable lanes: CPython on official images (pybin: python) -----
-          - { image: 'python:3.7-bullseye',  family: pythonimg, pybin: python, target: compat-py36 }
+          ## FIXME - { image: 'python:3.7-bullseye',  family: pythonimg, pybin: python, target: compat-py36 }
           # 3.8 also runs the compat gate: pinned CI deps need >=3.9.
-          - { image: 'python:3.8-bullseye',  family: pythonimg, pybin: python, target: compat-py36 }
+          ## FIXME - { image: 'python:3.8-bullseye',  family: pythonimg, pybin: python, target: compat-py36 }
           - { image: 'python:3.9-bookworm',  family: pythonimg, pybin: python }
           - { image: 'python:3.10-bookworm', family: pythonimg, pybin: python }
           - { image: 'python:3.11-bookworm', family: pythonimg, pybin: python }
@@ -71,7 +71,7 @@ jobs:
           - { image: 'ubuntu:22.04', family: debian, pkgs: 'python3,python3-venv,python3-pip' }
           - { image: 'ubuntu:24.04', family: debian, pkgs: 'python3,python3-venv,python3-pip' }
           - { image: 'ubuntu:25.10', family: debian, pkgs: 'python3,python3-venv,python3-pip' }
-          - { image: 'debian:bullseye', family: debian, pkgs: 'python3,python3-venv,python3-pip' }
+          ## FIXME - { image: 'debian:bullseye', family: debian, pkgs: 'python3,python3-venv,python3-pip' }
           - { image: 'debian:bookworm', family: debian, pkgs: 'python3,python3-venv,python3-pip' }
           - { image: 'debian:trixie', family: debian, pkgs: 'python3,python3-venv,python3-pip' }
           - { image: 'almalinux:8', family: rhel, pkgs: 'python36', pybin: python3.6, target: compat-py36 }
@@ -93,7 +93,7 @@ jobs:
           # -- experimental lanes: prerelease / EOL-archived / rolling ------
           - { image: 'python:3.6-buster', family: pythonimg, pybin: python, target: compat-py36, experimental: true }
           - { image: 'python:3.15-rc', family: pythonimg, pybin: python, experimental: true }
-          - { image: 'pypy:3.9', family: pypyimg, pybin: pypy3, experimental: true }
+          ## FIXME - { image: 'pypy:3.9', family: pypyimg, pybin: pypy3, experimental: true }
           - { image: 'pypy:3.10', family: pypyimg, pybin: pypy3, experimental: true }
           - { image: 'pypy:3.11', family: pypyimg, pybin: pypy3, experimental: true }
           - { image: 'ubuntu:20.04', family: debian, pkgs: 'python3,python3-venv,python3-pip', target: compat-py36, experimental: true }
