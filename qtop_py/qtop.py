@@ -901,26 +901,23 @@ def assign_color_to_each_qname(worker_nodes):
 
 
 def keep_queue_initials_only_and_colorize(worker_nodes, queue_to_color):
-    # TODO remove monstrosity!
-    for worker_node in worker_nodes:
-        color_q_list = []
-        for queue in worker_node["qname"]:
-            color_q = utils.ColorStr(queue, color=queue_to_color.get(queue, ""))
-            color_q_list.append(color_q)
-        worker_node["qname"] = color_q_list
-    return worker_nodes
+    return [
+        dict(
+            worker_node,
+            qname=[utils.ColorStr(queue, color=queue_to_color.get(queue, "")) for queue in worker_node["qname"]],
+        )
+        for worker_node in worker_nodes
+    ]
 
 
 def colorize_nodestate(worker_nodes, nodestate_to_color, ffunc):
-    # TODO remove monstrosity!
-    for worker_node in worker_nodes:
-        full_nodestate = worker_node["state"]  # actual node state
-        total_color_nodestate = []
-        for nodestate in worker_node["state"]:  # split nodestate for displaying purposes
-            color_nodestate = utils.ColorStr(nodestate, color=nodestate_to_color.get(full_nodestate, ""))
-            total_color_nodestate.append(color_nodestate)
-        worker_node["state"] = total_color_nodestate
-    return worker_nodes
+    return [
+        dict(
+            worker_node,
+            state=[utils.ColorStr(nodestate, color=nodestate_to_color.get(worker_node["state"], "")) for nodestate in worker_node["state"]],
+        )
+        for worker_node in worker_nodes
+    ]
 
 
 def discover_qtop_batch_systems():
@@ -2534,7 +2531,7 @@ def main():
                 ###### Process data ###############
                 #
                 worker_nodes = keep_queue_initials_only_and_colorize(document.worker_nodes, queue_to_color)
-                worker_nodes = colorize_nodestate(document.worker_nodes, nodestate_to_color, colorize)
+                worker_nodes = colorize_nodestate(worker_nodes, nodestate_to_color, colorize)
                 cluster = Cluster(document, worker_nodes, WNFilter, config, args)
                 wns_occupancy = WNOccupancy(cluster, config, document, user_to_color, job_ids)
 
