@@ -1,56 +1,75 @@
 ## AI-assisted contributions
 
-AI tools are welcome when used constructively to improve software quality,
-documentation, testing, portability, maintainability or user experience.
+AI tools are welcome when they are used constructively for software quality,
+documentation, testing, portability, maintainability, or user experience.
+The contributor remains responsible for the result and must be able to explain
+the change and validate it. Mass-generated, low-understanding, and autonomous
+bot-driven pull requests may be rejected.
 
-However:
+If AI materially contributed to a change, disclose the tool and version in the
+pull request description. A short, factual disclosure is enough.
 
-- Contributors remain fully responsible for all submitted code.
-- Contributors must understand and be able to explain the submitted changes.
-- Contributors must validate correctness with appropriate testing.
-- Mass-generated or low-understanding submissions may be rejected.
-- Autonomous bot-driven pull requests are not accepted.
+## Before opening a pull request
 
-If AI assistance materially contributed to a change, disclose it briefly in the pull request description.
+- Use `develop` as both the source and target branch.
+- Keep the runtime dependency footprint small. qtop is used on HPC systems
+  where internet access, extra packages, and administrator-managed Python
+  stacks may not be available. Keep CI and developer-only dependencies pinned
+  and out of the runtime path.
+- For a bug report, include a concise reproduction, expected behavior, actual
+  behavior, and relevant environment details.
+- For a feature or fix, open an issue first or explain in an existing issue
+  why the change belongs there.
+- Follow the project's DCO requirement for source changes; see [1] and [2].
+  The DCO is currently enforced for qtop contributions.
+- Keep generated artifacts out of this repository. Put review artifacts in the
+  `qtop-artifacts` repository instead.
 
-## General Conventions
+When a change affects runtime behavior, include evidence that it still works
+on a Python 3.6/RHEL 8-compatible environment or explain the closest
+available equivalent. For documentation-only changes, run the relevant
+formatting or link checks and state which runtime checks do not apply.
 
-Please follow common conventions for Open Source projects, f.i. align to Electron framework if still in doubt:
-- AI version disclosure is mandatory; with version, not just a name
-- `develop` branch should be used as source and target of PRs
-- avoid runtime dependencies whenever possible: qtop is often run in
-  protoclusters or early HPC environments before extra packages,
-  internet access, or administrator-managed Python stacks are available.
-  CI and developer-only dependencies should stay pinned and isolated from
-  the runtime path
-- provide at least one screenshot proving good conformance on python3.6/rhel8 because several clusters still use that
-- For source code contributions either a Developer Certificate of Origin (DCO) [1] [2] or a Contributor License Agreement (CLA) [3] may be acceptable. DCO is now enforced across the qtop project, so please align to it
-- A good bug report should be actionable, concise and detailed, allowing developers to reproduce the issue immediately
-- For new features or fixes, either open a new issue or leave a comment on a relevant case that is already open
-- Let's avoid storing artifacts in the main `qtop` repo and keep it light; use the repo `qtop-artifacts` instead.
+## Validation and review evidence
+
+Before requesting review, run the checks that cover the change. For a normal
+source change, the usual starting points are:
+
+```text
+python -m pytest -q
+make sample-gate SAMPLE_GATE_SCHEDULERS=pbs,sge,slurm,oar,demo SAMPLE_GATE_MAX_FAILURES=0
+```
+
+Also demonstrate a coloured demo run when the change affects rendering or
+terminal behavior:
+
+```text
+./qtop -b demo -FGTw
+```
+
+Attach concise output or a screenshot to the pull request when it helps the
+reviewer verify the result. Do not claim checks that were not run; record
+platform limitations and failures clearly.
+
+## Contribution paths
+
+You can contribute by:
+
+- implementing a focused fix or feature;
+- adding regression tests, documentation, or portability improvements;
+- reviewing pull requests and reporting actionable feedback;
+- maintaining qtop repositories and helping new contributors understand the
+  codebase; or
+- preparing collaboration, grant, fundraising, or community proposals.
 
 ## Proof of humanity
 
-It is imperative that you are ready at any time to show your PR's correct
-functionality, be able to explain how it works and demo in live mode a run of
-qtop with colored output that has no issues of correctness (read: ansi codes
-rendered correctly, output is not garbled etc).
-
-Due to many incoming PRs, it is needed to extend the effort to deal with the advent of bots; part of this is yours.
-You give a greater chance of closer and faster attention to your PRs by showing some real humane effort:
-- Add (ORCID) in your PR subject iff your github profile is linked to your ORCID profile
-- Add (SCHOLAR) in your PR subject iff you have a verifiable google scholar profile
-- Add (LI) in your PR subject iff you have a VERIFIABLE Linkedin profile which is shared under github
-- Add (SDP) iff you have a Student Developer Pack - if you are eligible and don't have this, now is the time!
-- Add (PRO) iff you have a github pro account
-- Add (human) iff you'd accept any challenge for PoH, including a live video call / >1 proof channels etc. No sending of personal data/documents though, that's a no-go zone. No bits of hard feelings :)
-
-You may contribute in the following ways:
-* Write code
-* Review pull requests
-* Maintain and improve a qtop repo and/or documentation
-* Help with outreach and onboard new contributors by assisting them directly
-* Write and/or lead collaborations proposals, including grants or other fundraising or help with community efforts
+Contributors should be ready to explain their changes and, when requested,
+demonstrate the relevant behavior in a live run. Optional profile markers may
+be used only when they are already verifiable from the contributor's GitHub
+profile; they are not a substitute for tests, reviewable code, or a clear
+explanation. Never send personal identity documents or other sensitive data as
+proof.
 
 [1] https://wiki.linuxfoundation.org/dco
 

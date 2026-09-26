@@ -9,6 +9,7 @@
 ## SPDX-License-Identifier: MIT
 ##
 
+import io
 import pytest
 import re
 import datetime
@@ -97,6 +98,18 @@ def test_raw_mode_does_not_swallow_unexpected_fileno_errors(monkeypatch):
     with pytest.raises(RuntimeError, match="unexpected"):
         with qtop_module.raw_mode(BrokenFile()):
             pass
+
+
+def test_write_output_file_does_not_depend_on_unix_cat(monkeypatch, tmp_path):
+    output_file = tmp_path / "qtop-output.txt"
+    output_file.write_text("rendered output\n", encoding="utf-8")
+    output_stream = io.StringIO()
+
+    monkeypatch.setattr(qtop_module.subprocess, "call", lambda *args, **kwargs: pytest.fail("shell cat must not be used"))
+
+    qtop_module._write_output_file(str(output_file), output_stream)
+
+    assert output_stream.getvalue() == "rendered output\n"
 
 
 def test_sort_worker_nodes_rejects_custom_python_sorting(monkeypatch):
