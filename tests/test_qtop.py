@@ -78,6 +78,15 @@ def test_raw_mode_allows_watch_mode_without_terminal_attrs(monkeypatch):
         def fileno(self):
             raise OSError("not a terminal")
 
+    fake_termios = SimpleNamespace(
+        tcgetattr=lambda fd: [0, 0, 0, 0],
+        tcsetattr=lambda fd, when, attrs: None,
+        TCSADRAIN=0,
+        ECHO=1,
+        ICANON=2,
+        error=OSError,
+    )
+    monkeypatch.setattr(qtop_module, "termios", fake_termios, raising=False)
     monkeypatch.setattr(qtop_module, "args", SimpleNamespace(ONLYSAVETOFILE=False, WATCH=True), raising=False)
 
     entered_context = False
@@ -92,6 +101,15 @@ def test_raw_mode_does_not_swallow_unexpected_fileno_errors(monkeypatch):
         def fileno(self):
             raise RuntimeError("unexpected")
 
+    fake_termios = SimpleNamespace(
+        tcgetattr=lambda fd: [0, 0, 0, 0],
+        tcsetattr=lambda fd, when, attrs: None,
+        TCSADRAIN=0,
+        ECHO=1,
+        ICANON=2,
+        error=OSError,
+    )
+    monkeypatch.setattr(qtop_module, "termios", fake_termios, raising=False)
     monkeypatch.setattr(qtop_module, "args", SimpleNamespace(ONLYSAVETOFILE=False, WATCH=True), raising=False)
 
     with pytest.raises(RuntimeError, match="unexpected"):
