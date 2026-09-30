@@ -16,6 +16,42 @@ import qtop_py.fileutils as fileutils
 from qtop_py.serialiser import GenericBatchSystem, StatExtractor
 
 
+SLURM_JOB_STATES = {
+    "BOOT_FAIL": "BF",
+    "CANCELLED": "CA",
+    "COMPLETED": "CD",
+    "CONFIGURING": "CF",
+    "COMPLETING": "CG",
+    "DEADLINE": "DL",
+    "FAILED": "F",
+    "NODE_FAIL": "NF",
+    "OUT_OF_MEMORY": "OOM",
+    "PENDING": "PD",
+    "PREEMPTED": "PR",
+    "RUNNING": "R",
+    "RESV_DEL_HOLD": "RD",
+    "REQUEUE_FED": "RF",
+    "REQUEUE_HOLD": "RH",
+    "REQUEUED": "RQ",
+    "RESIZING": "RS",
+    "REVOKED": "RV",
+    "SIGNALING": "SI",
+    "SPECIAL_EXIT": "SE",
+    "STAGE_OUT": "SO",
+    "STOPPED": "ST",
+    "SUSPENDED": "S",
+    "TIMEOUT": "TO",
+    # Flags without a public compact squeue code map to the closest display
+    # state while raw_state remains available in ClusterState.
+    "EXPEDITING": "PD",
+    "LAUNCH_FAILED": "F",
+    "POWER_UP_NODE": "CF",
+    "RECONFIG_FAIL": "F",
+    "UPDATE_DB": "CG",
+}
+SLURM_COMPACT_JOB_STATES = set(SLURM_JOB_STATES.values())
+
+
 class SlurmStatExtractor(StatExtractor):
     def extract_squeue(self, orig_file):
         """
@@ -44,7 +80,8 @@ class SlurmStatExtractor(StatExtractor):
                     {
                         "JobId": job_id,
                         "UnixAccount": self.anonymize(user, "users"),
-                        "S": state,
+                        "S": self._map_job_state(state),
+                        "raw_state": state,
                         "Queue": self.anonymize(partition.rstrip("*"), "qs"),
                         "CPUs": self._safe_int(cpus, default=1),
                         "Nodes": nodes,
@@ -94,36 +131,58 @@ class SlurmStatExtractor(StatExtractor):
             return default
 
     @staticmethod
+    def _map_job_state(state):
+        normalized = state.upper().strip()
+        if normalized in SLURM_COMPACT_JOB_STATES:
+            return normalized
+        return SLURM_JOB_STATES.get(normalized, normalized or "?")
+
+    @staticmethod
     def _map_node_state(state):
         normalized = state.lower().strip()
-        normalized = re.sub(r"[*+#~$@%!]+$", "", normalized)
+        normalized = re.sub(r"[*+#~$@%!^\-]+$", "", normalized)
         state_map = {
             "idle": "-",
             "alloc": "b",
             "allocated": "b",
+            "allocated+": "b",
             "mix": "b",
             "mixed": "b",
+            "block": "d",
+            "blocked": "d",
             "comp": "c",
             "completing": "c",
             "down": "d",
             "drain": "d",
             "drained": "d",
             "drng": "d",
+            "draining": "d",
             "fail": "d",
+            "failg": "d",
             "failing": "d",
             "maint": "d",
+            "maintenance": "d",
             "resv": "r",
             "reserved": "r",
             "planned": "-",
             "plnd": "-",
             "future": "?",
+            "futr": "?",
+            "power_down": "d",
+            "pow_dn": "d",
+            "powered_down": "d",
+            "power_up": "c",
+            "pow_up": "c",
+            "powering_up": "c",
+            "unknown": "?",
+            "unk": "?",
         }
         return state_map.get(normalized, normalized[:1] or "?")
 
 
 class SlurmBatchSystem(GenericBatchSystem):
-    ACTIVE_STATES = set(["R", "CG", "CF", "S", "ST"])
-    QUEUED_STATES = set(["PD", "CF"])
+    ACTIVE_STATES = set(["R", "CG", "CF", "S", "ST", "RS", "SI", "SO"])
+    QUEUED_STATES = set(["PD", "CF", "RD", "RF", "RH", "RQ", "SE"])
     STATE_PRIORITY = {"d": 5, "b": 4, "c": 2, "r": 1, "-": 0, "?": -1}
 
     @staticmethod
@@ -138,13 +197,11 @@ class SlurmBatchSystem(GenericBatchSystem):
         self.slurm_stat_maker = SlurmStatExtractor(self.config, self.options)
 
     def get_jobs_info(self):
-        job_ids, usernames, job_states, queue_names = [], [], [], []
-
-        for job in self._get_jobs():
-            job_ids.append(job["JobId"])
-            usernames.append(job["UnixAccount"])
-            job_states.append(job["S"])
-            queue_names.append(job["Queue"])
+        jobs = self._get_jobs()
+        job_ids = [job["JobId"] for job in jobs]
+        usernames = [job["UnixAccount"] for job in jobs]
+        job_states = [job["S"] for job in jobs]
+        queue_names = [job["Queue"] for job in jobs]
 
         logging.debug(
             "job_ids, usernames, job_states, queue_names lengths: "

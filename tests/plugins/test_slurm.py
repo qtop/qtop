@@ -10,7 +10,7 @@ import os
 
 import pytest
 
-from qtop_py.plugins.slurm import SlurmBatchSystem, SlurmStatExtractor
+from qtop_py.plugins.slurm import SLURM_JOB_STATES, SlurmBatchSystem, SlurmStatExtractor
 
 
 class Options(object):
@@ -77,6 +77,15 @@ def test_slurm_command_traces(sample_name, expected_jobs, expected_queues, expec
         assert worker_nodes[node_name]["core_job_map"] == expected_core_map
 
 
+def test_slurm_exposes_plain_cluster_state():
+    state = SlurmBatchSystem(scheduler_files("basic"), {}, Options()).get_cluster_state(Options())
+
+    assert list(state) == ["jobs", "nodes", "queues"]
+    assert state["jobs"][0] == {"id": "101", "user": "alice", "state": "R", "queue": "compute"}
+    assert state["nodes"][0]["domainname"] == "node001"
+    assert state["queues"][0]["name"] == "compute"
+
+
 @pytest.mark.parametrize(
     "sample_name, expected_nodes, expected_cores",
     (
@@ -128,4 +137,36 @@ def test_expand_nodelist(nodelist, expected):
     ),
 )
 def test_map_node_state(raw_state, mapped):
+    assert SlurmStatExtractor._map_node_state(raw_state) == mapped
+
+
+@pytest.mark.parametrize("long_state, compact_state", sorted(SLURM_JOB_STATES.items()))
+def test_map_all_documented_slurm_job_states(long_state, compact_state):
+    assert SlurmStatExtractor._map_job_state(long_state) == compact_state
+    assert SlurmStatExtractor._map_job_state(compact_state) == compact_state
+
+
+@pytest.mark.parametrize(
+    "raw_state, mapped",
+    (
+        ("allocated", "b"),
+        ("blocked", "d"),
+        ("completing", "c"),
+        ("down*", "d"),
+        ("drained", "d"),
+        ("draining@", "d"),
+        ("fail", "d"),
+        ("failing^", "d"),
+        ("future", "?"),
+        ("idle", "-"),
+        ("maint$", "d"),
+        ("mixed", "b"),
+        ("planned-", "-"),
+        ("power_down~", "d"),
+        ("power_up#", "c"),
+        ("reserved", "r"),
+        ("unknown", "?"),
+    ),
+)
+def test_map_all_documented_slurm_node_states(raw_state, mapped):
     assert SlurmStatExtractor._map_node_state(raw_state) == mapped

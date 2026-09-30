@@ -39,6 +39,21 @@ def test_load_exported_document_rehydrates_named_records(tmp_path):
     assert document.total_running_jobs == 1
 
 
+def test_load_exported_document_accepts_cluster_state(tmp_path):
+    payload = {
+        "jobs": [{"id": "1", "user": "alice", "state": "R", "queue": "debug"}],
+        "nodes": [{"domainname": "node001", "np": "1", "state": "-", "qname": ["debug"], "core_job_map": {"0": "1"}}],
+        "queues": [{"name": "debug", "limit": "1", "queued": 0, "running": 1, "state": "E"}],
+    }
+
+    document = load_exported_document(write_encoded_payload(tmp_path, payload))
+
+    assert document.jobs_dict["1"].user_name == "alice"
+    assert document.queues_dict["debug"].run == "1"
+    assert document.total_running_jobs == 1
+    assert document.total_queued_jobs == 0
+
+
 def test_account_symbols_reads_qtop_symbol_column():
     class WNOccupancy:
         account_jobs_table = [["0", 1], ["*", 2]]

@@ -43,8 +43,10 @@ def decode_trace_payload(path):
 
 def load_exported_document(path):
     payload = decode_trace_payload(path)
+    if isinstance(payload, dict):
+        return qtop.Document.from_cluster_state(payload)
     if not isinstance(payload, list) or len(payload) != 5:
-        raise ValueError("expected exported qtop document payload with 5 top-level fields")
+        raise ValueError("expected ClusterState or legacy qtop document payload")
 
     worker_nodes, raw_jobs, raw_queues, total_running_jobs, total_queued_jobs = payload
     JobDoc = namedtuple("JobDoc", ["user_name", "job_state", "job_queue"])

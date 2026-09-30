@@ -39,6 +39,7 @@ try:
 except ImportError:
     termios = None
 import contextlib
+import copy
 import glob
 import tempfile
 import logging
@@ -55,6 +56,7 @@ from qtop_py.constants import (
 )
 from qtop_py import fileutils
 from qtop_py import utils
+from qtop_py.cluster_state import cluster_state_totals, validate_cluster_state
 from qtop_py.plugins.demo import DemoBatchSystem
 from qtop_py.plugins.oar import OARBatchSystem
 from qtop_py.plugins.pbs import PBSBatchSystem
@@ -1435,29 +1437,58 @@ class WNOccupancy(object):
         return WNOccupancy.coreline_not_there(symbol, switch, delta, core_x_str) or WNOccupancy.coreline_unused(symbol, switch, delta, core_x_str)
 
 
+JobDoc = namedtuple("JobDoc", ["user_name", "job_state", "job_queue"])
+QDoc = namedtuple("QDoc", ["lm", "queued", "run", "state"])
+
+
 class Document(namedtuple("Document", ["worker_nodes", "jobs_dict", "queues_dict", "total_running_jobs", "total_queued_jobs"])):
+    @classmethod
+    def from_cluster_state(cls, cluster_state):
+        validate_cluster_state(cluster_state)
+        totals = cluster_state_totals(cluster_state)
+        jobs_dict = OrderedDict((job["id"], JobDoc(job["user"], job["state"], job["queue"])) for job in cluster_state["jobs"])
+        queues_dict = OrderedDict(
+            (
+                queue["name"],
+                QDoc(str(queue["limit"]), str(queue["queued"]), str(queue["running"]), queue["state"]),
+            )
+            for queue in cluster_state["queues"]
+        )
+        return cls(
+            copy.deepcopy(cluster_state["nodes"]),
+            jobs_dict,
+            queues_dict,
+            totals["running_jobs"],
+            totals["queued_jobs"],
+        )
+
+    def to_cluster_state(self):
+        return {
+            "jobs": [
+                {
+                    "id": job_id,
+                    "user": job.user_name,
+                    "state": job.job_state,
+                    "queue": job.job_queue,
+                }
+                for job_id, job in self.jobs_dict.items()
+            ],
+            "nodes": copy.deepcopy(self.worker_nodes),
+            "queues": [
+                {
+                    "name": queue_name,
+                    "limit": queue.lm,
+                    "queued": int(queue.queued),
+                    "running": int(queue.run),
+                    "state": queue.state,
+                }
+                for queue_name, queue in self.queues_dict.items()
+            ],
+        }
+
     def save(self, filename):
         with open(filename, "w") as outfile:
-            json.dump(document, outfile)
-
-
-# class Document(object):
-#
-#     def __init__(self, cluster, wns_occupancy):
-#         self.cluster = cluster
-#         self.wns_occupancy = wns_occupancy
-#         self.cluster_info = (
-#             self.wns_occupancy,
-#             self.cluster.worker_nodes,
-#             self.cluster.total_running_jobs,
-#             self.cluster.total_queued_jobs,
-#             self.cluster.workernode_list,
-#             self.cluster.workernode_dict)
-#
-#     def save(self, filename):
-#         with open(filename, 'w') as outfile:
-#             json.dump(self.cluster_info, outfile)
-#
+            json.dump(self.to_cluster_state(), outfile)
 
 
 class TextDisplay(object):
@@ -1976,7 +2007,7 @@ class Cluster(object):
 
     def analyse(self):
         if not self.worker_nodes:
-            return None  # TODO ? what to return instead of cluster?
+            return self
 
         re_nodename = r"(^[A-Za-z0-9_-]+)(?=\.|$)" if not self.args.ANONYMIZE else r"\w_anon_wn_\d+"
 
@@ -2007,6 +2038,7 @@ class Cluster(object):
         del self.node_subclusters  # sets are not JSON serialisable!!
         del self.workernode_list_remapped
         del self.workernode_dict_remapped
+        return self
 
     def get_wn_list_and_stats(self, workernode_list, node_subclusters, worker_nodes, re_nodename):
         max_np = 0
@@ -2188,7 +2220,7 @@ class Cluster(object):
             return tuple(values)
 
         try:
-            self.worker_nodes.sort(key=sort_key, reverse=self.config["sorting"]["reverse"])
+            return sorted(self.worker_nodes, key=sort_key, reverse=self.config["sorting"]["reverse"])
         except (IndexError, ValueError):
             logging.critical("There's (probably) something wrong in your sorting configuration in %s." % QTOPCONF_YAML)
             raise
@@ -2505,20 +2537,9 @@ def main():
                 #
                 scheduling_system = available_batch_systems[scheduler](scheduler_output_filenames, config, args)
 
-                job_ids, user_names, job_states, job_queues = scheduling_system.get_jobs_info()
-                total_running_jobs, total_queued_jobs, qstatq_lod = scheduling_system.get_queues_info()
-                worker_nodes = scheduling_system.get_worker_nodes(job_ids, job_queues, args)
-
-                JobDoc = namedtuple("JobDoc", ["user_name", "job_state", "job_queue"])
-                jobs_dict = dict(
-                    (re.sub(r"\[\]$", "", job_id), JobDoc(user_name, job_state, job_queue))
-                    for job_id, user_name, job_state, job_queue in zip(job_ids, user_names, job_states, job_queues)
-                )
-
-                QDoc = namedtuple("QDoc", ["lm", "queued", "run", "state"])
-                queues_dict = OrderedDict((qstatq["queue_name"], (QDoc(str(qstatq["lm"]), qstatq["queued"], qstatq["run"], qstatq["state"]))) for qstatq in qstatq_lod)
-
-                document = Document(worker_nodes, jobs_dict, queues_dict, total_running_jobs, total_queued_jobs)
+                cluster_state = scheduling_system.get_cluster_state(args)
+                document = Document.from_cluster_state(cluster_state)
+                job_ids = [job["id"] for job in cluster_state["jobs"]]
 
                 ###### Export data ###############
                 #

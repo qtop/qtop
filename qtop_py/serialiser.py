@@ -14,6 +14,8 @@ import re
 from itertools import count
 import logging
 
+from qtop_py.cluster_state import build_cluster_state
+
 
 class StatExtractor(object):
     """
@@ -109,17 +111,24 @@ class GenericBatchSystem(object):
     def get_mnemonic():
         raise NotImplementedError
 
+    def get_cluster_state(self, options):
+        """Collect scheduler data behind one stable, plain-data boundary."""
+        job_ids, users, job_states, job_queues = self.get_jobs_info()
+        _running, _queued, queues = self.get_queues_info()
+        nodes = self.get_worker_nodes(job_ids, job_queues, options)
+        return build_cluster_state(job_ids, users, job_states, job_queues, nodes, queues)
+
     @staticmethod
     def ensure_worker_nodes_have_qnames(_worker_nodes, job_ids, job_queues):
         """
         This gets the queues associated with each worker node.
         SGE systems already contain this information.
         """
-        if not _worker_nodes:
-            return _worker_nodes
         job_ids_queues = dict(zip(job_ids, job_queues))
-        for worker_node in _worker_nodes:
-            my_jobs = worker_node["core_job_map"].values()
-            my_queues = set(job_ids_queues.get(re.sub(r"\[\d+\]", r"[]", job_id)) for job_id in my_jobs)  # also for job arrays
-            worker_node["qname"] = list(my_queues)
-        return _worker_nodes
+        return [
+            dict(
+                worker_node,
+                qname=list(set(job_ids_queues.get(re.sub(r"\[\d+\]", r"[]", job_id)) for job_id in worker_node["core_job_map"].values())),
+            )
+            for worker_node in _worker_nodes
+        ]
