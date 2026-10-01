@@ -1107,7 +1107,10 @@ class WNOccupancy(object):
         pattern = {}
         for line in self.account_jobs_table:
             uid, user = line[0], line[4]
-            account_letters = re.search("[A-Za-z]+", user).group(0)
+            # Single-expression fallback, portable to py3.6 / PyPy / MicroPython (no walrus, no findall).
+            # The appended " NoPattern" sentinel guarantees a match: an all-numeric user (e.g. a numeric
+            # uid from sinfo) yields "NoPattern". The space is load-bearing: without it "abc" -> "abcNoPattern".
+            account_letters = re.search(r"[A-Za-z]+", user + " NoPattern").group(0)
             for re_account in list(mapping.keys())[::-1]:
                 match = re.search(re_account, user)
                 if match is not None:
