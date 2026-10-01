@@ -1,20 +1,17 @@
 # Changelog
 
-## Unreleased
-
-- Documentation: convert the roadmap and changelog to Markdown.
-- Documentation: refresh README Python support and CI badge wording.
-- Documentation: update the quickstart command examples to use the
-  `qtop` wrapper.
-- Documentation: clarify why qtop keeps runtime dependencies minimal on
-  early or bare HPC clusters.
-- Build tooling: add Makefile aliases for lint and format fix workflows.
-- Code quality: address the actionable findings from the CodeQL scan in #549.
-- Security: document private vulnerability reporting contacts and guidance.
-
 ## 0.9.20261001
 
 - Bugfix: improve the contrast of the simulated-data notice in demo mode.
+- Bugfix: fix bug around account_letters, when uid is numeric
+- Bugfix: fix any pending codeQL feedback
+- Documentation: convert the roadmap and changelog to Markdown.
+- Documentation: refresh README Python support and CI badge wording.
+- Documentation: update the quickstart command examples to use the `qtop` wrapper.
+- Documentation: clarify why qtop keeps runtime dependencies minimal on early or bare HPC clusters.
+- Build tooling: add Makefile aliases for lint and format fix workflows.
+- Code quality: address the actionable findings from the CodeQL scan in #549.
+- Security: document private vulnerability reporting contacts and guidance.
 
 ## 0.9.20260610
 
@@ -25,15 +22,12 @@
 
 - Documentation: update CONTRIBUTING.md for AI-assisted PRs
 - Bugfix: typecasting in qtop_py/plugins/pbs.py
-- Bugfix: several bugs in relation to historic PBS samples input
-  processing
-- Feature enhancement: introduce logic for regression & golden output
-  PBS tests
+- Bugfix: several bugs in relation to historic PBS samples input processing
+- Feature enhancement: introduce logic for regression & golden output PBS tests
 
 ## 0.9.20241027
 
-- Feature enhancement: codebase improved via deepsource: pass #1,
-  imports fixed
+- Feature enhancement: codebase improved via deepsource: pass #1, imports fixed
 
 ## 0.9.20241013
 
