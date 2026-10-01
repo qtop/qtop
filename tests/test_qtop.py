@@ -155,6 +155,35 @@ def test_scheduler_autodetection_fails_when_only_demo_is_available(monkeypatch):
         qtop_module.auto_get_avail_batch_system(config)
 
 
+def test_scheduler_autodetection_prioritizes_slurm(monkeypatch):
+    available = {"qstat": "/site/bin/qstat", "sinfo": "/usr/bin/sinfo"}
+    monkeypatch.setattr(qtop_module.shutil, "which", available.get)
+    config = {"signature_commands": {"sge": "qstat", "slurm": "sinfo"}}
+
+    assert qtop_module.auto_get_avail_batch_system(config) == "slurm"
+
+
+@pytest.mark.parametrize(
+    ("feature", "label"),
+    (("ANONYMIZE", "Anonymization"), ("WEB", "The web interface")),
+)
+def test_experimental_features_require_explicit_opt_in(capsys, feature, label):
+    args = SimpleNamespace(ANONYMIZE=False, WEB=False, EXPERIMENTAL=False)
+    setattr(args, feature, True)
+
+    with pytest.raises(SystemExit) as exc_info:
+        qtop_module.require_experimental_opt_in(args)
+
+    assert exc_info.value.code == 1
+    assert label in capsys.readouterr().out
+
+
+def test_experimental_features_accept_explicit_opt_in():
+    args = SimpleNamespace(ANONYMIZE=True, WEB=True, EXPERIMENTAL=True)
+
+    assert qtop_module.require_experimental_opt_in(args) is None
+
+
 def test_queue_colorization_returns_new_nodes_without_mutating_input():
     worker_nodes = [
         {

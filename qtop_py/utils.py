@@ -163,7 +163,14 @@ def parse_qtop_cmdline_args():
         help="Do a check on the quality of the scheduler output by comparing the reported total running jobs against the actual ones found/displayed in qtop",
     )
     parser.add_argument("-T", "--Transpose", dest="TRANSPOSE", action="store_true", default=False, help="Rotate matrices' positioning by 90 degrees")
-    parser.add_argument("-B", "--web", dest="WEB", action="store_true", default=False, help="Enable web interface in 8080")
+    parser.add_argument(
+        "-B",
+        "--web",
+        dest="WEB",
+        action="store_true",
+        default=False,
+        help="Enable the experimental web interface on port 8080 (requires -e/--experimental)",
+    )
     parser.add_argument("-v", "--verbose", dest="verbose", action="count", help="Increase verbosity (specify multiple times for more)")
     parser.add_argument("-V", "--version", dest="version", action="store_true", help="Print qtop version")
     parser.add_argument(

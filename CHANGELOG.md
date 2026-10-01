@@ -3,14 +3,15 @@
 ## 0.9.20261001
 
 - Bugfix: improve the contrast of the simulated-data notice in demo mode.
-- Bugfix: fix bug around account_letters, when uid is numeric
-- Bugfix: fix any pending codeQL feedback
+- Bugfix: fix account coloring when the UID is numeric.
+- Bugfix: prioritize Slurm during automatic scheduler detection, fixing #552.
+- Feature enhancement: require `-e`/`--experimental` when enabling the web interface with `-B`/`--web`, fixing #550.
 - Documentation: convert the roadmap and changelog to Markdown.
 - Documentation: refresh README Python support and CI badge wording.
 - Documentation: update the quickstart command examples to use the `qtop` wrapper.
 - Documentation: clarify why qtop keeps runtime dependencies minimal on early or bare HPC clusters.
 - Build tooling: add Makefile aliases for lint and format fix workflows.
-- Code quality: address the actionable findings from the CodeQL scan in #549.
+- Code quality: address #549 and the remaining actionable CodeQL maintainability findings.
 - Security: document private vulnerability reporting contacts and guidance.
 
 ## 0.9.20260610

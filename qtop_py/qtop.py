@@ -375,8 +375,9 @@ def auto_get_avail_batch_system(config):
     If the auto option is set in either env variable QTOP_SCHEDULER, QTOPCONF_YAML or in cmdline switch -b,
     qtop tries to determine which of the known batch commands are available in the current system.
     """
-    # TODO pbsnodes etc should not be hardcoded!
-    for system, batch_command in config["signature_commands"].items():
+    signature_commands = config["signature_commands"]
+    prioritized_commands = sorted(signature_commands.items(), key=lambda item: item[0] != "slurm")
+    for system, batch_command in prioritized_commands:
         if not shutil.which(batch_command):
             continue
         if system != "demo":
@@ -936,6 +937,20 @@ def process_args(args):
     args.REMAP = False  # Default value
     NAMED_WNS = 1 if args.FORCE_NAMES else 0
     return args, NAMED_WNS
+
+
+def require_experimental_opt_in(args):
+    requested_features = tuple(
+        name
+        for enabled, name in (
+            (args.ANONYMIZE, "Anonymization"),
+            (args.WEB, "The web interface"),
+        )
+        if enabled
+    )
+    if requested_features and not args.EXPERIMENTAL:
+        print("%s requires --experimental (-e). Exiting..." % " and ".join(requested_features))
+        raise SystemExit(1)
 
 
 class WNOccupancy(object):
@@ -2439,9 +2454,7 @@ def main():
     utils.init_logging(args)
     dynamic_config = dict()
     args, dynamic_config["force_names"] = process_args(args)
-    if args.ANONYMIZE and not args.EXPERIMENTAL:
-        print("Anonymize should be ran with --experimental switch!! Exiting...")
-        sys.exit(1)
+    require_experimental_opt_in(args)
     if args.WATCH or args.REPLAY:  # this is needed for the filtering/sorting options
         if termios is None:
             old_attrs = ""
