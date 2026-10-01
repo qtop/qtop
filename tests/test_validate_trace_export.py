@@ -6,14 +6,13 @@ import sys
 import pytest
 
 import tools.validate_trace_export as validate_trace_export
-from tools.validate_trace_export import (
-    account_symbols,
-    load_exported_document,
-    rendered_account_symbols,
-    strip_ansi,
-    validate_rendered_account_symbols,
-    validate_symbol_contract,
-)
+
+account_symbols = validate_trace_export.account_symbols
+load_exported_document = validate_trace_export.load_exported_document
+rendered_account_symbols = validate_trace_export.rendered_account_symbols
+strip_ansi = validate_trace_export.strip_ansi
+validate_rendered_account_symbols = validate_trace_export.validate_rendered_account_symbols
+validate_symbol_contract = validate_trace_export.validate_symbol_contract
 
 
 def write_encoded_payload(tmp_path, payload):

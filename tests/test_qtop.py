@@ -61,10 +61,8 @@ def config():
 
 
 def test_sort_worker_nodes_uses_named_sort_keys(monkeypatch):
-    import qtop_py.qtop as qtop
-
-    monkeypatch.setattr(qtop, "dynamic_config", {}, raising=False)
-    cluster = qtop.Cluster.__new__(qtop.Cluster)
+    monkeypatch.setattr(qtop_module, "dynamic_config", {}, raising=False)
+    cluster = qtop_module.Cluster.__new__(qtop_module.Cluster)
     cluster.config = {"sorting": {"user_sort": ["sort by all numbers"], "reverse": False}}
     cluster.worker_nodes = [
         {"domainname": "node10", "state": "-", "np": "1", "core_job_map": {}},
@@ -101,10 +99,8 @@ def test_raw_mode_does_not_swallow_unexpected_fileno_errors(monkeypatch):
 
 
 def test_sort_worker_nodes_rejects_custom_python_sorting(monkeypatch):
-    import qtop_py.qtop as qtop
-
-    monkeypatch.setattr(qtop, "dynamic_config", {}, raising=False)
-    cluster = qtop.Cluster.__new__(qtop.Cluster)
+    monkeypatch.setattr(qtop_module, "dynamic_config", {}, raising=False)
+    cluster = qtop_module.Cluster.__new__(qtop_module.Cluster)
     cluster.config = {"sorting": {"user_sort": ["sort by custom definition"], "reverse": False}}
     cluster.worker_nodes = [{"domainname": "node1", "state": "-", "np": "1", "core_job_map": {}}]
 

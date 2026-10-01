@@ -9,10 +9,6 @@
 ##
 
 __author__ = "sfranky"
-try:
-    import ujson as json
-except ImportError:
-    import json  # noqa: F401
 import logging
 import sys
 from qtop_py.serialiser import StatExtractor, GenericBatchSystem

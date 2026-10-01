@@ -101,10 +101,6 @@ def _available_possible_ids(config):
 
 
 # TODO make the following work with py files instead of qtop.colormap files
-# if not args.COLORFILE:
-#     args.COLORFILE = os.path.expandvars('$HOME/qtop/qtop/qtop.colormap')
-
-
 def compress_colored_line(s):
     ## TODO: black sheep
     t = [item for item in re.split(r"\x1b\[0;m", s) if item != ""]
@@ -114,7 +110,7 @@ def compress_colored_line(s):
     colors = []
     prev_code = t[0][:-1]
     colors.append(prev_code)
-    for idx, code_letter in enumerate(t):
+    for code_letter in t:
         code, letter = code_letter[:-1], code_letter[-1]
         if prev_code == code:
             st.append(letter)
@@ -815,8 +811,7 @@ def decide_batch_system(cmdline_switch, env_var, config_file_batch_option, sched
             return scheduler
         elif scheduler and scheduler not in schedulers:  # a scheduler that does not exist is inputted
             raise NoSchedulerFound
-    else:
-        raise NoSchedulerFound
+    raise NoSchedulerFound
 
 
 def get_output_size(max_line_len, output_fp, max_height=0):
@@ -941,19 +936,6 @@ def process_args(args):
     args.REMAP = False  # Default value
     NAMED_WNS = 1 if args.FORCE_NAMES else 0
     return args, NAMED_WNS
-
-
-# def handle_exception(exc_type, exc_value, exc_traceback):
-#     """
-#     This, when replacing sys.excepthook,
-#     will log uncaught exceptions to the logging module instead
-#     of printing them to stdout.
-#     """
-#     if issubclass(exc_type, KeyboardInterrupt):
-#         sys.__excepthook__(exc_type, exc_value, exc_traceback)
-#         return
-#
-#     logging.error("Uncaught exception", exc_info=(exc_type, exc_value, exc_traceback))
 
 
 class WNOccupancy(object):
@@ -1322,21 +1304,18 @@ class WNOccupancy(object):
         or on runtime in watch mode, if user presses appropriate keybinding
         """
         node_free_cores = node_cores[:]
-        queue_or_user_map = {"user_to_color": "user_pat", "queue_to_color": "queue"}
-        queue_or_user_str = queue_or_user_map[_core_coloring]
-
         selected_pat_to_color_map = globals()[_core_coloring]
         _highlighted_queues_or_users = dynamic_config.get("highlight", self.config["highlight"])
 
         self.id_to_user = dict(zip((str(x) for x in self.user_to_id.values()), self.user_to_id.keys()))
         for user, core, queue in self._valid_corejobs(corejobs, jobid_to_user_to_queue):
             id_ = utils.ColorStr.from_other_color_str(self.user_to_id[user])
-            user_pat = self.userid_to_userid_re_pat[str(id_)]  # in case it is used in viewed_pattern
-            viewed_pattern = locals()[queue_or_user_str]  # either a queue or userid pattern
+            viewed_pattern = self.userid_to_userid_re_pat[str(id_)] if _core_coloring == "user_to_color" else queue
             matches = []
-            and_or_func = any
+            highlight_rules = list(WNOccupancy.get_hl_q_or_users(_highlighted_queues_or_users))
+            and_or_func = highlight_rules[-1][2] if highlight_rules else any
 
-            for user_queue_to_highlight, type, and_or_func in WNOccupancy.get_hl_q_or_users(_highlighted_queues_or_users):
+            for user_queue_to_highlight, type, _ in highlight_rules:
                 if type == "user_pat":
                     actual_user_queue = user
                 elif type == "user_id":
@@ -1877,11 +1856,9 @@ class TextDisplay(object):
             yield color
 
     def color_plainly(self, color_0, color_1, condition):
-        while condition:
-            yield color_0
-        else:
-            while not condition:
-                yield color_1
+        color = color_0 if condition else color_1
+        while True:
+            yield color
 
     def print_wnid_lines(self, d, start, stop, end_labels, transposed_matrices, color_func, args):
         if dynamic_config.get("transpose_wn_matrices", self.config["transpose_wn_matrices"]):
@@ -2142,10 +2119,9 @@ class Cluster(object):
                 if re.search(pat, _host):
                     changed = True
                     state_corejob_dn["host"] = _host = re.sub(pat, repl, _host)
-            else:
-                state_corejob_dn["host"] = _host if not changed else state_corejob_dn["host"]
-                # was: label_max_len = config['wn_labels_max_len']
-                state_corejob_dn["host"] = label_max_len and state_corejob_dn["host"][-label_max_len:] or state_corejob_dn["host"]
+            state_corejob_dn["host"] = _host if not changed else state_corejob_dn["host"]
+            # was: label_max_len = config['wn_labels_max_len']
+            state_corejob_dn["host"] = label_max_len and state_corejob_dn["host"][-label_max_len:] or state_corejob_dn["host"]
         return workernode_dict
 
     def fill_non_existent_wn_nodes(self, workernode_dict):
@@ -2372,8 +2348,7 @@ class WNFilter(object):
                 mark_func, keep = filter_types[rule]
                 nodes = mark_func(nodes, args)
                 nodes = list(keep(nodes, rule))
-            else:
-                nodes = list(keep(nodes, rule, final_pass=True))
+            nodes = list(keep(nodes, rule, final_pass=True))
             if len(nodes):
                 self.worker_nodes = list(dict((v["domainname"], v) for v in nodes).values())
                 offdown_nodes = sum([1 if "".join(([n.str for n in node["state"]])) in "do" else 0 for node in self.worker_nodes])
