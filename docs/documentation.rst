@@ -497,9 +497,8 @@ qtop will search for ``squeue.txt`` and ``sinfo.txt`` in
 qtop also has a scheduler-type discovery system, meaning it will try to
 guess which scheduler system is installed in your system. The keys below
 let the user decide which command it should be that uniquely
-characterises the scheduler. If, for example, qtop can successfully find
-``qacct`` on the system where qtop is executed, it will decide SGE is
-installed.
+characterises the scheduler. Slurm is checked first so that an unrelated
+``qstat`` command does not mask an available ``sinfo`` command.
 
 .. code:: yaml
 
@@ -659,7 +658,8 @@ Run modes
 -  ``-R WHEN`` replays saved qtop output from a point in time.
 -  ``-E`` exports gathered cluster data to JSON.
 -  ``-O`` saves output without printing the rendered view to stdout.
--  ``-B`` enables the web interface on port 8080.
+-  ``-B`` enables the experimental web interface on port 8080 and requires
+   ``-e``/``--experimental``.
 
 Debugging and support
 ~~~~~~~~~~~~~~~~~~~~~
