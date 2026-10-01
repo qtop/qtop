@@ -352,6 +352,39 @@ def test_display_user_accounts_pool_mappings_hides_totals_by_default(monkeypatch
     assert "[ T] Totals" not in output
 
 
+def test_demo_notice_uses_high_contrast_blue(monkeypatch):
+    class Cluster(object):
+        total_running_jobs = 0
+        total_queued_jobs = 0
+        queues_dict = {}
+        total_wn = 0
+        offdown_nodes = 0
+        available_wn = 0
+        working_cores = 0
+        total_cores = 0
+
+    args = SimpleNamespace(REMAP=False, CLASSIC=False, WATCH=True)
+    color_calls = []
+
+    def record_color(text, color_func=None, *unused_args, **unused_kwargs):
+        color_calls.append((text, color_func))
+        return text
+
+    monkeypatch.setattr(qtop_module, "scheduler", "demo", raising=False)
+    monkeypatch.setattr(qtop_module, "colorize", record_color)
+
+    display = TextDisplay(None, {}, None, None, Cluster(), args)
+    display.display_job_accounting_summary(Cluster(), None)
+
+    demo_calls = [(text, color) for text, color in color_calls if text.startswith("This data is simulated.")]
+    assert demo_calls == [
+        (
+            "This data is simulated. As soon as you connect to one of the supported scheduling systems,\nyou will see live data from your cluster. Press q to Quit.",
+            "Blue_L",
+        )
+    ]
+
+
 def test_available_possible_ids_filters_reserved_user_symbols():
     config = user_symbol_config(possible_ids=SYMBOL_POSSIBLE_IDS_WITH_RESERVED)
 

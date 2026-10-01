@@ -1557,7 +1557,7 @@ class TextDisplay(object):
         )
         if scheduler == "demo":
             msg = "This data is simulated. As soon as you connect to one of the supported scheduling systems,\nyou will see live data from your cluster. Press q to Quit."
-            print(colorize(msg, "Blue"))
+            print(colorize(msg, "Blue_L"))
 
         if not self.args.WATCH:
             print("Please try it with watch: %s/qtop.py -s <SOURCEDIR> -w [<every_nr_of_sec>]" % QTOPPATH)
