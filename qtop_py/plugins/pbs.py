@@ -370,14 +370,12 @@ class PBSBatchSystem(GenericBatchSystem):
         reading = True
         while reading:
             line = fin.readline()
-            if line == "\n":
+            if line in ("", "\n"):
                 reading = False
             else:
-                try:
-                    key, value = line.split(" = ")
-                except ValueError:  # e.g. if line is 'jobs =' with no jobs
-                    pass
-                else:
+                key_value = line.split(" = ", 1)
+                if len(key_value) == 2:
+                    key, value = key_value
                     block[key.strip()] = value.strip()
         return block
 

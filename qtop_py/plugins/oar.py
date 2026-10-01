@@ -3,8 +3,7 @@ import logging
 import os
 
 ##import re
-import qtop_py.yaml_parser as yaml
-from qtop_py import fileutils
+from qtop_py import fileutils, yaml_parser as yaml
 from qtop_py.utils import CountCalls
 from collections import OrderedDict
 

@@ -1,3 +1,4 @@
+import contextlib
 import logging
 import os
 import errno
@@ -38,10 +39,8 @@ def safe_exit_with_file_close(handle, name, stdout, options, _savepath, qtop_log
     sys.stdout.write("\nExiting. Thank you for ..watching ;)\n")
     sys.stdout.flush()
     sys.stdout.close()
-    try:
+    with contextlib.suppress(OSError):
         os.close(handle)
-    except OSError:
-        pass
     if delete_file:
         os.unlink(name)  # this deletes the file
     # sys.stdout = stdout
@@ -58,14 +57,15 @@ def init_sample_file(options, _savepath, SAMPLE_FILENAME, scheduler_output_filen
     * and source files (-LL)
     to the tar file
     """
-    if options.SAMPLE >= 1:
-        # clears any preexisting tar files
-        tar_out = tarfile.open(os.path.join(_savepath, SAMPLE_FILENAME), mode="w")
+    if options.SAMPLE < 1:
+        return None
 
+    # clears any preexisting tar files
+    tar_out = tarfile.open(os.path.join(_savepath, SAMPLE_FILENAME), mode="w")
     if options.SAMPLE >= 2:
-        tar_out = add_to_sample([os.path.join(os.path.realpath(QTOPPATH), QTOPCONF_YAML)], tar_out)
+        add_to_sample([os.path.join(os.path.realpath(QTOPPATH), QTOPCONF_YAML)], tar_out)
         source_files = glob.glob(os.path.join(os.path.realpath(QTOPPATH), "*.py"))
-        tar_out = add_to_sample(source_files, tar_out, subdir="qtop_py")
+        add_to_sample(source_files, tar_out, subdir="qtop_py")
     return tar_out
 
 
@@ -76,7 +76,7 @@ def add_to_sample(filepaths_to_add, sample_out, sample_method=tarfile, subdir=No
     """
     assert isinstance(filepaths_to_add, list)
     for filepath_to_add in filepaths_to_add:
-        path, fn = filepath_to_add.rsplit("/", 1)
+        fn = os.path.basename(filepath_to_add)
         try:
             logging.debug("Adding %s to sample..." % filepath_to_add)
             sample_out.add(filepath_to_add, arcname=fn if not subdir else os.path.join(subdir, fn))

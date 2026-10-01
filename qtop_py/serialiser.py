@@ -104,7 +104,7 @@ class GenericBatchSystem(object):
     def get_worker_nodes(self, job_ids, job_queues, options):
         raise NotImplementedError
 
-    def get_jobs_info(self, qstats):
+    def get_jobs_info(self):
         raise NotImplementedError
 
     @staticmethod

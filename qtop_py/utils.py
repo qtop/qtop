@@ -233,8 +233,6 @@ class ColorStr(object):
         self.str = string
         self.color = color
         self.initial = self.str[0] if self.str else ""
-        self.index = 0
-        self.stop = len(self.str) if self.str else 0
 
     def __str__(self):
         return str(self.str)
@@ -246,14 +244,7 @@ class ColorStr(object):
         return len(self.initial)
 
     def __iter__(self):
-        return self
-
-    def next(self):
-        if self.index == self.stop:
-            raise StopIteration
-        self.index += 1
-        # return self.initial
-        return self
+        return iter(self.str)
 
     def __contains__(self, item):
         return item in self.str

@@ -25,6 +25,7 @@ from qtop_py.qtop import (
     SchedulerNotSpecified,
     NoSchedulerFound,
     get_date_obj_from_str,
+    get_output_size,
     TextDisplay,
 )
 
@@ -202,6 +203,20 @@ def test_node_state_colorization_returns_new_nodes_without_mutating_input():
     assert result[0]["qname"] is worker_nodes[0]["qname"]
     assert [str(state) for state in result[0]["state"]] == ["-", "X"]
     assert [state.color for state in result[0]["state"]] == ["red", "red"]
+
+
+def test_color_str_iteration_matches_string_and_is_repeatable():
+    colored = qtop_utils.ColorStr("abc", color="Blue")
+
+    assert list(colored) == ["a", "b", "c"]
+    assert list(colored) == ["a", "b", "c"]
+
+
+def test_get_output_size_ignores_ansi_sequences(tmp_path):
+    output_file = tmp_path / "qtop.out"
+    output_file.write_text("\x1b[1;31mred\x1b[0;m\nplain\n", encoding="utf-8")
+
+    assert get_output_size(0, str(output_file)) == (2, 5)
 
 
 @pytest.mark.parametrize(
