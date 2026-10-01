@@ -1,0 +1,30 @@
+wn001.cluster.local
+     state = free
+     np = 8
+     properties = batch
+     ntype = cluster
+     status = rectime=1706000000,varattr=,jobs=,state=free,netload=1234567890,gres=,loadave=0.01,ncpus=8,physmem=32768000kb,availmem=32000000kb,totmem=32768000kb,idletime=1200,nusers=0,nsessions=0
+
+trueno_ita00.csic.es
+     state = job-exclusive
+     np = 8
+     properties = batch
+     ntype = cluster
+     jobs = 0/1001.server,1/1001.server,2/1002.server,3/1002.server,4/1003.server,5/1003.server,6/1004.server,7/1004.server
+     status = rectime=1706000001,varattr=,jobs=1001.server 1002.server 1003.server 1004.server,state=job-exclusive,netload=9876543210,gres=,loadave=7.85,ncpus=8,physmem=65536000kb,availmem=48000000kb,totmem=65536000kb,idletime=0,nusers=4,nsessions=4
+
+wn003.cluster.local
+     state = job-exclusive
+     np = 8
+     properties = batch
+     ntype = cluster
+     jobs = 0/1005.server,1/1005.server,2/1006.server,3/1006.server,4/1007.server,5/1007.server,6/1008.server,7/1008.server
+     status = rectime=1706000002,varattr=,jobs=1005.server 1006.server 1007.server 1008.server,state=job-exclusive,netload=5678901234,gres=,loadave=7.92,ncpus=8,physmem=32768000kb,availmem=16000000kb,totmem=32768000kb,idletime=0,nusers=4,nsessions=4
+
+wn004.cluster.local
+     state = down
+     np = 8
+     properties = batch
+     ntype = cluster
+     status = rectime=1706000003,varattr=,state=down
+
