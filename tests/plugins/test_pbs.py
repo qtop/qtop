@@ -8,8 +8,11 @@
 ## SPDX-License-Identifier: MIT
 ##
 
-from qtop_py.plugins import pbs
+from io import StringIO
+
 import pytest
+
+from qtop_py.plugins import pbs
 
 
 @pytest.mark.parametrize(
@@ -41,3 +44,9 @@ def test_get_jobs_cores(jobs, result):
     result = iter(result)
     for job, core in pbs.PBSBatchSystem._get_jobs_cores(jobs):
         assert (job, core) == next(result)
+
+
+def test_read_block_ignores_incomplete_values_and_stops_at_eof():
+    block = pbs.PBSBatchSystem._read_block(StringIO("node01\nstate = free\njobs =\n"))
+
+    assert block == {"domainname": "node01", "state": "free"}

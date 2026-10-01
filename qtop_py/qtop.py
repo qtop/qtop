@@ -27,7 +27,6 @@ import re
 import json
 import datetime
 from collections import namedtuple, OrderedDict, Counter
-from os.path import realpath
 from signal import SIG_DFL, signal
 
 try:
@@ -54,8 +53,7 @@ from qtop_py.constants import (
     SYMBOL_LONG_TAIL_USER,
     SYMBOL_UNKNOWN_NODE_STATE,
 )
-from qtop_py import fileutils
-from qtop_py import utils
+from qtop_py import fileutils, utils, yaml_parser as yaml
 from qtop_py.cluster_state import cluster_state_totals, validate_cluster_state
 from qtop_py.plugins.demo import DemoBatchSystem
 from qtop_py.plugins.oar import OARBatchSystem
@@ -64,7 +62,6 @@ from qtop_py.plugins.sge import SGEBatchSystem
 from qtop_py.plugins.slurm import SlurmBatchSystem
 from math import ceil
 from qtop_py.colormap import user_to_color_default, color_to_code, queue_to_color, nodestate_to_color_default
-import qtop_py.yaml_parser as yaml
 from qtop_py.ui.viewport import Viewport
 from qtop_py.web import Web
 from qtop_py import __version__
@@ -233,7 +230,7 @@ def load_yaml_config():
     """
     # TODO: conversion to int should be handled internally in native yaml parser
     # TODO: fix_config_list should be handled internally in native yaml parser
-    config = yaml.parse(os.path.join(realpath(QTOPPATH), QTOPCONF_YAML))
+    config = yaml.parse(os.path.join(os.path.realpath(QTOPPATH), QTOPCONF_YAML))
     logging.info("Default configuration dictionary loaded. Length: %s items" % len(config))
 
     try:
@@ -339,7 +336,7 @@ def calculate_term_size(config, FALLBACK_TERM_SIZE, viewport):
             if term_height <= 0 or term_columns <= 0:
                 raise ValueError("terminal dimensions must be positive")
         except (TypeError, ValueError):
-            pass
+            logging.debug("Ignoring unusable terminal dimensions reported by stty: %r", tty_size)
         else:
             logging.debug('terminal size v, h from "stty size": %s, %s' % (term_height, term_columns))
             return term_height, term_columns
@@ -828,13 +825,17 @@ def get_output_size(max_line_len, output_fp, max_height=0):
     """
     ansi_escape = re.compile(r"\x1b[^m]*m")  # matches ANSI escape characters
 
-    if not max_height:
-        with open(output_fp, "r") as f:
-            max_height = len(f.readlines())
-            if not max_height:
-                raise ValueError("There is no output from qtop *whatsoever*. Weird.")
+    if not max_height or not max_line_len:
+        with open(output_fp, "r") as output_file:
+            output_lines = output_file.readlines()
+        if not output_lines:
+            raise ValueError("There is no output from qtop *whatsoever*. Weird.")
 
-    max_line_len = max(len(ansi_escape.sub("", line.strip())) for line in open(output_fp, "r")) if not max_line_len else max_line_len
+    if not max_height:
+        max_height = len(output_lines)
+
+    if not max_line_len:
+        max_line_len = max(len(ansi_escape.sub("", line.strip())) for line in output_lines)
 
     logging.debug("Total nr of lines: %s" % max_height)
     logging.debug("Max line length: %s" % max_line_len)
@@ -867,7 +868,7 @@ def attempt_faster_xml_parsing(config):
 
 
 def init_dirs(args, _savepath):
-    args.SOURCEDIR = realpath(args.SOURCEDIR) if args.SOURCEDIR else None
+    args.SOURCEDIR = os.path.realpath(args.SOURCEDIR) if args.SOURCEDIR else None
     logging.debug("User-defined source directory: %s" % args.SOURCEDIR)
     args.workdir = args.SOURCEDIR or _savepath
     logging.debug("Working directory is now: %s" % args.workdir)
@@ -1007,6 +1008,7 @@ class WNOccupancy(object):
                 self.__setattr__(part_name, self.calc_general_mult_attr_line(part_name, yaml_key, config))
 
         self.core_user_map = self._calc_core_matrix(self.user_to_id, self.jobid_to_user_to_queue)
+        return self
 
     def _create_account_jobs_table(self, user_to_id, account_jobs_table):
         for quintuplet in account_jobs_table:
@@ -1557,7 +1559,7 @@ class TextDisplay(object):
         )
         if scheduler == "demo":
             msg = "This data is simulated. As soon as you connect to one of the supported scheduling systems,\nyou will see live data from your cluster. Press q to Quit."
-            print(colorize(msg, "Blue"))
+            print(colorize(msg, "Blue_L"))
 
         if not self.args.WATCH:
             print("Please try it with watch: %s/qtop.py -s <SOURCEDIR> -w [<every_nr_of_sec>]" % QTOPPATH)
@@ -1836,11 +1838,11 @@ class TextDisplay(object):
                         print(core_line_zipped)
                         sys.stdout.close()
                     except IOError:
-                        pass
+                        return
                     try:
                         sys.stderr.close()
                     except IOError:
-                        pass
+                        return
 
     def display_wnid_lines(self, start, stop, highest_wn, wn_vert_labels, **kwargs):
         """
@@ -1900,16 +1902,16 @@ class TextDisplay(object):
         Justification for implementation:
         http://unix.stackexchange.com/questions/47407/cat-line-x-to-line-y-on-a-huge-file
         """
-        temp_f = tempfile.NamedTemporaryFile(delete=False, suffix=".out", prefix="qtop_partview_%s_" % _timestr, dir=config["savepath"])
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".out", prefix="qtop_partview_%s_" % _timestr, dir=config["savepath"]) as temp_f:
+            temp_filename = temp_f.name
         tail_command = ["tail", "-n+" + str(x), file]
         head_command = ["head", "-n" + str(y - 1)]
-        f = open(temp_f.name, "w")
-        process_tail = subprocess.Popen(tail_command, stdout=subprocess.PIPE)
-        process_head = subprocess.Popen(head_command, stdin=process_tail.stdout, stdout=f)
-        process_tail.stdout.close()
-        _ = process_head.communicate()
-        f.close()
-        return temp_f.name
+        with open(temp_filename, "w") as output_file:
+            process_tail = subprocess.Popen(tail_command, stdout=subprocess.PIPE)
+            process_head = subprocess.Popen(head_command, stdin=process_tail.stdout, stdout=output_file)
+            process_tail.stdout.close()
+            _ = process_head.communicate()
+        return temp_filename
 
     def print_mult_attr_line(self, print_char_start, print_char_stop, transposed_matrices, attr_lines, label, color_func=None, **kwargs):
         """
@@ -2317,21 +2319,17 @@ class WNFilter(object):
         return nodes
 
     def mark_list_by_node_state(self, nodes, arg_list=None):
-        for idx, node in enumerate(nodes):
+        for node in nodes:
             if set(["".join(state.str for state in node["state"])]) & set(arg_list):
                 node["mark"] = "*"
         return nodes
 
     def mark_list_by_name_pattern(self, nodes, arg_list=None):
-        for idx, node in enumerate(nodes):
-            patterns = arg_list.values()[0] if isinstance(arg_list, dict) else arg_list
+        for node in nodes:
+            patterns = next(iter(arg_list.values())) if isinstance(arg_list, dict) else arg_list
             for pattern in patterns:
                 match = re.search(pattern, node["domainname"].split(".", 1)[0])
-                try:
-                    match.group(0)
-                except AttributeError:
-                    pass
-                else:
+                if match is not None:
                     node["mark"] = "*"
         return nodes
 
@@ -2490,7 +2488,7 @@ def main():
     initial_cwd = os.getcwd()
     logging.debug("Initial qtop directory: %s" % initial_cwd)
     CURPATH = os.path.expanduser(initial_cwd)  # where qtop was invoked from
-    QTOPPATH = os.path.dirname(realpath(__loader__.name))  # dir where qtop resides
+    QTOPPATH = os.path.dirname(os.path.realpath(__loader__.name))  # dir where qtop resides
     HELP_FP = os.path.join(QTOPPATH, "helpfile.txt")
     help_main_switch = [
         HELP_FP,
@@ -2544,10 +2542,11 @@ def main():
                 ###### Export data ###############
                 #
                 if args.EXPORT or args.WEB:
-                    json_file = tempfile.NamedTemporaryFile(delete=False, prefix="qtop_json_%s_" % timestr, suffix=".json", dir=savepath)
-                    document.save(json_file.name)
+                    with tempfile.NamedTemporaryFile(delete=False, prefix="qtop_json_%s_" % timestr, suffix=".json", dir=savepath) as json_file:
+                        json_filename = json_file.name
+                    document.save(json_filename)
                 if args.WEB:
-                    web.set_filename(json_file.name)
+                    web.set_filename(json_filename)
 
                 ###### Process data ###############
                 #

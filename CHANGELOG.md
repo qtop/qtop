@@ -9,6 +9,12 @@
 - Documentation: clarify why qtop keeps runtime dependencies minimal on
   early or bare HPC clusters.
 - Build tooling: add Makefile aliases for lint and format fix workflows.
+- Code quality: address the actionable findings from the CodeQL scan in #549.
+- Security: document private vulnerability reporting contacts and guidance.
+
+## 0.9.20261001
+
+- Bugfix: improve the contrast of the simulated-data notice in demo mode.
 
 ## 0.9.20260610
 

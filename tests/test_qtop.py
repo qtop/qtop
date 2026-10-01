@@ -25,6 +25,7 @@ from qtop_py.qtop import (
     SchedulerNotSpecified,
     NoSchedulerFound,
     get_date_obj_from_str,
+    get_output_size,
     TextDisplay,
 )
 
@@ -204,6 +205,20 @@ def test_node_state_colorization_returns_new_nodes_without_mutating_input():
     assert [state.color for state in result[0]["state"]] == ["red", "red"]
 
 
+def test_color_str_iteration_matches_string_and_is_repeatable():
+    colored = qtop_utils.ColorStr("abc", color="Blue")
+
+    assert list(colored) == ["a", "b", "c"]
+    assert list(colored) == ["a", "b", "c"]
+
+
+def test_get_output_size_ignores_ansi_sequences(tmp_path):
+    output_file = tmp_path / "qtop.out"
+    output_file.write_text("\x1b[1;31mred\x1b[0;m\nplain\n", encoding="utf-8")
+
+    assert get_output_size(0, str(output_file)) == (2, 5)
+
+
 @pytest.mark.parametrize(
     "domain_name, match",
     (
@@ -350,6 +365,39 @@ def test_display_user_accounts_pool_mappings_hides_totals_by_default(monkeypatch
     output = capsys.readouterr().out
     assert "alice" in output
     assert "[ T] Totals" not in output
+
+
+def test_demo_notice_uses_high_contrast_blue(monkeypatch):
+    class Cluster(object):
+        total_running_jobs = 0
+        total_queued_jobs = 0
+        queues_dict = {}
+        total_wn = 0
+        offdown_nodes = 0
+        available_wn = 0
+        working_cores = 0
+        total_cores = 0
+
+    args = SimpleNamespace(REMAP=False, CLASSIC=False, WATCH=True)
+    color_calls = []
+
+    def record_color(text, color_func=None, *unused_args, **unused_kwargs):
+        color_calls.append((text, color_func))
+        return text
+
+    monkeypatch.setattr(qtop_module, "scheduler", "demo", raising=False)
+    monkeypatch.setattr(qtop_module, "colorize", record_color)
+
+    display = TextDisplay(None, {}, None, None, Cluster(), args)
+    display.display_job_accounting_summary(Cluster(), None)
+
+    demo_calls = [(text, color) for text, color in color_calls if text.startswith("This data is simulated.")]
+    assert demo_calls == [
+        (
+            "This data is simulated. As soon as you connect to one of the supported scheduling systems,\nyou will see live data from your cluster. Press q to Quit.",
+            "Blue_L",
+        )
+    ]
 
 
 def test_available_possible_ids_filters_reserved_user_symbols():
