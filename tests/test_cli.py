@@ -68,3 +68,15 @@ def test_no_scheduler_message_is_not_duplicated(tmp_path, module):
     assert result.returncode == 1
     assert output.count("No suitable scheduler was found") == 1
     assert "Traceback" not in output
+
+
+@pytest.mark.parametrize("module", ("qtop_py.cli", "qtop_py.qtop"))
+def test_anonymized_sample_archive_is_rejected_before_collection(tmp_path, module):
+    result = run_cli(tmp_path, module, "--anonymize", "--experimental", "--sample")
+    output = result.stdout + result.stderr
+
+    assert result.returncode == 1
+    assert "Cannot combine --anonymize with --sample" in output
+    assert "raw scheduler output files" in output
+    assert "Traceback" not in output
+    assert list(tmp_path.rglob("qtop_sample_*.tar")) == []
