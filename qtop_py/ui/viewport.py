@@ -17,11 +17,9 @@ class BaseViewport(object):
         return 0
 
     def get_right_limit(self):
-        # TODO check validity of this: extreme case for no initial max_width, i.e. no matrix output
         return max(self.max_width - self.h_term_size, 0)
 
     def get_down_limit(self):
-        # TODO check validity of this: extreme case for no initial max_height, i.e. no matrix output
         return max(self.max_height - self.v_term_size, 0)
 
     def get_left_limit(self):

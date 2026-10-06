@@ -24,12 +24,12 @@ def test_after_scroll_left():
     viewport.max_height = 200
     viewport.scroll_left()
     assert 0 == viewport.h_start
-    assert 176 == viewport.h_stop  # BUG?? or assert(10 == viewport.h_stop) is a BUG
+    assert 176 == viewport.h_stop
     assert 0 == viewport.v_start
     assert 53 == viewport.v_stop
 
 
-def test_after_scroll_right_UNUSED():  # FIXME: cleanup as such
+def test_after_scroll_right_moves_half_page():
     viewport = Viewport()
     viewport.set_term_size(53, 176)
     viewport.max_width = 400
@@ -101,7 +101,7 @@ def test_after_scroll_up_no_max_height():
     assert 0 == viewport.h_start
     assert 176 == viewport.h_stop
     assert 0 == viewport.v_start  # Looks good - didn't change
-    assert 53 == viewport.v_stop  # BUG? Should this change now? Why was it 50 before? Did anything really change?
+    assert 53 == viewport.v_stop
 
 
 def test_after_scroll_down_no_max_height():
@@ -171,9 +171,14 @@ def test_scroll_far_right_attaches_to_right_screen_edge():
     assert 200 + 53 == viewport.v_stop
 
 
-"""
-This is a quick'n'clean way to run many edge cases without re-writing the whole bloody initialisation every time!!
-"""
+def test_limits_stay_at_zero_for_empty_output():
+    viewport = Viewport()
+    viewport.set_term_size(53, 176)
+
+    assert 0 == viewport.max_width
+    assert 0 == viewport.max_height
+    assert 0 == viewport.get_right_limit()
+    assert 0 == viewport.get_down_limit()
 
 
 @pytest.mark.parametrize(
