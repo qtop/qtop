@@ -55,14 +55,22 @@ fix_eol_apt_sources() {
     fi
 }
 
+apt_install() {
+    # Mirrors can rotate a package between update and install (notably old
+    # Debian/PyPy images). Refresh and retry once after clearing stale lists.
+    if ! apt-get update ${APT_OPTS} || ! DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends make ca-certificates ${PKG_LIST}; then
+        rm -rf /var/lib/apt/lists/*
+        apt-get update ${APT_OPTS}
+        DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends make ca-certificates ${PKG_LIST}
+    fi
+}
+
 APT_OPTS=""
 log "lane setup: family=${FAMILY} pkgs=${PKGS} python=${PYBIN} target=${TARGET}"
 case "${FAMILY}" in
     pythonimg|pypyimg|debian)
         fix_eol_apt_sources
-        apt-get update ${APT_OPTS}
-        DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-            make ca-certificates ${PKG_LIST}
+        apt_install
         ;;
     rhel|fedora|amazon)
         # No "which" package needed: qtop autodetection now uses stdlib

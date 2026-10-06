@@ -17,6 +17,7 @@ View and analysis
   H              highlight users or queues
   F              toggle full names / numbered node labels
   m              toggle core coloring by user / queue
+  Q              expand / collapse the queueing summary
   r              cycle all / real / used core lines
   t              transpose the worker-node matrix
 

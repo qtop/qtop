@@ -7,7 +7,7 @@
 ##
 # Nightly concern: interpreter/distro compatibility matrix (#488).
 #
-# 38 lanes covering CPython 3.6 through 3.15-rc plus PyPy across Debian,
+# 39 lanes covering CPython 3.6 through 3.15-rc plus PyPy across Debian,
 # Ubuntu, AlmaLinux, Rocky, CentOS Stream, Oracle Linux, Fedora, openSUSE,
 # Amazon Linux and Arch, all routed through ci/scripts/matrix_lane.sh and the
 # Makefile contract. The lane list mirrors
@@ -134,7 +134,7 @@ nightly-matrix-experimental:
         PKGS: '-'
         PYBIN: python
         TARGET: ci
-      - IMAGE: ['pypy:3.9', 'pypy:3.10', 'pypy:3.11']
+      - IMAGE: ['pypy:3.9', 'pypy:3.10', 'pypy:3.11', 'pypy:3.11-8.0.0']
         FAMILY: pypyimg
         PKGS: '-'
         PYBIN: pypy3

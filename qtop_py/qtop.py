@@ -27,6 +27,7 @@ import re
 import json
 import datetime
 from collections import namedtuple, OrderedDict, Counter
+from functools import lru_cache
 from signal import SIG_DFL, signal
 
 try:
@@ -470,6 +471,30 @@ def get_detail_of_name(account_jobs_table):
     return detail_of_name
 
 
+@lru_cache(maxsize=None)
+def get_primary_group_name(user):
+    """Resolve and cache one primary group, including through NSS/LDAP."""
+    try:
+        import grp
+        import pwd
+    except ImportError:
+        logging.warning("Unix group information is unavailable on this platform.")
+        return ""
+
+    try:
+        return grp.getgrgid(pwd.getpwnam(user).pw_gid).gr_name
+    except (KeyError, OSError):
+        logging.warning("Could not resolve the primary Unix group for %s.", user)
+        return ""
+
+
+def get_primary_group_names(account_jobs_table):
+    """Resolve primary groups only for users present in the current snapshot."""
+    users = (line[4] for line in account_jobs_table if line[4] != "Totals")
+    groups = ((user, get_primary_group_name(user)) for user in users)
+    return dict((user, group) for user, group in groups if group)
+
+
 def get_input_filenames(INPUT_FNs_commands, config):
     """
     If the user didn't specify --via the -s switch-- a dir where ready-made data files already exist,
@@ -571,6 +596,9 @@ def control_qtop(viewport, read_char, cluster, old_attrs, new_attrs):
         print("%s Transposing matrix..." % colorize("***", "Green_L"))
         dynamic_config["transpose_wn_matrices"] = not dynamic_config.get("transpose_wn_matrices", config["transpose_wn_matrices"])
         viewport.reset_display()
+
+    elif pressed_char_hex in ["51"]:  # Q
+        dynamic_config["queue_summary_expanded"] = not dynamic_config.get("queue_summary_expanded", getattr(args, "EXPAND_QUEUES", False))
 
     elif pressed_char_hex in ["6d"]:  # m
         new_mapping, msg = next(change_mapping)
@@ -865,6 +893,8 @@ def attempt_faster_xml_parsing(config):
 
 def init_dirs(args, _savepath):
     args.SOURCEDIR = os.path.realpath(args.SOURCEDIR) if args.SOURCEDIR else None
+    if args.SOURCEDIR and os.path.isfile(args.SOURCEDIR):
+        args.SOURCEDIR = os.path.dirname(args.SOURCEDIR)
     logging.debug("User-defined source directory: %s" % args.SOURCEDIR)
     args.workdir = args.SOURCEDIR or _savepath
     logging.debug("Working directory is now: %s" % args.workdir)
@@ -1583,18 +1613,20 @@ class TextDisplay(object):
             }
         )
 
-        print("%(queues)s :" % {"queues": colorize("Queues", "Cyan_L")}, end=" ")
+        expanded = globals().get("dynamic_config", {}).get("queue_summary_expanded", getattr(self.args, "EXPAND_QUEUES", False))
+        print("%(queues)s :" % {"queues": colorize("Queueing", "Cyan_L")}, end="\n" if expanded else " ")
         for _queue_name, q_tuple in qstatq_lod.items():
             q_running_jobs, q_queued_jobs = q_tuple.run, q_tuple.queued
             account = _queue_name if _queue_name in queue_to_color else "account_not_colored"
             print(
-                "{qname}{star}: {run} {q}|".format(
+                "{indent}{qname}{star}: {run} {q}|".format(
+                    indent="  " if expanded else "",
                     qname=colorize(_queue_name, "", pattern=account, mapping=queue_to_color),
                     star=colorize("*", "Red_L") if q_tuple.state.startswith("D") or q_tuple.state.endswith("S") else "",
                     run=colorize(q_running_jobs, "", pattern=account, mapping=queue_to_color),
                     q="+ " + colorize(q_queued_jobs, "", account, mapping=queue_to_color) + " " if q_queued_jobs != "0" else "",
                 ),
-                end=" ",
+                end="\n" if expanded else " ",
             )
         print(colorize("* implies blocked", "Red") + "\n")
         # TODO unhardwire states from star kwarg
@@ -1633,6 +1665,7 @@ class TextDisplay(object):
             userid_to_userid_re_pat = dict()
 
         detail_of_name = get_detail_of_name(account_jobs_table)
+        group_of_name = get_primary_group_names(account_jobs_table) if getattr(self.args, "SHOW_GROUPS", False) else None
         print(
             colorize("\n===> ", "Gray_D")
             + colorize("User accounts and pool mappings", "White")
@@ -1643,18 +1676,19 @@ class TextDisplay(object):
             )
         )
 
-        print(
-            "[id] unix account      |jobs >=   R +    Q | nodes | %(msg)s"
-            % {"msg": "Grid certificate DN (info only available under elevated privileges)" if self.args.CLASSIC else "      GECOS field or Grid certificate DN |"}
-        )
+        if getattr(self.args, "SHOW_GROUPS", False):
+            detail_header = "GECOS field              | primary group        |"
+        else:
+            detail_header = "Grid certificate DN (info only available under elevated privileges)" if self.args.CLASSIC else "      GECOS field or Grid certificate DN |"
+        print("[id] unix account      |jobs >=   R +    Q | nodes | %s" % detail_header)
         for line in account_jobs_table:
             uid = line[0]
             userid_pat = userid_to_userid_re_pat[str(uid)]
-            self.display_account_jobs_line(line, userid_pat, detail_of_name)
+            self.display_account_jobs_line(line, userid_pat, detail_of_name, group_of_name)
 
         totals = self.account_jobs_totals(account_jobs_table) if getattr(self.args, "SHOW_ACCOUNT_TOTALS", False) else None
         if totals:
-            self.display_account_jobs_line(totals, "account_not_colored", detail_of_name)
+            self.display_account_jobs_line(totals, "account_not_colored", detail_of_name, group_of_name)
 
     @staticmethod
     def account_jobs_totals(account_jobs_table):
@@ -1670,7 +1704,7 @@ class TextDisplay(object):
             sum(int(line[5]) for line in account_jobs_table),
         ]
 
-    def display_account_jobs_line(self, line, userid_pat, detail_of_name):
+    def display_account_jobs_line(self, line, userid_pat, detail_of_name, group_of_name=None):
         uid, runningjobs, queuedjobs, alljobs, user, num_of_nodes = line
 
         if self.args.COLOR == "OFF" or userid_pat == "account_not_colored" or user_to_color.get(userid_pat) == "reset":
@@ -1679,7 +1713,10 @@ class TextDisplay(object):
         else:
             conditional_width = 12
 
-        print_string = ("[ {0:<{width1}}] {4:<{width18}}{sep}{3:>{width4}}   {1:>{width4}}   {2:>{width4}} {sep} {6:>{width5}} {sep} {5:<{width40}} {sep}").format(
+        detail_width = 25 if group_of_name is not None else 40
+        group_column = "{sep} {group:<{width20}} " if group_of_name is not None else ""
+        row_format = "[ {0:<{width1}}] {4:<{width18}}{sep}{3:>{width4}}   {1:>{width4}}   {2:>{width4}} {sep} {6:>{width5}} {sep} {5:<{detail_width}} "
+        print_string = (row_format + group_column + "{sep}").format(
             colorize(str(uid), pattern=userid_pat),
             colorize(str(runningjobs), pattern=userid_pat),
             colorize(str(queuedjobs), pattern=userid_pat),
@@ -1687,12 +1724,14 @@ class TextDisplay(object):
             colorize(user, pattern=userid_pat),
             colorize(detail_of_name.get(user, ""), pattern=userid_pat),
             colorize(str(num_of_nodes), pattern=userid_pat),
+            group=colorize((group_of_name or {}).get(user, ""), pattern=userid_pat),
             sep=colorize(config["SEPARATOR"], pattern=userid_pat),
             width1=1 + conditional_width,
             width4=4 + conditional_width,
             width5=5 + conditional_width,
             width18=18 + conditional_width,
-            width40=40 + conditional_width,
+            detail_width=detail_width + conditional_width,
+            width20=20 + conditional_width,
         )
         print(print_string)
 
