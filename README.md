@@ -1,66 +1,128 @@
-# qtop [![build-qtop](https://github.com/qtop/qtop/actions/workflows/build.yml/badge.svg?branch=develop)](https://github.com/qtop/qtop/actions/workflows/build.yml) ![python versions](https://img.shields.io/badge/python-3.x-blue.svg) [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/qtop/qtop/badge)](https://scorecard.dev/viewer/?uri=github.com/qtop/qtop)
+# qtop
 
-qtop: the fast text mode way to monitor your cluster's utilization and
-status; the time has come to take back control of your cluster's
-scheduling business
+[![build-qtop](https://github.com/qtop/qtop/actions/workflows/build.yml/badge.svg?branch=develop)](https://github.com/qtop/qtop/actions/workflows/build.yml)
+![Python 3](https://img.shields.io/badge/python-3.x-blue.svg)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/qtop/qtop/badge)](https://scorecard.dev/viewer/?uri=github.com/qtop/qtop)
 
-Python port by Sotiris Fragkiskos / Original bash version by Fotis
-Georgatos
+qtop is a scheduler-independent observability layer for HPC clusters, with an extremely fast terminal interface. It is a portable, dependency-light cluster observability and scheduler debugging tool for Slurm, PBS, SGE and OAR - and even more, with your contributed plugin effort.
 
-## Summary
+See your whole cluster in one terminal. Capture it. Replay it. Compare it.
 
-![Example](https://raw.githubusercontent.com/qtop/qtop/master/qtop_py/contrib/qtop_demo.gif)
+![qtop terminal demo](https://raw.githubusercontent.com/qtop/qtop/master/qtop_py/contrib/qtop_demo.gif)
 
-qtop is a Python tool for monitoring Torque, PBS, OAR, SGE, or Slurm
-clusters. The *instant replay* feature is handy for debugging scheduling
-mishaps as they occur.
-qtop is and will remain a work-in-progress project; it is intended to be
-built upon and extended - please come along ;)
+## Why qtop?
 
-Work continues to make the tool better. We hope to build an active open
-source community that drives the future of qtop, both by providing
-feedback and by actively contributing to the source code.
+Schedulers expose a great deal of information, but their native commands rarely provide one concise view of jobs, queues, nodes, states, and core occupancy. qtop turns scheduler output into a consistent terminal dashboard that is useful during daily operations and incident analysis.
 
-This program is currently in pre-release mode, with experimental
-features. If it works, peace :)
+- See cluster utilization, queues, users, node states, and per-core job placement.
+- Use the same interface across Slurm, PBS/Torque, SGE, and OAR.
+- Filter, sort, highlight, transpose, and navigate large worker-node matrices interactively.
+- Capture scheduler output for bug reports or offline investigation.
+- Replay recent frames to understand scheduling changes over time.
+- Export normalized cluster data as JSON.
+- Run without a resident service, database, or heavy runtime dependency stack.
 
-qtop targets Python 3 and aims to remain runnable across several Linux
-distributions and HPC environments. The CI matrix includes modern Python
-lanes and a dependency-light AlmaLinux 8 / Python 3.6 compatibility lane
-because HPC sites can lag behind general-purpose developer environments.
+## Quick start
+
+Clone the repository and launch the built-in demo:
+
+```console
+git clone https://github.com/qtop/qtop.git
+cd qtop
+./qtop -b demo -FGTw
+```
+
+On a scheduler host, qtop can normally discover the available scheduler:
+
+```console
+./qtop -w
+```
+
+Select it explicitly when needed:
+
+```console
+./qtop -b slurm -w
+./qtop -b pbs -w
+./qtop -b sge -w
+./qtop -b oar -w
+```
+
+The optional value after `-w` is the refresh interval in seconds. For example, `-w 10` refreshes every ten seconds; without a value, watch mode refreshes every two seconds.
+
+Run `./qtop --help` for the complete command-line reference. While watch mode is active, press `?` for the interactive key map.
 
 ## Installation
 
-To install qtop, you can either do
+### From source
 
-    git clone https://github.com/qtop/qtop.git
-    cd qtop
-    ./qtop --version
+```console
+git clone https://github.com/qtop/qtop.git
+cd qtop
+./qtop --version
+```
 
-or
+### From PyPI
 
-    pip install qtop --user ## run it without --user to install it as root
-    $HOME/.local/bin/qtop --version
+```console
+## python3 -m pip install --user qtop ## FIXME, 20261001
+$HOME/.local/bin/qtop --version
+```
 
-## Usage
+A system-wide or virtual-environment installation can omit `--user`.
 
-To run a demo, just run
+## Capture, inspect, and replay
 
-    ./qtop -b demo -FGTw  ## show demo, -F for full node names, -T to transpose the matrix, -G for full GECOS field, and -w for watch mode
+Read scheduler traces from a directory instead of invoking live commands:
 
-Otherwise, for daily usage you can run
+```console
+./qtop -b slurm -s /path/to/slurm-traces
+```
 
-    ./qtop -b sge -FGw ## replace sge with pbs, oar or slurm, depending on your setup (this is often picked up automagically)
+Create a support sample containing qtop output, logs, and scheduler traces:
 
-Try `--help` for all available options.
+```console
+./qtop -L
+```
 
-## Documentation
+Replay automatically captured frames from a specific time:
 
-Documentation/tutorial [here](docs/documentation.rst).
+```console
+./qtop -R 1823
+```
 
-## Profile
+Export the normalized cluster state as JSON:
 
-    Description: the fast text mode way to monitor your cluster's utilization and status; the time has come to take back control of your cluster's scheduling business
-    License: MIT
-    Version: 0.9.20261001 / Date: 2026-10-01
-    Homepage: https://github.com/qtop/qtop
+```console
+./qtop -E
+```
+
+See [the full documentation](docs/documentation.rst) for trace filenames, configuration, filtering, replay formats, anonymization, and scheduler-specific notes.
+
+## How it works
+
+qtop separates scheduler-specific collection and parsing from a common cluster-state model and terminal presentation:
+
+1. A scheduler plugin collects live command output or reads saved traces.
+2. The plugin normalizes jobs, nodes, and queues into a shared cluster state.
+3. qtop renders that state in a fast terminal view or exports it for other tools.
+
+This design keeps the core scheduler-independent and makes support for another batch system a bounded plugin contribution.
+
+## Compatibility
+
+qtop targets Python 3 and Linux-based HPC environments. Its CI matrix covers modern Python versions and retains a dependency-light compatibility lane for older enterprise distributions commonly found on clusters.
+
+The project is approaching 1.0 and still contains explicitly marked experimental features. Stable terminal monitoring remains the primary interface.
+
+## Documentation and community
+
+- [User documentation and tutorial](docs/documentation.rst)
+- [Contributing guide](CONTRIBUTING.md)
+- [Security policy](SECURITY.md)
+- [Issue tracker](https://github.com/qtop/qtop/issues)
+
+Bug reports with captured scheduler samples are especially valuable. New scheduler plugins, sample fixtures, documentation improvements, and portability fixes are welcome.
+
+Python port by Sotiris Fragkiskos. Original Bash version by Fotis Georgatos.
+
+License: [MIT](LICENSE).
