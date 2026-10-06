@@ -65,6 +65,8 @@ def test_slurm_command_traces(sample_name, expected_jobs, expected_queues, expec
 
     total_running, total_queued, queues = slurm.get_queues_info()
     assert (total_running, total_queued) == expected_queues[:2]
+    if sample_name == "multi_partition":
+        assert [queue["queue_name"] for queue in queues] == ["compute", "debug"]
     queue_counts = dict((queue["queue_name"], (queue["run"], queue["queued"])) for queue in queues)
     assert queue_counts == expected_queues[2]
 

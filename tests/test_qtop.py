@@ -27,6 +27,7 @@ from qtop_py.qtop import (
     get_date_obj_from_str,
     get_output_size,
     TextDisplay,
+    init_dirs,
 )
 
 SYMBOL_NON_EXISTENT_NODE = "#"
@@ -329,6 +330,32 @@ def test_account_totals_cli_switch(monkeypatch, switch):
     assert args.SHOW_ACCOUNT_TOTALS is True
 
 
+@pytest.mark.parametrize(
+    "switch, attribute",
+    (("--show-groups", "SHOW_GROUPS"), ("--expand-queues", "EXPAND_QUEUES")),
+)
+def test_optional_accounting_summary_switches(monkeypatch, switch, attribute):
+    monkeypatch.setattr(sys, "argv", ["qtop", switch])
+
+    args = qtop_utils.parse_qtop_cmdline_args()
+
+    assert getattr(args, attribute) is True
+
+
+def test_init_dirs_uses_parent_when_source_is_a_file(tmp_path, monkeypatch):
+    source_file = tmp_path / "sinfo.txt"
+    source_file.write_text("node01|debug|idle|8\n", encoding="utf-8")
+    changed_to = []
+    args = SimpleNamespace(SOURCEDIR=str(source_file))
+    monkeypatch.setattr(qtop_module.os, "chdir", changed_to.append)
+
+    result = init_dirs(args, str(tmp_path / "fallback"))
+
+    assert result.SOURCEDIR == str(tmp_path)
+    assert result.workdir == str(tmp_path)
+    assert changed_to == [str(tmp_path)]
+
+
 def test_display_user_accounts_pool_mappings_adds_totals(monkeypatch, capsys):
     class Args(object):
         COLOR = "OFF"
@@ -390,6 +417,50 @@ def test_display_user_accounts_pool_mappings_hides_totals_by_default(monkeypatch
     output = capsys.readouterr().out
     assert "alice" in output
     assert "[ T] Totals" not in output
+
+
+def test_display_user_accounts_can_show_primary_groups(monkeypatch, capsys):
+    args = SimpleNamespace(COLOR="OFF", CLASSIC=False, SHOW_ACCOUNT_TOTALS=False, SHOW_GROUPS=True)
+    occupancy = SimpleNamespace(
+        account_jobs_table=[["0", 2, 3, 5, "alice", 1]],
+        userid_to_userid_re_pat={"0": "account_not_colored"},
+    )
+    monkeypatch.setattr(qtop_module, "args", args, raising=False)
+    monkeypatch.setattr(qtop_module, "config", {"SEPARATOR": "|"}, raising=False)
+    monkeypatch.setattr(qtop_module, "user_to_color", {}, raising=False)
+    monkeypatch.setattr(qtop_module, "get_primary_group_names", lambda table: {"alice": "research"})
+
+    TextDisplay(None, qtop_module.config, None, occupancy, None, args).display_user_accounts_pool_mappings(occupancy)
+
+    output = capsys.readouterr().out
+    assert "primary group" in output
+    assert "research" in output
+
+
+def test_queueing_summary_preserves_order_and_expands(monkeypatch, capsys):
+    class Cluster(object):
+        total_running_jobs = 2
+        total_queued_jobs = 1
+        queues_dict = {
+            "compute": SimpleNamespace(run="1", queued="1", state="E"),
+            "debug": SimpleNamespace(run="1", queued="0", state="E"),
+        }
+        total_wn = 2
+        offdown_nodes = 0
+        available_wn = 1
+        working_cores = 2
+        total_cores = 4
+
+    args = SimpleNamespace(REMAP=False, CLASSIC=False, WATCH=True, EXPAND_QUEUES=True)
+    monkeypatch.setattr(qtop_module, "scheduler", "slurm", raising=False)
+    monkeypatch.setattr(qtop_module, "dynamic_config", {}, raising=False)
+    monkeypatch.setattr(qtop_module, "queue_to_color", {}, raising=False)
+    monkeypatch.setattr(qtop_module, "colorize", lambda text, *args, **kwargs: str(text))
+
+    TextDisplay(None, {}, None, None, Cluster(), args).display_job_accounting_summary(Cluster(), None)
+
+    output = capsys.readouterr().out
+    assert "Queueing :\n  compute: 1 + 1 |\n  debug: 1 |" in output
 
 
 def test_demo_notice_uses_high_contrast_blue(monkeypatch):

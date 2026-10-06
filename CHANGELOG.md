@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.9.20261005
+
+- Bugfix: preserve Slurm partition order from `sinfo`, label the summary "Queueing", and add collapsed/expanded views, fixing #560.
+- Bugfix: tolerate concurrent removal of stale output files, fixing #308.
+- Feature enhancement: accept a scheduler output file for `-s` by using its parent directory, fixing #291.
+- Feature enhancement: add opt-in primary Unix group display with `--show-groups`, addressing #299.
+- CI: cover Python 3.9 and 3.15 prereleases in pull requests, restore the verified legacy nightly lanes, retry stale APT metadata, and add PyPy 3.11 v8.0.0, fixing #546.
+
 ## 0.9.20261001
 
 - Bugfix: improve the contrast of the simulated-data notice in demo mode.
@@ -23,8 +31,8 @@
 ## 0.9.20260610
 
 - Feature enhancement: add general-purpose Slurm scheduler support.
-- Merged PR #444.
-- Completion of ci/cd baseline, with ground-truth validation.
+- Feature enhancement: add develop-aligned sample gates; Merged PR #444.
+- Feature enhancement: Completion of ci/cd baseline, with ground-truth validation.
 
 ## 0.9.20260515
 

@@ -120,6 +120,20 @@ def parse_qtop_cmdline_args():
         default=False,
         help="get user details by issuing getent passwd for all users mentioned in qtop input files.",
     )
+    parser.add_argument(
+        "--show-groups",
+        action="store_true",
+        dest="SHOW_GROUPS",
+        default=False,
+        help="Show each active user's primary Unix group in the account table.",
+    )
+    parser.add_argument(
+        "--expand-queues",
+        action="store_true",
+        dest="EXPAND_QUEUES",
+        default=False,
+        help="Show one queue or partition per line in the accounting summary (toggle with Q in watch mode).",
+    )
     parser.add_argument("-l", "--less", action="store_true", dest="LESS", help="Allow matrix to overflow in width. This allows to pipe the output into less -RS")
     parser.add_argument(
         "-m",
@@ -154,7 +168,12 @@ def parse_qtop_cmdline_args():
                            or -R 1800 1h. A default duration of 2m is used, if
                            no value is given.""",
     )
-    parser.add_argument("-s", "--SetSourceDir", dest="SOURCEDIR", help="Set the source directory where the batch scheduler output files reside")
+    parser.add_argument(
+        "-s",
+        "--SetSourceDir",
+        dest="SOURCEDIR",
+        help="Set the source directory where scheduler output files reside, or pass one output file to use its parent directory",
+    )
     parser.add_argument(
         "-S",
         "--StrictCheck",
