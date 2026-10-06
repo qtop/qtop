@@ -1,28 +1,28 @@
-[1;36;49mqtop - interactive help[39;49m
+qtop - interactive help
 Fast, scheduler-independent cluster observability in your terminal.
 
-[1;37;49mNavigation[0;m
+Navigation
 
-  [1;36;49mj / Space[0;m      scroll down one screen
-  [1;36;49mk / Backspace[0;m  scroll up one screen
-  [1;36;49mh / l[0;m          scroll left / right
-  [1;36;49mg / G[0;m          jump to the top / bottom
-  [1;36;49m0 / $[0;m          jump to the left / right edge
-  [1;36;49mR[0;m              reset the viewport
+  j / Space      scroll down one screen
+  k / Backspace  scroll up one screen
+  h / l          scroll left / right
+  g / G          jump to the top / bottom
+  0 / $          jump to the left / right edge
+  R              reset the viewport
 
-[1;37;49mView and analysis[0;m
+View and analysis
 
-  [1;36;49mf[0;m              filter worker nodes
-  [1;36;49ms[0;m              sort worker nodes
-  [1;36;49mH[0;m              highlight users or queues
-  [1;36;49mF[0;m              toggle full names / numbered node labels
-  [1;36;49mm[0;m              toggle core coloring by user / queue
-  [1;36;49mr[0;m              cycle all / real / used core lines
-  [1;36;49mt[0;m              transpose the worker-node matrix
+  f              filter worker nodes
+  s              sort worker nodes
+  H              highlight users or queues
+  F              toggle full names / numbered node labels
+  m              toggle core coloring by user / queue
+  r              cycle all / real / used core lines
+  t              transpose the worker-node matrix
 
-[1;37;49mSession[0;m
+Session
 
-  [1;36;49m?[0;m              toggle this help screen
-  [1;36;49mq[0;m              quit qtop
+  ?              toggle this help screen
+  q              quit qtop
 
 Press ? to return to the cluster view. Run qtop --help for CLI options.
