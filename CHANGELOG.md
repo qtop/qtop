@@ -6,16 +6,23 @@
 - Bugfix: fix account coloring when the UID is numeric.
 - Bugfix: prioritize Slurm during automatic scheduler detection, fixing #552.
 - Feature enhancement: require `-e`/`--experimental` when enabling the web interface with `-B`/`--web`, fixing #550.
+- Documentation: modernize the README, interactive help, and changelog formatting.
 - Documentation: convert the roadmap and changelog to Markdown.
 - Documentation: refresh README Python support and CI badge wording.
 - Documentation: update the quickstart command examples to use the `qtop` wrapper.
 - Documentation: clarify why qtop keeps runtime dependencies minimal on early or bare HPC clusters.
 - Build tooling: add Makefile aliases for lint and format fix workflows.
 - Code quality: address #549 and the remaining actionable CodeQL maintainability findings.
+- Code quality: address the actionable findings from the CodeQL scan in #549.
 - Security: document private vulnerability reporting contacts and guidance.
+
+## 0.9.20261001
+
+- Bugfix: improve the contrast of the simulated-data notice in demo mode.
 
 ## 0.9.20260610
 
+- Feature enhancement: add general-purpose Slurm scheduler support.
 - Merged PR #444.
 - Completion of ci/cd baseline, with ground-truth validation.
 
@@ -57,54 +64,38 @@
 
 - Feature enhancement: Need for speed: compression of ansi codes #279
 - Feature enhancement: report version #276
-- Feature enhancement: some more fixes on help page, visible with `?`
-  #273
-- Bugfix: fix for Anonymisation feature temporarily unavailable until
-  completely implemented (use `--experimental`) #170
-- Bugfix: fix for stacktrace while collecting anonymized sample (which
-  by then worked fine otherwise) #280, #281
-- Bugfix: fix for when in filtered view, summary now reflects filtered
-  jobs/cores #276
+- Feature enhancement: some more fixes on help page, visible with `?` #273
+- Bugfix: fix for Anonymisation feature temporarily unavailable until completely implemented (use `--experimental`) #170
+- Bugfix: fix for stacktrace while collecting anonymized sample (which by then worked fine otherwise) #280, #281
+- Bugfix: fix for when in filtered view, summary now reflects filtered jobs/cores #276
 - Bugfix: fix for `svc.*` no longer with Cyan color #278
 - Bugfix: fix-anonymize-SGE-and-optimisations #276
 - Bugfix: fix broken coloring #276
 
 ## 0.9.20161216
 
-- Feature enhancement: key `H`: highlight users and queues by string or
-  regex #272
-- Feature enhancement: add -`rr` option: filter out unused core lines
-  #270, #271
-- Feature enhancement: harmonize output filenames for window/full view
-  and JSON exports #269
-- Bugfix: -r Option to remove empty core lines now works as advertised
-  #267
+- Feature enhancement: key `H`: highlight users and queues by string or regex #272
+- Feature enhancement: add -`rr` option: filter out unused core lines #270, #271
+- Feature enhancement: harmonize output filenames for window/full view and JSON exports #269
+- Bugfix: -r Option to remove empty core lines now works as advertised #267
 - Bugfix: fix for more arcane pbs node names in pbsnodes #266
-- Bugfix: fix for PBS plugin fails when jobs use non-consecutive CPUs
-  #265
-- Bugfix: fix for adding `-G` flag under demo resulted in a crash, when
-  `getent` was missing #262
+- Bugfix: fix for PBS plugin fails when jobs use non-consecutive CPUs #265
+- Bugfix: fix for adding `-G` flag under demo resulted in a crash, when `getent` was missing #262
 
 ## 0.9.20161207
 
 - Feature enhancement: online help available with `?` ; #257
-- Feature enhancement: unhardwire `__version__`, make it visible across
-  code; #259
-- Feature enhancement: Remove `WORKDIR` from banner, it was no longer
-  serving a purpose; #243
+- Feature enhancement: unhardwire `__version__`, make it visible across code; #259
+- Feature enhancement: Remove `WORKDIR` from banner, it was no longer serving a purpose; #243
 - Bugfix around missing `core_job_map`, when not remapping; #253
-- Bugfix unhardwire `/tmp`, make the choice of intermediate directory
-  liberal; #254, #255
-- Bugfix under linux watch mode, fix watch issues of various types;
-  #206, #248, #256
-- Bugfix around jobid consistency of input files in OAR - handle
-  gracefully and report in debug log; #258
+- Bugfix unhardwire `/tmp`, make the choice of intermediate directory liberal; #254, #255
+- Bugfix under linux watch mode, fix watch issues of various types; #206, #248, #256
+- Bugfix around jobid consistency of input files in OAR - handle gracefully and report in debug log; #258
 
 ## 0.9.20161130
 
 - Summary in the 1st section now shows `Total:, Up:, Free:` nodes
-- Added a nodes column per user in the 3rd section where user info is
-  presented
+- Added a nodes column per user in the 3rd section where user info is presented
 - Added -R feature to replay last frames; recording is automatic!
 - Added setup.py, `pip install --user qtop` should work
 - Added `--version`, in case anyone wondered about it
@@ -112,11 +103,9 @@
 - Supplied `qtop` launcher script, for better system integration
 - Create timestamped intermediate files, to improve ability to look back
 - Bugfix to avoid /tmp getting crowded with temporary files
-- Bugfix for grepping and pipelining qtop's output (1st attempt to treat
-  #206)
+- Bugfix for grepping and pipelining qtop's output (1st attempt to treat #206)
 - Bugfixes on PBS (jobid arrays, node states etc)
-- Bugfixes on SGE (job states added, all jobs now visible, userid is
-  correct)
+- Bugfixes on SGE (job states added, all jobs now visible, userid is correct)
 - Bugfixes on OAR (nodes per user are also visible)
 - Converted documentation files to `.rst` format
 
@@ -128,8 +117,7 @@
   - `((t))` matrix transposition
   - `((F))` toggle full nodename display/numbering
   - `((m))` toggle coloring code (user-id based/queue name-based)
-- queue info can now be colored, three different queues with the same
-  initials can be colored distinctly
+- queue info can now be colored, three different queues with the same initials can be colored distinctly
 - a good first amount of documentation
 - small bugfixes
 
@@ -139,21 +127,17 @@
 
 ## 0.8.7
 
-- added support for queuename display for OAR and PBS (SGE already
-  there!)
+- added support for queuename display for OAR and PBS (SGE already there!)
 - overspill feature (aka oversubscribe/overcommitment) for SGE systems
-- strict checking cmdline var (will compare reported nr. of jobs against
-  displayed/found jobs)
+- strict checking cmdline var (will compare reported nr. of jobs against displayed/found jobs)
 - id column is now more readable (put in brackets)
-- fixed long-standing bug that would report incorrectly the queues of
-  jobs in a node, in some cases
+- fixed long-standing bug that would report incorrectly the queues of jobs in a node, in some cases
 - restored deprecated document file deletion
 - huge refactoring of the codebase
 
 ## 0.8.6
 
-- Support for python 2.6 for early RHEL6/Centos6/ScientificLinux6
-  distros
+- Support for python 2.6 for early RHEL6/Centos6/ScientificLinux6 distros
 - Added tarball creation for better user reporting
 - Added Viewport class
 - Several bugfixes
@@ -165,15 +149,13 @@
 
 ## 0.8.4
 
-- Watch replacement with simple pager included (with full color
-  functionality, compatible with older RHEL6 systems)
+- Watch replacement with simple pager included (with full color functionality, compatible with older RHEL6 systems)
 - GECOS field completed by a less "intruding" command
 - Numerous enhancements and bug fixes
 
 ## 0.8.3
 
-- The worker node occupancy table can now be viewed horizontally
-  (transposed)
+- The worker node occupancy table can now be viewed horizontally (transposed)
 - Custom conf files createable by users
 - Filter/select nodes by name/regex
 - Numerous enhancements and bug fixes
@@ -218,18 +200,14 @@ Enhancements:
 Enhancements:
 
 - Created YAML files now have the pid appended to the filename.
-- PBS-related functions, which create the respective YAML files, have
-  moved to a dedicated module.
-- Removed `state_dict['highest_core_busy']`, which seemed useless and
-  unused.
+- PBS-related functions, which create the respective YAML files, have moved to a dedicated module.
+- Removed `state_dict['highest_core_busy']`, which seemed useless and unused.
 
 Bugfixes:
 
-- Added a separate `read_qstatq_yaml` function for consistency, removed
-  from `qstatq2yaml`.
+- Added a separate `read_qstatq_yaml` function for consistency, removed from `qstatq2yaml`.
 - Changed `qstatq_list` from list of tuples to list of dictionaries.
-- Moved `offline_down_nodes` from `pbs.pbsnodes2yaml` to
-  `read_pbsnodes_yaml`.
+- Moved `offline_down_nodes` from `pbs.pbsnodes2yaml` to `read_pbsnodes_yaml`.
 
 ## 0.6.6
 
@@ -247,15 +225,13 @@ Enhancements:
 
 Bugfixes:
 
-- Lines that don't contain *any* actual core are now not printed in the
-  matrices.
+- Lines that don't contain *any* actual core are now not printed in the matrices.
 
 ## 0.6.3
 
 Enhancements:
 
-- Optional stopping of vertical separators every `n` positions for a
-  configured number of repetitions.
+- Optional stopping of vertical separators every `n` positions for a configured number of repetitions.
 - Additional vertical separator in the beginning.
 
 ## 0.6.2
@@ -274,8 +250,7 @@ Enhancements:
 
 Enhancements:
 
-- Custom-cut matrices vertically, not horizontally, with width set by the
-  user.
+- Custom-cut matrices vertically, not horizontally, with width set by the user.
 
 ## 0.5.1
 
@@ -304,8 +279,7 @@ Enhancements:
 
 Bugfixes:
 
-- Now understands additional probable names for `pbsnodes`, `qstat`,
-  and `qstat-q` data files.
+- Now understands additional probable names for `pbsnodes`, `qstat`, and `qstat-q` data files.
 
 ## 0.4.0
 
@@ -333,8 +307,7 @@ New features:
 Bugfixes:
 
 - Fixed issue with single named WN.
-- Better regex pattern and algorithm for catching complicated numbered
-  WN domain names.
+- Better regex pattern and algorithm for catching complicated numbered WN domain names.
 
 ## 0.2.9
 
@@ -345,8 +318,7 @@ New features:
 
 Bugfixes:
 
-- Correction in WN ID numbers display, where tens were problematic for
-  larger numbers.
+- Correction in WN ID numbers display, where tens were problematic for larger numbers.
 
 ## 0.2.8
 
@@ -358,29 +330,25 @@ Bugfixes:
 
 Bugfixes:
 
-- Exiting when there are two jobs on the same core reported on pbsnodes,
-  with remapping functionality to be added.
+- Exiting when there are two jobs on the same core reported on pbsnodes, with remapping functionality to be added.
 - Number of WNs `>1000` is now handled.
 
 ## 0.2.6
 
 Bugfixes:
 
-- Fixed some names not being detected, with `%` and `=` characters
-  missing from the regex.
+- Fixed some names not being detected, with `%` and `=` characters missing from the regex.
 
 Enhancements:
 
-- Changed name to `qtop`, introduced configuration file `qtop.conf` and
-  colormap file `qtop.colormap`.
+- Changed name to `qtop`, introduced configuration file `qtop.conf` and colormap file `qtop.colormap`.
 
 ## 0.2.5
 
 New features:
 
 - Working cores added in usage totals.
-- Map now splits into two if terminal width is smaller than the Worker
-  Node number.
+- Map now splits into two if terminal width is smaller than the Worker Node number.
 
 ## 0.2.4
 
@@ -388,15 +356,13 @@ Enhancements:
 
 - Implemented some stuff from PEP8.
 - Un-hardwired the file paths.
-- Refactored code around `cpu_core_dict` functionality, responsible for
-  drawing the map.
+- Refactored code around `cpu_core_dict` functionality, responsible for drawing the map.
 
 ## 0.2.3
 
 Bugfixes:
 
-- Corrected regex search pattern in `make_qstat` to recognize usernames
-  like spec101u1, number followed by number followed by letter.
+- Corrected regex search pattern in `make_qstat` to recognize usernames like spec101u1, number followed by number followed by letter.
 - Now handles non-uniform setups.
 - Fixed R + Q / all display of E status.
 
@@ -404,15 +370,13 @@ Bugfixes:
 
 Enhancements:
 
-- Masking/clipping functionality, when nodes start from e.g. wn101 and
-  empty columns 1-100 are omitted.
+- Masking/clipping functionality, when nodes start from e.g. wn101 and empty columns 1-100 are omitted.
 
 ## 0.2.1
 
 Enhancements:
 
-- Hashes are displayed when the node has fewer cores than the maximum
-  declared by a WN, its np variable.
+- Hashes are displayed when the node has fewer cores than the maximum declared by a WN, its np variable.
 
 ## 0.2.0
 
@@ -449,8 +413,7 @@ Bugfixes:
 
 Bugfixes:
 
-- Implemented saving to 3 separate files: `QSTAT_ORIG_FILE`,
-  `QSTATQ_ORIG_FILE`, `PBSNODES_ORIG_FILE`.
+- Implemented saving to 3 separate files: `QSTAT_ORIG_FILE`, `QSTATQ_ORIG_FILE`, `PBSNODES_ORIG_FILE`.
 
 ## 0.1.4
 
@@ -472,8 +435,7 @@ Enhancements:
 
 Enhancements:
 
-- Script reads qtop-input.out files from each job and displays status
-  for each job.
+- Script reads qtop-input.out files from each job and displays status for each job.
 
 ## 0.1.1
 
@@ -485,5 +447,4 @@ Enhancements:
 
 Enhancements:
 
-- Initial reader for a `pbsnodes -a` output file gathers the results in a
-  single line.
+- Initial reader for a `pbsnodes -a` output file gathers the results in a single line.
