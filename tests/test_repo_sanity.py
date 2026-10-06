@@ -35,6 +35,7 @@ def test_tracked_files_reports_git_command_failure(monkeypatch, tmp_path):
         repo_sanity.tracked_files(tmp_path)
 
 
+@pytest.mark.skipif(os.name == "nt", reason="Non-UTF-8 byte filenames are unsupported on Windows NTFS")
 def test_tracked_files_preserves_non_utf8_filename_bytes(monkeypatch, tmp_path):
     source = tmp_path / os.fsdecode(b"tracked-\xff.py")
     source.write_text('access = "user\u202e"\n', encoding="utf-8")
