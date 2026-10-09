@@ -7,7 +7,7 @@
 ##
 # Nightly concern: interpreter/distro compatibility matrix (#488).
 #
-# 39 lanes covering CPython 3.6 through 3.15-rc plus PyPy across Debian,
+# 38 lanes covering CPython 3.6 through 3.15-rc plus PyPy across Debian,
 # Ubuntu, AlmaLinux, Rocky, CentOS Stream, Oracle Linux, Fedora, openSUSE,
 # Amazon Linux and Arch, all routed through ci/scripts/matrix_lane.sh and the
 # Makefile contract. The lane list mirrors
@@ -48,7 +48,7 @@ nightly-matrix:
         PKGS: '-'
         PYBIN: python
         TARGET: compat-py36
-      - IMAGE: ['python:3.9-bookworm', 'python:3.10-bookworm', 'python:3.11-bookworm', 'python:3.12-bookworm', 'python:3.13-bookworm', 'python:3.14-bookworm']
+      - IMAGE: ['python:3.9-bookworm', 'python:3.11-bookworm', 'python:3.12-bookworm', 'python:3.13-bookworm', 'python:3.14-bookworm']
         FAMILY: pythonimg
         PKGS: '-'
         PYBIN: python
@@ -134,7 +134,7 @@ nightly-matrix-experimental:
         PKGS: '-'
         PYBIN: python
         TARGET: ci
-      - IMAGE: ['pypy:3.9', 'pypy:3.10', 'pypy:3.11', 'pypy:3.11-8.0.0']
+      - IMAGE: ['pypy:3.9', 'pypy:3.11', 'pypy:3.12', 'pypy:3.11-8.0.0']
         FAMILY: pypyimg
         PKGS: '-'
         PYBIN: pypy3

@@ -100,8 +100,9 @@ def get_line(fin, verbatim=False, SEPARATOR=None, DEF_INDENT=2):
         list_line = verbatim and [d_indent, line] or [d_indent] + line.split(None or SEPARATOR, 1)
 
         if len(list_line) > 1:
-            if list_line[1].startswith(('"', "'")):
-                list_line[1] = list_line[1][1:-1]
+            value = list_line[1]
+            if isinstance(value, str) and value.startswith(('"', "'")):
+                list_line[1] = value[1:-1]
         else:
             pass
         yield list_line

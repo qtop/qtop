@@ -64,11 +64,13 @@ cd qtop
 ### From PyPI
 
 ```console
-## python3 -m pip install --user qtop ## FIXME, 20261001
+python3 -m pip install --user qtop
 $HOME/.local/bin/qtop --version
 ```
 
-A system-wide or virtual-environment installation can omit `--user`.
+PyPI currently serves qtop's legacy 2016 release. Until the next release is
+published, install from source for current Slurm support and recent fixes. A
+system-wide or virtual-environment installation can omit `--user`.
 
 ## Capture, inspect, and replay
 
@@ -113,6 +115,10 @@ This design keeps the core scheduler-independent and makes support for another b
 qtop targets Python 3 and Linux-based HPC environments. Its CI matrix covers modern Python versions and retains a dependency-light compatibility lane for older enterprise distributions commonly found on clusters.
 
 The project is approaching 1.0 and still contains explicitly marked experimental features. Stable terminal monitoring remains the primary interface.
+
+Maintainers and contributors can reproduce the release gates with `make ci`,
+run the modern-Python type gate with `make type-check`, and replay the bounded
+parser stress corpus with `make deterministic-fuzz`.
 
 ## Documentation and community
 

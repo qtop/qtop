@@ -1,7 +1,19 @@
 import io
+import os
 import re
 
 from setuptools import find_packages, setup
+from setuptools.command.build_py import build_py as _build_py
+
+
+class build_py(_build_py):
+    """Install runtime data beside qtop_py without duplicating source files."""
+
+    def run(self):
+        super().run()
+        package_dir = os.path.join(self.build_lib, "qtop_py")
+        for filename in ("qtopconf.yaml", "helpfile.txt"):
+            self.copy_file(filename, os.path.join(package_dir, filename))
 
 
 def read_file(path):
@@ -27,6 +39,7 @@ setup(
     url="https://github.com/qtop/qtop",
     packages=find_packages(include=["qtop_py", "qtop_py.*"]),
     include_package_data=True,
-    python_requires=">=3",
+    cmdclass={"build_py": build_py},
+    python_requires=">=3.6",
     entry_points={"console_scripts": ["qtop=qtop_py.qtop:cli_main"]},
 )

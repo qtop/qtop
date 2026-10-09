@@ -1,8 +1,9 @@
 # SBOMs and verifiable supply-chain artifacts: proposal
 
-Status: proposal only, per the #488 checklist ("only propose, nothing
-beyond that"). No SBOM or signing automation is introduced by this change;
-this document records a path the maintainers can adopt incrementally.
+Status: phased implementation. Tokenless PyPI Trusted Publishing is prepared
+in `.github/workflows/release.yml`; the `pypi` environment and trusted
+publisher must still be configured by a maintainer. SBOM and signing work
+below remains proposed.
 
 ## Where qtop starts from
 
@@ -15,8 +16,8 @@ steps cheap:
 - Direct CI Python requirements are version-pinned, and the new GitHub actions
   are commit-pinned. The `pip-licenses` helper still resolves unpinned
   transitive packages, so the complete tool chain is not yet locked.
-- Gaps, per the 2026-06-08 Scorecard snapshot: Packaging -1 (no publish
-  workflow), Signed-Releases -1 (no releases/signatures).
+- Gaps, per the 2026-10-06 Scorecard snapshot: Packaging -1 (the prepared
+  workflow has not published yet), Signed-Releases -1 (no releases/signatures).
 
 ## Phase 1 -- generate and publish SBOMs (low effort)
 

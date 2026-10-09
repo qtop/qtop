@@ -228,17 +228,16 @@ class SlurmBatchSystem(GenericBatchSystem):
                 queue_counts[queue]["queued"] += 1
                 total_queued_jobs += 1
 
-        qstatq_lod = []
-        for queue_name, values in queue_counts.items():
-            qstatq_lod.append(
-                {
-                    "queue_name": queue_name,
-                    "run": str(values["run"]),
-                    "queued": str(values["queued"]),
-                    "lm": values["lm"],
-                    "state": values["state"],
-                }
-            )
+        qstatq_lod = [
+            {
+                "queue_name": queue_name,
+                "run": str(values["run"]),
+                "queued": str(values["queued"]),
+                "lm": values["lm"],
+                "state": values["state"],
+            }
+            for queue_name, values in queue_counts.items()
+        ]
 
         return total_running_jobs, total_queued_jobs, qstatq_lod
 

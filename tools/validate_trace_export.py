@@ -107,11 +107,11 @@ def render_document(document, show_account_totals=False, color="OFF", term_heigh
     config["extract_info"] = None
     qtop.config = config
     qtop.user_to_color = user_to_color
-    qtop.web = SimpleNamespace(stop=lambda: None)
+    qtop.web = SimpleNamespace(stop=lambda: None)  # ty: ignore[invalid-assignment] - minimal offline adapter
     qtop.viewport = qtop.Viewport()
     qtop.viewport.set_term_size(term_height, term_columns)
     qtop.transposed_matrices = []
-    qtop.h_counter = iter([0, 1])
+    qtop.h_counter = iter([0, 1])  # ty: ignore[invalid-assignment] - one-shot export context
     qtop.help_main_switch = []
 
     trace_document = qtop.Document(copy.deepcopy(document.worker_nodes), document.jobs_dict, document.queues_dict, document.total_running_jobs, document.total_queued_jobs)

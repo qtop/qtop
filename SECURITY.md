@@ -9,7 +9,9 @@ with the latest `develop` revision when practical.
 ## Reporting a vulnerability
 
 Please do not open a public issue for a vulnerability that has not yet been
-disclosed. Report it privately via email to any maintainer listed in qtop's package
+disclosed. Prefer GitHub's
+[private vulnerability reporting form](https://github.com/qtop/qtop/security/advisories/new),
+or report it privately via email to any maintainer listed in qtop's package
 metadata and source headers.
 
 Use `qtop security report` in the subject. Include the affected qtop version

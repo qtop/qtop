@@ -488,7 +488,7 @@ def discover_cases(schedulers, slurm_samples_dir):
             for case in STATIC_CASES[scheduler]:
                 item = dict(case)
                 item["scheduler"] = scheduler
-                item["colour_expectations"] = list(COMMON_COLOUR_EXPECTATIONS) + list(CASE_COLOUR_EXPECTATIONS.get(item["name"], []))
+                item["colour_expectations"] = list(COMMON_COLOUR_EXPECTATIONS) + list(CASE_COLOUR_EXPECTATIONS.get(item["name"], []))  # ty: ignore[invalid-assignment]
                 cases.append(item)
         elif scheduler == "slurm":
             sample_root = Path(slurm_samples_dir)

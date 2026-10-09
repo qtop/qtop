@@ -77,6 +77,18 @@ def reset_sigpipe():
         signal(SIGPIPE, SIG_DFL)
 
 
+def _disable_terminal_echo(attrs):
+    """Switch a termios attribute list to non-echoing, non-canonical mode."""
+    if termios is not None:
+        attrs[3] &= ~(termios.ECHO | termios.ICANON)
+
+
+def _set_terminal_attrs(attrs):
+    """Apply terminal attributes when the platform exposes a real stdin TTY."""
+    if termios is not None and sys.__stdin__ is not None:
+        termios.tcsetattr(sys.__stdin__.fileno(), termios.TCSADRAIN, attrs)
+
+
 def _configured_separator(config):
     separator = config.get("SEPARATOR", config.get("vertical_separator", "|"))
     return separator.replace("'", "") if isinstance(separator, str) else separator
@@ -123,10 +135,7 @@ def compress_colored_line(s):
         prev_code = code
     sts.append(st)
 
-    final_t = []
-    for color, seq in zip(colors, sts):
-        final_t.append(color + "".join(seq) + "\x1b[0;m")
-    return "".join(final_t)
+    return "".join(color + "".join(seq) + "\x1b[0;m" for color, seq in zip(colors, sts))
 
 
 def literal_config_value(value):
@@ -146,6 +155,8 @@ def extract_regex_detail(regex, field):
         raise ValueError("Unsupported user detail regex expression in %s" % QTOPCONF_YAML)
 
     found = re.search(match.group("pattern"), field)
+    if found is None:
+        raise ValueError("User detail regex did not match field")
     return found.group(int(match.group("group")))
 
 
@@ -634,8 +645,8 @@ def control_qtop(viewport, read_char, cluster, old_attrs, new_attrs):
         for nr, sort_method in sort_map.items():
             print("(%s): %s" % (colorize(nr, color_func="Red_L"), sort_method[0]))
 
-        new_attrs[3] = new_attrs[3] & ~(termios.ECHO | termios.ICANON)
-        termios.tcsetattr(sys.__stdin__.fileno(), termios.TCSADRAIN, old_attrs)
+        _disable_terminal_echo(new_attrs)
+        _set_terminal_attrs(old_attrs)
 
         dynamic_config["user_sort"] = []
         while True:
@@ -657,7 +668,7 @@ def control_qtop(viewport, read_char, cluster, old_attrs, new_attrs):
             dynamic_config["user_sort"] = sort_args
             break
 
-        termios.tcsetattr(sys.__stdin__.fileno(), termios.TCSADRAIN, new_attrs)
+        _set_terminal_attrs(new_attrs)
         viewport.reset_display()
 
     elif pressed_char_hex in ["66"]:  # f
@@ -696,8 +707,8 @@ def control_qtop(viewport, read_char, cluster, old_attrs, new_attrs):
                 "ten": colorize("(10)", color_func="Red_L"),
             }
         )
-        new_attrs[3] = new_attrs[3] & ~(termios.ECHO | termios.ICANON)
-        termios.tcsetattr(sys.__stdin__.fileno(), termios.TCSADRAIN, old_attrs)
+        _disable_terminal_echo(new_attrs)
+        _set_terminal_attrs(old_attrs)
 
         dynamic_config["filtering"] = []
         while True:
@@ -724,7 +735,7 @@ def control_qtop(viewport, read_char, cluster, old_attrs, new_attrs):
 
             dynamic_config["filtering"].append({filter_map[filter_choice]: filter_args})
 
-        termios.tcsetattr(sys.__stdin__.fileno(), termios.TCSADRAIN, new_attrs)
+        _set_terminal_attrs(new_attrs)
         viewport.reset_display()
 
     elif pressed_char_hex in ["48"]:  # H
@@ -750,8 +761,8 @@ def control_qtop(viewport, read_char, cluster, old_attrs, new_attrs):
                 "six": colorize("(6)", color_func="Red_L"),
             }
         )
-        new_attrs[3] = new_attrs[3] & ~(termios.ECHO | termios.ICANON)
-        termios.tcsetattr(sys.__stdin__.fileno(), termios.TCSADRAIN, old_attrs)
+        _disable_terminal_echo(new_attrs)
+        _set_terminal_attrs(old_attrs)
 
         dynamic_config["highlight"] = []
         while True:
@@ -778,7 +789,7 @@ def control_qtop(viewport, read_char, cluster, old_attrs, new_attrs):
 
             dynamic_config["highlight"].append({filter_map[filter_choice]: filter_args})
 
-        termios.tcsetattr(sys.__stdin__.fileno(), termios.TCSADRAIN, new_attrs)
+        _set_terminal_attrs(new_attrs)
         viewport.reset_display()
 
     elif pressed_char_hex in ["3f"]:  # ?
@@ -1047,18 +1058,17 @@ class WNOccupancy(object):
 
     def _create_sort_acct_jobs_table(self, user_job_per_state_counts, user_all_jobs_sorted, user_to_id):
         """Calculates what is actually below the id|  jobs>=R + Q | unix account etc line"""
-        account_jobs_table = []
-        for user_name, total_jobs_for_user in user_all_jobs_sorted:
-            account_jobs_table.append(
-                [
-                    user_to_id[user_name],
-                    user_job_per_state_counts["running_of_user"][user_name],
-                    user_job_per_state_counts["queued_of_user"][user_name],
-                    total_jobs_for_user,
-                    user_name,
-                    self.user_machine_use[user_name],
-                ]
-            )
+        account_jobs_table = [
+            [
+                user_to_id[user_name],
+                user_job_per_state_counts["running_of_user"][user_name],
+                user_job_per_state_counts["queued_of_user"][user_name],
+                total_jobs_for_user,
+                user_name,
+                self.user_machine_use[user_name],
+            ]
+            for user_name, total_jobs_for_user in user_all_jobs_sorted
+        ]
         account_jobs_table.sort(key=itemgetter(3, 4), reverse=True)  # sort by All jobs, then unix account
         return account_jobs_table
 
@@ -1155,7 +1165,8 @@ class WNOccupancy(object):
             # Single-expression fallback, portable to py3.6 / PyPy / MicroPython (no walrus, no findall).
             # The appended " NoPattern" sentinel guarantees a match: an all-numeric user (e.g. a numeric
             # uid from sinfo) yields "NoPattern". The space is load-bearing: without it "abc" -> "abcNoPattern".
-            account_letters = re.search(r"[A-Za-z]+", user + " NoPattern").group(0)
+            account_match = re.search(r"[A-Za-z]+", user + " NoPattern")
+            account_letters = account_match.group(0) if account_match else "NoPattern"
             for re_account in list(mapping.keys())[::-1]:
                 match = re.search(re_account, user)
                 if match is not None:
@@ -1555,7 +1566,7 @@ class TextDisplay(object):
 
         for idx, part in enumerate(config["user_display_parts"], 1):
             display_func, opts = display_parts[part][0], display_parts[part][1]
-            display_func(*opts) if not sections_off[idx] else None
+            display_func(*opts) if not sections_off[idx] else None  # ty: ignore[missing-argument, too-many-positional-arguments] - config-driven dispatch
 
         print("\nLog file created in %s" % os.path.expandvars(QTOP_LOGFILE))
         if self.args.SAMPLE:
@@ -1779,7 +1790,7 @@ class TextDisplay(object):
             occupancy_parts[part][2].update(key_vals)  # get extra args from user
 
             func_, opts, kwargs = occupancy_parts[part][0], occupancy_parts[part][1], occupancy_parts[part][2]
-            func_(*opts, **kwargs)
+            func_(*opts, **kwargs)  # ty: ignore[too-many-positional-arguments] - heterogeneous renderer registry
 
         if dynamic_config.get("transpose_wn_matrices", config["transpose_wn_matrices"]):
             order = config["occupancy_column_order"]
@@ -1833,7 +1844,6 @@ class TextDisplay(object):
     def join_prints(self, *args, **kwargs):
         joined_list = []
         for d in args:
-            sys.stdout.softspace = False  # if i want to omit in-between column spaces
             joined_list.extend([utils.ColorStr(string=char) if isinstance(char, str) and len(char) == 1 else char for char in d])
             joined_list.append(utils.ColorStr(string=kwargs["sep"]))
         # display the full output if nocutoff is True
@@ -1943,7 +1953,8 @@ class TextDisplay(object):
         with open(temp_filename, "w") as output_file:
             process_tail = subprocess.Popen(tail_command, stdout=subprocess.PIPE)
             process_head = subprocess.Popen(head_command, stdin=process_tail.stdout, stdout=output_file)
-            process_tail.stdout.close()
+            if process_tail.stdout is not None:
+                process_tail.stdout.close()
             _ = process_head.communicate()
         return temp_filename
 
@@ -2003,7 +2014,7 @@ class TextDisplay(object):
         else:
             sep_str = orig_str[:]  # insert initial vertical separator
             separator = separator if isinstance(sep_str, str) else list(separator)
-            times = len(orig_str) / pos if not stopaftern else stopaftern
+            times = len(orig_str) // pos if not stopaftern else stopaftern
             sep_str = sep_str[:pos] + separator + sep_str[pos:]
             for i in range(2, times + 1):
                 sep_str = sep_str[: pos * i + i - 1] + separator + sep_str[pos * i + i - 1 :]
@@ -2340,24 +2351,28 @@ class WNFilter(object):
         self.worker_nodes = worker_nodes
 
     def mark_list_by_queue(self, nodes, arg_list=None):
+        arg_list = arg_list or []
         for idx, node in enumerate(nodes[:]):
-            if set(arg_list) & set([x.str for x in node["qname"]]):
+            if set(arg_list) & {x.str for x in node["qname"]}:
                 node["mark"] = "*"
         return nodes
 
     def mark_list_by_number(self, nodes, arg_list=None):
+        arg_list = arg_list or []
         for idx, node in enumerate(nodes):
             if str(idx) in arg_list:
                 node["mark"] = "*"
         return nodes
 
     def mark_list_by_node_state(self, nodes, arg_list=None):
+        arg_list = arg_list or []
         for node in nodes:
-            if set(["".join(state.str for state in node["state"])]) & set(arg_list):
+            if {"".join(state.str for state in node["state"])} & set(arg_list):
                 node["mark"] = "*"
         return nodes
 
     def mark_list_by_name_pattern(self, nodes, arg_list=None):
+        arg_list = arg_list or []
         for node in nodes:
             patterns = next(iter(arg_list.values())) if isinstance(arg_list, dict) else arg_list
             for pattern in patterns:
@@ -2510,6 +2525,7 @@ def main():
     stdout = sys.stdout  # keep a copy of the initial value of sys.stdout
     change_mapping = cycle([("queue_to_color", "color by queue"), ("user_to_color", "color by user")])
     h_counter = cycle([0, 1])
+    tar_out = None
 
     viewport = Viewport()  # controls the part of the qtop matrix shown on screen
     max_line_len = 0
@@ -2518,7 +2534,11 @@ def main():
     initial_cwd = os.getcwd()
     logging.debug("Initial qtop directory: %s" % initial_cwd)
     CURPATH = os.path.expanduser(initial_cwd)  # where qtop was invoked from
-    QTOPPATH = os.path.dirname(os.path.realpath(__loader__.name))  # dir where qtop resides
+    package_path = os.path.dirname(os.path.realpath(__file__))
+    source_path = os.path.dirname(package_path)
+    # Source checkouts keep these user-facing files at repository root. Wheels
+    # copy them into the package so an installed CLI has the same defaults.
+    QTOPPATH = source_path if os.path.isfile(os.path.join(source_path, QTOPCONF_YAML)) else package_path
     HELP_FP = os.path.join(QTOPPATH, "helpfile.txt")
     help_main_switch = [
         HELP_FP,
@@ -2559,7 +2579,7 @@ def main():
                 scheduler_output_filenames = fetch_scheduler_files(args, config)
                 SAMPLE_FILENAME = fileutils.get_sample_filename(SAMPLE_FILENAME, config)
                 if args.SAMPLE:
-                    fileutils.tar_out = fileutils.init_sample_file(args, savepath, SAMPLE_FILENAME, scheduler_output_filenames, QTOPCONF_YAML, QTOPPATH)
+                    tar_out = fileutils.init_sample_file(args, savepath, SAMPLE_FILENAME, scheduler_output_filenames, QTOPCONF_YAML, QTOPPATH)
 
                 ###### Gather data ###############
                 #
@@ -2625,20 +2645,20 @@ def main():
                 os.unlink(output_fp)
                 fileutils.deprecate_old_output_files(config)
 
-            if args.SAMPLE:
-                fileutils.tar_out = fileutils.add_to_sample([output_fp], fileutils.tar_out)
+            if args.SAMPLE and tar_out is not None:
+                tar_out = fileutils.add_to_sample([output_fp], tar_out)
 
         except (KeyboardInterrupt, EOFError) as e:
             repr(e)
             fileutils.safe_exit_with_file_close(handle, output_fp, stdout, args, savepath, QTOP_LOGFILE, SAMPLE_FILENAME)
         finally:
-            if args.SAMPLE >= 1:
-                fileutils.tar_out = fileutils.add_to_sample([QTOP_LOGFILE], fileutils.tar_out)
+            if args.SAMPLE >= 1 and tar_out is not None:
+                tar_out = fileutils.add_to_sample([QTOP_LOGFILE], tar_out)
                 # add all scheduler output files to sample
                 for fn in scheduler_output_filenames:
                     if os.path.isfile(scheduler_output_filenames[fn]):
-                        fileutils.tar_out = fileutils.add_to_sample([scheduler_output_filenames[fn]], fileutils.tar_out)
-                fileutils.tar_out.close()
+                        tar_out = fileutils.add_to_sample([scheduler_output_filenames[fn]], tar_out)
+                tar_out.close()
 
 
 if __name__ == "__main__":

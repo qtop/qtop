@@ -20,7 +20,7 @@ source files. Reproduce with:
 | gitleaks 8.24 | `gitleaks dir .` | no leaks |
 | detect-secrets | `git ls-files -z \| xargs -0 detect-secrets scan` | 1 tracked candidate, a false positive |
 | repo-sanity (new) | `make repo-sanity` | 0 critical, 0 warning, 4 expected-fixture info |
-| OpenSSF Scorecard | public REST API, 2026-06-08 snapshot | score 7.1 |
+| OpenSSF Scorecard | public REST API, 2026-10-06 snapshot | score 8.1 |
 
 ## Findings mapped to PySCG
 
@@ -103,15 +103,16 @@ keeping the CLI flag override; CI-side only, low risk.
 
 ### 6. Dependency currency (pinned CI set)
 
-On Python 3.10 and newer, `requirements-ci.txt` now selects `pip 26.2`,
-`setuptools 83.0.0`, `pytest 9.0.3`, and its pinned Pygments dependency.
+On Python 3.12 and newer, `requirements-ci.txt` now selects `pip 26.2`,
+`setuptools 83.0.0`, `pytest 9.1.1`, and its pinned Pygments dependency.
 `pip-audit` reports no known vulnerability in that selected Python 3.12 set.
 This clears the six previously recorded packaging-tool advisories and
 PYSEC-2026-1845, pytest's predictable Unix temporary-directory finding.
 
 The new packaging-tool releases and patched pytest require Python 3.10 or
-newer. Python 3.9 matrix lanes therefore keep their image or
-virtual-environment bootstrap tools and retain pytest 8.2.2. The shared matrix
+newer, while qtop deliberately selects the fully pinned modern set from Python
+3.12 onward. Older matrix lanes therefore keep their image or virtual-
+environment bootstrap tools and retain pytest 8.2.2. The shared matrix
 runner mitigates its temporary-directory issue by creating a random mode-0700
 parent and passing a child through pytest's `--basetemp`; other local Python
 3.9 invocations should likewise use a private `TMPDIR` or `--basetemp`.
@@ -146,15 +147,15 @@ non-source candidates. The configured GitLab Secret Detection template can
 check qualifying pipelines; expect and triage the sample-ID finding when it
 runs.
 
-## Scorecard gap-to-action map (baseline 7.1, 2026-06-08)
+## Scorecard gap-to-action map (baseline 8.1, 2026-10-06)
 
 | Check | Score | Action in this change | Proposed follow-up |
 |---|---|---|---|
-| SAST | 0 | SAST templates + Semgrep-backed analyzer wired into GitLab CI; scorecard workflow on GitHub | expect uplift on next weekly cron |
-| Security-Policy | 0 | -- | add SECURITY.md (maintainer decision on contact channel) |
+| SAST | 0 | GitLab SAST plus CodeQL on GitHub pushes and pull requests | expect uplift after analyzed commits reach the default branch |
+| Security-Policy | 4 | SECURITY.md plus direct private-reporting link | enable GitHub private vulnerability reporting in repository settings |
 | CII-Best-Practices | 0 | -- | register for the OpenSSF Best Practices badge |
-| Fuzzing | 0 | -- | atheris harness over the PBS/SGE/OAR parsers is a natural fit |
-| Packaging | -1 | -- | publish to PyPI via Trusted Publishing (see docs/supply-chain-sbom.md) |
+| Fuzzing | 0 | deterministic parser stress gate | graduate the harness to ClusterFuzzLite/Atheris for Scorecard recognition |
+| Packaging | -1 | isolated, commit-pinned Trusted Publishing workflow | configure the `pypi` environment and PyPI trusted publisher, then publish a release |
 | Signed-Releases | -1 | -- | release attestations (see docs/supply-chain-sbom.md) |
 | Pinned-Dependencies | 10 | keep | -- |
 | Token-Permissions | 10 | new workflows follow least privilege | -- |

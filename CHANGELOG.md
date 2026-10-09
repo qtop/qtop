@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.9.20261007
+
+- CI: update modern Python lanes to pytest 9.1.1 while retaining the Python 3.9 compatibility pin.
+- CI: add required CodeQL SAST and `ty` type-check jobs with concise diagnostics.
+- Security: add a reproducible parser stress harness and prepare tokenless PyPI Trusted Publishing.
+- Security: link private vulnerability reporting directly from the security policy.
+- Code quality: replace safe accumulator loops with comprehensions, fix parser narrowing and counters, emit valid HTTP headers/bytes, and scope sample archive ownership.
+
 ## 0.9.20261005
 
 - Bugfix: preserve Slurm partition order from `sinfo`, label the summary "Queueing", and add collapsed/expanded views, fixing #560.
@@ -23,10 +31,6 @@
 - Code quality: address #549 and the remaining actionable CodeQL maintainability findings.
 - Code quality: address the actionable findings from the CodeQL scan in #549.
 - Security: document private vulnerability reporting contacts and guidance.
-
-## 0.9.20261001
-
-- Bugfix: improve the contrast of the simulated-data notice in demo mode.
 
 ## 0.9.20260610
 
