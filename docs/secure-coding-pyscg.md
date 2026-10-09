@@ -20,7 +20,7 @@ source files. Reproduce with:
 | gitleaks 8.24 | `gitleaks dir .` | no leaks |
 | detect-secrets | `git ls-files -z \| xargs -0 detect-secrets scan` | 1 tracked candidate, a false positive |
 | repo-sanity (new) | `make repo-sanity` | 0 critical, 0 warning, 4 expected-fixture info |
-| OpenSSF Scorecard | public REST API, 2026-06-08 snapshot | score 7.1 |
+| OpenSSF Scorecard | public REST API, 2026-10-06 snapshot | score 8.1 |
 
 ## Findings mapped to PySCG
 
@@ -146,15 +146,15 @@ non-source candidates. The configured GitLab Secret Detection template can
 check qualifying pipelines; expect and triage the sample-ID finding when it
 runs.
 
-## Scorecard gap-to-action map (baseline 7.1, 2026-06-08)
+## Scorecard gap-to-action map (baseline 8.1, 2026-10-06)
 
 | Check | Score | Action in this change | Proposed follow-up |
 |---|---|---|---|
-| SAST | 0 | SAST templates + Semgrep-backed analyzer wired into GitLab CI; scorecard workflow on GitHub | expect uplift on next weekly cron |
-| Security-Policy | 0 | -- | add SECURITY.md (maintainer decision on contact channel) |
+| SAST | 0 | GitLab SAST plus CodeQL on GitHub pushes and pull requests | expect uplift after analyzed commits reach the default branch |
+| Security-Policy | 4 | SECURITY.md plus direct private-reporting link | enable GitHub private vulnerability reporting in repository settings |
 | CII-Best-Practices | 0 | -- | register for the OpenSSF Best Practices badge |
-| Fuzzing | 0 | -- | atheris harness over the PBS/SGE/OAR parsers is a natural fit |
-| Packaging | -1 | -- | publish to PyPI via Trusted Publishing (see docs/supply-chain-sbom.md) |
+| Fuzzing | 0 | deterministic parser stress gate | graduate the harness to ClusterFuzzLite/Atheris for Scorecard recognition |
+| Packaging | -1 | isolated, commit-pinned Trusted Publishing workflow | configure the `pypi` environment and PyPI trusted publisher, then publish a release |
 | Signed-Releases | -1 | -- | release attestations (see docs/supply-chain-sbom.md) |
 | Pinned-Dependencies | 10 | keep | -- |
 | Token-Permissions | 10 | new workflows follow least privilege | -- |

@@ -46,12 +46,12 @@ class Web(object):
                 def do_GET(self):
                     # Handle the case of api.json...
                     if self.path == "/api.json" and shared.filename:
-                        with open(shared.filename, "r") as f:
+                        with open(shared.filename, "rb") as f:
                             read_data = f.read()
 
                         self.send_response(200)
-                        self.send_header("Content-type", "Content-Type: application/json")
-                        self.send_header("Content-length", len(read_data))
+                        self.send_header("Content-Type", "application/json")
+                        self.send_header("Content-Length", str(len(read_data)))
                         self.end_headers()
                         self.wfile.write(read_data)
                     else:

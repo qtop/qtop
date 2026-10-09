@@ -29,6 +29,17 @@ Please follow common conventions for Open Source projects, f.i. align to Electro
 - For new features or fixes, either open a new issue or leave a comment on a relevant case that is already open
 - Let's avoid storing artifacts in the main `qtop` repo and keep it light; use the repo `qtop-artifacts` instead.
 
+Before opening a pull request, run the shared release gates:
+
+```console
+make ci
+make type-check
+make deterministic-fuzz
+```
+
+`make deterministic-fuzz` defaults to seed 488. Report the seed and case count
+from any failure so maintainers can reproduce it exactly.
+
 ## Proof of humanity
 
 It is imperative that you are ready at any time to show your PR's correct

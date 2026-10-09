@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 
-.PHONY: help all rerun clean ci-deps test coverage coverage-xml sample-gate backend-validation backend-colour-artifacts render-backends trace-export-validation test-pbs-samples test-slurm-samples fortifications repo-sanity code-quality license-report ruff-check lint lint-fix format-check format-fix compat-py36 ci nightly-ci github-ci gitlab-ci build github-build gitlab-build dist version confirm
+.PHONY: help all rerun clean ci-deps test coverage coverage-xml sample-gate backend-validation backend-colour-artifacts render-backends trace-export-validation test-pbs-samples test-slurm-samples deterministic-fuzz fortifications repo-sanity code-quality license-report type-check ruff-check lint lint-fix format-check format-fix compat-py36 ci nightly-ci github-ci gitlab-ci build github-build gitlab-build dist version confirm
 
 PYTHON ?= python3
 PIP ?= $(PYTHON) -m pip
@@ -16,6 +16,8 @@ PBS_SAMPLE_LIMIT ?= 447
 PBS_OUTPUT_DIR ?= /tmp/qtop-pbs-rendered
 SLURM_SAMPLES_DIR ?= tests/plugins/slurm_samples
 SLURM_OUTPUT_DIR ?= /tmp/qtop-slurm-rendered
+FUZZ_SEED ?= 488
+FUZZ_CASES ?= 5000
 FORTIFY_BASE_REF ?= origin/develop
 COVERAGE_XML ?= artifacts/coverage/coverage.xml
 REPO_SANITY_DIR ?= artifacts/repo-sanity
@@ -82,6 +84,9 @@ test-slurm-samples: ## Run Slurm parser tests and render committed Slurm samples
 	$(PYTHON) -m pytest tests/plugins/test_slurm.py
 	$(PYTHON) tools/validate_slurm_samples.py $(SLURM_SAMPLES_DIR) --output $(SLURM_OUTPUT_DIR)
 
+deterministic-fuzz: ## Reproducibly stress parser primitives with a fixed seed
+	$(PYTHON) tools/deterministic_fuzz.py --seed $(FUZZ_SEED) --cases $(FUZZ_CASES)
+
 fortifications: ## Check diff health and reject eval() call sites
 	$(PYTHON) tools/fortifications.py --base-ref $(FORTIFY_BASE_REF)
 
@@ -99,6 +104,9 @@ license-report: ## Report licenses of the pinned CI dependency set (pip-licenses
 	$(PYTHON) -m piplicenses --format=markdown --with-urls > $(LICENSE_DIR)/ci-dependencies.md
 	$(PYTHON) -m piplicenses --format=json > $(LICENSE_DIR)/ci-dependencies.json
 	@echo "wrote $(LICENSE_DIR)"
+
+type-check: ## Type-check production code with concise, one-line ty diagnostics
+	$(PYTHON) -m ty check
 
 ruff-check: ## Run ruff against the source tree
 	$(PYTHON) -m ruff check .
@@ -120,7 +128,7 @@ compat-py36: ## Run dependency-light Python 3.6 compatibility checks
 	find qtop_py tools -name '*.py' -print | xargs $(PYTHON) -m py_compile
 	$(PYTHON) tools/validate_scheduler_samples.py --schedulers $(SAMPLE_GATE_SCHEDULERS) --max-failures $(SAMPLE_GATE_MAX_FAILURES) --artifact-dir $(SAMPLE_GATE_ARTIFACT_DIR)-py36
 
-ci: test backend-validation lint ruff-check format-check ## Run the shared local/CI validation path
+ci: test backend-validation deterministic-fuzz lint ruff-check format-check ## Run the shared local/CI validation path
 
 github-ci: ci ## GitHub Actions entry point for test validation
 

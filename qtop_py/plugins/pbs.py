@@ -172,6 +172,7 @@ class PBSStatExtractor(StatExtractor):
         run_qd_search = r"^\s*(?P<tot_run>\d+)\s+(?P<tot_queued>\d+)"  # this picks up the last line contents
 
         all_qstatq_values = list()
+        total_running_jobs, total_queued_jobs = 0, 0
         with open(qstatq_file, "r") as fin:
             fin.readline()
             fin.readline()
@@ -183,19 +184,12 @@ class PBSStatExtractor(StatExtractor):
                 line = line.strip()
                 m = re.search(queue_search, line)
                 n = re.search(run_qd_search, line)
-                temp_dict = {}
-                try:
+                if m is not None:
                     queue_name = m.group("queue_name") if not self.options.ANONYMIZE else anonymize(m.group("queue_name"), "qs")
                     run, queued, lm, state = m.group("run"), m.group("queued"), m.group("lm"), m.group("state")
-                except AttributeError:
-                    try:
-                        total_running_jobs, total_queued_jobs = n.group("tot_run"), n.group("tot_queued")
-                    except AttributeError:
-                        continue
-                else:
-                    for key, value in [("queue_name", queue_name), ("run", run), ("queued", queued), ("lm", lm), ("state", state)]:
-                        temp_dict[key] = value
-                    all_qstatq_values.append(temp_dict)
+                    all_qstatq_values.append({"queue_name": queue_name, "run": run, "queued": queued, "lm": lm, "state": state})
+                elif n is not None:
+                    total_running_jobs, total_queued_jobs = n.group("tot_run"), n.group("tot_queued")
             all_qstatq_values.append({"Total_running": total_running_jobs, "Total_queued": total_queued_jobs})
 
         return all_qstatq_values

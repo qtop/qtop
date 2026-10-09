@@ -55,11 +55,11 @@ class OARBatchSystem(GenericBatchSystem):
         self.options = options
         self.oar_stat_maker = OarStatExtractor(self.config, self.options)
 
-    def get_worker_nodes(self, job_ids_oarstat, job_queues, options):
+    def get_worker_nodes(self, job_ids, job_queues, options):
         nodes_resids = self._read_oarnodes_s_yaml(self.oarnodes_s_file)
         resids_jobs = self._read_oarnodes_y_textyaml(self.oarnodes_y_file)
 
-        job_discrepancy = self._check_job_discrepancy(job_ids_oarstat, resids_jobs, options)
+        job_discrepancy = self._check_job_discrepancy(job_ids, resids_jobs, options)
 
         nodes_jobs = {}
         for node in nodes_resids:
@@ -80,7 +80,7 @@ class OARBatchSystem(GenericBatchSystem):
             worker_nodes.append(d)
 
         logging.info("worker_nodes contains %s entries" % len(worker_nodes))
-        worker_nodes = self.ensure_worker_nodes_have_qnames(worker_nodes, job_ids_oarstat, job_queues)
+        worker_nodes = self.ensure_worker_nodes_have_qnames(worker_nodes, job_ids, job_queues)
         return worker_nodes
 
     def get_jobs_info(self):

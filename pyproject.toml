@@ -11,15 +11,31 @@ name = "qtop"
 dynamic = ["version"]
 description = "qtop: the fast text mode way to monitor your cluster's utilization and status; the time has come to take back control of your cluster's scheduling business"
 readme = {file = "README.md", content-type = "text/markdown"}
+license = "MIT"
+keywords = ["HPC", "monitoring", "PBS", "scheduler", "SGE", "Slurm"]
 authors = [
     { name="Sotiris Fragkiskos", email="sfranky@gmail.com"},
     { name="Fotis Georgatos", email="kefalonia@gmail.com"},
     { name="Nicola Trozzi", email="nicola.trozzi@outlook.com"},
 ]
-requires-python = ">=3"
+requires-python = ">=3.6"
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: System Administrators",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Topic :: System :: Clustering",
+    "Topic :: System :: Monitoring",
+]
 
 [project.urls]
 "Homepage" = "https://github.com/qtop/qtop"
+"Changelog" = "https://github.com/qtop/qtop/blob/main/CHANGELOG.md"
+"Documentation" = "https://github.com/qtop/qtop/blob/main/docs/documentation.rst"
+"Issues" = "https://github.com/qtop/qtop/issues"
+"Security" = "https://github.com/qtop/qtop/security/policy"
 
 [project.scripts]
 qtop = "qtop_py.qtop:cli_main"
@@ -27,8 +43,8 @@ qtop = "qtop_py.qtop:cli_main"
 [tool.setuptools.dynamic]
 version = {attr = "qtop_py.__version__"}
 
-[tool.setuptools]
-packages = ["qtop_py"]
+[tool.setuptools.packages.find]
+include = ["qtop_py*"]
 
 [tool.ruff]
 # Enable pycodestyle (`E`) and Pyflakes (`F`) codes by default.
@@ -41,3 +57,31 @@ target-version = "py37"
 
 ## FG customisations
 line-length = 180 # keep legacy output fixtures readable while reducing the previous 188-char ceiling
+
+[tool.ty.environment]
+# qtop runs on older Pythons, but ty officially supports 3.10 and newer. Keep
+# syntax compatibility covered by compat-py36 and use the oldest supported ty
+# target for useful, stable standard-library types.
+python-version = "3.10"
+python-platform = "linux"
+
+[tool.ty.src]
+# Type-check production and developer tooling. Test doubles deliberately use
+# duck typing and are validated by pytest instead.
+include = ["qtop_py", "tools"]
+
+[tool.ty.analysis]
+# Both imports are optional accelerators; qtop has stdlib fallbacks.
+allowed-unresolved-imports = ["lxml", "ujson"]
+
+[tool.ty.terminal]
+# One diagnostic per line keeps local and CI logs useful (including `ty check
+# | wc -l`) while retaining rule names and source locations.
+output-format = "concise"
+
+[[tool.ty.overrides]]
+include = ["qtop_py/qtop.py"]
+
+[tool.ty.overrides.rules]
+# cli_main intentionally binds the legacy module-level runtime context.
+unresolved-global = "ignore"

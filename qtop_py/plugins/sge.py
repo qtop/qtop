@@ -288,7 +288,7 @@ class SGEBatchSystem(GenericBatchSystem):
                     for _run in jobs:
                         if _run.attrib.get("state") == "running":
                             run_count += 1
-                    exist_d["run"] += run_count
+                    exist_d["run"] = str(int(exist_d["run"]) + run_count)
                     break
             else:  # first instance of queue in the xml
                 d = dict()
