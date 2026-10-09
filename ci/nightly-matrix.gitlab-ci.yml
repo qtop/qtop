@@ -7,7 +7,7 @@
 ##
 # Nightly concern: interpreter/distro compatibility matrix (#488).
 #
-# 39 lanes covering CPython 3.6 through 3.15-rc plus PyPy across Debian,
+# 38 lanes covering CPython 3.6 through 3.15-rc plus PyPy across Debian,
 # Ubuntu, AlmaLinux, Rocky, CentOS Stream, Oracle Linux, Fedora, openSUSE,
 # Amazon Linux and Arch, all routed through ci/scripts/matrix_lane.sh and the
 # Makefile contract. The lane list mirrors
