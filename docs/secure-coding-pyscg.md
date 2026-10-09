@@ -103,15 +103,16 @@ keeping the CLI flag override; CI-side only, low risk.
 
 ### 6. Dependency currency (pinned CI set)
 
-On Python 3.10 and newer, `requirements-ci.txt` now selects `pip 26.2`,
-`setuptools 83.0.0`, `pytest 9.0.3`, and its pinned Pygments dependency.
+On Python 3.12 and newer, `requirements-ci.txt` now selects `pip 26.2`,
+`setuptools 83.0.0`, `pytest 9.1.1`, and its pinned Pygments dependency.
 `pip-audit` reports no known vulnerability in that selected Python 3.12 set.
 This clears the six previously recorded packaging-tool advisories and
 PYSEC-2026-1845, pytest's predictable Unix temporary-directory finding.
 
 The new packaging-tool releases and patched pytest require Python 3.10 or
-newer. Python 3.9 matrix lanes therefore keep their image or
-virtual-environment bootstrap tools and retain pytest 8.2.2. The shared matrix
+newer, while qtop deliberately selects the fully pinned modern set from Python
+3.12 onward. Older matrix lanes therefore keep their image or virtual-
+environment bootstrap tools and retain pytest 8.2.2. The shared matrix
 runner mitigates its temporary-directory issue by creating a random mode-0700
 parent and passing a child through pytest's `--basetemp`; other local Python
 3.9 invocations should likewise use a private `TMPDIR` or `--basetemp`.

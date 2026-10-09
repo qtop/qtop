@@ -1,8 +1,8 @@
 [build-system]
 requires = [
     "setuptools>=44,<60; python_version < '3.7'",
-    "setuptools>=78.1.1,<83; python_version >= '3.7' and python_version < '3.10'",
-    "setuptools>=83.0.0; python_version >= '3.10'",
+    "setuptools>=78.1.1,<83; python_version >= '3.7' and python_version < '3.12'",
+    "setuptools>=83.0.0; python_version >= '3.12'",
 ]
 build-backend = "setuptools.build_meta"
 
@@ -59,10 +59,10 @@ target-version = "py37"
 line-length = 180 # keep legacy output fixtures readable while reducing the previous 188-char ceiling
 
 [tool.ty.environment]
-# qtop runs on older Pythons, but ty officially supports 3.10 and newer. Keep
-# syntax compatibility covered by compat-py36 and use the oldest supported ty
-# target for useful, stable standard-library types.
-python-version = "3.10"
+# qtop runs on older Pythons, and ty itself supports 3.10 and newer. Keep
+# syntax compatibility covered by compat-py36 while using Python 3.12 as the
+# modern analysis and CI baseline.
+python-version = "3.12"
 python-platform = "linux"
 
 [tool.ty.src]
