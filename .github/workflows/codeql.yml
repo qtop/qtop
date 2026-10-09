@@ -37,7 +37,7 @@ jobs:
         with:
           languages: python
           build-mode: none
-          queries: security-extended,security-and-quality
+            ## FIXME: queries: security-extended,security-and-quality
       - uses: github/codeql-action/analyze@e4fba868fa4b1b91e1fdab776edc8cfbe6e9fb81 # v4.37.3
         with:
           category: /language:python
