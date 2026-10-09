@@ -124,7 +124,7 @@ class SGEBatchSystem(GenericBatchSystem):
 
         qstatq_list = self._extract_queues("queue_info/Queue-List", root)
 
-        total_running_jobs = sum([d["run"] for d in qstatq_list])
+        total_running_jobs = sum(int(d["run"]) for d in qstatq_list)
         logging.info("Total running jobs found: %s" % total_running_jobs)
 
         for d in qstatq_list:
@@ -288,7 +288,7 @@ class SGEBatchSystem(GenericBatchSystem):
                     for _run in jobs:
                         if _run.attrib.get("state") == "running":
                             run_count += 1
-                    exist_d["run"] = str(int(exist_d["run"]) + run_count)
+                    exist_d["run"] = int(exist_d["run"]) + run_count
                     break
             else:  # first instance of queue in the xml
                 d = dict()
