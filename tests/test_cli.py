@@ -1,4 +1,3 @@
-import ast
 import os
 import subprocess
 import sys
@@ -50,14 +49,11 @@ def test_expected_cli_scheduler_errors_are_concise(tmp_path, module, args, expec
 
 
 def test_packaging_entry_points_use_cli_wrapper():
-    assert 'qtop = "qtop_py.qtop:cli_main"' in (ROOT / "pyproject.toml").read_text()
+    packaging_config = (ROOT / "pyproject.toml").read_text()
 
-    setup_tree = ast.parse((ROOT / "setup.py").read_text())
-    setup_call = next(node for node in ast.walk(setup_tree) if isinstance(node, ast.Call) and getattr(node.func, "id", None) == "setup")
-    entry_points_keyword = next(keyword for keyword in setup_call.keywords if keyword.arg == "entry_points")
-    entry_points = ast.literal_eval(entry_points_keyword.value)
-
-    assert entry_points["console_scripts"] == ["qtop=qtop_py.qtop:cli_main"]
+    assert "[project.scripts]" in packaging_config
+    assert 'qtop = "qtop_py.qtop:cli_main"' in packaging_config
+    assert not (ROOT / "setup.py").exists()
 
 
 @pytest.mark.parametrize("module", ("qtop_py.cli", "qtop_py.qtop"))
