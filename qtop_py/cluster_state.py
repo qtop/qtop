@@ -9,7 +9,6 @@
 import copy
 import re
 
-
 CLUSTER_STATE_KEYS = ("jobs", "nodes", "queues")
 
 

@@ -9,7 +9,8 @@
 ##
 
 import pytest
-from qtop_py.yaml_parser import get_line, convert_dash_key_in_dict, read_yaml_config_block, process_line, process_code, fix_config_list
+
+from qtop_py.yaml_parser import convert_dash_key_in_dict, fix_config_list, get_line, process_code, process_line, read_yaml_config_block
 
 
 @pytest.mark.parametrize(

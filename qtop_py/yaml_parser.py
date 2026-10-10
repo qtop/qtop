@@ -9,12 +9,11 @@
 ## SPDX-License-Identifier: MIT
 ##
 
-import os
 import logging
+import os
 from ast import literal_eval
 
-
-## TODO: black sheep
+"""Small dependency-free parser for qtop's deliberately limited YAML subset."""
 
 
 def literal_or_original(value):
@@ -110,12 +109,13 @@ def get_line(fin, verbatim=False, SEPARATOR=None, DEF_INDENT=2):
 
 def convert_dash_key_in_dict(d):
     """
-    takes a dict of the form {'-': [...]} and converts it to [...]
+    Convert a dict of the form ``{'-': [...]}`` to its list value.
+
+    Non-dict values pass through unchanged because this helper is applied while
+    recursively normalizing both mappings and scalar/list values.
     """
-    try:
-        assert isinstance(d, dict)
-    except AssertionError:
-        return d  # TODO: Maybe this should fail, not be muted
+    if not isinstance(d, dict):
+        return d
 
     for key_out in d:
         if not (isinstance(d[key_out], dict) or len(d[key_out]) == 1):
@@ -142,10 +142,10 @@ def parse(fn, DEF_INDENT=2):
         except IOError:
             raise
         logging.debug("File state before parse: %s" % fin)
-        get_lines = get_line(fin, DEF_INDENT=DEF_INDENT)  # TODO: weird
-        line = next(get_lines)
+        lines = get_line(fin, DEF_INDENT=DEF_INDENT)
+        line = next(lines)
         while line:
-            block, line = read_yaml_config_block(line, fin, get_lines)
+            block, line = read_yaml_config_block(line, fin, lines)
             block = convert_dash_key_in_dict(block)
             for k in block:
                 block[k] = convert_dash_key_in_dict(block[k])
@@ -263,7 +263,6 @@ def process_line(list_line, fin, get_lines, parent_container):
             return {parent_key: [{key.rstrip(":"): new_container}]}, new_container  # list
 
         elif ": " in container:  # key: '-'               - testkey: testvalue
-            parent_key = key
             key, container = container.split(None, 1)
             # container = [container[1:-1]] if container.startswith('[') else container
             container = container[1:-1].split(", ") if container.startswith("[") else container

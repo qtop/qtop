@@ -10,8 +10,7 @@
 
 """Tests for ``DemoBatchSystem.get_jobs_info``.
 
-The method used to build four parallel lists by hand, with a TODO noting they
-"have to be of the same length". They are now projected from a single list of
+The method used to build four parallel lists by hand. They are now projected from a single list of
 ``_JobInfo`` records, so the equal-length invariant holds by construction. The
 public return contract (four lists, same order) is unchanged; these tests pin
 both the invariant and the exact mapping.

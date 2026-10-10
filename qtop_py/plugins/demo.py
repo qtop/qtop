@@ -8,11 +8,12 @@
 ## SPDX-License-Identifier: MIT
 ##
 
-import random
 import itertools
+import random
 import time
-from qtop_py.serialiser import GenericBatchSystem
 from collections import defaultdict, namedtuple
+
+from qtop_py.serialiser import GenericBatchSystem
 
 WORKER_NODES = 80
 QUEUES = "urgent transfer batch".split()
@@ -26,8 +27,7 @@ NODE_FAILURE_PROBABILITY = 0.01
 QUEUE_STATE_CHANGE_PROBABILITY = 0.05
 
 # A single running-job record. Grouping the four attributes keeps the parallel
-# result lists returned by get_jobs_info() the same length by construction
-# (resolves the long-standing "make a tuple out of them" TODO there).
+# result lists returned by get_jobs_info() the same length by construction.
 _JobInfo = namedtuple("_JobInfo", ["job_id", "username", "job_state", "queue_name"])
 
 
@@ -232,9 +232,8 @@ class DemoBatchSystem(GenericBatchSystem):
 
         Each job's attributes are gathered into a single ``_JobInfo`` tuple, so
         the four parallel lists below cannot drift out of sync -- they are all
-        projected from the same list of records. This resolves the long-standing
-        "maybe make a tuple out of them" TODO without changing the public return
-        contract: four equal-length lists in the order
+        projected from the same list of records. The public contract remains
+        four equal-length lists in the order
         (job_ids, usernames, job_states, queue_names).
         """
         jobs = []

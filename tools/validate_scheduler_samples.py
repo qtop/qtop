@@ -24,7 +24,6 @@ import sys
 import tempfile
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 ANSI_SGR_RE = re.compile(r"\x1b\[([0-9;]*)m")
 ANSI_RE = ANSI_SGR_RE

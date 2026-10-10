@@ -2,6 +2,8 @@
 
 ## 0.9.20261007
 
+- Packaging: drop the redundant `setup.py`; `pyproject.toml` is now the sole package configuration.
+- Security: remove persisted checkout credentials from all workflows and add standalone `make zizmor` audit/fix targets.
 - CI: update modern Python lanes to pytest 9.1.1 while retaining the Python 3.9 compatibility pin.
 - CI: add required CodeQL SAST and `ty` type-check jobs with concise diagnostics.
 - Security: add a reproducible parser stress harness and prepare tokenless PyPI Trusted Publishing.
@@ -14,7 +16,7 @@
 - Bugfix: tolerate concurrent removal of stale output files, fixing #308.
 - Feature enhancement: accept a scheduler output file for `-s` by using its parent directory, fixing #291.
 - Feature enhancement: add opt-in primary Unix group display with `--show-groups`, addressing #299.
-- CI: cover Python 3.9 and 3.15 prereleases in pull requests, restore the verified legacy nightly lanes, retry stale APT metadata, and add PyPy 3.11 v8.0.0, fixing #546.
+- CI: cover Python 3.9 and stable Python 3.15.0 in pull requests, align nightlies with the stable 3.15 image, restore legacy lanes, retry stale APT metadata, and add PyPy 3.11 v8.0.0, fixing #546.
 
 ## 0.9.20261001
 

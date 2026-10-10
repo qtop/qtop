@@ -23,3 +23,4 @@ def test_contrib_queue_counts_remain_numeric_while_aggregating():
     assert isinstance(total_running, int)
     assert isinstance(total_queued, int)
     assert total_running == sum(int(queue["run"]) for queue in queues)
+    assert next(queue for queue in queues if queue["queue_name"] == "Pending")["state"] == "E"

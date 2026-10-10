@@ -1,9 +1,12 @@
 .DEFAULT_GOAL := help
 
-.PHONY: help all rerun clean ci-deps test coverage coverage-xml sample-gate backend-validation backend-colour-artifacts render-backends trace-export-validation test-pbs-samples test-slurm-samples deterministic-fuzz fortifications repo-sanity code-quality license-report type-check ruff-check lint lint-fix format-check format-fix compat-py36 ci nightly-ci github-ci gitlab-ci build github-build gitlab-build dist version confirm
+.PHONY: help all rerun clean ci-deps test coverage coverage-xml sample-gate backend-validation backend-colour-artifacts render-backends trace-export-validation test-pbs-samples test-slurm-samples deterministic-fuzz fortifications repo-sanity code-quality license-report type-check ruff-check lint lint-fix format-check format-fix zizmor zizmor-fix compat-py36 ci nightly-ci github-ci gitlab-ci build github-build gitlab-build dist version confirm
 
 PYTHON ?= python3
 PIP ?= $(PYTHON) -m pip
+UVX ?= uvx
+ZIZMOR ?= $(UVX) --quiet zizmor
+ZIZMOR_FLAGS ?= -qq --offline --no-progress --color never --render-links never --show-audit-urls never
 SAMPLE_GATE_SCHEDULERS ?= pbs,sge,slurm,oar,demo
 SAMPLE_GATE_MAX_FAILURES ?= 0
 SAMPLE_GATE_ARTIFACT_DIR ?= artifacts/sample-gate
@@ -123,6 +126,12 @@ format-check: ## Check ruff formatting and branch diff whitespace
 
 format-fix: ## Auto-format Python files with ruff
 	$(PYTHON) -m ruff format .
+
+zizmor: ## Audit GitHub Actions workflows independently
+	@$(ZIZMOR) $(ZIZMOR_FLAGS) .github/
+
+zizmor-fix: ## Apply zizmor's safe workflow fixes independently
+	@$(ZIZMOR) $(ZIZMOR_FLAGS) --fix=safe .github/
 
 compat-py36: ## Run dependency-light Python 3.6 compatibility checks
 	find qtop_py tools -name '*.py' -print | xargs $(PYTHON) -m py_compile
