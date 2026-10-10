@@ -34,9 +34,10 @@ jobs:
         include:
           - python-version: '3.9'
           - python-version: '3.12.3'
-          - python-version: '3.15.0'
-            # setup-python's binary manifest may lag the language release.
-            experimental: true
+          # FIXME: Re-enable Python 3.15 once setup-python provides a reliable
+          # binary so this lane no longer leaves pull requests unmergeable.
+          # - python-version: '3.15.0'
+          #   experimental: true
     env:
       FORTIFY_BASE_REF: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || 'origin/develop' }}
     steps:
