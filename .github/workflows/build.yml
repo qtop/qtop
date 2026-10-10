@@ -34,7 +34,8 @@ jobs:
         include:
           - python-version: '3.9'
           - python-version: '3.12.3'
-          - python-version: '3.15'
+          - python-version: '3.15.0'
+            # setup-python's binary manifest may lag the language release.
             experimental: true
     env:
       FORTIFY_BASE_REF: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || 'origin/develop' }}
@@ -45,7 +46,6 @@ jobs:
       - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: ${{ matrix.python-version }}
-          allow-prereleases: true
       - run: make ci-deps PYTHON=python
       - run: make github-ci PYTHON=python
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

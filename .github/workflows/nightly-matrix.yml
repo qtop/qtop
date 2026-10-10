@@ -6,7 +6,7 @@
 ## SPDX-License-Identifier: MIT
 ##
 # Nightly interpreter/distro compatibility matrix (#488): 38 catalogued lanes covering
-# CPython 3.6 through 3.15-rc plus PyPy across Debian, Ubuntu, AlmaLinux,
+# CPython 3.6 through stable 3.15 plus PyPy across Debian, Ubuntu, AlmaLinux,
 # Rocky, CentOS Stream, Oracle Linux, Fedora, openSUSE, Amazon Linux and Arch.
 # Every lane routes through ci/scripts/matrix_lane.sh and the Makefile
 # contract, mirroring ci/nightly-matrix.gitlab-ci.yml with the same lane
@@ -14,7 +14,7 @@
 #
 # Lane targets are git-free on purpose: the nightly matrix watches
 # interpreter/runtime drift; diff-health checks stay in MR/PR pipelines.
-# Experimental lanes (prerelease interpreters, EOL-archived or rolling
+# Experimental lanes (newly published interpreters, EOL-archived or rolling
 # distros) never fail the workflow.
 #
 # Findings from the first live runs (2026-06-11) and how they were resolved:
@@ -89,9 +89,10 @@ jobs:
           - { image: 'opensuse/leap:15.6', family: suse, pkgs: 'python311,python311-pip', pybin: python3.11 }
           - { image: 'amazonlinux:2023', family: amazon, pkgs: 'python3,python3-pip' }
           - { image: 'amazonlinux:2023', family: amazon, pkgs: 'python3.12,python3.12-pip', pybin: python3.12 }
-          # -- experimental lanes: prerelease / EOL-archived / rolling ------
+          # -- experimental lanes: EOL-archived / newly published / rolling -
           - { image: 'python:3.6-buster', family: pythonimg, pybin: python, target: compat-py36, experimental: true }
-          - { image: 'python:3.15-rc', family: pythonimg, pybin: python, experimental: true }
+          # Keep non-blocking until the stable Docker tag is published and green.
+          - { image: 'python:3.15-bookworm', family: pythonimg, pybin: python, experimental: true }
           ## FIXME - { image: 'pypy:3.9', family: pypyimg, pybin: pypy3, experimental: true }
           - { image: 'pypy:3.12', family: pypyimg, pybin: pypy3, experimental: true }
           - { image: 'pypy:3.11', family: pypyimg, pybin: pypy3, experimental: true }

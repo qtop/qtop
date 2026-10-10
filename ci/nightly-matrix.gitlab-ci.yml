@@ -7,7 +7,7 @@
 ##
 # Nightly concern: interpreter/distro compatibility matrix (#488).
 #
-# 38 lanes covering CPython 3.6 through 3.15-rc plus PyPy across Debian,
+# 38 lanes covering CPython 3.6 through stable 3.15 plus PyPy across Debian,
 # Ubuntu, AlmaLinux, Rocky, CentOS Stream, Oracle Linux, Fedora, openSUSE,
 # Amazon Linux and Arch, all routed through ci/scripts/matrix_lane.sh and the
 # Makefile contract. The lane list mirrors
@@ -20,7 +20,7 @@
 # A manual web-triggered pipeline with NIGHTLY_MATRIX=1 runs the same lanes
 # on demand. Regular branch/MR pipelines never run these jobs.
 #
-# Stable lanes gate the pipeline; experimental lanes (prerelease
+# Stable lanes gate the pipeline; experimental lanes (newly published
 # interpreters, EOL-archived or rolling distros) are allow_failure.
 
 .nightly-lane-base:
@@ -129,7 +129,8 @@ nightly-matrix-experimental:
         PKGS: '-'
         PYBIN: python
         TARGET: compat-py36
-      - IMAGE: 'python:3.15-rc'
+      # Keep non-blocking until the stable Docker tag is published and green.
+      - IMAGE: 'python:3.15-bookworm'
         FAMILY: pythonimg
         PKGS: '-'
         PYBIN: python

@@ -14,7 +14,7 @@
 - Bugfix: tolerate concurrent removal of stale output files, fixing #308.
 - Feature enhancement: accept a scheduler output file for `-s` by using its parent directory, fixing #291.
 - Feature enhancement: add opt-in primary Unix group display with `--show-groups`, addressing #299.
-- CI: cover Python 3.9 and 3.15 prereleases in pull requests, restore the verified legacy nightly lanes, retry stale APT metadata, and add PyPy 3.11 v8.0.0, fixing #546.
+- CI: cover Python 3.9 and stable Python 3.15.0 in pull requests, align nightlies with the stable 3.15 image, restore legacy lanes, retry stale APT metadata, and add PyPy 3.11 v8.0.0, fixing #546.
 
 ## 0.9.20261001
 
