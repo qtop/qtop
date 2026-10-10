@@ -3,6 +3,7 @@
 ## 0.9.20261007
 
 - Packaging: drop the redundant `setup.py`; `pyproject.toml` is now the sole package configuration.
+- Security: remove persisted checkout credentials from all workflows and add standalone `make zizmor` audit/fix targets.
 - CI: update modern Python lanes to pytest 9.1.1 while retaining the Python 3.9 compatibility pin.
 - CI: add required CodeQL SAST and `ty` type-check jobs with concise diagnostics.
 - Security: add a reproducible parser stress harness and prepare tokenless PyPI Trusted Publishing.
