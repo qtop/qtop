@@ -263,7 +263,6 @@ def process_line(list_line, fin, get_lines, parent_container):
             return {parent_key: [{key.rstrip(":"): new_container}]}, new_container  # list
 
         elif ": " in container:  # key: '-'               - testkey: testvalue
-            parent_key = key
             key, container = container.split(None, 1)
             # container = [container[1:-1]] if container.startswith('[') else container
             container = container[1:-1].split(", ") if container.startswith("[") else container

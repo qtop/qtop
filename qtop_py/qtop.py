@@ -928,8 +928,6 @@ def wait_for_keypress_or_autorefresh(viewport, FALLBACK_TERMSIZE, KEYPRESS_TIMEO
     This will make qtop wait for user input for a while,
     otherwise it will auto-refresh the display
     """
-    _read_char = "R"  # initial value, resets view position to beginning
-
     while sys.stdin in select.select([sys.stdin], [], [], KEYPRESS_TIMEOUT)[0]:
         _read_char = sys.stdin.read(1)
         if _read_char:
