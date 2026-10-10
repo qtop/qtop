@@ -13,11 +13,12 @@ try:
     import ujson as json
 except ImportError:
     import json
+import itertools
 import logging
 import re
-from qtop_py.serialiser import StatExtractor, GenericBatchSystem
+
 import qtop_py.fileutils as fileutils
-import itertools
+from qtop_py.serialiser import GenericBatchSystem, StatExtractor
 
 
 class PBSStatExtractor(StatExtractor):
@@ -206,11 +207,11 @@ class PBSStatExtractor(StatExtractor):
                 qstatq_values["queue_name"] = queue_name
                 qstatq_values["run"] = queue["state_count"].split(" ")[4].split(":")[1]
                 qstatq_values["queued"] = queue["state_count"].split(" ")[1].split(":")[1]
-                qstatq_values["lm"] = "--"  # TODO: find value in json
-                qstatq_values["state"] = "E" if queue["enabled"] == "True" else "D"
+                qstatq_values["lm"] = str(queue.get("max_run", queue.get("max_running", "--")))
+                qstatq_values["state"] = "E" if str(queue["enabled"]).lower() == "true" else "D"
                 all_qstatq_values.append(qstatq_values)
-            total_running_jobs = sum([int(item["run"]) for item in all_qstatq_values])
-            total_queued_jobs = sum([int(item["queued"]) for item in all_qstatq_values])
+            total_running_jobs = sum(int(item["run"]) for item in all_qstatq_values)
+            total_queued_jobs = sum(int(item["queued"]) for item in all_qstatq_values)
             all_qstatq_values.append({"Total_running": total_running_jobs, "Total_queued": total_queued_jobs})
         return all_qstatq_values
 
@@ -333,7 +334,8 @@ class PBSBatchSystem(GenericBatchSystem):
             if ("," in core) or ("-" in core):  # job id with subjobs
                 for subcore, subjob in PBSBatchSystem.get_corejob_from_range(core, job):
                     subjob = subjob.strip().split("/")[0].split(".")[0]
-                    yield subjob, subcore  # TODO: int or no int?
+                    # Core identifiers stay as strings, matching the non-range branch.
+                    yield subjob, subcore
             else:  # job id without subjobs
                 job = job.strip().split("/")[0].split(".")[0]
                 job = re.sub(r"\[\d*\]$", "", job)

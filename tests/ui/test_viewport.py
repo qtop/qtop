@@ -1,5 +1,6 @@
-from qtop_py.ui.viewport import Viewport
 import pytest
+
+from qtop_py.ui.viewport import Viewport
 
 
 def test_defaults():
@@ -24,19 +25,19 @@ def test_after_scroll_left():
     viewport.max_height = 200
     viewport.scroll_left()
     assert 0 == viewport.h_start
-    assert 176 == viewport.h_stop  # BUG?? or assert(10 == viewport.h_stop) is a BUG
+    assert 176 == viewport.h_stop
     assert 0 == viewport.v_start
     assert 53 == viewport.v_stop
 
 
-def test_after_scroll_right_UNUSED():  # FIXME: cleanup as such
+def test_after_scroll_right_moves_half_a_page():
     viewport = Viewport()
     viewport.set_term_size(53, 176)
     viewport.max_width = 400
     viewport.max_height = 200
     viewport.scroll_right()
-    assert 176 / 2 == viewport.h_start  # corrected behaviour: last element should touch right screen edge, if possible!
-    assert 176 / 2 + 176 == viewport.h_stop  # (not scroll endelessly to the right)
+    assert 176 // 2 == viewport.h_start
+    assert 176 // 2 + 176 == viewport.h_stop
     assert 0 == viewport.v_start
     assert 53 == viewport.v_stop
     assert isinstance(viewport.h_start, int)
@@ -101,7 +102,7 @@ def test_after_scroll_up_no_max_height():
     assert 0 == viewport.h_start
     assert 176 == viewport.h_stop
     assert 0 == viewport.v_start  # Looks good - didn't change
-    assert 53 == viewport.v_stop  # BUG? Should this change now? Why was it 50 before? Did anything really change?
+    assert 53 == viewport.v_stop
 
 
 def test_after_scroll_down_no_max_height():

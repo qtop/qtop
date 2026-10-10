@@ -11,6 +11,7 @@
 """Regression tests for ``qtop.calculate_term_size`` fallbacks."""
 
 import pytest
+
 import qtop_py.qtop as qtop
 
 

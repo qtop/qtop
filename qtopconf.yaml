@@ -42,6 +42,14 @@ signature_commands:
   slurm: sinfo
   demo: echo
 
+## Symbols used to summarize the resource states reported for an OAR node.
+oar_node_state_mappings:
+  Alive: '-'
+  Dead: d
+  Suspected: s
+  Mixed: '%'
+  Unknown: '?'
+
 ## Utilises lxml module. Needs to be installed in your system.
 ## Might result in segmentation fault in some systems.
 faster_xml_parsing: False
@@ -225,7 +233,6 @@ filtering:
  # - or_include_name_patterns: 
    # - ^da-p[67]
    # - ^da-p8
- # - ranges_out: 1-12, 30-42 # TODO, not working
 
 ## Highlight selected usernames (regex expression), userIDs, and/or Queues
 
@@ -255,8 +262,6 @@ vertical_separator: '|'
 vertical_separator_every_X_columns: 0
 ## Put vertical_separator in case of overspill (SGE systems only).
 separator_after_overspill: True
-## TODO (not implemented)
-overspill_separator: '*'
 
 workernodes_matrix:
  - wn id lines:
@@ -274,7 +279,7 @@ workernodes_matrix:
        5: ['={________}', '={________}', '={_Worker_}', '={__Node__}', '={___ID___}']
        6: ['={________}', '={________}', '={________}', '={_Worker_}', '={__Node__}', '={___ID___}']
        7: ['={________}', '={________}', '={________}', '={________}', '={_Worker_}', '={__Node__}', '={___ID___}']
-     ## native yaml parser BUG/TODO: two consecutive unindents are not allowed. Must have an unindented key-value after nested keys:
+     ## Alternate colors used for worker-node ID label rows.
      alt_label_colors: [White, Blue_L]
 # - temperature:  # not working, for illustrative purposes
 #     yaml key: temperature  # how it's found in the yaml file

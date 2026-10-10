@@ -9,24 +9,26 @@
 ## SPDX-License-Identifier: MIT
 ##
 
-import pytest
-import re
 import datetime
+import re
 import sys
 from pathlib import Path
 from types import SimpleNamespace
+
+import pytest
+
 from qtop_py import qtop as qtop_module
 from qtop_py import utils as qtop_utils
 from qtop_py.constants import SYMBOL_LONG_TAIL_USER, SYMBOL_UNKNOWN_NODE_STATE
 from qtop_py.qtop import (
+    JobNotFound,
+    NoSchedulerFound,
+    SchedulerNotSpecified,
+    TextDisplay,
     WNOccupancy,
     decide_batch_system,
-    JobNotFound,
-    SchedulerNotSpecified,
-    NoSchedulerFound,
     get_date_obj_from_str,
     get_output_size,
-    TextDisplay,
     init_dirs,
 )
 
@@ -500,6 +502,44 @@ def test_available_possible_ids_filters_reserved_user_symbols():
     config = user_symbol_config(possible_ids=SYMBOL_POSSIBLE_IDS_WITH_RESERVED)
 
     assert qtop_module._available_possible_ids(config) == ["0", "1"]
+
+
+def test_compress_colored_line_groups_adjacent_colors_and_accepts_empty_input():
+    red = "\x1b[31m"
+    blue = "\x1b[34m"
+    reset = "\x1b[0;m"
+
+    assert qtop_module.compress_colored_line("") == ""
+    assert qtop_module.compress_colored_line(red + "A" + reset + red + "B" + reset + blue + "C" + reset) == red + "AB" + reset + blue + "C" + reset
+
+
+def test_normalize_config_returns_a_runtime_copy():
+    raw_config = {
+        "possible_ids": "01",
+        "transpose_wn_matrices": "False",
+        "fill_with_user_firstletter": "True",
+        "faster_xml_parsing": "False",
+        "vertical_separator_every_X_columns": "5",
+        "overwrite_sample_file": "False",
+        "sorting": {"reverse": "True"},
+        "vertical_separator": "'|'",
+        "workernodes_matrix": [{"wn id lines": {"alt_label_colors": ["White, Blue_L"], "user_cut_matrix_width": "12"}}],
+    }
+
+    normalized = qtop_module.normalize_config(raw_config)
+
+    assert raw_config["possible_ids"] == "01"
+    assert raw_config["sorting"]["reverse"] == "True"
+    assert normalized["possible_ids"] == ["0", "1"]
+    assert normalized["sorting"]["reverse"] is True
+    assert normalized["ALT_LABEL_COLORS"] == ["White", "Blue_L"]
+    assert normalized["SEPARATOR"] == "|"
+    assert normalized["USER_CUT_MATRIX_WIDTH"] == 12
+
+
+@pytest.mark.parametrize(("state", "blocked"), (("D", True), ("DS", True), ("E", False), ("Q", False)))
+def test_queue_is_blocked(state, blocked):
+    assert qtop_module.queue_is_blocked(state) is blocked
 
 
 def test_load_yaml_config_keeps_user_symbol_pool_bounded(monkeypatch, tmp_path):

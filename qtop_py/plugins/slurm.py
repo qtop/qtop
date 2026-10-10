@@ -15,7 +15,6 @@ from collections import OrderedDict
 import qtop_py.fileutils as fileutils
 from qtop_py.serialiser import GenericBatchSystem, StatExtractor
 
-
 SLURM_JOB_STATES = {
     "BOOT_FAIL": "BF",
     "CANCELLED": "CA",

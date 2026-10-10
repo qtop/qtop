@@ -33,6 +33,20 @@ def test_init_sample_file_adds_config_and_python_sources(tmp_path):
         assert set(saved_archive.getnames()) == {"qtopconf.yaml", "qtop_py/example.py"}
 
 
+def test_add_to_sample_logs_and_skips_archive_errors(caplog):
+    class BrokenArchive:
+        def add(self, *_args, **_kwargs):
+            raise tarfile.TarError("damaged archive")
+
+    archive = BrokenArchive()
+    with caplog.at_level("ERROR"):
+        result = fileutils.add_to_sample(["scheduler-output.txt"], archive)
+
+    assert result is archive
+    assert "scheduler-output.txt" in caplog.text
+    assert "damaged archive" in caplog.text
+
+
 def test_deprecate_old_output_files_ignores_concurrent_removal(monkeypatch, tmp_path):
     monkeypatch.setattr(fileutils.os, "listdir", lambda path: ["stale.out"])
 

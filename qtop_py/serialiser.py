@@ -8,11 +8,11 @@
 ## SPDX-License-Identifier: MIT
 ##
 
+import logging
 import re
 
 ##import sys
 from itertools import count
-import logging
 
 from qtop_py.cluster_state import build_cluster_state
 

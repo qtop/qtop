@@ -11,9 +11,10 @@
 __author__ = "sfranky"
 import logging
 import sys
-from qtop_py.serialiser import StatExtractor, GenericBatchSystem
 from xml.etree import ElementTree as etree
+
 import qtop_py.fileutils as fileutils
+from qtop_py.serialiser import GenericBatchSystem, StatExtractor
 
 
 class SGEStatExtractor(StatExtractor):
@@ -78,8 +79,7 @@ class SGEStatExtractor(StatExtractor):
 
     def _extract_job_info(self, all_values, elem, elem_text, queue_name):
         """
-        inside elem, iterates over subelems named elem_text and extracts relevant job information
-        TODO: check difference between extract_job_info and _extract_job_info
+        Extract scheduler job records from an XML element into ``all_values``.
         """
         for subelem in elem.findall(elem_text):
             owner = subelem.find("./JB_owner").text = self.anonymize(subelem.find("./JB_owner").text, "users")
@@ -133,9 +133,8 @@ class SGEBatchSystem(GenericBatchSystem):
 
         total_queued_jobs = self._get_total_queued_jobs("job_info/job_list", root)
 
-        qstatq_list.append({"run": "0", "queued": total_queued_jobs, "queue_name": "Pending", "state": "Q", "lm": "0"})
+        qstatq_list.append({"run": "0", "queued": total_queued_jobs, "queue_name": "Pending", "state": "E", "lm": "0"})
         logging.debug("qstatq_list contains %s elements" % len(qstatq_list))
-        # TODO: check validity. 'state' shouldnt just be 'Q'!
         logging.debug("Closing %s" % self.sge_file)
 
         return total_running_jobs, int(total_queued_jobs), qstatq_list
@@ -153,7 +152,7 @@ class SGEBatchSystem(GenericBatchSystem):
             worker_node["state"] = self._get_state(queue_elem)
 
             if worker_node["domainname"] not in existing_node_names:
-                job_ids, _, _ = self._extract_job_info(queue_elem, "job_list")
+                job_ids, _, _ = self._extract_running_job_info(queue_elem, "job_list")
                 worker_node["core_job_map"] = dict((idx, job_id) for idx, job_id in enumerate(job_ids))
                 worker_node["existing_busy_cores"] = len(worker_node["core_job_map"])
                 worker_node["np"] = max(int(worker_node["np"]), len(worker_node["core_job_map"]))
@@ -165,7 +164,7 @@ class SGEBatchSystem(GenericBatchSystem):
                     if worker_node["domainname"] != existing_wn["domainname"]:
                         continue
 
-                    job_ids, _, _ = self._extract_job_info(queue_elem, "job_list")
+                    job_ids, _, _ = self._extract_running_job_info(queue_elem, "job_list")
                     core_jobs = dict((idx, job_id) for idx, job_id in enumerate(job_ids, existing_wn["existing_busy_cores"]))
                     existing_wn["core_job_map"].update(core_jobs)
                     existing_wn["existing_busy_cores"] = len(existing_wn["core_job_map"])
@@ -189,21 +188,9 @@ class SGEBatchSystem(GenericBatchSystem):
         return existing_wns
 
     def get_jobs_info(self):
-        job_ids, usernames, job_states, queue_names = [], [], [], []
-
         all_values = self.sge_stat_maker.extract_qstat(self.sge_file)
-        # TODO: needs better glueing
-        for qstat in all_values:
-            job_id = str(qstat["JobId"])
-            job_id = self.anonymize(job_id, "jobnums")
-            job_ids.append(job_id)
-            unix_account = qstat["UnixAccount"]
-            unix_account = self.anonymize(unix_account, "users")
-            usernames.append(unix_account)
-            job_states.append(qstat["S"])
-            q_name = qstat["Queue"]
-            q_name = self.anonymize(q_name, "qs")
-            queue_names.append(q_name)
+        records = [(str(qstat["JobId"]), qstat["UnixAccount"], qstat["S"], qstat["Queue"]) for qstat in all_values]
+        job_ids, usernames, job_states, queue_names = map(list, zip(*records)) if records else ([], [], [], [])
 
         logging.debug(
             "job_ids, usernames, job_states, queue_names lengths: "
@@ -212,10 +199,9 @@ class SGEBatchSystem(GenericBatchSystem):
         )
         return job_ids, usernames, job_states, queue_names
 
-    def _extract_job_info(self, elem, elem_text):
+    def _extract_running_job_info(self, elem, elem_text):
         """
-        inside elem, iterates over subelems named elem_text and extracts relevant job information
-        TODO: check difference between extract_job_info and _extract_job_info
+        Extract running jobs used to construct a worker node's core map.
         """
         job_ids, usernames, job_states = [], [], []
         for subelem in elem.findall(elem_text):

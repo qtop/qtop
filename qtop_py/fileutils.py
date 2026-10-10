@@ -1,12 +1,12 @@
 import contextlib
+import datetime
+import errno
+import glob
 import logging
 import os
-import errno
-import tempfile
-import tarfile
 import sys
-import glob
-import datetime
+import tarfile
+import tempfile
 
 
 def mkdir_p(path):
@@ -80,8 +80,8 @@ def add_to_sample(filepaths_to_add, sample_out, sample_method=tarfile, subdir=No
         try:
             logging.debug("Adding %s to sample..." % filepath_to_add)
             sample_out.add(filepath_to_add, arcname=fn if not subdir else os.path.join(subdir, fn))
-        except tarfile.TarError:  # TODO: test what could go wrong here
-            logging.error("There seems to be something wrong with the tarfile. Skipping...")
+        except (OSError, tarfile.TarError) as error:
+            logging.error("Could not add %s to the sample archive; skipping it: %s", filepath_to_add, error)
     # else:
     # logging.debug('Closing sample...')
     # sample_out.close()

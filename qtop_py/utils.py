@@ -11,6 +11,7 @@
 import logging
 import sys
 from argparse import ArgumentParser
+
 from qtop_py import fileutils
 from qtop_py.constants import QTOP_LOGFILE
 
@@ -38,11 +39,11 @@ def init_logging(options):
     fh.setFormatter(formatter)
     logger.addHandler(fh)
 
-    fh = logging.StreamHandler()
-    fh.setLevel(logging.ERROR)
-    fh.setFormatter(formatter)
-    logger.addHandler(fh)
-    logger.disabled = False  # TODO: maybe make this a cmdline switch? -D ?
+    stream_handler = logging.StreamHandler()
+    stream_handler.setLevel(logging.DEBUG if options.DEBUG else logging.ERROR)
+    stream_handler.setFormatter(formatter)
+    logger.addHandler(stream_handler)
+    logger.disabled = False
 
     logging.info("\n" + "=" * 50 + "STARTING NEW LOG ENTRY..." + "=" * 50 + "\n\n")
 
@@ -72,15 +73,13 @@ def parse_qtop_cmdline_args():
         default=False,
         help="This may be used in situations where node names are not a pure arithmetic seq (e.g. rocks clusters)",
     )
-    # TODO . Must also anonymise input files, or at least exclude them from the tarball.
     parser.add_argument(
         "-A",
         "--anonymize",
         action="store_true",
         dest="ANONYMIZE",
         default=False,
-        help="Masks unix account names and workernode names for security reasons (sending bug reports etc)."
-        "Temporarily NOT to be used, as scheduler input files are not anonymised yet.",
+        help="Mask account, job, queue, and worker-node identifiers. Raw scheduler files are omitted from anonymized sample archives.",
     )
     parser.add_argument("-b", "--batchSystem", action="store", dest="BATCH_SYSTEM", default=None)
     parser.add_argument(
@@ -212,8 +211,6 @@ def parse_qtop_cmdline_args():
         help="Create a sample file. A single L creates a tarball with the log, scheduler output files, "
         "qtop output. Two L's additionaly include the qtop_conf yaml file, and qtop qtop_py.",
     )
-    # parser.add_argument("-f", "--setCOLORMAPFILE", action="store", dest="COLORFILE")  # TODO
-
     args = parser.parse_args()
     return args
 

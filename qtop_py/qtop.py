@@ -15,19 +15,18 @@
 ## SPDX-License-Identifier: MIT
 ##
 
-import sys
-
-from operator import itemgetter
-from itertools import zip_longest, cycle
-import subprocess
-import shutil
-import select
+import datetime
+import json
 import os
 import re
-import json
-import datetime
-from collections import namedtuple, OrderedDict, Counter
+import select
+import shutil
+import subprocess
+import sys
+from collections import Counter, OrderedDict, namedtuple
 from functools import lru_cache
+from itertools import cycle, groupby, zip_longest
+from operator import itemgetter
 from signal import SIG_DFL, signal
 
 try:
@@ -41,32 +40,33 @@ except ImportError:
 import contextlib
 import copy
 import glob
-import tempfile
 import logging
+import tempfile
+import time
 from ast import literal_eval
+from math import ceil
+
+from qtop_py import __version__, fileutils, utils
+from qtop_py import yaml_parser as yaml
+from qtop_py.cluster_state import cluster_state_totals, validate_cluster_state
+from qtop_py.colormap import color_to_code, nodestate_to_color_default, queue_to_color, user_to_color_default
 from qtop_py.constants import (
-    SYSTEMCONFDIR,
-    QTOPCONF_YAML,
-    QTOP_LOGFILE,
-    USERPATH,
-    KEYPRESS_TIMEOUT,
     FALLBACK_TERMSIZE,
+    KEYPRESS_TIMEOUT,
+    QTOP_LOGFILE,
+    QTOPCONF_YAML,
     SYMBOL_LONG_TAIL_USER,
     SYMBOL_UNKNOWN_NODE_STATE,
+    SYSTEMCONFDIR,
+    USERPATH,
 )
-from qtop_py import fileutils, utils, yaml_parser as yaml
-from qtop_py.cluster_state import cluster_state_totals, validate_cluster_state
 from qtop_py.plugins.demo import DemoBatchSystem
 from qtop_py.plugins.oar import OARBatchSystem
 from qtop_py.plugins.pbs import PBSBatchSystem
 from qtop_py.plugins.sge import SGEBatchSystem
 from qtop_py.plugins.slurm import SlurmBatchSystem
-from math import ceil
-from qtop_py.colormap import user_to_color_default, color_to_code, queue_to_color, nodestate_to_color_default
 from qtop_py.ui.viewport import Viewport
 from qtop_py.web import Web
-from qtop_py import __version__
-import time
 
 here = sys.path[0]
 PLUGIN_BATCH_SYSTEMS = (DemoBatchSystem, OARBatchSystem, PBSBatchSystem, SGEBatchSystem, SlurmBatchSystem)
@@ -113,29 +113,26 @@ def _available_possible_ids(config):
     return [symbol for symbol in config["possible_ids"] if symbol not in reserved_symbols]
 
 
-# TODO make the following work with py files instead of qtop.colormap files
-def compress_colored_line(s):
-    ## TODO: black sheep
-    t = [item for item in re.split(r"\x1b\[0;m", s) if item != ""]
+def _reserved_pattern_mappings(config):
+    """Return display symbols that must never be interpreted as user patterns."""
+    return {
+        config["non_existent_node_symbol"]: "#",
+        "_": "_",
+        SYMBOL_LONG_TAIL_USER: "account_not_colored",
+        config["SEPARATOR"]: "account_not_colored",
+    }
 
-    sts = []
-    st = []
-    colors = []
-    prev_code = t[0][:-1]
-    colors.append(prev_code)
-    for code_letter in t:
-        code, letter = code_letter[:-1], code_letter[-1]
-        if prev_code == code:
-            st.append(letter)
-        else:
-            sts.append(st)
-            st = []
-            st.append(letter)
-            colors.append(code)
-        prev_code = code
-    sts.append(st)
 
-    return "".join(color + "".join(seq) + "\x1b[0;m" for color, seq in zip(colors, sts))
+def queue_is_blocked(state):
+    """Return whether a normalized scheduler queue state denotes blocking."""
+    state = str(state)
+    return state.startswith("D") or state.endswith("S")
+
+
+def compress_colored_line(value):
+    """Coalesce adjacent characters that use the same ANSI color code."""
+    color_char_pairs = [item for item in re.split(r"\x1b\[0;m", value) if item]
+    return "".join(color + "".join(item[-1] for item in items) + "\x1b[0;m" for color, items in groupby(color_char_pairs, key=lambda item: item[:-1]))
 
 
 def literal_config_value(value):
@@ -143,6 +140,26 @@ def literal_config_value(value):
         return literal_eval(value)
     except (ValueError, SyntaxError, TypeError):
         return value
+
+
+def normalize_config(raw_config):
+    """Return a runtime-ready configuration without mutating parser output."""
+    config = copy.deepcopy(raw_config)
+    config["possible_ids"] = list(config["possible_ids"])
+    for key in (
+        "transpose_wn_matrices",
+        "fill_with_user_firstletter",
+        "faster_xml_parsing",
+        "vertical_separator_every_X_columns",
+        "overwrite_sample_file",
+    ):
+        config[key] = literal_config_value(config[key])
+    config["sorting"]["reverse"] = literal_config_value(config["sorting"].get("reverse", "0"))
+    wn_id_lines = config["workernodes_matrix"][0]["wn id lines"]
+    config["ALT_LABEL_COLORS"] = yaml.fix_config_list(wn_id_lines["alt_label_colors"])
+    config["SEPARATOR"] = config["vertical_separator"].replace("'", "")
+    config["USER_CUT_MATRIX_WIDTH"] = int(wn_id_lines["user_cut_matrix_width"])
+    return config
 
 
 def extract_regex_detail(regex, field):
@@ -236,8 +253,6 @@ def load_yaml_config():
     $HOME/.local/qtop/
     in that order.
     """
-    # TODO: conversion to int should be handled internally in native yaml parser
-    # TODO: fix_config_list should be handled internally in native yaml parser
     config = yaml.parse(os.path.join(os.path.realpath(QTOPPATH), QTOPCONF_YAML))
     logging.info("Default configuration dictionary loaded. Length: %s items" % len(config))
 
@@ -281,19 +296,21 @@ def load_yaml_config():
 
     logging.info("Updated main dictionary. Length: %s items" % len(config))
 
-    config["possible_ids"] = list(config["possible_ids"])
+    config = normalize_config(config)
 
     if config["user_color_mappings"]:
         user_to_color = user_to_color_default.copy()
         [user_to_color.update(d) for d in config["user_color_mappings"]]
     else:
         config["user_color_mappings"] = list()
+        user_to_color = user_to_color_default.copy()
 
     if config["nodestate_color_mappings"]:
         nodestate_to_color = nodestate_to_color_default.copy()
         [nodestate_to_color.update(d) for d in config["nodestate_color_mappings"]]
     else:
         config["nodestate_color_mappings"] = list()
+        nodestate_to_color = nodestate_to_color_default.copy()
 
     if config["remapping"]:
         pass
@@ -310,12 +327,6 @@ def load_yaml_config():
         logging.debug("%s files will be saved in directory %s." % (config["scheduler"], _savepath))
     config["savepath"] = _savepath
 
-    for key in ("transpose_wn_matrices", "fill_with_user_firstletter", "faster_xml_parsing", "vertical_separator_every_X_columns", "overwrite_sample_file"):
-        config[key] = literal_config_value(config[key])  # TODO config should not be writeable!!
-    config["sorting"]["reverse"] = literal_config_value(config["sorting"].get("reverse", "0"))  # TODO config should not be writeable!!
-    config["ALT_LABEL_COLORS"] = yaml.fix_config_list(config["workernodes_matrix"][0]["wn id lines"]["alt_label_colors"])
-    config["SEPARATOR"] = config["vertical_separator"].replace("'", "")
-    config["USER_CUT_MATRIX_WIDTH"] = int(config["workernodes_matrix"][0]["wn id lines"]["user_cut_matrix_width"])
     return config, user_to_color, nodestate_to_color
 
 
@@ -556,7 +567,6 @@ def control_qtop(viewport, read_char, cluster, old_attrs, new_attrs):
     if pressed_char_hex in ["6a", "20"]:  # j, spacebar
         logging.debug("v_start: %s" % viewport.v_start)
         if viewport.scroll_down():
-            # TODO  make variable for **s, maybe factorize whole print line
             print("%s Going down..." % colorize("***", "Green_L"))
         else:
             print("%s Staying put" % colorize("***", "Green_L"))
@@ -1023,11 +1033,11 @@ class WNOccupancy(object):
         Number of Extra tables needed is calculated inside the calc_all_wnid_label_lines function below
         """
         if not self.cluster:
-            return self  # TODO fix
+            return
         # document.jobs_dict => job_id: job name/state/queue
 
         self.jobid_to_user_to_queue = dict(zip(self.job_ids, zip(self.user_names, self.job_queues)))
-        self.user_machine_use = self.calculate_user_node_use(self.cluster, self.jobid_to_user_to_queue, self.job_ids, self.user_names, self.job_queues)
+        self.user_machine_use = self.calculate_user_node_use(self.cluster, self.jobid_to_user_to_queue)
 
         user_alljobs_sorted_lot = self._produce_user_lot(self.user_names)
         user_to_id = self._create_id_for_users(user_alljobs_sorted_lot)
@@ -1036,7 +1046,6 @@ class WNOccupancy(object):
         self.account_jobs_table, self.user_to_id = self._create_account_jobs_table(user_to_id, _account_jobs_table)
         self.userid_to_userid_re_pat = self.make_pattern_out_of_mapping(mapping=user_to_color)
 
-        # TODO extract to another class?
         self.print_char_start, self.print_char_stop, self.extra_matrices_nr = self.find_matrices_width()
         self.wn_vert_labels = self.calc_all_wnid_label_lines(dynamic_config["force_names"])
 
@@ -1046,7 +1055,6 @@ class WNOccupancy(object):
                 self.__setattr__(part_name, self.calc_general_mult_attr_line(part_name, yaml_key, config))
 
         self.core_user_map = self._calc_core_matrix(self.user_to_id, self.jobid_to_user_to_queue)
-        return self
 
     def _create_account_jobs_table(self, user_to_id, account_jobs_table):
         for quintuplet in account_jobs_table:
@@ -1175,11 +1183,7 @@ class WNOccupancy(object):
 
             pattern[str(uid)] = account_letters if account_letters in mapping else "NoPattern"
 
-        # TODO: remove these from here
-        pattern[self.config["non_existent_node_symbol"]] = "#"
-        pattern["_"] = "_"
-        pattern[SYMBOL_LONG_TAIL_USER] = "account_not_colored"
-        pattern[self.config["SEPARATOR"]] = "account_not_colored"
+        pattern.update(_reserved_pattern_mappings(self.config))
         return pattern
 
     def find_matrices_width(self, DEADWEIGHT=11):
@@ -1266,7 +1270,7 @@ class WNOccupancy(object):
         if not self.cluster.workernode_dict:
             return OrderedDict()
         try:
-            real_max_len = max([len(self.cluster.workernode_dict[_node][yaml_key]) for _node in self.cluster.workernode_dict])
+            real_max_len = max(len(self.cluster.workernode_dict[_node][yaml_key]) for _node in self.cluster.workernode_dict)
         except KeyError:
             logging.critical(
                 "%s lines in the matrix are not supported for %s systems. Please remove appropriate lines from conf file. Exiting..." % (part_name, config["scheduler"])
@@ -1286,20 +1290,14 @@ class WNOccupancy(object):
         for _node in self.cluster.workernode_dict:
             node_attrs = self.cluster.workernode_dict[_node]
             # distribute state, qname etc to lines
-            for attr_line, ch in zip_longest(multiline_map, node_attrs[yaml_key], fillvalue=" "):
-                try:
-                    if ch == " ":
-                        ch = utils.ColorStr(" ")
-                    elif ch == "?":
-                        ch = utils.ColorStr("?", color="Gray_D")
-                    multiline_map[attr_line].append(ch)
-                except KeyError:
-                    break
-                    # TODO: is this really needed?: self.cluster.workernode_dict[_node]['state_column']
-
-        for line, attr_line in enumerate(multiline_map, 1):
-            if line == user_max_len:
-                break
+            attribute = list(node_attrs[yaml_key][:min_len])
+            attribute.extend(" " for _ in range(min_len - len(attribute)))
+            for attr_line, ch in zip(multiline_map, attribute):
+                if ch == " ":
+                    ch = utils.ColorStr(" ")
+                elif ch == "?":
+                    ch = utils.ColorStr("?", color="Gray_D")
+                multiline_map[attr_line].append(ch)
         return multiline_map
 
     def _calc_core_matrix(self, user_to_id, jobid_to_user_to_queue):
@@ -1439,18 +1437,14 @@ class WNOccupancy(object):
             count += len(just_jobs)
         return count
 
-    def calculate_user_node_use(self, cluster, jobid_to_user_to_queue, job_ids, user_names, job_queues):
+    def calculate_user_node_use(self, cluster, jobid_to_user_to_queue):
         """
         This calculates the number of nodes each user has jobs in (shown in User accounts and pool mappings)
         """
         user_machines = []
-        jobid_to_user_to_queue = dict(zip(job_ids, zip(user_names, job_queues)))
-        # TODO why use variables from outer scope above?
-        for node in cluster.workernode_dict.keys():
-            cluster.workernode_dict[node]["node_user_set"] = set(
-                [jobid_to_user_to_queue[job][0] for job in cluster.workernode_dict[node]["node_job_set"] if jobid_to_user_to_queue.get(job)]
-            )
-            user_machines.extend(list(cluster.workernode_dict[node]["node_user_set"]))
+        for node in cluster.workernode_dict.values():
+            node["node_user_set"] = {jobid_to_user_to_queue[job][0] for job in node["node_job_set"] if job in jobid_to_user_to_queue}
+            user_machines.extend(node["node_user_set"])
 
         return Counter(user_machines)
 
@@ -1633,14 +1627,13 @@ class TextDisplay(object):
                 "{indent}{qname}{star}: {run} {q}|".format(
                     indent="  " if expanded else "",
                     qname=colorize(_queue_name, "", pattern=account, mapping=queue_to_color),
-                    star=colorize("*", "Red_L") if q_tuple.state.startswith("D") or q_tuple.state.endswith("S") else "",
+                    star=colorize("*", "Red_L") if queue_is_blocked(q_tuple.state) else "",
                     run=colorize(q_running_jobs, "", pattern=account, mapping=queue_to_color),
                     q="+ " + colorize(q_queued_jobs, "", account, mapping=queue_to_color) + " " if q_queued_jobs != "0" else "",
                 ),
                 end="\n" if expanded else " ",
             )
         print(colorize("* implies blocked", "Red") + "\n")
-        # TODO unhardwire states from star kwarg
 
     def display_wns_occupancy(self, wns_occupancy, cluster):
         """
@@ -1958,7 +1951,7 @@ class TextDisplay(object):
             _ = process_head.communicate()
         return temp_filename
 
-    def print_mult_attr_line(self, print_char_start, print_char_stop, transposed_matrices, attr_lines, label, color_func=None, **kwargs):
+    def print_mult_attr_line(self, print_char_start, print_char_stop, transposed_matrices, attr_lines, label, color_func=None, **_config_metadata):
         """
         attr_lines can be e.g. Node state lines
         """
@@ -1967,10 +1960,8 @@ class TextDisplay(object):
             transposed_matrices.append(tuple_)
             return
 
-        # TODO: fix option parameter, inserted for testing purposes
         for _line in attr_lines:
             line = attr_lines[_line][print_char_start:print_char_stop]
-            # TODO: maybe put attr_line and label as kwd arguments? collect them as **kwargs
             attr_line = self._insert_separators(line, config["SEPARATOR"], config["vertical_separator_every_X_columns"])
             attr_line = "".join([colorize(char.initial, color_func=char.color) for char in attr_line])
             print(attr_line + "=" + label)
@@ -2411,7 +2402,6 @@ class WNFilter(object):
         }
 
         if filter_rules:
-            # TODO display this somewhere in qtop!
             if WNFilter.report_filtered_view.count() < 2:
                 WNFilter.report_filtered_view()
             nodes = self.worker_nodes[:]
@@ -2558,7 +2548,7 @@ def main():
     with raw_mode(sys.stdin):  # key listener implementation
         try:
             while True:
-                config, user_to_color, nodestate_to_color = load_yaml_config()  # TODO account_to_color is updated here !!
+                config, user_to_color, nodestate_to_color = load_yaml_config()
                 config = update_config_with_cmdline_vars(args, config)
                 savepath = config["savepath"]
                 timestr = time.strftime("%Y%m%dT%H%M%S")
@@ -2654,10 +2644,12 @@ def main():
         finally:
             if args.SAMPLE >= 1 and tar_out is not None:
                 tar_out = fileutils.add_to_sample([QTOP_LOGFILE], tar_out)
-                # add all scheduler output files to sample
-                for fn in scheduler_output_filenames:
-                    if os.path.isfile(scheduler_output_filenames[fn]):
-                        tar_out = fileutils.add_to_sample([scheduler_output_filenames[fn]], tar_out)
+                # Raw scheduler output can contain identifiers that qtop cannot
+                # safely rewrite in every vendor-specific format.
+                if not args.ANONYMIZE:
+                    for fn in scheduler_output_filenames:
+                        if os.path.isfile(scheduler_output_filenames[fn]):
+                            tar_out = fileutils.add_to_sample([scheduler_output_filenames[fn]], tar_out)
                 tar_out.close()
 
 

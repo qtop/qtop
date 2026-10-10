@@ -1,11 +1,13 @@
-from qtop_py.serialiser import StatExtractor, GenericBatchSystem
 import logging
 import os
-
-##import re
-from qtop_py import fileutils, yaml_parser as yaml
-from qtop_py.utils import CountCalls
 from collections import OrderedDict
+
+from qtop_py import fileutils
+from qtop_py import yaml_parser as yaml
+from qtop_py.serialiser import GenericBatchSystem, StatExtractor
+from qtop_py.utils import CountCalls
+
+DEFAULT_NODE_STATE_MAPPING = {"Alive": "-", "Dead": "d", "Suspected": "s", "Mixed": "%", "Unknown": "?"}
 
 
 class OarStatExtractor(StatExtractor):
@@ -68,15 +70,15 @@ class OARBatchSystem(GenericBatchSystem):
                 nodes_jobs.setdefault(node, []).append((resids_jobs[int(resid)], state))
 
         worker_nodes = list()
-        # TODO: make user-tuneable
-        node_state_mapping = {"Alive": "-", "Dead": "d", "Suspected": "s", "Mixed": "%"}
+        node_state_mapping = dict(DEFAULT_NODE_STATE_MAPPING)
+        node_state_mapping.update(self.config.get("oar_node_state_mappings", {}))
         for node in nodes_jobs:
             d = OrderedDict()
             d["domainname"] = node
             nr_of_jobs = len(nodes_jobs[node])
             d["np"] = nr_of_jobs
             d["core_job_map"] = dict((idx, job[0]) for idx, job in enumerate(nodes_jobs[node]) if job[0] is not None and job[0] not in job_discrepancy)
-            d["state"] = self._calculate_oar_state(nodes_jobs[node], nr_of_jobs, node_state_mapping)
+            d["state"] = self._calculate_oar_state(nodes_jobs[node], node_state_mapping)
             worker_nodes.append(d)
 
         logging.info("worker_nodes contains %s entries" % len(worker_nodes))
@@ -84,14 +86,9 @@ class OARBatchSystem(GenericBatchSystem):
         return worker_nodes
 
     def get_jobs_info(self):
-        job_ids, usernames, job_states, queue_names = [], [], [], []
         qstats = self.oar_stat_maker.extract_qstat(self.oarstat_file)
-        # TODO: clumsily glued, should be more naturally connected
-        for qstat in qstats:
-            job_ids.append(str(qstat["JobId"]))
-            usernames.append(qstat["UnixAccount"])
-            job_states.append(qstat["S"])
-            queue_names.append(qstat["Queue"])
+        records = [(str(qstat["JobId"]), qstat["UnixAccount"], qstat["S"], qstat["Queue"]) for qstat in qstats]
+        job_ids, usernames, job_states, queue_names = map(list, zip(*records)) if records else ([], [], [], [])
 
         logging.debug(
             "job_ids, usernames, job_states, queue_names lengths: "
@@ -163,22 +160,17 @@ class OARBatchSystem(GenericBatchSystem):
         _oarnode.setdefault(int(res_id), {"jobs": None})
         return _oarnode, line
 
-    def _calculate_oar_state(self, jobid_state_lot, nr_of_jobs, node_state_mapping):
+    @staticmethod
+    def _calculate_oar_state(jobid_state_lot, node_state_mapping):
         """
         If all resource ids within the node are either alive or dead or suspected, the respective label is given to the node.
         Otherwise, a mixed-state is reported
         """
-        # todo: make user-tuneable
-        states = [job_state_tpl[1] for job_state_tpl in jobid_state_lot]
-        alive = states.count("Alive")
-        dead = states.count("Dead")
-        suspected = states.count("Suspected")
-
-        if bool(alive) + bool(dead) + bool(suspected) > 1:
-            state = node_state_mapping["Mixed"]  # TODO: investigate!
-            return state
-        else:
-            return node_state_mapping[states[0]]
+        states = {job_state_tpl[1] for job_state_tpl in jobid_state_lot}
+        if not states:
+            return node_state_mapping["Unknown"]
+        state = states.pop() if len(states) == 1 else "Mixed"
+        return node_state_mapping.get(state, node_state_mapping["Unknown"])
 
     def _check_job_discrepancy(self, job_ids_oarstat, resids_jobs, options):
         """
