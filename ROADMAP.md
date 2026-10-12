@@ -153,6 +153,108 @@ The following are recorded foundations to preserve and revalidate for 1.0:
 - [x] A dependency-light AlmaLinux 8 / Python 3.6 compatibility lane.
 - [x] Display support for clusters with more than 1,000 nodes.
 
+### Implemented CI/CD Tooling
+
+Checked items below mean the tooling or workflow is implemented in this
+repository. They do not certify a particular run, release, or external
+service activation. The release gates above still require evidence for the
+chosen release candidate.
+
+#### Shared Local Validation and Artifacts
+
+- [x] Shared Makefile validation entry points: `ci`, `github-ci`,
+  `gitlab-ci` and the git-free `nightly-ci` path ([Makefile](Makefile)).
+- [x] Ruff lint and format checks, explicit fix targets and a local
+  pre-commit Ruff hook ([.pre-commit-config.yaml](.pre-commit-config.yaml)).
+- [x] Modern-Python type checking with ty through `make type-check`.
+- [x] Pinned modern CI dependencies with a separate dependency-light legacy
+  path ([requirements-ci.txt](requirements-ci.txt)).
+- [x] pytest suite execution through `make test`.
+- [x] coverage.py terminal reporting and Cobertura XML through
+  `make coverage` and `make coverage-xml`.
+- [x] Diff/source fortifications: generated-file review warnings, added-text
+  checks and AST checks rejecting `eval()` and wildcard imports
+  ([tools/fortifications.py](tools/fortifications.py)).
+- [x] Tracked-text UTF-8, bidi, invisible-character and confusable-character
+  audits with report artifacts through `make repo-sanity`.
+- [x] Seeded parser stress checks through `make deterministic-fuzz`.
+- [x] Committed PBS, SGE, Slurm, OAR and demo fixture gates through
+  `make sample-gate` / `make backend-validation`.
+- [x] ANSI-colour text and SVG backend review artifacts through
+  `make backend-colour-artifacts` / `make render-backends`.
+- [x] Exported JSON trace validation through `make trace-export-validation`;
+  requires a supplied `TRACE_JSON_B64` payload.
+- [x] Larger archived PBS sample sweep through `make test-pbs-samples`;
+  requires the external sample corpus and skips when it is absent.
+- [x] Slurm parser tests and committed-sample rendering through
+  `make test-slurm-samples`.
+- [x] Python 3.6 syntax compilation and dependency-light scheduler sample
+  validation through `make compat-py36`.
+- [x] Independent GitHub Actions auditing and safe fixes through
+  `make zizmor` / `make zizmor-fix`.
+
+#### GitHub Actions
+
+- [x] Branch/PR validation across configured modern Python versions,
+  a separate AlmaLinux 8 / Python 3.6 gate and a ty job; package builds
+  depend on these checks ([build.yml](.github/workflows/build.yml)).
+- [x] Manual shared pytest/CI workflow
+  ([pytest.yml](.github/workflows/pytest.yml)).
+- [x] Coverage workflow retaining Cobertura XML artifacts
+  ([coverage.yml](.github/workflows/coverage.yml)).
+- [x] Scheduled/manual distro and interpreter matrix with separate
+  experimental lanes and retained validation artifacts
+  ([nightly-matrix.yml](.github/workflows/nightly-matrix.yml)).
+- [x] OpenSSF Scorecard analysis, SARIF artifacts/code-scanning uploads
+  and public-result publication from `main`
+  ([scorecard.yml](.github/workflows/scorecard.yml)).
+- [x] Commit-SHA-pinned actions, explicit workflow permissions and
+  checkout without persisted credentials.
+- [x] Published-release workflow that validates, builds distributions
+  and publishes through the `pypi` environment using OIDC
+  ([release.yml](.github/workflows/release.yml)); successful delivery
+  requires the corresponding PyPI trusted-publisher/environment setup.
+
+#### GitLab CI
+
+- [x] Modular test, build, security, coverage, nightly-matrix and Scorecard
+  configuration with duplicate-push-pipeline suppression
+  ([.gitlab-ci.yml](.gitlab-ci.yml)).
+- [x] Modern-Python validation and AlmaLinux 8 / Python 3.6 compatibility
+  jobs using shared Makefile targets ([test configuration](ci/test.gitlab-ci.yml)).
+- [x] Source/wheel builds after validation, with retained distribution
+  artifacts ([build configuration](ci/build.gitlab-ci.yml)).
+- [x] Cobertura coverage reports for merge-request presentation
+  ([coverage configuration](ci/coverage.gitlab-ci.yml)).
+- [x] SAST, IaC SAST and Secret Detection template integration
+  ([security configuration](ci/security.gitlab-ci.yml)).
+- [x] Dependency Scanning v2 template integration targeting
+  `requirements-ci.txt`; execution requires the applicable GitLab tier.
+- [x] Ruff-derived GitLab Code Quality reports, pinned pip-licenses
+  Markdown/JSON reports and repository-sanity report jobs.
+- [x] Scheduled/manual compatibility matrix using `NIGHTLY_MATRIX=1`
+  ([matrix configuration](ci/nightly-matrix.gitlab-ci.yml)); a GitLab
+  pipeline schedule must be configured separately.
+- [x] Optional scheduled/manual Scorecard job using `SCORECARD=1`, with
+  a digest-pinned image and JSON artifacts
+  ([Scorecard configuration](ci/scorecard.gitlab-ci.yml)); requires
+  schedule/variable setup and the documented GitHub authentication token.
+
+#### Compatibility Matrix and Packaging Helpers
+
+- [x] Shared distro bootstrap/lane runner for both CI providers, including
+  isolated environments for modern distro interpreters and private
+  pytest temporary roots ([ci/scripts/matrix_lane.sh](ci/scripts/matrix_lane.sh)).
+- [x] Source and wheel builds through `build`, `github-build`,
+  `gitlab-build` and `dist`, plus package-version reporting.
+- [x] Generated-output cleanup and complete local rerun helpers;
+  cleanup requires explicit confirmation.
+
+Bandit, standalone pip-audit/gitleaks/detect-secrets gates, DAST, container
+scanning and GitLab Advanced SAST are not implemented as active gates in
+the current pipeline. Historical local scanner baselines are documented
+in [the security assessment](docs/secure-coding-pyscg.md).
+
 See [CHANGELOG.md](CHANGELOG.md) for historical changes and released versions.
 
 ## Contribution Constraints
