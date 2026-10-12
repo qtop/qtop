@@ -11,10 +11,19 @@
 __author__ = "sfranky"
 import logging
 import sys
-from xml.etree import ElementTree as etree
+
+# SGE parses with NoDTDTreeBuilder below, rejecting all DTD declarations.
+from xml.etree import ElementTree as etree  # nosec B405
 
 import qtop_py.fileutils as fileutils
 from qtop_py.serialiser import GenericBatchSystem, StatExtractor
+
+
+class NoDTDTreeBuilder(etree.TreeBuilder):
+    """Reject DTDs before scheduler XML can expand declared entities."""
+
+    def doctype(self, name, pubid, system):
+        raise etree.ParseError("DTD declarations are not supported in scheduler XML")
 
 
 class SGEStatExtractor(StatExtractor):
@@ -25,7 +34,9 @@ class SGEStatExtractor(StatExtractor):
     def get_xml_tree(self, xml_file):
         with open(xml_file, mode="rb") as fin:
             try:
-                tree = etree.parse(fin)
+                # Bandit cannot infer DTD rejection by the custom parser target.
+                parser = etree.XMLParser(target=NoDTDTreeBuilder())  # nosec B314
+                tree = etree.parse(fin, parser=parser)  # nosec B314
             except etree.ParseError:
                 logging.critical("Something happened during the parsing of the XML file. Exiting...")
                 raise
