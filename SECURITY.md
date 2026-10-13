@@ -1,3 +1,9 @@
+<!--
+SPDX-FileContributor: Evangelos Papadopoulos <evangelos.papadopoulos@gmail.com>
+SPDX-FileCopyrightText: 2012 sfranky <sfranky@gmail.com>
+SPDX-License-Identifier: MIT
+-->
+
 # Security Policy
 
 ## Supported versions

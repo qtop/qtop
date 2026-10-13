@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+# SPDX-FileContributor: Amitt Bhardwj <amitt.bhardwj@gmail.com>
+# SPDX-FileCopyrightText: 2012 sfranky <sfranky@gmail.com>
+# SPDX-License-Identifier: MIT
+
 """Run qtop against archived PBS samples and save rendered output.
 
 Usage:

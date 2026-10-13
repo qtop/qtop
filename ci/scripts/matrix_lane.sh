@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+
 ##
 ## qtop is a tool to monitor queuing systems - https://github.com/qtop/qtop
 ##

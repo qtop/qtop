@@ -1,3 +1,9 @@
+<!--
+SPDX-FileContributor: Amitt Bhardwj <amitt.bhardwj@gmail.com>
+SPDX-FileCopyrightText: 2012 sfranky <sfranky@gmail.com>
+SPDX-License-Identifier: MIT
+-->
+
 # PBS sample regression evidence
 
 This document records the evidence requested in #346 steps 3, 4, and 5, using the differential-debugging format from #337: each bug has a failing `upstream/main` run, a passing run from this PR, and a short diagnosis of the difference.

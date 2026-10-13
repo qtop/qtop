@@ -1,3 +1,9 @@
+<!--
+SPDX-FileContributor: Dimitrios Kouzis-Loukas <lookfwd@gmail.com>
+SPDX-FileCopyrightText: 2012 sfranky <sfranky@gmail.com>
+SPDX-License-Identifier: MIT
+-->
+
 # qtop
 
 [![build-qtop](https://github.com/qtop/qtop/actions/workflows/build.yml/badge.svg?branch=develop)](https://github.com/qtop/qtop/actions/workflows/build.yml)

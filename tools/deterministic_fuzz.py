@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+# SPDX-FileContributor: Evangelos Papadopoulos <evangelos.papadopoulos@gmail.com>
+# SPDX-FileCopyrightText: 2012 sfranky <sfranky@gmail.com>
+# SPDX-License-Identifier: MIT
+
 
 """Deterministic parser stress tests suitable for local and CI reproduction."""
 

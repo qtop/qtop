@@ -1,3 +1,8 @@
+<!--
+SPDX-FileCopyrightText: 2012 sfranky <sfranky@gmail.com>
+SPDX-License-Identifier: MIT
+-->
+
 # Secure Coding Guide for Python (PySCG) alignment
 
 Status: proposal for maintainer decision (#488). Nothing in this document

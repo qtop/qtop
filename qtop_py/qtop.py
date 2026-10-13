@@ -1,4 +1,6 @@
 #!/usr/bin/env python
+# SPDX-FileContributor: Sebastian Schnorbus <sebastian.schnorbus@hpe.com>
+
 
 ##################################################
 ##                     qtop                     ##
@@ -7,9 +9,9 @@
 ##
 ## qtop is a tool to monitor queuing systems - https://github.com/qtop/qtop
 ##
-## Copyright (c) 2016 Fotis Georgatos
-## Copyright (c) 2016 Sotiris Fragkiskos
-## Copyright (c) 2023 Hewlett Packard Enterprise Development LP
+## SPDX-FileCopyrightText: 2016 Fotis Georgatos
+## SPDX-FileCopyrightText: 2016 Sotiris Fragkiskos
+## SPDX-FileCopyrightText: 2023 Hewlett Packard Enterprise Development LP
 ## Copyright (c) 2026 Jacob Hatchett
 ##
 ## SPDX-License-Identifier: MIT

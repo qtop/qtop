@@ -1,3 +1,7 @@
+# SPDX-FileContributor: Nicola Trozzi <nicola.trozzi@outlook.com>
+# SPDX-FileCopyrightText: 2012 sfranky <sfranky@gmail.com>
+# SPDX-License-Identifier: MIT
+
 import argparse
 import json
 import os

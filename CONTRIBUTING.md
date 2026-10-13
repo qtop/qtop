@@ -1,3 +1,9 @@
+<!--
+SPDX-FileContributor: Sotiris Fragkiskos <sfranky@gmail.com>
+SPDX-FileCopyrightText: 2012 sfranky <sfranky@gmail.com>
+SPDX-License-Identifier: MIT
+-->
+
 ## AI-assisted contributions
 
 AI tools are welcome when used constructively to improve software quality,
@@ -70,3 +76,15 @@ You may contribute in the following ways:
 [3] https://en.wikipedia.org/wiki/Contributor_License_Agreement
 
 [4] https://www.conventionalcommits.org/en/v1.0.0/ or https://www.electronjs.org/docs/latest/development/pull-requests#step-5-commit
+
+## File Attribution and Licensing
+
+Keep an SPDX license identifier, copyright notice, and file contributor
+credit in each tracked file. Existing notices must be preserved. The
+initial contributor is credited from Git history; add further author
+credits when appropriate rather than replacing earlier credits.
+
+Use an adjacent .license file for binary assets, scheduler fixtures,
+reference output, and other files that cannot safely contain comments.
+Keep those sidecars with the original files when copying or packaging
+them. The project license text is in LICENSE and LICENSES/MIT.txt.

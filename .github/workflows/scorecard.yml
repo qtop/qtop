@@ -2,7 +2,6 @@
 ## qtop is a tool to monitor queuing systems - https://github.com/qtop/qtop
 ##
 ## Copyright (c) 2026 Vadik Malik
-##
 ## SPDX-License-Identifier: MIT
 ##
 # OpenSSF Scorecard (#488): supply-chain health checks on the repository

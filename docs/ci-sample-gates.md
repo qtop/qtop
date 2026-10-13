@@ -1,3 +1,8 @@
+<!--
+SPDX-FileCopyrightText: 2012 sfranky <sfranky@gmail.com>
+SPDX-License-Identifier: MIT
+-->
+
 # CI sample gates
 
 Issue #433 asks for one reviewable validation path that local runs, GitHub

@@ -1,3 +1,7 @@
+# SPDX-FileContributor: Sebastian Schnorbus <sebastian.schnorbus@hpe.com>
+# SPDX-FileCopyrightText: 2012 sfranky <sfranky@gmail.com>
+# SPDX-License-Identifier: MIT
+
 [build-system]
 requires = [
     "setuptools>=44,<60; python_version < '3.7'",

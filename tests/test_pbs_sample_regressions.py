@@ -1,3 +1,7 @@
+# SPDX-FileContributor: Amitt Bhardwj <amitt.bhardwj@gmail.com>
+# SPDX-FileCopyrightText: 2012 sfranky <sfranky@gmail.com>
+# SPDX-License-Identifier: MIT
+
 from collections import OrderedDict
 from types import SimpleNamespace
 

@@ -1,9 +1,11 @@
+# SPDX-FileContributor: Nicola Trozzi <nicola.trozzi@outlook.com>
+
 ##
 ## qtop is a tool to monitor queuing systems - https://github.com/qtop/qtop
 ##
-## Copyright (c) 2016 Fotis Georgatos
-## Copyright (c) 2016 Sotiris Fragkiskos
-## Copyright (c) 2026 Nicola Trozzi
+## SPDX-FileCopyrightText: 2016 Fotis Georgatos
+## SPDX-FileCopyrightText: 2016 Sotiris Fragkiskos
+## SPDX-FileCopyrightText: 2026 Nicola Trozzi
 ##
 ## SPDX-License-Identifier: MIT
 ##

@@ -1,3 +1,8 @@
+<!--
+SPDX-FileCopyrightText: 2012 sfranky <sfranky@gmail.com>
+SPDX-License-Identifier: MIT
+-->
+
 # GitLab linkage pilot: GitHub-first validation
 
 Status: repository-side proposal for #488. No live GitLab project, mirror,

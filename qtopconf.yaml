@@ -1,3 +1,7 @@
+## SPDX-FileContributor: Sotiris Fragkiskos <sfranky@gmail.com>
+## SPDX-FileCopyrightText: 2012 sfranky <sfranky@gmail.com>
+## SPDX-License-Identifier: MIT
+
 ## Default configuration file for qtop.
 ## DO NOT OVERWRITE this file with your own settings. Instead, 
 ## create a new qtopconf.yaml in ~/.local/qtop/ (you can copy this one if you want)

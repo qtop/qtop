@@ -1,3 +1,7 @@
+# SPDX-FileContributor: Sotiris Fragkiskos <sfranky@gmail.com>
+# SPDX-FileCopyrightText: 2012 sfranky <sfranky@gmail.com>
+# SPDX-License-Identifier: MIT
+
 .DEFAULT_GOAL := help
 
 .PHONY: help all rerun clean ci-deps test coverage coverage-xml sample-gate backend-validation backend-colour-artifacts render-backends trace-export-validation test-pbs-samples test-slurm-samples deterministic-fuzz fortifications repo-sanity code-quality license-report type-check ruff-check lint lint-fix format-check format-fix zizmor zizmor-fix compat-py36 ci nightly-ci github-ci gitlab-ci build github-build gitlab-build dist version confirm

@@ -1,7 +1,9 @@
+# SPDX-FileContributor: Evangelos Papadopoulos <evangelos.papadopoulos@gmail.com>
+
 ##
 ## qtop is a tool to monitor queuing systems - https://github.com/qtop/qtop
 ##
-## Copyright (c) 2026 Evangelos Papadopoulos
+## SPDX-FileCopyrightText: 2026 Evangelos Papadopoulos
 ##
 ## SPDX-License-Identifier: MIT
 ##

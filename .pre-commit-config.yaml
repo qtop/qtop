@@ -1,3 +1,7 @@
+# SPDX-FileContributor: Fotis Georgatos <kefalonia@gmail.com>
+# SPDX-FileCopyrightText: 2012 sfranky <sfranky@gmail.com>
+# SPDX-License-Identifier: MIT
+
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
     # Ruff version.

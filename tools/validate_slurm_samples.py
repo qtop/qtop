@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
+# SPDX-FileContributor: Nicola Trozzi <nicola.trozzi@outlook.com>
+
 ##
 ## qtop is a tool to monitor queuing systems - https://github.com/qtop/qtop
 ##
-## Copyright (c) 2026 Nicola Trozzi
+## SPDX-FileCopyrightText: 2026 Nicola Trozzi
 ##
 ## SPDX-License-Identifier: MIT
 ##

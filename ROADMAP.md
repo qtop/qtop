@@ -1,3 +1,9 @@
+<!--
+SPDX-FileContributor: Nicola Trozzi <nicola.trozzi@outlook.com>
+SPDX-FileCopyrightText: 2012 sfranky <sfranky@gmail.com>
+SPDX-License-Identifier: MIT
+-->
+
 # qtop Roadmap
 
 qtop's immediate goal is a validated 1.0 release: dependable terminal
