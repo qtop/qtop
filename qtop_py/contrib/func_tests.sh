@@ -1,6 +1,4 @@
 #! /bin/sh -
-# SPDX-FileContributor: Sotiris Fragkiskos <sfranky@gmail.com>
-
 ##
 ## qtop is a tool to monitor queuing systems - https://github.com/qtop/qtop
 ##

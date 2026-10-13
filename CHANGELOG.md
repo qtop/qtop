@@ -1,10 +1,12 @@
-<!--
-SPDX-FileContributor: Sotiris Fragkiskos <sfranky@gmail.com>
-SPDX-FileCopyrightText: 2012 sfranky <sfranky@gmail.com>
-SPDX-License-Identifier: MIT
--->
-
 # Changelog
+
+## 0.9.20261010
+
+- Bugfix: keep section 3 (User accounts and pool mappings) ordered by user ID, respecting the configured ID alphabet and alphabetical first-letter IDs, with overflow users last.
+- Bugfix: preserve the previous ordering and color mapping for users sharing a first-letter ID.
+- Security: reject DTD declarations in SGE scheduler XML before entity expansion, without adding runtime dependencies; cover ordinary XML and malicious declarations in UTF-8 and UTF-16 with regression tests.
+- Licensing: add per-file SPDX notices and license sidecars for fixtures, reference output, and binary assets; include sidecars and the MIT license text in source distributions, and document attribution conventions.
+- Documentation: refresh the roadmap around verifiable 1.0 release gates, retain Python 3.6 compatibility as a requirement, and inventory implemented CI/CD tooling.
 
 ## 0.9.20261007
 

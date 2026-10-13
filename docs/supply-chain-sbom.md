@@ -1,8 +1,3 @@
-<!--
-SPDX-FileCopyrightText: 2012 sfranky <sfranky@gmail.com>
-SPDX-License-Identifier: MIT
--->
-
 # SBOMs and verifiable supply-chain artifacts: proposal
 
 Status: phased implementation. Tokenless PyPI Trusted Publishing is prepared

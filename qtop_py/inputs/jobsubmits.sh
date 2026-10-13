@@ -1,8 +1,4 @@
 #!/bin/sh
-# SPDX-FileContributor: Sotiris Fragkiskos <sfranky@gmail.com>
-# SPDX-FileCopyrightText: 2012 sfranky <sfranky@gmail.com>
-# SPDX-License-Identifier: MIT
-
 #The file at the end lists all the CeIDs in separate lines.It is post-formatted in vim
 #The CeIDs are thus stored in variable "line".
 JOBNAME='qtop-input'
