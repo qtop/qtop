@@ -740,3 +740,30 @@ def test_get_date_obj_from_str(s, now, day_meant):
     at 22:10 at night, the user inputs again 21:00 (the same day is implied)
     """
     assert get_date_obj_from_str(s, now).day == day_meant
+
+
+@pytest.mark.parametrize(
+    ("firstletter", "possible_ids", "ids", "totals", "expected_names"),
+    [
+        (False, list("01"), ["0", "1"], [2, 2], ["alice", "bob"]),
+        (False, list("01Aa"), ["1", "0", "a", "A", "*"], [9, 8, 7, 6, 5], ["bob", "alice", "dora", "charlie", "eve"]),
+        (False, list("ba"), ["a", "b", "*"], [3, 2, 1], ["bob", "alice", "charlie"]),
+        (True, list("ba"), ["b", "a", "a", "*"], [4, 3, 2, 1], ["bob", "charlie", "alice", "dora"]),
+    ],
+    ids=["equal-job-counts", "numeric-and-letter-ids", "custom-id-alphabet", "firstletter-and-overflow"],
+)
+def test_account_jobs_table_sorts_by_id(firstletter, possible_ids, ids, totals, expected_names):
+    occupancy = WNOccupancy.__new__(WNOccupancy)
+    occupancy.config = user_symbol_config(fill_with_user_firstletter=firstletter, possible_ids=possible_ids)
+    names = ["alice", "bob", "charlie", "dora", "eve"][: len(ids)]
+    occupancy.user_machine_use = {name: 1 for name in names}
+    user_to_id = {name: qtop_utils.ColorStr(symbol, color="Red_L") for name, symbol in zip(names, ids)}
+    counts = {
+        "running_of_user": dict(zip(names, totals)),
+        "queued_of_user": {name: 0 for name in names},
+    }
+
+    rows = occupancy._create_sort_acct_jobs_table(counts, list(zip(names, totals)), user_to_id)
+
+    assert [row[4] for row in rows] == expected_names
+    assert {row[4]: (str(row[0]), row[1], row[2], row[3], row[5]) for row in rows} == {name: (symbol, total, 0, total, 1) for name, symbol, total in zip(names, ids, totals)}

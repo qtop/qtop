@@ -1077,7 +1077,8 @@ class WNOccupancy(object):
             ]
             for user_name, total_jobs_for_user in user_all_jobs_sorted
         ]
-        account_jobs_table.sort(key=itemgetter(3, 4), reverse=True)  # sort by All jobs, then unix account
+        id_order = {} if self.config["fill_with_user_firstletter"] else {symbol: index for index, symbol in enumerate(_available_possible_ids(self.config))}
+        account_jobs_table.sort(key=lambda row: (str(row[0]) == SYMBOL_LONG_TAIL_USER, id_order.get(str(row[0]), len(id_order)), str(row[0])))
         return account_jobs_table
 
     def _create_user_job_counts(self, user_names, job_states, state_abbrevs):
@@ -1675,7 +1676,7 @@ class TextDisplay(object):
             + colorize("User accounts and pool mappings", "White")
             + colorize(" <=== ", "Gray_d")
             + colorize(
-                "  ('all' also includes those in C and W states, as reported by qstat)" if self.args.CLASSIC else "(sorting according to total nr. of jobs)",
+                "  ('all' also includes those in C and W states, as reported by qstat)" if self.args.CLASSIC else "(sorting by user id)",
                 "Gray_D",
             )
         )
