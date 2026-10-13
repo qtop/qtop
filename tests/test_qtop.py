@@ -767,3 +767,19 @@ def test_account_jobs_table_sorts_by_id(firstletter, possible_ids, ids, totals, 
 
     assert [row[4] for row in rows] == expected_names
     assert {row[4]: (str(row[0]), row[1], row[2], row[3], row[5]) for row in rows} == {name: (symbol, total, 0, total, 1) for name, symbol, total in zip(names, ids, totals)}
+
+
+def test_account_id_sort_preserves_coloring_for_shared_firstletter_ids():
+    occupancy = WNOccupancy.__new__(WNOccupancy)
+    occupancy.config = user_symbol_config(fill_with_user_firstletter=True, possible_ids=list("01"))
+    occupancy.user_machine_use = {"alice": 1, "amber": 1}
+    counts = {
+        "running_of_user": {"alice": 2, "amber": 2},
+        "queued_of_user": {"alice": 0, "amber": 0},
+    }
+    user_to_id = {name: qtop_utils.ColorStr("a") for name in ("alice", "amber")}
+
+    occupancy.account_jobs_table = occupancy._create_sort_acct_jobs_table(counts, [("alice", 2), ("amber", 2)], user_to_id)
+
+    assert [row[4] for row in occupancy.account_jobs_table] == ["amber", "alice"]
+    assert occupancy.make_pattern_out_of_mapping({"alice": "Red_L", "amber": "Blue_L"})["a"] == "alice"
