@@ -70,7 +70,9 @@ class SlurmStatExtractor(StatExtractor):
                 if not line:
                     continue
                 try:
-                    job_id, user, state, partition, cpus, nodes = line.split("|", 5)
+                    job_id, user, state, partition, cpus, nodes = [field.strip() for field in line.split("|")]
+                    if not all((job_id, user, state, partition.rstrip("*"))):
+                        raise ValueError("missing required job field")
                 except ValueError:
                     logging.warning("Line: %s not properly parsed as Slurm squeue output." % line)
                     continue
@@ -82,7 +84,7 @@ class SlurmStatExtractor(StatExtractor):
                         "S": self._map_job_state(state),
                         "raw_state": state,
                         "Queue": self.anonymize(partition.rstrip("*"), "qs"),
-                        "CPUs": self._safe_int(cpus, default=1),
+                        "CPUs": max(1, self._safe_int(cpus, default=1)),
                         "Nodes": nodes,
                     }
                 )
@@ -106,7 +108,9 @@ class SlurmStatExtractor(StatExtractor):
                 if not line:
                     continue
                 try:
-                    node_name, partition, state, cpus = line.split("|", 3)
+                    node_name, partition, state, cpus = [field.strip() for field in line.split("|")]
+                    if not all((node_name, partition.rstrip("*"))):
+                        raise ValueError("missing required node field")
                 except ValueError:
                     logging.warning("Line: %s not properly parsed as Slurm sinfo output." % line)
                     continue
@@ -117,7 +121,7 @@ class SlurmStatExtractor(StatExtractor):
                         "raw_domainname": node_name,
                         "qname": self.anonymize(partition.rstrip("*"), "qs"),
                         "state": self._map_node_state(state),
-                        "np": str(self._safe_int(cpus, default=0)),
+                        "np": str(max(0, self._safe_int(cpus, default=0))),
                     }
                 )
         return nodes
@@ -176,10 +180,12 @@ class SlurmStatExtractor(StatExtractor):
             "unknown": "?",
             "unk": "?",
         }
-        return state_map.get(normalized, normalized[:1] or "?")
+        return state_map.get(normalized, "?")
 
 
 class SlurmBatchSystem(GenericBatchSystem):
+    # Bound both numeric ranges and Cartesian products from untrusted traces.
+    MAX_EXPANDED_NODES = 100000
     ACTIVE_STATES = set(["R", "CG", "CF", "S", "ST", "RS", "SI", "SO"])
     QUEUED_STATES = set(["PD", "CF", "RD", "RF", "RH", "RQ", "SE"])
     STATE_PRIORITY = {"d": 5, "b": 4, "c": 2, "r": 1, "-": 0, "?": -1}
@@ -311,31 +317,79 @@ class SlurmBatchSystem(GenericBatchSystem):
 
     @classmethod
     def expand_nodelist(cls, nodelist):
+        """Expand comma-separated host groups; reject malformed lists as a unit.
+
+        Commas inside brackets separate numeric choices. Unbalanced brackets,
+        empty groups, descending ranges and oversized expansions are unusable;
+        return no hosts rather than assigning a job to an invented hostname.
+        """
+        nodelist = nodelist.strip() if nodelist else ""
         if not nodelist or nodelist.startswith("("):
             return []
 
-        expanded = [nodelist]
-        while any("[" in item for item in expanded):
-            next_expanded = []
-            for item in expanded:
-                next_expanded.extend(cls._expand_first_range(item))
-            expanded = next_expanded
-        return expanded
+        try:
+            groups = []
+            depth = 0
+            start = 0
+            for index, char in enumerate(nodelist):
+                if char == "[":
+                    if depth:
+                        raise ValueError("nested brackets")
+                    depth = 1
+                elif char == "]":
+                    if not depth:
+                        raise ValueError("unmatched closing bracket")
+                    depth = 0
+                elif char == "," and not depth:
+                    groups.append(nodelist[start:index])
+                    start = index + 1
+            if depth:
+                raise ValueError("unmatched opening bracket")
+            groups.append(nodelist[start:])
 
-    @staticmethod
-    def _expand_first_range(value):
+            expanded = []
+            for group in groups:
+                if not group or re.search(r"\s", group):
+                    raise ValueError("empty or whitespace-containing host group")
+                pending = [group]
+                while any("[" in item for item in pending):
+                    next_pending = []
+                    for item in pending:
+                        next_pending.extend(cls._expand_first_range(item))
+                        if len(expanded) + len(next_pending) > cls.MAX_EXPANDED_NODES:
+                            raise ValueError("too many expanded hosts")
+                    pending = next_pending
+                expanded.extend(pending)
+                if len(expanded) > cls.MAX_EXPANDED_NODES:
+                    raise ValueError("too many expanded hosts")
+            return list(OrderedDict.fromkeys(expanded))
+        except ValueError as error:
+            logging.warning("Ignoring invalid Slurm nodelist %r: %s", nodelist, error)
+            return []
+
+    @classmethod
+    def _expand_first_range(cls, value):
         match = re.search(r"\[([^\]]+)\]", value)
         if not match:
+            if "[" in value:
+                raise ValueError("empty host range")
             return [value]
 
         prefix = value[: match.start()]
         suffix = value[match.end() :]
         choices = []
         for token in match.group(1).split(","):
+            if not re.fullmatch(r"[0-9]+(?:-[0-9]+)?", token):
+                raise ValueError("invalid numeric host range")
             if "-" not in token:
                 choices.append(token)
                 continue
             start, end = token.split("-", 1)
+            first, last = int(start), int(end)
+            if last < first:
+                raise ValueError("descending host range")
+            if len(choices) + last - first + 1 > cls.MAX_EXPANDED_NODES:
+                raise ValueError("too many expanded hosts")
             width = len(start)
-            choices.extend(str(number).zfill(width) for number in range(int(start), int(end) + 1))
+            choices.extend(str(number).zfill(width) for number in range(first, last + 1))
         return [prefix + choice + suffix for choice in choices]

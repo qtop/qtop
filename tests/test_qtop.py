@@ -738,3 +738,17 @@ def test_get_date_obj_from_str(s, now, day_meant):
     at 22:10 at night, the user inputs again 21:00 (the same day is implied)
     """
     assert get_date_obj_from_str(s, now).day == day_meant
+
+
+def test_unknown_scheduler_job_state_preserves_accounting(monkeypatch, caplog):
+    monkeypatch.setattr(qtop_module, "scheduler", "slurm", raising=False)
+    state_abbrevs = {"R": "running_of_user", "PD": "queued_of_user"}
+    occupancy = WNOccupancy.__new__(WNOccupancy)
+    occupancy.config = {"state_abbreviations": {"slurm": state_abbrevs}}
+    users = ["alice", "bob", "alice"]
+    counts = occupancy._calculate_user_job_counts(users, ["R", "NEW_STATE", "PD"], [("alice", 2), ("bob", 1)], {"alice": "a", "bob": "b"})
+    assert counts["running_of_user"] == {"alice": 1, "bob": 0}
+    assert counts["queued_of_user"] == {"alice": 1, "bob": 0}
+    assert counts["unknown_of_user"] == {"alice": 0, "bob": 1}
+    assert state_abbrevs == {"R": "running_of_user", "PD": "queued_of_user"}
+    assert "Unknown job state NEW_STATE" in caplog.text

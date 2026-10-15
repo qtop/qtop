@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Bugfix: expand comma-separated Slurm host groups and reject malformed or oversized host lists without hanging or crashing.
+- Bugfix: skip incomplete Slurm identity rows, clamp invalid CPU counts and retain unknown job states in accounting totals.
+- Tests: add synthetic incomplete Slurm snapshots and regressions for host lists, unknown states, empty inputs and missing nodes.
+
 ## 0.9.20261010
 
 - Bugfix: keep section 3 (User accounts and pool mappings) ordered by user ID, respecting the configured ID alphabet and alphabetical first-letter IDs, with overflow users last.

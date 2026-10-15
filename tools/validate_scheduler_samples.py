@@ -152,6 +152,7 @@ STATIC_CASES = {
 }
 
 SLURM_MARKERS_BY_SAMPLE = {
+    "incomplete": ["Summary: Total:3 Up:3 Free:0 Nodes", "5/12 cores", "4+1 jobs"],
     "basic": ["Summary: Total:3 Up:3 Free:2 Nodes", "4/16 cores", "2+1 jobs"],
     "large_cluster": ["Summary: Total:18 Up:17 Free:9 Nodes", "120/288 cores", "3+1 jobs"],
     "large_mixed": ["Summary: Total:20 Up:19 Free:9 Nodes", "160/320 cores", "3+1 jobs"],

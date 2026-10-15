@@ -1121,12 +1121,13 @@ class WNOccupancy(object):
         :return: (list, list, dict)
         """
         self.config = self._expand_useraccounts_symbols(self.config, user_names)
-        state_abbrevs = self.config["state_abbreviations"][scheduler]
+        state_abbrevs = dict(self.config["state_abbreviations"][scheduler])
+        for job_state in job_states:
+            if job_state not in state_abbrevs:
+                logging.warning("Unknown job state %s; retaining job in totals without classifying it as running or queued.", job_state)
+                state_abbrevs[job_state] = "unknown_of_user"
 
-        try:
-            user_job_per_state_counts = self._create_user_job_counts(user_names, job_states, state_abbrevs)
-        except JobNotFound as e:
-            logging.critical("Job state %s not found. You may wish to add that node state inside %s in state_abbreviations section.\n" % (e.job_state, QTOPCONF_YAML))
+        user_job_per_state_counts = self._create_user_job_counts(user_names, job_states, state_abbrevs)
 
         for state_count_key in state_abbrevs.values():
             missing_user_ids = set(user_to_id).difference(user_job_per_state_counts[state_count_key])
