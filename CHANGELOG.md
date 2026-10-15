@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.9.20261010
+
+- Bugfix: keep section 3 (User accounts and pool mappings) ordered by user ID, respecting the configured ID alphabet and alphabetical first-letter IDs, with overflow users last.
+- Bugfix: preserve the previous ordering and color mapping for users sharing a first-letter ID.
+- Security: reject DTD declarations in SGE scheduler XML before entity expansion, without adding runtime dependencies; cover ordinary XML and malicious declarations in UTF-8 and UTF-16 with regression tests.
+- Licensing: add per-file SPDX notices and license sidecars for fixtures, reference output and binary assets; include sidecars and the MIT license text in source distributions and document attribution conventions.
+- Documentation: refresh the roadmap around verifiable 1.0 release gates, retain Python 3.6 compatibility as a requirement and inventory implemented CI/CD tooling.
+
 ## 0.9.20261007
 
 - Packaging: drop the redundant `setup.py`; `pyproject.toml` is now the sole package configuration.
@@ -8,15 +16,15 @@
 - CI: add required CodeQL SAST and `ty` type-check jobs with concise diagnostics.
 - Security: add a reproducible parser stress harness and prepare tokenless PyPI Trusted Publishing.
 - Security: link private vulnerability reporting directly from the security policy.
-- Code quality: replace safe accumulator loops with comprehensions, fix parser narrowing and counters, emit valid HTTP headers/bytes, and scope sample archive ownership.
+- Code quality: replace safe accumulator loops with comprehensions, fix parser narrowing and counters, emit valid HTTP headers/bytes and scope sample archive ownership.
 
 ## 0.9.20261005
 
-- Bugfix: preserve Slurm partition order from `sinfo`, label the summary "Queueing", and add collapsed/expanded views, fixing #560.
+- Bugfix: preserve Slurm partition order from `sinfo`, label the summary "Queueing" and add collapsed/expanded views, fixing #560.
 - Bugfix: tolerate concurrent removal of stale output files, fixing #308.
 - Feature enhancement: accept a scheduler output file for `-s` by using its parent directory, fixing #291.
 - Feature enhancement: add opt-in primary Unix group display with `--show-groups`, addressing #299.
-- CI: cover Python 3.9 and stable Python 3.15.0 in pull requests, align nightlies with the stable 3.15 image, restore legacy lanes, retry stale APT metadata, and add PyPy 3.11 v8.0.0, fixing #546.
+- CI: cover Python 3.9 and stable Python 3.15.0 in pull requests, align nightlies with the stable 3.15 image, restore legacy lanes, retry stale APT metadata and add PyPy 3.11 v8.0.0, fixing #546.
 
 ## 0.9.20261001
 
@@ -24,7 +32,7 @@
 - Bugfix: fix account coloring when the UID is numeric.
 - Bugfix: prioritize Slurm during automatic scheduler detection, fixing #552.
 - Feature enhancement: require `-e`/`--experimental` when enabling the web interface with `-B`/`--web`, fixing #550.
-- Documentation: modernize the README, interactive help, and changelog formatting.
+- Documentation: modernize the README, interactive help and changelog formatting.
 - Documentation: convert the roadmap and changelog to Markdown.
 - Documentation: refresh README Python support and CI badge wording.
 - Documentation: update the quickstart command examples to use the `qtop` wrapper.
@@ -293,7 +301,7 @@ Enhancements:
 
 Bugfixes:
 
-- Now understands additional probable names for `pbsnodes`, `qstat`, and `qstat-q` data files.
+- Now understands additional probable names for `pbsnodes`, `qstat` and `qstat-q` data files.
 
 ## 0.4.0
 

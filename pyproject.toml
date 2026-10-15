@@ -16,6 +16,7 @@ keywords = ["HPC", "monitoring", "PBS", "scheduler", "SGE", "Slurm"]
 authors = [
     { name="Sotiris Fragkiskos", email="sfranky@gmail.com"},
     { name="Fotis Georgatos", email="kefalonia@gmail.com"},
+    { name="Evangelos Papadopoulos", email="evangelos.papadopoulos@gmail.com"},
     { name="Nicola Trozzi", email="nicola.trozzi@outlook.com"},
 ]
 requires-python = ">=3.6"

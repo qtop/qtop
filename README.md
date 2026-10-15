@@ -8,7 +8,7 @@ qtop is a scheduler-independent observability layer for HPC clusters, with an ex
 
 See your whole cluster in one terminal. Capture it. Replay it. Compare it.
 
-![qtop terminal demo](https://raw.githubusercontent.com/qtop/qtop/master/qtop_py/contrib/qtop_demo.gif)
+![qtop terminal demo](https://raw.githubusercontent.com/qtop/qtop/main/qtop_py/contrib/qtop_demo.gif)
 
 ## Why qtop?
 
@@ -130,5 +130,6 @@ parser stress corpus with `make deterministic-fuzz`.
 Bug reports with captured scheduler samples are especially valuable. New scheduler plugins, sample fixtures, documentation improvements, and portability fixes are welcome.
 
 Python port by Sotiris Fragkiskos. Original Bash version by Fotis Georgatos.
+Additional authors: Evangelos Papadopoulos and Nicola Trozzi.
 
 License: [MIT](LICENSE).
