@@ -19,7 +19,7 @@ def run_cli(tmp_path, module, *args, extra_env=None):
         [sys.executable, "-m", module, *args],
         cwd=str(ROOT),
         env=env,
-        text=True,
+        universal_newlines=True,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         timeout=10,
