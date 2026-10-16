@@ -1101,7 +1101,15 @@ class WNOccupancy(object):
             ]
             for user_name, total_jobs_for_user in user_all_jobs_sorted
         ]
-        account_jobs_table.sort(key=itemgetter(3, 4), reverse=True)  # sort by All jobs, then unix account
+        firstletter_ids = self.config["fill_with_user_firstletter"]
+        id_order = {} if firstletter_ids else dict((symbol, index) for index, symbol in enumerate(_available_possible_ids(self.config)))
+
+        def account_order(row):
+            symbol = str(row[0])
+            position = symbol if firstletter_ids else id_order.get(symbol, len(id_order))
+            return symbol == SYMBOL_LONG_TAIL_USER, position, row[4]
+
+        account_jobs_table.sort(key=account_order)  # displayed ID first, then username ascending; overflow last
         return account_jobs_table
 
     def _create_user_job_counts(self, user_names, job_states, state_abbrevs):
@@ -1193,7 +1201,8 @@ class WNOccupancy(object):
         If no matching was possible, there will be no coloring applied.
         """
         pattern = {}
-        for line in self.account_jobs_table:
+        # Preserve shared-ID color precedence from the previous job-count order.
+        for line in sorted(self.account_jobs_table, key=itemgetter(3, 4), reverse=True):
             uid, user = line[0], line[4]
             # Single-expression fallback, portable to py3.6 / PyPy / MicroPython (no walrus, no findall).
             # The appended " NoPattern" sentinel guarantees a match: an all-numeric user (e.g. a numeric

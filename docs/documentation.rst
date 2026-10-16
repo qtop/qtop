@@ -263,6 +263,12 @@ User account information
 -  the name of the unix account
 -  Grid certificate DN, or GECOS field
 
+Rows follow the displayed ``id`` column: the configured ``possible_ids``
+order normally, or alphabetical ID order with ``fill_with_user_firstletter``.
+Rows sharing an ID use ascending username order, regardless of job counts.
+Overflow rows marked ``*`` appear last, also ordered by username. Sorting the
+table does not change user IDs or the color precedence of shared IDs.
+
 The former is useful in Grid-connected clusters. It shows the owner of
 the pool account at the current time.
 

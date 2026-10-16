@@ -3,7 +3,7 @@
 ## 0.9.20261012
 
 - Bugfix: keep section 3 (User accounts and pool mappings) ordered by user ID, respecting the configured ID alphabet and alphabetical first-letter IDs, with overflow users last.
-- Bugfix: preserve the previous ordering and color mapping for users sharing a first-letter ID.
+- Bugfix: order users sharing an ID by username ascending, preserving the previous color mapping for shared first-letter IDs.
 - Bugfix: make Slurm commands in qtopconf.yaml directly copyable into a shell, honor argument quoting, and retain support for legacy doubled-percent format codes.
 - Bugfix: report filesystem, configuration and scheduler-input failures concisely with exit code 1; retain exception details in the log and show tracebacks with `--debug`.
 - Bugfix: require explicitly selected configuration files to exist and report invalid `-o KEY=VALUE` settings.
