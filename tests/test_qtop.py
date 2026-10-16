@@ -738,3 +738,59 @@ def test_get_date_obj_from_str(s, now, day_meant):
     at 22:10 at night, the user inputs again 21:00 (the same day is implied)
     """
     assert get_date_obj_from_str(s, now).day == day_meant
+
+
+def test_unknown_scheduler_job_state_preserves_accounting(monkeypatch, caplog):
+    monkeypatch.setattr(qtop_module, "scheduler", "slurm", raising=False)
+    state_abbrevs = {"R": "running_of_user", "PD": "queued_of_user"}
+    occupancy = WNOccupancy.__new__(WNOccupancy)
+    occupancy.config = {"state_abbreviations": {"slurm": state_abbrevs}}
+    users = ["alice", "bob", "alice"]
+    counts = occupancy._calculate_user_job_counts(users, ["R", "NEW_STATE", "PD"], [("alice", 2), ("bob", 1)], {"alice": "a", "bob": "b"})
+    assert counts["running_of_user"] == {"alice": 1, "bob": 0}
+    assert counts["queued_of_user"] == {"alice": 1, "bob": 0}
+    assert counts["unknown_of_user"] == {"alice": 0, "bob": 1}
+    assert state_abbrevs == {"R": "running_of_user", "PD": "queued_of_user"}
+    assert "Unknown job state NEW_STATE" in caplog.text
+
+
+@pytest.mark.parametrize(
+    "firstletter, alphabet, user_ids, expected",
+    (
+        (False, ["z", "a", "0"], {"alice": "0", "bob": "a", "carol": "z", "zoe": "*", "dave": "*"}, ["carol", "bob", "alice", "dave", "zoe"]),
+        (True, ["z", "a", "0"], {"alice": "a", "adam": "a", "bob": "b", "zoe": "*", "dave": "*"}, ["adam", "alice", "bob", "dave", "zoe"]),
+        (False, ["0", "1"], {"alice": "0", "adam": "0", "bob": "1", "zoe": "*", "dave": "*"}, ["adam", "alice", "bob", "dave", "zoe"]),
+    ),
+)
+def test_section_three_orders_by_displayed_id_then_username(firstletter, alphabet, user_ids, expected):
+    occupancy = WNOccupancy.__new__(WNOccupancy)
+    occupancy.config = user_symbol_config(fill_with_user_firstletter=firstletter, possible_ids=alphabet)
+    users = list(user_ids)
+    # Job counts deliberately disagree with both ID order and username order.
+    totals = dict((user, index + 1) for index, user in enumerate(users))
+    occupancy.user_machine_use = dict((user, 1) for user in users)
+    counts = {"running_of_user": totals, "queued_of_user": dict((user, 0) for user in users)}
+    symbols = dict((user, qtop_utils.ColorStr(symbol)) for user, symbol in user_ids.items())
+    table = occupancy._create_sort_acct_jobs_table(counts, list(totals.items()), symbols)
+    table, symbols = occupancy._create_account_jobs_table(symbols, table)
+    assert [row[4] for row in table] == expected
+    assert dict((row[4], str(row[0])) for row in table) == user_ids
+    assert dict((row[4], row[3]) for row in table) == totals
+    assert all(row[0].color == "Red_L" for row in table)
+    # Input order cannot override the alphabetical tie-breaker.
+    reversed_table = occupancy._create_sort_acct_jobs_table(counts, list(reversed(list(totals.items()))), symbols)
+    assert [row[4] for row in reversed_table] == expected
+
+
+@pytest.mark.parametrize("totals, expected_pattern", (({"alice": 1, "adam": 5}, "alice"), ({"alice": 3, "adam": 3}, "adam")))
+def test_shared_firstletter_id_keeps_legacy_color_mapping(totals, expected_pattern):
+    occupancy = WNOccupancy.__new__(WNOccupancy)
+    occupancy.config = user_symbol_config(fill_with_user_firstletter=True, possible_ids=["0", "1"])
+    occupancy.user_machine_use = dict((user, 1) for user in totals)
+    counts = {"running_of_user": totals, "queued_of_user": dict((user, 0) for user in totals)}
+    symbols = occupancy._create_id_for_users(list(totals.items()))
+    occupancy.account_jobs_table = occupancy._create_sort_acct_jobs_table(counts, list(totals.items()), symbols)
+    assert [row[4] for row in occupancy.account_jobs_table] == ["adam", "alice"]
+    patterns = occupancy.make_pattern_out_of_mapping({"alice": "Green", "adam": "Blue"})
+    assert patterns["a"] == expected_pattern
+    assert all(str(symbol) == "a" for symbol in symbols.values())

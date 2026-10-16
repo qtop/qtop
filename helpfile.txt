@@ -6,7 +6,8 @@ Navigation
   j / Space      scroll down one screen
   k / Backspace  scroll up one screen
   h / l          scroll left / right
-  g / G          jump to the top / bottom
+  g / K          jump to the top
+  G / J          jump to the bottom
   0 / $          jump to the left / right edge
   R              reset the viewport
 

@@ -54,6 +54,23 @@ from `qtop_py/contrib`. Slurm uses every committed sample directory under
 backends run through the shared Python gate, so local, GitHub, and GitLab
 validation exercise the same command path.
 
+The synthetic Slurm `incomplete` pair covers comma-separated host groups,
+malformed host lists, missing node records, truncated or missing identity
+fields, invalid CPU counts and unknown job/node states. Its expected totals
+are three nodes, twelve cores, five assigned cores, four running jobs and one
+pending job. A sixth job has an unknown state: it remains in account totals
+without being classified as running or queued. These are fixture checks,
+not evidence of live-cluster validation.
+
+Slurm host lists accept plain hosts, comma-separated groups and multiple
+numeric bracket ranges. Duplicate hosts are removed in encounter order.
+Malformed lists are rejected as a whole with a logged warning; their jobs
+remain visible without a node assignment. Expansions exceeding 100,000 entries
+(including Cartesian products, before deduplication) are also rejected.
+Parser regressions include a subprocess timeout so unmatched brackets cannot
+hang the test suite. Empty snapshot pairs and snapshots containing only jobs
+or only nodes are covered by unit tests.
+
 Policy:
 
 - `SAMPLE_GATE_MAX_FAILURES=0` is the default and means any failed scheduler

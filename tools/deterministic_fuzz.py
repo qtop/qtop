@@ -44,6 +44,11 @@ def exercise_slurm_nodelists(generator, transcript):
     assert len(expanded) == end - start + 1
     assert all("[" not in node and "]" not in node for node in expanded)
     transcript.update("\0".join(expanded).encode("utf-8"))
+    grouped = SlurmBatchSystem.expand_nodelist(value + ",login")
+    assert grouped == expanded + ["login"]
+    malformed = generator.choice(("node[", "node[]", "node[2-1]", "node[x-y]", "node01,,node02"))  # nosec B311
+    assert SlurmBatchSystem.expand_nodelist(malformed) == []
+    transcript.update("\0".join(grouped).encode("utf-8"))
 
 
 def exercise_pbs_core_ranges(generator, transcript):

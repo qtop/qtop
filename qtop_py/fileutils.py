@@ -51,11 +51,8 @@ def safe_exit_with_file_close(handle, name, stdout, options, _savepath, qtop_log
 
 def init_sample_file(options, _savepath, SAMPLE_FILENAME, scheduler_output_filenames, QTOPCONF_YAML, QTOPPATH):
     """
-    If the user wants to give feedback to the developers for a bugfix via the -L cmdline switch,
-    this initialises a tar file, and adds:
-    * the scheduler output files (-L),
-    * and source files (-LL)
-    to the tar file
+    Initialise a support archive; -LL adds the bundled config and package sources.
+    The caller adds rendered output, logs and eligible scheduler traces before closing it.
     """
     if options.SAMPLE < 1:
         return None
@@ -63,10 +60,22 @@ def init_sample_file(options, _savepath, SAMPLE_FILENAME, scheduler_output_filen
     # clears any preexisting tar files
     tar_out = tarfile.open(os.path.join(_savepath, SAMPLE_FILENAME), mode="w")
     if options.SAMPLE >= 2:
-        add_to_sample([os.path.join(os.path.realpath(QTOPPATH), QTOPCONF_YAML)], tar_out)
-        source_files = glob.glob(os.path.join(os.path.realpath(QTOPPATH), "*.py"))
-        add_to_sample(source_files, tar_out, subdir="qtop_py")
+        if not getattr(options, "ANONYMIZE", False):
+            add_to_sample([os.path.join(os.path.realpath(QTOPPATH), QTOPCONF_YAML)], tar_out)
+        source_path = os.path.join(os.path.realpath(QTOPPATH), "qtop_py")
+        if not os.path.isdir(source_path):  # Installed defaults live inside the package.
+            source_path = os.path.realpath(QTOPPATH)
+        source_files = glob.glob(os.path.join(source_path, "**", "*.py"), recursive=True)
+        for source_file in source_files:
+            subdir = os.path.dirname(os.path.join("qtop_py", os.path.relpath(source_file, source_path)))
+            add_to_sample([source_file], tar_out, subdir=subdir)
     return tar_out
+
+
+def _without_archive_owner(member):
+    member.uid = member.gid = 0
+    member.uname = member.gname = ""
+    return member
 
 
 def add_to_sample(filepaths_to_add, sample_out, sample_method=tarfile, subdir=None):
@@ -79,7 +88,7 @@ def add_to_sample(filepaths_to_add, sample_out, sample_method=tarfile, subdir=No
         fn = os.path.basename(filepath_to_add)
         try:
             logging.debug("Adding %s to sample..." % filepath_to_add)
-            sample_out.add(filepath_to_add, arcname=fn if not subdir else os.path.join(subdir, fn))
+            sample_out.add(filepath_to_add, arcname=fn if not subdir else os.path.join(subdir, fn), filter=_without_archive_owner)
         except (OSError, tarfile.TarError) as error:
             logging.error("Could not add %s to the sample archive; skipping it: %s", filepath_to_add, error)
     # else:

@@ -79,7 +79,7 @@ def parse_qtop_cmdline_args():
         action="store_true",
         dest="ANONYMIZE",
         default=False,
-        help="Mask account, job, queue, and worker-node identifiers. Raw scheduler files are omitted from anonymized sample archives.",
+        help="Mask identifiers where supported by the backend (requires -e). With -L, save a reproducible masked state/config snapshot instead of raw traces and logs.",
     )
     parser.add_argument("-b", "--batchSystem", action="store", dest="BATCH_SYSTEM", default=None)
     parser.add_argument(
@@ -92,7 +92,7 @@ def parse_qtop_cmdline_args():
         help="Enable/Disable color in qtop output. AUTO detects tty (for watch -d)",
     )
     parser.add_argument("-C", "--classic", action="store_true", dest="CLASSIC", default=False, help="tries to mimic legacy qtop display as much as possible")
-    parser.add_argument("-d", "--debug", action="store_true", dest="DEBUG", default=False, help="print debugging messages in stdout, not just in the log file.")
+    parser.add_argument("-d", "--debug", action="store_true", dest="DEBUG", default=False, help="print debug messages and operational-error tracebacks to stderr and the log file.")
     parser.add_argument("-E", "--export", action="store_true", dest="EXPORT", default=False, help="export cluster data to json")
     parser.add_argument(
         "-e",
@@ -209,8 +209,10 @@ def parse_qtop_cmdline_args():
         dest="SAMPLE",
         default=False,
         help="Create a sample file. A single L creates a tarball with the log, scheduler output files, "
-        "qtop output. Two L's additionaly include the qtop_conf yaml file, and qtop qtop_py.",
+        "qtop output. With -A, include a portable masked snapshot instead. Two L's add package sources "
+        "and, without -A, the bundled config.",
     )
+    parser.add_argument("--load-sample", metavar="ARCHIVE", help="Reproduce an anonymized support snapshot without scheduler commands")
     args = parser.parse_args()
     return args
 

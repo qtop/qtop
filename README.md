@@ -80,11 +80,15 @@ Read scheduler traces from a directory instead of invoking live commands:
 ./qtop -b slurm -s /path/to/slurm-traces
 ```
 
-Create a support sample containing qtop output, logs, and scheduler traces:
+Create a support sample containing qtop output, logs, and scheduler traces
+(use `-L -A -e` for a reproducible anonymized state snapshot):
 
 ```console
 ./qtop -L
 ```
+
+Reproduce an anonymized support archive with `qtop --load-sample archive.tar`.
+This restores parsed state and presentation without contacting the scheduler.
 
 Replay automatically captured frames from a specific time:
 
@@ -92,13 +96,18 @@ Replay automatically captured frames from a specific time:
 ./qtop -R 1823
 ```
 
-Export the normalized cluster state as JSON:
+Export the normalized cluster state to a JSON file in the configured save
+directory:
 
 ```console
 ./qtop -E
 ```
 
-See [the full documentation](docs/documentation.rst) for trace filenames, configuration, filtering, replay formats, anonymization, and scheduler-specific notes.
+``-E`` keeps the terminal view on stdout. See the
+[capture and export guide](docs/documentation.md#capture-and-json-export) for
+filenames, a real JSON example, archive contents and anonymization limits.
+
+See [the full documentation](docs/documentation.md) for trace filenames, configuration, filtering, replay formats, anonymization, and scheduler-specific notes.
 
 ## How it works
 
@@ -109,6 +118,10 @@ qtop separates scheduler-specific collection and parsing from a common cluster-s
 3. qtop renders that state in a fast terminal view or exports it for other tools.
 
 This design keeps the core scheduler-independent and makes support for another batch system a bounded plugin contribution.
+
+See the [architecture diagram and source map](docs/architecture.md) for the
+module relationships and the paths through collection, rendering, capture and
+replay.
 
 ## Compatibility
 
@@ -122,7 +135,7 @@ parser stress corpus with `make deterministic-fuzz`.
 
 ## Documentation and community
 
-- [User documentation and tutorial](docs/documentation.rst)
+- [User documentation and tutorial](docs/documentation.md)
 - [Contributing guide](CONTRIBUTING.md)
 - [Security policy](SECURITY.md)
 - [Issue tracker](https://github.com/qtop/qtop/issues)

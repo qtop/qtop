@@ -1,0 +1,12 @@
+701|alice|R|compute|4|node[001-002],node999
+702|bob|PD|compute||
+703|carol|NEW_STATE|compute|1|node003
+704|dave|R|compute|2|node[
+705|erin|R|compute|1|node999
+706|frank|R|compute|bad|node003
+truncated|alice|R
+|alice|R|compute|1|node001
+707||R|compute|1|node001
+708|alice||compute|1|node001
+709|alice|R||1|node001
+710|alice|R|compute|1|node001|extra

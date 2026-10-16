@@ -1,0 +1,6 @@
+node001|compute*|alloc|4
+node002|compute|mix|4
+node003|compute|new_future_state|4
+truncated|compute
+|compute|idle|4
+node004||idle|4

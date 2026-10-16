@@ -29,8 +29,9 @@ schedulers:
   sge:
     sge_file: %(savepath)s/qstat%(pid)s.F.xml.stdout, qstat -F -xml -u '*'
   slurm:
-    squeue_file: %(savepath)s/squeue%(pid)s.txt, squeue -h -o %%i|%%u|%%t|%%P|%%C|%%N
-    sinfo_file: %(savepath)s/sinfo%(pid)s.txt, sinfo -N -h -o %%N|%%P|%%t|%%c
+    ## Copy the command after ', ' directly into a shell for debugging.
+    squeue_file: %(savepath)s/squeue%(pid)s.txt, squeue -h -o '%i|%u|%t|%P|%C|%N'
+    sinfo_file: %(savepath)s/sinfo%(pid)s.txt, sinfo -N -h -o '%N|%P|%t|%c'
   demo:
     demo_file: %(savepath)s/demo%(pid)s.txt, echo 'Demo here'
 
