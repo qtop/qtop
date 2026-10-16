@@ -98,7 +98,7 @@ Export the normalized cluster state as JSON:
 ./qtop -E
 ```
 
-See [the full documentation](docs/documentation.rst) for trace filenames, configuration, filtering, replay formats, anonymization, and scheduler-specific notes.
+See [the full documentation](docs/documentation.md) for trace filenames, configuration, filtering, replay formats, anonymization, and scheduler-specific notes.
 
 ## How it works
 
@@ -122,7 +122,7 @@ parser stress corpus with `make deterministic-fuzz`.
 
 ## Documentation and community
 
-- [User documentation and tutorial](docs/documentation.rst)
+- [User documentation and tutorial](docs/documentation.md)
 - [Contributing guide](CONTRIBUTING.md)
 - [Security policy](SECURITY.md)
 - [Issue tracker](https://github.com/qtop/qtop/issues)

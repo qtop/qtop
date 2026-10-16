@@ -34,7 +34,7 @@ classifiers = [
 [project.urls]
 "Homepage" = "https://github.com/qtop/qtop"
 "Changelog" = "https://github.com/qtop/qtop/blob/main/CHANGELOG.md"
-"Documentation" = "https://github.com/qtop/qtop/blob/main/docs/documentation.rst"
+"Documentation" = "https://github.com/qtop/qtop/blob/main/docs/documentation.md"
 "Issues" = "https://github.com/qtop/qtop/issues"
 "Security" = "https://github.com/qtop/qtop/security/policy"
 
