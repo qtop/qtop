@@ -1,19 +1,19 @@
 # Changelog
 
-## Unreleased
+## 0.9.20261012
 
+- Bugfix: keep section 3 (User accounts and pool mappings) ordered by user ID, respecting the configured ID alphabet and alphabetical first-letter IDs, with overflow users last.
+- Bugfix: preserve the previous ordering and color mapping for users sharing a first-letter ID.
+- Bugfix: make Slurm commands in qtopconf.yaml directly copyable into a shell, honor argument quoting, and retain support for legacy doubled-percent format codes.
 - Bugfix: report filesystem, configuration and scheduler-input failures concisely with exit code 1; retain exception details in the log and show tracebacks with `--debug`.
 - Bugfix: require explicitly selected configuration files to exist and report invalid `-o KEY=VALUE` settings.
 - Bugfix: check scheduler-command exit status, allow successful commands to warn on stderr, and remove failed temporary captures without replacing the previous snapshot.
-
 - Bugfix: expand comma-separated Slurm host groups and reject malformed or oversized host lists without hanging or crashing.
 - Bugfix: skip incomplete Slurm identity rows, clamp invalid CPU counts and retain unknown job states in accounting totals.
 - Tests: add synthetic incomplete Slurm snapshots and regressions for host lists, unknown states, empty inputs and missing nodes.
 
 ## 0.9.20261010
 
-- Bugfix: keep section 3 (User accounts and pool mappings) ordered by user ID, respecting the configured ID alphabet and alphabetical first-letter IDs, with overflow users last.
-- Bugfix: preserve the previous ordering and color mapping for users sharing a first-letter ID.
 - Security: reject DTD declarations in SGE scheduler XML before entity expansion, without adding runtime dependencies; cover ordinary XML and malicious declarations in UTF-8 and UTF-16 with regression tests.
 - Licensing: add per-file SPDX notices and license sidecars for fixtures, reference output and binary assets; include sidecars and the MIT license text in source distributions and document attribution conventions.
 - Documentation: refresh the roadmap around verifiable 1.0 release gates, retain Python 3.6 compatibility as a requirement and inventory implemented CI/CD tooling.

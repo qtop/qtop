@@ -434,11 +434,21 @@ Scheduler configuration area
           sge:
             sge_file: %(savepath)s/qstat%(pid)s.F.xml.stdout, qstat -F -xml -u '*'
           slurm:
-            squeue_file: %(savepath)s/squeue%(pid)s.txt, squeue -h -o %%i|%%u|%%t|%%P|%%C|%%N
-            sinfo_file: %(savepath)s/sinfo%(pid)s.txt, sinfo -N -h -o %%N|%%P|%%t|%%c
+            squeue_file: %(savepath)s/squeue%(pid)s.txt, squeue -h -o '%i|%u|%t|%P|%C|%N'
+            sinfo_file: %(savepath)s/sinfo%(pid)s.txt, sinfo -N -h -o '%N|%P|%t|%c'
           demo:
             demo_file: %(savepath)s/demo%(pid)s.txt, echo 'Demo here'
     ---
+
+The Slurm commands after the filename separator can be copied directly into
+a shell::
+
+    squeue -h -o '%i|%u|%t|%P|%C|%N'
+    sinfo -N -h -o '%N|%P|%t|%c'
+
+Quotes keep the pipe characters inside the format argument. qtop honors
+shell-style argument quoting without invoking a shell. Existing custom
+configurations using doubled ``%%`` format codes remain supported.
 
 There are two ways to run qtop, data-wise:
 

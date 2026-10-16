@@ -55,7 +55,7 @@ class SlurmStatExtractor(StatExtractor):
     def extract_squeue(self, orig_file):
         """
         Parse output from:
-        squeue -h -o %i|%u|%t|%P|%C|%N
+        squeue -h -o '%i|%u|%t|%P|%C|%N'
         """
         try:
             fileutils.check_empty_file(orig_file)
@@ -93,7 +93,7 @@ class SlurmStatExtractor(StatExtractor):
     def extract_sinfo(self, orig_file):
         """
         Parse output from:
-        sinfo -N -h -o %N|%P|%t|%c
+        sinfo -N -h -o '%N|%P|%t|%c'
         """
         try:
             fileutils.check_empty_file(orig_file)

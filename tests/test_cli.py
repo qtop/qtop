@@ -223,3 +223,49 @@ def test_replay_configuration_failure_is_concise(tmp_path):
     assert "Invalid configuration" in result.stderr
     assert str(config) in result.stderr
     assert "Traceback" not in result.stderr
+
+
+@pytest.mark.skipif(os.name != "posix", reason="Compare qtop execution with a POSIX shell")
+@pytest.mark.parametrize(
+    "scheduler_file, expected",
+    (
+        ("squeue_file", ["-h", "-o", "%i|%u|%t|%P|%C|%N"]),
+        ("sinfo_file", ["-N", "-h", "-o", "%N|%P|%t|%c"]),
+    ),
+)
+def test_slurm_config_command_matches_shell_execution(tmp_path, monkeypatch, scheduler_file, expected):
+    import json
+
+    from qtop_py import qtop
+
+    config = qtop.yaml.parse(str(ROOT / "qtopconf.yaml"))
+    configured_command = config["schedulers"]["slurm"][scheduler_file].split(", ", 1)[1]
+    executable = configured_command.split()[0]
+    script = tmp_path / executable
+    script.write_text("#!%s\nimport json, sys\nprint(json.dumps(sys.argv[1:]))\n" % sys.executable, encoding="utf-8")
+    script.chmod(0o755)
+    monkeypatch.setenv("PATH", str(tmp_path) + os.pathsep + os.environ.get("PATH", ""))
+    monkeypatch.setattr(qtop, "scheduler", "slurm", raising=False)
+    args = type("Options", (), {"SOURCEDIR": None, "workdir": str(tmp_path)})()
+    finalized = qtop.finalize_filepaths_schedulercommands(args, config)
+    output_path, command = finalized[scheduler_file]
+    assert command == configured_command
+    shell_output = subprocess.check_output(["/bin/sh", "-c", configured_command], universal_newlines=True)
+    qtop.execute_shell_batch_commands({scheduler_file: command}, {scheduler_file: output_path}, scheduler_file, str(tmp_path))
+    assert json.loads(shell_output) == expected
+    assert json.loads(Path(output_path).read_text()) == expected
+    # Old user configs continue to produce the same scheduler arguments.
+    path_template = config["schedulers"]["slurm"][scheduler_file].split(", ", 1)[0]
+    legacy_command = configured_command.replace("'", "").replace("%", "%%")
+    config["schedulers"]["slurm"][scheduler_file] = path_template + ", " + legacy_command
+    legacy_path, legacy_command = qtop.finalize_filepaths_schedulercommands(args, config)[scheduler_file]
+    qtop.execute_shell_batch_commands({scheduler_file: legacy_command}, {scheduler_file: legacy_path}, scheduler_file, str(tmp_path))
+    assert json.loads(Path(legacy_path).read_text()) == expected
+
+
+def test_malformed_scheduler_command_quotes_are_actionable(tmp_path):
+    from qtop_py import qtop
+
+    with pytest.raises(qtop.OperationalError, match="Check command quoting"):
+        qtop.execute_shell_batch_commands({"trace": "squeue -o 'unterminated"}, {"trace": str(tmp_path / "trace.txt")}, "trace", str(tmp_path))
+    assert list(tmp_path.iterdir()) == []

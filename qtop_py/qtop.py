@@ -20,6 +20,7 @@ import json
 import os
 import re
 import select
+import shlex
 import shutil
 import subprocess
 import sys
@@ -395,7 +396,8 @@ def finalize_filepaths_schedulercommands(args, config):
     for fn, path_command in config["schedulers"][scheduler].items():
         path, command = path_command.strip().split(", ")
         path = path % {"savepath": args.workdir, "pid": fn_append}
-        command = command % {"savepath": args.workdir}
+        # Slurm format codes stay copyable; accept legacy escaped percent signs.
+        command = command.replace("%%", "%").replace("%(savepath)s", args.workdir)
         d[fn] = (path, command)
     return d
 
@@ -438,9 +440,11 @@ def execute_shell_batch_commands(batch_system_commands, filenames, _file, _savep
             # injected commands
             tempname = fin.name
             try:
-                command = subprocess.Popen(_batch_system_command.split(), stdout=fin, stderr=subprocess.PIPE)
+                command = subprocess.Popen(shlex.split(_batch_system_command), stdout=fin, stderr=subprocess.PIPE)
             except OSError as error:
                 raise OperationalError("Cannot execute scheduler command %r: %s. Check PATH or load the scheduler module." % (_batch_system_command, error.strerror)) from error
+            except ValueError as error:
+                raise OperationalError("Invalid scheduler command %r: %s. Check command quoting in %s." % (_batch_system_command, error, QTOPCONF_YAML)) from error
             error = command.communicate()[1]
             command.wait()
             if error:
