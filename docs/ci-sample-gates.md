@@ -213,11 +213,15 @@ make coverage
 ```
 
 That target runs `coverage.py` through the same `PYTHON` override used by the
-other targets. To enable coverage in CI without changing the abstraction,
-install `requirements-ci.txt` and insert `make coverage` in the modern Python
-job after `make ci`, then publish `coverage xml` or terminal summary artifacts
-from the workflow. The AlmaLinux 8 / Python 3.6 lane should stay
-dependency-light and continue to run `make compat-py36`.
+other targets and fails below 81% TOTAL coverage (`COVERAGE_MIN`, default 81).
+`make coverage-xml` enforces the same floor before emitting its CI report.
+Coverage scope is unchanged; no source files or lines are excluded to meet the
+floor. Direct runtime tests exercise scheduler collection, terminal rendering,
+watch controls, and anonymized archive replay in the measured process.
+
+Both coverage workflows run `make coverage-xml` and publish its Cobertura
+report. The AlmaLinux 8 / Python 3.6 lane stays dependency-light and continues
+to run `make compat-py36`.
 
 ## Develop / CONTRIBUTING.md alignment
 

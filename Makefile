@@ -23,6 +23,7 @@ FUZZ_SEED ?= 488
 FUZZ_CASES ?= 5000
 FORTIFY_BASE_REF ?= origin/develop
 COVERAGE_XML ?= artifacts/coverage/coverage.xml
+COVERAGE_MIN ?= 81
 REPO_SANITY_DIR ?= artifacts/repo-sanity
 CODE_QUALITY_JSON ?= artifacts/code-quality/gl-code-quality-report.json
 LICENSE_DIR ?= artifacts/license
@@ -48,11 +49,11 @@ test: ## Run the Python test suite
 
 coverage: ## Run tests with coverage.py and print a terminal report
 	$(PYTHON) -m coverage run -m pytest
-	$(PYTHON) -m coverage report
+	$(PYTHON) -m coverage report --fail-under=$(COVERAGE_MIN)
 
 coverage-xml: ## Run tests under coverage.py and write a CI-ready Cobertura XML report
 	$(PYTHON) -m coverage run -m pytest
-	$(PYTHON) -m coverage report
+	$(PYTHON) -m coverage report --fail-under=$(COVERAGE_MIN)
 	@mkdir -p $(dir $(COVERAGE_XML))
 	$(PYTHON) -m coverage xml -o $(COVERAGE_XML)
 	@echo "wrote $(COVERAGE_XML)"
