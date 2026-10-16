@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.9.20261013
+
+
 ## 0.9.20261012
 
 - Documentation: align CLI and keyboard references, configuration precedence and scheduler examples with the code; document JSON files, support archives and anonymization scope using verified Slurm captures.
