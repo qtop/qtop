@@ -2,6 +2,8 @@
 
 ## 0.9.20261012
 
+- Documentation: add an editable architecture diagram and source map based on the GitDiagram proposal in #571; link it from the README and guide.
+
 - Bugfix: keep section 3 (User accounts and pool mappings) ordered by user ID, respecting the configured ID alphabet and alphabetical first-letter IDs, with overflow users last.
 - Bugfix: order users sharing an ID by username ascending, preserving the previous color mapping for shared first-letter IDs.
 - Bugfix: make Slurm commands in qtopconf.yaml directly copyable into a shell, honor argument quoting, and retain support for legacy doubled-percent format codes.

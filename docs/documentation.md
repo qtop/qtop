@@ -2,6 +2,7 @@ qtop guide
 ==========
 
 -  [Introduction](#introduction)
+-  [Architecture and source map](architecture.md)
 -  [Quickstart](#quickstart)
 -  [Demo case study](#demo-case-study)
 -  [Bundled scheduler case studies](#bundled-scheduler-case-studies)

@@ -110,6 +110,10 @@ qtop separates scheduler-specific collection and parsing from a common cluster-s
 
 This design keeps the core scheduler-independent and makes support for another batch system a bounded plugin contribution.
 
+See the [architecture diagram and source map](docs/architecture.md) for the
+module relationships and the paths through collection, rendering, capture and
+replay.
+
 ## Compatibility
 
 qtop targets Python 3 and Linux-based HPC environments. Its CI matrix covers modern Python versions and retains a dependency-light compatibility lane for older enterprise distributions commonly found on clusters.
