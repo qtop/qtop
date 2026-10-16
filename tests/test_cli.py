@@ -63,3 +63,163 @@ def test_no_scheduler_message_is_not_duplicated(tmp_path, module):
     assert result.returncode == 1
     assert output.count("No suitable scheduler was found") == 1
     assert "Traceback" not in output
+
+
+@pytest.mark.parametrize("module", ("qtop_py.cli", "qtop_py.qtop"))
+@pytest.mark.parametrize("failure", ("source", "trace", "config", "empty-config", "invalid-config", "option", "term-size", "log-directory"))
+def test_operational_failures_are_actionable(tmp_path, module, failure):
+    args = ["-b", "slurm"]
+    expected = ""
+    if failure == "source":
+        args += ["-s", str(tmp_path / "missing-source")]
+        expected = "missing-source"
+    elif failure == "trace":
+        args += ["-s", str(tmp_path)]
+        expected = "Scheduler input file"
+    elif failure == "config":
+        args += ["-f", str(tmp_path / "missing.yaml")]
+        expected = "missing.yaml"
+    elif failure in ("empty-config", "invalid-config"):
+        path = tmp_path / "custom.yaml"
+        path.write_text("" if failure == "empty-config" else "sorting: wrong-type\n", encoding="utf-8")
+        args += ["-f", str(path)]
+        expected = "empty" if failure == "empty-config" else "Invalid configuration"
+    elif failure == "option":
+        args += ["-o", "missing-equals"]
+        expected = "expected KEY=VALUE"
+    elif failure == "term-size":
+        args += ["-o", "term_size=[0,80]"]
+        expected = "two positive integers"
+    else:
+        # Exercise failure before logging is initialized, without chmod/root
+        # behavior differences between CI and developer machines.
+        (tmp_path / ".local").write_text("not a directory", encoding="utf-8")
+        expected = ".local"
+    result = run_cli(tmp_path, module, *args)
+    assert result.returncode == 1
+    assert "qtop: " in result.stderr
+    assert expected in result.stderr
+    assert "Traceback" not in result.stderr
+
+
+def test_missing_scheduler_command_is_actionable(tmp_path):
+    config = tmp_path / "commands.yaml"
+    config.write_text(
+        "savepath: %s\nschedulers:\n  slurm:\n    squeue_file: %%(savepath)s/squeue%%(pid)s.txt, qtop-missing-scheduler-command\n" % tmp_path,
+        encoding="utf-8",
+    )
+    result = run_cli(tmp_path, "qtop_py.cli", "-b", "slurm", "-f", str(config))
+    assert result.returncode == 1
+    assert "Cannot execute scheduler command 'qtop-missing-scheduler-command'" in result.stderr
+    assert "Check PATH" in result.stderr
+    assert "Traceback" not in result.stderr
+    assert not list(tmp_path.glob("tmp*"))
+
+
+@pytest.mark.parametrize("debug", (False, True))
+def test_operational_tracebacks_are_logged_and_opt_in_on_console(tmp_path, debug):
+    args = ["-b", "slurm", "-s", str(tmp_path / "missing")]
+    if debug:
+        args.append("-d")
+    result = run_cli(tmp_path, "qtop_py.cli", *args)
+    assert result.returncode == 1
+    assert ("Traceback" in result.stderr) is debug
+    assert result.stderr.count("qtop: ") == 1
+    log = (tmp_path / ".local/qtop/logs/qtop.log").read_text(encoding="utf-8")
+    assert "Traceback" in log
+    assert "FileNotFoundError" in log
+
+
+def test_malformed_scheduler_xml_has_concise_error(tmp_path):
+    (tmp_path / "qstat.F.xml.stdout").write_text("<unfinished", encoding="utf-8")
+    result = run_cli(tmp_path, "qtop_py.cli", "-b", "sge", "-s", str(tmp_path))
+    assert result.returncode == 1
+    assert "Cannot parse sge scheduler input" in result.stderr
+    assert str(tmp_path) in result.stderr
+    assert "Traceback" not in result.stderr
+
+
+def test_cli_permission_error_restores_output(monkeypatch, capsys):
+    import io
+
+    from qtop_py import qtop
+
+    original = sys.stdout
+    redirected = io.StringIO()
+
+    def fail():
+        sys.stdout = redirected
+        raise PermissionError(13, "Permission denied", "/restricted/trace")
+
+    monkeypatch.setattr(qtop, "main", fail)
+    assert qtop.cli_main() == 1
+    assert sys.stdout is original
+    assert redirected.closed
+    assert "Permission denied (/restricted/trace)" in capsys.readouterr().err
+
+
+def test_cli_does_not_hide_unexpected_programming_errors(monkeypatch):
+    from qtop_py import qtop
+
+    def fail():
+        raise RuntimeError("programming defect")
+
+    monkeypatch.setattr(qtop, "main", fail)
+    with pytest.raises(RuntimeError, match="programming defect"):
+        qtop.cli_main()
+
+
+@pytest.mark.parametrize("exit_code", (0, 7))
+def test_scheduler_command_checks_exit_status_and_cleans_up(tmp_path, exit_code):
+    from qtop_py import qtop
+
+    script = tmp_path / "command.py"
+    script.write_text("import sys\nprint('usable output')\nsys.stderr.write('scheduler warning\\n')\nsys.exit(%s)\n" % exit_code, encoding="utf-8")
+    output = tmp_path / "trace.txt"
+    output.write_text("previous snapshot", encoding="utf-8")
+    arguments = ({"trace": "%s %s" % (sys.executable, script)}, {"trace": str(output)}, "trace", str(tmp_path))
+    if exit_code:
+        with pytest.raises(qtop.OperationalError, match="failed \\(exit 7\\): scheduler warning"):
+            qtop.execute_shell_batch_commands(*arguments)
+        assert output.read_text() == "previous snapshot"
+    else:
+        assert qtop.execute_shell_batch_commands(*arguments) == str(output)
+        assert output.read_text() == "usable output\n"
+    assert {path.name for path in tmp_path.iterdir()} == {"command.py", "trace.txt"}
+
+
+def test_option_value_can_contain_equals():
+    from qtop_py.qtop import get_key_val_from_option_string
+
+    assert get_key_val_from_option_string("label=a=b") == ("label", "a=b")
+
+
+def test_unreadable_optional_config_is_not_ignored(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+
+    from qtop_py import qtop
+
+    parse = qtop.yaml.parse
+    optional_path = str(tmp_path / "etc" / "qtopconf.yaml")
+
+    def deny_optional(path):
+        if path == optional_path:
+            raise PermissionError(13, "Permission denied", path)
+        return parse(path)
+
+    monkeypatch.setattr(qtop, "QTOPPATH", str(ROOT), raising=False)
+    monkeypatch.setattr(qtop, "SYSTEMCONFDIR", str(tmp_path / "etc"))
+    monkeypatch.setattr(qtop, "args", SimpleNamespace(CONFFILE=None), raising=False)
+    monkeypatch.setattr(qtop.yaml, "parse", deny_optional)
+    with pytest.raises(PermissionError):
+        qtop.load_yaml_config()
+
+
+def test_replay_configuration_failure_is_concise(tmp_path):
+    config = tmp_path / "invalid.yaml"
+    config.write_text("sorting: wrong-type\n", encoding="utf-8")
+    result = run_cli(tmp_path, "qtop_py.cli", "-R", "0000", "-f", str(config))
+    assert result.returncode == 1
+    assert "Invalid configuration" in result.stderr
+    assert str(config) in result.stderr
+    assert "Traceback" not in result.stderr

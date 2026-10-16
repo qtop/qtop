@@ -28,6 +28,7 @@ from functools import lru_cache
 from itertools import cycle, groupby, zip_longest
 from operator import itemgetter
 from signal import SIG_DFL, signal
+from xml.etree.ElementTree import ParseError
 
 try:
     from signal import SIGPIPE
@@ -43,6 +44,7 @@ import glob
 import logging
 import tempfile
 import time
+import traceback
 from ast import literal_eval
 from math import ceil
 
@@ -258,7 +260,7 @@ def load_yaml_config():
 
     try:
         config_env = yaml.parse(os.path.join(SYSTEMCONFDIR, QTOPCONF_YAML))
-    except IOError:
+    except FileNotFoundError:
         config_env = {}
         logging.info("%s could not be found in %s/" % (QTOPCONF_YAML, SYSTEMCONFDIR))
     else:
@@ -267,7 +269,7 @@ def load_yaml_config():
 
     try:
         config_user = yaml.parse(os.path.join(USERPATH, QTOPCONF_YAML))
-    except IOError:
+    except FileNotFoundError:
         config_user = {}
         logging.info("User %s could not be found in %s/" % (QTOPCONF_YAML, USERPATH))
     else:
@@ -280,12 +282,11 @@ def load_yaml_config():
     if args.CONFFILE:
         try:
             config_user_custom = yaml.parse(os.path.join(USERPATH, args.CONFFILE))
-        except IOError:
+        except FileNotFoundError:
             try:
                 config_user_custom = yaml.parse(os.path.join(CURPATH, args.CONFFILE))
-            except IOError:
-                config_user_custom = {}
-                logging.info("Custom User %s could not be found in %s/ or current dir" % (args.CONFFILE, CURPATH))
+            except FileNotFoundError as error:
+                raise OperationalError("Custom configuration file %s was not found in %s/ or %s/." % (args.CONFFILE, USERPATH, CURPATH)) from error
             else:
                 logging.info("Custom User %s found in %s/" % (QTOPCONF_YAML, CURPATH))
                 logging.info("Custom User configuration dictionary loaded. Length: %s items" % len(config_user_custom))
@@ -339,6 +340,12 @@ def calculate_term_size(config, FALLBACK_TERM_SIZE, viewport):
     the viewport size is used before the configured fallback.
     """
     fallback_term_size = config.get("term_size", FALLBACK_TERM_SIZE)
+    try:
+        height, columns = [int(value) for value in fallback_term_size]
+        if height <= 0 or columns <= 0:
+            raise ValueError("dimensions must be positive")
+    except (TypeError, ValueError) as error:
+        raise OperationalError("Invalid configuration: term_size must contain two positive integers.") from error
 
     stty = shutil.which("stty")
     tty_size, error = b"", b"stty not found"
@@ -416,29 +423,39 @@ def execute_shell_batch_commands(batch_system_commands, filenames, _file, _savep
     as defined by the user in QTOPCONF_YAML
     """
     _batch_system_command = batch_system_commands[_file].strip()
-    with tempfile.NamedTemporaryFile("w", dir=_savepath, delete=False) as fin:
-        logging.debug('Command: "%s" -- result will be saved in: %s' % (_batch_system_command, filenames[_file]))
-        logging.debug("\tFile state before subprocess call: %(fin)s" % {"fin": fin})
-        logging.debug("\tWaiting on subprocess.call...")
+    tempname = None
+    try:
+        if not _batch_system_command:
+            raise OperationalError("Empty scheduler command for %s; check %s." % (_file, QTOPCONF_YAML))
+        with tempfile.NamedTemporaryFile("w", dir=_savepath, delete=False) as fin:
+            logging.debug('Command: "%s" -- result will be saved in: %s' % (_batch_system_command, filenames[_file]))
+            logging.debug("\tFile state before subprocess call: %(fin)s" % {"fin": fin})
+            logging.debug("\tWaiting on subprocess.call...")
 
-        # splitting the command passed in so only the first item in a command
-        # from the yaml file is executed with the rest of the line treated as
-        # arguments, this enables shell=False, and keeps us from having
-        # injected commands
-        command = subprocess.Popen(_batch_system_command.split(), stdout=fin, stderr=subprocess.PIPE)
-        error = command.communicate()[1]
-        command.wait()
-        if error:
-            logging.exception("A message from your shell: %s" % error)
-            logging.critical('%s could not be executed. Maybe try "module load %s"?' % (_batch_system_command, scheduler))
+            # splitting the command passed in so only the first item in a command
+            # from the yaml file is executed with the rest of the line treated as
+            # arguments, this enables shell=False, and keeps us from having
+            # injected commands
+            tempname = fin.name
+            try:
+                command = subprocess.Popen(_batch_system_command.split(), stdout=fin, stderr=subprocess.PIPE)
+            except OSError as error:
+                raise OperationalError("Cannot execute scheduler command %r: %s. Check PATH or load the scheduler module." % (_batch_system_command, error.strerror)) from error
+            error = command.communicate()[1]
+            command.wait()
+            if error:
+                logging.warning("A message from your shell: %s", error.decode("utf-8", errors="replace").strip())
+            if command.returncode:
+                detail = " ".join(error.decode("utf-8", errors="replace").splitlines())[:300] or "no diagnostic output"
+                raise OperationalError("Scheduler command %r failed (exit %s): %s" % (_batch_system_command, command.returncode, detail))
+            logging.debug("File state after subprocess call: %(fin)s" % {"fin": fin})
+        os.rename(tempname, filenames[_file])
 
-            web.stop()
-            sys.exit(1)
-        tempname = fin.name
-        logging.debug("File state after subprocess call: %(fin)s" % {"fin": fin})
-    os.rename(tempname, filenames[_file])
-
-    return filenames[_file]
+        return filenames[_file]
+    finally:
+        if tempname is not None:
+            with contextlib.suppress(OSError):
+                os.unlink(tempname)
 
 
 def get_detail_of_name(account_jobs_table):
@@ -534,12 +551,14 @@ def get_input_filenames(INPUT_FNs_commands, config):
             filenames[_file] = execute_shell_batch_commands(batch_system_commands, filenames, _file, _savepath)
 
         if not os.path.isfile(filenames[_file]):
-            raise fileutils.FileNotFound(filenames[_file])
+            raise OperationalError("Scheduler input file %s was not found. Check -s/--SetSourceDir and the selected scheduler." % filenames[_file])
     return filenames
 
 
 def get_key_val_from_option_string(string):
-    key, val = string.split("=")
+    key, separator, val = string.partition("=")
+    if not separator or not key.strip():
+        raise OperationalError("Invalid -o option %r; expected KEY=VALUE." % string)
     return key, val
 
 
@@ -830,7 +849,10 @@ def control_qtop(viewport, read_char, cluster, old_attrs, new_attrs):
 
 
 def fetch_scheduler_files(args, config):
-    INPUT_FNs_commands = finalize_filepaths_schedulercommands(args, config)
+    try:
+        INPUT_FNs_commands = finalize_filepaths_schedulercommands(args, config)
+    except (ValueError, TypeError, KeyError, AttributeError) as error:
+        raise OperationalError("Invalid scheduler command configuration for %s in %s: %s" % (scheduler, QTOPCONF_YAML, error)) from error
     scheduler_output_filenames = get_input_filenames(INPUT_FNs_commands, config)
     return scheduler_output_filenames
 
@@ -2459,7 +2481,31 @@ def cli_error_message(error):
     return str(error)
 
 
+class OperationalError(Exception):
+    """An expected failure that the CLI can explain without a traceback."""
+
+
+def report_operational_error(error):
+    if isinstance(error, OSError):
+        location = " (%s)" % error.filename if error.filename else ""
+        message = "%s%s" % (error.strerror or str(error), location)
+    else:
+        message = str(error)
+    message = " ".join(message.splitlines())
+    sys.stderr.write("qtop: %s\n" % message)
+    # Preserve exception chains even at default verbosity, without sending
+    # tracebacks to normal console handlers or requiring logging to be ready.
+    logger = logging.getLogger()
+    record = logger.makeRecord(__name__, logging.ERROR, __file__, 0, message, (), sys.exc_info())
+    for handler in logger.handlers:
+        if isinstance(handler, logging.FileHandler):
+            handler.handle(record)
+    if getattr(globals().get("args"), "DEBUG", False):
+        traceback.print_exc(file=sys.stderr)
+
+
 def cli_main():
+    original_stdout = sys.stdout
     try:
         return main() or 0
     except (InvalidScheduler, NoSchedulerFound, SchedulerNotSpecified) as error:
@@ -2467,6 +2513,14 @@ def cli_main():
         if message:
             sys.stderr.write("%s\n" % message)
         return 1
+    except (OperationalError, OSError) as error:
+        report_operational_error(error)
+        return 1
+    finally:
+        if sys.stdout is not original_stdout:
+            with contextlib.suppress(OSError):
+                sys.stdout.close()
+            sys.stdout = original_stdout
 
 
 def main():
@@ -2537,7 +2591,10 @@ def main():
     if args.REPLAY:
         args.WATCH = 2  # enforce that --watch mode is on, even if not in cmdline switch
         args.BATCH_SYSTEM = "demo"
-        config, _, _ = load_yaml_config()
+        try:
+            config, _, _ = load_yaml_config()
+        except (ValueError, TypeError, KeyError, IndexError, AttributeError, AssertionError, StopIteration) as error:
+            raise OperationalError("Invalid configuration in %s: %s" % (args.CONFFILE or QTOPCONF_YAML, error or type(error).__name__)) from error
         useful_frames, args.REPLAY = pick_frames_to_replay(config["savepath"])
 
     web = Web(initial_cwd)
@@ -2547,14 +2604,13 @@ def main():
     with raw_mode(sys.stdin):  # key listener implementation
         try:
             while True:
-                config, user_to_color, nodestate_to_color = load_yaml_config()
-                config = update_config_with_cmdline_vars(args, config)
+                try:
+                    config, user_to_color, nodestate_to_color = load_yaml_config()
+                    config = update_config_with_cmdline_vars(args, config)
+                except (ValueError, TypeError, KeyError, IndexError, AttributeError, AssertionError, StopIteration) as error:
+                    raise OperationalError("Invalid configuration in %s: %s" % (args.CONFFILE or QTOPCONF_YAML, error or type(error).__name__)) from error
                 savepath = config["savepath"]
                 timestr = time.strftime("%Y%m%dT%H%M%S")
-                # qtop output is saved here
-                handle, output_fp = fileutils.get_new_temp_file(savepath, prefix="qtop_fullview_%s_" % timestr, suffix=".out")
-                help_main_switch.append(output_fp)
-
                 attempt_faster_xml_parsing(config)
                 args = init_dirs(args, savepath)
 
@@ -2563,6 +2619,9 @@ def main():
                     viewport.set_term_size(500, 9999)
                 else:
                     viewport.set_term_size(*calculate_term_size(config, FALLBACK_TERMSIZE, viewport))
+                # qtop output is saved here
+                handle, output_fp = fileutils.get_new_temp_file(savepath, prefix="qtop_fullview_%s_" % timestr, suffix=".out")
+                help_main_switch.append(output_fp)
                 sys.stdout = os.fdopen(handle, "w")  # redirect everything to file, creates file object out of handle
                 scheduler = decide_batch_system(args.BATCH_SYSTEM, os.environ.get("QTOP_SCHEDULER"), config["scheduler"], config["schedulers"], available_batch_systems, config)
                 scheduler_output_filenames = fetch_scheduler_files(args, config)
@@ -2574,7 +2633,10 @@ def main():
                 #
                 scheduling_system = available_batch_systems[scheduler](scheduler_output_filenames, config, args)
 
-                cluster_state = scheduling_system.get_cluster_state(args)
+                try:
+                    cluster_state = scheduling_system.get_cluster_state(args)
+                except (ValueError, UnicodeError, ParseError) as error:
+                    raise OperationalError("Cannot parse %s scheduler input in %s: %s" % (scheduler, args.workdir, error)) from error
                 document = Document.from_cluster_state(cluster_state)
                 job_ids = [job["id"] for job in cluster_state["jobs"]]
 
@@ -2641,6 +2703,8 @@ def main():
             repr(e)
             fileutils.safe_exit_with_file_close(handle, output_fp, stdout, args, savepath, QTOP_LOGFILE, SAMPLE_FILENAME)
         finally:
+            if sys.exc_info()[0] is not None:
+                web.stop()
             if args.SAMPLE >= 1 and tar_out is not None:
                 tar_out = fileutils.add_to_sample([QTOP_LOGFILE], tar_out)
                 # Raw scheduler output can contain identifiers that qtop cannot

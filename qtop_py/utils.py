@@ -92,7 +92,7 @@ def parse_qtop_cmdline_args():
         help="Enable/Disable color in qtop output. AUTO detects tty (for watch -d)",
     )
     parser.add_argument("-C", "--classic", action="store_true", dest="CLASSIC", default=False, help="tries to mimic legacy qtop display as much as possible")
-    parser.add_argument("-d", "--debug", action="store_true", dest="DEBUG", default=False, help="print debugging messages in stdout, not just in the log file.")
+    parser.add_argument("-d", "--debug", action="store_true", dest="DEBUG", default=False, help="print debug messages and operational-error tracebacks to stderr and the log file.")
     parser.add_argument("-E", "--export", action="store_true", dest="EXPORT", default=False, help="export cluster data to json")
     parser.add_argument(
         "-e",

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Bugfix: report filesystem, configuration and scheduler-input failures concisely with exit code 1; retain exception details in the log and show tracebacks with `--debug`.
+- Bugfix: require explicitly selected configuration files to exist and report invalid `-o KEY=VALUE` settings.
+- Bugfix: check scheduler-command exit status, allow successful commands to warn on stderr, and remove failed temporary captures without replacing the previous snapshot.
+
 - Bugfix: expand comma-separated Slurm host groups and reject malformed or oversized host lists without hanging or crashing.
 - Bugfix: skip incomplete Slurm identity rows, clamp invalid CPU counts and retain unknown job states in accounting totals.
 - Tests: add synthetic incomplete Slurm snapshots and regressions for host lists, unknown states, empty inputs and missing nodes.

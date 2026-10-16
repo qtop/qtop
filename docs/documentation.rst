@@ -665,7 +665,8 @@ Debugging and support
 ~~~~~~~~~~~~~~~~~~~~~
 
 -  ``-v`` increases verbosity. Repeat it for more detail.
--  ``-d`` prints debug messages to stdout in addition to the log file.
+-  ``-d`` prints debug messages and operational-error tracebacks to stderr
+   in addition to the log file.
 -  ``-S`` strictly compares reported running jobs against jobs displayed
    by qtop.
 -  ``-L`` creates a sample archive for reports. Use ``-LL`` to also
@@ -675,6 +676,29 @@ Debugging and support
    files.
 -  ``-V`` prints the qtop version.
 -  ``-h`` shows command help.
+
+Troubleshooting failures
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+Expected filesystem, configuration, scheduler-command and malformed-input
+failures print a concise diagnostic to stderr and exit with status 1.
+Argument syntax rejected by argparse uses status 2. Successful operations
+use status 0. Unexpected programming errors still raise tracebacks.
+
+Detailed operational-error tracebacks are saved in
+``$HOME/.local/qtop/logs/qtop.log`` once logging has initialized. Add ``-d``
+or ``--debug`` to also see them on stderr. If logging cannot start, the
+console diagnostic identifies the failed filesystem path when available.
+
+- Check ``-s`` and the selected scheduler when an input file is missing.
+- Check directory permissions for the source, save directory and log path.
+- A configuration file selected with ``-f`` must exist and contain usable
+  configuration. Missing optional system or user configuration is allowed;
+  unreadable optional files are reported.
+- Supply ``-o`` overrides as ``KEY=VALUE``. Values may contain ``=``.
+- If a scheduler command cannot start, check ``PATH`` or load its module.
+  Nonzero command exits are failures; successful commands may issue warnings
+  on stderr. Failed captures leave any previous snapshot intact.
 
 Usage tips
 ----------
