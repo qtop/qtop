@@ -18,8 +18,10 @@ Use `qtop security report` in the subject. Include the affected qtop version
 or commit, scheduler family, operating system and Python version, a minimal
 reproducer, the expected impact, and any suggested mitigation. Remove cluster
 names, account names, scheduler output, credentials, and other sensitive data
-unless they are essential to the report. The tool qtop has an experimental
-anonymization feature: use it, however review content before sending!
+unless they are essential to the report. Experimental masking uses ``-A -e``;
+its coverage varies by backend and does not guarantee redaction of logs,
+paths or configuration. Review captured files before sending them; see the
+[anonymization scope](docs/documentation.md#anonymization-scope).
 
 The maintainers will coordinate validation, remediation, release timing, and
 credit with the reporter. If email is unsuitable, ask for an alternative

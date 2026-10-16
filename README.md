@@ -80,7 +80,8 @@ Read scheduler traces from a directory instead of invoking live commands:
 ./qtop -b slurm -s /path/to/slurm-traces
 ```
 
-Create a support sample containing qtop output, logs, and scheduler traces:
+Create a support sample containing qtop output, logs, and scheduler traces
+(raw traces are excluded when experimental anonymization is enabled):
 
 ```console
 ./qtop -L
@@ -92,11 +93,16 @@ Replay automatically captured frames from a specific time:
 ./qtop -R 1823
 ```
 
-Export the normalized cluster state as JSON:
+Export the normalized cluster state to a JSON file in the configured save
+directory:
 
 ```console
 ./qtop -E
 ```
+
+``-E`` keeps the terminal view on stdout. See the
+[capture and export guide](docs/documentation.md#capture-and-json-export) for
+filenames, a real JSON example, archive contents and anonymization limits.
 
 See [the full documentation](docs/documentation.md) for trace filenames, configuration, filtering, replay formats, anonymization, and scheduler-specific notes.
 

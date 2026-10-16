@@ -10,6 +10,7 @@ qtop guide
 -  [Watchmode](#watch-mode)
 -  [Instant Replay](#instant-replay)
 -  [Customisation](#customisation)
+-  [Capture and JSON export](#capture-and-json-export)
 -  [Command-line arguments](#command-line-arguments)
 -  [Usage tips](#usage-tips)
 
@@ -247,7 +248,7 @@ nodes will be substituted with the hash symbol.
 -  the jobs of every user, with distinct mention for the running jobs
    vs. the total number of jobs (including the finished ones)
 -  the name of the unix account
--  Grid certificate DN, or GECOS field
+-  optional GECOS details (``-G``) and primary Unix group (``--show-groups``)
 
 Rows follow the displayed ``id`` column: the configured ``possible_ids``
 order normally, or alphabetical ID order with ``fill_with_user_firstletter``.
@@ -255,15 +256,11 @@ Rows sharing an ID use ascending username order, regardless of job counts.
 Overflow rows marked ``*`` appear last, also ordered by username. Sorting the
 table does not change user IDs or the color precedence of shared IDs.
 
-The former is useful in Grid-connected clusters. It shows the owner of
-the pool account at the current time.
-
-*Note*: This can only be shown for root accounts, because of the
-dependence on ``edg-mkgridpool --list``
-
-The GECOS field either retrieves information from a cached file
-(described in the config file) or gets information in realtime from
-``getent passwd``
+``-4`` adds a totals row. ``-G`` retrieves account details with the
+configured ``getent passwd`` command; the default cache is
+``$HOME/.local/qtop/getent_passwd.txt`` when real-time lookup is disabled.
+``--show-groups`` resolves each user's primary Unix group through the local
+account database. Neither option requires a Grid pool-mapping command.
 
 Watch mode
 ----------
@@ -277,7 +274,7 @@ was hence inspired, and along with that came new features that original
 watch doesn't provide, giving interactivity to the user, in an
 ncurses-like fashion.
 
-The options available in watch mode, as of version 0.8.9 are:
+Watch mode supports:
 
 -  navigation through a big matrix, as if more/less were used (more or
    less ;) with vim-like commands
@@ -293,23 +290,27 @@ The options available in watch mode, as of version 0.8.9 are:
 
 | shortcut | function |
 | --- | --- |
-| j/k | go down/up one screen |
-| h/l | go to left/right one screen |
-| g/G | go to top/bottom of matrix |
-| 0 | go to left end of matrix |
-| $ | go to right end of matrix |
-| R | reset position/refresh |
+| j / Space | go down one screen |
+| k / Backspace | go up one screen |
+| h / l | go left / right one screen |
+| g / K | go to the top of the matrix |
+| G / J | go to the bottom of the matrix |
+| 0 / $ | go to the left / right edge |
+| R | reset the viewport |
 
-#### Other
+#### View and session controls
 
 | shortcut | function |
 | --- | --- |
 | f | apply filtering |
-| F | switch node ID type |
-| m | switch coloring code |
-| r | toggle show/all/real/used cores |
+| F | switch full names / numbered node labels |
+| H | highlight users or queues |
+| m | switch core coloring by user / queue |
+| Q | expand / collapse the queueing summary |
+| r | cycle all / real / used core lines |
 | s | apply sorting |
-| t | transpose matrix |
+| t | transpose the matrix |
+| ? | toggle interactive help |
 | q | quit qtop |
 
 Instant Replay
@@ -360,6 +361,42 @@ affect the behaviour of qtop in a live manner, if running in [watch mode](#watch
 
 ### The configuration file (qtopconf.yaml)
 
+#### Configuration lookup and precedence
+
+qtop applies settings in this order; later values replace earlier ones:
+
+1. The bundled ``qtopconf.yaml`` in the source checkout or package.
+2. ``/etc/qtopconf.yaml``, when present.
+3. ``$HOME/.local/qtop/qtopconf.yaml``, when present.
+4. The file selected by ``-f FILE``. Relative names are searched in
+   ``$HOME/.local/qtop`` first, then the directory where qtop was launched;
+   an absolute path selects that file directly. A selected file must exist.
+5. Repeated ``-o KEY=VALUE`` overrides, processed from left to right.
+   Dedicated CLI switches also apply their documented display behavior.
+
+File overrides replace whole top-level values rather than recursively merging
+nested mappings. To customize ``schedulers`` or ``state_abbreviations``, copy
+and edit the complete mapping from [qtopconf.yaml](../qtopconf.yaml).
+
+``-o`` accepts top-level keys, not dotted paths. Values are parsed as Python
+literals where possible (for example ``True``, ``1``, or a list); other values
+remain strings. It does not execute Python expressions. Use a configuration
+file for nested settings and values normalized during configuration loading,
+such as color mappings. For example:
+
+```sh
+./qtop -b demo -o rem_empty_corelines=1 -o auto_delete_old_output_files_after=48h
+```
+
+Scheduler selection has its own precedence: ``-b``, then ``QTOP_SCHEDULER``,
+then the configured ``scheduler``. A selected value of ``auto`` triggers
+command discovery at that point. ``QTOP_COLOR`` supplies the color preference
+when ``-c AUTO`` is used.
+
+The file-based ``savepath`` expands environment variables and is created if
+needed. When overriding it with ``-o``, supply an existing absolute directory,
+as in the [capture and export examples](#capture-and-json-export).
+
 #### YAML Format
 
 YAML was chosen as it is human-readable and should thus be easier for
@@ -389,25 +426,24 @@ flashy features that YAML sports.
 #### Scheduler configuration area
 
 ```yaml
----
-    savepath: /tmp/qtop_results_$USER
-    schedulers:
-      pbs:
-        pbsnodes_file: %(savepath)s/pbsnodes_a%(pid)s.txt, pbsnodes -a
-        qstatq_file: %(savepath)s/qstat_q%(pid)s.txt, qstat -q
-        qstat_file: %(savepath)s/qstat%(pid)s.txt, qstat
-      oar:
-        oarnodes_s_file: %(savepath)s/oarnodes_s_Y%(pid)s.txt, oarnodes -s -Y
-        oarnodes_y_file: %(savepath)s/oarnodes_Y%(pid)s.txt, oarnodes -Y
-        oarstat_file: %(savepath)s/oarstat%(pid)s.txt, oarstat
-      sge:
-        sge_file: %(savepath)s/qstat%(pid)s.F.xml.stdout, qstat -F -xml -u '*'
-      slurm:
-        squeue_file: %(savepath)s/squeue%(pid)s.txt, squeue -h -o '%i|%u|%t|%P|%C|%N'
-        sinfo_file: %(savepath)s/sinfo%(pid)s.txt, sinfo -N -h -o '%N|%P|%t|%c'
-      demo:
-        demo_file: %(savepath)s/demo%(pid)s.txt, echo 'Demo here'
----
+savepath: /tmp/qtop_results_$USER
+schedulers:
+  pbs:
+    pbsnodes_file: %(savepath)s/pbsnodes_a%(pid)s.txt, pbsnodes -a
+    qstatq_file: %(savepath)s/qstat_q%(pid)s.txt, qstat -Q -f -F json
+    qstat_file: %(savepath)s/qstat%(pid)s.txt, qstat -f -F json
+  oar:
+    oarnodes_s_file: %(savepath)s/oarnodes_s_Y%(pid)s.txt, oarnodes -s -Y
+    oarnodes_y_file: %(savepath)s/oarnodes_Y%(pid)s.txt, oarnodes -Y
+    oarstat_file: %(savepath)s/oarstat%(pid)s.txt, oarstat
+  sge:
+    sge_file: %(savepath)s/qstat%(pid)s.F.xml.stdout, qstat -F -xml -u '*'
+  slurm:
+    ## Copy the command after ', ' directly into a shell for debugging.
+    squeue_file: %(savepath)s/squeue%(pid)s.txt, squeue -h -o '%i|%u|%t|%P|%C|%N'
+    sinfo_file: %(savepath)s/sinfo%(pid)s.txt, sinfo -N -h -o '%N|%P|%t|%c'
+  demo:
+    demo_file: %(savepath)s/demo%(pid)s.txt, echo 'Demo here'
 ```
 
 The Slurm commands after the filename separator can be copied directly into
@@ -448,13 +484,20 @@ cluster. If you just invoke:
 ```
 
 then qtop is going to invoke ``oarnodes -s -Y``, ``oarnodes -Y``,
-``oarstat`` consecutively, and store it, respectively, in
+``oarstat`` consecutively. With process ID ``12345`` and ``USER=mike``,
+its live captures are:
 
 ```text
-/tmp/qtop_results_mike/oarnodes_s_Y.txt
-/tmp/qtop_results_mike/oarnodes_Y.txt
-/tmp/qtop_results_mike/oarstat.txt
+/tmp/qtop_results_mike/oarnodes_s_Y_12345.txt
+/tmp/qtop_results_mike/oarnodes_Y_12345.txt
+/tmp/qtop_results_mike/oarstat_12345.txt
 ```
+
+The ``%(pid)s`` filename placeholder becomes ``_<process ID>`` for live
+collection and an empty string with ``-s``. The ``%(savepath)s`` placeholder
+uses the selected working directory. Command strings honor shell-style
+quoting but are executed without a shell: use shell redirection when manually
+collecting traces, not inside the configured command.
 
 If, instead, you invoke it as follows:
 
@@ -475,6 +518,25 @@ matching the configured commands. For example:
 
 qtop will search for ``squeue.txt`` and ``sinfo.txt`` in
 ``<path-to-slurm-command-traces>``.
+
+Saved snapshots use these default filenames (custom configurations may change
+them):
+
+| Backend | Files expected with ``-s DIRECTORY`` |
+| --- | --- |
+| PBS | ``pbsnodes_a.txt``, ``qstat.txt``, ``qstat_q.txt`` |
+| OAR | ``oarnodes_s_Y.txt``, ``oarnodes_Y.txt``, ``oarstat.txt`` |
+| SGE | ``qstat.F.xml.stdout`` |
+| Slurm | ``squeue.txt``, ``sinfo.txt`` |
+
+For manual Slurm collection on a scheduler host:
+
+```sh
+qtop_trace_dir=$(mktemp -d)
+squeue -h -o '%i|%u|%t|%P|%C|%N' > "$qtop_trace_dir/squeue.txt"
+sinfo -N -h -o '%N|%P|%t|%c' > "$qtop_trace_dir/sinfo.txt"
+./qtop -b slurm -s "$qtop_trace_dir"
+```
 
 qtop also has a scheduler-type discovery system, meaning it will try to
 guess which scheduler system is installed in your system. The keys below
@@ -501,48 +563,26 @@ characterises the scheduler. Slurm is checked first so that an unrelated
 ---
 ```
 
-As the input data coming from SGE systems is in XML format, the natural
-choice for parsing XML data in python is the **lxml** module. That,
-however, is not in the standard library, and thus requires an extra
-download. For users that are unable/unwilling to install extra modules
-in their systems, the standard library slower alternative is used
-instead.
+SGE XML uses the standard-library parser, which rejects DTD declarations.
+No additional XML package is required. Leave ``faster_xml_parsing`` at its
+default ``False``; the current SGE parser does not switch to ``lxml`` when
+this setting is enabled.
 
 #### State abbreviations
 
-```yaml
----
-    # Meaning of queue state abbreviations
-    state_abbreviations:
-      pbs:
-        Q: queued_of_user
-        R: running_of_user
-        C: cancelled_of_user
-        E: exiting_of_user
-        W: waiting_of_user
-      oar:
-        E: Error
-        F: Finishing
-        S: Resuming
-        H: Hold
-        L: waiting_of_user
-        W: queued_of_user
-        R: running_of_user
-        T: exiting_of_user
-        S: cancelled_of_user
-      sge:
-         etc etc
-      slurm:
-        R: running_of_user
-        RH: hold_of_user  ## requeued_hold_of_user
+The complete per-backend mappings are in ``state_abbreviations`` in
+[qtopconf.yaml](../qtopconf.yaml). For example, the Slurm mapping includes:
 
----
-```
+| Job state | Accounting category |
+| --- | --- |
+| ``R`` | ``running_of_user`` |
+| ``PD`` | ``queued_of_user`` |
+| ``RH`` | ``hold_of_user`` |
 
-Since every scheduler has its own set of states, here is the place where
-you can inform qtop what states your particular scheduler uses. For now,
-these are not linked to any special behaviour, but this should change in
-the future.
+These categories feed user accounting. An unrecognized state remains in
+user job totals without being classified as running or queued, and qtop
+logs a warning. When changing a mapping, retain the other backend entries
+because file overrides replace the complete top-level mapping.
 
 #### Color mappings
 
@@ -591,8 +631,125 @@ Colors with backgrounds can also be used: for all the color combinations
 available, check ``color_to_code`` dictionary in ``colormap.py``.
 
 In there, you will also find a ton of ready-made colormaps
-(``userid_pat_to_color_default`` dictionary), with a primary focus on
+(``user_to_color_default`` dictionary), with a primary focus on
 user ids found in Large Hadron Collider related clusters (WLCG grid).
+
+Capture and JSON export
+-----------------------
+
+### JSON export
+
+``-E`` writes one ``qtop_json_<YYYYmmddTHHMMSS>_<random>.json`` file per
+snapshot in ``savepath`` (default ``/tmp/qtop_results_$USER``). The terminal
+view remains on stdout; ``-O`` suppresses that view. Redirecting stdout does
+not capture the JSON. Watch mode can produce multiple JSON files.
+
+From a source checkout, export the bundled synthetic Slurm fixture to a fresh
+directory and inspect it:
+
+```sh
+qtop_export_dir=$(mktemp -d)
+./qtop -b slurm -s tests/plugins/slurm_samples/basic -E -O -o "savepath=$qtop_export_dir"
+python3 -m json.tool "$qtop_export_dir"/qtop_json_*.json
+```
+
+The export contains three top-level arrays:
+
+| Field | Contents |
+| --- | --- |
+| ``jobs`` | Records with string ``id``, ``user``, ``state`` and ``queue`` fields. State codes are backend-specific. |
+| ``nodes`` | Backend records such as ``domainname``, ``np``, ``state``, ``qname`` and ``core_job_map``. Extra fields and ``np`` types vary by backend. JSON core-map keys are strings. |
+| ``queues`` | Records with ``name``, string ``limit``, integer ``queued`` and ``running`` counts, and ``state``. Unknown limits may be ``"--"``. |
+
+Export happens before presentation filtering, ID assignment and colorization;
+it does not represent the current filtered viewport. The current payload has
+no schema-version or capture-timestamp field; the filename supplies a local
+capture time. Empty collections are arrays. Keep backend-specific fields when
+processing exports rather than assuming all backends have identical records.
+
+Excerpt from the basic synthetic Slurm export (first record of each array):
+
+```json
+{
+  "jobs": [
+    {
+      "id": "101",
+      "user": "alice",
+      "state": "R",
+      "queue": "compute"
+    }
+  ],
+  "nodes": [
+    {
+      "domainname": "node001",
+      "np": "4",
+      "state": "-",
+      "qname": [
+        "compute"
+      ],
+      "core_job_map": {
+        "0": "101",
+        "1": "101"
+      }
+    }
+  ],
+  "queues": [
+    {
+      "name": "compute",
+      "limit": "--",
+      "queued": 0,
+      "running": 2,
+      "state": "E"
+    }
+  ]
+}
+```
+
+### Support archives
+
+``-L`` writes ``qtop_sample_${USER}.tar`` in ``savepath`` by default. A normal
+completed one-shot run includes the rendered ``qtop_fullview_*.out``,
+``qtop.log`` and scheduler trace files. ``-LL`` additionally includes the
+bundled ``qtopconf.yaml`` and Python sources under ``qtop_py/``, preserving
+subdirectories such as ``plugins/`` and ``ui/``. It includes the bundled
+configuration, not the merged configuration after user overrides. JSON
+exports are separate files and are not added to the archive automatically.
+
+Create an extended archive from the same synthetic fixture and list its
+members before sharing:
+
+```sh
+qtop_capture_dir=$(mktemp -d)
+./qtop -b slurm -s tests/plugins/slurm_samples/basic -LL -o "savepath=$qtop_capture_dir"
+tar -tf "$qtop_capture_dir"/qtop_sample_*.tar
+```
+
+``overwrite_sample_file: True`` replaces the previous archive for the same
+user. Setting it to ``False`` adds a ``_YYYYmmdd-HHMMSS`` timestamp. Missing or
+unreadable archive members are logged and skipped, so inspect both the member
+list and log if a capture appears incomplete.
+
+### Anonymization scope
+
+Use ``-A -e`` to request experimental identifier masking. For example:
+
+```sh
+qtop_masked_dir=$(mktemp -d)
+./qtop -b slurm -s tests/plugins/slurm_samples/basic -L -A -e -o "savepath=$qtop_masked_dir"
+tar -tf "$qtop_masked_dir"/qtop_sample_*.tar
+```
+
+Coverage is backend-dependent. Slurm masks user, node and partition names in
+parsed/rendered data, while job IDs remain unchanged. Other backends apply
+their own masking; replacements can retain the original first character and
+should not be treated as stable identifiers between runs.
+
+With ``-A``, raw scheduler files are omitted from the support archive.
+Original input files remain on disk, and some backends can write additional
+intermediate files. Logs, paths, archive filenames, GECOS/group lookups and
+configuration or source included by ``-LL`` are not guaranteed to be redacted.
+Review the archive and any separately shared exports before sending them;
+masking does not make the entire working directory safe to publish.
 
 Command-line arguments
 ----------------------
@@ -606,18 +763,25 @@ checkout.
 
 -  ``-b SYSTEM`` selects the scheduler backend. Common values are
    ``demo``, ``pbs``, ``sge``, ``oar``, and ``slurm``.
--  ``-s DIRECTORY`` reads scheduler output files from ``DIRECTORY``
-   instead of running scheduler commands live.
+-  ``-s DIRECTORY`` / ``--SetSourceDir`` reads scheduler output files from
+   ``DIRECTORY`` instead of running commands. Passing an existing output file
+   selects its parent directory; qtop still needs all files for that backend.
 -  ``-f FILE`` uses a custom qtop configuration file.
--  ``-o OPTION`` overrides an option from ``qtopconf.yaml``.
+-  ``-o KEY=VALUE`` overrides a top-level option; repeat it for multiple values.
 
 ### Display controls
 
 -  ``-1`` hides the accounting summary section.
 -  ``-2`` hides the worker-node occupancy section.
 -  ``-3`` hides the user accounts and pool mappings section.
+-  ``-4`` / ``--accounttotals`` adds its totals row.
+-  ``-a`` / ``--blindremapping`` forces worker-node remapping.
+-  ``-C`` / ``--classic`` selects the classic display style.
 -  ``-F`` forces full worker node names.
 -  ``-G`` resolves user details with ``getent passwd``.
+-  ``--show-groups`` adds primary Unix groups to the account table.
+-  ``--expand-queues`` displays one queue or partition per summary line;
+   press ``Q`` to toggle it in watch mode.
 -  ``-T`` transposes the worker-node matrix.
 -  ``-l`` lets the matrix overflow horizontally, which is useful with
    ``less -RS``.
@@ -631,7 +795,8 @@ checkout.
 -  ``-w [SECS]`` enables watch mode. It refreshes every ``SECS``
    seconds, or every 2 seconds when omitted.
 -  ``-R WHEN`` replays saved qtop output from a point in time.
--  ``-E`` exports gathered cluster data to JSON.
+-  ``-E`` writes gathered cluster data to a JSON file in ``savepath``; see
+   [JSON export](#json-export). It does not write JSON to stdout.
 -  ``-O`` saves output without printing the rendered view to stdout.
 -  ``-B`` enables the experimental web interface on port 8080 and requires
    ``-e``/``--experimental``.
@@ -643,11 +808,12 @@ checkout.
    in addition to the log file.
 -  ``-S`` strictly compares reported running jobs against jobs displayed
    by qtop.
--  ``-L`` creates a sample archive for reports. Use ``-LL`` to also
-   include qtop's config and code.
--  ``-A`` anonymizes account and worker node names. The help output
-   currently marks this as temporary and not ready for scheduler input
-   files.
+-  ``-L`` creates a support archive; ``-LL`` also includes the bundled
+   configuration and Python package sources.
+-  ``-A`` masks identifiers where the backend supports it and requires
+   ``-e`` / ``--experimental``. Raw scheduler files are excluded from its
+   support archive; see [anonymization scope](#anonymization-scope).
+-  ``-e`` opts into experimental features (currently anonymization and web).
 -  ``-V`` prints the qtop version.
 -  ``-h`` shows command help.
 

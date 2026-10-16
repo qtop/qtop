@@ -269,3 +269,35 @@ def test_malformed_scheduler_command_quotes_are_actionable(tmp_path):
     with pytest.raises(qtop.OperationalError, match="Check command quoting"):
         qtop.execute_shell_batch_commands({"trace": "squeue -o 'unterminated"}, {"trace": str(tmp_path / "trace.txt")}, "trace", str(tmp_path))
     assert list(tmp_path.iterdir()) == []
+
+
+@pytest.mark.parametrize("flags, include_sources, include_raw", ((["-L"], False, True), (["-LL"], True, True), (["-L", "-A", "-e"], False, False)))
+def test_documented_capture_and_export_modes(tmp_path, flags, include_sources, include_raw):
+    import json
+    import tarfile
+
+    output = tmp_path / "capture"
+    output.mkdir()
+    fixture = ROOT / "tests/plugins/slurm_samples/basic"
+    result = run_cli(tmp_path, "qtop_py.cli", "-b", "slurm", "-s", str(fixture), "-F", "-E", "-O", "-o", "savepath=%s" % output, *flags)
+    assert result.returncode == 0, result.stderr
+    exports = list(output.glob("qtop_json_*.json"))
+    assert len(exports) == 1
+    state = json.loads(exports[0].read_text())
+    assert {key: len(value) for key, value in state.items()} == {"jobs": 3, "nodes": 3, "queues": 2}
+    assert state["jobs"][0]["id"] == "101"
+    assert (state["jobs"][0]["user"] == "alice") is include_raw
+    assert state["nodes"][0]["core_job_map"] == {"0": "101", "1": "101"}
+    assert isinstance(state["queues"][0]["running"], int)
+    archives = list(output.glob("qtop_sample_*.tar"))
+    assert len(archives) == 1
+    with tarfile.open(archives[0]) as archive:
+        names = set(archive.getnames())
+    assert "qtop.log" in names
+    assert any(name.startswith("qtop_fullview_") for name in names)
+    assert ("squeue.txt" in names) is include_raw
+    assert ("sinfo.txt" in names) is include_raw
+    assert ("qtopconf.yaml" in names) is include_sources
+    assert ("qtop_py/qtop.py" in names) is include_sources
+    assert ("qtop_py/plugins/slurm.py" in names) is include_sources
+    assert exports[0].name not in names

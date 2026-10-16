@@ -70,3 +70,22 @@ def test_deprecate_old_output_files_keeps_unexpected_errors(monkeypatch, tmp_pat
         fileutils.deprecate_old_output_files({"savepath": str(tmp_path), "auto_delete_old_output_files_after": "1h"})
 
     assert error.value.errno == errno.EACCES
+
+
+@pytest.mark.parametrize("installed", (False, True))
+def test_extended_sample_preserves_package_source_paths(tmp_path, installed):
+    root = tmp_path / "distribution"
+    source = root if installed else root / "qtop_py"
+    (source / "plugins").mkdir(parents=True)
+    (source / "ui").mkdir()
+    (root / "qtopconf.yaml").write_text("scheduler: demo\n", encoding="utf-8")
+    (source / "qtop.py").write_text("VALUE = 1\n", encoding="utf-8")
+    (source / "plugins" / "slurm.py").write_text("VALUE = 2\n", encoding="utf-8")
+    (source / "ui" / "viewport.py").write_text("VALUE = 3\n", encoding="utf-8")
+    if not installed:
+        (root / "unrelated.py").write_text("PRIVATE = 1\n", encoding="utf-8")
+    archive = fileutils.init_sample_file(SimpleNamespace(SAMPLE=2), str(tmp_path), "sample.tar", {}, "qtopconf.yaml", str(root))
+    archive.close()
+    with tarfile.open(tmp_path / "sample.tar") as saved:
+        assert set(saved.getnames()) == {"qtopconf.yaml", "qtop_py/qtop.py", "qtop_py/plugins/slurm.py", "qtop_py/ui/viewport.py"}
+        assert saved.extractfile("qtop_py/plugins/slurm.py").read() == b"VALUE = 2\n"
