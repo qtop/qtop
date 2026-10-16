@@ -81,11 +81,14 @@ Read scheduler traces from a directory instead of invoking live commands:
 ```
 
 Create a support sample containing qtop output, logs, and scheduler traces
-(raw traces are excluded when experimental anonymization is enabled):
+(use `-L -A -e` for a reproducible anonymized state snapshot):
 
 ```console
 ./qtop -L
 ```
+
+Reproduce an anonymized support archive with `qtop --load-sample archive.tar`.
+This restores parsed state and presentation without contacting the scheduler.
 
 Replay automatically captured frames from a specific time:
 

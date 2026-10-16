@@ -79,8 +79,7 @@ def parse_qtop_cmdline_args():
         action="store_true",
         dest="ANONYMIZE",
         default=False,
-        help="Mask identifiers where supported by the backend (requires -e). "
-        "Raw scheduler files are omitted from anonymized sample archives; review logs and config before sharing.",
+        help="Mask identifiers where supported by the backend (requires -e). With -L, save a reproducible masked state/config snapshot instead of raw traces and logs.",
     )
     parser.add_argument("-b", "--batchSystem", action="store", dest="BATCH_SYSTEM", default=None)
     parser.add_argument(
@@ -210,8 +209,10 @@ def parse_qtop_cmdline_args():
         dest="SAMPLE",
         default=False,
         help="Create a sample file. A single L creates a tarball with the log, scheduler output files, "
-        "qtop output. Two L's additionally include the bundled config and Python package sources.",
+        "qtop output. With -A, include a portable masked snapshot instead. Two L's add package sources "
+        "and, without -A, the bundled config.",
     )
+    parser.add_argument("--load-sample", metavar="ARCHIVE", help="Reproduce an anonymized support snapshot without scheduler commands")
     args = parser.parse_args()
     return args
 

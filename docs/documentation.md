@@ -739,17 +739,38 @@ qtop_masked_dir=$(mktemp -d)
 tar -tf "$qtop_masked_dir"/qtop_sample_*.tar
 ```
 
-Coverage is backend-dependent. Slurm masks user, node and partition names in
-parsed/rendered data, while job IDs remain unchanged. Other backends apply
-their own masking; replacements can retain the original first character and
-should not be treated as stable identifiers between runs.
+With ``-L -A -e``, the archive includes ``qtop-snapshot.json`` containing
+anonymized parsed state, sanitized effective configuration, display options,
+qtop/Python versions and a UTC capture timestamp. Users, nodes, queues and job
+IDs receive consistent replacements; core-to-job links remain intact. The
+archive uses the name ``qtop_sample_anonymous.tar`` (with a timestamp when
+configured). It also includes the masked rendered screen and a short
+``capture-log.json`` status record, rather than the original log.
 
-With ``-A``, raw scheduler files are omitted from the support archive.
-Original input files remain on disk, and some backends can write additional
-intermediate files. Logs, paths, archive filenames, GECOS/group lookups and
-configuration or source included by ``-LL`` are not guaranteed to be redacted.
-Review the archive and any separately shared exports before sending them;
-masking does not make the entire working directory safe to publish.
+Reproduce it directly, without extracting files or contacting a scheduler:
+
+```sh
+qtop --load-sample /path/to/qtop_sample_anonymous.tar
+```
+
+Add ``-E`` to export the reproduced state or ``-O`` to save its screen without
+printing it. ``-o`` overrides remain available. Loading a snapshot ignores local
+configuration and ``QTOP_SCHEDULER``; it cannot be combined with ``-b``, ``-s``,
+``-f``, ``-L``, ``-A``, ``-w`` or ``-R``. Use the same qtop version for reliable
+rendering. The displayed wall-clock timestamp can differ.
+
+This reproduces the **parsed state and presentation**, including counts and
+job/core associations. It does not replay vendor output parsing. Raw scheduler
+traces are deliberately excluded. Local commands, paths, account-detail lookups
+and node-remapping rules are replaced or disabled; name-based color/filter rules
+are translated to the replacement identifiers. ``omitted_config`` records the
+configuration categories that were reset. ``-LL -A`` adds package sources but
+omits the bundled configuration file.
+
+Standalone ``-A -e`` retains backend-specific masking. Original traces and logs
+remain on disk. Custom configuration text and sources added by ``-LL`` can still
+contain information outside the identifier mapping, so review these before
+sharing. Masking does not make the entire working directory safe to publish.
 
 Command-line arguments
 ----------------------
@@ -766,6 +787,7 @@ checkout.
 -  ``-s DIRECTORY`` / ``--SetSourceDir`` reads scheduler output files from
    ``DIRECTORY`` instead of running commands. Passing an existing output file
    selects its parent directory; qtop still needs all files for that backend.
+-  ``--load-sample ARCHIVE`` reproduces a portable anonymized support snapshot.
 -  ``-f FILE`` uses a custom qtop configuration file.
 -  ``-o KEY=VALUE`` overrides a top-level option; repeat it for multiple values.
 

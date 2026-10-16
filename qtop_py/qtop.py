@@ -24,6 +24,7 @@ import shlex
 import shutil
 import subprocess
 import sys
+import tarfile
 from collections import Counter, OrderedDict, namedtuple
 from functools import lru_cache
 from itertools import cycle, groupby, zip_longest
@@ -49,7 +50,7 @@ import traceback
 from ast import literal_eval
 from math import ceil
 
-from qtop_py import __version__, fileutils, utils
+from qtop_py import __version__, fileutils, sample, utils
 from qtop_py import yaml_parser as yaml
 from qtop_py.cluster_state import cluster_state_totals, validate_cluster_state
 from qtop_py.colormap import color_to_code, nodestate_to_color_default, queue_to_color, user_to_color_default
@@ -256,6 +257,8 @@ def load_yaml_config():
     $HOME/.local/qtop/
     in that order.
     """
+    if getattr(args, "load_sample", None):
+        return prepare_config(copy.deepcopy(args.sample_snapshot["config"]))
     config = yaml.parse(os.path.join(os.path.realpath(QTOPPATH), QTOPCONF_YAML))
     logging.info("Default configuration dictionary loaded. Length: %s items" % len(config))
 
@@ -298,6 +301,10 @@ def load_yaml_config():
 
     logging.info("Updated main dictionary. Length: %s items" % len(config))
 
+    return prepare_config(config)
+
+
+def prepare_config(config):
     config = normalize_config(config)
 
     if config["user_color_mappings"]:
@@ -1596,9 +1603,10 @@ class TextDisplay(object):
             display_func, opts = display_parts[part][0], display_parts[part][1]
             display_func(*opts) if not sections_off[idx] else None  # ty: ignore[missing-argument, too-many-positional-arguments] - config-driven dispatch
 
-        print("\nLog file created in %s" % os.path.expandvars(QTOP_LOGFILE))
-        if self.args.SAMPLE:
-            print("Sample files saved in %s/%s" % (_savepath, SAMPLE_FILENAME))
+        if not self.args.ANONYMIZE:
+            print("\nLog file created in %s" % os.path.expandvars(QTOP_LOGFILE))
+            if self.args.SAMPLE:
+                print("Sample files saved in %s/%s" % (_savepath, SAMPLE_FILENAME))
         if self.args.STRICTCHECK:
             self.wns_occupancy.strict_check_jobs(self.cluster)
 
@@ -1628,7 +1636,8 @@ class TextDisplay(object):
             print(colorize(msg, "Blue_L"))
 
         if not self.args.WATCH:
-            print("Please try it with watch: %s/qtop.py -s <SOURCEDIR> -w [<every_nr_of_sec>]" % QTOPPATH)
+            command = "qtop" if self.args.ANONYMIZE else "%s/qtop.py" % QTOPPATH
+            print("Please try it with watch: %s -s <SOURCEDIR> -w [<every_nr_of_sec>]" % command)
         print(colorize("===> ", "Gray_D") + colorize("Job accounting summary", "White") + colorize(" <=== ", "Gray_D") + colorize(str(datetime.datetime.today())[:-7], "White"))
 
         print(
@@ -2565,6 +2574,19 @@ def main():
     dynamic_config = dict()
     args, dynamic_config["force_names"] = process_args(args)
     require_experimental_opt_in(args)
+    if args.load_sample:
+        if args.BATCH_SYSTEM or args.SOURCEDIR or args.CONFFILE or args.SAMPLE or args.WATCH or args.REPLAY or args.ANONYMIZE:
+            raise OperationalError("--load-sample cannot be combined with -b, -s, -f, -L, -w, -R or -A")
+        try:
+            args.sample_snapshot = sample.load_snapshot(args.load_sample)
+            if args.sample_snapshot["scheduler"] not in discover_qtop_batch_systems():
+                raise ValueError("unsupported snapshot scheduler")
+            for key in sample.DISPLAY_OPTIONS:
+                if key in args.sample_snapshot["options"]:
+                    setattr(args, key, args.sample_snapshot["options"][key])
+            args, dynamic_config["force_names"] = process_args(args)
+        except (OSError, tarfile.TarError, ValueError, TypeError, KeyError) as error:
+            raise OperationalError("Cannot load support snapshot: %s" % error) from error
     if args.WATCH or args.REPLAY:  # this is needed for the filtering/sorting options
         if termios is None:
             old_attrs = ""
@@ -2600,7 +2622,7 @@ def main():
         HELP_FP,
     ]  # output_fp is not yet defined, will be appended later
     SAMPLE_FILENAME = "qtop_sample_${USER}%(datetime)s.tar"
-    SAMPLE_FILENAME = os.path.expandvars(SAMPLE_FILENAME)
+    SAMPLE_FILENAME = "qtop_sample_anonymous%(datetime)s.tar" if args.ANONYMIZE else os.path.expandvars(SAMPLE_FILENAME)
     if args.REPLAY:
         args.WATCH = 2  # enforce that --watch mode is on, even if not in cmdline switch
         args.BATCH_SYSTEM = "demo"
@@ -2636,8 +2658,12 @@ def main():
                 handle, output_fp = fileutils.get_new_temp_file(savepath, prefix="qtop_fullview_%s_" % timestr, suffix=".out")
                 help_main_switch.append(output_fp)
                 sys.stdout = os.fdopen(handle, "w")  # redirect everything to file, creates file object out of handle
-                scheduler = decide_batch_system(args.BATCH_SYSTEM, os.environ.get("QTOP_SCHEDULER"), config["scheduler"], config["schedulers"], available_batch_systems, config)
-                scheduler_output_filenames = fetch_scheduler_files(args, config)
+                scheduler = (
+                    args.sample_snapshot["scheduler"]
+                    if args.load_sample
+                    else decide_batch_system(args.BATCH_SYSTEM, os.environ.get("QTOP_SCHEDULER"), config["scheduler"], config["schedulers"], available_batch_systems, config)
+                )
+                scheduler_output_filenames = {} if args.load_sample else fetch_scheduler_files(args, config)
                 SAMPLE_FILENAME = fileutils.get_sample_filename(SAMPLE_FILENAME, config)
                 if args.SAMPLE:
                     tar_out = fileutils.init_sample_file(args, savepath, SAMPLE_FILENAME, scheduler_output_filenames, QTOPCONF_YAML, QTOPPATH)
@@ -2647,7 +2673,26 @@ def main():
                 scheduling_system = available_batch_systems[scheduler](scheduler_output_filenames, config, args)
 
                 try:
-                    cluster_state = scheduling_system.get_cluster_state(args)
+                    if args.load_sample:
+                        cluster_state = copy.deepcopy(args.sample_snapshot["state"])
+                    elif args.SAMPLE and args.ANONYMIZE:
+                        # Collect originals only in memory so all backends share one mapping.
+                        capture_args = copy.copy(args)
+                        capture_args.ANONYMIZE = False
+                        scheduling_system = available_batch_systems[scheduler](scheduler_output_filenames, config, capture_args)
+                        cluster_state = scheduling_system.get_cluster_state(capture_args)
+                        cluster_state, mappings = sample.anonymize_state(cluster_state)
+                        config, omitted = sample.sanitize_config(config, mappings)
+                        snapshot_config = copy.deepcopy(config)
+                        config["savepath"] = savepath
+                        args.GET_GECOS = False
+                        args.SHOW_GROUPS = False
+                        user_to_color = user_to_color_default.copy()
+                        for rule in config["user_color_mappings"]:
+                            user_to_color.update(rule)
+                        sample.save_snapshot(tar_out, cluster_state, snapshot_config, args, scheduler, __version__, omitted)
+                    else:
+                        cluster_state = scheduling_system.get_cluster_state(args)
                 except (ValueError, UnicodeError, ParseError) as error:
                     raise OperationalError("Cannot parse %s scheduler input in %s: %s" % (scheduler, args.workdir, error)) from error
                 document = Document.from_cluster_state(cluster_state)
@@ -2714,12 +2759,15 @@ def main():
 
         except (KeyboardInterrupt, EOFError) as e:
             repr(e)
+            if args.SAMPLE and args.ANONYMIZE:
+                raise SystemExit(0)
             fileutils.safe_exit_with_file_close(handle, output_fp, stdout, args, savepath, QTOP_LOGFILE, SAMPLE_FILENAME)
         finally:
             if sys.exc_info()[0] is not None:
                 web.stop()
             if args.SAMPLE >= 1 and tar_out is not None:
-                tar_out = fileutils.add_to_sample([QTOP_LOGFILE], tar_out)
+                if not args.ANONYMIZE:
+                    tar_out = fileutils.add_to_sample([QTOP_LOGFILE], tar_out)
                 # Raw scheduler output can contain identifiers that qtop cannot
                 # safely rewrite in every vendor-specific format.
                 if not args.ANONYMIZE:

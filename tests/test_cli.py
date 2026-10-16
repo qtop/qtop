@@ -285,15 +285,16 @@ def test_documented_capture_and_export_modes(tmp_path, flags, include_sources, i
     assert len(exports) == 1
     state = json.loads(exports[0].read_text())
     assert {key: len(value) for key, value in state.items()} == {"jobs": 3, "nodes": 3, "queues": 2}
-    assert state["jobs"][0]["id"] == "101"
+    assert state["jobs"][0]["id"] == ("101" if include_raw else "100000")
     assert (state["jobs"][0]["user"] == "alice") is include_raw
-    assert state["nodes"][0]["core_job_map"] == {"0": "101", "1": "101"}
+    assert state["nodes"][0]["core_job_map"] == dict.fromkeys(("0", "1"), state["jobs"][0]["id"])
     assert isinstance(state["queues"][0]["running"], int)
     archives = list(output.glob("qtop_sample_*.tar"))
     assert len(archives) == 1
     with tarfile.open(archives[0]) as archive:
         names = set(archive.getnames())
-    assert "qtop.log" in names
+    assert ("qtop.log" in names) is include_raw
+    assert ("qtop-snapshot.json" in names) is not include_raw
     assert any(name.startswith("qtop_fullview_") for name in names)
     assert ("squeue.txt" in names) is include_raw
     assert ("sinfo.txt" in names) is include_raw
