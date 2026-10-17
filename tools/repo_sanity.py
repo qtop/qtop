@@ -124,7 +124,7 @@ def tracked_files(root):
 
 def report_path(rel):
     """Return a UTF-8-safe report spelling for a repository-relative path."""
-    return rel.encode("utf-8", "backslashreplace").decode("utf-8")
+    return rel.replace("\\", "/").encode("utf-8", "backslashreplace").decode("utf-8")
 
 
 def codepoint_label(ch):
