@@ -8,7 +8,7 @@
 # Coverage concern (#488), GitHub flavour: ``make coverage-xml`` produces the
 # same Cobertura report that ci/coverage.gitlab-ci.yml publishes to GitLab.
 # GitHub stores it as a workflow artifact, so no external coverage service or
-# identity-token permission is required. The shared target enforces 81% total coverage.
+# identity-token permission is required. The shared target enforces 85% total coverage.
 
 name: coverage-qtop
 

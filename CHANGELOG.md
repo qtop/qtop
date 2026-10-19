@@ -5,7 +5,7 @@
 
 ## 0.9.20261012
 
-- Tests: cover direct scheduler runtimes, rendering, watch controls and archive replay; enforce at least 81% TOTAL coverage in local and CI coverage targets.
+- Tests: cover direct scheduler runtimes, rendering, watch controls and archive replay; enforce at least 85% TOTAL coverage in local and CI coverage targets.
 
 - Documentation: align CLI and keyboard references, configuration precedence and scheduler examples with the code; document JSON files, support archives and anonymization scope using verified Slurm captures.
 - Documentation: add an editable architecture diagram and source map based on the GitDiagram proposal in #571; link it from the README and guide.

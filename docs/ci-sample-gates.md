@@ -213,7 +213,7 @@ make coverage
 ```
 
 That target runs `coverage.py` through the same `PYTHON` override used by the
-other targets and fails below 81% TOTAL coverage (`COVERAGE_MIN`, default 81).
+other targets and fails below 85% TOTAL coverage (`COVERAGE_MIN`, default 85).
 `make coverage-xml` enforces the same floor before emitting its CI report.
 Coverage scope is unchanged; no source files or lines are excluded to meet the
 floor. Direct runtime tests exercise scheduler collection, terminal rendering,
