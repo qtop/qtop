@@ -7,7 +7,7 @@ replace, project policies; where they overlap, `CONTRIBUTING.md` wins.
 ## Commands
 
 ```console
-make ci-deps          # once, in a Python 3.12+ venv (pinned toolchain)
+make ci-deps          # once, in a CPython 3.12 venv (pinned toolchain)
 make lint test        # inner loop, ~2 s: ruff, eval()/diff fortifications, pytest
 make ci type-check    # pre-PR gate, ~4 s: adds sample gates, deterministic fuzz, format, ty
 make compat-py36 PYTHON=python3.6   # if a 3.6 interpreter exists; otherwise rely on the CI rhel8 lane

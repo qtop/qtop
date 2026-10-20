@@ -52,7 +52,6 @@ def test_packaging_entry_points_use_cli_wrapper():
 
     assert "[project.scripts]" in packaging_config
     assert 'qtop = "qtop_py.qtop:cli_main"' in packaging_config
-    assert not (ROOT / "setup.py").exists()
 
 
 @pytest.mark.parametrize("module", ("qtop_py.cli", "qtop_py.qtop"))

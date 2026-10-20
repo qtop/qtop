@@ -61,6 +61,10 @@ cd qtop
 ./qtop --version
 ```
 
+To install a checkout instead of running it directly, use a virtual environment
+and `python -m pip install .`. Python 3.6-3.8 use a legacy-compatible build
+backend; modern Python uses the metadata in `pyproject.toml`.
+
 ### From PyPI
 
 ```console

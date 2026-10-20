@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 
-.PHONY: help all rerun clean ci-deps test coverage coverage-xml sample-gate backend-validation backend-colour-artifacts render-backends trace-export-validation test-pbs-samples test-slurm-samples deterministic-fuzz coverage-fuzz fortifications repo-sanity code-quality license-report type-check type-contracts property-test ruff-check lint lint-fix format-check format-fix zizmor zizmor-fix compat-py36 ci nightly-ci github-ci gitlab-ci build github-build gitlab-build dist version confirm
+.PHONY: help all rerun clean ci-deps test coverage coverage-xml sample-gate backend-validation backend-colour-artifacts render-backends trace-export-validation test-pbs-samples test-slurm-samples deterministic-fuzz coverage-fuzz fortifications repo-sanity code-quality license-report type-check type-contracts property-test ruff-check lint lint-fix format-check format-fix zizmor zizmor-fix compat-py36 legacy-install-check install-check ci nightly-ci github-ci gitlab-ci build github-build gitlab-build dist version confirm
 
 PYTHON ?= python3
 PIP ?= $(PYTHON) -m pip
@@ -147,8 +147,20 @@ zizmor: ## Audit GitHub Actions workflows independently
 zizmor-fix: ## Apply zizmor's safe workflow fixes independently
 	@$(ZIZMOR) $(ZIZMOR_FLAGS) --fix=safe .github/
 
+legacy-install-check: ## Test source installation with pinned tools in a disposable Python 3.6-3.8 venv
+	$(PYTHON) -c "import sys; sys.exit(0 if (3, 6) <= sys.version_info[:2] < (3, 9) else 'legacy-install-check requires Python 3.6-3.8')"
+	@set -eu; build_env=$$(mktemp -d); \
+	trap 'rm -rf "$$build_env"' EXIT; \
+	$(PYTHON) -m venv "$$build_env"; \
+	"$$build_env/bin/python" -m pip install -r requirements-build-legacy.txt; \
+	$(MAKE) install-check PYTHON="$$build_env/bin/python"
+
+install-check: ## Build from an sdist and test a clean installation on this interpreter
+	$(PYTHON) tools/validate_installation.py
+
 compat-py36: ## Run dependency-light Python 3.6 compatibility checks
 	find qtop_py tools -name '*.py' -print | xargs $(PYTHON) -m py_compile
+	$(PYTHON) -m unittest discover -s tests -p test_legacy_helpers.py
 	$(PYTHON) tools/validate_scheduler_samples.py --schedulers $(SAMPLE_GATE_SCHEDULERS) --max-failures $(SAMPLE_GATE_MAX_FAILURES) --artifact-dir $(SAMPLE_GATE_ARTIFACT_DIR)-py36
 
 ci: test backend-validation deterministic-fuzz lint ruff-check format-check ## Run the shared local/CI validation path

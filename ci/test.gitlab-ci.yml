@@ -51,6 +51,7 @@ almalinux-python36:
       PYTHON_BIN="$(command -v python3.6)"
       "$PYTHON_BIN" --version
       make compat-py36 PYTHON="$PYTHON_BIN"
+      make legacy-install-check PYTHON="$PYTHON_BIN"
   artifacts:
     when: always
     paths:
