@@ -87,6 +87,36 @@ def test_save_directory_rejects_writable_nonsticky_parent(tmp_path):
     assert not (parent / "results").exists()
 
 
+@pytest.mark.parametrize("mode, allowed", ((0o755, True), (0o1777, True), (0o770, False), (0o777, False)))
+def test_save_directory_handles_site_owned_parents(tmp_path, monkeypatch, mode, allowed):
+    parent = tmp_path / "site-owned"
+    parent.mkdir()
+    parent.chmod(mode)
+    target = parent / "results"
+    inode = parent.stat().st_ino
+    real_fstat = os.fstat
+
+    def site_owner(fd):
+        info = real_fstat(fd)
+        if info.st_ino == inode:
+            values = list(info)
+            values[4] = os.geteuid() + 1
+            return os.stat_result(values)
+        return info
+
+    monkeypatch.setattr(fileutils.os, "fstat", site_owner)
+    if allowed:
+        assert fileutils.private_save_directory(str(target)) == str(target)
+        assert stat.S_IMODE(target.stat().st_mode) == 0o700
+        assert target.stat().st_uid == os.geteuid()
+    else:
+        with pytest.raises(PermissionError, match="untrusted parent") as caught:
+            fileutils.private_save_directory(str(target))
+        assert caught.value.filename == str(parent)
+        assert not target.exists()
+    assert stat.S_IMODE(parent.stat().st_mode) == mode
+
+
 def test_save_directory_allows_sticky_shared_parent(tmp_path):
     parent = tmp_path / "shared"
     parent.mkdir()

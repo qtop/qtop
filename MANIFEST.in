@@ -10,6 +10,8 @@ include qtop
 include README.md
 include ROADMAP.md
 include requirements-ci.txt
+include requirements-build-legacy.txt
+include setup.py
 include .gitlab-ci.yml
 recursive-include .github/workflows *.yml
 recursive-include docs *.md *.png

@@ -46,14 +46,16 @@ def private_save_directory(path):
             fd = child_fd
             info = os.fstat(fd)
             writable_by_others = info.st_mode & (stat.S_IWGRP | stat.S_IWOTH)
+            # Ancestors can be site-owned; the output directory must belong to this user.
             if index == len(parts) - 1:
                 if info.st_uid != uid:
                     raise PermissionError(errno.EACCES, "Save directory must be owned by the current user", path)
                 if writable_by_others:
                     raise PermissionError(errno.EACCES, "Save directory is writable by others; inspect it or choose a new private directory", path)
                 os.fchmod(fd, 0o700)
-            elif info.st_uid not in (0, uid) or (writable_by_others and not info.st_mode & stat.S_ISVTX):
-                raise PermissionError(errno.EACCES, "Save directory has an untrusted parent", path)
+            elif writable_by_others and not info.st_mode & stat.S_ISVTX:
+                parent = os.path.join(os.sep, *parts[: index + 1])
+                raise PermissionError(errno.EACCES, "Save directory has an untrusted parent (writable without sticky bit)", parent)
     finally:
         os.close(fd)
     return path

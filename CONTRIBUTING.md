@@ -34,12 +34,17 @@ Please follow common conventions for Open Source projects, f.i. align to Electro
 Before opening a pull request, run the shared release gates:
 
 ```console
-make ci
-make type-check
-make deterministic-fuzz
+make ci-deps  # once, in a Linux x86-64 CPython 3.12 virtual environment
+make pre-pr
 ```
 
-`make deterministic-fuzz` defaults to seed 488. Report the seed and case count
+`make pre-pr` runs the full suite once under coverage, scheduler samples,
+lint/format checks, all type checkers, deterministic fuzzing, and bounded Atheris
+fuzzing. It enforces the configured `COVERAGE_MIN` floor. On other platforms,
+run `make ci type-check coverage` and report Atheris as deferred to the Linux
+x86-64 CPython 3.12 CI lane. Python 3.6 compatibility stays a separate gate.
+
+Both fuzzers default to seed 488 and 5,000 cases. Report the seed and case count
 from any failure so maintainers can reproduce it exactly.
 
 ## Proof of humanity

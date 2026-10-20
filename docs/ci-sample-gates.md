@@ -12,6 +12,11 @@ fortification checks. The PR-triggered GitHub `build-qtop` workflow and GitLab
 CI call the same target so the meaning of a failure is the same on both
 platforms.
 
+For the complete local pre-PR gate, install the pinned dependencies with
+`make ci-deps` in a Linux x86-64 CPython 3.12 virtual environment, then run
+`make pre-pr`. This adds coverage, type checking, and bounded Atheris fuzzing
+to the shared checks while running pytest only once, under coverage.
+
 Provider-specific aliases such as `make github-ci`, `make gitlab-ci`,
 `make github-build`, and `make gitlab-build` deliberately resolve back to the
 same Makefile targets. The YAML files stay thin and provider-facing while the
@@ -208,8 +213,19 @@ The CI job uses an `almalinux:8` container and runs:
 make compat-py36 PYTHON=python3.6
 ```
 
-That target compiles `qtop_py` and `tools`, then runs the same fast sample gate
-with artifacts under `artifacts/sample-gate-py36/`.
+That target compiles `qtop_py` and `tools`, exercises the archived PBS helper's
+subprocess call with standard-library unittest, then runs the same fast sample
+gate with artifacts under `artifacts/sample-gate-py36/`.
+
+Both forges also run `make legacy-install-check` on AlmaLinux 8.
+The legacy build dependencies are pinned separately in
+`requirements-build-legacy.txt` and installed into a disposable Python 3.6-3.8
+build venv, leaving system packages untouched. `make install-check` builds an
+sdist and its wheel,
+checks version metadata, packaged defaults and absence of runtime dependencies,
+then installs into a fresh venv and exercises the CLI's version, help and demo.
+It also runs as a packaging test on modern Python. `setup.py` supplies fallback
+metadata for Python 3.6-3.8; modern builds continue to use `pyproject.toml`.
 
 ## Fortifications
 
@@ -228,9 +244,9 @@ control and bidi characters from affecting the diagnostic display.
 
 The generated/binary path check is deliberately conservative because
 `CONTRIBUTING.md` asks contributors not to store heavy artifacts in `qtop`.
-`make lint` keeps the dependency-light source and diff health checks available
-without installing Python packages, `make ruff-check` runs the repository's ruff
-configuration after `make ci-deps` has installed pinned CI dependencies, and
+`make fortifications` keeps the source and diff health checks available without
+installing Python packages. `make lint` also runs the repository's ruff checks
+after `make ci-deps` has installed pinned CI dependencies, and
 `make format-check` runs both `ruff format --check .` and
 `ruff format --check --diff .` before checking whitespace against the same
 merge base, including staged and unstaged tracked edits.
@@ -244,7 +260,7 @@ make coverage
 ```
 
 That target runs `coverage.py` through the same `PYTHON` override used by the
-other targets and fails below 85% TOTAL coverage (`COVERAGE_MIN`, default 85).
+other targets and fails below the TOTAL coverage floor set by `COVERAGE_MIN`.
 `make coverage-xml` enforces the same floor before emitting its CI report.
 Coverage scope is unchanged; no source files or lines are excluded to meet the
 floor. Direct runtime tests exercise scheduler collection, terminal rendering,
@@ -293,3 +309,21 @@ failures to small reproducible examples.
 The new tools are development dependencies only. Property tests skip on older
 interpreters; the existing Python 3.6 runtime/sample gate remains independent.
 Quoted annotations and `TYPE_CHECKING` imports preserve that runtime floor.
+
+## Coverage-guided parser fuzzing
+
+The pinned analysis environment is CPython 3.12. On Linux x86-64 with that
+interpreter, `make ci-deps coverage-fuzz` installs the pinned
+Atheris tool and reuses the deterministic runner's Slurm state/host-list and PBS
+core-range checks with coverage-guided byte inputs. Both forges run this target
+in their modern analysis lane; older runtimes and PyPy keep the deterministic
+gate. Atheris is never selected by the CI requirements on PyPy.
+
+The default run is limited to 5,000 inputs, 30 seconds, and 256-byte inputs.
+`FUZZ_CASES`, `FUZZ_SEED` and `FUZZ_ARTIFACT_DIR` are configurable. Corpus entries
+and crash inputs are retained under `artifacts/fuzz/` and uploaded by CI. Replay
+an individual failure with `python -m tools.atheris_fuzz /path/to/crash-input`.
+Assertions and unexpected exceptions fail the run. Atheris is a development-only
+dependency; scheduler runtime imports and Python 3.6 support are unchanged.
+Scorecard recognizes the Atheris integration after it reaches the scanned branch;
+the published score is verified separately after that scan.

@@ -7,14 +7,21 @@ replace, project policies; where they overlap, `CONTRIBUTING.md` wins.
 ## Commands
 
 ```console
-make ci-deps          # once, in a Python 3.12+ venv (pinned toolchain)
-make lint test        # inner loop, ~2 s: ruff, eval()/diff fortifications, pytest
-make ci type-check    # pre-PR gate, ~4 s: adds sample gates, deterministic fuzz, format, ty
+make ci-deps          # once, in a Linux x86-64 CPython 3.12 venv (pinned toolchain)
+make lint test        # inner loop: ruff, eval()/diff fortifications, pytest
+make pre-pr           # coverage, scheduler samples, both fuzzers, lint/format, all type checks
 make compat-py36 PYTHON=python3.6   # if a 3.6 interpreter exists; otherwise rely on the CI rhel8 lane
 ```
 
 `lint` and `format-check` diff against `origin/develop`; in a shallow or
 fork clone, fetch it or set `FORTIFY_BASE_REF`.
+
+`pre-pr` runs the full test suite once under coverage, including Hypothesis
+properties, and enforces `COVERAGE_MIN`. Atheris requires the pinned Linux
+x86-64 CPython 3.12 environment. On other platforms use
+`make ci type-check coverage` and report coverage-guided fuzzing as deferred to
+that CI lane.
+Run times depend on the environment and are not fixed budgets.
 
 ## Repo map
 
@@ -62,8 +69,13 @@ traces; avoid redundant expensive tests and preserve established CI gates.
 interfaces change. Do not add cosmetic comments, redundant docstrings, or
 trivial-only PRs without demonstrable value.
 
-2.5 Keep CI logic in the Makefile or `tools/`, never in one platform's YAML, so that
-GitHub and GitLab, including their coverage paths (Codecov and Cobertura), stay equivalent.
+2.5 Keep project-owned validation logic in the Makefile, `tools/`, or
+`ci/scripts/`, with thin platform wrappers. GitHub and GitLab must use the same
+checks and coverage floor; both coverage paths use Cobertura. Provider-owned
+analyzers (CodeQL, Scorecard, included GitLab scanners) and platform setup,
+permissions, and publishing may use native actions, templates, or entry points.
+Document their platform-specific requirements in `docs/ci-structure.md`; do not
+duplicate project validation logic in YAML.
 
 ## 3. Security and contribution responsibility
 

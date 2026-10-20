@@ -27,7 +27,6 @@ permissions:
 jobs:
   modern-python:
     runs-on: ubuntu-24.04
-    continue-on-error: ${{ matrix.experimental || false }}
     strategy:
       fail-fast: false
       matrix:
@@ -68,6 +67,7 @@ jobs:
           PYTHON_BIN="$(command -v python3.6)"
           "$PYTHON_BIN" --version
           make compat-py36 PYTHON="$PYTHON_BIN"
+          make legacy-install-check PYTHON="$PYTHON_BIN"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
@@ -85,6 +85,13 @@ jobs:
           python-version: '3.12.3'
       - run: make ci-deps PYTHON=python
       - run: make type-check PYTHON=python
+      - name: Coverage-guided parser fuzzing
+        run: make coverage-fuzz PYTHON=python
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: fuzz-corpus-and-failures
+          path: artifacts/fuzz/
 
   build:
     needs:

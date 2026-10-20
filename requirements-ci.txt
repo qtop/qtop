@@ -37,3 +37,6 @@ mypy-extensions==1.1.0; python_version >= "3.12"
 nodeenv==1.11.0; python_version >= "3.12"
 pathspec==1.1.1; python_version >= "3.12"
 sortedcontainers==2.4.0; python_version >= "3.12"
+
+# Atheris has a verified prebuilt wheel for the dedicated Linux CPython 3.12 lane.
+atheris==3.1.0; python_version == "3.12" and sys_platform == "linux" and platform_machine == "x86_64" and implementation_name == "cpython"

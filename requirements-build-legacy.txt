@@ -1,0 +1,4 @@
+# Build/test dependencies for Python 3.6-3.8 only; no runtime dependencies.
+pip==21.3.1; python_version < "3.9"
+setuptools==59.6.0; python_version < "3.9"
+wheel==0.37.1; python_version < "3.9"

@@ -154,8 +154,11 @@ For pyscg-0040/0035, save directories are opened component by component with
 ``O_DIRECTORY`` and ``O_NOFOLLOW``. Ownership and writable ancestors are checked
 through directory descriptors. The final directory must belong to the effective
 user, must not allow group/other writes, and is restricted to ``0700``. Sticky
-shared parents such as ``/tmp`` are allowed; symlinks and untrusted parents are
-rejected. Both file configuration and CLI overrides follow these checks.
+shared parents such as ``/tmp`` are allowed. Ancestors may belong to site
+administrator or service accounts; only the final directory must belong to the
+current user. Symlinks and group/other-writable non-sticky parents are rejected;
+errors identify the offending parent. Both file configuration and CLI overrides
+follow these checks.
 
 For pyscg-0013, ``./qtop`` runs Python with ``-I`` and explicitly adds only its
 own checkout as an application import path. This excludes the caller's working
@@ -170,7 +173,7 @@ normal import behavior.
 | SAST | 0 | GitLab SAST plus CodeQL on GitHub pushes and pull requests | expect uplift after analyzed commits reach the default branch |
 | Security-Policy | 4 | SECURITY.md plus direct private-reporting link | enable GitHub private vulnerability reporting in repository settings |
 | CII-Best-Practices | 0 | -- | register for the OpenSSF Best Practices badge |
-| Fuzzing | 0 | deterministic parser stress gate | graduate the harness to ClusterFuzzLite/Atheris for Scorecard recognition |
+| Fuzzing | 0 (baseline) | deterministic stress gate plus bounded Atheris adapter | verify recognition after merging to the scanned branch |
 | Packaging | -1 | isolated, commit-pinned Trusted Publishing workflow | configure the `pypi` environment and PyPI trusted publisher, then publish a release |
 | Signed-Releases | -1 | -- | release attestations (see docs/supply-chain-sbom.md) |
 | Pinned-Dependencies | 10 | keep | -- |

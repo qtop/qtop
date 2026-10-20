@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 
-.PHONY: help all rerun clean ci-deps test coverage coverage-xml sample-gate backend-validation backend-colour-artifacts render-backends trace-export-validation test-pbs-samples test-slurm-samples deterministic-fuzz fortifications repo-sanity code-quality license-report type-check type-contracts property-test ruff-check lint lint-fix format-check format-fix zizmor zizmor-fix compat-py36 ci nightly-ci github-ci gitlab-ci build github-build gitlab-build dist version confirm
+.PHONY: help all rerun clean ci-deps test coverage coverage-xml sample-gate backend-validation backend-colour-artifacts render-backends trace-export-validation test-pbs-samples test-slurm-samples deterministic-fuzz coverage-fuzz fortifications repo-sanity code-quality license-report scorecard-scan type-check type-contracts property-test ruff-check lint lint-fix format-check format-fix zizmor zizmor-fix compat-py36 legacy-install-check install-check ci pre-pr nightly-ci github-ci gitlab-ci build github-build gitlab-build dist version confirm
 
 PYTHON ?= python3
 PIP ?= $(PYTHON) -m pip
@@ -21,9 +21,12 @@ SLURM_SAMPLES_DIR ?= tests/plugins/slurm_samples
 SLURM_OUTPUT_DIR ?= /tmp/qtop-slurm-rendered
 FUZZ_SEED ?= 488
 FUZZ_CASES ?= 5000
+FUZZ_ARTIFACT_DIR ?= artifacts/fuzz
+ATHERIS_ARGS ?=
 FORTIFY_BASE_REF ?= origin/develop
 COVERAGE_XML ?= artifacts/coverage/coverage.xml
-COVERAGE_MIN ?= 85
+COVERAGE_MIN ?= 88
+##COVERAGE_MIN ?= 90
 REPO_SANITY_DIR ?= artifacts/repo-sanity
 CODE_QUALITY_JSON ?= artifacts/code-quality/gl-code-quality-report.json
 LICENSE_DIR ?= artifacts/license
@@ -91,6 +94,10 @@ test-slurm-samples: ## Run Slurm parser tests and render committed Slurm samples
 deterministic-fuzz: ## Reproducibly stress parser primitives with a fixed seed
 	$(PYTHON) tools/deterministic_fuzz.py --seed $(FUZZ_SEED) --cases $(FUZZ_CASES)
 
+coverage-fuzz: ## Run bounded Atheris fuzzing (Linux CPython 3.12 CI dependencies)
+	@mkdir -p "$(FUZZ_ARTIFACT_DIR)/corpus"
+	$(PYTHON) -m tools.atheris_fuzz -runs=$(FUZZ_CASES) -seed=$(FUZZ_SEED) -max_total_time=30 -max_len=256 -timeout=10 -artifact_prefix="$(FUZZ_ARTIFACT_DIR)/" $(ATHERIS_ARGS) "$(FUZZ_ARTIFACT_DIR)/corpus"
+
 fortifications: ## Check diff health and reject eval() call sites
 	$(PYTHON) tools/fortifications.py --base-ref $(FORTIFY_BASE_REF)
 
@@ -117,7 +124,7 @@ property-test: ## Run bounded Hypothesis properties (HYPOTHESIS_PROFILE=nightly 
 	$(PYTHON) -m pytest tests/test_properties.py
 
 type-check: type-contracts ## Check core contracts and production/tooling with ty
-	$(PYTHON) -m ty check
+	$(PYTHON) -m ty check --python "$$($(PYTHON) -c 'import sys; print(sys.executable)')"
 
 ruff-check: ## Run ruff against the source tree
 	$(PYTHON) -m ruff check .
@@ -141,11 +148,26 @@ zizmor: ## Audit GitHub Actions workflows independently
 zizmor-fix: ## Apply zizmor's safe workflow fixes independently
 	@$(ZIZMOR) $(ZIZMOR_FLAGS) --fix=safe .github/
 
+legacy-install-check: ## Test source installation with pinned tools in a disposable Python 3.6-3.8 venv
+	$(PYTHON) -c "import sys; sys.exit(0 if (3, 6) <= sys.version_info[:2] < (3, 9) else 'legacy-install-check requires Python 3.6-3.8')"
+	@set -eu; build_env=$$(mktemp -d); \
+	trap 'rm -rf "$$build_env"' EXIT; \
+	$(PYTHON) -m venv "$$build_env"; \
+	"$$build_env/bin/python" -m pip install -r requirements-build-legacy.txt; \
+	$(MAKE) install-check PYTHON="$$build_env/bin/python"
+
+install-check: ## Build from an sdist and test a clean installation on this interpreter
+	$(PYTHON) tools/validate_installation.py
+
 compat-py36: ## Run dependency-light Python 3.6 compatibility checks
 	find qtop_py tools -name '*.py' -print | xargs $(PYTHON) -m py_compile
+	$(PYTHON) -m unittest discover -s tests -p test_legacy_helpers.py
 	$(PYTHON) tools/validate_scheduler_samples.py --schedulers $(SAMPLE_GATE_SCHEDULERS) --max-failures $(SAMPLE_GATE_MAX_FAILURES) --artifact-dir $(SAMPLE_GATE_ARTIFACT_DIR)-py36
 
 ci: test backend-validation deterministic-fuzz lint ruff-check format-check ## Run the shared local/CI validation path
+
+# Coverage runs the full pytest suite, including the Hypothesis properties.
+pre-pr: coverage backend-validation deterministic-fuzz lint format-check type-check coverage-fuzz ## Run complete local PR gates (Linux x86-64, CPython 3.12)
 
 github-ci: ci ## GitHub Actions entry point for test validation
 
@@ -167,3 +189,6 @@ version: ## Print the package version
 
 confirm: ## Ask for human confirmation before release-like tasks
 	@echo "Are you sure? [y/N]" && read ans && [ $${ans:-N} = y ]
+
+scorecard-scan: ## Scan an exact GitHub commit with Scorecard (requires Docker and GITHUB_AUTH_TOKEN)
+	sh ci/scripts/scorecard-scan.sh
