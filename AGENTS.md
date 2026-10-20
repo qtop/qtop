@@ -1,4 +1,4 @@
-# AGENTS.md — qtop contributor and agent guidance
+# AGENTS.md - qtop contributor and agent guidance
 
 These rules apply to all changes. Read `README.md`, `CONTRIBUTING.md`, and the
 relevant existing code before editing. This file complements, but does not
@@ -18,14 +18,14 @@ fork clone, fetch it or set `FORTIFY_BASE_REF`.
 
 ## Repo map
 
-- `qtop_py/qtop.py`, `cli.py` — main loop and legacy runtime context; argument handling.
-- `qtop_py/plugins/{pbs,sge,slurm,oar,demo}.py` — scheduler backends (input parsing).
-- `qtop_py/cluster_state.py`, `ui/viewport.py`, `colormap.py` — cluster model and terminal rendering.
-- `qtopconf.yaml`, `qtop_py/yaml_parser.py` — configuration and its stdlib parser.
-- `tests/` (`tests/plugins/` per scheduler, `slurm_samples/`) and `qtop_py/contrib/` — fixtures and reference scheduler outputs.
-- `tools/` — validation gates invoked by the Makefile.
-- `.github/workflows/`, `.gitlab-ci.yml`, `ci/` — thin platform wrappers around `make` targets.
-- `docs/` — CI structure, sample gates, PySCG alignment, SBOM/supply chain.
+- `qtop_py/qtop.py`, `cli.py` - main loop and legacy runtime context; argument handling.
+- `qtop_py/plugins/{pbs,sge,slurm,oar,demo}.py` - scheduler backends (input parsing).
+- `qtop_py/cluster_state.py`, `ui/viewport.py`, `colormap.py` - cluster model and terminal rendering.
+- `qtopconf.yaml`, `qtop_py/yaml_parser.py` - configuration and its stdlib parser.
+- `tests/` (`tests/plugins/` per scheduler, `slurm_samples/`) and `qtop_py/contrib/` - fixtures and reference scheduler outputs.
+- `tools/` - validation gates invoked by the Makefile.
+- `.github/workflows/`, `.gitlab-ci.yml`, `ci/` - thin platform wrappers around `make` targets.
+- `docs/` - CI structure, sample gates, PySCG alignment, SBOM/supply chain.
 
 ## 1. Scope and compatibility
 
@@ -88,4 +88,3 @@ tag, artifacts in `qtop-artifacts`).
 
 3.6 Keep PRs minimal but complete: explain purpose, behavioural impact, tests run,
 and limitations. Minimize maintainer review cost; never submit unverified claims.
-
