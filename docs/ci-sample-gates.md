@@ -34,6 +34,31 @@ on `make ci-deps` and uses `python -m build --no-isolation` so the build backend
 also comes from those pinned CI requirements instead of being resolved
 dynamically during the build.
 
+## CodeQL analysis
+
+`.github/workflows/codeql.yml` runs Python analysis on pushes, pull requests,
+a weekly schedule and manual dispatch. Initialization uses `build-mode: none`;
+Python analysis does not require installing qtop or its CI dependencies.
+The `security-and-quality` suite includes `security-extended`, so listing
+both suites is unnecessary. Initialization and analysis use the same pinned
+action version.
+
+This workflow requires **Advanced setup** in each repository that runs it.
+The original [failed run](https://github.com/qtop/qtop/actions/runs/37867825331)
+initialized and analyzed successfully, but GitHub rejected the SARIF upload
+because Default setup was enabled. Removing the query setting did not fix
+that conflict; removing initialization then left analysis without a database.
+
+When enabling this restored workflow, switch the repository from Default to
+Advanced setup under **Settings > Code security > CodeQL analysis**. Disable
+the Default setup configuration and use the committed `codeql.yml`; avoid
+adding a second generated analysis workflow. Follow GitHub's
+[Advanced setup instructions](https://docs.github.com/en/code-security/how-tos/find-and-fix-code-vulnerabilities/configure-code-scanning/configuring-advanced-setup-for-code-scanning).
+Then run the workflow and verify that its results appear in code scanning.
+Repository settings are separate from the committed YAML and apply separately
+to upstream and forks. Weekly/manual triggers require the workflow on the
+repository's default branch.
+
 ## Fast committed sample gate
 
 The every-PR gate is:

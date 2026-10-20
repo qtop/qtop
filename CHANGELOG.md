@@ -5,6 +5,8 @@ See the [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 
 ## 0.9.20261014
 
+- CI: restore initialized Python CodeQL analysis with security/quality queries;
+  document the required switch from Default to Advanced setup.
 - Security: create owner-verified private save directories; reject symlinks
   and unsafe shared paths, including command-line overrides.
 - Security: isolate source-launcher imports while retaining Python 3.6 support.
