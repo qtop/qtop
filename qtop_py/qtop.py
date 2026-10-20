@@ -49,6 +49,13 @@ import time
 import traceback
 from ast import literal_eval
 from math import ceil
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from qtop_py.contracts import ClusterState, Config, Scheduler
+
+    config: Config
+    dynamic_config: Config
 
 from qtop_py import __version__, fileutils, sample, utils
 from qtop_py import yaml_parser as yaml
@@ -1518,7 +1525,7 @@ QDoc = namedtuple("QDoc", ["lm", "queued", "run", "state"])
 
 class Document(namedtuple("Document", ["worker_nodes", "jobs_dict", "queues_dict", "total_running_jobs", "total_queued_jobs"])):
     @classmethod
-    def from_cluster_state(cls, cluster_state):
+    def from_cluster_state(cls, cluster_state: "ClusterState") -> "Document":
         validate_cluster_state(cluster_state)
         totals = cluster_state_totals(cluster_state)
         jobs_dict = OrderedDict((job["id"], JobDoc(job["user"], job["state"], job["queue"])) for job in cluster_state["jobs"])
@@ -1537,7 +1544,7 @@ class Document(namedtuple("Document", ["worker_nodes", "jobs_dict", "queues_dict
             totals["queued_jobs"],
         )
 
-    def to_cluster_state(self):
+    def to_cluster_state(self) -> "ClusterState":
         return {
             "jobs": [
                 {
@@ -1561,7 +1568,7 @@ class Document(namedtuple("Document", ["worker_nodes", "jobs_dict", "queues_dict
             ],
         }
 
-    def save(self, filename):
+    def save(self, filename: str) -> None:
         with open(filename, "w") as outfile:
             json.dump(self.to_cluster_state(), outfile)
 
@@ -2670,7 +2677,7 @@ def main():
 
                 ###### Gather data ###############
                 #
-                scheduling_system = available_batch_systems[scheduler](scheduler_output_filenames, config, args)
+                scheduling_system: "Scheduler" = available_batch_systems[scheduler](scheduler_output_filenames, config, args)
 
                 try:
                     if args.load_sample:
@@ -2690,6 +2697,7 @@ def main():
                         user_to_color = user_to_color_default.copy()
                         for rule in config["user_color_mappings"]:
                             user_to_color.update(rule)
+                        assert tar_out is not None
                         sample.save_snapshot(tar_out, cluster_state, snapshot_config, args, scheduler, __version__, omitted)
                     else:
                         cluster_state = scheduling_system.get_cluster_state(args)

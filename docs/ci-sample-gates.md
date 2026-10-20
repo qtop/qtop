@@ -241,3 +241,24 @@ project commands:
 - https://github.com/mattermost/mattermost-mattermod/blob/master/Makefile
 - https://github.com/mattermost/mattermost-mattermod/blob/master/.github/workflows/ci.yml
 - https://github.com/mattermost/mattermost-mattermod/blob/master/.gitlab-ci.yml
+
+## Typed contracts and property tests
+
+Python 3.12+ CI installs pinned mypy, Pyright and Hypothesis. `make type-check`
+retains ty and also checks the explicitly listed state, snapshot, serializer and
+viewport modules with mypy/Pyright. Core contracts use strict checks; the legacy
+serializer permits unannotated definitions while checking their bodies.
+Configuration remains extensible, and static contracts do not replace validation
+of scheduler/JSON input. Broader runtime typing can be added module by module.
+
+`make property-test` runs bounded Hypothesis checks for linked cluster state,
+anonymization, snapshot round trips, Slurm hosts, PBS ranges, viewport navigation
+and YAML normalization. The default `ci` profile uses 100 deterministic examples
+per property. `HYPOTHESIS_PROFILE=nightly make property-test` uses 1,000 examples;
+The nightly profile retains examples in the ignored `.hypothesis` database;
+the deterministic CI profile disables database reuse. Both profiles shrink
+failures to small reproducible examples.
+
+The new tools are development dependencies only. Property tests skip on older
+interpreters; the existing Python 3.6 runtime/sample gate remains independent.
+Quoted annotations and `TYPE_CHECKING` imports preserve that runtime floor.

@@ -2,6 +2,8 @@
 
 ## 0.9.20261013
 
+- QA: add typed core contracts, gradual mypy/Pyright gates and bounded Hypothesis properties; validate nested snapshots, preserve nested YAML containers and supply the PBS JSON queue anonymizer category.
+
 
 ## 0.9.20261012
 

@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 
-.PHONY: help all rerun clean ci-deps test coverage coverage-xml sample-gate backend-validation backend-colour-artifacts render-backends trace-export-validation test-pbs-samples test-slurm-samples deterministic-fuzz fortifications repo-sanity code-quality license-report type-check ruff-check lint lint-fix format-check format-fix zizmor zizmor-fix compat-py36 ci nightly-ci github-ci gitlab-ci build github-build gitlab-build dist version confirm
+.PHONY: help all rerun clean ci-deps test coverage coverage-xml sample-gate backend-validation backend-colour-artifacts render-backends trace-export-validation test-pbs-samples test-slurm-samples deterministic-fuzz fortifications repo-sanity code-quality license-report type-check type-contracts property-test ruff-check lint lint-fix format-check format-fix zizmor zizmor-fix compat-py36 ci nightly-ci github-ci gitlab-ci build github-build gitlab-build dist version confirm
 
 PYTHON ?= python3
 PIP ?= $(PYTHON) -m pip
@@ -109,7 +109,14 @@ license-report: ## Report licenses of the pinned CI dependency set (pip-licenses
 	$(PYTHON) -m piplicenses --format=json > $(LICENSE_DIR)/ci-dependencies.json
 	@echo "wrote $(LICENSE_DIR)"
 
-type-check: ## Type-check production code with concise, one-line ty diagnostics
+type-contracts: ## Check core contracts with mypy and Pyright (Python 3.12+ tooling)
+	$(PYTHON) -m mypy
+	$(PYTHON) -m pyright
+
+property-test: ## Run bounded Hypothesis properties (HYPOTHESIS_PROFILE=nightly for longer runs)
+	$(PYTHON) -m pytest tests/test_properties.py
+
+type-check: type-contracts ## Check core contracts and production/tooling with ty
 	$(PYTHON) -m ty check
 
 ruff-check: ## Run ruff against the source tree

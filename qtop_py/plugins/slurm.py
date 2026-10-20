@@ -11,6 +11,7 @@
 import logging
 import re
 from collections import OrderedDict
+from typing import List, Optional
 
 import qtop_py.fileutils as fileutils
 from qtop_py.serialiser import GenericBatchSystem, StatExtractor
@@ -316,7 +317,7 @@ class SlurmBatchSystem(GenericBatchSystem):
         return node_jobs
 
     @classmethod
-    def expand_nodelist(cls, nodelist):
+    def expand_nodelist(cls, nodelist: Optional[str]) -> List[str]:
         """Expand comma-separated host groups; reject malformed lists as a unit.
 
         Commas inside brackets separate numeric choices. Unbalanced brackets,
@@ -368,7 +369,7 @@ class SlurmBatchSystem(GenericBatchSystem):
             return []
 
     @classmethod
-    def _expand_first_range(cls, value):
+    def _expand_first_range(cls, value: str) -> List[str]:
         match = re.search(r"\[([^\]]+)\]", value)
         if not match:
             if "[" in value:
