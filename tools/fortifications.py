@@ -27,17 +27,52 @@ SKIP_DIRS = set([".git", ".tox", ".venv", "venv", "__pycache__", "artifacts", "b
 
 
 def run_git(args):
-    return subprocess.check_output(["git"] + args, cwd=str(ROOT), stderr=subprocess.STDOUT, universal_newlines=True)
+    return subprocess.check_output(["git"] + args, cwd=str(ROOT), stderr=subprocess.STDOUT, universal_newlines=True, encoding="utf-8", errors="replace")
 
 
 def changed_files(base_ref):
-    output = run_git(["diff", "--name-only", "%s...HEAD" % base_ref])
-    return [line for line in output.splitlines() if line]
+    output = run_git(["diff", "--no-ext-diff", "--name-only", "-z", base_ref, "--"])
+    return [name for name in output.split("\0") if name]
 
 
 def diff_lines(base_ref):
-    output = run_git(["diff", "--unified=0", "%s...HEAD" % base_ref])
-    return output.splitlines()
+    output = run_git(["-c", "core.quotePath=false", "diff", "--no-ext-diff", "--no-textconv", "--no-color", "--src-prefix=a/", "--dst-prefix=b/", "--unified=0", base_ref, "--"])
+    return output.split("\n")
+
+
+def find_diff_problems(lines):
+    problems = []
+    filename, number = None, None
+    for line in lines:
+        if line.startswith("diff --git "):
+            filename, number = None, None
+            continue
+        if line.startswith("+++ ") and number is None:
+            filename = line[4:]
+            if filename.startswith('"'):
+                filename = ast.literal_eval(filename)
+            filename = filename[2:] if filename.startswith("b/") else filename
+            if filename == "/dev/null":
+                filename = None
+            continue
+        hunk = re.match(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@", line)
+        if hunk:
+            number = int(hunk.group(1))
+            continue
+        if filename is None or number is None:
+            continue
+        if line.startswith("+"):
+            text = line[1:]
+            match = CONTROL_OR_BIDI.search(text)
+            if match:
+                safe_filename = filename.encode("unicode_escape").decode("ascii")
+                problems.append(
+                    "%s:%s:%s: control, bidi, or non-ASCII character U+%04X in added line: %s" % (safe_filename, number, match.start() + 1, ord(match.group()), ascii(text))
+                )
+            number += 1
+        elif line.startswith(" "):
+            number += 1
+    return problems
 
 
 def iter_python_files():
@@ -92,8 +127,10 @@ def main():
     problems = []
 
     try:
-        files = changed_files(args.base_ref)
-        lines = diff_lines(args.base_ref)
+        # Compare the branch merge base with tracked files, including local fixes.
+        base = run_git(["merge-base", args.base_ref, "HEAD"]).strip()
+        files = changed_files(base)
+        lines = diff_lines(base)
     except subprocess.CalledProcessError as exc:
         sys.stderr.write(exc.output)
         sys.stderr.write("Unable to compare against %s\n" % args.base_ref)
@@ -103,12 +140,7 @@ def main():
         if GENERATED_OR_BINARY.search(filename):
             problems.append("manual review required for generated/binary-looking path: %s" % filename)
 
-    for line in lines:
-        if not line.startswith("+") or line.startswith("+++"):
-            continue
-        if CONTROL_OR_BIDI.search(line[1:]):
-            problems.append("control, bidi, or non-ASCII character found in an added diff line")
-            break
+    problems.extend(find_diff_problems(lines))
 
     problems.extend(find_eval_calls())
     problems.extend(find_star_imports())

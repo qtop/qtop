@@ -4,6 +4,7 @@ import errno
 import glob
 import logging
 import os
+import stat
 import sys
 import tarfile
 import tempfile
@@ -17,6 +18,45 @@ def mkdir_p(path):
             pass
         else:
             raise
+
+
+def private_save_directory(path):
+    """Create and verify a private output path without following symlinks."""
+    if not isinstance(path, str) or not path.strip():
+        raise ValueError("Save directory must be a nonempty path")
+    if os.name != "posix":
+        raise OSError(errno.ENOTSUP, "Private save directories require POSIX ownership checks", path)
+    path = os.path.abspath(os.path.expandvars(path))
+    parts = path.strip(os.sep).split(os.sep)
+    if not parts[0]:
+        raise PermissionError(errno.EACCES, "The filesystem root cannot be a save directory", path)
+    uid = os.geteuid()
+    flags = os.O_DIRECTORY | os.O_NOFOLLOW
+    parent_access = getattr(os, "O_PATH", os.O_RDONLY)
+    fd = os.open(os.sep, flags | parent_access)
+    try:
+        for index, part in enumerate(parts):
+            try:
+                os.mkdir(part, mode=0o700, dir_fd=fd)
+            except FileExistsError:
+                pass
+            access = os.O_RDONLY if index == len(parts) - 1 else parent_access
+            child_fd = os.open(part, flags | access, dir_fd=fd)
+            os.close(fd)
+            fd = child_fd
+            info = os.fstat(fd)
+            writable_by_others = info.st_mode & (stat.S_IWGRP | stat.S_IWOTH)
+            if index == len(parts) - 1:
+                if info.st_uid != uid:
+                    raise PermissionError(errno.EACCES, "Save directory must be owned by the current user", path)
+                if writable_by_others:
+                    raise PermissionError(errno.EACCES, "Save directory is writable by others; inspect it or choose a new private directory", path)
+                os.fchmod(fd, 0o700)
+            elif info.st_uid not in (0, uid) or (writable_by_others and not info.st_mode & stat.S_ISVTX):
+                raise PermissionError(errno.EACCES, "Save directory has an untrusted parent", path)
+    finally:
+        os.close(fd)
+    return path
 
 
 def check_empty_file(orig_file):
@@ -83,7 +123,8 @@ def add_to_sample(filepaths_to_add, sample_out, sample_method=tarfile, subdir=No
     """
     opens sample_file in path savepath and adds files filepaths_to_add
     """
-    assert isinstance(filepaths_to_add, list)
+    if not isinstance(filepaths_to_add, list):
+        raise TypeError("filepaths_to_add must be a list")
     for filepath_to_add in filepaths_to_add:
         fn = os.path.basename(filepath_to_add)
         try:
@@ -156,14 +197,10 @@ def parse_time_input(_time):
     e.g. '5h', or '10m', or '30s'
     A tuple is returned, e.g. (5, 'hours')
     """
-    assert _time.endswith(("h", "m", "s"))
-    try:
-        int(_time[:-1])
-    except ValueError:
-        logging.critical("Time input given must be a number followed by the letter h/m/s. Exiting.")
-
-    quantity, user_unit_suffix = _time[:-1], _time[-1]
+    if not isinstance(_time, str) or not _time.endswith(("h", "m", "s")):
+        raise ValueError("Time input must be a number followed by h, m or s")
     units = {"m": "minutes", "s": "seconds", "h": "hours"}
-    user_unit = units[user_unit_suffix]
-
-    return {user_unit: int(quantity)}
+    try:
+        return {units[_time[-1]]: int(_time[:-1])}
+    except ValueError as error:
+        raise ValueError("Time input must be a number followed by h, m or s") from error

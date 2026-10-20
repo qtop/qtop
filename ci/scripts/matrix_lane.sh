@@ -121,7 +121,7 @@ case "${TARGET}" in
         # pytest before 9.0.3 uses a predictable shared /tmp parent on Unix.
         # The patched release requires Python >=3.10, so give every lane a
         # random mode-0700 parent; this protects the Python 3.9 compatibility
-        # lanes that must retain pytest 8.2.2.
+        # lane that must retain pytest 8.4.2.
         log "creating private pytest temp root"
         PYTEST_PRIVATE_ROOT="$(mktemp -d)"
         chmod 700 "${PYTEST_PRIVATE_ROOT}"

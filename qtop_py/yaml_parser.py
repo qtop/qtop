@@ -133,13 +133,8 @@ def convert_dash_key_in_dict(d):
 def parse(fn, DEF_INDENT=2):
     raw_key_values = {}
     with open(fn, mode="r") as fin:
-        try:
-            assert os.stat(fn).st_size != 0
-        except AssertionError:
-            logging.critical("File %s is empty!! Exiting...\n" % fn)
-            raise
-        except IOError:
-            raise
+        if os.fstat(fin.fileno()).st_size == 0:
+            raise ValueError("Configuration file is empty: %s" % fn)
         logging.debug("File state before parse: %s" % fin)
         lines = get_line(fin, DEF_INDENT=DEF_INDENT)
         line = next(lines)

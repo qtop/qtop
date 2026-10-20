@@ -221,7 +221,8 @@ def _watch_callback(option, opt_str, value, parser):
     """
     This is the official example from optparse for variable arguments
     """
-    assert value is None
+    if value is not None:
+        raise ValueError("Watch callback does not accept a preset value")
     value = []
 
     def is_floatable(str):

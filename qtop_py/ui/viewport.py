@@ -50,7 +50,6 @@ class Viewport(BaseViewport):
 
     @property
     def h_start(self) -> int:
-        assert not (self.would_cross_left_limit(self._h_start) and self.would_cross_right_limit(self._h_start))
         return self._h_start
 
     @h_start.setter
@@ -64,7 +63,6 @@ class Viewport(BaseViewport):
 
     @property
     def v_start(self) -> int:
-        assert not (self.would_cross_up_limit(self._v_start) and self.would_cross_down_limit(self._v_start))
         return self._v_start
 
     @v_start.setter

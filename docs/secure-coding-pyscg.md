@@ -86,12 +86,14 @@ switch those call sites to `secrets`/`SystemRandom` (stdlib, no new deps).
 
 ### 4. Asserts on runtime paths
 
-bandit B101 x12 (e.g. `qtop_py/fileutils.py:77,144`,
-`qtop_py/plugins/oar.py:114,118`). Maps to PySCG
-`08_coding_standards/pyscg-0037` (CWE-617): asserts vanish under `python -O`,
-so they must not guard runtime invariants. Proposed next step: convert
-runtime-path asserts to explicit `raise` of qtop's existing error types;
-keep asserts in tests.
+The original review found 12 runtime asserts (Bandit B101). Runtime input
+checks now raise explicit exceptions and remain active under ``python -O``;
+tests retain assertions. Two ineffective viewport assertions were removed.
+This addresses PySCG ``08_coding_standards/pyscg-0037`` (CWE-617).
+
+SGE XML lookups validate required elements and text before dereferencing them
+(pyscg-0034). Missing or empty required fields raise a parse error; optional
+queue states and slot counts retain their defaults.
 
 ### 5. Hardcoded temp paths (dev tools only)
 
@@ -103,19 +105,18 @@ keeping the CLI flag override; CI-side only, low risk.
 
 ### 6. Dependency currency (pinned CI set)
 
-On Python 3.12 and newer, `requirements-ci.txt` now selects `pip 26.2`,
-`setuptools 83.0.0`, `pytest 9.1.1`, and its pinned Pygments dependency.
-`pip-audit` reports no known vulnerability in that selected Python 3.12 set.
-This clears the six previously recorded packaging-tool advisories and
-PYSEC-2026-1845, pytest's predictable Unix temporary-directory finding.
+On Python 3.12 and newer, `requirements-ci.txt` selects the refreshed
+build and analysis toolchain, including `pip 26.2.1`, `setuptools 84.2.0`
+and `pytest 9.1.1`. Python 3.9 retains compatible pins for tools whose newer
+releases require Python 3.10 or later. Pygments is pinned in both sets.
 
-The new packaging-tool releases and patched pytest require Python 3.10 or
-newer, while qtop deliberately selects the fully pinned modern set from Python
-3.12 onward. Older matrix lanes therefore keep their image or virtual-
-environment bootstrap tools and retain pytest 8.2.2. The shared matrix
-runner mitigates its temporary-directory issue by creating a random mode-0700
-parent and passing a child through pytest's `--basetemp`; other local Python
-3.9 invocations should likewise use a private `TMPDIR` or `--basetemp`.
+Patched pytest requires Python 3.10 or newer and is selected on those
+interpreters. Python 3.9 uses its newest compatible release, pytest 8.4.2.
+The shared matrix runner mitigates the predictable temporary-directory
+finding by creating a random mode-0700 parent and passing a child through
+pytest's `--basetemp`; other local Python 3.9 invocations should likewise
+use a private `TMPDIR` or `--basetemp`. Older matrix lanes retain their image
+or virtual-environment bootstrap pip/setuptools for test-only validation.
 Python 3.6--3.8 lanes remain on the dependency-light compatibility gate. This
 is a CI-only boundary: the qtop runtime deliberately has no dependencies.
 GitLab Dependency Scanning is an Ultimate feature, so `pip-audit` remains the
@@ -147,6 +148,21 @@ non-source candidates. The configured GitLab Secret Detection template can
 check qualifying pipelines; expect and triage the sample-ID finding when it
 runs.
 
+### 9. Private output and launcher imports
+
+For pyscg-0040/0035, save directories are opened component by component with
+``O_DIRECTORY`` and ``O_NOFOLLOW``. Ownership and writable ancestors are checked
+through directory descriptors. The final directory must belong to the effective
+user, must not allow group/other writes, and is restricted to ``0700``. Sticky
+shared parents such as ``/tmp`` are allowed; symlinks and untrusted parents are
+rejected. Both file configuration and CLI overrides follow these checks.
+
+For pyscg-0013, ``./qtop`` runs Python with ``-I`` and explicitly adds only its
+own checkout as an application import path. This excludes the caller's working
+directory, ``PYTHONPATH`` and user site packages while retaining Python 3.6
+compatibility. Direct ``python -m qtop_py.cli`` invocations retain Python's
+normal import behavior.
+
 ## Scorecard gap-to-action map (baseline 8.1, 2026-10-06)
 
 | Check | Score | Action in this change | Proposed follow-up |
@@ -165,6 +181,7 @@ runs.
 
 1. P1: XML hardening decision (finding 1) and the three CI-dep pin bumps
    (finding 6).
-2. P2: assert conversion (finding 4), SECURITY.md, temp-path fix (finding 5).
+2. P2: dev-tool temp-path defaults (finding 5). Runtime assert conversion,
+   private save directories and isolated source startup are implemented.
 3. P3: random-use annotations (finding 3), PySCG upstream contributions
    (CWE-611, CWE-377 pages), fuzzing harness, Best Practices badge.

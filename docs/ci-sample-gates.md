@@ -34,6 +34,31 @@ on `make ci-deps` and uses `python -m build --no-isolation` so the build backend
 also comes from those pinned CI requirements instead of being resolved
 dynamically during the build.
 
+## CodeQL analysis
+
+`.github/workflows/codeql.yml` runs Python analysis on pushes, pull requests,
+a weekly schedule and manual dispatch. Initialization uses `build-mode: none`;
+Python analysis does not require installing qtop or its CI dependencies.
+The `security-and-quality` suite includes `security-extended`, so listing
+both suites is unnecessary. Initialization and analysis use the same pinned
+action version.
+
+This workflow requires **Advanced setup** in each repository that runs it.
+The original [failed run](https://github.com/qtop/qtop/actions/runs/37867825331)
+initialized and analyzed successfully, but GitHub rejected the SARIF upload
+because Default setup was enabled. Removing the query setting did not fix
+that conflict; removing initialization then left analysis without a database.
+
+When enabling this restored workflow, switch the repository from Default to
+Advanced setup under **Settings > Code security > CodeQL analysis**. Disable
+the Default setup configuration and use the committed `codeql.yml`; avoid
+adding a second generated analysis workflow. Follow GitHub's
+[Advanced setup instructions](https://docs.github.com/en/code-security/how-tos/find-and-fix-code-vulnerabilities/configure-code-scanning/configuring-advanced-setup-for-code-scanning).
+Then run the workflow and verify that its results appear in code scanning.
+Repository settings are separate from the committed YAML and apply separately
+to upstream and forks. Weekly/manual triggers require the workflow on the
+repository's default branch.
+
 ## Fast committed sample gate
 
 The every-PR gate is:
@@ -188,12 +213,18 @@ with artifacts under `artifacts/sample-gate-py36/`.
 
 ## Fortifications
 
-`make fortifications` compares the current branch against
-`FORTIFY_BASE_REF`, which defaults to `origin/develop`. It rejects:
+`make fortifications` compares current tracked files with the merge base of
+`HEAD` and `FORTIFY_BASE_REF` (default: `origin/develop`). This includes staged
+and unstaged edits, so local fixes are checked before committing. In a clean
+CI checkout it checks the committed branch changes. It rejects:
 
 - control, bidi, or non-ASCII characters added in the diff
 - generated-looking or binary-looking changed paths
 - any Python `eval()` call site in the source tree
+
+Character failures report every affected `file:line:column`, the first offending
+Unicode code point on that line, and escaped source text. Escaping prevents
+control and bidi characters from affecting the diagnostic display.
 
 The generated/binary path check is deliberately conservative because
 `CONTRIBUTING.md` asks contributors not to store heavy artifacts in `qtop`.
@@ -201,8 +232,8 @@ The generated/binary path check is deliberately conservative because
 without installing Python packages, `make ruff-check` runs the repository's ruff
 configuration after `make ci-deps` has installed pinned CI dependencies, and
 `make format-check` runs both `ruff format --check .` and
-`ruff format --check --diff .` before checking whitespace errors in the branch
-diff against the same `FORTIFY_BASE_REF`.
+`ruff format --check --diff .` before checking whitespace against the same
+merge base, including staged and unstaged tracked edits.
 
 ## Coverage roadmap
 

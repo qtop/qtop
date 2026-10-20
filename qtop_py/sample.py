@@ -57,7 +57,8 @@ def anonymize_state(state: object) -> "Tuple[ClusterState, IdentifierMaps]":
     def job_id(value: str) -> str:
         # PBS array tasks share the base ID in the jobs collection.
         match = re.match(r"^(.*?)(\[.*\])?$", str(value))
-        assert match is not None
+        if match is None:
+            raise ValueError("Invalid job ID")
         return mask(match.group(1), "job") + (match.group(2) or "")
 
     state["jobs"] = [{"id": job_id(job["id"]), "user": mask(job["user"], "user"), "state": job["state"], "queue": mask(job["queue"], "queue")} for job in state["jobs"]]

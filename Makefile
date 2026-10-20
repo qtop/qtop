@@ -130,7 +130,7 @@ lint-fix: ## Auto-fix ruff lint issues where possible
 format-check: ## Check ruff formatting and branch diff whitespace
 	$(PYTHON) -m ruff format --check .
 	$(PYTHON) -m ruff format --check --diff .
-	git diff --check $(FORTIFY_BASE_REF)...HEAD
+	git diff --check "$$(git merge-base "$(FORTIFY_BASE_REF)" HEAD)" --
 
 format-fix: ## Auto-format Python files with ruff
 	$(PYTHON) -m ruff format .
