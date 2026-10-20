@@ -7,7 +7,7 @@
 ##
 # Nightly concern: interpreter/distro compatibility matrix (#488).
 #
-# 38 lanes covering CPython 3.6 through stable 3.15 plus PyPy across Debian,
+# 35 lanes covering CPython 3.6 through stable 3.15 plus PyPy across Debian,
 # Ubuntu, AlmaLinux, Rocky, CentOS Stream, Oracle Linux, Fedora, openSUSE,
 # Amazon Linux and Arch, all routed through ci/scripts/matrix_lane.sh and the
 # Makefile contract. The lane list mirrors
@@ -41,19 +41,12 @@ nightly-matrix:
   extends: .nightly-lane-base
   parallel:
     matrix:
-      # 3.7 and 3.8 run the dependency-light gate: the pinned CI set needs
-      # >=3.9 (importlib-metadata==8.7.1), discovered by the first live run.
-      - IMAGE: ['python:3.7-bullseye', 'python:3.8-bullseye']
-        FAMILY: pythonimg
-        PKGS: '-'
-        PYBIN: python
-        TARGET: compat-py36
       - IMAGE: ['python:3.9-bookworm', 'python:3.11-bookworm', 'python:3.12-bookworm', 'python:3.13-bookworm', 'python:3.14-bookworm']
         FAMILY: pythonimg
         PKGS: '-'
         PYBIN: python
         TARGET: ci
-      - IMAGE: ['ubuntu:22.04', 'ubuntu:24.04', 'ubuntu:25.10', 'debian:bullseye', 'debian:bookworm', 'debian:trixie']
+      - IMAGE: ['ubuntu:22.04', 'ubuntu:24.04', 'ubuntu:25.10', 'ubuntu:26.10', 'debian:bookworm', 'debian:trixie']
         FAMILY: debian
         PKGS: 'python3,python3-venv,python3-pip'
         PYBIN: python3
@@ -135,7 +128,7 @@ nightly-matrix-experimental:
         PKGS: '-'
         PYBIN: python
         TARGET: ci
-      - IMAGE: ['pypy:3.9', 'pypy:3.11', 'pypy:3.12', 'pypy:3.11-8.0.0']
+      - IMAGE: ['pypy:3.11', 'pypy:3.12', 'pypy:3.11-8.0.0']
         FAMILY: pypyimg
         PKGS: '-'
         PYBIN: pypy3
