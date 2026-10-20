@@ -54,7 +54,7 @@ from `qtop_py/contrib`. Slurm uses every committed sample directory under
 backends run through the shared Python gate, so local, GitHub, and GitLab
 validation exercise the same command path.
 
-The synthetic Slurm `incomplete` pair covers comma-separated host groups,
+The synthetic Slurm `partial_and_malformed` pair covers comma-separated host groups,
 malformed host lists, missing node records, truncated or missing identity
 fields, invalid CPU counts and unknown job/node states. Its expected totals
 are three nodes, twelve cores, five assigned cores, four running jobs and one
