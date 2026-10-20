@@ -302,3 +302,22 @@ def test_documented_capture_and_export_modes(tmp_path, flags, include_sources, i
     assert ("qtop_py/qtop.py" in names) is include_sources
     assert ("qtop_py/plugins/slurm.py" in names) is include_sources
     assert exports[0].name not in names
+
+
+@pytest.mark.skipif(os.name != "posix", reason="POSIX private output directories")
+@pytest.mark.parametrize("override", (False, True))
+def test_cli_rejects_unsafe_savepath_before_writing(tmp_path, override):
+    shared = tmp_path / "shared"
+    shared.mkdir()
+    shared.chmod(0o777)
+    if override:
+        flags = ["-o", "savepath=" + str(shared)]
+    else:
+        config = tmp_path / "config.yaml"
+        config.write_text("savepath: %s\n" % shared)
+        flags = ["-f", str(config)]
+    result = run_cli(tmp_path, "qtop_py.cli", "-b", "demo", *flags)
+    assert result.returncode == 1
+    assert "writable by others" in result.stderr
+    assert "Traceback" not in result.stderr
+    assert list(shared.iterdir()) == []

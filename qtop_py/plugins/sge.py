@@ -19,6 +19,19 @@ import qtop_py.fileutils as fileutils
 from qtop_py.serialiser import GenericBatchSystem, StatExtractor
 
 
+def _required_text_element(parent, path):
+    element = parent.find(path)
+    if element is None or not element.text:
+        raise etree.ParseError("SGE XML requires a nonempty %s element" % path)
+    return element
+
+
+def _anonymize_field(parent, path, anonymize, category):
+    element = _required_text_element(parent, path)
+    element.text = anonymize(element.text, category)
+    return element.text
+
+
 class NoDTDTreeBuilder(etree.TreeBuilder):
     """Reject DTDs before scheduler XML can expand declared entities."""
 
@@ -58,13 +71,17 @@ class SGEStatExtractor(StatExtractor):
 
         for queue_elem in root.findall("queue_info/Queue-List"):
             queue_name_elems = queue_elem.findall("resource")
-            queue_list_nametag = queue_elem.find("name")
+            queue_list_nametag = _required_text_element(queue_elem, "name")
             queue_list_nametag.text = self.anonymize_queue_list_nametag(queue_list_nametag)
             _q_name_elems = iter(queue_name_elems)
             for queue_name_elem in _q_name_elems:
                 if queue_name_elem.attrib.get("name") == "qname":
+                    if not queue_name_elem.text:
+                        raise etree.ParseError("SGE XML requires a nonempty qname resource")
                     queue_name_elem.text = self.anonymize(queue_name_elem.text, "qs")
-                    next_q_name_elem = next(_q_name_elems)
+                    next_q_name_elem = next(_q_name_elems, None)
+                    if next_q_name_elem is None or not next_q_name_elem.text:
+                        raise etree.ParseError("SGE XML requires a nonempty hostname resource")
                     # if queue_name_elem.attrib.get('name') == 'hostname': # assume next must be hostname?
                     next_q_name_elem.text = self.anonymize(next_q_name_elem.text, "wns")
                     break
@@ -93,17 +110,17 @@ class SGEStatExtractor(StatExtractor):
         Extract scheduler job records from an XML element into ``all_values``.
         """
         for subelem in elem.findall(elem_text):
-            owner = subelem.find("./JB_owner").text = self.anonymize(subelem.find("./JB_owner").text, "users")
-            job_num = subelem.find("./JB_job_number").text = self.anonymize(subelem.find("./JB_job_number").text, "jobnums")
-            subelem.find("./JB_name").text = self.anonymize(subelem.find("./JB_name").text, "jobnames")
+            owner = _anonymize_field(subelem, "./JB_owner", self.anonymize, "users")
+            job_num = _anonymize_field(subelem, "./JB_job_number", self.anonymize, "jobnums")
+            _anonymize_field(subelem, "./JB_name", self.anonymize, "jobnames")
             subm_time = subelem.find("./JB_submission_time")
-            if subm_time is not None:
-                subm_time.text = self.anonymize(subelem.find("./JB_submission_time").text, "jobtimes")
+            if subm_time is not None and subm_time.text:
+                _anonymize_field(subelem, "./JB_submission_time", self.anonymize, "jobtimes")
             queue_name = self.anonymize(queue_name, "qs")
             qstat_values = dict()
             qstat_values["JobId"] = job_num
             qstat_values["UnixAccount"] = owner
-            qstat_values["S"] = subelem.find("./state").text
+            qstat_values["S"] = _required_text_element(subelem, "./state").text
             qstat_values["Queue"] = queue_name
             all_values.append(qstat_values)
         if not all_values:
@@ -220,22 +237,19 @@ class SGEBatchSystem(GenericBatchSystem):
             if state != "running":
                 continue
 
-            owner = subelem.find("./JB_owner").text = self.anonymize(subelem.find("./JB_owner").text, "users")
-            job_num = subelem.find("./JB_job_number").text = self.anonymize(subelem.find("./JB_job_number").text, "jobnums")
-            subelem.find("./JB_name").text = self.anonymize(subelem.find("./JB_name").text, "jobnames")
-            subelem.find("./JAT_start_time").text = self.anonymize(subelem.find("./JAT_start_time").text, "jobtimes")
+            owner = _anonymize_field(subelem, "./JB_owner", self.anonymize, "users")
+            job_num = _anonymize_field(subelem, "./JB_job_number", self.anonymize, "jobnums")
+            _anonymize_field(subelem, "./JB_name", self.anonymize, "jobnames")
+            _anonymize_field(subelem, "./JAT_start_time", self.anonymize, "jobtimes")
             job_ids.append(job_num)
             usernames.append(owner)
-            job_states.append(subelem.find("./state").text)
+            job_states.append(_required_text_element(subelem, "./state").text)
         return job_ids, usernames, job_states
 
     def _get_host_qname_np(self, queue_elem):
         worker_node = dict()
         count = 0
-        try:
-            slots_used = int(queue_elem.find("./slots_used").text)
-        except AttributeError:
-            slots_used = 0
+        slots_used = int(queue_elem.findtext("./slots_used", default="0") or "0")
 
         resources = queue_elem.findall("resource")
         for resource in resources:
@@ -262,10 +276,7 @@ class SGEBatchSystem(GenericBatchSystem):
         return worker_node
 
     def _get_state(self, queue_elem):
-        state = queue_elem.find("state")
-        if state is None:
-            return "-"
-        return state.text
+        return queue_elem.findtext("state", default="-") or "-"
 
     def _extract_queues(self, xpath, root):
         qstatq_list = []
@@ -290,10 +301,7 @@ class SGEBatchSystem(GenericBatchSystem):
             else:  # first instance of queue in the xml
                 d = dict()
                 d["queue_name"] = queue_name
-                try:
-                    d["state"] = queue_elem.find("./state").text
-                except AttributeError:
-                    d["state"] = "?"
+                d["state"] = queue_elem.findtext("./state", default="?") or "?"
 
                 job_lists = queue_elem.findall("job_list")
                 run_count = 0

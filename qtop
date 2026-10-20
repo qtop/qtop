@@ -1,4 +1,10 @@
 #!/bin/bash
 
-python3 -m qtop_py.cli "$@"
-
+qtop_root=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P) || exit 1
+exec python3 -I -c '
+import runpy
+import sys
+sys.path.insert(0, sys.argv.pop(1))
+sys.argv[0] = "qtop"
+runpy.run_module("qtop_py.cli", run_name="__main__")
+' "$qtop_root" "$@"

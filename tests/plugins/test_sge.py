@@ -69,3 +69,52 @@ def test_scheduler_xml_still_reports_malformed_input(tmp_path):
 
     with pytest.raises(etree.ParseError):
         extractor.get_xml_tree(str(sample))
+
+
+@pytest.mark.parametrize(
+    "running, field",
+    [(False, field) for field in ("JB_owner", "JB_job_number", "JB_name", "state")]
+    + [(True, field) for field in ("JB_owner", "JB_job_number", "JB_name", "state", "JAT_start_time")],
+)
+@pytest.mark.parametrize("empty", (False, True))
+def test_job_xml_reports_missing_or_empty_required_fields(field, empty, running):
+    queue = etree.fromstring(
+        '<Queue-List><job_list state="running"><JB_owner>alice</JB_owner>'
+        "<JB_job_number>123</JB_job_number><JB_name>job</JB_name>"
+        "<state>r</state><JAT_start_time>now</JAT_start_time></job_list></Queue-List>"
+    )
+    job = queue.find("job_list")
+    element = job.find(field)
+    if empty:
+        element.text = None
+    else:
+        job.remove(element)
+    system = SGEBatchSystem({}, {}, Options())
+    with pytest.raises(etree.ParseError, match=field):
+        if running:
+            system._extract_running_job_info(queue, "job_list")
+        else:
+            system.sge_stat_maker._extract_job_info([], queue, "job_list", "batch")
+
+
+def test_optional_queue_xml_fields_keep_defaults():
+    queue = etree.fromstring('<Queue-List><resource name="qname">batch</resource></Queue-List>')
+    root = etree.Element("root")
+    root.append(queue)
+    system = SGEBatchSystem({}, {}, Options())
+    assert system._get_state(queue) == "-"
+    assert system._get_host_qname_np(queue)["qname"] == set()
+    assert system._extract_queues("Queue-List", root)[0]["state"] == "?"
+
+
+@pytest.mark.parametrize("anonymize", (False, True))
+def test_empty_optional_submission_time_is_ignored(anonymize):
+    queue = etree.fromstring(
+        "<Queue-List><job_list><JB_owner>alice</JB_owner><JB_job_number>123</JB_job_number><JB_name>job</JB_name><state>qw</state><JB_submission_time/></job_list></Queue-List>"
+    )
+    options = Options()
+    options.ANONYMIZE = anonymize
+    extractor = SGEStatExtractor({}, options, {})
+    records = extractor._extract_job_info([], queue, "job_list", "batch")
+    assert len(records) == 1
+    assert records[0]["S"] == "qw"

@@ -334,14 +334,8 @@ def prepare_config(config):
         config["remapping"] = list()
     config["possible_ids"] = _available_possible_ids(config)
 
-    _savepath = os.path.realpath(os.path.expandvars(config["savepath"]))
-
-    if not os.path.exists(_savepath):
-        fileutils.mkdir_p(_savepath)
-        logging.debug("Directory %s created." % _savepath)
-    else:
-        logging.debug("%s files will be saved in directory %s." % (config["scheduler"], _savepath))
-    config["savepath"] = _savepath
+    config["savepath"] = fileutils.private_save_directory(config["savepath"])
+    logging.debug("%s files will be saved in directory %s.", config["scheduler"], config["savepath"])
 
     return config, user_to_color, nodestate_to_color
 
@@ -581,13 +575,8 @@ def get_key_val_from_option_string(string):
 
 
 def check_python_version():
-    try:
-        assert sys.version_info[0] == 3
-    except AssertionError:
-        logging.critical("Only python versions 3 upwards is supported. Exiting")
-
-        web.stop()
-        sys.exit(1)
+    if sys.version_info[0] != 3:
+        raise OperationalError("Only Python 3 is supported.")
 
 
 def control_qtop(viewport, read_char, cluster, old_attrs, new_attrs):
@@ -1012,8 +1001,10 @@ def discover_qtop_batch_systems():
     available_batch_systems = {}
     for batch_system in PLUGIN_BATCH_SYSTEMS:
         mnemonic = batch_system.get_mnemonic()
-        assert mnemonic
-        assert mnemonic not in available_batch_systems, "Duplicate for mnemonic: '%s'" % mnemonic
+        if not mnemonic:
+            raise OperationalError("Scheduler plugin has an empty mnemonic.")
+        if mnemonic in available_batch_systems:
+            raise OperationalError("Duplicate scheduler mnemonic: %s" % mnemonic)
         available_batch_systems[mnemonic] = batch_system
 
     return available_batch_systems
@@ -2635,7 +2626,7 @@ def main():
         args.BATCH_SYSTEM = "demo"
         try:
             config, _, _ = load_yaml_config()
-        except (ValueError, TypeError, KeyError, IndexError, AttributeError, AssertionError, StopIteration) as error:
+        except (ValueError, TypeError, KeyError, IndexError, AttributeError, StopIteration) as error:
             raise OperationalError("Invalid configuration in %s: %s" % (args.CONFFILE or QTOPCONF_YAML, error or type(error).__name__)) from error
         useful_frames, args.REPLAY = pick_frames_to_replay(config["savepath"])
 
@@ -2649,9 +2640,9 @@ def main():
                 try:
                     config, user_to_color, nodestate_to_color = load_yaml_config()
                     config = update_config_with_cmdline_vars(args, config)
-                except (ValueError, TypeError, KeyError, IndexError, AttributeError, AssertionError, StopIteration) as error:
+                except (ValueError, TypeError, KeyError, IndexError, AttributeError, StopIteration) as error:
                     raise OperationalError("Invalid configuration in %s: %s" % (args.CONFFILE or QTOPCONF_YAML, error or type(error).__name__)) from error
-                savepath = config["savepath"]
+                savepath = config["savepath"] = fileutils.private_save_directory(config["savepath"])
                 timestr = time.strftime("%Y%m%dT%H%M%S")
                 attempt_faster_xml_parsing(config)
                 args = init_dirs(args, savepath)
@@ -2697,7 +2688,8 @@ def main():
                         user_to_color = user_to_color_default.copy()
                         for rule in config["user_color_mappings"]:
                             user_to_color.update(rule)
-                        assert tar_out is not None
+                        if tar_out is None:
+                            raise OperationalError("Support archive was not initialized.")
                         sample.save_snapshot(tar_out, cluster_state, snapshot_config, args, scheduler, __version__, omitted)
                     else:
                         cluster_state = scheduling_system.get_cluster_state(args)

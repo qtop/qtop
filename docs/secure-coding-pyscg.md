@@ -86,12 +86,14 @@ switch those call sites to `secrets`/`SystemRandom` (stdlib, no new deps).
 
 ### 4. Asserts on runtime paths
 
-bandit B101 x12 (e.g. `qtop_py/fileutils.py:77,144`,
-`qtop_py/plugins/oar.py:114,118`). Maps to PySCG
-`08_coding_standards/pyscg-0037` (CWE-617): asserts vanish under `python -O`,
-so they must not guard runtime invariants. Proposed next step: convert
-runtime-path asserts to explicit `raise` of qtop's existing error types;
-keep asserts in tests.
+The original review found 12 runtime asserts (Bandit B101). Runtime input
+checks now raise explicit exceptions and remain active under ``python -O``;
+tests retain assertions. Two ineffective viewport assertions were removed.
+This addresses PySCG ``08_coding_standards/pyscg-0037`` (CWE-617).
+
+SGE XML lookups validate required elements and text before dereferencing them
+(pyscg-0034). Missing or empty required fields raise a parse error; optional
+queue states and slot counts retain their defaults.
 
 ### 5. Hardcoded temp paths (dev tools only)
 
@@ -146,6 +148,21 @@ non-source candidates. The configured GitLab Secret Detection template can
 check qualifying pipelines; expect and triage the sample-ID finding when it
 runs.
 
+### 9. Private output and launcher imports
+
+For pyscg-0040/0035, save directories are opened component by component with
+``O_DIRECTORY`` and ``O_NOFOLLOW``. Ownership and writable ancestors are checked
+through directory descriptors. The final directory must belong to the effective
+user, must not allow group/other writes, and is restricted to ``0700``. Sticky
+shared parents such as ``/tmp`` are allowed; symlinks and untrusted parents are
+rejected. Both file configuration and CLI overrides follow these checks.
+
+For pyscg-0013, ``./qtop`` runs Python with ``-I`` and explicitly adds only its
+own checkout as an application import path. This excludes the caller's working
+directory, ``PYTHONPATH`` and user site packages while retaining Python 3.6
+compatibility. Direct ``python -m qtop_py.cli`` invocations retain Python's
+normal import behavior.
+
 ## Scorecard gap-to-action map (baseline 8.1, 2026-10-06)
 
 | Check | Score | Action in this change | Proposed follow-up |
@@ -164,6 +181,7 @@ runs.
 
 1. P1: XML hardening decision (finding 1) and the three CI-dep pin bumps
    (finding 6).
-2. P2: assert conversion (finding 4), SECURITY.md, temp-path fix (finding 5).
+2. P2: dev-tool temp-path defaults (finding 5). Runtime assert conversion,
+   private save directories and isolated source startup are implemented.
 3. P3: random-use annotations (finding 3), PySCG upstream contributions
    (CWE-611, CWE-377 pages), fuzzing harness, Best Practices badge.

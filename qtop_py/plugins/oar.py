@@ -107,14 +107,12 @@ class OARBatchSystem(GenericBatchSystem):
         return total_running_jobs, total_queued_jobs, qstatq_lod
 
     def _read_oarnodes_s_yaml(self, fn_s):
-        assert os.path.isfile(fn_s)
+        if not os.path.isfile(fn_s):
+            raise FileNotFoundError("OAR node input is not a regular file: %s" % fn_s)
         anonymize = self.oar_stat_maker.anonymize_func()
         logging.debug("File %s exists: %s" % (fn_s, os.path.isfile(fn_s)))
-        try:
-            assert os.stat(fn_s).st_size != 0
-        except AssertionError:
-            logging.critical("File %s is empty!! Exiting...\n" % fn_s)
-            raise
+        if os.stat(fn_s).st_size == 0:
+            raise ValueError("OAR node input is empty: %s" % fn_s)
         data = yaml.safe_load(fn_s, DEF_INDENT=4)
         if self.options.ANONYMIZE:
             nodes_resids = dict([(anonymize(node, "wns"), resid_state.items()) for node, resid_state in data.items()])

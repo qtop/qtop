@@ -393,9 +393,19 @@ then the configured ``scheduler``. A selected value of ``auto`` triggers
 command discovery at that point. ``QTOP_COLOR`` supplies the color preference
 when ``-c AUTO`` is used.
 
-The file-based ``savepath`` expands environment variables and is created if
-needed. When overriding it with ``-o``, supply an existing absolute directory,
-as in the [capture and export examples](#capture-and-json-export).
+The ``savepath`` expands environment variables and is created with permissions
+``0700`` (accessible only to its owner). This also applies to ``-o savepath=...``;
+use an absolute path. qtop verifies ownership, rejects symlink components and
+refuses existing directories writable by other users or groups. Other writable
+parent directories require the sticky bit, as on ``/tmp``, and parents must be
+owned by the current user or root. Safe existing directories owned by the user
+are restricted to ``0700``. If a path is rejected, inspect its contents and
+permissions or choose a new private directory; qtop does not repair shared paths.
+
+The source launcher uses Python isolated mode (``-I``), importing qtop from its
+own checkout rather than the caller's directory or ``PYTHONPATH``. It remains
+compatible with Python 3.6; optional packages installed only in the user site
+are not loaded by this launcher.
 
 #### YAML Format
 
