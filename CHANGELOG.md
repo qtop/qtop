@@ -1,26 +1,50 @@
 # Changelog
 
+Notable changes by version, newest first.
+See the [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
+
+## 0.9.20261013
+
+- Bugfix: reject malformed snapshot records, metadata and display options on
+  import.
+- Bugfix: reject mismatched job columns instead of silently dropping entries.
+- Bugfix: preserve sibling keys and nested containers when normalizing YAML.
+- Bugfix: fix queue anonymization for PBS JSON input.
+- QA: add typed core contracts and gradual mypy/Pyright checks alongside `ty`.
+  Developer tools remain separate from the Python 3.6 runtime.
+- Tests: add bounded Hypothesis checks for state round trips, anonymization,
+  host ranges, YAML normalization and viewport behavior.
+- Tests: expand scheduler, rendering, watch-control and archive-replay tests.
+  Require at least 85% overall coverage in local and CI coverage targets.
+- Tests: rename the Slurm fixture `incomplete` to `partial_and_malformed`.
+- CI: replace four retired nightly lanes with Ubuntu 26.10 on both CI platforms.
+  GitHub and GitLab now define the same 35 lanes.
+- Community: adopt the CNCF Code of Conduct and link it from contributor
+  guidance.
+
 ## 0.9.20261012
 
-- Documentation: align CLI and keyboard references, configuration precedence and scheduler examples with the code; document JSON files, support archives and anonymization scope using verified Slurm captures.
+- Tests: cover direct scheduler runtimes, rendering, watch controls and archive replay; enforce at least 85% TOTAL coverage in local and CI coverage targets.
+
+- Documentation: align CLI, keys, configuration and scheduler examples with code; document exports, support archives and anonymization.
 - Documentation: add an editable architecture diagram and source map based on the GitDiagram proposal in #571; link it from the README and guide.
-- Bugfix: keep section 3 (User accounts and pool mappings) ordered by user ID, respecting the configured ID alphabet and alphabetical first-letter IDs, with overflow users last.
+- Bugfix: sort section 3 by the configured user ID alphabet, including first-letter IDs, with overflow users last.
 - Bugfix: order users sharing an ID by username ascending, preserving the previous color mapping for shared first-letter IDs.
 - Bugfix: include nested Python package sources in `-LL` archives from checkouts and installed layouts.
-- Bugfix: make `-L -A -e` archives reproducible with a portable anonymized state/config snapshot and `--load-sample`; omit raw logs, local paths, account lookups and archive owner identities.
-- Bugfix: make Slurm commands in qtopconf.yaml directly copyable into a shell, honor argument quoting and retain support for legacy doubled-percent format codes.
-- Bugfix: report filesystem, configuration and scheduler-input failures concisely with exit code 1; retain exception details in the log and show tracebacks with `--debug`.
+- Bugfix: add portable anonymized state/config replay via `--load-sample`; omit raw traces, logs, local paths and account/owner identities.
+- Bugfix: make Slurm commands in qtopconf.yaml shell-copyable; honor quoting and legacy doubled-percent format codes.
+- Bugfix: report input, filesystem and configuration failures with exit 1; keep log details and `--debug` tracebacks.
 - Bugfix: require explicitly selected configuration files to exist and report invalid `-o KEY=VALUE` settings.
-- Bugfix: check scheduler-command exit status, allow successful commands to warn on stderr and remove failed temporary captures without replacing the previous snapshot.
+- Bugfix: check scheduler exit status, allow stderr warnings on success and discard failed captures while preserving the previous snapshot.
 - Bugfix: expand comma-separated Slurm host groups and reject malformed or oversized host lists without hanging or crashing.
 - Bugfix: skip incomplete Slurm identity rows, clamp invalid CPU counts and retain unknown job states in accounting totals.
 - Tests: add synthetic incomplete Slurm snapshots and regressions for host lists, unknown states, empty inputs and missing nodes.
 
 ## 0.9.20261010
 
-- Security: reject DTD declarations in SGE scheduler XML before entity expansion, without adding runtime dependencies; cover ordinary XML and malicious declarations in UTF-8 and UTF-16 with regression tests.
-- Licensing: add per-file SPDX notices and license sidecars for fixtures, reference output and binary assets; include sidecars and the MIT license text in source distributions and document attribution conventions.
-- Documentation: refresh the roadmap around verifiable 1.0 release gates, retain Python 3.6 compatibility as a requirement and inventory implemented CI/CD tooling.
+- Security: reject SGE XML DTDs before entity expansion, without new runtime dependencies; test UTF-8 and UTF-16 input.
+- Licensing: add SPDX notices and fixture/asset sidecars; package attribution and MIT license text; document attribution conventions.
+- Documentation: define verifiable 1.0 release gates, retain Python 3.6 compatibility and inventory CI/CD tooling.
 
 ## 0.9.20261007
 
@@ -30,7 +54,7 @@
 - CI: add required CodeQL SAST and `ty` type-check jobs with concise diagnostics.
 - Security: add a reproducible parser stress harness and prepare tokenless PyPI Trusted Publishing.
 - Security: link private vulnerability reporting directly from the security policy.
-- Code quality: replace safe accumulator loops with comprehensions, fix parser narrowing and counters, emit valid HTTP headers/bytes and scope sample archive ownership.
+- Code quality: simplify accumulators, fix parser narrowing and counters, emit valid HTTP output and scope archive ownership.
 
 ## 0.9.20261005
 
@@ -38,7 +62,7 @@
 - Bugfix: tolerate concurrent removal of stale output files, fixing #308.
 - Feature enhancement: accept a scheduler output file for `-s` by using its parent directory, fixing #291.
 - Feature enhancement: add opt-in primary Unix group display with `--show-groups`, addressing #299.
-- CI: cover Python 3.9 and stable Python 3.15.0 in pull requests, align nightlies with the stable 3.15 image, restore legacy lanes, retry stale APT metadata and add PyPy 3.11 v8.0.0, fixing #546.
+- CI: test Python 3.9 and stable 3.15, restore legacy lanes, retry stale APT metadata and add PyPy 3.11 v8.0.0 (#546).
 
 ## 0.9.20261001
 

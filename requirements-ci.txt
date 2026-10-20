@@ -22,3 +22,14 @@ tomli==2.4.1
 ty==0.0.85; python_version >= "3.12"
 typing-extensions==4.15.0
 zipp==3.23.1
+
+# Modern analysis/property tests do not change qtop's Python 3.6 runtime floor.
+mypy==2.4.0; python_version >= "3.12"
+pyright==1.1.414; python_version >= "3.12"
+hypothesis==6.170.4; python_version >= "3.12"
+ast-serialize==0.13.1; python_version >= "3.12"
+librt==0.16.0; python_version >= "3.12"
+mypy-extensions==1.1.0; python_version >= "3.12"
+nodeenv==1.11.0; python_version >= "3.12"
+pathspec==1.1.1; python_version >= "3.12"
+sortedcontainers==2.4.0; python_version >= "3.12"

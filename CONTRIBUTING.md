@@ -1,3 +1,5 @@
+Please follow our [Code of Conduct](CODE_OF_CONDUCT.md) when participating in the qtop community.
+
 ## AI-assisted contributions
 
 AI tools are welcome when used constructively to improve software quality,

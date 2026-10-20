@@ -43,7 +43,6 @@ htmlcov/
 nosetests.xml
 coverage.xml
 *,cover
-.hypothesis/
 artifacts/
 
 # Translations
@@ -94,3 +93,7 @@ ENV/
 .idea/qtop.iml
 .idea/vcs.xml
 .idea/workspace.xml
+
+# Modern analysis and property-test caches
+.mypy_cache/
+.hypothesis/

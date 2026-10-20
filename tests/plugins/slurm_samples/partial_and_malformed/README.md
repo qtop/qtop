@@ -1,4 +1,4 @@
-# Synthetic incomplete Slurm snapshot
+# Synthetic partial and malformed Slurm snapshot
 
 These invented names and jobs contain no production data. The pair exercises
 comma-separated host groups, a malformed host list, nodes absent from sinfo,

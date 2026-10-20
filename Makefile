@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 
-.PHONY: help all rerun clean ci-deps test coverage coverage-xml sample-gate backend-validation backend-colour-artifacts render-backends trace-export-validation test-pbs-samples test-slurm-samples deterministic-fuzz fortifications repo-sanity code-quality license-report type-check ruff-check lint lint-fix format-check format-fix zizmor zizmor-fix compat-py36 ci nightly-ci github-ci gitlab-ci build github-build gitlab-build dist version confirm
+.PHONY: help all rerun clean ci-deps test coverage coverage-xml sample-gate backend-validation backend-colour-artifacts render-backends trace-export-validation test-pbs-samples test-slurm-samples deterministic-fuzz fortifications repo-sanity code-quality license-report type-check type-contracts property-test ruff-check lint lint-fix format-check format-fix zizmor zizmor-fix compat-py36 ci nightly-ci github-ci gitlab-ci build github-build gitlab-build dist version confirm
 
 PYTHON ?= python3
 PIP ?= $(PYTHON) -m pip
@@ -23,6 +23,7 @@ FUZZ_SEED ?= 488
 FUZZ_CASES ?= 5000
 FORTIFY_BASE_REF ?= origin/develop
 COVERAGE_XML ?= artifacts/coverage/coverage.xml
+COVERAGE_MIN ?= 85
 REPO_SANITY_DIR ?= artifacts/repo-sanity
 CODE_QUALITY_JSON ?= artifacts/code-quality/gl-code-quality-report.json
 LICENSE_DIR ?= artifacts/license
@@ -48,11 +49,11 @@ test: ## Run the Python test suite
 
 coverage: ## Run tests with coverage.py and print a terminal report
 	$(PYTHON) -m coverage run -m pytest
-	$(PYTHON) -m coverage report
+	$(PYTHON) -m coverage report --fail-under=$(COVERAGE_MIN)
 
 coverage-xml: ## Run tests under coverage.py and write a CI-ready Cobertura XML report
 	$(PYTHON) -m coverage run -m pytest
-	$(PYTHON) -m coverage report
+	$(PYTHON) -m coverage report --fail-under=$(COVERAGE_MIN)
 	@mkdir -p $(dir $(COVERAGE_XML))
 	$(PYTHON) -m coverage xml -o $(COVERAGE_XML)
 	@echo "wrote $(COVERAGE_XML)"
@@ -108,7 +109,14 @@ license-report: ## Report licenses of the pinned CI dependency set (pip-licenses
 	$(PYTHON) -m piplicenses --format=json > $(LICENSE_DIR)/ci-dependencies.json
 	@echo "wrote $(LICENSE_DIR)"
 
-type-check: ## Type-check production code with concise, one-line ty diagnostics
+type-contracts: ## Check core contracts with mypy and Pyright (Python 3.12+ tooling)
+	$(PYTHON) -m mypy
+	$(PYTHON) -m pyright
+
+property-test: ## Run bounded Hypothesis properties (HYPOTHESIS_PROFILE=nightly for longer runs)
+	$(PYTHON) -m pytest tests/test_properties.py
+
+type-check: type-contracts ## Check core contracts and production/tooling with ty
 	$(PYTHON) -m ty check
 
 ruff-check: ## Run ruff against the source tree

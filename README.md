@@ -137,6 +137,7 @@ parser stress corpus with `make deterministic-fuzz`.
 
 - [User documentation and tutorial](docs/documentation.md)
 - [Contributing guide](CONTRIBUTING.md)
+- [Code of conduct](CODE_OF_CONDUCT.md)
 - [Security policy](SECURITY.md)
 - [Issue tracker](https://github.com/qtop/qtop/issues)
 

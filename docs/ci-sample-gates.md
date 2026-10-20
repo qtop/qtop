@@ -54,7 +54,7 @@ from `qtop_py/contrib`. Slurm uses every committed sample directory under
 backends run through the shared Python gate, so local, GitHub, and GitLab
 validation exercise the same command path.
 
-The synthetic Slurm `incomplete` pair covers comma-separated host groups,
+The synthetic Slurm `partial_and_malformed` pair covers comma-separated host groups,
 malformed host lists, missing node records, truncated or missing identity
 fields, invalid CPU counts and unknown job/node states. Its expected totals
 are three nodes, twelve cores, five assigned cores, four running jobs and one
@@ -213,11 +213,15 @@ make coverage
 ```
 
 That target runs `coverage.py` through the same `PYTHON` override used by the
-other targets. To enable coverage in CI without changing the abstraction,
-install `requirements-ci.txt` and insert `make coverage` in the modern Python
-job after `make ci`, then publish `coverage xml` or terminal summary artifacts
-from the workflow. The AlmaLinux 8 / Python 3.6 lane should stay
-dependency-light and continue to run `make compat-py36`.
+other targets and fails below 85% TOTAL coverage (`COVERAGE_MIN`, default 85).
+`make coverage-xml` enforces the same floor before emitting its CI report.
+Coverage scope is unchanged; no source files or lines are excluded to meet the
+floor. Direct runtime tests exercise scheduler collection, terminal rendering,
+watch controls, and anonymized archive replay in the measured process.
+
+Both coverage workflows run `make coverage-xml` and publish its Cobertura
+report. The AlmaLinux 8 / Python 3.6 lane stays dependency-light and continues
+to run `make compat-py36`.
 
 ## Develop / CONTRIBUTING.md alignment
 
@@ -237,3 +241,24 @@ project commands:
 - https://github.com/mattermost/mattermost-mattermod/blob/master/Makefile
 - https://github.com/mattermost/mattermost-mattermod/blob/master/.github/workflows/ci.yml
 - https://github.com/mattermost/mattermost-mattermod/blob/master/.gitlab-ci.yml
+
+## Typed contracts and property tests
+
+Python 3.12+ CI installs pinned mypy, Pyright and Hypothesis. `make type-check`
+retains ty and also checks the explicitly listed state, snapshot, serializer and
+viewport modules with mypy/Pyright. Core contracts use strict checks; the legacy
+serializer permits unannotated definitions while checking their bodies.
+Configuration remains extensible, and static contracts do not replace validation
+of scheduler/JSON input. Broader runtime typing can be added module by module.
+
+`make property-test` runs bounded Hypothesis checks for linked cluster state,
+anonymization, snapshot round trips, Slurm hosts, PBS ranges, viewport navigation
+and YAML normalization. The default `ci` profile uses 100 deterministic examples
+per property. `HYPOTHESIS_PROFILE=nightly make property-test` uses 1,000 examples;
+The nightly profile retains examples in the ignored `.hypothesis` database;
+the deterministic CI profile disables database reuse. Both profiles shrink
+failures to small reproducible examples.
+
+The new tools are development dependencies only. Property tests skip on older
+interpreters; the existing Python 3.6 runtime/sample gate remains independent.
+Quoted annotations and `TYPE_CHECKING` imports preserve that runtime floor.

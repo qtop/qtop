@@ -32,6 +32,7 @@ modern-python:
     - export FORTIFY_BASE_REF="origin/${TARGET_BRANCH}"
   script:
     - make gitlab-ci PYTHON=python
+    - make type-check PYTHON=python
   artifacts:
     when: always
     paths:

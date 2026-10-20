@@ -13,6 +13,12 @@ import re
 
 ##import sys
 from itertools import count
+from typing import TYPE_CHECKING, Callable, Dict, Sequence, Tuple
+
+if TYPE_CHECKING:
+    from typing import List
+
+    from qtop_py.contracts import ClusterState, Config, JobsInfo, Node, Options, QueuesInfo
 
 from qtop_py.cluster_state import build_cluster_state
 
@@ -23,12 +29,12 @@ class StatExtractor(object):
     (PBS, OAR, SGE etc)
     """
 
-    def __init__(self, config, options):
+    def __init__(self, config: "Config", options: "Options") -> None:
         self.config = config
         self.options = options
         self.anonymize = self.anonymize_func() if self.options.ANONYMIZE else self.eponymize_func()
 
-    def _process_qstat_line(self, re_search, line, re_match_positions):
+    def _process_qstat_line(self, re_search: str, line: str, re_match_positions: Sequence[str]) -> Dict[str, str]:
         """
         extracts data from a tabular qstat-like file
         returns a list
@@ -37,6 +43,8 @@ class StatExtractor(object):
         m = re.search(re_search, line.strip())
 
         try:
+            if m is None:
+                raise AttributeError("qstat row did not match")
             job_id, user, job_state, queue = [m.group(x) for x in re_match_positions]
         except AttributeError:
             logging.warning("Line: %s not properly parsed by regex expression. Assuming alternative qstat format." % line.strip())
@@ -47,20 +55,20 @@ class StatExtractor(object):
             qstat_values[key] = value
         return qstat_values
 
-    def anonymize_func(self):
+    def anonymize_func(self) -> Callable[[str, str], str]:
         """
         creates and returns an _anonymize_func object (closure)
         Anonymisation can be used by the user for providing feedback to the developers, without leaking cluster's private data.
         i.e. the logs and the output should no longer contain sensitive information about the clusters ran by the user.
         """
         counters = {}
-        stored_dict = {}
+        stored_dict: Dict[str, Tuple[str, str]] = {}
         for key in ["users", "wns", "qs", "jobnums", "jobnames", "jobtimes"]:
             counters[key] = count()
 
         maps = {"users": "_anon_user_", "wns": "_anon_wn_", "qs": "_anon_q_", "jobnums": "_anon_jn_", "jobnames": "_anon_nm_", "jobtimes": "never"}
 
-        def _anonymize_func(s, a_type):
+        def _anonymize_func(s: str, a_type: str) -> str:
             """
             d4-p4-04 --> d_anon_wn_0
             d4-p4-05 --> d_anon_wn_1
@@ -81,8 +89,8 @@ class StatExtractor(object):
 
         return _anonymize_func
 
-    def eponymize_func(self):
-        def _eponymize_func(s, a_type):
+    def eponymize_func(self) -> Callable[[str, str], str]:
+        def _eponymize_func(s: str, a_type: str) -> str:
             return s
 
         return _eponymize_func
@@ -98,20 +106,20 @@ class GenericBatchSystem(object):
     def __init__(self):
         pass
 
-    def get_queues_info(self):
+    def get_queues_info(self) -> "QueuesInfo":
         raise NotImplementedError
 
-    def get_worker_nodes(self, job_ids, job_queues, options):
+    def get_worker_nodes(self, job_ids: "List[str]", job_queues: "List[str]", options: "Options") -> "List[Node]":
         raise NotImplementedError
 
-    def get_jobs_info(self):
+    def get_jobs_info(self) -> "JobsInfo":
         raise NotImplementedError
 
     @staticmethod
-    def get_mnemonic():
+    def get_mnemonic() -> str:
         raise NotImplementedError
 
-    def get_cluster_state(self, options):
+    def get_cluster_state(self, options: "Options") -> "ClusterState":
         """Collect scheduler data behind one stable, plain-data boundary."""
         job_ids, users, job_states, job_queues = self.get_jobs_info()
         _running, _queued, queues = self.get_queues_info()

@@ -16,6 +16,7 @@ except ImportError:
 import itertools
 import logging
 import re
+from typing import Iterator, Tuple
 
 import qtop_py.fileutils as fileutils
 from qtop_py.serialiser import GenericBatchSystem, StatExtractor
@@ -203,7 +204,7 @@ class PBSStatExtractor(StatExtractor):
             queues = data["Queue"]
             for queue_name, queue in queues.items():
                 qstatq_values = dict()
-                queue_name = queue_name if not self.options.ANONYMIZE else anonymize(queue_name)
+                queue_name = queue_name if not self.options.ANONYMIZE else anonymize(queue_name, "qs")
                 qstatq_values["queue_name"] = queue_name
                 qstatq_values["run"] = queue["state_count"].split(" ")[4].split(":")[1]
                 qstatq_values["queued"] = queue["state_count"].split(" ")[1].split(":")[1]
@@ -376,7 +377,7 @@ class PBSBatchSystem(GenericBatchSystem):
         return block
 
     @staticmethod
-    def get_corejob_from_range(core_selections, job):
+    def get_corejob_from_range(core_selections: str, job: str) -> Iterator[Tuple[str, str]]:
         _cores = list()
         subselections = core_selections.split(",")
         for subselection in subselections:

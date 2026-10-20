@@ -163,6 +163,7 @@ def test_loading_disables_lookup_commands_from_archive(tmp_path):
             sample.SNAPSHOT_NAME,
             {
                 "format_version": 1,
+                "scheduler": "slurm",
                 "state": {"jobs": [], "nodes": [], "queues": []},
                 "config": {"extract_info": {"user_details_cache": "private command"}},
                 "options": {"GET_GECOS": True, "SHOW_GROUPS": True},

@@ -241,10 +241,10 @@ def test_host_expansion_limit(monkeypatch, caplog):
 
 
 @pytest.mark.parametrize("anonymize", (False, True))
-def test_incomplete_synthetic_snapshot(anonymize, caplog):
+def test_partial_and_malformed_synthetic_snapshot(anonymize, caplog):
     options = Options()
     options.ANONYMIZE = anonymize
-    slurm = SlurmBatchSystem(scheduler_files("incomplete"), {}, options)
+    slurm = SlurmBatchSystem(scheduler_files("partial_and_malformed"), {}, options)
     ids, users, states, queues = slurm.get_jobs_info()
     assert ids == ["701", "702", "703", "704", "705", "706"]
     assert states == ["R", "PD", "NEW_STATE", "R", "R", "R"]
