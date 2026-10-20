@@ -154,8 +154,11 @@ For pyscg-0040/0035, save directories are opened component by component with
 ``O_DIRECTORY`` and ``O_NOFOLLOW``. Ownership and writable ancestors are checked
 through directory descriptors. The final directory must belong to the effective
 user, must not allow group/other writes, and is restricted to ``0700``. Sticky
-shared parents such as ``/tmp`` are allowed; symlinks and untrusted parents are
-rejected. Both file configuration and CLI overrides follow these checks.
+shared parents such as ``/tmp`` are allowed. Ancestors may belong to site
+administrator or service accounts; only the final directory must belong to the
+current user. Symlinks and group/other-writable non-sticky parents are rejected;
+errors identify the offending parent. Both file configuration and CLI overrides
+follow these checks.
 
 For pyscg-0013, ``./qtop`` runs Python with ``-I`` and explicitly adds only its
 own checkout as an application import path. This excludes the caller's working
