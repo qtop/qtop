@@ -6,11 +6,11 @@ See the [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 ## 0.9.20261016
 
 - Bugfix: allow site-owned save-path ancestors; report unsafe parent paths.
+- CI: reuse parser fuzz checks with bounded Atheris inputs on both forges.
+- CI: report fortification failures with file, line, column and escaped text; include staged and unstaged fixes in local diff checks.
 
 ## 0.9.20261014
 
-- CI: report fortification failures with file, line, column and escaped text;
-  include staged and unstaged fixes in local diff checks.
 - CI: restore initialized Python CodeQL analysis with security/quality queries;
   document the required switch from Default to Advanced setup.
 - Security: create owner-verified private save directories; reject symlinks

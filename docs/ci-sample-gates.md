@@ -293,3 +293,19 @@ failures to small reproducible examples.
 The new tools are development dependencies only. Property tests skip on older
 interpreters; the existing Python 3.6 runtime/sample gate remains independent.
 Quoted annotations and `TYPE_CHECKING` imports preserve that runtime floor.
+
+## Coverage-guided parser fuzzing
+
+On Linux x86-64 with CPython 3.12, `make ci-deps coverage-fuzz` installs the pinned
+Atheris tool and reuses the deterministic runner's Slurm state/host-list and PBS
+core-range checks with coverage-guided byte inputs. Both forges run this target
+in their modern analysis lane; older runtimes keep the deterministic gate.
+
+The default run is limited to 5,000 inputs, 30 seconds, and 256-byte inputs.
+`FUZZ_CASES`, `FUZZ_SEED` and `FUZZ_ARTIFACT_DIR` are configurable. Corpus entries
+and crash inputs are retained under `artifacts/fuzz/` and uploaded by CI. Replay
+an individual failure with `python -m tools.atheris_fuzz /path/to/crash-input`.
+Assertions and unexpected exceptions fail the run. Atheris is a development-only
+dependency; scheduler runtime imports and Python 3.6 support are unchanged.
+Scorecard recognizes the Atheris integration after it reaches the scanned branch;
+the published score is verified separately after that scan.

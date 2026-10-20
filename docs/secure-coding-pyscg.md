@@ -173,7 +173,7 @@ normal import behavior.
 | SAST | 0 | GitLab SAST plus CodeQL on GitHub pushes and pull requests | expect uplift after analyzed commits reach the default branch |
 | Security-Policy | 4 | SECURITY.md plus direct private-reporting link | enable GitHub private vulnerability reporting in repository settings |
 | CII-Best-Practices | 0 | -- | register for the OpenSSF Best Practices badge |
-| Fuzzing | 0 | deterministic parser stress gate | graduate the harness to ClusterFuzzLite/Atheris for Scorecard recognition |
+| Fuzzing | 0 (baseline) | deterministic stress gate plus bounded Atheris adapter | verify recognition after merging to the scanned branch |
 | Packaging | -1 | isolated, commit-pinned Trusted Publishing workflow | configure the `pypi` environment and PyPI trusted publisher, then publish a release |
 | Signed-Releases | -1 | -- | release attestations (see docs/supply-chain-sbom.md) |
 | Pinned-Dependencies | 10 | keep | -- |

@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 
-.PHONY: help all rerun clean ci-deps test coverage coverage-xml sample-gate backend-validation backend-colour-artifacts render-backends trace-export-validation test-pbs-samples test-slurm-samples deterministic-fuzz fortifications repo-sanity code-quality license-report type-check type-contracts property-test ruff-check lint lint-fix format-check format-fix zizmor zizmor-fix compat-py36 ci nightly-ci github-ci gitlab-ci build github-build gitlab-build dist version confirm
+.PHONY: help all rerun clean ci-deps test coverage coverage-xml sample-gate backend-validation backend-colour-artifacts render-backends trace-export-validation test-pbs-samples test-slurm-samples deterministic-fuzz coverage-fuzz fortifications repo-sanity code-quality license-report type-check type-contracts property-test ruff-check lint lint-fix format-check format-fix zizmor zizmor-fix compat-py36 ci nightly-ci github-ci gitlab-ci build github-build gitlab-build dist version confirm
 
 PYTHON ?= python3
 PIP ?= $(PYTHON) -m pip
@@ -21,6 +21,8 @@ SLURM_SAMPLES_DIR ?= tests/plugins/slurm_samples
 SLURM_OUTPUT_DIR ?= /tmp/qtop-slurm-rendered
 FUZZ_SEED ?= 488
 FUZZ_CASES ?= 5000
+FUZZ_ARTIFACT_DIR ?= artifacts/fuzz
+ATHERIS_ARGS ?=
 FORTIFY_BASE_REF ?= origin/develop
 COVERAGE_XML ?= artifacts/coverage/coverage.xml
 COVERAGE_MIN ?= 85
@@ -91,6 +93,10 @@ test-slurm-samples: ## Run Slurm parser tests and render committed Slurm samples
 deterministic-fuzz: ## Reproducibly stress parser primitives with a fixed seed
 	$(PYTHON) tools/deterministic_fuzz.py --seed $(FUZZ_SEED) --cases $(FUZZ_CASES)
 
+coverage-fuzz: ## Run bounded Atheris fuzzing (Linux CPython 3.12 CI dependencies)
+	@mkdir -p "$(FUZZ_ARTIFACT_DIR)/corpus"
+	$(PYTHON) -m tools.atheris_fuzz -runs=$(FUZZ_CASES) -seed=$(FUZZ_SEED) -max_total_time=30 -max_len=256 -timeout=10 -artifact_prefix="$(FUZZ_ARTIFACT_DIR)/" $(ATHERIS_ARGS) "$(FUZZ_ARTIFACT_DIR)/corpus"
+
 fortifications: ## Check diff health and reject eval() call sites
 	$(PYTHON) tools/fortifications.py --base-ref $(FORTIFY_BASE_REF)
 
@@ -117,7 +123,7 @@ property-test: ## Run bounded Hypothesis properties (HYPOTHESIS_PROFILE=nightly 
 	$(PYTHON) -m pytest tests/test_properties.py
 
 type-check: type-contracts ## Check core contracts and production/tooling with ty
-	$(PYTHON) -m ty check
+	$(PYTHON) -m ty check --python "$$($(PYTHON) -c 'import sys; print(sys.executable)')"
 
 ruff-check: ## Run ruff against the source tree
 	$(PYTHON) -m ruff check .

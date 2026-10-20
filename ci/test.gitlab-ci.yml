@@ -33,10 +33,12 @@ modern-python:
   script:
     - make gitlab-ci PYTHON=python
     - make type-check PYTHON=python
+    - make coverage-fuzz PYTHON=python
   artifacts:
     when: always
     paths:
       - artifacts/sample-gate/
+      - artifacts/fuzz/
 
 almalinux-python36:
   image: almalinux:8
