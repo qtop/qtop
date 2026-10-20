@@ -103,19 +103,18 @@ keeping the CLI flag override; CI-side only, low risk.
 
 ### 6. Dependency currency (pinned CI set)
 
-On Python 3.12 and newer, `requirements-ci.txt` now selects `pip 26.2`,
-`setuptools 83.0.0`, `pytest 9.1.1`, and its pinned Pygments dependency.
-`pip-audit` reports no known vulnerability in that selected Python 3.12 set.
-This clears the six previously recorded packaging-tool advisories and
-PYSEC-2026-1845, pytest's predictable Unix temporary-directory finding.
+On Python 3.12 and newer, `requirements-ci.txt` selects the refreshed
+build and analysis toolchain, including `pip 26.2.1`, `setuptools 84.2.0`
+and `pytest 9.1.1`. Python 3.9 retains compatible pins for tools whose newer
+releases require Python 3.10 or later. Pygments is pinned in both sets.
 
-The new packaging-tool releases and patched pytest require Python 3.10 or
-newer, while qtop deliberately selects the fully pinned modern set from Python
-3.12 onward. Older matrix lanes therefore keep their image or virtual-
-environment bootstrap tools and retain pytest 8.2.2. The shared matrix
-runner mitigates its temporary-directory issue by creating a random mode-0700
-parent and passing a child through pytest's `--basetemp`; other local Python
-3.9 invocations should likewise use a private `TMPDIR` or `--basetemp`.
+Patched pytest requires Python 3.10 or newer and is selected on those
+interpreters. Python 3.9 uses its newest compatible release, pytest 8.4.2.
+The shared matrix runner mitigates the predictable temporary-directory
+finding by creating a random mode-0700 parent and passing a child through
+pytest's `--basetemp`; other local Python 3.9 invocations should likewise
+use a private `TMPDIR` or `--basetemp`. Older matrix lanes retain their image
+or virtual-environment bootstrap pip/setuptools for test-only validation.
 Python 3.6--3.8 lanes remain on the dependency-light compatibility gate. This
 is a CI-only boundary: the qtop runtime deliberately has no dependencies.
 GitLab Dependency Scanning is an Ultimate feature, so `pip-audit` remains the

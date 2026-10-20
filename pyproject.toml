@@ -41,6 +41,9 @@ classifiers = [
 [project.scripts]
 qtop = "qtop_py.qtop:cli_main"
 
+[tool.setuptools.cmdclass]
+build_py = "tools.build_py.BuildPy"
+
 [tool.setuptools.dynamic]
 version = {attr = "qtop_py.__version__"}
 
@@ -51,7 +54,7 @@ include = ["qtop_py*"]
 # Enable pycodestyle (`E`) and Pyflakes (`F`) codes by default.
 lint.select = ["E", "F", "I"] ##
 
-# Ruff 0.15.15 still exposes py37 as its lowest target; Python 3.6 runtime
+# Ruff still exposes py37 as its lowest target; Python 3.6 runtime
 # compatibility stays covered by the separate compat-py36 gate.
 target-version = "py37"
 

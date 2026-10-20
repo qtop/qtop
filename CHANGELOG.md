@@ -3,6 +3,14 @@
 Notable changes by version, newest first.
 See the [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 
+## 0.9.20261014
+
+- Bugfix: restore configuration and interactive help in installed wheels.
+- CI: refresh pinned build, coverage, lint, type and property-test tools;
+  retain compatible versions for Python 3.9.
+- CI: update legacy pytest to 8.4.2 and use patched pytest on Python 3.10+;
+  pin Pygments for both modern and legacy test environments.
+
 ## 0.9.20261013
 
 - Bugfix: reject malformed snapshot records, metadata and display options on
