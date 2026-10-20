@@ -56,3 +56,19 @@ Neither path requires an external coverage service.
 - **Precedent** -- the structure is proven on
   [code.europa.eu/pvgis/pvgis](https://code.europa.eu/pvgis/pvgis/), the
   reference named in #488.
+
+## Scorecard branches
+
+The publishing action supports only the repository's default branch. On that
+branch, it updates the public OpenSSF API/badge and GitHub code scanning.
+Pushes to `develop` and manual runs on other branches use `make scorecard-scan`
+with the exact triggering commit instead. These runs retain JSON and SARIF
+artifacts and upload SARIF to code scanning without publishing to the public API.
+Commit-specific scans run only checks supported by Scorecard at a named commit;
+their results are not a full replacement for the default-branch score.
+
+To reproduce a branch scan locally, export a read-only `GITHUB_AUTH_TOKEN` and
+run `make scorecard-scan` with Docker available. `SCORECARD_REPO` defaults to
+`github.com/qtop/qtop`; `SCORECARD_COMMIT` defaults to `git rev-parse HEAD` and
+must exist in that remote repository. Both values can be overridden in the
+environment. The GitLab scheduled report scans the canonical default branch.

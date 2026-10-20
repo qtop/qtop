@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 
-.PHONY: help all rerun clean ci-deps test coverage coverage-xml sample-gate backend-validation backend-colour-artifacts render-backends trace-export-validation test-pbs-samples test-slurm-samples deterministic-fuzz coverage-fuzz fortifications repo-sanity code-quality license-report type-check type-contracts property-test ruff-check lint lint-fix format-check format-fix zizmor zizmor-fix compat-py36 legacy-install-check install-check ci nightly-ci github-ci gitlab-ci build github-build gitlab-build dist version confirm
+.PHONY: help all rerun clean ci-deps test coverage coverage-xml sample-gate backend-validation backend-colour-artifacts render-backends trace-export-validation test-pbs-samples test-slurm-samples deterministic-fuzz coverage-fuzz fortifications repo-sanity code-quality license-report scorecard-scan type-check type-contracts property-test ruff-check lint lint-fix format-check format-fix zizmor zizmor-fix compat-py36 legacy-install-check install-check ci nightly-ci github-ci gitlab-ci build github-build gitlab-build dist version confirm
 
 PYTHON ?= python3
 PIP ?= $(PYTHON) -m pip
@@ -186,3 +186,6 @@ version: ## Print the package version
 
 confirm: ## Ask for human confirmation before release-like tasks
 	@echo "Are you sure? [y/N]" && read ans && [ $${ans:-N} = y ]
+
+scorecard-scan: ## Scan an exact GitHub commit with Scorecard (requires Docker and GITHUB_AUTH_TOKEN)
+	sh ci/scripts/scorecard-scan.sh

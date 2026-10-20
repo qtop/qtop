@@ -5,6 +5,8 @@ See the [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 
 ## 0.9.20261016
 
+- CI: scan develop commits with Scorecard; keep default-branch publishing.
+
 - Bugfix: restore source installation on Python 3.6-3.8; test installed CLIs.
 - Bugfix: keep archived PBS validation compatible with Python 3.6.
 - CI: restrict Atheris installation to the supported CPython interpreter.
