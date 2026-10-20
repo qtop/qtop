@@ -12,6 +12,11 @@ fortification checks. The PR-triggered GitHub `build-qtop` workflow and GitLab
 CI call the same target so the meaning of a failure is the same on both
 platforms.
 
+For the complete local pre-PR gate, install the pinned dependencies with
+`make ci-deps` in a Linux x86-64 CPython 3.12 virtual environment, then run
+`make pre-pr`. This adds coverage, type checking, and bounded Atheris fuzzing
+to the shared checks while running pytest only once, under coverage.
+
 Provider-specific aliases such as `make github-ci`, `make gitlab-ci`,
 `make github-build`, and `make gitlab-build` deliberately resolve back to the
 same Makefile targets. The YAML files stay thin and provider-facing while the
@@ -239,9 +244,9 @@ control and bidi characters from affecting the diagnostic display.
 
 The generated/binary path check is deliberately conservative because
 `CONTRIBUTING.md` asks contributors not to store heavy artifacts in `qtop`.
-`make lint` keeps the dependency-light source and diff health checks available
-without installing Python packages, `make ruff-check` runs the repository's ruff
-configuration after `make ci-deps` has installed pinned CI dependencies, and
+`make fortifications` keeps the source and diff health checks available without
+installing Python packages. `make lint` also runs the repository's ruff checks
+after `make ci-deps` has installed pinned CI dependencies, and
 `make format-check` runs both `ruff format --check .` and
 `ruff format --check --diff .` before checking whitespace against the same
 merge base, including staged and unstaged tracked edits.
@@ -255,7 +260,7 @@ make coverage
 ```
 
 That target runs `coverage.py` through the same `PYTHON` override used by the
-other targets and fails below 90% TOTAL coverage (`COVERAGE_MIN`, default 90).
+other targets and fails below the TOTAL coverage floor set by `COVERAGE_MIN`.
 `make coverage-xml` enforces the same floor before emitting its CI report.
 Coverage scope is unchanged; no source files or lines are excluded to meet the
 floor. Direct runtime tests exercise scheduler collection, terminal rendering,

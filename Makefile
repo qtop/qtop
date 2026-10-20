@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 
-.PHONY: help all rerun clean ci-deps test coverage coverage-xml sample-gate backend-validation backend-colour-artifacts render-backends trace-export-validation test-pbs-samples test-slurm-samples deterministic-fuzz coverage-fuzz fortifications repo-sanity code-quality license-report scorecard-scan type-check type-contracts property-test ruff-check lint lint-fix format-check format-fix zizmor zizmor-fix compat-py36 legacy-install-check install-check ci nightly-ci github-ci gitlab-ci build github-build gitlab-build dist version confirm
+.PHONY: help all rerun clean ci-deps test coverage coverage-xml sample-gate backend-validation backend-colour-artifacts render-backends trace-export-validation test-pbs-samples test-slurm-samples deterministic-fuzz coverage-fuzz fortifications repo-sanity code-quality license-report scorecard-scan type-check type-contracts property-test ruff-check lint lint-fix format-check format-fix zizmor zizmor-fix compat-py36 legacy-install-check install-check ci pre-pr nightly-ci github-ci gitlab-ci build github-build gitlab-build dist version confirm
 
 PYTHON ?= python3
 PIP ?= $(PYTHON) -m pip
@@ -165,6 +165,9 @@ compat-py36: ## Run dependency-light Python 3.6 compatibility checks
 	$(PYTHON) tools/validate_scheduler_samples.py --schedulers $(SAMPLE_GATE_SCHEDULERS) --max-failures $(SAMPLE_GATE_MAX_FAILURES) --artifact-dir $(SAMPLE_GATE_ARTIFACT_DIR)-py36
 
 ci: test backend-validation deterministic-fuzz lint ruff-check format-check ## Run the shared local/CI validation path
+
+# Coverage runs the full pytest suite, including the Hypothesis properties.
+pre-pr: coverage backend-validation deterministic-fuzz lint format-check type-check coverage-fuzz ## Run complete local PR gates (Linux x86-64, CPython 3.12)
 
 github-ci: ci ## GitHub Actions entry point for test validation
 

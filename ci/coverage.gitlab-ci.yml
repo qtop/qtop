@@ -11,7 +11,7 @@
 # ``make coverage-xml`` only adds the Cobertura XML emission. GitLab picks
 # the percentage for its native MR widget from the job log via ``coverage:``
 # and renders per-line coverage in GitLab MR diffs from the Cobertura artifact.
-# The shared Makefile target enforces at least 90% total coverage.
+# The shared Makefile target enforces the configured total coverage floor.
 #
 # The GitHub twin (.github/workflows/coverage.yml) stores the same XML as a
 # workflow artifact, so both forges read one Makefile target.

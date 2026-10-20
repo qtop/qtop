@@ -133,9 +133,10 @@ qtop targets Python 3 and Linux-based HPC environments. Its CI matrix covers mod
 
 The project is approaching 1.0 and still contains explicitly marked experimental features. Stable terminal monitoring remains the primary interface.
 
-Maintainers and contributors can reproduce the release gates with `make ci`,
-run the modern-Python type gate with `make type-check`, and replay the bounded
-parser stress corpus with `make deterministic-fuzz`.
+Maintainers and contributors can run `make ci-deps` once and `make pre-pr`
+in a Linux x86-64 CPython 3.12 virtual environment to reproduce the local PR
+gates, including coverage, type checks, and both parser fuzzers. See
+[CONTRIBUTING.md](CONTRIBUTING.md) for other platforms and Python 3.6 checks.
 
 ## Documentation and community
 
