@@ -63,6 +63,13 @@ def config():
     return {}
 
 
+@pytest.mark.parametrize("config,base", [({}, 0), ({"rem_empty_corelines": 0}, 0), ({"rem_empty_corelines": 2}, 2), ({"rem_empty_corelines": "1"}, 1)])
+@pytest.mark.parametrize("remove", [0, 1, 2])
+def test_update_config_defaults_missing_coreline_setting(config, base, remove):
+    args = SimpleNamespace(OPTION=[], TRANSPOSE=False, REM_EMPTY_CORELINES=remove)
+    assert qtop_module.update_config_with_cmdline_vars(args, dict(config))["rem_empty_corelines"] == base + remove
+
+
 def test_sort_worker_nodes_uses_named_sort_keys(monkeypatch):
     monkeypatch.setattr(qtop_module, "dynamic_config", {}, raising=False)
     cluster = qtop_module.Cluster.__new__(qtop_module.Cluster)
