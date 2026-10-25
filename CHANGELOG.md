@@ -5,7 +5,8 @@ See the [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 
 ## 0.9.20261017
 
-- Maintenance: bump the release version to 0.9.20261017.
+- Bugfix: accept PBS job-name punctuation and hyphenated usernames (#303).
+- CI: Make Makefile Great Again
 
 ## 0.9.20261016
 
