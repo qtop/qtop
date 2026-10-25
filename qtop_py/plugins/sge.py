@@ -32,6 +32,12 @@ def _anonymize_field(parent, path, anonymize, category):
     return element.text
 
 
+def _job_id(parent, anonymize):
+    job_id = _anonymize_field(parent, "./JB_job_number", anonymize, "jobnums")
+    tasks = (parent.findtext("./tasks") or "").strip()
+    return "%s.%s" % (job_id, tasks) if tasks else job_id
+
+
 class NoDTDTreeBuilder(etree.TreeBuilder):
     """Reject DTDs before scheduler XML can expand declared entities."""
 
@@ -111,7 +117,7 @@ class SGEStatExtractor(StatExtractor):
         """
         for subelem in elem.findall(elem_text):
             owner = _anonymize_field(subelem, "./JB_owner", self.anonymize, "users")
-            job_num = _anonymize_field(subelem, "./JB_job_number", self.anonymize, "jobnums")
+            job_num = _job_id(subelem, self.anonymize)
             _anonymize_field(subelem, "./JB_name", self.anonymize, "jobnames")
             subm_time = subelem.find("./JB_submission_time")
             if subm_time is not None and subm_time.text:
@@ -238,7 +244,7 @@ class SGEBatchSystem(GenericBatchSystem):
                 continue
 
             owner = _anonymize_field(subelem, "./JB_owner", self.anonymize, "users")
-            job_num = _anonymize_field(subelem, "./JB_job_number", self.anonymize, "jobnums")
+            job_num = _job_id(subelem, self.anonymize)
             _anonymize_field(subelem, "./JB_name", self.anonymize, "jobnames")
             _anonymize_field(subelem, "./JAT_start_time", self.anonymize, "jobtimes")
             job_ids.append(job_num)

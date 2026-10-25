@@ -1068,7 +1068,7 @@ class WNOccupancy(object):
             return
         # document.jobs_dict => job_id: job name/state/queue
 
-        self.jobid_to_user_to_queue = dict(zip(self.job_ids, zip(self.user_names, self.job_queues)))
+        self.jobid_to_user_to_queue = {job_id: (job.user_name, job.job_queue) for job_id, job in document.jobs_dict.items()}
         self.user_machine_use = self.calculate_user_node_use(self.cluster, self.jobid_to_user_to_queue)
 
         user_alljobs_sorted_lot = self._produce_user_lot(self.user_names)

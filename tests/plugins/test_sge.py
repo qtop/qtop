@@ -118,3 +118,19 @@ def test_empty_optional_submission_time_is_ignored(anonymize):
     records = extractor._extract_job_info([], queue, "job_list", "batch")
     assert len(records) == 1
     assert records[0]["S"] == "qw"
+
+
+@pytest.mark.parametrize(
+    "tasks,expected",
+    [("", "100"), ("<tasks/>", "100"), ("<tasks> </tasks>", "100"), ("<tasks>1</tasks>", "100.1"), ("<tasks>2</tasks>", "100.2"), ("<tasks>1-100:1</tasks>", "100.1-100:1")],
+)
+def test_job_and_core_records_share_task_identity(tasks, expected):
+    queue = etree.fromstring(
+        '<Queue-List><job_list state="running"><JB_owner>alice</JB_owner>'
+        "<JB_job_number>100</JB_job_number><JB_name>job</JB_name><state>r</state>"
+        "<JAT_start_time>now</JAT_start_time><slots>1</slots>" + tasks + "</job_list></Queue-List>"
+    )
+    system = SGEBatchSystem({}, {}, Options())
+    records = system.sge_stat_maker._extract_job_info([], queue, "job_list", "batch")
+    assert records[0]["JobId"] == expected
+    assert system._extract_running_job_info(queue, "job_list")[0] == [expected]
