@@ -1756,7 +1756,7 @@ class TextDisplay(object):
             conditional_width = 0
             userid_pat = "account_not_colored"
         else:
-            conditional_width = 12
+            conditional_width = len(colorize("", pattern=userid_pat))
 
         detail_width = 25 if group_of_name is not None else 40
         group_column = "{sep} {group:<{width20}} " if group_of_name is not None else ""

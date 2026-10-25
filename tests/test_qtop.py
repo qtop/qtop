@@ -446,6 +446,25 @@ def test_display_user_accounts_can_show_primary_groups(monkeypatch, capsys):
     assert "research" in output
 
 
+@pytest.mark.parametrize("color", ["White", "Gray2BG", "Red_LOnGrayBG", "reset", "unknown"])
+@pytest.mark.parametrize("mode", ["ON", "OFF"])
+@pytest.mark.parametrize("groups", [None, {"alice": "research"}])
+def test_account_row_colors_preserve_visible_alignment(monkeypatch, capsys, color, mode, groups):
+    args = SimpleNamespace(COLOR=mode)
+    monkeypatch.setattr(qtop_module, "args", args, raising=False)
+    monkeypatch.setattr(qtop_module, "config", {"SEPARATOR": "|"}, raising=False)
+    monkeypatch.setattr(qtop_module, "user_to_color", {"user": color}, raising=False)
+    monkeypatch.setitem(qtop_module.color_to_code, "Gray2BG", ";47")
+    display = TextDisplay(None, qtop_module.config, None, None, None, args)
+    line = ["0", 2, 3, 5, "alice", 1]
+    display.display_account_jobs_line(line, "user", {"alice": "Alice"}, groups)
+    rendered = capsys.readouterr().out
+    args.COLOR = "OFF"
+    display.display_account_jobs_line(line, "user", {"alice": "Alice"}, groups)
+    plain = capsys.readouterr().out
+    assert re.sub(r"\x1b\[[0-9;]*m", "", rendered) == plain
+
+
 def test_queueing_summary_preserves_order_and_expands(monkeypatch, capsys):
     class Cluster(object):
         total_running_jobs = 2

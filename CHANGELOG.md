@@ -5,6 +5,7 @@ See the [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 
 ## 0.9.20261017
 
+- Bugfix: align account columns with background and custom colors (#304).
 - Bugfix: default missing coreline settings instead of raising KeyError (#290).
 - Bugfix: accept PBS job-name punctuation and hyphenated usernames (#303).
 - CI: Make Makefile Great Again
