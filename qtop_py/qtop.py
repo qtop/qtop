@@ -484,22 +484,25 @@ def get_detail_of_name(account_jobs_table):
     field_idx = int(extract_info.get("field_to_use", 5))
     regex = extract_info.get("regex", None)
 
+    command_key = "user_details_realtime" if args.GET_GECOS else "user_details_cache"
+    command = extract_info.get(command_key)
+    if not isinstance(command, str) or not command.strip():
+        logging.warning("No valid %s command in %s; skipping user details.", command_key, QTOPCONF_YAML)
+        return {}
+
     if args.GET_GECOS:
         users = " ".join([line[4] for line in account_jobs_table])
-        passwd_command = extract_info.get("user_details_realtime") % users
+        passwd_command = command % users
         passwd_command = passwd_command.split()
     else:
-        passwd_command = extract_info.get("user_details_cache").split()
+        passwd_command = command.split()
         passwd_command[-1] = os.path.expandvars(passwd_command[-1])
 
     try:
         p = subprocess.Popen(passwd_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding="utf-8")
-    except OSError:
-        logging.critical(
-            '\nCommand "%s" could not be found in your system. \nEither remove -G switch or modify the command in '
-            "qtopconf.yaml (value of key: %s).\nExiting..." % (colorize(passwd_command[0], color_func="Red_L"), "user_details_realtime")
-        )
-        sys.exit(0)
+    except OSError as error:
+        logging.warning("Cannot execute %s command %r: %s; skipping user details.", command_key, passwd_command[0], error)
+        return {}
     else:
         output, err = p.communicate("something here")
         if "No such file or directory" in err:

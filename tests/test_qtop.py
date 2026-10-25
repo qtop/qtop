@@ -397,6 +397,49 @@ def test_display_user_accounts_pool_mappings_adds_totals(monkeypatch, capsys):
     assert "|     3 |" in output
 
 
+@pytest.mark.parametrize("realtime", [False, True])
+@pytest.mark.parametrize("value", [None, "", " \t", False, 0])
+def test_missing_user_details_command_is_optional(monkeypatch, caplog, realtime, value):
+    key = "user_details_realtime" if realtime else "user_details_cache"
+    info = {"field_to_use": 5}
+    if value is not None:
+        info[key] = value
+    monkeypatch.setattr(qtop_module, "args", SimpleNamespace(GET_GECOS=realtime), raising=False)
+    monkeypatch.setattr(qtop_module, "config", {"extract_info": info}, raising=False)
+    monkeypatch.setattr(qtop_module.subprocess, "Popen", lambda *args, **kwargs: pytest.fail("No command should run"))
+    assert qtop_module.get_detail_of_name([]) == {}
+    assert key in caplog.text
+
+
+@pytest.mark.parametrize("realtime", [False, True])
+def test_configured_user_details_command_still_returns_details(monkeypatch, realtime):
+    key = "user_details_realtime" if realtime else "user_details_cache"
+    command = "getent passwd %s" if realtime else "cat $HOME/passwd"
+    calls = []
+    process = SimpleNamespace(communicate=lambda *args: ("alice:x:1000:1000:Alice Example:/home/alice:/bin/sh\n", ""))
+    monkeypatch.setenv("HOME", "/tmp/qtop-user-details")
+    monkeypatch.setattr(qtop_module, "args", SimpleNamespace(GET_GECOS=realtime), raising=False)
+    monkeypatch.setattr(qtop_module, "config", {"extract_info": {key: command}}, raising=False)
+    monkeypatch.setattr(qtop_module.subprocess, "Popen", lambda command, **kwargs: calls.append(command) or process)
+    assert qtop_module.get_detail_of_name([["0", 1, 0, 1, "alice", 1]]) == {"alice": "Alice Example"}
+    assert calls == [["getent", "passwd", "alice"] if realtime else ["cat", "/tmp/qtop-user-details/passwd"]]
+
+
+@pytest.mark.parametrize("realtime", [False, True])
+def test_unavailable_user_details_command_is_optional(monkeypatch, caplog, realtime):
+    key = "user_details_realtime" if realtime else "user_details_cache"
+    monkeypatch.setattr(qtop_module, "args", SimpleNamespace(GET_GECOS=realtime), raising=False)
+    monkeypatch.setattr(qtop_module, "config", {"extract_info": {key: "missing-command %s" if realtime else "missing-command"}}, raising=False)
+
+    def unavailable(*args, **kwargs):
+        raise FileNotFoundError("executable not found")
+
+    monkeypatch.setattr(qtop_module.subprocess, "Popen", unavailable)
+    assert qtop_module.get_detail_of_name([]) == {}
+    assert key in caplog.text
+    assert "missing-command" in caplog.text
+
+
 def test_display_user_accounts_pool_mappings_hides_totals_by_default(monkeypatch, capsys):
     class Args(object):
         COLOR = "OFF"

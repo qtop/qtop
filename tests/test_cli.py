@@ -320,3 +320,19 @@ def test_cli_rejects_unsafe_savepath_before_writing(tmp_path, override):
     assert "writable by others" in result.stderr
     assert "Traceback" not in result.stderr
     assert list(shared.iterdir()) == []
+
+
+@pytest.mark.parametrize("realtime", [False, True])
+@pytest.mark.parametrize("command", [None, "", "/qtop-nonexistent-user-details-%s"])
+def test_optional_user_details_failures_do_not_stop_rendering(tmp_path, realtime, command):
+    key = "user_details_realtime" if realtime else "user_details_cache"
+    fixture = ROOT / "tests/plugins/slurm_samples/basic"
+    output = tmp_path / "results"
+    flags = ["-G"] if realtime else []
+    result = run_cli(
+        tmp_path, "qtop_py.cli", "-b", "slurm", "-s", str(fixture), "-O", "-c", "OFF", "-o", "savepath=" + str(output), "-o", "extract_info=" + repr({key: command}), *flags
+    )
+    assert result.returncode == 0, result.stderr
+    assert "Traceback" not in result.stdout + result.stderr
+    frame = next(output.glob("qtop_fullview_*.out")).read_text()
+    assert "User accounts and pool mappings" in frame
