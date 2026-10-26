@@ -5,6 +5,7 @@ See the [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 
 ## 0.9.20261017
 
+- Bugfix: address CodeQL false positive feedback
 - Bugfix: retain SGE queue-instance states and show blocking flags.
 - Bugfix: account for allocated SGE slots in core occupancy (#289).
 - Bugfix: preserve SGE task IDs and map job ownership by ID.
@@ -12,7 +13,7 @@ See the [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 - Bugfix: align account columns with background and custom colors (#304).
 - Bugfix: default missing coreline settings instead of raising KeyError (#290).
 - Bugfix: accept PBS job-name punctuation and hyphenated usernames (#303).
-- CI: Make Makefile Great Again
+- CI: Make Makefile Great Again (MMGA)
 
 ## 0.9.20261016
 

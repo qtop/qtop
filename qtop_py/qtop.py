@@ -494,22 +494,22 @@ def get_detail_of_name(account_jobs_table):
 
     if args.GET_GECOS:
         users = " ".join([line[4] for line in account_jobs_table])
-        passwd_command = command % users
-        passwd_command = passwd_command.split()
+        user_details_command = command % users
+        user_details_command = user_details_command.split()
     else:
-        passwd_command = command.split()
-        passwd_command[-1] = os.path.expandvars(passwd_command[-1])
+        user_details_command = command.split()
+        user_details_command[-1] = os.path.expandvars(user_details_command[-1])
 
     try:
-        p = subprocess.Popen(passwd_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding="utf-8")
+        p = subprocess.Popen(user_details_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding="utf-8")
     except OSError as error:
-        logging.warning("Cannot execute %s command %r: %s; skipping user details.", command_key, passwd_command[0], error)
+        logging.warning("Cannot execute %s command %r: %s; skipping user details.", command_key, user_details_command[0], error)
         return {}
     else:
         output, err = p.communicate("something here")
         if "No such file or directory" in err:
             logging.warning("You have to set a proper command to get the passwd file in your %s file." % QTOPCONF_YAML)
-            logging.warning("Error returned by getent: %s\nCommand issued: %s" % (err, passwd_command))
+            logging.warning("Error returned by getent: %s\nCommand issued: %s" % (err, user_details_command))
 
     detail_of_name = dict()
     for line in output.split("\n"):
