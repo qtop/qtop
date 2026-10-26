@@ -10,6 +10,7 @@
 ##
 
 import datetime
+import logging
 import re
 import sys
 from pathlib import Path
@@ -247,11 +248,13 @@ def test_color_str_iteration_matches_string_and_is_repeatable():
     assert list(colored) == ["a", "b", "c"]
 
 
-def test_get_output_size_ignores_ansi_sequences(tmp_path):
+@pytest.mark.parametrize("max_height", [0, 9])
+@pytest.mark.parametrize("max_line_len", [0, 7])
+def test_get_output_size_ignores_ansi_sequences(tmp_path, max_height, max_line_len):
     output_file = tmp_path / "qtop.out"
     output_file.write_text("\x1b[1;31mred\x1b[0;m\nplain\n", encoding="utf-8")
 
-    assert get_output_size(0, str(output_file)) == (2, 5)
+    assert get_output_size(max_line_len, str(output_file), max_height) == (max_height or 2, max_line_len or 5)
 
 
 @pytest.mark.parametrize(
@@ -921,3 +924,40 @@ def test_empty_dynamic_filters_do_not_force_remapping(monkeypatch, filters):
     cluster.offdown_nodes = 0
 
     assert cluster.decide_remapping(["01", "03"]) is False
+
+
+@pytest.mark.parametrize("value", ["", "abc", "12345", "20260101T1200"])
+def test_unsupported_date_formats_raise_value_error(value):
+    with pytest.raises(ValueError, match="datetime format provided is incorrect"):
+        get_date_obj_from_str(value, datetime.datetime(2026, 10, 25, 12))
+
+
+def test_output_size_with_known_dimensions_does_not_read_file(tmp_path):
+    assert get_output_size(7, str(tmp_path / "missing.out"), 9) == (9, 7)
+
+
+@pytest.mark.parametrize("width, height", [(0, 0), (8, 0), (0, 8)])
+def test_output_size_rejects_empty_file_when_dimensions_are_missing(tmp_path, width, height):
+    output = tmp_path / "empty.out"
+    output.write_text("")
+    with pytest.raises(ValueError, match="no output"):
+        get_output_size(width, str(output), height)
+
+
+@pytest.mark.parametrize("verbose, expected", [(None, logging.WARN), (0, logging.WARN), (-1, logging.WARN), (1, logging.INFO), (2, logging.DEBUG), (3, logging.DEBUG)])
+def test_init_logging_sets_file_level(tmp_path, monkeypatch, verbose, expected):
+    monkeypatch.setattr(qtop_utils, "QTOP_LOGFILE", str(tmp_path / "qtop.log"))
+    logger = logging.getLogger()
+    old_handlers = list(logger.handlers)
+    old_level, old_disabled = logger.level, logger.disabled
+    try:
+        qtop_utils.init_logging(SimpleNamespace(verbose=verbose, DEBUG=False))
+        added = [handler for handler in logger.handlers if handler not in old_handlers]
+        assert next(handler for handler in added if isinstance(handler, logging.FileHandler)).level == expected
+    finally:
+        for handler in list(logger.handlers):
+            if handler not in old_handlers:
+                logger.removeHandler(handler)
+                handler.close()
+        logger.setLevel(old_level)
+        logger.disabled = old_disabled

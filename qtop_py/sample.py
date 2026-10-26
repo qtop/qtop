@@ -41,9 +41,13 @@ def anonymize_state(state: object) -> "Tuple[ClusterState, IdentifierMaps]":
     mappings: "IdentifierMaps" = {kind: {} for kind in ("user", "node", "queue", "job")}
 
     @overload
-    def mask(value: str, kind: str) -> str: ...
+    def mask(value: str, kind: str) -> str:
+        pass
+
     @overload
-    def mask(value: None, kind: str) -> None: ...
+    def mask(value: None, kind: str) -> None:
+        pass
+
     def mask(value: Optional[str], kind: str) -> Optional[str]:
         if value is None:
             return None

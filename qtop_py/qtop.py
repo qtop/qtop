@@ -225,7 +225,7 @@ def get_date_obj_from_str(s, now):
         _inp_datetime = datetime.datetime.strptime(s, "%m%dT%H%M")
         inp_datetime = _inp_datetime.replace(year=now.year, second=0)
     else:
-        logging.critical("The datetime format provided is incorrect.\nTry one of the formats: yyyymmddTHHMMSS, HHMM, mmddTHHMM.")
+        raise ValueError("The datetime format provided is incorrect.\nTry one of the formats: yyyymmddTHHMMSS, HHMM, mmddTHHMM.")
     return inp_datetime
 
 
@@ -910,11 +910,11 @@ def get_output_size(max_line_len, output_fp, max_height=0):
         if not output_lines:
             raise ValueError("There is no output from qtop *whatsoever*. Weird.")
 
-    if not max_height:
-        max_height = len(output_lines)
+        if not max_height:
+            max_height = len(output_lines)
 
-    if not max_line_len:
-        max_line_len = max(len(ansi_escape.sub("", line.strip())) for line in output_lines)
+        if not max_line_len:
+            max_line_len = max(len(ansi_escape.sub("", line.strip())) for line in output_lines)
 
     logging.debug("Total nr of lines: %s" % max_height)
     logging.debug("Max line length: %s" % max_line_len)

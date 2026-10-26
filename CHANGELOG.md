@@ -5,9 +5,11 @@ See the [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 
 ## 0.9.20261017
 
+- Cleanup: clarify typing placeholders and expected directory exceptions for CodeQL.
 - CI: fix older nightly build backends; suspend failing PyPy lanes with FIXMEs.
 - CI: bump Python to 3.15.1 and modern pip to 26.2.2.
 - CI: Make Makefile Great Again (MMGA)
+- Bugfix: reject invalid date formats; make logging and output-size guards explicit.
 - Bugfix: apply node filters without requiring blind remapping (#287).
 - Bugfix: retain SGE queue membership for idle nodes.
 - Bugfix: address CodeQL false positive feedback
