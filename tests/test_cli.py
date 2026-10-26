@@ -387,3 +387,44 @@ def test_sge_summary_marks_errors_from_later_queue_instances(tmp_path):
     assert name + "*: " in frame
     assert "Pending*: " not in frame
     assert "* implies blocked (at least one queue instance)" in frame
+
+
+@pytest.mark.parametrize(
+    "rule, cores",
+    [
+        ({"include_name_patterns": ["^node03$"]}, 1),
+        ({"exclude_name_patterns": ["^N/A$"]}, 2),
+    ],
+)
+def test_sge_filters_work_without_blind_remapping(tmp_path, rule, cores):
+    template = (
+        "<Queue-List><name>batch@node0{number}</name><slots_used>1</slots_used>"
+        '<resource name="qname">batch</resource><resource name="hostname">node0{number}</resource>'
+        '<resource name="num_proc">1</resource><job_list state="running"><JB_job_number>{number}</JB_job_number>'
+        "<JB_name>job</JB_name><JB_owner>alice</JB_owner><state>r</state><JAT_start_time>now</JAT_start_time>"
+        "<slots>1</slots></job_list></Queue-List>"
+    )
+    trace = "<job_info><queue_info>" + "".join(template.format(number=n) for n in [1, 3]) + "</queue_info><job_info/></job_info>"
+    (tmp_path / "qstat.F.xml.stdout").write_text(trace)
+    output = tmp_path / "results"
+    result = run_cli(
+        tmp_path,
+        "qtop_py.cli",
+        "-b",
+        "sge",
+        "-s",
+        str(tmp_path),
+        "-O",
+        "-F",
+        "-c",
+        "OFF",
+        "-o",
+        "savepath=" + str(output),
+        "-o",
+        "filtering=" + repr([rule]),
+    )
+    assert result.returncode == 0, result.stderr
+    frame = next(output.glob("qtop_fullview_*.out")).read_text()
+    assert "%s/%s cores" % (cores, cores) in frame
+    assert "N/A" not in frame
+    assert "User accounts and pool mappings" in frame

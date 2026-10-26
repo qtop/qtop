@@ -5,6 +5,7 @@ See the [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 
 ## 0.9.20261017
 
+- Bugfix: apply node filters without requiring blind remapping (#287).
 - CI: bump Python to 3.15.1 and modern pip to 26.2.2.
 - Bugfix: retain SGE queue membership for idle nodes.
 - Bugfix: address CodeQL false positive feedback

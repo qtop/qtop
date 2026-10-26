@@ -221,6 +221,7 @@ sorting:
 ## or_include filters select the union of the selections.
 ## Filters can only be combined if they are the same kind, i.e. exclude with exclude, or_include with or_include
 ## IMPORTANT: single-item lists need to end in a comma! e.g. ['^gaia-',]
+## Active filters enable compact node remapping; use -F to display hostnames.
 filtering:
  # - exclude_node_states: ['hqw','au']
  # - exclude_numbers: [3,4]

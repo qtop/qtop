@@ -2158,6 +2158,7 @@ class Cluster(object):
         """
         Cases where remapping is enforced are:
         - the user has requested it (blindremap switch)
+        - worker-node filters are active
         - there are different WN namings, e.g. wn001, wn002, ..., ps001, ps002, ... etc
         - the first starting numbering of a WN is very high and thus would require too much unused space
         #- the numbering is strange, say the highest numbered node is named wn12500 but the total amount of WNs is 8000????
@@ -2178,8 +2179,10 @@ class Cluster(object):
         has_mixed_or_non_numeric_wns = len(numeric_workernodes) != len(self.workernode_list)
         has_exotic_starting_wn = bool(numeric_workernodes) and min(numeric_workernodes) >= int(self.config["exotic_starting_wn_nr"])
 
+        user_filters = dynamic_config.get("filtering", self.config["filtering"])
         if (
             self.args.BLINDREMAP
+            or (user_filters and user_filters[0])
             or len(self.node_subclusters) > 1
             or has_exotic_starting_wn
             or self.offdown_nodes >= self.total_wn * float(self.config["percentage"])
@@ -2242,11 +2245,7 @@ class Cluster(object):
         return workernode_dict
 
     def map_worker_nodes_to_wn_dict(self, args_remap):
-        """
-        For filtering to take place,
-        1) a filter should be defined in QTOPCONF_YAML
-        2) remap should be either selected by the user or enforced by the circumstances
-        """
+        """Apply active filters and sorting, then build original and compact node mappings."""
         # nodes_drop: this amount has to be chopped off of the end of workernode_list_remapped
         nodes_drop = 0  # count change in nodes after filtering
         workernode_dict = dict()

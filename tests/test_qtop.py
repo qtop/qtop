@@ -874,3 +874,50 @@ def test_sge_blocking_flags_are_detected_anywhere(state):
 @pytest.mark.parametrize("state", ["", "-", "?", "r"])
 def test_sge_neutral_states_are_not_marked_blocked(state):
     assert not qtop_module.queue_is_blocked(state, "sge")
+
+
+@pytest.mark.parametrize("dynamic", [False, True])
+@pytest.mark.parametrize(
+    "rule, expected",
+    [
+        ({"include_name_patterns": ["^node03$"]}, ["node03"]),
+        ({"exclude_name_patterns": ["^N/A$"]}, ["node01", "node03"]),
+    ],
+)
+def test_node_filters_enable_compact_mapping(monkeypatch, dynamic, rule, expected):
+    monkeypatch.setattr(qtop_module, "dynamic_config", {"filtering": [rule]} if dynamic else {}, raising=False)
+    monkeypatch.setattr(qtop_module, "user_to_color", {}, raising=False)
+    monkeypatch.setattr(qtop_module, "args", SimpleNamespace(COLOR="OFF"), raising=False)
+    nodes = [{"domainname": name, "state": [qtop_utils.ColorStr("-")], "np": 2, "core_job_map": {0: job}} for name, job in [("node01", "100"), ("node03", "200")]]
+    config = {
+        "filtering": [] if dynamic else [rule],
+        "sorting": {},
+        "remapping": [],
+        "percentage": 0.8,
+        "exotic_starting_wn_nr": 9000,
+        "workernodes_matrix": [{"wn id lines": {"max_len": 0}}],
+    }
+    document = SimpleNamespace(jobs_dict={}, queues_dict={}, total_running_jobs=2, total_queued_jobs=0)
+    args = SimpleNamespace(ANONYMIZE=False, BLINDREMAP=False)
+
+    cluster = qtop_module.Cluster(document, nodes, qtop_module.WNFilter, config, args)
+
+    assert args.REMAP is True
+    assert [node["domainname"] for node in cluster.workernode_dict.values()] == expected
+    assert cluster.total_wn == cluster.available_wn == len(expected)
+    assert cluster.working_cores == len(expected)
+    assert cluster.total_cores == 2 * len(expected)
+
+
+@pytest.mark.parametrize("filters", [None, [], [{}]])
+def test_empty_dynamic_filters_do_not_force_remapping(monkeypatch, filters):
+    monkeypatch.setattr(qtop_module, "dynamic_config", {"filtering": filters}, raising=False)
+    cluster = qtop_module.Cluster.__new__(qtop_module.Cluster)
+    cluster.config = {"filtering": [{"include_name_patterns": ["node"]}], "percentage": 0.8, "exotic_starting_wn_nr": 9000}
+    cluster.args = SimpleNamespace(BLINDREMAP=False)
+    cluster.total_wn = 2
+    cluster.workernode_list = [1, 3]
+    cluster.node_subclusters = {"node"}
+    cluster.offdown_nodes = 0
+
+    assert cluster.decide_remapping(["01", "03"]) is False
