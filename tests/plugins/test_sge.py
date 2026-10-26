@@ -103,7 +103,7 @@ def test_optional_queue_xml_fields_keep_defaults():
     root.append(queue)
     system = SGEBatchSystem({}, {}, Options())
     assert system._get_state(queue) == "-"
-    assert system._get_host_qname_np(queue)["qname"] == set()
+    assert system._get_host_qname_np(queue)["qname"] == {"batch"}
     assert system._extract_queues("Queue-List", root)[0]["state"] == "?"
 
 
@@ -200,3 +200,29 @@ def test_queue_summary_preserves_all_instance_states(first, second, expected):
     assert len(queues) == 1
     assert queues[0]["state"] == expected
     assert queues[0]["run"] == 2
+
+
+@pytest.mark.parametrize("slots_used", [None, "", "0"])
+@pytest.mark.parametrize("same_host", [False, True])
+def test_idle_nodes_keep_queue_membership(slots_used, same_host):
+    root = etree.Element("job_info")
+    queue_info = etree.SubElement(root, "queue_info")
+    for index, qname in enumerate(("batch", "long")):
+        queue = etree.SubElement(queue_info, "Queue-List")
+        etree.SubElement(queue, "resource", name="qname").text = qname
+        etree.SubElement(queue, "resource", name="hostname").text = "node01" if same_host else "node0%s" % (index + 1)
+        etree.SubElement(queue, "resource", name="num_proc").text = "16"
+        if slots_used is not None:
+            etree.SubElement(queue, "slots_used").text = slots_used
+    options = Options()
+    options.SAMPLE = 0
+    system = SGEBatchSystem({}, {}, options)
+    system.sge_stat_maker.root = root
+    system.sge_stat_maker.tree = etree.ElementTree(root)
+
+    nodes = system.get_worker_nodes([], [], options)
+
+    assert len(nodes) == (1 if same_host else 2)
+    memberships = {node["domainname"]: set(node["qname"]) for node in nodes}
+    assert memberships == ({"node01": {"batch", "long"}} if same_host else {"node01": {"batch"}, "node02": {"long"}})
+    assert all(node["core_job_map"] == {} and node["np"] == 16 and node["state"] == "-" for node in nodes)

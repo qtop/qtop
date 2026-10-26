@@ -262,7 +262,6 @@ class SGEBatchSystem(GenericBatchSystem):
     def _get_host_qname_np(self, queue_elem):
         worker_node = dict()
         count = 0
-        slots_used = int(queue_elem.findtext("./slots_used", default="0") or "0")
 
         resources = queue_elem.findall("resource")
         for resource in resources:
@@ -271,11 +270,7 @@ class SGEBatchSystem(GenericBatchSystem):
                 count += 1
             elif resource.attrib.get("name") == "qname":
                 qname = resource.text
-                if not slots_used:
-                    worker_node["qname"] = set()
-                else:
-                    # if slots are reportedly used, the queue will be displayed even if no actual running jobs exist
-                    worker_node["qname"] = set([self.anonymize(qname, "qs")])
+                worker_node["qname"] = set([self.anonymize(qname, "qs")])
                 count += 1
             elif resource.attrib.get("name") == "num_proc":
                 worker_node["np"] = resource.text
