@@ -3,6 +3,7 @@ import re
 import subprocess
 import sys
 from pathlib import Path
+from xml.etree import ElementTree as etree
 
 import pytest
 
@@ -365,3 +366,24 @@ def test_sge_repeated_job_numbers_preserve_core_ownership(tmp_path, array_tasks,
     assert rows == {"alice": "1", "bob": "1"}
     assert "%s/%s cores" % (3 * slots, 3 * slots) in frame
     assert "3+0 jobs (R + Q)" in frame
+
+
+def test_sge_summary_marks_errors_from_later_queue_instances(tmp_path):
+    tree = etree.parse(str(ROOT / "qtop_py/contrib/qstat.F.xml.stdout"))
+    queues = tree.getroot().findall("queue_info/Queue-List")
+    name = queues[0].find("resource[@name='qname']").text
+    for queue in queues:
+        state = queue.find("state")
+        if state is not None:
+            queue.remove(state)
+    instances = [queue for queue in queues if queue.find("resource[@name='qname']").text == name]
+    assert len(instances) > 1
+    etree.SubElement(instances[-1], "state").text = "E"
+    tree.write(str(tmp_path / "qstat.F.xml.stdout"))
+    output = tmp_path / "results"
+    result = run_cli(tmp_path, "qtop_py.cli", "-b", "sge", "-s", str(tmp_path), "-O", "-c", "OFF", "-o", "savepath=" + str(output))
+    assert result.returncode == 0, result.stderr
+    frame = next(output.glob("qtop_fullview_*.out")).read_text()
+    assert name + "*: " in frame
+    assert "Pending*: " not in frame
+    assert "* implies blocked (at least one queue instance)" in frame

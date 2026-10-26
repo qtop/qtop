@@ -134,9 +134,11 @@ def _reserved_pattern_mappings(config):
     }
 
 
-def queue_is_blocked(state):
-    """Return whether a normalized scheduler queue state denotes blocking."""
+def queue_is_blocked(state, scheduler_name=None):
+    """Return whether a queue state denotes blocking for the selected scheduler."""
     state = str(state)
+    if scheduler_name == "sge":
+        return any(flag in state for flag in "aAcCdDEosSu")
     return state.startswith("D") or state.endswith("S")
 
 
@@ -1671,13 +1673,14 @@ class TextDisplay(object):
                 "{indent}{qname}{star}: {run} {q}|".format(
                     indent="  " if expanded else "",
                     qname=colorize(_queue_name, "", pattern=account, mapping=queue_to_color),
-                    star=colorize("*", "Red_L") if queue_is_blocked(q_tuple.state) else "",
+                    star=colorize("*", "Red_L") if queue_is_blocked(q_tuple.state, scheduler) else "",
                     run=colorize(q_running_jobs, "", pattern=account, mapping=queue_to_color),
                     q="+ " + colorize(q_queued_jobs, "", account, mapping=queue_to_color) + " " if q_queued_jobs != "0" else "",
                 ),
                 end="\n" if expanded else " ",
             )
-        print(colorize("* implies blocked", "Red") + "\n")
+        blocked_note = " (at least one queue instance)" if scheduler == "sge" else ""
+        print(colorize("* implies blocked", "Red") + blocked_note + "\n")
 
     def display_wns_occupancy(self, wns_occupancy, cluster):
         """

@@ -5,6 +5,7 @@ See the [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 
 ## 0.9.20261017
 
+- Bugfix: retain SGE queue-instance states and show blocking flags.
 - Bugfix: account for allocated SGE slots in core occupancy (#289).
 - Bugfix: preserve SGE task IDs and map job ownership by ID.
 - Bugfix: skip missing or unavailable optional user-details commands (#98).

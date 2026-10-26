@@ -26,7 +26,7 @@ def test_contrib_queue_counts_remain_numeric_while_aggregating():
     assert isinstance(total_running, int)
     assert isinstance(total_queued, int)
     assert total_running == sum(int(queue["run"]) for queue in queues)
-    assert next(queue for queue in queues if queue["queue_name"] == "Pending")["state"] == "E"
+    assert next(queue for queue in queues if queue["queue_name"] == "Pending")["state"] == "-"
 
 
 @pytest.mark.parametrize("encoding", ["utf-8", "utf-16", "utf-16-be"])
@@ -184,3 +184,19 @@ def test_allocated_slots_survive_multiple_queue_instances(same_host):
     assert len(nodes) == (1 if same_host else 2)
     assert allocations.count("100") == 2
     assert allocations.count("200") == 3
+
+
+@pytest.mark.parametrize("first,second,expected", [(None, "E", "?E"), ("E", None, "?E"), ("d", "S", "Sd"), ("a", "u", "au"), (None, None, "?"), ("E", "E", "E")])
+def test_queue_summary_preserves_all_instance_states(first, second, expected):
+    root = etree.Element("root")
+    for index, state in enumerate((first, second)):
+        queue = etree.SubElement(root, "Queue-List")
+        etree.SubElement(queue, "name").text = "batch@node%s" % index
+        etree.SubElement(queue, "resource", name="qname").text = "batch"
+        if state is not None:
+            etree.SubElement(queue, "state").text = state
+        etree.SubElement(queue, "job_list", state="running")
+    queues = SGEBatchSystem({}, {}, Options())._extract_queues("Queue-List", root)
+    assert len(queues) == 1
+    assert queues[0]["state"] == expected
+    assert queues[0]["run"] == 2

@@ -167,7 +167,7 @@ class SGEBatchSystem(GenericBatchSystem):
 
         total_queued_jobs = self._get_total_queued_jobs("job_info/job_list", root)
 
-        qstatq_list.append({"run": "0", "queued": total_queued_jobs, "queue_name": "Pending", "state": "E", "lm": "0"})
+        qstatq_list.append({"run": "0", "queued": total_queued_jobs, "queue_name": "Pending", "state": "-", "lm": "0"})
         logging.debug("qstatq_list contains %s elements" % len(qstatq_list))
         logging.debug("Closing %s" % self.sge_file)
 
@@ -310,6 +310,8 @@ class SGEBatchSystem(GenericBatchSystem):
                         if _run.attrib.get("state") == "running":
                             run_count += 1
                     exist_d["run"] = int(exist_d["run"]) + run_count
+                    state = queue_elem.findtext("./state", default="?") or "?"
+                    exist_d["state"] = "".join(sorted(set(str(exist_d["state"]) + state)))
                     break
             else:  # first instance of queue in the xml
                 d = dict()
