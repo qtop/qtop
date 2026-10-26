@@ -7,7 +7,7 @@
 ##
 # Nightly concern: interpreter/distro compatibility matrix (#488).
 #
-# 35 lanes covering CPython 3.6 through stable 3.15 plus PyPy across Debian,
+# 32 active lanes covering CPython 3.6 through stable 3.15 across Debian,
 # Ubuntu, AlmaLinux, Rocky, CentOS Stream, Oracle Linux, Fedora, openSUSE,
 # Amazon Linux and Arch, all routed through ci/scripts/matrix_lane.sh and the
 # Makefile contract. The lane list mirrors
@@ -128,11 +128,13 @@ nightly-matrix-experimental:
         PKGS: '-'
         PYBIN: python
         TARGET: ci
-      - IMAGE: ['pypy:3.11', 'pypy:3.12', 'pypy:3.11-8.0.0']
-        FAMILY: pypyimg
-        PKGS: '-'
-        PYBIN: pypy3
-        TARGET: ci
+      # FIXME: restore PyPy 3.11 after SGE XML rejects all DTD declarations.
+      # PyPy 3.12 also needs librt build compatibility before re-enabling.
+      # - IMAGE: ['pypy:3.11', 'pypy:3.12', 'pypy:3.11-8.0.0']
+      #   FAMILY: pypyimg
+      #   PKGS: '-'
+      #   PYBIN: pypy3
+      #   TARGET: ci
       - IMAGE: 'ubuntu:20.04'
         FAMILY: debian
         PKGS: 'python3,python3-venv,python3-pip'
