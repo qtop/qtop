@@ -68,6 +68,7 @@ def anonymize_state(state: object) -> "Tuple[ClusterState, IdentifierMaps]":
     state["jobs"] = [{"id": job_id(job["id"]), "user": mask(job["user"], "user"), "state": job["state"], "queue": mask(job["queue"], "queue")} for job in state["jobs"]]
     for queue in state["queues"]:
         queue["name"] = mask(queue["name"], "queue")
+    original_nodes = state["nodes"]
     state["nodes"] = [
         {
             "domainname": mask(node["domainname"], "node"),
@@ -78,6 +79,10 @@ def anonymize_state(state: object) -> "Tuple[ClusterState, IdentifierMaps]":
         }
         for node in state["nodes"]
     ]
+    for original, node in zip(original_nodes, state["nodes"]):
+        source = original.get("cpu_allocation_source")
+        if source is not None and source in ("slurm", "estimated", "none"):
+            node["cpu_allocation_source"] = source
     return state, mappings
 
 

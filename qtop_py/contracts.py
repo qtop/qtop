@@ -12,13 +12,23 @@ if TYPE_CHECKING:
     Config = Dict[str, Any]  # Legacy configuration remains deliberately extensible.
     IdentifierMaps = Dict[str, Dict[str, str]]
 
-    class Job(TypedDict):
+    class JobResources(TypedDict, total=False):
+        slurm_tres_alloc: str
+        slurm_tres_per_node: str
+        slurm_tres_per_task: str
+
+    class Job(JobResources):
         id: str
         user: str
         state: str
         queue: str
 
-    class Node(TypedDict):
+    class NodeResources(TypedDict, total=False):
+        cpu_allocation_source: str
+        slurm_gres: str
+        slurm_gres_used: str
+
+    class Node(NodeResources):
         domainname: str
         state: str
         np: Union[int, str]

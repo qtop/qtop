@@ -59,3 +59,11 @@ def test_document_round_trip_and_save_use_cluster_state(tmp_path):
 def test_cluster_state_rejects_invalid_shapes(invalid):
     with pytest.raises((TypeError, ValueError)):
         validate_cluster_state(invalid)
+
+
+@pytest.mark.parametrize("source", [[], {}, None, "physical"])
+def test_cluster_state_rejects_invalid_cpu_allocation_source(source):
+    state = sample_state()
+    state["nodes"][0]["cpu_allocation_source"] = source
+    with pytest.raises(ValueError, match="cpu_allocation_source"):
+        validate_cluster_state(state)

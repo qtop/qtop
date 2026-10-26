@@ -3,6 +3,11 @@
 Notable changes by version, newest first.
 See the [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 
+## 0.9.20261018
+
+- Feature: read optional Slurm CPU allocations; label estimated placement.
+- Feature: capture Slurm TRES/GRES fields for future GPU support.
+
 ## 0.9.20261017
 
 - Cleanup: clarify typing placeholders and expected directory exceptions for CodeQL.

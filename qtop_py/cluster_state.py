@@ -73,6 +73,8 @@ def validate_cluster_state(cluster_state: object) -> "ClusterState":
             if any(not isinstance(record.get(field), str) for field in fields):
                 raise TypeError("%s record requires text fields: %s" % (key, ", ".join(fields)))
             if key == "nodes":
+                if "cpu_allocation_source" in record and record["cpu_allocation_source"] not in ("slurm", "estimated", "none"):
+                    raise ValueError("node cpu_allocation_source must be slurm, estimated or none")
                 np = record.get("np")
                 if isinstance(np, bool) or not isinstance(np, (str, int)):
                     raise ValueError("node np must be a nonnegative integer or integer string")

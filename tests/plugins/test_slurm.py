@@ -7,6 +7,7 @@
 ##
 
 import os
+from pathlib import Path
 
 import pytest
 
@@ -292,3 +293,93 @@ def test_unusable_cpu_counts(tmp_path, cpus, expected_job_cpus, expected_node_cp
     node = extractor.extract_sinfo(str(info))[0]
     assert node["np"] == expected_node_cpus
     assert node["state"] == "?"
+
+
+@pytest.fixture
+def detailed_slurm(tmp_path):
+    source = Path(__file__).parent / "slurm_samples/cpu_allocations"
+    files = {}
+    for command in ("squeue", "sinfo", "scontrol"):
+        path = tmp_path / (command + ".txt")
+        path.write_bytes((source / path.name).read_bytes())
+        files[command + "_file"] = str(path)
+    return SlurmBatchSystem(files, {}, Options()), tmp_path / "scontrol.txt"
+
+
+def test_detailed_allocations_keep_sparse_cpu_ids_and_uneven_distribution(detailed_slurm):
+    slurm, _ = detailed_slurm
+    state = slurm.get_cluster_state(Options())
+    nodes = {node["domainname"]: node for node in state["nodes"]}
+    assert nodes["node001"]["core_job_map"] == {4: "101", 0: "102", 2: "102"}
+    assert nodes["node002"]["core_job_map"] == {1: "101", 3: "101", 5: "101"}
+    assert [node["cpu_allocation_source"] for node in state["nodes"]] == ["slurm", "slurm", "none"]
+    assert nodes["node001"]["slurm_gres"] == "gpu:a100:4(S:0-1)"
+    assert nodes["node002"]["slurm_gres_used"] == "gpu:a100:1(IDX:2)"
+    assert state["jobs"][0]["slurm_tres_alloc"] == "cpu=4,gres/gpu=2"
+    assert state["jobs"][0]["slurm_tres_per_node"] == "gres/gpu:a100:1"
+    assert state["jobs"][2]["slurm_tres_alloc"] == "cpu=1,gres/gpu=1"
+
+
+@pytest.mark.parametrize(
+    "details",
+    [
+        None,
+        "",
+        "malformed",
+        "JobId=101\n   Nodes=node001 CPU_IDs=4\n",
+        "JobId=101\n   Nodes=node001 CPU_IDs=99\n   Nodes=node002 CPU_IDs=1,3,5\n",
+        "JobId=101\n   Nodes=node001 CPU_IDs=0-1000000000\n",
+        "JobId=101\n   Nodes=node001 CPU_IDs=1,01\n",
+        "JobId=101\n   Nodes=node001 CPU_IDs=garbage\n",
+    ],
+)
+def test_unusable_cpu_details_fall_back_without_losing_jobs(detailed_slurm, details):
+    slurm, path = detailed_slurm
+    if details is None:
+        path.unlink()
+    else:
+        path.write_text(details)
+    state = slurm.get_cluster_state(Options())
+    nodes = state["nodes"]
+    assert len(state["jobs"]) == 3
+    assert sum(len(node["core_job_map"]) for node in nodes) == 6
+    assert [node["cpu_allocation_source"] for node in nodes] == ["estimated", "estimated", "none"]
+
+
+def test_partial_details_do_not_mix_estimated_positions_with_exact_ids(detailed_slurm):
+    slurm, path = detailed_slurm
+    path.write_text(path.read_text().split("JobId=102")[0])
+    nodes = slurm.get_cluster_state(Options())["nodes"]
+    assert nodes[0]["cpu_allocation_source"] == "estimated"
+    assert nodes[1]["cpu_allocation_source"] == "slurm"
+    assert nodes[1]["core_job_map"] == {1: "101", 3: "101", 5: "101"}
+
+
+def test_overlapping_cpu_allocations_use_estimates(detailed_slurm):
+    slurm, path = detailed_slurm
+    path.write_text(path.read_text().replace("CPU_IDs=0,2", "CPU_IDs=4,6"))
+    nodes = slurm.get_cluster_state(Options())["nodes"]
+    assert nodes[0]["cpu_allocation_source"] == "estimated"
+    assert nodes[1]["cpu_allocation_source"] == "slurm"
+
+
+@pytest.mark.parametrize("header, job_id", [("JobId=501 ArrayJobId=101 ArrayTaskId=3", "101_3"), ("JobId=501 HetJobId=101 HetJobOffset=1", "101+1")])
+def test_detailed_allocations_match_array_and_heterogeneous_ids(detailed_slurm, header, job_id):
+    slurm, path = detailed_slurm
+    jobs = slurm._get_jobs()
+    jobs[0]["JobId"] = job_id
+    path.write_text(path.read_text().replace("JobId=101 JobName=parallel", header))
+    nodes = slurm.get_cluster_state(Options())["nodes"]
+    assert nodes[0]["core_job_map"][4] == job_id
+    assert nodes[1]["core_job_map"][5] == job_id
+
+
+def test_anonymized_details_preserve_provenance_and_mask_resource_text(detailed_slurm):
+    from qtop_py.sample import anonymize_state
+
+    slurm, _ = detailed_slurm
+    state, mappings = anonymize_state(slurm.get_cluster_state(Options()))
+    assert state["nodes"][0]["cpu_allocation_source"] == "slurm"
+    assert "slurm_gres" not in state["nodes"][0]
+    assert "slurm_tres_alloc" not in state["jobs"][0]
+    assert state["nodes"][0]["core_job_map"]["4"] == mappings["job"]["101"]

@@ -1,0 +1,11 @@
+JobId=101 JobName=parallel
+   JobState=RUNNING NumCPUs=4
+   Nodes=node001 CPU_IDs=4 Mem=1024 GRES=gpu:a100:1(IDX:1)
+   Nodes=node002 CPU_IDs=1,3,5 Mem=1024 GRES=gpu:a100:1(IDX:2)
+
+JobId=102 JobName=serial
+   JobState=RUNNING NumCPUs=2
+   Nodes=node001 CPU_IDs=0,2 Mem=1024 GRES=
+
+JobId=103 JobName=pending
+   JobState=PENDING NumCPUs=1

@@ -207,3 +207,33 @@ def test_live_capture_replays_without_pid_filename_repair(tmp_path):
     replay = run_cli(tmp_path / "replay_home", "--load-sample", str(archive), "-E", "-O", "-o", "savepath=" + str(replayed))
     assert replay.returncode == 0, replay.stderr
     assert json.loads(next(replayed.glob("qtop_json_*.json")).read_text()) == expected
+
+
+@pytest.mark.parametrize("anonymous", [False, True])
+def test_slurm_cpu_details_and_resources_survive_snapshot_replay(tmp_path, anonymous):
+    source = ROOT / "tests/plugins/slurm_samples/cpu_allocations"
+    output = tmp_path / "captured"
+    output.mkdir()
+    flags = ["-A", "-e"] if anonymous else []
+    captured = run_cli(tmp_path / "capture_home", "-b", "slurm", "-s", str(source), "-L", "-E", "-O", "-o", "savepath=" + str(output), *flags)
+    assert captured.returncode == 0, captured.stderr
+    expected = json.loads(next(output.glob("qtop_json_*.json")).read_text())
+    assert expected["nodes"][0]["cpu_allocation_source"] == "slurm"
+    assert ("slurm_tres_alloc" in expected["jobs"][0]) is not anonymous
+    archive = next(output.glob("*.tar"))
+    replayed = tmp_path / "replayed"
+    replayed.mkdir()
+    if anonymous:
+        replay_args = ["--load-sample", str(archive)]
+    else:
+        inputs = tmp_path / "inputs"
+        inputs.mkdir()
+        with tarfile.open(str(archive)) as stream:
+            for filename in ("squeue.txt", "sinfo.txt", "scontrol.txt"):
+                with stream.extractfile(filename) as member:
+                    (inputs / filename).write_bytes(member.read())
+        replay_args = ["-b", "slurm", "-s", str(inputs)]
+    result = run_cli(tmp_path / "replay_home", *replay_args, "-E", "-O", "-o", "savepath=" + str(replayed))
+    assert result.returncode == 0, result.stderr
+    assert json.loads(next(replayed.glob("qtop_json_*.json")).read_text()) == expected
+    assert "scheduler CPU IDs" in next(replayed.glob("qtop_fullview_*.out")).read_text()

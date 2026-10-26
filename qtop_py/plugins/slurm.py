@@ -56,7 +56,7 @@ class SlurmStatExtractor(StatExtractor):
     def extract_squeue(self, orig_file):
         """
         Parse output from:
-        squeue -h -o '%i|%u|%t|%P|%C|%N'
+        squeue -h -O 'JobID:0|,UserName:0|,StateCompact:0|,Partition:0|,NumCPUs:0|,NodeList:0|,tres-alloc:0|,tres-per-node:0|,tres-per-task:0'
         """
         try:
             fileutils.check_empty_file(orig_file)
@@ -71,7 +71,10 @@ class SlurmStatExtractor(StatExtractor):
                 if not line:
                     continue
                 try:
-                    job_id, user, state, partition, cpus, nodes = [field.strip() for field in line.split("|")]
+                    fields = [field.strip() for field in line.split("|")]
+                    if len(fields) not in (6, 9):
+                        raise ValueError("expected 6 legacy or 9 extended fields")
+                    job_id, user, state, partition, cpus, nodes = fields[:6]
                     if not all((job_id, user, state, partition.rstrip("*"))):
                         raise ValueError("missing required job field")
                 except ValueError:
@@ -89,12 +92,14 @@ class SlurmStatExtractor(StatExtractor):
                         "Nodes": nodes,
                     }
                 )
+                if len(fields) == 9:
+                    jobs[-1].update(zip(("slurm_tres_alloc", "slurm_tres_per_node", "slurm_tres_per_task"), fields[6:]))
         return jobs
 
     def extract_sinfo(self, orig_file):
         """
         Parse output from:
-        sinfo -N -h -o '%N|%P|%t|%c'
+        sinfo -N -h -O 'NodeList:0|,Partition:0|,StateCompact:0|,CPUs:0|,Gres:0|,GresUsed:0'
         """
         try:
             fileutils.check_empty_file(orig_file)
@@ -109,7 +114,10 @@ class SlurmStatExtractor(StatExtractor):
                 if not line:
                     continue
                 try:
-                    node_name, partition, state, cpus = [field.strip() for field in line.split("|")]
+                    fields = [field.strip() for field in line.split("|")]
+                    if len(fields) not in (4, 6):
+                        raise ValueError("expected 4 legacy or 6 extended fields")
+                    node_name, partition, state, cpus = fields[:4]
                     if not all((node_name, partition.rstrip("*"))):
                         raise ValueError("missing required node field")
                 except ValueError:
@@ -125,6 +133,8 @@ class SlurmStatExtractor(StatExtractor):
                         "np": str(max(0, self._safe_int(cpus, default=0))),
                     }
                 )
+                if len(fields) == 6:
+                    nodes[-1].update(zip(("slurm_gres", "slurm_gres_used"), fields[4:]))
         return nodes
 
     @staticmethod
@@ -198,9 +208,19 @@ class SlurmBatchSystem(GenericBatchSystem):
     def __init__(self, scheduler_output_filenames, config, options):
         self.squeue_file = scheduler_output_filenames.get("squeue_file")
         self.sinfo_file = scheduler_output_filenames.get("sinfo_file")
+        self.scontrol_file = scheduler_output_filenames.get("scontrol_file")
         self.config = config
         self.options = options
         self.slurm_stat_maker = SlurmStatExtractor(self.config, self.options)
+
+    def get_cluster_state(self, options):
+        state = super().get_cluster_state(options)
+        for job, raw in zip(state["jobs"], self._get_jobs()):
+            if "slurm_tres_alloc" in raw:
+                job["slurm_tres_alloc"] = raw["slurm_tres_alloc"]
+                job["slurm_tres_per_node"] = raw["slurm_tres_per_node"]
+                job["slurm_tres_per_task"] = raw["slurm_tres_per_task"]
+        return state
 
     def get_jobs_info(self):
         jobs = self._get_jobs()
@@ -266,14 +286,85 @@ class SlurmBatchSystem(GenericBatchSystem):
                 worker_node["qname"].append(node["qname"])
             worker_node["state"] = self._merge_node_state(worker_node["state"], node["state"])
             worker_node["np"] = str(max(int(worker_node["np"]), int(node["np"])))
+            for key in ("slurm_gres", "slurm_gres_used"):
+                if key in node:
+                    worker_node[key] = node[key]
 
         node_jobs = self._map_jobs_to_nodes(self._get_jobs(), worker_nodes_by_name)
         for raw_name, worker_node in worker_nodes_by_name.items():
             worker_node["core_job_map"] = dict((idx, job_id) for idx, job_id in enumerate(node_jobs.get(raw_name, [])))
 
+        self._apply_cpu_allocations(worker_nodes_by_name)
         worker_nodes = list(worker_nodes_by_name.values())
         logging.info("worker_nodes contains %s entries" % len(worker_nodes))
         return worker_nodes
+
+    def _read_cpu_allocations(self):
+        allocations = {}
+        if not self.scontrol_file:
+            return allocations
+        try:
+            with open(self.scontrol_file, "r") as stream:
+                job_id = None
+                for line in stream:
+                    header = re.match(r"\s*JobId=(\S+)(.*)", line)
+                    if header:
+                        job_id = header.group(1)
+                        array = re.search(r"\bArrayJobId=(\d+) ArrayTaskId=(\d+)\b", header.group(2))
+                        het = re.search(r"\bHetJobId=(\d+) HetJobOffset=(\d+)\b", header.group(2))
+                        if array:
+                            job_id = "%s_%s" % array.groups()
+                        elif het:
+                            job_id = "%s+%s" % het.groups()
+                        allocations.setdefault(job_id, {})
+                    detail = re.match(r"\s*Nodes=(\S+) CPU_IDs=(\S+)", line)
+                    if detail and job_id is not None:
+                        hosts = self.expand_nodelist(detail.group(1))
+                        cpus = self.expand_nodelist("[" + detail.group(2) + "]")
+                        if not hosts or not cpus or len(hosts) * len(cpus) > self.MAX_EXPANDED_NODES or len(set(map(int, cpus))) != len(cpus):
+                            allocations[job_id] = None
+                        else:
+                            allocation = allocations[job_id]
+                            if allocation is not None:
+                                for host in hosts:
+                                    if host in allocation:
+                                        allocations[job_id] = None
+                                        break
+                                    allocation[host] = [int(cpu) for cpu in cpus]
+        except (OSError, UnicodeError, ValueError) as error:
+            logging.warning("Cannot read optional Slurm CPU details: %s; using estimates.", error)
+            return {}
+        return allocations
+
+    def _apply_cpu_allocations(self, worker_nodes):
+        details = self._read_cpu_allocations()
+        exact = {name: {} for name in worker_nodes}
+        estimated = set()
+        for job in self._get_jobs():
+            if job["S"] not in self.ACTIVE_STATES:
+                continue
+            hosts = self.expand_nodelist(job["Nodes"])
+            allocation = details.get(job["JobId"])
+            valid = allocation and set(allocation) == set(hosts) and sum(len(cpus) for cpus in allocation.values()) == job["CPUs"]
+            if valid:
+                valid = all(host in worker_nodes and all(cpu < int(worker_nodes[host]["np"]) for cpu in allocation[host]) for host in hosts)
+            if not valid:
+                estimated.update(hosts)
+                if job["JobId"] in details:
+                    logging.warning("Incomplete or inconsistent Slurm CPU details for job %s; using estimates.", job["JobId"])
+                continue
+            for host, cpus in allocation.items():
+                for cpu in cpus:
+                    if cpu in exact[host] and exact[host][cpu] != job["JobId"]:
+                        estimated.add(host)
+                        logging.warning("Overlapping Slurm CPU allocations on %s; using estimates.", host)
+                    exact[host][cpu] = job["JobId"]
+        for host, node in worker_nodes.items():
+            if exact[host] and host not in estimated:
+                node["core_job_map"] = exact[host]
+                node["cpu_allocation_source"] = "slurm"
+            else:
+                node["cpu_allocation_source"] = "estimated" if host in estimated else "none"
 
     def _get_jobs(self):
         if not hasattr(self, "_jobs"):

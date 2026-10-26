@@ -230,8 +230,8 @@ def test_replay_configuration_failure_is_concise(tmp_path):
 @pytest.mark.parametrize(
     "scheduler_file, expected",
     (
-        ("squeue_file", ["-h", "-o", "%i|%u|%t|%P|%C|%N"]),
-        ("sinfo_file", ["-N", "-h", "-o", "%N|%P|%t|%c"]),
+        ("squeue_file", ["-h", "-O", "JobID:0|,UserName:0|,StateCompact:0|,Partition:0|,NumCPUs:0|,NodeList:0|,tres-alloc:0|,tres-per-node:0|,tres-per-task:0"]),
+        ("sinfo_file", ["-N", "-h", "-O", "NodeList:0|,Partition:0|,StateCompact:0|,CPUs:0|,Gres:0|,GresUsed:0"]),
     ),
 )
 def test_slurm_config_command_matches_shell_execution(tmp_path, monkeypatch, scheduler_file, expected):
@@ -428,3 +428,61 @@ def test_sge_filters_work_without_blind_remapping(tmp_path, rule, cores):
     assert "%s/%s cores" % (cores, cores) in frame
     assert "N/A" not in frame
     assert "User accounts and pool mappings" in frame
+
+
+@pytest.mark.parametrize("details", [False, True])
+def test_slurm_cpu_placement_legend_and_resource_export(tmp_path, details):
+    import json
+    import shutil
+
+    source = tmp_path / "trace"
+    shutil.copytree(str(ROOT / "tests/plugins/slurm_samples/cpu_allocations"), str(source))
+    if not details:
+        (source / "scontrol.txt").unlink()
+    output = tmp_path / "results"
+    result = run_cli(tmp_path, "qtop_py.cli", "-b", "slurm", "-s", str(source), "-E", "-O", "-c", "OFF", "-o", "savepath=" + str(output))
+    assert result.returncode == 0, result.stderr
+    frame = next(output.glob("qtop_fullview_*.out")).read_text()
+    assert ("scheduler CPU IDs" if details else "estimated where") in frame
+    state = json.loads(next(output.glob("qtop_json_*.json")).read_text())
+    assert state["jobs"][0]["slurm_tres_alloc"] == "cpu=4,gres/gpu=2"
+    assert state["nodes"][0]["slurm_gres_used"] == "gpu:a100:1(IDX:1)"
+    if details:
+        assert state["nodes"][1]["core_job_map"] == {"1": "101", "3": "101", "5": "101"}
+
+
+@pytest.mark.parametrize("available", [False, True])
+def test_optional_live_slurm_details_command_failure_keeps_monitoring(tmp_path, available):
+    import json
+    import shlex
+
+    source = ROOT / "tests/plugins/slurm_samples/cpu_allocations"
+    commands = tmp_path / "commands"
+    commands.mkdir()
+    for command in ("squeue", "sinfo", "scontrol"):
+        executable = commands / command
+        body = "exit 1" if command == "scontrol" and not available else "cat " + shlex.quote(str(source / (command + ".txt")))
+        executable.write_text("#!/bin/sh\n" + body + "\n")
+        executable.chmod(0o755)
+    config = tmp_path / "details.yaml"
+    config.write_text((ROOT / "qtopconf.yaml").read_text().replace("    # scontrol_file:", "    scontrol_file:"))
+    output = tmp_path / "results"
+    result = run_cli(
+        tmp_path,
+        "qtop_py.cli",
+        "-b",
+        "slurm",
+        "-f",
+        str(config),
+        "-E",
+        "-O",
+        "-c",
+        "OFF",
+        "-o",
+        "savepath=" + str(output),
+        extra_env={"PATH": str(commands) + os.pathsep + os.environ.get("PATH", "")},
+    )
+    assert result.returncode == 0, result.stderr
+    state = json.loads(next(output.glob("qtop_json_*.json")).read_text())
+    assert len(state["jobs"]) == 3
+    assert state["nodes"][0]["cpu_allocation_source"] == ("slurm" if available else "estimated")

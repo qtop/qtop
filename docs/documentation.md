@@ -450,8 +450,8 @@ schedulers:
     sge_file: %(savepath)s/qstat%(pid)s.F.xml.stdout, qstat -F -xml -u '*'
   slurm:
     ## Copy the command after ', ' directly into a shell for debugging.
-    squeue_file: %(savepath)s/squeue%(pid)s.txt, squeue -h -o '%i|%u|%t|%P|%C|%N'
-    sinfo_file: %(savepath)s/sinfo%(pid)s.txt, sinfo -N -h -o '%N|%P|%t|%c'
+    squeue_file: %(savepath)s/squeue%(pid)s.txt, squeue -h -O 'JobID:0|,UserName:0|,StateCompact:0|,Partition:0|,NumCPUs:0|,NodeList:0|,tres-alloc:0|,tres-per-node:0|,tres-per-task:0'
+    sinfo_file: %(savepath)s/sinfo%(pid)s.txt, sinfo -N -h -O 'NodeList:0|,Partition:0|,StateCompact:0|,CPUs:0|,Gres:0|,GresUsed:0'
   demo:
     demo_file: %(savepath)s/demo%(pid)s.txt, echo 'Demo here'
 ```
@@ -460,13 +460,42 @@ The Slurm commands after the filename separator can be copied directly into
 a shell:
 
 ```sh
-squeue -h -o '%i|%u|%t|%P|%C|%N'
-sinfo -N -h -o '%N|%P|%t|%c'
+squeue -h -O 'JobID:0|,UserName:0|,StateCompact:0|,Partition:0|,NumCPUs:0|,NodeList:0|,tres-alloc:0|,tres-per-node:0|,tres-per-task:0'
+sinfo -N -h -O 'NodeList:0|,Partition:0|,StateCompact:0|,CPUs:0|,Gres:0|,GresUsed:0'
 ```
 
 Quotes keep the pipe characters inside the format argument. qtop honors
 shell-style argument quoting without invoking a shell. Existing custom
 configurations using doubled ``%%`` format codes remain supported.
+
+Slurm accepts both the legacy six/four-column traces and the expanded
+nine/six-column traces above. The extra job columns preserve TRES allocation
+(or requests for pending jobs), resources per node and resources per task;
+node columns preserve configured GRES and GRES usage. These raw fields are
+available in JSON; GPU occupancy rendering is not implemented yet. Named
+fields use width zero so long resource descriptions are not truncated.
+
+For exact scheduler CPU positions, uncomment `scontrol_file` under
+`schedulers.slurm` in your configuration. Its command is:
+
+```sh
+scontrol --details show jobs
+```
+
+For offline input, save that output as `scontrol.txt` alongside `squeue.txt`
+and `sinfo.txt`; qtop discovers it automatically. The file is optional.
+Missing, failed, malformed or inconsistent details use the existing estimated
+placement. Each node exports `cpu_allocation_source` (`slurm`, `estimated`, or
+`none`); the occupancy legend identifies estimates. Valid detail records use
+Slurm abstract CPU IDs, which are not Linux CPU IDs or task affinity masks.
+Overlapping allocations also use estimates because the current core map can
+represent only one job per CPU. Capture commands close together to limit races.
+Anonymized snapshots retain placement provenance but omit opaque TRES/GRES
+strings; ordinary exports and raw trace archives preserve them.
+
+See [Slurm CPU management](https://slurm.schedmd.com/cpu_management.html),
+[squeue fields](https://slurm.schedmd.com/squeue.html) and
+[sinfo fields](https://slurm.schedmd.com/sinfo.html).
 
 There are two ways to run qtop, data-wise:
 
@@ -543,8 +572,8 @@ For manual Slurm collection on a scheduler host:
 
 ```sh
 qtop_trace_dir=$(mktemp -d)
-squeue -h -o '%i|%u|%t|%P|%C|%N' > "$qtop_trace_dir/squeue.txt"
-sinfo -N -h -o '%N|%P|%t|%c' > "$qtop_trace_dir/sinfo.txt"
+squeue -h -O 'JobID:0|,UserName:0|,StateCompact:0|,Partition:0|,NumCPUs:0|,NodeList:0|,tres-alloc:0|,tres-per-node:0|,tres-per-task:0' > "$qtop_trace_dir/squeue.txt"
+sinfo -N -h -O 'NodeList:0|,Partition:0|,StateCompact:0|,CPUs:0|,Gres:0|,GresUsed:0' > "$qtop_trace_dir/sinfo.txt"
 ./qtop -b slurm -s "$qtop_trace_dir"
 ```
 

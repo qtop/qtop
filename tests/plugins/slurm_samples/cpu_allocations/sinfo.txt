@@ -1,0 +1,3 @@
+node001|compute*|mixed|8|gpu:a100:4(S:0-1)|gpu:a100:1(IDX:1)
+node002|compute*|mixed|8|gpu:a100:4(S:0-1)|gpu:a100:1(IDX:2)
+node003|long|idle|8|(null)|(null)

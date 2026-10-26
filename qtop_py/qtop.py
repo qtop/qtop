@@ -49,7 +49,7 @@ import time
 import traceback
 from ast import literal_eval
 from math import ceil
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 if TYPE_CHECKING:
     from qtop_py.contracts import ClusterState, Config, Scheduler
@@ -565,10 +565,24 @@ def get_input_filenames(INPUT_FNs_commands, config):
 
         if not args.SOURCEDIR:
             _savepath = os.path.realpath(os.path.expandvars(config["savepath"]))
-            filenames[_file] = execute_shell_batch_commands(batch_system_commands, filenames, _file, _savepath)
+            try:
+                filenames[_file] = execute_shell_batch_commands(batch_system_commands, filenames, _file, _savepath)
+            except OperationalError as error:
+                if scheduler != "slurm" or _file != "scontrol_file":
+                    raise
+                logging.warning("%s Using estimated Slurm CPU placement.", error)
+                filenames.pop(_file)
+                continue
 
+        if scheduler == "slurm" and _file == "scontrol_file" and not os.path.isfile(filenames[_file]):
+            filenames.pop(_file)
+            continue
         if not os.path.isfile(filenames[_file]):
             raise OperationalError("Scheduler input file %s was not found. Check -s/--SetSourceDir and the selected scheduler." % filenames[_file])
+    if scheduler == "slurm" and args.SOURCEDIR and "scontrol_file" not in filenames:
+        detail_path = os.path.join(args.SOURCEDIR, "scontrol.txt")
+        if os.path.isfile(detail_path):
+            filenames["scontrol_file"] = detail_path
     return filenames
 
 
@@ -1564,9 +1578,9 @@ class Document(namedtuple("Document", ["worker_nodes", "jobs_dict", "queues_dict
             ],
         }
 
-    def save(self, filename: str) -> None:
+    def save(self, filename: str, cluster_state: "Optional[ClusterState]" = None) -> None:
         with open(filename, "w") as outfile:
-            json.dump(self.to_cluster_state(), outfile)
+            json.dump(self.to_cluster_state() if cluster_state is None else cluster_state, outfile)
 
 
 class TextDisplay(object):
@@ -1690,6 +1704,12 @@ class TextDisplay(object):
         print_char_stop = self.wns_occupancy.print_char_stop
 
         self.display_basic_legend()
+        if scheduler == "slurm":
+            sources = {node.get("cpu_allocation_source") for node in cluster.worker_nodes}
+            if "estimated" in sources:
+                print("Slurm CPU placement: estimated where allocation details are unavailable.")
+            if "slurm" in sources:
+                print("Slurm CPU placement: scheduler CPU IDs; Linux task affinity is not shown.")
         self.display_matrix(wns_occupancy, print_char_start, print_char_stop)
         # the transposed matrix is one continuous block, doesn't make sense to break into more matrices
         if not dynamic_config.get("transpose_wn_matrices", config["transpose_wn_matrices"]):
@@ -2708,7 +2728,7 @@ def main():
                 if args.EXPORT or args.WEB:
                     with tempfile.NamedTemporaryFile(delete=False, prefix="qtop_json_%s_" % timestr, suffix=".json", dir=savepath) as json_file:
                         json_filename = json_file.name
-                    document.save(json_filename)
+                    document.save(json_filename, cluster_state)
                 if args.WEB:
                     web.set_filename(json_filename)
 
