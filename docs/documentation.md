@@ -452,6 +452,7 @@ schedulers:
     ## Copy the command after ', ' directly into a shell for debugging.
     squeue_file: %(savepath)s/squeue%(pid)s.txt, squeue -h -O 'JobID:0|,UserName:0|,StateCompact:0|,Partition:0|,NumCPUs:0|,NodeList:0|,tres-alloc:0|,tres-per-node:0|,tres-per-task:0'
     sinfo_file: %(savepath)s/sinfo%(pid)s.txt, sinfo -N -h -O 'NodeList:0|,Partition:0|,StateCompact:0|,CPUs:0|,Gres:0|,GresUsed:0'
+    scontrol_file: %(savepath)s/scontrol%(pid)s.txt, scontrol --details show jobs
   demo:
     demo_file: %(savepath)s/demo%(pid)s.txt, echo 'Demo here'
 ```
@@ -475,8 +476,15 @@ node columns preserve configured GRES and GRES usage. These raw fields are
 available in JSON; GPU occupancy rendering is not implemented yet. Named
 fields use width zero so long resource descriptions are not truncated.
 
-For exact scheduler CPU positions, uncomment `scontrol_file` under
-`schedulers.slurm` in your configuration. Its command is:
+Slurm also supports compact GPU-related fields: `squeue -o '%b'` reports
+per-node TRES requests and `sinfo -o '%G'` reports configured GRES. They do not
+replace all the allocation, per-task and GRES-usage fields collected above,
+so qtop uses the named formats to retain that information.
+
+The default configuration also collects scheduler CPU positions through
+`scontrol_file`. Existing custom scheduler configurations can add that entry
+from the example above. Comment it out to disable live detail collection.
+Its command is:
 
 ```sh
 scontrol --details show jobs

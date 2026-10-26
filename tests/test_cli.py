@@ -232,6 +232,7 @@ def test_replay_configuration_failure_is_concise(tmp_path):
     (
         ("squeue_file", ["-h", "-O", "JobID:0|,UserName:0|,StateCompact:0|,Partition:0|,NumCPUs:0|,NodeList:0|,tres-alloc:0|,tres-per-node:0|,tres-per-task:0"]),
         ("sinfo_file", ["-N", "-h", "-O", "NodeList:0|,Partition:0|,StateCompact:0|,CPUs:0|,Gres:0|,GresUsed:0"]),
+        ("scontrol_file", ["--details", "show", "jobs"]),
     ),
 )
 def test_slurm_config_command_matches_shell_execution(tmp_path, monkeypatch, scheduler_file, expected):
@@ -452,7 +453,7 @@ def test_slurm_cpu_placement_legend_and_resource_export(tmp_path, details):
 
 
 @pytest.mark.parametrize("available", [False, True])
-def test_optional_live_slurm_details_command_failure_keeps_monitoring(tmp_path, available):
+def test_default_live_slurm_details_command_failure_keeps_monitoring(tmp_path, available):
     import json
     import shlex
 
@@ -464,16 +465,12 @@ def test_optional_live_slurm_details_command_failure_keeps_monitoring(tmp_path, 
         body = "exit 1" if command == "scontrol" and not available else "cat " + shlex.quote(str(source / (command + ".txt")))
         executable.write_text("#!/bin/sh\n" + body + "\n")
         executable.chmod(0o755)
-    config = tmp_path / "details.yaml"
-    config.write_text((ROOT / "qtopconf.yaml").read_text().replace("    # scontrol_file:", "    scontrol_file:"))
     output = tmp_path / "results"
     result = run_cli(
         tmp_path,
         "qtop_py.cli",
         "-b",
         "slurm",
-        "-f",
-        str(config),
         "-E",
         "-O",
         "-c",
