@@ -247,9 +247,16 @@ class SGEBatchSystem(GenericBatchSystem):
             job_num = _job_id(subelem, self.anonymize)
             _anonymize_field(subelem, "./JB_name", self.anonymize, "jobnames")
             _anonymize_field(subelem, "./JAT_start_time", self.anonymize, "jobtimes")
-            job_ids.append(job_num)
-            usernames.append(owner)
-            job_states.append(_required_text_element(subelem, "./state").text)
+            slots_text = (subelem.findtext("./slots") or "").strip() or "1"
+            try:
+                slots = int(slots_text)
+            except ValueError as error:
+                raise etree.ParseError("SGE XML requires positive integer slots, got %r" % slots_text) from error
+            if slots < 1:
+                raise etree.ParseError("SGE XML requires positive integer slots, got %r" % slots_text)
+            job_ids.extend([job_num] * slots)
+            usernames.extend([owner] * slots)
+            job_states.extend([_required_text_element(subelem, "./state").text] * slots)
         return job_ids, usernames, job_states
 
     def _get_host_qname_np(self, queue_elem):

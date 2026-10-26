@@ -339,19 +339,20 @@ def test_optional_user_details_failures_do_not_stop_rendering(tmp_path, realtime
     assert "User accounts and pool mappings" in frame
 
 
+@pytest.mark.parametrize("slots", [1, 16])
 @pytest.mark.parametrize("array_tasks", [False, True])
-def test_sge_repeated_job_numbers_preserve_core_ownership(tmp_path, array_tasks):
+def test_sge_repeated_job_numbers_preserve_core_ownership(tmp_path, array_tasks, slots):
     job = (
         '<job_list state="running"><JB_job_number>{number}</JB_job_number><JB_name>job</JB_name>'
-        "<JB_owner>{user}</JB_owner><state>r</state><JAT_start_time>now</JAT_start_time><slots>1</slots>{task}</job_list>"
+        "<JB_owner>{user}</JB_owner><state>r</state><JAT_start_time>now</JAT_start_time><slots>{slots}</slots>{task}</job_list>"
     )
     jobs = "".join(
-        job.format(number=number, user=user, task="<tasks>%s</tasks>" % task if array_tasks else "")
+        job.format(number=number, user=user, slots=slots, task="<tasks>%s</tasks>" % task if array_tasks else "")
         for number, user, task in [(100, "alice", 1), (100, "alice", 2), (200, "bob", 1)]
     )
     trace = (
-        "<job_info><queue_info><Queue-List><name>batch@node01</name><slots_used>3</slots_used><slots_total>3</slots_total>"
-        '<resource name="qname">batch</resource><resource name="hostname">node01</resource><resource name="num_proc">3</resource>'
+        f"<job_info><queue_info><Queue-List><name>batch@node01</name><slots_used>{3 * slots}</slots_used><slots_total>{3 * slots}</slots_total>"
+        f'<resource name="qname">batch</resource><resource name="hostname">node01</resource><resource name="num_proc">{3 * slots}</resource>'
         + jobs
         + "</Queue-List></queue_info><job_info/></job_info>"
     )
@@ -362,3 +363,5 @@ def test_sge_repeated_job_numbers_preserve_core_ownership(tmp_path, array_tasks)
     frame = next(output.glob("qtop_fullview_*.out")).read_text()
     rows = dict(re.findall(r"\[\s*\d+\]\s+(\w+)\s*\|[^|]*\|\s*(\d+)\s*\|", frame))
     assert rows == {"alice": "1", "bob": "1"}
+    assert "%s/%s cores" % (3 * slots, 3 * slots) in frame
+    assert "3+0 jobs (R + Q)" in frame
