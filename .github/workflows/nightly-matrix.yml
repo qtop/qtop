@@ -89,7 +89,7 @@ jobs:
           # -- experimental lanes: EOL-archived / newly published / rolling -
           - { image: 'python:3.6-buster', family: pythonimg, pybin: python, target: compat-py36, experimental: true }
           # Keep non-blocking until the stable Docker tag is published and green.
-          - { image: 'python:3.15-bookworm', family: pythonimg, pybin: python, experimental: true }
+          - { image: 'python:3.15.1-bookworm', family: pythonimg, pybin: python, experimental: true }
           - { image: 'pypy:3.12', family: pypyimg, pybin: pypy3, experimental: true }
           - { image: 'pypy:3.11', family: pypyimg, pybin: pypy3, experimental: true }
           - { image: 'pypy:3.11-8.0.0', family: pypyimg, pybin: pypy3, experimental: true }

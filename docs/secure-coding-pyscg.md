@@ -106,7 +106,7 @@ keeping the CLI flag override; CI-side only, low risk.
 ### 6. Dependency currency (pinned CI set)
 
 On Python 3.12 and newer, `requirements-ci.txt` selects the refreshed
-build and analysis toolchain, including `pip 26.2.1`, `setuptools 84.2.0`
+build and analysis toolchain, including `pip 26.2.2`, `setuptools 84.2.0`
 and `pytest 9.1.1`. Python 3.9 retains compatible pins for tools whose newer
 releases require Python 3.10 or later. Pygments is pinned in both sets.
 
