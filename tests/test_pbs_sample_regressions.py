@@ -1,6 +1,8 @@
 from collections import OrderedDict
 from types import SimpleNamespace
 
+import pytest
+
 from qtop_py import qtop
 from qtop_py.plugins.pbs import PBSStatExtractor
 
@@ -44,17 +46,19 @@ def test_general_attribute_lines_preserve_colored_sequence_items():
     assert str(lines["attr1line"][1]) == " "
 
 
-def test_pbs_qstat_regex_skips_unmatched_lines(tmp_path):
+@pytest.mark.parametrize("job_name", ["myjob", "Lambda&S10", "Aug_#_100", "cost$1", "compile_sim_${h", "_${&#", "name@host:1"])
+@pytest.mark.parametrize("user", ["alice", "a.smith-brown"])
+def test_pbs_qstat_regex_skips_unmatched_lines(tmp_path, job_name, user):
     qstat_file = tmp_path / "qstat.txt"
     qstat_file.write_text(
         "Job id           Name             User             Time Use S Queue\n"
         "---------------- ---------------- ---------------- -------- - -----\n"
         "this line does not match either supported qstat format\n"
-        "1234.server      myjob            alice            00:01:00 R workq\n"
+        f"1234.server      {job_name:16} {user:16} 00:01:00 R workq\n"
     )
     extractor = PBSStatExtractor({}, SimpleNamespace(ANONYMIZE=False))
 
-    assert extractor._extract_qstat_regex(str(qstat_file)) == [{"JobId": "1234", "UnixAccount": "alice", "S": "R", "Queue": "workq"}]
+    assert extractor._extract_qstat_regex(str(qstat_file)) == [{"JobId": "1234", "UnixAccount": user, "S": "R", "Queue": "workq"}]
 
 
 def test_pbs_json_queue_limit_and_boolean_enabled_state(tmp_path):
@@ -71,14 +75,15 @@ def test_pbs_json_queue_limit_and_boolean_enabled_state(tmp_path):
     assert queues[-1] == {"Total_running": 3, "Total_queued": 2}
 
 
-def test_decide_remapping_handles_mixed_numeric_and_named_nodes():
+def test_decide_remapping_handles_mixed_numeric_and_named_nodes(monkeypatch):
+    monkeypatch.setattr(qtop, "dynamic_config", {}, raising=False)
     cluster = qtop.Cluster.__new__(qtop.Cluster)
     cluster.total_wn = 2
     cluster.args = SimpleNamespace(BLINDREMAP=False)
     cluster.node_subclusters = {"wn"}
     cluster.workernode_list = [1, "trueno_ita"]
     cluster.offdown_nodes = 0
-    cluster.config = {"exotic_starting_wn_nr": 100, "percentage": 0.5}
+    cluster.config = {"exotic_starting_wn_nr": 100, "percentage": 0.5, "filtering": []}
 
     assert cluster.decide_remapping(["1", ""]) is True
 

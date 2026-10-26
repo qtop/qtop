@@ -10,6 +10,7 @@
 ##
 
 import datetime
+import logging
 import re
 import sys
 from pathlib import Path
@@ -61,6 +62,13 @@ def user_symbol_config(fill_with_user_firstletter=None, possible_ids=None):
 @pytest.fixture
 def config():
     return {}
+
+
+@pytest.mark.parametrize("config,base", [({}, 0), ({"rem_empty_corelines": 0}, 0), ({"rem_empty_corelines": 2}, 2), ({"rem_empty_corelines": "1"}, 1)])
+@pytest.mark.parametrize("remove", [0, 1, 2])
+def test_update_config_defaults_missing_coreline_setting(config, base, remove):
+    args = SimpleNamespace(OPTION=[], TRANSPOSE=False, REM_EMPTY_CORELINES=remove)
+    assert qtop_module.update_config_with_cmdline_vars(args, dict(config))["rem_empty_corelines"] == base + remove
 
 
 def test_sort_worker_nodes_uses_named_sort_keys(monkeypatch):
@@ -240,11 +248,13 @@ def test_color_str_iteration_matches_string_and_is_repeatable():
     assert list(colored) == ["a", "b", "c"]
 
 
-def test_get_output_size_ignores_ansi_sequences(tmp_path):
+@pytest.mark.parametrize("max_height", [0, 9])
+@pytest.mark.parametrize("max_line_len", [0, 7])
+def test_get_output_size_ignores_ansi_sequences(tmp_path, max_height, max_line_len):
     output_file = tmp_path / "qtop.out"
     output_file.write_text("\x1b[1;31mred\x1b[0;m\nplain\n", encoding="utf-8")
 
-    assert get_output_size(0, str(output_file)) == (2, 5)
+    assert get_output_size(max_line_len, str(output_file), max_height) == (max_height or 2, max_line_len or 5)
 
 
 @pytest.mark.parametrize(
@@ -390,6 +400,49 @@ def test_display_user_accounts_pool_mappings_adds_totals(monkeypatch, capsys):
     assert "|     3 |" in output
 
 
+@pytest.mark.parametrize("realtime", [False, True])
+@pytest.mark.parametrize("value", [None, "", " \t", False, 0])
+def test_missing_user_details_command_is_optional(monkeypatch, caplog, realtime, value):
+    key = "user_details_realtime" if realtime else "user_details_cache"
+    info = {"field_to_use": 5}
+    if value is not None:
+        info[key] = value
+    monkeypatch.setattr(qtop_module, "args", SimpleNamespace(GET_GECOS=realtime), raising=False)
+    monkeypatch.setattr(qtop_module, "config", {"extract_info": info}, raising=False)
+    monkeypatch.setattr(qtop_module.subprocess, "Popen", lambda *args, **kwargs: pytest.fail("No command should run"))
+    assert qtop_module.get_detail_of_name([]) == {}
+    assert key in caplog.text
+
+
+@pytest.mark.parametrize("realtime", [False, True])
+def test_configured_user_details_command_still_returns_details(monkeypatch, realtime):
+    key = "user_details_realtime" if realtime else "user_details_cache"
+    command = "getent passwd %s" if realtime else "cat $HOME/passwd"
+    calls = []
+    process = SimpleNamespace(communicate=lambda *args: ("alice:x:1000:1000:Alice Example:/home/alice:/bin/sh\n", ""))
+    monkeypatch.setenv("HOME", "/tmp/qtop-user-details")
+    monkeypatch.setattr(qtop_module, "args", SimpleNamespace(GET_GECOS=realtime), raising=False)
+    monkeypatch.setattr(qtop_module, "config", {"extract_info": {key: command}}, raising=False)
+    monkeypatch.setattr(qtop_module.subprocess, "Popen", lambda command, **kwargs: calls.append(command) or process)
+    assert qtop_module.get_detail_of_name([["0", 1, 0, 1, "alice", 1]]) == {"alice": "Alice Example"}
+    assert calls == [["getent", "passwd", "alice"] if realtime else ["cat", "/tmp/qtop-user-details/passwd"]]
+
+
+@pytest.mark.parametrize("realtime", [False, True])
+def test_unavailable_user_details_command_is_optional(monkeypatch, caplog, realtime):
+    key = "user_details_realtime" if realtime else "user_details_cache"
+    monkeypatch.setattr(qtop_module, "args", SimpleNamespace(GET_GECOS=realtime), raising=False)
+    monkeypatch.setattr(qtop_module, "config", {"extract_info": {key: "missing-command %s" if realtime else "missing-command"}}, raising=False)
+
+    def unavailable(*args, **kwargs):
+        raise FileNotFoundError("executable not found")
+
+    monkeypatch.setattr(qtop_module.subprocess, "Popen", unavailable)
+    assert qtop_module.get_detail_of_name([]) == {}
+    assert key in caplog.text
+    assert "missing-command" in caplog.text
+
+
 def test_display_user_accounts_pool_mappings_hides_totals_by_default(monkeypatch, capsys):
     class Args(object):
         COLOR = "OFF"
@@ -437,6 +490,25 @@ def test_display_user_accounts_can_show_primary_groups(monkeypatch, capsys):
     output = capsys.readouterr().out
     assert "primary group" in output
     assert "research" in output
+
+
+@pytest.mark.parametrize("color", ["White", "Gray2BG", "Red_LOnGrayBG", "reset", "unknown"])
+@pytest.mark.parametrize("mode", ["ON", "OFF"])
+@pytest.mark.parametrize("groups", [None, {"alice": "research"}])
+def test_account_row_colors_preserve_visible_alignment(monkeypatch, capsys, color, mode, groups):
+    args = SimpleNamespace(COLOR=mode)
+    monkeypatch.setattr(qtop_module, "args", args, raising=False)
+    monkeypatch.setattr(qtop_module, "config", {"SEPARATOR": "|"}, raising=False)
+    monkeypatch.setattr(qtop_module, "user_to_color", {"user": color}, raising=False)
+    monkeypatch.setitem(qtop_module.color_to_code, "Gray2BG", ";47")
+    display = TextDisplay(None, qtop_module.config, None, None, None, args)
+    line = ["0", 2, 3, 5, "alice", 1]
+    display.display_account_jobs_line(line, "user", {"alice": "Alice"}, groups)
+    rendered = capsys.readouterr().out
+    args.COLOR = "OFF"
+    display.display_account_jobs_line(line, "user", {"alice": "Alice"}, groups)
+    plain = capsys.readouterr().out
+    assert re.sub(r"\x1b\[[0-9;]*m", "", rendered) == plain
 
 
 def test_queueing_summary_preserves_order_and_expands(monkeypatch, capsys):
@@ -537,9 +609,10 @@ def test_normalize_config_returns_a_runtime_copy():
     assert normalized["USER_CUT_MATRIX_WIDTH"] == 12
 
 
+@pytest.mark.parametrize("scheduler_name", [None, "pbs", "slurm", "oar"])
 @pytest.mark.parametrize(("state", "blocked"), (("D", True), ("DS", True), ("E", False), ("Q", False)))
-def test_queue_is_blocked(state, blocked):
-    assert qtop_module.queue_is_blocked(state) is blocked
+def test_queue_is_blocked(state, blocked, scheduler_name):
+    assert qtop_module.queue_is_blocked(state, scheduler_name) is blocked
 
 
 def test_load_yaml_config_keeps_user_symbol_pool_bounded(monkeypatch, tmp_path):
@@ -794,3 +867,97 @@ def test_shared_firstletter_id_keeps_legacy_color_mapping(totals, expected_patte
     patterns = occupancy.make_pattern_out_of_mapping({"alice": "Green", "adam": "Blue"})
     assert patterns["a"] == expected_pattern
     assert all(str(symbol) == "a" for symbol in symbols.values())
+
+
+@pytest.mark.parametrize("state", ["a", "A", "c", "C", "d", "D", "E", "o", "s", "S", "u", "Sdu"])
+def test_sge_blocking_flags_are_detected_anywhere(state):
+    assert qtop_module.queue_is_blocked(state, "sge")
+
+
+@pytest.mark.parametrize("state", ["", "-", "?", "r"])
+def test_sge_neutral_states_are_not_marked_blocked(state):
+    assert not qtop_module.queue_is_blocked(state, "sge")
+
+
+@pytest.mark.parametrize("dynamic", [False, True])
+@pytest.mark.parametrize(
+    "rule, expected",
+    [
+        ({"include_name_patterns": ["^node03$"]}, ["node03"]),
+        ({"exclude_name_patterns": ["^N/A$"]}, ["node01", "node03"]),
+    ],
+)
+def test_node_filters_enable_compact_mapping(monkeypatch, dynamic, rule, expected):
+    monkeypatch.setattr(qtop_module, "dynamic_config", {"filtering": [rule]} if dynamic else {}, raising=False)
+    monkeypatch.setattr(qtop_module, "user_to_color", {}, raising=False)
+    monkeypatch.setattr(qtop_module, "args", SimpleNamespace(COLOR="OFF"), raising=False)
+    nodes = [{"domainname": name, "state": [qtop_utils.ColorStr("-")], "np": 2, "core_job_map": {0: job}} for name, job in [("node01", "100"), ("node03", "200")]]
+    config = {
+        "filtering": [] if dynamic else [rule],
+        "sorting": {},
+        "remapping": [],
+        "percentage": 0.8,
+        "exotic_starting_wn_nr": 9000,
+        "workernodes_matrix": [{"wn id lines": {"max_len": 0}}],
+    }
+    document = SimpleNamespace(jobs_dict={}, queues_dict={}, total_running_jobs=2, total_queued_jobs=0)
+    args = SimpleNamespace(ANONYMIZE=False, BLINDREMAP=False)
+
+    cluster = qtop_module.Cluster(document, nodes, qtop_module.WNFilter, config, args)
+
+    assert args.REMAP is True
+    assert [node["domainname"] for node in cluster.workernode_dict.values()] == expected
+    assert cluster.total_wn == cluster.available_wn == len(expected)
+    assert cluster.working_cores == len(expected)
+    assert cluster.total_cores == 2 * len(expected)
+
+
+@pytest.mark.parametrize("filters", [None, [], [{}]])
+def test_empty_dynamic_filters_do_not_force_remapping(monkeypatch, filters):
+    monkeypatch.setattr(qtop_module, "dynamic_config", {"filtering": filters}, raising=False)
+    cluster = qtop_module.Cluster.__new__(qtop_module.Cluster)
+    cluster.config = {"filtering": [{"include_name_patterns": ["node"]}], "percentage": 0.8, "exotic_starting_wn_nr": 9000}
+    cluster.args = SimpleNamespace(BLINDREMAP=False)
+    cluster.total_wn = 2
+    cluster.workernode_list = [1, 3]
+    cluster.node_subclusters = {"node"}
+    cluster.offdown_nodes = 0
+
+    assert cluster.decide_remapping(["01", "03"]) is False
+
+
+@pytest.mark.parametrize("value", ["", "abc", "12345", "20260101T1200"])
+def test_unsupported_date_formats_raise_value_error(value):
+    with pytest.raises(ValueError, match="datetime format provided is incorrect"):
+        get_date_obj_from_str(value, datetime.datetime(2026, 10, 25, 12))
+
+
+def test_output_size_with_known_dimensions_does_not_read_file(tmp_path):
+    assert get_output_size(7, str(tmp_path / "missing.out"), 9) == (9, 7)
+
+
+@pytest.mark.parametrize("width, height", [(0, 0), (8, 0), (0, 8)])
+def test_output_size_rejects_empty_file_when_dimensions_are_missing(tmp_path, width, height):
+    output = tmp_path / "empty.out"
+    output.write_text("")
+    with pytest.raises(ValueError, match="no output"):
+        get_output_size(width, str(output), height)
+
+
+@pytest.mark.parametrize("verbose, expected", [(None, logging.WARN), (0, logging.WARN), (-1, logging.WARN), (1, logging.INFO), (2, logging.DEBUG), (3, logging.DEBUG)])
+def test_init_logging_sets_file_level(tmp_path, monkeypatch, verbose, expected):
+    monkeypatch.setattr(qtop_utils, "QTOP_LOGFILE", str(tmp_path / "qtop.log"))
+    logger = logging.getLogger()
+    old_handlers = list(logger.handlers)
+    old_level, old_disabled = logger.level, logger.disabled
+    try:
+        qtop_utils.init_logging(SimpleNamespace(verbose=verbose, DEBUG=False))
+        added = [handler for handler in logger.handlers if handler not in old_handlers]
+        assert next(handler for handler in added if isinstance(handler, logging.FileHandler)).level == expected
+    finally:
+        for handler in list(logger.handlers):
+            if handler not in old_handlers:
+                logger.removeHandler(handler)
+                handler.close()
+        logger.setLevel(old_level)
+        logger.disabled = old_disabled

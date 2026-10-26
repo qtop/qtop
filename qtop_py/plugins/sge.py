@@ -32,6 +32,12 @@ def _anonymize_field(parent, path, anonymize, category):
     return element.text
 
 
+def _job_id(parent, anonymize):
+    job_id = _anonymize_field(parent, "./JB_job_number", anonymize, "jobnums")
+    tasks = (parent.findtext("./tasks") or "").strip()
+    return "%s.%s" % (job_id, tasks) if tasks else job_id
+
+
 class NoDTDTreeBuilder(etree.TreeBuilder):
     """Reject DTDs before scheduler XML can expand declared entities."""
 
@@ -111,7 +117,7 @@ class SGEStatExtractor(StatExtractor):
         """
         for subelem in elem.findall(elem_text):
             owner = _anonymize_field(subelem, "./JB_owner", self.anonymize, "users")
-            job_num = _anonymize_field(subelem, "./JB_job_number", self.anonymize, "jobnums")
+            job_num = _job_id(subelem, self.anonymize)
             _anonymize_field(subelem, "./JB_name", self.anonymize, "jobnames")
             subm_time = subelem.find("./JB_submission_time")
             if subm_time is not None and subm_time.text:
@@ -161,7 +167,7 @@ class SGEBatchSystem(GenericBatchSystem):
 
         total_queued_jobs = self._get_total_queued_jobs("job_info/job_list", root)
 
-        qstatq_list.append({"run": "0", "queued": total_queued_jobs, "queue_name": "Pending", "state": "E", "lm": "0"})
+        qstatq_list.append({"run": "0", "queued": total_queued_jobs, "queue_name": "Pending", "state": "-", "lm": "0"})
         logging.debug("qstatq_list contains %s elements" % len(qstatq_list))
         logging.debug("Closing %s" % self.sge_file)
 
@@ -238,18 +244,24 @@ class SGEBatchSystem(GenericBatchSystem):
                 continue
 
             owner = _anonymize_field(subelem, "./JB_owner", self.anonymize, "users")
-            job_num = _anonymize_field(subelem, "./JB_job_number", self.anonymize, "jobnums")
+            job_num = _job_id(subelem, self.anonymize)
             _anonymize_field(subelem, "./JB_name", self.anonymize, "jobnames")
             _anonymize_field(subelem, "./JAT_start_time", self.anonymize, "jobtimes")
-            job_ids.append(job_num)
-            usernames.append(owner)
-            job_states.append(_required_text_element(subelem, "./state").text)
+            slots_text = (subelem.findtext("./slots") or "").strip() or "1"
+            try:
+                slots = int(slots_text)
+            except ValueError as error:
+                raise etree.ParseError("SGE XML requires positive integer slots, got %r" % slots_text) from error
+            if slots < 1:
+                raise etree.ParseError("SGE XML requires positive integer slots, got %r" % slots_text)
+            job_ids.extend([job_num] * slots)
+            usernames.extend([owner] * slots)
+            job_states.extend([_required_text_element(subelem, "./state").text] * slots)
         return job_ids, usernames, job_states
 
     def _get_host_qname_np(self, queue_elem):
         worker_node = dict()
         count = 0
-        slots_used = int(queue_elem.findtext("./slots_used", default="0") or "0")
 
         resources = queue_elem.findall("resource")
         for resource in resources:
@@ -258,11 +270,7 @@ class SGEBatchSystem(GenericBatchSystem):
                 count += 1
             elif resource.attrib.get("name") == "qname":
                 qname = resource.text
-                if not slots_used:
-                    worker_node["qname"] = set()
-                else:
-                    # if slots are reportedly used, the queue will be displayed even if no actual running jobs exist
-                    worker_node["qname"] = set([self.anonymize(qname, "qs")])
+                worker_node["qname"] = set([self.anonymize(qname, "qs")])
                 count += 1
             elif resource.attrib.get("name") == "num_proc":
                 worker_node["np"] = resource.text
@@ -297,6 +305,8 @@ class SGEBatchSystem(GenericBatchSystem):
                         if _run.attrib.get("state") == "running":
                             run_count += 1
                     exist_d["run"] = int(exist_d["run"]) + run_count
+                    state = queue_elem.findtext("./state", default="?") or "?"
+                    exist_d["state"] = "".join(sorted(set(str(exist_d["state"]) + state)))
                     break
             else:  # first instance of queue in the xml
                 d = dict()

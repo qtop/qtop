@@ -45,6 +45,19 @@ When the coverage gate passes, it produces a Cobertura report. GitHub stores it 
 a workflow artifact, while GitLab reads the percentage and report natively.
 Neither path requires an external coverage service.
 
+## Nightly compatibility lanes
+
+Both nightly matrices use `ci/scripts/matrix_lane.sh` and the shared CI pins.
+Python 3.9-3.11 installs setuptools 82.0.1 and wheel 0.45.1 so the installation
+check uses a backend that supports the project's PEP 639 license metadata,
+instead of inheriting an older distro backend.
+
+Three PyPy lanes are commented out with FIXMEs following
+[run 39755187632](https://github.com/qtop/qtop/actions/runs/39755187632):
+PyPy 3.11 does not pass SGE XML DTD-rejection tests, and PyPy 3.12 also fails
+to build the pinned `librt` dependency. Restore those lanes after these checks
+pass; the XML security tests remain enabled.
+
 ## Adding a new concern
 
 1. Create `ci/<concern>.gitlab-ci.yml` with a header comment explaining what

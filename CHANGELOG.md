@@ -3,6 +3,24 @@
 Notable changes by version, newest first.
 See the [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 
+## 0.9.20261017
+
+- Cleanup: clarify typing placeholders and expected directory exceptions for CodeQL.
+- CI: fix older nightly build backends; suspend failing PyPy lanes with FIXMEs.
+- CI: bump Python to 3.15.1 and modern pip to 26.2.2.
+- CI: Make Makefile Great Again (MMGA)
+- Bugfix: reject invalid date formats; make logging and output-size guards explicit.
+- Bugfix: apply node filters without requiring blind remapping (#287).
+- Bugfix: retain SGE queue membership for idle nodes.
+- Bugfix: address CodeQL false positive feedback
+- Bugfix: retain SGE queue-instance states and show blocking flags.
+- Bugfix: account for allocated SGE slots in core occupancy (#289).
+- Bugfix: preserve SGE task IDs and map job ownership by ID.
+- Bugfix: skip missing or unavailable optional user-details commands (#98).
+- Bugfix: align account columns with background and custom colors (#304).
+- Bugfix: default missing coreline settings instead of raising KeyError (#290).
+- Bugfix: accept PBS job-name punctuation and hyphenated usernames (#303).
+
 ## 0.9.20261016
 
 - Bugfix: allow site-owned save-path ancestors; report unsafe parent paths, f.i. /tmp

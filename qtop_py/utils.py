@@ -17,15 +17,11 @@ from qtop_py.constants import QTOP_LOGFILE
 
 
 def init_logging(options):
-    if not options.verbose:
-        log_level = logging.WARN
-    elif options.verbose == 1:
+    log_level = logging.WARN
+    if options.verbose == 1:
         log_level = logging.INFO
-    elif options.verbose == 2:
+    elif options.verbose and options.verbose >= 2:
         log_level = logging.DEBUG
-    elif options.verbose >= 3:
-        log_level = logging.DEBUG
-        # this prepends date/time
 
     formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s", "%Y-%m-%d %H:%M:%S")
 

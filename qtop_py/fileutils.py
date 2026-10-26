@@ -36,10 +36,8 @@ def private_save_directory(path):
     fd = os.open(os.sep, flags | parent_access)
     try:
         for index, part in enumerate(parts):
-            try:
+            with contextlib.suppress(FileExistsError):
                 os.mkdir(part, mode=0o700, dir_fd=fd)
-            except FileExistsError:
-                pass
             access = os.O_RDONLY if index == len(parts) - 1 else parent_access
             child_fd = os.open(part, flags | access, dir_fd=fd)
             os.close(fd)

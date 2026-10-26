@@ -1,7 +1,9 @@
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
+from xml.etree import ElementTree as etree
 
 import pytest
 
@@ -320,3 +322,109 @@ def test_cli_rejects_unsafe_savepath_before_writing(tmp_path, override):
     assert "writable by others" in result.stderr
     assert "Traceback" not in result.stderr
     assert list(shared.iterdir()) == []
+
+
+@pytest.mark.parametrize("realtime", [False, True])
+@pytest.mark.parametrize("command", [None, "", "/qtop-nonexistent-user-details-%s"])
+def test_optional_user_details_failures_do_not_stop_rendering(tmp_path, realtime, command):
+    key = "user_details_realtime" if realtime else "user_details_cache"
+    fixture = ROOT / "tests/plugins/slurm_samples/basic"
+    output = tmp_path / "results"
+    flags = ["-G"] if realtime else []
+    result = run_cli(
+        tmp_path, "qtop_py.cli", "-b", "slurm", "-s", str(fixture), "-O", "-c", "OFF", "-o", "savepath=" + str(output), "-o", "extract_info=" + repr({key: command}), *flags
+    )
+    assert result.returncode == 0, result.stderr
+    assert "Traceback" not in result.stdout + result.stderr
+    frame = next(output.glob("qtop_fullview_*.out")).read_text()
+    assert "User accounts and pool mappings" in frame
+
+
+@pytest.mark.parametrize("slots", [1, 16])
+@pytest.mark.parametrize("array_tasks", [False, True])
+def test_sge_repeated_job_numbers_preserve_core_ownership(tmp_path, array_tasks, slots):
+    job = (
+        '<job_list state="running"><JB_job_number>{number}</JB_job_number><JB_name>job</JB_name>'
+        "<JB_owner>{user}</JB_owner><state>r</state><JAT_start_time>now</JAT_start_time><slots>{slots}</slots>{task}</job_list>"
+    )
+    jobs = "".join(
+        job.format(number=number, user=user, slots=slots, task="<tasks>%s</tasks>" % task if array_tasks else "")
+        for number, user, task in [(100, "alice", 1), (100, "alice", 2), (200, "bob", 1)]
+    )
+    trace = (
+        f"<job_info><queue_info><Queue-List><name>batch@node01</name><slots_used>{3 * slots}</slots_used><slots_total>{3 * slots}</slots_total>"
+        f'<resource name="qname">batch</resource><resource name="hostname">node01</resource><resource name="num_proc">{3 * slots}</resource>'
+        + jobs
+        + "</Queue-List></queue_info><job_info/></job_info>"
+    )
+    (tmp_path / "qstat.F.xml.stdout").write_text(trace)
+    output = tmp_path / "results"
+    result = run_cli(tmp_path, "qtop_py.cli", "-b", "sge", "-s", str(tmp_path), "-O", "-c", "OFF", "-o", "savepath=" + str(output))
+    assert result.returncode == 0, result.stderr
+    frame = next(output.glob("qtop_fullview_*.out")).read_text()
+    rows = dict(re.findall(r"\[\s*\d+\]\s+(\w+)\s*\|[^|]*\|\s*(\d+)\s*\|", frame))
+    assert rows == {"alice": "1", "bob": "1"}
+    assert "%s/%s cores" % (3 * slots, 3 * slots) in frame
+    assert "3+0 jobs (R + Q)" in frame
+
+
+def test_sge_summary_marks_errors_from_later_queue_instances(tmp_path):
+    tree = etree.parse(str(ROOT / "qtop_py/contrib/qstat.F.xml.stdout"))
+    queues = tree.getroot().findall("queue_info/Queue-List")
+    name = queues[0].find("resource[@name='qname']").text
+    for queue in queues:
+        state = queue.find("state")
+        if state is not None:
+            queue.remove(state)
+    instances = [queue for queue in queues if queue.find("resource[@name='qname']").text == name]
+    assert len(instances) > 1
+    etree.SubElement(instances[-1], "state").text = "E"
+    tree.write(str(tmp_path / "qstat.F.xml.stdout"))
+    output = tmp_path / "results"
+    result = run_cli(tmp_path, "qtop_py.cli", "-b", "sge", "-s", str(tmp_path), "-O", "-c", "OFF", "-o", "savepath=" + str(output))
+    assert result.returncode == 0, result.stderr
+    frame = next(output.glob("qtop_fullview_*.out")).read_text()
+    assert name + "*: " in frame
+    assert "Pending*: " not in frame
+    assert "* implies blocked (at least one queue instance)" in frame
+
+
+@pytest.mark.parametrize(
+    "rule, cores",
+    [
+        ({"include_name_patterns": ["^node03$"]}, 1),
+        ({"exclude_name_patterns": ["^N/A$"]}, 2),
+    ],
+)
+def test_sge_filters_work_without_blind_remapping(tmp_path, rule, cores):
+    template = (
+        "<Queue-List><name>batch@node0{number}</name><slots_used>1</slots_used>"
+        '<resource name="qname">batch</resource><resource name="hostname">node0{number}</resource>'
+        '<resource name="num_proc">1</resource><job_list state="running"><JB_job_number>{number}</JB_job_number>'
+        "<JB_name>job</JB_name><JB_owner>alice</JB_owner><state>r</state><JAT_start_time>now</JAT_start_time>"
+        "<slots>1</slots></job_list></Queue-List>"
+    )
+    trace = "<job_info><queue_info>" + "".join(template.format(number=n) for n in [1, 3]) + "</queue_info><job_info/></job_info>"
+    (tmp_path / "qstat.F.xml.stdout").write_text(trace)
+    output = tmp_path / "results"
+    result = run_cli(
+        tmp_path,
+        "qtop_py.cli",
+        "-b",
+        "sge",
+        "-s",
+        str(tmp_path),
+        "-O",
+        "-F",
+        "-c",
+        "OFF",
+        "-o",
+        "savepath=" + str(output),
+        "-o",
+        "filtering=" + repr([rule]),
+    )
+    assert result.returncode == 0, result.stderr
+    frame = next(output.glob("qtop_fullview_*.out")).read_text()
+    assert "%s/%s cores" % (cores, cores) in frame
+    assert "N/A" not in frame
+    assert "User accounts and pool mappings" in frame

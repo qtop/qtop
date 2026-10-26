@@ -134,9 +134,11 @@ def _reserved_pattern_mappings(config):
     }
 
 
-def queue_is_blocked(state):
-    """Return whether a normalized scheduler queue state denotes blocking."""
+def queue_is_blocked(state, scheduler_name=None):
+    """Return whether a queue state denotes blocking for the selected scheduler."""
     state = str(state)
+    if scheduler_name == "sge":
+        return any(flag in state for flag in "aAcCdDEosSu")
     return state.startswith("D") or state.endswith("S")
 
 
@@ -223,7 +225,7 @@ def get_date_obj_from_str(s, now):
         _inp_datetime = datetime.datetime.strptime(s, "%m%dT%H%M")
         inp_datetime = _inp_datetime.replace(year=now.year, second=0)
     else:
-        logging.critical("The datetime format provided is incorrect.\nTry one of the formats: yyyymmddTHHMMSS, HHMM, mmddTHHMM.")
+        raise ValueError("The datetime format provided is incorrect.\nTry one of the formats: yyyymmddTHHMMSS, HHMM, mmddTHHMM.")
     return inp_datetime
 
 
@@ -484,27 +486,30 @@ def get_detail_of_name(account_jobs_table):
     field_idx = int(extract_info.get("field_to_use", 5))
     regex = extract_info.get("regex", None)
 
+    command_key = "user_details_realtime" if args.GET_GECOS else "user_details_cache"
+    command = extract_info.get(command_key)
+    if not isinstance(command, str) or not command.strip():
+        logging.warning("No valid %s command in %s; skipping user details.", command_key, QTOPCONF_YAML)
+        return {}
+
     if args.GET_GECOS:
         users = " ".join([line[4] for line in account_jobs_table])
-        passwd_command = extract_info.get("user_details_realtime") % users
-        passwd_command = passwd_command.split()
+        user_details_command = command % users
+        user_details_command = user_details_command.split()
     else:
-        passwd_command = extract_info.get("user_details_cache").split()
-        passwd_command[-1] = os.path.expandvars(passwd_command[-1])
+        user_details_command = command.split()
+        user_details_command[-1] = os.path.expandvars(user_details_command[-1])
 
     try:
-        p = subprocess.Popen(passwd_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding="utf-8")
-    except OSError:
-        logging.critical(
-            '\nCommand "%s" could not be found in your system. \nEither remove -G switch or modify the command in '
-            "qtopconf.yaml (value of key: %s).\nExiting..." % (colorize(passwd_command[0], color_func="Red_L"), "user_details_realtime")
-        )
-        sys.exit(0)
+        p = subprocess.Popen(user_details_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding="utf-8")
+    except OSError as error:
+        logging.warning("Cannot execute %s command %r: %s; skipping user details.", command_key, user_details_command[0], error)
+        return {}
     else:
         output, err = p.communicate("something here")
         if "No such file or directory" in err:
             logging.warning("You have to set a proper command to get the passwd file in your %s file." % QTOPCONF_YAML)
-            logging.warning("Error returned by getent: %s\nCommand issued: %s" % (err, passwd_command))
+            logging.warning("Error returned by getent: %s\nCommand issued: %s" % (err, user_details_command))
 
     detail_of_name = dict()
     for line in output.split("\n"):
@@ -905,11 +910,11 @@ def get_output_size(max_line_len, output_fp, max_height=0):
         if not output_lines:
             raise ValueError("There is no output from qtop *whatsoever*. Weird.")
 
-    if not max_height:
-        max_height = len(output_lines)
+        if not max_height:
+            max_height = len(output_lines)
 
-    if not max_line_len:
-        max_line_len = max(len(ansi_escape.sub("", line.strip())) for line in output_lines)
+        if not max_line_len:
+            max_line_len = max(len(ansi_escape.sub("", line.strip())) for line in output_lines)
 
     logging.debug("Total nr of lines: %s" % max_height)
     logging.debug("Max line length: %s" % max_line_len)
@@ -918,7 +923,7 @@ def get_output_size(max_line_len, output_fp, max_height=0):
 
 
 def update_config_with_cmdline_vars(args, config):
-    config["rem_empty_corelines"] = int(config["rem_empty_corelines"])
+    config["rem_empty_corelines"] = int(config.get("rem_empty_corelines", 0))
     for opt in args.OPTION:
         key, val = get_key_val_from_option_string(opt)
         config[key] = literal_config_value(val)
@@ -1065,7 +1070,7 @@ class WNOccupancy(object):
             return
         # document.jobs_dict => job_id: job name/state/queue
 
-        self.jobid_to_user_to_queue = dict(zip(self.job_ids, zip(self.user_names, self.job_queues)))
+        self.jobid_to_user_to_queue = {job_id: (job.user_name, job.job_queue) for job_id, job in document.jobs_dict.items()}
         self.user_machine_use = self.calculate_user_node_use(self.cluster, self.jobid_to_user_to_queue)
 
         user_alljobs_sorted_lot = self._produce_user_lot(self.user_names)
@@ -1668,13 +1673,14 @@ class TextDisplay(object):
                 "{indent}{qname}{star}: {run} {q}|".format(
                     indent="  " if expanded else "",
                     qname=colorize(_queue_name, "", pattern=account, mapping=queue_to_color),
-                    star=colorize("*", "Red_L") if queue_is_blocked(q_tuple.state) else "",
+                    star=colorize("*", "Red_L") if queue_is_blocked(q_tuple.state, scheduler) else "",
                     run=colorize(q_running_jobs, "", pattern=account, mapping=queue_to_color),
                     q="+ " + colorize(q_queued_jobs, "", account, mapping=queue_to_color) + " " if q_queued_jobs != "0" else "",
                 ),
                 end="\n" if expanded else " ",
             )
-        print(colorize("* implies blocked", "Red") + "\n")
+        blocked_note = " (at least one queue instance)" if scheduler == "sge" else ""
+        print(colorize("* implies blocked", "Red") + blocked_note + "\n")
 
     def display_wns_occupancy(self, wns_occupancy, cluster):
         """
@@ -1756,7 +1762,7 @@ class TextDisplay(object):
             conditional_width = 0
             userid_pat = "account_not_colored"
         else:
-            conditional_width = 12
+            conditional_width = len(colorize("", pattern=userid_pat))
 
         detail_width = 25 if group_of_name is not None else 40
         group_column = "{sep} {group:<{width20}} " if group_of_name is not None else ""
@@ -2152,6 +2158,7 @@ class Cluster(object):
         """
         Cases where remapping is enforced are:
         - the user has requested it (blindremap switch)
+        - worker-node filters are active
         - there are different WN namings, e.g. wn001, wn002, ..., ps001, ps002, ... etc
         - the first starting numbering of a WN is very high and thus would require too much unused space
         #- the numbering is strange, say the highest numbered node is named wn12500 but the total amount of WNs is 8000????
@@ -2172,8 +2179,10 @@ class Cluster(object):
         has_mixed_or_non_numeric_wns = len(numeric_workernodes) != len(self.workernode_list)
         has_exotic_starting_wn = bool(numeric_workernodes) and min(numeric_workernodes) >= int(self.config["exotic_starting_wn_nr"])
 
+        user_filters = dynamic_config.get("filtering", self.config["filtering"])
         if (
             self.args.BLINDREMAP
+            or (user_filters and user_filters[0])
             or len(self.node_subclusters) > 1
             or has_exotic_starting_wn
             or self.offdown_nodes >= self.total_wn * float(self.config["percentage"])
@@ -2236,11 +2245,7 @@ class Cluster(object):
         return workernode_dict
 
     def map_worker_nodes_to_wn_dict(self, args_remap):
-        """
-        For filtering to take place,
-        1) a filter should be defined in QTOPCONF_YAML
-        2) remap should be either selected by the user or enforced by the circumstances
-        """
+        """Apply active filters and sorting, then build original and compact node mappings."""
         # nodes_drop: this amount has to be chopped off of the end of workernode_list_remapped
         nodes_drop = 0  # count change in nodes after filtering
         workernode_dict = dict()

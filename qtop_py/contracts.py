@@ -4,6 +4,7 @@
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from abc import abstractmethod
     from typing import Any, Dict, List, Optional, Tuple, Union
 
     from typing_extensions import Protocol, TypedDict
@@ -57,4 +58,6 @@ if TYPE_CHECKING:
     QueuesInfo = Tuple[int, int, List[RawQueue]]
 
     class Scheduler(Protocol):
-        def get_cluster_state(self, options: Options) -> ClusterState: ...
+        @abstractmethod
+        def get_cluster_state(self, options: Options) -> ClusterState:
+            pass

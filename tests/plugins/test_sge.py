@@ -26,7 +26,7 @@ def test_contrib_queue_counts_remain_numeric_while_aggregating():
     assert isinstance(total_running, int)
     assert isinstance(total_queued, int)
     assert total_running == sum(int(queue["run"]) for queue in queues)
-    assert next(queue for queue in queues if queue["queue_name"] == "Pending")["state"] == "E"
+    assert next(queue for queue in queues if queue["queue_name"] == "Pending")["state"] == "-"
 
 
 @pytest.mark.parametrize("encoding", ["utf-8", "utf-16", "utf-16-be"])
@@ -103,7 +103,7 @@ def test_optional_queue_xml_fields_keep_defaults():
     root.append(queue)
     system = SGEBatchSystem({}, {}, Options())
     assert system._get_state(queue) == "-"
-    assert system._get_host_qname_np(queue)["qname"] == set()
+    assert system._get_host_qname_np(queue)["qname"] == {"batch"}
     assert system._extract_queues("Queue-List", root)[0]["state"] == "?"
 
 
@@ -118,3 +118,111 @@ def test_empty_optional_submission_time_is_ignored(anonymize):
     records = extractor._extract_job_info([], queue, "job_list", "batch")
     assert len(records) == 1
     assert records[0]["S"] == "qw"
+
+
+@pytest.mark.parametrize(
+    "tasks,expected",
+    [("", "100"), ("<tasks/>", "100"), ("<tasks> </tasks>", "100"), ("<tasks>1</tasks>", "100.1"), ("<tasks>2</tasks>", "100.2"), ("<tasks>1-100:1</tasks>", "100.1-100:1")],
+)
+def test_job_and_core_records_share_task_identity(tasks, expected):
+    queue = etree.fromstring(
+        '<Queue-List><job_list state="running"><JB_owner>alice</JB_owner>'
+        "<JB_job_number>100</JB_job_number><JB_name>job</JB_name><state>r</state>"
+        "<JAT_start_time>now</JAT_start_time><slots>1</slots>" + tasks + "</job_list></Queue-List>"
+    )
+    system = SGEBatchSystem({}, {}, Options())
+    records = system.sge_stat_maker._extract_job_info([], queue, "job_list", "batch")
+    assert records[0]["JobId"] == expected
+    assert system._extract_running_job_info(queue, "job_list")[0] == [expected]
+
+
+@pytest.mark.parametrize("slots,expected", [(None, 1), ("", 1), (" ", 1), ("1", 1), ("2", 2), ("16", 16), ("0", None), ("-1", None), ("bad", None), ("1.5", None)])
+def test_running_job_occupancy_uses_allocated_slots(slots, expected):
+    queue = etree.fromstring(
+        '<Queue-List><job_list state="running"><JB_owner>alice</JB_owner><JB_job_number>100</JB_job_number>'
+        "<JB_name>job</JB_name><state>r</state><JAT_start_time>now</JAT_start_time><tasks>2</tasks>"
+        '<requested_pe name="mpi">16</requested_pe></job_list></Queue-List>'
+    )
+    if slots is not None:
+        etree.SubElement(queue.find("job_list"), "slots").text = slots
+    system = SGEBatchSystem({}, {}, Options())
+    if expected is None:
+        with pytest.raises(etree.ParseError, match="slots"):
+            system._extract_running_job_info(queue, "job_list")
+    else:
+        assert len(system.sge_stat_maker._extract_job_info([], queue, "job_list", "batch")) == 1
+        assert system._extract_running_job_info(queue, "job_list") == (["100.2"] * expected, ["alice"] * expected, ["r"] * expected)
+
+
+def test_contrib_occupied_slots_match_running_allocations():
+    sample = Path(__file__).resolve().parents[2] / "qtop_py" / "contrib" / "qstat.F.xml.stdout"
+    options = Options()
+    options.SAMPLE = 0
+    system = SGEBatchSystem({"sge_file": str(sample)}, {}, options)
+    state = system.get_cluster_state(options)
+    expected = sum(int(job.findtext("slots", "1")) for job in system.sge_stat_maker.root.findall("queue_info/Queue-List/job_list") if job.get("state") == "running")
+    assert sum(len(node["core_job_map"]) for node in state["nodes"]) == expected
+    assert sum(queue["running"] for queue in state["queues"]) == 61
+
+
+@pytest.mark.parametrize("same_host", [False, True])
+def test_allocated_slots_survive_multiple_queue_instances(same_host):
+    template = (
+        "<Queue-List><name>{queue}@{host}</name><slots_used>{slots}</slots_used>"
+        '<resource name="qname">{queue}</resource><resource name="hostname">{host}</resource><resource name="num_proc">16</resource>'
+        '<job_list state="running"><JB_job_number>{job}</JB_job_number><JB_owner>alice</JB_owner><JB_name>job</JB_name>'
+        "<state>r</state><JAT_start_time>now</JAT_start_time><slots>{slots}</slots></job_list></Queue-List>"
+    )
+    queues = template.format(queue="batch", host="node01", slots=2, job=100) + template.format(queue="long", host="node01" if same_host else "node02", slots=3, job=200)
+    options = Options()
+    options.SAMPLE = 0
+    system = SGEBatchSystem({}, {}, options)
+    system.sge_stat_maker.root = etree.fromstring("<job_info><queue_info>" + queues + "</queue_info></job_info>")
+    system.sge_stat_maker.tree = etree.ElementTree(system.sge_stat_maker.root)
+    nodes = system.get_worker_nodes([], [], options)
+    allocations = [job for node in nodes for job in node["core_job_map"].values()]
+    assert len(nodes) == (1 if same_host else 2)
+    assert allocations.count("100") == 2
+    assert allocations.count("200") == 3
+
+
+@pytest.mark.parametrize("first,second,expected", [(None, "E", "?E"), ("E", None, "?E"), ("d", "S", "Sd"), ("a", "u", "au"), (None, None, "?"), ("E", "E", "E")])
+def test_queue_summary_preserves_all_instance_states(first, second, expected):
+    root = etree.Element("root")
+    for index, state in enumerate((first, second)):
+        queue = etree.SubElement(root, "Queue-List")
+        etree.SubElement(queue, "name").text = "batch@node%s" % index
+        etree.SubElement(queue, "resource", name="qname").text = "batch"
+        if state is not None:
+            etree.SubElement(queue, "state").text = state
+        etree.SubElement(queue, "job_list", state="running")
+    queues = SGEBatchSystem({}, {}, Options())._extract_queues("Queue-List", root)
+    assert len(queues) == 1
+    assert queues[0]["state"] == expected
+    assert queues[0]["run"] == 2
+
+
+@pytest.mark.parametrize("slots_used", [None, "", "0"])
+@pytest.mark.parametrize("same_host", [False, True])
+def test_idle_nodes_keep_queue_membership(slots_used, same_host):
+    root = etree.Element("job_info")
+    queue_info = etree.SubElement(root, "queue_info")
+    for index, qname in enumerate(("batch", "long")):
+        queue = etree.SubElement(queue_info, "Queue-List")
+        etree.SubElement(queue, "resource", name="qname").text = qname
+        etree.SubElement(queue, "resource", name="hostname").text = "node01" if same_host else "node0%s" % (index + 1)
+        etree.SubElement(queue, "resource", name="num_proc").text = "16"
+        if slots_used is not None:
+            etree.SubElement(queue, "slots_used").text = slots_used
+    options = Options()
+    options.SAMPLE = 0
+    system = SGEBatchSystem({}, {}, options)
+    system.sge_stat_maker.root = root
+    system.sge_stat_maker.tree = etree.ElementTree(root)
+
+    nodes = system.get_worker_nodes([], [], options)
+
+    assert len(nodes) == (1 if same_host else 2)
+    memberships = {node["domainname"]: set(node["qname"]) for node in nodes}
+    assert memberships == ({"node01": {"batch", "long"}} if same_host else {"node01": {"batch"}, "node02": {"long"}})
+    assert all(node["core_job_map"] == {} and node["np"] == 16 and node["state"] == "-" for node in nodes)
