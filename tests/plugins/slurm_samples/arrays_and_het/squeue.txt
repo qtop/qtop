@@ -1,5 +1,5 @@
-101_1|alice|R|compute|2|node001|cpu=2,gres/gpu=1|gres/gpu:1|N/A
-101_2|alice|R|compute|2|node002|cpu=2,gres/gpu=1|gres/gpu:1|N/A
-101_[3-9:2%2]|alice|PD|compute|1|(Priority)|cpu=1|N/A|N/A
-201+0|bob|R|compute|1|node001|cpu=1|N/A|N/A
-201+1|bob|R|compute|2|node002|cpu=2|N/A|N/A
+101_1|alice|R|compute|2|node001|cpu=2,gres/gpu=1|gres/gpu:1|N/A|101|1
+101_2|alice|R|compute|2|node002|cpu=2,gres/gpu=1|gres/gpu:1|N/A|101|2
+101_[3-9:2%2]|alice|PD|compute|1|(Priority)|cpu=1|N/A|N/A|101|3-9:2%2
+201+0|bob|R|compute|1|node001|cpu=1|N/A|N/A|201|N/A
+201+1|bob|R|compute|2|node002|cpu=2|N/A|N/A|202|N/A

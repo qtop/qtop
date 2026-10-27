@@ -484,3 +484,63 @@ def test_slurm_free_text_cannot_supply_cpu_allocation_fields(detailed_slurm):
     slurm, path = detailed_slurm
     path.write_text("JobId=101 JobName=not_allocations Nodes=node001 CPU_IDs=4\n Command=other Nodes=node002 CPU_IDs=1,3,5\n")
     assert slurm._read_cpu_allocations() == {"101": {}}
+
+
+@pytest.mark.parametrize(
+    "display, parent, task, expected",
+    [
+        ("501", "501", "N/A", ["501"]),
+        ("501", "101", "3", ["101_3"]),
+        ("101_3", "101", "3", ["101_3"]),
+        ("101_[1-...]", "101", "3", ["101_3"]),
+        ("101_[3-9:2%2]", "101", "3-9:2%2", ["101_3", "101_5", "101_7", "101_9"]),
+        ("201+1", "202", "N/A", ["201+1"]),
+    ],
+)
+def test_explicit_array_columns_determine_canonical_identity(tmp_path, display, parent, task, expected):
+    path = tmp_path / "squeue.txt"
+    path.write_text("%s|alice|PD|compute|2|(Priority)|cpu=2|N/A|N/A|%s|%s\n" % (display, parent, task))
+    jobs = SlurmStatExtractor({}, Options()).extract_squeue(str(path))
+    assert [job["JobId"] for job in jobs] == expected
+    for job in jobs:
+        if "_" in job["JobId"]:
+            assert job["slurm_array_job_id"] == parent
+            assert job["slurm_array_task_id"] == job["JobId"].split("_", 1)[1]
+        else:
+            assert "slurm_array_job_id" not in job
+    if display == "201+1":
+        assert jobs[0]["slurm_het_job_id"] == "201"
+        assert jobs[0]["slurm_het_job_offset"] == "1"
+
+
+@pytest.mark.parametrize(
+    "display, parent, task",
+    [
+        ("101_4", "101", "3"),
+        ("101_3", "101", "N/A"),
+        ("101_[1-...]", "102", "3"),
+        ("201+0", "101", "3"),
+        ("501", "", "3"),
+        ("501", "101", "junk"),
+        ("501", "101", "1-..."),
+    ],
+)
+def test_explicit_array_identity_conflicts_are_actionable(tmp_path, display, parent, task):
+    path = tmp_path / "squeue.txt"
+    path.write_text("%s|alice|PD|compute|2|(Priority)|cpu=2|N/A|N/A|%s|%s\n" % (display, parent, task))
+    with pytest.raises(ValueError, match="Slurm array"):
+        SlurmStatExtractor({}, Options()).extract_squeue(str(path))
+
+
+def test_explicit_array_fields_match_scontrol_internal_job_ids(detailed_slurm):
+    slurm, path = detailed_slurm
+    queue = Path(slurm.squeue_file)
+    rows = queue.read_text().splitlines()
+    queue.write_text(rows[0].replace("101|", "501|", 1) + "|101|3\n" + "\n".join(row + "|" + row.split("|", 1)[0] + "|N/A" for row in rows[1:]) + "\n")
+    path.write_text(path.read_text().replace("JobId=101 JobName=parallel", "JobId=501 ArrayJobId=101 ArrayTaskId=3 JobName=parallel"))
+    state = slurm.get_cluster_state(Options())
+    assert state["jobs"][0]["id"] == "101_3"
+    assert state["jobs"][0]["slurm_array_job_id"] == "101"
+    assert state["jobs"][0]["slurm_array_task_id"] == "3"
+    assert state["nodes"][1]["core_job_map"] == {1: "101_3", 3: "101_3", 5: "101_3"}
+    assert state["nodes"][1]["cpu_allocation_source"] == "slurm"

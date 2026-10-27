@@ -67,3 +67,22 @@ def test_cluster_state_rejects_invalid_cpu_allocation_source(source):
     state["nodes"][0]["cpu_allocation_source"] = source
     with pytest.raises(ValueError, match="cpu_allocation_source"):
         validate_cluster_state(state)
+
+
+@pytest.mark.parametrize(
+    "fields",
+    [
+        {"slurm_array_job_id": "42"},
+        {"slurm_array_task_id": "3"},
+        {"slurm_array_job_id": "42", "slurm_array_task_id": "3-7"},
+        {"slurm_array_job_id": "42", "slurm_array_task_id": 3},
+        {"slurm_array_job_id": "42", "slurm_array_task_id": "4"},
+        {"slurm_array_job_id": "42", "slurm_array_task_id": "3", "slurm_het_job_id": "42", "slurm_het_job_offset": "3"},
+    ],
+)
+def test_cluster_state_rejects_inconsistent_structured_job_identity(fields):
+    state = sample_state()
+    state["jobs"][0]["id"] = "42_3"
+    state["jobs"][0].update(fields)
+    with pytest.raises(ValueError, match="Slurm identity|both Slurm"):
+        validate_cluster_state(state)

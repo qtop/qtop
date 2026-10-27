@@ -450,7 +450,7 @@ schedulers:
     sge_file: %(savepath)s/qstat%(pid)s.F.xml.stdout, qstat -F -xml -u '*'
   slurm:
     ## Copy the command after ', ' directly into a shell for debugging.
-    squeue_file: %(savepath)s/squeue%(pid)s.txt, squeue -r -h -O 'JobID:0|,UserName:0|,StateCompact:0|,Partition:0|,NumCPUs:0|,NodeList:0|,tres-alloc:0|,tres-per-node:0|,tres-per-task:0'
+    squeue_file: %(savepath)s/squeue%(pid)s.txt, squeue -r -h -O 'JobID:0|,UserName:0|,StateCompact:0|,Partition:0|,NumCPUs:0|,NodeList:0|,tres-alloc:0|,tres-per-node:0|,tres-per-task:0|,ArrayJobID:0|,ArrayTaskID:0'
     sinfo_file: %(savepath)s/sinfo%(pid)s.txt, sinfo -N -h -O 'NodeList:0|,Partition:0|,StateCompact:0|,CPUs:0|,Gres:0|,GresUsed:0'
     scontrol_file: %(savepath)s/scontrol%(pid)s.txt, scontrol --details show jobs
   demo:
@@ -461,7 +461,7 @@ The Slurm commands after the filename separator can be copied directly into
 a shell:
 
 ```sh
-squeue -r -h -O 'JobID:0|,UserName:0|,StateCompact:0|,Partition:0|,NumCPUs:0|,NodeList:0|,tres-alloc:0|,tres-per-node:0|,tres-per-task:0'
+squeue -r -h -O 'JobID:0|,UserName:0|,StateCompact:0|,Partition:0|,NumCPUs:0|,NodeList:0|,tres-alloc:0|,tres-per-node:0|,tres-per-task:0|,ArrayJobID:0|,ArrayTaskID:0'
 sinfo -N -h -O 'NodeList:0|,Partition:0|,StateCompact:0|,CPUs:0|,Gres:0|,GresUsed:0'
 ```
 
@@ -469,8 +469,17 @@ Quotes keep the pipe characters inside the format argument. qtop honors
 shell-style argument quoting without invoking a shell. Existing custom
 configurations using doubled ``%%`` format codes remain supported.
 
-Slurm accepts both the legacy six/four-column traces and the expanded
-nine/six-column traces above. `squeue -r` emits individual array tasks, avoiding
+Slurm accepts legacy six-column and resource-aware nine-column `squeue`
+traces, plus the eleven-column identity-aware format above. `sinfo` accepts
+four or six columns. The appended `ArrayJobID` and `ArrayTaskID` fields are
+the primary array identity; missing fields fall back to the formatted job ID.
+For ordinary jobs Slurm reports `ArrayTaskID=N/A`, so their numeric
+`ArrayJobID` is not interpreted as array membership. Conflicting scalar
+identities are rejected; complete explicit fields can recover a truncated
+display ID. JSON preserves `slurm_array_job_id` / `slurm_array_task_id` and
+`slurm_het_job_id` / `slurm_het_job_offset`, retaining canonical IDs for
+compatibility. Anonymized snapshots mask parent IDs consistently while
+preserving task/component indices and core references. `squeue -r` emits individual array tasks, avoiding
 compressed or truncated array IDs. Complete grouped IDs in older traces are
 expanded into individual tasks, including lists, stepped ranges and concurrency
 limits. Expansion is limited to 100,000 grouped tasks per frame; malformed,
@@ -590,7 +599,7 @@ For manual Slurm collection on a scheduler host:
 
 ```sh
 qtop_trace_dir=$(mktemp -d)
-squeue -r -h -O 'JobID:0|,UserName:0|,StateCompact:0|,Partition:0|,NumCPUs:0|,NodeList:0|,tres-alloc:0|,tres-per-node:0|,tres-per-task:0' > "$qtop_trace_dir/squeue.txt"
+squeue -r -h -O 'JobID:0|,UserName:0|,StateCompact:0|,Partition:0|,NumCPUs:0|,NodeList:0|,tres-alloc:0|,tres-per-node:0|,tres-per-task:0|,ArrayJobID:0|,ArrayTaskID:0' > "$qtop_trace_dir/squeue.txt"
 sinfo -N -h -O 'NodeList:0|,Partition:0|,StateCompact:0|,CPUs:0|,Gres:0|,GresUsed:0' > "$qtop_trace_dir/sinfo.txt"
 ./qtop -b slurm -s "$qtop_trace_dir"
 ```

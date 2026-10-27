@@ -13,6 +13,10 @@ if TYPE_CHECKING:
     IdentifierMaps = Dict[str, Dict[str, str]]
 
     class JobResources(TypedDict, total=False):
+        slurm_array_job_id: str
+        slurm_array_task_id: str
+        slurm_het_job_id: str
+        slurm_het_job_offset: str
         slurm_tres_alloc: str
         slurm_tres_per_node: str
         slurm_tres_per_task: str

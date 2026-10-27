@@ -238,3 +238,35 @@ def test_slurm_cpu_details_and_resources_survive_snapshot_replay(tmp_path, anony
     assert result.returncode == 0, result.stderr
     assert json.loads(next(replayed.glob("qtop_json_*.json")).read_text()) == expected
     assert "scheduler CPU IDs" in next(replayed.glob("qtop_fullview_*.out")).read_text()
+
+
+def test_anonymized_slurm_parent_and_child_ids_remain_consistent():
+    from types import SimpleNamespace
+
+    from qtop_py.plugins.slurm import SlurmBatchSystem
+
+    source = ROOT / "tests/plugins/slurm_samples/arrays_and_het"
+    files = {name + "_file": str(source / (name + ".txt")) for name in ("squeue", "sinfo", "scontrol")}
+    options = SimpleNamespace(ANONYMIZE=False)
+    original = SlurmBatchSystem(files, {}, options).get_cluster_state(options)
+    masked, mappings = sample.anonymize_state(original)
+    array_parents = set()
+    het_parents = set()
+    ids = {job["id"] for job in masked["jobs"]}
+    for old, job in zip(original["jobs"], masked["jobs"]):
+        if "slurm_array_job_id" in job:
+            parent = job["slurm_array_job_id"]
+            array_parents.add(parent)
+            assert parent != "101"
+            assert job["id"] == parent + "_" + job["slurm_array_task_id"]
+            assert job["slurm_array_task_id"] == old["slurm_array_task_id"]
+        else:
+            parent = job["slurm_het_job_id"]
+            het_parents.add(parent)
+            assert parent != "201"
+            assert job["id"] == parent + "+" + job["slurm_het_job_offset"]
+        assert job["id"] == mappings["job"][old["id"]]
+    assert len(array_parents) == len(het_parents) == 1
+    assert array_parents != het_parents
+    assert all(job in ids for node in masked["nodes"] for job in node["core_job_map"].values())
+    assert sample.validate_cluster_state(masked) == masked

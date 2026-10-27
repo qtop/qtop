@@ -230,7 +230,15 @@ def test_replay_configuration_failure_is_concise(tmp_path):
 @pytest.mark.parametrize(
     "scheduler_file, expected",
     (
-        ("squeue_file", ["-r", "-h", "-O", "JobID:0|,UserName:0|,StateCompact:0|,Partition:0|,NumCPUs:0|,NodeList:0|,tres-alloc:0|,tres-per-node:0|,tres-per-task:0"]),
+        (
+            "squeue_file",
+            [
+                "-r",
+                "-h",
+                "-O",
+                "JobID:0|,UserName:0|,StateCompact:0|,Partition:0|,NumCPUs:0|,NodeList:0|,tres-alloc:0|,tres-per-node:0|,tres-per-task:0|,ArrayJobID:0|,ArrayTaskID:0",
+            ],
+        ),
         ("sinfo_file", ["-N", "-h", "-O", "NodeList:0|,Partition:0|,StateCompact:0|,CPUs:0|,Gres:0|,GresUsed:0"]),
         ("scontrol_file", ["--details", "show", "jobs"]),
     ),
@@ -501,6 +509,10 @@ def test_slurm_array_tasks_and_heterogeneous_components_render_consistently(tmp_
     assert rows["bob"] == (2, 2, 0, 2)
     state = json.loads(next(output.glob("qtop_json_*.json")).read_text())
     assert len(state["jobs"]) == 8
+    assert state["jobs"][0]["slurm_array_job_id"] == "101"
+    assert state["jobs"][0]["slurm_array_task_id"] == "1"
+    assert state["jobs"][-1]["slurm_het_job_id"] == "201"
+    assert state["jobs"][-1]["slurm_het_job_offset"] == "1"
     assert state["nodes"][1]["core_job_map"]["7"] == "201+1"
 
 

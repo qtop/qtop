@@ -81,10 +81,35 @@ class SlurmStatExtractor(StatExtractor):
             tasks.update(range(first, last + 1, step))
         return ["%s_%s" % (match.group(1), task) for task in sorted(tasks)]
 
+    @classmethod
+    def task_ids(cls, job_id: str, array_job_id: str, array_task_id: str) -> List[str]:
+        """Prefer explicit array fields; retain formatted-ID support for old traces."""
+        if array_task_id.upper() in ("", "N/A", "(NULL)"):
+            if array_task_id and re.match(r"[0-9]+_", job_id):
+                raise ValueError("Conflicting Slurm array identity for job %s" % job_id)
+            return cls.expand_job_id(job_id)
+        if not re.fullmatch(r"[0-9]{1,10}", array_job_id) or "+" in job_id:
+            raise ValueError("Invalid or conflicting Slurm array identity for job %s" % job_id)
+        ids = cls.expand_job_id("%s_[%s]" % (array_job_id, array_task_id))
+        scalar = re.fullmatch(r"[0-9]+_[0-9]+", job_id)
+        group = re.match(r"([0-9]+)_\[", job_id)
+        if (scalar and ids != [job_id]) or (group and group.group(1) != array_job_id):
+            raise ValueError("Conflicting Slurm array identity for job %s" % job_id)
+        return ids
+
+    @staticmethod
+    def identity_fields(job_id: str):
+        match = re.fullmatch(r"([0-9]+)([_+])([0-9]+)", job_id)
+        if match is None:
+            return {}
+        if match.group(2) == "_":
+            return {"slurm_array_job_id": match.group(1), "slurm_array_task_id": match.group(3)}
+        return {"slurm_het_job_id": match.group(1), "slurm_het_job_offset": match.group(3)}
+
     def extract_squeue(self, orig_file):
         """
         Parse output from:
-        squeue -r -h -O 'JobID:0|,UserName:0|,StateCompact:0|,Partition:0|,NumCPUs:0|,NodeList:0|,tres-alloc:0|,tres-per-node:0|,tres-per-task:0'
+        squeue -r -h -O 'JobID:0|,UserName:0|,StateCompact:0|,Partition:0|,NumCPUs:0|,NodeList:0|,tres-alloc:0|,tres-per-node:0|,tres-per-task:0|,ArrayJobID:0|,ArrayTaskID:0'
         """
         try:
             fileutils.check_empty_file(orig_file)
@@ -101,8 +126,8 @@ class SlurmStatExtractor(StatExtractor):
                     continue
                 try:
                     fields = [field.strip() for field in line.split("|")]
-                    if len(fields) not in (6, 9):
-                        raise ValueError("expected 6 legacy or 9 extended fields")
+                    if len(fields) not in (6, 9, 11):
+                        raise ValueError("expected 6 legacy, 9 resource or 11 identity fields")
                     job_id, user, state, partition, cpus, nodes = fields[:6]
                     if not all((job_id, user, state, partition.rstrip("*"))):
                         raise ValueError("missing required job field")
@@ -110,8 +135,8 @@ class SlurmStatExtractor(StatExtractor):
                     logging.warning("Line: %s not properly parsed as Slurm squeue output." % line)
                     continue
 
-                task_ids = self.expand_job_id(job_id)
-                if "_[" in job_id:
+                task_ids = self.task_ids(job_id, fields[9], fields[10]) if len(fields) == 11 else self.expand_job_id(job_id)
+                if "_[" in job_id or len(task_ids) > 1:
                     expanded_count += len(task_ids)
                     if expanded_count > self.MAX_EXPANDED_TASKS:
                         raise ValueError("Too many grouped Slurm array tasks; collect squeue with -r/--array.")
@@ -125,8 +150,9 @@ class SlurmStatExtractor(StatExtractor):
                         "CPUs": max(1, self._safe_int(cpus, default=1)),
                         "Nodes": nodes,
                     }
-                    if len(fields) == 9:
-                        job.update(zip(("slurm_tres_alloc", "slurm_tres_per_node", "slurm_tres_per_task"), fields[6:]))
+                    job.update(self.identity_fields(task_id))
+                    if len(fields) >= 9:
+                        job.update(zip(("slurm_tres_alloc", "slurm_tres_per_node", "slurm_tres_per_task"), fields[6:9]))
                     if task_id in jobs and jobs[task_id] != job:
                         raise ValueError("Conflicting Slurm records for job %s; collect a fresh squeue trace with -r/--array." % task_id)
                     jobs[task_id] = job
@@ -252,6 +278,12 @@ class SlurmBatchSystem(GenericBatchSystem):
     def get_cluster_state(self, options):
         state = super().get_cluster_state(options)
         for job, raw in zip(state["jobs"], self._get_jobs()):
+            if "slurm_array_job_id" in raw:
+                job["slurm_array_job_id"] = raw["slurm_array_job_id"]
+                job["slurm_array_task_id"] = raw["slurm_array_task_id"]
+            if "slurm_het_job_id" in raw:
+                job["slurm_het_job_id"] = raw["slurm_het_job_id"]
+                job["slurm_het_job_offset"] = raw["slurm_het_job_offset"]
             if "slurm_tres_alloc" in raw:
                 job["slurm_tres_alloc"] = raw["slurm_tres_alloc"]
                 job["slurm_tres_per_node"] = raw["slurm_tres_per_node"]

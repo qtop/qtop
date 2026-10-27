@@ -72,6 +72,16 @@ def validate_cluster_state(cluster_state: object) -> "ClusterState":
             record = _record(entry, key)
             if any(not isinstance(record.get(field), str) for field in fields):
                 raise TypeError("%s record requires text fields: %s" % (key, ", ".join(fields)))
+            if key == "jobs":
+                if "slurm_array_job_id" in record and "slurm_het_job_id" in record:
+                    raise ValueError("job cannot have both Slurm array and heterogeneous identities")
+                for parent, child, separator in (("slurm_array_job_id", "slurm_array_task_id", "_"), ("slurm_het_job_id", "slurm_het_job_offset", "+")):
+                    if parent in record or child in record:
+                        base, index = record.get(parent), record.get(child)
+                        if not isinstance(base, str) or not isinstance(index, str) or not re.fullmatch(r"[0-9]+", base) or not re.fullmatch(r"[0-9]+", index):
+                            raise ValueError("job Slurm identity requires a numeric parent and task/component ID")
+                        if record["id"] != base + separator + index:
+                            raise ValueError("job Slurm identity conflicts with canonical ID")
             if key == "nodes":
                 if "cpu_allocation_source" in record and record["cpu_allocation_source"] not in ("slurm", "estimated", "none"):
                     raise ValueError("node cpu_allocation_source must be slurm, estimated or none")

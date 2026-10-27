@@ -58,14 +58,33 @@ def anonymize_state(state: object) -> "Tuple[ClusterState, IdentifierMaps]":
             mapping[value] = str(100000 + index) if kind == "job" else "%s_anon_%s_%s" % (kind[0], {"node": "wn", "queue": "q"}.get(kind, kind), index)
         return mapping[value]
 
+    structured_jobs = {job["id"]: job for job in state["jobs"] if "slurm_array_job_id" in job or "slurm_het_job_id" in job}
+
     def job_id(value: str) -> str:
+        identity = structured_jobs.get(str(value))
+        if identity is not None:
+            array_parent = identity.get("slurm_array_job_id")
+            if array_parent is not None:
+                masked = mask(array_parent, "job") + "_" + identity.get("slurm_array_task_id", "")
+            else:
+                masked = mask(identity.get("slurm_het_job_id", ""), "job") + "+" + identity.get("slurm_het_job_offset", "")
+            mappings["job"][str(value)] = masked
+            return masked
         # PBS array tasks share the base ID in the jobs collection.
         match = re.match(r"^(.*?)(\[.*\])?$", str(value))
         if match is None:
             raise ValueError("Invalid job ID")
         return mask(match.group(1), "job") + (match.group(2) or "")
 
-    state["jobs"] = [{"id": job_id(job["id"]), "user": mask(job["user"], "user"), "state": job["state"], "queue": mask(job["queue"], "queue")} for job in state["jobs"]]
+    original_jobs = state["jobs"]
+    state["jobs"] = [{"id": job_id(job["id"]), "user": mask(job["user"], "user"), "state": job["state"], "queue": mask(job["queue"], "queue")} for job in original_jobs]
+    for original_job, job in zip(original_jobs, state["jobs"]):
+        if "slurm_array_job_id" in original_job:
+            job["slurm_array_job_id"] = mask(original_job["slurm_array_job_id"], "job")
+            job["slurm_array_task_id"] = original_job.get("slurm_array_task_id", "")
+        if "slurm_het_job_id" in original_job:
+            job["slurm_het_job_id"] = mask(original_job["slurm_het_job_id"], "job")
+            job["slurm_het_job_offset"] = original_job.get("slurm_het_job_offset", "")
     for queue in state["queues"]:
         queue["name"] = mask(queue["name"], "queue")
     original_nodes = state["nodes"]
