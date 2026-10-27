@@ -40,6 +40,7 @@ if TYPE_CHECKING:
         job_id: str
 
     class NodeResources(TypedDict, total=False):
+        slurm_node_state: str
         slurm_gpu_configured: List[GPUResource]
         slurm_gpu_used: List[GPUResource]
         slurm_gpu_bindings: List[GPUBinding]

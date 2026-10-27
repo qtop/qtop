@@ -98,6 +98,8 @@ def validate_cluster_state(cluster_state: object) -> "ClusterState":
                         if record["id"] != base + separator + index:
                             raise ValueError("job Slurm identity conflicts with canonical ID")
             if key == "nodes":
+                if "slurm_node_state" in record and not isinstance(record["slurm_node_state"], str):
+                    raise ValueError("slurm_node_state must be text")
                 for gpu_field in ("slurm_gpu_configured", "slurm_gpu_used", "slurm_gpu_bindings"):
                     if gpu_field in record:
                         validate_gpu_resources(record[gpu_field], binding=gpu_field == "slurm_gpu_bindings")

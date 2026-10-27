@@ -481,6 +481,13 @@ marker. If rows disagree, blocking states take precedence over `up` or unknown.
 The raw partition state is exported in each queue's `state` field and survives
 capture/replay, including anonymized snapshots.
 
+Slurm nodes also retain their original compact state in `slurm_node_state`,
+including suffix flags. The node-state matrix shows the final suffix character
+when present (for example `idle*` shows `*`, `idle~` shows `~`, and `idle#`
+shows `#`). Unflagged nodes keep the existing normalized state symbol.
+The normalized `state` remains available for accounting and filtering; the raw
+Slurm state survives JSON export and capture/replay, including anonymization.
+
 The appended `ArrayJobID` and `ArrayTaskID` fields are
 the primary array identity; missing fields fall back to the formatted job ID.
 For ordinary jobs Slurm reports `ArrayTaskID=N/A`, so their numeric

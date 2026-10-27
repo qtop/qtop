@@ -203,6 +203,7 @@ class SlurmStatExtractor(StatExtractor):
                         "raw_domainname": node_name,
                         "qname": self.anonymize(partition.rstrip("*"), "qs"),
                         "state": self._map_node_state(state),
+                        "slurm_node_state": state,
                         "partition_state": (fields[-1].lower() or "?") if len(fields) in (5, 7) else "?",
                         "np": str(max(0, self._safe_int(cpus, default=0))),
                     }
@@ -372,7 +373,18 @@ class SlurmBatchSystem(GenericBatchSystem):
             )
             if node["qname"] not in worker_node["qname"]:
                 worker_node["qname"].append(node["qname"])
-            worker_node["state"] = self._merge_node_state(worker_node["state"], node["state"])
+            merged_state = self._merge_node_state(worker_node["state"], node["state"])
+            raw_state = node.get("slurm_node_state", "")
+            previous_raw = worker_node.get("slurm_node_state", "")
+            if raw_state and (
+                "slurm_node_state" not in worker_node
+                or (
+                    merged_state == node["state"]
+                    and (merged_state != worker_node["state"] or (raw_state.endswith(tuple("*+#~$@%!^-")) and not previous_raw.endswith(tuple("*+#~$@%!^-"))))
+                )
+            ):
+                worker_node["slurm_node_state"] = raw_state
+            worker_node["state"] = merged_state
             worker_node["np"] = str(max(int(worker_node["np"]), int(node["np"])))
             for key in ("slurm_gres", "slurm_gres_used"):
                 if key in node:

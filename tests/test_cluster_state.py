@@ -19,6 +19,13 @@ def sample_state():
     )
 
 
+def test_cluster_state_rejects_nontext_slurm_node_state():
+    state = sample_state()
+    state["nodes"][0]["slurm_node_state"] = ["idle*"]
+    with pytest.raises(ValueError, match="slurm_node_state"):
+        validate_cluster_state(state)
+
+
 def test_cluster_state_is_plain_and_has_only_the_public_keys():
     state = sample_state()
 

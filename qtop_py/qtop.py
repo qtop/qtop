@@ -1353,6 +1353,9 @@ class WNOccupancy(object):
             node_attrs = self.cluster.workernode_dict[_node]
             # distribute state, qname etc to lines
             attribute = list(node_attrs[yaml_key][:min_len])
+            raw_state = node_attrs.get("slurm_node_state", "")
+            if yaml_key == "state" and raw_state and raw_state[-1] in "*+#~$@%!^-" and attribute:
+                attribute[0] = utils.ColorStr(raw_state[-1], color=attribute[0].color)
             attribute.extend(" " for _ in range(min_len - len(attribute)))
             for attr_line, ch in zip(multiline_map, attribute):
                 if ch == " ":

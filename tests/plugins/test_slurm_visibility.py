@@ -10,6 +10,32 @@ from qtop_py.plugins.slurm import SlurmBatchSystem
 from qtop_py.sample import anonymize_state
 
 
+@pytest.mark.parametrize("raw_state,normalized", [("idle", "-"), ("down", "d"), ("alloc", "b")])
+@pytest.mark.parametrize("suffix", list("*~#!%$@^-+") + ["", "~*"])
+def test_slurm_state_suffix_reaches_matrix_and_snapshot(trace, raw_state, normalized, suffix):
+    slurm = trace("", "node1|batch|%s%s|8\n" % (raw_state, suffix))
+    state = slurm.get_cluster_state(slurm.options)
+    assert state["nodes"][0]["state"] == normalized
+    assert state["nodes"][0]["slurm_node_state"] == raw_state + suffix
+    masked, _ = anonymize_state(state)
+    assert validate_cluster_state(masked)["nodes"][0]["slurm_node_state"] == raw_state + suffix
+    replayed = qtop.Document.from_cluster_state(masked).to_cluster_state()
+    colored = qtop.colorize_nodestate(replayed["nodes"], {normalized: "Green"}, qtop.colorize)
+    occupancy = SimpleNamespace(cluster=SimpleNamespace(workernode_dict={1: colored[0]}))
+    config = {"workernodes_matrix": [{"node state": {"max_len": 1}}]}
+    lines = qtop.WNOccupancy.calc_general_mult_attr_line(occupancy, "node state", "state", config)
+    assert str(lines["attr1line"][0]) == (suffix[-1] if suffix else normalized)
+    assert lines["attr1line"][0].color == "Green"
+    assert str(colored[0]["state"][0]) == normalized
+
+
+@pytest.mark.parametrize("states", [("idle", "idle~"), ("idle~", "idle"), ("idle~", "down*"), ("down*", "idle~")])
+def test_duplicate_partition_rows_preserve_flag_on_selected_state(trace, states):
+    slurm = trace("", "node1|batch|%s|8\nnode1|gpu|%s|8\n" % states)
+    node = slurm.get_cluster_state(slurm.options)["nodes"][0]
+    assert node["slurm_node_state"] == ("down*" if "down*" in states else "idle~")
+
+
 @pytest.fixture
 def trace(tmp_path):
     def create(jobs, nodes, details=None):
