@@ -14,6 +14,7 @@ from collections import OrderedDict
 from typing import List, Optional
 
 import qtop_py.fileutils as fileutils
+from qtop_py.gpu import parse_gpu_gres
 from qtop_py.serialiser import GenericBatchSystem, StatExtractor
 
 SLURM_JOB_STATES = {
@@ -382,6 +383,7 @@ class SlurmBatchSystem(GenericBatchSystem):
             worker_node["core_job_map"] = dict((idx, job_id) for idx, job_id in enumerate(node_jobs.get(raw_name, [])))
 
         self._apply_cpu_allocations(worker_nodes_by_name)
+        self._apply_gpu_allocations(worker_nodes_by_name)
         for node in worker_nodes_by_name.values():
             node.pop("slurm_unmapped_cpus", None)
         mapped = {}
@@ -417,6 +419,60 @@ class SlurmBatchSystem(GenericBatchSystem):
             return fields[base] + ("_" if array else "+") + fields[index]
         job_id = fields.get("JobId", "")
         return job_id if re.fullmatch(r"[0-9]+(?:_[0-9]+|\+[0-9]+)?", job_id) else None
+
+    def _apply_gpu_allocations(self, worker_nodes):
+        for node in worker_nodes.values():
+            for raw, parsed in (("slurm_gres", "slurm_gpu_configured"), ("slurm_gres_used", "slurm_gpu_used")):
+                if raw in node:
+                    try:
+                        node[parsed] = parse_gpu_gres(node[raw])
+                    except ValueError as error:
+                        logging.warning("Ignoring invalid Slurm GPU metadata: %s", error)
+        if not self.scontrol_file:
+            return
+        allocations = {}
+        invalid = set()
+        try:
+            with open(self.scontrol_file, "r") as stream:
+                job_id = None
+                for line in stream:
+                    if re.match(r"\s*JobId=", line):
+                        job_id = self._allocation_job_id(line)
+                        continue
+                    if job_id is None or not re.match(r"\s*Nodes=", line):
+                        continue
+                    fields = dict(re.findall(r"(?:^|\s)(Nodes|GRES)=(\S*)", line))
+                    if "GRES" not in fields:
+                        continue
+                    hosts = self.expand_nodelist(fields["Nodes"])
+                    try:
+                        resources = parse_gpu_gres(fields["GRES"])
+                    except ValueError:
+                        invalid.add(job_id)
+                        continue
+                    if not hosts or len(hosts) * max(1, sum(resource["count"] for resource in resources)) > self.MAX_EXPANDED_NODES:
+                        invalid.add(job_id)
+                        continue
+                    allocation = allocations.setdefault(job_id, {})
+                    for host in hosts:
+                        if host in allocation:
+                            invalid.add(job_id)
+                        allocation[host] = resources
+        except (OSError, UnicodeError) as error:
+            logging.warning("Cannot read optional Slurm GPU details: %s", error)
+            return
+        for job in self._get_jobs():
+            job_id = job["JobId"]
+            if job["S"] not in self.ACTIVE_STATES or job_id in invalid:
+                continue
+            hosts = set(self.expand_nodelist(job["Nodes"]))
+            allocation = allocations.get(job_id, {})
+            if not set(allocation).issubset(hosts):
+                continue
+            for host, resources in allocation.items():
+                if host in worker_nodes:
+                    bindings = worker_nodes[host].setdefault("slurm_gpu_bindings", [])
+                    bindings.extend(dict(resource, job_id=job_id) for resource in resources)
 
     def _read_cpu_allocations(self):
         allocations = {}

@@ -510,6 +510,30 @@ node columns preserve configured GRES and GRES usage. These raw fields are
 available in JSON; GPU occupancy rendering is not implemented yet. Named
 fields use width zero so long resource descriptions are not truncated.
 
+GPU metadata is also normalized into node fields `slurm_gpu_configured`,
+`slurm_gpu_used`, and (when job detail records are available)
+`slurm_gpu_bindings`. Each resource has `type`, `count`, `device_indices`,
+`mig_profile`, and `parent_gpu_uuid`; bindings additionally have `job_id`.
+Bindings come only from per-node `GRES=` records in `scontrol --details show jobs`,
+never from requested TRES or aggregate node usage. Multiple jobs can retain
+bindings to the same resource. These fields are exported and replayed without
+adding GPU visualization.
+
+For example, `gpu:h100_nvl:2(IDX:0,7)` binds two Slurm resources, while
+`gpu:h100_1g.12gb:1(IDX:8)` identifies a MIG-profile resource. Indices are
+node-local Slurm GRES indices, not CUDA ordinals, Linux device numbers, or
+physical parent GPU indices. Counts may represent MIG instances rather than
+whole cards. Recognizable profile names are retained; a null profile means
+unknown, not proof that a resource is a whole GPU. Socket affinity is not
+device identity. Missing indices remain null, and parent GPU UUIDs remain null:
+the current scheduler traces do not supply a trustworthy MIG-to-parent mapping.
+No eight-GPU topology is assumed by the parser. Malformed or inconsistent GPU
+detail records do not create bindings. Missing detail records mean unknown
+placement, not zero allocation. Anonymized snapshots retain indices, counts,
+profiles and masked job references while removing resource type strings and UUIDs.
+
+See [Slurm MIG management](https://slurm.schedmd.com/gres.html#MIG_Management).
+
 Slurm also supports compact GPU-related fields: `squeue -o '%b'` reports
 per-node TRES requests and `sinfo -o '%G'` reports configured GRES. They do not
 replace all the allocation, per-task and GRES-usage fields collected above,

@@ -13,6 +13,8 @@ from typing import TYPE_CHECKING, Dict, List, Sequence, cast
 if TYPE_CHECKING:
     from qtop_py.contracts import ClusterState, Job, Node, Queue, RawQueue
 
+from qtop_py.gpu import validate_gpu_resources
+
 CLUSTER_STATE_KEYS = ("jobs", "nodes", "queues")
 
 
@@ -96,6 +98,9 @@ def validate_cluster_state(cluster_state: object) -> "ClusterState":
                         if record["id"] != base + separator + index:
                             raise ValueError("job Slurm identity conflicts with canonical ID")
             if key == "nodes":
+                for gpu_field in ("slurm_gpu_configured", "slurm_gpu_used", "slurm_gpu_bindings"):
+                    if gpu_field in record:
+                        validate_gpu_resources(record[gpu_field], binding=gpu_field == "slurm_gpu_bindings")
                 if "slurm_unmapped_cpus" in record and (type(record["slurm_unmapped_cpus"]) is not int or record["slurm_unmapped_cpus"] < 0):
                     raise ValueError("slurm_unmapped_cpus must be a nonnegative integer")
                 if "cpu_allocation_source" in record and record["cpu_allocation_source"] not in ("slurm", "estimated", "none"):

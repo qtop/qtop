@@ -29,7 +29,20 @@ if TYPE_CHECKING:
         state: str
         queue: str
 
+    class GPUResource(TypedDict):
+        type: Optional[str]
+        count: int
+        device_indices: Optional[List[int]]
+        mig_profile: Optional[str]
+        parent_gpu_uuid: Optional[str]
+
+    class GPUBinding(GPUResource):
+        job_id: str
+
     class NodeResources(TypedDict, total=False):
+        slurm_gpu_configured: List[GPUResource]
+        slurm_gpu_used: List[GPUResource]
+        slurm_gpu_bindings: List[GPUBinding]
         slurm_job_ids: List[str]
         slurm_unmapped_cpus: int
         cpu_allocation_source: str

@@ -107,6 +107,22 @@ def anonymize_state(state: object) -> "Tuple[ClusterState, IdentifierMaps]":
             node["slurm_job_ids"] = [job_id(value) for value in original["slurm_job_ids"]]
         if "slurm_unmapped_cpus" in original:
             node["slurm_unmapped_cpus"] = original["slurm_unmapped_cpus"]
+        for field, resources in (("slurm_gpu_configured", original.get("slurm_gpu_configured")), ("slurm_gpu_used", original.get("slurm_gpu_used"))):
+            if resources is not None:
+                masked_resources = copy.deepcopy(resources)
+                for resource in masked_resources:
+                    resource["type"] = None
+                    resource["parent_gpu_uuid"] = None
+                if field == "slurm_gpu_configured":
+                    node["slurm_gpu_configured"] = masked_resources
+                else:
+                    node["slurm_gpu_used"] = masked_resources
+        if "slurm_gpu_bindings" in original:
+            node["slurm_gpu_bindings"] = copy.deepcopy(original["slurm_gpu_bindings"])
+            for binding in node["slurm_gpu_bindings"]:
+                binding["job_id"] = job_id(binding["job_id"])
+                binding["type"] = None
+                binding["parent_gpu_uuid"] = None
         source = original.get("cpu_allocation_source")
         if source is not None and source in ("slurm", "estimated", "none"):
             node["cpu_allocation_source"] = source
