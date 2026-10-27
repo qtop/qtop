@@ -2,9 +2,9 @@
 
 ## Supported versions
 
-qtop is currently pre-release software. Security fixes are made on the
-`develop` branch and included in the next release. Please reproduce a report
-with the latest `develop` revision when practical.
+Security fixes are made on the `develop` branch and included in the next
+release. Please reproduce a report with the latest `develop` revision when
+practical.
 
 ## Reporting a vulnerability
 

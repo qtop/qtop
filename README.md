@@ -131,7 +131,7 @@ replay.
 
 qtop targets Python 3 and Linux-based HPC environments. Its CI matrix covers modern Python versions and retains a dependency-light compatibility lane for older enterprise distributions commonly found on clusters.
 
-The project is approaching 1.0 and still contains explicitly marked experimental features. Stable terminal monitoring remains the primary interface.
+Terminal monitoring is the primary interface.
 
 Maintainers and contributors can run `make ci-deps` once and `make pre-pr`
 in a Linux x86-64 CPython 3.12 virtual environment to reproduce the local PR

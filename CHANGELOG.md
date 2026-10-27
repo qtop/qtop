@@ -5,6 +5,7 @@ See the [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 
 ## 0.9.20261018
 
+- Metadata: remove project-wide development-stage labels.
 - Bugfix: show Slurm node-state suffix flags and preserve raw states in snapshots.
 - Feature: track Slurm GPU device bindings and MIG profiles in JSON snapshots.
 - Bugfix: retain Slurm jobs on shared CPUs; fill uneven node capacity.

@@ -36,7 +36,6 @@ if sys.version_info < (3, 9):
             "Security": "https://github.com/qtop/qtop/security/policy",
         },
         classifiers=[
-            "Development Status :: 4 - Beta",
             "Environment :: Console",
             "Operating System :: POSIX :: Linux",
             "Programming Language :: Python :: 3",
