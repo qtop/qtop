@@ -72,7 +72,20 @@ def validate_cluster_state(cluster_state: object) -> "ClusterState":
             record = _record(entry, key)
             if any(not isinstance(record.get(field), str) for field in fields):
                 raise TypeError("%s record requires text fields: %s" % (key, ", ".join(fields)))
+            for field in ("slurm_partitions",) if key == "jobs" else ("slurm_job_ids",) if key == "nodes" else ():
+                if field in record:
+                    values = record[field]
+                    if (
+                        not isinstance(values, list)
+                        or (field == "slurm_partitions" and not values)
+                        or any(not isinstance(value, str) or not value for value in cast(List[object], values))
+                    ):
+                        raise ValueError("%s must be a list of nonempty strings" % field)
+                    if field == "slurm_partitions" and record["queue"] not in values:
+                        raise ValueError("job queue must belong to slurm_partitions")
             if key == "jobs":
+                if "accounting_state" in record and record["accounting_state"] not in ("running", "queued", "other"):
+                    raise ValueError("job accounting_state must be running, queued or other")
                 if "slurm_array_job_id" in record and "slurm_het_job_id" in record:
                     raise ValueError("job cannot have both Slurm array and heterogeneous identities")
                 for parent, child, separator in (("slurm_array_job_id", "slurm_array_task_id", "_"), ("slurm_het_job_id", "slurm_het_job_offset", "+")):
@@ -83,6 +96,8 @@ def validate_cluster_state(cluster_state: object) -> "ClusterState":
                         if record["id"] != base + separator + index:
                             raise ValueError("job Slurm identity conflicts with canonical ID")
             if key == "nodes":
+                if "slurm_unmapped_cpus" in record and (type(record["slurm_unmapped_cpus"]) is not int or record["slurm_unmapped_cpus"] < 0):
+                    raise ValueError("slurm_unmapped_cpus must be a nonnegative integer")
                 if "cpu_allocation_source" in record and record["cpu_allocation_source"] not in ("slurm", "estimated", "none"):
                     raise ValueError("node cpu_allocation_source must be slurm, estimated or none")
                 np = record.get("np")
@@ -100,12 +115,20 @@ def validate_cluster_state(cluster_state: object) -> "ClusterState":
                     count = record.get(field)
                     if type(count) is not int or count < 0:
                         raise ValueError("queue %s must be a nonnegative integer" % field)
+    jobs = cast(List[Dict[str, object]], data["jobs"])
+    if any("accounting_state" in job for job in jobs) and not all("accounting_state" in job for job in jobs):
+        raise ValueError("job accounting_state must be present for all jobs or none")
     return cast("ClusterState", data)
 
 
 def cluster_state_totals(cluster_state: object) -> Dict[str, int]:
     """Derive summary values instead of storing duplicated mutable counters."""
     state = validate_cluster_state(cluster_state)
+    if state["jobs"] and all("accounting_state" in job for job in state["jobs"]):
+        return {
+            "running_jobs": len({job["id"] for job in state["jobs"] if job.get("accounting_state") == "running"}),
+            "queued_jobs": len({job["id"] for job in state["jobs"] if job.get("accounting_state") == "queued"}),
+        }
     return {
         "running_jobs": sum(queue["running"] for queue in state["queues"]),
         "queued_jobs": sum(queue["queued"] for queue in state["queues"]),

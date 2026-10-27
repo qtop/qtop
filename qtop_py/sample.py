@@ -79,6 +79,10 @@ def anonymize_state(state: object) -> "Tuple[ClusterState, IdentifierMaps]":
     original_jobs = state["jobs"]
     state["jobs"] = [{"id": job_id(job["id"]), "user": mask(job["user"], "user"), "state": job["state"], "queue": mask(job["queue"], "queue")} for job in original_jobs]
     for original_job, job in zip(original_jobs, state["jobs"]):
+        if "accounting_state" in original_job:
+            job["accounting_state"] = original_job["accounting_state"]
+        if "slurm_partitions" in original_job:
+            job["slurm_partitions"] = [mask(name, "queue") for name in original_job["slurm_partitions"]]
         if "slurm_array_job_id" in original_job:
             job["slurm_array_job_id"] = mask(original_job["slurm_array_job_id"], "job")
             job["slurm_array_task_id"] = original_job.get("slurm_array_task_id", "")
@@ -99,6 +103,10 @@ def anonymize_state(state: object) -> "Tuple[ClusterState, IdentifierMaps]":
         for node in state["nodes"]
     ]
     for original, node in zip(original_nodes, state["nodes"]):
+        if "slurm_job_ids" in original:
+            node["slurm_job_ids"] = [job_id(value) for value in original["slurm_job_ids"]]
+        if "slurm_unmapped_cpus" in original:
+            node["slurm_unmapped_cpus"] = original["slurm_unmapped_cpus"]
         source = original.get("cpu_allocation_source")
         if source is not None and source in ("slurm", "estimated", "none"):
             node["cpu_allocation_source"] = source

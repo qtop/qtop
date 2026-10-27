@@ -498,6 +498,11 @@ count. Identical duplicate task rows are deduplicated; conflicting rows are
 rejected. Slurm job counts use individual array tasks and heterogeneous
 components. Components keep distinct IDs and allocations, even when they share
 one heterogeneous submission; the summary states this accounting unit.
+Pending jobs eligible for multiple partitions appear in each real partition,
+with one unique job in global totals. Per-partition counts therefore need not
+sum to the global total. JSON retains the eligible names in `slurm_partitions`
+and the counting category in `accounting_state`. Compatible pending rows
+repeated by `squeue -P` are merged.
 
 The extra job columns preserve TRES allocation
 (or requests for pending jobs), resources per node and resources per task;
@@ -526,7 +531,12 @@ placement. Each node exports `cpu_allocation_source` (`slurm`, `estimated`, or
 `none`); the occupancy legend identifies estimates. Valid detail records use
 Slurm abstract CPU IDs, which are not Linux CPU IDs or task affinity masks.
 Overlapping allocations also use estimates because the current core map can
-represent only one job per CPU. Capture commands close together to limit races.
+represent only one job per CPU. Estimated placement fills available capacity
+across uneven node sizes. Each node retains all active job IDs in
+`slurm_job_ids`, including jobs sharing CPUs, so per-user node counts remain
+complete. If assignments exceed matrix capacity, `slurm_unmapped_cpus` records
+the omitted count once per affected job, and the legend reports it.
+Capture commands close together to limit races.
 Anonymized snapshots retain placement provenance but omit opaque TRES/GRES
 strings; ordinary exports and raw trace archives preserve them.
 

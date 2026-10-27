@@ -272,3 +272,35 @@ def test_anonymized_slurm_parent_and_child_ids_remain_consistent():
     assert array_parents != het_parents
     assert all(job in ids for node in masked["nodes"] for job in node["core_job_map"].values())
     assert sample.validate_cluster_state(masked) == masked
+
+
+@pytest.mark.parametrize("anonymous", [False, True])
+def test_slurm_shared_cpus_and_partition_memberships_survive_cli_replay(tmp_path, anonymous):
+    inputs = tmp_path / "inputs"
+    inputs.mkdir()
+    (inputs / "squeue.txt").write_text("1|alice|R|batch|4|node1\n2|bob|R|batch|4|node1\n3|carol|PD|batch,gpu|1|(Priority)\n")
+    (inputs / "sinfo.txt").write_text("node1|batch|mix|4\nnode1|gpu|mix|4\n")
+    output = tmp_path / "captured"
+    output.mkdir()
+    captured = run_cli(
+        tmp_path / "capture_home", "-b", "slurm", "-s", str(inputs), "-L", "-E", "-O", "-c", "OFF", "-o", "savepath=" + str(output), *(["-A", "-e"] if anonymous else ["-e"])
+    )
+    assert captured.returncode == 0, captured.stderr
+    state = json.loads(next(output.glob("qtop_json_*.json")).read_text())
+    frame = next(output.glob("qtop_fullview_*.out")).read_text()
+    assert "2+1 jobs" in frame
+    assert "global job counts are unique" in frame
+    assert "omits 4 shared/excess CPU assignments" in frame
+    assert state["nodes"][0]["state"] == "b"
+    assert len(state["nodes"][0]["slurm_job_ids"]) == 2
+    assert [queue["queued"] for queue in state["queues"]] == [1, 1]
+    if not anonymous:
+        assert "batch: 2 + 1" in frame and "gpu: 0 + 1" in frame
+    else:
+        replayed = tmp_path / "replayed"
+        replayed.mkdir()
+        result = run_cli(tmp_path / "replay_home", "--load-sample", str(next(output.glob("*.tar"))), "-E", "-O", "-c", "OFF", "-o", "savepath=" + str(replayed))
+        assert result.returncode == 0, result.stderr
+        assert json.loads(next(replayed.glob("qtop_json_*.json")).read_text()) == state
+        replay_frame = next(replayed.glob("qtop_fullview_*.out")).read_text()
+        assert "2+1 jobs" in replay_frame and "omits 4 shared/excess CPU assignments" in replay_frame

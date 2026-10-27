@@ -84,7 +84,7 @@ def test_slurm_exposes_plain_cluster_state():
     state = SlurmBatchSystem(scheduler_files("basic"), {}, Options()).get_cluster_state(Options())
 
     assert list(state) == ["jobs", "nodes", "queues"]
-    assert state["jobs"][0] == {"id": "101", "user": "alice", "state": "R", "queue": "compute"}
+    assert state["jobs"][0] == {"id": "101", "user": "alice", "state": "R", "queue": "compute", "slurm_partitions": ["compute"], "accounting_state": "running"}
     assert state["nodes"][0]["domainname"] == "node001"
     assert state["queues"][0]["name"] == "compute"
 

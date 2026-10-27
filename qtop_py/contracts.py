@@ -13,6 +13,8 @@ if TYPE_CHECKING:
     IdentifierMaps = Dict[str, Dict[str, str]]
 
     class JobResources(TypedDict, total=False):
+        slurm_partitions: List[str]
+        accounting_state: str
         slurm_array_job_id: str
         slurm_array_task_id: str
         slurm_het_job_id: str
@@ -28,6 +30,8 @@ if TYPE_CHECKING:
         queue: str
 
     class NodeResources(TypedDict, total=False):
+        slurm_job_ids: List[str]
+        slurm_unmapped_cpus: int
         cpu_allocation_source: str
         slurm_gres: str
         slurm_gres_used: str

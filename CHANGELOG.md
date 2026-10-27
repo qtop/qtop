@@ -5,6 +5,8 @@ See the [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 
 ## 0.9.20261018
 
+- Bugfix: retain Slurm jobs on shared CPUs; fill uneven node capacity.
+- Bugfix: count multi-partition Slurm jobs without phantom queues.
 - Feature: mark blocked Slurm partitions in the queueing summary.
 - Feature: preserve explicit Slurm array and component identity.
 - Bugfix: expand Slurm array tasks; clarify heterogeneous-component accounting.

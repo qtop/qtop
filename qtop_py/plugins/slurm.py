@@ -50,6 +50,7 @@ SLURM_JOB_STATES = {
     "UPDATE_DB": "CG",
 }
 SLURM_COMPACT_JOB_STATES = set(SLURM_JOB_STATES.values())
+SLURM_QUEUED_STATES = {"PD", "CF", "RD", "RF", "RH", "RQ", "SE"}
 
 
 class SlurmStatExtractor(StatExtractor):
@@ -129,7 +130,7 @@ class SlurmStatExtractor(StatExtractor):
                     if len(fields) not in (6, 9, 11):
                         raise ValueError("expected 6 legacy, 9 resource or 11 identity fields")
                     job_id, user, state, partition, cpus, nodes = fields[:6]
-                    if not all((job_id, user, state, partition.rstrip("*"))):
+                    if not all((job_id, user, state)) or not all(name.strip().rstrip("*") for name in partition.split(",")):
                         raise ValueError("missing required job field")
                 except ValueError:
                     logging.warning("Line: %s not properly parsed as Slurm squeue output." % line)
@@ -140,13 +141,16 @@ class SlurmStatExtractor(StatExtractor):
                     expanded_count += len(task_ids)
                     if expanded_count > self.MAX_EXPANDED_TASKS:
                         raise ValueError("Too many grouped Slurm array tasks; collect squeue with -r/--array.")
+                partitions = list(OrderedDict.fromkeys(self.anonymize(name.strip().rstrip("*"), "qs") for name in partition.split(",") if name.strip().rstrip("*")))
                 for task_id in task_ids:
                     job = {
                         "JobId": task_id,
                         "UnixAccount": self.anonymize(user, "users"),
                         "S": self._map_job_state(state),
                         "raw_state": state,
-                        "Queue": self.anonymize(partition.rstrip("*"), "qs"),
+                        "Queue": partitions[0],
+                        "slurm_partitions": partitions,
+                        "accounting_state": "running" if self._map_job_state(state) == "R" else "queued" if self._map_job_state(state) in SLURM_QUEUED_STATES else "other",
                         "CPUs": max(1, self._safe_int(cpus, default=1)),
                         "Nodes": nodes,
                     }
@@ -154,6 +158,12 @@ class SlurmStatExtractor(StatExtractor):
                     if len(fields) >= 9:
                         job.update(zip(("slurm_tres_alloc", "slurm_tres_per_node", "slurm_tres_per_task"), fields[6:9]))
                     if task_id in jobs and jobs[task_id] != job:
+                        previous = jobs[task_id]
+                        ignored = {"Queue", "slurm_partitions"}
+                        comparable = {key: value for key, value in job.items() if key not in ignored}
+                        if job["S"] in SLURM_QUEUED_STATES and {key: value for key, value in previous.items() if key not in ignored} == comparable:
+                            previous["slurm_partitions"] = list(OrderedDict.fromkeys(previous["slurm_partitions"] + partitions))
+                            continue
                         raise ValueError("Conflicting Slurm records for job %s; collect a fresh squeue trace with -r/--array." % task_id)
                     jobs[task_id] = job
         return list(jobs.values())
@@ -261,7 +271,7 @@ class SlurmBatchSystem(GenericBatchSystem):
     # Bound both numeric ranges and Cartesian products from untrusted traces.
     MAX_EXPANDED_NODES = 100000
     ACTIVE_STATES = set(["R", "CG", "CF", "S", "ST", "RS", "SI", "SO"])
-    QUEUED_STATES = set(["PD", "CF", "RD", "RF", "RH", "RQ", "SE"])
+    QUEUED_STATES = SLURM_QUEUED_STATES
     STATE_PRIORITY = {"d": 5, "b": 4, "c": 2, "r": 1, "-": 0, "?": -1}
     PARTITION_STATE_PRIORITY = {"?": -1, "up": 0, "drain": 1, "down": 2, "inact": 3, "inactive": 3}
 
@@ -280,6 +290,8 @@ class SlurmBatchSystem(GenericBatchSystem):
     def get_cluster_state(self, options):
         state = super().get_cluster_state(options)
         for job, raw in zip(state["jobs"], self._get_jobs()):
+            job["slurm_partitions"] = list(raw["slurm_partitions"])
+            job["accounting_state"] = raw["accounting_state"]
             if "slurm_array_job_id" in raw:
                 job["slurm_array_job_id"] = raw["slurm_array_job_id"]
                 job["slurm_array_task_id"] = raw["slurm_array_task_id"]
@@ -318,14 +330,16 @@ class SlurmBatchSystem(GenericBatchSystem):
                 queue["state"] = state
 
         for job in self._get_jobs():
-            queue = job["Queue"]
-            queue_counts.setdefault(queue, {"run": 0, "queued": 0, "lm": "--", "state": "?"})
             if job["S"] == "R":
-                queue_counts[queue]["run"] += 1
                 total_running_jobs += 1
             elif job["S"] in self.QUEUED_STATES:
-                queue_counts[queue]["queued"] += 1
                 total_queued_jobs += 1
+            for name in job["slurm_partitions"]:
+                queue = queue_counts.setdefault(name, {"run": 0, "queued": 0, "lm": "--", "state": "?"})
+                if job["S"] == "R":
+                    queue["run"] += 1
+                elif job["S"] in self.QUEUED_STATES:
+                    queue["queued"] += 1
 
         qstatq_lod = [
             {
@@ -368,6 +382,18 @@ class SlurmBatchSystem(GenericBatchSystem):
             worker_node["core_job_map"] = dict((idx, job_id) for idx, job_id in enumerate(node_jobs.get(raw_name, [])))
 
         self._apply_cpu_allocations(worker_nodes_by_name)
+        for node in worker_nodes_by_name.values():
+            node.pop("slurm_unmapped_cpus", None)
+        mapped = {}
+        for node in worker_nodes_by_name.values():
+            for job_id in node["core_job_map"].values():
+                mapped[job_id] = mapped.get(job_id, 0) + 1
+        for job in self._get_jobs():
+            hosts = [host for host in self.expand_nodelist(job["Nodes"]) if host in worker_nodes_by_name]
+            missing = job["CPUs"] - mapped.get(job["JobId"], 0)
+            if job["S"] in self.ACTIVE_STATES and hosts and missing > 0:
+                node = worker_nodes_by_name[hosts[0]]
+                node["slurm_unmapped_cpus"] = node.get("slurm_unmapped_cpus", 0) + missing
         worker_nodes = list(worker_nodes_by_name.values())
         logging.info("worker_nodes contains %s entries" % len(worker_nodes))
         return worker_nodes
@@ -476,6 +502,8 @@ class SlurmBatchSystem(GenericBatchSystem):
     @classmethod
     def _map_jobs_to_nodes(cls, jobs, worker_nodes_by_name):
         node_jobs = OrderedDict((node_name, []) for node_name in worker_nodes_by_name)
+        for node in worker_nodes_by_name.values():
+            node["slurm_job_ids"] = []
         for job in jobs:
             if job["S"] not in cls.ACTIVE_STATES:
                 continue
@@ -483,6 +511,8 @@ class SlurmBatchSystem(GenericBatchSystem):
             if not nodes:
                 continue
 
+            for node in nodes:
+                worker_nodes_by_name[node]["slurm_job_ids"].append(job["JobId"])
             remaining_cpus = max(1, job["CPUs"])
             for idx, node in enumerate(nodes):
                 capacity = int(worker_nodes_by_name[node]["np"])
@@ -496,6 +526,12 @@ class SlurmBatchSystem(GenericBatchSystem):
                 remaining_cpus -= cpus_for_node
                 if remaining_cpus <= 0:
                     break
+            # Revisit earlier nodes when a smaller node could not take its share.
+            for node in nodes:
+                available = max(0, int(worker_nodes_by_name[node]["np"]) - len(node_jobs[node]))
+                count = min(available, remaining_cpus)
+                node_jobs[node].extend([job["JobId"]] * count)
+                remaining_cpus -= count
         return node_jobs
 
     @classmethod

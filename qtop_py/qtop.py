@@ -52,7 +52,9 @@ from math import ceil
 from typing import TYPE_CHECKING, Optional
 
 if TYPE_CHECKING:
-    from qtop_py.contracts import ClusterState, Config, Scheduler
+    from typing import Dict
+
+    from qtop_py.contracts import ClusterState, Config, Job, Scheduler
 
     config: Config
     dynamic_config: Config
@@ -1536,6 +1538,8 @@ QDoc = namedtuple("QDoc", ["lm", "queued", "run", "state"])
 
 
 class Document(namedtuple("Document", ["worker_nodes", "jobs_dict", "queues_dict", "total_running_jobs", "total_queued_jobs"])):
+    _job_metadata: "Dict[str, Job]"
+
     @classmethod
     def from_cluster_state(cls, cluster_state: "ClusterState") -> "Document":
         validate_cluster_state(cluster_state)
@@ -1548,18 +1552,21 @@ class Document(namedtuple("Document", ["worker_nodes", "jobs_dict", "queues_dict
             )
             for queue in cluster_state["queues"]
         )
-        return cls(
+        document = cls(
             copy.deepcopy(cluster_state["nodes"]),
             jobs_dict,
             queues_dict,
             totals["running_jobs"],
             totals["queued_jobs"],
         )
+        document._job_metadata = {job["id"]: copy.deepcopy(job) for job in cluster_state["jobs"]}
+        return document
 
     def to_cluster_state(self) -> "ClusterState":
         return {
             "jobs": [
                 {
+                    **getattr(self, "_job_metadata", {}).get(job_id, {}),
                     "id": job_id,
                     "user": job.user_name,
                     "state": job.job_state,
@@ -1682,6 +1689,8 @@ class TextDisplay(object):
 
         if scheduler == "slurm":
             print("Slurm job counts include individual array tasks and heterogeneous components.")
+            if any(len(job.get("slurm_partitions", [])) > 1 for job in getattr(document, "_job_metadata", {}).values()):
+                print("Slurm partition counts include each eligible partition; global job counts are unique.")
         expanded = globals().get("dynamic_config", {}).get("queue_summary_expanded", getattr(self.args, "EXPAND_QUEUES", False))
         print("%(queues)s :" % {"queues": colorize("Queueing", "Cyan_L")}, end="\n" if expanded else " ")
         for _queue_name, q_tuple in qstatq_lod.items():
@@ -1716,6 +1725,9 @@ class TextDisplay(object):
                 print("Slurm CPU placement: estimated where allocation details are unavailable.")
             if "slurm" in sources:
                 print("Slurm CPU placement: scheduler CPU IDs; Linux task affinity is not shown.")
+            omitted = sum(node.get("slurm_unmapped_cpus", 0) for node in cluster.worker_nodes)
+            if omitted:
+                print("Slurm CPU matrix omits %s shared/excess CPU assignments; job/node membership is retained." % omitted)
         self.display_matrix(wns_occupancy, print_char_start, print_char_stop)
         # the transposed matrix is one continuous block, doesn't make sense to break into more matrices
         if not dynamic_config.get("transpose_wn_matrices", config["transpose_wn_matrices"]):
@@ -2345,6 +2357,7 @@ class Cluster(object):
     def _calculate_jobs_per_node(self, workernode_dict):
         for node in workernode_dict:
             node_job_set = set(workernode_dict[node]["core_job_map"].values())
+            node_job_set.update(workernode_dict[node].get("slurm_job_ids", []))
             workernode_dict[node]["node_job_set"] = node_job_set
 
 
