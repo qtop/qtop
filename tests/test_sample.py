@@ -220,6 +220,8 @@ def test_slurm_cpu_details_and_resources_survive_snapshot_replay(tmp_path, anony
     assert captured.returncode == 0, captured.stderr
     expected = json.loads(next(output.glob("qtop_json_*.json")).read_text())
     assert expected["nodes"][0]["cpu_allocation_source"] == "slurm"
+    if sample_name == "cpu_allocations":
+        assert any(queue["state"] == "drain" for queue in expected["queues"])
     assert ("slurm_tres_alloc" in expected["jobs"][0]) is not anonymous
     archive = next(output.glob("*.tar"))
     replayed = tmp_path / "replayed"

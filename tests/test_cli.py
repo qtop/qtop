@@ -239,7 +239,7 @@ def test_replay_configuration_failure_is_concise(tmp_path):
                 "JobID:0|,UserName:0|,StateCompact:0|,Partition:0|,NumCPUs:0|,NodeList:0|,tres-alloc:0|,tres-per-node:0|,tres-per-task:0|,ArrayJobID:0|,ArrayTaskID:0",
             ],
         ),
-        ("sinfo_file", ["-N", "-h", "-O", "NodeList:0|,Partition:0|,StateCompact:0|,CPUs:0|,Gres:0|,GresUsed:0"]),
+        ("sinfo_file", ["-N", "-h", "-O", "NodeList:0|,Partition:0|,StateCompact:0|,CPUs:0|,Gres:0|,GresUsed:0|,Available:0"]),
         ("scontrol_file", ["--details", "show", "jobs"]),
     ),
 )
@@ -523,3 +523,34 @@ def test_truncated_slurm_array_trace_fails_with_collection_advice(tmp_path):
     assert result.returncode == 1
     assert "collect squeue with -r/--array" in result.stderr
     assert "Traceback" not in result.stderr
+
+
+@pytest.mark.parametrize("availability", ["up", "down", "drain", "inact"])
+@pytest.mark.parametrize("expanded", [False, True])
+def test_slurm_queueing_line_marks_blocked_partitions(tmp_path, availability, expanded):
+    import json
+    import shutil
+
+    source = tmp_path / "trace"
+    shutil.copytree(str(ROOT / "tests/plugins/slurm_samples/cpu_allocations"), str(source))
+    info = source / "sinfo.txt"
+    rows = [line.split("|") for line in info.read_text().splitlines()]
+    for row in rows:
+        if row[1].rstrip("*") == "compute":
+            row[-1] = availability
+    info.write_text("".join("|".join(row) + "\n" for row in rows))
+    output = tmp_path / "results"
+    flags = ["--expand-queues"] if expanded else []
+    result = run_cli(tmp_path, "qtop_py.cli", "-b", "slurm", "-s", str(source), "-E", "-O", "-c", "OFF", "-o", "savepath=" + str(output), *flags)
+    assert result.returncode == 0, result.stderr
+    frame = next(output.glob("qtop_fullview_*.out")).read_text()
+    if availability == "up":
+        assert "compute: " in frame
+        assert "compute*: " not in frame
+    else:
+        assert "compute*: " in frame
+    assert "long*: " in frame
+    assert "partition closed to submissions or scheduling" in frame
+    state = json.loads(next(output.glob("qtop_json_*.json")).read_text())
+    assert next(queue for queue in state["queues"] if queue["name"] == "compute")["state"] == availability
+    assert "2+1 jobs" in frame

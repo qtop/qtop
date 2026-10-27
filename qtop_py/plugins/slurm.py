@@ -161,7 +161,7 @@ class SlurmStatExtractor(StatExtractor):
     def extract_sinfo(self, orig_file):
         """
         Parse output from:
-        sinfo -N -h -O 'NodeList:0|,Partition:0|,StateCompact:0|,CPUs:0|,Gres:0|,GresUsed:0'
+        sinfo -N -h -O 'NodeList:0|,Partition:0|,StateCompact:0|,CPUs:0|,Gres:0|,GresUsed:0|,Available:0'
         """
         try:
             fileutils.check_empty_file(orig_file)
@@ -177,8 +177,8 @@ class SlurmStatExtractor(StatExtractor):
                     continue
                 try:
                     fields = [field.strip() for field in line.split("|")]
-                    if len(fields) not in (4, 6):
-                        raise ValueError("expected 4 legacy or 6 extended fields")
+                    if len(fields) not in (4, 5, 6, 7):
+                        raise ValueError("expected 4/6 node fields with optional partition availability")
                     node_name, partition, state, cpus = fields[:4]
                     if not all((node_name, partition.rstrip("*"))):
                         raise ValueError("missing required node field")
@@ -192,11 +192,12 @@ class SlurmStatExtractor(StatExtractor):
                         "raw_domainname": node_name,
                         "qname": self.anonymize(partition.rstrip("*"), "qs"),
                         "state": self._map_node_state(state),
+                        "partition_state": (fields[-1].lower() or "?") if len(fields) in (5, 7) else "?",
                         "np": str(max(0, self._safe_int(cpus, default=0))),
                     }
                 )
-                if len(fields) == 6:
-                    nodes[-1].update(zip(("slurm_gres", "slurm_gres_used"), fields[4:]))
+                if len(fields) >= 6:
+                    nodes[-1].update(zip(("slurm_gres", "slurm_gres_used"), fields[4:6]))
         return nodes
 
     @staticmethod
@@ -262,6 +263,7 @@ class SlurmBatchSystem(GenericBatchSystem):
     ACTIVE_STATES = set(["R", "CG", "CF", "S", "ST", "RS", "SI", "SO"])
     QUEUED_STATES = set(["PD", "CF", "RD", "RF", "RH", "RQ", "SE"])
     STATE_PRIORITY = {"d": 5, "b": 4, "c": 2, "r": 1, "-": 0, "?": -1}
+    PARTITION_STATE_PRIORITY = {"?": -1, "up": 0, "drain": 1, "down": 2, "inact": 3, "inactive": 3}
 
     @staticmethod
     def get_mnemonic():
@@ -310,11 +312,14 @@ class SlurmBatchSystem(GenericBatchSystem):
         total_queued_jobs = 0
 
         for node in self._get_nodes():
-            queue_counts.setdefault(node["qname"], {"run": 0, "queued": 0, "lm": "--", "state": "E"})
+            queue = queue_counts.setdefault(node["qname"], {"run": 0, "queued": 0, "lm": "--", "state": "?"})
+            state = node.get("partition_state", "?")
+            if queue["state"] == "?" or self.PARTITION_STATE_PRIORITY.get(state, -1) > self.PARTITION_STATE_PRIORITY.get(queue["state"], -1):
+                queue["state"] = state
 
         for job in self._get_jobs():
             queue = job["Queue"]
-            queue_counts.setdefault(queue, {"run": 0, "queued": 0, "lm": "--", "state": "E"})
+            queue_counts.setdefault(queue, {"run": 0, "queued": 0, "lm": "--", "state": "?"})
             if job["S"] == "R":
                 queue_counts[queue]["run"] += 1
                 total_running_jobs += 1

@@ -544,3 +544,46 @@ def test_explicit_array_fields_match_scontrol_internal_job_ids(detailed_slurm):
     assert state["jobs"][0]["slurm_array_task_id"] == "3"
     assert state["nodes"][1]["core_job_map"] == {1: "101_3", 3: "101_3", 5: "101_3"}
     assert state["nodes"][1]["cpu_allocation_source"] == "slurm"
+
+
+@pytest.mark.parametrize("resources", [False, True])
+@pytest.mark.parametrize("availability, blocked", [("up", False), ("down", True), ("drain", True), ("inact", True), ("INACTIVE", True), ("", False), ("?", False)])
+def test_slurm_partition_availability_is_separate_from_node_state(tmp_path, resources, availability, blocked):
+    from qtop_py.qtop import queue_is_blocked
+
+    info = tmp_path / "sinfo.txt"
+    queue = tmp_path / "squeue.txt"
+    fields = ["node001", "compute*", "down", "8"]
+    if resources:
+        fields.extend(["gpu:a100:4(S:0-1)", "gpu:a100:1(IDX:2)"])
+    info.write_text("|".join(fields + [availability]) + "\n")
+    queue.write_text("101|alice|PD|compute|1|(Priority)\n")
+    system = SlurmBatchSystem({"sinfo_file": str(info), "squeue_file": str(queue)}, {}, Options())
+    nodes = system._get_nodes()
+    assert nodes[0]["state"] == "d"
+    assert nodes[0]["partition_state"] == (availability.lower() or "?")
+    if resources:
+        assert nodes[0]["slurm_gres_used"] == "gpu:a100:1(IDX:2)"
+    running, queued, queues = system.get_queues_info()
+    assert (running, queued) == (0, 1)
+    assert queues[0]["state"] == (availability.lower() or "?")
+    assert queue_is_blocked(queues[0]["state"], "slurm") is blocked
+
+
+@pytest.mark.parametrize("resources", [False, True])
+def test_legacy_slurm_traces_keep_unknown_partition_availability(tmp_path, resources):
+    info = tmp_path / "sinfo.txt"
+    info.write_text("node001|compute*|down|8" + ("|(null)|(null)" if resources else "") + "\n")
+    system = SlurmBatchSystem({"sinfo_file": str(info)}, {}, Options())
+    system._jobs = []
+    assert system.get_queues_info()[2][0]["state"] == "?"
+
+
+@pytest.mark.parametrize("states, expected", [(("up", "down"), "down"), (("up", "drain"), "drain"), (("down", "inact"), "inact"), (("?", "down"), "down")])
+@pytest.mark.parametrize("reverse", [False, True])
+def test_partition_availability_keeps_blocking_states_across_node_rows(tmp_path, states, expected, reverse):
+    info = tmp_path / "sinfo.txt"
+    info.write_text("".join("node00%s|compute|idle|8|%s\n" % (index, state) for index, state in enumerate(reversed(states) if reverse else states, 1)))
+    system = SlurmBatchSystem({"sinfo_file": str(info)}, {}, Options())
+    system._jobs = []
+    assert system.get_queues_info()[2][0]["state"] == expected

@@ -31,11 +31,11 @@ schedulers:
   slurm:
     ## Copy the command after ', ' directly into a shell for debugging.
     squeue_file: %(savepath)s/squeue%(pid)s.txt, squeue -r -h -O 'JobID:0|,UserName:0|,StateCompact:0|,Partition:0|,NumCPUs:0|,NodeList:0|,tres-alloc:0|,tres-per-node:0|,tres-per-task:0|,ArrayJobID:0|,ArrayTaskID:0'
-    sinfo_file: %(savepath)s/sinfo%(pid)s.txt, sinfo -N -h -O 'NodeList:0|,Partition:0|,StateCompact:0|,CPUs:0|,Gres:0|,GresUsed:0'
+    sinfo_file: %(savepath)s/sinfo%(pid)s.txt, sinfo -N -h -O 'NodeList:0|,Partition:0|,StateCompact:0|,CPUs:0|,Gres:0|,GresUsed:0|,Available:0'
     ## Collect Slurm CPU IDs by default; missing/failed details use estimates.
     scontrol_file: %(savepath)s/scontrol%(pid)s.txt, scontrol --details show jobs
     #squeue_file: %(savepath)s/squeue%(pid)s.txt, squeue -r -h -o '%i|%u|%t|%P|%C|%N'
-    #sinfo_file: %(savepath)s/sinfo%(pid)s.txt, sinfo -N -h -o '%N|%P|%t|%c'
+    #sinfo_file: %(savepath)s/sinfo%(pid)s.txt, sinfo -N -h -o '%N|%P|%t|%c|%a'
   demo:
     demo_file: %(savepath)s/demo%(pid)s.txt, echo 'Demo here'
 

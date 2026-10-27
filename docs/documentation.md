@@ -451,7 +451,7 @@ schedulers:
   slurm:
     ## Copy the command after ', ' directly into a shell for debugging.
     squeue_file: %(savepath)s/squeue%(pid)s.txt, squeue -r -h -O 'JobID:0|,UserName:0|,StateCompact:0|,Partition:0|,NumCPUs:0|,NodeList:0|,tres-alloc:0|,tres-per-node:0|,tres-per-task:0|,ArrayJobID:0|,ArrayTaskID:0'
-    sinfo_file: %(savepath)s/sinfo%(pid)s.txt, sinfo -N -h -O 'NodeList:0|,Partition:0|,StateCompact:0|,CPUs:0|,Gres:0|,GresUsed:0'
+    sinfo_file: %(savepath)s/sinfo%(pid)s.txt, sinfo -N -h -O 'NodeList:0|,Partition:0|,StateCompact:0|,CPUs:0|,Gres:0|,GresUsed:0|,Available:0'
     scontrol_file: %(savepath)s/scontrol%(pid)s.txt, scontrol --details show jobs
   demo:
     demo_file: %(savepath)s/demo%(pid)s.txt, echo 'Demo here'
@@ -462,7 +462,7 @@ a shell:
 
 ```sh
 squeue -r -h -O 'JobID:0|,UserName:0|,StateCompact:0|,Partition:0|,NumCPUs:0|,NodeList:0|,tres-alloc:0|,tres-per-node:0|,tres-per-task:0|,ArrayJobID:0|,ArrayTaskID:0'
-sinfo -N -h -O 'NodeList:0|,Partition:0|,StateCompact:0|,CPUs:0|,Gres:0|,GresUsed:0'
+sinfo -N -h -O 'NodeList:0|,Partition:0|,StateCompact:0|,CPUs:0|,Gres:0|,GresUsed:0|,Available:0'
 ```
 
 Quotes keep the pipe characters inside the format argument. qtop honors
@@ -471,7 +471,17 @@ configurations using doubled ``%%`` format codes remain supported.
 
 Slurm accepts legacy six-column and resource-aware nine-column `squeue`
 traces, plus the eleven-column identity-aware format above. `sinfo` accepts
-four or six columns. The appended `ArrayJobID` and `ArrayTaskID` fields are
+four or six columns, or five/seven with partition availability appended.
+The default `sinfo` command includes `Available` (`%a` in compact format).
+The queueing line marks partitions in `down`, `drain`, or `inact`/`inactive`
+state with `*`; `up` partitions remain unmarked. Partition availability is
+separate from node health: a down node does not by itself block a partition.
+Older traces without availability report queue state `?` and no blocking
+marker. If rows disagree, blocking states take precedence over `up` or unknown.
+The raw partition state is exported in each queue's `state` field and survives
+capture/replay, including anonymized snapshots.
+
+The appended `ArrayJobID` and `ArrayTaskID` fields are
 the primary array identity; missing fields fall back to the formatted job ID.
 For ordinary jobs Slurm reports `ArrayTaskID=N/A`, so their numeric
 `ArrayJobID` is not interpreted as array membership. Conflicting scalar
@@ -600,7 +610,7 @@ For manual Slurm collection on a scheduler host:
 ```sh
 qtop_trace_dir=$(mktemp -d)
 squeue -r -h -O 'JobID:0|,UserName:0|,StateCompact:0|,Partition:0|,NumCPUs:0|,NodeList:0|,tres-alloc:0|,tres-per-node:0|,tres-per-task:0|,ArrayJobID:0|,ArrayTaskID:0' > "$qtop_trace_dir/squeue.txt"
-sinfo -N -h -O 'NodeList:0|,Partition:0|,StateCompact:0|,CPUs:0|,Gres:0|,GresUsed:0' > "$qtop_trace_dir/sinfo.txt"
+sinfo -N -h -O 'NodeList:0|,Partition:0|,StateCompact:0|,CPUs:0|,Gres:0|,GresUsed:0|,Available:0' > "$qtop_trace_dir/sinfo.txt"
 ./qtop -b slurm -s "$qtop_trace_dir"
 ```
 

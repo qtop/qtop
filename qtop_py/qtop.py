@@ -139,6 +139,8 @@ def queue_is_blocked(state, scheduler_name=None):
     state = str(state)
     if scheduler_name == "sge":
         return any(flag in state for flag in "aAcCdDEosSu")
+    if scheduler_name == "slurm" and state.lower() in ("down", "drain", "inact", "inactive"):
+        return True
     return state.startswith("D") or state.endswith("S")
 
 
@@ -1696,6 +1698,8 @@ class TextDisplay(object):
                 end="\n" if expanded else " ",
             )
         blocked_note = " (at least one queue instance)" if scheduler == "sge" else ""
+        if scheduler == "slurm":
+            blocked_note = " (partition closed to submissions or scheduling)"
         print(colorize("* implies blocked", "Red") + blocked_note + "\n")
 
     def display_wns_occupancy(self, wns_occupancy, cluster):
