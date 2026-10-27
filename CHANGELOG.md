@@ -3,6 +3,21 @@
 Notable changes by version, newest first.
 See the [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 
+## 0.9.20261018
+
+- Metadata: remove project-wide development-stage labels.
+- Bugfix: show Slurm node-state suffix flags and preserve raw states in snapshots.
+- Feature: track Slurm GPU device bindings and MIG profiles in JSON snapshots.
+- Bugfix: retain Slurm jobs on shared CPUs; fill uneven node capacity.
+- Bugfix: count multi-partition Slurm jobs without phantom queues.
+- Feature: mark blocked Slurm partitions in the queueing summary.
+- Feature: preserve explicit Slurm array and component identity.
+- Bugfix: expand Slurm array tasks; clarify heterogeneous-component accounting.
+- Bugfix: parse complete Slurm task/component identities across field layouts.
+- Feature: collect Slurm CPU allocation details by default; retain safe fallback.
+- Feature: read optional Slurm CPU allocations; label estimated placement.
+- Feature: capture Slurm TRES/GRES fields for future GPU support.
+
 ## 0.9.20261017
 
 - Cleanup: clarify typing placeholders and expected directory exceptions for CodeQL.

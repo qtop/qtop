@@ -961,3 +961,8 @@ def test_init_logging_sets_file_level(tmp_path, monkeypatch, verbose, expected):
                 handler.close()
         logger.setLevel(old_level)
         logger.disabled = old_disabled
+
+
+@pytest.mark.parametrize("state, blocked", [("up", False), ("UP", False), ("down", True), ("drain", True), ("inact", True), ("INACTIVE", True), ("?", False)])
+def test_slurm_partition_blocking_markers(state, blocked):
+    assert qtop_module.queue_is_blocked(state, "slurm") is blocked

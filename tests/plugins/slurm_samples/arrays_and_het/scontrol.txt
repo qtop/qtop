@@ -1,0 +1,9 @@
+JobId=501 ArrayTaskId=1  ArrayJobId=101 JobName=first
+ CPU_IDs=2,4 Nodes=node001 Mem=1024 GRES=
+JobId=502 ArrayJobId=101	ArrayTaskId=2 JobName=second
+ Nodes=node002  CPU_IDs=1,5 Mem=1024 GRES=
+JobId=201 HetJobOffset=0 HetJobId=201 JobName=first_component
+ Nodes=node001 CPU_IDs=0 Mem=1024 GRES=
+JobId=202 HetJobId=201  HetJobOffset=1 JobName=second_component
+ Nodes=node002 CPU_IDs=3,7 Mem=1024 GRES=
+JobId=101 ArrayJobId=101 ArrayTaskId=3-9:2%2 JobName=pending

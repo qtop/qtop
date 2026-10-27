@@ -49,10 +49,12 @@ import time
 import traceback
 from ast import literal_eval
 from math import ceil
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 if TYPE_CHECKING:
-    from qtop_py.contracts import ClusterState, Config, Scheduler
+    from typing import Dict
+
+    from qtop_py.contracts import ClusterState, Config, Job, Scheduler
 
     config: Config
     dynamic_config: Config
@@ -139,6 +141,8 @@ def queue_is_blocked(state, scheduler_name=None):
     state = str(state)
     if scheduler_name == "sge":
         return any(flag in state for flag in "aAcCdDEosSu")
+    if scheduler_name == "slurm" and state.lower() in ("down", "drain", "inact", "inactive"):
+        return True
     return state.startswith("D") or state.endswith("S")
 
 
@@ -565,10 +569,24 @@ def get_input_filenames(INPUT_FNs_commands, config):
 
         if not args.SOURCEDIR:
             _savepath = os.path.realpath(os.path.expandvars(config["savepath"]))
-            filenames[_file] = execute_shell_batch_commands(batch_system_commands, filenames, _file, _savepath)
+            try:
+                filenames[_file] = execute_shell_batch_commands(batch_system_commands, filenames, _file, _savepath)
+            except OperationalError as error:
+                if scheduler != "slurm" or _file != "scontrol_file":
+                    raise
+                logging.warning("%s Using estimated Slurm CPU placement.", error)
+                filenames.pop(_file)
+                continue
 
+        if scheduler == "slurm" and _file == "scontrol_file" and not os.path.isfile(filenames[_file]):
+            filenames.pop(_file)
+            continue
         if not os.path.isfile(filenames[_file]):
             raise OperationalError("Scheduler input file %s was not found. Check -s/--SetSourceDir and the selected scheduler." % filenames[_file])
+    if scheduler == "slurm" and args.SOURCEDIR and "scontrol_file" not in filenames:
+        detail_path = os.path.join(args.SOURCEDIR, "scontrol.txt")
+        if os.path.isfile(detail_path):
+            filenames["scontrol_file"] = detail_path
     return filenames
 
 
@@ -1335,6 +1353,9 @@ class WNOccupancy(object):
             node_attrs = self.cluster.workernode_dict[_node]
             # distribute state, qname etc to lines
             attribute = list(node_attrs[yaml_key][:min_len])
+            raw_state = node_attrs.get("slurm_node_state", "")
+            if yaml_key == "state" and raw_state and raw_state[-1] in "*+#~$@%!^-" and attribute:
+                attribute[0] = utils.ColorStr(raw_state[-1], color=attribute[0].color)
             attribute.extend(" " for _ in range(min_len - len(attribute)))
             for attr_line, ch in zip(multiline_map, attribute):
                 if ch == " ":
@@ -1520,6 +1541,8 @@ QDoc = namedtuple("QDoc", ["lm", "queued", "run", "state"])
 
 
 class Document(namedtuple("Document", ["worker_nodes", "jobs_dict", "queues_dict", "total_running_jobs", "total_queued_jobs"])):
+    _job_metadata: "Dict[str, Job]"
+
     @classmethod
     def from_cluster_state(cls, cluster_state: "ClusterState") -> "Document":
         validate_cluster_state(cluster_state)
@@ -1532,18 +1555,21 @@ class Document(namedtuple("Document", ["worker_nodes", "jobs_dict", "queues_dict
             )
             for queue in cluster_state["queues"]
         )
-        return cls(
+        document = cls(
             copy.deepcopy(cluster_state["nodes"]),
             jobs_dict,
             queues_dict,
             totals["running_jobs"],
             totals["queued_jobs"],
         )
+        document._job_metadata = {job["id"]: copy.deepcopy(job) for job in cluster_state["jobs"]}
+        return document
 
     def to_cluster_state(self) -> "ClusterState":
         return {
             "jobs": [
                 {
+                    **getattr(self, "_job_metadata", {}).get(job_id, {}),
                     "id": job_id,
                     "user": job.user_name,
                     "state": job.job_state,
@@ -1564,9 +1590,9 @@ class Document(namedtuple("Document", ["worker_nodes", "jobs_dict", "queues_dict
             ],
         }
 
-    def save(self, filename: str) -> None:
+    def save(self, filename: str, cluster_state: "Optional[ClusterState]" = None) -> None:
         with open(filename, "w") as outfile:
-            json.dump(self.to_cluster_state(), outfile)
+            json.dump(self.to_cluster_state() if cluster_state is None else cluster_state, outfile)
 
 
 class TextDisplay(object):
@@ -1664,6 +1690,10 @@ class TextDisplay(object):
             }
         )
 
+        if scheduler == "slurm":
+            print("Slurm job counts include individual array tasks and heterogeneous components.")
+            if any(len(job.get("slurm_partitions", [])) > 1 for job in getattr(document, "_job_metadata", {}).values()):
+                print("Slurm partition counts include each eligible partition; global job counts are unique.")
         expanded = globals().get("dynamic_config", {}).get("queue_summary_expanded", getattr(self.args, "EXPAND_QUEUES", False))
         print("%(queues)s :" % {"queues": colorize("Queueing", "Cyan_L")}, end="\n" if expanded else " ")
         for _queue_name, q_tuple in qstatq_lod.items():
@@ -1680,6 +1710,8 @@ class TextDisplay(object):
                 end="\n" if expanded else " ",
             )
         blocked_note = " (at least one queue instance)" if scheduler == "sge" else ""
+        if scheduler == "slurm":
+            blocked_note = " (partition closed to submissions or scheduling)"
         print(colorize("* implies blocked", "Red") + blocked_note + "\n")
 
     def display_wns_occupancy(self, wns_occupancy, cluster):
@@ -1690,6 +1722,15 @@ class TextDisplay(object):
         print_char_stop = self.wns_occupancy.print_char_stop
 
         self.display_basic_legend()
+        if scheduler == "slurm":
+            sources = {node.get("cpu_allocation_source") for node in cluster.worker_nodes}
+            if "estimated" in sources:
+                print("Slurm CPU placement: estimated where allocation details are unavailable.")
+            if "slurm" in sources:
+                print("Slurm CPU placement: scheduler CPU IDs; Linux task affinity is not shown.")
+            omitted = sum(node.get("slurm_unmapped_cpus", 0) for node in cluster.worker_nodes)
+            if omitted:
+                print("Slurm CPU matrix omits %s shared/excess CPU assignments; job/node membership is retained." % omitted)
         self.display_matrix(wns_occupancy, print_char_start, print_char_stop)
         # the transposed matrix is one continuous block, doesn't make sense to break into more matrices
         if not dynamic_config.get("transpose_wn_matrices", config["transpose_wn_matrices"]):
@@ -2319,6 +2360,7 @@ class Cluster(object):
     def _calculate_jobs_per_node(self, workernode_dict):
         for node in workernode_dict:
             node_job_set = set(workernode_dict[node]["core_job_map"].values())
+            node_job_set.update(workernode_dict[node].get("slurm_job_ids", []))
             workernode_dict[node]["node_job_set"] = node_job_set
 
 
@@ -2708,7 +2750,7 @@ def main():
                 if args.EXPORT or args.WEB:
                     with tempfile.NamedTemporaryFile(delete=False, prefix="qtop_json_%s_" % timestr, suffix=".json", dir=savepath) as json_file:
                         json_filename = json_file.name
-                    document.save(json_filename)
+                    document.save(json_filename, cluster_state)
                 if args.WEB:
                     web.set_filename(json_filename)
 

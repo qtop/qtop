@@ -12,13 +12,45 @@ if TYPE_CHECKING:
     Config = Dict[str, Any]  # Legacy configuration remains deliberately extensible.
     IdentifierMaps = Dict[str, Dict[str, str]]
 
-    class Job(TypedDict):
+    class JobResources(TypedDict, total=False):
+        slurm_partitions: List[str]
+        accounting_state: str
+        slurm_array_job_id: str
+        slurm_array_task_id: str
+        slurm_het_job_id: str
+        slurm_het_job_offset: str
+        slurm_tres_alloc: str
+        slurm_tres_per_node: str
+        slurm_tres_per_task: str
+
+    class Job(JobResources):
         id: str
         user: str
         state: str
         queue: str
 
-    class Node(TypedDict):
+    class GPUResource(TypedDict):
+        type: Optional[str]
+        count: int
+        device_indices: Optional[List[int]]
+        mig_profile: Optional[str]
+        parent_gpu_uuid: Optional[str]
+
+    class GPUBinding(GPUResource):
+        job_id: str
+
+    class NodeResources(TypedDict, total=False):
+        slurm_node_state: str
+        slurm_gpu_configured: List[GPUResource]
+        slurm_gpu_used: List[GPUResource]
+        slurm_gpu_bindings: List[GPUBinding]
+        slurm_job_ids: List[str]
+        slurm_unmapped_cpus: int
+        cpu_allocation_source: str
+        slurm_gres: str
+        slurm_gres_used: str
+
+    class Node(NodeResources):
         domainname: str
         state: str
         np: Union[int, str]

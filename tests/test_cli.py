@@ -230,8 +230,17 @@ def test_replay_configuration_failure_is_concise(tmp_path):
 @pytest.mark.parametrize(
     "scheduler_file, expected",
     (
-        ("squeue_file", ["-h", "-o", "%i|%u|%t|%P|%C|%N"]),
-        ("sinfo_file", ["-N", "-h", "-o", "%N|%P|%t|%c"]),
+        (
+            "squeue_file",
+            [
+                "-r",
+                "-h",
+                "-O",
+                "JobID:0|,UserName:0|,StateCompact:0|,Partition:0|,NumCPUs:0|,NodeList:0|,tres-alloc:0|,tres-per-node:0|,tres-per-task:0|,ArrayJobID:0|,ArrayTaskID:0",
+            ],
+        ),
+        ("sinfo_file", ["-N", "-h", "-O", "NodeList:0|,Partition:0|,StateCompact:0|,CPUs:0|,Gres:0|,GresUsed:0|,Available:0"]),
+        ("scontrol_file", ["--details", "show", "jobs"]),
     ),
 )
 def test_slurm_config_command_matches_shell_execution(tmp_path, monkeypatch, scheduler_file, expected):
@@ -428,3 +437,120 @@ def test_sge_filters_work_without_blind_remapping(tmp_path, rule, cores):
     assert "%s/%s cores" % (cores, cores) in frame
     assert "N/A" not in frame
     assert "User accounts and pool mappings" in frame
+
+
+@pytest.mark.parametrize("details", [False, True])
+def test_slurm_cpu_placement_legend_and_resource_export(tmp_path, details):
+    import json
+    import shutil
+
+    source = tmp_path / "trace"
+    shutil.copytree(str(ROOT / "tests/plugins/slurm_samples/cpu_allocations"), str(source))
+    if not details:
+        (source / "scontrol.txt").unlink()
+    output = tmp_path / "results"
+    result = run_cli(tmp_path, "qtop_py.cli", "-b", "slurm", "-s", str(source), "-E", "-O", "-c", "OFF", "-o", "savepath=" + str(output))
+    assert result.returncode == 0, result.stderr
+    frame = next(output.glob("qtop_fullview_*.out")).read_text()
+    assert ("scheduler CPU IDs" if details else "estimated where") in frame
+    state = json.loads(next(output.glob("qtop_json_*.json")).read_text())
+    assert state["jobs"][0]["slurm_tres_alloc"] == "cpu=4,gres/gpu=2"
+    assert state["nodes"][0]["slurm_gres_used"] == "gpu:a100:1(IDX:1)"
+    if details:
+        assert state["nodes"][1]["core_job_map"] == {"1": "101", "3": "101", "5": "101"}
+
+
+@pytest.mark.parametrize("available", [False, True])
+def test_default_live_slurm_details_command_failure_keeps_monitoring(tmp_path, available):
+    import json
+    import shlex
+
+    source = ROOT / "tests/plugins/slurm_samples/cpu_allocations"
+    commands = tmp_path / "commands"
+    commands.mkdir()
+    for command in ("squeue", "sinfo", "scontrol"):
+        executable = commands / command
+        body = "exit 1" if command == "scontrol" and not available else "cat " + shlex.quote(str(source / (command + ".txt")))
+        executable.write_text("#!/bin/sh\n" + body + "\n")
+        executable.chmod(0o755)
+    output = tmp_path / "results"
+    result = run_cli(
+        tmp_path,
+        "qtop_py.cli",
+        "-b",
+        "slurm",
+        "-E",
+        "-O",
+        "-c",
+        "OFF",
+        "-o",
+        "savepath=" + str(output),
+        extra_env={"PATH": str(commands) + os.pathsep + os.environ.get("PATH", "")},
+    )
+    assert result.returncode == 0, result.stderr
+    state = json.loads(next(output.glob("qtop_json_*.json")).read_text())
+    assert len(state["jobs"]) == 3
+    assert state["nodes"][0]["cpu_allocation_source"] == ("slurm" if available else "estimated")
+
+
+def test_slurm_array_tasks_and_heterogeneous_components_render_consistently(tmp_path):
+    import json
+
+    source = ROOT / "tests/plugins/slurm_samples/arrays_and_het"
+    output = tmp_path / "results"
+    result = run_cli(tmp_path, "qtop_py.cli", "-b", "slurm", "-s", str(source), "-E", "-O", "-c", "OFF", "-o", "savepath=" + str(output))
+    assert result.returncode == 0, result.stderr
+    frame = next(output.glob("qtop_fullview_*.out")).read_text()
+    assert "4+4 jobs" in frame
+    assert "7/16 cores" in frame
+    assert "individual array tasks and heterogeneous components" in frame
+    rows = {row[0]: tuple(map(int, row[1:])) for row in re.findall(r"\[\s*\d+\]\s+(\w+)\s*\|\s*(\d+)\s+(\d+)\s+(\d+)\s*\|\s*(\d+)\s*\|", frame)}
+    assert rows["alice"] == (6, 2, 4, 2)
+    assert rows["bob"] == (2, 2, 0, 2)
+    state = json.loads(next(output.glob("qtop_json_*.json")).read_text())
+    assert len(state["jobs"]) == 8
+    assert state["jobs"][0]["slurm_array_job_id"] == "101"
+    assert state["jobs"][0]["slurm_array_task_id"] == "1"
+    assert state["jobs"][-1]["slurm_het_job_id"] == "201"
+    assert state["jobs"][-1]["slurm_het_job_offset"] == "1"
+    assert state["nodes"][1]["core_job_map"]["7"] == "201+1"
+
+
+def test_truncated_slurm_array_trace_fails_with_collection_advice(tmp_path):
+    (tmp_path / "squeue.txt").write_text("101_[1-...]|alice|PD|compute|1|(Priority)\n")
+    (tmp_path / "sinfo.txt").write_text("node001|compute|idle|8\n")
+    result = run_cli(tmp_path, "qtop_py.cli", "-b", "slurm", "-s", str(tmp_path), "-O", "-o", "savepath=" + str(tmp_path / "results"))
+    assert result.returncode == 1
+    assert "collect squeue with -r/--array" in result.stderr
+    assert "Traceback" not in result.stderr
+
+
+@pytest.mark.parametrize("availability", ["up", "down", "drain", "inact"])
+@pytest.mark.parametrize("expanded", [False, True])
+def test_slurm_queueing_line_marks_blocked_partitions(tmp_path, availability, expanded):
+    import json
+    import shutil
+
+    source = tmp_path / "trace"
+    shutil.copytree(str(ROOT / "tests/plugins/slurm_samples/cpu_allocations"), str(source))
+    info = source / "sinfo.txt"
+    rows = [line.split("|") for line in info.read_text().splitlines()]
+    for row in rows:
+        if row[1].rstrip("*") == "compute":
+            row[-1] = availability
+    info.write_text("".join("|".join(row) + "\n" for row in rows))
+    output = tmp_path / "results"
+    flags = ["--expand-queues"] if expanded else []
+    result = run_cli(tmp_path, "qtop_py.cli", "-b", "slurm", "-s", str(source), "-E", "-O", "-c", "OFF", "-o", "savepath=" + str(output), *flags)
+    assert result.returncode == 0, result.stderr
+    frame = next(output.glob("qtop_fullview_*.out")).read_text()
+    if availability == "up":
+        assert "compute: " in frame
+        assert "compute*: " not in frame
+    else:
+        assert "compute*: " in frame
+    assert "long*: " in frame
+    assert "partition closed to submissions or scheduling" in frame
+    state = json.loads(next(output.glob("qtop_json_*.json")).read_text())
+    assert next(queue for queue in state["queues"] if queue["name"] == "compute")["state"] == availability
+    assert "2+1 jobs" in frame

@@ -450,8 +450,9 @@ schedulers:
     sge_file: %(savepath)s/qstat%(pid)s.F.xml.stdout, qstat -F -xml -u '*'
   slurm:
     ## Copy the command after ', ' directly into a shell for debugging.
-    squeue_file: %(savepath)s/squeue%(pid)s.txt, squeue -h -o '%i|%u|%t|%P|%C|%N'
-    sinfo_file: %(savepath)s/sinfo%(pid)s.txt, sinfo -N -h -o '%N|%P|%t|%c'
+    squeue_file: %(savepath)s/squeue%(pid)s.txt, squeue -r -h -O 'JobID:0|,UserName:0|,StateCompact:0|,Partition:0|,NumCPUs:0|,NodeList:0|,tres-alloc:0|,tres-per-node:0|,tres-per-task:0|,ArrayJobID:0|,ArrayTaskID:0'
+    sinfo_file: %(savepath)s/sinfo%(pid)s.txt, sinfo -N -h -O 'NodeList:0|,Partition:0|,StateCompact:0|,CPUs:0|,Gres:0|,GresUsed:0|,Available:0'
+    scontrol_file: %(savepath)s/scontrol%(pid)s.txt, scontrol --details show jobs
   demo:
     demo_file: %(savepath)s/demo%(pid)s.txt, echo 'Demo here'
 ```
@@ -460,13 +461,119 @@ The Slurm commands after the filename separator can be copied directly into
 a shell:
 
 ```sh
-squeue -h -o '%i|%u|%t|%P|%C|%N'
-sinfo -N -h -o '%N|%P|%t|%c'
+squeue -r -h -O 'JobID:0|,UserName:0|,StateCompact:0|,Partition:0|,NumCPUs:0|,NodeList:0|,tres-alloc:0|,tres-per-node:0|,tres-per-task:0|,ArrayJobID:0|,ArrayTaskID:0'
+sinfo -N -h -O 'NodeList:0|,Partition:0|,StateCompact:0|,CPUs:0|,Gres:0|,GresUsed:0|,Available:0'
 ```
 
 Quotes keep the pipe characters inside the format argument. qtop honors
 shell-style argument quoting without invoking a shell. Existing custom
 configurations using doubled ``%%`` format codes remain supported.
+
+Slurm accepts legacy six-column and resource-aware nine-column `squeue`
+traces, plus the eleven-column identity-aware format above. `sinfo` accepts
+four or six columns, or five/seven with partition availability appended.
+The default `sinfo` command includes `Available` (`%a` in compact format).
+The queueing line marks partitions in `down`, `drain`, or `inact`/`inactive`
+state with `*`; `up` partitions remain unmarked. Partition availability is
+separate from node health: a down node does not by itself block a partition.
+Older traces without availability report queue state `?` and no blocking
+marker. If rows disagree, blocking states take precedence over `up` or unknown.
+The raw partition state is exported in each queue's `state` field and survives
+capture/replay, including anonymized snapshots.
+
+Slurm nodes also retain their original compact state in `slurm_node_state`,
+including suffix flags. The node-state matrix shows the final suffix character
+when present (for example `idle*` shows `*`, `idle~` shows `~`, and `idle#`
+shows `#`). Unflagged nodes keep the existing normalized state symbol.
+The normalized `state` remains available for accounting and filtering; the raw
+Slurm state survives JSON export and capture/replay, including anonymization.
+
+The appended `ArrayJobID` and `ArrayTaskID` fields are
+the primary array identity; missing fields fall back to the formatted job ID.
+For ordinary jobs Slurm reports `ArrayTaskID=N/A`, so their numeric
+`ArrayJobID` is not interpreted as array membership. Conflicting scalar
+identities are rejected; complete explicit fields can recover a truncated
+display ID. JSON preserves `slurm_array_job_id` / `slurm_array_task_id` and
+`slurm_het_job_id` / `slurm_het_job_offset`, retaining canonical IDs for
+compatibility. Anonymized snapshots mask parent IDs consistently while
+preserving task/component indices and core references. `squeue -r` emits individual array tasks, avoiding
+compressed or truncated array IDs. Complete grouped IDs in older traces are
+expanded into individual tasks, including lists, stepped ranges and concurrency
+limits. Expansion is limited to 100,000 grouped tasks per frame; malformed,
+truncated or oversized groups produce an actionable error instead of a partial
+count. Identical duplicate task rows are deduplicated; conflicting rows are
+rejected. Slurm job counts use individual array tasks and heterogeneous
+components. Components keep distinct IDs and allocations, even when they share
+one heterogeneous submission; the summary states this accounting unit.
+Pending jobs eligible for multiple partitions appear in each real partition,
+with one unique job in global totals. Per-partition counts therefore need not
+sum to the global total. JSON retains the eligible names in `slurm_partitions`
+and the counting category in `accounting_state`. Compatible pending rows
+repeated by `squeue -P` are merged.
+
+The extra job columns preserve TRES allocation
+(or requests for pending jobs), resources per node and resources per task;
+node columns preserve configured GRES and GRES usage. These raw fields are
+available in JSON; GPU occupancy rendering is not implemented yet. Named
+fields use width zero so long resource descriptions are not truncated.
+
+GPU metadata is also normalized into node fields `slurm_gpu_configured`,
+`slurm_gpu_used`, and (when job detail records are available)
+`slurm_gpu_bindings`. Each resource has `type`, `count`, `device_indices`,
+`mig_profile`, and `parent_gpu_uuid`; bindings additionally have `job_id`.
+Bindings come only from per-node `GRES=` records in `scontrol --details show jobs`,
+never from requested TRES or aggregate node usage. Multiple jobs can retain
+bindings to the same resource. These fields are exported and replayed without
+adding GPU visualization.
+
+For example, `gpu:h100_nvl:2(IDX:0,7)` binds two Slurm resources, while
+`gpu:h100_1g.12gb:1(IDX:8)` identifies a MIG-profile resource. Indices are
+node-local Slurm GRES indices, not CUDA ordinals, Linux device numbers, or
+physical parent GPU indices. Counts may represent MIG instances rather than
+whole cards. Recognizable profile names are retained; a null profile means
+unknown, not proof that a resource is a whole GPU. Socket affinity is not
+device identity. Missing indices remain null, and parent GPU UUIDs remain null:
+the current scheduler traces do not supply a trustworthy MIG-to-parent mapping.
+No eight-GPU topology is assumed by the parser. Malformed or inconsistent GPU
+detail records do not create bindings. Missing detail records mean unknown
+placement, not zero allocation. Anonymized snapshots retain indices, counts,
+profiles and masked job references while removing resource type strings and UUIDs.
+
+See [Slurm MIG management](https://slurm.schedmd.com/gres.html#MIG_Management).
+
+Slurm also supports compact GPU-related fields: `squeue -o '%b'` reports
+per-node TRES requests and `sinfo -o '%G'` reports configured GRES. They do not
+replace all the allocation, per-task and GRES-usage fields collected above,
+so qtop uses the named formats to retain that information.
+
+The default configuration also collects scheduler CPU positions through
+`scontrol_file`. Existing custom scheduler configurations can add that entry
+from the example above. Comment it out to disable live detail collection.
+Its command is:
+
+```sh
+scontrol --details show jobs
+```
+
+For offline input, save that output as `scontrol.txt` alongside `squeue.txt`
+and `sinfo.txt`; qtop discovers it automatically. The file is optional.
+Missing, failed, malformed or inconsistent details use the existing estimated
+placement. Each node exports `cpu_allocation_source` (`slurm`, `estimated`, or
+`none`); the occupancy legend identifies estimates. Valid detail records use
+Slurm abstract CPU IDs, which are not Linux CPU IDs or task affinity masks.
+Overlapping allocations also use estimates because the current core map can
+represent only one job per CPU. Estimated placement fills available capacity
+across uneven node sizes. Each node retains all active job IDs in
+`slurm_job_ids`, including jobs sharing CPUs, so per-user node counts remain
+complete. If assignments exceed matrix capacity, `slurm_unmapped_cpus` records
+the omitted count once per affected job, and the legend reports it.
+Capture commands close together to limit races.
+Anonymized snapshots retain placement provenance but omit opaque TRES/GRES
+strings; ordinary exports and raw trace archives preserve them.
+
+See [Slurm CPU management](https://slurm.schedmd.com/cpu_management.html),
+[squeue fields](https://slurm.schedmd.com/squeue.html) and
+[sinfo fields](https://slurm.schedmd.com/sinfo.html).
 
 There are two ways to run qtop, data-wise:
 
@@ -543,8 +650,8 @@ For manual Slurm collection on a scheduler host:
 
 ```sh
 qtop_trace_dir=$(mktemp -d)
-squeue -h -o '%i|%u|%t|%P|%C|%N' > "$qtop_trace_dir/squeue.txt"
-sinfo -N -h -o '%N|%P|%t|%c' > "$qtop_trace_dir/sinfo.txt"
+squeue -r -h -O 'JobID:0|,UserName:0|,StateCompact:0|,Partition:0|,NumCPUs:0|,NodeList:0|,tres-alloc:0|,tres-per-node:0|,tres-per-task:0|,ArrayJobID:0|,ArrayTaskID:0' > "$qtop_trace_dir/squeue.txt"
+sinfo -N -h -O 'NodeList:0|,Partition:0|,StateCompact:0|,CPUs:0|,Gres:0|,GresUsed:0|,Available:0' > "$qtop_trace_dir/sinfo.txt"
 ./qtop -b slurm -s "$qtop_trace_dir"
 ```
 

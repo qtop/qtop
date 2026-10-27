@@ -7,6 +7,7 @@
 ##
 
 import os
+from pathlib import Path
 
 import pytest
 
@@ -83,7 +84,7 @@ def test_slurm_exposes_plain_cluster_state():
     state = SlurmBatchSystem(scheduler_files("basic"), {}, Options()).get_cluster_state(Options())
 
     assert list(state) == ["jobs", "nodes", "queues"]
-    assert state["jobs"][0] == {"id": "101", "user": "alice", "state": "R", "queue": "compute"}
+    assert state["jobs"][0] == {"id": "101", "user": "alice", "state": "R", "queue": "compute", "slurm_partitions": ["compute"], "accounting_state": "running"}
     assert state["nodes"][0]["domainname"] == "node001"
     assert state["queues"][0]["name"] == "compute"
 
@@ -292,3 +293,297 @@ def test_unusable_cpu_counts(tmp_path, cpus, expected_job_cpus, expected_node_cp
     node = extractor.extract_sinfo(str(info))[0]
     assert node["np"] == expected_node_cpus
     assert node["state"] == "?"
+
+
+@pytest.fixture
+def detailed_slurm(tmp_path):
+    source = Path(__file__).parent / "slurm_samples/cpu_allocations"
+    files = {}
+    for command in ("squeue", "sinfo", "scontrol"):
+        path = tmp_path / (command + ".txt")
+        path.write_bytes((source / path.name).read_bytes())
+        files[command + "_file"] = str(path)
+    return SlurmBatchSystem(files, {}, Options()), tmp_path / "scontrol.txt"
+
+
+def test_detailed_allocations_keep_sparse_cpu_ids_and_uneven_distribution(detailed_slurm):
+    slurm, _ = detailed_slurm
+    state = slurm.get_cluster_state(Options())
+    nodes = {node["domainname"]: node for node in state["nodes"]}
+    assert nodes["node001"]["core_job_map"] == {4: "101", 0: "102", 2: "102"}
+    assert nodes["node002"]["core_job_map"] == {1: "101", 3: "101", 5: "101"}
+    assert [node["cpu_allocation_source"] for node in state["nodes"]] == ["slurm", "slurm", "none"]
+    assert nodes["node001"]["slurm_gres"] == "gpu:a100:4(S:0-1)"
+    assert nodes["node002"]["slurm_gres_used"] == "gpu:a100:1(IDX:2)"
+    assert state["jobs"][0]["slurm_tres_alloc"] == "cpu=4,gres/gpu=2"
+    assert state["jobs"][0]["slurm_tres_per_node"] == "gres/gpu:a100:1"
+    assert state["jobs"][2]["slurm_tres_alloc"] == "cpu=1,gres/gpu=1"
+
+
+@pytest.mark.parametrize(
+    "details",
+    [
+        None,
+        "",
+        "malformed",
+        "JobId=101\n   Nodes=node001 CPU_IDs=4\n",
+        "JobId=101\n   Nodes=node001 CPU_IDs=99\n   Nodes=node002 CPU_IDs=1,3,5\n",
+        "JobId=101\n   Nodes=node001 CPU_IDs=0-1000000000\n",
+        "JobId=101\n   Nodes=node001 CPU_IDs=1,01\n",
+        "JobId=101\n   Nodes=node001 CPU_IDs=garbage\n",
+    ],
+)
+def test_unusable_cpu_details_fall_back_without_losing_jobs(detailed_slurm, details):
+    slurm, path = detailed_slurm
+    if details is None:
+        path.unlink()
+    else:
+        path.write_text(details)
+    state = slurm.get_cluster_state(Options())
+    nodes = state["nodes"]
+    assert len(state["jobs"]) == 3
+    assert sum(len(node["core_job_map"]) for node in nodes) == 6
+    assert [node["cpu_allocation_source"] for node in nodes] == ["estimated", "estimated", "none"]
+
+
+def test_partial_details_do_not_mix_estimated_positions_with_exact_ids(detailed_slurm):
+    slurm, path = detailed_slurm
+    path.write_text(path.read_text().split("JobId=102")[0])
+    nodes = slurm.get_cluster_state(Options())["nodes"]
+    assert nodes[0]["cpu_allocation_source"] == "estimated"
+    assert nodes[1]["cpu_allocation_source"] == "slurm"
+    assert nodes[1]["core_job_map"] == {1: "101", 3: "101", 5: "101"}
+
+
+def test_overlapping_cpu_allocations_use_estimates(detailed_slurm):
+    slurm, path = detailed_slurm
+    path.write_text(path.read_text().replace("CPU_IDs=0,2", "CPU_IDs=4,6"))
+    nodes = slurm.get_cluster_state(Options())["nodes"]
+    assert nodes[0]["cpu_allocation_source"] == "estimated"
+    assert nodes[1]["cpu_allocation_source"] == "slurm"
+
+
+@pytest.mark.parametrize("header, job_id", [("JobId=501 ArrayJobId=101 ArrayTaskId=3", "101_3"), ("JobId=501 HetJobId=101 HetJobOffset=1", "101+1")])
+def test_detailed_allocations_match_array_and_heterogeneous_ids(detailed_slurm, header, job_id):
+    slurm, path = detailed_slurm
+    jobs = slurm._get_jobs()
+    jobs[0]["JobId"] = job_id
+    path.write_text(path.read_text().replace("JobId=101 JobName=parallel", header))
+    nodes = slurm.get_cluster_state(Options())["nodes"]
+    assert nodes[0]["core_job_map"][4] == job_id
+    assert nodes[1]["core_job_map"][5] == job_id
+
+
+def test_anonymized_details_preserve_provenance_and_mask_resource_text(detailed_slurm):
+    from qtop_py.sample import anonymize_state
+
+    slurm, _ = detailed_slurm
+    state, mappings = anonymize_state(slurm.get_cluster_state(Options()))
+    assert state["nodes"][0]["cpu_allocation_source"] == "slurm"
+    assert "slurm_gres" not in state["nodes"][0]
+    assert "slurm_tres_alloc" not in state["jobs"][0]
+    assert state["nodes"][0]["core_job_map"]["4"] == mappings["job"]["101"]
+
+
+@pytest.mark.parametrize(
+    "job_id, expected",
+    [
+        ("101_2", ["101_2"]),
+        ("201+1", ["201+1"]),
+        ("101_[3]", ["101_3"]),
+        ("101_[1-5:2,7,9%2]", ["101_1", "101_3", "101_5", "101_7", "101_9"]),
+        ("101_[1-3,2-4]", ["101_1", "101_2", "101_3", "101_4"]),
+    ],
+)
+def test_slurm_expands_complete_grouped_array_ids(job_id, expected):
+    assert SlurmStatExtractor.expand_job_id(job_id) == expected
+
+
+@pytest.mark.parametrize(
+    "job_id",
+    [
+        "101_[1-...]",
+        "101_[1-3",
+        "101_[]",
+        "101_[3-1]",
+        "101_[1-3:0]",
+        "101_[1-3%0]",
+        "101_[1,,3]",
+        "101_[1-100001]",
+        "101_[12345678901]",
+    ],
+)
+def test_slurm_rejects_unusable_array_groups(job_id):
+    with pytest.raises(ValueError, match="collect squeue with -r/--array"):
+        SlurmStatExtractor.expand_job_id(job_id)
+
+
+def test_slurm_bounds_total_legacy_array_expansion(tmp_path, monkeypatch):
+    monkeypatch.setattr(SlurmStatExtractor, "MAX_EXPANDED_TASKS", 3)
+    queue = tmp_path / "squeue.txt"
+    queue.write_text("101_[0-1]|alice|PD|compute|1|(Priority)\n102_[0-1]|bob|PD|compute|1|(Priority)\n")
+    with pytest.raises(ValueError, match="Too many grouped Slurm array tasks"):
+        SlurmStatExtractor({}, Options()).extract_squeue(str(queue))
+
+
+@pytest.mark.parametrize("conflict", [False, True])
+def test_duplicate_array_records_do_not_inflate_or_shift_accounting(tmp_path, conflict):
+    queue = tmp_path / "squeue.txt"
+    queue.write_text("101_[1-3]|alice|PD|compute|1|(Priority)\n101_2|%s|PD|compute|1|(Priority)\n" % ("bob" if conflict else "alice"))
+    extractor = SlurmStatExtractor({}, Options())
+    if conflict:
+        with pytest.raises(ValueError, match="Conflicting Slurm records for job 101_2"):
+            extractor.extract_squeue(str(queue))
+    else:
+        assert [job["JobId"] for job in extractor.extract_squeue(str(queue))] == ["101_1", "101_2", "101_3"]
+
+
+@pytest.mark.parametrize(
+    "header, expected",
+    [
+        ("JobId=501 ArrayTaskId=3  ArrayJobId=101 JobName=job", "101_3"),
+        ("JobId=501 HetJobOffset=0\tHetJobId=201 JobName=job", "201+0"),
+        ("JobId=501 ArrayJobId=101 ArrayTaskId=3-7 JobName=job", None),
+        ("JobId=501 ArrayJobId=101 ArrayTaskId=3%2 JobName=job", None),
+        ("JobId=501 ArrayJobId=101 ArrayTaskId=3junk JobName=job", None),
+        ("JobId=501 HetJobId=201 HetJobOffset=1-2 JobName=job", None),
+        ("JobId=501 ArrayJobId=101 JobName=job", None),
+        ("JobId=501 HetJobOffset=1 JobName=job", None),
+        ("JobId=501 ArrayJobId=101 ArrayTaskId=3 HetJobId=201 HetJobOffset=1", None),
+        ("JobId=501 JobName=ArrayJobId=101 ArrayTaskId=3", "501"),
+        ("JobId=501 ArrayJobId=101 ArrayTaskId=3 ArrayTaskId=4", None),
+    ],
+)
+def test_slurm_requires_complete_unambiguous_allocation_identity(header, expected):
+    assert SlurmBatchSystem._allocation_job_id(header) == expected
+
+
+def test_grouped_scontrol_identity_cannot_supply_a_single_tasks_cpu_map(detailed_slurm):
+    slurm, path = detailed_slurm
+    slurm._get_jobs()[0]["JobId"] = "101_3"
+    path.write_text(path.read_text().replace("JobId=101 JobName=parallel", "JobId=501 ArrayJobId=101 ArrayTaskId=3-7 JobName=group"))
+    assert "101_3" not in slurm._read_cpu_allocations()
+    nodes = slurm.get_cluster_state(Options())["nodes"]
+    assert nodes[0]["cpu_allocation_source"] == "estimated"
+    assert nodes[1]["cpu_allocation_source"] == "estimated"
+
+
+def test_slurm_array_task_and_component_counts_match_cpu_ownership():
+    files = scheduler_files("arrays_and_het")
+    files["scontrol_file"] = str(Path(files["squeue_file"]).with_name("scontrol.txt"))
+    slurm = SlurmBatchSystem(files, {}, Options())
+    state = slurm.get_cluster_state(Options())
+    assert slurm.get_queues_info()[:2] == (4, 4)
+    assert [job["id"] for job in state["jobs"]] == ["101_1", "101_2", "101_3", "101_5", "101_7", "101_9", "201+0", "201+1"]
+    assert state["nodes"][0]["core_job_map"] == {2: "101_1", 4: "101_1", 0: "201+0"}
+    assert state["nodes"][1]["core_job_map"] == {1: "101_2", 5: "101_2", 3: "201+1", 7: "201+1"}
+    assert all(node["cpu_allocation_source"] == "slurm" for node in state["nodes"])
+
+
+def test_slurm_free_text_cannot_supply_cpu_allocation_fields(detailed_slurm):
+    slurm, path = detailed_slurm
+    path.write_text("JobId=101 JobName=not_allocations Nodes=node001 CPU_IDs=4\n Command=other Nodes=node002 CPU_IDs=1,3,5\n")
+    assert slurm._read_cpu_allocations() == {"101": {}}
+
+
+@pytest.mark.parametrize(
+    "display, parent, task, expected",
+    [
+        ("501", "501", "N/A", ["501"]),
+        ("501", "101", "3", ["101_3"]),
+        ("101_3", "101", "3", ["101_3"]),
+        ("101_[1-...]", "101", "3", ["101_3"]),
+        ("101_[3-9:2%2]", "101", "3-9:2%2", ["101_3", "101_5", "101_7", "101_9"]),
+        ("201+1", "202", "N/A", ["201+1"]),
+    ],
+)
+def test_explicit_array_columns_determine_canonical_identity(tmp_path, display, parent, task, expected):
+    path = tmp_path / "squeue.txt"
+    path.write_text("%s|alice|PD|compute|2|(Priority)|cpu=2|N/A|N/A|%s|%s\n" % (display, parent, task))
+    jobs = SlurmStatExtractor({}, Options()).extract_squeue(str(path))
+    assert [job["JobId"] for job in jobs] == expected
+    for job in jobs:
+        if "_" in job["JobId"]:
+            assert job["slurm_array_job_id"] == parent
+            assert job["slurm_array_task_id"] == job["JobId"].split("_", 1)[1]
+        else:
+            assert "slurm_array_job_id" not in job
+    if display == "201+1":
+        assert jobs[0]["slurm_het_job_id"] == "201"
+        assert jobs[0]["slurm_het_job_offset"] == "1"
+
+
+@pytest.mark.parametrize(
+    "display, parent, task",
+    [
+        ("101_4", "101", "3"),
+        ("101_3", "101", "N/A"),
+        ("101_[1-...]", "102", "3"),
+        ("201+0", "101", "3"),
+        ("501", "", "3"),
+        ("501", "101", "junk"),
+        ("501", "101", "1-..."),
+    ],
+)
+def test_explicit_array_identity_conflicts_are_actionable(tmp_path, display, parent, task):
+    path = tmp_path / "squeue.txt"
+    path.write_text("%s|alice|PD|compute|2|(Priority)|cpu=2|N/A|N/A|%s|%s\n" % (display, parent, task))
+    with pytest.raises(ValueError, match="Slurm array"):
+        SlurmStatExtractor({}, Options()).extract_squeue(str(path))
+
+
+def test_explicit_array_fields_match_scontrol_internal_job_ids(detailed_slurm):
+    slurm, path = detailed_slurm
+    queue = Path(slurm.squeue_file)
+    rows = queue.read_text().splitlines()
+    queue.write_text(rows[0].replace("101|", "501|", 1) + "|101|3\n" + "\n".join(row + "|" + row.split("|", 1)[0] + "|N/A" for row in rows[1:]) + "\n")
+    path.write_text(path.read_text().replace("JobId=101 JobName=parallel", "JobId=501 ArrayJobId=101 ArrayTaskId=3 JobName=parallel"))
+    state = slurm.get_cluster_state(Options())
+    assert state["jobs"][0]["id"] == "101_3"
+    assert state["jobs"][0]["slurm_array_job_id"] == "101"
+    assert state["jobs"][0]["slurm_array_task_id"] == "3"
+    assert state["nodes"][1]["core_job_map"] == {1: "101_3", 3: "101_3", 5: "101_3"}
+    assert state["nodes"][1]["cpu_allocation_source"] == "slurm"
+
+
+@pytest.mark.parametrize("resources", [False, True])
+@pytest.mark.parametrize("availability, blocked", [("up", False), ("down", True), ("drain", True), ("inact", True), ("INACTIVE", True), ("", False), ("?", False)])
+def test_slurm_partition_availability_is_separate_from_node_state(tmp_path, resources, availability, blocked):
+    from qtop_py.qtop import queue_is_blocked
+
+    info = tmp_path / "sinfo.txt"
+    queue = tmp_path / "squeue.txt"
+    fields = ["node001", "compute*", "down", "8"]
+    if resources:
+        fields.extend(["gpu:a100:4(S:0-1)", "gpu:a100:1(IDX:2)"])
+    info.write_text("|".join(fields + [availability]) + "\n")
+    queue.write_text("101|alice|PD|compute|1|(Priority)\n")
+    system = SlurmBatchSystem({"sinfo_file": str(info), "squeue_file": str(queue)}, {}, Options())
+    nodes = system._get_nodes()
+    assert nodes[0]["state"] == "d"
+    assert nodes[0]["partition_state"] == (availability.lower() or "?")
+    if resources:
+        assert nodes[0]["slurm_gres_used"] == "gpu:a100:1(IDX:2)"
+    running, queued, queues = system.get_queues_info()
+    assert (running, queued) == (0, 1)
+    assert queues[0]["state"] == (availability.lower() or "?")
+    assert queue_is_blocked(queues[0]["state"], "slurm") is blocked
+
+
+@pytest.mark.parametrize("resources", [False, True])
+def test_legacy_slurm_traces_keep_unknown_partition_availability(tmp_path, resources):
+    info = tmp_path / "sinfo.txt"
+    info.write_text("node001|compute*|down|8" + ("|(null)|(null)" if resources else "") + "\n")
+    system = SlurmBatchSystem({"sinfo_file": str(info)}, {}, Options())
+    system._jobs = []
+    assert system.get_queues_info()[2][0]["state"] == "?"
+
+
+@pytest.mark.parametrize("states, expected", [(("up", "down"), "down"), (("up", "drain"), "drain"), (("down", "inact"), "inact"), (("?", "down"), "down")])
+@pytest.mark.parametrize("reverse", [False, True])
+def test_partition_availability_keeps_blocking_states_across_node_rows(tmp_path, states, expected, reverse):
+    info = tmp_path / "sinfo.txt"
+    info.write_text("".join("node00%s|compute|idle|8|%s\n" % (index, state) for index, state in enumerate(reversed(states) if reverse else states, 1)))
+    system = SlurmBatchSystem({"sinfo_file": str(info)}, {}, Options())
+    system._jobs = []
+    assert system.get_queues_info()[2][0]["state"] == expected

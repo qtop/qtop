@@ -41,7 +41,7 @@ or a release is prepared.
 
 ### Scheduler Validation and Soak Testing
 
-- [ ] Complete a documented pre-1.0 soak-testing campaign.
+- [ ] Complete a documented soak-testing campaign.
   - Track reports in [#567](https://github.com/qtop/qtop/issues/567).
   - Record qtop revision, scheduler version, Python version, cluster size, test duration and observed failures.
   - Exercise sustained watch mode, refreshes, filtering, resizing, capture and replay.
@@ -90,7 +90,7 @@ or a release is prepared.
 ### Documentation and Release Decision
 
 - [ ] Validate the 1.0 user documentation.
-  - Check quickstart, installation, capture, replay, export and troubleshooting examples against the release candidate.
+  - Check quickstart, installation, capture, replay, export and troubleshooting examples against the release revision.
   - Document scheduler-specific requirements and supported environments.
   - Identify experimental features individually.
   - Preserve historical release information.
@@ -100,7 +100,7 @@ or a release is prepared.
   - Link compatibility, artifact, scheduler and soak-test evidence.
   - Confirm no unresolved release-blocking failures remain.
   - List deferred issues and known limitations with their rationale.
-  - Record the validated release-candidate revision.
+  - Record the validated release revision.
 
 ## Next: Strengthen Data and Maintainability
 
@@ -158,7 +158,7 @@ The following are recorded foundations to preserve and revalidate for 1.0:
 Checked items below mean the tooling or workflow is implemented in this
 repository. They do not certify a particular run, release, or external
 service activation. The release gates above still require evidence for the
-chosen release candidate.
+chosen release revision.
 
 #### Shared Local Validation and Artifacts
 

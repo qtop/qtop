@@ -19,6 +19,13 @@ def sample_state():
     )
 
 
+def test_cluster_state_rejects_nontext_slurm_node_state():
+    state = sample_state()
+    state["nodes"][0]["slurm_node_state"] = ["idle*"]
+    with pytest.raises(ValueError, match="slurm_node_state"):
+        validate_cluster_state(state)
+
+
 def test_cluster_state_is_plain_and_has_only_the_public_keys():
     state = sample_state()
 
@@ -59,3 +66,59 @@ def test_document_round_trip_and_save_use_cluster_state(tmp_path):
 def test_cluster_state_rejects_invalid_shapes(invalid):
     with pytest.raises((TypeError, ValueError)):
         validate_cluster_state(invalid)
+
+
+@pytest.mark.parametrize("source", [[], {}, None, "physical"])
+def test_cluster_state_rejects_invalid_cpu_allocation_source(source):
+    state = sample_state()
+    state["nodes"][0]["cpu_allocation_source"] = source
+    with pytest.raises(ValueError, match="cpu_allocation_source"):
+        validate_cluster_state(state)
+
+
+@pytest.mark.parametrize(
+    "fields",
+    [
+        {"slurm_array_job_id": "42"},
+        {"slurm_array_task_id": "3"},
+        {"slurm_array_job_id": "42", "slurm_array_task_id": "3-7"},
+        {"slurm_array_job_id": "42", "slurm_array_task_id": 3},
+        {"slurm_array_job_id": "42", "slurm_array_task_id": "4"},
+        {"slurm_array_job_id": "42", "slurm_array_task_id": "3", "slurm_het_job_id": "42", "slurm_het_job_offset": "3"},
+    ],
+)
+def test_cluster_state_rejects_inconsistent_structured_job_identity(fields):
+    state = sample_state()
+    state["jobs"][0]["id"] = "42_3"
+    state["jobs"][0].update(fields)
+    with pytest.raises(ValueError, match="Slurm identity|both Slurm"):
+        validate_cluster_state(state)
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [("slurm_partitions", []), ("slurm_partitions", "debug"), ("slurm_partitions", ["other"]), ("slurm_partitions", [1]), ("slurm_partitions", [""]), ("accounting_state", "R")],
+)
+def test_invalid_job_membership_metadata_is_rejected(field, value):
+    state = sample_state()
+    state["jobs"][0][field] = value
+    with pytest.raises(ValueError):
+        validate_cluster_state(state)
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [("slurm_job_ids", "42"), ("slurm_job_ids", [1]), ("slurm_job_ids", [""]), ("slurm_unmapped_cpus", -1), ("slurm_unmapped_cpus", True), ("slurm_unmapped_cpus", "1")],
+)
+def test_invalid_node_membership_metadata_is_rejected(field, value):
+    state = sample_state()
+    state["nodes"][0][field] = value
+    with pytest.raises(ValueError):
+        validate_cluster_state(state)
+
+
+def test_mixed_accounting_metadata_is_rejected():
+    state = sample_state()
+    state["jobs"].append(dict(state["jobs"][0], id="43", accounting_state="running"))
+    with pytest.raises(ValueError, match="all jobs or none"):
+        validate_cluster_state(state)
