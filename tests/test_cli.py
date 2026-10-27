@@ -230,7 +230,7 @@ def test_replay_configuration_failure_is_concise(tmp_path):
 @pytest.mark.parametrize(
     "scheduler_file, expected",
     (
-        ("squeue_file", ["-h", "-O", "JobID:0|,UserName:0|,StateCompact:0|,Partition:0|,NumCPUs:0|,NodeList:0|,tres-alloc:0|,tres-per-node:0|,tres-per-task:0"]),
+        ("squeue_file", ["-r", "-h", "-O", "JobID:0|,UserName:0|,StateCompact:0|,Partition:0|,NumCPUs:0|,NodeList:0|,tres-alloc:0|,tres-per-node:0|,tres-per-task:0"]),
         ("sinfo_file", ["-N", "-h", "-O", "NodeList:0|,Partition:0|,StateCompact:0|,CPUs:0|,Gres:0|,GresUsed:0"]),
         ("scontrol_file", ["--details", "show", "jobs"]),
     ),
@@ -483,3 +483,31 @@ def test_default_live_slurm_details_command_failure_keeps_monitoring(tmp_path, a
     state = json.loads(next(output.glob("qtop_json_*.json")).read_text())
     assert len(state["jobs"]) == 3
     assert state["nodes"][0]["cpu_allocation_source"] == ("slurm" if available else "estimated")
+
+
+def test_slurm_array_tasks_and_heterogeneous_components_render_consistently(tmp_path):
+    import json
+
+    source = ROOT / "tests/plugins/slurm_samples/arrays_and_het"
+    output = tmp_path / "results"
+    result = run_cli(tmp_path, "qtop_py.cli", "-b", "slurm", "-s", str(source), "-E", "-O", "-c", "OFF", "-o", "savepath=" + str(output))
+    assert result.returncode == 0, result.stderr
+    frame = next(output.glob("qtop_fullview_*.out")).read_text()
+    assert "4+4 jobs" in frame
+    assert "7/16 cores" in frame
+    assert "individual array tasks and heterogeneous components" in frame
+    rows = {row[0]: tuple(map(int, row[1:])) for row in re.findall(r"\[\s*\d+\]\s+(\w+)\s*\|\s*(\d+)\s+(\d+)\s+(\d+)\s*\|\s*(\d+)\s*\|", frame)}
+    assert rows["alice"] == (6, 2, 4, 2)
+    assert rows["bob"] == (2, 2, 0, 2)
+    state = json.loads(next(output.glob("qtop_json_*.json")).read_text())
+    assert len(state["jobs"]) == 8
+    assert state["nodes"][1]["core_job_map"]["7"] == "201+1"
+
+
+def test_truncated_slurm_array_trace_fails_with_collection_advice(tmp_path):
+    (tmp_path / "squeue.txt").write_text("101_[1-...]|alice|PD|compute|1|(Priority)\n")
+    (tmp_path / "sinfo.txt").write_text("node001|compute|idle|8\n")
+    result = run_cli(tmp_path, "qtop_py.cli", "-b", "slurm", "-s", str(tmp_path), "-O", "-o", "savepath=" + str(tmp_path / "results"))
+    assert result.returncode == 1
+    assert "collect squeue with -r/--array" in result.stderr
+    assert "Traceback" not in result.stderr

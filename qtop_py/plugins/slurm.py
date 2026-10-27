@@ -53,10 +53,38 @@ SLURM_COMPACT_JOB_STATES = set(SLURM_JOB_STATES.values())
 
 
 class SlurmStatExtractor(StatExtractor):
+    MAX_EXPANDED_TASKS = 100000
+
+    @classmethod
+    def expand_job_id(cls, job_id: str) -> List[str]:
+        """Expand complete legacy array groups into bounded, scalar task IDs."""
+        if "_[" not in job_id:
+            return [job_id]
+        match = re.fullmatch(r"([0-9]+)_\[([0-9,:-]+)(?:%[1-9][0-9]*)?\]", job_id)
+        error = "Invalid, truncated or oversized Slurm array ID %r; collect squeue with -r/--array." % job_id
+        if match is None:
+            raise ValueError(error)
+        tasks = set()
+        expanded_count = 0
+        for token in match.group(2).split(","):
+            span = re.fullmatch(r"([0-9]{1,10})(?:-([0-9]{1,10})(?::([0-9]{1,10}))?)?", token)
+            if span is None:
+                raise ValueError(error)
+            first = int(span.group(1))
+            last = int(span.group(2)) if span.group(2) is not None else first
+            step = int(span.group(3)) if span.group(3) is not None else 1
+            if last < first or step < 1:
+                raise ValueError(error)
+            expanded_count += (last - first) // step + 1
+            if expanded_count > cls.MAX_EXPANDED_TASKS:
+                raise ValueError(error)
+            tasks.update(range(first, last + 1, step))
+        return ["%s_%s" % (match.group(1), task) for task in sorted(tasks)]
+
     def extract_squeue(self, orig_file):
         """
         Parse output from:
-        squeue -h -O 'JobID:0|,UserName:0|,StateCompact:0|,Partition:0|,NumCPUs:0|,NodeList:0|,tres-alloc:0|,tres-per-node:0|,tres-per-task:0'
+        squeue -r -h -O 'JobID:0|,UserName:0|,StateCompact:0|,Partition:0|,NumCPUs:0|,NodeList:0|,tres-alloc:0|,tres-per-node:0|,tres-per-task:0'
         """
         try:
             fileutils.check_empty_file(orig_file)
@@ -64,7 +92,8 @@ class SlurmStatExtractor(StatExtractor):
             logging.error("File %s seems to be empty." % orig_file)
             return []
 
-        jobs = []
+        jobs = OrderedDict()
+        expanded_count = 0
         with open(orig_file, "r") as fin:
             for line in fin:
                 line = line.strip()
@@ -81,9 +110,14 @@ class SlurmStatExtractor(StatExtractor):
                     logging.warning("Line: %s not properly parsed as Slurm squeue output." % line)
                     continue
 
-                jobs.append(
-                    {
-                        "JobId": job_id,
+                task_ids = self.expand_job_id(job_id)
+                if "_[" in job_id:
+                    expanded_count += len(task_ids)
+                    if expanded_count > self.MAX_EXPANDED_TASKS:
+                        raise ValueError("Too many grouped Slurm array tasks; collect squeue with -r/--array.")
+                for task_id in task_ids:
+                    job = {
+                        "JobId": task_id,
                         "UnixAccount": self.anonymize(user, "users"),
                         "S": self._map_job_state(state),
                         "raw_state": state,
@@ -91,10 +125,12 @@ class SlurmStatExtractor(StatExtractor):
                         "CPUs": max(1, self._safe_int(cpus, default=1)),
                         "Nodes": nodes,
                     }
-                )
-                if len(fields) == 9:
-                    jobs[-1].update(zip(("slurm_tres_alloc", "slurm_tres_per_node", "slurm_tres_per_task"), fields[6:]))
-        return jobs
+                    if len(fields) == 9:
+                        job.update(zip(("slurm_tres_alloc", "slurm_tres_per_node", "slurm_tres_per_task"), fields[6:]))
+                    if task_id in jobs and jobs[task_id] != job:
+                        raise ValueError("Conflicting Slurm records for job %s; collect a fresh squeue trace with -r/--array." % task_id)
+                    jobs[task_id] = job
+        return list(jobs.values())
 
     def extract_sinfo(self, orig_file):
         """
@@ -299,6 +335,26 @@ class SlurmBatchSystem(GenericBatchSystem):
         logging.info("worker_nodes contains %s entries" % len(worker_nodes))
         return worker_nodes
 
+    @staticmethod
+    def _allocation_job_id(header: str) -> Optional[str]:
+        # Job names are arbitrary text and must not be interpreted as identity fields.
+        header = re.split(r"\s+JobName=", header, maxsplit=1)[0]
+        pairs = re.findall(r"(?:^|\s)(JobId|ArrayJobId|ArrayTaskId|HetJobId|HetJobOffset)=(\S+)", header)
+        fields = dict(pairs)
+        if len(fields) != len(pairs):
+            return None
+        array = "ArrayJobId" in fields or "ArrayTaskId" in fields
+        het = "HetJobId" in fields or "HetJobOffset" in fields
+        if array and het:
+            return None
+        if array or het:
+            base, index = ("ArrayJobId", "ArrayTaskId") if array else ("HetJobId", "HetJobOffset")
+            if not all(re.fullmatch(r"[0-9]+", fields.get(key, "")) for key in (base, index)):
+                return None
+            return fields[base] + ("_" if array else "+") + fields[index]
+        job_id = fields.get("JobId", "")
+        return job_id if re.fullmatch(r"[0-9]+(?:_[0-9]+|\+[0-9]+)?", job_id) else None
+
     def _read_cpu_allocations(self):
         allocations = {}
         if not self.scontrol_file:
@@ -309,18 +365,16 @@ class SlurmBatchSystem(GenericBatchSystem):
                 for line in stream:
                     header = re.match(r"\s*JobId=(\S+)(.*)", line)
                     if header:
-                        job_id = header.group(1)
-                        array = re.search(r"\bArrayJobId=(\d+) ArrayTaskId=(\d+)\b", header.group(2))
-                        het = re.search(r"\bHetJobId=(\d+) HetJobOffset=(\d+)\b", header.group(2))
-                        if array:
-                            job_id = "%s_%s" % array.groups()
-                        elif het:
-                            job_id = "%s+%s" % het.groups()
-                        allocations.setdefault(job_id, {})
-                    detail = re.match(r"\s*Nodes=(\S+) CPU_IDs=(\S+)", line)
-                    if detail and job_id is not None:
-                        hosts = self.expand_nodelist(detail.group(1))
-                        cpus = self.expand_nodelist("[" + detail.group(2) + "]")
+                        job_id = self._allocation_job_id(header.group(0))
+                        if job_id is not None:
+                            allocations.setdefault(job_id, {})
+                        continue
+                    if not re.match(r"\s*(?:Nodes|CPU_IDs)=", line):
+                        continue
+                    detail = dict(re.findall(r"(?:^|\s)(Nodes|CPU_IDs)=(\S+)", line))
+                    if "Nodes" in detail and "CPU_IDs" in detail and job_id is not None:
+                        hosts = self.expand_nodelist(detail["Nodes"])
+                        cpus = self.expand_nodelist("[" + detail["CPU_IDs"] + "]")
                         if not hosts or not cpus or len(hosts) * len(cpus) > self.MAX_EXPANDED_NODES or len(set(map(int, cpus))) != len(cpus):
                             allocations[job_id] = None
                         else:

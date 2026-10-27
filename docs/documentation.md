@@ -450,7 +450,7 @@ schedulers:
     sge_file: %(savepath)s/qstat%(pid)s.F.xml.stdout, qstat -F -xml -u '*'
   slurm:
     ## Copy the command after ', ' directly into a shell for debugging.
-    squeue_file: %(savepath)s/squeue%(pid)s.txt, squeue -h -O 'JobID:0|,UserName:0|,StateCompact:0|,Partition:0|,NumCPUs:0|,NodeList:0|,tres-alloc:0|,tres-per-node:0|,tres-per-task:0'
+    squeue_file: %(savepath)s/squeue%(pid)s.txt, squeue -r -h -O 'JobID:0|,UserName:0|,StateCompact:0|,Partition:0|,NumCPUs:0|,NodeList:0|,tres-alloc:0|,tres-per-node:0|,tres-per-task:0'
     sinfo_file: %(savepath)s/sinfo%(pid)s.txt, sinfo -N -h -O 'NodeList:0|,Partition:0|,StateCompact:0|,CPUs:0|,Gres:0|,GresUsed:0'
     scontrol_file: %(savepath)s/scontrol%(pid)s.txt, scontrol --details show jobs
   demo:
@@ -461,7 +461,7 @@ The Slurm commands after the filename separator can be copied directly into
 a shell:
 
 ```sh
-squeue -h -O 'JobID:0|,UserName:0|,StateCompact:0|,Partition:0|,NumCPUs:0|,NodeList:0|,tres-alloc:0|,tres-per-node:0|,tres-per-task:0'
+squeue -r -h -O 'JobID:0|,UserName:0|,StateCompact:0|,Partition:0|,NumCPUs:0|,NodeList:0|,tres-alloc:0|,tres-per-node:0|,tres-per-task:0'
 sinfo -N -h -O 'NodeList:0|,Partition:0|,StateCompact:0|,CPUs:0|,Gres:0|,GresUsed:0'
 ```
 
@@ -470,7 +470,17 @@ shell-style argument quoting without invoking a shell. Existing custom
 configurations using doubled ``%%`` format codes remain supported.
 
 Slurm accepts both the legacy six/four-column traces and the expanded
-nine/six-column traces above. The extra job columns preserve TRES allocation
+nine/six-column traces above. `squeue -r` emits individual array tasks, avoiding
+compressed or truncated array IDs. Complete grouped IDs in older traces are
+expanded into individual tasks, including lists, stepped ranges and concurrency
+limits. Expansion is limited to 100,000 grouped tasks per frame; malformed,
+truncated or oversized groups produce an actionable error instead of a partial
+count. Identical duplicate task rows are deduplicated; conflicting rows are
+rejected. Slurm job counts use individual array tasks and heterogeneous
+components. Components keep distinct IDs and allocations, even when they share
+one heterogeneous submission; the summary states this accounting unit.
+
+The extra job columns preserve TRES allocation
 (or requests for pending jobs), resources per node and resources per task;
 node columns preserve configured GRES and GRES usage. These raw fields are
 available in JSON; GPU occupancy rendering is not implemented yet. Named
@@ -580,7 +590,7 @@ For manual Slurm collection on a scheduler host:
 
 ```sh
 qtop_trace_dir=$(mktemp -d)
-squeue -h -O 'JobID:0|,UserName:0|,StateCompact:0|,Partition:0|,NumCPUs:0|,NodeList:0|,tres-alloc:0|,tres-per-node:0|,tres-per-task:0' > "$qtop_trace_dir/squeue.txt"
+squeue -r -h -O 'JobID:0|,UserName:0|,StateCompact:0|,Partition:0|,NumCPUs:0|,NodeList:0|,tres-alloc:0|,tres-per-node:0|,tres-per-task:0' > "$qtop_trace_dir/squeue.txt"
 sinfo -N -h -O 'NodeList:0|,Partition:0|,StateCompact:0|,CPUs:0|,Gres:0|,GresUsed:0' > "$qtop_trace_dir/sinfo.txt"
 ./qtop -b slurm -s "$qtop_trace_dir"
 ```

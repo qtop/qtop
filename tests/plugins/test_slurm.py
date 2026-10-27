@@ -383,3 +383,104 @@ def test_anonymized_details_preserve_provenance_and_mask_resource_text(detailed_
     assert "slurm_gres" not in state["nodes"][0]
     assert "slurm_tres_alloc" not in state["jobs"][0]
     assert state["nodes"][0]["core_job_map"]["4"] == mappings["job"]["101"]
+
+
+@pytest.mark.parametrize(
+    "job_id, expected",
+    [
+        ("101_2", ["101_2"]),
+        ("201+1", ["201+1"]),
+        ("101_[3]", ["101_3"]),
+        ("101_[1-5:2,7,9%2]", ["101_1", "101_3", "101_5", "101_7", "101_9"]),
+        ("101_[1-3,2-4]", ["101_1", "101_2", "101_3", "101_4"]),
+    ],
+)
+def test_slurm_expands_complete_grouped_array_ids(job_id, expected):
+    assert SlurmStatExtractor.expand_job_id(job_id) == expected
+
+
+@pytest.mark.parametrize(
+    "job_id",
+    [
+        "101_[1-...]",
+        "101_[1-3",
+        "101_[]",
+        "101_[3-1]",
+        "101_[1-3:0]",
+        "101_[1-3%0]",
+        "101_[1,,3]",
+        "101_[1-100001]",
+        "101_[12345678901]",
+    ],
+)
+def test_slurm_rejects_unusable_array_groups(job_id):
+    with pytest.raises(ValueError, match="collect squeue with -r/--array"):
+        SlurmStatExtractor.expand_job_id(job_id)
+
+
+def test_slurm_bounds_total_legacy_array_expansion(tmp_path, monkeypatch):
+    monkeypatch.setattr(SlurmStatExtractor, "MAX_EXPANDED_TASKS", 3)
+    queue = tmp_path / "squeue.txt"
+    queue.write_text("101_[0-1]|alice|PD|compute|1|(Priority)\n102_[0-1]|bob|PD|compute|1|(Priority)\n")
+    with pytest.raises(ValueError, match="Too many grouped Slurm array tasks"):
+        SlurmStatExtractor({}, Options()).extract_squeue(str(queue))
+
+
+@pytest.mark.parametrize("conflict", [False, True])
+def test_duplicate_array_records_do_not_inflate_or_shift_accounting(tmp_path, conflict):
+    queue = tmp_path / "squeue.txt"
+    queue.write_text("101_[1-3]|alice|PD|compute|1|(Priority)\n101_2|%s|PD|compute|1|(Priority)\n" % ("bob" if conflict else "alice"))
+    extractor = SlurmStatExtractor({}, Options())
+    if conflict:
+        with pytest.raises(ValueError, match="Conflicting Slurm records for job 101_2"):
+            extractor.extract_squeue(str(queue))
+    else:
+        assert [job["JobId"] for job in extractor.extract_squeue(str(queue))] == ["101_1", "101_2", "101_3"]
+
+
+@pytest.mark.parametrize(
+    "header, expected",
+    [
+        ("JobId=501 ArrayTaskId=3  ArrayJobId=101 JobName=job", "101_3"),
+        ("JobId=501 HetJobOffset=0\tHetJobId=201 JobName=job", "201+0"),
+        ("JobId=501 ArrayJobId=101 ArrayTaskId=3-7 JobName=job", None),
+        ("JobId=501 ArrayJobId=101 ArrayTaskId=3%2 JobName=job", None),
+        ("JobId=501 ArrayJobId=101 ArrayTaskId=3junk JobName=job", None),
+        ("JobId=501 HetJobId=201 HetJobOffset=1-2 JobName=job", None),
+        ("JobId=501 ArrayJobId=101 JobName=job", None),
+        ("JobId=501 HetJobOffset=1 JobName=job", None),
+        ("JobId=501 ArrayJobId=101 ArrayTaskId=3 HetJobId=201 HetJobOffset=1", None),
+        ("JobId=501 JobName=ArrayJobId=101 ArrayTaskId=3", "501"),
+        ("JobId=501 ArrayJobId=101 ArrayTaskId=3 ArrayTaskId=4", None),
+    ],
+)
+def test_slurm_requires_complete_unambiguous_allocation_identity(header, expected):
+    assert SlurmBatchSystem._allocation_job_id(header) == expected
+
+
+def test_grouped_scontrol_identity_cannot_supply_a_single_tasks_cpu_map(detailed_slurm):
+    slurm, path = detailed_slurm
+    slurm._get_jobs()[0]["JobId"] = "101_3"
+    path.write_text(path.read_text().replace("JobId=101 JobName=parallel", "JobId=501 ArrayJobId=101 ArrayTaskId=3-7 JobName=group"))
+    assert "101_3" not in slurm._read_cpu_allocations()
+    nodes = slurm.get_cluster_state(Options())["nodes"]
+    assert nodes[0]["cpu_allocation_source"] == "estimated"
+    assert nodes[1]["cpu_allocation_source"] == "estimated"
+
+
+def test_slurm_array_task_and_component_counts_match_cpu_ownership():
+    files = scheduler_files("arrays_and_het")
+    files["scontrol_file"] = str(Path(files["squeue_file"]).with_name("scontrol.txt"))
+    slurm = SlurmBatchSystem(files, {}, Options())
+    state = slurm.get_cluster_state(Options())
+    assert slurm.get_queues_info()[:2] == (4, 4)
+    assert [job["id"] for job in state["jobs"]] == ["101_1", "101_2", "101_3", "101_5", "101_7", "101_9", "201+0", "201+1"]
+    assert state["nodes"][0]["core_job_map"] == {2: "101_1", 4: "101_1", 0: "201+0"}
+    assert state["nodes"][1]["core_job_map"] == {1: "101_2", 5: "101_2", 3: "201+1", 7: "201+1"}
+    assert all(node["cpu_allocation_source"] == "slurm" for node in state["nodes"])
+
+
+def test_slurm_free_text_cannot_supply_cpu_allocation_fields(detailed_slurm):
+    slurm, path = detailed_slurm
+    path.write_text("JobId=101 JobName=not_allocations Nodes=node001 CPU_IDs=4\n Command=other Nodes=node002 CPU_IDs=1,3,5\n")
+    assert slurm._read_cpu_allocations() == {"101": {}}

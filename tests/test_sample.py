@@ -210,8 +210,9 @@ def test_live_capture_replays_without_pid_filename_repair(tmp_path):
 
 
 @pytest.mark.parametrize("anonymous", [False, True])
-def test_slurm_cpu_details_and_resources_survive_snapshot_replay(tmp_path, anonymous):
-    source = ROOT / "tests/plugins/slurm_samples/cpu_allocations"
+@pytest.mark.parametrize("sample_name", ["cpu_allocations", "arrays_and_het"])
+def test_slurm_cpu_details_and_resources_survive_snapshot_replay(tmp_path, anonymous, sample_name):
+    source = ROOT / "tests/plugins/slurm_samples" / sample_name
     output = tmp_path / "captured"
     output.mkdir()
     flags = ["-A", "-e"] if anonymous else []

@@ -1678,6 +1678,8 @@ class TextDisplay(object):
             }
         )
 
+        if scheduler == "slurm":
+            print("Slurm job counts include individual array tasks and heterogeneous components.")
         expanded = globals().get("dynamic_config", {}).get("queue_summary_expanded", getattr(self.args, "EXPAND_QUEUES", False))
         print("%(queues)s :" % {"queues": colorize("Queueing", "Cyan_L")}, end="\n" if expanded else " ")
         for _queue_name, q_tuple in qstatq_lod.items():

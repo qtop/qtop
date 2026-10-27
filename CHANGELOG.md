@@ -5,6 +5,8 @@ See the [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 
 ## 0.9.20261018
 
+- Bugfix: expand Slurm array tasks; clarify heterogeneous-component accounting.
+- Bugfix: parse complete Slurm task/component identities across field layouts.
 - Feature: collect Slurm CPU allocation details by default; retain safe fallback.
 - Feature: read optional Slurm CPU allocations; label estimated placement.
 - Feature: capture Slurm TRES/GRES fields for future GPU support.
