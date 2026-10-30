@@ -38,6 +38,8 @@ Run times depend on the environment and are not fixed budgets.
 
 1.1 Make focused, necessary, reviewable changes; preserve existing architecture,
 CLI behaviour, output formats, and supported schedulers unless the task requires otherwise.
+Keep `qtop_py/qtop.py` scheduler-neutral: put scheduler-specific parsing, policies
+and behavior in plugins behind shared interfaces, not scheduler-name branches in the core.
 
 1.2 Python 3.6 is the minimum supported runtime (`requires-python = ">=3.6"`):
 do not use `dataclasses`, `from __future__ import annotations`, walrus, positional-only
@@ -57,9 +59,11 @@ keys when intent is ambiguous, and report out-of-scope findings instead of fixin
 2.1 Match existing formatting, naming, typing, and test conventions; add compatible
 type annotations when useful. Never silence errors or weaken checks to pass CI.
 
-2.2 Use the commands above as the canonical verification steps. Report exactly what
-ran, any unavailable checks, and the seed and case count of any fuzz failure; do not
-invent passing results.
+2.2 Use focused tests and checks appropriate to the change during development;
+documentation-only edits need documentation/diff checks, not a full runtime test run.
+Before submitting a PR, run `make pre-pr` or the documented platform alternative
+above, as required by `CONTRIBUTING.md`. Report exactly what ran, any unavailable
+checks, and the seed and case count of any fuzz failure; do not invent passing results.
 
 2.3 Add meaningful unit tests for changed logic and targeted functional or
 integration tests for user-visible behaviour. Prefer existing fixtures and cluster
@@ -68,6 +72,11 @@ traces; avoid redundant expensive tests and preserve established CI gates.
 2.4 Update user documentation, examples, or `CHANGELOG.md` when behaviour or public
 interfaces change. Do not add cosmetic comments, redundant docstrings, or
 trivial-only PRs without demonstrable value.
+Keep top progress checklists in `ROADMAP.md` and `docs/secure-coding-pyscg.md`
+accurate: check implemented work and leave remaining work or release evidence open.
+Use `[CI]` only when a configured CI gate fails on the stated check; identify its
+target or evidence and scope. Optional/report-only tooling and external service
+activation are not enforced checks; a marker does not certify a particular run.
 
 2.5 Keep project-owned validation logic in the Makefile, `tools/`, or
 `ci/scripts/`, with thin platform wrappers. GitHub and GitLab must use the same
@@ -95,8 +104,9 @@ technical and legal responsibility for all submitted changes, including AI-assis
 work. Do not open unattended, mass-produced, or speculative PRs.
 
 3.5 Follow `CONTRIBUTING.md` for submission mechanics (branch from and target `develop`,
-DCO sign-off, conventional commits, AI disclosure with model version, Proof-of-Humanity
-tag, artifacts in `qtop-artifacts`).
+DCO sign-off, conventional commits, AI disclosure with model version, artifacts in
+`qtop-artifacts`). Use Proof-of-Humanity tags only when the corresponding conditions
+in `CONTRIBUTING.md` apply; a tag is not universally required.
 
 3.6 Keep PRs minimal but complete: explain purpose, behavioural impact, tests run,
 and limitations. Minimize maintainer review cost; never submit unverified claims.
