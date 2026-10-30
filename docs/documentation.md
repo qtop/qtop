@@ -481,6 +481,14 @@ adding commands. It does not broaden an explicit partition/user filter in a cust
 command. Other backends and saved-trace/sample replay are unaffected; replay can
 only show the data captured. The existing `-a` option remains blind remapping.
 
+If Slurm rows are rejected, or active jobs reference missing nodes or invalid
+node lists, qtop displays `Slurm snapshot incomplete` with counts. Valid jobs
+and queues remain visible; unavailable node capacity is not invented. JSON and
+support replay preserve optional `slurm_diagnostics` counters:
+`rejected_squeue_rows`, `rejected_sinfo_rows`, `jobs_with_missing_nodes`, and
+`jobs_with_invalid_nodelists`. Clean snapshots omit this field. Row counts refer
+to input records, not an estimate of how many jobs or nodes those records hid.
+
 Slurm accepts legacy six-column and resource-aware nine-column `squeue`
 traces, plus the eleven-column identity-aware format above. `sinfo` accepts
 four or six columns, or five/seven with partition availability appended.
@@ -1024,7 +1032,9 @@ whole-pair and split ownership. Multiple job owners are separated by `/`.
 Indices must match the node's Slurm GRES configuration. This feature does not
 discover or verify NVLink connections, infer GPU placement from CPU IDs, or
 map MIG instances to physical GPUs. Missing ownership is shown as `?`; `idle`
-requires explicit node GPU usage data showing that index is unused. Collection
+requires explicit node GPU usage data showing that index is unused.
+Placeholders, empty GPU resource lists, and MIG-only usage cannot establish
+idle physical GPUs. Explicit zero GPU usage can establish idle status. Collection
 snapshots can race, so this is allocation information rather than live usage.
 Malformed mappings produce a message instead of interrupting the matrix.
 

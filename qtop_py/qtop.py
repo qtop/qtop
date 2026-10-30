@@ -1306,7 +1306,7 @@ class WNOccupancy(object):
         if NAMED_WNS:  #  or args.FORCE_NAMES
             workernode_dict = self.cluster.workernode_dict
             hosts = [state_corejob_dn["host"] for _, state_corejob_dn in workernode_dict.items()]
-            node_str_width = len(max(hosts, key=len))
+            node_str_width = len(max(hosts, key=len, default=""))
             wn_vert_labels = OrderedDict((str(place), []) for place in range(1, node_str_width + 1))
             for node in workernode_dict:
                 host = workernode_dict[node]["host"]
@@ -1545,6 +1545,7 @@ QDoc = namedtuple("QDoc", ["lm", "queued", "run", "state"])
 class Document(namedtuple("Document", ["worker_nodes", "jobs_dict", "queues_dict", "total_running_jobs", "total_queued_jobs"])):
     if TYPE_CHECKING:
         _job_metadata: Dict[str, Job]
+        _slurm_diagnostics: Dict[str, int]
 
     @classmethod
     def from_cluster_state(cls, cluster_state: "ClusterState") -> "Document":
@@ -1566,10 +1567,11 @@ class Document(namedtuple("Document", ["worker_nodes", "jobs_dict", "queues_dict
             totals["queued_jobs"],
         )
         document._job_metadata = {job["id"]: copy.deepcopy(job) for job in cluster_state["jobs"]}
+        document._slurm_diagnostics = copy.deepcopy(cluster_state.get("slurm_diagnostics", {}))
         return document
 
     def to_cluster_state(self) -> "ClusterState":
-        return {
+        state: "ClusterState" = {
             "jobs": [
                 {
                     **getattr(self, "_job_metadata", {}).get(job_id, {}),
@@ -1592,6 +1594,9 @@ class Document(namedtuple("Document", ["worker_nodes", "jobs_dict", "queues_dict
                 for queue_name, queue in self.queues_dict.items()
             ],
         }
+        if getattr(self, "_slurm_diagnostics", {}):
+            state["slurm_diagnostics"] = copy.deepcopy(self._slurm_diagnostics)
+        return state
 
     def save(self, filename: str, cluster_state: "Optional[ClusterState]" = None) -> None:
         with open(filename, "w") as outfile:
@@ -1630,6 +1635,14 @@ class TextDisplay(object):
 
         if self.args.WATCH:
             print("\033c", end=" ")  # comma is to avoid losing the whole first line. An empty char still remains, though.
+
+        diagnostics = getattr(self.document, "_slurm_diagnostics", {})
+        if any(diagnostics.values()):
+            print(
+                "Slurm snapshot incomplete: %s rejected job rows; %s rejected node rows; "
+                "%s active jobs reference missing nodes; %s active jobs have invalid node lists."
+                % tuple(diagnostics.get(key, 0) for key in ("rejected_squeue_rows", "rejected_sinfo_rows", "jobs_with_missing_nodes", "jobs_with_invalid_nodelists"))
+            )
 
         for idx, part in enumerate(config["user_display_parts"], 1):
             display_func, opts = display_parts[part][0], display_parts[part][1]

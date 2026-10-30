@@ -49,7 +49,7 @@ def configured_pair_lines(nodes: List[Dict[str, Any]], mapping: object) -> List[
             for index in binding.get("device_indices") or []:
                 owners.setdefault(index, []).append(binding["job_id"])
         used = node.get("slurm_gpu_used")
-        known_usage = used is not None and all(resource["device_indices"] is not None for resource in used)
+        known_usage = bool(used) and all(resource["count"] == 0 or (resource["device_indices"] is not None and resource["mig_profile"] is None) for resource in used or [])
         busy = {index for resource in used or [] for index in resource["device_indices"] or []}
         labels = []
         for number, pair in enumerate(pairs, 1):

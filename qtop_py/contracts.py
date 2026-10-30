@@ -71,7 +71,10 @@ if TYPE_CHECKING:
         run: Union[int, str]
         state: str
 
-    class ClusterState(TypedDict):
+    class SnapshotDiagnostics(TypedDict, total=False):
+        slurm_diagnostics: Dict[str, int]
+
+    class ClusterState(SnapshotDiagnostics):
         jobs: List[Job]
         nodes: List[Node]
         queues: List[Queue]

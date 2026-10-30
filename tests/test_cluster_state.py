@@ -19,6 +19,14 @@ def sample_state():
     )
 
 
+@pytest.mark.parametrize("diagnostics", [{"rejected_squeue_rows": -1}, {"unknown": 1}, {"jobs_with_missing_nodes": True}, {"rejected_sinfo_rows": "1"}])
+def test_invalid_slurm_diagnostics_are_rejected(diagnostics):
+    state = sample_state()
+    state["slurm_diagnostics"] = diagnostics
+    with pytest.raises(ValueError, match="Slurm diagnostics"):
+        validate_cluster_state(state)
+
+
 def test_cluster_state_rejects_nontext_slurm_node_state():
     state = sample_state()
     state["nodes"][0]["slurm_node_state"] = ["idle*"]

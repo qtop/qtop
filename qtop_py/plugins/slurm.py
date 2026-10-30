@@ -114,6 +114,7 @@ class SlurmStatExtractor(StatExtractor):
         squeue -r -h -O 'JobID:0|,UserName:0|,StateCompact:0|,Partition:0|,NumCPUs:0|,NodeList:0|,tres-alloc:0|,tres-per-node:0|,tres-per-task:0|,ArrayJobID:0|,ArrayTaskID:0'
         Live collection additionally selects --states=all.
         """
+        self.rejected_squeue_rows = 0
         try:
             fileutils.check_empty_file(orig_file)
         except fileutils.FileEmptyError:
@@ -135,6 +136,7 @@ class SlurmStatExtractor(StatExtractor):
                     if not all((job_id, user, state)) or not all(name.strip().rstrip("*") for name in partition.split(",")):
                         raise ValueError("missing required job field")
                 except ValueError:
+                    self.rejected_squeue_rows += 1
                     logging.warning("Line: %s not properly parsed as Slurm squeue output." % line)
                     continue
 
@@ -175,6 +177,7 @@ class SlurmStatExtractor(StatExtractor):
         Parse output from:
         sinfo -N -h -O 'NodeList:0|,Partition:0|,StateCompact:0|,CPUs:0|,Gres:0|,GresUsed:0|,Available:0'
         """
+        self.rejected_sinfo_rows = 0
         try:
             fileutils.check_empty_file(orig_file)
         except fileutils.FileEmptyError:
@@ -195,6 +198,7 @@ class SlurmStatExtractor(StatExtractor):
                     if not all((node_name, partition.rstrip("*"))):
                         raise ValueError("missing required node field")
                 except ValueError:
+                    self.rejected_sinfo_rows += 1
                     logging.warning("Line: %s not properly parsed as Slurm sinfo output." % line)
                     continue
 
@@ -305,6 +309,13 @@ class SlurmBatchSystem(GenericBatchSystem):
                 job["slurm_tres_alloc"] = raw["slurm_tres_alloc"]
                 job["slurm_tres_per_node"] = raw["slurm_tres_per_node"]
                 job["slurm_tres_per_task"] = raw["slurm_tres_per_task"]
+        diagnostics = dict(self.allocation_diagnostics)
+        for source in ("squeue", "sinfo"):
+            count = getattr(self.slurm_stat_maker, "rejected_%s_rows" % source, 0)
+            if count:
+                diagnostics["rejected_%s_rows" % source] = count
+        if diagnostics:
+            state["slurm_diagnostics"] = diagnostics
         return state
 
     def get_jobs_info(self):
@@ -391,7 +402,8 @@ class SlurmBatchSystem(GenericBatchSystem):
                 if key in node:
                     worker_node[key] = node[key]
 
-        node_jobs = self._map_jobs_to_nodes(self._get_jobs(), worker_nodes_by_name)
+        self.allocation_diagnostics = {}
+        node_jobs = self._map_jobs_to_nodes(self._get_jobs(), worker_nodes_by_name, self.allocation_diagnostics)
         for raw_name, worker_node in worker_nodes_by_name.items():
             worker_node["core_job_map"] = dict((idx, job_id) for idx, job_id in enumerate(node_jobs.get(raw_name, [])))
 
@@ -569,14 +581,19 @@ class SlurmBatchSystem(GenericBatchSystem):
         return current if current_priority > previous_priority else previous
 
     @classmethod
-    def _map_jobs_to_nodes(cls, jobs, worker_nodes_by_name):
+    def _map_jobs_to_nodes(cls, jobs, worker_nodes_by_name, diagnostics=None):
         node_jobs = OrderedDict((node_name, []) for node_name in worker_nodes_by_name)
         for node in worker_nodes_by_name.values():
             node["slurm_job_ids"] = []
         for job in jobs:
             if job["S"] not in cls.ACTIVE_STATES:
                 continue
-            nodes = [node for node in cls.expand_nodelist(job["Nodes"]) if node in worker_nodes_by_name]
+            allocated_nodes = cls.expand_nodelist(job["Nodes"])
+            if diagnostics is not None:
+                key = "jobs_with_invalid_nodelists" if not allocated_nodes else "jobs_with_missing_nodes"
+                if not allocated_nodes or any(node not in worker_nodes_by_name for node in allocated_nodes):
+                    diagnostics[key] = diagnostics.get(key, 0) + 1
+            nodes = [node for node in allocated_nodes if node in worker_nodes_by_name]
             if not nodes:
                 continue
 

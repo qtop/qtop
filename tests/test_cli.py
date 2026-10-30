@@ -338,6 +338,23 @@ def test_malformed_scheduler_command_quotes_are_actionable(tmp_path):
     assert list(tmp_path.iterdir()) == []
 
 
+@pytest.mark.parametrize("all_rejected", (False, True))
+def test_partial_slurm_snapshot_has_visible_warning_and_exported_diagnostics(tmp_path, all_rejected):
+    import json
+
+    (tmp_path / "squeue.txt").write_text("bad-job\n" + ("" if all_rejected else "101|alice|R|batch|2|node2\n"))
+    (tmp_path / "sinfo.txt").write_text("bad-node\n" + ("" if all_rejected else "node1|batch|idle|4\n"))
+    output = tmp_path / "output"
+    result = run_cli(tmp_path, "qtop_py.cli", "-b", "slurm", "-s", str(tmp_path), "-F", "-E", "-o", "savepath=%s" % output)
+    assert result.returncode == 0, result.stderr
+    assert "Slurm snapshot incomplete: 1 rejected job rows; 1 rejected node rows;" in result.stdout
+    if not all_rejected:
+        assert "1 active jobs reference missing nodes" in result.stdout
+    state = json.loads(next(output.glob("qtop_json_*.json")).read_text())
+    assert state["slurm_diagnostics"]["rejected_squeue_rows"] == 1
+    assert len(state["jobs"]) == (0 if all_rejected else 1)
+
+
 @pytest.mark.parametrize("flags, include_sources, include_raw", ((["-L"], False, True), (["-LL"], True, True), (["-L", "-A", "-e"], False, False)))
 def test_documented_capture_and_export_modes(tmp_path, flags, include_sources, include_raw):
     import json

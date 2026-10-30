@@ -19,9 +19,7 @@ def test_yaml_ranges_and_split_pair_ownership(tmp_path):
             dict(parse_gpu_gres("gpu:h100_nvl:1(IDX:2)")[0], job_id="102"),
         ],
     }
-    assert configured_pair_lines([node], config["experimental_gpu_pairs"]) == [
-        "gpu009: pair1[gpu0=101, gpu1=101] pair2[gpu2=102, gpu3=idle]"
-    ]
+    assert configured_pair_lines([node], config["experimental_gpu_pairs"]) == ["gpu009: pair1[gpu0=101, gpu1=101] pair2[gpu2=102, gpu3=idle]"]
     assert configured_pair_lines([dict(node, domainname="gpu010")], config["experimental_gpu_pairs"]) == []
 
 
@@ -33,6 +31,17 @@ def test_missing_details_and_mig_are_not_invented():
     }
     assert configured_pair_lines([node], {"gpu001": [[0, 1]]}) == ["gpu001: pair1[gpu0=?, gpu1=?]"]
     assert configured_pair_lines([node], None) == []
+
+
+@pytest.mark.parametrize("usage", ["N/A", "(null)", "", "shard:1(IDX:0)", "gpu:h100_1g.12gb:1(IDX:0)"])
+def test_unavailable_or_mig_usage_cannot_establish_idle_physical_gpus(usage):
+    node = {"domainname": "gpu001", "slurm_gpu_used": parse_gpu_gres(usage)}
+    assert configured_pair_lines([node], {"gpu001": [[0, 1]]}) == ["gpu001: pair1[gpu0=?, gpu1=?]"]
+
+
+def test_explicit_zero_usage_establishes_idle_without_inventing_job_ownership():
+    node = {"domainname": "gpu001", "slurm_gpu_used": parse_gpu_gres("gpu:h100_nvl:0(IDX:N/A)")}
+    assert configured_pair_lines([node], {"gpu001": [[0, 1]]}) == ["gpu001: pair1[gpu0=idle, gpu1=idle]"]
 
 
 def test_collected_slurm_bindings_support_split_and_shared_ownership(tmp_path):
