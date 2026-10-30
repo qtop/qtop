@@ -1428,6 +1428,10 @@ class WNOccupancy(object):
         or on runtime in watch mode, if user presses appropriate keybinding
         """
         node_free_cores = node_cores[:]
+        for core, job in corejobs.items():
+            if re.sub(r"\[\d+\]", "[]", str(job)) not in jobid_to_user_to_queue:
+                core_user_map["Core" + str(core) + "vector"].append(utils.ColorStr("?", color="Yellow"))
+                node_free_cores.remove(str(core))
         selected_pat_to_color_map = globals()[_core_coloring]
         _highlighted_queues_or_users = dynamic_config.get("highlight", self.config["highlight"])
 
@@ -1492,17 +1496,23 @@ class WNOccupancy(object):
         return lines == len(core_user_map)
 
     def strict_check_jobs(self, cluster):
-        counted_jobs = WNOccupancy._count_jobs_strict(self.core_user_map)
+        states = self.config["state_abbreviations"][scheduler]
+        running_ids = {job_id for job_id, job in self.document.jobs_dict.items() if states.get(job.job_state) == "running_of_user"}
+        counted_jobs = WNOccupancy._count_jobs_strict(self.document.worker_nodes, running_ids)
         if counted_jobs != cluster.total_running_jobs:
             print("Counted jobs (%s) -- Total running jobs reported (%s) MISMATCH!" % (counted_jobs, cluster.total_running_jobs))
 
     @staticmethod
-    def _count_jobs_strict(core_user_map):
-        count = 0
-        for k in core_user_map:
-            just_jobs = core_user_map[k].translate(None, "#_")
-            count += len(just_jobs)
-        return count
+    def _count_jobs_strict(worker_nodes, job_ids=None):
+        jobs = set()
+        for node in worker_nodes:
+            jobs.update(node["core_job_map"].values())
+            jobs.update(node.get("slurm_job_ids", []))
+            jobs.update(node.get("oar_job_ids", []))
+        jobs.discard("?")
+        if job_ids is not None:
+            jobs = {job if job in job_ids else re.sub(r"\[[0-9]*\]$", "", job) for job in jobs}
+        return len(jobs if job_ids is None else jobs.intersection(job_ids))
 
     def calculate_user_node_use(self, cluster, jobid_to_user_to_queue):
         """
@@ -1546,6 +1556,7 @@ class Document(namedtuple("Document", ["worker_nodes", "jobs_dict", "queues_dict
     if TYPE_CHECKING:
         _job_metadata: Dict[str, Job]
         _slurm_diagnostics: Dict[str, int]
+        _oar_diagnostics: Dict[str, int]
 
     @classmethod
     def from_cluster_state(cls, cluster_state: "ClusterState") -> "Document":
@@ -1568,6 +1579,7 @@ class Document(namedtuple("Document", ["worker_nodes", "jobs_dict", "queues_dict
         )
         document._job_metadata = {job["id"]: copy.deepcopy(job) for job in cluster_state["jobs"]}
         document._slurm_diagnostics = copy.deepcopy(cluster_state.get("slurm_diagnostics", {}))
+        document._oar_diagnostics = copy.deepcopy(cluster_state.get("oar_diagnostics", {}))
         return document
 
     def to_cluster_state(self) -> "ClusterState":
@@ -1596,6 +1608,8 @@ class Document(namedtuple("Document", ["worker_nodes", "jobs_dict", "queues_dict
         }
         if getattr(self, "_slurm_diagnostics", {}):
             state["slurm_diagnostics"] = copy.deepcopy(self._slurm_diagnostics)
+        if getattr(self, "_oar_diagnostics", {}):
+            state["oar_diagnostics"] = copy.deepcopy(self._oar_diagnostics)
         return state
 
     def save(self, filename: str, cluster_state: "Optional[ClusterState]" = None) -> None:
@@ -1642,6 +1656,14 @@ class TextDisplay(object):
                 "Slurm snapshot incomplete: %s rejected job rows; %s rejected node rows; "
                 "%s active jobs reference missing nodes; %s active jobs have invalid node lists."
                 % tuple(diagnostics.get(key, 0) for key in ("rejected_squeue_rows", "rejected_sinfo_rows", "jobs_with_missing_nodes", "jobs_with_invalid_nodelists"))
+            )
+
+        oar_notes = getattr(self.document, "_oar_diagnostics", {})
+        if any(oar_notes.values()):
+            print(
+                "OAR allocation notes: %s resources lack details; %s resources absent from node states; "
+                "%s job IDs absent from oarstat; %s shared resource slots (? marks unknown ownership)."
+                % tuple(oar_notes.get(key, 0) for key in ("missing_resources", "extra_resources", "unlisted_jobs", "shared_resources"))
             )
 
         for idx, part in enumerate(config["user_display_parts"], 1):
@@ -2388,6 +2410,7 @@ class Cluster(object):
         for node in workernode_dict:
             node_job_set = set(workernode_dict[node]["core_job_map"].values())
             node_job_set.update(workernode_dict[node].get("slurm_job_ids", []))
+            node_job_set.update(workernode_dict[node].get("oar_job_ids", []))
             workernode_dict[node]["node_job_set"] = node_job_set
 
 

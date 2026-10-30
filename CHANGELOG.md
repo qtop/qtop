@@ -5,10 +5,12 @@ See the [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 
 ## 0.9.20261020
 
-- Bugfix: derive OAR running/waiting job totals and per-queue summaries from the existing oarstat snapshot, without requiring StrictCheck (#246).
-- Bugfix: keep unavailable GPU usage unknown; flag rejected Slurm rows and active allocations absent from node data in the dashboard, export, and replay.
-- Bugfix: collect all retained Slurm job states, including suspended jobs; add `--all` to optionally include hidden partitions in live Slurm queries.
-- Experimental: optionally display configured Slurm GPU pairs and their job IDs, with node-range mappings and no additional scheduler queries.
+- Bugfix: (oar) show job and queue summaries (#246).
+- Bugfix: (oar) preserve unknown/shared allocations; tolerate YAML variants & job names.
+- Bugfix: (oar) make StrictCheck count unique running jobs.
+- Bugfix: (slurm) flag incomplete snapshots; keep unknown GPU usage explicit.
+- Bugfix: (slurm) retain job states; add `--all` for hidden partitions.
+- Experimental: (slurm) show configured GPU pairs and job ownership.
 
 ## 0.9.20261018
 

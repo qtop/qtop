@@ -105,8 +105,9 @@ def anonymize_state(state: object) -> "Tuple[ClusterState, IdentifierMaps]":
     for original, node in zip(original_nodes, state["nodes"]):
         if "slurm_node_state" in original:
             node["slurm_node_state"] = original["slurm_node_state"]
-        if "slurm_job_ids" in original:
-            node["slurm_job_ids"] = [job_id(value) for value in original["slurm_job_ids"]]
+        for field in ("slurm_job_ids", "oar_job_ids"):
+            if field in original:
+                node[field] = [job_id(value) for value in original[field]]
         if "slurm_unmapped_cpus" in original:
             node["slurm_unmapped_cpus"] = original["slurm_unmapped_cpus"]
         for field, resources in (("slurm_gpu_configured", original.get("slurm_gpu_configured")), ("slurm_gpu_used", original.get("slurm_gpu_used"))):

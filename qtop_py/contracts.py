@@ -45,6 +45,7 @@ if TYPE_CHECKING:
         slurm_gpu_used: List[GPUResource]
         slurm_gpu_bindings: List[GPUBinding]
         slurm_job_ids: List[str]
+        oar_job_ids: List[str]
         slurm_unmapped_cpus: int
         cpu_allocation_source: str
         slurm_gres: str
@@ -73,6 +74,7 @@ if TYPE_CHECKING:
 
     class SnapshotDiagnostics(TypedDict, total=False):
         slurm_diagnostics: Dict[str, int]
+        oar_diagnostics: Dict[str, int]
 
     class ClusterState(SnapshotDiagnostics):
         jobs: List[Job]

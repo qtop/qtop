@@ -136,7 +136,9 @@ class GenericBatchSystem(object):
         return [
             dict(
                 worker_node,
-                qname=list(set(job_ids_queues.get(re.sub(r"\[\d+\]", r"[]", job_id)) for job_id in worker_node["core_job_map"].values())),
+                qname=list(
+                    set(job_ids_queues.get(re.sub(r"\[\d+\]", r"[]", job_id)) for job_id in list(worker_node["core_job_map"].values()) + worker_node.get("oar_job_ids", []))
+                ),
             )
             for worker_node in _worker_nodes
         ]

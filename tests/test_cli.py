@@ -65,7 +65,7 @@ def test_oar_job_summary_counts_jobs_instead_of_resource_slots(tmp_path):
     (tmp_path / "oarnodes_s_Y.txt").write_text("---\nnode1:\n    1: Alive\n    2: Alive\n")
     (tmp_path / "oarnodes_Y.txt").write_text("---\n1:\n    jobs: 101\n2:\n    jobs: 101\n")
     output = tmp_path / "output"
-    result = run_cli(tmp_path, "qtop_py.cli", "-b", "oar", "-s", str(tmp_path), "-F", "-E", "-o", "savepath=%s" % output)
+    result = run_cli(tmp_path, "qtop_py.cli", "-b", "oar", "-s", str(tmp_path), "-F", "-S", "-E", "-o", "savepath=%s" % output)
     assert result.returncode == 0, result.stderr
     assert "1+1 jobs (R + Q)" in result.stdout
     assert "default: 1" in result.stdout
@@ -74,6 +74,27 @@ def test_oar_job_summary_counts_jobs_instead_of_resource_slots(tmp_path):
     state = json.loads(next(output.glob("qtop_json_*.json")).read_text())
     assert [(queue["name"], queue["running"], queue["queued"]) for queue in state["queues"]] == [("default", 1, 0), ("debug", 0, 1)]
     assert state["nodes"][0]["core_job_map"] == {"0": "101", "1": "101"}
+
+
+def test_oar_unlisted_allocation_is_visible_in_matrix_export_and_replay(tmp_path):
+    import json
+
+    (tmp_path / "oarstat.txt").write_text("Job id Name User Submission Date S Queue\n------ ---- ---- --------------- - -----\n")
+    (tmp_path / "oarnodes_s_Y.txt").write_text("---\nnode1:\n    1: Alive\n")
+    (tmp_path / "oarnodes_Y.txt").write_text("---\n1:\n    jobs: '999'\n")
+    output = tmp_path / "output"
+    result = run_cli(tmp_path, "qtop_py.cli", "-b", "oar", "-s", str(tmp_path), "-F", "-L", "-A", "-e", "-E", "-o", "savepath=%s" % output)
+    assert result.returncode == 0, result.stderr
+    assert "1 job IDs absent from oarstat" in result.stdout
+    state = json.loads(next(output.glob("qtop_json_*.json")).read_text())
+    assert state["nodes"][0]["core_job_map"]
+    assert state["oar_diagnostics"] == {"unlisted_jobs": 1}
+    assert "|?|" in result.stdout
+    replay_output = tmp_path / "replay"
+    replay = run_cli(tmp_path, "qtop_py.cli", "--load-sample", str(next(output.glob("*.tar"))), "-E", "-o", "savepath=%s" % replay_output)
+    assert replay.returncode == 0, replay.stderr
+    assert "1 job IDs absent from oarstat" in replay.stdout
+    assert json.loads(next(replay_output.glob("qtop_json_*.json")).read_text()) == state
 
 
 @pytest.mark.parametrize("module", ("qtop_py.cli", "qtop_py.qtop"))

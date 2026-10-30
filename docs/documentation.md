@@ -629,6 +629,16 @@ are reported as unknown because this snapshot does not supply them; only queues
 present in the job snapshot can be listed. No extra
 commands or `--StrictCheck` are required.
 
+OAR resource parsing accepts quoted job IDs, comma-separated or YAML job lists,
+and blank lines. Shared slots display one known owner; `oar_job_ids` retains all
+owners for node membership, queue filtering, export, and replay. Allocated slots
+whose owner is absent from `oarstat`, or whose resource details are missing,
+display `?` rather than appearing free. A per-frame allocation note reports
+inconsistent snapshots and shared slots; `oar_diagnostics` preserves these counts.
+Resources absent from the node-state snapshot are reported, without inventing
+hostnames or capacity. StrictCheck compares unique known running job IDs across
+the unfiltered snapshot, not user symbols or occupied resource counts.
+
 With process ID ``12345`` and ``USER=mike``,
 its live captures are:
 
