@@ -32,6 +32,7 @@ DISPLAY_OPTIONS = (
     "sect_2_off",
     "sect_3_off",
     "SHOW_ACCOUNT_TOTALS",
+    "SHOW_QUEUE_NODES",
 )
 
 
@@ -135,7 +136,8 @@ def anonymize_state(state: object) -> "Tuple[ClusterState, IdentifierMaps]":
 def sanitize_config(config: "Config", mappings: "IdentifierMaps") -> "Tuple[Config, List[str]]":
     """Remove local commands/paths and translate identifier-bearing rules."""
     config = copy.deepcopy(config)
-    omitted = ("savepath", "schedulers", "signature_commands", "extract_info", "remapping", "experimental_gpu_pairs")
+    omitted = ("savepath", "schedulers", "signature_commands", "extract_info", "remapping", "experimental_gpu_pairs", "experimental_queue_nodes")
+    config.pop("experimental_queue_nodes", None)
     config.pop("experimental_gpu_pairs", None)
     config.update(savepath="/tmp/qtop_results_$USER", schedulers={}, signature_commands={}, extract_info=None, remapping=[])
     # Control strings (state codes, sort names, colors) must not be rewritten

@@ -1751,6 +1751,15 @@ class TextDisplay(object):
         if scheduler == "slurm":
             blocked_note = " (partition closed to submissions or scheduling)"
         print(colorize("* implies blocked", "Red") + blocked_note + "\n")
+        if getattr(self.args, "SHOW_QUEUE_NODES", False):
+            from qtop_py.queue_nodes import queue_node_counts
+
+            try:
+                counts = queue_node_counts(document.worker_nodes, list(document.queues_dict), scheduler, self.config.get("experimental_queue_nodes"))
+            except ValueError as error:
+                print("Queue nodes unavailable: %s" % error)
+            else:
+                print("Queue nodes (experimental, idle/total): " + " | ".join("%s: %s/%s" % tuple("?" if value is None else value for value in row) for row in counts))
 
     def display_wns_occupancy(self, wns_occupancy, cluster):
         """

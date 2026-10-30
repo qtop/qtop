@@ -15,6 +15,11 @@ scheduler: auto
 ## experimental_gpu_pairs:
 ##   gpu[001-009]: [[0, 1], [2, 3]]
 
+## Optional queue eligibility for -e --queue-nodes (needed for PBS/OAR).
+## experimental_queue_nodes:
+##   old_nodes: node[001-022]
+##   new_nodes: node[023-033]
+
 ## where to save output from batch commands and their intermediate conversion to json format
 ## users can select e.g. /dev/shm (ram disk) instead of /tmp for faster processing, or even $TMP or $TMPDIR
 savepath: /tmp/qtop_results_$USER

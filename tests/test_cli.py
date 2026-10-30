@@ -56,6 +56,20 @@ def test_packaging_entry_points_use_cli_wrapper():
     assert 'qtop = "qtop_py.qtop:cli_main"' in packaging_config
 
 
+def test_queue_nodes_requires_experimental_option(tmp_path):
+    result = run_cli(tmp_path, "qtop_py.cli", "--queue-nodes")
+    assert result.returncode == 2
+    assert "--queue-nodes requires -e" in result.stderr
+
+
+@pytest.mark.parametrize("enabled", (False, True))
+def test_queue_node_summary_is_opt_in_and_uses_full_slurm_names(tmp_path, enabled):
+    flags = ["-e", "--queue-nodes"] if enabled else []
+    result = run_cli(tmp_path, "qtop_py.cli", "-b", "slurm", "-s", str(ROOT / "tests/plugins/slurm_samples/basic"), "-F", "-o", "savepath=%s" % (tmp_path / "output"), *flags)
+    assert result.returncode == 0, result.stderr
+    assert ("Queue nodes (experimental, idle/total): compute: 0/2 | long: 1/1" in result.stdout) is enabled
+
+
 def test_oar_job_summary_counts_jobs_instead_of_resource_slots(tmp_path):
     import json
 
@@ -65,11 +79,17 @@ def test_oar_job_summary_counts_jobs_instead_of_resource_slots(tmp_path):
     (tmp_path / "oarnodes_s_Y.txt").write_text("---\nnode1:\n    1: Alive\n    2: Alive\n")
     (tmp_path / "oarnodes_Y.txt").write_text("---\n1:\n    jobs: 101\n2:\n    jobs: 101\n")
     output = tmp_path / "output"
-    result = run_cli(tmp_path, "qtop_py.cli", "-b", "oar", "-s", str(tmp_path), "-F", "-S", "-E", "-o", "savepath=%s" % output)
+    result = run_cli(
+        tmp_path, "qtop_py.cli", "-b", "oar", "-s", str(tmp_path), "-F", "-S", "-e",
+        "--queue-nodes", "-E", "-o",
+        "experimental_queue_nodes={'default':'node1','debug':'node1'}", "-o",
+        "savepath=%s" % output,
+    )
     assert result.returncode == 0, result.stderr
     assert "1+1 jobs (R + Q)" in result.stdout
     assert "default: 1" in result.stdout
     assert "debug: 0 + 1" in result.stdout
+    assert "Queue nodes (experimental, idle/total): default: 0/1 | debug: 0/1" in result.stdout
     assert "MISMATCH" not in result.stdout
     state = json.loads(next(output.glob("qtop_json_*.json")).read_text())
     assert [(queue["name"], queue["running"], queue["queued"]) for queue in state["queues"]] == [("default", 1, 0), ("debug", 0, 1)]

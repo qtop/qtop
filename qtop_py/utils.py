@@ -96,6 +96,7 @@ def parse_qtop_cmdline_args():
     parser.add_argument("-C", "--classic", action="store_true", dest="CLASSIC", default=False, help="tries to mimic legacy qtop display as much as possible")
     parser.add_argument("-d", "--debug", action="store_true", dest="DEBUG", default=False, help="print debug messages and operational-error tracebacks to stderr and the log file.")
     parser.add_argument("-E", "--export", action="store_true", dest="EXPORT", default=False, help="export cluster data to json")
+    parser.add_argument("--queue-nodes", action="store_true", dest="SHOW_QUEUE_NODES", help="Show experimental queue idle/total node counts (requires -e)")
     parser.add_argument(
         "-e",
         "--experimental",
@@ -216,6 +217,8 @@ def parse_qtop_cmdline_args():
     )
     parser.add_argument("--load-sample", metavar="ARCHIVE", help="Reproduce an anonymized support snapshot without scheduler commands")
     args = parser.parse_args()
+    if args.SHOW_QUEUE_NODES and not args.EXPERIMENTAL:
+        parser.error("--queue-nodes requires -e/--experimental")
     return args
 
 

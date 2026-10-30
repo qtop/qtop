@@ -1031,6 +1031,33 @@ Usage tips
 -  Use ``-L`` when preparing a bug report. Review the archive before
    sharing it, especially when scheduler output might include sensitive
    hostnames or account names.
+## Experimental queue-node summary
+
+Use `qtop -b slurm -e --queue-nodes` to add idle/total node counts per queue
+(#210). Slurm and SGE use their reported queue memberships; PBS and OAR show
+`?/?` unless you supply an administrator-verified mapping in user `qtopconf.yaml`:
+
+```yaml
+experimental_queue_nodes:
+  old_nodes: node[001-022]
+  new_nodes: node[023-033]
+```
+
+Mappings override reported membership for the specified queues. Node ranges
+preserve padding; overlapping queue pools are allowed and duplicates are counted
+once per queue. Missing mapped nodes produce `?/total`, not an invented idle
+count. Invalid mappings produce a message without interrupting the dashboard.
+
+Idle means an observed idle node with no recorded CPU/job or GPU allocation;
+flagged Slurm idle states are excluded. These counts describe the unfiltered
+collected snapshot, not whether a particular job can run: reservations, queue
+policy and resource requirements still apply. Queue pools can overlap, so their
+totals need not sum to the cluster total. The option adds no scheduler commands.
+
+Sample replay retains the display option. Manual mappings are omitted from
+anonymized samples to avoid exposing node patterns; PBS/OAR counts then remain
+unknown. Native Slurm/SGE memberships survive anonymization and replay.
+
 # Experimental configured GPU pairs (Slurm)
 
 Add this optional mapping to your user `qtopconf.yaml` to display job ownership

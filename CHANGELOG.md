@@ -5,6 +5,7 @@ See the [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 
 ## 0.9.20261020
 
+- Experimental: (pbs) show queue idle/total node counts (#210).
 - Bugfix: (oar) show job and queue summaries (#246).
 - Bugfix: (oar) preserve unknown/shared allocations; tolerate YAML variants & job names.
 - Bugfix: (oar) make StrictCheck count unique running jobs.
