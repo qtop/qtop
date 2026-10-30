@@ -24,6 +24,9 @@ Schedulers expose a great deal of information, but their native commands rarely 
 
 ## Quick start
 
+See the [Quickstart guide](docs/quickstart.md) for a short walkthrough from the
+demo to live monitoring, saved traces and support snapshots.
+
 Clone the repository and launch the built-in demo:
 
 ```console
