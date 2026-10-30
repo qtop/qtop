@@ -72,6 +72,34 @@ def test_empty_pbs_named_cluster_without_queue_totals_renders(tmp_path, queue_ro
     assert [(queue["name"], queue["running"], queue["queued"]) for queue in state["queues"]] == ([("workq", 0, 0)] if queue_row else [])
 
 
+def test_pbs_mixed_hostnames_preserve_nodes_jobs_and_allocations(tmp_path):
+    import json
+
+    blocks = []
+    for host, state, first_job in [("wn001", "free", 0), ("trueno_ita00", "job-exclusive", 1001), ("wn003", "job-exclusive", 1005), ("wn004", "down", 0)]:
+        jobs = "    jobs = " + ",".join("%s/%s.server" % (core, first_job + core // 2) for core in range(8)) + "\n" if first_job else ""
+        blocks.append("%s.cluster.local\n    state = %s\n    np = 8\n%s\n" % (host, state, jobs))
+    (tmp_path / "pbsnodes_a.txt").write_text("".join(blocks))
+    (tmp_path / "qstat.txt").write_text(
+        "Job id Name User Time Use S Queue\n----- ---- ---- -------- - -----\n"
+        + "".join("%s.server job alice 00:01:00 R workq\n" % job for job in range(1001, 1009))
+        + "1009.server pending bob 00:00:00 Q workq\n"
+    )
+    (tmp_path / "qstat_q.txt").write_text("\nserver: mixed\n\nQueue Memory CPU Walltime Node Run Que Lm State\n-----\nworkq -- -- -- -- 8 1 -- E R\n8 1\n")
+    output = tmp_path / "output"
+    result = run_cli(tmp_path, "qtop_py.cli", "-b", "pbs", "-s", str(tmp_path), "-F", "-E", "-o", "savepath=%s" % output)
+    assert result.returncode == 0, result.stderr
+    assert "Summary: Total:4 Up:3 Free:1 Nodes | 16/32 cores |   8+1 jobs" in result.stdout
+    assert "trueno_ita00" in result.stdout
+    state = json.loads(next(output.glob("qtop_json_*.json")).read_text())
+    nodes = {node["domainname"].split(".")[0]: node for node in state["nodes"]}
+    assert set(nodes) == {"wn001", "trueno_ita00", "wn003", "wn004"}
+    assert set(nodes["trueno_ita00"]["core_job_map"].values()) == {"1001", "1002", "1003", "1004"}
+    assert set(nodes["wn003"]["core_job_map"].values()) == {"1005", "1006", "1007", "1008"}
+    assert len(state["jobs"]) == 9
+    assert [(queue["running"], queue["queued"]) for queue in state["queues"]] == [(8, 1)]
+
+
 def test_queue_nodes_requires_experimental_option(tmp_path):
     result = run_cli(tmp_path, "qtop_py.cli", "--queue-nodes")
     assert result.returncode == 2
