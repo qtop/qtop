@@ -206,10 +206,19 @@ class PBSStatExtractor(StatExtractor):
                 qstatq_values = dict()
                 queue_name = queue_name if not self.options.ANONYMIZE else anonymize(queue_name, "qs")
                 qstatq_values["queue_name"] = queue_name
-                qstatq_values["run"] = queue["state_count"].split(" ")[4].split(":")[1]
-                qstatq_values["queued"] = queue["state_count"].split(" ")[1].split(":")[1]
+                try:
+                    pairs = [token.split(":", 1) for token in queue["state_count"].split()]
+                    counts = dict(pairs)
+                    run, queued = counts["Running"], counts["Queued"]
+                    if len(counts) != len(pairs) or not all(re.fullmatch(r"[0-9]+", count) for count in (run, queued)):
+                        raise ValueError("invalid or duplicate job counts")
+                except (KeyError, ValueError, TypeError, AttributeError) as error:
+                    raise ValueError("Invalid PBS state_count for queue %s" % queue_name) from error
+                qstatq_values["run"], qstatq_values["queued"] = run, queued
                 qstatq_values["lm"] = str(queue.get("max_run", queue.get("max_running", "--")))
                 qstatq_values["state"] = "E" if str(queue["enabled"]).lower() == "true" else "D"
+                if "started" in queue:
+                    qstatq_values["state"] += " R" if str(queue["started"]).lower() == "true" else " S"
                 all_qstatq_values.append(qstatq_values)
             total_running_jobs = sum(int(item["run"]) for item in all_qstatq_values)
             total_queued_jobs = sum(int(item["queued"]) for item in all_qstatq_values)

@@ -5,6 +5,7 @@ See the [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 
 ## 0.9.20261020
 
+- Bugfix: (pbs) mark stopped queues; parse JSON job counts by state name.
 - Bugfix: (pbs) preserve wrapped allocations, array IDs and legacy job/queue records.
 - Bugfix: (pbs) tolerate invalid optional GPU counts.
 - Bugfix: (pbs) show queue idle/total node counts (#210).
