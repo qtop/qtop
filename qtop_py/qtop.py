@@ -412,6 +412,8 @@ def finalize_filepaths_schedulercommands(args, config):
         path = path % {"savepath": args.workdir, "pid": fn_append}
         # Slurm format codes stay copyable; accept legacy escaped percent signs.
         command = command.replace("%%", "%").replace("%(savepath)s", args.workdir)
+        if scheduler == "slurm" and getattr(args, "ALL_PARTITIONS", False) and not args.SOURCEDIR and fn in ("squeue_file", "sinfo_file", "scontrol_file"):
+            command += " --all"
         d[fn] = (path, command)
     return d
 

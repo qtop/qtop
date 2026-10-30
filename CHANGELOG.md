@@ -5,6 +5,7 @@ See the [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 
 ## 0.9.20261020
 
+- Bugfix: collect all retained Slurm job states, including suspended jobs; add `--all` to optionally include hidden partitions in live Slurm queries.
 - Experimental: optionally display configured Slurm GPU pairs and their job IDs, with node-range mappings and no additional scheduler queries.
 
 ## 0.9.20261018

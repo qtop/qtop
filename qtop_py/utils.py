@@ -79,6 +79,12 @@ def parse_qtop_cmdline_args():
     )
     parser.add_argument("-b", "--batchSystem", action="store", dest="BATCH_SYSTEM", default=None)
     parser.add_argument(
+        "--all",
+        action="store_true",
+        dest="ALL_PARTITIONS",
+        help="Include hidden and group-unavailable partitions in live Slurm queries (subject to permissions)",
+    )
+    parser.add_argument(
         "-c",
         "--COLOR",
         action="store",

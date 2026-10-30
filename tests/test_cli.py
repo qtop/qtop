@@ -227,12 +227,14 @@ def test_replay_configuration_failure_is_concise(tmp_path):
 
 
 @pytest.mark.skipif(os.name != "posix", reason="Compare qtop execution with a POSIX shell")
+@pytest.mark.parametrize("all_partitions", (False, True))
 @pytest.mark.parametrize(
     "scheduler_file, expected",
     (
         (
             "squeue_file",
             [
+                "--states=all",
                 "-r",
                 "-h",
                 "-O",
@@ -243,7 +245,7 @@ def test_replay_configuration_failure_is_concise(tmp_path):
         ("scontrol_file", ["--details", "show", "jobs"]),
     ),
 )
-def test_slurm_config_command_matches_shell_execution(tmp_path, monkeypatch, scheduler_file, expected):
+def test_slurm_config_command_matches_shell_execution(tmp_path, monkeypatch, scheduler_file, expected, all_partitions):
     import json
 
     from qtop_py import qtop
@@ -256,11 +258,12 @@ def test_slurm_config_command_matches_shell_execution(tmp_path, monkeypatch, sch
     script.chmod(0o755)
     monkeypatch.setenv("PATH", str(tmp_path) + os.pathsep + os.environ.get("PATH", ""))
     monkeypatch.setattr(qtop, "scheduler", "slurm", raising=False)
-    args = type("Options", (), {"SOURCEDIR": None, "workdir": str(tmp_path)})()
+    args = type("Options", (), {"SOURCEDIR": None, "workdir": str(tmp_path), "ALL_PARTITIONS": all_partitions})()
     finalized = qtop.finalize_filepaths_schedulercommands(args, config)
     output_path, command = finalized[scheduler_file]
-    assert command == configured_command
-    shell_output = subprocess.check_output(["/bin/sh", "-c", configured_command], universal_newlines=True)
+    assert command == configured_command + (" --all" if all_partitions else "")
+    expected = expected + (["--all"] if all_partitions else [])
+    shell_output = subprocess.check_output(["/bin/sh", "-c", command], universal_newlines=True)
     qtop.execute_shell_batch_commands({scheduler_file: command}, {scheduler_file: output_path}, scheduler_file, str(tmp_path))
     assert json.loads(shell_output) == expected
     assert json.loads(Path(output_path).read_text()) == expected
@@ -271,6 +274,60 @@ def test_slurm_config_command_matches_shell_execution(tmp_path, monkeypatch, sch
     legacy_path, legacy_command = qtop.finalize_filepaths_schedulercommands(args, config)[scheduler_file]
     qtop.execute_shell_batch_commands({scheduler_file: legacy_command}, {scheduler_file: legacy_path}, scheduler_file, str(tmp_path))
     assert json.loads(Path(legacy_path).read_text()) == expected
+
+
+@pytest.mark.parametrize("scheduler_name, source", (("slurm", "traces"), ("pbs", None)))
+def test_all_partitions_does_not_change_saved_traces_or_other_backends(tmp_path, monkeypatch, scheduler_name, source):
+    from types import SimpleNamespace
+
+    from qtop_py import qtop
+
+    config = qtop.yaml.parse(str(ROOT / "qtopconf.yaml"))
+    monkeypatch.setattr(qtop, "scheduler", scheduler_name, raising=False)
+    args = SimpleNamespace(SOURCEDIR=source, workdir=str(tmp_path), ALL_PARTITIONS=False)
+    default = qtop.finalize_filepaths_schedulercommands(args, config)
+    args.ALL_PARTITIONS = True
+    assert qtop.finalize_filepaths_schedulercommands(args, config) == default
+
+
+@pytest.mark.skipif(os.name != "posix", reason="Executable scheduler stand-ins require POSIX")
+@pytest.mark.parametrize("all_partitions", (False, True))
+def test_live_slurm_collects_suspended_jobs_and_optional_hidden_partitions(tmp_path, all_partitions):
+    import json
+
+    scripts = {
+        "squeue": ("if '--states=all' in sys.argv:\n    print('101|alice|S|batch|2|node1')\n    if '--all' in sys.argv:\n        print('102|bob|R|hidden|2|node2')\n"),
+        "sinfo": "print('node1|batch|mix|4')\nif '--all' in sys.argv:\n    print('node2|hidden|mix|4')\n",
+        "scontrol": ("print('JobId=101\\n Nodes=node1 CPU_IDs=0-1')\nif '--all' in sys.argv:\n    print('JobId=102\\n Nodes=node2 CPU_IDs=2-3 GRES=gpu:h100_nvl:2(IDX:2-3)')\n"),
+    }
+    for name, body in scripts.items():
+        path = tmp_path / name
+        path.write_text("#!%s\nimport sys\n%s" % (sys.executable, body), encoding="utf-8")
+        path.chmod(0o755)
+    output = tmp_path / "output"
+    flags = ["--all"] if all_partitions else []
+    result = run_cli(
+        tmp_path,
+        "qtop_py.cli",
+        "-b",
+        "slurm",
+        "-F",
+        "-E",
+        "-O",
+        "-o",
+        "savepath=%s" % output,
+        *flags,
+        extra_env={"PATH": str(tmp_path) + os.pathsep + os.environ.get("PATH", "")},
+    )
+    assert result.returncode == 0, result.stderr
+    state = json.loads(next(output.glob("qtop_json_*.json")).read_text())
+    assert [job["id"] for job in state["jobs"]] == (["101", "102"] if all_partitions else ["101"])
+    assert state["jobs"][0]["state"] == "S"
+    assert state["nodes"][0]["core_job_map"] == {"0": "101", "1": "101"}
+    assert [queue["name"] for queue in state["queues"]] == (["batch", "hidden"] if all_partitions else ["batch"])
+    if all_partitions:
+        assert state["nodes"][1]["core_job_map"] == {"2": "102", "3": "102"}
+        assert state["nodes"][1]["slurm_gpu_bindings"][0]["device_indices"] == [2, 3]
 
 
 def test_malformed_scheduler_command_quotes_are_actionable(tmp_path):

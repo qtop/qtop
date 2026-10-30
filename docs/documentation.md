@@ -461,13 +461,25 @@ The Slurm commands after the filename separator can be copied directly into
 a shell:
 
 ```sh
-squeue -r -h -O 'JobID:0|,UserName:0|,StateCompact:0|,Partition:0|,NumCPUs:0|,NodeList:0|,tres-alloc:0|,tres-per-node:0|,tres-per-task:0|,ArrayJobID:0|,ArrayTaskID:0'
+squeue --states=all -r -h -O 'JobID:0|,UserName:0|,StateCompact:0|,Partition:0|,NumCPUs:0|,NodeList:0|,tres-alloc:0|,tres-per-node:0|,tres-per-task:0|,ArrayJobID:0|,ArrayTaskID:0'
 sinfo -N -h -O 'NodeList:0|,Partition:0|,StateCompact:0|,CPUs:0|,Gres:0|,GresUsed:0|,Available:0'
 ```
 
 Quotes keep the pipe characters inside the format argument. qtop honors
 shell-style argument quoting without invoking a shell. Existing custom
 configurations using doubled ``%%`` format codes remain supported.
+
+The bundled `squeue` command explicitly selects all states still retained by
+the controller, including suspended jobs. This is not historical accounting;
+recently finished jobs may also appear in user totals while Slurm retains them.
+Custom `squeue` commands should include `--states=all` too.
+
+By default, Slurm's partition visibility rules apply. Use `qtop -b slurm --all`
+to include hidden and group-unavailable partitions, subject to Slurm permissions.
+This adds `--all` to the existing `squeue`, `sinfo`, and `scontrol` queries, without
+adding commands. It does not broaden an explicit partition/user filter in a custom
+command. Other backends and saved-trace/sample replay are unaffected; replay can
+only show the data captured. The existing `-a` option remains blind remapping.
 
 Slurm accepts legacy six-column and resource-aware nine-column `squeue`
 traces, plus the eleven-column identity-aware format above. `sinfo` accepts

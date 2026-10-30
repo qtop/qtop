@@ -112,6 +112,7 @@ class SlurmStatExtractor(StatExtractor):
         """
         Parse output from:
         squeue -r -h -O 'JobID:0|,UserName:0|,StateCompact:0|,Partition:0|,NumCPUs:0|,NodeList:0|,tres-alloc:0|,tres-per-node:0|,tres-per-task:0|,ArrayJobID:0|,ArrayTaskID:0'
+        Live collection additionally selects --states=all.
         """
         try:
             fileutils.check_empty_file(orig_file)
