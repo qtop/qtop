@@ -1,0 +1,38 @@
+# Security Insights v2.2.0; repository-scoped until individual roles are confirmed.
+header:
+  schema-version: 2.2.0
+  last-updated: '2026-10-30'
+  last-reviewed: '2026-10-30'
+  url: https://raw.githubusercontent.com/qtop/qtop/develop/security-insights.yml
+  comment: >-
+    Source-backed repository metadata, not a certification or external audit.
+    The core-team contact is the maintainer group; individual administrator
+    roles are not asserted. Project-level metadata can follow role confirmation.
+
+repository:
+  url: https://github.com/qtop/qtop
+  status: active
+  accepts-change-request: true
+  accepts-automated-change-request: false
+  core-team:
+    - name: qtop maintainers
+      primary: true
+      social: https://github.com/qtop
+  license:
+    url: https://github.com/qtop/qtop/blob/develop/LICENSE
+    expression: MIT
+  documentation:
+    contributing-guide: https://github.com/qtop/qtop/blob/develop/CONTRIBUTING.md
+    review-policy: https://github.com/qtop/qtop/blob/develop/CONTRIBUTING.md
+    security-policy: https://github.com/qtop/qtop/blob/develop/SECURITY.md
+    dependency-management-policy: https://github.com/qtop/qtop/blob/develop/AGENTS.md
+  security:
+    assessments:
+      self:
+        name: Source security review and remaining gaps
+        date: '2026-10-30'
+        evidence: https://github.com/qtop/qtop/blob/develop/docs/secure-coding-pyscg.md
+        comment: >-
+          Documents implemented controls, regression coverage and remaining work.
+          Historical scan results are identified as historical. This is not a
+          complete OSPS Baseline assessment or an independent security audit.
