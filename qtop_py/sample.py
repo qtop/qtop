@@ -32,6 +32,7 @@ DISPLAY_OPTIONS = (
     "sect_2_off",
     "sect_3_off",
     "SHOW_ACCOUNT_TOTALS",
+    "SHOW_QUEUE_NODES",
 )
 
 
@@ -107,6 +108,8 @@ def anonymize_state(state: object) -> "Tuple[ClusterState, IdentifierMaps]":
             node["slurm_node_state"] = original["slurm_node_state"]
         if "slurm_job_ids" in original:
             node["slurm_job_ids"] = [job_id(value) for value in original["slurm_job_ids"]]
+        if "oar_job_ids" in original:
+            node["oar_job_ids"] = [job_id(value) for value in original["oar_job_ids"]]
         if "slurm_unmapped_cpus" in original:
             node["slurm_unmapped_cpus"] = original["slurm_unmapped_cpus"]
         for field, resources in (("slurm_gpu_configured", original.get("slurm_gpu_configured")), ("slurm_gpu_used", original.get("slurm_gpu_used"))):
@@ -134,7 +137,9 @@ def anonymize_state(state: object) -> "Tuple[ClusterState, IdentifierMaps]":
 def sanitize_config(config: "Config", mappings: "IdentifierMaps") -> "Tuple[Config, List[str]]":
     """Remove local commands/paths and translate identifier-bearing rules."""
     config = copy.deepcopy(config)
-    omitted = ("savepath", "schedulers", "signature_commands", "extract_info", "remapping")
+    omitted = ("savepath", "schedulers", "signature_commands", "extract_info", "remapping", "experimental_gpu_pairs", "experimental_queue_nodes")
+    config.pop("experimental_queue_nodes", None)
+    config.pop("experimental_gpu_pairs", None)
     config.update(savepath="/tmp/qtop_results_$USER", schedulers={}, signature_commands={}, extract_info=None, remapping=[])
     # Control strings (state codes, sort names, colors) must not be rewritten
     # merely because they happen to equal a user/queue name.

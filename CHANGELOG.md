@@ -3,6 +3,19 @@
 Notable changes by version, newest first.
 See the [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 
+## 0.9.20261020
+
+- Bugfix: (pbs) mark stopped queues; parse JSON job counts by state name.
+- Bugfix: (pbs) preserve wrapped allocations, array IDs and legacy job/queue records.
+- Bugfix: (pbs) tolerate invalid optional GPU counts.
+- Bugfix: (pbs) show queue idle/total node counts (#210).
+- Bugfix: (oar) show job and queue summaries (#246).
+- Bugfix: (oar) preserve unknown/shared allocations; tolerate YAML variants & job names.
+- Bugfix: (oar) make StrictCheck count unique running jobs.
+- Bugfix: (slurm) flag incomplete snapshots; keep unknown GPU usage explicit.
+- Bugfix: (slurm) retain job states; add `--all` for hidden partitions.
+- Experimental: (slurm) show configured GPU pairs and job ownership.
+
 ## 0.9.20261018
 
 - Metadata: remove project-wide development-stage labels.

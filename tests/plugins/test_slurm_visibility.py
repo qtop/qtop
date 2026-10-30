@@ -10,6 +10,34 @@ from qtop_py.plugins.slurm import SlurmBatchSystem
 from qtop_py.sample import anonymize_state
 
 
+@pytest.mark.parametrize("hosts, missing, invalid", [("node2", 1, 0), ("node[1-2]", 1, 0), ("node[2-1]", 0, 1)])
+def test_unrepresented_allocations_are_flagged_and_jobs_survive_replay(trace, hosts, missing, invalid):
+    slurm = trace("1|alice|R|batch|4|%s\n" % hosts, "node1|batch|mix|8\n")
+    state = slurm.get_cluster_state(slurm.options)
+    diagnostics = state["slurm_diagnostics"]
+    assert diagnostics.get("jobs_with_missing_nodes", 0) == missing
+    assert diagnostics.get("jobs_with_invalid_nodelists", 0) == invalid
+    assert state["jobs"][0]["id"] == "1"
+    assert state["queues"][0]["running"] == 1
+    assert qtop.Document.from_cluster_state(state).to_cluster_state() == state
+    masked, _ = anonymize_state(state)
+    assert masked["slurm_diagnostics"] == diagnostics
+    assert validate_cluster_state(masked) == masked
+
+
+def test_rejected_rows_are_counted_without_discarding_valid_data(trace):
+    slurm = trace("bad-job\n1|alice|R|batch|2|node1\n", "bad-node\nnode1|batch|mix|8\n")
+    state = slurm.get_cluster_state(slurm.options)
+    assert state["slurm_diagnostics"] == {"rejected_squeue_rows": 1, "rejected_sinfo_rows": 1}
+    assert len(state["jobs"]) == len(state["nodes"]) == 1
+    assert slurm.get_cluster_state(slurm.options) == state  # Cached reads do not accumulate counters.
+
+
+def test_clean_frames_have_no_diagnostics(trace):
+    slurm = trace("1|alice|R|batch|2|node1\n", "node1|batch|mix|8\n")
+    assert "slurm_diagnostics" not in slurm.get_cluster_state(slurm.options)
+
+
 @pytest.mark.parametrize("raw_state,normalized", [("idle", "-"), ("down", "d"), ("alloc", "b")])
 @pytest.mark.parametrize("suffix", list("*~#!%$@^-+") + ["", "~*"])
 def test_slurm_state_suffix_reaches_matrix_and_snapshot(trace, raw_state, normalized, suffix):

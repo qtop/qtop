@@ -16,6 +16,8 @@ if TYPE_CHECKING:
 from qtop_py.gpu import validate_gpu_resources
 
 CLUSTER_STATE_KEYS = ("jobs", "nodes", "queues")
+SLURM_DIAGNOSTIC_KEYS = ("rejected_squeue_rows", "rejected_sinfo_rows", "jobs_with_missing_nodes", "jobs_with_invalid_nodelists")
+OAR_DIAGNOSTIC_KEYS = ("missing_resources", "extra_resources", "unlisted_jobs", "shared_resources")
 
 
 def build_cluster_state(
@@ -29,7 +31,7 @@ def build_cluster_state(
     """Return the deliberately boring public representation of a cluster."""
     if len({len(values) for values in (job_ids, users, job_states, job_queues)}) != 1:
         raise ValueError("job IDs, users, states and queues must have equal lengths")
-    jobs: "List[Job]" = [
+    jobs: List[Job] = [
         {
             "id": re.sub(r"\[\]$", "", job_id),
             "user": user,
@@ -38,7 +40,7 @@ def build_cluster_state(
         }
         for job_id, user, state, queue in zip(job_ids, users, job_states, job_queues)
     ]
-    normalized_queues: "List[Queue]" = [
+    normalized_queues: List[Queue] = [
         {
             "name": queue["queue_name"],
             "limit": str(queue["lm"]),
@@ -64,8 +66,13 @@ def _record(value: object, label: str) -> Dict[str, object]:
 def validate_cluster_state(cluster_state: object) -> "ClusterState":
     """Validate imported records before claiming the static snapshot contract."""
     data = _record(cluster_state, "cluster state")
-    if set(data) != set(CLUSTER_STATE_KEYS):
-        raise ValueError("cluster state keys must be jobs, nodes, queues")
+    if set(data) - {"slurm_diagnostics", "oar_diagnostics"} != set(CLUSTER_STATE_KEYS):
+        raise ValueError("cluster state keys must be jobs, nodes, queues with optional scheduler diagnostics")
+    for name, keys, label in (("slurm_diagnostics", SLURM_DIAGNOSTIC_KEYS, "Slurm"), ("oar_diagnostics", OAR_DIAGNOSTIC_KEYS, "OAR")):
+        if name in data:
+            diagnostics = _record(data[name], label + " diagnostics")
+            if any(key not in keys or type(count) is not int or count < 0 for key, count in diagnostics.items()):
+                raise ValueError(label + " diagnostics require known counters with nonnegative integer values")
     for key, fields in (("jobs", ("id", "user", "state", "queue")), ("nodes", ("domainname", "state")), ("queues", ("name", "limit", "state"))):
         entries = data[key]
         if not isinstance(entries, list):
@@ -74,7 +81,7 @@ def validate_cluster_state(cluster_state: object) -> "ClusterState":
             record = _record(entry, key)
             if any(not isinstance(record.get(field), str) for field in fields):
                 raise TypeError("%s record requires text fields: %s" % (key, ", ".join(fields)))
-            for field in ("slurm_partitions",) if key == "jobs" else ("slurm_job_ids",) if key == "nodes" else ():
+            for field in ("slurm_partitions",) if key == "jobs" else ("slurm_job_ids", "oar_job_ids") if key == "nodes" else ():
                 if field in record:
                     values = record[field]
                     if (

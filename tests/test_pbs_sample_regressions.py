@@ -1,3 +1,4 @@
+import json
 from collections import OrderedDict
 from types import SimpleNamespace
 
@@ -73,6 +74,32 @@ def test_pbs_json_queue_limit_and_boolean_enabled_state(tmp_path):
 
     assert queues[0] == {"queue_name": "workq", "run": "3", "queued": "2", "lm": "24", "state": "E"}
     assert queues[-1] == {"Total_running": 3, "Total_queued": 2}
+
+
+@pytest.mark.parametrize("enabled, started, expected", [(True, True, "E R"), (True, False, "E S"), (False, True, "D R"), (False, False, "D S"), ("TRUE", "False", "E S")])
+def test_pbs_json_queue_status_preserves_enabled_and_started(tmp_path, enabled, started, expected):
+    path = tmp_path / "queues.json"
+    path.write_text(json.dumps({"Queue": {"workq": {"enabled": enabled, "started": started, "state_count": "Running:3 Queued:2"}}}))
+    rows = PBSStatExtractor({}, SimpleNamespace(ANONYMIZE=False)).extract_qstatq(str(path))
+    assert rows[0]["state"] == expected
+    assert qtop.queue_is_blocked(expected, "pbs") == (expected != "E R")
+
+
+@pytest.mark.parametrize("counts", ["Running:3 Queued:2", "Queued:2  Running:3\tHeld:0", "Held:0\nQueued:2\nRunning:3"])
+def test_pbs_json_counts_are_independent_of_order_and_whitespace(tmp_path, counts):
+    path = tmp_path / "queues.json"
+    path.write_text(json.dumps({"Queue": {"workq": {"enabled": True, "state_count": counts}}}))
+    rows = PBSStatExtractor({}, SimpleNamespace(ANONYMIZE=False)).extract_qstatq(str(path))
+    assert (rows[0]["run"], rows[0]["queued"]) == ("3", "2")
+    assert rows[-1] == {"Total_running": 3, "Total_queued": 2}
+
+
+@pytest.mark.parametrize("counts", ["Queued:2", "Running:3 Queued:bad", "Running:-1 Queued:2", "Running:3 Queued:2 Running:0", "Running:3 Queued:2 broken", None])
+def test_pbs_json_missing_or_invalid_counts_fail_explicitly(tmp_path, counts):
+    path = tmp_path / "queues.json"
+    path.write_text(json.dumps({"Queue": {"workq": {"enabled": True, "state_count": counts}}}))
+    with pytest.raises(ValueError, match="Invalid PBS state_count for queue workq"):
+        PBSStatExtractor({}, SimpleNamespace(ANONYMIZE=False)).extract_qstatq(str(path))
 
 
 def test_decide_remapping_handles_mixed_numeric_and_named_nodes(monkeypatch):

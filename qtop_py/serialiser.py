@@ -13,7 +13,7 @@ import re
 
 ##import sys
 from itertools import count
-from typing import TYPE_CHECKING, Callable, Dict, Sequence, Tuple
+from typing import TYPE_CHECKING, Callable, Collection, Dict, Sequence, Tuple
 
 if TYPE_CHECKING:
     from typing import List
@@ -21,6 +21,17 @@ if TYPE_CHECKING:
     from qtop_py.contracts import ClusterState, Config, JobsInfo, Node, Options, QueuesInfo
 
 from qtop_py.cluster_state import build_cluster_state
+
+
+def resolve_job_id(job_id: str, known_ids: Collection[str]) -> str:
+    """Prefer exact array tasks; use a reported parent only when necessary."""
+    if job_id in known_ids:
+        return job_id
+    parent = re.sub(r"\[[0-9]*\]$", "", job_id)
+    for candidate in (parent, parent + "[]"):
+        if candidate in known_ids:
+            return candidate
+    return job_id
 
 
 class StatExtractor(object):
@@ -136,7 +147,9 @@ class GenericBatchSystem(object):
         return [
             dict(
                 worker_node,
-                qname=list(set(job_ids_queues.get(re.sub(r"\[\d+\]", r"[]", job_id)) for job_id in worker_node["core_job_map"].values())),
+                qname=list(
+                    set(job_ids_queues.get(resolve_job_id(job_id, job_ids_queues)) for job_id in list(worker_node["core_job_map"].values()) + worker_node.get("oar_job_ids", []))
+                ),
             )
             for worker_node in _worker_nodes
         ]

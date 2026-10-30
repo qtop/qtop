@@ -47,6 +47,7 @@ def test_anonymous_archive_reproduces_state_and_rendering_without_originals(tmp_
         "-LL" if extended else "-L",
         "-A",
         "-e",
+        "--queue-nodes",
         "-E",
         "-O",
         "-F",

@@ -56,6 +56,154 @@ def test_packaging_entry_points_use_cli_wrapper():
     assert 'qtop = "qtop_py.qtop:cli_main"' in packaging_config
 
 
+@pytest.mark.parametrize("queue_row", ["", "workq -- -- -- -- 0 0 -- E R\n"])
+def test_empty_pbs_named_cluster_without_queue_totals_renders(tmp_path, queue_row):
+    import json
+
+    (tmp_path / "pbsnodes_a.txt").write_text("")
+    (tmp_path / "qstat.txt").write_text('{"Jobs": {}}')
+    (tmp_path / "qstat_q.txt").write_text("\nserver: empty\n\nQueue Memory CPU Walltime Node Run Que Lm State\n-----\n" + queue_row)
+    output = tmp_path / "output"
+    result = run_cli(tmp_path, "qtop_py.cli", "-b", "pbs", "-s", str(tmp_path), "-F", "-E", "-o", "savepath=%s" % output)
+    assert result.returncode == 0, result.stderr
+    assert "Summary: Total:0 Up:0 Free:0 Nodes | 0/0 cores |   0+0 jobs" in result.stdout
+    state = json.loads(next(output.glob("qtop_json_*.json")).read_text())
+    assert state["jobs"] == state["nodes"] == []
+    assert [(queue["name"], queue["running"], queue["queued"]) for queue in state["queues"]] == ([("workq", 0, 0)] if queue_row else [])
+
+
+def test_pbs_mixed_hostnames_preserve_nodes_jobs_and_allocations(tmp_path):
+    import json
+
+    blocks = []
+    for host, state, first_job in [("wn001", "free", 0), ("trueno_ita00", "job-exclusive", 1001), ("wn003", "job-exclusive", 1005), ("wn004", "down", 0)]:
+        jobs = "    jobs = " + ",".join("%s/%s.server" % (core, first_job + core // 2) for core in range(8)) + "\n" if first_job else ""
+        blocks.append("%s.cluster.local\n    state = %s\n    np = 8\n%s\n" % (host, state, jobs))
+    (tmp_path / "pbsnodes_a.txt").write_text("".join(blocks))
+    (tmp_path / "qstat.txt").write_text(
+        "Job id Name User Time Use S Queue\n----- ---- ---- -------- - -----\n"
+        + "".join("%s.server job alice 00:01:00 R workq\n" % job for job in range(1001, 1009))
+        + "1009.server pending bob 00:00:00 Q workq\n"
+    )
+    (tmp_path / "qstat_q.txt").write_text("\nserver: mixed\n\nQueue Memory CPU Walltime Node Run Que Lm State\n-----\nworkq -- -- -- -- 8 1 -- E R\n8 1\n")
+    output = tmp_path / "output"
+    result = run_cli(tmp_path, "qtop_py.cli", "-b", "pbs", "-s", str(tmp_path), "-F", "-E", "-o", "savepath=%s" % output)
+    assert result.returncode == 0, result.stderr
+    assert "Summary: Total:4 Up:3 Free:1 Nodes | 16/32 cores |   8+1 jobs" in result.stdout
+    assert "trueno_ita00" in result.stdout
+    state = json.loads(next(output.glob("qtop_json_*.json")).read_text())
+    nodes = {node["domainname"].split(".")[0]: node for node in state["nodes"]}
+    assert set(nodes) == {"wn001", "trueno_ita00", "wn003", "wn004"}
+    assert set(nodes["trueno_ita00"]["core_job_map"].values()) == {"1001", "1002", "1003", "1004"}
+    assert set(nodes["wn003"]["core_job_map"].values()) == {"1005", "1006", "1007", "1008"}
+    assert len(state["jobs"]) == 9
+    assert [(queue["running"], queue["queued"]) for queue in state["queues"]] == [(8, 1)]
+
+
+@pytest.mark.parametrize("job_format", ["json", "text"])
+def test_pbs_array_tasks_and_legacy_queue_limits_preserve_activity(tmp_path, job_format):
+    import json
+
+    (tmp_path / "pbsnodes_a.txt").write_text(
+        "\nnode1\n    state = job-exclusive\n    np = 3\n    jobs = 0/101[7].server,\n        1-2/101[8].server\n\n\nnode2\n    state = free\n    np = 3\n"
+    )
+    jobs = {"101[7].server.domain": {"Job_Owner": "alice_smith@host", "Job_Name": "job with spaces", "queue": "gpu-long", "job_state": "R"}}
+    jobs["101[8].server.domain"] = dict(jobs["101[7].server.domain"], queue="debug.v1")
+    (tmp_path / "qstat.txt").write_text(
+        json.dumps({"Jobs": jobs})
+        if job_format == "json"
+        else "Job id Name User Time Use S Queue\n-----\n" + "".join("%s job with spaces alice_smith 00:01:00 R %s\n" % (job_id, job["queue"]) for job_id, job in jobs.items())
+    )
+    (tmp_path / "qstat_q.txt").write_text(
+        "\nserver: test\n\nQueue Memory CPU Walltime Node Run Que Lm State\n-----\ngpu-long -- -- -- 1 1 0 -- E R\ndebug.v1 -- -- -- 2 1 0 -- E R\n2 0\n"
+    )
+    output = tmp_path / "output"
+    result = run_cli(tmp_path, "qtop_py.cli", "-b", "pbs", "-s", str(tmp_path), "-F", "-S", "-E", "-o", "savepath=%s" % output)
+    assert result.returncode == 0, result.stderr
+    assert "Summary: Total:2 Up:2 Free:1 Nodes | 3/6 cores |   2+0 jobs" in result.stdout
+    assert "MISMATCH" not in result.stdout
+    matrix = result.stdout.split("Worker Nodes occupancy", 1)[1].split("User accounts", 1)[0]
+    assert "|?|" not in matrix
+    state = json.loads(next(output.glob("qtop_json_*.json")).read_text())
+    assert {job["id"] for job in state["jobs"]} == {"101[7]", "101[8]"}
+    assert {job["user"] for job in state["jobs"]} == {"alice_smith"}
+    assert {queue["name"] for queue in state["queues"]} == {"gpu-long", "debug.v1"}
+    assert state["nodes"][0]["core_job_map"] == {"0": "101[7]", "1": "101[8]", "2": "101[8]"}
+    assert set(state["nodes"][0]["qname"]) == {"gpu-long", "debug.v1"}
+
+
+def test_queue_nodes_requires_experimental_option(tmp_path):
+    result = run_cli(tmp_path, "qtop_py.cli", "--queue-nodes")
+    assert result.returncode == 2
+    assert "--queue-nodes requires -e" in result.stderr
+
+
+@pytest.mark.parametrize("enabled", (False, True))
+def test_queue_node_summary_is_opt_in_and_uses_full_slurm_names(tmp_path, enabled):
+    flags = ["-e", "--queue-nodes"] if enabled else []
+    result = run_cli(tmp_path, "qtop_py.cli", "-b", "slurm", "-s", str(ROOT / "tests/plugins/slurm_samples/basic"), "-F", "-o", "savepath=%s" % (tmp_path / "output"), *flags)
+    assert result.returncode == 0, result.stderr
+    assert ("Queue nodes (experimental, idle/total): compute: 0/2 | long: 1/1" in result.stdout) is enabled
+
+
+def test_oar_job_summary_counts_jobs_instead_of_resource_slots(tmp_path):
+    import json
+
+    (tmp_path / "oarstat.txt").write_text(
+        "Job id Name User Submission Date S Queue\n------ ---- ---- --------------- - -----\n101 job alice 2026-10-29 10:00:00 R default\n102 job bob 2026-10-29 10:00:00 W debug\n"
+    )
+    (tmp_path / "oarnodes_s_Y.txt").write_text("---\nnode1:\n    1: Alive\n    2: Alive\n")
+    (tmp_path / "oarnodes_Y.txt").write_text("---\n1:\n    jobs: 101\n2:\n    jobs: 101\n")
+    output = tmp_path / "output"
+    result = run_cli(
+        tmp_path,
+        "qtop_py.cli",
+        "-b",
+        "oar",
+        "-s",
+        str(tmp_path),
+        "-F",
+        "-S",
+        "-e",
+        "--queue-nodes",
+        "-E",
+        "-o",
+        "experimental_queue_nodes={'default':'node1','debug':'node1'}",
+        "-o",
+        "savepath=%s" % output,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "1+1 jobs (R + Q)" in result.stdout
+    assert "default: 1" in result.stdout
+    assert "debug: 0 + 1" in result.stdout
+    assert "Queue nodes (experimental, idle/total): default: 0/1 | debug: 0/1" in result.stdout
+    assert "MISMATCH" not in result.stdout
+    state = json.loads(next(output.glob("qtop_json_*.json")).read_text())
+    assert [(queue["name"], queue["running"], queue["queued"]) for queue in state["queues"]] == [("default", 1, 0), ("debug", 0, 1)]
+    assert state["nodes"][0]["core_job_map"] == {"0": "101", "1": "101"}
+
+
+def test_oar_unlisted_allocation_is_visible_in_matrix_export_and_replay(tmp_path):
+    import json
+
+    (tmp_path / "oarstat.txt").write_text("Job id Name User Submission Date S Queue\n------ ---- ---- --------------- - -----\n")
+    (tmp_path / "oarnodes_s_Y.txt").write_text("---\nnode1:\n    1: Alive\n")
+    (tmp_path / "oarnodes_Y.txt").write_text("---\n1:\n    jobs: '999'\n")
+    output = tmp_path / "output"
+    result = run_cli(tmp_path, "qtop_py.cli", "-b", "oar", "-s", str(tmp_path), "-F", "-L", "-A", "-e", "-E", "-o", "savepath=%s" % output)
+    assert result.returncode == 0, result.stderr
+    assert "1 job IDs absent from oarstat" in result.stdout
+    state = json.loads(next(output.glob("qtop_json_*.json")).read_text())
+    assert state["nodes"][0]["core_job_map"]
+    assert state["oar_diagnostics"] == {"unlisted_jobs": 1}
+    assert "|?|" in result.stdout
+    replay_output = tmp_path / "replay"
+    replay = run_cli(tmp_path, "qtop_py.cli", "--load-sample", str(next(output.glob("*.tar"))), "-E", "-o", "savepath=%s" % replay_output)
+    assert replay.returncode == 0, replay.stderr
+    assert "1 job IDs absent from oarstat" in replay.stdout
+    assert json.loads(next(replay_output.glob("qtop_json_*.json")).read_text()) == state
+
+
 @pytest.mark.parametrize("module", ("qtop_py.cli", "qtop_py.qtop"))
 def test_no_scheduler_message_is_not_duplicated(tmp_path, module):
     result = run_cli(tmp_path, module, extra_env={"QTOP_SCHEDULER": "nonsense"})
@@ -227,12 +375,14 @@ def test_replay_configuration_failure_is_concise(tmp_path):
 
 
 @pytest.mark.skipif(os.name != "posix", reason="Compare qtop execution with a POSIX shell")
+@pytest.mark.parametrize("all_partitions", (False, True))
 @pytest.mark.parametrize(
     "scheduler_file, expected",
     (
         (
             "squeue_file",
             [
+                "--states=all",
                 "-r",
                 "-h",
                 "-O",
@@ -243,7 +393,7 @@ def test_replay_configuration_failure_is_concise(tmp_path):
         ("scontrol_file", ["--details", "show", "jobs"]),
     ),
 )
-def test_slurm_config_command_matches_shell_execution(tmp_path, monkeypatch, scheduler_file, expected):
+def test_slurm_config_command_matches_shell_execution(tmp_path, monkeypatch, scheduler_file, expected, all_partitions):
     import json
 
     from qtop_py import qtop
@@ -256,11 +406,12 @@ def test_slurm_config_command_matches_shell_execution(tmp_path, monkeypatch, sch
     script.chmod(0o755)
     monkeypatch.setenv("PATH", str(tmp_path) + os.pathsep + os.environ.get("PATH", ""))
     monkeypatch.setattr(qtop, "scheduler", "slurm", raising=False)
-    args = type("Options", (), {"SOURCEDIR": None, "workdir": str(tmp_path)})()
+    args = type("Options", (), {"SOURCEDIR": None, "workdir": str(tmp_path), "ALL_PARTITIONS": all_partitions})()
     finalized = qtop.finalize_filepaths_schedulercommands(args, config)
     output_path, command = finalized[scheduler_file]
-    assert command == configured_command
-    shell_output = subprocess.check_output(["/bin/sh", "-c", configured_command], universal_newlines=True)
+    assert command == configured_command + (" --all" if all_partitions else "")
+    expected = expected + (["--all"] if all_partitions else [])
+    shell_output = subprocess.check_output(["/bin/sh", "-c", command], universal_newlines=True)
     qtop.execute_shell_batch_commands({scheduler_file: command}, {scheduler_file: output_path}, scheduler_file, str(tmp_path))
     assert json.loads(shell_output) == expected
     assert json.loads(Path(output_path).read_text()) == expected
@@ -273,12 +424,83 @@ def test_slurm_config_command_matches_shell_execution(tmp_path, monkeypatch, sch
     assert json.loads(Path(legacy_path).read_text()) == expected
 
 
+@pytest.mark.parametrize("scheduler_name, source", (("slurm", "traces"), ("pbs", None)))
+def test_all_partitions_does_not_change_saved_traces_or_other_backends(tmp_path, monkeypatch, scheduler_name, source):
+    from types import SimpleNamespace
+
+    from qtop_py import qtop
+
+    config = qtop.yaml.parse(str(ROOT / "qtopconf.yaml"))
+    monkeypatch.setattr(qtop, "scheduler", scheduler_name, raising=False)
+    args = SimpleNamespace(SOURCEDIR=source, workdir=str(tmp_path), ALL_PARTITIONS=False)
+    default = qtop.finalize_filepaths_schedulercommands(args, config)
+    args.ALL_PARTITIONS = True
+    assert qtop.finalize_filepaths_schedulercommands(args, config) == default
+
+
+@pytest.mark.skipif(os.name != "posix", reason="Executable scheduler stand-ins require POSIX")
+@pytest.mark.parametrize("all_partitions", (False, True))
+def test_live_slurm_collects_suspended_jobs_and_optional_hidden_partitions(tmp_path, all_partitions):
+    import json
+
+    scripts = {
+        "squeue": ("if '--states=all' in sys.argv:\n    print('101|alice|S|batch|2|node1')\n    if '--all' in sys.argv:\n        print('102|bob|R|hidden|2|node2')\n"),
+        "sinfo": "print('node1|batch|mix|4')\nif '--all' in sys.argv:\n    print('node2|hidden|mix|4')\n",
+        "scontrol": ("print('JobId=101\\n Nodes=node1 CPU_IDs=0-1')\nif '--all' in sys.argv:\n    print('JobId=102\\n Nodes=node2 CPU_IDs=2-3 GRES=gpu:h100_nvl:2(IDX:2-3)')\n"),
+    }
+    for name, body in scripts.items():
+        path = tmp_path / name
+        path.write_text("#!%s\nimport sys\n%s" % (sys.executable, body), encoding="utf-8")
+        path.chmod(0o755)
+    output = tmp_path / "output"
+    flags = ["--all"] if all_partitions else []
+    result = run_cli(
+        tmp_path,
+        "qtop_py.cli",
+        "-b",
+        "slurm",
+        "-F",
+        "-E",
+        "-O",
+        "-o",
+        "savepath=%s" % output,
+        *flags,
+        extra_env={"PATH": str(tmp_path) + os.pathsep + os.environ.get("PATH", "")},
+    )
+    assert result.returncode == 0, result.stderr
+    state = json.loads(next(output.glob("qtop_json_*.json")).read_text())
+    assert [job["id"] for job in state["jobs"]] == (["101", "102"] if all_partitions else ["101"])
+    assert state["jobs"][0]["state"] == "S"
+    assert state["nodes"][0]["core_job_map"] == {"0": "101", "1": "101"}
+    assert [queue["name"] for queue in state["queues"]] == (["batch", "hidden"] if all_partitions else ["batch"])
+    if all_partitions:
+        assert state["nodes"][1]["core_job_map"] == {"2": "102", "3": "102"}
+        assert state["nodes"][1]["slurm_gpu_bindings"][0]["device_indices"] == [2, 3]
+
+
 def test_malformed_scheduler_command_quotes_are_actionable(tmp_path):
     from qtop_py import qtop
 
     with pytest.raises(qtop.OperationalError, match="Check command quoting"):
         qtop.execute_shell_batch_commands({"trace": "squeue -o 'unterminated"}, {"trace": str(tmp_path / "trace.txt")}, "trace", str(tmp_path))
     assert list(tmp_path.iterdir()) == []
+
+
+@pytest.mark.parametrize("all_rejected", (False, True))
+def test_partial_slurm_snapshot_has_visible_warning_and_exported_diagnostics(tmp_path, all_rejected):
+    import json
+
+    (tmp_path / "squeue.txt").write_text("bad-job\n" + ("" if all_rejected else "101|alice|R|batch|2|node2\n"))
+    (tmp_path / "sinfo.txt").write_text("bad-node\n" + ("" if all_rejected else "node1|batch|idle|4\n"))
+    output = tmp_path / "output"
+    result = run_cli(tmp_path, "qtop_py.cli", "-b", "slurm", "-s", str(tmp_path), "-F", "-E", "-o", "savepath=%s" % output)
+    assert result.returncode == 0, result.stderr
+    assert "Slurm snapshot incomplete: 1 rejected job rows; 1 rejected node rows;" in result.stdout
+    if not all_rejected:
+        assert "1 active jobs reference missing nodes" in result.stdout
+    state = json.loads(next(output.glob("qtop_json_*.json")).read_text())
+    assert state["slurm_diagnostics"]["rejected_squeue_rows"] == 1
+    assert len(state["jobs"]) == (0 if all_rejected else 1)
 
 
 @pytest.mark.parametrize("flags, include_sources, include_raw", ((["-L"], False, True), (["-LL"], True, True), (["-L", "-A", "-e"], False, False)))

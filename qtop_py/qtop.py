@@ -78,6 +78,7 @@ from qtop_py.plugins.oar import OARBatchSystem
 from qtop_py.plugins.pbs import PBSBatchSystem
 from qtop_py.plugins.sge import SGEBatchSystem
 from qtop_py.plugins.slurm import SlurmBatchSystem
+from qtop_py.serialiser import resolve_job_id
 from qtop_py.ui.viewport import Viewport
 from qtop_py.web import Web
 
@@ -412,6 +413,8 @@ def finalize_filepaths_schedulercommands(args, config):
         path = path % {"savepath": args.workdir, "pid": fn_append}
         # Slurm format codes stay copyable; accept legacy escaped percent signs.
         command = command.replace("%%", "%").replace("%(savepath)s", args.workdir)
+        if scheduler == "slurm" and getattr(args, "ALL_PARTITIONS", False) and not args.SOURCEDIR and fn in ("squeue_file", "sinfo_file", "scontrol_file"):
+            command += " --all"
         d[fn] = (path, command)
     return d
 
@@ -1304,7 +1307,7 @@ class WNOccupancy(object):
         if NAMED_WNS:  #  or args.FORCE_NAMES
             workernode_dict = self.cluster.workernode_dict
             hosts = [state_corejob_dn["host"] for _, state_corejob_dn in workernode_dict.items()]
-            node_str_width = len(max(hosts, key=len))
+            node_str_width = len(max(hosts, key=len, default=""))
             wn_vert_labels = OrderedDict((str(place), []) for place in range(1, node_str_width + 1))
             for node in workernode_dict:
                 host = workernode_dict[node]["host"]
@@ -1426,6 +1429,10 @@ class WNOccupancy(object):
         or on runtime in watch mode, if user presses appropriate keybinding
         """
         node_free_cores = node_cores[:]
+        for core, job in corejobs.items():
+            if resolve_job_id(str(job), jobid_to_user_to_queue) not in jobid_to_user_to_queue:
+                core_user_map["Core" + str(core) + "vector"].append(utils.ColorStr("?", color="Yellow"))
+                node_free_cores.remove(str(core))
         selected_pat_to_color_map = globals()[_core_coloring]
         _highlighted_queues_or_users = dynamic_config.get("highlight", self.config["highlight"])
 
@@ -1464,7 +1471,7 @@ class WNOccupancy(object):
         Generator that yields only those core-job pairs that successfully match to a user
         """
         for core, _job in corejobs.items():
-            job = re.sub(r"\[\d+\]", "[]", str(_job))  # also takes care of job arrays
+            job = resolve_job_id(str(_job), jobid_to_user_to_queue)
             try:
                 user_queue = jobid_to_user_to_queue[job]
             except KeyError as KeyErrorValue:
@@ -1490,17 +1497,23 @@ class WNOccupancy(object):
         return lines == len(core_user_map)
 
     def strict_check_jobs(self, cluster):
-        counted_jobs = WNOccupancy._count_jobs_strict(self.core_user_map)
+        states = self.config["state_abbreviations"][scheduler]
+        running_ids = {job_id for job_id, job in self.document.jobs_dict.items() if states.get(job.job_state) == "running_of_user"}
+        counted_jobs = WNOccupancy._count_jobs_strict(self.document.worker_nodes, running_ids)
         if counted_jobs != cluster.total_running_jobs:
             print("Counted jobs (%s) -- Total running jobs reported (%s) MISMATCH!" % (counted_jobs, cluster.total_running_jobs))
 
     @staticmethod
-    def _count_jobs_strict(core_user_map):
-        count = 0
-        for k in core_user_map:
-            just_jobs = core_user_map[k].translate(None, "#_")
-            count += len(just_jobs)
-        return count
+    def _count_jobs_strict(worker_nodes, job_ids=None):
+        jobs = set()
+        for node in worker_nodes:
+            jobs.update(node["core_job_map"].values())
+            jobs.update(node.get("slurm_job_ids", []))
+            jobs.update(node.get("oar_job_ids", []))
+        jobs.discard("?")
+        if job_ids is not None:
+            jobs = {resolve_job_id(job, job_ids) for job in jobs}
+        return len(jobs if job_ids is None else jobs.intersection(job_ids))
 
     def calculate_user_node_use(self, cluster, jobid_to_user_to_queue):
         """
@@ -1541,7 +1554,10 @@ QDoc = namedtuple("QDoc", ["lm", "queued", "run", "state"])
 
 
 class Document(namedtuple("Document", ["worker_nodes", "jobs_dict", "queues_dict", "total_running_jobs", "total_queued_jobs"])):
-    _job_metadata: "Dict[str, Job]"
+    if TYPE_CHECKING:
+        _job_metadata: Dict[str, Job]
+        _slurm_diagnostics: Dict[str, int]
+        _oar_diagnostics: Dict[str, int]
 
     @classmethod
     def from_cluster_state(cls, cluster_state: "ClusterState") -> "Document":
@@ -1563,10 +1579,12 @@ class Document(namedtuple("Document", ["worker_nodes", "jobs_dict", "queues_dict
             totals["queued_jobs"],
         )
         document._job_metadata = {job["id"]: copy.deepcopy(job) for job in cluster_state["jobs"]}
+        document._slurm_diagnostics = copy.deepcopy(cluster_state.get("slurm_diagnostics", {}))
+        document._oar_diagnostics = copy.deepcopy(cluster_state.get("oar_diagnostics", {}))
         return document
 
     def to_cluster_state(self) -> "ClusterState":
-        return {
+        state: "ClusterState" = {
             "jobs": [
                 {
                     **getattr(self, "_job_metadata", {}).get(job_id, {}),
@@ -1589,6 +1607,11 @@ class Document(namedtuple("Document", ["worker_nodes", "jobs_dict", "queues_dict
                 for queue_name, queue in self.queues_dict.items()
             ],
         }
+        if getattr(self, "_slurm_diagnostics", {}):
+            state["slurm_diagnostics"] = copy.deepcopy(self._slurm_diagnostics)
+        if getattr(self, "_oar_diagnostics", {}):
+            state["oar_diagnostics"] = copy.deepcopy(self._oar_diagnostics)
+        return state
 
     def save(self, filename: str, cluster_state: "Optional[ClusterState]" = None) -> None:
         with open(filename, "w") as outfile:
@@ -1627,6 +1650,22 @@ class TextDisplay(object):
 
         if self.args.WATCH:
             print("\033c", end=" ")  # comma is to avoid losing the whole first line. An empty char still remains, though.
+
+        diagnostics = getattr(self.document, "_slurm_diagnostics", {})
+        if any(diagnostics.values()):
+            print(
+                "Slurm snapshot incomplete: %s rejected job rows; %s rejected node rows; "
+                "%s active jobs reference missing nodes; %s active jobs have invalid node lists."
+                % tuple(diagnostics.get(key, 0) for key in ("rejected_squeue_rows", "rejected_sinfo_rows", "jobs_with_missing_nodes", "jobs_with_invalid_nodelists"))
+            )
+
+        oar_notes = getattr(self.document, "_oar_diagnostics", {})
+        if any(oar_notes.values()):
+            print(
+                "OAR allocation notes: %s resources lack details; %s resources absent from node states; "
+                "%s job IDs absent from oarstat; %s shared resource slots (? marks unknown ownership)."
+                % tuple(oar_notes.get(key, 0) for key in ("missing_resources", "extra_resources", "unlisted_jobs", "shared_resources"))
+            )
 
         for idx, part in enumerate(config["user_display_parts"], 1):
             display_func, opts = display_parts[part][0], display_parts[part][1]
@@ -1713,6 +1752,15 @@ class TextDisplay(object):
         if scheduler == "slurm":
             blocked_note = " (partition closed to submissions or scheduling)"
         print(colorize("* implies blocked", "Red") + blocked_note + "\n")
+        if getattr(self.args, "SHOW_QUEUE_NODES", False):
+            from qtop_py.queue_nodes import queue_node_counts
+
+            try:
+                counts = queue_node_counts(document.worker_nodes, list(document.queues_dict), scheduler, self.config.get("experimental_queue_nodes"))
+            except ValueError as error:
+                print("Queue nodes unavailable: %s" % error)
+            else:
+                print("Queue nodes (experimental, idle/total): " + " | ".join("%s: %s/%s" % tuple("?" if value is None else value for value in row) for row in counts))
 
     def display_wns_occupancy(self, wns_occupancy, cluster):
         """
@@ -1735,6 +1783,17 @@ class TextDisplay(object):
         # the transposed matrix is one continuous block, doesn't make sense to break into more matrices
         if not dynamic_config.get("transpose_wn_matrices", config["transpose_wn_matrices"]):
             self.display_remaining_matrices(wns_occupancy, print_char_start, print_char_stop)
+        if scheduler == "slurm" and self.config.get("experimental_gpu_pairs"):
+            from qtop_py.gpu import configured_pair_lines
+
+            try:
+                lines = configured_pair_lines(cluster.worker_nodes, self.config["experimental_gpu_pairs"])
+            except ValueError as error:
+                print("Configured GPU pairs unavailable: %s" % error)
+            else:
+                if lines:
+                    print("Configured GPU pairs (experimental; job IDs, ? = unknown):")
+                    print("\n".join(lines))
 
     def display_basic_legend(self):
         """Displays the Worker Nodes occupancy label plus columns explanation"""
@@ -2361,6 +2420,7 @@ class Cluster(object):
         for node in workernode_dict:
             node_job_set = set(workernode_dict[node]["core_job_map"].values())
             node_job_set.update(workernode_dict[node].get("slurm_job_ids", []))
+            node_job_set.update(workernode_dict[node].get("oar_job_ids", []))
             workernode_dict[node]["node_job_set"] = node_job_set
 
 

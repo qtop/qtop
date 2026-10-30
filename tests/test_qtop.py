@@ -511,6 +511,29 @@ def test_account_row_colors_preserve_visible_alignment(monkeypatch, capsys, colo
     assert re.sub(r"\x1b\[[0-9;]*m", "", rendered) == plain
 
 
+def test_strict_check_counts_unique_jobs_across_slots_nodes_and_shared_resources(capsys, monkeypatch):
+    monkeypatch.setattr(qtop_module, "scheduler", "oar", raising=False)
+    nodes = [
+        {"core_job_map": {0: "101", 1: "101"}, "oar_job_ids": ["101", "102"]},
+        {"core_job_map": {0: "101", 1: "103", 2: "?"}},
+    ]
+    assert qtop_module.WNOccupancy._count_jobs_strict(nodes) == 3
+    arrays = [{"core_job_map": {0: "42[1]", 1: "42[2]"}}]
+    assert qtop_module.WNOccupancy._count_jobs_strict(arrays, {"42"}) == 1
+    assert qtop_module.WNOccupancy._count_jobs_strict(arrays, {"42[1]", "42[2]"}) == 2
+    document = SimpleNamespace(worker_nodes=nodes, jobs_dict={"101": SimpleNamespace(job_state="R"), "102": SimpleNamespace(job_state="R"), "103": SimpleNamespace(job_state="F")})
+    occupancy = SimpleNamespace(document=document, config={"state_abbreviations": {"oar": {"R": "running_of_user", "F": "Finishing"}}})
+    qtop_module.WNOccupancy.strict_check_jobs(occupancy, SimpleNamespace(total_running_jobs=2))
+    assert capsys.readouterr().out == ""
+    qtop_module.WNOccupancy.strict_check_jobs(occupancy, SimpleNamespace(total_running_jobs=3))
+    assert "Counted jobs (2)" in capsys.readouterr().out
+    monkeypatch.setattr(qtop_module, "scheduler", "sge", raising=False)
+    document.jobs_dict = {"101": SimpleNamespace(job_state="r"), "102": SimpleNamespace(job_state="Rr"), "103": SimpleNamespace(job_state="s")}
+    occupancy.config = {"state_abbreviations": {"sge": {"r": "running_of_user", "Rr": "running_of_user", "s": "suspended_of_user"}}}
+    qtop_module.WNOccupancy.strict_check_jobs(occupancy, SimpleNamespace(total_running_jobs=2))
+    assert capsys.readouterr().out == ""
+
+
 def test_queueing_summary_preserves_order_and_expands(monkeypatch, capsys):
     class Cluster(object):
         total_running_jobs = 2

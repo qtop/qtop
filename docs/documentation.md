@@ -435,6 +435,12 @@ flashy features that YAML sports.
 
 #### Scheduler configuration area
 
+PBS node input tolerates blank separators and wrapped `jobs` attributes. Array
+allocations retain exact task IDs when the job snapshot includes those tasks;
+otherwise a reported parent may supply their user/queue association. Unknown
+tasks retain their IDs. Legacy job tables support underscore usernames and full
+queue names; legacy queue tables accept numeric node limits.
+
 ```yaml
 savepath: /tmp/qtop_results_$USER
 schedulers:
@@ -461,13 +467,33 @@ The Slurm commands after the filename separator can be copied directly into
 a shell:
 
 ```sh
-squeue -r -h -O 'JobID:0|,UserName:0|,StateCompact:0|,Partition:0|,NumCPUs:0|,NodeList:0|,tres-alloc:0|,tres-per-node:0|,tres-per-task:0|,ArrayJobID:0|,ArrayTaskID:0'
+squeue --states=all -r -h -O 'JobID:0|,UserName:0|,StateCompact:0|,Partition:0|,NumCPUs:0|,NodeList:0|,tres-alloc:0|,tres-per-node:0|,tres-per-task:0|,ArrayJobID:0|,ArrayTaskID:0'
 sinfo -N -h -O 'NodeList:0|,Partition:0|,StateCompact:0|,CPUs:0|,Gres:0|,GresUsed:0|,Available:0'
 ```
 
 Quotes keep the pipe characters inside the format argument. qtop honors
 shell-style argument quoting without invoking a shell. Existing custom
 configurations using doubled ``%%`` format codes remain supported.
+
+The bundled `squeue` command explicitly selects all states still retained by
+the controller, including suspended jobs. This is not historical accounting;
+recently finished jobs may also appear in user totals while Slurm retains them.
+Custom `squeue` commands should include `--states=all` too.
+
+By default, Slurm's partition visibility rules apply. Use `qtop -b slurm --all`
+to include hidden and group-unavailable partitions, subject to Slurm permissions.
+This adds `--all` to the existing `squeue`, `sinfo`, and `scontrol` queries, without
+adding commands. It does not broaden an explicit partition/user filter in a custom
+command. Other backends and saved-trace/sample replay are unaffected; replay can
+only show the data captured. The existing `-a` option remains blind remapping.
+
+If Slurm rows are rejected, or active jobs reference missing nodes or invalid
+node lists, qtop displays `Slurm snapshot incomplete` with counts. Valid jobs
+and queues remain visible; unavailable node capacity is not invented. JSON and
+support replay preserve optional `slurm_diagnostics` counters:
+`rejected_squeue_rows`, `rejected_sinfo_rows`, `jobs_with_missing_nodes`, and
+`jobs_with_invalid_nodelists`. Clean snapshots omit this field. Row counts refer
+to input records, not an estimate of how many jobs or nodes those records hid.
 
 Slurm accepts legacy six-column and resource-aware nine-column `squeue`
 traces, plus the eleven-column identity-aware format above. `sinfo` accepts
@@ -601,7 +627,25 @@ cluster. If you just invoke:
 ```
 
 then qtop is going to invoke ``oarnodes -s -Y``, ``oarnodes -Y``,
-``oarstat`` consecutively. With process ID ``12345`` and ``USER=mike``,
+``oarstat`` consecutively. OAR's header and queue summary count running (`R`)
+and waiting (`W`) jobs from the same `oarstat` snapshot. Each job counts once,
+regardless of how many resource slots it uses; other states remain in the user
+job totals. Custom queue names are supported. Queue limits and availability
+are reported as unknown because this snapshot does not supply them; only queues
+present in the job snapshot can be listed. No extra
+commands or `--StrictCheck` are required.
+
+OAR resource parsing accepts quoted job IDs, comma-separated or YAML job lists,
+and blank lines. Shared slots display one known owner; `oar_job_ids` retains all
+owners for node membership, queue filtering, export, and replay. Allocated slots
+whose owner is absent from `oarstat`, or whose resource details are missing,
+display `?` rather than appearing free. A per-frame allocation note reports
+inconsistent snapshots and shared slots; `oar_diagnostics` preserves these counts.
+Resources absent from the node-state snapshot are reported, without inventing
+hostnames or capacity. StrictCheck compares unique known running job IDs across
+the unfiltered snapshot, not user symbols or occupied resource counts.
+
+With process ID ``12345`` and ``USER=mike``,
 its live captures are:
 
 ```text
@@ -993,3 +1037,58 @@ Usage tips
 -  Use ``-L`` when preparing a bug report. Review the archive before
    sharing it, especially when scheduler output might include sensitive
    hostnames or account names.
+## Experimental queue-node summary
+
+Use `qtop -b slurm -e --queue-nodes` to add idle/total node counts per queue
+(#210). Slurm and SGE use their reported queue memberships; PBS and OAR show
+`?/?` unless you supply an administrator-verified mapping in user `qtopconf.yaml`:
+
+```yaml
+experimental_queue_nodes:
+  old_nodes: node[001-022]
+  new_nodes: node[023-033]
+```
+
+Mappings override reported membership for the specified queues. Node ranges
+preserve padding; overlapping queue pools are allowed and duplicates are counted
+once per queue. Missing mapped nodes produce `?/total`, not an invented idle
+count. Invalid mappings produce a message without interrupting the dashboard.
+
+Idle means an observed idle node with no recorded CPU/job or GPU allocation;
+flagged Slurm idle states are excluded. These counts describe the unfiltered
+collected snapshot, not whether a particular job can run: reservations, queue
+policy and resource requirements still apply. Queue pools can overlap, so their
+totals need not sum to the cluster total. The option adds no scheduler commands.
+
+Sample replay retains the display option. Manual mappings are omitted from
+anonymized samples to avoid exposing node patterns; PBS/OAR counts then remain
+unknown. Native Slurm/SGE memberships survive anonymization and replay.
+
+# Experimental configured GPU pairs (Slurm)
+
+Add this optional mapping to your user `qtopconf.yaml` to display job ownership
+for administrator-verified GPU pairs below the worker-node matrices:
+
+```yaml
+experimental_gpu_pairs:
+  gpu[001-009]: [[0, 1], [2, 3]]
+```
+
+Slurm hostlists preserve leading zeros; a single hostname also works. Each
+node may occur only once and each GPU index may occur in only one pair per node.
+Pairs are numbered from 1 in configuration order. For example,
+`gpu003: pair1[gpu0=101, gpu1=101] pair2[gpu2=102, gpu3=103]` shows both
+whole-pair and split ownership. Multiple job owners are separated by `/`.
+
+Indices must match the node's Slurm GRES configuration. This feature does not
+discover or verify NVLink connections, infer GPU placement from CPU IDs, or
+map MIG instances to physical GPUs. Missing ownership is shown as `?`; `idle`
+requires explicit node GPU usage data showing that index is unused.
+Placeholders, empty GPU resource lists, and MIG-only usage cannot establish
+idle physical GPUs. Explicit zero GPU usage can establish idle status. Collection
+snapshots can race, so this is allocation information rather than live usage.
+Malformed mappings produce a message instead of interrupting the matrix.
+
+The feature reuses existing `sinfo` and detailed `scontrol` snapshots and adds
+no scheduler commands. Omit the mapping to disable it. Anonymized samples omit
+the mapping because its node patterns identify the installation.

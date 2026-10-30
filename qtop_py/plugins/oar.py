@@ -1,11 +1,11 @@
 import logging
 import os
+import re
 from collections import OrderedDict
 
 from qtop_py import fileutils
 from qtop_py import yaml_parser as yaml
 from qtop_py.serialiser import GenericBatchSystem, StatExtractor
-from qtop_py.utils import CountCalls
 
 DEFAULT_NODE_STATE_MAPPING = {"Alive": "-", "Dead": "d", "Suspected": "s", "Mixed": "%", "Unknown": "?"}
 
@@ -15,12 +15,12 @@ class OarStatExtractor(StatExtractor):
         StatExtractor.__init__(self, config, options)
         self.user_q_search = (
             r"^(?P<job_id>[0-9]+)\s+"
-            r"(?P<name>[0-9A-Za-z_.-]+)?\s+"
+            r"(?:(?P<name>.*?)\s+)?"
             r"(?P<user>[0-9A-Za-z_.-]+)\s+"
             r"(?:\d{4}-\d{2}-\d{2})\s+"
             r"(?:\d{2}:\d{2}:\d{2})\s+"
-            r"(?P<job_state>[RWF])\s+"
-            r"(?P<queue>default|besteffort)"
+            r"(?P<job_state>[A-Za-z])\s+"
+            r"(?P<queue>\S+)"
         )
 
     def extract_qstat(self, orig_file):
@@ -37,7 +37,13 @@ class OarStatExtractor(StatExtractor):
             re_match_positions = ("job_id", "user", "job_state", "queue")
             re_search = self.user_q_search
             for line in fin:
-                qstat_values = self._process_qstat_line(re_search, line, re_match_positions)
+                if not line.strip():
+                    continue
+                try:
+                    qstat_values = self._process_qstat_line(re_search, line, re_match_positions)
+                except AttributeError as error:
+                    raise ValueError("Cannot parse OAR job row: %s" % line.strip()) from error
+                qstat_values["Queue"] = self.anonymize(qstat_values["Queue"], "qs")
                 all_values.append(qstat_values)
 
         return all_values
@@ -57,17 +63,32 @@ class OARBatchSystem(GenericBatchSystem):
         self.options = options
         self.oar_stat_maker = OarStatExtractor(self.config, self.options)
 
+    def get_cluster_state(self, options):
+        state = super().get_cluster_state(options)
+        if self.diagnostics:
+            state["oar_diagnostics"] = self.diagnostics.copy()
+        return state
+
     def get_worker_nodes(self, job_ids, job_queues, options):
         nodes_resids = self._read_oarnodes_s_yaml(self.oarnodes_s_file)
         resids_jobs = self._read_oarnodes_y_textyaml(self.oarnodes_y_file)
 
-        job_discrepancy = self._check_job_discrepancy(job_ids, resids_jobs, options)
+        known_jobs = set(job_ids)
+        listed_resources = {int(resid) for resources in nodes_resids.values() for resid, _ in resources}
+        unlisted_jobs = {job for jobs in resids_jobs.values() for job in jobs} - known_jobs
+        self.diagnostics = {
+            "missing_resources": len(listed_resources - set(resids_jobs)),
+            "extra_resources": len(set(resids_jobs) - listed_resources),
+            "unlisted_jobs": len(unlisted_jobs),
+            "shared_resources": sum(len(jobs) > 1 for jobs in resids_jobs.values()),
+        }
+        self.diagnostics = {key: count for key, count in self.diagnostics.items() if count}
 
         nodes_jobs = {}
         for node in nodes_resids:
             resids_state_lot = nodes_resids[node]
             for resid, state in resids_state_lot:
-                nodes_jobs.setdefault(node, []).append((resids_jobs[int(resid)], state))
+                nodes_jobs.setdefault(node, []).append((resids_jobs.get(int(resid), ["?"]), state))
 
         worker_nodes = list()
         node_state_mapping = dict(DEFAULT_NODE_STATE_MAPPING)
@@ -77,7 +98,8 @@ class OARBatchSystem(GenericBatchSystem):
             d["domainname"] = node
             nr_of_jobs = len(nodes_jobs[node])
             d["np"] = nr_of_jobs
-            d["core_job_map"] = dict((idx, job[0]) for idx, job in enumerate(nodes_jobs[node]) if job[0] is not None and job[0] not in job_discrepancy)
+            d["core_job_map"] = {idx: next((job for job in jobs if job in known_jobs), jobs[0]) for idx, (jobs, _) in enumerate(nodes_jobs[node]) if jobs}
+            d["oar_job_ids"] = list(OrderedDict.fromkeys(job for jobs, _ in nodes_jobs[node] for job in jobs if job != "?"))
             d["state"] = self._calculate_oar_state(nodes_jobs[node], node_state_mapping)
             worker_nodes.append(d)
 
@@ -86,7 +108,7 @@ class OARBatchSystem(GenericBatchSystem):
         return worker_nodes
 
     def get_jobs_info(self):
-        qstats = self.oar_stat_maker.extract_qstat(self.oarstat_file)
+        qstats = self._get_jobs()
         records = [(str(qstat["JobId"]), qstat["UnixAccount"], qstat["S"], qstat["Queue"]) for qstat in qstats]
         job_ids, usernames, job_states, queue_names = map(list, zip(*records)) if records else ([], [], [], [])
 
@@ -98,13 +120,18 @@ class OARBatchSystem(GenericBatchSystem):
         return job_ids, usernames, job_states, queue_names
 
     def get_queues_info(self):
-        """
-        OAR does not provide this info.
-        """
-        total_running_jobs = 0
-        total_queued_jobs = 0
-        qstatq_lod = []
-        return total_running_jobs, total_queued_jobs, qstatq_lod
+        """Derive job counts from oarstat; resource slots are not job counts."""
+        queues = OrderedDict()
+        for job in self._get_jobs():
+            queue = queues.setdefault(job["Queue"], {"queue_name": job["Queue"], "run": 0, "queued": 0, "lm": "--", "state": "?"})
+            queue["run"] += job["S"] == "R"
+            queue["queued"] += job["S"] == "W"
+        return sum(queue["run"] for queue in queues.values()), sum(queue["queued"] for queue in queues.values()), list(queues.values())
+
+    def _get_jobs(self):
+        if not hasattr(self, "_jobs"):
+            self._jobs = self.oar_stat_maker.extract_qstat(self.oarstat_file)
+        return self._jobs
 
     def _read_oarnodes_s_yaml(self, fn_s):
         if not os.path.isfile(fn_s):
@@ -121,42 +148,42 @@ class OARBatchSystem(GenericBatchSystem):
         return nodes_resids
 
     def _read_oarnodes_y_textyaml(self, fn):
-        oar_nodes = {}
-        logging.debug("Before opening %s" % fn)
-        with open(fn, mode="r") as fin:
-            logging.debug("File state %s" % fin)
-            fin.readline()  # '---'
-            line = fin.readline().strip()  # first res_id
-            while line:
-                oar_node, line = self._read_oar_node_y_textyaml(fin, line)
-                oar_nodes.update(oar_node)
-
-        resids_jobs = dict([(resid, info["jobs"]) for resid, info in oar_nodes.items()])
-        return resids_jobs
+        """Stream relevant YAML fields; blanks do not terminate resource records."""
+        resources = {}
+        resid = None
+        jobs_list = False
+        with open(fn) as stream:
+            for line in stream:
+                text = line.strip()
+                if not text or text.startswith("#") or text in ("---", "..."):
+                    continue
+                header = re.fullmatch(r"([0-9]+):", line.rstrip())
+                if header:
+                    resid = int(header.group(1))
+                    if resid in resources:
+                        raise ValueError("Duplicate OAR resource ID %s" % resid)
+                    resources[resid] = []
+                    jobs_list = False
+                elif resid is not None and text.startswith("jobs:"):
+                    value = text.split(":", 1)[1].strip()
+                    resources[resid] = self._parse_job_ids(value)
+                    jobs_list = not value
+                elif resid is not None and jobs_list and text.startswith("- "):
+                    resources[resid].extend(self._parse_job_ids(text[2:]))
+                else:
+                    jobs_list = False
+        return resources
 
     @staticmethod
-    @CountCalls
-    def _read_oar_node_y_textyaml(fin, line):
-        """
-        reads one res-id block at a time, skipping all information except its job
-        """
-        _oarnode = dict()
-
-        res_id = line.strip(": ")
-
-        line = fin.readline().strip()
-        while line and not line[0].isdigit():
-            if line.startswith("jobs"):
-                key, value = line.split(": ")
-                _oarnode[int(res_id)] = dict()
-                _oarnode[int(res_id)][key] = value
-                break
-            line = fin.readline().strip()
-        while line and not line[0].isdigit():  # no need to check every line for jobs key anymore!
-            line = fin.readline().strip()
-
-        _oarnode.setdefault(int(res_id), {"jobs": None})
-        return _oarnode, line
+    def _parse_job_ids(value):
+        value = yaml.literal_or_original(value)
+        if value is None or value in ("", "~", "null"):
+            return []
+        tokens = value if isinstance(value, (list, tuple)) else str(value).split(",")
+        jobs = [str(token).strip() for token in tokens]
+        if any(not re.fullmatch(r"[0-9]+", job) for job in jobs):
+            raise ValueError("Invalid OAR resource job IDs")
+        return list(OrderedDict.fromkeys(jobs))
 
     @staticmethod
     def _calculate_oar_state(jobid_state_lot, node_state_mapping):
@@ -169,21 +196,3 @@ class OARBatchSystem(GenericBatchSystem):
             return node_state_mapping["Unknown"]
         state = states.pop() if len(states) == 1 else "Mixed"
         return node_state_mapping.get(state, node_state_mapping["Unknown"])
-
-    def _check_job_discrepancy(self, job_ids_oarstat, resids_jobs, options):
-        """
-        compares job_ids reported by oarstat with job_ids reported by oarnodes_s_Y
-        A debug msg is printed twice in the beginning, if displaying a cluster instance (-s switch)
-        in watch mode, otherwise it is printed forever, every time a discrepancy is detected anew.
-        """
-        set_jobs_in_oarnodes = set(resids_jobs.values())
-        set_jobs_in_oarnodes.discard(None)
-        discrepancy = set_jobs_in_oarnodes.difference(set(job_ids_oarstat))
-        if discrepancy and ((self.report_discrepancy.count() < 2 and options.SOURCEDIR) or (not options.SOURCEDIR)):
-            discr_str = ", ".join(str(c) for c in list(discrepancy))
-            self.report_discrepancy(self, discr_str)
-        return discrepancy
-
-    @CountCalls
-    def report_discrepancy(self, discrepancy):
-        logging.error("Job-id(s) %s unaccounted for in OAR's input files!!" % discrepancy)
