@@ -3,6 +3,12 @@
 Notable changes by version, newest first.
 See the [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 
+## 0.9.20261022
+
+- Release: update version metadata.
+- Docs: improve openssf readiness
+- Bugfix: tmp dir on macos should stop complaining
+
 ## 0.9.20261020
 
 - Bugfix: (pbs) mark stopped queues; parse JSON job counts by state name.
