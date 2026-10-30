@@ -149,7 +149,14 @@ or a release is prepared.
 
 ## Later: Conditional Expansion
 
-These items are proposals, not 1.0 release requirements.
+Open items here are proposals, not 1.0 release requirements.
+
+- [x] Add repository-scoped [Security Insights](security-insights.yml) and
+  [OpenSSF preparation/evidence guidance](docs/openssf-readiness.md).
+- [ ] Register and complete the Best Practices/OSPS assessment; add the actual
+  project badge after registration and verify external repository settings.
+- [ ] Add release SBOMs/provenance and evaluate Darnit, Minder or Gemara consumers
+  when their evidence and permission requirements are defined.
 
 - [ ] Add LSF support.
   - [ ] Requires an owner and representative synthetic or approved anonymized traces.

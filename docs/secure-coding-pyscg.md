@@ -39,6 +39,9 @@ The [CI contract](ci-structure.md#the-makefile-contract) identifies the jobs and
 - [ ] Review runtime terminal/log controls and optional web exposure.
 - [ ] Refresh standalone scanner/dependency/Scorecard results and verify external
   repository settings for the assessed commit ([remaining work](#remaining-work)).
+- [x] Add source-backed [Security Insights](../security-insights.yml) and
+  [OpenSSF readiness guidance](openssf-readiness.md); badge enrollment and full
+  Baseline assessment remain open.
 
 ## Scope and evidence
 
