@@ -10,6 +10,11 @@
 ## auto will try to detect available batch commands in the current system
 scheduler: auto
 
+## Experimental, administrator-verified Slurm GPU pairs; disabled unless configured.
+## Node ranges use Slurm hostlist syntax. Indices are Slurm GRES indices, not CUDA IDs.
+## experimental_gpu_pairs:
+##   gpu[001-009]: [[0, 1], [2, 3]]
+
 ## where to save output from batch commands and their intermediate conversion to json format
 ## users can select e.g. /dev/shm (ram disk) instead of /tmp for faster processing, or even $TMP or $TMPDIR
 savepath: /tmp/qtop_results_$USER

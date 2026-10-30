@@ -993,3 +993,29 @@ Usage tips
 -  Use ``-L`` when preparing a bug report. Review the archive before
    sharing it, especially when scheduler output might include sensitive
    hostnames or account names.
+# Experimental configured GPU pairs (Slurm)
+
+Add this optional mapping to your user `qtopconf.yaml` to display job ownership
+for administrator-verified GPU pairs below the worker-node matrices:
+
+```yaml
+experimental_gpu_pairs:
+  gpu[001-009]: [[0, 1], [2, 3]]
+```
+
+Slurm hostlists preserve leading zeros; a single hostname also works. Each
+node may occur only once and each GPU index may occur in only one pair per node.
+Pairs are numbered from 1 in configuration order. For example,
+`gpu003: pair1[gpu0=101, gpu1=101] pair2[gpu2=102, gpu3=103]` shows both
+whole-pair and split ownership. Multiple job owners are separated by `/`.
+
+Indices must match the node's Slurm GRES configuration. This feature does not
+discover or verify NVLink connections, infer GPU placement from CPU IDs, or
+map MIG instances to physical GPUs. Missing ownership is shown as `?`; `idle`
+requires explicit node GPU usage data showing that index is unused. Collection
+snapshots can race, so this is allocation information rather than live usage.
+Malformed mappings produce a message instead of interrupting the matrix.
+
+The feature reuses existing `sinfo` and detailed `scontrol` snapshots and adds
+no scheduler commands. Omit the mapping to disable it. Anonymized samples omit
+the mapping because its node patterns identify the installation.

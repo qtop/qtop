@@ -2,12 +2,65 @@
 """Slurm GPU metadata; resource indices are not CUDA or physical GPU IDs."""
 
 import re
-from typing import TYPE_CHECKING, List
+from typing import TYPE_CHECKING, Any, Dict, List
 
 if TYPE_CHECKING:
     from qtop_py.contracts import GPUResource
 
 MAX_GPU_INDICES = 100000
+
+
+def configured_pair_lines(nodes: List[Dict[str, Any]], mapping: object) -> List[str]:
+    """Experimental display of administrator-configured pairs, not discovered links."""
+    if not mapping:
+        return []
+    # Reuse the bounded hostlist parser without importing the scheduler when disabled.
+    from qtop_py.plugins.slurm import SlurmBatchSystem
+
+    if not isinstance(mapping, dict):
+        raise ValueError("experimental_gpu_pairs must be a node-to-pairs mapping")
+    inventory = {}
+    for pattern, pairs in mapping.items():
+        hosts = SlurmBatchSystem.expand_nodelist(pattern) if isinstance(pattern, str) else []
+        if not hosts or not isinstance(pairs, list) or not pairs:
+            raise ValueError("GPU pairs require a valid node range and nonempty pair list")
+        indices = []
+        for pair in pairs:
+            if not isinstance(pair, list) or len(pair) != 2 or any(type(index) is not int or index < 0 for index in pair):
+                raise ValueError("Each GPU pair must contain two nonnegative integer indices")
+            indices.extend(pair)
+        if len(set(indices)) != len(indices):
+            raise ValueError("Configured GPU pairs must not overlap")
+        for host in hosts:
+            if host in inventory:
+                raise ValueError("GPU pair node ranges must not overlap")
+            inventory[host] = pairs
+        if len(inventory) > SlurmBatchSystem.MAX_EXPANDED_NODES:
+            raise ValueError("Too many GPU pair nodes")
+    lines = []
+    for node in nodes:
+        pairs = inventory.get(node["domainname"], [])
+        if not pairs:
+            continue
+        owners = {}  # type: Dict[int, List[str]]
+        for binding in node.get("slurm_gpu_bindings", []):
+            if binding.get("mig_profile") is not None:
+                continue
+            for index in binding.get("device_indices") or []:
+                owners.setdefault(index, []).append(binding["job_id"])
+        used = node.get("slurm_gpu_used")
+        known_usage = used is not None and all(resource["device_indices"] is not None for resource in used)
+        busy = {index for resource in used or [] for index in resource["device_indices"] or []}
+        labels = []
+        for number, pair in enumerate(pairs, 1):
+            devices = []
+            for index in pair:
+                jobs = sorted(set(owners.get(index, [])))
+                status = "/".join(jobs) if jobs else "idle" if known_usage and index not in busy else "?"
+                devices.append("gpu%s=%s" % (index, status))
+            labels.append("pair%s[%s]" % (number, ", ".join(devices)))
+        lines.append("%s: %s" % (node["domainname"], " ".join(labels)))
+    return lines
 
 
 def parse_gpu_gres(value: str) -> "List[GPUResource]":

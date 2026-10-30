@@ -3,6 +3,9 @@
 Notable changes by version, newest first.
 See the [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 
+- Experimental: optionally display configured Slurm GPU pairs and their job IDs,
+  with node-range mappings and no additional scheduler queries.
+
 ## 0.9.20261018
 
 - Metadata: remove project-wide development-stage labels.

@@ -1736,6 +1736,17 @@ class TextDisplay(object):
         # the transposed matrix is one continuous block, doesn't make sense to break into more matrices
         if not dynamic_config.get("transpose_wn_matrices", config["transpose_wn_matrices"]):
             self.display_remaining_matrices(wns_occupancy, print_char_start, print_char_stop)
+        if scheduler == "slurm" and self.config.get("experimental_gpu_pairs"):
+            from qtop_py.gpu import configured_pair_lines
+
+            try:
+                lines = configured_pair_lines(cluster.worker_nodes, self.config["experimental_gpu_pairs"])
+            except ValueError as error:
+                print("Configured GPU pairs unavailable: %s" % error)
+            else:
+                if lines:
+                    print("Configured GPU pairs (experimental; job IDs, ? = unknown):")
+                    print("\n".join(lines))
 
     def display_basic_legend(self):
         """Displays the Worker Nodes occupancy label plus columns explanation"""

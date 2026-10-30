@@ -134,7 +134,8 @@ def anonymize_state(state: object) -> "Tuple[ClusterState, IdentifierMaps]":
 def sanitize_config(config: "Config", mappings: "IdentifierMaps") -> "Tuple[Config, List[str]]":
     """Remove local commands/paths and translate identifier-bearing rules."""
     config = copy.deepcopy(config)
-    omitted = ("savepath", "schedulers", "signature_commands", "extract_info", "remapping")
+    omitted = ("savepath", "schedulers", "signature_commands", "extract_info", "remapping", "experimental_gpu_pairs")
+    config.pop("experimental_gpu_pairs", None)
     config.update(savepath="/tmp/qtop_results_$USER", schedulers={}, signature_commands={}, extract_info=None, remapping=[])
     # Control strings (state codes, sort names, colors) must not be rewritten
     # merely because they happen to equal a user/queue name.
