@@ -27,6 +27,14 @@ def private_save_directory(path):
     if os.name != "posix":
         raise OSError(errno.ENOTSUP, "Private save directories require POSIX ownership checks", path)
     path = os.path.abspath(os.path.expandvars(path))
+    if sys.platform == "darwin":
+        for alias in ("/tmp", "/var"):
+            if path == alias or path.startswith(alias + os.sep):
+                info = os.lstat(alias)
+                # Expand only Apple's root-owned aliases; validate every target component below.
+                if stat.S_ISLNK(info.st_mode) and info.st_uid == 0 and os.readlink(alias) in ("private" + alias, "/private" + alias):
+                    path = "/private" + path
+                break
     parts = path.strip(os.sep).split(os.sep)
     if not parts[0]:
         raise PermissionError(errno.EACCES, "The filesystem root cannot be a save directory", path)

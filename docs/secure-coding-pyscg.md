@@ -129,7 +129,9 @@ and malformed input; review artifacts before sharing them.
 [private_save_directory](../qtop_py/fileutils.py) opens POSIX directory
 components with `O_DIRECTORY` and `O_NOFOLLOW`. The final directory must belong
 to the effective user, reject group/other writes and be restricted to `0700`.
-Symlinks and writable non-sticky ancestors are rejected; sticky shared parents
+On macOS, root-owned `/tmp` and `/var` aliases to `/private/tmp` and
+`/private/var` are expanded before the same component checks. Other symlinks
+and writable non-sticky ancestors are rejected; sticky shared parents
 and non-writable site-owned ancestors are allowed. Unsupported non-POSIX checks
 fail explicitly. Temporary outputs use `mkstemp` or `NamedTemporaryFile`.
 Directory validation does not prove every later pathname operation is race-free.
