@@ -9,10 +9,26 @@
 ##
 
 from io import StringIO
+from types import SimpleNamespace
 
 import pytest
 
 from qtop_py.plugins import pbs
+
+
+@pytest.mark.parametrize("raw, invalid", [(None, False), ("0", False), ("2", False), ("", True), ("N/A", True), ("two", True), ("1.5", True), ("-1", True)])
+def test_optional_gpu_counts_cannot_hide_pbs_nodes_or_jobs(tmp_path, caplog, raw, invalid):
+    path = tmp_path / "pbsnodes.txt"
+    path.write_text("node1\n    state = free\n    np = 2\n    jobs = 0/101.server\n" + ("    gpus = %s\n" % raw if raw is not None else ""))
+    options = SimpleNamespace(ANONYMIZE=False)
+    backend = pbs.PBSBatchSystem({"pbsnodes_file": str(path)}, {}, options)
+    nodes = backend.get_worker_nodes(["101"], ["workq"], options)
+    assert len(nodes) == 1
+    assert nodes[0]["domainname"] == "node1"
+    assert nodes[0]["core_job_map"] == {"0": "101"}
+    assert nodes[0]["qname"] == ["workq"]
+    assert nodes[0].get("gpus") == ("2" if raw == "2" else None)
+    assert ("Ignoring invalid PBS GPU count" in caplog.text) is invalid
 
 
 @pytest.mark.parametrize(

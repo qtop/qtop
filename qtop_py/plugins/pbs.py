@@ -258,8 +258,16 @@ class PBSBatchSystem(GenericBatchSystem):
             else:
                 pbs_values["np"] = block.get("resources_available.ncpus", 0)
 
-            if int(block.get("gpus", 0)) > 0:  # this should be rare.
-                pbs_values["gpus"] = block["gpus"]
+            raw_gpus = block.get("gpus", 0)
+            try:
+                gpus = int(raw_gpus)
+                if gpus < 0:
+                    raise ValueError("abnormal GPU count")
+            except (TypeError, ValueError):
+                logging.warning("Ignoring invalid PBS GPU count %r on node %s", raw_gpus, pbs_values["domainname"])
+            else:
+                if gpus > 0:
+                    pbs_values["gpus"] = raw_gpus
 
             try:  # this should turn up more often, hence the try/except.
                 _ = block["jobs"]
