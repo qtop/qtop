@@ -100,6 +100,38 @@ def test_pbs_mixed_hostnames_preserve_nodes_jobs_and_allocations(tmp_path):
     assert [(queue["running"], queue["queued"]) for queue in state["queues"]] == [(8, 1)]
 
 
+@pytest.mark.parametrize("job_format", ["json", "text"])
+def test_pbs_array_tasks_and_legacy_queue_limits_preserve_activity(tmp_path, job_format):
+    import json
+
+    (tmp_path / "pbsnodes_a.txt").write_text(
+        "\nnode1\n    state = job-exclusive\n    np = 3\n    jobs = 0/101[7].server,\n        1-2/101[8].server\n\n\nnode2\n    state = free\n    np = 3\n"
+    )
+    jobs = {"101[7].server.domain": {"Job_Owner": "alice_smith@host", "Job_Name": "job with spaces", "queue": "gpu-long", "job_state": "R"}}
+    jobs["101[8].server.domain"] = dict(jobs["101[7].server.domain"], queue="debug.v1")
+    (tmp_path / "qstat.txt").write_text(
+        json.dumps({"Jobs": jobs})
+        if job_format == "json"
+        else "Job id Name User Time Use S Queue\n-----\n" + "".join("%s job with spaces alice_smith 00:01:00 R %s\n" % (job_id, job["queue"]) for job_id, job in jobs.items())
+    )
+    (tmp_path / "qstat_q.txt").write_text(
+        "\nserver: test\n\nQueue Memory CPU Walltime Node Run Que Lm State\n-----\ngpu-long -- -- -- 1 1 0 -- E R\ndebug.v1 -- -- -- 2 1 0 -- E R\n2 0\n"
+    )
+    output = tmp_path / "output"
+    result = run_cli(tmp_path, "qtop_py.cli", "-b", "pbs", "-s", str(tmp_path), "-F", "-S", "-E", "-o", "savepath=%s" % output)
+    assert result.returncode == 0, result.stderr
+    assert "Summary: Total:2 Up:2 Free:1 Nodes | 3/6 cores |   2+0 jobs" in result.stdout
+    assert "MISMATCH" not in result.stdout
+    matrix = result.stdout.split("Worker Nodes occupancy", 1)[1].split("User accounts", 1)[0]
+    assert "|?|" not in matrix
+    state = json.loads(next(output.glob("qtop_json_*.json")).read_text())
+    assert {job["id"] for job in state["jobs"]} == {"101[7]", "101[8]"}
+    assert {job["user"] for job in state["jobs"]} == {"alice_smith"}
+    assert {queue["name"] for queue in state["queues"]} == {"gpu-long", "debug.v1"}
+    assert state["nodes"][0]["core_job_map"] == {"0": "101[7]", "1": "101[8]", "2": "101[8]"}
+    assert set(state["nodes"][0]["qname"]) == {"gpu-long", "debug.v1"}
+
+
 def test_queue_nodes_requires_experimental_option(tmp_path):
     result = run_cli(tmp_path, "qtop_py.cli", "--queue-nodes")
     assert result.returncode == 2

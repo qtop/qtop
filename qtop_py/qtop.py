@@ -78,6 +78,7 @@ from qtop_py.plugins.oar import OARBatchSystem
 from qtop_py.plugins.pbs import PBSBatchSystem
 from qtop_py.plugins.sge import SGEBatchSystem
 from qtop_py.plugins.slurm import SlurmBatchSystem
+from qtop_py.serialiser import resolve_job_id
 from qtop_py.ui.viewport import Viewport
 from qtop_py.web import Web
 
@@ -1429,7 +1430,7 @@ class WNOccupancy(object):
         """
         node_free_cores = node_cores[:]
         for core, job in corejobs.items():
-            if re.sub(r"\[\d+\]", "[]", str(job)) not in jobid_to_user_to_queue:
+            if resolve_job_id(str(job), jobid_to_user_to_queue) not in jobid_to_user_to_queue:
                 core_user_map["Core" + str(core) + "vector"].append(utils.ColorStr("?", color="Yellow"))
                 node_free_cores.remove(str(core))
         selected_pat_to_color_map = globals()[_core_coloring]
@@ -1470,7 +1471,7 @@ class WNOccupancy(object):
         Generator that yields only those core-job pairs that successfully match to a user
         """
         for core, _job in corejobs.items():
-            job = re.sub(r"\[\d+\]", "[]", str(_job))  # also takes care of job arrays
+            job = resolve_job_id(str(_job), jobid_to_user_to_queue)
             try:
                 user_queue = jobid_to_user_to_queue[job]
             except KeyError as KeyErrorValue:
@@ -1511,7 +1512,7 @@ class WNOccupancy(object):
             jobs.update(node.get("oar_job_ids", []))
         jobs.discard("?")
         if job_ids is not None:
-            jobs = {job if job in job_ids else re.sub(r"\[[0-9]*\]$", "", job) for job in jobs}
+            jobs = {resolve_job_id(job, job_ids) for job in jobs}
         return len(jobs if job_ids is None else jobs.intersection(job_ids))
 
     def calculate_user_node_use(self, cluster, jobid_to_user_to_queue):

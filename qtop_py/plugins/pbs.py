@@ -19,19 +19,19 @@ import re
 from typing import Iterator, Tuple
 
 import qtop_py.fileutils as fileutils
-from qtop_py.serialiser import GenericBatchSystem, StatExtractor
+from qtop_py.serialiser import GenericBatchSystem, StatExtractor, resolve_job_id
 
 
 class PBSStatExtractor(StatExtractor):
     def __init__(self, config, options):
         StatExtractor.__init__(self, config, options)
         self.user_q_search = (
-            r"^(?P<host_name>(?P<job_id>[0-9\[\]-]+)\.(?P<domain>[\w*-]+))\s+"
-            r"(?P<name>[\w#$&@%:.=+/{}*-]+)\s+"
-            r"(?P<user>[A-Za-z0-9.*-]+)\s+"
+            r"^(?P<host_name>(?P<job_id>[0-9\[\]-]+)\.(?P<domain>[\w.*-]+))\s+"
+            r"(?P<name>.+?)\s+"
+            r"(?P<user>[A-Za-z0-9._*-]+)\s+"
             r"(?P<time>\d+:\d*:?\d*\*?|0)\s+"
-            r"(?P<state>[BCEFHMQRSTUWX])\s+"
-            r"(?P<queue_name>\w+)"
+            r"(?P<state>[A-Za-z])\s+"
+            r"(?P<queue_name>[\w.-]+)(?=\s|$)"
         )
 
         self.user_q_search_prior = (
@@ -43,7 +43,7 @@ class PBSStatExtractor(StatExtractor):
             r"(?P<state>[a-z])\s+"
             r"(?:\d{2}/\d{2}/\d{2}|0)\s+"
             r"(?:\d+:\d+:\d*|0)\s+"
-            r"(?P<queue_name>\w+@[\w.-]+)\s+"
+            r"(?P<queue_name>[\w.-]+@[\w.-]+)\s+"
             r"(?:\d+)\s+"
             r"(?:\w*)"
         )
@@ -165,11 +165,11 @@ class PBSStatExtractor(StatExtractor):
             r"^(?P<queue_name>[\w.-]+)\s+"
             r"(?:--|[0-9]+[mgtkp]b[a-z]*)\s+"
             r"(?:--|\d+:\d+:?\d*:?)\s+"
-            r"(?:--|\d+:\d+:?\d+:?)\s+(--)\s+"
+            r"(?:--|\d+:\d+:?\d+:?)\s+(?:--|\d+)\s+"
             r"(?P<run>\d+)\s+"
             r"(?P<queued>\d+)\s+"
             r"(?P<lm>--|\d+)\s+"
-            r"(?P<state>[DE] [RS])"
+            r"(?P<state>[DE]\s+[RS])"
         )
         run_qd_search = r"^\s*(?P<tot_run>\d+)\s+(?P<tot_queued>\d+)"  # this picks up the last line contents
 
@@ -239,6 +239,7 @@ class PBSBatchSystem(GenericBatchSystem):
             return all_pbs_values
 
         raw_blocks = self._read_all_blocks(self.pbsnodes_file)
+        known_ids = set(job_ids)
         all_pbs_values = []
         anonymize = self.qstat_maker.anonymize_func()
         for block in raw_blocks:
@@ -276,7 +277,7 @@ class PBSBatchSystem(GenericBatchSystem):
             else:
                 # jobs = re.split(r'(?<=[A-Za-z0-9]),\s?', block['jobs'])
                 jobs = re.findall(r"[0-9][0-9a-zA-Z\[\],.-]*\/[^,]+", block["jobs"])
-                pbs_values["core_job_map"] = dict((core, job) for job, core in self._get_jobs_cores(jobs))
+                pbs_values["core_job_map"] = dict((core, resolve_job_id(job, known_ids)) for job, core in self._get_jobs_cores(jobs))
             finally:
                 all_pbs_values.append(pbs_values)
 
@@ -340,14 +341,12 @@ class PBSBatchSystem(GenericBatchSystem):
             elif re.match(r"[\w.-]+", part1):  # PBS Pro job id
                 job, core = part1, part2
 
+            job = re.sub(r"\[\]$", "", job.strip().split("/")[0].split(".")[0])
             if ("," in core) or ("-" in core):  # job id with subjobs
                 for subcore, subjob in PBSBatchSystem.get_corejob_from_range(core, job):
-                    subjob = subjob.strip().split("/")[0].split(".")[0]
                     # Core identifiers stay as strings, matching the non-range branch.
                     yield subjob, subcore
             else:  # job id without subjobs
-                job = job.strip().split("/")[0].split(".")[0]
-                job = re.sub(r"\[\d*\]$", "", job)
                 yield job, core
 
     def _read_all_blocks(self, orig_file):
@@ -367,21 +366,28 @@ class PBSBatchSystem(GenericBatchSystem):
 
     @staticmethod
     def _read_block(fin):
-        domain_name = fin.readline().strip()
-        if not domain_name:
+        for line in fin:
+            domain_name = line.strip()
+            if domain_name:
+                break
+        else:
             return None
 
         block = {"domainname": domain_name}
+        previous_key = None
         reading = True
         while reading:
             line = fin.readline()
-            if line in ("", "\n"):
+            if not line.strip():
                 reading = False
             else:
                 key_value = line.split(" = ", 1)
                 if len(key_value) == 2:
                     key, value = key_value
                     block[key.strip()] = value.strip()
+                    previous_key = key.strip()
+                elif previous_key == "jobs" and line[0].isspace():
+                    block["jobs"] += " " + line.strip()
         return block
 
     @staticmethod

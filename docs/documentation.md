@@ -435,6 +435,12 @@ flashy features that YAML sports.
 
 #### Scheduler configuration area
 
+PBS node input tolerates blank separators and wrapped `jobs` attributes. Array
+allocations retain exact task IDs when the job snapshot includes those tasks;
+otherwise a reported parent may supply their user/queue association. Unknown
+tasks retain their IDs. Legacy job tables support underscore usernames and full
+queue names; legacy queue tables accept numeric node limits.
+
 ```yaml
 savepath: /tmp/qtop_results_$USER
 schedulers:
