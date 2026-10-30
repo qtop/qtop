@@ -19,8 +19,8 @@ class OarStatExtractor(StatExtractor):
             r"(?P<user>[0-9A-Za-z_.-]+)\s+"
             r"(?:\d{4}-\d{2}-\d{2})\s+"
             r"(?:\d{2}:\d{2}:\d{2})\s+"
-            r"(?P<job_state>[RWF])\s+"
-            r"(?P<queue>default|besteffort)"
+            r"(?P<job_state>[A-Za-z])\s+"
+            r"(?P<queue>\S+)"
         )
 
     def extract_qstat(self, orig_file):
@@ -38,6 +38,7 @@ class OarStatExtractor(StatExtractor):
             re_search = self.user_q_search
             for line in fin:
                 qstat_values = self._process_qstat_line(re_search, line, re_match_positions)
+                qstat_values["Queue"] = self.anonymize(qstat_values["Queue"], "qs")
                 all_values.append(qstat_values)
 
         return all_values
@@ -86,7 +87,7 @@ class OARBatchSystem(GenericBatchSystem):
         return worker_nodes
 
     def get_jobs_info(self):
-        qstats = self.oar_stat_maker.extract_qstat(self.oarstat_file)
+        qstats = self._get_jobs()
         records = [(str(qstat["JobId"]), qstat["UnixAccount"], qstat["S"], qstat["Queue"]) for qstat in qstats]
         job_ids, usernames, job_states, queue_names = map(list, zip(*records)) if records else ([], [], [], [])
 
@@ -98,13 +99,18 @@ class OARBatchSystem(GenericBatchSystem):
         return job_ids, usernames, job_states, queue_names
 
     def get_queues_info(self):
-        """
-        OAR does not provide this info.
-        """
-        total_running_jobs = 0
-        total_queued_jobs = 0
-        qstatq_lod = []
-        return total_running_jobs, total_queued_jobs, qstatq_lod
+        """Derive job counts from oarstat; resource slots are not job counts."""
+        queues = OrderedDict()
+        for job in self._get_jobs():
+            queue = queues.setdefault(job["Queue"], {"queue_name": job["Queue"], "run": 0, "queued": 0, "lm": "--", "state": "?"})
+            queue["run"] += job["S"] == "R"
+            queue["queued"] += job["S"] == "W"
+        return sum(queue["run"] for queue in queues.values()), sum(queue["queued"] for queue in queues.values()), list(queues.values())
+
+    def _get_jobs(self):
+        if not hasattr(self, "_jobs"):
+            self._jobs = self.oar_stat_maker.extract_qstat(self.oarstat_file)
+        return self._jobs
 
     def _read_oarnodes_s_yaml(self, fn_s):
         if not os.path.isfile(fn_s):

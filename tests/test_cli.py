@@ -56,6 +56,26 @@ def test_packaging_entry_points_use_cli_wrapper():
     assert 'qtop = "qtop_py.qtop:cli_main"' in packaging_config
 
 
+def test_oar_job_summary_counts_jobs_instead_of_resource_slots(tmp_path):
+    import json
+
+    (tmp_path / "oarstat.txt").write_text(
+        "Job id Name User Submission Date S Queue\n------ ---- ---- --------------- - -----\n101 job alice 2026-10-29 10:00:00 R default\n102 job bob 2026-10-29 10:00:00 W debug\n"
+    )
+    (tmp_path / "oarnodes_s_Y.txt").write_text("---\nnode1:\n    1: Alive\n    2: Alive\n")
+    (tmp_path / "oarnodes_Y.txt").write_text("---\n1:\n    jobs: 101\n2:\n    jobs: 101\n")
+    output = tmp_path / "output"
+    result = run_cli(tmp_path, "qtop_py.cli", "-b", "oar", "-s", str(tmp_path), "-F", "-E", "-o", "savepath=%s" % output)
+    assert result.returncode == 0, result.stderr
+    assert "1+1 jobs (R + Q)" in result.stdout
+    assert "default: 1" in result.stdout
+    assert "debug: 0 + 1" in result.stdout
+    assert "MISMATCH" not in result.stdout
+    state = json.loads(next(output.glob("qtop_json_*.json")).read_text())
+    assert [(queue["name"], queue["running"], queue["queued"]) for queue in state["queues"]] == [("default", 1, 0), ("debug", 0, 1)]
+    assert state["nodes"][0]["core_job_map"] == {"0": "101", "1": "101"}
+
+
 @pytest.mark.parametrize("module", ("qtop_py.cli", "qtop_py.qtop"))
 def test_no_scheduler_message_is_not_duplicated(tmp_path, module):
     result = run_cli(tmp_path, module, extra_env={"QTOP_SCHEDULER": "nonsense"})

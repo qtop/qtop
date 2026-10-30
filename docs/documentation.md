@@ -621,7 +621,15 @@ cluster. If you just invoke:
 ```
 
 then qtop is going to invoke ``oarnodes -s -Y``, ``oarnodes -Y``,
-``oarstat`` consecutively. With process ID ``12345`` and ``USER=mike``,
+``oarstat`` consecutively. OAR's header and queue summary count running (`R`)
+and waiting (`W`) jobs from the same `oarstat` snapshot. Each job counts once,
+regardless of how many resource slots it uses; other states remain in the user
+job totals. Custom queue names are supported. Queue limits and availability
+are reported as unknown because this snapshot does not supply them; only queues
+present in the job snapshot can be listed. No extra
+commands or `--StrictCheck` are required.
+
+With process ID ``12345`` and ``USER=mike``,
 its live captures are:
 
 ```text
