@@ -29,7 +29,7 @@ def build_cluster_state(
     """Return the deliberately boring public representation of a cluster."""
     if len({len(values) for values in (job_ids, users, job_states, job_queues)}) != 1:
         raise ValueError("job IDs, users, states and queues must have equal lengths")
-    jobs: "List[Job]" = [
+    jobs: List[Job] = [
         {
             "id": re.sub(r"\[\]$", "", job_id),
             "user": user,
@@ -38,7 +38,7 @@ def build_cluster_state(
         }
         for job_id, user, state, queue in zip(job_ids, users, job_states, job_queues)
     ]
-    normalized_queues: "List[Queue]" = [
+    normalized_queues: List[Queue] = [
         {
             "name": queue["queue_name"],
             "limit": str(queue["lm"]),

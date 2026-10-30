@@ -1541,7 +1541,8 @@ QDoc = namedtuple("QDoc", ["lm", "queued", "run", "state"])
 
 
 class Document(namedtuple("Document", ["worker_nodes", "jobs_dict", "queues_dict", "total_running_jobs", "total_queued_jobs"])):
-    _job_metadata: "Dict[str, Job]"
+    if TYPE_CHECKING:
+        _job_metadata: Dict[str, Job]
 
     @classmethod
     def from_cluster_state(cls, cluster_state: "ClusterState") -> "Document":
