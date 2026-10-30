@@ -56,6 +56,22 @@ def test_packaging_entry_points_use_cli_wrapper():
     assert 'qtop = "qtop_py.qtop:cli_main"' in packaging_config
 
 
+@pytest.mark.parametrize("queue_row", ["", "workq -- -- -- -- 0 0 -- E R\n"])
+def test_empty_pbs_named_cluster_without_queue_totals_renders(tmp_path, queue_row):
+    import json
+
+    (tmp_path / "pbsnodes_a.txt").write_text("")
+    (tmp_path / "qstat.txt").write_text('{"Jobs": {}}')
+    (tmp_path / "qstat_q.txt").write_text("\nserver: empty\n\nQueue Memory CPU Walltime Node Run Que Lm State\n-----\n" + queue_row)
+    output = tmp_path / "output"
+    result = run_cli(tmp_path, "qtop_py.cli", "-b", "pbs", "-s", str(tmp_path), "-F", "-E", "-o", "savepath=%s" % output)
+    assert result.returncode == 0, result.stderr
+    assert "Summary: Total:0 Up:0 Free:0 Nodes | 0/0 cores |   0+0 jobs" in result.stdout
+    state = json.loads(next(output.glob("qtop_json_*.json")).read_text())
+    assert state["jobs"] == state["nodes"] == []
+    assert [(queue["name"], queue["running"], queue["queued"]) for queue in state["queues"]] == ([("workq", 0, 0)] if queue_row else [])
+
+
 def test_queue_nodes_requires_experimental_option(tmp_path):
     result = run_cli(tmp_path, "qtop_py.cli", "--queue-nodes")
     assert result.returncode == 2
@@ -80,9 +96,20 @@ def test_oar_job_summary_counts_jobs_instead_of_resource_slots(tmp_path):
     (tmp_path / "oarnodes_Y.txt").write_text("---\n1:\n    jobs: 101\n2:\n    jobs: 101\n")
     output = tmp_path / "output"
     result = run_cli(
-        tmp_path, "qtop_py.cli", "-b", "oar", "-s", str(tmp_path), "-F", "-S", "-e",
-        "--queue-nodes", "-E", "-o",
-        "experimental_queue_nodes={'default':'node1','debug':'node1'}", "-o",
+        tmp_path,
+        "qtop_py.cli",
+        "-b",
+        "oar",
+        "-s",
+        str(tmp_path),
+        "-F",
+        "-S",
+        "-e",
+        "--queue-nodes",
+        "-E",
+        "-o",
+        "experimental_queue_nodes={'default':'node1','debug':'node1'}",
+        "-o",
         "savepath=%s" % output,
     )
     assert result.returncode == 0, result.stderr
