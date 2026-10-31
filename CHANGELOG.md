@@ -3,6 +3,10 @@
 Notable changes by version, newest first.
 See the [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 
+## 0.9.20261025
+
+- Release: update version metadata to 0.9.20261025.
+
 ## 0.9.20261022
 
 - Release: update version metadata.
