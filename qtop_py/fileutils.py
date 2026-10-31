@@ -108,33 +108,37 @@ def init_sample_file(options, _savepath, SAMPLE_FILENAME, scheduler_output_filen
 
     # clears any preexisting tar files
     tar_out = tarfile.open(os.path.join(_savepath, SAMPLE_FILENAME), mode="w")
-    if options.SAMPLE >= 2:
-        if not getattr(options, "ANONYMIZE", False):
-            add_to_sample([os.path.join(os.path.realpath(QTOPPATH), QTOPCONF_YAML)], tar_out)
-        source_path = os.path.join(os.path.realpath(QTOPPATH), "qtop_py")
-        if not os.path.isdir(source_path):  # Installed defaults live inside the package.
-            source_path = os.path.realpath(QTOPPATH)
-        source_files = glob.glob(os.path.join(source_path, "**", "*.py"), recursive=True)
-        for source_file in source_files:
-            subdir = os.path.dirname(os.path.join("qtop_py", os.path.relpath(source_file, source_path)))
-            add_to_sample([source_file], tar_out, subdir=subdir)
-        help_path = os.path.join(os.path.realpath(QTOPPATH), "helpfile.txt")
-        if os.path.isfile(help_path):
-            add_to_sample([help_path], tar_out)
-        for asset in glob.glob(os.path.join(source_path, "web", "**", "*"), recursive=True):
-            if os.path.isfile(asset):
-                subdir = os.path.dirname(os.path.join("qtop_py", os.path.relpath(asset, source_path)))
-                add_to_sample([asset], tar_out, subdir=subdir)
-        licenses = [os.path.join(os.path.realpath(QTOPPATH), "LICENSE")]
-        licenses += glob.glob(os.path.join(os.path.dirname(source_path), "qtop*.dist-info", "licenses", "LICENSE"))
-        licenses += glob.glob(os.path.join(os.path.dirname(source_path), "qtop*.dist-info", "LICENSE"))
-        license_path = next((path for path in licenses if os.path.isfile(path)), None)
-        if license_path:
-            add_to_sample([license_path], tar_out)
-        launcher = b"#!/usr/bin/env python3\nfrom qtop_py.qtop import cli_main\nraise SystemExit(cli_main())\n"
-        member = tarfile.TarInfo("qtop")
-        member.mode, member.size = 0o755, len(launcher)
-        tar_out.addfile(member, io.BytesIO(launcher))
+    try:
+        if options.SAMPLE >= 2:
+            if not getattr(options, "ANONYMIZE", False):
+                add_to_sample([os.path.join(os.path.realpath(QTOPPATH), QTOPCONF_YAML)], tar_out)
+            source_path = os.path.join(os.path.realpath(QTOPPATH), "qtop_py")
+            if not os.path.isdir(source_path):  # Installed defaults live inside the package.
+                source_path = os.path.realpath(QTOPPATH)
+            source_files = glob.glob(os.path.join(source_path, "**", "*.py"), recursive=True)
+            for source_file in source_files:
+                subdir = os.path.dirname(os.path.join("qtop_py", os.path.relpath(source_file, source_path)))
+                add_to_sample([source_file], tar_out, subdir=subdir)
+            help_path = os.path.join(os.path.realpath(QTOPPATH), "helpfile.txt")
+            if os.path.isfile(help_path):
+                add_to_sample([help_path], tar_out)
+            for asset in glob.glob(os.path.join(source_path, "web", "**", "*"), recursive=True):
+                if os.path.isfile(asset):
+                    subdir = os.path.dirname(os.path.join("qtop_py", os.path.relpath(asset, source_path)))
+                    add_to_sample([asset], tar_out, subdir=subdir)
+            licenses = [os.path.join(os.path.realpath(QTOPPATH), "LICENSE")]
+            licenses += glob.glob(os.path.join(os.path.dirname(source_path), "qtop*.dist-info", "licenses", "LICENSE"))
+            licenses += glob.glob(os.path.join(os.path.dirname(source_path), "qtop*.dist-info", "LICENSE"))
+            license_path = next((path for path in licenses if os.path.isfile(path)), None)
+            if license_path:
+                add_to_sample([license_path], tar_out)
+            launcher = b"#!/usr/bin/env python3\nfrom qtop_py.qtop import cli_main\nraise SystemExit(cli_main())\n"
+            member = tarfile.TarInfo("qtop")
+            member.mode, member.size = 0o755, len(launcher)
+            tar_out.addfile(member, io.BytesIO(launcher))
+    except BaseException:
+        tar_out.close()
+        raise
     return tar_out
 
 

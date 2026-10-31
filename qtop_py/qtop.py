@@ -16,7 +16,6 @@
 ##
 
 import datetime
-import json
 import os
 import re
 import select
@@ -25,7 +24,7 @@ import shutil
 import subprocess
 import sys
 import tarfile
-from collections import Counter, OrderedDict, namedtuple
+from collections import Counter, OrderedDict
 from functools import lru_cache
 from itertools import cycle, groupby, zip_longest
 from operator import itemgetter
@@ -48,11 +47,9 @@ import tempfile
 import time
 import traceback
 from math import ceil, isfinite
-from typing import TYPE_CHECKING, Optional, cast
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import Dict
-
     from qtop_py import contracts
 
     config: contracts.Config
@@ -60,7 +57,6 @@ if TYPE_CHECKING:
 
 from qtop_py import __version__, configuration, fileutils, sample, utils
 from qtop_py import yaml_parser as yaml
-from qtop_py.cluster_state import cluster_state_totals, validate_cluster_state
 from qtop_py.colormap import color_to_code, queue_to_color, user_to_color_default
 from qtop_py.constants import (
     FALLBACK_TERMSIZE,
@@ -71,13 +67,16 @@ from qtop_py.constants import (
     SYSTEMCONFDIR,
     USERPATH,
 )
+from qtop_py.document import Document
 from qtop_py.errors import OperationalError
 from qtop_py.plugins.demo import DemoBatchSystem
 from qtop_py.plugins.oar import OARBatchSystem
 from qtop_py.plugins.pbs import PBSBatchSystem
 from qtop_py.plugins.sge import SGEBatchSystem
 from qtop_py.plugins.slurm import SlurmBatchSystem
+from qtop_py.runtime import RunResources
 from qtop_py.serialiser import GenericBatchSystem, resolve_job_id
+from qtop_py.ui.controls import navigate_viewport, read_rule_choices
 from qtop_py.ui.viewport import Viewport
 from qtop_py.web import Web
 
@@ -506,112 +505,38 @@ def check_python_version():
         raise OperationalError("Only Python 3 is supported.")
 
 
-def control_qtop(viewport, read_char, cluster, old_attrs, new_attrs):
-    """
-    Basic vi-like movement is implemented for the -w switch (linux watch-like behaviour for qtop).
-    h, j, k, l for left, down, up, right, respectively.
-    Both g/G and Shift+j/k go to top/bottom of the matrices
-    0 and $ go to far left/right of the matrix, respectively.
-    r resets the screen to its initial position (if you've drifted away from the vieweable part of a matrix).
-    q quits qtop.
-    """
-    pressed_char_hex = "%02x" % ord(read_char)  # read_char has an initial value that resets the display ('72')
+@contextlib.contextmanager
+def menu_terminal(old_attrs, new_attrs):
+    _disable_terminal_echo(new_attrs)
+    _set_terminal_attrs(old_attrs)
+    try:
+        yield
+    finally:
+        _set_terminal_attrs(new_attrs)
 
-    if pressed_char_hex in ["6a", "20"]:  # j, spacebar
-        logging.debug("v_start: %s" % viewport.v_start)
-        if viewport.scroll_down():
-            print("%s Going down..." % colorize("***", "Green_L"))
-        else:
-            print("%s Staying put" % colorize("***", "Green_L"))
 
-    elif pressed_char_hex in ["6b", "7f"]:  # k, Backspace
-        if viewport.scroll_up():
-            print("%s Going up..." % colorize("***", "Green_L"))
-        else:
-            print("%s Staying put" % colorize("***", "Green_L"))
+def choose_sort(viewport, settings, old_attrs, new_attrs):
+    sort_map = OrderedDict()
 
-    elif pressed_char_hex in ["6c"]:  # l
-        print("%s Going right..." % colorize("***", "Green_L"))
-        viewport.scroll_right()
+    sort_map["0"] = ("sort reset", [])
+    sort_map["1"] = ("sort by nodename-notnum", [])
+    sort_map["2"] = ("sort by nodename-notnum length", [])
+    sort_map["3"] = ("sort by all numbers", [])
+    sort_map["4"] = ("sort by first letter", [])
+    sort_map["5"] = ("sort by node state", [])
+    sort_map["6"] = ("sort by nr of cores", [])
+    sort_map["7"] = ("sort by core occupancy", [])
 
-    elif pressed_char_hex in ["24"]:  # $
-        print("%s Going far right..." % colorize("***", "Green_L"))
-        viewport.scroll_far_right()
-        logging.info("h_start: %s" % viewport.h_start)
-        logging.info("max_width: %s" % viewport.max_width)
-        logging.info('config["term_size"][1] %s' % viewport.h_term_size)
-        logging.info("h_stop: %s" % viewport.h_stop)
+    print(
+        "Type in sort order. This can be a single number or a sequence of numbers,\n"
+        "e.g. to sort first by first word, then by all numbers then by first name length, type 132, then <enter>."
+    )
 
-    elif pressed_char_hex in ["68"]:  # h
-        print("%s Going left..." % colorize("***", "Green_L"))
-        viewport.scroll_left()
+    for nr, sort_method in sort_map.items():
+        print("(%s): %s" % (colorize(nr, color_func="Red_L"), sort_method[0]))
 
-    elif pressed_char_hex in ["30"]:  # 0
-        print("%s Going far left..." % colorize("***", "Green_L"))
-        viewport.scroll_far_left()
-
-    elif pressed_char_hex in ["4a", "47"]:  # S-j, G
-        logging.debug("v_start: %s" % viewport.v_start)
-        if viewport.scroll_bottom():
-            print("%s Going to the bottom..." % colorize("***", "Green_L"))
-        else:
-            print("%s Staying put" % colorize("***", "Green_L"))
-
-    elif pressed_char_hex in ["4b", "67"]:  # S-k, g
-        print("%s Going to the top..." % colorize("***", "Green_L"))
-        logging.debug("v_start: %s" % viewport.v_start)
-        viewport.scroll_top()
-
-    elif pressed_char_hex in ["52"]:  # R
-        print("%s Resetting display..." % colorize("***", "Green_L"))
-        viewport.reset_display()
-
-    elif pressed_char_hex in ["74"]:  # t
-        print("%s Transposing matrix..." % colorize("***", "Green_L"))
-        dynamic_config["transpose_wn_matrices"] = not dynamic_config.get("transpose_wn_matrices", config["transpose_wn_matrices"])
-        viewport.reset_display()
-
-    elif pressed_char_hex in ["51"]:  # Q
-        dynamic_config["queue_summary_expanded"] = not dynamic_config.get("queue_summary_expanded", getattr(args, "EXPAND_QUEUES", False))
-
-    elif pressed_char_hex in ["6d"]:  # m
-        new_mapping, msg = next(change_mapping)
-        dynamic_config["core_coloring"] = new_mapping
-        print("%s Changing to %s" % (colorize("***", "Green_L"), msg))
-
-    elif pressed_char_hex in ["71"]:  # q
-        print(colorize("\nExiting. Thank you for ..watching ;)\n", "Cyan_L"))
-        web.stop()
-        sys.exit(0)
-
-    elif pressed_char_hex in ["46"]:  # F
-        dynamic_config["force_names"] = not dynamic_config["force_names"]
-        print("%s Toggling full-name/incremental nr WN labels" % colorize("***", "Green_L"))
-
-    elif pressed_char_hex in ["73"]:  # s
-        sort_map = OrderedDict()
-
-        sort_map["0"] = ("sort reset", [])
-        sort_map["1"] = ("sort by nodename-notnum", [])
-        sort_map["2"] = ("sort by nodename-notnum length", [])
-        sort_map["3"] = ("sort by all numbers", [])
-        sort_map["4"] = ("sort by first letter", [])
-        sort_map["5"] = ("sort by node state", [])
-        sort_map["6"] = ("sort by nr of cores", [])
-        sort_map["7"] = ("sort by core occupancy", [])
-
-        print(
-            "Type in sort order. This can be a single number or a sequence of numbers,\n"
-            "e.g. to sort first by first word, then by all numbers then by first name length, type 132, then <enter>."
-        )
-
-        for nr, sort_method in sort_map.items():
-            print("(%s): %s" % (colorize(nr, color_func="Red_L"), sort_method[0]))
-
-        _disable_terminal_echo(new_attrs)
-        _set_terminal_attrs(old_attrs)
-
-        dynamic_config["user_sort"] = []
+    with menu_terminal(old_attrs, new_attrs):
+        settings["user_sort"] = []
         while True:
             sort_choice = input(
                 "\nChoose sorting order, or Enter to exit:-> ",
@@ -619,143 +544,121 @@ def control_qtop(viewport, read_char, cluster, old_attrs, new_attrs):
             if not sort_choice:
                 break
 
-            try:
-                sort_order = [m for m in sort_choice]
-            except ValueError:
-                break
-            else:
-                if not set(sort_order).issubset(set(sort_map.keys())):
-                    continue
+            sort_order = list(sort_choice)
+            if not set(sort_order).issubset(sort_map):
+                continue
 
             sort_args = [sort_map[i] for i in sort_order]
-            dynamic_config["user_sort"] = sort_args
+            settings["user_sort"] = sort_args
             break
+    viewport.reset_display()
 
-        _set_terminal_attrs(new_attrs)
-        viewport.reset_display()
 
-    elif pressed_char_hex in ["66"]:  # f
-        cluster.wn_filter = cluster.WNFilter(cluster.worker_nodes)
-        filter_map = {
-            1: "exclude_node_states",
-            2: "exclude_numbers",
-            3: "exclude_name_patterns",
-            4: "or_include_node_states",
-            5: "or_include_numbers",
-            6: "or_include_name_patterns",
-            7: "include_node_states",
-            8: "include_numbers",
-            9: "include_name_patterns",
-            10: "include_queues",
+def choose_filter(viewport, cluster, settings, old_attrs, new_attrs):
+    cluster.wn_filter = cluster.WNFilter(cluster.worker_nodes)
+    filter_map = {
+        1: "exclude_node_states",
+        2: "exclude_numbers",
+        3: "exclude_name_patterns",
+        4: "or_include_node_states",
+        5: "or_include_numbers",
+        6: "or_include_name_patterns",
+        7: "include_node_states",
+        8: "include_numbers",
+        9: "include_name_patterns",
+        10: "include_queues",
+    }
+    print(
+        "Filter out nodes by:\n%(one)s state %(two)s number"
+        " %(three)s name substring or RegEx pattern"
+        % {
+            "one": colorize("(1)", color_func="Red_L"),
+            "two": colorize("(2)", color_func="Red_L"),
+            "three": colorize("(3)", color_func="Red_L"),
         }
-        print(
-            "Filter out nodes by:\n%(one)s state %(two)s number"
-            " %(three)s name substring or RegEx pattern"
-            % {
-                "one": colorize("(1)", color_func="Red_L"),
-                "two": colorize("(2)", color_func="Red_L"),
-                "three": colorize("(3)", color_func="Red_L"),
-            }
-        )
-        print(
-            "Filter in nodes by:\n(any) %(four)s state %(five)s number %(six)s name substring or RegEx pattern\n"
-            "(all) %(seven)s state %(eight)s number %(nine)s name substring or RegEx pattern %(ten)s queue"
-            % {
-                "four": colorize("(4)", color_func="Red_L"),
-                "five": colorize("(5)", color_func="Red_L"),
-                "six": colorize("(6)", color_func="Red_L"),
-                "seven": colorize("(7)", color_func="Red_L"),
-                "eight": colorize("(8)", color_func="Red_L"),
-                "nine": colorize("(9)", color_func="Red_L"),
-                "ten": colorize("(10)", color_func="Red_L"),
-            }
-        )
-        _disable_terminal_echo(new_attrs)
-        _set_terminal_attrs(old_attrs)
-
-        dynamic_config["filtering"] = []
-        while True:
-            filter_choice = input(
-                "\nChoose Filter command, or Enter to exit:-> ",
-            )
-            if not filter_choice:
-                break
-
-            try:
-                filter_choice = int(filter_choice)
-            except ValueError:
-                break
-            else:
-                if filter_choice not in filter_map:
-                    break
-
-            filter_args = []
-            while True:
-                user_input = input("\nEnter argument, or Enter to exit:-> ")
-                if not user_input:
-                    break
-                filter_args.append(user_input)
-
-            dynamic_config["filtering"].append({filter_map[filter_choice]: filter_args})
-
-        _set_terminal_attrs(new_attrs)
-        viewport.reset_display()
-
-    elif pressed_char_hex in ["48"]:  # H
-        cluster.wn_filter = cluster.WNFilter(cluster.worker_nodes)
-        filter_map = {
-            1: "or_include_user_id",
-            2: "or_include_user_pat",
-            3: "or_include_queue",
-            4: "include_user_id",
-            5: "include_user_pat",
-            6: "include_queue",
+    )
+    print(
+        "Filter in nodes by:\n(any) %(four)s state %(five)s number %(six)s name substring or RegEx pattern\n"
+        "(all) %(seven)s state %(eight)s number %(nine)s name substring or RegEx pattern %(ten)s queue"
+        % {
+            "four": colorize("(4)", color_func="Red_L"),
+            "five": colorize("(5)", color_func="Red_L"),
+            "six": colorize("(6)", color_func="Red_L"),
+            "seven": colorize("(7)", color_func="Red_L"),
+            "eight": colorize("(8)", color_func="Red_L"),
+            "nine": colorize("(9)", color_func="Red_L"),
+            "ten": colorize("(10)", color_func="Red_L"),
         }
-        print(
-            "Highlight cores by:\n"
-            "(any) %(one)s userID %(two)s user name (regex) %(three)s queue\n"
-            "(all) %(four)s userID %(five)s user name (regex) %(six)s queue"
-            % {
-                "one": colorize("(1)", color_func="Red_L"),
-                "two": colorize("(2)", color_func="Red_L"),
-                "three": colorize("(3)", color_func="Red_L"),
-                "four": colorize("(4)", color_func="Red_L"),
-                "five": colorize("(5)", color_func="Red_L"),
-                "six": colorize("(6)", color_func="Red_L"),
-            }
-        )
-        _disable_terminal_echo(new_attrs)
-        _set_terminal_attrs(old_attrs)
+    )
+    with menu_terminal(old_attrs, new_attrs):
+        settings["filtering"] = []
+        read_rule_choices("Filter", filter_map, settings["filtering"])
+    viewport.reset_display()
 
-        dynamic_config["highlight"] = []
-        while True:
-            filter_choice = input(
-                "\nChoose Highlight command, or Enter to exit:-> ",
-            )
-            if not filter_choice:
-                break
 
-            try:
-                filter_choice = int(filter_choice)
-            except ValueError:
-                break
-            else:
-                if filter_choice not in filter_map:
-                    break
+def choose_highlight(viewport, cluster, settings, old_attrs, new_attrs):
+    cluster.wn_filter = cluster.WNFilter(cluster.worker_nodes)
+    filter_map = {
+        1: "or_include_user_id",
+        2: "or_include_user_pat",
+        3: "or_include_queue",
+        4: "include_user_id",
+        5: "include_user_pat",
+        6: "include_queue",
+    }
+    print(
+        "Highlight cores by:\n"
+        "(any) %(one)s userID %(two)s user name (regex) %(three)s queue\n"
+        "(all) %(four)s userID %(five)s user name (regex) %(six)s queue"
+        % {
+            "one": colorize("(1)", color_func="Red_L"),
+            "two": colorize("(2)", color_func="Red_L"),
+            "three": colorize("(3)", color_func="Red_L"),
+            "four": colorize("(4)", color_func="Red_L"),
+            "five": colorize("(5)", color_func="Red_L"),
+            "six": colorize("(6)", color_func="Red_L"),
+        }
+    )
+    with menu_terminal(old_attrs, new_attrs):
+        settings["highlight"] = []
+        read_rule_choices("Highlight", filter_map, settings["highlight"])
+    viewport.reset_display()
 
-            filter_args = []
-            while True:
-                user_input = input("\nEnter argument, or Enter to exit:-> ")
-                if not user_input:
-                    break
-                filter_args.append(user_input)
 
-            dynamic_config["highlight"].append({filter_map[filter_choice]: filter_args})
-
-        _set_terminal_attrs(new_attrs)
+def control_qtop(viewport, read_char, cluster, old_attrs, new_attrs):
+    if navigate_viewport(viewport, read_char, colorize):
+        pass
+    elif read_char == "t":  # t
+        print("%s Transposing matrix..." % colorize("***", "Green_L"))
+        dynamic_config["transpose_wn_matrices"] = not dynamic_config.get("transpose_wn_matrices", config["transpose_wn_matrices"])
         viewport.reset_display()
 
-    elif pressed_char_hex in ["3f"]:  # ?
+    elif read_char == "Q":  # Q
+        dynamic_config["queue_summary_expanded"] = not dynamic_config.get("queue_summary_expanded", getattr(args, "EXPAND_QUEUES", False))
+
+    elif read_char == "m":  # m
+        new_mapping, msg = next(change_mapping)
+        dynamic_config["core_coloring"] = new_mapping
+        print("%s Changing to %s" % (colorize("***", "Green_L"), msg))
+
+    elif read_char == "q":  # q
+        print(colorize("\nExiting. Thank you for ..watching ;)\n", "Cyan_L"))
+        sys.exit(0)
+
+    elif read_char == "F":  # F
+        dynamic_config["force_names"] = not dynamic_config["force_names"]
+        print("%s Toggling full-name/incremental nr WN labels" % colorize("***", "Green_L"))
+
+    elif read_char == "s":  # s
+        choose_sort(viewport, dynamic_config, old_attrs, new_attrs)
+
+    elif read_char == "f":  # f
+        choose_filter(viewport, cluster, dynamic_config, old_attrs, new_attrs)
+
+    elif read_char == "H":  # H
+        choose_highlight(viewport, cluster, dynamic_config, old_attrs, new_attrs)
+
+    elif read_char == "?":  # ?
         viewport.reset_display()
         print("%s opening help..." % colorize("***", "Green_L"))
         if not next(h_counter) % 2:  # enter helpfile
@@ -763,7 +666,7 @@ def control_qtop(viewport, read_char, cluster, old_attrs, new_attrs):
         else:  # exit helpfile
             del dynamic_config["output_fp"]
 
-    elif pressed_char_hex in ["72"]:  # r
+    elif read_char == "r":  # r
         logging.debug("toggling corelines displayed")
         dynamic_config["rem_empty_corelines"] = (dynamic_config.get("rem_empty_corelines", config["rem_empty_corelines"]) + 1) % 3
         if dynamic_config["rem_empty_corelines"] == 1:
@@ -1242,7 +1145,6 @@ class WNOccupancy(object):
                 "%s lines in the matrix are not supported for %s systems. Please remove appropriate lines from conf file. Exiting..." % (part_name, config["scheduler"])
             )
 
-            web.stop()
             sys.exit(1)
         min_len = min(user_max_len, real_max_len)
         if real_max_len > user_max_len:
@@ -1446,70 +1348,6 @@ class WNOccupancy(object):
     @staticmethod
     def coreline_notthere_or_unused(symbol, switch, delta, core_x_str):
         return WNOccupancy.coreline_not_there(symbol, switch, delta, core_x_str) or WNOccupancy.coreline_unused(symbol, switch, delta, core_x_str)
-
-
-JobDoc = namedtuple("JobDoc", ["user_name", "job_state", "job_queue"])
-QDoc = namedtuple("QDoc", ["lm", "queued", "run", "state"])
-
-
-class Document(namedtuple("Document", ["worker_nodes", "jobs_dict", "queues_dict", "total_running_jobs", "total_queued_jobs"])):
-    if TYPE_CHECKING:
-        _job_metadata: Dict[str, contracts.Job]
-        _diagnostics: Dict[str, Dict[str, int]]
-
-    @classmethod
-    def from_cluster_state(cls, cluster_state: "contracts.ClusterState") -> "Document":
-        validate_cluster_state(cluster_state)
-        totals = cluster_state_totals(cluster_state)
-        jobs_dict = OrderedDict((job["id"], JobDoc(job["user"], job["state"], job["queue"])) for job in cluster_state["jobs"])
-        queues_dict = OrderedDict(
-            (
-                queue["name"],
-                QDoc(str(queue["limit"]), str(queue["queued"]), str(queue["running"]), queue["state"]),
-            )
-            for queue in cluster_state["queues"]
-        )
-        document = cls(
-            copy.deepcopy(cluster_state["nodes"]),
-            jobs_dict,
-            queues_dict,
-            totals["running_jobs"],
-            totals["queued_jobs"],
-        )
-        document._job_metadata = {job["id"]: copy.deepcopy(job) for job in cluster_state["jobs"]}
-        document._diagnostics = {key: cast("Dict[str, int]", copy.deepcopy(value)) for key, value in cluster_state.items() if key.endswith("_diagnostics")}
-        return document
-
-    def to_cluster_state(self) -> "contracts.ClusterState":
-        state: "contracts.ClusterState" = {
-            "jobs": [
-                {
-                    **getattr(self, "_job_metadata", {}).get(job_id, {}),
-                    "id": job_id,
-                    "user": job.user_name,
-                    "state": job.job_state,
-                    "queue": job.job_queue,
-                }
-                for job_id, job in self.jobs_dict.items()
-            ],
-            "nodes": copy.deepcopy(self.worker_nodes),
-            "queues": [
-                {
-                    "name": queue_name,
-                    "limit": queue.lm,
-                    "queued": int(queue.queued),
-                    "running": int(queue.run),
-                    "state": queue.state,
-                }
-                for queue_name, queue in self.queues_dict.items()
-            ],
-        }
-        cast("Dict[str, object]", state).update(copy.deepcopy(getattr(self, "_diagnostics", {})))
-        return state
-
-    def save(self, filename: str, cluster_state: "Optional[contracts.ClusterState]" = None) -> None:
-        with open(filename, "w") as outfile:
-            json.dump(self.to_cluster_state() if cluster_state is None else cluster_state, outfile)
 
 
 class TextDisplay(object):
@@ -1878,16 +1716,7 @@ class TextDisplay(object):
                 try:
                     print(core_line_zipped)
                 except IOError:
-                    try:
-                        reset_sigpipe()
-                        print(core_line_zipped)
-                        sys.stdout.close()
-                    except IOError:
-                        return
-                    try:
-                        sys.stderr.close()
-                    except IOError:
-                        return
+                    return
 
     def display_wnid_lines(self, start, stop, highest_wn, wn_vert_labels, **kwargs):
         """
@@ -2484,11 +2313,72 @@ def report_operational_error(error):
         traceback.print_exc(file=sys.stderr)
 
 
-def cli_main():
-    original_stdout = sys.stdout
-    original_cwd = os.getcwd()
+def collect_snapshot(args, config, backend, trace_paths, archive):
+    """Collect one normalized snapshot, including replay and masking."""
+    scheduler = backend.get_mnemonic()
+    savepath = config["savepath"]
+    scheduling_system: "contracts.Scheduler"
     try:
-        return main() or 0
+        if args.load_sample:
+            cluster_state = args.sample_snapshot["state"]
+        elif args.SAMPLE and args.ANONYMIZE:
+            # Collect originals only in memory so all backends share one mapping.
+            capture_args = copy.copy(args)
+            capture_args.ANONYMIZE = False
+            scheduling_system = backend(trace_paths, config, capture_args)
+            cluster_state = scheduling_system.get_cluster_state(capture_args)
+            cluster_state, mappings = sample.anonymize_state(cluster_state)
+            config, omitted = sample.sanitize_config(config, mappings)
+            snapshot_config = copy.deepcopy(config)
+            config["savepath"] = savepath
+            args.GET_GECOS = False
+            args.SHOW_GROUPS = False
+            if archive is None:
+                raise OperationalError("Support archive was not initialized.")
+            sample.save_snapshot(archive, cluster_state, snapshot_config, args, scheduler, __version__, omitted)
+            if args.masked_traces:
+                from qtop_py.source_trace import save_masked_traces
+
+                save_masked_traces(archive, scheduling_system, trace_paths, mappings)
+        else:
+            scheduling_system = backend(trace_paths, config, args)
+            cluster_state = scheduling_system.get_cluster_state(args)
+    except (ValueError, UnicodeError, ParseError) as error:
+        raise OperationalError("Cannot parse %s scheduler input in %s: %s" % (scheduler, args.workdir, error)) from error
+    return Document.from_cluster_state(cluster_state), config
+
+
+def export_snapshot(document, args, savepath, timestr, web):
+    if args.EXPORT or args.WEB:
+        with tempfile.NamedTemporaryFile(delete=False, prefix="qtop_json_%s_" % timestr, suffix=".json", dir=savepath) as json_file:
+            json_filename = json_file.name
+        try:
+            document.save(json_filename)
+        except BaseException:
+            with contextlib.suppress(OSError):
+                os.unlink(json_filename)
+            raise
+    if args.WEB:
+        web.set_filename(json_filename)
+
+
+def prepare_refresh(document, config, args, nodestate_to_color):
+    worker_nodes = keep_queue_initials_only_and_colorize(document.worker_nodes, queue_to_color)
+    worker_nodes = colorize_nodestate(worker_nodes, nodestate_to_color, colorize)
+    return Cluster(document, worker_nodes, WNFilter, config, args)
+
+
+def render_refresh(document, cluster, config, args, viewport, user_to_color, savepath, sample_filename, logfile):
+    occupancy = WNOccupancy(cluster, config, document, user_to_color, list(document.jobs_dict))
+    display = TextDisplay(document, config, viewport, occupancy, cluster, args)
+    display.display_selected_sections(savepath, sample_filename, logfile)
+    return display
+
+
+def cli_main():
+    try:
+        with RunResources() as resources:
+            return main(resources) or 0
     except (InvalidScheduler, NoSchedulerFound, SchedulerNotSpecified) as error:
         message = cli_error_message(error)
         if message:
@@ -2497,18 +2387,9 @@ def cli_main():
     except (OperationalError, OSError) as error:
         report_operational_error(error)
         return 1
-    finally:
-        if sys.stdout is not original_stdout:
-            with contextlib.suppress(OSError):
-                sys.stdout.close()
-            sys.stdout = original_stdout
-        workspace = getattr(globals().get("args"), "source_workspace", None)
-        if workspace is not None:
-            os.chdir(original_cwd)
-            workspace.cleanup()
 
 
-def main():
+def main(resources):
     # define global vars which are used out of scope
     global \
         CURPATH, \
@@ -2529,11 +2410,12 @@ def main():
         web, \
         document
 
-    args = utils.parse_qtop_cmdline_args()
+    args = resources.options = utils.parse_qtop_cmdline_args()
     if args.version:
         print("qtop current version: " + __version__)
         sys.exit(0)
     utils.init_logging(args)
+    resources.logfile = QTOP_LOGFILE
     dynamic_config = dict()
     args, dynamic_config["force_names"] = process_args(args)
     require_experimental_opt_in(args)
@@ -2565,11 +2447,9 @@ def main():
 
     available_batch_systems = discover_qtop_batch_systems()
 
-    stdout = sys.stdout  # keep a copy of the initial value of sys.stdout
+    stdout = resources.stdout
     change_mapping = cycle([("queue_to_color", "color by queue"), ("user_to_color", "color by user")])
     h_counter = cycle([0, 1])
-    tar_out = None
-    capture_paths = OrderedDict()
 
     viewport = Viewport()  # controls the part of the qtop matrix shown on screen
     max_line_len = 0
@@ -2598,7 +2478,7 @@ def main():
             raise OperationalError("Invalid configuration in %s: %s" % (args.CONFFILE or QTOPCONF_YAML, error or type(error).__name__)) from error
         useful_frames, args.REPLAY = pick_frames_to_replay(config["savepath"])
 
-    web = Web(initial_cwd)
+    web = resources.web = Web(initial_cwd)
     if args.WEB:
         web.start()
 
@@ -2619,86 +2499,25 @@ def main():
                     viewport.set_term_size(500, 9999)
                 else:
                     viewport.set_term_size(*calculate_term_size(config, FALLBACK_TERMSIZE, viewport))
-                # qtop output is saved here
-                handle, output_fp = fileutils.get_new_temp_file(savepath, prefix="qtop_fullview_%s_" % timestr, suffix=".out")
-                help_main_switch.append(output_fp)
-                sys.stdout = os.fdopen(handle, "w")  # redirect everything to file, creates file object out of handle
-                scheduler = (
-                    args.sample_snapshot["scheduler"]
-                    if args.load_sample
-                    else decide_batch_system(args.BATCH_SYSTEM, os.environ.get("QTOP_SCHEDULER"), config["scheduler"], config["schedulers"], available_batch_systems, config)
-                )
-                scheduler_output_filenames = {} if args.load_sample else fetch_scheduler_files(args, config, available_batch_systems[scheduler])
-                SAMPLE_FILENAME = fileutils.get_sample_filename(SAMPLE_FILENAME, config)
-                if args.SAMPLE:
-                    tar_out = fileutils.init_sample_file(args, savepath, SAMPLE_FILENAME, scheduler_output_filenames, QTOPCONF_YAML, QTOPPATH)
-                    capture_paths[tar_out.name] = "Sample files saved in"
-                    if args.SAMPLE >= 2 and not args.ANONYMIZE:
-                        sample.add_json(tar_out, "qtop-effective-config.json", config)
-                    if args.raw_companion:
-                        companion = fileutils.save_raw_companion(savepath, scheduler_output_filenames)
-                        capture_paths[companion] = "PRIVATE unmasked scheduler traces:"
-
-                ###### Gather data ###############
-                #
-                scheduling_system: "contracts.Scheduler" = available_batch_systems[scheduler](scheduler_output_filenames, config, args)
-
-                try:
-                    if args.load_sample:
-                        cluster_state = copy.deepcopy(args.sample_snapshot["state"])
-                    elif args.SAMPLE and args.ANONYMIZE:
-                        # Collect originals only in memory so all backends share one mapping.
-                        capture_args = copy.copy(args)
-                        capture_args.ANONYMIZE = False
-                        scheduling_system = available_batch_systems[scheduler](scheduler_output_filenames, config, capture_args)
-                        cluster_state = scheduling_system.get_cluster_state(capture_args)
-                        cluster_state, mappings = sample.anonymize_state(cluster_state)
-                        config, omitted = sample.sanitize_config(config, mappings)
-                        snapshot_config = copy.deepcopy(config)
-                        config["savepath"] = savepath
-                        args.GET_GECOS = False
-                        args.SHOW_GROUPS = False
+                with resources.frame(savepath, timestr) as output_fp:
+                    help_main_switch.append(output_fp)
+                    scheduler = (
+                        args.sample_snapshot["scheduler"]
+                        if args.load_sample
+                        else decide_batch_system(args.BATCH_SYSTEM, os.environ.get("QTOP_SCHEDULER"), config["scheduler"], config["schedulers"], available_batch_systems, config)
+                    )
+                    backend = available_batch_systems[scheduler]
+                    trace_paths = {} if args.load_sample else fetch_scheduler_files(args, config, backend)
+                    SAMPLE_FILENAME = fileutils.get_sample_filename(SAMPLE_FILENAME, config)
+                    resources.start_capture(savepath, SAMPLE_FILENAME, trace_paths, config, QTOPPATH)
+                    document, config = collect_snapshot(args, config, backend, trace_paths, resources.archive)
+                    if args.SAMPLE and args.ANONYMIZE:
                         user_to_color = user_to_color_default.copy()
                         for rule in config["user_color_mappings"]:
                             user_to_color.update(rule)
-                        if tar_out is None:
-                            raise OperationalError("Support archive was not initialized.")
-                        sample.save_snapshot(tar_out, cluster_state, snapshot_config, args, scheduler, __version__, omitted)
-                        if args.masked_traces:
-                            from qtop_py.source_trace import save_masked_traces
-
-                            save_masked_traces(tar_out, scheduling_system, scheduler_output_filenames, mappings)
-                    else:
-                        cluster_state = scheduling_system.get_cluster_state(args)
-                except (ValueError, UnicodeError, ParseError) as error:
-                    raise OperationalError("Cannot parse %s scheduler input in %s: %s" % (scheduler, args.workdir, error)) from error
-                document = Document.from_cluster_state(cluster_state)
-                job_ids = [job["id"] for job in cluster_state["jobs"]]
-
-                ###### Export data ###############
-                #
-                if args.EXPORT or args.WEB:
-                    with tempfile.NamedTemporaryFile(delete=False, prefix="qtop_json_%s_" % timestr, suffix=".json", dir=savepath) as json_file:
-                        json_filename = json_file.name
-                    document.save(json_filename, cluster_state)
-                if args.WEB:
-                    web.set_filename(json_filename)
-
-                ###### Process data ###############
-                #
-                worker_nodes = keep_queue_initials_only_and_colorize(document.worker_nodes, queue_to_color)
-                worker_nodes = colorize_nodestate(worker_nodes, nodestate_to_color, colorize)
-                cluster = Cluster(document, worker_nodes, WNFilter, config, args)
-                wns_occupancy = WNOccupancy(cluster, config, document, user_to_color, job_ids)
-
-                ###### Display data ###############
-                #
-                display = TextDisplay(document, config, viewport, wns_occupancy, cluster, args)
-                display.display_selected_sections(savepath, SAMPLE_FILENAME, QTOP_LOGFILE)
-
-                sys.stdout.flush()
-                sys.stdout.close()
-                sys.stdout = stdout  # sys.stdout is back to its normal function (i.e. prints to screen)
+                    export_snapshot(document, args, savepath, timestr, web)
+                    cluster = prepare_refresh(document, config, args, nodestate_to_color)
+                    display = render_refresh(document, cluster, config, args, viewport, user_to_color, savepath, SAMPLE_FILENAME, QTOP_LOGFILE)
 
                 viewport.max_height, max_line_len = get_output_size(max_line_len, output_fp)
 
@@ -2728,31 +2547,13 @@ def main():
 
                 help_main_switch.pop()
                 os.chdir(QTOPPATH)
-                os.unlink(output_fp)
+                resources.discard_frame()
                 fileutils.deprecate_old_output_files(config)
 
-            if args.SAMPLE and tar_out is not None:
-                tar_out = fileutils.add_to_sample([output_fp], tar_out)
-
-        except (KeyboardInterrupt, EOFError) as e:
-            repr(e)
-            if args.SAMPLE and args.ANONYMIZE:
-                raise SystemExit(0)
-            fileutils.safe_exit_with_file_close(handle, output_fp, stdout, args, savepath, QTOP_LOGFILE, SAMPLE_FILENAME)
-        finally:
-            web.stop()
-            if args.SAMPLE >= 1 and tar_out is not None:
-                if not args.ANONYMIZE:
-                    tar_out = fileutils.add_to_sample([QTOP_LOGFILE], tar_out)
-                # Raw scheduler output can contain identifiers that qtop cannot
-                # safely rewrite in every vendor-specific format.
-                if not args.ANONYMIZE:
-                    for fn in scheduler_output_filenames:
-                        if os.path.isfile(scheduler_output_filenames[fn]):
-                            tar_out = fileutils.add_to_sample([scheduler_output_filenames[fn]], tar_out)
-                tar_out.close()
-            for path, label in capture_paths.items():
-                sys.stderr.write("%s %s\n" % (label, path))
+        except (KeyboardInterrupt, EOFError):
+            if not (args.SAMPLE and args.ANONYMIZE):
+                print("\nExiting. Thank you for ...watching ;)\n")
+            raise SystemExit(0)
 
 
 if __name__ == "__main__":

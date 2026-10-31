@@ -85,7 +85,7 @@ def test_color_mapping_and_empty_coreline_modes_cycle(controls):
         assert qtop.dynamic_config["rem_empty_corelines"] == expected
 
 
-def test_help_returns_to_cluster_and_quit_stops_web(controls):
+def test_help_returns_to_cluster_and_quit_leaves_cleanup_to_owner(controls):
     press(controls, "?")
     assert qtop.dynamic_config["output_fp"] == "help.txt"
     press(controls, "?")
@@ -93,7 +93,7 @@ def test_help_returns_to_cluster_and_quit_stops_web(controls):
     with pytest.raises(SystemExit) as stopped:
         press(controls, "q")
     assert stopped.value.code == 0
-    controls[2].stop.assert_called_once_with()
+    controls[2].stop.assert_not_called()
 
 
 @pytest.mark.parametrize("answers, expected", ((["invalid", "31"], ["sort by all numbers", "sort by nodename-notnum"]), ([""], [])))
@@ -134,3 +134,25 @@ def test_filter_and_highlight_menus_cancel_invalid_commands(controls, monkeypatc
     monkeypatch.setattr(qtop, "_set_terminal_attrs", Mock())
     press(controls, key)
     assert qtop.dynamic_config[setting] == []
+
+
+@pytest.mark.parametrize("key", ["s", "f", "H"])
+@pytest.mark.parametrize("failure", [EOFError, KeyboardInterrupt])
+def test_menu_interruption_restores_terminal(controls, monkeypatch, key, failure):
+    def interrupt(*args):
+        raise failure()
+
+    monkeypatch.setattr("builtins.input", interrupt)
+    terminal = Mock()
+    monkeypatch.setattr(qtop, "_set_terminal_attrs", terminal)
+    with pytest.raises(failure):
+        press(controls, key)
+    assert terminal.call_count == 2
+    assert terminal.call_args[0] == ([0, 0, 0, 0],)
+
+
+def test_unknown_key_leaves_view_and_settings_unchanged(controls):
+    before = dict(qtop.dynamic_config)
+    press(controls, "z")
+    assert (controls[0].v_start, controls[0].h_start) == (20, 30)
+    assert qtop.dynamic_config == before

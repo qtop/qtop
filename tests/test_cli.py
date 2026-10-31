@@ -297,7 +297,7 @@ def test_cli_permission_error_restores_output(monkeypatch, capsys):
     original = sys.stdout
     redirected = io.StringIO()
 
-    def fail():
+    def fail(_resources):
         sys.stdout = redirected
         raise PermissionError(13, "Permission denied", "/restricted/trace")
 
@@ -311,7 +311,7 @@ def test_cli_permission_error_restores_output(monkeypatch, capsys):
 def test_cli_does_not_hide_unexpected_programming_errors(monkeypatch):
     from qtop_py import qtop
 
-    def fail():
+    def fail(_resources):
         raise RuntimeError("programming defect")
 
     monkeypatch.setattr(qtop, "main", fail)

@@ -130,3 +130,25 @@ def test_mixed_accounting_metadata_is_rejected():
     state["jobs"].append(dict(state["jobs"][0], id="43", accounting_state="running"))
     with pytest.raises(ValueError, match="all jobs or none"):
         validate_cluster_state(state)
+
+
+def test_document_owns_lossless_state_independently_of_input_and_rendering_views(tmp_path):
+    import copy
+
+    state = sample_state()
+    state["jobs"][0]["slurm_tres_alloc"] = "cpu=2,gres/gpu=1"
+    state["queues"][0]["site_description"] = "retained metadata"
+    state["slurm_diagnostics"] = {"jobs_with_missing_nodes": 1}
+    expected = copy.deepcopy(state)
+    document = Document.from_cluster_state(state)
+    state["jobs"][0]["user"] = "changed input"
+    document.worker_nodes[0]["qname"].append("render-only queue")
+    document.jobs_dict.clear()
+    document.queues_dict.clear()
+    exported = document.to_cluster_state()
+    assert exported == expected
+    exported["nodes"][0]["qname"].append("changed export")
+    assert document.to_cluster_state() == expected
+    path = tmp_path / "state.json"
+    document.save(str(path))
+    assert json.loads(path.read_text()) == expected
