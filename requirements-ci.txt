@@ -20,8 +20,9 @@ pygments==2.21.0
 pytest==8.4.2; python_version < "3.10"
 pytest==9.1.1; python_version >= "3.10"
 ruff==0.17.1
-setuptools==82.0.1; python_version < "3.12"
-setuptools==84.2.0; python_version >= "3.12"
+# Patched setuptools requires Python 3.10+; 3.9 retains its compatible backend.
+setuptools==82.0.1; python_version < "3.10"
+setuptools==84.2.0; python_version >= "3.10"
 wheel==0.45.1; python_version < "3.12"
 tomli==2.5.0
 ty==0.0.89; python_version >= "3.12"

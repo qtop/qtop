@@ -48,9 +48,21 @@ Neither path requires an external coverage service.
 ## Nightly compatibility lanes
 
 Both nightly matrices use `ci/scripts/matrix_lane.sh` and the shared CI pins.
-Python 3.9-3.11 installs setuptools 82.0.1 and wheel 0.45.1 so the installation
+Python 3.9 installs setuptools 82.0.1; Python 3.10+ uses patched setuptools
+84.2.0. Python 3.9-3.11 also installs wheel 0.45.1 so the installation
 check uses a backend that supports the project's PEP 639 license metadata,
 instead of inheriting an older distro backend.
+
+The Python 3.10+ build requirement is setuptools >=84.1.0 for
+[GHSA-xmj3-9gf7-h52w](https://github.com/pypa/setuptools/security/advisories/GHSA-xmj3-9gf7-h52w).
+Patched setuptools requires Python >=3.10. Python 3.6-3.8 therefore retains
+59.6.0 and Python 3.9 retains 82.0.1; these versions remain in the advisory's
+affected range and may still trigger dependency alerts. The advisory concerns
+Windows legacy wheel installation via `setup_requires` outside a PEP 517
+frontend. qtop declares no `setup_requires`, uses PEP 517 for its package
+installation checks, and runs legacy compatibility CI on Linux. This scope
+limits exposure; the retained versions are not patched. Setuptools is a build
+dependency, not a qtop runtime dependency.
 
 Three PyPy lanes are commented out with FIXMEs following
 [run 39755187632](https://github.com/qtop/qtop/actions/runs/39755187632):
