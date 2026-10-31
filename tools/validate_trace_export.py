@@ -101,8 +101,7 @@ def render_document(document, show_account_totals=False, color="OFF", term_heigh
     qtop.dynamic_config = {"force_names": 1}
     qtop.scheduler = "slurm"
 
-    config, user_to_color, nodestate_to_color = qtop.load_yaml_config()
-    config = qtop.update_config_with_cmdline_vars(args, config)
+    config, user_to_color, nodestate_to_color = qtop.configuration.load_yaml_config(args, str(ROOT), os.getcwd(), qtop.SYSTEMCONFDIR, qtop.USERPATH)
     config["extract_info"] = None
     qtop.config = config
     qtop.user_to_color = user_to_color

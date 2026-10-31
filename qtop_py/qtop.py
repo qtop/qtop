@@ -47,7 +47,6 @@ import logging
 import tempfile
 import time
 import traceback
-from ast import literal_eval
 from math import ceil, isfinite
 from typing import TYPE_CHECKING, Optional, cast
 
@@ -59,21 +58,20 @@ if TYPE_CHECKING:
     config: contracts.Config
     dynamic_config: contracts.Config
 
-from qtop_py import __version__, fileutils, sample, utils
+from qtop_py import __version__, configuration, fileutils, sample, utils
 from qtop_py import yaml_parser as yaml
 from qtop_py.cluster_state import cluster_state_totals, validate_cluster_state
-from qtop_py.colormap import color_to_code, nodestate_to_color_default, queue_to_color, user_to_color_default
-from qtop_py.configuration import validate_config
+from qtop_py.colormap import color_to_code, queue_to_color, user_to_color_default
 from qtop_py.constants import (
     FALLBACK_TERMSIZE,
     KEYPRESS_TIMEOUT,
     QTOP_LOGFILE,
     QTOPCONF_YAML,
     SYMBOL_LONG_TAIL_USER,
-    SYMBOL_UNKNOWN_NODE_STATE,
     SYSTEMCONFDIR,
     USERPATH,
 )
+from qtop_py.errors import OperationalError
 from qtop_py.plugins.demo import DemoBatchSystem
 from qtop_py.plugins.oar import OARBatchSystem
 from qtop_py.plugins.pbs import PBSBatchSystem
@@ -104,30 +102,6 @@ def _set_terminal_attrs(attrs):
         termios.tcsetattr(sys.__stdin__.fileno(), termios.TCSADRAIN, attrs)
 
 
-def _configured_separator(config):
-    separator = config.get("SEPARATOR", config.get("vertical_separator", "|"))
-    return separator.replace("'", "") if isinstance(separator, str) else separator
-
-
-def _reserved_user_symbols(config):
-    return set(
-        symbol
-        for symbol in (
-            config.get("non_existent_node_symbol", "#"),
-            _configured_separator(config),
-            "_",
-            SYMBOL_LONG_TAIL_USER,
-            SYMBOL_UNKNOWN_NODE_STATE,
-        )
-        if symbol
-    )
-
-
-def _available_possible_ids(config):
-    reserved_symbols = _reserved_user_symbols(config)
-    return [symbol for symbol in config["possible_ids"] if symbol not in reserved_symbols]
-
-
 def _reserved_pattern_mappings(config):
     """Return display symbols that must never be interpreted as user patterns."""
     return {
@@ -138,8 +112,7 @@ def _reserved_pattern_mappings(config):
     }
 
 
-def scheduler_backend(name=None):
-    name = name or globals().get("scheduler")
+def scheduler_backend(name):
     return next((backend for backend in PLUGIN_BATCH_SYSTEMS if backend.get_mnemonic() == name), GenericBatchSystem)
 
 
@@ -159,33 +132,6 @@ def compress_colored_line(value):
     """Coalesce adjacent characters that use the same ANSI color code."""
     color_char_pairs = [item for item in re.split(r"\x1b\[0;m", value) if item]
     return "".join(color + "".join(item[-1] for item in items) + "\x1b[0;m" for color, items in groupby(color_char_pairs, key=lambda item: item[:-1]))
-
-
-def literal_config_value(value):
-    try:
-        return literal_eval(value)
-    except (ValueError, SyntaxError, TypeError):
-        return value
-
-
-def normalize_config(raw_config):
-    """Return a runtime-ready configuration without mutating parser output."""
-    config = copy.deepcopy(raw_config)
-    config["possible_ids"] = list(config["possible_ids"])
-    for key in (
-        "transpose_wn_matrices",
-        "fill_with_user_firstletter",
-        "faster_xml_parsing",
-        "vertical_separator_every_X_columns",
-        "overwrite_sample_file",
-    ):
-        config[key] = literal_config_value(config[key])
-    config["sorting"]["reverse"] = literal_config_value(config["sorting"].get("reverse", "0"))
-    wn_id_lines = config["workernodes_matrix"][0]["wn id lines"]
-    config["ALT_LABEL_COLORS"] = yaml.fix_config_list(wn_id_lines["alt_label_colors"])
-    config["SEPARATOR"] = config["vertical_separator"].replace("'", "")
-    config["USER_CUT_MATRIX_WIDTH"] = int(wn_id_lines["user_cut_matrix_width"])
-    return config
 
 
 def extract_regex_detail(regex, field):
@@ -271,91 +217,6 @@ def raw_mode(file):
             yield
 
 
-def load_yaml_config():
-    """
-    Loads ./QTOPCONF_YAML into a dictionary and then tries to update the dictionary
-    with the same-named conf file found in:
-    /env
-    $HOME/.local/qtop/
-    in that order.
-    """
-    if getattr(args, "load_sample", None):
-        return prepare_config(copy.deepcopy(args.sample_snapshot["config"]))
-    config = yaml.parse(os.path.join(os.path.realpath(QTOPPATH), QTOPCONF_YAML))
-    logging.info("Default configuration dictionary loaded. Length: %s items" % len(config))
-
-    try:
-        config_env = yaml.parse(os.path.join(SYSTEMCONFDIR, QTOPCONF_YAML))
-    except FileNotFoundError:
-        config_env = {}
-        logging.info("%s could not be found in %s/" % (QTOPCONF_YAML, SYSTEMCONFDIR))
-    else:
-        logging.info("Env %s found in %s/" % (QTOPCONF_YAML, SYSTEMCONFDIR))
-        logging.info("Env configuration dictionary loaded. Length: %s items" % len(config_env))
-
-    try:
-        config_user = yaml.parse(os.path.join(USERPATH, QTOPCONF_YAML))
-    except FileNotFoundError:
-        config_user = {}
-        logging.info("User %s could not be found in %s/" % (QTOPCONF_YAML, USERPATH))
-    else:
-        logging.info("User %s found in %s/" % (QTOPCONF_YAML, USERPATH))
-        logging.info("User configuration dictionary loaded. Length: %s items" % len(config_user))
-
-    config.update(config_env)
-    config.update(config_user)
-
-    if args.CONFFILE:
-        try:
-            config_user_custom = yaml.parse(os.path.join(USERPATH, args.CONFFILE))
-        except FileNotFoundError:
-            try:
-                config_user_custom = yaml.parse(os.path.join(CURPATH, args.CONFFILE))
-            except FileNotFoundError as error:
-                raise OperationalError("Custom configuration file %s was not found in %s/ or %s/." % (args.CONFFILE, USERPATH, CURPATH)) from error
-            else:
-                logging.info("Custom User %s found in %s/" % (QTOPCONF_YAML, CURPATH))
-                logging.info("Custom User configuration dictionary loaded. Length: %s items" % len(config_user_custom))
-        else:
-            logging.info("Custom User %s found in %s/" % (QTOPCONF_YAML, USERPATH))
-            logging.info("Custom User configuration dictionary loaded. Length: %s items" % len(config_user_custom))
-        config.update(config_user_custom)
-
-    logging.info("Updated main dictionary. Length: %s items" % len(config))
-
-    return prepare_config(config)
-
-
-def prepare_config(config):
-    validate_config(config)
-    config = normalize_config(config)
-
-    if config["user_color_mappings"]:
-        user_to_color = user_to_color_default.copy()
-        [user_to_color.update(d) for d in config["user_color_mappings"]]
-    else:
-        config["user_color_mappings"] = list()
-        user_to_color = user_to_color_default.copy()
-
-    if config["nodestate_color_mappings"]:
-        nodestate_to_color = nodestate_to_color_default.copy()
-        [nodestate_to_color.update(d) for d in config["nodestate_color_mappings"]]
-    else:
-        config["nodestate_color_mappings"] = list()
-        nodestate_to_color = nodestate_to_color_default.copy()
-
-    if config["remapping"]:
-        pass
-    else:
-        config["remapping"] = list()
-    config["possible_ids"] = _available_possible_ids(config)
-
-    config["savepath"] = fileutils.private_save_directory(config["savepath"])
-    logging.debug("%s files will be saved in directory %s.", config["scheduler"], config["savepath"])
-
-    return config, user_to_color, nodestate_to_color
-
-
 def calculate_term_size(config, FALLBACK_TERM_SIZE, viewport):
     """
     Gets the dimensions of the terminal window where qtop will be displayed.
@@ -406,7 +267,7 @@ def calculate_term_size(config, FALLBACK_TERM_SIZE, viewport):
     return term_height, term_columns
 
 
-def finalize_filepaths_schedulercommands(args, config):
+def finalize_filepaths_schedulercommands(args, config, backend):
     """
     returns a dictionary with contents of the form
     {fn : (filepath, schedulercommand)}, e.g.
@@ -417,30 +278,28 @@ def finalize_filepaths_schedulercommands(args, config):
     """
     d = dict()
     fn_append = "_" + str(os.getpid()) if not args.SOURCEDIR else ""
-    for fn, path_command in config["schedulers"][scheduler].items():
+    for fn, path_command in config["schedulers"][backend.get_mnemonic()].items():
         path, command = path_command.strip().split(", ", 1)
         path = path % {"savepath": args.workdir, "pid": fn_append}
         # Slurm format codes stay copyable; accept legacy escaped percent signs.
         command = command.replace("%%", "%").replace("%(savepath)s", args.workdir)
-        command = scheduler_backend().collection_command(fn, command, args)
+        command = backend.collection_command(fn, command, args)
         d[fn] = (path, command)
     return d
 
 
-def auto_get_avail_batch_system(config):
+def auto_get_avail_batch_system(config, backends):
     """
     If the auto option is set in either env variable QTOP_SCHEDULER, QTOPCONF_YAML or in cmdline switch -b,
     qtop tries to determine which of the known batch commands are available in the current system.
     """
     signature_commands = config["signature_commands"]
-    backends = discover_qtop_batch_systems()
     prioritized_commands = sorted(signature_commands.items(), key=lambda item: backends.get(item[0], GenericBatchSystem).detection_priority)
     for system, batch_command in prioritized_commands:
-        if not shutil.which(batch_command):
+        if system not in backends or backends[system].is_simulated or not shutil.which(batch_command):
             continue
-        if not backends.get(system, GenericBatchSystem).is_simulated:
-            logging.debug("Auto-detected scheduler: %s" % system)
-            return system
+        logging.debug("Auto-detected scheduler: %s", system)
+        return system
 
     raise SchedulerNotSpecified
 
@@ -525,7 +384,7 @@ def execute_shell_batch_commands(batch_system_commands, filenames, _file, _savep
                 os.unlink(tempname)
 
 
-def get_detail_of_name(account_jobs_table):
+def get_detail_of_name(account_jobs_table, config, args):
     """
     Reads file $HOME/.local/qtop/getent_passwd.txt or whatever is put in QTOPCONF_YAML
     and extracts the fullname of the users. This shall be printed in User Accounts
@@ -606,14 +465,13 @@ def get_primary_group_names(account_jobs_table):
     return dict((user, group) for user, group in groups if group)
 
 
-def get_input_filenames(INPUT_FNs_commands, config):
+def get_input_filenames(INPUT_FNs_commands, config, args, backend):
     """
     If the user didn't specify --via the -s switch-- a dir where ready-made data files already exist,
     the appropriate batch commands are executed, as indicated in QTOPCONF,
     and results are saved with the respective filenames.
     """
 
-    backend = scheduler_backend()
     filenames = dict()
     batch_system_commands = dict()
     for _file in INPUT_FNs_commands:
@@ -641,13 +499,6 @@ def get_input_filenames(INPUT_FNs_commands, config):
             if key not in filenames and os.path.isfile(detail_path):
                 filenames[key] = detail_path
     return filenames
-
-
-def get_key_val_from_option_string(string):
-    key, separator, val = string.partition("=")
-    if not separator or not key.strip():
-        raise OperationalError("Invalid -o option %r; expected KEY=VALUE." % string)
-    return key, val
 
 
 def check_python_version():
@@ -931,21 +782,22 @@ def control_qtop(viewport, read_char, cluster, old_attrs, new_attrs):
     )
 
 
-def fetch_scheduler_files(args, config, optional_trace_keys=()):
+def fetch_scheduler_files(args, config, backend):
+    scheduler_name = backend.get_mnemonic()
     try:
-        INPUT_FNs_commands = finalize_filepaths_schedulercommands(args, config)
+        INPUT_FNs_commands = finalize_filepaths_schedulercommands(args, config, backend)
     except (ValueError, TypeError, KeyError, AttributeError) as error:
-        raise OperationalError("Invalid scheduler command configuration for %s in %s: %s" % (scheduler, QTOPCONF_YAML, error)) from error
+        raise OperationalError("Invalid scheduler command configuration for %s in %s: %s" % (scheduler_name, QTOPCONF_YAML, error)) from error
     if getattr(args, "source_archive", None):
         from qtop_py.trace_archive import load_trace_archive
 
         try:
             if not hasattr(args, "archive_trace_paths"):
-                args.archive_trace_paths = load_trace_archive(args.source_archive, args.workdir, config["schedulers"][scheduler], optional_trace_keys)
+                args.archive_trace_paths = load_trace_archive(args.source_archive, args.workdir, config["schedulers"][scheduler_name], backend.optional_trace_keys)
             return args.archive_trace_paths.copy()
         except (OSError, tarfile.TarError, ValueError) as error:
             raise OperationalError("Cannot read scheduler trace archive %s: %s" % (args.source_archive, error)) from error
-    scheduler_output_filenames = get_input_filenames(INPUT_FNs_commands, config)
+    scheduler_output_filenames = get_input_filenames(INPUT_FNs_commands, config, args, backend)
     return scheduler_output_filenames
 
 
@@ -967,7 +819,7 @@ def decide_batch_system(cmdline_switch, env_var, config_file_batch_option, sched
         scheduler = scheduler.lower()
 
         if scheduler == "auto":
-            scheduler = auto_get_avail_batch_system(config)
+            scheduler = auto_get_avail_batch_system(config, available_batch_systems)
             logging.debug("Selected scheduler is %s" % scheduler)
             return scheduler
         elif scheduler in schedulers:
@@ -1000,21 +852,6 @@ def get_output_size(max_line_len, output_fp, max_height=0):
     logging.debug("Max line length: %s" % max_line_len)
 
     return max_height, max_line_len
-
-
-def update_config_with_cmdline_vars(args, config):
-    config["rem_empty_corelines"] = int(config.get("rem_empty_corelines", 0))
-    for opt in args.OPTION:
-        key, val = get_key_val_from_option_string(opt)
-        config[key] = literal_config_value(val)
-
-    if args.TRANSPOSE:
-        config["transpose_wn_matrices"] = not config["transpose_wn_matrices"]
-
-    if args.REM_EMPTY_CORELINES:
-        config["rem_empty_corelines"] += args.REM_EMPTY_CORELINES
-
-    return config
 
 
 def attempt_faster_xml_parsing(config):
@@ -1171,7 +1008,7 @@ class WNOccupancy(object):
         # For-loop below only for user-inserted/customizeable values.
         for yaml_key, part_name, systems in yaml.get_yaml_key_part(config, scheduler, outermost_key="workernodes_matrix"):
             if scheduler in systems:
-                self.__setattr__(part_name, self.calc_general_mult_attr_line(part_name, yaml_key, config))
+                self.__setattr__(part_name, self.calc_general_mult_attr_line(part_name, yaml_key, config, scheduler_backend(scheduler)))
 
         self.core_user_map = self._calc_core_matrix(self.user_to_id, self.jobid_to_user_to_queue)
 
@@ -1197,7 +1034,7 @@ class WNOccupancy(object):
             for user_name, total_jobs_for_user in user_all_jobs_sorted
         ]
         firstletter_ids = self.config["fill_with_user_firstletter"]
-        id_order = {} if firstletter_ids else dict((symbol, index) for index, symbol in enumerate(_available_possible_ids(self.config)))
+        id_order = {} if firstletter_ids else dict((symbol, index) for index, symbol in enumerate(configuration.available_possible_ids(self.config)))
 
         def account_order(row):
             symbol = str(row[0])
@@ -1273,8 +1110,8 @@ class WNOccupancy(object):
 
     def _create_id_for_users(self, user_alljobs_sorted_lot):
         user_to_id = {}
-        possible_ids = _available_possible_ids(self.config)
-        reserved_symbols = _reserved_user_symbols(self.config)
+        possible_ids = configuration.available_possible_ids(self.config)
+        reserved_symbols = configuration.reserved_user_symbols(self.config)
         for id_, user_allcount in enumerate(user_alljobs_sorted_lot):
             unix_account = user_allcount[0]
             if self.config["fill_with_user_firstletter"]:
@@ -1392,7 +1229,7 @@ class WNOccupancy(object):
             wn_vert_labels[wn] = "".join(wn_vert_labels[wn])
         return wn_vert_labels
 
-    def calc_general_mult_attr_line(self, part_name, yaml_key, config):  # NEW
+    def calc_general_mult_attr_line(self, part_name, yaml_key, config, backend):  # NEW
         elem_identifier = [d for d in config["workernodes_matrix"] if part_name in d][0]  # jeeez
         part_name_idx = config["workernodes_matrix"].index(elem_identifier)
         user_max_len = int(config["workernodes_matrix"][part_name_idx][part_name]["max_len"])
@@ -1416,7 +1253,6 @@ class WNOccupancy(object):
         for line_nr in range(1, min_len + 1):
             multiline_map["attr%sline" % str(line_nr)] = []
 
-        backend = scheduler_backend()
         for _node in self.cluster.workernode_dict:
             node_attrs = self.cluster.workernode_dict[_node]
             # distribute state, qname etc to lines
@@ -1741,7 +1577,7 @@ class TextDisplay(object):
                 "version": __version__,
             }
         )
-        if scheduler_backend().is_simulated:
+        if scheduler_backend(scheduler).is_simulated:
             msg = "This data is simulated. As soon as you connect to one of the supported scheduling systems,\nyou will see live data from your cluster. Press q to Quit."
             print(colorize(msg, "Blue_L"))
 
@@ -1787,7 +1623,7 @@ class TextDisplay(object):
                 ),
                 end="\n" if expanded else " ",
             )
-        blocked_note = scheduler_backend().blocked_queue_note
+        blocked_note = scheduler_backend(scheduler).blocked_queue_note
         print(colorize("* implies blocked", "Red") + blocked_note + "\n")
         if getattr(self.args, "SHOW_QUEUE_NODES", False):
             from qtop_py.queue_nodes import queue_node_counts
@@ -1815,7 +1651,7 @@ class TextDisplay(object):
         self.display_backend_messages("resources")
 
     def display_backend_messages(self, section):
-        for line in scheduler_backend().display_messages(section, self.document, getattr(self.cluster, "worker_nodes", []), self.config):
+        for line in scheduler_backend(scheduler).display_messages(section, self.document, getattr(self.cluster, "worker_nodes", []), self.config):
             print(line)
 
     def display_basic_legend(self):
@@ -1838,7 +1674,7 @@ class TextDisplay(object):
             account_jobs_table = dict()
             userid_to_userid_re_pat = dict()
 
-        detail_of_name = get_detail_of_name(account_jobs_table)
+        detail_of_name = get_detail_of_name(account_jobs_table, self.config, self.args)
         group_of_name = get_primary_group_names(account_jobs_table) if getattr(self.args, "SHOW_GROUPS", False) else None
         print(
             colorize("\n===> ", "Gray_D")
@@ -2629,10 +2465,6 @@ def cli_error_message(error):
     return str(error)
 
 
-class OperationalError(Exception):
-    """An expected failure that the CLI can explain without a traceback."""
-
-
 def report_operational_error(error):
     if isinstance(error, OSError):
         location = " (%s)" % error.filename if error.filename else ""
@@ -2761,7 +2593,7 @@ def main():
         args.WATCH = 2  # enforce that --watch mode is on, even if not in cmdline switch
         args.BATCH_SYSTEM = next(name for name, backend in available_batch_systems.items() if backend.is_simulated)
         try:
-            config, _, _ = load_yaml_config()
+            config, _, _ = configuration.load_yaml_config(args, QTOPPATH, CURPATH, SYSTEMCONFDIR, USERPATH)
         except (ValueError, TypeError, KeyError, IndexError, AttributeError, StopIteration) as error:
             raise OperationalError("Invalid configuration in %s: %s" % (args.CONFFILE or QTOPCONF_YAML, error or type(error).__name__)) from error
         useful_frames, args.REPLAY = pick_frames_to_replay(config["savepath"])
@@ -2774,12 +2606,10 @@ def main():
         try:
             while True:
                 try:
-                    config, user_to_color, nodestate_to_color = load_yaml_config()
-                    config = update_config_with_cmdline_vars(args, config)
-                    validate_config(config)
+                    config, user_to_color, nodestate_to_color = configuration.load_yaml_config(args, QTOPPATH, CURPATH, SYSTEMCONFDIR, USERPATH)
                 except (ValueError, TypeError, KeyError, IndexError, AttributeError, StopIteration) as error:
                     raise OperationalError("Invalid configuration in %s: %s" % (args.CONFFILE or QTOPCONF_YAML, error or type(error).__name__)) from error
-                savepath = config["savepath"] = fileutils.private_save_directory(config["savepath"])
+                savepath = config["savepath"]
                 timestr = time.strftime("%Y%m%dT%H%M%S")
                 attempt_faster_xml_parsing(config)
                 args = init_dirs(args, savepath)
@@ -2798,7 +2628,7 @@ def main():
                     if args.load_sample
                     else decide_batch_system(args.BATCH_SYSTEM, os.environ.get("QTOP_SCHEDULER"), config["scheduler"], config["schedulers"], available_batch_systems, config)
                 )
-                scheduler_output_filenames = {} if args.load_sample else fetch_scheduler_files(args, config, available_batch_systems[scheduler].optional_trace_keys)
+                scheduler_output_filenames = {} if args.load_sample else fetch_scheduler_files(args, config, available_batch_systems[scheduler])
                 SAMPLE_FILENAME = fileutils.get_sample_filename(SAMPLE_FILENAME, config)
                 if args.SAMPLE:
                     tar_out = fileutils.init_sample_file(args, savepath, SAMPLE_FILENAME, scheduler_output_filenames, QTOPCONF_YAML, QTOPPATH)

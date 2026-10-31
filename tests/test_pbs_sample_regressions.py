@@ -27,7 +27,7 @@ def test_general_attribute_lines_handle_empty_worker_node_dict():
     occupancy.cluster = SimpleNamespace(workernode_dict={})
     config = {"scheduler": "pbs", "workernodes_matrix": [{"state": {"max_len": 1}}]}
 
-    assert occupancy.calc_general_mult_attr_line("state", "state", config) == OrderedDict()
+    assert occupancy.calc_general_mult_attr_line("state", "state", config, qtop.scheduler_backend("pbs")) == OrderedDict()
 
 
 def test_general_attribute_lines_preserve_colored_sequence_items():
@@ -41,7 +41,7 @@ def test_general_attribute_lines_preserve_colored_sequence_items():
     )
     config = {"scheduler": "sge", "workernodes_matrix": [{"node state": {"max_len": 1}}]}
 
-    lines = occupancy.calc_general_mult_attr_line("node state", "state", config)
+    lines = occupancy.calc_general_mult_attr_line("node state", "state", config, qtop.scheduler_backend("sge"))
 
     assert lines["attr1line"][0] is colored_state
     assert str(lines["attr1line"][1]) == " "
