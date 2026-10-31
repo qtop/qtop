@@ -184,7 +184,7 @@ class SGEBatchSystem(GenericBatchSystem):
                 elif element.tag in numeric or resource in resources:
                     element.text = mask.public(value, r"[0-9.,:\- ]+")
                 elif element.tag == "state":
-                    element.text = mask.public(value, r"[rRqQwWhHsStTEdauocACDS+-]*")
+                    element.text = mask.public(value, r"[rRqQwWhHsStTEdauocACD+-]*")
                 else:
                     element.text = mask(value)
             for name, value in list(element.attrib.items()):
