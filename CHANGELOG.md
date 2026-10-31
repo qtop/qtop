@@ -5,6 +5,7 @@ See the [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 
 ## 0.9.20261025
 
+- CI: bump Python compatibility lanes to 3.15.2.
 - Release: update version metadata to 0.9.20261025.
 
 ## 0.9.20261022
