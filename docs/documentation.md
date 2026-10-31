@@ -434,7 +434,8 @@ without saying that only a very basic implementation is required (what
 you can see used in the configuration file, really!) and none of the
 flashy features that YAML sports.
 
-Merged configuration files and CLI overrides are checked before scheduler collection.
+Merged configuration files and CLI overrides are checked before the output
+directory is created and before scheduler collection.
 Invalid common settings report the affected key (for example, `sorting.reverse`
 or `term_size`). Backend-specific extension keys remain supported.
 

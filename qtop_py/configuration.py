@@ -1,8 +1,17 @@
 ## SPDX-License-Identifier: MIT
-"""Validate configuration boundaries without adding a YAML dependency."""
+"""Load and prepare qtop configuration without runtime-global dependencies."""
 
+import copy
+import logging
+import os
 from ast import literal_eval
 from math import isfinite
+
+from qtop_py import fileutils
+from qtop_py import yaml_parser as yaml
+from qtop_py.colormap import nodestate_to_color_default, user_to_color_default
+from qtop_py.constants import QTOPCONF_YAML, SYMBOL_LONG_TAIL_USER, SYMBOL_UNKNOWN_NODE_STATE
+from qtop_py.errors import OperationalError
 
 
 def literal(value):
@@ -93,3 +102,122 @@ def validate_config(config):
         mapping(info, "extract_info")
         integer(info.get("field_to_use", 5), "extract_info.field_to_use", 2)
         require(info.get("regex") is None or isinstance(info["regex"], str), "extract_info.regex", "text or null")
+
+
+def configured_separator(config):
+    separator = config.get("SEPARATOR", config.get("vertical_separator", "|"))
+    return separator.replace("'", "") if isinstance(separator, str) else separator
+
+
+def reserved_user_symbols(config):
+    return set(
+        symbol
+        for symbol in (
+            config.get("non_existent_node_symbol", "#"),
+            configured_separator(config),
+            "_",
+            SYMBOL_LONG_TAIL_USER,
+            SYMBOL_UNKNOWN_NODE_STATE,
+        )
+        if symbol
+    )
+
+
+def available_possible_ids(config):
+    reserved_symbols = reserved_user_symbols(config)
+    return [symbol for symbol in config["possible_ids"] if symbol not in reserved_symbols]
+
+
+def normalize_config(raw_config):
+    """Return a runtime-ready configuration without mutating parser output."""
+    config = copy.deepcopy(raw_config)
+    config["possible_ids"] = list(config["possible_ids"])
+    for key in (
+        "transpose_wn_matrices",
+        "fill_with_user_firstletter",
+        "faster_xml_parsing",
+        "vertical_separator_every_X_columns",
+        "overwrite_sample_file",
+    ):
+        config[key] = literal(config[key])
+    config["sorting"]["reverse"] = literal(config["sorting"].get("reverse", "0"))
+    wn_id_lines = config["workernodes_matrix"][0]["wn id lines"]
+    config["ALT_LABEL_COLORS"] = yaml.fix_config_list(wn_id_lines["alt_label_colors"])
+    config["SEPARATOR"] = config["vertical_separator"].replace("'", "")
+    config["USER_CUT_MATRIX_WIDTH"] = int(wn_id_lines["user_cut_matrix_width"])
+    return config
+
+
+def get_key_val_from_option_string(string):
+    key, separator, val = string.partition("=")
+    if not separator or not key.strip():
+        raise OperationalError("Invalid -o option %r; expected KEY=VALUE." % string)
+    return key, val
+
+
+def update_config_with_cmdline_vars(args, config):
+    config["rem_empty_corelines"] = int(config.get("rem_empty_corelines", 0))
+    for opt in getattr(args, "OPTION", ()):
+        key, val = get_key_val_from_option_string(opt)
+        config[key] = literal(val)
+
+    if getattr(args, "TRANSPOSE", False):
+        config["transpose_wn_matrices"] = not config["transpose_wn_matrices"]
+
+    if getattr(args, "REM_EMPTY_CORELINES", 0):
+        config["rem_empty_corelines"] += args.REM_EMPTY_CORELINES
+
+    return config
+
+
+def prepare_config(config, args=None):
+    validate_config(config)
+    config = normalize_config(config)
+
+    config["user_color_mappings"] = config["user_color_mappings"] or []
+    config["nodestate_color_mappings"] = config["nodestate_color_mappings"] or []
+    user_to_color = user_to_color_default.copy()
+    for rule in config["user_color_mappings"]:
+        user_to_color.update(rule)
+    nodestate_to_color = nodestate_to_color_default.copy()
+    for rule in config["nodestate_color_mappings"]:
+        nodestate_to_color.update(rule)
+    config["remapping"] = config["remapping"] or []
+    config["possible_ids"] = available_possible_ids(config)
+
+    if args is not None:
+        config = update_config_with_cmdline_vars(args, config)
+        validate_config(config)
+    config["savepath"] = fileutils.private_save_directory(config["savepath"])
+    logging.debug("%s files will be saved in directory %s.", config["scheduler"], config["savepath"])
+
+    return config, user_to_color, nodestate_to_color
+
+
+def load_yaml_config(args, package_dir, initial_cwd, system_dir, user_dir):
+    """Load defaults < system < user < custom, then prepare CLI overrides."""
+    if getattr(args, "load_sample", None):
+        return prepare_config(args.sample_snapshot["config"], args)
+    config = yaml.parse(os.path.join(os.path.realpath(package_dir), QTOPCONF_YAML))
+    logging.info("Default configuration dictionary loaded. Length: %s items", len(config))
+    for label, directory in (("Env", system_dir), ("User", user_dir)):
+        try:
+            layer = yaml.parse(os.path.join(directory, QTOPCONF_YAML))
+        except FileNotFoundError:
+            logging.info("%s could not be found in %s/", QTOPCONF_YAML, directory)
+        else:
+            config.update(layer)
+            logging.info("%s configuration loaded from %s/. Length: %s items", label, directory, len(layer))
+    if args.CONFFILE:
+        for directory in (user_dir, initial_cwd):
+            try:
+                custom = yaml.parse(os.path.join(directory, args.CONFFILE))
+            except FileNotFoundError:
+                continue
+            config.update(custom)
+            logging.info("Custom User configuration loaded from %s/. Length: %s items", directory, len(custom))
+            break
+        else:
+            raise OperationalError("Custom configuration file %s was not found in %s/ or %s/." % (args.CONFFILE, user_dir, initial_cwd))
+    logging.info("Updated main dictionary. Length: %s items", len(config))
+    return prepare_config(config, args)

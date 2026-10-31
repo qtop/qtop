@@ -21,7 +21,7 @@ flowchart TB
         cli["CLI entry points: qtop / cli.py"]
         runtime["Runtime and watch loop: qtop.py"]
         options["Options and logging: utils.py"]
-        config["Configuration: qtopconf.yaml / yaml_parser.py"]
+        config["Configuration: configuration.py / yaml_parser.py"]
         cli --> runtime
         runtime --> options
         runtime --> config
@@ -85,6 +85,9 @@ flowchart TB
    [qtop.py](../qtop_py/qtop.py). The runtime loads configuration, selects a
    registered backend, and either executes its configured commands or reads
    files supplied with `-s`. The demo backend generates fictional data.
+   [configuration.py](../qtop_py/configuration.py) owns file precedence,
+   normalization, CLI overrides and validation. The runtime passes configuration,
+   options and the selected backend explicitly to collection helpers.
 2. Each backend implements `get_jobs_info()`, `get_queues_info()` and
    `get_worker_nodes()`. `GenericBatchSystem.get_cluster_state()` in
    [serialiser.py](../qtop_py/serialiser.py) combines their results through
@@ -108,7 +111,7 @@ flowchart TB
 | Launchers and installed entry point | [qtop](../qtop), [cli.py](../qtop_py/cli.py), [pyproject.toml](../pyproject.toml) |
 | Runtime orchestration, calculations and terminal rendering | [qtop.py](../qtop_py/qtop.py) |
 | Command-line options and logging | [utils.py](../qtop_py/utils.py) |
-| Configuration defaults and parsing | [qtopconf.yaml](../qtopconf.yaml), [yaml_parser.py](../qtop_py/yaml_parser.py) |
+| Configuration loading, preparation and parsing | [configuration.py](../qtop_py/configuration.py), [qtopconf.yaml](../qtopconf.yaml), [yaml_parser.py](../qtop_py/yaml_parser.py) |
 | Scheduler backends | [Slurm](../qtop_py/plugins/slurm.py), [PBS](../qtop_py/plugins/pbs.py), [SGE](../qtop_py/plugins/sge.py), [OAR](../qtop_py/plugins/oar.py), [demo](../qtop_py/plugins/demo.py) |
 | Shared extraction and backend interface | [serialiser.py](../qtop_py/serialiser.py) |
 | Common snapshot construction, validation and totals | [cluster_state.py](../qtop_py/cluster_state.py) |
