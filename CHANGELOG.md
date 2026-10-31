@@ -7,6 +7,7 @@ See the [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 
 - CI: measure production-code coverage and require 90%.
 - CI: bump Python compatibility lanes to 3.15.2.
+- Bugfix: exit interrupted captures cleanly and preserve original stdout.
 - Bugfix: bound scheduler collection time and discard timed-out partial traces.
 - Bugfix: handle replay times across month and year boundaries.
 - Bugfix: remove GPU/Slurm import cycles and clarify type-only imports.

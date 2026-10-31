@@ -7,12 +7,29 @@
 ##
 
 import errno
+import io
+import sys
 import tarfile
 from types import SimpleNamespace
 
 import pytest
 
 from qtop_py import fileutils
+
+
+@pytest.mark.parametrize("sampling", (0, 1))
+@pytest.mark.parametrize("redirected", (False, True))
+def test_safe_exit_preserves_original_stdout_and_leaves_archive_to_caller(monkeypatch, sampling, redirected):
+    original = io.StringIO()
+    current = io.StringIO() if redirected else original
+    with monkeypatch.context() as patch:
+        patch.setattr(sys, "stdout", current)
+        with pytest.raises(SystemExit) as exited:
+            fileutils.safe_exit_with_file_close(-1, "unused", original, SimpleNamespace(SAMPLE=sampling), "unused", "unused.log", "unused.tar")
+        assert exited.value.code == 0
+        assert sys.stdout is original
+        assert not original.closed
+        assert current.closed == redirected
 
 
 def test_init_sample_file_returns_none_when_sampling_is_disabled(tmp_path):

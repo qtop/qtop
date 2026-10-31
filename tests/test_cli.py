@@ -411,6 +411,38 @@ def test_live_scheduler_timeout_is_configurable_and_reported_without_traceback(t
     assert "Traceback" not in result.stderr
 
 
+def test_interrupted_nonanonymous_capture_exits_cleanly_and_finalizes_archive(tmp_path):
+    import tarfile
+
+    output = tmp_path / "capture"
+    script = """
+from qtop_py import qtop
+display = qtop.TextDisplay.display_selected_sections
+def interrupt_after_display(self, *args, **kwargs):
+    display(self, *args, **kwargs)
+    raise KeyboardInterrupt
+qtop.TextDisplay.display_selected_sections = interrupt_after_display
+raise SystemExit(qtop.cli_main())
+"""
+    result = subprocess.run(
+        [sys.executable, "-c", script, "-b", "slurm", "-s", str(ROOT / "tests/plugins/slurm_samples/basic"), "-L", "-F", "-O", "-o", "savepath=" + str(output)],
+        cwd=str(ROOT),
+        env=dict(os.environ, HOME=str(tmp_path), PYTHONPATH=str(ROOT)),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        universal_newlines=True,
+        timeout=20,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "Traceback" not in result.stderr
+    archive = next(output.glob("qtop_sample_*.tar"))
+    assert result.stderr.rstrip().endswith("Sample files saved in " + str(archive))
+    with tarfile.open(str(archive)) as saved:
+        assert saved.getnames().count("qtop.log") == 1
+        assert saved.extractfile("squeue.txt").read() == (ROOT / "tests/plugins/slurm_samples/basic/squeue.txt").read_bytes()
+        assert "sinfo.txt" in saved.getnames()
+
+
 def test_logged_trace_collection_command_can_be_pasted_into_shell(tmp_path, monkeypatch, caplog):
     import json
 
