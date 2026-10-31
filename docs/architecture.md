@@ -89,6 +89,9 @@ flowchart TB
    `get_worker_nodes()`. `GenericBatchSystem.get_cluster_state()` in
    [serialiser.py](../qtop_py/serialiser.py) combines their results through
    [build_cluster_state()](../qtop_py/cluster_state.py).
+   Backend class hooks also define command adjustments, optional trace aliases,
+   detection priority, queue blocking and scheduler-specific display notes.
+   The core dispatches these policies without testing scheduler names.
 3. `Document.from_cluster_state()` adapts that plain-data snapshot for the
    existing runtime. `Cluster`, `WNFilter` and `WNOccupancy` calculate node
    layout, filtering, user accounting and per-core occupancy. `TextDisplay`

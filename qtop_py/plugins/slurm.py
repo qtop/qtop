@@ -277,6 +277,63 @@ class SlurmStatExtractor(StatExtractor):
 
 class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
     optional_trace_keys = ("scontrol_file",)
+    optional_trace_aliases = {"scontrol_file": "scontrol.txt"}
+    optional_trace_warning = "Using estimated Slurm CPU placement."
+    detection_priority = -1
+    node_job_fields = ("slurm_job_ids",)
+    blocked_queue_note = " (partition closed to submissions or scheduling)"
+
+    @staticmethod
+    def collection_command(key, command, options):
+        if getattr(options, "ALL_PARTITIONS", False) and not options.SOURCEDIR and key in ("squeue_file", "sinfo_file", "scontrol_file"):
+            command += " --all"
+        return command
+
+    @staticmethod
+    def queue_is_blocked(state):
+        return str(state).lower() in ("down", "drain", "inact", "inactive") or GenericBatchSystem.queue_is_blocked(state)
+
+    @staticmethod
+    def node_state_marker(node):
+        state = node.get("slurm_node_state", "")
+        return state[-1] if state and state[-1] in "*+#~$@%!^-" else ""
+
+    @staticmethod
+    def display_messages(section, document, nodes, config):
+        lines = []
+        if section == "snapshot":
+            diagnostics = getattr(document, "_diagnostics", {}).get("slurm_diagnostics", {})
+            if any(diagnostics.values()):
+                lines.append(
+                    "Slurm snapshot incomplete: %s rejected job rows; %s rejected node rows; "
+                    "%s active jobs reference missing nodes; %s active jobs have invalid node lists."
+                    % tuple(diagnostics.get(key, 0) for key in ("rejected_squeue_rows", "rejected_sinfo_rows", "jobs_with_missing_nodes", "jobs_with_invalid_nodelists"))
+                )
+        elif section == "accounting":
+            lines.append("Slurm job counts include individual array tasks and heterogeneous components.")
+            if any(len(job.get("slurm_partitions", [])) > 1 for job in getattr(document, "_job_metadata", {}).values()):
+                lines.append("Slurm partition counts include each eligible partition; global job counts are unique.")
+        elif section == "placement":
+            sources = {node.get("cpu_allocation_source") for node in nodes}
+            if "estimated" in sources:
+                lines.append("Slurm CPU placement: estimated where allocation details are unavailable.")
+            if "slurm" in sources:
+                lines.append("Slurm CPU placement: scheduler CPU IDs; Linux task affinity is not shown.")
+            omitted = sum(node.get("slurm_unmapped_cpus", 0) for node in nodes)
+            if omitted:
+                lines.append("Slurm CPU matrix omits %s shared/excess CPU assignments; job/node membership is retained." % omitted)
+        elif section == "resources" and config.get("experimental_gpu_pairs"):
+            from qtop_py.gpu import configured_pair_lines
+
+            try:
+                pairs = configured_pair_lines(nodes, config["experimental_gpu_pairs"])
+            except ValueError as error:
+                lines.append("Configured GPU pairs unavailable: %s" % error)
+            else:
+                if pairs:
+                    lines.append("Configured GPU pairs (experimental; job IDs, ? = unknown):")
+                    lines.extend(pairs)
+        return lines
 
     def mask_source_trace(self, key, text, mask):
         if key == "scontrol_file":

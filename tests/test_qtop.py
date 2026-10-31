@@ -419,7 +419,7 @@ def test_configured_user_details_command_still_returns_details(monkeypatch, real
     key = "user_details_realtime" if realtime else "user_details_cache"
     command = "getent passwd %s" if realtime else "cat $HOME/passwd"
     calls = []
-    process = SimpleNamespace(communicate=lambda *args: ("alice:x:1000:1000:Alice Example:/home/alice:/bin/sh\n", ""))
+    process = SimpleNamespace(returncode=0, communicate=lambda *args, **kwargs: ("alice:x:1000:1000:Alice Example:/home/alice:/bin/sh\n", ""))
     monkeypatch.setenv("HOME", "/tmp/qtop-user-details")
     monkeypatch.setattr(qtop_module, "args", SimpleNamespace(GET_GECOS=realtime), raising=False)
     monkeypatch.setattr(qtop_module, "config", {"extract_info": {key: command}}, raising=False)
@@ -1029,3 +1029,45 @@ def test_viewport_pipeline_reaps_both_processes(tmp_path, monkeypatch, head_fail
         assert Path(result).read_text() == "1\n2\n"
         assert len(processes) == 2
     assert all(process.returncode is not None for process in processes)
+
+
+@pytest.mark.parametrize("failure", ["timeout", "exit", "quoting"])
+def test_user_details_failures_are_optional_and_processes_reaped(tmp_path, monkeypatch, caplog, failure):
+    import shlex
+    import time
+
+    script = tmp_path / "user lookup.py"
+    script.write_text(
+        "import sys, time\n"
+        + ("time.sleep(10)\n" if failure == "timeout" else "print('alice:x:1:1:Partial Name:/home/alice:/bin/sh')\nprint('lookup unavailable', file=sys.stderr)\nsys.exit(7)\n")
+    )
+    command = " ".join(shlex.quote(value) for value in (sys.executable, str(script))) if failure != "quoting" else "unterminated '"
+    monkeypatch.setattr(qtop_module, "args", SimpleNamespace(GET_GECOS=False), raising=False)
+    monkeypatch.setattr(qtop_module, "config", {"extract_info": {"user_details_cache": command}, "scheduler_command_timeout": 0.2}, raising=False)
+    processes = []
+    popen = qtop_module.subprocess.Popen
+
+    def track(*args, **kwargs):
+        process = popen(*args, **kwargs)
+        processes.append(process)
+        return process
+
+    monkeypatch.setattr(qtop_module.subprocess, "Popen", track)
+    started = time.monotonic()
+    assert qtop_module.get_detail_of_name([]) == {}
+    assert time.monotonic() - started < 5
+    assert all(process.returncode is not None for process in processes)
+    assert "skipping user details" in caplog.text
+
+
+@pytest.mark.parametrize("realtime", [False, True])
+def test_user_details_preserve_quoted_arguments_and_skip_malformed_rows(tmp_path, monkeypatch, realtime):
+    import shlex
+
+    script = tmp_path / "user lookup.py"
+    script.write_text("import sys\nassert sys.argv[1:] == ['alice smith']\nprint('malformed')\nprint('alice smith:x:1:1:Alice Smith:/home/alice:/bin/sh')\n")
+    command = " ".join(shlex.quote(value) for value in (sys.executable, str(script))) + (" %s" if realtime else " 'alice smith'")
+    key = "user_details_realtime" if realtime else "user_details_cache"
+    monkeypatch.setattr(qtop_module, "args", SimpleNamespace(GET_GECOS=realtime), raising=False)
+    monkeypatch.setattr(qtop_module, "config", {"extract_info": {key: command}}, raising=False)
+    assert qtop_module.get_detail_of_name([["0", 1, 0, 1, "alice smith", 1]]) == {"alice smith": "Alice Smith"}

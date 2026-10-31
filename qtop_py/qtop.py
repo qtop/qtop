@@ -49,7 +49,7 @@ import time
 import traceback
 from ast import literal_eval
 from math import ceil, isfinite
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Optional, cast
 
 if TYPE_CHECKING:
     from typing import Dict
@@ -63,6 +63,7 @@ from qtop_py import __version__, fileutils, sample, utils
 from qtop_py import yaml_parser as yaml
 from qtop_py.cluster_state import cluster_state_totals, validate_cluster_state
 from qtop_py.colormap import color_to_code, nodestate_to_color_default, queue_to_color, user_to_color_default
+from qtop_py.configuration import validate_config
 from qtop_py.constants import (
     FALLBACK_TERMSIZE,
     KEYPRESS_TIMEOUT,
@@ -78,7 +79,7 @@ from qtop_py.plugins.oar import OARBatchSystem
 from qtop_py.plugins.pbs import PBSBatchSystem
 from qtop_py.plugins.sge import SGEBatchSystem
 from qtop_py.plugins.slurm import SlurmBatchSystem
-from qtop_py.serialiser import resolve_job_id
+from qtop_py.serialiser import GenericBatchSystem, resolve_job_id
 from qtop_py.ui.viewport import Viewport
 from qtop_py.web import Web
 
@@ -137,14 +138,21 @@ def _reserved_pattern_mappings(config):
     }
 
 
+def scheduler_backend(name=None):
+    name = name or globals().get("scheduler")
+    return next((backend for backend in PLUGIN_BATCH_SYSTEMS if backend.get_mnemonic() == name), GenericBatchSystem)
+
+
+def node_job_ids(node):
+    jobs = set(node["core_job_map"].values())
+    for backend in PLUGIN_BATCH_SYSTEMS:
+        for field in backend.node_job_fields:
+            jobs.update(node.get(field, []))
+    return jobs
+
+
 def queue_is_blocked(state, scheduler_name=None):
-    """Return whether a queue state denotes blocking for the selected scheduler."""
-    state = str(state)
-    if scheduler_name == "sge":
-        return any(flag in state for flag in "aAcCdDEosSu")
-    if scheduler_name == "slurm" and state.lower() in ("down", "drain", "inact", "inactive"):
-        return True
-    return state.startswith("D") or state.endswith("S")
+    return scheduler_backend(scheduler_name).queue_is_blocked(state)
 
 
 def compress_colored_line(value):
@@ -319,6 +327,7 @@ def load_yaml_config():
 
 
 def prepare_config(config):
+    validate_config(config)
     config = normalize_config(config)
 
     if config["user_color_mappings"]:
@@ -409,12 +418,11 @@ def finalize_filepaths_schedulercommands(args, config):
     d = dict()
     fn_append = "_" + str(os.getpid()) if not args.SOURCEDIR else ""
     for fn, path_command in config["schedulers"][scheduler].items():
-        path, command = path_command.strip().split(", ")
+        path, command = path_command.strip().split(", ", 1)
         path = path % {"savepath": args.workdir, "pid": fn_append}
         # Slurm format codes stay copyable; accept legacy escaped percent signs.
         command = command.replace("%%", "%").replace("%(savepath)s", args.workdir)
-        if scheduler == "slurm" and getattr(args, "ALL_PARTITIONS", False) and not args.SOURCEDIR and fn in ("squeue_file", "sinfo_file", "scontrol_file"):
-            command += " --all"
+        command = scheduler_backend().collection_command(fn, command, args)
         d[fn] = (path, command)
     return d
 
@@ -425,15 +433,39 @@ def auto_get_avail_batch_system(config):
     qtop tries to determine which of the known batch commands are available in the current system.
     """
     signature_commands = config["signature_commands"]
-    prioritized_commands = sorted(signature_commands.items(), key=lambda item: item[0] != "slurm")
+    backends = discover_qtop_batch_systems()
+    prioritized_commands = sorted(signature_commands.items(), key=lambda item: backends.get(item[0], GenericBatchSystem).detection_priority)
     for system, batch_command in prioritized_commands:
         if not shutil.which(batch_command):
             continue
-        if system != "demo":
+        if not backends.get(system, GenericBatchSystem).is_simulated:
             logging.debug("Auto-detected scheduler: %s" % system)
             return system
 
     raise SchedulerNotSpecified
+
+
+def communicate_with_timeout(command, timeout):
+    """Bound command execution and reap its process group on interruption."""
+    try:
+        return command.communicate(timeout=timeout)
+    except (subprocess.TimeoutExpired, KeyboardInterrupt):
+        if os.name == "posix":
+            from signal import SIGKILL
+
+            with contextlib.suppress(ProcessLookupError):
+                os.killpg(command.pid, SIGKILL)
+        else:
+            command.kill()
+        try:
+            command.communicate(timeout=1)
+        except subprocess.TimeoutExpired:
+            for stream in (command.stdout, command.stderr):
+                if stream is not None:
+                    stream.close()
+            with contextlib.suppress(subprocess.TimeoutExpired):
+                command.wait(timeout=1)
+        raise
 
 
 def execute_shell_batch_commands(batch_system_commands, filenames, _file, _savepath, timeout=30):
@@ -475,24 +507,8 @@ def execute_shell_batch_commands(batch_system_commands, filenames, _file, _savep
             except ValueError as error:
                 raise OperationalError("Invalid scheduler command %r: %s. Check command quoting in %s." % (_batch_system_command, error, QTOPCONF_YAML)) from error
             try:
-                error = command.communicate(timeout=timeout)[1]
-            except (subprocess.TimeoutExpired, KeyboardInterrupt) as failure:
-                if os.name == "posix":
-                    from signal import SIGKILL
-
-                    with contextlib.suppress(ProcessLookupError):
-                        os.killpg(command.pid, SIGKILL)
-                else:
-                    command.kill()
-                try:
-                    command.communicate(timeout=1)
-                except subprocess.TimeoutExpired:
-                    if command.stderr is not None:
-                        command.stderr.close()
-                    with contextlib.suppress(subprocess.TimeoutExpired):
-                        command.wait(timeout=1)
-                if isinstance(failure, KeyboardInterrupt):
-                    raise
+                error = communicate_with_timeout(command, timeout)[1]
+            except subprocess.TimeoutExpired as failure:
                 raise OperationalError("Scheduler command %r timed out after %g seconds" % (_batch_system_command, timeout)) from failure
             if error:
                 logging.warning("A message from your shell: %s", error.decode("utf-8", errors="replace").strip())
@@ -529,31 +545,33 @@ def get_detail_of_name(account_jobs_table):
         logging.warning("No valid %s command in %s; skipping user details.", command_key, QTOPCONF_YAML)
         return {}
 
-    if args.GET_GECOS:
-        users = " ".join([line[4] for line in account_jobs_table])
-        user_details_command = command % users
-        user_details_command = user_details_command.split()
-    else:
-        user_details_command = command.split()
-        user_details_command[-1] = os.path.expandvars(user_details_command[-1])
-
     try:
-        p = subprocess.Popen(user_details_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding="utf-8")
-    except OSError as error:
-        logging.warning("Cannot execute %s command %r: %s; skipping user details.", command_key, user_details_command[0], error)
+        if args.GET_GECOS:
+            users = " ".join(shlex.quote(str(line[4])) for line in account_jobs_table if line[4] != "Totals")
+            command = command % users
+        user_details_command = shlex.split(command)
+        if not args.GET_GECOS:
+            user_details_command[-1] = os.path.expandvars(user_details_command[-1])
+        timeout = float(config.get("scheduler_command_timeout", 30))
+        if not isfinite(timeout) or timeout <= 0:
+            raise ValueError("scheduler_command_timeout must be positive and finite")
+        p = subprocess.Popen(user_details_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding="utf-8", start_new_session=(os.name == "posix"))
+        output, err = communicate_with_timeout(p, timeout)
+    except (OSError, ValueError, TypeError, IndexError, OverflowError, subprocess.TimeoutExpired) as error:
+        logging.warning("Cannot collect %s command %r: %s; skipping user details.", command_key, command, error)
         return {}
-    else:
-        output, err = p.communicate("something here")
-        if "No such file or directory" in err:
-            logging.warning("You have to set a proper command to get the passwd file in your %s file." % QTOPCONF_YAML)
-            logging.warning("Error returned by getent: %s\nCommand issued: %s" % (err, user_details_command))
+    if p.returncode:
+        logging.warning("%s failed (exit %s): %s; skipping user details.", command_key, p.returncode, err.strip()[:300])
+        return {}
+    if err:
+        logging.warning("%s: %s", command_key, err.strip()[:300])
 
     detail_of_name = dict()
     for line in output.split("\n"):
         try:
             user, field = line.strip().split(sep)[0 : field_idx : field_idx - 1]
         except ValueError:
-            break
+            continue
         else:
             try:
                 detail = extract_regex_detail(regex, field)
@@ -595,6 +613,7 @@ def get_input_filenames(INPUT_FNs_commands, config):
     and results are saved with the respective filenames.
     """
 
+    backend = scheduler_backend()
     filenames = dict()
     batch_system_commands = dict()
     for _file in INPUT_FNs_commands:
@@ -605,21 +624,22 @@ def get_input_filenames(INPUT_FNs_commands, config):
             try:
                 filenames[_file] = execute_shell_batch_commands(batch_system_commands, filenames, _file, _savepath, timeout=config.get("scheduler_command_timeout", 30))
             except OperationalError as error:
-                if scheduler != "slurm" or _file != "scontrol_file":
+                if _file not in backend.optional_trace_keys:
                     raise
-                logging.warning("%s Using estimated Slurm CPU placement.", error)
+                logging.warning("%s %s", error, backend.optional_trace_warning)
                 filenames.pop(_file)
                 continue
 
-        if scheduler == "slurm" and _file == "scontrol_file" and not os.path.isfile(filenames[_file]):
+        if _file in backend.optional_trace_keys and not os.path.isfile(filenames[_file]):
             filenames.pop(_file)
             continue
         if not os.path.isfile(filenames[_file]):
             raise OperationalError("Scheduler input file %s was not found. Check -s/--SetSourceDir and the selected scheduler." % filenames[_file])
-    if scheduler == "slurm" and args.SOURCEDIR and "scontrol_file" not in filenames:
-        detail_path = os.path.join(args.SOURCEDIR, "scontrol.txt")
-        if os.path.isfile(detail_path):
-            filenames["scontrol_file"] = detail_path
+    if args.SOURCEDIR:
+        for key, alias in backend.optional_trace_aliases.items():
+            detail_path = os.path.join(args.SOURCEDIR, alias)
+            if key not in filenames and os.path.isfile(detail_path):
+                filenames[key] = detail_path
     return filenames
 
 
@@ -1396,13 +1416,14 @@ class WNOccupancy(object):
         for line_nr in range(1, min_len + 1):
             multiline_map["attr%sline" % str(line_nr)] = []
 
+        backend = scheduler_backend()
         for _node in self.cluster.workernode_dict:
             node_attrs = self.cluster.workernode_dict[_node]
             # distribute state, qname etc to lines
             attribute = list(node_attrs[yaml_key][:min_len])
-            raw_state = node_attrs.get("slurm_node_state", "")
-            if yaml_key == "state" and raw_state and raw_state[-1] in "*+#~$@%!^-" and attribute:
-                attribute[0] = utils.ColorStr(raw_state[-1], color=attribute[0].color)
+            marker = backend.node_state_marker(node_attrs)
+            if yaml_key == "state" and marker and attribute:
+                attribute[0] = utils.ColorStr(marker, color=attribute[0].color)
             attribute.extend(" " for _ in range(min_len - len(attribute)))
             for attr_line, ch in zip(multiline_map, attribute):
                 if ch == " ":
@@ -1551,9 +1572,7 @@ class WNOccupancy(object):
     def _count_jobs_strict(worker_nodes, job_ids=None):
         jobs = set()
         for node in worker_nodes:
-            jobs.update(node["core_job_map"].values())
-            jobs.update(node.get("slurm_job_ids", []))
-            jobs.update(node.get("oar_job_ids", []))
+            jobs.update(node_job_ids(node))
         jobs.discard("?")
         if job_ids is not None:
             jobs = {resolve_job_id(job, job_ids) for job in jobs}
@@ -1600,8 +1619,7 @@ QDoc = namedtuple("QDoc", ["lm", "queued", "run", "state"])
 class Document(namedtuple("Document", ["worker_nodes", "jobs_dict", "queues_dict", "total_running_jobs", "total_queued_jobs"])):
     if TYPE_CHECKING:
         _job_metadata: Dict[str, contracts.Job]
-        _slurm_diagnostics: Dict[str, int]
-        _oar_diagnostics: Dict[str, int]
+        _diagnostics: Dict[str, Dict[str, int]]
 
     @classmethod
     def from_cluster_state(cls, cluster_state: "contracts.ClusterState") -> "Document":
@@ -1623,8 +1641,7 @@ class Document(namedtuple("Document", ["worker_nodes", "jobs_dict", "queues_dict
             totals["queued_jobs"],
         )
         document._job_metadata = {job["id"]: copy.deepcopy(job) for job in cluster_state["jobs"]}
-        document._slurm_diagnostics = copy.deepcopy(cluster_state.get("slurm_diagnostics", {}))
-        document._oar_diagnostics = copy.deepcopy(cluster_state.get("oar_diagnostics", {}))
+        document._diagnostics = {key: cast("Dict[str, int]", copy.deepcopy(value)) for key, value in cluster_state.items() if key.endswith("_diagnostics")}
         return document
 
     def to_cluster_state(self) -> "contracts.ClusterState":
@@ -1651,10 +1668,7 @@ class Document(namedtuple("Document", ["worker_nodes", "jobs_dict", "queues_dict
                 for queue_name, queue in self.queues_dict.items()
             ],
         }
-        if getattr(self, "_slurm_diagnostics", {}):
-            state["slurm_diagnostics"] = copy.deepcopy(self._slurm_diagnostics)
-        if getattr(self, "_oar_diagnostics", {}):
-            state["oar_diagnostics"] = copy.deepcopy(self._oar_diagnostics)
+        cast("Dict[str, object]", state).update(copy.deepcopy(getattr(self, "_diagnostics", {})))
         return state
 
     def save(self, filename: str, cluster_state: "Optional[contracts.ClusterState]" = None) -> None:
@@ -1695,21 +1709,7 @@ class TextDisplay(object):
         if self.args.WATCH:
             print("\033c", end=" ")  # comma is to avoid losing the whole first line. An empty char still remains, though.
 
-        diagnostics = getattr(self.document, "_slurm_diagnostics", {})
-        if any(diagnostics.values()):
-            print(
-                "Slurm snapshot incomplete: %s rejected job rows; %s rejected node rows; "
-                "%s active jobs reference missing nodes; %s active jobs have invalid node lists."
-                % tuple(diagnostics.get(key, 0) for key in ("rejected_squeue_rows", "rejected_sinfo_rows", "jobs_with_missing_nodes", "jobs_with_invalid_nodelists"))
-            )
-
-        oar_notes = getattr(self.document, "_oar_diagnostics", {})
-        if any(oar_notes.values()):
-            print(
-                "OAR allocation notes: %s resources lack details; %s resources absent from node states; "
-                "%s job IDs absent from oarstat; %s shared resource slots (? marks unknown ownership)."
-                % tuple(oar_notes.get(key, 0) for key in ("missing_resources", "extra_resources", "unlisted_jobs", "shared_resources"))
-            )
+        self.display_backend_messages("snapshot")
 
         for idx, part in enumerate(config["user_display_parts"], 1):
             display_func, opts = display_parts[part][0], display_parts[part][1]
@@ -1741,7 +1741,7 @@ class TextDisplay(object):
                 "version": __version__,
             }
         )
-        if scheduler == "demo":
+        if scheduler_backend().is_simulated:
             msg = "This data is simulated. As soon as you connect to one of the supported scheduling systems,\nyou will see live data from your cluster. Press q to Quit."
             print(colorize(msg, "Blue_L"))
 
@@ -1771,10 +1771,7 @@ class TextDisplay(object):
             }
         )
 
-        if scheduler == "slurm":
-            print("Slurm job counts include individual array tasks and heterogeneous components.")
-            if any(len(job.get("slurm_partitions", [])) > 1 for job in getattr(document, "_job_metadata", {}).values()):
-                print("Slurm partition counts include each eligible partition; global job counts are unique.")
+        self.display_backend_messages("accounting")
         expanded = globals().get("dynamic_config", {}).get("queue_summary_expanded", getattr(self.args, "EXPAND_QUEUES", False))
         print("%(queues)s :" % {"queues": colorize("Queueing", "Cyan_L")}, end="\n" if expanded else " ")
         for _queue_name, q_tuple in qstatq_lod.items():
@@ -1790,9 +1787,7 @@ class TextDisplay(object):
                 ),
                 end="\n" if expanded else " ",
             )
-        blocked_note = " (at least one queue instance)" if scheduler == "sge" else ""
-        if scheduler == "slurm":
-            blocked_note = " (partition closed to submissions or scheduling)"
+        blocked_note = scheduler_backend().blocked_queue_note
         print(colorize("* implies blocked", "Red") + blocked_note + "\n")
         if getattr(self.args, "SHOW_QUEUE_NODES", False):
             from qtop_py.queue_nodes import queue_node_counts
@@ -1812,30 +1807,16 @@ class TextDisplay(object):
         print_char_stop = self.wns_occupancy.print_char_stop
 
         self.display_basic_legend()
-        if scheduler == "slurm":
-            sources = {node.get("cpu_allocation_source") for node in cluster.worker_nodes}
-            if "estimated" in sources:
-                print("Slurm CPU placement: estimated where allocation details are unavailable.")
-            if "slurm" in sources:
-                print("Slurm CPU placement: scheduler CPU IDs; Linux task affinity is not shown.")
-            omitted = sum(node.get("slurm_unmapped_cpus", 0) for node in cluster.worker_nodes)
-            if omitted:
-                print("Slurm CPU matrix omits %s shared/excess CPU assignments; job/node membership is retained." % omitted)
+        self.display_backend_messages("placement")
         self.display_matrix(wns_occupancy, print_char_start, print_char_stop)
         # the transposed matrix is one continuous block, doesn't make sense to break into more matrices
         if not dynamic_config.get("transpose_wn_matrices", config["transpose_wn_matrices"]):
             self.display_remaining_matrices(wns_occupancy, print_char_start, print_char_stop)
-        if scheduler == "slurm" and self.config.get("experimental_gpu_pairs"):
-            from qtop_py.gpu import configured_pair_lines
+        self.display_backend_messages("resources")
 
-            try:
-                lines = configured_pair_lines(cluster.worker_nodes, self.config["experimental_gpu_pairs"])
-            except ValueError as error:
-                print("Configured GPU pairs unavailable: %s" % error)
-            else:
-                if lines:
-                    print("Configured GPU pairs (experimental; job IDs, ? = unknown):")
-                    print("\n".join(lines))
+    def display_backend_messages(self, section):
+        for line in scheduler_backend().display_messages(section, self.document, getattr(self.cluster, "worker_nodes", []), self.config):
+            print(line)
 
     def display_basic_legend(self):
         """Displays the Worker Nodes occupancy label plus columns explanation"""
@@ -2460,9 +2441,7 @@ class Cluster(object):
 
     def _calculate_jobs_per_node(self, workernode_dict):
         for node in workernode_dict:
-            node_job_set = set(workernode_dict[node]["core_job_map"].values())
-            node_job_set.update(workernode_dict[node].get("slurm_job_ids", []))
-            node_job_set.update(workernode_dict[node].get("oar_job_ids", []))
+            node_job_set = node_job_ids(workernode_dict[node])
             workernode_dict[node]["node_job_set"] = node_job_set
 
 
@@ -2780,7 +2759,7 @@ def main():
     SAMPLE_FILENAME = "qtop_sample_anonymous%(datetime)s.tar" if args.ANONYMIZE else os.path.expandvars(SAMPLE_FILENAME)
     if args.REPLAY:
         args.WATCH = 2  # enforce that --watch mode is on, even if not in cmdline switch
-        args.BATCH_SYSTEM = "demo"
+        args.BATCH_SYSTEM = next(name for name, backend in available_batch_systems.items() if backend.is_simulated)
         try:
             config, _, _ = load_yaml_config()
         except (ValueError, TypeError, KeyError, IndexError, AttributeError, StopIteration) as error:
@@ -2797,6 +2776,7 @@ def main():
                 try:
                     config, user_to_color, nodestate_to_color = load_yaml_config()
                     config = update_config_with_cmdline_vars(args, config)
+                    validate_config(config)
                 except (ValueError, TypeError, KeyError, IndexError, AttributeError, StopIteration) as error:
                     raise OperationalError("Invalid configuration in %s: %s" % (args.CONFFILE or QTOPCONF_YAML, error or type(error).__name__)) from error
                 savepath = config["savepath"] = fileutils.private_save_directory(config["savepath"])

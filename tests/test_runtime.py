@@ -161,3 +161,14 @@ def test_watch_refreshes_after_transpose_and_quits_cleanly(runtime, scheduler_in
     assert len(calls) == 4
     assert calls[0] == calls[2] == ["/usr/bin/clear"]
     assert all(command[1].endswith(".out") for command in (calls[1], calls[3]))
+
+
+@pytest.mark.parametrize(
+    "override,key",
+    [("transpose_wn_matrices='maybe'", "transpose_wn_matrices"), ("term_size=[0,80]", "term_size"), ("sorting={'user_sort': [] , 'reverse': 'maybe'}", "sorting.reverse")],
+)
+def test_invalid_cli_overrides_fail_with_key_before_collection(runtime, monkeypatch, capsys, override, key):
+    monkeypatch.setattr(qtop, "execute_shell_batch_commands", lambda *args, **kwargs: pytest.fail("Invalid config must not execute scheduler commands"))
+    code, _ = runtime("-b", "demo", "-o", override)
+    assert code != 0
+    assert key in capsys.readouterr().err

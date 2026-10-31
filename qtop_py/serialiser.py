@@ -113,6 +113,29 @@ class StatExtractor(object):
 
 class GenericBatchSystem(object):
     optional_trace_keys: Tuple[str, ...] = ()
+    optional_trace_aliases: Dict[str, str] = {}
+    optional_trace_warning = "Optional scheduler details unavailable."
+    detection_priority = 0
+    is_simulated = False
+    node_job_fields: Tuple[str, ...] = ()
+    blocked_queue_note = ""
+
+    @staticmethod
+    def collection_command(key, command, options):
+        return command
+
+    @staticmethod
+    def queue_is_blocked(state):
+        state = str(state)
+        return state.startswith("D") or state.endswith("S")
+
+    @staticmethod
+    def node_state_marker(node):
+        return ""
+
+    @staticmethod
+    def display_messages(section, document, nodes, config):
+        return []
 
     def mask_source_trace(self, key, text, mask):
         raise ValueError("This backend has no source trace masker")
@@ -140,8 +163,8 @@ class GenericBatchSystem(object):
         nodes = self.get_worker_nodes(job_ids, job_queues, options)
         return build_cluster_state(job_ids, users, job_states, job_queues, nodes, queues)
 
-    @staticmethod
-    def ensure_worker_nodes_have_qnames(_worker_nodes, job_ids, job_queues):
+    @classmethod
+    def ensure_worker_nodes_have_qnames(cls, _worker_nodes, job_ids, job_queues):
         """
         This gets the queues associated with each worker node.
         SGE systems already contain this information.
@@ -151,7 +174,10 @@ class GenericBatchSystem(object):
             dict(
                 worker_node,
                 qname=list(
-                    set(job_ids_queues.get(resolve_job_id(job_id, job_ids_queues)) for job_id in list(worker_node["core_job_map"].values()) + worker_node.get("oar_job_ids", []))
+                    set(
+                        job_ids_queues.get(resolve_job_id(job_id, job_ids_queues))
+                        for job_id in list(worker_node["core_job_map"].values()) + [job for field in cls.node_job_fields for job in worker_node.get(field, [])]
+                    )
                 ),
             )
             for worker_node in _worker_nodes

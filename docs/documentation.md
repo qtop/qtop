@@ -434,6 +434,15 @@ without saying that only a very basic implementation is required (what
 you can see used in the configuration file, really!) and none of the
 flashy features that YAML sports.
 
+Merged configuration files and CLI overrides are checked before scheduler collection.
+Invalid common settings report the affected key (for example, `sorting.reverse`
+or `term_size`). Backend-specific extension keys remain supported.
+
+`scheduler_command_timeout` also bounds optional user-detail commands from
+`extract_info`; it defaults to 30 seconds and must be positive and finite.
+Failed or timed-out lookups log a warning and leave the dashboard usable.
+Quoted command arguments, including cache paths containing spaces, are preserved.
+
 #### Scheduler configuration area
 
 PBS node input tolerates blank separators and wrapped `jobs` attributes. Array

@@ -50,6 +50,19 @@ class OarStatExtractor(StatExtractor):
 
 
 class OARBatchSystem(GenericBatchSystem):
+    node_job_fields = ("oar_job_ids",)
+
+    @staticmethod
+    def display_messages(section, document, nodes, config):
+        notes = getattr(document, "_diagnostics", {}).get("oar_diagnostics", {})
+        if section == "snapshot" and any(notes.values()):
+            return [
+                "OAR allocation notes: %s resources lack details; %s resources absent from node states; "
+                "%s job IDs absent from oarstat; %s shared resource slots (? marks unknown ownership)."
+                % tuple(notes.get(key, 0) for key in ("missing_resources", "extra_resources", "unlisted_jobs", "shared_resources"))
+            ]
+        return []
+
     def mask_source_trace(self, key, text, mask):
         rows = []
         jobs_list = False

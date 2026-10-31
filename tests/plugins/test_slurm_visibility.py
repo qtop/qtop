@@ -40,7 +40,8 @@ def test_clean_frames_have_no_diagnostics(trace):
 
 @pytest.mark.parametrize("raw_state,normalized", [("idle", "-"), ("down", "d"), ("alloc", "b")])
 @pytest.mark.parametrize("suffix", list("*~#!%$@^-+") + ["", "~*"])
-def test_slurm_state_suffix_reaches_matrix_and_snapshot(trace, raw_state, normalized, suffix):
+def test_slurm_state_suffix_reaches_matrix_and_snapshot(trace, raw_state, normalized, suffix, monkeypatch):
+    monkeypatch.setattr(qtop, "scheduler", "slurm", raising=False)
     slurm = trace("", "node1|batch|%s%s|8\n" % (raw_state, suffix))
     state = slurm.get_cluster_state(slurm.options)
     assert state["nodes"][0]["state"] == normalized
