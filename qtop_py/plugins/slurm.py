@@ -275,6 +275,8 @@ class SlurmStatExtractor(StatExtractor):
 
 
 class SlurmBatchSystem(GenericBatchSystem):
+    optional_trace_keys = ("scontrol_file",)
+
     def mask_source_trace(self, key, text, mask):
         if key == "scontrol_file":
 

@@ -892,6 +892,30 @@ user. Setting it to ``False`` adds a ``_YYYYmmdd-HHMMSS`` timestamp. Missing or
 unreadable archive members are logged and skipped, so inspect both the member
 list and log if a capture appears incomplete.
 
+### Read scheduler traces from a tarball
+
+Pass a tarball directly to ``-s`` to replay native scheduler input:
+
+```sh
+./qtop -b slurm -s /path/to/capture.tar.gz
+```
+
+Plain, gzip, bzip2 and xz tar archives are supported. Members are grouped by
+parent directory and shared capture suffix: ``squeue_123.txt``, ``sinfo_123.txt``
+and ``scontrol_123.txt`` form one set. Required files must all be present;
+Slurm's ``scontrol`` details are optional. qtop prefers sets with more configured
+files, then the lexicographically last directory/suffix, independent of member
+order. This ordering does not infer capture time. Duplicate members make a set
+ambiguous and ineligible. ``-d`` logs the selected set and member names.
+
+Only selected regular trace files are copied into a private temporary directory,
+which is removed at exit. Links, devices and unsafe member paths are ignored;
+archived configuration and sources are not loaded. Limits are 10,000 members,
+1 GiB of uncompressed archive data, 256 MiB per trace and 512 MiB per selected set.
+Raw companion input-key names and native files under ``masked-traces/`` are
+accepted. An archive containing only normalized state needs ``--load-sample``.
+Passing a plain output file to ``-s`` continues to use its parent directory.
+
 ### Anonymization scope
 
 Use ``-A -e`` to request experimental identifier masking. For example:

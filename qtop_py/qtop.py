@@ -887,11 +887,20 @@ def control_qtop(viewport, read_char, cluster, old_attrs, new_attrs):
     )
 
 
-def fetch_scheduler_files(args, config):
+def fetch_scheduler_files(args, config, optional_trace_keys=()):
     try:
         INPUT_FNs_commands = finalize_filepaths_schedulercommands(args, config)
     except (ValueError, TypeError, KeyError, AttributeError) as error:
         raise OperationalError("Invalid scheduler command configuration for %s in %s: %s" % (scheduler, QTOPCONF_YAML, error)) from error
+    if getattr(args, "source_archive", None):
+        from qtop_py.trace_archive import load_trace_archive
+
+        try:
+            if not hasattr(args, "archive_trace_paths"):
+                args.archive_trace_paths = load_trace_archive(args.source_archive, args.workdir, config["schedulers"][scheduler], optional_trace_keys)
+            return args.archive_trace_paths.copy()
+        except (OSError, tarfile.TarError, ValueError) as error:
+            raise OperationalError("Cannot read scheduler trace archive %s: %s" % (args.source_archive, error)) from error
     scheduler_output_filenames = get_input_filenames(INPUT_FNs_commands, config)
     return scheduler_output_filenames
 
@@ -976,7 +985,12 @@ def attempt_faster_xml_parsing(config):
 def init_dirs(args, _savepath):
     args.SOURCEDIR = os.path.realpath(args.SOURCEDIR) if args.SOURCEDIR else None
     if args.SOURCEDIR and os.path.isfile(args.SOURCEDIR):
-        args.SOURCEDIR = os.path.dirname(args.SOURCEDIR)
+        if tarfile.is_tarfile(args.SOURCEDIR) or args.SOURCEDIR.lower().endswith((".tar", ".tar.gz", ".tgz", ".tar.bz2", ".tbz2", ".tar.xz", ".txz")):
+            args.source_archive = args.SOURCEDIR
+            args.source_workspace = tempfile.TemporaryDirectory(prefix="qtop-traces-")
+            args.SOURCEDIR = args.source_workspace.name
+        else:
+            args.SOURCEDIR = os.path.dirname(args.SOURCEDIR)
     logging.debug("User-defined source directory: %s" % args.SOURCEDIR)
     args.workdir = args.SOURCEDIR or _savepath
     logging.debug("Working directory is now: %s" % args.workdir)
@@ -2637,6 +2651,7 @@ def report_operational_error(error):
 
 def cli_main():
     original_stdout = sys.stdout
+    original_cwd = os.getcwd()
     try:
         return main() or 0
     except (InvalidScheduler, NoSchedulerFound, SchedulerNotSpecified) as error:
@@ -2652,6 +2667,10 @@ def cli_main():
             with contextlib.suppress(OSError):
                 sys.stdout.close()
             sys.stdout = original_stdout
+        workspace = getattr(globals().get("args"), "source_workspace", None)
+        if workspace is not None:
+            os.chdir(original_cwd)
+            workspace.cleanup()
 
 
 def main():
@@ -2775,7 +2794,7 @@ def main():
                     if args.load_sample
                     else decide_batch_system(args.BATCH_SYSTEM, os.environ.get("QTOP_SCHEDULER"), config["scheduler"], config["schedulers"], available_batch_systems, config)
                 )
-                scheduler_output_filenames = {} if args.load_sample else fetch_scheduler_files(args, config)
+                scheduler_output_filenames = {} if args.load_sample else fetch_scheduler_files(args, config, available_batch_systems[scheduler].optional_trace_keys)
                 SAMPLE_FILENAME = fileutils.get_sample_filename(SAMPLE_FILENAME, config)
                 if args.SAMPLE:
                     tar_out = fileutils.init_sample_file(args, savepath, SAMPLE_FILENAME, scheduler_output_filenames, QTOPCONF_YAML, QTOPPATH)

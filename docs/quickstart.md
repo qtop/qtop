@@ -50,6 +50,17 @@ Try the committed Slurm fixture without contacting a scheduler:
 Use `-s /path/to/traces` for your own saved output. Required filenames depend
 on the backend; see the [full guide](documentation.md).
 
+You can also pass a trace tarball directly, including compressed tarballs:
+
+```sh
+./qtop -b slurm -s /path/to/capture.tar.gz
+```
+
+qtop selects one complete set with matching directory and capture suffix,
+preferring optional detail files, then the lexicographically last directory/suffix.
+It supports raw companion archives and `masked-traces/` members. Snapshot-only
+anonymous archives still use `--load-sample`.
+
 ## Export or capture a snapshot
 
 Add `-E` to export normalized cluster state as JSON. The terminal report still

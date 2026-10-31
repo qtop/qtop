@@ -73,6 +73,32 @@ def test_source_trace_archives_preserve_private_input_and_replay_masked_formats(
     replay = run_cli(tmp_path / "replay_home", "-b", backend, "-s", str(masked_inputs), "-E", "-O", "-o", "savepath=" + str(replay_output))
     assert replay.returncode == 0, replay.stderr
     actual = json.loads(next(replay_output.glob("qtop_json_*.json")).read_text())
+    # Both raw input-key members and native masked filenames can be replayed directly.
+    workspaces = tmp_path / "workspaces"
+    workspaces.mkdir()
+    for index, source_archive in enumerate((raw, next(output.glob("qtop_sample_anonymous*.tar")))):
+        original_archive = source_archive.read_bytes()
+        archive_output = tmp_path / ("archive_replay_%s" % index)
+        result = run_cli(
+            tmp_path / ("archive_home_%s" % index),
+            "-b",
+            backend,
+            "-s",
+            str(source_archive),
+            "-E",
+            "-O",
+            "-o",
+            "savepath=" + str(archive_output),
+            extra_env={"TMPDIR": str(workspaces)},
+        )
+        assert result.returncode == 0, result.stderr
+        assert source_archive.read_bytes() == original_archive
+        assert list(workspaces.glob("qtop-traces-*")) == []
+        state = json.loads(next(archive_output.glob("qtop_json_*.json")).read_text())
+        if index == 1:
+            assert state == actual
+        else:
+            assert len(state["jobs"]) == len(actual["jobs"])
     # SGE synthesizes the literal Pending queue; it is not a source XML field.
     if backend == "sge":
         expected_jobs = {job["id"]: job for job in expected["jobs"]}
@@ -90,6 +116,38 @@ def test_source_trace_flags_require_anonymous_capture(tmp_path, flag):
     result = run_cli(tmp_path / "home", flag)
     assert result.returncode != 0
     assert "require -L -A -e" in result.stderr
+
+
+def test_archive_source_selects_matching_pid_traces_with_cpu_details(tmp_path):
+    source = ROOT / "tests/plugins/slurm_samples/cpu_allocations"
+    archive_path = tmp_path / "captures.tar.gz"
+    with tarfile.open(str(archive_path), "w:gz") as archive:
+        for stem in ("squeue", "sinfo", "scontrol"):
+            archive.add(str(source / (stem + ".txt")), arcname="frames/" + stem + "_123.txt")
+        for stem in ("squeue", "sinfo"):
+            archive.add(str(ROOT / "tests/plugins/slurm_samples/basic" / (stem + ".txt")), arcname="frames/" + stem + "_999.txt")
+    expected = None
+    for index, location in enumerate((source, archive_path, source / "squeue.txt")):
+        output = tmp_path / ("out_%s" % index)
+        result = run_cli(tmp_path / ("home_%s" % index), "-b", "slurm", "-s", str(location), "-E", "-O", "-o", "savepath=" + str(output))
+        assert result.returncode == 0, result.stderr
+        state = json.loads(next(output.glob("qtop_json_*.json")).read_text())
+        assert state["nodes"][0]["cpu_allocation_source"] == "slurm"
+        if expected is None:
+            expected = state
+        assert state == expected
+
+
+def test_invalid_archive_source_fails_cleanly_and_cleans_workspace(tmp_path):
+    archive = tmp_path / "broken.tar"
+    archive.write_text("not a tarball")
+    workspaces = tmp_path / "workspaces"
+    workspaces.mkdir()
+    result = run_cli(tmp_path / "home", "-b", "slurm", "-s", str(archive), "-O", "-o", "savepath=" + str(tmp_path / "output"), extra_env={"TMPDIR": str(workspaces)})
+    assert result.returncode != 0
+    assert "Cannot read scheduler trace archive" in result.stderr
+    assert "Traceback" not in result.stderr
+    assert list(workspaces.glob("qtop-traces-*")) == []
 
 
 def test_malformed_source_remains_in_private_companion_and_is_omitted_from_masked_archive(tmp_path):

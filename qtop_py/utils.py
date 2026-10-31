@@ -174,7 +174,7 @@ def parse_qtop_cmdline_args():
         "-s",
         "--SetSourceDir",
         dest="SOURCEDIR",
-        help="Set the source directory where scheduler output files reside, or pass one output file to use its parent directory",
+        help="Read scheduler traces from a directory or tar archive; passing a plain output file uses its parent directory",
     )
     parser.add_argument(
         "-S",
