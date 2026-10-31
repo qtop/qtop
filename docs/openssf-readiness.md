@@ -83,4 +83,3 @@ service badge reports actual progress; do not hard-code a passing status.
 | [Minder](https://mindersec.dev/) | Choose policy profiles and repository permissions separately from metadata; start with evaluation before enforcement. |
 | SLSA provenance | Prefer [GitHub artifact attestations](https://docs.github.com/en/actions/how-tos/secure-your-work/use-artifact-attestations/use-artifact-attestations) for the existing GitHub build, with verification of the exact published sdist/wheel digests. |
 | Harness or another CI platform | If adopted, reuse Makefile gates and specify the build identity, evidence retention and consumer verification contract before adding provider configuration. |
-
