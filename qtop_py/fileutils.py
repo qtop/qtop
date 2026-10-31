@@ -154,7 +154,6 @@ def save_raw_companion(savepath, filenames):
 
 
 def add_to_sample(filepaths_to_add, sample_out, sample_method=tarfile, subdir=None):
-    # def add_to_sample(filepaths_to_add, _savepath, sample_file, sample_method=tarfile, subdir=None):
     """
     opens sample_file in path savepath and adds files filepaths_to_add
     """
@@ -167,9 +166,6 @@ def add_to_sample(filepaths_to_add, sample_out, sample_method=tarfile, subdir=No
             sample_out.add(filepath_to_add, arcname=fn if not subdir else os.path.join(subdir, fn), filter=_without_archive_owner)
         except (OSError, tarfile.TarError) as error:
             logging.error("Could not add %s to the sample archive; skipping it: %s", filepath_to_add, error)
-    # else:
-    # logging.debug('Closing sample...')
-    # sample_out.close()
     return sample_out
 
 

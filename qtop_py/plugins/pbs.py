@@ -178,7 +178,6 @@ class PBSStatExtractor(StatExtractor):
         with open(qstatq_file, "r") as fin:
             fin.readline()
             fin.readline()
-            # server_name = fin.next().split(': ')[1].strip()
             fin.readline()
             fin.readline()  # .strip()  # the headers line should later define the keys in temp_dict, should they be different
             fin.readline()

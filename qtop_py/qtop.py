@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 ##################################################
 ##                     qtop                     ##
@@ -2133,11 +2133,11 @@ class TextDisplay(object):
         tail_command = ["tail", "-n+" + str(x), file]
         head_command = ["head", "-n" + str(y - 1)]
         with open(temp_filename, "w") as output_file:
-            process_tail = subprocess.Popen(tail_command, stdout=subprocess.PIPE)
-            process_head = subprocess.Popen(head_command, stdin=process_tail.stdout, stdout=output_file)
-            if process_tail.stdout is not None:
-                process_tail.stdout.close()
-            _ = process_head.communicate()
+            with subprocess.Popen(tail_command, stdout=subprocess.PIPE) as process_tail:
+                with subprocess.Popen(head_command, stdin=process_tail.stdout, stdout=output_file) as process_head:
+                    if process_tail.stdout is not None:
+                        process_tail.stdout.close()
+                    process_head.communicate()
         return temp_filename
 
     def print_mult_attr_line(self, print_char_start, print_char_stop, transposed_matrices, attr_lines, label, color_func=None, **_config_metadata):
@@ -2477,12 +2477,12 @@ def colorize(text, color_func=None, pattern="NoPattern", mapping=None, bg_color=
     Other mappings available are: nodestate_to_color, queue_to_color.
     Examples:
     s = ColorStr(string='This is some text', color='Red_L')
-    print colorize(s, color_func=s.color), # Red_L is applied directly
-    print colorize(s.str, pattern='alicesgm') # mapping defaults to user_to_color
-    print colorize(s.str, color_func=s.color, bg_color='BlueBG') # bg and fg colors applied directly
+    print(colorize(s, color_func=s.color), end=" ") # Red_L is applied directly
+    print(colorize(s.str, pattern='alicesgm')) # mapping defaults to user_to_color
+    print(colorize(s.str, color_func=s.color, bg_color='BlueBG')) # bg and fg colors applied directly
 
     state = ColorStr('running. coloring according to node state')
-    print colorize(state.str, mapping=nodestate_to_color, pattern=state.initial)
+    print(colorize(state.str, mapping=nodestate_to_color, pattern=state.initial))
     """
     bg_color = "NOBG" if not bg_color else bg_color
     if not mapping:
@@ -2930,8 +2930,7 @@ def main():
                 raise SystemExit(0)
             fileutils.safe_exit_with_file_close(handle, output_fp, stdout, args, savepath, QTOP_LOGFILE, SAMPLE_FILENAME)
         finally:
-            if sys.exc_info()[0] is not None:
-                web.stop()
+            web.stop()
             if args.SAMPLE >= 1 and tar_out is not None:
                 if not args.ANONYMIZE:
                     tar_out = fileutils.add_to_sample([QTOP_LOGFILE], tar_out)

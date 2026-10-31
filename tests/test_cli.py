@@ -466,6 +466,14 @@ def test_logged_trace_collection_command_can_be_pasted_into_shell(tmp_path, monk
     assert not (tmp_path / "injected").exists()
 
 
+@pytest.mark.parametrize("flags,expected", (([], None), (["-w"], 2), (["-w", "5"], 5)))
+def test_watch_arguments_use_argparse(monkeypatch, flags, expected):
+    from qtop_py import utils
+
+    monkeypatch.setattr(sys, "argv", ["qtop"] + flags)
+    assert utils.parse_qtop_cmdline_args().WATCH == expected
+
+
 def test_option_value_can_contain_equals():
     from qtop_py.qtop import get_key_val_from_option_string
 

@@ -191,13 +191,24 @@ from qtop_py import fileutils, qtop, utils, yaml_parser
 from qtop_py.plugins.oar import OARBatchSystem
 
 oar = OARBatchSystem({}, {}, SimpleNamespace(ANONYMIZE=False))
+def invalid_watch():
+    original = sys.argv
+    try:
+        sys.argv = ['qtop', '-w', 'invalid']
+        utils.parse_qtop_cmdline_args()
+    except SystemExit as error:
+        if error.code != 2:
+            raise RuntimeError('Invalid watch interval did not fail argument parsing')
+        raise
+    finally:
+        sys.argv = original
 checks = [
     (lambda: fileutils.parse_time_input('2x'), ValueError),
     (lambda: fileutils.add_to_sample((), None), TypeError),
     (lambda: yaml_parser.parse(sys.argv[1]), ValueError),
     (lambda: oar._read_oarnodes_s_yaml(sys.argv[1]), ValueError),
     (lambda: oar._read_oarnodes_s_yaml(sys.argv[1] + '.missing'), FileNotFoundError),
-    (lambda: utils._watch_callback(None, None, 'preset', None), ValueError),
+    (invalid_watch, SystemExit),
 ]
 class Plugin:
     @staticmethod
