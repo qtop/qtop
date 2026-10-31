@@ -297,7 +297,7 @@ def test_cli_permission_error_restores_output(monkeypatch, capsys):
     original = sys.stdout
     redirected = io.StringIO()
 
-    def fail():
+    def fail(_resources):
         sys.stdout = redirected
         raise PermissionError(13, "Permission denied", "/restricted/trace")
 
@@ -311,7 +311,7 @@ def test_cli_permission_error_restores_output(monkeypatch, capsys):
 def test_cli_does_not_hide_unexpected_programming_errors(monkeypatch):
     from qtop_py import qtop
 
-    def fail():
+    def fail(_resources):
         raise RuntimeError("programming defect")
 
     monkeypatch.setattr(qtop, "main", fail)
@@ -475,7 +475,7 @@ def test_watch_arguments_use_argparse(monkeypatch, flags, expected):
 
 
 def test_option_value_can_contain_equals():
-    from qtop_py.qtop import get_key_val_from_option_string
+    from qtop_py.configuration import get_key_val_from_option_string
 
     assert get_key_val_from_option_string("label=a=b") == ("label", "a=b")
 
@@ -493,12 +493,9 @@ def test_unreadable_optional_config_is_not_ignored(tmp_path, monkeypatch):
             raise PermissionError(13, "Permission denied", path)
         return parse(path)
 
-    monkeypatch.setattr(qtop, "QTOPPATH", str(ROOT), raising=False)
-    monkeypatch.setattr(qtop, "SYSTEMCONFDIR", str(tmp_path / "etc"))
-    monkeypatch.setattr(qtop, "args", SimpleNamespace(CONFFILE=None), raising=False)
     monkeypatch.setattr(qtop.yaml, "parse", deny_optional)
     with pytest.raises(PermissionError):
-        qtop.load_yaml_config()
+        qtop.configuration.load_yaml_config(SimpleNamespace(CONFFILE=None), str(ROOT), str(tmp_path), str(tmp_path / "etc"), str(tmp_path / "user"))
 
 
 def test_replay_configuration_failure_is_concise(tmp_path):
@@ -544,7 +541,7 @@ def test_slurm_config_command_matches_shell_execution(tmp_path, monkeypatch, sch
     monkeypatch.setenv("PATH", str(tmp_path) + os.pathsep + os.environ.get("PATH", ""))
     monkeypatch.setattr(qtop, "scheduler", "slurm", raising=False)
     args = type("Options", (), {"SOURCEDIR": None, "workdir": str(tmp_path), "ALL_PARTITIONS": all_partitions})()
-    finalized = qtop.finalize_filepaths_schedulercommands(args, config)
+    finalized = qtop.finalize_filepaths_schedulercommands(args, config, qtop.scheduler_backend("slurm"))
     output_path, command = finalized[scheduler_file]
     assert command == configured_command + (" --all" if all_partitions else "")
     expected = expected + (["--all"] if all_partitions else [])
@@ -556,7 +553,7 @@ def test_slurm_config_command_matches_shell_execution(tmp_path, monkeypatch, sch
     path_template = config["schedulers"]["slurm"][scheduler_file].split(", ", 1)[0]
     legacy_command = configured_command.replace("'", "").replace("%", "%%")
     config["schedulers"]["slurm"][scheduler_file] = path_template + ", " + legacy_command
-    legacy_path, legacy_command = qtop.finalize_filepaths_schedulercommands(args, config)[scheduler_file]
+    legacy_path, legacy_command = qtop.finalize_filepaths_schedulercommands(args, config, qtop.scheduler_backend("slurm"))[scheduler_file]
     qtop.execute_shell_batch_commands({scheduler_file: legacy_command}, {scheduler_file: legacy_path}, scheduler_file, str(tmp_path))
     assert json.loads(Path(legacy_path).read_text()) == expected
 
@@ -570,9 +567,9 @@ def test_all_partitions_does_not_change_saved_traces_or_other_backends(tmp_path,
     config = qtop.yaml.parse(str(ROOT / "qtopconf.yaml"))
     monkeypatch.setattr(qtop, "scheduler", scheduler_name, raising=False)
     args = SimpleNamespace(SOURCEDIR=source, workdir=str(tmp_path), ALL_PARTITIONS=False)
-    default = qtop.finalize_filepaths_schedulercommands(args, config)
+    default = qtop.finalize_filepaths_schedulercommands(args, config, qtop.scheduler_backend(scheduler_name))
     args.ALL_PARTITIONS = True
-    assert qtop.finalize_filepaths_schedulercommands(args, config) == default
+    assert qtop.finalize_filepaths_schedulercommands(args, config, qtop.scheduler_backend(scheduler_name)) == default
 
 
 @pytest.mark.skipif(os.name != "posix", reason="Executable scheduler stand-ins require POSIX")

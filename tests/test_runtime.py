@@ -161,3 +161,75 @@ def test_watch_refreshes_after_transpose_and_quits_cleanly(runtime, scheduler_in
     assert len(calls) == 4
     assert calls[0] == calls[2] == ["/usr/bin/clear"]
     assert all(command[1].endswith(".out") for command in (calls[1], calls[3]))
+
+
+@pytest.mark.parametrize(
+    "override,key",
+    [("transpose_wn_matrices='maybe'", "transpose_wn_matrices"), ("term_size=[0,80]", "term_size"), ("sorting={'user_sort': [] , 'reverse': 'maybe'}", "sorting.reverse")],
+)
+def test_invalid_cli_overrides_fail_with_key_before_collection(runtime, monkeypatch, capsys, override, key):
+    monkeypatch.setattr(qtop, "execute_shell_batch_commands", lambda *args, **kwargs: pytest.fail("Invalid config must not execute scheduler commands"))
+    code, _ = runtime("-b", "demo", "-o", override)
+    assert code != 0
+    assert key in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("anonymous", [False, True])
+def test_watch_capture_closes_each_archive_before_key_handling(runtime, scheduler_inputs, monkeypatch, anonymous):
+    keys = iter(("t", "q"))
+    archives = []
+    original = qtop.fileutils.init_sample_file
+
+    def capture(*args, **kwargs):
+        archive = original(*args, **kwargs)
+        archives.append(archive)
+        return archive
+
+    def key(*args):
+        assert archives and all(archive.closed for archive in archives)
+        return next(keys)
+
+    monkeypatch.setattr(qtop.fileutils, "init_sample_file", capture)
+    monkeypatch.setattr(qtop, "wait_for_keypress_or_autorefresh", key)
+    monkeypatch.setattr(qtop.subprocess, "call", lambda *args, **kwargs: 0)
+    flags = ["-A", "-e"] if anonymous else []
+    with pytest.raises(SystemExit) as stopped:
+        runtime("-b", "slurm", "-s", str(scheduler_inputs), "-w", "1", "-L", *flags, save_only=False)
+    assert stopped.value.code == 0
+    assert len(archives) == 2 and all(archive.closed for archive in archives)
+
+
+def test_replay_collection_uses_snapshot_without_constructing_a_scheduler(tmp_path):
+    from types import SimpleNamespace
+
+    state = {"jobs": [], "nodes": [], "queues": []}
+
+    class OfflineBackend:
+        @staticmethod
+        def get_mnemonic():
+            return "offline"
+
+        def __init__(self, *args):
+            pytest.fail("Replay must not construct a live backend")
+
+    options = SimpleNamespace(load_sample="snapshot.tar", sample_snapshot={"state": state})
+    config = {"savepath": str(tmp_path)}
+    document, prepared = qtop.collect_snapshot(options, config, OfflineBackend, {}, None)
+    assert document.to_cluster_state() == state
+    assert prepared is config
+
+
+def test_failed_export_removes_partial_file_and_does_not_notify_web(tmp_path):
+    from types import SimpleNamespace
+    from unittest.mock import Mock
+
+    class FailedDocument:
+        def save(self, path):
+            Path(path).write_text("partial JSON")
+            raise OSError("export failed")
+
+    web = Mock()
+    with pytest.raises(OSError, match="export failed"):
+        qtop.export_snapshot(FailedDocument(), SimpleNamespace(EXPORT=True, WEB=True), str(tmp_path), "test", web)
+    assert not list(tmp_path.glob("qtop_json_*.json"))
+    web.set_filename.assert_not_called()

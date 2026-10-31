@@ -19,6 +19,7 @@ if TYPE_CHECKING:
     from qtop_py.contracts import ClusterState, Config, JobsInfo, Node, Options, QueuesInfo
 
 from qtop_py.cluster_state import build_cluster_state
+from qtop_py.plugins.metadata import CLASSIC_REPORT_NAME, node_is_idle
 
 
 def resolve_job_id(job_id: str, known_ids: Collection[str]) -> str:
@@ -33,10 +34,7 @@ def resolve_job_id(job_id: str, known_ids: Collection[str]) -> str:
 
 
 class StatExtractor(object):
-    """
-    Extracts qstat/qstatq information from files coming from the respective batch system commmands
-    (PBS, OAR, SGE etc)
-    """
+    """Extract statistics using scheduler-specific input parsers."""
 
     def __init__(self, config: "Config", options: "Options") -> None:
         self.config = config
@@ -48,7 +46,6 @@ class StatExtractor(object):
         extracts data from a tabular qstat-like file
         returns a list
         """
-        qstat_values = dict()
         m = re.search(re_search, line.strip())
 
         try:
@@ -60,9 +57,7 @@ class StatExtractor(object):
             raise
         job_id = job_id.split(".")[0]
         user = self.anonymize(user, "users")
-        for key, value in [("JobId", job_id), ("UnixAccount", user), ("S", job_state), ("Queue", queue)]:
-            qstat_values[key] = value
-        return qstat_values
+        return {"JobId": job_id, "UnixAccount": user, "S": job_state, "Queue": queue}
 
     def anonymize_func(self) -> Callable[[str, str], str]:
         """
@@ -99,10 +94,7 @@ class StatExtractor(object):
         return _anonymize_func
 
     def eponymize_func(self) -> Callable[[str, str], str]:
-        def _eponymize_func(s: str, a_type: str) -> str:
-            return s
-
-        return _eponymize_func
+        return lambda s, a_type: s
 
     def anonymize_queue_list_nametag(self, queue_list_nametag):
         name, nodename = queue_list_nametag.text.split("@")
@@ -113,12 +105,35 @@ class StatExtractor(object):
 
 class GenericBatchSystem(object):
     optional_trace_keys: Tuple[str, ...] = ()
+    optional_trace_aliases: Dict[str, str] = {}
+    optional_trace_warning = "Optional scheduler details unavailable."
+    detection_priority = 0
+    is_simulated = False
+    node_job_fields: Tuple[str, ...] = ()
+    blocked_queue_note = ""
+    native_queue_membership = False
+    node_is_idle = staticmethod(node_is_idle)
+    classic_report_name = CLASSIC_REPORT_NAME
+
+    @staticmethod
+    def collection_command(key, command, options):
+        return command
+
+    @staticmethod
+    def queue_is_blocked(state):
+        state = str(state)
+        return state.startswith("D") or state.endswith("S")
+
+    @staticmethod
+    def node_state_marker(node):
+        return ""
+
+    @staticmethod
+    def display_messages(section, document, nodes, config):
+        return []
 
     def mask_source_trace(self, key, text, mask):
         raise ValueError("This backend has no source trace masker")
-
-    def __init__(self):
-        pass
 
     def get_queues_info(self) -> "QueuesInfo":
         raise NotImplementedError
@@ -140,18 +155,18 @@ class GenericBatchSystem(object):
         nodes = self.get_worker_nodes(job_ids, job_queues, options)
         return build_cluster_state(job_ids, users, job_states, job_queues, nodes, queues)
 
-    @staticmethod
-    def ensure_worker_nodes_have_qnames(_worker_nodes, job_ids, job_queues):
-        """
-        This gets the queues associated with each worker node.
-        SGE systems already contain this information.
-        """
+    @classmethod
+    def ensure_worker_nodes_have_qnames(cls, _worker_nodes, job_ids, job_queues):
+        """Associate node allocations with their reported job queues."""
         job_ids_queues = dict(zip(job_ids, job_queues))
         return [
             dict(
                 worker_node,
                 qname=list(
-                    set(job_ids_queues.get(resolve_job_id(job_id, job_ids_queues)) for job_id in list(worker_node["core_job_map"].values()) + worker_node.get("oar_job_ids", []))
+                    set(
+                        job_ids_queues.get(resolve_job_id(job_id, job_ids_queues))
+                        for job_id in list(worker_node["core_job_map"].values()) + [job for field in cls.node_job_fields for job in worker_node.get(field, [])]
+                    )
                 ),
             )
             for worker_node in _worker_nodes

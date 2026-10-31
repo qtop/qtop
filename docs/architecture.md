@@ -19,9 +19,9 @@ flowchart TB
 
     subgraph entry["Entry and control"]
         cli["CLI entry points: qtop / cli.py"]
-        runtime["Runtime and watch loop: qtop.py"]
+        runtime["Refresh stages and watch loop: qtop.py"]
         options["Options and logging: utils.py"]
-        config["Configuration: qtopconf.yaml / yaml_parser.py"]
+        config["Configuration: configuration.py / yaml_parser.py"]
         cli --> runtime
         runtime --> options
         runtime --> config
@@ -51,7 +51,7 @@ flowchart TB
 
     subgraph state["Cluster state and calculations"]
         model["Common jobs, nodes and queues: cluster_state.py"]
-        document["Document: qtop.py"]
+        document["Document: document.py"]
         calculations["Cluster, WNOccupancy and core mapping: qtop.py"]
         model --> document
         document --> calculations
@@ -63,7 +63,7 @@ flowchart TB
         terminal["Terminal dashboard"]
         viewport["Navigation: ui/viewport.py"]
         colors["Color mappings: colormap.py"]
-        json["JSON export: Document.save in qtop.py"]
+        json["JSON export: document.py"]
         capture["Sample archives: fileutils.py"]
         replay["Saved-frame replay: qtop.py"]
         web["Experimental web interface: web.py"]
@@ -85,18 +85,33 @@ flowchart TB
    [qtop.py](../qtop_py/qtop.py). The runtime loads configuration, selects a
    registered backend, and either executes its configured commands or reads
    files supplied with `-s`. The demo backend generates fictional data.
+   The loop calls `collect_snapshot()`, `export_snapshot()`, `prepare_refresh()`
+   and `render_refresh()`; keyboard handling remains outside those stages.
+   [configuration.py](../qtop_py/configuration.py) owns file precedence,
+   normalization, CLI overrides and validation. The runtime passes configuration,
+   options and the selected backend explicitly to collection helpers.
 2. Each backend implements `get_jobs_info()`, `get_queues_info()` and
    `get_worker_nodes()`. `GenericBatchSystem.get_cluster_state()` in
    [serialiser.py](../qtop_py/serialiser.py) combines their results through
    [build_cluster_state()](../qtop_py/cluster_state.py).
-3. `Document.from_cluster_state()` adapts that plain-data snapshot for the
-   existing runtime. `Cluster`, `WNFilter` and `WNOccupancy` calculate node
+   Backend class hooks also define command adjustments, optional trace aliases,
+   detection priority, queue blocking and scheduler-specific display notes.
+   The core dispatches capabilities; plugin-owned metadata rules validate and mask extensions.
+3. `Document.from_cluster_state()` in [document.py](../qtop_py/document.py)
+   owns the normalized snapshot and exposes cached legacy rendering fields.
+   Exports read that authoritative state; the five-field constructor remains
+   available for old trace adapters. `Cluster`, `WNFilter` and `WNOccupancy` calculate node
    layout, filtering, user accounting and per-core occupancy. `TextDisplay`
    renders the three terminal sections, using viewport navigation and color
    mappings.
 4. `-E` exports the snapshot as JSON. `-L` creates a support sample archive.
    `-R` replays saved rendered frames. The experimental `-B` web interface
    serves exported JSON and requires `-e`; these are distinct output paths.
+
+`RunResources` owns redirected output, temporary frames, web shutdown and replay
+workspaces. It finalizes each capture before the next refresh can replace its
+traces, restores the launch directory, and reports capture paths at exit.
+Menu input restores terminal settings even when interrupted.
 
 ## Source map
 
@@ -105,11 +120,13 @@ flowchart TB
 | Launchers and installed entry point | [qtop](../qtop), [cli.py](../qtop_py/cli.py), [pyproject.toml](../pyproject.toml) |
 | Runtime orchestration, calculations and terminal rendering | [qtop.py](../qtop_py/qtop.py) |
 | Command-line options and logging | [utils.py](../qtop_py/utils.py) |
-| Configuration defaults and parsing | [qtopconf.yaml](../qtopconf.yaml), [yaml_parser.py](../qtop_py/yaml_parser.py) |
+| Configuration loading, preparation and parsing | [configuration.py](../qtop_py/configuration.py), [qtopconf.yaml](../qtopconf.yaml), [yaml_parser.py](../qtop_py/yaml_parser.py) |
 | Scheduler backends | [Slurm](../qtop_py/plugins/slurm.py), [PBS](../qtop_py/plugins/pbs.py), [SGE](../qtop_py/plugins/sge.py), [OAR](../qtop_py/plugins/oar.py), [demo](../qtop_py/plugins/demo.py) |
 | Shared extraction and backend interface | [serialiser.py](../qtop_py/serialiser.py) |
+| Canonical document and legacy adapter | [document.py](../qtop_py/document.py) |
+| Run resource ownership and frame/archive finalization | [runtime.py](../qtop_py/runtime.py) |
 | Common snapshot construction, validation and totals | [cluster_state.py](../qtop_py/cluster_state.py) |
-| Navigation and color definitions | [viewport.py](../qtop_py/ui/viewport.py), [colormap.py](../qtop_py/colormap.py) |
+| Navigation and color definitions | [controls.py](../qtop_py/ui/controls.py), [viewport.py](../qtop_py/ui/viewport.py), [colormap.py](../qtop_py/colormap.py) |
 | Capture archives and temporary files | [fileutils.py](../qtop_py/fileutils.py) |
 | Experimental HTTP output | [web.py](../qtop_py/web.py), [web/index.html](../qtop_py/web/index.html) |
 

@@ -16,7 +16,6 @@
 ##
 
 import datetime
-import json
 import os
 import re
 import select
@@ -25,7 +24,7 @@ import shutil
 import subprocess
 import sys
 import tarfile
-from collections import Counter, OrderedDict, namedtuple
+from collections import Counter, OrderedDict
 from functools import lru_cache
 from itertools import cycle, groupby, zip_longest
 from operator import itemgetter
@@ -47,43 +46,35 @@ import logging
 import tempfile
 import time
 import traceback
-from ast import literal_eval
 from math import ceil, isfinite
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import Dict
-
     from qtop_py import contracts
 
     config: contracts.Config
     dynamic_config: contracts.Config
 
-from qtop_py import __version__, fileutils, sample, utils
+from qtop_py import __version__, configuration, fileutils, sample, utils
 from qtop_py import yaml_parser as yaml
-from qtop_py.cluster_state import cluster_state_totals, validate_cluster_state
-from qtop_py.colormap import color_to_code, nodestate_to_color_default, queue_to_color, user_to_color_default
+from qtop_py.colormap import color_to_code, queue_to_color, user_to_color_default
 from qtop_py.constants import (
     FALLBACK_TERMSIZE,
     KEYPRESS_TIMEOUT,
     QTOP_LOGFILE,
     QTOPCONF_YAML,
     SYMBOL_LONG_TAIL_USER,
-    SYMBOL_UNKNOWN_NODE_STATE,
     SYSTEMCONFDIR,
     USERPATH,
 )
-from qtop_py.plugins.demo import DemoBatchSystem
-from qtop_py.plugins.oar import OARBatchSystem
-from qtop_py.plugins.pbs import PBSBatchSystem
-from qtop_py.plugins.sge import SGEBatchSystem
-from qtop_py.plugins.slurm import SlurmBatchSystem
-from qtop_py.serialiser import resolve_job_id
+from qtop_py.document import Document
+from qtop_py.errors import OperationalError
+from qtop_py.plugins.registry import PLUGIN_BATCH_SYSTEMS
+from qtop_py.runtime import RunResources
+from qtop_py.serialiser import GenericBatchSystem, resolve_job_id
+from qtop_py.ui.controls import navigate_viewport, read_rule_choices
 from qtop_py.ui.viewport import Viewport
 from qtop_py.web import Web
-
-here = sys.path[0]
-PLUGIN_BATCH_SYSTEMS = (DemoBatchSystem, OARBatchSystem, PBSBatchSystem, SGEBatchSystem, SlurmBatchSystem)
 
 
 def reset_sigpipe():
@@ -103,30 +94,6 @@ def _set_terminal_attrs(attrs):
         termios.tcsetattr(sys.__stdin__.fileno(), termios.TCSADRAIN, attrs)
 
 
-def _configured_separator(config):
-    separator = config.get("SEPARATOR", config.get("vertical_separator", "|"))
-    return separator.replace("'", "") if isinstance(separator, str) else separator
-
-
-def _reserved_user_symbols(config):
-    return set(
-        symbol
-        for symbol in (
-            config.get("non_existent_node_symbol", "#"),
-            _configured_separator(config),
-            "_",
-            SYMBOL_LONG_TAIL_USER,
-            SYMBOL_UNKNOWN_NODE_STATE,
-        )
-        if symbol
-    )
-
-
-def _available_possible_ids(config):
-    reserved_symbols = _reserved_user_symbols(config)
-    return [symbol for symbol in config["possible_ids"] if symbol not in reserved_symbols]
-
-
 def _reserved_pattern_mappings(config):
     """Return display symbols that must never be interpreted as user patterns."""
     return {
@@ -137,47 +104,26 @@ def _reserved_pattern_mappings(config):
     }
 
 
+def scheduler_backend(name):
+    return next((backend for backend in PLUGIN_BATCH_SYSTEMS if backend.get_mnemonic() == name), GenericBatchSystem)
+
+
+def node_job_ids(node):
+    jobs = set(node["core_job_map"].values())
+    for backend in PLUGIN_BATCH_SYSTEMS:
+        for field in backend.node_job_fields:
+            jobs.update(node.get(field, []))
+    return jobs
+
+
 def queue_is_blocked(state, scheduler_name=None):
-    """Return whether a queue state denotes blocking for the selected scheduler."""
-    state = str(state)
-    if scheduler_name == "sge":
-        return any(flag in state for flag in "aAcCdDEosSu")
-    if scheduler_name == "slurm" and state.lower() in ("down", "drain", "inact", "inactive"):
-        return True
-    return state.startswith("D") or state.endswith("S")
+    return scheduler_backend(scheduler_name).queue_is_blocked(state)
 
 
 def compress_colored_line(value):
     """Coalesce adjacent characters that use the same ANSI color code."""
     color_char_pairs = [item for item in re.split(r"\x1b\[0;m", value) if item]
     return "".join(color + "".join(item[-1] for item in items) + "\x1b[0;m" for color, items in groupby(color_char_pairs, key=lambda item: item[:-1]))
-
-
-def literal_config_value(value):
-    try:
-        return literal_eval(value)
-    except (ValueError, SyntaxError, TypeError):
-        return value
-
-
-def normalize_config(raw_config):
-    """Return a runtime-ready configuration without mutating parser output."""
-    config = copy.deepcopy(raw_config)
-    config["possible_ids"] = list(config["possible_ids"])
-    for key in (
-        "transpose_wn_matrices",
-        "fill_with_user_firstletter",
-        "faster_xml_parsing",
-        "vertical_separator_every_X_columns",
-        "overwrite_sample_file",
-    ):
-        config[key] = literal_config_value(config[key])
-    config["sorting"]["reverse"] = literal_config_value(config["sorting"].get("reverse", "0"))
-    wn_id_lines = config["workernodes_matrix"][0]["wn id lines"]
-    config["ALT_LABEL_COLORS"] = yaml.fix_config_list(wn_id_lines["alt_label_colors"])
-    config["SEPARATOR"] = config["vertical_separator"].replace("'", "")
-    config["USER_CUT_MATRIX_WIDTH"] = int(wn_id_lines["user_cut_matrix_width"])
-    return config
 
 
 def extract_regex_detail(regex, field):
@@ -263,90 +209,6 @@ def raw_mode(file):
             yield
 
 
-def load_yaml_config():
-    """
-    Loads ./QTOPCONF_YAML into a dictionary and then tries to update the dictionary
-    with the same-named conf file found in:
-    /env
-    $HOME/.local/qtop/
-    in that order.
-    """
-    if getattr(args, "load_sample", None):
-        return prepare_config(copy.deepcopy(args.sample_snapshot["config"]))
-    config = yaml.parse(os.path.join(os.path.realpath(QTOPPATH), QTOPCONF_YAML))
-    logging.info("Default configuration dictionary loaded. Length: %s items" % len(config))
-
-    try:
-        config_env = yaml.parse(os.path.join(SYSTEMCONFDIR, QTOPCONF_YAML))
-    except FileNotFoundError:
-        config_env = {}
-        logging.info("%s could not be found in %s/" % (QTOPCONF_YAML, SYSTEMCONFDIR))
-    else:
-        logging.info("Env %s found in %s/" % (QTOPCONF_YAML, SYSTEMCONFDIR))
-        logging.info("Env configuration dictionary loaded. Length: %s items" % len(config_env))
-
-    try:
-        config_user = yaml.parse(os.path.join(USERPATH, QTOPCONF_YAML))
-    except FileNotFoundError:
-        config_user = {}
-        logging.info("User %s could not be found in %s/" % (QTOPCONF_YAML, USERPATH))
-    else:
-        logging.info("User %s found in %s/" % (QTOPCONF_YAML, USERPATH))
-        logging.info("User configuration dictionary loaded. Length: %s items" % len(config_user))
-
-    config.update(config_env)
-    config.update(config_user)
-
-    if args.CONFFILE:
-        try:
-            config_user_custom = yaml.parse(os.path.join(USERPATH, args.CONFFILE))
-        except FileNotFoundError:
-            try:
-                config_user_custom = yaml.parse(os.path.join(CURPATH, args.CONFFILE))
-            except FileNotFoundError as error:
-                raise OperationalError("Custom configuration file %s was not found in %s/ or %s/." % (args.CONFFILE, USERPATH, CURPATH)) from error
-            else:
-                logging.info("Custom User %s found in %s/" % (QTOPCONF_YAML, CURPATH))
-                logging.info("Custom User configuration dictionary loaded. Length: %s items" % len(config_user_custom))
-        else:
-            logging.info("Custom User %s found in %s/" % (QTOPCONF_YAML, USERPATH))
-            logging.info("Custom User configuration dictionary loaded. Length: %s items" % len(config_user_custom))
-        config.update(config_user_custom)
-
-    logging.info("Updated main dictionary. Length: %s items" % len(config))
-
-    return prepare_config(config)
-
-
-def prepare_config(config):
-    config = normalize_config(config)
-
-    if config["user_color_mappings"]:
-        user_to_color = user_to_color_default.copy()
-        [user_to_color.update(d) for d in config["user_color_mappings"]]
-    else:
-        config["user_color_mappings"] = list()
-        user_to_color = user_to_color_default.copy()
-
-    if config["nodestate_color_mappings"]:
-        nodestate_to_color = nodestate_to_color_default.copy()
-        [nodestate_to_color.update(d) for d in config["nodestate_color_mappings"]]
-    else:
-        config["nodestate_color_mappings"] = list()
-        nodestate_to_color = nodestate_to_color_default.copy()
-
-    if config["remapping"]:
-        pass
-    else:
-        config["remapping"] = list()
-    config["possible_ids"] = _available_possible_ids(config)
-
-    config["savepath"] = fileutils.private_save_directory(config["savepath"])
-    logging.debug("%s files will be saved in directory %s.", config["scheduler"], config["savepath"])
-
-    return config, user_to_color, nodestate_to_color
-
-
 def calculate_term_size(config, FALLBACK_TERM_SIZE, viewport):
     """
     Gets the dimensions of the terminal window where qtop will be displayed.
@@ -397,43 +259,57 @@ def calculate_term_size(config, FALLBACK_TERM_SIZE, viewport):
     return term_height, term_columns
 
 
-def finalize_filepaths_schedulercommands(args, config):
-    """
-    returns a dictionary with contents of the form
-    {fn : (filepath, schedulercommand)}, e.g.
-    {'pbsnodes_file': ('savepath/pbsnodes_a.txt', 'pbsnodes -a')}
-    if the -s switch (set sourcedir) has been invoked, or
-    {'pbsnodes_file': ('savepath/pbsnodes_a<some_pid>.txt', 'pbsnodes -a')}
-    if ran without the -s switch.
-    """
+def finalize_filepaths_schedulercommands(args, config, backend):
+    """Return {input_key: (path, command)}, with PID suffixes for live collection."""
     d = dict()
     fn_append = "_" + str(os.getpid()) if not args.SOURCEDIR else ""
-    for fn, path_command in config["schedulers"][scheduler].items():
-        path, command = path_command.strip().split(", ")
+    for fn, path_command in config["schedulers"][backend.get_mnemonic()].items():
+        path, command = path_command.strip().split(", ", 1)
         path = path % {"savepath": args.workdir, "pid": fn_append}
-        # Slurm format codes stay copyable; accept legacy escaped percent signs.
+        # Format codes stay copyable; accept legacy escaped percent signs.
         command = command.replace("%%", "%").replace("%(savepath)s", args.workdir)
-        if scheduler == "slurm" and getattr(args, "ALL_PARTITIONS", False) and not args.SOURCEDIR and fn in ("squeue_file", "sinfo_file", "scontrol_file"):
-            command += " --all"
+        command = backend.collection_command(fn, command, args)
         d[fn] = (path, command)
     return d
 
 
-def auto_get_avail_batch_system(config):
+def auto_get_avail_batch_system(config, backends):
     """
     If the auto option is set in either env variable QTOP_SCHEDULER, QTOPCONF_YAML or in cmdline switch -b,
     qtop tries to determine which of the known batch commands are available in the current system.
     """
     signature_commands = config["signature_commands"]
-    prioritized_commands = sorted(signature_commands.items(), key=lambda item: item[0] != "slurm")
+    prioritized_commands = sorted(signature_commands.items(), key=lambda item: backends.get(item[0], GenericBatchSystem).detection_priority)
     for system, batch_command in prioritized_commands:
-        if not shutil.which(batch_command):
+        if system not in backends or backends[system].is_simulated or not shutil.which(batch_command):
             continue
-        if system != "demo":
-            logging.debug("Auto-detected scheduler: %s" % system)
-            return system
+        logging.debug("Auto-detected scheduler: %s", system)
+        return system
 
     raise SchedulerNotSpecified
+
+
+def communicate_with_timeout(command, timeout):
+    """Bound command execution and reap its process group on interruption."""
+    try:
+        return command.communicate(timeout=timeout)
+    except (subprocess.TimeoutExpired, KeyboardInterrupt):
+        if os.name == "posix":
+            from signal import SIGKILL
+
+            with contextlib.suppress(ProcessLookupError):
+                os.killpg(command.pid, SIGKILL)
+        else:
+            command.kill()
+        try:
+            command.communicate(timeout=1)
+        except subprocess.TimeoutExpired:
+            for stream in (command.stdout, command.stderr):
+                if stream is not None:
+                    stream.close()
+            with contextlib.suppress(subprocess.TimeoutExpired):
+                command.wait(timeout=1)
+        raise
 
 
 def execute_shell_batch_commands(batch_system_commands, filenames, _file, _savepath, timeout=30):
@@ -475,24 +351,8 @@ def execute_shell_batch_commands(batch_system_commands, filenames, _file, _savep
             except ValueError as error:
                 raise OperationalError("Invalid scheduler command %r: %s. Check command quoting in %s." % (_batch_system_command, error, QTOPCONF_YAML)) from error
             try:
-                error = command.communicate(timeout=timeout)[1]
-            except (subprocess.TimeoutExpired, KeyboardInterrupt) as failure:
-                if os.name == "posix":
-                    from signal import SIGKILL
-
-                    with contextlib.suppress(ProcessLookupError):
-                        os.killpg(command.pid, SIGKILL)
-                else:
-                    command.kill()
-                try:
-                    command.communicate(timeout=1)
-                except subprocess.TimeoutExpired:
-                    if command.stderr is not None:
-                        command.stderr.close()
-                    with contextlib.suppress(subprocess.TimeoutExpired):
-                        command.wait(timeout=1)
-                if isinstance(failure, KeyboardInterrupt):
-                    raise
+                error = communicate_with_timeout(command, timeout)[1]
+            except subprocess.TimeoutExpired as failure:
                 raise OperationalError("Scheduler command %r timed out after %g seconds" % (_batch_system_command, timeout)) from failure
             if error:
                 logging.warning("A message from your shell: %s", error.decode("utf-8", errors="replace").strip())
@@ -509,7 +369,7 @@ def execute_shell_batch_commands(batch_system_commands, filenames, _file, _savep
                 os.unlink(tempname)
 
 
-def get_detail_of_name(account_jobs_table):
+def get_detail_of_name(account_jobs_table, config, args):
     """
     Reads file $HOME/.local/qtop/getent_passwd.txt or whatever is put in QTOPCONF_YAML
     and extracts the fullname of the users. This shall be printed in User Accounts
@@ -529,31 +389,33 @@ def get_detail_of_name(account_jobs_table):
         logging.warning("No valid %s command in %s; skipping user details.", command_key, QTOPCONF_YAML)
         return {}
 
-    if args.GET_GECOS:
-        users = " ".join([line[4] for line in account_jobs_table])
-        user_details_command = command % users
-        user_details_command = user_details_command.split()
-    else:
-        user_details_command = command.split()
-        user_details_command[-1] = os.path.expandvars(user_details_command[-1])
-
     try:
-        p = subprocess.Popen(user_details_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding="utf-8")
-    except OSError as error:
-        logging.warning("Cannot execute %s command %r: %s; skipping user details.", command_key, user_details_command[0], error)
+        if args.GET_GECOS:
+            users = " ".join(shlex.quote(str(line[4])) for line in account_jobs_table if line[4] != "Totals")
+            command = command % users
+        user_details_command = shlex.split(command)
+        if not args.GET_GECOS:
+            user_details_command[-1] = os.path.expandvars(user_details_command[-1])
+        timeout = float(config.get("scheduler_command_timeout", 30))
+        if not isfinite(timeout) or timeout <= 0:
+            raise ValueError("scheduler_command_timeout must be positive and finite")
+        p = subprocess.Popen(user_details_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding="utf-8", start_new_session=(os.name == "posix"))
+        output, err = communicate_with_timeout(p, timeout)
+    except (OSError, ValueError, TypeError, IndexError, OverflowError, subprocess.TimeoutExpired) as error:
+        logging.warning("Cannot collect %s command %r: %s; skipping user details.", command_key, command, error)
         return {}
-    else:
-        output, err = p.communicate("something here")
-        if "No such file or directory" in err:
-            logging.warning("You have to set a proper command to get the passwd file in your %s file." % QTOPCONF_YAML)
-            logging.warning("Error returned by getent: %s\nCommand issued: %s" % (err, user_details_command))
+    if p.returncode:
+        logging.warning("%s failed (exit %s): %s; skipping user details.", command_key, p.returncode, err.strip()[:300])
+        return {}
+    if err:
+        logging.warning("%s: %s", command_key, err.strip()[:300])
 
     detail_of_name = dict()
     for line in output.split("\n"):
         try:
             user, field = line.strip().split(sep)[0 : field_idx : field_idx - 1]
         except ValueError:
-            break
+            continue
         else:
             try:
                 detail = extract_regex_detail(regex, field)
@@ -588,7 +450,7 @@ def get_primary_group_names(account_jobs_table):
     return dict((user, group) for user, group in groups if group)
 
 
-def get_input_filenames(INPUT_FNs_commands, config):
+def get_input_filenames(INPUT_FNs_commands, config, args, backend):
     """
     If the user didn't specify --via the -s switch-- a dir where ready-made data files already exist,
     the appropriate batch commands are executed, as indicated in QTOPCONF,
@@ -605,29 +467,23 @@ def get_input_filenames(INPUT_FNs_commands, config):
             try:
                 filenames[_file] = execute_shell_batch_commands(batch_system_commands, filenames, _file, _savepath, timeout=config.get("scheduler_command_timeout", 30))
             except OperationalError as error:
-                if scheduler != "slurm" or _file != "scontrol_file":
+                if _file not in backend.optional_trace_keys:
                     raise
-                logging.warning("%s Using estimated Slurm CPU placement.", error)
+                logging.warning("%s %s", error, backend.optional_trace_warning)
                 filenames.pop(_file)
                 continue
 
-        if scheduler == "slurm" and _file == "scontrol_file" and not os.path.isfile(filenames[_file]):
+        if _file in backend.optional_trace_keys and not os.path.isfile(filenames[_file]):
             filenames.pop(_file)
             continue
         if not os.path.isfile(filenames[_file]):
             raise OperationalError("Scheduler input file %s was not found. Check -s/--SetSourceDir and the selected scheduler." % filenames[_file])
-    if scheduler == "slurm" and args.SOURCEDIR and "scontrol_file" not in filenames:
-        detail_path = os.path.join(args.SOURCEDIR, "scontrol.txt")
-        if os.path.isfile(detail_path):
-            filenames["scontrol_file"] = detail_path
+    if args.SOURCEDIR:
+        for key, alias in backend.optional_trace_aliases.items():
+            detail_path = os.path.join(args.SOURCEDIR, alias)
+            if key not in filenames and os.path.isfile(detail_path):
+                filenames[key] = detail_path
     return filenames
-
-
-def get_key_val_from_option_string(string):
-    key, separator, val = string.partition("=")
-    if not separator or not key.strip():
-        raise OperationalError("Invalid -o option %r; expected KEY=VALUE." % string)
-    return key, val
 
 
 def check_python_version():
@@ -635,112 +491,38 @@ def check_python_version():
         raise OperationalError("Only Python 3 is supported.")
 
 
-def control_qtop(viewport, read_char, cluster, old_attrs, new_attrs):
-    """
-    Basic vi-like movement is implemented for the -w switch (linux watch-like behaviour for qtop).
-    h, j, k, l for left, down, up, right, respectively.
-    Both g/G and Shift+j/k go to top/bottom of the matrices
-    0 and $ go to far left/right of the matrix, respectively.
-    r resets the screen to its initial position (if you've drifted away from the vieweable part of a matrix).
-    q quits qtop.
-    """
-    pressed_char_hex = "%02x" % ord(read_char)  # read_char has an initial value that resets the display ('72')
+@contextlib.contextmanager
+def menu_terminal(old_attrs, new_attrs):
+    _disable_terminal_echo(new_attrs)
+    _set_terminal_attrs(old_attrs)
+    try:
+        yield
+    finally:
+        _set_terminal_attrs(new_attrs)
 
-    if pressed_char_hex in ["6a", "20"]:  # j, spacebar
-        logging.debug("v_start: %s" % viewport.v_start)
-        if viewport.scroll_down():
-            print("%s Going down..." % colorize("***", "Green_L"))
-        else:
-            print("%s Staying put" % colorize("***", "Green_L"))
 
-    elif pressed_char_hex in ["6b", "7f"]:  # k, Backspace
-        if viewport.scroll_up():
-            print("%s Going up..." % colorize("***", "Green_L"))
-        else:
-            print("%s Staying put" % colorize("***", "Green_L"))
+def choose_sort(viewport, settings, old_attrs, new_attrs):
+    sort_map = OrderedDict()
 
-    elif pressed_char_hex in ["6c"]:  # l
-        print("%s Going right..." % colorize("***", "Green_L"))
-        viewport.scroll_right()
+    sort_map["0"] = ("sort reset", [])
+    sort_map["1"] = ("sort by nodename-notnum", [])
+    sort_map["2"] = ("sort by nodename-notnum length", [])
+    sort_map["3"] = ("sort by all numbers", [])
+    sort_map["4"] = ("sort by first letter", [])
+    sort_map["5"] = ("sort by node state", [])
+    sort_map["6"] = ("sort by nr of cores", [])
+    sort_map["7"] = ("sort by core occupancy", [])
 
-    elif pressed_char_hex in ["24"]:  # $
-        print("%s Going far right..." % colorize("***", "Green_L"))
-        viewport.scroll_far_right()
-        logging.info("h_start: %s" % viewport.h_start)
-        logging.info("max_width: %s" % viewport.max_width)
-        logging.info('config["term_size"][1] %s' % viewport.h_term_size)
-        logging.info("h_stop: %s" % viewport.h_stop)
+    print(
+        "Type in sort order. This can be a single number or a sequence of numbers,\n"
+        "e.g. to sort first by first word, then by all numbers then by first name length, type 132, then <enter>."
+    )
 
-    elif pressed_char_hex in ["68"]:  # h
-        print("%s Going left..." % colorize("***", "Green_L"))
-        viewport.scroll_left()
+    for nr, sort_method in sort_map.items():
+        print("(%s): %s" % (colorize(nr, color_func="Red_L"), sort_method[0]))
 
-    elif pressed_char_hex in ["30"]:  # 0
-        print("%s Going far left..." % colorize("***", "Green_L"))
-        viewport.scroll_far_left()
-
-    elif pressed_char_hex in ["4a", "47"]:  # S-j, G
-        logging.debug("v_start: %s" % viewport.v_start)
-        if viewport.scroll_bottom():
-            print("%s Going to the bottom..." % colorize("***", "Green_L"))
-        else:
-            print("%s Staying put" % colorize("***", "Green_L"))
-
-    elif pressed_char_hex in ["4b", "67"]:  # S-k, g
-        print("%s Going to the top..." % colorize("***", "Green_L"))
-        logging.debug("v_start: %s" % viewport.v_start)
-        viewport.scroll_top()
-
-    elif pressed_char_hex in ["52"]:  # R
-        print("%s Resetting display..." % colorize("***", "Green_L"))
-        viewport.reset_display()
-
-    elif pressed_char_hex in ["74"]:  # t
-        print("%s Transposing matrix..." % colorize("***", "Green_L"))
-        dynamic_config["transpose_wn_matrices"] = not dynamic_config.get("transpose_wn_matrices", config["transpose_wn_matrices"])
-        viewport.reset_display()
-
-    elif pressed_char_hex in ["51"]:  # Q
-        dynamic_config["queue_summary_expanded"] = not dynamic_config.get("queue_summary_expanded", getattr(args, "EXPAND_QUEUES", False))
-
-    elif pressed_char_hex in ["6d"]:  # m
-        new_mapping, msg = next(change_mapping)
-        dynamic_config["core_coloring"] = new_mapping
-        print("%s Changing to %s" % (colorize("***", "Green_L"), msg))
-
-    elif pressed_char_hex in ["71"]:  # q
-        print(colorize("\nExiting. Thank you for ..watching ;)\n", "Cyan_L"))
-        web.stop()
-        sys.exit(0)
-
-    elif pressed_char_hex in ["46"]:  # F
-        dynamic_config["force_names"] = not dynamic_config["force_names"]
-        print("%s Toggling full-name/incremental nr WN labels" % colorize("***", "Green_L"))
-
-    elif pressed_char_hex in ["73"]:  # s
-        sort_map = OrderedDict()
-
-        sort_map["0"] = ("sort reset", [])
-        sort_map["1"] = ("sort by nodename-notnum", [])
-        sort_map["2"] = ("sort by nodename-notnum length", [])
-        sort_map["3"] = ("sort by all numbers", [])
-        sort_map["4"] = ("sort by first letter", [])
-        sort_map["5"] = ("sort by node state", [])
-        sort_map["6"] = ("sort by nr of cores", [])
-        sort_map["7"] = ("sort by core occupancy", [])
-
-        print(
-            "Type in sort order. This can be a single number or a sequence of numbers,\n"
-            "e.g. to sort first by first word, then by all numbers then by first name length, type 132, then <enter>."
-        )
-
-        for nr, sort_method in sort_map.items():
-            print("(%s): %s" % (colorize(nr, color_func="Red_L"), sort_method[0]))
-
-        _disable_terminal_echo(new_attrs)
-        _set_terminal_attrs(old_attrs)
-
-        dynamic_config["user_sort"] = []
+    with menu_terminal(old_attrs, new_attrs):
+        settings["user_sort"] = []
         while True:
             sort_choice = input(
                 "\nChoose sorting order, or Enter to exit:-> ",
@@ -748,143 +530,121 @@ def control_qtop(viewport, read_char, cluster, old_attrs, new_attrs):
             if not sort_choice:
                 break
 
-            try:
-                sort_order = [m for m in sort_choice]
-            except ValueError:
-                break
-            else:
-                if not set(sort_order).issubset(set(sort_map.keys())):
-                    continue
+            sort_order = list(sort_choice)
+            if not set(sort_order).issubset(sort_map):
+                continue
 
             sort_args = [sort_map[i] for i in sort_order]
-            dynamic_config["user_sort"] = sort_args
+            settings["user_sort"] = sort_args
             break
+    viewport.reset_display()
 
-        _set_terminal_attrs(new_attrs)
-        viewport.reset_display()
 
-    elif pressed_char_hex in ["66"]:  # f
-        cluster.wn_filter = cluster.WNFilter(cluster.worker_nodes)
-        filter_map = {
-            1: "exclude_node_states",
-            2: "exclude_numbers",
-            3: "exclude_name_patterns",
-            4: "or_include_node_states",
-            5: "or_include_numbers",
-            6: "or_include_name_patterns",
-            7: "include_node_states",
-            8: "include_numbers",
-            9: "include_name_patterns",
-            10: "include_queues",
+def choose_filter(viewport, cluster, settings, old_attrs, new_attrs):
+    cluster.wn_filter = cluster.WNFilter(cluster.worker_nodes)
+    filter_map = {
+        1: "exclude_node_states",
+        2: "exclude_numbers",
+        3: "exclude_name_patterns",
+        4: "or_include_node_states",
+        5: "or_include_numbers",
+        6: "or_include_name_patterns",
+        7: "include_node_states",
+        8: "include_numbers",
+        9: "include_name_patterns",
+        10: "include_queues",
+    }
+    print(
+        "Filter out nodes by:\n%(one)s state %(two)s number"
+        " %(three)s name substring or RegEx pattern"
+        % {
+            "one": colorize("(1)", color_func="Red_L"),
+            "two": colorize("(2)", color_func="Red_L"),
+            "three": colorize("(3)", color_func="Red_L"),
         }
-        print(
-            "Filter out nodes by:\n%(one)s state %(two)s number"
-            " %(three)s name substring or RegEx pattern"
-            % {
-                "one": colorize("(1)", color_func="Red_L"),
-                "two": colorize("(2)", color_func="Red_L"),
-                "three": colorize("(3)", color_func="Red_L"),
-            }
-        )
-        print(
-            "Filter in nodes by:\n(any) %(four)s state %(five)s number %(six)s name substring or RegEx pattern\n"
-            "(all) %(seven)s state %(eight)s number %(nine)s name substring or RegEx pattern %(ten)s queue"
-            % {
-                "four": colorize("(4)", color_func="Red_L"),
-                "five": colorize("(5)", color_func="Red_L"),
-                "six": colorize("(6)", color_func="Red_L"),
-                "seven": colorize("(7)", color_func="Red_L"),
-                "eight": colorize("(8)", color_func="Red_L"),
-                "nine": colorize("(9)", color_func="Red_L"),
-                "ten": colorize("(10)", color_func="Red_L"),
-            }
-        )
-        _disable_terminal_echo(new_attrs)
-        _set_terminal_attrs(old_attrs)
-
-        dynamic_config["filtering"] = []
-        while True:
-            filter_choice = input(
-                "\nChoose Filter command, or Enter to exit:-> ",
-            )
-            if not filter_choice:
-                break
-
-            try:
-                filter_choice = int(filter_choice)
-            except ValueError:
-                break
-            else:
-                if filter_choice not in filter_map:
-                    break
-
-            filter_args = []
-            while True:
-                user_input = input("\nEnter argument, or Enter to exit:-> ")
-                if not user_input:
-                    break
-                filter_args.append(user_input)
-
-            dynamic_config["filtering"].append({filter_map[filter_choice]: filter_args})
-
-        _set_terminal_attrs(new_attrs)
-        viewport.reset_display()
-
-    elif pressed_char_hex in ["48"]:  # H
-        cluster.wn_filter = cluster.WNFilter(cluster.worker_nodes)
-        filter_map = {
-            1: "or_include_user_id",
-            2: "or_include_user_pat",
-            3: "or_include_queue",
-            4: "include_user_id",
-            5: "include_user_pat",
-            6: "include_queue",
+    )
+    print(
+        "Filter in nodes by:\n(any) %(four)s state %(five)s number %(six)s name substring or RegEx pattern\n"
+        "(all) %(seven)s state %(eight)s number %(nine)s name substring or RegEx pattern %(ten)s queue"
+        % {
+            "four": colorize("(4)", color_func="Red_L"),
+            "five": colorize("(5)", color_func="Red_L"),
+            "six": colorize("(6)", color_func="Red_L"),
+            "seven": colorize("(7)", color_func="Red_L"),
+            "eight": colorize("(8)", color_func="Red_L"),
+            "nine": colorize("(9)", color_func="Red_L"),
+            "ten": colorize("(10)", color_func="Red_L"),
         }
-        print(
-            "Highlight cores by:\n"
-            "(any) %(one)s userID %(two)s user name (regex) %(three)s queue\n"
-            "(all) %(four)s userID %(five)s user name (regex) %(six)s queue"
-            % {
-                "one": colorize("(1)", color_func="Red_L"),
-                "two": colorize("(2)", color_func="Red_L"),
-                "three": colorize("(3)", color_func="Red_L"),
-                "four": colorize("(4)", color_func="Red_L"),
-                "five": colorize("(5)", color_func="Red_L"),
-                "six": colorize("(6)", color_func="Red_L"),
-            }
-        )
-        _disable_terminal_echo(new_attrs)
-        _set_terminal_attrs(old_attrs)
+    )
+    with menu_terminal(old_attrs, new_attrs):
+        settings["filtering"] = []
+        read_rule_choices("Filter", filter_map, settings["filtering"])
+    viewport.reset_display()
 
-        dynamic_config["highlight"] = []
-        while True:
-            filter_choice = input(
-                "\nChoose Highlight command, or Enter to exit:-> ",
-            )
-            if not filter_choice:
-                break
 
-            try:
-                filter_choice = int(filter_choice)
-            except ValueError:
-                break
-            else:
-                if filter_choice not in filter_map:
-                    break
+def choose_highlight(viewport, cluster, settings, old_attrs, new_attrs):
+    cluster.wn_filter = cluster.WNFilter(cluster.worker_nodes)
+    filter_map = {
+        1: "or_include_user_id",
+        2: "or_include_user_pat",
+        3: "or_include_queue",
+        4: "include_user_id",
+        5: "include_user_pat",
+        6: "include_queue",
+    }
+    print(
+        "Highlight cores by:\n"
+        "(any) %(one)s userID %(two)s user name (regex) %(three)s queue\n"
+        "(all) %(four)s userID %(five)s user name (regex) %(six)s queue"
+        % {
+            "one": colorize("(1)", color_func="Red_L"),
+            "two": colorize("(2)", color_func="Red_L"),
+            "three": colorize("(3)", color_func="Red_L"),
+            "four": colorize("(4)", color_func="Red_L"),
+            "five": colorize("(5)", color_func="Red_L"),
+            "six": colorize("(6)", color_func="Red_L"),
+        }
+    )
+    with menu_terminal(old_attrs, new_attrs):
+        settings["highlight"] = []
+        read_rule_choices("Highlight", filter_map, settings["highlight"])
+    viewport.reset_display()
 
-            filter_args = []
-            while True:
-                user_input = input("\nEnter argument, or Enter to exit:-> ")
-                if not user_input:
-                    break
-                filter_args.append(user_input)
 
-            dynamic_config["highlight"].append({filter_map[filter_choice]: filter_args})
-
-        _set_terminal_attrs(new_attrs)
+def control_qtop(viewport, read_char, cluster, old_attrs, new_attrs):
+    if navigate_viewport(viewport, read_char, colorize):
+        pass
+    elif read_char == "t":  # t
+        print("%s Transposing matrix..." % colorize("***", "Green_L"))
+        dynamic_config["transpose_wn_matrices"] = not dynamic_config.get("transpose_wn_matrices", config["transpose_wn_matrices"])
         viewport.reset_display()
 
-    elif pressed_char_hex in ["3f"]:  # ?
+    elif read_char == "Q":  # Q
+        dynamic_config["queue_summary_expanded"] = not dynamic_config.get("queue_summary_expanded", getattr(args, "EXPAND_QUEUES", False))
+
+    elif read_char == "m":  # m
+        new_mapping, msg = next(change_mapping)
+        dynamic_config["core_coloring"] = new_mapping
+        print("%s Changing to %s" % (colorize("***", "Green_L"), msg))
+
+    elif read_char == "q":  # q
+        print(colorize("\nExiting. Thank you for ..watching ;)\n", "Cyan_L"))
+        sys.exit(0)
+
+    elif read_char == "F":  # F
+        dynamic_config["force_names"] = not dynamic_config["force_names"]
+        print("%s Toggling full-name/incremental nr WN labels" % colorize("***", "Green_L"))
+
+    elif read_char == "s":  # s
+        choose_sort(viewport, dynamic_config, old_attrs, new_attrs)
+
+    elif read_char == "f":  # f
+        choose_filter(viewport, cluster, dynamic_config, old_attrs, new_attrs)
+
+    elif read_char == "H":  # H
+        choose_highlight(viewport, cluster, dynamic_config, old_attrs, new_attrs)
+
+    elif read_char == "?":  # ?
         viewport.reset_display()
         print("%s opening help..." % colorize("***", "Green_L"))
         if not next(h_counter) % 2:  # enter helpfile
@@ -892,7 +652,7 @@ def control_qtop(viewport, read_char, cluster, old_attrs, new_attrs):
         else:  # exit helpfile
             del dynamic_config["output_fp"]
 
-    elif pressed_char_hex in ["72"]:  # r
+    elif read_char == "r":  # r
         logging.debug("toggling corelines displayed")
         dynamic_config["rem_empty_corelines"] = (dynamic_config.get("rem_empty_corelines", config["rem_empty_corelines"]) + 1) % 3
         if dynamic_config["rem_empty_corelines"] == 1:
@@ -911,21 +671,22 @@ def control_qtop(viewport, read_char, cluster, old_attrs, new_attrs):
     )
 
 
-def fetch_scheduler_files(args, config, optional_trace_keys=()):
+def fetch_scheduler_files(args, config, backend):
+    scheduler_name = backend.get_mnemonic()
     try:
-        INPUT_FNs_commands = finalize_filepaths_schedulercommands(args, config)
+        INPUT_FNs_commands = finalize_filepaths_schedulercommands(args, config, backend)
     except (ValueError, TypeError, KeyError, AttributeError) as error:
-        raise OperationalError("Invalid scheduler command configuration for %s in %s: %s" % (scheduler, QTOPCONF_YAML, error)) from error
+        raise OperationalError("Invalid scheduler command configuration for %s in %s: %s" % (scheduler_name, QTOPCONF_YAML, error)) from error
     if getattr(args, "source_archive", None):
         from qtop_py.trace_archive import load_trace_archive
 
         try:
             if not hasattr(args, "archive_trace_paths"):
-                args.archive_trace_paths = load_trace_archive(args.source_archive, args.workdir, config["schedulers"][scheduler], optional_trace_keys)
+                args.archive_trace_paths = load_trace_archive(args.source_archive, args.workdir, config["schedulers"][scheduler_name], backend.optional_trace_keys)
             return args.archive_trace_paths.copy()
         except (OSError, tarfile.TarError, ValueError) as error:
             raise OperationalError("Cannot read scheduler trace archive %s: %s" % (args.source_archive, error)) from error
-    scheduler_output_filenames = get_input_filenames(INPUT_FNs_commands, config)
+    scheduler_output_filenames = get_input_filenames(INPUT_FNs_commands, config, args, backend)
     return scheduler_output_filenames
 
 
@@ -947,7 +708,7 @@ def decide_batch_system(cmdline_switch, env_var, config_file_batch_option, sched
         scheduler = scheduler.lower()
 
         if scheduler == "auto":
-            scheduler = auto_get_avail_batch_system(config)
+            scheduler = auto_get_avail_batch_system(config, available_batch_systems)
             logging.debug("Selected scheduler is %s" % scheduler)
             return scheduler
         elif scheduler in schedulers:
@@ -980,21 +741,6 @@ def get_output_size(max_line_len, output_fp, max_height=0):
     logging.debug("Max line length: %s" % max_line_len)
 
     return max_height, max_line_len
-
-
-def update_config_with_cmdline_vars(args, config):
-    config["rem_empty_corelines"] = int(config.get("rem_empty_corelines", 0))
-    for opt in args.OPTION:
-        key, val = get_key_val_from_option_string(opt)
-        config[key] = literal_config_value(val)
-
-    if args.TRANSPOSE:
-        config["transpose_wn_matrices"] = not config["transpose_wn_matrices"]
-
-    if args.REM_EMPTY_CORELINES:
-        config["rem_empty_corelines"] += args.REM_EMPTY_CORELINES
-
-    return config
 
 
 def attempt_faster_xml_parsing(config):
@@ -1127,7 +873,7 @@ class WNOccupancy(object):
     def calculate(self, document, user_to_color):
         """
         Prints the Worker Nodes Occupancy table.
-        if there are non-uniform WNs in pbsnodes.yaml, e.g. wn01, wn02, gn01, gn02, ...,  remapping is performed.
+        if there are non-uniform worker-node names, e.g. wn01, wn02, gn01, gn02, ...,  remapping is performed.
         Otherwise, for uniform WNs, i.e. all using the same numbering scheme, wn01, wn02, ... proceeds as normal.
         Number of Extra tables needed is calculated inside the calc_all_wnid_label_lines function below
         """
@@ -1151,7 +897,7 @@ class WNOccupancy(object):
         # For-loop below only for user-inserted/customizeable values.
         for yaml_key, part_name, systems in yaml.get_yaml_key_part(config, scheduler, outermost_key="workernodes_matrix"):
             if scheduler in systems:
-                self.__setattr__(part_name, self.calc_general_mult_attr_line(part_name, yaml_key, config))
+                self.__setattr__(part_name, self.calc_general_mult_attr_line(part_name, yaml_key, config, scheduler_backend(scheduler)))
 
         self.core_user_map = self._calc_core_matrix(self.user_to_id, self.jobid_to_user_to_queue)
 
@@ -1177,7 +923,7 @@ class WNOccupancy(object):
             for user_name, total_jobs_for_user in user_all_jobs_sorted
         ]
         firstletter_ids = self.config["fill_with_user_firstletter"]
-        id_order = {} if firstletter_ids else dict((symbol, index) for index, symbol in enumerate(_available_possible_ids(self.config)))
+        id_order = {} if firstletter_ids else dict((symbol, index) for index, symbol in enumerate(configuration.available_possible_ids(self.config)))
 
         def account_order(row):
             symbol = str(row[0])
@@ -1253,8 +999,8 @@ class WNOccupancy(object):
 
     def _create_id_for_users(self, user_alljobs_sorted_lot):
         user_to_id = {}
-        possible_ids = _available_possible_ids(self.config)
-        reserved_symbols = _reserved_user_symbols(self.config)
+        possible_ids = configuration.available_possible_ids(self.config)
+        reserved_symbols = configuration.reserved_user_symbols(self.config)
         for id_, user_allcount in enumerate(user_alljobs_sorted_lot):
             unix_account = user_allcount[0]
             if self.config["fill_with_user_firstletter"]:
@@ -1372,7 +1118,7 @@ class WNOccupancy(object):
             wn_vert_labels[wn] = "".join(wn_vert_labels[wn])
         return wn_vert_labels
 
-    def calc_general_mult_attr_line(self, part_name, yaml_key, config):  # NEW
+    def calc_general_mult_attr_line(self, part_name, yaml_key, config, backend):  # NEW
         elem_identifier = [d for d in config["workernodes_matrix"] if part_name in d][0]  # jeeez
         part_name_idx = config["workernodes_matrix"].index(elem_identifier)
         user_max_len = int(config["workernodes_matrix"][part_name_idx][part_name]["max_len"])
@@ -1385,7 +1131,6 @@ class WNOccupancy(object):
                 "%s lines in the matrix are not supported for %s systems. Please remove appropriate lines from conf file. Exiting..." % (part_name, config["scheduler"])
             )
 
-            web.stop()
             sys.exit(1)
         min_len = min(user_max_len, real_max_len)
         if real_max_len > user_max_len:
@@ -1400,9 +1145,9 @@ class WNOccupancy(object):
             node_attrs = self.cluster.workernode_dict[_node]
             # distribute state, qname etc to lines
             attribute = list(node_attrs[yaml_key][:min_len])
-            raw_state = node_attrs.get("slurm_node_state", "")
-            if yaml_key == "state" and raw_state and raw_state[-1] in "*+#~$@%!^-" and attribute:
-                attribute[0] = utils.ColorStr(raw_state[-1], color=attribute[0].color)
+            marker = backend.node_state_marker(node_attrs)
+            if yaml_key == "state" and marker and attribute:
+                attribute[0] = utils.ColorStr(marker, color=attribute[0].color)
             attribute.extend(" " for _ in range(min_len - len(attribute)))
             for attr_line, ch in zip(multiline_map, attribute):
                 if ch == " ":
@@ -1551,9 +1296,7 @@ class WNOccupancy(object):
     def _count_jobs_strict(worker_nodes, job_ids=None):
         jobs = set()
         for node in worker_nodes:
-            jobs.update(node["core_job_map"].values())
-            jobs.update(node.get("slurm_job_ids", []))
-            jobs.update(node.get("oar_job_ids", []))
+            jobs.update(node_job_ids(node))
         jobs.discard("?")
         if job_ids is not None:
             jobs = {resolve_job_id(job, job_ids) for job in jobs}
@@ -1593,75 +1336,6 @@ class WNOccupancy(object):
         return WNOccupancy.coreline_not_there(symbol, switch, delta, core_x_str) or WNOccupancy.coreline_unused(symbol, switch, delta, core_x_str)
 
 
-JobDoc = namedtuple("JobDoc", ["user_name", "job_state", "job_queue"])
-QDoc = namedtuple("QDoc", ["lm", "queued", "run", "state"])
-
-
-class Document(namedtuple("Document", ["worker_nodes", "jobs_dict", "queues_dict", "total_running_jobs", "total_queued_jobs"])):
-    if TYPE_CHECKING:
-        _job_metadata: Dict[str, contracts.Job]
-        _slurm_diagnostics: Dict[str, int]
-        _oar_diagnostics: Dict[str, int]
-
-    @classmethod
-    def from_cluster_state(cls, cluster_state: "contracts.ClusterState") -> "Document":
-        validate_cluster_state(cluster_state)
-        totals = cluster_state_totals(cluster_state)
-        jobs_dict = OrderedDict((job["id"], JobDoc(job["user"], job["state"], job["queue"])) for job in cluster_state["jobs"])
-        queues_dict = OrderedDict(
-            (
-                queue["name"],
-                QDoc(str(queue["limit"]), str(queue["queued"]), str(queue["running"]), queue["state"]),
-            )
-            for queue in cluster_state["queues"]
-        )
-        document = cls(
-            copy.deepcopy(cluster_state["nodes"]),
-            jobs_dict,
-            queues_dict,
-            totals["running_jobs"],
-            totals["queued_jobs"],
-        )
-        document._job_metadata = {job["id"]: copy.deepcopy(job) for job in cluster_state["jobs"]}
-        document._slurm_diagnostics = copy.deepcopy(cluster_state.get("slurm_diagnostics", {}))
-        document._oar_diagnostics = copy.deepcopy(cluster_state.get("oar_diagnostics", {}))
-        return document
-
-    def to_cluster_state(self) -> "contracts.ClusterState":
-        state: "contracts.ClusterState" = {
-            "jobs": [
-                {
-                    **getattr(self, "_job_metadata", {}).get(job_id, {}),
-                    "id": job_id,
-                    "user": job.user_name,
-                    "state": job.job_state,
-                    "queue": job.job_queue,
-                }
-                for job_id, job in self.jobs_dict.items()
-            ],
-            "nodes": copy.deepcopy(self.worker_nodes),
-            "queues": [
-                {
-                    "name": queue_name,
-                    "limit": queue.lm,
-                    "queued": int(queue.queued),
-                    "running": int(queue.run),
-                    "state": queue.state,
-                }
-                for queue_name, queue in self.queues_dict.items()
-            ],
-        }
-        if getattr(self, "_slurm_diagnostics", {}):
-            state["slurm_diagnostics"] = copy.deepcopy(self._slurm_diagnostics)
-        if getattr(self, "_oar_diagnostics", {}):
-            state["oar_diagnostics"] = copy.deepcopy(self._oar_diagnostics)
-        return state
-
-    def save(self, filename: str, cluster_state: "Optional[contracts.ClusterState]" = None) -> None:
-        with open(filename, "w") as outfile:
-            json.dump(self.to_cluster_state() if cluster_state is None else cluster_state, outfile)
-
-
 class TextDisplay(object):
     def __init__(self, document, config, viewport, wns_occupancy, cluster, args):
         self.cluster = cluster
@@ -1695,21 +1369,7 @@ class TextDisplay(object):
         if self.args.WATCH:
             print("\033c", end=" ")  # comma is to avoid losing the whole first line. An empty char still remains, though.
 
-        diagnostics = getattr(self.document, "_slurm_diagnostics", {})
-        if any(diagnostics.values()):
-            print(
-                "Slurm snapshot incomplete: %s rejected job rows; %s rejected node rows; "
-                "%s active jobs reference missing nodes; %s active jobs have invalid node lists."
-                % tuple(diagnostics.get(key, 0) for key in ("rejected_squeue_rows", "rejected_sinfo_rows", "jobs_with_missing_nodes", "jobs_with_invalid_nodelists"))
-            )
-
-        oar_notes = getattr(self.document, "_oar_diagnostics", {})
-        if any(oar_notes.values()):
-            print(
-                "OAR allocation notes: %s resources lack details; %s resources absent from node states; "
-                "%s job IDs absent from oarstat; %s shared resource slots (? marks unknown ownership)."
-                % tuple(oar_notes.get(key, 0) for key in ("missing_resources", "extra_resources", "unlisted_jobs", "shared_resources"))
-            )
+        self.display_backend_messages("snapshot")
 
         for idx, part in enumerate(config["user_display_parts"], 1):
             display_func, opts = display_parts[part][0], display_parts[part][1]
@@ -1735,13 +1395,15 @@ class TextDisplay(object):
         print(
             "%(del)s%(name)s \nv%(version)s ## For feedback and updates, see: %(link)s"
             % {
-                "name": "PBS" if self.args.CLASSIC else colorize("./qtop.py     ## Queueing System report tool. Press ? for help", "Cyan_L"),
+                "name": scheduler_backend(scheduler).classic_report_name
+                if self.args.CLASSIC
+                else colorize("./qtop.py     ## Queueing System report tool. Press ? for help", "Cyan_L"),
                 "del": ansi_delete_char,
                 "link": colorize("https://github.com/qtop/qtop", "Cyan_L"),
                 "version": __version__,
             }
         )
-        if scheduler == "demo":
+        if scheduler_backend(scheduler).is_simulated:
             msg = "This data is simulated. As soon as you connect to one of the supported scheduling systems,\nyou will see live data from your cluster. Press q to Quit."
             print(colorize(msg, "Blue_L"))
 
@@ -1771,10 +1433,7 @@ class TextDisplay(object):
             }
         )
 
-        if scheduler == "slurm":
-            print("Slurm job counts include individual array tasks and heterogeneous components.")
-            if any(len(job.get("slurm_partitions", [])) > 1 for job in getattr(document, "_job_metadata", {}).values()):
-                print("Slurm partition counts include each eligible partition; global job counts are unique.")
+        self.display_backend_messages("accounting")
         expanded = globals().get("dynamic_config", {}).get("queue_summary_expanded", getattr(self.args, "EXPAND_QUEUES", False))
         print("%(queues)s :" % {"queues": colorize("Queueing", "Cyan_L")}, end="\n" if expanded else " ")
         for _queue_name, q_tuple in qstatq_lod.items():
@@ -1790,15 +1449,13 @@ class TextDisplay(object):
                 ),
                 end="\n" if expanded else " ",
             )
-        blocked_note = " (at least one queue instance)" if scheduler == "sge" else ""
-        if scheduler == "slurm":
-            blocked_note = " (partition closed to submissions or scheduling)"
+        blocked_note = scheduler_backend(scheduler).blocked_queue_note
         print(colorize("* implies blocked", "Red") + blocked_note + "\n")
         if getattr(self.args, "SHOW_QUEUE_NODES", False):
             from qtop_py.queue_nodes import queue_node_counts
 
             try:
-                counts = queue_node_counts(document.worker_nodes, list(document.queues_dict), scheduler, self.config.get("experimental_queue_nodes"))
+                counts = queue_node_counts(document.worker_nodes, list(document.queues_dict), scheduler_backend(scheduler), self.config.get("experimental_queue_nodes"))
             except ValueError as error:
                 print("Queue nodes unavailable: %s" % error)
             else:
@@ -1812,30 +1469,16 @@ class TextDisplay(object):
         print_char_stop = self.wns_occupancy.print_char_stop
 
         self.display_basic_legend()
-        if scheduler == "slurm":
-            sources = {node.get("cpu_allocation_source") for node in cluster.worker_nodes}
-            if "estimated" in sources:
-                print("Slurm CPU placement: estimated where allocation details are unavailable.")
-            if "slurm" in sources:
-                print("Slurm CPU placement: scheduler CPU IDs; Linux task affinity is not shown.")
-            omitted = sum(node.get("slurm_unmapped_cpus", 0) for node in cluster.worker_nodes)
-            if omitted:
-                print("Slurm CPU matrix omits %s shared/excess CPU assignments; job/node membership is retained." % omitted)
+        self.display_backend_messages("placement")
         self.display_matrix(wns_occupancy, print_char_start, print_char_stop)
         # the transposed matrix is one continuous block, doesn't make sense to break into more matrices
         if not dynamic_config.get("transpose_wn_matrices", config["transpose_wn_matrices"]):
             self.display_remaining_matrices(wns_occupancy, print_char_start, print_char_stop)
-        if scheduler == "slurm" and self.config.get("experimental_gpu_pairs"):
-            from qtop_py.gpu import configured_pair_lines
+        self.display_backend_messages("resources")
 
-            try:
-                lines = configured_pair_lines(cluster.worker_nodes, self.config["experimental_gpu_pairs"])
-            except ValueError as error:
-                print("Configured GPU pairs unavailable: %s" % error)
-            else:
-                if lines:
-                    print("Configured GPU pairs (experimental; job IDs, ? = unknown):")
-                    print("\n".join(lines))
+    def display_backend_messages(self, section):
+        for line in scheduler_backend(scheduler).display_messages(section, self.document, getattr(self.cluster, "worker_nodes", []), self.config):
+            print(line)
 
     def display_basic_legend(self):
         """Displays the Worker Nodes occupancy label plus columns explanation"""
@@ -1857,7 +1500,7 @@ class TextDisplay(object):
             account_jobs_table = dict()
             userid_to_userid_re_pat = dict()
 
-        detail_of_name = get_detail_of_name(account_jobs_table)
+        detail_of_name = get_detail_of_name(account_jobs_table, self.config, self.args)
         group_of_name = get_primary_group_names(account_jobs_table) if getattr(self.args, "SHOW_GROUPS", False) else None
         print(
             colorize("\n===> ", "Gray_D")
@@ -2061,16 +1704,7 @@ class TextDisplay(object):
                 try:
                     print(core_line_zipped)
                 except IOError:
-                    try:
-                        reset_sigpipe()
-                        print(core_line_zipped)
-                        sys.stdout.close()
-                    except IOError:
-                        return
-                    try:
-                        sys.stderr.close()
-                    except IOError:
-                        return
+                    return
 
     def display_wnid_lines(self, start, stop, highest_wn, wn_vert_labels, **kwargs):
         """
@@ -2460,9 +2094,7 @@ class Cluster(object):
 
     def _calculate_jobs_per_node(self, workernode_dict):
         for node in workernode_dict:
-            node_job_set = set(workernode_dict[node]["core_job_map"].values())
-            node_job_set.update(workernode_dict[node].get("slurm_job_ids", []))
-            node_job_set.update(workernode_dict[node].get("oar_job_ids", []))
+            node_job_set = node_job_ids(workernode_dict[node])
             workernode_dict[node]["node_job_set"] = node_job_set
 
 
@@ -2650,10 +2282,6 @@ def cli_error_message(error):
     return str(error)
 
 
-class OperationalError(Exception):
-    """An expected failure that the CLI can explain without a traceback."""
-
-
 def report_operational_error(error):
     if isinstance(error, OSError):
         location = " (%s)" % error.filename if error.filename else ""
@@ -2673,11 +2301,72 @@ def report_operational_error(error):
         traceback.print_exc(file=sys.stderr)
 
 
-def cli_main():
-    original_stdout = sys.stdout
-    original_cwd = os.getcwd()
+def collect_snapshot(args, config, backend, trace_paths, archive):
+    """Collect one normalized snapshot, including replay and masking."""
+    scheduler = backend.get_mnemonic()
+    savepath = config["savepath"]
+    scheduling_system: "contracts.Scheduler"
     try:
-        return main() or 0
+        if args.load_sample:
+            cluster_state = args.sample_snapshot["state"]
+        elif args.SAMPLE and args.ANONYMIZE:
+            # Collect originals only in memory so all backends share one mapping.
+            capture_args = copy.copy(args)
+            capture_args.ANONYMIZE = False
+            scheduling_system = backend(trace_paths, config, capture_args)
+            cluster_state = scheduling_system.get_cluster_state(capture_args)
+            cluster_state, mappings = sample.anonymize_state(cluster_state)
+            config, omitted = sample.sanitize_config(config, mappings)
+            snapshot_config = copy.deepcopy(config)
+            config["savepath"] = savepath
+            args.GET_GECOS = False
+            args.SHOW_GROUPS = False
+            if archive is None:
+                raise OperationalError("Support archive was not initialized.")
+            sample.save_snapshot(archive, cluster_state, snapshot_config, args, scheduler, __version__, omitted)
+            if args.masked_traces:
+                from qtop_py.source_trace import save_masked_traces
+
+                save_masked_traces(archive, scheduling_system, trace_paths, mappings)
+        else:
+            scheduling_system = backend(trace_paths, config, args)
+            cluster_state = scheduling_system.get_cluster_state(args)
+    except (ValueError, UnicodeError, ParseError) as error:
+        raise OperationalError("Cannot parse %s scheduler input in %s: %s" % (scheduler, args.workdir, error)) from error
+    return Document.from_cluster_state(cluster_state), config
+
+
+def export_snapshot(document, args, savepath, timestr, web):
+    if args.EXPORT or args.WEB:
+        with tempfile.NamedTemporaryFile(delete=False, prefix="qtop_json_%s_" % timestr, suffix=".json", dir=savepath) as json_file:
+            json_filename = json_file.name
+        try:
+            document.save(json_filename)
+        except BaseException:
+            with contextlib.suppress(OSError):
+                os.unlink(json_filename)
+            raise
+    if args.WEB:
+        web.set_filename(json_filename)
+
+
+def prepare_refresh(document, config, args, nodestate_to_color):
+    worker_nodes = keep_queue_initials_only_and_colorize(document.worker_nodes, queue_to_color)
+    worker_nodes = colorize_nodestate(worker_nodes, nodestate_to_color, colorize)
+    return Cluster(document, worker_nodes, WNFilter, config, args)
+
+
+def render_refresh(document, cluster, config, args, viewport, user_to_color, savepath, sample_filename, logfile):
+    occupancy = WNOccupancy(cluster, config, document, user_to_color, list(document.jobs_dict))
+    display = TextDisplay(document, config, viewport, occupancy, cluster, args)
+    display.display_selected_sections(savepath, sample_filename, logfile)
+    return display
+
+
+def cli_main():
+    try:
+        with RunResources() as resources:
+            return main(resources) or 0
     except (InvalidScheduler, NoSchedulerFound, SchedulerNotSpecified) as error:
         message = cli_error_message(error)
         if message:
@@ -2686,18 +2375,9 @@ def cli_main():
     except (OperationalError, OSError) as error:
         report_operational_error(error)
         return 1
-    finally:
-        if sys.stdout is not original_stdout:
-            with contextlib.suppress(OSError):
-                sys.stdout.close()
-            sys.stdout = original_stdout
-        workspace = getattr(globals().get("args"), "source_workspace", None)
-        if workspace is not None:
-            os.chdir(original_cwd)
-            workspace.cleanup()
 
 
-def main():
+def main(resources):
     # define global vars which are used out of scope
     global \
         CURPATH, \
@@ -2718,11 +2398,12 @@ def main():
         web, \
         document
 
-    args = utils.parse_qtop_cmdline_args()
+    args = resources.options = utils.parse_qtop_cmdline_args()
     if args.version:
         print("qtop current version: " + __version__)
         sys.exit(0)
     utils.init_logging(args)
+    resources.logfile = QTOP_LOGFILE
     dynamic_config = dict()
     args, dynamic_config["force_names"] = process_args(args)
     require_experimental_opt_in(args)
@@ -2754,11 +2435,9 @@ def main():
 
     available_batch_systems = discover_qtop_batch_systems()
 
-    stdout = sys.stdout  # keep a copy of the initial value of sys.stdout
+    stdout = resources.stdout
     change_mapping = cycle([("queue_to_color", "color by queue"), ("user_to_color", "color by user")])
     h_counter = cycle([0, 1])
-    tar_out = None
-    capture_paths = OrderedDict()
 
     viewport = Viewport()  # controls the part of the qtop matrix shown on screen
     max_line_len = 0
@@ -2780,14 +2459,14 @@ def main():
     SAMPLE_FILENAME = "qtop_sample_anonymous%(datetime)s.tar" if args.ANONYMIZE else os.path.expandvars(SAMPLE_FILENAME)
     if args.REPLAY:
         args.WATCH = 2  # enforce that --watch mode is on, even if not in cmdline switch
-        args.BATCH_SYSTEM = "demo"
+        args.BATCH_SYSTEM = next(name for name, backend in available_batch_systems.items() if backend.is_simulated)
         try:
-            config, _, _ = load_yaml_config()
+            config, _, _ = configuration.load_yaml_config(args, QTOPPATH, CURPATH, SYSTEMCONFDIR, USERPATH)
         except (ValueError, TypeError, KeyError, IndexError, AttributeError, StopIteration) as error:
             raise OperationalError("Invalid configuration in %s: %s" % (args.CONFFILE or QTOPCONF_YAML, error or type(error).__name__)) from error
         useful_frames, args.REPLAY = pick_frames_to_replay(config["savepath"])
 
-    web = Web(initial_cwd)
+    web = resources.web = Web(initial_cwd)
     if args.WEB:
         web.start()
 
@@ -2795,11 +2474,10 @@ def main():
         try:
             while True:
                 try:
-                    config, user_to_color, nodestate_to_color = load_yaml_config()
-                    config = update_config_with_cmdline_vars(args, config)
+                    config, user_to_color, nodestate_to_color = configuration.load_yaml_config(args, QTOPPATH, CURPATH, SYSTEMCONFDIR, USERPATH)
                 except (ValueError, TypeError, KeyError, IndexError, AttributeError, StopIteration) as error:
                     raise OperationalError("Invalid configuration in %s: %s" % (args.CONFFILE or QTOPCONF_YAML, error or type(error).__name__)) from error
-                savepath = config["savepath"] = fileutils.private_save_directory(config["savepath"])
+                savepath = config["savepath"]
                 timestr = time.strftime("%Y%m%dT%H%M%S")
                 attempt_faster_xml_parsing(config)
                 args = init_dirs(args, savepath)
@@ -2809,86 +2487,25 @@ def main():
                     viewport.set_term_size(500, 9999)
                 else:
                     viewport.set_term_size(*calculate_term_size(config, FALLBACK_TERMSIZE, viewport))
-                # qtop output is saved here
-                handle, output_fp = fileutils.get_new_temp_file(savepath, prefix="qtop_fullview_%s_" % timestr, suffix=".out")
-                help_main_switch.append(output_fp)
-                sys.stdout = os.fdopen(handle, "w")  # redirect everything to file, creates file object out of handle
-                scheduler = (
-                    args.sample_snapshot["scheduler"]
-                    if args.load_sample
-                    else decide_batch_system(args.BATCH_SYSTEM, os.environ.get("QTOP_SCHEDULER"), config["scheduler"], config["schedulers"], available_batch_systems, config)
-                )
-                scheduler_output_filenames = {} if args.load_sample else fetch_scheduler_files(args, config, available_batch_systems[scheduler].optional_trace_keys)
-                SAMPLE_FILENAME = fileutils.get_sample_filename(SAMPLE_FILENAME, config)
-                if args.SAMPLE:
-                    tar_out = fileutils.init_sample_file(args, savepath, SAMPLE_FILENAME, scheduler_output_filenames, QTOPCONF_YAML, QTOPPATH)
-                    capture_paths[tar_out.name] = "Sample files saved in"
-                    if args.SAMPLE >= 2 and not args.ANONYMIZE:
-                        sample.add_json(tar_out, "qtop-effective-config.json", config)
-                    if args.raw_companion:
-                        companion = fileutils.save_raw_companion(savepath, scheduler_output_filenames)
-                        capture_paths[companion] = "PRIVATE unmasked scheduler traces:"
-
-                ###### Gather data ###############
-                #
-                scheduling_system: "contracts.Scheduler" = available_batch_systems[scheduler](scheduler_output_filenames, config, args)
-
-                try:
-                    if args.load_sample:
-                        cluster_state = copy.deepcopy(args.sample_snapshot["state"])
-                    elif args.SAMPLE and args.ANONYMIZE:
-                        # Collect originals only in memory so all backends share one mapping.
-                        capture_args = copy.copy(args)
-                        capture_args.ANONYMIZE = False
-                        scheduling_system = available_batch_systems[scheduler](scheduler_output_filenames, config, capture_args)
-                        cluster_state = scheduling_system.get_cluster_state(capture_args)
-                        cluster_state, mappings = sample.anonymize_state(cluster_state)
-                        config, omitted = sample.sanitize_config(config, mappings)
-                        snapshot_config = copy.deepcopy(config)
-                        config["savepath"] = savepath
-                        args.GET_GECOS = False
-                        args.SHOW_GROUPS = False
+                with resources.frame(savepath, timestr) as output_fp:
+                    help_main_switch.append(output_fp)
+                    scheduler = (
+                        args.sample_snapshot["scheduler"]
+                        if args.load_sample
+                        else decide_batch_system(args.BATCH_SYSTEM, os.environ.get("QTOP_SCHEDULER"), config["scheduler"], config["schedulers"], available_batch_systems, config)
+                    )
+                    backend = available_batch_systems[scheduler]
+                    trace_paths = {} if args.load_sample else fetch_scheduler_files(args, config, backend)
+                    SAMPLE_FILENAME = fileutils.get_sample_filename(SAMPLE_FILENAME, config)
+                    resources.start_capture(savepath, SAMPLE_FILENAME, trace_paths, config, QTOPPATH)
+                    document, config = collect_snapshot(args, config, backend, trace_paths, resources.archive)
+                    if args.SAMPLE and args.ANONYMIZE:
                         user_to_color = user_to_color_default.copy()
                         for rule in config["user_color_mappings"]:
                             user_to_color.update(rule)
-                        if tar_out is None:
-                            raise OperationalError("Support archive was not initialized.")
-                        sample.save_snapshot(tar_out, cluster_state, snapshot_config, args, scheduler, __version__, omitted)
-                        if args.masked_traces:
-                            from qtop_py.source_trace import save_masked_traces
-
-                            save_masked_traces(tar_out, scheduling_system, scheduler_output_filenames, mappings)
-                    else:
-                        cluster_state = scheduling_system.get_cluster_state(args)
-                except (ValueError, UnicodeError, ParseError) as error:
-                    raise OperationalError("Cannot parse %s scheduler input in %s: %s" % (scheduler, args.workdir, error)) from error
-                document = Document.from_cluster_state(cluster_state)
-                job_ids = [job["id"] for job in cluster_state["jobs"]]
-
-                ###### Export data ###############
-                #
-                if args.EXPORT or args.WEB:
-                    with tempfile.NamedTemporaryFile(delete=False, prefix="qtop_json_%s_" % timestr, suffix=".json", dir=savepath) as json_file:
-                        json_filename = json_file.name
-                    document.save(json_filename, cluster_state)
-                if args.WEB:
-                    web.set_filename(json_filename)
-
-                ###### Process data ###############
-                #
-                worker_nodes = keep_queue_initials_only_and_colorize(document.worker_nodes, queue_to_color)
-                worker_nodes = colorize_nodestate(worker_nodes, nodestate_to_color, colorize)
-                cluster = Cluster(document, worker_nodes, WNFilter, config, args)
-                wns_occupancy = WNOccupancy(cluster, config, document, user_to_color, job_ids)
-
-                ###### Display data ###############
-                #
-                display = TextDisplay(document, config, viewport, wns_occupancy, cluster, args)
-                display.display_selected_sections(savepath, SAMPLE_FILENAME, QTOP_LOGFILE)
-
-                sys.stdout.flush()
-                sys.stdout.close()
-                sys.stdout = stdout  # sys.stdout is back to its normal function (i.e. prints to screen)
+                    export_snapshot(document, args, savepath, timestr, web)
+                    cluster = prepare_refresh(document, config, args, nodestate_to_color)
+                    display = render_refresh(document, cluster, config, args, viewport, user_to_color, savepath, SAMPLE_FILENAME, QTOP_LOGFILE)
 
                 viewport.max_height, max_line_len = get_output_size(max_line_len, output_fp)
 
@@ -2918,31 +2535,13 @@ def main():
 
                 help_main_switch.pop()
                 os.chdir(QTOPPATH)
-                os.unlink(output_fp)
+                resources.discard_frame()
                 fileutils.deprecate_old_output_files(config)
 
-            if args.SAMPLE and tar_out is not None:
-                tar_out = fileutils.add_to_sample([output_fp], tar_out)
-
-        except (KeyboardInterrupt, EOFError) as e:
-            repr(e)
-            if args.SAMPLE and args.ANONYMIZE:
-                raise SystemExit(0)
-            fileutils.safe_exit_with_file_close(handle, output_fp, stdout, args, savepath, QTOP_LOGFILE, SAMPLE_FILENAME)
-        finally:
-            web.stop()
-            if args.SAMPLE >= 1 and tar_out is not None:
-                if not args.ANONYMIZE:
-                    tar_out = fileutils.add_to_sample([QTOP_LOGFILE], tar_out)
-                # Raw scheduler output can contain identifiers that qtop cannot
-                # safely rewrite in every vendor-specific format.
-                if not args.ANONYMIZE:
-                    for fn in scheduler_output_filenames:
-                        if os.path.isfile(scheduler_output_filenames[fn]):
-                            tar_out = fileutils.add_to_sample([scheduler_output_filenames[fn]], tar_out)
-                tar_out.close()
-            for path, label in capture_paths.items():
-                sys.stderr.write("%s %s\n" % (label, path))
+        except (KeyboardInterrupt, EOFError):
+            if not (args.SAMPLE and args.ANONYMIZE):
+                print("\nExiting. Thank you for ...watching ;)\n")
+            raise SystemExit(0)
 
 
 if __name__ == "__main__":

@@ -18,6 +18,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from qtop_py import configuration
 from qtop_py import qtop as qtop_module
 from qtop_py import utils as qtop_utils
 from qtop_py.constants import SYMBOL_LONG_TAIL_USER, SYMBOL_UNKNOWN_NODE_STATE
@@ -68,7 +69,7 @@ def config():
 @pytest.mark.parametrize("remove", [0, 1, 2])
 def test_update_config_defaults_missing_coreline_setting(config, base, remove):
     args = SimpleNamespace(OPTION=[], TRANSPOSE=False, REM_EMPTY_CORELINES=remove)
-    assert qtop_module.update_config_with_cmdline_vars(args, dict(config))["rem_empty_corelines"] == base + remove
+    assert configuration.update_config_with_cmdline_vars(args, dict(config))["rem_empty_corelines"] == base + remove
 
 
 def test_sort_worker_nodes_uses_named_sort_keys(monkeypatch):
@@ -155,7 +156,7 @@ def test_scheduler_autodetection_skips_demo_and_missing_commands(monkeypatch):
     monkeypatch.setattr(qtop_module.shutil, "which", available.get)
     config = {"signature_commands": {"demo": "echo", "pbs": "pbsnodes", "sge": "qhost"}}
 
-    assert qtop_module.auto_get_avail_batch_system(config) == "sge"
+    assert qtop_module.auto_get_avail_batch_system(config, qtop_module.discover_qtop_batch_systems()) == "sge"
 
 
 def test_scheduler_autodetection_fails_when_only_demo_is_available(monkeypatch):
@@ -163,7 +164,7 @@ def test_scheduler_autodetection_fails_when_only_demo_is_available(monkeypatch):
     config = {"signature_commands": {"demo": "echo", "pbs": "pbsnodes"}}
 
     with pytest.raises(SchedulerNotSpecified):
-        qtop_module.auto_get_avail_batch_system(config)
+        qtop_module.auto_get_avail_batch_system(config, qtop_module.discover_qtop_batch_systems())
 
 
 def test_scheduler_autodetection_prioritizes_slurm(monkeypatch):
@@ -171,7 +172,7 @@ def test_scheduler_autodetection_prioritizes_slurm(monkeypatch):
     monkeypatch.setattr(qtop_module.shutil, "which", available.get)
     config = {"signature_commands": {"sge": "qstat", "slurm": "sinfo"}}
 
-    assert qtop_module.auto_get_avail_batch_system(config) == "slurm"
+    assert qtop_module.auto_get_avail_batch_system(config, qtop_module.discover_qtop_batch_systems()) == "slurm"
 
 
 @pytest.mark.parametrize(
@@ -407,10 +408,10 @@ def test_missing_user_details_command_is_optional(monkeypatch, caplog, realtime,
     info = {"field_to_use": 5}
     if value is not None:
         info[key] = value
-    monkeypatch.setattr(qtop_module, "args", SimpleNamespace(GET_GECOS=realtime), raising=False)
-    monkeypatch.setattr(qtop_module, "config", {"extract_info": info}, raising=False)
+    options = SimpleNamespace(GET_GECOS=realtime)
+    config = {"extract_info": info}
     monkeypatch.setattr(qtop_module.subprocess, "Popen", lambda *args, **kwargs: pytest.fail("No command should run"))
-    assert qtop_module.get_detail_of_name([]) == {}
+    assert qtop_module.get_detail_of_name([], config, options) == {}
     assert key in caplog.text
 
 
@@ -419,26 +420,26 @@ def test_configured_user_details_command_still_returns_details(monkeypatch, real
     key = "user_details_realtime" if realtime else "user_details_cache"
     command = "getent passwd %s" if realtime else "cat $HOME/passwd"
     calls = []
-    process = SimpleNamespace(communicate=lambda *args: ("alice:x:1000:1000:Alice Example:/home/alice:/bin/sh\n", ""))
+    process = SimpleNamespace(returncode=0, communicate=lambda *args, **kwargs: ("alice:x:1000:1000:Alice Example:/home/alice:/bin/sh\n", ""))
     monkeypatch.setenv("HOME", "/tmp/qtop-user-details")
-    monkeypatch.setattr(qtop_module, "args", SimpleNamespace(GET_GECOS=realtime), raising=False)
-    monkeypatch.setattr(qtop_module, "config", {"extract_info": {key: command}}, raising=False)
+    options = SimpleNamespace(GET_GECOS=realtime)
+    config = {"extract_info": {key: command}}
     monkeypatch.setattr(qtop_module.subprocess, "Popen", lambda command, **kwargs: calls.append(command) or process)
-    assert qtop_module.get_detail_of_name([["0", 1, 0, 1, "alice", 1]]) == {"alice": "Alice Example"}
+    assert qtop_module.get_detail_of_name([["0", 1, 0, 1, "alice", 1]], config, options) == {"alice": "Alice Example"}
     assert calls == [["getent", "passwd", "alice"] if realtime else ["cat", "/tmp/qtop-user-details/passwd"]]
 
 
 @pytest.mark.parametrize("realtime", [False, True])
 def test_unavailable_user_details_command_is_optional(monkeypatch, caplog, realtime):
     key = "user_details_realtime" if realtime else "user_details_cache"
-    monkeypatch.setattr(qtop_module, "args", SimpleNamespace(GET_GECOS=realtime), raising=False)
-    monkeypatch.setattr(qtop_module, "config", {"extract_info": {key: "missing-command %s" if realtime else "missing-command"}}, raising=False)
+    options = SimpleNamespace(GET_GECOS=realtime)
+    config = {"extract_info": {key: "missing-command %s" if realtime else "missing-command"}}
 
     def unavailable(*args, **kwargs):
         raise FileNotFoundError("executable not found")
 
     monkeypatch.setattr(qtop_module.subprocess, "Popen", unavailable)
-    assert qtop_module.get_detail_of_name([]) == {}
+    assert qtop_module.get_detail_of_name([], config, options) == {}
     assert key in caplog.text
     assert "missing-command" in caplog.text
 
@@ -596,7 +597,7 @@ def test_demo_notice_uses_high_contrast_blue(monkeypatch):
 def test_available_possible_ids_filters_reserved_user_symbols():
     config = user_symbol_config(possible_ids=SYMBOL_POSSIBLE_IDS_WITH_RESERVED)
 
-    assert qtop_module._available_possible_ids(config) == ["0", "1"]
+    assert configuration.available_possible_ids(config) == ["0", "1"]
 
 
 def test_compress_colored_line_groups_adjacent_colors_and_accepts_empty_input():
@@ -621,7 +622,7 @@ def test_normalize_config_returns_a_runtime_copy():
         "workernodes_matrix": [{"wn id lines": {"alt_label_colors": ["White, Blue_L"], "user_cut_matrix_width": "12"}}],
     }
 
-    normalized = qtop_module.normalize_config(raw_config)
+    normalized = configuration.normalize_config(raw_config)
 
     assert raw_config["possible_ids"] == "01"
     assert raw_config["sorting"]["reverse"] == "True"
@@ -638,15 +639,10 @@ def test_queue_is_blocked(state, blocked, scheduler_name):
     assert qtop_module.queue_is_blocked(state, scheduler_name) is blocked
 
 
-def test_load_yaml_config_keeps_user_symbol_pool_bounded(monkeypatch, tmp_path):
-    monkeypatch.setattr(qtop_module, "QTOPPATH", str(Path(__file__).resolve().parents[1]), raising=False)
-    monkeypatch.setattr(qtop_module, "SYSTEMCONFDIR", str(tmp_path / "etc"))
-    monkeypatch.setattr(qtop_module, "USERPATH", str(tmp_path / "user"))
-    monkeypatch.setattr(qtop_module, "CURPATH", str(tmp_path), raising=False)
-    monkeypatch.setattr(qtop_module, "args", SimpleNamespace(CONFFILE=None), raising=False)
-    monkeypatch.setattr(qtop_module.fileutils, "mkdir_p", lambda path: None)
-
-    config, _, _ = qtop_module.load_yaml_config()
+def test_load_yaml_config_keeps_user_symbol_pool_bounded(tmp_path):
+    config, _, _ = configuration.load_yaml_config(
+        SimpleNamespace(CONFFILE=None), str(Path(__file__).resolve().parents[1]), str(tmp_path), str(tmp_path / "etc"), str(tmp_path / "user")
+    )
 
     assert config["possible_ids"] == list("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz")
     assert "}" not in config["possible_ids"]
@@ -742,7 +738,7 @@ def test_long_tail_symbol_is_not_colored_like_a_single_user():
 def test_get_selected_batch_system(cmdline_switch, env_var, config_file_batch_option, returned_scheduler):
     # monkeypatch.setitem(config, "schedulers", ['oar', 'sge', 'pbs'])
     schedulers = ["sge", "oar", "pbs"]
-    available_batch_systems = {"sge": None, "oar": None, "pbs": None}
+    available_batch_systems = {name: qtop_module.scheduler_backend(name) for name in schedulers}
     assert (
         decide_batch_system(
             cmdline_switch,
@@ -772,7 +768,7 @@ def test_get_selected_batch_system_raises_scheduler_not_specified(
     returned_scheduler,
 ):
     schedulers = ["sge", "oar", "pbs"]
-    available_batch_systems = {"sge": None, "oar": None, "pbs": None}
+    available_batch_systems = {name: qtop_module.scheduler_backend(name) for name in schedulers}
     config = {"signature_commands": {"pbs": "pbsnodes", "oar": "oarnodes", "sge": "qhost", "demo": "echo"}}
 
     with pytest.raises(SchedulerNotSpecified):
@@ -800,7 +796,7 @@ def test_get_selected_batch_system_raises_no_scheduler_found(
     returned_scheduler,
 ):
     schedulers = ["sge", "oar", "pbs"]
-    available_batch_systems = {"sge": None, "oar": None, "pbs": None}
+    available_batch_systems = {name: qtop_module.scheduler_backend(name) for name in schedulers}
     with pytest.raises(NoSchedulerFound):
         decide_batch_system(
             cmdline_switch,
@@ -1029,3 +1025,45 @@ def test_viewport_pipeline_reaps_both_processes(tmp_path, monkeypatch, head_fail
         assert Path(result).read_text() == "1\n2\n"
         assert len(processes) == 2
     assert all(process.returncode is not None for process in processes)
+
+
+@pytest.mark.parametrize("failure", ["timeout", "exit", "quoting"])
+def test_user_details_failures_are_optional_and_processes_reaped(tmp_path, monkeypatch, caplog, failure):
+    import shlex
+    import time
+
+    script = tmp_path / "user lookup.py"
+    script.write_text(
+        "import sys, time\n"
+        + ("time.sleep(10)\n" if failure == "timeout" else "print('alice:x:1:1:Partial Name:/home/alice:/bin/sh')\nprint('lookup unavailable', file=sys.stderr)\nsys.exit(7)\n")
+    )
+    command = " ".join(shlex.quote(value) for value in (sys.executable, str(script))) if failure != "quoting" else "unterminated '"
+    options = SimpleNamespace(GET_GECOS=False)
+    config = {"extract_info": {"user_details_cache": command}, "scheduler_command_timeout": 0.2}
+    processes = []
+    popen = qtop_module.subprocess.Popen
+
+    def track(*args, **kwargs):
+        process = popen(*args, **kwargs)
+        processes.append(process)
+        return process
+
+    monkeypatch.setattr(qtop_module.subprocess, "Popen", track)
+    started = time.monotonic()
+    assert qtop_module.get_detail_of_name([], config, options) == {}
+    assert time.monotonic() - started < 5
+    assert all(process.returncode is not None for process in processes)
+    assert "skipping user details" in caplog.text
+
+
+@pytest.mark.parametrize("realtime", [False, True])
+def test_user_details_preserve_quoted_arguments_and_skip_malformed_rows(tmp_path, monkeypatch, realtime):
+    import shlex
+
+    script = tmp_path / "user lookup.py"
+    script.write_text("import sys\nassert sys.argv[1:] == ['alice smith']\nprint('malformed')\nprint('alice smith:x:1:1:Alice Smith:/home/alice:/bin/sh')\n")
+    command = " ".join(shlex.quote(value) for value in (sys.executable, str(script))) + (" %s" if realtime else " 'alice smith'")
+    key = "user_details_realtime" if realtime else "user_details_cache"
+    options = SimpleNamespace(GET_GECOS=realtime)
+    config = {"extract_info": {key: command}}
+    assert qtop_module.get_detail_of_name([["0", 1, 0, 1, "alice smith", 1]], config, options) == {"alice smith": "Alice Smith"}

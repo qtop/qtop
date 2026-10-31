@@ -51,7 +51,7 @@ def test_slurm_state_suffix_reaches_matrix_and_snapshot(trace, raw_state, normal
     colored = qtop.colorize_nodestate(replayed["nodes"], {normalized: "Green"}, qtop.colorize)
     occupancy = SimpleNamespace(cluster=SimpleNamespace(workernode_dict={1: colored[0]}))
     config = {"workernodes_matrix": [{"node state": {"max_len": 1}}]}
-    lines = qtop.WNOccupancy.calc_general_mult_attr_line(occupancy, "node state", "state", config)
+    lines = qtop.WNOccupancy.calc_general_mult_attr_line(occupancy, "node state", "state", config, SlurmBatchSystem)
     assert str(lines["attr1line"][0]) == (suffix[-1] if suffix else normalized)
     assert lines["attr1line"][0].color == "Green"
     assert str(colored[0]["state"][0]) == normalized
