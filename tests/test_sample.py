@@ -10,6 +10,7 @@ import subprocess
 import sys
 import tarfile
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -25,6 +26,151 @@ def run_cli(home, *args, extra_env=None):
     return subprocess.run(
         [sys.executable, "-m", "qtop_py.qtop"] + list(args), cwd=str(home), env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True, timeout=20
     )
+
+
+@pytest.mark.parametrize(
+    "backend,files",
+    (
+        ("slurm", {"squeue_file": "squeue.txt", "sinfo_file": "sinfo.txt"}),
+        ("pbs", {"qstat_file": "qstat.txt", "qstatq_file": "qstat_q.txt", "pbsnodes_file": "pbsnodes_a.txt"}),
+        ("oar", {"oarstat_file": "oarstat.txt", "oarnodes_s_file": "oarnodes_s_Y.txt", "oarnodes_y_file": "oarnodes_Y.txt"}),
+        ("sge", {"sge_file": "qstat.F.xml.stdout"}),
+    ),
+)
+def test_source_trace_archives_preserve_private_input_and_replay_masked_formats(tmp_path, backend, files):
+    source = ROOT / "tests/plugins/slurm_samples/basic" if backend == "slurm" else ROOT / "qtop_py/contrib"
+    inputs = tmp_path / "inputs"
+    inputs.mkdir()
+    originals = {key: (source / name).read_bytes() for key, name in files.items()}
+    for key, name in files.items():
+        (inputs / name).write_bytes(originals[key])
+    output = tmp_path / "output"
+    capture = run_cli(tmp_path / "home", "-b", backend, "-s", str(inputs), "-L", "-A", "-e", "--masked-traces", "--raw-companion", "-E", "-O", "-o", "savepath=" + str(output))
+    assert capture.returncode == 0, capture.stderr
+    raw = next(output.glob("qtop_raw_traces_*.tar"))
+    assert raw.stat().st_mode & 0o777 == 0o600
+    assert "PRIVATE unmasked scheduler traces:" in capture.stderr
+    with tarfile.open(str(raw)) as archive:
+        assert set(archive.getnames()) == set(files)
+        for key, original in originals.items():
+            assert archive.extractfile(key).read() == original
+            assert archive.getmember(key).uname == ""
+    masked_inputs = tmp_path / "masked"
+    masked_inputs.mkdir()
+    with tarfile.open(str(next(output.glob("qtop_sample_anonymous*.tar")))) as archive:
+        report = json.load(archive.extractfile("masked-traces/report.json"))
+        assert report["omitted"] == []
+        assert set(report["included"]) == set(files)
+        assert not any(name.startswith("qtop_raw") or name in files.values() for name in archive.getnames())
+        for name in files.values():
+            (masked_inputs / name).write_bytes(archive.extractfile("masked-traces/" + name).read())
+        expected = json.load(archive.extractfile(sample.SNAPSHOT_NAME))["state"]
+    replay_output = tmp_path / "replayed"
+    replay = run_cli(tmp_path / "replay_home", "-b", backend, "-s", str(masked_inputs), "-E", "-O", "-o", "savepath=" + str(replay_output))
+    assert replay.returncode == 0, replay.stderr
+    actual = json.loads(next(replay_output.glob("qtop_json_*.json")).read_text())
+    # SGE synthesizes the literal Pending queue; it is not a source XML field.
+    if backend == "sge":
+        expected_jobs = {job["id"]: job for job in expected["jobs"]}
+        for job in actual["jobs"]:
+            if job["queue"] == "Pending":
+                job["queue"] = expected_jobs[job["id"]]["queue"]
+    assert actual["jobs"] == expected["jobs"]
+    assert {node["domainname"]: (node["np"], node["core_job_map"]) for node in actual["nodes"]} == {
+        node["domainname"]: (node["np"], node["core_job_map"]) for node in expected["nodes"]
+    }
+
+
+@pytest.mark.parametrize("flag", ("--raw-companion", "--masked-traces"))
+def test_source_trace_flags_require_anonymous_capture(tmp_path, flag):
+    result = run_cli(tmp_path / "home", flag)
+    assert result.returncode != 0
+    assert "require -L -A -e" in result.stderr
+
+
+def test_malformed_source_remains_in_private_companion_and_is_omitted_from_masked_archive(tmp_path):
+    inputs = tmp_path / "inputs"
+    shutil.copytree(str(ROOT / "tests/plugins/slurm_samples/basic"), str(inputs))
+    with (inputs / "squeue.txt").open("a") as stream:
+        stream.write("private_alice private_node secret_partition malformed\n")
+    original = (inputs / "squeue.txt").read_bytes()
+    output = tmp_path / "output"
+    result = run_cli(tmp_path / "home", "-b", "slurm", "-s", str(inputs), "-L", "-A", "-e", "--masked-traces", "--raw-companion", "-O", "-o", "savepath=" + str(output))
+    assert result.returncode == 0, result.stderr
+    with tarfile.open(str(next(output.glob("qtop_raw_traces_*.tar")))) as archive:
+        assert archive.extractfile("squeue_file").read() == original
+    with tarfile.open(str(next(output.glob("qtop_sample_anonymous*.tar")))) as archive:
+        report = json.load(archive.extractfile("masked-traces/report.json"))
+        assert report["omitted"] == ["squeue_file"]
+        assert "masked-traces/squeue.txt" not in archive.getnames()
+        for member in archive.getmembers():
+            assert b"private_alice" not in archive.extractfile(member).read()
+
+
+def test_raw_companion_survives_parser_failure(tmp_path):
+    inputs = tmp_path / "inputs"
+    inputs.mkdir()
+    broken = b"<job_info>private_parser_failure"
+    (inputs / "qstat.F.xml.stdout").write_bytes(broken)
+    output = tmp_path / "output"
+    result = run_cli(tmp_path / "home", "-b", "sge", "-s", str(inputs), "-L", "-A", "-e", "--raw-companion", "-O", "-o", "savepath=" + str(output))
+    assert result.returncode != 0
+    with tarfile.open(str(next(output.glob("qtop_raw_traces_*.tar")))) as archive:
+        assert archive.extractfile("sge_file").read() == broken
+
+
+def test_masked_details_and_array_ids_keep_source_structure():
+    from qtop_py.plugins.slurm import SlurmBatchSystem
+    from qtop_py.source_trace import TraceMasker
+
+    mask = TraceMasker({"job": {"42": "100000"}, "node": {"node001": "n_anon_wn_0", "node002": "n_anon_wn_1"}})
+    assert mask("42_[0-3%2]", "job") == "100000_[0-3%2]"
+    assert mask("42_1", "job") == "100000_1"
+    assert mask("42+1", "job") == "100000+1"
+    backend = SlurmBatchSystem({}, {}, SimpleNamespace(ANONYMIZE=False))
+    _, text = backend.mask_source_trace("scontrol_file", "JobId=42 UserId=private_alice(999)\n   Nodes=node[001-002] CPU_IDs=0-3,7 Mem=12 GRES=gpu:h100:2\n", mask)
+    assert "Nodes=n_anon_wn_0,n_anon_wn_1 CPU_IDs=0-3,7 Mem=12" in text
+    assert "JobId=100000" in text
+    assert "private_alice" not in text and "999" not in text and "h100" not in text
+
+
+def test_json_traces_redact_unused_fields_and_keep_native_identifiers(tmp_path):
+    from qtop_py.plugins.pbs import PBSBatchSystem
+    from qtop_py.source_trace import TraceMasker
+
+    backend = PBSBatchSystem({}, {}, SimpleNamespace(ANONYMIZE=False))
+    mask = TraceMasker({"job": {"17": "100000"}, "user": {"alice": "u_anon_user_0"}, "queue": {"batch": "q_anon_q_0"}})
+    jobs = {
+        "Jobs": {"17.private-server": {"Job_Owner": "alice@private-host", "Job_Name": "private-name", "queue": "batch", "job_state": "R", "secret": {"private-label": 7654321}}}
+    }
+    _, text = backend.mask_source_trace("qstat_file", json.dumps(jobs), mask)
+    assert "private" not in text and "7654321" not in text and "alice" not in text
+    result = json.loads(text)["Jobs"]["100000.server"]
+    assert result["queue"] == "q_anon_q_0" and result["job_state"] == "R"
+    queues = {"Queue": {"batch": {"state_count": "Running:1 Queued:2 Held:0", "enabled": True, "started": "True", "max_run": 12, "secret": "private-value"}}}
+    _, text = backend.mask_source_trace("qstatq_file", json.dumps(queues), mask)
+    assert "private" not in text
+    assert json.loads(text)["Queue"]["q_anon_q_0"]["state_count"] == "Running:1 Queued:2 Held:0"
+    queues["Queue"]["batch"]["enabled"] = {"private-key": "private-value"}
+    with pytest.raises(ValueError):
+        backend.mask_source_trace("qstatq_file", json.dumps(queues), mask)
+
+
+@pytest.mark.parametrize("payload", ("<job_info><private_tag>secret</private_tag></job_info>", '<!DOCTYPE job_info [<!ENTITY secret "private">]><job_info>&secret;</job_info>'))
+def test_unsupported_xml_traces_are_omitted_without_exception_details(tmp_path, payload):
+    from qtop_py.plugins.sge import SGEBatchSystem
+    from qtop_py.source_trace import save_masked_traces
+
+    path = tmp_path / "private.xml"
+    path.write_text(payload)
+    archive = tmp_path / "masked.tar"
+    with tarfile.open(str(archive), "w") as stream:
+        save_masked_traces(stream, SGEBatchSystem({}, {}, SimpleNamespace(ANONYMIZE=False)), {"sge_file": str(path)}, {})
+    with tarfile.open(str(archive)) as stream:
+        assert stream.getnames() == ["masked-traces/report.json"]
+        report = stream.extractfile("masked-traces/report.json").read()
+        assert b"private" not in report and b"secret" not in report
+        assert json.loads(report)["omitted"] == ["sge_file"]
 
 
 @pytest.mark.parametrize("backend", ("slurm", "pbs", "sge", "oar"))

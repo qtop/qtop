@@ -872,10 +872,11 @@ Excerpt from the basic synthetic Slurm export (first record of each array):
 ``-L`` writes ``qtop_sample_${USER}.tar`` in ``savepath`` by default. A normal
 completed one-shot run includes the rendered ``qtop_fullview_*.out``,
 ``qtop.log`` and scheduler trace files. ``-LL`` additionally includes the
-bundled ``qtopconf.yaml`` and Python sources under ``qtop_py/``, preserving
-subdirectories such as ``plugins/`` and ``ui/``. It includes the bundled
-configuration, not the merged configuration after user overrides. JSON
-exports are separate files and are not added to the archive automatically.
+bundled ``qtopconf.yaml``, effective configuration in ``qtop-effective-config.json``,
+Python sources under ``qtop_py/``, help text, web assets, a launcher and license.
+Source subdirectories such as ``plugins/`` and ``ui/`` are preserved.
+The configuration JSON records user and command-line overrides for diagnosis;
+it is not a ``--config`` file. Cluster-state JSON exports remain separate files.
 
 Create an extended archive from the same synthetic fixture and list its
 members before sharing:
@@ -923,14 +924,40 @@ rendering. The displayed wall-clock timestamp can differ.
 
 This reproduces the **parsed state and presentation**, including counts and
 job/core associations. It does not replay vendor output parsing. Raw scheduler
-traces are deliberately excluded. Local commands, paths, account-detail lookups
+traces are excluded by default. Local commands, paths, account-detail lookups
 and node-remapping rules are replaced or disabled; name-based color/filter rules
 are translated to the replacement identifiers. ``omitted_config`` records the
 configuration categories that were reset. ``-LL -A`` adds package sources but
 omits the bundled configuration file.
 
+For parser investigations, opt into one or both additional outputs:
+
+```sh
+./qtop -b slurm -L -A -e --masked-traces --raw-companion
+```
+
+``--raw-companion`` writes a separate ``qtop_raw_traces_*.tar`` in the private
+save directory **before parsing**. It contains exact unmasked scheduler input
+bytes, including malformed records, with members named by scheduler input key
+(for example, ``squeue_file``). The path is printed on stderr. This archive is
+private evidence, separate from the anonymous archive; review it before sharing.
+It does not include logs or configuration. It remains available if parsing fails.
+
+``--masked-traces`` adds ``masked-traces/`` to the anonymous archive. Supported
+formats include Slurm pipe-delimited jobs/nodes and key/value job details,
+PBS JSON jobs/queues and tabular jobs/queues/node records, OAR tabular jobs and
+resource YAML, and SGE XML without DTDs. Masking reuses snapshot identifiers,
+redacts other data fields and may reformat records. Resource details, extension
+fields and unknown values may be redacted; this is experimental debugging input,
+not an exact copy or a guarantee of identical parser behavior.
+Unsupported or malformed files are omitted entirely and listed by input key in
+``masked-traces/report.json``; they are never copied through unmasked.
+Extract supported files into a private directory to parse them with ``-b`` and
+``-s``; ``--load-sample`` continues to use only the normalized snapshot.
+Both options require ``-L -A -e`` and add no trace-processing work without opt-in.
+
 Standalone ``-A -e`` retains backend-specific masking. Original traces and logs
-remain on disk. Custom configuration text and sources added by ``-LL`` can still
+remain on disk. Sources added by ``-LL`` can still
 contain information outside the identifier mapping, so review these before
 sharing. Masking does not make the entire working directory safe to publish.
 

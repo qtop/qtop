@@ -136,6 +136,61 @@ class SGEStatExtractor(StatExtractor):
 
 
 class SGEBatchSystem(GenericBatchSystem):
+    def mask_source_trace(self, key, text, mask):
+        if key != "sge_file":
+            raise ValueError("unsupported trace")
+        parser = etree.XMLParser(target=NoDTDTreeBuilder())  # nosec B314 - rejects DTDs
+        root = etree.fromstring(text, parser=parser)  # nosec B314
+        numeric = {"slots_used", "slots_resv", "slots_total", "slots", "tasks", "JAT_prio", "JB_job_number"}
+        resources = {"num_proc", "slots", "slots_total", "slots_used", "slots_resv"}
+        tags = numeric | {
+            "job_info",
+            "queue_info",
+            "Queue-List",
+            "job_list",
+            "name",
+            "qtype",
+            "arch",
+            "state",
+            "resource",
+            "JB_owner",
+            "JB_name",
+            "JB_submission_time",
+            "JAT_start_time",
+        }
+        for element in root.iter():
+            if element.tag not in tags or set(element.attrib) - {"name", "state", "type"}:
+                raise ValueError("unsupported XML field")
+            resource = element.attrib.get("name", "") if element.tag == "resource" else ""
+            value = element.text or ""
+            if value.strip():
+                if element.tag == "JB_job_number":
+                    element.text = mask(value, "job")
+                elif element.tag == "JB_owner":
+                    element.text = mask(value, "user")
+                elif resource == "hostname":
+                    element.text = mask(value, "node")
+                elif resource == "qname":
+                    element.text = mask(value, "queue")
+                elif element.tag == "name" and "@" in value:
+                    queue, host = value.split("@", 1)
+                    element.text = mask(queue, "queue") + "@" + mask(host, "node")
+                elif element.tag in numeric or resource in resources:
+                    element.text = mask.public(value, r"[0-9.,:\- ]+")
+                elif element.tag == "state":
+                    element.text = mask.public(value, r"[rRqQwWhHsStTEdauocACDS+-]*")
+                else:
+                    element.text = mask(value)
+            for name, value in list(element.attrib.items()):
+                if name == "name" and resource in resources | {"hostname", "qname"}:
+                    continue
+                if name == "state" and value in ("running", "pending", "finished"):
+                    continue
+                element.attrib[name] = mask(value)
+            if element.tail and element.tail.strip():
+                element.tail = mask(element.tail)
+        return "qstat.F.xml.stdout", etree.tostring(root, encoding="unicode")
+
     @staticmethod
     def get_mnemonic():
         return "sge"

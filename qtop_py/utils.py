@@ -215,6 +215,8 @@ def parse_qtop_cmdline_args():
         "qtop output. With -A, include a portable masked snapshot instead. Two L's add package sources "
         "and runtime assets; without -A, also include bundled defaults and effective configuration JSON.",
     )
+    parser.add_argument("--raw-companion", action="store_true", help="With -L -A -e, also save a separate PRIVATE archive of unmasked scheduler inputs before parsing")
+    parser.add_argument("--masked-traces", action="store_true", help="With -L -A -e, add experimental masked scheduler-format traces; unsupported files are omitted")
     parser.add_argument("--load-sample", metavar="ARCHIVE", help="Reproduce an anonymized support snapshot without scheduler commands")
     args = parser.parse_args()
     if args.SHOW_QUEUE_NODES and not args.EXPERIMENTAL:

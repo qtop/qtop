@@ -275,6 +275,62 @@ class SlurmStatExtractor(StatExtractor):
 
 
 class SlurmBatchSystem(GenericBatchSystem):
+    def mask_source_trace(self, key, text, mask):
+        if key == "scontrol_file":
+
+            def field(match):
+                name, value = match.groups()
+                if name in ("JobId", "ArrayJobId", "HetJobId"):
+                    value = mask(value, "job")
+                elif name in ("Nodes", "NodeList"):
+                    value = ",".join(mask(host, "node") for host in self.expand_nodelist(value))
+                elif name in ("CPU_IDs", "NumCPUs", "CPUs/Task", "Mem"):
+                    value = mask.public(value, r"[0-9,\-()]*")
+                else:
+                    name, value = mask(name, "field"), mask(value)
+                return name + "=" + value
+
+            if re.sub(r"\S+?=\S*", "", text).strip():
+                raise ValueError("unsupported detail syntax")
+            return "scontrol.txt", re.sub(r"(\S+?)=(\S*)", field, text)
+        if key not in ("squeue_file", "sinfo_file"):
+            raise ValueError("unsupported trace")
+        rows = []
+        for line in text.splitlines():
+            if not line.strip():
+                rows.append(line)
+                continue
+            fields = [part.strip() for part in line.split("|")]
+            if key == "squeue_file":
+                if len(fields) not in (6, 9, 11):
+                    raise ValueError("unsupported job row")
+                fields[0], fields[1] = mask(fields[0], "job"), mask(fields[1], "user")
+                fields[2] = mask.public(fields[2], "(?:" + "|".join(SLURM_COMPACT_JOB_STATES) + ")")
+                fields[3] = ",".join(mask(part.rstrip("*"), "queue") + ("*" if part.endswith("*") else "") for part in fields[3].split(","))
+                fields[4] = mask.public(fields[4], r"[0-9]+")
+                fields[5] = ",".join(mask(host, "node") for host in self.expand_nodelist(fields[5])) if fields[5] not in ("", "(null)", "None", "N/A") else fields[5]
+                for index in range(6, min(9, len(fields))):
+                    fields[index] = mask(fields[index])
+                if len(fields) == 11:
+                    fields[9] = mask(fields[9], "job") if fields[9] not in ("", "N/A", "0") else fields[9]
+                    fields[10] = mask.public(fields[10], r"(?:[0-9]+|N/A)?")
+            else:
+                if len(fields) not in (4, 5, 6, 7):
+                    raise ValueError("unsupported node row")
+                fields[0] = mask(fields[0], "node")
+                fields[1] = mask(fields[1].rstrip("*"), "queue") + ("*" if fields[1].endswith("*") else "")
+                fields[2] = mask.public(
+                    fields[2],
+                    r"(?:idle|alloc|allocated|mix|mixed|down|drain|drained|drng|comp|completing|fail|failg|maint|resv|reserved|planned|plnd|future|futr|unknown|unk)(?:[*+#~$@%!^\-])*",
+                )
+                fields[3] = mask.public(fields[3], r"[0-9]+")
+                if len(fields) >= 6:
+                    fields[4:6] = [mask(value) for value in fields[4:6]]
+                if len(fields) in (5, 7):
+                    fields[-1] = mask.public(fields[-1], r"(?:up|down|inactive|drain|unknown|\?)?")
+            rows.append("|".join(fields))
+        return ("squeue.txt" if key == "squeue_file" else "sinfo.txt"), "\n".join(rows) + "\n"
+
     # Bound both numeric ranges and Cartesian products from untrusted traces.
     MAX_EXPANDED_NODES = 100000
     ACTIVE_STATES = set(["R", "CG", "CF", "S", "ST", "RS", "SI", "SO"])

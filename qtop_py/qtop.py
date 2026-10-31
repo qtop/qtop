@@ -2679,6 +2679,8 @@ def main():
     dynamic_config = dict()
     args, dynamic_config["force_names"] = process_args(args)
     require_experimental_opt_in(args)
+    if (args.raw_companion or args.masked_traces) and not (args.SAMPLE and args.ANONYMIZE):
+        raise OperationalError("--raw-companion and --masked-traces require -L -A -e")
     if args.load_sample:
         if args.BATCH_SYSTEM or args.SOURCEDIR or args.CONFFILE or args.SAMPLE or args.WATCH or args.REPLAY or args.ANONYMIZE:
             raise OperationalError("--load-sample cannot be combined with -b, -s, -f, -L, -w, -R or -A")
@@ -2774,6 +2776,9 @@ def main():
                     tar_out = fileutils.init_sample_file(args, savepath, SAMPLE_FILENAME, scheduler_output_filenames, QTOPCONF_YAML, QTOPPATH)
                     if args.SAMPLE >= 2 and not args.ANONYMIZE:
                         sample.add_json(tar_out, "qtop-effective-config.json", config)
+                    if args.raw_companion:
+                        companion = fileutils.save_raw_companion(savepath, scheduler_output_filenames)
+                        sys.stderr.write("PRIVATE unmasked scheduler traces: %s\n" % companion)
 
                 ###### Gather data ###############
                 #
@@ -2800,6 +2805,10 @@ def main():
                         if tar_out is None:
                             raise OperationalError("Support archive was not initialized.")
                         sample.save_snapshot(tar_out, cluster_state, snapshot_config, args, scheduler, __version__, omitted)
+                        if args.masked_traces:
+                            from qtop_py.source_trace import save_masked_traces
+
+                            save_masked_traces(tar_out, scheduling_system, scheduler_output_filenames, mappings)
                     else:
                         cluster_state = scheduling_system.get_cluster_state(args)
                 except (ValueError, UnicodeError, ParseError) as error:

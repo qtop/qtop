@@ -79,6 +79,12 @@ and command-line overrides. The JSON is diagnostic data, not a `--config` file.
 Anonymous archives omit both files and retain sanitized configuration in
 `qtop-snapshot.json`; replay them using an installed qtop and `--load-sample`.
 
+For parser debugging, add `--masked-traces` to include experimental masked
+scheduler-format files, with omissions listed in `masked-traces/report.json`.
+Add `--raw-companion` to preserve exact scheduler inputs in a **separate private**
+`qtop_raw_traces_*.tar` before parsing. Both require `-L -A -e`; see the
+[trace capture details](documentation.md#anonymization-scope).
+
 Output defaults to `/tmp/qtop_results_$USER`. Override it with
 `-o savepath=/path/to/private/directory`; the directory must be private and
 owned by your user. The report prints the log location and, for captures,

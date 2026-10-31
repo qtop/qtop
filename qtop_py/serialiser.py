@@ -114,6 +114,9 @@ class StatExtractor(object):
 
 
 class GenericBatchSystem(object):
+    def mask_source_trace(self, key, text, mask):
+        raise ValueError("This backend has no source trace masker")
+
     def __init__(self):
         pass
 

@@ -144,6 +144,15 @@ def _without_archive_owner(member):
     return member
 
 
+def save_raw_companion(savepath, filenames):
+    handle, path = tempfile.mkstemp(prefix="qtop_raw_traces_", suffix=".tar", dir=savepath)
+    with os.fdopen(handle, "wb") as stream:
+        with tarfile.open(fileobj=stream, mode="w", dereference=True) as archive:
+            for key, source in filenames.items():
+                archive.add(source, arcname=key, recursive=False, filter=_without_archive_owner)
+    return path
+
+
 def add_to_sample(filepaths_to_add, sample_out, sample_method=tarfile, subdir=None):
     # def add_to_sample(filepaths_to_add, _savepath, sample_file, sample_method=tarfile, subdir=None):
     """
