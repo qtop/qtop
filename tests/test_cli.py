@@ -525,6 +525,26 @@ def test_documented_capture_and_export_modes(tmp_path, flags, include_sources, i
     assert len(archives) == 1
     with tarfile.open(archives[0]) as archive:
         names = set(archive.getnames())
+        if include_sources:
+            effective = json.load(archive.extractfile("qtop-effective-config.json"))
+            assert effective["savepath"] == str(output)
+            assert {"helpfile.txt", "LICENSE", "qtop", "qtop_py/web/index.html"} <= names
+            unpacked = tmp_path / "unpacked"
+            for member in archive.getmembers():
+                if member.name in {"qtop", "qtopconf.yaml", "helpfile.txt", "LICENSE"} or member.name.startswith("qtop_py/"):
+                    target = unpacked / member.name
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    target.write_bytes(archive.extractfile(member).read())
+            replay_env = dict(os.environ, PYTHONPATH="", HOME=str(tmp_path))
+            standalone = subprocess.run(
+                [sys.executable, str(unpacked / "qtop"), "-b", "demo", "-F", "-o", "savepath=%s" % (tmp_path / "standalone")],
+                cwd=str(unpacked),
+                env=replay_env,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                timeout=20,
+            )
+            assert standalone.returncode == 0, standalone.stderr
     assert ("qtop.log" in names) is include_raw
     assert ("qtop-snapshot.json" in names) is not include_raw
     assert any(name.startswith("qtop_fullview_") for name in names)

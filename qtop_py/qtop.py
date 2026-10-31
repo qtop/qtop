@@ -2772,6 +2772,8 @@ def main():
                 SAMPLE_FILENAME = fileutils.get_sample_filename(SAMPLE_FILENAME, config)
                 if args.SAMPLE:
                     tar_out = fileutils.init_sample_file(args, savepath, SAMPLE_FILENAME, scheduler_output_filenames, QTOPCONF_YAML, QTOPPATH)
+                    if args.SAMPLE >= 2 and not args.ANONYMIZE:
+                        sample.add_json(tar_out, "qtop-effective-config.json", config)
 
                 ###### Gather data ###############
                 #

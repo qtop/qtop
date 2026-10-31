@@ -72,6 +72,13 @@ scheduler. `-A` is experimental and requires `-e`. Loading the archive restores
 parsed state and presentation without scheduler commands. Review the
 [masking limitations](documentation.md#anonymization-scope) before sharing it.
 
+Use `-LL` for an expanded archive with Python sources, help text, web assets,
+a launcher and the license. Without `-A`, it also includes bundled
+`qtopconf.yaml` defaults and `qtop-effective-config.json` with merged configuration
+and command-line overrides. The JSON is diagnostic data, not a `--config` file.
+Anonymous archives omit both files and retain sanitized configuration in
+`qtop-snapshot.json`; replay them using an installed qtop and `--load-sample`.
+
 Output defaults to `/tmp/qtop_results_$USER`. Override it with
 `-o savepath=/path/to/private/directory`; the directory must be private and
 owned by your user. The report prints the log location and, for captures,

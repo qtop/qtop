@@ -68,6 +68,8 @@ def test_anonymous_archive_reproduces_state_and_rendering_without_originals(tmp_
         names = saved.getnames()
         assert "qtop.log" not in names
         assert "qtopconf.yaml" not in names
+        assert "qtop-effective-config.json" not in names
+        assert ("helpfile.txt" in names) == extended
         assert bool("qtop_py/qtop.py" in names) == extended
         assert all(member.uid == 0 and member.gid == 0 and not member.uname and not member.gname for member in saved.getmembers())
         screen = saved.extractfile(next(name for name in names if name.endswith(".out"))).read().decode()

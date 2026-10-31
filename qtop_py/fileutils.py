@@ -2,6 +2,7 @@ import contextlib
 import datetime
 import errno
 import glob
+import io
 import logging
 import os
 import stat
@@ -99,7 +100,7 @@ def safe_exit_with_file_close(handle, name, stdout, options, _savepath, qtop_log
 
 def init_sample_file(options, _savepath, SAMPLE_FILENAME, scheduler_output_filenames, QTOPCONF_YAML, QTOPPATH):
     """
-    Initialise a support archive; -LL adds the bundled config and package sources.
+    Initialise a support archive; -LL adds runtime assets and package sources.
     The caller adds rendered output, logs and eligible scheduler traces before closing it.
     """
     if options.SAMPLE < 1:
@@ -117,6 +118,23 @@ def init_sample_file(options, _savepath, SAMPLE_FILENAME, scheduler_output_filen
         for source_file in source_files:
             subdir = os.path.dirname(os.path.join("qtop_py", os.path.relpath(source_file, source_path)))
             add_to_sample([source_file], tar_out, subdir=subdir)
+        help_path = os.path.join(os.path.realpath(QTOPPATH), "helpfile.txt")
+        if os.path.isfile(help_path):
+            add_to_sample([help_path], tar_out)
+        for asset in glob.glob(os.path.join(source_path, "web", "**", "*"), recursive=True):
+            if os.path.isfile(asset):
+                subdir = os.path.dirname(os.path.join("qtop_py", os.path.relpath(asset, source_path)))
+                add_to_sample([asset], tar_out, subdir=subdir)
+        licenses = [os.path.join(os.path.realpath(QTOPPATH), "LICENSE")]
+        licenses += glob.glob(os.path.join(os.path.dirname(source_path), "qtop*.dist-info", "licenses", "LICENSE"))
+        licenses += glob.glob(os.path.join(os.path.dirname(source_path), "qtop*.dist-info", "LICENSE"))
+        license_path = next((path for path in licenses if os.path.isfile(path)), None)
+        if license_path:
+            add_to_sample([license_path], tar_out)
+        launcher = b"#!/usr/bin/env python3\nfrom qtop_py.qtop import cli_main\nraise SystemExit(cli_main())\n"
+        member = tarfile.TarInfo("qtop")
+        member.mode, member.size = 0o755, len(launcher)
+        tar_out.addfile(member, io.BytesIO(launcher))
     return tar_out
 
 

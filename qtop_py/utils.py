@@ -213,7 +213,7 @@ def parse_qtop_cmdline_args():
         default=False,
         help="Create a sample file. A single L creates a tarball with the log, scheduler output files, "
         "qtop output. With -A, include a portable masked snapshot instead. Two L's add package sources "
-        "and, without -A, the bundled config.",
+        "and runtime assets; without -A, also include bundled defaults and effective configuration JSON.",
     )
     parser.add_argument("--load-sample", metavar="ARCHIVE", help="Reproduce an anonymized support snapshot without scheduler commands")
     args = parser.parse_args()
