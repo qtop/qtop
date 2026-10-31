@@ -147,6 +147,7 @@ gates, including coverage, type checks, and both parser fuzzers. See
 
 - [User documentation and tutorial](docs/documentation.md)
 - [Contributing guide](CONTRIBUTING.md)
+- [Maintenance roles, review routing and escalation](MAINTAINERS.md)
 - [Code of conduct](CODE_OF_CONDUCT.md)
 - [Security policy](SECURITY.md)
 - [OpenSSF metadata, badge preparation and future integrations](docs/openssf-readiness.md)

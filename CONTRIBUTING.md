@@ -1,5 +1,9 @@
 Please follow our [Code of Conduct](CODE_OF_CONDUCT.md) when participating in the qtop community.
 
+Review routing, maintainer responsibilities, release coordination and
+escalation are documented in [MAINTAINERS.md](MAINTAINERS.md). Report
+undisclosed vulnerabilities through [SECURITY.md](SECURITY.md), not public issues.
+
 ## AI-assisted contributions
 
 AI tools are welcome when used constructively to improve software quality,

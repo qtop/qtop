@@ -1,0 +1,3 @@
+# Default review routing; roles and escalation are documented in MAINTAINERS.md.
+# Required owner approval is a repository setting, not enabled by this file.
+* @fgeorgatos
