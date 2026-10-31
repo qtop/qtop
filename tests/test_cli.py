@@ -1,5 +1,6 @@
 import os
 import re
+import shlex
 import subprocess
 import sys
 from pathlib import Path
@@ -337,6 +338,29 @@ def test_scheduler_command_checks_exit_status_and_cleans_up(tmp_path, exit_code)
     assert {path.name for path in tmp_path.iterdir()} == {"command.py", "trace.txt"}
 
 
+def test_logged_trace_collection_command_can_be_pasted_into_shell(tmp_path, monkeypatch, caplog):
+    import json
+
+    from qtop_py import qtop
+
+    script = tmp_path / "command with spaces.py"
+    script.write_text("import json, sys\nprint(json.dumps(sys.argv[1:]))\n", encoding="utf-8")
+    expected = ["*", "JobID:0|,UserName:0", "literal$(touch injected)", "quote'and space"]
+    argv = [sys.executable, str(script)] + expected
+    command = " ".join(shlex.quote(arg) for arg in argv)
+    target = tmp_path / "trace '$HOME;.txt"
+    monkeypatch.chdir(tmp_path)
+    with caplog.at_level("DEBUG"):
+        qtop.execute_shell_batch_commands({"trace": command}, {"trace": target.name}, "trace", str(tmp_path))
+    prefix = "Trace collection command: "
+    logged = next(record.getMessage()[len(prefix) :] for record in caplog.records if record.getMessage().startswith(prefix))
+    assert json.loads(target.read_text()) == expected
+    target.unlink()
+    subprocess.check_call(["/bin/sh", "-c", logged], cwd=str(tmp_path.parent))
+    assert json.loads(target.read_text()) == expected
+    assert not (tmp_path / "injected").exists()
+
+
 def test_option_value_can_contain_equals():
     from qtop_py.qtop import get_key_val_from_option_string
 
@@ -523,6 +547,7 @@ def test_documented_capture_and_export_modes(tmp_path, flags, include_sources, i
     assert isinstance(state["queues"][0]["running"], int)
     archives = list(output.glob("qtop_sample_*.tar"))
     assert len(archives) == 1
+    assert result.stderr.rstrip().endswith("Sample files saved in " + str(archives[0]))
     with tarfile.open(archives[0]) as archive:
         names = set(archive.getnames())
         if include_sources:

@@ -50,6 +50,10 @@ def test_source_trace_archives_preserve_private_input_and_replay_masked_formats(
     raw = next(output.glob("qtop_raw_traces_*.tar"))
     assert raw.stat().st_mode & 0o777 == 0o600
     assert "PRIVATE unmasked scheduler traces:" in capture.stderr
+    assert capture.stderr.splitlines()[-2:] == [
+        "Sample files saved in " + str(next(output.glob("qtop_sample_anonymous*.tar"))),
+        "PRIVATE unmasked scheduler traces: " + str(raw),
+    ]
     with tarfile.open(str(raw)) as archive:
         assert set(archive.getnames()) == set(files)
         for key, original in originals.items():
@@ -341,6 +345,7 @@ def test_live_capture_replays_without_pid_filename_repair(tmp_path):
         "-L",
         "-A",
         "-e",
+        "-d",
         "-E",
         "-O",
         "-o",
@@ -348,6 +353,10 @@ def test_live_capture_replays_without_pid_filename_repair(tmp_path):
         extra_env={"PATH": str(commands) + os.pathsep + os.environ.get("PATH", "")},
     )
     assert capture.returncode == 0, capture.stderr
+    log = (tmp_path / "capture_home/.local/qtop/logs/qtop.log").read_text()
+    logged_commands = [line.split("Trace collection command: ", 1)[1] for line in log.splitlines() if "Trace collection command: " in line]
+    assert any("squeue " in command and " > " in command for command in logged_commands)
+    assert any("sinfo " in command and " > " in command for command in logged_commands)
     expected = json.loads(next(output.glob("qtop_json_*.json")).read_text())
     archive = next(output.glob("*.tar"))
     shutil.rmtree(str(commands))

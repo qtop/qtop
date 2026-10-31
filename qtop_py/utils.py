@@ -31,7 +31,7 @@ def init_logging(options):
     logger.setLevel(logging.DEBUG)
 
     fh = logging.FileHandler(QTOP_LOGFILE)
-    fh.setLevel(log_level)
+    fh.setLevel(logging.DEBUG if options.DEBUG else log_level)
     fh.setFormatter(formatter)
     logger.addHandler(fh)
 

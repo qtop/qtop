@@ -87,12 +87,14 @@ Add `--raw-companion` to preserve exact scheduler inputs in a **separate private
 
 Output defaults to `/tmp/qtop_results_$USER`. Override it with
 `-o savepath=/path/to/private/directory`; the directory must be private and
-owned by your user. The report prints the log location and, for captures,
-the archive location.
+owned by your user. At exit, qtop prints generated archive paths on stderr,
+including anonymous captures and runs with `-O`.
 
 ## Find help
 
 - `./qtop --help` lists command-line options; `-d` adds debug diagnostics.
+- With `-d`, the debug log includes copy-pasteable POSIX shell collection
+  commands with quoted arguments, working directories and output paths.
 - [Full user guide](documentation.md): configuration, navigation and troubleshooting.
 - [README](../README.md#installation): installation options.
 - [Contributing](../CONTRIBUTING.md): development and validation.

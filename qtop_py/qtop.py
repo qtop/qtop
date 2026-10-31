@@ -447,7 +447,6 @@ def execute_shell_batch_commands(batch_system_commands, filenames, _file, _savep
         if not _batch_system_command:
             raise OperationalError("Empty scheduler command for %s; check %s." % (_file, QTOPCONF_YAML))
         with tempfile.NamedTemporaryFile("w", dir=_savepath, delete=False) as fin:
-            logging.debug('Command: "%s" -- result will be saved in: %s' % (_batch_system_command, filenames[_file]))
             logging.debug("\tFile state before subprocess call: %(fin)s" % {"fin": fin})
             logging.debug("\tWaiting on subprocess.call...")
 
@@ -457,7 +456,14 @@ def execute_shell_batch_commands(batch_system_commands, filenames, _file, _savep
             # injected commands
             tempname = fin.name
             try:
-                command = subprocess.Popen(shlex.split(_batch_system_command), stdout=fin, stderr=subprocess.PIPE)
+                command_args = shlex.split(_batch_system_command)
+                logging.debug(
+                    "Trace collection command: (cd %s && %s > %s)",
+                    shlex.quote(os.getcwd()),
+                    " ".join(shlex.quote(arg) for arg in command_args),
+                    shlex.quote(os.path.abspath(filenames[_file])),
+                )
+                command = subprocess.Popen(command_args, stdout=fin, stderr=subprocess.PIPE)
             except OSError as error:
                 raise OperationalError("Cannot execute scheduler command %r: %s. Check PATH or load the scheduler module." % (_batch_system_command, error.strerror)) from error
             except ValueError as error:
@@ -1673,8 +1679,6 @@ class TextDisplay(object):
 
         if not self.args.ANONYMIZE:
             print("\nLog file created in %s" % os.path.expandvars(QTOP_LOGFILE))
-            if self.args.SAMPLE:
-                print("Sample files saved in %s/%s" % (_savepath, SAMPLE_FILENAME))
         if self.args.STRICTCHECK:
             self.wns_occupancy.strict_check_jobs(self.cluster)
 
@@ -2711,6 +2715,7 @@ def main():
     change_mapping = cycle([("queue_to_color", "color by queue"), ("user_to_color", "color by user")])
     h_counter = cycle([0, 1])
     tar_out = None
+    capture_paths = OrderedDict()
 
     viewport = Viewport()  # controls the part of the qtop matrix shown on screen
     max_line_len = 0
@@ -2774,11 +2779,12 @@ def main():
                 SAMPLE_FILENAME = fileutils.get_sample_filename(SAMPLE_FILENAME, config)
                 if args.SAMPLE:
                     tar_out = fileutils.init_sample_file(args, savepath, SAMPLE_FILENAME, scheduler_output_filenames, QTOPCONF_YAML, QTOPPATH)
+                    capture_paths[tar_out.name] = "Sample files saved in"
                     if args.SAMPLE >= 2 and not args.ANONYMIZE:
                         sample.add_json(tar_out, "qtop-effective-config.json", config)
                     if args.raw_companion:
                         companion = fileutils.save_raw_companion(savepath, scheduler_output_filenames)
-                        sys.stderr.write("PRIVATE unmasked scheduler traces: %s\n" % companion)
+                        capture_paths[companion] = "PRIVATE unmasked scheduler traces:"
 
                 ###### Gather data ###############
                 #
@@ -2893,6 +2899,8 @@ def main():
                         if os.path.isfile(scheduler_output_filenames[fn]):
                             tar_out = fileutils.add_to_sample([scheduler_output_filenames[fn]], tar_out)
                 tar_out.close()
+            for path, label in capture_paths.items():
+                sys.stderr.write("%s %s\n" % (label, path))
 
 
 if __name__ == "__main__":
