@@ -99,6 +99,17 @@ follow_imports = "silent"
 module = "qtop_py.serialiser"
 disallow_untyped_defs = false
 
+[tool.coverage.run]
+source = ["qtop_py"]
+parallel = true
+patch = ["subprocess"]
+
+[tool.coverage.paths]
+source = ["qtop_py", "*/qtop_py"]
+
+[tool.coverage.report]
+show_missing = true
+
 [tool.pyright]
 pythonVersion = "3.12"
 pythonPlatform = "Linux"
