@@ -97,6 +97,7 @@ if TYPE_CHECKING:
     class Scheduler(Protocol):
         optional_trace_keys: Tuple[str, ...]
 
+        @abstractmethod
         def mask_source_trace(self, key: str, text: str, mask: object) -> Tuple[str, str]:
             pass
 

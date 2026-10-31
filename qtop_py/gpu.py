@@ -4,6 +4,8 @@
 import re
 from typing import TYPE_CHECKING, Any, Dict, List
 
+from qtop_py.hostlist import HostlistParser
+
 if TYPE_CHECKING:
     from qtop_py.contracts import GPUResource
 
@@ -14,14 +16,11 @@ def configured_pair_lines(nodes: List[Dict[str, Any]], mapping: object) -> List[
     """Experimental display of administrator-configured pairs, not discovered links."""
     if not mapping:
         return []
-    # Reuse the bounded hostlist parser without importing the scheduler when disabled.
-    from qtop_py.plugins.slurm import SlurmBatchSystem
-
     if not isinstance(mapping, dict):
         raise ValueError("experimental_gpu_pairs must be a node-to-pairs mapping")
     inventory = {}
     for pattern, pairs in mapping.items():
-        hosts = SlurmBatchSystem.expand_nodelist(pattern) if isinstance(pattern, str) else []
+        hosts = HostlistParser.expand_nodelist(pattern) if isinstance(pattern, str) else []
         if not hosts or not isinstance(pairs, list) or not pairs:
             raise ValueError("GPU pairs require a valid node range and nonempty pair list")
         indices = []
@@ -35,7 +34,7 @@ def configured_pair_lines(nodes: List[Dict[str, Any]], mapping: object) -> List[
             if host in inventory:
                 raise ValueError("GPU pair node ranges must not overlap")
             inventory[host] = pairs
-        if len(inventory) > SlurmBatchSystem.MAX_EXPANDED_NODES:
+        if len(inventory) > HostlistParser.MAX_EXPANDED_NODES:
             raise ValueError("Too many GPU pair nodes")
     lines = []
     for node in nodes:

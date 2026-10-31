@@ -54,10 +54,10 @@ from typing import TYPE_CHECKING, Optional
 if TYPE_CHECKING:
     from typing import Dict
 
-    from qtop_py.contracts import ClusterState, Config, Job, Scheduler
+    from qtop_py import contracts
 
-    config: Config
-    dynamic_config: Config
+    config: contracts.Config
+    dynamic_config: contracts.Config
 
 from qtop_py import __version__, fileutils, sample, utils
 from qtop_py import yaml_parser as yaml
@@ -1575,12 +1575,12 @@ QDoc = namedtuple("QDoc", ["lm", "queued", "run", "state"])
 
 class Document(namedtuple("Document", ["worker_nodes", "jobs_dict", "queues_dict", "total_running_jobs", "total_queued_jobs"])):
     if TYPE_CHECKING:
-        _job_metadata: Dict[str, Job]
+        _job_metadata: Dict[str, contracts.Job]
         _slurm_diagnostics: Dict[str, int]
         _oar_diagnostics: Dict[str, int]
 
     @classmethod
-    def from_cluster_state(cls, cluster_state: "ClusterState") -> "Document":
+    def from_cluster_state(cls, cluster_state: "contracts.ClusterState") -> "Document":
         validate_cluster_state(cluster_state)
         totals = cluster_state_totals(cluster_state)
         jobs_dict = OrderedDict((job["id"], JobDoc(job["user"], job["state"], job["queue"])) for job in cluster_state["jobs"])
@@ -1603,8 +1603,8 @@ class Document(namedtuple("Document", ["worker_nodes", "jobs_dict", "queues_dict
         document._oar_diagnostics = copy.deepcopy(cluster_state.get("oar_diagnostics", {}))
         return document
 
-    def to_cluster_state(self) -> "ClusterState":
-        state: "ClusterState" = {
+    def to_cluster_state(self) -> "contracts.ClusterState":
+        state: "contracts.ClusterState" = {
             "jobs": [
                 {
                     **getattr(self, "_job_metadata", {}).get(job_id, {}),
@@ -1633,7 +1633,7 @@ class Document(namedtuple("Document", ["worker_nodes", "jobs_dict", "queues_dict
             state["oar_diagnostics"] = copy.deepcopy(self._oar_diagnostics)
         return state
 
-    def save(self, filename: str, cluster_state: "Optional[ClusterState]" = None) -> None:
+    def save(self, filename: str, cluster_state: "Optional[contracts.ClusterState]" = None) -> None:
         with open(filename, "w") as outfile:
             json.dump(self.to_cluster_state() if cluster_state is None else cluster_state, outfile)
 
@@ -2807,7 +2807,7 @@ def main():
 
                 ###### Gather data ###############
                 #
-                scheduling_system: "Scheduler" = available_batch_systems[scheduler](scheduler_output_filenames, config, args)
+                scheduling_system: "contracts.Scheduler" = available_batch_systems[scheduler](scheduler_output_filenames, config, args)
 
                 try:
                     if args.load_sample:
