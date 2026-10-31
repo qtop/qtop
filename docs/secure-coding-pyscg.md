@@ -101,7 +101,7 @@ Runtime checks raise exceptions and survive `python -O` (`pyscg-0037`);
 [security tests](../tests/test_security.py) verify that boundary.
 
 [Slurm host/task expansion](../qtop_py/plugins/slurm.py) and
-[GPU index parsing](../qtop_py/gpu.py) have explicit expansion bounds.
+[GPU index parsing](../qtop_py/plugins/gpu.py) have explicit expansion bounds.
 Those limits apply to specific operations, not every input or the whole process.
 See [backend regressions](../tests/plugins/) and
 [property tests](../tests/test_properties.py).

@@ -136,6 +136,7 @@ class SGEStatExtractor(StatExtractor):
 
 
 class SGEBatchSystem(GenericBatchSystem):
+    native_queue_membership = True
     blocked_queue_note = " (at least one queue instance)"
 
     @staticmethod

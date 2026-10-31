@@ -14,8 +14,8 @@ from collections import OrderedDict
 from typing import List, Optional
 
 import qtop_py.fileutils as fileutils
-from qtop_py.gpu import parse_gpu_gres
 from qtop_py.hostlist import HostlistParser
+from qtop_py.plugins.gpu import parse_gpu_gres
 from qtop_py.serialiser import GenericBatchSystem, StatExtractor
 
 SLURM_JOB_STATES = {
@@ -276,6 +276,7 @@ class SlurmStatExtractor(StatExtractor):
 
 
 class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
+    native_queue_membership = True
     optional_trace_keys = ("scontrol_file",)
     optional_trace_aliases = {"scontrol_file": "scontrol.txt"}
     optional_trace_warning = "Using estimated Slurm CPU placement."
@@ -323,7 +324,7 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
             if omitted:
                 lines.append("Slurm CPU matrix omits %s shared/excess CPU assignments; job/node membership is retained." % omitted)
         elif section == "resources" and config.get("experimental_gpu_pairs"):
-            from qtop_py.gpu import configured_pair_lines
+            from qtop_py.plugins.gpu import configured_pair_lines
 
             try:
                 pairs = configured_pair_lines(nodes, config["experimental_gpu_pairs"])

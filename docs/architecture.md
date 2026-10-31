@@ -96,7 +96,7 @@ flowchart TB
    [build_cluster_state()](../qtop_py/cluster_state.py).
    Backend class hooks also define command adjustments, optional trace aliases,
    detection priority, queue blocking and scheduler-specific display notes.
-   The core dispatches these policies without testing scheduler names.
+   The core dispatches capabilities; plugin-owned metadata rules validate and mask extensions.
 3. `Document.from_cluster_state()` in [document.py](../qtop_py/document.py)
    owns the normalized snapshot and exposes cached legacy rendering fields.
    Exports read that authoritative state; the five-field constructor remains

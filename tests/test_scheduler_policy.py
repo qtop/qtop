@@ -9,6 +9,7 @@ from types import SimpleNamespace
 import pytest
 
 from qtop_py import qtop
+from qtop_py.queue_nodes import queue_node_counts
 from qtop_py.serialiser import GenericBatchSystem
 
 
@@ -53,6 +54,9 @@ def test_plugin_controls_collection_optional_inputs_and_queue_policy(monkeypatch
     assert qtop.node_job_ids({"core_job_map": {0: "1"}, "custom_job_ids": ["2"]}) == {"1", "2"}
     nodes = CustomBackend.ensure_worker_nodes_have_qnames([{"core_job_map": {}, "custom_job_ids": ["2"]}], ["2"], ["batch"])
     assert nodes[0]["qname"] == ["batch"]
+    monkeypatch.setattr(CustomBackend, "native_queue_membership", True)
+    idle = dict(domainname="node1", qname=["batch"], state="-", core_job_map={})
+    assert queue_node_counts([idle], ["batch"], CustomBackend) == [("batch", 1, 1)]
     display = qtop.TextDisplay(None, config, None, None, SimpleNamespace(worker_nodes=[]), options)
     display.display_backend_messages("snapshot")
     assert capsys.readouterr().out == "custom snapshot\n"

@@ -69,19 +69,12 @@ from qtop_py.constants import (
 )
 from qtop_py.document import Document
 from qtop_py.errors import OperationalError
-from qtop_py.plugins.demo import DemoBatchSystem
-from qtop_py.plugins.oar import OARBatchSystem
-from qtop_py.plugins.pbs import PBSBatchSystem
-from qtop_py.plugins.sge import SGEBatchSystem
-from qtop_py.plugins.slurm import SlurmBatchSystem
+from qtop_py.plugins.registry import PLUGIN_BATCH_SYSTEMS
 from qtop_py.runtime import RunResources
 from qtop_py.serialiser import GenericBatchSystem, resolve_job_id
 from qtop_py.ui.controls import navigate_viewport, read_rule_choices
 from qtop_py.ui.viewport import Viewport
 from qtop_py.web import Web
-
-here = sys.path[0]
-PLUGIN_BATCH_SYSTEMS = (DemoBatchSystem, OARBatchSystem, PBSBatchSystem, SGEBatchSystem, SlurmBatchSystem)
 
 
 def reset_sigpipe():
@@ -267,20 +260,13 @@ def calculate_term_size(config, FALLBACK_TERM_SIZE, viewport):
 
 
 def finalize_filepaths_schedulercommands(args, config, backend):
-    """
-    returns a dictionary with contents of the form
-    {fn : (filepath, schedulercommand)}, e.g.
-    {'pbsnodes_file': ('savepath/pbsnodes_a.txt', 'pbsnodes -a')}
-    if the -s switch (set sourcedir) has been invoked, or
-    {'pbsnodes_file': ('savepath/pbsnodes_a<some_pid>.txt', 'pbsnodes -a')}
-    if ran without the -s switch.
-    """
+    """Return {input_key: (path, command)}, with PID suffixes for live collection."""
     d = dict()
     fn_append = "_" + str(os.getpid()) if not args.SOURCEDIR else ""
     for fn, path_command in config["schedulers"][backend.get_mnemonic()].items():
         path, command = path_command.strip().split(", ", 1)
         path = path % {"savepath": args.workdir, "pid": fn_append}
-        # Slurm format codes stay copyable; accept legacy escaped percent signs.
+        # Format codes stay copyable; accept legacy escaped percent signs.
         command = command.replace("%%", "%").replace("%(savepath)s", args.workdir)
         command = backend.collection_command(fn, command, args)
         d[fn] = (path, command)
@@ -887,7 +873,7 @@ class WNOccupancy(object):
     def calculate(self, document, user_to_color):
         """
         Prints the Worker Nodes Occupancy table.
-        if there are non-uniform WNs in pbsnodes.yaml, e.g. wn01, wn02, gn01, gn02, ...,  remapping is performed.
+        if there are non-uniform worker-node names, e.g. wn01, wn02, gn01, gn02, ...,  remapping is performed.
         Otherwise, for uniform WNs, i.e. all using the same numbering scheme, wn01, wn02, ... proceeds as normal.
         Number of Extra tables needed is calculated inside the calc_all_wnid_label_lines function below
         """
@@ -1409,7 +1395,9 @@ class TextDisplay(object):
         print(
             "%(del)s%(name)s \nv%(version)s ## For feedback and updates, see: %(link)s"
             % {
-                "name": "PBS" if self.args.CLASSIC else colorize("./qtop.py     ## Queueing System report tool. Press ? for help", "Cyan_L"),
+                "name": scheduler_backend(scheduler).classic_report_name
+                if self.args.CLASSIC
+                else colorize("./qtop.py     ## Queueing System report tool. Press ? for help", "Cyan_L"),
                 "del": ansi_delete_char,
                 "link": colorize("https://github.com/qtop/qtop", "Cyan_L"),
                 "version": __version__,
@@ -1467,7 +1455,7 @@ class TextDisplay(object):
             from qtop_py.queue_nodes import queue_node_counts
 
             try:
-                counts = queue_node_counts(document.worker_nodes, list(document.queues_dict), scheduler, self.config.get("experimental_queue_nodes"))
+                counts = queue_node_counts(document.worker_nodes, list(document.queues_dict), scheduler_backend(scheduler), self.config.get("experimental_queue_nodes"))
             except ValueError as error:
                 print("Queue nodes unavailable: %s" % error)
             else:
