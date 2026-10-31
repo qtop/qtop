@@ -97,3 +97,7 @@ ENV/
 # Modern analysis and property-test caches
 .mypy_cache/
 .hypothesis/
+.pytest_cache/
+.ruff_cache/
+.venv/
+*.sw[op]

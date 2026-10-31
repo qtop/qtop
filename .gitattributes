@@ -1,0 +1,8 @@
+# Match .editorconfig for source/configuration; leave fixture formats unchanged.
+*.py text eol=lf
+*.sh text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.md text eol=lf
+/Makefile text eol=lf
+/qtop text eol=lf

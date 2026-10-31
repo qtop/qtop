@@ -4,6 +4,13 @@ Review routing, maintainer responsibilities, release coordination and
 escalation are documented in [MAINTAINERS.md](MAINTAINERS.md). Report
 undisclosed vulnerabilities through [SECURITY.md](SECURITY.md), not public issues.
 
+## Pull request templates
+
+Use the [default PR template](.github/PULL_REQUEST_TEMPLATE.md) for ordinary
+submissions. For bounty or challenge submissions, copy the
+[bounty PR template](.github/PULL_REQUEST_TEMPLATE_BOUNTY.md) into the PR
+description, linking the assigned issue and supplying actual validation evidence.
+
 ## AI-assisted contributions
 
 AI tools are welcome when used constructively to improve software quality,

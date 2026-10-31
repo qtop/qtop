@@ -1,0 +1,42 @@
+name: Bug report
+description: Report a reproducible qtop failure or incorrect result.
+body:
+  - type: markdown
+    attributes:
+      value: >-
+        Report undisclosed vulnerabilities through our
+        [security policy](https://github.com/qtop/qtop/security/policy).
+        Remove cluster/account names, credentials and other sensitive data from public evidence.
+  - type: input
+    id: revision
+    attributes:
+      label: qtop version or commit
+      description: Paste qtop --version output or the affected commit hash.
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Include OS/version, Python version, scheduler/version (or demo), and installation method.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Command and steps to reproduce
+      description: Give the exact sanitized command and minimal steps or input needed to reproduce the problem.
+    validations:
+      required: true
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Actual and expected behavior
+      description: Describe what happened and what should have happened, including incorrect counts or error messages.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Optional logs, screenshots or sample
+      description: Attach sanitized evidence or links. Review masking limitations before sharing a support archive.
