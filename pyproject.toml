@@ -1,8 +1,8 @@
 [build-system]
 requires = [
     "setuptools>=59.6,<60; python_version < '3.9'",
-    "setuptools>=78.1.1,<83; python_version >= '3.9' and python_version < '3.12'",
-    "setuptools>=83.0.0; python_version >= '3.12'",
+    "setuptools>=78.1.1,<83; python_version == '3.9'",
+    "setuptools>=84.1.0; python_version >= '3.10'",
 ]
 build-backend = "setuptools.build_meta"
 
@@ -98,6 +98,17 @@ follow_imports = "silent"
 [[tool.mypy.overrides]]
 module = "qtop_py.serialiser"
 disallow_untyped_defs = false
+
+[tool.coverage.run]
+source = ["qtop_py"]
+parallel = true
+patch = ["subprocess"]
+
+[tool.coverage.paths]
+source = ["qtop_py", "*/qtop_py"]
+
+[tool.coverage.report]
+show_missing = true
 
 [tool.pyright]
 pythonVersion = "3.12"

@@ -15,6 +15,7 @@ from typing import List, Optional
 
 import qtop_py.fileutils as fileutils
 from qtop_py.gpu import parse_gpu_gres
+from qtop_py.hostlist import HostlistParser
 from qtop_py.serialiser import GenericBatchSystem, StatExtractor
 
 SLURM_JOB_STATES = {
@@ -274,9 +275,65 @@ class SlurmStatExtractor(StatExtractor):
         return state_map.get(normalized, "?")
 
 
-class SlurmBatchSystem(GenericBatchSystem):
-    # Bound both numeric ranges and Cartesian products from untrusted traces.
-    MAX_EXPANDED_NODES = 100000
+class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
+    optional_trace_keys = ("scontrol_file",)
+
+    def mask_source_trace(self, key, text, mask):
+        if key == "scontrol_file":
+
+            def field(match):
+                name, value = match.groups()
+                if name in ("JobId", "ArrayJobId", "HetJobId"):
+                    value = mask(value, "job")
+                elif name in ("Nodes", "NodeList"):
+                    value = ",".join(mask(host, "node") for host in self.expand_nodelist(value))
+                elif name in ("CPU_IDs", "NumCPUs", "CPUs/Task", "Mem"):
+                    value = mask.public(value, r"[0-9,\-()]*")
+                else:
+                    name, value = mask(name, "field"), mask(value)
+                return name + "=" + value
+
+            if re.sub(r"\S+?=\S*", "", text).strip():
+                raise ValueError("unsupported detail syntax")
+            return "scontrol.txt", re.sub(r"(\S+?)=(\S*)", field, text)
+        if key not in ("squeue_file", "sinfo_file"):
+            raise ValueError("unsupported trace")
+        rows = []
+        for line in text.splitlines():
+            if not line.strip():
+                rows.append(line)
+                continue
+            fields = [part.strip() for part in line.split("|")]
+            if key == "squeue_file":
+                if len(fields) not in (6, 9, 11):
+                    raise ValueError("unsupported job row")
+                fields[0], fields[1] = mask(fields[0], "job"), mask(fields[1], "user")
+                fields[2] = mask.public(fields[2], "(?:" + "|".join(SLURM_COMPACT_JOB_STATES) + ")")
+                fields[3] = ",".join(mask(part.rstrip("*"), "queue") + ("*" if part.endswith("*") else "") for part in fields[3].split(","))
+                fields[4] = mask.public(fields[4], r"[0-9]+")
+                fields[5] = ",".join(mask(host, "node") for host in self.expand_nodelist(fields[5])) if fields[5] not in ("", "(null)", "None", "N/A") else fields[5]
+                for index in range(6, min(9, len(fields))):
+                    fields[index] = mask(fields[index])
+                if len(fields) == 11:
+                    fields[9] = mask(fields[9], "job") if fields[9] not in ("", "N/A", "0") else fields[9]
+                    fields[10] = mask.public(fields[10], r"(?:[0-9]+|N/A)?")
+            else:
+                if len(fields) not in (4, 5, 6, 7):
+                    raise ValueError("unsupported node row")
+                fields[0] = mask(fields[0], "node")
+                fields[1] = mask(fields[1].rstrip("*"), "queue") + ("*" if fields[1].endswith("*") else "")
+                fields[2] = mask.public(
+                    fields[2],
+                    r"(?:idle|alloc|allocated|mix|mixed|down|drain|drained|drng|comp|completing|fail|failg|maint|resv|reserved|planned|plnd|future|futr|unknown|unk)(?:[*+#~$@%!^\-])*",
+                )
+                fields[3] = mask.public(fields[3], r"[0-9]+")
+                if len(fields) >= 6:
+                    fields[4:6] = [mask(value) for value in fields[4:6]]
+                if len(fields) in (5, 7):
+                    fields[-1] = mask.public(fields[-1], r"(?:up|down|inactive|drain|unknown|\?)?")
+            rows.append("|".join(fields))
+        return ("squeue.txt" if key == "squeue_file" else "sinfo.txt"), "\n".join(rows) + "\n"
+
     ACTIVE_STATES = set(["R", "CG", "CF", "S", "ST", "RS", "SI", "SO"])
     QUEUED_STATES = SLURM_QUEUED_STATES
     STATE_PRIORITY = {"d": 5, "b": 4, "c": 2, "r": 1, "-": 0, "?": -1}
@@ -619,82 +676,3 @@ class SlurmBatchSystem(GenericBatchSystem):
                 node_jobs[node].extend([job["JobId"]] * count)
                 remaining_cpus -= count
         return node_jobs
-
-    @classmethod
-    def expand_nodelist(cls, nodelist: Optional[str]) -> List[str]:
-        """Expand comma-separated host groups; reject malformed lists as a unit.
-
-        Commas inside brackets separate numeric choices. Unbalanced brackets,
-        empty groups, descending ranges and oversized expansions are unusable;
-        return no hosts rather than assigning a job to an invented hostname.
-        """
-        nodelist = nodelist.strip() if nodelist else ""
-        if not nodelist or nodelist.startswith("("):
-            return []
-
-        try:
-            groups = []
-            depth = 0
-            start = 0
-            for index, char in enumerate(nodelist):
-                if char == "[":
-                    if depth:
-                        raise ValueError("nested brackets")
-                    depth = 1
-                elif char == "]":
-                    if not depth:
-                        raise ValueError("unmatched closing bracket")
-                    depth = 0
-                elif char == "," and not depth:
-                    groups.append(nodelist[start:index])
-                    start = index + 1
-            if depth:
-                raise ValueError("unmatched opening bracket")
-            groups.append(nodelist[start:])
-
-            expanded = []
-            for group in groups:
-                if not group or re.search(r"\s", group):
-                    raise ValueError("empty or whitespace-containing host group")
-                pending = [group]
-                while any("[" in item for item in pending):
-                    next_pending = []
-                    for item in pending:
-                        next_pending.extend(cls._expand_first_range(item))
-                        if len(expanded) + len(next_pending) > cls.MAX_EXPANDED_NODES:
-                            raise ValueError("too many expanded hosts")
-                    pending = next_pending
-                expanded.extend(pending)
-                if len(expanded) > cls.MAX_EXPANDED_NODES:
-                    raise ValueError("too many expanded hosts")
-            return list(OrderedDict.fromkeys(expanded))
-        except ValueError as error:
-            logging.warning("Ignoring invalid Slurm nodelist %r: %s", nodelist, error)
-            return []
-
-    @classmethod
-    def _expand_first_range(cls, value: str) -> List[str]:
-        match = re.search(r"\[([^\]]+)\]", value)
-        if not match:
-            if "[" in value:
-                raise ValueError("empty host range")
-            return [value]
-
-        prefix = value[: match.start()]
-        suffix = value[match.end() :]
-        choices = []
-        for token in match.group(1).split(","):
-            if not re.fullmatch(r"[0-9]+(?:-[0-9]+)?", token):
-                raise ValueError("invalid numeric host range")
-            if "-" not in token:
-                choices.append(token)
-                continue
-            start, end = token.split("-", 1)
-            first, last = int(start), int(end)
-            if last < first:
-                raise ValueError("descending host range")
-            if len(choices) + last - first + 1 > cls.MAX_EXPANDED_NODES:
-                raise ValueError("too many expanded hosts")
-            width = len(start)
-            choices.extend(str(number).zfill(width) for number in range(first, last + 1))
-        return [prefix + choice + suffix for choice in choices]

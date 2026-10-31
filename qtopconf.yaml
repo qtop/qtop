@@ -24,6 +24,9 @@ scheduler: auto
 ## users can select e.g. /dev/shm (ram disk) instead of /tmp for faster processing, or even $TMP or $TMPDIR
 savepath: /tmp/qtop_results_$USER
 
+## Maximum seconds per live scheduler command; must be positive and finite.
+scheduler_command_timeout: 30
+
 ## batch commands, filenames to save their output in
 ## If user sets a sourcedir, qtop expects to find the respective
 ## filenames below, minus the _pid.

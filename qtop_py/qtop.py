@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 ##################################################
 ##                     qtop                     ##
@@ -48,16 +48,16 @@ import tempfile
 import time
 import traceback
 from ast import literal_eval
-from math import ceil
+from math import ceil, isfinite
 from typing import TYPE_CHECKING, Optional
 
 if TYPE_CHECKING:
     from typing import Dict
 
-    from qtop_py.contracts import ClusterState, Config, Job, Scheduler
+    from qtop_py import contracts
 
-    config: Config
-    dynamic_config: Config
+    config: contracts.Config
+    dynamic_config: contracts.Config
 
 from qtop_py import __version__, fileutils, sample, utils
 from qtop_py import yaml_parser as yaml
@@ -225,7 +225,7 @@ def get_date_obj_from_str(s, now):
     elif len(s) == 4:
         _inp_datetime = datetime.datetime.strptime(s, "%H%M")
         _inp_datetime = now.replace(hour=_inp_datetime.hour, minute=_inp_datetime.minute, second=0)
-        inp_datetime = _inp_datetime if now > _inp_datetime else _inp_datetime.replace(day=_inp_datetime.day - 1)
+        inp_datetime = _inp_datetime if now > _inp_datetime else _inp_datetime - datetime.timedelta(days=1)
     elif len(s) == 9:
         _inp_datetime = datetime.datetime.strptime(s, "%m%dT%H%M")
         inp_datetime = _inp_datetime.replace(year=now.year, second=0)
@@ -436,7 +436,7 @@ def auto_get_avail_batch_system(config):
     raise SchedulerNotSpecified
 
 
-def execute_shell_batch_commands(batch_system_commands, filenames, _file, _savepath):
+def execute_shell_batch_commands(batch_system_commands, filenames, _file, _savepath, timeout=30):
     """
     scheduler-specific commands are invoked from the shell and their output is saved *atomically* to files,
     as defined by the user in QTOPCONF_YAML
@@ -446,8 +446,13 @@ def execute_shell_batch_commands(batch_system_commands, filenames, _file, _savep
     try:
         if not _batch_system_command:
             raise OperationalError("Empty scheduler command for %s; check %s." % (_file, QTOPCONF_YAML))
+        try:
+            timeout = float(timeout)
+            if not isfinite(timeout) or timeout <= 0:
+                raise ValueError("nonpositive or nonfinite timeout")
+        except (TypeError, ValueError, OverflowError) as error:
+            raise OperationalError("scheduler_command_timeout must be a positive finite number of seconds") from error
         with tempfile.NamedTemporaryFile("w", dir=_savepath, delete=False) as fin:
-            logging.debug('Command: "%s" -- result will be saved in: %s' % (_batch_system_command, filenames[_file]))
             logging.debug("\tFile state before subprocess call: %(fin)s" % {"fin": fin})
             logging.debug("\tWaiting on subprocess.call...")
 
@@ -457,13 +462,38 @@ def execute_shell_batch_commands(batch_system_commands, filenames, _file, _savep
             # injected commands
             tempname = fin.name
             try:
-                command = subprocess.Popen(shlex.split(_batch_system_command), stdout=fin, stderr=subprocess.PIPE)
+                command_args = shlex.split(_batch_system_command)
+                logging.debug(
+                    "Trace collection command: (cd %s && %s > %s)",
+                    shlex.quote(os.getcwd()),
+                    " ".join(shlex.quote(arg) for arg in command_args),
+                    shlex.quote(os.path.abspath(filenames[_file])),
+                )
+                command = subprocess.Popen(command_args, stdout=fin, stderr=subprocess.PIPE, start_new_session=(os.name == "posix"))
             except OSError as error:
                 raise OperationalError("Cannot execute scheduler command %r: %s. Check PATH or load the scheduler module." % (_batch_system_command, error.strerror)) from error
             except ValueError as error:
                 raise OperationalError("Invalid scheduler command %r: %s. Check command quoting in %s." % (_batch_system_command, error, QTOPCONF_YAML)) from error
-            error = command.communicate()[1]
-            command.wait()
+            try:
+                error = command.communicate(timeout=timeout)[1]
+            except (subprocess.TimeoutExpired, KeyboardInterrupt) as failure:
+                if os.name == "posix":
+                    from signal import SIGKILL
+
+                    with contextlib.suppress(ProcessLookupError):
+                        os.killpg(command.pid, SIGKILL)
+                else:
+                    command.kill()
+                try:
+                    command.communicate(timeout=1)
+                except subprocess.TimeoutExpired:
+                    if command.stderr is not None:
+                        command.stderr.close()
+                    with contextlib.suppress(subprocess.TimeoutExpired):
+                        command.wait(timeout=1)
+                if isinstance(failure, KeyboardInterrupt):
+                    raise
+                raise OperationalError("Scheduler command %r timed out after %g seconds" % (_batch_system_command, timeout)) from failure
             if error:
                 logging.warning("A message from your shell: %s", error.decode("utf-8", errors="replace").strip())
             if command.returncode:
@@ -573,7 +603,7 @@ def get_input_filenames(INPUT_FNs_commands, config):
         if not args.SOURCEDIR:
             _savepath = os.path.realpath(os.path.expandvars(config["savepath"]))
             try:
-                filenames[_file] = execute_shell_batch_commands(batch_system_commands, filenames, _file, _savepath)
+                filenames[_file] = execute_shell_batch_commands(batch_system_commands, filenames, _file, _savepath, timeout=config.get("scheduler_command_timeout", 30))
             except OperationalError as error:
                 if scheduler != "slurm" or _file != "scontrol_file":
                     raise
@@ -881,11 +911,20 @@ def control_qtop(viewport, read_char, cluster, old_attrs, new_attrs):
     )
 
 
-def fetch_scheduler_files(args, config):
+def fetch_scheduler_files(args, config, optional_trace_keys=()):
     try:
         INPUT_FNs_commands = finalize_filepaths_schedulercommands(args, config)
     except (ValueError, TypeError, KeyError, AttributeError) as error:
         raise OperationalError("Invalid scheduler command configuration for %s in %s: %s" % (scheduler, QTOPCONF_YAML, error)) from error
+    if getattr(args, "source_archive", None):
+        from qtop_py.trace_archive import load_trace_archive
+
+        try:
+            if not hasattr(args, "archive_trace_paths"):
+                args.archive_trace_paths = load_trace_archive(args.source_archive, args.workdir, config["schedulers"][scheduler], optional_trace_keys)
+            return args.archive_trace_paths.copy()
+        except (OSError, tarfile.TarError, ValueError) as error:
+            raise OperationalError("Cannot read scheduler trace archive %s: %s" % (args.source_archive, error)) from error
     scheduler_output_filenames = get_input_filenames(INPUT_FNs_commands, config)
     return scheduler_output_filenames
 
@@ -970,7 +1009,12 @@ def attempt_faster_xml_parsing(config):
 def init_dirs(args, _savepath):
     args.SOURCEDIR = os.path.realpath(args.SOURCEDIR) if args.SOURCEDIR else None
     if args.SOURCEDIR and os.path.isfile(args.SOURCEDIR):
-        args.SOURCEDIR = os.path.dirname(args.SOURCEDIR)
+        if tarfile.is_tarfile(args.SOURCEDIR) or args.SOURCEDIR.lower().endswith((".tar", ".tar.gz", ".tgz", ".tar.bz2", ".tbz2", ".tar.xz", ".txz")):
+            args.source_archive = args.SOURCEDIR
+            args.source_workspace = tempfile.TemporaryDirectory(prefix="qtop-traces-")
+            args.SOURCEDIR = args.source_workspace.name
+        else:
+            args.SOURCEDIR = os.path.dirname(args.SOURCEDIR)
     logging.debug("User-defined source directory: %s" % args.SOURCEDIR)
     args.workdir = args.SOURCEDIR or _savepath
     logging.debug("Working directory is now: %s" % args.workdir)
@@ -1555,12 +1599,12 @@ QDoc = namedtuple("QDoc", ["lm", "queued", "run", "state"])
 
 class Document(namedtuple("Document", ["worker_nodes", "jobs_dict", "queues_dict", "total_running_jobs", "total_queued_jobs"])):
     if TYPE_CHECKING:
-        _job_metadata: Dict[str, Job]
+        _job_metadata: Dict[str, contracts.Job]
         _slurm_diagnostics: Dict[str, int]
         _oar_diagnostics: Dict[str, int]
 
     @classmethod
-    def from_cluster_state(cls, cluster_state: "ClusterState") -> "Document":
+    def from_cluster_state(cls, cluster_state: "contracts.ClusterState") -> "Document":
         validate_cluster_state(cluster_state)
         totals = cluster_state_totals(cluster_state)
         jobs_dict = OrderedDict((job["id"], JobDoc(job["user"], job["state"], job["queue"])) for job in cluster_state["jobs"])
@@ -1583,8 +1627,8 @@ class Document(namedtuple("Document", ["worker_nodes", "jobs_dict", "queues_dict
         document._oar_diagnostics = copy.deepcopy(cluster_state.get("oar_diagnostics", {}))
         return document
 
-    def to_cluster_state(self) -> "ClusterState":
-        state: "ClusterState" = {
+    def to_cluster_state(self) -> "contracts.ClusterState":
+        state: "contracts.ClusterState" = {
             "jobs": [
                 {
                     **getattr(self, "_job_metadata", {}).get(job_id, {}),
@@ -1613,7 +1657,7 @@ class Document(namedtuple("Document", ["worker_nodes", "jobs_dict", "queues_dict
             state["oar_diagnostics"] = copy.deepcopy(self._oar_diagnostics)
         return state
 
-    def save(self, filename: str, cluster_state: "Optional[ClusterState]" = None) -> None:
+    def save(self, filename: str, cluster_state: "Optional[contracts.ClusterState]" = None) -> None:
         with open(filename, "w") as outfile:
             json.dump(self.to_cluster_state() if cluster_state is None else cluster_state, outfile)
 
@@ -1673,8 +1717,6 @@ class TextDisplay(object):
 
         if not self.args.ANONYMIZE:
             print("\nLog file created in %s" % os.path.expandvars(QTOP_LOGFILE))
-            if self.args.SAMPLE:
-                print("Sample files saved in %s/%s" % (_savepath, SAMPLE_FILENAME))
         if self.args.STRICTCHECK:
             self.wns_occupancy.strict_check_jobs(self.cluster)
 
@@ -2091,11 +2133,11 @@ class TextDisplay(object):
         tail_command = ["tail", "-n+" + str(x), file]
         head_command = ["head", "-n" + str(y - 1)]
         with open(temp_filename, "w") as output_file:
-            process_tail = subprocess.Popen(tail_command, stdout=subprocess.PIPE)
-            process_head = subprocess.Popen(head_command, stdin=process_tail.stdout, stdout=output_file)
-            if process_tail.stdout is not None:
-                process_tail.stdout.close()
-            _ = process_head.communicate()
+            with subprocess.Popen(tail_command, stdout=subprocess.PIPE) as process_tail:
+                with subprocess.Popen(head_command, stdin=process_tail.stdout, stdout=output_file) as process_head:
+                    if process_tail.stdout is not None:
+                        process_tail.stdout.close()
+                    process_head.communicate()
         return temp_filename
 
     def print_mult_attr_line(self, print_char_start, print_char_stop, transposed_matrices, attr_lines, label, color_func=None, **_config_metadata):
@@ -2435,12 +2477,12 @@ def colorize(text, color_func=None, pattern="NoPattern", mapping=None, bg_color=
     Other mappings available are: nodestate_to_color, queue_to_color.
     Examples:
     s = ColorStr(string='This is some text', color='Red_L')
-    print colorize(s, color_func=s.color), # Red_L is applied directly
-    print colorize(s.str, pattern='alicesgm') # mapping defaults to user_to_color
-    print colorize(s.str, color_func=s.color, bg_color='BlueBG') # bg and fg colors applied directly
+    print(colorize(s, color_func=s.color), end=" ") # Red_L is applied directly
+    print(colorize(s.str, pattern='alicesgm')) # mapping defaults to user_to_color
+    print(colorize(s.str, color_func=s.color, bg_color='BlueBG')) # bg and fg colors applied directly
 
     state = ColorStr('running. coloring according to node state')
-    print colorize(state.str, mapping=nodestate_to_color, pattern=state.initial)
+    print(colorize(state.str, mapping=nodestate_to_color, pattern=state.initial))
     """
     bg_color = "NOBG" if not bg_color else bg_color
     if not mapping:
@@ -2633,6 +2675,7 @@ def report_operational_error(error):
 
 def cli_main():
     original_stdout = sys.stdout
+    original_cwd = os.getcwd()
     try:
         return main() or 0
     except (InvalidScheduler, NoSchedulerFound, SchedulerNotSpecified) as error:
@@ -2648,6 +2691,10 @@ def cli_main():
             with contextlib.suppress(OSError):
                 sys.stdout.close()
             sys.stdout = original_stdout
+        workspace = getattr(globals().get("args"), "source_workspace", None)
+        if workspace is not None:
+            os.chdir(original_cwd)
+            workspace.cleanup()
 
 
 def main():
@@ -2679,6 +2726,8 @@ def main():
     dynamic_config = dict()
     args, dynamic_config["force_names"] = process_args(args)
     require_experimental_opt_in(args)
+    if (args.raw_companion or args.masked_traces) and not (args.SAMPLE and args.ANONYMIZE):
+        raise OperationalError("--raw-companion and --masked-traces require -L -A -e")
     if args.load_sample:
         if args.BATCH_SYSTEM or args.SOURCEDIR or args.CONFFILE or args.SAMPLE or args.WATCH or args.REPLAY or args.ANONYMIZE:
             raise OperationalError("--load-sample cannot be combined with -b, -s, -f, -L, -w, -R or -A")
@@ -2709,6 +2758,7 @@ def main():
     change_mapping = cycle([("queue_to_color", "color by queue"), ("user_to_color", "color by user")])
     h_counter = cycle([0, 1])
     tar_out = None
+    capture_paths = OrderedDict()
 
     viewport = Viewport()  # controls the part of the qtop matrix shown on screen
     max_line_len = 0
@@ -2768,14 +2818,20 @@ def main():
                     if args.load_sample
                     else decide_batch_system(args.BATCH_SYSTEM, os.environ.get("QTOP_SCHEDULER"), config["scheduler"], config["schedulers"], available_batch_systems, config)
                 )
-                scheduler_output_filenames = {} if args.load_sample else fetch_scheduler_files(args, config)
+                scheduler_output_filenames = {} if args.load_sample else fetch_scheduler_files(args, config, available_batch_systems[scheduler].optional_trace_keys)
                 SAMPLE_FILENAME = fileutils.get_sample_filename(SAMPLE_FILENAME, config)
                 if args.SAMPLE:
                     tar_out = fileutils.init_sample_file(args, savepath, SAMPLE_FILENAME, scheduler_output_filenames, QTOPCONF_YAML, QTOPPATH)
+                    capture_paths[tar_out.name] = "Sample files saved in"
+                    if args.SAMPLE >= 2 and not args.ANONYMIZE:
+                        sample.add_json(tar_out, "qtop-effective-config.json", config)
+                    if args.raw_companion:
+                        companion = fileutils.save_raw_companion(savepath, scheduler_output_filenames)
+                        capture_paths[companion] = "PRIVATE unmasked scheduler traces:"
 
                 ###### Gather data ###############
                 #
-                scheduling_system: "Scheduler" = available_batch_systems[scheduler](scheduler_output_filenames, config, args)
+                scheduling_system: "contracts.Scheduler" = available_batch_systems[scheduler](scheduler_output_filenames, config, args)
 
                 try:
                     if args.load_sample:
@@ -2798,6 +2854,10 @@ def main():
                         if tar_out is None:
                             raise OperationalError("Support archive was not initialized.")
                         sample.save_snapshot(tar_out, cluster_state, snapshot_config, args, scheduler, __version__, omitted)
+                        if args.masked_traces:
+                            from qtop_py.source_trace import save_masked_traces
+
+                            save_masked_traces(tar_out, scheduling_system, scheduler_output_filenames, mappings)
                     else:
                         cluster_state = scheduling_system.get_cluster_state(args)
                 except (ValueError, UnicodeError, ParseError) as error:
@@ -2870,8 +2930,7 @@ def main():
                 raise SystemExit(0)
             fileutils.safe_exit_with_file_close(handle, output_fp, stdout, args, savepath, QTOP_LOGFILE, SAMPLE_FILENAME)
         finally:
-            if sys.exc_info()[0] is not None:
-                web.stop()
+            web.stop()
             if args.SAMPLE >= 1 and tar_out is not None:
                 if not args.ANONYMIZE:
                     tar_out = fileutils.add_to_sample([QTOP_LOGFILE], tar_out)
@@ -2882,6 +2941,8 @@ def main():
                         if os.path.isfile(scheduler_output_filenames[fn]):
                             tar_out = fileutils.add_to_sample([scheduler_output_filenames[fn]], tar_out)
                 tar_out.close()
+            for path, label in capture_paths.items():
+                sys.stderr.write("%s %s\n" % (label, path))
 
 
 if __name__ == "__main__":

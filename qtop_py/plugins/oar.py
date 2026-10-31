@@ -50,6 +50,70 @@ class OarStatExtractor(StatExtractor):
 
 
 class OARBatchSystem(GenericBatchSystem):
+    def mask_source_trace(self, key, text, mask):
+        rows = []
+        jobs_list = False
+        for index, line in enumerate(text.splitlines()):
+            if key == "oarstat_file":
+                if index < 2:
+                    rows.append("Job id Name User Submission Date S Queue" if index == 0 else "---")
+                    continue
+                match = re.fullmatch(self.oar_stat_maker.user_q_search + r"\s*", line)
+                if not match:
+                    if not line.strip():
+                        rows.append(line)
+                        continue
+                    raise ValueError("unsupported job row")
+                rows.append(
+                    "%s %s %s 2000-01-01 00:00:00 %s %s"
+                    % (
+                        mask(match["job_id"], "job"),
+                        mask(match["name"] or "job"),
+                        mask(match["user"], "user"),
+                        mask.public(match["job_state"], "[RWHLFTES]"),
+                        mask(match["queue"], "queue"),
+                    )
+                )
+            elif key in ("oarnodes_s_file", "oarnodes_y_file"):
+                if not line.strip() or line.strip() in ("---", "..."):
+                    rows.append(line)
+                    continue
+                if line.lstrip().startswith("#"):
+                    rows.append("# redacted")
+                    continue
+                if key == "oarnodes_s_file":
+                    match = re.fullmatch(r"(\s*)([^:]+):\s*(\S*)\s*", line)
+                    if not match:
+                        raise ValueError("unsupported node row")
+                    indent, name, value = match.groups()
+                    if not indent:
+                        rows.append(mask(name, "node") + ":")
+                    else:
+                        rows.append(indent + mask.public(name, r"[0-9]+") + ": " + mask.public(value, "Alive|Dead|Suspected|Mixed|Unknown"))
+                else:
+                    if re.fullmatch(r"[0-9]+:\s*", line):
+                        rows.append(line)
+                        jobs_list = False
+                    elif line.strip().startswith("jobs:"):
+                        value = line.strip().split(":", 1)[1].strip()
+                        self._parse_job_ids(value)
+                        rows.append(line[: len(line) - len(line.lstrip())] + "jobs: " + re.sub(r"[0-9]+", lambda match: mask(match.group(), "job"), value))
+                        jobs_list = not value
+                    elif jobs_list and re.fullmatch(r"\s+- [0-9]+\s*", line):
+                        rows.append(re.sub(r"[0-9]+", lambda match: mask(match.group(), "job"), line))
+                    else:
+                        # Non-job resource attributes are not consumed by qtop.
+                        if ":" not in line:
+                            raise ValueError("unsupported resource row")
+                        name, value = line.strip().split(":", 1)
+                        indent = line[: len(line) - len(line.lstrip())]
+                        rows.append(indent + mask(name, "field") + ": " + mask(value.strip()))
+                        jobs_list = False
+            else:
+                raise ValueError("unsupported trace")
+        names = {"oarstat_file": "oarstat.txt", "oarnodes_s_file": "oarnodes_s_Y.txt", "oarnodes_y_file": "oarnodes_Y.txt"}
+        return names[key], "\n".join(rows) + "\n"
+
     @staticmethod
     def get_mnemonic():
         return "oar"

@@ -3,6 +3,22 @@
 Notable changes by version, newest first.
 See the [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 
+## 0.9.20261025
+
+- CI: measure production-code coverage and require 90%.
+- CI: bump Python compatibility lanes to 3.15.2.
+- Bugfix: exit interrupted captures cleanly and preserve original stdout.
+- Bugfix: retire stale callbacks, repair web paths and reap viewport processes.
+- Bugfix: bound scheduler collection time and discard timed-out partial traces.
+- Bugfix: handle replay times across month and year boundaries.
+- Bugfix: remove GPU/Slurm import cycles and clarify type-only imports.
+- Bugfix: (build) require patched setuptools on Python 3.10+.
+- Bugfix: (tar) accept trace tarballs with deterministic capture-set selection in -s.
+- Bugfix: (tar) log reproducible trace commands and restore archive paths at exit.
+- Bugfix: (tar) add optional masked source traces and private raw companion captures.
+- Bugfix: (tar) complete expanded support archives and capture effective configuration.
+- Release: update version metadata to 0.9.20261025.
+
 ## 0.9.20261022
 
 - Release: update version metadata.

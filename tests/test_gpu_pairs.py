@@ -1,10 +1,29 @@
 # SPDX-License-Identifier: MIT
+import subprocess
+import sys
+from pathlib import Path
+
 import pytest
 
 from qtop_py.gpu import configured_pair_lines, parse_gpu_gres
 from qtop_py.sample import sanitize_config
 from qtop_py.yaml_parser import safe_load
 from tests.plugins.test_slurm_gpu import backend
+
+
+def test_gpu_inventory_does_not_import_scheduler_plugins():
+    script = """
+import builtins
+original_import = builtins.__import__
+def without_plugins(name, *args, **kwargs):
+    if name.startswith('qtop_py.plugins'):
+        raise AssertionError('GPU helpers must not depend on scheduler plugins')
+    return original_import(name, *args, **kwargs)
+builtins.__import__ = without_plugins
+from qtop_py.gpu import configured_pair_lines
+assert configured_pair_lines([{'domainname': 'gpu002'}], {'gpu[001-002]': [[0, 1]]}) == ['gpu002: pair1[gpu0=?, gpu1=?]']
+"""
+    subprocess.run([sys.executable, "-c", script], cwd=str(Path(__file__).resolve().parents[1]), check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=10)
 
 
 def test_yaml_ranges_and_split_pair_ownership(tmp_path):

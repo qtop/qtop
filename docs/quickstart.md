@@ -50,6 +50,17 @@ Try the committed Slurm fixture without contacting a scheduler:
 Use `-s /path/to/traces` for your own saved output. Required filenames depend
 on the backend; see the [full guide](documentation.md).
 
+You can also pass a trace tarball directly, including compressed tarballs:
+
+```sh
+./qtop -b slurm -s /path/to/capture.tar.gz
+```
+
+qtop selects one complete set with matching directory and capture suffix,
+preferring optional detail files, then the lexicographically last directory/suffix.
+It supports raw companion archives and `masked-traces/` members. Snapshot-only
+anonymous archives still use `--load-sample`.
+
 ## Export or capture a snapshot
 
 Add `-E` to export normalized cluster state as JSON. The terminal report still
@@ -72,14 +83,29 @@ scheduler. `-A` is experimental and requires `-e`. Loading the archive restores
 parsed state and presentation without scheduler commands. Review the
 [masking limitations](documentation.md#anonymization-scope) before sharing it.
 
+Use `-LL` for an expanded archive with Python sources, help text, web assets,
+a launcher and the license. Without `-A`, it also includes bundled
+`qtopconf.yaml` defaults and `qtop-effective-config.json` with merged configuration
+and command-line overrides. The JSON is diagnostic data, not a `--config` file.
+Anonymous archives omit both files and retain sanitized configuration in
+`qtop-snapshot.json`; replay them using an installed qtop and `--load-sample`.
+
+For parser debugging, add `--masked-traces` to include experimental masked
+scheduler-format files, with omissions listed in `masked-traces/report.json`.
+Add `--raw-companion` to preserve exact scheduler inputs in a **separate private**
+`qtop_raw_traces_*.tar` before parsing. Both require `-L -A -e`; see the
+[trace capture details](documentation.md#anonymization-scope).
+
 Output defaults to `/tmp/qtop_results_$USER`. Override it with
 `-o savepath=/path/to/private/directory`; the directory must be private and
-owned by your user. The report prints the log location and, for captures,
-the archive location.
+owned by your user. At exit, qtop prints generated archive paths on stderr,
+including anonymous captures and runs with `-O`.
 
 ## Find help
 
 - `./qtop --help` lists command-line options; `-d` adds debug diagnostics.
+- With `-d`, the debug log includes copy-pasteable POSIX shell collection
+  commands with quoted arguments, working directories and output paths.
 - [Full user guide](documentation.md): configuration, navigation and troubleshooting.
 - [README](../README.md#installation): installation options.
 - [Contributing](../CONTRIBUTING.md): development and validation.

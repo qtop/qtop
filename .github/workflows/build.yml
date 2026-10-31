@@ -33,7 +33,7 @@ jobs:
         include:
           - python-version: '3.9'
           - python-version: '3.12.3'
-          - python-version: '3.15.1'
+          - python-version: '3.15.2'
     env:
       FORTIFY_BASE_REF: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || 'origin/develop' }}
     steps:

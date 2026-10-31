@@ -31,7 +31,7 @@ def init_logging(options):
     logger.setLevel(logging.DEBUG)
 
     fh = logging.FileHandler(QTOP_LOGFILE)
-    fh.setLevel(log_level)
+    fh.setLevel(logging.DEBUG if options.DEBUG else log_level)
     fh.setFormatter(formatter)
     logger.addHandler(fh)
 
@@ -48,7 +48,7 @@ def init_logging(options):
 
 
 def parse_qtop_cmdline_args():
-    parser = ArgumentParser(prog="qtop", description="")  # for more details see http://docs.python.org/library/optparse.html
+    parser = ArgumentParser(prog="qtop", description="")
 
     parser.add_argument("-1", "--disablesection1", action="store_true", dest="sect_1_off", default=False, help="Disable first section of qtop, i.e. Job Accounting Summary")
     parser.add_argument("-2", "--disablesection2", action="store_true", dest="sect_2_off", default=False, help="Disable second section of qtop, i.e. Worker Node Occupancy")
@@ -174,7 +174,7 @@ def parse_qtop_cmdline_args():
         "-s",
         "--SetSourceDir",
         dest="SOURCEDIR",
-        help="Set the source directory where scheduler output files reside, or pass one output file to use its parent directory",
+        help="Read scheduler traces from a directory or tar archive; passing a plain output file uses its parent directory",
     )
     parser.add_argument(
         "-S",
@@ -213,8 +213,10 @@ def parse_qtop_cmdline_args():
         default=False,
         help="Create a sample file. A single L creates a tarball with the log, scheduler output files, "
         "qtop output. With -A, include a portable masked snapshot instead. Two L's add package sources "
-        "and, without -A, the bundled config.",
+        "and runtime assets; without -A, also include bundled defaults and effective configuration JSON.",
     )
+    parser.add_argument("--raw-companion", action="store_true", help="With -L -A -e, also save a separate PRIVATE archive of unmasked scheduler inputs before parsing")
+    parser.add_argument("--masked-traces", action="store_true", help="With -L -A -e, add experimental masked scheduler-format traces; unsupported files are omitted")
     parser.add_argument("--load-sample", metavar="ARCHIVE", help="Reproduce an anonymized support snapshot without scheduler commands")
     args = parser.parse_args()
     if args.SHOW_QUEUE_NODES and not args.EXPERIMENTAL:
@@ -222,42 +224,12 @@ def parse_qtop_cmdline_args():
     return args
 
 
-def _watch_callback(option, opt_str, value, parser):
-    """
-    This is the official example from optparse for variable arguments
-    """
-    if value is not None:
-        raise ValueError("Watch callback does not accept a preset value")
-    value = []
-
-    def is_floatable(str):
-        try:
-            float(str)
-            return True
-        except ValueError:
-            return False
-
-    for arg in parser.rargs:
-        # stop on --foo like options
-        if arg[:2] == "--" and len(arg) > 2:
-            break
-        # stop on -a, but not on -3 or -3.0
-        if arg[:1] == "-" and len(arg) > 1 and not is_floatable(arg):
-            break
-        value.append(arg)
-    if not value:  # zero arguments!
-        value.append(0)
-    else:
-        del parser.rargs[: len(value)]
-    setattr(parser.values, option.dest, value)
-
-
 class ColorStr(object):
     """
     ColorStr instances are normal strings with color information attached to them,
     to be used with colorize(), e.g.
-    print colorize(s.str, color_func=s.color)
-    print colorize(s, mapping=nodestate_to_color, pattern=s.initial)
+    print(colorize(s.str, color_func=s.color))
+    print(colorize(s, mapping=nodestate_to_color, pattern=s.initial))
     """
 
     def __init__(self, string="", color=""):

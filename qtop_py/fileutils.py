@@ -2,6 +2,7 @@ import contextlib
 import datetime
 import errno
 import glob
+import io
 import logging
 import os
 import stat
@@ -84,22 +85,22 @@ def get_new_temp_file(_savepath, suffix, prefix):  # **kwargs
 
 
 def safe_exit_with_file_close(handle, name, stdout, options, _savepath, qtop_logfile, sample_filename, delete_file=False):
-    sys.stdout.write("\nExiting. Thank you for ..watching ;)\n")
+    sys.stdout.write("\nExiting. Thank you for ...watching ;)\n")
     sys.stdout.flush()
-    sys.stdout.close()
+    if sys.stdout is not stdout:
+        sys.stdout.close()
+    sys.stdout = stdout
     with contextlib.suppress(OSError):
         os.close(handle)
     if delete_file:
         os.unlink(name)  # this deletes the file
-    # sys.stdout = stdout
-    if options.SAMPLE >= 1:
-        _ = add_to_sample([qtop_logfile], _savepath, sample_filename)
+    # The caller finalizes the support archive in its finally block.
     sys.exit(0)
 
 
 def init_sample_file(options, _savepath, SAMPLE_FILENAME, scheduler_output_filenames, QTOPCONF_YAML, QTOPPATH):
     """
-    Initialise a support archive; -LL adds the bundled config and package sources.
+    Initialise a support archive; -LL adds runtime assets and package sources.
     The caller adds rendered output, logs and eligible scheduler traces before closing it.
     """
     if options.SAMPLE < 1:
@@ -117,6 +118,23 @@ def init_sample_file(options, _savepath, SAMPLE_FILENAME, scheduler_output_filen
         for source_file in source_files:
             subdir = os.path.dirname(os.path.join("qtop_py", os.path.relpath(source_file, source_path)))
             add_to_sample([source_file], tar_out, subdir=subdir)
+        help_path = os.path.join(os.path.realpath(QTOPPATH), "helpfile.txt")
+        if os.path.isfile(help_path):
+            add_to_sample([help_path], tar_out)
+        for asset in glob.glob(os.path.join(source_path, "web", "**", "*"), recursive=True):
+            if os.path.isfile(asset):
+                subdir = os.path.dirname(os.path.join("qtop_py", os.path.relpath(asset, source_path)))
+                add_to_sample([asset], tar_out, subdir=subdir)
+        licenses = [os.path.join(os.path.realpath(QTOPPATH), "LICENSE")]
+        licenses += glob.glob(os.path.join(os.path.dirname(source_path), "qtop*.dist-info", "licenses", "LICENSE"))
+        licenses += glob.glob(os.path.join(os.path.dirname(source_path), "qtop*.dist-info", "LICENSE"))
+        license_path = next((path for path in licenses if os.path.isfile(path)), None)
+        if license_path:
+            add_to_sample([license_path], tar_out)
+        launcher = b"#!/usr/bin/env python3\nfrom qtop_py.qtop import cli_main\nraise SystemExit(cli_main())\n"
+        member = tarfile.TarInfo("qtop")
+        member.mode, member.size = 0o755, len(launcher)
+        tar_out.addfile(member, io.BytesIO(launcher))
     return tar_out
 
 
@@ -126,8 +144,16 @@ def _without_archive_owner(member):
     return member
 
 
+def save_raw_companion(savepath, filenames):
+    handle, path = tempfile.mkstemp(prefix="qtop_raw_traces_", suffix=".tar", dir=savepath)
+    with os.fdopen(handle, "wb") as stream:
+        with tarfile.open(fileobj=stream, mode="w", dereference=True) as archive:
+            for key, source in filenames.items():
+                archive.add(source, arcname=key, recursive=False, filter=_without_archive_owner)
+    return path
+
+
 def add_to_sample(filepaths_to_add, sample_out, sample_method=tarfile, subdir=None):
-    # def add_to_sample(filepaths_to_add, _savepath, sample_file, sample_method=tarfile, subdir=None):
     """
     opens sample_file in path savepath and adds files filepaths_to_add
     """
@@ -140,9 +166,6 @@ def add_to_sample(filepaths_to_add, sample_out, sample_method=tarfile, subdir=No
             sample_out.add(filepath_to_add, arcname=fn if not subdir else os.path.join(subdir, fn), filter=_without_archive_owner)
         except (OSError, tarfile.TarError) as error:
             logging.error("Could not add %s to the sample archive; skipping it: %s", filepath_to_add, error)
-    # else:
-    # logging.debug('Closing sample...')
-    # sample_out.close()
     return sample_out
 
 

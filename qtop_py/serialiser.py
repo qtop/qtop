@@ -10,8 +10,6 @@
 
 import logging
 import re
-
-##import sys
 from itertools import count
 from typing import TYPE_CHECKING, Callable, Collection, Dict, Sequence, Tuple
 
@@ -114,6 +112,11 @@ class StatExtractor(object):
 
 
 class GenericBatchSystem(object):
+    optional_trace_keys: Tuple[str, ...] = ()
+
+    def mask_source_trace(self, key, text, mask):
+        raise ValueError("This backend has no source trace masker")
+
     def __init__(self):
         pass
 

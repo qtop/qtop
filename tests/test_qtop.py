@@ -836,6 +836,20 @@ def test_get_date_obj_from_str(s, now, day_meant):
     assert get_date_obj_from_str(s, now).day == day_meant
 
 
+@pytest.mark.parametrize(
+    "now,expected",
+    (
+        ((2026, 11, 1, 1), (2026, 10, 31, 21)),
+        ((2027, 1, 1, 1), (2026, 12, 31, 21)),
+        ((2028, 3, 1, 1), (2028, 2, 29, 21)),
+        ((2026, 3, 1, 1), (2026, 2, 28, 21)),
+        ((2026, 11, 1, 22), (2026, 11, 1, 21)),
+    ),
+)
+def test_short_replay_time_handles_calendar_boundaries(now, expected):
+    assert get_date_obj_from_str("2100", datetime.datetime(*now)) == datetime.datetime(*expected)
+
+
 def test_unknown_scheduler_job_state_preserves_accounting(monkeypatch, caplog):
     monkeypatch.setattr(qtop_module, "scheduler", "slurm", raising=False)
     state_abbrevs = {"R": "running_of_user", "PD": "queued_of_user"}
@@ -989,3 +1003,29 @@ def test_init_logging_sets_file_level(tmp_path, monkeypatch, verbose, expected):
 @pytest.mark.parametrize("state, blocked", [("up", False), ("UP", False), ("down", True), ("drain", True), ("inact", True), ("INACTIVE", True), ("?", False)])
 def test_slurm_partition_blocking_markers(state, blocked):
     assert qtop_module.queue_is_blocked(state, "slurm") is blocked
+
+
+@pytest.mark.parametrize("head_fails", (False, True))
+def test_viewport_pipeline_reaps_both_processes(tmp_path, monkeypatch, head_fails):
+    source = tmp_path / "frame with spaces.out"
+    source.write_text("".join("%s\n" % number for number in range(100000)))
+    monkeypatch.setattr(qtop_module, "config", {"savepath": str(tmp_path)}, raising=False)
+    popen = qtop_module.subprocess.Popen
+    processes = []
+
+    def track_process(command, **kwargs):
+        if head_fails and command[0] == "head":
+            raise OSError("head unavailable")
+        process = popen(command, **kwargs)
+        processes.append(process)
+        return process
+
+    monkeypatch.setattr(qtop_module.subprocess, "Popen", track_process)
+    if head_fails:
+        with pytest.raises(OSError, match="head unavailable"):
+            qtop_module.TextDisplay.show_part_view(None, "test", str(source), 2, 3)
+    else:
+        result = qtop_module.TextDisplay.show_part_view(None, "test", str(source), 2, 3)
+        assert Path(result).read_text() == "1\n2\n"
+        assert len(processes) == 2
+    assert all(process.returncode is not None for process in processes)

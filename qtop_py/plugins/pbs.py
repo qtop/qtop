@@ -178,7 +178,6 @@ class PBSStatExtractor(StatExtractor):
         with open(qstatq_file, "r") as fin:
             fin.readline()
             fin.readline()
-            # server_name = fin.next().split(': ')[1].strip()
             fin.readline()
             fin.readline()  # .strip()  # the headers line should later define the keys in temp_dict, should they be different
             fin.readline()
@@ -227,6 +226,94 @@ class PBSStatExtractor(StatExtractor):
 
 
 class PBSBatchSystem(GenericBatchSystem):
+    def mask_source_trace(self, key, text, mask):
+        if key in ("qstat_file", "qstatq_file") and text.lstrip().startswith("{"):
+            data = json.loads(text)
+            container = "Jobs" if key == "qstat_file" else "Queue"
+            records = {}
+            labels = {"Job_Owner", "Job_Name", "job_state", "queue", "state_count", "enabled", "started", "max_run", "max_running"}
+            for name, record in data[container].items():
+                result = mask.structured(record, labels)
+                if container == "Jobs":
+                    result["Job_Owner"] = mask(record["Job_Owner"].split("@")[0], "user") + "@" + mask(record["Job_Owner"].split("@")[-1], "node")
+                    result["queue"] = mask(record["queue"], "queue")
+                    result["job_state"] = mask.public(record["job_state"], "[A-Z]")
+                    name = mask(name.split(".")[0], "job") + ".server"
+                else:
+                    for field in ("state_count", "enabled", "started", "max_run", "max_running"):
+                        if field in record:
+                            value = record[field]
+                            if isinstance(value, str):
+                                value = mask.public(value, r"(?:(?:Transit|Queued|Held|Waiting|Running|Exiting|Begun):[0-9]+\s*|[0-9]+|[Tt]rue|[Ff]alse|--)+")
+                            elif not isinstance(value, (bool, int, float)):
+                                raise ValueError("unsupported queue scalar")
+                            result[field] = value
+                    name = mask(name, "queue")
+                records[name] = result
+            return ("qstat.txt" if container == "Jobs" else "qstat_q.txt"), json.dumps({container: records}, indent=2) + "\n"
+        rows = []
+        for index, line in enumerate(text.splitlines()):
+            if not line.strip():
+                rows.append(line)
+                continue
+            if key == "qstat_file":
+                if index < 2:
+                    rows.append("Job id Name User Time Use S Queue" if index == 0 else "---")
+                    continue
+                match = re.fullmatch(self.qstat_maker.user_q_search + r"\s*", line)
+                if not match:
+                    raise ValueError("unsupported job row")
+                rows.append(
+                    "%s.server %s %s %s %s %s"
+                    % (
+                        mask(match["job_id"], "job"),
+                        mask(match["name"]),
+                        mask(match["user"], "user"),
+                        mask.public(match["time"], r"[0-9:*]+"),
+                        mask.public(match["state"], "[A-Z]"),
+                        mask(match["queue_name"], "queue"),
+                    )
+                )
+            elif key == "qstatq_file":
+                if index < 5:
+                    rows.append("server: server" if index == 1 else "")
+                    continue
+                fields = line.split()
+                if len(fields) == 10:
+                    fields[0] = mask(fields[0], "queue")
+                    for i in range(1, 8):
+                        fields[i] = mask.public(fields[i], r"(?:--|[0-9:]+|[0-9]+[mgtkp]b[a-z]*)")
+                    fields[8] = mask.public(fields[8], "D|E")
+                    fields[9] = mask.public(fields[9], "R|S")
+                    rows.append(" ".join(fields))
+                elif re.fullmatch(r"\s*[0-9]+\s+[0-9]+\s*", line):
+                    rows.append(line)
+                else:
+                    rows.append(mask.words(line))
+            elif key == "pbsnodes_file":
+                if not line[0].isspace():
+                    rows.append(mask(line.strip(), "node"))
+                elif "=" in line:
+                    name, value = [item.strip() for item in line.split("=", 1)]
+                    if name in ("np", "pcpus", "resources_available.ncpus", "gpus"):
+                        value = mask.public(value, r"[0-9]+")
+                    elif name == "state":
+                        value = mask.public(
+                            value,
+                            r"(?:free|busy|down|offline|unknown|job-busy|job-exclusive|reserve|time-shared)(?:,(?:free|busy|down|offline|unknown|job-busy|job-exclusive|reserve|time-shared))*",
+                        )
+                    elif name == "jobs":
+                        value = re.sub(r"([0-9,\-]+)/([0-9\[\]-]+)(?:\.[\w.*-]+)?", lambda match: match[1] + "/" + mask(match[2], "job") + ".server", value)
+                        value = mask.public(value, r"(?:[0-9,\-]+/[0-9\[\]\-]+\.server(?:,?\s*)?)*")
+                    else:
+                        name, value = mask(name, "field"), mask(value)
+                    rows.append("     " + name + " = " + value)
+                else:
+                    raise ValueError("unsupported continuation")
+            else:
+                raise ValueError("unsupported trace")
+        return {"qstat_file": "qstat.txt", "qstatq_file": "qstat_q.txt", "pbsnodes_file": "pbsnodes_a.txt"}[key], "\n".join(rows) + "\n"
+
     @staticmethod
     def get_mnemonic():
         return "pbs"

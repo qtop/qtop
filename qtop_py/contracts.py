@@ -95,6 +95,12 @@ if TYPE_CHECKING:
     QueuesInfo = Tuple[int, int, List[RawQueue]]
 
     class Scheduler(Protocol):
+        optional_trace_keys: Tuple[str, ...]
+
+        @abstractmethod
+        def mask_source_trace(self, key: str, text: str, mask: object) -> Tuple[str, str]:
+            pass
+
         @abstractmethod
         def get_cluster_state(self, options: Options) -> ClusterState:
             pass

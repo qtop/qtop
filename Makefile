@@ -23,8 +23,7 @@ FUZZ_ARTIFACT_DIR ?= artifacts/fuzz
 ATHERIS_ARGS ?=
 FORTIFY_BASE_REF ?= origin/develop
 COVERAGE_XML ?= artifacts/coverage/coverage.xml
-COVERAGE_MIN ?= 88
-##COVERAGE_MIN ?= 90
+COVERAGE_MIN ?= 90
 REPO_SANITY_DIR ?= artifacts/repo-sanity
 CODE_QUALITY_JSON ?= artifacts/code-quality/gl-code-quality-report.json
 LICENSE_DIR ?= artifacts/license
@@ -49,11 +48,15 @@ test:: ## Run the Python test suite
 	$(PYTHON) -m pytest
 
 coverage:: ## Run tests with coverage.py and print a terminal report
+	$(PYTHON) -m coverage erase
 	$(PYTHON) -m coverage run -m pytest
+	$(PYTHON) -m coverage combine
 	$(PYTHON) -m coverage report --fail-under=$(COVERAGE_MIN)
 
 coverage-xml:: ## Run tests under coverage.py and write a CI-ready Cobertura XML report
+	$(PYTHON) -m coverage erase
 	$(PYTHON) -m coverage run -m pytest
+	$(PYTHON) -m coverage combine
 	$(PYTHON) -m coverage report --fail-under=$(COVERAGE_MIN)
 	@mkdir -p $(dir $(COVERAGE_XML))
 	$(PYTHON) -m coverage xml -o $(COVERAGE_XML)
@@ -184,6 +187,11 @@ github-build:: build ## GitHub Actions entry point for package builds
 gitlab-build:: build ## GitLab CI entry point for package builds
 
 dist:: build ## Alias for build, matching common release target names
+
+.PHONY: authors
+authors:: ## List authors by attributed Python lines, highest count first
+	@git ls-files -z -- '*.py' | xargs -0 -n1 git blame --line-porcelain -- \
+		| grep '^author ' | sed 's/^author //' | sort | uniq -c | sort -nr
 
 version:: ## Print the package version
 	$(PYTHON) -c "import qtop_py; print(qtop_py.__version__)"

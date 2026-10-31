@@ -123,7 +123,7 @@ nightly-matrix-experimental:
         PYBIN: python
         TARGET: compat-py36
       # Keep non-blocking until the stable Docker tag is published and green.
-      - IMAGE: 'python:3.15.1-bookworm'
+      - IMAGE: 'python:3.15.2-bookworm'
         FAMILY: pythonimg
         PKGS: '-'
         PYBIN: python

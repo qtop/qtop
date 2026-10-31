@@ -1,5 +1,6 @@
 import os
 import re
+import shlex
 import subprocess
 import sys
 from pathlib import Path
@@ -337,6 +338,142 @@ def test_scheduler_command_checks_exit_status_and_cleans_up(tmp_path, exit_code)
     assert {path.name for path in tmp_path.iterdir()} == {"command.py", "trace.txt"}
 
 
+@pytest.mark.parametrize("spawn_child,interrupt", ((False, False), (True, False), (False, True)))
+def test_scheduler_timeout_or_interrupt_reaps_client_and_preserves_previous_trace(tmp_path, monkeypatch, spawn_child, interrupt):
+    import time
+
+    from qtop_py import qtop
+
+    if spawn_child and os.name != "posix":
+        pytest.skip("process-group cleanup is POSIX-specific")
+    script = tmp_path / "command.py"
+    child = "subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(5)'])\nopen('child.pid', 'w').write('started')\n" if spawn_child else ""
+    script.write_text("import subprocess, sys, time\n" + child + "print('partial output', flush=True)\ntime.sleep(5)\n", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    output = tmp_path / "trace.txt"
+    output.write_text("previous snapshot", encoding="utf-8")
+    processes = []
+    popen = qtop.subprocess.Popen
+
+    def track_process(*args, **kwargs):
+        process = popen(*args, **kwargs)
+        processes.append(process)
+        if interrupt:
+            communicate = process.communicate
+
+            def interrupt_once(*args, **kwargs):
+                process.communicate = communicate
+                raise KeyboardInterrupt
+
+            process.communicate = interrupt_once
+        return process
+
+    monkeypatch.setattr(qtop.subprocess, "Popen", track_process)
+    started = time.monotonic()
+    with pytest.raises(KeyboardInterrupt if interrupt else qtop.OperationalError, match=None if interrupt else "timed out after 0.3 seconds"):
+        qtop.execute_shell_batch_commands({"trace": shlex.quote(sys.executable) + " " + shlex.quote(str(script))}, {"trace": str(output)}, "trace", str(tmp_path), timeout=0.3)
+    assert time.monotonic() - started < 3
+    assert processes[0].poll() is not None
+    assert output.read_text() == "previous snapshot"
+    expected_files = {"command.py", "trace.txt", "child.pid"} if spawn_child else {"command.py", "trace.txt"}
+    assert {path.name for path in tmp_path.iterdir()} == expected_files
+
+
+@pytest.mark.parametrize("timeout", (0, -1, "nan", "inf", "bad", None))
+def test_scheduler_timeout_rejects_invalid_limits(tmp_path, timeout):
+    from qtop_py import qtop
+
+    with pytest.raises(qtop.OperationalError, match="positive finite number"):
+        qtop.execute_shell_batch_commands({"trace": "unused"}, {"trace": str(tmp_path / "trace.txt")}, "trace", str(tmp_path), timeout=timeout)
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_live_scheduler_timeout_is_configurable_and_reported_without_traceback(tmp_path):
+    commands = tmp_path / "bin"
+    commands.mkdir()
+    client = commands / "squeue"
+    client.write_text("#!%s\nimport time\ntime.sleep(5)\n" % sys.executable, encoding="utf-8")
+    client.chmod(0o755)
+    result = run_cli(
+        tmp_path,
+        "qtop_py.cli",
+        "-b",
+        "slurm",
+        "-O",
+        "-o",
+        "scheduler_command_timeout=0.1",
+        "-o",
+        "savepath=" + str(tmp_path / "output"),
+        extra_env={"PATH": str(commands) + os.pathsep + os.environ["PATH"]},
+    )
+    assert result.returncode == 1
+    assert "timed out after 0.1 seconds" in result.stderr
+    assert "Traceback" not in result.stderr
+
+
+def test_interrupted_nonanonymous_capture_exits_cleanly_and_finalizes_archive(tmp_path):
+    import tarfile
+
+    output = tmp_path / "capture"
+    script = """
+from qtop_py import qtop
+display = qtop.TextDisplay.display_selected_sections
+def interrupt_after_display(self, *args, **kwargs):
+    display(self, *args, **kwargs)
+    raise KeyboardInterrupt
+qtop.TextDisplay.display_selected_sections = interrupt_after_display
+raise SystemExit(qtop.cli_main())
+"""
+    result = subprocess.run(
+        [sys.executable, "-c", script, "-b", "slurm", "-s", str(ROOT / "tests/plugins/slurm_samples/basic"), "-L", "-F", "-O", "-o", "savepath=" + str(output)],
+        cwd=str(ROOT),
+        env=dict(os.environ, HOME=str(tmp_path), PYTHONPATH=str(ROOT)),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        universal_newlines=True,
+        timeout=20,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "Traceback" not in result.stderr
+    archive = next(output.glob("qtop_sample_*.tar"))
+    assert result.stderr.rstrip().endswith("Sample files saved in " + str(archive))
+    with tarfile.open(str(archive)) as saved:
+        assert saved.getnames().count("qtop.log") == 1
+        assert saved.extractfile("squeue.txt").read() == (ROOT / "tests/plugins/slurm_samples/basic/squeue.txt").read_bytes()
+        assert "sinfo.txt" in saved.getnames()
+
+
+def test_logged_trace_collection_command_can_be_pasted_into_shell(tmp_path, monkeypatch, caplog):
+    import json
+
+    from qtop_py import qtop
+
+    script = tmp_path / "command with spaces.py"
+    script.write_text("import json, sys\nprint(json.dumps(sys.argv[1:]))\n", encoding="utf-8")
+    expected = ["*", "JobID:0|,UserName:0", "literal$(touch injected)", "quote'and space"]
+    argv = [sys.executable, str(script)] + expected
+    command = " ".join(shlex.quote(arg) for arg in argv)
+    target = tmp_path / "trace '$HOME;.txt"
+    monkeypatch.chdir(tmp_path)
+    with caplog.at_level("DEBUG"):
+        qtop.execute_shell_batch_commands({"trace": command}, {"trace": target.name}, "trace", str(tmp_path))
+    prefix = "Trace collection command: "
+    logged = next(record.getMessage()[len(prefix) :] for record in caplog.records if record.getMessage().startswith(prefix))
+    assert json.loads(target.read_text()) == expected
+    target.unlink()
+    subprocess.check_call(["/bin/sh", "-c", logged], cwd=str(tmp_path.parent))
+    assert json.loads(target.read_text()) == expected
+    assert not (tmp_path / "injected").exists()
+
+
+@pytest.mark.parametrize("flags,expected", (([], None), (["-w"], 2), (["-w", "5"], 5)))
+def test_watch_arguments_use_argparse(monkeypatch, flags, expected):
+    from qtop_py import utils
+
+    monkeypatch.setattr(sys, "argv", ["qtop"] + flags)
+    assert utils.parse_qtop_cmdline_args().WATCH == expected
+
+
 def test_option_value_can_contain_equals():
     from qtop_py.qtop import get_key_val_from_option_string
 
@@ -523,8 +660,29 @@ def test_documented_capture_and_export_modes(tmp_path, flags, include_sources, i
     assert isinstance(state["queues"][0]["running"], int)
     archives = list(output.glob("qtop_sample_*.tar"))
     assert len(archives) == 1
+    assert result.stderr.rstrip().endswith("Sample files saved in " + str(archives[0]))
     with tarfile.open(archives[0]) as archive:
         names = set(archive.getnames())
+        if include_sources:
+            effective = json.load(archive.extractfile("qtop-effective-config.json"))
+            assert effective["savepath"] == str(output)
+            assert {"helpfile.txt", "LICENSE", "qtop", "qtop_py/web/index.html"} <= names
+            unpacked = tmp_path / "unpacked"
+            for member in archive.getmembers():
+                if member.name in {"qtop", "qtopconf.yaml", "helpfile.txt", "LICENSE"} or member.name.startswith("qtop_py/"):
+                    target = unpacked / member.name
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    target.write_bytes(archive.extractfile(member).read())
+            replay_env = dict(os.environ, PYTHONPATH="", HOME=str(tmp_path))
+            standalone = subprocess.run(
+                [sys.executable, str(unpacked / "qtop"), "-b", "demo", "-F", "-o", "savepath=%s" % (tmp_path / "standalone")],
+                cwd=str(unpacked),
+                env=replay_env,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                timeout=20,
+            )
+            assert standalone.returncode == 0, standalone.stderr
     assert ("qtop.log" in names) is include_raw
     assert ("qtop-snapshot.json" in names) is not include_raw
     assert any(name.startswith("qtop_fullview_") for name in names)
