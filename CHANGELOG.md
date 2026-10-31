@@ -5,6 +5,7 @@ See the [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 
 ## 0.9.20261026
 
+- Refactor: keep scheduler metadata and queue policy in plugins.
 - Refactor: split refresh/control paths, centralize cleanup and retain canonical state.
 - Refactor: centralize configuration preparation and pass collection inputs explicitly.
 - Bugfix: isolate scheduler policy, validate configuration and bound user lookups.

@@ -14,6 +14,7 @@ if TYPE_CHECKING:
     from qtop_py.contracts import ClusterState, Config, IdentifierMaps, Options, Snapshot
 
 from qtop_py.cluster_state import validate_cluster_state
+from qtop_py.plugins.metadata import JOB_IDENTITIES, mask_job_extensions, mask_node_extensions
 
 SNAPSHOT_NAME = "qtop-snapshot.json"
 DISPLAY_OPTIONS = (
@@ -59,19 +60,16 @@ def anonymize_state(state: object) -> "Tuple[ClusterState, IdentifierMaps]":
             mapping[value] = str(100000 + index) if kind == "job" else "%s_anon_%s_%s" % (kind[0], {"node": "wn", "queue": "q"}.get(kind, kind), index)
         return mapping[value]
 
-    structured_jobs = {job["id"]: job for job in state["jobs"] if "slurm_array_job_id" in job or "slurm_het_job_id" in job}
+    structured_jobs = {job["id"]: job for job in state["jobs"] if any(parent in job for parent, _, _ in JOB_IDENTITIES)}
 
     def job_id(value: str) -> str:
         identity = structured_jobs.get(str(value))
         if identity is not None:
-            array_parent = identity.get("slurm_array_job_id")
-            if array_parent is not None:
-                masked = mask(array_parent, "job") + "_" + identity.get("slurm_array_task_id", "")
-            else:
-                masked = mask(identity.get("slurm_het_job_id", ""), "job") + "+" + identity.get("slurm_het_job_offset", "")
+            parent, child, separator = next(fields for fields in JOB_IDENTITIES if fields[0] in identity)
+            masked = mask(str(identity.get(parent, "")), "job") + separator + str(identity.get(child, ""))
             mappings["job"][str(value)] = masked
             return masked
-        # PBS array tasks share the base ID in the jobs collection.
+        # Bracketed array tasks share the base ID in the jobs collection.
         match = re.match(r"^(.*?)(\[.*\])?$", str(value))
         if match is None:
             raise ValueError("Invalid job ID")
@@ -82,14 +80,7 @@ def anonymize_state(state: object) -> "Tuple[ClusterState, IdentifierMaps]":
     for original_job, job in zip(original_jobs, state["jobs"]):
         if "accounting_state" in original_job:
             job["accounting_state"] = original_job["accounting_state"]
-        if "slurm_partitions" in original_job:
-            job["slurm_partitions"] = [mask(name, "queue") for name in original_job["slurm_partitions"]]
-        if "slurm_array_job_id" in original_job:
-            job["slurm_array_job_id"] = mask(original_job["slurm_array_job_id"], "job")
-            job["slurm_array_task_id"] = original_job.get("slurm_array_task_id", "")
-        if "slurm_het_job_id" in original_job:
-            job["slurm_het_job_id"] = mask(original_job["slurm_het_job_id"], "job")
-            job["slurm_het_job_offset"] = original_job.get("slurm_het_job_offset", "")
+        mask_job_extensions(original_job, job, mask)
     for queue in state["queues"]:
         queue["name"] = mask(queue["name"], "queue")
     original_nodes = state["nodes"]
@@ -104,33 +95,7 @@ def anonymize_state(state: object) -> "Tuple[ClusterState, IdentifierMaps]":
         for node in state["nodes"]
     ]
     for original, node in zip(original_nodes, state["nodes"]):
-        if "slurm_node_state" in original:
-            node["slurm_node_state"] = original["slurm_node_state"]
-        if "slurm_job_ids" in original:
-            node["slurm_job_ids"] = [job_id(value) for value in original["slurm_job_ids"]]
-        if "oar_job_ids" in original:
-            node["oar_job_ids"] = [job_id(value) for value in original["oar_job_ids"]]
-        if "slurm_unmapped_cpus" in original:
-            node["slurm_unmapped_cpus"] = original["slurm_unmapped_cpus"]
-        for field, resources in (("slurm_gpu_configured", original.get("slurm_gpu_configured")), ("slurm_gpu_used", original.get("slurm_gpu_used"))):
-            if resources is not None:
-                masked_resources = copy.deepcopy(resources)
-                for resource in masked_resources:
-                    resource["type"] = None
-                    resource["parent_gpu_uuid"] = None
-                if field == "slurm_gpu_configured":
-                    node["slurm_gpu_configured"] = masked_resources
-                else:
-                    node["slurm_gpu_used"] = masked_resources
-        if "slurm_gpu_bindings" in original:
-            node["slurm_gpu_bindings"] = copy.deepcopy(original["slurm_gpu_bindings"])
-            for binding in node["slurm_gpu_bindings"]:
-                binding["job_id"] = job_id(binding["job_id"])
-                binding["type"] = None
-                binding["parent_gpu_uuid"] = None
-        source = original.get("cpu_allocation_source")
-        if source is not None and source in ("slurm", "estimated", "none"):
-            node["cpu_allocation_source"] = source
+        mask_node_extensions(original, node, job_id)
     return state, mappings
 
 
