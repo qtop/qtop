@@ -836,6 +836,20 @@ def test_get_date_obj_from_str(s, now, day_meant):
     assert get_date_obj_from_str(s, now).day == day_meant
 
 
+@pytest.mark.parametrize(
+    "now,expected",
+    (
+        ((2026, 11, 1, 1), (2026, 10, 31, 21)),
+        ((2027, 1, 1, 1), (2026, 12, 31, 21)),
+        ((2028, 3, 1, 1), (2028, 2, 29, 21)),
+        ((2026, 3, 1, 1), (2026, 2, 28, 21)),
+        ((2026, 11, 1, 22), (2026, 11, 1, 21)),
+    ),
+)
+def test_short_replay_time_handles_calendar_boundaries(now, expected):
+    assert get_date_obj_from_str("2100", datetime.datetime(*now)) == datetime.datetime(*expected)
+
+
 def test_unknown_scheduler_job_state_preserves_accounting(monkeypatch, caplog):
     monkeypatch.setattr(qtop_module, "scheduler", "slurm", raising=False)
     state_abbrevs = {"R": "running_of_user", "PD": "queued_of_user"}

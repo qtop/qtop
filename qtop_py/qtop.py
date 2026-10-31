@@ -225,7 +225,7 @@ def get_date_obj_from_str(s, now):
     elif len(s) == 4:
         _inp_datetime = datetime.datetime.strptime(s, "%H%M")
         _inp_datetime = now.replace(hour=_inp_datetime.hour, minute=_inp_datetime.minute, second=0)
-        inp_datetime = _inp_datetime if now > _inp_datetime else _inp_datetime.replace(day=_inp_datetime.day - 1)
+        inp_datetime = _inp_datetime if now > _inp_datetime else _inp_datetime - datetime.timedelta(days=1)
     elif len(s) == 9:
         _inp_datetime = datetime.datetime.strptime(s, "%m%dT%H%M")
         inp_datetime = _inp_datetime.replace(year=now.year, second=0)

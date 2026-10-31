@@ -5,6 +5,7 @@ See the [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 
 ## 0.9.20261025
 
+- Bugfix: handle replay times across month and year boundaries.
 - Bugfix: remove GPU/Slurm import cycles and clarify type-only imports.
 - Bugfix: (build) require patched setuptools on Python 3.10+.
 - Bugfix: (tar) accept trace tarballs with deterministic capture-set selection in -s.
