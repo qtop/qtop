@@ -3,6 +3,12 @@
 Notable changes by version, newest first.
 See the [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 
+## 0.9.20261022
+
+- Release: update version metadata.
+- Docs: improve openssf readiness
+- Bugfix: tmp dir on macos should stop complaining
+
 ## 0.9.20261020
 
 - Bugfix: (pbs) mark stopped queues; parse JSON job counts by state name.
@@ -18,6 +24,7 @@ See the [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 
 ## 0.9.20261018
 
+- Bugfix: accept macOS system temporary-directory aliases safely.
 - Metadata: remove project-wide development-stage labels.
 - Bugfix: show Slurm node-state suffix flags and preserve raw states in snapshots.
 - Feature: track Slurm GPU device bindings and MIG profiles in JSON snapshots.

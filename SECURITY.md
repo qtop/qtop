@@ -2,9 +2,25 @@
 
 ## Supported versions
 
-Security fixes are made on the `develop` branch and included in the next
-release. Please reproduce a report with the latest `develop` revision when
-practical.
+Security fixes are made on `develop` and included in the next release. There
+is no promised LTS maintenance, fixed support window or general backport commitment.
+There is a directional intention for quarterly releases.
+
+| Version or branch | Security maintenance |
+|---|---|
+| `develop` | Active fix line; this is development code, not a stable release. |
+| Latest published release | Reports are accepted. Fixes normally ship in the next release from `develop`; a separate patch release is not promised. |
+| Earlier releases and historical tags | No routine backports. Maintainers assess whether a report also affects the maintained line and may announce a specific exception. |
+
+When a new release is published, it becomes the latest-release triage target;
+the previous release moves to the earlier-release category unless an explicit
+support exception is recorded here. An exception must identify the version or
+branch, responsible maintainer and support end condition. Release records and
+ownership handoffs follow [MAINTAINERS.md](MAINTAINERS.md).
+
+Include the affected version or commit in every report. Reproduce against
+`develop` when practical, but do not delay a private report because you cannot
+test it. An unsupported release is not necessarily unaffected or safe.
 
 ## Reporting a vulnerability
 
@@ -12,7 +28,8 @@ Please do not open a public issue for a vulnerability that has not yet been
 disclosed. Prefer GitHub's
 [private vulnerability reporting form](https://github.com/qtop/qtop/security/advisories/new),
 or report it privately via email to any maintainer listed in qtop's package
-metadata and source headers.
+metadata and source headers. The primary coordination contact is Fotis Georgatos
+([email](mailto:kefalonia@gmail.com)); see [maintenance roles](MAINTAINERS.md).
 
 Use `qtop security report` in the subject. Include the affected qtop version
 or commit, scheduler family, operating system and Python version, a minimal
@@ -28,3 +45,9 @@ The maintainers will coordinate validation, remediation, release timing, and
 credit with the reporter. If email is unsuitable, ask for an alternative
 private channel without including vulnerability details in the initial public
 request.
+
+If the private reporting form is unavailable, use the email route. If the
+primary contact is unavailable, contact another maintainer address from the
+package metadata privately. Include the date and channel of the previous
+attempt, without posting vulnerability details publicly. This project does
+not promise a fixed acknowledgement or remediation deadline.

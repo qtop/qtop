@@ -395,10 +395,11 @@ when ``-c AUTO`` is used.
 
 The ``savepath`` expands environment variables and is created with permissions
 ``0700`` (accessible only to its owner). This also applies to ``-o savepath=...``;
-use an absolute path. qtop verifies ownership, rejects symlink components and
-refuses existing directories writable by other users or groups. Other writable
-parent directories require the sticky bit, as on ``/tmp``, and parents must be
-owned by the current user or root. Safe existing directories owned by the user
+use an absolute path. On macOS, the standard root-owned `/tmp` and `/var`
+aliases are expanded into `/private` before validation. qtop verifies ownership,
+rejects other symlink components and refuses existing directories writable by
+other users or groups. Other writable parent directories require the sticky bit,
+as on ``/tmp``. Non-writable site-owned parents are allowed. Safe existing directories owned by the user
 are restricted to ``0700``. If a path is rejected, inspect its contents and
 permissions or choose a new private directory; qtop does not repair shared paths.
 

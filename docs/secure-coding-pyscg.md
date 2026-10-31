@@ -1,190 +1,227 @@
 # Secure Coding Guide for Python (PySCG) alignment
 
-Status: proposal for maintainer decision (#488). Nothing in this document
-changes runtime behaviour; it maps real scanner findings on the qtop tree to
-the OpenSSF [Secure Coding Guide for Python](https://github.com/ossf/wg-best-practices-os-developers/tree/main/docs/Secure-Coding-Guide-for-Python)
-(first release, 2026-05-12) and proposes prioritised next steps.
+Reviewed against the working tree on 2026-10-30. This document maps implemented
+controls and remaining gaps to the OpenSSF
+[Secure Coding Guide for Python](https://github.com/ossf/wg-best-practices-os-developers/tree/main/docs/Secure-Coding-Guide-for-Python).
+It replaces the original proposal for #488; it is not a certification or a
+fresh vulnerability scan. Source references use files and function names
+instead of line numbers that drift as fixes land.
 
-## Method
+## Progress checklist
 
-The tool baselines were refreshed on a local integration branch on 2026-07-26,
-with the dependency baseline refreshed again on 2026-07-30. Full
-machine-readable reports remain CI or review artifacts rather than tracked
-source files. Reproduce with:
+`[x]` records an implemented control; `[ ]` records remaining work.
+`[CI]` marks only the bounded assertion enforced by a configured CI gate,
+not a completed security audit, a particular green run or required branch protection.
+The [CI contract](ci-structure.md#the-makefile-contract) identifies the jobs and targets.
 
-| Tool | Command | Result |
-|---|---|---|
-| bandit 1.8.x | `bandit -r qtop_py tools` | 53 findings: 50 low, 3 medium |
-| semgrep (`p/python`, `p/security-audit`) | `semgrep scan --config p/python --config p/security-audit qtop_py tools` | 4 findings, all ERROR severity |
-| pip-audit | `pip-audit -r requirements-ci.txt` | no known vulnerabilities in the selected Python 3.12 CI dependencies |
-| gitleaks 8.24 | `gitleaks dir .` | no leaks |
-| detect-secrets | `git ls-files -z \| xargs -0 detect-secrets scan` | 1 tracked candidate, a false positive |
-| repo-sanity (new) | `make repo-sanity` | 0 critical, 0 warning, 4 expected-fixture info |
-| OpenSSF Scorecard | public REST API, 2026-10-06 snapshot | score 8.1 |
+- [x] [CI] Reject scheduler XML DTDs and missing required XML fields;
+  `tests/plugins/test_sge.py` runs in `make test` ([details](#1-scheduler-xml)).
+- [x] [CI] Cover command failures and temporary-file cleanup with CLI/runtime
+  regressions in `make test` ([details](#2-commands-return-values-and-cleanup)).
+- [x] [CI] Validate imported records and preserve runtime checks under
+  `python -O`; security/cluster-state tests run in `make test`
+  ([details](#3-deserialization-and-runtime-validation)).
+- [x] [CI] Test bounded parser expansion through backend/property regressions,
+  deterministic fuzzing and the dedicated Atheris gate.
+- [x] [CI] Test snapshot replay, identifier masking and disabled imported
+  lookup commands in `make test` ([details](#4-support-archives-replay-and-privacy)).
+- [x] [CI] Test private POSIX save directories and isolated launcher imports
+  in `make test` ([details](#5-private-output-and-import-paths)).
+- [x] Document non-cryptographic randomness and masking scope
+  ([details](#6-randomness)); this is a source review, not a cryptographic CI proof.
+- [x] [CI] Enforce diff/source fortifications in shared CI and tracked-text
+  critical findings in the GitLab repo-sanity job
+  ([details](#7-source-text-and-terminal-data)).
+- [x] [CI] Run lint/format, type checks, coverage-floor, fixture and fuzz gates
+  in their configured jobs ([validation](#validation-and-dependency-maintenance)).
+- [ ] Review broader XML/archive/command resource budgets.
+- [ ] Replace predictable render-tool output defaults.
+- [ ] Review runtime terminal/log controls and optional web exposure.
+- [ ] Refresh standalone scanner/dependency/Scorecard results and verify external
+  repository settings for the assessed commit ([remaining work](#remaining-work)).
+- [x] Add source-backed [Security Insights](../security-insights.yml) and
+  [OpenSSF readiness guidance](openssf-readiness.md); badge enrollment and full
+  Baseline assessment remain open.
 
-## Findings mapped to PySCG
+## Scope and evidence
 
-### 1. Untrusted XML parsing -- highest priority
+Scheduler output, saved traces and support archives are data, not instructions.
+Live command configuration and the executable search path are operator-controlled
+trust boundaries. qtop retains Python 3.6 compatibility and a dependency-light
+runtime; modern analysis tools run separately.
 
-Standard-library `xml.etree.ElementTree` is imported for scheduler XML
-handling at `qtop_py/plugins/sge.py:19` and `qtop_py/qtop.py:864`; the direct
-scheduler-output parse is at `qtop_py/plugins/sge.py:31` (bandit B314/B405,
-semgrep `use-defused-xml*`, 3 hits). PySCG's first release has **no CWE-611
-(XML external entity) page yet**, so this is both a qtop action item and an
-upstream-contribution opportunity.
+The July 2026 baselines recorded 53 Bandit findings (50 low, 3 medium), four
+Semgrep findings, no known vulnerabilities in the selected Python 3.12 CI
+dependencies, no gitleaks findings and one detect-secrets sample-ID false
+positive. The recorded Scorecard score was 8.1 on 2026-10-06. These are historical
+observations, not current results. Rerun tools before claiming a clean scan or
+current score. Record the scanned commit, interpreter and tool/rule versions
+with reports in CI or review artifacts.
 
-Context that bounds the risk: the XML comes from scheduler CLIs or files in
-the cluster operator's trust domain, not from anonymous remote input, and
-CPython's ElementTree does not resolve external entities by default. The
-residual exposure is entity-expansion denial of service against a monitoring
-tool, plus any future code path that feeds less-trusted XML.
+## Implemented controls and limits
 
-Proposed next steps, compatible with qtop's zero-runtime-dependency rule
-(CONTRIBUTING.md):
-1. Document the XML trust boundary in the plugin docstrings.
-2. Add a guarded `defusedxml` import (used when present, stdlib fallback
-   otherwise) so hardened sites get protection without a new hard dependency.
-3. Contribute a CWE-611 page upstream to PySCG, citing this case study.
+### 1. Scheduler XML
 
-### 2. Subprocess use -- core function, document the boundary
+[SGEStatExtractor.get_xml_tree and NoDTDTreeBuilder](../qtop_py/plugins/sge.py)
+reject every DTD declaration using a standard-library parser target. This
+replaces the earlier proposal to add optional `defusedxml`.
+[Tests](../tests/plugins/test_sge.py) cover internal/nested entities, external
+DTDs/entities and multiple encodings, including UTF-16. Predefined XML entities
+remain accepted. Required element/text lookups raise explicit parse errors
+(PySCG `pyscg-0034`).
 
-15 findings (bandit B603 x14, B607 x1; semgrep tainted-env x1 in qtop's
-scheduler command path). Maps to PySCG `04_neutralization/pyscg-0009`
-"Prevent OS Command Injection" (CWE-78). Invoking scheduler CLIs (qstat,
-qhost, sinfo, oarnodes) IS qtop's job; what PySCG asks for is hygiene around
-it, most of which qtop already has: list-form argv everywhere, no
-`shell=True` anywhere in the tree (bandit B602: zero hits).
+The `ParseError` import in `qtop.py` is error handling, not another XML parsing
+entry point. Bandit suppressions explain the custom DTD rejection; they do not
+establish XML size, depth or parsing-time limits. Large ordinary XML remains a
+resource-exhaustion review area (CWE-400).
 
-Proposed next steps:
-1. Keep the existing list-form discipline as a stated rule (lint note).
-2. Commands and arguments derive from `qtopconf.yaml`, which is in the
-   operator's trust domain -- state this explicitly in the config docs.
-3. The single partial-path call sites (`git` in `tools/`) are dev/CI-side
-   tools resolving from PATH by design; annotate rather than change.
-4. Live-matrix discovery, now FIXED in this PR: scheduler autodetection
-   used a *hardcoded* `/usr/bin/which`, which raised
-   `FileNotFoundError` on minimal images without the `which` package (5 test
-   failures on AlmaLinux/Rocky/Fedora/Amazon/Arch lanes in the first
-   nightly-matrix run, 27360317465). Replaced with stdlib `shutil.which()`:
-   no new dependency, removes both the hardcoded path and the external-binary
-   requirement, and lets the matrix drop its per-lane `which` install. The
-   current implementation uses `shutil.which()` at `qtop_py/qtop.py:385`. No
-   regression: 180 tests and all 10 scheduler sample gates pass locally on
-   Python 3.12, while the dependency-light Python 3.6 compile and sample gate
-   also passes. The matrix lanes no longer need `which`.
+### 2. Commands, return values and cleanup
 
-### 3. Pseudo-random use -- acceptable, scope it
+For PySCG `pyscg-0009`, `pyscg-0036` and `pyscg-0052`,
+[execute_shell_batch_commands](../qtop_py/qtop.py) passes `shlex.split()` argv
+to `subprocess.Popen` without a shell. Startup/quoting failures and nonzero
+exits raise `OperationalError`; stderr decoding replaces invalid bytes.
+Output is collected in a temporary file and renamed only after success;
+`finally` removes leftover temporary files. Discovery uses `shutil.which()`,
+not external `/usr/bin/which`. Other runtime subprocesses also use argv lists.
 
-bandit B311 x16, all in `qtop_py/plugins/demo.py` and the anonymisation
-helpers. Maps to PySCG `09_cryptography/pyscg-0038` "Use Sufficiently Random
-Values" (CWE-330), which targets *cryptographic* contexts. qtop's usage
-generates demo/synthetic data and display anonymisation, not key material.
+This prevents shell syntax from being interpreted by a shell, but live commands,
+optional account lookups and `PATH` must still be trusted: programs run with
+the operator's privileges. Blanket command deadlines and stderr/output size
+limits are not supplied by these controls.
 
-Proposed next steps: declare the non-cryptographic intent where `random` is
-imported; if anonymisation is ever meant to be unlinkable across runs,
-switch those call sites to `secrets`/`SystemRandom` (stdlib, no new deps).
+### 3. Deserialization and runtime validation
 
-### 4. Asserts on runtime paths
+For PySCG `pyscg-0023`, the [limited YAML parser](../qtop_py/yaml_parser.py)
+uses `ast.literal_eval` for Python literals, not `eval` or object constructors.
+It is neither a complete YAML implementation nor a general resource-limited
+parser. [validate_cluster_state](../qtop_py/cluster_state.py) checks imported
+record shapes, required text, nonnegative counts and supported resource metadata.
+Runtime checks raise exceptions and survive `python -O` (`pyscg-0037`);
+[security tests](../tests/test_security.py) verify that boundary.
 
-The original review found 12 runtime asserts (Bandit B101). Runtime input
-checks now raise explicit exceptions and remain active under ``python -O``;
-tests retain assertions. Two ineffective viewport assertions were removed.
-This addresses PySCG ``08_coding_standards/pyscg-0037`` (CWE-617).
+[Slurm host/task expansion](../qtop_py/plugins/slurm.py) and
+[GPU index parsing](../qtop_py/gpu.py) have explicit expansion bounds.
+Those limits apply to specific operations, not every input or the whole process.
+See [backend regressions](../tests/plugins/) and
+[property tests](../tests/test_properties.py).
 
-SGE XML lookups validate required elements and text before dereferencing them
-(pyscg-0034). Missing or empty required fields raise a parse error; optional
-queue states and slot counts retain their defaults.
+### 4. Support archives, replay and privacy
 
-### 5. Hardcoded temp paths (dev tools only)
+For PySCG `pyscg-0012`, [load_snapshot](../qtop_py/sample.py) reads a named
+JSON member without extracting archive files to disk. It requires a regular
+member of at most 64 MiB and validates format, cluster state and known display
+options. Imported account-lookup commands are disabled. The member limit is
+not a total compressed-archive processing or memory budget.
 
-bandit B108 x2 (`tools/validate_pbs_samples.py:51`,
-`tools/validate_slurm_samples.py:44`): default output dirs under `/tmp`.
-PySCG first release has no CWE-377 page (second upstream-contribution
-candidate). Proposed next step: default to `tempfile.mkdtemp()` while
-keeping the CLI flag override; CI-side only, low risk.
+For `pyscg-0019`, anonymous capture masks user/node/queue/job identifiers and
+allocation references, drops unapproved job/node fields, and sanitizes local
+commands, paths and identifier-bearing configuration rules. Original logs
+are omitted in favor of a minimal capture log. See
+[capture/replay tests](../tests/test_sample.py).
+This is support-data masking, not cryptographic unlinkability: topology,
+counts, state and permitted configuration can still identify a site.
+Ordinary logs and non-anonymous captures can contain original identifiers
+and malformed input; review artifacts before sharing them.
 
-### 6. Dependency currency (pinned CI set)
+### 5. Private output and import paths
 
-On Python 3.12 and newer, `requirements-ci.txt` selects the refreshed
-build and analysis toolchain, including `pip 26.2.2`, `setuptools 84.2.0`
-and `pytest 9.1.1`. Python 3.9 retains compatible pins for tools whose newer
-releases require Python 3.10 or later. Pygments is pinned in both sets.
+[private_save_directory](../qtop_py/fileutils.py) opens POSIX directory
+components with `O_DIRECTORY` and `O_NOFOLLOW`. The final directory must belong
+to the effective user, reject group/other writes and be restricted to `0700`.
+On macOS, root-owned `/tmp` and `/var` aliases to `/private/tmp` and
+`/private/var` are expanded before the same component checks. Other symlinks
+and writable non-sticky ancestors are rejected; sticky shared parents
+and non-writable site-owned ancestors are allowed. Unsupported non-POSIX checks
+fail explicitly. Temporary outputs use `mkstemp` or `NamedTemporaryFile`.
+Directory validation does not prove every later pathname operation is race-free.
 
-Patched pytest requires Python 3.10 or newer and is selected on those
-interpreters. Python 3.9 uses its newest compatible release, pytest 8.4.2.
-The shared matrix runner mitigates the predictable temporary-directory
-finding by creating a random mode-0700 parent and passing a child through
-pytest's `--basetemp`; other local Python 3.9 invocations should likewise
-use a private `TMPDIR` or `--basetemp`. Older matrix lanes retain their image
-or virtual-environment bootstrap pip/setuptools for test-only validation.
-Python 3.6--3.8 lanes remain on the dependency-light compatibility gate. This
-is a CI-only boundary: the qtop runtime deliberately has no dependencies.
-GitLab Dependency Scanning is an Ultimate feature, so `pip-audit` remains the
-portable local check.
+For PySCG `pyscg-0013`, the [source launcher](../qtop) runs Python with `-I`
+and adds its own checkout to the import path, excluding caller working-directory,
+`PYTHONPATH` and user-site imports. The checkout must itself be trusted.
+Direct `python -m qtop_py.cli` retains normal Python import behavior.
+[Security regressions](../tests/test_security.py) cover both boundaries.
 
-### 7. Text and encoding trust
+### 6. Randomness
 
-Maps to PySCG `02_encoding_and_strings` (pyscg-0043/0044/0045, CWE-175/180/176).
-qtop already enforces ASCII-only diffs (`tools/fortifications.py`); this
-change adds `make repo-sanity` (`tools/repo_sanity.py`) auditing tracked UTF-8
-text files up to 5 MiB for Trojan-Source bidi controls, zero-width/invisible
-characters, unicode line separators, C0/C1 controls and homoglyph-prone
-letters. File discovery requires `git ls-files`; there is no directory-walk
-fallback or tracked-path skip list, so committed text cannot hide under a
-normally generated directory. Binary and oversized files are explicitly out
-of scope. Current tree result: **0 critical, 0 warning** and 4 expected fixture
-INFO rows. Only exact fixture files and complete ANSI SGR colour sequences are
-allowlisted; OSC, cursor, and other terminal controls remain critical. The
-self-test plants eight payload classes, including undesired controls at
-allowlisted paths, and also proves that a valid SGR colour sequence remains
-accepted.
+For PySCG `pyscg-0038`, `random` generates
+[demo data](../qtop_py/plugins/demo.py) and reproducible
+[fuzz inputs](../tools/deterministic_fuzz.py), not keys or tokens.
+[Legacy masking](../qtop_py/serialiser.py) and
+[snapshot anonymization](../qtop_py/sample.py) use mappings/counters, not random
+secrets. New authentication or secrecy requirements would need a separate
+design; changing the PRNG alone would not provide anonymity.
 
-### 8. Secrets
+### 7. Source text and terminal data
 
-gitleaks: clean. The tracked-file detect-secrets scan reports one
-high-entropy *sample job identifier* at `tools/validate_pbs_samples.py:22`, a
-false positive. Scanning generated artifacts and tool caches can add further
-non-source candidates. The configured GitLab Secret Detection template can
-check qualifying pipelines; expect and triage the sample-ID finding when it
-runs.
+Related PySCG guidance includes `pyscg-0043/0044/0045`.
+[fortifications.py](../tools/fortifications.py) checks added diff lines for
+non-ASCII/control characters, rejects `eval()` and disallows production/tooling
+wildcard imports. Generated/binary-looking paths require manual review.
+It does not enforce every rule in `AGENTS.md`.
 
-### 9. Private output and launcher imports
+[repo_sanity.py](../tools/repo_sanity.py) audits Git-tracked UTF-8 text up to
+5 MiB for bidi/invisible/control characters and confusable letters. It requires
+`git ls-files`; there is no directory-walk fallback. Binary and oversized files
+are excluded. Exact fixtures allow complete ANSI SGR sequences and specific
+historical carriage returns, not arbitrary terminal controls. Critical findings
+fail; warnings fail with `--strict`. The self-test and
+[tests](../tests/test_repo_sanity.py) verify these boundaries.
 
-For pyscg-0040/0035, save directories are opened component by component with
-``O_DIRECTORY`` and ``O_NOFOLLOW``. Ownership and writable ancestors are checked
-through directory descriptors. The final directory must belong to the effective
-user, must not allow group/other writes, and is restricted to ``0700``. Sticky
-shared parents such as ``/tmp`` are allowed. Ancestors may belong to site
-administrator or service accounts; only the final directory must belong to the
-current user. Symlinks and group/other-writable non-sticky parents are rejected;
-errors identify the offending parent. Both file configuration and CLI overrides
-follow these checks.
+These repository checks do not sanitize runtime terminal or log content
+(`pyscg-0022`). Scheduler-supplied escape sequences remain a separate review area.
 
-For pyscg-0013, ``./qtop`` runs Python with ``-I`` and explicitly adds only its
-own checkout as an application import path. This excludes the caller's working
-directory, ``PYTHONPATH`` and user site packages while retaining Python 3.6
-compatibility. Direct ``python -m qtop_py.cli`` invocations retain Python's
-normal import behavior.
+## Validation and dependency maintenance
 
-## Scorecard gap-to-action map (baseline 8.1, 2026-10-06)
+The [Makefile](../Makefile) supplies the shared checks:
 
-| Check | Score | Action in this change | Proposed follow-up |
-|---|---|---|---|
-| SAST | 0 | GitLab SAST plus CodeQL on GitHub pushes and pull requests | expect uplift after analyzed commits reach the default branch |
-| Security-Policy | 4 | SECURITY.md plus direct private-reporting link | enable GitHub private vulnerability reporting in repository settings |
-| CII-Best-Practices | 0 | -- | register for the OpenSSF Best Practices badge |
-| Fuzzing | 0 (baseline) | deterministic stress gate plus bounded Atheris adapter | verify recognition after merging to the scanned branch |
-| Packaging | -1 | isolated, commit-pinned Trusted Publishing workflow | configure the `pypi` environment and PyPI trusted publisher, then publish a release |
-| Signed-Releases | -1 | -- | release attestations (see docs/supply-chain-sbom.md) |
-| Pinned-Dependencies | 10 | keep | -- |
-| Token-Permissions | 10 | new workflows follow least privilege | -- |
-| Dangerous-Workflow | 10 | new workflows keep this clean | -- |
+| Check | Command / scope |
+|---|---|
+| Lint and source/diff checks | `make lint format-check`; override `FORTIFY_BASE_REF` if necessary |
+| Tracked text and detector proof | `make repo-sanity`; `python3 tools/repo_sanity.py --selftest` |
+| Tests, coverage and backend rendering | `make test coverage backend-validation` |
+| Property checks | `make property-test` (also part of the full pytest suite) |
+| Deterministic fuzzing | `make deterministic-fuzz`; defaults: seed 488, 5,000 cases |
+| Coverage-guided fuzzing | `make coverage-fuzz`; bounded Atheris adapter, Linux x86-64 CPython 3.12 |
+| Static contracts and types | `make type-check`; Mypy, Pyright and ty |
+| Python 3.6 compatibility | `make compat-py36 PYTHON=python3.6` in a suitable environment |
+| Complete PR gate | `make pre-pr`; coverage, backend gates, fuzzers, lint/format and types |
 
-## Priorities
+[requirements-ci.txt](../requirements-ci.txt) is the version source for pinned
+build/test/analysis tools. Interpreter markers retain compatible older tools;
+Python 3.6-3.8 use the dependency-light compatibility path. The
+[matrix runner](../ci/scripts/matrix_lane.sh) gives pytest a random mode-0700
+parent and a child `--basetemp`, protecting the older Python 3.9 pytest lane
+from a predictable shared temporary root. Local runs on that lane need the
+same private-temp boundary.
 
-1. P1: XML hardening decision (finding 1) and the three CI-dep pin bumps
-   (finding 6).
-2. P2: dev-tool temp-path defaults (finding 5). Runtime assert conversion,
-   private save directories and isolated source startup are implemented.
-3. P3: random-use annotations (finding 3), PySCG upstream contributions
-   (CWE-611, CWE-377 pages), fuzzing harness, Best Practices badge.
+Pins do not prove absence of vulnerabilities. Run
+`pip-audit -r requirements-ci.txt` in the intended interpreter environment.
+Bandit, Semgrep, gitleaks, detect-secrets and pip-audit are separate scanner
+tools, not all installed or run by `make pre-pr`. Reproduce the original
+source scan scopes with `bandit -r qtop_py tools` and
+`semgrep scan --config p/python --config p/security-audit qtop_py tools`;
+record rule versions and triage against the current implementation.
+
+[GitHub workflows](../.github/workflows/) and
+[GitLab security configuration](../ci/security.gitlab-ci.yml) configure provider
+analyzers and secret scanning. Configuration does not establish successful
+execution or enabled repository settings. See [CI structure](ci-structure.md)
+and [supply-chain controls](supply-chain-sbom.md); the old Scorecard table is
+not a current settings audit.
+
+## Remaining work
+
+- [ ] Review resource budgets for large XML, archive processing and live commands,
+   beyond existing per-operation bounds.
+- [ ] Replace predictable render-tool output defaults in
+   [validate_pbs_samples.py](../tools/validate_pbs_samples.py),
+   [validate_slurm_samples.py](../tools/validate_slurm_samples.py) and their
+   Makefile overrides with private temporary directories or explicit output
+   choices. This remains open (CWE-377).
+- [ ] Review runtime terminal/log control handling. Review the optional
+   [web server](../qtop_py/web.py): it binds port 8080 on all interfaces and has
+   no authentication or TLS. It is not a protected remote dashboard.
+- [ ] Refresh scanner/dependency and Scorecard evidence for the assessed commit;
+   verify private-reporting, publishing and badge settings outside the source
+   tree. No new scan or external-settings audit is claimed here.

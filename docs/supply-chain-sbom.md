@@ -34,6 +34,12 @@ steps cheap:
 
 ## Phase 2 -- provenance and signatures (moderate effort)
 
+For new GitHub integration, prefer artifact attestations: the older
+[SLSA GitHub Generator](https://github.com/slsa-framework/slsa-github-generator)
+now states it is unmaintained and recommends that route. See
+[OpenSSF readiness](openssf-readiness.md) for metadata, badge registration and
+assessment tooling. No SLSA level is claimed by this plan.
+
 1. **Build provenance on GitHub**: `actions/attest-build-provenance` in the
    build workflow generates SLSA v1 provenance for `dist/*`, backed by the
    Sigstore public-good infrastructure; verification is
@@ -43,8 +49,9 @@ steps cheap:
    SLSA attestation alongside artifacts on the mirror.
 3. **Keyless signing of release artefacts**: cosign sign-blob with OIDC
    (no long-lived keys to manage) for sdist/wheel at release time.
-4. **PyPI Trusted Publishing** when a packaging workflow lands: OIDC-based,
-   no stored API tokens, and it closes the Scorecard Packaging gap.
+4. **PyPI Trusted Publishing**: activate the prepared OIDC workflow with the
+   maintainer-managed publisher/environment settings, then verify publication.
+   Its effect on Scorecard must be checked after a successful release.
 
 ## Phase 3 -- consumption, policy, and verification (ongoing)
 

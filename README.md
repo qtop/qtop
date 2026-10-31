@@ -1,8 +1,13 @@
 # qtop
 
 [![build-qtop](https://github.com/qtop/qtop/actions/workflows/build.yml/badge.svg?branch=develop)](https://github.com/qtop/qtop/actions/workflows/build.yml)
+[![CodeQL status](https://github.com/qtop/qtop/actions/workflows/codeql.yml/badge.svg?branch=develop)](https://github.com/qtop/qtop/actions/workflows/codeql.yml)
+[![Coverage checks](https://github.com/qtop/qtop/actions/workflows/coverage.yml/badge.svg?branch=develop)](https://github.com/qtop/qtop/actions/workflows/coverage.yml)
+[![License: MIT](https://img.shields.io/github/license/qtop/qtop)](LICENSE)
 ![Python 3](https://img.shields.io/badge/python-3.x-blue.svg)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/qtop/qtop/badge)](https://scorecard.dev/viewer/?uri=github.com/qtop/qtop)
+[![Security Insights metadata](https://img.shields.io/badge/Security_Insights-v2.2.0-blue)](security-insights.yml)
+[![OpenSSF Best Practices preparation](https://img.shields.io/badge/OpenSSF_Best_Practices-preparing-lightgrey)](docs/openssf-readiness.md#best-practices-badge)
 
 qtop is a scheduler-independent observability layer for HPC clusters, with an extremely fast terminal interface. It is a portable, dependency-light cluster observability and scheduler debugging tool for Slurm, PBS, SGE and OAR - and even more, with your contributed plugin effort.
 
@@ -23,6 +28,9 @@ Schedulers expose a great deal of information, but their native commands rarely 
 - Run without a resident service, database, or heavy runtime dependency stack.
 
 ## Quick start
+
+See the [Quickstart guide](docs/quickstart.md) for a short walkthrough from the
+demo to live monitoring, saved traces and support snapshots.
 
 Clone the repository and launch the built-in demo:
 
@@ -142,8 +150,10 @@ gates, including coverage, type checks, and both parser fuzzers. See
 
 - [User documentation and tutorial](docs/documentation.md)
 - [Contributing guide](CONTRIBUTING.md)
+- [Maintenance roles, review routing and escalation](MAINTAINERS.md)
 - [Code of conduct](CODE_OF_CONDUCT.md)
 - [Security policy](SECURITY.md)
+- [OpenSSF metadata, badge preparation and future integrations](docs/openssf-readiness.md)
 - [Issue tracker](https://github.com/qtop/qtop/issues)
 
 Bug reports with captured scheduler samples are especially valuable. New scheduler plugins, sample fixtures, documentation improvements, and portability fixes are welcome.

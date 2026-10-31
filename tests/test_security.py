@@ -87,6 +87,54 @@ def test_save_directory_rejects_writable_nonsticky_parent(tmp_path):
     assert not (parent / "results").exists()
 
 
+@pytest.mark.parametrize(
+    "alias, destination, owner, allowed",
+    [
+        ("/tmp", "private/tmp", 0, True),
+        ("/tmp", "/private/tmp", 0, True),
+        ("/var", "private/var", 0, True),
+        ("/var", "/private/var", 0, True),
+        ("/tmp", "private/elsewhere", 0, False),
+        ("/tmp", "private/tmp", 12345, False),
+    ],
+)
+def test_macos_save_directory_handles_only_root_owned_system_aliases(tmp_path, monkeypatch, alias, destination, owner, allowed):
+    root = tmp_path / "root"
+    parent = root / "private" / alias.lstrip("/")
+    parent.mkdir(parents=True)
+    parent.chmod(0o1777)
+    (root / alias.lstrip("/")).symlink_to(destination, target_is_directory=True)
+    real_open, real_lstat = os.open, os.lstat
+
+    def virtual_open(path, *args, **kwargs):
+        return real_open(str(root) if path == os.sep else path, *args, **kwargs)
+
+    def virtual_lstat(path, *args, **kwargs):
+        if path == alias:
+            values = list(real_lstat(str(root / alias.lstrip("/"))))
+            values[4] = owner
+            return os.stat_result(values)
+        return real_lstat(path, *args, **kwargs)
+
+    real_readlink = os.readlink
+    monkeypatch.setattr(fileutils.sys, "platform", "darwin")
+    monkeypatch.delattr(fileutils.os, "O_PATH", raising=False)
+    monkeypatch.setattr(fileutils.os, "open", virtual_open)
+    monkeypatch.setattr(fileutils.os, "lstat", virtual_lstat)
+    monkeypatch.setattr(fileutils.os, "readlink", lambda path: real_readlink(str(root / alias.lstrip("/"))) if path == alias else real_readlink(path))
+    if allowed:
+        assert fileutils.private_save_directory(alias + "/results") == "/private" + alias + "/results"
+        assert stat.S_IMODE((parent / "results").stat().st_mode) == 0o700
+        (parent / "redirect").symlink_to(parent / "results", target_is_directory=True)
+        with pytest.raises(OSError):
+            fileutils.private_save_directory(alias + "/redirect/child")
+        assert not (parent / "results" / "child").exists()
+    else:
+        with pytest.raises(OSError):
+            fileutils.private_save_directory(alias + "/results")
+        assert not (parent / "results").exists()
+
+
 @pytest.mark.parametrize("mode, allowed", ((0o755, True), (0o1777, True), (0o770, False), (0o777, False)))
 def test_save_directory_handles_site_owned_parents(tmp_path, monkeypatch, mode, allowed):
     parent = tmp_path / "site-owned"
