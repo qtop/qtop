@@ -48,7 +48,7 @@ import tempfile
 import time
 import traceback
 from ast import literal_eval
-from math import ceil
+from math import ceil, isfinite
 from typing import TYPE_CHECKING, Optional
 
 if TYPE_CHECKING:
@@ -436,7 +436,7 @@ def auto_get_avail_batch_system(config):
     raise SchedulerNotSpecified
 
 
-def execute_shell_batch_commands(batch_system_commands, filenames, _file, _savepath):
+def execute_shell_batch_commands(batch_system_commands, filenames, _file, _savepath, timeout=30):
     """
     scheduler-specific commands are invoked from the shell and their output is saved *atomically* to files,
     as defined by the user in QTOPCONF_YAML
@@ -446,6 +446,12 @@ def execute_shell_batch_commands(batch_system_commands, filenames, _file, _savep
     try:
         if not _batch_system_command:
             raise OperationalError("Empty scheduler command for %s; check %s." % (_file, QTOPCONF_YAML))
+        try:
+            timeout = float(timeout)
+            if not isfinite(timeout) or timeout <= 0:
+                raise ValueError("nonpositive or nonfinite timeout")
+        except (TypeError, ValueError, OverflowError) as error:
+            raise OperationalError("scheduler_command_timeout must be a positive finite number of seconds") from error
         with tempfile.NamedTemporaryFile("w", dir=_savepath, delete=False) as fin:
             logging.debug("\tFile state before subprocess call: %(fin)s" % {"fin": fin})
             logging.debug("\tWaiting on subprocess.call...")
@@ -463,13 +469,31 @@ def execute_shell_batch_commands(batch_system_commands, filenames, _file, _savep
                     " ".join(shlex.quote(arg) for arg in command_args),
                     shlex.quote(os.path.abspath(filenames[_file])),
                 )
-                command = subprocess.Popen(command_args, stdout=fin, stderr=subprocess.PIPE)
+                command = subprocess.Popen(command_args, stdout=fin, stderr=subprocess.PIPE, start_new_session=(os.name == "posix"))
             except OSError as error:
                 raise OperationalError("Cannot execute scheduler command %r: %s. Check PATH or load the scheduler module." % (_batch_system_command, error.strerror)) from error
             except ValueError as error:
                 raise OperationalError("Invalid scheduler command %r: %s. Check command quoting in %s." % (_batch_system_command, error, QTOPCONF_YAML)) from error
-            error = command.communicate()[1]
-            command.wait()
+            try:
+                error = command.communicate(timeout=timeout)[1]
+            except (subprocess.TimeoutExpired, KeyboardInterrupt) as failure:
+                if os.name == "posix":
+                    from signal import SIGKILL
+
+                    with contextlib.suppress(ProcessLookupError):
+                        os.killpg(command.pid, SIGKILL)
+                else:
+                    command.kill()
+                try:
+                    command.communicate(timeout=1)
+                except subprocess.TimeoutExpired:
+                    if command.stderr is not None:
+                        command.stderr.close()
+                    with contextlib.suppress(subprocess.TimeoutExpired):
+                        command.wait(timeout=1)
+                if isinstance(failure, KeyboardInterrupt):
+                    raise
+                raise OperationalError("Scheduler command %r timed out after %g seconds" % (_batch_system_command, timeout)) from failure
             if error:
                 logging.warning("A message from your shell: %s", error.decode("utf-8", errors="replace").strip())
             if command.returncode:
@@ -579,7 +603,7 @@ def get_input_filenames(INPUT_FNs_commands, config):
         if not args.SOURCEDIR:
             _savepath = os.path.realpath(os.path.expandvars(config["savepath"]))
             try:
-                filenames[_file] = execute_shell_batch_commands(batch_system_commands, filenames, _file, _savepath)
+                filenames[_file] = execute_shell_batch_commands(batch_system_commands, filenames, _file, _savepath, timeout=config.get("scheduler_command_timeout", 30))
             except OperationalError as error:
                 if scheduler != "slurm" or _file != "scontrol_file":
                     raise

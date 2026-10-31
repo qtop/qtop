@@ -1054,6 +1054,13 @@ checkout.
 
 ### Troubleshooting failures
 
+Live scheduler commands have a 30-second timeout. Set `scheduler_command_timeout`
+in your configuration or use `-o scheduler_command_timeout=120` for slow clients.
+The value must be positive and finite. Timeouts terminate the client (and its
+process group on POSIX), discard partial output and preserve the previous trace.
+Required command failures exit with a diagnostic; optional-detail fallbacks remain
+available.
+
 Expected filesystem, configuration, scheduler-command and malformed-input
 failures print a concise diagnostic to stderr and exit with status 1.
 Argument syntax rejected by argparse uses status 2. Successful operations
