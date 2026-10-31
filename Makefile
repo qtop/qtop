@@ -185,6 +185,11 @@ gitlab-build:: build ## GitLab CI entry point for package builds
 
 dist:: build ## Alias for build, matching common release target names
 
+.PHONY: authors
+authors:: ## List authors by attributed Python lines, highest count first
+	@git ls-files -z -- '*.py' | xargs -0 -n1 git blame --line-porcelain -- \
+		| grep '^author ' | sed 's/^author //' | sort | uniq -c | sort -nr
+
 version:: ## Print the package version
 	$(PYTHON) -c "import qtop_py; print(qtop_py.__version__)"
 
