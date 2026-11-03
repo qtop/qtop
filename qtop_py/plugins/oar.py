@@ -59,7 +59,7 @@ class OARBatchSystem(GenericBatchSystem):
         notes = getattr(document, "_diagnostics", {}).get("oar_diagnostics", {})
         if section == "snapshot" and any(notes.values()):
             return [
-                "OAR allocation notes: %s resources lack details; %s resources absent from node states; "
+                "WARNING: OAR allocation notes: %s resources lack details; %s resources absent from node states; "
                 "%s job IDs absent from oarstat; %s shared resource slots (? marks unknown ownership)."
                 % tuple(notes.get(key, 0) for key in ("missing_resources", "extra_resources", "unlisted_jobs", "shared_resources"))
             ]

@@ -499,7 +499,11 @@ command. Other backends and saved-trace/sample replay are unaffected; replay can
 only show the data captured. The existing `-a` option remains blind remapping.
 
 If Slurm rows are rejected, or active jobs reference missing nodes or invalid
-node lists, qtop displays `Slurm snapshot incomplete` with counts. Valid jobs
+node lists, qtop displays `WARNING: Slurm snapshot incomplete` with counts.
+Scheduler messages appear together at the end of each frame, even when display
+sections are disabled. `INFO:` labels accounting and CPU-ID explanations;
+`WARNING:` labels incomplete snapshots, estimated placement and omitted CPU
+assignments. Valid jobs
 and queues remain visible; unavailable node capacity is not invented. JSON and
 support replay preserve optional `slurm_diagnostics` counters:
 `rejected_squeue_rows`, `rejected_sinfo_rows`, `jobs_with_missing_nodes`, and
@@ -596,7 +600,7 @@ For offline input, save that output as `scontrol.txt` alongside `squeue.txt`
 and `sinfo.txt`; qtop discovers it automatically. The file is optional.
 Missing, failed, malformed or inconsistent details use the existing estimated
 placement. Each node exports `cpu_allocation_source` (`slurm`, `estimated`, or
-`none`); the occupancy legend identifies estimates. Valid detail records use
+`none`); the scheduler messages block identifies estimates. Valid detail records use
 Slurm abstract CPU IDs, which are not Linux CPU IDs or task affinity masks.
 Overlapping allocations also use estimates because the current core map can
 represent only one job per CPU. Estimated placement fills available capacity

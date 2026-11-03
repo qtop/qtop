@@ -5,6 +5,7 @@ See the [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 
 ## 0.9.20261031
 
+- Bugfix: group scheduler messages and label their severity INFO, WARNING etc.
 - Release: update version metadata to 0.9.20261031.
 
 ## 0.9.20261026

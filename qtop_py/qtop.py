@@ -1369,11 +1369,11 @@ class TextDisplay(object):
         if self.args.WATCH:
             print("\033c", end=" ")  # comma is to avoid losing the whole first line. An empty char still remains, though.
 
-        self.display_backend_messages("snapshot")
-
         for idx, part in enumerate(config["user_display_parts"], 1):
             display_func, opts = display_parts[part][0], display_parts[part][1]
             display_func(*opts) if not sections_off[idx] else None  # ty: ignore[missing-argument, too-many-positional-arguments] - config-driven dispatch
+
+        self.display_backend_messages()
 
         if not self.args.ANONYMIZE:
             print("\nLog file created in %s" % os.path.expandvars(QTOP_LOGFILE))
@@ -1433,7 +1433,6 @@ class TextDisplay(object):
             }
         )
 
-        self.display_backend_messages("accounting")
         expanded = globals().get("dynamic_config", {}).get("queue_summary_expanded", getattr(self.args, "EXPAND_QUEUES", False))
         print("%(queues)s :" % {"queues": colorize("Queueing", "Cyan_L")}, end="\n" if expanded else " ")
         for _queue_name, q_tuple in qstatq_lod.items():
@@ -1469,16 +1468,19 @@ class TextDisplay(object):
         print_char_stop = self.wns_occupancy.print_char_stop
 
         self.display_basic_legend()
-        self.display_backend_messages("placement")
         self.display_matrix(wns_occupancy, print_char_start, print_char_stop)
         # the transposed matrix is one continuous block, doesn't make sense to break into more matrices
         if not dynamic_config.get("transpose_wn_matrices", config["transpose_wn_matrices"]):
             self.display_remaining_matrices(wns_occupancy, print_char_start, print_char_stop)
-        self.display_backend_messages("resources")
 
-    def display_backend_messages(self, section):
-        for line in scheduler_backend(scheduler).display_messages(section, self.document, getattr(self.cluster, "worker_nodes", []), self.config):
-            print(line)
+    def display_backend_messages(self):
+        backend = scheduler_backend(scheduler)
+        nodes = getattr(self.cluster, "worker_nodes", [])
+        lines = [line for section in ("snapshot", "accounting", "placement", "resources") for line in backend.display_messages(section, self.document, nodes, self.config)]
+        if lines:
+            print("Scheduler messages:")
+            print("\n".join(lines))
+            print()
 
     def display_basic_legend(self):
         """Displays the Worker Nodes occupancy label plus columns explanation"""

@@ -35,7 +35,7 @@ class CustomBackend(GenericBatchSystem):
 
     @staticmethod
     def display_messages(section, document, nodes, config):
-        return ["custom " + section]
+        return ["INFO: custom " + section]
 
 
 def test_plugin_controls_collection_optional_inputs_and_queue_policy(monkeypatch, tmp_path, capsys):
@@ -59,8 +59,15 @@ def test_plugin_controls_collection_optional_inputs_and_queue_policy(monkeypatch
     idle = dict(domainname="node1", qname=["batch"], state="-", core_job_map={})
     assert queue_node_counts([idle], ["batch"], CustomBackend) == [("batch", 1, 1)]
     display = qtop.TextDisplay(None, config, None, None, SimpleNamespace(worker_nodes=[]), options)
-    display.display_backend_messages("snapshot")
-    assert capsys.readouterr().out == "custom snapshot\n"
+    display.display_backend_messages()
+    assert capsys.readouterr().out.splitlines() == [
+        "Scheduler messages:",
+        "INFO: custom snapshot",
+        "INFO: custom accounting",
+        "INFO: custom placement",
+        "INFO: custom resources",
+        "",
+    ]
 
 
 def test_plugin_controls_optional_live_failure_and_detection(monkeypatch, tmp_path, caplog):
@@ -130,3 +137,17 @@ def test_detection_only_considers_explicit_registered_backends(monkeypatch, nati
     else:
         with pytest.raises(qtop.SchedulerNotSpecified):
             qtop.auto_get_avail_batch_system(config, {"custom": CustomBackend})
+
+
+@pytest.mark.parametrize(
+    "nodes, levels",
+    (
+        ([], []),
+        ([{"cpu_allocation_source": "estimated"}], ["WARNING"]),
+        ([{"cpu_allocation_source": "slurm"}], ["INFO"]),
+        ([{"cpu_allocation_source": "estimated", "slurm_unmapped_cpus": 2}, {"cpu_allocation_source": "slurm"}], ["WARNING", "INFO", "WARNING"]),
+    ),
+)
+def test_slurm_placement_message_severity(nodes, levels):
+    messages = qtop.scheduler_backend("slurm").display_messages("placement", SimpleNamespace(), nodes, {})
+    assert [message.split(":", 1)[0] for message in messages] == levels

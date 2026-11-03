@@ -623,15 +623,21 @@ def test_malformed_scheduler_command_quotes_are_actionable(tmp_path):
 
 
 @pytest.mark.parametrize("all_rejected", (False, True))
-def test_partial_slurm_snapshot_has_visible_warning_and_exported_diagnostics(tmp_path, all_rejected):
+@pytest.mark.parametrize("sections", ((), ("-1", "-2", "-3")))
+def test_partial_slurm_snapshot_has_visible_warning_and_exported_diagnostics(tmp_path, all_rejected, sections):
     import json
 
     (tmp_path / "squeue.txt").write_text("bad-job\n" + ("" if all_rejected else "101|alice|R|batch|2|node2\n"))
     (tmp_path / "sinfo.txt").write_text("bad-node\n" + ("" if all_rejected else "node1|batch|idle|4\n"))
     output = tmp_path / "output"
-    result = run_cli(tmp_path, "qtop_py.cli", "-b", "slurm", "-s", str(tmp_path), "-F", "-E", "-o", "savepath=%s" % output)
+    result = run_cli(tmp_path, "qtop_py.cli", "-b", "slurm", "-s", str(tmp_path), "-F", "-E", "-o", "savepath=%s" % output, *sections)
     assert result.returncode == 0, result.stderr
-    assert "Slurm snapshot incomplete: 1 rejected job rows; 1 rejected node rows;" in result.stdout
+    assert result.stdout.count("Scheduler messages:") == 1
+    messages = result.stdout.split("Scheduler messages:\n", 1)[1].split("\n\n", 1)[0].splitlines()
+    assert messages[0].startswith("WARNING: Slurm snapshot incomplete: 1 rejected job rows; 1 rejected node rows;")
+    assert "INFO: Slurm job counts include individual array tasks and heterogeneous components." in messages
+    assert all(line.startswith(("INFO: ", "WARNING: ")) for line in messages)
+    assert not re.search(r"^Slurm", result.stdout, re.MULTILINE)
     if not all_rejected:
         assert "1 active jobs reference missing nodes" in result.stdout
     state = json.loads(next(output.glob("qtop_json_*.json")).read_text())

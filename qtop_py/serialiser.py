@@ -130,6 +130,7 @@ class GenericBatchSystem(object):
 
     @staticmethod
     def display_messages(section, document, nodes, config):
+        """Return severity-prefixed display lines for the scheduler messages block."""
         return []
 
     def mask_source_trace(self, key, text, mask):
