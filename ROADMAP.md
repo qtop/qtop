@@ -99,9 +99,12 @@ or a release is prepared.
 
 - [ ] Validate release artifacts before publication.
   - [x] [CI] Build sdist/wheel artifacts; legacy installation checks version metadata against the source.
-  - [ ] Validate the chosen modern release artifacts in clean environments beyond the existing legacy installation gate.
+  - [x] [CI] Validate the exact sdist/wheel pair in clean environments through
+    `make release-check`, required by both CI build entry points.
+  - [ ] Retain passing artifact/compatibility evidence for the chosen release revision.
   - [ ] Audit all release documentation/package contents beyond the bundled configuration and help checks.
-  - [ ] Run demo, CLI and committed scheduler-sample checks from the installation.
+  - [x] [CI] Run demo, CLI and committed scheduler samples from installations
+    of the supplied wheel and a wheel rebuilt from the supplied sdist.
   - [x] [CI] Run `make legacy-install-check` in the required AlmaLinux 8 / Python 3.6 jobs.
   - [ ] Make release preparation and dry-run checks reproducible.
 

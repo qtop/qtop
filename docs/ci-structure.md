@@ -39,7 +39,27 @@ and interpreter lanes; `make ci` remains the portable shared test gate.
 |---|---|---|---|
 | Shared test validation | `make github-ci` / `make gitlab-ci` | `.github/workflows/build.yml` | `ci/test.gitlab-ci.yml` (`modern-python`) |
 | Python 3.6 / RHEL8 floor | `make compat-py36` | `.github/workflows/build.yml` (`almalinux-python36`) | `ci/test.gitlab-ci.yml` (`almalinux-python36`) |
-| Package build | `make github-build` / `make gitlab-build` | `.github/workflows/build.yml` (`build`) | `ci/build.gitlab-ci.yml` (`build`) |
+| Validated package build | `make github-build` / `make gitlab-build` | `.github/workflows/build.yml` (`build`) | `ci/build.gitlab-ci.yml` (`build`) |
+
+Both build entry points use `make validated-build`: build into `DIST_DIR`
+(default `dist/`), then run `make release-check` on exactly one sdist and one
+wheel. Use a fresh directory; extra or stale distributions fail validation.
+The checker installs the supplied wheel and a wheel rebuilt from the
+supplied sdist in separate disposable environments, outside the checkout import
+path. It checks version metadata, entry points, bundled defaults, help, demo and
+committed PBS/OAR/SGE/Slurm samples, and reports unchanged input SHA-256 digests.
+Rebuilding the sdist uses the current pinned backend without dependency downloads.
+The original release files are never replaced by that rebuild.
+
+The GitHub release workflow already calls `make github-build`, so validation must
+pass before its artifact upload and downstream PyPI publishing job. GitLab's build
+job uses the same gate. This does not verify PyPI account configuration, successful
+publication or every supported interpreter on the exact release files.
+
+```sh
+make validated-build                    # build and validate dist/
+make release-check DIST_DIR=/path/to/dist # validate an existing pair; leave its files unchanged
+```
 
 When the coverage gate passes, it produces a Cobertura report. GitHub stores it as
 a workflow artifact, while GitLab reads the percentage and report natively.

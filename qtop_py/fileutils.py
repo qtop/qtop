@@ -23,7 +23,8 @@ def mkdir_p(path):
             raise
 
 
-def private_save_directory(path):
+@contextlib.contextmanager
+def _private_directory(path):
     """Create and verify a private output path without following symlinks."""
     if not isinstance(path, str) or not path.strip():
         raise ValueError("Save directory must be a nonempty path")
@@ -65,9 +66,32 @@ def private_save_directory(path):
             elif writable_by_others and not info.st_mode & stat.S_ISVTX:
                 parent = os.path.join(os.sep, *parts[: index + 1])
                 raise PermissionError(errno.EACCES, "Save directory has an untrusted parent (writable without sticky bit)", parent)
+        yield path, fd
     finally:
         os.close(fd)
-    return path
+
+
+def private_save_directory(path):
+    """Create and verify a private output path without following symlinks."""
+    with _private_directory(path) as (directory, _):
+        return directory
+
+
+def private_log_stream(path):
+    """Open a user-owned, singly linked regular log through a verified directory FD."""
+    directory, name = os.path.split(os.path.abspath(os.path.expandvars(path)))
+    with _private_directory(directory) as (_, directory_fd), contextlib.ExitStack() as allocation:
+        descriptor = os.open(name, os.O_WRONLY | os.O_CREAT | os.O_APPEND | os.O_NOFOLLOW | os.O_NONBLOCK, 0o600, dir_fd=directory_fd)
+        allocation.callback(os.close, descriptor)
+        info = os.fstat(descriptor)
+        if not stat.S_ISREG(info.st_mode) or info.st_uid != os.geteuid() or info.st_nlink != 1:
+            raise PermissionError(errno.EACCES, "Log must be a user-owned, singly linked regular file", path)
+        if info.st_mode & (stat.S_IWGRP | stat.S_IWOTH):
+            raise PermissionError(errno.EACCES, "Log is writable by others; inspect it or choose a private log", path)
+        os.fchmod(descriptor, 0o600)
+        stream = os.fdopen(descriptor, "a", encoding="utf-8")
+        allocation.pop_all()
+        return stream
 
 
 def check_empty_file(orig_file):

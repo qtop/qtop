@@ -25,7 +25,7 @@ The [CI contract](ci-structure.md#the-makefile-contract) identifies the jobs and
   deterministic fuzzing and the dedicated Atheris gate.
 - [x] [CI] Test snapshot replay, identifier masking and disabled imported
   lookup commands in `make test` ([details](#4-support-archives-replay-and-privacy)).
-- [x] [CI] Test private POSIX save directories and isolated launcher imports
+- [x] [CI] Test private POSIX save/log directories, safe log opens and isolated launcher imports
   in `make test` ([details](#5-private-output-and-import-paths)).
 - [x] Document non-cryptographic randomness and masking scope
   ([details](#6-randomness)); this is a source review, not a cryptographic CI proof.
@@ -148,7 +148,13 @@ On macOS, root-owned `/tmp` and `/var` aliases to `/private/tmp` and
 and writable non-sticky ancestors are rejected; sticky shared parents
 and non-writable site-owned ancestors are allowed. Unsupported non-POSIX checks
 fail explicitly. Temporary outputs use `mkstemp` or `NamedTemporaryFile`.
-Directory validation does not prove every later pathname operation is race-free.
+Log creation now uses the same directory validation and opens the leaf relative
+to the held directory descriptor with append/no-follow/nonblocking flags. It rejects
+non-regular, foreign-owned, multiply linked or group/other-writable logs before
+writing, tightens accepted logs to `0600`, and preserves append history. A directory
+replacement cannot redirect that open. `PrivateFileHandler` retains normal
+`FileHandler` error-reporting behavior. This does not prove every other later
+pathname operation is race-free.
 
 For PySCG `pyscg-0013`, the [source launcher](../qtop) runs Python with `-I`
 and adds its own checkout to the import path, excluding caller working-directory,

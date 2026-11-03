@@ -17,6 +17,11 @@ from qtop_py.constants import QTOP_LOGFILE
 from qtop_py.safety import SafeLogFormatter
 
 
+class PrivateFileHandler(logging.FileHandler):
+    def _open(self):
+        return fileutils.private_log_stream(self.baseFilename)
+
+
 def init_logging(options):
     log_level = logging.WARN
     if options.verbose == 1:
@@ -26,12 +31,10 @@ def init_logging(options):
 
     formatter = SafeLogFormatter("%(asctime)s - %(levelname)s - %(message)s", "%Y-%m-%d %H:%M:%S")
 
-    fileutils.mkdir_p(QTOP_LOGFILE.rsplit("/", 1)[0])  # logfile path
-
     logger = logging.getLogger()
     logger.setLevel(logging.DEBUG)
 
-    fh = logging.FileHandler(QTOP_LOGFILE)
+    fh = PrivateFileHandler(QTOP_LOGFILE, encoding="utf-8")
     fh.setLevel(logging.DEBUG if options.DEBUG else log_level)
     fh.setFormatter(formatter)
     logger.addHandler(fh)

@@ -1085,6 +1085,13 @@ discard them; any network exposure must be selected locally, for example with
 
 ### Troubleshooting failures
 
+On POSIX, qtop keeps its log directory private (`0700`) and opens logs as
+user-owned regular files with mode `0600`. Existing readable logs are tightened
+and appended to. Symlinks, hard links, special files, foreign ownership and
+logs writable by other users are refused without changing their contents.
+If startup reports unsafe log permissions, inspect the indicated path and its
+ownership before retrying; qtop does not silently trust or truncate that history.
+
 Live scheduler commands have a 30-second timeout. Set `scheduler_command_timeout`
 in your configuration or use `-o scheduler_command_timeout=120` for slow clients.
 The value must be positive and finite. Timeouts terminate the client (and its

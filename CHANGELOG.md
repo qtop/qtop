@@ -6,6 +6,7 @@ See the [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 ## 0.9.20261031
 
 - Feature: configure the experimental web address/port; default to loopback.
+- Bugfix: validate exact release artifacts and create private, symlink-safe logs.
 - Bugfix: escape untrusted display/log controls and bound input/command resources.
 - Bugfix: group scheduler messages and label their severity INFO, WARNING etc.
 - Refactor: move legacy parser and display policy out of core.
