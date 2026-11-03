@@ -7,7 +7,7 @@ import re
 from typing import TYPE_CHECKING, Any, Callable, Dict, Mapping, cast
 
 if TYPE_CHECKING:
-    from qtop_py.contracts import Job, Node
+    from qtop_py.state_types import Job, Node
 
 from qtop_py.schedulers.gpu import validate_gpu_resources
 

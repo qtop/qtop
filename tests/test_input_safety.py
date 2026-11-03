@@ -17,9 +17,9 @@ from xml.etree.ElementTree import ParseError
 import pytest
 
 from qtop_py import configuration, process, qtop, safety, sample, yaml_parser
-from qtop_py.document import Document
 from qtop_py.plugins.pbs import PBSStatExtractor
 from qtop_py.plugins.sge import SGEStatExtractor
+from qtop_py.snapshot_document import Document
 
 
 @pytest.mark.parametrize("hostile", ["x\x1b[2J", "x\x1b]52;c;secret\x07", "x\r\nWARNING: forged", "x\x9b2J", "x\u202e", "x\u061c", "x\udcff", "x\\n"])

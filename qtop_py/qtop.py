@@ -50,10 +50,10 @@ from math import ceil, isfinite
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from qtop_py import contracts
+    from qtop_py import state_types
 
-    config: contracts.Config
-    dynamic_config: contracts.Config
+    config: state_types.Config
+    dynamic_config: state_types.Config
 
 from qtop_py import __version__, configuration, fileutils, sample, utils
 from qtop_py import yaml_parser as yaml
@@ -67,13 +67,13 @@ from qtop_py.constants import (
     SYSTEMCONFDIR,
     USERPATH,
 )
-from qtop_py.document import Document
 from qtop_py.errors import OperationalError
 from qtop_py.process import communicate_with_timeout
 from qtop_py.runtime import RunResources
 from qtop_py.safety import visible_text
 from qtop_py.schedulers.registry import PLUGIN_BATCH_SYSTEMS
 from qtop_py.serialiser import GenericBatchSystem, resolve_job_id
+from qtop_py.snapshot_document import Document
 from qtop_py.ui.controls import navigate_viewport, read_rule_choices
 from qtop_py.ui.viewport import Viewport
 from qtop_py.web import Web
@@ -2287,7 +2287,7 @@ def collect_snapshot(args, config, backend, trace_paths, archive):
     """Collect one normalized snapshot, including replay and masking."""
     scheduler = backend.get_mnemonic()
     savepath = config["savepath"]
-    scheduling_system: "contracts.Scheduler"
+    scheduling_system: "state_types.Scheduler"
     try:
         if args.load_sample:
             cluster_state = args.sample_snapshot["state"]

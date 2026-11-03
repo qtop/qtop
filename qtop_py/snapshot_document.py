@@ -13,7 +13,7 @@ from qtop_py.safety import visible_data
 if TYPE_CHECKING:
     from typing import Dict
 
-    from qtop_py import contracts
+    from qtop_py import state_types
 
 
 JobDoc = namedtuple("JobDoc", ["user_name", "job_state", "job_queue"])
@@ -22,11 +22,11 @@ QDoc = namedtuple("QDoc", ["lm", "queued", "run", "state"])
 
 class Document(namedtuple("Document", ["worker_nodes", "jobs_dict", "queues_dict", "total_running_jobs", "total_queued_jobs"])):
     if TYPE_CHECKING:
-        _state: contracts.ClusterState
-        _job_metadata: Dict[str, contracts.Job]
+        _state: state_types.ClusterState
+        _job_metadata: Dict[str, state_types.Job]
 
     @classmethod
-    def from_cluster_state(cls, cluster_state: "contracts.ClusterState") -> "Document":
+    def from_cluster_state(cls, cluster_state: "state_types.ClusterState") -> "Document":
         cluster_state = copy.deepcopy(validate_cluster_state(cluster_state))
         original = cluster_state
         cluster_state = visible_data(cluster_state)
@@ -54,11 +54,11 @@ class Document(namedtuple("Document", ["worker_nodes", "jobs_dict", "queues_dict
     def _diagnostics(self) -> "Dict[str, Dict[str, int]]":
         return {key: cast("Dict[str, int]", value) for key, value in self._state.items() if key.endswith("_diagnostics")} if hasattr(self, "_state") else {}
 
-    def to_cluster_state(self) -> "contracts.ClusterState":
+    def to_cluster_state(self) -> "state_types.ClusterState":
         if hasattr(self, "_state"):
             return copy.deepcopy(self._state)
         # Five-field legacy documents are adapted only at this boundary.
-        state: "contracts.ClusterState" = {
+        state: "state_types.ClusterState" = {
             "jobs": [
                 {
                     **getattr(self, "_job_metadata", {}).get(job_id, {}),

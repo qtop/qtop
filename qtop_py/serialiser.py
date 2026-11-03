@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING, Callable, Collection, Dict, Tuple
 if TYPE_CHECKING:
     from typing import List
 
-    from qtop_py.contracts import ClusterState, Config, JobsInfo, Node, Options, QueuesInfo
+    from qtop_py.state_types import ClusterState, Config, JobsInfo, Node, Options, QueuesInfo
 
 from qtop_py.cluster_state import build_cluster_state
 from qtop_py.schedulers.metadata import node_is_idle

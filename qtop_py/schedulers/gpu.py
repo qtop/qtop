@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any, Dict, List
 from qtop_py.hostlist import HostlistParser
 
 if TYPE_CHECKING:
-    from qtop_py.contracts import GPUResource
+    from qtop_py.state_types import GPUResource
 
 MAX_GPU_INDICES = 100000
 

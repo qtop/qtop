@@ -12,7 +12,7 @@ import tarfile
 from typing import TYPE_CHECKING, Dict, List, Optional, Tuple, cast, overload
 
 if TYPE_CHECKING:
-    from qtop_py.contracts import ClusterState, Config, IdentifierMaps, Options, Snapshot
+    from qtop_py.state_types import ClusterState, Config, IdentifierMaps, Options, Snapshot
 
 from qtop_py import safety
 from qtop_py.cluster_state import validate_cluster_state

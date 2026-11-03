@@ -91,7 +91,7 @@ unresolved-global = "ignore"
 # First-pass contracts; legacy callers are analyzed as imported dependencies.
 [tool.mypy]
 python_version = "3.12"
-files = ["qtop_py/contracts.py", "qtop_py/cluster_state.py", "qtop_py/sample.py", "qtop_py/serialiser.py", "qtop_py/ui/viewport.py"]
+files = ["qtop_py/state_types.py", "qtop_py/cluster_state.py", "qtop_py/sample.py", "qtop_py/serialiser.py", "qtop_py/ui/viewport.py"]
 strict = true
 follow_imports = "silent"
 
@@ -113,6 +113,6 @@ show_missing = true
 [tool.pyright]
 pythonVersion = "3.12"
 pythonPlatform = "Linux"
-include = ["qtop_py/contracts.py", "qtop_py/cluster_state.py", "qtop_py/sample.py", "qtop_py/serialiser.py", "qtop_py/ui/viewport.py"]
+include = ["qtop_py/state_types.py", "qtop_py/cluster_state.py", "qtop_py/sample.py", "qtop_py/serialiser.py", "qtop_py/ui/viewport.py"]
 typeCheckingMode = "standard"
-strict = ["qtop_py/contracts.py", "qtop_py/cluster_state.py", "qtop_py/sample.py", "qtop_py/ui/viewport.py"]
+strict = ["qtop_py/state_types.py", "qtop_py/cluster_state.py", "qtop_py/sample.py", "qtop_py/ui/viewport.py"]

@@ -1,6 +1,6 @@
 ## Copyright (c) 2026 qtop contributors
 ## SPDX-License-Identifier: MIT
-"""Static contracts only: importing qtop never requires typing_extensions."""
+"""Shared state/configuration types and backend protocol; no typing_extensions runtime dependency."""
 
 from typing import TYPE_CHECKING
 
