@@ -50,6 +50,12 @@ class SGEStatExtractor(StatExtractor):
         StatExtractor.__init__(self, config, options)
         self.scheduler_output_filenames = scheduler_output_filenames
 
+    def anonymize_queue_list_nametag(self, queue_list_nametag):
+        name, nodename = queue_list_nametag.text.split("@")
+        name = self.anonymize(name, "qs")
+        nodename = self.anonymize(nodename, "wns")
+        return name + "@" + nodename
+
     def get_xml_tree(self, xml_file):
         with open(xml_file, mode="rb") as fin:
             try:

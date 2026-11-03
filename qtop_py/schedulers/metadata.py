@@ -17,7 +17,6 @@ DIAGNOSTICS = {
 }
 JOB_IDENTITIES = (("slurm_array_job_id", "slurm_array_task_id", "_"), ("slurm_het_job_id", "slurm_het_job_offset", "+"))
 NODE_JOB_FIELDS = ("slurm_job_ids", "oar_job_ids")
-CLASSIC_REPORT_NAME = "PBS"
 
 
 def validate_diagnostics(data: Dict[str, object]) -> None:

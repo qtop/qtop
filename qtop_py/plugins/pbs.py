@@ -19,10 +19,11 @@ import re
 from typing import Iterator, Tuple
 
 import qtop_py.fileutils as fileutils
+from qtop_py.schedulers.tabular import TabularStatExtractor
 from qtop_py.serialiser import GenericBatchSystem, StatExtractor, resolve_job_id
 
 
-class PBSStatExtractor(StatExtractor):
+class PBSStatExtractor(TabularStatExtractor):
     def __init__(self, config, options):
         StatExtractor.__init__(self, config, options)
         self.user_q_search = (
@@ -226,6 +227,10 @@ class PBSStatExtractor(StatExtractor):
 
 
 class PBSBatchSystem(GenericBatchSystem):
+    classic_report_name = "PBS"
+    classic_job_count_source = "reported by qstat - q"
+    classic_account_note = "  ('all' also includes those in C and W states, as reported by qstat)"
+
     def mask_source_trace(self, key, text, mask):
         if key in ("qstat_file", "qstatq_file") and text.lstrip().startswith("{"):
             data = json.loads(text)

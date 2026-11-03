@@ -939,3 +939,19 @@ def test_slurm_queueing_line_marks_blocked_partitions(tmp_path, availability, ex
     state = json.loads(next(output.glob("qtop_json_*.json")).read_text())
     assert next(queue for queue in state["queues"] if queue["name"] == "compute")["state"] == availability
     assert "2+1 jobs" in frame
+
+
+@pytest.mark.parametrize("scheduler_name", ("pbs", "slurm"))
+def test_classic_labels_follow_selected_backend(tmp_path, scheduler_name):
+    if scheduler_name == "pbs":
+        (tmp_path / "pbsnodes_a.txt").write_text("")
+        (tmp_path / "qstat.txt").write_text('{"Jobs": {}}')
+        (tmp_path / "qstat_q.txt").write_text('{"Queue": {}}')
+    else:
+        (tmp_path / "squeue.txt").write_text("101|alice|R|batch|2|node1\n")
+        (tmp_path / "sinfo.txt").write_text("node1|batch|idle|4\n")
+    result = run_cli(tmp_path, "qtop_py.cli", "-b", scheduler_name, "-s", str(tmp_path), "-C", "-F", "-o", "savepath=" + str(tmp_path / "output"))
+    assert result.returncode == 0, result.stderr
+    assert ("reported by qstat - q" in result.stdout) is (scheduler_name == "pbs")
+    assert ("C and W states, as reported by qstat" in result.stdout) is (scheduler_name == "pbs")
+    assert ("PBS \n" if scheduler_name == "pbs" else "qtop \n") in result.stdout

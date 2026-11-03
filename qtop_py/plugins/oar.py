@@ -7,12 +7,13 @@ from collections import OrderedDict
 
 from qtop_py import fileutils
 from qtop_py import yaml_parser as yaml
+from qtop_py.schedulers.tabular import TabularStatExtractor
 from qtop_py.serialiser import GenericBatchSystem, StatExtractor
 
 DEFAULT_NODE_STATE_MAPPING = {"Alive": "-", "Dead": "d", "Suspected": "s", "Mixed": "%", "Unknown": "?"}
 
 
-class OarStatExtractor(StatExtractor):
+class OarStatExtractor(TabularStatExtractor):
     def __init__(self, config, options):
         StatExtractor.__init__(self, config, options)
         self.user_q_search = (

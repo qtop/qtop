@@ -8,10 +8,9 @@
 ## SPDX-License-Identifier: MIT
 ##
 
-import logging
 import re
 from itertools import count
-from typing import TYPE_CHECKING, Callable, Collection, Dict, Sequence, Tuple
+from typing import TYPE_CHECKING, Callable, Collection, Dict, Tuple
 
 if TYPE_CHECKING:
     from typing import List
@@ -19,7 +18,7 @@ if TYPE_CHECKING:
     from qtop_py.contracts import ClusterState, Config, JobsInfo, Node, Options, QueuesInfo
 
 from qtop_py.cluster_state import build_cluster_state
-from qtop_py.schedulers.metadata import CLASSIC_REPORT_NAME, node_is_idle
+from qtop_py.schedulers.metadata import node_is_idle
 
 
 def resolve_job_id(job_id: str, known_ids: Collection[str]) -> str:
@@ -40,24 +39,6 @@ class StatExtractor(object):
         self.config = config
         self.options = options
         self.anonymize = self.anonymize_func() if self.options.ANONYMIZE else self.eponymize_func()
-
-    def _process_qstat_line(self, re_search: str, line: str, re_match_positions: Sequence[str]) -> Dict[str, str]:
-        """
-        extracts data from a tabular qstat-like file
-        returns a list
-        """
-        m = re.search(re_search, line.strip())
-
-        try:
-            if m is None:
-                raise AttributeError("qstat row did not match")
-            job_id, user, job_state, queue = [m.group(x) for x in re_match_positions]
-        except AttributeError:
-            logging.warning("Line: %s not properly parsed by regex expression. Assuming alternative qstat format." % line.strip())
-            raise
-        job_id = job_id.split(".")[0]
-        user = self.anonymize(user, "users")
-        return {"JobId": job_id, "UnixAccount": user, "S": job_state, "Queue": queue}
 
     def anonymize_func(self) -> Callable[[str, str], str]:
         """
@@ -96,12 +77,6 @@ class StatExtractor(object):
     def eponymize_func(self) -> Callable[[str, str], str]:
         return lambda s, a_type: s
 
-    def anonymize_queue_list_nametag(self, queue_list_nametag):
-        name, nodename = queue_list_nametag.text.split("@")
-        name = self.anonymize(name, "qs")
-        nodename = self.anonymize(nodename, "wns")
-        return name + "@" + nodename
-
 
 class GenericBatchSystem(object):
     optional_trace_keys: Tuple[str, ...] = ()
@@ -113,7 +88,9 @@ class GenericBatchSystem(object):
     blocked_queue_note = ""
     native_queue_membership = False
     node_is_idle = staticmethod(node_is_idle)
-    classic_report_name = CLASSIC_REPORT_NAME
+    classic_report_name = "qtop"
+    classic_job_count_source = ""
+    classic_account_note = "  ('all' includes every reported job state)"
 
     @staticmethod
     def collection_command(key, command, options):

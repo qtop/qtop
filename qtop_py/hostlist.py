@@ -61,7 +61,7 @@ class HostlistParser:
                     raise ValueError("too many expanded hosts")
             return list(OrderedDict.fromkeys(expanded))
         except ValueError as error:
-            logging.warning("Ignoring invalid Slurm nodelist %r: %s", nodelist, error)
+            logging.warning("Ignoring invalid host list %r: %s", nodelist, error)
             return []
 
     @classmethod

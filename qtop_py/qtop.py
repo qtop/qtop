@@ -1027,7 +1027,7 @@ class WNOccupancy(object):
             uid, user = line[0], line[4]
             # Single-expression fallback, portable to py3.6 / PyPy / MicroPython (no walrus, no findall).
             # The appended " NoPattern" sentinel guarantees a match: an all-numeric user (e.g. a numeric
-            # uid from sinfo) yields "NoPattern". The space is load-bearing: without it "abc" -> "abcNoPattern".
+            # scheduler-provided uid) yields "NoPattern". The space is load-bearing: without it "abc" -> "abcNoPattern".
             account_match = re.search(r"[A-Za-z]+", user + " NoPattern")
             account_letters = account_match.group(0) if account_match else "NoPattern"
             for re_account in list(mapping.keys())[::-1]:
@@ -1264,7 +1264,7 @@ class WNOccupancy(object):
             try:
                 user_queue = jobid_to_user_to_queue[job]
             except KeyError as KeyErrorValue:
-                logging.warning("There seems to be a problem with the qstat output. A Job (ID %s) has gone rogue. Please check with the SysAdmin." % (str(KeyErrorValue)))
+                logging.warning("Scheduler node allocation references an unlisted job (ID %s). Please check with the SysAdmin.", str(KeyErrorValue))
                 continue
             else:
                 user, queue = user_queue
@@ -1386,7 +1386,7 @@ class TextDisplay(object):
         """
         total_running_jobs = cluster.total_running_jobs
         total_queued_jobs = cluster.total_queued_jobs
-        qstatq_lod = cluster.queues_dict
+        queues = cluster.queues_dict
 
         if self.args.REMAP:
             logging.warning("Remapping WN names and retrying heuristics")
@@ -1429,13 +1429,13 @@ class TextDisplay(object):
                 "total_run_jobs": colorize(str(int(total_running_jobs)), "Blue_L"),
                 "total_q_jobs": colorize(str(int(total_queued_jobs)), "Blue_L"),
                 "jobs": colorize("jobs", "Blue_L"),
-                "reported_by": "reported by qstat - q" if self.args.CLASSIC else "",
+                "reported_by": scheduler_backend(scheduler).classic_job_count_source if self.args.CLASSIC else "",
             }
         )
 
         expanded = globals().get("dynamic_config", {}).get("queue_summary_expanded", getattr(self.args, "EXPAND_QUEUES", False))
         print("%(queues)s :" % {"queues": colorize("Queueing", "Cyan_L")}, end="\n" if expanded else " ")
-        for _queue_name, q_tuple in qstatq_lod.items():
+        for _queue_name, q_tuple in queues.items():
             q_running_jobs, q_queued_jobs = q_tuple.run, q_tuple.queued
             account = _queue_name if _queue_name in queue_to_color else "account_not_colored"
             print(
@@ -1509,7 +1509,7 @@ class TextDisplay(object):
             + colorize("User accounts and pool mappings", "White")
             + colorize(" <=== ", "Gray_d")
             + colorize(
-                "  ('all' also includes those in C and W states, as reported by qstat)" if self.args.CLASSIC else "(sorting according to total nr. of jobs)",
+                scheduler_backend(scheduler).classic_account_note if self.args.CLASSIC else "(sorting according to total nr. of jobs)",
                 "Gray_D",
             )
         )
@@ -1842,7 +1842,7 @@ class Cluster(object):
     def __init__(self, document, worker_nodes, WNFilter, config, args):
         self.worker_nodes = worker_nodes
         self.jobs_dict = document.jobs_dict
-        self.queues_dict = document.queues_dict  # ex qstatq_lod is now list of namedtuples
+        self.queues_dict = document.queues_dict
         self.total_running_jobs = document.total_running_jobs
         self.total_queued_jobs = document.total_queued_jobs
         self.config = config
