@@ -701,7 +701,13 @@ def test_documented_capture_and_export_modes(tmp_path, flags, include_sources, i
 
 @pytest.mark.skipif(os.name != "posix", reason="POSIX private output directories")
 @pytest.mark.parametrize("override", (False, True))
-def test_cli_rejects_unsafe_savepath_before_writing(tmp_path, override):
+def test_cli_repairs_owned_savepath_before_writing(tmp_path, override):
+    log = tmp_path / ".local" / "qtop" / "logs" / "qtop.log"
+    log.parent.mkdir(parents=True)
+    log.parent.parent.chmod(0o777)
+    log.parent.chmod(0o777)
+    log.write_text("previous log\n")
+    log.chmod(0o666)
     shared = tmp_path / "shared"
     shared.mkdir()
     shared.chmod(0o777)
@@ -712,10 +718,14 @@ def test_cli_rejects_unsafe_savepath_before_writing(tmp_path, override):
         config.write_text("savepath: %s\n" % shared)
         flags = ["-f", str(config)]
     result = run_cli(tmp_path, "qtop_py.cli", "-b", "demo", *flags)
-    assert result.returncode == 1
-    assert "writable by others" in result.stderr
+    assert result.returncode == 0, result.stderr
     assert "Traceback" not in result.stderr
-    assert list(shared.iterdir()) == []
+    assert shared.stat().st_mode & 0o777 == 0o700
+    assert list(shared.iterdir())
+    assert log.parent.parent.stat().st_mode & 0o777 == 0o700
+    assert log.parent.stat().st_mode & 0o777 == 0o700
+    assert log.stat().st_mode & 0o777 == 0o600
+    assert log.read_text().startswith("previous log\n")
 
 
 @pytest.mark.parametrize("realtime", [False, True])

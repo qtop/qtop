@@ -142,7 +142,9 @@ and malformed input; review artifacts before sharing them.
 
 [private_save_directory](../qtop_py/fileutils.py) opens POSIX directory
 components with `O_DIRECTORY` and `O_NOFOLLOW`. The final directory must belong
-to the effective user, reject group/other writes and be restricted to `0700`.
+to the effective user and is automatically restricted to `0700`, including
+existing group/other-writable directories. The owned `~/.local/qtop` tree is
+also tightened when opening its configuration/log subdirectories.
 On macOS, root-owned `/tmp` and `/var` aliases to `/private/tmp` and
 `/private/var` are expanded before the same component checks. Other symlinks
 and writable non-sticky ancestors are rejected; sticky shared parents
@@ -150,8 +152,8 @@ and non-writable site-owned ancestors are allowed. Unsupported non-POSIX checks
 fail explicitly. Temporary outputs use `mkstemp` or `NamedTemporaryFile`.
 Log creation now uses the same directory validation and opens the leaf relative
 to the held directory descriptor with append/no-follow/nonblocking flags. It rejects
-non-regular, foreign-owned, multiply linked or group/other-writable logs before
-writing, tightens accepted logs to `0600`, and preserves append history. A directory
+non-regular, foreign-owned or multiply linked logs before writing, automatically
+tightens accepted logs to `0600` and preserves append history. A directory
 replacement cannot redirect that open. `PrivateFileHandler` retains normal
 `FileHandler` error-reporting behavior. This does not prove every other later
 pathname operation is race-free.

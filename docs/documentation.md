@@ -396,12 +396,13 @@ when ``-c AUTO`` is used.
 The ``savepath`` expands environment variables and is created with permissions
 ``0700`` (accessible only to its owner). This also applies to ``-o savepath=...``;
 use an absolute path. On macOS, the standard root-owned `/tmp` and `/var`
-aliases are expanded into `/private` before validation. qtop verifies ownership,
-rejects other symlink components and refuses existing directories writable by
-other users or groups. Other writable parent directories require the sticky bit,
-as on ``/tmp``. Non-writable site-owned parents are allowed. Safe existing directories owned by the user
-are restricted to ``0700``. If a path is rejected, inspect its contents and
-permissions or choose a new private directory; qtop does not repair shared paths.
+aliases are expanded into `/private` before validation. qtop verifies ownership
+and rejects other symlink components. Existing directories owned by the current
+user are automatically restricted to ``0700``, including group/other-writable
+output directories and the ``~/.local/qtop`` configuration/log tree. Unrelated
+writable parent directories require the sticky bit, as on ``/tmp``;
+non-writable site-owned parents are allowed. qtop does not change ownership or
+permissions on unrelated ancestors.
 
 The source launcher uses Python isolated mode (``-I``), importing qtop from its
 own checkout rather than the caller's directory or ``PYTHONPATH``. It remains
@@ -1086,11 +1087,9 @@ discard them; any network exposure must be selected locally, for example with
 ### Troubleshooting failures
 
 On POSIX, qtop keeps its log directory private (`0700`) and opens logs as
-user-owned regular files with mode `0600`. Existing readable logs are tightened
-and appended to. Symlinks, hard links, special files, foreign ownership and
-logs writable by other users are refused without changing their contents.
-If startup reports unsafe log permissions, inspect the indicated path and its
-ownership before retrying; qtop does not silently trust or truncate that history.
+user-owned regular files with mode `0600`. Existing logs, including group/other-
+writable files, are tightened automatically and appended to without truncation.
+Symlinks, hard links, special files and foreign-owned logs are refused.
 
 Live scheduler commands have a 30-second timeout. Set `scheduler_command_timeout`
 in your configuration or use `-o scheduler_command_timeout=120` for slow clients.

@@ -39,13 +39,14 @@ def test_owned_readable_directory_becomes_private(tmp_path):
 
 
 @pytest.mark.parametrize("mode", (0o770, 0o777))
-def test_save_directory_rejects_existing_shared_writes(tmp_path, mode):
+def test_save_directory_tightens_existing_shared_writes(tmp_path, mode):
     target = tmp_path / "results"
     target.mkdir()
     target.chmod(mode)
-    with pytest.raises(PermissionError, match="writable by others"):
-        fileutils.private_save_directory(str(target))
-    assert stat.S_IMODE(target.stat().st_mode) == mode
+    (target / "previous.out").write_text("previous state")
+    assert fileutils.private_save_directory(str(target)) == str(target)
+    assert stat.S_IMODE(target.stat().st_mode) == 0o700
+    assert (target / "previous.out").read_text() == "previous state"
 
 
 def test_save_directory_rejects_foreign_owner_before_chmod(tmp_path, monkeypatch):
@@ -261,11 +262,12 @@ def test_save_directory_can_traverse_a_nonreadable_parent(tmp_path):
         parent.chmod(0o700)
 
 
-def test_private_log_appends_and_tightens_existing_permissions(tmp_path):
+@pytest.mark.parametrize("mode", [0o644, 0o660, 0o666])
+def test_private_log_appends_and_tightens_existing_permissions(tmp_path, mode):
     path = tmp_path / "logs" / "qtop.log"
     path.parent.mkdir(mode=0o755)
     path.write_text("previous\n")
-    path.chmod(0o644)
+    path.chmod(mode)
     previous = os.umask(0)
     try:
         handler = utils.PrivateFileHandler(str(path), encoding="utf-8")
@@ -281,7 +283,7 @@ def test_private_log_appends_and_tightens_existing_permissions(tmp_path):
     assert stat.S_IMODE(path.parent.stat().st_mode) == 0o700
 
 
-@pytest.mark.parametrize("kind", ["symlink", "hardlink", "writable", "directory"])
+@pytest.mark.parametrize("kind", ["symlink", "hardlink", "directory"])
 def test_private_log_refuses_unsafe_targets_without_altering_them(tmp_path, kind):
     path = tmp_path / "logs" / "qtop.log"
     path.parent.mkdir(mode=0o700)
@@ -292,18 +294,33 @@ def test_private_log_refuses_unsafe_targets_without_altering_them(tmp_path, kind
         path.symlink_to(target)
     elif kind == "hardlink":
         os.link(str(target), str(path))
-    elif kind == "writable":
-        path.write_text("unsafe history")
-        path.chmod(0o666)
     else:
         path.mkdir()
     with pytest.raises(OSError):
         fileutils.private_log_stream(str(path))
     assert target.read_text() == "untouched"
     assert stat.S_IMODE(target.stat().st_mode) == 0o644
-    if kind == "writable":
-        assert path.read_text() == "unsafe history"
-        assert stat.S_IMODE(path.stat().st_mode) == 0o666
+
+
+def test_private_log_repairs_owned_qtop_tree_without_changing_home(tmp_path, monkeypatch):
+    monkeypatch.setenv("HOME", str(tmp_path))
+    root = tmp_path / ".local" / "qtop"
+    path = root / "logs" / "qtop.log"
+    path.parent.mkdir(parents=True)
+    root.chmod(0o777)
+    path.parent.chmod(0o770)
+    path.write_text("previous\n")
+    path.chmod(0o666)
+    home_mode = stat.S_IMODE(tmp_path.stat().st_mode)
+    local_mode = stat.S_IMODE(root.parent.stat().st_mode)
+    with fileutils.private_log_stream(str(path)) as stream:
+        stream.write("next\n")
+    assert path.read_text() == "previous\nnext\n"
+    assert stat.S_IMODE(root.stat().st_mode) == 0o700
+    assert stat.S_IMODE(path.parent.stat().st_mode) == 0o700
+    assert stat.S_IMODE(path.stat().st_mode) == 0o600
+    assert stat.S_IMODE(tmp_path.stat().st_mode) == home_mode
+    assert stat.S_IMODE(root.parent.stat().st_mode) == local_mode
 
 
 def test_private_log_rejects_symlinked_parent(tmp_path):
