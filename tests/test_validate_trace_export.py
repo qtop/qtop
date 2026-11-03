@@ -1,3 +1,5 @@
+## Copyright (c) 2026 qtop contributors
+## SPDX-License-Identifier: MIT
 import base64
 import gzip
 import json

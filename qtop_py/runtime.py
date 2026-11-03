@@ -1,3 +1,4 @@
+## Copyright (c) 2026 qtop contributors
 ## SPDX-License-Identifier: MIT
 """Own run resources independently of collection and rendering policy."""
 

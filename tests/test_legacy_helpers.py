@@ -1,4 +1,5 @@
-# SPDX-License-Identifier: MIT
+## Copyright (c) 2026 qtop contributors
+## SPDX-License-Identifier: MIT
 """Run with unittest in the dependency-light Python 3.6 lane as well as pytest."""
 
 import subprocess

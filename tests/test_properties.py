@@ -1,3 +1,4 @@
+## Copyright (c) 2026 qtop contributors
 ## SPDX-License-Identifier: MIT
 """Bounded, shrinkable checks for qtop's data and parser contracts."""
 

@@ -1,3 +1,4 @@
+## Copyright (c) 2026 qtop contributors
 ## SPDX-License-Identifier: MIT
 """Normalized state with a cached five-field adapter for legacy renderers."""
 

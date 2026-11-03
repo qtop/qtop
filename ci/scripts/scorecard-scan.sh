@@ -1,5 +1,6 @@
 #!/bin/sh
-# SPDX-License-Identifier: MIT
+## Copyright (c) 2026 qtop contributors
+## SPDX-License-Identifier: MIT
 set -eu
 
 : "${GITHUB_AUTH_TOKEN:?Set a read-only GitHub token}"

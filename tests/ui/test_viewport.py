@@ -1,3 +1,5 @@
+## Copyright (c) 2026 qtop contributors
+## SPDX-License-Identifier: MIT
 import pytest
 
 from qtop_py.ui.viewport import Viewport

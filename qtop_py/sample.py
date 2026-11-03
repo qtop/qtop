@@ -1,3 +1,4 @@
+## Copyright (c) 2026 qtop contributors
 ## SPDX-License-Identifier: MIT
 """Portable support snapshots; never extract or execute archive contents."""
 

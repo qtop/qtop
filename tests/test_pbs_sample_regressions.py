@@ -1,3 +1,5 @@
+## Copyright (c) 2026 qtop contributors
+## SPDX-License-Identifier: MIT
 import json
 from collections import OrderedDict
 from types import SimpleNamespace

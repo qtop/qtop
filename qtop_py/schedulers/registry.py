@@ -1,3 +1,4 @@
+## Copyright (c) 2026 qtop contributors
 ## SPDX-License-Identifier: MIT
 from qtop_py.plugins.demo import DemoBatchSystem
 from qtop_py.plugins.oar import OARBatchSystem

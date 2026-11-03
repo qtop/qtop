@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+## Copyright (c) 2026 qtop contributors
+## SPDX-License-Identifier: MIT
 
 """Deterministic parser stress tests suitable for local and CI reproduction."""
 

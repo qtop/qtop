@@ -1,4 +1,5 @@
-# SPDX-License-Identifier: MIT
+## Copyright (c) 2026 qtop contributors
+## SPDX-License-Identifier: MIT
 """Slurm GPU metadata; resource indices are not CUDA or physical GPU IDs."""
 
 import re

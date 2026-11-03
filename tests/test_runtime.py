@@ -1,3 +1,4 @@
+## Copyright (c) 2026 qtop contributors
 ## SPDX-License-Identifier: MIT
 """Exercise collection, rendering and cleanup together inside the test process."""
 
