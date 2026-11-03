@@ -55,7 +55,7 @@ flowchart TB
     subgraph state["Cluster state and calculations"]
         model["Common jobs, nodes and queues: cluster_state.py"]
         document["Document: snapshot_document.py"]
-        calculations["MVU_query: mvu.py / mvu_query.py"]
+        calculations["MVU_query: mvu_query.py"]
         model --> document
         document --> calculations
     end
@@ -134,7 +134,7 @@ runtime globals, while the new query/view pipeline does not depend on them.
 | --- | --- |
 | Launchers and installed entry point | [qtop](../qtop), [cli.py](../qtop_py/cli.py), [pyproject.toml](../pyproject.toml) |
 | Runtime orchestration, I/O effects and compatibility adapters | [qtop.py](../qtop_py/qtop.py) |
-| Explicit model, update messages and query/view entry points | [mvu.py](../qtop_py/mvu.py) |
+| Explicit model and update messages | [mvu.py](../qtop_py/mvu.py) |
 | Snapshot queries, filtering and occupancy calculations | [mvu_query.py](../qtop_py/mvu_query.py) |
 | Terminal presentation | [mvu_view.py](../qtop_py/ui/mvu_view.py) |
 | Command-line options and logging | [utils.py](../qtop_py/utils.py) |

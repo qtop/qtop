@@ -5,7 +5,6 @@
 import copy
 import re
 import signal
-from collections import namedtuple
 from itertools import groupby
 
 from qtop_py import utils
@@ -175,30 +174,3 @@ def MVU_update(model, message, payload=None):
     else:
         effects.append(({"q": "quit", "s": "sort", "f": "filter", "H": "highlight"}[message], None))
     return next_model, tuple(effects)
-
-
-MVU_ViewData = namedtuple("MVU_ViewData", "model cluster occupancy")
-
-
-def MVU_query(model):
-    """Build private derived nodes/layout; never mutate the canonical snapshot or input model."""
-    from qtop_py.mvu_query import Cluster, WNFilter, WNOccupancy
-
-    render_model = copy.copy(model)
-    render_model.args = copy.copy(model.args)
-    render_model.viewport = copy.copy(model.viewport)
-    render_model.transposed_sections = []
-    nodes = MVU_keep_queue_initials_only_and_colorize(copy.deepcopy(model.document.worker_nodes), model.queue_to_color)
-    nodes = MVU_colorize_nodestate(nodes, model.nodestate_to_color)
-    cluster = Cluster(model.document, nodes, WNFilter, model.config, render_model.args, MVU_model=render_model)
-    occupancy = WNOccupancy(cluster, model.config, model.document, model.user_to_color, MVU_model=render_model)
-    return MVU_ViewData(render_model, cluster, occupancy)
-
-
-def MVU_view(view_data, savepath, sample_filename, logfile):
-    from qtop_py.ui.mvu_view import TextDisplay
-
-    model, cluster, occupancy = view_data
-    display = TextDisplay(model.document, model.config, model.viewport, occupancy, cluster, model.args, MVU_model=model)
-    display.display_selected_sections(savepath, sample_filename, logfile)
-    return display

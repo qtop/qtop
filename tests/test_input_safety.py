@@ -156,6 +156,15 @@ def test_snapshot_limits_apply_to_decompressed_data(tmp_path, monkeypatch, mode)
         sample.load_snapshot(str(path))
 
 
+def test_snapshot_archive_closes_source_on_invalid_header(monkeypatch):
+    source = io.BytesIO(b"invalid tar header")
+    monkeypatch.setattr(safety, "open", lambda *args: source, raising=False)
+    with pytest.raises(tarfile.ReadError):
+        with safety.snapshot_archive("input.tar"):
+            pytest.fail("Invalid archive was accepted")
+    assert source.closed
+
+
 @pytest.mark.parametrize("first", [b"{}", b"null"])
 def test_snapshot_member_limit_and_duplicate_rejection(tmp_path, monkeypatch, first):
     path = tmp_path / "sample.tar"

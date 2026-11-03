@@ -55,7 +55,6 @@ if TYPE_CHECKING:
     dynamic_config: state_types.Config
 
 from qtop_py import __version__, configuration, fileutils, sample, utils, yaml_parser
-from qtop_py.colormap import color_to_code as color_to_code
 from qtop_py.colormap import queue_to_color as queue_to_color
 from qtop_py.colormap import user_to_color_default
 from qtop_py.constants import (
@@ -66,7 +65,6 @@ from qtop_py.constants import (
     SYSTEMCONFDIR,
     USERPATH,
 )
-from qtop_py.errors import JobNotFound as JobNotFound
 from qtop_py.errors import OperationalError
 from qtop_py.mvu import (
     MVU_colorize,
@@ -75,22 +73,19 @@ from qtop_py.mvu import (
     MVU_gauge_core_vectors,
     MVU_keep_queue_initials_only_and_colorize,
     MVU_Model,
-    MVU_query,
-    MVU_reserved_pattern_mappings,
     MVU_update,
-    MVU_view,
 )
 from qtop_py.mvu_query import Cluster as MVU_Cluster
-from qtop_py.mvu_query import WNFilter as WNFilter
+from qtop_py.mvu_query import MVU_query
 from qtop_py.mvu_query import WNOccupancy as MVU_WNOccupancy
 from qtop_py.process import communicate_with_timeout
 from qtop_py.runtime import RunResources
 from qtop_py.safety import visible_text
 from qtop_py.schedulers.registry import PLUGIN_BATCH_SYSTEMS
 from qtop_py.serialiser import GenericBatchSystem
-from qtop_py.serialiser import resolve_job_id as resolve_job_id
 from qtop_py.snapshot_document import Document
 from qtop_py.ui.controls import read_rule_choices
+from qtop_py.ui.mvu_view import MVU_view
 from qtop_py.ui.mvu_view import TextDisplay as MVU_TextDisplay
 from qtop_py.ui.viewport import Viewport
 from qtop_py.web import Web
@@ -103,8 +98,6 @@ compress_colored_line = MVU_compress_colored_line
 gauge_core_vectors = MVU_gauge_core_vectors
 
 keep_queue_initials_only_and_colorize = MVU_keep_queue_initials_only_and_colorize
-
-_reserved_pattern_mappings = MVU_reserved_pattern_mappings
 
 
 def MVU_legacy_model(instance=None):

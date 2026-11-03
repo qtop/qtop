@@ -116,8 +116,8 @@ class LimitedReader(object):
 
 @contextlib.contextmanager
 def snapshot_archive(path: str) -> Generator[tarfile.TarFile, None, None]:
-    with contextlib.ExitStack() as stack:
-        stream = stack.enter_context(open(path, "rb"))
+    with open(path, "rb") as source, contextlib.ExitStack() as stack:
+        stream = source
         magic = stream.read(6)
         stream.seek(0)
         for prefix, decoder in ((b"\x1f\x8b", gzip.GzipFile), (b"BZh", bz2.BZ2File), (b"\xfd7zXZ", lzma.LZMAFile)):

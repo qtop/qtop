@@ -7,6 +7,7 @@ import pytest
 
 from qtop_py import qtop
 from qtop_py.cluster_state import cluster_state_totals, validate_cluster_state
+from qtop_py.mvu import MVU_Model
 from qtop_py.plugins.slurm import SlurmBatchSystem
 from qtop_py.sample import anonymize_state
 
@@ -97,7 +98,8 @@ def test_shared_cpus_retain_both_users_node_membership(trace, details):
     assert node["slurm_job_ids"] == ["1", "2"]
     assert node["slurm_unmapped_cpus"] == 4
     cluster = SimpleNamespace(workernode_dict={1: node})
-    qtop.Cluster._calculate_jobs_per_node(None, cluster.workernode_dict)
+    cluster.MVU_model = MVU_Model({}, slurm.options, None, backend=SlurmBatchSystem)
+    qtop.Cluster._calculate_jobs_per_node(cluster, cluster.workernode_dict)
     users = qtop.WNOccupancy.calculate_user_node_use(None, cluster, {"1": ("alice", "batch"), "2": ("bob", "batch")})
     assert users == {"alice": 1, "bob": 1}
     masked, mappings = anonymize_state(state)

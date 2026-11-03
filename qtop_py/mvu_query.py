@@ -2,9 +2,10 @@
 ## SPDX-License-Identifier: MIT
 """Snapshot queries and layout with explicitly supplied model state."""
 
+import copy
 import logging
 import re
-from collections import Counter, OrderedDict
+from collections import Counter, OrderedDict, namedtuple
 from math import ceil
 from operator import itemgetter
 
@@ -12,6 +13,7 @@ from qtop_py import configuration, utils
 from qtop_py import yaml_parser as yaml
 from qtop_py.constants import QTOPCONF_YAML, SYMBOL_LONG_TAIL_USER
 from qtop_py.errors import JobNotFound, OperationalError
+from qtop_py.mvu import MVU_colorize_nodestate, MVU_keep_queue_initials_only_and_colorize
 from qtop_py.mvu import MVU_gauge_core_vectors as gauge_core_vectors
 from qtop_py.mvu import MVU_node_job_ids as node_job_ids
 from qtop_py.mvu import MVU_reserved_pattern_mappings as _reserved_pattern_mappings
@@ -457,6 +459,7 @@ class WNOccupancy(object):
         counted_jobs = WNOccupancy._count_jobs_strict(self.document.worker_nodes, running_ids, self.MVU_model.MVU_node_job_ids)
         if counted_jobs != cluster.total_running_jobs:
             return "Counted jobs (%s) -- Total running jobs reported (%s) MISMATCH!" % (counted_jobs, cluster.total_running_jobs)
+        return None
 
     @staticmethod
     def _count_jobs_strict(worker_nodes, job_ids=None, node_job_ids=node_job_ids):
@@ -845,3 +848,19 @@ class WNFilter(object):
     @utils.CountCalls
     def report_filtered_view():
         logging.error("*** WN Occupancy view is filtered.")
+
+
+MVU_ViewData = namedtuple("MVU_ViewData", "model cluster occupancy")
+
+
+def MVU_query(model):
+    """Build private derived nodes/layout; never mutate the canonical snapshot or input model."""
+    render_model = copy.copy(model)
+    render_model.args = copy.copy(model.args)
+    render_model.viewport = copy.copy(model.viewport)
+    render_model.transposed_sections = []
+    nodes = MVU_keep_queue_initials_only_and_colorize(copy.deepcopy(model.document.worker_nodes), model.queue_to_color)
+    nodes = MVU_colorize_nodestate(nodes, model.nodestate_to_color)
+    cluster = Cluster(model.document, nodes, WNFilter, model.config, render_model.args, MVU_model=render_model)
+    occupancy = WNOccupancy(cluster, model.config, model.document, model.user_to_color, MVU_model=render_model)
+    return MVU_ViewData(render_model, cluster, occupancy)

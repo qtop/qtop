@@ -6,10 +6,14 @@ import copy
 import sys
 from pathlib import Path
 
+import pytest
+
 from qtop_py import configuration, qtop, utils, yaml_parser
-from qtop_py.mvu import MVU_Model, MVU_query, MVU_update, MVU_view
+from qtop_py.mvu import MVU_Model, MVU_update
+from qtop_py.mvu_query import MVU_query
 from qtop_py.plugins.slurm import SlurmBatchSystem
 from qtop_py.snapshot_document import Document
+from qtop_py.ui.mvu_view import MVU_view
 from qtop_py.ui.viewport import Viewport
 
 
@@ -56,8 +60,10 @@ def test_MVU_update_returns_owned_state_and_effects_without_io(tmp_path, monkeyp
     assert model.display_overrides == original_overrides
 
 
-def test_MVU_query_and_view_need_no_runtime_globals_or_mutable_snapshot(tmp_path, monkeypatch, capsys):
+@pytest.mark.parametrize("force_names", [False, True])
+def test_MVU_query_and_view_need_no_runtime_globals_or_mutable_snapshot(tmp_path, monkeypatch, capsys, force_names):
     model = MVU_test_model(tmp_path, monkeypatch)
+    model.display_overrides["force_names"] = force_names
     original = model.document.to_cluster_state()
     original_nodes = copy.deepcopy(model.document.worker_nodes)
     original_viewport = vars(model.viewport).copy()

@@ -9,6 +9,7 @@ from unittest.mock import Mock
 import pytest
 
 from qtop_py import qtop
+from qtop_py.mvu_query import WNFilter
 from qtop_py.ui.viewport import Viewport
 
 
@@ -26,7 +27,7 @@ def controls(monkeypatch):
     monkeypatch.setattr(qtop, "HELP_FP", "help.txt", raising=False)
     web = Mock()
     monkeypatch.setattr(qtop, "web", web, raising=False)
-    cluster = SimpleNamespace(WNFilter=qtop.WNFilter, worker_nodes=[])
+    cluster = SimpleNamespace(WNFilter=WNFilter, worker_nodes=[])
     return view, cluster, web
 
 
@@ -123,7 +124,7 @@ def test_filter_and_highlight_menus_preserve_selected_rules(controls, monkeypatc
     monkeypatch.setattr(qtop, "_set_terminal_attrs", terminal)
     press(controls, key)
     assert qtop.dynamic_config[setting] == expected
-    assert isinstance(controls[1].wn_filter, qtop.WNFilter)
+    assert isinstance(controls[1].wn_filter, WNFilter)
     assert controls[0].v_start == controls[0].h_start == 0
     assert terminal.call_count == 2
 

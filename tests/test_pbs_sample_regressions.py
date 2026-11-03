@@ -7,19 +7,18 @@ from types import SimpleNamespace
 import pytest
 
 from qtop_py import qtop
+from qtop_py.mvu import MVU_Model
 from qtop_py.plugins.pbs import PBSStatExtractor
 
 
 def test_find_matrices_width_handles_empty_worker_nodes():
-    qtop.cluster = SimpleNamespace(highest_wn=0, workernode_list=[])
-    qtop.viewport = SimpleNamespace(h_term_size=80)
-    qtop.config = {
+    occupancy = qtop.WNOccupancy.__new__(qtop.WNOccupancy)
+    occupancy.cluster = SimpleNamespace(highest_wn=0, workernode_list=[])
+    occupancy.config = {
         "workernodes_matrix": [{"wn id lines": {"min_masking_threshold": 30}}],
         "USER_CUT_MATRIX_WIDTH": None,
     }
-    qtop.args = SimpleNamespace(NOMASKING=False, REMAP=False)
-
-    occupancy = qtop.WNOccupancy.__new__(qtop.WNOccupancy)
+    occupancy.MVU_model = MVU_Model(occupancy.config, SimpleNamespace(NOMASKING=False, REMAP=False), SimpleNamespace(h_term_size=80))
 
     assert occupancy.find_matrices_width() == (0, 0, 0)
 

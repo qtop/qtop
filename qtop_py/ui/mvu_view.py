@@ -8,6 +8,7 @@ import os
 import subprocess
 import tempfile
 from collections import OrderedDict
+from functools import partial
 from itertools import cycle, zip_longest
 
 from qtop_py import __version__, utils
@@ -418,7 +419,7 @@ class TextDisplay(object):
             for node_nr in range(1, node_str_width + 1):
                 d[str(node_nr)] = wn_vert_labels[str(node_nr)]
             end_labels_iter = iter(end_labels[str(node_str_width)])
-            self.print_wnid_lines(d, start, stop, end_labels_iter, self.MVU_model.transposed_sections, color_func=self.color_plainly, args=("White", "Gray_L", start > 0))
+            self.print_wnid_lines(d, start, stop, end_labels_iter, self.MVU_model.transposed_sections, colors_factory=partial(self.color_plainly, "White", "Gray_L", start > 0))
             # start > 0 is just a test for a possible future condition
 
         elif self.MVU_model.display_overrides["force_names"]:  # the actual names of the WNs instead of numbered WNs [was: or args.FORCE_NAMES]
@@ -430,7 +431,12 @@ class TextDisplay(object):
 
             end_labels_iter = iter(end_labels[str(node_str_width)])
             self.print_wnid_lines(
-                wn_vert_labels, start, stop, end_labels_iter, self.MVU_model.transposed_sections, color_func=self.highlight_alternately, args=(self.config["ALT_LABEL_COLORS"])
+                wn_vert_labels,
+                start,
+                stop,
+                end_labels_iter,
+                self.MVU_model.transposed_sections,
+                colors_factory=partial(self.highlight_alternately, *self.config["ALT_LABEL_COLORS"]),
             )
 
     def highlight_alternately(self, color_a, color_b):
@@ -443,7 +449,7 @@ class TextDisplay(object):
         while True:
             yield color
 
-    def print_wnid_lines(self, d, start, stop, end_labels, transposed_sections, color_func, args):
+    def print_wnid_lines(self, d, start, stop, end_labels, transposed_sections, colors_factory):
         if self.MVU_model.display_overrides.get("transpose_wn_matrices", self.config["transpose_wn_matrices"]):
             tuple_ = [None, "wnid_lines", self.transpose_matrix(d)]
             transposed_sections.append(tuple_)
@@ -451,7 +457,7 @@ class TextDisplay(object):
 
         separators = self.config["vertical_separator_every_X_columns"]
         for line_nr, end_label in zip(d, end_labels):
-            colors = color_func(*args)
+            colors = colors_factory()
             wn_id_str = self._insert_separators(d[line_nr][start:stop], self.config["SEPARATOR"], separators)
             wn_id_str = "".join([self.MVU_model.MVU_colorize(elem, next(colors)) for elem in wn_id_str])
             print(wn_id_str + end_label)
@@ -534,3 +540,10 @@ class TextDisplay(object):
                 sep_str = sep_str[: pos * i + i - 1] + separator + sep_str[pos * i + i - 1 :]
             sep_str += separator  # insert initial vertical separator
             return sep_str
+
+
+def MVU_view(view_data, savepath, sample_filename, logfile):
+    model, cluster, occupancy = view_data
+    display = TextDisplay(model.document, model.config, model.viewport, occupancy, cluster, model.args, MVU_model=model)
+    display.display_selected_sections(savepath, sample_filename, logfile)
+    return display
