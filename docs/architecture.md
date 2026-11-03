@@ -96,7 +96,7 @@ flowchart TB
    [build_cluster_state()](../qtop_py/cluster_state.py).
    Backend class hooks also define command adjustments, optional trace aliases,
    detection priority, queue blocking and scheduler-specific display notes.
-   The core dispatches capabilities; plugin-owned metadata rules validate and mask extensions.
+   The core dispatches capabilities; scheduler support rules validate and mask extensions.
 3. `Document.from_cluster_state()` in [document.py](../qtop_py/document.py)
    owns the normalized snapshot and exposes cached legacy rendering fields.
    Exports read that authoritative state; the five-field constructor remains
@@ -121,7 +121,7 @@ Menu input restores terminal settings even when interrupted.
 | Runtime orchestration, calculations and terminal rendering | [qtop.py](../qtop_py/qtop.py) |
 | Command-line options and logging | [utils.py](../qtop_py/utils.py) |
 | Configuration loading, preparation and parsing | [configuration.py](../qtop_py/configuration.py), [qtopconf.yaml](../qtopconf.yaml), [yaml_parser.py](../qtop_py/yaml_parser.py) |
-| Scheduler backends | [Slurm](../qtop_py/plugins/slurm.py), [PBS](../qtop_py/plugins/pbs.py), [SGE](../qtop_py/plugins/sge.py), [OAR](../qtop_py/plugins/oar.py), [demo](../qtop_py/plugins/demo.py) |
+| Scheduler backends and support | [Slurm](../qtop_py/plugins/slurm.py), [PBS](../qtop_py/plugins/pbs.py), [SGE](../qtop_py/plugins/sge.py), [OAR](../qtop_py/plugins/oar.py), [demo](../qtop_py/plugins/demo.py), [support helpers](../qtop_py/schedulers/) |
 | Shared extraction and backend interface | [serialiser.py](../qtop_py/serialiser.py) |
 | Canonical document and legacy adapter | [document.py](../qtop_py/document.py) |
 | Run resource ownership and frame/archive finalization | [runtime.py](../qtop_py/runtime.py) |

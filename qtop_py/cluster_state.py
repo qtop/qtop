@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING, Dict, List, Sequence, cast
 if TYPE_CHECKING:
     from qtop_py.contracts import ClusterState, Job, Node, Queue, RawQueue
 
-from qtop_py.plugins.metadata import DIAGNOSTICS, validate_diagnostics, validate_record_extensions
+from qtop_py.schedulers.metadata import DIAGNOSTICS, validate_diagnostics, validate_record_extensions
 
 CLUSTER_STATE_KEYS = ("jobs", "nodes", "queues")
 

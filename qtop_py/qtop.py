@@ -69,8 +69,8 @@ from qtop_py.constants import (
 )
 from qtop_py.document import Document
 from qtop_py.errors import OperationalError
-from qtop_py.plugins.registry import PLUGIN_BATCH_SYSTEMS
 from qtop_py.runtime import RunResources
+from qtop_py.schedulers.registry import PLUGIN_BATCH_SYSTEMS
 from qtop_py.serialiser import GenericBatchSystem, resolve_job_id
 from qtop_py.ui.controls import navigate_viewport, read_rule_choices
 from qtop_py.ui.viewport import Viewport

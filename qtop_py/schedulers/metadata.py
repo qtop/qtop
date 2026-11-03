@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, Mapping, cast
 if TYPE_CHECKING:
     from qtop_py.contracts import Job, Node
 
-from qtop_py.plugins.gpu import validate_gpu_resources
+from qtop_py.schedulers.gpu import validate_gpu_resources
 
 DIAGNOSTICS = {
     "slurm_diagnostics": ("Slurm", ("rejected_squeue_rows", "rejected_sinfo_rows", "jobs_with_missing_nodes", "jobs_with_invalid_nodelists")),

@@ -19,7 +19,7 @@ if TYPE_CHECKING:
     from qtop_py.contracts import ClusterState, Config, JobsInfo, Node, Options, QueuesInfo
 
 from qtop_py.cluster_state import build_cluster_state
-from qtop_py.plugins.metadata import CLASSIC_REPORT_NAME, node_is_idle
+from qtop_py.schedulers.metadata import CLASSIC_REPORT_NAME, node_is_idle
 
 
 def resolve_job_id(job_id: str, known_ids: Collection[str]) -> str:

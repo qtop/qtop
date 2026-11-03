@@ -14,7 +14,7 @@ if TYPE_CHECKING:
     from qtop_py.contracts import ClusterState, Config, IdentifierMaps, Options, Snapshot
 
 from qtop_py.cluster_state import validate_cluster_state
-from qtop_py.plugins.metadata import JOB_IDENTITIES, mask_job_extensions, mask_node_extensions
+from qtop_py.schedulers.metadata import JOB_IDENTITIES, mask_job_extensions, mask_node_extensions
 
 SNAPSHOT_NAME = "qtop-snapshot.json"
 DISPLAY_OPTIONS = (

@@ -82,12 +82,12 @@ def test_cleanup_failures_do_not_skip_other_resources_or_hide_primary_error(tmp_
     resources.web, resources.archive = web, archive
     target = web.stop if failed_cleanup == "web" else archive.close
     target.side_effect = RuntimeError("cleanup failure")
+    operation = Mock(side_effect=ValueError("primary failure") if primary_failure else None)
     expected = ValueError if primary_failure else RuntimeError
     with pytest.raises(expected, match="primary failure" if primary_failure else "cleanup failure"):
         with resources:
             os.chdir(workspace.name)
-            if primary_failure:
-                raise ValueError("primary failure")
+            operation()
     assert sys.stdout is original and not original.closed
     assert os.getcwd() == resources.initial_cwd
     assert not os.path.exists(workspace.name)
