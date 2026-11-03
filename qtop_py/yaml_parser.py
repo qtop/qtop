@@ -11,7 +11,9 @@
 
 import logging
 import os
-from ast import literal_eval
+
+from qtop_py import safety
+from qtop_py.safety import ResourceLimitError, literal_eval
 
 """Small dependency-free parser for qtop's deliberately limited YAML subset."""
 
@@ -19,6 +21,8 @@ from ast import literal_eval
 def literal_or_original(value):
     try:
         return literal_eval(value)
+    except ResourceLimitError:
+        raise
     except (ValueError, SyntaxError):
         return value
 
@@ -81,7 +85,13 @@ def get_line(fin, verbatim=False, SEPARATOR=None, DEF_INDENT=2):
         -3 * int(float(DEF_INDENT) / 2): -2,
         -2 * DEF_INDENT: -2,
     }
+    total = 0
     for line in fin:
+        total += len(line.encode("utf-8"))
+        if total > safety.MAX_INPUT_BYTES or len(line) > safety.MAX_LITERAL_BYTES:
+            raise ResourceLimitError("YAML input exceeds size or line limit")
+        if len(line) - len(line.lstrip(" ")) > safety.MAX_DEPTH * DEF_INDENT:
+            raise ResourceLimitError("YAML input exceeds nesting limit")
         if line.lstrip().startswith("#") or line.strip() == "---":
             continue
         elif " #" in line and not line.endswith("#\n"):
@@ -133,6 +143,8 @@ def convert_dash_key_in_dict(d):
 def parse(fn, DEF_INDENT=2):
     raw_key_values = {}
     with open(fn, mode="r") as fin:
+        if os.fstat(fin.fileno()).st_size > safety.MAX_INPUT_BYTES:
+            raise ResourceLimitError("YAML input exceeds size limit")
         if os.fstat(fin.fileno()).st_size == 0:
             raise ValueError("Configuration file is empty: %s" % fn)
         logging.debug("File state before parse: %s" % fin)

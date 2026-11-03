@@ -1047,8 +1047,25 @@ checkout.
 -  ``-E`` writes gathered cluster data to a JSON file in ``savepath``; see
    [JSON export](#json-export). It does not write JSON to stdout.
 -  ``-O`` saves output without printing the rendered view to stdout.
--  ``-B`` enables the experimental web interface on port 8080 and requires
-   ``-e``/``--experimental``.
+-  ``-B`` enables the experimental web interface at `127.0.0.1:8080` by
+   default and requires ``-e``/``--experimental``. See the configuration below.
+
+### Experimental web configuration
+
+The web interface remains experimental and has no authentication or TLS.
+Configure its IPv4 address or hostname and port in `qtopconf.yaml`:
+
+```yaml
+experimental_web_host: 127.0.0.1
+experimental_web_port: 8080
+```
+
+The port must be an integer from 1 to 65535. Set the host to `0.0.0.0` only
+when intentionally exposing the interface on all IPv4 interfaces. These settings
+are read when `-B -e` starts the server; restart qtop to change them. The address
+is recorded in the log. Anonymous support snapshots omit these site settings. Imported snapshots also
+discard them; any network exposure must be selected locally, for example with
+`-o experimental_web_host=0.0.0.0`.
 
 ### Debugging and support
 
@@ -1073,7 +1090,21 @@ in your configuration or use `-o scheduler_command_timeout=120` for slow clients
 The value must be positive and finite. Timeouts terminate the client (and its
 process group on POSIX), discard partial output and preserve the previous trace.
 Required command failures exit with a diagnostic; optional-detail fallbacks remain
-available.
+available. Each command is also limited to 256 MiB of stdout and 1 MiB of stderr.
+Exceeding either limit kills the command and discards its partial output.
+
+XML and JSON inputs are limited to 256 MiB, 64 nesting levels and two million
+structural items (XML elements; JSON containers/separators). YAML input is limited
+to 256 MiB with 64 indentation levels and 1 MiB lines/literals; Python literals
+also have a 100,000-AST-node limit. Imported support snapshots retain their
+64 MiB JSON member limit and additionally reject archives exceeding 10,000
+members or 1 GiB of decompressed tar data. Duplicate snapshot members are rejected.
+These are input budgets, not guarantees of a particular peak memory or CPU time.
+
+Terminal displays escape untrusted control characters and literal backslashes;
+qtop's own colours remain active. JSON exports and original trace captures retain
+the original values. Log records escape embedded controls, including newlines,
+so input cannot introduce additional log records.
 
 Expected filesystem, configuration, scheduler-command and malformed-input
 failures print a concise diagnostic to stderr and exit with status 1.

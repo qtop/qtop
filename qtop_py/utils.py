@@ -14,6 +14,7 @@ from argparse import ArgumentParser
 
 from qtop_py import fileutils
 from qtop_py.constants import QTOP_LOGFILE
+from qtop_py.safety import SafeLogFormatter
 
 
 def init_logging(options):
@@ -23,7 +24,7 @@ def init_logging(options):
     elif options.verbose and options.verbose >= 2:
         log_level = logging.DEBUG
 
-    formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s", "%Y-%m-%d %H:%M:%S")
+    formatter = SafeLogFormatter("%(asctime)s - %(levelname)s - %(message)s", "%Y-%m-%d %H:%M:%S")
 
     fileutils.mkdir_p(QTOP_LOGFILE.rsplit("/", 1)[0])  # logfile path
 

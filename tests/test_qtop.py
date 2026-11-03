@@ -425,6 +425,7 @@ def test_configured_user_details_command_still_returns_details(monkeypatch, real
     options = SimpleNamespace(GET_GECOS=realtime)
     config = {"extract_info": {key: command}}
     monkeypatch.setattr(qtop_module.subprocess, "Popen", lambda command, **kwargs: calls.append(command) or process)
+    monkeypatch.setattr(qtop_module, "communicate_with_timeout", lambda *args: (b"alice:x:1000:1000:Alice Example:/home/alice:/bin/sh\n", b""))
     assert qtop_module.get_detail_of_name([["0", 1, 0, 1, "alice", 1]], config, options) == {"alice": "Alice Example"}
     assert calls == [["getent", "passwd", "alice"] if realtime else ["cat", "/tmp/qtop-user-details/passwd"]]
 

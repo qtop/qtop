@@ -69,7 +69,9 @@ from qtop_py.constants import (
 )
 from qtop_py.document import Document
 from qtop_py.errors import OperationalError
+from qtop_py.process import communicate_with_timeout
 from qtop_py.runtime import RunResources
+from qtop_py.safety import visible_text
 from qtop_py.schedulers.registry import PLUGIN_BATCH_SYSTEMS
 from qtop_py.serialiser import GenericBatchSystem, resolve_job_id
 from qtop_py.ui.controls import navigate_viewport, read_rule_choices
@@ -289,29 +291,6 @@ def auto_get_avail_batch_system(config, backends):
     raise SchedulerNotSpecified
 
 
-def communicate_with_timeout(command, timeout):
-    """Bound command execution and reap its process group on interruption."""
-    try:
-        return command.communicate(timeout=timeout)
-    except (subprocess.TimeoutExpired, KeyboardInterrupt):
-        if os.name == "posix":
-            from signal import SIGKILL
-
-            with contextlib.suppress(ProcessLookupError):
-                os.killpg(command.pid, SIGKILL)
-        else:
-            command.kill()
-        try:
-            command.communicate(timeout=1)
-        except subprocess.TimeoutExpired:
-            for stream in (command.stdout, command.stderr):
-                if stream is not None:
-                    stream.close()
-            with contextlib.suppress(subprocess.TimeoutExpired):
-                command.wait(timeout=1)
-        raise
-
-
 def execute_shell_batch_commands(batch_system_commands, filenames, _file, _savepath, timeout=30):
     """
     scheduler-specific commands are invoked from the shell and their output is saved *atomically* to files,
@@ -328,7 +307,7 @@ def execute_shell_batch_commands(batch_system_commands, filenames, _file, _savep
                 raise ValueError("nonpositive or nonfinite timeout")
         except (TypeError, ValueError, OverflowError) as error:
             raise OperationalError("scheduler_command_timeout must be a positive finite number of seconds") from error
-        with tempfile.NamedTemporaryFile("w", dir=_savepath, delete=False) as fin:
+        with tempfile.NamedTemporaryFile("wb", dir=_savepath, delete=False) as fin:
             logging.debug("\tFile state before subprocess call: %(fin)s" % {"fin": fin})
             logging.debug("\tWaiting on subprocess.call...")
 
@@ -345,13 +324,13 @@ def execute_shell_batch_commands(batch_system_commands, filenames, _file, _savep
                     " ".join(shlex.quote(arg) for arg in command_args),
                     shlex.quote(os.path.abspath(filenames[_file])),
                 )
-                command = subprocess.Popen(command_args, stdout=fin, stderr=subprocess.PIPE, start_new_session=(os.name == "posix"))
+                command = subprocess.Popen(command_args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=(os.name == "posix"))
             except OSError as error:
                 raise OperationalError("Cannot execute scheduler command %r: %s. Check PATH or load the scheduler module." % (_batch_system_command, error.strerror)) from error
             except ValueError as error:
                 raise OperationalError("Invalid scheduler command %r: %s. Check command quoting in %s." % (_batch_system_command, error, QTOPCONF_YAML)) from error
             try:
-                error = communicate_with_timeout(command, timeout)[1]
+                error = communicate_with_timeout(command, timeout, stdout=fin)[1]
             except subprocess.TimeoutExpired as failure:
                 raise OperationalError("Scheduler command %r timed out after %g seconds" % (_batch_system_command, timeout)) from failure
             if error:
@@ -399,9 +378,10 @@ def get_detail_of_name(account_jobs_table, config, args):
         timeout = float(config.get("scheduler_command_timeout", 30))
         if not isfinite(timeout) or timeout <= 0:
             raise ValueError("scheduler_command_timeout must be positive and finite")
-        p = subprocess.Popen(user_details_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding="utf-8", start_new_session=(os.name == "posix"))
+        p = subprocess.Popen(user_details_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=(os.name == "posix"))
         output, err = communicate_with_timeout(p, timeout)
-    except (OSError, ValueError, TypeError, IndexError, OverflowError, subprocess.TimeoutExpired) as error:
+        output, err = output.decode("utf-8", errors="replace"), err.decode("utf-8", errors="replace")
+    except (OperationalError, OSError, ValueError, TypeError, IndexError, OverflowError, subprocess.TimeoutExpired) as error:
         logging.warning("Cannot collect %s command %r: %s; skipping user details.", command_key, command, error)
         return {}
     if p.returncode:
@@ -422,7 +402,7 @@ def get_detail_of_name(account_jobs_table, config, args):
             except (AttributeError, TypeError, ValueError):
                 detail = field.strip()
             finally:
-                detail_of_name[user] = detail
+                detail_of_name[user] = visible_text(detail)
     return detail_of_name
 
 
@@ -2290,7 +2270,7 @@ def report_operational_error(error):
         message = "%s%s" % (error.strerror or str(error), location)
     else:
         message = str(error)
-    message = " ".join(message.splitlines())
+    message = visible_text(" ".join(message.splitlines()))
     sys.stderr.write("qtop: %s\n" % message)
     # Preserve exception chains even at default verbosity, without sending
     # tracebacks to normal console handlers or requiring logging to be ready.
@@ -2472,9 +2452,6 @@ def main(resources):
         useful_frames, args.REPLAY = pick_frames_to_replay(config["savepath"])
 
     web = resources.web = Web(initial_cwd)
-    if args.WEB:
-        web.start()
-
     with raw_mode(sys.stdin):  # key listener implementation
         try:
             while True:
@@ -2482,6 +2459,11 @@ def main(resources):
                     config, user_to_color, nodestate_to_color = configuration.load_yaml_config(args, QTOPPATH, CURPATH, SYSTEMCONFDIR, USERPATH)
                 except (ValueError, TypeError, KeyError, IndexError, AttributeError, StopIteration) as error:
                     raise OperationalError("Invalid configuration in %s: %s" % (args.CONFFILE or QTOPCONF_YAML, error or type(error).__name__)) from error
+                if args.WEB and not web.started:
+                    web.host = config.get("experimental_web_host", "127.0.0.1")
+                    web.port = int(config.get("experimental_web_port", 8080))
+                    web.start()
+                    logging.warning("Experimental web interface at http://%s:%s (no authentication or TLS).", web.host, web.port)
                 savepath = config["savepath"]
                 timestr = time.strftime("%Y%m%dT%H%M%S")
                 attempt_faster_xml_parsing(config)

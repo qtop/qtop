@@ -19,6 +19,7 @@ import re
 from typing import Iterator, Tuple
 
 import qtop_py.fileutils as fileutils
+from qtop_py.safety import load_json
 from qtop_py.schedulers.tabular import TabularStatExtractor
 from qtop_py.serialiser import GenericBatchSystem, StatExtractor, resolve_job_id
 
@@ -71,7 +72,7 @@ class PBSStatExtractor(TabularStatExtractor):
         else:
             try:
                 with open(orig_file) as f:
-                    _ = json.load(f)
+                    _ = load_json(f)
             except json.JSONDecodeError:
                 logging.info("Extracting qstat output using regex")
                 all_qstat_values = self._extract_qstat_regex(orig_file)
@@ -114,7 +115,7 @@ class PBSStatExtractor(TabularStatExtractor):
     def _extract_qstat_json(self, qstat_file):
         all_qstat_values = list()
         with open(qstat_file, "r") as fin:
-            data = json.load(fin)
+            data = load_json(fin)
             jobs = data["Jobs"]
             for job_id, job in jobs.items():
                 qstat_values = dict()
@@ -150,7 +151,7 @@ class PBSStatExtractor(TabularStatExtractor):
         else:
             try:
                 with open(orig_file) as f:
-                    _ = json.load(f)
+                    _ = load_json(f)
             except json.JSONDecodeError:
                 logging.info("Extracting qstat_q output using regex")
                 all_qstatq_values = self._extract_qstatq_regex(orig_file)
@@ -200,7 +201,7 @@ class PBSStatExtractor(TabularStatExtractor):
         anonymize = self.anonymize_func()
         all_qstatq_values = list()
         with open(qstatq_file, "r") as fin:
-            data = json.load(fin)
+            data = load_json(fin)
             queues = data["Queue"]
             for queue_name, queue in queues.items():
                 qstatq_values = dict()

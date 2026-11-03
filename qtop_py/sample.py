@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, Dict, List, Optional, Tuple, cast, overload
 if TYPE_CHECKING:
     from qtop_py.contracts import ClusterState, Config, IdentifierMaps, Options, Snapshot
 
+from qtop_py import safety
 from qtop_py.cluster_state import validate_cluster_state
 from qtop_py.schedulers.metadata import JOB_IDENTITIES, mask_job_extensions, mask_node_extensions
 
@@ -103,7 +104,19 @@ def anonymize_state(state: object) -> "Tuple[ClusterState, IdentifierMaps]":
 def sanitize_config(config: "Config", mappings: "IdentifierMaps") -> "Tuple[Config, List[str]]":
     """Remove local commands/paths and translate identifier-bearing rules."""
     config = copy.deepcopy(config)
-    omitted = ("savepath", "schedulers", "signature_commands", "extract_info", "remapping", "experimental_gpu_pairs", "experimental_queue_nodes")
+    omitted = (
+        "savepath",
+        "schedulers",
+        "signature_commands",
+        "extract_info",
+        "remapping",
+        "experimental_gpu_pairs",
+        "experimental_queue_nodes",
+        "experimental_web_host",
+        "experimental_web_port",
+    )
+    config.pop("experimental_web_host", None)
+    config.pop("experimental_web_port", None)
     config.pop("experimental_queue_nodes", None)
     config.pop("experimental_gpu_pairs", None)
     config.update(savepath="/tmp/qtop_results_$USER", schedulers={}, signature_commands={}, extract_info=None, remapping=[])
@@ -174,15 +187,24 @@ def save_snapshot(
 
 
 def load_snapshot(path: str) -> "Snapshot":
-    with tarfile.open(path, "r:*") as archive:
-        member = archive.getmember(SNAPSHOT_NAME)
-        if not member.isfile() or member.size > 64 * 1024 * 1024:
-            raise ValueError("snapshot must be a regular file smaller than 64 MiB")
-        stream = archive.extractfile(member)
-        if stream is None:
-            raise ValueError("snapshot data is missing")
-        with stream:
-            payload = json.load(stream)
+    payload = missing = object()
+    with safety.snapshot_archive(path) as archive:
+        for index, member in enumerate(archive):
+            if index >= safety.MAX_ARCHIVE_MEMBERS:
+                raise safety.ResourceLimitError("snapshot archive exceeds member limit")
+            if member.name != SNAPSHOT_NAME:
+                continue
+            if payload is not missing:
+                raise ValueError("duplicate snapshot member")
+            if not member.isfile() or member.size > 64 * 1024 * 1024:
+                raise ValueError("snapshot must be a regular file smaller than 64 MiB")
+            stream = archive.extractfile(member)
+            if stream is None:
+                raise ValueError("snapshot data is missing")
+            with stream:
+                payload = safety.load_json(stream, limit=64 * 1024 * 1024)
+    if payload is missing:
+        raise KeyError("snapshot data is missing")
     if not isinstance(payload, dict):
         raise TypeError("snapshot must be an object")
     snapshot = cast("Config", payload)
@@ -201,6 +223,8 @@ def load_snapshot(path: str) -> "Snapshot":
             if value is not None and not isinstance(value, bool):
                 raise TypeError("snapshot option %s must be boolean" % name)
             snapshot["options"][name] = bool(value)
+    for key in ("experimental_web_host", "experimental_web_port"):
+        cast("Config", snapshot["config"]).pop(key, None)
     snapshot["config"]["extract_info"] = None
     snapshot["options"]["GET_GECOS"] = False
     snapshot["options"]["SHOW_GROUPS"] = False

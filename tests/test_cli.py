@@ -361,13 +361,13 @@ def test_scheduler_timeout_or_interrupt_reaps_client_and_preserves_previous_trac
         process = popen(*args, **kwargs)
         processes.append(process)
         if interrupt:
-            communicate = process.communicate
+            wait = process.wait
 
             def interrupt_once(*args, **kwargs):
-                process.communicate = communicate
+                process.wait = wait
                 raise KeyboardInterrupt
 
-            process.communicate = interrupt_once
+            process.wait = interrupt_once
         return process
 
     monkeypatch.setattr(qtop.subprocess, "Popen", track_process)
@@ -955,3 +955,16 @@ def test_classic_labels_follow_selected_backend(tmp_path, scheduler_name):
     assert ("reported by qstat - q" in result.stdout) is (scheduler_name == "pbs")
     assert ("C and W states, as reported by qstat" in result.stdout) is (scheduler_name == "pbs")
     assert ("PBS \n" if scheduler_name == "pbs" else "qtop \n") in result.stdout
+
+
+def test_experimental_web_uses_configured_address_and_port(tmp_path):
+    import socket
+
+    with socket.socket() as listener:
+        listener.bind(("127.0.0.1", 0))
+        port = listener.getsockname()[1]
+    config = tmp_path / "web.yaml"
+    config.write_text("experimental_web_host: 127.0.0.1\nexperimental_web_port: %s\n" % port)
+    result = run_cli(tmp_path, "qtop_py.cli", "-b", "demo", "-B", "-e", "-F", "-O", "-f", str(config), "-o", "savepath=" + str(tmp_path / "output"))
+    assert result.returncode == 0, result.stderr
+    assert "Experimental web interface at http://127.0.0.1:%s" % port in (tmp_path / ".local/qtop/logs/qtop.log").read_text()
