@@ -2337,15 +2337,18 @@ def collect_snapshot(args, config, backend, trace_paths, archive):
 
 
 def export_snapshot(document, args, savepath, timestr, web):
-    if args.EXPORT or args.WEB:
-        with tempfile.NamedTemporaryFile(delete=False, prefix="qtop_json_%s_" % timestr, suffix=".json", dir=savepath) as json_file:
-            json_filename = json_file.name
-        try:
-            document.save(json_filename)
-        except BaseException:
+    if not (args.EXPORT or args.WEB):
+        return
+    with tempfile.NamedTemporaryFile(delete=False, prefix="qtop_json_%s_" % timestr, suffix=".json", dir=savepath) as json_file:
+        json_filename = json_file.name
+    saved = False
+    try:
+        document.save(json_filename)
+        saved = True
+    finally:
+        if not saved:
             with contextlib.suppress(OSError):
                 os.unlink(json_filename)
-            raise
     if args.WEB:
         web.set_filename(json_filename)
 

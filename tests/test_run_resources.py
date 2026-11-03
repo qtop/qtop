@@ -11,10 +11,10 @@ from unittest.mock import Mock
 
 import pytest
 
-from qtop_py.runtime import RunResources
+from qtop_py import runtime
 
 
-@pytest.mark.parametrize("failure", [None, ValueError, KeyboardInterrupt])
+@pytest.mark.parametrize("failure", [None, ValueError, KeyboardInterrupt, SystemExit, GeneratorExit])
 def test_frame_closes_only_owned_output_and_restores_cwd(tmp_path, failure):
     original, stderr = sys.stdout, sys.stderr
     directory = os.getcwd()
@@ -23,7 +23,7 @@ def test_frame_closes_only_owned_output_and_restores_cwd(tmp_path, failure):
     web = Mock()
 
     def run():
-        with RunResources() as resources:
+        with runtime.RunResources() as resources:
             resources.web = web
             os.chdir(str(tmp_path))
             with resources.frame(str(tmp_path), "test") as path:
@@ -51,7 +51,7 @@ def test_capture_is_complete_and_closed_before_next_refresh_overwrites_traces(tm
     log = tmp_path / "qtop.log"
     log.write_text("diagnostic log")
     archives = []
-    with RunResources() as resources:
+    with runtime.RunResources() as resources:
         resources.options = SimpleNamespace(SAMPLE=1, ANONYMIZE=False, raw_companion=False)
         resources.logfile = str(log)
         for number in (1, 2):
@@ -71,23 +71,25 @@ def test_capture_is_complete_and_closed_before_next_refresh_overwrites_traces(tm
     assert capsys.readouterr().err.splitlines() == ["Sample files saved in " + str(tmp_path / ("capture-%s.tar" % number)) for number in (1, 2)]
 
 
+@pytest.mark.parametrize("cleanup_error", [RuntimeError, KeyboardInterrupt, SystemExit])
 @pytest.mark.parametrize("primary_failure", [False, True])
 @pytest.mark.parametrize("failed_cleanup", ["web", "archive"])
-def test_cleanup_failures_do_not_skip_other_resources_or_hide_primary_error(tmp_path, caplog, primary_failure, failed_cleanup):
+def test_cleanup_failures_do_not_skip_other_resources_or_hide_primary_error(tmp_path, caplog, primary_failure, failed_cleanup, cleanup_error):
     original = sys.stdout
-    resources = RunResources()
+    resources = runtime.RunResources()
     workspace = tempfile.TemporaryDirectory(dir=str(tmp_path))
     resources.options = SimpleNamespace(ANONYMIZE=True, source_workspace=workspace)
     web, archive = Mock(), Mock()
     resources.web, resources.archive = web, archive
     target = web.stop if failed_cleanup == "web" else archive.close
-    target.side_effect = RuntimeError("cleanup failure")
+    target.side_effect = cleanup_error("cleanup failure")
     operation = Mock(side_effect=ValueError("primary failure") if primary_failure else None)
-    expected = ValueError if primary_failure else RuntimeError
+    expected = ValueError if primary_failure else cleanup_error
     with pytest.raises(expected, match="primary failure" if primary_failure else "cleanup failure"):
         with resources:
             os.chdir(workspace.name)
             operation()
+    assert ("Cleanup failed" in caplog.text) == primary_failure
     assert sys.stdout is original and not original.closed
     assert os.getcwd() == resources.initial_cwd
     assert not os.path.exists(workspace.name)
@@ -96,12 +98,10 @@ def test_cleanup_failures_do_not_skip_other_resources_or_hide_primary_error(tmp_
     resources.__exit__(None, None, None)
     web.stop.assert_called_once_with()
     archive.close.assert_called_once_with()
-    if primary_failure:
-        assert "Cleanup failed" in caplog.text
 
 
 def test_owner_discards_only_completed_intermediate_frames(tmp_path):
-    with RunResources() as resources:
+    with runtime.RunResources() as resources:
         with resources.frame(str(tmp_path), "intermediate") as intermediate:
             print("intermediate")
         resources.discard_frame()
@@ -112,19 +112,33 @@ def test_owner_discards_only_completed_intermediate_frames(tmp_path):
     assert Path(final).read_text() == "final\n"
 
 
-def test_frame_allocation_closes_descriptor_when_opening_stream_fails(tmp_path, monkeypatch):
-    import qtop_py.runtime as runtime
-
+@pytest.mark.parametrize("failure", [OSError, KeyboardInterrupt, SystemExit])
+def test_frame_allocation_closes_descriptor_when_opening_stream_fails(tmp_path, monkeypatch, failure):
     handle, path = tempfile.mkstemp(dir=str(tmp_path))
     monkeypatch.setattr(runtime.fileutils, "get_new_temp_file", lambda *args, **kwargs: (handle, path))
 
     def fail(*args, **kwargs):
-        raise OSError("cannot open frame stream")
+        raise failure("cannot open frame stream")
 
     monkeypatch.setattr(runtime.os, "fdopen", fail)
-    with pytest.raises(OSError, match="cannot open frame stream"):
-        with RunResources() as resources:
+    with pytest.raises(failure, match="cannot open frame stream"):
+        with runtime.RunResources() as resources:
             with resources.frame(str(tmp_path), "failed"):
                 pytest.fail("Frame must not start")
     with pytest.raises(OSError):
         os.fstat(handle)
+
+
+def test_successful_frame_propagates_cleanup_failure_inside_a_handled_exception(tmp_path):
+    archive = Mock()
+    archive.close.side_effect = RuntimeError("capture close failed")
+    with pytest.raises(RuntimeError, match="capture close failed"):
+        try:
+            raise ValueError("already handled")
+        except ValueError:
+            with runtime.RunResources() as resources:
+                resources.options = SimpleNamespace(ANONYMIZE=True)
+                with resources.frame(str(tmp_path), "handled"):
+                    resources.archive = archive
+                    print("completed frame")
+    archive.close.assert_called_once_with()

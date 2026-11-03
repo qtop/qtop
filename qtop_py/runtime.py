@@ -39,7 +39,7 @@ class RunResources(object):
         for cleanup in callbacks:
             try:
                 cleanup()
-            except BaseException as error:
+            except (Exception, KeyboardInterrupt, SystemExit) as error:
                 failures.append(error)
                 if failed:
                     logging.warning("Cleanup failed: %s", error)
@@ -50,19 +50,21 @@ class RunResources(object):
     def frame(self, savepath, timestr):
         handle, path = fileutils.get_new_temp_file(savepath, prefix="qtop_fullview_%s_" % timestr, suffix=".out")
         self.frame_path = path
-        try:
+        with contextlib.ExitStack() as allocation:
+            allocation.callback(os.close, handle)
             stream = os.fdopen(handle, "w")
-        except BaseException:
-            os.close(handle)
-            raise
+            allocation.pop_all()
+        finished = False
         try:
             with stream, contextlib.redirect_stdout(stream):
                 yield path
+            finished = True
         finally:
-            self._cleanup(
-                (lambda: fileutils.add_to_sample([path], self.archive) if self.archive is not None else None, self.close_capture),
-                sys.exc_info()[0] is not None,
-            )
+            self._cleanup((self.archive_frame, self.close_capture), not finished)
+
+    def archive_frame(self):
+        if self.archive is not None:
+            fileutils.add_to_sample([self.frame_path], self.archive)
 
     def discard_frame(self):
         path, self.frame_path = self.frame_path, None
