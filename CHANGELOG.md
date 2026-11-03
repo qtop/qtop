@@ -3,6 +3,10 @@
 Notable changes by version, newest first.
 See the [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 
+## 0.9.20261031
+
+- Release: update version metadata to 0.9.20261031.
+
 ## 0.9.20261026
 
 - Docs: (README) add registered OpenSSF Best Practices badge
