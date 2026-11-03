@@ -68,7 +68,8 @@ with reports in CI or review artifacts.
 ### 1. Scheduler XML
 
 [SGEStatExtractor.get_xml_tree and NoDTDTreeBuilder](../qtop_py/plugins/sge.py)
-reject every DTD declaration using a standard-library parser target. This
+reject every DTD declaration using a standard-library parser target, with an
+explicit Expat DTD callback where exposed (including PyPy). This
 replaces the earlier proposal to add optional `defusedxml`.
 [Tests](../tests/plugins/test_sge.py) cover internal/nested entities, external
 DTDs/entities and multiple encodings, including UTF-16. Predefined XML entities
@@ -142,7 +143,9 @@ and malformed input; review artifacts before sharing them.
 
 [private_save_directory](../qtop_py/fileutils.py) opens POSIX directory
 components with `O_DIRECTORY` and `O_NOFOLLOW`. The final directory must belong
-to the effective user, reject group/other writes and be restricted to `0700`.
+to the effective user and is automatically restricted to `0700`, including
+existing group/other-writable directories. The owned `~/.local/qtop` tree is
+also tightened when opening its configuration/log subdirectories.
 On macOS, root-owned `/tmp` and `/var` aliases to `/private/tmp` and
 `/private/var` are expanded before the same component checks. Other symlinks
 and writable non-sticky ancestors are rejected; sticky shared parents
@@ -150,8 +153,11 @@ and non-writable site-owned ancestors are allowed. Unsupported non-POSIX checks
 fail explicitly. Temporary outputs use `mkstemp` or `NamedTemporaryFile`.
 Log creation now uses the same directory validation and opens the leaf relative
 to the held directory descriptor with append/no-follow/nonblocking flags. It rejects
-non-regular, foreign-owned, multiply linked or group/other-writable logs before
-writing, tightens accepted logs to `0600`, and preserves append history. A directory
+non-regular, foreign-owned or multiply linked logs before writing, automatically
+tightens accepted logs to `0600` and preserves append history. If restrictive
+modes prevent opening an owned directory or log, a no-follow metadata check
+precedes permission repair and retry; foreign entries and linked/special log
+files are not repaired. A directory
 replacement cannot redirect that open. `PrivateFileHandler` retains normal
 `FileHandler` error-reporting behavior. This does not prove every other later
 pathname operation is race-free.

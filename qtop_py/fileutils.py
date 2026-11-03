@@ -23,14 +23,27 @@ def mkdir_p(path):
             raise
 
 
+def _open_owned(path, flags, mode, directory_fd):
+    try:
+        return os.open(path, flags, mode, dir_fd=directory_fd)
+    except PermissionError:
+        info = os.stat(path, dir_fd=directory_fd, follow_symlinks=False)
+        expected_type = stat.S_ISDIR(info.st_mode) if flags & os.O_DIRECTORY else stat.S_ISREG(info.st_mode) and info.st_nlink == 1
+        if info.st_uid != os.geteuid() or not expected_type:
+            raise
+        os.chmod(path, mode, dir_fd=directory_fd, follow_symlinks=False)
+        return os.open(path, flags, mode, dir_fd=directory_fd)
+
+
 @contextlib.contextmanager
 def _private_directory(path):
-    """Create and verify a private output path without following symlinks."""
+    """Create or tighten an owned output directory without following symlinks."""
     if not isinstance(path, str) or not path.strip():
         raise ValueError("Save directory must be a nonempty path")
     if os.name != "posix":
         raise OSError(errno.ENOTSUP, "Private save directories require POSIX ownership checks", path)
     path = os.path.abspath(os.path.expandvars(path))
+    private_root = os.path.abspath(os.path.expanduser("~/.local/qtop"))
     if sys.platform == "darwin":
         for alias in ("/tmp", "/var"):
             if path == alias or path.startswith(alias + os.sep):
@@ -38,6 +51,8 @@ def _private_directory(path):
                 # Expand only Apple's root-owned aliases; validate every target component below.
                 if stat.S_ISLNK(info.st_mode) and info.st_uid == 0 and os.readlink(alias) in ("private" + alias, "/private" + alias):
                     path = "/private" + path
+                    if private_root == alias or private_root.startswith(alias + os.sep):
+                        private_root = "/private" + private_root
                 break
     parts = path.strip(os.sep).split(os.sep)
     if not parts[0]:
@@ -50,21 +65,20 @@ def _private_directory(path):
         for index, part in enumerate(parts):
             with contextlib.suppress(FileExistsError):
                 os.mkdir(part, mode=0o700, dir_fd=fd)
-            access = os.O_RDONLY if index == len(parts) - 1 else parent_access
-            child_fd = os.open(part, flags | access, dir_fd=fd)
+            parent = os.path.join(os.sep, *parts[: index + 1])
+            private_directory = index == len(parts) - 1 or parent == private_root or parent.startswith(private_root + os.sep)
+            access = os.O_RDONLY if private_directory else parent_access
+            child_fd = _open_owned(part, flags | access, 0o700, fd) if private_directory else os.open(part, flags | access, dir_fd=fd)
             os.close(fd)
             fd = child_fd
             info = os.fstat(fd)
             writable_by_others = info.st_mode & (stat.S_IWGRP | stat.S_IWOTH)
-            # Ancestors can be site-owned; the output directory must belong to this user.
-            if index == len(parts) - 1:
+            # Repair owned output directories and qtop's own configuration/log tree.
+            if private_directory:
                 if info.st_uid != uid:
                     raise PermissionError(errno.EACCES, "Save directory must be owned by the current user", path)
-                if writable_by_others:
-                    raise PermissionError(errno.EACCES, "Save directory is writable by others; inspect it or choose a new private directory", path)
                 os.fchmod(fd, 0o700)
             elif writable_by_others and not info.st_mode & stat.S_ISVTX:
-                parent = os.path.join(os.sep, *parts[: index + 1])
                 raise PermissionError(errno.EACCES, "Save directory has an untrusted parent (writable without sticky bit)", parent)
         yield path, fd
     finally:
@@ -72,7 +86,7 @@ def _private_directory(path):
 
 
 def private_save_directory(path):
-    """Create and verify a private output path without following symlinks."""
+    """Create or tighten an owned output directory without following symlinks."""
     with _private_directory(path) as (directory, _):
         return directory
 
@@ -81,13 +95,11 @@ def private_log_stream(path):
     """Open a user-owned, singly linked regular log through a verified directory FD."""
     directory, name = os.path.split(os.path.abspath(os.path.expandvars(path)))
     with _private_directory(directory) as (_, directory_fd), contextlib.ExitStack() as allocation:
-        descriptor = os.open(name, os.O_WRONLY | os.O_CREAT | os.O_APPEND | os.O_NOFOLLOW | os.O_NONBLOCK, 0o600, dir_fd=directory_fd)
+        descriptor = _open_owned(name, os.O_WRONLY | os.O_CREAT | os.O_APPEND | os.O_NOFOLLOW | os.O_NONBLOCK, 0o600, directory_fd)
         allocation.callback(os.close, descriptor)
         info = os.fstat(descriptor)
         if not stat.S_ISREG(info.st_mode) or info.st_uid != os.geteuid() or info.st_nlink != 1:
             raise PermissionError(errno.EACCES, "Log must be a user-owned, singly linked regular file", path)
-        if info.st_mode & (stat.S_IWGRP | stat.S_IWOTH):
-            raise PermissionError(errno.EACCES, "Log is writable by others; inspect it or choose a private log", path)
         os.fchmod(descriptor, 0o600)
         stream = os.fdopen(descriptor, "a", encoding="utf-8")
         allocation.pop_all()
