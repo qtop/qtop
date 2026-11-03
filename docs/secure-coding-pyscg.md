@@ -68,7 +68,8 @@ with reports in CI or review artifacts.
 ### 1. Scheduler XML
 
 [SGEStatExtractor.get_xml_tree and NoDTDTreeBuilder](../qtop_py/plugins/sge.py)
-reject every DTD declaration using a standard-library parser target. This
+reject every DTD declaration using a standard-library parser target, with an
+explicit Expat DTD callback where exposed (including PyPy). This
 replaces the earlier proposal to add optional `defusedxml`.
 [Tests](../tests/plugins/test_sge.py) cover internal/nested entities, external
 DTDs/entities and multiple encodings, including UTF-16. Predefined XML entities

@@ -57,8 +57,18 @@ class NoDTDTreeBuilder(etree.TreeBuilder):
         self.depth -= 1
         return super().end(tag)
 
-    def doctype(self, name, pubid, system):
+    def doctype(self, name, pubid, system, *_internal_subset):
         raise etree.ParseError("DTD declarations are not supported in scheduler XML")
+
+
+def _xml_parser():
+    target = NoDTDTreeBuilder()
+    parser = etree.XMLParser(target=target)  # nosec B314 - DTD rejection below
+    # Pure-Python ElementTree (PyPy) does not dispatch every DTD to the target.
+    expat_parser = getattr(parser, "_parser", None)
+    if expat_parser is not None:
+        expat_parser.StartDoctypeDeclHandler = target.doctype
+    return parser
 
 
 class SGEStatExtractor(StatExtractor):
@@ -76,7 +86,7 @@ class SGEStatExtractor(StatExtractor):
         with open(xml_file, mode="rb") as fin:
             try:
                 # Bandit cannot infer DTD rejection by the custom parser target.
-                parser = etree.XMLParser(target=NoDTDTreeBuilder())  # nosec B314
+                parser = _xml_parser()
                 total = 0
                 for chunk in iter(lambda: fin.read(65536), b""):
                     total += len(chunk)
@@ -174,7 +184,7 @@ class SGEBatchSystem(GenericBatchSystem):
     def mask_source_trace(self, key, text, mask):
         if key != "sge_file":
             raise ValueError("unsupported trace")
-        parser = etree.XMLParser(target=NoDTDTreeBuilder())  # nosec B314 - rejects DTDs
+        parser = _xml_parser()
         root = etree.fromstring(text, parser=parser)  # nosec B314
         numeric = {"slots_used", "slots_resv", "slots_total", "slots", "tasks", "JAT_prio", "JB_job_number"}
         resources = {"num_proc", "slots", "slots_total", "slots_used", "slots_resv"}

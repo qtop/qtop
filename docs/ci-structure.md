@@ -84,11 +84,18 @@ installation checks, and runs legacy compatibility CI on Linux. This scope
 limits exposure; the retained versions are not patched. Setuptools is a build
 dependency, not a qtop runtime dependency.
 
-Three PyPy lanes are commented out with FIXMEs following
-[run 39755187632](https://github.com/qtop/qtop/actions/runs/39755187632):
-PyPy 3.11 does not pass SGE XML DTD-rejection tests, and PyPy 3.12 also fails
-to build the pinned `librt` dependency. Restore those lanes after these checks
-pass; the XML security tests remain enabled.
+The three experimental PyPy lanes use `make compat-py36`, the existing
+stdlib-only compatibility gate: syntax compilation, unittest regressions
+(including XML DTD rejection and parser budgets) and all scheduler sample gates.
+They do not install `requirements-ci.txt` or run the full pytest suite.
+The full test, coverage, type-checking and fuzzing gates remain on CPython;
+qtop itself has no required third-party runtime dependencies.
+
+The earlier [PyPy failures](https://github.com/qtop/qtop/actions/runs/39755187632)
+combined missing DTD callbacks in PyPy's ElementTree with unsupported developer
+tooling (`librt`). The parser now registers its DTD rejection directly with
+Expat when exposed by ElementTree; the dependency-free lane avoids importing
+the CPython tooling stack.
 
 ## Adding a new concern
 
