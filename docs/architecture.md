@@ -10,8 +10,8 @@ code, and rendered directly on GitHub.
 ## Runtime overview
 
 Solid arrows show control or data flow; dotted arrows show optional outputs.
-Several stages live in `qtop_py/qtop.py`; the groups describe responsibilities
-within the existing program.
+`qtop_py/qtop.py` owns runtime I/O and effect execution. The MVU modules
+separate state transitions, snapshot queries and terminal presentation.
 
 ```mermaid
 flowchart TB
@@ -20,6 +20,9 @@ flowchart TB
     subgraph entry["Entry and control"]
         cli["CLI entry points: qtop / cli.py"]
         runtime["Refresh stages and watch loop: qtop.py"]
+        update["MVU_Model / MVU_update: mvu.py"]
+        runtime --> update
+        update -->|effect requests| runtime
         options["Options and logging: utils.py"]
         config["Configuration: configuration.py / yaml_parser.py"]
         cli --> runtime
@@ -52,14 +55,14 @@ flowchart TB
     subgraph state["Cluster state and calculations"]
         model["Common jobs, nodes and queues: cluster_state.py"]
         document["Document: snapshot_document.py"]
-        calculations["Cluster, WNOccupancy and core mapping: qtop.py"]
+        calculations["MVU_query: mvu.py / mvu_query.py"]
         model --> document
         document --> calculations
     end
     shared --> model
 
     subgraph outputs["Views and outputs"]
-        render["TextDisplay: qtop.py"]
+        render["MVU_view / TextDisplay: ui/mvu_view.py"]
         terminal["Terminal dashboard"]
         viewport["Navigation: ui/viewport.py"]
         colors["Color mappings: colormap.py"]
@@ -85,8 +88,10 @@ flowchart TB
    [qtop.py](../qtop_py/qtop.py). The runtime loads configuration, selects a
    registered backend, and either executes its configured commands or reads
    files supplied with `-s`. The demo backend generates fictional data.
-   The loop calls `collect_snapshot()`, `export_snapshot()`, `prepare_refresh()`
-   and `render_refresh()`; keyboard handling remains outside those stages.
+   The loop calls `MVU_collect_snapshot()`, `MVU_export_snapshot()`,
+   `MVU_query()` and `MVU_view()`. `MVU_update()` accepts snapshots and keyboard
+   messages, returning a new model and effect requests; the runtime executes
+   menu input, user-detail lookups and terminal effects.
    [configuration.py](../qtop_py/configuration.py) owns file precedence,
    normalization, CLI overrides and validation. The runtime passes configuration,
    options and the selected backend explicitly to collection helpers.
@@ -100,10 +105,13 @@ flowchart TB
 3. `Document.from_cluster_state()` in [snapshot_document.py](../qtop_py/snapshot_document.py)
    owns the normalized snapshot and exposes cached legacy rendering fields.
    Exports read that authoritative state; the five-field constructor remains
-   available for old trace adapters. `Cluster`, `WNFilter` and `WNOccupancy` calculate node
-   layout, filtering, user accounting and per-core occupancy. `TextDisplay`
-   renders the three terminal sections, using viewport navigation and color
-   mappings.
+   available for old trace adapters. `MVU_query()` builds a private projection
+   with copied nodes, options and viewport. `Cluster`, `WNFilter` and
+   `WNOccupancy` in [mvu_query.py](../qtop_py/mvu_query.py) calculate layout,
+   filtering, user accounting and per-core occupancy. `MVU_view()` delegates
+   the three terminal sections to [mvu_view.py](../qtop_py/ui/mvu_view.py).
+   Both stages receive an explicit model rather than reading runtime globals;
+   derived layout does not modify the canonical snapshot.
 4. `-E` exports the snapshot as JSON. `-L` creates a support sample archive.
    `-R` replays saved rendered frames. The experimental `-B` web interface
    serves exported JSON and requires `-e`; these are distinct output paths.
@@ -113,12 +121,21 @@ workspaces. It finalizes each capture before the next refresh can replace its
 traces, restores the launch directory, and reports capture paths at exit.
 Menu input restores terminal settings even when interrupted.
 
+[mvu.py](../qtop_py/mvu.py) uses ordinary Python 3.6-compatible classes and
+functions, with no framework dependency. Collection still occurs once per
+refresh; the MVU split adds no scheduler commands. Legacy imports and controller
+entry points remain adapters in `qtop.py`; those adapters still support the old
+runtime globals, while the new query/view pipeline does not depend on them.
+
 ## Source map
 
 | Responsibility | Source |
 | --- | --- |
 | Launchers and installed entry point | [qtop](../qtop), [cli.py](../qtop_py/cli.py), [pyproject.toml](../pyproject.toml) |
-| Runtime orchestration, calculations and terminal rendering | [qtop.py](../qtop_py/qtop.py) |
+| Runtime orchestration, I/O effects and compatibility adapters | [qtop.py](../qtop_py/qtop.py) |
+| Explicit model, update messages and query/view entry points | [mvu.py](../qtop_py/mvu.py) |
+| Snapshot queries, filtering and occupancy calculations | [mvu_query.py](../qtop_py/mvu_query.py) |
+| Terminal presentation | [mvu_view.py](../qtop_py/ui/mvu_view.py) |
 | Command-line options and logging | [utils.py](../qtop_py/utils.py) |
 | Configuration loading, preparation and parsing | [configuration.py](../qtop_py/configuration.py), [qtopconf.yaml](../qtopconf.yaml), [yaml_parser.py](../qtop_py/yaml_parser.py) |
 | Scheduler backends and support | [Slurm](../qtop_py/plugins/slurm.py), [PBS](../qtop_py/plugins/pbs.py), [SGE](../qtop_py/plugins/sge.py), [OAR](../qtop_py/plugins/oar.py), [demo](../qtop_py/plugins/demo.py), [support helpers](../qtop_py/schedulers/) |

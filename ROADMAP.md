@@ -8,7 +8,7 @@ actionable failures and documented compatibility.
 usable on common Linux HPC systems with limited internet access, no administrator
 privileges and minimal Python installations, including the widespread rhel8/py36 combination.
 
-Last reviewed: 2026-10-30
+Last reviewed: 2026-11-03
 
 ## How to Read This Roadmap
 
@@ -140,6 +140,8 @@ or a release is prepared.
 
 - [ ] Separate parsing, normalized state and presentation incrementally.
   - [x] Extract normalized state, snapshot support and viewport helpers with focused interfaces ([architecture](docs/architecture.md)).
+  - [x] Separate explicit MVU model/update, snapshot queries and terminal presentation; retain legacy adapters in the runtime.
+  - [ ] Retire remaining runtime globals and compatibility adapters when their callers migrate.
   - [x] [CI] Run backend rendering and runtime/capture regressions through the shared test and sample gates.
   - [ ] Keep extracted interfaces compatible with Python 3.6 while it is supported.
   - [ ] Avoid making a broad internal rewrite a prerequisite for feature fixes.
