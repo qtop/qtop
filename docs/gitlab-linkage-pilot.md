@@ -1,7 +1,21 @@
 # GitLab linkage pilot: GitHub-first validation
 
-Status: repository-side proposal for #488. No live GitLab project, mirror,
-schedule, or status integration is claimed by this document.
+Status: repository configuration prepared for #488; account-side validation
+remains unverified. No live GitLab project, mirror, schedule, or status
+integration is claimed by this document.
+
+## Progress checklist
+
+- [x] Track GitLab jobs and shared Makefile targets for tests, builds, coverage
+  and selected security reports. See [CI structure](ci-structure.md).
+- [x] Provide nightly-matrix and Scorecard jobs with opt-in variables.
+- [ ] Connect an eligible GitLab project to the canonical GitHub repository.
+- [ ] Validate an upstream-branch pipeline and retain its artifact evidence.
+- [ ] Verify supported events and GitHub commit-status reporting; document
+  fork-PR limitations.
+- [ ] Activate and verify nightly and weekly schedules as described below.
+
+Checked items record repository support, not a successful live pilot.
 
 GitHub remains the collaboration home for issues, pull requests, reviews, DCO,
 and bounties. A qualifying GitLab project can add a second validation surface
@@ -31,13 +45,13 @@ remain useful for post-push validation.
 
 ## Account-side setup
 
-1. On an eligible GitLab tier, create a project using "Run CI/CD for external
+- [ ] On an eligible GitLab tier, create a project using "Run CI/CD for external
    repository" and connect the canonical GitHub repository.
-2. Confirm which GitHub events and commit statuses are available to the chosen
+- [ ] Confirm which GitHub events and commit statuses are available to the chosen
    integration. Do not assume fork pull requests are covered.
-3. Validate the tracked configuration on an upstream branch.
-4. Add a nightly schedule with `NIGHTLY_MATRIX=1`.
-5. Add a weekly schedule with `SCORECARD=1` and a read-only
+- [ ] Validate the tracked configuration on an upstream branch.
+- [ ] Add a nightly schedule with `NIGHTLY_MATRIX=1`.
+- [ ] Add a weekly schedule with `SCORECARD=1` and a read-only
    `GITHUB_AUTH_TOKEN`.
 
 These are maintainer-owned settings. They cannot be completed or demonstrated
@@ -53,7 +67,7 @@ by repository changes alone.
 | Dependency Scanning | v2 analyzer configured for `requirements-ci.txt` | Ultimate; template rules cover branch and native GitLab MR pipelines |
 | Code Quality | ruff emits GitLab report JSON | artifact inspection depends on GitLab UI support |
 | Coverage | Cobertura XML and percentage regex | GitLab MR widgets require a GitLab MR; branch artifacts still work |
-| Nightly matrix | 38 scheduled lanes | schedule must be created account-side |
+| Nightly matrix | opt-in interpreter/distro jobs | schedule must be created account-side |
 | Scorecard | digest-pinned image and JSON artifact | schedule and GitHub token must be configured |
 | GitHub commit status | possible integration output | must be configured and verified; fork PRs are not covered |
 
@@ -69,7 +83,7 @@ contributor destination and not a guaranteed PR check.
 ## Relation to the #488 checklist
 
 This document records a technically bounded model and its limitations. The
-account-side pilot remains unperformed. SBOM proposals are in
+account-side pilot remains unverified. SBOM proposals are in
 `docs/supply-chain-sbom.md`, secure-coding evidence is in
 `docs/secure-coding-pyscg.md`, and the repository layout is in
 `docs/ci-structure.md`.
