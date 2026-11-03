@@ -183,6 +183,8 @@ class DemoBatchSystem(GenericBatchSystem):
     by qtop in order to run.
     """
 
+    is_simulated = True
+
     @staticmethod
     def get_mnemonic():
         return "demo"

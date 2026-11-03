@@ -136,6 +136,13 @@ class SGEStatExtractor(StatExtractor):
 
 
 class SGEBatchSystem(GenericBatchSystem):
+    native_queue_membership = True
+    blocked_queue_note = " (at least one queue instance)"
+
+    @staticmethod
+    def queue_is_blocked(state):
+        return any(flag in str(state) for flag in "aAcCdDEosSu")
+
     def mask_source_trace(self, key, text, mask):
         if key != "sge_file":
             raise ValueError("unsupported trace")
@@ -178,7 +185,7 @@ class SGEBatchSystem(GenericBatchSystem):
                 elif element.tag in numeric or resource in resources:
                     element.text = mask.public(value, r"[0-9.,:\- ]+")
                 elif element.tag == "state":
-                    element.text = mask.public(value, r"[rRqQwWhHsStTEdauocACDS+-]*")
+                    element.text = mask.public(value, r"[rRqQwWhHsStTEdauocACD+-]*")
                 else:
                     element.text = mask(value)
             for name, value in list(element.attrib.items()):

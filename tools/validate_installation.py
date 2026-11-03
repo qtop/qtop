@@ -1,4 +1,5 @@
-# SPDX-License-Identifier: MIT
+## Copyright (c) 2026 qtop contributors
+## SPDX-License-Identifier: MIT
 """Build an sdist, build its wheel, and exercise a clean installed CLI."""
 
 import os

@@ -1,4 +1,5 @@
-# SPDX-License-Identifier: MIT
+## Copyright (c) 2026 qtop contributors
+## SPDX-License-Identifier: MIT
 """Fallback metadata for Python 3.6-3.8 build backends without PEP 621."""
 
 import os

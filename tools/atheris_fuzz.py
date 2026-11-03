@@ -1,4 +1,5 @@
-# SPDX-License-Identifier: MIT
+## Copyright (c) 2026 qtop contributors
+## SPDX-License-Identifier: MIT
 """Coverage-guided inputs for the existing deterministic parser checks."""
 
 import hashlib

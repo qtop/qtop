@@ -7,7 +7,7 @@
 ![Python 3](https://img.shields.io/badge/python-3.x-blue.svg)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/qtop/qtop/badge)](https://scorecard.dev/viewer/?uri=github.com/qtop/qtop)
 [![Security Insights metadata](https://img.shields.io/badge/Security_Insights-v2.2.0-blue)](security-insights.yml)
-[![OpenSSF Best Practices preparation](https://img.shields.io/badge/OpenSSF_Best_Practices-preparing-lightgrey)](docs/openssf-readiness.md#best-practices-badge)
+[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/16179/badge)](https://www.bestpractices.dev/projects/16179)
 
 qtop is a scheduler-independent observability layer for HPC clusters, with an extremely fast terminal interface. It is a portable, dependency-light cluster observability and scheduler debugging tool for Slurm, PBS, SGE and OAR - and even more, with your contributed plugin effort.
 

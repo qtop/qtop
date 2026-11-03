@@ -1,21 +1,22 @@
 # OpenSSF readiness
 
-Reviewed 2026-10-30. Keep security metadata and evidence small, public and
+Progress checklist and badge references updated 2026-11-02. Keep security metadata and evidence small, public and
 reusable across assessment tools; keep integrations outside qtop's runtime.
 
 ## Progress checklist
 
 - [x] Add repository-scoped [Security Insights](../security-insights.yml)
   using the released v2.2.0 schema and source-backed policy/evidence links.
-- [x] Label README preparation badges explicitly; retain the existing dynamic
-  Scorecard badge. Preparation badges do not indicate an earned certification.
+- [x] Register qtop as [Best Practices project 16179](https://www.bestpractices.dev/projects/16179)
+  and publish its dynamic README badge alongside Scorecard.
 - [x] [CI] Maintain test, coverage, fixture, type and fuzz gates through the
   [shared contract](ci-structure.md#the-makefile-contract).
 - [ ] Confirm individual administrator/core-team roles before adding the
   project-level Security Insights section; the initial contact is the team.
 - [ ] Add pinned schema validation to the shared CI contract if this metadata
   becomes a required gate. Local validation is not marked `[CI]`.
-- [ ] Register qtop for Best Practices and review every answer against evidence.
+- [ ] Complete the Best Practices assessment and review every answer against
+  evidence; registration alone does not establish a passing status.
 - [ ] Complete an OSPS Baseline assessment and resolve or document gaps.
 - [ ] Produce release SBOMs/provenance and document consumer verification.
 - [ ] Evaluate policy tooling against a chosen baseline and scoped permissions.
@@ -48,9 +49,10 @@ maintainers must still verify the declarations. Do not use the evolving upstream
 ## Best Practices badge
 
 The [badge application](https://www.bestpractices.dev/en) is a separate
-registration/self-assessment service, not a GitHub Action to install. A lookup
-for `https://github.com/qtop/qtop` found no registration on the review date.
-The README therefore links a static **preparing** badge to this checklist.
+registration/self-assessment service, not a GitHub Action to install. qtop is
+registered as [project 16179](https://www.bestpractices.dev/projects/16179), and
+the README uses its service-provided dynamic badge. Assessment completion
+remains separate from registration.
 
 Use these starting points when completing the
 [criteria](https://www.bestpractices.dev/en/criteria/0):
@@ -63,15 +65,13 @@ Use these starting points when completing the
 | Automated quality/security checks | [CI contract](ci-structure.md), [security review](secure-coding-pyscg.md); retain revision-specific run evidence |
 | Release and supply-chain gaps | [Roadmap](../ROADMAP.md), [supply-chain plan](supply-chain-sbom.md) |
 
-After a maintainer registers and reviews the answers, replace the preparation
-badge with the service-provided dynamic badge for the actual project ID:
+The README badge points to the registered project:
 
 ```markdown
-[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/PROJECT_ID/badge)](https://www.bestpractices.dev/projects/PROJECT_ID)
+[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/16179/badge)](https://www.bestpractices.dev/projects/16179)
 ```
 
-Keep `PROJECT_ID` out of the README until a real registration exists. The
-service badge reports actual progress; do not hard-code a passing status.
+The service badge reports actual progress; do not hard-code a passing status.
 
 ## Future integrations
 

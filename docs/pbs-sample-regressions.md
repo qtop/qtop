@@ -4,6 +4,20 @@ This document records the evidence requested in #346 steps 3, 4, and 5, using th
 
 Samples come from `fgeorgatos/qtop-test-repo/qtop5/results`.
 
+## Progress checklist
+
+- [x] Document the five crash fixes and their before/after screenshot references.
+- [x] Record screenshot evidence for the five largest sample runs.
+- [x] [CI] Include `tests/test_pbs_sample_regressions.py` in the ordinary
+  `make test` suite used by both forges.
+- [x] Provide `make test-pbs-samples` and the curated ten-sample golden set.
+- [ ] Provision the external corpus in any CI job intended to run the archived
+  sweep and retain results for the revision being reviewed.
+
+The screenshot and local-run results below are historical evidence, not a fresh
+validation run. The archived sweep skips when its external corpus is absent;
+it is not an enforced CI gate.
+
 ## Step 3: before/after screenshots for five bug fixes
 
 The PNG screenshots are intentionally not stored in the `qtop` git tree, per `CONTRIBUTING.md`. A regenerated monospace screenshot bundle was submitted to `qtop/qtop-artifacts` in https://github.com/qtop/qtop-artifacts/pull/1.
@@ -28,16 +42,17 @@ Largest runs were selected by counting entries in `pbsnodes_a.txt`; each has 829
 | 4 | `gef_wd3MkxlAScZhd6-vEQakrg` | 829 nodes / 7,872 cores | `largest-gef_wd3MkxlAScZhd6-vEQakrg.png` |
 | 5 | `gef_ts1Dxv6MCHrBhBtWM3NhGw` | 829 nodes / 7,872 cores | `largest-gef_ts1Dxv6MCHrBhBtWM3NhGw.png` |
 
-## Step 5: proposed `make test` regression wiring
+## Step 5: implemented regression wiring
 
-This PR adds a lightweight path toward `make test` integration:
+The unit regressions run through `make test`; the larger external-corpus sweep
+is a separate optional target:
 
 ```bash
 make test
 make test-pbs-samples PBS_SAMPLES_DIR=../qtop-test-repo/qtop5/results PBS_SAMPLE_LIMIT=100
 ```
 
-The proposed regression flow is:
+The implemented regression flow is:
 
 1. Keep small unit tests in `tests/test_pbs_sample_regressions.py` for each crash class, so ordinary CI catches the logic regressions quickly.
 2. Use `tools/validate_pbs_samples.py` for the larger archived PBS sweep. It renders samples with colour enabled, writes `.ans` files, and records a manifest under the selected output directory.
@@ -52,6 +67,6 @@ python3 tools/validate_pbs_samples.py ../qtop-test-repo/qtop5/results --limit 10
 python3 tools/validate_pbs_samples.py ../qtop-test-repo/qtop5/results --limit 100 --output /tmp/qtop-pbs-rendered-100
 ```
 
-Observed local golden-output check after this patch: `validated=10 output=/tmp/qtop-pbs-golden-10`.
+Historical local golden-output check recorded with the original patch: `validated=10 output=/tmp/qtop-pbs-golden-10`.
 
-Observed local sample sweep after this patch: `validated=100 output=/tmp/qtop-pbs-rendered-100`.
+Historical local sample sweep recorded with the original patch: `validated=100 output=/tmp/qtop-pbs-rendered-100`.

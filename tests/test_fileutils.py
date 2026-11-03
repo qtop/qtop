@@ -122,3 +122,22 @@ def test_extended_sample_preserves_package_source_paths(tmp_path, installed):
         }
         assert saved.extractfile("qtop_py/plugins/slurm.py").read() == b"VALUE = 2\n"
         assert saved.getmember("qtop").mode == 0o755
+
+
+def test_expanded_capture_closes_archive_if_initial_population_fails(tmp_path, monkeypatch):
+    archives = []
+    original = fileutils.tarfile.open
+
+    def opened(*args, **kwargs):
+        archive = original(*args, **kwargs)
+        archives.append(archive)
+        return archive
+
+    def fail(*args, **kwargs):
+        raise RuntimeError("capture population failed")
+
+    monkeypatch.setattr(fileutils.tarfile, "open", opened)
+    monkeypatch.setattr(fileutils, "add_to_sample", fail)
+    with pytest.raises(RuntimeError, match="capture population failed"):
+        fileutils.init_sample_file(SimpleNamespace(SAMPLE=2, ANONYMIZE=False), str(tmp_path), "sample.tar", {}, "qtopconf.yaml", str(tmp_path))
+    assert len(archives) == 1 and archives[0].closed

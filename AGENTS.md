@@ -26,7 +26,7 @@ Run times depend on the environment and are not fixed budgets.
 ## Repo map
 
 - `qtop_py/qtop.py`, `cli.py` - main loop and legacy runtime context; argument handling.
-- `qtop_py/plugins/{pbs,sge,slurm,oar,demo}.py` - scheduler backends (input parsing).
+- `qtop_py/plugins/{pbs,sge,slurm,oar,demo}.py` - backends; `qtop_py/schedulers/` - registration, metadata and GPU helpers.
 - `qtop_py/cluster_state.py`, `ui/viewport.py`, `colormap.py` - cluster model and terminal rendering.
 - `qtopconf.yaml`, `qtop_py/yaml_parser.py` - configuration and its stdlib parser.
 - `tests/` (`tests/plugins/` per scheduler, `slurm_samples/`) and `qtop_py/contrib/` - fixtures and reference scheduler outputs.

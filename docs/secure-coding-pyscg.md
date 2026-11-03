@@ -2,7 +2,7 @@
 
 Reviewed against the working tree on 2026-10-30. This document maps implemented
 controls and remaining gaps to the OpenSSF
-[Secure Coding Guide for Python](https://github.com/ossf/wg-best-practices-os-developers/tree/main/docs/Secure-Coding-Guide-for-Python).
+[Secure Coding Guide for Python](https://github.com/ossf/python-secure-coding-guide).
 It replaces the original proposal for #488; it is not a certification or a
 fresh vulnerability scan. Source references use files and function names
 instead of line numbers that drift as fixes land.
@@ -101,7 +101,7 @@ Runtime checks raise exceptions and survive `python -O` (`pyscg-0037`);
 [security tests](../tests/test_security.py) verify that boundary.
 
 [Slurm host/task expansion](../qtop_py/plugins/slurm.py) and
-[GPU index parsing](../qtop_py/gpu.py) have explicit expansion bounds.
+[GPU index parsing](../qtop_py/schedulers/gpu.py) have explicit expansion bounds.
 Those limits apply to specific operations, not every input or the whole process.
 See [backend regressions](../tests/plugins/) and
 [property tests](../tests/test_properties.py).

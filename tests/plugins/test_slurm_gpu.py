@@ -1,14 +1,15 @@
-# SPDX-License-Identifier: MIT
+## Copyright (c) 2026 qtop contributors
+## SPDX-License-Identifier: MIT
 import json
 from types import SimpleNamespace
 
 import pytest
 
 from qtop_py.cluster_state import validate_cluster_state
-from qtop_py.gpu import parse_gpu_gres
 from qtop_py.plugins.slurm import SlurmBatchSystem
 from qtop_py.qtop import Document
 from qtop_py.sample import anonymize_state
+from qtop_py.schedulers.gpu import parse_gpu_gres
 
 
 def test_h100_nvl_and_mig_profiles_keep_separate_resource_indices():

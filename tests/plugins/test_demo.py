@@ -1,11 +1,7 @@
+## Copyright (c) 2026 qtop contributors
+## SPDX-License-Identifier: MIT
 ##
 ## qtop is a tool to monitor queuing systems - https://github.com/qtop/qtop
-##
-## Copyright (c) 2016 Fotis Georgatos
-## Copyright (c) 2016 Sotiris Fragkiskos
-## Copyright (c) 2026 Utkarsh Sinha
-##
-## SPDX-License-Identifier: MIT
 ##
 
 """Tests for ``DemoBatchSystem.get_jobs_info``.
