@@ -21,9 +21,12 @@ import pytest
 from qtop_py import configuration
 from qtop_py import qtop as qtop_module
 from qtop_py import utils as qtop_utils
+from qtop_py.colormap import color_to_code
 from qtop_py.constants import SYMBOL_LONG_TAIL_USER, SYMBOL_UNKNOWN_NODE_STATE
+from qtop_py.errors import JobNotFound
+from qtop_py.mvu import MVU_Model
+from qtop_py.mvu_query import WNFilter
 from qtop_py.qtop import (
-    JobNotFound,
     NoSchedulerFound,
     SchedulerNotSpecified,
     TextDisplay,
@@ -231,7 +234,6 @@ def test_node_state_colorization_returns_new_nodes_without_mutating_input():
     result = qtop_module.colorize_nodestate(
         worker_nodes,
         {"-X": "red"},
-        qtop_module.colorize,
     )
 
     assert result is not worker_nodes
@@ -380,7 +382,7 @@ def test_display_user_accounts_pool_mappings_adds_totals(monkeypatch, capsys):
             ["0", 2, 3, 5, "alice", 1],
             ["1", 4, 0, 4, "bob", 2],
         ]
-        userid_to_userid_re_pat = {
+        user_color_patterns = {
             "0": "account_not_colored",
             "1": "account_not_colored",
         }
@@ -425,6 +427,7 @@ def test_configured_user_details_command_still_returns_details(monkeypatch, real
     options = SimpleNamespace(GET_GECOS=realtime)
     config = {"extract_info": {key: command}}
     monkeypatch.setattr(qtop_module.subprocess, "Popen", lambda command, **kwargs: calls.append(command) or process)
+    monkeypatch.setattr(qtop_module, "communicate_with_timeout", lambda *args: (b"alice:x:1000:1000:Alice Example:/home/alice:/bin/sh\n", b""))
     assert qtop_module.get_detail_of_name([["0", 1, 0, 1, "alice", 1]], config, options) == {"alice": "Alice Example"}
     assert calls == [["getent", "passwd", "alice"] if realtime else ["cat", "/tmp/qtop-user-details/passwd"]]
 
@@ -455,7 +458,7 @@ def test_display_user_accounts_pool_mappings_hides_totals_by_default(monkeypatch
             ["0", 2, 3, 5, "alice", 1],
             ["1", 4, 0, 4, "bob", 2],
         ]
-        userid_to_userid_re_pat = {
+        user_color_patterns = {
             "0": "account_not_colored",
             "1": "account_not_colored",
         }
@@ -479,7 +482,7 @@ def test_display_user_accounts_can_show_primary_groups(monkeypatch, capsys):
     args = SimpleNamespace(COLOR="OFF", CLASSIC=False, SHOW_ACCOUNT_TOTALS=False, SHOW_GROUPS=True)
     occupancy = SimpleNamespace(
         account_jobs_table=[["0", 2, 3, 5, "alice", 1]],
-        userid_to_userid_re_pat={"0": "account_not_colored"},
+        user_color_patterns={"0": "account_not_colored"},
     )
     monkeypatch.setattr(qtop_module, "args", args, raising=False)
     monkeypatch.setattr(qtop_module, "config", {"SEPARATOR": "|"}, raising=False)
@@ -501,7 +504,7 @@ def test_account_row_colors_preserve_visible_alignment(monkeypatch, capsys, colo
     monkeypatch.setattr(qtop_module, "args", args, raising=False)
     monkeypatch.setattr(qtop_module, "config", {"SEPARATOR": "|"}, raising=False)
     monkeypatch.setattr(qtop_module, "user_to_color", {"user": color}, raising=False)
-    monkeypatch.setitem(qtop_module.color_to_code, "Gray2BG", ";47")
+    monkeypatch.setitem(color_to_code, "Gray2BG", ";47")
     display = TextDisplay(None, qtop_module.config, None, None, None, args)
     line = ["0", 2, 3, 5, "alice", 1]
     display.display_account_jobs_line(line, "user", {"alice": "Alice"}, groups)
@@ -535,7 +538,7 @@ def test_strict_check_counts_unique_jobs_across_slots_nodes_and_shared_resources
     assert capsys.readouterr().out == ""
 
 
-def test_queueing_summary_preserves_order_and_expands(monkeypatch, capsys):
+def test_queueing_summary_preserves_order_and_expands(capsys):
     class Cluster(object):
         total_running_jobs = 2
         total_queued_jobs = 1
@@ -549,13 +552,9 @@ def test_queueing_summary_preserves_order_and_expands(monkeypatch, capsys):
         working_cores = 2
         total_cores = 4
 
-    args = SimpleNamespace(REMAP=False, CLASSIC=False, WATCH=True, EXPAND_QUEUES=True)
-    monkeypatch.setattr(qtop_module, "scheduler", "slurm", raising=False)
-    monkeypatch.setattr(qtop_module, "dynamic_config", {}, raising=False)
-    monkeypatch.setattr(qtop_module, "queue_to_color", {}, raising=False)
-    monkeypatch.setattr(qtop_module, "colorize", lambda text, *args, **kwargs: str(text))
-
-    TextDisplay(None, {}, None, None, Cluster(), args).display_job_accounting_summary(Cluster(), None)
+    args = SimpleNamespace(REMAP=False, CLASSIC=False, WATCH=True, EXPAND_QUEUES=True, COLOR="OFF")
+    model = MVU_Model({}, args, None, backend=qtop_module.scheduler_backend("slurm"))
+    TextDisplay(None, {}, None, None, Cluster(), args, MVU_model=model).display_job_accounting_summary(Cluster(), None)
 
     output = capsys.readouterr().out
     assert "Queueing :\n  compute: 1 + 1 |\n  debug: 1 |" in output
@@ -572,17 +571,17 @@ def test_demo_notice_uses_high_contrast_blue(monkeypatch):
         working_cores = 0
         total_cores = 0
 
-    args = SimpleNamespace(REMAP=False, CLASSIC=False, WATCH=True)
+    args = SimpleNamespace(REMAP=False, CLASSIC=False, WATCH=True, COLOR="OFF")
+    model = MVU_Model({}, args, None, backend=qtop_module.scheduler_backend("demo"))
     color_calls = []
 
     def record_color(text, color_func=None, *unused_args, **unused_kwargs):
         color_calls.append((text, color_func))
         return text
 
-    monkeypatch.setattr(qtop_module, "scheduler", "demo", raising=False)
-    monkeypatch.setattr(qtop_module, "colorize", record_color)
+    monkeypatch.setattr(model, "MVU_colorize", record_color)
 
-    display = TextDisplay(None, {}, None, None, Cluster(), args)
+    display = TextDisplay(None, {}, None, None, Cluster(), args, MVU_model=model)
     display.display_job_accounting_summary(Cluster(), None)
 
     demo_calls = [(text, color) for text, color in color_calls if text.startswith("This data is simulated.")]
@@ -936,7 +935,7 @@ def test_node_filters_enable_compact_mapping(monkeypatch, dynamic, rule, expecte
     document = SimpleNamespace(jobs_dict={}, queues_dict={}, total_running_jobs=2, total_queued_jobs=0)
     args = SimpleNamespace(ANONYMIZE=False, BLINDREMAP=False)
 
-    cluster = qtop_module.Cluster(document, nodes, qtop_module.WNFilter, config, args)
+    cluster = qtop_module.Cluster(document, nodes, WNFilter, config, args)
 
     assert args.REMAP is True
     assert [node["domainname"] for node in cluster.workernode_dict.values()] == expected
@@ -953,10 +952,9 @@ def test_empty_dynamic_filters_do_not_force_remapping(monkeypatch, filters):
     cluster.args = SimpleNamespace(BLINDREMAP=False)
     cluster.total_wn = 2
     cluster.workernode_list = [1, 3]
-    cluster.node_subclusters = {"node"}
     cluster.offdown_nodes = 0
 
-    assert cluster.decide_remapping(["01", "03"]) is False
+    assert cluster.decide_remapping(["01", "03"], {"node"}) is False
 
 
 @pytest.mark.parametrize("value", ["", "abc", "12345", "20260101T1200"])
@@ -1005,7 +1003,8 @@ def test_slurm_partition_blocking_markers(state, blocked):
 def test_viewport_pipeline_reaps_both_processes(tmp_path, monkeypatch, head_fails):
     source = tmp_path / "frame with spaces.out"
     source.write_text("".join("%s\n" % number for number in range(100000)))
-    monkeypatch.setattr(qtop_module, "config", {"savepath": str(tmp_path)}, raising=False)
+    display = TextDisplay.__new__(TextDisplay)
+    display.config = {"savepath": str(tmp_path)}
     popen = qtop_module.subprocess.Popen
     processes = []
 
@@ -1019,9 +1018,9 @@ def test_viewport_pipeline_reaps_both_processes(tmp_path, monkeypatch, head_fail
     monkeypatch.setattr(qtop_module.subprocess, "Popen", track_process)
     if head_fails:
         with pytest.raises(OSError, match="head unavailable"):
-            qtop_module.TextDisplay.show_part_view(None, "test", str(source), 2, 3)
+            display.show_part_view("test", str(source), 2, 3)
     else:
-        result = qtop_module.TextDisplay.show_part_view(None, "test", str(source), 2, 3)
+        result = display.show_part_view("test", str(source), 2, 3)
         assert Path(result).read_text() == "1\n2\n"
         assert len(processes) == 2
     assert all(process.returncode is not None for process in processes)

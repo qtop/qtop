@@ -16,6 +16,7 @@ import sys
 from xml.etree import ElementTree as etree  # nosec B405
 
 import qtop_py.fileutils as fileutils
+from qtop_py import safety
 from qtop_py.serialiser import GenericBatchSystem, StatExtractor
 
 
@@ -41,6 +42,21 @@ def _job_id(parent, anonymize):
 class NoDTDTreeBuilder(etree.TreeBuilder):
     """Reject DTDs before scheduler XML can expand declared entities."""
 
+    def __init__(self):
+        super().__init__()
+        self.depth = self.elements = 0
+
+    def start(self, tag, attrs):
+        self.depth += 1
+        self.elements += 1
+        if self.depth > safety.MAX_DEPTH or self.elements > safety.MAX_ITEMS:
+            raise etree.ParseError("XML input exceeds nesting or element limits")
+        return super().start(tag, attrs)
+
+    def end(self, tag):
+        self.depth -= 1
+        return super().end(tag)
+
     def doctype(self, name, pubid, system):
         raise etree.ParseError("DTD declarations are not supported in scheduler XML")
 
@@ -50,12 +66,24 @@ class SGEStatExtractor(StatExtractor):
         StatExtractor.__init__(self, config, options)
         self.scheduler_output_filenames = scheduler_output_filenames
 
+    def anonymize_queue_list_nametag(self, queue_list_nametag):
+        name, nodename = queue_list_nametag.text.split("@")
+        name = self.anonymize(name, "qs")
+        nodename = self.anonymize(nodename, "wns")
+        return name + "@" + nodename
+
     def get_xml_tree(self, xml_file):
         with open(xml_file, mode="rb") as fin:
             try:
                 # Bandit cannot infer DTD rejection by the custom parser target.
                 parser = etree.XMLParser(target=NoDTDTreeBuilder())  # nosec B314
-                tree = etree.parse(fin, parser=parser)  # nosec B314
+                total = 0
+                for chunk in iter(lambda: fin.read(65536), b""):
+                    total += len(chunk)
+                    if total > safety.MAX_INPUT_BYTES:
+                        raise etree.ParseError("XML input exceeds size limit")
+                    parser.feed(chunk)
+                tree = etree.ElementTree(parser.close())
             except etree.ParseError:
                 logging.critical("Something happened during the parsing of the XML file. Exiting...")
                 raise

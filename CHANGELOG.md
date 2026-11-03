@@ -3,6 +3,19 @@
 Notable changes by version, newest first.
 See the [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 
+## 0.9.20261031
+
+- Bugfix: repair MVU regressions and address CodeQL import, call and file checks.
+- Refactor: remove redundant MVU state and clarify variable names.
+- Refactor: separate MVU state, snapshot queries and terminal presentation. Bingo.
+- Refactor: clarify state-types and snapshot-document module names.
+- Refactor: move legacy parser and display policy out of core.
+- Feature: configure the experimental web address/port; default to loopback.
+- Bugfix: validate exact release artifacts and create private, symlink-safe logs.
+- Bugfix: escape untrusted display/log controls and bound input/command resources.
+- Bugfix: group scheduler messages and label their severity INFO, WARNING etc.
+- Release: update version metadata to 0.9.20261031.
+
 ## 0.9.20261026
 
 - Docs: (README) add registered OpenSSF Best Practices badge

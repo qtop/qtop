@@ -8,7 +8,7 @@ actionable failures and documented compatibility.
 usable on common Linux HPC systems with limited internet access, no administrator
 privileges and minimal Python installations, including the widespread rhel8/py36 combination.
 
-Last reviewed: 2026-10-30
+Last reviewed: 2026-11-03
 
 ## How to Read This Roadmap
 
@@ -99,9 +99,12 @@ or a release is prepared.
 
 - [ ] Validate release artifacts before publication.
   - [x] [CI] Build sdist/wheel artifacts; legacy installation checks version metadata against the source.
-  - [ ] Validate the chosen modern release artifacts in clean environments beyond the existing legacy installation gate.
+  - [x] [CI] Validate the exact sdist/wheel pair in clean environments through
+    `make release-check`, required by both CI build entry points.
+  - [ ] Retain passing artifact/compatibility evidence for the chosen release revision.
   - [ ] Audit all release documentation/package contents beyond the bundled configuration and help checks.
-  - [ ] Run demo, CLI and committed scheduler-sample checks from the installation.
+  - [x] [CI] Run demo, CLI and committed scheduler samples from installations
+    of the supplied wheel and a wheel rebuilt from the supplied sdist.
   - [x] [CI] Run `make legacy-install-check` in the required AlmaLinux 8 / Python 3.6 jobs.
   - [ ] Make release preparation and dry-run checks reproducible.
 
@@ -137,6 +140,8 @@ or a release is prepared.
 
 - [ ] Separate parsing, normalized state and presentation incrementally.
   - [x] Extract normalized state, snapshot support and viewport helpers with focused interfaces ([architecture](docs/architecture.md)).
+  - [x] Separate explicit MVU model/update, snapshot queries and terminal presentation; retain legacy adapters in the runtime.
+  - [ ] Retire remaining runtime globals and compatibility adapters when their callers migrate.
   - [x] [CI] Run backend rendering and runtime/capture regressions through the shared test and sample gates.
   - [ ] Keep extracted interfaces compatible with Python 3.6 while it is supported.
   - [ ] Avoid making a broad internal rewrite a prerequisite for feature fixes.

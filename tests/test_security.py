@@ -1,6 +1,7 @@
 ## Copyright (c) 2026 qtop contributors
 ## SPDX-License-Identifier: MIT
 
+import logging
 import os
 import stat
 import subprocess
@@ -9,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from qtop_py import fileutils
+from qtop_py import fileutils, utils
 
 ROOT = Path(__file__).resolve().parents[1]
 pytestmark = pytest.mark.skipif(os.name != "posix", reason="POSIX directory ownership and isolated launcher")
@@ -258,3 +259,125 @@ def test_save_directory_can_traverse_a_nonreadable_parent(tmp_path):
         assert fileutils.private_save_directory(str(target)) == str(target)
     finally:
         parent.chmod(0o700)
+
+
+def test_private_log_appends_and_tightens_existing_permissions(tmp_path):
+    path = tmp_path / "logs" / "qtop.log"
+    path.parent.mkdir(mode=0o755)
+    path.write_text("previous\n")
+    path.chmod(0o644)
+    previous = os.umask(0)
+    try:
+        handler = utils.PrivateFileHandler(str(path), encoding="utf-8")
+        try:
+            assert isinstance(handler, logging.FileHandler)
+            handler.emit(logging.LogRecord("test", logging.WARNING, __file__, 1, "next", (), None))
+        finally:
+            handler.close()
+    finally:
+        os.umask(previous)
+    assert path.read_text() == "previous\nnext\n"
+    assert stat.S_IMODE(path.stat().st_mode) == 0o600
+    assert stat.S_IMODE(path.parent.stat().st_mode) == 0o700
+
+
+@pytest.mark.parametrize("kind", ["symlink", "hardlink", "writable", "directory"])
+def test_private_log_refuses_unsafe_targets_without_altering_them(tmp_path, kind):
+    path = tmp_path / "logs" / "qtop.log"
+    path.parent.mkdir(mode=0o700)
+    target = tmp_path / "victim"
+    target.write_text("untouched")
+    target.chmod(0o644)
+    if kind == "symlink":
+        path.symlink_to(target)
+    elif kind == "hardlink":
+        os.link(str(target), str(path))
+    elif kind == "writable":
+        path.write_text("unsafe history")
+        path.chmod(0o666)
+    else:
+        path.mkdir()
+    with pytest.raises(OSError):
+        fileutils.private_log_stream(str(path))
+    assert target.read_text() == "untouched"
+    assert stat.S_IMODE(target.stat().st_mode) == 0o644
+    if kind == "writable":
+        assert path.read_text() == "unsafe history"
+        assert stat.S_IMODE(path.stat().st_mode) == 0o666
+
+
+def test_private_log_rejects_symlinked_parent(tmp_path):
+    target = tmp_path / "target"
+    target.mkdir()
+    link = tmp_path / "logs"
+    link.symlink_to(target, target_is_directory=True)
+    with pytest.raises(OSError):
+        fileutils.private_log_stream(str(link / "qtop.log"))
+    assert not (target / "qtop.log").exists()
+
+
+def test_private_log_rejects_foreign_owner_before_chmod(tmp_path, monkeypatch):
+    path = tmp_path / "qtop.log"
+    path.write_text("untouched")
+    path.chmod(0o644)
+    inode = path.stat().st_ino
+    fstat = os.fstat
+
+    def foreign_owner(descriptor):
+        info = fstat(descriptor)
+        if info.st_ino == inode:
+            values = list(info)
+            values[4] = os.geteuid() + 1
+            return os.stat_result(values)
+        return info
+
+    monkeypatch.setattr(fileutils.os, "fstat", foreign_owner)
+    with pytest.raises(PermissionError, match="user-owned"):
+        fileutils.private_log_stream(str(path))
+    assert path.read_text() == "untouched"
+    assert stat.S_IMODE(path.stat().st_mode) == 0o644
+
+
+def test_private_log_closes_descriptor_when_stream_creation_fails(tmp_path, monkeypatch):
+    descriptors = []
+
+    def fail(descriptor, *args, **kwargs):
+        descriptors.append(descriptor)
+        raise OSError("stream allocation failed")
+
+    monkeypatch.setattr(fileutils.os, "fdopen", fail)
+    with pytest.raises(OSError, match="allocation"):
+        fileutils.private_log_stream(str(tmp_path / "qtop.log"))
+    with pytest.raises(OSError):
+        os.fstat(descriptors[0])
+
+
+def test_private_log_directory_swap_does_not_redirect_writes(tmp_path, monkeypatch):
+    directory = tmp_path / "logs"
+    directory.mkdir(mode=0o700)
+    moved = tmp_path / "original-logs"
+    native_open = os.open
+
+    def swap_before_file_open(path, flags, *args, **kwargs):
+        if path == "qtop.log" and "dir_fd" in kwargs:
+            directory.rename(moved)
+            directory.mkdir(mode=0o700)
+            (directory / "qtop.log").write_text("decoy")
+        return native_open(path, flags, *args, **kwargs)
+
+    monkeypatch.setattr(fileutils.os, "open", swap_before_file_open)
+    with fileutils.private_log_stream(str(directory / "qtop.log")) as stream:
+        stream.write("private log")
+    assert (moved / "qtop.log").read_text() == "private log"
+    assert (directory / "qtop.log").read_text() == "decoy"
+
+
+def test_private_log_rejects_fifo_without_blocking(tmp_path):
+    path = tmp_path / "qtop.log"
+    os.mkfifo(str(path))
+    reader = os.open(str(path), os.O_RDWR | os.O_NONBLOCK)
+    try:
+        with pytest.raises(PermissionError, match="regular file"):
+            fileutils.private_log_stream(str(path))
+    finally:
+        os.close(reader)

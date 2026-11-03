@@ -7,7 +7,7 @@ import re
 from typing import TYPE_CHECKING, Any, Callable, Dict, Mapping, cast
 
 if TYPE_CHECKING:
-    from qtop_py.contracts import Job, Node
+    from qtop_py.state_types import Job, Node
 
 from qtop_py.schedulers.gpu import validate_gpu_resources
 
@@ -17,7 +17,6 @@ DIAGNOSTICS = {
 }
 JOB_IDENTITIES = (("slurm_array_job_id", "slurm_array_task_id", "_"), ("slurm_het_job_id", "slurm_het_job_offset", "+"))
 NODE_JOB_FIELDS = ("slurm_job_ids", "oar_job_ids")
-CLASSIC_REPORT_NAME = "PBS"
 
 
 def validate_diagnostics(data: Dict[str, object]) -> None:

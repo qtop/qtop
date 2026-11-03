@@ -27,6 +27,11 @@ savepath: /tmp/qtop_results_$USER
 ## Maximum seconds per live scheduler command; must be positive and finite.
 scheduler_command_timeout: 30
 
+## Experimental web interface (-B -e). IPv4 address or hostname; no authentication/TLS.
+## Loopback is the default; exposing it on a network is an explicit operator choice.
+experimental_web_host: 127.0.0.1
+experimental_web_port: 8080
+
 ## batch commands, filenames to save their output in
 ## If user sets a sourcedir, qtop expects to find the respective
 ## filenames below, minus the _pid.

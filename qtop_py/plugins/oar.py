@@ -7,12 +7,13 @@ from collections import OrderedDict
 
 from qtop_py import fileutils
 from qtop_py import yaml_parser as yaml
+from qtop_py.schedulers.tabular import TabularStatExtractor
 from qtop_py.serialiser import GenericBatchSystem, StatExtractor
 
 DEFAULT_NODE_STATE_MAPPING = {"Alive": "-", "Dead": "d", "Suspected": "s", "Mixed": "%", "Unknown": "?"}
 
 
-class OarStatExtractor(StatExtractor):
+class OarStatExtractor(TabularStatExtractor):
     def __init__(self, config, options):
         StatExtractor.__init__(self, config, options)
         self.user_q_search = (
@@ -59,7 +60,7 @@ class OARBatchSystem(GenericBatchSystem):
         notes = getattr(document, "_diagnostics", {}).get("oar_diagnostics", {})
         if section == "snapshot" and any(notes.values()):
             return [
-                "OAR allocation notes: %s resources lack details; %s resources absent from node states; "
+                "WARNING: OAR allocation notes: %s resources lack details; %s resources absent from node states; "
                 "%s job IDs absent from oarstat; %s shared resource slots (? marks unknown ownership)."
                 % tuple(notes.get(key, 0) for key in ("missing_resources", "extra_resources", "unlisted_jobs", "shared_resources"))
             ]

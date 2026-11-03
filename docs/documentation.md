@@ -499,7 +499,11 @@ command. Other backends and saved-trace/sample replay are unaffected; replay can
 only show the data captured. The existing `-a` option remains blind remapping.
 
 If Slurm rows are rejected, or active jobs reference missing nodes or invalid
-node lists, qtop displays `Slurm snapshot incomplete` with counts. Valid jobs
+node lists, qtop displays `WARNING: Slurm snapshot incomplete` with counts.
+Scheduler messages appear together at the end of each frame, even when display
+sections are disabled. `INFO:` labels accounting and CPU-ID explanations;
+`WARNING:` labels incomplete snapshots, estimated placement and omitted CPU
+assignments. Valid jobs
 and queues remain visible; unavailable node capacity is not invented. JSON and
 support replay preserve optional `slurm_diagnostics` counters:
 `rejected_squeue_rows`, `rejected_sinfo_rows`, `jobs_with_missing_nodes`, and
@@ -596,7 +600,7 @@ For offline input, save that output as `scontrol.txt` alongside `squeue.txt`
 and `sinfo.txt`; qtop discovers it automatically. The file is optional.
 Missing, failed, malformed or inconsistent details use the existing estimated
 placement. Each node exports `cpu_allocation_source` (`slurm`, `estimated`, or
-`none`); the occupancy legend identifies estimates. Valid detail records use
+`none`); the scheduler messages block identifies estimates. Valid detail records use
 Slurm abstract CPU IDs, which are not Linux CPU IDs or task affinity masks.
 Overlapping allocations also use estimates because the current core map can
 represent only one job per CPU. Estimated placement fills available capacity
@@ -1043,8 +1047,25 @@ checkout.
 -  ``-E`` writes gathered cluster data to a JSON file in ``savepath``; see
    [JSON export](#json-export). It does not write JSON to stdout.
 -  ``-O`` saves output without printing the rendered view to stdout.
--  ``-B`` enables the experimental web interface on port 8080 and requires
-   ``-e``/``--experimental``.
+-  ``-B`` enables the experimental web interface at `127.0.0.1:8080` by
+   default and requires ``-e``/``--experimental``. See the configuration below.
+
+### Experimental web configuration
+
+The web interface remains experimental and has no authentication or TLS.
+Configure its IPv4 address or hostname and port in `qtopconf.yaml`:
+
+```yaml
+experimental_web_host: 127.0.0.1
+experimental_web_port: 8080
+```
+
+The port must be an integer from 1 to 65535. Set the host to `0.0.0.0` only
+when intentionally exposing the interface on all IPv4 interfaces. These settings
+are read when `-B -e` starts the server; restart qtop to change them. The address
+is recorded in the log. Anonymous support snapshots omit these site settings. Imported snapshots also
+discard them; any network exposure must be selected locally, for example with
+`-o experimental_web_host=0.0.0.0`.
 
 ### Debugging and support
 
@@ -1064,12 +1085,33 @@ checkout.
 
 ### Troubleshooting failures
 
+On POSIX, qtop keeps its log directory private (`0700`) and opens logs as
+user-owned regular files with mode `0600`. Existing readable logs are tightened
+and appended to. Symlinks, hard links, special files, foreign ownership and
+logs writable by other users are refused without changing their contents.
+If startup reports unsafe log permissions, inspect the indicated path and its
+ownership before retrying; qtop does not silently trust or truncate that history.
+
 Live scheduler commands have a 30-second timeout. Set `scheduler_command_timeout`
 in your configuration or use `-o scheduler_command_timeout=120` for slow clients.
 The value must be positive and finite. Timeouts terminate the client (and its
 process group on POSIX), discard partial output and preserve the previous trace.
 Required command failures exit with a diagnostic; optional-detail fallbacks remain
-available.
+available. Each command is also limited to 256 MiB of stdout and 1 MiB of stderr.
+Exceeding either limit kills the command and discards its partial output.
+
+XML and JSON inputs are limited to 256 MiB, 64 nesting levels and two million
+structural items (XML elements; JSON containers/separators). YAML input is limited
+to 256 MiB with 64 indentation levels and 1 MiB lines/literals; Python literals
+also have a 100,000-AST-node limit. Imported support snapshots retain their
+64 MiB JSON member limit and additionally reject archives exceeding 10,000
+members or 1 GiB of decompressed tar data. Duplicate snapshot members are rejected.
+These are input budgets, not guarantees of a particular peak memory or CPU time.
+
+Terminal displays escape untrusted control characters and literal backslashes;
+qtop's own colours remain active. JSON exports and original trace captures retain
+the original values. Log records escape embedded controls, including newlines,
+so input cannot introduce additional log records.
 
 Expected filesystem, configuration, scheduler-command and malformed-input
 failures print a concise diagnostic to stderr and exit with status 1.

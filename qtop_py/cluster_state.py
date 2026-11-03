@@ -11,7 +11,7 @@ import re
 from typing import TYPE_CHECKING, Dict, List, Sequence, cast
 
 if TYPE_CHECKING:
-    from qtop_py.contracts import ClusterState, Job, Node, Queue, RawQueue
+    from qtop_py.state_types import ClusterState, Job, Node, Queue, RawQueue
 
 from qtop_py.schedulers.metadata import DIAGNOSTICS, validate_diagnostics, validate_record_extensions
 

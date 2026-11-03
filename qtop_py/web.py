@@ -16,22 +16,22 @@ from threading import Thread
 
 
 class Web(object):
-    def __init__(self, initial_cwd, port=8080):
+    def __init__(self, initial_cwd, port=8080, host="127.0.0.1"):
         self.web_dir = os.path.join(initial_cwd, "web")
         if not os.path.isdir(self.web_dir):
             self.web_dir = os.path.join(os.path.dirname(__file__), "web")
-        self.port = port
+        self.port, self.host = port, host
         self.started = False
         self.filename = None
 
     def start(self):
         self.q = Queue()
-        self.server = Process(target=self._http_server, args=(self.web_dir, self.port, self.q))
+        self.server = Process(target=self._http_server, args=(self.web_dir, self.port, self.q, self.host))
         self.server.start()
         self.started = True
 
     @staticmethod
-    def _http_server(web_dir, port, q):
+    def _http_server(web_dir, port, q, host="127.0.0.1"):
         os.chdir(web_dir)
 
         class SharedVars(object):
@@ -66,7 +66,7 @@ class Web(object):
             # Allow restarting the server while previous connections finish closing.
             allow_reuse_address = True
 
-        httpd = MyTCPServer(("", port), MyHandler)
+        httpd = MyTCPServer((host, port), MyHandler)
         thread = Thread(target=httpd.serve_forever, args=())
         thread.start()
 

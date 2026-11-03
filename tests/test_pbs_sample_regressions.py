@@ -7,19 +7,18 @@ from types import SimpleNamespace
 import pytest
 
 from qtop_py import qtop
+from qtop_py.mvu import MVU_Model
 from qtop_py.plugins.pbs import PBSStatExtractor
 
 
 def test_find_matrices_width_handles_empty_worker_nodes():
-    qtop.cluster = SimpleNamespace(highest_wn=0, workernode_list=[])
-    qtop.viewport = SimpleNamespace(h_term_size=80)
-    qtop.config = {
+    occupancy = qtop.WNOccupancy.__new__(qtop.WNOccupancy)
+    occupancy.cluster = SimpleNamespace(highest_wn=0, workernode_list=[])
+    occupancy.config = {
         "workernodes_matrix": [{"wn id lines": {"min_masking_threshold": 30}}],
         "USER_CUT_MATRIX_WIDTH": None,
     }
-    qtop.args = SimpleNamespace(NOMASKING=False, REMAP=False)
-
-    occupancy = qtop.WNOccupancy.__new__(qtop.WNOccupancy)
+    occupancy.MVU_model = MVU_Model(occupancy.config, SimpleNamespace(NOMASKING=False, REMAP=False), SimpleNamespace(h_term_size=80))
 
     assert occupancy.find_matrices_width() == (0, 0, 0)
 
@@ -109,12 +108,11 @@ def test_decide_remapping_handles_mixed_numeric_and_named_nodes(monkeypatch):
     cluster = qtop.Cluster.__new__(qtop.Cluster)
     cluster.total_wn = 2
     cluster.args = SimpleNamespace(BLINDREMAP=False)
-    cluster.node_subclusters = {"wn"}
     cluster.workernode_list = [1, "trueno_ita"]
     cluster.offdown_nodes = 0
     cluster.config = {"exotic_starting_wn_nr": 100, "percentage": 0.5, "filtering": []}
 
-    assert cluster.decide_remapping(["1", ""]) is True
+    assert cluster.decide_remapping(["1", ""], {"wn"}) is True
 
 
 def test_valid_corejobs_skips_jobs_missing_from_qstat():

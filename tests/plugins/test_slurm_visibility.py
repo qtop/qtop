@@ -7,6 +7,7 @@ import pytest
 
 from qtop_py import qtop
 from qtop_py.cluster_state import cluster_state_totals, validate_cluster_state
+from qtop_py.mvu import MVU_Model
 from qtop_py.plugins.slurm import SlurmBatchSystem
 from qtop_py.sample import anonymize_state
 
@@ -49,7 +50,7 @@ def test_slurm_state_suffix_reaches_matrix_and_snapshot(trace, raw_state, normal
     masked, _ = anonymize_state(state)
     assert validate_cluster_state(masked)["nodes"][0]["slurm_node_state"] == raw_state + suffix
     replayed = qtop.Document.from_cluster_state(masked).to_cluster_state()
-    colored = qtop.colorize_nodestate(replayed["nodes"], {normalized: "Green"}, qtop.colorize)
+    colored = qtop.colorize_nodestate(replayed["nodes"], {normalized: "Green"})
     occupancy = SimpleNamespace(cluster=SimpleNamespace(workernode_dict={1: colored[0]}))
     config = {"workernodes_matrix": [{"node state": {"max_len": 1}}]}
     lines = qtop.WNOccupancy.calc_general_mult_attr_line(occupancy, "node state", "state", config, SlurmBatchSystem)
@@ -97,7 +98,8 @@ def test_shared_cpus_retain_both_users_node_membership(trace, details):
     assert node["slurm_job_ids"] == ["1", "2"]
     assert node["slurm_unmapped_cpus"] == 4
     cluster = SimpleNamespace(workernode_dict={1: node})
-    qtop.Cluster._calculate_jobs_per_node(None, cluster.workernode_dict)
+    cluster.MVU_model = MVU_Model({}, slurm.options, None, backend=SlurmBatchSystem)
+    qtop.Cluster._calculate_jobs_per_node(cluster, cluster.workernode_dict)
     users = qtop.WNOccupancy.calculate_user_node_use(None, cluster, {"1": ("alice", "batch"), "2": ("bob", "batch")})
     assert users == {"alice": 1, "bob": 1}
     masked, mappings = anonymize_state(state)

@@ -2,6 +2,7 @@
 
 PYTHON ?= python3
 PIP ?= $(PYTHON) -m pip
+DIST_DIR ?= dist
 UVX ?= uvx
 ZIZMOR ?= $(UVX) --quiet zizmor
 ZIZMOR_FLAGS ?= -qq --offline --no-progress --color never --render-links never --show-audit-urls never
@@ -23,7 +24,7 @@ FUZZ_ARTIFACT_DIR ?= artifacts/fuzz
 ATHERIS_ARGS ?=
 FORTIFY_BASE_REF ?= origin/develop
 COVERAGE_XML ?= artifacts/coverage/coverage.xml
-COVERAGE_MIN ?= 92
+COVERAGE_MIN ?= 93
 REPO_SANITY_DIR ?= artifacts/repo-sanity
 CODE_QUALITY_JSON ?= artifacts/code-quality/gl-code-quality-report.json
 LICENSE_DIR ?= artifacts/license
@@ -163,6 +164,13 @@ legacy-install-check:: ## Test source installation with pinned tools in a dispos
 install-check:: ## Build from an sdist and test a clean installation on this interpreter
 	$(PYTHON) tools/validate_installation.py
 
+release-check:: ## Validate the exact prebuilt sdist/wheel pair without replacing dist files
+	$(PYTHON) tools/validate_installation.py --artifacts-dir "$(DIST_DIR)"
+
+validated-build:: build ## Build once and validate those exact release artifacts
+	$(MAKE) release-check
+
+
 compat-py36:: ## Run dependency-light Python 3.6 compatibility checks
 	find qtop_py tools -name '*.py' -print | xargs $(PYTHON) -m py_compile
 	$(PYTHON) -m unittest discover -s tests -p test_legacy_helpers.py
@@ -180,11 +188,11 @@ gitlab-ci:: ci ## GitLab CI entry point for test validation
 nightly-ci:: test backend-validation ## Git-free validation path for nightly matrix lanes (interpreter compatibility, qtop/qtop#488)
 
 build:: ci-deps ## Build source and wheel distributions with pinned CI build deps
-	$(PYTHON) -m build --no-isolation
+	$(PYTHON) -m build --no-isolation --outdir "$(DIST_DIR)"
 
-github-build:: build ## GitHub Actions entry point for package builds
+github-build:: validated-build ## GitHub Actions entry point for validated package builds
 
-gitlab-build:: build ## GitLab CI entry point for package builds
+gitlab-build:: validated-build ## GitLab CI entry point for validated package builds
 
 dist:: build ## Alias for build, matching common release target names
 

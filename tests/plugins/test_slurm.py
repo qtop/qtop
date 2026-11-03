@@ -258,7 +258,7 @@ def test_partial_and_malformed_synthetic_snapshot(anonymize, caplog):
     assert [node["core_job_map"] for node in nodes] == [{0: "701", 1: "701"}, {0: "701", 1: "701"}, {0: "706"}]
     assert nodes[2]["state"] == "?"
     assert "not properly parsed" in caplog.text
-    assert "Ignoring invalid Slurm nodelist" in caplog.text
+    assert "Ignoring invalid host list" in caplog.text
 
 
 @pytest.mark.parametrize(

@@ -7,7 +7,7 @@
 ##
 # Build concern: package the sdist/wheel once the test concern is green.
 #
-# ``make gitlab-build`` wraps ``python -m build --no-isolation`` with the
+# ``make gitlab-build`` builds and validates the exact sdist/wheel pair with the
 # pinned CI dependencies from requirements-ci.txt, so the artefacts produced
 # here match what a contributor builds locally with the same Makefile target.
 

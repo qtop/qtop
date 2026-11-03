@@ -29,6 +29,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 import qtop_py.qtop as qtop  # noqa: E402
+from qtop_py.mvu_query import WNFilter  # noqa: E402
 
 ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
 ACCOUNT_LINE_RE = re.compile(r"^\[\s*(.)\]\s+(.+?)\s+\|")
@@ -108,14 +109,12 @@ def render_document(document, show_account_totals=False, color="OFF", term_heigh
     qtop.web = SimpleNamespace(stop=lambda: None)  # ty: ignore[invalid-assignment] - minimal offline adapter
     qtop.viewport = qtop.Viewport()
     qtop.viewport.set_term_size(term_height, term_columns)
-    qtop.transposed_matrices = []
-    qtop.h_counter = iter([0, 1])  # ty: ignore[invalid-assignment] - one-shot export context
-    qtop.help_main_switch = []
+    qtop.transposed_sections = []
 
     trace_document = qtop.Document(copy.deepcopy(document.worker_nodes), document.jobs_dict, document.queues_dict, document.total_running_jobs, document.total_queued_jobs)
     processed_nodes = qtop.keep_queue_initials_only_and_colorize(trace_document.worker_nodes, qtop.queue_to_color)
-    processed_nodes = qtop.colorize_nodestate(processed_nodes, nodestate_to_color, qtop.colorize)
-    cluster = qtop.Cluster(trace_document, processed_nodes, qtop.WNFilter, config, args)
+    processed_nodes = qtop.colorize_nodestate(processed_nodes, nodestate_to_color)
+    cluster = qtop.Cluster(trace_document, processed_nodes, WNFilter, config, args)
     qtop.cluster = cluster
     wns_occupancy = qtop.WNOccupancy(cluster, config, trace_document, user_to_color, list(trace_document.jobs_dict.keys()))
     display = qtop.TextDisplay(trace_document, config, qtop.viewport, wns_occupancy, cluster, args)

@@ -377,12 +377,14 @@ def test_loading_disables_lookup_commands_from_archive(tmp_path):
                 "format_version": 1,
                 "scheduler": "slurm",
                 "state": {"jobs": [], "nodes": [], "queues": []},
-                "config": {"extract_info": {"user_details_cache": "private command"}},
+                "config": {"extract_info": {"user_details_cache": "private command"}, "experimental_web_host": "0.0.0.0", "experimental_web_port": 8181},
                 "options": {"GET_GECOS": True, "SHOW_GROUPS": True},
             },
         )
     loaded = sample.load_snapshot(str(archive))
     assert loaded["config"]["extract_info"] is None
+    assert "experimental_web_host" not in loaded["config"]
+    assert "experimental_web_port" not in loaded["config"]
     assert loaded["options"]["GET_GECOS"] is False
     assert loaded["options"]["SHOW_GROUPS"] is False
 

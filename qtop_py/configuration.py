@@ -5,7 +5,6 @@
 import copy
 import logging
 import os
-from ast import literal_eval
 from math import isfinite
 
 from qtop_py import fileutils
@@ -13,11 +12,14 @@ from qtop_py import yaml_parser as yaml
 from qtop_py.colormap import nodestate_to_color_default, user_to_color_default
 from qtop_py.constants import QTOPCONF_YAML, SYMBOL_LONG_TAIL_USER, SYMBOL_UNKNOWN_NODE_STATE
 from qtop_py.errors import OperationalError
+from qtop_py.safety import ResourceLimitError, literal_eval
 
 
 def literal(value):
     try:
         return literal_eval(value)
+    except ResourceLimitError:
+        raise
     except (ValueError, SyntaxError, TypeError):
         return value
 
@@ -53,6 +55,14 @@ def validate_config(config):
         require(not isinstance(timeout, bool) and isfinite(float(timeout)) and float(timeout) > 0, "scheduler_command_timeout", "positive finite seconds")
     except (TypeError, ValueError, OverflowError):
         raise ValueError("scheduler_command_timeout: expected positive finite seconds")
+    host = config.get("experimental_web_host", "127.0.0.1")
+    require(
+        isinstance(host, str) and bool(host) and ":" not in host and not any(char.isspace() or ord(char) < 32 for char in host),
+        "experimental_web_host",
+        "a nonempty IPv4 address or hostname",
+    )
+    port = literal(config.get("experimental_web_port", 8080))
+    require(type(port) is int and 1 <= port <= 65535, "experimental_web_port", "an integer from 1 to 65535")
     ids = config.get("possible_ids")
     require(isinstance(ids, (str, list, tuple)) and bool(ids), "possible_ids", "a nonempty sequence of single characters")
     require(all(isinstance(symbol, str) and len(symbol) == 1 for symbol in ids), "possible_ids", "single characters")

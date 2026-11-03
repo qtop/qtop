@@ -361,13 +361,13 @@ def test_scheduler_timeout_or_interrupt_reaps_client_and_preserves_previous_trac
         process = popen(*args, **kwargs)
         processes.append(process)
         if interrupt:
-            communicate = process.communicate
+            wait = process.wait
 
             def interrupt_once(*args, **kwargs):
-                process.communicate = communicate
+                process.wait = wait
                 raise KeyboardInterrupt
 
-            process.communicate = interrupt_once
+            process.wait = interrupt_once
         return process
 
     monkeypatch.setattr(qtop.subprocess, "Popen", track_process)
@@ -623,15 +623,21 @@ def test_malformed_scheduler_command_quotes_are_actionable(tmp_path):
 
 
 @pytest.mark.parametrize("all_rejected", (False, True))
-def test_partial_slurm_snapshot_has_visible_warning_and_exported_diagnostics(tmp_path, all_rejected):
+@pytest.mark.parametrize("sections", ((), ("-1", "-2", "-3")))
+def test_partial_slurm_snapshot_has_visible_warning_and_exported_diagnostics(tmp_path, all_rejected, sections):
     import json
 
     (tmp_path / "squeue.txt").write_text("bad-job\n" + ("" if all_rejected else "101|alice|R|batch|2|node2\n"))
     (tmp_path / "sinfo.txt").write_text("bad-node\n" + ("" if all_rejected else "node1|batch|idle|4\n"))
     output = tmp_path / "output"
-    result = run_cli(tmp_path, "qtop_py.cli", "-b", "slurm", "-s", str(tmp_path), "-F", "-E", "-o", "savepath=%s" % output)
+    result = run_cli(tmp_path, "qtop_py.cli", "-b", "slurm", "-s", str(tmp_path), "-F", "-E", "-o", "savepath=%s" % output, *sections)
     assert result.returncode == 0, result.stderr
-    assert "Slurm snapshot incomplete: 1 rejected job rows; 1 rejected node rows;" in result.stdout
+    assert result.stdout.count("Scheduler messages:") == 1
+    messages = result.stdout.split("Scheduler messages:\n", 1)[1].split("\n\n", 1)[0].splitlines()
+    assert messages[0].startswith("WARNING: Slurm snapshot incomplete: 1 rejected job rows; 1 rejected node rows;")
+    assert "INFO: Slurm job counts include individual array tasks and heterogeneous components." in messages
+    assert all(line.startswith(("INFO: ", "WARNING: ")) for line in messages)
+    assert not re.search(r"^Slurm", result.stdout, re.MULTILINE)
     if not all_rejected:
         assert "1 active jobs reference missing nodes" in result.stdout
     state = json.loads(next(output.glob("qtop_json_*.json")).read_text())
@@ -933,3 +939,32 @@ def test_slurm_queueing_line_marks_blocked_partitions(tmp_path, availability, ex
     state = json.loads(next(output.glob("qtop_json_*.json")).read_text())
     assert next(queue for queue in state["queues"] if queue["name"] == "compute")["state"] == availability
     assert "2+1 jobs" in frame
+
+
+@pytest.mark.parametrize("scheduler_name", ("pbs", "slurm"))
+def test_classic_labels_follow_selected_backend(tmp_path, scheduler_name):
+    if scheduler_name == "pbs":
+        (tmp_path / "pbsnodes_a.txt").write_text("")
+        (tmp_path / "qstat.txt").write_text('{"Jobs": {}}')
+        (tmp_path / "qstat_q.txt").write_text('{"Queue": {}}')
+    else:
+        (tmp_path / "squeue.txt").write_text("101|alice|R|batch|2|node1\n")
+        (tmp_path / "sinfo.txt").write_text("node1|batch|idle|4\n")
+    result = run_cli(tmp_path, "qtop_py.cli", "-b", scheduler_name, "-s", str(tmp_path), "-C", "-F", "-o", "savepath=" + str(tmp_path / "output"))
+    assert result.returncode == 0, result.stderr
+    assert ("reported by qstat - q" in result.stdout) is (scheduler_name == "pbs")
+    assert ("C and W states, as reported by qstat" in result.stdout) is (scheduler_name == "pbs")
+    assert ("PBS \n" if scheduler_name == "pbs" else "qtop \n") in result.stdout
+
+
+def test_experimental_web_uses_configured_address_and_port(tmp_path):
+    import socket
+
+    with socket.socket() as listener:
+        listener.bind(("127.0.0.1", 0))
+        port = listener.getsockname()[1]
+    config = tmp_path / "web.yaml"
+    config.write_text("experimental_web_host: 127.0.0.1\nexperimental_web_port: %s\n" % port)
+    result = run_cli(tmp_path, "qtop_py.cli", "-b", "demo", "-B", "-e", "-F", "-O", "-f", str(config), "-o", "savepath=" + str(tmp_path / "output"))
+    assert result.returncode == 0, result.stderr
+    assert "Experimental web interface at http://127.0.0.1:%s" % port in (tmp_path / ".local/qtop/logs/qtop.log").read_text()
