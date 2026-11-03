@@ -1204,11 +1204,11 @@ class WNOccupancy(object):
         for selection_users_queues in _highlighted_queues_or_users:
             selection = list(selection_users_queues.keys())[0]
             users_queues = selection_users_queues[selection]
-            and_or, type = selection.rsplit("include_")
+            and_or, highlight_kind = selection.rsplit("include_")
             and_or_func = all if not and_or else any
 
             for user_queue in users_queues:
-                yield user_queue, type, and_or_func
+                yield user_queue, highlight_kind, and_or_func
 
     def color_cores_and_return_unused(self, node_cores, core_user_map, corejobs, _core_coloring, jobid_to_user_to_queue):
         """
@@ -1233,13 +1233,13 @@ class WNOccupancy(object):
             highlight_rules = list(WNOccupancy.get_hl_q_or_users(_highlighted_queues_or_users))
             and_or_func = highlight_rules[-1][2] if highlight_rules else any
 
-            for user_queue_to_highlight, type, _ in highlight_rules:
-                if type == "user_pat":
+            for user_queue_to_highlight, highlight_kind, _ in highlight_rules:
+                if highlight_kind == "user_pat":
                     actual_user_queue = user
-                elif type == "user_id":
+                elif highlight_kind == "user_id":
                     actual_user_queue = user
                     user_queue_to_highlight = self.id_to_user[user_queue_to_highlight]
-                elif type == "queue":
+                elif highlight_kind == "queue":
                     actual_user_queue = queue
 
                 matches.append(re.match(user_queue_to_highlight, actual_user_queue))
