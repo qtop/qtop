@@ -5,10 +5,11 @@ See the [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 
 ## 0.9.20261026
 
-- Bugfix: clarify export initialization, cleanup and failure tests for CodeQL.
+- Docs: (README) add registered OpenSSF Best Practices badge
 - Refactor: separate scheduler support from core and backend plugins.
 - Refactor: split refresh/control paths, centralize cleanup and retain canonical state.
 - Refactor: centralize configuration preparation and pass collection inputs explicitly.
+- Bugfix: clarify export initialization, cleanup and failure tests for CodeQL.
 - Bugfix: isolate scheduler policy, validate configuration and bound user lookups.
 
 ## 0.9.20261025
