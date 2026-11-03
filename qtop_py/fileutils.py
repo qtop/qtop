@@ -23,6 +23,18 @@ def mkdir_p(path):
             raise
 
 
+def _open_owned(path, flags, mode, directory_fd):
+    try:
+        return os.open(path, flags, mode, dir_fd=directory_fd)
+    except PermissionError:
+        info = os.stat(path, dir_fd=directory_fd, follow_symlinks=False)
+        expected_type = stat.S_ISDIR(info.st_mode) if flags & os.O_DIRECTORY else stat.S_ISREG(info.st_mode) and info.st_nlink == 1
+        if info.st_uid != os.geteuid() or not expected_type:
+            raise
+        os.chmod(path, mode, dir_fd=directory_fd, follow_symlinks=False)
+        return os.open(path, flags, mode, dir_fd=directory_fd)
+
+
 @contextlib.contextmanager
 def _private_directory(path):
     """Create or tighten an owned output directory without following symlinks."""
@@ -56,7 +68,7 @@ def _private_directory(path):
             parent = os.path.join(os.sep, *parts[: index + 1])
             private_directory = index == len(parts) - 1 or parent == private_root or parent.startswith(private_root + os.sep)
             access = os.O_RDONLY if private_directory else parent_access
-            child_fd = os.open(part, flags | access, dir_fd=fd)
+            child_fd = _open_owned(part, flags | access, 0o700, fd) if private_directory else os.open(part, flags | access, dir_fd=fd)
             os.close(fd)
             fd = child_fd
             info = os.fstat(fd)
@@ -83,7 +95,7 @@ def private_log_stream(path):
     """Open a user-owned, singly linked regular log through a verified directory FD."""
     directory, name = os.path.split(os.path.abspath(os.path.expandvars(path)))
     with _private_directory(directory) as (_, directory_fd), contextlib.ExitStack() as allocation:
-        descriptor = os.open(name, os.O_WRONLY | os.O_CREAT | os.O_APPEND | os.O_NOFOLLOW | os.O_NONBLOCK, 0o600, dir_fd=directory_fd)
+        descriptor = _open_owned(name, os.O_WRONLY | os.O_CREAT | os.O_APPEND | os.O_NOFOLLOW | os.O_NONBLOCK, 0o600, directory_fd)
         allocation.callback(os.close, descriptor)
         info = os.fstat(descriptor)
         if not stat.S_ISREG(info.st_mode) or info.st_uid != os.geteuid() or info.st_nlink != 1:

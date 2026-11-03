@@ -153,7 +153,10 @@ fail explicitly. Temporary outputs use `mkstemp` or `NamedTemporaryFile`.
 Log creation now uses the same directory validation and opens the leaf relative
 to the held directory descriptor with append/no-follow/nonblocking flags. It rejects
 non-regular, foreign-owned or multiply linked logs before writing, automatically
-tightens accepted logs to `0600` and preserves append history. A directory
+tightens accepted logs to `0600` and preserves append history. If restrictive
+modes prevent opening an owned directory or log, a no-follow metadata check
+precedes permission repair and retry; foreign entries and linked/special log
+files are not repaired. A directory
 replacement cannot redirect that open. `PrivateFileHandler` retains normal
 `FileHandler` error-reporting behavior. This does not prove every other later
 pathname operation is race-free.

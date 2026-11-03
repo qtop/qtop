@@ -1088,7 +1088,9 @@ discard them; any network exposure must be selected locally, for example with
 
 On POSIX, qtop keeps its log directory private (`0700`) and opens logs as
 user-owned regular files with mode `0600`. Existing logs, including group/other-
-writable files, are tightened automatically and appended to without truncation.
+writable or read-only files, are repaired automatically and appended to without
+truncation. Owned directories under `~/.local/qtop` are restored to `0700` even
+when their existing modes prevent reading or traversing them.
 Symlinks, hard links, special files and foreign-owned logs are refused.
 
 Live scheduler commands have a 30-second timeout. Set `scheduler_command_timeout`

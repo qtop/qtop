@@ -701,13 +701,14 @@ def test_documented_capture_and_export_modes(tmp_path, flags, include_sources, i
 
 @pytest.mark.skipif(os.name != "posix", reason="POSIX private output directories")
 @pytest.mark.parametrize("override", (False, True))
-def test_cli_repairs_owned_savepath_before_writing(tmp_path, override):
+@pytest.mark.parametrize("directory_mode, log_mode", [(0o777, 0o666), (0o000, 0o400)])
+def test_cli_repairs_owned_savepath_before_writing(tmp_path, override, directory_mode, log_mode):
     log = tmp_path / ".local" / "qtop" / "logs" / "qtop.log"
     log.parent.mkdir(parents=True)
-    log.parent.parent.chmod(0o777)
-    log.parent.chmod(0o777)
     log.write_text("previous log\n")
-    log.chmod(0o666)
+    log.chmod(log_mode)
+    log.parent.chmod(directory_mode)
+    log.parent.parent.chmod(directory_mode)
     shared = tmp_path / "shared"
     shared.mkdir()
     shared.chmod(0o777)

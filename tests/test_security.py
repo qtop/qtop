@@ -262,7 +262,7 @@ def test_save_directory_can_traverse_a_nonreadable_parent(tmp_path):
         parent.chmod(0o700)
 
 
-@pytest.mark.parametrize("mode", [0o644, 0o660, 0o666])
+@pytest.mark.parametrize("mode", [0o000, 0o400, 0o644, 0o660, 0o666])
 def test_private_log_appends_and_tightens_existing_permissions(tmp_path, mode):
     path = tmp_path / "logs" / "qtop.log"
     path.parent.mkdir(mode=0o755)
@@ -284,12 +284,13 @@ def test_private_log_appends_and_tightens_existing_permissions(tmp_path, mode):
 
 
 @pytest.mark.parametrize("kind", ["symlink", "hardlink", "directory"])
-def test_private_log_refuses_unsafe_targets_without_altering_them(tmp_path, kind):
+@pytest.mark.parametrize("target_mode", [0o400, 0o644])
+def test_private_log_refuses_unsafe_targets_without_altering_them(tmp_path, kind, target_mode):
     path = tmp_path / "logs" / "qtop.log"
     path.parent.mkdir(mode=0o700)
     target = tmp_path / "victim"
     target.write_text("untouched")
-    target.chmod(0o644)
+    target.chmod(target_mode)
     if kind == "symlink":
         path.symlink_to(target)
     elif kind == "hardlink":
@@ -299,25 +300,30 @@ def test_private_log_refuses_unsafe_targets_without_altering_them(tmp_path, kind
     with pytest.raises(OSError):
         fileutils.private_log_stream(str(path))
     assert target.read_text() == "untouched"
-    assert stat.S_IMODE(target.stat().st_mode) == 0o644
+    assert stat.S_IMODE(target.stat().st_mode) == target_mode
 
 
-def test_private_log_repairs_owned_qtop_tree_without_changing_home(tmp_path, monkeypatch):
+@pytest.mark.parametrize("directory_mode", [0o000, 0o100, 0o300, 0o777])
+def test_private_log_repairs_owned_qtop_tree_without_changing_home(tmp_path, monkeypatch, directory_mode):
     monkeypatch.setenv("HOME", str(tmp_path))
     root = tmp_path / ".local" / "qtop"
-    path = root / "logs" / "qtop.log"
+    path = root / "logs" / "nested" / "qtop.log"
     path.parent.mkdir(parents=True)
-    root.chmod(0o777)
-    path.parent.chmod(0o770)
     path.write_text("previous\n")
-    path.chmod(0o666)
+    path.chmod(0o400)
+    directories = [root, root / "logs", path.parent]
+    for directory in reversed(directories):
+        directory.chmod(directory_mode)
     home_mode = stat.S_IMODE(tmp_path.stat().st_mode)
     local_mode = stat.S_IMODE(root.parent.stat().st_mode)
-    with fileutils.private_log_stream(str(path)) as stream:
-        stream.write("next\n")
-    assert path.read_text() == "previous\nnext\n"
-    assert stat.S_IMODE(root.stat().st_mode) == 0o700
-    assert stat.S_IMODE(path.parent.stat().st_mode) == 0o700
+    try:
+        with fileutils.private_log_stream(str(path)) as stream:
+            stream.write("next\n")
+        assert path.read_text() == "previous\nnext\n"
+        assert all(stat.S_IMODE(directory.stat().st_mode) == 0o700 for directory in directories)
+    finally:
+        for directory in directories:
+            directory.chmod(0o700)
     assert stat.S_IMODE(path.stat().st_mode) == 0o600
     assert stat.S_IMODE(tmp_path.stat().st_mode) == home_mode
     assert stat.S_IMODE(root.parent.stat().st_mode) == local_mode
@@ -353,6 +359,39 @@ def test_private_log_rejects_foreign_owner_before_chmod(tmp_path, monkeypatch):
         fileutils.private_log_stream(str(path))
     assert path.read_text() == "untouched"
     assert stat.S_IMODE(path.stat().st_mode) == 0o644
+
+
+@pytest.mark.parametrize("directory", [False, True])
+def test_permission_repair_does_not_chmod_foreign_entries(tmp_path, monkeypatch, directory):
+    path = tmp_path / "blocked"
+    if directory:
+        path.mkdir()
+    else:
+        path.write_text("untouched")
+    inode = path.stat().st_ino
+    path.chmod(0o000)
+    native_stat = os.stat
+
+    def foreign_owner(*args, **kwargs):
+        info = native_stat(*args, **kwargs)
+        if info.st_ino == inode:
+            values = list(info)
+            values[4] = os.geteuid() + 1
+            return os.stat_result(values)
+        return info
+
+    monkeypatch.setattr(fileutils.os, "stat", foreign_owner)
+    try:
+        with pytest.raises(PermissionError):
+            if directory:
+                fileutils.private_save_directory(str(path))
+            else:
+                fileutils.private_log_stream(str(path))
+        assert stat.S_IMODE(path.stat().st_mode) == 0o000
+    finally:
+        path.chmod(0o700 if directory else 0o600)
+    if not directory:
+        assert path.read_text() == "untouched"
 
 
 def test_private_log_closes_descriptor_when_stream_creation_fails(tmp_path, monkeypatch):

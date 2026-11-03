@@ -5,7 +5,7 @@ See the [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 
 ## 0.9.20261101
 
-- Bugfix: automatically tighten owned qtop directories and log permissions.
+- Bugfix: repair restrictive and permissive owned directory/log permissions.
 - Release: update version metadata to 0.9.20261101.
 
 ## 0.9.20261031
