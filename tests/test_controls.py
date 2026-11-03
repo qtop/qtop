@@ -23,7 +23,7 @@ def controls(monkeypatch):
     monkeypatch.setattr(qtop, "user_to_color", {}, raising=False)
     monkeypatch.setattr(qtop, "change_mapping", cycle((("queue_to_color", "queue"), ("user_to_color", "user"))), raising=False)
     monkeypatch.setattr(qtop, "h_counter", cycle((0, 1)), raising=False)
-    monkeypatch.setattr(qtop, "help_main_switch", ["help.txt", "output.out"], raising=False)
+    monkeypatch.setattr(qtop, "HELP_FP", "help.txt", raising=False)
     web = Mock()
     monkeypatch.setattr(qtop, "web", web, raising=False)
     cluster = SimpleNamespace(WNFilter=qtop.WNFilter, worker_nodes=[])

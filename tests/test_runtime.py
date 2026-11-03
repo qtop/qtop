@@ -29,10 +29,9 @@ RUNTIME_GLOBALS = (
     "viewport",
     "user_to_color",
     "args",
-    "transposed_matrices",
+    "transposed_sections",
     "h_counter",
     "change_mapping",
-    "help_main_switch",
     "web",
     "document",
 )

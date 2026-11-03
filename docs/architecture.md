@@ -105,8 +105,9 @@ flowchart TB
 3. `Document.from_cluster_state()` in [snapshot_document.py](../qtop_py/snapshot_document.py)
    owns the normalized snapshot and exposes cached legacy rendering fields.
    Exports read that authoritative state; the five-field constructor remains
-   available for old trace adapters. `MVU_query()` builds a private projection
-   with copied nodes, options and viewport. `Cluster`, `WNFilter` and
+   available for old trace adapters. `MVU_query()` builds private view data
+   with copied nodes, options and viewport. The render model carries
+   `display_overrides`, `user_details` and `transposed_sections`. `Cluster`, `WNFilter` and
    `WNOccupancy` in [mvu_query.py](../qtop_py/mvu_query.py) calculate layout,
    filtering, user accounting and per-core occupancy. `MVU_view()` delegates
    the three terminal sections to [mvu_view.py](../qtop_py/ui/mvu_view.py).

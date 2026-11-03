@@ -19,26 +19,24 @@ from qtop_py.serialiser import resolve_job_id
 
 
 class WNOccupancy(object):
-    def __init__(self, cluster, config, document, user_to_color, job_ids, MVU_model):
+    def __init__(self, cluster, config, document, user_to_color, MVU_model):
         self.MVU_model = MVU_model
         self.cluster = cluster
         self.config = config
         self.document = document
         self.account_jobs_table = list()
         self.user_to_id = dict()
-        self.jobid_to_user_to_queue = dict()
-        self.user_names, self.job_states, self.job_queues = self._get_usernames_states_queues(document.jobs_dict)
-        self.job_ids = job_ids
+        self.job_to_user_and_queue = dict()
+        self.user_names, self.job_states = self._get_usernames_and_states(document.jobs_dict)
 
         self.calculate(document, user_to_color)
 
-    def _get_usernames_states_queues(self, jobs_dict):
-        user_names, job_states, job_queues = list(), list(), list()
-        for key, value in jobs_dict.items():
+    def _get_usernames_and_states(self, jobs_dict):
+        user_names, job_states = [], []
+        for value in jobs_dict.values():
             user_names.append(value.user_name)
             job_states.append(value.job_state)
-            job_queues.append(value.job_queue)
-        return user_names, job_states, job_queues
+        return user_names, job_states
 
     def calculate(self, document, user_to_color):
         """
@@ -51,25 +49,25 @@ class WNOccupancy(object):
             return
         # document.jobs_dict => job_id: job name/state/queue
 
-        self.jobid_to_user_to_queue = {job_id: (job.user_name, job.job_queue) for job_id, job in document.jobs_dict.items()}
-        self.user_machine_use = self.calculate_user_node_use(self.cluster, self.jobid_to_user_to_queue)
+        self.job_to_user_and_queue = {job_id: (job.user_name, job.job_queue) for job_id, job in document.jobs_dict.items()}
+        self.user_machine_use = self.calculate_user_node_use(self.cluster, self.job_to_user_and_queue)
 
-        user_alljobs_sorted_lot = self._produce_user_lot(self.user_names)
-        user_to_id = self._create_id_for_users(user_alljobs_sorted_lot)
-        user_job_per_state_counts = self._calculate_user_job_counts(self.user_names, self.job_states, user_alljobs_sorted_lot, user_to_id)
-        _account_jobs_table = self._create_sort_acct_jobs_table(user_job_per_state_counts, user_alljobs_sorted_lot, user_to_id)
+        users_by_job_count = self._produce_user_lot(self.user_names)
+        user_to_id = self._create_id_for_users(users_by_job_count)
+        user_job_per_state_counts = self._calculate_user_job_counts(self.user_names, self.job_states, users_by_job_count, user_to_id)
+        _account_jobs_table = self._create_sort_acct_jobs_table(user_job_per_state_counts, users_by_job_count, user_to_id)
         self.account_jobs_table, self.user_to_id = self._create_account_jobs_table(user_to_id, _account_jobs_table)
-        self.userid_to_userid_re_pat = self.make_pattern_out_of_mapping(mapping=user_to_color)
+        self.user_color_patterns = self.make_pattern_out_of_mapping(mapping=user_to_color)
 
-        self.print_char_start, self.print_char_stop, self.extra_matrices_nr = self.find_matrices_width()
-        self.wn_vert_labels = self.calc_all_wnid_label_lines(self.MVU_model.settings["force_names"])
+        self.node_column_start, self.node_column_stop, self.extra_matrices_nr = self.find_matrices_width()
+        self.wn_vert_labels = self.calc_all_wnid_label_lines(self.MVU_model.display_overrides["force_names"])
 
         # For-loop below only for user-inserted/customizeable values.
         for yaml_key, part_name, systems in yaml.get_yaml_key_part(self.config, self.MVU_model.scheduler, outermost_key="workernodes_matrix"):
             if self.MVU_model.scheduler in systems:
                 self.__setattr__(part_name, self.calc_general_mult_attr_line(part_name, yaml_key, self.config, self.MVU_model.backend))
 
-        self.core_user_map = self._calc_core_matrix(self.user_to_id, self.jobid_to_user_to_queue)
+        self.core_user_map = self._calc_core_matrix(self.user_to_id, self.job_to_user_and_queue)
 
     def _create_account_jobs_table(self, user_to_id, account_jobs_table):
         for quintuplet in account_jobs_table:
@@ -135,10 +133,10 @@ class WNOccupancy(object):
         for user_name in set(_user_names):
             user_to_alljobs_count[user_name] = _user_names.count(user_name)
 
-        user_alljobs_sorted_lot = sorted(user_to_alljobs_count.items(), key=itemgetter(1), reverse=True)
-        return user_alljobs_sorted_lot
+        users_by_job_count = sorted(user_to_alljobs_count.items(), key=itemgetter(1), reverse=True)
+        return users_by_job_count
 
-    def _calculate_user_job_counts(self, user_names, job_states, user_alljobs_sorted_lot, user_to_id):
+    def _calculate_user_job_counts(self, user_names, job_states, users_by_job_count, user_to_id):
         """
         Calculates and prints what is actually below the id|  R + Q /all | unix account etc line
         :param user_names: list
@@ -167,11 +165,11 @@ class WNOccupancy(object):
         """
         return config
 
-    def _create_id_for_users(self, user_alljobs_sorted_lot):
+    def _create_id_for_users(self, users_by_job_count):
         user_to_id = {}
         possible_ids = configuration.available_possible_ids(self.config)
         reserved_symbols = configuration.reserved_user_symbols(self.config)
-        for id_, user_allcount in enumerate(user_alljobs_sorted_lot):
+        for id_, user_allcount in enumerate(users_by_job_count):
             unix_account = user_allcount[0]
             if self.config["fill_with_user_firstletter"]:
                 firstletter = unix_account[0] if unix_account else SYMBOL_LONG_TAIL_USER
@@ -237,7 +235,7 @@ class WNOccupancy(object):
         # Extra matrices may be needed if the WNs are more than the screen width can hold.
         if wn_number > start:  # start will either be 1 or (masked >= config['min_masking_threshold'] + 1)
             extra_matrices_nr = int(ceil(abs(wn_number - start) / float(term_columns - DEADWEIGHT))) - 1
-        elif self.MVU_model.args.REMAP:  # was: ***wn_number < start*** and len(cluster.node_subclusters) > 1:  # Remapping
+        elif self.MVU_model.args.REMAP:  # was: ***wn_number < start*** and len(cluster.node_name_prefixes) > 1:  # Remapping
             extra_matrices_nr = int(ceil(wn_number / float(term_columns - DEADWEIGHT))) - 1
         else:
             extra_matrices_nr = 0
@@ -256,7 +254,7 @@ class WNOccupancy(object):
         logging.debug("reported start/stop lengths: %s--> %s" % (start, stop))
         return start, stop, extra_matrices_nr
 
-    def calc_all_wnid_label_lines(self, NAMED_WNS):  # (total_wn) in case of multiple cluster.node_subclusters
+    def calc_all_wnid_label_lines(self, NAMED_WNS):  # (total_wn) in case of multiple cluster.node_name_prefixes
         """
         calculates the Worker Node ID number line widths. expressed by hxxxxs in the following form, e.g. for hundreds of nodes:
         '1': "00000000..."
@@ -325,29 +323,29 @@ class WNOccupancy(object):
                 multiline_map[attr_line].append(ch)
         return multiline_map
 
-    def _calc_core_matrix(self, user_to_id, jobid_to_user_to_queue):
+    def _calc_core_matrix(self, user_to_id, job_to_user_and_queue):
         core_user_map = OrderedDict()
 
-        core_coloring = self.MVU_model.settings.get("core_coloring", self.config["core_coloring"])
+        core_coloring = self.MVU_model.display_overrides.get("core_coloring", self.config["core_coloring"])
 
         for core_nr in self.cluster.core_span:
             core_user_map["Core%svector" % str(core_nr)] = []  # Cpu0vector, Cpu1vector, Cpu2vector, ... = [],[],[], ...
 
         for _node in self.cluster.workernode_dict:
-            core_user_map = self._fill_node_cores_vector(_node, core_user_map, user_to_id, self.cluster.core_span, jobid_to_user_to_queue, core_coloring)
+            core_user_map = self._fill_node_cores_vector(_node, core_user_map, user_to_id, self.cluster.core_span, job_to_user_and_queue, core_coloring)
 
         return core_user_map
 
-    def _fill_node_cores_vector(self, _node, core_user_map, user_to_id, _core_span, jobid_to_user_to_queue, core_coloring):
+    def _fill_node_cores_vector(self, _node, core_user_map, user_to_id, _core_span, job_to_user_and_queue, core_coloring):
         """
         Calculates the actual contents of the map by filling in a status string for each CPU line
         One of the two dimensions of the matrix is determined by the highest-core WN existing. If other WNs have less cores,
         these positions are filled with '#'s (or whatever is defined in config['non_existent_node_symbol']).
         """
-        state_np_corejob = self.cluster.workernode_dict[_node]
-        state = state_np_corejob["state"]
-        np = state_np_corejob["np"]
-        corejobs = state_np_corejob.get("core_job_map", dict())
+        node = self.cluster.workernode_dict[_node]
+        state = node["state"]
+        np = node["np"]
+        corejobs = node.get("core_job_map", dict())
         non_existent_node_symbol = self.config["non_existent_node_symbol"]
         gray_hash = utils.ColorStr(non_existent_node_symbol, color="Gray_D")
         gray_underscore = utils.ColorStr("_", color="Gray_D")
@@ -357,7 +355,7 @@ class WNOccupancy(object):
                 core_user_map[core_line].append(gray_hash)
         else:
             node_cores = [str(x) for x in range(int(np))]
-            core_user_map, node_free_cores = self.color_cores_and_return_unused(node_cores, core_user_map, corejobs, core_coloring, jobid_to_user_to_queue)
+            core_user_map, node_free_cores = self.color_cores_and_return_unused(node_cores, core_user_map, corejobs, core_coloring, job_to_user_and_queue)
             for core in node_free_cores:
                 core_user_map["Core" + str(core) + "vector"].append(gray_underscore)
 
@@ -378,7 +376,7 @@ class WNOccupancy(object):
             for user_queue in users_queues:
                 yield user_queue, highlight_kind, and_or_func
 
-    def color_cores_and_return_unused(self, node_cores, core_user_map, corejobs, _core_coloring, jobid_to_user_to_queue):
+    def color_cores_and_return_unused(self, node_cores, core_user_map, corejobs, _core_coloring, job_to_user_and_queue):
         """
         Adds color information to the core job, returns free cores.
         locals()[queue_or_user] transforms either 'user'=> user or 'queue'=> queue
@@ -387,16 +385,16 @@ class WNOccupancy(object):
         """
         node_free_cores = node_cores[:]
         for core, job in corejobs.items():
-            if resolve_job_id(str(job), jobid_to_user_to_queue) not in jobid_to_user_to_queue:
+            if resolve_job_id(str(job), job_to_user_and_queue) not in job_to_user_and_queue:
                 core_user_map["Core" + str(core) + "vector"].append(utils.ColorStr("?", color="Yellow"))
                 node_free_cores.remove(str(core))
         selected_pat_to_color_map = getattr(self.MVU_model, _core_coloring)
-        _highlighted_queues_or_users = self.MVU_model.settings.get("highlight", self.config["highlight"])
+        _highlighted_queues_or_users = self.MVU_model.display_overrides.get("highlight", self.config["highlight"])
 
         self.id_to_user = dict(zip((str(x) for x in self.user_to_id.values()), self.user_to_id.keys()))
-        for user, core, queue in self._valid_corejobs(corejobs, jobid_to_user_to_queue):
+        for user, core, queue in self._valid_corejobs(corejobs, job_to_user_and_queue):
             id_ = utils.ColorStr.from_other_color_str(self.user_to_id[user])
-            viewed_pattern = self.userid_to_userid_re_pat[str(id_)] if _core_coloring == "user_to_color" else queue
+            viewed_pattern = self.user_color_patterns[str(id_)] if _core_coloring == "user_to_color" else queue
             matches = []
             highlight_rules = list(WNOccupancy.get_hl_q_or_users(_highlighted_queues_or_users))
             and_or_func = highlight_rules[-1][2] if highlight_rules else any
@@ -423,14 +421,14 @@ class WNOccupancy(object):
 
         return core_user_map, node_free_cores
 
-    def _valid_corejobs(self, corejobs, jobid_to_user_to_queue):
+    def _valid_corejobs(self, corejobs, job_to_user_and_queue):
         """
         Generator that yields only those core-job pairs that successfully match to a user
         """
         for core, _job in corejobs.items():
-            job = resolve_job_id(str(_job), jobid_to_user_to_queue)
+            job = resolve_job_id(str(_job), job_to_user_and_queue)
             try:
-                user_queue = jobid_to_user_to_queue[job]
+                user_queue = job_to_user_and_queue[job]
             except KeyError as KeyErrorValue:
                 logging.warning("Scheduler node allocation references an unlisted job (ID %s). Please check with the SysAdmin.", str(KeyErrorValue))
                 continue
@@ -438,16 +436,16 @@ class WNOccupancy(object):
                 user, queue = user_queue
                 yield user, str(core), queue
 
-    def is_matrix_coreless(self, print_char_start, print_char_stop):
-        # print_char_start = self.print_char_start
-        # print_char_stop = self.print_char_stop
+    def is_matrix_coreless(self, node_column_start, node_column_stop):
+        # node_column_start = self.node_column_start
+        # node_column_stop = self.node_column_stop
         non_existent_symbol = self.config["non_existent_node_symbol"]
         lines = 0
         core_user_map = self.core_user_map
-        remove_corelines = self.MVU_model.settings.get("rem_empty_corelines", self.config["rem_empty_corelines"]) + 1
+        remove_corelines = self.MVU_model.display_overrides.get("rem_empty_corelines", self.config["rem_empty_corelines"]) + 1
 
         for core_x_vector, ind, k, is_corevector_removable in gauge_core_vectors(
-            core_user_map, print_char_start, print_char_stop, WNOccupancy.coreline_notthere_or_unused, non_existent_symbol, remove_corelines
+            core_user_map, node_column_start, node_column_stop, WNOccupancy.coreline_notthere_or_unused, non_existent_symbol, remove_corelines
         ):
             if is_corevector_removable:
                 lines += 1
@@ -470,13 +468,13 @@ class WNOccupancy(object):
             jobs = {resolve_job_id(job, job_ids) for job in jobs}
         return len(jobs if job_ids is None else jobs.intersection(job_ids))
 
-    def calculate_user_node_use(self, cluster, jobid_to_user_to_queue):
+    def calculate_user_node_use(self, cluster, job_to_user_and_queue):
         """
         This calculates the number of nodes each user has jobs in (shown in User accounts and pool mappings)
         """
         user_machines = []
         for node in cluster.workernode_dict.values():
-            node["node_user_set"] = {jobid_to_user_to_queue[job][0] for job in node["node_job_set"] if job in jobid_to_user_to_queue}
+            node["node_user_set"] = {job_to_user_and_queue[job][0] for job in node["node_job_set"] if job in job_to_user_and_queue}
             user_machines.extend(node["node_user_set"])
 
         return Counter(user_machines)
@@ -520,16 +518,12 @@ class Cluster(object):
         self.total_cores = 0
         self.core_span = []
         self.highest_wn = 0
-        self.node_subclusters = set()
         self.workernode_dict = {}
-        self.workernode_dict_remapped = {}  # { remapnr: [state, np, (core0, job1), (core1, job1), ....]}
 
         self.available_wn = sum([len(node["state"]) for node in self.worker_nodes if str(node["state"][0]) == "-"])
         self.total_wn = len(self.worker_nodes)  # == existing_nodes
         self.workernode_list = []
-        self.workernode_list_remapped = range(1, self.total_wn + 1)  # leave range aside for now
 
-        self.node_subclusters = set()
         self.WNFilter = WNFilter
         self.wn_filter = None
 
@@ -541,36 +535,33 @@ class Cluster(object):
 
         re_nodename = r"(^[A-Za-z0-9_-]+)(?=\.|$)" if not self.args.ANONYMIZE else r"\w_anon_wn_\d+"
 
-        self.node_subclusters, self.workernode_list, self.offdown_nodes, self.working_cores, max_np, _all_str_digits_with_empties = self.get_wn_list_and_stats(
-            self.workernode_list, self.node_subclusters, self.worker_nodes, re_nodename
+        node_name_prefixes, self.workernode_list, self.offdown_nodes, self.working_cores, max_np, _all_str_digits_with_empties = self.get_wn_list_and_stats(
+            self.workernode_list, set(), self.worker_nodes, re_nodename
         )
 
         self.core_span = [str(x) for x in range(max_np)]
-        self.args.REMAP = self.decide_remapping(_all_str_digits_with_empties)
+        self.args.REMAP = self.decide_remapping(_all_str_digits_with_empties, node_name_prefixes)
 
-        nodes_drop, workernode_dict, workernode_dict_remapped = self.map_worker_nodes_to_wn_dict(self.args.REMAP)
+        remapped_node_numbers = range(1, self.total_wn + 1)
+        nodes_drop, workernode_dict, remapped_nodes = self.map_worker_nodes_to_wn_dict(self.args.REMAP)
         self.workernode_dict = workernode_dict
 
         if self.args.REMAP:
-            self.workernode_dict_remapped = workernode_dict_remapped
             self.total_wn += nodes_drop
             self.highest_wn = self.total_wn
 
             nodes_drop_slice_end = None if not nodes_drop else nodes_drop
-            self.workernode_list = self.workernode_list_remapped[:nodes_drop_slice_end]
-            self.workernode_dict = self.workernode_dict_remapped
+            self.workernode_list = remapped_node_numbers[:nodes_drop_slice_end]
+            self.workernode_dict = remapped_nodes
         else:
             self.highest_wn = max(self.workernode_list)
             self.workernode_dict = self.fill_non_existent_wn_nodes(self.workernode_dict)
 
         self.workernode_dict = self.do_name_remapping(self.workernode_dict)
         self._calculate_jobs_per_node(self.workernode_dict)
-        del self.node_subclusters  # sets are not JSON serialisable!!
-        del self.workernode_list_remapped
-        del self.workernode_dict_remapped
         return self
 
-    def get_wn_list_and_stats(self, workernode_list, node_subclusters, worker_nodes, re_nodename):
+    def get_wn_list_and_stats(self, workernode_list, node_name_prefixes, worker_nodes, re_nodename):
         max_np = 0
         all_str_digits_with_empties = list()
         for node in worker_nodes:
@@ -579,7 +570,7 @@ class Cluster(object):
 
             # get subclusters by name change
             _node_letters = "".join(re.findall(r"\D+", _nodename))
-            node_subclusters.update([_node_letters])
+            node_name_prefixes.update([_node_letters])
 
             node_str_digits = "".join(re.findall(r"\d+", _nodename))
             all_str_digits_with_empties.append(node_str_digits)
@@ -597,9 +588,9 @@ class Cluster(object):
             # create workernode_list
             workernode_list.append(_cur_node_nr)
 
-        return node_subclusters, workernode_list, self.offdown_nodes, self.working_cores, max_np, all_str_digits_with_empties
+        return node_name_prefixes, workernode_list, self.offdown_nodes, self.working_cores, max_np, all_str_digits_with_empties
 
-    def decide_remapping(self, all_str_digits_with_empties):
+    def decide_remapping(self, all_str_digits_with_empties, node_name_prefixes):
         """
         Cases where remapping is enforced are:
         - the user has requested it (blindremap switch)
@@ -624,11 +615,11 @@ class Cluster(object):
         has_mixed_or_non_numeric_wns = len(numeric_workernodes) != len(self.workernode_list)
         has_exotic_starting_wn = bool(numeric_workernodes) and min(numeric_workernodes) >= int(self.config["exotic_starting_wn_nr"])
 
-        user_filters = self.MVU_model.settings.get("filtering", self.config["filtering"])
+        user_filters = self.MVU_model.display_overrides.get("filtering", self.config["filtering"])
         if (
             self.args.BLINDREMAP
             or (user_filters and user_filters[0])
-            or len(self.node_subclusters) > 1
+            or len(node_name_prefixes) > 1
             or has_exotic_starting_wn
             or self.offdown_nodes >= self.total_wn * float(self.config["percentage"])
             or len(all_str_digits_with_empties) != len(_all_str_digits)
@@ -643,7 +634,7 @@ class Cluster(object):
         if logging.getLogger().isEnabledFor(logging.DEBUG) and REMAP:
             user_request = self.args.BLINDREMAP and "The user has requested it (blindremap switch)" or False
 
-            subclusters = len(self.node_subclusters) > 1 and "there are different WN namings, e.g. wn001, wn002, ..., ps001, ps002, ... etc" or False
+            subclusters = len(node_name_prefixes) > 1 and "there are different WN namings, e.g. wn001, wn002, ..., ps001, ps002, ... etc" or False
 
             exotic_starting = has_exotic_starting_wn and "first starting numbering of a WN very high; would thus require too much unused space" or False
 
@@ -690,13 +681,12 @@ class Cluster(object):
 
     def map_worker_nodes_to_wn_dict(self, args_remap):
         """Apply active filters and sorting, then build original and compact node mappings."""
-        # nodes_drop: this amount has to be chopped off of the end of workernode_list_remapped
         nodes_drop = 0  # count change in nodes after filtering
         workernode_dict = dict()
-        workernode_dict_remapped = dict()
+        remapped_nodes = dict()
         _sorting_from_conf = self.config["sorting"]
-        user_sorting = self.MVU_model.settings.get("user_sort", (_sorting_from_conf and list(_sorting_from_conf.values())[0]))
-        user_filters = self.MVU_model.settings.get("filtering", self.config["filtering"])
+        user_sorting = self.MVU_model.display_overrides.get("user_sort", (_sorting_from_conf and list(_sorting_from_conf.values())[0]))
+        user_filters = self.MVU_model.display_overrides.get("filtering", self.config["filtering"])
         user_filtering = user_filters and user_filters[0]
 
         if user_filtering and args_remap:
@@ -716,9 +706,9 @@ class Cluster(object):
             # have different lengths if there's a filter in place, but it is OK, since
             # it is just the idx counter that is taken into account in remapping.
             workernode_dict[cur_node_nr] = batch_node
-            workernode_dict_remapped[idx] = batch_node
+            remapped_nodes[idx] = batch_node
 
-        return nodes_drop, workernode_dict, workernode_dict_remapped
+        return nodes_drop, workernode_dict, remapped_nodes
 
     def _sort_worker_nodes(self):
         order = {
@@ -731,8 +721,8 @@ class Cluster(object):
             "sort by core occupancy": lambda node: len(node["core_job_map"]),
             "sort reset": lambda node: 0,
         }
-        if self.MVU_model.settings.get("user_sort"):  # live user sorting overrides yaml config sorting
-            sort_labels = [k[0] for k in self.MVU_model.settings.get("user_sort", [])]
+        if self.MVU_model.display_overrides.get("user_sort"):  # live user sorting overrides yaml config sorting
+            sort_labels = [k[0] for k in self.MVU_model.display_overrides.get("user_sort", [])]
         elif self.config.get("sorting", {}).get("user_sort"):
             sort_labels = self.config["sorting"]["user_sort"]
         else:

@@ -231,7 +231,6 @@ def test_node_state_colorization_returns_new_nodes_without_mutating_input():
     result = qtop_module.colorize_nodestate(
         worker_nodes,
         {"-X": "red"},
-        qtop_module.colorize,
     )
 
     assert result is not worker_nodes
@@ -380,7 +379,7 @@ def test_display_user_accounts_pool_mappings_adds_totals(monkeypatch, capsys):
             ["0", 2, 3, 5, "alice", 1],
             ["1", 4, 0, 4, "bob", 2],
         ]
-        userid_to_userid_re_pat = {
+        user_color_patterns = {
             "0": "account_not_colored",
             "1": "account_not_colored",
         }
@@ -456,7 +455,7 @@ def test_display_user_accounts_pool_mappings_hides_totals_by_default(monkeypatch
             ["0", 2, 3, 5, "alice", 1],
             ["1", 4, 0, 4, "bob", 2],
         ]
-        userid_to_userid_re_pat = {
+        user_color_patterns = {
             "0": "account_not_colored",
             "1": "account_not_colored",
         }
@@ -480,7 +479,7 @@ def test_display_user_accounts_can_show_primary_groups(monkeypatch, capsys):
     args = SimpleNamespace(COLOR="OFF", CLASSIC=False, SHOW_ACCOUNT_TOTALS=False, SHOW_GROUPS=True)
     occupancy = SimpleNamespace(
         account_jobs_table=[["0", 2, 3, 5, "alice", 1]],
-        userid_to_userid_re_pat={"0": "account_not_colored"},
+        user_color_patterns={"0": "account_not_colored"},
     )
     monkeypatch.setattr(qtop_module, "args", args, raising=False)
     monkeypatch.setattr(qtop_module, "config", {"SEPARATOR": "|"}, raising=False)
@@ -954,10 +953,9 @@ def test_empty_dynamic_filters_do_not_force_remapping(monkeypatch, filters):
     cluster.args = SimpleNamespace(BLINDREMAP=False)
     cluster.total_wn = 2
     cluster.workernode_list = [1, 3]
-    cluster.node_subclusters = {"node"}
     cluster.offdown_nodes = 0
 
-    assert cluster.decide_remapping(["01", "03"]) is False
+    assert cluster.decide_remapping(["01", "03"], {"node"}) is False
 
 
 @pytest.mark.parametrize("value", ["", "abc", "12345", "20260101T1200"])

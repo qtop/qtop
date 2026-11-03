@@ -1,6 +1,6 @@
 ## Copyright (c) 2026 qtop contributors
 ## SPDX-License-Identifier: MIT
-"""Terminal presentation of an explicit MVU projection."""
+"""Terminal presentation of an explicit MVU view_data."""
 
 import datetime
 import logging
@@ -21,7 +21,6 @@ class TextDisplay(object):
     def __init__(self, document, config, viewport, wns_occupancy, cluster, args, MVU_model):
         self.MVU_model = MVU_model
         self.cluster = cluster
-        self.wns_occupancy = wns_occupancy
         self.document = document
         self.viewport = viewport
         self.config = config
@@ -122,7 +121,7 @@ class TextDisplay(object):
             }
         )
 
-        expanded = self.MVU_model.settings.get("queue_summary_expanded", getattr(self.args, "EXPAND_QUEUES", False))
+        expanded = self.MVU_model.display_overrides.get("queue_summary_expanded", getattr(self.args, "EXPAND_QUEUES", False))
         print("%(queues)s :" % {"queues": self.MVU_model.MVU_colorize("Queueing", "Cyan_L")}, end="\n" if expanded else " ")
         for _queue_name, q_tuple in queues.items():
             q_running_jobs, q_queued_jobs = q_tuple.run, q_tuple.queued
@@ -153,14 +152,14 @@ class TextDisplay(object):
         """
         Displays qtop's second section, the main worker node matrices.
         """
-        print_char_start = self.wns_occupancy.print_char_start
-        print_char_stop = self.wns_occupancy.print_char_stop
+        node_column_start = self.wns_occupancy.node_column_start
+        node_column_stop = self.wns_occupancy.node_column_stop
 
         self.display_basic_legend()
-        self.display_matrix(wns_occupancy, print_char_start, print_char_stop)
+        self.display_matrix(wns_occupancy, node_column_start, node_column_stop)
         # the transposed matrix is one continuous block, doesn't make sense to break into more matrices
-        if not self.MVU_model.settings.get("transpose_wn_matrices", self.config["transpose_wn_matrices"]):
-            self.display_remaining_matrices(wns_occupancy, print_char_start, print_char_stop)
+        if not self.MVU_model.display_overrides.get("transpose_wn_matrices", self.config["transpose_wn_matrices"]):
+            self.display_remaining_matrices(wns_occupancy, node_column_start, node_column_stop)
 
     def display_backend_messages(self):
         backend = self.MVU_model.backend
@@ -173,7 +172,7 @@ class TextDisplay(object):
 
     def display_basic_legend(self):
         """Displays the Worker Nodes occupancy label plus columns explanation"""
-        if self.MVU_model.settings.get("transpose_wn_matrices", self.config["transpose_wn_matrices"]):
+        if self.MVU_model.display_overrides.get("transpose_wn_matrices", self.config["transpose_wn_matrices"]):
             note = "/".join(self.config["occupancy_column_order"])
         else:
             note = "you can read vertically the node IDs"
@@ -191,13 +190,13 @@ class TextDisplay(object):
         """
         try:
             account_jobs_table = self.wns_occupancy.account_jobs_table
-            userid_to_userid_re_pat = self.wns_occupancy.userid_to_userid_re_pat
+            user_color_patterns = self.wns_occupancy.user_color_patterns
         except KeyError:
             account_jobs_table = dict()
-            userid_to_userid_re_pat = dict()
+            user_color_patterns = dict()
 
-        detail_of_name = self.MVU_model.details.get("names", {})
-        group_of_name = self.MVU_model.details.get("groups")
+        detail_of_name = self.MVU_model.user_details.get("names", {})
+        group_of_name = self.MVU_model.user_details.get("groups")
         print(
             self.MVU_model.MVU_colorize("\n===> ", "Gray_D")
             + self.MVU_model.MVU_colorize("User accounts and pool mappings", "White")
@@ -215,7 +214,7 @@ class TextDisplay(object):
         print("[id] unix account      |jobs >=   R +    Q | nodes | %s" % detail_header)
         for line in account_jobs_table:
             uid = line[0]
-            userid_pat = userid_to_userid_re_pat[str(uid)]
+            userid_pat = user_color_patterns[str(uid)]
             self.display_account_jobs_line(line, userid_pat, detail_of_name, group_of_name)
 
         totals = self.account_jobs_totals(account_jobs_table) if getattr(self.args, "SHOW_ACCOUNT_TOTALS", False) else None
@@ -267,23 +266,23 @@ class TextDisplay(object):
         )
         print(print_string)
 
-    def display_matrix(self, wns_occupancy, print_char_start, print_char_stop):
+    def display_matrix(self, wns_occupancy, node_column_start, node_column_stop):
         """
         occupancy_parts needs to be redefined for each matrix, because of changed parameter values
         """
-        if self.wns_occupancy.is_matrix_coreless(print_char_start, print_char_stop):
+        if self.wns_occupancy.is_matrix_coreless(node_column_start, node_column_stop):
             return
 
         wn_vert_labels = wns_occupancy.wn_vert_labels
         core_user_map = wns_occupancy.core_user_map
-        userid_to_userid_re_pat = wns_occupancy.userid_to_userid_re_pat
+        user_color_patterns = wns_occupancy.user_color_patterns
         mapping = self.config["core_coloring"]
 
         occupancy_parts = {
-            "wn id lines": (self.display_wnid_lines, (print_char_start, print_char_stop, self.cluster.highest_wn, wn_vert_labels), {"inner_attrs": None}),
+            "wn id lines": (self.display_wnid_lines, (node_column_start, node_column_stop, self.cluster.highest_wn, wn_vert_labels), {"inner_attrs": None}),
             "core_user_map": (
                 self.print_core_lines,
-                (core_user_map, print_char_start, print_char_stop, self.MVU_model.transposed_matrices, userid_to_userid_re_pat, mapping),
+                (core_user_map, node_column_start, node_column_stop, self.MVU_model.transposed_sections, user_color_patterns, mapping),
                 {"attrs": None},
             ),
         }
@@ -296,7 +295,7 @@ class TextDisplay(object):
             new_occupancy_part = {
                 part_name: (
                     self.print_mult_attr_line,  # func
-                    (print_char_start, print_char_stop, self.MVU_model.transposed_matrices),  # opts
+                    (node_column_start, node_column_stop, self.MVU_model.transposed_sections),  # opts
                     {"attr_lines": getattr(wns_occupancy, part_name), "coloring": self.MVU_model.queue_to_color},  # kwargs
                 )
             }
@@ -313,15 +312,15 @@ class TextDisplay(object):
             func_, opts, kwargs = occupancy_parts[part][0], occupancy_parts[part][1], occupancy_parts[part][2]
             func_(*opts, **kwargs)  # ty: ignore[too-many-positional-arguments] - heterogeneous renderer registry
 
-        if self.MVU_model.settings.get("transpose_wn_matrices", self.config["transpose_wn_matrices"]):
+        if self.MVU_model.display_overrides.get("transpose_wn_matrices", self.config["transpose_wn_matrices"]):
             order = self.config["occupancy_column_order"]
-            for idx, (item, matrix) in enumerate(zip(order, self.MVU_model.transposed_matrices)):
+            for idx, (item, matrix) in enumerate(zip(order, self.MVU_model.transposed_sections)):
                 matrix[0] = order.index(matrix[1])
 
-            self.MVU_model.transposed_matrices.sort(key=lambda item: item[0])
+            self.MVU_model.transposed_sections.sort(key=lambda item: item[0])
             ###TRY###
             for line_tuple in zip_longest(
-                *[tpl[2] for tpl in self.MVU_model.transposed_matrices],
+                *[tpl[2] for tpl in self.MVU_model.transposed_sections],
                 fillvalue=[
                     utils.ColorStr(
                         "  ",
@@ -339,7 +338,7 @@ class TextDisplay(object):
             self.viewport.max_width = self.viewport.get_term_size()[1]
         print()
 
-    def display_remaining_matrices(self, wns_occupancy, print_char_start, print_char_stop, DEADWEIGHT=11):
+    def display_remaining_matrices(self, wns_occupancy, node_column_start, node_column_stop, DEADWEIGHT=11):
         """
         If the WNs are more than a screenful (width-wise), this calculates the extra matrices needed to display them.
         DEADWEIGHT is the space taken by the {__XXXX__} labels on the right of the CoreX map
@@ -353,14 +352,14 @@ class TextDisplay(object):
 
         # need node_state, temp
         for matrix in range(extra_matrices_nr):
-            print_char_start = print_char_stop
+            node_column_start = node_column_stop
             if self.config["USER_CUT_MATRIX_WIDTH"]:
-                print_char_stop += self.config["USER_CUT_MATRIX_WIDTH"]
+                node_column_stop += self.config["USER_CUT_MATRIX_WIDTH"]
             else:
-                print_char_stop += term_columns - DEADWEIGHT
-            print_char_stop = min(print_char_stop, self.cluster.total_wn) if self.args.REMAP else min(print_char_stop, self.cluster.highest_wn)
+                node_column_stop += term_columns - DEADWEIGHT
+            node_column_stop = min(node_column_stop, self.cluster.total_wn) if self.args.REMAP else min(node_column_stop, self.cluster.highest_wn)
 
-            self.display_matrix(wns_occupancy, print_char_start, print_char_stop)
+            self.display_matrix(wns_occupancy, node_column_start, node_column_stop)
 
     def join_prints(self, *args, **kwargs):
         joined_list = []
@@ -380,25 +379,25 @@ class TextDisplay(object):
         print(compress_colored_line(s))
         return joined_list
 
-    def print_core_lines(self, core_user_map, print_char_start, print_char_stop, transposed_matrices, userid_to_userid_re_pat, mapping, attrs, options1, options2):
+    def print_core_lines(self, core_user_map, node_column_start, node_column_stop, transposed_sections, user_color_patterns, mapping, attrs, options1, options2):
         self.MVU_model.MVU_reset_sigpipe()
-        remove_corelines = self.MVU_model.settings.get("rem_empty_corelines", self.config["rem_empty_corelines"]) + 1
+        remove_corelines = self.MVU_model.display_overrides.get("rem_empty_corelines", self.config["rem_empty_corelines"]) + 1
 
         # if corelines vertical (transposed matrix)
-        if self.MVU_model.settings.get("transpose_wn_matrices", self.config["transpose_wn_matrices"]):
+        if self.MVU_model.display_overrides.get("transpose_wn_matrices", self.config["transpose_wn_matrices"]):
             non_existent_symbol = self.config["non_existent_node_symbol"]
             for core_x_vector, ind, k, is_corevector_removable in gauge_core_vectors(
-                core_user_map, print_char_start, print_char_stop, WNOccupancy.coreline_notthere_or_unused, non_existent_symbol, remove_corelines
+                core_user_map, node_column_start, node_column_stop, WNOccupancy.coreline_notthere_or_unused, non_existent_symbol, remove_corelines
             ):
                 if is_corevector_removable:
                     del core_user_map[k]
 
-            tuple_ = [None, "core_map", self.transpose_matrix(core_user_map, colored=False, coloring_pat=userid_to_userid_re_pat)]
-            transposed_matrices.append(tuple_)
+            tuple_ = [None, "core_map", self.transpose_matrix(core_user_map, colored=False, coloring_pat=user_color_patterns)]
+            transposed_sections.append(tuple_)
             return
         else:
             # if corelines horizontal (non-transposed matrix)
-            for core_line in self.get_core_lines(core_user_map, print_char_start, print_char_stop, userid_to_userid_re_pat, mapping, attrs):
+            for core_line in self.get_core_lines(core_user_map, node_column_start, node_column_stop, user_color_patterns, mapping, attrs):
                 core_line_zipped = compress_colored_line(core_line)
                 try:
                     print(core_line_zipped)
@@ -413,16 +412,16 @@ class TextDisplay(object):
         d = OrderedDict()
         end_labels = self.config["workernodes_matrix"][0]["wn id lines"]["end_labels"]
 
-        if not self.MVU_model.settings["force_names"]:
+        if not self.MVU_model.display_overrides["force_names"]:
             node_str_width = len(str(highest_wn))  # 4 for thousands of nodes, nr of horizontal lines to be displayed
 
             for node_nr in range(1, node_str_width + 1):
                 d[str(node_nr)] = wn_vert_labels[str(node_nr)]
             end_labels_iter = iter(end_labels[str(node_str_width)])
-            self.print_wnid_lines(d, start, stop, end_labels_iter, self.MVU_model.transposed_matrices, color_func=self.color_plainly, args=("White", "Gray_L", start > 0))
+            self.print_wnid_lines(d, start, stop, end_labels_iter, self.MVU_model.transposed_sections, color_func=self.color_plainly, args=("White", "Gray_L", start > 0))
             # start > 0 is just a test for a possible future condition
 
-        elif self.MVU_model.settings["force_names"]:  # the actual names of the WNs instead of numbered WNs [was: or args.FORCE_NAMES]
+        elif self.MVU_model.display_overrides["force_names"]:  # the actual names of the WNs instead of numbered WNs [was: or args.FORCE_NAMES]
             node_str_width = len(wn_vert_labels)  # key, nr of horizontal lines to be displayed
 
             # for longer full-labeled wn ids, add more end-labels (far-right) towards the bottom
@@ -431,7 +430,7 @@ class TextDisplay(object):
 
             end_labels_iter = iter(end_labels[str(node_str_width)])
             self.print_wnid_lines(
-                wn_vert_labels, start, stop, end_labels_iter, self.MVU_model.transposed_matrices, color_func=self.highlight_alternately, args=(self.config["ALT_LABEL_COLORS"])
+                wn_vert_labels, start, stop, end_labels_iter, self.MVU_model.transposed_sections, color_func=self.highlight_alternately, args=(self.config["ALT_LABEL_COLORS"])
             )
 
     def highlight_alternately(self, color_a, color_b):
@@ -444,10 +443,10 @@ class TextDisplay(object):
         while True:
             yield color
 
-    def print_wnid_lines(self, d, start, stop, end_labels, transposed_matrices, color_func, args):
-        if self.MVU_model.settings.get("transpose_wn_matrices", self.config["transpose_wn_matrices"]):
+    def print_wnid_lines(self, d, start, stop, end_labels, transposed_sections, color_func, args):
+        if self.MVU_model.display_overrides.get("transpose_wn_matrices", self.config["transpose_wn_matrices"]):
             tuple_ = [None, "wnid_lines", self.transpose_matrix(d)]
-            transposed_matrices.append(tuple_)
+            transposed_sections.append(tuple_)
             return
 
         separators = self.config["vertical_separator_every_X_columns"]
@@ -475,30 +474,30 @@ class TextDisplay(object):
                     process_head.communicate()
         return temp_filename
 
-    def print_mult_attr_line(self, print_char_start, print_char_stop, transposed_matrices, attr_lines, label, color_func=None, **_config_metadata):
+    def print_mult_attr_line(self, node_column_start, node_column_stop, transposed_sections, attr_lines, label, color_func=None, **_config_metadata):
         """
         attr_lines can be e.g. Node state lines
         """
-        if self.MVU_model.settings.get("transpose_wn_matrices", self.config["transpose_wn_matrices"]):
+        if self.MVU_model.display_overrides.get("transpose_wn_matrices", self.config["transpose_wn_matrices"]):
             tuple_ = [None, label, self.transpose_matrix(attr_lines, colored=True, coloring_pat=None)]
-            transposed_matrices.append(tuple_)
+            transposed_sections.append(tuple_)
             return
 
         for _line in attr_lines:
-            line = attr_lines[_line][print_char_start:print_char_stop]
+            line = attr_lines[_line][node_column_start:node_column_stop]
             attr_line = self._insert_separators(line, self.config["SEPARATOR"], self.config["vertical_separator_every_X_columns"])
             attr_line = "".join([self.MVU_model.MVU_colorize(char.initial, color_func=char.color) for char in attr_line])
             print(attr_line + "=" + label)
 
-    def get_core_lines(self, core_user_map, print_char_start, print_char_stop, coloring_pattern, mapping, attrs):
+    def get_core_lines(self, core_user_map, node_column_start, node_column_stop, coloring_pattern, mapping, attrs):
         """
         yields all coreX lines, except cores that don't show up
         anywhere in the given matrix
         """
         non_existent_symbol = self.config["non_existent_node_symbol"]
-        remove_corelines = self.MVU_model.settings.get("rem_empty_corelines", self.config["rem_empty_corelines"]) + 1
+        remove_corelines = self.MVU_model.display_overrides.get("rem_empty_corelines", self.config["rem_empty_corelines"]) + 1
         for core_x_vector, ind, k, is_corevector_removable in gauge_core_vectors(
-            core_user_map, print_char_start, print_char_stop, WNOccupancy.coreline_notthere_or_unused, non_existent_symbol, remove_corelines
+            core_user_map, node_column_start, node_column_stop, WNOccupancy.coreline_notthere_or_unused, non_existent_symbol, remove_corelines
         ):
             if is_corevector_removable:
                 continue

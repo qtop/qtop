@@ -109,7 +109,7 @@ _reserved_pattern_mappings = MVU_reserved_pattern_mappings
 
 def MVU_legacy_model(instance=None):
     """Compatibility boundary for older qtop imports; new pipeline stages never use it."""
-    settings = globals().get("dynamic_config", {})
+    display_overrides = globals().get("dynamic_config", {})
     config = getattr(instance, "config", globals().get("config", {})) or {}
     options = getattr(instance, "args", globals().get("args")) or SimpleNamespace(COLOR="OFF")
     name = globals().get("scheduler", config.get("scheduler", ""))
@@ -118,14 +118,14 @@ def MVU_legacy_model(instance=None):
         config,
         options,
         getattr(instance, "viewport", globals().get("viewport")),
-        settings=settings,
+        display_overrides=display_overrides,
         document=getattr(instance, "document", globals().get("document")),
         user_to_color=globals().get("user_to_color", {}),
         package_path=globals().get("QTOPPATH", ""),
-        help_file=globals().get("help_main_switch", [""])[0],
+        help_file=globals().get("HELP_FP", ""),
     )
     model.backend, model.scheduler = backend, name
-    model.transposed_matrices = globals().get("transposed_matrices", [])
+    model.transposed_sections = globals().get("transposed_sections", [])
     return model
 
 
@@ -153,10 +153,13 @@ class Cluster(MVU_LegacyAdapter, MVU_Cluster):
 
 
 class WNOccupancy(MVU_LegacyAdapter, MVU_WNOccupancy):
+    def __init__(self, cluster, config, document, user_to_color, job_ids=None, **kwargs):
+        super().__init__(cluster, config, document, user_to_color, **kwargs)
+
     def strict_check_jobs(self, cluster):
-        context = copy.copy(self)
-        context.MVU_model = MVU_legacy_model(self)
-        message = MVU_WNOccupancy.MVU_check_jobs(context, cluster)
+        occupancy = copy.copy(self)
+        occupancy.MVU_model = MVU_legacy_model(self)
+        message = MVU_WNOccupancy.MVU_check_jobs(occupancy, cluster)
         if message:
             print(message)
 
@@ -175,9 +178,9 @@ def colorize(text, color_func=None, pattern="NoPattern", mapping=None, bg_color=
 def MVU_resolve_user_details(model, occupancy, force=False):
     parts = model.config.get("user_display_parts", [])
     if not force and not any(part == "user_accounts_pool_mappings" and not getattr(model.args, "sect_%s_off" % index, False) for index, part in enumerate(parts, 1)):
-        model.details = {}
+        model.user_details = {}
         return
-    model.details = {
+    model.user_details = {
         "names": get_detail_of_name(occupancy.account_jobs_table, model.config, model.args),
         "groups": get_primary_group_names(occupancy.account_jobs_table) if getattr(model.args, "SHOW_GROUPS", False) else None,
     }
@@ -192,22 +195,22 @@ def MVU_effects(model, effects, cluster, old_attrs, new_attrs):
             print(model.MVU_colorize("\nExiting. Thank you for ..watching ;)\n", "Cyan_L"))
             raise SystemExit(0)
         elif action == "sort":
-            choose_sort(model.viewport, model.settings, old_attrs, new_attrs)
+            choose_sort(model.viewport, model.display_overrides, old_attrs, new_attrs)
         elif action == "filter":
-            choose_filter(model.viewport, cluster, model.settings, old_attrs, new_attrs)
+            choose_filter(model.viewport, cluster, model.display_overrides, old_attrs, new_attrs)
         elif action == "highlight":
-            choose_highlight(model.viewport, cluster, model.settings, old_attrs, new_attrs)
+            choose_highlight(model.viewport, cluster, model.display_overrides, old_attrs, new_attrs)
 
 
 def control_qtop(viewport, read_char, cluster, old_attrs, new_attrs):
     global dynamic_config
     model = MVU_legacy_model()
     model.viewport = viewport
-    updated, effects = MVU_update(model, read_char)
-    viewport.__dict__.update(updated.viewport.__dict__)
-    updated.viewport = viewport
-    dynamic_config = updated.settings
-    MVU_effects(updated, effects, cluster, old_attrs, new_attrs)
+    next_model, effects = MVU_update(model, read_char)
+    viewport.__dict__.update(next_model.viewport.__dict__)
+    next_model.viewport = viewport
+    dynamic_config = next_model.display_overrides
+    MVU_effects(next_model, effects, cluster, old_attrs, new_attrs)
 
 
 def reset_sigpipe():
@@ -584,7 +587,7 @@ def menu_terminal(old_attrs, new_attrs):
         _set_terminal_attrs(new_attrs)
 
 
-def choose_sort(viewport, settings, old_attrs, new_attrs):
+def choose_sort(viewport, display_overrides, old_attrs, new_attrs):
     sort_map = OrderedDict()
 
     sort_map["0"] = ("sort reset", [])
@@ -605,7 +608,7 @@ def choose_sort(viewport, settings, old_attrs, new_attrs):
         print("(%s): %s" % (colorize(nr, color_func="Red_L"), sort_method[0]))
 
     with menu_terminal(old_attrs, new_attrs):
-        settings["user_sort"] = []
+        display_overrides["user_sort"] = []
         while True:
             sort_choice = input(
                 "\nChoose sorting order, or Enter to exit:-> ",
@@ -618,12 +621,12 @@ def choose_sort(viewport, settings, old_attrs, new_attrs):
                 continue
 
             sort_args = [sort_map[i] for i in sort_order]
-            settings["user_sort"] = sort_args
+            display_overrides["user_sort"] = sort_args
             break
     viewport.reset_display()
 
 
-def choose_filter(viewport, cluster, settings, old_attrs, new_attrs):
+def choose_filter(viewport, cluster, display_overrides, old_attrs, new_attrs):
     cluster.wn_filter = cluster.WNFilter(cluster.worker_nodes)
     filter_map = {
         1: "exclude_node_states",
@@ -660,12 +663,12 @@ def choose_filter(viewport, cluster, settings, old_attrs, new_attrs):
         }
     )
     with menu_terminal(old_attrs, new_attrs):
-        settings["filtering"] = []
-        read_rule_choices("Filter", filter_map, settings["filtering"])
+        display_overrides["filtering"] = []
+        read_rule_choices("Filter", filter_map, display_overrides["filtering"])
     viewport.reset_display()
 
 
-def choose_highlight(viewport, cluster, settings, old_attrs, new_attrs):
+def choose_highlight(viewport, cluster, display_overrides, old_attrs, new_attrs):
     cluster.wn_filter = cluster.WNFilter(cluster.worker_nodes)
     filter_map = {
         1: "or_include_user_id",
@@ -689,8 +692,8 @@ def choose_highlight(viewport, cluster, settings, old_attrs, new_attrs):
         }
     )
     with menu_terminal(old_attrs, new_attrs):
-        settings["highlight"] = []
-        read_rule_choices("Highlight", filter_map, settings["highlight"])
+        display_overrides["highlight"] = []
+        read_rule_choices("Highlight", filter_map, display_overrides["highlight"])
     viewport.reset_display()
 
 
@@ -996,22 +999,7 @@ def cli_main():
 
 def main(resources):
     # define global vars which are used out of scope
-    global \
-        CURPATH, \
-        QTOPPATH, \
-        HELP_FP, \
-        SAMPLE_FILENAME, \
-        scheduler, \
-        config, \
-        dynamic_config, \
-        cluster, \
-        viewport, \
-        user_to_color, \
-        args, \
-        transposed_matrices, \
-        help_main_switch, \
-        web, \
-        document
+    global CURPATH, QTOPPATH, HELP_FP, SAMPLE_FILENAME, scheduler, config, dynamic_config, cluster, viewport, user_to_color, args, transposed_sections, web, document
 
     args = resources.options = utils.parse_qtop_cmdline_args()
     if args.version:
@@ -1065,9 +1053,6 @@ def main(resources):
     # copy them into the package so an installed CLI has the same defaults.
     QTOPPATH = source_path if os.path.isfile(os.path.join(source_path, QTOPCONF_YAML)) else package_path
     HELP_FP = os.path.join(QTOPPATH, "helpfile.txt")
-    help_main_switch = [
-        HELP_FP,
-    ]  # output_fp is not yet defined, will be appended later
     SAMPLE_FILENAME = "qtop_sample_${USER}%(datetime)s.tar"
     SAMPLE_FILENAME = "qtop_sample_anonymous%(datetime)s.tar" if args.ANONYMIZE else os.path.expandvars(SAMPLE_FILENAME)
     if args.REPLAY:
@@ -1098,13 +1083,12 @@ def main(resources):
                 attempt_faster_xml_parsing(config)
                 args = init_dirs(args, savepath)
 
-                transposed_matrices = []
+                transposed_sections = []
                 if args.LESS:
                     viewport.set_term_size(500, 9999)
                 else:
                     viewport.set_term_size(*calculate_term_size(config, FALLBACK_TERMSIZE, viewport))
                 with resources.frame(savepath, timestr) as output_fp:
-                    help_main_switch.append(output_fp)
                     scheduler = (
                         args.sample_snapshot["scheduler"]
                         if args.load_sample
@@ -1121,15 +1105,15 @@ def main(resources):
                             user_to_color.update(rule)
                     MVU_export_snapshot(document, args, savepath, timestr, web)
                     if model is None:
-                        model = MVU_Model(config, args, viewport, settings=dynamic_config, package_path=QTOPPATH, help_file=HELP_FP)
+                        model = MVU_Model(config, args, viewport, display_overrides=dynamic_config, package_path=QTOPPATH, help_file=HELP_FP)
                     model, _ = MVU_update(model, "snapshot", (document, config, args, backend, user_to_color, nodestate_to_color))
-                    projection = MVU_query(model)
-                    cluster = projection.cluster
-                    MVU_resolve_user_details(projection.model, projection.occupancy)
-                    display = MVU_view(projection, savepath, SAMPLE_FILENAME, QTOP_LOGFILE)
+                    view_data = MVU_query(model)
+                    cluster = view_data.cluster
+                    MVU_resolve_user_details(view_data.model, view_data.occupancy)
+                    display = MVU_view(view_data, savepath, SAMPLE_FILENAME, QTOP_LOGFILE)
 
-                projection.model.viewport.max_height, max_line_len = get_output_size(max_line_len, output_fp)
-                model, _ = MVU_update(model, "layout", projection.model.viewport)
+                view_data.model.viewport.max_height, max_line_len = get_output_size(max_line_len, output_fp)
+                model, _ = MVU_update(model, "layout", view_data.model.viewport)
                 viewport = model.viewport
 
                 if args.ONLYSAVETOFILE:  # no display of qtop output, will exit
@@ -1155,10 +1139,9 @@ def main(resources):
 
                     read_char = wait_for_keypress_or_autorefresh(viewport, FALLBACK_TERMSIZE, int(args.WATCH) or KEYPRESS_TIMEOUT)
                     model, effects = MVU_update(model, read_char)
-                    viewport, dynamic_config = model.viewport, model.settings
+                    viewport, dynamic_config = model.viewport, model.display_overrides
                     MVU_effects(model, effects, cluster, old_attrs, new_attrs)
 
-                help_main_switch.pop()
                 os.chdir(QTOPPATH)
                 resources.discard_frame()
                 fileutils.deprecate_old_output_files(config)

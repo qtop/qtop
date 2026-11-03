@@ -109,12 +109,11 @@ def test_decide_remapping_handles_mixed_numeric_and_named_nodes(monkeypatch):
     cluster = qtop.Cluster.__new__(qtop.Cluster)
     cluster.total_wn = 2
     cluster.args = SimpleNamespace(BLINDREMAP=False)
-    cluster.node_subclusters = {"wn"}
     cluster.workernode_list = [1, "trueno_ita"]
     cluster.offdown_nodes = 0
     cluster.config = {"exotic_starting_wn_nr": 100, "percentage": 0.5, "filtering": []}
 
-    assert cluster.decide_remapping(["1", ""]) is True
+    assert cluster.decide_remapping(["1", ""], {"wn"}) is True
 
 
 def test_valid_corejobs_skips_jobs_missing_from_qstat():

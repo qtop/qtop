@@ -5,6 +5,7 @@ See the [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 
 ## 0.9.20261031
 
+- Refactor: remove redundant MVU state and clarify variable names.
 - Refactor: separate MVU state, snapshot queries and terminal presentation. Bingo.
 - Refactor: clarify state-types and snapshot-document module names.
 - Refactor: move legacy parser and display policy out of core.

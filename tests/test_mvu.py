@@ -29,7 +29,7 @@ def MVU_test_model(tmp_path, monkeypatch):
         args,
         viewport,
         backend=SlurmBatchSystem,
-        settings={"force_names": True},
+        display_overrides={"force_names": True},
         document=document,
         user_to_color=users,
         nodestate_to_color=states,
@@ -40,16 +40,20 @@ def MVU_test_model(tmp_path, monkeypatch):
 
 def test_MVU_update_returns_owned_state_and_effects_without_io(tmp_path, monkeypatch):
     model = MVU_test_model(tmp_path, monkeypatch)
-    original_settings = model.settings.copy()
+    original_overrides = model.display_overrides.copy()
     original_viewport = vars(model.viewport).copy()
-    updated, effects = MVU_update(model, "t")
-    assert updated is not model
-    assert updated.settings["transpose_wn_matrices"] is not model.config["transpose_wn_matrices"]
+    next_model, effects = MVU_update(model, "t")
+    assert next_model is not model
+    assert next_model.display_overrides["transpose_wn_matrices"] is not model.config["transpose_wn_matrices"]
     assert effects == (("notice", "Transposing matrix..."),)
-    assert model.settings == original_settings and vars(model.viewport) == original_viewport
+    assert model.display_overrides == original_overrides and vars(model.viewport) == original_viewport
     assert MVU_update(model, "unknown") == (model, ())
-    assert MVU_update(model, "refresh") == (model, (("collect", None),))
     assert MVU_update(model, "q")[1] == (("quit", None),)
+    help_model, _ = MVU_update(model, "?")
+    assert help_model.display_overrides["output_fp"] == model.help_file
+    restored_model, _ = MVU_update(help_model, "?")
+    assert "output_fp" not in restored_model.display_overrides
+    assert model.display_overrides == original_overrides
 
 
 def test_MVU_query_and_view_need_no_runtime_globals_or_mutable_snapshot(tmp_path, monkeypatch, capsys):
@@ -58,10 +62,10 @@ def test_MVU_query_and_view_need_no_runtime_globals_or_mutable_snapshot(tmp_path
     original_nodes = copy.deepcopy(model.document.worker_nodes)
     original_viewport = vars(model.viewport).copy()
     original_config = copy.deepcopy(model.config)
-    for name in ("args", "config", "dynamic_config", "scheduler", "document", "cluster", "viewport", "user_to_color", "transposed_matrices"):
+    for name in ("args", "config", "dynamic_config", "scheduler", "document", "cluster", "viewport", "user_to_color", "transposed_sections"):
         monkeypatch.delattr(qtop, name, raising=False)
-    projection = MVU_query(model)
-    MVU_view(projection, str(tmp_path), "sample.tar", "qtop.log")
+    view_data = MVU_query(model)
+    MVU_view(view_data, str(tmp_path), "sample.tar", "qtop.log")
     assert "Job accounting summary" in capsys.readouterr().out
     assert model.document.to_cluster_state() == original
     assert model.document.worker_nodes == original_nodes
