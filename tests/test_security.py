@@ -370,7 +370,14 @@ def test_permission_repair_does_not_chmod_foreign_entries(tmp_path, monkeypatch,
         path.write_text("untouched")
     inode = path.stat().st_ino
     path.chmod(0o000)
-    native_stat = os.stat
+    native_stat, native_open = os.stat, os.open
+
+    def deny_target_open(name, *args, **kwargs):
+        # Root can open mode-000 entries; force the permission-repair path.
+        info = native_stat(name, dir_fd=kwargs.get("dir_fd"), follow_symlinks=False)
+        if info.st_ino == inode:
+            raise PermissionError("simulated access denial")
+        return native_open(name, *args, **kwargs)
 
     def foreign_owner(*args, **kwargs):
         info = native_stat(*args, **kwargs)
@@ -381,8 +388,9 @@ def test_permission_repair_does_not_chmod_foreign_entries(tmp_path, monkeypatch,
         return info
 
     monkeypatch.setattr(fileutils.os, "stat", foreign_owner)
+    monkeypatch.setattr(fileutils.os, "open", deny_target_open)
     try:
-        with pytest.raises(PermissionError):
+        with pytest.raises(PermissionError, match="simulated access denial"):
             if directory:
                 fileutils.private_save_directory(str(path))
             else:
