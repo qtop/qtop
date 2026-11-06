@@ -28,7 +28,7 @@ If AI assistance materially contributed to a change, disclose it briefly in the 
 
 ## General Conventions
 
-Please follow common conventions for Open Source projects, f.i. align to Electron framework if still in doubt:
+Please follow these contribution conventions:
 - AI version disclosure is mandatory; with version, not just a name
 - `develop` branch should be used as source and target of PRs
 - avoid runtime dependencies whenever possible: qtop is often run in
@@ -87,4 +87,4 @@ You may contribute in the following ways:
 
 [3] https://en.wikipedia.org/wiki/Contributor_License_Agreement
 
-[4] https://www.conventionalcommits.org/en/v1.0.0/ or https://www.electronjs.org/docs/latest/development/pull-requests#step-5-commit
+[4] https://www.conventionalcommits.org/en/v1.0.0/
