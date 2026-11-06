@@ -6,6 +6,7 @@ See the [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 ## 0.9.20261102
 
 - CI: make permission-repair tests reliable in root-run nightly containers.
+- Release: update version metadata to 0.9.20261102.
 
 ## 0.9.20261101
 
