@@ -37,7 +37,7 @@ all:: ci-deps test coverage backend-validation backend-colour-artifacts render-b
 
 rerun:: clean all ## Clean generated files, then rerun the complete local validation path
 
-clean:: confirm ## Remove generated validation, build, and Python cache output
+clean:: confirm ## Remove generated validation, build and Python cache output
 	rm -rf artifacts build dist .coverage .pytest_cache .ruff_cache qtop.egg-info
 	find . -type d -name __pycache__ -prune -exec rm -rf {} +
 	find . -type f \( -name '*.pyc' -o -name '*.pyo' \) -delete

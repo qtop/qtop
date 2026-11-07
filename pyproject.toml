@@ -61,9 +61,8 @@ target-version = "py37"
 line-length = 180 # keep legacy output fixtures readable while reducing the previous 188-char ceiling
 
 [tool.ty.environment]
-# qtop runs on older Pythons, and ty itself supports 3.10 and newer. Keep
-# syntax compatibility covered by compat-py36 while using Python 3.12 as the
-# modern analysis and CI baseline.
+# qtop runs on older Pythons and ty itself supports 3.10 and newer.
+# Keep syntax compatibility covered by compat-py36 while using Python 3.12 as the modern analysis and CI baseline.
 python-version = "3.12"
 python-platform = "linux"
 

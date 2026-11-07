@@ -27,9 +27,7 @@ test it. An unsupported release is not necessarily unaffected or safe.
 Please do not open a public issue for a vulnerability that has not yet been
 disclosed. Prefer GitHub's
 [private vulnerability reporting form](https://github.com/qtop/qtop/security/advisories/new),
-or report it privately via email to any maintainer listed in qtop's package
-metadata and source headers. The primary coordination contact is Fotis Georgatos
-([email](mailto:kefalonia@gmail.com)); see [maintenance roles](MAINTAINERS.md).
+or report it privately via email to any maintainer; see [maintenance roles](MAINTAINERS.md).
 
 Use `qtop security report` in the subject. Include the affected qtop version
 or commit, scheduler family, operating system and Python version, a minimal
@@ -47,7 +45,7 @@ private channel without including vulnerability details in the initial public
 request.
 
 If the private reporting form is unavailable, use the email route. If the
-primary contact is unavailable, contact another maintainer address from the
-package metadata privately. Include the date and channel of the previous
-attempt, without posting vulnerability details publicly. This project does
-not promise a fixed acknowledgement or remediation deadline.
+primary contact is unavailable, contact Evangelos privately at the address
+above. Include the date and channel of the previous attempt, without posting
+vulnerability details publicly. This project does not promise a fixed
+acknowledgement or remediation deadline.
