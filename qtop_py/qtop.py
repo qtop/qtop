@@ -992,7 +992,7 @@ def cli_main():
 
 def main(resources):
     # define global vars which are used out of scope
-    global CURPATH, QTOPPATH, HELP_FP, SAMPLE_FILENAME, scheduler, config, dynamic_config, cluster, viewport, user_to_color, args, transposed_sections, web, document
+    global CURPATH, QTOPPATH, HELP_FP, SAMPLE_FILENAME, scheduler, config, dynamic_config, cluster, viewport, user_to_color, args, web, document
 
     args = resources.options = utils.parse_qtop_cmdline_args()
     if args.version:
@@ -1076,7 +1076,6 @@ def main(resources):
                 attempt_faster_xml_parsing(config)
                 args = init_dirs(args, savepath)
 
-                transposed_sections = []
                 if args.LESS:
                     viewport.set_term_size(500, 9999)
                 else:

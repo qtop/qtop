@@ -1,8 +1,12 @@
 Please follow our [Code of Conduct](CODE_OF_CONDUCT.md) when participating in the qtop community.
 
 Review routing, maintainer responsibilities, release coordination and
-escalation are documented in [MAINTAINERS.md](MAINTAINERS.md). Report
-undisclosed vulnerabilities through [SECURITY.md](SECURITY.md), not public issues.
+escalation are documented in [MAINTAINERS.md](MAINTAINERS.md). Each change
+requires an independent maintainer's approval before merge; authors cannot
+approve their own work. Releases require independent approval of the revision
+and artifacts before publication. See the
+[four-eyes principle](MAINTAINERS.md#four-eyes-principle). Report undisclosed
+vulnerabilities through [SECURITY.md](SECURITY.md), not public issues.
 
 ## Pull request templates
 
@@ -28,7 +32,7 @@ If AI assistance materially contributed to a change, disclose it briefly in the 
 
 ## General Conventions
 
-Please follow common conventions for Open Source projects, f.i. align to Electron framework if still in doubt:
+Please follow these contribution conventions:
 - AI version disclosure is mandatory; with version, not just a name
 - `develop` branch should be used as source and target of PRs
 - avoid runtime dependencies whenever possible: qtop is often run in
@@ -50,7 +54,7 @@ make pre-pr
 ```
 
 `make pre-pr` runs the full suite once under coverage, scheduler samples,
-lint/format checks, all type checkers, deterministic fuzzing, and bounded Atheris
+lint/format checks, all type checkers, deterministic fuzzing and bounded Atheris
 fuzzing. It enforces the configured `COVERAGE_MIN` floor. On other platforms,
 run `make ci type-check coverage` and report Atheris as deferred to the Linux
 x86-64 CPython 3.12 CI lane. Python 3.6 compatibility stays a separate gate.
@@ -87,4 +91,4 @@ You may contribute in the following ways:
 
 [3] https://en.wikipedia.org/wiki/Contributor_License_Agreement
 
-[4] https://www.conventionalcommits.org/en/v1.0.0/ or https://www.electronjs.org/docs/latest/development/pull-requests#step-5-commit
+[4] https://www.conventionalcommits.org/en/v1.0.0/

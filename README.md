@@ -17,11 +17,11 @@ See your whole cluster in one terminal. Capture it. Replay it. Compare it.
 
 ## Why qtop?
 
-Schedulers expose a great deal of information, but their native commands rarely provide one concise view of jobs, queues, nodes, states, and core occupancy. qtop turns scheduler output into a consistent terminal dashboard that is useful during daily operations and incident analysis.
+Schedulers expose a great deal of information, but their native commands rarely provide one concise view of jobs, queues, nodes, states and core occupancy. qtop turns scheduler output into a consistent terminal dashboard that is useful during daily operations and incident analysis.
 
-- See cluster utilization, queues, users, node states, and per-core job placement.
-- Use the same interface across Slurm, PBS/Torque, SGE, and OAR.
-- Filter, sort, highlight, transpose, and navigate large worker-node matrices interactively.
+- See cluster utilization, queues, users, node states and per-core job placement.
+- Use the same interface across Slurm, PBS/Torque, SGE and OAR.
+- Filter, sort, highlight, transpose and navigate large worker-node matrices interactively.
 - Capture scheduler output for bug reports or offline investigation.
 - Replay recent frames to understand scheduling changes over time.
 - Export normalized cluster data as JSON.
@@ -84,7 +84,7 @@ PyPI currently serves qtop's legacy 2016 release. Until the next release is
 published, install from source for current Slurm support and recent fixes. A
 system-wide or virtual-environment installation can omit `--user`.
 
-## Capture, inspect, and replay
+## Capture, inspect and replay
 
 Read scheduler traces from a directory instead of invoking live commands:
 
@@ -92,7 +92,7 @@ Read scheduler traces from a directory instead of invoking live commands:
 ./qtop -b slurm -s /path/to/slurm-traces
 ```
 
-Create a support sample containing qtop output, logs, and scheduler traces
+Create a support sample containing qtop output, logs and scheduler traces
 (use `-L -A -e` for a reproducible anonymized state snapshot):
 
 ```console
@@ -119,14 +119,14 @@ directory:
 [capture and export guide](docs/documentation.md#capture-and-json-export) for
 filenames, a real JSON example, archive contents and anonymization limits.
 
-See [the full documentation](docs/documentation.md) for trace filenames, configuration, filtering, replay formats, anonymization, and scheduler-specific notes.
+See [the full documentation](docs/documentation.md) for trace filenames, configuration, filtering, replay formats, anonymization and scheduler-specific notes.
 
 ## How it works
 
 qtop separates scheduler-specific collection and parsing from a common cluster-state model and terminal presentation:
 
 1. A scheduler plugin collects live command output or reads saved traces.
-2. The plugin normalizes jobs, nodes, and queues into a shared cluster state.
+2. The plugin normalizes jobs, nodes and queues into a shared cluster state.
 3. qtop renders that state in a fast terminal view or exports it for other tools.
 
 This design keeps the core scheduler-independent and makes support for another batch system a bounded plugin contribution.
@@ -143,7 +143,7 @@ Terminal monitoring is the primary interface.
 
 Maintainers and contributors can run `make ci-deps` once and `make pre-pr`
 in a Linux x86-64 CPython 3.12 virtual environment to reproduce the local PR
-gates, including coverage, type checks, and both parser fuzzers. See
+gates, including coverage, type checks and both parser fuzzers. See
 [CONTRIBUTING.md](CONTRIBUTING.md) for other platforms and Python 3.6 checks.
 
 ## Documentation and community
@@ -156,9 +156,12 @@ gates, including coverage, type checks, and both parser fuzzers. See
 - [OpenSSF metadata, badge preparation and future integrations](docs/openssf-readiness.md)
 - [Issue tracker](https://github.com/qtop/qtop/issues)
 
-Bug reports with captured scheduler samples are especially valuable. New scheduler plugins, sample fixtures, documentation improvements, and portability fixes are welcome.
+Bug reports with captured scheduler samples are especially valuable. New scheduler plugins, sample fixtures, documentation improvements and portability fixes are welcome.
 
-Python port by Sotiris Fragkiskos. Original Bash version by Fotis Georgatos.
-Additional authors: Evangelos Papadopoulos and Nicola Trozzi.
+AUTHORS:
+Original Bash version by Fotis Georgatos. Python port by Sotiris Fragkiskos.
+Additional authors: Evangelos Papadopoulos (push for 1.0) and Nicola Trozzi (admitted slurm support).
+
+Full contributor credits: [AUTHORS.md](AUTHORS.md).
 
 License: [MIT](LICENSE).

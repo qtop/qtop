@@ -259,7 +259,7 @@ filtering:
    # - ^da-p[67]
    # - ^da-p8
 
-## Highlight selected usernames (regex expression), userIDs, and/or Queues
+## Highlight selected usernames (regex expression), userIDs and/or Queues
 
 highlight:
   #- or_include_user_pat: ['biomed017']
