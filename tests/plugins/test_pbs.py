@@ -96,3 +96,70 @@ def test_array_allocations_resolve_only_against_reported_jobs(tmp_path, known, e
     node = backend.get_worker_nodes(known, ["workq"] * len(known), options)[0]
     assert node["core_job_map"] == {"0": expected, "1": expected}
     assert node["qname"] == (["workq"] if expected in known else [None])
+
+
+def _qstat(tmp_path, *lines):
+    path = tmp_path / "qstat.txt"
+    path.write_text("\n".join(lines) + "\n")
+    return pbs.PBSStatExtractor({}, SimpleNamespace(ANONYMIZE=False)).extract_qstat(str(path))
+
+
+PRIOR_HEADER = (
+    "job-ID  prior   name       user         state submit/start at     queue                          slots ja-task-ID",
+    "-----------------------------------------------------------------------------------------------------------------",
+)
+
+
+@pytest.mark.parametrize(
+    "row, state",
+    [
+        ("7214025 0.50103 cccreamcel dteam018     r     08/10/2012 01:46:35 medium@ccwsge0454.in2p3.fr         1", "r"),
+        ("7214025 0.50103 cccreamcel dteam018     r     08/10/12 01:46:35 medium@ccwsge0454.in2p3.fr         1", "r"),
+        ("7214025 0.50103 cccreamcel dteam018     qw    08/10/2012 01:46:35 medium@ccwsge0454.in2p3.fr         4 1-10:1", "qw"),
+    ],
+)
+def test_prior_format_accepts_four_digit_years_multiletter_states_and_task_ranges(tmp_path, row, state):
+    assert _qstat(tmp_path, *PRIOR_HEADER, row) == [{"JobId": "7214025", "UnixAccount": "dteam018", "S": state, "Queue": "medium@ccwsge0454.in2p3.fr"}]
+
+
+def test_nqs_request_rows_inherit_their_queue_header(tmp_path):
+    assert _qstat(
+        tmp_path,
+        "cert;  type=BATCH;  [ENABLED];  pri=90",
+        "1 run;   0 wait;",
+        "        REQUEST NAME        REQUEST ID          USER   STATE",
+        "   1:   cream_878672            238085     dteam031  RUNNING",
+        "short;  type=BATCH;  [ENABLED];  pri=40",
+        "   2:   cr001_215824            625164     dteam032  WAITING",
+        "   3:   cr001_215825            625165     dteam032  HELD",
+    ) == [
+        {"JobId": "238085", "UnixAccount": "dteam031", "S": "R", "Queue": "cert"},
+        {"JobId": "625164", "UnixAccount": "dteam032", "S": "W", "Queue": "short"},
+        {"JobId": "625165", "UnixAccount": "dteam032", "S": "H", "Queue": "short"},
+    ]
+
+
+def test_nqs_unknown_or_malformed_requests_are_skipped_not_guessed(tmp_path, caplog):
+    assert _qstat(
+        tmp_path,
+        "cert;  type=BATCH;  [ENABLED];  pri=90",
+        "   1:   cream_878672            238085     dteam031  STAGING",
+        "   2:   cream_878673",
+        "   3:   cream_878674            238087     dteam031  QUEUED",
+    ) == [{"JobId": "238087", "UnixAccount": "dteam031", "S": "Q", "Queue": "cert"}]
+    assert "Unknown NQS request state STAGING" in caplog.text
+    assert "not properly parsed as an NQS request" in caplog.text
+
+
+def test_nqs_headers_do_not_hijack_a_detected_pbs_table(tmp_path):
+    assert _qstat(
+        tmp_path,
+        "Job id           Name             User             Time Use S Queue",
+        "---------------- ---------------- ---------------- -------- - -----",
+        "807140.delta     job              alice            22:41:42 R gpu",
+        "cert;  type=BATCH;  [ENABLED];  pri=90",
+        "808000.delta     job              bob              0 Q gpu",
+    ) == [
+        {"JobId": "807140", "UnixAccount": "alice", "S": "R", "Queue": "gpu"},
+        {"JobId": "808000", "UnixAccount": "bob", "S": "Q", "Queue": "gpu"},
+    ]

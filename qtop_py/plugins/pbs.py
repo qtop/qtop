@@ -23,6 +23,17 @@ from qtop_py.safety import load_json
 from qtop_py.schedulers.tabular import TabularStatExtractor
 from qtop_py.serialiser import GenericBatchSystem, StatExtractor, resolve_job_id
 
+# NQS request states mapped onto PBS single-letter job states.
+NQS_REQUEST_STATES = {
+    "EXITING": "E",
+    "HELD": "H",
+    "QUEUED": "Q",
+    "RUNNING": "R",
+    "SUSPENDED": "S",
+    "TRANSITING": "T",
+    "WAITING": "W",
+}
+
 
 class PBSStatExtractor(TabularStatExtractor):
     def __init__(self, config, options):
@@ -42,13 +53,16 @@ class PBSStatExtractor(TabularStatExtractor):
             r"(?:[0-9]\.[0-9]+)\s+"
             r"(?:[\w.-]+)\s+"
             r"(?P<user>[\w.-]+)\s+"
-            r"(?P<state>[a-z])\s+"
-            r"(?:\d{2}/\d{2}/\d{2}|0)\s+"
+            r"(?P<state>[A-Za-z]+)\s+"
+            r"(?:\d{2}/\d{2}/\d{2,4}|0)\s+"
             r"(?:\d+:\d+:\d*|0)\s+"
             r"(?P<queue_name>[\w.-]+@[\w.-]+)\s+"
-            r"(?:\d+)\s+"
-            r"(?:\w*)"
+            r"(?:\d+)(?=\s|$)"
         )
+
+        # Legacy NQS-style qstat: "<queue>;  type=BATCH; ..." headers precede their request rows.
+        self.nqs_queue_header = r"^(?P<queue_name>[\w.-]+);\s+type=\w+;"
+        self.nqs_request = r"^\d+:\s+(?P<name>\S+)\s+(?P<job_id>\d+)\s+(?P<user>[\w.-]+)\s+(?P<state>[A-Z]+)$"
 
     def extract_qstat(self, orig_file):
         """
@@ -88,8 +102,21 @@ class PBSStatExtractor(TabularStatExtractor):
             re_match_positions = ("job_id", "user", "state", "queue_name")  # was: (1, 5, 7, 8), (1, 4, 5, 8)
 
             re_search = None
+            nqs_queue = None
             for line in fin:
                 if not line.strip():
+                    continue
+
+                if re_search in (None, self.nqs_request):
+                    header = re.match(self.nqs_queue_header, line.strip())
+                    if header:
+                        re_search, nqs_queue = self.nqs_request, header.group("queue_name")
+                        continue
+
+                if re_search == self.nqs_request:
+                    qstat_values = self._process_nqs_request_line(line, nqs_queue)
+                    if qstat_values:
+                        all_qstat_values.append(qstat_values)
                     continue
 
                 if re_search is None:
@@ -111,6 +138,21 @@ class PBSStatExtractor(TabularStatExtractor):
                 all_qstat_values.append(qstat_values)
 
         return all_qstat_values
+
+    def _process_nqs_request_line(self, line, queue_name):
+        """
+        Parse one NQS request row; summary ("1 run; 0 wait;") and column-header lines yield None.
+        """
+        m = re.match(self.nqs_request, line.strip())
+        if m is None:
+            if re.match(r"^\d+:", line.strip()):
+                logging.warning("Line: %s not properly parsed as an NQS request. Skipping." % line.strip())
+            return None
+        state = NQS_REQUEST_STATES.get(m.group("state"))
+        if state is None:
+            logging.warning("Unknown NQS request state %s in line: %s. Skipping." % (m.group("state"), line.strip()))
+            return None
+        return {"JobId": m.group("job_id"), "UnixAccount": self.anonymize(m.group("user"), "users"), "S": state, "Queue": queue_name}
 
     def _extract_qstat_json(self, qstat_file):
         all_qstat_values = list()
