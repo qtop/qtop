@@ -7,6 +7,7 @@ See the [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 
 - Tests: cover sample-filename branches (#507).
 - Refactor: remove dead `fileutils` helpers.
+- Refactor: SonarQube-style cleanups; behaviour unchanged.
 - Bugfix: (security) cap per-node cores at 65536; SGE ignores larger `num_proc`.
 - Bugfix: (security) PySCG fixes; web view no longer loads jQuery.
 - Bugfix: (security) PySCG fixes; private, repo-local sample-render outputs (CWE-377).

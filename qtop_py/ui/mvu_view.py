@@ -331,7 +331,7 @@ class TextDisplay(object):
         }
 
         # custom part, e.g. Node state, queue state etc
-        for yaml_key, part_name, systems in yaml_parser.get_yaml_key_part(self.config, self.MVU_model.scheduler, outermost_key="workernodes_matrix"):
+        for _yaml_key, part_name, systems in yaml_parser.get_yaml_key_part(self.config, self.MVU_model.scheduler, outermost_key="workernodes_matrix"):
             if self.MVU_model.scheduler not in systems:
                 continue
 
@@ -357,7 +357,7 @@ class TextDisplay(object):
 
         if self.MVU_model.display_overrides.get("transpose_wn_matrices", self.config["transpose_wn_matrices"]):
             order = self.config["occupancy_column_order"]
-            for idx, (item, matrix) in enumerate(zip(order, self.MVU_model.transposed_sections)):
+            for _idx, (_item, matrix) in enumerate(zip(order, self.MVU_model.transposed_sections)):
                 matrix[0] = order.index(matrix[1])
 
             self.MVU_model.transposed_sections.sort(key=lambda item: item[0])
@@ -394,7 +394,7 @@ class TextDisplay(object):
         term_columns = self.MVU_model.viewport.h_term_size
 
         # need node_state, temp
-        for matrix in range(extra_matrices_nr):
+        for _matrix in range(extra_matrices_nr):
             node_column_start = node_column_stop
             if self.config["USER_CUT_MATRIX_WIDTH"]:
                 node_column_stop += self.config["USER_CUT_MATRIX_WIDTH"]
@@ -429,7 +429,7 @@ class TextDisplay(object):
         # if corelines vertical (transposed matrix)
         if self.MVU_model.display_overrides.get("transpose_wn_matrices", self.config["transpose_wn_matrices"]):
             non_existent_symbol = self.config["non_existent_node_symbol"]
-            for core_x_vector, ind, k, is_corevector_removable in gauge_core_vectors(
+            for _core_x_vector, _ind, k, is_corevector_removable in gauge_core_vectors(
                 core_user_map, node_column_start, node_column_stop, WNOccupancy.coreline_notthere_or_unused, non_existent_symbol, remove_corelines
             ):
                 if is_corevector_removable:
@@ -438,14 +438,13 @@ class TextDisplay(object):
             tuple_ = [None, "core_map", self.transpose_matrix(core_user_map, colored=False, coloring_pat=user_color_patterns)]
             transposed_sections.append(tuple_)
             return
-        else:
-            # if corelines horizontal (non-transposed matrix)
-            for core_line in self.get_core_lines(core_user_map, node_column_start, node_column_stop, user_color_patterns, mapping, attrs):
-                core_line_zipped = compress_colored_line(core_line)
-                try:
-                    print(core_line_zipped)
-                except IOError:
-                    return
+        # if corelines horizontal (non-transposed matrix)
+        for core_line in self.get_core_lines(core_user_map, node_column_start, node_column_stop, user_color_patterns, mapping, attrs):
+            core_line_zipped = compress_colored_line(core_line)
+            try:
+                print(core_line_zipped)
+            except IOError:
+                return
 
     def display_wnid_lines(self, start, stop, highest_wn, wn_vert_labels, **kwargs):
         """
@@ -514,12 +513,12 @@ class TextDisplay(object):
             temp_filename = temp_f.name
         tail_command = ["tail", "-n+" + str(x), file]
         head_command = ["head", "-n" + str(y - 1)]
-        with open(temp_filename, "w", encoding="utf-8") as output_file:
-            with subprocess.Popen(tail_command, stdout=subprocess.PIPE) as process_tail:
-                with subprocess.Popen(head_command, stdin=process_tail.stdout, stdout=output_file) as process_head:
-                    if process_tail.stdout is not None:
-                        process_tail.stdout.close()
-                    process_head.communicate()
+        with open(temp_filename, "w", encoding="utf-8") as output_file, subprocess.Popen(tail_command, stdout=subprocess.PIPE) as process_tail, subprocess.Popen(
+            head_command, stdin=process_tail.stdout, stdout=output_file
+        ) as process_head:
+            if process_tail.stdout is not None:
+                process_tail.stdout.close()
+            process_head.communicate()
         return temp_filename
 
     def print_mult_attr_line(self, node_column_start, node_column_stop, transposed_sections, attr_lines, label, color_func=None, **_config_metadata):
@@ -544,7 +543,7 @@ class TextDisplay(object):
         """
         non_existent_symbol = self.config["non_existent_node_symbol"]
         remove_corelines = self.MVU_model.display_overrides.get("rem_empty_corelines", self.config["rem_empty_corelines"]) + 1
-        for core_x_vector, ind, k, is_corevector_removable in gauge_core_vectors(
+        for core_x_vector, ind, _k, is_corevector_removable in gauge_core_vectors(
             core_user_map, node_column_start, node_column_stop, WNOccupancy.coreline_notthere_or_unused, non_existent_symbol, remove_corelines
         ):
             if is_corevector_removable:
@@ -573,15 +572,14 @@ class TextDisplay(object):
         """
         if not pos:  # default value is zero, means no vertical separators
             return orig_str
-        else:
-            sep_str = orig_str[:]  # insert initial vertical separator
-            separator = separator if isinstance(sep_str, str) else list(separator)
-            times = len(orig_str) // pos if not stopaftern else stopaftern
-            sep_str = sep_str[:pos] + separator + sep_str[pos:]
-            for i in range(2, times + 1):
-                sep_str = sep_str[: pos * i + i - 1] + separator + sep_str[pos * i + i - 1 :]
-            sep_str += separator  # insert initial vertical separator
-            return sep_str
+        sep_str = orig_str[:]  # insert initial vertical separator
+        separator = separator if isinstance(sep_str, str) else list(separator)
+        times = stopaftern if stopaftern else len(orig_str) // pos
+        sep_str = sep_str[:pos] + separator + sep_str[pos:]
+        for i in range(2, times + 1):
+            sep_str = sep_str[: pos * i + i - 1] + separator + sep_str[pos * i + i - 1 :]
+        sep_str += separator  # insert initial vertical separator
+        return sep_str
 
 
 def MVU_view(view_data, savepath, sample_filename, logfile):

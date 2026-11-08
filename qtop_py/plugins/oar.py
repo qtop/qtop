@@ -105,25 +105,24 @@ class OARBatchSystem(GenericBatchSystem):
                         rows.append(mask(name, "node") + ":")
                     else:
                         rows.append(indent + mask.public(name, r"[0-9]+") + ": " + mask.public(value, "Alive|Dead|Suspected|Mixed|Unknown"))
+                elif re.fullmatch(r"[0-9]+:\s*", line):
+                    rows.append(line)
+                    jobs_list = False
+                elif line.strip().startswith("jobs:"):
+                    value = line.strip().split(":", 1)[1].strip()
+                    self._parse_job_ids(value)
+                    rows.append(line[: len(line) - len(line.lstrip())] + "jobs: " + re.sub(r"[0-9]+", lambda match: mask(match.group(), "job"), value))
+                    jobs_list = not value
+                elif jobs_list and re.fullmatch(r"\s+- [0-9]+\s*", line):
+                    rows.append(re.sub(r"[0-9]+", lambda match: mask(match.group(), "job"), line))
                 else:
-                    if re.fullmatch(r"[0-9]+:\s*", line):
-                        rows.append(line)
-                        jobs_list = False
-                    elif line.strip().startswith("jobs:"):
-                        value = line.strip().split(":", 1)[1].strip()
-                        self._parse_job_ids(value)
-                        rows.append(line[: len(line) - len(line.lstrip())] + "jobs: " + re.sub(r"[0-9]+", lambda match: mask(match.group(), "job"), value))
-                        jobs_list = not value
-                    elif jobs_list and re.fullmatch(r"\s+- [0-9]+\s*", line):
-                        rows.append(re.sub(r"[0-9]+", lambda match: mask(match.group(), "job"), line))
-                    else:
-                        # Non-job resource attributes are not consumed by qtop.
-                        if ":" not in line:
-                            raise ValueError("unsupported resource row")
-                        name, value = line.strip().split(":", 1)
-                        indent = line[: len(line) - len(line.lstrip())]
-                        rows.append(indent + mask(name, "field") + ": " + mask(value.strip()))
-                        jobs_list = False
+                    # Non-job resource attributes are not consumed by qtop.
+                    if ":" not in line:
+                        raise ValueError("unsupported resource row")
+                    name, value = line.strip().split(":", 1)
+                    indent = line[: len(line) - len(line.lstrip())]
+                    rows.append(indent + mask(name, "field") + ": " + mask(value.strip()))
+                    jobs_list = False
             else:
                 raise ValueError("unsupported trace")
         names = {"oarstat_file": "oarstat.txt", "oarnodes_s_file": "oarnodes_s_Y.txt", "oarnodes_y_file": "oarnodes_Y.txt"}
@@ -183,8 +182,7 @@ class OARBatchSystem(GenericBatchSystem):
             worker_nodes.append(d)
 
         logging.info("worker_nodes contains %s entries" % len(worker_nodes))
-        worker_nodes = self.ensure_worker_nodes_have_qnames(worker_nodes, job_ids, job_queues)
-        return worker_nodes
+        return self.ensure_worker_nodes_have_qnames(worker_nodes, job_ids, job_queues)
 
     def get_jobs_info(self):
         qstats = self._get_jobs()

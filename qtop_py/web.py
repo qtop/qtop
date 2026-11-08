@@ -45,7 +45,6 @@ class Web(object):
 
             def log_message(self, format, *args):
                 """quiet!"""
-                pass
 
             def do_GET(self):
                 # Handle the case of api.json...
@@ -83,7 +82,7 @@ class Web(object):
 
             # The "setfilename" command sets the file where "api.json"
             # points to.
-            elif command.startswith("setfilename "):
+            if command.startswith("setfilename "):
                 # Setting the shared filename that will
                 # be picked up by server's thread
                 shared.filename = command.partition(" ")[2]

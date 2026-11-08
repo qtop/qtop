@@ -80,7 +80,7 @@ def MVU_colorize(model, text, color_func=None, pattern="NoPattern", mapping=None
     state = ColorStr('running. coloring according to node state')
     print(colorize(state.str, mapping=nodestate_to_color, pattern=state.initial))
     """
-    bg_color = "NOBG" if not bg_color else bg_color
+    bg_color = bg_color if bg_color else "NOBG"
     if not mapping:
         mapping = model.user_to_color
     try:

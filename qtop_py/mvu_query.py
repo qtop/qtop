@@ -135,8 +135,7 @@ class WNOccupancy(object):
         for user_name in set(_user_names):
             user_to_alljobs_count[user_name] = _user_names.count(user_name)
 
-        users_by_job_count = sorted(user_to_alljobs_count.items(), key=itemgetter(1), reverse=True)
-        return users_by_job_count
+        return sorted(user_to_alljobs_count.items(), key=itemgetter(1), reverse=True)
 
     @staticmethod
     def job_state_totals(job_states, state_abbrevs):
@@ -455,7 +454,7 @@ class WNOccupancy(object):
         core_user_map = self.core_user_map
         remove_corelines = self.MVU_model.display_overrides.get("rem_empty_corelines", self.config["rem_empty_corelines"]) + 1
 
-        for core_x_vector, ind, k, is_corevector_removable in gauge_core_vectors(
+        for _core_x_vector, _ind, _k, is_corevector_removable in gauge_core_vectors(
             core_user_map, node_column_start, node_column_stop, WNOccupancy.coreline_notthere_or_unused, non_existent_symbol, remove_corelines
         ):
             if is_corevector_removable:
@@ -562,7 +561,7 @@ class Cluster(object):
             self.total_wn += nodes_drop
             self.highest_wn = self.total_wn
 
-            nodes_drop_slice_end = None if not nodes_drop else nodes_drop
+            nodes_drop_slice_end = nodes_drop if nodes_drop else None
             self.workernode_list = remapped_node_numbers[:nodes_drop_slice_end]
             self.workernode_dict = remapped_nodes
         else:
@@ -774,7 +773,7 @@ class WNFilter(object):
 
     def mark_list_by_queue(self, nodes, arg_list=None):
         arg_list = arg_list or []
-        for idx, node in enumerate(nodes[:]):
+        for _idx, node in enumerate(nodes[:]):
             if set(arg_list) & {x.str for x in node["qname"]}:
                 node["mark"] = "*"
         return nodes

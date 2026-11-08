@@ -287,26 +287,23 @@ def raw_mode(file):
     Taken from http://stackoverflow.com/questions/11918999/key-listeners-in-python/11919074#11919074
     Exits program with ^C or ^D
     """
-    if args.ONLYSAVETOFILE:
+    if args.ONLYSAVETOFILE or termios is None:
         yield
-    elif termios is None:
-        yield
-    else:
-        if args.WATCH:
-            try:
-                old_attrs = termios.tcgetattr(file.fileno())
-            except (AttributeError, OSError, termios.error):
-                yield
-            else:
-                new_attrs = old_attrs[:]
-                new_attrs[3] = new_attrs[3] & ~(termios.ECHO | termios.ICANON)
-                try:
-                    termios.tcsetattr(file.fileno(), termios.TCSADRAIN, new_attrs)
-                    yield
-                finally:
-                    termios.tcsetattr(file.fileno(), termios.TCSADRAIN, old_attrs)
-        else:
+    elif args.WATCH:
+        try:
+            old_attrs = termios.tcgetattr(file.fileno())
+        except (AttributeError, OSError, termios.error):
             yield
+        else:
+            new_attrs = old_attrs[:]
+            new_attrs[3] = new_attrs[3] & ~(termios.ECHO | termios.ICANON)
+            try:
+                termios.tcsetattr(file.fileno(), termios.TCSADRAIN, new_attrs)
+                yield
+            finally:
+                termios.tcsetattr(file.fileno(), termios.TCSADRAIN, old_attrs)
+    else:
+        yield
 
 
 def calculate_term_size(config, FALLBACK_TERM_SIZE, viewport):
@@ -711,8 +708,7 @@ def fetch_scheduler_files(args, config, backend):
             return args.archive_trace_paths.copy()
         except (OSError, tarfile.TarError, ValueError) as error:
             raise OperationalError("Cannot read scheduler trace archive %s: %s" % (args.source_archive, error)) from error
-    scheduler_output_filenames = get_input_filenames(INPUT_FNs_commands, config, args, backend)
-    return scheduler_output_filenames
+    return get_input_filenames(INPUT_FNs_commands, config, args, backend)
 
 
 def decide_batch_system(cmdline_switch, env_var, config_file_batch_option, schedulers, available_batch_systems, config):
@@ -736,10 +732,10 @@ def decide_batch_system(cmdline_switch, env_var, config_file_batch_option, sched
             scheduler = auto_get_avail_batch_system(config, available_batch_systems)
             logging.debug("Selected scheduler is %s" % scheduler)
             return scheduler
-        elif scheduler in schedulers:
+        if scheduler in schedulers:
             logging.info("User-selected scheduler: %s" % scheduler)
             return scheduler
-        elif scheduler and scheduler not in schedulers:  # a scheduler that does not exist is inputted
+        if scheduler and scheduler not in schedulers:  # a scheduler that does not exist is inputted
             raise NoSchedulerFound
     raise NoSchedulerFound
 
@@ -1116,29 +1112,29 @@ def main(resources):
 
                 if args.ONLYSAVETOFILE:  # no display of qtop output, will exit
                     break
-                elif not args.WATCH:  # one-off display of qtop output, will exit afterwards (no --watch cmdline switch)
+                if not args.WATCH:  # one-off display of qtop output, will exit afterwards (no --watch cmdline switch)
                     cat_command = ["/bin/cat", output_fp]  # not clearing the screen beforehand is the intended behaviour here
                     _ = subprocess.call(cat_command, stdout=stdout, stderr=stdout)
                     break
-                else:  # --watch
-                    if args.REPLAY:
-                        try:
-                            output_partview_fp = next(useful_frames)
-                        except StopIteration:
-                            logging.critical("No (more) recorded instances available to show! Exiting...")
-                            break
-                    else:
-                        output_partview_fp = display.show_part_view(timestr, file=dynamic_config.get("output_fp", output_fp), x=viewport.v_start, y=viewport.v_term_size)
-                        logging.debug("dynamic_config filename in main loop: %s" % dynamic_config.get("output_fp", output_fp))
-                    clear_command = ["/usr/bin/clear"]
-                    cat_command = ["/bin/cat", output_partview_fp]
-                    _ = subprocess.call(clear_command, stdout=stdout, stderr=stdout)
-                    _ = subprocess.call(cat_command, stdout=stdout, stderr=stdout)
+                # --watch
+                if args.REPLAY:
+                    try:
+                        output_partview_fp = next(useful_frames)
+                    except StopIteration:
+                        logging.critical("No (more) recorded instances available to show! Exiting...")
+                        break
+                else:
+                    output_partview_fp = display.show_part_view(timestr, file=dynamic_config.get("output_fp", output_fp), x=viewport.v_start, y=viewport.v_term_size)
+                    logging.debug("dynamic_config filename in main loop: %s" % dynamic_config.get("output_fp", output_fp))
+                clear_command = ["/usr/bin/clear"]
+                cat_command = ["/bin/cat", output_partview_fp]
+                _ = subprocess.call(clear_command, stdout=stdout, stderr=stdout)
+                _ = subprocess.call(cat_command, stdout=stdout, stderr=stdout)
 
-                    read_char = wait_for_keypress_or_autorefresh(viewport, FALLBACK_TERMSIZE, int(args.WATCH) or KEYPRESS_TIMEOUT)
-                    model, effects = MVU_update(model, read_char)
-                    viewport, dynamic_config = model.viewport, model.display_overrides
-                    MVU_effects(model, effects, cluster, old_attrs, new_attrs)
+                read_char = wait_for_keypress_or_autorefresh(viewport, FALLBACK_TERMSIZE, int(args.WATCH) or KEYPRESS_TIMEOUT)
+                model, effects = MVU_update(model, read_char)
+                viewport, dynamic_config = model.viewport, model.display_overrides
+                MVU_effects(model, effects, cluster, old_attrs, new_attrs)
 
                 os.chdir(QTOPPATH)
                 resources.discard_frame()

@@ -177,10 +177,9 @@ def _without_archive_owner(member):
 
 def save_raw_companion(savepath, filenames):
     handle, path = tempfile.mkstemp(prefix="qtop_raw_traces_", suffix=".tar", dir=savepath)
-    with os.fdopen(handle, "wb") as stream:
-        with tarfile.open(fileobj=stream, mode="w", dereference=True) as archive:
-            for key, source in filenames.items():
-                archive.add(source, arcname=key, recursive=False, filter=_without_archive_owner)
+    with os.fdopen(handle, "wb") as stream, tarfile.open(fileobj=stream, mode="w", dereference=True) as archive:
+        for key, source in filenames.items():
+            archive.add(source, arcname=key, recursive=False, filter=_without_archive_owner)
     return path
 
 

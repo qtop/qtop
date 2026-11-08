@@ -388,8 +388,7 @@ class PBSBatchSystem(GenericBatchSystem):
         try:
             fileutils.check_empty_file(self.pbsnodes_file)
         except fileutils.FileEmptyError:
-            all_pbs_values = []
-            return all_pbs_values
+            return []
 
         raw_blocks = self._read_all_blocks(self.pbsnodes_file)
         known_ids = set(job_ids)
@@ -434,8 +433,7 @@ class PBSBatchSystem(GenericBatchSystem):
             finally:
                 all_pbs_values.append(pbs_values)
 
-        all_pbs_values = self.ensure_worker_nodes_have_qnames(all_pbs_values, job_ids, job_queues)
-        return all_pbs_values
+        return self.ensure_worker_nodes_have_qnames(all_pbs_values, job_ids, job_queues)
 
     def get_jobs_info(self):
         """
