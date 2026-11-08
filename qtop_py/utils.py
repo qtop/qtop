@@ -23,7 +23,7 @@ class PrivateFileHandler(logging.FileHandler):
 
 
 def init_logging(options):
-    log_level = logging.WARN
+    log_level = logging.WARNING
     if options.verbose == 1:
         log_level = logging.INFO
     elif options.verbose and options.verbose >= 2:
@@ -47,8 +47,8 @@ def init_logging(options):
 
     logging.info("\n" + "=" * 50 + "STARTING NEW LOG ENTRY..." + "=" * 50 + "\n\n")
 
-    logging.debug("Verbosity level = %s" % options.verbose)
-    logging.debug("input, output isatty: %s\t%s" % (sys.stdin.isatty(), sys.stdout.isatty()))
+    logging.debug("Verbosity level = %s", options.verbose)
+    logging.debug("input, output isatty: %s\t%s", sys.stdin.isatty(), sys.stdout.isatty())
 
 
 def parse_qtop_cmdline_args():
