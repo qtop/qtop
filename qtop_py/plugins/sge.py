@@ -400,7 +400,12 @@ class SGEBatchSystem(GenericBatchSystem):
                 worker_node["qname"] = set([self.anonymize(qname, "qs")])
                 count += 1
             elif resource.attrib.get("name") == "num_proc":
-                worker_node["np"] = resource.text
+                # Treat an implausible core count like a missing one, before anything loops over it.
+                if safety.cores_per_node(resource.text) is None:
+                    logging.warning("Ignoring invalid SGE num_proc %r (expected 0..%d)", resource.text, safety.MAX_CORES_PER_NODE)
+                    worker_node["np"] = 0
+                else:
+                    worker_node["np"] = resource.text
                 count += 1
             if count == 3:
                 break

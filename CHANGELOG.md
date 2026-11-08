@@ -7,8 +7,9 @@ See the [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 
 - Tests: cover sample-filename branches (#507).
 - Refactor: remove dead `fileutils` helpers.
+- Bugfix: (security) cap per-node cores at 65536; SGE ignores larger `num_proc`.
 - Bugfix: (security) PySCG fixes; web view no longer loads jQuery.
-- Bugfix: (security) PySCG fixes; private, repo-local sample-render outputs.
+- Bugfix: (security) PySCG fixes; private, repo-local sample-render outputs (CWE-377).
 - Bugfix: (pbs) keep queueless pending jobs from `qstat -prior`.
 - Feature: (pbs) parse legacy `-prior` and NQS qstat formats (#353).
 - Feature: (sge) opt-in whole-node queues, `sge_whole_queues` (#295).

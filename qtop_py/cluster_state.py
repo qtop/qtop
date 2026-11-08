@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, Dict, List, Sequence, cast
 if TYPE_CHECKING:
     from qtop_py.state_types import ClusterState, Job, Node, Queue, RawQueue
 
+from qtop_py.safety import MAX_CORES_PER_NODE
 from qtop_py.schedulers.metadata import DIAGNOSTICS, validate_diagnostics, validate_record_extensions
 
 CLUSTER_STATE_KEYS = ("jobs", "nodes", "queues")
@@ -84,6 +85,8 @@ def validate_cluster_state(cluster_state: object) -> "ClusterState":
                     raise ValueError("node np must be a nonnegative integer or integer string")
                 if int(np) < 0:
                     raise ValueError("node np must be nonnegative")
+                if int(np) > MAX_CORES_PER_NODE:
+                    raise ValueError("node np must not exceed %d cores" % MAX_CORES_PER_NODE)
                 qnames, cores = record.get("qname"), record.get("core_job_map")
                 if not isinstance(qnames, list) or any(queue is not None and not isinstance(queue, str) for queue in cast(List[object], qnames)):
                     raise TypeError("node qname must be a list of strings or nulls")

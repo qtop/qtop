@@ -153,3 +153,14 @@ def test_document_owns_lossless_state_independently_of_input_and_rendering_views
     path = tmp_path / "state.json"
     document.save(str(path))
     assert json.loads(path.read_text()) == expected
+
+
+@pytest.mark.parametrize("np, valid", [(65536, True), ("65536", True), (65537, False), ("100000000", False)])
+def test_node_core_counts_are_bounded_for_every_backend_and_replay(np, valid):
+    state = sample_state()
+    state["nodes"][0]["np"] = np
+    if valid:
+        validate_cluster_state(state)
+    else:
+        with pytest.raises(ValueError, match="must not exceed 65536 cores"):
+            validate_cluster_state(state)

@@ -19,12 +19,22 @@ MAX_DEPTH = 64
 MAX_ITEMS = 2000000
 MAX_ARCHIVE_BYTES = 1024 * 1024 * 1024
 MAX_ARCHIVE_MEMBERS = 10000
+# Core positions per node qtop will lay out; bounds range(np) loops and core matrices.
+MAX_CORES_PER_NODE = 65536
 _CONTROLS = re.compile(r"[\x00-\x1f\x7f-\x9f\u00ad\u061c\u180e\u200b-\u200f\u2028-\u202e\u2060-\u206f\ud800-\udfff\ufeff\ufff9-\ufffb]")
 _TOKENS = re.compile(r"""["'\\\[\]{}(),]""")
 
 
 class ResourceLimitError(ValueError):
     """Input exceeded a documented resource budget."""
+
+
+def cores_per_node(value: Any) -> Optional[int]:
+    """Return a scheduler-reported per-node core count in 0..MAX_CORES_PER_NODE, or None if it is not one."""
+    text = str(value).strip() if value is not None else ""
+    if not re.fullmatch(r"[0-9]+", text) or int(text) > MAX_CORES_PER_NODE:
+        return None
+    return int(text)
 
 
 def visible_text(value, escape_backslashes=True):
