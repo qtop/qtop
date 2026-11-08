@@ -14,7 +14,7 @@ include requirements-build-legacy.txt
 include setup.py
 include .gitlab-ci.yml
 recursive-include .github/workflows *.yml
-recursive-include docs *.md *.png
+recursive-include docs *.md *.png *.1
 recursive-include tools *.py
 
 recursive-include qtop_py *.py *.sh *.jdl *.html *.txt *.ref *.gif *.stdout

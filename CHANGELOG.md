@@ -11,9 +11,16 @@ See the [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 - Refactor: SonarQube-style cleanups; behaviour unchanged.
 - Refactor: rename variables; retire `quintuplet` and `re_search` names.
 - Refactor: mark module constants `Final` (PEP 591), Python 3.6-safe.
+- Refactor: split config validation and trace masking into smaller functions.
+- Refactor: lazy log formatting in `init_logging`.
 - Docs: configurable values stay UPPERCASE, deliberately (not PEP 8).
 - Docs: Python 3.6 build pins and login-free web view are deliberate.
+- Docs: add a qtop(1) manpage, checked against `--help` by a test.
+- Docs: add an EasyBuild easyconfig example.
+- Build: `make all` runs six batches, including the pre-PR gate.
 - Bugfix: (security) cap per-node cores at 65536; SGE ignores larger `num_proc`.
+- Bugfix: (security) web view serves only `/`, `/index.html` and `api.json`.
+- Bugfix: `-c OFF` no longer emits colour-reset sequences.
 - Bugfix: (security) PySCG fixes; web view no longer loads jQuery.
 - Bugfix: (security) PySCG fixes; private, repo-local sample-render outputs (CWE-377).
 - Bugfix: (pbs) keep queueless pending jobs from `qstat -prior`.
