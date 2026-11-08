@@ -19,6 +19,7 @@ def private_output_dir(path):
     try:
         path.mkdir(mode=0o700, parents=True)
     except FileExistsError:
+        # An existing path is acceptable here: the checks below validate it before use.
         pass
     info = os.lstat(str(path))
     if stat.S_ISLNK(info.st_mode):
