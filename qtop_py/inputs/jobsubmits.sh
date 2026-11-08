@@ -1,4 +1,6 @@
 #!/bin/sh
+## Copyright (c) 2012-2026 qtop contributors
+## SPDX-License-Identifier: MIT
 #The file at the end lists all the CeIDs in separate lines.It is post-formatted in vim
 #The CeIDs are thus stored in variable "line".
 JOBNAME='qtop-input'
