@@ -1085,7 +1085,10 @@ checkout.
 
 ### Experimental web configuration
 
-The web interface remains experimental and has no authentication or TLS.
+The web interface remains experimental and has no authentication or TLS. The
+missing login is deliberate: `api.json` carries scheduler state that any local
+user can already query with the workload manager's commands. Start `-B` from a
+directory without a private `web/` folder, since one there would be served too.
 Configure its IPv4 address or hostname and port in `qtopconf.yaml`:
 
 ```yaml

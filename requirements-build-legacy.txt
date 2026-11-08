@@ -1,4 +1,6 @@
 # Build/test dependencies for Python 3.6-3.8 only; no runtime dependencies.
+# Deliberately the last releases supporting Python 3.6 (pip 22.0, setuptools 60.0
+# and wheel 0.38 need 3.7+); see docs/secure-coding-pyscg.md (PySCG-0053).
 pip==21.3.1; python_version < "3.9"
 setuptools==59.6.0; python_version < "3.9"
 wheel==0.37.1; python_version < "3.9"

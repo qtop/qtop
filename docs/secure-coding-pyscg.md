@@ -224,6 +224,18 @@ parent and a child `--basetemp`, protecting the older Python 3.9 pytest lane
 from a predictable shared temporary root. Local runs on that lane need the
 same private-temp boundary.
 
+The Python 3.6-3.8 build pins are deliberate, not an omission (PySCG-0053).
+[requirements-build-legacy.txt](../requirements-build-legacy.txt) and the
+`python_version < '3.9'` build requirement in [pyproject.toml](../pyproject.toml)
+hold pip 21.3.1, setuptools 59.6.0 and wheel 0.37.1, the last releases that
+support Python 3.6. pip-audit reports advisories for all three, each fixed only
+in releases that need Python 3.7+. They concern malicious indexes, archives or
+URLs, `package_index` downloads, Mercurial URLs, Windows legacy wheel installs,
+`MANIFEST.in` exclude matching and the `wheel` CLI. `make legacy-install-check`
+installs only these three pinned packages, then builds and installs qtop's own
+source with `--no-index` in a disposable venv; release artifacts are built on
+CPython 3.12 with the current pins. Revisit when the Python 3.6 floor is raised.
+
 Pins do not prove absence of vulnerabilities. Run
 `pip-audit -r requirements-ci.txt` in the intended interpreter environment.
 Bandit, Semgrep, gitleaks, detect-secrets and pip-audit are separate scanner
@@ -249,10 +261,17 @@ not a current settings audit.
    Makefile overrides (CWE-377): defaults are repo-local `artifacts/`, and
    [private_output.py](../tools/private_output.py) refuses symlinked, foreign-owned
    or group/world-writable output directories and creates new ones as 0700.
-- [ ] Review remaining optional [web server](../qtop_py/web.py) isolation and
-   asset serving. It now defaults to `127.0.0.1:8080`, with experimental host/port
-   configuration, but still has no authentication or TLS and is not a protected
-   remote dashboard.
+- [x] The optional [web server](../qtop_py/web.py) has no login, by design
+   (PySCG-0055). It binds to `127.0.0.1:8080` by default and has no
+   authentication or TLS. On a shared login node any local user can read
+   `api.json`, but that holds the scheduler state they can already query with the
+   workload manager's own commands, so it adds no disclosure. Any other bind
+   address is an explicit `experimental_web_host` choice and belongs behind an
+   authenticating reverse proxy; it is not a protected remote dashboard.
+- [ ] Limit static web assets. Besides `api.json`, the server serves the whole
+   `web/` directory of the working directory when one exists (the tested local
+   assets override), following symlinks, so starting `-B` from a directory with a
+   private `web/` folder exposes those files to local users.
 - [ ] Refresh scanner/dependency and Scorecard evidence for the assessed commit;
    verify private-reporting, publishing and badge settings outside the source
    tree. No new scan or external-settings audit is claimed here.

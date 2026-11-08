@@ -12,6 +12,7 @@ See the [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 - Refactor: rename variables; retire `quintuplet` and `re_search` names.
 - Refactor: mark module constants `Final` (PEP 591), Python 3.6-safe.
 - Docs: configurable values stay UPPERCASE, deliberately (not PEP 8).
+- Docs: Python 3.6 build pins and login-free web view are deliberate.
 - Bugfix: (security) cap per-node cores at 65536; SGE ignores larger `num_proc`.
 - Bugfix: (security) PySCG fixes; web view no longer loads jQuery.
 - Bugfix: (security) PySCG fixes; private, repo-local sample-render outputs (CWE-377).
