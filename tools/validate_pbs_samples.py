@@ -4,13 +4,20 @@
 """Run qtop against archived PBS samples and save rendered output.
 
 Usage:
-    python tools/validate_pbs_samples.py /path/to/qtop-test-repo/qtop5/results --limit 100 --output /tmp/qtop-pbs-rendered
+    python tools/validate_pbs_samples.py /path/to/qtop-test-repo/qtop5/results --limit 100 --output artifacts/pbs-rendered
 """
 
 import argparse
 import json
 import subprocess
 from pathlib import Path
+
+try:
+    from tools.private_output import private_output_dir
+except ImportError:  # run as a script: tools/ itself is sys.path[0]
+    from private_output import private_output_dir
+
+DEFAULT_OUTPUT = Path("artifacts/pbs-rendered")
 
 GOLDEN_PBS_SAMPLES = (
     "gef_yBVifVBTyE44AKnehzSrvA",
@@ -50,7 +57,7 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("samples_dir", type=Path)
     parser.add_argument("--limit", type=int, default=100)
-    parser.add_argument("--output", type=Path, default=Path("/tmp/qtop-pbs-rendered"))
+    parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT, help="Private output directory (default: %(default)s)")
     parser.add_argument(
         "--skip-golden-samples",
         action="store_true",
@@ -59,7 +66,10 @@ def main() -> int:
     args = parser.parse_args()
 
     sample_dirs = sorted(path for path in args.samples_dir.iterdir() if path.is_dir())
-    args.output.mkdir(parents=True, exist_ok=True)
+    try:
+        args.output = private_output_dir(args.output)
+    except ValueError as error:
+        parser.error(str(error))
     manifest = []
     seen = set()
 

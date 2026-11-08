@@ -63,8 +63,8 @@ The implemented regression flow is:
 
 ```bash
 python3 -m pytest tests/test_pbs_sample_regressions.py -q
-python3 tools/validate_pbs_samples.py ../qtop-test-repo/qtop5/results --limit 10 --output /tmp/qtop-pbs-golden-10
-python3 tools/validate_pbs_samples.py ../qtop-test-repo/qtop5/results --limit 100 --output /tmp/qtop-pbs-rendered-100
+python3 tools/validate_pbs_samples.py ../qtop-test-repo/qtop5/results --limit 10 --output artifacts/pbs-golden-10
+python3 tools/validate_pbs_samples.py ../qtop-test-repo/qtop5/results --limit 100 --output artifacts/pbs-rendered-100
 ```
 
 Historical local golden-output check recorded with the original patch: `validated=10 output=/tmp/qtop-pbs-golden-10`.

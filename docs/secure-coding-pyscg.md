@@ -243,11 +243,12 @@ not a current settings audit.
 
 - [ ] Review process-wide resource budgets beyond the implemented input,
    nesting, archive and command-output limits.
-- [ ] Replace predictable render-tool output defaults in
+- [x] Replace predictable render-tool output defaults in
    [validate_pbs_samples.py](../tools/validate_pbs_samples.py),
    [validate_slurm_samples.py](../tools/validate_slurm_samples.py) and their
-   Makefile overrides with private temporary directories or explicit output
-   choices. This remains open (CWE-377).
+   Makefile overrides (CWE-377): defaults are repo-local `artifacts/`, and
+   [private_output.py](../tools/private_output.py) refuses symlinked, foreign-owned
+   or group/world-writable output directories and creates new ones as 0700.
 - [ ] Review remaining optional [web server](../qtop_py/web.py) isolation and
    asset serving. It now defaults to `127.0.0.1:8080`, with experimental host/port
    configuration, but still has no authentication or TLS and is not a protected
