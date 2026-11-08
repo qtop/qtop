@@ -77,6 +77,12 @@ def validate_config(config):
         for entry in entries or []:
             mapping(entry, key)
             require(all(isinstance(pattern, str) and isinstance(color, str) for pattern, color in entry.items()), key, "text patterns and color names")
+    whole_queues = config.get("sge_whole_queues")
+    require(
+        whole_queues is None or isinstance(whole_queues, list) and all(isinstance(item, str) and bool(item.strip()) for item in whole_queues),
+        "sge_whole_queues",
+        "a list of queue names or glob patterns",
+    )
     parts = config.get("user_display_parts")
     allowed = ("job_accounting_summary", "workernodes_matrix", "user_accounts_pool_mappings")
     require(isinstance(parts, list) and len(parts) <= 3 and all(part in allowed for part in parts), "user_display_parts", "up to three known display sections")

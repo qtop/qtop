@@ -353,3 +353,8 @@ overwrite_sample_file: True  # True (default) writes to tar using the same const
 ##  - user_to_color, which paints core jobs according to the userid color, or
 ##  - queue_to_color, which paints core jobs according to queue color
 core_coloring: user_to_color
+## SGE only, opt-in: a running job in a queue matching these names or globs (fnmatch) occupies its whole node,
+## i.e. it is drawn on every free core up to the node's num_proc. Cores held by other jobs are kept.
+# sge_whole_queues:
+#   - world
+#   - whole*

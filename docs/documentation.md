@@ -453,6 +453,17 @@ otherwise a reported parent may supply their user/queue association. Unknown
 tasks retain their IDs. Legacy job tables support underscore usernames and full
 queue names; legacy queue tables accept numeric node limits.
 
+SGE whole-node queues are opt-in. A running job in a queue matching
+`sge_whole_queues` (exact names or `fnmatch` globs, matched before
+anonymization) is drawn on every free core up to the node's `num_proc`; cores
+held by other jobs are kept, and idle nodes stay idle. Unset or empty disables it:
+
+```yaml
+sge_whole_queues:
+  - world
+  - whole*
+```
+
 ```yaml
 savepath: /tmp/qtop_results_$USER
 schedulers:

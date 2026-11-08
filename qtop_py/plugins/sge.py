@@ -9,6 +9,7 @@
 ##
 
 __author__ = "sfranky"
+import fnmatch
 import logging
 import sys
 
@@ -75,6 +76,10 @@ class SGEStatExtractor(StatExtractor):
     def __init__(self, config, options, scheduler_output_filenames):
         StatExtractor.__init__(self, config, options)
         self.scheduler_output_filenames = scheduler_output_filenames
+        # The in-house YAML parser yields flow lists as one comma-joined string; queue names never contain commas.
+        self.whole_queue_patterns = [p.strip() for item in config.get("sge_whole_queues") or () for p in item.split(",") if p.strip()]
+        # Queue-List elements matching sge_whole_queues, recorded before anonymization rewrites their names.
+        self.whole_queue_elems = set()
 
     def anonymize_queue_list_nametag(self, queue_list_nametag):
         name, nodename = queue_list_nametag.text.split("@")
@@ -110,6 +115,7 @@ class SGEStatExtractor(StatExtractor):
     def extract_qstat(self, orig_file):
         all_values = list()
         self.orig_file = orig_file
+        self.whole_queue_elems = set()
         self.tree, self.root = self.get_xml_tree(orig_file)
         root = self.root
 
@@ -122,6 +128,8 @@ class SGEStatExtractor(StatExtractor):
                 if queue_name_elem.attrib.get("name") == "qname":
                     if not queue_name_elem.text:
                         raise etree.ParseError("SGE XML requires a nonempty qname resource")
+                    if any(fnmatch.fnmatchcase(queue_name_elem.text, pattern) for pattern in self.whole_queue_patterns):
+                        self.whole_queue_elems.add(queue_elem)
                     queue_name_elem.text = self.anonymize(queue_name_elem.text, "qs")
                     next_q_name_elem = next(_q_name_elems, None)
                     if next_q_name_elem is None or not next_q_name_elem.text:
@@ -280,6 +288,7 @@ class SGEBatchSystem(GenericBatchSystem):
 
         existing_wns = list()
         existing_node_names = set()
+        whole_queue_jobs = dict()
 
         for queue_elem in root.findall("queue_info/Queue-List"):
             worker_node = self._get_host_qname_np(queue_elem)
@@ -287,6 +296,8 @@ class SGEBatchSystem(GenericBatchSystem):
 
             if worker_node["domainname"] not in existing_node_names:
                 job_ids, _, _ = self._extract_running_job_info(queue_elem, "job_list")
+                if queue_elem in self.sge_stat_maker.whole_queue_elems and job_ids:
+                    whole_queue_jobs.setdefault(worker_node["domainname"], job_ids[0])
                 worker_node["core_job_map"] = dict((idx, job_id) for idx, job_id in enumerate(job_ids))
                 worker_node["existing_busy_cores"] = len(worker_node["core_job_map"])
                 worker_node["np"] = max(int(worker_node["np"]), len(worker_node["core_job_map"]))
@@ -299,6 +310,8 @@ class SGEBatchSystem(GenericBatchSystem):
                         continue
 
                     job_ids, _, _ = self._extract_running_job_info(queue_elem, "job_list")
+                    if queue_elem in self.sge_stat_maker.whole_queue_elems and job_ids:
+                        whole_queue_jobs.setdefault(worker_node["domainname"], job_ids[0])
                     core_jobs = dict((idx, job_id) for idx, job_id in enumerate(job_ids, existing_wn["existing_busy_cores"]))
                     existing_wn["core_job_map"].update(core_jobs)
                     existing_wn["existing_busy_cores"] = len(existing_wn["core_job_map"])
@@ -308,6 +321,9 @@ class SGEBatchSystem(GenericBatchSystem):
                     existing_wn["qname"].update(worker_node["qname"])
                     existing_wn["np"] = max(int(existing_wn["np"]), len(existing_wn["core_job_map"]))
                     break
+
+        for existing_wn in existing_wns:
+            self._expand_whole_queue_node(existing_wn, whole_queue_jobs.get(existing_wn["domainname"]))
 
         logging.debug("Closing %s" % self.sge_file)
         logging.info("existing_wns contains %s entries" % len(existing_wns))
@@ -332,6 +348,18 @@ class SGEBatchSystem(GenericBatchSystem):
             % {"job_ids": len(job_ids), "usernames": len(usernames), "job_states": len(job_states), "queue_names": len(queue_names)}
         )
         return job_ids, usernames, job_states, queue_names
+
+    @staticmethod
+    def _expand_whole_queue_node(worker_node, job_id):
+        """
+        A running job in a sge_whole_queues queue owns its whole node: fill the free cores, keep other jobs' cores.
+        """
+        if job_id is None:
+            return
+        core_job_map = worker_node["core_job_map"]
+        for core in range(int(worker_node["np"])):
+            core_job_map.setdefault(core, job_id)
+        worker_node["existing_busy_cores"] = len(core_job_map)
 
     def _extract_running_job_info(self, elem, elem_text):
         """

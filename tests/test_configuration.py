@@ -43,6 +43,9 @@ def config():
         ("extract_info.regex", []),
         ("schedulers", {"custom": {"native_file": "no delimiter"}}),
         ("signature_commands", {"custom": None}),
+        ("sge_whole_queues", "world"),
+        ("sge_whole_queues", [""]),
+        ("sge_whole_queues", [1]),
     ],
 )
 def test_invalid_config_identifies_key_before_side_effects(config, path, value, monkeypatch):
@@ -61,6 +64,15 @@ def test_validation_accepts_defaults_normalized_values_and_extensions(config):
     validate_config(config)
     validate_config(configuration.normalize_config(config))
     assert config["transpose_wn_matrices"] == "True"
+
+
+def test_sge_whole_queues_example_parses_and_validates(tmp_path):
+    text = (Path(__file__).resolve().parents[1] / "qtopconf.yaml").read_text()
+    path = tmp_path / "qtopconf.yaml"
+    path.write_text(text.replace("# sge_whole_queues:\n#   - world\n#   - whole*", "sge_whole_queues:\n  - world\n  - whole*"))
+    config = yaml_parser.parse(str(path))
+    assert config["sge_whole_queues"] == ["world", "whole*"]
+    validate_config(config)
 
 
 @pytest.mark.parametrize("value", ["0.25", 0.25, 30])
