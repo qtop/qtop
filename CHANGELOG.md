@@ -6,8 +6,12 @@ See the [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 ## 0.9.20261108
 
 - Tests: cover sample-filename branches (#507).
+- Refactor: drop the `qtop_py/cli.py` shim; use `python -m qtop_py.qtop`.
 - Refactor: remove dead `fileutils` helpers.
 - Refactor: SonarQube-style cleanups; behaviour unchanged.
+- Refactor: rename variables; retire `quintuplet` and `re_search` names.
+- Refactor: mark module constants `Final` (PEP 591), Python 3.6-safe.
+- Docs: configurable values stay UPPERCASE, deliberately (not PEP 8).
 - Bugfix: (security) cap per-node cores at 65536; SGE ignores larger `num_proc`.
 - Bugfix: (security) PySCG fixes; web view no longer loads jQuery.
 - Bugfix: (security) PySCG fixes; private, repo-local sample-render outputs (CWE-377).
@@ -15,7 +19,6 @@ See the [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 - Feature: (pbs) parse legacy `-prior` and NQS qstat formats (#353).
 - Feature: (sge) opt-in whole-node queues, `sge_whole_queues` (#295).
 - Feature: tunable account-table and Summary state columns (#305).
-- Refactor: drop the `qtop_py/cli.py` shim; use `python -m qtop_py.qtop`.
 - Release: update version metadata to 0.9.20261108.
 
 ## 0.9.20261102

@@ -71,10 +71,10 @@ class WNOccupancy(object):
         self.core_user_map = self._calc_core_matrix(self.user_to_id, self.job_to_user_and_queue)
 
     def _create_account_jobs_table(self, user_to_id, account_jobs_table):
-        for quintuplet in account_jobs_table:
-            unix_account = quintuplet[4]
+        for row in account_jobs_table:
+            unix_account = row[4]
             userid = user_to_id.get(unix_account, utils.ColorStr(SYMBOL_LONG_TAIL_USER))
-            quintuplet[0] = user_to_id[unix_account] = utils.ColorStr(str(userid), color="Red_L")
+            row[0] = user_to_id[unix_account] = utils.ColorStr(str(userid), color="Red_L")
 
         return account_jobs_table, user_to_id
 

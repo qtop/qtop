@@ -59,6 +59,15 @@ keys when intent is ambiguous, and report out-of-scope findings instead of fixin
 
 2.1 Match existing formatting, naming, typing, and test conventions; add compatible
 type annotations when useful. Never silence errors or weaken checks to pass CI.
+Configurable values and constants are UPPERCASE wherever they appear: module
+constants, values from `qtopconf.yaml`, the command line or the environment, and
+the parameters and locals that carry them (e.g. `SAMPLE_FILENAME`, `QTOPPATH`,
+`DEF_INDENT`). This deliberately departs from PEP 8 at function scope, following
+GNU make or Django/Flask settings, where uppercase marks user-configurable values.
+Do not lowercase them; pep8-naming `N803`/`N806`/`N816` stay disabled for this
+reason. Other locals and parameters use snake_case. Annotate true module constants
+`NAME: "Final" = ...` (PEP 591), importing `Final` under `if TYPE_CHECKING:` so
+Python 3.6 keeps working.
 
 2.2 Use focused tests and checks appropriate to the change during development;
 documentation-only edits need documentation/diff checks, not a full runtime test run.

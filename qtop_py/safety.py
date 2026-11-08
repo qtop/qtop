@@ -11,16 +11,19 @@ import logging
 import lzma
 import re
 import tarfile
-from typing import Any, BinaryIO, Generator, Optional, cast
+from typing import TYPE_CHECKING, Any, BinaryIO, Generator, Optional, cast
 
-MAX_INPUT_BYTES = 256 * 1024 * 1024
-MAX_LITERAL_BYTES = 1024 * 1024
-MAX_DEPTH = 64
-MAX_ITEMS = 2000000
-MAX_ARCHIVE_BYTES = 1024 * 1024 * 1024
-MAX_ARCHIVE_MEMBERS = 10000
+if TYPE_CHECKING:  # typing.Final is Python 3.8+; the quoted annotations keep 3.6 working
+    from typing import Final
+
+MAX_INPUT_BYTES: "Final" = 256 * 1024 * 1024
+MAX_LITERAL_BYTES: "Final" = 1024 * 1024
+MAX_DEPTH: "Final" = 64
+MAX_ITEMS: "Final" = 2000000
+MAX_ARCHIVE_BYTES: "Final" = 1024 * 1024 * 1024
+MAX_ARCHIVE_MEMBERS: "Final" = 10000
 # Core positions per node qtop will lay out; bounds range(np) loops and core matrices.
-MAX_CORES_PER_NODE = 65536
+MAX_CORES_PER_NODE: "Final" = 65536
 _CONTROLS = re.compile(r"[\x00-\x1f\x7f-\x9f\u00ad\u061c\u180e\u200b-\u200f\u2028-\u202e\u2060-\u206f\ud800-\udfff\ufeff\ufff9-\ufffb]")
 _TOKENS = re.compile(r"""["'\\\[\]{}(),]""")
 

@@ -10,12 +10,12 @@ from qtop_py.serialiser import StatExtractor
 
 
 class TabularStatExtractor(StatExtractor):
-    def _process_qstat_line(self, re_search: str, line: str, re_match_positions: Sequence[str]) -> Dict[str, str]:
+    def _process_qstat_line(self, pattern: str, line: str, re_match_positions: Sequence[str]) -> Dict[str, str]:
         """
         extracts data from a tabular qstat-like file
         returns a list
         """
-        m = re.search(re_search, line.strip())
+        m = re.search(pattern, line.strip())
 
         try:
             if m is None:

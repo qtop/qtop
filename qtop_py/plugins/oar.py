@@ -37,12 +37,12 @@ class OarStatExtractor(TabularStatExtractor):
             _ = fin.readline()  # header
             fin.readline()  # dashes
             re_match_positions = ("job_id", "user", "job_state", "queue")
-            re_search = self.user_q_search
+            pattern = self.user_q_search
             for line in fin:
                 if not line.strip():
                     continue
                 try:
-                    qstat_values = self._process_qstat_line(re_search, line, re_match_positions)
+                    qstat_values = self._process_qstat_line(pattern, line, re_match_positions)
                 except AttributeError as error:
                     raise ValueError("Cannot parse OAR job row: %s" % line.strip()) from error
                 qstat_values["Queue"] = self.anonymize(qstat_values["Queue"], "qs")

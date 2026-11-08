@@ -101,38 +101,38 @@ class PBSStatExtractor(TabularStatExtractor):
         with open(qstat_file, "r", encoding="utf-8", errors="replace") as fin:
             re_match_positions = ("job_id", "user", "state", "queue_name")  # was: (1, 5, 7, 8), (1, 4, 5, 8)
 
-            re_search = None
+            pattern = None
             nqs_queue = None
             for line in fin:
                 if not line.strip():
                     continue
 
-                if re_search in (None, self.nqs_request):
+                if pattern in (None, self.nqs_request):
                     header = re.match(self.nqs_queue_header, line.strip())
                     if header:
-                        re_search, nqs_queue = self.nqs_request, header.group("queue_name")
+                        pattern, nqs_queue = self.nqs_request, header.group("queue_name")
                         continue
 
-                if re_search == self.nqs_request:
+                if pattern == self.nqs_request:
                     qstat_values = self._process_nqs_request_line(line, nqs_queue)
                     if qstat_values:
                         all_qstat_values.append(qstat_values)
                     continue
 
-                if re_search is None:
+                if pattern is None:
                     for candidate in (self.user_q_search, self.user_q_search_prior):
                         try:
                             qstat_values = self._process_qstat_line(candidate, line, re_match_positions)
                         except AttributeError:
                             continue
                         else:
-                            re_search = candidate
+                            pattern = candidate
                             all_qstat_values.append(self._default_pending_queue(qstat_values))
                             break
                     continue
 
                 try:
-                    qstat_values = self._process_qstat_line(re_search, line, re_match_positions)
+                    qstat_values = self._process_qstat_line(pattern, line, re_match_positions)
                 except AttributeError:
                     continue
                 all_qstat_values.append(self._default_pending_queue(qstat_values))
