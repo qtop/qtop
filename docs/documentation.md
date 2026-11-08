@@ -262,6 +262,27 @@ configured ``getent passwd`` command; the default cache is
 ``--show-groups`` resolves each user's primary Unix group through the local
 account database. Neither option requires a Grid pool-mapping command.
 
+The state columns after ``jobs >=`` are tunable; the default is ``R + Q``.
+``accounts_states`` lists state keys from ``state_abbreviations``, in display
+order; ``other_of_user`` counts jobs in none of the listed states, and an entry
+may be a ``{state key: label}`` mapping when first-letter labels collide.
+``summary_states`` does the same for the Summary line. Unset, the Summary shows
+the scheduler-reported ``R + Q`` totals; set, it counts the job list instead,
+which may differ slightly from the scheduler's own totals.
+
+```yaml
+accounts_states:
+  - running_of_user
+  - cancelled_of_user
+  - queued_of_user
+  - expired_of_user: X
+  - other_of_user
+summary_states:
+  - running_of_user
+  - queued_of_user
+  - other_of_user
+```
+
 Watch mode
 ----------
 

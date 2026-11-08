@@ -17,6 +17,9 @@ from qtop_py.mvu import MVU_compress_colored_line as compress_colored_line
 from qtop_py.mvu import MVU_gauge_core_vectors as gauge_core_vectors
 from qtop_py.mvu_query import WNOccupancy
 
+# Accounts-table state columns when accounts_states is unset: jobs >= R + Q.
+DEFAULT_ACCOUNT_STATES = ("running_of_user", "queued_of_user")
+
 
 class TextDisplay(object):
     def __init__(self, document, config, viewport, wns_occupancy, cluster, args, MVU_model):
@@ -101,11 +104,21 @@ class TextDisplay(object):
             + self.MVU_model.MVU_colorize(str(datetime.datetime.today())[:-7], "White")
         )
 
+        summary_states = self.state_columns("summary_states")
+        if summary_states is None:
+            job_counts = [total_running_jobs, total_queued_jobs]
+            job_labels = "R + Q"
+        else:
+            job_states = [job.job_state for job in document.jobs_dict.values()]
+            totals = WNOccupancy.job_state_totals(job_states, self.config["state_abbreviations"][self.MVU_model.scheduler])
+            totals["other_of_user"] = len(job_states) - sum(totals.get(key, 0) for key, _ in summary_states if key != "other_of_user")
+            job_counts = [totals.get(key, 0) for key, _ in summary_states]
+            job_labels = " + ".join(label for _, label in summary_states)
         print(
             "%(Summary)s: Total:%(total_nodes)s Up:%(online_nodes)s Free:%(available_nodes)s %(Nodes)s | %("
             "working_cores)s/%("
             "total_cores)s %(Cores)s |"
-            "   %(total_run_jobs)s+%(total_q_jobs)s %(jobs)s (R + Q) %(reported_by)s"
+            "   %(job_counts)s %(jobs)s (%(job_labels)s) %(reported_by)s"
             % {
                 "Summary": self.MVU_model.MVU_colorize("Summary", "Cyan_L"),
                 "total_nodes": self.MVU_model.MVU_colorize(str(cluster.total_wn), "Red_L"),
@@ -115,8 +128,8 @@ class TextDisplay(object):
                 "working_cores": self.MVU_model.MVU_colorize(str(cluster.working_cores), "Green_L"),
                 "total_cores": self.MVU_model.MVU_colorize(str(cluster.total_cores), "Green_L"),
                 "Cores": self.MVU_model.MVU_colorize("cores", "Green_L"),
-                "total_run_jobs": self.MVU_model.MVU_colorize(str(int(total_running_jobs)), "Blue_L"),
-                "total_q_jobs": self.MVU_model.MVU_colorize(str(int(total_queued_jobs)), "Blue_L"),
+                "job_counts": "+".join(self.MVU_model.MVU_colorize(str(int(count)), "Blue_L") for count in job_counts),
+                "job_labels": job_labels,
                 "jobs": self.MVU_model.MVU_colorize("jobs", "Blue_L"),
                 "reported_by": self.MVU_model.backend.classic_job_count_source if self.args.CLASSIC else "",
             }
@@ -212,7 +225,8 @@ class TextDisplay(object):
             detail_header = "GECOS field              | primary group        |"
         else:
             detail_header = "Grid certificate DN (info only available under elevated privileges)" if self.args.CLASSIC else "      GECOS field or Grid certificate DN |"
-        print("[id] unix account      |jobs >=   R +    Q | nodes | %s" % detail_header)
+        labels = [label for _, label in self.state_columns("accounts_states", DEFAULT_ACCOUNT_STATES)]
+        print("[id] unix account      |jobs >=%s | nodes | %s" % (" + ".join(label.rjust(4) for label in labels), detail_header))
         for line in account_jobs_table:
             uid = line[0]
             userid_pat = user_color_patterns[str(uid)]
@@ -227,6 +241,10 @@ class TextDisplay(object):
         if not account_jobs_table:
             return None
 
+        state_totals = {}
+        for line in account_jobs_table:
+            for state_key, count in TextDisplay.row_state_counts(line).items():
+                state_totals[state_key] = state_totals.get(state_key, 0) + int(count)
         return [
             "T",
             sum(int(line[1]) for line in account_jobs_table),
@@ -234,10 +252,33 @@ class TextDisplay(object):
             sum(int(line[3]) for line in account_jobs_table),
             "Totals",
             sum(int(line[5]) for line in account_jobs_table),
+            state_totals,
         ]
 
+    @staticmethod
+    def row_state_counts(line):
+        """Per-state job counts of an accounts row; rows without them (six fields) carry only R and Q."""
+        return dict(line[6]) if len(line) > 6 else {"running_of_user": line[1], "queued_of_user": line[2]}
+
+    def state_columns(self, config_key, default=None):
+        """
+        (state_key, label) pairs from accounts_states/summary_states; entries are a state key or a {state_key: label} mapping.
+        The default label is the key's first letter, uppercased; other_of_user counts jobs in no listed state.
+        """
+        entries = self.config.get(config_key) or default
+        if entries is None:
+            return None
+        columns = []
+        for entry in entries:
+            key, label = next(iter(entry.items())) if isinstance(entry, dict) else (entry, None)
+            columns.append((key, str(label) if label else ("O" if key == "other_of_user" else key[0].upper())))
+        return columns
+
     def display_account_jobs_line(self, line, userid_pat, detail_of_name, group_of_name=None):
-        uid, runningjobs, queuedjobs, alljobs, user, num_of_nodes = line
+        uid, runningjobs, queuedjobs, alljobs, user, num_of_nodes = line[:6]
+        state_columns = self.state_columns("accounts_states", DEFAULT_ACCOUNT_STATES)
+        counts = self.row_state_counts(line)
+        counts["other_of_user"] = int(alljobs) - sum(int(counts.get(key, 0)) for key, _ in state_columns if key != "other_of_user")
 
         if self.args.COLOR == "OFF" or userid_pat == "account_not_colored" or self.MVU_model.user_to_color.get(userid_pat) == "reset":
             conditional_width = 0
@@ -247,7 +288,8 @@ class TextDisplay(object):
 
         detail_width = 25 if group_of_name is not None else 40
         group_column = "{sep} {group:<{width20}} " if group_of_name is not None else ""
-        row_format = "[ {0:<{width1}}] {4:<{width18}}{sep}{3:>{width4}}   {1:>{width4}}   {2:>{width4}} {sep} {6:>{width5}} {sep} {5:<{detail_width}} "
+        state_cells = "   ".join("{%d:>{width4}}" % (7 + index) for index in range(len(state_columns)))
+        row_format = "[ {0:<{width1}}] {4:<{width18}}{sep}{3:>{width4}}   " + state_cells + " {sep} {6:>{width5}} {sep} {5:<{detail_width}} "
         print_string = (row_format + group_column + "{sep}").format(
             self.MVU_model.MVU_colorize(str(uid), pattern=userid_pat),
             self.MVU_model.MVU_colorize(str(runningjobs), pattern=userid_pat),
@@ -256,6 +298,7 @@ class TextDisplay(object):
             self.MVU_model.MVU_colorize(user, pattern=userid_pat),
             self.MVU_model.MVU_colorize(detail_of_name.get(user, ""), pattern=userid_pat),
             self.MVU_model.MVU_colorize(str(num_of_nodes), pattern=userid_pat),
+            *[self.MVU_model.MVU_colorize(str(counts.get(key, 0)), pattern=userid_pat) for key, _ in state_columns],
             group=self.MVU_model.MVU_colorize((group_of_name or {}).get(user, ""), pattern=userid_pat),
             sep=self.MVU_model.MVU_colorize(self.config["SEPARATOR"], pattern=userid_pat),
             width1=1 + conditional_width,

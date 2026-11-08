@@ -77,6 +77,17 @@ def validate_config(config):
         for entry in entries or []:
             mapping(entry, key)
             require(all(isinstance(pattern, str) and isinstance(color, str) for pattern, color in entry.items()), key, "text patterns and color names")
+    known_states = {"other_of_user", "unknown_of_user"}
+    for states in (config.get("state_abbreviations") or {}).values():
+        known_states.update(str(key) for key in (states or {}).values())
+    for key in ("accounts_states", "summary_states"):
+        entries = config.get(key)
+        require(entries is None or isinstance(entries, list) and bool(entries), key, "a nonempty list of state keys")
+        for entry in entries or ():
+            if isinstance(entry, dict):
+                require(len(entry) == 1 and all(isinstance(label, str) and bool(label.strip()) for label in entry.values()), key, "state keys or {state key: label} mappings")
+                entry = next(iter(entry))
+            require(entry in known_states, key, "state keys from state_abbreviations, other_of_user or unknown_of_user")
     whole_queues = config.get("sge_whole_queues")
     require(
         whole_queues is None or isinstance(whole_queues, list) and all(isinstance(item, str) and bool(item.strip()) for item in whole_queues),

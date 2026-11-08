@@ -1066,3 +1066,60 @@ def test_user_details_preserve_quoted_arguments_and_skip_malformed_rows(tmp_path
     options = SimpleNamespace(GET_GECOS=realtime)
     config = {"extract_info": {key: command}}
     assert qtop_module.get_detail_of_name([["0", 1, 0, 1, "alice smith", 1]], config, options) == {"alice smith": "Alice Smith"}
+
+
+PBS_STATES = {"R": "running_of_user", "Q": "queued_of_user", "C": "cancelled_of_user", "E": "exiting_of_user", "X": "expired_of_user"}
+
+
+def _plain_accounts(monkeypatch, capsys, config, table, totals=False):
+    args = SimpleNamespace(COLOR="OFF", CLASSIC=False, SHOW_ACCOUNT_TOTALS=totals, SHOW_GROUPS=False)
+    occupancy = SimpleNamespace(account_jobs_table=table, user_color_patterns={str(row[0]): "account_not_colored" for row in table})
+    monkeypatch.setattr(qtop_module, "user_to_color", {}, raising=False)
+    TextDisplay(None, dict(config, SEPARATOR="|"), None, occupancy, None, args).display_user_accounts_pool_mappings(occupancy)
+    return capsys.readouterr().out.splitlines()
+
+
+def test_account_state_columns_default_to_r_plus_q_for_old_and_new_rows(monkeypatch, capsys):
+    old_row = ["0", 2, 3, 6, "alice", 1]
+    new_row = ["0", 2, 3, 6, "alice", 1, {"running_of_user": 2, "queued_of_user": 3, "cancelled_of_user": 1}]
+    old, new = (_plain_accounts(monkeypatch, capsys, {}, [row]) for row in (old_row, new_row))
+    assert old == new
+    assert "|jobs >=   R +    Q | nodes |" in new[-2]
+    assert new[-1].startswith("[ 0] alice             |   6      2      3 |     1 |")
+
+
+def test_account_state_columns_are_tunable_with_labels_and_other(monkeypatch, capsys):
+    config = {"accounts_states": ["running_of_user", "cancelled_of_user", "queued_of_user", {"expired_of_user": "X"}, "other_of_user"]}
+    row = ["0", 2, 3, 9, "alice", 1, {"running_of_user": 2, "queued_of_user": 3, "cancelled_of_user": 1, "exiting_of_user": 3}]
+    lines = _plain_accounts(monkeypatch, capsys, config, [row, ["1", 1, 0, 1, "bob", 1, {"running_of_user": 1}]], totals=True)
+    assert "|jobs >=   R +    C +    Q +    X +    O | nodes |" in lines[-4]
+    assert lines[-3].startswith("[ 0] alice             |   9      2      1      3      0      3 |     1 |")
+    assert lines[-2].startswith("[ 1] bob               |   1      1      0      0      0      0 |     1 |")
+    assert lines[-1].startswith("[ T] Totals            |  10      3      1      3      0      3 |     2 |")
+
+
+def _summary(config, jobs_states):
+    class Cluster(object):
+        total_running_jobs, total_queued_jobs = 7, 4
+        queues_dict = {}
+        total_wn = offdown_nodes = available_wn = working_cores = total_cores = 0
+
+    args = SimpleNamespace(REMAP=False, CLASSIC=False, WATCH=True, COLOR="OFF")
+    model = MVU_Model({}, args, None, backend=qtop_module.scheduler_backend("pbs"))
+    document = SimpleNamespace(jobs_dict={str(n): SimpleNamespace(job_state=state) for n, state in enumerate(jobs_states)})
+    config = dict(config, state_abbreviations={"pbs": PBS_STATES})
+    TextDisplay(None, config, None, None, Cluster(), args, MVU_model=model).display_job_accounting_summary(Cluster(), document)
+
+
+def test_summary_states_default_to_scheduler_reported_r_plus_q(capsys):
+    _summary({}, ["R", "C"])
+    assert "|   7+4 jobs (R + Q)" in capsys.readouterr().out
+
+
+def test_summary_states_count_the_job_list_when_tuned(capsys):
+    _summary({"summary_states": ["running_of_user", {"queued_of_user": "Qd"}, "other_of_user"]}, ["R", "R", "Q", "C", "Z"])
+    assert "|   2+1+2 jobs (R + Qd + O)" in capsys.readouterr().out
+
+
+def test_job_state_totals_keep_unknown_states():
+    assert qtop_module.WNOccupancy.job_state_totals(["R", "R", "Z"], {"R": "running_of_user"}) == {"running_of_user": 2, "unknown_of_user": 1}

@@ -5,10 +5,13 @@ See the [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 
 ## 0.9.20261108
 
-- Feature: (pbs) parse legacy `-prior` and NQS qstat formats (#353).
-- Bugfix: (pbs) keep queueless pending jobs from `qstat -prior`.
 - Tests: cover sample-filename branches (#507).
 - Refactor: remove dead `fileutils` helpers.
+- Bugfix: (pbs) keep queueless pending jobs from `qstat -prior`.
+- Feature: (pbs) parse legacy `-prior` and NQS qstat formats (#353).
+- Feature: (sge) opt-in whole-node queues, `sge_whole_queues` (#295).
+- Feature: tunable account-table and Summary state columns (#305).
+- Refactor: drop the `qtop_py/cli.py` shim; use `python -m qtop_py.qtop`.
 - Release: update version metadata to 0.9.20261108.
 
 ## 0.9.20261102

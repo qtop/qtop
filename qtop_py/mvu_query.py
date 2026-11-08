@@ -89,6 +89,7 @@ class WNOccupancy(object):
                 total_jobs_for_user,
                 user_name,
                 self.user_machine_use[user_name],
+                {state_key: counts.get(user_name, 0) for state_key, counts in user_job_per_state_counts.items()},
             ]
             for user_name, total_jobs_for_user in user_all_jobs_sorted
         ]
@@ -137,6 +138,15 @@ class WNOccupancy(object):
 
         users_by_job_count = sorted(user_to_alljobs_count.items(), key=itemgetter(1), reverse=True)
         return users_by_job_count
+
+    @staticmethod
+    def job_state_totals(job_states, state_abbrevs):
+        """Count jobs per state key (e.g. running_of_user); states missing from state_abbrevs count as unknown_of_user."""
+        totals = {}
+        for job_state in job_states:
+            state_key = state_abbrevs.get(job_state, "unknown_of_user")
+            totals[state_key] = totals.get(state_key, 0) + 1
+        return totals
 
     def _calculate_user_job_counts(self, user_names, job_states, users_by_job_count, user_to_id):
         """
