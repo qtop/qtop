@@ -41,10 +41,19 @@ class Web(object):
         shared = SharedVars()
 
         class MyHandler(SimpleHTTPRequestHandler):
-            """Overriding the default behaviour just for api.json"""
+            """Serve only the page and api.json (PySCG-0055); never other files under web_dir."""
+
+            PAGES = ("/", "/index.html")
 
             def log_message(self, format, *args):
                 """quiet!"""
+
+            def do_HEAD(self):
+                if self.path in self.PAGES:
+                    self.path = "/index.html"
+                    SimpleHTTPRequestHandler.do_HEAD(self)
+                else:
+                    self.send_error(404)
 
             def do_GET(self):
                 # Handle the case of api.json...
@@ -57,9 +66,11 @@ class Web(object):
                     self.send_header("Content-Length", str(len(read_data)))
                     self.end_headers()
                     self.wfile.write(read_data)
-                else:
-                    # Default behaviour
+                elif self.path in self.PAGES:
+                    self.path = "/index.html"
                     SimpleHTTPRequestHandler.do_GET(self)
+                else:
+                    self.send_error(404)
 
         class MyTCPServer(TCPServer):
             # Allow restarting the server while previous connections finish closing.

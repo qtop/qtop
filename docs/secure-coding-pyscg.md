@@ -268,10 +268,9 @@ not a current settings audit.
    workload manager's own commands, so it adds no disclosure. Any other bind
    address is an explicit `experimental_web_host` choice and belongs behind an
    authenticating reverse proxy; it is not a protected remote dashboard.
-- [ ] Limit static web assets. Besides `api.json`, the server serves the whole
-   `web/` directory of the working directory when one exists (the tested local
-   assets override), following symlinks, so starting `-B` from a directory with a
-   private `web/` folder exposes those files to local users.
+- [x] Limit static web assets. The server answers only `/`, `/index.html` and
+   `api.json`; every other path, including symlinks and subdirectories under
+   `web/`, returns 404, so a local `web/` folder exposes only its `index.html`.
 - [ ] Refresh scanner/dependency and Scorecard evidence for the assessed commit;
    verify private-reporting, publishing and badge settings outside the source
    tree. No new scan or external-settings audit is claimed here.
