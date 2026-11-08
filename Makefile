@@ -36,30 +36,17 @@ help:: ## Show this help
 	@grep -E '^[a-zA-Z0-9_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
 		| awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
 
-all:: ## Run every local validation and build target
-all:: \
-	ci-deps \
-	test \
-	coverage \
-	backend-validation \
-	backend-colour-artifacts \
-	render-backends \
-	trace-export-validation \
-	test-pbs-samples \
-	test-slurm-samples \
-	fortifications \
-	ruff-check \
-	lint \
-	format-check \
-	compat-py36 \
-	ci \
-	github-ci \
-	gitlab-ci \
-	build \
-	github-build \
-	gitlab-build \
-	dist \
-	version
+all:: ## Run every local validation and build target, in six batches
+all:: ci-deps pre-pr validation-suite compat-py36 ci-entrypoints packaging
+
+validation-suite:: ## Validate scheduler samples, rendered output and trace export
+validation-suite:: backend-validation backend-colour-artifacts render-backends trace-export-validation test-pbs-samples test-slurm-samples
+
+ci-entrypoints:: ## Run the shared, GitHub and GitLab CI entry points
+ci-entrypoints:: ci github-ci gitlab-ci
+
+packaging:: ## Build and validate release artifacts, then print the version
+packaging:: build github-build gitlab-build dist version
 
 rerun:: clean all ## Clean generated files, then rerun the complete local validation path
 
@@ -235,4 +222,3 @@ confirm:: ## Ask for human confirmation before release-like tasks
 
 scorecard-scan:: ## Scan an exact GitHub commit with Scorecard (requires Docker and GITHUB_AUTH_TOKEN)
 	sh ci/scripts/scorecard-scan.sh
-
