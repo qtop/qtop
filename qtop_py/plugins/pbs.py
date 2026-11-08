@@ -56,7 +56,7 @@ class PBSStatExtractor(TabularStatExtractor):
             r"(?P<state>[A-Za-z]+)\s+"
             r"(?:\d{2}/\d{2}/\d{2,4}|0)\s+"
             r"(?:\d+:\d+:\d*|0)\s+"
-            r"(?P<queue_name>[\w.-]+@[\w.-]+)\s+"
+            r"(?:(?P<queue_name>[\w.-]+@[\w.-]+)\s+)?"  # blank for pending (qw) jobs
             r"(?:\d+)(?=\s|$)"
         )
 
@@ -127,7 +127,7 @@ class PBSStatExtractor(TabularStatExtractor):
                             continue
                         else:
                             re_search = candidate
-                            all_qstat_values.append(qstat_values)
+                            all_qstat_values.append(self._default_pending_queue(qstat_values))
                             break
                     continue
 
@@ -135,9 +135,18 @@ class PBSStatExtractor(TabularStatExtractor):
                     qstat_values = self._process_qstat_line(re_search, line, re_match_positions)
                 except AttributeError:
                     continue
-                all_qstat_values.append(qstat_values)
+                all_qstat_values.append(self._default_pending_queue(qstat_values))
 
         return all_qstat_values
+
+    @staticmethod
+    def _default_pending_queue(qstat_values):
+        """
+        SGE-style -prior output leaves the queue blank for pending jobs; label them as the SGE plugin does.
+        """
+        if not qstat_values["Queue"]:
+            qstat_values["Queue"] = "Pending"
+        return qstat_values
 
     def _process_nqs_request_line(self, line, queue_name):
         """

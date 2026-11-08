@@ -122,6 +122,18 @@ def test_prior_format_accepts_four_digit_years_multiletter_states_and_task_range
     assert _qstat(tmp_path, *PRIOR_HEADER, row) == [{"JobId": "7214025", "UnixAccount": "dteam018", "S": state, "Queue": "medium@ccwsge0454.in2p3.fr"}]
 
 
+@pytest.mark.parametrize("pending_first", [False, True])
+def test_prior_format_keeps_queueless_pending_jobs(tmp_path, pending_first):
+    running = "7214025 0.50103 cccreamcel dteam018     r     08/10/2012 01:46:35 medium@ccwsge0454.in2p3.fr         1"
+    pending = "7214018 0.00000 cccreamcel dteam042     qw    08/10/2012 01:46:00                                    1"
+    rows = [pending, running] if pending_first else [running, pending]
+    records = {
+        running: {"JobId": "7214025", "UnixAccount": "dteam018", "S": "r", "Queue": "medium@ccwsge0454.in2p3.fr"},
+        pending: {"JobId": "7214018", "UnixAccount": "dteam042", "S": "qw", "Queue": "Pending"},
+    }
+    assert _qstat(tmp_path, *PRIOR_HEADER, *rows) == [records[row] for row in rows]
+
+
 def test_nqs_request_rows_inherit_their_queue_header(tmp_path):
     assert _qstat(
         tmp_path,
