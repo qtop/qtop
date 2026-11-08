@@ -3,6 +3,14 @@
 Notable changes by version, newest first.
 See the [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 
+## 0.9.20261108
+
+- Feature: (pbs) parse legacy `-prior` and NQS qstat formats (#353).
+- Bugfix: (pbs) keep queueless pending jobs from `qstat -prior`.
+- Tests: cover sample-filename branches (#507).
+- Refactor: remove dead `fileutils` helpers.
+- Release: update version metadata to 0.9.20261108.
+
 ## 0.9.20261102
 
 - CI: remove the obsolete transpose global flagged by CodeQL.
