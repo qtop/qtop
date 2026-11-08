@@ -165,7 +165,7 @@ pathname operation is race-free.
 For PySCG `pyscg-0013`, the [source launcher](../qtop) runs Python with `-I`
 and adds its own checkout to the import path, excluding caller working-directory,
 `PYTHONPATH` and user-site imports. The checkout must itself be trusted.
-Direct `python -m qtop_py.cli` retains normal Python import behavior.
+Direct `python -m qtop_py.qtop` retains normal Python import behavior.
 [Security regressions](../tests/test_security.py) cover both boundaries.
 
 ### 6. Randomness

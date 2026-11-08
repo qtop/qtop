@@ -18,7 +18,7 @@ flowchart TB
     operator([Operator])
 
     subgraph entry["Entry and control"]
-        cli["CLI entry points: qtop / cli.py"]
+        cli["CLI entry points: qtop / qtop_py.qtop"]
         runtime["Refresh stages and watch loop: qtop.py"]
         update["MVU_Model / MVU_update: mvu.py"]
         runtime --> update
@@ -132,7 +132,7 @@ runtime globals, while the new query/view pipeline does not depend on them.
 
 | Responsibility | Source |
 | --- | --- |
-| Launchers and installed entry point | [qtop](../qtop), [cli.py](../qtop_py/cli.py), [pyproject.toml](../pyproject.toml) |
+| Launchers and installed entry point | [qtop](../qtop), [qtop.py](../qtop_py/qtop.py), [pyproject.toml](../pyproject.toml) |
 | Runtime orchestration, I/O effects and compatibility adapters | [qtop.py](../qtop_py/qtop.py) |
 | Explicit model and update messages | [mvu.py](../qtop_py/mvu.py) |
 | Snapshot queries, filtering and occupancy calculations | [mvu_query.py](../qtop_py/mvu_query.py) |

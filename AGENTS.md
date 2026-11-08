@@ -25,7 +25,7 @@ Run times depend on the environment and are not fixed budgets.
 
 ## Repo map
 
-- `qtop_py/qtop.py`, `cli.py` - main loop, I/O effects and legacy adapters; argument handling.
+- `qtop_py/qtop.py` - main loop, I/O effects and legacy adapters; argument handling; `python -m qtop_py.qtop` entry.
 - `qtop_py/mvu.py`, `mvu_query.py`, `ui/mvu_view.py` - explicit model/update, snapshot queries and terminal presentation.
 - `qtop_py/plugins/{pbs,sge,slurm,oar,demo}.py` - backends; `qtop_py/schedulers/` - registration, metadata and GPU helpers.
 - `qtop_py/cluster_state.py`, `snapshot_document.py`, `ui/viewport.py`, `colormap.py` - normalized snapshots, navigation and colors.

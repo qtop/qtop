@@ -32,7 +32,7 @@ def run_qtop(sample_name, sample_dir, output_dir):
     qtop_home = os.path.join(rendered_output_dir, ".home", sample_name)
     os.makedirs(qtop_home, exist_ok=True)
     env["HOME"] = qtop_home
-    command = [sys.executable, "-m", "qtop_py.cli", "-b", "slurm", "-s", sample_dir, "-O", "-o", "savepath=%s" % rendered_output_dir]
+    command = [sys.executable, "-m", "qtop_py.qtop", "-b", "slurm", "-s", sample_dir, "-O", "-o", "savepath=%s" % rendered_output_dir]
     completed = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env, universal_newlines=True)
     if completed.returncode:
         raise RuntimeError("qtop failed for %s:\nSTDOUT:\n%s\nSTDERR:\n%s" % (sample_name, completed.stdout, completed.stderr))
