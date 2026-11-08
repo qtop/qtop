@@ -13,16 +13,6 @@ import tarfile
 import tempfile
 
 
-def mkdir_p(path):
-    try:
-        os.makedirs(path)
-    except OSError as exc:  # Python >2.5
-        if exc.errno == errno.EEXIST and os.path.isdir(path):
-            pass
-        else:
-            raise
-
-
 def _open_owned(path, flags, mode, directory_fd):
     try:
         return os.open(path, flags, mode, dir_fd=directory_fd)
@@ -216,14 +206,6 @@ def get_sample_filename(SAMPLE_FILENAME, config):
     else:
         SAMPLE_FILENAME = SAMPLE_FILENAME % {"datetime": "_" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")}
     return SAMPLE_FILENAME
-
-
-class FileNotFound(Exception):
-    def __init__(self, fn):
-        msg = "File %s not found.\nMaybe the correct scheduler is not specified?" % fn
-        Exception.__init__(self, msg)
-        logging.critical(msg)
-        self.fn = fn
 
 
 class FileEmptyError(Exception):
