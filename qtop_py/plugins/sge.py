@@ -195,6 +195,7 @@ class SGEBatchSystem(GenericBatchSystem):
         root = etree.fromstring(text, parser=parser)  # nosec B314
         numeric = {"slots_used", "slots_resv", "slots_total", "slots", "tasks", "JAT_prio", "JB_job_number"}
         resources = {"num_proc", "slots", "slots_total", "slots_used", "slots_resv"}
+        tag_kinds, resource_kinds = {"JB_job_number": "job", "JB_owner": "user"}, {"hostname": "node", "qname": "queue"}
         tags = numeric | {
             "job_info",
             "queue_info",
@@ -215,15 +216,10 @@ class SGEBatchSystem(GenericBatchSystem):
                 raise ValueError("unsupported XML field")
             resource = element.attrib.get("name", "") if element.tag == "resource" else ""
             value = element.text or ""
+            kind = tag_kinds.get(element.tag) or resource_kinds.get(resource)
             if value.strip():
-                if element.tag == "JB_job_number":
-                    element.text = mask(value, "job")
-                elif element.tag == "JB_owner":
-                    element.text = mask(value, "user")
-                elif resource == "hostname":
-                    element.text = mask(value, "node")
-                elif resource == "qname":
-                    element.text = mask(value, "queue")
+                if kind:
+                    element.text = mask(value, kind)
                 elif element.tag == "name" and "@" in value:
                     queue, host = value.split("@", 1)
                     element.text = mask(queue, "queue") + "@" + mask(host, "node")
