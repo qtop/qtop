@@ -605,6 +605,7 @@ def test_compress_colored_line_groups_adjacent_colors_and_accepts_empty_input():
     reset = "\x1b[0;m"
 
     assert qtop_module.compress_colored_line("") == ""
+    assert qtop_module.compress_colored_line("dn0foo|0350__####|-|tu |") == "dn0foo|0350__####|-|tu |"
     assert qtop_module.compress_colored_line(red + "A" + reset + red + "B" + reset + blue + "C" + reset) == red + "AB" + reset + blue + "C" + reset
 
 
