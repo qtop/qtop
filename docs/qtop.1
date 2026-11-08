@@ -1,0 +1,408 @@
+.\" Copyright (c) 2026 qtop contributors
+.\" SPDX-License-Identifier: MIT
+.TH QTOP 1 "2026-11-08" "qtop 0.9.20261108" "User Commands"
+.nh
+.SH NAME
+qtop \- text-mode monitor of batch-cluster utilization and job status
+.SH SYNOPSIS
+.B qtop
+.RB [ \-FGT ]
+.RI [ options ]
+.br
+.B qtop \-w
+.RI [ seconds ]
+.RI [ options ]
+.br
+.B qtop \-R
+.I datetime
+.RI [ duration ]
+.br
+.B qtop \-\-load\-sample
+.I archive
+.SH DESCRIPTION
+.B qtop
+queries a batch scheduler (PBS/Torque, SGE, Slurm or OAR) and prints three
+sections on one screen:
+.TP
+.B Job Accounting Summary
+running and queued jobs per queue or partition, and node and core totals.
+.TP
+.B Worker Node Occupancy
+a matrix with one column per worker node and one row per core; each cell
+shows the user (by an id letter and color) whose job occupies that core.
+.TP
+.B User Accounts and Pool Mappings
+the per-user legend for the matrix, with job counts by state.
+.PP
+Without
+.BR \-w ,
+qtop prints once and exits. Scheduler output is saved under
+.I savepath
+(see
+.BR FILES ),
+so a view can be replayed later with
+.BR \-R .
+The
+.B demo
+scheduler generates a synthetic cluster and needs no scheduler commands.
+.SH OPTIONS
+.SS Scheduler and input
+.TP
+.BI \-b " name" "\fR, \fP" \-\-batchSystem " name"
+Scheduler to query:
+.BR pbs ,
+.BR sge ,
+.BR slurm ,
+.BR oar ,
+.B demo
+or
+.B auto
+(detect from the commands found in
+.BR PATH ).
+.TP
+.BI \-s " path" "\fR, \fP" \-\-SetSourceDir " path"
+Read scheduler traces from a directory or a tar archive instead of running
+scheduler commands; a plain output file selects its parent directory.
+.TP
+.BI \-\-load\-sample " archive"
+Reproduce an anonymized support snapshot (made with
+.BR "\-L \-A" )
+without scheduler commands.
+.TP
+.B \-\-all
+Include hidden and group-unavailable partitions in live Slurm queries
+(subject to permissions).
+.TP
+.BR \-G ", " \-\-get_GECOS_via_getent_passwd
+Look up user details with
+.B getent passwd
+for every user in the scheduler output.
+.TP
+.BR \-S ", " \-\-StrictCheck
+Compare the running-job total reported by the scheduler with the jobs qtop
+found and displayed.
+.SS Display
+.TP
+.BR \-1 ", " \-\-disablesection1
+Hide the Job Accounting Summary.
+.TP
+.BR \-2 ", " \-\-disablesection2
+Hide the Worker Node Occupancy matrix.
+.TP
+.BR \-3 ", " \-\-disablesection3
+Hide the User Accounts and Pool Mappings.
+.TP
+.BR \-4 ", " \-\-accounttotals
+Add a totals row to the User Accounts and Pool Mappings.
+.TP
+.BR \-c ", " \-\-COLOR " " \fBON\fP | \fBOFF\fP | \fBAUTO\fP
+Color output.
+.B AUTO
+(the default) uses color on a terminal; see
+.B QTOP_COLOR
+in
+.BR ENVIRONMENT .
+.TP
+.BR \-C ", " \-\-classic
+Mimic the legacy qtop display as far as possible.
+.TP
+.BR \-\-expand\-queues
+Show one queue or partition per line in the accounting summary (toggle with
+.B Q
+in watch mode).
+.TP
+.BR \-\-show\-groups
+Show each active user's primary Unix group in the account table.
+.TP
+.BR \-F ", " \-\-ForceNames
+Show node names instead of numbered worker nodes, even for small clusters.
+.TP
+.BR \-a ", " \-\-blindremapping
+Number worker nodes in order of appearance; for node names that are not a
+plain arithmetic sequence (for example Rocks clusters).
+.TP
+.BR \-m ", " \-\-noMasking
+Do not hide leading empty worker nodes (by default, if the first 30 nodes
+are unused, numbering starts at 31).
+.TP
+.BR \-r ", " \-\-removeemptycorelines
+Remove matrix rows consisting only of non-existent cores
+.RB ( # ).
+Given twice
+.RB ( \-rr ),
+also remove rows of free cores
+.RB ( _ ).
+.TP
+.BR \-T ", " \-\-Transpose
+Rotate the matrix by 90 degrees.
+.TP
+.BR \-l ", " \-\-less
+Let the matrix overflow the terminal width, for piping into
+.BR "less \-RS" .
+.SS Run modes
+.TP
+.BR \-w ", " \-\-watch " [\fIseconds\fP]"
+Refresh like
+.BR watch (1)
+every
+.I seconds
+(default 2), with interactive navigation (see
+.BR "INTERACTIVE COMMANDS" ).
+.TP
+.BR \-R ", " \-\-replay " \fIdatetime\fP [\fIduration\fP]"
+Replay saved output from
+.IR datetime ,
+given as
+.I yyyymmddTHHMMSS
+(e.g. 20161118T182300),
+.I HHMM
+(today) or
+.I mmddTHHMM
+(this year).
+.I duration
+is
+.IR N h,
+.IR N m
+or
+.IR N s
+(default 2m).
+.TP
+.BR \-O ", " \-\-onlysavetofile
+Save results without printing them.
+.TP
+.BR \-E ", " \-\-export
+Export cluster data as JSON.
+.TP
+.BR \-L ", " \-\-sample
+Create a support archive with the log, the scheduler output and the qtop
+output. With
+.BR \-A ,
+store a portable masked snapshot instead. Given twice
+.RB ( \-LL ),
+also add package sources and runtime assets and, without
+.BR \-A ,
+the bundled defaults and effective configuration.
+.TP
+.BR \-A ", " \-\-anonymize
+Mask identifiers where the backend supports it (requires
+.BR \-e ).
+.TP
+.B \-\-raw\-companion
+With
+.BR "\-L \-A \-e" ,
+also save a separate, private archive of the unmasked scheduler input.
+.TP
+.B \-\-masked\-traces
+With
+.BR "\-L \-A \-e" ,
+add experimental masked scheduler-format traces; unsupported files are
+omitted.
+.SS Configuration
+.TP
+.BI \-f " file" "\fR, \fP" \-\-setCUSTOMCONFFILE " file"
+Use
+.I file
+as the custom configuration (see
+.BR CONFIGURATION ).
+.TP
+.BI \-o " key" = value "\fR, \fP" \-\-option " key" = value
+Override a top-level configuration key; may be repeated. Values are parsed as
+Python literals where possible and are never executed.
+.SS Experimental
+.TP
+.BR \-e ", " \-\-experimental
+Required by the experimental features below.
+.TP
+.B \-\-queue\-nodes
+Show idle and total node counts per queue (requires
+.BR \-e ).
+.TP
+.BR \-B ", " \-\-web
+Serve the view on
+.I http://127.0.0.1:8080/
+(requires
+.BR \-e ).
+Only
+.IR / ,
+.I /index.html
+and
+.I /api.json
+are served. There is no login or TLS; change the address with
+.B experimental_web_host
+and
+.B experimental_web_port
+only behind an authenticating reverse proxy.
+.SS Diagnostics
+.TP
+.BR \-d ", " \-\-debug
+Print debug messages and operational-error tracebacks to standard error and
+the log file.
+.TP
+.BR \-v ", " \-\-verbose
+Increase verbosity; may be repeated.
+.TP
+.BR \-V ", " \-\-version
+Print the version and exit.
+.TP
+.BR \-h ", " \-\-help
+Print a usage summary and exit.
+.SH INTERACTIVE COMMANDS
+In watch mode
+.RB ( \-w ):
+.TP 16
+.BR j " or " Space
+down one screen
+.TQ
+.BR k " or " Backspace
+up one screen
+.TQ
+.BR h " / " l
+left / right one screen
+.TQ
+.BR g " or " K
+top of the matrix
+.TQ
+.BR G " or " J
+bottom of the matrix
+.TQ
+.BR 0 " / " $
+left / right edge
+.TQ
+.B R
+reset the viewport
+.TQ
+.B f
+filter
+.TQ
+.B F
+switch full names / numbered node labels
+.TQ
+.B H
+highlight users or queues
+.TQ
+.B m
+color cores by user / queue
+.TQ
+.B Q
+expand / collapse the queue summary
+.TQ
+.B r
+cycle all / real / used core lines
+.TQ
+.B s
+sort
+.TQ
+.B t
+transpose the matrix
+.TQ
+.B ?
+toggle help
+.TQ
+.B q
+quit
+.SH CONFIGURATION
+Settings are read in this order, later ones replacing earlier ones:
+.IP 1. 4
+the bundled
+.I qtopconf.yaml
+.IP 2. 4
+.I /etc/qtopconf.yaml
+.IP 3. 4
+.I $HOME/.local/qtop/qtopconf.yaml
+.IP 4. 4
+the file given with
+.BR \-f ;
+a relative name is looked up in
+.I $HOME/.local/qtop
+and then in the current directory
+.IP 5. 4
+each
+.B \-o
+override, from left to right
+.PP
+A file replaces whole top-level values; nested mappings such as
+.B schedulers
+are not merged. The scheduler is chosen by
+.BR \-b ,
+then
+.BR QTOP_SCHEDULER ,
+then the
+.B scheduler
+key.
+.SH ENVIRONMENT
+.TP
+.B QTOP_SCHEDULER
+Scheduler to use when
+.B \-b
+is not given.
+.TP
+.B QTOP_COLOR
+With
+.BR "\-c AUTO" :
+.B ON
+forces color; any other value disables it; when unset, color is used on a
+terminal.
+.TP
+.BR HOME ", " USER
+Locate the per-user configuration and log, and expand the default
+.IR savepath .
+.SH FILES
+.TP
+.I /etc/qtopconf.yaml
+site configuration
+.TP
+.I $HOME/.local/qtop/qtopconf.yaml
+user configuration
+.TP
+.I $HOME/.local/qtop/logs/qtop.log
+log file (mode 0600)
+.TP
+.I /tmp/qtop_results_$USER
+default
+.IR savepath :
+saved scheduler output and replay data, created with mode 0700
+.SH EXIT STATUS
+.TP
+.B 0
+success
+.TP
+.B 1
+no usable scheduler, or an operational error (failed or timed-out scheduler
+command, unreadable input, invalid configuration)
+.TP
+.B 2
+invalid command-line arguments
+.SH EXAMPLES
+.TP
+.B qtop \-b demo
+Show a synthetic cluster.
+.TP
+.B qtop \-w 10
+Refresh every 10 seconds, auto-detecting the scheduler.
+.TP
+.B qtop \-b slurm \-c OFF \-1 \-3
+Print only the occupancy matrix, without color.
+.TP
+.B qtop \-R 1823 1h
+Replay one hour starting today at 18:23.
+.TP
+.B qtop \-e \-A \-L
+Create a masked support archive.
+.SH SEE ALSO
+.BR squeue (1),
+.BR sinfo (1),
+.BR qstat (1),
+.BR pbsnodes (8),
+.BR oarstat (1),
+.BR watch (1)
+.PP
+Full documentation:
+.I https://github.com/qtop/qtop/blob/main/docs/documentation.md
+.SH BUGS
+Report issues at
+.IR https://github.com/qtop/qtop/issues ;
+security issues as described in
+.IR https://github.com/qtop/qtop/security/policy .
+.SH AUTHORS
+Sotiris Fragkiskos, Fotis Georgatos, Evangelos Papadopoulos, Nicola Trozzi
+and the qtop contributors.

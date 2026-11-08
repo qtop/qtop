@@ -142,7 +142,7 @@ def convert_dash_key_in_dict(d):
 
 def parse(fn, DEF_INDENT=2):
     raw_key_values = {}
-    with open(fn, mode="r") as fin:
+    with open(fn, mode="r", encoding="utf-8") as fin:
         if os.fstat(fin.fileno()).st_size > safety.MAX_INPUT_BYTES:
             raise ResourceLimitError("YAML input exceeds size limit")
         if os.fstat(fin.fileno()).st_size == 0:
@@ -158,8 +158,7 @@ def parse(fn, DEF_INDENT=2):
             raw_key_values.update(block)
 
     logging.debug("File state after parse: %s" % fin)
-    a_dict = dict([(key, value) for key, value in raw_key_values.items()])
-    return a_dict
+    return dict([(key, value) for key, value in raw_key_values.items()])
 
 
 def read_yaml_config_block(line, fin, get_lines):
@@ -185,7 +184,7 @@ def read_yaml_config_block(line, fin, get_lines):
         # key_value used below belongs to previous line. It will work for first block line because of short circuit logic
         if line[0] == 0 or (line[0] == 1 and key_value and (next(iter(key_value)) == "-")) or (line[0] == -1 and line[1] == "-"):  # same level or entry level
             key_value, container = process_line(line, fin, get_lines, parent_container)
-            for k in key_value:
+            for k in key_value:  # noqa: B007 - binds the dict's sole key to k, read below
                 pass  # assign dict's sole key to k
             if parent_container == {} or "-" not in parent_container:
                 parent_container[k] = key_value[k]
@@ -201,7 +200,7 @@ def read_yaml_config_block(line, fin, get_lines):
 
         elif (line[0] == 1) or (line[0] > 1):  # go down one level
             key_value, container = process_line(line, fin, get_lines, parent_container)
-            for k in key_value:
+            for k in key_value:  # noqa: B007 - binds the dict's sole key to k, read below
                 pass
             # if container == {}:  # up parent container with new value
             if parent_container == {}:  # above it is a key waiting to be filled with values
@@ -212,25 +211,10 @@ def read_yaml_config_block(line, fin, get_lines):
                 open_containers.append(container)
                 parent_container = open_containers[-1]  # point towards latest container (key_value's value)
 
-        elif line[0] == -2 and line[1] == "-":  # go up two levels
+        elif line[0] == -2 and line[1] == "-" or line[0] == -1:  # go up two levels
             key_value, container = process_line(line, fin, get_lines, parent_container)
             len(open_containers) > 1 and open_containers.pop() or None
-            for k in key_value:
-                pass  # assign dict's sole key to k
-            if open_containers[-1].get("-"):
-                open_containers[-1].setdefault("-", []).extend(key_value[k])
-            else:
-                open_containers[-1][k] = key_value[k]
-            if container == {}:
-                open_containers.append(container)
-                parent_container = open_containers[-1]  # point towards latest container (key_value's value)
-            else:
-                parent_container = open_containers[-1]
-
-        elif line[0] == -1:  # go up one level
-            key_value, container = process_line(line, fin, get_lines, parent_container)
-            len(open_containers) > 1 and open_containers.pop() or None
-            for k in key_value:
+            for k in key_value:  # noqa: B007 - binds the dict's sole key to k, read below
                 pass  # assign dict's sole key to k
             if open_containers[-1].get("-"):
                 open_containers[-1].setdefault("-", []).extend(key_value[k])
@@ -259,7 +243,7 @@ def process_line(list_line, fin, get_lines, parent_container):
         container = {}
         return {key.rstrip(":"): container}, container
 
-    elif len(list_line) == 3:
+    if len(list_line) == 3:
         container = list_line[2]
 
         if container.endswith(":"):  # key: '-'           - testkey:
@@ -268,7 +252,7 @@ def process_line(list_line, fin, get_lines, parent_container):
             new_container = {}
             return {parent_key: [{key.rstrip(":"): new_container}]}, new_container  # list
 
-        elif ": " in container:  # key: '-'               - testkey: testvalue
+        if ": " in container:  # key: '-'               - testkey: testvalue
             key, container = container.split(None, 1)
             # container = [container[1:-1]] if container.startswith('[') else container
             container = container[1:-1].split(", ") if container.startswith("[") else container
@@ -277,22 +261,20 @@ def process_line(list_line, fin, get_lines, parent_container):
                 container = expand_single_literal_list(container)
             return {"-": [{key.rstrip(":"): container}]}, container  # list
 
-        elif container.endswith("|"):
+        if container.endswith("|"):
             container = process_code(fin)
             return {key.rstrip(":"): container}, parent_container
 
-        else:  # simple value
-            if key == "-":  # i.e.  - testvalue
-                return {"-": [container]}, container  # was parent_container******was :[container]}, container
-            else:  # i.e. testkey: testvalue
-                container = [container[1:-1]] if container.startswith("[") else container  # list
-                if isinstance(container, list):
-                    container = expand_single_literal_list(container)
-                elif container.startswith("'") and container.endswith("'"):
-                    container = literal_or_original(container)
-                return {key.rstrip(":"): container}, container  # was parent_container#str
-    else:
-        raise ValueError("Didn't anticipate that!")
+        if key == "-":  # i.e.  - testvalue
+            return {"-": [container]}, container  # was parent_container******was :[container]}, container
+        # i.e. testkey: testvalue
+        container = [container[1:-1]] if container.startswith("[") else container  # list
+        if isinstance(container, list):
+            container = expand_single_literal_list(container)
+        elif container.startswith("'") and container.endswith("'"):
+            container = literal_or_original(container)
+        return {key.rstrip(":"): container}, container  # was parent_container#str
+    raise ValueError("Didn't anticipate that!")
 
 
 def process_code(fin):

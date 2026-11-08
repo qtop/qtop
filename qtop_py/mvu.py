@@ -26,6 +26,8 @@ def MVU_reserved_pattern_mappings(config):
 
 def MVU_compress_colored_line(value):
     """Coalesce adjacent characters that use the same ANSI color code."""
+    if "\x1b[" not in value:  # uncoloured (-c OFF): nothing to coalesce, add no reset
+        return value
     color_char_pairs = [item for item in re.split(r"\x1b\[0;m", value) if item]
     return "".join(color + "".join(item[-1] for item in items) + "\x1b[0;m" for color, items in groupby(color_char_pairs, key=lambda item: item[:-1]))
 
@@ -80,7 +82,7 @@ def MVU_colorize(model, text, color_func=None, pattern="NoPattern", mapping=None
     state = ColorStr('running. coloring according to node state')
     print(colorize(state.str, mapping=nodestate_to_color, pattern=state.initial))
     """
-    bg_color = "NOBG" if not bg_color else bg_color
+    bg_color = bg_color if bg_color else "NOBG"
     if not mapping:
         mapping = model.user_to_color
     try:

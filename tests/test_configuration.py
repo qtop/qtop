@@ -43,6 +43,14 @@ def config():
         ("extract_info.regex", []),
         ("schedulers", {"custom": {"native_file": "no delimiter"}}),
         ("signature_commands", {"custom": None}),
+        ("sge_whole_queues", "world"),
+        ("sge_whole_queues", [""]),
+        ("sge_whole_queues", [1]),
+        ("accounts_states", []),
+        ("accounts_states", "running_of_user"),
+        ("accounts_states", ["runing_of_user"]),
+        ("accounts_states", [{"running_of_user": ""}]),
+        ("summary_states", [{"running_of_user": "R", "queued_of_user": "Q"}]),
     ],
 )
 def test_invalid_config_identifies_key_before_side_effects(config, path, value, monkeypatch):
@@ -61,6 +69,34 @@ def test_validation_accepts_defaults_normalized_values_and_extensions(config):
     validate_config(config)
     validate_config(configuration.normalize_config(config))
     assert config["transpose_wn_matrices"] == "True"
+
+
+def _uncomment(text, block):
+    commented = "\n".join("# " + line for line in block.splitlines())
+    assert commented in text
+    return text.replace(commented, block)
+
+
+def test_state_column_examples_parse_and_validate(tmp_path):
+    text = (Path(__file__).resolve().parents[1] / "qtopconf.yaml").read_text()
+    states = "  - running_of_user\n  - cancelled_of_user\n  - queued_of_user\n  - other_of_user"
+    text = _uncomment(text, "accounts_states:\n" + states).replace(states, "  - exiting_of_user: Ex\n" + states, 1)
+    text = _uncomment(text, "summary_states:\n  - running_of_user\n  - queued_of_user\n  - other_of_user")
+    path = tmp_path / "qtopconf.yaml"
+    path.write_text(text)
+    config = yaml_parser.parse(str(path))
+    assert config["accounts_states"] == [{"exiting_of_user": "Ex"}, "running_of_user", "cancelled_of_user", "queued_of_user", "other_of_user"]
+    assert config["summary_states"] == ["running_of_user", "queued_of_user", "other_of_user"]
+    validate_config(config)
+
+
+def test_sge_whole_queues_example_parses_and_validates(tmp_path):
+    text = (Path(__file__).resolve().parents[1] / "qtopconf.yaml").read_text()
+    path = tmp_path / "qtopconf.yaml"
+    path.write_text(text.replace("# sge_whole_queues:\n#   - world\n#   - whole*", "sge_whole_queues:\n  - world\n  - whole*"))
+    config = yaml_parser.parse(str(path))
+    assert config["sge_whole_queues"] == ["world", "whole*"]
+    validate_config(config)
 
 
 @pytest.mark.parametrize("value", ["0.25", 0.25, 30])
@@ -110,7 +146,7 @@ def test_loading_preserves_precedence_and_applies_cli_once(tmp_path, monkeypatch
 
 def test_snapshot_configuration_is_isolated_from_file_layers_and_mutation(config, monkeypatch):
     original = copy.deepcopy(config)
-    monkeypatch.setattr(configuration.yaml, "parse", lambda path: pytest.fail("Snapshot replay must not read local configuration"))
+    monkeypatch.setattr(configuration.yaml_parser, "parse", lambda path: pytest.fail("Snapshot replay must not read local configuration"))
     monkeypatch.setattr(configuration.fileutils, "private_save_directory", lambda path: path)
     options = SimpleNamespace(load_sample="support.tar", sample_snapshot={"config": config}, OPTION=["scheduler_command_timeout=4"], TRANSPOSE=False)
     prepared, colors, _ = configuration.load_yaml_config(options, "unused", "unused", "unused", "unused")

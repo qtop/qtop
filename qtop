@@ -6,5 +6,5 @@ import runpy
 import sys
 sys.path.insert(0, sys.argv.pop(1))
 sys.argv[0] = "qtop"
-runpy.run_module("qtop_py.cli", run_name="__main__")
+runpy.run_module("qtop_py.qtop", run_name="__main__")
 ' "$qtop_root" "$@"

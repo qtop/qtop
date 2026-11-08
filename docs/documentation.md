@@ -262,6 +262,27 @@ configured ``getent passwd`` command; the default cache is
 ``--show-groups`` resolves each user's primary Unix group through the local
 account database. Neither option requires a Grid pool-mapping command.
 
+The state columns after ``jobs >=`` are tunable; the default is ``R + Q``.
+``accounts_states`` lists state keys from ``state_abbreviations``, in display
+order; ``other_of_user`` counts jobs in none of the listed states, and an entry
+may be a ``{state key: label}`` mapping when first-letter labels collide.
+``summary_states`` does the same for the Summary line. Unset, the Summary shows
+the scheduler-reported ``R + Q`` totals; set, it counts the job list instead,
+which may differ slightly from the scheduler's own totals.
+
+```yaml
+accounts_states:
+  - running_of_user
+  - cancelled_of_user
+  - queued_of_user
+  - expired_of_user: X
+  - other_of_user
+summary_states:
+  - running_of_user
+  - queued_of_user
+  - other_of_user
+```
+
 Watch mode
 ----------
 
@@ -452,6 +473,17 @@ allocations retain exact task IDs when the job snapshot includes those tasks;
 otherwise a reported parent may supply their user/queue association. Unknown
 tasks retain their IDs. Legacy job tables support underscore usernames and full
 queue names; legacy queue tables accept numeric node limits.
+
+SGE whole-node queues are opt-in. A running job in a queue matching
+`sge_whole_queues` (exact names or `fnmatch` globs, matched before
+anonymization) is drawn on every free core up to the node's `num_proc`; cores
+held by other jobs are kept, and idle nodes stay idle. Unset or empty disables it:
+
+```yaml
+sge_whole_queues:
+  - world
+  - whole*
+```
 
 ```yaml
 savepath: /tmp/qtop_results_$USER
@@ -1053,7 +1085,10 @@ checkout.
 
 ### Experimental web configuration
 
-The web interface remains experimental and has no authentication or TLS.
+The web interface remains experimental and has no authentication or TLS. The
+missing login is deliberate: `api.json` carries scheduler state that any local
+user can already query with the workload manager's commands. Only `/`,
+`/index.html` and `/api.json` are served; any other path returns 404.
 Configure its IPv4 address or hostname and port in `qtopconf.yaml`:
 
 ```yaml

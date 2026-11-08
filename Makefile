@@ -1,3 +1,6 @@
+## Copyright (c) 2026 qtop contributors
+## SPDX-License-Identifier: MIT
+
 .DEFAULT_GOAL := help
 
 PYTHON ?= python3
@@ -15,9 +18,9 @@ TRACE_FULLVIEW ?=
 TRACE_ARTIFACT_DIR ?= artifacts/trace-export
 PBS_SAMPLES_DIR ?= ../qtop-test-repo/qtop5/results
 PBS_SAMPLE_LIMIT ?= 447
-PBS_OUTPUT_DIR ?= /tmp/qtop-pbs-rendered
+PBS_OUTPUT_DIR ?= artifacts/pbs-rendered
 SLURM_SAMPLES_DIR ?= tests/plugins/slurm_samples
-SLURM_OUTPUT_DIR ?= /tmp/qtop-slurm-rendered
+SLURM_OUTPUT_DIR ?= artifacts/slurm-rendered
 FUZZ_SEED ?= 488
 FUZZ_CASES ?= 5000
 FUZZ_ARTIFACT_DIR ?= artifacts/fuzz
@@ -33,7 +36,17 @@ help:: ## Show this help
 	@grep -E '^[a-zA-Z0-9_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
 		| awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
 
-all:: ci-deps test coverage backend-validation backend-colour-artifacts render-backends trace-export-validation test-pbs-samples test-slurm-samples fortifications ruff-check lint format-check compat-py36 ci github-ci gitlab-ci build github-build gitlab-build dist version ## Run every local validation and build target
+all:: ## Run every local validation and build target, in six batches
+all:: ci-deps pre-pr validation-suite compat-py36 ci-entrypoints packaging
+
+validation-suite:: ## Validate scheduler samples, rendered output and trace export
+validation-suite:: backend-validation backend-colour-artifacts render-backends trace-export-validation test-pbs-samples test-slurm-samples
+
+ci-entrypoints:: ## Run the shared, GitHub and GitLab CI entry points
+ci-entrypoints:: ci github-ci gitlab-ci
+
+packaging:: ## Build and validate release artifacts, then print the version
+packaging:: build github-build gitlab-build dist version
 
 rerun:: clean all ## Clean generated files, then rerun the complete local validation path
 

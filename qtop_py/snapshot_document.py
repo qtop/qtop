@@ -85,5 +85,5 @@ class Document(namedtuple("Document", ["worker_nodes", "jobs_dict", "queues_dict
         return state
 
     def save(self, filename: str) -> None:
-        with open(filename, "w") as outfile:
+        with open(filename, "w", encoding="utf-8") as outfile:
             json.dump(self._state if hasattr(self, "_state") else self.to_cluster_state(), outfile)

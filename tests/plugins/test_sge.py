@@ -226,3 +226,67 @@ def test_idle_nodes_keep_queue_membership(slots_used, same_host):
     memberships = {node["domainname"]: set(node["qname"]) for node in nodes}
     assert memberships == ({"node01": {"batch", "long"}} if same_host else {"node01": {"batch"}, "node02": {"long"}})
     assert all(node["core_job_map"] == {} and node["np"] == 16 and node["state"] == "-" for node in nodes)
+
+
+def _whole_queue_nodes(tmp_path, patterns, instances, anonymize=False):
+    template = (
+        '<Queue-List><name>{queue}@{host}</name><resource name="qname">{queue}</resource><resource name="hostname">{host}</resource>'
+        '<resource name="num_proc">16</resource>{job}</Queue-List>'
+    )
+    job = (
+        '<job_list state="running"><JB_job_number>{id}</JB_job_number><JB_owner>alice</JB_owner><JB_name>job</JB_name>'
+        "<state>r</state><JAT_start_time>now</JAT_start_time><slots>{slots}</slots></job_list>"
+    )
+    queues = "".join(template.format(queue=q, host=h, job=job.format(id=j, slots=s) if j else "") for q, h, j, s in instances)
+    path = tmp_path / "qstat.F.xml.stdout"
+    path.write_text("<job_info><queue_info>" + queues + "</queue_info><job_info/></job_info>")
+    options = Options()
+    options.ANONYMIZE, options.SAMPLE = anonymize, 0
+    config = {} if patterns is None else {"sge_whole_queues": patterns}
+    system = SGEBatchSystem({"sge_file": str(path)}, config, options)
+    system.get_jobs_info()
+    return system.get_worker_nodes([], [], options)
+
+
+@pytest.mark.parametrize("patterns, busy", [(None, 2), ([], 2), (["batch*"], 2), (["world"], 16), (["wor*"], 16), (["batch", "w?rld"], 16), (["batch, world"], 16)])
+def test_whole_queues_are_opt_in_and_glob_matched(tmp_path, patterns, busy):
+    (node,) = _whole_queue_nodes(tmp_path, patterns, [("world", "node01", "100", 2)])
+    assert node["existing_busy_cores"] == busy and set(node["core_job_map"].values()) == {"100"}
+
+
+@pytest.mark.parametrize("whole_first", [True, False])
+def test_whole_queue_job_fills_only_free_cores_of_a_shared_host(tmp_path, whole_first):
+    instances = [("world", "node01", "100", 2), ("batch", "node01", "200", 3)]
+    (node,) = _whole_queue_nodes(tmp_path, ["world"], instances if whole_first else instances[::-1])
+    allocations = list(node["core_job_map"].values())
+    assert len(allocations) == 16 and allocations.count("200") == 3 and allocations.count("100") == 13
+
+
+def test_idle_whole_queue_node_stays_idle(tmp_path):
+    (node,) = _whole_queue_nodes(tmp_path, ["world"], [("world", "node01", None, 0)])
+    assert node["core_job_map"] == {} and node["existing_busy_cores"] == 0
+
+
+def test_whole_queues_match_raw_names_under_anonymization(tmp_path):
+    (node,) = _whole_queue_nodes(tmp_path, ["world"], [("world", "node01", "100", 2)], anonymize=True)
+    assert node["existing_busy_cores"] == 16 and "world" not in node["qname"][0]
+
+
+@pytest.mark.parametrize("num_proc, np", [("16", "16"), ("65536", "65536"), ("65537", 0), ("100000000", 0), ("-4", 0), ("abc", 0), ("", 0)])
+@pytest.mark.parametrize("whole", [False, True])
+def test_num_proc_is_capped_at_parse_time(tmp_path, caplog, num_proc, np, whole):
+    queue = (
+        '<Queue-List><name>world@node01</name><resource name="qname">world</resource><resource name="hostname">node01</resource>'
+        '<resource name="num_proc">%s</resource><job_list state="running"><JB_job_number>100</JB_job_number><JB_owner>alice</JB_owner>'
+        "<JB_name>job</JB_name><state>r</state><JAT_start_time>now</JAT_start_time><slots>2</slots></job_list></Queue-List>"
+    ) % num_proc
+    path = tmp_path / "qstat.F.xml.stdout"
+    path.write_text("<job_info><queue_info>" + queue + "</queue_info><job_info/></job_info>")
+    options = Options()
+    options.SAMPLE = 0
+    system = SGEBatchSystem({"sge_file": str(path)}, {"sge_whole_queues": ["world"]} if whole else {}, options)
+    system.get_jobs_info()
+    (node,) = system.get_worker_nodes([], [], options)
+    assert node["np"] == (int(np) if np else 2)
+    assert node["existing_busy_cores"] == (int(np) if np and whole else 2)
+    assert ("Ignoring invalid SGE num_proc" in caplog.text) is (not np)

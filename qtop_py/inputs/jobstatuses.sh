@@ -1,4 +1,6 @@
 #!/bin/sh
+## Copyright (c) 2012-2026 qtop contributors
+## SPDX-License-Identifier: MIT
 JOBNAME='qtop-input'
 JOBIDDIR=$HOME/$JOBNAME/jobIDs
 

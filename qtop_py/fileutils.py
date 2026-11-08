@@ -13,16 +13,6 @@ import tarfile
 import tempfile
 
 
-def mkdir_p(path):
-    try:
-        os.makedirs(path)
-    except OSError as exc:  # Python >2.5
-        if exc.errno == errno.EEXIST and os.path.isdir(path):
-            pass
-        else:
-            raise
-
-
 def _open_owned(path, flags, mode, directory_fd):
     try:
         return os.open(path, flags, mode, dir_fd=directory_fd)
@@ -187,10 +177,9 @@ def _without_archive_owner(member):
 
 def save_raw_companion(savepath, filenames):
     handle, path = tempfile.mkstemp(prefix="qtop_raw_traces_", suffix=".tar", dir=savepath)
-    with os.fdopen(handle, "wb") as stream:
-        with tarfile.open(fileobj=stream, mode="w", dereference=True) as archive:
-            for key, source in filenames.items():
-                archive.add(source, arcname=key, recursive=False, filter=_without_archive_owner)
+    with os.fdopen(handle, "wb") as stream, tarfile.open(fileobj=stream, mode="w", dereference=True) as archive:
+        for key, source in filenames.items():
+            archive.add(source, arcname=key, recursive=False, filter=_without_archive_owner)
     return path
 
 
@@ -216,14 +205,6 @@ def get_sample_filename(SAMPLE_FILENAME, config):
     else:
         SAMPLE_FILENAME = SAMPLE_FILENAME % {"datetime": "_" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")}
     return SAMPLE_FILENAME
-
-
-class FileNotFound(Exception):
-    def __init__(self, fn):
-        msg = "File %s not found.\nMaybe the correct scheduler is not specified?" % fn
-        Exception.__init__(self, msg)
-        logging.critical(msg)
-        self.fn = fn
 
 
 class FileEmptyError(Exception):

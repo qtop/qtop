@@ -1,0 +1,43 @@
+## Copyright (c) 2012-2026 qtop contributors
+## SPDX-License-Identifier: MIT
+
+easyblock = 'PythonPackage'
+
+name = 'qtop'
+version = '0.9.20261108'
+
+homepage = 'https://github.com/qtop/qtop'
+description = """qtop is a text-mode monitor of batch-cluster utilization and job status.
+  It shows a per-queue job summary, a worker-node by core occupancy matrix and the
+  per-user legend in one screen, for PBS/Torque, SGE, Slurm and OAR."""
+
+toolchain = {'name': 'GCCcore', 'version': '14.3.0'}
+
+github_account = 'qtop'
+source_urls = [GITHUB_SOURCE]
+sources = [{'download_filename': 'v%(version)s.tar.gz', 'filename': SOURCE_TAR_GZ}]
+## checksums = ['db85a89f80e5ca738be4434a663b66c88571bc5dd87c76f88eb5f8ced98d7ebe']
+## refresh with: eb qtop-0.9.20261108-GCCcore-14.3.0.eb --inject-checksums
+
+
+builddependencies = [
+    ('binutils', '2.44'),
+]
+
+dependencies = [
+    ('Python', '3.13.5'),
+]
+
+postinstallcmds = ['install -D -m 0644 %(start_dir)s/docs/qtop.1 %(installdir)s/share/man/man1/qtop.1']
+
+sanity_check_paths = {
+    'files': ['bin/qtop', 'share/man/man1/qtop.1'],
+    'dirs': ['lib/python%(pyshortver)s/site-packages/qtop_py'],
+}
+
+sanity_check_commands = [
+    'qtop --version',
+    'qtop -b demo -c OFF',
+]
+
+moduleclass = 'tools'

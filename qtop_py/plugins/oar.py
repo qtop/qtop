@@ -5,8 +5,7 @@ import os
 import re
 from collections import OrderedDict
 
-from qtop_py import fileutils
-from qtop_py import yaml_parser as yaml
+from qtop_py import fileutils, yaml_parser
 from qtop_py.schedulers.tabular import TabularStatExtractor
 from qtop_py.serialiser import GenericBatchSystem, StatExtractor
 
@@ -33,17 +32,17 @@ class OarStatExtractor(TabularStatExtractor):
         except fileutils.FileEmptyError:
             logging.error("File %s seems to be empty." % orig_file)
             return all_values
-        with open(orig_file, "r") as fin:
+        with open(orig_file, "r", encoding="utf-8", errors="replace") as fin:
             logging.debug("File state before OarStatExtractor.extract_qstat: %(fin)s" % {"fin": fin})
             _ = fin.readline()  # header
             fin.readline()  # dashes
             re_match_positions = ("job_id", "user", "job_state", "queue")
-            re_search = self.user_q_search
+            pattern = self.user_q_search
             for line in fin:
                 if not line.strip():
                     continue
                 try:
-                    qstat_values = self._process_qstat_line(re_search, line, re_match_positions)
+                    qstat_values = self._process_qstat_line(pattern, line, re_match_positions)
                 except AttributeError as error:
                     raise ValueError("Cannot parse OAR job row: %s" % line.strip()) from error
                 qstat_values["Queue"] = self.anonymize(qstat_values["Queue"], "qs")
@@ -106,25 +105,24 @@ class OARBatchSystem(GenericBatchSystem):
                         rows.append(mask(name, "node") + ":")
                     else:
                         rows.append(indent + mask.public(name, r"[0-9]+") + ": " + mask.public(value, "Alive|Dead|Suspected|Mixed|Unknown"))
+                elif re.fullmatch(r"[0-9]+:\s*", line):
+                    rows.append(line)
+                    jobs_list = False
+                elif line.strip().startswith("jobs:"):
+                    value = line.strip().split(":", 1)[1].strip()
+                    self._parse_job_ids(value)
+                    rows.append(line[: len(line) - len(line.lstrip())] + "jobs: " + re.sub(r"[0-9]+", lambda match: mask(match.group(), "job"), value))
+                    jobs_list = not value
+                elif jobs_list and re.fullmatch(r"\s+- [0-9]+\s*", line):
+                    rows.append(re.sub(r"[0-9]+", lambda match: mask(match.group(), "job"), line))
                 else:
-                    if re.fullmatch(r"[0-9]+:\s*", line):
-                        rows.append(line)
-                        jobs_list = False
-                    elif line.strip().startswith("jobs:"):
-                        value = line.strip().split(":", 1)[1].strip()
-                        self._parse_job_ids(value)
-                        rows.append(line[: len(line) - len(line.lstrip())] + "jobs: " + re.sub(r"[0-9]+", lambda match: mask(match.group(), "job"), value))
-                        jobs_list = not value
-                    elif jobs_list and re.fullmatch(r"\s+- [0-9]+\s*", line):
-                        rows.append(re.sub(r"[0-9]+", lambda match: mask(match.group(), "job"), line))
-                    else:
-                        # Non-job resource attributes are not consumed by qtop.
-                        if ":" not in line:
-                            raise ValueError("unsupported resource row")
-                        name, value = line.strip().split(":", 1)
-                        indent = line[: len(line) - len(line.lstrip())]
-                        rows.append(indent + mask(name, "field") + ": " + mask(value.strip()))
-                        jobs_list = False
+                    # Non-job resource attributes are not consumed by qtop.
+                    if ":" not in line:
+                        raise ValueError("unsupported resource row")
+                    name, value = line.strip().split(":", 1)
+                    indent = line[: len(line) - len(line.lstrip())]
+                    rows.append(indent + mask(name, "field") + ": " + mask(value.strip()))
+                    jobs_list = False
             else:
                 raise ValueError("unsupported trace")
         names = {"oarstat_file": "oarstat.txt", "oarnodes_s_file": "oarnodes_s_Y.txt", "oarnodes_y_file": "oarnodes_Y.txt"}
@@ -184,8 +182,7 @@ class OARBatchSystem(GenericBatchSystem):
             worker_nodes.append(d)
 
         logging.info("worker_nodes contains %s entries" % len(worker_nodes))
-        worker_nodes = self.ensure_worker_nodes_have_qnames(worker_nodes, job_ids, job_queues)
-        return worker_nodes
+        return self.ensure_worker_nodes_have_qnames(worker_nodes, job_ids, job_queues)
 
     def get_jobs_info(self):
         qstats = self._get_jobs()
@@ -220,7 +217,7 @@ class OARBatchSystem(GenericBatchSystem):
         logging.debug("File %s exists: %s" % (fn_s, os.path.isfile(fn_s)))
         if os.stat(fn_s).st_size == 0:
             raise ValueError("OAR node input is empty: %s" % fn_s)
-        data = yaml.safe_load(fn_s, DEF_INDENT=4)
+        data = yaml_parser.safe_load(fn_s, DEF_INDENT=4)
         if self.options.ANONYMIZE:
             nodes_resids = dict([(anonymize(node, "wns"), resid_state.items()) for node, resid_state in data.items()])
         else:
@@ -232,7 +229,7 @@ class OARBatchSystem(GenericBatchSystem):
         resources = {}
         resid = None
         jobs_list = False
-        with open(fn) as stream:
+        with open(fn, encoding="utf-8", errors="replace") as stream:
             for line in stream:
                 text = line.strip()
                 if not text or text.startswith("#") or text in ("---", "..."):
@@ -256,7 +253,7 @@ class OARBatchSystem(GenericBatchSystem):
 
     @staticmethod
     def _parse_job_ids(value):
-        value = yaml.literal_or_original(value)
+        value = yaml_parser.literal_or_original(value)
         if value is None or value in ("", "~", "null"):
             return []
         tokens = value if isinstance(value, (list, tuple)) else str(value).split(",")

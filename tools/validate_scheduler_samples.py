@@ -552,7 +552,7 @@ def run_case(case, artifact_dir, timeout):
 def run_case_with_home(case, artifact_dir, timeout, qtop_home):
     case_dir = artifact_dir / case["name"]
 
-    command = [sys.executable, "-m", "qtop_py.cli"] + case.get(
+    command = [sys.executable, "-m", "qtop_py.qtop"] + case.get(
         "args",
         ["-s", str(case["source"]), "-c", "ON", "-F", "-b", case["scheduler"]],
     )

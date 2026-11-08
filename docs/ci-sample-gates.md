@@ -154,10 +154,12 @@ keeps validation logic out of provider-specific CI YAML.
 
 ## Clean reruns
 
-`make all` runs the local validation and build path. The optional archived PBS
-sample sweep is skipped with an explanatory message when the external corpus is
-not present. To remove generated artifacts, caches, and build output before
-repeating that path, use:
+`make all` runs six batches: CI dependencies, the `pre-pr` gate, the validation
+suite, Python 3.6 compatibility, the CI entry points and packaging. Because it
+includes `pre-pr`, it needs Linux x86-64 CPython 3.12 with the CI dependencies.
+The optional archived PBS sample sweep is skipped with an explanatory message
+when the external corpus is not present. To remove generated artifacts, caches,
+and build output before repeating that path, use:
 
 ```bash
 printf 'y\n' | make rerun

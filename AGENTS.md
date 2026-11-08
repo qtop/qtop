@@ -25,7 +25,7 @@ Run times depend on the environment and are not fixed budgets.
 
 ## Repo map
 
-- `qtop_py/qtop.py`, `cli.py` - main loop, I/O effects and legacy adapters; argument handling.
+- `qtop_py/qtop.py` - main loop, I/O effects and legacy adapters; argument handling; `python -m qtop_py.qtop` entry.
 - `qtop_py/mvu.py`, `mvu_query.py`, `ui/mvu_view.py` - explicit model/update, snapshot queries and terminal presentation.
 - `qtop_py/plugins/{pbs,sge,slurm,oar,demo}.py` - backends; `qtop_py/schedulers/` - registration, metadata and GPU helpers.
 - `qtop_py/cluster_state.py`, `snapshot_document.py`, `ui/viewport.py`, `colormap.py` - normalized snapshots, navigation and colors.
@@ -59,6 +59,15 @@ keys when intent is ambiguous, and report out-of-scope findings instead of fixin
 
 2.1 Match existing formatting, naming, typing, and test conventions; add compatible
 type annotations when useful. Never silence errors or weaken checks to pass CI.
+Configurable values and constants are UPPERCASE wherever they appear: module
+constants, values from `qtopconf.yaml`, the command line or the environment, and
+the parameters and locals that carry them (e.g. `SAMPLE_FILENAME`, `QTOPPATH`,
+`DEF_INDENT`). This deliberately departs from PEP 8 at function scope, following
+GNU make or Django/Flask settings, where uppercase marks user-configurable values.
+Do not lowercase them; pep8-naming `N803`/`N806`/`N816` stay disabled for this
+reason. Other locals and parameters use snake_case. Annotate true module constants
+`NAME: "Final" = ...` (PEP 591), importing `Final` under `if TYPE_CHECKING:` so
+Python 3.6 keeps working.
 
 2.2 Use focused tests and checks appropriate to the change during development;
 documentation-only edits need documentation/diff checks, not a full runtime test run.

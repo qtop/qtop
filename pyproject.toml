@@ -1,4 +1,6 @@
 [build-system]
+# Deliberate, not an omission: Python < 3.9 keeps setuptools 59.6, the last release
+# supporting Python 3.6 (60.0 requires 3.7). See docs/secure-coding-pyscg.md (PySCG-0053).
 requires = [
     "setuptools>=59.6,<60; python_version < '3.9'",
     "setuptools>=78.1.1,<83; python_version == '3.9'",

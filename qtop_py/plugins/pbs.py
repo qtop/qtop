@@ -23,6 +23,17 @@ from qtop_py.safety import load_json
 from qtop_py.schedulers.tabular import TabularStatExtractor
 from qtop_py.serialiser import GenericBatchSystem, StatExtractor, resolve_job_id
 
+# NQS request states mapped onto PBS single-letter job states.
+NQS_REQUEST_STATES = {
+    "EXITING": "E",
+    "HELD": "H",
+    "QUEUED": "Q",
+    "RUNNING": "R",
+    "SUSPENDED": "S",
+    "TRANSITING": "T",
+    "WAITING": "W",
+}
+
 
 class PBSStatExtractor(TabularStatExtractor):
     def __init__(self, config, options):
@@ -42,13 +53,16 @@ class PBSStatExtractor(TabularStatExtractor):
             r"(?:[0-9]\.[0-9]+)\s+"
             r"(?:[\w.-]+)\s+"
             r"(?P<user>[\w.-]+)\s+"
-            r"(?P<state>[a-z])\s+"
-            r"(?:\d{2}/\d{2}/\d{2}|0)\s+"
+            r"(?P<state>[A-Za-z]+)\s+"
+            r"(?:\d{2}/\d{2}/\d{2,4}|0)\s+"
             r"(?:\d+:\d+:\d*|0)\s+"
-            r"(?P<queue_name>[\w.-]+@[\w.-]+)\s+"
-            r"(?:\d+)\s+"
-            r"(?:\w*)"
+            r"(?:(?P<queue_name>[\w.-]+@[\w.-]+)\s+)?"  # blank for pending (qw) jobs
+            r"(?:\d+)(?=\s|$)"
         )
+
+        # Legacy NQS-style qstat: "<queue>;  type=BATCH; ..." headers precede their request rows.
+        self.nqs_queue_header = r"^(?P<queue_name>[\w.-]+);\s+type=\w+;"
+        self.nqs_request = r"^\d+:\s+(?P<name>\S+)\s+(?P<job_id>\d+)\s+(?P<user>[\w.-]+)\s+(?P<state>[A-Z]+)$"
 
     def extract_qstat(self, orig_file):
         """
@@ -71,7 +85,7 @@ class PBSStatExtractor(TabularStatExtractor):
             all_qstat_values = []
         else:
             try:
-                with open(orig_file) as f:
+                with open(orig_file, encoding="utf-8", errors="replace") as f:
                     _ = load_json(f)
             except json.JSONDecodeError:
                 logging.info("Extracting qstat output using regex")
@@ -84,37 +98,74 @@ class PBSStatExtractor(TabularStatExtractor):
 
     def _extract_qstat_regex(self, qstat_file):
         all_qstat_values = list()
-        with open(qstat_file, "r") as fin:
+        with open(qstat_file, "r", encoding="utf-8", errors="replace") as fin:
             re_match_positions = ("job_id", "user", "state", "queue_name")  # was: (1, 5, 7, 8), (1, 4, 5, 8)
 
-            re_search = None
+            pattern = None
+            nqs_queue = None
             for line in fin:
                 if not line.strip():
                     continue
 
-                if re_search is None:
+                if pattern in (None, self.nqs_request):
+                    header = re.match(self.nqs_queue_header, line.strip())
+                    if header:
+                        pattern, nqs_queue = self.nqs_request, header.group("queue_name")
+                        continue
+
+                if pattern == self.nqs_request:
+                    qstat_values = self._process_nqs_request_line(line, nqs_queue)
+                    if qstat_values:
+                        all_qstat_values.append(qstat_values)
+                    continue
+
+                if pattern is None:
                     for candidate in (self.user_q_search, self.user_q_search_prior):
                         try:
                             qstat_values = self._process_qstat_line(candidate, line, re_match_positions)
                         except AttributeError:
                             continue
                         else:
-                            re_search = candidate
-                            all_qstat_values.append(qstat_values)
+                            pattern = candidate
+                            all_qstat_values.append(self._default_pending_queue(qstat_values))
                             break
                     continue
 
                 try:
-                    qstat_values = self._process_qstat_line(re_search, line, re_match_positions)
+                    qstat_values = self._process_qstat_line(pattern, line, re_match_positions)
                 except AttributeError:
                     continue
-                all_qstat_values.append(qstat_values)
+                all_qstat_values.append(self._default_pending_queue(qstat_values))
 
         return all_qstat_values
 
+    @staticmethod
+    def _default_pending_queue(qstat_values):
+        """
+        SGE-style -prior output leaves the queue blank for pending jobs; label them as the SGE plugin does.
+        """
+        if not qstat_values["Queue"]:
+            qstat_values["Queue"] = "Pending"
+        return qstat_values
+
+    def _process_nqs_request_line(self, line, queue_name):
+        """
+        Parse one NQS request row; summary ("1 run; 0 wait;") and column-header lines yield None.
+        """
+        m = re.match(self.nqs_request, line.strip())
+        if m is None:
+            if re.match(r"^\d+:", line.strip()):
+                logging.warning("Line: %s not properly parsed as an NQS request. Skipping." % line.strip())
+            return None
+        state = NQS_REQUEST_STATES.get(m.group("state"))
+        if state is None:
+            logging.warning("Unknown NQS request state %s in line: %s. Skipping." % (m.group("state"), line.strip()))
+            return None
+        return {"JobId": m.group("job_id"), "UnixAccount": self.anonymize(m.group("user"), "users"), "S": state, "Queue": queue_name}
+
     def _extract_qstat_json(self, qstat_file):
         all_qstat_values = list()
-        with open(qstat_file, "r") as fin:
+        with open(qstat_file, "r", encoding="utf-8", errors="replace") as fin:
             data = load_json(fin)
             jobs = data["Jobs"]
             for job_id, job in jobs.items():
@@ -150,7 +201,7 @@ class PBSStatExtractor(TabularStatExtractor):
             all_qstatq_values = []
         else:
             try:
-                with open(orig_file) as f:
+                with open(orig_file, encoding="utf-8", errors="replace") as f:
                     _ = load_json(f)
             except json.JSONDecodeError:
                 logging.info("Extracting qstat_q output using regex")
@@ -177,7 +228,7 @@ class PBSStatExtractor(TabularStatExtractor):
 
         all_qstatq_values = list()
         total_running_jobs, total_queued_jobs = 0, 0
-        with open(qstatq_file, "r") as fin:
+        with open(qstatq_file, "r", encoding="utf-8", errors="replace") as fin:
             fin.readline()
             fin.readline()
             fin.readline()
@@ -200,7 +251,7 @@ class PBSStatExtractor(TabularStatExtractor):
     def _extract_qstatq_json(self, qstatq_file):
         anonymize = self.anonymize_func()
         all_qstatq_values = list()
-        with open(qstatq_file, "r") as fin:
+        with open(qstatq_file, "r", encoding="utf-8", errors="replace") as fin:
             data = load_json(fin)
             queues = data["Queue"]
             for queue_name, queue in queues.items():
@@ -232,31 +283,36 @@ class PBSBatchSystem(GenericBatchSystem):
     classic_job_count_source = "reported by qstat - q"
     classic_account_note = "  ('all' also includes those in C and W states, as reported by qstat)"
 
+    @staticmethod
+    def _mask_json_trace(key, text, mask):
+        """Mask JSON job or queue traces, keeping only known fields."""
+        data = json.loads(text)
+        container = "Jobs" if key == "qstat_file" else "Queue"
+        records = {}
+        labels = {"Job_Owner", "Job_Name", "job_state", "queue", "state_count", "enabled", "started", "max_run", "max_running"}
+        for name, record in data[container].items():
+            result = mask.structured(record, labels)
+            if container == "Jobs":
+                result["Job_Owner"] = mask(record["Job_Owner"].split("@")[0], "user") + "@" + mask(record["Job_Owner"].split("@")[-1], "node")
+                result["queue"] = mask(record["queue"], "queue")
+                result["job_state"] = mask.public(record["job_state"], "[A-Z]")
+                name = mask(name.split(".")[0], "job") + ".server"
+            else:
+                for field in ("state_count", "enabled", "started", "max_run", "max_running"):
+                    if field in record:
+                        value = record[field]
+                        if isinstance(value, str):
+                            value = mask.public(value, r"(?:(?:Transit|Queued|Held|Waiting|Running|Exiting|Begun):[0-9]+\s*|[0-9]+|[Tt]rue|[Ff]alse|--)+")
+                        elif not isinstance(value, (bool, int, float)):
+                            raise ValueError("unsupported queue scalar")
+                        result[field] = value
+                name = mask(name, "queue")
+            records[name] = result
+        return ("qstat.txt" if container == "Jobs" else "qstat_q.txt"), json.dumps({container: records}, indent=2) + "\n"
+
     def mask_source_trace(self, key, text, mask):
         if key in ("qstat_file", "qstatq_file") and text.lstrip().startswith("{"):
-            data = json.loads(text)
-            container = "Jobs" if key == "qstat_file" else "Queue"
-            records = {}
-            labels = {"Job_Owner", "Job_Name", "job_state", "queue", "state_count", "enabled", "started", "max_run", "max_running"}
-            for name, record in data[container].items():
-                result = mask.structured(record, labels)
-                if container == "Jobs":
-                    result["Job_Owner"] = mask(record["Job_Owner"].split("@")[0], "user") + "@" + mask(record["Job_Owner"].split("@")[-1], "node")
-                    result["queue"] = mask(record["queue"], "queue")
-                    result["job_state"] = mask.public(record["job_state"], "[A-Z]")
-                    name = mask(name.split(".")[0], "job") + ".server"
-                else:
-                    for field in ("state_count", "enabled", "started", "max_run", "max_running"):
-                        if field in record:
-                            value = record[field]
-                            if isinstance(value, str):
-                                value = mask.public(value, r"(?:(?:Transit|Queued|Held|Waiting|Running|Exiting|Begun):[0-9]+\s*|[0-9]+|[Tt]rue|[Ff]alse|--)+")
-                            elif not isinstance(value, (bool, int, float)):
-                                raise ValueError("unsupported queue scalar")
-                            result[field] = value
-                    name = mask(name, "queue")
-                records[name] = result
-            return ("qstat.txt" if container == "Jobs" else "qstat_q.txt"), json.dumps({container: records}, indent=2) + "\n"
+            return self._mask_json_trace(key, text, mask)
         rows = []
         for index, line in enumerate(text.splitlines()):
             if not line.strip():
@@ -337,8 +393,7 @@ class PBSBatchSystem(GenericBatchSystem):
         try:
             fileutils.check_empty_file(self.pbsnodes_file)
         except fileutils.FileEmptyError:
-            all_pbs_values = []
-            return all_pbs_values
+            return []
 
         raw_blocks = self._read_all_blocks(self.pbsnodes_file)
         known_ids = set(job_ids)
@@ -349,7 +404,7 @@ class PBSBatchSystem(GenericBatchSystem):
             pbs_values["domainname"] = block["domainname"] if not self.options.ANONYMIZE else anonymize(block["domainname"], "wns")
 
             nextchar = block["state"][0]
-            state = (nextchar == "f") and "-" or nextchar
+            state = "-" if nextchar == "f" else nextchar
 
             pbs_values["state"] = state
 
@@ -383,8 +438,7 @@ class PBSBatchSystem(GenericBatchSystem):
             finally:
                 all_pbs_values.append(pbs_values)
 
-        all_pbs_values = self.ensure_worker_nodes_have_qnames(all_pbs_values, job_ids, job_queues)
-        return all_pbs_values
+        return self.ensure_worker_nodes_have_qnames(all_pbs_values, job_ids, job_queues)
 
     def get_jobs_info(self):
         """
@@ -455,7 +509,7 @@ class PBSBatchSystem(GenericBatchSystem):
         """
         reads pbsnodes txt file block by block
         """
-        with open(orig_file, mode="r") as fin:
+        with open(orig_file, mode="r", encoding="utf-8", errors="replace") as fin:
             result = []
             reading = True
             while reading:

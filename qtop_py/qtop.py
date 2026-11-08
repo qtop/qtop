@@ -54,7 +54,7 @@ if TYPE_CHECKING:
     config: state_types.Config
     dynamic_config: state_types.Config
 
-from qtop_py import __version__, configuration, fileutils, sample, utils, yaml_parser
+from qtop_py import __version__, configuration, fileutils, sample, utils
 from qtop_py.colormap import queue_to_color as queue_to_color
 from qtop_py.colormap import user_to_color_default
 from qtop_py.constants import (
@@ -92,7 +92,6 @@ from qtop_py.web import Web
 
 colorize_nodestate = MVU_colorize_nodestate
 
-yaml = yaml_parser
 compress_colored_line = MVU_compress_colored_line
 
 gauge_core_vectors = MVU_gauge_core_vectors
@@ -288,26 +287,23 @@ def raw_mode(file):
     Taken from http://stackoverflow.com/questions/11918999/key-listeners-in-python/11919074#11919074
     Exits program with ^C or ^D
     """
-    if args.ONLYSAVETOFILE:
+    if args.ONLYSAVETOFILE or termios is None:
         yield
-    elif termios is None:
-        yield
-    else:
-        if args.WATCH:
-            try:
-                old_attrs = termios.tcgetattr(file.fileno())
-            except (AttributeError, OSError, termios.error):
-                yield
-            else:
-                new_attrs = old_attrs[:]
-                new_attrs[3] = new_attrs[3] & ~(termios.ECHO | termios.ICANON)
-                try:
-                    termios.tcsetattr(file.fileno(), termios.TCSADRAIN, new_attrs)
-                    yield
-                finally:
-                    termios.tcsetattr(file.fileno(), termios.TCSADRAIN, old_attrs)
-        else:
+    elif args.WATCH:
+        try:
+            old_attrs = termios.tcgetattr(file.fileno())
+        except (AttributeError, OSError, termios.error):
             yield
+        else:
+            new_attrs = old_attrs[:]
+            new_attrs[3] = new_attrs[3] & ~(termios.ECHO | termios.ICANON)
+            try:
+                termios.tcsetattr(file.fileno(), termios.TCSADRAIN, new_attrs)
+                yield
+            finally:
+                termios.tcsetattr(file.fileno(), termios.TCSADRAIN, old_attrs)
+    else:
+        yield
 
 
 def calculate_term_size(config, FALLBACK_TERM_SIZE, viewport):
@@ -374,6 +370,13 @@ def finalize_filepaths_schedulercommands(args, config, backend):
     return d
 
 
+def scheduler_env():
+    """Environment for scheduler-facing commands: C locale, so the dates and messages qtop parses are not localised."""
+    env = dict(os.environ)
+    env["LC_ALL"] = "C"
+    return env
+
+
 def auto_get_avail_batch_system(config, backends):
     """
     If the auto option is set in either env variable QTOP_SCHEDULER, QTOPCONF_YAML or in cmdline switch -b,
@@ -423,7 +426,7 @@ def execute_shell_batch_commands(batch_system_commands, filenames, _file, _savep
                     " ".join(shlex.quote(arg) for arg in command_args),
                     shlex.quote(os.path.abspath(filenames[_file])),
                 )
-                command = subprocess.Popen(command_args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=(os.name == "posix"))
+                command = subprocess.Popen(command_args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=(os.name == "posix"), env=scheduler_env())
             except OSError as error:
                 raise OperationalError("Cannot execute scheduler command %r: %s. Check PATH or load the scheduler module." % (_batch_system_command, error.strerror)) from error
             except ValueError as error:
@@ -477,7 +480,7 @@ def get_detail_of_name(account_jobs_table, config, args):
         timeout = float(config.get("scheduler_command_timeout", 30))
         if not isfinite(timeout) or timeout <= 0:
             raise ValueError("scheduler_command_timeout must be positive and finite")
-        p = subprocess.Popen(user_details_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=(os.name == "posix"))
+        p = subprocess.Popen(user_details_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=(os.name == "posix"), env=scheduler_env())
         output, err = communicate_with_timeout(p, timeout)
         output, err = output.decode("utf-8", errors="replace"), err.decode("utf-8", errors="replace")
     except (OperationalError, OSError, ValueError, TypeError, IndexError, OverflowError, subprocess.TimeoutExpired) as error:
@@ -705,8 +708,7 @@ def fetch_scheduler_files(args, config, backend):
             return args.archive_trace_paths.copy()
         except (OSError, tarfile.TarError, ValueError) as error:
             raise OperationalError("Cannot read scheduler trace archive %s: %s" % (args.source_archive, error)) from error
-    scheduler_output_filenames = get_input_filenames(INPUT_FNs_commands, config, args, backend)
-    return scheduler_output_filenames
+    return get_input_filenames(INPUT_FNs_commands, config, args, backend)
 
 
 def decide_batch_system(cmdline_switch, env_var, config_file_batch_option, schedulers, available_batch_systems, config):
@@ -730,10 +732,10 @@ def decide_batch_system(cmdline_switch, env_var, config_file_batch_option, sched
             scheduler = auto_get_avail_batch_system(config, available_batch_systems)
             logging.debug("Selected scheduler is %s" % scheduler)
             return scheduler
-        elif scheduler in schedulers:
+        if scheduler in schedulers:
             logging.info("User-selected scheduler: %s" % scheduler)
             return scheduler
-        elif scheduler and scheduler not in schedulers:  # a scheduler that does not exist is inputted
+        if scheduler and scheduler not in schedulers:  # a scheduler that does not exist is inputted
             raise NoSchedulerFound
     raise NoSchedulerFound
 
@@ -745,7 +747,7 @@ def get_output_size(max_line_len, output_fp, max_height=0):
     ansi_escape = re.compile(r"\x1b[^m]*m")  # matches ANSI escape characters
 
     if not max_height or not max_line_len:
-        with open(output_fp, "r") as output_file:
+        with open(output_fp, "r", encoding="utf-8", errors="replace") as output_file:
             output_lines = output_file.readlines()
         if not output_lines:
             raise ValueError("There is no output from qtop *whatsoever*. Weird.")
@@ -1110,29 +1112,29 @@ def main(resources):
 
                 if args.ONLYSAVETOFILE:  # no display of qtop output, will exit
                     break
-                elif not args.WATCH:  # one-off display of qtop output, will exit afterwards (no --watch cmdline switch)
+                if not args.WATCH:  # one-off display of qtop output, will exit afterwards (no --watch cmdline switch)
                     cat_command = ["/bin/cat", output_fp]  # not clearing the screen beforehand is the intended behaviour here
                     _ = subprocess.call(cat_command, stdout=stdout, stderr=stdout)
                     break
-                else:  # --watch
-                    if args.REPLAY:
-                        try:
-                            output_partview_fp = next(useful_frames)
-                        except StopIteration:
-                            logging.critical("No (more) recorded instances available to show! Exiting...")
-                            break
-                    else:
-                        output_partview_fp = display.show_part_view(timestr, file=dynamic_config.get("output_fp", output_fp), x=viewport.v_start, y=viewport.v_term_size)
-                        logging.debug("dynamic_config filename in main loop: %s" % dynamic_config.get("output_fp", output_fp))
-                    clear_command = ["/usr/bin/clear"]
-                    cat_command = ["/bin/cat", output_partview_fp]
-                    _ = subprocess.call(clear_command, stdout=stdout, stderr=stdout)
-                    _ = subprocess.call(cat_command, stdout=stdout, stderr=stdout)
+                # --watch
+                if args.REPLAY:
+                    try:
+                        output_partview_fp = next(useful_frames)
+                    except StopIteration:
+                        logging.critical("No (more) recorded instances available to show! Exiting...")
+                        break
+                else:
+                    output_partview_fp = display.show_part_view(timestr, file=dynamic_config.get("output_fp", output_fp), x=viewport.v_start, y=viewport.v_term_size)
+                    logging.debug("dynamic_config filename in main loop: %s" % dynamic_config.get("output_fp", output_fp))
+                clear_command = ["/usr/bin/clear"]
+                cat_command = ["/bin/cat", output_partview_fp]
+                _ = subprocess.call(clear_command, stdout=stdout, stderr=stdout)
+                _ = subprocess.call(cat_command, stdout=stdout, stderr=stdout)
 
-                    read_char = wait_for_keypress_or_autorefresh(viewport, FALLBACK_TERMSIZE, int(args.WATCH) or KEYPRESS_TIMEOUT)
-                    model, effects = MVU_update(model, read_char)
-                    viewport, dynamic_config = model.viewport, model.display_overrides
-                    MVU_effects(model, effects, cluster, old_attrs, new_attrs)
+                read_char = wait_for_keypress_or_autorefresh(viewport, FALLBACK_TERMSIZE, int(args.WATCH) or KEYPRESS_TIMEOUT)
+                model, effects = MVU_update(model, read_char)
+                viewport, dynamic_config = model.viewport, model.display_overrides
+                MVU_effects(model, effects, cluster, old_attrs, new_attrs)
 
                 os.chdir(QTOPPATH)
                 resources.discard_frame()
@@ -1141,7 +1143,7 @@ def main(resources):
         except (KeyboardInterrupt, EOFError):
             if not (args.SAMPLE and args.ANONYMIZE):
                 print("\nExiting. Thank you for ...watching ;)\n")
-            raise SystemExit(0)
+            raise SystemExit(0) from None
 
 
 if __name__ == "__main__":

@@ -12,6 +12,13 @@ import os
 import subprocess
 import sys
 
+try:
+    from tools.private_output import private_output_dir
+except ImportError:  # run as a script: tools/ itself is sys.path[0]
+    from private_output import private_output_dir
+
+DEFAULT_OUTPUT = "artifacts/slurm-rendered"
+
 
 def iter_sample_dirs(samples_dir):
     for name in sorted(os.listdir(samples_dir)):
@@ -32,7 +39,7 @@ def run_qtop(sample_name, sample_dir, output_dir):
     qtop_home = os.path.join(rendered_output_dir, ".home", sample_name)
     os.makedirs(qtop_home, exist_ok=True)
     env["HOME"] = qtop_home
-    command = [sys.executable, "-m", "qtop_py.cli", "-b", "slurm", "-s", sample_dir, "-O", "-o", "savepath=%s" % rendered_output_dir]
+    command = [sys.executable, "-m", "qtop_py.qtop", "-b", "slurm", "-s", sample_dir, "-O", "-o", "savepath=%s" % rendered_output_dir]
     completed = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env, universal_newlines=True)
     if completed.returncode:
         raise RuntimeError("qtop failed for %s:\nSTDOUT:\n%s\nSTDERR:\n%s" % (sample_name, completed.stdout, completed.stderr))
@@ -41,8 +48,12 @@ def run_qtop(sample_name, sample_dir, output_dir):
 def main():
     parser = argparse.ArgumentParser(description="Render all Slurm qtop command-trace samples.")
     parser.add_argument("samples_dir", help="Directory containing Slurm sample subdirectories")
-    parser.add_argument("--output", default="/tmp/qtop-slurm-rendered", help="Directory for qtop rendered output")
+    parser.add_argument("--output", default=DEFAULT_OUTPUT, help="Private directory for qtop rendered output (default: %(default)s)")
     args = parser.parse_args()
+    try:
+        private_output_dir(args.output)
+    except ValueError as error:
+        parser.error(str(error))
 
     sample_dirs = list(iter_sample_dirs(args.samples_dir))
     if not sample_dirs:

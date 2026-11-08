@@ -9,8 +9,7 @@ from collections import Counter, OrderedDict, namedtuple
 from math import ceil
 from operator import itemgetter
 
-from qtop_py import configuration, utils
-from qtop_py import yaml_parser as yaml
+from qtop_py import configuration, utils, yaml_parser
 from qtop_py.constants import QTOPCONF_YAML, SYMBOL_LONG_TAIL_USER
 from qtop_py.errors import JobNotFound, OperationalError
 from qtop_py.mvu import MVU_colorize_nodestate, MVU_keep_queue_initials_only_and_colorize
@@ -65,17 +64,17 @@ class WNOccupancy(object):
         self.wn_vert_labels = self.calc_all_wnid_label_lines(self.MVU_model.display_overrides["force_names"])
 
         # For-loop below only for user-inserted/customizeable values.
-        for yaml_key, part_name, systems in yaml.get_yaml_key_part(self.config, self.MVU_model.scheduler, outermost_key="workernodes_matrix"):
+        for yaml_key, part_name, systems in yaml_parser.get_yaml_key_part(self.config, self.MVU_model.scheduler, outermost_key="workernodes_matrix"):
             if self.MVU_model.scheduler in systems:
                 self.__setattr__(part_name, self.calc_general_mult_attr_line(part_name, yaml_key, self.config, self.MVU_model.backend))
 
         self.core_user_map = self._calc_core_matrix(self.user_to_id, self.job_to_user_and_queue)
 
     def _create_account_jobs_table(self, user_to_id, account_jobs_table):
-        for quintuplet in account_jobs_table:
-            unix_account = quintuplet[4]
+        for row in account_jobs_table:
+            unix_account = row[4]
             userid = user_to_id.get(unix_account, utils.ColorStr(SYMBOL_LONG_TAIL_USER))
-            quintuplet[0] = user_to_id[unix_account] = utils.ColorStr(str(userid), color="Red_L")
+            row[0] = user_to_id[unix_account] = utils.ColorStr(str(userid), color="Red_L")
 
         return account_jobs_table, user_to_id
 
@@ -89,6 +88,7 @@ class WNOccupancy(object):
                 total_jobs_for_user,
                 user_name,
                 self.user_machine_use[user_name],
+                {state_key: counts.get(user_name, 0) for state_key, counts in user_job_per_state_counts.items()},
             ]
             for user_name, total_jobs_for_user in user_all_jobs_sorted
         ]
@@ -114,8 +114,8 @@ class WNOccupancy(object):
         for user_name, job_state in zip(user_names, job_states):
             try:
                 state_count_key = state_abbrevs[job_state]
-            except KeyError:
-                raise JobNotFound(job_state)
+            except KeyError as error:
+                raise JobNotFound(job_state) from error
 
             user_job_per_state_counts[state_count_key][user_name] = user_job_per_state_counts[state_count_key].get(user_name, 0) + 1
 
@@ -135,8 +135,16 @@ class WNOccupancy(object):
         for user_name in set(_user_names):
             user_to_alljobs_count[user_name] = _user_names.count(user_name)
 
-        users_by_job_count = sorted(user_to_alljobs_count.items(), key=itemgetter(1), reverse=True)
-        return users_by_job_count
+        return sorted(user_to_alljobs_count.items(), key=itemgetter(1), reverse=True)
+
+    @staticmethod
+    def job_state_totals(job_states, state_abbrevs):
+        """Count jobs per state key (e.g. running_of_user); states missing from state_abbrevs count as unknown_of_user."""
+        totals = {}
+        for job_state in job_states:
+            state_key = state_abbrevs.get(job_state, "unknown_of_user")
+            totals[state_key] = totals.get(state_key, 0) + 1
+        return totals
 
     def _calculate_user_job_counts(self, user_names, job_states, users_by_job_count, user_to_id):
         """
@@ -446,7 +454,7 @@ class WNOccupancy(object):
         core_user_map = self.core_user_map
         remove_corelines = self.MVU_model.display_overrides.get("rem_empty_corelines", self.config["rem_empty_corelines"]) + 1
 
-        for core_x_vector, ind, k, is_corevector_removable in gauge_core_vectors(
+        for _core_x_vector, _ind, _k, is_corevector_removable in gauge_core_vectors(
             core_user_map, node_column_start, node_column_stop, WNOccupancy.coreline_notthere_or_unused, non_existent_symbol, remove_corelines
         ):
             if is_corevector_removable:
@@ -553,7 +561,7 @@ class Cluster(object):
             self.total_wn += nodes_drop
             self.highest_wn = self.total_wn
 
-            nodes_drop_slice_end = None if not nodes_drop else nodes_drop
+            nodes_drop_slice_end = nodes_drop if nodes_drop else None
             self.workernode_list = remapped_node_numbers[:nodes_drop_slice_end]
             self.workernode_dict = remapped_nodes
         else:
@@ -635,19 +643,19 @@ class Cluster(object):
         logging.info("Blind Remapping [user selected]: %s,\n\t\t\t\t\t\t\t\t  Decided Remapping: %s" % (self.args.BLINDREMAP, REMAP))
 
         if logging.getLogger().isEnabledFor(logging.DEBUG) and REMAP:
-            user_request = self.args.BLINDREMAP and "The user has requested it (blindremap switch)" or False
+            user_request = "The user has requested it (blindremap switch)" if self.args.BLINDREMAP else False
 
-            subclusters = len(node_name_prefixes) > 1 and "there are different WN namings, e.g. wn001, wn002, ..., ps001, ps002, ... etc" or False
+            subclusters = "there are different WN namings, e.g. wn001, wn002, ..., ps001, ps002, ... etc" if len(node_name_prefixes) > 1 else False
 
-            exotic_starting = has_exotic_starting_wn and "first starting numbering of a WN very high; would thus require too much unused space" or False
+            exotic_starting = "first starting numbering of a WN very high; would thus require too much unused space" if has_exotic_starting_wn else False
 
             percentage_unassigned = (
-                len(all_str_digits_with_empties) != len(_all_str_digits) and "more than %s of nodes have are down/offline" % float(self.config["percentage"]) or False
+                "more than %s of nodes have are down/offline" % float(self.config["percentage"]) if len(all_str_digits_with_empties) != len(_all_str_digits) else False
             )
 
-            numbering_collisions = has_mixed_or_non_numeric_wns and "there are numbering collisions or non-numbered WNs" or False
+            numbering_collisions = "there are numbering collisions or non-numbered WNs" if has_mixed_or_non_numeric_wns else False
 
-            logging.debug("Remapping decided due to: \n\t %s" % filter(None, [user_request, subclusters, exotic_starting, percentage_unassigned, numbering_collisions]))
+            logging.debug("Remapping decided due to: \n\t %s" % list(filter(None, [user_request, subclusters, exotic_starting, percentage_unassigned, numbering_collisions])))
 
         return REMAP
 
@@ -668,7 +676,7 @@ class Cluster(object):
                     state_corejob_dn["host"] = _host = re.sub(pat, repl, _host)
             state_corejob_dn["host"] = _host if not changed else state_corejob_dn["host"]
             # was: label_max_len = config['wn_labels_max_len']
-            state_corejob_dn["host"] = label_max_len and state_corejob_dn["host"][-label_max_len:] or state_corejob_dn["host"]
+            state_corejob_dn["host"] = state_corejob_dn["host"][-label_max_len:] if label_max_len else state_corejob_dn["host"]
         return workernode_dict
 
     def fill_non_existent_wn_nodes(self, workernode_dict):
@@ -677,7 +685,7 @@ class Cluster(object):
             if node not in workernode_dict:
                 workernode_dict[node] = {"state": "?", "np": 0, "domainname": "N/A", "host": "N/A", "core_job_map": {}}
                 default_values_for_empty_nodes = dict(
-                    [(yaml_key, "?") for yaml_key, part_name, _ in yaml.get_yaml_key_part(self.config, self.MVU_model.scheduler, outermost_key="workernodes_matrix")]
+                    [(yaml_key, "?") for yaml_key, part_name, _ in yaml_parser.get_yaml_key_part(self.config, self.MVU_model.scheduler, outermost_key="workernodes_matrix")]
                 )
                 workernode_dict[node].update(default_values_for_empty_nodes)
         return workernode_dict
@@ -765,7 +773,7 @@ class WNFilter(object):
 
     def mark_list_by_queue(self, nodes, arg_list=None):
         arg_list = arg_list or []
-        for idx, node in enumerate(nodes[:]):
+        for _idx, node in enumerate(nodes[:]):
             if set(arg_list) & {x.str for x in node["qname"]}:
                 node["mark"] = "*"
         return nodes

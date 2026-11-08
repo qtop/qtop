@@ -13,10 +13,8 @@ if TYPE_CHECKING:
 MAX_GPU_INDICES = 100000
 
 
-def configured_pair_lines(nodes: List[Dict[str, Any]], mapping: object) -> List[str]:
-    """Experimental display of administrator-configured pairs, not discovered links."""
-    if not mapping:
-        return []
+def _pair_inventory(mapping: object) -> Dict[str, List[List[int]]]:
+    """Validate experimental_gpu_pairs and expand it to {host: pairs}."""
     if not isinstance(mapping, dict):
         raise ValueError("experimental_gpu_pairs must be a node-to-pairs mapping")
     inventory = {}
@@ -37,6 +35,14 @@ def configured_pair_lines(nodes: List[Dict[str, Any]], mapping: object) -> List[
             inventory[host] = pairs
         if len(inventory) > HostlistParser.MAX_EXPANDED_NODES:
             raise ValueError("Too many GPU pair nodes")
+    return inventory
+
+
+def configured_pair_lines(nodes: List[Dict[str, Any]], mapping: object) -> List[str]:
+    """Experimental display of administrator-configured pairs, not discovered links."""
+    if not mapping:
+        return []
+    inventory = _pair_inventory(mapping)
     lines = []
     for node in nodes:
         pairs = inventory.get(node["domainname"], [])
