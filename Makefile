@@ -1,3 +1,6 @@
+## Copyright (c) 2026 qtop contributors
+## SPDX-License-Identifier: MIT
+
 .DEFAULT_GOAL := help
 
 PYTHON ?= python3
@@ -33,7 +36,30 @@ help:: ## Show this help
 	@grep -E '^[a-zA-Z0-9_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
 		| awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
 
-all:: ci-deps test coverage backend-validation backend-colour-artifacts render-backends trace-export-validation test-pbs-samples test-slurm-samples fortifications ruff-check lint format-check compat-py36 ci github-ci gitlab-ci build github-build gitlab-build dist version ## Run every local validation and build target
+all:: ## Run every local validation and build target
+all:: \
+	ci-deps \
+	test \
+	coverage \
+	backend-validation \
+	backend-colour-artifacts \
+	render-backends \
+	trace-export-validation \
+	test-pbs-samples \
+	test-slurm-samples \
+	fortifications \
+	ruff-check \
+	lint \
+	format-check \
+	compat-py36 \
+	ci \
+	github-ci \
+	gitlab-ci \
+	build \
+	github-build \
+	gitlab-build \
+	dist \
+	version
 
 rerun:: clean all ## Clean generated files, then rerun the complete local validation path
 
@@ -209,3 +235,4 @@ confirm:: ## Ask for human confirmation before release-like tasks
 
 scorecard-scan:: ## Scan an exact GitHub commit with Scorecard (requires Docker and GITHUB_AUTH_TOKEN)
 	sh ci/scripts/scorecard-scan.sh
+
