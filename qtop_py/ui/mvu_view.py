@@ -11,8 +11,7 @@ from collections import OrderedDict
 from functools import partial
 from itertools import cycle, zip_longest
 
-from qtop_py import __version__, utils
-from qtop_py import yaml_parser as yaml
+from qtop_py import __version__, utils, yaml_parser
 from qtop_py.mvu import MVU_compress_colored_line as compress_colored_line
 from qtop_py.mvu import MVU_gauge_core_vectors as gauge_core_vectors
 from qtop_py.mvu_query import WNOccupancy
@@ -332,7 +331,7 @@ class TextDisplay(object):
         }
 
         # custom part, e.g. Node state, queue state etc
-        for yaml_key, part_name, systems in yaml.get_yaml_key_part(self.config, self.MVU_model.scheduler, outermost_key="workernodes_matrix"):
+        for yaml_key, part_name, systems in yaml_parser.get_yaml_key_part(self.config, self.MVU_model.scheduler, outermost_key="workernodes_matrix"):
             if self.MVU_model.scheduler not in systems:
                 continue
 
@@ -349,7 +348,7 @@ class TextDisplay(object):
         for part_dict in self.config["workernodes_matrix"]:
             part = [k for k in part_dict][0]
             key_vals = part_dict[part]
-            if self.MVU_model.scheduler not in yaml.fix_config_list(key_vals.get("systems", [self.MVU_model.scheduler])):
+            if self.MVU_model.scheduler not in yaml_parser.fix_config_list(key_vals.get("systems", [self.MVU_model.scheduler])):
                 continue
             occupancy_parts[part][2].update(key_vals)  # get extra args from user
 
@@ -515,7 +514,7 @@ class TextDisplay(object):
             temp_filename = temp_f.name
         tail_command = ["tail", "-n+" + str(x), file]
         head_command = ["head", "-n" + str(y - 1)]
-        with open(temp_filename, "w") as output_file:
+        with open(temp_filename, "w", encoding="utf-8") as output_file:
             with subprocess.Popen(tail_command, stdout=subprocess.PIPE) as process_tail:
                 with subprocess.Popen(head_command, stdin=process_tail.stdout, stdout=output_file) as process_head:
                     if process_tail.stdout is not None:

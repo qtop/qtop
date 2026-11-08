@@ -54,7 +54,7 @@ if TYPE_CHECKING:
     config: state_types.Config
     dynamic_config: state_types.Config
 
-from qtop_py import __version__, configuration, fileutils, sample, utils, yaml_parser
+from qtop_py import __version__, configuration, fileutils, sample, utils
 from qtop_py.colormap import queue_to_color as queue_to_color
 from qtop_py.colormap import user_to_color_default
 from qtop_py.constants import (
@@ -92,7 +92,6 @@ from qtop_py.web import Web
 
 colorize_nodestate = MVU_colorize_nodestate
 
-yaml = yaml_parser
 compress_colored_line = MVU_compress_colored_line
 
 gauge_core_vectors = MVU_gauge_core_vectors
@@ -374,6 +373,13 @@ def finalize_filepaths_schedulercommands(args, config, backend):
     return d
 
 
+def scheduler_env():
+    """Environment for scheduler-facing commands: C locale, so the dates and messages qtop parses are not localised."""
+    env = dict(os.environ)
+    env["LC_ALL"] = "C"
+    return env
+
+
 def auto_get_avail_batch_system(config, backends):
     """
     If the auto option is set in either env variable QTOP_SCHEDULER, QTOPCONF_YAML or in cmdline switch -b,
@@ -423,7 +429,7 @@ def execute_shell_batch_commands(batch_system_commands, filenames, _file, _savep
                     " ".join(shlex.quote(arg) for arg in command_args),
                     shlex.quote(os.path.abspath(filenames[_file])),
                 )
-                command = subprocess.Popen(command_args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=(os.name == "posix"))
+                command = subprocess.Popen(command_args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=(os.name == "posix"), env=scheduler_env())
             except OSError as error:
                 raise OperationalError("Cannot execute scheduler command %r: %s. Check PATH or load the scheduler module." % (_batch_system_command, error.strerror)) from error
             except ValueError as error:
@@ -477,7 +483,7 @@ def get_detail_of_name(account_jobs_table, config, args):
         timeout = float(config.get("scheduler_command_timeout", 30))
         if not isfinite(timeout) or timeout <= 0:
             raise ValueError("scheduler_command_timeout must be positive and finite")
-        p = subprocess.Popen(user_details_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=(os.name == "posix"))
+        p = subprocess.Popen(user_details_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=(os.name == "posix"), env=scheduler_env())
         output, err = communicate_with_timeout(p, timeout)
         output, err = output.decode("utf-8", errors="replace"), err.decode("utf-8", errors="replace")
     except (OperationalError, OSError, ValueError, TypeError, IndexError, OverflowError, subprocess.TimeoutExpired) as error:
@@ -745,7 +751,7 @@ def get_output_size(max_line_len, output_fp, max_height=0):
     ansi_escape = re.compile(r"\x1b[^m]*m")  # matches ANSI escape characters
 
     if not max_height or not max_line_len:
-        with open(output_fp, "r") as output_file:
+        with open(output_fp, "r", encoding="utf-8", errors="replace") as output_file:
             output_lines = output_file.readlines()
         if not output_lines:
             raise ValueError("There is no output from qtop *whatsoever*. Weird.")
@@ -1141,7 +1147,7 @@ def main(resources):
         except (KeyboardInterrupt, EOFError):
             if not (args.SAMPLE and args.ANONYMIZE):
                 print("\nExiting. Thank you for ...watching ;)\n")
-            raise SystemExit(0)
+            raise SystemExit(0) from None
 
 
 if __name__ == "__main__":

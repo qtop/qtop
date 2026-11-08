@@ -146,7 +146,7 @@ def test_loading_preserves_precedence_and_applies_cli_once(tmp_path, monkeypatch
 
 def test_snapshot_configuration_is_isolated_from_file_layers_and_mutation(config, monkeypatch):
     original = copy.deepcopy(config)
-    monkeypatch.setattr(configuration.yaml, "parse", lambda path: pytest.fail("Snapshot replay must not read local configuration"))
+    monkeypatch.setattr(configuration.yaml_parser, "parse", lambda path: pytest.fail("Snapshot replay must not read local configuration"))
     monkeypatch.setattr(configuration.fileutils, "private_save_directory", lambda path: path)
     options = SimpleNamespace(load_sample="support.tar", sample_snapshot={"config": config}, OPTION=["scheduler_command_timeout=4"], TRANSPOSE=False)
     prepared, colors, _ = configuration.load_yaml_config(options, "unused", "unused", "unused", "unused")

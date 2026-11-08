@@ -142,7 +142,7 @@ def convert_dash_key_in_dict(d):
 
 def parse(fn, DEF_INDENT=2):
     raw_key_values = {}
-    with open(fn, mode="r") as fin:
+    with open(fn, mode="r", encoding="utf-8") as fin:
         if os.fstat(fin.fileno()).st_size > safety.MAX_INPUT_BYTES:
             raise ResourceLimitError("YAML input exceeds size limit")
         if os.fstat(fin.fileno()).st_size == 0:

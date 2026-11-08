@@ -2,22 +2,17 @@
 
 <head>
 
-
-<script src="https://ajax.googleapis.com/ajax/libs/jquery/2.2.0/jquery.min.js"></script>
-
 <script>
 
-$(function() {
-   function update() {
-       $.getJSON("api.json", function( data ) {
-           $('#info').text(JSON.stringify(data, null, '\t'));
-       });
+function update() {
+    fetch("api.json", {cache: "no-store"})
+        .then(function (response) { return response.json(); })
+        .then(function (data) { document.getElementById("info").textContent = JSON.stringify(data, null, "\t"); })
+        .catch(function () {})
+        .then(function () { setTimeout(update, 1000); });
+}
 
-       setTimeout(update, 1000);
-   }
-
-   update();
-});
+document.addEventListener("DOMContentLoaded", update);
 
 </script>
 
@@ -34,4 +29,3 @@ $(function() {
 
 </body>
 </html>
-

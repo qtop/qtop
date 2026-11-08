@@ -5,8 +5,7 @@ import os
 import re
 from collections import OrderedDict
 
-from qtop_py import fileutils
-from qtop_py import yaml_parser as yaml
+from qtop_py import fileutils, yaml_parser
 from qtop_py.schedulers.tabular import TabularStatExtractor
 from qtop_py.serialiser import GenericBatchSystem, StatExtractor
 
@@ -33,7 +32,7 @@ class OarStatExtractor(TabularStatExtractor):
         except fileutils.FileEmptyError:
             logging.error("File %s seems to be empty." % orig_file)
             return all_values
-        with open(orig_file, "r") as fin:
+        with open(orig_file, "r", encoding="utf-8", errors="replace") as fin:
             logging.debug("File state before OarStatExtractor.extract_qstat: %(fin)s" % {"fin": fin})
             _ = fin.readline()  # header
             fin.readline()  # dashes
@@ -220,7 +219,7 @@ class OARBatchSystem(GenericBatchSystem):
         logging.debug("File %s exists: %s" % (fn_s, os.path.isfile(fn_s)))
         if os.stat(fn_s).st_size == 0:
             raise ValueError("OAR node input is empty: %s" % fn_s)
-        data = yaml.safe_load(fn_s, DEF_INDENT=4)
+        data = yaml_parser.safe_load(fn_s, DEF_INDENT=4)
         if self.options.ANONYMIZE:
             nodes_resids = dict([(anonymize(node, "wns"), resid_state.items()) for node, resid_state in data.items()])
         else:
@@ -232,7 +231,7 @@ class OARBatchSystem(GenericBatchSystem):
         resources = {}
         resid = None
         jobs_list = False
-        with open(fn) as stream:
+        with open(fn, encoding="utf-8", errors="replace") as stream:
             for line in stream:
                 text = line.strip()
                 if not text or text.startswith("#") or text in ("---", "..."):
@@ -256,7 +255,7 @@ class OARBatchSystem(GenericBatchSystem):
 
     @staticmethod
     def _parse_job_ids(value):
-        value = yaml.literal_or_original(value)
+        value = yaml_parser.literal_or_original(value)
         if value is None or value in ("", "~", "null"):
             return []
         tokens = value if isinstance(value, (list, tuple)) else str(value).split(",")

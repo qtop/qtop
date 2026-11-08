@@ -11,13 +11,13 @@
 __author__ = "sfranky"
 import fnmatch
 import logging
-import sys
 
 # SGE parses with NoDTDTreeBuilder below, rejecting all DTD declarations.
 from xml.etree import ElementTree as etree  # nosec B405
 
 import qtop_py.fileutils as fileutils
 from qtop_py import safety
+from qtop_py.errors import OperationalError
 from qtop_py.serialiser import GenericBatchSystem, StatExtractor
 
 
@@ -104,10 +104,9 @@ class SGEStatExtractor(StatExtractor):
                 raise
             except IOError:
                 raise
-            except Exception:
-                logging.debug("XML file state %s" % fin)
-                logging.debug("thinking...", exc_info=True)
-                sys.exit(1)
+            except Exception as error:
+                logging.debug("XML file state %s" % fin, exc_info=True)
+                raise OperationalError("Cannot read SGE XML %s: %s" % (xml_file, error)) from error
             else:
                 root = tree.getroot()
         return tree, root
@@ -317,7 +316,7 @@ class SGEBatchSystem(GenericBatchSystem):
                     existing_wn["existing_busy_cores"] = len(existing_wn["core_job_map"])
                     # don't change the node state to free.
                     # Just keep the state reported in the last queue mentioning the node.
-                    existing_wn["state"] = (worker_node["state"] == "-") and existing_wn["state"] or worker_node["state"]
+                    existing_wn["state"] = existing_wn["state"] if worker_node["state"] == "-" else worker_node["state"]
                     existing_wn["qname"].update(worker_node["qname"])
                     existing_wn["np"] = max(int(existing_wn["np"]), len(existing_wn["core_job_map"]))
                     break

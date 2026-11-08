@@ -482,9 +482,9 @@ def test_option_value_can_contain_equals():
 def test_unreadable_optional_config_is_not_ignored(tmp_path, monkeypatch):
     from types import SimpleNamespace
 
-    from qtop_py import qtop
+    from qtop_py import qtop, yaml_parser
 
-    parse = qtop.yaml.parse
+    parse = yaml_parser.parse
     optional_path = str(tmp_path / "etc" / "qtopconf.yaml")
 
     def deny_optional(path):
@@ -492,7 +492,7 @@ def test_unreadable_optional_config_is_not_ignored(tmp_path, monkeypatch):
             raise PermissionError(13, "Permission denied", path)
         return parse(path)
 
-    monkeypatch.setattr(qtop.yaml, "parse", deny_optional)
+    monkeypatch.setattr(yaml_parser, "parse", deny_optional)
     with pytest.raises(PermissionError):
         qtop.configuration.load_yaml_config(SimpleNamespace(CONFFILE=None), str(ROOT), str(tmp_path), str(tmp_path / "etc"), str(tmp_path / "user"))
 
@@ -529,9 +529,9 @@ def test_replay_configuration_failure_is_concise(tmp_path):
 def test_slurm_config_command_matches_shell_execution(tmp_path, monkeypatch, scheduler_file, expected, all_partitions):
     import json
 
-    from qtop_py import qtop
+    from qtop_py import qtop, yaml_parser
 
-    config = qtop.yaml.parse(str(ROOT / "qtopconf.yaml"))
+    config = yaml_parser.parse(str(ROOT / "qtopconf.yaml"))
     configured_command = config["schedulers"]["slurm"][scheduler_file].split(", ", 1)[1]
     executable = configured_command.split()[0]
     script = tmp_path / executable
@@ -561,9 +561,9 @@ def test_slurm_config_command_matches_shell_execution(tmp_path, monkeypatch, sch
 def test_all_partitions_does_not_change_saved_traces_or_other_backends(tmp_path, monkeypatch, scheduler_name, source):
     from types import SimpleNamespace
 
-    from qtop_py import qtop
+    from qtop_py import qtop, yaml_parser
 
-    config = qtop.yaml.parse(str(ROOT / "qtopconf.yaml"))
+    config = yaml_parser.parse(str(ROOT / "qtopconf.yaml"))
     monkeypatch.setattr(qtop, "scheduler", scheduler_name, raising=False)
     args = SimpleNamespace(SOURCEDIR=source, workdir=str(tmp_path), ALL_PARTITIONS=False)
     default = qtop.finalize_filepaths_schedulercommands(args, config, qtop.scheduler_backend(scheduler_name))

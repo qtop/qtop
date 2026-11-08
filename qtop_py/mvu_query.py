@@ -9,8 +9,7 @@ from collections import Counter, OrderedDict, namedtuple
 from math import ceil
 from operator import itemgetter
 
-from qtop_py import configuration, utils
-from qtop_py import yaml_parser as yaml
+from qtop_py import configuration, utils, yaml_parser
 from qtop_py.constants import QTOPCONF_YAML, SYMBOL_LONG_TAIL_USER
 from qtop_py.errors import JobNotFound, OperationalError
 from qtop_py.mvu import MVU_colorize_nodestate, MVU_keep_queue_initials_only_and_colorize
@@ -65,7 +64,7 @@ class WNOccupancy(object):
         self.wn_vert_labels = self.calc_all_wnid_label_lines(self.MVU_model.display_overrides["force_names"])
 
         # For-loop below only for user-inserted/customizeable values.
-        for yaml_key, part_name, systems in yaml.get_yaml_key_part(self.config, self.MVU_model.scheduler, outermost_key="workernodes_matrix"):
+        for yaml_key, part_name, systems in yaml_parser.get_yaml_key_part(self.config, self.MVU_model.scheduler, outermost_key="workernodes_matrix"):
             if self.MVU_model.scheduler in systems:
                 self.__setattr__(part_name, self.calc_general_mult_attr_line(part_name, yaml_key, self.config, self.MVU_model.backend))
 
@@ -115,8 +114,8 @@ class WNOccupancy(object):
         for user_name, job_state in zip(user_names, job_states):
             try:
                 state_count_key = state_abbrevs[job_state]
-            except KeyError:
-                raise JobNotFound(job_state)
+            except KeyError as error:
+                raise JobNotFound(job_state) from error
 
             user_job_per_state_counts[state_count_key][user_name] = user_job_per_state_counts[state_count_key].get(user_name, 0) + 1
 
@@ -645,19 +644,19 @@ class Cluster(object):
         logging.info("Blind Remapping [user selected]: %s,\n\t\t\t\t\t\t\t\t  Decided Remapping: %s" % (self.args.BLINDREMAP, REMAP))
 
         if logging.getLogger().isEnabledFor(logging.DEBUG) and REMAP:
-            user_request = self.args.BLINDREMAP and "The user has requested it (blindremap switch)" or False
+            user_request = "The user has requested it (blindremap switch)" if self.args.BLINDREMAP else False
 
-            subclusters = len(node_name_prefixes) > 1 and "there are different WN namings, e.g. wn001, wn002, ..., ps001, ps002, ... etc" or False
+            subclusters = "there are different WN namings, e.g. wn001, wn002, ..., ps001, ps002, ... etc" if len(node_name_prefixes) > 1 else False
 
-            exotic_starting = has_exotic_starting_wn and "first starting numbering of a WN very high; would thus require too much unused space" or False
+            exotic_starting = "first starting numbering of a WN very high; would thus require too much unused space" if has_exotic_starting_wn else False
 
             percentage_unassigned = (
-                len(all_str_digits_with_empties) != len(_all_str_digits) and "more than %s of nodes have are down/offline" % float(self.config["percentage"]) or False
+                "more than %s of nodes have are down/offline" % float(self.config["percentage"]) if len(all_str_digits_with_empties) != len(_all_str_digits) else False
             )
 
-            numbering_collisions = has_mixed_or_non_numeric_wns and "there are numbering collisions or non-numbered WNs" or False
+            numbering_collisions = "there are numbering collisions or non-numbered WNs" if has_mixed_or_non_numeric_wns else False
 
-            logging.debug("Remapping decided due to: \n\t %s" % filter(None, [user_request, subclusters, exotic_starting, percentage_unassigned, numbering_collisions]))
+            logging.debug("Remapping decided due to: \n\t %s" % list(filter(None, [user_request, subclusters, exotic_starting, percentage_unassigned, numbering_collisions])))
 
         return REMAP
 
@@ -678,7 +677,7 @@ class Cluster(object):
                     state_corejob_dn["host"] = _host = re.sub(pat, repl, _host)
             state_corejob_dn["host"] = _host if not changed else state_corejob_dn["host"]
             # was: label_max_len = config['wn_labels_max_len']
-            state_corejob_dn["host"] = label_max_len and state_corejob_dn["host"][-label_max_len:] or state_corejob_dn["host"]
+            state_corejob_dn["host"] = state_corejob_dn["host"][-label_max_len:] if label_max_len else state_corejob_dn["host"]
         return workernode_dict
 
     def fill_non_existent_wn_nodes(self, workernode_dict):
@@ -687,7 +686,7 @@ class Cluster(object):
             if node not in workernode_dict:
                 workernode_dict[node] = {"state": "?", "np": 0, "domainname": "N/A", "host": "N/A", "core_job_map": {}}
                 default_values_for_empty_nodes = dict(
-                    [(yaml_key, "?") for yaml_key, part_name, _ in yaml.get_yaml_key_part(self.config, self.MVU_model.scheduler, outermost_key="workernodes_matrix")]
+                    [(yaml_key, "?") for yaml_key, part_name, _ in yaml_parser.get_yaml_key_part(self.config, self.MVU_model.scheduler, outermost_key="workernodes_matrix")]
                 )
                 workernode_dict[node].update(default_values_for_empty_nodes)
         return workernode_dict

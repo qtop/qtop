@@ -7,8 +7,7 @@ import logging
 import os
 from math import isfinite
 
-from qtop_py import fileutils
-from qtop_py import yaml_parser as yaml
+from qtop_py import fileutils, yaml_parser
 from qtop_py.colormap import nodestate_to_color_default, user_to_color_default
 from qtop_py.constants import QTOPCONF_YAML, SYMBOL_LONG_TAIL_USER, SYMBOL_UNKNOWN_NODE_STATE
 from qtop_py.errors import OperationalError
@@ -53,8 +52,8 @@ def validate_config(config):
     timeout = config.get("scheduler_command_timeout", 30)
     try:
         require(not isinstance(timeout, bool) and isfinite(float(timeout)) and float(timeout) > 0, "scheduler_command_timeout", "positive finite seconds")
-    except (TypeError, ValueError, OverflowError):
-        raise ValueError("scheduler_command_timeout: expected positive finite seconds")
+    except (TypeError, ValueError, OverflowError) as error:
+        raise ValueError("scheduler_command_timeout: expected positive finite seconds") from error
     host = config.get("experimental_web_host", "127.0.0.1")
     require(
         isinstance(host, str) and bool(host) and ":" not in host and not any(char.isspace() or ord(char) < 32 for char in host),
@@ -170,7 +169,7 @@ def normalize_config(raw_config):
         config[key] = literal(config[key])
     config["sorting"]["reverse"] = literal(config["sorting"].get("reverse", "0"))
     wn_id_lines = config["workernodes_matrix"][0]["wn id lines"]
-    config["ALT_LABEL_COLORS"] = yaml.fix_config_list(wn_id_lines["alt_label_colors"])
+    config["ALT_LABEL_COLORS"] = yaml_parser.fix_config_list(wn_id_lines["alt_label_colors"])
     config["SEPARATOR"] = config["vertical_separator"].replace("'", "")
     config["USER_CUT_MATRIX_WIDTH"] = int(wn_id_lines["user_cut_matrix_width"])
     return config
@@ -226,11 +225,11 @@ def load_yaml_config(args, package_dir, initial_cwd, system_dir, user_dir):
     """Load defaults < system < user < custom, then prepare CLI overrides."""
     if getattr(args, "load_sample", None):
         return prepare_config(args.sample_snapshot["config"], args)
-    config = yaml.parse(os.path.join(os.path.realpath(package_dir), QTOPCONF_YAML))
+    config = yaml_parser.parse(os.path.join(os.path.realpath(package_dir), QTOPCONF_YAML))
     logging.info("Default configuration dictionary loaded. Length: %s items", len(config))
     for label, directory in (("Env", system_dir), ("User", user_dir)):
         try:
-            layer = yaml.parse(os.path.join(directory, QTOPCONF_YAML))
+            layer = yaml_parser.parse(os.path.join(directory, QTOPCONF_YAML))
         except FileNotFoundError:
             logging.info("%s could not be found in %s/", QTOPCONF_YAML, directory)
         else:
@@ -239,7 +238,7 @@ def load_yaml_config(args, package_dir, initial_cwd, system_dir, user_dir):
     if args.CONFFILE:
         for directory in (user_dir, initial_cwd):
             try:
-                custom = yaml.parse(os.path.join(directory, args.CONFFILE))
+                custom = yaml_parser.parse(os.path.join(directory, args.CONFFILE))
             except FileNotFoundError:
                 continue
             config.update(custom)
