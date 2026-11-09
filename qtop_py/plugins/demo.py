@@ -7,6 +7,7 @@
 ##
 ## SPDX-License-Identifier: MIT
 ##
+"""A simulated cluster for trying qtop without a scheduler."""
 
 import itertools
 import random
@@ -36,6 +37,8 @@ _JobInfo = namedtuple("_JobInfo", ["job_id", "username", "job_state", "queue_nam
 
 
 class LittleClusterSimulator(object):
+    """A small Markov-chain cluster whose jobs, queues and node states change on each refresh."""
+
     def __init__(self) -> None:
         # Initialize seeds from time
         e_time = int(time.time())
@@ -166,12 +169,14 @@ class LittleClusterSimulator(object):
                 self.queue_state[queue_name] = random.choice(["Q", "R", "C", "E", "W"])
 
     def get_total_queued(self) -> int:
+        """Return the number of jobs waiting in all queues."""
         total_queued_jobs = 0
         for queue_name in QUEUES:
             total_queued_jobs += len(self.queue_jobs[queue_name])
         return total_queued_jobs
 
     def init_jobs(self) -> None:
+        """Create the initial jobs and queue them."""
         jobcnt = 0
         self.queue_jobs = defaultdict(list)
         self.job_meta = {}
@@ -190,36 +195,23 @@ class LittleClusterSimulator(object):
 
 
 class DemoBatchSystem(GenericBatchSystem):
-    """
-    This is an example implementation of how a batch system is "read" and what is expected of it
-    by qtop in order to run.
-    """
+    """Reference backend: shows what qtop expects from a batch system, fed by LittleClusterSimulator."""
 
     is_simulated = True
 
     @staticmethod
     def get_mnemonic() -> str:
+        """Return the scheduler name, demo."""
         return "demo"
 
     def __init__(self, scheduler_output_filenames: Dict[str, str], config: "Config", options: "Options") -> None:
-        """
-        config corresponds to the QTOPCONF_YAML file distributed with qtop.
-        Custom QTOPCONF files can be created and placed either
-        in USERPATH/QTOPCONF_YAML or in SYSTEMCONFDIR/QTOPCONF_YAML
-        """
+        """Keep the trace file names, configuration (QTOPCONF_YAML) and options; start the simulator."""
         self.scheduler_output_filenames = scheduler_output_filenames
         self.config = config
         self.sim = LittleClusterSimulator()
 
     def get_worker_nodes(self, job_ids: List[str], job_queues: List[str], options: "Options") -> "List[Node]":
-        """
-        Possible node states are:
-        "-": free
-        "b": busy
-        "d": down/offline
-        and generally the first letter of the word describing the state is used.
-        """
-
+        """Return the simulated nodes; states are - (free), b (busy) and d (down/offline)."""
         worker_nodes = []
 
         for node in range(WORKER_NODES):
@@ -240,8 +232,7 @@ class DemoBatchSystem(GenericBatchSystem):
         return self.ensure_worker_nodes_have_qnames(worker_nodes, job_ids, job_queues)
 
     def get_jobs_info(self) -> "JobsInfo":
-        """
-        Collect the demo scheduler's running-job records.
+        """Collect the demo scheduler's running-job records.
 
         Each job's attributes are gathered into a single ``_JobInfo`` tuple, so
         the four parallel lists below cannot drift out of sync -- they are all
@@ -263,6 +254,7 @@ class DemoBatchSystem(GenericBatchSystem):
         return job_ids, usernames, job_states, queue_names
 
     def get_queues_info(self) -> "QueuesInfo":
+        """Return the running and queued totals and per-queue records of the simulation."""
         total_running_jobs = 0  # these are reported directly by qstat in PBS; if not, they are calculated.
         run_for_queue: DefaultDict[str, int] = defaultdict(int)
         for node in range(WORKER_NODES):

@@ -172,19 +172,23 @@ COMMON_RENDER_MARKERS = [
 
 
 def sgr_parameters(raw_parameters):
+    """Return the integer parameters of an SGR escape; empty means reset (0)."""
     parameters = [0 if item == "" else int(item) for item in raw_parameters.split(";")]
     return parameters if raw_parameters else [0]
 
 
 def sgr_parameters_allowed(raw_parameters):
+    """Return True if every SGR parameter is one qtop may emit."""
     return all(parameter in ALLOWED_SGR_PARAMETERS for parameter in sgr_parameters(raw_parameters))
 
 
 def reset_style():
+    """Return the default terminal style."""
     return {"bold": False, "foreground": None, "background": None}
 
 
 def apply_sgr(style, parameters):
+    """Return style updated by SGR parameters."""
     updated = dict(style)
     for parameter in parameters:
         if parameter == 0:
@@ -199,12 +203,12 @@ def apply_sgr(style, parameters):
 
 
 def escaped_control(value):
+    """Return a control character as a visible escape."""
     return value.encode("unicode_escape").decode("ascii")
 
 
 def inspect_ansi(text):
     """Allow only the small ANSI SGR subset emitted by qtop."""
-
     invalid_sequences = []
     sequence_counts = {}
     style = reset_style()
@@ -286,6 +290,7 @@ def inspect_ansi(text):
 
 
 def analyse_ansi_evidence(text, expectations):
+    """Check that each expected semantic colour appears with its SGR codes; return the findings."""
     inspection = inspect_ansi(text)
     mapping_results = []
     missing_mappings = []
@@ -327,11 +332,13 @@ def analyse_ansi_evidence(text, expectations):
 
 
 def normalize_output(text):
+    """Return text without ANSI codes and with whitespace collapsed."""
     text = ANSI_RE.sub("", text)
     return re.sub(r"\s+", " ", text)
 
 
 def normalize_for_artifact(text):
+    """Return text with allowed SGR codes kept and other control characters escaped."""
     safe_characters = []
     cursor = 0
     while cursor < len(text):
@@ -354,11 +361,13 @@ def normalize_for_artifact(text):
 
 
 def write_text(path, text):
+    """Write text to path as UTF-8, creating parent directories."""
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(text, encoding="utf-8")
 
 
 def output_text(value):
+    """Return a subprocess output as text."""
     if value is None:
         return ""
     if isinstance(value, bytes):
@@ -367,6 +376,7 @@ def output_text(value):
 
 
 def display_path(path):
+    """Return path relative to the repository when possible."""
     try:
         return str(path.relative_to(ROOT))
     except ValueError:
@@ -374,6 +384,7 @@ def display_path(path):
 
 
 def sanitize_artifact_text(text, qtop_home=None):
+    """Replace the temporary home, Python and repository paths with placeholders."""
     replacements = []
     if qtop_home is not None:
         replacements.append((str(qtop_home), "<qtop-home>"))
@@ -386,6 +397,7 @@ def sanitize_artifact_text(text, qtop_home=None):
 
 
 def styled_rows(text, max_lines, max_columns):
+    """Split ANSI text into rows of (style, text) runs; raise ValueError on unsafe ANSI."""
     inspection = inspect_ansi(text)
     if not inspection["syntax_ok"]:
         raise ValueError("terminal output contains unsafe or incomplete ANSI state")
@@ -438,6 +450,7 @@ def styled_rows(text, max_lines, max_columns):
 
 
 def style_colours(style_key):
+    """Return the foreground and background colours and boldness for a style."""
     bold, foreground, background = style_key
     foreground_palette = ANSI_BRIGHT_COLOURS if bold else ANSI_NORMAL_COLOURS
     foreground_colour = foreground_palette.get(foreground, "#f2f2f2")
@@ -446,6 +459,7 @@ def style_colours(style_key):
 
 
 def write_svg_screenshot(path, text, max_lines=38, max_columns=132):
+    """Write the ANSI text as an SVG terminal screenshot."""
     lines = styled_rows(text, max_lines, max_columns)
     max_width = max([sum(len(run[1]) for run in line) for line in lines] or [0])
     width = max(760, min(1320, 22 + max_width * 8))
@@ -486,6 +500,7 @@ def write_svg_screenshot(path, text, max_lines=38, max_columns=132):
 
 
 def discover_cases(schedulers, slurm_samples_dir):
+    """Return the sample cases for the given schedulers."""
     cases = []
     for scheduler in schedulers:
         if scheduler in STATIC_CASES:
@@ -514,6 +529,7 @@ def discover_cases(schedulers, slurm_samples_dir):
 
 
 def write_case_artifacts(case_dir, qtop_home, command, stdout, stderr, ansi_evidence):
+    """Write a case's sanitised command, output, ANSI evidence and screenshot."""
     safe_stdout = sanitize_artifact_text(stdout, qtop_home)
     safe_stderr = sanitize_artifact_text(stderr, qtop_home)
     safe_command = [sanitize_artifact_text(item, qtop_home) for item in command]
@@ -538,10 +554,12 @@ def write_case_artifacts(case_dir, qtop_home, command, stdout, stderr, ansi_evid
 
 
 def write_case_summary(case_dir, result):
+    """Write a case's result as summary.json."""
     write_text(case_dir / "summary.json", json.dumps(result, indent=2, sort_keys=True) + "\n")
 
 
 def run_case(case, artifact_dir, timeout):
+    """Run one case with a temporary qtop home; return its result."""
     case_dir = artifact_dir / case["name"]
     if case_dir.exists():
         shutil.rmtree(str(case_dir))
@@ -550,6 +568,7 @@ def run_case(case, artifact_dir, timeout):
 
 
 def run_case_with_home(case, artifact_dir, timeout, qtop_home):
+    """Run one case with qtop_home as HOME and check its output; return its result."""
     case_dir = artifact_dir / case["name"]
 
     command = [sys.executable, "-m", "qtop_py.qtop"] + case.get(
@@ -631,6 +650,7 @@ def run_case_with_home(case, artifact_dir, timeout, qtop_home):
 
 
 def parse_args():
+    """Parse the command-line options."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--schedulers", default="pbs,sge,slurm,oar,demo", help="Comma-separated scheduler gates to run")
     parser.add_argument("--max-failures", type=int, default=0, help="Allowed failed cases before returning non-zero")
@@ -641,6 +661,7 @@ def parse_args():
 
 
 def main():
+    """Run the selected cases and return non-zero beyond --max-failures."""
     args = parse_args()
     schedulers = [item.strip() for item in args.schedulers.split(",") if item.strip()]
     artifact_dir = Path(args.artifact_dir)

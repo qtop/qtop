@@ -7,6 +7,7 @@
 ##
 ## SPDX-License-Identifier: MIT
 ##
+"""Command-line options, logging set-up and the ColorStr and CountCalls helpers."""
 
 import io
 import logging
@@ -20,11 +21,14 @@ from qtop_py.safety import SafeLogFormatter
 
 
 class PrivateFileHandler(logging.FileHandler):
+    """Log file handler that opens its file privately (mode 0600)."""
+
     def _open(self) -> io.TextIOWrapper:
         return fileutils.private_log_stream(self.baseFilename)
 
 
 def init_logging(options: Any) -> None:
+    """Log to the private qtop log file, at the level -v/-vv sets."""
     log_level = logging.WARNING
     if options.verbose == 1:
         log_level = logging.INFO
@@ -54,6 +58,7 @@ def init_logging(options: Any) -> None:
 
 
 def parse_qtop_cmdline_args() -> Namespace:
+    """Parse qtop's command-line options."""
     parser = ArgumentParser(prog="qtop", description="")
 
     parser.add_argument("-1", "--disablesection1", action="store_true", dest="sect_1_off", default=False, help="Disable first section of qtop, i.e. Job Accounting Summary")
@@ -231,9 +236,8 @@ def parse_qtop_cmdline_args() -> Namespace:
 
 
 class ColorStr(object):
-    """
-    ColorStr instances are normal strings with color information attached to them,
-    to be used with colorize(), e.g.
+    """A string with a colour attached, for colorize().
+
     print(colorize(s.str, color_func=s.color))
     print(colorize(s, mapping=nodestate_to_color, pattern=s.initial))
     """
@@ -261,17 +265,17 @@ class ColorStr(object):
         return item in self.str
 
     def __equals__(self, other: "ColorStr") -> bool:
+        """Return True if both have the same text."""
         return self.str == other.str
 
     @classmethod
     def from_other_color_str(cls, color_str: "ColorStr") -> "ColorStr":
+        """Return a new, uncoloured ColorStr with the same text."""
         return cls(string=color_str.str)
 
 
 class CountCalls(object):
-    """
-    Decorator that keeps track of the number of times a function is called.
-    """
+    """Decorator that keeps track of the number of times a function is called."""
 
     __instances: Dict[Callable[..., Any], "CountCalls"] = {}
 
@@ -281,14 +285,15 @@ class CountCalls(object):
         CountCalls.__instances[f] = self
 
     def __call__(self, *args: Any, **kwargs: Any) -> Any:
+        """Count the call, then call the wrapped function."""
         self.__numcalls += 1
         return self.__f(*args, **kwargs)
 
     def count(self) -> int:
-        "Return the number of times the function f was called."
+        """Return the number of times the function f was called."""
         return CountCalls.__instances[self.__f].__numcalls
 
     @staticmethod
     def counts() -> Dict[str, int]:
-        "Return a dict of {function: # of calls} for all registered functions."
+        """Return a dict of {function: # of calls} for all registered functions."""
         return dict([(getattr(f, "__name__", repr(f)), CountCalls.__instances[f].__numcalls) for f in CountCalls.__instances])

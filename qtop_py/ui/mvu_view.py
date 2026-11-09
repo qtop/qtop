@@ -36,6 +36,8 @@ def user_accounts_header(config: "Config") -> str:
 
 
 class TextDisplay(object):
+    """Render a frame's sections: job accounting summary, worker-node occupancy and user accounts."""
+
     def __init__(self, snapshot: Any, config: "Config", viewport: Any, wns_occupancy: Any, cluster: Any, args: Any, MVU_model: Any) -> None:
         self.MVU_model = MVU_model
         self.cluster = cluster
@@ -48,14 +50,7 @@ class TextDisplay(object):
         self._cell_text = lru_cache(maxsize=None)(lambda char, color: MVU_model.MVU_colorize(char, color_func=color))
 
     def display_selected_sections(self, _savepath: str, SAMPLE_FILENAME: str, QTOP_LOGFILE: str) -> None:
-        """
-        This prints out the qtop sections selected by the user.
-        The selection can be made in two different ways:
-        a) in the QTOPCONF_YAML file, in user_display_parts, where the three sections are named in a list
-        b) through cmdline arguments -n, where n is 1,2,3. More than one can be chained together,
-        e.g. -13 will exclude sections 1 and 3
-        Cmdline arguments should only be able to choose from what is available in QTOPCONF_YAML, though.
-        """
+        """Print the sections listed in user_display_parts, minus those disabled with -1, -2 or -3."""
         sections_off = {  # cmdline argument -n
             1: self.args.sect_1_off,
             2: self.args.sect_2_off,
@@ -84,9 +79,7 @@ class TextDisplay(object):
                 print(message)
 
     def display_job_accounting_summary(self, cluster: Any, snapshot: Any) -> None:
-        """
-        Displays qtop's first section
-        """
+        """Displays qtop's first section."""
         total_running_jobs = cluster.total_running_jobs
         total_queued_jobs = cluster.total_queued_jobs
         queues = cluster.queues_dict
@@ -179,9 +172,7 @@ class TextDisplay(object):
                 print("Queue nodes (experimental, idle/total): " + " | ".join("%s: %s/%s" % tuple("?" if value is None else value for value in row) for row in counts))
 
     def display_wns_occupancy(self, wns_occupancy: Any, cluster: Any) -> None:
-        """
-        Displays qtop's second section, the main worker node matrices.
-        """
+        """Displays qtop's second section, the main worker node matrices."""
         node_column_start = self.wns_occupancy.node_column_start
         node_column_stop = self.wns_occupancy.node_column_stop
 
@@ -192,6 +183,7 @@ class TextDisplay(object):
             self.display_remaining_matrices(wns_occupancy, node_column_start, node_column_stop)
 
     def display_backend_messages(self) -> None:
+        """Print the scheduler's notes, if any, under Scheduler messages."""
         backend = self.MVU_model.backend
         nodes = getattr(self.cluster, "worker_nodes", [])
         lines = [line for section in ("snapshot", "accounting", "placement", "resources") for line in backend.display_messages(section, self.snapshot, nodes, self.config)]
@@ -201,7 +193,7 @@ class TextDisplay(object):
             print()
 
     def display_basic_legend(self) -> None:
-        """Displays the Worker Nodes occupancy label plus columns explanation"""
+        """Displays the Worker Nodes occupancy label plus columns explanation."""
         if self.MVU_model.display_overrides.get("transpose_wn_matrices", self.config["transpose_wn_matrices"]):
             note = "/".join(self.config["occupancy_column_order"])
         else:
@@ -215,9 +207,7 @@ class TextDisplay(object):
         )
 
     def display_user_accounts_pool_mappings(self, wns_occupancy: Any) -> None:
-        """
-        Displays qtop's third section
-        """
+        """Displays qtop's third section."""
         try:
             account_jobs_table = self.wns_occupancy.account_jobs_table
             user_color_patterns = self.wns_occupancy.user_color_patterns
@@ -254,6 +244,7 @@ class TextDisplay(object):
 
     @staticmethod
     def account_jobs_totals(account_jobs_table: Sequence[Sequence[Any]]) -> Optional[List[Any]]:
+        """Return the per-state job totals over all accounts, or None if there are no accounts."""
         if not account_jobs_table:
             return None
 
@@ -283,9 +274,10 @@ class TextDisplay(object):
     def state_columns(self, config_key: str, default: Sequence[Any]) -> List[Tuple[str, str]]: ...
 
     def state_columns(self, config_key: str, default: Optional[Sequence[Any]] = None) -> Optional[List[Tuple[str, str]]]:
-        """
-        (state_key, label) pairs from accounts_states/summary_states; entries are a state key or a {state_key: label} mapping.
-        The default label is the key's first letter, uppercased; other_of_user counts jobs in no listed state.
+        """Return (state key, label) pairs from accounts_states or summary_states.
+
+        An entry is a state key or a {state_key: label} mapping; the default label is the key's first letter, uppercased.
+        other_of_user counts jobs in no listed state.
         """
         entries = self.config.get(config_key) or default
         if entries is None:
@@ -297,6 +289,7 @@ class TextDisplay(object):
         return columns
 
     def display_account_jobs_line(self, line: Sequence[Any], userid_pat: str, detail_of_name: Mapping[str, str], group_of_name: Optional[Mapping[str, str]] = None) -> None:
+        """Print one account's row of the user accounts table."""
         uid, runningjobs, queuedjobs, alljobs, user, num_of_nodes = line[:6]
         state_columns = self.state_columns("accounts_states", DEFAULT_ACCOUNT_STATES)
         counts = self.row_state_counts(line)
@@ -333,9 +326,7 @@ class TextDisplay(object):
         print(print_string)
 
     def display_matrix(self, wns_occupancy: Any, node_column_start: int, node_column_stop: int) -> None:
-        """
-        occupancy_parts needs to be redefined for each matrix, because of changed parameter values
-        """
+        """occupancy_parts needs to be redefined for each matrix, because of changed parameter values."""
         if self.wns_occupancy.is_matrix_coreless(node_column_start, node_column_stop):
             return
 
@@ -405,13 +396,10 @@ class TextDisplay(object):
         print()
 
     def display_remaining_matrices(self, wns_occupancy: Any, node_column_start: int, node_column_stop: int, DEADWEIGHT: int = 11) -> None:
-        """
-        If the WNs are more than a screenful (width-wise), this calculates the extra matrices needed to display them.
-        DEADWEIGHT is the space taken by the {__XXXX__} labels on the right of the CoreX map
+        """Print the extra matrices needed when the nodes do not fit the screen width.
 
-        if the first matrix has e.g. 10 machines with 64 cores,
-        and the remaining 190 machines have 8 cores, this doesn't print the non-existent
-        56 cores from the next matrix on.
+        DEADWEIGHT is the width of the {__XXXX__} labels right of the core matrix. Cores that no node
+        in a matrix has are not printed, e.g. 64-core rows for a matrix of 8-core nodes.
         """
         extra_matrices_nr = wns_occupancy.extra_matrices_nr
         term_columns = self.MVU_model.viewport.h_term_size
@@ -428,6 +416,7 @@ class TextDisplay(object):
             self.display_matrix(wns_occupancy, node_column_start, node_column_stop)
 
     def join_prints(self, *args: Any, **kwargs: Any) -> List[Any]:
+        """Join the given rows into one line of ColorStr cells, separated by sep."""
         joined_list = []
         for d in args:
             joined_list.extend([utils.ColorStr(string=char) if isinstance(char, str) and len(char) == 1 else char for char in d])
@@ -450,6 +439,7 @@ class TextDisplay(object):
         options1: Any,
         options2: Any,
     ) -> None:
+        """Print the core lines of a matrix slice, transposed if asked."""
         self.MVU_model.MVU_reset_sigpipe()
         remove_corelines = self.MVU_model.display_overrides.get("rem_empty_corelines", self.config["rem_empty_corelines"]) + 1
 
@@ -474,10 +464,7 @@ class TextDisplay(object):
                 return
 
     def display_wnid_lines(self, start: int, stop: int, highest_wn: int, wn_vert_labels: Dict[str, Any], **kwargs: Any) -> None:
-        """
-        Prints the Worker Node ID lines, after it colors them and adds separators to them.
-        highest_wn determines the number of WN ID lines needed  (1/2/3/4+?)
-        """
+        """Print the coloured worker-node ID lines; highest_wn sets how many are needed."""
         d = OrderedDict()
         end_labels = self.config["workernodes_matrix"][0]["wn id lines"]["end_labels"]
 
@@ -508,11 +495,13 @@ class TextDisplay(object):
             )
 
     def highlight_alternately(self, color_a: str, color_b: str) -> Iterator[str]:
+        """Yield color_a and color_b alternately, forever."""
         colors = cycle([color_a, color_b])
         for color in colors:
             yield color
 
     def color_plainly(self, color_0: str, color_1: str, condition: bool) -> Iterator[str]:
+        """Yield color_0 if condition holds, otherwise color_1, forever."""
         color = color_0 if condition else color_1
         while True:
             yield color
@@ -520,6 +509,7 @@ class TextDisplay(object):
     def print_wnid_lines(
         self, d: Dict[str, Any], start: int, stop: int, end_labels: Iterable[str], transposed_sections: List[Any], colors_factory: Callable[[], Iterator[str]]
     ) -> None:
+        """Print the worker-node ID lines of a matrix slice, transposed if asked."""
         if self.MVU_model.display_overrides.get("transpose_wn_matrices", self.config["transpose_wn_matrices"]):
             tuple_ = [None, "wnid_lines", self.transpose_matrix(d)]
             transposed_sections.append(tuple_)
@@ -533,10 +523,9 @@ class TextDisplay(object):
             print(wn_id_str + end_label)
 
     def show_part_view(self, _timestr: str, file: str, x: int, y: int) -> str:
-        """
-        Prints part of the qtop output to the terminal (as fast as possible!)
-        Justification for implementation:
-        http://unix.stackexchange.com/questions/47407/cat-line-x-to-line-y-on-a-huge-file
+        """Print the visible part of the rendered output to the terminal, as fast as possible.
+
+        See http://unix.stackexchange.com/questions/47407/cat-line-x-to-line-y-on-a-huge-file
         """
         with tempfile.NamedTemporaryFile(delete=False, suffix=".out", prefix="qtop_partview_%s_" % _timestr, dir=self.config["savepath"]) as temp_f:
             temp_filename = temp_f.name
@@ -553,9 +542,7 @@ class TextDisplay(object):
     def print_mult_attr_line(
         self, node_column_start: int, node_column_stop: int, transposed_sections: List[Any], attr_lines: Any, label: str, color_func: Any = None, **_config_metadata: Any
     ) -> None:
-        """
-        attr_lines can be e.g. Node state lines
-        """
+        """attr_lines can be e.g. Node state lines."""
         if self.MVU_model.display_overrides.get("transpose_wn_matrices", self.config["transpose_wn_matrices"]):
             tuple_ = [None, label, self.transpose_matrix(attr_lines, colored=True, coloring_pat=None)]
             transposed_sections.append(tuple_)
@@ -568,10 +555,7 @@ class TextDisplay(object):
             print(attr_line + "=" + label)
 
     def get_core_lines(self, core_user_map: Dict[str, Any], node_column_start: int, node_column_stop: int, coloring_pattern: Any, mapping: Any, attrs: Any) -> Iterator[Any]:
-        """
-        yields all coreX lines, except cores that don't show up
-        anywhere in the given matrix
-        """
+        """Yield the core lines, skipping cores that no node in the matrix has."""
         non_existent_symbol = self.config["non_existent_node_symbol"]
         remove_corelines = self.MVU_model.display_overrides.get("rem_empty_corelines", self.config["rem_empty_corelines"]) + 1
         for core_x_vector, ind, _k, is_corevector_removable in gauge_core_vectors(
@@ -586,11 +570,7 @@ class TextDisplay(object):
             yield core_x_vector + self.MVU_model.MVU_colorize("=Core" + str(ind), pattern="account_not_colored")
 
     def transpose_matrix(self, d: Dict[str, Any], colored: bool = False, reverse: bool = False, coloring_pat: Any = None) -> Iterator[Sequence[str]]:
-        """
-        takes a dictionary whose values are lists of strings (=matrix)
-        returns a transposed matrix
-        colors it in the meantime, if instructed to via colored
-        """
+        """Return the matrix (a mapping of string lists) transposed, coloured if asked."""
         for tpl in zip_longest(*[[char for char in d[k]] for k in d], fillvalue=" "):
             row: Sequence[str] = tpl
             if any(j != " " for j in tpl):
@@ -600,9 +580,7 @@ class TextDisplay(object):
             yield row
 
     def _insert_separators(self, orig_str: Any, separator: str, pos: int, stopaftern: int = 0) -> Any:
-        """
-        inserts separator into orig_str every pos-th position, optionally stopping after stopaftern times.
-        """
+        """Inserts separator into orig_str every pos-th position, optionally stopping after stopaftern times."""
         if not pos:  # default value is zero, means no vertical separators
             return orig_str
         sep_str = orig_str[:]  # insert initial vertical separator
@@ -616,6 +594,7 @@ class TextDisplay(object):
 
 
 def MVU_view(view_data: Tuple[Any, Any, Any], savepath: str, sample_filename: str, logfile: str) -> TextDisplay:
+    """Render the model's frame to stdout and return the display."""
     model, cluster, occupancy = view_data
     display = TextDisplay(model.snapshot, model.config, model.viewport, occupancy, cluster, model.args, MVU_model=model)
     display.display_selected_sections(savepath, sample_filename, logfile)

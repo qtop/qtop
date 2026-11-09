@@ -36,10 +36,7 @@ def MVU_compress_colored_line(value: str) -> str:
 def MVU_gauge_core_vectors(
     core_user_map: Dict[str, Any], node_column_start: int, node_column_stop: int, coreline_notthere_or_unused: Callable[..., bool], non_existent_symbol: str, remove_corelines: int
 ) -> Iterator[Tuple[Any, int, str, bool]]:
-    """
-    generator that loops over each core user vector and yields a boolean stating whether the core vector can be omitted via
-    REM_EMPTY_CORELINES or its respective switch
-    """
+    """Yield each core line with a flag telling whether REM_EMPTY_CORELINES may omit it."""
     delta = node_column_stop - node_column_start
     for ind, k in enumerate(core_user_map.copy()):
         core_x_vector = core_user_map["Core" + str(ind) + "vector"][node_column_start:node_column_stop]
@@ -48,6 +45,7 @@ def MVU_gauge_core_vectors(
 
 
 def MVU_keep_queue_initials_only_and_colorize(worker_nodes: Iterable[Mapping[str, Any]], queue_to_color: Mapping[str, str]) -> List[Dict[str, Any]]:
+    """Return copies of the worker nodes with each queue name as a coloured ColorStr."""
     return [
         dict(
             worker_node,
@@ -58,6 +56,7 @@ def MVU_keep_queue_initials_only_and_colorize(worker_nodes: Iterable[Mapping[str
 
 
 def MVU_colorize_nodestate(worker_nodes: Iterable[Mapping[str, Any]], nodestate_to_color: Mapping[str, str]) -> List[Dict[str, Any]]:
+    """Return copies of the worker nodes with their state coloured by nodestate_to_color."""
     return [
         dict(
             worker_node,
@@ -76,14 +75,12 @@ def MVU_colorize(
     bg_color: Optional[str] = None,
     bold: bool = False,
 ) -> Any:
-    """
-    prints colored text according to at least one of the keyword arguments available:
-    color_func can be a direct ansi color name or a function providing a color name.
-    If color is given directly as color_func, pattern/mapping are not needed.
-    If no color_func and no mapping are defined, the default mapping is used,
-    which is user_to_color, mapping an account name to a color.
-    A pattern must then be given, which is the key of the mapping.
-    Other mappings available are: nodestate_to_color, queue_to_color.
+    """Return text wrapped in the ANSI colour given by color_func, or found by pattern in mapping.
+
+    color_func is a colour name or a function returning one; then pattern and mapping are not needed.
+    Otherwise pattern is looked up in mapping, which defaults to user_to_color (account name to colour);
+    nodestate_to_color and queue_to_color are the other mappings.
+
     Examples:
     s = ColorStr(string='This is some text', color='Red_L')
     print(colorize(s, color_func=s.color), end=" ") # Red_L is applied directly
@@ -110,6 +107,8 @@ def MVU_colorize(
 
 
 class MVU_Model(object):
+    """Everything one qtop frame needs: configuration, options, viewport, scheduler backend, snapshot and colour maps."""
+
     def __init__(
         self,
         config: Dict[str, Any],
@@ -134,18 +133,22 @@ class MVU_Model(object):
         self.user_details: Dict[str, Any] = {}
 
     def MVU_colorize(self, *args: Any, **kwargs: Any) -> Any:
+        """Colour text with this model's colour maps; see MVU_colorize."""
         return MVU_colorize(self, *args, **kwargs)
 
     def MVU_node_job_ids(self, node: Mapping[str, Any]) -> Set[str]:
+        """Return the job IDs on a node, including the backend's extra node job fields."""
         return MVU_node_job_ids(node, self.backend)
 
     def MVU_reset_sigpipe(self) -> None:
+        """Restore the default SIGPIPE action, so piping into head exits quietly."""
         value = getattr(signal, "SIGPIPE", None)
         if value is not None:
             signal.signal(value, signal.SIG_DFL)
 
 
 def MVU_node_job_ids(node: Mapping[str, Any], backend: Any = None) -> Set[str]:
+    """Return the job IDs on a node: its core map plus the standard and backend-specific job fields."""
     jobs = set(node["core_job_map"].values())
     fields = NODE_JOB_FIELDS if backend is None else set(NODE_JOB_FIELDS).union(backend.node_job_fields)
     for field in fields:

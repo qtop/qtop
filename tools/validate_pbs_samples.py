@@ -34,6 +34,7 @@ GOLDEN_PBS_SAMPLES = (
 
 
 def render_sample(sample_dir, output_dir):
+    """Render one PBS sample with ./qtop into output_dir; return the result."""
     proc = subprocess.run(
         ["./qtop", "-b", "pbs", "-s", str(sample_dir), "-c", "ON"],
         universal_newlines=True,
@@ -54,6 +55,7 @@ def render_sample(sample_dir, output_dir):
 
 
 def main() -> int:
+    """Render up to --limit PBS samples and return non-zero on any failure."""
     parser = argparse.ArgumentParser()
     parser.add_argument("samples_dir", type=Path)
     parser.add_argument("--limit", type=int, default=100)

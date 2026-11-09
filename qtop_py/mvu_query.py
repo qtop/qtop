@@ -28,8 +28,8 @@ def rank_users(
     queued: "Mapping[str, int]",
     USER_ID_RANKING: "Sequence[str]" = DEFAULT_USER_ID_RANKING,
 ) -> "List[Tuple[str, int]]":
-    """
-    Order users for ID assignment: count keys rank higher counts first, the final name key breaks ties.
+    """Order users for ID assignment: count keys rank higher counts first, the final name key breaks ties.
+
     Returns (user, all jobs count) pairs, as the accounts table expects.
     """
     COUNTS = {
@@ -46,6 +46,8 @@ def rank_users(
 
 
 class WNOccupancy(object):
+    """Compute the accounts table, user IDs and core matrices behind the worker-node occupancy view."""
+
     def __init__(self, cluster: "Cluster", config: Dict[str, Any], snapshot: Any, user_to_color: Dict[str, str], MVU_model: Any) -> None:
         self.MVU_model = MVU_model
         self.cluster = cluster
@@ -66,11 +68,9 @@ class WNOccupancy(object):
         return user_names, job_states
 
     def calculate(self, snapshot: Any, user_to_color: Dict[str, str]) -> None:
-        """
-        Prints the Worker Nodes Occupancy table.
-        if there are non-uniform worker-node names, e.g. wn01, wn02, gn01, gn02, ...,  remapping is performed.
-        Otherwise, for uniform WNs, i.e. all using the same numbering scheme, wn01, wn02, ... proceeds as normal.
-        Number of Extra tables needed is calculated inside the calc_all_wnid_label_lines function below
+        """Compute the accounts table, user IDs, matrix widths, node ID lines and attribute lines for one frame.
+
+        Non-uniform node names (wn01, gn01, ...) are remapped; uniform ones keep their numbers.
         """
         if not self.cluster:
             return
@@ -107,7 +107,7 @@ class WNOccupancy(object):
     def _create_sort_acct_jobs_table(
         self, user_job_per_state_counts: Dict[str, Any], user_all_jobs_sorted: Sequence[Tuple[str, int]], user_to_id: Dict[str, Any]
     ) -> List[List[Any]]:
-        """Calculates what is actually below the id|  jobs>=R + Q | unix account etc line"""
+        """Calculates what is actually below the id|  jobs>=R + Q | unix account etc line."""
         account_jobs_table = [
             [
                 user_to_id[user_name],
@@ -132,9 +132,7 @@ class WNOccupancy(object):
         return account_jobs_table
 
     def _create_user_job_counts(self, user_names: List[str], job_states: List[str], state_abbrevs: Mapping[str, str]) -> Dict[str, Any]:
-        """
-        counting of e.g. R, Q, C, W, E attached to each user
-        """
+        """Counting of e.g. R, Q, C, W, E attached to each user."""
         user_job_per_state_counts: Dict[str, Any] = dict()
         for state_count_key in state_abbrevs.values():
             user_job_per_state_counts[state_count_key] = dict()
@@ -155,11 +153,7 @@ class WNOccupancy(object):
         return user_job_per_state_counts
 
     def _produce_user_lot(self, _user_names: List[str], user_job_per_state_counts: Dict[str, Any]) -> List[Tuple[str, int]]:
-        """
-        Produces a list of tuples (lot) of the form (user account, all jobs count) in ID order,
-        ranked by the configured user_id_ranking (default: R+Q, R, name_desc).
-        Used in the user accounts and poolmappings table
-        """
+        """Return (user, all jobs count) pairs in ID order, ranked by user_id_ranking (default: R+Q, R, name_desc)."""
         USER_ID_RANKING = self.config.get("user_id_ranking") or DEFAULT_USER_ID_RANKING
         return rank_users(
             Counter(_user_names),
@@ -178,12 +172,7 @@ class WNOccupancy(object):
         return totals
 
     def _calculate_user_job_counts(self, user_names: List[str], job_states: List[str]) -> Dict[str, Any]:
-        """
-        Calculates and prints what is actually below the id|  R + Q /all | unix account etc line
-        :param user_names: list
-        :param job_states: list
-        :return: (list, list, dict)
-        """
+        """Count each user's jobs per state; unknown states are logged and counted as unknown_of_user."""
         self.config = self._expand_useraccounts_symbols(self.config, user_names)
         state_abbrevs = dict(self.config["state_abbreviations"][self.MVU_model.scheduler])
         for job_state in job_states:
@@ -201,9 +190,7 @@ class WNOccupancy(object):
         return user_job_per_state_counts
 
     def _expand_useraccounts_symbols(self, config: Dict[str, Any], user_list: Sequence[Any]) -> Dict[str, Any]:
-        """
-        Keep the configured symbol alphabet stable. Overflow users share the long-tail symbol.
-        """
+        """Keep the configured symbol alphabet stable. Overflow users share the long-tail symbol."""
         return config
 
     def _create_id_for_users(self, users_by_job_count: Sequence[Tuple[str, int]]) -> Dict[str, Any]:
@@ -224,11 +211,9 @@ class WNOccupancy(object):
         return user_to_id
 
     def make_pattern_out_of_mapping(self, mapping: Mapping[str, str]) -> Dict[str, str]:
-        """
-        First strips the numbers off of the unix accounts and tries to match this against the given color table in colormap.
-        Additionally, it will try to apply the regex rules given by the user in qtopconf.yaml, overriding the colormap.
-        The first matched regex holds (loops from bottom to top in the pattern list).
-        If no matching was possible, there will be no coloring applied.
+        """Map each account to a colour: digits stripped, matched against the colour map and qtopconf regexes.
+
+        User regexes override the colour map; the last matching rule wins. Unmatched accounts stay uncoloured.
         """
         pattern = {}
         PATTERNS_LAST_FIRST = list(mapping.keys())[::-1]
@@ -257,13 +242,10 @@ class WNOccupancy(object):
         return pattern
 
     def find_matrices_width(self, DEADWEIGHT: int = 11) -> Tuple[int, int, int]:
-        """
-        masking/clipping functionality: if the earliest node number is high (e.g. 130), the first 129 WNs need not show up.
-        case 1: wn_number is RemapNr, WNList is WNListRemapped
-        case 2: wn_number is BiggestWrittenNode, WNList is WNList
-        DEADWEIGHT is the space taken by the {__XXXX__} labels on the right of the CoreX map
+        """Return the first and last node columns of the first matrix and the number of extra matrices.
 
-        uses cluster.highest_wn, cluster.workernode_list
+        With -N masking, leading empty nodes (e.g. the first 129 when numbering starts at 130) are skipped.
+        DEADWEIGHT is the width of the {__XXXX__} labels right of the core matrix.
         """
         start = 0
         wn_number = self.cluster.highest_wn
@@ -301,8 +283,8 @@ class WNOccupancy(object):
         return start, stop, extra_matrices_nr
 
     def calc_all_wnid_label_lines(self, NAMED_WNS: Any) -> Dict[str, Any]:  # (total_wn) in case of multiple cluster.node_name_prefixes
-        """
-        calculates the Worker Node ID number line widths. expressed by hxxxxs in the following form, e.g. for hundreds of nodes:
+        """Return the vertical worker-node ID label lines, one per digit, e.g. for hundreds of nodes.
+
         '1': "00000000..."
         '2': "0000000001111111..."
         '3': "12345678901234567..."
@@ -333,6 +315,7 @@ class WNOccupancy(object):
         return wn_vert_labels
 
     def calc_general_mult_attr_line(self, part_name: str, yaml_key: str, config: Dict[str, Any], backend: Any) -> Dict[str, Any]:  # NEW
+        """Return the per-node attribute lines (state, queue, ...) for a workernodes_matrix part, cropped to max_len."""
         elem_identifier = [d for d in config["workernodes_matrix"] if part_name in d][0]  # jeeez
         part_name_idx = config["workernodes_matrix"].index(elem_identifier)
         user_max_len = int(config["workernodes_matrix"][part_name_idx][part_name]["max_len"])
@@ -391,10 +374,9 @@ class WNOccupancy(object):
         job_to_user_and_queue: Mapping[str, Tuple[str, str]],
         core_coloring: str,
     ) -> Dict[str, Any]:
-        """
-        Calculates the actual contents of the map by filling in a status string for each CPU line
-        One of the two dimensions of the matrix is determined by the highest-core WN existing. If other WNs have less cores,
-        these positions are filled with '#'s (or whatever is defined in config['non_existent_node_symbol']).
+        """Fill one node's column of the core matrix with job or status symbols.
+
+        Nodes with fewer cores than the largest one are padded with non_existent_node_symbol.
         """
         node = self.cluster.workernode_dict[_node]
         state = node["state"]
@@ -421,6 +403,7 @@ class WNOccupancy(object):
 
     @staticmethod
     def get_hl_q_or_users(_highlighted_queues_or_users: Iterable[Mapping[str, Any]]) -> Iterator[Tuple[Any, str, Callable[..., bool]]]:
+        """Yield (user or queue, highlight kind, all/any) for each highlight rule."""
         for selection_users_queues in _highlighted_queues_or_users:
             selection = list(selection_users_queues.keys())[0]
             users_queues = selection_users_queues[selection]
@@ -433,12 +416,7 @@ class WNOccupancy(object):
     def color_cores_and_return_unused(
         self, node_cores: Sequence[str], core_user_map: Dict[str, Any], corejobs: Mapping[Any, Any], _core_coloring: str, job_to_user_and_queue: Mapping[str, Tuple[str, str]]
     ) -> Tuple[Dict[str, Any], List[str]]:
-        """
-        Adds color information to the core job, returns free cores.
-        locals()[queue_or_user] transforms either 'user'=> user or 'queue'=> queue
-        depending on qtopconf yaml's "core_coloring",
-        or on runtime in watch mode, if user presses appropriate keybinding
-        """
+        """Colour each busy core by user or queue, as core_coloring says; return the core map and the free cores."""
         # Insertion-ordered dict: O(1) removal, same iteration order as the former list.
         node_free_cores = dict.fromkeys(node_cores)
 
@@ -498,9 +476,7 @@ class WNOccupancy(object):
         return resolved
 
     def _valid_corejobs(self, corejobs: Mapping[Any, Any], job_to_user_and_queue: Mapping[str, Tuple[str, str]]) -> Iterator[Tuple[str, str, str]]:
-        """
-        Generator that yields only those core-job pairs that successfully match to a user
-        """
+        """Generator that yields only those core-job pairs that successfully match to a user."""
         for core, _job in corejobs.items():
             job = self._resolve(str(_job), job_to_user_and_queue)
             try:
@@ -513,6 +489,7 @@ class WNOccupancy(object):
                 yield user, str(core), queue
 
     def is_matrix_coreless(self, node_column_start: int, node_column_stop: int) -> bool:
+        """Return True if every core line of this matrix slice would be removed as empty."""
         non_existent_symbol = self.config["non_existent_node_symbol"]
         lines = 0
         core_user_map = self.core_user_map
@@ -526,6 +503,7 @@ class WNOccupancy(object):
         return lines == len(core_user_map)
 
     def MVU_check_jobs(self, cluster: "Cluster") -> Optional[str]:
+        """Return a mismatch message if the running jobs counted on nodes differ from the scheduler's total."""
         states = self.config["state_abbreviations"][self.MVU_model.scheduler]
         running_ids = {job_id for job_id, job in self.snapshot.jobs_dict.items() if states.get(job.job_state) == "running_of_user"}
         counted_jobs = WNOccupancy._count_jobs_strict(self.snapshot.worker_nodes, running_ids, self.MVU_model.MVU_node_job_ids)
@@ -544,9 +522,7 @@ class WNOccupancy(object):
         return len(jobs if job_ids is None else jobs.intersection(job_ids))
 
     def calculate_user_node_use(self, cluster: "Cluster", job_to_user_and_queue: Mapping[str, Tuple[str, str]]) -> "Counter[str]":
-        """
-        This calculates the number of nodes each user has jobs in (shown in User accounts and pool mappings)
-        """
+        """This calculates the number of nodes each user has jobs in (shown in User accounts and pool mappings)."""
         user_machines = []
         for node in cluster.workernode_dict.values():
             node["node_user_set"] = {job_to_user_and_queue[job][0] for job in node["node_job_set"] if job in job_to_user_and_queue}
@@ -556,17 +532,12 @@ class WNOccupancy(object):
 
     @staticmethod
     def coreline_not_there(symbol: str, switch: int, delta: int, core_x_str: str) -> bool:
-        """
-        Checks if a line consists of only not-really-there cores, i.e. core 32 on a line of 24-core machines
-        (being there because there are other machines with 32 cores on an adjacent matrix)
-        """
+        """Return True if a core line has only non-existent cores, e.g. core 32 on a matrix of 24-core nodes."""
         return switch == 2 and ((symbol * delta == core_x_str) or (symbol * len(core_x_str) == core_x_str))
 
     @staticmethod
     def coreline_unused(symbol: str, switch: int, print_length: int, core_x_str: str) -> bool:
-        """
-        Checks if a line consists of either not-really-there cores or unused cores
-        """
+        """Checks if a line consists of either not-really-there cores or unused cores."""
         all_symbols_in_line = set(core_x_str)
         unused_symbols = set(["_", symbol])
         only_unused_symbols_in_line = all_symbols_in_line.issubset(unused_symbols)
@@ -574,10 +545,13 @@ class WNOccupancy(object):
 
     @staticmethod
     def coreline_notthere_or_unused(symbol: str, switch: int, delta: int, core_x_str: str) -> bool:
+        """Return True if a core line is non-existent or unused, so it may be removed."""
         return WNOccupancy.coreline_not_there(symbol, switch, delta, core_x_str) or WNOccupancy.coreline_unused(symbol, switch, delta, core_x_str)
 
 
 class Cluster(object):
+    """Cluster-wide node statistics, numbering and remapping derived from a snapshot."""
+
     def __init__(self, snapshot: Any, worker_nodes: List[Dict[str, Any]], WNFilter: Any, config: Dict[str, Any], args: Any, MVU_model: Any) -> None:
         self.MVU_model = MVU_model
         self.worker_nodes = worker_nodes
@@ -605,6 +579,7 @@ class Cluster(object):
         self.analyse()
 
     def analyse(self) -> "Cluster":
+        """Derive node numbers, prefixes, down nodes, working cores and remapping from the worker nodes."""
         if not self.worker_nodes:
             return self
 
@@ -639,6 +614,7 @@ class Cluster(object):
     def get_wn_list_and_stats(
         self, workernode_list: Any, node_name_prefixes: Set[str], worker_nodes: Sequence[Any], re_nodename: str
     ) -> Tuple[Set[str], Any, int, int, int, List[str]]:
+        """Return the node name prefixes, node numbers, down-node and core counts, the largest core count and node digits."""
         max_np = 0
         all_str_digits_with_empties = list()
         for node in worker_nodes:
@@ -671,20 +647,16 @@ class Cluster(object):
         return node_name_prefixes, workernode_list, self.offdown_nodes, self.working_cores, max_np, all_str_digits_with_empties
 
     def decide_remapping(self, all_str_digits_with_empties: List[str], node_name_prefixes: Set[str]) -> bool:
-        """
-        Cases where remapping is enforced are:
-        - the user has requested it (blindremap switch)
-        - worker-node filters are active
-        - there are different WN namings, e.g. wn001, wn002, ..., ps001, ps002, ... etc
-        - the first starting numbering of a WN is very high and thus would require too much unused space
-        #- the numbering is strange, say the highest numbered node is named wn12500 but the total amount of WNs is 8000????
-        - more than PERCENTAGE*nodes have no jobs assigned
-        - there are numbering collisions,
-            e.g. there's a ps001 and a wn001, or a 0x001 and a 0x1, which all would be displayed in position 1
-            or there are non-numbered wns
+        """Return True if node numbers must be remapped to consecutive positions.
 
-        Reasons not enough to warrant remapping (intended future behaviour)
-        - one or two unnumbered nodes (should just be put in the end of the cluster)
+        Remapping is enforced when:
+        - the user asks for it (blindremap switch) or worker-node filters are active;
+        - nodes have different name prefixes, e.g. wn001 and ps001;
+        - numbering starts so high that most of the matrix would be empty;
+        - more than PERCENTAGE*nodes have no jobs assigned;
+        - numbers collide (ps001 and wn001, or 0x001 and 0x1, all at position 1), or nodes are unnumbered.
+
+        One or two unnumbered nodes should not be enough (intended future behaviour: append them at the end).
         """
         if not self.total_wn:  # if nothing is running on the cluster
             return False
@@ -729,9 +701,7 @@ class Cluster(object):
         return REMAP
 
     def do_name_remapping(self, workernode_dict: Dict[Any, Dict[str, Any]]) -> Dict[Any, Dict[str, Any]]:
-        """
-        renames hostnames according to user remapping in conf file (for the wn id label lines)
-        """
+        """Renames hostnames according to user remapping in conf file (for the wn id label lines)."""
         label_max_len = int(self.config["workernodes_matrix"][0]["wn id lines"]["max_len"])
         for _, state_corejob_dn in workernode_dict.items():
             _host = state_corejob_dn["domainname"].split(".", 1)[0]
@@ -749,7 +719,7 @@ class Cluster(object):
         return workernode_dict
 
     def fill_non_existent_wn_nodes(self, workernode_dict: Dict[Any, Dict[str, Any]]) -> Dict[Any, Dict[str, Any]]:
-        """fill in non-existent WN nodes (absent from input files) with default values and count them"""
+        """Fill in non-existent WN nodes (absent from input files) with default values and count them."""
         for node in range(1, self.highest_wn + 1):
             if node not in workernode_dict:
                 workernode_dict[node] = {"state": "?", "np": 0, "domainname": "N/A", "host": "N/A", "core_job_map": {}}
@@ -837,10 +807,13 @@ class Cluster(object):
 
 
 class WNFilter(object):
+    """Apply the worker-node filters (by queue, number, state or name pattern) by marking and keeping nodes."""
+
     def __init__(self, worker_nodes: List[Any]) -> None:
         self.worker_nodes = worker_nodes
 
     def mark_list_by_queue(self, nodes: List[Any], arg_list: Optional[Sequence[str]] = None) -> List[Any]:
+        """Mark the nodes that serve any of the given queues."""
         arg_list = arg_list or []
         for _idx, node in enumerate(nodes[:]):
             if set(arg_list) & {x.str for x in node["qname"]}:
@@ -848,6 +821,7 @@ class WNFilter(object):
         return nodes
 
     def mark_list_by_number(self, nodes: List[Any], arg_list: Optional[Sequence[str]] = None) -> List[Any]:
+        """Mark the nodes at the given positions."""
         arg_list = arg_list or []
         for idx, node in enumerate(nodes):
             if str(idx) in arg_list:
@@ -855,6 +829,7 @@ class WNFilter(object):
         return nodes
 
     def mark_list_by_node_state(self, nodes: List[Any], arg_list: Optional[Sequence[str]] = None) -> List[Any]:
+        """Mark the nodes in any of the given states."""
         arg_list = arg_list or []
         for node in nodes:
             if {"".join(state.str for state in node["state"])} & set(arg_list):
@@ -862,6 +837,7 @@ class WNFilter(object):
         return nodes
 
     def mark_list_by_name_pattern(self, nodes: List[Any], arg_list: Optional[Sequence[str]] = None) -> List[Any]:
+        """Mark the nodes whose short name matches any of the given regexes."""
         arg_list = arg_list or []
         for node in nodes:
             patterns = next(iter(arg_list.values())) if isinstance(arg_list, dict) else arg_list
@@ -872,6 +848,7 @@ class WNFilter(object):
         return nodes
 
     def keep_marked(self, t: Iterable[Any], rule: Any, final_pass: bool = False) -> Iterable[Any]:
+        """Keep the marked nodes and clear their marks; or_ rules apply only on the final pass."""
         if (rule.startswith("or_") and not final_pass) or (not rule.startswith("or_") and final_pass):
             return t
         nodes = list(filter(lambda item: item.get("mark"), t))
@@ -881,14 +858,13 @@ class WNFilter(object):
         return nodes
 
     def keep_unmarked(self, t: Iterable[Any], rule: Any, final_pass: bool = False) -> Iterable[Any]:
+        """Keep the nodes that are not marked."""
         return filter(lambda item: not item.get("mark"), t)
 
     def filter_worker_nodes(
         self, offdown_nodes: int, avail_nodes: int, working_cores: int, total_cores: int, filter_rules: Optional[List[Any]] = None
     ) -> Tuple[Any, int, int, int, int]:
-        """
-        Keeps specific nodes according to the filter rules in QTOPCONF_YAML
-        """
+        """Keeps specific nodes according to the filter rules in QTOPCONF_YAML."""
         filter_types = {
             "exclude_numbers": (self.mark_list_by_number, self.keep_unmarked),
             "exclude_node_states": (self.mark_list_by_node_state, self.keep_unmarked),
@@ -926,6 +902,7 @@ class WNFilter(object):
     @staticmethod
     @utils.CountCalls
     def report_filtered_view() -> None:
+        """Log that the occupancy view is filtered."""
         logging.error("*** WN Occupancy view is filtered.")
 
 

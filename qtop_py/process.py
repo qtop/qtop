@@ -18,6 +18,7 @@ MAX_STDERR_BYTES = 1024 * 1024
 
 
 def terminate(command: "subprocess.Popen[bytes]") -> None:
+    """Kill a command and, on POSIX, its whole process group."""
     if os.name == "posix":
         with contextlib.suppress(ProcessLookupError):
             os.killpg(command.pid, signal.SIGKILL)

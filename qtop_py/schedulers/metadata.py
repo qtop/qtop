@@ -20,6 +20,7 @@ NODE_JOB_FIELDS = ("slurm_job_ids", "oar_job_ids")
 
 
 def validate_diagnostics(data: Dict[str, object]) -> None:
+    """Raise TypeError or ValueError unless each scheduler's diagnostics are counts under the known keys."""
     for name, (label, keys) in DIAGNOSTICS.items():
         if name not in data:
             continue
@@ -31,6 +32,7 @@ def validate_diagnostics(data: Dict[str, object]) -> None:
 
 
 def validate_record_extensions(kind: str, record: Dict[str, object]) -> None:
+    """Raise ValueError if a job's or node's scheduler-specific fields are malformed."""
     for field in ("slurm_partitions",) if kind == "jobs" else NODE_JOB_FIELDS if kind == "nodes" else ():
         if field in record:
             values = record[field]
@@ -61,6 +63,7 @@ def validate_record_extensions(kind: str, record: Dict[str, object]) -> None:
 
 
 def mask_job_extensions(original: Mapping[str, Any], target: "Job", mask: Callable[[str, str], str]) -> None:
+    """Copy a job's scheduler-specific fields to target, masking partition and job names."""
     job = cast(Dict[str, object], target)
     if "slurm_partitions" in original:
         job["slurm_partitions"] = [mask(name, "queue") for name in original["slurm_partitions"]]
@@ -70,6 +73,7 @@ def mask_job_extensions(original: Mapping[str, Any], target: "Job", mask: Callab
 
 
 def mask_node_extensions(original: Mapping[str, Any], target: "Node", mask_job: Callable[[str], str]) -> None:
+    """Copy a node's scheduler-specific fields to target, masking job IDs."""
     node = cast(Dict[str, Any], target)
     node.update({field: original[field] for field in ("slurm_node_state", "slurm_unmapped_cpus", "cpu_allocation_source") if field in original})
     node.update({field: [mask_job(value) for value in original[field]] for field in NODE_JOB_FIELDS if field in original})
@@ -83,5 +87,6 @@ def mask_node_extensions(original: Mapping[str, Any], target: "Node", mask_job: 
 
 
 def node_is_idle(node: Mapping[str, Any]) -> bool:
+    """Return True if the node is free, runs no jobs and uses no GPUs."""
     available = node["state"] == "-" and not node["core_job_map"] and not any(node.get(field) for field in NODE_JOB_FIELDS)
     return available and node.get("slurm_node_state", "idle").lower() == "idle" and not any(resource["count"] for resource in node.get("slurm_gpu_used", []))

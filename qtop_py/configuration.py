@@ -26,6 +26,7 @@ from qtop_py.safety import ResourceLimitError, literal_eval
 
 
 def literal(value: Any) -> Any:
+    """Evaluate a Python literal, or return the value unchanged if it is not one."""
     try:
         return literal_eval(value)
     except ResourceLimitError:
@@ -209,11 +210,13 @@ def _validate_commands(config: Any) -> None:
 
 
 def configured_separator(config: Dict[str, Any]) -> Any:
+    """Return the matrix column separator, without quotes."""
     separator = config.get("SEPARATOR", config.get("vertical_separator", "|"))
     return separator.replace("'", "") if isinstance(separator, str) else separator
 
 
 def reserved_user_symbols(config: Dict[str, Any]) -> Set[str]:
+    """Return the symbols that may not serve as user IDs."""
     return set(
         symbol
         for symbol in (
@@ -228,6 +231,7 @@ def reserved_user_symbols(config: Dict[str, Any]) -> Set[str]:
 
 
 def available_possible_ids(config: Dict[str, Any]) -> List[str]:
+    """Return the configured user ID symbols, minus the reserved ones."""
     reserved_symbols = reserved_user_symbols(config)
     return [symbol for symbol in config["possible_ids"] if symbol not in reserved_symbols]
 
@@ -253,6 +257,7 @@ def normalize_config(raw_config: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def get_key_val_from_option_string(string: str) -> Tuple[str, Any]:
+    """Split a -o KEY=VALUE option; raise OperationalError if it is malformed."""
     key, separator, val = string.partition("=")
     if not separator or not key.strip():
         raise OperationalError("Invalid -o option %r; expected KEY=VALUE." % string)
@@ -260,6 +265,7 @@ def get_key_val_from_option_string(string: str) -> Tuple[str, Any]:
 
 
 def update_config_with_cmdline_vars(args: Any, config: Dict[str, Any]) -> Dict[str, Any]:
+    """Apply the -o, -T and -E switches to the configuration."""
     config["rem_empty_corelines"] = int(config.get("rem_empty_corelines", 0))
     for opt in getattr(args, "OPTION", ()):
         key, val = get_key_val_from_option_string(opt)
@@ -275,6 +281,7 @@ def update_config_with_cmdline_vars(args: Any, config: Dict[str, Any]) -> Dict[s
 
 
 def prepare_config(config: Dict[str, Any], args: Any = None) -> Tuple[Dict[str, Any], Dict[str, str], Dict[str, str]]:
+    """Validate and normalise the configuration; return it with the user and node-state colour maps."""
     validate_config(config)
     config = normalize_config(config)
 

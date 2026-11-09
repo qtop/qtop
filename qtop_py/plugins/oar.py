@@ -1,5 +1,7 @@
 ## Copyright (c) 2026 qtop contributors
 ## SPDX-License-Identifier: MIT
+"""OAR backend: parses oarnodes and oarstat output."""
+
 import logging
 import os
 import re
@@ -18,6 +20,8 @@ DEFAULT_NODE_STATE_MAPPING = {"Alive": "-", "Dead": "d", "Suspected": "s", "Mixe
 
 
 class OarStatExtractor(TabularStatExtractor):
+    """Parse oarstat and oarnodes output."""
+
     def __init__(self, config: "Config", options: "Options") -> None:
         StatExtractor.__init__(self, config, options)
         self.user_q_search = (
@@ -31,6 +35,7 @@ class OarStatExtractor(TabularStatExtractor):
         )
 
     def extract_qstat(self, orig_file: str) -> List[Any]:
+        """Parse oarstat output into job records; an empty file yields none."""
         all_values: List[Any] = list()
         try:
             fileutils.check_empty_file(orig_file)
@@ -57,10 +62,13 @@ class OarStatExtractor(TabularStatExtractor):
 
 
 class OARBatchSystem(GenericBatchSystem):
+    """OAR backend."""
+
     node_job_fields = ("oar_job_ids",)
 
     @staticmethod
     def display_messages(section: str, snapshot: object, nodes: "List[Node]", config: "Config") -> List[str]:
+        """Report OAR allocation notes (missing resources, unknown jobs, shared slots) under the snapshot."""
         notes = getattr(snapshot, "_diagnostics", {}).get("oar_diagnostics", {})
         if section == "snapshot" and any(notes.values()):
             return [
@@ -71,6 +79,7 @@ class OARBatchSystem(GenericBatchSystem):
         return []
 
     def mask_source_trace(self, key: str, text: str, mask: "TraceMasker") -> Tuple[str, str]:
+        """Return the masked name and text of an oarstat or oarnodes trace."""
         rows = []
         jobs_list = False
         for index, line in enumerate(text.splitlines()):
@@ -135,6 +144,7 @@ class OARBatchSystem(GenericBatchSystem):
 
     @staticmethod
     def get_mnemonic() -> str:
+        """Return the scheduler name, oar."""
         return "oar"
 
     def __init__(self, scheduler_output_filenames: Dict[str, str], config: "Config", options: "Options") -> None:
@@ -148,12 +158,14 @@ class OARBatchSystem(GenericBatchSystem):
         self.oar_stat_maker = OarStatExtractor(self.config, self.options)
 
     def get_cluster_state(self, options: "Options") -> "ClusterState":
+        """Return the cluster state, with OAR allocation diagnostics when there are any."""
         state = super().get_cluster_state(options)
         if self.diagnostics:
             state["oar_diagnostics"] = self.diagnostics.copy()
         return state
 
     def get_worker_nodes(self, job_ids: List[str], job_queues: List[str], options: "Options") -> "List[Node]":
+        """Return the nodes with their resource states and jobs from oarnodes."""
         nodes_resids = self._read_oarnodes_s_yaml(self.oarnodes_s_file)
         resids_jobs = self._read_oarnodes_y_textyaml(self.oarnodes_y_file)
 
@@ -191,6 +203,7 @@ class OARBatchSystem(GenericBatchSystem):
         return self.ensure_worker_nodes_have_qnames(worker_nodes, job_ids, job_queues)
 
     def get_jobs_info(self) -> "JobsInfo":
+        """Return job IDs, users, states and queues from oarstat."""
         qstats = self._get_jobs()
         records = [(str(qstat["JobId"]), qstat["UnixAccount"], qstat["S"], qstat["Queue"]) for qstat in qstats]
         job_ids, usernames, job_states, queue_names = map(list, zip(*records)) if records else ([], [], [], [])
@@ -270,10 +283,7 @@ class OARBatchSystem(GenericBatchSystem):
 
     @staticmethod
     def _calculate_oar_state(jobid_state_lot: Any, node_state_mapping: Mapping[str, str]) -> str:
-        """
-        If all resource ids within the node are either alive or dead or suspected, the respective label is given to the node.
-        Otherwise, a mixed-state is reported
-        """
+        """Return alive, dead or suspected if all of a node's resources agree, otherwise mixed."""
         states = {job_state_tpl[1] for job_state_tpl in jobid_state_lot}
         if not states:
             return node_state_mapping["Unknown"]

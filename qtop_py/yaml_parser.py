@@ -8,6 +8,7 @@
 ##
 ## SPDX-License-Identifier: MIT
 ##
+"""A small parser for the YAML subset that qtopconf and scheduler traces use."""
 
 import logging
 import os
@@ -20,6 +21,7 @@ from qtop_py.safety import ResourceLimitError, literal_eval
 
 
 def literal_or_original(value: Any) -> Any:
+    """Evaluate a Python literal, or return the value unchanged if it is not one."""
     try:
         return literal_eval(value)
     except ResourceLimitError:
@@ -29,6 +31,7 @@ def literal_or_original(value: Any) -> Any:
 
 
 def expand_single_literal_list(container: List[Any]) -> Any:
+    """Return the list a single-string container spells as a literal, or the container unchanged."""
     if len(container) != 1 or not isinstance(container[0], str):
         return container
     literal_value = literal_or_original(container[0])
@@ -41,8 +44,7 @@ def expand_single_literal_list(container: List[Any]) -> Any:
 
 
 def fix_config_list(config_list: Any) -> List[str]:
-    """
-    transforms a list of the form ['a, b'] to ['a', 'b']
+    """Transforms a list of the form ['a, b'] to ['a', 'b'].
 
     Raises TypeError if the first element is not a string, surfacing a clear,
     actionable error here instead of a cryptic AttributeError from ``str.split``
@@ -59,20 +61,10 @@ def fix_config_list(config_list: Any) -> List[str]:
 
 
 def get_line(fin: Iterable[str], verbatim: bool = False, SEPARATOR: Optional[str] = None, DEF_INDENT: int = 2) -> Iterator[List[Any]]:
-    """
-    Yields a list per line read, of the following form:
-    [indentation_change, line up to first space, line after first space if exists]
-    Comment lines are omitted.
-    Lines where comments exist at the end are stripped off their comment.
-    Indentation is calculated with respect to the previous line.
-    1: line is further indented
-    0: same indentation
-    -1: line is unindent
-    Empty lines only return the indentation change.
-    Where the line splits depends on SEPARATOR (default is first space)
+    """Yield [indentation change, text up to SEPARATOR, rest] per line, without comments.
 
-    DEF_INDENT is how many spaces is an indent by default.
-    e.g. qtop config file uses 2 spaces, oarnodes_s_y uses 4
+    The indentation change against the previous line is 1 (deeper), 0 (same) or -1 (shallower);
+    empty lines yield only the change. DEF_INDENT is the indent width: 2 in qtopconf, 4 in oarnodes -Y.
     """
     indent = 0
     indenter = {
@@ -119,8 +111,7 @@ def get_line(fin: Iterable[str], verbatim: bool = False, SEPARATOR: Optional[str
 
 
 def convert_dash_key_in_dict(d: Any) -> Any:
-    """
-    Recursively unwrap sole-key dash containers without dropping sibling keys.
+    """Recursively unwrap sole-key dash containers without dropping sibling keys.
 
     Preserve the historical literal-dash representation under ``state``.
     Scalar values pass through unchanged.
@@ -142,6 +133,7 @@ def convert_dash_key_in_dict(d: Any) -> Any:
 
 
 def parse(fn: str, DEF_INDENT: int = 2) -> Dict[str, Any]:
+    """Parse a YAML file within MAX_INPUT_BYTES into a dict; an empty file yields an empty one."""
     raw_key_values = {}
     with open(fn, mode="r", encoding="utf-8") as fin:
         if os.fstat(fin.fileno()).st_size > safety.MAX_INPUT_BYTES:
@@ -163,6 +155,7 @@ def parse(fn: str, DEF_INDENT: int = 2) -> Dict[str, Any]:
 
 
 def read_yaml_config_block(line: List[Any], fin: Iterable[str], get_lines: Iterator[List[Any]]) -> Tuple[Dict[str, Any], Any]:
+    """Read one top-level block starting at line; return it and the next line."""
     block: Dict[str, Any] = dict()
     parent_container = block
     open_containers = list()
@@ -233,6 +226,7 @@ def read_yaml_config_block(line: List[Any], fin: Iterable[str], get_lines: Itera
 
 
 def process_line(list_line: List[Any], fin: Iterable[str], get_lines: Iterator[List[Any]], parent_container: Any) -> Tuple[Dict[str, Any], Any]:
+    """Add one key line to parent_container, reading any nested block; return the key-value and next line."""
     key = list_line[1]
     container: Any  # mapping, list or scalar, depending on the line
 
@@ -274,6 +268,7 @@ def process_line(list_line: List[Any], fin: Iterable[str], get_lines: Iterator[L
 
 
 def process_code(fin: Iterable[str]) -> str:
+    """Return a verbatim (code) block as one string."""
     get_code = get_line(fin, verbatim=True)
     line = next(get_code)
     code = []
@@ -287,12 +282,14 @@ def process_code(fin: Iterable[str]) -> str:
 
 
 def safe_load(fin: str, DEF_INDENT: int = 2) -> Dict[str, Any]:
+    """Parse a YAML file into a dict."""
     a_dict = parse(fin, DEF_INDENT)
     logging.debug("YAML dict length: %s" % len(a_dict))
     return a_dict
 
 
 def load_all(fin: Iterable[str]) -> List[Dict[str, Any]]:
+    """Parse every YAML document in a stream; return them as a list."""
     list_of_dicts = []
     get_lines = get_line(fin)
     while True:
@@ -308,10 +305,7 @@ def load_all(fin: Iterable[str]) -> List[Dict[str, Any]]:
 
 
 def get_yaml_key_part(config: Mapping[str, Any], scheduler: str, outermost_key: str) -> Iterator[Tuple[str, str, List[str]]]:
-    """
-    only return the list items of the yaml outermost_key if a yaml key subkey exists
-    (this signals a user-inserted value)
-    """
+    """Yield the outermost_key entries that hold a user-set yaml key subkey."""
     # e.g. outermost_key is 'workernodes_matrix'
     for part in config[outermost_key]:
         part_name = [i for i in part][0]

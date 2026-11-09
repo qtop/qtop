@@ -7,6 +7,7 @@
 ##
 ## SPDX-License-Identifier: MIT
 ##
+"""SGE backend: parses qstat -xml output."""
 
 __author__ = "sfranky"
 import fnmatch
@@ -58,6 +59,7 @@ class NoDTDTreeBuilder(etree.TreeBuilder):
         self.depth = self.elements = 0
 
     def start(self, tag: str, attrs: Dict[str, str]) -> etree.Element:
+        """Open an element; raise ParseError beyond MAX_DEPTH nesting or MAX_ITEMS elements."""
         self.depth += 1
         self.elements += 1
         if self.depth > safety.MAX_DEPTH or self.elements > safety.MAX_ITEMS:
@@ -65,10 +67,12 @@ class NoDTDTreeBuilder(etree.TreeBuilder):
         return super().start(tag, attrs)
 
     def end(self, tag: str) -> etree.Element:
+        """Close an element."""
         self.depth -= 1
         return super().end(tag)
 
     def doctype(self, name: str, pubid: str, system: str, *_internal_subset: Any) -> None:
+        """Reject any DTD declaration."""
         raise etree.ParseError("DTD declarations are not supported in scheduler XML")
 
 
@@ -83,6 +87,8 @@ def _xml_parser() -> etree.XMLParser:
 
 
 class SGEStatExtractor(StatExtractor):
+    """Parse SGE qstat -xml output, keeping queues listed in sge_whole_queues whole."""
+
     def __init__(self, config: "Config", options: "Options", scheduler_output_filenames: Dict[str, str]) -> None:
         StatExtractor.__init__(self, config, options)
         self.scheduler_output_filenames = scheduler_output_filenames
@@ -92,12 +98,14 @@ class SGEStatExtractor(StatExtractor):
         self.whole_queue_elems: Set[etree.Element] = set()
 
     def anonymize_queue_list_nametag(self, queue_list_nametag: etree.Element) -> str:
+        """Return queue@node with both parts anonymised."""
         name, nodename = (queue_list_nametag.text or "").split("@")  # nonempty, checked by the caller
         name = self.anonymize(name, "qs")
         nodename = self.anonymize(nodename, "wns")
         return name + "@" + nodename
 
     def get_xml_tree(self, xml_file: str) -> Tuple[etree.ElementTree, Any]:
+        """Parse an XML file within the size and nesting limits, rejecting DTDs; return the tree and root."""
         with open(xml_file, mode="rb") as fin:
             try:
                 # Bandit cannot infer DTD rejection by the custom parser target.
@@ -122,6 +130,7 @@ class SGEStatExtractor(StatExtractor):
         return tree, root
 
     def extract_qstat(self, orig_file: str) -> List[Any]:
+        """Parse qstat -xml output into job records."""
         all_values: List[Any] = list()
         self.orig_file = orig_file
         self.whole_queue_elems = set()
@@ -167,9 +176,7 @@ class SGEStatExtractor(StatExtractor):
         return all_values
 
     def _extract_job_info(self, all_values: List[Any], elem: etree.Element, elem_text: str, queue_name: str) -> List[Any]:
-        """
-        Extract scheduler job records from an XML element into ``all_values``.
-        """
+        """Extract scheduler job records from an XML element into ``all_values``."""
         for subelem in elem.findall(elem_text):
             owner = _anonymize_field(subelem, "./JB_owner", self.anonymize, "users")
             job_num = _job_id(subelem, self.anonymize)
@@ -191,14 +198,18 @@ class SGEStatExtractor(StatExtractor):
 
 
 class SGEBatchSystem(GenericBatchSystem):
+    """SGE backend."""
+
     native_queue_membership = True
     blocked_queue_note = " (at least one queue instance)"
 
     @staticmethod
     def queue_is_blocked(state: object) -> bool:
+        """Return True if the queue state carries any SGE alarm, suspend, disable, error or unknown flag."""
         return any(flag in str(state) for flag in "aAcCdDEosSu")
 
     def mask_source_trace(self, key: str, text: str, mask: "TraceMasker") -> Tuple[str, str]:
+        """Return the masked name and XML text of a qstat -xml trace."""
         if key != "sge_file":
             raise ValueError("unsupported trace")
         parser = _xml_parser()
@@ -251,6 +262,7 @@ class SGEBatchSystem(GenericBatchSystem):
 
     @staticmethod
     def get_mnemonic() -> str:
+        """Return the scheduler name, sge."""
         return "sge"
 
     def __init__(self, scheduler_output_filenames: Dict[str, str], config: "Config", options: Any) -> None:
@@ -265,6 +277,7 @@ class SGEBatchSystem(GenericBatchSystem):
             self.anonymize = self.sge_stat_maker.eponymize_func()
 
     def get_queues_info(self) -> "QueuesInfo":
+        """Return the running and queued totals and per-queue records from qstat -xml."""
         logging.debug("Parsing tree of %s" % self.sge_file)
         fileutils.check_empty_file(self.sge_file)
 
@@ -289,6 +302,7 @@ class SGEBatchSystem(GenericBatchSystem):
         return total_running_jobs, int(total_queued_jobs), queues
 
     def get_worker_nodes(self, job_ids: List[str], job_queues: List[str], options: "Options") -> "List[Node]":
+        """Return the nodes, with their queues and slots, from qstat -xml."""
         logging.debug("Parsing tree of %s" % self.sge_file)
 
         tree, root = self.sge_stat_maker.tree, self.sge_stat_maker.root
@@ -345,6 +359,7 @@ class SGEBatchSystem(GenericBatchSystem):
         return cast("List[Node]", existing_wns)  # built field by field as Node records
 
     def get_jobs_info(self) -> "JobsInfo":
+        """Return job IDs, users, states and queues from qstat -xml."""
         all_values = self.sge_stat_maker.extract_qstat(self.sge_file)
         records = [(str(qstat["JobId"]), qstat["UnixAccount"], qstat["S"], qstat["Queue"]) for qstat in all_values]
         job_ids, usernames, job_states, queue_names = map(list, zip(*records)) if records else ([], [], [], [])
@@ -358,9 +373,7 @@ class SGEBatchSystem(GenericBatchSystem):
 
     @staticmethod
     def _expand_whole_queue_node(worker_node: Dict[str, Any], job_id: Optional[str]) -> None:
-        """
-        A running job in a sge_whole_queues queue owns its whole node: fill the free cores, keep other jobs' cores.
-        """
+        """A running job in a sge_whole_queues queue owns its whole node: fill the free cores, keep other jobs' cores."""
         if job_id is None:
             return
         core_job_map = worker_node["core_job_map"]
@@ -369,9 +382,7 @@ class SGEBatchSystem(GenericBatchSystem):
         worker_node["existing_busy_cores"] = len(core_job_map)
 
     def _extract_running_job_info(self, elem: etree.Element, elem_text: str) -> Tuple[List[str], List[str], List[str]]:
-        """
-        Extract running jobs used to construct a worker node's core map.
-        """
+        """Extract running jobs used to construct a worker node's core map."""
         job_ids, usernames, job_states = [], [], []
         for subelem in elem.findall(elem_text):
             state = subelem.get("state")

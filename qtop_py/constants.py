@@ -1,5 +1,7 @@
 ## Copyright (c) 2026 qtop contributors
 ## SPDX-License-Identifier: MIT
+"""Fixed paths and file names shared by qtop's modules."""
+
 import os
 from typing import TYPE_CHECKING
 

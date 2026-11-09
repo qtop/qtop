@@ -7,6 +7,7 @@
 ##
 ## SPDX-License-Identifier: MIT
 ##
+"""Shared scheduler parsing: the StatExtractor base and the GenericBatchSystem interface."""
 
 import re
 from itertools import count
@@ -42,10 +43,9 @@ class StatExtractor(object):
         self.anonymize = self.anonymize_func() if self.options.ANONYMIZE else self.eponymize_func()
 
     def anonymize_func(self) -> Callable[[str, str], str]:
-        """
-        creates and returns an _anonymize_func object (closure)
-        Anonymisation can be used by the user for providing feedback to the developers, without leaking cluster's private data.
-        i.e. the logs and the output should no longer contain sensitive information about the clusters ran by the user.
+        """Return a function mapping each name to a stable anonymous one, for -A output that can be shared.
+
+        d4-p4-04 --> d_anon_wn_0, d4-p4-05 --> d_anon_wn_1, biomed017 --> b_anon_user_0, alice --> a_anon_q_0
         """
         counters = {}
         stored_dict: Dict[str, Tuple[str, str]] = {}
@@ -55,12 +55,7 @@ class StatExtractor(object):
         maps = {"users": "_anon_user_", "wns": "_anon_wn_", "qs": "_anon_q_", "jobnums": "_anon_jn_", "jobnames": "_anon_nm_", "jobtimes": "never"}
 
         def _anonymize_func(s: str, a_type: str) -> str:
-            """
-            d4-p4-04 --> d_anon_wn_0
-            d4-p4-05 --> d_anon_wn_1
-            biomed017--> b_anon_user_0
-            alice    --> a_anon_q_0
-            """
+            """Return the anonymous name of s for the kind a_type (users, wns, qs, ...)."""
             dup_counter = counters[a_type]
 
             s_type = maps[a_type]
@@ -76,10 +71,13 @@ class StatExtractor(object):
         return _anonymize_func
 
     def eponymize_func(self) -> Callable[[str, str], str]:
+        """Return a function that leaves names unchanged, used when not anonymising."""
         return lambda s, a_type: s
 
 
 class GenericBatchSystem(object):
+    """The interface each scheduler backend implements, with defaults for the optional hooks."""
+
     optional_trace_keys: Tuple[str, ...] = ()
     optional_trace_aliases: Dict[str, str] = {}
     optional_trace_warning = "Optional scheduler details unavailable."
@@ -95,15 +93,18 @@ class GenericBatchSystem(object):
 
     @staticmethod
     def collection_command(key: str, command: str, options: "Options") -> str:
+        """Return the shell command collecting trace key, adjusted for the options."""
         return command
 
     @staticmethod
     def queue_is_blocked(state: object) -> bool:
+        """Return True if the queue state means disabled or stopped."""
         state = str(state)
         return state.startswith("D") or state.endswith("S")
 
     @staticmethod
     def node_state_marker(node: "Node") -> str:
+        """Return an extra node-state symbol for the matrix; none by default."""
         return ""
 
     @staticmethod
@@ -112,19 +113,24 @@ class GenericBatchSystem(object):
         return []
 
     def mask_source_trace(self, key: str, text: str, mask: "TraceMasker") -> "Tuple[str, str]":
+        """Return the archive name and masked text of a trace; raise ValueError if unsupported."""
         raise ValueError("This backend has no source trace masker")
 
     def get_queues_info(self) -> "QueuesInfo":
+        """Return the running and queued job totals and the queue records."""
         raise NotImplementedError
 
     def get_worker_nodes(self, job_ids: "List[str]", job_queues: "List[str]", options: "Options") -> "List[Node]":
+        """Return the worker nodes, given the job IDs and their queues."""
         raise NotImplementedError
 
     def get_jobs_info(self) -> "JobsInfo":
+        """Return the job IDs, users, states and queues, as parallel lists."""
         raise NotImplementedError
 
     @staticmethod
     def get_mnemonic() -> str:
+        """Return the scheduler name used in the configuration and on the command line."""
         raise NotImplementedError
 
     def get_cluster_state(self, options: "Options") -> "ClusterState":

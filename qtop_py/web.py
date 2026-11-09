@@ -7,6 +7,7 @@
 ##
 ## SPDX-License-Identifier: MIT
 ##
+"""The optional web view: serves index.html and the exported api.json."""
 
 import os
 from multiprocessing import Process, Queue
@@ -17,6 +18,8 @@ if TYPE_CHECKING:
 
 
 class Web(object):
+    """Serve the web view from a separate process, bound to host:port (127.0.0.1:8080 by default)."""
+
     def __init__(self, initial_cwd: str, port: int = 8080, host: str = "127.0.0.1") -> None:
         self.web_dir = os.path.join(initial_cwd, "web")
         if not os.path.isdir(self.web_dir):
@@ -26,6 +29,7 @@ class Web(object):
         self.filename: Optional[str] = None
 
     def start(self) -> None:
+        """Start the server process."""
         self.q: "multiprocessing.queues.Queue[Any]" = Queue()
         self.server = Process(target=self._http_server, args=(self.web_dir, self.port, self.q, self.host))
         self.server.start()
@@ -52,7 +56,7 @@ class Web(object):
             PAGES = ("/", "/index.html")
 
             def log_message(self, format: str, *args: Any) -> None:
-                """quiet!"""
+                """Quiet!"""
 
             def do_HEAD(self) -> None:
                 if self.path in self.PAGES:
@@ -105,10 +109,12 @@ class Web(object):
                 shared.filename = command.partition(" ")[2]
 
     def set_filename(self, filename: str) -> None:
+        """Point the server at a newly exported JSON file."""
         if self.started:
             self.q.put("setfilename " + filename)
 
     def stop(self) -> None:
+        """Stop the server, terminating it after 5 seconds if needed."""
         if self.started:
             self.q.put("stop")
             self.server.join(timeout=5)

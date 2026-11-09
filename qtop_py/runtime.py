@@ -20,6 +20,8 @@ from qtop_py.constants import QTOPCONF_YAML
 
 
 class RunResources(object):
+    """The files, streams and web server one qtop run owns; closing it releases them in order."""
+
     def __init__(self) -> None:
         self.stdout = sys.stdout
         self.initial_cwd = os.getcwd()
@@ -55,6 +57,7 @@ class RunResources(object):
 
     @contextlib.contextmanager
     def frame(self, savepath: str, timestr: str) -> Generator[str, None, None]:
+        """Redirect stdout into a new frame file for one render; archive it, or close the capture on failure."""
         handle, path = fileutils.get_new_temp_file(savepath, prefix="qtop_fullview_%s_" % timestr, suffix=".out")
         self.frame_path = path
         with contextlib.ExitStack() as allocation:
@@ -70,15 +73,18 @@ class RunResources(object):
             self._cleanup((self.archive_frame, self.close_capture), not finished)
 
     def archive_frame(self) -> None:
+        """Add the current frame file to the support archive, if one is open."""
         if self.archive is not None and self.frame_path is not None:
             fileutils.add_to_sample([self.frame_path], self.archive)
 
     def discard_frame(self) -> None:
+        """Delete the current frame file."""
         path, self.frame_path = self.frame_path, None
         if path is not None:
             os.unlink(path)
 
     def start_capture(self, savepath: str, filename: str, trace_paths: Dict[str, str], config: Mapping[str, Any], package_dir: str) -> None:
+        """Open the support archive for -L (and the raw companion archive, if asked), replacing any open one."""
         self.close_capture()
         self.trace_paths = trace_paths.copy()
         options = self.options
@@ -98,6 +104,7 @@ class RunResources(object):
             self.capture_paths[companion] = "PRIVATE unmasked scheduler traces:"
 
     def close_capture(self) -> None:
+        """Add the log and scheduler traces to the support archive unless anonymising, then close it."""
         archive, self.archive = self.archive, None
         if archive is None:
             return
@@ -113,19 +120,23 @@ class RunResources(object):
             archive.close()
 
     def restore_stdout(self) -> None:
+        """Close any redirected stdout and restore the original one."""
         if sys.stdout is not self.stdout:
             with contextlib.suppress(OSError):
                 sys.stdout.close()
             sys.stdout = self.stdout
 
     def stop_web(self) -> None:
+        """Stop the web server, if one was started."""
         if self.web is not None:
             self.web.stop()
 
     def restore_cwd(self) -> None:
+        """Return to the directory qtop started in."""
         os.chdir(self.initial_cwd)
 
     def cleanup_workspace(self) -> None:
+        """Remove the temporary source workspace, if any."""
         options = self.options
         workspace = getattr(options, "source_workspace", None)
         if options is not None and workspace is not None:
@@ -133,5 +144,6 @@ class RunResources(object):
             options.source_workspace = None
 
     def report_captures(self) -> None:
+        """Print where the support and raw-trace archives were written."""
         for path, label in self.capture_paths.items():
             sys.stderr.write("%s %s\n" % (label, path))

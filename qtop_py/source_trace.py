@@ -11,10 +11,13 @@ from typing import Any, Container, Dict, Mapping
 
 
 class TraceMasker:
+    """Replace names and IDs in scheduler traces with stable placeholders, per kind."""
+
     def __init__(self, mappings: Dict[str, Dict[str, str]]) -> None:
         self.mappings = copy.deepcopy(mappings)
 
     def __call__(self, value: Any, kind: str = "text") -> str:
+        """Return the placeholder for value of this kind; job IDs keep their array or component suffix."""
         text = str(value)
         if not text:
             return text
@@ -30,14 +33,17 @@ class TraceMasker:
 
     @staticmethod
     def public(value: str, pattern: str) -> str:
+        """Return value if it fully matches pattern, so it can stay unmasked; otherwise raise ValueError."""
         if re.fullmatch(pattern, value) is None:
             raise ValueError("unsupported scalar")
         return value
 
     def words(self, value: str, kind: str = "text") -> str:
+        """Mask each whitespace-separated word of value."""
         return re.sub(r"\S+", lambda match: self(match.group(), kind), value)
 
     def structured(self, value: Any, labels: Container[str]) -> Any:
+        """Mask the keys (except labels) and leaf values of JSON-shaped data."""
         if isinstance(value, dict):
             return {key if key in labels else self(key, "field"): self.structured(item, labels) for key, item in value.items()}
         if isinstance(value, list):
@@ -46,6 +52,7 @@ class TraceMasker:
 
 
 def add_text(archive: tarfile.TarFile, name: str, text: str) -> None:
+    """Add text to the archive as a private (0600) member called name."""
     data = text.encode("utf-8")
     member = tarfile.TarInfo(name)
     member.mode, member.size = 0o600, len(data)
@@ -53,6 +60,7 @@ def add_text(archive: tarfile.TarFile, name: str, text: str) -> None:
 
 
 def save_masked_traces(archive: tarfile.TarFile, backend: Any, filenames: Mapping[str, str], mappings: Dict[str, Dict[str, str]]) -> None:
+    """Add each trace, masked by the backend, to masked-traces/; report which were included or omitted."""
     mask = TraceMasker(mappings)
     report: Dict[str, Any] = {"included": [], "omitted": [], "limitations": "Fields may be redacted or reformatted; use the raw companion for exact input bytes."}
     for key, path in filenames.items():

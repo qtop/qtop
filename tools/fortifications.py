@@ -27,20 +27,24 @@ SKIP_DIRS = set([".git", ".tox", ".venv", "venv", "__pycache__", "artifacts", "b
 
 
 def run_git(args):
+    """Run git in the repository and return its output."""
     return subprocess.check_output(["git"] + args, cwd=str(ROOT), stderr=subprocess.STDOUT, universal_newlines=True, encoding="utf-8", errors="replace")
 
 
 def changed_files(base_ref):
+    """Return the files changed since base_ref."""
     output = run_git(["diff", "--no-ext-diff", "--name-only", "-z", base_ref, "--"])
     return [name for name in output.split("\0") if name]
 
 
 def diff_lines(base_ref):
+    """Return the lines of the zero-context diff against base_ref."""
     output = run_git(["-c", "core.quotePath=false", "diff", "--no-ext-diff", "--no-textconv", "--no-color", "--src-prefix=a/", "--dst-prefix=b/", "--unified=0", base_ref, "--"])
     return output.split("\n")
 
 
 def find_diff_problems(lines):
+    """Report added lines that contain control, bidi or non-ASCII characters."""
     problems = []
     filename, number = None, None
     for line in lines:
@@ -76,6 +80,7 @@ def find_diff_problems(lines):
 
 
 def iter_python_files():
+    """Yield the repository's Python files, skipping SKIP_DIRS."""
     for dirpath, dirnames, filenames in os.walk(str(ROOT)):
         dirnames[:] = [name for name in dirnames if name not in SKIP_DIRS]
         for filename in filenames:
@@ -84,6 +89,7 @@ def iter_python_files():
 
 
 def find_eval_calls():
+    """Report eval() calls and files that fail to parse."""
     problems = []
     for path in iter_python_files():
         relative = path.relative_to(ROOT).as_posix()
@@ -99,6 +105,7 @@ def find_eval_calls():
 
 
 def find_star_imports():
+    """Report star imports in qtop_py and tools."""
     problems = []
     checked_roots = ("qtop_py", "tools")
     for path in iter_python_files():
@@ -117,12 +124,14 @@ def find_star_imports():
 
 
 def parse_args():
+    """Parse the command-line options."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--base-ref", default="origin/develop", help="Diff base for changed-file checks")
     return parser.parse_args()
 
 
 def main():
+    """Run all checks; return 1 if any problem is found, 2 if git fails."""
     args = parse_args()
     problems = []
 

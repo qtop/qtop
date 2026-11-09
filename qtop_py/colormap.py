@@ -1,5 +1,7 @@
 ## Copyright (c) 2026 qtop contributors
 ## SPDX-License-Identifier: MIT
+"""Default colour rules for user accounts, queues and node states."""
+
 from collections import OrderedDict
 
 # example color maps

@@ -52,9 +52,14 @@ version = {attr = "qtop_py.__version__"}
 include = ["qtop_py*"]
 
 [tool.ruff]
-# pycodestyle (`E`, `W`), Pyflakes (`F`), isort (`I`) and eradicate (`ERA`: no commented-out code).
+# pycodestyle (`E`, `W`), Pyflakes (`F`), isort (`I`), eradicate (`ERA`: no commented-out code)
+# and pydocstyle (`D`, Google convention: a one-line summary for every public module, class and function).
 # pycodestyle's E26x comment checks need ruff preview mode, so they are not enforced yet.
-lint.select = ["E", "F", "I", "W", "ERA", "C90"] ##
+lint.select = ["E", "F", "I", "W", "ERA", "C90", "D"] ##
+# The class docstring covers __init__ and dunders; tests document themselves through their names.
+lint.ignore = ["D105", "D107"]
+lint.per-file-ignores = { "tests/**" = ["D"] }
+lint.pydocstyle.convention = "google"
 # C90 (mccabe): the limit passes today; lower it as functions are split. At 20 now:
 # yaml_parser.read_yaml_config_block, slurm._apply_gpu_allocations.
 # FIXME: max-complexity 15 needs 10 functions split, 10 (mccabe's default) needs 34.

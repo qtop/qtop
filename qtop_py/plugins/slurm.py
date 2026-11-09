@@ -7,6 +7,7 @@
 ##
 ## SPDX-License-Identifier: MIT
 ##
+"""Slurm backend: parses squeue, sinfo and, optionally, scontrol output."""
 
 import logging
 import re
@@ -60,6 +61,8 @@ SLURM_QUEUED_STATES = {"PD", "CF", "RD", "RF", "RH", "RQ", "SE"}
 
 
 class SlurmStatExtractor(StatExtractor):
+    """Parse squeue, sinfo and scontrol output."""
+
     MAX_EXPANDED_TASKS = 100000
 
     @classmethod
@@ -106,6 +109,7 @@ class SlurmStatExtractor(StatExtractor):
 
     @staticmethod
     def identity_fields(job_id: str) -> Dict[str, str]:
+        """Return the array or heterogeneous job parent and child IDs encoded in a job ID."""
         match = re.fullmatch(r"([0-9]+)([_+])([0-9]+)", job_id)
         if match is None:
             return {}
@@ -114,10 +118,9 @@ class SlurmStatExtractor(StatExtractor):
         return {"slurm_het_job_id": match.group(1), "slurm_het_job_offset": match.group(3)}
 
     def extract_squeue(self, orig_file: str) -> List[Dict[str, Any]]:
-        """
-        Parse output from:
+        """Parse squeue output; live collection also passes --states=all.
+
         squeue -r -h -O 'JobID:0|,UserName:0|,StateCompact:0|,Partition:0|,NumCPUs:0|,NodeList:0|,tres-alloc:0|,tres-per-node:0|,tres-per-task:0|,ArrayJobID:0|,ArrayTaskID:0'
-        Live collection additionally selects --states=all.
         """
         self.rejected_squeue_rows = 0
         try:
@@ -178,8 +181,8 @@ class SlurmStatExtractor(StatExtractor):
         return list(jobs.values())
 
     def extract_sinfo(self, orig_file: str) -> List[Dict[str, Any]]:
-        """
-        Parse output from:
+        """Parse sinfo output.
+
         sinfo -N -h -O 'NodeList:0|,Partition:0|,StateCompact:0|,CPUs:0|,Gres:0|,GresUsed:0|,Available:0'
         """
         self.rejected_sinfo_rows = 0
@@ -280,6 +283,8 @@ class SlurmStatExtractor(StatExtractor):
 
 
 class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
+    """Slurm backend."""
+
     native_queue_membership = True
     optional_trace_keys = ("scontrol_file",)
     optional_trace_aliases = {"scontrol_file": "scontrol.txt"}
@@ -290,21 +295,25 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
 
     @staticmethod
     def collection_command(key: str, command: str, options: Any) -> str:
+        """Add --all to the live squeue, sinfo and scontrol commands when qtop runs with --all."""
         if getattr(options, "ALL_PARTITIONS", False) and not options.SOURCEDIR and key in ("squeue_file", "sinfo_file", "scontrol_file"):
             command += " --all"
         return command
 
     @staticmethod
     def queue_is_blocked(state: object) -> bool:
+        """Return True if the partition is down, drained or inactive."""
         return str(state).lower() in ("down", "drain", "inact", "inactive") or GenericBatchSystem.queue_is_blocked(state)
 
     @staticmethod
     def node_state_marker(node: "Node") -> str:
+        """Return the Slurm node-state suffix (*, +, #, ~, ...) shown in the matrix."""
         state = node.get("slurm_node_state", "")
         return state[-1] if state and state[-1] in "*+#~$@%!^-" else ""
 
     @staticmethod
     def display_messages(section: str, snapshot: object, nodes: "List[Node]", config: "Config") -> List[str]:
+        """Return the Slurm notes for a section: rejected rows, accounting rules and CPU placement caveats."""
         lines = []
         if section == "snapshot":
             diagnostics = getattr(snapshot, "_diagnostics", {}).get("slurm_diagnostics", {})
@@ -341,6 +350,7 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
         return lines
 
     def mask_source_trace(self, key: str, text: str, mask: "TraceMasker") -> Tuple[str, str]:
+        """Return the masked name and text of an squeue, sinfo or scontrol trace."""
         if key == "scontrol_file":
 
             def field(match: Match[str]) -> str:
@@ -404,6 +414,7 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
 
     @staticmethod
     def get_mnemonic() -> str:
+        """Return the scheduler name, slurm."""
         return "slurm"
 
     def __init__(self, scheduler_output_filenames: Dict[str, str], config: "Config", options: "Options") -> None:
@@ -416,6 +427,7 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
         self.slurm_stat_maker = SlurmStatExtractor(self.config, self.options)
 
     def get_cluster_state(self, options: "Options") -> "ClusterState":
+        """Return the cluster state with Slurm partitions, accounting states and array IDs."""
         state = super().get_cluster_state(options)
         for job, raw in zip(state["jobs"], self._get_jobs()):
             job["slurm_partitions"] = list(raw["slurm_partitions"])
@@ -440,6 +452,7 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
         return state
 
     def get_jobs_info(self) -> "JobsInfo":
+        """Return job IDs, users, states and partitions from squeue."""
         jobs = self._get_jobs()
         job_ids = [job["JobId"] for job in jobs]
         usernames = [job["UnixAccount"] for job in jobs]
@@ -454,6 +467,7 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
         return job_ids, usernames, job_states, queue_names
 
     def get_queues_info(self) -> "QueuesInfo":
+        """Return the running and queued totals and per-partition records."""
         queue_counts: Dict[str, Any] = OrderedDict()
         total_running_jobs = 0
         total_queued_jobs = 0
@@ -490,6 +504,7 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
         return total_running_jobs, total_queued_jobs, qstatq_lod
 
     def get_worker_nodes(self, job_ids: List[str], job_queues: List[str], options: "Options") -> "List[Node]":
+        """Return the nodes from sinfo, merged across partitions, with their jobs, CPUs and GPUs."""
         worker_nodes_by_name: Dict[str, Dict[str, Any]] = OrderedDict()
 
         for node in self._get_nodes():

@@ -10,6 +10,8 @@ from typing import List, Optional
 
 class HostlistParser:
     # Bound both numeric ranges and Cartesian products from untrusted traces.
+    """Expand and validate Slurm-style host lists such as node[01-04,07]."""
+
     MAX_EXPANDED_NODES = 100000
 
     @classmethod

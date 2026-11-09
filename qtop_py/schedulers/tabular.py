@@ -10,11 +10,10 @@ from qtop_py.serialiser import StatExtractor
 
 
 class TabularStatExtractor(StatExtractor):
+    """Parse whitespace-separated qstat-like tables."""
+
     def _process_qstat_line(self, pattern: str, line: str, re_match_positions: Sequence[str]) -> Dict[str, str]:
-        """
-        extracts data from a tabular qstat-like file
-        returns a list
-        """
+        """Return the named fields of a qstat-like line matched by pattern."""
         m = re.search(pattern, line.strip())
 
         try:

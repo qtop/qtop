@@ -32,12 +32,14 @@ ACCOUNT_LINE_RE = re.compile(r"^\[\s*(.)\]\s+(.+?)\s+\|")
 
 
 def decode_trace_payload(path):
+    """Return the JSON decoded from a base64 gzip file."""
     encoded = Path(path).read_bytes()
     decoded = base64.b64decode(encoded)
     return json.loads(gzip.decompress(decoded))
 
 
 def load_exported_snapshot(path):
+    """Return the Snapshot in an exported trace, cluster state or legacy five-field form."""
     payload = decode_trace_payload(path)
     if isinstance(payload, dict):
         return qtop.Snapshot.from_cluster_state(payload)
@@ -54,6 +56,7 @@ def load_exported_snapshot(path):
 
 
 def qtop_args(show_account_totals=False, color="OFF"):
+    """Return minimal qtop options for rendering a snapshot."""
     return SimpleNamespace(
         COLOR=color,
         CLASSIC=False,
@@ -108,10 +111,12 @@ def render_snapshot(snapshot, show_account_totals=False, color="OFF", term_heigh
 
 
 def account_symbols(wns_occupancy):
+    """Return the account ID symbols of the accounts table."""
     return [str(line[0]) for line in wns_occupancy.account_jobs_table]
 
 
 def validate_symbol_contract(symbols):
+    """Raise ValueError if reserved symbols are used as account IDs or * is missing."""
     forbidden = {"_", "#", "?"}
     used_forbidden = sorted(forbidden.intersection(symbols))
     if used_forbidden:
@@ -121,10 +126,12 @@ def validate_symbol_contract(symbols):
 
 
 def strip_ansi(text):
+    """Return text without ANSI codes."""
     return ANSI_RE.sub("", text)
 
 
 def rendered_account_symbols(rendered):
+    """Return the account ID symbols in the rendered accounts table."""
     symbols = []
     for line in strip_ansi(rendered).splitlines():
         match = ACCOUNT_LINE_RE.match(line)
@@ -137,6 +144,7 @@ def rendered_account_symbols(rendered):
 
 
 def validate_rendered_account_symbols(rendered):
+    """Raise ValueError unless the rendered accounts table has valid ID symbols."""
     symbols = rendered_account_symbols(rendered)
     if not symbols:
         raise ValueError("rendered output did not include account-symbol mapping lines")
@@ -144,6 +152,7 @@ def validate_rendered_account_symbols(rendered):
 
 
 def extract_summary_line(text):
+    """Return the Summary: line of a rendering, or an empty string."""
     for line in text.splitlines():
         if line.startswith("Summary:"):
             return line.strip()
@@ -151,6 +160,7 @@ def extract_summary_line(text):
 
 
 def validate_fullview_summary(rendered, fullview_path):
+    """Raise ValueError if the rendered summary differs from the fullview file's."""
     expected = extract_summary_line(Path(fullview_path).read_text(errors="replace"))
     actual = extract_summary_line(rendered)
     if expected != actual:
@@ -158,6 +168,7 @@ def validate_fullview_summary(rendered, fullview_path):
 
 
 def parse_args():
+    """Parse the command-line options."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("trace_json_b64", help="Path to a base64-encoded gzip qtop exported JSON document")
     parser.add_argument("--fullview", help="Optional qtop fullview output to compare stable summary totals against")
@@ -166,6 +177,7 @@ def parse_args():
 
 
 def main():
+    """Render the exported snapshot in several modes, validate it and write the artifacts."""
     args = parse_args()
     snapshot = load_exported_snapshot(args.trace_json_b64)
     rendered, wns_occupancy = render_snapshot(snapshot)

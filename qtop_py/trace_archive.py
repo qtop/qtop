@@ -18,6 +18,7 @@ MAX_ARCHIVE_BYTES = 1024 * 1024 * 1024
 
 
 def load_trace_archive(path: str, directory: str, configured: Mapping[str, str], optional: Iterable[str] = ()) -> Dict[str, str]:
+    """Extract one coherent capture of the configured traces into directory; return their paths by key."""
     marker = "QTOP_CAPTURE_SUFFIX"
     patterns = {}
     destinations = {}

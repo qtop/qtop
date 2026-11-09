@@ -26,6 +26,7 @@ NAVIGATION_KEYS = {
 
 
 def navigate_viewport(viewport: "Viewport", key: str, colorize: Callable[[str, str], str]) -> bool:
+    """Move the viewport for a navigation key; return False if the key is not one."""
     action = NAVIGATION_KEYS.get(key)
     if action is None:
         return False
@@ -42,6 +43,7 @@ def navigate_viewport(viewport: "Viewport", key: str, colorize: Callable[[str, s
 
 
 def read_rule_choices(prompt: str, choices: Mapping[int, str], rules: List[Dict[str, List[str]]]) -> None:
+    """Read menu choices and their arguments until Enter, appending each as a rule."""
     while True:
         answer = input("\nChoose %s command, or Enter to exit:-> " % prompt)
         if not answer:

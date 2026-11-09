@@ -14,6 +14,8 @@ if TYPE_CHECKING:
     IdentifierMaps = Dict[str, Dict[str, str]]
 
     class JobResources(TypedDict, total=False):
+        """Optional scheduler-specific job fields (Slurm partitions, arrays, TRES)."""
+
         slurm_partitions: List[str]
         accounting_state: str
         slurm_array_job_id: str
@@ -25,12 +27,16 @@ if TYPE_CHECKING:
         slurm_tres_per_task: str
 
     class Job(JobResources):
+        """A job: ID, user, state and queue, plus optional scheduler-specific fields."""
+
         id: str
         user: str
         state: str
         queue: str
 
     class GPUResource(TypedDict):
+        """A GPU count of one type, with device indices and MIG details when known."""
+
         type: Optional[str]
         count: int
         device_indices: Optional[List[int]]
@@ -38,9 +44,13 @@ if TYPE_CHECKING:
         parent_gpu_uuid: Optional[str]
 
     class GPUBinding(GPUResource):
+        """A GPU allocation bound to a job."""
+
         job_id: str
 
     class NodeResources(TypedDict, total=False):
+        """Optional scheduler-specific node fields (Slurm state and GPUs, OAR jobs, CPU placement)."""
+
         slurm_node_state: str
         slurm_gpu_configured: List[GPUResource]
         slurm_gpu_used: List[GPUResource]
@@ -53,6 +63,8 @@ if TYPE_CHECKING:
         slurm_gres_used: str
 
     class Node(NodeResources):
+        """A worker node: name, state, core count, queues and core-to-job map."""
+
         domainname: str
         state: str
         np: Union[int, str]
@@ -60,6 +72,8 @@ if TYPE_CHECKING:
         core_job_map: Dict[Union[int, str], str]
 
     class Queue(TypedDict):
+        """A queue in the cluster state: name, limit, job counts and state."""
+
         name: str
         limit: str
         queued: int
@@ -67,6 +81,8 @@ if TYPE_CHECKING:
         state: str
 
     class RawQueue(TypedDict):
+        """A queue record as a backend parses it, before validation."""
+
         queue_name: str
         lm: Union[int, str]
         queued: Union[int, str]
@@ -74,15 +90,21 @@ if TYPE_CHECKING:
         state: str
 
     class SnapshotDiagnostics(TypedDict, total=False):
+        """Per-scheduler counts of parser notes, e.g. rejected rows."""
+
         slurm_diagnostics: Dict[str, int]
         oar_diagnostics: Dict[str, int]
 
     class ClusterState(SnapshotDiagnostics):
+        """The plain-data boundary between backends and qtop: jobs, nodes and queues."""
+
         jobs: List[Job]
         nodes: List[Node]
         queues: List[Queue]
 
     class SampleSnapshot(TypedDict):
+        """The replayable snapshot stored in a support archive."""
+
         format_version: int
         scheduler: str
         state: ClusterState
@@ -90,18 +112,22 @@ if TYPE_CHECKING:
         options: Dict[str, object]  # Known display flags are validated; extra metadata may be retained.
 
     class Options(Protocol):
+        """The command-line options a backend may read."""
+
         ANONYMIZE: bool
 
     JobsInfo = Tuple[List[str], List[str], List[str], List[str]]
     QueuesInfo = Tuple[int, int, List[RawQueue]]
 
     class Scheduler(Protocol):
+        """What qtop needs from a scheduler backend."""
+
         optional_trace_keys: Tuple[str, ...]
 
         @abstractmethod
         def mask_source_trace(self, key: str, text: str, mask: object) -> Tuple[str, str]:
-            pass
+            """Return the archive name and masked text of a trace."""
 
         @abstractmethod
         def get_cluster_state(self, options: Options) -> ClusterState:
-            pass
+            """Collect the scheduler's jobs, nodes and queues as a ClusterState."""

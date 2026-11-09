@@ -22,6 +22,7 @@ def random_text(generator, max_length=80):
 
 
 def exercise_slurm_states(generator, transcript):
+    """Check that random text maps to a non-empty Slurm job and node state."""
     value = random_text(generator)
     job_state = SlurmStatExtractor._map_job_state(value)
     node_state = SlurmStatExtractor._map_node_state(value)
@@ -31,6 +32,7 @@ def exercise_slurm_states(generator, transcript):
 
 
 def exercise_slurm_nodelists(generator, transcript):
+    """Check that a random node range expands to the expected host names."""
     prefix = "node%02d" % generator.randint(0, 99)  # nosec B311
     start = generator.randint(0, 90)  # nosec B311
     end = generator.randint(start, min(99, start + 8))  # nosec B311
@@ -48,6 +50,7 @@ def exercise_slurm_nodelists(generator, transcript):
 
 
 def exercise_pbs_core_ranges(generator, transcript):
+    """Check that a random PBS core range yields one (core, job) pair per core."""
     start = generator.randint(0, 120)  # nosec B311
     end = generator.randint(start, min(127, start + 7))  # nosec B311
     job = "%d.server" % generator.randint(1, 999999)  # nosec B311
@@ -67,6 +70,7 @@ def run(seed, cases):
 
 
 def main(argv=None):
+    """Run the seeded cases and print their transcript digest."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--seed", type=int, default=488, help="reproduction seed (default: 488)")
     parser.add_argument("--cases", type=int, default=5000, help="bounded number of cases (default: 5000)")
