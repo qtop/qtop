@@ -10,7 +10,7 @@
 
 import re
 from itertools import count
-from typing import TYPE_CHECKING, Any, Callable, Collection, Dict, Mapping, Sequence, Tuple
+from typing import TYPE_CHECKING, Any, Callable, Collection, Dict, Mapping, Sequence, Tuple, cast
 
 if TYPE_CHECKING:
     from typing import List
@@ -135,19 +135,23 @@ class GenericBatchSystem(object):
         return build_cluster_state(job_ids, users, job_states, job_queues, nodes, queues)
 
     @classmethod
-    def ensure_worker_nodes_have_qnames(cls, _worker_nodes: "Sequence[Mapping[str, Any]]", job_ids: "List[str]", job_queues: "List[str]") -> "List[Dict[str, Any]]":
+    def ensure_worker_nodes_have_qnames(cls, _worker_nodes: "Sequence[Mapping[str, Any]]", job_ids: "List[str]", job_queues: "List[str]") -> "List[Node]":
         """Associate node allocations with their reported job queues, sorted by name (unknown last) for stable output."""
         job_ids_queues = dict(zip(job_ids, job_queues))
-        return [
-            dict(
-                worker_node,
-                qname=sorted(
-                    set(
-                        job_ids_queues.get(resolve_job_id(job_id, job_ids_queues))
-                        for job_id in list(worker_node["core_job_map"].values()) + [job for field in cls.node_job_fields for job in worker_node.get(field, [])]
+        # The copies keep every Node field and add qname, so they are Node-shaped.
+        return cast(
+            "List[Node]",
+            [
+                dict(
+                    worker_node,
+                    qname=sorted(
+                        set(
+                            job_ids_queues.get(resolve_job_id(job_id, job_ids_queues))
+                            for job_id in list(worker_node["core_job_map"].values()) + [job for field in cls.node_job_fields for job in worker_node.get(field, [])]
+                        ),
+                        key=lambda queue: (queue is None, queue or ""),
                     ),
-                    key=lambda queue: (queue is None, queue or ""),
-                ),
-            )
-            for worker_node in _worker_nodes
-        ]
+                )
+                for worker_node in _worker_nodes
+            ],
+        )

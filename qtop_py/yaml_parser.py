@@ -11,7 +11,7 @@
 
 import logging
 import os
-from typing import Any, Dict
+from typing import Any, Dict, Iterable, Iterator, List, Mapping, Optional, Tuple
 
 from qtop_py import safety
 from qtop_py.safety import ResourceLimitError, literal_eval
@@ -19,7 +19,7 @@ from qtop_py.safety import ResourceLimitError, literal_eval
 """Small dependency-free parser for qtop's deliberately limited YAML subset."""
 
 
-def literal_or_original(value):
+def literal_or_original(value: Any) -> Any:
     try:
         return literal_eval(value)
     except ResourceLimitError:
@@ -28,7 +28,7 @@ def literal_or_original(value):
         return value
 
 
-def expand_single_literal_list(container):
+def expand_single_literal_list(container: List[Any]) -> Any:
     if len(container) != 1 or not isinstance(container[0], str):
         return container
     literal_value = literal_or_original(container[0])
@@ -40,7 +40,7 @@ def expand_single_literal_list(container):
         return container
 
 
-def fix_config_list(config_list):
+def fix_config_list(config_list: Any) -> List[str]:
     """
     transforms a list of the form ['a, b'] to ['a', 'b']
 
@@ -58,7 +58,7 @@ def fix_config_list(config_list):
     return [nr.strip() for nr in list_items]
 
 
-def get_line(fin, verbatim=False, SEPARATOR=None, DEF_INDENT=2):
+def get_line(fin: Iterable[str], verbatim: bool = False, SEPARATOR: Optional[str] = None, DEF_INDENT: int = 2) -> Iterator[List[Any]]:
     """
     Yields a list per line read, of the following form:
     [indentation_change, line up to first space, line after first space if exists]
@@ -107,7 +107,7 @@ def get_line(fin, verbatim=False, SEPARATOR=None, DEF_INDENT=2):
             d_indent = diff
 
         line = line.rstrip()
-        list_line = verbatim and [d_indent, line] or [d_indent] + line.split(None or SEPARATOR, 1)
+        list_line: List[Any] = verbatim and [d_indent, line] or [d_indent] + line.split(None or SEPARATOR, 1)
 
         if len(list_line) > 1:
             value = list_line[1]
@@ -118,7 +118,7 @@ def get_line(fin, verbatim=False, SEPARATOR=None, DEF_INDENT=2):
         yield list_line
 
 
-def convert_dash_key_in_dict(d):
+def convert_dash_key_in_dict(d: Any) -> Any:
     """
     Recursively unwrap sole-key dash containers without dropping sibling keys.
 
@@ -128,7 +128,7 @@ def convert_dash_key_in_dict(d):
     if not isinstance(d, dict):
         return d
 
-    def convert(value, parent_key=None):
+    def convert(value: Any, parent_key: Optional[str] = None) -> Any:
         if isinstance(value, list):
             return [convert(item) for item in value]
         if not isinstance(value, dict):
@@ -141,7 +141,7 @@ def convert_dash_key_in_dict(d):
     return {key: convert(value, key) for key, value in d.items()}
 
 
-def parse(fn, DEF_INDENT=2):
+def parse(fn: str, DEF_INDENT: int = 2) -> Dict[str, Any]:
     raw_key_values = {}
     with open(fn, mode="r", encoding="utf-8") as fin:
         if os.fstat(fin.fileno()).st_size > safety.MAX_INPUT_BYTES:
@@ -162,7 +162,7 @@ def parse(fn, DEF_INDENT=2):
     return dict([(key, value) for key, value in raw_key_values.items()])
 
 
-def read_yaml_config_block(line, fin, get_lines):
+def read_yaml_config_block(line: List[Any], fin: Iterable[str], get_lines: Iterator[List[Any]]) -> Tuple[Dict[str, Any], Any]:
     block: Dict[str, Any] = dict()
     parent_container = block
     open_containers = list()
@@ -237,7 +237,7 @@ def read_yaml_config_block(line, fin, get_lines):
     return block, line
 
 
-def process_line(list_line, fin, get_lines, parent_container):
+def process_line(list_line: List[Any], fin: Iterable[str], get_lines: Iterator[List[Any]], parent_container: Any) -> Tuple[Dict[str, Any], Any]:
     key = list_line[1]
     container: Any  # mapping, list or scalar, depending on the line
 
@@ -279,7 +279,7 @@ def process_line(list_line, fin, get_lines, parent_container):
     raise ValueError("Didn't anticipate that!")
 
 
-def process_code(fin):
+def process_code(fin: Iterable[str]) -> str:
     get_code = get_line(fin, verbatim=True)
     # line = next(get_code)
     line = next(get_code)
@@ -293,13 +293,13 @@ def process_code(fin):
     return "\n".join([c.strip() for c in code]).strip()
 
 
-def safe_load(fin, DEF_INDENT=2):
+def safe_load(fin: str, DEF_INDENT: int = 2) -> Dict[str, Any]:
     a_dict = parse(fin, DEF_INDENT)
     logging.debug("YAML dict length: %s" % len(a_dict))
     return a_dict
 
 
-def load_all(fin):
+def load_all(fin: Iterable[str]) -> List[Dict[str, Any]]:
     list_of_dicts = []
     get_lines = get_line(fin)
     while True:
@@ -314,7 +314,7 @@ def load_all(fin):
     return list_of_dicts
 
 
-def get_yaml_key_part(config, scheduler, outermost_key):
+def get_yaml_key_part(config: Mapping[str, Any], scheduler: str, outermost_key: str) -> Iterator[Tuple[str, str, List[str]]]:
     """
     only return the list items of the yaml outermost_key if a yaml key subkey exists
     (this signals a user-inserted value)

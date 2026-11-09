@@ -12,9 +12,12 @@ import itertools
 import random
 import time
 from collections import defaultdict, namedtuple
-from typing import Any, DefaultDict, List
+from typing import TYPE_CHECKING, Any, DefaultDict, Dict, List
 
 from qtop_py.serialiser import GenericBatchSystem
+
+if TYPE_CHECKING:
+    from qtop_py.state_types import Config, JobsInfo, Node, Options, QueuesInfo, RawQueue
 
 WORKER_NODES = 80
 QUEUES = ["urgent", "transfer", "batch"]
@@ -33,7 +36,7 @@ _JobInfo = namedtuple("_JobInfo", ["job_id", "username", "job_state", "queue_nam
 
 
 class LittleGridSimulator(object):
-    def __init__(self):
+    def __init__(self) -> None:
         # Initialize seeds from time
         e_time = int(time.time())
 
@@ -148,13 +151,13 @@ class LittleGridSimulator(object):
                 if random.random() < QUEUE_STATE_CHANGE_PROBABILITY:
                     self.queue_state[queue_name] = random.choice(["Q", "R", "C", "E", "W"])
 
-    def get_total_queued(self):
+    def get_total_queued(self) -> int:
         total_queued_jobs = 0
         for queue_name in QUEUES:
             total_queued_jobs += len(self.queue_jobs[queue_name])
         return total_queued_jobs
 
-    def init_jobs(self):
+    def init_jobs(self) -> None:
         jobcnt = 0
         self.queue_jobs = defaultdict(list)
         self.job_meta = {}
@@ -181,10 +184,10 @@ class DemoBatchSystem(GenericBatchSystem):
     is_simulated = True
 
     @staticmethod
-    def get_mnemonic():
+    def get_mnemonic() -> str:
         return "demo"
 
-    def __init__(self, scheduler_output_filenames, config, options):
+    def __init__(self, scheduler_output_filenames: Dict[str, str], config: "Config", options: "Options") -> None:
         """
         config corresponds to the QTOPCONF_YAML file distributed with qtop.
         Custom QTOPCONF files can be created and placed either
@@ -194,7 +197,7 @@ class DemoBatchSystem(GenericBatchSystem):
         self.config = config
         self.sim = LittleGridSimulator()
 
-    def get_worker_nodes(self, job_ids, job_queues, options):
+    def get_worker_nodes(self, job_ids: List[str], job_queues: List[str], options: "Options") -> "List[Node]":
         """
         Possible node states are:
         "-": free
@@ -222,7 +225,7 @@ class DemoBatchSystem(GenericBatchSystem):
             worker_nodes.append(worker_node)
         return self.ensure_worker_nodes_have_qnames(worker_nodes, job_ids, job_queues)
 
-    def get_jobs_info(self):
+    def get_jobs_info(self) -> "JobsInfo":
         """
         Collect the demo scheduler's running-job records.
 
@@ -245,7 +248,7 @@ class DemoBatchSystem(GenericBatchSystem):
         queue_names = [job.queue_name for job in jobs]
         return job_ids, usernames, job_states, queue_names
 
-    def get_queues_info(self):
+    def get_queues_info(self) -> "QueuesInfo":
         total_running_jobs = 0  # these are reported directly by qstat in PBS; if not, they are calculated.
         run_for_queue: DefaultDict[str, int] = defaultdict(int)
         for node in range(WORKER_NODES):
@@ -257,10 +260,10 @@ class DemoBatchSystem(GenericBatchSystem):
 
         total_queued_jobs = self.sim.get_total_queued()
 
-        qstatq_list = list()
+        qstatq_list: "List[RawQueue]" = list()
 
         for queue_name in QUEUES:
-            qstatq = {
+            qstatq: "RawQueue" = {
                 "queue_name": queue_name,
                 "run": run_for_queue[queue_name],
                 "queued": str(len(self.sim.queue_jobs[queue_name])),
