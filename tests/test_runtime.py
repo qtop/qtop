@@ -17,26 +17,13 @@ from qtop_py import qtop, utils
 from qtop_py.sample import SNAPSHOT_NAME
 
 ROOT = Path(__file__).resolve().parents[1]
-RUNTIME_GLOBALS = (
-    "QTOPPATH",
-    "HELP_FP",
-    "scheduler",
-    "config",
-    "dynamic_config",
-    "viewport",
-    "user_to_color",
-    "args",
-    "transposed_sections",
-    "h_counter",
-    "change_mapping",
-    "snapshot",
-)
+MISSING = object()
+# Context the legacy adapters read via globals(); a run must neither set nor change any of it.
+LEGACY_CONTEXT = ("QTOPPATH", "HELP_FP", "scheduler", "config", "dynamic_config", "viewport", "user_to_color", "args", "snapshot", "transposed_sections")
 
 
 @pytest.fixture
 def runtime(tmp_path, monkeypatch):
-    for name in RUNTIME_GLOBALS:
-        monkeypatch.setattr(qtop, name, getattr(qtop, name, None), raising=False)
     home = tmp_path / "home"
     home.mkdir()
     monkeypatch.setenv("HOME", str(home))
@@ -61,9 +48,11 @@ def runtime(tmp_path, monkeypatch):
         logger = logging.getLogger()
         handlers = logger.handlers[:]
         level, disabled = logger.level, logger.disabled
+        before = {name: vars(qtop).get(name, MISSING) for name in LEGACY_CONTEXT}
         try:
             return qtop.cli_main(), output
         finally:
+            assert {name: vars(qtop).get(name, MISSING) for name in LEGACY_CONTEXT} == before, "main() changed module-level state"
             for handler in logger.handlers[:]:
                 if handler not in handlers:
                     logger.removeHandler(handler)

@@ -2,7 +2,6 @@
 ## SPDX-License-Identifier: MIT
 """Watch-mode keyboard behavior, using real viewport bounds."""
 
-from itertools import cycle
 from types import SimpleNamespace
 from unittest.mock import Mock
 
@@ -22,8 +21,6 @@ def controls(monkeypatch):
     monkeypatch.setattr(qtop, "config", {"transpose_wn_matrices": False, "rem_empty_corelines": 0}, raising=False)
     monkeypatch.setattr(qtop, "dynamic_config", {"force_names": False}, raising=False)
     monkeypatch.setattr(qtop, "user_to_color", {}, raising=False)
-    monkeypatch.setattr(qtop, "change_mapping", cycle((("queue_to_color", "queue"), ("user_to_color", "user"))), raising=False)
-    monkeypatch.setattr(qtop, "h_counter", cycle((0, 1)), raising=False)
     monkeypatch.setattr(qtop, "HELP_FP", "help.txt", raising=False)
     cluster = SimpleNamespace(WNFilter=WNFilter, worker_nodes=[])
     return view, cluster

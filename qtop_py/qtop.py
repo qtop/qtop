@@ -89,10 +89,10 @@ try:
 except ImportError:
     termios = None
 
-# Runtime context bound by main() through `global`; declared (not assigned) for type checkers.
+# Optional context for the legacy adapters (MVU_legacy_model, colorize, control_qtop), which read it via
+# globals(); declared (not assigned) for type checkers. main() sets none of it: each run's state is local
+# and passed explicitly. Callers of those adapters (tests, tools/validate_trace_export.py) set it.
 args: Any
-# Optional context for the legacy adapters (MVU_legacy_model, control_qtop), which read it via globals().
-# main() no longer sets it; callers of those adapters (tests, tools/validate_trace_export.py) do.
 scheduler: Any
 snapshot: Any
 user_to_color: Dict[str, str]
@@ -297,7 +297,7 @@ def get_date_obj_from_str(s: str, now: datetime.datetime) -> datetime.datetime:
 
 
 @contextlib.contextmanager
-def raw_mode(file: Any) -> Generator[None, None, None]:
+def raw_mode(file: Any, args: Any) -> Generator[None, None, None]:
     """
     Simple key listener implementation
     Taken from http://stackoverflow.com/questions/11918999/key-listeners-in-python/11919074#11919074
@@ -814,7 +814,7 @@ def init_dirs(args: Any, _savepath: str) -> Any:
     return args
 
 
-def wait_for_keypress_or_autorefresh(viewport: Viewport, FALLBACK_TERMSIZE: Sequence[int], KEYPRESS_TIMEOUT: float = 1) -> str:
+def wait_for_keypress_or_autorefresh(viewport: Viewport, config: Dict[str, Any], FALLBACK_TERMSIZE: Sequence[int], KEYPRESS_TIMEOUT: float = 1) -> str:
     """
     This will make qtop wait for user input for a while,
     otherwise it will auto-refresh the display
@@ -875,7 +875,7 @@ def require_experimental_opt_in(args: Any) -> None:
         raise SystemExit(1)
 
 
-def pick_frames_to_replay(_savepath: str) -> Tuple[Iterator[str], Any]:
+def pick_frames_to_replay(_savepath: str, args: Any, config: Dict[str, Any]) -> Tuple[Iterator[str], Any]:
     """
     getting the respective info from cmdline switch -R,
     pick the relevant qtop output from savepath to replay
@@ -927,7 +927,7 @@ def cli_error_message(error: BaseException) -> str:
     return str(error)
 
 
-def report_operational_error(error: BaseException) -> None:
+def report_operational_error(error: BaseException, debug: bool = False) -> None:
     if isinstance(error, OSError):
         location = " (%s)" % error.filename if error.filename else ""
         message = "%s%s" % (error.strerror or str(error), location)
@@ -942,7 +942,7 @@ def report_operational_error(error: BaseException) -> None:
     for handler in logger.handlers:
         if isinstance(handler, logging.FileHandler):
             handler.handle(record)
-    if getattr(globals().get("args"), "DEBUG", False):
+    if debug:
         traceback.print_exc(file=sys.stderr)
 
 
@@ -1003,6 +1003,7 @@ export_snapshot = MVU_export_snapshot
 
 
 def cli_main() -> int:
+    resources = None
     try:
         with RunResources() as resources:
             main(resources)
@@ -1013,15 +1014,11 @@ def cli_main() -> int:
             sys.stderr.write("%s\n" % message)
         return 1
     except (OperationalError, OSError) as error:
-        report_operational_error(error)
+        report_operational_error(error, debug=bool(getattr(getattr(resources, "options", None), "DEBUG", False)))
         return 1
 
 
 def main(resources: RunResources) -> None:
-    # config and args are still read by raw_mode, pick_frames_to_replay, wait_for_keypress_or_autorefresh
-    # and report_operational_error; everything else is local to this run.
-    global config, args
-
     args = resources.options = utils.parse_qtop_cmdline_args()
     if args.version:
         print("qtop current version: " + __version__)
@@ -1083,11 +1080,11 @@ def main(resources: RunResources) -> None:
             config, _, _ = configuration.load_yaml_config(args, QTOPPATH, CURPATH, SYSTEMCONFDIR, USERPATH)
         except (ValueError, TypeError, KeyError, IndexError, AttributeError, StopIteration) as error:
             raise OperationalError("Invalid configuration in %s: %s" % (args.CONFFILE or QTOPCONF_YAML, error or type(error).__name__)) from error
-        useful_frames, args.REPLAY = pick_frames_to_replay(config["savepath"])
+        useful_frames, args.REPLAY = pick_frames_to_replay(config["savepath"], args, config)
 
     model = None
     web = resources.web = Web(initial_cwd)
-    with raw_mode(sys.stdin):  # key listener implementation
+    with raw_mode(sys.stdin, args):  # key listener implementation
         try:
             while True:
                 try:
@@ -1157,7 +1154,7 @@ def main(resources: RunResources) -> None:
                 _ = subprocess.call(clear_command, stdout=stdout, stderr=stdout)
                 _ = subprocess.call(cat_command, stdout=stdout, stderr=stdout)
 
-                read_char = wait_for_keypress_or_autorefresh(viewport, FALLBACK_TERMSIZE, int(args.WATCH) or KEYPRESS_TIMEOUT)
+                read_char = wait_for_keypress_or_autorefresh(viewport, config, FALLBACK_TERMSIZE, int(args.WATCH) or KEYPRESS_TIMEOUT)
                 model, effects = MVU_update(model, read_char)
                 viewport, dynamic_config = model.viewport, model.display_overrides
                 MVU_effects(model, effects, cluster, old_attrs, new_attrs)

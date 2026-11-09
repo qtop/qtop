@@ -87,15 +87,16 @@ def test_sort_worker_nodes_uses_named_sort_keys(monkeypatch):
     assert [node["domainname"] for node in cluster._sort_worker_nodes()] == ["node2", "node10"]
 
 
+WATCH_ARGS = SimpleNamespace(ONLYSAVETOFILE=False, WATCH=True)
+
+
 def test_raw_mode_allows_watch_mode_without_terminal_attrs(monkeypatch):
     class NonTerminalFile:
         def fileno(self):
             raise OSError("not a terminal")
 
-    monkeypatch.setattr(qtop_module, "args", SimpleNamespace(ONLYSAVETOFILE=False, WATCH=True), raising=False)
-
     entered_context = False
-    with qtop_module.raw_mode(NonTerminalFile()):
+    with qtop_module.raw_mode(NonTerminalFile(), WATCH_ARGS):
         entered_context = True
 
     assert entered_context
@@ -106,10 +107,8 @@ def test_raw_mode_does_not_swallow_unexpected_fileno_errors(monkeypatch):
         def fileno(self):
             raise RuntimeError("unexpected")
 
-    monkeypatch.setattr(qtop_module, "args", SimpleNamespace(ONLYSAVETOFILE=False, WATCH=True), raising=False)
-
     with pytest.raises(RuntimeError, match="unexpected"):
-        with qtop_module.raw_mode(BrokenFile()):
+        with qtop_module.raw_mode(BrokenFile(), WATCH_ARGS):
             pass
 
 
@@ -148,9 +147,8 @@ def test_reset_sigpipe_restores_default_when_available(monkeypatch):
 
 def test_raw_mode_is_noop_when_platform_has_no_termios(monkeypatch):
     monkeypatch.setattr(qtop_module, "termios", None)
-    monkeypatch.setattr(qtop_module, "args", SimpleNamespace(ONLYSAVETOFILE=False, WATCH=True), raising=False)
 
-    with qtop_module.raw_mode(sys.stdin):
+    with qtop_module.raw_mode(sys.stdin, WATCH_ARGS):
         pass
 
 
