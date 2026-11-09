@@ -47,7 +47,7 @@ if TYPE_CHECKING:
     dynamic_config: state_types.Config
 
 from qtop_py import __version__, configuration, fileutils, sample, utils
-from qtop_py.colormap import queue_to_color as queue_to_color
+from qtop_py.colormap import queue_to_color as colormap_queue_to_color
 from qtop_py.colormap import user_to_color_default
 from qtop_py.constants import (
     FALLBACK_TERMSIZE,
@@ -105,6 +105,8 @@ SAMPLE_FILENAME: str
 Document = Snapshot  # deprecated alias, kept for one release; use Snapshot
 
 colorize_nodestate = MVU_colorize_nodestate
+
+queue_to_color = colormap_queue_to_color  # re-exported; tools/validate_trace_export.py reads qtop.queue_to_color
 
 compress_colored_line = MVU_compress_colored_line
 

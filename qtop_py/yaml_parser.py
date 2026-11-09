@@ -169,11 +169,6 @@ def read_yaml_config_block(line: List[Any], fin: Iterable[str], get_lines: Itera
     open_containers.append(block)
     key_value: Dict[str, Any] = {}
 
-    # if len(line) > 1:  # non-empty line
-    #     key_value, parent_container = process_line(line, fin, get_lines, parent_container)
-    #     for (k, v) in key_value.items():
-    #         block[k] = v
-
     while len(line) == 1:  # skip empty lines
         try:
             line = next(get_lines)
@@ -256,7 +251,6 @@ def process_line(list_line: List[Any], fin: Iterable[str], get_lines: Iterator[L
 
         if ": " in container:  # key: '-'               - testkey: testvalue
             key, container = container.split(None, 1)
-            # container = [container[1:-1]] if container.startswith('[') else container
             container = container[1:-1].split(", ") if container.startswith("[") else container
             container = "" if container in ("''", '""') else container
             if isinstance(container, list):
@@ -269,7 +263,7 @@ def process_line(list_line: List[Any], fin: Iterable[str], get_lines: Iterator[L
 
         if key == "-":  # i.e.  - testvalue
             return {"-": [container]}, container  # was parent_container******was :[container]}, container
-        # i.e. testkey: testvalue
+        # i.e. a line of the form 'testkey: testvalue'
         container = [container[1:-1]] if container.startswith("[") else container  # list
         if isinstance(container, list):
             container = expand_single_literal_list(container)
@@ -281,7 +275,6 @@ def process_line(list_line: List[Any], fin: Iterable[str], get_lines: Iterator[L
 
 def process_code(fin: Iterable[str]) -> str:
     get_code = get_line(fin, verbatim=True)
-    # line = next(get_code)
     line = next(get_code)
     code = []
     while line[0] > -1:
@@ -319,7 +312,7 @@ def get_yaml_key_part(config: Mapping[str, Any], scheduler: str, outermost_key: 
     only return the list items of the yaml outermost_key if a yaml key subkey exists
     (this signals a user-inserted value)
     """
-    # e.g. outermost_key = 'workernodes_matrix'
+    # e.g. outermost_key is 'workernodes_matrix'
     for part in config[outermost_key]:
         part_name = [i for i in part][0]
         part_options = part[part_name]

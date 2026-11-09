@@ -384,7 +384,7 @@ class TextDisplay(object):
                 matrix[0] = order.index(matrix[1])
 
             self.MVU_model.transposed_sections.sort(key=lambda item: item[0])
-            ###TRY###
+            # TRY
             for line_tuple in zip_longest(
                 *[tpl[2] for tpl in self.MVU_model.transposed_sections],
                 fillvalue=[

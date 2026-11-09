@@ -86,7 +86,6 @@ user_to_color_default = OrderedDict(
         ("piatl", "Red_L"),
         ("sgmatl", "Red_L"),
         ("zisgmatl", "Red_L"),
-        # ( sgmatl, 'Red'),
         ("prdatlas", "Red"),
         ("prdatl", "Red"),
         ("prdat", "Red"),
@@ -239,7 +238,7 @@ user_to_color_default = OrderedDict(
         ("esrsgm", "Blue_L"),
         ("esr", "Blue_L"),
         ("earthscience", "Blue_L"),
-        # ( Fusion, auvergrid, compchem, enmr, voce, gaussian, balticgrid),
+        # VOs: Fusion, auvergrid, compchem, enmr, voce, gaussian, balticgrid
         # ( Digital Media VO)s
         ("fusionprd", "Blue_L"),
         ("fusionsgm", "Blue_L"),
@@ -313,7 +312,7 @@ user_to_color_default = OrderedDict(
         ("kaust", "Brown"),
         # ( Extras; these are really randomly found user names; needed for screen)
         # ( clarity while in color more)
-        ("j", "Yellow"),  ## yes, let's start editing the colormap file around here ;-)
+        ("j", "Yellow"),  # yes, let's start editing the colormap file around here ;-)
         ("mwilli", "Brown"),
         ("por", "Blue"),
         ("dorisf", "Cyan"),

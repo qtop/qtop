@@ -121,6 +121,14 @@ show_error_context = true
 module = ["lxml", "ujson"]
 ignore_missing_imports = true
 
+# Pylama (pycodestyle, pyflakes, eradicate); ruff stays the CI linter. Ignored: E266 for the
+# `## Copyright`/`## SPDX` headers (house style); E203 and E704, which conflict with ruff format.
+[tool.pylama]
+paths = "qtop_py"
+linters = "pycodestyle,pyflakes,eradicate"
+max_line_length = 180
+ignore = "E266,E203,E704"
+
 [tool.coverage.run]
 source = ["qtop_py"]
 parallel = true

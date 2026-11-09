@@ -367,7 +367,8 @@ class PBSBatchSystem(GenericBatchSystem):
                     elif name == "state":
                         value = mask.public(
                             value,
-                            r"(?:free|busy|down|offline|unknown|job-busy|job-exclusive|reserve|time-shared)(?:,(?:free|busy|down|offline|unknown|job-busy|job-exclusive|reserve|time-shared))*",
+                            r"(?:free|busy|down|offline|unknown|job-busy|job-exclusive|reserve|time-shared)"
+                            r"(?:,(?:free|busy|down|offline|unknown|job-busy|job-exclusive|reserve|time-shared))*",
                         )
                     elif name == "jobs":
                         value = re.sub(r"([0-9,\-]+)/([0-9\[\]-]+)(?:\.[\w.*-]+)?", lambda match: match[1] + "/" + mask(match[2], "job") + ".server", value)
@@ -438,7 +439,6 @@ class PBSBatchSystem(GenericBatchSystem):
             except KeyError:
                 pbs_values["core_job_map"] = dict()  # change of behaviour: all entries should contain the key even if no value
             else:
-                # jobs = re.split(r'(?<=[A-Za-z0-9]),\s?', block['jobs'])
                 jobs = re.findall(r"[0-9][0-9a-zA-Z\[\],.-]*\/[^,]+", block["jobs"])
                 pbs_values["core_job_map"] = dict((core, resolve_job_id(job, known_ids)) for job, core in self._get_jobs_cores(jobs))
             finally:

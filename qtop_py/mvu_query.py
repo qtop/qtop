@@ -292,7 +292,6 @@ class WNOccupancy(object):
             self.extra_matrices_nr = wn_number / self.config["USER_CUT_MATRIX_WIDTH"]
         elif extra_matrices_nr:  # if more matrices are needed due to lack of space, cut every matrix so that if fits to screen
             stop = start + term_columns - DEADWEIGHT
-            # wns_occupancy['extra_matrices_nr'] = extra_matrices_nr
         else:  # just one matrix, small cluster!
             stop = start + wn_number
             extra_matrices_nr = 0
@@ -309,7 +308,7 @@ class WNOccupancy(object):
         '3': "12345678901234567..."
         """
         highest_wn = self.cluster.highest_wn
-        if NAMED_WNS:  #  or args.FORCE_NAMES
+        if NAMED_WNS:  # or args.FORCE_NAMES
             workernode_dict = self.cluster.workernode_dict
             hosts = [state_corejob_dn["host"] for _, state_corejob_dn in workernode_dict.items()]
             node_str_width = len(max(hosts, key=len, default=""))
@@ -514,8 +513,6 @@ class WNOccupancy(object):
                 yield user, str(core), queue
 
     def is_matrix_coreless(self, node_column_start: int, node_column_stop: int) -> bool:
-        # node_column_start = self.node_column_start
-        # node_column_stop = self.node_column_stop
         non_existent_symbol = self.config["non_existent_node_symbol"]
         lines = 0
         core_user_map = self.core_user_map
@@ -747,7 +744,7 @@ class Cluster(object):
                     changed = True
                     state_corejob_dn["host"] = _host = re.sub(pat, repl, _host)
             state_corejob_dn["host"] = _host if not changed else state_corejob_dn["host"]
-            # was: label_max_len = config['wn_labels_max_len']
+            # label_max_len was formerly the wn_labels_max_len setting
             state_corejob_dn["host"] = state_corejob_dn["host"][-label_max_len:] if label_max_len else state_corejob_dn["host"]
         return workernode_dict
 

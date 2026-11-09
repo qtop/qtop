@@ -386,7 +386,8 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
                 fields[1] = mask(fields[1].rstrip("*"), "queue") + ("*" if fields[1].endswith("*") else "")
                 fields[2] = mask.public(
                     fields[2],
-                    r"(?:idle|alloc|allocated|mix|mixed|down|drain|drained|drng|comp|completing|fail|failg|maint|resv|reserved|planned|plnd|future|futr|unknown|unk)(?:[*+#~$@%!^\-])*",
+                    r"(?:idle|alloc|allocated|mix|mixed|down|drain|drained|drng|comp|completing|fail|failg|maint|resv|reserved|"
+                    r"planned|plnd|future|futr|unknown|unk)(?:[*+#~$@%!^\-])*",
                 )
                 fields[3] = mask.public(fields[3], r"[0-9]+")
                 if len(fields) >= 6:

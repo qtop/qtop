@@ -167,12 +167,12 @@ def parse_qtop_cmdline_args() -> Namespace:
         dest="REPLAY",
         help="""instant replay from a specific moment in time for the
                            cluster, and for a specified duration. The value
-                           provided should be in either of the following formats: 
-                           yyyymmddTHHMMSS, e.g. 20161118T182300, (explicit form) 
-                           HHMM, e.g. 1823 (current day is implied),\t\t 
-                           mmddTHHMM, e.g. 1118 T1823 (current year is implied).  
-                           A second value is optional and denotes the desired 
-                           length of the playback, e.g. -R 1823 1m, 
+                           provided should be in either of the following formats:
+                           yyyymmddTHHMMSS, e.g. 20161118T182300, (explicit form)
+                           HHMM, e.g. 1823 (current day is implied),\t\t
+                           mmddTHHMM, e.g. 1118 T1823 (current year is implied).
+                           A second value is optional and denotes the desired
+                           length of the playback, e.g. -R 1823 1m,
                            or -R 1800 1h. A default duration of 2m is used, if
                            no value is given.""",
     )

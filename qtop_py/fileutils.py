@@ -109,7 +109,6 @@ def get_new_temp_file(_savepath: str, suffix: str, prefix: str) -> Tuple[int, st
     """
     fd, temp_filepath = tempfile.mkstemp(suffix=suffix, prefix=prefix, dir=_savepath)  # **kwargs
     logging.debug("temp_filepath: %s" % temp_filepath)
-    # out_file = os.fdopen(fd, 'w')
     return fd, temp_filepath
 
 
