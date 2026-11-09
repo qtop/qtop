@@ -44,7 +44,7 @@ class HostlistParser:
                 raise ValueError("unmatched opening bracket")
             groups.append(nodelist[start:])
 
-            expanded = []
+            expanded: List[str] = []
             for group in groups:
                 if not group or re.search(r"\s", group):
                     raise ValueError("empty or whitespace-containing host group")

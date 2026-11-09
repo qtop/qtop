@@ -11,7 +11,7 @@
 import logging
 import re
 from collections import OrderedDict
-from typing import List, Optional
+from typing import Any, Dict, List, Optional, Set
 
 import qtop_py.fileutils as fileutils
 from qtop_py.hostlist import HostlistParser
@@ -67,7 +67,7 @@ class SlurmStatExtractor(StatExtractor):
         error = "Invalid, truncated or oversized Slurm array ID %r; collect squeue with -r/--array." % job_id
         if match is None:
             raise ValueError(error)
-        tasks = set()
+        tasks: Set[int] = set()
         expanded_count = 0
         for token in match.group(2).split(","):
             span = re.fullmatch(r"([0-9]{1,10})(?:-([0-9]{1,10})(?::([0-9]{1,10}))?)?", token)
@@ -101,7 +101,7 @@ class SlurmStatExtractor(StatExtractor):
         return ids
 
     @staticmethod
-    def identity_fields(job_id: str):
+    def identity_fields(job_id: str) -> Dict[str, str]:
         match = re.fullmatch(r"([0-9]+)([_+])([0-9]+)", job_id)
         if match is None:
             return {}
@@ -122,7 +122,7 @@ class SlurmStatExtractor(StatExtractor):
             logging.error("File %s seems to be empty." % orig_file)
             return []
 
-        jobs = OrderedDict()
+        jobs: Dict[str, Any] = OrderedDict()
         expanded_count = 0
         with open(orig_file, "r", encoding="utf-8", errors="replace") as fin:
             for line in fin:
@@ -448,7 +448,7 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
         return job_ids, usernames, job_states, queue_names
 
     def get_queues_info(self):
-        queue_counts = OrderedDict()
+        queue_counts: Dict[str, Any] = OrderedDict()
         total_running_jobs = 0
         total_queued_jobs = 0
 
@@ -484,7 +484,7 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
         return total_running_jobs, total_queued_jobs, qstatq_lod
 
     def get_worker_nodes(self, job_ids, job_queues, options):
-        worker_nodes_by_name = OrderedDict()
+        worker_nodes_by_name: Dict[str, Dict[str, Any]] = OrderedDict()
 
         for node in self._get_nodes():
             raw_name = node["raw_domainname"]
@@ -517,7 +517,7 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
                 if key in node:
                     worker_node[key] = node[key]
 
-        self.allocation_diagnostics = {}
+        self.allocation_diagnostics: Dict[str, Any] = {}
         node_jobs = self._map_jobs_to_nodes(self._get_jobs(), worker_nodes_by_name, self.allocation_diagnostics)
         for raw_name, worker_node in worker_nodes_by_name.items():
             worker_node["core_job_map"] = dict((idx, job_id) for idx, job_id in enumerate(node_jobs.get(raw_name, [])))
@@ -526,7 +526,7 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
         self._apply_gpu_allocations(worker_nodes_by_name)
         for node in worker_nodes_by_name.values():
             node.pop("slurm_unmapped_cpus", None)
-        mapped = {}
+        mapped: Dict[str, Any] = {}
         for node in worker_nodes_by_name.values():
             for job_id in node["core_job_map"].values():
                 mapped[job_id] = mapped.get(job_id, 0) + 1
@@ -545,7 +545,7 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
         # Job names are arbitrary text and must not be interpreted as identity fields.
         header = re.split(r"\s+JobName=", header, maxsplit=1)[0]
         pairs = re.findall(r"(?:^|\s)(JobId|ArrayJobId|ArrayTaskId|HetJobId|HetJobOffset)=(\S+)", header)
-        fields = dict(pairs)
+        fields: Dict[str, str] = dict(pairs)
         if len(fields) != len(pairs):
             return None
         array = "ArrayJobId" in fields or "ArrayTaskId" in fields
@@ -570,7 +570,7 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
                         logging.warning("Ignoring invalid Slurm GPU metadata: %s", error)
         if not self.scontrol_file:
             return
-        allocations = {}
+        allocations: Dict[str, Any] = {}
         invalid = set()
         try:
             with open(self.scontrol_file, "r", encoding="utf-8", errors="replace") as stream:
@@ -605,9 +605,9 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
             job_id = job["JobId"]
             if job["S"] not in self.ACTIVE_STATES or job_id in invalid:
                 continue
-            hosts = set(self.expand_nodelist(job["Nodes"]))
+            job_hosts = set(self.expand_nodelist(job["Nodes"]))
             allocation = allocations.get(job_id, {})
-            if not set(allocation).issubset(hosts):
+            if not set(allocation).issubset(job_hosts):
                 continue
             for host, resources in allocation.items():
                 if host in worker_nodes:
@@ -615,7 +615,7 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
                     bindings.extend(dict(resource, job_id=job_id) for resource in resources)
 
     def _read_cpu_allocations(self):
-        allocations = {}
+        allocations: Dict[str, Any] = {}
         if not self.scontrol_file:
             return allocations
         try:
@@ -651,7 +651,7 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
 
     def _apply_cpu_allocations(self, worker_nodes):
         details = self._read_cpu_allocations()
-        exact = {name: {} for name in worker_nodes}
+        exact: Dict[str, Dict[str, Any]] = {name: {} for name in worker_nodes}
         estimated = set()
         for job in self._get_jobs():
             if job["S"] not in self.ACTIVE_STATES:

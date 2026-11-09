@@ -89,16 +89,48 @@ include = ["qtop_py/qtop.py"]
 # cli_main intentionally binds the legacy module-level runtime context.
 unresolved-global = "ignore"
 
-# First-pass contracts; legacy callers are analyzed as imported dependencies.
+# Whole package: checked bodies (also unannotated ones) and near-free strictness;
+# the five contract modules below stay under the full `strict` set.
 [tool.mypy]
 python_version = "3.12"
-files = ["qtop_py/state_types.py", "qtop_py/cluster_state.py", "qtop_py/sample.py", "qtop_py/serialiser.py", "qtop_py/ui/viewport.py"]
-strict = true
-follow_imports = "silent"
+files = ["qtop_py"]
+check_untyped_defs = true
+disallow_any_generics = true
+disallow_incomplete_defs = true
+disallow_subclassing_any = true
+disallow_untyped_decorators = true
+extra_checks = true
+no_implicit_reexport = true
+strict_equality = true
+warn_redundant_casts = true
+warn_return_any = true
+warn_unreachable = true
+warn_unused_configs = true
+warn_unused_ignores = true
+# Not yet applicable package-wide (error counts as of 0.9.20261109); the contract modules below already have them.
+# FIXME: disallow_untyped_defs = true  # 342 unannotated functions; annotate module by module, then enable
+# FIXME: disallow_untyped_calls = true  # 418 calls into unannotated code; follows disallow_untyped_defs
+# Deliberately off, though it would pass: a variable keeps one type, its name says what it holds.
+# allow_redefinition = true
+pretty = true
+show_column_numbers = true
+show_error_codes = true
+show_error_context = true
+
+# Optional accelerators with stdlib fallbacks (cf. tool.ty.analysis).
+[[tool.mypy.overrides]]
+module = ["lxml", "ujson"]
+ignore_missing_imports = true
+
+# Per-module equivalent of `strict = true` (a global-only option) for the contracts;
+# serialiser still allows unannotated defs.
+[[tool.mypy.overrides]]
+module = ["qtop_py.state_types", "qtop_py.cluster_state", "qtop_py.sample", "qtop_py.serialiser", "qtop_py.ui.viewport"]
+disallow_untyped_calls = true
 
 [[tool.mypy.overrides]]
-module = "qtop_py.serialiser"
-disallow_untyped_defs = false
+module = ["qtop_py.state_types", "qtop_py.cluster_state", "qtop_py.sample", "qtop_py.ui.viewport"]
+disallow_untyped_defs = true
 
 [tool.coverage.run]
 source = ["qtop_py"]

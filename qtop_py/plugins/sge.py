@@ -11,6 +11,7 @@
 __author__ = "sfranky"
 import fnmatch
 import logging
+from typing import Any, Dict, List
 
 # SGE parses with NoDTDTreeBuilder below, rejecting all DTD declarations.
 from xml.etree import ElementTree as etree  # nosec B405
@@ -112,7 +113,7 @@ class SGEStatExtractor(StatExtractor):
         return tree, root
 
     def extract_qstat(self, orig_file):
-        all_values = list()
+        all_values: List[Any] = list()
         self.orig_file = orig_file
         self.whole_queue_elems = set()
         self.tree, self.root = self.get_xml_tree(orig_file)
@@ -283,7 +284,7 @@ class SGEBatchSystem(GenericBatchSystem):
 
         existing_wns = list()
         existing_node_names = set()
-        whole_queue_jobs = dict()
+        whole_queue_jobs: Dict[str, Any] = dict()
 
         for queue_elem in root.findall("queue_info/Queue-List"):
             worker_node = self._get_host_qname_np(queue_elem)
@@ -383,7 +384,7 @@ class SGEBatchSystem(GenericBatchSystem):
         return job_ids, usernames, job_states
 
     def _get_host_qname_np(self, queue_elem):
-        worker_node = dict()
+        worker_node: Dict[str, Any] = dict()
         count = 0
 
         resources = queue_elem.findall("resource")
@@ -415,7 +416,7 @@ class SGEBatchSystem(GenericBatchSystem):
         return queue_elem.findtext("state", default="-") or "-"
 
     def _extract_queues(self, xpath, root):
-        qstatq_list = []
+        qstatq_list: List[Dict[str, Any]] = []
         for queue_elem in root.findall(xpath):
             queue_names = queue_elem.findall("resource")
             for _queue_name in queue_names:
@@ -437,7 +438,7 @@ class SGEBatchSystem(GenericBatchSystem):
                     exist_d["state"] = "".join(sorted(set(str(exist_d["state"]) + state)))
                     break
             else:  # first instance of queue in the xml
-                d = dict()
+                d: Dict[str, Any] = dict()
                 d["queue_name"] = queue_name
                 d["state"] = queue_elem.findtext("./state", default="?") or "?"
 

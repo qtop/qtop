@@ -10,7 +10,7 @@ import tempfile
 from collections import OrderedDict
 from functools import lru_cache, partial
 from itertools import cycle, zip_longest
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Callable, Dict, Optional, Sequence, Tuple
 
 if TYPE_CHECKING:
     from qtop_py.state_types import Config
@@ -28,7 +28,7 @@ DEFAULT_ACCOUNT_STATES = ("running_of_user", "queued_of_user")
 
 def user_accounts_header(config: "Config") -> str:
     """Expand user_accounts_header; {ranking} becomes the active user_id_ranking. Plain replace: no format-string evaluation."""
-    USER_ACCOUNTS_HEADER = config.get("user_accounts_header")
+    USER_ACCOUNTS_HEADER: Optional[str] = config.get("user_accounts_header")
     if USER_ACCOUNTS_HEADER is None:
         USER_ACCOUNTS_HEADER = DEFAULT_USER_ACCOUNTS_HEADER
     USER_ID_RANKING = config.get("user_id_ranking") or DEFAULT_USER_ID_RANKING
@@ -61,7 +61,7 @@ class TextDisplay(object):
             2: self.args.sect_2_off,
             3: self.args.sect_3_off,
         }
-        display_parts = {
+        display_parts: Dict[str, Tuple[Callable[..., Any], Tuple[Any, ...]]] = {
             "job_accounting_summary": (self.display_job_accounting_summary, (self.cluster, self.snapshot)),
             "workernodes_matrix": (self.display_wns_occupancy, (self.wns_occupancy, self.cluster)),
             "user_accounts_pool_mappings": (self.display_user_accounts_pool_mappings, (self.wns_occupancy,)),
@@ -72,7 +72,7 @@ class TextDisplay(object):
 
         for idx, part in enumerate(self.config["user_display_parts"], 1):
             display_func, opts = display_parts[part][0], display_parts[part][1]
-            display_func(*opts) if not sections_off[idx] else None  # ty: ignore[missing-argument, too-many-positional-arguments] - config-driven dispatch
+            display_func(*opts) if not sections_off[idx] else None
 
         self.display_backend_messages()
 
@@ -257,7 +257,7 @@ class TextDisplay(object):
         if not account_jobs_table:
             return None
 
-        state_totals = {}
+        state_totals: Dict[str, int] = {}
         for line in account_jobs_table:
             for state_key, count in TextDisplay.row_state_counts(line).items():
                 state_totals[state_key] = state_totals.get(state_key, 0) + int(count)
@@ -338,7 +338,7 @@ class TextDisplay(object):
         user_color_patterns = wns_occupancy.user_color_patterns
         mapping = self.config["core_coloring"]
 
-        occupancy_parts = {
+        occupancy_parts: Dict[str, Tuple[Callable[..., Any], Tuple[Any, ...], Dict[str, Any]]] = {
             "wn id lines": (self.display_wnid_lines, (node_column_start, node_column_stop, self.cluster.highest_wn, wn_vert_labels), {"inner_attrs": None}),
             "core_user_map": (
                 self.print_core_lines,
@@ -370,7 +370,7 @@ class TextDisplay(object):
             occupancy_parts[part][2].update(key_vals)  # get extra args from user
 
             func_, opts, kwargs = occupancy_parts[part][0], occupancy_parts[part][1], occupancy_parts[part][2]
-            func_(*opts, **kwargs)  # ty: ignore[too-many-positional-arguments] - heterogeneous renderer registry
+            func_(*opts, **kwargs)
 
         if self.MVU_model.display_overrides.get("transpose_wn_matrices", self.config["transpose_wn_matrices"]):
             order = self.config["occupancy_column_order"]
@@ -571,10 +571,12 @@ class TextDisplay(object):
         colors it in the meantime, if instructed to via colored
         """
         for tpl in zip_longest(*[[char for char in d[k]] for k in d], fillvalue=" "):
+            row: Sequence[str] = tpl
             if any(j != " " for j in tpl):
-                tpl = (colored and coloring_pat) and [self.MVU_model.MVU_colorize(txt, "", coloring_pat[txt]) if txt in coloring_pat else txt for txt in tpl] or list(tpl)
-                tpl[:] = tpl[::-1] if reverse else tpl
-            yield tpl
+                cells = (colored and coloring_pat) and [self.MVU_model.MVU_colorize(txt, "", coloring_pat[txt]) if txt in coloring_pat else txt for txt in tpl] or list(tpl)
+                cells[:] = cells[::-1] if reverse else cells
+                row = cells
+            yield row
 
     def _insert_separators(self, orig_str, separator, pos, stopaftern=0):
         """

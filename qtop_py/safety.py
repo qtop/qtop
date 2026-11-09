@@ -40,15 +40,15 @@ def cores_per_node(value: Any) -> Optional[int]:
     return int(text)
 
 
-def visible_text(value, escape_backslashes=True):
+def visible_text(value: Any, escape_backslashes: bool = True) -> str:
     """Escape controls and literal backslashes, keeping displayed identifiers distinct."""
-    value = str(value)
+    text = str(value)
     # Fast path: every character _CONTROLS matches is non-printable, so printable text needs no escaping.
-    if value.isprintable() and not (escape_backslashes and "\\" in value):
-        return value
-    if escape_backslashes and "\\" in value:
-        value = value.replace("\\", "\\\\")
-    return _CONTROLS.sub(lambda match: ascii(match.group())[1:-1], value)
+    if text.isprintable() and not (escape_backslashes and "\\" in text):
+        return text
+    if escape_backslashes and "\\" in text:
+        text = text.replace("\\", "\\\\")
+    return _CONTROLS.sub(lambda match: ascii(match.group())[1:-1], text)
 
 
 def rebuild(value: Any, leaf: Optional[Callable[[str], Any]] = None) -> Any:
@@ -141,7 +141,7 @@ class LimitedReader(object):
 @contextlib.contextmanager
 def snapshot_archive(path: str) -> Generator[tarfile.TarFile, None, None]:
     with open(path, "rb") as source, contextlib.ExitStack() as stack:
-        stream = source
+        stream: Any = source  # becomes a decompressing reader below
         magic = stream.read(6)
         stream.seek(0)
         for prefix, decoder in ((b"\x1f\x8b", gzip.GzipFile), (b"BZh", bz2.BZ2File), (b"\xfd7zXZ", lzma.LZMAFile)):

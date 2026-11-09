@@ -4,6 +4,7 @@ import logging
 import os
 import re
 from collections import OrderedDict
+from typing import Any, Dict, List
 
 from qtop_py import fileutils, yaml_parser
 from qtop_py.schedulers.tabular import TabularStatExtractor
@@ -26,7 +27,7 @@ class OarStatExtractor(TabularStatExtractor):
         )
 
     def extract_qstat(self, orig_file):
-        all_values = list()
+        all_values: List[Any] = list()
         try:
             fileutils.check_empty_file(orig_file)
         except fileutils.FileEmptyError:
@@ -162,7 +163,7 @@ class OARBatchSystem(GenericBatchSystem):
         }
         self.diagnostics = {key: count for key, count in self.diagnostics.items() if count}
 
-        nodes_jobs = {}
+        nodes_jobs: Dict[str, Any] = {}
         for node in nodes_resids:
             resids_state_lot = nodes_resids[node]
             for resid, state in resids_state_lot:
@@ -172,7 +173,7 @@ class OARBatchSystem(GenericBatchSystem):
         node_state_mapping = dict(DEFAULT_NODE_STATE_MAPPING)
         node_state_mapping.update(self.config.get("oar_node_state_mappings", {}))
         for node in nodes_jobs:
-            d = OrderedDict()
+            d: Dict[str, Any] = OrderedDict()
             d["domainname"] = node
             nr_of_jobs = len(nodes_jobs[node])
             d["np"] = nr_of_jobs
@@ -198,7 +199,7 @@ class OARBatchSystem(GenericBatchSystem):
 
     def get_queues_info(self):
         """Derive job counts from oarstat; resource slots are not job counts."""
-        queues = OrderedDict()
+        queues: Dict[str, Any] = OrderedDict()
         for job in self._get_jobs():
             queue = queues.setdefault(job["Queue"], {"queue_name": job["Queue"], "run": 0, "queued": 0, "lm": "--", "state": "?"})
             queue["run"] += job["S"] == "R"
@@ -226,7 +227,7 @@ class OARBatchSystem(GenericBatchSystem):
 
     def _read_oarnodes_y_textyaml(self, fn):
         """Stream relevant YAML fields; blanks do not terminate resource records."""
-        resources = {}
+        resources: Dict[int, Any] = {}
         resid = None
         jobs_list = False
         with open(fn, encoding="utf-8", errors="replace") as stream:

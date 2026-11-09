@@ -12,6 +12,7 @@ import itertools
 import random
 import time
 from collections import defaultdict, namedtuple
+from typing import Any, DefaultDict, List
 
 from qtop_py.serialiser import GenericBatchSystem
 
@@ -68,7 +69,7 @@ class LittleGridSimulator(object):
             self.node_state.append(state)
 
         # Set all cores in all nodes to unscheduled state
-        self.core_job_map = defaultdict(list)
+        self.core_job_map: DefaultDict[Any, List[Any]] = defaultdict(list)
         for node in range(WORKER_NODES):
             for _ in range(self.nps[node]):
                 self.core_job_map[node].append(None)
@@ -246,7 +247,7 @@ class DemoBatchSystem(GenericBatchSystem):
 
     def get_queues_info(self):
         total_running_jobs = 0  # these are reported directly by qstat in PBS; if not, they are calculated.
-        run_for_queue = defaultdict(int)
+        run_for_queue: DefaultDict[str, int] = defaultdict(int)
         for node in range(WORKER_NODES):
             for _core, job_id in enumerate(self.sim.core_job_map[node]):
                 if job_id:

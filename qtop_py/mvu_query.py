@@ -8,7 +8,7 @@ import re
 from collections import Counter, OrderedDict, namedtuple
 from math import ceil
 from operator import itemgetter
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Dict, Sequence
 
 if TYPE_CHECKING:
     from typing import List, Mapping, Sequence, Tuple
@@ -136,7 +136,7 @@ class WNOccupancy(object):
         """
         counting of e.g. R, Q, C, W, E attached to each user
         """
-        user_job_per_state_counts = dict()
+        user_job_per_state_counts: Dict[str, Any] = dict()
         for state_count_key in state_abbrevs.values():
             user_job_per_state_counts[state_count_key] = dict()
 
@@ -172,7 +172,7 @@ class WNOccupancy(object):
     @staticmethod
     def job_state_totals(job_states, state_abbrevs):
         """Count jobs per state key (e.g. running_of_user); states missing from state_abbrevs count as unknown_of_user."""
-        totals = {}
+        totals: Dict[str, int] = {}
         for job_state in job_states:
             state_key = state_abbrevs.get(job_state, "unknown_of_user")
             totals[state_key] = totals.get(state_key, 0) + 1
@@ -234,7 +234,7 @@ class WNOccupancy(object):
         pattern = {}
         PATTERNS_LAST_FIRST = list(mapping.keys())[::-1]
         # Compiled on first use, so an invalid pattern still fails exactly when it is first reached.
-        compiled = {}
+        compiled: Dict[str, Any] = {}
         # Preserve shared-ID color precedence from the previous job-count order.
         for line in sorted(self.account_jobs_table, key=itemgetter(3, 4), reverse=True):
             uid, user = line[0], line[4]
@@ -314,7 +314,7 @@ class WNOccupancy(object):
             workernode_dict = self.cluster.workernode_dict
             hosts = [state_corejob_dn["host"] for _, state_corejob_dn in workernode_dict.items()]
             node_str_width = len(max(hosts, key=len, default=""))
-            wn_vert_labels = OrderedDict((str(place), []) for place in range(1, node_str_width + 1))
+            wn_vert_labels: Dict[str, Any] = OrderedDict((str(place), []) for place in range(1, node_str_width + 1))
             for node in workernode_dict:
                 host = workernode_dict[node]["host"]
                 extra_spaces = node_str_width - len(host)
@@ -351,7 +351,7 @@ class WNOccupancy(object):
             logging.warning("Some longer %(attr)ss have been cropped due to %(attr)s length restriction by user" % {"attr": part_name})
 
         # initialisation of lines
-        multiline_map = OrderedDict()
+        multiline_map: Dict[str, Any] = OrderedDict()
         for line_nr in range(1, min_len + 1):
             multiline_map["attr%sline" % str(line_nr)] = []
 
@@ -372,7 +372,7 @@ class WNOccupancy(object):
         return multiline_map
 
     def _calc_core_matrix(self, user_to_id, job_to_user_and_queue):
-        core_user_map = OrderedDict()
+        core_user_map: Dict[str, Any] = OrderedDict()
 
         core_coloring = self.MVU_model.display_overrides.get("core_coloring", self.config["core_coloring"])
 
@@ -462,7 +462,7 @@ class WNOccupancy(object):
         id_to_user = dict(zip((str(x) for x in self.user_to_id.values()), self.user_to_id.keys()))
         highlight_rules = list(WNOccupancy.get_hl_q_or_users(_highlighted_queues_or_users))
         and_or_func = highlight_rules[-1][2] if highlight_rules else any
-        id_ = utils.ColorStr.from_other_color_str(self.user_to_id[user])
+        id_: utils.ColorStr = utils.ColorStr.from_other_color_str(self.user_to_id[user])
         viewed_pattern = self.user_color_patterns[str(id_)] if _core_coloring == "user_to_color" else queue
         matches = []
         for user_queue_to_highlight, highlight_kind, _ in highlight_rules:
@@ -483,7 +483,7 @@ class WNOccupancy(object):
 
     def _resolve(self, job: str, job_to_user_and_queue: "Mapping[str, Tuple[str, str]]") -> str:
         """resolve_job_id, memoized per frame: cores of one job resolve once, not once per core."""
-        memo = self.__dict__.setdefault("_resolved_jobs", {})  # per frame: lives on this WNOccupancy
+        memo: Dict[str, str] = self.__dict__.setdefault("_resolved_jobs", {})  # per frame: lives on this WNOccupancy
         resolved = memo.get(job)
         if resolved is None:
             resolved = memo[job] = resolve_job_id(job, job_to_user_and_queue)
@@ -591,7 +591,7 @@ class Cluster(object):
 
         self.available_wn = sum([len(node["state"]) for node in self.worker_nodes if str(node["state"][0]) == "-"])
         self.total_wn = len(self.worker_nodes)  # == existing_nodes
-        self.workernode_list = []
+        self.workernode_list: Sequence[Any] = []
 
         self.WNFilter = WNFilter
         self.wn_filter = None
@@ -635,6 +635,8 @@ class Cluster(object):
         all_str_digits_with_empties = list()
         for node in worker_nodes:
             nodename_match = re.search(re_nodename, node["domainname"])
+            if nodename_match is None:
+                raise ValueError("Unsupported worker node name %r" % node["domainname"])
             _nodename = nodename_match.group(0)
 
             # get subclusters by name change

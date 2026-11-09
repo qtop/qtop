@@ -7,6 +7,7 @@ import io
 import json
 import re
 import tarfile
+from typing import Any, Dict
 
 
 class TraceMasker:
@@ -53,7 +54,7 @@ def add_text(archive, name, text):
 
 def save_masked_traces(archive, backend, filenames, mappings):
     mask = TraceMasker(mappings)
-    report = {"included": [], "omitted": [], "limitations": "Fields may be redacted or reformatted; use the raw companion for exact input bytes."}
+    report: Dict[str, Any] = {"included": [], "omitted": [], "limitations": "Fields may be redacted or reformatted; use the raw companion for exact input bytes."}
     for key, path in filenames.items():
         try:
             with open(path, encoding="utf-8") as stream:

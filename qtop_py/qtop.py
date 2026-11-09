@@ -15,38 +15,30 @@
 ## SPDX-License-Identifier: MIT
 ##
 
+import contextlib
+import copy
 import datetime
+import glob
+import logging
 import os
 import re
 import select
 import shlex
 import shutil
+import signal as _signal
 import subprocess
 import sys
 import tarfile
-from collections import OrderedDict
-from functools import lru_cache
-from signal import SIG_DFL, signal
-from xml.etree.ElementTree import ParseError
-
-try:
-    from signal import SIGPIPE
-except ImportError:
-    SIGPIPE = None
-try:
-    import termios
-except ImportError:
-    termios = None
-import contextlib
-import copy
-import glob
-import logging
 import tempfile
 import time
 import traceback
+from collections import OrderedDict
+from functools import lru_cache
 from math import isfinite
-from types import SimpleNamespace
-from typing import TYPE_CHECKING
+from signal import SIG_DFL, signal
+from types import ModuleType, SimpleNamespace
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
+from xml.etree.ElementTree import ParseError
 
 if TYPE_CHECKING:
     from qtop_py import state_types
@@ -89,6 +81,26 @@ from qtop_py.ui.mvu_view import MVU_view
 from qtop_py.ui.mvu_view import TextDisplay as MVU_TextDisplay
 from qtop_py.ui.viewport import Viewport
 from qtop_py.web import Web
+
+SIGPIPE = getattr(_signal, "SIGPIPE", None)  # absent on Windows
+termios: Optional[ModuleType]
+try:
+    import termios
+except ImportError:
+    termios = None
+
+# Runtime context bound by main() through `global`; declared (not assigned) for type checkers.
+args: Any
+cluster: Any
+scheduler: Any
+snapshot: Any
+user_to_color: Dict[str, str]
+viewport: Viewport
+web: Web
+CURPATH: str
+HELP_FP: str
+QTOPPATH: str
+SAMPLE_FILENAME: str
 
 Document = Snapshot  # deprecated alias, kept for one release; use Snapshot
 
@@ -325,15 +337,16 @@ def calculate_term_size(config, FALLBACK_TERM_SIZE, viewport):
         raise OperationalError("Invalid configuration: term_size must contain two positive integers.") from error
 
     stty = shutil.which("stty")
-    tty_size, error = b"", b"stty not found"
+    stty_error: Union[bytes, OSError] = b"stty not found"
+    tty_size = b""
     if stty:
         try:
             command = subprocess.Popen([stty, "size"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            tty_size, error = command.communicate()
+            tty_size, stty_error = command.communicate()
         except OSError as exc:
-            error = exc
+            stty_error = exc
 
-    if not error:
+    if not stty_error:
         try:
             term_height, term_columns = [int(x) for x in tty_size.strip().split()]
             if term_height <= 0 or term_columns <= 0:
@@ -434,13 +447,13 @@ def execute_shell_batch_commands(batch_system_commands, filenames, _file, _savep
             except ValueError as error:
                 raise OperationalError("Invalid scheduler command %r: %s. Check command quoting in %s." % (_batch_system_command, error, QTOPCONF_YAML)) from error
             try:
-                error = communicate_with_timeout(command, timeout, stdout=fin)[1]
+                stderr_data = communicate_with_timeout(command, timeout, stdout=fin)[1]
             except subprocess.TimeoutExpired as failure:
                 raise OperationalError("Scheduler command %r timed out after %g seconds" % (_batch_system_command, timeout)) from failure
-            if error:
-                logging.warning("A message from your shell: %s", error.decode("utf-8", errors="replace").strip())
+            if stderr_data:
+                logging.warning("A message from your shell: %s", stderr_data.decode("utf-8", errors="replace").strip())
             if command.returncode:
-                detail = " ".join(error.decode("utf-8", errors="replace").splitlines())[:300] or "no diagnostic output"
+                detail = " ".join(stderr_data.decode("utf-8", errors="replace").splitlines())[:300] or "no diagnostic output"
                 raise OperationalError("Scheduler command %r failed (exit %s): %s" % (_batch_system_command, command.returncode, detail))
             logging.debug("File state after subprocess call: %(fin)s" % {"fin": fin})
         os.rename(tempname, filenames[_file])
@@ -586,7 +599,7 @@ def menu_terminal(old_attrs, new_attrs):
 
 
 def choose_sort(viewport, display_overrides, old_attrs, new_attrs):
-    sort_map = OrderedDict()
+    sort_map: Dict[str, Any] = OrderedDict()
 
     sort_map["0"] = ("sort reset", [])
     sort_map["1"] = ("sort by nodename-notnum", [])
@@ -868,15 +881,14 @@ def pick_frames_to_replay(_savepath):
     watch_start_datetime_obj = get_date_obj_from_str(args.REPLAY[0], datetime.datetime.now())
     REC_FP_ALL = _savepath + "/*_partview*.out"
     rec_files = glob.iglob(REC_FP_ALL)
-    useful_frames = []
+    useful_frames: List[str] = []
 
     for rec_file in rec_files:
         rec_file_last_modified_date = datetime.datetime.strptime(rec_file.rsplit("/", 1)[-1].split("_")[2], "%Y%m%dT%H%M%S")
         if datetime.timedelta(seconds=0) < rec_file_last_modified_date - watch_start_datetime_obj < time_delta:
             useful_frames.append(rec_file)
 
-    useful_frames = iter(useful_frames[::-1])
-    return useful_frames, args.REPLAY
+    return iter(useful_frames[::-1]), args.REPLAY
 
 
 class NoSchedulerFound(Exception):

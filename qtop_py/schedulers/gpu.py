@@ -3,7 +3,7 @@
 """Slurm GPU metadata; resource indices are not CUDA or physical GPU IDs."""
 
 import re
-from typing import TYPE_CHECKING, Any, Dict, List
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from qtop_py.hostlist import HostlistParser
 
@@ -80,7 +80,7 @@ def parse_gpu_gres(value: str) -> "List[GPUResource]":
             raise ValueError("Invalid GPU GRES entry")
         gres_type, count_text, detail = match.groups()
         count = int(count_text)
-        indices = None
+        indices: Optional[List[int]] = None
         if detail and detail.startswith("IDX:") and detail != "IDX:N/A":
             indices = []
             for token in detail[4:].split(","):

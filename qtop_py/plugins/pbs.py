@@ -16,7 +16,7 @@ except ImportError:
 import itertools
 import logging
 import re
-from typing import Iterator, Tuple
+from typing import Iterable, Iterator, List, Tuple, Union
 
 import qtop_py.fileutils as fileutils
 from qtop_py.safety import load_json
@@ -227,7 +227,8 @@ class PBSStatExtractor(TabularStatExtractor):
         run_qd_search = r"^\s*(?P<tot_run>\d+)\s+(?P<tot_queued>\d+)"  # this picks up the last line contents
 
         all_qstatq_values = list()
-        total_running_jobs, total_queued_jobs = 0, 0
+        total_running_jobs: Union[int, str] = 0  # str once read from the totals line
+        total_queued_jobs: Union[int, str] = 0
         with open(qstatq_file, "r", encoding="utf-8", errors="replace") as fin:
             fin.readline()
             fin.readline()
@@ -548,7 +549,7 @@ class PBSBatchSystem(GenericBatchSystem):
 
     @staticmethod
     def get_corejob_from_range(core_selections: str, job: str) -> Iterator[Tuple[str, str]]:
-        _cores = list()
+        _cores: List[Iterable[str]] = list()
         subselections = core_selections.split(",")
         for subselection in subselections:
             if "-" in subselection:

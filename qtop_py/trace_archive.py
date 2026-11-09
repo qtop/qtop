@@ -9,6 +9,7 @@ import shutil
 import tarfile
 from collections import defaultdict
 from pathlib import PurePosixPath
+from typing import DefaultDict, List, Tuple
 
 MAX_MEMBERS = 10000
 MAX_TRACE_BYTES = 256 * 1024 * 1024
@@ -30,7 +31,7 @@ def load_trace_archive(path, directory, configured, optional=()):
     if len(set(destinations.values())) != len(destinations):
         raise ValueError("configured trace filenames must be distinct")
     required = set(configured) - set(optional)
-    cohorts = defaultdict(lambda: defaultdict(list))
+    cohorts: DefaultDict[Tuple[str, str], DefaultDict[str, List[tarfile.TarInfo]]] = defaultdict(lambda: defaultdict(list))
     with tarfile.open(path, "r:*") as archive:
         for index, member in enumerate(archive):
             if index >= MAX_MEMBERS or member.offset_data + member.size > MAX_ARCHIVE_BYTES:

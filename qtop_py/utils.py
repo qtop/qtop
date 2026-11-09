@@ -11,6 +11,7 @@
 import logging
 import sys
 from argparse import ArgumentParser
+from typing import Any, Dict, Optional
 
 from qtop_py import fileutils
 from qtop_py.constants import QTOP_LOGFILE
@@ -236,6 +237,8 @@ class ColorStr(object):
     print(colorize(s, mapping=nodestate_to_color, pattern=s.initial))
     """
 
+    q: Optional[str]  # queue of a matrix cell; set when the cell is coloured, else absent
+
     def __init__(self, string="", color=""):
         self.str = string
         self.color = color
@@ -269,7 +272,7 @@ class CountCalls(object):
     Decorator that keeps track of the number of times a function is called.
     """
 
-    __instances = {}
+    __instances: Dict[Any, Any] = {}
 
     def __init__(self, f):
         self.__f = f

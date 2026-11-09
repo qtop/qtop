@@ -6,6 +6,7 @@ import copy
 import re
 import signal
 from itertools import groupby
+from typing import List, Optional, Tuple
 
 from qtop_py import utils
 from qtop_py.colormap import color_to_code, queue_to_color
@@ -137,7 +138,7 @@ def MVU_update(model, message, payload=None):
     next_model = copy.copy(model)
     next_model.display_overrides = model.display_overrides.copy()
     next_model.viewport = copy.copy(model.viewport)
-    effects = []
+    effects: List[Tuple[str, Optional[str]]] = []
     if message == "snapshot":
         if payload is None:
             raise ValueError("Snapshot update requires collected data")

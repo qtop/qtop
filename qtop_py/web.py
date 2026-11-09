@@ -10,6 +10,10 @@
 
 import os
 from multiprocessing import Process, Queue
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    import multiprocessing.queues
 
 
 class Web(object):
@@ -22,7 +26,7 @@ class Web(object):
         self.filename = None
 
     def start(self):
-        self.q = Queue()
+        self.q: "multiprocessing.queues.Queue[Any]" = Queue()
         self.server = Process(target=self._http_server, args=(self.web_dir, self.port, self.q, self.host))
         self.server.start()
         self.started = True

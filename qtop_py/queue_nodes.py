@@ -25,10 +25,10 @@ def queue_node_counts(nodes: List[Dict[str, Any]], queue_names: List[str], backe
                 raise ValueError("Queue-node mappings require a queue name and valid node range")
             membership[queue] = set(hosts)
     idle = {name for name, node in by_name.items() if backend.node_is_idle(node)}
-    counts = []
+    counts: List[Tuple[str, Optional[int], Optional[int]]] = []
     for queue in OrderedDict.fromkeys(queue_names + list(membership)):
-        hosts = membership.get(queue)
-        total = len(hosts) if hosts is not None else None
-        free = len(hosts & idle) if hosts is not None and hosts.issubset(by_name) else None
+        host_members = membership.get(queue)
+        total = len(host_members) if host_members is not None else None
+        free = len(host_members & idle) if host_members is not None and host_members.issubset(by_name) else None
         counts.append((queue, free, total))
     return counts

@@ -11,6 +11,7 @@
 
 import logging
 import os
+from typing import Any, Dict
 
 from qtop_py import safety
 from qtop_py.safety import ResourceLimitError, literal_eval
@@ -162,11 +163,11 @@ def parse(fn, DEF_INDENT=2):
 
 
 def read_yaml_config_block(line, fin, get_lines):
-    block = dict()
+    block: Dict[str, Any] = dict()
     parent_container = block
     open_containers = list()
     open_containers.append(block)
-    key_value = {}
+    key_value: Dict[str, Any] = {}
 
     # if len(line) > 1:  # non-empty line
     #     key_value, parent_container = process_line(line, fin, get_lines, parent_container)
@@ -238,6 +239,7 @@ def read_yaml_config_block(line, fin, get_lines):
 
 def process_line(list_line, fin, get_lines, parent_container):
     key = list_line[1]
+    container: Any  # mapping, list or scalar, depending on the line
 
     if len(list_line) == 2:  # key-only, so what's in the line following should be written in a new container
         container = {}
@@ -249,7 +251,7 @@ def process_line(list_line, fin, get_lines, parent_container):
         if container.endswith(":"):  # key: '-'           - testkey:
             parent_key = key
             key = container
-            new_container = {}
+            new_container: Dict[str, Any] = {}
             return {parent_key: [{key.rstrip(":"): new_container}]}, new_container  # list
 
         if ": " in container:  # key: '-'               - testkey: testvalue

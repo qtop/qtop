@@ -60,10 +60,11 @@ class Snapshot(namedtuple("Snapshot", ["worker_nodes", "jobs_dict", "queues_dict
         if hasattr(self, "_state"):
             return copy.deepcopy(self._state)
         # Five-field legacy snapshots are adapted only at this boundary.
+        metadata: "Dict[str, state_types.JobResources]" = getattr(self, "_job_metadata", {})
         state: "state_types.ClusterState" = {
             "jobs": [
                 {
-                    **getattr(self, "_job_metadata", {}).get(job_id, {}),
+                    **metadata.get(job_id, {}),
                     "id": job_id,
                     "user": job.user_name,
                     "state": job.job_state,
