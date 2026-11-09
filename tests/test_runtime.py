@@ -18,21 +18,17 @@ from qtop_py.sample import SNAPSHOT_NAME
 
 ROOT = Path(__file__).resolve().parents[1]
 RUNTIME_GLOBALS = (
-    "CURPATH",
     "QTOPPATH",
     "HELP_FP",
-    "SAMPLE_FILENAME",
     "scheduler",
     "config",
     "dynamic_config",
-    "cluster",
     "viewport",
     "user_to_color",
     "args",
     "transposed_sections",
     "h_counter",
     "change_mapping",
-    "web",
     "snapshot",
 )
 
@@ -53,6 +49,9 @@ def runtime(tmp_path, monkeypatch):
     monkeypatch.setattr(qtop, "QTOP_LOGFILE", log)
     monkeypatch.setattr(utils, "QTOP_LOGFILE", log)
     sequence = itertools.count()
+    views = []  # every MVU_query result, so tests can inspect the derived cluster
+    real_query = qtop.MVU_query
+    monkeypatch.setattr(qtop, "MVU_query", lambda model: views.append(real_query(model)) or views[-1])
 
     def run(*arguments, save_only=True):
         output = tmp_path / ("output-%s" % next(sequence))
@@ -72,6 +71,7 @@ def runtime(tmp_path, monkeypatch):
             logger.setLevel(level)
             logger.disabled = disabled
 
+    run.views = views
     return run
 
 
@@ -107,7 +107,7 @@ def test_runtime_exports_and_renders_each_scheduler(runtime, scheduler_inputs, b
     assert "User accounts and pool mappings" in screen
     assert "Total:%s" % nodes in screen
     assert ("\x1b[1;" in colored) == (mode == "classic")
-    assert len(qtop.cluster.workernode_dict) >= nodes
+    assert len(runtime.views[-1].cluster.workernode_dict) >= nodes
     if mode == "anonymous":
         archive = next(output.glob("*.tar"))
         with tarfile.open(str(archive)) as saved:
@@ -126,7 +126,7 @@ def test_runtime_renders_large_cluster_in_multiple_matrices(runtime):
     assert len(state["nodes"]) == 18
     assert "User accounts and pool mappings" in next(output.glob("qtop_fullview_*.out")).read_text()
     assert qtop.viewport.max_width == 20
-    assert qtop.cluster.highest_wn > qtop.viewport.h_term_size - 11
+    assert runtime.views[-1].cluster.highest_wn > qtop.viewport.h_term_size - 11
 
 
 @pytest.mark.parametrize("failure, expected", (("missing", "Scheduler input file"), ("config", "Invalid configuration"), ("xml", "Cannot parse sge scheduler input")))

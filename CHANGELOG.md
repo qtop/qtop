@@ -11,6 +11,7 @@ See the [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 - Refactor: drop commented-out code; split two overlong state regexes.
 - Refactor: split the demo simulator's setup & Markov steps into methods (complexity 30 -> 7), renamed as LittleClusterSimulator
 - Refactor: split repo_sanity's file scan into read, classify and scan steps (complexity 21 -> 11).
+- Refactor: `CURPATH`, `SAMPLE_FILENAME`, `web` and `cluster` are local to `main()`, no longer module globals.
 - CI: ruff caps cyclomatic complexity (C901) at today's maximum, now 27, to be lowered.
 - CI: ruff also enforces pycodestyle W and eradicate (no commented-out code); Pylama config kept, commented out.
 - CI: mypy checks all of `qtop_py`, untyped bodies included; contract modules stay strict.

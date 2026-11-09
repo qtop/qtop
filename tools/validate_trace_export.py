@@ -98,7 +98,6 @@ def render_snapshot(snapshot, show_account_totals=False, color="OFF", term_heigh
     qtop.QTOPPATH = str(ROOT)
     qtop.QTOPCONF_YAML = "qtopconf.yaml"
     qtop.QTOP_LOGFILE = os.path.join(tempfile.gettempdir(), "qtop_trace_export.log")
-    qtop.SAMPLE_FILENAME = "qtop_trace_export_sample.tar.gz"
     qtop.dynamic_config = {"force_names": 1}
     qtop.scheduler = "slurm"
 
@@ -106,7 +105,6 @@ def render_snapshot(snapshot, show_account_totals=False, color="OFF", term_heigh
     config["extract_info"] = None
     qtop.config = config
     qtop.user_to_color = user_to_color
-    qtop.web = SimpleNamespace(stop=lambda: None)  # ty: ignore[invalid-assignment] - minimal offline adapter
     qtop.viewport = qtop.Viewport()
     qtop.viewport.set_term_size(term_height, term_columns)
     setattr(qtop, "transposed_sections", [])  # Optional global read dynamically by the legacy adapter.
@@ -115,13 +113,12 @@ def render_snapshot(snapshot, show_account_totals=False, color="OFF", term_heigh
     processed_nodes = qtop.keep_queue_initials_only_and_colorize(trace_snapshot.worker_nodes, qtop.queue_to_color)
     processed_nodes = qtop.colorize_nodestate(processed_nodes, nodestate_to_color)
     cluster = qtop.Cluster(trace_snapshot, processed_nodes, WNFilter, config, args)
-    qtop.cluster = cluster
     wns_occupancy = qtop.WNOccupancy(cluster, config, trace_snapshot, user_to_color, list(trace_snapshot.jobs_dict.keys()))
     display = qtop.TextDisplay(trace_snapshot, config, qtop.viewport, wns_occupancy, cluster, args)
 
     output = io.StringIO()
     with redirect_stdout(output):
-        display.display_selected_sections(tempfile.gettempdir(), qtop.SAMPLE_FILENAME, qtop.QTOP_LOGFILE)
+        display.display_selected_sections(tempfile.gettempdir(), "qtop_trace_export_sample.tar.gz", qtop.QTOP_LOGFILE)
     return output.getvalue(), wns_occupancy
 
 

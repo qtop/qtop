@@ -91,16 +91,12 @@ except ImportError:
 
 # Runtime context bound by main() through `global`; declared (not assigned) for type checkers.
 args: Any
-cluster: Any
 scheduler: Any
 snapshot: Any
 user_to_color: Dict[str, str]
 viewport: Viewport
-web: Web
-CURPATH: str
 HELP_FP: str
 QTOPPATH: str
-SAMPLE_FILENAME: str
 
 Document = Snapshot  # deprecated alias, kept for one release; use Snapshot
 
@@ -1021,7 +1017,7 @@ def cli_main() -> int:
 
 def main(resources: RunResources) -> None:
     # define global vars which are used out of scope
-    global CURPATH, QTOPPATH, HELP_FP, SAMPLE_FILENAME, scheduler, config, dynamic_config, cluster, viewport, user_to_color, args, web, snapshot
+    global QTOPPATH, HELP_FP, scheduler, config, dynamic_config, viewport, user_to_color, args, snapshot
 
     args = resources.options = utils.parse_qtop_cmdline_args()
     if args.version:

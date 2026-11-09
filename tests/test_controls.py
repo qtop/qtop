@@ -25,14 +25,12 @@ def controls(monkeypatch):
     monkeypatch.setattr(qtop, "change_mapping", cycle((("queue_to_color", "queue"), ("user_to_color", "user"))), raising=False)
     monkeypatch.setattr(qtop, "h_counter", cycle((0, 1)), raising=False)
     monkeypatch.setattr(qtop, "HELP_FP", "help.txt", raising=False)
-    web = Mock()
-    monkeypatch.setattr(qtop, "web", web, raising=False)
     cluster = SimpleNamespace(WNFilter=WNFilter, worker_nodes=[])
-    return view, cluster, web
+    return view, cluster
 
 
 def press(controls, key):
-    view, cluster, _web = controls
+    view, cluster = controls
     qtop.control_qtop(view, key, cluster, [0, 0, 0, 0], [0, 0, 0, 0])
 
 
@@ -56,13 +54,13 @@ def press(controls, key):
 )
 def test_movement_keys_respect_viewport(controls, key, vertical, horizontal):
     press(controls, key)
-    view, _cluster, _web = controls
+    view, _cluster = controls
     assert (view.v_start, view.h_start) == (vertical, horizontal)
 
 
 @pytest.mark.parametrize("key", ("j", "G"))
 def test_downward_movement_stops_at_bottom(controls, capsys, key):
-    view, _cluster, _web = controls
+    view, _cluster = controls
     view.scroll_bottom()
     press(controls, key)
     assert view.v_start == 90
@@ -95,7 +93,7 @@ def test_help_returns_to_cluster_and_quit_leaves_cleanup_to_owner(controls):
     with pytest.raises(SystemExit) as stopped:
         press(controls, "q")
     assert stopped.value.code == 0
-    controls[2].stop.assert_not_called()
+    assert "web" not in vars(qtop)  # no module-level server for the controls to stop; RunResources owns it
 
 
 @pytest.mark.parametrize("answers, expected", ((["invalid", "31"], ["sort by all numbers", "sort by nodename-notnum"]), ([""], [])))
