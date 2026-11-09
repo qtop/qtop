@@ -70,7 +70,7 @@ class RunResources(object):
             self._cleanup((self.archive_frame, self.close_capture), not finished)
 
     def archive_frame(self) -> None:
-        if self.archive is not None:
+        if self.archive is not None and self.frame_path is not None:
             fileutils.add_to_sample([self.frame_path], self.archive)
 
     def discard_frame(self) -> None:
@@ -86,10 +86,13 @@ class RunResources(object):
             raise RuntimeError("Run options must be bound before capture")
         if not options.SAMPLE:
             return
-        self.archive = fileutils.init_sample_file(options, savepath, filename, trace_paths, QTOPCONF_YAML, package_dir)
-        self.capture_paths[str(self.archive.name)] = "Sample files saved in"
+        archive = fileutils.init_sample_file(options, savepath, filename, trace_paths, QTOPCONF_YAML, package_dir)
+        if archive is None:  # only when SAMPLE < 1, excluded above
+            return
+        self.archive = archive
+        self.capture_paths[str(archive.name)] = "Sample files saved in"
         if options.SAMPLE >= 2 and not options.ANONYMIZE:
-            sample.add_json(self.archive, "qtop-effective-config.json", config)
+            sample.add_json(archive, "qtop-effective-config.json", config)
         if options.raw_companion:
             companion = fileutils.save_raw_companion(savepath, trace_paths)
             self.capture_paths[companion] = "PRIVATE unmasked scheduler traces:"

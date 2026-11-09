@@ -8,10 +8,11 @@
 ## SPDX-License-Identifier: MIT
 ##
 
+import io
 import logging
 import sys
-from argparse import ArgumentParser
-from typing import Any, Dict, Optional
+from argparse import ArgumentParser, Namespace
+from typing import Any, Callable, Dict, Iterator, Optional
 
 from qtop_py import fileutils
 from qtop_py.constants import QTOP_LOGFILE
@@ -19,11 +20,11 @@ from qtop_py.safety import SafeLogFormatter
 
 
 class PrivateFileHandler(logging.FileHandler):
-    def _open(self):
+    def _open(self) -> io.TextIOWrapper:
         return fileutils.private_log_stream(self.baseFilename)
 
 
-def init_logging(options):
+def init_logging(options: Any) -> None:
     log_level = logging.WARNING
     if options.verbose == 1:
         log_level = logging.INFO
@@ -52,7 +53,7 @@ def init_logging(options):
     logging.debug("input, output isatty: %s\t%s", sys.stdin.isatty(), sys.stdout.isatty())
 
 
-def parse_qtop_cmdline_args():
+def parse_qtop_cmdline_args() -> Namespace:
     parser = ArgumentParser(prog="qtop", description="")
 
     parser.add_argument("-1", "--disablesection1", action="store_true", dest="sect_1_off", default=False, help="Disable first section of qtop, i.e. Job Accounting Summary")
@@ -239,31 +240,31 @@ class ColorStr(object):
 
     q: Optional[str]  # queue of a matrix cell; set when the cell is coloured, else absent
 
-    def __init__(self, string="", color=""):
+    def __init__(self, string: str = "", color: str = "") -> None:
         self.str = string
         self.color = color
         self.initial = self.str[0] if self.str else ""
 
-    def __str__(self):
+    def __str__(self) -> str:
         return str(self.str)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return repr(self.str)
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.initial)
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[str]:
         return iter(self.str)
 
-    def __contains__(self, item):
+    def __contains__(self, item: str) -> bool:
         return item in self.str
 
-    def __equals__(self, other):
+    def __equals__(self, other: "ColorStr") -> bool:
         return self.str == other.str
 
     @classmethod
-    def from_other_color_str(cls, color_str):
+    def from_other_color_str(cls, color_str: "ColorStr") -> "ColorStr":
         return cls(string=color_str.str)
 
 
@@ -272,22 +273,22 @@ class CountCalls(object):
     Decorator that keeps track of the number of times a function is called.
     """
 
-    __instances: Dict[Any, Any] = {}
+    __instances: Dict[Callable[..., Any], "CountCalls"] = {}
 
-    def __init__(self, f):
+    def __init__(self, f: Callable[..., Any]) -> None:
         self.__f = f
         self.__numcalls = 0
         CountCalls.__instances[f] = self
 
-    def __call__(self, *args, **kwargs):
+    def __call__(self, *args: Any, **kwargs: Any) -> Any:
         self.__numcalls += 1
         return self.__f(*args, **kwargs)
 
-    def count(self):
+    def count(self) -> int:
         "Return the number of times the function f was called."
         return CountCalls.__instances[self.__f].__numcalls
 
     @staticmethod
-    def counts():
+    def counts() -> Dict[str, int]:
         "Return a dict of {function: # of calls} for all registered functions."
-        return dict([(f.__name__, CountCalls.__instances[f].__numcalls) for f in CountCalls.__instances])
+        return dict([(getattr(f, "__name__", repr(f)), CountCalls.__instances[f].__numcalls) for f in CountCalls.__instances])

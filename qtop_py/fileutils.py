@@ -11,9 +11,10 @@ import stat
 import sys
 import tarfile
 import tempfile
+from typing import Any, Dict, Generator, List, Mapping, Optional, TextIO, Tuple
 
 
-def _open_owned(path, flags, mode, directory_fd):
+def _open_owned(path: str, flags: int, mode: int, directory_fd: int) -> int:
     try:
         return os.open(path, flags, mode, dir_fd=directory_fd)
     except PermissionError:
@@ -26,7 +27,7 @@ def _open_owned(path, flags, mode, directory_fd):
 
 
 @contextlib.contextmanager
-def _private_directory(path):
+def _private_directory(path: str) -> Generator[Tuple[str, int], None, None]:
     """Create or tighten an owned output directory without following symlinks."""
     if not isinstance(path, str) or not path.strip():
         raise ValueError("Save directory must be a nonempty path")
@@ -75,13 +76,13 @@ def _private_directory(path):
         os.close(fd)
 
 
-def private_save_directory(path):
+def private_save_directory(path: str) -> str:
     """Create or tighten an owned output directory without following symlinks."""
     with _private_directory(path) as (directory, _):
         return directory
 
 
-def private_log_stream(path):
+def private_log_stream(path: str) -> io.TextIOWrapper:
     """Open a user-owned, singly linked regular log through a verified directory FD."""
     directory, name = os.path.split(os.path.abspath(os.path.expandvars(path)))
     with _private_directory(directory) as (_, directory_fd), contextlib.ExitStack() as allocation:
@@ -96,12 +97,12 @@ def private_log_stream(path):
         return stream
 
 
-def check_empty_file(orig_file):
+def check_empty_file(orig_file: str) -> None:
     if os.path.getsize(orig_file) == 0:
         raise FileEmptyError(orig_file)
 
 
-def get_new_temp_file(_savepath, suffix, prefix):  # **kwargs
+def get_new_temp_file(_savepath: str, suffix: str, prefix: str) -> Tuple[int, str]:
     """
     Using mkstemp instead of NamedTemporaryFile because a file descriptor
     is needed to redirect sys.stdout to.
@@ -112,7 +113,7 @@ def get_new_temp_file(_savepath, suffix, prefix):  # **kwargs
     return fd, temp_filepath
 
 
-def safe_exit_with_file_close(handle, name, stdout, options, _savepath, qtop_logfile, sample_filename, delete_file=False):
+def safe_exit_with_file_close(handle: int, name: str, stdout: TextIO, options: Any, _savepath: str, qtop_logfile: str, sample_filename: str, delete_file: bool = False) -> None:
     sys.stdout.write("\nExiting. Thank you for ...watching ;)\n")
     sys.stdout.flush()
     if sys.stdout is not stdout:
@@ -126,7 +127,9 @@ def safe_exit_with_file_close(handle, name, stdout, options, _savepath, qtop_log
     sys.exit(0)
 
 
-def init_sample_file(options, _savepath, SAMPLE_FILENAME, scheduler_output_filenames, QTOPCONF_YAML, QTOPPATH):
+def init_sample_file(
+    options: Any, _savepath: str, SAMPLE_FILENAME: str, scheduler_output_filenames: Mapping[str, str], QTOPCONF_YAML: str, QTOPPATH: str
+) -> Optional[tarfile.TarFile]:
     """
     Initialise a support archive; -LL adds runtime assets and package sources.
     The caller adds rendered output, logs and eligible scheduler traces before closing it.
@@ -169,13 +172,13 @@ def init_sample_file(options, _savepath, SAMPLE_FILENAME, scheduler_output_filen
     return tar_out
 
 
-def _without_archive_owner(member):
+def _without_archive_owner(member: tarfile.TarInfo) -> tarfile.TarInfo:
     member.uid = member.gid = 0
     member.uname = member.gname = ""
     return member
 
 
-def save_raw_companion(savepath, filenames):
+def save_raw_companion(savepath: str, filenames: Mapping[str, str]) -> str:
     handle, path = tempfile.mkstemp(prefix="qtop_raw_traces_", suffix=".tar", dir=savepath)
     with os.fdopen(handle, "wb") as stream, tarfile.open(fileobj=stream, mode="w", dereference=True) as archive:
         for key, source in filenames.items():
@@ -183,7 +186,7 @@ def save_raw_companion(savepath, filenames):
     return path
 
 
-def add_to_sample(filepaths_to_add, sample_out, sample_method=tarfile, subdir=None):
+def add_to_sample(filepaths_to_add: List[str], sample_out: tarfile.TarFile, sample_method: Any = tarfile, subdir: Optional[str] = None) -> tarfile.TarFile:
     """
     opens sample_file in path savepath and adds files filepaths_to_add
     """
@@ -199,7 +202,7 @@ def add_to_sample(filepaths_to_add, sample_out, sample_method=tarfile, subdir=No
     return sample_out
 
 
-def get_sample_filename(SAMPLE_FILENAME, config):
+def get_sample_filename(SAMPLE_FILENAME: str, config: Mapping[str, Any]) -> str:
     if config["overwrite_sample_file"]:
         SAMPLE_FILENAME = SAMPLE_FILENAME % {"datetime": ""}
     else:
@@ -208,14 +211,14 @@ def get_sample_filename(SAMPLE_FILENAME, config):
 
 
 class FileEmptyError(Exception):
-    def __init__(self, fn):
+    def __init__(self, fn: str) -> None:
         msg = "File %s is empty.\nIs your batch scheduler loaded with jobs?" % fn
         Exception.__init__(self, msg)
         logging.warning(msg)
         self.fn = fn
 
 
-def deprecate_old_output_files(config):
+def deprecate_old_output_files(config: Mapping[str, Any]) -> None:
     """
     deletes older json and .out files in savepath directory.
     """
@@ -236,7 +239,7 @@ def deprecate_old_output_files(config):
                 raise
 
 
-def get_timedelta(extra_kw_args):
+def get_timedelta(extra_kw_args: Mapping[str, int]) -> datetime.timedelta:
     """
     This solely exists to allow timedelta.timedelta's keyword argument (minutes/seconds/hours=...)
     to be selected with a variable.
@@ -244,7 +247,7 @@ def get_timedelta(extra_kw_args):
     return datetime.timedelta(**extra_kw_args)
 
 
-def parse_time_input(_time):
+def parse_time_input(_time: str) -> Dict[str, int]:
     """
     the func accepts a _time str in either (h)ours, (m)inutes, or (s)econds, using the respective suffix,
     e.g. '5h', or '10m', or '30s'

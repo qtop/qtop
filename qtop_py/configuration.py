@@ -6,7 +6,7 @@ import copy
 import logging
 import os
 from math import isfinite
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Dict, List, Set, Tuple
 
 if TYPE_CHECKING:
     from qtop_py.state_types import Config
@@ -25,7 +25,7 @@ from qtop_py.errors import OperationalError
 from qtop_py.safety import ResourceLimitError, literal_eval
 
 
-def literal(value):
+def literal(value: Any) -> Any:
     try:
         return literal_eval(value)
     except ResourceLimitError:
@@ -34,27 +34,28 @@ def literal(value):
         return value
 
 
-def _require(condition, path, expected):
+def _require(condition: object, path: str, expected: str) -> None:
     if not condition:
         raise ValueError("%s: expected %s" % (path, expected))
 
 
-def _integer(value, path, minimum=0):
+def _integer(value: Any, path: str, minimum: int = 0) -> None:
     value = literal(value)
     _require(type(value) is int and value >= minimum, path, "an integer >= %s" % minimum)
 
 
-def _mapping(value, path):
+def _mapping(value: Any, path: str) -> Any:
     _require(isinstance(value, dict), path, "a mapping")
     return value
 
 
-def _text(value, path):
+def _text(value: Any, path: str) -> None:
     _require(isinstance(value, str) and bool(value.strip()), path, "nonempty text")
 
 
-def validate_config(config):
+def validate_config(config: Any) -> None:
     """Check merged defaults/overrides; retain extensible backend-specific keys."""
+    # `config: Any` in the validators: the input is untrusted and these checks establish its shape.
     _mapping(config, "configuration")
     _validate_scalars(config)
     _validate_runtime(config)
@@ -67,7 +68,7 @@ def validate_config(config):
     _validate_commands(config)
 
 
-def _validate_scalars(config):
+def _validate_scalars(config: Any) -> None:
     """Required text, flag and counter settings."""
     for key in ("scheduler", "savepath", "vertical_separator", "non_existent_node_symbol"):
         _text(config.get(key), key)
@@ -78,7 +79,7 @@ def _validate_scalars(config):
         _integer(config.get(key, 0), key)
 
 
-def _validate_runtime(config):
+def _validate_runtime(config: Any) -> None:
     """Command timeout, experimental web endpoint, node id symbols and sorting."""
     timeout = config.get("scheduler_command_timeout", 30)
     try:
@@ -128,7 +129,7 @@ def _validate_user_accounts_header(config: "Config") -> None:
     )
 
 
-def _validate_display(config):
+def _validate_display(config: Any) -> None:
     """SGE whole queues and display sections."""
     whole_queues = config.get("sge_whole_queues")
     _require(
@@ -141,7 +142,7 @@ def _validate_display(config):
     _require(isinstance(parts, list) and len(parts) <= 3 and all(part in allowed for part in parts), "user_display_parts", "up to three known display sections")
 
 
-def _validate_colors(config):
+def _validate_colors(config: Any) -> None:
     """User, node-state and queue color mappings."""
     for key in ("user_color_mappings", "nodestate_color_mappings", "queue_color_mappings"):
         entries = config.get(key)
@@ -151,7 +152,7 @@ def _validate_colors(config):
             _require(all(isinstance(pattern, str) and isinstance(color, str) for pattern, color in entry.items()), key, "text patterns and color names")
 
 
-def _validate_state_columns(config):
+def _validate_state_columns(config: Any) -> None:
     """accounts_states and summary_states must name known state keys."""
     known_states = {"other_of_user", "unknown_of_user"}
     for states in (config.get("state_abbreviations") or {}).values():
@@ -166,7 +167,7 @@ def _validate_state_columns(config):
             _require(entry in known_states, key, "state keys from state_abbreviations, other_of_user or unknown_of_user")
 
 
-def _validate_matrix(config):
+def _validate_matrix(config: Any) -> None:
     """Worker-node matrix definitions and terminal size."""
     matrices = config.get("workernodes_matrix")
     _require(isinstance(matrices, list) and bool(matrices), "workernodes_matrix", "a nonempty list of mappings")
@@ -189,7 +190,7 @@ def _validate_matrix(config):
         _require(all(type(literal(value)) is int and literal(value) > 0 for value in size), "term_size", "two positive integers")
 
 
-def _validate_commands(config):
+def _validate_commands(config: Any) -> None:
     """Scheduler command pairs, signature commands and extract_info."""
     for key in ("schedulers", "signature_commands", "state_abbreviations"):
         _mapping(config.get(key), key)
@@ -207,12 +208,12 @@ def _validate_commands(config):
         _require(info.get("regex") is None or isinstance(info["regex"], str), "extract_info.regex", "text or null")
 
 
-def configured_separator(config):
+def configured_separator(config: Dict[str, Any]) -> Any:
     separator = config.get("SEPARATOR", config.get("vertical_separator", "|"))
     return separator.replace("'", "") if isinstance(separator, str) else separator
 
 
-def reserved_user_symbols(config):
+def reserved_user_symbols(config: Dict[str, Any]) -> Set[str]:
     return set(
         symbol
         for symbol in (
@@ -226,12 +227,12 @@ def reserved_user_symbols(config):
     )
 
 
-def available_possible_ids(config):
+def available_possible_ids(config: Dict[str, Any]) -> List[str]:
     reserved_symbols = reserved_user_symbols(config)
     return [symbol for symbol in config["possible_ids"] if symbol not in reserved_symbols]
 
 
-def normalize_config(raw_config):
+def normalize_config(raw_config: Dict[str, Any]) -> Dict[str, Any]:
     """Return a runtime-ready configuration without mutating parser output."""
     config = copy.deepcopy(raw_config)
     config["possible_ids"] = list(config["possible_ids"])
@@ -251,14 +252,14 @@ def normalize_config(raw_config):
     return config
 
 
-def get_key_val_from_option_string(string):
+def get_key_val_from_option_string(string: str) -> Tuple[str, Any]:
     key, separator, val = string.partition("=")
     if not separator or not key.strip():
         raise OperationalError("Invalid -o option %r; expected KEY=VALUE." % string)
     return key, val
 
 
-def update_config_with_cmdline_vars(args, config):
+def update_config_with_cmdline_vars(args: Any, config: Dict[str, Any]) -> Dict[str, Any]:
     config["rem_empty_corelines"] = int(config.get("rem_empty_corelines", 0))
     for opt in getattr(args, "OPTION", ()):
         key, val = get_key_val_from_option_string(opt)
@@ -273,7 +274,7 @@ def update_config_with_cmdline_vars(args, config):
     return config
 
 
-def prepare_config(config, args=None):
+def prepare_config(config: Dict[str, Any], args: Any = None) -> Tuple[Dict[str, Any], Dict[str, str], Dict[str, str]]:
     validate_config(config)
     config = normalize_config(config)
 
@@ -297,7 +298,7 @@ def prepare_config(config, args=None):
     return config, user_to_color, nodestate_to_color
 
 
-def load_yaml_config(args, package_dir, initial_cwd, system_dir, user_dir):
+def load_yaml_config(args: Any, package_dir: str, initial_cwd: str, system_dir: str, user_dir: str) -> Tuple[Dict[str, Any], Dict[str, str], Dict[str, str]]:
     """Load defaults < system < user < custom, then prepare CLI overrides."""
     if getattr(args, "load_sample", None):
         return prepare_config(args.sample_snapshot["config"], args)

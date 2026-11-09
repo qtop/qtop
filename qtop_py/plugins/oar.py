@@ -4,17 +4,21 @@ import logging
 import os
 import re
 from collections import OrderedDict
-from typing import Any, Dict, List
+from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Tuple
 
 from qtop_py import fileutils, yaml_parser
 from qtop_py.schedulers.tabular import TabularStatExtractor
 from qtop_py.serialiser import GenericBatchSystem, StatExtractor
 
+if TYPE_CHECKING:
+    from qtop_py.source_trace import TraceMasker
+    from qtop_py.state_types import ClusterState, Config, JobsInfo, Node, Options, QueuesInfo
+
 DEFAULT_NODE_STATE_MAPPING = {"Alive": "-", "Dead": "d", "Suspected": "s", "Mixed": "%", "Unknown": "?"}
 
 
 class OarStatExtractor(TabularStatExtractor):
-    def __init__(self, config, options):
+    def __init__(self, config: "Config", options: "Options") -> None:
         StatExtractor.__init__(self, config, options)
         self.user_q_search = (
             r"^(?P<job_id>[0-9]+)\s+"
@@ -26,7 +30,7 @@ class OarStatExtractor(TabularStatExtractor):
             r"(?P<queue>\S+)"
         )
 
-    def extract_qstat(self, orig_file):
+    def extract_qstat(self, orig_file: str) -> List[Any]:
         all_values: List[Any] = list()
         try:
             fileutils.check_empty_file(orig_file)
@@ -56,7 +60,7 @@ class OARBatchSystem(GenericBatchSystem):
     node_job_fields = ("oar_job_ids",)
 
     @staticmethod
-    def display_messages(section, snapshot, nodes, config):
+    def display_messages(section: str, snapshot: object, nodes: "List[Node]", config: "Config") -> List[str]:
         notes = getattr(snapshot, "_diagnostics", {}).get("oar_diagnostics", {})
         if section == "snapshot" and any(notes.values()):
             return [
@@ -66,7 +70,7 @@ class OARBatchSystem(GenericBatchSystem):
             ]
         return []
 
-    def mask_source_trace(self, key, text, mask):
+    def mask_source_trace(self, key: str, text: str, mask: "TraceMasker") -> Tuple[str, str]:
         rows = []
         jobs_list = False
         for index, line in enumerate(text.splitlines()):
@@ -130,25 +134,26 @@ class OARBatchSystem(GenericBatchSystem):
         return names[key], "\n".join(rows) + "\n"
 
     @staticmethod
-    def get_mnemonic():
+    def get_mnemonic() -> str:
         return "oar"
 
-    def __init__(self, scheduler_output_filenames, config, options):
-        self.oarnodes_s_file = scheduler_output_filenames.get("oarnodes_s_file")
-        self.oarnodes_y_file = scheduler_output_filenames.get("oarnodes_y_file")
-        self.oarstat_file = scheduler_output_filenames.get("oarstat_file")
+    def __init__(self, scheduler_output_filenames: Dict[str, str], config: "Config", options: "Options") -> None:
+        # "" (falsy, like the former None) when a trace is not configured; reading it then fails as an OSError.
+        self.oarnodes_s_file = scheduler_output_filenames.get("oarnodes_s_file", "")
+        self.oarnodes_y_file = scheduler_output_filenames.get("oarnodes_y_file", "")
+        self.oarstat_file = scheduler_output_filenames.get("oarstat_file", "")
 
         self.config = config
         self.options = options
         self.oar_stat_maker = OarStatExtractor(self.config, self.options)
 
-    def get_cluster_state(self, options):
+    def get_cluster_state(self, options: "Options") -> "ClusterState":
         state = super().get_cluster_state(options)
         if self.diagnostics:
             state["oar_diagnostics"] = self.diagnostics.copy()
         return state
 
-    def get_worker_nodes(self, job_ids, job_queues, options):
+    def get_worker_nodes(self, job_ids: List[str], job_queues: List[str], options: "Options") -> "List[Node]":
         nodes_resids = self._read_oarnodes_s_yaml(self.oarnodes_s_file)
         resids_jobs = self._read_oarnodes_y_textyaml(self.oarnodes_y_file)
 
@@ -185,7 +190,7 @@ class OARBatchSystem(GenericBatchSystem):
         logging.info("worker_nodes contains %s entries" % len(worker_nodes))
         return self.ensure_worker_nodes_have_qnames(worker_nodes, job_ids, job_queues)
 
-    def get_jobs_info(self):
+    def get_jobs_info(self) -> "JobsInfo":
         qstats = self._get_jobs()
         records = [(str(qstat["JobId"]), qstat["UnixAccount"], qstat["S"], qstat["Queue"]) for qstat in qstats]
         job_ids, usernames, job_states, queue_names = map(list, zip(*records)) if records else ([], [], [], [])
@@ -197,7 +202,7 @@ class OARBatchSystem(GenericBatchSystem):
         )
         return job_ids, usernames, job_states, queue_names
 
-    def get_queues_info(self):
+    def get_queues_info(self) -> "QueuesInfo":
         """Derive job counts from oarstat; resource slots are not job counts."""
         queues: Dict[str, Any] = OrderedDict()
         for job in self._get_jobs():
@@ -206,12 +211,12 @@ class OARBatchSystem(GenericBatchSystem):
             queue["queued"] += job["S"] == "W"
         return sum(queue["run"] for queue in queues.values()), sum(queue["queued"] for queue in queues.values()), list(queues.values())
 
-    def _get_jobs(self):
+    def _get_jobs(self) -> Any:
         if not hasattr(self, "_jobs"):
             self._jobs = self.oar_stat_maker.extract_qstat(self.oarstat_file)
         return self._jobs
 
-    def _read_oarnodes_s_yaml(self, fn_s):
+    def _read_oarnodes_s_yaml(self, fn_s: str) -> Dict[str, Any]:
         if not os.path.isfile(fn_s):
             raise FileNotFoundError("OAR node input is not a regular file: %s" % fn_s)
         anonymize = self.oar_stat_maker.anonymize_func()
@@ -225,7 +230,7 @@ class OARBatchSystem(GenericBatchSystem):
             nodes_resids = dict([(node, resid_state.items()) for node, resid_state in data.items()])
         return nodes_resids
 
-    def _read_oarnodes_y_textyaml(self, fn):
+    def _read_oarnodes_y_textyaml(self, fn: str) -> Dict[int, Any]:
         """Stream relevant YAML fields; blanks do not terminate resource records."""
         resources: Dict[int, Any] = {}
         resid = None
@@ -253,7 +258,7 @@ class OARBatchSystem(GenericBatchSystem):
         return resources
 
     @staticmethod
-    def _parse_job_ids(value):
+    def _parse_job_ids(value: Any) -> List[str]:
         value = yaml_parser.literal_or_original(value)
         if value is None or value in ("", "~", "null"):
             return []
@@ -264,7 +269,7 @@ class OARBatchSystem(GenericBatchSystem):
         return list(OrderedDict.fromkeys(jobs))
 
     @staticmethod
-    def _calculate_oar_state(jobid_state_lot, node_state_mapping):
+    def _calculate_oar_state(jobid_state_lot: Any, node_state_mapping: Mapping[str, str]) -> str:
         """
         If all resource ids within the node are either alive or dead or suspected, the respective label is given to the node.
         Otherwise, a mixed-state is reported
