@@ -9,6 +9,7 @@ import re
 import shutil
 import sys
 import tarfile
+import warnings
 from pathlib import Path
 
 import pytest
@@ -50,9 +51,13 @@ def runtime(tmp_path, monkeypatch):
         level, disabled = logger.level, logger.disabled
         before = {name: vars(qtop).get(name, MISSING) for name in LEGACY_CONTEXT}
         try:
-            return qtop.cli_main(), output
+            with warnings.catch_warnings(record=True) as caught:
+                warnings.simplefilter("always")
+                return qtop.cli_main(), output
         finally:
             assert {name: vars(qtop).get(name, MISSING) for name in LEGACY_CONTEXT} == before, "main() changed module-level state"
+            legacy = [str(w.message) for w in caught if issubclass(w.category, DeprecationWarning) and "is deprecated since" in str(w.message)]
+            assert not legacy, "a qtop run used a deprecated legacy adapter: %s" % legacy
             for handler in logger.handlers[:]:
                 if handler not in handlers:
                     logger.removeHandler(handler)

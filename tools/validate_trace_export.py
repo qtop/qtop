@@ -29,7 +29,6 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 import qtop_py.qtop as qtop  # noqa: E402
-from qtop_py.mvu_query import WNFilter  # noqa: E402
 
 ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
 ACCOUNT_LINE_RE = re.compile(r"^\[\s*(.)\]\s+(.+?)\s+\|")
@@ -93,33 +92,22 @@ def qtop_args(show_account_totals=False, color="OFF"):
 
 
 def render_snapshot(snapshot, show_account_totals=False, color="OFF", term_height=1000, term_columns=220):
+    """Render a snapshot offline through the same model/query/view pipeline as qtop's main loop."""
     args = qtop_args(show_account_totals=show_account_totals, color=color)
-    qtop.args = args
-    qtop.QTOPPATH = str(ROOT)
-    qtop.QTOPCONF_YAML = "qtopconf.yaml"
-    qtop.QTOP_LOGFILE = os.path.join(tempfile.gettempdir(), "qtop_trace_export.log")
-    qtop.dynamic_config = {"force_names": 1}
-    qtop.scheduler = "slurm"
-
     config, user_to_color, nodestate_to_color = qtop.configuration.load_yaml_config(args, str(ROOT), os.getcwd(), qtop.SYSTEMCONFDIR, qtop.USERPATH)
     config["extract_info"] = None
-    qtop.config = config
-    qtop.user_to_color = user_to_color
-    qtop.viewport = qtop.Viewport()
-    qtop.viewport.set_term_size(term_height, term_columns)
-    setattr(qtop, "transposed_sections", [])  # Optional global read dynamically by the legacy adapter.
-
+    viewport = qtop.Viewport()
+    viewport.set_term_size(term_height, term_columns)
     trace_snapshot = qtop.Snapshot(copy.deepcopy(snapshot.worker_nodes), snapshot.jobs_dict, snapshot.queues_dict, snapshot.total_running_jobs, snapshot.total_queued_jobs)
-    processed_nodes = qtop.keep_queue_initials_only_and_colorize(trace_snapshot.worker_nodes, qtop.queue_to_color)
-    processed_nodes = qtop.colorize_nodestate(processed_nodes, nodestate_to_color)
-    cluster = qtop.Cluster(trace_snapshot, processed_nodes, WNFilter, config, args)
-    wns_occupancy = qtop.WNOccupancy(cluster, config, trace_snapshot, user_to_color, list(trace_snapshot.jobs_dict.keys()))
-    display = qtop.TextDisplay(trace_snapshot, config, qtop.viewport, wns_occupancy, cluster, args)
+    backend = qtop.discover_qtop_batch_systems()["slurm"]
+    model = qtop.MVU_Model(config, args, viewport, display_overrides={"force_names": 1}, package_path=str(ROOT), help_file=str(ROOT / "helpfile.txt"))
+    model, _ = qtop.MVU_update(model, "snapshot", (trace_snapshot, config, args, backend, user_to_color, nodestate_to_color))
+    view_data = qtop.MVU_query(model)
 
     output = io.StringIO()
     with redirect_stdout(output):
-        display.display_selected_sections(tempfile.gettempdir(), "qtop_trace_export_sample.tar.gz", qtop.QTOP_LOGFILE)
-    return output.getvalue(), wns_occupancy
+        qtop.MVU_view(view_data, tempfile.gettempdir(), "qtop_trace_export_sample.tar.gz", os.path.join(tempfile.gettempdir(), "qtop_trace_export.log"))
+    return output.getvalue(), view_data.occupancy
 
 
 def account_symbols(wns_occupancy):

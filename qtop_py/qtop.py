@@ -32,12 +32,13 @@ import tarfile
 import tempfile
 import time
 import traceback
+import warnings
 from collections import OrderedDict
 from functools import lru_cache
 from math import isfinite
 from signal import SIG_DFL, signal
 from types import ModuleType, SimpleNamespace
-from typing import TYPE_CHECKING, Any, Dict, Generator, Iterable, Iterator, List, Mapping, Optional, Sequence, Set, Tuple, Type, Union
+from typing import TYPE_CHECKING, Any, Callable, Dict, Generator, Iterable, Iterator, List, Mapping, NamedTuple, Optional, Sequence, Set, Tuple, Type, Union
 from xml.etree.ElementTree import ParseError
 
 if TYPE_CHECKING:
@@ -89,9 +90,9 @@ try:
 except ImportError:
     termios = None
 
-# Optional context for the legacy adapters (MVU_legacy_model, colorize, control_qtop), which read it via
-# globals(); declared (not assigned) for type checkers. main() sets none of it: each run's state is local
-# and passed explicitly. Callers of those adapters (tests, tools/validate_trace_export.py) set it.
+# Optional context for the deprecated legacy adapters (MVU_legacy_model, colorize, control_qtop and the
+# Cluster/WNOccupancy/TextDisplay classes below), which read it via globals(); declared (not assigned) for
+# type checkers. main() sets none of it: each run's state is local and passed explicitly.
 args: Any
 scheduler: Any
 snapshot: Any
@@ -113,8 +114,21 @@ gauge_core_vectors = MVU_gauge_core_vectors
 keep_queue_initials_only_and_colorize = MVU_keep_queue_initials_only_and_colorize
 
 
+LEGACY_DEPRECATION = "%s is deprecated since 0.9.20261110 and will be removed in a later release; %s"
+
+
+def _warn_legacy(name: str, instead: str) -> None:
+    warnings.warn(LEGACY_DEPRECATION % (name, instead), DeprecationWarning, stacklevel=3)
+
+
 def MVU_legacy_model(instance: Any = None) -> MVU_Model:
-    """Compatibility boundary for older qtop imports; new pipeline stages never use it."""
+    """Deprecated compatibility boundary for older qtop imports; new pipeline stages never use it."""
+    _warn_legacy("qtop.MVU_legacy_model()", "build an MVU_Model and pass it explicitly")
+    return _legacy_model(instance)
+
+
+def _legacy_model(instance: Any = None) -> MVU_Model:
+    """MVU_legacy_model without the warning, for the other deprecated adapters."""
     display_overrides = globals().get("dynamic_config", {})
     config = getattr(instance, "config", globals().get("config", {})) or {}
     options = getattr(instance, "args", globals().get("args")) or SimpleNamespace(COLOR="OFF")
@@ -136,9 +150,12 @@ def MVU_legacy_model(instance: Any = None) -> MVU_Model:
 
 
 class MVU_LegacyAdapter(object):
+    """Deprecated: qtop's Cluster/WNOccupancy/TextDisplay; use mvu_query/ui.mvu_view through MVU_query and MVU_view."""
+
     def __init__(self, *args: Any, **kwargs: Any) -> None:
+        _warn_legacy("qtop.%s" % type(self).__name__, "use MVU_Model with MVU_update, MVU_query and MVU_view")
         if kwargs.get("MVU_model") is None:
-            kwargs["MVU_model"] = MVU_legacy_model(self)
+            kwargs["MVU_model"] = _legacy_model(self)
         super().__init__(*args, **kwargs)
         for name in ("config", "args", "snapshot", "viewport"):
             if hasattr(self, name):
@@ -147,7 +164,7 @@ class MVU_LegacyAdapter(object):
     @property
     def MVU_model(self) -> Any:
         model = self.__dict__.get("_MVU_model")
-        return MVU_legacy_model(self) if model is None else model
+        return _legacy_model(self) if model is None else model
 
     @MVU_model.setter
     def MVU_model(self, model: Any) -> None:
@@ -164,7 +181,7 @@ class WNOccupancy(MVU_LegacyAdapter, MVU_WNOccupancy):
 
     def strict_check_jobs(self, cluster: Any) -> None:
         occupancy = copy.copy(self)
-        occupancy.MVU_model = MVU_legacy_model(self)
+        occupancy.MVU_model = _legacy_model(self)
         message = MVU_WNOccupancy.MVU_check_jobs(occupancy, cluster)
         if message:
             print(message)
@@ -180,7 +197,9 @@ class TextDisplay(MVU_LegacyAdapter, MVU_TextDisplay):
 def colorize(
     text: Any, color_func: Optional[str] = None, pattern: str = "NoPattern", mapping: Optional[Mapping[str, str]] = None, bg_color: Optional[str] = None, bold: bool = False
 ) -> Any:
-    return MVU_colorize(MVU_legacy_model(), text, color_func, pattern, mapping, bg_color, bold)
+    """Deprecated: use MVU_Model.MVU_colorize, which honours the model's own -c setting."""
+    _warn_legacy("qtop.colorize()", "use MVU_Model.MVU_colorize")
+    return MVU_colorize(_legacy_model(), text, color_func, pattern, mapping, bg_color, bold)
 
 
 def MVU_resolve_user_details(model: Any, occupancy: Any, force: bool = False) -> None:
@@ -203,16 +222,18 @@ def MVU_effects(model: Any, effects: Iterable[Tuple[str, Optional[str]]], cluste
             print(model.MVU_colorize("\nExiting. Thank you for ..watching ;)\n", "Cyan_L"))
             raise SystemExit(0)
         elif action == "sort":
-            choose_sort(model.viewport, model.display_overrides, old_attrs, new_attrs)
+            choose_sort(model.viewport, model.display_overrides, old_attrs, new_attrs, model.MVU_colorize)
         elif action == "filter":
-            choose_filter(model.viewport, cluster, model.display_overrides, old_attrs, new_attrs)
+            choose_filter(model.viewport, cluster, model.display_overrides, old_attrs, new_attrs, model.MVU_colorize)
         elif action == "highlight":
-            choose_highlight(model.viewport, cluster, model.display_overrides, old_attrs, new_attrs)
+            choose_highlight(model.viewport, cluster, model.display_overrides, old_attrs, new_attrs, model.MVU_colorize)
 
 
 def control_qtop(viewport: Viewport, read_char: str, cluster: Any, old_attrs: Any, new_attrs: Any) -> None:
+    """Deprecated key handler on module globals; main() uses MVU_update and MVU_effects on its own model."""
     global dynamic_config
-    model = MVU_legacy_model()
+    _warn_legacy("qtop.control_qtop()", "use MVU_update and MVU_effects")
+    model = _legacy_model()
     model.viewport = viewport
     next_model, effects = MVU_update(model, read_char)
     viewport.__dict__.update(next_model.viewport.__dict__)
@@ -600,7 +621,7 @@ def menu_terminal(old_attrs: Any, new_attrs: Any) -> Generator[None, None, None]
         _set_terminal_attrs(new_attrs)
 
 
-def choose_sort(viewport: Viewport, display_overrides: Dict[str, Any], old_attrs: Any, new_attrs: Any) -> None:
+def choose_sort(viewport: Viewport, display_overrides: Dict[str, Any], old_attrs: Any, new_attrs: Any, colorize: Callable[..., Any] = colorize) -> None:
     sort_map: Dict[str, Any] = OrderedDict()
 
     sort_map["0"] = ("sort reset", [])
@@ -639,7 +660,7 @@ def choose_sort(viewport: Viewport, display_overrides: Dict[str, Any], old_attrs
     viewport.reset_display()
 
 
-def choose_filter(viewport: Viewport, cluster: Any, display_overrides: Dict[str, Any], old_attrs: Any, new_attrs: Any) -> None:
+def choose_filter(viewport: Viewport, cluster: Any, display_overrides: Dict[str, Any], old_attrs: Any, new_attrs: Any, colorize: Callable[..., Any] = colorize) -> None:
     cluster.wn_filter = cluster.WNFilter(cluster.worker_nodes)
     filter_map = {
         1: "exclude_node_states",
@@ -681,7 +702,7 @@ def choose_filter(viewport: Viewport, cluster: Any, display_overrides: Dict[str,
     viewport.reset_display()
 
 
-def choose_highlight(viewport: Viewport, cluster: Any, display_overrides: Dict[str, Any], old_attrs: Any, new_attrs: Any) -> None:
+def choose_highlight(viewport: Viewport, cluster: Any, display_overrides: Dict[str, Any], old_attrs: Any, new_attrs: Any, colorize: Callable[..., Any] = colorize) -> None:
     cluster.wn_filter = cluster.WNFilter(cluster.worker_nodes)
     filter_map = {
         1: "or_include_user_id",
@@ -1018,7 +1039,14 @@ def cli_main() -> int:
         return 1
 
 
-def main(resources: RunResources) -> None:
+CONFIG_ERRORS = (ValueError, TypeError, KeyError, IndexError, AttributeError, StopIteration)
+
+# Locations fixed for the whole run: launch directory, package/source root and help file.
+RunPaths = NamedTuple("RunPaths", [("initial_cwd", str), ("curpath", str), ("qtoppath", str), ("help_fp", str)])
+
+
+def _parse_run_options(resources: RunResources) -> Tuple[Any, Dict[str, Any]]:
+    """Parse and validate the command line, including a --load-sample snapshot's display options."""
     args = resources.options = utils.parse_qtop_cmdline_args()
     if args.version:
         print("qtop current version: " + __version__)
@@ -1043,16 +1071,88 @@ def main(resources: RunResources) -> None:
             args, dynamic_config["force_names"] = process_args(args)
         except (OSError, tarfile.TarError, ValueError, TypeError, KeyError) as error:
             raise OperationalError("Cannot load support snapshot: %s" % error) from error
-    if args.WATCH or args.REPLAY:  # this is needed for the filtering/sorting options
-        if termios is None:
-            old_attrs = ""
-            new_attrs = ""
-        else:
-            try:
-                old_attrs = termios.tcgetattr(0)
-            except termios.error:
-                old_attrs = ""
-            new_attrs = old_attrs[:]
+    return args, dynamic_config
+
+
+def _terminal_attrs(args: Any) -> Tuple[Any, Any]:
+    """Terminal attributes the watch-mode menus restore; empty outside watch/replay or without termios."""
+    if not (args.WATCH or args.REPLAY) or termios is None:
+        return "", ""
+    try:
+        old_attrs = termios.tcgetattr(0)
+    except termios.error:
+        old_attrs = ""
+    return old_attrs, old_attrs[:]
+
+
+def _run_paths() -> RunPaths:
+    initial_cwd = os.getcwd()
+    logging.debug("Initial qtop directory: %s" % initial_cwd)
+    curpath = os.path.expanduser(initial_cwd)  # where qtop was invoked from
+    package_path = os.path.dirname(os.path.realpath(__file__))
+    source_path = os.path.dirname(package_path)
+    # Source checkouts keep these user-facing files at repository root. Wheels
+    # copy them into the package so an installed CLI has the same defaults.
+    qtoppath = source_path if os.path.isfile(os.path.join(source_path, QTOPCONF_YAML)) else package_path
+    return RunPaths(initial_cwd, curpath, qtoppath, os.path.join(qtoppath, "helpfile.txt"))
+
+
+def _load_config(args: Any, paths: RunPaths) -> Tuple[Dict[str, Any], Dict[str, str], Dict[str, str]]:
+    try:
+        return configuration.load_yaml_config(args, paths.qtoppath, paths.curpath, SYSTEMCONFDIR, USERPATH)
+    except CONFIG_ERRORS as error:
+        raise OperationalError("Invalid configuration in %s: %s" % (args.CONFFILE or QTOPCONF_YAML, error or type(error).__name__)) from error
+
+
+def _prepare_replay(args: Any, available_batch_systems: Mapping[str, Any], paths: RunPaths) -> Iterator[str]:
+    args.WATCH = 2  # enforce that --watch mode is on, even if not in cmdline switch
+    args.BATCH_SYSTEM = next(name for name, backend in available_batch_systems.items() if backend.is_simulated)
+    config, _, _ = _load_config(args, paths)
+    useful_frames, args.REPLAY = pick_frames_to_replay(config["savepath"], args, config)
+    return useful_frames
+
+
+def _start_web(web: Web, config: Dict[str, Any]) -> None:
+    web.host = config.get("experimental_web_host", "127.0.0.1")
+    web.port = int(config.get("experimental_web_port", 8080))
+    web.start()
+    logging.warning("Experimental web interface at http://%s:%s (no authentication or TLS).", web.host, web.port)
+
+
+def _collect_frame(
+    resources: RunResources,
+    args: Any,
+    config: Dict[str, Any],
+    user_to_color: Dict[str, str],
+    available_batch_systems: Mapping[str, Any],
+    savepath: str,
+    paths: RunPaths,
+    sample_filename: str,
+) -> Tuple[Snapshot, Dict[str, Any], Any, Dict[str, str], str]:
+    """Pick the scheduler, start the frame's capture and collect one snapshot.
+
+    Returns (snapshot, config, backend, user_to_color, sample filename).
+    """
+    scheduler = (
+        args.sample_snapshot["scheduler"]
+        if args.load_sample
+        else decide_batch_system(args.BATCH_SYSTEM, os.environ.get("QTOP_SCHEDULER"), config["scheduler"], config["schedulers"], available_batch_systems, config)
+    )
+    backend = available_batch_systems[scheduler]
+    trace_paths = {} if args.load_sample else fetch_scheduler_files(args, config, backend)
+    sample_filename = fileutils.get_sample_filename(sample_filename, config)
+    resources.start_capture(savepath, sample_filename, trace_paths, config, paths.qtoppath)
+    snapshot, config = MVU_collect_snapshot(args, config, backend, trace_paths, resources.archive)
+    if args.SAMPLE and args.ANONYMIZE:
+        user_to_color = user_to_color_default.copy()
+        for rule in config["user_color_mappings"]:
+            user_to_color.update(rule)
+    return snapshot, config, backend, user_to_color, sample_filename
+
+
+def main(resources: RunResources) -> None:
+    args, dynamic_config = _parse_run_options(resources)
+    old_attrs, new_attrs = _terminal_attrs(args)  # needed for the filtering/sorting menus
 
     available_batch_systems = discover_qtop_batch_systems()
 
@@ -1062,40 +1162,20 @@ def main(resources: RunResources) -> None:
     max_line_len = 0
 
     check_python_version()
-    initial_cwd = os.getcwd()
-    logging.debug("Initial qtop directory: %s" % initial_cwd)
-    CURPATH = os.path.expanduser(initial_cwd)  # where qtop was invoked from
-    package_path = os.path.dirname(os.path.realpath(__file__))
-    source_path = os.path.dirname(package_path)
-    # Source checkouts keep these user-facing files at repository root. Wheels
-    # copy them into the package so an installed CLI has the same defaults.
-    QTOPPATH = source_path if os.path.isfile(os.path.join(source_path, QTOPCONF_YAML)) else package_path
-    HELP_FP = os.path.join(QTOPPATH, "helpfile.txt")
+    paths = _run_paths()
     SAMPLE_FILENAME = "qtop_sample_${USER}%(datetime)s.tar"
     SAMPLE_FILENAME = "qtop_sample_anonymous%(datetime)s.tar" if args.ANONYMIZE else os.path.expandvars(SAMPLE_FILENAME)
     if args.REPLAY:
-        args.WATCH = 2  # enforce that --watch mode is on, even if not in cmdline switch
-        args.BATCH_SYSTEM = next(name for name, backend in available_batch_systems.items() if backend.is_simulated)
-        try:
-            config, _, _ = configuration.load_yaml_config(args, QTOPPATH, CURPATH, SYSTEMCONFDIR, USERPATH)
-        except (ValueError, TypeError, KeyError, IndexError, AttributeError, StopIteration) as error:
-            raise OperationalError("Invalid configuration in %s: %s" % (args.CONFFILE or QTOPCONF_YAML, error or type(error).__name__)) from error
-        useful_frames, args.REPLAY = pick_frames_to_replay(config["savepath"], args, config)
+        useful_frames = _prepare_replay(args, available_batch_systems, paths)
 
     model = None
-    web = resources.web = Web(initial_cwd)
+    web = resources.web = Web(paths.initial_cwd)
     with raw_mode(sys.stdin, args):  # key listener implementation
         try:
             while True:
-                try:
-                    config, user_to_color, nodestate_to_color = configuration.load_yaml_config(args, QTOPPATH, CURPATH, SYSTEMCONFDIR, USERPATH)
-                except (ValueError, TypeError, KeyError, IndexError, AttributeError, StopIteration) as error:
-                    raise OperationalError("Invalid configuration in %s: %s" % (args.CONFFILE or QTOPCONF_YAML, error or type(error).__name__)) from error
+                config, user_to_color, nodestate_to_color = _load_config(args, paths)
                 if args.WEB and not web.started:
-                    web.host = config.get("experimental_web_host", "127.0.0.1")
-                    web.port = int(config.get("experimental_web_port", 8080))
-                    web.start()
-                    logging.warning("Experimental web interface at http://%s:%s (no authentication or TLS).", web.host, web.port)
+                    _start_web(web, config)
                 savepath = config["savepath"]
                 timestr = time.strftime("%Y%m%dT%H%M%S")
                 attempt_faster_xml_parsing(config)
@@ -1106,23 +1186,12 @@ def main(resources: RunResources) -> None:
                 else:
                     viewport.set_term_size(*calculate_term_size(config, FALLBACK_TERMSIZE, viewport))
                 with resources.frame(savepath, timestr) as output_fp:
-                    scheduler = (
-                        args.sample_snapshot["scheduler"]
-                        if args.load_sample
-                        else decide_batch_system(args.BATCH_SYSTEM, os.environ.get("QTOP_SCHEDULER"), config["scheduler"], config["schedulers"], available_batch_systems, config)
+                    snapshot, config, backend, user_to_color, SAMPLE_FILENAME = _collect_frame(
+                        resources, args, config, user_to_color, available_batch_systems, savepath, paths, SAMPLE_FILENAME
                     )
-                    backend = available_batch_systems[scheduler]
-                    trace_paths = {} if args.load_sample else fetch_scheduler_files(args, config, backend)
-                    SAMPLE_FILENAME = fileutils.get_sample_filename(SAMPLE_FILENAME, config)
-                    resources.start_capture(savepath, SAMPLE_FILENAME, trace_paths, config, QTOPPATH)
-                    snapshot, config = MVU_collect_snapshot(args, config, backend, trace_paths, resources.archive)
-                    if args.SAMPLE and args.ANONYMIZE:
-                        user_to_color = user_to_color_default.copy()
-                        for rule in config["user_color_mappings"]:
-                            user_to_color.update(rule)
                     MVU_export_snapshot(snapshot, args, savepath, timestr, web)
                     if model is None:
-                        model = MVU_Model(config, args, viewport, display_overrides=dynamic_config, package_path=QTOPPATH, help_file=HELP_FP)
+                        model = MVU_Model(config, args, viewport, display_overrides=dynamic_config, package_path=paths.qtoppath, help_file=paths.help_fp)
                     model, _ = MVU_update(model, "snapshot", (snapshot, config, args, backend, user_to_color, nodestate_to_color))
                     view_data = MVU_query(model)
                     cluster = view_data.cluster
@@ -1159,7 +1228,7 @@ def main(resources: RunResources) -> None:
                 viewport, dynamic_config = model.viewport, model.display_overrides
                 MVU_effects(model, effects, cluster, old_attrs, new_attrs)
 
-                os.chdir(QTOPPATH)
+                os.chdir(paths.qtoppath)
                 resources.discard_frame()
                 fileutils.deprecate_old_output_files(config)
 
