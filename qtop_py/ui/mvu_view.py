@@ -35,6 +35,10 @@ def user_accounts_header(config: "Config") -> str:
     return visible_text(USER_ACCOUNTS_HEADER.replace("{ranking}", ", ".join(USER_ID_RANKING)), escape_backslashes=False)
 
 
+DEMO_WATCH_KEYS = "Keys: q quit, ? help, m colour, t transpose, H highlight, f filter, s sort, hjkl scroll"
+BOLD = "\033[1m%s\033[0m"
+
+
 class TextDisplay(object):
     """Render a frame's sections: job accounting summary, worker-node occupancy and user accounts."""
 
@@ -106,6 +110,8 @@ class TextDisplay(object):
         if not self.args.WATCH:
             command = "qtop" if self.args.ANONYMIZE else "%s/qtop.py" % self.MVU_model.package_path
             print("Please try it with watch: %s -s <SOURCEDIR> -w [<every_nr_of_sec>]" % command)
+        if self.MVU_model.backend.is_simulated and self.args.WATCH:
+            print(self.MVU_model.MVU_colorize(DEMO_WATCH_KEYS, "Yellow") if self.args.COLOR == "ON" else BOLD % DEMO_WATCH_KEYS)  # bold without colour
         print(
             self.MVU_model.MVU_colorize("===> ", "Gray_D")
             + self.MVU_model.MVU_colorize("Job accounting summary", "White")
@@ -129,7 +135,7 @@ class TextDisplay(object):
             "total_cores)s %(Cores)s |"
             "   %(job_counts)s %(jobs)s (%(job_labels)s) %(reported_by)s"
             % {
-                "Summary": self.MVU_model.MVU_colorize("Summary", "Cyan_L"),
+                "Summary": self.MVU_model.MVU_colorize("Summary  ", "Cyan_L"),
                 "total_nodes": self.MVU_model.MVU_colorize(str(cluster.total_wn), "Red_L"),
                 "online_nodes": self.MVU_model.MVU_colorize(str(cluster.total_wn - cluster.offdown_nodes), "Red_L"),
                 "available_nodes": self.MVU_model.MVU_colorize(str(cluster.available_wn), "Red_L"),

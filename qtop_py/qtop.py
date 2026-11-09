@@ -178,8 +178,6 @@ class MVU_LegacyAdapter(object):
 class Cluster(MVU_LegacyAdapter, MVU_Cluster):
     """Deprecated: use mvu_query.Cluster through MVU_query."""
 
-    pass
-
 
 class WNOccupancy(MVU_LegacyAdapter, MVU_WNOccupancy):
     """Deprecated: use mvu_query.WNOccupancy through MVU_query."""
@@ -932,13 +930,9 @@ class NoSchedulerFound(Exception):
 class SchedulerNotSpecified(Exception):
     """Auto-detection found no scheduler."""
 
-    pass
-
 
 class InvalidScheduler(Exception):
     """The requested scheduler is not one qtop supports."""
-
-    pass
 
 
 def cli_error_message(error: BaseException) -> str:

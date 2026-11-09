@@ -68,7 +68,7 @@ def test_empty_pbs_named_cluster_without_queue_totals_renders(tmp_path, queue_ro
     output = tmp_path / "output"
     result = run_cli(tmp_path, "qtop_py.qtop", "-b", "pbs", "-s", str(tmp_path), "-F", "-E", "-o", "savepath=%s" % output)
     assert result.returncode == 0, result.stderr
-    assert "Summary: Total:0 Up:0 Free:0 Nodes | 0/0 cores |   0+0 jobs" in result.stdout
+    assert "Summary  : Total:0 Up:0 Free:0 Nodes | 0/0 cores |   0+0 jobs" in result.stdout
     state = json.loads(next(output.glob("qtop_json_*.json")).read_text())
     assert state["jobs"] == state["nodes"] == []
     assert [(queue["name"], queue["running"], queue["queued"]) for queue in state["queues"]] == ([("workq", 0, 0)] if queue_row else [])
@@ -91,7 +91,7 @@ def test_pbs_mixed_hostnames_preserve_nodes_jobs_and_allocations(tmp_path):
     output = tmp_path / "output"
     result = run_cli(tmp_path, "qtop_py.qtop", "-b", "pbs", "-s", str(tmp_path), "-F", "-E", "-o", "savepath=%s" % output)
     assert result.returncode == 0, result.stderr
-    assert "Summary: Total:4 Up:3 Free:1 Nodes | 16/32 cores |   8+1 jobs" in result.stdout
+    assert "Summary  : Total:4 Up:3 Free:1 Nodes | 16/32 cores |   8+1 jobs" in result.stdout
     assert "trueno_ita00" in result.stdout
     state = json.loads(next(output.glob("qtop_json_*.json")).read_text())
     nodes = {node["domainname"].split(".")[0]: node for node in state["nodes"]}
@@ -122,7 +122,7 @@ def test_pbs_array_tasks_and_legacy_queue_limits_preserve_activity(tmp_path, job
     output = tmp_path / "output"
     result = run_cli(tmp_path, "qtop_py.qtop", "-b", "pbs", "-s", str(tmp_path), "-F", "-S", "-E", "-o", "savepath=%s" % output)
     assert result.returncode == 0, result.stderr
-    assert "Summary: Total:2 Up:2 Free:1 Nodes | 3/6 cores |   2+0 jobs" in result.stdout
+    assert "Summary  : Total:2 Up:2 Free:1 Nodes | 3/6 cores |   2+0 jobs" in result.stdout
     assert "MISMATCH" not in result.stdout
     matrix = result.stdout.split("Worker Nodes occupancy", 1)[1].split("User accounts", 1)[0]
     assert "|?|" not in matrix

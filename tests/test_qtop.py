@@ -36,6 +36,7 @@ from qtop_py.qtop import (
     get_output_size,
     init_dirs,
 )
+from qtop_py.ui import mvu_view
 
 SYMBOL_NON_EXISTENT_NODE = "#"
 SYMBOL_SEPARATOR = "|"
@@ -589,6 +590,27 @@ def test_demo_notice_uses_high_contrast_blue(monkeypatch):
             "Blue_L",
         )
     ]
+
+
+@pytest.mark.parametrize(
+    "scheduler, watch, color, key_style",
+    (("demo", True, "ON", "\x1b[1;33m"), ("demo", True, "OFF", "\x1b[1m"), ("demo", False, "OFF", None), ("slurm", True, "OFF", None)),
+)
+def test_demo_watch_mode_lists_keys_above_the_summary(capsys, scheduler, watch, color, key_style):
+    cluster = SimpleNamespace(total_running_jobs=0, total_queued_jobs=0, queues_dict={}, total_wn=0, offdown_nodes=0, available_wn=0, working_cores=0, total_cores=0)
+    args = SimpleNamespace(REMAP=False, CLASSIC=False, WATCH=watch, ANONYMIZE=True, COLOR=color)
+    model = MVU_Model({}, args, None, backend=qtop_module.scheduler_backend(scheduler))
+    TextDisplay(None, {}, None, None, cluster, args, MVU_model=model).display_job_accounting_summary(cluster, None)
+
+    lines = capsys.readouterr().out.splitlines()
+    plain = [re.sub(r"\x1b\[[0-9;]*m", "", line) for line in lines]
+    summary = next(index for index, line in enumerate(plain) if "Job accounting summary" in line)
+    assert (plain[summary - 1] == mvu_view.DEMO_WATCH_KEYS) is (key_style is not None)
+    assert sum(line == mvu_view.DEMO_WATCH_KEYS for line in plain) == (key_style is not None)
+    if key_style:
+        assert lines[summary - 1].startswith(key_style + "Keys: q quit, ") and lines[summary - 1].endswith(
+            "hjkl scroll\x1b[0m" if key_style == "\x1b[1m" else "hjkl scroll\x1b[0;m"
+        )
 
 
 def test_available_possible_ids_filters_reserved_user_symbols():

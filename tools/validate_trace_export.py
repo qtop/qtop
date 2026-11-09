@@ -152,9 +152,9 @@ def validate_rendered_account_symbols(rendered):
 
 
 def extract_summary_line(text):
-    """Return the Summary: line of a rendering, or an empty string."""
+    """Return the Summary line of a rendering, or an empty string."""
     for line in text.splitlines():
-        if line.startswith("Summary:"):
+        if re.match(r"Summary *:", line):
             return line.strip()
     return ""
 

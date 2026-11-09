@@ -98,7 +98,7 @@ STATIC_CASES = {
             "source": CONTRIB,
             "args": ["-c", "ON", "-s", str(CONTRIB), "-raF", "-b", "pbs"],
             "markers": [
-                "Summary: Total:829 Up:819 Free:91 Nodes",
+                "Summary : Total:829 Up:819 Free:91 Nodes",
                 "7629/7872 cores",
                 "7590+3365 jobs",
                 "Worker Nodes occupancy",
@@ -112,7 +112,7 @@ STATIC_CASES = {
             "source": CONTRIB,
             "args": ["-s", str(CONTRIB), "-c", "ON", "-Fadvv", "-b", "sge"],
             "markers": [
-                "Summary: Total:17 Up:17 Free:4 Nodes",
+                "Summary : Total:17 Up:17 Free:4 Nodes",
                 "61/408 cores",
                 "61+31 jobs",
                 "Worker Nodes occupancy",
@@ -126,7 +126,7 @@ STATIC_CASES = {
             "source": CONTRIB,
             "args": ["-s", str(CONTRIB), "-c", "ON", "-F", "-b", "oar"],
             "markers": [
-                "Summary: Total:183 Up:172 Free:167 Nodes",
+                "Summary : Total:183 Up:172 Free:167 Nodes",
                 "1349/2520 cores",
                 "190+69 jobs",
                 "default: 187 + 69",
@@ -143,7 +143,7 @@ STATIC_CASES = {
             "args": ["-c", "ON", "-F", "-b", "demo"],
             "markers": [
                 "This data is simulated",
-                "Summary: Total:",
+                "Summary : Total:",
                 "Nodes |",
                 "jobs (R + Q)",
                 "Worker Nodes occupancy",
@@ -154,15 +154,15 @@ STATIC_CASES = {
 }
 
 SLURM_MARKERS_BY_SAMPLE = {
-    "arrays_and_het": ["Summary: Total:2 Up:2 Free:0 Nodes", "7/16 cores", "4+4 jobs", "individual array tasks and heterogeneous components"],
-    "cpu_allocations": ["Summary: Total:3 Up:3 Free:1 Nodes", "6/24 cores", "2+1 jobs", "scheduler CPU IDs", "long*: 0 + 1"],
-    "partial_and_malformed": ["Summary: Total:3 Up:3 Free:0 Nodes", "5/12 cores", "4+1 jobs"],
-    "basic": ["Summary: Total:3 Up:3 Free:2 Nodes", "4/16 cores", "2+1 jobs"],
-    "large_cluster": ["Summary: Total:18 Up:17 Free:9 Nodes", "120/288 cores", "3+1 jobs"],
-    "large_mixed": ["Summary: Total:20 Up:19 Free:9 Nodes", "160/320 cores", "3+1 jobs"],
-    "large_multi_partition": ["Summary: Total:18 Up:17 Free:10 Nodes", "104/288 cores", "3+1 jobs"],
-    "mixed": ["Summary: Total:2 Up:1 Free:0 Nodes", "4/16 cores", "2+0 jobs"],
-    "multi_partition": ["Summary: Total:2 Up:2 Free:1 Nodes", "4/32 cores", "2+1 jobs"],
+    "arrays_and_het": ["Summary : Total:2 Up:2 Free:0 Nodes", "7/16 cores", "4+4 jobs", "individual array tasks and heterogeneous components"],
+    "cpu_allocations": ["Summary : Total:3 Up:3 Free:1 Nodes", "6/24 cores", "2+1 jobs", "scheduler CPU IDs", "long*: 0 + 1"],
+    "partial_and_malformed": ["Summary : Total:3 Up:3 Free:0 Nodes", "5/12 cores", "4+1 jobs"],
+    "basic": ["Summary : Total:3 Up:3 Free:2 Nodes", "4/16 cores", "2+1 jobs"],
+    "large_cluster": ["Summary : Total:18 Up:17 Free:9 Nodes", "120/288 cores", "3+1 jobs"],
+    "large_mixed": ["Summary : Total:20 Up:19 Free:9 Nodes", "160/320 cores", "3+1 jobs"],
+    "large_multi_partition": ["Summary : Total:18 Up:17 Free:10 Nodes", "104/288 cores", "3+1 jobs"],
+    "mixed": ["Summary : Total:2 Up:1 Free:0 Nodes", "4/16 cores", "2+0 jobs"],
+    "multi_partition": ["Summary : Total:2 Up:2 Free:1 Nodes", "4/32 cores", "2+1 jobs"],
 }
 
 COMMON_RENDER_MARKERS = [
