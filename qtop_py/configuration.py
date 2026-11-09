@@ -9,7 +9,14 @@ from math import isfinite
 
 from qtop_py import fileutils, yaml_parser
 from qtop_py.colormap import nodestate_to_color_default, user_to_color_default
-from qtop_py.constants import QTOPCONF_YAML, SYMBOL_LONG_TAIL_USER, SYMBOL_UNKNOWN_NODE_STATE
+from qtop_py.constants import (
+    MAX_USER_ACCOUNTS_HEADER_LEN,
+    QTOPCONF_YAML,
+    SYMBOL_LONG_TAIL_USER,
+    SYMBOL_UNKNOWN_NODE_STATE,
+    USER_ID_RANKING_COUNT_KEYS,
+    USER_ID_RANKING_NAME_KEYS,
+)
 from qtop_py.errors import OperationalError
 from qtop_py.safety import ResourceLimitError, literal_eval
 
@@ -50,6 +57,8 @@ def validate_config(config):
     _validate_colors(config)
     _validate_state_columns(config)
     _validate_display(config)
+    _validate_user_id_ranking(config)
+    _validate_user_accounts_header(config)
     _validate_matrix(config)
     _validate_commands(config)
 
@@ -88,6 +97,31 @@ def _validate_runtime(config):
     _require(type(reverse) in (bool, int) and reverse in (False, True), "sorting.reverse", "True, False, 0 or 1")
     order = sorting.get("user_sort")
     _require(order is None or isinstance(order, list) and all(isinstance(item, str) for item in order), "sorting.user_sort", "a list of sort names or null")
+
+
+def _validate_user_id_ranking(config):
+    """Distinct count keys in any order, then exactly one name key last, so ID assignment is a total order."""
+    USER_ID_RANKING = config.get("user_id_ranking")
+    if USER_ID_RANKING is None:
+        return
+    expected = "a list of distinct %s keys ending in %s" % ("/".join(USER_ID_RANKING_COUNT_KEYS), " or ".join(USER_ID_RANKING_NAME_KEYS))
+    _require(isinstance(USER_ID_RANKING, list) and bool(USER_ID_RANKING), "user_id_ranking", expected)
+    COUNT_KEYS, NAME_KEY = USER_ID_RANKING[:-1], USER_ID_RANKING[-1]
+    _require(NAME_KEY in USER_ID_RANKING_NAME_KEYS, "user_id_ranking", expected)
+    _require(all(key in USER_ID_RANKING_COUNT_KEYS for key in COUNT_KEYS), "user_id_ranking", expected)
+    _require(len(set(COUNT_KEYS)) == len(COUNT_KEYS), "user_id_ranking", expected)
+
+
+def _validate_user_accounts_header(config):
+    """Single-line note, possibly empty; control characters are escaped at render time."""
+    USER_ACCOUNTS_HEADER = config.get("user_accounts_header")
+    if USER_ACCOUNTS_HEADER is None:
+        return
+    _require(
+        isinstance(USER_ACCOUNTS_HEADER, str) and "\n" not in USER_ACCOUNTS_HEADER and len(USER_ACCOUNTS_HEADER) <= MAX_USER_ACCOUNTS_HEADER_LEN,
+        "user_accounts_header",
+        "single-line text of at most %d characters" % MAX_USER_ACCOUNTS_HEADER_LEN,
+    )
 
 
 def _validate_display(config):

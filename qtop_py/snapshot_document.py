@@ -7,7 +7,7 @@ import json
 from collections import OrderedDict, namedtuple
 from typing import TYPE_CHECKING, cast
 
-from qtop_py.cluster_state import cluster_state_totals, validate_cluster_state
+from qtop_py.cluster_state import validate_cluster_state, validated_cluster_state_totals
 from qtop_py.safety import visible_data
 
 if TYPE_CHECKING:
@@ -29,8 +29,10 @@ class Document(namedtuple("Document", ["worker_nodes", "jobs_dict", "queues_dict
     def from_cluster_state(cls, cluster_state: "state_types.ClusterState") -> "Document":
         cluster_state = copy.deepcopy(validate_cluster_state(cluster_state))
         original = cluster_state
+        # visible_data() rebuilds every dict and list, so its result shares no
+        # mutable container with `original`; no second deep copy is needed below.
         cluster_state = visible_data(cluster_state)
-        totals = cluster_state_totals(cluster_state)
+        totals = validated_cluster_state_totals(cluster_state)
         jobs_dict = OrderedDict((job["id"], JobDoc(job["user"], job["state"], job["queue"])) for job in cluster_state["jobs"])
         queues_dict = OrderedDict(
             (
@@ -40,7 +42,7 @@ class Document(namedtuple("Document", ["worker_nodes", "jobs_dict", "queues_dict
             for queue in cluster_state["queues"]
         )
         document = cls(
-            copy.deepcopy(cluster_state["nodes"]),
+            cluster_state["nodes"],
             jobs_dict,
             queues_dict,
             totals["running_jobs"],

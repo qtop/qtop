@@ -852,7 +852,7 @@ def test_unknown_scheduler_job_state_preserves_accounting(monkeypatch, caplog):
     occupancy = WNOccupancy.__new__(WNOccupancy)
     occupancy.config = {"state_abbreviations": {"slurm": state_abbrevs}}
     users = ["alice", "bob", "alice"]
-    counts = occupancy._calculate_user_job_counts(users, ["R", "NEW_STATE", "PD"], [("alice", 2), ("bob", 1)], {"alice": "a", "bob": "b"})
+    counts = occupancy._calculate_user_job_counts(users, ["R", "NEW_STATE", "PD"])
     assert counts["running_of_user"] == {"alice": 1, "bob": 0}
     assert counts["queued_of_user"] == {"alice": 1, "bob": 0}
     assert counts["unknown_of_user"] == {"alice": 0, "bob": 1}

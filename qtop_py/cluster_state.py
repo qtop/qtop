@@ -105,7 +105,11 @@ def validate_cluster_state(cluster_state: object) -> "ClusterState":
 
 def cluster_state_totals(cluster_state: object) -> Dict[str, int]:
     """Derive summary values instead of storing duplicated mutable counters."""
-    state = validate_cluster_state(cluster_state)
+    return validated_cluster_state_totals(validate_cluster_state(cluster_state))
+
+
+def validated_cluster_state_totals(state: "ClusterState") -> Dict[str, int]:
+    """Totals for a state the caller has already passed through validate_cluster_state()."""
     if state["jobs"] and all("accounting_state" in job for job in state["jobs"]):
         return {
             "running_jobs": len({job["id"] for job in state["jobs"] if job.get("accounting_state") == "running"}),

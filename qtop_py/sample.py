@@ -114,7 +114,9 @@ def sanitize_config(config: "Config", mappings: "IdentifierMaps") -> "Tuple[Conf
         "experimental_queue_nodes",
         "experimental_web_host",
         "experimental_web_port",
+        "user_accounts_header",
     )
+    config.pop("user_accounts_header", None)  # free text may name the site; the default note is used instead
     config.pop("experimental_web_host", None)
     config.pop("experimental_web_port", None)
     config.pop("experimental_queue_nodes", None)

@@ -12,12 +12,23 @@ from functools import partial
 from itertools import cycle, zip_longest
 
 from qtop_py import __version__, utils, yaml_parser
+from qtop_py.constants import DEFAULT_USER_ACCOUNTS_HEADER, DEFAULT_USER_ID_RANKING
 from qtop_py.mvu import MVU_compress_colored_line as compress_colored_line
 from qtop_py.mvu import MVU_gauge_core_vectors as gauge_core_vectors
 from qtop_py.mvu_query import WNOccupancy
+from qtop_py.safety import visible_text
 
 # Accounts-table state columns when accounts_states is unset: jobs >= R + Q.
 DEFAULT_ACCOUNT_STATES = ("running_of_user", "queued_of_user")
+
+
+def user_accounts_header(config):
+    """Expand user_accounts_header; {ranking} becomes the active user_id_ranking. Plain replace: no format-string evaluation."""
+    USER_ACCOUNTS_HEADER = config.get("user_accounts_header")
+    if USER_ACCOUNTS_HEADER is None:
+        USER_ACCOUNTS_HEADER = DEFAULT_USER_ACCOUNTS_HEADER
+    USER_ID_RANKING = config.get("user_id_ranking") or DEFAULT_USER_ID_RANKING
+    return visible_text(USER_ACCOUNTS_HEADER.replace("{ranking}", ", ".join(USER_ID_RANKING)), escape_backslashes=False)
 
 
 class TextDisplay(object):
@@ -215,7 +226,7 @@ class TextDisplay(object):
             + self.MVU_model.MVU_colorize("User accounts and pool mappings", "White")
             + self.MVU_model.MVU_colorize(" <=== ", "Gray_d")
             + self.MVU_model.MVU_colorize(
-                self.MVU_model.backend.classic_account_note if self.args.CLASSIC else "(sorting according to total nr. of jobs)",
+                self.MVU_model.backend.classic_account_note if self.args.CLASSIC else user_accounts_header(self.MVU_model.config),
                 "Gray_D",
             )
         )

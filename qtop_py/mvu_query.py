@@ -10,13 +10,31 @@ from math import ceil
 from operator import itemgetter
 
 from qtop_py import configuration, utils, yaml_parser
-from qtop_py.constants import QTOPCONF_YAML, SYMBOL_LONG_TAIL_USER
+from qtop_py.constants import DEFAULT_USER_ID_RANKING, QTOPCONF_YAML, SYMBOL_LONG_TAIL_USER
 from qtop_py.errors import JobNotFound, OperationalError
 from qtop_py.mvu import MVU_colorize_nodestate, MVU_keep_queue_initials_only_and_colorize
 from qtop_py.mvu import MVU_gauge_core_vectors as gauge_core_vectors
 from qtop_py.mvu import MVU_node_job_ids as node_job_ids
 from qtop_py.mvu import MVU_reserved_pattern_mappings as _reserved_pattern_mappings
 from qtop_py.serialiser import resolve_job_id
+
+
+def rank_users(all_counts, running, queued, USER_ID_RANKING=DEFAULT_USER_ID_RANKING):
+    """
+    Order users for ID assignment: count keys rank higher counts first, the final name key breaks ties.
+    Returns (user, all jobs count) pairs, as the accounts table expects.
+    """
+    COUNTS = {
+        "R+Q": lambda user: running.get(user, 0) + queued.get(user, 0),
+        "R": lambda user: running.get(user, 0),
+        "Q": lambda user: queued.get(user, 0),
+        "all": lambda user: all_counts[user],
+    }
+    COUNT_KEYS, NAME_KEY = USER_ID_RANKING[:-1], USER_ID_RANKING[-1]
+    # Two stable passes: names first, then counts (descending); equal counts keep the name order.
+    users = sorted(all_counts, reverse=NAME_KEY == "name_desc")
+    users.sort(key=lambda user: tuple(COUNTS[key](user) for key in COUNT_KEYS), reverse=True)
+    return [(user, all_counts[user]) for user in users]
 
 
 class WNOccupancy(object):
@@ -53,9 +71,9 @@ class WNOccupancy(object):
         self.job_to_user_and_queue = {job_id: (job.user_name, job.job_queue) for job_id, job in document.jobs_dict.items()}
         self.user_machine_use = self.calculate_user_node_use(self.cluster, self.job_to_user_and_queue)
 
-        users_by_job_count = self._produce_user_lot(self.user_names)
+        user_job_per_state_counts = self._calculate_user_job_counts(self.user_names, self.job_states)
+        users_by_job_count = self._produce_user_lot(self.user_names, user_job_per_state_counts)
         user_to_id = self._create_id_for_users(users_by_job_count)
-        user_job_per_state_counts = self._calculate_user_job_counts(self.user_names, self.job_states, users_by_job_count, user_to_id)
         _account_jobs_table = self._create_sort_acct_jobs_table(user_job_per_state_counts, users_by_job_count, user_to_id)
         self.account_jobs_table, self.user_to_id = self._create_account_jobs_table(user_to_id, _account_jobs_table)
         self.user_color_patterns = self.make_pattern_out_of_mapping(mapping=user_to_color)
@@ -126,16 +144,19 @@ class WNOccupancy(object):
 
         return user_job_per_state_counts
 
-    def _produce_user_lot(self, _user_names):
+    def _produce_user_lot(self, _user_names, user_job_per_state_counts):
         """
-        Produces a list of tuples (lot) of the form (user account, all jobs count) in descending order.
+        Produces a list of tuples (lot) of the form (user account, all jobs count) in ID order,
+        ranked by the configured user_id_ranking (default: R+Q, R, name_desc).
         Used in the user accounts and poolmappings table
         """
-        user_to_alljobs_count = {}
-        for user_name in set(_user_names):
-            user_to_alljobs_count[user_name] = _user_names.count(user_name)
-
-        return sorted(user_to_alljobs_count.items(), key=itemgetter(1), reverse=True)
+        USER_ID_RANKING = self.config.get("user_id_ranking") or DEFAULT_USER_ID_RANKING
+        return rank_users(
+            Counter(_user_names),
+            user_job_per_state_counts.get("running_of_user", {}),
+            user_job_per_state_counts.get("queued_of_user", {}),
+            USER_ID_RANKING,
+        )
 
     @staticmethod
     def job_state_totals(job_states, state_abbrevs):
@@ -146,7 +167,7 @@ class WNOccupancy(object):
             totals[state_key] = totals.get(state_key, 0) + 1
         return totals
 
-    def _calculate_user_job_counts(self, user_names, job_states, users_by_job_count, user_to_id):
+    def _calculate_user_job_counts(self, user_names, job_states):
         """
         Calculates and prints what is actually below the id|  R + Q /all | unix account etc line
         :param user_names: list
@@ -163,7 +184,7 @@ class WNOccupancy(object):
         user_job_per_state_counts = self._create_user_job_counts(user_names, job_states, state_abbrevs)
 
         for state_count_key in state_abbrevs.values():
-            missing_user_ids = set(user_to_id).difference(user_job_per_state_counts[state_count_key])
+            missing_user_ids = set(user_names).difference(user_job_per_state_counts[state_count_key])
             for missing_user_id in missing_user_ids:
                 user_job_per_state_counts[state_count_key].setdefault(missing_user_id, 0)
 
@@ -369,8 +390,8 @@ class WNOccupancy(object):
             for core in node_free_cores:
                 core_user_map["Core" + str(core) + "vector"].append(gray_underscore)
 
-            non_existent_node_cores = [core for core in _core_span if core not in node_cores]
-            for core in non_existent_node_cores:
+            # core_span and node_cores are both str(range(...)) prefixes, so the missing cores are a slice.
+            for core in _core_span[int(np) :]:
                 core_user_map["Core" + str(core) + "vector"].append(gray_hash)
 
         return core_user_map
@@ -393,21 +414,28 @@ class WNOccupancy(object):
         depending on qtopconf yaml's "core_coloring",
         or on runtime in watch mode, if user presses appropriate keybinding
         """
-        node_free_cores = node_cores[:]
+        # Insertion-ordered dict: O(1) removal, same iteration order as the former list.
+        node_free_cores = dict.fromkeys(node_cores)
+
+        def take(core):
+            if core not in node_free_cores:
+                raise ValueError("list.remove(x): x not in list")
+            del node_free_cores[core]
+
         for core, job in corejobs.items():
             if resolve_job_id(str(job), job_to_user_and_queue) not in job_to_user_and_queue:
                 core_user_map["Core" + str(core) + "vector"].append(utils.ColorStr("?", color="Yellow"))
-                node_free_cores.remove(str(core))
+                take(str(core))
         selected_pat_to_color_map = getattr(self.MVU_model, _core_coloring)
         _highlighted_queues_or_users = self.MVU_model.display_overrides.get("highlight", self.config["highlight"])
 
         self.id_to_user = dict(zip((str(x) for x in self.user_to_id.values()), self.user_to_id.keys()))
+        highlight_rules = list(WNOccupancy.get_hl_q_or_users(_highlighted_queues_or_users))
+        and_or_func = highlight_rules[-1][2] if highlight_rules else any
         for user, core, queue in self._valid_corejobs(corejobs, job_to_user_and_queue):
             id_ = utils.ColorStr.from_other_color_str(self.user_to_id[user])
             viewed_pattern = self.user_color_patterns[str(id_)] if _core_coloring == "user_to_color" else queue
             matches = []
-            highlight_rules = list(WNOccupancy.get_hl_q_or_users(_highlighted_queues_or_users))
-            and_or_func = highlight_rules[-1][2] if highlight_rules else any
 
             for user_queue_to_highlight, highlight_kind, _ in highlight_rules:
                 if highlight_kind == "user_pat":
@@ -427,9 +455,9 @@ class WNOccupancy(object):
 
             id_.q = queue
             core_user_map["Core" + str(core) + "vector"].append(id_)
-            node_free_cores.remove(core)  # this is an assigned core, hence it doesn't belong to the node's free cores
+            take(core)  # this is an assigned core, hence it doesn't belong to the node's free cores
 
-        return core_user_map, node_free_cores
+        return core_user_map, list(node_free_cores)
 
     def _valid_corejobs(self, corejobs, job_to_user_and_queue):
         """
