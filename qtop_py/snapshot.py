@@ -1,6 +1,6 @@
 ## Copyright (c) 2026 qtop contributors
 ## SPDX-License-Identifier: MIT
-"""Normalized state with a cached five-field adapter for legacy renderers."""
+"""The read-only, display-safe Snapshot of one scheduler poll, plus its five-field view for the renderers."""
 
 import copy
 import json
@@ -16,41 +16,41 @@ if TYPE_CHECKING:
     from qtop_py import state_types
 
 
-JobDoc = namedtuple("JobDoc", ["user_name", "job_state", "job_queue"])
-QDoc = namedtuple("QDoc", ["lm", "queued", "run", "state"])
+JobRow = namedtuple("JobRow", ["user_name", "job_state", "job_queue"])
+QueueRow = namedtuple("QueueRow", ["lm", "queued", "run", "state"])
 
 
-class Document(namedtuple("Document", ["worker_nodes", "jobs_dict", "queues_dict", "total_running_jobs", "total_queued_jobs"])):
+class Snapshot(namedtuple("Snapshot", ["worker_nodes", "jobs_dict", "queues_dict", "total_running_jobs", "total_queued_jobs"])):
     if TYPE_CHECKING:
         _state: state_types.ClusterState
         _job_metadata: Dict[str, state_types.Job]
 
     @classmethod
-    def from_cluster_state(cls, cluster_state: "state_types.ClusterState") -> "Document":
+    def from_cluster_state(cls, cluster_state: "state_types.ClusterState") -> "Snapshot":
         cluster_state = rebuild(validate_cluster_state(cluster_state))  # the one copy boundary (JSON-shaped)
         original = cluster_state
         # visible_data() rebuilds every dict and list, so its result shares no
         # mutable container with `original`; no second deep copy is needed below.
         cluster_state = visible_data(cluster_state)
         totals = validated_cluster_state_totals(cluster_state)
-        jobs_dict = OrderedDict((job["id"], JobDoc(job["user"], job["state"], job["queue"])) for job in cluster_state["jobs"])
+        jobs_dict = OrderedDict((job["id"], JobRow(job["user"], job["state"], job["queue"])) for job in cluster_state["jobs"])
         queues_dict = OrderedDict(
             (
                 queue["name"],
-                QDoc(str(queue["limit"]), str(queue["queued"]), str(queue["running"]), queue["state"]),
+                QueueRow(str(queue["limit"]), str(queue["queued"]), str(queue["running"]), queue["state"]),
             )
             for queue in cluster_state["queues"]
         )
-        document = cls(
+        snapshot = cls(
             cluster_state["nodes"],
             jobs_dict,
             queues_dict,
             totals["running_jobs"],
             totals["queued_jobs"],
         )
-        document._state = original
-        document._job_metadata = {job["id"]: job for job in cluster_state["jobs"]}
-        return document
+        snapshot._state = original
+        snapshot._job_metadata = {job["id"]: job for job in cluster_state["jobs"]}
+        return snapshot
 
     @property
     def _diagnostics(self) -> "Dict[str, Dict[str, int]]":

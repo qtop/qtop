@@ -12,7 +12,7 @@ from qtop_py import configuration, qtop, utils, yaml_parser
 from qtop_py.mvu import MVU_Model, MVU_update
 from qtop_py.mvu_query import MVU_query
 from qtop_py.plugins.slurm import SlurmBatchSystem
-from qtop_py.snapshot_document import Document
+from qtop_py.snapshot import Snapshot
 from qtop_py.ui.mvu_view import MVU_view
 from qtop_py.ui.viewport import Viewport
 
@@ -25,7 +25,7 @@ def MVU_test_model(tmp_path, monkeypatch):
     config, users, states = configuration.prepare_config(yaml_parser.parse(str(root / "qtopconf.yaml")), args)
     source = root / "tests/plugins/slurm_samples/basic"
     backend = SlurmBatchSystem({"squeue_file": str(source / "squeue.txt"), "sinfo_file": str(source / "sinfo.txt")}, config, args)
-    document = Document.from_cluster_state(backend.get_cluster_state(args))
+    snapshot = Snapshot.from_cluster_state(backend.get_cluster_state(args))
     viewport = Viewport(0, 0)
     viewport.set_term_size(40, 120)
     return MVU_Model(
@@ -34,7 +34,7 @@ def MVU_test_model(tmp_path, monkeypatch):
         viewport,
         backend=SlurmBatchSystem,
         display_overrides={"force_names": True},
-        document=document,
+        snapshot=snapshot,
         user_to_color=users,
         nodestate_to_color=states,
         package_path=str(root),
@@ -64,17 +64,17 @@ def test_MVU_update_returns_owned_state_and_effects_without_io(tmp_path, monkeyp
 def test_MVU_query_and_view_need_no_runtime_globals_or_mutable_snapshot(tmp_path, monkeypatch, capsys, force_names):
     model = MVU_test_model(tmp_path, monkeypatch)
     model.display_overrides["force_names"] = force_names
-    original = model.document.to_cluster_state()
-    original_nodes = copy.deepcopy(model.document.worker_nodes)
+    original = model.snapshot.to_cluster_state()
+    original_nodes = copy.deepcopy(model.snapshot.worker_nodes)
     original_viewport = vars(model.viewport).copy()
     original_config = copy.deepcopy(model.config)
-    for name in ("args", "config", "dynamic_config", "scheduler", "document", "cluster", "viewport", "user_to_color", "transposed_sections"):
+    for name in ("args", "config", "dynamic_config", "scheduler", "snapshot", "cluster", "viewport", "user_to_color", "transposed_sections"):
         monkeypatch.delattr(qtop, name, raising=False)
     view_data = MVU_query(model)
     MVU_view(view_data, str(tmp_path), "sample.tar", "qtop.log")
     assert "Job accounting summary" in capsys.readouterr().out
-    assert model.document.to_cluster_state() == original
-    assert model.document.worker_nodes == original_nodes
+    assert model.snapshot.to_cluster_state() == original
+    assert model.snapshot.worker_nodes == original_nodes
     assert model.config == original_config
     assert vars(model.viewport) == original_viewport
     assert model.args.REMAP is False

@@ -21,7 +21,7 @@ def test_unrepresented_allocations_are_flagged_and_jobs_survive_replay(trace, ho
     assert diagnostics.get("jobs_with_invalid_nodelists", 0) == invalid
     assert state["jobs"][0]["id"] == "1"
     assert state["queues"][0]["running"] == 1
-    assert qtop.Document.from_cluster_state(state).to_cluster_state() == state
+    assert qtop.Snapshot.from_cluster_state(state).to_cluster_state() == state
     masked, _ = anonymize_state(state)
     assert masked["slurm_diagnostics"] == diagnostics
     assert validate_cluster_state(masked) == masked
@@ -49,7 +49,7 @@ def test_slurm_state_suffix_reaches_matrix_and_snapshot(trace, raw_state, normal
     assert state["nodes"][0]["slurm_node_state"] == raw_state + suffix
     masked, _ = anonymize_state(state)
     assert validate_cluster_state(masked)["nodes"][0]["slurm_node_state"] == raw_state + suffix
-    replayed = qtop.Document.from_cluster_state(masked).to_cluster_state()
+    replayed = qtop.Snapshot.from_cluster_state(masked).to_cluster_state()
     colored = qtop.colorize_nodestate(replayed["nodes"], {normalized: "Green"})
     occupancy = SimpleNamespace(cluster=SimpleNamespace(workernode_dict={1: colored[0]}))
     config = {"workernodes_matrix": [{"node state": {"max_len": 1}}]}
@@ -118,9 +118,9 @@ def test_pending_partition_memberships_do_not_inflate_global_totals(trace, jobs)
     assert [(queue["name"], queue["queued"]) for queue in state["queues"]] == [("batch", 1), ("gpu", 1)]
     assert slurm.get_queues_info()[:2] == (0, 1)
     assert cluster_state_totals(state) == {"running_jobs": 0, "queued_jobs": 1}
-    document = qtop.Document.from_cluster_state(state)
-    assert document.total_queued_jobs == 1
-    assert document.to_cluster_state() == state
+    snapshot = qtop.Snapshot.from_cluster_state(state)
+    assert snapshot.total_queued_jobs == 1
+    assert snapshot.to_cluster_state() == state
     masked, mappings = anonymize_state(state)
     assert masked["jobs"][0]["slurm_partitions"] == [mappings["queue"][name] for name in ("batch", "gpu")]
     assert cluster_state_totals(masked) == cluster_state_totals(state)

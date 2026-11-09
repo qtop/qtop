@@ -55,8 +55,8 @@ class OARBatchSystem(GenericBatchSystem):
     node_job_fields = ("oar_job_ids",)
 
     @staticmethod
-    def display_messages(section, document, nodes, config):
-        notes = getattr(document, "_diagnostics", {}).get("oar_diagnostics", {})
+    def display_messages(section, snapshot, nodes, config):
+        notes = getattr(snapshot, "_diagnostics", {}).get("oar_diagnostics", {})
         if section == "snapshot" and any(notes.values()):
             return [
                 "WARNING: OAR allocation notes: %s resources lack details; %s resources absent from node states; "

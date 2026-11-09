@@ -6,7 +6,7 @@ import json
 import pytest
 
 from qtop_py.cluster_state import build_cluster_state, cluster_state_totals, validate_cluster_state
-from qtop_py.qtop import Document
+from qtop_py.qtop import Snapshot
 
 
 def sample_state():
@@ -45,28 +45,28 @@ def test_cluster_state_is_plain_and_has_only_the_public_keys():
 
 
 def test_cluster_state_hands_nodes_over_and_document_isolates_them():
-    """Ownership: the builder passes nodes through uncopied; Document is the one copy boundary."""
+    """Ownership: the builder passes nodes through uncopied; Snapshot is the one copy boundary."""
     nodes = [{"domainname": "node001", "np": 2, "state": "j", "qname": ["debug"], "core_job_map": {"0": "1"}}]
     state = build_cluster_state(["1"], ["alice"], ["R"], ["debug"], nodes, [])
     assert state["nodes"][0] is nodes[0]
 
-    document = Document.from_cluster_state(state)
+    snapshot = Snapshot.from_cluster_state(state)
     nodes[0]["qname"].append("batch")
     nodes[0]["core_job_map"]["1"] = "1"
 
-    assert document.worker_nodes[0]["qname"] == ["debug"]
-    assert document.worker_nodes[0]["core_job_map"] == {"0": "1"}
-    assert document.to_cluster_state()["nodes"][0]["qname"] == ["debug"]
+    assert snapshot.worker_nodes[0]["qname"] == ["debug"]
+    assert snapshot.worker_nodes[0]["core_job_map"] == {"0": "1"}
+    assert snapshot.to_cluster_state()["nodes"][0]["qname"] == ["debug"]
 
 
 def test_document_round_trip_and_save_use_cluster_state(tmp_path):
     state = sample_state()
-    document = Document.from_cluster_state(state)
+    snapshot = Snapshot.from_cluster_state(state)
     output = tmp_path / "cluster-state.json"
 
-    document.save(str(output))
+    snapshot.save(str(output))
 
-    assert document.to_cluster_state() == state
+    assert snapshot.to_cluster_state() == state
     assert json.loads(output.read_text()) == state
 
 
@@ -147,17 +147,17 @@ def test_document_owns_lossless_state_independently_of_input_and_rendering_views
     state["queues"][0]["site_description"] = "retained metadata"
     state["slurm_diagnostics"] = {"jobs_with_missing_nodes": 1}
     expected = copy.deepcopy(state)
-    document = Document.from_cluster_state(state)
+    snapshot = Snapshot.from_cluster_state(state)
     state["jobs"][0]["user"] = "changed input"
-    document.worker_nodes[0]["qname"].append("render-only queue")
-    document.jobs_dict.clear()
-    document.queues_dict.clear()
-    exported = document.to_cluster_state()
+    snapshot.worker_nodes[0]["qname"].append("render-only queue")
+    snapshot.jobs_dict.clear()
+    snapshot.queues_dict.clear()
+    exported = snapshot.to_cluster_state()
     assert exported == expected
     exported["nodes"][0]["qname"].append("changed export")
-    assert document.to_cluster_state() == expected
+    assert snapshot.to_cluster_state() == expected
     path = tmp_path / "state.json"
-    document.save(str(path))
+    snapshot.save(str(path))
     assert json.loads(path.read_text()) == expected
 
 

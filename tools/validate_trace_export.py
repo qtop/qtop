@@ -7,7 +7,7 @@
 ## SPDX-License-Identifier: MIT
 ##
 
-"""Validate an exported qtop document trace without committing trace data."""
+"""Validate an exported qtop snapshot trace without committing trace data."""
 
 import argparse
 import base64
@@ -41,20 +41,20 @@ def decode_trace_payload(path):
     return json.loads(gzip.decompress(decoded))
 
 
-def load_exported_document(path):
+def load_exported_snapshot(path):
     payload = decode_trace_payload(path)
     if isinstance(payload, dict):
-        return qtop.Document.from_cluster_state(payload)
+        return qtop.Snapshot.from_cluster_state(payload)
     if not isinstance(payload, list) or len(payload) != 5:
-        raise ValueError("expected ClusterState or legacy qtop document payload")
+        raise ValueError("expected ClusterState or legacy qtop snapshot payload")
 
     worker_nodes, raw_jobs, raw_queues, total_running_jobs, total_queued_jobs = payload
-    JobDoc = namedtuple("JobDoc", ["user_name", "job_state", "job_queue"])
-    QDoc = namedtuple("QDoc", ["lm", "queued", "run", "state"])
+    JobRow = namedtuple("JobRow", ["user_name", "job_state", "job_queue"])
+    QueueRow = namedtuple("QueueRow", ["lm", "queued", "run", "state"])
 
-    jobs_dict = OrderedDict((job_id, JobDoc(*values)) for job_id, values in raw_jobs.items())
-    queues_dict = OrderedDict((queue, QDoc(*values)) for queue, values in raw_queues.items())
-    return qtop.Document(worker_nodes, jobs_dict, queues_dict, total_running_jobs, total_queued_jobs)
+    jobs_dict = OrderedDict((job_id, JobRow(*values)) for job_id, values in raw_jobs.items())
+    queues_dict = OrderedDict((queue, QueueRow(*values)) for queue, values in raw_queues.items())
+    return qtop.Snapshot(worker_nodes, jobs_dict, queues_dict, total_running_jobs, total_queued_jobs)
 
 
 def qtop_args(show_account_totals=False, color="OFF"):
@@ -92,7 +92,7 @@ def qtop_args(show_account_totals=False, color="OFF"):
     )
 
 
-def render_document(document, show_account_totals=False, color="OFF", term_height=1000, term_columns=220):
+def render_snapshot(snapshot, show_account_totals=False, color="OFF", term_height=1000, term_columns=220):
     args = qtop_args(show_account_totals=show_account_totals, color=color)
     qtop.args = args
     qtop.QTOPPATH = str(ROOT)
@@ -111,13 +111,13 @@ def render_document(document, show_account_totals=False, color="OFF", term_heigh
     qtop.viewport.set_term_size(term_height, term_columns)
     setattr(qtop, "transposed_sections", [])  # Optional global read dynamically by the legacy adapter.
 
-    trace_document = qtop.Document(copy.deepcopy(document.worker_nodes), document.jobs_dict, document.queues_dict, document.total_running_jobs, document.total_queued_jobs)
-    processed_nodes = qtop.keep_queue_initials_only_and_colorize(trace_document.worker_nodes, qtop.queue_to_color)
+    trace_snapshot = qtop.Snapshot(copy.deepcopy(snapshot.worker_nodes), snapshot.jobs_dict, snapshot.queues_dict, snapshot.total_running_jobs, snapshot.total_queued_jobs)
+    processed_nodes = qtop.keep_queue_initials_only_and_colorize(trace_snapshot.worker_nodes, qtop.queue_to_color)
     processed_nodes = qtop.colorize_nodestate(processed_nodes, nodestate_to_color)
-    cluster = qtop.Cluster(trace_document, processed_nodes, WNFilter, config, args)
+    cluster = qtop.Cluster(trace_snapshot, processed_nodes, WNFilter, config, args)
     qtop.cluster = cluster
-    wns_occupancy = qtop.WNOccupancy(cluster, config, trace_document, user_to_color, list(trace_document.jobs_dict.keys()))
-    display = qtop.TextDisplay(trace_document, config, qtop.viewport, wns_occupancy, cluster, args)
+    wns_occupancy = qtop.WNOccupancy(cluster, config, trace_snapshot, user_to_color, list(trace_snapshot.jobs_dict.keys()))
+    display = qtop.TextDisplay(trace_snapshot, config, qtop.viewport, wns_occupancy, cluster, args)
 
     output = io.StringIO()
     with redirect_stdout(output):
@@ -185,11 +185,11 @@ def parse_args():
 
 def main():
     args = parse_args()
-    document = load_exported_document(args.trace_json_b64)
-    rendered, wns_occupancy = render_document(document)
-    rendered_with_totals, _ = render_document(document, show_account_totals=True)
-    rendered_color, wns_occupancy_color = render_document(document, color="ON")
-    rendered_color_with_totals, wns_occupancy_color_with_totals = render_document(document, show_account_totals=True, color="ON")
+    snapshot = load_exported_snapshot(args.trace_json_b64)
+    rendered, wns_occupancy = render_snapshot(snapshot)
+    rendered_with_totals, _ = render_snapshot(snapshot, show_account_totals=True)
+    rendered_color, wns_occupancy_color = render_snapshot(snapshot, color="ON")
+    rendered_color_with_totals, wns_occupancy_color_with_totals = render_snapshot(snapshot, show_account_totals=True, color="ON")
 
     symbols = account_symbols(wns_occupancy)
     validate_symbol_contract(symbols)
@@ -215,11 +215,11 @@ def main():
     (artifact_dir / "summary.json").write_text(
         json.dumps(
             {
-                "worker_nodes": len(document.worker_nodes),
-                "jobs": len(document.jobs_dict),
-                "queues": len(document.queues_dict),
-                "total_running_jobs": document.total_running_jobs,
-                "total_queued_jobs": document.total_queued_jobs,
+                "worker_nodes": len(snapshot.worker_nodes),
+                "jobs": len(snapshot.jobs_dict),
+                "queues": len(snapshot.queues_dict),
+                "total_running_jobs": snapshot.total_running_jobs,
+                "total_queued_jobs": snapshot.total_queued_jobs,
                 "account_symbols": sorted(set(symbols)),
                 "color_account_symbols": sorted(set(rendered_account_symbols(rendered_color))),
                 "color_accounttotals_symbols": sorted(set(rendered_account_symbols(rendered_color_with_totals))),
@@ -230,7 +230,7 @@ def main():
             sort_keys=True,
         )
     )
-    print("trace-export: ok workers=%s jobs=%s queues=%s" % (len(document.worker_nodes), len(document.jobs_dict), len(document.queues_dict)))
+    print("trace-export: ok workers=%s jobs=%s queues=%s" % (len(snapshot.worker_nodes), len(snapshot.jobs_dict), len(snapshot.queues_dict)))
     return 0
 
 

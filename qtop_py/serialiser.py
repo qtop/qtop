@@ -106,7 +106,7 @@ class GenericBatchSystem(object):
         return ""
 
     @staticmethod
-    def display_messages(section, document, nodes, config):
+    def display_messages(section, snapshot, nodes, config):
         """Return severity-prefixed display lines for the scheduler messages block."""
         return []
 

@@ -54,10 +54,10 @@ flowchart TB
 
     subgraph state["Cluster state and calculations"]
         model["Common jobs, nodes and queues: cluster_state.py"]
-        document["Document: snapshot_document.py"]
+        snapshot["Snapshot: snapshot.py"]
         calculations["MVU_query: mvu_query.py"]
-        model --> document
-        document --> calculations
+        model --> snapshot
+        snapshot --> calculations
     end
     shared --> model
 
@@ -66,7 +66,7 @@ flowchart TB
         terminal["Terminal dashboard"]
         viewport["Navigation: ui/viewport.py"]
         colors["Color mappings: colormap.py"]
-        json["JSON export: snapshot_document.py"]
+        json["JSON export: snapshot.py"]
         capture["Sample archives: fileutils.py"]
         replay["Saved-frame replay: qtop.py"]
         web["Experimental web interface: web.py"]
@@ -77,7 +77,7 @@ flowchart TB
         replay --> terminal
     end
     calculations --> render
-    document -.-> json
+    snapshot -.-> json
     runtime -.-> capture
     runtime -.-> replay
 ```
@@ -102,7 +102,7 @@ flowchart TB
    Backend class hooks also define command adjustments, optional trace aliases,
    detection priority, queue blocking and scheduler-specific display notes.
    The core dispatches capabilities; scheduler support rules validate and mask extensions.
-3. `Document.from_cluster_state()` in [snapshot_document.py](../qtop_py/snapshot_document.py)
+3. `Snapshot.from_cluster_state()` in [snapshot.py](../qtop_py/snapshot.py)
    owns the normalized snapshot and exposes cached legacy rendering fields.
    Exports read that authoritative state; the five-field constructor remains
    available for old trace adapters. `MVU_query()` builds private view data
@@ -142,7 +142,7 @@ runtime globals, while the new query/view pipeline does not depend on them.
 | Scheduler backends and support | [Slurm](../qtop_py/plugins/slurm.py), [PBS](../qtop_py/plugins/pbs.py), [SGE](../qtop_py/plugins/sge.py), [OAR](../qtop_py/plugins/oar.py), [demo](../qtop_py/plugins/demo.py), [support helpers](../qtop_py/schedulers/) |
 | Shared extraction and backend interface | [serialiser.py](../qtop_py/serialiser.py) |
 | Shared state/configuration types and backend protocol | [state_types.py](../qtop_py/state_types.py) |
-| Canonical document and legacy adapter | [snapshot_document.py](../qtop_py/snapshot_document.py) |
+| Canonical snapshot and legacy adapter | [snapshot.py](../qtop_py/snapshot.py) |
 | Run resource ownership and frame/archive finalization | [runtime.py](../qtop_py/runtime.py) |
 | Common snapshot construction, validation and totals | [cluster_state.py](../qtop_py/cluster_state.py) |
 | Navigation and color definitions | [controls.py](../qtop_py/ui/controls.py), [viewport.py](../qtop_py/ui/viewport.py), [colormap.py](../qtop_py/colormap.py) |

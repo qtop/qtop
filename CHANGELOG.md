@@ -5,6 +5,7 @@ See the [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 
 ## 0.9.20261109
 
+- Refactor: Document is now Snapshot (snapshot.py); Document stays as an alias for one release.
 - Refactor: one snapshot copy, precompiled colours, fast escaping; up to 1.9x faster.
 - Refactor: ~1.3x faster on large clusters; no quadratic core-matrix fill, fewer deep copies.
 - Feature: Memoize matrix cells and colours; lazy web imports; one structural copy

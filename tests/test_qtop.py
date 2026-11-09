@@ -305,12 +305,12 @@ def test_create_job_counts():  # user_names, job_states, state_abbrevs
     state_abbrevs = {"C": "cancelled_of_user", "E": "exiting_of_user", "r": "running_of_user"}
     job_states = ["r", "E", "r", "C"]
 
-    class Document(object):
+    class Snapshot(object):
         jobs_dict = {}
 
-    document = Document()
+    snapshot = Snapshot()
 
-    wns_occupancy = WNOccupancy(None, None, document, None, None)
+    wns_occupancy = WNOccupancy(None, None, snapshot, None, None)
     assert wns_occupancy._create_user_job_counts(user_names, job_states, state_abbrevs) == {
         "cancelled_of_user": {"sotiris": 0, "yannis": 0, "petros": 1},
         "exiting_of_user": {"sotiris": 0, "kostas": 1, "yannis": 0},
@@ -323,11 +323,11 @@ def test_create_user_job_counts_raises_jobnotfound():  # user_names, job_states,
     state_abbrevs = {"C": "cancelled_of_user", "E": "exiting_of_user", "r": "running_of_user"}
     job_states = ["r", "E", "x", "C"]
 
-    class Document(object):
+    class Snapshot(object):
         jobs_dict = {}
 
-    document = Document()
-    wns_occupancy = WNOccupancy(None, None, document, None, None)
+    snapshot = Snapshot()
+    wns_occupancy = WNOccupancy(None, None, snapshot, None, None)
     with pytest.raises(JobNotFound):
         wns_occupancy._create_user_job_counts(user_names, job_states, state_abbrevs) == {
             "cancelled_of_user": {"sotiris": 0, "yannis": 0, "petros": 1},
@@ -525,14 +525,14 @@ def test_strict_check_counts_unique_jobs_across_slots_nodes_and_shared_resources
     arrays = [{"core_job_map": {0: "42[1]", 1: "42[2]"}}]
     assert qtop_module.WNOccupancy._count_jobs_strict(arrays, {"42"}) == 1
     assert qtop_module.WNOccupancy._count_jobs_strict(arrays, {"42[1]", "42[2]"}) == 2
-    document = SimpleNamespace(worker_nodes=nodes, jobs_dict={"101": SimpleNamespace(job_state="R"), "102": SimpleNamespace(job_state="R"), "103": SimpleNamespace(job_state="F")})
-    occupancy = SimpleNamespace(document=document, config={"state_abbreviations": {"oar": {"R": "running_of_user", "F": "Finishing"}}})
+    snapshot = SimpleNamespace(worker_nodes=nodes, jobs_dict={"101": SimpleNamespace(job_state="R"), "102": SimpleNamespace(job_state="R"), "103": SimpleNamespace(job_state="F")})
+    occupancy = SimpleNamespace(snapshot=snapshot, config={"state_abbreviations": {"oar": {"R": "running_of_user", "F": "Finishing"}}})
     qtop_module.WNOccupancy.strict_check_jobs(occupancy, SimpleNamespace(total_running_jobs=2))
     assert capsys.readouterr().out == ""
     qtop_module.WNOccupancy.strict_check_jobs(occupancy, SimpleNamespace(total_running_jobs=3))
     assert "Counted jobs (2)" in capsys.readouterr().out
     monkeypatch.setattr(qtop_module, "scheduler", "sge", raising=False)
-    document.jobs_dict = {"101": SimpleNamespace(job_state="r"), "102": SimpleNamespace(job_state="Rr"), "103": SimpleNamespace(job_state="s")}
+    snapshot.jobs_dict = {"101": SimpleNamespace(job_state="r"), "102": SimpleNamespace(job_state="Rr"), "103": SimpleNamespace(job_state="s")}
     occupancy.config = {"state_abbreviations": {"sge": {"r": "running_of_user", "Rr": "running_of_user", "s": "suspended_of_user"}}}
     qtop_module.WNOccupancy.strict_check_jobs(occupancy, SimpleNamespace(total_running_jobs=2))
     assert capsys.readouterr().out == ""
@@ -933,10 +933,10 @@ def test_node_filters_enable_compact_mapping(monkeypatch, dynamic, rule, expecte
         "exotic_starting_wn_nr": 9000,
         "workernodes_matrix": [{"wn id lines": {"max_len": 0}}],
     }
-    document = SimpleNamespace(jobs_dict={}, queues_dict={}, total_running_jobs=2, total_queued_jobs=0)
+    snapshot = SimpleNamespace(jobs_dict={}, queues_dict={}, total_running_jobs=2, total_queued_jobs=0)
     args = SimpleNamespace(ANONYMIZE=False, BLINDREMAP=False)
 
-    cluster = qtop_module.Cluster(document, nodes, WNFilter, config, args)
+    cluster = qtop_module.Cluster(snapshot, nodes, WNFilter, config, args)
 
     assert args.REMAP is True
     assert [node["domainname"] for node in cluster.workernode_dict.values()] == expected
@@ -1107,9 +1107,9 @@ def _summary(config, jobs_states):
 
     args = SimpleNamespace(REMAP=False, CLASSIC=False, WATCH=True, COLOR="OFF")
     model = MVU_Model({}, args, None, backend=qtop_module.scheduler_backend("pbs"))
-    document = SimpleNamespace(jobs_dict={str(n): SimpleNamespace(job_state=state) for n, state in enumerate(jobs_states)})
+    snapshot = SimpleNamespace(jobs_dict={str(n): SimpleNamespace(job_state=state) for n, state in enumerate(jobs_states)})
     config = dict(config, state_abbreviations={"pbs": PBS_STATES})
-    TextDisplay(None, config, None, None, Cluster(), args, MVU_model=model).display_job_accounting_summary(Cluster(), document)
+    TextDisplay(None, config, None, None, Cluster(), args, MVU_model=model).display_job_accounting_summary(Cluster(), snapshot)
 
 
 def test_summary_states_default_to_scheduler_reported_r_plus_q(capsys):

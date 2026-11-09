@@ -19,7 +19,7 @@ import pytest
 
 from qtop_py.mvu import MVU_Model
 from qtop_py.plugins.oar import DEFAULT_NODE_STATE_MAPPING, OARBatchSystem, OarStatExtractor
-from qtop_py.qtop import Cluster, Document, WNOccupancy
+from qtop_py.qtop import Cluster, Snapshot, WNOccupancy
 from qtop_py.sample import anonymize_state
 
 
@@ -75,10 +75,10 @@ def test_resource_yaml_variants_preserve_all_job_memberships(oar_trace, field, o
     cluster._calculate_jobs_per_node(cluster.workernode_dict)
     usage = WNOccupancy.calculate_user_node_use(None, cluster, {"101": ("alice", "default"), "102": ("bob", "debug")})
     assert usage == ({"alice": 1, "bob": 1} if len(owners) > 1 else {"alice": 1})
-    assert Document.from_cluster_state(state).to_cluster_state() == state
+    assert Snapshot.from_cluster_state(state).to_cluster_state() == state
     masked, mappings = anonymize_state(state)
     assert masked["nodes"][0]["oar_job_ids"] == [mappings["job"][job] for job in owners]
-    assert Document.from_cluster_state(masked).to_cluster_state() == masked
+    assert Snapshot.from_cluster_state(masked).to_cluster_state() == masked
 
 
 def test_unknown_owners_are_retained_with_repeatable_diagnostics(oar_trace):

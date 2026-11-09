@@ -34,7 +34,7 @@ class CustomBackend(GenericBatchSystem):
         return state == "custom-closed"
 
     @staticmethod
-    def display_messages(section, document, nodes, config):
+    def display_messages(section, snapshot, nodes, config):
         return ["INFO: custom " + section]
 
 

@@ -10,7 +10,7 @@ import pytest
 import tools.validate_trace_export as validate_trace_export
 
 account_symbols = validate_trace_export.account_symbols
-load_exported_document = validate_trace_export.load_exported_document
+load_exported_snapshot = validate_trace_export.load_exported_snapshot
 rendered_account_symbols = validate_trace_export.rendered_account_symbols
 strip_ansi = validate_trace_export.strip_ansi
 validate_rendered_account_symbols = validate_trace_export.validate_rendered_account_symbols
@@ -32,12 +32,12 @@ def test_load_exported_document_rehydrates_named_records(tmp_path):
         0,
     ]
 
-    document = load_exported_document(write_encoded_payload(tmp_path, payload))
+    snapshot = load_exported_snapshot(write_encoded_payload(tmp_path, payload))
 
-    assert document.jobs_dict["1"].user_name == "alice"
-    assert document.jobs_dict["1"].job_state == "R"
-    assert document.queues_dict["debug"].run == 1
-    assert document.total_running_jobs == 1
+    assert snapshot.jobs_dict["1"].user_name == "alice"
+    assert snapshot.jobs_dict["1"].job_state == "R"
+    assert snapshot.queues_dict["debug"].run == 1
+    assert snapshot.total_running_jobs == 1
 
 
 def test_load_exported_document_accepts_cluster_state(tmp_path):
@@ -47,12 +47,12 @@ def test_load_exported_document_accepts_cluster_state(tmp_path):
         "queues": [{"name": "debug", "limit": "1", "queued": 0, "running": 1, "state": "E"}],
     }
 
-    document = load_exported_document(write_encoded_payload(tmp_path, payload))
+    snapshot = load_exported_snapshot(write_encoded_payload(tmp_path, payload))
 
-    assert document.jobs_dict["1"].user_name == "alice"
-    assert document.queues_dict["debug"].run == "1"
-    assert document.total_running_jobs == 1
-    assert document.total_queued_jobs == 0
+    assert snapshot.jobs_dict["1"].user_name == "alice"
+    assert snapshot.queues_dict["debug"].run == "1"
+    assert snapshot.total_running_jobs == 1
+    assert snapshot.total_queued_jobs == 0
 
 
 def test_account_symbols_reads_qtop_symbol_column():
@@ -92,7 +92,7 @@ def test_main_writes_colour_account_totals_artifacts(tmp_path, monkeypatch):
     trace_path.write_text("placeholder")
     artifact_dir = tmp_path / "artifacts"
 
-    class Document(object):
+    class Snapshot(object):
         worker_nodes = [{}]
         jobs_dict = {"1": object()}
         queues_dict = {"debug": object()}
@@ -102,7 +102,7 @@ def test_main_writes_colour_account_totals_artifacts(tmp_path, monkeypatch):
     class WNOccupancy(object):
         account_jobs_table = [["*", 1]]
 
-    def fake_render_document(document, show_account_totals=False, color="OFF"):
+    def fake_render_snapshot(snapshot, show_account_totals=False, color="OFF"):
         rendered = "[ *] t_anon_user_104   |   1      1      0 |     1 |"
         if show_account_totals:
             rendered += "\n[ T] Totals            |   1      1      0 |     1 |"
@@ -110,8 +110,8 @@ def test_main_writes_colour_account_totals_artifacts(tmp_path, monkeypatch):
             rendered = "\x1b[31m%s\x1b[0m" % rendered
         return rendered, WNOccupancy()
 
-    monkeypatch.setattr(validate_trace_export, "load_exported_document", lambda path: Document())
-    monkeypatch.setattr(validate_trace_export, "render_document", fake_render_document)
+    monkeypatch.setattr(validate_trace_export, "load_exported_snapshot", lambda path: Snapshot())
+    monkeypatch.setattr(validate_trace_export, "render_snapshot", fake_render_snapshot)
     monkeypatch.setattr(sys, "argv", ["validate_trace_export.py", str(trace_path), "--artifact-dir", str(artifact_dir)])
 
     assert validate_trace_export.main() == 0

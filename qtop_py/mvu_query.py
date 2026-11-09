@@ -40,17 +40,17 @@ def rank_users(all_counts, running, queued, USER_ID_RANKING=DEFAULT_USER_ID_RANK
 
 
 class WNOccupancy(object):
-    def __init__(self, cluster, config, document, user_to_color, MVU_model):
+    def __init__(self, cluster, config, snapshot, user_to_color, MVU_model):
         self.MVU_model = MVU_model
         self.cluster = cluster
         self.config = config
-        self.document = document
+        self.snapshot = snapshot
         self.account_jobs_table = list()
         self.user_to_id = dict()
         self.job_to_user_and_queue = dict()
-        self.user_names, self.job_states = self._get_usernames_and_states(document.jobs_dict)
+        self.user_names, self.job_states = self._get_usernames_and_states(snapshot.jobs_dict)
 
-        self.calculate(document, user_to_color)
+        self.calculate(snapshot, user_to_color)
 
     def _get_usernames_and_states(self, jobs_dict):
         user_names, job_states = [], []
@@ -59,7 +59,7 @@ class WNOccupancy(object):
             job_states.append(value.job_state)
         return user_names, job_states
 
-    def calculate(self, document, user_to_color):
+    def calculate(self, snapshot, user_to_color):
         """
         Prints the Worker Nodes Occupancy table.
         if there are non-uniform worker-node names, e.g. wn01, wn02, gn01, gn02, ...,  remapping is performed.
@@ -68,9 +68,9 @@ class WNOccupancy(object):
         """
         if not self.cluster:
             return
-        # document.jobs_dict => job_id: job name/state/queue
+        # snapshot.jobs_dict => job_id: job name/state/queue
 
-        self.job_to_user_and_queue = {job_id: (job.user_name, job.job_queue) for job_id, job in document.jobs_dict.items()}
+        self.job_to_user_and_queue = {job_id: (job.user_name, job.job_queue) for job_id, job in snapshot.jobs_dict.items()}
         self.user_machine_use = self.calculate_user_node_use(self.cluster, self.job_to_user_and_queue)
 
         user_job_per_state_counts = self._calculate_user_job_counts(self.user_names, self.job_states)
@@ -512,8 +512,8 @@ class WNOccupancy(object):
 
     def MVU_check_jobs(self, cluster):
         states = self.config["state_abbreviations"][self.MVU_model.scheduler]
-        running_ids = {job_id for job_id, job in self.document.jobs_dict.items() if states.get(job.job_state) == "running_of_user"}
-        counted_jobs = WNOccupancy._count_jobs_strict(self.document.worker_nodes, running_ids, self.MVU_model.MVU_node_job_ids)
+        running_ids = {job_id for job_id, job in self.snapshot.jobs_dict.items() if states.get(job.job_state) == "running_of_user"}
+        counted_jobs = WNOccupancy._count_jobs_strict(self.snapshot.worker_nodes, running_ids, self.MVU_model.MVU_node_job_ids)
         if counted_jobs != cluster.total_running_jobs:
             return "Counted jobs (%s) -- Total running jobs reported (%s) MISMATCH!" % (counted_jobs, cluster.total_running_jobs)
         return None
@@ -563,13 +563,13 @@ class WNOccupancy(object):
 
 
 class Cluster(object):
-    def __init__(self, document, worker_nodes, WNFilter, config, args, MVU_model):
+    def __init__(self, snapshot, worker_nodes, WNFilter, config, args, MVU_model):
         self.MVU_model = MVU_model
         self.worker_nodes = worker_nodes
-        self.jobs_dict = document.jobs_dict
-        self.queues_dict = document.queues_dict
-        self.total_running_jobs = document.total_running_jobs
-        self.total_queued_jobs = document.total_queued_jobs
+        self.jobs_dict = snapshot.jobs_dict
+        self.queues_dict = snapshot.queues_dict
+        self.total_running_jobs = snapshot.total_running_jobs
+        self.total_queued_jobs = snapshot.total_queued_jobs
         self.config = config
         self.args = args
 
@@ -918,8 +918,8 @@ def MVU_query(model):
     render_model.transposed_sections = []
     # The transforms build new per-node dicts; nested node values are only read downstream
     # (checked by test_MVU_query_and_view_need_no_runtime_globals_or_mutable_snapshot), so no deep copy.
-    nodes = MVU_keep_queue_initials_only_and_colorize(model.document.worker_nodes, model.queue_to_color)
+    nodes = MVU_keep_queue_initials_only_and_colorize(model.snapshot.worker_nodes, model.queue_to_color)
     nodes = MVU_colorize_nodestate(nodes, model.nodestate_to_color)
-    cluster = Cluster(model.document, nodes, WNFilter, model.config, render_model.args, MVU_model=render_model)
-    occupancy = WNOccupancy(cluster, model.config, model.document, model.user_to_color, MVU_model=render_model)
+    cluster = Cluster(model.snapshot, nodes, WNFilter, model.config, render_model.args, MVU_model=render_model)
+    occupancy = WNOccupancy(cluster, model.config, model.snapshot, model.user_to_color, MVU_model=render_model)
     return MVU_ViewData(render_model, cluster, occupancy)

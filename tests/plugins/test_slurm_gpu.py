@@ -7,7 +7,7 @@ import pytest
 
 from qtop_py.cluster_state import validate_cluster_state
 from qtop_py.plugins.slurm import SlurmBatchSystem
-from qtop_py.qtop import Document
+from qtop_py.qtop import Snapshot
 from qtop_py.sample import anonymize_state
 from qtop_py.schedulers.gpu import parse_gpu_gres
 
@@ -66,7 +66,7 @@ def test_bindings_survive_export_replay_and_anonymization(tmp_path):
     assert node["slurm_gpu_used"][0]["device_indices"] == [0, 7]
     decoded = json.loads(json.dumps(state))
     assert validate_cluster_state(decoded) == decoded
-    assert Document.from_cluster_state(decoded).to_cluster_state() == decoded
+    assert Snapshot.from_cluster_state(decoded).to_cluster_state() == decoded
     masked, mappings = anonymize_state(state)
     masked_bindings = masked["nodes"][0]["slurm_gpu_bindings"]
     assert [binding["job_id"] for binding in masked_bindings] == [mappings["job"][job] for job in ("101", "102")]
