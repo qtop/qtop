@@ -168,6 +168,46 @@ def proof_line(text, col):
     return "    >%s\n    %s^" % (escaped, " " * (col + 1))
 
 
+def _read_text(path, rel, findings):
+    """Return the file's UTF-8 text, or None when it is unreadable, empty, oversized, binary or not UTF-8."""
+    try:
+        data = path.read_bytes()
+    except OSError as exc:
+        findings.append(("CRITICAL", rel, 0, 0, "unreadable file: %s" % exc, ""))
+        return None
+    if not data:
+        return None
+    if len(data) > MAX_BYTES:
+        findings.append(("INFO", rel, 0, 0, "skipped: larger than %d bytes" % MAX_BYTES, ""))
+        return None
+    if b"\0" in data[:8000]:
+        return None  # binary content, out of scope for text trust
+    try:
+        return data.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        findings.append(("CRITICAL", rel, 0, 0, "not valid UTF-8: %s" % exc, ""))
+        return None
+
+
+def _classify(ch, rel, lineno, col, line):
+    """The finding row for one non-plain-ASCII codepoint (BOM, bidi, invisible, separator, control, homoglyph, other)."""
+    o = ord(ch)
+    if ch == "\ufeff" and lineno == 1 and col == 0:
+        return ("WARNING", rel, lineno, col, "leading byte-order mark", proof_line(line, col))
+    label = codepoint_label(ch)
+    if ch in BIDI_CONTROLS:
+        return ("CRITICAL", rel, lineno, col, "bidirectional control character %s (Trojan Source)" % label, proof_line(line, col))
+    if ch in INVISIBLES:
+        return ("CRITICAL", rel, lineno, col, "invisible character %s" % label, proof_line(line, col))
+    if ch in LINE_SEPARATORS:
+        return ("CRITICAL", rel, lineno, col, "unicode line separator %s" % label, proof_line(line, col))
+    if o < 0x20 or o == 0x7F or 0x80 <= o <= 0x9F:
+        return ("CRITICAL", rel, lineno, col, "control character %s" % label, proof_line(line, col))
+    if is_homoglyph_risk(ch):
+        return ("WARNING", rel, lineno, col, "homoglyph-prone character %s" % label, proof_line(line, col))
+    return ("INFO", rel, lineno, col, "non-ASCII character %s" % label, "")
+
+
 def scan_file(path, rel, findings):
     """Scan one file and append (severity, path, line, col, msg, proof) rows.
 
@@ -176,22 +216,8 @@ def scan_file(path, rel, findings):
     codepoint by severity. Inside ANSI_FIXTURES, only complete ANSI SGR colour
     sequences and three exact historical leading CRs are accepted.
     """
-    try:
-        data = path.read_bytes()
-    except OSError as exc:
-        findings.append(("CRITICAL", rel, 0, 0, "unreadable file: %s" % exc, ""))
-        return
-    if not data:
-        return
-    if len(data) > MAX_BYTES:
-        findings.append(("INFO", rel, 0, 0, "skipped: larger than %d bytes" % MAX_BYTES, ""))
-        return
-    if b"\0" in data[:8000]:
-        return  # binary content, out of scope for text trust
-    try:
-        text = data.decode("utf-8")
-    except UnicodeDecodeError as exc:
-        findings.append(("CRITICAL", rel, 0, 0, "not valid UTF-8: %s" % exc, ""))
+    text = _read_text(path, rel, findings)
+    if text is None:
         return
     crlf = text.count("\r\n")
     if crlf:
@@ -203,8 +229,7 @@ def scan_file(path, rel, findings):
         if line.endswith("\r"):
             line = line[:-1]
         for col, ch in enumerate(line):
-            o = ord(ch)
-            if ch == "\t" or 0x20 <= o <= 0x7E:
+            if ch == "\t" or 0x20 <= ord(ch) <= 0x7E:
                 continue
             if ansi_fixture and ch == "\x1b" and ANSI_SGR_RE.match(line, col):
                 esc_count += 1
@@ -212,22 +237,7 @@ def scan_file(path, rel, findings):
             if ansi_fixture and ch == "\r" and is_expected_fixture_cr(rel, lineno, col, line):
                 cr_count += 1
                 continue
-            if ch == "\ufeff" and lineno == 1 and col == 0:
-                findings.append(("WARNING", rel, lineno, col, "leading byte-order mark", proof_line(line, col)))
-                continue
-            label = codepoint_label(ch)
-            if ch in BIDI_CONTROLS:
-                findings.append(("CRITICAL", rel, lineno, col, "bidirectional control character %s (Trojan Source)" % label, proof_line(line, col)))
-            elif ch in INVISIBLES:
-                findings.append(("CRITICAL", rel, lineno, col, "invisible character %s" % label, proof_line(line, col)))
-            elif ch in LINE_SEPARATORS:
-                findings.append(("CRITICAL", rel, lineno, col, "unicode line separator %s" % label, proof_line(line, col)))
-            elif o < 0x20 or o == 0x7F or 0x80 <= o <= 0x9F:
-                findings.append(("CRITICAL", rel, lineno, col, "control character %s" % label, proof_line(line, col)))
-            elif is_homoglyph_risk(ch):
-                findings.append(("WARNING", rel, lineno, col, "homoglyph-prone character %s" % label, proof_line(line, col)))
-            else:
-                findings.append(("INFO", rel, lineno, col, "non-ASCII character %s" % label, ""))
+            findings.append(_classify(ch, rel, lineno, col, line))
         nfkc = unicodedata.normalize("NFKC", line)
         if nfkc != line:
             findings.append(("INFO", rel, lineno, 0, "line changes under NFKC normalisation", ""))

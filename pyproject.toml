@@ -55,9 +55,8 @@ include = ["qtop_py*"]
 # pycodestyle (`E`, `W`), Pyflakes (`F`), isort (`I`) and eradicate (`ERA`: no commented-out code).
 # pycodestyle's E26x comment checks need ruff preview mode, so they are not enforced yet.
 lint.select = ["E", "F", "I", "W", "ERA", "C90"] ##
-# C90 (mccabe): the limit passes today; lower it as functions are split. Over 20 now:
-# qtop.main (27), tools/repo_sanity.scan_file (21).
-# FIXME: max-complexity 20 needs those 2 split, 15 needs 12, 10 (mccabe's default) needs 34.
+# C90 (mccabe): the limit passes today; lower it as functions are split. Over 20 now: qtop.main (27).
+# FIXME: max-complexity 20 needs main split, 15 needs 11 functions split, 10 (mccabe's default) needs 34.
 lint.mccabe.max-complexity = 27
 
 # Ruff still exposes py37 as its lowest target; Python 3.6 runtime
