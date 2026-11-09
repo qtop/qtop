@@ -8,7 +8,7 @@ from collections import OrderedDict, namedtuple
 from typing import TYPE_CHECKING, cast
 
 from qtop_py.cluster_state import validate_cluster_state, validated_cluster_state_totals
-from qtop_py.safety import visible_data
+from qtop_py.safety import rebuild, visible_data
 
 if TYPE_CHECKING:
     from typing import Dict
@@ -27,7 +27,7 @@ class Document(namedtuple("Document", ["worker_nodes", "jobs_dict", "queues_dict
 
     @classmethod
     def from_cluster_state(cls, cluster_state: "state_types.ClusterState") -> "Document":
-        cluster_state = copy.deepcopy(validate_cluster_state(cluster_state))
+        cluster_state = rebuild(validate_cluster_state(cluster_state))  # the one copy boundary (JSON-shaped)
         original = cluster_state
         # visible_data() rebuilds every dict and list, so its result shares no
         # mutable container with `original`; no second deep copy is needed below.

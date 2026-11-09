@@ -8,7 +8,7 @@ import os
 import subprocess
 import tempfile
 from collections import OrderedDict
-from functools import partial
+from functools import lru_cache, partial
 from itertools import cycle, zip_longest
 
 from qtop_py import __version__, utils, yaml_parser
@@ -40,6 +40,8 @@ class TextDisplay(object):
         self.config = config
         self.wns_occupancy = wns_occupancy
         self.args = args
+        # A cell's escape sequence depends only on (char, colour) within a frame: compute each pair once.
+        self._cell_text = lru_cache(maxsize=None)(lambda char, color: MVU_model.MVU_colorize(char, color_func=color))
 
     def display_selected_sections(self, _savepath, SAMPLE_FILENAME, QTOP_LOGFILE):
         """
@@ -421,15 +423,8 @@ class TextDisplay(object):
             joined_list.extend([utils.ColorStr(string=char) if isinstance(char, str) and len(char) == 1 else char for char in d])
             joined_list.append(utils.ColorStr(string=kwargs["sep"]))
         # display the full output if nocutoff is True
-        if kwargs.get("nocutoff", False):
-            s = "".join([self.MVU_model.MVU_colorize(char.initial, color_func=char.color) if isinstance(char, utils.ColorStr) else char for char in joined_list])
-        else:
-            s = "".join(
-                [
-                    self.MVU_model.MVU_colorize(char.initial, color_func=char.color) if isinstance(char, utils.ColorStr) else char
-                    for char in joined_list[self.viewport.h_start : self.viewport.h_stop]
-                ]
-            )
+        cells = joined_list if kwargs.get("nocutoff", False) else joined_list[self.viewport.h_start : self.viewport.h_stop]
+        s = "".join([self._cell_text(char.initial, char.color) if isinstance(char, utils.ColorStr) else char for char in cells])
         print(compress_colored_line(s))
         return joined_list
 

@@ -431,48 +431,61 @@ class WNOccupancy(object):
             del node_free_cores[core]
 
         for core, job in corejobs.items():
-            if resolve_job_id(str(job), job_to_user_and_queue) not in job_to_user_and_queue:
+            if self._resolve(str(job), job_to_user_and_queue) not in job_to_user_and_queue:
                 core_user_map["Core" + str(core) + "vector"].append(utils.ColorStr("?", color="Yellow"))
                 take(str(core))
-        selected_pat_to_color_map = getattr(self.MVU_model, _core_coloring)
-        _highlighted_queues_or_users = self.MVU_model.display_overrides.get("highlight", self.config["highlight"])
-
-        self.id_to_user = dict(zip((str(x) for x in self.user_to_id.values()), self.user_to_id.keys()))
-        highlight_rules = list(WNOccupancy.get_hl_q_or_users(_highlighted_queues_or_users))
-        and_or_func = highlight_rules[-1][2] if highlight_rules else any
         for user, core, queue in self._valid_corejobs(corejobs, job_to_user_and_queue):
-            id_ = utils.ColorStr.from_other_color_str(self.user_to_id[user])
-            viewed_pattern = self.user_color_patterns[str(id_)] if _core_coloring == "user_to_color" else queue
-            matches = []
-
-            for user_queue_to_highlight, highlight_kind, _ in highlight_rules:
-                if highlight_kind == "user_pat":
-                    actual_user_queue = user
-                elif highlight_kind == "user_id":
-                    actual_user_queue = user
-                    user_queue_to_highlight = self.id_to_user[user_queue_to_highlight]
-                elif highlight_kind == "queue":
-                    actual_user_queue = queue
-
-                matches.append(re.match(user_queue_to_highlight, actual_user_queue))
-
-            if not _highlighted_queues_or_users or and_or_func(match.group(0) if match is not None else None for match in matches):
-                id_.color = selected_pat_to_color_map.get(viewed_pattern, "White")  # queue or user decided on runtime
-            else:
-                id_.color = "Gray_D"
-
-            id_.q = queue
+            # One cell per (user, queue) per frame: every input to its colour is frame-constant,
+            # and cells are never modified after creation, so cores of the same job share it.
+            id_ = self.__dict__.setdefault("_core_cells", {}).get((user, queue))
+            if id_ is None:
+                id_ = self._core_cell(user, queue, _core_coloring)
             core_user_map["Core" + str(core) + "vector"].append(id_)
             take(core)  # this is an assigned core, hence it doesn't belong to the node's free cores
 
         return core_user_map, list(node_free_cores)
+
+    def _core_cell(self, user, queue, _core_coloring):
+        """Build (and memoize) the coloured matrix cell for a user's job in a queue."""
+        selected_pat_to_color_map = getattr(self.MVU_model, _core_coloring)
+        _highlighted_queues_or_users = self.MVU_model.display_overrides.get("highlight", self.config["highlight"])
+        id_to_user = dict(zip((str(x) for x in self.user_to_id.values()), self.user_to_id.keys()))
+        highlight_rules = list(WNOccupancy.get_hl_q_or_users(_highlighted_queues_or_users))
+        and_or_func = highlight_rules[-1][2] if highlight_rules else any
+        id_ = utils.ColorStr.from_other_color_str(self.user_to_id[user])
+        viewed_pattern = self.user_color_patterns[str(id_)] if _core_coloring == "user_to_color" else queue
+        matches = []
+        for user_queue_to_highlight, highlight_kind, _ in highlight_rules:
+            if highlight_kind == "user_pat":
+                actual_user_queue = user
+            elif highlight_kind == "user_id":
+                actual_user_queue = user
+                user_queue_to_highlight = id_to_user[user_queue_to_highlight]
+            elif highlight_kind == "queue":
+                actual_user_queue = queue
+            matches.append(re.match(user_queue_to_highlight, actual_user_queue))
+        if not _highlighted_queues_or_users or and_or_func(match.group(0) if match is not None else None for match in matches):
+            id_.color = selected_pat_to_color_map.get(viewed_pattern, "White")  # queue or user decided on runtime
+        else:
+            id_.color = "Gray_D"
+        id_.q = queue
+        self._core_cells[user, queue] = id_
+        return id_
+
+    def _resolve(self, job, job_to_user_and_queue):
+        """resolve_job_id, memoized per frame: cores of one job resolve once, not once per core."""
+        memo = self.__dict__.setdefault("_resolved_jobs", {})  # per frame: lives on this WNOccupancy
+        resolved = memo.get(job)
+        if resolved is None:
+            resolved = memo[job] = resolve_job_id(job, job_to_user_and_queue)
+        return resolved
 
     def _valid_corejobs(self, corejobs, job_to_user_and_queue):
         """
         Generator that yields only those core-job pairs that successfully match to a user
         """
         for core, _job in corejobs.items():
-            job = resolve_job_id(str(_job), job_to_user_and_queue)
+            job = self._resolve(str(_job), job_to_user_and_queue)
             try:
                 user_queue = job_to_user_and_queue[job]
             except KeyError as KeyErrorValue:

@@ -7,6 +7,7 @@ See the [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 
 - Refactor: one snapshot copy, precompiled colours, fast escaping; up to 1.9x faster.
 - Refactor: ~1.3x faster on large clusters; no quadratic core-matrix fill, fewer deep copies.
+- Feature: Memoize matrix cells and colours; lazy web imports; one structural copy
 - Feature: `user_id_ranking` tunable; IDs default to all, R, name_desc, as in 2012 qtop.
 - Feature: `user_accounts_header` tunable for the accounts-table note.
 - Bugfix: user IDs and node queue initials no longer depend on Python's hash seed.
