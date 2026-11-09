@@ -80,7 +80,7 @@ include = ["qtop_py", "tools"]
 
 [tool.ty.analysis]
 # Both imports are optional accelerators; qtop has stdlib fallbacks.
-allowed-unresolved-imports = ["lxml", "ujson"]
+allowed-unresolved-imports = ["atheris", "lxml", "ujson"]
 
 [tool.ty.terminal]
 # One diagnostic per line keeps local and CI logs useful (including `ty check

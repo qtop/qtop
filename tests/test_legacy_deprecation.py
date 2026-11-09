@@ -22,9 +22,9 @@ class _Adapter(qtop.MVU_LegacyAdapter, _Base):
 @pytest.mark.parametrize(
     "call",
     (
-        lambda: qtop.MVU_legacy_model(),
+        qtop.MVU_legacy_model,
         lambda: qtop.colorize("x", color_func="Red_L"),
-        lambda: _Adapter(),
+        _Adapter,
     ),
     ids=("MVU_legacy_model", "colorize", "adapter classes"),
 )

@@ -24,9 +24,9 @@ class RunResources(object):
         self.stdout = sys.stdout
         self.initial_cwd = os.getcwd()
         self.options: Any = None
-        self.web: Optional["Web"] = None
+        self.web: Optional[Web] = None  # function-scope annotations are never evaluated (PEP 526)
         self.logfile: Optional[str] = None
-        self.archive: Optional["tarfile.TarFile"] = None
+        self.archive: Optional[tarfile.TarFile] = None
         self.frame_path: Optional[str] = None
         self.trace_paths: Dict[str, str] = {}
         self.capture_paths: Dict[str, str] = OrderedDict()

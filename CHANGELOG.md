@@ -17,7 +17,8 @@ See the [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 - Refactor: split `main()` into option, path, config, replay, web and frame helpers (complexity 27 -> 12).
 - Refactor: validate_trace_export and the key-handling tests use the model API.
 - Refactor: the fuzz and trace-export tools run as `python -m tools.X`; no sys.path hacks or E402 noqa.
-- CI: CodeQL unused-import warnings fixed (cast-only RawQueue imports, lxml probe via find_spec).
+- CI: CodeQL unused-import and wrapper-lambda warnings fixed (RawQueue, lxml, tarfile, Web).
+- CI: ty allows the optional atheris import; the Atheris test has no E402.
 - CI: ruff caps cyclomatic complexity (C901) at today's maximum, now 20, to be lowered.
 - CI: ruff also enforces pycodestyle W and eradicate (no commented-out code); Pylama config kept, commented out.
 - CI: mypy checks all of `qtop_py`, untyped bodies included; contract modules stay strict.
