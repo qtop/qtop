@@ -125,8 +125,9 @@ def test_runtime_renders_large_cluster_in_multiple_matrices(runtime):
     state = json.loads(next(output.glob("qtop_json_*.json")).read_text())
     assert len(state["nodes"]) == 18
     assert "User accounts and pool mappings" in next(output.glob("qtop_fullview_*.out")).read_text()
-    assert qtop.viewport.max_width == 20
-    assert runtime.views[-1].cluster.highest_wn > qtop.viewport.h_term_size - 11
+    viewport = runtime.views[-1].model.viewport
+    assert viewport.max_width == 20
+    assert runtime.views[-1].cluster.highest_wn > viewport.h_term_size - 11
 
 
 @pytest.mark.parametrize("failure, expected", (("missing", "Scheduler input file"), ("config", "Invalid configuration"), ("xml", "Cannot parse sge scheduler input")))
@@ -157,7 +158,7 @@ def test_watch_refreshes_after_transpose_and_quits_cleanly(runtime, scheduler_in
     with pytest.raises(SystemExit) as stopped:
         runtime("-b", "slurm", "-s", str(scheduler_inputs), "-w", "1", "-T", save_only=False)
     assert stopped.value.code == 0
-    assert qtop.dynamic_config["transpose_wn_matrices"] is True
+    assert runtime.views[-1].model.display_overrides["transpose_wn_matrices"] is True  # the frame after "t"
     assert len(calls) == 4
     assert calls[0] == calls[2] == ["/usr/bin/clear"]
     assert all(command[1].endswith(".out") for command in (calls[1], calls[3]))

@@ -91,6 +91,8 @@ except ImportError:
 
 # Runtime context bound by main() through `global`; declared (not assigned) for type checkers.
 args: Any
+# Optional context for the legacy adapters (MVU_legacy_model, control_qtop), which read it via globals().
+# main() no longer sets it; callers of those adapters (tests, tools/validate_trace_export.py) do.
 scheduler: Any
 snapshot: Any
 user_to_color: Dict[str, str]
@@ -1016,8 +1018,9 @@ def cli_main() -> int:
 
 
 def main(resources: RunResources) -> None:
-    # define global vars which are used out of scope
-    global QTOPPATH, HELP_FP, scheduler, config, dynamic_config, viewport, user_to_color, args, snapshot
+    # config and args are still read by raw_mode, pick_frames_to_replay, wait_for_keypress_or_autorefresh
+    # and report_operational_error; everything else is local to this run.
+    global config, args
 
     args = resources.options = utils.parse_qtop_cmdline_args()
     if args.version:
@@ -1025,7 +1028,7 @@ def main(resources: RunResources) -> None:
         sys.exit(0)
     utils.init_logging(args)
     resources.logfile = QTOP_LOGFILE
-    dynamic_config = dict()
+    dynamic_config: Dict[str, Any] = dict()
     args, dynamic_config["force_names"] = process_args(args)
     require_experimental_opt_in(args)
     if (args.raw_companion or args.masked_traces) and not (args.SAMPLE and args.ANONYMIZE):
