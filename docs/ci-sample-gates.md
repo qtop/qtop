@@ -296,9 +296,10 @@ project commands:
 Python 3.12+ CI installs pinned mypy, Pyright and Hypothesis. `make type-check`
 retains ty and runs mypy over all of `qtop_py`, checking the bodies of unannotated
 functions too (`check_untyped_defs`, `warn_unreachable`, `warn_return_any` and
-related flags in `pyproject.toml`). The state, snapshot, serializer and viewport
-contract modules keep mypy's full `strict` set and Pyright's strict mode; the
-legacy serializer permits unannotated definitions while checking their bodies.
+related flags in `pyproject.toml`). Every function must be annotated
+(`disallow_untyped_defs`) except in the modules on the FIXME list there, which
+shrinks as modules are annotated. The state, snapshot, serializer and viewport
+contract modules keep mypy's full `strict` set and Pyright's strict mode.
 Configuration remains extensible, and static contracts do not replace validation
 of scheduler/JSON input. Broader runtime typing can be added module by module.
 

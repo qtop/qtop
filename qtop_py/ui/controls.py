@@ -3,6 +3,10 @@
 """Small keyboard operations independent of runtime globals."""
 
 import logging
+from typing import TYPE_CHECKING, Callable, Dict, List, Mapping
+
+if TYPE_CHECKING:
+    from qtop_py.ui.viewport import Viewport
 
 NAVIGATION_KEYS = {
     "j": ("scroll_down", "Going down...", True),
@@ -21,7 +25,7 @@ NAVIGATION_KEYS = {
 }
 
 
-def navigate_viewport(viewport, key, colorize):
+def navigate_viewport(viewport: "Viewport", key: str, colorize: Callable[[str, str], str]) -> bool:
     action = NAVIGATION_KEYS.get(key)
     if action is None:
         return False
@@ -37,7 +41,7 @@ def navigate_viewport(viewport, key, colorize):
     return True
 
 
-def read_rule_choices(prompt, choices, rules):
+def read_rule_choices(prompt: str, choices: Mapping[int, str], rules: List[Dict[str, List[str]]]) -> None:
     while True:
         answer = input("\nChoose %s command, or Enter to exit:-> " % prompt)
         if not answer:

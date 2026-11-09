@@ -9,6 +9,7 @@ import signal
 import subprocess
 import threading
 import time
+from typing import IO, List, Optional, Tuple, cast
 
 from qtop_py.errors import OperationalError
 
@@ -16,7 +17,7 @@ MAX_STDOUT_BYTES = 256 * 1024 * 1024
 MAX_STDERR_BYTES = 1024 * 1024
 
 
-def terminate(command):
+def terminate(command: "subprocess.Popen[bytes]") -> None:
     if os.name == "posix":
         with contextlib.suppress(ProcessLookupError):
             os.killpg(command.pid, signal.SIGKILL)
@@ -24,12 +25,13 @@ def terminate(command):
         command.kill()
 
 
-def communicate_with_timeout(command, timeout, stdout=None):
+def communicate_with_timeout(command: "subprocess.Popen[bytes]", timeout: float, stdout: Optional[IO[bytes]] = None) -> Tuple[Optional[bytes], bytes]:
     """Drain binary pipes with fixed memory/write limits; kill and reap on failure."""
-    output, errors = stdout if stdout is not None else io.BytesIO(), io.BytesIO()
-    failures = []
+    output: IO[bytes] = stdout if stdout is not None else io.BytesIO()
+    errors = io.BytesIO()
+    failures: List[BaseException] = []
 
-    def drain(stream, target, limit):
+    def drain(stream: IO[bytes], target: IO[bytes], limit: int) -> None:
         try:
             with stream:
                 remaining = limit
@@ -71,4 +73,4 @@ def communicate_with_timeout(command, timeout, stdout=None):
             for reader in readers:
                 if reader.ident is not None:
                     reader.join(1)
-    return (None if stdout is not None else output.getvalue()), errors.getvalue()
+    return (None if stdout is not None else cast(io.BytesIO, output).getvalue()), errors.getvalue()

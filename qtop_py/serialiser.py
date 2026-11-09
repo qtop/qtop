@@ -10,11 +10,12 @@
 
 import re
 from itertools import count
-from typing import TYPE_CHECKING, Callable, Collection, Dict, Tuple
+from typing import TYPE_CHECKING, Any, Callable, Collection, Dict, Mapping, Sequence, Tuple
 
 if TYPE_CHECKING:
     from typing import List
 
+    from qtop_py.source_trace import TraceMasker
     from qtop_py.state_types import ClusterState, Config, JobsInfo, Node, Options, QueuesInfo
 
 from qtop_py.cluster_state import build_cluster_state
@@ -93,24 +94,24 @@ class GenericBatchSystem(object):
     classic_account_note = "  ('all' includes every reported job state)"
 
     @staticmethod
-    def collection_command(key, command, options):
+    def collection_command(key: str, command: str, options: "Options") -> str:
         return command
 
     @staticmethod
-    def queue_is_blocked(state):
+    def queue_is_blocked(state: object) -> bool:
         state = str(state)
         return state.startswith("D") or state.endswith("S")
 
     @staticmethod
-    def node_state_marker(node):
+    def node_state_marker(node: "Node") -> str:
         return ""
 
     @staticmethod
-    def display_messages(section, snapshot, nodes, config):
+    def display_messages(section: str, snapshot: object, nodes: "List[Node]", config: "Config") -> "List[str]":
         """Return severity-prefixed display lines for the scheduler messages block."""
         return []
 
-    def mask_source_trace(self, key, text, mask):
+    def mask_source_trace(self, key: str, text: str, mask: "TraceMasker") -> "Tuple[str, str]":
         raise ValueError("This backend has no source trace masker")
 
     def get_queues_info(self) -> "QueuesInfo":
@@ -134,7 +135,7 @@ class GenericBatchSystem(object):
         return build_cluster_state(job_ids, users, job_states, job_queues, nodes, queues)
 
     @classmethod
-    def ensure_worker_nodes_have_qnames(cls, _worker_nodes, job_ids, job_queues):
+    def ensure_worker_nodes_have_qnames(cls, _worker_nodes: "Sequence[Mapping[str, Any]]", job_ids: "List[str]", job_queues: "List[str]") -> "List[Dict[str, Any]]":
         """Associate node allocations with their reported job queues, sorted by name (unknown last) for stable output."""
         job_ids_queues = dict(zip(job_ids, job_queues))
         return [

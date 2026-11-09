@@ -6,6 +6,7 @@ See the [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 ## 0.9.20261110
 
 - CI: mypy checks all of `qtop_py`, untyped bodies included; contract modules stay strict.
+- CI: mypy requires annotated functions outside a shrinking FIXME list of 15 modules.
 - Release: update version metadata to 0.9.20261110
 
 ## 0.9.20261109
@@ -23,7 +24,6 @@ See the [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 - Docs: document `user_id_ranking` and `user_accounts_header`; credits link to GitHub contributors.
 - CI: explicit allowlist two B108 false positives inline and two detect-secrets, explaining reasons.
 - CI: pre-commit runs CI's ruff 0.17.1 check and format, plus detect-secrets; a test keeps the ruff pins equal.
-- CI: mypy checks all of `qtop_py`, untyped bodies included; contract modules stay strict.
 - Release: update version metadata to 0.9.20261109.
 
 ## 0.9.20261108

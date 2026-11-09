@@ -70,12 +70,12 @@ def visible_data(value: Any) -> Any:
 
 
 class SafeLogFormatter(logging.Formatter):
-    def format(self, record):
+    def format(self, record: logging.LogRecord) -> str:
         # Escape the rendered record, including exception text, without changing shared records.
         return visible_text(super().format(record), escape_backslashes=False)
 
 
-def check_nesting(text):
+def check_nesting(text: str) -> None:
     depth = items = skip = 0
     quote = None
     for match in _TOKENS.finditer(text):
@@ -111,7 +111,7 @@ def load_json(stream: Any, limit: Optional[int] = None) -> Any:
     return json.loads(text)
 
 
-def literal_eval(value):
+def literal_eval(value: Any) -> Any:
     if isinstance(value, str):
         if len(value.encode("utf-8")) > MAX_LITERAL_BYTES:
             raise ResourceLimitError("literal exceeds size limit")
@@ -126,12 +126,12 @@ def literal_eval(value):
 
 
 class LimitedReader(object):
-    def __init__(self, stream, limit):
+    def __init__(self, stream: Any, limit: int) -> None:
         self.stream, self.remaining = stream, limit
 
-    def read(self, size=-1):
+    def read(self, size: int = -1) -> bytes:
         size = self.remaining + 1 if size < 0 else min(size, self.remaining + 1)
-        data = self.stream.read(size)
+        data: bytes = self.stream.read(size)
         self.remaining -= len(data)
         if self.remaining < 0:
             raise ResourceLimitError("archive exceeds decompressed size limit")

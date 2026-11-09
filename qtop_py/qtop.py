@@ -496,8 +496,8 @@ def get_detail_of_name(account_jobs_table, config, args):
         if not isfinite(timeout) or timeout <= 0:
             raise ValueError("scheduler_command_timeout must be positive and finite")
         p = subprocess.Popen(user_details_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=(os.name == "posix"), env=scheduler_env())
-        output, err = communicate_with_timeout(p, timeout)
-        output, err = output.decode("utf-8", errors="replace"), err.decode("utf-8", errors="replace")
+        raw_output, raw_err = communicate_with_timeout(p, timeout)
+        output, err = (raw_output or b"").decode("utf-8", errors="replace"), raw_err.decode("utf-8", errors="replace")
     except (OperationalError, OSError, ValueError, TypeError, IndexError, OverflowError, subprocess.TimeoutExpired) as error:
         logging.warning("Cannot collect %s command %r: %s; skipping user details.", command_key, command, error)
         return {}

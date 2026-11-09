@@ -99,6 +99,7 @@ disallow_any_generics = true
 disallow_incomplete_defs = true
 disallow_subclassing_any = true
 disallow_untyped_decorators = true
+disallow_untyped_defs = true
 extra_checks = true
 no_implicit_reexport = true
 strict_equality = true
@@ -107,9 +108,8 @@ warn_return_any = true
 warn_unreachable = true
 warn_unused_configs = true
 warn_unused_ignores = true
-# Not yet applicable package-wide (error counts as of 0.9.20261109); the contract modules below already have them.
-# FIXME: disallow_untyped_defs = true  # 342 unannotated functions; annotate module by module, then enable
-# FIXME: disallow_untyped_calls = true  # 418 calls into unannotated code; follows disallow_untyped_defs
+# Not yet applicable package-wide (error count as of 0.9.20261109); the contract modules below already have it.
+# FIXME: disallow_untyped_calls = true  # 418 calls into unannotated code; follows the untyped-defs ratchet below
 # Deliberately off, though it would pass: a variable keeps one type, its name says what it holds.
 # allow_redefinition = true
 pretty = true
@@ -122,15 +122,31 @@ show_error_context = true
 module = ["lxml", "ujson"]
 ignore_missing_imports = true
 
-# Per-module equivalent of `strict = true` (a global-only option) for the contracts;
-# serialiser still allows unannotated defs.
+# Per-module equivalent of `strict = true` (a global-only option) for the contracts.
 [[tool.mypy.overrides]]
 module = ["qtop_py.state_types", "qtop_py.cluster_state", "qtop_py.sample", "qtop_py.serialiser", "qtop_py.ui.viewport"]
 disallow_untyped_calls = true
 
+# FIXME: untyped-defs ratchet; annotate a module, then drop it from this list (317 functions left).
 [[tool.mypy.overrides]]
-module = ["qtop_py.state_types", "qtop_py.cluster_state", "qtop_py.sample", "qtop_py.ui.viewport"]
-disallow_untyped_defs = true
+module = [
+    "qtop_py.configuration",
+    "qtop_py.fileutils",
+    "qtop_py.mvu",
+    "qtop_py.mvu_query",
+    "qtop_py.plugins.demo",
+    "qtop_py.plugins.oar",
+    "qtop_py.plugins.pbs",
+    "qtop_py.plugins.sge",
+    "qtop_py.plugins.slurm",
+    "qtop_py.qtop",
+    "qtop_py.runtime",
+    "qtop_py.ui.mvu_view",
+    "qtop_py.utils",
+    "qtop_py.web",
+    "qtop_py.yaml_parser",
+]
+disallow_untyped_defs = false
 
 [tool.coverage.run]
 source = ["qtop_py"]

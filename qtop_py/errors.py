@@ -7,6 +7,6 @@ class OperationalError(Exception):
 
 
 class JobNotFound(Exception):
-    def __init__(self, job_state):
+    def __init__(self, job_state: str) -> None:
         Exception.__init__(self, "Job state %s not found" % job_state)
         self.job_state = job_state
