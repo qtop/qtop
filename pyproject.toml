@@ -89,8 +89,8 @@ include = ["qtop_py/qtop.py"]
 # cli_main intentionally binds the legacy module-level runtime context.
 unresolved-global = "ignore"
 
-# Whole package: checked bodies (also unannotated ones) and near-free strictness;
-# the five contract modules below stay under the full `strict` set.
+# Whole package: mypy's full `strict` set, listed rule by rule so changes stay visible
+# (equivalent to `strict = true`), plus warn_unreachable. Pyright stays strict on the contract modules.
 [tool.mypy]
 python_version = "3.12"
 files = ["qtop_py"]
@@ -99,6 +99,7 @@ disallow_any_generics = true
 disallow_incomplete_defs = true
 disallow_subclassing_any = true
 disallow_untyped_decorators = true
+disallow_untyped_calls = true
 disallow_untyped_defs = true
 extra_checks = true
 no_implicit_reexport = true
@@ -108,8 +109,6 @@ warn_return_any = true
 warn_unreachable = true
 warn_unused_configs = true
 warn_unused_ignores = true
-# Not yet applicable package-wide (error count as of 0.9.20261109); the contract modules below already have it.
-# FIXME: disallow_untyped_calls = true  # 418 calls into unannotated code; follows the untyped-defs ratchet below
 # Deliberately off, though it would pass: a variable keeps one type, its name says what it holds.
 # allow_redefinition = true
 pretty = true
@@ -121,18 +120,6 @@ show_error_context = true
 [[tool.mypy.overrides]]
 module = ["lxml", "ujson"]
 ignore_missing_imports = true
-
-# Per-module equivalent of `strict = true` (a global-only option) for the contracts.
-[[tool.mypy.overrides]]
-module = ["qtop_py.state_types", "qtop_py.cluster_state", "qtop_py.sample", "qtop_py.serialiser", "qtop_py.ui.viewport"]
-disallow_untyped_calls = true
-
-# FIXME: untyped-defs ratchet; annotate a module, then drop it from this list (52 functions left).
-[[tool.mypy.overrides]]
-module = [
-    "qtop_py.qtop",
-]
-disallow_untyped_defs = false
 
 [tool.coverage.run]
 source = ["qtop_py"]

@@ -6,7 +6,7 @@ See the [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 ## 0.9.20261110
 
 - CI: mypy checks all of `qtop_py`, untyped bodies included; contract modules stay strict.
-- CI: mypy requires annotated functions outside a shrinking FIXME list (1 module left).
+- CI: all of `qtop_py` is annotated; mypy runs its full `strict` rule set package-wide cleanly. Bingo.
 - Release: update version metadata to 0.9.20261110.
 
 ## 0.9.20261109
@@ -127,7 +127,7 @@ See the [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 - Bugfix: accept macOS system temporary-directory aliases safely.
 - Metadata: remove project-wide development-stage labels.
 - Bugfix: show Slurm node-state suffix flags and preserve raw states in snapshots.
-- Feature: track Slurm GPU device bindings and MIG profiles in JSON snapshots.
+- Feature: track Slurm GPU device bindings and MIG profiles in JSON snapshots. Bingo.
 - Bugfix: retain Slurm jobs on shared CPUs; fill uneven node capacity.
 - Bugfix: count multi-partition Slurm jobs without phantom queues.
 - Feature: mark blocked Slurm partitions in the queueing summary.
@@ -136,7 +136,7 @@ See the [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 - Bugfix: parse complete Slurm task/component identities across field layouts.
 - Feature: collect Slurm CPU allocation details by default; retain safe fallback.
 - Feature: read optional Slurm CPU allocations; label estimated placement.
-- Feature: capture Slurm TRES/GRES fields for future GPU support.
+- Feature: capture Slurm TRES/GRES fields for future GPU support. Bingo.
 
 ## 0.9.20261017
 
@@ -261,7 +261,7 @@ See the [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 
 ## 0.9.20260610
 
-- Feature enhancement: add general-purpose Slurm scheduler support.
+- Feature enhancement: add general-purpose Slurm scheduler support. Bingo.
 - Feature enhancement: add develop-aligned sample gates; Merged PR #444.
 - Feature enhancement: Completion of ci/cd baseline, with ground-truth validation.
 

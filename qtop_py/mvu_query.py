@@ -794,7 +794,7 @@ class Cluster(object):
         return nodes_drop, workernode_dict, remapped_nodes
 
     def _sort_worker_nodes(self) -> List[Dict[str, Any]]:
-        order = {
+        order: Dict[str, Callable[[Dict[str, Any]], Any]] = {
             "sort by nodename-notnum": lambda node: re.sub(r"[^A-Za-z _.-]+", "", node["domainname"]) or "0",
             "sort by nodename-notnum length": lambda node: len(node["domainname"].split(".", 1)[0].split("-")[0]),
             "sort by all numbers": lambda node: int(re.sub(r"[A-Za-z _.-]+", "", node["domainname"]) or "0"),
