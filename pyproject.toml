@@ -52,8 +52,9 @@ version = {attr = "qtop_py.__version__"}
 include = ["qtop_py*"]
 
 [tool.ruff]
-# Enable pycodestyle (`E`) and Pyflakes (`F`) codes by default.
-lint.select = ["E", "F", "I"] ##
+# pycodestyle (`E`, `W`), Pyflakes (`F`), isort (`I`) and eradicate (`ERA`: no commented-out code).
+# pycodestyle's E26x comment checks need ruff preview mode, so they are not enforced yet.
+lint.select = ["E", "F", "I", "W", "ERA"] ##
 
 # Ruff still exposes py37 as its lowest target; Python 3.6 runtime
 # compatibility stays covered by the separate compat-py36 gate.
@@ -121,13 +122,14 @@ show_error_context = true
 module = ["lxml", "ujson"]
 ignore_missing_imports = true
 
+# Pylama, kept for reference: ruff's E, W, F and ERA rules above enforce the same checks in CI.
 # Pylama (pycodestyle, pyflakes, eradicate); ruff stays the CI linter. Ignored: E266 for the
 # `## Copyright`/`## SPDX` headers (house style); E203 and E704, which conflict with ruff format.
-[tool.pylama]
-paths = "qtop_py"
-linters = "pycodestyle,pyflakes,eradicate"
-max_line_length = 180
-ignore = "E266,E203,E704"
+# [tool.pylama]
+# paths = "qtop_py"
+# linters = "pycodestyle,pyflakes,eradicate"
+# max_line_length = 180
+# ignore = "E266,E203,E704"
 
 [tool.coverage.run]
 source = ["qtop_py"]

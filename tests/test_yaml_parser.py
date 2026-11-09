@@ -53,39 +53,6 @@ def test_get_more_lines(fin, t):
         assert actual_t == t[idx]
 
 
-# @pytest.mark.parametrize('fin, line, get_lines, key_container, parent_container',  # get_line(fin)
-#      (
-#          (
-#              ['testkey: testvalue'], [0, 'testkey', 'testvalue'], get_line(['testkey: testvalue']), {'testkey': 'testvalue'}, 'testvalue'
-#          ),
-#          (
-#              ['testkey'], [0, 'testkey'], get_line(['testkey']), {'testkey': {}}, {}
-#          ),
-#          (
-#              ['testkey: [testvalue]'], [0, 'testkey', '[testvalue]'], get_line(['testkey: [testvalue]']), {'testkey': ['testvalue']}, ['testvalue']
-#          ),
-#          # (
-#          #     ['testkey: |'], [0, 'testkey', '|'], get_line(['testkey: |']), {'testkey': {}}, {}
-#          # ),
-#          (
-#              ['- testkey'], [0, '-', 'testkey'], get_line(['- testkey']), {'-': ['testkey']}, 'testkey'
-#          ),
-#          (
-#              ['- testkey: testvalue'], [0, '-', 'testkey: testvalue'], get_line(['- testkey: testvalue']), {'-': [{'testkey': 'testvalue'}]}, 'testvalue'
-#          ),
-#          (
-#              ['- testkey: [testvalue]'], [0, '-', 'testkey: [testvalue]'], get_line(['- testkey: [testvalue]']), {'-': [{'testkey': ['testvalue']}]}, ['testvalue']
-#          ),
-#          (
-#              ['- testvalue'], [0, '-', 'testvalue'], get_line(['- testvalue']), {'-': ['testvalue']}, 'testvalue'
-#          ),
-#      )
-# )
-# def test_process_qstat_line(line, fin, get_lines, key_container, parent_container):  # parent_container, container_stack, stack):
-#     assert process_line(line, fin, get_lines, parent_container) == (key_container, parent_container)
-
-
-# @pytest.mark.current
 @pytest.mark.parametrize(
     "line_in, fin, block_out, line_out",
     (
@@ -217,19 +184,6 @@ testkey3: testvalue3
             },
             [-2],
         ),
-        #          (
-        #              [0],
-        #
-        # """user_sort: |
-        #     lambda d: (
-        #     d['np'],
-        #     ord(d['domainname'][0]),
-        #     len(d['domainname'].split('.', 1)[0].split('-')[0]),
-        #     )
-        # """.split('\n'),
-        #              {'user_sort': "lambda d: (\nd['np'],\nord(d['domainname'][0]),\nlen(d['domainname'].split('.', 1)[0].split('-')[0]),\n)"},
-        #              [-1],
-        #          ),
     ),
     ids=[
         "3dicts",
@@ -288,22 +242,10 @@ def test_process_line_expands_literal_tuple_list():
             {"testkey22": {"-": [{"testkey23": "testvalue23"}, {"testkey24": "testvalue24"}, {"testkey25": "testvalue25"}]}},
             {"testkey22": [{"testkey23": "testvalue23"}, {"testkey24": "testvalue24"}, {"testkey25": "testvalue25"}]},
         ),
-        # (
-        #     {'filt':
-        #          {'-':
-        #               [
-        #                   {'list_name': [1, 2, 3]},
-        #                   {'list_pattern': {'-': ['p5', 'moonshot']}}
-        #               ]
-        #          }
-        #     },
-        #     {'filt':
-        #          [
-        #              {'list_name': [1, 2, 3]},
-        #              {'list_pattern': ['p5', 'moonshot']}
-        #          ]
-        #     }
-        # ),
+        (
+            {"filt": {"-": [{"list_name": [1, 2, 3]}, {"list_pattern": {"-": ["p5", "moonshot"]}}]}},
+            {"filt": [{"list_name": [1, 2, 3]}, {"list_pattern": ["p5", "moonshot"]}]},
+        ),
     ),
 )
 def test_convert_dash_key_in_dict(dict_a, dict_b):

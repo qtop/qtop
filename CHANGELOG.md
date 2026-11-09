@@ -8,7 +8,8 @@ See the [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 - Refactor: drop commented-out code; split two overlong state regexes.
 - Bugfix: unconfigured PBS/OAR/SGE/Slurm traces fail as OSError, not TypeError.
 - Bugfix: an unsupported worker node name raises a clear ValueError.
-- CI: Pylama (pycodestyle, pyflakes, eradicate) passes, configured in `pyproject.toml`.
+- Tests: revive a disabled YAML dash-key case; drop an obsolete user_sort lambda case.
+- CI: ruff also enforces pycodestyle W and eradicate (no commented-out code); Pylama config kept, commented out.
 - CI: mypy checks all of `qtop_py`, untyped bodies included; contract modules stay strict.
 - CI: all of `qtop_py` is annotated; mypy runs its full `strict` rule set package-wide cleanly. Bingo.
 - Release: update version metadata to 0.9.20261110.

@@ -736,7 +736,6 @@ def test_long_tail_symbol_is_not_colored_like_a_single_user():
     ),
 )
 def test_get_selected_batch_system(cmdline_switch, env_var, config_file_batch_option, returned_scheduler):
-    # monkeypatch.setitem(config, "schedulers", ['oar', 'sge', 'pbs'])
     schedulers = ["sge", "oar", "pbs"]
     available_batch_systems = {name: qtop_module.scheduler_backend(name) for name in schedulers}
     assert (
