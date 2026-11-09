@@ -9,10 +9,7 @@
 ##
 
 import os
-from http.server import SimpleHTTPRequestHandler
 from multiprocessing import Process, Queue
-from socketserver import TCPServer
-from threading import Thread
 
 
 class Web(object):
@@ -32,6 +29,11 @@ class Web(object):
 
     @staticmethod
     def _http_server(web_dir, port, q, host="127.0.0.1"):
+        # Imported only in the server process: http.server alone is ~19 ms on every plain run.
+        from http.server import SimpleHTTPRequestHandler
+        from socketserver import TCPServer
+        from threading import Thread
+
         os.chdir(web_dir)
 
         class SharedVars(object):

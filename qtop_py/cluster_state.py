@@ -6,7 +6,6 @@
 
 """Small, scheduler-neutral data transformations for cluster snapshots."""
 
-import copy
 import re
 from typing import TYPE_CHECKING, Dict, List, Sequence, cast
 
@@ -49,9 +48,11 @@ def build_cluster_state(
         }
         for queue in queues
     ]
+    # Nodes are handed over, not copied: every consumer copies at its own boundary
+    # (Snapshot.from_cluster_state, sample.anonymize_state), so a copy here was a second one.
     return {
         "jobs": jobs,
-        "nodes": copy.deepcopy(list(nodes)),
+        "nodes": list(nodes),
         "queues": normalized_queues,
     }
 
@@ -105,7 +106,11 @@ def validate_cluster_state(cluster_state: object) -> "ClusterState":
 
 def cluster_state_totals(cluster_state: object) -> Dict[str, int]:
     """Derive summary values instead of storing duplicated mutable counters."""
-    state = validate_cluster_state(cluster_state)
+    return validated_cluster_state_totals(validate_cluster_state(cluster_state))
+
+
+def validated_cluster_state_totals(state: "ClusterState") -> Dict[str, int]:
+    """Totals for a state the caller has already passed through validate_cluster_state()."""
     if state["jobs"] and all("accounting_state" in job for job in state["jobs"]):
         return {
             "running_jobs": len({job["id"] for job in state["jobs"] if job.get("accounting_state") == "running"}),

@@ -12,7 +12,7 @@ from qtop_py import configuration, qtop, utils, yaml_parser
 from qtop_py.mvu import MVU_Model, MVU_update
 from qtop_py.mvu_query import MVU_query
 from qtop_py.plugins.slurm import SlurmBatchSystem
-from qtop_py.snapshot_document import Document
+from qtop_py.snapshot import Snapshot
 from qtop_py.ui.mvu_view import MVU_view
 from qtop_py.ui.viewport import Viewport
 
@@ -25,7 +25,7 @@ def MVU_test_model(tmp_path, monkeypatch):
     config, users, states = configuration.prepare_config(yaml_parser.parse(str(root / "qtopconf.yaml")), args)
     source = root / "tests/plugins/slurm_samples/basic"
     backend = SlurmBatchSystem({"squeue_file": str(source / "squeue.txt"), "sinfo_file": str(source / "sinfo.txt")}, config, args)
-    document = Document.from_cluster_state(backend.get_cluster_state(args))
+    snapshot = Snapshot.from_cluster_state(backend.get_cluster_state(args))
     viewport = Viewport(0, 0)
     viewport.set_term_size(40, 120)
     return MVU_Model(
@@ -34,7 +34,7 @@ def MVU_test_model(tmp_path, monkeypatch):
         viewport,
         backend=SlurmBatchSystem,
         display_overrides={"force_names": True},
-        document=document,
+        snapshot=snapshot,
         user_to_color=users,
         nodestate_to_color=states,
         package_path=str(root),
@@ -64,17 +64,126 @@ def test_MVU_update_returns_owned_state_and_effects_without_io(tmp_path, monkeyp
 def test_MVU_query_and_view_need_no_runtime_globals_or_mutable_snapshot(tmp_path, monkeypatch, capsys, force_names):
     model = MVU_test_model(tmp_path, monkeypatch)
     model.display_overrides["force_names"] = force_names
-    original = model.document.to_cluster_state()
-    original_nodes = copy.deepcopy(model.document.worker_nodes)
+    original = model.snapshot.to_cluster_state()
+    original_nodes = copy.deepcopy(model.snapshot.worker_nodes)
     original_viewport = vars(model.viewport).copy()
     original_config = copy.deepcopy(model.config)
-    for name in ("args", "config", "dynamic_config", "scheduler", "document", "cluster", "viewport", "user_to_color", "transposed_sections"):
+    for name in ("args", "config", "dynamic_config", "scheduler", "snapshot", "cluster", "viewport", "user_to_color", "transposed_sections"):
         monkeypatch.delattr(qtop, name, raising=False)
     view_data = MVU_query(model)
     MVU_view(view_data, str(tmp_path), "sample.tar", "qtop.log")
     assert "Job accounting summary" in capsys.readouterr().out
-    assert model.document.to_cluster_state() == original
-    assert model.document.worker_nodes == original_nodes
+    assert model.snapshot.to_cluster_state() == original
+    assert model.snapshot.worker_nodes == original_nodes
     assert model.config == original_config
     assert vars(model.viewport) == original_viewport
     assert model.args.REMAP is False
+
+
+# Running/queued counts per user; "all" adds jobs in other states (e.g. completed).
+RANKING_ALL = {"amy": 5, "bob": 4, "cid": 4, "dan": 2, "eve": 2}
+RANKING_RUNNING = {"amy": 0, "bob": 3, "cid": 1, "dan": 1, "eve": 1}
+RANKING_QUEUED = {"amy": 1, "bob": 0, "cid": 2, "dan": 1, "eve": 1}
+
+
+@pytest.mark.parametrize(
+    "USER_ID_RANKING, expected",
+    [
+        (("all", "R", "name_desc"), ["amy", "bob", "cid", "eve", "dan"]),
+        (("all", "R", "name_asc"), ["amy", "bob", "cid", "dan", "eve"]),
+        (("R+Q", "R", "name_desc"), ["bob", "cid", "eve", "dan", "amy"]),
+        (("R+Q", "R", "name_asc"), ["bob", "cid", "dan", "eve", "amy"]),
+        (("R+Q", "name_desc"), ["cid", "bob", "eve", "dan", "amy"]),
+        (("R+Q", "name_asc"), ["bob", "cid", "dan", "eve", "amy"]),
+        (("all", "name_desc"), ["amy", "cid", "bob", "eve", "dan"]),
+        (("name_asc",), ["amy", "bob", "cid", "dan", "eve"]),
+    ],
+)
+def test_user_id_ranking_orders_by_counts_then_name(USER_ID_RANKING, expected):
+    from qtop_py.mvu_query import rank_users
+
+    lot = rank_users(RANKING_ALL, RANKING_RUNNING, RANKING_QUEUED, USER_ID_RANKING)
+
+    assert [user for user, _ in lot] == expected
+    assert all(count == RANKING_ALL[user] for user, count in lot)
+
+
+def test_user_id_ranking_default_is_all_then_r_then_name_desc():
+    from qtop_py import configuration, yaml_parser
+    from qtop_py.constants import DEFAULT_USER_ID_RANKING
+
+    config = yaml_parser.parse(str(Path(__file__).resolve().parents[1] / "qtopconf.yaml"))
+
+    assert tuple(config["user_id_ranking"]) == DEFAULT_USER_ID_RANKING == ("all", "R", "name_desc")
+    configuration._validate_user_id_ranking(config)
+
+
+@pytest.mark.parametrize(
+    "USER_ID_RANKING",
+    [[], ["R+Q"], ["name_desc", "R"], ["R", "R", "name_asc"], ["cores", "name_asc"], ["R", "name_asc", "name_desc"], "R+Q,name_desc"],
+)
+def test_user_id_ranking_rejects_orders_that_are_not_total(USER_ID_RANKING):
+    from qtop_py import configuration
+
+    with pytest.raises(ValueError, match="user_id_ranking"):
+        configuration._validate_user_id_ranking({"user_id_ranking": USER_ID_RANKING})
+
+
+def test_rendered_matrix_does_not_depend_on_hash_seed(tmp_path):
+    import os
+    import re
+    import subprocess
+
+    root = Path(__file__).resolve().parents[1]
+    source = root / "tests/plugins/slurm_samples/basic"
+    renders = set()
+    for seed in ("0", "1", "2", "3", "4"):
+        env = dict(os.environ, HOME=str(tmp_path / seed), PYTHONHASHSEED=seed, PYTHONPATH=str(root))
+        command = [sys.executable, "-m", "qtop_py.qtop", "-s", str(source), "-c", "OFF", "-F", "-b", "slurm"]
+        output = subprocess.run(command, cwd=str(root), env=env, stdout=subprocess.PIPE, check=True, universal_newlines=True).stdout
+        renders.add(re.sub(r"\d{4}-\d\d-\d\d \d\d:\d\d:\d\d|Log file created in \S+", "", output))
+
+    assert len(renders) == 1
+
+
+def test_node_queue_names_are_sorted_with_unknown_last():
+    from qtop_py.serialiser import GenericBatchSystem
+
+    node = {"core_job_map": {"0": "3", "1": "1", "2": "2", "3": "9"}}
+    (result,) = GenericBatchSystem.ensure_worker_nodes_have_qnames([node], ["1", "2", "3"], ["short", "long", "debug"])
+
+    assert result["qname"] == ["debug", "long", "short", None]
+
+
+@pytest.mark.parametrize(
+    "config, expected",
+    [
+        ({}, "(ranked by all, R, name_desc)"),
+        ({"user_id_ranking": ["R+Q", "name_asc"]}, "(ranked by R+Q, name_asc)"),
+        ({"user_accounts_header": "sorted: {ranking} @ site"}, "sorted: all, R, name_desc @ site"),
+        ({"user_accounts_header": "{0.__class__} {ranking!r}"}, "{0.__class__} {ranking!r}"),
+        ({"user_accounts_header": ""}, ""),
+        ({"user_accounts_header": "a\x1b[2Jb"}, "a\\x1b[2Jb"),
+    ],
+)
+def test_user_accounts_header_expands_ranking_without_format_evaluation(config, expected):
+    from qtop_py.ui.mvu_view import user_accounts_header
+
+    assert user_accounts_header(config) == expected
+
+
+@pytest.mark.parametrize("USER_ACCOUNTS_HEADER", [42, ["a"], "two\nlines", "x" * 201])
+def test_user_accounts_header_rejects_non_single_line_text(USER_ACCOUNTS_HEADER):
+    from qtop_py import configuration
+
+    with pytest.raises(ValueError, match="user_accounts_header"):
+        configuration._validate_user_accounts_header({"user_accounts_header": USER_ACCOUNTS_HEADER})
+
+
+def test_anonymized_samples_drop_custom_user_accounts_header():
+    from qtop_py import sample
+
+    config, omitted = sample.sanitize_config({"user_accounts_header": "CSCS Alps: {ranking}"}, {kind: {} for kind in ("user", "node", "queue", "job")})
+
+    assert "user_accounts_header" not in config
+    assert "user_accounts_header" in omitted

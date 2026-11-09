@@ -83,12 +83,14 @@ from qtop_py.runtime import RunResources
 from qtop_py.safety import visible_text
 from qtop_py.schedulers.registry import PLUGIN_BATCH_SYSTEMS
 from qtop_py.serialiser import GenericBatchSystem
-from qtop_py.snapshot_document import Document
+from qtop_py.snapshot import Snapshot
 from qtop_py.ui.controls import read_rule_choices
 from qtop_py.ui.mvu_view import MVU_view
 from qtop_py.ui.mvu_view import TextDisplay as MVU_TextDisplay
 from qtop_py.ui.viewport import Viewport
 from qtop_py.web import Web
+
+Document = Snapshot  # deprecated alias, kept for one release; use Snapshot
 
 colorize_nodestate = MVU_colorize_nodestate
 
@@ -111,7 +113,7 @@ def MVU_legacy_model(instance=None):
         options,
         getattr(instance, "viewport", globals().get("viewport")),
         display_overrides=display_overrides,
-        document=getattr(instance, "document", globals().get("document")),
+        snapshot=getattr(instance, "snapshot", globals().get("snapshot")),
         user_to_color=globals().get("user_to_color", {}),
         package_path=globals().get("QTOPPATH", ""),
         help_file=globals().get("HELP_FP", ""),
@@ -126,7 +128,7 @@ class MVU_LegacyAdapter(object):
         if kwargs.get("MVU_model") is None:
             kwargs["MVU_model"] = MVU_legacy_model(self)
         super().__init__(*args, **kwargs)
-        for name in ("config", "args", "document", "viewport"):
+        for name in ("config", "args", "snapshot", "viewport"):
             if hasattr(self, name):
                 setattr(self.MVU_model, name, getattr(self, name))
 
@@ -145,8 +147,8 @@ class Cluster(MVU_LegacyAdapter, MVU_Cluster):
 
 
 class WNOccupancy(MVU_LegacyAdapter, MVU_WNOccupancy):
-    def __init__(self, cluster, config, document, user_to_color, job_ids=None, **kwargs):
-        super().__init__(cluster, config, document, user_to_color, **kwargs)
+    def __init__(self, cluster, config, snapshot, user_to_color, job_ids=None, **kwargs):
+        super().__init__(cluster, config, snapshot, user_to_color, **kwargs)
 
     def strict_check_jobs(self, cluster):
         occupancy = copy.copy(self)
@@ -954,17 +956,17 @@ def MVU_collect_snapshot(args, config, backend, trace_paths, archive):
             cluster_state = scheduling_system.get_cluster_state(args)
     except (ValueError, UnicodeError, ParseError) as error:
         raise OperationalError("Cannot parse %s scheduler input in %s: %s" % (scheduler, args.workdir, error)) from error
-    return Document.from_cluster_state(cluster_state), config
+    return Snapshot.from_cluster_state(cluster_state), config
 
 
-def MVU_export_snapshot(document, args, savepath, timestr, web):
+def MVU_export_snapshot(snapshot, args, savepath, timestr, web):
     if not (args.EXPORT or args.WEB):
         return
     with tempfile.NamedTemporaryFile(delete=False, prefix="qtop_json_%s_" % timestr, suffix=".json", dir=savepath) as json_file:
         json_filename = json_file.name
     saved = False
     try:
-        document.save(json_filename)
+        snapshot.save(json_filename)
         saved = True
     finally:
         if not saved:
@@ -994,7 +996,7 @@ def cli_main():
 
 def main(resources):
     # define global vars which are used out of scope
-    global CURPATH, QTOPPATH, HELP_FP, SAMPLE_FILENAME, scheduler, config, dynamic_config, cluster, viewport, user_to_color, args, web, document
+    global CURPATH, QTOPPATH, HELP_FP, SAMPLE_FILENAME, scheduler, config, dynamic_config, cluster, viewport, user_to_color, args, web, snapshot
 
     args = resources.options = utils.parse_qtop_cmdline_args()
     if args.version:
@@ -1092,15 +1094,15 @@ def main(resources):
                     trace_paths = {} if args.load_sample else fetch_scheduler_files(args, config, backend)
                     SAMPLE_FILENAME = fileutils.get_sample_filename(SAMPLE_FILENAME, config)
                     resources.start_capture(savepath, SAMPLE_FILENAME, trace_paths, config, QTOPPATH)
-                    document, config = MVU_collect_snapshot(args, config, backend, trace_paths, resources.archive)
+                    snapshot, config = MVU_collect_snapshot(args, config, backend, trace_paths, resources.archive)
                     if args.SAMPLE and args.ANONYMIZE:
                         user_to_color = user_to_color_default.copy()
                         for rule in config["user_color_mappings"]:
                             user_to_color.update(rule)
-                    MVU_export_snapshot(document, args, savepath, timestr, web)
+                    MVU_export_snapshot(snapshot, args, savepath, timestr, web)
                     if model is None:
                         model = MVU_Model(config, args, viewport, display_overrides=dynamic_config, package_path=QTOPPATH, help_file=HELP_FP)
-                    model, _ = MVU_update(model, "snapshot", (document, config, args, backend, user_to_color, nodestate_to_color))
+                    model, _ = MVU_update(model, "snapshot", (snapshot, config, args, backend, user_to_color, nodestate_to_color))
                     view_data = MVU_query(model)
                     cluster = view_data.cluster
                     MVU_resolve_user_details(view_data.model, view_data.occupancy)

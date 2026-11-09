@@ -8,27 +8,44 @@ import os
 import subprocess
 import tempfile
 from collections import OrderedDict
-from functools import partial
+from functools import lru_cache, partial
 from itertools import cycle, zip_longest
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from qtop_py.state_types import Config
 
 from qtop_py import __version__, utils, yaml_parser
+from qtop_py.constants import DEFAULT_USER_ACCOUNTS_HEADER, DEFAULT_USER_ID_RANKING
 from qtop_py.mvu import MVU_compress_colored_line as compress_colored_line
 from qtop_py.mvu import MVU_gauge_core_vectors as gauge_core_vectors
 from qtop_py.mvu_query import WNOccupancy
+from qtop_py.safety import visible_text
 
 # Accounts-table state columns when accounts_states is unset: jobs >= R + Q.
 DEFAULT_ACCOUNT_STATES = ("running_of_user", "queued_of_user")
 
 
+def user_accounts_header(config: "Config") -> str:
+    """Expand user_accounts_header; {ranking} becomes the active user_id_ranking. Plain replace: no format-string evaluation."""
+    USER_ACCOUNTS_HEADER = config.get("user_accounts_header")
+    if USER_ACCOUNTS_HEADER is None:
+        USER_ACCOUNTS_HEADER = DEFAULT_USER_ACCOUNTS_HEADER
+    USER_ID_RANKING = config.get("user_id_ranking") or DEFAULT_USER_ID_RANKING
+    return visible_text(USER_ACCOUNTS_HEADER.replace("{ranking}", ", ".join(USER_ID_RANKING)), escape_backslashes=False)
+
+
 class TextDisplay(object):
-    def __init__(self, document, config, viewport, wns_occupancy, cluster, args, MVU_model):
+    def __init__(self, snapshot, config, viewport, wns_occupancy, cluster, args, MVU_model):
         self.MVU_model = MVU_model
         self.cluster = cluster
-        self.document = document
+        self.snapshot = snapshot
         self.viewport = viewport
         self.config = config
         self.wns_occupancy = wns_occupancy
         self.args = args
+        # A cell's escape sequence depends only on (char, colour) within a frame: compute each pair once.
+        self._cell_text = lru_cache(maxsize=None)(lambda char, color: MVU_model.MVU_colorize(char, color_func=color))
 
     def display_selected_sections(self, _savepath, SAMPLE_FILENAME, QTOP_LOGFILE):
         """
@@ -45,7 +62,7 @@ class TextDisplay(object):
             3: self.args.sect_3_off,
         }
         display_parts = {
-            "job_accounting_summary": (self.display_job_accounting_summary, (self.cluster, self.document)),
+            "job_accounting_summary": (self.display_job_accounting_summary, (self.cluster, self.snapshot)),
             "workernodes_matrix": (self.display_wns_occupancy, (self.wns_occupancy, self.cluster)),
             "user_accounts_pool_mappings": (self.display_user_accounts_pool_mappings, (self.wns_occupancy,)),
         }
@@ -66,7 +83,7 @@ class TextDisplay(object):
             if message:
                 print(message)
 
-    def display_job_accounting_summary(self, cluster, document):
+    def display_job_accounting_summary(self, cluster, snapshot):
         """
         Displays qtop's first section
         """
@@ -108,7 +125,7 @@ class TextDisplay(object):
             job_counts = [total_running_jobs, total_queued_jobs]
             job_labels = "R + Q"
         else:
-            job_states = [job.job_state for job in document.jobs_dict.values()]
+            job_states = [job.job_state for job in snapshot.jobs_dict.values()]
             totals = WNOccupancy.job_state_totals(job_states, self.config["state_abbreviations"][self.MVU_model.scheduler])
             totals["other_of_user"] = len(job_states) - sum(totals.get(key, 0) for key, _ in summary_states if key != "other_of_user")
             job_counts = [totals.get(key, 0) for key, _ in summary_states]
@@ -155,7 +172,7 @@ class TextDisplay(object):
             from qtop_py.queue_nodes import queue_node_counts
 
             try:
-                counts = queue_node_counts(document.worker_nodes, list(document.queues_dict), self.MVU_model.backend, self.config.get("experimental_queue_nodes"))
+                counts = queue_node_counts(snapshot.worker_nodes, list(snapshot.queues_dict), self.MVU_model.backend, self.config.get("experimental_queue_nodes"))
             except ValueError as error:
                 print("Queue nodes unavailable: %s" % error)
             else:
@@ -177,7 +194,7 @@ class TextDisplay(object):
     def display_backend_messages(self):
         backend = self.MVU_model.backend
         nodes = getattr(self.cluster, "worker_nodes", [])
-        lines = [line for section in ("snapshot", "accounting", "placement", "resources") for line in backend.display_messages(section, self.document, nodes, self.config)]
+        lines = [line for section in ("snapshot", "accounting", "placement", "resources") for line in backend.display_messages(section, self.snapshot, nodes, self.config)]
         if lines:
             print("Scheduler messages:")
             print("\n".join(lines))
@@ -215,7 +232,7 @@ class TextDisplay(object):
             + self.MVU_model.MVU_colorize("User accounts and pool mappings", "White")
             + self.MVU_model.MVU_colorize(" <=== ", "Gray_d")
             + self.MVU_model.MVU_colorize(
-                self.MVU_model.backend.classic_account_note if self.args.CLASSIC else "(sorting according to total nr. of jobs)",
+                self.MVU_model.backend.classic_account_note if self.args.CLASSIC else user_accounts_header(self.MVU_model.config),
                 "Gray_D",
             )
         )
@@ -410,15 +427,8 @@ class TextDisplay(object):
             joined_list.extend([utils.ColorStr(string=char) if isinstance(char, str) and len(char) == 1 else char for char in d])
             joined_list.append(utils.ColorStr(string=kwargs["sep"]))
         # display the full output if nocutoff is True
-        if kwargs.get("nocutoff", False):
-            s = "".join([self.MVU_model.MVU_colorize(char.initial, color_func=char.color) if isinstance(char, utils.ColorStr) else char for char in joined_list])
-        else:
-            s = "".join(
-                [
-                    self.MVU_model.MVU_colorize(char.initial, color_func=char.color) if isinstance(char, utils.ColorStr) else char
-                    for char in joined_list[self.viewport.h_start : self.viewport.h_stop]
-                ]
-            )
+        cells = joined_list if kwargs.get("nocutoff", False) else joined_list[self.viewport.h_start : self.viewport.h_stop]
+        s = "".join([self._cell_text(char.initial, char.color) if isinstance(char, utils.ColorStr) else char for char in cells])
         print(compress_colored_line(s))
         return joined_list
 
@@ -584,6 +594,6 @@ class TextDisplay(object):
 
 def MVU_view(view_data, savepath, sample_filename, logfile):
     model, cluster, occupancy = view_data
-    display = TextDisplay(model.document, model.config, model.viewport, occupancy, cluster, model.args, MVU_model=model)
+    display = TextDisplay(model.snapshot, model.config, model.viewport, occupancy, cluster, model.args, MVU_model=model)
     display.display_selected_sections(savepath, sample_filename, logfile)
     return display

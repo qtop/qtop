@@ -162,6 +162,6 @@ AUTHORS:
 Original Bash version by Fotis Georgatos. Python port by Sotiris Fragkiskos.
 Additional authors: Evangelos Papadopoulos (push for 1.0) and Nicola Trozzi (admitted slurm support).
 
-Full contributor credits: [AUTHORS.md](AUTHORS.md).
+Full contributor credits: [GitHub contributors](https://github.com/qtop/qtop/graphs/contributors).
 
 License: [MIT](LICENSE).

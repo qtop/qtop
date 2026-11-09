@@ -336,6 +336,18 @@ extract_info:
 ## owning the job. If false, it will show a mapped single-letter id instead.
 ## The latter is useful when there are a lot of users starting with the same letter.
 fill_with_user_firstletter: False
+## Order in which users receive IDs (possible_ids: 0-9 go to the top 10, the long tail gets '*').
+## Job-count keys rank higher counts first: all (every job, any state), R+Q, R, Q.
+## The list must end with name_desc or name_asc, so ties always resolve the same way.
+## name_desc matches the original 2012 shell qtop. Examples: [all, R, name_asc], [R+Q, R, name_desc], [all, name_desc]
+user_id_ranking:
+  - all
+  - R               ## R is not part of ranking in 2012 qtop.sh; drop it to get its exact order, [all, name_desc]
+  - name_desc
+## Note printed after the "User accounts and pool mappings" title. {ranking} expands to user_id_ranking above.
+## Use single quotes; '' prints no note. --classic shows the scheduler's own note instead.
+## Anonymized samples (-L -A) reset it to this default, since free text may identify the site.
+user_accounts_header: '(ranked by {ranking})'
 ## If set to true, lines represent worker nodes, wherease if set to false, columns do.
 ## Default is True
 transpose_wn_matrices: True

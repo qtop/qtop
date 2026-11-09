@@ -8,9 +8,13 @@ import re
 from collections import Counter, OrderedDict, namedtuple
 from math import ceil
 from operator import itemgetter
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from typing import List, Mapping, Sequence, Tuple
 
 from qtop_py import configuration, utils, yaml_parser
-from qtop_py.constants import QTOPCONF_YAML, SYMBOL_LONG_TAIL_USER
+from qtop_py.constants import DEFAULT_USER_ID_RANKING, QTOPCONF_YAML, SYMBOL_LONG_TAIL_USER
 from qtop_py.errors import JobNotFound, OperationalError
 from qtop_py.mvu import MVU_colorize_nodestate, MVU_keep_queue_initials_only_and_colorize
 from qtop_py.mvu import MVU_gauge_core_vectors as gauge_core_vectors
@@ -18,19 +22,44 @@ from qtop_py.mvu import MVU_node_job_ids as node_job_ids
 from qtop_py.mvu import MVU_reserved_pattern_mappings as _reserved_pattern_mappings
 from qtop_py.serialiser import resolve_job_id
 
+ACCOUNT_LETTERS = re.compile(r"[A-Za-z]+")
+
+
+def rank_users(
+    all_counts: "Mapping[str, int]",
+    running: "Mapping[str, int]",
+    queued: "Mapping[str, int]",
+    USER_ID_RANKING: "Sequence[str]" = DEFAULT_USER_ID_RANKING,
+) -> "List[Tuple[str, int]]":
+    """
+    Order users for ID assignment: count keys rank higher counts first, the final name key breaks ties.
+    Returns (user, all jobs count) pairs, as the accounts table expects.
+    """
+    COUNTS = {
+        "R+Q": lambda user: running.get(user, 0) + queued.get(user, 0),
+        "R": lambda user: running.get(user, 0),
+        "Q": lambda user: queued.get(user, 0),
+        "all": lambda user: all_counts[user],
+    }
+    COUNT_KEYS, NAME_KEY = USER_ID_RANKING[:-1], USER_ID_RANKING[-1]
+    # Two stable passes: names first, then counts (descending); equal counts keep the name order.
+    users = sorted(all_counts, reverse=NAME_KEY == "name_desc")
+    users.sort(key=lambda user: tuple(COUNTS[key](user) for key in COUNT_KEYS), reverse=True)
+    return [(user, all_counts[user]) for user in users]
+
 
 class WNOccupancy(object):
-    def __init__(self, cluster, config, document, user_to_color, MVU_model):
+    def __init__(self, cluster, config, snapshot, user_to_color, MVU_model):
         self.MVU_model = MVU_model
         self.cluster = cluster
         self.config = config
-        self.document = document
+        self.snapshot = snapshot
         self.account_jobs_table = list()
         self.user_to_id = dict()
         self.job_to_user_and_queue = dict()
-        self.user_names, self.job_states = self._get_usernames_and_states(document.jobs_dict)
+        self.user_names, self.job_states = self._get_usernames_and_states(snapshot.jobs_dict)
 
-        self.calculate(document, user_to_color)
+        self.calculate(snapshot, user_to_color)
 
     def _get_usernames_and_states(self, jobs_dict):
         user_names, job_states = [], []
@@ -39,7 +68,7 @@ class WNOccupancy(object):
             job_states.append(value.job_state)
         return user_names, job_states
 
-    def calculate(self, document, user_to_color):
+    def calculate(self, snapshot, user_to_color):
         """
         Prints the Worker Nodes Occupancy table.
         if there are non-uniform worker-node names, e.g. wn01, wn02, gn01, gn02, ...,  remapping is performed.
@@ -48,14 +77,14 @@ class WNOccupancy(object):
         """
         if not self.cluster:
             return
-        # document.jobs_dict => job_id: job name/state/queue
+        # snapshot.jobs_dict => job_id: job name/state/queue
 
-        self.job_to_user_and_queue = {job_id: (job.user_name, job.job_queue) for job_id, job in document.jobs_dict.items()}
+        self.job_to_user_and_queue = {job_id: (job.user_name, job.job_queue) for job_id, job in snapshot.jobs_dict.items()}
         self.user_machine_use = self.calculate_user_node_use(self.cluster, self.job_to_user_and_queue)
 
-        users_by_job_count = self._produce_user_lot(self.user_names)
+        user_job_per_state_counts = self._calculate_user_job_counts(self.user_names, self.job_states)
+        users_by_job_count = self._produce_user_lot(self.user_names, user_job_per_state_counts)
         user_to_id = self._create_id_for_users(users_by_job_count)
-        user_job_per_state_counts = self._calculate_user_job_counts(self.user_names, self.job_states, users_by_job_count, user_to_id)
         _account_jobs_table = self._create_sort_acct_jobs_table(user_job_per_state_counts, users_by_job_count, user_to_id)
         self.account_jobs_table, self.user_to_id = self._create_account_jobs_table(user_to_id, _account_jobs_table)
         self.user_color_patterns = self.make_pattern_out_of_mapping(mapping=user_to_color)
@@ -126,16 +155,19 @@ class WNOccupancy(object):
 
         return user_job_per_state_counts
 
-    def _produce_user_lot(self, _user_names):
+    def _produce_user_lot(self, _user_names, user_job_per_state_counts):
         """
-        Produces a list of tuples (lot) of the form (user account, all jobs count) in descending order.
+        Produces a list of tuples (lot) of the form (user account, all jobs count) in ID order,
+        ranked by the configured user_id_ranking (default: R+Q, R, name_desc).
         Used in the user accounts and poolmappings table
         """
-        user_to_alljobs_count = {}
-        for user_name in set(_user_names):
-            user_to_alljobs_count[user_name] = _user_names.count(user_name)
-
-        return sorted(user_to_alljobs_count.items(), key=itemgetter(1), reverse=True)
+        USER_ID_RANKING = self.config.get("user_id_ranking") or DEFAULT_USER_ID_RANKING
+        return rank_users(
+            Counter(_user_names),
+            user_job_per_state_counts.get("running_of_user", {}),
+            user_job_per_state_counts.get("queued_of_user", {}),
+            USER_ID_RANKING,
+        )
 
     @staticmethod
     def job_state_totals(job_states, state_abbrevs):
@@ -146,7 +178,7 @@ class WNOccupancy(object):
             totals[state_key] = totals.get(state_key, 0) + 1
         return totals
 
-    def _calculate_user_job_counts(self, user_names, job_states, users_by_job_count, user_to_id):
+    def _calculate_user_job_counts(self, user_names, job_states):
         """
         Calculates and prints what is actually below the id|  R + Q /all | unix account etc line
         :param user_names: list
@@ -163,7 +195,7 @@ class WNOccupancy(object):
         user_job_per_state_counts = self._create_user_job_counts(user_names, job_states, state_abbrevs)
 
         for state_count_key in state_abbrevs.values():
-            missing_user_ids = set(user_to_id).difference(user_job_per_state_counts[state_count_key])
+            missing_user_ids = set(user_names).difference(user_job_per_state_counts[state_count_key])
             for missing_user_id in missing_user_ids:
                 user_job_per_state_counts[state_count_key].setdefault(missing_user_id, 0)
 
@@ -200,16 +232,22 @@ class WNOccupancy(object):
         If no matching was possible, there will be no coloring applied.
         """
         pattern = {}
+        PATTERNS_LAST_FIRST = list(mapping.keys())[::-1]
+        # Compiled on first use, so an invalid pattern still fails exactly when it is first reached.
+        compiled = {}
         # Preserve shared-ID color precedence from the previous job-count order.
         for line in sorted(self.account_jobs_table, key=itemgetter(3, 4), reverse=True):
             uid, user = line[0], line[4]
             # Single-expression fallback, portable to py3.6 / PyPy / MicroPython (no walrus, no findall).
             # The appended " NoPattern" sentinel guarantees a match: an all-numeric user (e.g. a numeric
             # scheduler-provided uid) yields "NoPattern". The space is load-bearing: without it "abc" -> "abcNoPattern".
-            account_match = re.search(r"[A-Za-z]+", user + " NoPattern")
+            account_match = ACCOUNT_LETTERS.search(user + " NoPattern")
             account_letters = account_match.group(0) if account_match else "NoPattern"
-            for re_account in list(mapping.keys())[::-1]:
-                match = re.search(re_account, user)
+            for re_account in PATTERNS_LAST_FIRST:
+                rx = compiled.get(re_account)
+                if rx is None:
+                    rx = compiled[re_account] = re.compile(re_account)
+                match = rx.search(user)
                 if match is not None:
                     account_letters = re_account  # colors the text according to the regex given by the user in qtopconf
                     break
@@ -369,8 +407,8 @@ class WNOccupancy(object):
             for core in node_free_cores:
                 core_user_map["Core" + str(core) + "vector"].append(gray_underscore)
 
-            non_existent_node_cores = [core for core in _core_span if core not in node_cores]
-            for core in non_existent_node_cores:
+            # core_span and node_cores are both str(range(...)) prefixes, so the missing cores are a slice.
+            for core in _core_span[int(np) :]:
                 core_user_map["Core" + str(core) + "vector"].append(gray_hash)
 
         return core_user_map
@@ -393,50 +431,70 @@ class WNOccupancy(object):
         depending on qtopconf yaml's "core_coloring",
         or on runtime in watch mode, if user presses appropriate keybinding
         """
-        node_free_cores = node_cores[:]
+        # Insertion-ordered dict: O(1) removal, same iteration order as the former list.
+        node_free_cores = dict.fromkeys(node_cores)
+
+        def take(core: str) -> None:
+            if core not in node_free_cores:
+                raise ValueError("list.remove(x): x not in list")
+            del node_free_cores[core]
+
         for core, job in corejobs.items():
-            if resolve_job_id(str(job), job_to_user_and_queue) not in job_to_user_and_queue:
+            if self._resolve(str(job), job_to_user_and_queue) not in job_to_user_and_queue:
                 core_user_map["Core" + str(core) + "vector"].append(utils.ColorStr("?", color="Yellow"))
-                node_free_cores.remove(str(core))
+                take(str(core))
+        # One cell per (user, queue) per frame: every input to its colour is frame-constant,
+        # and cells are never modified after creation, so cores of the same job share it.
+        cells = self.__dict__.setdefault("_core_cells", {})  # per frame: lives on this WNOccupancy
+        for user, core, queue in self._valid_corejobs(corejobs, job_to_user_and_queue):
+            id_ = cells.get((user, queue))
+            if id_ is None:
+                id_ = cells[user, queue] = self._core_cell(user, queue, _core_coloring)
+            core_user_map["Core" + str(core) + "vector"].append(id_)
+            take(core)  # this is an assigned core, hence it doesn't belong to the node's free cores
+
+        return core_user_map, list(node_free_cores)
+
+    def _core_cell(self, user: str, queue: str, _core_coloring: str) -> "utils.ColorStr":
+        """Build the coloured matrix cell for a user's job in a queue."""
         selected_pat_to_color_map = getattr(self.MVU_model, _core_coloring)
         _highlighted_queues_or_users = self.MVU_model.display_overrides.get("highlight", self.config["highlight"])
+        id_to_user = dict(zip((str(x) for x in self.user_to_id.values()), self.user_to_id.keys()))
+        highlight_rules = list(WNOccupancy.get_hl_q_or_users(_highlighted_queues_or_users))
+        and_or_func = highlight_rules[-1][2] if highlight_rules else any
+        id_ = utils.ColorStr.from_other_color_str(self.user_to_id[user])
+        viewed_pattern = self.user_color_patterns[str(id_)] if _core_coloring == "user_to_color" else queue
+        matches = []
+        for user_queue_to_highlight, highlight_kind, _ in highlight_rules:
+            if highlight_kind == "user_pat":
+                actual_user_queue = user
+            elif highlight_kind == "user_id":
+                actual_user_queue = user
+                user_queue_to_highlight = id_to_user[user_queue_to_highlight]
+            elif highlight_kind == "queue":
+                actual_user_queue = queue
+            matches.append(re.match(user_queue_to_highlight, actual_user_queue))
+        if not _highlighted_queues_or_users or and_or_func(match.group(0) if match is not None else None for match in matches):
+            id_.color = selected_pat_to_color_map.get(viewed_pattern, "White")  # queue or user decided on runtime
+        else:
+            id_.color = "Gray_D"
+        id_.q = queue
+        return id_
 
-        self.id_to_user = dict(zip((str(x) for x in self.user_to_id.values()), self.user_to_id.keys()))
-        for user, core, queue in self._valid_corejobs(corejobs, job_to_user_and_queue):
-            id_ = utils.ColorStr.from_other_color_str(self.user_to_id[user])
-            viewed_pattern = self.user_color_patterns[str(id_)] if _core_coloring == "user_to_color" else queue
-            matches = []
-            highlight_rules = list(WNOccupancy.get_hl_q_or_users(_highlighted_queues_or_users))
-            and_or_func = highlight_rules[-1][2] if highlight_rules else any
-
-            for user_queue_to_highlight, highlight_kind, _ in highlight_rules:
-                if highlight_kind == "user_pat":
-                    actual_user_queue = user
-                elif highlight_kind == "user_id":
-                    actual_user_queue = user
-                    user_queue_to_highlight = self.id_to_user[user_queue_to_highlight]
-                elif highlight_kind == "queue":
-                    actual_user_queue = queue
-
-                matches.append(re.match(user_queue_to_highlight, actual_user_queue))
-
-            if not _highlighted_queues_or_users or and_or_func(match.group(0) if match is not None else None for match in matches):
-                id_.color = selected_pat_to_color_map.get(viewed_pattern, "White")  # queue or user decided on runtime
-            else:
-                id_.color = "Gray_D"
-
-            id_.q = queue
-            core_user_map["Core" + str(core) + "vector"].append(id_)
-            node_free_cores.remove(core)  # this is an assigned core, hence it doesn't belong to the node's free cores
-
-        return core_user_map, node_free_cores
+    def _resolve(self, job: str, job_to_user_and_queue: "Mapping[str, Tuple[str, str]]") -> str:
+        """resolve_job_id, memoized per frame: cores of one job resolve once, not once per core."""
+        memo = self.__dict__.setdefault("_resolved_jobs", {})  # per frame: lives on this WNOccupancy
+        resolved = memo.get(job)
+        if resolved is None:
+            resolved = memo[job] = resolve_job_id(job, job_to_user_and_queue)
+        return resolved
 
     def _valid_corejobs(self, corejobs, job_to_user_and_queue):
         """
         Generator that yields only those core-job pairs that successfully match to a user
         """
         for core, _job in corejobs.items():
-            job = resolve_job_id(str(_job), job_to_user_and_queue)
+            job = self._resolve(str(_job), job_to_user_and_queue)
             try:
                 user_queue = job_to_user_and_queue[job]
             except KeyError as KeyErrorValue:
@@ -463,8 +521,8 @@ class WNOccupancy(object):
 
     def MVU_check_jobs(self, cluster):
         states = self.config["state_abbreviations"][self.MVU_model.scheduler]
-        running_ids = {job_id for job_id, job in self.document.jobs_dict.items() if states.get(job.job_state) == "running_of_user"}
-        counted_jobs = WNOccupancy._count_jobs_strict(self.document.worker_nodes, running_ids, self.MVU_model.MVU_node_job_ids)
+        running_ids = {job_id for job_id, job in self.snapshot.jobs_dict.items() if states.get(job.job_state) == "running_of_user"}
+        counted_jobs = WNOccupancy._count_jobs_strict(self.snapshot.worker_nodes, running_ids, self.MVU_model.MVU_node_job_ids)
         if counted_jobs != cluster.total_running_jobs:
             return "Counted jobs (%s) -- Total running jobs reported (%s) MISMATCH!" % (counted_jobs, cluster.total_running_jobs)
         return None
@@ -514,13 +572,13 @@ class WNOccupancy(object):
 
 
 class Cluster(object):
-    def __init__(self, document, worker_nodes, WNFilter, config, args, MVU_model):
+    def __init__(self, snapshot, worker_nodes, WNFilter, config, args, MVU_model):
         self.MVU_model = MVU_model
         self.worker_nodes = worker_nodes
-        self.jobs_dict = document.jobs_dict
-        self.queues_dict = document.queues_dict
-        self.total_running_jobs = document.total_running_jobs
-        self.total_queued_jobs = document.total_queued_jobs
+        self.jobs_dict = snapshot.jobs_dict
+        self.queues_dict = snapshot.queues_dict
+        self.total_running_jobs = snapshot.total_running_jobs
+        self.total_queued_jobs = snapshot.total_queued_jobs
         self.config = config
         self.args = args
 
@@ -867,8 +925,10 @@ def MVU_query(model):
     render_model.args = copy.copy(model.args)
     render_model.viewport = copy.copy(model.viewport)
     render_model.transposed_sections = []
-    nodes = MVU_keep_queue_initials_only_and_colorize(copy.deepcopy(model.document.worker_nodes), model.queue_to_color)
+    # The transforms build new per-node dicts; nested node values are only read downstream
+    # (checked by test_MVU_query_and_view_need_no_runtime_globals_or_mutable_snapshot), so no deep copy.
+    nodes = MVU_keep_queue_initials_only_and_colorize(model.snapshot.worker_nodes, model.queue_to_color)
     nodes = MVU_colorize_nodestate(nodes, model.nodestate_to_color)
-    cluster = Cluster(model.document, nodes, WNFilter, model.config, render_model.args, MVU_model=render_model)
-    occupancy = WNOccupancy(cluster, model.config, model.document, model.user_to_color, MVU_model=render_model)
+    cluster = Cluster(model.snapshot, nodes, WNFilter, model.config, render_model.args, MVU_model=render_model)
+    occupancy = WNOccupancy(cluster, model.config, model.snapshot, model.user_to_color, MVU_model=render_model)
     return MVU_ViewData(render_model, cluster, occupancy)

@@ -82,7 +82,7 @@ if TYPE_CHECKING:
         nodes: List[Node]
         queues: List[Queue]
 
-    class Snapshot(TypedDict):
+    class SampleSnapshot(TypedDict):
         format_version: int
         scheduler: str
         state: ClusterState

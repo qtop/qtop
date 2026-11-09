@@ -300,10 +300,10 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
         return state[-1] if state and state[-1] in "*+#~$@%!^-" else ""
 
     @staticmethod
-    def display_messages(section, document, nodes, config):
+    def display_messages(section, snapshot, nodes, config):
         lines = []
         if section == "snapshot":
-            diagnostics = getattr(document, "_diagnostics", {}).get("slurm_diagnostics", {})
+            diagnostics = getattr(snapshot, "_diagnostics", {}).get("slurm_diagnostics", {})
             if any(diagnostics.values()):
                 lines.append(
                     "WARNING: Slurm snapshot incomplete: %s rejected job rows; %s rejected node rows; "
@@ -312,7 +312,7 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
                 )
         elif section == "accounting":
             lines.append("INFO: Slurm job counts include individual array tasks and heterogeneous components.")
-            if any(len(job.get("slurm_partitions", [])) > 1 for job in getattr(document, "_job_metadata", {}).values()):
+            if any(len(job.get("slurm_partitions", [])) > 1 for job in getattr(snapshot, "_job_metadata", {}).values()):
                 lines.append("INFO: Slurm partition counts include each eligible partition; global job counts are unique.")
         elif section == "placement":
             sources = {node.get("cpu_allocation_source") for node in nodes}

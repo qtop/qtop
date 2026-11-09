@@ -33,7 +33,7 @@ RUNTIME_GLOBALS = (
     "h_counter",
     "change_mapping",
     "web",
-    "document",
+    "snapshot",
 )
 
 
@@ -214,8 +214,8 @@ def test_replay_collection_uses_snapshot_without_constructing_a_scheduler(tmp_pa
 
     options = SimpleNamespace(load_sample="snapshot.tar", sample_snapshot={"state": state})
     config = {"savepath": str(tmp_path)}
-    document, prepared = qtop.collect_snapshot(options, config, OfflineBackend, {}, None)
-    assert document.to_cluster_state() == state
+    snapshot, prepared = qtop.collect_snapshot(options, config, OfflineBackend, {}, None)
+    assert snapshot.to_cluster_state() == state
     assert prepared is config
 
 
@@ -223,14 +223,14 @@ def test_failed_export_removes_partial_file_and_does_not_notify_web(tmp_path):
     from types import SimpleNamespace
     from unittest.mock import Mock
 
-    class FailedDocument:
+    class FailedSnapshot:
         def save(self, path):
             Path(path).write_text("partial JSON")
             raise OSError("export failed")
 
     web = Mock()
     with pytest.raises(OSError, match="export failed"):
-        qtop.export_snapshot(FailedDocument(), SimpleNamespace(EXPORT=True, WEB=True), str(tmp_path), "test", web)
+        qtop.export_snapshot(FailedSnapshot(), SimpleNamespace(EXPORT=True, WEB=True), str(tmp_path), "test", web)
     assert not list(tmp_path.glob("qtop_json_*.json"))
     web.set_filename.assert_not_called()
 
@@ -242,7 +242,7 @@ def test_export_switches_write_valid_json_and_only_notify_requested_web(tmp_path
 
     state = {"jobs": [], "nodes": [], "queues": []}
     web = Mock()
-    qtop.export_snapshot(qtop.Document.from_cluster_state(state), SimpleNamespace(EXPORT=export, WEB=serve), str(tmp_path), "test", web)
+    qtop.export_snapshot(qtop.Snapshot.from_cluster_state(state), SimpleNamespace(EXPORT=export, WEB=serve), str(tmp_path), "test", web)
     paths = list(tmp_path.glob("qtop_json_*.json"))
     assert len(paths) == int(export or serve)
     if paths:

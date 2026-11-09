@@ -11,7 +11,7 @@ import logging
 import lzma
 import re
 import tarfile
-from typing import TYPE_CHECKING, Any, BinaryIO, Generator, Optional, cast
+from typing import TYPE_CHECKING, Any, BinaryIO, Callable, Generator, Optional, cast
 
 if TYPE_CHECKING:  # typing.Final is Python 3.8+; the quoted annotations keep 3.6 working
     from typing import Final
@@ -43,19 +43,30 @@ def cores_per_node(value: Any) -> Optional[int]:
 def visible_text(value, escape_backslashes=True):
     """Escape controls and literal backslashes, keeping displayed identifiers distinct."""
     value = str(value)
+    # Fast path: every character _CONTROLS matches is non-printable, so printable text needs no escaping.
+    if value.isprintable() and not (escape_backslashes and "\\" in value):
+        return value
     if escape_backslashes and "\\" in value:
         value = value.replace("\\", "\\\\")
     return _CONTROLS.sub(lambda match: ascii(match.group())[1:-1], value)
 
 
-def visible_data(value: Any) -> Any:
+def rebuild(value: Any, leaf: Optional[Callable[[str], Any]] = None) -> Any:
+    """Fresh copy of JSON-shaped data: new dicts and lists, `leaf` applied to every string (keys too).
+
+    With no leaf it is a structural copy, several times faster than copy.deepcopy on this data shape.
+    """
     if isinstance(value, str):
-        return visible_text(value)
+        return value if leaf is None else leaf(value)
     if isinstance(value, dict):
-        return {visible_data(key): visible_data(item) for key, item in value.items()}
+        return {rebuild(key, leaf): rebuild(item, leaf) for key, item in value.items()}
     if isinstance(value, list):
-        return [visible_data(item) for item in value]
+        return [rebuild(item, leaf) for item in value]
     return value
+
+
+def visible_data(value: Any) -> Any:
+    return rebuild(value, visible_text)
 
 
 class SafeLogFormatter(logging.Formatter):

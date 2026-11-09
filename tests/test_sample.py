@@ -210,11 +210,12 @@ def test_json_traces_redact_unused_fields_and_keep_native_identifiers(tmp_path):
     assert "private" not in text and "7654321" not in text and "alice" not in text
     result = json.loads(text)["Jobs"]["100000.server"]
     assert result["queue"] == "q_anon_q_0" and result["job_state"] == "R"
+    # pragma: allowlist nextline secret - a fixture value the masking must hide
     queues = {"Queue": {"batch": {"state_count": "Running:1 Queued:2 Held:0", "enabled": True, "started": "True", "max_run": 12, "secret": "private-value"}}}
     _, text = backend.mask_source_trace("qstatq_file", json.dumps(queues), mask)
     assert "private" not in text
     assert json.loads(text)["Queue"]["q_anon_q_0"]["state_count"] == "Running:1 Queued:2 Held:0"
-    queues["Queue"]["batch"]["enabled"] = {"private-key": "private-value"}
+    queues["Queue"]["batch"]["enabled"] = {"private-label": "private-value"}
     with pytest.raises(ValueError):
         backend.mask_source_trace("qstatq_file", json.dumps(queues), mask)
 
@@ -523,3 +524,26 @@ def test_slurm_shared_cpus_and_partition_memberships_survive_cli_replay(tmp_path
         assert json.loads(next(replayed.glob("qtop_json_*.json")).read_text()) == state
         replay_frame = next(replayed.glob("qtop_fullview_*.out")).read_text()
         assert "2+1 jobs" in replay_frame and "omits 4 shared/excess CPU assignments" in replay_frame
+
+
+def test_user_id_ranking_travels_with_anonymized_samples(tmp_path):
+    """A capture taken with a non-default ranking must re-render identically on a host using the default."""
+    source = ROOT / "tests/plugins/slurm_samples/basic"
+    capture_home = tmp_path / "capture_home"
+    (capture_home / ".local/qtop").mkdir(parents=True)
+    (capture_home / ".local/qtop/qtopconf.yaml").write_text("user_id_ranking:\n  - R+Q\n  - name_asc\n")
+    output = tmp_path / "out"
+
+    def screen(result):
+        assert result.returncode == 0, result.stderr
+        start = result.stdout.index("Worker Nodes occupancy")
+        return re.sub(r"\d{4}-\d\d-\d\d \d\d:\d\d:\d\d|\S*qtop\S*\.(log|tar)\S*", "", result.stdout[start:])
+
+    captured = screen(run_cli(capture_home, "-b", "slurm", "-s", str(source), "-L", "-A", "-e", "-c", "OFF", "-F", "-o", "savepath=" + str(output)))
+    archive = next(output.glob("qtop_sample_anonymous*.tar"))
+    reloaded = screen(run_cli(tmp_path / "default_home", "--load-sample", str(archive), "-c", "OFF", "-F"))
+    (capture_home / ".local/qtop/qtopconf.yaml").write_text("user_id_ranking:\n  - R+Q\n  - name_desc\n")
+    other_order = screen(run_cli(capture_home, "-b", "slurm", "-s", str(source), "-L", "-A", "-e", "-c", "OFF", "-F", "-o", "savepath=" + str(tmp_path / "out2")))
+
+    assert reloaded == captured
+    assert other_order != captured

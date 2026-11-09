@@ -28,7 +28,7 @@ Run times depend on the environment and are not fixed budgets.
 - `qtop_py/qtop.py` - main loop, I/O effects and legacy adapters; argument handling; `python -m qtop_py.qtop` entry.
 - `qtop_py/mvu.py`, `mvu_query.py`, `ui/mvu_view.py` - explicit model/update, snapshot queries and terminal presentation.
 - `qtop_py/plugins/{pbs,sge,slurm,oar,demo}.py` - backends; `qtop_py/schedulers/` - registration, metadata and GPU helpers.
-- `qtop_py/cluster_state.py`, `snapshot_document.py`, `ui/viewport.py`, `colormap.py` - normalized snapshots, navigation and colors.
+- `qtop_py/cluster_state.py`, `snapshot.py`, `ui/viewport.py`, `colormap.py` - normalized snapshots, navigation and colors.
 - `qtopconf.yaml`, `qtop_py/yaml_parser.py` - configuration and its stdlib parser.
 - `tests/` (`tests/plugins/` per scheduler, `slurm_samples/`) and `qtop_py/contrib/` - fixtures and reference scheduler outputs.
 - `tools/` - validation gates invoked by the Makefile.

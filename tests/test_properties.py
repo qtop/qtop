@@ -23,7 +23,7 @@ from qtop_py import sample, yaml_parser
 from qtop_py.cluster_state import build_cluster_state, cluster_state_totals, validate_cluster_state
 from qtop_py.plugins.pbs import PBSBatchSystem, PBSStatExtractor
 from qtop_py.plugins.slurm import SlurmBatchSystem
-from qtop_py.qtop import Document
+from qtop_py.qtop import Snapshot
 from qtop_py.ui.viewport import Viewport
 
 settings.register_profile("ci", max_examples=100, derandomize=True, deadline=None)
@@ -69,9 +69,9 @@ def cluster_states(draw):
 
 
 @given(cluster_states())
-def test_document_round_trip_preserves_cluster_state(state):
+def test_snapshot_round_trip_preserves_cluster_state(state):
     assert validate_cluster_state(state) is state
-    assert Document.from_cluster_state(state).to_cluster_state() == state
+    assert Snapshot.from_cluster_state(state).to_cluster_state() == state
     assert cluster_state_totals(state) == {
         "running_jobs": sum(job["state"] == "R" for job in state["jobs"]),
         "queued_jobs": sum(job["state"] == "Q" for job in state["jobs"]),

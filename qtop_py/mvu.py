@@ -99,11 +99,11 @@ def MVU_colorize(model, text, color_func=None, pattern="NoPattern", mapping=None
 
 
 class MVU_Model(object):
-    def __init__(self, config, args, viewport, backend=None, display_overrides=None, document=None, user_to_color=None, nodestate_to_color=None, package_path="", help_file=""):
+    def __init__(self, config, args, viewport, backend=None, display_overrides=None, snapshot=None, user_to_color=None, nodestate_to_color=None, package_path="", help_file=""):
         self.config, self.args, self.viewport = config, args, viewport
         self.backend, self.scheduler = backend, backend.get_mnemonic() if backend is not None else ""
         self.display_overrides = {} if display_overrides is None else display_overrides
-        self.document, self.user_to_color = document, {} if user_to_color is None else user_to_color
+        self.snapshot, self.user_to_color = snapshot, {} if user_to_color is None else user_to_color
         self.nodestate_to_color = {} if nodestate_to_color is None else nodestate_to_color
         self.queue_to_color = queue_to_color
         self.package_path, self.help_file = package_path, help_file
@@ -141,7 +141,7 @@ def MVU_update(model, message, payload=None):
     if message == "snapshot":
         if payload is None:
             raise ValueError("Snapshot update requires collected data")
-        next_model.document, next_model.config, next_model.args, next_model.backend, next_model.user_to_color, next_model.nodestate_to_color = payload
+        next_model.snapshot, next_model.config, next_model.args, next_model.backend, next_model.user_to_color, next_model.nodestate_to_color = payload
         next_model.scheduler = next_model.backend.get_mnemonic()
     elif message == "layout":
         next_model.viewport = copy.copy(payload)

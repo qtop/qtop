@@ -19,7 +19,7 @@ import pytest
 from qtop_py import configuration, process, qtop, safety, sample, yaml_parser
 from qtop_py.plugins.pbs import PBSStatExtractor
 from qtop_py.plugins.sge import SGEStatExtractor
-from qtop_py.snapshot_document import Document
+from qtop_py.snapshot import Snapshot
 
 
 @pytest.mark.parametrize("hostile", ["x\x1b[2J", "x\x1b]52;c;secret\x07", "x\r\nWARNING: forged", "x\x9b2J", "x\u202e", "x\u061c", "x\udcff", "x\\n"])
@@ -29,11 +29,11 @@ def test_display_identifiers_are_inert_and_export_remains_original(hostile, monk
         "nodes": [{"domainname": hostile, "state": "-", "np": 1, "core_job_map": {0: "1"}, "qname": [hostile]}],
         "queues": [{"name": hostile, "state": "E", "limit": "--", "running": 1, "queued": 0}],
     }
-    document = Document.from_cluster_state(state)
-    display_name = next(iter(document.queues_dict))
-    assert display_name == document.jobs_dict["1"].user_name == document.worker_nodes[0]["domainname"]
+    snapshot = Snapshot.from_cluster_state(state)
+    display_name = next(iter(snapshot.queues_dict))
+    assert display_name == snapshot.jobs_dict["1"].user_name == snapshot.worker_nodes[0]["domainname"]
     assert not safety._CONTROLS.search(display_name)
-    assert document.to_cluster_state() == state
+    assert snapshot.to_cluster_state() == state
     monkeypatch.setattr(qtop, "args", SimpleNamespace(COLOR="ON"), raising=False)
     coloured = qtop.colorize(display_name, color_func="Red", mapping={"NoPattern": "Red"})
     assert coloured.startswith("\x1b[")

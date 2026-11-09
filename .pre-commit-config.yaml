@@ -1,7 +1,17 @@
+## Hook versions match requirements-ci.txt (tests/test_ci_requirements.py checks ruff),
+## so a commit that passes these hooks passes CI's ruff check and ruff format.
+##
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    # Ruff version.
-    rev: v0.0.292 ## Please do not bump the version unless you provide proof of rhel8/python3.6 compatibility
+    rev: v0.17.1
     hooks:
-      - id: ruff
-        args: [--fix] ##
+      - id: ruff-check
+        args: [--fix]
+      - id: ruff-format
+## We comment the following out, because even if the structure is there to make it work,
+## we dislike forcing it on collaborators - comment out as you please
+##
+##  - repo: https://github.com/Yelp/detect-secrets
+##    rev: v1.5.0
+##    hooks:
+##      - id: detect-secrets  # a false positive is allowlisted on its line: '# pragma: allowlist secret'

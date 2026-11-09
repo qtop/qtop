@@ -3,6 +3,23 @@
 Notable changes by version, newest first.
 See the [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 
+## 0.9.20261109
+
+- Refactor: Document is now Snapshot (snapshot.py); Document stays as an alias for one release.
+- Refactor: one snapshot copy, precompiled colours, fast escaping; up to 1.9x faster.
+- Refactor: ~1.3x faster on large clusters; no quadratic core-matrix fill, fewer deep copies.
+- Refactor: the sample-file TypedDict is `SampleSnapshot`; tests finish the Document -> Snapshot rename.
+- Refactor: annotate the user-ranking, accounts-header and matrix-cell helpers.
+- Feature: Memoize matrix cells and colours; lazy web imports; one structural copy
+- Feature: `user_id_ranking` tunable; IDs default to all, R, name_desc, as in 2012 qtop.
+- Feature: `user_accounts_header` tunable for the accounts-table note.
+- Bugfix: user IDs and node queue initials no longer depend on Python's hash seed.
+- Bugfix: type-check CI passes again; ty sees the per-frame matrix-cell cache.
+- Docs: document `user_id_ranking` and `user_accounts_header`; credits link to GitHub contributors.
+- CI: explicit allowlist two B108 false positives inline and two detect-secrets, explaining reasons.
+- CI: pre-commit runs CI's ruff 0.17.1 check and format, plus detect-secrets; a test keeps the ruff pins equal.
+- Release: update version metadata to 0.9.20261109.
+
 ## 0.9.20261108
 
 - Tests: cover sample-filename branches (#507).
@@ -17,7 +34,7 @@ See the [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 - Docs: Python 3.6 build pins and login-free web view are deliberate.
 - Docs: add a qtop(1) manpage, checked against `--help` by a test.
 - Docs: add an EasyBuild easyconfig example.
-- Build: `make all` runs six batches, including the pre-PR gate.
+- CI: `make all` runs six batches, including the pre-PR gate.
 - Bugfix: (security) cap per-node cores at 65536; SGE ignores larger `num_proc`.
 - Bugfix: (security) web view serves only `/`, `/index.html` and `api.json`.
 - Bugfix: `-c OFF` no longer emits colour-reset sequences.

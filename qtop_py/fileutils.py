@@ -35,7 +35,7 @@ def _private_directory(path):
     path = os.path.abspath(os.path.expandvars(path))
     private_root = os.path.abspath(os.path.expanduser("~/.local/qtop"))
     if sys.platform == "darwin":
-        for alias in ("/tmp", "/var"):
+        for alias in ("/tmp", "/var"):  # nosec B108 - only compared, to resolve macOS root-owned aliases; nothing is created
             if path == alias or path.startswith(alias + os.sep):
                 info = os.lstat(alias)
                 # Expand only Apple's root-owned aliases; validate every target component below.

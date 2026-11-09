@@ -106,7 +106,7 @@ class GenericBatchSystem(object):
         return ""
 
     @staticmethod
-    def display_messages(section, document, nodes, config):
+    def display_messages(section, snapshot, nodes, config):
         """Return severity-prefixed display lines for the scheduler messages block."""
         return []
 
@@ -135,16 +135,17 @@ class GenericBatchSystem(object):
 
     @classmethod
     def ensure_worker_nodes_have_qnames(cls, _worker_nodes, job_ids, job_queues):
-        """Associate node allocations with their reported job queues."""
+        """Associate node allocations with their reported job queues, sorted by name (unknown last) for stable output."""
         job_ids_queues = dict(zip(job_ids, job_queues))
         return [
             dict(
                 worker_node,
-                qname=list(
+                qname=sorted(
                     set(
                         job_ids_queues.get(resolve_job_id(job_id, job_ids_queues))
                         for job_id in list(worker_node["core_job_map"].values()) + [job for field in cls.node_job_fields for job in worker_node.get(field, [])]
-                    )
+                    ),
+                    key=lambda queue: (queue is None, queue or ""),
                 ),
             )
             for worker_node in _worker_nodes
