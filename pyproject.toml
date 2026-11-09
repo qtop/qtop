@@ -54,7 +54,11 @@ include = ["qtop_py*"]
 [tool.ruff]
 # pycodestyle (`E`, `W`), Pyflakes (`F`), isort (`I`) and eradicate (`ERA`: no commented-out code).
 # pycodestyle's E26x comment checks need ruff preview mode, so they are not enforced yet.
-lint.select = ["E", "F", "I", "W", "ERA"] ##
+lint.select = ["E", "F", "I", "W", "ERA", "C90"] ##
+# C90 (mccabe): the limit passes today; lower it as functions are split. Over 20 now: demo
+# LittleGridSimulator.__init__ (30), qtop.main (27), tools/repo_sanity.scan_file (21).
+# FIXME: max-complexity 20 needs those 3 split, 15 needs 13, 10 (mccabe's default) needs 35.
+lint.mccabe.max-complexity = 30
 
 # Ruff still exposes py37 as its lowest target; Python 3.6 runtime
 # compatibility stays covered by the separate compat-py36 gate.
