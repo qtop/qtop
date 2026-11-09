@@ -17,18 +17,15 @@ import io
 import json
 import os
 import re
-import sys
 import tempfile
 from collections import OrderedDict, namedtuple
 from contextlib import redirect_stdout
 from pathlib import Path
 from types import SimpleNamespace
 
-ROOT = Path(__file__).resolve().parents[1]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
+import qtop_py.qtop as qtop
 
-import qtop_py.qtop as qtop  # noqa: E402
+ROOT = Path(__file__).resolve().parents[1]
 
 ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
 ACCOUNT_LINE_RE = re.compile(r"^\[\s*(.)\]\s+(.+?)\s+\|")

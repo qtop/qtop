@@ -19,6 +19,7 @@ import contextlib
 import copy
 import datetime
 import glob
+import importlib.util
 import logging
 import os
 import re
@@ -811,12 +812,9 @@ def get_output_size(max_line_len: int, output_fp: str, max_height: int = 0) -> T
 
 
 def attempt_faster_xml_parsing(config: Dict[str, Any]) -> None:
-    if config["faster_xml_parsing"]:
-        try:
-            from lxml import etree
-        except ImportError:
-            logging.warning('Module lxml is missing. Try issuing "pip install lxml". Reverting to xml module.')
-            from xml.etree import ElementTree as etree  # noqa: F401
+    """Only warn: the parsers use xml.etree either way (see faster_xml_parsing in docs/documentation.md)."""
+    if config["faster_xml_parsing"] and importlib.util.find_spec("lxml") is None:
+        logging.warning('Module lxml is missing. Try issuing "pip install lxml". Reverting to xml module.')
 
 
 def init_dirs(args: Any, _savepath: str) -> Any:

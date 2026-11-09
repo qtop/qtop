@@ -8,15 +8,9 @@ import argparse
 import hashlib
 import random
 import string
-import sys
-from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
-
-from qtop_py.plugins.pbs import PBSBatchSystem  # noqa: E402
-from qtop_py.plugins.slurm import SlurmBatchSystem, SlurmStatExtractor  # noqa: E402
+from qtop_py.plugins.pbs import PBSBatchSystem
+from qtop_py.plugins.slurm import SlurmBatchSystem, SlurmStatExtractor
 
 ALPHABET = string.ascii_letters + string.digits + "_-+*?#[](),."
 

@@ -285,7 +285,8 @@ class SGEBatchSystem(GenericBatchSystem):
         logging.debug("qstatq_list contains %s elements" % len(qstatq_list))
         logging.debug("Closing %s" % self.sge_file)
 
-        return total_running_jobs, int(total_queued_jobs), cast("List[RawQueue]", qstatq_list)  # every row is a queue record
+        queues: "List[RawQueue]" = cast("List[RawQueue]", qstatq_list)  # every row is a queue record
+        return total_running_jobs, int(total_queued_jobs), queues
 
     def get_worker_nodes(self, job_ids: List[str], job_queues: List[str], options: "Options") -> "List[Node]":
         logging.debug("Parsing tree of %s" % self.sge_file)

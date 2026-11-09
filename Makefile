@@ -90,7 +90,7 @@ trace-export-validation:: ## Validate an exported qtop JSON trace when TRACE_JSO
 	@if [ -n "$(TRACE_JSON_B64)" ]; then \
 		args="--artifact-dir $(TRACE_ARTIFACT_DIR)"; \
 		if [ -n "$(TRACE_FULLVIEW)" ]; then args="$$args --fullview $(TRACE_FULLVIEW)"; fi; \
-		$(PYTHON) tools/validate_trace_export.py "$(TRACE_JSON_B64)" $$args; \
+		$(PYTHON) -m tools.validate_trace_export "$(TRACE_JSON_B64)" $$args; \
 	else \
 		echo "Skipping exported trace validation: TRACE_JSON_B64 not set"; \
 	fi
@@ -107,7 +107,7 @@ test-slurm-samples:: ## Run Slurm parser tests and render committed Slurm sample
 	$(PYTHON) tools/validate_slurm_samples.py $(SLURM_SAMPLES_DIR) --output $(SLURM_OUTPUT_DIR)
 
 deterministic-fuzz:: ## Reproducibly stress parser primitives with a fixed seed
-	$(PYTHON) tools/deterministic_fuzz.py --seed $(FUZZ_SEED) --cases $(FUZZ_CASES)
+	$(PYTHON) -m tools.deterministic_fuzz --seed $(FUZZ_SEED) --cases $(FUZZ_CASES)
 
 coverage-fuzz:: ## Run bounded Atheris fuzzing (Linux CPython 3.12 CI dependencies)
 	@mkdir -p "$(FUZZ_ARTIFACT_DIR)/corpus"

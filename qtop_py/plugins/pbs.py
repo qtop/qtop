@@ -485,8 +485,8 @@ class PBSBatchSystem(GenericBatchSystem):
         else:
             total_running_jobs, total_queued_jobs = 0, 0
 
-        # Every row but the totals line is a queue record.
-        return int(total_running_jobs), int(total_queued_jobs), cast("List[RawQueue]", qstatq_list)
+        queues: "List[RawQueue]" = cast("List[RawQueue]", qstatq_list)  # every row but the totals line is a queue record
+        return int(total_running_jobs), int(total_queued_jobs), queues
 
     @staticmethod
     def _get_jobs_cores(jobs: List[str]) -> Iterator[Tuple[str, str]]:  # block['jobs']
