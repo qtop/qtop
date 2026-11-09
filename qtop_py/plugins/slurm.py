@@ -11,12 +11,16 @@
 import logging
 import re
 from collections import OrderedDict
-from typing import Any, Dict, List, Optional, Set
+from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Match, Optional, Set, Tuple, cast
 
 import qtop_py.fileutils as fileutils
 from qtop_py.hostlist import HostlistParser
 from qtop_py.schedulers.gpu import parse_gpu_gres
 from qtop_py.serialiser import GenericBatchSystem, StatExtractor
+
+if TYPE_CHECKING:
+    from qtop_py.source_trace import TraceMasker
+    from qtop_py.state_types import ClusterState, Config, JobsInfo, Node, Options, QueuesInfo, RawQueue
 
 SLURM_JOB_STATES = {
     "BOOT_FAIL": "BF",
@@ -109,7 +113,7 @@ class SlurmStatExtractor(StatExtractor):
             return {"slurm_array_job_id": match.group(1), "slurm_array_task_id": match.group(3)}
         return {"slurm_het_job_id": match.group(1), "slurm_het_job_offset": match.group(3)}
 
-    def extract_squeue(self, orig_file):
+    def extract_squeue(self, orig_file: str) -> List[Dict[str, Any]]:
         """
         Parse output from:
         squeue -r -h -O 'JobID:0|,UserName:0|,StateCompact:0|,Partition:0|,NumCPUs:0|,NodeList:0|,tres-alloc:0|,tres-per-node:0|,tres-per-task:0|,ArrayJobID:0|,ArrayTaskID:0'
@@ -173,7 +177,7 @@ class SlurmStatExtractor(StatExtractor):
                     jobs[task_id] = job
         return list(jobs.values())
 
-    def extract_sinfo(self, orig_file):
+    def extract_sinfo(self, orig_file: str) -> List[Dict[str, Any]]:
         """
         Parse output from:
         sinfo -N -h -O 'NodeList:0|,Partition:0|,StateCompact:0|,CPUs:0|,Gres:0|,GresUsed:0|,Available:0'
@@ -219,21 +223,21 @@ class SlurmStatExtractor(StatExtractor):
         return nodes
 
     @staticmethod
-    def _safe_int(value, default):
+    def _safe_int(value: Any, default: int) -> int:
         try:
             return int(value)
         except (TypeError, ValueError):
             return default
 
     @staticmethod
-    def _map_job_state(state):
+    def _map_job_state(state: str) -> str:
         normalized = state.upper().strip()
         if normalized in SLURM_COMPACT_JOB_STATES:
             return normalized
         return SLURM_JOB_STATES.get(normalized, normalized or "?")
 
     @staticmethod
-    def _map_node_state(state):
+    def _map_node_state(state: str) -> str:
         normalized = state.lower().strip()
         normalized = re.sub(r"[*+#~$@%!^\-]+$", "", normalized)
         state_map = {
@@ -285,22 +289,22 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
     blocked_queue_note = " (partition closed to submissions or scheduling)"
 
     @staticmethod
-    def collection_command(key, command, options):
+    def collection_command(key: str, command: str, options: Any) -> str:
         if getattr(options, "ALL_PARTITIONS", False) and not options.SOURCEDIR and key in ("squeue_file", "sinfo_file", "scontrol_file"):
             command += " --all"
         return command
 
     @staticmethod
-    def queue_is_blocked(state):
+    def queue_is_blocked(state: object) -> bool:
         return str(state).lower() in ("down", "drain", "inact", "inactive") or GenericBatchSystem.queue_is_blocked(state)
 
     @staticmethod
-    def node_state_marker(node):
+    def node_state_marker(node: "Node") -> str:
         state = node.get("slurm_node_state", "")
         return state[-1] if state and state[-1] in "*+#~$@%!^-" else ""
 
     @staticmethod
-    def display_messages(section, snapshot, nodes, config):
+    def display_messages(section: str, snapshot: object, nodes: "List[Node]", config: "Config") -> List[str]:
         lines = []
         if section == "snapshot":
             diagnostics = getattr(snapshot, "_diagnostics", {}).get("slurm_diagnostics", {})
@@ -336,10 +340,10 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
                     lines.extend("INFO: " + line for line in pairs)
         return lines
 
-    def mask_source_trace(self, key, text, mask):
+    def mask_source_trace(self, key: str, text: str, mask: "TraceMasker") -> Tuple[str, str]:
         if key == "scontrol_file":
 
-            def field(match):
+            def field(match: Match[str]) -> str:
                 name, value = match.groups()
                 if name in ("JobId", "ArrayJobId", "HetJobId"):
                     value = mask(value, "job")
@@ -398,18 +402,19 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
     PARTITION_STATE_PRIORITY = {"?": -1, "up": 0, "drain": 1, "down": 2, "inact": 3, "inactive": 3}
 
     @staticmethod
-    def get_mnemonic():
+    def get_mnemonic() -> str:
         return "slurm"
 
-    def __init__(self, scheduler_output_filenames, config, options):
-        self.squeue_file = scheduler_output_filenames.get("squeue_file")
-        self.sinfo_file = scheduler_output_filenames.get("sinfo_file")
-        self.scontrol_file = scheduler_output_filenames.get("scontrol_file")
+    def __init__(self, scheduler_output_filenames: Dict[str, str], config: "Config", options: "Options") -> None:
+        # "" (falsy, like the former None) when a trace is not configured; reading it then fails as an OSError.
+        self.squeue_file = scheduler_output_filenames.get("squeue_file", "")
+        self.sinfo_file = scheduler_output_filenames.get("sinfo_file", "")
+        self.scontrol_file = scheduler_output_filenames.get("scontrol_file", "")
         self.config = config
         self.options = options
         self.slurm_stat_maker = SlurmStatExtractor(self.config, self.options)
 
-    def get_cluster_state(self, options):
+    def get_cluster_state(self, options: "Options") -> "ClusterState":
         state = super().get_cluster_state(options)
         for job, raw in zip(state["jobs"], self._get_jobs()):
             job["slurm_partitions"] = list(raw["slurm_partitions"])
@@ -433,7 +438,7 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
             state["slurm_diagnostics"] = diagnostics
         return state
 
-    def get_jobs_info(self):
+    def get_jobs_info(self) -> "JobsInfo":
         jobs = self._get_jobs()
         job_ids = [job["JobId"] for job in jobs]
         usernames = [job["UnixAccount"] for job in jobs]
@@ -447,7 +452,7 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
         )
         return job_ids, usernames, job_states, queue_names
 
-    def get_queues_info(self):
+    def get_queues_info(self) -> "QueuesInfo":
         queue_counts: Dict[str, Any] = OrderedDict()
         total_running_jobs = 0
         total_queued_jobs = 0
@@ -470,7 +475,7 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
                 elif job["S"] in self.QUEUED_STATES:
                     queue["queued"] += 1
 
-        qstatq_lod = [
+        qstatq_lod: "List[RawQueue]" = [
             {
                 "queue_name": queue_name,
                 "run": str(values["run"]),
@@ -483,7 +488,7 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
 
         return total_running_jobs, total_queued_jobs, qstatq_lod
 
-    def get_worker_nodes(self, job_ids, job_queues, options):
+    def get_worker_nodes(self, job_ids: List[str], job_queues: List[str], options: "Options") -> "List[Node]":
         worker_nodes_by_name: Dict[str, Dict[str, Any]] = OrderedDict()
 
         for node in self._get_nodes():
@@ -538,7 +543,7 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
                 node["slurm_unmapped_cpus"] = node.get("slurm_unmapped_cpus", 0) + missing
         worker_nodes = list(worker_nodes_by_name.values())
         logging.info("worker_nodes contains %s entries" % len(worker_nodes))
-        return worker_nodes
+        return cast("List[Node]", worker_nodes)  # built field by field as Node records
 
     @staticmethod
     def _allocation_job_id(header: str) -> Optional[str]:
@@ -560,7 +565,7 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
         job_id = fields.get("JobId", "")
         return job_id if re.fullmatch(r"[0-9]+(?:_[0-9]+|\+[0-9]+)?", job_id) else None
 
-    def _apply_gpu_allocations(self, worker_nodes):
+    def _apply_gpu_allocations(self, worker_nodes: Dict[str, Dict[str, Any]]) -> None:
         for node in worker_nodes.values():
             for raw, parsed in (("slurm_gres", "slurm_gpu_configured"), ("slurm_gres_used", "slurm_gpu_used")):
                 if raw in node:
@@ -614,7 +619,7 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
                     bindings = worker_nodes[host].setdefault("slurm_gpu_bindings", [])
                     bindings.extend(dict(resource, job_id=job_id) for resource in resources)
 
-    def _read_cpu_allocations(self):
+    def _read_cpu_allocations(self) -> Dict[str, Any]:
         allocations: Dict[str, Any] = {}
         if not self.scontrol_file:
             return allocations
@@ -649,7 +654,7 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
             return {}
         return allocations
 
-    def _apply_cpu_allocations(self, worker_nodes):
+    def _apply_cpu_allocations(self, worker_nodes: Dict[str, Dict[str, Any]]) -> None:
         details = self._read_cpu_allocations()
         exact: Dict[str, Dict[str, Any]] = {name: {} for name in worker_nodes}
         estimated = set()
@@ -657,7 +662,7 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
             if job["S"] not in self.ACTIVE_STATES:
                 continue
             hosts = self.expand_nodelist(job["Nodes"])
-            allocation = details.get(job["JobId"])
+            allocation = details.get(job["JobId"]) or {}
             valid = allocation and set(allocation) == set(hosts) and sum(len(cpus) for cpus in allocation.values()) == job["CPUs"]
             if valid:
                 valid = all(host in worker_nodes and all(cpu < int(worker_nodes[host]["np"]) for cpu in allocation[host]) for host in hosts)
@@ -679,25 +684,25 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
             else:
                 node["cpu_allocation_source"] = "estimated" if host in estimated else "none"
 
-    def _get_jobs(self):
+    def _get_jobs(self) -> List[Dict[str, Any]]:
         if not hasattr(self, "_jobs"):
             self._jobs = self.slurm_stat_maker.extract_squeue(self.squeue_file)
         return self._jobs
 
-    def _get_nodes(self):
+    def _get_nodes(self) -> List[Dict[str, Any]]:
         if not hasattr(self, "_nodes"):
             self._nodes = self.slurm_stat_maker.extract_sinfo(self.sinfo_file)
         return self._nodes
 
     @classmethod
-    def _merge_node_state(cls, previous, current):
+    def _merge_node_state(cls, previous: str, current: str) -> str:
         previous_priority = cls.STATE_PRIORITY.get(previous, 0)
         current_priority = cls.STATE_PRIORITY.get(current, 0)
         return current if current_priority > previous_priority else previous
 
     @classmethod
-    def _map_jobs_to_nodes(cls, jobs, worker_nodes_by_name, diagnostics=None):
-        node_jobs = OrderedDict((node_name, []) for node_name in worker_nodes_by_name)
+    def _map_jobs_to_nodes(cls, jobs: List[Dict[str, Any]], worker_nodes_by_name: Mapping[str, Any], diagnostics: Optional[Dict[str, Any]] = None) -> Dict[str, List[str]]:
+        node_jobs: Dict[str, List[str]] = OrderedDict((node_name, []) for node_name in worker_nodes_by_name)
         for node in worker_nodes_by_name.values():
             node["slurm_job_ids"] = []
         for job in jobs:

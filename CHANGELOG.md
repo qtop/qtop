@@ -6,7 +6,7 @@ See the [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 ## 0.9.20261110
 
 - CI: mypy checks all of `qtop_py`, untyped bodies included; contract modules stay strict.
-- CI: mypy requires annotated functions outside a shrinking FIXME list (5 modules left).
+- CI: mypy requires annotated functions outside a shrinking FIXME list (2 modules left).
 - Release: update version metadata to 0.9.20261110.
 
 ## 0.9.20261109

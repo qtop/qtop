@@ -127,14 +127,11 @@ ignore_missing_imports = true
 module = ["qtop_py.state_types", "qtop_py.cluster_state", "qtop_py.sample", "qtop_py.serialiser", "qtop_py.ui.viewport"]
 disallow_untyped_calls = true
 
-# FIXME: untyped-defs ratchet; annotate a module, then drop it from this list (175 functions left).
+# FIXME: untyped-defs ratchet; annotate a module, then drop it from this list (100 functions left).
 [[tool.mypy.overrides]]
 module = [
     "qtop_py.mvu_query",
-    "qtop_py.plugins.sge",
-    "qtop_py.plugins.slurm",
     "qtop_py.qtop",
-    "qtop_py.ui.mvu_view",
 ]
 disallow_untyped_defs = false
 

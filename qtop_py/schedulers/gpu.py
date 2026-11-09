@@ -3,7 +3,7 @@
 """Slurm GPU metadata; resource indices are not CUDA or physical GPU IDs."""
 
 import re
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Optional, Sequence
 
 from qtop_py.hostlist import HostlistParser
 
@@ -38,7 +38,7 @@ def _pair_inventory(mapping: object) -> Dict[str, List[List[int]]]:
     return inventory
 
 
-def configured_pair_lines(nodes: List[Dict[str, Any]], mapping: object) -> List[str]:
+def configured_pair_lines(nodes: Sequence[Mapping[str, Any]], mapping: object) -> List[str]:
     """Experimental display of administrator-configured pairs, not discovered links."""
     if not mapping:
         return []
