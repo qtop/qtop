@@ -8,6 +8,10 @@ import re
 from collections import Counter, OrderedDict, namedtuple
 from math import ceil
 from operator import itemgetter
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from typing import List, Mapping, Sequence, Tuple
 
 from qtop_py import configuration, utils, yaml_parser
 from qtop_py.constants import DEFAULT_USER_ID_RANKING, QTOPCONF_YAML, SYMBOL_LONG_TAIL_USER
@@ -21,7 +25,12 @@ from qtop_py.serialiser import resolve_job_id
 ACCOUNT_LETTERS = re.compile(r"[A-Za-z]+")
 
 
-def rank_users(all_counts, running, queued, USER_ID_RANKING=DEFAULT_USER_ID_RANKING):
+def rank_users(
+    all_counts: "Mapping[str, int]",
+    running: "Mapping[str, int]",
+    queued: "Mapping[str, int]",
+    USER_ID_RANKING: "Sequence[str]" = DEFAULT_USER_ID_RANKING,
+) -> "List[Tuple[str, int]]":
     """
     Order users for ID assignment: count keys rank higher counts first, the final name key breaks ties.
     Returns (user, all jobs count) pairs, as the accounts table expects.
@@ -425,7 +434,7 @@ class WNOccupancy(object):
         # Insertion-ordered dict: O(1) removal, same iteration order as the former list.
         node_free_cores = dict.fromkeys(node_cores)
 
-        def take(core):
+        def take(core: str) -> None:
             if core not in node_free_cores:
                 raise ValueError("list.remove(x): x not in list")
             del node_free_cores[core]
@@ -434,19 +443,20 @@ class WNOccupancy(object):
             if self._resolve(str(job), job_to_user_and_queue) not in job_to_user_and_queue:
                 core_user_map["Core" + str(core) + "vector"].append(utils.ColorStr("?", color="Yellow"))
                 take(str(core))
+        # One cell per (user, queue) per frame: every input to its colour is frame-constant,
+        # and cells are never modified after creation, so cores of the same job share it.
+        cells = self.__dict__.setdefault("_core_cells", {})  # per frame: lives on this WNOccupancy
         for user, core, queue in self._valid_corejobs(corejobs, job_to_user_and_queue):
-            # One cell per (user, queue) per frame: every input to its colour is frame-constant,
-            # and cells are never modified after creation, so cores of the same job share it.
-            id_ = self.__dict__.setdefault("_core_cells", {}).get((user, queue))
+            id_ = cells.get((user, queue))
             if id_ is None:
-                id_ = self._core_cell(user, queue, _core_coloring)
+                id_ = cells[user, queue] = self._core_cell(user, queue, _core_coloring)
             core_user_map["Core" + str(core) + "vector"].append(id_)
             take(core)  # this is an assigned core, hence it doesn't belong to the node's free cores
 
         return core_user_map, list(node_free_cores)
 
-    def _core_cell(self, user, queue, _core_coloring):
-        """Build (and memoize) the coloured matrix cell for a user's job in a queue."""
+    def _core_cell(self, user: str, queue: str, _core_coloring: str) -> "utils.ColorStr":
+        """Build the coloured matrix cell for a user's job in a queue."""
         selected_pat_to_color_map = getattr(self.MVU_model, _core_coloring)
         _highlighted_queues_or_users = self.MVU_model.display_overrides.get("highlight", self.config["highlight"])
         id_to_user = dict(zip((str(x) for x in self.user_to_id.values()), self.user_to_id.keys()))
@@ -469,10 +479,9 @@ class WNOccupancy(object):
         else:
             id_.color = "Gray_D"
         id_.q = queue
-        self._core_cells[user, queue] = id_
         return id_
 
-    def _resolve(self, job, job_to_user_and_queue):
+    def _resolve(self, job: str, job_to_user_and_queue: "Mapping[str, Tuple[str, str]]") -> str:
         """resolve_job_id, memoized per frame: cores of one job resolve once, not once per core."""
         memo = self.__dict__.setdefault("_resolved_jobs", {})  # per frame: lives on this WNOccupancy
         resolved = memo.get(job)

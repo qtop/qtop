@@ -59,7 +59,7 @@ class Snapshot(namedtuple("Snapshot", ["worker_nodes", "jobs_dict", "queues_dict
     def to_cluster_state(self) -> "state_types.ClusterState":
         if hasattr(self, "_state"):
             return copy.deepcopy(self._state)
-        # Five-field legacy documents are adapted only at this boundary.
+        # Five-field legacy snapshots are adapted only at this boundary.
         state: "state_types.ClusterState" = {
             "jobs": [
                 {

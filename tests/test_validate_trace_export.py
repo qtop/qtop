@@ -23,7 +23,7 @@ def write_encoded_payload(tmp_path, payload):
     return path
 
 
-def test_load_exported_document_rehydrates_named_records(tmp_path):
+def test_load_exported_snapshot_rehydrates_named_records(tmp_path):
     payload = [
         [{"domainname": "node001", "np": "1", "state": "-", "qname": ["debug"], "core_job_map": {"0": "1"}}],
         {"1": ["alice", "R", "debug"]},
@@ -40,7 +40,7 @@ def test_load_exported_document_rehydrates_named_records(tmp_path):
     assert snapshot.total_running_jobs == 1
 
 
-def test_load_exported_document_accepts_cluster_state(tmp_path):
+def test_load_exported_snapshot_accepts_cluster_state(tmp_path):
     payload = {
         "jobs": [{"id": "1", "user": "alice", "state": "R", "queue": "debug"}],
         "nodes": [{"domainname": "node001", "np": "1", "state": "-", "qname": ["debug"], "core_job_map": {"0": "1"}}],

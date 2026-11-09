@@ -44,7 +44,7 @@ def test_cluster_state_is_plain_and_has_only_the_public_keys():
     assert cluster_state_totals(state) == {"running_jobs": 1, "queued_jobs": 0}
 
 
-def test_cluster_state_hands_nodes_over_and_document_isolates_them():
+def test_cluster_state_hands_nodes_over_and_snapshot_isolates_them():
     """Ownership: the builder passes nodes through uncopied; Snapshot is the one copy boundary."""
     nodes = [{"domainname": "node001", "np": 2, "state": "j", "qname": ["debug"], "core_job_map": {"0": "1"}}]
     state = build_cluster_state(["1"], ["alice"], ["R"], ["debug"], nodes, [])
@@ -59,7 +59,7 @@ def test_cluster_state_hands_nodes_over_and_document_isolates_them():
     assert snapshot.to_cluster_state()["nodes"][0]["qname"] == ["debug"]
 
 
-def test_document_round_trip_and_save_use_cluster_state(tmp_path):
+def test_snapshot_round_trip_and_save_use_cluster_state(tmp_path):
     state = sample_state()
     snapshot = Snapshot.from_cluster_state(state)
     output = tmp_path / "cluster-state.json"
@@ -139,7 +139,7 @@ def test_mixed_accounting_metadata_is_rejected():
         validate_cluster_state(state)
 
 
-def test_document_owns_lossless_state_independently_of_input_and_rendering_views(tmp_path):
+def test_snapshot_owns_lossless_state_independently_of_input_and_rendering_views(tmp_path):
     import copy
 
     state = sample_state()

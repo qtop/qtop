@@ -223,14 +223,14 @@ def test_failed_export_removes_partial_file_and_does_not_notify_web(tmp_path):
     from types import SimpleNamespace
     from unittest.mock import Mock
 
-    class FailedDocument:
+    class FailedSnapshot:
         def save(self, path):
             Path(path).write_text("partial JSON")
             raise OSError("export failed")
 
     web = Mock()
     with pytest.raises(OSError, match="export failed"):
-        qtop.export_snapshot(FailedDocument(), SimpleNamespace(EXPORT=True, WEB=True), str(tmp_path), "test", web)
+        qtop.export_snapshot(FailedSnapshot(), SimpleNamespace(EXPORT=True, WEB=True), str(tmp_path), "test", web)
     assert not list(tmp_path.glob("qtop_json_*.json"))
     web.set_filename.assert_not_called()
 

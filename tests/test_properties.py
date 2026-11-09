@@ -69,7 +69,7 @@ def cluster_states(draw):
 
 
 @given(cluster_states())
-def test_document_round_trip_preserves_cluster_state(state):
+def test_snapshot_round_trip_preserves_cluster_state(state):
     assert validate_cluster_state(state) is state
     assert Snapshot.from_cluster_state(state).to_cluster_state() == state
     assert cluster_state_totals(state) == {

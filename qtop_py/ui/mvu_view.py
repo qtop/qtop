@@ -10,6 +10,10 @@ import tempfile
 from collections import OrderedDict
 from functools import lru_cache, partial
 from itertools import cycle, zip_longest
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from qtop_py.state_types import Config
 
 from qtop_py import __version__, utils, yaml_parser
 from qtop_py.constants import DEFAULT_USER_ACCOUNTS_HEADER, DEFAULT_USER_ID_RANKING
@@ -22,7 +26,7 @@ from qtop_py.safety import visible_text
 DEFAULT_ACCOUNT_STATES = ("running_of_user", "queued_of_user")
 
 
-def user_accounts_header(config):
+def user_accounts_header(config: "Config") -> str:
     """Expand user_accounts_header; {ranking} becomes the active user_id_ranking. Plain replace: no format-string evaluation."""
     USER_ACCOUNTS_HEADER = config.get("user_accounts_header")
     if USER_ACCOUNTS_HEADER is None:

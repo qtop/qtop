@@ -27,7 +27,7 @@ GOLDEN_PBS_SAMPLES = (
     "gef_kbgwjKhQ6rWy2ZFn_JkHgA",
     "gef_chUMytd1bwcB5Cbc59FHRA",
     "gef_i2OQxcmsYH3GAQnonKVqoA",
-    "gef_nYSEKsd7-JpjqvOfI8UyNg",
+    "gef_nYSEKsd7-JpjqvOfI8UyNg",  # pragma: allowlist secret - a sample ID, not a credential
     "gef_Ab0XLTIet2_e9SoSN-TV1g",
     "gef_BiUgx8_5M6to8nP2BPBcfg",
 )

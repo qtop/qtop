@@ -210,11 +210,12 @@ def test_json_traces_redact_unused_fields_and_keep_native_identifiers(tmp_path):
     assert "private" not in text and "7654321" not in text and "alice" not in text
     result = json.loads(text)["Jobs"]["100000.server"]
     assert result["queue"] == "q_anon_q_0" and result["job_state"] == "R"
+    # pragma: allowlist nextline secret - a fixture value the masking must hide
     queues = {"Queue": {"batch": {"state_count": "Running:1 Queued:2 Held:0", "enabled": True, "started": "True", "max_run": 12, "secret": "private-value"}}}
     _, text = backend.mask_source_trace("qstatq_file", json.dumps(queues), mask)
     assert "private" not in text
     assert json.loads(text)["Queue"]["q_anon_q_0"]["state_count"] == "Running:1 Queued:2 Held:0"
-    queues["Queue"]["batch"]["enabled"] = {"private-key": "private-value"}
+    queues["Queue"]["batch"]["enabled"] = {"private-label": "private-value"}
     with pytest.raises(ValueError):
         backend.mask_source_trace("qstatq_file", json.dumps(queues), mask)
 

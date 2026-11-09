@@ -262,6 +262,28 @@ configured ``getent passwd`` command; the default cache is
 ``--show-groups`` resolves each user's primary Unix group through the local
 account database. Neither option requires a Grid pool-mapping command.
 
+IDs are handed out in ``user_id_ranking`` order: with the default
+``possible_ids``, ``0``-``9`` go to the top ten users. Count keys come first, each
+ranking higher counts first: ``all`` (every job, any state), ``R+Q``, ``R``,
+``Q``. The list must end with ``name_desc`` or ``name_asc``, so ties resolve the
+same way on every refresh and every replay of a sample. The default
+``[all, R, name_desc]`` breaks ties among equal totals by running jobs;
+``[all, name_desc]`` reproduces the 2012 shell qtop exactly.
+
+``user_accounts_header`` is the note printed after the table title, at most
+200 characters on one line; ``{ranking}`` expands to the active
+``user_id_ranking``. ``''`` prints no note, ``--classic`` shows the
+scheduler's own note instead, and anonymized samples (``-L -A``) reset it to
+the default, since free text may identify the site.
+
+```yaml
+user_id_ranking:
+  - all
+  - R
+  - name_desc
+user_accounts_header: '(ranked by {ranking})'
+```
+
 The state columns after ``jobs >=`` are tunable; the default is ``R + Q``.
 ``accounts_states`` lists state keys from ``state_abbreviations``, in display
 order; ``other_of_user`` counts jobs in none of the listed states, and an entry

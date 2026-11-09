@@ -6,6 +6,10 @@ import copy
 import logging
 import os
 from math import isfinite
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from qtop_py.state_types import Config
 
 from qtop_py import fileutils, yaml_parser
 from qtop_py.colormap import nodestate_to_color_default, user_to_color_default
@@ -99,7 +103,7 @@ def _validate_runtime(config):
     _require(order is None or isinstance(order, list) and all(isinstance(item, str) for item in order), "sorting.user_sort", "a list of sort names or null")
 
 
-def _validate_user_id_ranking(config):
+def _validate_user_id_ranking(config: "Config") -> None:
     """Distinct count keys in any order, then exactly one name key last, so ID assignment is a total order."""
     USER_ID_RANKING = config.get("user_id_ranking")
     if USER_ID_RANKING is None:
@@ -112,7 +116,7 @@ def _validate_user_id_ranking(config):
     _require(len(set(COUNT_KEYS)) == len(COUNT_KEYS), "user_id_ranking", expected)
 
 
-def _validate_user_accounts_header(config):
+def _validate_user_accounts_header(config: "Config") -> None:
     """Single-line note, possibly empty; control characters are escaped at render time."""
     USER_ACCOUNTS_HEADER = config.get("user_accounts_header")
     if USER_ACCOUNTS_HEADER is None:

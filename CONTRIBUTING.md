@@ -51,8 +51,13 @@ Before opening a pull request, run the shared release gates:
 
 ```console
 make ci-deps  # once, in a Linux x86-64 CPython 3.12 virtual environment
+pre-commit install  # optional, once: ruff check/format and detect-secrets on every commit
 make pre-pr
 ```
+
+The pre-commit hooks pin the same ruff as CI, so a commit they accept passes CI's
+lint and format checks. A reported secret that is not one is allowlisted on its
+line with `# pragma: allowlist secret` and a short reason.
 
 `make pre-pr` runs the full suite once under coverage, scheduler samples,
 lint/format checks, all type checkers, deterministic fuzzing and bounded Atheris

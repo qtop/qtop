@@ -12,7 +12,7 @@ import tarfile
 from typing import TYPE_CHECKING, Dict, List, Optional, Tuple, cast, overload
 
 if TYPE_CHECKING:
-    from qtop_py.state_types import ClusterState, Config, IdentifierMaps, Options, Snapshot
+    from qtop_py.state_types import ClusterState, Config, IdentifierMaps, Options, SampleSnapshot
 
 from qtop_py import safety
 from qtop_py.cluster_state import validate_cluster_state
@@ -121,7 +121,13 @@ def sanitize_config(config: "Config", mappings: "IdentifierMaps") -> "Tuple[Conf
     config.pop("experimental_web_port", None)
     config.pop("experimental_queue_nodes", None)
     config.pop("experimental_gpu_pairs", None)
-    config.update(savepath="/tmp/qtop_results_$USER", schedulers={}, signature_commands={}, extract_info=None, remapping=[])
+    config.update(
+        savepath="/tmp/qtop_results_$USER",  # nosec B108 - neutral default for the anonymized config, never opened here
+        schedulers={},
+        signature_commands={},
+        extract_info=None,
+        remapping=[],
+    )
     # Control strings (state codes, sort names, colors) must not be rewritten
     # merely because they happen to equal a user/queue name.
     original = copy.deepcopy(config)
@@ -188,7 +194,7 @@ def save_snapshot(
     add_json(archive, "capture-log.json", {"status": "snapshot collected", "raw_log_omitted": True})
 
 
-def load_snapshot(path: str) -> "Snapshot":
+def load_snapshot(path: str) -> "SampleSnapshot":
     payload = missing = object()
     with safety.snapshot_archive(path) as archive:
         for index, member in enumerate(archive):
@@ -230,4 +236,4 @@ def load_snapshot(path: str) -> "Snapshot":
     snapshot["config"]["extract_info"] = None
     snapshot["options"]["GET_GECOS"] = False
     snapshot["options"]["SHOW_GROUPS"] = False
-    return cast("Snapshot", snapshot)
+    return cast("SampleSnapshot", snapshot)
