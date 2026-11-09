@@ -6,7 +6,6 @@
 
 """Small, scheduler-neutral data transformations for cluster snapshots."""
 
-import copy
 import re
 from typing import TYPE_CHECKING, Dict, List, Sequence, cast
 
@@ -49,9 +48,11 @@ def build_cluster_state(
         }
         for queue in queues
     ]
+    # Nodes are handed over, not copied: every consumer copies at its own boundary
+    # (Document.from_cluster_state, sample.anonymize_state), so a copy here was a second one.
     return {
         "jobs": jobs,
-        "nodes": copy.deepcopy(list(nodes)),
+        "nodes": list(nodes),
         "queues": normalized_queues,
     }
 

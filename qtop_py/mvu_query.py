@@ -18,6 +18,8 @@ from qtop_py.mvu import MVU_node_job_ids as node_job_ids
 from qtop_py.mvu import MVU_reserved_pattern_mappings as _reserved_pattern_mappings
 from qtop_py.serialiser import resolve_job_id
 
+ACCOUNT_LETTERS = re.compile(r"[A-Za-z]+")
+
 
 def rank_users(all_counts, running, queued, USER_ID_RANKING=DEFAULT_USER_ID_RANKING):
     """
@@ -221,16 +223,22 @@ class WNOccupancy(object):
         If no matching was possible, there will be no coloring applied.
         """
         pattern = {}
+        PATTERNS_LAST_FIRST = list(mapping.keys())[::-1]
+        # Compiled on first use, so an invalid pattern still fails exactly when it is first reached.
+        compiled = {}
         # Preserve shared-ID color precedence from the previous job-count order.
         for line in sorted(self.account_jobs_table, key=itemgetter(3, 4), reverse=True):
             uid, user = line[0], line[4]
             # Single-expression fallback, portable to py3.6 / PyPy / MicroPython (no walrus, no findall).
             # The appended " NoPattern" sentinel guarantees a match: an all-numeric user (e.g. a numeric
             # scheduler-provided uid) yields "NoPattern". The space is load-bearing: without it "abc" -> "abcNoPattern".
-            account_match = re.search(r"[A-Za-z]+", user + " NoPattern")
+            account_match = ACCOUNT_LETTERS.search(user + " NoPattern")
             account_letters = account_match.group(0) if account_match else "NoPattern"
-            for re_account in list(mapping.keys())[::-1]:
-                match = re.search(re_account, user)
+            for re_account in PATTERNS_LAST_FIRST:
+                rx = compiled.get(re_account)
+                if rx is None:
+                    rx = compiled[re_account] = re.compile(re_account)
+                match = rx.search(user)
                 if match is not None:
                     account_letters = re_account  # colors the text according to the regex given by the user in qtopconf
                     break
@@ -895,7 +903,9 @@ def MVU_query(model):
     render_model.args = copy.copy(model.args)
     render_model.viewport = copy.copy(model.viewport)
     render_model.transposed_sections = []
-    nodes = MVU_keep_queue_initials_only_and_colorize(copy.deepcopy(model.document.worker_nodes), model.queue_to_color)
+    # The transforms build new per-node dicts; nested node values are only read downstream
+    # (checked by test_MVU_query_and_view_need_no_runtime_globals_or_mutable_snapshot), so no deep copy.
+    nodes = MVU_keep_queue_initials_only_and_colorize(model.document.worker_nodes, model.queue_to_color)
     nodes = MVU_colorize_nodestate(nodes, model.nodestate_to_color)
     cluster = Cluster(model.document, nodes, WNFilter, model.config, render_model.args, MVU_model=render_model)
     occupancy = WNOccupancy(cluster, model.config, model.document, model.user_to_color, MVU_model=render_model)

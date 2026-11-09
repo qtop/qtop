@@ -44,13 +44,19 @@ def test_cluster_state_is_plain_and_has_only_the_public_keys():
     assert cluster_state_totals(state) == {"running_jobs": 1, "queued_jobs": 0}
 
 
-def test_cluster_state_copies_nodes_instead_of_sharing_mutable_input():
-    nodes = [{"domainname": "node001", "qname": ["debug"]}]
-    state = build_cluster_state([], [], [], [], nodes, [])
+def test_cluster_state_hands_nodes_over_and_document_isolates_them():
+    """Ownership: the builder passes nodes through uncopied; Document is the one copy boundary."""
+    nodes = [{"domainname": "node001", "np": 2, "state": "j", "qname": ["debug"], "core_job_map": {"0": "1"}}]
+    state = build_cluster_state(["1"], ["alice"], ["R"], ["debug"], nodes, [])
+    assert state["nodes"][0] is nodes[0]
 
-    state["nodes"][0]["qname"].append("batch")
+    document = Document.from_cluster_state(state)
+    nodes[0]["qname"].append("batch")
+    nodes[0]["core_job_map"]["1"] = "1"
 
-    assert nodes == [{"domainname": "node001", "qname": ["debug"]}]
+    assert document.worker_nodes[0]["qname"] == ["debug"]
+    assert document.worker_nodes[0]["core_job_map"] == {"0": "1"}
+    assert document.to_cluster_state()["nodes"][0]["qname"] == ["debug"]
 
 
 def test_document_round_trip_and_save_use_cluster_state(tmp_path):

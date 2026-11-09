@@ -43,6 +43,9 @@ def cores_per_node(value: Any) -> Optional[int]:
 def visible_text(value, escape_backslashes=True):
     """Escape controls and literal backslashes, keeping displayed identifiers distinct."""
     value = str(value)
+    # Fast path: every character _CONTROLS matches is non-printable, so printable text needs no escaping.
+    if value.isprintable() and not (escape_backslashes and "\\" in value):
+        return value
     if escape_backslashes and "\\" in value:
         value = value.replace("\\", "\\\\")
     return _CONTROLS.sub(lambda match: ascii(match.group())[1:-1], value)

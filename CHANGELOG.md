@@ -5,10 +5,11 @@ See the [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 
 ## 0.9.20261109
 
+- Refactor: one snapshot copy, precompiled colours, fast escaping; up to 1.9x faster.
+- Refactor: ~1.3x faster on large clusters; no quadratic core-matrix fill, fewer deep copies.
 - Feature: `user_id_ranking` tunable; IDs default to all, R, name_desc, as in 2012 qtop.
 - Feature: `user_accounts_header` tunable for the accounts-table note.
 - Bugfix: user IDs and node queue initials no longer depend on Python's hash seed.
-- Refactor: ~1.3x faster on large clusters; no quadratic core-matrix fill, fewer deep copies.
 - Release: update version metadata to 0.9.20261109.
 
 ## 0.9.20261108

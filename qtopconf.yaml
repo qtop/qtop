@@ -342,7 +342,7 @@ fill_with_user_firstletter: False
 ## name_desc matches the original 2012 shell qtop. Examples: [all, R, name_asc], [R+Q, R, name_desc], [all, name_desc]
 user_id_ranking:
   - all
-  - R           ## historic qtop.sh omits this, so ranking changes; if it is commented, we reconsile to `[all, name_asc]`
+  - R               ## R is not part of ranking in 2012 qtop.sh; drop it to get its exact order, [all, name_desc]
   - name_desc
 ## Note printed after the "User accounts and pool mappings" title. {ranking} expands to user_id_ranking above.
 ## Use single quotes; '' prints no note. --classic shows the scheduler's own note instead.
