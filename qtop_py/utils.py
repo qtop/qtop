@@ -87,7 +87,7 @@ def parse_qtop_cmdline_args() -> Namespace:
         action="store_true",
         dest="ANONYMIZE",
         default=False,
-        help="Mask identifiers where supported by the backend (requires -e). With -L, save a reproducible masked state/config snapshot instead of raw traces and logs.",
+        help="Mask identifiers where supported by the backend. With -L, save a reproducible masked state/config snapshot instead of raw traces and logs.",
     )
     parser.add_argument("-b", "--batchSystem", action="store", dest="BATCH_SYSTEM", default=None)
     parser.add_argument(

@@ -879,16 +879,8 @@ def process_args(args: Any) -> Tuple[Any, int]:
 
 def require_experimental_opt_in(args: Any) -> None:
     """Exit with status 1 if an experimental feature is requested without --experimental."""
-    requested_features = tuple(
-        name
-        for enabled, name in (
-            (args.ANONYMIZE, "Anonymization"),
-            (args.WEB, "The web interface"),
-        )
-        if enabled
-    )
-    if requested_features and not args.EXPERIMENTAL:
-        print("%s requires --experimental (-e). Exiting..." % " and ".join(requested_features))
+    if args.WEB and not args.EXPERIMENTAL:  # anonymization (-A) graduated in 0.9.20261111 (#548)
+        print("The web interface requires --experimental (-e). Exiting...")
         raise SystemExit(1)
 
 

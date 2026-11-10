@@ -74,12 +74,12 @@ For example, using the same offline fixture:
 Create a reproducible anonymized support archive:
 
 ```sh
-./qtop -b slurm -s tests/plugins/slurm_samples/basic -L -A -e
+./qtop -b slurm -s tests/plugins/slurm_samples/basic -L -A
 ./qtop --load-sample /path/to/qtop_sample_anonymous.tar
 ```
 
 For a live capture, omit `-s tests/plugins/slurm_samples/basic` and select your
-scheduler. `-A` is experimental and requires `-e`. Loading the archive restores
+scheduler. Loading the archive restores
 parsed state and presentation without scheduler commands. Review the
 [masking limitations](documentation.md#anonymization-scope) before sharing it.
 

@@ -178,19 +178,16 @@ def test_scheduler_autodetection_prioritizes_slurm(monkeypatch):
     assert qtop_module.auto_get_avail_batch_system(config, qtop_module.discover_qtop_batch_systems()) == "slurm"
 
 
-@pytest.mark.parametrize(
-    ("feature", "label"),
-    (("ANONYMIZE", "Anonymization"), ("WEB", "The web interface")),
-)
-def test_experimental_features_require_explicit_opt_in(capsys, feature, label):
-    args = SimpleNamespace(ANONYMIZE=False, WEB=False, EXPERIMENTAL=False)
-    setattr(args, feature, True)
-
+def test_experimental_features_require_explicit_opt_in(capsys):
     with pytest.raises(SystemExit) as exc_info:
-        qtop_module.require_experimental_opt_in(args)
+        qtop_module.require_experimental_opt_in(SimpleNamespace(ANONYMIZE=False, WEB=True, EXPERIMENTAL=False))
 
     assert exc_info.value.code == 1
-    assert label in capsys.readouterr().out
+    assert "The web interface" in capsys.readouterr().out
+
+
+def test_anonymization_is_no_longer_experimental():  # qtop/qtop#548
+    assert qtop_module.require_experimental_opt_in(SimpleNamespace(ANONYMIZE=True, WEB=False, EXPERIMENTAL=False)) is None
 
 
 def test_experimental_features_accept_explicit_opt_in():

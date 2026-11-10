@@ -1008,11 +1008,11 @@ Passing a plain output file to ``-s`` continues to use its parent directory.
 
 ### Anonymization scope
 
-Use ``-A -e`` to request experimental identifier masking. For example:
+Use ``-A`` to mask identifiers. For example:
 
 ```sh
 qtop_masked_dir=$(mktemp -d)
-./qtop -b slurm -s tests/plugins/slurm_samples/basic -L -A -e -o "savepath=$qtop_masked_dir"
+./qtop -b slurm -s tests/plugins/slurm_samples/basic -L -A -o "savepath=$qtop_masked_dir"
 tar -tf "$qtop_masked_dir"/qtop_sample_*.tar
 ```
 
@@ -1159,10 +1159,10 @@ discard them; any network exposure must be selected locally, for example with
    by qtop.
 -  ``-L`` creates a support archive; ``-LL`` also includes the bundled
    configuration and Python package sources.
--  ``-A`` masks identifiers where the backend supports it and requires
-   ``-e`` / ``--experimental``. Raw scheduler files are excluded from its
-   support archive; see [anonymization scope](#anonymization-scope).
--  ``-e`` opts into experimental features (currently anonymization and web).
+-  ``-A`` masks identifiers where the backend supports it. Raw scheduler files
+   are excluded from its support archive; see [anonymization scope](#anonymization-scope).
+-  ``-e`` opts into experimental features (currently the web interface,
+   ``--queue-nodes``, ``--masked-traces`` and ``--raw-companion``).
 -  ``-V`` prints the qtop version.
 -  ``-h`` shows command help.
 

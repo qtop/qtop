@@ -93,7 +93,7 @@ Read scheduler traces from a directory instead of invoking live commands:
 ```
 
 Create a support sample containing qtop output, logs and scheduler traces
-(use `-L -A -e` for a reproducible anonymized state snapshot):
+(use `-L -A` for a reproducible anonymized state snapshot):
 
 ```console
 ./qtop -L

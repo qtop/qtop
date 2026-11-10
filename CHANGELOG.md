@@ -19,6 +19,7 @@ See the [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 - CI: drop the Python 3.9 (EOL) pytest lane and its unpatchable pins; RHEL 9-family 3.9 lanes run compat-py36.
 - Docs: where to record accepted advisories (osv-scanner.toml) for Scorecard's Vulnerabilities check.
 - Bugfix: watch-mode paging no longer skips a line between pages (#121).
+- Feature: anonymization (-A) is no longer experimental and works without -e (#548).
 - Release: update version metadata to 0.9.20261111
 
 ## 0.9.20261110
