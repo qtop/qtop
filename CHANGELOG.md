@@ -5,25 +5,26 @@ See the [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 
 ## 0.9.20261111
 
+- Tests: the viewport property test bounds scrolling by the one-row-shorter page of #121.
+- Feature: anonymization (-A) is no longer experimental and works without -e (#548).
 - Feature: the accounts totals row is on by default; -4 (--noaccounttotals) now hides it.
 - Feature: the Summary shows Total=R+Q+Other on blue, green, orange (red without 256 colours) and yellow; -c OFF terminals get reverse video.
 - Feature: `summary_colours` in qtopconf.yaml picks the Summary count colours.
 - Feature: the accounts totals row paints its counts in the Summary colours, for side-by-side comparison.
-- Bugfix: SGE Summary R and Q classify jobs by their state, as the accounts table does; held jobs count as Other.
-- Docs: why the PBS Summary (qstat -q) can differ from the accounts totals row (qstat) by a few jobs.
-- Bugfix: demo lists its queued jobs and counts only running ones as R, so its Summary and accounts totals agree.
 - Feature: the expanded queue view (Q) aligns one queue per line as Total=R+Q+Other, in the Summary colours.
 - Feature: the accounts table and its totals row add an O (Other) column by default, as the Summary does.
 - CI: Python 3.6 installs the wheel built on 3.12 with its bundled pip; the vulnerable legacy build pins are gone.
 - CI: wheel 0.46.2 (CVE-2026-24049 in 0.45.1).
 - CI: drop the Python 3.9 (EOL) pytest lane and its unpatchable pins; RHEL 9-family 3.9 lanes run compat-py36.
+- CI: Dependabot proposes monthly, grouped updates of GitHub Actions and CI pins; SUPPORT.md says where to get help.
+- Docs: why the PBS Summary (qstat -q) can differ from the accounts totals row (qstat) by a few jobs.
 - Docs: where to record accepted advisories (osv-scanner.toml) for Scorecard's Vulnerabilities check.
 - Bugfix: watch-mode paging no longer skips a line between pages (#121).
-- Feature: anonymization (-A) is no longer experimental and works without -e (#548).
-- CI: Dependabot proposes monthly, grouped updates of GitHub Actions and CI pins; SUPPORT.md says where to get help.
-- Tests: the viewport property test bounds scrolling by the one-row-shorter page of #121.
-- Bugfix: the Summary no longer counts PBS W/H jobs twice (qstat -q queues them) and counts the job list when qstat -q is empty.
+- Bugfix: demo lists its queued jobs and counts only running ones as R, so its Summary and accounts totals agree.
 - Bugfix: matrix columns follow node numbers, -m keeps early empty nodes as documented, and -T masks them too.
+- Bugfix: SGE Summary R and Q classify jobs by their state, as the accounts table does; held jobs count as Other.
+- Bugfix: the Summary no longer counts PBS W/H jobs twice (qstat -q queues them) and counts the job list when qstat -q is empty.
+- Docs: PBS qstat -q's Que counts W and H jobs; an empty qstat -q falls back to the job list.
 - Release: update version metadata to 0.9.20261111
 
 ## 0.9.20261110

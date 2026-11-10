@@ -307,6 +307,8 @@ the commands run moments apart, and ``qstat -q`` also counts jobs the job list
 may not show. The bundled PBS sample shows ``10955=7590+3365+0`` against a
 totals row of ``10954``, ``7588`` R and ``3365`` Q. This is in the input, not
 in qtop; set ``summary_states`` to count the job list on both sides.
+``qstat -q``'s Que also counts W and H jobs, so Other is only the listed jobs
+beyond R and Q; with an empty ``qstat -q`` the Summary counts the job list.
 
 ```yaml
 accounts_states:
@@ -1108,8 +1110,8 @@ checkout.
 -  ``--show-groups`` adds primary Unix groups to the account table.
 -  ``--expand-queues`` displays one queue or partition per summary line;
    press ``Q`` to toggle it in watch mode. Each line reads ``Total = R + Q + Other``,
-   aligned and in the Summary colours; Other counts the queue's listed jobs in
-   neither state. Watch mode also expands it when
+   aligned and in the Summary colours; Other counts the queue's listed jobs
+   beyond its R and Q. Watch mode also expands it when
    the one-line summary would be wider than the terminal.
 -  ``-T`` transposes the worker-node matrix.
 -  ``-l`` lets the matrix overflow horizontally, which is useful with
