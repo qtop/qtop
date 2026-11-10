@@ -234,6 +234,13 @@ backend. The `python_version < '3.9'` build requirement in
 [pyproject.toml](../pyproject.toml) stays a range, for anyone building from
 source on those interpreters. Revisit when the Python 3.6 floor is raised.
 
+Scorecard's [Vulnerabilities check](https://github.com/ossf/scorecard/blob/main/docs/checks.md#vulnerabilities)
+counts the OSV advisories of every pinned version, whatever its environment
+marker; the legacy pins alone cost the whole check. Should a pin ever have to
+stay vulnerable, record each accepted advisory in an `osv-scanner.toml`
+(`[[IgnoredVulns]]` with `id`, `reason` and `ignoreUntil`) instead of hiding the
+manifest, and verify that the next Scorecard run honours it.
+
 Pins do not prove absence of vulnerabilities. Run
 `pip-audit -r requirements-ci.txt` in the intended interpreter environment.
 Bandit, Semgrep, gitleaks, detect-secrets and pip-audit are separate scanner
