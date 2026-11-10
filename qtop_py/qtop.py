@@ -837,11 +837,9 @@ def wait_for_keypress_or_autorefresh(viewport: Viewport, config: Dict[str, Any],
         if _read_char:
             logging.debug("Pressed %s" % _read_char)
             break
-    else:
-        state = viewport.get_term_size()
+    else:  # refresh; a resize just redraws at the new size ("r" now cycles core lines)
         viewport.set_term_size(*calculate_term_size(config, FALLBACK_TERMSIZE, viewport))
-        new_state = viewport.get_term_size()
-        _read_char = "\n" if (state == new_state) else "r"
+        _read_char = "\n"
         logging.debug("Auto-advancing by pressing <Enter>")
 
     return _read_char

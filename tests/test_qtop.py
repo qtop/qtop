@@ -114,6 +114,15 @@ def test_raw_mode_does_not_swallow_unexpected_fileno_errors(monkeypatch):
             pass
 
 
+def test_terminal_resize_redraws_without_cycling_core_lines(monkeypatch):
+    viewport = qtop_module.Viewport()
+    viewport.set_term_size(40, 120)
+    monkeypatch.setattr(qtop_module.select, "select", lambda *_args: ([], [], []))  # no key within the refresh interval
+    monkeypatch.setattr(qtop_module, "calculate_term_size", lambda *_args: (50, 160))  # the terminal was resized
+    assert qtop_module.wait_for_keypress_or_autorefresh(viewport, {}, (40, 120), 0) == "\n"
+    assert viewport.get_term_size() == (50, 160)
+
+
 def test_sort_worker_nodes_rejects_custom_python_sorting(monkeypatch):
     monkeypatch.setattr(qtop_module, "dynamic_config", {}, raising=False)
     cluster = qtop_module.Cluster.__new__(qtop_module.Cluster)
