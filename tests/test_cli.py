@@ -658,6 +658,7 @@ def test_partial_slurm_snapshot_has_visible_warning_and_exported_diagnostics(tmp
     assert not re.search(r"^Slurm", result.stdout, re.MULTILINE)
     if not all_rejected:
         assert "1 active jobs reference missing nodes" in result.stdout
+    assert ("try qtop --all" in result.stdout) is not all_rejected  # only jobs on unlisted nodes earn the hint
     state = json.loads(next(output.glob("qtop_json_*.json")).read_text())
     assert state["slurm_diagnostics"]["rejected_squeue_rows"] == 1
     assert len(state["jobs"]) == (0 if all_rejected else 1)

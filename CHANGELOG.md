@@ -33,6 +33,7 @@ See the [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 - Cleanup: drop the unused navigate_viewport, yaml_parser.load_all and assign_color_to_each_qname.
 - Tools: make test-slurm-samples uses the sample gate, which also refuses unsafe artifact directories; validate_slurm_samples.py removed.
 - Feature: a green-monitor palette, monochrome in phosphor-green tones.
+- Feature: Slurm jobs on missing nodes or with invalid node lists suggest trying --all.
 - Release: update version metadata to 0.9.20261111
 
 ## 0.9.20261110

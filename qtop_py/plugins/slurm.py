@@ -323,6 +323,8 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
                     "%s active jobs reference missing nodes; %s active jobs have invalid node lists."
                     % tuple(diagnostics.get(key, 0) for key in ("rejected_squeue_rows", "rejected_sinfo_rows", "jobs_with_missing_nodes", "jobs_with_invalid_nodelists"))
                 )
+            if diagnostics.get("jobs_with_missing_nodes") or diagnostics.get("jobs_with_invalid_nodelists"):
+                lines.append("INFO: Their nodes may be in hidden or group-unavailable partitions; try qtop --all, if not already used.")
         elif section == "accounting":
             lines.append("INFO: Slurm job counts include individual array tasks and heterogeneous components.")
             if any(len(job.get("slurm_partitions", [])) > 1 for job in getattr(snapshot, "_job_metadata", {}).values()):
