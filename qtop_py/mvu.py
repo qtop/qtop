@@ -66,6 +66,17 @@ def MVU_colorize_nodestate(worker_nodes: Iterable[Mapping[str, Any]], nodestate_
     ]
 
 
+def MVU_palette_order(model: "MVU_Model") -> List[str]:
+    """Return the palettes that key p cycles through, from palettes.yaml."""
+    return list((model.config or {}).get("palettes", {}).get("PALETTES") or ["default"])
+
+
+def MVU_palette(model: "MVU_Model") -> Dict[str, str]:
+    """Return the current palette's colour codes; empty for the default colours."""
+    name = model.display_overrides.get("palette", MVU_palette_order(model)[0])
+    return (model.config or {}).get("palettes", {}).get(name) or {}
+
+
 def MVU_colorize(
     model: "MVU_Model",
     text: Any,
@@ -93,15 +104,17 @@ def MVU_colorize(
     bg_color = bg_color if bg_color else "NOBG"
     if not mapping:
         mapping = model.user_to_color
+    palette = MVU_palette(model)
     try:
-        ansi_color = color_to_code[color_func] if color_func else color_to_code[mapping[pattern]]
+        name = color_func if color_func else mapping[pattern]
+        ansi_color = palette.get(name, color_to_code[name])
     except KeyError:
         return text
     else:
         if bold and ansi_color[0] in "01":
             ansi_color = "1" + ansi_color[1:]
         if model.args.COLOR == "ON" and pattern != "account_not_colored":
-            text = "\033[%(fg_color)s%(bg_color)sm%(text)s\033[0;m" % {"fg_color": ansi_color, "bg_color": color_to_code[bg_color], "text": text}
+            text = "\033[%(fg_color)s%(bg_color)sm%(text)s\033[0;m" % {"fg_color": ansi_color, "bg_color": palette.get(bg_color, color_to_code[bg_color]), "text": text}
 
         return text
 
@@ -158,7 +171,7 @@ def MVU_node_job_ids(node: Mapping[str, Any], backend: Any = None) -> Set[str]:
 
 def MVU_update(model: "MVU_Model", message: str, payload: Any = None) -> Tuple["MVU_Model", Tuple[Tuple[str, Optional[str]], ...]]:
     """Return the next model and effect requests without performing terminal or scheduler I/O."""
-    keys = set(NAVIGATION_KEYS) | {"snapshot", "layout", "t", "Q", "m", "q", "F", "s", "f", "H", "?", "r", "1", "2", "3", "4"}
+    keys = set(NAVIGATION_KEYS) | {"snapshot", "layout", "t", "Q", "m", "q", "F", "s", "f", "H", "?", "r", "p", "1", "2", "3", "4"}
     if message not in keys:
         return model, ()
     next_model = copy.copy(model)
@@ -190,6 +203,11 @@ def MVU_update(model: "MVU_Model", message: str, payload: Any = None) -> Tuple["
         key = "SHOW_ACCOUNT_TOTALS" if message == "4" else "sect_%s_off" % message
         next_model.display_overrides[key] = not next_model.display_overrides.get(key, getattr(next_model.args, key, message == "4"))
         effects.append(("notice", "Toggling the accounts totals row" if message == "4" else "Toggling section " + message))
+    elif message == "p":
+        order = MVU_palette_order(next_model)
+        current = next_model.display_overrides.get("palette", order[0])
+        next_model.display_overrides["palette"] = order[(order.index(current) + 1) % len(order)] if current in order else order[0]
+        effects.append(("notice", "Palette: " + next_model.display_overrides["palette"]))
     elif message == "F":
         next_model.display_overrides["force_names"] = not next_model.display_overrides.get("force_names", False)
         effects.append(("notice", "Toggling full-name/incremental nr WN labels"))

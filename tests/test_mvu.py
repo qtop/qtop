@@ -76,6 +76,32 @@ def test_number_keys_toggle_sections(tmp_path, monkeypatch, capsys, key, overrid
         assert (gone in capsys.readouterr().out) is shown
 
 
+def test_palette_key_cycles_the_shipped_palettes_and_recolours(tmp_path, monkeypatch):
+    model = MVU_test_model(tmp_path, monkeypatch)
+    model.config["palettes"] = configuration.load_palettes((str(Path(__file__).resolve().parents[1]),))
+    model.args.COLOR = "ON"
+    configuration.validate_config(model.config)
+    seen = []
+    for _ in model.config["palettes"]["PALETTES"]:
+        seen.append((model.display_overrides.get("palette", "default"), model.MVU_colorize("x", "Red_L")))
+        model, effects = MVU_update(model, "p")
+        assert effects == (("notice", "Palette: " + model.display_overrides["palette"]),)
+    assert [name for name, _ in seen] == ["default", "solarized-dark", "gruvbox", "okabe-ito", "monochrome"]
+    assert model.display_overrides["palette"] == "default"  # wrapped around
+    assert seen[0][1] == "\x1b[1;31mx\x1b[0;m" and seen[1][1] == "\x1b[1;38;5;160mx\x1b[0;m" and len({code for _, code in seen}) == 5
+
+
+def test_user_palettes_override_colour_by_colour_and_are_validated(tmp_path):
+    (tmp_path / "pkg").mkdir()
+    (tmp_path / "pkg" / "palettes.yaml").write_text("PALETTES:\n  - default\n  - mine\nmine:\n  Red: '0;31'\n  Blue: '0;34'\n")
+    (tmp_path / "palettes.yaml").write_text("PALETTES:\n  - mine\nmine:\n  Blue: '1;38;5;33'\n")
+    palettes = configuration.load_palettes((str(tmp_path / "pkg"), str(tmp_path / "missing"), str(tmp_path)))
+    assert palettes == {"PALETTES": ["mine"], "mine": {"Red": "0;31", "Blue": "1;38;5;33"}}
+    for broken in ({"PALETTES": ["nope"]}, {"mine": {"Red": "31m\x1b[2J"}}, {"mine": {"NoSuchColour": "1"}}):
+        with pytest.raises(ValueError, match="palettes"):
+            configuration._validate_palettes({"palettes": broken})
+
+
 def test_watch_keys_line_stays_when_section_1_is_hidden(tmp_path, monkeypatch, capsys):
     model, _ = MVU_update(MVU_test_model(tmp_path, monkeypatch), "1")
     model.args.WATCH = True

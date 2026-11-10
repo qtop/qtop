@@ -5,6 +5,7 @@
 import copy
 import logging
 import os
+import re
 from math import isfinite
 from typing import TYPE_CHECKING, Any, Dict, List, Set, Tuple
 
@@ -15,6 +16,7 @@ from qtop_py import fileutils, yaml_parser
 from qtop_py.colormap import color_to_code, nodestate_to_color_default, user_to_color_default
 from qtop_py.constants import (
     MAX_USER_ACCOUNTS_HEADER_LEN,
+    PALETTES_YAML,
     QTOPCONF_YAML,
     SYMBOL_LONG_TAIL_USER,
     SYMBOL_UNKNOWN_NODE_STATE,
@@ -61,6 +63,7 @@ def validate_config(config: Any) -> None:
     _validate_scalars(config)
     _validate_runtime(config)
     _validate_colors(config)
+    _validate_palettes(config)
     _validate_state_columns(config)
     _validate_display(config)
     _validate_user_id_ranking(config)
@@ -153,6 +156,29 @@ def _validate_colors(config: Any) -> None:
             _require(all(isinstance(pattern, str) and isinstance(color, str) for pattern, color in entry.items()), key, "text patterns and color names")
     colours = config.get("summary_colours")
     _require(not colours or (isinstance(colours, list) and all(colour in color_to_code for colour in colours)), "summary_colours", "a list of colormap color names")
+
+
+def _validate_palettes(config: Any) -> None:
+    """Palettes from palettes.yaml: PALETTES names defined palettes, each mapping colour names to SGR codes."""
+    palettes = _mapping(config.get("palettes") or {}, "palettes")
+    order = palettes.get("PALETTES", ["default"])
+    _require(isinstance(order, list) and order and all(name == "default" or name in palettes for name in order), "palettes.PALETTES", "a list of defined palette names")
+    for name, codes in palettes.items():
+        valid = isinstance(codes, dict) and all(colour in color_to_code and re.fullmatch(r"[0-9]+(;[0-9]+)*", str(code)) for colour, code in codes.items())
+        _require(name == "PALETTES" or valid, "palettes." + name, "colormap colour names mapped to SGR codes (digits and ;)")
+
+
+def load_palettes(directories: Tuple[str, ...]) -> Dict[str, Any]:
+    """Merge palettes.yaml from each directory in turn, palette by palette and colour by colour."""
+    palettes: Dict[str, Any] = {}
+    for directory in directories:
+        try:
+            layer = yaml_parser.parse(os.path.join(directory, PALETTES_YAML))
+        except FileNotFoundError:
+            continue
+        for name, entries in layer.items():
+            palettes[name] = entries if name == "PALETTES" or not isinstance(entries, dict) else dict(palettes.get(name, {}), **entries)
+    return palettes
 
 
 def _validate_state_columns(config: Any) -> None:
@@ -332,5 +358,6 @@ def load_yaml_config(args: Any, package_dir: str, initial_cwd: str, system_dir: 
             break
         else:
             raise OperationalError("Custom configuration file %s was not found in %s/ or %s/." % (args.CONFFILE, user_dir, initial_cwd))
+    config.setdefault("palettes", load_palettes((os.path.realpath(package_dir), system_dir, user_dir)))
     logging.info("Updated main dictionary. Length: %s items", len(config))
     return prepare_config(config, args)

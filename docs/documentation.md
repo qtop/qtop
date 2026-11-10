@@ -328,6 +328,17 @@ summary_colours:
   - BlackOnGold
 ```
 
+### Palettes
+
+``palettes.yaml``, next to ``qtopconf.yaml``, defines the colour palettes; in
+watch mode ``p`` cycles through its ``PALETTES`` list, starting with the first.
+qtop ships ``default``, ``solarized-dark``, ``gruvbox``, ``okabe-ito``
+(colour-blind safe) and ``monochrome`` (bold, underline and reverse). A palette
+maps colormap colour names to ANSI SGR codes, digits and ``;`` only, and keeps
+the default colour for any name it leaves out. A ``palettes.yaml`` in the system
+directory or ``~/.local/qtop/`` reorders the list or changes palettes, colour by
+colour. The palettes use 256-colour codes and leave the terminal background alone.
+
 Watch mode
 ----------
 
@@ -372,6 +383,7 @@ Watch mode supports:
 | F | switch full names / numbered node labels |
 | H | highlight users or queues |
 | m | switch core coloring by user / queue |
+| p | cycle the colour palettes of ``palettes.yaml`` |
 | Q | expand / collapse the queueing summary |
 | r | cycle all / real / used core lines |
 | s | apply sorting (remapped matrices; numbered ones keep node order) |

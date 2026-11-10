@@ -47,7 +47,7 @@ def exercise_wheel(wheel, expected_version, root, work):
             raise RuntimeError("Installed console script must use the CLI error wrapper")
         if metadata["Name"] != "qtop" or metadata["Version"] != expected_version or metadata["Requires-Python"] != ">=3.6" or metadata.get_all("Requires-Dist"):
             raise RuntimeError("Incorrect package identity, Python requirement or unexpected runtime dependencies")
-        for filename in ("qtopconf.yaml", "helpfile.txt"):
+        for filename in ("qtopconf.yaml", "palettes.yaml", "helpfile.txt"):
             if archive.read("qtop_py/" + filename) != (root / filename).read_bytes():
                 raise RuntimeError("Missing or altered installed defaults: %s" % filename)
     environment = work / "installed"
@@ -97,7 +97,7 @@ def validate_installation(root=ROOT, artifacts=None, wheel_only=False):
         if artifacts is None:
             source = work / "source"
             source.mkdir()
-            for filename in ("pyproject.toml", "setup.py", "README.md", "LICENSE", "qtopconf.yaml", "helpfile.txt", "MANIFEST.in"):
+            for filename in ("pyproject.toml", "setup.py", "README.md", "LICENSE", "qtopconf.yaml", "palettes.yaml", "helpfile.txt", "MANIFEST.in"):
                 shutil.copyfile(root / filename, source / filename)
             shutil.copytree(str(root / "qtop_py"), str(source / "qtop_py"), ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
             (source / "tools").mkdir()
