@@ -11,6 +11,7 @@ See the [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 - Feature: the accounts totals row paints its counts in the Summary colours, for side-by-side comparison.
 - Bugfix: SGE Summary R and Q classify jobs by their state, as the accounts table does; held jobs count as Other.
 - Docs: why the PBS Summary (qstat -q) can differ from the accounts totals row (qstat) by a few jobs.
+- Bugfix: demo lists its queued jobs and counts only running ones as R, so its Summary and accounts totals agree.
 - Release: update version metadata to 0.9.20261111
 
 ## 0.9.20261110
