@@ -20,6 +20,7 @@ See the [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 - Docs: where to record accepted advisories (osv-scanner.toml) for Scorecard's Vulnerabilities check.
 - Bugfix: watch-mode paging no longer skips a line between pages (#121).
 - Feature: anonymization (-A) is no longer experimental and works without -e (#548).
+- CI: Dependabot proposes monthly, grouped updates of GitHub Actions and CI pins; SUPPORT.md says where to get help.
 - Release: update version metadata to 0.9.20261111
 
 ## 0.9.20261110

@@ -153,6 +153,7 @@ gates, including coverage, type checks and both parser fuzzers. See
 - [Maintenance roles, review routing and escalation](MAINTAINERS.md)
 - [Code of conduct](CODE_OF_CONDUCT.md)
 - [Security policy](SECURITY.md)
+- [Getting help](SUPPORT.md)
 - [OpenSSF metadata, badge preparation and future integrations](docs/openssf-readiness.md)
 - [Issue tracker](https://github.com/qtop/qtop/issues)
 
