@@ -4,7 +4,7 @@
 easyblock = 'PythonPackage'
 
 name = 'qtop'
-version = '0.9.20261110'
+version = '0.9.20261111'
 
 homepage = 'https://github.com/qtop/qtop'
 description = """qtop is a text-mode monitor of batch-cluster utilization and job status.
@@ -17,7 +17,7 @@ github_account = 'qtop'
 source_urls = [GITHUB_SOURCE]
 sources = [{'download_filename': 'v%(version)s.tar.gz', 'filename': SOURCE_TAR_GZ}]
 ## checksums: inject once v%(version)s is tagged (the tarball does not exist before that)
-## refresh with: eb qtop-0.9.20261110-GCCcore-14.3.0.eb --inject-checksums
+## refresh with: eb qtop-0.9.20261111-GCCcore-14.3.0.eb --inject-checksums
 
 
 builddependencies = [

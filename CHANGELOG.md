@@ -3,6 +3,10 @@
 Notable changes by version, newest first.
 See the [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 
+## 0.9.20261111
+
+- Release: update version metadata to 0.9.20261111
+
 ## 0.9.20261110
 
 - Bugfix: unconfigured PBS/OAR/SGE/Slurm traces fail as OSError, not TypeError.
