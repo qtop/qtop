@@ -25,6 +25,7 @@ See the [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 - Bugfix: SGE Summary R and Q classify jobs by their state, as the accounts table does; held jobs count as Other.
 - Bugfix: the Summary no longer counts PBS W/H jobs twice (qstat -q queues them) and counts the job list when qstat -q is empty.
 - Docs: PBS qstat -q's Que counts W and H jobs; an empty qstat -q falls back to the job list.
+- Tests: the #121 paging test reads pages with Path.read_text(), without bare open() in an assert (CodeQL).
 - Release: update version metadata to 0.9.20261111
 
 ## 0.9.20261110

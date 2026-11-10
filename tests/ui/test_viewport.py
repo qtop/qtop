@@ -1,5 +1,7 @@
 ## Copyright (c) 2026 qtop contributors
 ## SPDX-License-Identifier: MIT
+from pathlib import Path
+
 import pytest
 
 from qtop_py.ui.viewport import Viewport
@@ -227,9 +229,10 @@ def test_pages_miss_no_line(tmp_path):  # qtop/qtop#121: a line went missing bet
     viewport.max_height = 100
     shown = []
     while True:
-        shown += open(display.show_part_view("t", str(source), viewport.v_start, viewport.v_term_size)).read().split()
+        shown += Path(display.show_part_view("t", str(source), viewport.v_start, viewport.v_term_size)).read_text().split()
         if not viewport.scroll_down():
             break
     assert sorted(set(int(line) for line in shown)) == list(range(100))  # the last page may overlap, to fill the screen
     viewport.scroll_bottom()
-    assert open(display.show_part_view("t", str(source), viewport.v_start, viewport.v_term_size)).read().split()[-1] == "99"
+    last_page = Path(display.show_part_view("t", str(source), viewport.v_start, viewport.v_term_size)).read_text()
+    assert last_page.split()[-1] == "99"
