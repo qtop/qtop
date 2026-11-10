@@ -40,4 +40,4 @@ def test_control_qtop_warns_and_still_works(monkeypatch):
     view.max_height, view.max_width = 100, 200
     with pytest.warns(DeprecationWarning, match=DEPRECATED):
         qtop.control_qtop(view, "j", None, [0, 0, 0, 0], [0, 0, 0, 0])
-    assert view.v_start == 30
+    assert view.v_start == 29  # one 9-line page of a 10-row terminal

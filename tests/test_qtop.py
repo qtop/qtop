@@ -1076,7 +1076,7 @@ def test_viewport_pipeline_reaps_both_processes(tmp_path, monkeypatch, head_fail
             display.show_part_view("test", str(source), 2, 3)
     else:
         result = display.show_part_view("test", str(source), 2, 3)
-        assert Path(result).read_text() == "1\n2\n"
+        assert Path(result).read_text() == "2\n3\n"  # from 0-based line 2, one 2-line page of a 3-row terminal
         assert len(processes) == 2
     assert all(process.returncode is not None for process in processes)
 

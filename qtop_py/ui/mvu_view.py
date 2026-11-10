@@ -590,8 +590,8 @@ class TextDisplay(object):
         """
         with tempfile.NamedTemporaryFile(delete=False, suffix=".out", prefix="qtop_partview_%s_" % _timestr, dir=self.config["savepath"]) as temp_f:
             temp_filename = temp_f.name
-        tail_command = ["tail", "-n+" + str(x), file]
-        head_command = ["head", "-n" + str(y - 1)]
+        tail_command = ["tail", "-n+" + str(x + 1), file]  # x is a 0-based line offset, tail counts from 1
+        head_command = ["head", "-n" + str(max(y - 1, 1))]  # one page: the last row is kept for qtop's notices
         with open(temp_filename, "w", encoding="utf-8") as output_file, subprocess.Popen(tail_command, stdout=subprocess.PIPE) as process_tail, subprocess.Popen(
             head_command, stdin=process_tail.stdout, stdout=output_file
         ) as process_head:

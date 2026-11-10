@@ -26,9 +26,14 @@ class BaseViewport(object):
         """Clamp empty or narrower-than-terminal output to the left edge."""
         return max(self.max_width - self.h_term_size, 0)
 
+    @property
+    def page(self) -> int:
+        """Lines one screen shows: the terminal's last row is kept for qtop's notices."""
+        return max(self.v_term_size - 1, 1)
+
     def get_down_limit(self) -> int:
         """Clamp empty or shorter-than-terminal output to the top edge."""
-        return max(self.max_height - self.v_term_size, 0)
+        return max(self.max_height - self.page, 0)
 
     def get_left_limit(self) -> int:
         """Return the left limit, 0."""
@@ -106,22 +111,22 @@ class Viewport(BaseViewport):
     def scroll_down(self) -> bool:
         """Scroll down one page; return False at the end."""
         success = False
-        if self.v_stop < self.max_height:
-            self.v_start += self.v_term_size
+        if self.v_start + self.page < self.max_height:
+            self.v_start += self.page
             success = True
         return success
 
     def scroll_bottom(self) -> bool:
         """Scroll to the last page; return False if already there."""
         success = False
-        if self.v_stop < self.max_height:
+        if self.v_start + self.page < self.max_height:
             self.v_start = self.get_down_limit()
             success = True
         return success
 
     def scroll_up(self) -> bool:
         """Scroll up one page."""
-        self.v_start -= self.v_term_size
+        self.v_start -= self.page
         return True
 
     def scroll_top(self) -> bool:
