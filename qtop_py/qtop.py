@@ -86,6 +86,7 @@ from qtop_py.ui.viewport import Viewport
 from qtop_py.web import Web
 
 SIGPIPE = getattr(_signal, "SIGPIPE", None)  # absent on Windows
+SIGWINCH = getattr(_signal, "SIGWINCH", None)
 termios: Optional[ModuleType]
 try:
     import termios
@@ -839,19 +840,30 @@ def init_dirs(args: Any, _savepath: str) -> Any:
     return args
 
 
-def wait_for_keypress_or_autorefresh(viewport: Viewport, config: Dict[str, Any], FALLBACK_TERMSIZE: Sequence[int], KEYPRESS_TIMEOUT: float = 1) -> str:
-    """Return the key pressed within the refresh interval, or an empty string to refresh."""
-    while sys.stdin in select.select([sys.stdin], [], [], KEYPRESS_TIMEOUT)[0]:
-        _read_char = sys.stdin.read(1)
-        if _read_char:
-            logging.debug("Pressed %s" % _read_char)
-            break
-    else:  # refresh; a resize just redraws at the new size ("r" now cycles core lines)
-        viewport.set_term_size(*calculate_term_size(config, FALLBACK_TERMSIZE, viewport))
-        _read_char = "\n"
-        logging.debug("Auto-advancing by pressing <Enter>")
+class TerminalResized(Exception):
+    """SIGWINCH arrived while qtop waited for a key."""
 
-    return _read_char
+
+def _raise_resized(_signum: int, _frame: Any) -> None:
+    raise TerminalResized()
+
+
+def wait_for_keypress_or_autorefresh(viewport: Viewport, config: Dict[str, Any], FALLBACK_TERMSIZE: Sequence[int], KEYPRESS_TIMEOUT: float = 1) -> str:
+    """Return the key pressed within the refresh interval, or a newline to redraw: at its end, or at once on a resize (SIGWINCH)."""
+    previous = _signal.signal(SIGWINCH, _raise_resized) if SIGWINCH is not None else None  # only while waiting, never mid-frame
+    try:
+        while sys.stdin in select.select([sys.stdin], [], [], KEYPRESS_TIMEOUT)[0]:
+            _read_char = sys.stdin.read(1)
+            if _read_char:
+                logging.debug("Pressed %s" % _read_char)
+                return _read_char
+    except TerminalResized:
+        logging.debug("Terminal resized")
+    finally:
+        if SIGWINCH is not None:
+            _signal.signal(SIGWINCH, previous)
+    viewport.set_term_size(*calculate_term_size(config, FALLBACK_TERMSIZE, viewport))  # a resize just redraws ("r" cycles core lines)
+    return "\n"
 
 
 def discover_qtop_batch_systems() -> Dict[str, Any]:

@@ -195,6 +195,24 @@ def test_terminal_resize_redraws_without_cycling_core_lines(monkeypatch):
     assert viewport.get_term_size() == (50, 160)
 
 
+@pytest.mark.skipif(qtop_module.SIGWINCH is None, reason="no SIGWINCH on this platform")
+def test_terminal_resize_redraws_at_once_on_sigwinch(monkeypatch):
+    import os
+    import signal
+
+    def resize_while_waiting(*_args):
+        os.kill(os.getpid(), signal.SIGWINCH)  # the user resizes the window mid-wait
+        raise AssertionError("SIGWINCH should end the wait")
+
+    viewport = qtop_module.Viewport()
+    viewport.set_term_size(40, 120)
+    monkeypatch.setattr(qtop_module.select, "select", resize_while_waiting)
+    monkeypatch.setattr(qtop_module, "calculate_term_size", lambda *_args: (50, 160))
+    previous = signal.getsignal(signal.SIGWINCH)
+    assert qtop_module.wait_for_keypress_or_autorefresh(viewport, {}, (40, 120), 60) == "\n"
+    assert viewport.get_term_size() == (50, 160) and signal.getsignal(signal.SIGWINCH) is previous
+
+
 def test_sort_worker_nodes_rejects_custom_python_sorting(monkeypatch):
     monkeypatch.setattr(qtop_module, "dynamic_config", {}, raising=False)
     cluster = qtop_module.Cluster.__new__(qtop_module.Cluster)
