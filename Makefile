@@ -10,6 +10,7 @@ UVX ?= uvx
 ZIZMOR ?= $(UVX) --quiet zizmor
 ZIZMOR_FLAGS ?= -qq --offline --no-progress --color never --render-links never --show-audit-urls never
 SAMPLE_GATE_SCHEDULERS ?= pbs,sge,slurm,oar,demo
+AUTHORS_PATHS ?= qtop_py
 SAMPLE_GATE_MAX_FAILURES ?= 0
 SAMPLE_GATE_ARTIFACT_DIR ?= artifacts/sample-gate
 BACKEND_COLOUR_ARTIFACT_DIR ?= artifacts/backend-colour
@@ -205,10 +206,12 @@ gitlab-build:: validated-build ## GitLab CI entry point for validated package bu
 
 dist:: build ## Alias for build, matching common release target names
 
-.PHONY: authors
-authors:: ## List authors by attributed Python lines, highest count first
+authors-lines:: ## List authors by attributed Python lines, highest count first
 	@git ls-files -z -- '*.py' | xargs -0 -n1 git blame --line-porcelain -- \
 		| grep '^author ' | sed 's/^author //' | sort | uniq -c | sort -nr
+
+authors:: ## Lines and % per author of non-blank, non-comment Python code (AUTHORS_PATHS="qtop_py tests tools")
+	@$(PYTHON) tools/loc_authors.py $(AUTHORS_PATHS)
 
 version:: ## Print the package version
 	$(PYTHON) -c "import qtop_py; print(qtop_py.__version__)"

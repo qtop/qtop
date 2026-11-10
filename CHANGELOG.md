@@ -5,6 +5,7 @@ See the [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 
 ## 0.9.20261112
 
+- Tools: make authors counts non-blank, non-comment code lines per author with %, merging names that share an email.
 - Release: update version metadata to 0.9.20261112
 
 ## 0.9.20261111
