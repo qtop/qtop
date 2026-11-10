@@ -477,19 +477,6 @@ class WNOccupancy(object):
             resolved = memo[job] = resolve_job_id(job, job_to_user_and_queue)
         return resolved
 
-    def _valid_corejobs(self, corejobs: Mapping[Any, Any], job_to_user_and_queue: Mapping[str, Tuple[str, str]]) -> Iterator[Tuple[str, str, str]]:
-        """Generator that yields only those core-job pairs that successfully match to a user."""
-        for core, _job in corejobs.items():
-            job = self._resolve(str(_job), job_to_user_and_queue)
-            try:
-                user_queue = job_to_user_and_queue[job]
-            except KeyError as KeyErrorValue:
-                logging.warning("Scheduler node allocation references an unlisted job (ID %s). Please check with the SysAdmin.", str(KeyErrorValue))
-                continue
-            else:
-                user, queue = user_queue
-                yield user, str(core), queue
-
     def is_matrix_coreless(self, node_column_start: int, node_column_stop: int) -> bool:
         """Return True if every core line of this matrix slice would be removed as empty."""
         non_existent_symbol = self.config["non_existent_node_symbol"]

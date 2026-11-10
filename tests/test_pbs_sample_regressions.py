@@ -115,12 +115,6 @@ def test_decide_remapping_handles_mixed_numeric_and_named_nodes(monkeypatch):
     assert cluster.decide_remapping(["1", ""], {"wn"}) is True
 
 
-def test_valid_corejobs_skips_jobs_missing_from_qstat():
-    occupancy = qtop.WNOccupancy.__new__(qtop.WNOccupancy)
-
-    assert list(occupancy._valid_corejobs({"0": "9999"}, {})) == []
-
-
 def test_cores_resolve_once_keep_free_order_unknown_markers_and_shared_cells(monkeypatch, caplog):
     occupancy = qtop.WNOccupancy.__new__(qtop.WNOccupancy)
     monkeypatch.setattr(occupancy, "_core_cell", lambda user, queue, _coloring: qtop.utils.ColorStr(user + "@" + queue), raising=False)

@@ -13,6 +13,7 @@ See the [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 - Performance: Slurm expands each job node list once per frame; malformed lists log once.
 - Performance: matrix cores resolve their job once per frame, in one pass, not twice.
 - Bugfix: SGE node queue letters keep their XML order instead of varying per run.
+- Cleanup: drop WNOccupancy._valid_corejobs, unused since the single core pass.
 - Release: update version metadata to 0.9.20261112
 
 ## 0.9.20261111
