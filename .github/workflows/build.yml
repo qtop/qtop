@@ -31,7 +31,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - python-version: '3.9'
           - python-version: '3.12.3'
           - python-version: '3.15.2'
     env:

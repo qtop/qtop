@@ -218,11 +218,10 @@ The [Makefile](../Makefile) supplies the shared checks:
 
 [requirements-ci.txt](../requirements-ci.txt) is the version source for pinned
 build/test/analysis tools. Interpreter markers retain compatible older tools;
-Python 3.6-3.8 use the dependency-light compatibility path. The
-[matrix runner](../ci/scripts/matrix_lane.sh) gives pytest a random mode-0700
-parent and a child `--basetemp`, protecting the older Python 3.9 pytest lane
-from a predictable shared temporary root. Local runs on that lane need the
-same private-temp boundary.
+Python 3.6-3.9 use the dependency-light compatibility path. The
+[matrix runner](../ci/scripts/matrix_lane.sh) still gives pytest a random
+mode-0700 parent and a child `--basetemp`, as defence in depth now that every
+pytest lane runs the patched 9.x release.
 
 Python 3.6-3.8 get no pinned build tools (PySCG-0053). The last pip, setuptools
 and wheel releases for Python 3.6 (21.3.1, 59.6.0, 0.37.1) carry 13 known

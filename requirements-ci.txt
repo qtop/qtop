@@ -1,4 +1,5 @@
-# Python 3.9 compatibility pins; modern developer tooling starts at 3.12.
+# Python 3.10/3.11 compatibility pins; modern developer tooling starts at 3.12.
+# Python 3.9 and older use the dependency-light compat-py36 gate instead.
 build==1.4.4; python_version < "3.12"
 build==1.6.1; python_version >= "3.12"
 coverage==7.10.7; python_version < "3.12"
@@ -15,14 +16,9 @@ pluggy==1.6.0; python_version < "3.12"
 pluggy==1.7.0; python_version >= "3.12"
 pyproject-hooks==1.3.3
 pygments==2.21.0
-# Patched pytest requires Python 3.10+. The 3.9 lane uses the newest
-# compatible 8.x release behind a private pytest temp root.
-pytest==8.4.2; python_version < "3.10"
-pytest==9.1.1; python_version >= "3.10"
+pytest==9.1.1
 ruff==0.17.1
-# Patched setuptools requires Python 3.10+; 3.9 retains its compatible backend.
-setuptools==82.0.1; python_version < "3.10"
-setuptools==84.2.0; python_version >= "3.10"
+setuptools==84.2.0
 wheel==0.46.2; python_version < "3.12"
 tomli==2.5.0
 ty==0.0.89; python_version >= "3.12"

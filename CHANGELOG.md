@@ -16,6 +16,7 @@ See the [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 - Feature: the accounts table and its totals row add an O (Other) column by default, as the Summary does.
 - CI: Python 3.6 installs the wheel built on 3.12 with its bundled pip; the vulnerable legacy build pins are gone.
 - CI: wheel 0.46.2 (CVE-2026-24049 in 0.45.1).
+- CI: drop the Python 3.9 (EOL) pytest lane and its unpatchable pins; RHEL 9-family 3.9 lanes run compat-py36.
 - Release: update version metadata to 0.9.20261111
 
 ## 0.9.20261110
