@@ -142,7 +142,7 @@ def test_viewport_movements_remain_within_bounds(height, width, rows, columns, m
     view.set_term_size(rows, columns)
     for movement in movements:
         getattr(view, movement)()
-        assert 0 <= view.v_start <= max(height - rows, 0)
+        assert 0 <= view.v_start <= max(height - max(rows - 1, 1), 0)  # a page is one row short: notices use the last (#121)
         assert 0 <= view.h_start <= max(width - columns, 0)
 
 
