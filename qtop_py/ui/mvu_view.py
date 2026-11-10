@@ -514,7 +514,8 @@ class TextDisplay(object):
                 if is_corevector_removable:
                     del core_user_map[k]
 
-            tuple_ = [None, "core_map", self.transpose_matrix(core_user_map, colored=False, coloring_pat=user_color_patterns)]
+            masked = {key: line[node_column_start:] for key, line in core_user_map.items()}  # one block, minus masked leading nodes
+            tuple_ = [None, "core_map", self.transpose_matrix(masked, colored=False, coloring_pat=user_color_patterns)]
             transposed_sections.append(tuple_)
             return
         # if corelines horizontal (non-transposed matrix)
@@ -573,7 +574,7 @@ class TextDisplay(object):
     ) -> None:
         """Print the worker-node ID lines of a matrix slice, transposed if asked."""
         if self.MVU_model.display_overrides.get("transpose_wn_matrices", self.config["transpose_wn_matrices"]):
-            tuple_ = [None, "wnid_lines", self.transpose_matrix(d)]
+            tuple_ = [None, "wnid_lines", self.transpose_matrix({key: line[start:] for key, line in d.items()})]
             transposed_sections.append(tuple_)
             return
 
@@ -606,7 +607,7 @@ class TextDisplay(object):
     ) -> None:
         """attr_lines can be e.g. Node state lines."""
         if self.MVU_model.display_overrides.get("transpose_wn_matrices", self.config["transpose_wn_matrices"]):
-            tuple_ = [None, label, self.transpose_matrix(attr_lines, colored=True, coloring_pat=None)]
+            tuple_ = [None, label, self.transpose_matrix({key: line[node_column_start:] for key, line in attr_lines.items()}, colored=True, coloring_pat=None)]
             transposed_sections.append(tuple_)
             return
 

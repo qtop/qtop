@@ -23,6 +23,7 @@ See the [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 - CI: Dependabot proposes monthly, grouped updates of GitHub Actions and CI pins; SUPPORT.md says where to get help.
 - Tests: the viewport property test bounds scrolling by the one-row-shorter page of #121.
 - Bugfix: the Summary no longer counts PBS W/H jobs twice (qstat -q queues them) and counts the job list when qstat -q is empty.
+- Bugfix: matrix columns follow node numbers, -m keeps early empty nodes as documented, and -T masks them too.
 - Release: update version metadata to 0.9.20261111
 
 ## 0.9.20261110

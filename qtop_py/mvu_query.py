@@ -257,7 +257,7 @@ class WNOccupancy(object):
 
         numeric_workernodes = [wn for wn in workernode_list if isinstance(wn, int)]
         first_workernode = min(numeric_workernodes) if numeric_workernodes else 1
-        if self.MVU_model.args.NOMASKING and first_workernode > min_masking_threshold:
+        if not self.MVU_model.args.NOMASKING and first_workernode > min_masking_threshold:  # -m keeps them
             # exclude unneeded first empty nodes from the matrix
             start = first_workernode - 1
 
@@ -727,7 +727,7 @@ class Cluster(object):
                     [(yaml_key, "?") for yaml_key, part_name, _ in yaml_parser.get_yaml_key_part(self.config, self.MVU_model.scheduler, outermost_key="workernodes_matrix")]
                 )
                 workernode_dict[node].update(default_values_for_empty_nodes)
-        return workernode_dict
+        return dict(sorted(workernode_dict.items()))  # matrix columns follow node numbers, not discovery order
 
     def map_worker_nodes_to_wn_dict(self, args_remap: bool) -> Tuple[int, Dict[Any, Dict[str, Any]], Dict[int, Dict[str, Any]]]:
         """Apply active filters and sorting, then build original and compact node mappings."""
@@ -748,14 +748,13 @@ class Cluster(object):
             len_wn_after = len(self.worker_nodes)
             nodes_drop = len_wn_after - len_wn_before
 
+        node_numbers = {id(node): number for node, number in zip(self.worker_nodes, self.workernode_list)}  # before sorting reorders them
         if user_sorting:
             self.worker_nodes = self._sort_worker_nodes()
 
-        for batch_node, (idx, cur_node_nr) in zip(self.worker_nodes, enumerate(self.workernode_list)):
-            # Seemingly there is an error in the for loop because self.worker_nodes and workernode_list
-            # have different lengths if there's a filter in place, but it is OK, since
-            # it is just the idx counter that is taken into account in remapping.
-            workernode_dict[cur_node_nr] = batch_node
+        for idx, batch_node in enumerate(self.worker_nodes):
+            # Without remapping a node keeps its own number as its column; remapping numbers the (sorted, filtered) nodes in turn.
+            workernode_dict[node_numbers.get(id(batch_node), idx)] = batch_node
             remapped_nodes[idx] = batch_node
 
         return nodes_drop, workernode_dict, remapped_nodes

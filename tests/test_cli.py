@@ -102,6 +102,27 @@ def test_pbs_mixed_hostnames_preserve_nodes_jobs_and_allocations(tmp_path):
     assert [(queue["running"], queue["queued"]) for queue in state["queues"]] == [(8, 1)]
 
 
+NODES_101_116 = {
+    (): ["%d|%s|" % (n, "00|j|w" if n == 110 else "__|d| " if n == 113 else "__|-| ") for n in range(101, 117)],
+    ("-m",): ["%03d|##|?|?|" % n for n in range(1, 101)] + ["%d|%s|" % (n, "00|j|w" if n == 110 else "__|d| " if n == 113 else "__|-| ") for n in range(101, 117)],
+    ("-T",): ["1111111111111111={_Worker_}", "0000000001111111={__Node__}", "1234567890123456={___ID___}", "---------j--d---=Node state"],
+}
+
+
+@pytest.mark.parametrize("flags", [(), ("-m",), ("-T",), ("-T", "-o", "sorting={'user_sort':[],'reverse':False}")])
+def test_pbs_matrix_columns_follow_node_numbers_and_masking(tmp_path, flags):
+    order = [103, 101, 116, 102] + list(range(104, 116))  # discovery order is not node order; nodes 1-100 do not exist
+    states = {110: "job-exclusive\n    jobs = 0/1001.server,1/1001.server", 113: "down"}
+    (tmp_path / "pbsnodes_a.txt").write_text("".join("wn%d\n    state = %s\n    np = 2\n\n" % (n, states.get(n, "free")) for n in order))
+    (tmp_path / "qstat.txt").write_text("Job id Name User Time Use S Queue\n-----\n1001.server job alice 00:01:00 R workq\n")
+    (tmp_path / "qstat_q.txt").write_text("\nserver: m\n\nQueue Memory CPU Walltime Node Run Que Lm State\n-----\nworkq -- -- -- -- 1 0 -- E R\n1 0\n")
+    result = run_cli(tmp_path, "qtop_py.qtop", "-b", "pbs", "-s", str(tmp_path), *flags)
+    assert result.returncode == 0, result.stderr
+    matrix = result.stdout.split("Worker Nodes occupancy", 1)[1].split("User accounts", 1)[0].splitlines()[1:]
+    expected = NODES_101_116[flags[:1]]
+    assert matrix[: len(expected)] == expected  # masked by default, -m keeps nodes 1-100, wn110 and wn113 in their own columns
+
+
 @pytest.mark.parametrize("job_format", ["json", "text"])
 def test_pbs_array_tasks_and_legacy_queue_limits_preserve_activity(tmp_path, job_format):
     import json

@@ -372,7 +372,7 @@ Watch mode supports:
 | m | switch core coloring by user / queue |
 | Q | expand / collapse the queueing summary |
 | r | cycle all / real / used core lines |
-| s | apply sorting |
+| s | apply sorting (remapped matrices; numbered ones keep node order) |
 | t | transpose the matrix |
 | ? | toggle interactive help |
 | q | quit qtop |
