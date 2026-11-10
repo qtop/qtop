@@ -103,7 +103,7 @@ def test_optional_queue_xml_fields_keep_defaults():
     root.append(queue)
     system = SGEBatchSystem({}, {}, Options())
     assert system._get_state(queue) == "-"
-    assert system._get_host_qname_np(queue)["qname"] == {"batch"}
+    assert system._get_host_qname_np(queue)["qname"] == ["batch"]
     assert system._extract_queues("Queue-List", root)[0]["state"] == "?"
 
 
@@ -163,6 +163,18 @@ def test_contrib_occupied_slots_match_running_allocations():
     expected = sum(int(job.findtext("slots", "1")) for job in system.sge_stat_maker.root.findall("queue_info/Queue-List/job_list") if job.get("state") == "running")
     assert sum(len(node["core_job_map"]) for node in state["nodes"]) == expected
     assert sum(queue["running"] for queue in state["queues"]) == 61
+
+
+def test_node_queues_keep_xml_order_not_hash_order():
+    template = '<Queue-List><resource name="qname">{queue}</resource><resource name="hostname">node01</resource><resource name="num_proc">4</resource></Queue-List>'
+    options = Options()
+    options.SAMPLE = 0
+    system = SGEBatchSystem({}, {}, options)
+    queues = "".join(template.format(queue=queue) for queue in ("zeta", "alpha", "mid", "alpha"))
+    system.sge_stat_maker.root = etree.fromstring("<job_info><queue_info>" + queues + "</queue_info></job_info>")
+    system.sge_stat_maker.tree = etree.ElementTree(system.sge_stat_maker.root)
+    (node,) = system.get_worker_nodes([], [], options)
+    assert node["qname"] == ["zeta", "alpha", "mid"]  # a set gave a different order per PYTHONHASHSEED
 
 
 @pytest.mark.parametrize("same_host", [False, True])

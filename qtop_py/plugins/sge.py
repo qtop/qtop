@@ -339,7 +339,7 @@ class SGEBatchSystem(GenericBatchSystem):
                     # don't change the node state to free.
                     # Just keep the state reported in the last queue mentioning the node.
                     existing_wn["state"] = existing_wn["state"] if worker_node["state"] == "-" else worker_node["state"]
-                    existing_wn["qname"].update(worker_node["qname"])
+                    existing_wn["qname"] += [qname for qname in worker_node["qname"] if qname not in existing_wn["qname"]]  # XML order, not hash order
                     existing_wn["np"] = max(int(existing_wn["np"]), len(existing_wn["core_job_map"]))
                     break
 
@@ -348,8 +348,6 @@ class SGEBatchSystem(GenericBatchSystem):
 
         logging.debug("Closing %s" % self.sge_file)
         logging.info("existing_wns contains %s entries" % len(existing_wns))
-        for existing_wn in existing_wns:
-            existing_wn["qname"] = list(existing_wn["qname"])
 
         # last to be reading the xml file, can now write back if anonymizing..
         if self.options.SAMPLE >= 1:
@@ -416,7 +414,7 @@ class SGEBatchSystem(GenericBatchSystem):
                 count += 1
             elif resource.attrib.get("name") == "qname":
                 qname = resource.text
-                worker_node["qname"] = set([self.anonymize(cast(str, qname), "qs")])  # likewise
+                worker_node["qname"] = [self.anonymize(cast(str, qname), "qs")]  # likewise
                 count += 1
             elif resource.attrib.get("name") == "num_proc":
                 # Treat an implausible core count like a missing one, before anything loops over it.
