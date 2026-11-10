@@ -37,6 +37,7 @@ def user_accounts_header(config: "Config") -> str:
 
 
 REVERSE = "\033[7m%s\033[0m"
+COUNT_KEYS = ("total", "running_of_user", "queued_of_user", "other_of_user")  # the Summary colour slots
 
 
 def summary_count_colours(config: "Config") -> Tuple[str, ...]:
@@ -140,16 +141,13 @@ class TextDisplay(object):
         if summary_states is None:  # scheduler-reported R and Q, plus the listed jobs in neither state
             other = len(job_states) - totals.get("running_of_user", 0) - totals.get("queued_of_user", 0)
             job_counts, job_labels = [int(total_running_jobs), int(total_queued_jobs), other], ["R", "Q", "Other"]
+            job_keys = ["running_of_user", "queued_of_user", "other_of_user"]
         else:
             totals["other_of_user"] = len(job_states) - sum(totals.get(key, 0) for key, _ in summary_states if key != "other_of_user")
             job_counts, job_labels = [totals.get(key, 0) for key, _ in summary_states], [label for _, label in summary_states]
+            job_keys = [key for key, _ in summary_states]
         job_counts, job_labels = [sum(job_counts)] + job_counts, ["Total"] + job_labels
-
-        colours, terminal = summary_count_colours(self.config), sys.__stdout__
-        if self.args.COLOR == "OFF" and terminal is not None and terminal.isatty():  # monochrome on a terminal: reverse video
-            shown = [REVERSE % count for count in job_counts]
-        else:  # pipes and files stay plain text
-            shown = [self.MVU_model.MVU_colorize(str(count), colours[index % len(colours)]) for index, count in enumerate(job_counts)]
+        shown = self.count_cells(["total"] + job_keys, job_counts)
         print(
             "%(Summary)s  : Total:%(total_nodes)s Up:%(online_nodes)s Free:%(available_nodes)s %(Nodes)s | %("
             "working_cores)s/%("
@@ -270,7 +268,7 @@ class TextDisplay(object):
 
         totals = self.account_jobs_totals(account_jobs_table) if getattr(self.args, "SHOW_ACCOUNT_TOTALS", True) else None
         if totals:
-            self.display_account_jobs_line(totals, "account_not_colored", detail_of_name, group_of_name)
+            self.display_account_jobs_line(totals, "account_not_colored", detail_of_name, group_of_name, highlight=True)
 
     @staticmethod
     def account_jobs_totals(account_jobs_table: Sequence[Sequence[Any]]) -> Optional[List[Any]]:
@@ -318,8 +316,18 @@ class TextDisplay(object):
             columns.append((key, str(label) if label else ("O" if key == "other_of_user" else key[0].upper())))
         return columns
 
-    def display_account_jobs_line(self, line: Sequence[Any], userid_pat: str, detail_of_name: Mapping[str, str], group_of_name: Optional[Mapping[str, str]] = None) -> None:
-        """Print one account's row of the user accounts table."""
+    def count_cells(self, keys: Sequence[str], counts: Sequence[Any]) -> List[str]:
+        """Paint job counts in the Summary colours: Total, R, Q and Other by state key, other states by position."""
+        colours, terminal = summary_count_colours(self.config), sys.__stdout__
+        if self.args.COLOR == "OFF" and terminal is not None and terminal.isatty():  # monochrome on a terminal: reverse video
+            return [REVERSE % count for count in counts]
+        slots = [COUNT_KEYS.index(key) if key in COUNT_KEYS else index for index, key in enumerate(keys)]
+        return [self.MVU_model.MVU_colorize(str(count), colours[slot % len(colours)]) for slot, count in zip(slots, counts)]  # plain unless -c ON
+
+    def display_account_jobs_line(
+        self, line: Sequence[Any], userid_pat: str, detail_of_name: Mapping[str, str], group_of_name: Optional[Mapping[str, str]] = None, highlight: bool = False
+    ) -> None:
+        """Print one account's row of the user accounts table; highlight paints its counts like the Summary's (the totals row)."""
         uid, runningjobs, queuedjobs, alljobs, user, num_of_nodes = line[:6]
         state_columns = self.state_columns("accounts_states", DEFAULT_ACCOUNT_STATES)
         counts = self.row_state_counts(line)
@@ -333,17 +341,21 @@ class TextDisplay(object):
 
         detail_width = 25 if group_of_name is not None else 40
         group_column = "{sep} {group:<{width20}} " if group_of_name is not None else ""
+        cells = [self.MVU_model.MVU_colorize(str(value), pattern=userid_pat) for value in [alljobs] + [counts.get(key, 0) for key, _ in state_columns]]
+        if highlight:  # padded outside the colour, so only the digits are painted
+            values = [alljobs] + [counts.get(key, 0) for key, _ in state_columns]
+            cells = [" " * (4 - len(str(value))) + cell for value, cell in zip(values, self.count_cells(["total"] + [key for key, _ in state_columns], values))]
         state_cells = "   ".join("{%d:>{width4}}" % (7 + index) for index in range(len(state_columns)))
         row_format = "[ {0:<{width1}}] {4:<{width18}}{sep}{3:>{width4}}   " + state_cells + " {sep} {6:>{width5}} {sep} {5:<{detail_width}} "
         print_string = (row_format + group_column + "{sep}").format(
             self.MVU_model.MVU_colorize(str(uid), pattern=userid_pat),
             self.MVU_model.MVU_colorize(str(runningjobs), pattern=userid_pat),
             self.MVU_model.MVU_colorize(str(queuedjobs), pattern=userid_pat),
-            self.MVU_model.MVU_colorize(str(alljobs), pattern=userid_pat),
+            cells[0],
             self.MVU_model.MVU_colorize(user, pattern=userid_pat),
             self.MVU_model.MVU_colorize(detail_of_name.get(user, ""), pattern=userid_pat),
             self.MVU_model.MVU_colorize(str(num_of_nodes), pattern=userid_pat),
-            *[self.MVU_model.MVU_colorize(str(counts.get(key, 0)), pattern=userid_pat) for key, _ in state_columns],
+            *cells[1:],
             group=self.MVU_model.MVU_colorize((group_of_name or {}).get(user, ""), pattern=userid_pat),
             sep=self.MVU_model.MVU_colorize(self.config["SEPARATOR"], pattern=userid_pat),
             width1=1 + conditional_width,

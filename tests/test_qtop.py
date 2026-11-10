@@ -1110,12 +1110,26 @@ def test_user_details_preserve_quoted_arguments_and_skip_malformed_rows(tmp_path
 PBS_STATES = {"R": "running_of_user", "Q": "queued_of_user", "C": "cancelled_of_user", "E": "exiting_of_user", "X": "expired_of_user"}
 
 
-def _plain_accounts(monkeypatch, capsys, config, table, totals=False):
-    args = SimpleNamespace(COLOR="OFF", CLASSIC=False, SHOW_ACCOUNT_TOTALS=totals, SHOW_GROUPS=False)
+def _plain_accounts(monkeypatch, capsys, config, table, totals=False, color="OFF"):
+    args = SimpleNamespace(COLOR=color, CLASSIC=False, SHOW_ACCOUNT_TOTALS=totals, SHOW_GROUPS=False)
     occupancy = SimpleNamespace(account_jobs_table=table, user_color_patterns={str(row[0]): "account_not_colored" for row in table})
     monkeypatch.setattr(qtop_module, "user_to_color", {}, raising=False)
     TextDisplay(None, dict(config, SEPARATOR="|"), None, occupancy, None, args).display_user_accounts_pool_mappings(occupancy)
     return capsys.readouterr().out.splitlines()
+
+
+@pytest.mark.parametrize("color, tty, style", (("ON", False, "colour"), ("OFF", True, "reverse"), ("OFF", False, None)))
+def test_totals_row_counts_take_the_summary_colours(monkeypatch, capsys, color, tty, style):
+    monkeypatch.setenv("TERM", "xterm-256color")
+    monkeypatch.setattr(sys, "__stdout__", SimpleNamespace(isatty=lambda: tty))
+    rows = [["0", 2, 3, 6, "alice", 1, {"running_of_user": 2, "queued_of_user": 3}], ["1", 1, 0, 1, "bob", 1, {"running_of_user": 1}]]
+    totals = _plain_accounts(monkeypatch, capsys, {"accounts_states": ["running_of_user", "queued_of_user", "other_of_user"]}, rows, totals=True, color=color)[-1]
+    codes = {
+        "colour": ("\x1b[1;37;44m%s\x1b[0;m", "\x1b[0;30;42m%s\x1b[0;m", "\x1b[0;30;48;5;208m%s\x1b[0;m", "\x1b[0;30;43m%s\x1b[0;m"),
+        "reverse": ("\x1b[7m%s\x1b[0m",) * 4,
+        None: ("%s",) * 4,
+    }[style]
+    assert "|   %s      %s      %s      %s |" % tuple(code % count for code, count in zip(codes, (7, 3, 3, 1))) in totals
 
 
 def test_account_state_columns_default_to_r_plus_q_for_old_and_new_rows(monkeypatch, capsys):

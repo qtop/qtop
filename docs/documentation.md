@@ -297,7 +297,8 @@ neither state; set, every count comes from the job list instead, which may
 differ slightly from the scheduler's own totals.
 
 ``summary_colours`` overrides those colours with colormap names, in the order
-Total, R, Q, Other; a shorter list is reused in turn.
+Total, R, Q, Other; a shorter list is reused in turn. The accounts totals row
+paints its jobs and state counts the same way, so the two can be compared.
 
 ```yaml
 accounts_states:
