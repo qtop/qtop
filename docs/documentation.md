@@ -288,9 +288,13 @@ The state columns after ``jobs >=`` are tunable; the default is ``R + Q``.
 ``accounts_states`` lists state keys from ``state_abbreviations``, in display
 order; ``other_of_user`` counts jobs in none of the listed states, and an entry
 may be a ``{state key: label}`` mapping when first-letter labels collide.
-``summary_states`` does the same for the Summary line. Unset, the Summary shows
-the scheduler-reported ``R + Q`` totals; set, it counts the job list instead,
-which may differ slightly from the scheduler's own totals.
+``summary_states`` does the same for the Summary line, shown as
+``Total=R+Q+Other`` with blue, green, orange and yellow backgrounds (orange
+needs a 256-colour terminal, ``TERM=*256color`` or ``COLORTERM`` set, and is red
+elsewhere; with ``-c OFF`` on a terminal the counts are in reverse video). Unset, R
+and Q are the scheduler-reported totals and Other counts the listed jobs in
+neither state; set, every count comes from the job list instead, which may
+differ slightly from the scheduler's own totals.
 
 ```yaml
 accounts_states:

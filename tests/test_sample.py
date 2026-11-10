@@ -508,7 +508,7 @@ def test_slurm_shared_cpus_and_partition_memberships_survive_cli_replay(tmp_path
     assert captured.returncode == 0, captured.stderr
     state = json.loads(next(output.glob("qtop_json_*.json")).read_text())
     frame = next(output.glob("qtop_fullview_*.out")).read_text()
-    assert "2+1 jobs" in frame
+    assert "3=2+1+0 jobs" in frame
     assert "global job counts are unique" in frame
     assert "omits 4 shared/excess CPU assignments" in frame
     assert state["nodes"][0]["state"] == "b"
@@ -523,7 +523,7 @@ def test_slurm_shared_cpus_and_partition_memberships_survive_cli_replay(tmp_path
         assert result.returncode == 0, result.stderr
         assert json.loads(next(replayed.glob("qtop_json_*.json")).read_text()) == state
         replay_frame = next(replayed.glob("qtop_fullview_*.out")).read_text()
-        assert "2+1 jobs" in replay_frame and "omits 4 shared/excess CPU assignments" in replay_frame
+        assert "3=2+1+0 jobs" in replay_frame and "omits 4 shared/excess CPU assignments" in replay_frame
 
 
 def test_user_id_ranking_travels_with_anonymized_samples(tmp_path):

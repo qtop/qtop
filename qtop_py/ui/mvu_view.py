@@ -6,6 +6,7 @@ import datetime
 import logging
 import os
 import subprocess
+import sys
 import tempfile
 from collections import OrderedDict
 from functools import lru_cache, partial
@@ -33,6 +34,18 @@ def user_accounts_header(config: "Config") -> str:
         USER_ACCOUNTS_HEADER = DEFAULT_USER_ACCOUNTS_HEADER
     USER_ID_RANKING = config.get("user_id_ranking") or DEFAULT_USER_ID_RANKING
     return visible_text(USER_ACCOUNTS_HEADER.replace("{ranking}", ", ".join(USER_ID_RANKING)), escape_backslashes=False)
+
+
+REVERSE = "\033[7m%s\033[0m"
+
+
+def summary_count_colours() -> Tuple[str, ...]:
+    """Return the Total, R, Q and Other backgrounds: blue, green, orange and yellow.
+
+    Orange needs 256 colours (TERM *256color, or COLORTERM set); elsewhere, e.g. the Linux console, Q falls back to red.
+    """
+    wide = "256color" in os.environ.get("TERM", "") or bool(os.environ.get("COLORTERM"))
+    return ("WhiteOnBlue", "BlackOnGreen", "BlackOnOrange256" if wide else "WhiteOnRed", "BlackOnGold")
 
 
 DEMO_WATCH_KEYS = "Keys: q quit, ? help, m colour, t transpose, H highlight, f filter, s sort, hjkl scroll"
@@ -120,15 +133,21 @@ class TextDisplay(object):
         )
 
         summary_states = self.state_columns("summary_states")
-        if summary_states is None:
-            job_counts = [total_running_jobs, total_queued_jobs]
-            job_labels = "R + Q"
+        job_states = [job.job_state for job in snapshot.jobs_dict.values()] if snapshot is not None else []
+        totals = WNOccupancy.job_state_totals(job_states, self.config.get("state_abbreviations", {}).get(self.MVU_model.scheduler, {}))
+        if summary_states is None:  # scheduler-reported R and Q, plus the listed jobs in neither state
+            other = len(job_states) - totals.get("running_of_user", 0) - totals.get("queued_of_user", 0)
+            job_counts, job_labels = [int(total_running_jobs), int(total_queued_jobs), other], ["R", "Q", "Other"]
         else:
-            job_states = [job.job_state for job in snapshot.jobs_dict.values()]
-            totals = WNOccupancy.job_state_totals(job_states, self.config["state_abbreviations"][self.MVU_model.scheduler])
             totals["other_of_user"] = len(job_states) - sum(totals.get(key, 0) for key, _ in summary_states if key != "other_of_user")
-            job_counts = [totals.get(key, 0) for key, _ in summary_states]
-            job_labels = " + ".join(label for _, label in summary_states)
+            job_counts, job_labels = [totals.get(key, 0) for key, _ in summary_states], [label for _, label in summary_states]
+        job_counts, job_labels = [sum(job_counts)] + job_counts, ["Total"] + job_labels
+
+        colours, terminal = summary_count_colours(), sys.__stdout__
+        if self.args.COLOR == "OFF" and terminal is not None and terminal.isatty():  # monochrome on a terminal: reverse video
+            shown = [REVERSE % count for count in job_counts]
+        else:  # pipes and files stay plain text
+            shown = [self.MVU_model.MVU_colorize(str(count), colours[index % len(colours)]) for index, count in enumerate(job_counts)]
         print(
             "%(Summary)s  : Total:%(total_nodes)s Up:%(online_nodes)s Free:%(available_nodes)s %(Nodes)s | %("
             "working_cores)s/%("
@@ -143,8 +162,8 @@ class TextDisplay(object):
                 "working_cores": self.MVU_model.MVU_colorize(str(cluster.working_cores), "Green_L"),
                 "total_cores": self.MVU_model.MVU_colorize(str(cluster.total_cores), "Green_L"),
                 "Cores": self.MVU_model.MVU_colorize("cores", "Green_L"),
-                "job_counts": "+".join(self.MVU_model.MVU_colorize(str(int(count)), "Blue_L") for count in job_counts),
-                "job_labels": job_labels,
+                "job_counts": shown[0] + "=" + "+".join(shown[1:]),
+                "job_labels": job_labels[0] + "=" + "+".join(job_labels[1:]),
                 "jobs": self.MVU_model.MVU_colorize("jobs", "Blue_L"),
                 "reported_by": self.MVU_model.backend.classic_job_count_source if self.args.CLASSIC else "",
             }

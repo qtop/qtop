@@ -30,7 +30,8 @@ ANSI_RE = ANSI_SGR_RE
 UNSAFE_CONTROL_RE = re.compile(r"[\x00-\x08\x0b-\x1a\x1c-\x1f\x7f-\x9f]")
 CONTRIB = ROOT / "qtop_py" / "contrib"
 
-ALLOWED_SGR_PARAMETERS = set([0, 1] + list(range(30, 38)) + list(range(40, 48)))
+ORANGE_BACKGROUND = 48208  # 48;5;208, folded into one parameter by sgr_parameters
+ALLOWED_SGR_PARAMETERS = set([0, 1, ORANGE_BACKGROUND] + list(range(30, 38)) + list(range(40, 48)))
 
 # Stable presentation semantics shared by every committed backend sample.
 # Each witness includes its closing reset, so a colour code elsewhere cannot
@@ -100,7 +101,7 @@ STATIC_CASES = {
             "markers": [
                 "Summary : Total:829 Up:819 Free:91 Nodes",
                 "7629/7872 cores",
-                "7590+3365 jobs",
+                "10956=7590+3365+1 jobs",
                 "Worker Nodes occupancy",
                 "User accounts and pool mappings",
             ],
@@ -114,7 +115,7 @@ STATIC_CASES = {
             "markers": [
                 "Summary : Total:17 Up:17 Free:4 Nodes",
                 "61/408 cores",
-                "61+31 jobs",
+                "92=61+31+0 jobs",
                 "Worker Nodes occupancy",
                 "User accounts and pool mappings",
             ],
@@ -128,7 +129,7 @@ STATIC_CASES = {
             "markers": [
                 "Summary : Total:183 Up:172 Free:167 Nodes",
                 "1349/2520 cores",
-                "190+69 jobs",
+                "260=190+69+1 jobs",
                 "default: 187 + 69",
                 "besteffort: 3",
                 "Worker Nodes occupancy",
@@ -145,7 +146,7 @@ STATIC_CASES = {
                 "This data is simulated",
                 "Summary : Total:",
                 "Nodes |",
-                "jobs (R + Q)",
+                "jobs (Total=R+Q+Other)",
                 "Worker Nodes occupancy",
                 "User accounts and pool mappings",
             ],
@@ -154,15 +155,15 @@ STATIC_CASES = {
 }
 
 SLURM_MARKERS_BY_SAMPLE = {
-    "arrays_and_het": ["Summary : Total:2 Up:2 Free:0 Nodes", "7/16 cores", "4+4 jobs", "individual array tasks and heterogeneous components"],
-    "cpu_allocations": ["Summary : Total:3 Up:3 Free:1 Nodes", "6/24 cores", "2+1 jobs", "scheduler CPU IDs", "long*: 0 + 1"],
-    "partial_and_malformed": ["Summary : Total:3 Up:3 Free:0 Nodes", "5/12 cores", "4+1 jobs"],
-    "basic": ["Summary : Total:3 Up:3 Free:2 Nodes", "4/16 cores", "2+1 jobs"],
-    "large_cluster": ["Summary : Total:18 Up:17 Free:9 Nodes", "120/288 cores", "3+1 jobs"],
-    "large_mixed": ["Summary : Total:20 Up:19 Free:9 Nodes", "160/320 cores", "3+1 jobs"],
-    "large_multi_partition": ["Summary : Total:18 Up:17 Free:10 Nodes", "104/288 cores", "3+1 jobs"],
-    "mixed": ["Summary : Total:2 Up:1 Free:0 Nodes", "4/16 cores", "2+0 jobs"],
-    "multi_partition": ["Summary : Total:2 Up:2 Free:1 Nodes", "4/32 cores", "2+1 jobs"],
+    "arrays_and_het": ["Summary : Total:2 Up:2 Free:0 Nodes", "7/16 cores", "8=4+4+0 jobs", "individual array tasks and heterogeneous components"],
+    "cpu_allocations": ["Summary : Total:3 Up:3 Free:1 Nodes", "6/24 cores", "3=2+1+0 jobs", "scheduler CPU IDs", "long*: 0 + 1"],
+    "partial_and_malformed": ["Summary : Total:3 Up:3 Free:0 Nodes", "5/12 cores", "6=4+1+1 jobs"],
+    "basic": ["Summary : Total:3 Up:3 Free:2 Nodes", "4/16 cores", "3=2+1+0 jobs"],
+    "large_cluster": ["Summary : Total:18 Up:17 Free:9 Nodes", "120/288 cores", "6=3+1+2 jobs"],
+    "large_mixed": ["Summary : Total:20 Up:19 Free:9 Nodes", "160/320 cores", "6=3+1+2 jobs"],
+    "large_multi_partition": ["Summary : Total:18 Up:17 Free:10 Nodes", "104/288 cores", "6=3+1+2 jobs"],
+    "mixed": ["Summary : Total:2 Up:1 Free:0 Nodes", "4/16 cores", "4=2+0+2 jobs"],
+    "multi_partition": ["Summary : Total:2 Up:2 Free:1 Nodes", "4/32 cores", "3=2+1+0 jobs"],
 }
 
 COMMON_RENDER_MARKERS = [
@@ -173,7 +174,7 @@ COMMON_RENDER_MARKERS = [
 
 def sgr_parameters(raw_parameters):
     """Return the integer parameters of an SGR escape; empty means reset (0)."""
-    parameters = [0 if item == "" else int(item) for item in raw_parameters.split(";")]
+    parameters = [0 if item == "" else int(item) for item in re.sub(r"(^|;)48;5;208(?=;|$)", r"\g<1>%d" % ORANGE_BACKGROUND, raw_parameters).split(";")]
     return parameters if raw_parameters else [0]
 
 
@@ -197,7 +198,7 @@ def apply_sgr(style, parameters):
             updated["bold"] = True
         elif 30 <= parameter <= 37:
             updated["foreground"] = parameter
-        elif 40 <= parameter <= 47:
+        elif 40 <= parameter <= 47 or parameter == ORANGE_BACKGROUND:
             updated["background"] = parameter
     return updated
 
@@ -454,7 +455,7 @@ def style_colours(style_key):
     bold, foreground, background = style_key
     foreground_palette = ANSI_BRIGHT_COLOURS if bold else ANSI_NORMAL_COLOURS
     foreground_colour = foreground_palette.get(foreground, "#f2f2f2")
-    background_colour = ANSI_NORMAL_COLOURS.get(background - 10) if background is not None else None
+    background_colour = "#ff8700" if background == ORANGE_BACKGROUND else ANSI_NORMAL_COLOURS.get(background - 10) if background is not None else None
     return foreground_colour, background_colour, bold
 
 
