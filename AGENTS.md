@@ -25,7 +25,7 @@ Run times depend on the environment and are not fixed budgets.
 
 ## Repo map
 
-- `qtop_py/qtop.py` - main loop, I/O effects and legacy adapters; argument handling; `python -m qtop_py.qtop` entry.
+- `qtop_py/qtop.py` - main loop, I/O effects and deprecated legacy adapters (see docs/architecture.md); argument handling; `python -m qtop_py.qtop` entry.
 - `qtop_py/mvu.py`, `mvu_query.py`, `ui/mvu_view.py` - explicit model/update, snapshot queries and terminal presentation.
 - `qtop_py/plugins/{pbs,sge,slurm,oar,demo}.py` - backends; `qtop_py/schedulers/` - registration, metadata and GPU helpers.
 - `qtop_py/cluster_state.py`, `snapshot.py`, `ui/viewport.py`, `colormap.py` - normalized snapshots, navigation and colors.
@@ -82,6 +82,8 @@ traces; avoid redundant expensive tests and preserve established CI gates.
 2.4 Update user documentation, examples, or `CHANGELOG.md` when behaviour or public
 interfaces change. Do not add cosmetic comments, redundant docstrings, or
 trivial-only PRs without demonstrable value.
+Public modules, classes and functions carry a one-line Google-style docstring (ruff `D`);
+the type hints carry the types, so add `Args:`/`Raises:` only where behaviour needs it.
 Keep top progress checklists in `ROADMAP.md` and `docs/secure-coding-pyscg.md`
 accurate: check implemented work and leave remaining work or release evidence open.
 Use `[CI]` only when a configured CI gate fails on the stated check; identify its

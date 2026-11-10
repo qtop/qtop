@@ -1,8 +1,7 @@
 ## Copyright (c) 2026 qtop contributors
 ## SPDX-License-Identifier: MIT
-"""Watch-mode keyboard behavior, using real viewport bounds."""
+"""Watch-mode keyboard behavior through MVU_update/MVU_effects (as in main()), using real viewport bounds."""
 
-from itertools import cycle
 from types import SimpleNamespace
 from unittest.mock import Mock
 
@@ -13,27 +12,32 @@ from qtop_py.mvu_query import WNFilter
 from qtop_py.ui.viewport import Viewport
 
 
-@pytest.fixture
-def controls(monkeypatch):
+def make_controls(color="OFF"):
     view = Viewport(20, 30)
     view.set_term_size(10, 20)
     view.max_height, view.max_width = 100, 200
-    monkeypatch.setattr(qtop, "args", SimpleNamespace(COLOR="OFF", EXPAND_QUEUES=False), raising=False)
-    monkeypatch.setattr(qtop, "config", {"transpose_wn_matrices": False, "rem_empty_corelines": 0}, raising=False)
-    monkeypatch.setattr(qtop, "dynamic_config", {"force_names": False}, raising=False)
-    monkeypatch.setattr(qtop, "user_to_color", {}, raising=False)
-    monkeypatch.setattr(qtop, "change_mapping", cycle((("queue_to_color", "queue"), ("user_to_color", "user"))), raising=False)
-    monkeypatch.setattr(qtop, "h_counter", cycle((0, 1)), raising=False)
-    monkeypatch.setattr(qtop, "HELP_FP", "help.txt", raising=False)
-    web = Mock()
-    monkeypatch.setattr(qtop, "web", web, raising=False)
-    cluster = SimpleNamespace(WNFilter=WNFilter, worker_nodes=[])
-    return view, cluster, web
+    config = {"transpose_wn_matrices": False, "rem_empty_corelines": 0}
+    args = SimpleNamespace(COLOR=color, EXPAND_QUEUES=False)
+    model = qtop.MVU_Model(config, args, view, display_overrides={"force_names": False}, help_file="help.txt")
+    return SimpleNamespace(model=model, cluster=SimpleNamespace(WNFilter=WNFilter, worker_nodes=[]))
+
+
+@pytest.fixture
+def controls():
+    return make_controls()
 
 
 def press(controls, key):
-    view, cluster, _web = controls
-    qtop.control_qtop(view, key, cluster, [0, 0, 0, 0], [0, 0, 0, 0])
+    controls.model, effects = qtop.MVU_update(controls.model, key)
+    qtop.MVU_effects(controls.model, effects, controls.cluster, [0, 0, 0, 0], [0, 0, 0, 0])
+
+
+def view(controls):
+    return controls.model.viewport
+
+
+def overrides(controls):
+    return controls.model.display_overrides
 
 
 @pytest.mark.parametrize(
@@ -56,46 +60,52 @@ def press(controls, key):
 )
 def test_movement_keys_respect_viewport(controls, key, vertical, horizontal):
     press(controls, key)
-    view, _cluster, _web = controls
-    assert (view.v_start, view.h_start) == (vertical, horizontal)
+    assert (view(controls).v_start, view(controls).h_start) == (vertical, horizontal)
 
 
 @pytest.mark.parametrize("key", ("j", "G"))
 def test_downward_movement_stops_at_bottom(controls, capsys, key):
-    view, _cluster, _web = controls
-    view.scroll_bottom()
+    view(controls).scroll_bottom()
     press(controls, key)
-    assert view.v_start == 90
+    assert view(controls).v_start == 90
     assert "Staying put" in capsys.readouterr().out
 
 
 @pytest.mark.parametrize("key, setting", (("t", "transpose_wn_matrices"), ("F", "force_names"), ("Q", "queue_summary_expanded")))
 def test_display_toggles_are_reversible(controls, key, setting):
     press(controls, key)
-    assert qtop.dynamic_config[setting] is True
+    assert overrides(controls)[setting] is True
     press(controls, key)
-    assert qtop.dynamic_config[setting] is False
+    assert overrides(controls)[setting] is False
 
 
 def test_color_mapping_and_empty_coreline_modes_cycle(controls):
     press(controls, "m")
-    assert qtop.dynamic_config["core_coloring"] == "queue_to_color"
+    assert overrides(controls)["core_coloring"] == "queue_to_color"
     press(controls, "m")
-    assert qtop.dynamic_config["core_coloring"] == "user_to_color"
+    assert overrides(controls)["core_coloring"] == "user_to_color"
     for expected in (1, 2, 0):
         press(controls, "r")
-        assert qtop.dynamic_config["rem_empty_corelines"] == expected
+        assert overrides(controls)["rem_empty_corelines"] == expected
 
 
 def test_help_returns_to_cluster_and_quit_leaves_cleanup_to_owner(controls):
     press(controls, "?")
-    assert qtop.dynamic_config["output_fp"] == "help.txt"
+    assert overrides(controls)["output_fp"] == "help.txt"
     press(controls, "?")
-    assert "output_fp" not in qtop.dynamic_config
+    assert "output_fp" not in overrides(controls)
     with pytest.raises(SystemExit) as stopped:
         press(controls, "q")
     assert stopped.value.code == 0
-    controls[2].stop.assert_not_called()
+    assert "web" not in vars(qtop)  # no module-level server for the controls to stop; RunResources owns it
+
+
+def test_menus_use_the_models_colour_setting(monkeypatch, capsys):
+    answers = iter([""])
+    monkeypatch.setattr("builtins.input", lambda *_args: next(answers))
+    monkeypatch.setattr(qtop, "_set_terminal_attrs", Mock())
+    press(make_controls(color="ON"), "s")
+    assert "\x1b[" in capsys.readouterr().out  # -c ON: the menu numbers are coloured
 
 
 @pytest.mark.parametrize("answers, expected", ((["invalid", "31"], ["sort by all numbers", "sort by nodename-notnum"]), ([""], [])))
@@ -105,8 +115,8 @@ def test_sort_menu_handles_invalid_input_and_cancel(controls, monkeypatch, answe
     terminal = Mock()
     monkeypatch.setattr(qtop, "_set_terminal_attrs", terminal)
     press(controls, "s")
-    assert [entry[0] for entry in qtop.dynamic_config["user_sort"]] == expected
-    assert (controls[0].v_start, controls[0].h_start) == (0, 0)
+    assert [entry[0] for entry in overrides(controls)["user_sort"]] == expected
+    assert (view(controls).v_start, view(controls).h_start) == (0, 0)
     assert terminal.call_count == 2
 
 
@@ -123,9 +133,9 @@ def test_filter_and_highlight_menus_preserve_selected_rules(controls, monkeypatc
     terminal = Mock()
     monkeypatch.setattr(qtop, "_set_terminal_attrs", terminal)
     press(controls, key)
-    assert qtop.dynamic_config[setting] == expected
-    assert isinstance(controls[1].wn_filter, WNFilter)
-    assert controls[0].v_start == controls[0].h_start == 0
+    assert overrides(controls)[setting] == expected
+    assert isinstance(controls.cluster.wn_filter, WNFilter)
+    assert view(controls).v_start == view(controls).h_start == 0
     assert terminal.call_count == 2
 
 
@@ -135,7 +145,7 @@ def test_filter_and_highlight_menus_cancel_invalid_commands(controls, monkeypatc
     monkeypatch.setattr("builtins.input", lambda *_args: answer)
     monkeypatch.setattr(qtop, "_set_terminal_attrs", Mock())
     press(controls, key)
-    assert qtop.dynamic_config[setting] == []
+    assert overrides(controls)[setting] == []
 
 
 @pytest.mark.parametrize("key", ["s", "f", "H"])
@@ -154,7 +164,7 @@ def test_menu_interruption_restores_terminal(controls, monkeypatch, key, failure
 
 
 def test_unknown_key_leaves_view_and_settings_unchanged(controls):
-    before = dict(qtop.dynamic_config)
+    before = dict(overrides(controls))
     press(controls, "z")
-    assert (controls[0].v_start, controls[0].h_start) == (20, 30)
-    assert qtop.dynamic_config == before
+    assert (view(controls).v_start, view(controls).h_start) == (20, 30)
+    assert overrides(controls) == before

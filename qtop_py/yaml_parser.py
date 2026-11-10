@@ -8,9 +8,11 @@
 ##
 ## SPDX-License-Identifier: MIT
 ##
+"""A small parser for the YAML subset that qtopconf and scheduler traces use."""
 
 import logging
 import os
+from typing import Any, Dict, Iterable, Iterator, List, Mapping, Optional, Tuple
 
 from qtop_py import safety
 from qtop_py.safety import ResourceLimitError, literal_eval
@@ -18,7 +20,8 @@ from qtop_py.safety import ResourceLimitError, literal_eval
 """Small dependency-free parser for qtop's deliberately limited YAML subset."""
 
 
-def literal_or_original(value):
+def literal_or_original(value: Any) -> Any:
+    """Evaluate a Python literal, or return the value unchanged if it is not one."""
     try:
         return literal_eval(value)
     except ResourceLimitError:
@@ -27,7 +30,8 @@ def literal_or_original(value):
         return value
 
 
-def expand_single_literal_list(container):
+def expand_single_literal_list(container: List[Any]) -> Any:
+    """Return the list a single-string container spells as a literal, or the container unchanged."""
     if len(container) != 1 or not isinstance(container[0], str):
         return container
     literal_value = literal_or_original(container[0])
@@ -39,9 +43,8 @@ def expand_single_literal_list(container):
         return container
 
 
-def fix_config_list(config_list):
-    """
-    transforms a list of the form ['a, b'] to ['a', 'b']
+def fix_config_list(config_list: Any) -> List[str]:
+    """Transforms a list of the form ['a, b'] to ['a', 'b'].
 
     Raises TypeError if the first element is not a string, surfacing a clear,
     actionable error here instead of a cryptic AttributeError from ``str.split``
@@ -57,21 +60,11 @@ def fix_config_list(config_list):
     return [nr.strip() for nr in list_items]
 
 
-def get_line(fin, verbatim=False, SEPARATOR=None, DEF_INDENT=2):
-    """
-    Yields a list per line read, of the following form:
-    [indentation_change, line up to first space, line after first space if exists]
-    Comment lines are omitted.
-    Lines where comments exist at the end are stripped off their comment.
-    Indentation is calculated with respect to the previous line.
-    1: line is further indented
-    0: same indentation
-    -1: line is unindent
-    Empty lines only return the indentation change.
-    Where the line splits depends on SEPARATOR (default is first space)
+def get_line(fin: Iterable[str], verbatim: bool = False, SEPARATOR: Optional[str] = None, DEF_INDENT: int = 2) -> Iterator[List[Any]]:
+    """Yield [indentation change, text up to SEPARATOR, rest] per line, without comments.
 
-    DEF_INDENT is how many spaces is an indent by default.
-    e.g. qtop config file uses 2 spaces, oarnodes_s_y uses 4
+    The indentation change against the previous line is 1 (deeper), 0 (same) or -1 (shallower);
+    empty lines yield only the change. DEF_INDENT is the indent width: 2 in qtopconf, 4 in oarnodes -Y.
     """
     indent = 0
     indenter = {
@@ -106,7 +99,7 @@ def get_line(fin, verbatim=False, SEPARATOR=None, DEF_INDENT=2):
             d_indent = diff
 
         line = line.rstrip()
-        list_line = verbatim and [d_indent, line] or [d_indent] + line.split(None or SEPARATOR, 1)
+        list_line: List[Any] = verbatim and [d_indent, line] or [d_indent] + line.split(None or SEPARATOR, 1)
 
         if len(list_line) > 1:
             value = list_line[1]
@@ -117,9 +110,8 @@ def get_line(fin, verbatim=False, SEPARATOR=None, DEF_INDENT=2):
         yield list_line
 
 
-def convert_dash_key_in_dict(d):
-    """
-    Recursively unwrap sole-key dash containers without dropping sibling keys.
+def convert_dash_key_in_dict(d: Any) -> Any:
+    """Recursively unwrap sole-key dash containers without dropping sibling keys.
 
     Preserve the historical literal-dash representation under ``state``.
     Scalar values pass through unchanged.
@@ -127,7 +119,7 @@ def convert_dash_key_in_dict(d):
     if not isinstance(d, dict):
         return d
 
-    def convert(value, parent_key=None):
+    def convert(value: Any, parent_key: Optional[str] = None) -> Any:
         if isinstance(value, list):
             return [convert(item) for item in value]
         if not isinstance(value, dict):
@@ -140,7 +132,8 @@ def convert_dash_key_in_dict(d):
     return {key: convert(value, key) for key, value in d.items()}
 
 
-def parse(fn, DEF_INDENT=2):
+def parse(fn: str, DEF_INDENT: int = 2) -> Dict[str, Any]:
+    """Parse a YAML file within MAX_INPUT_BYTES into a dict; an empty file yields an empty one."""
     raw_key_values = {}
     with open(fn, mode="r", encoding="utf-8") as fin:
         if os.fstat(fin.fileno()).st_size > safety.MAX_INPUT_BYTES:
@@ -161,17 +154,13 @@ def parse(fn, DEF_INDENT=2):
     return dict([(key, value) for key, value in raw_key_values.items()])
 
 
-def read_yaml_config_block(line, fin, get_lines):
-    block = dict()
+def read_yaml_config_block(line: List[Any], fin: Iterable[str], get_lines: Iterator[List[Any]]) -> Tuple[Dict[str, Any], Any]:
+    """Read one top-level block starting at line; return it and the next line."""
+    block: Dict[str, Any] = dict()
     parent_container = block
     open_containers = list()
     open_containers.append(block)
-    key_value = {}
-
-    # if len(line) > 1:  # non-empty line
-    #     key_value, parent_container = process_line(line, fin, get_lines, parent_container)
-    #     for (k, v) in key_value.items():
-    #         block[k] = v
+    key_value: Dict[str, Any] = {}
 
     while len(line) == 1:  # skip empty lines
         try:
@@ -236,8 +225,10 @@ def read_yaml_config_block(line, fin, get_lines):
     return block, line
 
 
-def process_line(list_line, fin, get_lines, parent_container):
+def process_line(list_line: List[Any], fin: Iterable[str], get_lines: Iterator[List[Any]], parent_container: Any) -> Tuple[Dict[str, Any], Any]:
+    """Add one key line to parent_container, reading any nested block; return the key-value and next line."""
     key = list_line[1]
+    container: Any  # mapping, list or scalar, depending on the line
 
     if len(list_line) == 2:  # key-only, so what's in the line following should be written in a new container
         container = {}
@@ -249,12 +240,11 @@ def process_line(list_line, fin, get_lines, parent_container):
         if container.endswith(":"):  # key: '-'           - testkey:
             parent_key = key
             key = container
-            new_container = {}
+            new_container: Dict[str, Any] = {}
             return {parent_key: [{key.rstrip(":"): new_container}]}, new_container  # list
 
         if ": " in container:  # key: '-'               - testkey: testvalue
             key, container = container.split(None, 1)
-            # container = [container[1:-1]] if container.startswith('[') else container
             container = container[1:-1].split(", ") if container.startswith("[") else container
             container = "" if container in ("''", '""') else container
             if isinstance(container, list):
@@ -267,7 +257,7 @@ def process_line(list_line, fin, get_lines, parent_container):
 
         if key == "-":  # i.e.  - testvalue
             return {"-": [container]}, container  # was parent_container******was :[container]}, container
-        # i.e. testkey: testvalue
+        # i.e. a line of the form 'testkey: testvalue'
         container = [container[1:-1]] if container.startswith("[") else container  # list
         if isinstance(container, list):
             container = expand_single_literal_list(container)
@@ -277,9 +267,9 @@ def process_line(list_line, fin, get_lines, parent_container):
     raise ValueError("Didn't anticipate that!")
 
 
-def process_code(fin):
+def process_code(fin: Iterable[str]) -> str:
+    """Return a verbatim (code) block as one string."""
     get_code = get_line(fin, verbatim=True)
-    # line = next(get_code)
     line = next(get_code)
     code = []
     while line[0] > -1:
@@ -291,13 +281,15 @@ def process_code(fin):
     return "\n".join([c.strip() for c in code]).strip()
 
 
-def safe_load(fin, DEF_INDENT=2):
+def safe_load(fin: str, DEF_INDENT: int = 2) -> Dict[str, Any]:
+    """Parse a YAML file into a dict."""
     a_dict = parse(fin, DEF_INDENT)
     logging.debug("YAML dict length: %s" % len(a_dict))
     return a_dict
 
 
-def load_all(fin):
+def load_all(fin: Iterable[str]) -> List[Dict[str, Any]]:
+    """Parse every YAML document in a stream; return them as a list."""
     list_of_dicts = []
     get_lines = get_line(fin)
     while True:
@@ -312,12 +304,9 @@ def load_all(fin):
     return list_of_dicts
 
 
-def get_yaml_key_part(config, scheduler, outermost_key):
-    """
-    only return the list items of the yaml outermost_key if a yaml key subkey exists
-    (this signals a user-inserted value)
-    """
-    # e.g. outermost_key = 'workernodes_matrix'
+def get_yaml_key_part(config: Mapping[str, Any], scheduler: str, outermost_key: str) -> Iterator[Tuple[str, str, List[str]]]:
+    """Yield the outermost_key entries that hold a user-set yaml key subkey."""
+    # e.g. outermost_key is 'workernodes_matrix'
     for part in config[outermost_key]:
         part_name = [i for i in part][0]
         part_options = part[part_name]

@@ -40,15 +40,15 @@ def cores_per_node(value: Any) -> Optional[int]:
     return int(text)
 
 
-def visible_text(value, escape_backslashes=True):
+def visible_text(value: Any, escape_backslashes: bool = True) -> str:
     """Escape controls and literal backslashes, keeping displayed identifiers distinct."""
-    value = str(value)
+    text = str(value)
     # Fast path: every character _CONTROLS matches is non-printable, so printable text needs no escaping.
-    if value.isprintable() and not (escape_backslashes and "\\" in value):
-        return value
-    if escape_backslashes and "\\" in value:
-        value = value.replace("\\", "\\\\")
-    return _CONTROLS.sub(lambda match: ascii(match.group())[1:-1], value)
+    if text.isprintable() and not (escape_backslashes and "\\" in text):
+        return text
+    if escape_backslashes and "\\" in text:
+        text = text.replace("\\", "\\\\")
+    return _CONTROLS.sub(lambda match: ascii(match.group())[1:-1], text)
 
 
 def rebuild(value: Any, leaf: Optional[Callable[[str], Any]] = None) -> Any:
@@ -66,16 +66,21 @@ def rebuild(value: Any, leaf: Optional[Callable[[str], Any]] = None) -> Any:
 
 
 def visible_data(value: Any) -> Any:
+    """Return a copy of value with every string made visible-safe; see visible_text."""
     return rebuild(value, visible_text)
 
 
 class SafeLogFormatter(logging.Formatter):
-    def format(self, record):
+    """Log formatter that escapes control characters in the rendered record."""
+
+    def format(self, record: logging.LogRecord) -> str:
         # Escape the rendered record, including exception text, without changing shared records.
+        """Format the record, then escape control characters in the result."""
         return visible_text(super().format(record), escape_backslashes=False)
 
 
-def check_nesting(text):
+def check_nesting(text: str) -> None:
+    """Raise ResourceLimitError if JSON or literal text nests deeper than MAX_DEPTH or holds over MAX_ITEMS items."""
     depth = items = skip = 0
     quote = None
     for match in _TOKENS.finditer(text):
@@ -103,6 +108,7 @@ def check_nesting(text):
 
 
 def load_json(stream: Any, limit: Optional[int] = None) -> Any:
+    """Parse JSON from a stream; raise ResourceLimitError over limit bytes (default MAX_INPUT_BYTES) or the nesting limits."""
     limit = MAX_INPUT_BYTES if limit is None else limit
     text = stream.read(limit + 1)
     if len(text if isinstance(text, bytes) else text.encode("utf-8")) > limit:
@@ -111,7 +117,8 @@ def load_json(stream: Any, limit: Optional[int] = None) -> Any:
     return json.loads(text)
 
 
-def literal_eval(value):
+def literal_eval(value: Any) -> Any:
+    """ast.literal_eval within the size, nesting, parser and item limits; raise ResourceLimitError beyond them."""
     if isinstance(value, str):
         if len(value.encode("utf-8")) > MAX_LITERAL_BYTES:
             raise ResourceLimitError("literal exceeds size limit")
@@ -126,12 +133,15 @@ def literal_eval(value):
 
 
 class LimitedReader(object):
-    def __init__(self, stream, limit):
+    """File-like reader that raises ResourceLimitError once more than limit bytes are read."""
+
+    def __init__(self, stream: Any, limit: int) -> None:
         self.stream, self.remaining = stream, limit
 
-    def read(self, size=-1):
+    def read(self, size: int = -1) -> bytes:
+        """Read up to size bytes; raise ResourceLimitError once the limit is passed."""
         size = self.remaining + 1 if size < 0 else min(size, self.remaining + 1)
-        data = self.stream.read(size)
+        data: bytes = self.stream.read(size)
         self.remaining -= len(data)
         if self.remaining < 0:
             raise ResourceLimitError("archive exceeds decompressed size limit")
@@ -140,8 +150,9 @@ class LimitedReader(object):
 
 @contextlib.contextmanager
 def snapshot_archive(path: str) -> Generator[tarfile.TarFile, None, None]:
+    """Open a plain, gzip, bzip2 or xz snapshot tarball as a stream, within MAX_ARCHIVE_BYTES."""
     with open(path, "rb") as source, contextlib.ExitStack() as stack:
-        stream = source
+        stream: Any = source  # becomes a decompressing reader below
         magic = stream.read(6)
         stream.seek(0)
         for prefix, decoder in ((b"\x1f\x8b", gzip.GzipFile), (b"BZh", bz2.BZ2File), (b"\xfd7zXZ", lzma.LZMAFile)):

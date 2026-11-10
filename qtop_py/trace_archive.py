@@ -9,6 +9,7 @@ import shutil
 import tarfile
 from collections import defaultdict
 from pathlib import PurePosixPath
+from typing import DefaultDict, Dict, Iterable, List, Mapping, Tuple
 
 MAX_MEMBERS = 10000
 MAX_TRACE_BYTES = 256 * 1024 * 1024
@@ -16,7 +17,8 @@ MAX_SET_BYTES = 512 * 1024 * 1024
 MAX_ARCHIVE_BYTES = 1024 * 1024 * 1024
 
 
-def load_trace_archive(path, directory, configured, optional=()):
+def load_trace_archive(path: str, directory: str, configured: Mapping[str, str], optional: Iterable[str] = ()) -> Dict[str, str]:
+    """Extract one coherent capture of the configured traces into directory; return their paths by key."""
     marker = "QTOP_CAPTURE_SUFFIX"
     patterns = {}
     destinations = {}
@@ -30,23 +32,30 @@ def load_trace_archive(path, directory, configured, optional=()):
     if len(set(destinations.values())) != len(destinations):
         raise ValueError("configured trace filenames must be distinct")
     required = set(configured) - set(optional)
-    cohorts = defaultdict(lambda: defaultdict(list))
+    cohorts: DefaultDict[Tuple[str, str], DefaultDict[str, List[tarfile.TarInfo]]] = defaultdict(lambda: defaultdict(list))
     with tarfile.open(path, "r:*") as archive:
         for index, member in enumerate(archive):
             if index >= MAX_MEMBERS or member.offset_data + member.size > MAX_ARCHIVE_BYTES:
                 raise ValueError("trace archive exceeds member or size limits")
-            name = PurePosixPath(member.name)
-            if not member.isfile() or member.sparse is not None or name.is_absolute() or ".." in name.parts or "\\" in member.name or any(":" in part for part in name.parts):
+            member_path = PurePosixPath(member.name)
+            if (
+                not member.isfile()
+                or member.sparse is not None
+                or member_path.is_absolute()
+                or ".." in member_path.parts
+                or "\\" in member.name
+                or any(":" in part for part in member_path.parts)
+            ):
                 continue
             matches = []
             for key, pattern in patterns.items():
-                match = pattern.fullmatch(name.name)
-                if match or name.name == key:
+                match = pattern.fullmatch(member_path.name)
+                if match or member_path.name == key:
                     suffix = (match.groupdict().get("capture") or "") if match else ""
-                    matches.append((len(name.name) + 1 if name.name == key else specificity[key], key, suffix))
+                    matches.append((len(member_path.name) + 1 if member_path.name == key else specificity[key], key, suffix))
             if matches:
                 _, key, suffix = max(matches)
-                cohorts[(str(name.parent), suffix)][key].append(member)
+                cohorts[(str(member_path.parent), suffix)][key].append(member)
         eligible = [(len(files), cohort, files) for cohort, files in cohorts.items() if required <= set(files) and all(len(members) == 1 for members in files.values())]
         if not eligible:
             raise ValueError("no unambiguous complete scheduler trace set; use --load-sample for normalized snapshots")

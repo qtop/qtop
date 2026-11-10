@@ -1,14 +1,16 @@
 ## Copyright (c) 2026 qtop contributors
 ## SPDX-License-Identifier: MIT
+import importlib
 import os
 import subprocess
 import sys
 
 import pytest
 
-pytest.importorskip("atheris")
+from tools import deterministic_fuzz
 
-from tools import atheris_fuzz, deterministic_fuzz
+pytest.importorskip("atheris")
+atheris_fuzz = importlib.import_module("tools.atheris_fuzz")
 
 
 @pytest.mark.parametrize("data", (b"", b"\x01", b"\x02", bytes(range(256)), b"\xff" * 256))

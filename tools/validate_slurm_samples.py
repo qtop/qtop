@@ -6,6 +6,7 @@
 ##
 ## SPDX-License-Identifier: MIT
 ##
+"""Render every Slurm command-trace sample with qtop, as a smoke test."""
 
 import argparse
 import os
@@ -21,6 +22,7 @@ DEFAULT_OUTPUT = "artifacts/slurm-rendered"
 
 
 def iter_sample_dirs(samples_dir):
+    """Yield (name, path) for each sample directory with squeue.txt and sinfo.txt."""
     for name in sorted(os.listdir(samples_dir)):
         sample_dir = os.path.join(samples_dir, name)
         if not os.path.isdir(sample_dir):
@@ -30,6 +32,7 @@ def iter_sample_dirs(samples_dir):
 
 
 def run_qtop(sample_name, sample_dir, output_dir):
+    """Render one sample with an isolated HOME; return the result."""
     env = os.environ.copy()
     env["QTOP_SCHEDULER"] = "slurm"
     rendered_output_dir = os.path.abspath(output_dir)
@@ -46,6 +49,7 @@ def run_qtop(sample_name, sample_dir, output_dir):
 
 
 def main():
+    """Render all samples and return non-zero on any failure."""
     parser = argparse.ArgumentParser(description="Render all Slurm qtop command-trace samples.")
     parser.add_argument("samples_dir", help="Directory containing Slurm sample subdirectories")
     parser.add_argument("--output", default=DEFAULT_OUTPUT, help="Private directory for qtop rendered output (default: %(default)s)")

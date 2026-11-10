@@ -10,6 +10,8 @@ from typing import List, Optional
 
 class HostlistParser:
     # Bound both numeric ranges and Cartesian products from untrusted traces.
+    """Expand and validate Slurm-style host lists such as node[01-04,07]."""
+
     MAX_EXPANDED_NODES = 100000
 
     @classmethod
@@ -44,7 +46,7 @@ class HostlistParser:
                 raise ValueError("unmatched opening bracket")
             groups.append(nodelist[start:])
 
-            expanded = []
+            expanded: List[str] = []
             for group in groups:
                 if not group or re.search(r"\s", group):
                     raise ValueError("empty or whitespace-containing host group")

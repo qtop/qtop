@@ -52,8 +52,18 @@ version = {attr = "qtop_py.__version__"}
 include = ["qtop_py*"]
 
 [tool.ruff]
-# Enable pycodestyle (`E`) and Pyflakes (`F`) codes by default.
-lint.select = ["E", "F", "I"] ##
+# pycodestyle (`E`, `W`), Pyflakes (`F`), isort (`I`), eradicate (`ERA`: no commented-out code)
+# and pydocstyle (`D`, Google convention: a one-line summary for every public module, class and function).
+# pycodestyle's E26x comment checks need ruff preview mode, so they are not enforced yet.
+lint.select = ["E", "F", "I", "W", "ERA", "C90", "D"] ##
+# The class docstring covers __init__ and dunders; tests document themselves through their names.
+lint.ignore = ["D105", "D107"]
+lint.per-file-ignores = { "tests/**" = ["D"] }
+lint.pydocstyle.convention = "google"
+# C90 (mccabe): the limit passes today; lower it as functions are split. At 20 now:
+# yaml_parser.read_yaml_config_block, slurm._apply_gpu_allocations.
+# FIXME: max-complexity 15 needs 10 functions split, 10 (mccabe's default) needs 34.
+lint.mccabe.max-complexity = 20
 
 # Ruff still exposes py37 as its lowest target; Python 3.6 runtime
 # compatibility stays covered by the separate compat-py36 gate.
@@ -75,7 +85,7 @@ include = ["qtop_py", "tools"]
 
 [tool.ty.analysis]
 # Both imports are optional accelerators; qtop has stdlib fallbacks.
-allowed-unresolved-imports = ["lxml", "ujson"]
+allowed-unresolved-imports = ["atheris", "lxml", "ujson"]
 
 [tool.ty.terminal]
 # One diagnostic per line keeps local and CI logs useful (including `ty check
@@ -89,16 +99,51 @@ include = ["qtop_py/qtop.py"]
 # cli_main intentionally binds the legacy module-level runtime context.
 unresolved-global = "ignore"
 
-# First-pass contracts; legacy callers are analyzed as imported dependencies.
+# Whole package: mypy's full `strict` set, listed rule by rule so changes stay visible
+# (equivalent to `strict = true`), plus warn_unreachable. Pyright stays strict on the contract modules.
 [tool.mypy]
 python_version = "3.12"
-files = ["qtop_py/state_types.py", "qtop_py/cluster_state.py", "qtop_py/sample.py", "qtop_py/serialiser.py", "qtop_py/ui/viewport.py"]
-strict = true
-follow_imports = "silent"
+files = ["qtop_py"]
+check_untyped_defs = true
+disallow_any_generics = true
+disallow_incomplete_defs = true
+disallow_subclassing_any = true
+disallow_untyped_decorators = true
+disallow_untyped_calls = true
+disallow_untyped_defs = true
+extra_checks = true
+no_implicit_reexport = true
+strict_equality = true
+warn_redundant_casts = true
+warn_return_any = true
+warn_unreachable = true
+warn_unused_configs = true
+warn_unused_ignores = true
+# Deliberately off, though it would pass: a variable keeps one type, its name says what it holds.
+# allow_redefinition = true
+pretty = true
+show_column_numbers = true
+show_error_codes = true
+show_error_context = true
 
+# Optional accelerators with stdlib fallbacks (cf. tool.ty.analysis).
 [[tool.mypy.overrides]]
-module = "qtop_py.serialiser"
-disallow_untyped_defs = false
+module = ["lxml", "ujson"]
+ignore_missing_imports = true
+
+# Pylama, kept for reference: ruff's E, W, F and ERA rules above enforce the same checks in CI.
+# Pylama (pycodestyle, pyflakes, eradicate); ruff stays the CI linter. Ignored: E266 for the
+# `## Copyright`/`## SPDX` headers (house style); E203 and E704, which conflict with ruff format.
+# [tool.pylama]
+# paths = "qtop_py"
+# linters = "pycodestyle,pyflakes,eradicate"
+# max_line_length = 180
+# ignore = "E266,E203,E704"
+
+[tool.pytest.ini_options]
+# Tests that still exercise the deprecated legacy adapters on purpose stay quiet; tests/test_legacy_deprecation.py
+# checks every adapter still warns, and the runtime fixture fails if a normal run triggers one.
+filterwarnings = ["ignore:.*is deprecated since 0\\.9\\.20261110:DeprecationWarning"]
 
 [tool.coverage.run]
 source = ["qtop_py"]

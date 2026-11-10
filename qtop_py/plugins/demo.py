@@ -7,13 +7,18 @@
 ##
 ## SPDX-License-Identifier: MIT
 ##
+"""A simulated cluster for trying qtop without a scheduler."""
 
 import itertools
 import random
 import time
 from collections import defaultdict, namedtuple
+from typing import TYPE_CHECKING, Any, DefaultDict, Dict, List, Tuple
 
 from qtop_py.serialiser import GenericBatchSystem
+
+if TYPE_CHECKING:
+    from qtop_py.state_types import Config, JobsInfo, Node, Options, QueuesInfo, RawQueue
 
 WORKER_NODES = 80
 QUEUES = ["urgent", "transfer", "batch"]
@@ -31,8 +36,10 @@ QUEUE_STATE_CHANGE_PROBABILITY = 0.05
 _JobInfo = namedtuple("_JobInfo", ["job_id", "username", "job_state", "queue_name"])
 
 
-class LittleGridSimulator(object):
-    def __init__(self):
+class LittleClusterSimulator(object):
+    """A small Markov-chain cluster whose jobs, queues and node states change on each refresh."""
+
+    def __init__(self) -> None:
         # Initialize seeds from time
         e_time = int(time.time())
 
@@ -42,7 +49,24 @@ class LittleGridSimulator(object):
         random.seed(cores_seed)
 
         # -- Step 1. Setup random grid
+        self._setup_grid()
 
+        # -- Step 2. Do a few iterations (at least 10) on the state of the cluster
+        p_job_die = 1.0 / AVG_JOB_DURATION
+        first = True
+        for _ in range(10 + markov_iters):
+            # Step 3.a Add a random number of jobs into each queue
+            if first or self.get_total_queued() == 0:
+                self.init_jobs()
+                first = False
+            self._clear_finished_jobs()  # Step 3.b
+            self._finish_some_jobs(p_job_die)  # Step 3.c
+            self._fail_or_repair_nodes()  # Step 3.d
+            empty_slots, utilized_slots = self._find_slots()  # Step 3.f
+            self._schedule(empty_slots, utilized_slots)  # Step 3.g
+            self._shuffle_queue_states()
+
+    def _setup_grid(self) -> None:
         # Create random cores per worker node
         self.nps = []
         for _ in range(WORKER_NODES):
@@ -68,92 +92,91 @@ class LittleGridSimulator(object):
             self.node_state.append(state)
 
         # Set all cores in all nodes to unscheduled state
-        self.core_job_map = defaultdict(list)
+        self.core_job_map: DefaultDict[Any, List[Any]] = defaultdict(list)
         for node in range(WORKER_NODES):
             for _ in range(self.nps[node]):
                 self.core_job_map[node].append(None)
 
-        # -- Step 2. Do a few iterations (at least 10) on the state of the cluster
-        p_job_die = 1.0 / AVG_JOB_DURATION
-        first = True
-        for _ in range(10 + markov_iters):
-            # Step 3.a Add a random number of jobs into each queue
-            if first or self.get_total_queued() == 0:
-                self.init_jobs()
-                first = False
+    def _clear_finished_jobs(self) -> None:
+        """Clear all jobs which were scheduled to die."""
+        for node in range(WORKER_NODES):
+            for core, job_id in enumerate(self.core_job_map[node]):
+                if job_id and self.job_state.get(job_id, "Not_existing!") != "R":
+                    self.core_job_map[node][core] = None
 
-            # Step 3.b Clear all jobs which were scheduled to die
-            for node in range(WORKER_NODES):
+    def _finish_some_jobs(self, p_job_die: float) -> None:
+        """A few jobs will be scheduled to die..."""
+        for node in range(WORKER_NODES):
+            for job_id in self.core_job_map[node]:
+                if job_id and random.random() < p_job_die:
+                    self.job_state[job_id] = random.choice(["C", "E", "W"])
+
+    def _fail_or_repair_nodes(self) -> None:
+        """Make a few servers fail or get repaired."""
+        for node in range(WORKER_NODES):
+            if self.node_state[node] == "d":
+                if random.random() < NODE_REPAIR_PROBABILITY:
+                    # We have a repair... ready to schedule
+                    self.node_state[node] = random.choice(["-", "b"])
+            elif random.random() < NODE_FAILURE_PROBABILITY:
+                # We have a failure. All jobs completed (if only!)
+                self.node_state[node] = "d"
                 for core, job_id in enumerate(self.core_job_map[node]):
-                    if job_id and self.job_state.get(job_id, "Not_existing!") != "R":
+                    if job_id:
                         self.core_job_map[node][core] = None
-
-            # Step 3.c A few jobs will be scheduled to die...
-            for node in range(WORKER_NODES):
-                for job_id in self.core_job_map[node]:
-                    if job_id and random.random() < p_job_die:
                         self.job_state[job_id] = random.choice(["C", "E", "W"])
 
-            # Step 3.d Make a few servers fail or get repaired
-            for node in range(WORKER_NODES):
-                if self.node_state[node] == "d":
-                    if random.random() < NODE_REPAIR_PROBABILITY:
-                        # We have a repair... ready to schedule
-                        self.node_state[node] = random.choice(["-", "b"])
-                elif random.random() < NODE_FAILURE_PROBABILITY:
-                    # We have a failure. All jobs completed (if only!)
-                    self.node_state[node] = "d"
-                    for core, job_id in enumerate(self.core_job_map[node]):
-                        if job_id:
-                            self.core_job_map[node][core] = None
-                            self.job_state[job_id] = random.choice(["C", "E", "W"])
+    def _find_slots(self) -> Tuple[List[Tuple[int, int]], int]:
+        """Return the free (node, core) slots on working nodes and the number of busy ones."""
+        empty_slots = []
+        utilized_slots = 0
+        for node in range(WORKER_NODES):
+            if self.node_state[node] != "d":
+                for core, job_id in enumerate(self.core_job_map[node]):
+                    if job_id:
+                        utilized_slots += 1
+                    else:
+                        empty_slots.append((node, core))
+        return empty_slots, utilized_slots
 
-            # Step 3.f Find available slots in the system...
-            empty_slots = []
-            utilized_slots = 0
-            for node in range(WORKER_NODES):
-                if self.node_state[node] != "d":
-                    for core, job_id in enumerate(self.core_job_map[node]):
-                        if job_id:
-                            utilized_slots += 1
-                        else:
-                            empty_slots.append((node, core))
+    def _schedule(self, empty_slots: List[Tuple[int, int]], utilized_slots: int) -> None:
+        """Schedule queued jobs up to the desired allocation."""
+        total_available_capacity = utilized_slots + len(empty_slots)
+        desired_allocated_slots = int(total_available_capacity * DESIRED_GRID_UTILIZATION)
 
-            total_available_capacity = utilized_slots + len(empty_slots)
+        to_schedule = int(desired_allocated_slots - utilized_slots)
 
-            # Step 3.g Schedule up to the desired allocation...
-            desired_allocated_slots = int(total_available_capacity * DESIRED_GRID_UTILIZATION)
+        if to_schedule > 0:
+            # Pick the first `to_schedule` random slots
+            random.shuffle(empty_slots)
+            lucky_slots = empty_slots[:to_schedule]
 
-            to_schedule = int(desired_allocated_slots - utilized_slots)
+            # and give them jobs from the queues
+            for node, core in lucky_slots:
+                queue_names = list(self.queue_jobs.keys())
+                random.shuffle(queue_names)
+                for queue_name in queue_names:
+                    if self.queue_jobs[queue_name]:
+                        job_id = self.queue_jobs[queue_name].pop()
+                        self.core_job_map[node][core] = job_id
+                        self.job_state[job_id] = "R"
+                        break
 
-            if to_schedule > 0:
-                # Pick the first `to_schedule` random slots
-                random.shuffle(empty_slots)
-                lucky_slots = empty_slots[:to_schedule]
+    def _shuffle_queue_states(self) -> None:
+        """Shuffle queue states as well, every now and then."""
+        for queue_name in QUEUES:
+            if random.random() < QUEUE_STATE_CHANGE_PROBABILITY:
+                self.queue_state[queue_name] = random.choice(["Q", "R", "C", "E", "W"])
 
-                # and give them jobs from the queues
-                for node, core in lucky_slots:
-                    queue_names = list(self.queue_jobs.keys())
-                    random.shuffle(queue_names)
-                    for queue_name in queue_names:
-                        if self.queue_jobs[queue_name]:
-                            job_id = self.queue_jobs[queue_name].pop()
-                            self.core_job_map[node][core] = job_id
-                            self.job_state[job_id] = "R"
-                            break
-
-            # Shuffle queue states as well, every now and then
-            for queue_name in QUEUES:
-                if random.random() < QUEUE_STATE_CHANGE_PROBABILITY:
-                    self.queue_state[queue_name] = random.choice(["Q", "R", "C", "E", "W"])
-
-    def get_total_queued(self):
+    def get_total_queued(self) -> int:
+        """Return the number of jobs waiting in all queues."""
         total_queued_jobs = 0
         for queue_name in QUEUES:
             total_queued_jobs += len(self.queue_jobs[queue_name])
         return total_queued_jobs
 
-    def init_jobs(self):
+    def init_jobs(self) -> None:
+        """Create the initial jobs and queue them."""
         jobcnt = 0
         self.queue_jobs = defaultdict(list)
         self.job_meta = {}
@@ -172,36 +195,23 @@ class LittleGridSimulator(object):
 
 
 class DemoBatchSystem(GenericBatchSystem):
-    """
-    This is an example implementation of how a batch system is "read" and what is expected of it
-    by qtop in order to run.
-    """
+    """Reference backend: shows what qtop expects from a batch system, fed by LittleClusterSimulator."""
 
     is_simulated = True
 
     @staticmethod
-    def get_mnemonic():
+    def get_mnemonic() -> str:
+        """Return the scheduler name, demo."""
         return "demo"
 
-    def __init__(self, scheduler_output_filenames, config, options):
-        """
-        config corresponds to the QTOPCONF_YAML file distributed with qtop.
-        Custom QTOPCONF files can be created and placed either
-        in USERPATH/QTOPCONF_YAML or in SYSTEMCONFDIR/QTOPCONF_YAML
-        """
+    def __init__(self, scheduler_output_filenames: Dict[str, str], config: "Config", options: "Options") -> None:
+        """Keep the trace file names, configuration (QTOPCONF_YAML) and options; start the simulator."""
         self.scheduler_output_filenames = scheduler_output_filenames
         self.config = config
-        self.sim = LittleGridSimulator()
+        self.sim = LittleClusterSimulator()
 
-    def get_worker_nodes(self, job_ids, job_queues, options):
-        """
-        Possible node states are:
-        "-": free
-        "b": busy
-        "d": down/offline
-        and generally the first letter of the word describing the state is used.
-        """
-
+    def get_worker_nodes(self, job_ids: List[str], job_queues: List[str], options: "Options") -> "List[Node]":
+        """Return the simulated nodes; states are - (free), b (busy) and d (down/offline)."""
         worker_nodes = []
 
         for node in range(WORKER_NODES):
@@ -221,9 +231,8 @@ class DemoBatchSystem(GenericBatchSystem):
             worker_nodes.append(worker_node)
         return self.ensure_worker_nodes_have_qnames(worker_nodes, job_ids, job_queues)
 
-    def get_jobs_info(self):
-        """
-        Collect the demo scheduler's running-job records.
+    def get_jobs_info(self) -> "JobsInfo":
+        """Collect the demo scheduler's running-job records.
 
         Each job's attributes are gathered into a single ``_JobInfo`` tuple, so
         the four parallel lists below cannot drift out of sync -- they are all
@@ -244,9 +253,10 @@ class DemoBatchSystem(GenericBatchSystem):
         queue_names = [job.queue_name for job in jobs]
         return job_ids, usernames, job_states, queue_names
 
-    def get_queues_info(self):
+    def get_queues_info(self) -> "QueuesInfo":
+        """Return the running and queued totals and per-queue records of the simulation."""
         total_running_jobs = 0  # these are reported directly by qstat in PBS; if not, they are calculated.
-        run_for_queue = defaultdict(int)
+        run_for_queue: DefaultDict[str, int] = defaultdict(int)
         for node in range(WORKER_NODES):
             for _core, job_id in enumerate(self.sim.core_job_map[node]):
                 if job_id:
@@ -256,10 +266,10 @@ class DemoBatchSystem(GenericBatchSystem):
 
         total_queued_jobs = self.sim.get_total_queued()
 
-        qstatq_list = list()
+        qstatq_list: "List[RawQueue]" = list()
 
         for queue_name in QUEUES:
-            qstatq = {
+            qstatq: "RawQueue" = {
                 "queue_name": queue_name,
                 "run": run_for_queue[queue_name],
                 "queued": str(len(self.sim.queue_jobs[queue_name])),

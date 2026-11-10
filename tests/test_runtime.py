@@ -9,6 +9,7 @@ import re
 import shutil
 import sys
 import tarfile
+import warnings
 from pathlib import Path
 
 import pytest
@@ -17,30 +18,13 @@ from qtop_py import qtop, utils
 from qtop_py.sample import SNAPSHOT_NAME
 
 ROOT = Path(__file__).resolve().parents[1]
-RUNTIME_GLOBALS = (
-    "CURPATH",
-    "QTOPPATH",
-    "HELP_FP",
-    "SAMPLE_FILENAME",
-    "scheduler",
-    "config",
-    "dynamic_config",
-    "cluster",
-    "viewport",
-    "user_to_color",
-    "args",
-    "transposed_sections",
-    "h_counter",
-    "change_mapping",
-    "web",
-    "snapshot",
-)
+MISSING = object()
+# Context the legacy adapters read via globals(); a run must neither set nor change any of it.
+LEGACY_CONTEXT = ("QTOPPATH", "HELP_FP", "scheduler", "config", "dynamic_config", "viewport", "user_to_color", "args", "snapshot", "transposed_sections")
 
 
 @pytest.fixture
 def runtime(tmp_path, monkeypatch):
-    for name in RUNTIME_GLOBALS:
-        monkeypatch.setattr(qtop, name, getattr(qtop, name, None), raising=False)
     home = tmp_path / "home"
     home.mkdir()
     monkeypatch.setenv("HOME", str(home))
@@ -53,6 +37,9 @@ def runtime(tmp_path, monkeypatch):
     monkeypatch.setattr(qtop, "QTOP_LOGFILE", log)
     monkeypatch.setattr(utils, "QTOP_LOGFILE", log)
     sequence = itertools.count()
+    views = []  # every MVU_query result, so tests can inspect the derived cluster
+    real_query = qtop.MVU_query
+    monkeypatch.setattr(qtop, "MVU_query", lambda model: views.append(real_query(model)) or views[-1])
 
     def run(*arguments, save_only=True):
         output = tmp_path / ("output-%s" % next(sequence))
@@ -62,9 +49,15 @@ def runtime(tmp_path, monkeypatch):
         logger = logging.getLogger()
         handlers = logger.handlers[:]
         level, disabled = logger.level, logger.disabled
+        before = {name: vars(qtop).get(name, MISSING) for name in LEGACY_CONTEXT}
         try:
-            return qtop.cli_main(), output
+            with warnings.catch_warnings(record=True) as caught:
+                warnings.simplefilter("always")
+                return qtop.cli_main(), output
         finally:
+            assert {name: vars(qtop).get(name, MISSING) for name in LEGACY_CONTEXT} == before, "main() changed module-level state"
+            legacy = [str(w.message) for w in caught if issubclass(w.category, DeprecationWarning) and "is deprecated since" in str(w.message)]
+            assert not legacy, "a qtop run used a deprecated legacy adapter: %s" % legacy
             for handler in logger.handlers[:]:
                 if handler not in handlers:
                     logger.removeHandler(handler)
@@ -72,6 +65,7 @@ def runtime(tmp_path, monkeypatch):
             logger.setLevel(level)
             logger.disabled = disabled
 
+    run.views = views
     return run
 
 
@@ -107,7 +101,7 @@ def test_runtime_exports_and_renders_each_scheduler(runtime, scheduler_inputs, b
     assert "User accounts and pool mappings" in screen
     assert "Total:%s" % nodes in screen
     assert ("\x1b[1;" in colored) == (mode == "classic")
-    assert len(qtop.cluster.workernode_dict) >= nodes
+    assert len(runtime.views[-1].cluster.workernode_dict) >= nodes
     if mode == "anonymous":
         archive = next(output.glob("*.tar"))
         with tarfile.open(str(archive)) as saved:
@@ -125,8 +119,9 @@ def test_runtime_renders_large_cluster_in_multiple_matrices(runtime):
     state = json.loads(next(output.glob("qtop_json_*.json")).read_text())
     assert len(state["nodes"]) == 18
     assert "User accounts and pool mappings" in next(output.glob("qtop_fullview_*.out")).read_text()
-    assert qtop.viewport.max_width == 20
-    assert qtop.cluster.highest_wn > qtop.viewport.h_term_size - 11
+    viewport = runtime.views[-1].model.viewport
+    assert viewport.max_width == 20
+    assert runtime.views[-1].cluster.highest_wn > viewport.h_term_size - 11
 
 
 @pytest.mark.parametrize("failure, expected", (("missing", "Scheduler input file"), ("config", "Invalid configuration"), ("xml", "Cannot parse sge scheduler input")))
@@ -157,7 +152,7 @@ def test_watch_refreshes_after_transpose_and_quits_cleanly(runtime, scheduler_in
     with pytest.raises(SystemExit) as stopped:
         runtime("-b", "slurm", "-s", str(scheduler_inputs), "-w", "1", "-T", save_only=False)
     assert stopped.value.code == 0
-    assert qtop.dynamic_config["transpose_wn_matrices"] is True
+    assert runtime.views[-1].model.display_overrides["transpose_wn_matrices"] is True  # the frame after "t"
     assert len(calls) == 4
     assert calls[0] == calls[2] == ["/usr/bin/clear"]
     assert all(command[1].endswith(".out") for command in (calls[1], calls[3]))

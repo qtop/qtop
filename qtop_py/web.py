@@ -7,28 +7,36 @@
 ##
 ## SPDX-License-Identifier: MIT
 ##
+"""The optional web view: serves index.html and the exported api.json."""
 
 import os
 from multiprocessing import Process, Queue
+from typing import TYPE_CHECKING, Any, Optional
+
+if TYPE_CHECKING:
+    import multiprocessing.queues
 
 
 class Web(object):
-    def __init__(self, initial_cwd, port=8080, host="127.0.0.1"):
+    """Serve the web view from a separate process, bound to host:port (127.0.0.1:8080 by default)."""
+
+    def __init__(self, initial_cwd: str, port: int = 8080, host: str = "127.0.0.1") -> None:
         self.web_dir = os.path.join(initial_cwd, "web")
         if not os.path.isdir(self.web_dir):
             self.web_dir = os.path.join(os.path.dirname(__file__), "web")
         self.port, self.host = port, host
         self.started = False
-        self.filename = None
+        self.filename: Optional[str] = None
 
-    def start(self):
-        self.q = Queue()
+    def start(self) -> None:
+        """Start the server process."""
+        self.q: "multiprocessing.queues.Queue[Any]" = Queue()
         self.server = Process(target=self._http_server, args=(self.web_dir, self.port, self.q, self.host))
         self.server.start()
         self.started = True
 
     @staticmethod
-    def _http_server(web_dir, port, q, host="127.0.0.1"):
+    def _http_server(web_dir: str, port: int, q: "multiprocessing.queues.Queue[Any]", host: str = "127.0.0.1") -> None:
         # Imported only in the server process: http.server alone is ~19 ms on every plain run.
         from http.server import SimpleHTTPRequestHandler
         from socketserver import TCPServer
@@ -37,7 +45,7 @@ class Web(object):
         os.chdir(web_dir)
 
         class SharedVars(object):
-            def __init__(self):
+            def __init__(self) -> None:
                 self.filename = ""
 
         shared = SharedVars()
@@ -47,17 +55,17 @@ class Web(object):
 
             PAGES = ("/", "/index.html")
 
-            def log_message(self, format, *args):
-                """quiet!"""
+            def log_message(self, format: str, *args: Any) -> None:
+                """Quiet!"""
 
-            def do_HEAD(self):
+            def do_HEAD(self) -> None:
                 if self.path in self.PAGES:
                     self.path = "/index.html"
                     SimpleHTTPRequestHandler.do_HEAD(self)
                 else:
                     self.send_error(404)
 
-            def do_GET(self):
+            def do_GET(self) -> None:
                 # Handle the case of api.json...
                 if self.path == "/api.json" and shared.filename:
                     with open(shared.filename, "rb") as f:
@@ -100,11 +108,13 @@ class Web(object):
                 # be picked up by server's thread
                 shared.filename = command.partition(" ")[2]
 
-    def set_filename(self, filename):
+    def set_filename(self, filename: str) -> None:
+        """Point the server at a newly exported JSON file."""
         if self.started:
             self.q.put("setfilename " + filename)
 
-    def stop(self):
+    def stop(self) -> None:
+        """Stop the server, terminating it after 5 seconds if needed."""
         if self.started:
             self.q.put("stop")
             self.server.join(timeout=5)

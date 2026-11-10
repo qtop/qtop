@@ -8,6 +8,7 @@
 ##
 ## SPDX-License-Identifier: MIT
 ##
+"""PBS/Torque and PBS Pro backend: parses pbsnodes, qstat and qstat -q output."""
 
 try:
     import ujson as json
@@ -16,12 +17,16 @@ except ImportError:
 import itertools
 import logging
 import re
-from typing import Iterator, Tuple
+from typing import TYPE_CHECKING, Any, Dict, Iterable, Iterator, List, Optional, TextIO, Tuple, Union, cast
 
 import qtop_py.fileutils as fileutils
 from qtop_py.safety import load_json
 from qtop_py.schedulers.tabular import TabularStatExtractor
 from qtop_py.serialiser import GenericBatchSystem, StatExtractor, resolve_job_id
+
+if TYPE_CHECKING:
+    from qtop_py.source_trace import TraceMasker
+    from qtop_py.state_types import Config, JobsInfo, Node, Options, QueuesInfo, RawQueue
 
 # NQS request states mapped onto PBS single-letter job states.
 NQS_REQUEST_STATES = {
@@ -36,7 +41,9 @@ NQS_REQUEST_STATES = {
 
 
 class PBSStatExtractor(TabularStatExtractor):
-    def __init__(self, config, options):
+    """Parse qstat and qstat -q output, tabular or JSON."""
+
+    def __init__(self, config: "Config", options: "Options") -> None:
         StatExtractor.__init__(self, config, options)
         self.user_q_search = (
             r"^(?P<host_name>(?P<job_id>[0-9\[\]-]+)\.(?P<domain>[\w.*-]+))\s+"
@@ -64,19 +71,10 @@ class PBSStatExtractor(TabularStatExtractor):
         self.nqs_queue_header = r"^(?P<queue_name>[\w.-]+);\s+type=\w+;"
         self.nqs_request = r"^\d+:\s+(?P<name>\S+)\s+(?P<job_id>\d+)\s+(?P<user>[\w.-]+)\s+(?P<state>[A-Z]+)$"
 
-    def extract_qstat(self, orig_file):
-        """
-        reads qstat.txt and parses the output file
-        the data is returned in the following format:
-        [
-            {
-                "JobId": "1234",
-                "JobName: "My Job",
-                "Queue": "workq",
-                "UnixAccount": "user1",
-                "S": "Q"
-            }
-        ]
+    def extract_qstat(self, orig_file: str) -> List[Dict[str, Any]]:
+        """Parse qstat output into job records of this form.
+
+        [{"JobId": "1234", "JobName": "My Job", "Queue": "workq", "UnixAccount": "user1", "S": "Q"}]
         """
         try:
             fileutils.check_empty_file(orig_file)
@@ -96,7 +94,7 @@ class PBSStatExtractor(TabularStatExtractor):
 
         return all_qstat_values
 
-    def _extract_qstat_regex(self, qstat_file):
+    def _extract_qstat_regex(self, qstat_file: str) -> List[Dict[str, Any]]:
         all_qstat_values = list()
         with open(qstat_file, "r", encoding="utf-8", errors="replace") as fin:
             re_match_positions = ("job_id", "user", "state", "queue_name")  # was: (1, 5, 7, 8), (1, 4, 5, 8)
@@ -140,18 +138,14 @@ class PBSStatExtractor(TabularStatExtractor):
         return all_qstat_values
 
     @staticmethod
-    def _default_pending_queue(qstat_values):
-        """
-        SGE-style -prior output leaves the queue blank for pending jobs; label them as the SGE plugin does.
-        """
+    def _default_pending_queue(qstat_values: Dict[str, str]) -> Dict[str, str]:
+        """SGE-style -prior output leaves the queue blank for pending jobs; label them as the SGE plugin does."""
         if not qstat_values["Queue"]:
             qstat_values["Queue"] = "Pending"
         return qstat_values
 
-    def _process_nqs_request_line(self, line, queue_name):
-        """
-        Parse one NQS request row; summary ("1 run; 0 wait;") and column-header lines yield None.
-        """
+    def _process_nqs_request_line(self, line: str, queue_name: Optional[str]) -> Optional[Dict[str, Any]]:
+        """Parse one NQS request row; summary ("1 run; 0 wait;") and column-header lines yield None."""
         m = re.match(self.nqs_request, line.strip())
         if m is None:
             if re.match(r"^\d+:", line.strip()):
@@ -163,7 +157,7 @@ class PBSStatExtractor(TabularStatExtractor):
             return None
         return {"JobId": m.group("job_id"), "UnixAccount": self.anonymize(m.group("user"), "users"), "S": state, "Queue": queue_name}
 
-    def _extract_qstat_json(self, qstat_file):
+    def _extract_qstat_json(self, qstat_file: str) -> List[Dict[str, Any]]:
         all_qstat_values = list()
         with open(qstat_file, "r", encoding="utf-8", errors="replace") as fin:
             data = load_json(fin)
@@ -180,19 +174,10 @@ class PBSStatExtractor(TabularStatExtractor):
                 all_qstat_values.append(qstat_values)
         return all_qstat_values
 
-    def extract_qstatq(self, orig_file):
-        """
-        reads qstat_q.txt and parses the data
-        returns the data in the following format:
-        [
-            {
-                "queue_name": "worq",
-                "run": "63",
-                "queued": "4",
-                "lm": "",
-                "state": "E"
-            }
-        ]
+    def extract_qstatq(self, orig_file: str) -> List[Dict[str, Any]]:
+        """Parse qstat -q output into queue records of this form.
+
+        [{"queue_name": "workq", "run": "63", "queued": "4", "lm": "", "state": "E"}]
         """
         try:
             fileutils.check_empty_file(orig_file)
@@ -212,7 +197,7 @@ class PBSStatExtractor(TabularStatExtractor):
 
         return all_qstatq_values
 
-    def _extract_qstatq_regex(self, qstatq_file):
+    def _extract_qstatq_regex(self, qstatq_file: str) -> List[Dict[str, Any]]:
         anonymize = self.anonymize_func()
         queue_search = (
             r"^(?P<queue_name>[\w.-]+)\s+"
@@ -227,7 +212,8 @@ class PBSStatExtractor(TabularStatExtractor):
         run_qd_search = r"^\s*(?P<tot_run>\d+)\s+(?P<tot_queued>\d+)"  # this picks up the last line contents
 
         all_qstatq_values = list()
-        total_running_jobs, total_queued_jobs = 0, 0
+        total_running_jobs: Union[int, str] = 0  # str once read from the totals line
+        total_queued_jobs: Union[int, str] = 0
         with open(qstatq_file, "r", encoding="utf-8", errors="replace") as fin:
             fin.readline()
             fin.readline()
@@ -248,7 +234,7 @@ class PBSStatExtractor(TabularStatExtractor):
 
         return all_qstatq_values
 
-    def _extract_qstatq_json(self, qstatq_file):
+    def _extract_qstatq_json(self, qstatq_file: str) -> List[Dict[str, Any]]:
         anonymize = self.anonymize_func()
         all_qstatq_values = list()
         with open(qstatq_file, "r", encoding="utf-8", errors="replace") as fin:
@@ -279,12 +265,14 @@ class PBSStatExtractor(TabularStatExtractor):
 
 
 class PBSBatchSystem(GenericBatchSystem):
+    """PBS/Torque and PBS Pro backend."""
+
     classic_report_name = "PBS"
     classic_job_count_source = "reported by qstat - q"
     classic_account_note = "  ('all' also includes those in C and W states, as reported by qstat)"
 
     @staticmethod
-    def _mask_json_trace(key, text, mask):
+    def _mask_json_trace(key: str, text: str, mask: "TraceMasker") -> Tuple[str, str]:
         """Mask JSON job or queue traces, keeping only known fields."""
         data = json.loads(text)
         container = "Jobs" if key == "qstat_file" else "Queue"
@@ -310,7 +298,8 @@ class PBSBatchSystem(GenericBatchSystem):
             records[name] = result
         return ("qstat.txt" if container == "Jobs" else "qstat_q.txt"), json.dumps({container: records}, indent=2) + "\n"
 
-    def mask_source_trace(self, key, text, mask):
+    def mask_source_trace(self, key: str, text: str, mask: "TraceMasker") -> Tuple[str, str]:
+        """Return the masked name and text of a pbsnodes, qstat or qstat -q trace."""
         if key in ("qstat_file", "qstatq_file") and text.lstrip().startswith("{"):
             return self._mask_json_trace(key, text, mask)
         rows = []
@@ -362,7 +351,8 @@ class PBSBatchSystem(GenericBatchSystem):
                     elif name == "state":
                         value = mask.public(
                             value,
-                            r"(?:free|busy|down|offline|unknown|job-busy|job-exclusive|reserve|time-shared)(?:,(?:free|busy|down|offline|unknown|job-busy|job-exclusive|reserve|time-shared))*",
+                            r"(?:free|busy|down|offline|unknown|job-busy|job-exclusive|reserve|time-shared)"
+                            r"(?:,(?:free|busy|down|offline|unknown|job-busy|job-exclusive|reserve|time-shared))*",
                         )
                     elif name == "jobs":
                         value = re.sub(r"([0-9,\-]+)/([0-9\[\]-]+)(?:\.[\w.*-]+)?", lambda match: match[1] + "/" + mask(match[2], "job") + ".server", value)
@@ -377,19 +367,22 @@ class PBSBatchSystem(GenericBatchSystem):
         return {"qstat_file": "qstat.txt", "qstatq_file": "qstat_q.txt", "pbsnodes_file": "pbsnodes_a.txt"}[key], "\n".join(rows) + "\n"
 
     @staticmethod
-    def get_mnemonic():
+    def get_mnemonic() -> str:
+        """Return the scheduler name, pbs."""
         return "pbs"
 
-    def __init__(self, scheduler_output_filenames, config, options):
-        self.pbsnodes_file = scheduler_output_filenames.get("pbsnodes_file")
-        self.qstat_file = scheduler_output_filenames.get("qstat_file")
-        self.qstatq_file = scheduler_output_filenames.get("qstatq_file")
+    def __init__(self, scheduler_output_filenames: Dict[str, str], config: "Config", options: "Options") -> None:
+        # "" (falsy, like the former None) when a trace is not configured; reading it then fails as an OSError.
+        self.pbsnodes_file = scheduler_output_filenames.get("pbsnodes_file", "")
+        self.qstat_file = scheduler_output_filenames.get("qstat_file", "")
+        self.qstatq_file = scheduler_output_filenames.get("qstatq_file", "")
 
         self.config = config
         self.options = options
         self.qstat_maker = PBSStatExtractor(self.config, self.options)
 
-    def get_worker_nodes(self, job_ids, job_queues, options):
+    def get_worker_nodes(self, job_ids: List[str], job_queues: List[str], options: "Options") -> "List[Node]":
+        """Return the nodes from pbsnodes; an empty file yields none."""
         try:
             fileutils.check_empty_file(self.pbsnodes_file)
         except fileutils.FileEmptyError:
@@ -432,7 +425,6 @@ class PBSBatchSystem(GenericBatchSystem):
             except KeyError:
                 pbs_values["core_job_map"] = dict()  # change of behaviour: all entries should contain the key even if no value
             else:
-                # jobs = re.split(r'(?<=[A-Za-z0-9]),\s?', block['jobs'])
                 jobs = re.findall(r"[0-9][0-9a-zA-Z\[\],.-]*\/[^,]+", block["jobs"])
                 pbs_values["core_job_map"] = dict((core, resolve_job_id(job, known_ids)) for job, core in self._get_jobs_cores(jobs))
             finally:
@@ -440,12 +432,8 @@ class PBSBatchSystem(GenericBatchSystem):
 
         return self.ensure_worker_nodes_have_qnames(all_pbs_values, job_ids, job_queues)
 
-    def get_jobs_info(self):
-        """
-        reads qstat YAML/json file and populates four lists. Returns the lists
-        ex read_qstat_yaml
-        Common for PBS, OAR, SGE
-        """
+    def get_jobs_info(self) -> "JobsInfo":
+        """Return job IDs, users, states and queues from qstat (shared with OAR and SGE)."""
         job_ids, usernames, job_states, queue_names = [], [], [], []
 
         qstats = self.qstat_maker.extract_qstat(self.qstat_file)
@@ -462,12 +450,8 @@ class PBSBatchSystem(GenericBatchSystem):
         )
         return job_ids, usernames, job_states, queue_names
 
-    def get_queues_info(self):
-        """
-        Parses the generated qstatq yaml/json file and extracts
-        the information necessary for building the
-        user accounts and pool mappings table.
-        """
+    def get_queues_info(self) -> "QueuesInfo":
+        """Return the running and queued totals and per-queue records from qstat -q."""
         qstatq_list = []
         qstatqs_total = self.qstat_maker.extract_qstatq(self.qstatq_file)
 
@@ -479,16 +463,15 @@ class PBSBatchSystem(GenericBatchSystem):
         else:
             total_running_jobs, total_queued_jobs = 0, 0
 
-        return int(total_running_jobs), int(total_queued_jobs), qstatq_list
+        queues: "List[RawQueue]" = cast("List[RawQueue]", qstatq_list)  # every row but the totals line is a queue record
+        return int(total_running_jobs), int(total_queued_jobs), queues
 
     @staticmethod
-    def _get_jobs_cores(jobs):  # block['jobs']
-        """
-        Generator that takes job ids in this format (for Torque):
-        '0/10102182.f-batch01.grid.sinica.edu.tw, 1/10102106.f-batch01.grid.sinica.edu.tw, 2/10102339.f-batch01.grid.sinica.edu.tw, 3/10104007.f-batch01.grid.sinica.edu.tw'
-        or this format (for PBS Pro):
-        '2257887.cluster-pbs5/0, 2257887.cluster-pbs5/1, 2257887.cluster-pbs5/2, 2257887.cluster-pbs5/3, 2257887.cluster-pbs5/4'
-        and spits tuples of the format (0, 10102182)    (job,core)
+    def _get_jobs_cores(jobs: List[str]) -> Iterator[Tuple[str, str]]:  # block['jobs']
+        """Yield (core, job) pairs from a node's job list, in Torque or PBS Pro form.
+
+        Torque:  '0/10102182.f-batch01.grid.sinica.edu.tw, 1/10102106.f-batch01.grid.sinica.edu.tw'
+        PBS Pro: '2257887.cluster-pbs5/0, 2257887.cluster-pbs5/1, 2257887.cluster-pbs5/2'
         """
         for core_job in jobs:
             part1, part2 = core_job.strip().split("/")
@@ -505,10 +488,8 @@ class PBSBatchSystem(GenericBatchSystem):
             else:  # job id without subjobs
                 yield job, core
 
-    def _read_all_blocks(self, orig_file):
-        """
-        reads pbsnodes txt file block by block
-        """
+    def _read_all_blocks(self, orig_file: str) -> List[Dict[str, Any]]:
+        """Reads pbsnodes txt file block by block."""
         with open(orig_file, mode="r", encoding="utf-8", errors="replace") as fin:
             result = []
             reading = True
@@ -521,7 +502,7 @@ class PBSBatchSystem(GenericBatchSystem):
         return result
 
     @staticmethod
-    def _read_block(fin):
+    def _read_block(fin: TextIO) -> Optional[Dict[str, Any]]:
         for line in fin:
             domain_name = line.strip()
             if domain_name:
@@ -548,7 +529,8 @@ class PBSBatchSystem(GenericBatchSystem):
 
     @staticmethod
     def get_corejob_from_range(core_selections: str, job: str) -> Iterator[Tuple[str, str]]:
-        _cores = list()
+        """Yield (core, job) pairs for a core selection such as '0-3,8'."""
+        _cores: List[Iterable[str]] = list()
         subselections = core_selections.split(",")
         for subselection in subselections:
             if "-" in subselection:

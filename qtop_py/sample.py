@@ -157,6 +157,7 @@ def sanitize_config(config: "Config", mappings: "IdentifierMaps") -> "Tuple[Conf
 
 
 def add_json(archive: tarfile.TarFile, name: str, value: object) -> None:
+    """Add value to the archive as a private (0600) JSON member called name."""
     data = (json.dumps(value, indent=2) + "\n").encode("utf-8")
     member = tarfile.TarInfo(name)
     member.size = len(data)
@@ -173,6 +174,7 @@ def save_snapshot(
     version: str,
     omitted: List[str],
 ) -> None:
+    """Write the cluster state, options and environment as the archive's replayable snapshot."""
     add_json(
         archive,
         SNAPSHOT_NAME,
@@ -195,6 +197,7 @@ def save_snapshot(
 
 
 def load_snapshot(path: str) -> "SampleSnapshot":
+    """Read and validate the snapshot from a support archive, within the archive member limit."""
     payload = missing = object()
     with safety.snapshot_archive(path) as archive:
         for index, member in enumerate(archive):

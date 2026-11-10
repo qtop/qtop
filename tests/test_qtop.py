@@ -36,6 +36,8 @@ from qtop_py.qtop import (
     get_output_size,
     init_dirs,
 )
+from qtop_py.ui import mvu_view
+from qtop_py.ui.viewport import Viewport
 
 SYMBOL_NON_EXISTENT_NODE = "#"
 SYMBOL_SEPARATOR = "|"
@@ -87,15 +89,16 @@ def test_sort_worker_nodes_uses_named_sort_keys(monkeypatch):
     assert [node["domainname"] for node in cluster._sort_worker_nodes()] == ["node2", "node10"]
 
 
+WATCH_ARGS = SimpleNamespace(ONLYSAVETOFILE=False, WATCH=True)
+
+
 def test_raw_mode_allows_watch_mode_without_terminal_attrs(monkeypatch):
     class NonTerminalFile:
         def fileno(self):
             raise OSError("not a terminal")
 
-    monkeypatch.setattr(qtop_module, "args", SimpleNamespace(ONLYSAVETOFILE=False, WATCH=True), raising=False)
-
     entered_context = False
-    with qtop_module.raw_mode(NonTerminalFile()):
+    with qtop_module.raw_mode(NonTerminalFile(), WATCH_ARGS):
         entered_context = True
 
     assert entered_context
@@ -106,10 +109,8 @@ def test_raw_mode_does_not_swallow_unexpected_fileno_errors(monkeypatch):
         def fileno(self):
             raise RuntimeError("unexpected")
 
-    monkeypatch.setattr(qtop_module, "args", SimpleNamespace(ONLYSAVETOFILE=False, WATCH=True), raising=False)
-
     with pytest.raises(RuntimeError, match="unexpected"):
-        with qtop_module.raw_mode(BrokenFile()):
+        with qtop_module.raw_mode(BrokenFile(), WATCH_ARGS):
             pass
 
 
@@ -148,9 +149,8 @@ def test_reset_sigpipe_restores_default_when_available(monkeypatch):
 
 def test_raw_mode_is_noop_when_platform_has_no_termios(monkeypatch):
     monkeypatch.setattr(qtop_module, "termios", None)
-    monkeypatch.setattr(qtop_module, "args", SimpleNamespace(ONLYSAVETOFILE=False, WATCH=True), raising=False)
 
-    with qtop_module.raw_mode(sys.stdin):
+    with qtop_module.raw_mode(sys.stdin, WATCH_ARGS):
         pass
 
 
@@ -560,6 +560,24 @@ def test_queueing_summary_preserves_order_and_expands(capsys):
     assert "Queueing :\n  compute: 1 + 1 |\n  debug: 1 |" in output
 
 
+@pytest.mark.parametrize(
+    "queues, watch, overrides, expanded",
+    ((150, True, {}, True), (2, True, {}, False), (150, False, {}, False), (150, True, {"queue_summary_expanded": False}, False)),
+)
+def test_queue_summary_expands_in_watch_mode_when_wider_than_the_terminal(capsys, queues, watch, overrides, expanded):
+    queues_dict = {"queue_%03d" % index: SimpleNamespace(run="1", queued="2", state="E") for index in range(queues)}
+    cluster = SimpleNamespace(total_running_jobs=0, total_queued_jobs=0, queues_dict=queues_dict, total_wn=0, offdown_nodes=0, available_wn=0, working_cores=0, total_cores=0)
+    args = SimpleNamespace(REMAP=False, CLASSIC=False, WATCH=watch, ANONYMIZE=True, COLOR="OFF")
+    viewport = Viewport()
+    viewport.set_term_size(40, 100)
+    model = MVU_Model({}, args, viewport, backend=qtop_module.scheduler_backend("pbs"), display_overrides=overrides)
+    TextDisplay(None, {}, viewport, None, cluster, args, MVU_model=model).display_job_accounting_summary(cluster, None)
+
+    output = capsys.readouterr().out
+    assert ("Queueing :\n  queue_000: 1 + 2 |" in output) is expanded
+    assert ("Queueing : queue_000: 1 + 2 |" in output) is not expanded
+
+
 def test_demo_notice_uses_high_contrast_blue(monkeypatch):
     class Cluster(object):
         total_running_jobs = 0
@@ -591,6 +609,27 @@ def test_demo_notice_uses_high_contrast_blue(monkeypatch):
             "Blue_L",
         )
     ]
+
+
+@pytest.mark.parametrize(
+    "scheduler, watch, color, key_style",
+    (("demo", True, "ON", "\x1b[1;33m"), ("demo", True, "OFF", "\x1b[1m"), ("demo", False, "OFF", None), ("slurm", True, "OFF", None)),
+)
+def test_demo_watch_mode_lists_keys_above_the_summary(capsys, scheduler, watch, color, key_style):
+    cluster = SimpleNamespace(total_running_jobs=0, total_queued_jobs=0, queues_dict={}, total_wn=0, offdown_nodes=0, available_wn=0, working_cores=0, total_cores=0)
+    args = SimpleNamespace(REMAP=False, CLASSIC=False, WATCH=watch, ANONYMIZE=True, COLOR=color)
+    model = MVU_Model({}, args, None, backend=qtop_module.scheduler_backend(scheduler))
+    TextDisplay(None, {}, None, None, cluster, args, MVU_model=model).display_job_accounting_summary(cluster, None)
+
+    lines = capsys.readouterr().out.splitlines()
+    plain = [re.sub(r"\x1b\[[0-9;]*m", "", line) for line in lines]
+    summary = next(index for index, line in enumerate(plain) if "Job accounting summary" in line)
+    assert (plain[summary - 1] == mvu_view.DEMO_WATCH_KEYS) is (key_style is not None)
+    assert sum(line == mvu_view.DEMO_WATCH_KEYS for line in plain) == (key_style is not None)
+    if key_style:
+        assert lines[summary - 1].startswith(key_style + "Keys: q quit, ") and lines[summary - 1].endswith(
+            "hjkl scroll\x1b[0m" if key_style == "\x1b[1m" else "hjkl scroll\x1b[0;m"
+        )
 
 
 def test_available_possible_ids_filters_reserved_user_symbols():
@@ -736,7 +775,6 @@ def test_long_tail_symbol_is_not_colored_like_a_single_user():
     ),
 )
 def test_get_selected_batch_system(cmdline_switch, env_var, config_file_batch_option, returned_scheduler):
-    # monkeypatch.setitem(config, "schedulers", ['oar', 'sge', 'pbs'])
     schedulers = ["sge", "oar", "pbs"]
     available_batch_systems = {name: qtop_module.scheduler_backend(name) for name in schedulers}
     assert (

@@ -294,9 +294,11 @@ project commands:
 ## Typed contracts and property tests
 
 Python 3.12+ CI installs pinned mypy, Pyright and Hypothesis. `make type-check`
-retains ty and also checks the explicitly listed state, snapshot, serializer and
-viewport modules with mypy/Pyright. Core contracts use strict checks; the legacy
-serializer permits unannotated definitions while checking their bodies.
+retains ty and runs mypy over all of `qtop_py` with its full `strict` set plus
+`warn_unreachable`, each rule listed in `pyproject.toml`: every function is
+annotated and every body is checked. Annotations stay valid on Python 3.6 (they
+use `typing` names or quotes), which `make compat-py36` gates. Pyright keeps its
+strict mode for the state, snapshot, serializer and viewport contract modules.
 Configuration remains extensible, and static contracts do not replace validation
 of scheduler/JSON input. Broader runtime typing can be added module by module.
 

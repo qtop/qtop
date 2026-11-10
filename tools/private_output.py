@@ -8,8 +8,7 @@ from pathlib import Path
 
 
 def private_output_dir(path):
-    """
-    Return ``path`` as a directory only this user controls.
+    """Return ``path`` as a directory only this user controls.
 
     A missing directory is created with mode 0700. An existing one is accepted only if it is a real
     directory (not a symlink), owned by the current user and not group/world-writable; otherwise

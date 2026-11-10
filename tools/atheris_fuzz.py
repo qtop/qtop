@@ -19,14 +19,17 @@ class Inputs:
         self.provider = provider
 
     def randint(self, lower, upper):
+        """Return an integer in [lower, upper] drawn from the fuzzer's bytes."""
         return self.provider.ConsumeIntInRange(lower, upper)
 
     def choice(self, values):
+        """Return one of values, chosen by the fuzzer's bytes."""
         return values[self.randint(0, len(values) - 1)]
 
 
 @atheris.instrument_func
 def fuzz_one_input(data):
+    """Run one fuzzer-chosen parser check on data."""
     provider = atheris.FuzzedDataProvider(data)
     targets = (exercise_slurm_states, exercise_slurm_nodelists, exercise_pbs_core_ranges)
     target = targets[provider.ConsumeIntInRange(0, len(targets) - 1)]

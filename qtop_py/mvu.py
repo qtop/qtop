@@ -6,6 +6,7 @@ import copy
 import re
 import signal
 from itertools import groupby
+from typing import Any, Callable, Dict, Iterable, Iterator, List, Mapping, Optional, Set, Tuple
 
 from qtop_py import utils
 from qtop_py.colormap import color_to_code, queue_to_color
@@ -14,7 +15,7 @@ from qtop_py.schedulers.metadata import NODE_JOB_FIELDS
 from qtop_py.ui.controls import NAVIGATION_KEYS
 
 
-def MVU_reserved_pattern_mappings(config):
+def MVU_reserved_pattern_mappings(config: Mapping[str, Any]) -> Dict[str, str]:
     """Return display symbols that must never be interpreted as user patterns."""
     return {
         config["non_existent_node_symbol"]: "#",
@@ -24,7 +25,7 @@ def MVU_reserved_pattern_mappings(config):
     }
 
 
-def MVU_compress_colored_line(value):
+def MVU_compress_colored_line(value: str) -> str:
     """Coalesce adjacent characters that use the same ANSI color code."""
     if "\x1b[" not in value:  # uncoloured (-c OFF): nothing to coalesce, add no reset
         return value
@@ -32,11 +33,10 @@ def MVU_compress_colored_line(value):
     return "".join(color + "".join(item[-1] for item in items) + "\x1b[0;m" for color, items in groupby(color_char_pairs, key=lambda item: item[:-1]))
 
 
-def MVU_gauge_core_vectors(core_user_map, node_column_start, node_column_stop, coreline_notthere_or_unused, non_existent_symbol, remove_corelines):
-    """
-    generator that loops over each core user vector and yields a boolean stating whether the core vector can be omitted via
-    REM_EMPTY_CORELINES or its respective switch
-    """
+def MVU_gauge_core_vectors(
+    core_user_map: Dict[str, Any], node_column_start: int, node_column_stop: int, coreline_notthere_or_unused: Callable[..., bool], non_existent_symbol: str, remove_corelines: int
+) -> Iterator[Tuple[Any, int, str, bool]]:
+    """Yield each core line with a flag telling whether REM_EMPTY_CORELINES may omit it."""
     delta = node_column_stop - node_column_start
     for ind, k in enumerate(core_user_map.copy()):
         core_x_vector = core_user_map["Core" + str(ind) + "vector"][node_column_start:node_column_stop]
@@ -44,7 +44,8 @@ def MVU_gauge_core_vectors(core_user_map, node_column_start, node_column_stop, c
         yield core_x_vector, ind, k, coreline_notthere_or_unused(non_existent_symbol, remove_corelines, delta, core_x_str)
 
 
-def MVU_keep_queue_initials_only_and_colorize(worker_nodes, queue_to_color):
+def MVU_keep_queue_initials_only_and_colorize(worker_nodes: Iterable[Mapping[str, Any]], queue_to_color: Mapping[str, str]) -> List[Dict[str, Any]]:
+    """Return copies of the worker nodes with each queue name as a coloured ColorStr."""
     return [
         dict(
             worker_node,
@@ -54,7 +55,8 @@ def MVU_keep_queue_initials_only_and_colorize(worker_nodes, queue_to_color):
     ]
 
 
-def MVU_colorize_nodestate(worker_nodes, nodestate_to_color):
+def MVU_colorize_nodestate(worker_nodes: Iterable[Mapping[str, Any]], nodestate_to_color: Mapping[str, str]) -> List[Dict[str, Any]]:
+    """Return copies of the worker nodes with their state coloured by nodestate_to_color."""
     return [
         dict(
             worker_node,
@@ -64,15 +66,21 @@ def MVU_colorize_nodestate(worker_nodes, nodestate_to_color):
     ]
 
 
-def MVU_colorize(model, text, color_func=None, pattern="NoPattern", mapping=None, bg_color=None, bold=False):
-    """
-    prints colored text according to at least one of the keyword arguments available:
-    color_func can be a direct ansi color name or a function providing a color name.
-    If color is given directly as color_func, pattern/mapping are not needed.
-    If no color_func and no mapping are defined, the default mapping is used,
-    which is user_to_color, mapping an account name to a color.
-    A pattern must then be given, which is the key of the mapping.
-    Other mappings available are: nodestate_to_color, queue_to_color.
+def MVU_colorize(
+    model: "MVU_Model",
+    text: Any,
+    color_func: Optional[str] = None,
+    pattern: str = "NoPattern",
+    mapping: Optional[Mapping[str, str]] = None,
+    bg_color: Optional[str] = None,
+    bold: bool = False,
+) -> Any:
+    """Return text wrapped in the ANSI colour given by color_func, or found by pattern in mapping.
+
+    color_func is a colour name or a function returning one; then pattern and mapping are not needed.
+    Otherwise pattern is looked up in mapping, which defaults to user_to_color (account name to colour);
+    nodestate_to_color and queue_to_color are the other mappings.
+
     Examples:
     s = ColorStr(string='This is some text', color='Red_L')
     print(colorize(s, color_func=s.color), end=" ") # Red_L is applied directly
@@ -99,7 +107,21 @@ def MVU_colorize(model, text, color_func=None, pattern="NoPattern", mapping=None
 
 
 class MVU_Model(object):
-    def __init__(self, config, args, viewport, backend=None, display_overrides=None, snapshot=None, user_to_color=None, nodestate_to_color=None, package_path="", help_file=""):
+    """Everything one qtop frame needs: configuration, options, viewport, scheduler backend, snapshot and colour maps."""
+
+    def __init__(
+        self,
+        config: Dict[str, Any],
+        args: Any,
+        viewport: Any,
+        backend: Any = None,
+        display_overrides: Optional[Dict[str, Any]] = None,
+        snapshot: Any = None,
+        user_to_color: Optional[Dict[str, str]] = None,
+        nodestate_to_color: Optional[Dict[str, str]] = None,
+        package_path: str = "",
+        help_file: str = "",
+    ) -> None:
         self.config, self.args, self.viewport = config, args, viewport
         self.backend, self.scheduler = backend, backend.get_mnemonic() if backend is not None else ""
         self.display_overrides = {} if display_overrides is None else display_overrides
@@ -107,21 +129,26 @@ class MVU_Model(object):
         self.nodestate_to_color = {} if nodestate_to_color is None else nodestate_to_color
         self.queue_to_color = queue_to_color
         self.package_path, self.help_file = package_path, help_file
-        self.transposed_sections, self.user_details = [], {}
+        self.transposed_sections: List[str] = []
+        self.user_details: Dict[str, Any] = {}
 
-    def MVU_colorize(self, *args, **kwargs):
+    def MVU_colorize(self, *args: Any, **kwargs: Any) -> Any:
+        """Colour text with this model's colour maps; see MVU_colorize."""
         return MVU_colorize(self, *args, **kwargs)
 
-    def MVU_node_job_ids(self, node):
+    def MVU_node_job_ids(self, node: Mapping[str, Any]) -> Set[str]:
+        """Return the job IDs on a node, including the backend's extra node job fields."""
         return MVU_node_job_ids(node, self.backend)
 
-    def MVU_reset_sigpipe(self):
+    def MVU_reset_sigpipe(self) -> None:
+        """Restore the default SIGPIPE action, so piping into head exits quietly."""
         value = getattr(signal, "SIGPIPE", None)
         if value is not None:
             signal.signal(value, signal.SIG_DFL)
 
 
-def MVU_node_job_ids(node, backend=None):
+def MVU_node_job_ids(node: Mapping[str, Any], backend: Any = None) -> Set[str]:
+    """Return the job IDs on a node: its core map plus the standard and backend-specific job fields."""
     jobs = set(node["core_job_map"].values())
     fields = NODE_JOB_FIELDS if backend is None else set(NODE_JOB_FIELDS).union(backend.node_job_fields)
     for field in fields:
@@ -129,7 +156,7 @@ def MVU_node_job_ids(node, backend=None):
     return jobs
 
 
-def MVU_update(model, message, payload=None):
+def MVU_update(model: "MVU_Model", message: str, payload: Any = None) -> Tuple["MVU_Model", Tuple[Tuple[str, Optional[str]], ...]]:
     """Return the next model and effect requests without performing terminal or scheduler I/O."""
     keys = set(NAVIGATION_KEYS) | {"snapshot", "layout", "t", "Q", "m", "q", "F", "s", "f", "H", "?", "r"}
     if message not in keys:
@@ -137,7 +164,7 @@ def MVU_update(model, message, payload=None):
     next_model = copy.copy(model)
     next_model.display_overrides = model.display_overrides.copy()
     next_model.viewport = copy.copy(model.viewport)
-    effects = []
+    effects: List[Tuple[str, Optional[str]]] = []
     if message == "snapshot":
         if payload is None:
             raise ValueError("Snapshot update requires collected data")

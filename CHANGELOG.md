@@ -3,6 +3,33 @@
 Notable changes by version, newest first.
 See the [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 
+## 0.9.20261110
+
+- Bugfix: unconfigured PBS/OAR/SGE/Slurm traces fail as OSError, not TypeError.
+- Bugfix: an unsupported worker node name raises a clear ValueError.
+- Bugfix: with -c ON, the watch-mode menu numbers are coloured again.
+- Feature: demo watch mode lists its keys, q quit first, in a yellow line (bold with -c OFF) above the job summary.
+- Feature: `Summary  :` lines up with `Queueing :`; tests, sample gates and validate_trace_export follow.
+- Bugfix: watch mode lists queues one per line when the summary is wider than the terminal, so section 1 stays visible.
+- Deprecated: qtop.py's global-based legacy adapters now warn; see docs/architecture.md.
+- Tests: revive a disabled YAML dash-key case; drop an obsolete user_sort lambda case.
+- Refactor: drop commented-out code; split two overlong state regexes.
+- Refactor: split the demo simulator's setup & Markov steps into methods (complexity 30 -> 7), renamed as LittleClusterSimulator
+- Refactor: split repo_sanity's file scan into read, classify and scan steps (complexity 21 -> 11).
+- Refactor: `main()` sets no module globals; run state is local and passed explicitly (a test guards it).
+- Refactor: split `main()` into option, path, config, replay, web and frame helpers (complexity 27 -> 12).
+- Refactor: validate_trace_export and the key-handling tests use the model API.
+- Refactor: the fuzz and trace-export tools run as `python -m tools.X`; no sys.path hacks or E402 noqa.
+- CI: CodeQL unused-import and wrapper-lambda warnings fixed (RawQueue, lxml, tarfile, Web).
+- CI: ty allows the optional atheris import; the Atheris test has no E402.
+- CI: Scorecard action v2.5.0; v2.4.3 pulls from the retired gcr.io and would fail.
+- CI: ruff enforces pydocstyle (`D`, Google convention); every public module, class and function has a one-line docstring.
+- CI: ruff caps cyclomatic complexity (C901) at today's maximum, now 20, to be lowered.
+- CI: ruff also enforces pycodestyle W and eradicate (no commented-out code); Pylama config kept, commented out.
+- CI: mypy checks all of `qtop_py`, untyped bodies included; contract modules stay strict.
+- CI: all of `qtop_py` is annotated; mypy runs its full `strict` rule set package-wide cleanly. Bingo.
+- Release: update version metadata to 0.9.20261110.
+
 ## 0.9.20261109
 
 - Refactor: Document is now Snapshot (snapshot.py); Document stays as an alias for one release.
@@ -121,7 +148,7 @@ See the [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 - Bugfix: accept macOS system temporary-directory aliases safely.
 - Metadata: remove project-wide development-stage labels.
 - Bugfix: show Slurm node-state suffix flags and preserve raw states in snapshots.
-- Feature: track Slurm GPU device bindings and MIG profiles in JSON snapshots.
+- Feature: track Slurm GPU device bindings and MIG profiles in JSON snapshots. Bingo.
 - Bugfix: retain Slurm jobs on shared CPUs; fill uneven node capacity.
 - Bugfix: count multi-partition Slurm jobs without phantom queues.
 - Feature: mark blocked Slurm partitions in the queueing summary.
@@ -130,7 +157,7 @@ See the [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 - Bugfix: parse complete Slurm task/component identities across field layouts.
 - Feature: collect Slurm CPU allocation details by default; retain safe fallback.
 - Feature: read optional Slurm CPU allocations; label estimated placement.
-- Feature: capture Slurm TRES/GRES fields for future GPU support.
+- Feature: capture Slurm TRES/GRES fields for future GPU support. Bingo.
 
 ## 0.9.20261017
 
@@ -255,7 +282,7 @@ See the [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 
 ## 0.9.20260610
 
-- Feature enhancement: add general-purpose Slurm scheduler support.
+- Feature enhancement: add general-purpose Slurm scheduler support. Bingo.
 - Feature enhancement: add develop-aligned sample gates; Merged PR #444.
 - Feature enhancement: Completion of ci/cd baseline, with ground-truth validation.
 

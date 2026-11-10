@@ -19,6 +19,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def checked(command, cwd, env=None):
+    """Run command in cwd and return its output; raise RuntimeError if it fails."""
     result = subprocess.run(command, cwd=str(cwd), env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True, timeout=120)
     if result.returncode:
         raise RuntimeError("%s failed:\n%s" % (command, result.stdout))
@@ -26,6 +27,7 @@ def checked(command, cwd, env=None):
 
 
 def digest(path):
+    """Return the SHA-256 hex digest of a file."""
     result = hashlib.sha256()
     with path.open("rb") as stream:
         for chunk in iter(lambda: stream.read(65536), b""):
@@ -34,6 +36,7 @@ def digest(path):
 
 
 def exercise_wheel(wheel, expected_version, root, work):
+    """Check the wheel's metadata and defaults, then install it in a fresh venv and run its CLI."""
     with zipfile.ZipFile(str(wheel)) as archive:
         metadata_path = next(name for name in archive.namelist() if name.endswith(".dist-info/METADATA"))
         metadata = Parser().parsestr(archive.read(metadata_path).decode("utf-8"))
@@ -83,6 +86,7 @@ def exercise_wheel(wheel, expected_version, root, work):
 
 
 def validate_installation(root=ROOT, artifacts=None):
+    """Build (or take) the sdist and wheel and check that both install and run."""
     with tempfile.TemporaryDirectory(prefix="qtop-install-check-") as temporary:
         work = Path(temporary)
         expected_version = checked([sys.executable, "-c", "import qtop_py; print(qtop_py.__version__)"], root).strip()

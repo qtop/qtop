@@ -98,7 +98,7 @@ STATIC_CASES = {
             "source": CONTRIB,
             "args": ["-c", "ON", "-s", str(CONTRIB), "-raF", "-b", "pbs"],
             "markers": [
-                "Summary: Total:829 Up:819 Free:91 Nodes",
+                "Summary : Total:829 Up:819 Free:91 Nodes",
                 "7629/7872 cores",
                 "7590+3365 jobs",
                 "Worker Nodes occupancy",
@@ -112,7 +112,7 @@ STATIC_CASES = {
             "source": CONTRIB,
             "args": ["-s", str(CONTRIB), "-c", "ON", "-Fadvv", "-b", "sge"],
             "markers": [
-                "Summary: Total:17 Up:17 Free:4 Nodes",
+                "Summary : Total:17 Up:17 Free:4 Nodes",
                 "61/408 cores",
                 "61+31 jobs",
                 "Worker Nodes occupancy",
@@ -126,7 +126,7 @@ STATIC_CASES = {
             "source": CONTRIB,
             "args": ["-s", str(CONTRIB), "-c", "ON", "-F", "-b", "oar"],
             "markers": [
-                "Summary: Total:183 Up:172 Free:167 Nodes",
+                "Summary : Total:183 Up:172 Free:167 Nodes",
                 "1349/2520 cores",
                 "190+69 jobs",
                 "default: 187 + 69",
@@ -143,7 +143,7 @@ STATIC_CASES = {
             "args": ["-c", "ON", "-F", "-b", "demo"],
             "markers": [
                 "This data is simulated",
-                "Summary: Total:",
+                "Summary : Total:",
                 "Nodes |",
                 "jobs (R + Q)",
                 "Worker Nodes occupancy",
@@ -154,15 +154,15 @@ STATIC_CASES = {
 }
 
 SLURM_MARKERS_BY_SAMPLE = {
-    "arrays_and_het": ["Summary: Total:2 Up:2 Free:0 Nodes", "7/16 cores", "4+4 jobs", "individual array tasks and heterogeneous components"],
-    "cpu_allocations": ["Summary: Total:3 Up:3 Free:1 Nodes", "6/24 cores", "2+1 jobs", "scheduler CPU IDs", "long*: 0 + 1"],
-    "partial_and_malformed": ["Summary: Total:3 Up:3 Free:0 Nodes", "5/12 cores", "4+1 jobs"],
-    "basic": ["Summary: Total:3 Up:3 Free:2 Nodes", "4/16 cores", "2+1 jobs"],
-    "large_cluster": ["Summary: Total:18 Up:17 Free:9 Nodes", "120/288 cores", "3+1 jobs"],
-    "large_mixed": ["Summary: Total:20 Up:19 Free:9 Nodes", "160/320 cores", "3+1 jobs"],
-    "large_multi_partition": ["Summary: Total:18 Up:17 Free:10 Nodes", "104/288 cores", "3+1 jobs"],
-    "mixed": ["Summary: Total:2 Up:1 Free:0 Nodes", "4/16 cores", "2+0 jobs"],
-    "multi_partition": ["Summary: Total:2 Up:2 Free:1 Nodes", "4/32 cores", "2+1 jobs"],
+    "arrays_and_het": ["Summary : Total:2 Up:2 Free:0 Nodes", "7/16 cores", "4+4 jobs", "individual array tasks and heterogeneous components"],
+    "cpu_allocations": ["Summary : Total:3 Up:3 Free:1 Nodes", "6/24 cores", "2+1 jobs", "scheduler CPU IDs", "long*: 0 + 1"],
+    "partial_and_malformed": ["Summary : Total:3 Up:3 Free:0 Nodes", "5/12 cores", "4+1 jobs"],
+    "basic": ["Summary : Total:3 Up:3 Free:2 Nodes", "4/16 cores", "2+1 jobs"],
+    "large_cluster": ["Summary : Total:18 Up:17 Free:9 Nodes", "120/288 cores", "3+1 jobs"],
+    "large_mixed": ["Summary : Total:20 Up:19 Free:9 Nodes", "160/320 cores", "3+1 jobs"],
+    "large_multi_partition": ["Summary : Total:18 Up:17 Free:10 Nodes", "104/288 cores", "3+1 jobs"],
+    "mixed": ["Summary : Total:2 Up:1 Free:0 Nodes", "4/16 cores", "2+0 jobs"],
+    "multi_partition": ["Summary : Total:2 Up:2 Free:1 Nodes", "4/32 cores", "2+1 jobs"],
 }
 
 COMMON_RENDER_MARKERS = [
@@ -172,19 +172,23 @@ COMMON_RENDER_MARKERS = [
 
 
 def sgr_parameters(raw_parameters):
+    """Return the integer parameters of an SGR escape; empty means reset (0)."""
     parameters = [0 if item == "" else int(item) for item in raw_parameters.split(";")]
     return parameters if raw_parameters else [0]
 
 
 def sgr_parameters_allowed(raw_parameters):
+    """Return True if every SGR parameter is one qtop may emit."""
     return all(parameter in ALLOWED_SGR_PARAMETERS for parameter in sgr_parameters(raw_parameters))
 
 
 def reset_style():
+    """Return the default terminal style."""
     return {"bold": False, "foreground": None, "background": None}
 
 
 def apply_sgr(style, parameters):
+    """Return style updated by SGR parameters."""
     updated = dict(style)
     for parameter in parameters:
         if parameter == 0:
@@ -199,12 +203,12 @@ def apply_sgr(style, parameters):
 
 
 def escaped_control(value):
+    """Return a control character as a visible escape."""
     return value.encode("unicode_escape").decode("ascii")
 
 
 def inspect_ansi(text):
     """Allow only the small ANSI SGR subset emitted by qtop."""
-
     invalid_sequences = []
     sequence_counts = {}
     style = reset_style()
@@ -286,6 +290,7 @@ def inspect_ansi(text):
 
 
 def analyse_ansi_evidence(text, expectations):
+    """Check that each expected semantic colour appears with its SGR codes; return the findings."""
     inspection = inspect_ansi(text)
     mapping_results = []
     missing_mappings = []
@@ -327,11 +332,13 @@ def analyse_ansi_evidence(text, expectations):
 
 
 def normalize_output(text):
+    """Return text without ANSI codes and with whitespace collapsed."""
     text = ANSI_RE.sub("", text)
     return re.sub(r"\s+", " ", text)
 
 
 def normalize_for_artifact(text):
+    """Return text with allowed SGR codes kept and other control characters escaped."""
     safe_characters = []
     cursor = 0
     while cursor < len(text):
@@ -354,11 +361,13 @@ def normalize_for_artifact(text):
 
 
 def write_text(path, text):
+    """Write text to path as UTF-8, creating parent directories."""
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(text, encoding="utf-8")
 
 
 def output_text(value):
+    """Return a subprocess output as text."""
     if value is None:
         return ""
     if isinstance(value, bytes):
@@ -367,6 +376,7 @@ def output_text(value):
 
 
 def display_path(path):
+    """Return path relative to the repository when possible."""
     try:
         return str(path.relative_to(ROOT))
     except ValueError:
@@ -374,6 +384,7 @@ def display_path(path):
 
 
 def sanitize_artifact_text(text, qtop_home=None):
+    """Replace the temporary home, Python and repository paths with placeholders."""
     replacements = []
     if qtop_home is not None:
         replacements.append((str(qtop_home), "<qtop-home>"))
@@ -386,6 +397,7 @@ def sanitize_artifact_text(text, qtop_home=None):
 
 
 def styled_rows(text, max_lines, max_columns):
+    """Split ANSI text into rows of (style, text) runs; raise ValueError on unsafe ANSI."""
     inspection = inspect_ansi(text)
     if not inspection["syntax_ok"]:
         raise ValueError("terminal output contains unsafe or incomplete ANSI state")
@@ -438,6 +450,7 @@ def styled_rows(text, max_lines, max_columns):
 
 
 def style_colours(style_key):
+    """Return the foreground and background colours and boldness for a style."""
     bold, foreground, background = style_key
     foreground_palette = ANSI_BRIGHT_COLOURS if bold else ANSI_NORMAL_COLOURS
     foreground_colour = foreground_palette.get(foreground, "#f2f2f2")
@@ -446,6 +459,7 @@ def style_colours(style_key):
 
 
 def write_svg_screenshot(path, text, max_lines=38, max_columns=132):
+    """Write the ANSI text as an SVG terminal screenshot."""
     lines = styled_rows(text, max_lines, max_columns)
     max_width = max([sum(len(run[1]) for run in line) for line in lines] or [0])
     width = max(760, min(1320, 22 + max_width * 8))
@@ -486,6 +500,7 @@ def write_svg_screenshot(path, text, max_lines=38, max_columns=132):
 
 
 def discover_cases(schedulers, slurm_samples_dir):
+    """Return the sample cases for the given schedulers."""
     cases = []
     for scheduler in schedulers:
         if scheduler in STATIC_CASES:
@@ -514,6 +529,7 @@ def discover_cases(schedulers, slurm_samples_dir):
 
 
 def write_case_artifacts(case_dir, qtop_home, command, stdout, stderr, ansi_evidence):
+    """Write a case's sanitised command, output, ANSI evidence and screenshot."""
     safe_stdout = sanitize_artifact_text(stdout, qtop_home)
     safe_stderr = sanitize_artifact_text(stderr, qtop_home)
     safe_command = [sanitize_artifact_text(item, qtop_home) for item in command]
@@ -538,10 +554,12 @@ def write_case_artifacts(case_dir, qtop_home, command, stdout, stderr, ansi_evid
 
 
 def write_case_summary(case_dir, result):
+    """Write a case's result as summary.json."""
     write_text(case_dir / "summary.json", json.dumps(result, indent=2, sort_keys=True) + "\n")
 
 
 def run_case(case, artifact_dir, timeout):
+    """Run one case with a temporary qtop home; return its result."""
     case_dir = artifact_dir / case["name"]
     if case_dir.exists():
         shutil.rmtree(str(case_dir))
@@ -550,6 +568,7 @@ def run_case(case, artifact_dir, timeout):
 
 
 def run_case_with_home(case, artifact_dir, timeout, qtop_home):
+    """Run one case with qtop_home as HOME and check its output; return its result."""
     case_dir = artifact_dir / case["name"]
 
     command = [sys.executable, "-m", "qtop_py.qtop"] + case.get(
@@ -631,6 +650,7 @@ def run_case_with_home(case, artifact_dir, timeout, qtop_home):
 
 
 def parse_args():
+    """Parse the command-line options."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--schedulers", default="pbs,sge,slurm,oar,demo", help="Comma-separated scheduler gates to run")
     parser.add_argument("--max-failures", type=int, default=0, help="Allowed failed cases before returning non-zero")
@@ -641,6 +661,7 @@ def parse_args():
 
 
 def main():
+    """Run the selected cases and return non-zero beyond --max-failures."""
     args = parse_args()
     schedulers = [item.strip() for item in args.schedulers.split(",") if item.strip()]
     artifact_dir = Path(args.artifact_dir)

@@ -133,7 +133,7 @@ runtime globals, while the new query/view pipeline does not depend on them.
 | Responsibility | Source |
 | --- | --- |
 | Launchers and installed entry point | [qtop](../qtop), [qtop.py](../qtop_py/qtop.py), [pyproject.toml](../pyproject.toml) |
-| Runtime orchestration, I/O effects and compatibility adapters | [qtop.py](../qtop_py/qtop.py) |
+| Runtime orchestration, I/O effects and compatibility adapters (deprecated, see below) | [qtop.py](../qtop_py/qtop.py) |
 | Explicit model and update messages | [mvu.py](../qtop_py/mvu.py) |
 | Snapshot queries, filtering and occupancy calculations | [mvu_query.py](../qtop_py/mvu_query.py) |
 | Terminal presentation | [mvu_view.py](../qtop_py/ui/mvu_view.py) |
@@ -148,6 +148,17 @@ runtime globals, while the new query/view pipeline does not depend on them.
 | Navigation and color definitions | [controls.py](../qtop_py/ui/controls.py), [viewport.py](../qtop_py/ui/viewport.py), [colormap.py](../qtop_py/colormap.py) |
 | Capture archives and temporary files | [fileutils.py](../qtop_py/fileutils.py) |
 | Experimental HTTP output | [web.py](../qtop_py/web.py), [web/index.html](../qtop_py/web/index.html) |
+
+### Deprecated legacy adapters
+
+`qtop.py` still exports the pre-MVU entry points `MVU_legacy_model()`, `colorize()`,
+`control_qtop()` and the `Cluster`, `WNOccupancy` and `TextDisplay` classes. They build their
+model from module globals (`args`, `config`, `dynamic_config`, `viewport` and so on) that
+callers must set first. Since 0.9.20261110 they raise a `DeprecationWarning` and they will be
+removed in a later release. `main()` and `tools/validate_trace_export.py` use none of them:
+build an `MVU_Model` and pass it to `MVU_update`, `MVU_effects`, `MVU_query` and `MVU_view`.
+`main()` sets no module globals; `tests/test_runtime.py` fails if a run changes module-level
+state or triggers a legacy adapter.
 
 ## Keeping the overview current
 

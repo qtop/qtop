@@ -16,7 +16,7 @@ from qtop_py.plugins import demo
 
 
 class _FakeSim:
-    """Minimal LittleGridSimulator stand-in with deterministic data."""
+    """Minimal LittleClusterSimulator stand-in with deterministic data."""
 
     # node 0: core0 idle (0), core1 -> job 101
     # node 1: core0 -> job 102, core1 idle (0), core2 -> job 103

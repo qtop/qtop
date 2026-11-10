@@ -21,12 +21,15 @@ QueueRow = namedtuple("QueueRow", ["lm", "queued", "run", "state"])
 
 
 class Snapshot(namedtuple("Snapshot", ["worker_nodes", "jobs_dict", "queues_dict", "total_running_jobs", "total_queued_jobs"])):
+    """One frame's worker nodes, jobs, queues and job totals, built from a validated cluster state."""
+
     if TYPE_CHECKING:
         _state: state_types.ClusterState
         _job_metadata: Dict[str, state_types.Job]
 
     @classmethod
     def from_cluster_state(cls, cluster_state: "state_types.ClusterState") -> "Snapshot":
+        """Validate a cluster state and build the snapshot, with display-safe text."""
         cluster_state = rebuild(validate_cluster_state(cluster_state))  # the one copy boundary (JSON-shaped)
         original = cluster_state
         # visible_data() rebuilds every dict and list, so its result shares no
@@ -57,13 +60,15 @@ class Snapshot(namedtuple("Snapshot", ["worker_nodes", "jobs_dict", "queues_dict
         return {key: cast("Dict[str, int]", value) for key, value in self._state.items() if key.endswith("_diagnostics")} if hasattr(self, "_state") else {}
 
     def to_cluster_state(self) -> "state_types.ClusterState":
+        """Return a copy of the cluster state behind this snapshot."""
         if hasattr(self, "_state"):
             return copy.deepcopy(self._state)
         # Five-field legacy snapshots are adapted only at this boundary.
+        metadata: "Dict[str, state_types.JobResources]" = getattr(self, "_job_metadata", {})
         state: "state_types.ClusterState" = {
             "jobs": [
                 {
-                    **getattr(self, "_job_metadata", {}).get(job_id, {}),
+                    **metadata.get(job_id, {}),
                     "id": job_id,
                     "user": job.user_name,
                     "state": job.job_state,
@@ -87,5 +92,6 @@ class Snapshot(namedtuple("Snapshot", ["worker_nodes", "jobs_dict", "queues_dict
         return state
 
     def save(self, filename: str) -> None:
+        """Write the cluster state to filename as JSON."""
         with open(filename, "w", encoding="utf-8") as outfile:
             json.dump(self._state if hasattr(self, "_state") else self.to_cluster_state(), outfile)

@@ -17,31 +17,29 @@ import io
 import json
 import os
 import re
-import sys
 import tempfile
 from collections import OrderedDict, namedtuple
 from contextlib import redirect_stdout
 from pathlib import Path
 from types import SimpleNamespace
 
-ROOT = Path(__file__).resolve().parents[1]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
+import qtop_py.qtop as qtop
 
-import qtop_py.qtop as qtop  # noqa: E402
-from qtop_py.mvu_query import WNFilter  # noqa: E402
+ROOT = Path(__file__).resolve().parents[1]
 
 ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
 ACCOUNT_LINE_RE = re.compile(r"^\[\s*(.)\]\s+(.+?)\s+\|")
 
 
 def decode_trace_payload(path):
+    """Return the JSON decoded from a base64 gzip file."""
     encoded = Path(path).read_bytes()
     decoded = base64.b64decode(encoded)
     return json.loads(gzip.decompress(decoded))
 
 
 def load_exported_snapshot(path):
+    """Return the Snapshot in an exported trace, cluster state or legacy five-field form."""
     payload = decode_trace_payload(path)
     if isinstance(payload, dict):
         return qtop.Snapshot.from_cluster_state(payload)
@@ -58,6 +56,7 @@ def load_exported_snapshot(path):
 
 
 def qtop_args(show_account_totals=False, color="OFF"):
+    """Return minimal qtop options for rendering a snapshot."""
     return SimpleNamespace(
         COLOR=color,
         CLASSIC=False,
@@ -93,43 +92,31 @@ def qtop_args(show_account_totals=False, color="OFF"):
 
 
 def render_snapshot(snapshot, show_account_totals=False, color="OFF", term_height=1000, term_columns=220):
+    """Render a snapshot offline through the same model/query/view pipeline as qtop's main loop."""
     args = qtop_args(show_account_totals=show_account_totals, color=color)
-    qtop.args = args
-    qtop.QTOPPATH = str(ROOT)
-    qtop.QTOPCONF_YAML = "qtopconf.yaml"
-    qtop.QTOP_LOGFILE = os.path.join(tempfile.gettempdir(), "qtop_trace_export.log")
-    qtop.SAMPLE_FILENAME = "qtop_trace_export_sample.tar.gz"
-    qtop.dynamic_config = {"force_names": 1}
-    qtop.scheduler = "slurm"
-
     config, user_to_color, nodestate_to_color = qtop.configuration.load_yaml_config(args, str(ROOT), os.getcwd(), qtop.SYSTEMCONFDIR, qtop.USERPATH)
     config["extract_info"] = None
-    qtop.config = config
-    qtop.user_to_color = user_to_color
-    qtop.web = SimpleNamespace(stop=lambda: None)  # ty: ignore[invalid-assignment] - minimal offline adapter
-    qtop.viewport = qtop.Viewport()
-    qtop.viewport.set_term_size(term_height, term_columns)
-    setattr(qtop, "transposed_sections", [])  # Optional global read dynamically by the legacy adapter.
-
+    viewport = qtop.Viewport()
+    viewport.set_term_size(term_height, term_columns)
     trace_snapshot = qtop.Snapshot(copy.deepcopy(snapshot.worker_nodes), snapshot.jobs_dict, snapshot.queues_dict, snapshot.total_running_jobs, snapshot.total_queued_jobs)
-    processed_nodes = qtop.keep_queue_initials_only_and_colorize(trace_snapshot.worker_nodes, qtop.queue_to_color)
-    processed_nodes = qtop.colorize_nodestate(processed_nodes, nodestate_to_color)
-    cluster = qtop.Cluster(trace_snapshot, processed_nodes, WNFilter, config, args)
-    qtop.cluster = cluster
-    wns_occupancy = qtop.WNOccupancy(cluster, config, trace_snapshot, user_to_color, list(trace_snapshot.jobs_dict.keys()))
-    display = qtop.TextDisplay(trace_snapshot, config, qtop.viewport, wns_occupancy, cluster, args)
+    backend = qtop.discover_qtop_batch_systems()["slurm"]
+    model = qtop.MVU_Model(config, args, viewport, display_overrides={"force_names": 1}, package_path=str(ROOT), help_file=str(ROOT / "helpfile.txt"))
+    model, _ = qtop.MVU_update(model, "snapshot", (trace_snapshot, config, args, backend, user_to_color, nodestate_to_color))
+    view_data = qtop.MVU_query(model)
 
     output = io.StringIO()
     with redirect_stdout(output):
-        display.display_selected_sections(tempfile.gettempdir(), qtop.SAMPLE_FILENAME, qtop.QTOP_LOGFILE)
-    return output.getvalue(), wns_occupancy
+        qtop.MVU_view(view_data, tempfile.gettempdir(), "qtop_trace_export_sample.tar.gz", os.path.join(tempfile.gettempdir(), "qtop_trace_export.log"))
+    return output.getvalue(), view_data.occupancy
 
 
 def account_symbols(wns_occupancy):
+    """Return the account ID symbols of the accounts table."""
     return [str(line[0]) for line in wns_occupancy.account_jobs_table]
 
 
 def validate_symbol_contract(symbols):
+    """Raise ValueError if reserved symbols are used as account IDs or * is missing."""
     forbidden = {"_", "#", "?"}
     used_forbidden = sorted(forbidden.intersection(symbols))
     if used_forbidden:
@@ -139,10 +126,12 @@ def validate_symbol_contract(symbols):
 
 
 def strip_ansi(text):
+    """Return text without ANSI codes."""
     return ANSI_RE.sub("", text)
 
 
 def rendered_account_symbols(rendered):
+    """Return the account ID symbols in the rendered accounts table."""
     symbols = []
     for line in strip_ansi(rendered).splitlines():
         match = ACCOUNT_LINE_RE.match(line)
@@ -155,6 +144,7 @@ def rendered_account_symbols(rendered):
 
 
 def validate_rendered_account_symbols(rendered):
+    """Raise ValueError unless the rendered accounts table has valid ID symbols."""
     symbols = rendered_account_symbols(rendered)
     if not symbols:
         raise ValueError("rendered output did not include account-symbol mapping lines")
@@ -162,13 +152,15 @@ def validate_rendered_account_symbols(rendered):
 
 
 def extract_summary_line(text):
+    """Return the Summary line of a rendering, or an empty string."""
     for line in text.splitlines():
-        if line.startswith("Summary:"):
+        if re.match(r"Summary *:", line):
             return line.strip()
     return ""
 
 
 def validate_fullview_summary(rendered, fullview_path):
+    """Raise ValueError if the rendered summary differs from the fullview file's."""
     expected = extract_summary_line(Path(fullview_path).read_text(errors="replace"))
     actual = extract_summary_line(rendered)
     if expected != actual:
@@ -176,6 +168,7 @@ def validate_fullview_summary(rendered, fullview_path):
 
 
 def parse_args():
+    """Parse the command-line options."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("trace_json_b64", help="Path to a base64-encoded gzip qtop exported JSON document")
     parser.add_argument("--fullview", help="Optional qtop fullview output to compare stable summary totals against")
@@ -184,6 +177,7 @@ def parse_args():
 
 
 def main():
+    """Render the exported snapshot in several modes, validate it and write the artifacts."""
     args = parse_args()
     snapshot = load_exported_snapshot(args.trace_json_b64)
     rendered, wns_occupancy = render_snapshot(snapshot)
