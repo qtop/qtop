@@ -166,13 +166,9 @@ zizmor:: ## Audit GitHub Actions workflows independently
 zizmor-fix:: ## Apply zizmor's safe workflow fixes independently
 	@$(ZIZMOR) $(ZIZMOR_FLAGS) --fix=safe .github/
 
-legacy-install-check:: ## Test source installation with pinned tools in a disposable Python 3.6-3.8 venv
+legacy-install-check:: ## Install the wheel built by a modern Python (make build) on Python 3.6-3.8, with no build tools
 	$(PYTHON) -c "import sys; sys.exit(0 if (3, 6) <= sys.version_info[:2] < (3, 9) else 'legacy-install-check requires Python 3.6-3.8')"
-	@set -eu; build_env=$$(mktemp -d); \
-	trap 'rm -rf "$$build_env"' EXIT; \
-	$(PYTHON) -m venv "$$build_env"; \
-	"$$build_env/bin/python" -m pip install -r requirements-build-legacy.txt; \
-	$(MAKE) install-check PYTHON="$$build_env/bin/python"
+	$(PYTHON) tools/validate_installation.py --artifacts-dir "$(DIST_DIR)" --wheel-only
 
 install-check:: ## Build from an sdist and test a clean installation on this interpreter
 	$(PYTHON) tools/validate_installation.py

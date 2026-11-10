@@ -219,10 +219,10 @@ That target compiles `qtop_py` and `tools`, exercises the archived PBS helper's
 subprocess call with standard-library unittest, then runs the same fast sample
 gate with artifacts under `artifacts/sample-gate-py36/`.
 
-Both forges also run `make legacy-install-check` on AlmaLinux 8.
-The legacy build dependencies are pinned separately in
-`requirements-build-legacy.txt` and installed into a disposable Python 3.6-3.8
-build venv, leaving system packages untouched. `make install-check` builds an
+Both forges also run `make legacy-install-check` on AlmaLinux 8, after the
+build job: it installs the wheel built on CPython 3.12 into a fresh Python 3.6
+venv with the interpreter's bundled pip, so no legacy build tools are pinned or
+fetched (`tools/validate_installation.py --wheel-only`). `make install-check` builds an
 sdist and its wheel,
 checks version metadata, packaged defaults and absence of runtime dependencies,
 then installs into a fresh venv and exercises the CLI's version, help and demo.

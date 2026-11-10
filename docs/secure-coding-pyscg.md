@@ -224,17 +224,16 @@ parent and a child `--basetemp`, protecting the older Python 3.9 pytest lane
 from a predictable shared temporary root. Local runs on that lane need the
 same private-temp boundary.
 
-The Python 3.6-3.8 build pins are deliberate, not an omission (PySCG-0053).
-[requirements-build-legacy.txt](../requirements-build-legacy.txt) and the
-`python_version < '3.9'` build requirement in [pyproject.toml](../pyproject.toml)
-hold pip 21.3.1, setuptools 59.6.0 and wheel 0.37.1, the last releases that
-support Python 3.6. pip-audit reports advisories for all three, each fixed only
-in releases that need Python 3.7+. They concern malicious indexes, archives or
-URLs, `package_index` downloads, Mercurial URLs, Windows legacy wheel installs,
-`MANIFEST.in` exclude matching and the `wheel` CLI. `make legacy-install-check`
-installs only these three pinned packages, then builds and installs qtop's own
-source with `--no-index` in a disposable venv; release artifacts are built on
-CPython 3.12 with the current pins. Revisit when the Python 3.6 floor is raised.
+Python 3.6-3.8 get no pinned build tools (PySCG-0053). The last pip, setuptools
+and wheel releases for Python 3.6 (21.3.1, 59.6.0, 0.37.1) carry 13 known
+advisories, each fixed only in releases that need a newer Python, and pinning
+them made the repository's own dependency scan report them. So the sdist and
+wheel are built once on CPython 3.12 with the current pins, and
+`make legacy-install-check` installs that exact wheel on Python 3.6-3.8 with the
+interpreter's bundled pip, `--no-deps --no-index`, then runs the CLI and every
+backend. The `python_version < '3.9'` build requirement in
+[pyproject.toml](../pyproject.toml) stays a range, for anyone building from
+source on those interpreters. Revisit when the Python 3.6 floor is raised.
 
 Pins do not prove absence of vulnerabilities. Run
 `pip-audit -r requirements-ci.txt` in the intended interpreter environment.

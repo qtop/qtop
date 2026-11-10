@@ -85,8 +85,11 @@ def exercise_wheel(wheel, expected_version, root, work):
     print("install-check: %s defaults, version, help and all backends passed on Python %s" % (wheel.name, sys.version.split()[0]))
 
 
-def validate_installation(root=ROOT, artifacts=None):
-    """Build (or take) the sdist and wheel and check that both install and run."""
+def validate_installation(root=ROOT, artifacts=None, wheel_only=False):
+    """Build (or take) the sdist and wheel and check that both install and run.
+
+    wheel_only installs just the prebuilt wheel, so an old interpreter needs no build tools of its own.
+    """
     with tempfile.TemporaryDirectory(prefix="qtop-install-check-") as temporary:
         work = Path(temporary)
         expected_version = checked([sys.executable, "-c", "import qtop_py; print(qtop_py.__version__)"], root).strip()
@@ -112,9 +115,10 @@ def validate_installation(root=ROOT, artifacts=None):
             supplied = [published_wheel]
         hashes = {path: digest(path) for path in [sdist] + supplied}
         wheels = work / "wheels"
-        checked([sys.executable, "-m", "pip", "wheel", "--no-deps", "--no-build-isolation", "--no-index", "--wheel-dir", str(wheels), str(sdist)], work)
-        (wheel,) = wheels.glob("qtop-*.whl")
-        for index, candidate in enumerate(supplied + [wheel]):
+        if not wheel_only:
+            checked([sys.executable, "-m", "pip", "wheel", "--no-deps", "--no-build-isolation", "--no-index", "--wheel-dir", str(wheels), str(sdist)], work)
+        rebuilt = [] if wheel_only else list(wheels.glob("qtop-*.whl"))
+        for index, candidate in enumerate(supplied + rebuilt):
             case = work / ("case-%s" % index)
             case.mkdir()
             exercise_wheel(candidate, expected_version, root, case)
@@ -127,4 +131,8 @@ def validate_installation(root=ROOT, artifacts=None):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--artifacts-dir", type=Path, help="Validate the exact prebuilt sdist/wheel pair in this directory")
-    validate_installation(artifacts=parser.parse_args().artifacts_dir)
+    parser.add_argument("--wheel-only", action="store_true", help="With --artifacts-dir: install the prebuilt wheel only, without rebuilding it")
+    options = parser.parse_args()
+    if options.wheel_only and options.artifacts_dir is None:
+        parser.error("--wheel-only needs --artifacts-dir")
+    validate_installation(artifacts=options.artifacts_dir, wheel_only=options.wheel_only)

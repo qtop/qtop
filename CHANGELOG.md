@@ -14,6 +14,7 @@ See the [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 - Bugfix: demo lists its queued jobs and counts only running ones as R, so its Summary and accounts totals agree.
 - Feature: the expanded queue view (Q) aligns one queue per line as Total=R+Q+Other, in the Summary colours.
 - Feature: the accounts table and its totals row add an O (Other) column by default, as the Summary does.
+- CI: Python 3.6 installs the wheel built on 3.12 with its bundled pip; the vulnerable legacy build pins are gone.
 - Release: update version metadata to 0.9.20261111
 
 ## 0.9.20261110

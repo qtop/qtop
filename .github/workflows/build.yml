@@ -67,7 +67,6 @@ jobs:
           PYTHON_BIN="$(command -v python3.6)"
           "$PYTHON_BIN" --version
           make compat-py36 PYTHON="$PYTHON_BIN"
-          make legacy-install-check PYTHON="$PYTHON_BIN"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
@@ -111,3 +110,21 @@ jobs:
         with:
           name: qtop-dist
           path: dist/
+
+  # Installs the wheel built above on Python 3.6 with its bundled pip: no legacy build tools are pinned or fetched.
+  almalinux-python36-install:
+    needs: build
+    runs-on: ubuntu-24.04
+    container: almalinux:8
+    steps:
+      - run: |
+          dnf -y install git make findutils
+          dnf -y install python36
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: qtop-dist
+          path: dist/
+      - run: make legacy-install-check PYTHON="$(command -v python3.6)" DIST_DIR=dist
