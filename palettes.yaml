@@ -9,11 +9,11 @@
 
 PALETTES:
   - default
+  - green-monitor
   - solarized-dark
   - gruvbox
   - okabe-ito
   - monochrome
-  - green-monitor
 
 solarized-dark:
   Gray_D: '1;38;5;240'
