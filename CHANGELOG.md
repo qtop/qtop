@@ -5,6 +5,7 @@ See the [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 
 ## 0.9.20261111
 
+- Feature: the accounts totals row is on by default; -4 (--noaccounttotals) now hides it.
 - Release: update version metadata to 0.9.20261111
 
 ## 0.9.20261110

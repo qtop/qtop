@@ -192,9 +192,9 @@ def main():
     validate_rendered_account_symbols(rendered_color)
     validate_rendered_account_symbols(rendered_color_with_totals)
     if "[ T] Totals" not in rendered_with_totals:
-        raise ValueError("-4/accounttotals rendering did not include the totals row")
+        raise ValueError("--accounttotals rendering did not include the totals row")
     if "[ T] Totals" not in strip_ansi(rendered_color_with_totals):
-        raise ValueError("-c ON -4 rendering did not include the totals row")
+        raise ValueError("-c ON --accounttotals rendering did not include the totals row")
     if args.fullview:
         validate_fullview_summary(rendered, args.fullview)
 

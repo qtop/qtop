@@ -336,13 +336,13 @@ def test_create_user_job_counts_raises_jobnotfound():  # user_names, job_states,
         }
 
 
-@pytest.mark.parametrize("switch", ("-4", "--accounttotals"))
-def test_account_totals_cli_switch(monkeypatch, switch):
-    monkeypatch.setattr(sys, "argv", ["qtop", switch])
+@pytest.mark.parametrize("switches, shown", (([], True), (["-4"], False), (["--noaccounttotals"], False), (["--accounttotals"], True)))
+def test_account_totals_are_shown_unless_hidden_with_4(monkeypatch, switches, shown):
+    monkeypatch.setattr(sys, "argv", ["qtop"] + switches)
 
     args = qtop_utils.parse_qtop_cmdline_args()
 
-    assert args.SHOW_ACCOUNT_TOTALS is True
+    assert args.SHOW_ACCOUNT_TOTALS is shown
 
 
 @pytest.mark.parametrize(

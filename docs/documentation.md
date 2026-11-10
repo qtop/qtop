@@ -1078,7 +1078,8 @@ checkout.
 -  ``-1`` hides the accounting summary section.
 -  ``-2`` hides the worker-node occupancy section.
 -  ``-3`` hides the user accounts and pool mappings section.
--  ``-4`` / ``--accounttotals`` adds its totals row.
+-  ``-4`` / ``--noaccounttotals`` hides its totals row, shown by default
+   (up to 0.9.20261110 ``-4`` added it; ``--accounttotals`` still shows it).
 -  ``-a`` / ``--blindremapping`` forces worker-node remapping.
 -  ``-C`` / ``--classic`` selects the classic display style.
 -  ``-F`` forces full worker node names.

@@ -247,7 +247,7 @@ class TextDisplay(object):
             userid_pat = user_color_patterns[str(uid)]
             self.display_account_jobs_line(line, userid_pat, detail_of_name, group_of_name)
 
-        totals = self.account_jobs_totals(account_jobs_table) if getattr(self.args, "SHOW_ACCOUNT_TOTALS", False) else None
+        totals = self.account_jobs_totals(account_jobs_table) if getattr(self.args, "SHOW_ACCOUNT_TOTALS", True) else None
         if totals:
             self.display_account_jobs_line(totals, "account_not_colored", detail_of_name, group_of_name)
 
