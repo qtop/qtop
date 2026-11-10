@@ -592,8 +592,10 @@ command. Other backends and saved-trace/sample replay are unaffected; replay can
 only show the data captured. The existing `-a` option remains blind remapping.
 
 If Slurm rows are rejected, or active jobs reference missing nodes or invalid
-node lists, qtop displays `WARNING: Slurm snapshot incomplete` with counts; for
-the job cases it suggests `--all`, since those nodes may be in hidden partitions.
+node lists, qtop displays `WARNING: Slurm snapshot incomplete` with counts and
+an `INFO:` next step for each case: `--all` for missing nodes (they may be in
+hidden partitions), a starting/completing job or a cut `NodeList` field for
+invalid node lists, and the command formats in `qtopconf.yaml` for rejected rows.
 Scheduler messages appear together at the end of each frame, even when display
 sections are disabled. `INFO:` labels accounting and CPU-ID explanations;
 `WARNING:` labels incomplete snapshots, estimated placement and omitted CPU

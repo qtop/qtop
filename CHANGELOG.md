@@ -16,6 +16,9 @@ See the [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 - Feature: the accounts totals row paints its counts in the Summary colours, for side-by-side comparison.
 - Feature: the expanded queue view (Q) aligns one queue per line as Total=R+Q+Other, in the Summary colours.
 - Feature: the accounts table and its totals row add an O (Other) column by default, as the Summary does.
+- Feature: a green-monitor palette, monochrome in phosphor-green tones.
+- Feature: Slurm jobs on missing nodes or with invalid node lists suggest trying --all.
+- Feature: the Slurm incomplete-snapshot warning gives a next step for each case: missing nodes, invalid node lists, rejected rows.
 - CI: Python 3.6 installs the wheel built on 3.12 with its bundled pip; the vulnerable legacy build pins are gone.
 - CI: wheel 0.46.2 (CVE-2026-24049 in 0.45.1).
 - CI: drop the Python 3.9 (EOL) pytest lane and its unpatchable pins; RHEL 9-family 3.9 lanes run compat-py36.
@@ -32,8 +35,6 @@ See the [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 - Tests: the #121 paging test reads pages with Path.read_text(), without bare open() in an assert (CodeQL).
 - Cleanup: drop the unused navigate_viewport, yaml_parser.load_all and assign_color_to_each_qname.
 - Tools: make test-slurm-samples uses the sample gate, which also refuses unsafe artifact directories; validate_slurm_samples.py removed.
-- Feature: a green-monitor palette, monochrome in phosphor-green tones.
-- Feature: Slurm jobs on missing nodes or with invalid node lists suggest trying --all.
 - Release: update version metadata to 0.9.20261111
 
 ## 0.9.20261110
