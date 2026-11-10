@@ -142,6 +142,22 @@ def test_raw_mode_yields_cbreak_attrs_and_restores_flushing(monkeypatch, failure
     assert fake.calls == [(fake.TCSADRAIN, 1), (fake.TCSAFLUSH, 11)]  # restored even after an error
 
 
+def test_raw_mode_restores_the_terminal_on_sigterm_and_reapplies_cbreak_on_sigcont(monkeypatch):
+    import os
+    import signal
+
+    fake = FakeTermios()
+    monkeypatch.setattr(qtop_module, "termios", fake)
+    previous = signal.getsignal(signal.SIGTERM)
+    with pytest.raises(SystemExit) as exited:
+        with qtop_module.raw_mode(TerminalFile(), WATCH_ARGS):
+            os.kill(os.getpid(), signal.SIGCONT)  # as after fg
+            os.kill(os.getpid(), signal.SIGTERM)  # as from kill
+    assert exited.value.code == 128 + signal.SIGTERM
+    assert fake.calls == [(fake.TCSADRAIN, 1), (fake.TCSADRAIN, 1), (fake.TCSAFLUSH, 11)]
+    assert signal.getsignal(signal.SIGTERM) is previous
+
+
 def test_raw_mode_degrades_when_the_terminal_refuses_new_attrs(monkeypatch):
     monkeypatch.setattr(qtop_module, "termios", FakeTermios(fail_set=True))
     with qtop_module.raw_mode(TerminalFile(), WATCH_ARGS) as attrs:

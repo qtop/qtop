@@ -327,7 +327,8 @@ def raw_mode(file: Any, args: Any) -> Generator[Tuple[Any, Any], None, None]:
     """Put a watch-mode terminal in cbreak mode (no echo or line buffering; Ctrl-C still works); yield (old, new) attrs.
 
     Without a terminal, or outside watch mode, nothing changes and the attrs are empty, so keys need Enter.
-    Unread keys are dropped on exit, rather than spilling into the shell.
+    Unread keys are dropped on exit, rather than spilling into the shell. SIGTERM and SIGHUP (kill, a closed
+    ssh session) exit through the restore too, and SIGCONT (fg after Ctrl-Z) re-applies cbreak mode.
     """
     old_attrs: Any = ""
     new_attrs: Any = ""
@@ -342,9 +343,20 @@ def raw_mode(file: Any, args: Any) -> Generator[Tuple[Any, Any], None, None]:
     if not old_attrs or termios is None:
         yield "", ""
         return
+    tty = termios
+
+    def leave(signum: int, _frame: Any) -> None:
+        raise SystemExit(128 + signum)
+
+    def resume(_signum: int, _frame: Any) -> None:
+        tty.tcsetattr(file.fileno(), tty.TCSADRAIN, new_attrs)
+
+    handlers = [(sig, _signal.signal(sig, handler)) for sig, handler in ((_signal.SIGTERM, leave), (_signal.SIGHUP, leave), (_signal.SIGCONT, resume))]
     try:
         yield old_attrs, new_attrs
     finally:
+        for sig, previous in handlers:
+            _signal.signal(sig, previous)
         termios.tcsetattr(file.fileno(), termios.TCSAFLUSH, old_attrs)
 
 

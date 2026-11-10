@@ -8,6 +8,7 @@ See the [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 - Tools: make authors counts code lines per author with %, merging names sharing an email.
 - Bugfix: a watch-mode terminal resize redraws instead of cycling the core lines (r).
 - Bugfix: watch mode survives a terminal refusing cbreak, drops unread keys on exit; menus work without a terminal.
+- Bugfix: watch mode restores the terminal on SIGTERM/SIGHUP and re-applies key input after fg (SIGCONT).
 - Release: update version metadata to 0.9.20261112
 
 ## 0.9.20261111
