@@ -181,7 +181,6 @@ def test_user_id_ranking_rejects_orders_that_are_not_total(USER_ID_RANKING):
 
 def test_rendered_matrix_does_not_depend_on_hash_seed(tmp_path):
     import os
-    import re
     import subprocess
 
     root = Path(__file__).resolve().parents[1]

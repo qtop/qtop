@@ -6,6 +6,7 @@ See the [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 ## 0.9.20261111
 
 - Tests: the viewport property test bounds scrolling by the one-row-shorter page of #121.
+- Tests: the #121 paging test reads pages with Path.read_text(), without bare open() in an assert (CodeQL).
 - Feature: in watch mode keys 1, 2, 3 show/hide sections 1-3 and 4 the accounts totals row, like -1 to -4.
 - Feature: the demo watch keys line shows its keys in light blue (underlined with -c OFF) and lists 1,2,3,4.
 - Feature: watch-mode key p cycles colour palettes from palettes.yaml: default, solarized-dark, gruvbox, okabe-ito, monochrome.
@@ -32,9 +33,9 @@ See the [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 - Bugfix: matrix columns follow node numbers, -m keeps early empty nodes as documented, and -T masks them too.
 - Bugfix: SGE Summary R and Q classify jobs by their state, as the accounts table does; held jobs count as Other.
 - Bugfix: the Summary no longer counts PBS W/H jobs twice (qstat -q queues them) and counts the job list when qstat -q is empty.
-- Tests: the #121 paging test reads pages with Path.read_text(), without bare open() in an assert (CodeQL).
 - Cleanup: drop the unused navigate_viewport, yaml_parser.load_all and assign_color_to_each_qname.
 - Tools: make test-slurm-samples uses the sample gate, which also refuses unsafe artifact directories; validate_slurm_samples.py removed.
+- Tests: drop a duplicate import re in test_mvu.py (CodeQL).
 - Release: update version metadata to 0.9.20261111
 
 ## 0.9.20261110
