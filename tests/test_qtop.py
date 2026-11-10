@@ -641,9 +641,8 @@ def test_demo_watch_mode_lists_keys_above_the_summary(capsys, scheduler, watch, 
     assert (plain[summary - 1] == mvu_view.DEMO_WATCH_KEYS) is (key_style is not None)
     assert sum(line == mvu_view.DEMO_WATCH_KEYS for line in plain) == (key_style is not None)
     if key_style:
-        assert lines[summary - 1].startswith(key_style + "Keys: q quit, ") and lines[summary - 1].endswith(
-            "hjkl scroll\x1b[0m" if key_style == "\x1b[1m" else "hjkl scroll\x1b[0;m"
-        )
+        keys = ("\x1b[1;34mq\x1b[0;m\x1b[1;33m quit", "\x1b[1;34m1,2,3,4\x1b[0;m") if color == "ON" else ("\x1b[4mq\x1b[24m quit", "\x1b[4m1,2,3,4\x1b[24m")
+        assert lines[summary - 1].startswith(key_style + "Keys: ") and all(key in lines[summary - 1] for key in keys)  # keys stand out from their labels
 
 
 def test_available_possible_ids_filters_reserved_user_symbols():

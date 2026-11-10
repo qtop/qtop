@@ -51,7 +51,8 @@ def summary_count_colours(config: "Config") -> Tuple[str, ...]:
     return ("WhiteOnBlue", "BlackOnGreen", "BlackOnOrange256" if wide else "WhiteOnRed", "BlackOnGold")
 
 
-DEMO_WATCH_KEYS = "Keys: q quit, ? help, m colour, t transpose, H highlight, f filter, s sort, 1-4 sections, hjkl scroll"
+WATCH_KEYS = (("q", "quit"), ("?", "help"), ("m", "colour"), ("t", "transpose"), ("H", "highlight"), ("f", "filter"), ("s", "sort"), ("1,2,3,4", "sections"), ("hjkl", "scroll"))
+DEMO_WATCH_KEYS = "Keys: " + ", ".join("%s %s" % pair for pair in WATCH_KEYS)
 BOLD = "\033[1m%s\033[0m"
 
 
@@ -68,6 +69,17 @@ class TextDisplay(object):
         self.args = args
         # A cell's escape sequence depends only on (char, colour) within a frame: compute each pair once.
         self._cell_text = lru_cache(maxsize=None)(lambda char, color: MVU_model.MVU_colorize(char, color_func=color))
+
+    def watch_keys_line(self) -> str:
+        """Return the demo's watch keys line: yellow, its keys in the light blue of the line above; bold, keys underlined, without colour."""
+        key: Callable[[str], str]
+        text: Callable[[str], str]
+        if self.args.COLOR == "ON":
+            key, text = (lambda s: self.MVU_model.MVU_colorize(s, "Blue_L")), (lambda s: self.MVU_model.MVU_colorize(s, "Yellow"))
+        else:
+            key, text = "\033[4m%s\033[24m".__mod__, str
+        line = text("Keys: ") + text(", ").join(key(name) + text(" " + label) for name, label in WATCH_KEYS)
+        return line if self.args.COLOR == "ON" else BOLD % line
 
     def _toggled(self, key: str, default: bool) -> bool:
         """Return a watch-mode toggle (keys 1-4), else the command-line value."""
@@ -127,7 +139,7 @@ class TextDisplay(object):
             command = "qtop" if self.args.ANONYMIZE else "%s/qtop.py" % self.MVU_model.package_path
             print("Please try it with watch: %s -s <SOURCEDIR> -w [<every_nr_of_sec>]" % command)
         if self.MVU_model.backend.is_simulated and self.args.WATCH:
-            print(self.MVU_model.MVU_colorize(DEMO_WATCH_KEYS, "Yellow") if self.args.COLOR == "ON" else BOLD % DEMO_WATCH_KEYS)  # bold without colour
+            print(self.watch_keys_line())
         print(
             self.MVU_model.MVU_colorize("===> ", "Gray_D")
             + self.MVU_model.MVU_colorize("Job accounting summary", "White")
