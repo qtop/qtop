@@ -23,8 +23,8 @@ from qtop_py.mvu import MVU_gauge_core_vectors as gauge_core_vectors
 from qtop_py.mvu_query import WNOccupancy
 from qtop_py.safety import visible_text
 
-# Accounts-table state columns when accounts_states is unset: jobs >= R + Q.
-DEFAULT_ACCOUNT_STATES = ("running_of_user", "queued_of_user")
+# Accounts-table state columns when accounts_states is unset: jobs >= R + Q + O(ther), as the Summary's Total=R+Q+Other.
+DEFAULT_ACCOUNT_STATES = ("running_of_user", "queued_of_user", "other_of_user")
 
 
 def user_accounts_header(config: "Config") -> str:

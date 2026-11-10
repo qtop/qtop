@@ -399,7 +399,7 @@ def test_display_user_accounts_pool_mappings_adds_totals(monkeypatch, capsys):
 
     output = capsys.readouterr().out
     assert "[ T] Totals" in output
-    assert "|   9      6      3 |" in output
+    assert "|   9      6      3      0 |" in output
     assert "|     3 |" in output
 
 
@@ -1148,13 +1148,13 @@ def test_totals_row_counts_take_the_summary_colours(monkeypatch, capsys, color, 
     assert "|   %s      %s      %s      %s |" % tuple(code % count for code, count in zip(codes, (7, 3, 3, 1))) in totals
 
 
-def test_account_state_columns_default_to_r_plus_q_for_old_and_new_rows(monkeypatch, capsys):
+def test_account_state_columns_default_to_r_q_and_other_for_old_and_new_rows(monkeypatch, capsys):
     old_row = ["0", 2, 3, 6, "alice", 1]
     new_row = ["0", 2, 3, 6, "alice", 1, {"running_of_user": 2, "queued_of_user": 3, "cancelled_of_user": 1}]
     old, new = (_plain_accounts(monkeypatch, capsys, {}, [row]) for row in (old_row, new_row))
     assert old == new
-    assert "|jobs >=   R +    Q | nodes |" in new[-2]
-    assert new[-1].startswith("[ 0] alice             |   6      2      3 |     1 |")
+    assert "|jobs >=   R +    Q +    O | nodes |" in new[-2]
+    assert new[-1].startswith("[ 0] alice             |   6      2      3      1 |     1 |")  # O: the cancelled job
 
 
 def test_account_state_columns_are_tunable_with_labels_and_other(monkeypatch, capsys):

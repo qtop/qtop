@@ -284,7 +284,8 @@ user_id_ranking:
 user_accounts_header: '(ranked by {ranking})'
 ```
 
-The state columns after ``jobs >=`` are tunable; the default is ``R + Q``.
+The state columns after ``jobs >=`` are tunable; the default is ``R + Q + O``
+(O, other, counts the jobs in neither state, as in the Summary).
 ``accounts_states`` lists state keys from ``state_abbreviations``, in display
 order; ``other_of_user`` counts jobs in none of the listed states, and an entry
 may be a ``{state key: label}`` mapping when first-letter labels collide.

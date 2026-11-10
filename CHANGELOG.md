@@ -13,6 +13,7 @@ See the [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 - Docs: why the PBS Summary (qstat -q) can differ from the accounts totals row (qstat) by a few jobs.
 - Bugfix: demo lists its queued jobs and counts only running ones as R, so its Summary and accounts totals agree.
 - Feature: the expanded queue view (Q) aligns one queue per line as Total=R+Q+Other, in the Summary colours.
+- Feature: the accounts table and its totals row add an O (Other) column by default, as the Summary does.
 - Release: update version metadata to 0.9.20261111
 
 ## 0.9.20261110

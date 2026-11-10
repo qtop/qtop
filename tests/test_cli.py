@@ -897,9 +897,9 @@ def test_slurm_array_tasks_and_heterogeneous_components_render_consistently(tmp_
     assert "8=4+4+0 jobs" in frame
     assert "7/16 cores" in frame
     assert "individual array tasks and heterogeneous components" in frame
-    rows = {row[0]: tuple(map(int, row[1:])) for row in re.findall(r"\[\s*\d+\]\s+(\w+)\s*\|\s*(\d+)\s+(\d+)\s+(\d+)\s*\|\s*(\d+)\s*\|", frame)}
-    assert rows["alice"] == (6, 2, 4, 2)
-    assert rows["bob"] == (2, 2, 0, 2)
+    rows = {row[0]: tuple(map(int, row[1:])) for row in re.findall(r"\[\s*\d+\]\s+(\w+)\s*\|\s*(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s*\|\s*(\d+)\s*\|", frame)}
+    assert rows["alice"] == (6, 2, 4, 0, 2)  # jobs, R, Q, Other, nodes
+    assert rows["bob"] == (2, 2, 0, 0, 2)
     state = json.loads(next(output.glob("qtop_json_*.json")).read_text())
     assert len(state["jobs"]) == 8
     assert state["jobs"][0]["slurm_array_job_id"] == "101"

@@ -365,7 +365,7 @@ overwrite_sample_file: True  # True (default) writes to tar using the same const
 ##  - user_to_color, which paints core jobs according to the userid color, or
 ##  - queue_to_color, which paints core jobs according to queue color
 core_coloring: user_to_color
-## Accounts-table state columns (default: running_of_user, queued_of_user, i.e. "jobs >= R + Q").
+## Accounts-table state columns (default: running_of_user, queued_of_user, other_of_user, i.e. "jobs >= R + Q + O").
 ## Use values from state_abbreviations above; other_of_user counts jobs in none of the listed states.
 ## An entry may be a {state key: label} mapping; the default label is the key's first letter, uppercased.
 # accounts_states:
