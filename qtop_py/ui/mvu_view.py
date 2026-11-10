@@ -39,11 +39,13 @@ def user_accounts_header(config: "Config") -> str:
 REVERSE = "\033[7m%s\033[0m"
 
 
-def summary_count_colours() -> Tuple[str, ...]:
-    """Return the Total, R, Q and Other backgrounds: blue, green, orange and yellow.
+def summary_count_colours(config: "Config") -> Tuple[str, ...]:
+    """Return the Total, R, Q and Other colours: summary_colours, or blue, green, orange and yellow backgrounds.
 
     Orange needs 256 colours (TERM *256color, or COLORTERM set); elsewhere, e.g. the Linux console, Q falls back to red.
     """
+    if config.get("summary_colours"):
+        return tuple(config["summary_colours"])
     wide = "256color" in os.environ.get("TERM", "") or bool(os.environ.get("COLORTERM"))
     return ("WhiteOnBlue", "BlackOnGreen", "BlackOnOrange256" if wide else "WhiteOnRed", "BlackOnGold")
 
@@ -143,7 +145,7 @@ class TextDisplay(object):
             job_counts, job_labels = [totals.get(key, 0) for key, _ in summary_states], [label for _, label in summary_states]
         job_counts, job_labels = [sum(job_counts)] + job_counts, ["Total"] + job_labels
 
-        colours, terminal = summary_count_colours(), sys.__stdout__
+        colours, terminal = summary_count_colours(self.config), sys.__stdout__
         if self.args.COLOR == "OFF" and terminal is not None and terminal.isatty():  # monochrome on a terminal: reverse video
             shown = [REVERSE % count for count in job_counts]
         else:  # pipes and files stay plain text

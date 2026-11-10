@@ -296,6 +296,9 @@ and Q are the scheduler-reported totals and Other counts the listed jobs in
 neither state; set, every count comes from the job list instead, which may
 differ slightly from the scheduler's own totals.
 
+``summary_colours`` overrides those colours with colormap names, in the order
+Total, R, Q, Other; a shorter list is reused in turn.
+
 ```yaml
 accounts_states:
   - running_of_user
@@ -307,6 +310,11 @@ summary_states:
   - running_of_user
   - queued_of_user
   - other_of_user
+summary_colours:
+  - BlackOnBlue
+  - BlackOnGreen
+  - WhiteOnRed
+  - BlackOnGold
 ```
 
 Watch mode

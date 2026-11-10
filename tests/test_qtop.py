@@ -1167,6 +1167,12 @@ def test_summary_counts_have_blue_green_orange_yellow_backgrounds(capsys, monkey
     assert counts[0] + "=" + "+".join(counts[1:]) in capsys.readouterr().out
 
 
+def test_summary_colours_are_configurable(capsys):
+    _summary({"summary_colours": ["BlackOnBlue", "BlackOnRed"]}, ["R", "C"], color="ON")  # two colours, reused in turn
+    counts = ["\x1b[%sm%s\x1b[0;m" % pair for pair in zip(("0;30;44", "0;30;41", "0;30;44", "0;30;41"), ("12", "7", "4", "1"))]
+    assert counts[0] + "=" + "+".join(counts[1:]) in capsys.readouterr().out
+
+
 @pytest.mark.parametrize("tty", (True, False))
 def test_monochrome_summary_counts_are_reversed_only_on_a_terminal(capsys, monkeypatch, tty):
     monkeypatch.setattr(sys, "__stdout__", SimpleNamespace(isatty=lambda: tty))

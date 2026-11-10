@@ -28,6 +28,8 @@ def config():
         ("scheduler_command_timeout", True),
         ("vertical_separator_every_X_columns", -1),
         ("rem_empty_corelines", 1.5),
+        ("summary_colours", ["NoSuchColour"]),
+        ("summary_colours", "BlackOnBlue"),
         ("possible_ids", []),
         ("possible_ids", ["too long"]),
         ("sorting", []),
@@ -87,6 +89,18 @@ def test_state_column_examples_parse_and_validate(tmp_path):
     config = yaml_parser.parse(str(path))
     assert config["accounts_states"] == [{"exiting_of_user": "Ex"}, "running_of_user", "cancelled_of_user", "queued_of_user", "other_of_user"]
     assert config["summary_states"] == ["running_of_user", "queued_of_user", "other_of_user"]
+    validate_config(config)
+
+
+def test_summary_colours_example_parses_and_validates(tmp_path):
+    text = (Path(__file__).resolve().parents[1] / "qtopconf.yaml").read_text()
+    colours = ["WhiteOnBlue", "BlackOnGreen", "BlackOnOrange256", "BlackOnGold"]
+    path = tmp_path / "qtopconf.yaml"
+    path.write_text(
+        text.replace("# summary_colours:\n" + "".join("#   - %s\n" % colour for colour in colours), "summary_colours:\n" + "".join("  - %s\n" % colour for colour in colours))
+    )
+    config = yaml_parser.parse(str(path))
+    assert config["summary_colours"] == colours
     validate_config(config)
 
 

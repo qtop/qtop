@@ -12,7 +12,7 @@ if TYPE_CHECKING:
     from qtop_py.state_types import Config
 
 from qtop_py import fileutils, yaml_parser
-from qtop_py.colormap import nodestate_to_color_default, user_to_color_default
+from qtop_py.colormap import color_to_code, nodestate_to_color_default, user_to_color_default
 from qtop_py.constants import (
     MAX_USER_ACCOUNTS_HEADER_LEN,
     QTOPCONF_YAML,
@@ -151,6 +151,8 @@ def _validate_colors(config: Any) -> None:
         for entry in entries or []:
             _mapping(entry, key)
             _require(all(isinstance(pattern, str) and isinstance(color, str) for pattern, color in entry.items()), key, "text patterns and color names")
+    colours = config.get("summary_colours")
+    _require(not colours or (isinstance(colours, list) and all(colour in color_to_code for colour in colours)), "summary_colours", "a list of colormap color names")
 
 
 def _validate_state_columns(config: Any) -> None:
