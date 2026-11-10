@@ -15,6 +15,7 @@ import re
 import sys
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import Mock
 
 import pytest
 
@@ -102,6 +103,61 @@ def test_raw_mode_allows_watch_mode_without_terminal_attrs(monkeypatch):
         entered_context = True
 
     assert entered_context
+
+
+class FakeTermios:
+    ECHO, ICANON, TCSADRAIN, TCSAFLUSH = 8, 2, 1, 2
+
+    class error(Exception):
+        pass
+
+    def __init__(self, fail_set=False):
+        self.calls, self.fail_set = [], fail_set
+
+    def tcgetattr(self, fd):
+        return [0, 0, 0, 8 | 2 | 1, 0, 0]
+
+    def tcsetattr(self, fd, when, attrs):
+        if self.fail_set:
+            raise self.error("cannot set")
+        self.calls.append((when, attrs[3]))
+
+
+class TerminalFile:
+    def fileno(self):
+        return 0
+
+
+@pytest.mark.parametrize("failure", (None, RuntimeError))
+def test_raw_mode_yields_cbreak_attrs_and_restores_flushing(monkeypatch, failure):
+    fake = FakeTermios()
+    monkeypatch.setattr(qtop_module, "termios", fake)
+    try:
+        with qtop_module.raw_mode(TerminalFile(), WATCH_ARGS) as (old_attrs, new_attrs):
+            assert (old_attrs[3], new_attrs[3]) == (11, 1)  # echo and line buffering off; other flags kept
+            if failure:
+                raise failure()
+    except RuntimeError:
+        assert failure
+    assert fake.calls == [(fake.TCSADRAIN, 1), (fake.TCSAFLUSH, 11)]  # restored even after an error
+
+
+def test_raw_mode_degrades_when_the_terminal_refuses_new_attrs(monkeypatch):
+    monkeypatch.setattr(qtop_module, "termios", FakeTermios(fail_set=True))
+    with qtop_module.raw_mode(TerminalFile(), WATCH_ARGS) as attrs:
+        assert attrs == ("", "")
+        error = ValueError("in the watch loop")
+        with pytest.raises(ValueError) as raised:
+            raise error
+    assert raised.value.__context__ is None  # the loop no longer runs inside the termios except block
+
+
+def test_menus_leave_a_non_terminal_alone(monkeypatch):
+    terminal = Mock()
+    monkeypatch.setattr(qtop_module, "_set_terminal_attrs", terminal)
+    with qtop_module.menu_terminal("", ""):
+        pass
+    assert terminal.call_count == 0
 
 
 def test_raw_mode_does_not_swallow_unexpected_fileno_errors(monkeypatch):
