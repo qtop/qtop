@@ -41,7 +41,7 @@ nightly-matrix:
   extends: .nightly-lane-base
   parallel:
     matrix:
-      - IMAGE: ['python:3.9-bookworm', 'python:3.11-bookworm', 'python:3.12-bookworm', 'python:3.13-bookworm', 'python:3.14-bookworm']
+      - IMAGE: ['python:3.11-bookworm', 'python:3.12-bookworm', 'python:3.13-bookworm', 'python:3.14-bookworm']
         FAMILY: pythonimg
         PKGS: '-'
         PYBIN: python
@@ -61,31 +61,31 @@ nightly-matrix:
         PKGS: 'python3.12,python3.12-pip'
         PYBIN: python3.12
         TARGET: ci
-      - IMAGE: ['almalinux:9', 'rockylinux:9']
+      - IMAGE: ['almalinux:9', 'rockylinux:9']  # system Python 3.9: dependency-light gate
         FAMILY: rhel
         PKGS: 'python3,python3-pip'
         PYBIN: python3
-        TARGET: ci
+        TARGET: compat-py36
       - IMAGE: 'rockylinux:9'
         FAMILY: rhel
         PKGS: 'python3.11,python3.11-pip'
         PYBIN: python3.11
         TARGET: ci
-      - IMAGE: 'quay.io/centos/centos:stream9'
+      - IMAGE: 'quay.io/centos/centos:stream9'  # system Python 3.9: dependency-light gate
         FAMILY: rhel
         PKGS: 'python3,python3-pip'
         PYBIN: python3
-        TARGET: ci
+        TARGET: compat-py36
       - IMAGE: 'docker.io/library/oraclelinux:8'
         FAMILY: rhel
         PKGS: 'python3,python3-pip'
         PYBIN: python3
         TARGET: compat-py36
-      - IMAGE: 'docker.io/library/oraclelinux:9'
+      - IMAGE: 'docker.io/library/oraclelinux:9'  # system Python 3.9: dependency-light gate
         FAMILY: rhel
         PKGS: 'python3,python3-pip'
         PYBIN: python3
-        TARGET: ci
+        TARGET: compat-py36
       - IMAGE: ['fedora:41', 'fedora:42']
         FAMILY: fedora
         PKGS: 'python3,python3-pip'
@@ -101,11 +101,11 @@ nightly-matrix:
         PKGS: 'python311,python311-pip'
         PYBIN: python3.11
         TARGET: ci
-      - IMAGE: 'amazonlinux:2023'
+      - IMAGE: 'amazonlinux:2023'  # system Python 3.9: dependency-light gate
         FAMILY: amazon
         PKGS: 'python3,python3-pip'
         PYBIN: python3
-        TARGET: ci
+        TARGET: compat-py36
       - IMAGE: 'amazonlinux:2023'
         FAMILY: amazon
         PKGS: 'python3.12,python3.12-pip'

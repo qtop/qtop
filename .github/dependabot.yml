@@ -1,0 +1,39 @@
+## Copyright (c) 2026 qtop contributors
+## SPDX-License-Identifier: MIT
+##
+## Version updates for the pinned GitHub Actions and the CI tool pins (requirements-ci.txt).
+## qtop itself has no runtime dependencies. Dependabot reads this file from the default branch
+## (main) and opens grouped, monthly pull requests against develop, where every change is
+## reviewed under the four-eyes rule (MAINTAINERS.md); a pin is merged only once CI is green.
+## The python_version-marked pins for 3.10/3.11 lanes may receive bumps those interpreters
+## cannot install: the nightly 3.11 lanes and tests/test_ci_requirements.py are the check.
+## GitLab CI images and workflow `container:` images are not covered by Dependabot.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    target-branch: develop
+    schedule:
+      interval: monthly
+    cooldown:
+      default-days: 7  # let a fresh release settle before proposing it
+    groups:
+      github-actions:
+        patterns: ["*"]
+    commit-message:
+      prefix: CI
+    labels: [dependencies]
+
+  - package-ecosystem: pip
+    directory: /
+    target-branch: develop
+    schedule:
+      interval: monthly
+    cooldown:
+      default-days: 7
+    groups:
+      ci-tools:
+        patterns: ["*"]
+    commit-message:
+      prefix: CI
+    labels: [dependencies, python]

@@ -16,6 +16,13 @@
 # The GitLab twin (ci/scorecard.gitlab-ci.yml) runs the scorecard CLI on a
 # schedule against the same GitHub repository, so a pegged mirror reports
 # the same numbers.
+#
+# Vulnerabilities counts the OSV advisories of every version pinned in
+# requirements*.txt, environment markers notwithstanding. If a pin must stay
+# vulnerable, record the accepted IDs in an osv-scanner.toml ([[IgnoredVulns]]
+# with reason and ignoreUntil) rather than hiding the file; see
+# https://github.com/ossf/scorecard/blob/main/docs/checks.md#vulnerabilities
+# and docs/secure-coding-pyscg.md (PySCG-0053).
 
 name: scorecard-qtop
 

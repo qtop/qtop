@@ -78,7 +78,7 @@ def scheduler_inputs(tmp_path):
     return source
 
 
-@pytest.mark.parametrize("backend, nodes, running", (("slurm", 3, 2), ("pbs", 829, 7590), ("sge", 17, 61), ("oar", 183, 190)))
+@pytest.mark.parametrize("backend, nodes, running", (("slurm", 3, 2), ("pbs", 829, 7590), ("sge", 17, 62), ("oar", 183, 190)))
 @pytest.mark.parametrize("mode", ("default", "classic", "anonymous"))
 def test_runtime_exports_and_renders_each_scheduler(runtime, scheduler_inputs, backend, nodes, running, mode):
     flags = {

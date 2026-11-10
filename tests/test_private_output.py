@@ -14,7 +14,7 @@ from pathlib import Path
 
 import pytest
 
-from tools import validate_pbs_samples, validate_slurm_samples
+from tools import validate_pbs_samples
 from tools.private_output import private_output_dir
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -68,20 +68,19 @@ def test_files_are_not_mistaken_for_directories(tmp_path):
 
 def test_defaults_are_repo_local_artifacts():
     assert str(validate_pbs_samples.DEFAULT_OUTPUT) == "artifacts/pbs-rendered"
-    assert validate_slurm_samples.DEFAULT_OUTPUT == "artifacts/slurm-rendered"
     makefile = (ROOT / "Makefile").read_text()
     assert "PBS_OUTPUT_DIR ?= artifacts/pbs-rendered" in makefile and "SLURM_OUTPUT_DIR ?= artifacts/slurm-rendered" in makefile
 
 
 @posix_only
-@pytest.mark.parametrize("tool", ["validate_pbs_samples.py", "validate_slurm_samples.py"])
-def test_tools_run_as_scripts_reject_a_planted_symlink(tmp_path, tool):
+@pytest.mark.parametrize("tool, flag", [("validate_pbs_samples.py", "--output"), ("validate_scheduler_samples.py", "--artifact-dir")])
+def test_tools_run_as_scripts_reject_a_planted_symlink(tmp_path, tool, flag):
     victim = tmp_path / "victim"
     victim.mkdir()
     planted = tmp_path / "rendered"
     planted.symlink_to(victim)
     result = subprocess.run(
-        [sys.executable, str(ROOT / "tools" / tool), str(tmp_path), "--output", str(planted)],
+        [sys.executable, str(ROOT / "tools" / tool)] + ([str(tmp_path)] if flag == "--output" else []) + [flag, str(planted)],
         cwd=str(ROOT),
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,

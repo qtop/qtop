@@ -178,19 +178,16 @@ def test_scheduler_autodetection_prioritizes_slurm(monkeypatch):
     assert qtop_module.auto_get_avail_batch_system(config, qtop_module.discover_qtop_batch_systems()) == "slurm"
 
 
-@pytest.mark.parametrize(
-    ("feature", "label"),
-    (("ANONYMIZE", "Anonymization"), ("WEB", "The web interface")),
-)
-def test_experimental_features_require_explicit_opt_in(capsys, feature, label):
-    args = SimpleNamespace(ANONYMIZE=False, WEB=False, EXPERIMENTAL=False)
-    setattr(args, feature, True)
-
+def test_experimental_features_require_explicit_opt_in(capsys):
     with pytest.raises(SystemExit) as exc_info:
-        qtop_module.require_experimental_opt_in(args)
+        qtop_module.require_experimental_opt_in(SimpleNamespace(ANONYMIZE=False, WEB=True, EXPERIMENTAL=False))
 
     assert exc_info.value.code == 1
-    assert label in capsys.readouterr().out
+    assert "The web interface" in capsys.readouterr().out
+
+
+def test_anonymization_is_no_longer_experimental():  # qtop/qtop#548
+    assert qtop_module.require_experimental_opt_in(SimpleNamespace(ANONYMIZE=True, WEB=False, EXPERIMENTAL=False)) is None
 
 
 def test_experimental_features_accept_explicit_opt_in():
@@ -336,13 +333,13 @@ def test_create_user_job_counts_raises_jobnotfound():  # user_names, job_states,
         }
 
 
-@pytest.mark.parametrize("switch", ("-4", "--accounttotals"))
-def test_account_totals_cli_switch(monkeypatch, switch):
-    monkeypatch.setattr(sys, "argv", ["qtop", switch])
+@pytest.mark.parametrize("switches, shown", (([], True), (["-4"], False), (["--noaccounttotals"], False), (["--accounttotals"], True)))
+def test_account_totals_are_shown_unless_hidden_with_4(monkeypatch, switches, shown):
+    monkeypatch.setattr(sys, "argv", ["qtop"] + switches)
 
     args = qtop_utils.parse_qtop_cmdline_args()
 
-    assert args.SHOW_ACCOUNT_TOTALS is True
+    assert args.SHOW_ACCOUNT_TOTALS is shown
 
 
 @pytest.mark.parametrize(
@@ -399,7 +396,7 @@ def test_display_user_accounts_pool_mappings_adds_totals(monkeypatch, capsys):
 
     output = capsys.readouterr().out
     assert "[ T] Totals" in output
-    assert "|   9      6      3 |" in output
+    assert "|   9      6      3      0 |" in output
     assert "|     3 |" in output
 
 
@@ -557,7 +554,7 @@ def test_queueing_summary_preserves_order_and_expands(capsys):
     TextDisplay(None, {}, None, None, Cluster(), args, MVU_model=model).display_job_accounting_summary(Cluster(), None)
 
     output = capsys.readouterr().out
-    assert "Queueing :\n  compute: 1 + 1 |\n  debug: 1 |" in output
+    assert "Queueing :\n             Total   R   Q   Other\n  compute  :     2 = 1 + 1 +     0\n  debug    :     1 = 1 + 0 +     0\n" in output
 
 
 @pytest.mark.parametrize(
@@ -574,8 +571,25 @@ def test_queue_summary_expands_in_watch_mode_when_wider_than_the_terminal(capsys
     TextDisplay(None, {}, viewport, None, cluster, args, MVU_model=model).display_job_accounting_summary(cluster, None)
 
     output = capsys.readouterr().out
-    assert ("Queueing :\n  queue_000: 1 + 2 |" in output) is expanded
+    assert ("\n  queue_000  :     3 = 1 + 2 +     0\n" in output) is expanded
     assert ("Queueing : queue_000: 1 + 2 |" in output) is not expanded
+
+
+@pytest.mark.parametrize("color", ("OFF", "ON"))
+def test_expanded_queues_align_and_count_other_jobs_per_queue(capsys, monkeypatch, color):
+    monkeypatch.setenv("TERM", "xterm-256color")
+    queues = {"batch": SimpleNamespace(run="2", queued="1", state="E"), "q": SimpleNamespace(run="0", queued="105", state="D")}
+    listing = (("R", "batch"), ("R", "batch"), ("Q", "batch"), ("C", "batch"), ("E", "batch"), ("W", "q"))  # q's W is in its 105 already
+    jobs = {str(n): SimpleNamespace(job_state=state, job_queue=queue) for n, (state, queue) in enumerate(listing)}
+    cluster = SimpleNamespace(total_running_jobs=12, total_queued_jobs=108, queues_dict=queues, total_wn=0, offdown_nodes=0, available_wn=0, working_cores=0, total_cores=0)
+    args = SimpleNamespace(REMAP=False, CLASSIC=False, WATCH=False, EXPAND_QUEUES=True, ANONYMIZE=True, COLOR=color)
+    model = MVU_Model({}, args, None, backend=qtop_module.scheduler_backend("pbs"))
+    config = {"state_abbreviations": {"pbs": PBS_STATES}}
+    TextDisplay(SimpleNamespace(jobs_dict=jobs), config, None, None, cluster, args, MVU_model=model).display_job_accounting_summary(cluster, SimpleNamespace(jobs_dict=jobs))
+
+    lines = [re.sub(r"\x1b\[[0-9;]*m", "", line) for line in capsys.readouterr().out.splitlines()]
+    start = lines.index("Queueing :")
+    assert lines[start + 1 : start + 4] == ["           Total   R     Q   Other", "  batch  :     5 = 2 +   1 +     2", "  q*     :   105 = 0 + 105 +     0"]
 
 
 def test_demo_notice_uses_high_contrast_blue(monkeypatch):
@@ -613,9 +627,9 @@ def test_demo_notice_uses_high_contrast_blue(monkeypatch):
 
 @pytest.mark.parametrize(
     "scheduler, watch, color, key_style",
-    (("demo", True, "ON", "\x1b[1;33m"), ("demo", True, "OFF", "\x1b[1m"), ("demo", False, "OFF", None), ("slurm", True, "OFF", None)),
+    (("demo", True, "ON", "\x1b[1;33m"), ("demo", True, "OFF", "\x1b[1m"), ("demo", False, "OFF", None), ("slurm", True, "OFF", "\x1b[1m"), ("slurm", False, "ON", None)),
 )
-def test_demo_watch_mode_lists_keys_above_the_summary(capsys, scheduler, watch, color, key_style):
+def test_watch_mode_lists_keys_above_the_summary(capsys, scheduler, watch, color, key_style):
     cluster = SimpleNamespace(total_running_jobs=0, total_queued_jobs=0, queues_dict={}, total_wn=0, offdown_nodes=0, available_wn=0, working_cores=0, total_cores=0)
     args = SimpleNamespace(REMAP=False, CLASSIC=False, WATCH=watch, ANONYMIZE=True, COLOR=color)
     model = MVU_Model({}, args, None, backend=qtop_module.scheduler_backend(scheduler))
@@ -624,12 +638,11 @@ def test_demo_watch_mode_lists_keys_above_the_summary(capsys, scheduler, watch, 
     lines = capsys.readouterr().out.splitlines()
     plain = [re.sub(r"\x1b\[[0-9;]*m", "", line) for line in lines]
     summary = next(index for index, line in enumerate(plain) if "Job accounting summary" in line)
-    assert (plain[summary - 1] == mvu_view.DEMO_WATCH_KEYS) is (key_style is not None)
-    assert sum(line == mvu_view.DEMO_WATCH_KEYS for line in plain) == (key_style is not None)
+    assert (plain[summary - 1] == mvu_view.WATCH_KEYS_TEXT) is (key_style is not None)
+    assert sum(line == mvu_view.WATCH_KEYS_TEXT for line in plain) == (key_style is not None)
     if key_style:
-        assert lines[summary - 1].startswith(key_style + "Keys: q quit, ") and lines[summary - 1].endswith(
-            "hjkl scroll\x1b[0m" if key_style == "\x1b[1m" else "hjkl scroll\x1b[0;m"
-        )
+        keys = ("\x1b[1;34mq\x1b[0;m\x1b[1;33m quit", "\x1b[1;34m1,2,3,4\x1b[0;m") if color == "ON" else ("\x1b[4mq\x1b[24m quit", "\x1b[4m1,2,3,4\x1b[24m")
+        assert lines[summary - 1].startswith(key_style + "Keys: ") and all(key in lines[summary - 1] for key in keys)  # keys stand out from their labels
 
 
 def test_available_possible_ids_filters_reserved_user_symbols():
@@ -1060,7 +1073,7 @@ def test_viewport_pipeline_reaps_both_processes(tmp_path, monkeypatch, head_fail
             display.show_part_view("test", str(source), 2, 3)
     else:
         result = display.show_part_view("test", str(source), 2, 3)
-        assert Path(result).read_text() == "1\n2\n"
+        assert Path(result).read_text() == "2\n3\n"  # from 0-based line 2, one 2-line page of a 3-row terminal
         assert len(processes) == 2
     assert all(process.returncode is not None for process in processes)
 
@@ -1110,21 +1123,35 @@ def test_user_details_preserve_quoted_arguments_and_skip_malformed_rows(tmp_path
 PBS_STATES = {"R": "running_of_user", "Q": "queued_of_user", "C": "cancelled_of_user", "E": "exiting_of_user", "X": "expired_of_user"}
 
 
-def _plain_accounts(monkeypatch, capsys, config, table, totals=False):
-    args = SimpleNamespace(COLOR="OFF", CLASSIC=False, SHOW_ACCOUNT_TOTALS=totals, SHOW_GROUPS=False)
+def _plain_accounts(monkeypatch, capsys, config, table, totals=False, color="OFF"):
+    args = SimpleNamespace(COLOR=color, CLASSIC=False, SHOW_ACCOUNT_TOTALS=totals, SHOW_GROUPS=False)
     occupancy = SimpleNamespace(account_jobs_table=table, user_color_patterns={str(row[0]): "account_not_colored" for row in table})
     monkeypatch.setattr(qtop_module, "user_to_color", {}, raising=False)
     TextDisplay(None, dict(config, SEPARATOR="|"), None, occupancy, None, args).display_user_accounts_pool_mappings(occupancy)
     return capsys.readouterr().out.splitlines()
 
 
-def test_account_state_columns_default_to_r_plus_q_for_old_and_new_rows(monkeypatch, capsys):
+@pytest.mark.parametrize("color, tty, style", (("ON", False, "colour"), ("OFF", True, "reverse"), ("OFF", False, None)))
+def test_totals_row_counts_take_the_summary_colours(monkeypatch, capsys, color, tty, style):
+    monkeypatch.setenv("TERM", "xterm-256color")
+    monkeypatch.setattr(sys, "__stdout__", SimpleNamespace(isatty=lambda: tty))
+    rows = [["0", 2, 3, 6, "alice", 1, {"running_of_user": 2, "queued_of_user": 3}], ["1", 1, 0, 1, "bob", 1, {"running_of_user": 1}]]
+    totals = _plain_accounts(monkeypatch, capsys, {"accounts_states": ["running_of_user", "queued_of_user", "other_of_user"]}, rows, totals=True, color=color)[-1]
+    codes = {
+        "colour": ("\x1b[1;37;44m%s\x1b[0;m", "\x1b[0;30;42m%s\x1b[0;m", "\x1b[0;30;48;5;208m%s\x1b[0;m", "\x1b[0;30;43m%s\x1b[0;m"),
+        "reverse": ("\x1b[7m%s\x1b[0m",) * 4,
+        None: ("%s",) * 4,
+    }[style]
+    assert "|   %s      %s      %s      %s |" % tuple(code % count for code, count in zip(codes, (7, 3, 3, 1))) in totals
+
+
+def test_account_state_columns_default_to_r_q_and_other_for_old_and_new_rows(monkeypatch, capsys):
     old_row = ["0", 2, 3, 6, "alice", 1]
     new_row = ["0", 2, 3, 6, "alice", 1, {"running_of_user": 2, "queued_of_user": 3, "cancelled_of_user": 1}]
     old, new = (_plain_accounts(monkeypatch, capsys, {}, [row]) for row in (old_row, new_row))
     assert old == new
-    assert "|jobs >=   R +    Q | nodes |" in new[-2]
-    assert new[-1].startswith("[ 0] alice             |   6      2      3 |     1 |")
+    assert "|jobs >=   R +    Q +    O | nodes |" in new[-2]
+    assert new[-1].startswith("[ 0] alice             |   6      2      3      1 |     1 |")  # O: the cancelled job
 
 
 def test_account_state_columns_are_tunable_with_labels_and_other(monkeypatch, capsys):
@@ -1137,13 +1164,17 @@ def test_account_state_columns_are_tunable_with_labels_and_other(monkeypatch, ca
     assert lines[-1].startswith("[ T] Totals            |  10      3      1      3      0      3 |     2 |")
 
 
-def _summary(config, jobs_states):
+# A Torque-like listing behind qstat -q's 7 running and 4 queued: its Que also counts the 2 W jobs.
+LISTED = ["R"] * 7 + ["Q", "Q", "W", "W", "C"]
+
+
+def _summary(config, jobs_states, color="OFF", queues=True):
     class Cluster(object):
         total_running_jobs, total_queued_jobs = 7, 4
-        queues_dict = {}
+        queues_dict = {"batch": SimpleNamespace(run="7", queued="4", state="E")} if queues else {}
         total_wn = offdown_nodes = available_wn = working_cores = total_cores = 0
 
-    args = SimpleNamespace(REMAP=False, CLASSIC=False, WATCH=True, COLOR="OFF")
+    args = SimpleNamespace(REMAP=False, CLASSIC=False, WATCH=True, COLOR=color)
     model = MVU_Model({}, args, None, backend=qtop_module.scheduler_backend("pbs"))
     snapshot = SimpleNamespace(jobs_dict={str(n): SimpleNamespace(job_state=state) for n, state in enumerate(jobs_states)})
     config = dict(config, state_abbreviations={"pbs": PBS_STATES})
@@ -1151,13 +1182,44 @@ def _summary(config, jobs_states):
 
 
 def test_summary_states_default_to_scheduler_reported_r_plus_q(capsys):
-    _summary({}, ["R", "C"])
-    assert "|   7+4 jobs (R + Q)" in capsys.readouterr().out
+    _summary({}, LISTED)  # R and Q as the scheduler reports them; Other is the one listed job beyond them (C), not W again
+    assert "|   12=7+4+1 jobs (Total=R+Q+Other)" in capsys.readouterr().out
+
+
+def test_summary_counts_the_job_list_without_queue_totals(capsys):  # e.g. an empty qstat -q
+    _summary({}, LISTED, queues=False)
+    assert "|   12=7+2+3 jobs (Total=R+Q+Other)" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize(
+    "term, colorterm, orange",
+    (("xterm-256color", "", "0;30;48;5;208"), ("xterm", "truecolor", "0;30;48;5;208"), ("linux", "", "1;37;41"), ("xterm", "", "1;37;41")),
+)
+def test_summary_counts_have_blue_green_orange_yellow_backgrounds(capsys, monkeypatch, term, colorterm, orange):
+    monkeypatch.setenv("TERM", term)
+    monkeypatch.setenv("COLORTERM", colorterm)
+    _summary({}, LISTED, color="ON")
+    counts = ["\x1b[%sm%s\x1b[0;m" % pair for pair in zip(("1;37;44", "0;30;42", orange, "0;30;43"), ("12", "7", "4", "1"))]
+    assert counts[0] + "=" + "+".join(counts[1:]) in capsys.readouterr().out
+
+
+def test_summary_colours_are_configurable(capsys):
+    _summary({"summary_colours": ["BlackOnBlue", "BlackOnRed"]}, LISTED, color="ON")  # two colours, reused in turn
+    counts = ["\x1b[%sm%s\x1b[0;m" % pair for pair in zip(("0;30;44", "0;30;41", "0;30;44", "0;30;41"), ("12", "7", "4", "1"))]
+    assert counts[0] + "=" + "+".join(counts[1:]) in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("tty", (True, False))
+def test_monochrome_summary_counts_are_reversed_only_on_a_terminal(capsys, monkeypatch, tty):
+    monkeypatch.setattr(sys, "__stdout__", SimpleNamespace(isatty=lambda: tty))
+    _summary({}, LISTED)
+    expected = "\x1b[7m12\x1b[0m=\x1b[7m7\x1b[0m+\x1b[7m4\x1b[0m+\x1b[7m1\x1b[0m" if tty else "12=7+4+1"
+    assert "|   %s jobs (Total=R+Q+Other)" % expected in capsys.readouterr().out
 
 
 def test_summary_states_count_the_job_list_when_tuned(capsys):
     _summary({"summary_states": ["running_of_user", {"queued_of_user": "Qd"}, "other_of_user"]}, ["R", "R", "Q", "C", "Z"])
-    assert "|   2+1+2 jobs (R + Qd + O)" in capsys.readouterr().out
+    assert "|   5=2+1+2 jobs (Total=R+Qd+O)" in capsys.readouterr().out
 
 
 def test_job_state_totals_keep_unknown_states():

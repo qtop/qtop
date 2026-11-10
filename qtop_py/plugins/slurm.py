@@ -323,6 +323,12 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
                     "%s active jobs reference missing nodes; %s active jobs have invalid node lists."
                     % tuple(diagnostics.get(key, 0) for key in ("rejected_squeue_rows", "rejected_sinfo_rows", "jobs_with_missing_nodes", "jobs_with_invalid_nodelists"))
                 )
+            if diagnostics.get("jobs_with_missing_nodes"):
+                lines.append("INFO: Jobs on missing nodes: those nodes may be in hidden or group-unavailable partitions; try qtop --all, if not already used.")
+            if diagnostics.get("jobs_with_invalid_nodelists"):
+                lines.append("INFO: Invalid node lists: a starting or completing job may have no nodes yet; otherwise check that squeue does not cut the NodeList field.")
+            if diagnostics.get("rejected_squeue_rows") or diagnostics.get("rejected_sinfo_rows"):
+                lines.append("INFO: Rejected rows: check the squeue/sinfo formats in qtopconf.yaml; qtop logs each rejected line.")
         elif section == "accounting":
             lines.append("INFO: Slurm job counts include individual array tasks and heterogeneous components.")
             if any(len(job.get("slurm_partitions", [])) > 1 for job in getattr(snapshot, "_job_metadata", {}).values()):

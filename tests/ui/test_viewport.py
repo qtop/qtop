@@ -1,5 +1,7 @@
 ## Copyright (c) 2026 qtop contributors
 ## SPDX-License-Identifier: MIT
+from pathlib import Path
+
 import pytest
 
 from qtop_py.ui.viewport import Viewport
@@ -53,7 +55,7 @@ def test_after_scroll_down():
     viewport.max_height = 200
     viewport.scroll_down()
     assert (0, 120) == (viewport.h_start, viewport.h_stop)
-    assert (50, 100) == (viewport.v_start, viewport.v_stop)
+    assert (49, 99) == (viewport.v_start, viewport.v_stop)  # one page: 49 lines, the last row is for notices
 
 
 def test_after_double_scroll_down():
@@ -63,13 +65,13 @@ def test_after_double_scroll_down():
     viewport.max_height = 200
     viewport.scroll_down()
     assert (0, 120) == (viewport.h_start, viewport.h_stop)
-    assert (50, 100) == (viewport.v_start, viewport.v_stop)
+    assert (49, 99) == (viewport.v_start, viewport.v_stop)  # one page: 49 lines, the last row is for notices
     viewport.scroll_down()
     assert (0, 120) == (viewport.h_start, viewport.h_stop)
-    assert (100, 150) == (viewport.v_start, viewport.v_stop)
+    assert (98, 148) == (viewport.v_start, viewport.v_stop)
     viewport.scroll_down()
     assert (0, 120) == (viewport.h_start, viewport.h_stop)
-    assert (150, 200) == (viewport.v_start, viewport.v_stop)
+    assert (147, 197) == (viewport.v_start, viewport.v_stop)
 
 
 def test_after_scroll_right_with_nowhere_to_go():
@@ -126,8 +128,8 @@ def test_after_scroll_up():
     assert 300 == viewport.max_height
     assert 0 == viewport.h_start
     assert 176 == viewport.h_stop
-    assert 276 - 53 == viewport.v_start
-    assert 276 == viewport.v_stop
+    assert 276 - 52 == viewport.v_start
+    assert 276 - 52 + 53 == viewport.v_stop
 
 
 def test_after_scroll_down_scroll_up():
@@ -138,8 +140,8 @@ def test_after_scroll_down_scroll_up():
     assert 300 == viewport.max_height
     assert 0 == viewport.h_start
     assert 176 == viewport.h_stop
-    assert 53 == viewport.v_start  # This scrolling logic looks ok
-    assert 106 == viewport.v_stop
+    assert 52 == viewport.v_start  # one page of 52 lines
+    assert 105 == viewport.v_stop
 
     viewport.scroll_up()  # Now we can scroll up again
 
@@ -201,9 +203,9 @@ def test_after_scroll_right(init_vstart, init_hstart, term_size, max_matrix_dim,
 @pytest.mark.parametrize(
     "init_vstart, init_hstart, term_size, max_matrix_dim, expected",
     (
-        (0, 0, [30, 120], (200, 200), (170, 200, 0, 120)),  # from top to bottom
-        (40, 50, [30, 120], (200, 200), (170, 200, 50, 170)),  # from random to bottom
-        (170, 50, [30, 120], (200, 200), (170, 200, 50, 170)),  # from bottom to bottom
+        (0, 0, [30, 120], (200, 200), (171, 201, 0, 120)),  # from top to bottom: the last 29-line page
+        (40, 50, [30, 120], (200, 200), (171, 201, 50, 170)),  # from random to bottom
+        (171, 50, [30, 120], (200, 200), (171, 201, 50, 170)),  # from bottom to bottom
     ),
 )
 def test_after_scroll_bottom(init_vstart, init_hstart, term_size, max_matrix_dim, expected):
@@ -213,3 +215,24 @@ def test_after_scroll_bottom(init_vstart, init_hstart, term_size, max_matrix_dim
     viewport.max_height = max_matrix_dim[0]
     viewport.scroll_bottom()
     assert expected == (viewport.v_start, viewport.v_stop, viewport.h_start, viewport.h_stop)
+
+
+def test_pages_miss_no_line(tmp_path):  # qtop/qtop#121: a line went missing between pages
+    from qtop_py.ui.mvu_view import TextDisplay
+
+    source = tmp_path / "frame.out"
+    source.write_text("".join("%d\n" % number for number in range(100)))
+    display = TextDisplay.__new__(TextDisplay)
+    display.config = {"savepath": str(tmp_path)}
+    viewport = Viewport()
+    viewport.set_term_size(10, 80)
+    viewport.max_height = 100
+    shown = []
+    while True:
+        shown += Path(display.show_part_view("t", str(source), viewport.v_start, viewport.v_term_size)).read_text().split()
+        if not viewport.scroll_down():
+            break
+    assert sorted(set(int(line) for line in shown)) == list(range(100))  # the last page may overlap, to fill the screen
+    viewport.scroll_bottom()
+    last_page = Path(display.show_part_view("t", str(source), viewport.v_start, viewport.v_term_size)).read_text()
+    assert last_page.split()[-1] == "99"

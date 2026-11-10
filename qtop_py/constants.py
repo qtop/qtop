@@ -10,6 +10,7 @@ if TYPE_CHECKING:  # typing.Final is Python 3.8+; the quoted annotations keep 3.
 
 SYSTEMCONFDIR: "Final" = "/etc"
 QTOPCONF_YAML: "Final" = "qtopconf.yaml"
+PALETTES_YAML: "Final" = "palettes.yaml"
 QTOP_LOGFILE: "Final" = os.path.expandvars("$HOME/.local/qtop/logs/qtop.log")
 USERPATH: "Final" = os.path.expandvars("$HOME/.local/qtop")
 MAX_UNIX_ACCOUNTS: "Final" = 87  # was : 62

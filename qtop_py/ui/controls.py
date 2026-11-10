@@ -2,11 +2,7 @@
 ## SPDX-License-Identifier: MIT
 """Small keyboard operations independent of runtime globals."""
 
-import logging
-from typing import TYPE_CHECKING, Callable, Dict, List, Mapping
-
-if TYPE_CHECKING:
-    from qtop_py.ui.viewport import Viewport
+from typing import Dict, List, Mapping
 
 NAVIGATION_KEYS = {
     "j": ("scroll_down", "Going down...", True),
@@ -23,23 +19,6 @@ NAVIGATION_KEYS = {
     "g": ("scroll_top", "Going to the top...", False),
     "R": ("reset_display", "Resetting display...", False),
 }
-
-
-def navigate_viewport(viewport: "Viewport", key: str, colorize: Callable[[str, str], str]) -> bool:
-    """Move the viewport for a navigation key; return False if the key is not one."""
-    action = NAVIGATION_KEYS.get(key)
-    if action is None:
-        return False
-    method, message, bounded = action
-    logging.debug("v_start: %s", viewport.v_start)
-    moved = getattr(viewport, method)()
-    print("%s %s" % (colorize("***", "Green_L"), message if not bounded or moved else "Staying put"))
-    if key == "$":
-        logging.info("h_start: %s", viewport.h_start)
-        logging.info("max_width: %s", viewport.max_width)
-        logging.info('config["term_size"][1] %s', viewport.h_term_size)
-        logging.info("h_stop: %s", viewport.h_stop)
-    return True
 
 
 def read_rule_choices(prompt: str, choices: Mapping[int, str], rules: List[Dict[str, List[str]]]) -> None:

@@ -6,12 +6,12 @@ include Makefile
 include MANIFEST.in
 include LICENSE
 include qtopconf.yaml
+include palettes.yaml
 include qtop
 include README.md
 include ROADMAP.md
 include requirements-ci.txt
 include .pre-commit-config.yaml
-include requirements-build-legacy.txt
 include setup.py
 include .gitlab-ci.yml
 recursive-include .github/workflows *.yml

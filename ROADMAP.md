@@ -52,7 +52,7 @@ or a release is prepared.
   - [x] [CI] Compile runtime/tooling syntax with Python 3.6 through `make compat-py36`; preserve this compatibility in new work.
   - [x] [CI] Implement the dependency-light AlmaLinux 8 / Python 3.6 lane on both CI providers.
   - [x] [CI] Exercise Python 3.6 installed version/help/demo and source scheduler fixtures through `legacy-install-check` and `compat-py36`.
-  - [x] [CI] Check package metadata, bundled defaults and a source-to-wheel installation with pinned legacy build tools (`legacy-install-check`).
+  - [x] [CI] Check package metadata, bundled defaults and the release wheel's installation on Python 3.6, with no legacy build tools (`legacy-install-check`).
   - [x] [CI] Check the installed wheel has no runtime dependency declarations; legacy installation uses a separate pinned tool environment.
   - [ ] Record passing compatibility and installation evidence for the chosen 1.0 revision.
 

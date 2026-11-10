@@ -382,6 +382,10 @@ color_to_code = {
     "CyanOnRed": "0;36;41",
     "GrayOnRed": "0;37;41",
     "BlackOnGreen": "0;30;42",
+    "WhiteOnBlue": "1;37;44",
+    "BlackOnOrange256": "0;30;48;5;208",  # 256-colour orange; the 16-colour "orange" (43) renders yellow
+    "BlackOnGold": "0;30;43",
+    "WhiteOnRed": "1;37;41",
     "RedOnGreen": "0;31;42",
     "GreenOnGreen": "0;32;42",
     "OrangeOnGreen": "0;33;42",

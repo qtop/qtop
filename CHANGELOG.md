@@ -3,6 +3,41 @@
 Notable changes by version, newest first.
 See the [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 
+## 0.9.20261111
+
+- Tests: the viewport property test bounds scrolling by the one-row-shorter page of #121.
+- Tests: the #121 paging test reads pages with Path.read_text(), without bare open() in an assert (CodeQL).
+- Feature: in watch mode keys 1, 2, 3 show/hide sections 1-3 and 4 the accounts totals row, like -1 to -4.
+- Feature: the demo watch keys line shows its keys in light blue (underlined with -c OFF) and lists 1,2,3,4.
+- Feature: watch-mode key p cycles colour palettes from palettes.yaml: default, solarized-dark, gruvbox, okabe-ito, monochrome.
+- Feature: anonymization (-A) is no longer experimental and works without -e (#548).
+- Feature: the accounts totals row is on by default; -4 (--noaccounttotals) now hides it.
+- Feature: the Summary shows Total=R+Q+Other on blue, green, orange (red without 256 colours) and yellow; -c OFF terminals get reverse video.
+- Feature: `summary_colours` in qtopconf.yaml picks the Summary count colours.
+- Feature: the accounts totals row paints its counts in the Summary colours, for side-by-side comparison.
+- Feature: the expanded queue view (Q) aligns one queue per line as Total=R+Q+Other, in the Summary colours.
+- Feature: the accounts table and its totals row add an O (Other) column by default, as the Summary does.
+- Feature: a green-monitor palette, monochrome in phosphor-green tones; the first p press selects it.
+- Feature: Slurm jobs on missing nodes or with invalid node lists suggest trying --all.
+- Feature: the Slurm incomplete-snapshot warning gives a next step for each case: missing nodes, invalid node lists, rejected rows.
+- CI: Python 3.6 installs the wheel built on 3.12 with its bundled pip; the vulnerable legacy build pins are gone.
+- CI: wheel 0.46.2 (CVE-2026-24049 in 0.45.1).
+- CI: drop the Python 3.9 (EOL) pytest lane and its unpatchable pins; RHEL 9-family 3.9 lanes run compat-py36.
+- CI: Dependabot proposes monthly, grouped updates of GitHub Actions and CI pins; SUPPORT.md says where to get help.
+- Docs: where to record accepted advisories (osv-scanner.toml) for Scorecard's Vulnerabilities check.
+- Docs: why the PBS Summary (qstat -q) can differ from the accounts totals row (qstat) by a few jobs.
+- Docs: PBS qstat -q's Que counts W and H jobs; an empty qstat -q falls back to the job list.
+- Bugfix: the watch keys line shows for every scheduler, not only the demo, and stays when section 1 is hidden.
+- Bugfix: watch-mode paging no longer skips a line between pages (#121).
+- Bugfix: demo lists its queued jobs and counts only running ones as R, so its Summary and accounts totals agree.
+- Bugfix: matrix columns follow node numbers, -m keeps early empty nodes as documented, and -T masks them too.
+- Bugfix: SGE Summary R and Q classify jobs by their state, as the accounts table does; held jobs count as Other.
+- Bugfix: the Summary no longer counts PBS W/H jobs twice (qstat -q queues them) and counts the job list when qstat -q is empty.
+- Cleanup: drop the unused navigate_viewport, yaml_parser.load_all and assign_color_to_each_qname.
+- Tools: make test-slurm-samples uses the sample gate, which also refuses unsafe artifact directories; validate_slurm_samples.py removed.
+- Tests: drop a duplicate import re in test_mvu.py (CodeQL).
+- Release: update version metadata to 0.9.20261111
+
 ## 0.9.20261110
 
 - Bugfix: unconfigured PBS/OAR/SGE/Slurm traces fail as OSError, not TypeError.

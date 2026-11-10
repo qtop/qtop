@@ -43,16 +43,16 @@ def overrides(controls):
 @pytest.mark.parametrize(
     "key, vertical, horizontal",
     (
-        ("j", 30, 30),
-        (" ", 30, 30),
-        ("k", 10, 30),
-        ("\x7f", 10, 30),
+        ("j", 29, 30),  # a 10-row terminal pages by 9 lines: its last row is for notices
+        (" ", 29, 30),
+        ("k", 11, 30),
+        ("\x7f", 11, 30),
         ("l", 20, 40),
         ("h", 20, 20),
         ("$", 20, 180),
         ("0", 20, 0),
-        ("J", 90, 30),
-        ("G", 90, 30),
+        ("J", 91, 30),
+        ("G", 91, 30),
         ("K", 0, 30),
         ("g", 0, 30),
         ("R", 0, 0),
@@ -67,7 +67,7 @@ def test_movement_keys_respect_viewport(controls, key, vertical, horizontal):
 def test_downward_movement_stops_at_bottom(controls, capsys, key):
     view(controls).scroll_bottom()
     press(controls, key)
-    assert view(controls).v_start == 90
+    assert view(controls).v_start == 91
     assert "Staying put" in capsys.readouterr().out
 
 

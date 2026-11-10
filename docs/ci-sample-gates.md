@@ -182,7 +182,7 @@ make trace-export-validation TRACE_JSON_B64=/path/to/qtop_json.json.b64 TRACE_FU
 
 This target decodes `base64 -> gzip -> JSON`, rehydrates the exported qtop
 document, renders it locally, checks the account-symbol contract in both plain
-and colour-on output, checks that `-4` / `--accounttotals` adds the totals row,
+and colour-on output, checks that `--accounttotals` adds the totals row,
 checks the combined colour/account-totals rendering, and writes generated
 artifacts under `artifacts/trace-export/`, including
 `rendered-color-accounttotals.ans` and an ANSI-stripped
@@ -203,7 +203,7 @@ Expected output rules for this branch:
   because it represents a grouped tail rather than a single account
 - the colour-on trace artifact must not render `_`, `#`, or `?` as user-account
   identifiers after ANSI sequences are stripped for review
-- `-4` / `--accounttotals` currently adds the account totals row; it must not
+- `--accounttotals` adds the account totals row (shown by default); it must not
   change the meaning of user symbols or alter prior sections
 
 ## Python 3.6 / AlmaLinux 8 gate
@@ -219,10 +219,10 @@ That target compiles `qtop_py` and `tools`, exercises the archived PBS helper's
 subprocess call with standard-library unittest, then runs the same fast sample
 gate with artifacts under `artifacts/sample-gate-py36/`.
 
-Both forges also run `make legacy-install-check` on AlmaLinux 8.
-The legacy build dependencies are pinned separately in
-`requirements-build-legacy.txt` and installed into a disposable Python 3.6-3.8
-build venv, leaving system packages untouched. `make install-check` builds an
+Both forges also run `make legacy-install-check` on AlmaLinux 8, after the
+build job: it installs the wheel built on CPython 3.12 into a fresh Python 3.6
+venv with the interpreter's bundled pip, so no legacy build tools are pinned or
+fetched (`tools/validate_installation.py --wheel-only`). `make install-check` builds an
 sdist and its wheel,
 checks version metadata, packaged defaults and absence of runtime dependencies,
 then installs into a fresh venv and exercises the CLI's version, help and demo.

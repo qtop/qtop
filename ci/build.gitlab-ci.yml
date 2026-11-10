@@ -25,3 +25,15 @@ build:
   artifacts:
     paths:
       - dist/
+
+# Installs the wheel built above on Python 3.6 with its bundled pip: no legacy build tools are pinned or fetched.
+almalinux-python36-install:
+  image: almalinux:8
+  stage: build
+  needs:
+    - build
+  before_script:
+    - dnf -y install make findutils
+    - dnf -y install python36
+  script:
+    - make legacy-install-check PYTHON="$(command -v python3.6)" DIST_DIR=dist

@@ -33,8 +33,8 @@ Use `qtop security report` in the subject. Include the affected qtop version
 or commit, scheduler family, operating system and Python version, a minimal
 reproducer, the expected impact, and any suggested mitigation. Remove cluster
 names, account names, scheduler output, credentials, and other sensitive data
-unless they are essential to the report. Experimental masking uses ``-A -e``;
-standalone coverage varies by backend. With `-L`, archives contain a portable
+unless they are essential to the report. Masking uses `-A`; its coverage
+varies by backend. With `-L`, archives contain a portable
 masked snapshot and omit raw logs and traces. Review custom configuration
 text and sources included by `-LL` before sending them; see the
 [anonymization scope](docs/documentation.md#anonymization-scope).

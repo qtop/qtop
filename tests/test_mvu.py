@@ -3,6 +3,7 @@
 """Critical MVU boundaries: explicit transitions and isolated query/presentation."""
 
 import copy
+import re
 import sys
 from pathlib import Path
 
@@ -13,6 +14,7 @@ from qtop_py.mvu import MVU_Model, MVU_update
 from qtop_py.mvu_query import MVU_query
 from qtop_py.plugins.slurm import SlurmBatchSystem
 from qtop_py.snapshot import Snapshot
+from qtop_py.ui import mvu_view
 from qtop_py.ui.mvu_view import MVU_view
 from qtop_py.ui.viewport import Viewport
 
@@ -58,6 +60,54 @@ def test_MVU_update_returns_owned_state_and_effects_without_io(tmp_path, monkeyp
     restored_model, _ = MVU_update(help_model, "?")
     assert "output_fp" not in restored_model.display_overrides
     assert model.display_overrides == original_overrides
+
+
+SECTION_KEYS = [("1", "sect_1_off", "Job accounting summary"), ("2", "sect_2_off", "Worker Nodes occupancy"), ("3", "sect_3_off", "User accounts")]
+SECTION_KEYS += [("4", "SHOW_ACCOUNT_TOTALS", "Totals")]
+
+
+@pytest.mark.parametrize("key, override, gone", SECTION_KEYS)
+def test_number_keys_toggle_sections(tmp_path, monkeypatch, capsys, key, override, gone):
+    model = MVU_test_model(tmp_path, monkeypatch)
+    hidden, effects = MVU_update(model, key)
+    assert effects[0][0] == "notice" and MVU_update(hidden, key)[0].display_overrides[override] is not hidden.display_overrides[override]
+    for current, shown in ((model, True), (hidden, False)):
+        MVU_view(MVU_query(current), str(tmp_path), "sample.tar", "qtop.log")
+        assert (gone in capsys.readouterr().out) is shown
+
+
+def test_palette_key_cycles_the_shipped_palettes_and_recolours(tmp_path, monkeypatch):
+    model = MVU_test_model(tmp_path, monkeypatch)
+    model.config["palettes"] = configuration.load_palettes((str(Path(__file__).resolve().parents[1]),))
+    model.args.COLOR = "ON"
+    configuration.validate_config(model.config)
+    seen = []
+    for _ in model.config["palettes"]["PALETTES"]:
+        seen.append((model.display_overrides.get("palette", "default"), model.MVU_colorize("x", "Red_L")))
+        model, effects = MVU_update(model, "p")
+        assert effects == (("notice", "Palette: " + model.display_overrides["palette"]),)
+    assert [name for name, _ in seen] == ["default", "green-monitor", "solarized-dark", "gruvbox", "okabe-ito", "monochrome"]
+    assert model.display_overrides["palette"] == "default"  # wrapped around
+    assert seen[0][1] == "\x1b[1;31mx\x1b[0;m" and seen[1][1] == "\x1b[1;38;5;40mx\x1b[0;m" and len({code for _, code in seen}) == 6
+
+
+def test_user_palettes_override_colour_by_colour_and_are_validated(tmp_path):
+    (tmp_path / "pkg").mkdir()
+    (tmp_path / "pkg" / "palettes.yaml").write_text("PALETTES:\n  - default\n  - mine\nmine:\n  Red: '0;31'\n  Blue: '0;34'\n")
+    (tmp_path / "palettes.yaml").write_text("PALETTES:\n  - mine\nmine:\n  Blue: '1;38;5;33'\n")
+    palettes = configuration.load_palettes((str(tmp_path / "pkg"), str(tmp_path / "missing"), str(tmp_path)))
+    assert palettes == {"PALETTES": ["mine"], "mine": {"Red": "0;31", "Blue": "1;38;5;33"}}
+    for broken in ({"PALETTES": ["nope"]}, {"mine": {"Red": "31m\x1b[2J"}}, {"mine": {"NoSuchColour": "1"}}):
+        with pytest.raises(ValueError, match="palettes"):
+            configuration._validate_palettes({"palettes": broken})
+
+
+def test_watch_keys_line_stays_when_section_1_is_hidden(tmp_path, monkeypatch, capsys):
+    model, _ = MVU_update(MVU_test_model(tmp_path, monkeypatch), "1")
+    model.args.WATCH = True
+    MVU_view(MVU_query(model), str(tmp_path), "sample.tar", "qtop.log")
+    out = re.sub(r"\x1b\[[0-9;]*m", "", capsys.readouterr().out)
+    assert out.count(mvu_view.WATCH_KEYS_TEXT) == 1 and "Job accounting summary" not in out
 
 
 @pytest.mark.parametrize("force_names", [False, True])
@@ -131,7 +181,6 @@ def test_user_id_ranking_rejects_orders_that_are_not_total(USER_ID_RANKING):
 
 def test_rendered_matrix_does_not_depend_on_hash_seed(tmp_path):
     import os
-    import re
     import subprocess
 
     root = Path(__file__).resolve().parents[1]

@@ -218,23 +218,28 @@ The [Makefile](../Makefile) supplies the shared checks:
 
 [requirements-ci.txt](../requirements-ci.txt) is the version source for pinned
 build/test/analysis tools. Interpreter markers retain compatible older tools;
-Python 3.6-3.8 use the dependency-light compatibility path. The
-[matrix runner](../ci/scripts/matrix_lane.sh) gives pytest a random mode-0700
-parent and a child `--basetemp`, protecting the older Python 3.9 pytest lane
-from a predictable shared temporary root. Local runs on that lane need the
-same private-temp boundary.
+Python 3.6-3.9 use the dependency-light compatibility path. The
+[matrix runner](../ci/scripts/matrix_lane.sh) still gives pytest a random
+mode-0700 parent and a child `--basetemp`, as defence in depth now that every
+pytest lane runs the patched 9.x release.
 
-The Python 3.6-3.8 build pins are deliberate, not an omission (PySCG-0053).
-[requirements-build-legacy.txt](../requirements-build-legacy.txt) and the
-`python_version < '3.9'` build requirement in [pyproject.toml](../pyproject.toml)
-hold pip 21.3.1, setuptools 59.6.0 and wheel 0.37.1, the last releases that
-support Python 3.6. pip-audit reports advisories for all three, each fixed only
-in releases that need Python 3.7+. They concern malicious indexes, archives or
-URLs, `package_index` downloads, Mercurial URLs, Windows legacy wheel installs,
-`MANIFEST.in` exclude matching and the `wheel` CLI. `make legacy-install-check`
-installs only these three pinned packages, then builds and installs qtop's own
-source with `--no-index` in a disposable venv; release artifacts are built on
-CPython 3.12 with the current pins. Revisit when the Python 3.6 floor is raised.
+Python 3.6-3.8 get no pinned build tools (PySCG-0053). The last pip, setuptools
+and wheel releases for Python 3.6 (21.3.1, 59.6.0, 0.37.1) carry 13 known
+advisories, each fixed only in releases that need a newer Python, and pinning
+them made the repository's own dependency scan report them. So the sdist and
+wheel are built once on CPython 3.12 with the current pins, and
+`make legacy-install-check` installs that exact wheel on Python 3.6-3.8 with the
+interpreter's bundled pip, `--no-deps --no-index`, then runs the CLI and every
+backend. The `python_version < '3.9'` build requirement in
+[pyproject.toml](../pyproject.toml) stays a range, for anyone building from
+source on those interpreters. Revisit when the Python 3.6 floor is raised.
+
+Scorecard's [Vulnerabilities check](https://github.com/ossf/scorecard/blob/main/docs/checks.md#vulnerabilities)
+counts the OSV advisories of every pinned version, whatever its environment
+marker; the legacy pins alone cost the whole check. Should a pin ever have to
+stay vulnerable, record each accepted advisory in an `osv-scanner.toml`
+(`[[IgnoredVulns]]` with `id`, `reason` and `ignoreUntil`) instead of hiding the
+manifest, and verify that the next Scorecard run honours it.
 
 Pins do not prove absence of vulnerabilities. Run
 `pip-audit -r requirements-ci.txt` in the intended interpreter environment.
@@ -257,7 +262,7 @@ not a current settings audit.
    nesting, archive and command-output limits.
 - [x] Replace predictable render-tool output defaults in
    [validate_pbs_samples.py](../tools/validate_pbs_samples.py),
-   [validate_slurm_samples.py](../tools/validate_slurm_samples.py) and their
+   [validate_scheduler_samples.py](../tools/validate_scheduler_samples.py) and their
    Makefile overrides (CWE-377): defaults are repo-local `artifacts/`, and
    [private_output.py](../tools/private_output.py) refuses symlinked, foreign-owned
    or group/world-writable output directories and creates new ones as 0700.

@@ -284,13 +284,31 @@ user_id_ranking:
 user_accounts_header: '(ranked by {ranking})'
 ```
 
-The state columns after ``jobs >=`` are tunable; the default is ``R + Q``.
+The state columns after ``jobs >=`` are tunable; the default is ``R + Q + O``
+(O, other, counts the jobs in neither state, as in the Summary).
 ``accounts_states`` lists state keys from ``state_abbreviations``, in display
 order; ``other_of_user`` counts jobs in none of the listed states, and an entry
 may be a ``{state key: label}`` mapping when first-letter labels collide.
-``summary_states`` does the same for the Summary line. Unset, the Summary shows
-the scheduler-reported ``R + Q`` totals; set, it counts the job list instead,
-which may differ slightly from the scheduler's own totals.
+``summary_states`` does the same for the Summary line, shown as
+``Total=R+Q+Other`` with blue, green, orange and yellow backgrounds (orange
+needs a 256-colour terminal, ``TERM=*256color`` or ``COLORTERM`` set, and is red
+elsewhere; with ``-c OFF`` on a terminal the counts are in reverse video). Unset, R
+and Q are the scheduler-reported totals and Other counts the listed jobs in
+neither state; set, every count comes from the job list instead, which may
+differ slightly from the scheduler's own totals.
+
+``summary_colours`` overrides those colours with colormap names, in the order
+Total, R, Q, Other; a shorter list is reused in turn. The accounts totals row
+paints its jobs and state counts the same way, so the two can be compared.
+
+On PBS the default Summary R and Q are ``qstat -q``'s queue totals, while the
+accounts table counts ``qstat``'s job list, so the two can differ by a few jobs:
+the commands run moments apart, and ``qstat -q`` also counts jobs the job list
+may not show. The bundled PBS sample shows ``10955=7590+3365+0`` against a
+totals row of ``10954``, ``7588`` R and ``3365`` Q. This is in the input, not
+in qtop; set ``summary_states`` to count the job list on both sides.
+``qstat -q``'s Que also counts W and H jobs, so Other is only the listed jobs
+beyond R and Q; with an empty ``qstat -q`` the Summary counts the job list.
 
 ```yaml
 accounts_states:
@@ -303,7 +321,24 @@ summary_states:
   - running_of_user
   - queued_of_user
   - other_of_user
+summary_colours:
+  - BlackOnBlue
+  - BlackOnGreen
+  - WhiteOnRed
+  - BlackOnGold
 ```
+
+### Palettes
+
+``palettes.yaml``, next to ``qtopconf.yaml``, defines the colour palettes; in
+watch mode ``p`` cycles through its ``PALETTES`` list, starting with the first.
+qtop ships, in that order, ``default``, ``green-monitor`` (monochrome in
+phosphor-green tones), ``solarized-dark``, ``gruvbox``, ``okabe-ito``
+(colour-blind safe) and ``monochrome`` (bold, underline and reverse). A palette
+maps colormap colour names to ANSI SGR codes, digits and ``;`` only, and keeps
+the default colour for any name it leaves out. A ``palettes.yaml`` in the system
+directory or ``~/.local/qtop/`` reorders the list or changes palettes, colour by
+colour. The palettes use 256-colour codes and leave the terminal background alone.
 
 Watch mode
 ----------
@@ -349,10 +384,13 @@ Watch mode supports:
 | F | switch full names / numbered node labels |
 | H | highlight users or queues |
 | m | switch core coloring by user / queue |
+| p | cycle the colour palettes of ``palettes.yaml`` |
 | Q | expand / collapse the queueing summary |
 | r | cycle all / real / used core lines |
-| s | apply sorting |
+| s | apply sorting (remapped matrices; numbered ones keep node order) |
 | t | transpose the matrix |
+| 1, 2, 3 | show / hide sections 1-3 (as ``-1``, ``-2``, ``-3``) |
+| 4 | show / hide the accounts totals row (as ``-4``) |
 | ? | toggle interactive help |
 | q | quit qtop |
 
@@ -554,7 +592,10 @@ command. Other backends and saved-trace/sample replay are unaffected; replay can
 only show the data captured. The existing `-a` option remains blind remapping.
 
 If Slurm rows are rejected, or active jobs reference missing nodes or invalid
-node lists, qtop displays `WARNING: Slurm snapshot incomplete` with counts.
+node lists, qtop displays `WARNING: Slurm snapshot incomplete` with counts and
+an `INFO:` next step for each case: `--all` for missing nodes (they may be in
+hidden partitions), a starting/completing job or a cut `NodeList` field for
+invalid node lists, and the command formats in `qtopconf.yaml` for rejected rows.
 Scheduler messages appear together at the end of each frame, even when display
 sections are disabled. `INFO:` labels accounting and CPU-ID explanations;
 `WARNING:` labels incomplete snapshots, estimated placement and omitted CPU
@@ -987,11 +1028,11 @@ Passing a plain output file to ``-s`` continues to use its parent directory.
 
 ### Anonymization scope
 
-Use ``-A -e`` to request experimental identifier masking. For example:
+Use ``-A`` to mask identifiers. For example:
 
 ```sh
 qtop_masked_dir=$(mktemp -d)
-./qtop -b slurm -s tests/plugins/slurm_samples/basic -L -A -e -o "savepath=$qtop_masked_dir"
+./qtop -b slurm -s tests/plugins/slurm_samples/basic -L -A -o "savepath=$qtop_masked_dir"
 tar -tf "$qtop_masked_dir"/qtop_sample_*.tar
 ```
 
@@ -1078,14 +1119,17 @@ checkout.
 -  ``-1`` hides the accounting summary section.
 -  ``-2`` hides the worker-node occupancy section.
 -  ``-3`` hides the user accounts and pool mappings section.
--  ``-4`` / ``--accounttotals`` adds its totals row.
+-  ``-4`` / ``--noaccounttotals`` hides its totals row, shown by default
+   (up to 0.9.20261110 ``-4`` added it; ``--accounttotals`` still shows it).
 -  ``-a`` / ``--blindremapping`` forces worker-node remapping.
 -  ``-C`` / ``--classic`` selects the classic display style.
 -  ``-F`` forces full worker node names.
 -  ``-G`` resolves user details with ``getent passwd``.
 -  ``--show-groups`` adds primary Unix groups to the account table.
 -  ``--expand-queues`` displays one queue or partition per summary line;
-   press ``Q`` to toggle it in watch mode. Watch mode also expands it when
+   press ``Q`` to toggle it in watch mode. Each line reads ``Total = R + Q + Other``,
+   aligned and in the Summary colours; Other counts the queue's listed jobs
+   beyond its R and Q. Watch mode also expands it when
    the one-line summary would be wider than the terminal.
 -  ``-T`` transposes the worker-node matrix.
 -  ``-l`` lets the matrix overflow horizontally, which is useful with
@@ -1135,10 +1179,10 @@ discard them; any network exposure must be selected locally, for example with
    by qtop.
 -  ``-L`` creates a support archive; ``-LL`` also includes the bundled
    configuration and Python package sources.
--  ``-A`` masks identifiers where the backend supports it and requires
-   ``-e`` / ``--experimental``. Raw scheduler files are excluded from its
-   support archive; see [anonymization scope](#anonymization-scope).
--  ``-e`` opts into experimental features (currently anonymization and web).
+-  ``-A`` masks identifiers where the backend supports it. Raw scheduler files
+   are excluded from its support archive; see [anonymization scope](#anonymization-scope).
+-  ``-e`` opts into experimental features (currently the web interface,
+   ``--queue-nodes``, ``--masked-traces`` and ``--raw-companion``).
 -  ``-V`` prints the qtop version.
 -  ``-h`` shows command help.
 

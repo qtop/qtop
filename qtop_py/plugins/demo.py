@@ -246,6 +246,8 @@ class DemoBatchSystem(GenericBatchSystem):
                 if job_id:
                     queue_name, username = self.sim.job_meta[job_id]
                     jobs.append(_JobInfo(job_id=job_id, username=username, job_state=self.sim.job_state[job_id], queue_name=queue_name))
+        for queue_name in QUEUES:  # and the jobs still waiting, so the accounts table counts them as the Summary does
+            jobs.extend(_JobInfo(job_id, self.sim.job_meta[job_id][1], self.sim.job_state[job_id], queue_name) for job_id in self.sim.queue_jobs[queue_name])
 
         job_ids = [job.job_id for job in jobs]
         usernames = [job.username for job in jobs]
@@ -259,7 +261,7 @@ class DemoBatchSystem(GenericBatchSystem):
         run_for_queue: DefaultDict[str, int] = defaultdict(int)
         for node in range(WORKER_NODES):
             for _core, job_id in enumerate(self.sim.core_job_map[node]):
-                if job_id:
+                if job_id and self.sim.job_state.get(job_id) == "R":  # finishing jobs (C, E, W) still hold cores but no longer run
                     total_running_jobs += 1
                     queue_name, _ = self.sim.job_meta[job_id]
                     run_for_queue[queue_name] += 1

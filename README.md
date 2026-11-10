@@ -93,7 +93,7 @@ Read scheduler traces from a directory instead of invoking live commands:
 ```
 
 Create a support sample containing qtop output, logs and scheduler traces
-(use `-L -A -e` for a reproducible anonymized state snapshot):
+(use `-L -A` for a reproducible anonymized state snapshot):
 
 ```console
 ./qtop -L
@@ -153,6 +153,7 @@ gates, including coverage, type checks and both parser fuzzers. See
 - [Maintenance roles, review routing and escalation](MAINTAINERS.md)
 - [Code of conduct](CODE_OF_CONDUCT.md)
 - [Security policy](SECURITY.md)
+- [Getting help](SUPPORT.md)
 - [OpenSSF metadata, badge preparation and future integrations](docs/openssf-readiness.md)
 - [Issue tracker](https://github.com/qtop/qtop/issues)
 

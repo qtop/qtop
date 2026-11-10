@@ -68,7 +68,7 @@ def test_empty_pbs_named_cluster_without_queue_totals_renders(tmp_path, queue_ro
     output = tmp_path / "output"
     result = run_cli(tmp_path, "qtop_py.qtop", "-b", "pbs", "-s", str(tmp_path), "-F", "-E", "-o", "savepath=%s" % output)
     assert result.returncode == 0, result.stderr
-    assert "Summary  : Total:0 Up:0 Free:0 Nodes | 0/0 cores |   0+0 jobs" in result.stdout
+    assert "Summary  : Total:0 Up:0 Free:0 Nodes | 0/0 cores |   0=0+0+0 jobs" in result.stdout
     state = json.loads(next(output.glob("qtop_json_*.json")).read_text())
     assert state["jobs"] == state["nodes"] == []
     assert [(queue["name"], queue["running"], queue["queued"]) for queue in state["queues"]] == ([("workq", 0, 0)] if queue_row else [])
@@ -91,7 +91,7 @@ def test_pbs_mixed_hostnames_preserve_nodes_jobs_and_allocations(tmp_path):
     output = tmp_path / "output"
     result = run_cli(tmp_path, "qtop_py.qtop", "-b", "pbs", "-s", str(tmp_path), "-F", "-E", "-o", "savepath=%s" % output)
     assert result.returncode == 0, result.stderr
-    assert "Summary  : Total:4 Up:3 Free:1 Nodes | 16/32 cores |   8+1 jobs" in result.stdout
+    assert "Summary  : Total:4 Up:3 Free:1 Nodes | 16/32 cores |   9=8+1+0 jobs" in result.stdout
     assert "trueno_ita00" in result.stdout
     state = json.loads(next(output.glob("qtop_json_*.json")).read_text())
     nodes = {node["domainname"].split(".")[0]: node for node in state["nodes"]}
@@ -100,6 +100,27 @@ def test_pbs_mixed_hostnames_preserve_nodes_jobs_and_allocations(tmp_path):
     assert set(nodes["wn003"]["core_job_map"].values()) == {"1005", "1006", "1007", "1008"}
     assert len(state["jobs"]) == 9
     assert [(queue["running"], queue["queued"]) for queue in state["queues"]] == [(8, 1)]
+
+
+NODES_101_116 = {
+    (): ["%d|%s|" % (n, "00|j|w" if n == 110 else "__|d| " if n == 113 else "__|-| ") for n in range(101, 117)],
+    ("-m",): ["%03d|##|?|?|" % n for n in range(1, 101)] + ["%d|%s|" % (n, "00|j|w" if n == 110 else "__|d| " if n == 113 else "__|-| ") for n in range(101, 117)],
+    ("-T",): ["1111111111111111={_Worker_}", "0000000001111111={__Node__}", "1234567890123456={___ID___}", "---------j--d---=Node state"],
+}
+
+
+@pytest.mark.parametrize("flags", [(), ("-m",), ("-T",), ("-T", "-o", "sorting={'user_sort':[],'reverse':False}")])
+def test_pbs_matrix_columns_follow_node_numbers_and_masking(tmp_path, flags):
+    order = [103, 101, 116, 102] + list(range(104, 116))  # discovery order is not node order; nodes 1-100 do not exist
+    states = {110: "job-exclusive\n    jobs = 0/1001.server,1/1001.server", 113: "down"}
+    (tmp_path / "pbsnodes_a.txt").write_text("".join("wn%d\n    state = %s\n    np = 2\n\n" % (n, states.get(n, "free")) for n in order))
+    (tmp_path / "qstat.txt").write_text("Job id Name User Time Use S Queue\n-----\n1001.server job alice 00:01:00 R workq\n")
+    (tmp_path / "qstat_q.txt").write_text("\nserver: m\n\nQueue Memory CPU Walltime Node Run Que Lm State\n-----\nworkq -- -- -- -- 1 0 -- E R\n1 0\n")
+    result = run_cli(tmp_path, "qtop_py.qtop", "-b", "pbs", "-s", str(tmp_path), *flags)
+    assert result.returncode == 0, result.stderr
+    matrix = result.stdout.split("Worker Nodes occupancy", 1)[1].split("User accounts", 1)[0].splitlines()[1:]
+    expected = NODES_101_116[flags[:1]]
+    assert matrix[: len(expected)] == expected  # masked by default, -m keeps nodes 1-100, wn110 and wn113 in their own columns
 
 
 @pytest.mark.parametrize("job_format", ["json", "text"])
@@ -122,7 +143,7 @@ def test_pbs_array_tasks_and_legacy_queue_limits_preserve_activity(tmp_path, job
     output = tmp_path / "output"
     result = run_cli(tmp_path, "qtop_py.qtop", "-b", "pbs", "-s", str(tmp_path), "-F", "-S", "-E", "-o", "savepath=%s" % output)
     assert result.returncode == 0, result.stderr
-    assert "Summary  : Total:2 Up:2 Free:1 Nodes | 3/6 cores |   2+0 jobs" in result.stdout
+    assert "Summary  : Total:2 Up:2 Free:1 Nodes | 3/6 cores |   2=2+0+0 jobs" in result.stdout
     assert "MISMATCH" not in result.stdout
     matrix = result.stdout.split("Worker Nodes occupancy", 1)[1].split("User accounts", 1)[0]
     assert "|?|" not in matrix
@@ -175,7 +196,7 @@ def test_oar_job_summary_counts_jobs_instead_of_resource_slots(tmp_path):
         "savepath=%s" % output,
     )
     assert result.returncode == 0, result.stderr
-    assert "1+1 jobs (R + Q)" in result.stdout
+    assert "2=1+1+0 jobs (Total=R+Q+Other)" in result.stdout
     assert "default: 1" in result.stdout
     assert "debug: 0 + 1" in result.stdout
     assert "Queue nodes (experimental, idle/total): default: 0/1 | debug: 0/1" in result.stdout
@@ -637,6 +658,8 @@ def test_partial_slurm_snapshot_has_visible_warning_and_exported_diagnostics(tmp
     assert not re.search(r"^Slurm", result.stdout, re.MULTILINE)
     if not all_rejected:
         assert "1 active jobs reference missing nodes" in result.stdout
+    assert ("try qtop --all" in result.stdout) is not all_rejected  # only jobs on unlisted nodes earn the hint
+    assert "INFO: Rejected rows: check the squeue/sinfo formats" in result.stdout and "Invalid node lists:" not in result.stdout
     state = json.loads(next(output.glob("qtop_json_*.json")).read_text())
     assert state["slurm_diagnostics"]["rejected_squeue_rows"] == 1
     assert len(state["jobs"]) == (0 if all_rejected else 1)
@@ -767,7 +790,7 @@ def test_sge_repeated_job_numbers_preserve_core_ownership(tmp_path, array_tasks,
     rows = dict(re.findall(r"\[\s*\d+\]\s+(\w+)\s*\|[^|]*\|\s*(\d+)\s*\|", frame))
     assert rows == {"alice": "1", "bob": "1"}
     assert "%s/%s cores" % (3 * slots, 3 * slots) in frame
-    assert "3+0 jobs (R + Q)" in frame
+    assert "3=3+0+0 jobs (Total=R+Q+Other)" in frame
 
 
 def test_sge_summary_marks_errors_from_later_queue_instances(tmp_path):
@@ -894,12 +917,12 @@ def test_slurm_array_tasks_and_heterogeneous_components_render_consistently(tmp_
     result = run_cli(tmp_path, "qtop_py.qtop", "-b", "slurm", "-s", str(source), "-E", "-O", "-c", "OFF", "-o", "savepath=" + str(output))
     assert result.returncode == 0, result.stderr
     frame = next(output.glob("qtop_fullview_*.out")).read_text()
-    assert "4+4 jobs" in frame
+    assert "8=4+4+0 jobs" in frame
     assert "7/16 cores" in frame
     assert "individual array tasks and heterogeneous components" in frame
-    rows = {row[0]: tuple(map(int, row[1:])) for row in re.findall(r"\[\s*\d+\]\s+(\w+)\s*\|\s*(\d+)\s+(\d+)\s+(\d+)\s*\|\s*(\d+)\s*\|", frame)}
-    assert rows["alice"] == (6, 2, 4, 2)
-    assert rows["bob"] == (2, 2, 0, 2)
+    rows = {row[0]: tuple(map(int, row[1:])) for row in re.findall(r"\[\s*\d+\]\s+(\w+)\s*\|\s*(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s*\|\s*(\d+)\s*\|", frame)}
+    assert rows["alice"] == (6, 2, 4, 0, 2)  # jobs, R, Q, Other, nodes
+    assert rows["bob"] == (2, 2, 0, 0, 2)
     state = json.loads(next(output.glob("qtop_json_*.json")).read_text())
     assert len(state["jobs"]) == 8
     assert state["jobs"][0]["slurm_array_job_id"] == "101"
@@ -938,15 +961,15 @@ def test_slurm_queueing_line_marks_blocked_partitions(tmp_path, availability, ex
     assert result.returncode == 0, result.stderr
     frame = next(output.glob("qtop_fullview_*.out")).read_text()
     if availability == "up":
-        assert "compute: " in frame
-        assert "compute*: " not in frame
+        assert re.search(r"compute\s*: ", frame)
+        assert not re.search(r"compute\*\s*: ", frame)
     else:
-        assert "compute*: " in frame
-    assert "long*: " in frame
+        assert re.search(r"compute\*\s*: ", frame)
+    assert re.search(r"long\*\s*: ", frame)  # compact "long*: " or expanded "long*    : "
     assert "partition closed to submissions or scheduling" in frame
     state = json.loads(next(output.glob("qtop_json_*.json")).read_text())
     assert next(queue for queue in state["queues"] if queue["name"] == "compute")["state"] == availability
-    assert "2+1 jobs" in frame
+    assert "3=2+1+0 jobs" in frame
 
 
 @pytest.mark.parametrize("scheduler_name", ("pbs", "slurm"))
