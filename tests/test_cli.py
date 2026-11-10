@@ -938,11 +938,11 @@ def test_slurm_queueing_line_marks_blocked_partitions(tmp_path, availability, ex
     assert result.returncode == 0, result.stderr
     frame = next(output.glob("qtop_fullview_*.out")).read_text()
     if availability == "up":
-        assert "compute: " in frame
-        assert "compute*: " not in frame
+        assert re.search(r"compute\s*: ", frame)
+        assert not re.search(r"compute\*\s*: ", frame)
     else:
-        assert "compute*: " in frame
-    assert "long*: " in frame
+        assert re.search(r"compute\*\s*: ", frame)
+    assert re.search(r"long\*\s*: ", frame)  # compact "long*: " or expanded "long*    : "
     assert "partition closed to submissions or scheduling" in frame
     state = json.loads(next(output.glob("qtop_json_*.json")).read_text())
     assert next(queue for queue in state["queues"] if queue["name"] == "compute")["state"] == availability

@@ -557,7 +557,7 @@ def test_queueing_summary_preserves_order_and_expands(capsys):
     TextDisplay(None, {}, None, None, Cluster(), args, MVU_model=model).display_job_accounting_summary(Cluster(), None)
 
     output = capsys.readouterr().out
-    assert "Queueing :\n  compute: 1 + 1 |\n  debug: 1 |" in output
+    assert "Queueing :\n             Total   R   Q   Other\n  compute  :     2 = 1 + 1 +     0\n  debug    :     1 = 1 + 0 +     0\n" in output
 
 
 @pytest.mark.parametrize(
@@ -574,8 +574,24 @@ def test_queue_summary_expands_in_watch_mode_when_wider_than_the_terminal(capsys
     TextDisplay(None, {}, viewport, None, cluster, args, MVU_model=model).display_job_accounting_summary(cluster, None)
 
     output = capsys.readouterr().out
-    assert ("Queueing :\n  queue_000: 1 + 2 |" in output) is expanded
+    assert ("\n  queue_000  :     3 = 1 + 2 +     0\n" in output) is expanded
     assert ("Queueing : queue_000: 1 + 2 |" in output) is not expanded
+
+
+@pytest.mark.parametrize("color", ("OFF", "ON"))
+def test_expanded_queues_align_and_count_other_jobs_per_queue(capsys, monkeypatch, color):
+    monkeypatch.setenv("TERM", "xterm-256color")
+    queues = {"batch": SimpleNamespace(run="12", queued="3", state="E"), "q": SimpleNamespace(run="0", queued="105", state="D")}
+    jobs = {str(n): SimpleNamespace(job_state=state, job_queue=queue) for n, (state, queue) in enumerate((("R", "batch"), ("C", "batch"), ("E", "batch"), ("W", "q")))}
+    cluster = SimpleNamespace(total_running_jobs=12, total_queued_jobs=108, queues_dict=queues, total_wn=0, offdown_nodes=0, available_wn=0, working_cores=0, total_cores=0)
+    args = SimpleNamespace(REMAP=False, CLASSIC=False, WATCH=False, EXPAND_QUEUES=True, ANONYMIZE=True, COLOR=color)
+    model = MVU_Model({}, args, None, backend=qtop_module.scheduler_backend("pbs"))
+    config = {"state_abbreviations": {"pbs": PBS_STATES}}
+    TextDisplay(SimpleNamespace(jobs_dict=jobs), config, None, None, cluster, args, MVU_model=model).display_job_accounting_summary(cluster, SimpleNamespace(jobs_dict=jobs))
+
+    lines = [re.sub(r"\x1b\[[0-9;]*m", "", line) for line in capsys.readouterr().out.splitlines()]
+    start = lines.index("Queueing :")
+    assert lines[start + 1 : start + 4] == ["           Total    R     Q   Other", "  batch  :    17 = 12 +   3 +     2", "  q*     :   106 =  0 + 105 +     1"]
 
 
 def test_demo_notice_uses_high_contrast_blue(monkeypatch):

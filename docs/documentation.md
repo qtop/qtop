@@ -1106,7 +1106,9 @@ checkout.
 -  ``-G`` resolves user details with ``getent passwd``.
 -  ``--show-groups`` adds primary Unix groups to the account table.
 -  ``--expand-queues`` displays one queue or partition per summary line;
-   press ``Q`` to toggle it in watch mode. Watch mode also expands it when
+   press ``Q`` to toggle it in watch mode. Each line reads ``Total = R + Q + Other``,
+   aligned and in the Summary colours; Other counts the queue's listed jobs in
+   neither state. Watch mode also expands it when
    the one-line summary would be wider than the terminal.
 -  ``-T`` transposes the worker-node matrix.
 -  ``-l`` lets the matrix overflow horizontally, which is useful with

@@ -8,7 +8,7 @@ import os
 import subprocess
 import sys
 import tempfile
-from collections import OrderedDict
+from collections import Counter, OrderedDict
 from functools import lru_cache, partial
 from itertools import cycle, zip_longest
 from typing import TYPE_CHECKING, Any, Callable, Dict, Iterable, Iterator, List, Mapping, Optional, Sequence, Tuple, overload
@@ -174,7 +174,7 @@ class TextDisplay(object):
             line = "".join("%s*: %s + %s | " % (name, queue.run, queue.queued) for name, queue in queues.items())
             expanded = len("Queueing : * implies blocked" + self.MVU_model.backend.blocked_queue_note + line) > self.viewport.h_term_size
         print("%(queues)s :" % {"queues": self.MVU_model.MVU_colorize("Queueing", "Cyan_L")}, end="\n" if expanded else " ")
-        for _queue_name, q_tuple in queues.items():
+        for _queue_name, q_tuple in queues.items() if not expanded else ():
             q_running_jobs, q_queued_jobs = q_tuple.run, q_tuple.queued
             account = _queue_name if _queue_name in self.MVU_model.queue_to_color else "account_not_colored"
             print(
@@ -187,6 +187,8 @@ class TextDisplay(object):
                 ),
                 end="\n" if expanded else " ",
             )
+        if expanded:
+            self.display_expanded_queues(queues, snapshot)
         blocked_note = self.MVU_model.backend.blocked_queue_note
         print(self.MVU_model.MVU_colorize("* implies blocked", "Red") + blocked_note + "\n")
         if getattr(self.args, "SHOW_QUEUE_NODES", False):
@@ -315,6 +317,23 @@ class TextDisplay(object):
             key, label = next(iter(entry.items())) if isinstance(entry, dict) else (entry, None)
             columns.append((key, str(label) if label else ("O" if key == "other_of_user" else key[0].upper())))
         return columns
+
+    def display_expanded_queues(self, queues: Mapping[str, Any], snapshot: Any) -> None:
+        """Print one aligned queue per line as Total=R+Q+Other, in the Summary colours; Other counts the listed jobs."""
+        states = self.config.get("state_abbreviations", {}).get(self.MVU_model.scheduler, {})
+        jobs = snapshot.jobs_dict.values() if snapshot is not None else ()
+        other = Counter(job.job_queue for job in jobs if states.get(job.job_state) not in ("running_of_user", "queued_of_user"))
+        rows = [(name, queue, [int(queue.run or 0), int(queue.queued or 0), other[name]]) for name, queue in queues.items()]
+        rows = [(name, queue, [sum(counts)] + counts) for name, queue, counts in rows]
+        name_width = max([len(name) for name in queues] + [len("queue")])
+        widths = [max([len(str(counts[index])) for _, _, counts in rows] + [len(label)]) for index, label in enumerate(("Total", "R", "Q", "Other"))]
+        print("  %s    %s" % (" " * name_width, "   ".join(label.rjust(width) for label, width in zip(("Total", "R", "Q", "Other"), widths))))
+        for name, queue, counts in rows:
+            account = name if name in self.MVU_model.queue_to_color else "account_not_colored"
+            star = self.MVU_model.MVU_colorize("*", "Red_L") if self.MVU_model.backend.queue_is_blocked(queue.state) else " "
+            cells = [" " * (width - len(str(count))) + cell for width, count, cell in zip(widths, counts, self.count_cells(COUNT_KEYS, counts))]
+            label = self.MVU_model.MVU_colorize(name, "", pattern=account, mapping=self.MVU_model.queue_to_color)
+            print("  %s%s%s : %s = %s + %s + %s" % (label, star, " " * (name_width - len(name)), *cells))
 
     def count_cells(self, keys: Sequence[str], counts: Sequence[Any]) -> List[str]:
         """Paint job counts in the Summary colours: Total, R, Q and Other by state key, other states by position."""
