@@ -202,6 +202,20 @@ def test_queue_summary_preserves_all_instance_states(first, second, expected):
     assert queues[0]["run"] == 2
 
 
+def test_queue_totals_classify_jobs_by_state_element_like_the_job_list():
+    # The contrib trace has a running ("r") job whose job_list attribute says "Pending".
+    root = etree.Element("root")
+    queue = etree.SubElement(root, "Queue-List")
+    etree.SubElement(queue, "resource", name="qname").text = "batch"
+    for attribute, state in (("running", "r"), ("Pending", "r"), ("running", "t"), ("running", "unmapped")):
+        etree.SubElement(etree.SubElement(queue, "job_list", state=attribute), "state").text = state
+    for attribute, state in (("pending", "qw"), ("pending", "hqw")):
+        etree.SubElement(etree.SubElement(root, "job_list", state=attribute), "state").text = state
+    backend = SGEBatchSystem({}, {"state_abbreviations": {"sge": {"r": "running_of_user", "t": "transferring_of_user", "qw": "queued_of_user", "hqw": "hold_of_user"}}}, Options())
+    assert backend._extract_queues("Queue-List", root)[0]["run"] == 3  # r, r and the unmapped state by its attribute
+    assert backend._get_total_queued_jobs("job_list", root) == "1"
+
+
 @pytest.mark.parametrize("slots_used", [None, "", "0"])
 @pytest.mark.parametrize("same_host", [False, True])
 def test_idle_nodes_keep_queue_membership(slots_used, same_host):

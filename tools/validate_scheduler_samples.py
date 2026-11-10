@@ -115,7 +115,7 @@ STATIC_CASES = {
             "markers": [
                 "Summary : Total:17 Up:17 Free:4 Nodes",
                 "61/408 cores",
-                "92=61+31+0 jobs",
+                "93=62+31+0 jobs",
                 "Worker Nodes occupancy",
                 "User accounts and pool mappings",
             ],

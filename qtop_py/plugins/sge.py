@@ -450,12 +450,7 @@ class SGEBatchSystem(GenericBatchSystem):
 
             for exist_d in qstatq_list:
                 if queue_name == exist_d["queue_name"]:
-                    jobs = queue_elem.findall("job_list")
-                    run_count = 0
-                    for _run in jobs:
-                        if _run.attrib.get("state") == "running":
-                            run_count += 1
-                    exist_d["run"] = int(exist_d["run"]) + run_count
+                    exist_d["run"] = int(exist_d["run"]) + self._count_jobs(queue_elem.findall("job_list"), "running_of_user")
                     state = queue_elem.findtext("./state", default="?") or "?"
                     exist_d["state"] = "".join(sorted(set(str(exist_d["state"]) + state)))
                     break
@@ -464,25 +459,21 @@ class SGEBatchSystem(GenericBatchSystem):
                 d["queue_name"] = queue_name
                 d["state"] = queue_elem.findtext("./state", default="?") or "?"
 
-                job_lists = queue_elem.findall("job_list")
-                run_count = 0
-                for _run in job_lists:
-                    if _run.attrib.get("state") == "running":
-                        run_count += 1
-                d["run"] = run_count
+                d["run"] = self._count_jobs(queue_elem.findall("job_list"), "running_of_user")
                 d["lm"] = 0
                 d["queued"] = 0
                 qstatq_list.append(d)
 
         return qstatq_list
 
+    def _count_jobs(self, jobs: List[etree.Element], state_key: str) -> int:
+        # By <state> where state_abbreviations knows it, as the job list counts them; the state="running"/"pending"
+        # attribute can disagree with it, and is the fallback for unmapped states.
+        states, by_attribute = self.config.get("state_abbreviations", {}).get("sge", {}), {"running": "running_of_user", "pending": "queued_of_user"}
+        return sum(1 for job in jobs if states.get(job.findtext("state") or "", by_attribute.get(job.attrib.get("state", ""))) == state_key)
+
     def _get_total_queued_jobs(self, xpath: str, root: etree.Element) -> str:
-        total_queued_jobs_elems = root.findall(xpath)
-        pending_count = 0
-        for job in total_queued_jobs_elems:
-            if job.attrib.get("state") == "pending":
-                pending_count += 1
-        total_queued_jobs = str(pending_count)
+        total_queued_jobs = str(self._count_jobs(root.findall(xpath), "queued_of_user"))
         logging.info("Total queued jobs found: %s" % total_queued_jobs)
 
         return total_queued_jobs

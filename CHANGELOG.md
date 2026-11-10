@@ -9,6 +9,7 @@ See the [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 - Feature: the Summary shows Total=R+Q+Other on blue, green, orange (red without 256 colours) and yellow; -c OFF terminals get reverse video.
 - Feature: `summary_colours` in qtopconf.yaml picks the Summary count colours.
 - Feature: the accounts totals row paints its counts in the Summary colours, for side-by-side comparison.
+- Bugfix: SGE Summary R and Q classify jobs by their state, as the accounts table does; held jobs count as Other.
 - Release: update version metadata to 0.9.20261111
 
 ## 0.9.20261110
