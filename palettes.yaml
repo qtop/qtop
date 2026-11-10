@@ -13,6 +13,7 @@ PALETTES:
   - gruvbox
   - okabe-ito
   - monochrome
+  - green-monitor
 
 solarized-dark:
   Gray_D: '1;38;5;240'
@@ -103,3 +104,26 @@ monochrome:
   BlackOnOrange256: '0;4;7'
   WhiteOnRed: '1;4;7'
   BlackOnGold: '0;2;7'
+
+# Green monitor: monochrome in phosphor-green tones, as on an old terminal.
+green-monitor:
+  Gray_D: '0;38;5;22'
+  Gray_L: '0;38;5;28'
+  White: '1;38;5;46'
+  Red: '0;38;5;34'
+  Red_L: '1;38;5;40'
+  Green: '0;38;5;34'
+  Green_L: '1;38;5;46'
+  Purple: '0;38;5;29'
+  Pink: '1;38;5;35'
+  Brown: '0;38;5;64'
+  Yellow: '1;38;5;118'
+  Cyan: '0;38;5;36'
+  Cyan_L: '1;38;5;42'
+  Blue: '0;38;5;28'
+  Blue_L: '1;38;5;82'
+  WhiteOnBlue: '1;38;5;16;48;5;46'
+  BlackOnGreen: '0;38;5;16;48;5;34'
+  BlackOnOrange256: '0;38;5;16;48;5;82'
+  WhiteOnRed: '1;38;5;16;48;5;40'
+  BlackOnGold: '0;38;5;16;48;5;28'

@@ -333,7 +333,8 @@ summary_colours:
 ``palettes.yaml``, next to ``qtopconf.yaml``, defines the colour palettes; in
 watch mode ``p`` cycles through its ``PALETTES`` list, starting with the first.
 qtop ships ``default``, ``solarized-dark``, ``gruvbox``, ``okabe-ito``
-(colour-blind safe) and ``monochrome`` (bold, underline and reverse). A palette
+(colour-blind safe), ``monochrome`` (bold, underline and reverse) and
+``green-monitor`` (monochrome in phosphor-green tones). A palette
 maps colormap colour names to ANSI SGR codes, digits and ``;`` only, and keeps
 the default colour for any name it leaves out. A ``palettes.yaml`` in the system
 directory or ``~/.local/qtop/`` reorders the list or changes palettes, colour by

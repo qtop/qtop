@@ -86,9 +86,9 @@ def test_palette_key_cycles_the_shipped_palettes_and_recolours(tmp_path, monkeyp
         seen.append((model.display_overrides.get("palette", "default"), model.MVU_colorize("x", "Red_L")))
         model, effects = MVU_update(model, "p")
         assert effects == (("notice", "Palette: " + model.display_overrides["palette"]),)
-    assert [name for name, _ in seen] == ["default", "solarized-dark", "gruvbox", "okabe-ito", "monochrome"]
+    assert [name for name, _ in seen] == ["default", "solarized-dark", "gruvbox", "okabe-ito", "monochrome", "green-monitor"]
     assert model.display_overrides["palette"] == "default"  # wrapped around
-    assert seen[0][1] == "\x1b[1;31mx\x1b[0;m" and seen[1][1] == "\x1b[1;38;5;160mx\x1b[0;m" and len({code for _, code in seen}) == 5
+    assert seen[0][1] == "\x1b[1;31mx\x1b[0;m" and seen[1][1] == "\x1b[1;38;5;160mx\x1b[0;m" and len({code for _, code in seen}) == 6
 
 
 def test_user_palettes_override_colour_by_colour_and_are_validated(tmp_path):
