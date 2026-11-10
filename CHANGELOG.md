@@ -27,6 +27,7 @@ See the [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 - Docs: PBS qstat -q's Que counts W and H jobs; an empty qstat -q falls back to the job list.
 - Tests: the #121 paging test reads pages with Path.read_text(), without bare open() in an assert (CodeQL).
 - Cleanup: drop the unused navigate_viewport, yaml_parser.load_all and assign_color_to_each_qname.
+- Tools: make test-slurm-samples uses the sample gate, which also refuses unsafe artifact directories; validate_slurm_samples.py removed.
 - Release: update version metadata to 0.9.20261111
 
 ## 0.9.20261110

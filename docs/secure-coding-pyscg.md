@@ -262,7 +262,7 @@ not a current settings audit.
    nesting, archive and command-output limits.
 - [x] Replace predictable render-tool output defaults in
    [validate_pbs_samples.py](../tools/validate_pbs_samples.py),
-   [validate_slurm_samples.py](../tools/validate_slurm_samples.py) and their
+   [validate_scheduler_samples.py](../tools/validate_scheduler_samples.py) and their
    Makefile overrides (CWE-377): defaults are repo-local `artifacts/`, and
    [private_output.py](../tools/private_output.py) refuses symlinked, foreign-owned
    or group/world-writable output directories and creates new ones as 0700.

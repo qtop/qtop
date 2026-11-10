@@ -104,7 +104,7 @@ test-pbs-samples:: ## Run the larger archived PBS sample sweep when the external
 
 test-slurm-samples:: ## Run Slurm parser tests and render committed Slurm samples
 	$(PYTHON) -m pytest tests/plugins/test_slurm.py
-	$(PYTHON) tools/validate_slurm_samples.py $(SLURM_SAMPLES_DIR) --output $(SLURM_OUTPUT_DIR)
+	$(PYTHON) tools/validate_scheduler_samples.py --schedulers slurm --slurm-samples-dir $(SLURM_SAMPLES_DIR) --max-failures 0 --artifact-dir $(SLURM_OUTPUT_DIR)
 
 deterministic-fuzz:: ## Reproducibly stress parser primitives with a fixed seed
 	$(PYTHON) -m tools.deterministic_fuzz --seed $(FUZZ_SEED) --cases $(FUZZ_CASES)

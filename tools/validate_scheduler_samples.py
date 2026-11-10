@@ -24,6 +24,11 @@ import sys
 import tempfile
 from pathlib import Path
 
+try:
+    from tools.private_output import private_output_dir
+except ImportError:  # run as a script: tools/ itself is sys.path[0]
+    from private_output import private_output_dir
+
 ROOT = Path(__file__).resolve().parents[1]
 ANSI_SGR_RE = re.compile(r"\x1b\[([0-9;]*)m")
 ANSI_RE = ANSI_SGR_RE
@@ -668,6 +673,11 @@ def main():
     artifact_dir = Path(args.artifact_dir)
     if not artifact_dir.is_absolute():
         artifact_dir = ROOT / artifact_dir
+    try:
+        artifact_dir = private_output_dir(artifact_dir)  # refuses symlinked or shared directories (CWE-377)
+    except ValueError as error:
+        print("error: %s" % error, file=sys.stderr)
+        return 2
     cases = discover_cases(schedulers, ROOT / args.slurm_samples_dir)
     results = []
 
