@@ -14,6 +14,7 @@ See the [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 - Performance: matrix cores resolve their job once per frame, in one pass, not twice.
 - Bugfix: SGE node queue letters keep their XML order instead of varying per run.
 - Cleanup: drop WNOccupancy._valid_corejobs, unused since the single core pass.
+- CI: Dependabot bumps checkout 7.0.1, setup-python 7.1.0, CodeQL 4.39.2 and 5 more actions (#590).
 - Release: update version metadata to 0.9.20261112
 
 ## 0.9.20261111
