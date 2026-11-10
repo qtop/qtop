@@ -9,6 +9,8 @@ See the [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 - Bugfix: an unsupported worker node name raises a clear ValueError.
 - Bugfix: with -c ON, the watch-mode menu numbers are coloured again.
 - Feature: demo watch mode lists its keys, q quit first, in a yellow line (bold with -c OFF) above the job summary.
+- Feature: `Summary  :` lines up with `Queueing :`; tests, sample gates and validate_trace_export follow.
+- Bugfix: watch mode lists queues one per line when the summary is wider than the terminal, so section 1 stays visible.
 - Deprecated: qtop.py's global-based legacy adapters now warn; see docs/architecture.md.
 - Tests: revive a disabled YAML dash-key case; drop an obsolete user_sort lambda case.
 - Refactor: drop commented-out code; split two overlong state regexes.

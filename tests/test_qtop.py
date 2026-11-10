@@ -37,6 +37,7 @@ from qtop_py.qtop import (
     init_dirs,
 )
 from qtop_py.ui import mvu_view
+from qtop_py.ui.viewport import Viewport
 
 SYMBOL_NON_EXISTENT_NODE = "#"
 SYMBOL_SEPARATOR = "|"
@@ -557,6 +558,24 @@ def test_queueing_summary_preserves_order_and_expands(capsys):
 
     output = capsys.readouterr().out
     assert "Queueing :\n  compute: 1 + 1 |\n  debug: 1 |" in output
+
+
+@pytest.mark.parametrize(
+    "queues, watch, overrides, expanded",
+    ((150, True, {}, True), (2, True, {}, False), (150, False, {}, False), (150, True, {"queue_summary_expanded": False}, False)),
+)
+def test_queue_summary_expands_in_watch_mode_when_wider_than_the_terminal(capsys, queues, watch, overrides, expanded):
+    queues_dict = {"queue_%03d" % index: SimpleNamespace(run="1", queued="2", state="E") for index in range(queues)}
+    cluster = SimpleNamespace(total_running_jobs=0, total_queued_jobs=0, queues_dict=queues_dict, total_wn=0, offdown_nodes=0, available_wn=0, working_cores=0, total_cores=0)
+    args = SimpleNamespace(REMAP=False, CLASSIC=False, WATCH=watch, ANONYMIZE=True, COLOR="OFF")
+    viewport = Viewport()
+    viewport.set_term_size(40, 100)
+    model = MVU_Model({}, args, viewport, backend=qtop_module.scheduler_backend("pbs"), display_overrides=overrides)
+    TextDisplay(None, {}, viewport, None, cluster, args, MVU_model=model).display_job_accounting_summary(cluster, None)
+
+    output = capsys.readouterr().out
+    assert ("Queueing :\n  queue_000: 1 + 2 |" in output) is expanded
+    assert ("Queueing : queue_000: 1 + 2 |" in output) is not expanded
 
 
 def test_demo_notice_uses_high_contrast_blue(monkeypatch):

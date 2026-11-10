@@ -130,12 +130,12 @@ class TextDisplay(object):
             job_counts = [totals.get(key, 0) for key, _ in summary_states]
             job_labels = " + ".join(label for _, label in summary_states)
         print(
-            "%(Summary)s: Total:%(total_nodes)s Up:%(online_nodes)s Free:%(available_nodes)s %(Nodes)s | %("
+            "%(Summary)s  : Total:%(total_nodes)s Up:%(online_nodes)s Free:%(available_nodes)s %(Nodes)s | %("
             "working_cores)s/%("
             "total_cores)s %(Cores)s |"
             "   %(job_counts)s %(jobs)s (%(job_labels)s) %(reported_by)s"
             % {
-                "Summary": self.MVU_model.MVU_colorize("Summary  ", "Cyan_L"),
+                "Summary": self.MVU_model.MVU_colorize("Summary", "Cyan_L"),
                 "total_nodes": self.MVU_model.MVU_colorize(str(cluster.total_wn), "Red_L"),
                 "online_nodes": self.MVU_model.MVU_colorize(str(cluster.total_wn - cluster.offdown_nodes), "Red_L"),
                 "available_nodes": self.MVU_model.MVU_colorize(str(cluster.available_wn), "Red_L"),
@@ -151,6 +151,9 @@ class TextDisplay(object):
         )
 
         expanded = self.MVU_model.display_overrides.get("queue_summary_expanded", getattr(self.args, "EXPAND_QUEUES", False))
+        if not expanded and self.args.WATCH and self.viewport and "queue_summary_expanded" not in self.MVU_model.display_overrides:  # one per line if too wide
+            line = "".join("%s*: %s + %s | " % (name, queue.run, queue.queued) for name, queue in queues.items())
+            expanded = len("Queueing : * implies blocked" + self.MVU_model.backend.blocked_queue_note + line) > self.viewport.h_term_size
         print("%(queues)s :" % {"queues": self.MVU_model.MVU_colorize("Queueing", "Cyan_L")}, end="\n" if expanded else " ")
         for _queue_name, q_tuple in queues.items():
             q_running_jobs, q_queued_jobs = q_tuple.run, q_tuple.queued
