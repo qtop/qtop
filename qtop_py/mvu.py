@@ -158,7 +158,7 @@ def MVU_node_job_ids(node: Mapping[str, Any], backend: Any = None) -> Set[str]:
 
 def MVU_update(model: "MVU_Model", message: str, payload: Any = None) -> Tuple["MVU_Model", Tuple[Tuple[str, Optional[str]], ...]]:
     """Return the next model and effect requests without performing terminal or scheduler I/O."""
-    keys = set(NAVIGATION_KEYS) | {"snapshot", "layout", "t", "Q", "m", "q", "F", "s", "f", "H", "?", "r"}
+    keys = set(NAVIGATION_KEYS) | {"snapshot", "layout", "t", "Q", "m", "q", "F", "s", "f", "H", "?", "r", "1", "2", "3", "4"}
     if message not in keys:
         return model, ()
     next_model = copy.copy(model)
@@ -186,6 +186,10 @@ def MVU_update(model: "MVU_Model", message: str, payload: Any = None) -> Tuple["
         mapping = "queue_to_color" if next_model.display_overrides.get("core_coloring", "user_to_color") == "user_to_color" else "user_to_color"
         next_model.display_overrides["core_coloring"] = mapping
         effects.append(("notice", "Changing to " + ("queue" if mapping == "queue_to_color" else "user")))
+    elif message in ("1", "2", "3", "4"):  # as -1, -2, -3 hide sections 1-3 and -4 the accounts totals row
+        key = "SHOW_ACCOUNT_TOTALS" if message == "4" else "sect_%s_off" % message
+        next_model.display_overrides[key] = not next_model.display_overrides.get(key, getattr(next_model.args, key, message == "4"))
+        effects.append(("notice", "Toggling the accounts totals row" if message == "4" else "Toggling section " + message))
     elif message == "F":
         next_model.display_overrides["force_names"] = not next_model.display_overrides.get("force_names", False)
         effects.append(("notice", "Toggling full-name/incremental nr WN labels"))

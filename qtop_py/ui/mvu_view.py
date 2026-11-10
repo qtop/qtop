@@ -51,7 +51,7 @@ def summary_count_colours(config: "Config") -> Tuple[str, ...]:
     return ("WhiteOnBlue", "BlackOnGreen", "BlackOnOrange256" if wide else "WhiteOnRed", "BlackOnGold")
 
 
-DEMO_WATCH_KEYS = "Keys: q quit, ? help, m colour, t transpose, H highlight, f filter, s sort, hjkl scroll"
+DEMO_WATCH_KEYS = "Keys: q quit, ? help, m colour, t transpose, H highlight, f filter, s sort, 1-4 sections, hjkl scroll"
 BOLD = "\033[1m%s\033[0m"
 
 
@@ -69,13 +69,13 @@ class TextDisplay(object):
         # A cell's escape sequence depends only on (char, colour) within a frame: compute each pair once.
         self._cell_text = lru_cache(maxsize=None)(lambda char, color: MVU_model.MVU_colorize(char, color_func=color))
 
+    def _toggled(self, key: str, default: bool) -> bool:
+        """Return a watch-mode toggle (keys 1-4), else the command-line value."""
+        return bool(getattr(self.MVU_model, "display_overrides", {}).get(key, getattr(self.args, key, default)))
+
     def display_selected_sections(self, _savepath: str, SAMPLE_FILENAME: str, QTOP_LOGFILE: str) -> None:
         """Print the sections listed in user_display_parts, minus those disabled with -1, -2 or -3."""
-        sections_off = {  # cmdline argument -n
-            1: self.args.sect_1_off,
-            2: self.args.sect_2_off,
-            3: self.args.sect_3_off,
-        }
+        sections_off = {idx: self._toggled("sect_%d_off" % idx, False) for idx in (1, 2, 3)}  # -1, -2, -3, or keys 1-3
         display_parts: Dict[str, Tuple[Callable[..., Any], Tuple[Any, ...]]] = {
             "job_accounting_summary": (self.display_job_accounting_summary, (self.cluster, self.snapshot)),
             "workernodes_matrix": (self.display_wns_occupancy, (self.wns_occupancy, self.cluster)),
@@ -269,7 +269,7 @@ class TextDisplay(object):
             userid_pat = user_color_patterns[str(uid)]
             self.display_account_jobs_line(line, userid_pat, detail_of_name, group_of_name)
 
-        totals = self.account_jobs_totals(account_jobs_table) if getattr(self.args, "SHOW_ACCOUNT_TOTALS", True) else None
+        totals = self.account_jobs_totals(account_jobs_table) if self._toggled("SHOW_ACCOUNT_TOTALS", True) else None
         if totals:
             self.display_account_jobs_line(totals, "account_not_colored", detail_of_name, group_of_name, highlight=True)
 

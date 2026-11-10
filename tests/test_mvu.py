@@ -60,6 +60,20 @@ def test_MVU_update_returns_owned_state_and_effects_without_io(tmp_path, monkeyp
     assert model.display_overrides == original_overrides
 
 
+SECTION_KEYS = [("1", "sect_1_off", "Job accounting summary"), ("2", "sect_2_off", "Worker Nodes occupancy"), ("3", "sect_3_off", "User accounts")]
+SECTION_KEYS += [("4", "SHOW_ACCOUNT_TOTALS", "Totals")]
+
+
+@pytest.mark.parametrize("key, override, gone", SECTION_KEYS)
+def test_number_keys_toggle_sections(tmp_path, monkeypatch, capsys, key, override, gone):
+    model = MVU_test_model(tmp_path, monkeypatch)
+    hidden, effects = MVU_update(model, key)
+    assert effects[0][0] == "notice" and MVU_update(hidden, key)[0].display_overrides[override] is not hidden.display_overrides[override]
+    for current, shown in ((model, True), (hidden, False)):
+        MVU_view(MVU_query(current), str(tmp_path), "sample.tar", "qtop.log")
+        assert (gone in capsys.readouterr().out) is shown
+
+
 @pytest.mark.parametrize("force_names", [False, True])
 def test_MVU_query_and_view_need_no_runtime_globals_or_mutable_snapshot(tmp_path, monkeypatch, capsys, force_names):
     model = MVU_test_model(tmp_path, monkeypatch)

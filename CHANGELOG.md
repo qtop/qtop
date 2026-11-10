@@ -28,6 +28,7 @@ See the [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 - Tests: the #121 paging test reads pages with Path.read_text(), without bare open() in an assert (CodeQL).
 - Cleanup: drop the unused navigate_viewport, yaml_parser.load_all and assign_color_to_each_qname.
 - Tools: make test-slurm-samples uses the sample gate, which also refuses unsafe artifact directories; validate_slurm_samples.py removed.
+- Feature: in watch mode keys 1, 2, 3 show/hide sections 1-3 and 4 the accounts totals row, like -1 to -4.
 - Release: update version metadata to 0.9.20261111
 
 ## 0.9.20261110

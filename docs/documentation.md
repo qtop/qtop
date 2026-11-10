@@ -376,6 +376,8 @@ Watch mode supports:
 | r | cycle all / real / used core lines |
 | s | apply sorting (remapped matrices; numbered ones keep node order) |
 | t | transpose the matrix |
+| 1, 2, 3 | show / hide sections 1-3 (as ``-1``, ``-2``, ``-3``) |
+| 4 | show / hide the accounts totals row (as ``-4``) |
 | ? | toggle interactive help |
 | q | quit qtop |
 

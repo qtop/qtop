@@ -21,6 +21,8 @@ View and analysis
   Q              expand / collapse the queueing summary
   r              cycle all / real / used core lines
   t              transpose the worker-node matrix
+  1 2 3          show / hide sections 1-3 (as -1, -2, -3)
+  4              show / hide the accounts totals row (as -4)
 
 Session
 
