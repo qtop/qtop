@@ -7,6 +7,7 @@
 ##
 
 import os
+import sys
 from pathlib import Path
 
 import pytest
@@ -239,6 +240,29 @@ def test_host_expansion_limit(monkeypatch, caplog):
     for value in ("node[1-4]", "rack[1-2]node[1-2]", "node[1-2],other[1-2]"):
         assert SlurmBatchSystem.expand_nodelist(value) == []
     assert "too many expanded hosts" in caplog.text
+
+
+@pytest.mark.parametrize("sample_name", ("cpu_allocations", "partial_and_malformed"))
+def test_worker_nodes_expand_each_job_node_list_once_per_collection(monkeypatch, sample_name):
+    files = scheduler_files(sample_name)
+    scontrol = os.path.join(os.path.dirname(files["squeue_file"]), "scontrol.txt")
+    if os.path.exists(scontrol):
+        files["scontrol_file"] = scontrol
+    slurm = SlurmBatchSystem(files, {}, Options())
+    ids, _users, _states, queues = slurm.get_jobs_info()
+    expected = slurm.get_worker_nodes(ids, queues, Options())
+    calls = []
+    expand = SlurmBatchSystem.expand_nodelist.__func__
+
+    def counting(cls, nodelist):
+        if sys._getframe(1).f_code.co_name not in ("_read_cpu_allocations", "_apply_gpu_allocations"):  # not scontrol's own lists
+            calls.append(nodelist)
+        return expand(cls, nodelist)
+
+    monkeypatch.setattr(SlurmBatchSystem, "expand_nodelist", classmethod(counting))
+    assert slurm.get_worker_nodes(ids, queues, Options()) == expected
+    job_lists = [job["Nodes"] for job in slurm._get_jobs() if job["S"] in SlurmBatchSystem.ACTIVE_STATES]
+    assert job_lists and all(calls.count(nodelist) == 1 for nodelist in job_lists)  # was once per pass: up to 4 times
 
 
 @pytest.mark.parametrize("anonymize", (False, True))
