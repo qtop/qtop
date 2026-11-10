@@ -425,19 +425,21 @@ class WNOccupancy(object):
                 raise ValueError("list.remove(x): x not in list")
             del node_free_cores[core]
 
-        for core, job in corejobs.items():
-            if self._resolve(str(job), job_to_user_and_queue) not in job_to_user_and_queue:
-                core_user_map["Core" + str(core) + "vector"].append(utils.ColorStr("?", color="Yellow"))
-                take(str(core))
         # One cell per (user, queue) per frame: every input to its colour is frame-constant,
         # and cells are never modified after creation, so cores of the same job share it.
         cells = self.__dict__.setdefault("_core_cells", {})  # per frame: lives on this WNOccupancy
-        for user, core, queue in self._valid_corejobs(corejobs, job_to_user_and_queue):
-            id_ = cells.get((user, queue))
-            if id_ is None:
-                id_ = cells[user, queue] = self._core_cell(user, queue, _core_coloring)
-            core_user_map["Core" + str(core) + "vector"].append(id_)
-            take(core)  # this is an assigned core, hence it doesn't belong to the node's free cores
+        for core, job in corejobs.items():  # one pass: each assigned core resolves its job once
+            take(str(core))  # an assigned core is not free; an invalid or repeated one raises
+            resolved = self._resolve(str(job), job_to_user_and_queue)
+            user_queue = job_to_user_and_queue.get(resolved)
+            if user_queue is None:  # as str(KeyError(resolved)) in the former second pass
+                logging.warning("Scheduler node allocation references an unlisted job (ID %r). Please check with the SysAdmin.", resolved)
+                cell = utils.ColorStr("?", color="Yellow")
+            else:
+                cell = cells.get(user_queue)
+                if cell is None:
+                    cell = cells[user_queue] = self._core_cell(user_queue[0], user_queue[1], _core_coloring)
+            core_user_map["Core" + str(core) + "vector"].append(cell)
 
         return core_user_map, list(node_free_cores)
 
