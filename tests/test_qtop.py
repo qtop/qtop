@@ -578,8 +578,9 @@ def test_queue_summary_expands_in_watch_mode_when_wider_than_the_terminal(capsys
 @pytest.mark.parametrize("color", ("OFF", "ON"))
 def test_expanded_queues_align_and_count_other_jobs_per_queue(capsys, monkeypatch, color):
     monkeypatch.setenv("TERM", "xterm-256color")
-    queues = {"batch": SimpleNamespace(run="12", queued="3", state="E"), "q": SimpleNamespace(run="0", queued="105", state="D")}
-    jobs = {str(n): SimpleNamespace(job_state=state, job_queue=queue) for n, (state, queue) in enumerate((("R", "batch"), ("C", "batch"), ("E", "batch"), ("W", "q")))}
+    queues = {"batch": SimpleNamespace(run="2", queued="1", state="E"), "q": SimpleNamespace(run="0", queued="105", state="D")}
+    listing = (("R", "batch"), ("R", "batch"), ("Q", "batch"), ("C", "batch"), ("E", "batch"), ("W", "q"))  # q's W is in its 105 already
+    jobs = {str(n): SimpleNamespace(job_state=state, job_queue=queue) for n, (state, queue) in enumerate(listing)}
     cluster = SimpleNamespace(total_running_jobs=12, total_queued_jobs=108, queues_dict=queues, total_wn=0, offdown_nodes=0, available_wn=0, working_cores=0, total_cores=0)
     args = SimpleNamespace(REMAP=False, CLASSIC=False, WATCH=False, EXPAND_QUEUES=True, ANONYMIZE=True, COLOR=color)
     model = MVU_Model({}, args, None, backend=qtop_module.scheduler_backend("pbs"))
@@ -588,7 +589,7 @@ def test_expanded_queues_align_and_count_other_jobs_per_queue(capsys, monkeypatc
 
     lines = [re.sub(r"\x1b\[[0-9;]*m", "", line) for line in capsys.readouterr().out.splitlines()]
     start = lines.index("Queueing :")
-    assert lines[start + 1 : start + 4] == ["           Total    R     Q   Other", "  batch  :    17 = 12 +   3 +     2", "  q*     :   106 =  0 + 105 +     1"]
+    assert lines[start + 1 : start + 4] == ["           Total   R     Q   Other", "  batch  :     5 = 2 +   1 +     2", "  q*     :   105 = 0 + 105 +     0"]
 
 
 def test_demo_notice_uses_high_contrast_blue(monkeypatch):
@@ -1164,10 +1165,14 @@ def test_account_state_columns_are_tunable_with_labels_and_other(monkeypatch, ca
     assert lines[-1].startswith("[ T] Totals            |  10      3      1      3      0      3 |     2 |")
 
 
-def _summary(config, jobs_states, color="OFF"):
+# A Torque-like listing behind qstat -q's 7 running and 4 queued: its Que also counts the 2 W jobs.
+LISTED = ["R"] * 7 + ["Q", "Q", "W", "W", "C"]
+
+
+def _summary(config, jobs_states, color="OFF", queues=True):
     class Cluster(object):
         total_running_jobs, total_queued_jobs = 7, 4
-        queues_dict = {}
+        queues_dict = {"batch": SimpleNamespace(run="7", queued="4", state="E")} if queues else {}
         total_wn = offdown_nodes = available_wn = working_cores = total_cores = 0
 
     args = SimpleNamespace(REMAP=False, CLASSIC=False, WATCH=True, COLOR=color)
@@ -1178,8 +1183,13 @@ def _summary(config, jobs_states, color="OFF"):
 
 
 def test_summary_states_default_to_scheduler_reported_r_plus_q(capsys):
-    _summary({}, ["R", "C"])  # R and Q as the scheduler reports them; Other counts the listed C job
+    _summary({}, LISTED)  # R and Q as the scheduler reports them; Other is the one listed job beyond them (C), not W again
     assert "|   12=7+4+1 jobs (Total=R+Q+Other)" in capsys.readouterr().out
+
+
+def test_summary_counts_the_job_list_without_queue_totals(capsys):  # e.g. an empty qstat -q
+    _summary({}, LISTED, queues=False)
+    assert "|   12=7+2+3 jobs (Total=R+Q+Other)" in capsys.readouterr().out
 
 
 @pytest.mark.parametrize(
@@ -1189,13 +1199,13 @@ def test_summary_states_default_to_scheduler_reported_r_plus_q(capsys):
 def test_summary_counts_have_blue_green_orange_yellow_backgrounds(capsys, monkeypatch, term, colorterm, orange):
     monkeypatch.setenv("TERM", term)
     monkeypatch.setenv("COLORTERM", colorterm)
-    _summary({}, ["R", "C"], color="ON")
+    _summary({}, LISTED, color="ON")
     counts = ["\x1b[%sm%s\x1b[0;m" % pair for pair in zip(("1;37;44", "0;30;42", orange, "0;30;43"), ("12", "7", "4", "1"))]
     assert counts[0] + "=" + "+".join(counts[1:]) in capsys.readouterr().out
 
 
 def test_summary_colours_are_configurable(capsys):
-    _summary({"summary_colours": ["BlackOnBlue", "BlackOnRed"]}, ["R", "C"], color="ON")  # two colours, reused in turn
+    _summary({"summary_colours": ["BlackOnBlue", "BlackOnRed"]}, LISTED, color="ON")  # two colours, reused in turn
     counts = ["\x1b[%sm%s\x1b[0;m" % pair for pair in zip(("0;30;44", "0;30;41", "0;30;44", "0;30;41"), ("12", "7", "4", "1"))]
     assert counts[0] + "=" + "+".join(counts[1:]) in capsys.readouterr().out
 
@@ -1203,7 +1213,7 @@ def test_summary_colours_are_configurable(capsys):
 @pytest.mark.parametrize("tty", (True, False))
 def test_monochrome_summary_counts_are_reversed_only_on_a_terminal(capsys, monkeypatch, tty):
     monkeypatch.setattr(sys, "__stdout__", SimpleNamespace(isatty=lambda: tty))
-    _summary({}, ["R", "C"])
+    _summary({}, LISTED)
     expected = "\x1b[7m12\x1b[0m=\x1b[7m7\x1b[0m+\x1b[7m4\x1b[0m+\x1b[7m1\x1b[0m" if tty else "12=7+4+1"
     assert "|   %s jobs (Total=R+Q+Other)" % expected in capsys.readouterr().out
 

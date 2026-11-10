@@ -304,7 +304,7 @@ paints its jobs and state counts the same way, so the two can be compared.
 On PBS the default Summary R and Q are ``qstat -q``'s queue totals, while the
 accounts table counts ``qstat``'s job list, so the two can differ by a few jobs:
 the commands run moments apart, and ``qstat -q`` also counts jobs the job list
-may not show. The bundled PBS sample shows ``10956=7590+3365+1`` against a
+may not show. The bundled PBS sample shows ``10955=7590+3365+0`` against a
 totals row of ``10954``, ``7588`` R and ``3365`` Q. This is in the input, not
 in qtop; set ``summary_states`` to count the job list on both sides.
 

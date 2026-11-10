@@ -138,11 +138,12 @@ class TextDisplay(object):
         summary_states = self.state_columns("summary_states")
         job_states = [job.job_state for job in snapshot.jobs_dict.values()] if snapshot is not None else []
         totals = WNOccupancy.job_state_totals(job_states, self.config.get("state_abbreviations", {}).get(self.MVU_model.scheduler, {}))
-        if summary_states is None:  # scheduler-reported R and Q, plus the listed jobs in neither state
-            other = len(job_states) - totals.get("running_of_user", 0) - totals.get("queued_of_user", 0)
-            job_counts, job_labels = [int(total_running_jobs), int(total_queued_jobs), other], ["R", "Q", "Other"]
+        if summary_states is None and queues:  # scheduler-reported R and Q; Other is the rest of the job list
+            running, queued = int(total_running_jobs), int(total_queued_jobs)  # PBS's qstat -q also counts W and H jobs as queued
+            job_counts, job_labels = [running, queued, max(len(job_states) - running - queued, 0)], ["R", "Q", "Other"]
             job_keys = ["running_of_user", "queued_of_user", "other_of_user"]
-        else:
+        else:  # summary_states, or no queue totals to report (e.g. an empty qstat -q): count the job list
+            summary_states = summary_states or [("running_of_user", "R"), ("queued_of_user", "Q"), ("other_of_user", "Other")]
             totals["other_of_user"] = len(job_states) - sum(totals.get(key, 0) for key, _ in summary_states if key != "other_of_user")
             job_counts, job_labels = [totals.get(key, 0) for key, _ in summary_states], [label for _, label in summary_states]
             job_keys = [key for key, _ in summary_states]
@@ -319,11 +320,11 @@ class TextDisplay(object):
         return columns
 
     def display_expanded_queues(self, queues: Mapping[str, Any], snapshot: Any) -> None:
-        """Print one aligned queue per line as Total=R+Q+Other, in the Summary colours; Other counts the listed jobs."""
-        states = self.config.get("state_abbreviations", {}).get(self.MVU_model.scheduler, {})
+        """Print one aligned queue per line as Total=R+Q+Other, in the Summary colours; Other is the queue's remaining listed jobs."""
         jobs = snapshot.jobs_dict.values() if snapshot is not None else ()
-        other = Counter(job.job_queue for job in jobs if states.get(job.job_state) not in ("running_of_user", "queued_of_user"))
-        rows = [(name, queue, [int(queue.run or 0), int(queue.queued or 0), other[name]]) for name, queue in queues.items()]
+        listed = Counter(job.job_queue for job in jobs)  # Other: the queue's listed jobs beyond its R and Q (PBS counts W and H as Q)
+        rows = [(name, queue, [int(queue.run or 0), int(queue.queued or 0)]) for name, queue in queues.items()]
+        rows = [(name, queue, counts + [max(listed[name] - sum(counts), 0)]) for name, queue, counts in rows]
         rows = [(name, queue, [sum(counts)] + counts) for name, queue, counts in rows]
         name_width = max([len(name) for name in queues] + [len("queue")])
         widths = [max([len(str(counts[index])) for _, _, counts in rows] + [len(label)]) for index, label in enumerate(("Total", "R", "Q", "Other"))]
