@@ -3,6 +3,7 @@
 """Critical MVU boundaries: explicit transitions and isolated query/presentation."""
 
 import copy
+import re
 import sys
 from pathlib import Path
 
@@ -13,6 +14,7 @@ from qtop_py.mvu import MVU_Model, MVU_update
 from qtop_py.mvu_query import MVU_query
 from qtop_py.plugins.slurm import SlurmBatchSystem
 from qtop_py.snapshot import Snapshot
+from qtop_py.ui import mvu_view
 from qtop_py.ui.mvu_view import MVU_view
 from qtop_py.ui.viewport import Viewport
 
@@ -72,6 +74,14 @@ def test_number_keys_toggle_sections(tmp_path, monkeypatch, capsys, key, overrid
     for current, shown in ((model, True), (hidden, False)):
         MVU_view(MVU_query(current), str(tmp_path), "sample.tar", "qtop.log")
         assert (gone in capsys.readouterr().out) is shown
+
+
+def test_watch_keys_line_stays_when_section_1_is_hidden(tmp_path, monkeypatch, capsys):
+    model, _ = MVU_update(MVU_test_model(tmp_path, monkeypatch), "1")
+    model.args.WATCH = True
+    MVU_view(MVU_query(model), str(tmp_path), "sample.tar", "qtop.log")
+    out = re.sub(r"\x1b\[[0-9;]*m", "", capsys.readouterr().out)
+    assert out.count(mvu_view.WATCH_KEYS_TEXT) == 1 and "Job accounting summary" not in out
 
 
 @pytest.mark.parametrize("force_names", [False, True])

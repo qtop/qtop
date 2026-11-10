@@ -627,9 +627,9 @@ def test_demo_notice_uses_high_contrast_blue(monkeypatch):
 
 @pytest.mark.parametrize(
     "scheduler, watch, color, key_style",
-    (("demo", True, "ON", "\x1b[1;33m"), ("demo", True, "OFF", "\x1b[1m"), ("demo", False, "OFF", None), ("slurm", True, "OFF", None)),
+    (("demo", True, "ON", "\x1b[1;33m"), ("demo", True, "OFF", "\x1b[1m"), ("demo", False, "OFF", None), ("slurm", True, "OFF", "\x1b[1m"), ("slurm", False, "ON", None)),
 )
-def test_demo_watch_mode_lists_keys_above_the_summary(capsys, scheduler, watch, color, key_style):
+def test_watch_mode_lists_keys_above_the_summary(capsys, scheduler, watch, color, key_style):
     cluster = SimpleNamespace(total_running_jobs=0, total_queued_jobs=0, queues_dict={}, total_wn=0, offdown_nodes=0, available_wn=0, working_cores=0, total_cores=0)
     args = SimpleNamespace(REMAP=False, CLASSIC=False, WATCH=watch, ANONYMIZE=True, COLOR=color)
     model = MVU_Model({}, args, None, backend=qtop_module.scheduler_backend(scheduler))
@@ -638,8 +638,8 @@ def test_demo_watch_mode_lists_keys_above_the_summary(capsys, scheduler, watch, 
     lines = capsys.readouterr().out.splitlines()
     plain = [re.sub(r"\x1b\[[0-9;]*m", "", line) for line in lines]
     summary = next(index for index, line in enumerate(plain) if "Job accounting summary" in line)
-    assert (plain[summary - 1] == mvu_view.DEMO_WATCH_KEYS) is (key_style is not None)
-    assert sum(line == mvu_view.DEMO_WATCH_KEYS for line in plain) == (key_style is not None)
+    assert (plain[summary - 1] == mvu_view.WATCH_KEYS_TEXT) is (key_style is not None)
+    assert sum(line == mvu_view.WATCH_KEYS_TEXT for line in plain) == (key_style is not None)
     if key_style:
         keys = ("\x1b[1;34mq\x1b[0;m\x1b[1;33m quit", "\x1b[1;34m1,2,3,4\x1b[0;m") if color == "ON" else ("\x1b[4mq\x1b[24m quit", "\x1b[4m1,2,3,4\x1b[24m")
         assert lines[summary - 1].startswith(key_style + "Keys: ") and all(key in lines[summary - 1] for key in keys)  # keys stand out from their labels

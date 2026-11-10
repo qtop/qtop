@@ -30,6 +30,7 @@ See the [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 - Tools: make test-slurm-samples uses the sample gate, which also refuses unsafe artifact directories; validate_slurm_samples.py removed.
 - Feature: in watch mode keys 1, 2, 3 show/hide sections 1-3 and 4 the accounts totals row, like -1 to -4.
 - Feature: the demo watch keys line shows its keys in light blue (underlined with -c OFF) and lists 1,2,3,4.
+- Bugfix: the watch keys line shows for every scheduler, not only the demo, and stays when section 1 is hidden.
 - Release: update version metadata to 0.9.20261111
 
 ## 0.9.20261110
