@@ -847,12 +847,6 @@ def wait_for_keypress_or_autorefresh(viewport: Viewport, config: Dict[str, Any],
     return _read_char
 
 
-def assign_color_to_each_qname(worker_nodes: Iterable[Dict[str, Any]]) -> None:
-    """Reduce each node's queue names to their initials."""
-    for worker_node in worker_nodes:
-        worker_node["qname"] = [q[0] for q in worker_node["qname"]]
-
-
 def discover_qtop_batch_systems() -> Dict[str, Any]:
     """Return the scheduler backends by name; raise OperationalError on an empty or duplicate name."""
     available_batch_systems = {}

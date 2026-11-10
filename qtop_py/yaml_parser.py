@@ -288,22 +288,6 @@ def safe_load(fin: str, DEF_INDENT: int = 2) -> Dict[str, Any]:
     return a_dict
 
 
-def load_all(fin: Iterable[str]) -> List[Dict[str, Any]]:
-    """Parse every YAML document in a stream; return them as a list."""
-    list_of_dicts = []
-    get_lines = get_line(fin)
-    while True:
-        try:
-            line = next(get_lines)
-        except StopIteration:
-            break
-        block, line = read_yaml_config_block(line, fin, get_lines)
-        block = convert_dash_key_in_dict(block)
-        list_of_dicts.append(block)
-
-    return list_of_dicts
-
-
 def get_yaml_key_part(config: Mapping[str, Any], scheduler: str, outermost_key: str) -> Iterator[Tuple[str, str, List[str]]]:
     """Yield the outermost_key entries that hold a user-set yaml key subkey."""
     # e.g. outermost_key is 'workernodes_matrix'
