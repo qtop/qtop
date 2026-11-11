@@ -91,11 +91,8 @@ jobs:
           name: fuzz-corpus-and-failures
           path: artifacts/fuzz/
 
+  # Starts at once, beside the test jobs: release.yml builds releases, so waiting here only delayed the install check.
   build:
-    needs:
-      - modern-python
-      - almalinux-python36
-      - type-check
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

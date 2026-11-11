@@ -15,6 +15,7 @@ See the [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 - Bugfix: SGE node queue letters keep their XML order instead of varying per run.
 - Cleanup: drop WNOccupancy._valid_corejobs, unused since the single core pass.
 - CI: Dependabot bumps checkout 7.0.1, setup-python 7.1.0, CodeQL 4.39.2 and 5 more actions (#590).
+- CI: build and the Python 3.6 install check no longer wait for the test jobs.
 - Release: update version metadata to 0.9.20261112
 
 ## 0.9.20261111
