@@ -39,11 +39,11 @@ ClusterState = {
 
 - `source.backend` names the plugin, and the operator chooses `source.cluster_id`.
   Both are nonempty text without `:`.
-- `qid` on jobs and nodes must equal `"<backend>:<cluster_id>:<native-id>"`,
-  where the native ID is the job's `id` or the node's `domainname`. It is
-  unique among the observation's jobs, and separately among its nodes, so qids
-  from different backends or clusters cannot collide when observations are
-  combined. A job and a node may share a native ID.
+- `qid` on jobs, nodes and queues must equal `"<backend>:<cluster_id>:<native-id>"`,
+  where the native ID is the job's `id`, the node's `domainname` or the queue's
+  `name`. It is unique within its relation, so qids from different backends or
+  clusters cannot collide when observations are combined. A job, a node and a
+  queue may share a native ID.
   `qid` stands for *qualified ID*: the backend's own job ID or node name,
   qualified by its source. It is deliberately not called `uid`, which in qtop
   means a Unix user ID, and it promises no more persistence than the backend
@@ -55,7 +55,9 @@ ClusterState = {
 
 Anonymization ([sample.py](../qtop_py/sample.py)) keeps the backend, masks
 `cluster_id`, and rebuilds each `qid` from the backend, the masked cluster ID
-and the record's already-masked `id` or `domainname`. A masked qid therefore
+and the record's already-masked `id`, `domainname` or queue `name`. Queues,
+like jobs and nodes, are rebuilt from known fields only, so an unknown field
+that might hold a name is dropped. A masked qid therefore
 still matches the masked job IDs in `core_job_map` and the other references.
 `kind` is kept. Original identifiers never reach an archive.
 
@@ -112,6 +114,39 @@ observations as the same entity beyond what the backend guarantees.
   backend reports, and `cpu_allocation_source` says whether it is exact.
 - **Utilization:** what was actually consumed over time. It is not part of an
   observation; it needs intervals and lives in FinOps adapters.
+
+## Extending the schema
+
+[Issue #593](https://github.com/qtop/qtop/issues/593) proposes typed sparse
+relations (requests, allocations, topology, capacity pools, predictions). The
+current schema is ready for them without carrying any of them:
+
+- **The top level is closed.** `validate_cluster_state()` accepts only the
+  relations, the known `*_diagnostics` and the envelope keys of the state's
+  version (`SCHEMA_KEYS` in [cluster_state.py](../qtop_py/cluster_state.py)),
+  and names any other key in its error. An older qtop therefore rejects a
+  newer observation instead of silently showing part of it. A new top-level
+  collection is one new `SCHEMA_KEYS` row, that is a new `schema_version`, plus
+  its own validation; versions 1 and 2 keep their meaning.
+- **Records are open but unvalidated.** Unknown record fields pass validation
+  and are dropped by anonymization, which rebuilds jobs, nodes and queues from
+  known fields. A new field that holds an identifier or a name must land with
+  its validation and its masking in the same change (issue #593, invariant E12).
+- **References use qids.** Every job, node and queue can already carry a
+  validated qid, the reference a future relation record points to.
+- **Absent is not empty.** A backend omits what it did not observe; it never
+  emits empty collections or maps for completeness.
+- **Predictions stay apart.** `core_job_map` holds actual or estimated
+  assignments only (`cpu_allocation_source`), never predicted ones.
+
+Open decisions, left to issue #593 on purpose:
+
+- Extending version 2 in place or introducing version 3 for new collections,
+  and whether an `extensions` namespace should open the top level to
+  experimental relations.
+- Whether `kind` stays a closed list (`JOB_KINDS`) or allows namespaced kinds.
+- Containment (`parent_qid`), the relation and topology vocabulary, units, and
+  how predictions relate to actual allocations.
 
 ## Deferred on purpose
 

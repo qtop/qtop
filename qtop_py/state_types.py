@@ -74,8 +74,13 @@ if TYPE_CHECKING:
         qname: List[Optional[str]]
         core_job_map: Dict[Union[int, str], str]
 
-    class Queue(TypedDict):
-        """A queue in the cluster state: name, limit, job counts and state."""
+    class QueueIdentity(TypedDict, total=False):
+        """The optional schema 2 qualified ID of a scheduling domain."""
+
+        qid: str  # schema 2 qualified ID "<backend>:<cluster_id>:<name>", unique among queues
+
+    class Queue(QueueIdentity):
+        """A scheduling domain (queue, partition, ...): name, limit, job counts and state."""
 
         name: str
         limit: str

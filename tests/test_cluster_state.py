@@ -178,6 +178,7 @@ def observation(**source):
     state["source"] = dict({"backend": "slurm", "cluster_id": "cluster-a"}, **source)
     state["jobs"][0].update(qid="slurm:cluster-a:42", kind="job")
     state["nodes"][0]["qid"] = "slurm:cluster-a:node001"
+    state["queues"][0]["qid"] = "slurm:cluster-a:" + state["queues"][0]["name"]
     return state
 
 
@@ -214,6 +215,8 @@ def test_unknown_schema_versions_are_rejected(version):
         lambda state: state["jobs"][0].update(qid="slurm:cluster-a:42:x"),
         lambda state: state["jobs"][0].update(qid="SLURM:cluster-a:42"),  # another backend's namespace
         lambda state: state["jobs"].append(dict(state["jobs"][0])),  # a duplicate job qid
+        lambda state: state["queues"][0].update(qid="slurm:cluster-a:other"),  # not the queue's name
+        lambda state: state["queues"].append(dict(state["queues"][0])),  # a duplicate queue qid
         lambda state: state["jobs"][0].update(kind="container"),
         lambda state: state["nodes"][0].update(kind="vm"),
     ],
@@ -222,6 +225,15 @@ def test_schema_2_envelope_and_identities_are_unambiguous(change):
     state = observation()
     change(state)
     with pytest.raises((TypeError, ValueError)):
+        validate_cluster_state(state)
+
+
+@pytest.mark.parametrize("version", [1, 2])
+def test_top_level_is_closed_so_unknown_collections_are_rejected_not_dropped(version):
+    # Issue #593: a new collection needs a new schema version; until then an unknown key is an error, by name.
+    state = observation() if version == 2 else sample_state()
+    state["allocations"] = []
+    with pytest.raises(ValueError, match="unknown in schema_version %d: allocations" % version):
         validate_cluster_state(state)
 
 

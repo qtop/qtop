@@ -17,9 +17,14 @@ from qtop_py.schedulers.metadata import DIAGNOSTICS, validate_diagnostics, valid
 
 CLUSTER_STATE_KEYS = ("jobs", "nodes", "queues")
 # Schema 1 is the bare jobs/nodes/queues state, with no envelope. Schema 2 adds the
-# observation envelope and optional job/node qid and job kind (docs/cluster-state-model.md).
+# observation envelope, an optional qid on jobs, nodes and queues, and job kind (docs/cluster-state-model.md).
 ENVELOPE_KEYS = ("schema_version", "source")
+# The top level is closed: every key is a relation, a scheduler's diagnostics or one of these envelope keys
+# of the state's schema version. A new top-level collection (issue #593) is a new row here, i.e. a new
+# schema version, so an older reader rejects it instead of silently dropping data it cannot see.
+SCHEMA_KEYS = {1: frozenset(("schema_version",)), 2: frozenset(ENVELOPE_KEYS)}
 JOB_KINDS = ("job", "pod", "vm", "task")
+NATIVE_IDS = {"jobs": "id", "nodes": "domainname", "queues": "name"}  # the native ID inside each relation's qid
 
 
 def build_cluster_state(
@@ -80,14 +85,26 @@ def _core_job_map_types_valid(cores: Dict[object, object]) -> bool:
     return all(isinstance(core, (str, int)) and isinstance(job, str) for core, job in cores.items())
 
 
-def _qid_prefix(data: Dict[str, object]) -> Optional[str]:
-    """Check the schema version and source; return the qid namespace "backend:cluster_id:", or None for schema 1."""
+def _schema_version(data: Dict[str, object]) -> int:
+    """Return the schema version, 1 when absent, after checking the top-level keys it allows."""
     version = data.get("schema_version", 1)
-    if type(version) is not int or version not in (1, 2):
+    if type(version) is not int or version not in SCHEMA_KEYS:
         raise ValueError("unsupported cluster state schema_version %r" % (version,))
+    if version == 1 and "source" in data:
+        raise ValueError("cluster state source requires schema_version 2")
+    keys = set(data)
+    unknown = keys - DIAGNOSTICS.keys() - SCHEMA_KEYS[version] - set(CLUSTER_STATE_KEYS)
+    if unknown or not keys.issuperset(CLUSTER_STATE_KEYS):
+        raise ValueError(
+            "cluster state keys must be jobs, nodes, queues with optional scheduler diagnostics%s"
+            % ("; unknown in schema_version %d: %s" % (version, ", ".join(sorted(unknown))) if unknown else "")
+        )
+    return version
+
+
+def _qid_prefix(data: Dict[str, object], version: int) -> Optional[str]:
+    """Check the source; return the qid namespace "backend:cluster_id:", or None for schema 1."""
     if version == 1:
-        if "source" in data:
-            raise ValueError("cluster state source requires schema_version 2")
         return None
     source = _record(data.get("source"), "cluster state source")
     if set(source) != {"backend", "cluster_id"} or not all(isinstance(value, str) and value and ":" not in value for value in source.values()):
@@ -100,8 +117,9 @@ def _validate_identity(key: str, record: Dict[str, object], qid_prefix: Optional
         raise ValueError("%s qid and kind require schema_version 2" % key)
     if "qid" in record:
         qid = record["qid"]
-        if qid != qid_prefix + cast(str, record["id" if key == "jobs" else "domainname"]):
-            raise ValueError("%s qid must be %s<%s>" % (key, qid_prefix, "id" if key == "jobs" else "domainname"))
+        native = NATIVE_IDS[key]
+        if not isinstance(qid, str) or qid != qid_prefix + cast(str, record[native]):
+            raise ValueError("%s qid must be %s<%s>" % (key, qid_prefix, native))
         if qid in qids:
             raise ValueError("%s qid %r is not unique among %s" % (key, qid, key))
         qids.add(qid)
@@ -112,11 +130,10 @@ def _validate_identity(key: str, record: Dict[str, object], qid_prefix: Optional
 def validate_cluster_state(cluster_state: object) -> "ClusterState":
     """Validate imported records before claiming the static snapshot contract."""
     data = _record(cluster_state, "cluster state")
-    if set(data) - DIAGNOSTICS.keys() - set(ENVELOPE_KEYS) != set(CLUSTER_STATE_KEYS):
-        raise ValueError("cluster state keys must be jobs, nodes, queues with optional scheduler diagnostics")
+    version = _schema_version(data)
     validate_diagnostics(data)
-    qid_prefix = _qid_prefix(data)
-    qids: Dict[str, Set[str]] = {"jobs": set(), "nodes": set()}  # a qid is unique within its relation
+    qid_prefix = _qid_prefix(data, version)
+    qids: Dict[str, Set[str]] = {key: set() for key in CLUSTER_STATE_KEYS}  # a qid is unique within its relation
     for key, fields in (("jobs", ("id", "user", "state", "queue")), ("nodes", ("domainname", "state")), ("queues", ("name", "limit", "state"))):
         entries = data[key]
         if not isinstance(entries, list):
@@ -126,7 +143,7 @@ def validate_cluster_state(cluster_state: object) -> "ClusterState":
             if any(not isinstance(record.get(field), str) for field in fields):
                 raise TypeError("%s record requires text fields: %s" % (key, ", ".join(fields)))
             validate_record_extensions(key, record)
-            if key != "queues" and ("qid" in record or "kind" in record):
+            if "qid" in record or "kind" in record:
                 _validate_identity(key, record, qid_prefix, qids[key])
             if key == "jobs" and "accounting_state" in record and record["accounting_state"] not in ("running", "queued", "other"):
                 raise ValueError("job accounting_state must be running, queued or other")
