@@ -5,6 +5,7 @@ See the [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 
 ## 0.9.20261112
 
+- Performance: cluster-state validation checks core maps and job-ID lists by exact type first, full isinstance() checks otherwise; about 33% faster on 2000 nodes.
 - Performance: the core matrix fills core lines by position, without building a key per core; about 45% faster on 2000 nodes.
 - Performance: snapshots make the raw and display-safe copies in one traversal; about 2x faster on a 2000-node trace.
 - Performance: Slurm builds each node's core map with dict(enumerate()), about 2x faster for that step.

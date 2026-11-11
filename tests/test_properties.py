@@ -235,3 +235,16 @@ def test_raw_and_visible_matches_both_passes_and_owns_every_container(value):
     raw_ids, safe_ids = ({id(container) for container in _containers(copy_, [])} for copy_ in (raw, safe))
     assert not raw_ids & owned and not safe_ids & owned and not raw_ids & safe_ids
 
+
+@given(st.dictionaries(JSON_KEYS | st.floats(allow_nan=False) | st.none(), JSON_LEAVES, max_size=6))
+def test_core_job_map_fast_path_accepts_exactly_what_isinstance_accepts(cores):
+    from qtop_py.cluster_state import _core_job_map_types_valid
+
+    assert _core_job_map_types_valid(cores) == all(isinstance(core, (str, int)) and isinstance(job, str) for core, job in cores.items())
+
+
+@given(st.lists(JSON_LEAVES, max_size=6))
+def test_nonempty_texts_fast_path_matches_isinstance_check(values):
+    from qtop_py.schedulers.metadata import _nonempty_texts
+
+    assert _nonempty_texts(values) == all(isinstance(value, str) and value for value in values)

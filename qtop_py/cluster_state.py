@@ -63,6 +63,19 @@ def _record(value: object, label: str) -> Dict[str, object]:
     return cast(Dict[str, object], value)
 
 
+_CORE_KEY_TYPES = frozenset((int, str))
+_TEXT_TYPE = frozenset((str,))
+
+
+def _core_job_map_types_valid(cores: Dict[object, object]) -> bool:
+    """Check every core is an int or str and every job a str."""
+    # Fast path: exact int/str types are a subset of what the isinstance() check
+    # accepts; anything else (bool, str subclasses, wrong types) takes that check.
+    if _CORE_KEY_TYPES.issuperset(map(type, cores)) and _TEXT_TYPE.issuperset(map(type, cores.values())):
+        return True
+    return all(isinstance(core, (str, int)) and isinstance(job, str) for core, job in cores.items())
+
+
 def validate_cluster_state(cluster_state: object) -> "ClusterState":
     """Validate imported records before claiming the static snapshot contract."""
     data = _record(cluster_state, "cluster state")
@@ -91,7 +104,7 @@ def validate_cluster_state(cluster_state: object) -> "ClusterState":
                 qnames, cores = record.get("qname"), record.get("core_job_map")
                 if not isinstance(qnames, list) or any(queue is not None and not isinstance(queue, str) for queue in cast(List[object], qnames)):
                     raise TypeError("node qname must be a list of strings or nulls")
-                if not isinstance(cores, dict) or any(not isinstance(core, (str, int)) or not isinstance(job, str) for core, job in cast(Dict[object, object], cores).items()):
+                if not isinstance(cores, dict) or not _core_job_map_types_valid(cast(Dict[object, object], cores)):
                     raise TypeError("node core_job_map must map integer/string cores to string job IDs")
             elif key == "queues":
                 for field in ("running", "queued"):
