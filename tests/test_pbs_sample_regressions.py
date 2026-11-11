@@ -121,17 +121,18 @@ def test_cores_resolve_once_keep_free_order_unknown_markers_and_shared_cells(mon
     resolved = []
     resolve = occupancy._resolve
     monkeypatch.setattr(occupancy, "_resolve", lambda job, jobs: resolved.append(job) or resolve(job, jobs), raising=False)
-    cores = [str(core) for core in range(6)]
-    core_user_map = {"Core%svector" % core: [] for core in cores}
+    vectors = [[] for _ in range(6)]
     jobs = {"1": ("alice", "batch"), "2": ("bob", "long")}
-    corejobs = {4: "1", 1: "9", 0: "1", 3: "2"}  # 9 is an unlisted job
-    core_user_map, free = occupancy.color_cores_and_return_unused(cores, core_user_map, corejobs, "user_to_color", jobs)
-    assert free == ["2", "5"] and resolved == ["1", "9", "1", "2"]  # one _resolve() per assigned core
-    assert core_user_map["Core4vector"][0] is core_user_map["Core0vector"][0]  # one shared cell per (user, queue)
-    assert (str(core_user_map["Core1vector"][0]), core_user_map["Core1vector"][0].color) == ("?", "Yellow")
+    corejobs = {4: "1", 1: "9", "0": "1", 3: "2"}  # 9 is an unlisted job; keys may be int or str
+    free = occupancy.color_cores_and_return_unused(6, vectors, corejobs, "user_to_color", jobs)
+    assert free == [2, 5] and resolved == ["1", "9", "1", "2"]  # one _resolve() per assigned core
+    assert vectors[4][0] is vectors[0][0]  # one shared cell per (user, queue)
+    assert (str(vectors[1][0]), vectors[1][0].color) == ("?", "Yellow")
+    assert not vectors[2] and not vectors[5]
     assert "references an unlisted job (ID '9')" in caplog.text
-    with pytest.raises(ValueError, match="x not in list"):
-        occupancy.color_cores_and_return_unused(cores, {"Core%svector" % core: [] for core in range(9)}, {8: "1"}, "user_to_color", jobs)
+    for invalid in ({8: "1"}, {6: "1"}, {-1: "1"}, {"01": "1"}, {True: "1"}, {"x": "1"}, {1: "1", "1": "2"}):
+        with pytest.raises(ValueError, match="x not in list"):
+            occupancy.color_cores_and_return_unused(6, [[] for _ in range(9)], invalid, "user_to_color", jobs)
 
 
 def test_worker_node_name_regex_accepts_underscores():
