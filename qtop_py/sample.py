@@ -42,7 +42,7 @@ DISPLAY_OPTIONS = (
 def anonymize_state(state: object) -> "Tuple[ClusterState, IdentifierMaps]":
     """Mask public identifiers consistently, including job/core references."""
     state = copy.deepcopy(validate_cluster_state(state))
-    mappings: "IdentifierMaps" = {kind: {} for kind in ("user", "node", "queue", "job", "cluster", "qid")}
+    mappings: "IdentifierMaps" = {kind: {} for kind in ("user", "node", "queue", "job", "cluster")}
 
     @overload
     def mask(value: str, kind: str) -> str:
@@ -98,15 +98,16 @@ def anonymize_state(state: object) -> "Tuple[ClusterState, IdentifierMaps]":
     ]
     for original, node in zip(original_nodes, state["nodes"]):
         mask_node_extensions(original, node, job_id)
-    if "source" in state:  # schema 2: mask the cluster ID and every qid, which may embed names
+    if "source" in state:  # schema 2: qids are rebuilt from the masked cluster ID and masked native IDs
         source = state["source"]
         source["cluster_id"] = mask(source["cluster_id"], "cluster")
         prefix = "%s:%s:" % (source["backend"], source["cluster_id"])
-        for original_record, record in zip(cast("List[Dict[str, str]]", original_jobs + original_nodes), cast("List[Dict[str, str]]", state["jobs"] + state["nodes"])):
-            if "qid" in original_record:
-                record["qid"] = prefix + mask(original_record["qid"], "qid")
-            if "kind" in original_record:
-                record["kind"] = original_record["kind"]
+        for native, originals, records in (("id", original_jobs, state["jobs"]), ("domainname", original_nodes, state["nodes"])):
+            for original_record, record in zip(cast("List[Dict[str, str]]", originals), cast("List[Dict[str, str]]", records)):
+                if "qid" in original_record:
+                    record["qid"] = prefix + record[native]
+                if "kind" in original_record:
+                    record["kind"] = original_record["kind"]
     return state, mappings
 
 

@@ -100,10 +100,10 @@ def _validate_identity(key: str, record: Dict[str, object], qid_prefix: Optional
         raise ValueError("%s qid and kind require schema_version 2" % key)
     if "qid" in record:
         qid = record["qid"]
-        if not isinstance(qid, str) or not qid.startswith(qid_prefix) or len(qid) == len(qid_prefix):
-            raise ValueError("%s qid must be text in its source namespace %s<id>" % (key, qid_prefix))
+        if qid != qid_prefix + cast(str, record["id" if key == "jobs" else "domainname"]):
+            raise ValueError("%s qid must be %s<%s>" % (key, qid_prefix, "id" if key == "jobs" else "domainname"))
         if qid in qids:
-            raise ValueError("%s qid %r is not unique in its source namespace" % (key, qid))
+            raise ValueError("%s qid %r is not unique among %s" % (key, qid, key))
         qids.add(qid)
     if "kind" in record and (key != "jobs" or record["kind"] not in JOB_KINDS):
         raise ValueError("job kind must be one of %s; nodes have no kind" % ", ".join(JOB_KINDS))
@@ -116,7 +116,7 @@ def validate_cluster_state(cluster_state: object) -> "ClusterState":
         raise ValueError("cluster state keys must be jobs, nodes, queues with optional scheduler diagnostics")
     validate_diagnostics(data)
     qid_prefix = _qid_prefix(data)
-    qids: Set[str] = set()
+    qids: Dict[str, Set[str]] = {"jobs": set(), "nodes": set()}  # a qid is unique within its relation
     for key, fields in (("jobs", ("id", "user", "state", "queue")), ("nodes", ("domainname", "state")), ("queues", ("name", "limit", "state"))):
         entries = data[key]
         if not isinstance(entries, list):
@@ -127,7 +127,7 @@ def validate_cluster_state(cluster_state: object) -> "ClusterState":
                 raise TypeError("%s record requires text fields: %s" % (key, ", ".join(fields)))
             validate_record_extensions(key, record)
             if key != "queues" and ("qid" in record or "kind" in record):
-                _validate_identity(key, record, qid_prefix, qids)
+                _validate_identity(key, record, qid_prefix, qids[key])
             if key == "jobs" and "accounting_state" in record and record["accounting_state"] not in ("running", "queued", "other"):
                 raise ValueError("job accounting_state must be running, queued or other")
             if key == "nodes":

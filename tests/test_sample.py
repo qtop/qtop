@@ -16,6 +16,7 @@ from types import SimpleNamespace
 import pytest
 
 from qtop_py import sample, yaml_parser
+from qtop_py.cluster_state import validate_cluster_state
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -347,13 +348,17 @@ def test_schema_2_observations_replay_and_anonymize_without_original_identifiers
     from tests.test_cluster_state import observation
 
     state = observation(cluster_id="prod-west")
-    state["jobs"][0]["qid"] = "slurm:prod-west:alice-secret-42"
-    state["nodes"][0]["qid"] = "slurm:prod-west:node001"
+    state["jobs"][0].update(id="4242", qid="slurm:prod-west:4242")
+    state["nodes"][0].update(domainname="secret-node", qid="slurm:prod-west:secret-node", core_job_map={0: "4242"})
     masked, mappings = sample.anonymize_state(state)
     text = json.dumps(masked)
-    assert not any(original in text for original in ("prod-west", "alice", "secret", "node001", "debug", "42"))
+    assert not any(original in text for original in ("prod-west", "alice", "secret", "debug", "4242"))
     assert masked["schema_version"] == 2 and masked["source"]["backend"] == "slurm" and masked["jobs"][0]["kind"] == "job"
-    assert masked["jobs"][0]["qid"].startswith("slurm:%s:" % masked["source"]["cluster_id"])
+    prefix = "slurm:%s:" % masked["source"]["cluster_id"]
+    job, node = masked["jobs"][0], masked["nodes"][0]
+    assert (job["qid"], node["qid"]) == (prefix + job["id"], prefix + node["domainname"])  # rebuilt from masked parts
+    assert node["core_job_map"] == {"0": job["id"]}  # references still resolve to the masked job
+    assert validate_cluster_state(masked) is masked
     assert sample.anonymize_state(state)[0] == masked  # deterministic masking
     archive = tmp_path / "sample.tar"
     with tarfile.open(str(archive), "w") as saved:

@@ -39,9 +39,11 @@ ClusterState = {
 
 - `source.backend` names the plugin, and the operator chooses `source.cluster_id`.
   Both are nonempty text without `:`.
-- `qid` on jobs and nodes must be `"<backend>:<cluster_id>:<id>"`. It is unique
-  across all jobs and nodes of the observation, so qids from different backends
-  or clusters cannot collide when observations are combined.
+- `qid` on jobs and nodes must equal `"<backend>:<cluster_id>:<native-id>"`,
+  where the native ID is the job's `id` or the node's `domainname`. It is
+  unique among the observation's jobs, and separately among its nodes, so qids
+  from different backends or clusters cannot collide when observations are
+  combined. A job and a node may share a native ID.
   `qid` stands for *qualified ID*: the backend's own job ID or node name,
   qualified by its source. It is deliberately not called `uid`, which in qtop
   means a Unix user ID, and it promises no more persistence than the backend
@@ -52,8 +54,10 @@ ClusterState = {
   `qid` is never needed to render.
 
 Anonymization ([sample.py](../qtop_py/sample.py)) keeps the backend, masks
-`cluster_id`, rebuilds each `qid` from the masked cluster ID and a masked local
-part, and keeps `kind`. Original identifiers never reach an archive.
+`cluster_id`, and rebuilds each `qid` from the backend, the masked cluster ID
+and the record's already-masked `id` or `domainname`. A masked qid therefore
+still matches the masked job IDs in `core_job_map` and the other references.
+`kind` is kept. Original identifiers never reach an archive.
 
 ## Logical relations
 
@@ -69,11 +73,14 @@ today.
 | allocation | actual or predicted assignments | `core_job_map`, `slurm_gpu_bindings`, `cpu_allocation_source`; future extensions |
 | scheduling_domain | queues, partitions and analogous domains | `queues`, and `queue` on jobs, `qname` on nodes |
 
-**Scheduling domains** are whatever a backend schedules into: Slurm partitions,
-PBS, SGE or OAR queues, Kubernetes namespaces, or OpenStack projects. The
-`queues` key stays for compatibility. The domains do not share semantics:
-Slurm limits and Kubernetes quotas mean different things, so nothing in qtop
-may compare domains across backends beyond their name and job counts.
+**Scheduling domains** are backend-defined concepts: whatever a backend
+schedules into, such as Slurm partitions, PBS, SGE or OAR queues, Kubernetes
+namespaces or OpenStack projects. They are not necessarily semantically
+equivalent. A Slurm partition's limits, a PBS queue's limits and a Kubernetes
+quota mean different things, and a job may belong to several domains at once.
+The `queues` key stays for compatibility. Each domain's meaning comes from its
+backend, so nothing in qtop may compare domains across backends beyond their
+name and job counts.
 
 ## Identity lifetime
 

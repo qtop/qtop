@@ -209,7 +209,10 @@ def test_unknown_schema_versions_are_rejected(version):
         lambda state: state["jobs"][0].update(qid="slurm:cluster-b:42"),  # another cluster's namespace
         lambda state: state["jobs"][0].update(qid="slurm:cluster-a:"),
         lambda state: state["jobs"][0].update(qid=42),
-        lambda state: state["nodes"][0].update(qid="slurm:cluster-a:42"),  # collides with the job
+        lambda state: state["nodes"][0].update(qid="slurm:cluster-a:42"),  # not the node's domainname
+        lambda state: state["jobs"][0].update(qid="slurm:cluster-a:43"),  # not the job's id
+        lambda state: state["jobs"][0].update(qid="slurm:cluster-a:42:x"),
+        lambda state: state["jobs"][0].update(qid="SLURM:cluster-a:42"),  # another backend's namespace
         lambda state: state["jobs"].append(dict(state["jobs"][0])),  # a duplicate job qid
         lambda state: state["jobs"][0].update(kind="container"),
         lambda state: state["nodes"][0].update(kind="vm"),
@@ -220,6 +223,12 @@ def test_schema_2_envelope_and_identities_are_unambiguous(change):
     change(state)
     with pytest.raises((TypeError, ValueError)):
         validate_cluster_state(state)
+
+
+def test_qids_are_unique_per_relation_so_a_job_and_node_may_share_a_native_id():
+    state = observation()
+    state["nodes"][0].update(domainname="42", qid="slurm:cluster-a:42")
+    assert validate_cluster_state(state) is state
 
 
 def test_schema_2_metadata_survives_snapshot_json_round_trip(tmp_path):
