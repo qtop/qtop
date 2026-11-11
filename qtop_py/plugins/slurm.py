@@ -657,6 +657,7 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
         try:
             with open(self.scontrol_file, "r", encoding="utf-8", errors="replace") as stream:
                 job_id = None
+                parsed: Dict[str, Tuple[int, ...]] = {}  # CPU_IDs text -> its distinct CPU numbers, for this collection
                 for line in stream:
                     header = re.match(r"\s*JobId=(\S+)(.*)", line)
                     if header:
@@ -669,8 +670,12 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
                     detail = dict(re.findall(r"(?:^|\s)(Nodes|CPU_IDs)=(\S+)", line))
                     if "Nodes" in detail and "CPU_IDs" in detail and job_id is not None:
                         hosts = self.expand_nodelist(detail["Nodes"])
-                        cpus = self.expand_nodelist("[" + detail["CPU_IDs"] + "]")
-                        if not hosts or not cpus or len(hosts) * len(cpus) > self.MAX_EXPANDED_NODES or len(set(map(int, cpus))) != len(cpus):
+                        cpus: Any = parsed.get(detail["CPU_IDs"])
+                        if cpus is None:  # invalid lists are reparsed, so they warn and fail exactly as before
+                            cpus = self.expand_nodelist("[" + detail["CPU_IDs"] + "]")
+                            if cpus and len(parsed) < 4096 and all(cpu.isdecimal() for cpu in cpus) and len(set(map(int, cpus))) == len(cpus):
+                                cpus = parsed[detail["CPU_IDs"]] = tuple(map(int, cpus))
+                        if not hosts or not cpus or len(hosts) * len(cpus) > self.MAX_EXPANDED_NODES or (type(cpus) is not tuple and len(set(map(int, cpus))) != len(cpus)):
                             allocations[job_id] = None
                         else:
                             allocation = allocations[job_id]
@@ -679,7 +684,7 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
                                     if host in allocation:
                                         allocations[job_id] = None
                                         break
-                                    allocation[host] = [int(cpu) for cpu in cpus]
+                                    allocation[host] = cpus if type(cpus) is tuple else tuple(map(int, cpus))
         except (OSError, UnicodeError, ValueError) as error:
             logging.warning("Cannot read optional Slurm CPU details: %s; using estimates.", error)
             return {}
@@ -696,7 +701,7 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
             allocation = details.get(job["JobId"]) or {}
             valid = allocation and set(allocation) == set(hosts) and sum(len(cpus) for cpus in allocation.values()) == job["CPUs"]
             if valid:
-                valid = all(host in worker_nodes and all(cpu < int(worker_nodes[host]["np"]) for cpu in allocation[host]) for host in hosts)
+                valid = all(host in worker_nodes and max(allocation[host]) < int(worker_nodes[host]["np"]) for host in hosts)  # CPU lists are nonempty
             if not valid:
                 estimated.update(hosts)
                 if job["JobId"] in details:

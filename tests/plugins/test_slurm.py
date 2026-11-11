@@ -370,6 +370,21 @@ def test_unusable_cpu_details_fall_back_without_losing_jobs(detailed_slurm, deta
     assert [node["cpu_allocation_source"] for node in nodes] == ["estimated", "estimated", "none"]
 
 
+def test_cpu_id_lists_are_parsed_once_per_collection_without_changing_failures(detailed_slurm, caplog):
+    slurm, path = detailed_slurm
+    path.write_text(
+        "JobId=101\n   Nodes=(null) CPU_IDs=x\n"  # unusable hosts: this job only, the text is never converted
+        "JobId=102\n   Nodes=node001 CPU_IDs=0,2\n"
+        "JobId=103\n   Nodes=node002 CPU_IDs=0,2\n"
+        "JobId=104\n   Nodes=node002 CPU_IDs=1-[\n"
+        "JobId=105\n   Nodes=node003 CPU_IDs=1-[\n"
+    )
+    details = slurm._read_cpu_allocations()
+    assert details == {"101": None, "102": {"node001": (0, 2)}, "103": {"node002": (0, 2)}, "104": None, "105": None}
+    assert details["102"]["node001"] is details["103"]["node002"]  # one immutable parse, shared
+    assert caplog.text.count("Ignoring invalid host list '[1-[]'") == 2  # invalid lists still warn each time
+
+
 def test_partial_details_do_not_mix_estimated_positions_with_exact_ids(detailed_slurm):
     slurm, path = detailed_slurm
     path.write_text(path.read_text().split("JobId=102")[0])

@@ -135,6 +135,27 @@ def test_cores_resolve_once_keep_free_order_unknown_markers_and_shared_cells(mon
             occupancy.color_cores_and_return_unused(6, [[] for _ in range(9)], invalid, "user_to_color", jobs)
 
 
+def test_core_cell_highlight_rules_are_built_once_per_frame(monkeypatch):
+    from types import SimpleNamespace
+
+    occupancy = qtop.WNOccupancy.__new__(qtop.WNOccupancy)
+    occupancy.MVU_model = SimpleNamespace(display_overrides={}, user_to_color={"alice": "Red", "bob": "Blue"})
+    occupancy.config = {"highlight": [{"or_include_user_id": ["0"]}, {"or_include_queue": ["long"]}]}
+    occupancy.user_to_id = {"alice": qtop.utils.ColorStr("0"), "bob": qtop.utils.ColorStr("1")}
+    occupancy.user_color_patterns = {"0": "alice", "1": "bob"}
+    built = []
+    from qtop_py.mvu_query import WNOccupancy
+
+    rules = WNOccupancy.get_hl_q_or_users
+    monkeypatch.setattr(WNOccupancy, "get_hl_q_or_users", staticmethod(lambda selected: built.append(1) or rules(selected)))
+    cells = [occupancy._core_cell(user, queue, "user_to_color") for user, queue in (("alice", "batch"), ("bob", "batch"), ("bob", "long"))]
+    assert [cell.color for cell in cells] == ["Red", "Gray_D", "Blue"] and built == [1]
+    fresh = qtop.WNOccupancy.__new__(qtop.WNOccupancy)
+    fresh.__dict__.update({key: value for key, value in vars(occupancy).items() if key != "_highlight"}, config={"highlight": [{"include_user_id": ["7"]}]})
+    with pytest.raises(KeyError, match="7"):  # an unknown user ID fails as before
+        fresh._core_cell("alice", "batch", "user_to_color")
+
+
 def test_worker_node_name_regex_accepts_underscores():
     re_nodename = r"(^[A-Za-z0-9_-]+)(?=\.|$)"
     import re

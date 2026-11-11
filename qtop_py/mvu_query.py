@@ -441,10 +441,15 @@ class WNOccupancy(object):
     def _core_cell(self, user: str, queue: str, _core_coloring: str) -> "utils.ColorStr":
         """Build the coloured matrix cell for a user's job in a queue."""
         selected_pat_to_color_map = getattr(self.MVU_model, _core_coloring)
-        _highlighted_queues_or_users = self.MVU_model.display_overrides.get("highlight", self.config["highlight"])
-        id_to_user = dict(zip((str(x) for x in self.user_to_id.values()), self.user_to_id.keys()))
-        highlight_rules = list(WNOccupancy.get_hl_q_or_users(_highlighted_queues_or_users))
-        and_or_func = highlight_rules[-1][2] if highlight_rules else any
+        highlight = self.__dict__.get("_highlight")  # per frame: lives on this WNOccupancy
+        if highlight is None:
+            _highlighted_queues_or_users = self.MVU_model.display_overrides.get("highlight", self.config["highlight"])
+            highlight_rules = list(WNOccupancy.get_hl_q_or_users(_highlighted_queues_or_users))
+            if any(kind == "user_id" for _, kind, _ in highlight_rules):  # user IDs become user names once
+                id_to_user = dict(zip((str(x) for x in self.user_to_id.values()), self.user_to_id.keys()))
+                highlight_rules = [(id_to_user[rule] if kind == "user_id" else rule, kind, func) for rule, kind, func in highlight_rules]
+            highlight = self._highlight = (_highlighted_queues_or_users, highlight_rules, highlight_rules[-1][2] if highlight_rules else any)
+        _highlighted_queues_or_users, highlight_rules, and_or_func = highlight
         id_: utils.ColorStr = utils.ColorStr.from_other_color_str(self.user_to_id[user])
         viewed_pattern = self.user_color_patterns[str(id_)] if _core_coloring == "user_to_color" else queue
         matches = []
@@ -453,7 +458,6 @@ class WNOccupancy(object):
                 actual_user_queue = user
             elif highlight_kind == "user_id":
                 actual_user_queue = user
-                user_queue_to_highlight = id_to_user[user_queue_to_highlight]
             elif highlight_kind == "queue":
                 actual_user_queue = queue
             matches.append(re.match(user_queue_to_highlight, actual_user_queue))
