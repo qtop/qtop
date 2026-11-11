@@ -5,6 +5,7 @@ See the [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 
 ## 0.9.20261112
 
+- Performance: Slurm builds each node's core map with dict(enumerate()), about 2x faster for that step.
 - Performance: watch mode re-parses qtopconf/palettes YAML layers only when a file changes; each frame gets its own copy.
 - CI: AlmaLinux jobs use repo.almalinux.org directly, skip Extras and drop sources slower than 50 kB/s.
 - Tools: make authors counts code lines per author with %, merging names sharing an email.

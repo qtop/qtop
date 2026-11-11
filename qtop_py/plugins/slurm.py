@@ -554,7 +554,7 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
         self.allocation_diagnostics: Dict[str, Any] = {}
         node_jobs = self._map_jobs_to_nodes(self._get_jobs(), worker_nodes_by_name, self.allocation_diagnostics, job_hosts)
         for raw_name, worker_node in worker_nodes_by_name.items():
-            worker_node["core_job_map"] = dict((idx, job_id) for idx, job_id in enumerate(node_jobs.get(raw_name, [])))
+            worker_node["core_job_map"] = dict(enumerate(node_jobs.get(raw_name, ())))
 
         self._apply_cpu_allocations(worker_nodes_by_name, job_hosts)
         self._apply_gpu_allocations(worker_nodes_by_name, job_hosts)
