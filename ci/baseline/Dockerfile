@@ -4,7 +4,7 @@
 ## BASELINE: AlmaLinux 8 with the Python 3.6 lane's packages preinstalled, so CI
 ## jobs run no dnf. Built and published by .github/workflows/baseline-image.yml;
 ## Dependabot bumps the digest below.
-FROM almalinux:8@sha256:2d0f2eb2a83cc09dbc2eb92fade4dbe8f709628149e81aa00aec70630406603b
+FROM almalinux:10@sha256:5a4b41a427c9717be8f4ac2a32aa22efbae5f9124fbcb79a6765394f312acfe8
 
 # Primary repo.almalinux.org instead of the mirror list, no Extras, and dnf drops a source slower than 50 kB/s after 10 s.
 RUN sed -i -e 's|^mirrorlist=|#mirrorlist=|' -e 's|^# *baseurl=|baseurl=|' /etc/yum.repos.d/almalinux*.repo \
