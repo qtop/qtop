@@ -1,5 +1,7 @@
 # AGENTS.md - qtop contributor and agent guidance
 
+Read this whole file before acting: it is written densely and every line is a rule, so skimming the top or one section misses requirements.
+
 These rules apply to all changes. Read `README.md`, `CONTRIBUTING.md`, and the
 relevant existing code before editing. This file complements, but does not
 replace, project policies; where they overlap, `CONTRIBUTING.md` wins.
