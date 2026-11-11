@@ -57,7 +57,10 @@ jobs:
     container: almalinux:8
     timeout-minutes: 10  # a slow mirror once took dnf 4 minutes
     steps:
-      - run: dnf -y --setopt=install_weak_deps=False --nodocs install make findutils python36
+      # Primary repo.almalinux.org instead of the mirror list, no Extras, and dnf drops a source slower than 50 kB/s after 10 s.
+      - run: |
+          sed -i -e 's|^mirrorlist=|#mirrorlist=|' -e 's|^# *baseurl=|baseurl=|' /etc/yum.repos.d/almalinux*.repo
+          dnf -y --disablerepo='extras*' --setopt=minrate=50k --setopt=timeout=10 --setopt=install_weak_deps=False --nodocs install make findutils python36
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -113,7 +116,10 @@ jobs:
     container: almalinux:8
     timeout-minutes: 10
     steps:
-      - run: dnf -y --setopt=install_weak_deps=False --nodocs install make findutils python36
+      # Primary repo.almalinux.org instead of the mirror list, no Extras, and dnf drops a source slower than 50 kB/s after 10 s.
+      - run: |
+          sed -i -e 's|^mirrorlist=|#mirrorlist=|' -e 's|^# *baseurl=|baseurl=|' /etc/yum.repos.d/almalinux*.repo
+          dnf -y --disablerepo='extras*' --setopt=minrate=50k --setopt=timeout=10 --setopt=install_weak_deps=False --nodocs install make findutils python36
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false

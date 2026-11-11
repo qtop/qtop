@@ -5,6 +5,7 @@ See the [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 
 ## 0.9.20261112
 
+- CI: AlmaLinux jobs use repo.almalinux.org directly, skip Extras and drop sources slower than 50 kB/s.
 - Tools: make authors counts code lines per author with %, merging names sharing an email.
 - Bugfix: a watch-mode terminal resize redraws instead of cycling the core lines (r).
 - Bugfix: watch mode survives a terminal refusing cbreak, drops unread keys on exit; menus work without a terminal.
