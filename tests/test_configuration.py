@@ -3,6 +3,7 @@
 """Check invalid configuration at the boundary, before rendering or commands."""
 
 import copy
+import os
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -183,3 +184,104 @@ def test_missing_custom_config_names_both_search_locations(tmp_path):
     assert "missing.yaml" in str(error.value)
     assert str(tmp_path / "user") in str(error.value)
     assert str(tmp_path) in str(error.value)
+
+
+def _layered_dirs(tmp_path):
+    root = Path(__file__).resolve().parents[1]
+    defaults, system, user, initial_cwd = (tmp_path / name for name in ("defaults", "system", "user", "cwd"))
+    for directory in (defaults, system, user, initial_cwd):
+        directory.mkdir()
+    (defaults / "qtopconf.yaml").write_text((root / "qtopconf.yaml").read_text())
+    (defaults / "palettes.yaml").write_text((root / "palettes.yaml").read_text())
+    (user / "qtopconf.yaml").write_text("marker: user\n")
+    return defaults, system, user, initial_cwd
+
+
+def _age(*paths, seconds=60):
+    """Backdate files beyond the racy window, so the cache may keep them."""
+    for path in paths:
+        stamp = path.stat().st_mtime - seconds
+        os.utime(str(path), (stamp, stamp))
+
+
+@pytest.fixture
+def counted_parse(monkeypatch):
+    configuration.clear_layer_cache()
+    parsed = []
+    parse = yaml_parser.parse
+    monkeypatch.setattr(configuration.yaml_parser, "parse", lambda path: (os.path.exists(path) and parsed.append(Path(path).name)) or parse(path))  # count real parses only
+    monkeypatch.setattr(configuration.fileutils, "private_save_directory", lambda path: path)
+    yield parsed
+    configuration.clear_layer_cache()
+
+
+def test_unchanged_layers_are_parsed_once_and_each_frame_gets_its_own_copy(tmp_path, counted_parse):
+    defaults, system, user, initial_cwd = _layered_dirs(tmp_path)
+    _age(defaults / "qtopconf.yaml", defaults / "palettes.yaml", user / "qtopconf.yaml")
+    options = SimpleNamespace(CONFFILE=None, OPTION=["savepath=" + str(tmp_path / "out")])
+    first, _, _ = configuration.load_yaml_config(options, str(defaults), str(initial_cwd), str(system), str(user))
+    assert sorted(counted_parse) == ["palettes.yaml", "qtopconf.yaml", "qtopconf.yaml"]
+    first["sorting"]["user_sort"].append("mutated")
+    first["palettes"]["PALETTES"].append("mutated")
+    first["palettes"]["gruvbox"].clear()
+    first["workernodes_matrix"].clear()
+    second, _, _ = configuration.load_yaml_config(options, str(defaults), str(initial_cwd), str(system), str(user))
+    assert len(counted_parse) == 3  # served from the cache
+    assert "mutated" not in second["sorting"]["user_sort"]
+    assert "mutated" not in second["palettes"]["PALETTES"] and second["palettes"]["gruvbox"]
+    assert second["workernodes_matrix"] and second["marker"] == "user"
+    assert second is not first and second["sorting"] is not first["sorting"]
+
+
+def test_edited_added_and_removed_layers_invalidate_the_cache(tmp_path, counted_parse):
+    defaults, system, user, initial_cwd = _layered_dirs(tmp_path)
+    user_conf = user / "qtopconf.yaml"
+    _age(defaults / "qtopconf.yaml", defaults / "palettes.yaml", user_conf)
+    options = SimpleNamespace(CONFFILE=None, OPTION=[])
+
+    def load():
+        return configuration.load_yaml_config(options, str(defaults), str(initial_cwd), str(system), str(user))[0]
+
+    assert load()["marker"] == "user"
+    user_conf.write_text("marker: edited\n")  # same size as "user", new mtime
+    _age(user_conf, seconds=30)
+    assert load()["marker"] == "edited"
+    (system / "qtopconf.yaml").write_text("marker: system\nsystem_only: kept\n")
+    assert load()["system_only"] == "kept"
+    user_conf.unlink()
+    assert load()["marker"] == "system"
+    (system / "qtopconf.yaml").unlink()
+    assert "marker" not in load()
+    (user / "palettes.yaml").write_text("default:\n  Red: '0;31'\n")
+    assert load()["palettes"]["default"]["Red"] == "0;31"
+
+
+def test_recently_modified_layers_are_reparsed(tmp_path, counted_parse):
+    layer = tmp_path / "fresh.yaml"
+    layer.write_text("marker: one\n")
+    assert configuration.parse_layer(str(layer)) == {"marker": "one"}
+    assert configuration.parse_layer(str(layer)) == {"marker": "one"}
+    assert counted_parse == ["fresh.yaml", "fresh.yaml"]  # inside the racy window: never cached
+    _age(layer)
+    configuration.parse_layer(str(layer))
+    configuration.parse_layer(str(layer))
+    assert len(counted_parse) == 3
+
+
+def test_invalid_layers_are_not_cached(tmp_path, counted_parse):
+    layer = tmp_path / "broken.yaml"
+    layer.write_text("")
+    _age(layer)
+    for _ in range(2):
+        with pytest.raises(ValueError, match="empty"):
+            configuration.parse_layer(str(layer))
+    assert counted_parse == ["broken.yaml", "broken.yaml"]
+
+
+def test_palettes_set_by_a_layer_skip_palettes_yaml(tmp_path, counted_parse, monkeypatch):
+    defaults, system, user, initial_cwd = _layered_dirs(tmp_path)
+    (user / "qtopconf.yaml").write_text("palettes:\n  default:\n    Red: '0;31'\n")
+    monkeypatch.setattr(configuration, "load_palettes", lambda directories: pytest.fail("palettes.yaml must not be read"))
+    config, _, _ = configuration.load_yaml_config(SimpleNamespace(CONFFILE=None, OPTION=[]), str(defaults), str(initial_cwd), str(system), str(user))
+    assert config["palettes"] == {"default": {"Red": "0;31"}}
+    assert "palettes.yaml" not in counted_parse
