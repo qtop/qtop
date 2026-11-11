@@ -343,6 +343,24 @@ def test_invalid_snapshot_has_actionable_error(tmp_path, kind):
     assert "Traceback" not in result.stderr
 
 
+def test_schema_2_observations_replay_and_anonymize_without_original_identifiers(tmp_path):
+    from tests.test_cluster_state import observation
+
+    state = observation(cluster_id="prod-west")
+    state["jobs"][0]["qid"] = "slurm:prod-west:alice-secret-42"
+    state["nodes"][0]["qid"] = "slurm:prod-west:node001"
+    masked, mappings = sample.anonymize_state(state)
+    text = json.dumps(masked)
+    assert not any(original in text for original in ("prod-west", "alice", "secret", "node001", "debug", "42"))
+    assert masked["schema_version"] == 2 and masked["source"]["backend"] == "slurm" and masked["jobs"][0]["kind"] == "job"
+    assert masked["jobs"][0]["qid"].startswith("slurm:%s:" % masked["source"]["cluster_id"])
+    assert sample.anonymize_state(state)[0] == masked  # deterministic masking
+    archive = tmp_path / "sample.tar"
+    with tarfile.open(str(archive), "w") as saved:
+        sample.add_json(saved, sample.SNAPSHOT_NAME, {"format_version": 1, "scheduler": "slurm", "state": masked, "config": {}, "options": {}})
+    assert sample.load_snapshot(str(archive))["state"] == masked
+
+
 def test_config_masking_translates_regexes_without_changing_control_strings():
     defaults = yaml_parser.parse(str(ROOT / "qtopconf.yaml"))
     config = dict(defaults)

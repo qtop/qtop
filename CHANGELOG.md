@@ -5,6 +5,7 @@ See the [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 
 ## 0.9.20261112
 
+- Feature: cluster state schema 2, an optional observation envelope (backend, cluster ID) with namespaced job/node qids and job kinds; schema 1 states and archives replay unchanged.
 - Performance: matrix highlight rules and the user-ID map are built once per frame, not per cell; Slurm parses each CPU_IDs list once per collection.
 - CI: BASELINE proof of concept, run by hand: builds an AlmaLinux 8 + Python 3.6 image on GHCR and runs the 3.6 checks in it.
 - Performance: cluster-state validation checks core maps and job-ID lists by exact type first, full isinstance() checks otherwise; about 33% faster on 2000 nodes.

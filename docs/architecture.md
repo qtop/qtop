@@ -6,6 +6,8 @@ adapts the GitDiagram description proposed in
 [issue #571](https://github.com/qtop/qtop/issues/571) to the current source.
 The diagram is stored as Mermaid so it can be reviewed and updated with the
 code, and rendered directly on GitHub.
+The data contract between backends and views, its schema versions and its
+logical relations are described in [cluster-state-model.md](cluster-state-model.md).
 
 ## Runtime overview
 
