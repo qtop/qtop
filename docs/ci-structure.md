@@ -69,18 +69,17 @@ Neither path requires an external coverage service.
 
 BASELINE is `almalinux:8` with `make`, `findutils` and `python36` preinstalled
 (`ci/baseline/Dockerfile`), so a Python 3.6 job runs no `dnf` and a slow mirror
-can break only the image rebuild, never a push. `.github/workflows/baseline-image.yml`
-rebuilds it weekly, on `workflow_dispatch` and on changes to `ci/baseline/`, and
-publishes `ghcr.io/<owner>/qtop-baseline:almalinux8-py36` plus a `YYYYMMDD-HHMM`
-(UTC) tag per build, kept as a trail and listed with its digest in the run
-summary; it needs `packages: write`. Dependabot bumps the Dockerfile's base image digest.
+can break only the image rebuild, never a push. For now it runs only by hand:
+`.github/workflows/baseline-image.yml` (`workflow_dispatch`, available once the
+file is on the default branch) builds it, publishes
+`ghcr.io/<owner>/qtop-baseline:almalinux8-py36` plus a `YYYYMMDD-HHMM` (UTC) tag
+per build, listed with its digest in the run summary, and then runs
+`make compat-py36` in it, pulling with the job's `GITHUB_TOKEN`. Publishing
+needs `packages: write`. Dependabot bumps the Dockerfile's base image digest.
 
-`build.yml` runs `make compat-py36` in BASELINE as `almalinux-python36-baseline`,
-with `continue-on-error: true`, pulling it with the job's `GITHUB_TOKEN`
-(`packages: read`). The publish job is non-blocking too. The image is first built
-when the workflow reaches `develop`; until then the job fails without blocking.
 Before it can replace `almalinux-python36`:
 
+- re-enable the parked weekly schedule and `develop` trigger;
 - check pulls from fork pull requests, or make the GHCR package public;
 - pull it by digest rather than tag (Scorecard flags tags), and automate the
   digest bump after each rebuild, for example as a bot pull request;

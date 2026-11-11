@@ -3,22 +3,22 @@
 ##
 ## Builds BASELINE (ci/baseline/Dockerfile) and publishes it to GHCR as
 ## ghcr.io/<owner>/qtop-baseline:almalinux8-py36 (moving) and :YYYYMMDD-HHMM
-## (one per build, UTC, kept as a trail), for the non-blocking
-## almalinux-python36-baseline job in build.yml, which pulls it with its
-## GITHUB_TOKEN. Proof of concept: it first runs when this file reaches develop.
+## (one per build, UTC, kept as a trail), then runs make compat-py36 in it,
+## pulling with the job's GITHUB_TOKEN. Proof of concept, run by hand only
+## (Actions > baseline-image > Run workflow, once this file is on the default branch).
 
 name: baseline-image
 
 on:
-  schedule:
-    - cron: '17 4 * * 1'  # weekly, Monday: picks up AlmaLinux 8 security updates
-  workflow_dispatch:
-  push:
-    branches:
-      - develop
-    paths:
-      - ci/baseline/**
-      - .github/workflows/baseline-image.yml
+  workflow_dispatch:  # manual only for now; the weekly schedule and develop trigger are parked:
+  # schedule:
+  #   - cron: '17 4 * * 1'  # weekly, Monday: picks up AlmaLinux 8 security updates
+  # push:
+  #   branches:
+  #     - develop
+  #   paths:
+  #     - ci/baseline/**
+  #     - .github/workflows/baseline-image.yml
 
 permissions:
   contents: read
@@ -30,7 +30,6 @@ concurrency:
 jobs:
   publish:
     runs-on: ubuntu-24.04
-    continue-on-error: true  # proof of concept: a failed rebuild must not turn develop red
     timeout-minutes: 15
     permissions:
       contents: read
@@ -65,3 +64,22 @@ jobs:
           docker push "$IMAGE:almalinux8-py36"
           echo "$IMAGE:$STAMP = $(docker inspect --format '{{index .RepoDigests 0}}' "$IMAGE:$STAMP")" | tee -a "$GITHUB_STEP_SUMMARY"
           docker logout ghcr.io
+
+  # The almalinux-python36 checks in BASELINE, with no dnf. Pulled by tag while it is a PoC.
+  almalinux-python36-baseline:
+    needs: publish
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: read  # pull BASELINE while its GHCR package is private
+    container:
+      image: ghcr.io/${{ github.repository_owner }}/qtop-baseline:almalinux8-py36
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: make compat-py36 PYTHON="$(command -v python3.6)"
