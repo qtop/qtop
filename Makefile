@@ -4,6 +4,8 @@
 .DEFAULT_GOAL := help
 
 PYTHON ?= python3
+# Tests run on every CPU when pytest-xdist is installed (requirements-ci.txt); test_web.py forks a worker, so it runs alone.
+PYTEST_WORKERS = $(shell $(PYTHON) -c "import xdist" >/dev/null 2>&1 && echo "-n auto --ignore=tests/test_web.py")
 PIP ?= $(PYTHON) -m pip
 DIST_DIR ?= dist
 UVX ?= uvx
@@ -60,17 +62,20 @@ ci-deps:: ## Install pinned CI Python dependencies
 	$(PIP) install -r requirements-ci.txt
 
 test:: ## Run the Python test suite
-	$(PYTHON) -m pytest
+	$(PYTHON) -m pytest $(PYTEST_WORKERS)
+	$(if $(PYTEST_WORKERS),$(PYTHON) -m pytest tests/test_web.py)
 
 coverage:: ## Run tests with coverage.py and print a terminal report
 	$(PYTHON) -m coverage erase
-	$(PYTHON) -m coverage run -m pytest
+	$(PYTHON) -m coverage run -m pytest $(PYTEST_WORKERS)
+	$(if $(PYTEST_WORKERS),$(PYTHON) -m coverage run -m pytest tests/test_web.py)
 	$(PYTHON) -m coverage combine
 	$(PYTHON) -m coverage report --fail-under=$(COVERAGE_MIN)
 
 coverage-xml:: ## Run tests under coverage.py and write a CI-ready Cobertura XML report
 	$(PYTHON) -m coverage erase
-	$(PYTHON) -m coverage run -m pytest
+	$(PYTHON) -m coverage run -m pytest $(PYTEST_WORKERS)
+	$(if $(PYTEST_WORKERS),$(PYTHON) -m coverage run -m pytest tests/test_web.py)
 	$(PYTHON) -m coverage combine
 	$(PYTHON) -m coverage report --fail-under=$(COVERAGE_MIN)
 	@mkdir -p $(dir $(COVERAGE_XML))
