@@ -117,10 +117,7 @@ class SGEStatExtractor(StatExtractor):
                         raise etree.ParseError("XML input exceeds size limit")
                     parser.feed(chunk)
                 tree = etree.ElementTree(parser.close())
-            except etree.ParseError:
-                logging.critical("Something happened during the parsing of the XML file. Exiting...")
-                raise
-            except IOError:
+            except (etree.ParseError, IOError):
                 raise
             except Exception as error:
                 logging.debug("XML file state %s" % fin, exc_info=True)
