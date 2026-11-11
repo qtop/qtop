@@ -4,8 +4,8 @@
 ## Builds BASELINE (ci/baseline/Dockerfile) and publishes it to GHCR as
 ## ghcr.io/<owner>/qtop-baseline:almalinux8-py36 (moving) and :YYYYMMDD-HHMM
 ## (one per build, UTC, kept as a trail), for the non-blocking
-## almalinux-python36-baseline job in build.yml. Proof of concept: the package
-## must be made public once, or pull requests from forks cannot pull it.
+## almalinux-python36-baseline job in build.yml, which pulls it with its
+## GITHUB_TOKEN. Proof of concept: it first runs when this file reaches develop.
 
 name: baseline-image
 
@@ -30,6 +30,7 @@ concurrency:
 jobs:
   publish:
     runs-on: ubuntu-24.04
+    continue-on-error: true  # proof of concept: a failed rebuild must not turn develop red
     timeout-minutes: 15
     permissions:
       contents: read

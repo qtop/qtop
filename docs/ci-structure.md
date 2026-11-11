@@ -76,10 +76,12 @@ publishes `ghcr.io/<owner>/qtop-baseline:almalinux8-py36` plus a `YYYYMMDD-HHMM`
 summary; it needs `packages: write`. Dependabot bumps the Dockerfile's base image digest.
 
 `build.yml` runs `make compat-py36` in BASELINE as `almalinux-python36-baseline`,
-with `continue-on-error: true`: it reports but never blocks, and fails until the
-image is published. Before it can replace `almalinux-python36`:
+with `continue-on-error: true`, pulling it with the job's `GITHUB_TOKEN`
+(`packages: read`). The publish job is non-blocking too. The image is first built
+when the workflow reaches `develop`; until then the job fails without blocking.
+Before it can replace `almalinux-python36`:
 
-- make the GHCR package public, so pull requests from forks can pull it;
+- check pulls from fork pull requests, or make the GHCR package public;
 - pull it by digest rather than tag (Scorecard flags tags), and automate the
   digest bump after each rebuild, for example as a bot pull request;
 - give GitLab the same job (`ci/test.gitlab-ci.yml`), as both platforms run the same checks.

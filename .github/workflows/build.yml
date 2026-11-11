@@ -78,7 +78,14 @@ jobs:
   # Pulled by tag while it is a PoC; adopting it means pinning a digest, bumped after each weekly rebuild.
   almalinux-python36-baseline:
     runs-on: ubuntu-24.04
-    container: ghcr.io/${{ github.repository_owner }}/qtop-baseline:almalinux8-py36
+    permissions:
+      contents: read
+      packages: read  # pull BASELINE while its GHCR package is private
+    container:
+      image: ghcr.io/${{ github.repository_owner }}/qtop-baseline:almalinux8-py36
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
     continue-on-error: true
     timeout-minutes: 10
     steps:
