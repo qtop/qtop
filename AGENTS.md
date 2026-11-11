@@ -117,7 +117,9 @@ work. Do not open unattended, mass-produced, or speculative PRs.
 
 3.5 Follow `CONTRIBUTING.md` for submission mechanics (branch from and target `develop`,
 DCO sign-off, conventional commits, AI disclosure with model version, artifacts in
-`qtop-artifacts`). Use Proof-of-Humanity tags only when the corresponding conditions
+`qtop-artifacts`). Commit with `git commit -s`, so every message ends with
+`Signed-off-by:` from the contributor's git config, and add no AI
+`Co-Authored-By:` trailers: disclose AI assistance in the PR description. Use Proof-of-Humanity tags only when the corresponding conditions
 in `CONTRIBUTING.md` apply; a tag is not universally required.
 
 3.6 Keep PRs minimal but complete: explain purpose, behavioural impact, tests run,
