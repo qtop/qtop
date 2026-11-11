@@ -206,3 +206,45 @@ def test_pbs_json_queue_anonymization_supplies_its_category(tmp_path):
     rows = PBSStatExtractor({}, SimpleNamespace(ANONYMIZE=True)).extract_qstatq(str(path))
     assert rows[0]["queue_name"] == "p_anon_q_0"
     assert rows[0]["run"] == "1" and rows[0]["queued"] == "2"
+
+
+class _Text(str):
+    """A str subclass, as a plugin might hand over."""
+
+
+JSON_LEAVES = st.one_of(st.none(), st.booleans(), st.integers(), st.floats(allow_nan=False), st.text(max_size=6), st.text(max_size=3).map(_Text))
+JSON_KEYS = st.one_of(st.text(max_size=4), st.integers(-2, 9), st.booleans(), st.text(max_size=3).map(_Text))
+JSON_SHAPED = st.recursive(JSON_LEAVES, lambda children: st.lists(children, max_size=4) | st.dictionaries(JSON_KEYS, children, max_size=4), max_leaves=24)
+
+
+def _containers(value, found):
+    if isinstance(value, (dict, list)):
+        found.append(value)
+        for item in value.values() if isinstance(value, dict) else value:
+            _containers(item, found)
+    return found
+
+
+@given(JSON_SHAPED)
+def test_raw_and_visible_matches_both_passes_and_owns_every_container(value):
+    from qtop_py.safety import raw_and_visible, rebuild, visible_data
+
+    raw, safe = raw_and_visible(value)
+    assert repr(raw) == repr(rebuild(value)) and repr(safe) == repr(visible_data(value))  # repr: key order and str subclasses
+    owned = {id(container) for container in _containers(value, [])}
+    raw_ids, safe_ids = ({id(container) for container in _containers(copy_, [])} for copy_ in (raw, safe))
+    assert not raw_ids & owned and not safe_ids & owned and not raw_ids & safe_ids
+
+
+@given(st.dictionaries(JSON_KEYS | st.floats(allow_nan=False) | st.none(), JSON_LEAVES, max_size=6))
+def test_core_job_map_fast_path_accepts_exactly_what_isinstance_accepts(cores):
+    from qtop_py.cluster_state import _core_job_map_types_valid
+
+    assert _core_job_map_types_valid(cores) == all(isinstance(core, (str, int)) and isinstance(job, str) for core, job in cores.items())
+
+
+@given(st.lists(JSON_LEAVES, max_size=6))
+def test_nonempty_texts_fast_path_matches_isinstance_check(values):
+    from qtop_py.schedulers.metadata import _nonempty_texts
+
+    assert _nonempty_texts(values) == all(isinstance(value, str) and value for value in values)

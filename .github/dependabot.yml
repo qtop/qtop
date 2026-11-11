@@ -7,7 +7,8 @@
 ## reviewed under the four-eyes rule (MAINTAINERS.md); a pin is merged only once CI is green.
 ## The python_version-marked pins for 3.10/3.11 lanes may receive bumps those interpreters
 ## cannot install: the nightly 3.11 lanes and tests/test_ci_requirements.py are the check.
-## GitLab CI images and workflow `container:` images are not covered by Dependabot.
+## GitLab CI images and workflow `container:` images are not covered by Dependabot;
+## the BASELINE Dockerfile's base image digest is (ci/baseline).
 version: 2
 updates:
   - package-ecosystem: github-actions
@@ -37,3 +38,14 @@ updates:
     commit-message:
       prefix: CI
     labels: [dependencies, python]
+
+  - package-ecosystem: docker
+    directory: /ci/baseline
+    target-branch: develop
+    schedule:
+      interval: monthly
+    cooldown:
+      default-days: 7
+    commit-message:
+      prefix: CI
+    labels: [dependencies]

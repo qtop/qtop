@@ -86,6 +86,7 @@ from qtop_py.ui.viewport import Viewport
 from qtop_py.web import Web
 
 SIGPIPE = getattr(_signal, "SIGPIPE", None)  # absent on Windows
+SIGWINCH = getattr(_signal, "SIGWINCH", None)
 termios: Optional[ModuleType]
 try:
     import termios
@@ -259,12 +260,6 @@ def reset_sigpipe() -> None:
         signal(SIGPIPE, SIG_DFL)
 
 
-def _disable_terminal_echo(attrs: Any) -> None:
-    """Switch a termios attribute list to non-echoing, non-canonical mode."""
-    if termios is not None:
-        attrs[3] &= ~(termios.ECHO | termios.ICANON)
-
-
 def _set_terminal_attrs(attrs: Any) -> None:
     """Apply terminal attributes when the platform exposes a real stdin TTY."""
     if termios is not None and sys.__stdin__ is not None:
@@ -329,28 +324,41 @@ def get_date_obj_from_str(s: str, now: datetime.datetime) -> datetime.datetime:
 
 
 @contextlib.contextmanager
-def raw_mode(file: Any, args: Any) -> Generator[None, None, None]:
-    """Put the terminal into raw mode for single-key input, restoring it afterwards.
+def raw_mode(file: Any, args: Any) -> Generator[Tuple[Any, Any], None, None]:
+    """Put a watch-mode terminal in cbreak mode (no echo or line buffering; Ctrl-C still works); yield (old, new) attrs.
 
-    After http://stackoverflow.com/questions/11918999/key-listeners-in-python/11919074#11919074
+    Without a terminal, or outside watch mode, nothing changes and the attrs are empty, so keys need Enter.
+    Unread keys are dropped on exit, rather than spilling into the shell. SIGTERM and SIGHUP (kill, a closed
+    ssh session) exit through the restore too, and SIGCONT (fg after Ctrl-Z) re-applies cbreak mode.
     """
-    if args.ONLYSAVETOFILE or termios is None:
-        yield
-    elif args.WATCH:
+    old_attrs: Any = ""
+    new_attrs: Any = ""
+    if args.WATCH and not args.ONLYSAVETOFILE and termios is not None:
         try:
             old_attrs = termios.tcgetattr(file.fileno())
-        except (AttributeError, OSError, termios.error):
-            yield
-        else:
             new_attrs = old_attrs[:]
-            new_attrs[3] = new_attrs[3] & ~(termios.ECHO | termios.ICANON)
-            try:
-                termios.tcsetattr(file.fileno(), termios.TCSADRAIN, new_attrs)
-                yield
-            finally:
-                termios.tcsetattr(file.fileno(), termios.TCSADRAIN, old_attrs)
-    else:
-        yield
+            new_attrs[3] &= ~(termios.ECHO | termios.ICANON)
+            termios.tcsetattr(file.fileno(), termios.TCSADRAIN, new_attrs)
+        except (AttributeError, OSError, termios.error):
+            old_attrs = new_attrs = ""  # not a terminal: nothing to restore
+    if not old_attrs or termios is None:
+        yield "", ""
+        return
+    tty = termios
+
+    def leave(signum: int, _frame: Any) -> None:
+        raise SystemExit(128 + signum)
+
+    def resume(_signum: int, _frame: Any) -> None:
+        tty.tcsetattr(file.fileno(), tty.TCSADRAIN, new_attrs)
+
+    handlers = [(sig, _signal.signal(sig, handler)) for sig, handler in ((_signal.SIGTERM, leave), (_signal.SIGHUP, leave), (_signal.SIGCONT, resume))]
+    try:
+        yield old_attrs, new_attrs
+    finally:
+        for sig, previous in handlers:
+            _signal.signal(sig, previous)
+        termios.tcsetattr(file.fileno(), termios.TCSAFLUSH, old_attrs)
 
 
 def calculate_term_size(config: Dict[str, Any], FALLBACK_TERM_SIZE: Sequence[int], viewport: Viewport) -> Tuple[int, int]:
@@ -608,8 +616,10 @@ def check_python_version() -> None:
 
 @contextlib.contextmanager
 def menu_terminal(old_attrs: Any, new_attrs: Any) -> Generator[None, None, None]:
-    """Show a menu with the terminal echoing input, then restore watch-mode settings."""
-    _disable_terminal_echo(new_attrs)
+    """Show a menu with the terminal echoing input, then restore watch-mode settings; without a terminal, change nothing."""
+    if not old_attrs:
+        yield
+        return
     _set_terminal_attrs(old_attrs)
     try:
         yield
@@ -830,21 +840,30 @@ def init_dirs(args: Any, _savepath: str) -> Any:
     return args
 
 
-def wait_for_keypress_or_autorefresh(viewport: Viewport, config: Dict[str, Any], FALLBACK_TERMSIZE: Sequence[int], KEYPRESS_TIMEOUT: float = 1) -> str:
-    """Return the key pressed within the refresh interval, or an empty string to refresh."""
-    while sys.stdin in select.select([sys.stdin], [], [], KEYPRESS_TIMEOUT)[0]:
-        _read_char = sys.stdin.read(1)
-        if _read_char:
-            logging.debug("Pressed %s" % _read_char)
-            break
-    else:
-        state = viewport.get_term_size()
-        viewport.set_term_size(*calculate_term_size(config, FALLBACK_TERMSIZE, viewport))
-        new_state = viewport.get_term_size()
-        _read_char = "\n" if (state == new_state) else "r"
-        logging.debug("Auto-advancing by pressing <Enter>")
+class TerminalResized(Exception):
+    """SIGWINCH arrived while qtop waited for a key."""
 
-    return _read_char
+
+def _raise_resized(_signum: int, _frame: Any) -> None:
+    raise TerminalResized()
+
+
+def wait_for_keypress_or_autorefresh(viewport: Viewport, config: Dict[str, Any], FALLBACK_TERMSIZE: Sequence[int], KEYPRESS_TIMEOUT: float = 1) -> str:
+    """Return the key pressed within the refresh interval, or a newline to redraw: at its end, or at once on a resize (SIGWINCH)."""
+    previous = _signal.signal(SIGWINCH, _raise_resized) if SIGWINCH is not None else None  # only while waiting, never mid-frame
+    try:
+        while sys.stdin in select.select([sys.stdin], [], [], KEYPRESS_TIMEOUT)[0]:
+            _read_char = sys.stdin.read(1)
+            if _read_char:
+                logging.debug("Pressed %s" % _read_char)
+                return _read_char
+    except TerminalResized:
+        logging.debug("Terminal resized")
+    finally:
+        if SIGWINCH is not None:
+            _signal.signal(SIGWINCH, previous)
+    viewport.set_term_size(*calculate_term_size(config, FALLBACK_TERMSIZE, viewport))  # a resize just redraws ("r" cycles core lines)
+    return "\n"
 
 
 def discover_qtop_batch_systems() -> Dict[str, Any]:
@@ -1059,17 +1078,6 @@ def _parse_run_options(resources: RunResources) -> Tuple[Any, Dict[str, Any]]:
     return args, dynamic_config
 
 
-def _terminal_attrs(args: Any) -> Tuple[Any, Any]:
-    """Terminal attributes the watch-mode menus restore; empty outside watch/replay or without termios."""
-    if not (args.WATCH or args.REPLAY) or termios is None:
-        return "", ""
-    try:
-        old_attrs = termios.tcgetattr(0)
-    except termios.error:
-        old_attrs = ""
-    return old_attrs, old_attrs[:]
-
-
 def _run_paths() -> RunPaths:
     initial_cwd = os.getcwd()
     logging.debug("Initial qtop directory: %s" % initial_cwd)
@@ -1138,7 +1146,6 @@ def _collect_frame(
 def main(resources: RunResources) -> None:
     """Run qtop: collect, render and, in watch mode, repeat until quit."""
     args, dynamic_config = _parse_run_options(resources)
-    old_attrs, new_attrs = _terminal_attrs(args)  # needed for the filtering/sorting menus
 
     available_batch_systems = discover_qtop_batch_systems()
 
@@ -1156,7 +1163,7 @@ def main(resources: RunResources) -> None:
 
     model = None
     web = resources.web = Web(paths.initial_cwd)
-    with raw_mode(sys.stdin, args):  # key listener implementation
+    with raw_mode(sys.stdin, args) as (old_attrs, new_attrs):  # single-key input; the menus switch back to old_attrs
         try:
             while True:
                 config, user_to_color, nodestate_to_color = _load_config(args, paths)

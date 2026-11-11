@@ -43,9 +43,10 @@ modern-python:
 almalinux-python36:
   image: almalinux:8
   stage: test
+  # Primary repo.almalinux.org instead of the mirror list, no Extras, and dnf drops a source slower than 50 kB/s after 10 s.
   before_script:
-    - dnf -y install make findutils
-    - dnf -y install python36
+    - sed -i -e 's|^mirrorlist=|#mirrorlist=|' -e 's|^# *baseurl=|baseurl=|' /etc/yum.repos.d/almalinux*.repo
+    - dnf -y --disablerepo='extras*' --setopt=minrate=50k --setopt=timeout=10 --setopt=install_weak_deps=False --nodocs install make findutils python36
   script:
     - |
       PYTHON_BIN="$(command -v python3.6)"

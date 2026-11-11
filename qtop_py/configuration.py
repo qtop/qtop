@@ -6,10 +6,13 @@ import copy
 import logging
 import os
 import re
+import time
 from math import isfinite
 from typing import TYPE_CHECKING, Any, Dict, List, Set, Tuple
 
 if TYPE_CHECKING:
+    from typing import Final
+
     from qtop_py.state_types import Config
 
 from qtop_py import fileutils, yaml_parser
@@ -25,6 +28,50 @@ from qtop_py.constants import (
 )
 from qtop_py.errors import OperationalError
 from qtop_py.safety import ResourceLimitError, literal_eval
+
+# Parsed YAML layers by path, each with the stat signature it was parsed under.
+# Watch mode reloads the configuration every frame; an unchanged file is
+# deep-copied from here instead of being re-parsed, and any edit (new mtime,
+# ctime, size or inode) or removal invalidates its entry.
+_LAYER_CACHE: Dict[str, Tuple[Tuple[int, ...], Dict[str, Any]]] = {}
+# A file modified within this many seconds of being read is not cached: an edit
+# in the same mtime tick could otherwise keep an identical signature.
+RACY_WINDOW_S: "Final" = 2.0
+
+
+def _stat_signature(path: str) -> Tuple[int, ...]:
+    st = os.stat(path)
+    return (st.st_dev, st.st_ino, st.st_size, st.st_mtime_ns, st.st_ctime_ns)
+
+
+def parse_layer(path: str) -> Dict[str, Any]:
+    """Parse one YAML layer, reusing the last parse while the file is unchanged.
+
+    Returns a fresh deep copy each call, so callers may mutate their frame's
+    configuration without touching the cache or other frames. Missing or
+    unreadable files and parse errors propagate from yaml_parser.parse and are
+    never cached.
+    """
+    key = os.path.abspath(path)  # watch mode may chdir between frames
+    try:
+        signature = _stat_signature(path)
+    except OSError:
+        _LAYER_CACHE.pop(key, None)
+        return yaml_parser.parse(path)  # uncached: the parser raises the same errors as before caching
+    cached = _LAYER_CACHE.get(key)
+    if cached is not None and cached[0] == signature:
+        return copy.deepcopy(cached[1])
+    layer = yaml_parser.parse(path)  # stat first: an edit during the parse changes the signature
+    if time.time() - signature[3] / 1e9 > RACY_WINDOW_S:
+        _LAYER_CACHE[key] = (signature, copy.deepcopy(layer))
+    else:
+        _LAYER_CACHE.pop(key, None)
+    return layer
+
+
+def clear_layer_cache() -> None:
+    """Forget every cached configuration and palette layer."""
+    _LAYER_CACHE.clear()
 
 
 def literal(value: Any) -> Any:
@@ -173,7 +220,7 @@ def load_palettes(directories: Tuple[str, ...]) -> Dict[str, Any]:
     palettes: Dict[str, Any] = {}
     for directory in directories:
         try:
-            layer = yaml_parser.parse(os.path.join(directory, PALETTES_YAML))
+            layer = parse_layer(os.path.join(directory, PALETTES_YAML))
         except FileNotFoundError:
             continue
         for name, entries in layer.items():
@@ -337,11 +384,11 @@ def load_yaml_config(args: Any, package_dir: str, initial_cwd: str, system_dir: 
     """Load defaults < system < user < custom, then prepare CLI overrides."""
     if getattr(args, "load_sample", None):
         return prepare_config(args.sample_snapshot["config"], args)
-    config = yaml_parser.parse(os.path.join(os.path.realpath(package_dir), QTOPCONF_YAML))
+    config = parse_layer(os.path.join(os.path.realpath(package_dir), QTOPCONF_YAML))
     logging.info("Default configuration dictionary loaded. Length: %s items", len(config))
     for label, directory in (("Env", system_dir), ("User", user_dir)):
         try:
-            layer = yaml_parser.parse(os.path.join(directory, QTOPCONF_YAML))
+            layer = parse_layer(os.path.join(directory, QTOPCONF_YAML))
         except FileNotFoundError:
             logging.info("%s could not be found in %s/", QTOPCONF_YAML, directory)
         else:
@@ -350,7 +397,7 @@ def load_yaml_config(args: Any, package_dir: str, initial_cwd: str, system_dir: 
     if args.CONFFILE:
         for directory in (user_dir, initial_cwd):
             try:
-                custom = yaml_parser.parse(os.path.join(directory, args.CONFFILE))
+                custom = parse_layer(os.path.join(directory, args.CONFFILE))
             except FileNotFoundError:
                 continue
             config.update(custom)
@@ -358,6 +405,7 @@ def load_yaml_config(args: Any, package_dir: str, initial_cwd: str, system_dir: 
             break
         else:
             raise OperationalError("Custom configuration file %s was not found in %s/ or %s/." % (args.CONFFILE, user_dir, initial_cwd))
-    config.setdefault("palettes", load_palettes((os.path.realpath(package_dir), system_dir, user_dir)))
+    if "palettes" not in config:  # not setdefault(): that would load every palettes.yaml even when a layer already set them
+        config["palettes"] = load_palettes((os.path.realpath(package_dir), system_dir, user_dir))
     logging.info("Updated main dictionary. Length: %s items", len(config))
     return prepare_config(config, args)

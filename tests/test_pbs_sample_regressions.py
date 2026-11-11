@@ -115,10 +115,45 @@ def test_decide_remapping_handles_mixed_numeric_and_named_nodes(monkeypatch):
     assert cluster.decide_remapping(["1", ""], {"wn"}) is True
 
 
-def test_valid_corejobs_skips_jobs_missing_from_qstat():
+def test_cores_resolve_once_keep_free_order_unknown_markers_and_shared_cells(monkeypatch, caplog):
     occupancy = qtop.WNOccupancy.__new__(qtop.WNOccupancy)
+    monkeypatch.setattr(occupancy, "_core_cell", lambda user, queue, _coloring: qtop.utils.ColorStr(user + "@" + queue), raising=False)
+    resolved = []
+    resolve = occupancy._resolve
+    monkeypatch.setattr(occupancy, "_resolve", lambda job, jobs: resolved.append(job) or resolve(job, jobs), raising=False)
+    vectors = [[] for _ in range(6)]
+    jobs = {"1": ("alice", "batch"), "2": ("bob", "long")}
+    corejobs = {4: "1", 1: "9", "0": "1", 3: "2"}  # 9 is an unlisted job; keys may be int or str
+    free = occupancy.color_cores_and_return_unused(6, vectors, corejobs, "user_to_color", jobs)
+    assert free == [2, 5] and resolved == ["1", "9", "1", "2"]  # one _resolve() per assigned core
+    assert vectors[4][0] is vectors[0][0]  # one shared cell per (user, queue)
+    assert (str(vectors[1][0]), vectors[1][0].color) == ("?", "Yellow")
+    assert not vectors[2] and not vectors[5]
+    assert "references an unlisted job (ID '9')" in caplog.text
+    for invalid in ({8: "1"}, {6: "1"}, {-1: "1"}, {"01": "1"}, {True: "1"}, {"x": "1"}, {1: "1", "1": "2"}):
+        with pytest.raises(ValueError, match="x not in list"):
+            occupancy.color_cores_and_return_unused(6, [[] for _ in range(9)], invalid, "user_to_color", jobs)
 
-    assert list(occupancy._valid_corejobs({"0": "9999"}, {})) == []
+
+def test_core_cell_highlight_rules_are_built_once_per_frame(monkeypatch):
+    from types import SimpleNamespace
+
+    occupancy = qtop.WNOccupancy.__new__(qtop.WNOccupancy)
+    occupancy.MVU_model = SimpleNamespace(display_overrides={}, user_to_color={"alice": "Red", "bob": "Blue"})
+    occupancy.config = {"highlight": [{"or_include_user_id": ["0"]}, {"or_include_queue": ["long"]}]}
+    occupancy.user_to_id = {"alice": qtop.utils.ColorStr("0"), "bob": qtop.utils.ColorStr("1")}
+    occupancy.user_color_patterns = {"0": "alice", "1": "bob"}
+    built = []
+    from qtop_py.mvu_query import WNOccupancy
+
+    rules = WNOccupancy.get_hl_q_or_users
+    monkeypatch.setattr(WNOccupancy, "get_hl_q_or_users", staticmethod(lambda selected: built.append(1) or rules(selected)))
+    cells = [occupancy._core_cell(user, queue, "user_to_color") for user, queue in (("alice", "batch"), ("bob", "batch"), ("bob", "long"))]
+    assert [cell.color for cell in cells] == ["Red", "Gray_D", "Blue"] and built == [1]
+    fresh = qtop.WNOccupancy.__new__(qtop.WNOccupancy)
+    fresh.__dict__.update({key: value for key, value in vars(occupancy).items() if key != "_highlight"}, config={"highlight": [{"include_user_id": ["7"]}]})
+    with pytest.raises(KeyError, match="7"):  # an unknown user ID fails as before
+        fresh._core_cell("alice", "batch", "user_to_color")
 
 
 def test_worker_node_name_regex_accepts_underscores():

@@ -359,47 +359,41 @@ class WNOccupancy(object):
 
         for core_nr in self.cluster.core_span:
             core_user_map["Core%svector" % str(core_nr)] = []  # Cpu0vector, Cpu1vector, Cpu2vector, ... = [],[],[], ...
+        # The same lists by core position, so filling a cell needs no key built per core.
+        core_vectors = list(core_user_map.values())
 
         for _node in self.cluster.workernode_dict:
-            core_user_map = self._fill_node_cores_vector(_node, core_user_map, user_to_id, self.cluster.core_span, job_to_user_and_queue, core_coloring)
+            self._fill_node_cores_vector(_node, core_vectors, job_to_user_and_queue, core_coloring)
 
         return core_user_map
 
     def _fill_node_cores_vector(
         self,
-        _node: Dict[str, Any],
-        core_user_map: Dict[str, Any],
-        user_to_id: Dict[str, Any],
-        _core_span: Sequence[str],
+        _node: Any,
+        core_vectors: Sequence[List[Any]],
         job_to_user_and_queue: Mapping[str, Tuple[str, str]],
         core_coloring: str,
-    ) -> Dict[str, Any]:
-        """Fill one node's column of the core matrix with job or status symbols.
+    ) -> None:
+        """Append one node's column of the core matrix (core_vectors[i] is core line i) with job or status symbols.
 
         Nodes with fewer cores than the largest one are padded with non_existent_node_symbol.
         """
         node = self.cluster.workernode_dict[_node]
         state = node["state"]
-        np = node["np"]
         corejobs = node.get("core_job_map", dict())
         non_existent_node_symbol = self.config["non_existent_node_symbol"]
         gray_hash = utils.ColorStr(non_existent_node_symbol, color="Gray_D")
         gray_underscore = utils.ColorStr("_", color="Gray_D")
 
         if state == "?":  # for non-existent machines
-            for core_line in core_user_map:
-                core_user_map[core_line].append(gray_hash)
+            for vector in core_vectors:
+                vector.append(gray_hash)
         else:
-            node_cores = [str(x) for x in range(int(np))]
-            core_user_map, node_free_cores = self.color_cores_and_return_unused(node_cores, core_user_map, corejobs, core_coloring, job_to_user_and_queue)
-            for core in node_free_cores:
-                core_user_map["Core" + str(core) + "vector"].append(gray_underscore)
-
-            # core_span and node_cores are both str(range(...)) prefixes, so the missing cores are a slice.
-            for core in _core_span[int(np) :]:
-                core_user_map["Core" + str(core) + "vector"].append(gray_hash)
-
-        return core_user_map
+            np = int(node["np"])
+            for core in self.color_cores_and_return_unused(np, core_vectors, corejobs, core_coloring, job_to_user_and_queue):
+                core_vectors[core].append(gray_underscore)
+            for vector in core_vectors[np:]:  # core lines beyond this node's cores
+                vector.append(gray_hash)
 
     @staticmethod
     def get_hl_q_or_users(_highlighted_queues_or_users: Iterable[Mapping[str, Any]]) -> Iterator[Tuple[Any, str, Callable[..., bool]]]:
@@ -414,40 +408,48 @@ class WNOccupancy(object):
                 yield user_queue, highlight_kind, and_or_func
 
     def color_cores_and_return_unused(
-        self, node_cores: Sequence[str], core_user_map: Dict[str, Any], corejobs: Mapping[Any, Any], _core_coloring: str, job_to_user_and_queue: Mapping[str, Tuple[str, str]]
-    ) -> Tuple[Dict[str, Any], List[str]]:
-        """Colour each busy core by user or queue, as core_coloring says; return the core map and the free cores."""
-        # Insertion-ordered dict: O(1) removal, same iteration order as the former list.
-        node_free_cores = dict.fromkeys(node_cores)
+        self, np: int, core_vectors: Sequence[List[Any]], corejobs: Mapping[Any, Any], _core_coloring: str, job_to_user_and_queue: Mapping[str, Tuple[str, str]]
+    ) -> List[int]:
+        """Colour each busy core of an np-core node by user or queue, as core_coloring says; return the free core positions in order."""
+        free = bytearray(b"\x01") * np
+        # Valid core keys are 0..np-1 as int or as their str(); anything else raises as before.
+        positions: Dict[str, int] = self.__dict__.setdefault("_core_positions", {})  # per frame: lives on this WNOccupancy
+        if len(positions) < np:
+            positions.update((str(core), core) for core in range(len(positions), np))
 
-        def take(core: str) -> None:
-            if core not in node_free_cores:
-                raise ValueError("list.remove(x): x not in list")
-            del node_free_cores[core]
-
-        for core, job in corejobs.items():
-            if self._resolve(str(job), job_to_user_and_queue) not in job_to_user_and_queue:
-                core_user_map["Core" + str(core) + "vector"].append(utils.ColorStr("?", color="Yellow"))
-                take(str(core))
         # One cell per (user, queue) per frame: every input to its colour is frame-constant,
         # and cells are never modified after creation, so cores of the same job share it.
         cells = self.__dict__.setdefault("_core_cells", {})  # per frame: lives on this WNOccupancy
-        for user, core, queue in self._valid_corejobs(corejobs, job_to_user_and_queue):
-            id_ = cells.get((user, queue))
-            if id_ is None:
-                id_ = cells[user, queue] = self._core_cell(user, queue, _core_coloring)
-            core_user_map["Core" + str(core) + "vector"].append(id_)
-            take(core)  # this is an assigned core, hence it doesn't belong to the node's free cores
+        for core, job in corejobs.items():  # one pass: each assigned core resolves its job once
+            position = core if type(core) is int else positions.get(str(core), np)
+            if not 0 <= position < np or not free[position]:  # an invalid or repeated core
+                raise ValueError("list.remove(x): x not in list")
+            free[position] = 0
+            resolved = self._resolve(str(job), job_to_user_and_queue)
+            user_queue = job_to_user_and_queue.get(resolved)
+            if user_queue is None:  # as str(KeyError(resolved)) in the former second pass
+                logging.warning("Scheduler node allocation references an unlisted job (ID %r). Please check with the SysAdmin.", resolved)
+                cell = utils.ColorStr("?", color="Yellow")
+            else:
+                cell = cells.get(user_queue)
+                if cell is None:
+                    cell = cells[user_queue] = self._core_cell(user_queue[0], user_queue[1], _core_coloring)
+            core_vectors[position].append(cell)
 
-        return core_user_map, list(node_free_cores)
+        return [core for core in range(np) if free[core]]
 
     def _core_cell(self, user: str, queue: str, _core_coloring: str) -> "utils.ColorStr":
         """Build the coloured matrix cell for a user's job in a queue."""
         selected_pat_to_color_map = getattr(self.MVU_model, _core_coloring)
-        _highlighted_queues_or_users = self.MVU_model.display_overrides.get("highlight", self.config["highlight"])
-        id_to_user = dict(zip((str(x) for x in self.user_to_id.values()), self.user_to_id.keys()))
-        highlight_rules = list(WNOccupancy.get_hl_q_or_users(_highlighted_queues_or_users))
-        and_or_func = highlight_rules[-1][2] if highlight_rules else any
+        highlight = self.__dict__.get("_highlight")  # per frame: lives on this WNOccupancy
+        if highlight is None:
+            _highlighted_queues_or_users = self.MVU_model.display_overrides.get("highlight", self.config["highlight"])
+            highlight_rules = list(WNOccupancy.get_hl_q_or_users(_highlighted_queues_or_users))
+            if any(kind == "user_id" for _, kind, _ in highlight_rules):  # user IDs become user names once
+                id_to_user = dict(zip((str(x) for x in self.user_to_id.values()), self.user_to_id.keys()))
+                highlight_rules = [(id_to_user[rule] if kind == "user_id" else rule, kind, func) for rule, kind, func in highlight_rules]
+            highlight = self._highlight = (_highlighted_queues_or_users, highlight_rules, highlight_rules[-1][2] if highlight_rules else any)
+        _highlighted_queues_or_users, highlight_rules, and_or_func = highlight
         id_: utils.ColorStr = utils.ColorStr.from_other_color_str(self.user_to_id[user])
         viewed_pattern = self.user_color_patterns[str(id_)] if _core_coloring == "user_to_color" else queue
         matches = []
@@ -456,7 +458,6 @@ class WNOccupancy(object):
                 actual_user_queue = user
             elif highlight_kind == "user_id":
                 actual_user_queue = user
-                user_queue_to_highlight = id_to_user[user_queue_to_highlight]
             elif highlight_kind == "queue":
                 actual_user_queue = queue
             matches.append(re.match(user_queue_to_highlight, actual_user_queue))
@@ -474,19 +475,6 @@ class WNOccupancy(object):
         if resolved is None:
             resolved = memo[job] = resolve_job_id(job, job_to_user_and_queue)
         return resolved
-
-    def _valid_corejobs(self, corejobs: Mapping[Any, Any], job_to_user_and_queue: Mapping[str, Tuple[str, str]]) -> Iterator[Tuple[str, str, str]]:
-        """Generator that yields only those core-job pairs that successfully match to a user."""
-        for core, _job in corejobs.items():
-            job = self._resolve(str(_job), job_to_user_and_queue)
-            try:
-                user_queue = job_to_user_and_queue[job]
-            except KeyError as KeyErrorValue:
-                logging.warning("Scheduler node allocation references an unlisted job (ID %s). Please check with the SysAdmin.", str(KeyErrorValue))
-                continue
-            else:
-                user, queue = user_queue
-                yield user, str(core), queue
 
     def is_matrix_coreless(self, node_column_start: int, node_column_stop: int) -> bool:
         """Return True if every core line of this matrix slice would be removed as empty."""

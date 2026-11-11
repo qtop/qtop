@@ -25,6 +25,8 @@ if TYPE_CHECKING:
         slurm_tres_alloc: str
         slurm_tres_per_node: str
         slurm_tres_per_task: str
+        qid: str  # schema 2 qualified ID "<backend>:<cluster_id>:<id>", unique in the observation
+        kind: str  # schema 2: job, pod, vm or task
 
     class Job(JobResources):
         """A job: ID, user, state and queue, plus optional scheduler-specific fields."""
@@ -61,6 +63,7 @@ if TYPE_CHECKING:
         cpu_allocation_source: str
         slurm_gres: str
         slurm_gres_used: str
+        qid: str  # schema 2 qualified ID "<backend>:<cluster_id>:<id>", unique in the observation
 
     class Node(NodeResources):
         """A worker node: name, state, core count, queues and core-to-job map."""
@@ -71,8 +74,13 @@ if TYPE_CHECKING:
         qname: List[Optional[str]]
         core_job_map: Dict[Union[int, str], str]
 
-    class Queue(TypedDict):
-        """A queue in the cluster state: name, limit, job counts and state."""
+    class QueueIdentity(TypedDict, total=False):
+        """The optional schema 2 qualified ID of a scheduling domain."""
+
+        qid: str  # schema 2 qualified ID "<backend>:<cluster_id>:<name>", unique among queues
+
+    class Queue(QueueIdentity):
+        """A scheduling domain (queue, partition, ...): name, limit, job counts and state."""
 
         name: str
         limit: str
@@ -95,8 +103,20 @@ if TYPE_CHECKING:
         slurm_diagnostics: Dict[str, int]
         oar_diagnostics: Dict[str, int]
 
-    class ClusterState(SnapshotDiagnostics):
-        """The plain-data boundary between backends and qtop: jobs, nodes and queues."""
+    class Source(TypedDict):
+        """Where an observation comes from: the backend and a cluster ID chosen by the operator."""
+
+        backend: str
+        cluster_id: str
+
+    class Observation(TypedDict, total=False):
+        """The schema 2 envelope; a state without it is schema 1."""
+
+        schema_version: int
+        source: Source
+
+    class ClusterState(SnapshotDiagnostics, Observation):
+        """The plain-data boundary between backends and qtop: jobs, nodes and queues (scheduling domains)."""
 
         jobs: List[Job]
         nodes: List[Node]

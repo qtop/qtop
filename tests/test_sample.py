@@ -16,6 +16,7 @@ from types import SimpleNamespace
 import pytest
 
 from qtop_py import sample, yaml_parser
+from qtop_py.cluster_state import validate_cluster_state
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -341,6 +342,30 @@ def test_invalid_snapshot_has_actionable_error(tmp_path, kind):
     assert result.returncode == 1
     assert "Cannot load support snapshot" in result.stderr
     assert "Traceback" not in result.stderr
+
+
+def test_schema_2_observations_replay_and_anonymize_without_original_identifiers(tmp_path):
+    from tests.test_cluster_state import observation
+
+    state = observation(cluster_id="prod-west")
+    state["jobs"][0].update(id="4242", qid="slurm:prod-west:4242")
+    state["nodes"][0].update(domainname="secret-node", qid="slurm:prod-west:secret-node", core_job_map={0: "4242"})
+    state["queues"][0].update(qid="slurm:prod-west:" + state["queues"][0]["name"], owner="secret-owner")  # extra fields may hold names
+    masked, mappings = sample.anonymize_state(state)
+    text = json.dumps(masked)
+    assert not any(original in text for original in ("prod-west", "alice", "secret", "debug", "4242"))
+    assert masked["schema_version"] == 2 and masked["source"]["backend"] == "slurm" and masked["jobs"][0]["kind"] == "job"
+    prefix = "slurm:%s:" % masked["source"]["cluster_id"]
+    job, node, queue = masked["jobs"][0], masked["nodes"][0], masked["queues"][0]
+    assert (job["qid"], node["qid"], queue["qid"]) == (prefix + job["id"], prefix + node["domainname"], prefix + queue["name"])  # from masked parts
+    assert "owner" not in queue
+    assert node["core_job_map"] == {"0": job["id"]}  # references still resolve to the masked job
+    assert validate_cluster_state(masked) is masked
+    assert sample.anonymize_state(state)[0] == masked  # deterministic masking
+    archive = tmp_path / "sample.tar"
+    with tarfile.open(str(archive), "w") as saved:
+        sample.add_json(saved, sample.SNAPSHOT_NAME, {"format_version": 1, "scheduler": "slurm", "state": masked, "config": {}, "options": {}})
+    assert sample.load_snapshot(str(archive))["state"] == masked
 
 
 def test_config_masking_translates_regexes_without_changing_control_strings():

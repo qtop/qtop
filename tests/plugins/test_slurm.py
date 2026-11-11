@@ -7,6 +7,7 @@
 ##
 
 import os
+import sys
 from pathlib import Path
 
 import pytest
@@ -241,6 +242,29 @@ def test_host_expansion_limit(monkeypatch, caplog):
     assert "too many expanded hosts" in caplog.text
 
 
+@pytest.mark.parametrize("sample_name", ("cpu_allocations", "partial_and_malformed"))
+def test_worker_nodes_expand_each_job_node_list_once_per_collection(monkeypatch, sample_name):
+    files = scheduler_files(sample_name)
+    scontrol = os.path.join(os.path.dirname(files["squeue_file"]), "scontrol.txt")
+    if os.path.exists(scontrol):
+        files["scontrol_file"] = scontrol
+    slurm = SlurmBatchSystem(files, {}, Options())
+    ids, _users, _states, queues = slurm.get_jobs_info()
+    expected = slurm.get_worker_nodes(ids, queues, Options())
+    calls = []
+    expand = SlurmBatchSystem.expand_nodelist.__func__
+
+    def counting(cls, nodelist):
+        if sys._getframe(1).f_code.co_name not in ("_read_cpu_allocations", "_apply_gpu_allocations"):  # not scontrol's own lists
+            calls.append(nodelist)
+        return expand(cls, nodelist)
+
+    monkeypatch.setattr(SlurmBatchSystem, "expand_nodelist", classmethod(counting))
+    assert slurm.get_worker_nodes(ids, queues, Options()) == expected
+    job_lists = [job["Nodes"] for job in slurm._get_jobs() if job["S"] in SlurmBatchSystem.ACTIVE_STATES]
+    assert job_lists and all(calls.count(nodelist) == 1 for nodelist in job_lists)  # was once per pass: up to 4 times
+
+
 @pytest.mark.parametrize("anonymize", (False, True))
 def test_partial_and_malformed_synthetic_snapshot(anonymize, caplog):
     options = Options()
@@ -344,6 +368,21 @@ def test_unusable_cpu_details_fall_back_without_losing_jobs(detailed_slurm, deta
     assert len(state["jobs"]) == 3
     assert sum(len(node["core_job_map"]) for node in nodes) == 6
     assert [node["cpu_allocation_source"] for node in nodes] == ["estimated", "estimated", "none"]
+
+
+def test_cpu_id_lists_are_parsed_once_per_collection_without_changing_failures(detailed_slurm, caplog):
+    slurm, path = detailed_slurm
+    path.write_text(
+        "JobId=101\n   Nodes=(null) CPU_IDs=x\n"  # unusable hosts: this job only, the text is never converted
+        "JobId=102\n   Nodes=node001 CPU_IDs=0,2\n"
+        "JobId=103\n   Nodes=node002 CPU_IDs=0,2\n"
+        "JobId=104\n   Nodes=node002 CPU_IDs=1-[\n"
+        "JobId=105\n   Nodes=node003 CPU_IDs=1-[\n"
+    )
+    details = slurm._read_cpu_allocations()
+    assert details == {"101": None, "102": {"node001": (0, 2)}, "103": {"node002": (0, 2)}, "104": None, "105": None}
+    assert details["102"]["node001"] is details["103"]["node002"]  # one immutable parse, shared
+    assert caplog.text.count("Ignoring invalid host list '[1-[]'") == 2  # invalid lists still warn each time
 
 
 def test_partial_details_do_not_mix_estimated_positions_with_exact_ids(detailed_slurm):

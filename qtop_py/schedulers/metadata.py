@@ -4,7 +4,7 @@
 
 import copy
 import re
-from typing import TYPE_CHECKING, Any, Callable, Dict, Mapping, cast
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Mapping, cast
 
 if TYPE_CHECKING:
     from qtop_py.state_types import Job, Node
@@ -17,6 +17,7 @@ DIAGNOSTICS = {
 }
 JOB_IDENTITIES = (("slurm_array_job_id", "slurm_array_task_id", "_"), ("slurm_het_job_id", "slurm_het_job_offset", "+"))
 NODE_JOB_FIELDS = ("slurm_job_ids", "oar_job_ids")
+_TEXT_TYPE = frozenset((str,))
 
 
 def validate_diagnostics(data: Dict[str, object]) -> None:
@@ -31,12 +32,19 @@ def validate_diagnostics(data: Dict[str, object]) -> None:
             raise ValueError(label + " diagnostics require known counters with nonnegative integer values")
 
 
+def _nonempty_texts(values: List[object]) -> bool:
+    """Check every value is a nonempty str."""
+    if _TEXT_TYPE.issuperset(map(type, values)):  # exact str only, so nonempty is truthiness
+        return all(values)
+    return all(isinstance(value, str) and value for value in values)
+
+
 def validate_record_extensions(kind: str, record: Dict[str, object]) -> None:
     """Raise ValueError if a job's or node's scheduler-specific fields are malformed."""
     for field in ("slurm_partitions",) if kind == "jobs" else NODE_JOB_FIELDS if kind == "nodes" else ():
         if field in record:
             values = record[field]
-            if not isinstance(values, list) or (field == "slurm_partitions" and not values) or not all(isinstance(value, str) and value for value in values):
+            if not isinstance(values, list) or (field == "slurm_partitions" and not values) or not _nonempty_texts(cast(List[object], values)):
                 raise ValueError("%s must be a list of nonempty strings" % field)
             if field == "slurm_partitions" and record["queue"] not in values:
                 raise ValueError("job queue must belong to slurm_partitions")

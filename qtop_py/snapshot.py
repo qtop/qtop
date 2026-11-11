@@ -8,7 +8,7 @@ from collections import OrderedDict, namedtuple
 from typing import TYPE_CHECKING, cast
 
 from qtop_py.cluster_state import validate_cluster_state, validated_cluster_state_totals
-from qtop_py.safety import rebuild, visible_data
+from qtop_py.safety import raw_and_visible
 
 if TYPE_CHECKING:
     from typing import Dict
@@ -30,11 +30,9 @@ class Snapshot(namedtuple("Snapshot", ["worker_nodes", "jobs_dict", "queues_dict
     @classmethod
     def from_cluster_state(cls, cluster_state: "state_types.ClusterState") -> "Snapshot":
         """Validate a cluster state and build the snapshot, with display-safe text."""
-        cluster_state = rebuild(validate_cluster_state(cluster_state))  # the one copy boundary (JSON-shaped)
-        original = cluster_state
-        # visible_data() rebuilds every dict and list, so its result shares no
-        # mutable container with `original`; no second deep copy is needed below.
-        cluster_state = visible_data(cluster_state)
+        # The one copy boundary (JSON-shaped): one traversal yields the raw copy kept
+        # for export and the display-safe copy, sharing no dict or list.
+        original, cluster_state = raw_and_visible(validate_cluster_state(cluster_state))
         totals = validated_cluster_state_totals(cluster_state)
         jobs_dict = OrderedDict((job["id"], JobRow(job["user"], job["state"], job["queue"])) for job in cluster_state["jobs"])
         queues_dict = OrderedDict(

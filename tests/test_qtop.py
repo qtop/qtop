@@ -15,6 +15,7 @@ import re
 import sys
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import Mock
 
 import pytest
 
@@ -104,6 +105,77 @@ def test_raw_mode_allows_watch_mode_without_terminal_attrs(monkeypatch):
     assert entered_context
 
 
+class FakeTermios:
+    ECHO, ICANON, TCSADRAIN, TCSAFLUSH = 8, 2, 1, 2
+
+    class error(Exception):
+        pass
+
+    def __init__(self, fail_set=False):
+        self.calls, self.fail_set = [], fail_set
+
+    def tcgetattr(self, fd):
+        return [0, 0, 0, 8 | 2 | 1, 0, 0]
+
+    def tcsetattr(self, fd, when, attrs):
+        if self.fail_set:
+            raise self.error("cannot set")
+        self.calls.append((when, attrs[3]))
+
+
+class TerminalFile:
+    def fileno(self):
+        return 0
+
+
+@pytest.mark.parametrize("failure", (None, RuntimeError))
+def test_raw_mode_yields_cbreak_attrs_and_restores_flushing(monkeypatch, failure):
+    fake = FakeTermios()
+    monkeypatch.setattr(qtop_module, "termios", fake)
+    try:
+        with qtop_module.raw_mode(TerminalFile(), WATCH_ARGS) as (old_attrs, new_attrs):
+            assert (old_attrs[3], new_attrs[3]) == (11, 1)  # echo and line buffering off; other flags kept
+            if failure:
+                raise failure()
+    except RuntimeError:
+        assert failure
+    assert fake.calls == [(fake.TCSADRAIN, 1), (fake.TCSAFLUSH, 11)]  # restored even after an error
+
+
+def test_raw_mode_restores_the_terminal_on_sigterm_and_reapplies_cbreak_on_sigcont(monkeypatch):
+    import os
+    import signal
+
+    fake = FakeTermios()
+    monkeypatch.setattr(qtop_module, "termios", fake)
+    previous = signal.getsignal(signal.SIGTERM)
+    with pytest.raises(SystemExit) as exited:
+        with qtop_module.raw_mode(TerminalFile(), WATCH_ARGS):
+            os.kill(os.getpid(), signal.SIGCONT)  # as after fg
+            os.kill(os.getpid(), signal.SIGTERM)  # as from kill
+    assert exited.value.code == 128 + signal.SIGTERM
+    assert fake.calls == [(fake.TCSADRAIN, 1), (fake.TCSADRAIN, 1), (fake.TCSAFLUSH, 11)]
+    assert signal.getsignal(signal.SIGTERM) is previous
+
+
+def test_raw_mode_degrades_when_the_terminal_refuses_new_attrs(monkeypatch):
+    monkeypatch.setattr(qtop_module, "termios", FakeTermios(fail_set=True))
+    with qtop_module.raw_mode(TerminalFile(), WATCH_ARGS) as attrs:
+        assert attrs == ("", "")
+        error = ValueError("in the watch loop")
+        with pytest.raises(ValueError) as raised:
+            raise error
+    assert raised.value.__context__ is None  # the loop no longer runs inside the termios except block
+
+
+def test_menus_leave_a_non_terminal_alone(monkeypatch):
+    terminal = Mock()
+    monkeypatch.setattr(qtop_module, "_set_terminal_attrs", terminal)
+    with qtop_module.menu_terminal("", ""):
+        pass
+    assert terminal.call_count == 0
+
+
 def test_raw_mode_does_not_swallow_unexpected_fileno_errors(monkeypatch):
     class BrokenFile:
         def fileno(self):
@@ -112,6 +184,33 @@ def test_raw_mode_does_not_swallow_unexpected_fileno_errors(monkeypatch):
     with pytest.raises(RuntimeError, match="unexpected"):
         with qtop_module.raw_mode(BrokenFile(), WATCH_ARGS):
             pass
+
+
+def test_terminal_resize_redraws_without_cycling_core_lines(monkeypatch):
+    viewport = qtop_module.Viewport()
+    viewport.set_term_size(40, 120)
+    monkeypatch.setattr(qtop_module.select, "select", lambda *_args: ([], [], []))  # no key within the refresh interval
+    monkeypatch.setattr(qtop_module, "calculate_term_size", lambda *_args: (50, 160))  # the terminal was resized
+    assert qtop_module.wait_for_keypress_or_autorefresh(viewport, {}, (40, 120), 0) == "\n"
+    assert viewport.get_term_size() == (50, 160)
+
+
+@pytest.mark.skipif(qtop_module.SIGWINCH is None, reason="no SIGWINCH on this platform")
+def test_terminal_resize_redraws_at_once_on_sigwinch(monkeypatch):
+    import os
+    import signal
+
+    def resize_while_waiting(*_args):
+        os.kill(os.getpid(), signal.SIGWINCH)  # the user resizes the window mid-wait
+        raise AssertionError("SIGWINCH should end the wait")
+
+    viewport = qtop_module.Viewport()
+    viewport.set_term_size(40, 120)
+    monkeypatch.setattr(qtop_module.select, "select", resize_while_waiting)
+    monkeypatch.setattr(qtop_module, "calculate_term_size", lambda *_args: (50, 160))
+    previous = signal.getsignal(signal.SIGWINCH)
+    assert qtop_module.wait_for_keypress_or_autorefresh(viewport, {}, (40, 120), 60) == "\n"
+    assert viewport.get_term_size() == (50, 160) and signal.getsignal(signal.SIGWINCH) is previous
 
 
 def test_sort_worker_nodes_rejects_custom_python_sorting(monkeypatch):

@@ -36,11 +36,11 @@ jobs:
     env:
       FORTIFY_BASE_REF: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || 'origin/develop' }}
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
-      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: ${{ matrix.python-version }}
       - run: make ci-deps PYTHON=python
@@ -51,16 +51,18 @@ jobs:
           name: sample-gate-${{ matrix.python-version }}
           path: artifacts/sample-gate/
 
+  # No git in the AlmaLinux jobs: it pulled in 55 packages, and checkout falls back to a REST download.
   almalinux-python36:
     runs-on: ubuntu-24.04
     container: almalinux:8
+    timeout-minutes: 10  # a slow mirror once took dnf 4 minutes
     steps:
+      # Primary repo.almalinux.org instead of the mirror list, no Extras, and dnf drops a source slower than 50 kB/s after 10 s.
       - run: |
-          dnf -y install git make findutils
-          dnf -y install python36
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+          sed -i -e 's|^mirrorlist=|#mirrorlist=|' -e 's|^# *baseurl=|baseurl=|' /etc/yum.repos.d/almalinux*.repo
+          dnf -y --disablerepo='extras*' --setopt=minrate=50k --setopt=timeout=10 --setopt=install_weak_deps=False --nodocs install make findutils python36
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          fetch-depth: 0
           persist-credentials: false
       - run: |
           PYTHON_BIN="$(command -v python3.6)"
@@ -75,10 +77,10 @@ jobs:
   type-check:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: '3.12.3'
       - run: make ci-deps PYTHON=python
@@ -91,17 +93,14 @@ jobs:
           name: fuzz-corpus-and-failures
           path: artifacts/fuzz/
 
+  # Starts at once, beside the test jobs: release.yml builds releases, so waiting here only delayed the install check.
   build:
-    needs:
-      - modern-python
-      - almalinux-python36
-      - type-check
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: '3.12.3'
       - run: make github-build PYTHON=python
@@ -115,14 +114,16 @@ jobs:
     needs: build
     runs-on: ubuntu-24.04
     container: almalinux:8
+    timeout-minutes: 10
     steps:
+      # Primary repo.almalinux.org instead of the mirror list, no Extras, and dnf drops a source slower than 50 kB/s after 10 s.
       - run: |
-          dnf -y install git make findutils
-          dnf -y install python36
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+          sed -i -e 's|^mirrorlist=|#mirrorlist=|' -e 's|^# *baseurl=|baseurl=|' /etc/yum.repos.d/almalinux*.repo
+          dnf -y --disablerepo='extras*' --setopt=minrate=50k --setopt=timeout=10 --setopt=install_weak_deps=False --nodocs install make findutils python36
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: qtop-dist
           path: dist/

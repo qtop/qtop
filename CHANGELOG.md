@@ -3,6 +3,33 @@
 Notable changes by version, newest first.
 See the [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 
+## 0.9.20261112
+
+- Feature: cluster state schema 2, an optional observation envelope (backend, cluster ID) with namespaced job/node/queue qids and job kinds; schema 1 states and archives replay unchanged. Unknown top-level keys are rejected by name, per schema version, ready for the relations of issue #593.
+- Performance: matrix highlight rules and the user-ID map are built once per frame, not per cell; Slurm parses each CPU_IDs list once per collection.
+- CI: BASELINE proof of concept, run by hand: builds an AlmaLinux 8 + Python 3.6 image on GHCR and runs the 3.6 checks in it.
+- Performance: cluster-state validation checks core maps and job-ID lists by exact type first, full isinstance() checks otherwise; about 33% faster on 2000 nodes.
+- Performance: the core matrix fills core lines by position, without building a key per core; about 45% faster on 2000 nodes.
+- Performance: snapshots make the raw and display-safe copies in one traversal; about 2x faster on a 2000-node trace.
+- Performance: Slurm builds each node's core map with dict(enumerate()), about 2x faster for that step.
+- Performance: watch mode re-parses qtopconf/palettes YAML layers only when a file changes; each frame gets its own copy.
+- CI: AlmaLinux jobs use repo.almalinux.org directly, skip Extras and drop sources slower than 50 kB/s.
+- Tools: make authors counts code lines per author with %, merging names sharing an email.
+- Bugfix: a watch-mode terminal resize redraws instead of cycling the core lines (r).
+- Bugfix: watch mode survives a terminal refusing cbreak, drops unread keys on exit; menus work without a terminal.
+- Bugfix: watch mode restores the terminal on SIGTERM/SIGHUP and re-applies key input after fg (SIGCONT).
+- Feature: watch mode redraws at once on a terminal resize (SIGWINCH), as watch(1) does.
+- Performance: Slurm expands each job node list once per frame; malformed lists log once.
+- Performance: matrix cores resolve their job once per frame, in one pass, not twice.
+- Bugfix: SGE node queue letters keep their XML order instead of varying per run.
+- Cleanup: drop WNOccupancy._valid_corejobs, unused since the single core pass.
+- CI: Dependabot bumps checkout 7.0.1, setup-python 7.1.0, CodeQL 4.39.2 and 5 more actions (#590).
+- CI: build and the Python 3.6 install check no longer wait for the test jobs.
+- CI: coverage runs on sys.monitoring (COVERAGE_CORE=sysmon), about 30% faster.
+- CI: tests run on all CPUs with pytest-xdist where installed; test_web.py stays serial.
+- CI: AlmaLinux jobs skip git and use one lean dnf transaction; GitHub ones time out after 10 minutes.
+- Release: update version metadata to 0.9.20261112
+
 ## 0.9.20261111
 
 - Tests: the viewport property test bounds scrolling by the one-row-shorter page of #121.

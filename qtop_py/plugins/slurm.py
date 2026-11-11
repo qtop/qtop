@@ -12,7 +12,7 @@
 import logging
 import re
 from collections import OrderedDict
-from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Match, Optional, Set, Tuple, cast
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Mapping, Match, Optional, Set, Tuple, cast
 
 import qtop_py.fileutils as fileutils
 from qtop_py.hostlist import HostlistParser
@@ -544,13 +544,20 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
                 if key in node:
                     worker_node[key] = node[key]
 
-        self.allocation_diagnostics: Dict[str, Any] = {}
-        node_jobs = self._map_jobs_to_nodes(self._get_jobs(), worker_nodes_by_name, self.allocation_diagnostics)
-        for raw_name, worker_node in worker_nodes_by_name.items():
-            worker_node["core_job_map"] = dict((idx, job_id) for idx, job_id in enumerate(node_jobs.get(raw_name, [])))
+        expanded: Dict[Any, List[str]] = {}  # this collection's job node lists, expanded once per distinct text
 
-        self._apply_cpu_allocations(worker_nodes_by_name)
-        self._apply_gpu_allocations(worker_nodes_by_name)
+        def job_hosts(job: Mapping[str, Any]) -> List[str]:
+            if job["Nodes"] not in expanded:
+                expanded[job["Nodes"]] = self.expand_nodelist(job["Nodes"])
+            return expanded[job["Nodes"]]
+
+        self.allocation_diagnostics: Dict[str, Any] = {}
+        node_jobs = self._map_jobs_to_nodes(self._get_jobs(), worker_nodes_by_name, self.allocation_diagnostics, job_hosts)
+        for raw_name, worker_node in worker_nodes_by_name.items():
+            worker_node["core_job_map"] = dict(enumerate(node_jobs.get(raw_name, ())))
+
+        self._apply_cpu_allocations(worker_nodes_by_name, job_hosts)
+        self._apply_gpu_allocations(worker_nodes_by_name, job_hosts)
         for node in worker_nodes_by_name.values():
             node.pop("slurm_unmapped_cpus", None)
         mapped: Dict[str, Any] = {}
@@ -558,9 +565,11 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
             for job_id in node["core_job_map"].values():
                 mapped[job_id] = mapped.get(job_id, 0) + 1
         for job in self._get_jobs():
-            hosts = [host for host in self.expand_nodelist(job["Nodes"]) if host in worker_nodes_by_name]
+            if job["S"] not in self.ACTIVE_STATES:
+                continue
+            hosts = [host for host in job_hosts(job) if host in worker_nodes_by_name]
             missing = job["CPUs"] - mapped.get(job["JobId"], 0)
-            if job["S"] in self.ACTIVE_STATES and hosts and missing > 0:
+            if hosts and missing > 0:
                 node = worker_nodes_by_name[hosts[0]]
                 node["slurm_unmapped_cpus"] = node.get("slurm_unmapped_cpus", 0) + missing
         worker_nodes = list(worker_nodes_by_name.values())
@@ -587,7 +596,7 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
         job_id = fields.get("JobId", "")
         return job_id if re.fullmatch(r"[0-9]+(?:_[0-9]+|\+[0-9]+)?", job_id) else None
 
-    def _apply_gpu_allocations(self, worker_nodes: Dict[str, Dict[str, Any]]) -> None:
+    def _apply_gpu_allocations(self, worker_nodes: Dict[str, Dict[str, Any]], job_hosts: Optional[Callable[[Mapping[str, Any]], List[str]]] = None) -> None:
         for node in worker_nodes.values():
             for raw, parsed in (("slurm_gres", "slurm_gpu_configured"), ("slurm_gres_used", "slurm_gpu_used")):
                 if raw in node:
@@ -632,9 +641,9 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
             job_id = job["JobId"]
             if job["S"] not in self.ACTIVE_STATES or job_id in invalid:
                 continue
-            job_hosts = set(self.expand_nodelist(job["Nodes"]))
+            allocated = set(job_hosts(job) if job_hosts else self.expand_nodelist(job["Nodes"]))
             allocation = allocations.get(job_id, {})
-            if not set(allocation).issubset(job_hosts):
+            if not set(allocation).issubset(allocated):
                 continue
             for host, resources in allocation.items():
                 if host in worker_nodes:
@@ -648,6 +657,7 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
         try:
             with open(self.scontrol_file, "r", encoding="utf-8", errors="replace") as stream:
                 job_id = None
+                parsed: Dict[str, Tuple[int, ...]] = {}  # CPU_IDs text -> its distinct CPU numbers, for this collection
                 for line in stream:
                     header = re.match(r"\s*JobId=(\S+)(.*)", line)
                     if header:
@@ -660,8 +670,12 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
                     detail = dict(re.findall(r"(?:^|\s)(Nodes|CPU_IDs)=(\S+)", line))
                     if "Nodes" in detail and "CPU_IDs" in detail and job_id is not None:
                         hosts = self.expand_nodelist(detail["Nodes"])
-                        cpus = self.expand_nodelist("[" + detail["CPU_IDs"] + "]")
-                        if not hosts or not cpus or len(hosts) * len(cpus) > self.MAX_EXPANDED_NODES or len(set(map(int, cpus))) != len(cpus):
+                        cpus: Any = parsed.get(detail["CPU_IDs"])
+                        if cpus is None:  # invalid lists are reparsed, so they warn and fail exactly as before
+                            cpus = self.expand_nodelist("[" + detail["CPU_IDs"] + "]")
+                            if cpus and len(parsed) < 4096 and all(cpu.isdecimal() for cpu in cpus) and len(set(map(int, cpus))) == len(cpus):
+                                cpus = parsed[detail["CPU_IDs"]] = tuple(map(int, cpus))
+                        if not hosts or not cpus or len(hosts) * len(cpus) > self.MAX_EXPANDED_NODES or (type(cpus) is not tuple and len(set(map(int, cpus))) != len(cpus)):
                             allocations[job_id] = None
                         else:
                             allocation = allocations[job_id]
@@ -670,24 +684,24 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
                                     if host in allocation:
                                         allocations[job_id] = None
                                         break
-                                    allocation[host] = [int(cpu) for cpu in cpus]
+                                    allocation[host] = cpus if type(cpus) is tuple else tuple(map(int, cpus))
         except (OSError, UnicodeError, ValueError) as error:
             logging.warning("Cannot read optional Slurm CPU details: %s; using estimates.", error)
             return {}
         return allocations
 
-    def _apply_cpu_allocations(self, worker_nodes: Dict[str, Dict[str, Any]]) -> None:
+    def _apply_cpu_allocations(self, worker_nodes: Dict[str, Dict[str, Any]], job_hosts: Optional[Callable[[Mapping[str, Any]], List[str]]] = None) -> None:
         details = self._read_cpu_allocations()
         exact: Dict[str, Dict[str, Any]] = {name: {} for name in worker_nodes}
         estimated = set()
         for job in self._get_jobs():
             if job["S"] not in self.ACTIVE_STATES:
                 continue
-            hosts = self.expand_nodelist(job["Nodes"])
+            hosts = job_hosts(job) if job_hosts else self.expand_nodelist(job["Nodes"])
             allocation = details.get(job["JobId"]) or {}
             valid = allocation and set(allocation) == set(hosts) and sum(len(cpus) for cpus in allocation.values()) == job["CPUs"]
             if valid:
-                valid = all(host in worker_nodes and all(cpu < int(worker_nodes[host]["np"]) for cpu in allocation[host]) for host in hosts)
+                valid = all(host in worker_nodes and max(allocation[host]) < int(worker_nodes[host]["np"]) for host in hosts)  # CPU lists are nonempty
             if not valid:
                 estimated.update(hosts)
                 if job["JobId"] in details:
@@ -723,14 +737,20 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
         return current if current_priority > previous_priority else previous
 
     @classmethod
-    def _map_jobs_to_nodes(cls, jobs: List[Dict[str, Any]], worker_nodes_by_name: Mapping[str, Any], diagnostics: Optional[Dict[str, Any]] = None) -> Dict[str, List[str]]:
+    def _map_jobs_to_nodes(
+        cls,
+        jobs: List[Dict[str, Any]],
+        worker_nodes_by_name: Mapping[str, Any],
+        diagnostics: Optional[Dict[str, Any]] = None,
+        job_hosts: Optional[Callable[[Mapping[str, Any]], List[str]]] = None,
+    ) -> Dict[str, List[str]]:
         node_jobs: Dict[str, List[str]] = OrderedDict((node_name, []) for node_name in worker_nodes_by_name)
         for node in worker_nodes_by_name.values():
             node["slurm_job_ids"] = []
         for job in jobs:
             if job["S"] not in cls.ACTIVE_STATES:
                 continue
-            allocated_nodes = cls.expand_nodelist(job["Nodes"])
+            allocated_nodes = job_hosts(job) if job_hosts else cls.expand_nodelist(job["Nodes"])
             if diagnostics is not None:
                 key = "jobs_with_invalid_nodelists" if not allocated_nodes else "jobs_with_missing_nodes"
                 if not allocated_nodes or any(node not in worker_nodes_by_name for node in allocated_nodes):

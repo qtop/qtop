@@ -4,12 +4,15 @@
 .DEFAULT_GOAL := help
 
 PYTHON ?= python3
+# Tests run on every CPU when pytest-xdist is installed (requirements-ci.txt); test_web.py forks a worker, so it runs alone.
+PYTEST_WORKERS = $(shell $(PYTHON) -c "import xdist" >/dev/null 2>&1 && echo "-n auto --ignore=tests/test_web.py")
 PIP ?= $(PYTHON) -m pip
 DIST_DIR ?= dist
 UVX ?= uvx
 ZIZMOR ?= $(UVX) --quiet zizmor
 ZIZMOR_FLAGS ?= -qq --offline --no-progress --color never --render-links never --show-audit-urls never
 SAMPLE_GATE_SCHEDULERS ?= pbs,sge,slurm,oar,demo
+AUTHORS_PATHS ?= qtop_py
 SAMPLE_GATE_MAX_FAILURES ?= 0
 SAMPLE_GATE_ARTIFACT_DIR ?= artifacts/sample-gate
 BACKEND_COLOUR_ARTIFACT_DIR ?= artifacts/backend-colour
@@ -59,17 +62,20 @@ ci-deps:: ## Install pinned CI Python dependencies
 	$(PIP) install -r requirements-ci.txt
 
 test:: ## Run the Python test suite
-	$(PYTHON) -m pytest
+	$(PYTHON) -m pytest $(PYTEST_WORKERS)
+	$(if $(PYTEST_WORKERS),$(PYTHON) -m pytest tests/test_web.py)
 
 coverage:: ## Run tests with coverage.py and print a terminal report
 	$(PYTHON) -m coverage erase
-	$(PYTHON) -m coverage run -m pytest
+	$(PYTHON) -m coverage run -m pytest $(PYTEST_WORKERS)
+	$(if $(PYTEST_WORKERS),$(PYTHON) -m coverage run -m pytest tests/test_web.py)
 	$(PYTHON) -m coverage combine
 	$(PYTHON) -m coverage report --fail-under=$(COVERAGE_MIN)
 
 coverage-xml:: ## Run tests under coverage.py and write a CI-ready Cobertura XML report
 	$(PYTHON) -m coverage erase
-	$(PYTHON) -m coverage run -m pytest
+	$(PYTHON) -m coverage run -m pytest $(PYTEST_WORKERS)
+	$(if $(PYTEST_WORKERS),$(PYTHON) -m coverage run -m pytest tests/test_web.py)
 	$(PYTHON) -m coverage combine
 	$(PYTHON) -m coverage report --fail-under=$(COVERAGE_MIN)
 	@mkdir -p $(dir $(COVERAGE_XML))
@@ -205,10 +211,12 @@ gitlab-build:: validated-build ## GitLab CI entry point for validated package bu
 
 dist:: build ## Alias for build, matching common release target names
 
-.PHONY: authors
-authors:: ## List authors by attributed Python lines, highest count first
+authors-lines:: ## List authors by attributed Python lines, highest count first
 	@git ls-files -z -- '*.py' | xargs -0 -n1 git blame --line-porcelain -- \
 		| grep '^author ' | sed 's/^author //' | sort | uniq -c | sort -nr
+
+authors:: ## Lines and % per author of non-blank, non-comment Python code (AUTHORS_PATHS="qtop_py tests tools")
+	@$(PYTHON) tools/loc_authors.py $(AUTHORS_PATHS)
 
 version:: ## Print the package version
 	$(PYTHON) -c "import qtop_py; print(qtop_py.__version__)"

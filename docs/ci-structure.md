@@ -65,6 +65,26 @@ When the coverage gate passes, it produces a Cobertura report. GitHub stores it 
 a workflow artifact, while GitLab reads the percentage and report natively.
 Neither path requires an external coverage service.
 
+### BASELINE image (proof of concept)
+
+BASELINE is `almalinux:8` with `make`, `findutils` and `python36` preinstalled
+(`ci/baseline/Dockerfile`), so a Python 3.6 job runs no `dnf` and a slow mirror
+can break only the image rebuild, never a push. For now it runs only by hand:
+`.github/workflows/baseline-image.yml` (`workflow_dispatch`, available once the
+file is on the default branch) builds it, publishes
+`ghcr.io/<owner>/qtop-baseline:almalinux8-py36` plus a `YYYYMMDD-HHMM` (UTC) tag
+per build, listed with its digest in the run summary, and then runs
+`make compat-py36` in it, pulling with the job's `GITHUB_TOKEN`. Publishing
+needs `packages: write`. Dependabot bumps the Dockerfile's base image digest.
+
+Before it can replace `almalinux-python36`:
+
+- re-enable the parked weekly schedule and `develop` trigger;
+- check pulls from fork pull requests, or make the GHCR package public;
+- pull it by digest rather than tag (Scorecard flags tags), and automate the
+  digest bump after each rebuild, for example as a bot pull request;
+- give GitLab the same job (`ci/test.gitlab-ci.yml`), as both platforms run the same checks.
+
 ## Nightly compatibility lanes
 
 Both nightly matrices use `ci/scripts/matrix_lane.sh` and the shared CI pins.

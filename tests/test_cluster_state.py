@@ -170,3 +170,85 @@ def test_node_core_counts_are_bounded_for_every_backend_and_replay(np, valid):
     else:
         with pytest.raises(ValueError, match="must not exceed 65536 cores"):
             validate_cluster_state(state)
+
+
+def observation(**source):
+    state = sample_state()
+    state["schema_version"] = 2
+    state["source"] = dict({"backend": "slurm", "cluster_id": "cluster-a"}, **source)
+    state["jobs"][0].update(qid="slurm:cluster-a:42", kind="job")
+    state["nodes"][0]["qid"] = "slurm:cluster-a:node001"
+    state["queues"][0]["qid"] = "slurm:cluster-a:" + state["queues"][0]["name"]
+    return state
+
+
+def test_schema_1_states_stay_valid_and_cannot_carry_schema_2_fields():
+    assert validate_cluster_state(sample_state()) == sample_state()
+    assert validate_cluster_state(dict(sample_state(), schema_version=1))["schema_version"] == 1
+    for key, value in (("qid", "slurm:cluster-a:42"), ("kind", "job")):
+        state = sample_state()
+        state["jobs"][0][key] = value
+        with pytest.raises(ValueError, match="schema_version 2"):
+            validate_cluster_state(state)
+    with pytest.raises(ValueError, match="source requires schema_version 2"):
+        validate_cluster_state(dict(sample_state(), source={"backend": "slurm", "cluster_id": "a"}))
+
+
+@pytest.mark.parametrize("version", [0, 3, "2", True, None])
+def test_unknown_schema_versions_are_rejected(version):
+    with pytest.raises(ValueError, match="schema_version"):
+        validate_cluster_state(dict(observation(), schema_version=version))
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        lambda state: state.pop("source"),
+        lambda state: state["source"].update(cluster_id=""),
+        lambda state: state["source"].update(cluster_id="a:b"),  # ":" would make qid namespaces ambiguous
+        lambda state: state["source"].update(region="eu"),
+        lambda state: state["jobs"][0].update(qid="slurm:cluster-b:42"),  # another cluster's namespace
+        lambda state: state["jobs"][0].update(qid="slurm:cluster-a:"),
+        lambda state: state["jobs"][0].update(qid=42),
+        lambda state: state["nodes"][0].update(qid="slurm:cluster-a:42"),  # not the node's domainname
+        lambda state: state["jobs"][0].update(qid="slurm:cluster-a:43"),  # not the job's id
+        lambda state: state["jobs"][0].update(qid="slurm:cluster-a:42:x"),
+        lambda state: state["jobs"][0].update(qid="SLURM:cluster-a:42"),  # another backend's namespace
+        lambda state: state["jobs"].append(dict(state["jobs"][0])),  # a duplicate job qid
+        lambda state: state["queues"][0].update(qid="slurm:cluster-a:other"),  # not the queue's name
+        lambda state: state["queues"].append(dict(state["queues"][0])),  # a duplicate queue qid
+        lambda state: state["jobs"][0].update(kind="container"),
+        lambda state: state["nodes"][0].update(kind="vm"),
+    ],
+)
+def test_schema_2_envelope_and_identities_are_unambiguous(change):
+    state = observation()
+    change(state)
+    with pytest.raises((TypeError, ValueError)):
+        validate_cluster_state(state)
+
+
+@pytest.mark.parametrize("version", [1, 2])
+def test_top_level_is_closed_so_unknown_collections_are_rejected_not_dropped(version):
+    # Issue #593: a new collection needs a new schema version; until then an unknown key is an error, by name.
+    state = observation() if version == 2 else sample_state()
+    state["allocations"] = []
+    with pytest.raises(ValueError, match="unknown in schema_version %d: allocations" % version):
+        validate_cluster_state(state)
+
+
+def test_qids_are_unique_per_relation_so_a_job_and_node_may_share_a_native_id():
+    state = observation()
+    state["nodes"][0].update(domainname="42", qid="slurm:cluster-a:42")
+    assert validate_cluster_state(state) is state
+
+
+def test_schema_2_metadata_survives_snapshot_json_round_trip(tmp_path):
+    state = observation()
+    assert validate_cluster_state(state) is state
+    snapshot = Snapshot.from_cluster_state(state)
+    assert snapshot.to_cluster_state() == state
+    path = tmp_path / "state.json"
+    snapshot.save(str(path))
+    assert Snapshot.from_cluster_state(json.loads(path.read_text())).to_cluster_state() == state
+    assert len(snapshot) == 5 and snapshot.worker_nodes[0]["qid"] == "slurm:cluster-a:node001"

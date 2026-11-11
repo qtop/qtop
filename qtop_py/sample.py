@@ -42,7 +42,7 @@ DISPLAY_OPTIONS = (
 def anonymize_state(state: object) -> "Tuple[ClusterState, IdentifierMaps]":
     """Mask public identifiers consistently, including job/core references."""
     state = copy.deepcopy(validate_cluster_state(state))
-    mappings: "IdentifierMaps" = {kind: {} for kind in ("user", "node", "queue", "job")}
+    mappings: "IdentifierMaps" = {kind: {} for kind in ("user", "node", "queue", "job", "cluster")}
 
     @overload
     def mask(value: str, kind: str) -> str:
@@ -83,8 +83,11 @@ def anonymize_state(state: object) -> "Tuple[ClusterState, IdentifierMaps]":
         if "accounting_state" in original_job:
             job["accounting_state"] = original_job["accounting_state"]
         mask_job_extensions(original_job, job, mask)
-    for queue in state["queues"]:
-        queue["name"] = mask(queue["name"], "queue")
+    original_queues = state["queues"]  # rebuilt from known fields, like jobs and nodes: extra fields may hold names
+    state["queues"] = [
+        {"name": mask(queue["name"], "queue"), "limit": queue["limit"], "queued": queue["queued"], "running": queue["running"], "state": queue["state"]}
+        for queue in original_queues
+    ]
     original_nodes = state["nodes"]
     state["nodes"] = [
         {
@@ -98,6 +101,16 @@ def anonymize_state(state: object) -> "Tuple[ClusterState, IdentifierMaps]":
     ]
     for original, node in zip(original_nodes, state["nodes"]):
         mask_node_extensions(original, node, job_id)
+    if "source" in state:  # schema 2: qids are rebuilt from the masked cluster ID and masked native IDs
+        source = state["source"]
+        source["cluster_id"] = mask(source["cluster_id"], "cluster")
+        prefix = "%s:%s:" % (source["backend"], source["cluster_id"])
+        for native, originals, records in (("id", original_jobs, state["jobs"]), ("domainname", original_nodes, state["nodes"]), ("name", original_queues, state["queues"])):
+            for original_record, record in zip(cast("List[Dict[str, str]]", originals), cast("List[Dict[str, str]]", records)):
+                if "qid" in original_record:
+                    record["qid"] = prefix + record[native]
+                if "kind" in original_record:
+                    record["kind"] = original_record["kind"]
     return state, mappings
 
 

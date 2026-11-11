@@ -1,5 +1,7 @@
 # AGENTS.md - qtop contributor and agent guidance
 
+Read this whole file before acting: it is written densely and every line is a rule, so skimming the top or one section misses requirements.
+
 These rules apply to all changes. Read `README.md`, `CONTRIBUTING.md`, and the
 relevant existing code before editing. This file complements, but does not
 replace, project policies; where they overlap, `CONTRIBUTING.md` wins.
@@ -117,7 +119,9 @@ work. Do not open unattended, mass-produced, or speculative PRs.
 
 3.5 Follow `CONTRIBUTING.md` for submission mechanics (branch from and target `develop`,
 DCO sign-off, conventional commits, AI disclosure with model version, artifacts in
-`qtop-artifacts`). Use Proof-of-Humanity tags only when the corresponding conditions
+`qtop-artifacts`). Commit with `git commit -s`, so every message ends with
+`Signed-off-by:` from the contributor's git config, and add no AI
+`Co-Authored-By:` trailers: disclose AI assistance in the PR description. Use Proof-of-Humanity tags only when the corresponding conditions
 in `CONTRIBUTING.md` apply; a tag is not universally required.
 
 3.6 Keep PRs minimal but complete: explain purpose, behavioural impact, tests run,
