@@ -244,3 +244,13 @@ def test_nesting_scanner_handles_long_escaped_and_unterminated_strings():
         safety.load_json(io.StringIO(text))
     value = {"text": "\\a\"'[]{}()," * 1000}
     assert safety.load_json(io.StringIO(json.dumps(value))) == value
+
+
+def test_raw_and_visible_escapes_only_the_display_copy():
+    state = {"nodes": [{"domainname": "evil\x1b[2J\\x", "core_job_map": {0: "1" + chr(0x202E)}, "np": 2}], "id\x07": ["a\\b"]}
+    raw, safe = safety.raw_and_visible(state)
+    assert raw == state and raw is not state and raw["nodes"][0] is not state["nodes"][0]
+    assert safe == safety.visible_data(state)
+    assert safe["nodes"][0]["domainname"] == "evil\\x1b[2J\\\\x" and "id\\x07" in safe
+    raw["nodes"][0]["np"] = 3
+    assert safe["nodes"][0]["np"] == 2 and state["nodes"][0]["np"] == 2
