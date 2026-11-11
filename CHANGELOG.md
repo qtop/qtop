@@ -18,6 +18,7 @@ See the [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 - CI: build and the Python 3.6 install check no longer wait for the test jobs.
 - CI: coverage runs on sys.monitoring (COVERAGE_CORE=sysmon), about 30% faster.
 - CI: tests run on all CPUs with pytest-xdist where installed; test_web.py stays serial.
+- CI: AlmaLinux jobs skip git and use one lean dnf transaction; GitHub ones time out after 10 minutes.
 - Release: update version metadata to 0.9.20261112
 
 ## 0.9.20261111

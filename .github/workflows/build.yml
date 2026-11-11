@@ -51,16 +51,15 @@ jobs:
           name: sample-gate-${{ matrix.python-version }}
           path: artifacts/sample-gate/
 
+  # No git in the AlmaLinux jobs: it pulled in 55 packages, and checkout falls back to a REST download.
   almalinux-python36:
     runs-on: ubuntu-24.04
     container: almalinux:8
+    timeout-minutes: 10  # a slow mirror once took dnf 4 minutes
     steps:
-      - run: |
-          dnf -y install git make findutils
-          dnf -y install python36
+      - run: dnf -y --setopt=install_weak_deps=False --nodocs install make findutils python36
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          fetch-depth: 0
           persist-credentials: false
       - run: |
           PYTHON_BIN="$(command -v python3.6)"
@@ -112,10 +111,9 @@ jobs:
     needs: build
     runs-on: ubuntu-24.04
     container: almalinux:8
+    timeout-minutes: 10
     steps:
-      - run: |
-          dnf -y install git make findutils
-          dnf -y install python36
+      - run: dnf -y --setopt=install_weak_deps=False --nodocs install make findutils python36
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false

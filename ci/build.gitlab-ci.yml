@@ -33,7 +33,6 @@ almalinux-python36-install:
   needs:
     - build
   before_script:
-    - dnf -y install make findutils
-    - dnf -y install python36
+    - dnf -y --setopt=install_weak_deps=False --nodocs install make findutils python36
   script:
     - make legacy-install-check PYTHON="$(command -v python3.6)" DIST_DIR=dist

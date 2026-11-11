@@ -44,8 +44,7 @@ almalinux-python36:
   image: almalinux:8
   stage: test
   before_script:
-    - dnf -y install make findutils
-    - dnf -y install python36
+    - dnf -y --setopt=install_weak_deps=False --nodocs install make findutils python36
   script:
     - |
       PYTHON_BIN="$(command -v python3.6)"
