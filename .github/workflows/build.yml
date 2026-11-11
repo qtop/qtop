@@ -74,6 +74,19 @@ jobs:
           name: sample-gate-python3.6-almalinux8
           path: artifacts/sample-gate-py36/
 
+  # Non-blocking proof of concept for BASELINE (ci/baseline/Dockerfile): the same checks with no dnf.
+  # Pulled by tag while it is a PoC; adopting it means pinning a digest, bumped after each weekly rebuild.
+  almalinux-python36-baseline:
+    runs-on: ubuntu-24.04
+    container: ghcr.io/${{ github.repository_owner }}/qtop-baseline:almalinux8-py36
+    continue-on-error: true
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: make compat-py36 PYTHON="$(command -v python3.6)"
+
   type-check:
     runs-on: ubuntu-24.04
     steps:

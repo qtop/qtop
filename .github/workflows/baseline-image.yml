@@ -1,0 +1,66 @@
+## Copyright (c) 2026 qtop contributors
+## SPDX-License-Identifier: MIT
+##
+## Builds BASELINE (ci/baseline/Dockerfile) and publishes it to GHCR as
+## ghcr.io/<owner>/qtop-baseline:almalinux8-py36 (moving) and :YYYYMMDD-HHMM
+## (one per build, UTC, kept as a trail), for the non-blocking
+## almalinux-python36-baseline job in build.yml. Proof of concept: the package
+## must be made public once, or pull requests from forks cannot pull it.
+
+name: baseline-image
+
+on:
+  schedule:
+    - cron: '17 4 * * 1'  # weekly, Monday: picks up AlmaLinux 8 security updates
+  workflow_dispatch:
+  push:
+    branches:
+      - develop
+    paths:
+      - ci/baseline/**
+      - .github/workflows/baseline-image.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: baseline-image
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: write  # push BASELINE to this repository owner's GHCR namespace
+    env:
+      IMAGE: ghcr.io/${{ github.repository_owner }}/qtop-baseline
+      SOURCE: ${{ github.server_url }}/${{ github.repository }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Build
+        run: |
+          IMAGE="${IMAGE,,}"  # GHCR names are lowercase
+          NOW="$(date -u +%s)"
+          STAMP="$(date -u -d "@$NOW" +%Y%m%d-%H%M)"  # trail tag: one per build, sorted by date, never moved
+          printf 'IMAGE=%s\nSTAMP=%s\n' "$IMAGE" "$STAMP" >> "$GITHUB_ENV"
+          docker build --pull -t "$IMAGE:almalinux8-py36" -t "$IMAGE:$STAMP" \
+            --label "org.opencontainers.image.source=$SOURCE" \
+            --label "org.opencontainers.image.revision=$GITHUB_SHA" \
+            --label "org.opencontainers.image.created=$(date -u -d "@$NOW" +%Y-%m-%dT%H:%M:%SZ)" \
+            ci/baseline
+      - name: Smoke test
+        run: docker run --rm "$IMAGE:almalinux8-py36" sh -c 'python3.6 --version && make --version && find --version' | head -3
+      - name: Publish
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ACTOR: ${{ github.actor }}
+        run: |
+          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io -u "$ACTOR" --password-stdin
+          docker push "$IMAGE:$STAMP"
+          docker push "$IMAGE:almalinux8-py36"
+          echo "$IMAGE:$STAMP = $(docker inspect --format '{{index .RepoDigests 0}}' "$IMAGE:$STAMP")" | tee -a "$GITHUB_STEP_SUMMARY"
+          docker logout ghcr.io
