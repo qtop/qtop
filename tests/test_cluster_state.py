@@ -228,10 +228,12 @@ def test_schema_2_envelope_and_identities_are_unambiguous(change):
         validate_cluster_state(state)
 
 
-@pytest.mark.parametrize("version", [1, 2])
+@pytest.mark.parametrize("version", [1, 2, 3])
 def test_top_level_is_closed_so_unknown_collections_are_rejected_not_dropped(version):
     # Issue #593: a new collection needs a new schema version; until then an unknown key is an error, by name.
-    state = observation() if version == 2 else sample_state()
+    state = sample_state() if version == 1 else observation()
+    if version == 3:
+        state.update(schema_version=3, schema_revision="beta1")
     state["allocations"] = []
     with pytest.raises(ValueError, match="unknown in schema_version %d: allocations" % version):
         validate_cluster_state(state)
@@ -252,3 +254,41 @@ def test_schema_2_metadata_survives_snapshot_json_round_trip(tmp_path):
     snapshot.save(str(path))
     assert Snapshot.from_cluster_state(json.loads(path.read_text())).to_cluster_state() == state
     assert len(snapshot) == 5 and snapshot.worker_nodes[0]["qid"] == "slurm:cluster-a:node001"
+
+
+@pytest.mark.parametrize("parent", [None, 42, "slurm:other:parent", "slurm:cluster-a:", "slurm:cluster-a:42"])
+def test_beta1_rejects_invalid_workload_parents(parent):
+    state = observation()
+    state.update(schema_version=3, schema_revision="beta1")
+    state["jobs"][0]["parent_qid"] = parent
+    with pytest.raises(ValueError):
+        validate_cluster_state(state)
+
+
+def test_beta1_rejects_cycles_missing_child_identity_and_nonworkload_parents():
+    state = observation()
+    state.update(schema_version=3, schema_revision="beta1")
+    child = state["jobs"][0]
+    child["parent_qid"] = "slurm:cluster-a:parent"
+    state["jobs"].append(dict(child, id="parent", qid=child["parent_qid"], parent_qid=child["qid"]))
+    with pytest.raises(ValueError, match="cycle"):
+        validate_cluster_state(state)
+    state["jobs"].pop()
+    child.pop("qid")
+    with pytest.raises(ValueError, match="workload qid"):
+        validate_cluster_state(state)
+    child.pop("parent_qid")
+    state["nodes"][0]["parent_qid"] = "slurm:cluster-a:parent"
+    with pytest.raises(ValueError, match="workload"):
+        validate_cluster_state(state)
+
+
+@pytest.mark.parametrize("version,revision", [(1, None), (2, None), (3, None), (3, "beta2")])
+def test_beta1_parent_requires_explicit_version_and_revision(version, revision):
+    state = sample_state() if version == 1 else observation()
+    state["schema_version"] = version
+    if version == 3:
+        state["schema_revision"] = revision
+    state["jobs"][0]["parent_qid"] = "slurm:cluster-a:parent"
+    with pytest.raises(ValueError):
+        validate_cluster_state(state)

@@ -27,6 +27,7 @@ if TYPE_CHECKING:
         slurm_tres_per_task: str
         qid: str  # schema 2 qualified ID "<backend>:<cluster_id>:<id>", unique in the observation
         kind: str  # schema 2: job, pod, vm or task
+        parent_qid: str  # schema 3 beta1: same-source workload containment, not controller ownership
 
     class Job(JobResources):
         """A job: ID, user, state and queue, plus optional scheduler-specific fields."""
@@ -113,6 +114,7 @@ if TYPE_CHECKING:
         """The schema 2 envelope; a state without it is schema 1."""
 
         schema_version: int
+        schema_revision: str  # required beta1 marker for experimental schema 3
         source: Source
 
     class ClusterState(SnapshotDiagnostics, Observation):

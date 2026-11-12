@@ -3,6 +3,10 @@
 Notable changes by version, newest first.
 See the [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 
+## Unreleased
+
+- Feature: experimental schema 3 beta1 workload `parent_qid`, with cycle validation and consistent anonymization of present or absent parents; existing renderers keep using legacy maps.
+
 ## 0.9.20261112
 
 - Feature: cluster state schema 2, an optional observation envelope (backend, cluster ID) with namespaced job/node/queue qids and job kinds; schema 1 states and archives replay unchanged. Unknown top-level keys are rejected by name, per schema version, ready for the relations of issue #593.

@@ -16,11 +16,12 @@ such as the terminal views or future cost records, belongs outside it.
 |---|---|---|
 | 1 | `{"jobs", "nodes", "queues"}` plus optional `*_diagnostics` | every current plugin, and existing snapshots and archives |
 | 2 | version 1 plus `"schema_version": 2` and `"source": {"backend", "cluster_id"}` | backends that know their cluster's identity (opt-in) |
+| 3 beta1 | version 2 plus `"schema_version": 3, "schema_revision": "beta1"` and optional workload `parent_qid` | experimental imported observations only |
 
 A state without `schema_version` is version 1, and `"schema_version": 1` means
 the same. `validate_cluster_state()` in
-[cluster_state.py](../qtop_py/cluster_state.py) rejects any other version, a
-`source` without version 2, and version 2 fields (`qid`, `kind`) in a version 1
+[cluster_state.py](../qtop_py/cluster_state.py) rejects unsupported versions and beta revisions, a
+`source` in version 1, and version 2 fields (`qid`, `kind`) in a version 1
 state, so a record's meaning never depends on guessing. Snapshot archives keep
 `format_version: 1`, because the archive layout is unchanged. The state inside
 an archive carries its own version, so old archives replay unchanged.
@@ -151,9 +152,10 @@ current schema is ready for them without carrying any of them:
 
 The following contracts follow the
 [compatibility guidance for issue #593](https://github.com/qtop/qtop/issues/593#issuecomment-6793829851).
-They describe future capabilities without adding supported fields or validation
-to the current schema. Implementing them requires a concrete backend observation
-and a consumer, plus validation, anonymization and replay tests in the same change.
+They describe future capabilities beyond the minimal workload containment
+implemented in [experimental schema 3 beta1](#experimental-schema-3-beta1).
+Further implementation requires backend evidence, a consumer, validation,
+anonymization and replay tests.
 Existing `jobs`, `nodes`, `queues` and CPU/GPU maps remain authoritative for
 current renderers. Plugin paths, discovery and entry points stay unchanged.
 
@@ -226,6 +228,17 @@ Open decisions, left to issue #593 on purpose:
   topology vocabulary, canonical units and conversion rules, and prediction
   provenance and freshness fields. The distinctions above constrain these
   decisions without prescribing runtime structures.
+
+## Experimental schema 3 beta1
+
+Opt in with `"schema_version": 3, "schema_revision": "beta1"` and schema-2
+`source`. Jobs alone gain optional `parent_qid` for true workload containment;
+it requires the child's `qid` and a nonempty parent ID in the same namespace.
+Cycles are rejected; an absent parent is allowed and is not synthesized.
+Schemas 1 and 2 reject this reserved field. Anonymization rebuilds the reference
+using the job-ID mapping and masked cluster ID, including for absent parents.
+No backend emits beta1 automatically; legacy maps still drive rendering.
+Future betas may require migration; unsupported revisions and collections fail.
 
 ## Deferred on purpose
 
