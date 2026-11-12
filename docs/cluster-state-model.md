@@ -250,3 +250,28 @@ Future betas may require migration; unsupported revisions and collections fail.
   new configuration key to agree first.
 - Timestamps, usage intervals, FOCUS fields, billing, event history, databases
   and resource graphs or hierarchies beyond today's GPU and MIG descriptors.
+
+## Developer compatibility check
+
+With Go 1.25+ installed (CUE library pinned in `tools/schema-compat/go.mod`), compare two self-contained CUE files that each define
+`#ClusterState` (override with `SCHEMA_DEFINITION` for another definition):
+
+```console
+make schema-compat BASE_SCHEMA=schema/cluster-state.cue PROPOSED_SCHEMA=/path/to/proposed.cue
+make schema-compat-test
+```
+
+Preserve the baseline from a reviewed commit before editing; comparing an
+edited file to itself proves nothing. The proposed supported-version union
+must subsume the baseline; retaining old
+version branches permits a new version without changing old observations.
+The checker uses CUE's pinned Go library, normalizes required constraints for
+concrete JSON data, and checks nested record openness explicitly. Defaults do
+not hide allowed alternatives. Checks beyond 64 nesting levels or comparisons
+CUE cannot establish fail conservatively. Compilation, missing files
+and missing definitions also fail. Dependencies download on first use.
+The checked-in schema is a structural contract, not Python-validator parity:
+QID equality/uniqueness, cycles, numeric-string bounds and scheduler extensions
+still require Python tests. This optional developer tool adds no qtop runtime
+dependency. Run directly without Make using `go -C tools/schema-compat run
+-mod=readonly . -base /absolute/baseline.cue -proposed /absolute/proposed.cue`.

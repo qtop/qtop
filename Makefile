@@ -9,6 +9,10 @@ PYTEST_WORKERS = $(shell $(PYTHON) -c "import xdist" >/dev/null 2>&1 && echo "-n
 PIP ?= $(PYTHON) -m pip
 DIST_DIR ?= dist
 UVX ?= uvx
+GO ?= go
+BASE_SCHEMA ?= schema/cluster-state.cue
+PROPOSED_SCHEMA ?=
+SCHEMA_DEFINITION ?= \#ClusterState
 ZIZMOR ?= $(UVX) --quiet zizmor
 ZIZMOR_FLAGS ?= -qq --offline --no-progress --color never --render-links never --show-audit-urls never
 SAMPLE_GATE_SCHEDULERS ?= pbs,sge,slurm,oar,demo
@@ -226,3 +230,10 @@ confirm:: ## Ask for human confirmation before release-like tasks
 
 scorecard-scan:: ## Scan an exact GitHub commit with Scorecard (requires Docker and GITHUB_AUTH_TOKEN)
 	sh ci/scripts/scorecard-scan.sh
+
+schema-compat:: ## Check proposed CUE schema accepts all baseline values (optional Go tooling)
+	$(if $(strip $(PROPOSED_SCHEMA)),,$(error Set PROPOSED_SCHEMA to the candidate CUE file))
+	$(GO) -C tools/schema-compat run -mod=readonly . -base "$(abspath $(BASE_SCHEMA))" -proposed "$(abspath $(PROPOSED_SCHEMA))" -definition '$(SCHEMA_DEFINITION)'
+
+schema-compat-test:: ## Test CUE schema compatibility tooling
+	$(GO) -C tools/schema-compat test -mod=readonly ./...
