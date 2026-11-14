@@ -3,6 +3,7 @@
 """Exercise a real watch-mode terminal and report bounded soak-test evidence."""
 
 import argparse
+import contextlib
 import json
 import os
 import select
@@ -27,15 +28,32 @@ def _resident_kib(pid: int) -> int:
     return 0
 
 
+def _revision() -> Optional[str]:
+    """Return the revision when Git can read this checkout."""
+    try:
+        return subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=str(ROOT), universal_newlines=True, stderr=subprocess.DEVNULL).strip()
+    except (OSError, subprocess.CalledProcessError):
+        return None
+
+
 def probe(directory: Path, duration: float, backend: str = "demo", source: Optional[str] = None, shutdown: str = "q") -> Dict[str, Any]:
     """Run qtop in a PTY, exercise keys/resize, and verify terminal restoration."""
     if os.name != "posix":
         raise RuntimeError("PTY checks require POSIX; on Windows use WSL")
-    import fcntl
     import pty
+
+    with contextlib.ExitStack() as terminals:
+        master, slave = pty.openpty()
+        terminals.callback(os.close, slave)
+        terminals.callback(os.close, master)
+        return _probe(master, slave, directory, duration, backend, source, shutdown)
+
+
+def _probe(master: int, slave: int, directory: Path, duration: float, backend: str, source: Optional[str], shutdown: str) -> Dict[str, Any]:
+    """Exercise a watch process while the caller owns its terminal descriptors."""
+    import fcntl
     import termios
 
-    master, slave = pty.openpty()
     previous = termios.tcgetattr(slave)
     fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", 60, 160, 0, 0))
     home = directory / "home"
@@ -114,7 +132,7 @@ def probe(directory: Path, duration: float, backend: str = "demo", source: Optio
             with tarfile.open(str(archive)) as captured:
                 assert captured.getmembers(), "empty capture archive"
         return {
-            "revision": subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=str(ROOT), universal_newlines=True).strip(),
+            "revision": _revision(),
             "python": sys.version,
             "backend": backend,
             "source": source,
@@ -133,8 +151,6 @@ def probe(directory: Path, duration: float, backend: str = "demo", source: Optio
             os.killpg(process.pid, signal.SIGKILL)
         process.wait()
         termios.tcsetattr(slave, termios.TCSANOW, previous)
-        os.close(master)
-        os.close(slave)
         (directory / "terminal.ans").write_bytes(transcript)
 
 

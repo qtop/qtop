@@ -145,6 +145,7 @@ runtime globals, while the new query/view pipeline does not depend on them.
 | Shared extraction and backend interface | [serialiser.py](../qtop_py/serialiser.py) |
 | Shared state/configuration types and backend protocol | [state_types.py](../qtop_py/state_types.py) |
 | Canonical snapshot and legacy adapter | [snapshot.py](../qtop_py/snapshot.py) |
+| Replay time and account expression parsing | [input_parsing.py](../qtop_py/input_parsing.py) |
 | Run resource ownership and frame/archive finalization | [runtime.py](../qtop_py/runtime.py) |
 | Common snapshot construction, validation and totals | [cluster_state.py](../qtop_py/cluster_state.py) |
 | Navigation and color definitions | [controls.py](../qtop_py/ui/controls.py), [viewport.py](../qtop_py/ui/viewport.py), [colormap.py](../qtop_py/colormap.py) |
@@ -157,10 +158,18 @@ runtime globals, while the new query/view pipeline does not depend on them.
 `control_qtop()` and the `Cluster`, `WNOccupancy` and `TextDisplay` classes. They build their
 model from module globals (`args`, `config`, `dynamic_config`, `viewport` and so on) that
 callers must set first. Since 0.9.20261110 they raise a `DeprecationWarning` and they will be
-removed in a later release. `main()` and `tools/validate_trace_export.py` use none of them:
+scheduled for removal in 1.0. `main()` and `tools/validate_trace_export.py` use none of them:
 build an `MVU_Model` and pass it to `MVU_update`, `MVU_effects`, `MVU_query` and `MVU_view`.
 `main()` sets no module globals; `tests/test_runtime.py` fails if a run changes module-level
 state or triggers a legacy adapter.
+
+Before 1.0, retain these public adapters and their warning/compatibility tests.
+New presentation tests call ui.mvu_view.TextDisplay directly with an explicit
+model; existing global-context tests are migrated as their fixtures change.
+The 1.0 removal commit must delete the adapters, their global declarations and
+adapter-only tests together, update the public import documentation, and pass
+pre-pr plus schema-ci. Keep the pure helper re-exports outside this retirement.
+This is a compatibility commitment, not permission to remove APIs in 0.9.
 
 ## Keeping the overview current
 
@@ -169,3 +178,8 @@ source and source map in this file. Check new backend coverage through the
 [shared sample gates](ci-sample-gates.md), and consult the
 [CI structure](ci-structure.md) for validation entry points. User-facing
 commands and display behavior are described in the [qtop guide](documentation.md).
+
+CollectionSettings is the typed, validated view of live command settings.
+The complete Config mapping stays extensible for scheduler-specific keys;
+collection functions accept the GenericBatchSystem class interface rather
+than an unconstrained backend. Normalize at the boundary, before execution.

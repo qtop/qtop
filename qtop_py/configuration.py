@@ -8,7 +8,7 @@ import os
 import re
 import time
 from math import isfinite
-from typing import TYPE_CHECKING, Any, Dict, List, Set, Tuple
+from typing import TYPE_CHECKING, Any, Dict, List, Mapping, NamedTuple, Set, Tuple, cast
 
 if TYPE_CHECKING:
     from typing import Final
@@ -132,11 +132,7 @@ def _validate_scalars(config: Any) -> None:
 
 def _validate_runtime(config: Any) -> None:
     """Command timeout, experimental web endpoint, node id symbols and sorting."""
-    timeout = config.get("scheduler_command_timeout", 30)
-    try:
-        _require(not isinstance(timeout, bool) and isfinite(float(timeout)) and float(timeout) > 0, "scheduler_command_timeout", "positive finite seconds")
-    except (TypeError, ValueError, OverflowError) as error:
-        raise ValueError("scheduler_command_timeout: expected positive finite seconds") from error
+    collection_settings(config)
     host = config.get("experimental_web_host", "127.0.0.1")
     _require(
         isinstance(host, str) and bool(host) and ":" not in host and not any(char.isspace() or ord(char) < 32 for char in host),
@@ -153,6 +149,25 @@ def _validate_runtime(config: Any) -> None:
     _require(type(reverse) in (bool, int) and reverse in (False, True), "sorting.reverse", "True, False, 0 or 1")
     order = sorting.get("user_sort")
     _require(order is None or isinstance(order, list) and all(isinstance(item, str) for item in order), "sorting.user_sort", "a list of sort names or null")
+
+
+class CollectionSettings(NamedTuple):
+    """Validated settings consumed by live scheduler collection."""
+
+    SAVEPATH: str
+    TIMEOUT: float
+
+
+def collection_settings(config: Mapping[str, Any]) -> CollectionSettings:
+    """Validate the collection boundary while retaining extension configuration."""
+    SAVEPATH = config["savepath"]
+    _text(SAVEPATH, "savepath")
+    TIMEOUT = config.get("scheduler_command_timeout", 30)
+    try:
+        _require(not isinstance(TIMEOUT, bool) and isfinite(float(TIMEOUT)) and float(TIMEOUT) > 0, "scheduler_command_timeout", "positive finite seconds")
+        return CollectionSettings(cast(str, SAVEPATH), float(TIMEOUT))
+    except (TypeError, ValueError, OverflowError) as error:
+        raise ValueError("scheduler_command_timeout: expected positive finite seconds") from error
 
 
 def _validate_user_id_ranking(config: "Config") -> None:

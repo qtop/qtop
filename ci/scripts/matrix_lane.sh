@@ -94,7 +94,7 @@ case "${FAMILY}" in
         fi
         ;;
     arch)
-        pacman -Sy --noconfirm make ${PKG_LIST}
+        pacman -Syu --noconfirm make ${PKG_LIST}
         ;;
     *)
         echo "unknown family: ${FAMILY}" >&2

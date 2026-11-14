@@ -25,6 +25,7 @@ build:
   artifacts:
     paths:
       - dist/
+      - artifacts/release/evidence.json
 
 # Installs the wheel built above on Python 3.6 with its bundled pip: no legacy build tools are pinned or fetched.
 almalinux-python36-install:

@@ -2,6 +2,7 @@
 ## SPDX-License-Identifier: MIT
 
 import json
+from pathlib import Path
 
 import pytest
 
@@ -292,3 +293,12 @@ def test_beta1_parent_requires_explicit_version_and_revision(version, revision):
     state["jobs"][0]["parent_qid"] = "slurm:cluster-a:parent"
     with pytest.raises(ValueError):
         validate_cluster_state(state)
+
+
+@pytest.mark.parametrize("case", json.loads((Path(__file__).parent / "schema_cases.json").read_text()), ids=lambda case: case["name"])
+def test_shared_schema_corpus(case):
+    if case["semantic"]:
+        assert validate_cluster_state(case["state"]) == case["state"]
+    else:
+        with pytest.raises((ValueError, TypeError, KeyError)):
+            validate_cluster_state(case["state"])

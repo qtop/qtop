@@ -171,7 +171,7 @@ type-check:: type-contracts ## Check core contracts and production/tooling with 
 ruff-check:: ## Run ruff against the source tree
 	$(PYTHON) -m ruff check .
 
-lint:: ruff-check fortifications ## Run dependency-light source and diff health checks
+lint:: ruff-check fortifications ci-matrix-check ## Run dependency-light source and diff health checks
 
 lint-fix:: ## Auto-fix ruff lint issues where possible
 	$(PYTHON) -m ruff check --fix .
@@ -201,7 +201,7 @@ install-check:: ## Build from an sdist and test a clean installation on this int
 	$(PYTHON) tools/validate_installation.py
 
 release-check:: ## Validate the exact prebuilt sdist/wheel pair without replacing dist files
-	$(PYTHON) tools/validate_installation.py --artifacts-dir "$(DIST_DIR)"
+	$(PYTHON) tools/validate_installation.py --artifacts-dir "$(DIST_DIR)" --report artifacts/release/evidence.json
 
 validated-build:: build ## Build once and validate those exact release artifacts
 	$(MAKE) release-check
@@ -267,3 +267,6 @@ soak:: ## Exercise real watch terminal, capture and refresh budgets (SOAK_ARGS f
 
 nightly-properties:: ## Run the extended 1,000-example Hypothesis profile
 	HYPOTHESIS_PROFILE=nightly $(MAKE) property-test
+
+ci-matrix-check:: ## Verify equivalent expanded nightly lanes on both providers
+	$(PYTHON) -m tools.check_ci_matrix

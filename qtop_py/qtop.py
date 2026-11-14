@@ -61,6 +61,7 @@ from qtop_py.constants import (
     USERPATH,
 )
 from qtop_py.errors import OperationalError
+from qtop_py.input_parsing import extract_regex_detail, get_date_obj_from_str
 from qtop_py.mvu import (
     MVU_colorize,
     MVU_colorize_nodestate,
@@ -117,7 +118,7 @@ gauge_core_vectors = MVU_gauge_core_vectors
 keep_queue_initials_only_and_colorize = MVU_keep_queue_initials_only_and_colorize
 
 
-LEGACY_DEPRECATION = "%s is deprecated since 0.9.20261110 and will be removed in a later release; %s"
+LEGACY_DEPRECATION = "%s is deprecated since 0.9.20261110 and is scheduled for removal in 1.0; %s"
 
 
 def _warn_legacy(name: str, instead: str) -> None:
@@ -285,44 +286,6 @@ def queue_is_blocked(state: object, scheduler_name: Optional[str] = None) -> boo
     return scheduler_backend(scheduler_name).queue_is_blocked(state)
 
 
-def extract_regex_detail(regex: Optional[str], field: str) -> str:
-    """Return field, or the group a re.search(...).group(n) expression from qtopconf selects from it."""
-    expression = (regex or "").strip()
-    if not expression:
-        return field.strip()
-
-    match = re.match(r"^re\.search\((?P<quote>['\"])(?P<pattern>.*)(?P=quote),\s*field\)\.group\((?P<group>\d+)\)$", expression, re.DOTALL)
-    if not match:
-        raise ValueError("Unsupported user detail regex expression in %s" % QTOPCONF_YAML)
-
-    found = re.search(match.group("pattern"), field)
-    if found is None:
-        raise ValueError("User detail regex did not match field")
-    return found.group(int(match.group("group")))
-
-
-def get_date_obj_from_str(s: str, now: datetime.datetime) -> datetime.datetime:
-    """Parse a -R replay time into a datetime; the separators :/- are allowed anywhere.
-
-    yyyymmddTHHMMSS, e.g. 20161118T182300
-    mmddTHHMM, e.g. 1118T1823: the current year is implied.
-    HHMM, e.g. 1823: today, or yesterday if that time is still ahead.
-    """
-    s = "".join([x for x in s if x not in ":/-"])
-    if "T" in s and len(s) == 15:
-        inp_datetime = datetime.datetime.strptime(s, "%Y%m%dT%H%M%S")
-    elif len(s) == 4:
-        _inp_datetime = datetime.datetime.strptime(s, "%H%M")
-        _inp_datetime = now.replace(hour=_inp_datetime.hour, minute=_inp_datetime.minute, second=0)
-        inp_datetime = _inp_datetime if now > _inp_datetime else _inp_datetime - datetime.timedelta(days=1)
-    elif len(s) == 9:
-        _inp_datetime = datetime.datetime.strptime(s, "%m%dT%H%M")
-        inp_datetime = _inp_datetime.replace(year=now.year, second=0)
-    else:
-        raise ValueError("The datetime format provided is incorrect.\nTry one of the formats: yyyymmddTHHMMSS, HHMM, mmddTHHMM.")
-    return inp_datetime
-
-
 @contextlib.contextmanager
 def raw_mode(file: Any, args: Any) -> Generator[Tuple[Any, Any], None, None]:
     """Put a watch-mode terminal in cbreak mode (no echo or line buffering; Ctrl-C still works); yield (old, new) attrs.
@@ -411,7 +374,7 @@ def calculate_term_size(config: Dict[str, Any], FALLBACK_TERM_SIZE: Sequence[int
     return term_height, term_columns
 
 
-def finalize_filepaths_schedulercommands(args: Any, config: Dict[str, Any], backend: Any) -> Dict[str, Tuple[str, str]]:
+def finalize_filepaths_schedulercommands(args: Any, config: Dict[str, Any], backend: Type[GenericBatchSystem]) -> Dict[str, Tuple[str, str]]:
     """Return {input_key: (path, command)}, with PID suffixes for live collection."""
     d = dict()
     fn_append = "_" + str(os.getpid()) if not args.SOURCEDIR else ""
@@ -577,7 +540,7 @@ def get_primary_group_names(account_jobs_table: Sequence[Sequence[Any]]) -> Dict
     return dict((user, group) for user, group in groups if group)
 
 
-def get_input_filenames(INPUT_FNs_commands: Mapping[str, Tuple[str, str]], config: Dict[str, Any], args: Any, backend: Any) -> Dict[str, str]:
+def get_input_filenames(INPUT_FNs_commands: Mapping[str, Tuple[str, str]], config: Dict[str, Any], args: Any, backend: Type[GenericBatchSystem]) -> Dict[str, str]:
     """Return the trace files by key: found in the -s directory, or collected by running the scheduler commands."""
     filenames = dict()
     batch_system_commands = dict()
@@ -585,9 +548,10 @@ def get_input_filenames(INPUT_FNs_commands: Mapping[str, Tuple[str, str]], confi
         filenames[_file], batch_system_commands[_file] = INPUT_FNs_commands[_file]
 
         if not args.SOURCEDIR:
-            _savepath = os.path.realpath(os.path.expandvars(config["savepath"]))
+            SETTINGS = configuration.collection_settings(config)
+            _savepath = os.path.realpath(os.path.expandvars(SETTINGS.SAVEPATH))
             try:
-                filenames[_file] = execute_shell_batch_commands(batch_system_commands, filenames, _file, _savepath, timeout=config.get("scheduler_command_timeout", 30))
+                filenames[_file] = execute_shell_batch_commands(batch_system_commands, filenames, _file, _savepath, timeout=SETTINGS.TIMEOUT)
             except OperationalError as error:
                 if _file not in backend.optional_trace_keys:
                     raise
@@ -740,7 +704,7 @@ def choose_highlight(viewport: Viewport, cluster: Any, display_overrides: Dict[s
     viewport.reset_display()
 
 
-def fetch_scheduler_files(args: Any, config: Dict[str, Any], backend: Any) -> Dict[str, str]:
+def fetch_scheduler_files(args: Any, config: Dict[str, Any], backend: Type[GenericBatchSystem]) -> Dict[str, str]:
     """Return the scheduler trace files, collected live or read from -s; raise OperationalError on bad commands."""
     scheduler_name = backend.get_mnemonic()
     try:

@@ -1,6 +1,8 @@
 # Copyright (c) 2026 qtop contributors
 # SPDX-License-Identifier: MIT
+import contextlib
 import os
+import subprocess
 
 import pytest
 
@@ -50,3 +52,53 @@ def test_probe_waits_for_keyboard_acknowledgement_before_sending_resize(tmp_path
     monkeypatch.setattr(terminal_probe.os, "kill", check_resize)
     terminal_probe.probe(tmp_path, 2)
     assert len(resized) == 1
+
+
+@pytest.mark.skipif(os.name != "posix", reason="PTY watch tests require POSIX; use WSL on Windows")
+@pytest.mark.parametrize("failure", [FileNotFoundError("git"), subprocess.CalledProcessError(128, ["git", "rev-parse", "HEAD"])], ids=["missing-git", "unreadable-checkout"])
+def test_probe_survives_unavailable_git_revision(tmp_path, monkeypatch, failure):
+    from tools import terminal_probe
+
+    def unavailable(*args, **kwargs):
+        raise failure
+
+    monkeypatch.setattr(terminal_probe.subprocess, "check_output", unavailable)
+    report = terminal_probe.probe(tmp_path, 2)
+    assert report["revision"] is None
+    assert report["terminal_restored"]
+
+
+@pytest.mark.skipif(os.name != "posix", reason="PTY watch tests require POSIX; use WSL on Windows")
+@pytest.mark.parametrize("stage", ("home", "process"), ids=["mkdir-failure", "spawn-failure"])
+def test_probe_closes_pty_when_setup_fails(tmp_path, monkeypatch, stage):
+    import pty
+
+    from tools import terminal_probe
+
+    descriptors = []
+    openpty = pty.openpty
+
+    def record_openpty():
+        pair = openpty()
+        descriptors.extend(pair)
+        return pair
+
+    def fail_spawn(*args, **kwargs):
+        raise OSError("spawn failed")
+
+    monkeypatch.setattr(pty, "openpty", record_openpty)
+    if stage == "home":
+        (tmp_path / "home").mkdir()
+    else:
+        monkeypatch.setattr(terminal_probe.subprocess, "Popen", fail_spawn)
+    try:
+        with pytest.raises(FileExistsError if stage == "home" else OSError):
+            terminal_probe.probe(tmp_path, 2)
+        assert len(descriptors) == 2
+        for descriptor in descriptors:
+            with pytest.raises(OSError):
+                os.fstat(descriptor)
+    finally:
+        for descriptor in descriptors:
+            with contextlib.suppress(OSError):
+                os.close(descriptor)

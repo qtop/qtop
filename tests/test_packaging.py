@@ -1,7 +1,10 @@
 ## Copyright (c) 2026 qtop contributors
 ## SPDX-License-Identifier: MIT
+import shutil
+import subprocess
 import sys
 import zipfile
+from pathlib import Path
 
 import pytest
 
@@ -13,18 +16,53 @@ def test_source_distribution_installs_with_defaults_and_cli():
     validate_installation()
 
 
+def build_release_artifacts(directory):
+    source = directory / "source"
+    shutil.copytree(str(ROOT), str(source), ignore=shutil.ignore_patterns(".git", "artifacts", "build", "dist", "*.egg-info", "__pycache__", ".*cache", ".venv"))
+    output = directory / "dist"
+    checked([sys.executable, "-m", "build", "--no-isolation", "--outdir", str(output)], source)
+    return output
+
+
 @pytest.fixture(scope="module")
 def release_artifacts(tmp_path_factory):
-    directory = tmp_path_factory.mktemp("release-artifacts")
-    checked([sys.executable, "-m", "build", "--no-isolation", "--outdir", str(directory)], ROOT)
-    return directory
+    return build_release_artifacts(tmp_path_factory.mktemp("release-artifacts"))
+
+
+def test_packaging_workers_use_distinct_source_trees(tmp_path, monkeypatch):
+    sources = []
+    monkeypatch.setitem(globals(), "checked", lambda command, cwd: sources.append(cwd))
+    for name in ("worker-a", "worker-b"):
+        build_release_artifacts(tmp_path / name)
+    assert sources[0] != sources[1] and ROOT not in sources
+    assert all((source / "qtop_py" / "__init__.py").is_file() for source in sources)
 
 
 def test_exact_release_artifacts_install_without_being_replaced(release_artifacts, capsys):
     before = {path.name: digest(path) for path in release_artifacts.iterdir()}
-    validate_installation(artifacts=release_artifacts)
+    evidence = validate_installation(artifacts=release_artifacts)
+    assert evidence["status"] == "passed" and evidence["version"] == __version__
+    assert {item["file"]: item["sha256"] for item in evidence["artifacts"]} == before
     assert {path.name: digest(path) for path in release_artifacts.iterdir()} == before
     assert capsys.readouterr().out.count("all backends passed") == 2
+
+
+@pytest.mark.parametrize("git_available", (True, False), ids=["archive-checkout", "no-git-executable"])
+def test_prebuilt_wheel_validation_without_git_metadata(release_artifacts, tmp_path, monkeypatch, capsys, git_available):
+    if not git_available:
+        bindir = tmp_path / "bin"
+        bindir.mkdir()
+        echo = shutil.which("echo")
+        if echo is not None:
+            shutil.copy2(echo, bindir / Path(echo).name)
+        monkeypatch.setenv("PATH", str(bindir))
+        assert shutil.which("git") is None
+    source = release_artifacts.parent / "source"
+    assert not (source / ".git").exists()
+    evidence = validate_installation(root=source, artifacts=release_artifacts, wheel_only=True)
+    assert evidence["status"] == "passed" and evidence["revision"] is None
+    assert evidence["wheel_only"] is True
+    assert capsys.readouterr().out.count("all backends passed") == 1
 
 
 @pytest.mark.parametrize("layout", ["missing", "stale", "foreign", "symlink"])
@@ -60,3 +98,13 @@ def test_release_metadata_and_assets_are_checked_before_installation(release_art
             target.writestr(member, data)
     with pytest.raises(RuntimeError, match="package identity|installed defaults|console script"):
         exercise_wheel(wheel, __version__, ROOT, tmp_path)
+
+
+def test_failed_release_check_removes_stale_passed_evidence(tmp_path):
+    report = tmp_path / "evidence.json"
+    report.write_text('{"status": "passed"}')
+    result = subprocess.run(
+        [sys.executable, str(ROOT / "tools/validate_installation.py"), "--artifacts-dir", str(tmp_path), "--report", str(report)], stdout=subprocess.PIPE, stderr=subprocess.PIPE
+    )
+    assert result.returncode != 0
+    assert not report.exists()

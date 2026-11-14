@@ -650,7 +650,7 @@ def test_queueing_summary_preserves_order_and_expands(capsys):
 
     args = SimpleNamespace(REMAP=False, CLASSIC=False, WATCH=True, EXPAND_QUEUES=True, COLOR="OFF")
     model = MVU_Model({}, args, None, backend=qtop_module.scheduler_backend("slurm"))
-    TextDisplay(None, {}, None, None, Cluster(), args, MVU_model=model).display_job_accounting_summary(Cluster(), None)
+    mvu_view.TextDisplay(None, {}, None, None, Cluster(), args, MVU_model=model).display_job_accounting_summary(Cluster(), None)
 
     output = capsys.readouterr().out
     assert "Queueing :\n             Total   R   Q   Other\n  compute  :     2 = 1 + 1 +     0\n  debug    :     1 = 1 + 0 +     0\n" in output
@@ -667,7 +667,7 @@ def test_queue_summary_expands_in_watch_mode_when_wider_than_the_terminal(capsys
     viewport = Viewport()
     viewport.set_term_size(40, 100)
     model = MVU_Model({}, args, viewport, backend=qtop_module.scheduler_backend("pbs"), display_overrides=overrides)
-    TextDisplay(None, {}, viewport, None, cluster, args, MVU_model=model).display_job_accounting_summary(cluster, None)
+    mvu_view.TextDisplay(None, {}, viewport, None, cluster, args, MVU_model=model).display_job_accounting_summary(cluster, None)
 
     output = capsys.readouterr().out
     assert ("\n  queue_000  :     3 = 1 + 2 +     0\n" in output) is expanded
@@ -712,7 +712,7 @@ def test_demo_notice_uses_high_contrast_blue(monkeypatch):
 
     monkeypatch.setattr(model, "MVU_colorize", record_color)
 
-    display = TextDisplay(None, {}, None, None, Cluster(), args, MVU_model=model)
+    display = mvu_view.TextDisplay(None, {}, None, None, Cluster(), args, MVU_model=model)
     display.display_job_accounting_summary(Cluster(), None)
 
     demo_calls = [(text, color) for text, color in color_calls if text.startswith("This data is simulated.")]
@@ -732,7 +732,7 @@ def test_watch_mode_lists_keys_above_the_summary(capsys, scheduler, watch, color
     cluster = SimpleNamespace(total_running_jobs=0, total_queued_jobs=0, queues_dict={}, total_wn=0, offdown_nodes=0, available_wn=0, working_cores=0, total_cores=0)
     args = SimpleNamespace(REMAP=False, CLASSIC=False, WATCH=watch, ANONYMIZE=True, COLOR=color)
     model = MVU_Model({}, args, None, backend=qtop_module.scheduler_backend(scheduler))
-    TextDisplay(None, {}, None, None, cluster, args, MVU_model=model).display_job_accounting_summary(cluster, None)
+    mvu_view.TextDisplay(None, {}, None, None, cluster, args, MVU_model=model).display_job_accounting_summary(cluster, None)
 
     lines = capsys.readouterr().out.splitlines()
     plain = [re.sub(r"\x1b\[[0-9;]*m", "", line) for line in lines]
@@ -782,12 +782,6 @@ def test_normalize_config_returns_a_runtime_copy():
     assert normalized["ALT_LABEL_COLORS"] == ["White", "Blue_L"]
     assert normalized["SEPARATOR"] == "|"
     assert normalized["USER_CUT_MATRIX_WIDTH"] == 12
-
-
-@pytest.mark.parametrize("scheduler_name", [None, "pbs", "slurm", "oar"])
-@pytest.mark.parametrize(("state", "blocked"), (("D", True), ("DS", True), ("E", False), ("Q", False)))
-def test_queue_is_blocked(state, blocked, scheduler_name):
-    assert qtop_module.queue_is_blocked(state, scheduler_name) is blocked
 
 
 def test_load_yaml_config_keeps_user_symbol_pool_bounded(tmp_path):
@@ -1052,16 +1046,6 @@ def test_shared_firstletter_id_keeps_legacy_color_mapping(totals, expected_patte
     assert all(str(symbol) == "a" for symbol in symbols.values())
 
 
-@pytest.mark.parametrize("state", ["a", "A", "c", "C", "d", "D", "E", "o", "s", "S", "u", "Sdu"])
-def test_sge_blocking_flags_are_detected_anywhere(state):
-    assert qtop_module.queue_is_blocked(state, "sge")
-
-
-@pytest.mark.parametrize("state", ["", "-", "?", "r"])
-def test_sge_neutral_states_are_not_marked_blocked(state):
-    assert not qtop_module.queue_is_blocked(state, "sge")
-
-
 @pytest.mark.parametrize("dynamic", [False, True])
 @pytest.mark.parametrize(
     "rule, expected",
@@ -1143,11 +1127,6 @@ def test_init_logging_sets_file_level(tmp_path, monkeypatch, verbose, expected):
                 handler.close()
         logger.setLevel(old_level)
         logger.disabled = old_disabled
-
-
-@pytest.mark.parametrize("state, blocked", [("up", False), ("UP", False), ("down", True), ("drain", True), ("inact", True), ("INACTIVE", True), ("?", False)])
-def test_slurm_partition_blocking_markers(state, blocked):
-    assert qtop_module.queue_is_blocked(state, "slurm") is blocked
 
 
 @pytest.mark.parametrize("head_fails", (False, True))
@@ -1277,7 +1256,7 @@ def _summary(config, jobs_states, color="OFF", queues=True):
     model = MVU_Model({}, args, None, backend=qtop_module.scheduler_backend("pbs"))
     snapshot = SimpleNamespace(jobs_dict={str(n): SimpleNamespace(job_state=state) for n, state in enumerate(jobs_states)})
     config = dict(config, state_abbreviations={"pbs": PBS_STATES})
-    TextDisplay(None, config, None, None, Cluster(), args, MVU_model=model).display_job_accounting_summary(Cluster(), snapshot)
+    mvu_view.TextDisplay(None, config, None, None, Cluster(), args, MVU_model=model).display_job_accounting_summary(Cluster(), snapshot)
 
 
 def test_summary_states_default_to_scheduler_reported_r_plus_q(capsys):

@@ -3,7 +3,27 @@
 Notable changes by version, newest first. See the
 [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 
-## Unreleased
+## 0.9.20261114
+
+- CI: close terminal probe descriptors when setup fails
+- CI: upgrade Arch containers fully before installing nightly dependencies
+- CI: allow terminal probes without readable Git revision metadata
+- CI: bump Ruff to 0.17.5 in CI and pre-commit
+- CI: allow release installation validation without Git metadata
+- CI: consolidate queue policy tests into named contract case tables
+- CI: cover release failures and resolve tool type checks
+- CI: enforce nightly matrix parity between providers
+- CI: share versioned schema fixtures across Python and CUE
+- CI: emit verified release artifact evidence
+- CI: make validation defaults single-owned
+- CI: isolate packaging builds per worker
+- Bugfix: type and validate scheduler collection settings
+- Bugfix: schedule legacy adapter retirement for 1.0
+- Bugfix: extract pure runtime input parsing
+- Bugfix: centralize YAML container transitions
+- Release: prepare releases from finalized changelogs without Unreleased
+- Release: add a dry-run release preparation command
+- Release: update version metadata to 0.9.20261114
 
 ## 0.9.20261113
 
@@ -22,9 +42,7 @@ Notable changes by version, newest first. See the
 - Bugfix: reject scalar and nested-list conflicts in YAML input
 - Bugfix: cover real terminal lifecycle and add bounded soak evidence
 - Bugfix: synchronize scheduler timeout tests and verify child termination
-- Feature: experimental schema 3 beta1 workload `parent_qid`, with cycle
-  validation and consistent anonymization of present or absent parents;
-  existing renderers keep using legacy maps.
+- Feature: experimental schema 3 beta1 workload `parent_qid`, with cycle validation and consistent anonymization
 - Release: update version metadata to 0.9.20261113
 
 ## 0.9.20261112

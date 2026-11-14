@@ -6,6 +6,7 @@ package main
 import (
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/cuecontext"
+	"encoding/json"
 	"os"
 	"testing"
 )
@@ -64,22 +65,24 @@ func TestStructuralContract(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	common := `jobs: [{id: "42", user: "alice", state: "R", queue: "debug", extra: "allowed"}], nodes: [], queues: []`
-	for _, tc := range []struct {
-		suffix string
-		ok     bool
-	}{
-		{"", true},
-		{`, schema_version: 2, source: {backend: "slurm", cluster_id: "a"}`, true},
-		{`, schema_version: 3, schema_revision: "beta1", source: {backend: "slurm", cluster_id: "a"}`, true},
-		{`, schema_version: 2`, false},
-		{`, schema_version: 3, schema_revision: "beta2", source: {backend: "slurm", cluster_id: "a"}`, false},
-		{`, allocations: []`, false},
-		{`, jobs: [{id: "42", qid: "slurm:a:42"}]`, false},
-	} {
-		err := schema.Subsume(ctx.CompileString(common+tc.suffix), cue.Final())
-		if (err == nil) != tc.ok {
-			t.Errorf("suffix %q: expected valid=%v, error=%v", tc.suffix, tc.ok, err)
-		}
+	var cases []struct {
+		Name       string
+		State      json.RawMessage
+		Structural bool
+	}
+	corpus, err := os.ReadFile("../../tests/schema_cases.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(corpus, &cases); err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range cases {
+		t.Run(tc.Name, func(t *testing.T) {
+			err := schema.Subsume(ctx.CompileBytes(tc.State), cue.Final())
+			if (err == nil) != tc.Structural {
+				t.Fatalf("expected structural=%v, error=%v", tc.Structural, err)
+			}
+		})
 	}
 }

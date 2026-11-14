@@ -1,5 +1,8 @@
 # Copyright (c) 2026 qtop contributors
 # SPDX-License-Identifier: MIT
+import subprocess
+import sys
+
 import pytest
 
 from tools.check_coverage import percentages
@@ -19,3 +22,9 @@ def test_runtime_floors_are_independent_of_tooling_and_branch_totals():
 def test_missing_measurements_fail_closed(files):
     with pytest.raises(ValueError):
         percentages({"files": files})
+
+
+def test_standalone_gate_requires_explicit_floors():
+    result = subprocess.run([sys.executable, "-m", "tools.check_coverage", "missing.json"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    assert result.returncode == 2
+    assert b"--statements" in result.stderr and b"--branches" in result.stderr

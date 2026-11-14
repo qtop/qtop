@@ -10,6 +10,7 @@
 
 import pytest
 
+from qtop_py import yaml_parser
 from qtop_py.yaml_parser import convert_dash_key_in_dict, fix_config_list, get_line, process_code, process_line, read_yaml_config_block
 
 
@@ -296,3 +297,16 @@ def test_fuzz_discovered_yaml_scalar_conflict_is_a_controlled_rejection(tmp_path
     path.write_bytes(bytes.fromhex(seed.read_text())[1:])
     with pytest.raises(ValueError, match="require a list"):
         parse(str(path))
+
+
+@pytest.mark.parametrize("parent,value", [({"x": "scalar"}, ["a"]), ({}, {}), ({}, 2)])
+def test_list_continuations_reject_incompatible_container_shapes(parent, value):
+    with pytest.raises(ValueError, match="YAML"):
+        yaml_parser._extend_list(parent, "x", value)
+
+
+def test_list_continuation_preserves_text_as_one_item():
+    parent = {}
+    yaml_parser._extend_list(parent, "x", "text")
+    yaml_parser._extend_list(parent, "x", ["next"])
+    assert parent == {"x": ["text", "next"]}

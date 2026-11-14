@@ -267,3 +267,35 @@ The proposed setuptools 84.2.1 requirement on Python 3.9 is deliberately not
 adopted: that release requires Python 3.10+. Python 3.9 retains its compatible
 `>=78.1.1,<83` backend range, and Python 3.6-3.8 retain `>=59.6,<60`.
 The modern source-build floor is updated to 84.2.1 on Python 3.10+ only.
+
+
+`make release-check` emits `artifacts/release/evidence.json` only after both
+installations and unchanged-input hash checks pass. It records version, source
+revision (null outside Git), Python and exact artifact hashes/sizes. A previous
+report is removed before validation; failed runs cannot reuse stale success.
+This evidence supports independent review and does not authorize publication.
+The revision is null for archive checkouts or when Git is unavailable;
+the installation validator does not require Git.
+
+
+Preview release-file changes with `python -m tools.prepare_release`. It derives
+`0.9.YYYYMMDD` from the branch prefix, or accepts `--version`. `--write` applies
+the reviewed plan only when release files are clean and no matching local tag
+exists. It does not commit, tag, fetch checksums or publish. Run the release
+gates and obtain independent review before those separate operations.
+
+The ci-matrix-check target (included in lint and pre-pr) compares expanded
+nightly lane multisets, including package/interpreter choices, Make target
+and failure policy. Matrix edits must update both provider files together.
+PyYAML is pinned for developer validation only; qtop keeps its stdlib parser.
+
+GitHub build and release workflows retain the verified record in the separate
+qtop-release-evidence artifact. GitLab retains it with the build artifacts.
+
+Terminal probes also record a null revision when Git is missing or refuses the
+checkout ownership. The PTY, capture and terminal-restoration checks still run;
+nightly containers need no additional Git ownership exception for this metadata.
+
+The Arch nightly container upgrades packages together with pacman -Syu in both
+checkout bootstrap and the shared lane runner. Mixing a current package index
+with an older base image can otherwise cause OpenSSL file conflicts.
