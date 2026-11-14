@@ -31,6 +31,8 @@ def release_plan(root, VERSION):
     changelog = (root / "CHANGELOG.md").read_text()
     if "## " + VERSION in changelog:
         raise ValueError("release already exists in changelog")
+    if "## Unreleased\n" not in changelog:
+        changelog = changelog.replace("\n## ", "\n## Unreleased\n\n## ", 1)
     intro, pending = changelog.split("## Unreleased\n", 1)
     notes, history = pending.split("\n## ", 1)
     notes = notes.strip()
