@@ -7,6 +7,7 @@ Notable changes by version, newest first. See the
 
 ## 0.9.20261113
 
+- CI: add a fast parser, model and UI test target
 - CI: use branch-capable coverage and trust container checkout paths
 - CI: adopt compatible tool updates from #591
 - CI: make Linux and WSL test runs reproducible with retained reports

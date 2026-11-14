@@ -78,6 +78,13 @@ test:: ## Run the Python test suite
 	$(PYTHON) -m pytest $(PYTEST_WORKERS) $(PYTEST_ARGS) --junitxml="$(PYTEST_REPORT_DIR)/main.xml"
 	$(if $(PYTEST_WORKERS),$(PYTHON) -m pytest tests/test_web.py $(PYTEST_ARGS) --junitxml="$(PYTEST_REPORT_DIR)/web.xml")
 
+test-fast:: ## Run parser/model/UI checks; pre-pr remains the full gate
+	@mkdir -p "$(PYTEST_REPORT_DIR)"
+	$(PYTHON) -m pytest $(PYTEST_WORKERS) $(PYTEST_ARGS) \
+		tests/plugins tests/ui tests/test_mvu.py tests/test_cluster_state.py \
+		tests/test_configuration.py tests/test_yaml_parser.py \
+		--junitxml="$(PYTEST_REPORT_DIR)/fast.xml"
+
 coverage:: ## Run tests with coverage.py and print a terminal report
 	@mkdir -p "$(PYTEST_REPORT_DIR)"
 	$(PYTHON) -m coverage erase

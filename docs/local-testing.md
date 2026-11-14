@@ -37,23 +37,25 @@ requires network access. No project runtime dependencies are added. Re-run
 
 ```powershell
 .\tools\test-local.ps1
-.\tools\test-local.ps1 test
+.\tools\test-local.ps1 test-fast
 ```
 
 ```sh
 python3 -m tools.local_tests
-python3 -m tools.local_tests --workers 2 test schema-ci
+python3 -m tools.local_tests test-fast
 ```
 
-The default runs `pre-pr` then `schema-ci`, with four workers. Test and
-coverage gates retain separate main/web JUnit reports under `artifacts/tests/`
-and show the 20 slowest tests. Override `PYTEST_ARGS` or `PYTEST_REPORT_DIR`
-when invoking Make directly; both CI providers retain those reports. Every
-invocation makes a fresh Linux-native snapshot of HEAD plus staged, unstaged
-and untracked non-ignored files. Deletions are included; ignored files stay
-excluded. This avoids testing a stale secondary clone or depending on Windows
-mount timing. Do not edit the source during snapshot creation. The source Git
-checkout is never reset or cleaned. Existing virtual environments are reused.
+The default runs `pre-pr` then `schema-ci`, with four workers. `test-fast`
+runs a parser/model/UI subset for iteration; it does not replace the full
+gate. Test and coverage gates retain separate main/web JUnit reports under
+`artifacts/tests/` and show the 20 slowest tests. Override `PYTEST_ARGS` or
+`PYTEST_REPORT_DIR` when invoking Make directly; both CI providers retain
+those reports. Every invocation makes a fresh Linux-native snapshot of HEAD
+plus staged, unstaged and untracked non-ignored files. Deletions are
+included; ignored files stay excluded. This avoids testing a stale secondary
+clone or depending on Windows mount timing. Do not edit the source during
+snapshot creation. The source Git checkout is never reset or cleaned.
+Existing virtual environments are reused.
 
 A unique `~/.local/state/qtop-test-reports/run-*` directory retains reports and
 a manifest with revision, working-tree digest/status, target list and baseline
