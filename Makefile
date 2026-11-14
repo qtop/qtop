@@ -203,6 +203,7 @@ validated-build:: build ## Build once and validate those exact release artifacts
 compat-py36:: ## Run dependency-light Python 3.6 compatibility checks
 	find qtop_py tools -name '*.py' -print | xargs $(PYTHON) -m py_compile
 	$(PYTHON) -m unittest discover -s tests -p test_legacy_helpers.py
+	$(PYTHON) -m unittest discover -s tests -p test_legacy_contracts.py
 	$(PYTHON) tools/validate_scheduler_samples.py --schedulers $(SAMPLE_GATE_SCHEDULERS) --max-failures $(SAMPLE_GATE_MAX_FAILURES) --artifact-dir $(SAMPLE_GATE_ARTIFACT_DIR)-py36
 
 ci:: test backend-validation deterministic-fuzz lint ruff-check format-check ## Run the shared local/CI validation path

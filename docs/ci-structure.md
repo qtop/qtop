@@ -217,3 +217,15 @@ documents live as hex text under `tests/fuzz_corpus/`; `coverage-fuzz` decodes
 them without replacing locally discovered inputs. Preserve `artifacts/fuzz/`
 between local runs. CI publishes that corpus for reproduction; it does not
 silently trust arbitrary corpus artifacts from other revisions or contributors.
+
+
+## Python 3.6 runtime contracts
+
+`compat-py36` now runs `test_legacy_contracts.py` as well as the existing
+parser/security compatibility checks. These stdlib-only contracts cover invalid
+configuration timeouts, successful pipe draining, timeout kill/reap, and schema
+v1/v2/v3 anonymization, archive import and JSON export. They run under pytest on
+modern interpreters and unittest on the Python 3.6/PyPy lanes, without importing
+pytest or modern analysis dependencies. This is a bounded contract suite, not a
+claim that the entire modern pytest suite runs on Python 3.6. The exact 3.6/RHEL8
+run evidence remains owned by its dedicated CI lane.
