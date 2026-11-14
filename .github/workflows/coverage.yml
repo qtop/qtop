@@ -45,4 +45,6 @@ jobs:
         if: always()
         with:
           name: coverage-cobertura-xml
-          path: artifacts/coverage/coverage.xml
+          path: |
+            artifacts/coverage/
+            artifacts/tests/

@@ -167,3 +167,6 @@ extended-properties:
     when: always
     paths:
       - .hypothesis/
+      - artifacts/tests/
+    reports:
+      junit: artifacts/tests/*.xml

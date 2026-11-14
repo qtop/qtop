@@ -153,6 +153,7 @@ patch = ["subprocess"]
 
 [tool.coverage.paths]
 source = ["qtop_py", "*/qtop_py"]
+tools = ["tools", "*/tools"]
 
 [tool.coverage.report]
 show_missing = true

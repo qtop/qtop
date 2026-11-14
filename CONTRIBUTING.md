@@ -47,6 +47,8 @@ Please follow these contribution conventions:
 - Let's avoid storing artifacts in the main `qtop` repo and keep it light; use the repo `qtop-artifacts` instead.
 - Naming: configurable values and constants are UPPERCASE wherever they appear, including the parameters and locals that carry them (e.g. `SAMPLE_FILENAME`, `QTOPPATH`, `DEF_INDENT`). This deliberately departs from PEP 8 at function scope, as in GNU make or Django/Flask settings, where uppercase marks user-configurable values; do not lowercase them. Other locals and parameters use snake_case, classes CapWords. True module constants are annotated `Final` (PEP 591) in the Python 3.6-safe form used in `qtop_py/constants.py`.
 
+For a reproducible Linux/WSL environment, see [local testing](docs/local-testing.md).
+
 Before opening a pull request, run the shared release gates:
 
 ```console

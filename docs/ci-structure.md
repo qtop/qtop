@@ -198,7 +198,7 @@ remain covered by `tests/test_sample.py`. Live evidence remains open in ROADMAP.
 ## Coverage interpretation
 
 The shared coverage targets measure branches as well as statements. Runtime
-statement coverage retains its 93% floor; branch coverage has a separate 85%
+statement coverage retains its 93% floor; branch coverage has a separate 90%
 floor, so one metric cannot conceal a regression in the other. The JSON report
 at `artifacts/coverage/details.json` retains per-file missing lines and branches.
 Developer tooling is measured and printed separately, without an initial floor;

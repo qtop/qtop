@@ -59,7 +59,9 @@ jobs:
         if: always()
         with:
           name: nightly-property-examples
-          path: .hypothesis/
+          path: |
+            .hypothesis/
+            artifacts/tests/
           include-hidden-files: true
           if-no-files-found: ignore
 

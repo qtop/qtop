@@ -39,6 +39,9 @@ modern-python:
     paths:
       - artifacts/sample-gate/
       - artifacts/fuzz/
+      - artifacts/tests/
+    reports:
+      junit: artifacts/tests/*.xml
 
 almalinux-python36:
   image: almalinux:8

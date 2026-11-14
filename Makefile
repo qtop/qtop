@@ -4,6 +4,10 @@
 .DEFAULT_GOAL := help
 
 PYTHON ?= python3
+PYTEST_XDIST_AUTO_NUM_WORKERS ?= 4
+export PYTEST_XDIST_AUTO_NUM_WORKERS
+PYTEST_ARGS ?= --durations=20 --durations-min=0.1
+PYTEST_REPORT_DIR ?= artifacts/tests
 # Tests run on every CPU when pytest-xdist is installed (requirements-ci.txt); test_web.py forks a worker, so it runs alone.
 PYTEST_WORKERS = $(shell $(PYTHON) -c "import xdist" >/dev/null 2>&1 && echo "-n auto --ignore=tests/test_web.py")
 PIP ?= $(PYTHON) -m pip
@@ -35,7 +39,7 @@ ATHERIS_ARGS ?=
 FORTIFY_BASE_REF ?= origin/develop
 COVERAGE_XML ?= artifacts/coverage/coverage.xml
 COVERAGE_MIN ?= 93
-COVERAGE_BRANCH_MIN ?= 85
+COVERAGE_BRANCH_MIN ?= 90
 COVERAGE_JSON ?= artifacts/coverage/details.json
 REPO_SANITY_DIR ?= artifacts/repo-sanity
 CODE_QUALITY_JSON ?= artifacts/code-quality/gl-code-quality-report.json
@@ -68,13 +72,15 @@ ci-deps:: ## Install pinned CI Python dependencies
 	$(PIP) install -r requirements-ci.txt
 
 test:: ## Run the Python test suite
-	$(PYTHON) -m pytest $(PYTEST_WORKERS)
-	$(if $(PYTEST_WORKERS),$(PYTHON) -m pytest tests/test_web.py)
+	@mkdir -p "$(PYTEST_REPORT_DIR)"
+	$(PYTHON) -m pytest $(PYTEST_WORKERS) $(PYTEST_ARGS) --junitxml="$(PYTEST_REPORT_DIR)/main.xml"
+	$(if $(PYTEST_WORKERS),$(PYTHON) -m pytest tests/test_web.py $(PYTEST_ARGS) --junitxml="$(PYTEST_REPORT_DIR)/web.xml")
 
 coverage:: ## Run tests with coverage.py and print a terminal report
+	@mkdir -p "$(PYTEST_REPORT_DIR)"
 	$(PYTHON) -m coverage erase
-	$(PYTHON) -m coverage run -m pytest $(PYTEST_WORKERS)
-	$(if $(PYTEST_WORKERS),$(PYTHON) -m coverage run -m pytest tests/test_web.py)
+	$(PYTHON) -m coverage run -m pytest $(PYTEST_WORKERS) $(PYTEST_ARGS) --junitxml="$(PYTEST_REPORT_DIR)/main.xml"
+	$(if $(PYTEST_WORKERS),$(PYTHON) -m coverage run -m pytest tests/test_web.py $(PYTEST_ARGS) --junitxml="$(PYTEST_REPORT_DIR)/web.xml")
 	$(PYTHON) -m coverage combine
 	@mkdir -p $(dir $(COVERAGE_JSON))
 	$(PYTHON) -m coverage json -o "$(COVERAGE_JSON)"
@@ -82,18 +88,9 @@ coverage:: ## Run tests with coverage.py and print a terminal report
 	$(PYTHON) -m coverage report --include='qtop_py/*'
 	$(PYTHON) tools/check_coverage.py "$(COVERAGE_JSON)" --statements $(COVERAGE_MIN) --branches $(COVERAGE_BRANCH_MIN)
 
-coverage-xml:: ## Run tests under coverage.py and write a CI-ready Cobertura XML report
-	$(PYTHON) -m coverage erase
-	$(PYTHON) -m coverage run -m pytest $(PYTEST_WORKERS)
-	$(if $(PYTEST_WORKERS),$(PYTHON) -m coverage run -m pytest tests/test_web.py)
-	$(PYTHON) -m coverage combine
-	@mkdir -p $(dir $(COVERAGE_JSON))
-	$(PYTHON) -m coverage json -o "$(COVERAGE_JSON)"
-	$(PYTHON) -m coverage report --include='tools/*'
-	$(PYTHON) -m coverage report --include='qtop_py/*'
-	$(PYTHON) tools/check_coverage.py "$(COVERAGE_JSON)" --statements $(COVERAGE_MIN) --branches $(COVERAGE_BRANCH_MIN)
+coverage-xml:: coverage ## Write runtime Cobertura XML after the shared coverage gate
 	@mkdir -p $(dir $(COVERAGE_XML))
-	$(PYTHON) -m coverage xml -o $(COVERAGE_XML)
+	$(PYTHON) -m coverage xml --include='qtop_py/*' -o "$(COVERAGE_XML)"
 	@echo "wrote $(COVERAGE_XML)"
 
 sample-gate:: ## Run fast committed PBS/SGE/Slurm/OAR/demo qtop sample gates
@@ -156,7 +153,8 @@ type-contracts:: ## Check core contracts with mypy and Pyright (Python 3.12+ too
 	$(PYTHON) -m pyright
 
 property-test:: ## Run bounded Hypothesis properties (HYPOTHESIS_PROFILE=nightly for longer runs)
-	$(PYTHON) -m pytest tests/test_properties.py
+	@mkdir -p "$(PYTEST_REPORT_DIR)"
+	$(PYTHON) -m pytest tests/test_properties.py $(PYTEST_ARGS) --junitxml="$(PYTEST_REPORT_DIR)/properties.xml"
 
 type-check:: type-contracts ## Check core contracts and production/tooling with ty
 	$(PYTHON) -m ty check --python "$$($(PYTHON) -c 'import sys; print(sys.executable)')"

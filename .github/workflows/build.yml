@@ -49,7 +49,9 @@ jobs:
         if: always()
         with:
           name: sample-gate-${{ matrix.python-version }}
-          path: artifacts/sample-gate/
+          path: |
+            artifacts/sample-gate/
+            artifacts/tests/
 
   # No git in the AlmaLinux jobs: it pulled in 55 packages, and checkout falls back to a REST download.
   almalinux-python36:
