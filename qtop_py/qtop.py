@@ -118,7 +118,7 @@ gauge_core_vectors = MVU_gauge_core_vectors
 keep_queue_initials_only_and_colorize = MVU_keep_queue_initials_only_and_colorize
 
 
-LEGACY_DEPRECATION = "%s is deprecated since 0.9.20261110 and will be removed in a later release; %s"
+LEGACY_DEPRECATION = "%s is deprecated since 0.9.20261110 and is scheduled for removal in 1.0; %s"
 
 
 def _warn_legacy(name: str, instead: str) -> None:

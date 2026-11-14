@@ -12,3 +12,4 @@ against its agreed upper bound before commit. No runtime dependency is added.
 | 7 | 82 | 100 | Release: add a dry-run release preparation command |
 | 3 | 16 | 60 | Bugfix: centralize YAML container transitions |
 | 4 | 6 | 30 | Bugfix: extract pure runtime input parsing |
+| 6 | 0 | 0 | Bugfix: schedule legacy adapter retirement for 1.0 |

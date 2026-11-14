@@ -650,7 +650,7 @@ def test_queueing_summary_preserves_order_and_expands(capsys):
 
     args = SimpleNamespace(REMAP=False, CLASSIC=False, WATCH=True, EXPAND_QUEUES=True, COLOR="OFF")
     model = MVU_Model({}, args, None, backend=qtop_module.scheduler_backend("slurm"))
-    TextDisplay(None, {}, None, None, Cluster(), args, MVU_model=model).display_job_accounting_summary(Cluster(), None)
+    mvu_view.TextDisplay(None, {}, None, None, Cluster(), args, MVU_model=model).display_job_accounting_summary(Cluster(), None)
 
     output = capsys.readouterr().out
     assert "Queueing :\n             Total   R   Q   Other\n  compute  :     2 = 1 + 1 +     0\n  debug    :     1 = 1 + 0 +     0\n" in output
@@ -667,7 +667,7 @@ def test_queue_summary_expands_in_watch_mode_when_wider_than_the_terminal(capsys
     viewport = Viewport()
     viewport.set_term_size(40, 100)
     model = MVU_Model({}, args, viewport, backend=qtop_module.scheduler_backend("pbs"), display_overrides=overrides)
-    TextDisplay(None, {}, viewport, None, cluster, args, MVU_model=model).display_job_accounting_summary(cluster, None)
+    mvu_view.TextDisplay(None, {}, viewport, None, cluster, args, MVU_model=model).display_job_accounting_summary(cluster, None)
 
     output = capsys.readouterr().out
     assert ("\n  queue_000  :     3 = 1 + 2 +     0\n" in output) is expanded
@@ -712,7 +712,7 @@ def test_demo_notice_uses_high_contrast_blue(monkeypatch):
 
     monkeypatch.setattr(model, "MVU_colorize", record_color)
 
-    display = TextDisplay(None, {}, None, None, Cluster(), args, MVU_model=model)
+    display = mvu_view.TextDisplay(None, {}, None, None, Cluster(), args, MVU_model=model)
     display.display_job_accounting_summary(Cluster(), None)
 
     demo_calls = [(text, color) for text, color in color_calls if text.startswith("This data is simulated.")]
@@ -732,7 +732,7 @@ def test_watch_mode_lists_keys_above_the_summary(capsys, scheduler, watch, color
     cluster = SimpleNamespace(total_running_jobs=0, total_queued_jobs=0, queues_dict={}, total_wn=0, offdown_nodes=0, available_wn=0, working_cores=0, total_cores=0)
     args = SimpleNamespace(REMAP=False, CLASSIC=False, WATCH=watch, ANONYMIZE=True, COLOR=color)
     model = MVU_Model({}, args, None, backend=qtop_module.scheduler_backend(scheduler))
-    TextDisplay(None, {}, None, None, cluster, args, MVU_model=model).display_job_accounting_summary(cluster, None)
+    mvu_view.TextDisplay(None, {}, None, None, cluster, args, MVU_model=model).display_job_accounting_summary(cluster, None)
 
     lines = capsys.readouterr().out.splitlines()
     plain = [re.sub(r"\x1b\[[0-9;]*m", "", line) for line in lines]
@@ -1277,7 +1277,7 @@ def _summary(config, jobs_states, color="OFF", queues=True):
     model = MVU_Model({}, args, None, backend=qtop_module.scheduler_backend("pbs"))
     snapshot = SimpleNamespace(jobs_dict={str(n): SimpleNamespace(job_state=state) for n, state in enumerate(jobs_states)})
     config = dict(config, state_abbreviations={"pbs": PBS_STATES})
-    TextDisplay(None, config, None, None, Cluster(), args, MVU_model=model).display_job_accounting_summary(Cluster(), snapshot)
+    mvu_view.TextDisplay(None, config, None, None, Cluster(), args, MVU_model=model).display_job_accounting_summary(Cluster(), snapshot)
 
 
 def test_summary_states_default_to_scheduler_reported_r_plus_q(capsys):
