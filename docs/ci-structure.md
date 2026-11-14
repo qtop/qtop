@@ -239,3 +239,16 @@ profile once per pipeline, rather than multiplying the cost across every distro
 lane. Regular PR tests keep the deterministic 100-example profile. Failing
 examples remain in the job output and `.hypothesis/` is retained as an artifact.
 Locally run `make nightly-properties`; no scheduler access is required.
+
+
+## Branch coverage and container checkout setup
+
+The shared targets default to `COVERAGE_CORE=ctrace`. Python 3.12 cannot
+measure branches with coverage's sysmon core; its fallback warning would be
+inherited by instrumented subprocesses and contaminate their stderr. GitHub
+and GitLab therefore use the same branch-capable default, keeping exact-output
+assertions intact. Explicit local core overrides remain available.
+
+Schema container jobs trust only their provider's checkout directory before
+running Git commands. This handles bind-mount ownership without disabling Git's
+ownership check globally or trusting unrelated repositories.

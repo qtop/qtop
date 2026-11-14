@@ -6,6 +6,8 @@
 PYTHON ?= python3
 PYTEST_XDIST_AUTO_NUM_WORKERS ?= 4
 export PYTEST_XDIST_AUTO_NUM_WORKERS
+COVERAGE_CORE ?= ctrace
+export COVERAGE_CORE
 PYTEST_ARGS ?= --durations=20 --durations-min=0.1
 PYTEST_REPORT_DIR ?= artifacts/tests
 # Tests run on every CPU when pytest-xdist is installed (requirements-ci.txt); test_web.py forks a worker, so it runs alone.

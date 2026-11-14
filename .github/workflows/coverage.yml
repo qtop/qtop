@@ -39,8 +39,6 @@ jobs:
           python-version: '3.12.3'
       - run: make ci-deps PYTHON=python
       - run: make coverage-xml PYTHON=python
-        env:
-          COVERAGE_CORE: sysmon  # sys.monitoring (3.12+): same report, about 30% faster than the default tracer
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:

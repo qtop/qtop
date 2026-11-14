@@ -86,6 +86,8 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
+      - name: Trust the mounted checkout for container Git commands
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
       - run: make schema-ci
 
   type-check:
