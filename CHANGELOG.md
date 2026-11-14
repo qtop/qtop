@@ -1,7 +1,31 @@
 # Changelog
 
-Notable changes by version, newest first.
-See the [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
+Notable changes by version, newest first. See the
+[roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
+
+## Unreleased
+
+## 0.9.20261113
+
+- CI: raise coverage floors to 95% statements and 91% branches
+- CI: add a fast parser, model and UI test target
+- CI: use branch-capable coverage and trust container checkout paths
+- CI: adopt compatible tool updates from #591
+- CI: make Linux and WSL test runs reproducible with retained reports
+- CI: run extended property checks in both nightly pipelines
+- CI: expand dependency-free legacy runtime contracts
+- CI: broaden document fuzzing and versioned state properties
+- CI: enforce independent branch and statement coverage floors
+- CI: gate schema compatibility on both CI providers
+- CI: normalize Go source line endings for CI
+- Bugfix: acknowledge PTY keyboard input before testing resize
+- Bugfix: reject scalar and nested-list conflicts in YAML input
+- Bugfix: cover real terminal lifecycle and add bounded soak evidence
+- Bugfix: synchronize scheduler timeout tests and verify child termination
+- Feature: experimental schema 3 beta1 workload `parent_qid`, with cycle
+  validation and consistent anonymization of present or absent parents;
+  existing renderers keep using legacy maps.
+- Release: update version metadata to 0.9.20261113
 
 ## 0.9.20261112
 

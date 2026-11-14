@@ -16,16 +16,18 @@ such as the terminal views or future cost records, belongs outside it.
 |---|---|---|
 | 1 | `{"jobs", "nodes", "queues"}` plus optional `*_diagnostics` | every current plugin, and existing snapshots and archives |
 | 2 | version 1 plus `"schema_version": 2` and `"source": {"backend", "cluster_id"}` | backends that know their cluster's identity (opt-in) |
+| 3 beta1 | version 2 plus `"schema_version": 3, "schema_revision": "beta1"` and optional workload `parent_qid` | experimental imported observations only |
 
 A state without `schema_version` is version 1, and `"schema_version": 1` means
 the same. `validate_cluster_state()` in
-[cluster_state.py](../qtop_py/cluster_state.py) rejects any other version, a
-`source` without version 2, and version 2 fields (`qid`, `kind`) in a version 1
+[cluster_state.py](../qtop_py/cluster_state.py) rejects unsupported versions and beta revisions, a
+`source` in version 1, and version 2 fields (`qid`, `kind`) in a version 1
 state, so a record's meaning never depends on guessing. Snapshot archives keep
 `format_version: 1`, because the archive layout is unchanged. The state inside
 an archive carries its own version, so old archives replay unchanged.
 
-Version 2 adds only optional fields:
+The version 2 envelope is opt-in. A version 2 state requires `source`; `qid`
+and job `kind` remain optional:
 
 ```python
 ClusterState = {
@@ -72,14 +74,17 @@ today.
 | workload | identity, state, ownership | `jobs` (`id`, `qid`, `kind`, `user`, `state`) |
 | resource | nodes, GPUs, MIG, capacity, hierarchy | `nodes` (`np`, `slurm_gpu_*` descriptors, `qid`) |
 | resource_request | requested resources and constraints | future optional extension; today only backend text such as `slurm_tres_per_node` |
-| allocation | actual or predicted assignments | `core_job_map`, `slurm_gpu_bindings`, `cpu_allocation_source`; future extensions |
+| allocation | actual assignments, exact or estimated | `core_job_map`, `slurm_gpu_bindings`, `cpu_allocation_source`; predictions are a separate future relation |
 | scheduling_domain | queues, partitions and analogous domains | `queues`, and `queue` on jobs, `qname` on nodes |
 
-**Scheduling domains** are backend-defined concepts: whatever a backend
-schedules into, such as Slurm partitions, PBS, SGE or OAR queues, Kubernetes
-namespaces or OpenStack projects. They are not necessarily semantically
-equivalent. A Slurm partition's limits, a PBS queue's limits and a Kubernetes
-quota mean different things, and a job may belong to several domains at once.
+**Scheduling domains** preserve backend-defined meanings: Slurm partitions,
+PBS queues, SGE cluster queues and queue instances (`queue@host`), and OAR
+queues. Future Flux scheduler scopes, Kubernetes namespaces and OpenStack
+projects must retain their distinct semantics; a namespace or project is not
+automatically a queue or an execution container. SGE queue instances must keep
+their host-specific identities, and SGE slots are not necessarily CPU cores.
+A Slurm partition's limits, a PBS queue's limits and a Kubernetes quota mean
+different things, and a job may belong to several domains at once.
 The `queues` key stays for compatibility. Each domain's meaning comes from its
 backend, so nothing in qtop may compare domains across backends beyond their
 name and job counts.
@@ -106,9 +111,9 @@ observations as the same entity beyond what the backend guarantees.
 ## Requests, allocations and utilization
 
 - **Request:** what a workload asked for (CPUs, GPUs, memory, constraints).
-  It is not modelled yet; backend text such as `slurm_tres_alloc` is carried
+  It is not modelled yet; backend text such as `slurm_tres_per_node` is carried
   verbatim.
-- **Allocation:** what the scheduler assigned or will assign. Today that is
+- **Allocation:** what the scheduler assigned. Today that is
   per-core (`core_job_map`, either exact from `scontrol` or `estimated`) and
   per-GPU (`slurm_gpu_bindings`). Allocation granularity is the finest unit the
   backend reports, and `cpu_allocation_source` says whether it is exact.
@@ -132,12 +137,86 @@ current schema is ready for them without carrying any of them:
   and are dropped by anonymization, which rebuilds jobs, nodes and queues from
   known fields. A new field that holds an identifier or a name must land with
   its validation and its masking in the same change (issue #593, invariant E12).
-- **References use qids.** Every job, node and queue can already carry a
-  validated qid, the reference a future relation record points to.
+- **References use typed qids.** Every job, node and queue can already carry a
+  validated qid. A future reference must also identify its entity relation,
+  either through a type-specific field such as `workload_qid` or an explicit
+  entity type. The same qid text may identify a job, a node and a queue in one
+  observation; bare qid text is not a globally unique reference. References
+  are scoped to an observation and inherit the backend's identity lifetime.
 - **Absent is not empty.** A backend omits what it did not observe; it never
   emits empty collections or maps for completeness.
 - **Predictions stay apart.** `core_job_map` holds actual or estimated
   assignments only (`cpu_allocation_source`), never predicted ones.
+
+### Future extension contracts
+
+The following contracts follow the
+[compatibility guidance for issue #593](https://github.com/qtop/qtop/issues/593#issuecomment-6793829851).
+They describe future capabilities beyond the minimal workload containment
+implemented in [experimental schema 3 beta1](#experimental-schema-3-beta1).
+Further implementation requires backend evidence, a consumer, validation,
+anonymization and replay tests.
+Existing `jobs`, `nodes`, `queues` and CPU/GPU maps remain authoritative for
+current renderers. Plugin paths, discovery and entry points stay unchanged.
+
+**Relationships remain distinct.** A future relation must declare its kind
+and typed endpoints, preserving its backend meaning and provenance:
+
+| Relationship | Meaning and safeguard |
+|---|---|
+| Workload containment | True execution nesting; a proposed `parent_qid` is only a convenience for this relation. Parent edges must be acyclic within the workload containment relation. |
+| Controller ownership | For example, Kubernetes Deployment to ReplicaSet to Pod; ownership does not imply execution containment or resource allocation. |
+| Resource containment | For example, GPU to node to tray to rack; validate cycles separately from workload containment. |
+| Delegation | A parent reservation or nested Flux instance makes resources available to children; child consumption must not be added again to the parent's reserved capacity. |
+| Domain or group membership | Administrative or scheduling scope, possibly many-to-many; membership does not imply physical containment. |
+| Fabric membership and connectivity | Independent, potentially overlapping fabrics; membership alone promises no link, reachability, bandwidth or scheduling permission. |
+| Workload dependency | A prerequisite and its backend condition; a predecessor absent from this observation is not necessarily invalid or completed. |
+| Allocation | A workload's actual assignment to resources, with exact or estimated provenance; it is separate from requests, delegation and predicted placement. |
+
+Each implemented relation must define how unresolved endpoints are handled.
+Do not invent missing entities, infer connectivity from a host group, or use
+controller ownership or project membership as a workload parent.
+
+**Quantities carry units and semantics.** An identifiable GPU is a resource;
+its HBM capacity is a quantity. A future quantity must identify its subject,
+dimension, value, unit and source, and distinguish physical capacity,
+allocatable capacity, request, limit, reservation, allocation, measured
+utilization and administrative quota. Preserve source units or document an
+explicit conversion before comparing or aggregating values. Missing,
+unsupported or unknown information stays absent; a measured zero or observed
+empty set is a distinct fact. Do not create objects per core, byte or other
+quantity unit.
+
+**Shared capacity is not additive by default.** Future capacity pools may
+overlap or constrain several resources at once, such as fabric bandwidth,
+rack power, storage throughput or licences. Record membership separately from
+the pool's limit, unit and policy. Aggregation must account for overlapping
+pools and nested reservations without double-counting. Pool membership alone
+does not establish available capacity or a bandwidth guarantee; path,
+direction and contention semantics need backend evidence before use.
+
+**Attributes and policy stay sparse and namespaced.** Future metadata uses
+collision-safe names such as `backend:key` or `site:key`; unknown attributes
+must not become generic scheduling policy. Preserve native best-effort and
+preemption semantics. Unsupported attributes are omitted, with no mandatory
+empty dictionary per job or node. This documents a naming convention, not an
+accepted `attributes` or `extensions` field or a policy language.
+
+**Predictions require their own contract.** Before adding predicted starts or
+placements, define scheduler-sourced versus estimated provenance and freshness.
+Predictions never populate actual occupancy maps. Time-series accounting,
+FinOps intervals, constraint evaluation and scheduling solvers stay outside
+the display path.
+
+**Implementation needs evidence.** Preserve schema-1 replay, schema-2 round
+trips, Python 3.6 support and current CLI/watch rendering. New identifiers and
+relations need anonymized referential-integrity tests; containment needs cycle
+and missing-parent cases; dependencies need absent predecessors; overlapping
+fabrics and pools need tests against false connectivity and double-counting.
+Measure time and memory before and after on representative 100, 1,000 and
+10,000-node fixtures, including observations without the extension. Do not
+build graphs, indexes or empty extension objects unconditionally. A documented
+contract alone establishes neither an adapter nor operational NVL72 support.
 
 Open decisions, left to issue #593 on purpose:
 
@@ -145,8 +224,21 @@ Open decisions, left to issue #593 on purpose:
   and whether an `extensions` namespace should open the top level to
   experimental relations.
 - Whether `kind` stays a closed list (`JOB_KINDS`) or allows namespaced kinds.
-- Containment (`parent_qid`), the relation and topology vocabulary, units, and
-  how predictions relate to actual allocations.
+- Serialized containment (`parent_qid`) and relation shapes, the extensible
+  topology vocabulary, canonical units and conversion rules, and prediction
+  provenance and freshness fields. The distinctions above constrain these
+  decisions without prescribing runtime structures.
+
+## Experimental schema 3 beta1
+
+Opt in with `"schema_version": 3, "schema_revision": "beta1"` and schema-2
+`source`. Jobs alone gain optional `parent_qid` for true workload containment;
+it requires the child's `qid` and a nonempty parent ID in the same namespace.
+Cycles are rejected; an absent parent is allowed and is not synthesized.
+Schemas 1 and 2 reject this reserved field. Anonymization rebuilds the reference
+using the job-ID mapping and masked cluster ID, including for absent parents.
+No backend emits beta1 automatically; legacy maps still drive rendering.
+Future betas may require migration; unsupported revisions and collections fail.
 
 ## Deferred on purpose
 
@@ -158,3 +250,28 @@ Open decisions, left to issue #593 on purpose:
   new configuration key to agree first.
 - Timestamps, usage intervals, FOCUS fields, billing, event history, databases
   and resource graphs or hierarchies beyond today's GPU and MIG descriptors.
+
+## Developer compatibility check
+
+With Go 1.25+ installed (CUE library pinned in `tools/schema-compat/go.mod`), compare two self-contained CUE files that each define
+`#ClusterState` (override with `SCHEMA_DEFINITION` for another definition):
+
+```console
+make schema-compat BASE_SCHEMA=schema/cluster-state.cue PROPOSED_SCHEMA=/path/to/proposed.cue
+make schema-compat-test
+```
+
+Preserve the baseline from a reviewed commit before editing; comparing an
+edited file to itself proves nothing. The proposed supported-version union
+must subsume the baseline; retaining old
+version branches permits a new version without changing old observations.
+The checker uses CUE's pinned Go library, normalizes required constraints for
+concrete JSON data, and checks nested record openness explicitly. Defaults do
+not hide allowed alternatives. Checks beyond 64 nesting levels or comparisons
+CUE cannot establish fail conservatively. Compilation, missing files
+and missing definitions also fail. Dependencies download on first use.
+The checked-in schema is a structural contract, not Python-validator parity:
+QID equality/uniqueness, cycles, numeric-string bounds and scheduler extensions
+still require Python tests. This optional developer tool adds no qtop runtime
+dependency. Run directly without Make using `go -C tools/schema-compat run
+-mod=readonly . -base /absolute/baseline.cue -proposed /absolute/proposed.cue`.

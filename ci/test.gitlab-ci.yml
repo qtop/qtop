@@ -39,6 +39,9 @@ modern-python:
     paths:
       - artifacts/sample-gate/
       - artifacts/fuzz/
+      - artifacts/tests/
+    reports:
+      junit: artifacts/tests/*.xml
 
 almalinux-python36:
   image: almalinux:8
@@ -56,3 +59,17 @@ almalinux-python36:
     when: always
     paths:
       - artifacts/sample-gate-py36/
+
+
+schema-compat:
+  image: golang:1.25-bookworm
+  stage: test
+  variables:
+    GIT_DEPTH: "0"
+  before_script:
+    - git config --global --add safe.directory "$CI_PROJECT_DIR"
+    - export TARGET_BRANCH="${CI_MERGE_REQUEST_TARGET_BRANCH_NAME:-${CI_EXTERNAL_PULL_REQUEST_TARGET_BRANCH_NAME:-develop}}"
+    - git fetch origin "${TARGET_BRANCH}:refs/remotes/origin/${TARGET_BRANCH}"
+    - export FORTIFY_BASE_REF="origin/${TARGET_BRANCH}"
+  script:
+    - make schema-ci

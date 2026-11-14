@@ -22,7 +22,7 @@ ENVELOPE_KEYS = ("schema_version", "source")
 # The top level is closed: every key is a relation, a scheduler's diagnostics or one of these envelope keys
 # of the state's schema version. A new top-level collection (issue #593) is a new row here, i.e. a new
 # schema version, so an older reader rejects it instead of silently dropping data it cannot see.
-SCHEMA_KEYS = {1: frozenset(("schema_version",)), 2: frozenset(ENVELOPE_KEYS)}
+SCHEMA_KEYS = {1: frozenset(("schema_version",)), 2: frozenset(ENVELOPE_KEYS), 3: frozenset(ENVELOPE_KEYS + ("schema_revision",))}
 JOB_KINDS = ("job", "pod", "vm", "task")
 NATIVE_IDS = {"jobs": "id", "nodes": "domainname", "queues": "name"}  # the native ID inside each relation's qid
 
@@ -92,6 +92,8 @@ def _schema_version(data: Dict[str, object]) -> int:
         raise ValueError("unsupported cluster state schema_version %r" % (version,))
     if version == 1 and "source" in data:
         raise ValueError("cluster state source requires schema_version 2")
+    if version == 3 and data.get("schema_revision") != "beta1":
+        raise ValueError("schema_version 3 requires schema_revision beta1")
     keys = set(data)
     unknown = keys - DIAGNOSTICS.keys() - SCHEMA_KEYS[version] - set(CLUSTER_STATE_KEYS)
     if unknown or not keys.issuperset(CLUSTER_STATE_KEYS):
@@ -127,6 +129,28 @@ def _validate_identity(key: str, record: Dict[str, object], qid_prefix: Optional
         raise ValueError("job kind must be one of %s; nodes have no kind" % ", ".join(JOB_KINDS))
 
 
+def _validate_parent_reference(key: str, record: Dict[str, object], version: int, prefix: Optional[str]) -> None:
+    if version != 3 or key != "jobs":
+        raise ValueError("parent_qid requires a schema_version 3 beta1 workload")
+    parent = record["parent_qid"]
+    if "qid" not in record or not isinstance(parent, str) or not parent.startswith(prefix or "") or parent == prefix:
+        raise ValueError("parent_qid requires a workload qid and a nonempty parent in the same source namespace")
+
+
+def _validate_workload_parents(jobs: List[Dict[str, object]]) -> None:
+    """Reject containment cycles while allowing parents absent from this observation."""
+    parents = {cast(str, job["qid"]): cast(str, job["parent_qid"]) for job in jobs if "parent_qid" in job}
+    visited: Set[str] = set()
+    for qid in parents:
+        path: Set[str] = set()
+        while qid in parents and qid not in visited:
+            if qid in path:
+                raise ValueError("workload parent_qid containment cycle")
+            path.add(qid)
+            qid = parents[qid]
+        visited.update(path)
+
+
 def validate_cluster_state(cluster_state: object) -> "ClusterState":
     """Validate imported records before claiming the static snapshot contract."""
     data = _record(cluster_state, "cluster state")
@@ -142,6 +166,8 @@ def validate_cluster_state(cluster_state: object) -> "ClusterState":
             record = _record(entry, key)
             if any(not isinstance(record.get(field), str) for field in fields):
                 raise TypeError("%s record requires text fields: %s" % (key, ", ".join(fields)))
+            if "parent_qid" in record:
+                _validate_parent_reference(key, record, version, qid_prefix)
             validate_record_extensions(key, record)
             if "qid" in record or "kind" in record:
                 _validate_identity(key, record, qid_prefix, qids[key])
@@ -166,6 +192,8 @@ def validate_cluster_state(cluster_state: object) -> "ClusterState":
                     if type(count) is not int or count < 0:
                         raise ValueError("queue %s must be a nonnegative integer" % field)
     jobs = cast(List[Dict[str, object]], data["jobs"])
+    if version == 3:
+        _validate_workload_parents(jobs)
     if any("accounting_state" in job for job in jobs) and not all("accounting_state" in job for job in jobs):
         raise ValueError("job accounting_state must be present for all jobs or none")
     return cast("ClusterState", data)

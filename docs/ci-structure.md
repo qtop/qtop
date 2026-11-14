@@ -89,7 +89,7 @@ Before it can replace `almalinux-python36`:
 
 Both nightly matrices use `ci/scripts/matrix_lane.sh` and the shared CI pins.
 Every lane that installs them runs Python 3.10+, so all get the patched
-setuptools 84.2.0 and pytest 9.1.1. Python 3.10-3.11 also install wheel 0.46.2
+setuptools 84.2.1 and pytest 9.2.0. Python 3.10-3.11 also install wheel 0.48.0
 so the installation check uses a backend that supports the project's PEP 639
 license metadata, instead of inheriting an older distro backend. Distributions
 whose system Python is 3.9 (RHEL 9 and its rebuilds, Amazon Linux 2023) run the
@@ -150,3 +150,120 @@ run `make scorecard-scan` with Docker available. `SCORECARD_REPO` defaults to
 `github.com/qtop/qtop`; `SCORECARD_COMMIT` defaults to `git rev-parse HEAD` and
 must exist in that remote repository. Both values can be overridden in the
 environment. The GitLab scheduled report scans the canonical default branch.
+
+
+## Schema compatibility gate
+
+Both providers run `make schema-ci` in a Go 1.25 Bookworm container, separately
+from the Python gates. This runs the Go contract tests, then compares the
+working contract with the contract at the merge base of `FORTIFY_BASE_REF`
+(default `origin/develop`). Narrowing any supported schema version fails.
+When that historical revision has no schema file, the gate reports the first
+introduction explicitly; the committed-schema tests still run. To reproduce:
+
+```sh
+make schema-ci FORTIFY_BASE_REF=origin/develop
+```
+
+`make pre-pr` remains the Python gate; schema changes additionally require
+`make schema-ci` and Go 1.25 or newer. CUE checks structural compatibility;
+Python tests own referential integrity and scheduler-specific constraints.
+
+
+## Terminal integration and soak evidence
+
+`make test` includes real POSIX PTY tests for watch refreshes, single-key input,
+window resize, capture/export, and restoring terminal attributes after `q`,
+SIGINT, and SIGTERM. No scheduler service is required for these demo tests. They are skipped on
+native Windows before importing the POSIX harness dependencies. Run the full
+Linux suite through WSL on Windows; native Windows support is not certified.
+`make soak` runs the same harness for 60 seconds and writes revision, Python,
+backend, observed frame intervals, peak Linux RSS, output-file high water, and
+capture counts to `artifacts/soak/report.json`, with an ANSI transcript beside it.
+Default budgets are 256 MiB RSS, 1,000 files and 10 seconds between frames.
+Reports and raw captures may contain identities; review before sharing.
+
+```sh
+make soak SOAK_ARGS='--duration 300 --backend slurm --source tests/plugins/slurm_samples/basic'
+# On an authorized scheduler host; this explicitly runs live scheduler commands:
+make soak SOAK_ARGS='--duration 3600 --backend slurm --live --report artifacts/soak/slurm.json'
+```
+
+Repeat on PBS, SGE and OAR hosts and record scheduler version and cluster size
+alongside the report. Fixture and demo runs cannot certify live scheduler behavior.
+Capture archives are checked for integrity; portable capture/replay semantics
+remain covered by `tests/test_sample.py`. Live evidence remains open in ROADMAP.md.
+
+
+## Coverage interpretation
+
+The shared coverage targets measure branches as well as statements. Runtime
+statement coverage has a 95% floor; branch coverage has a separate 91%
+floor, so one metric cannot conceal a regression in the other. Coverage.py's
+`TOTAL` combines statements and branches; the gate compares their unrounded
+percentages separately. The JSON report
+at `artifacts/coverage/details.json` retains per-file missing lines and branches.
+Developer tooling is measured and printed separately, without an initial floor;
+its uncovered paths must not dilute or inflate the runtime gates. Both providers
+publish the runtime Cobertura report. Prioritize missing cleanup, capture and
+collection branches rather than writing tests only to increase percentages.
+
+
+## Fuzz input scope and corpus reuse
+
+Atheris exercises direct bounded YAML configuration, SGE XML, PBS JSON, OAR
+rows, Slurm rows and snapshot JSON documents, alongside the existing state/range
+properties. Inputs are capped at 4 KiB per document. Known syntax/shape rejections
+are allowed; unexpected exceptions and assertions fail the run. Reviewed seed
+documents live as hex text under `tests/fuzz_corpus/`; `coverage-fuzz` decodes
+them without replacing locally discovered inputs. Preserve `artifacts/fuzz/`
+between local runs. CI publishes that corpus for reproduction; it does not
+silently trust arbitrary corpus artifacts from other revisions or contributors.
+
+
+## Python 3.6 runtime contracts
+
+`compat-py36` now runs `test_legacy_contracts.py` as well as the existing
+parser/security compatibility checks. These stdlib-only contracts cover invalid
+configuration timeouts, successful pipe draining, timeout kill/reap, and schema
+v1/v2/v3 anonymization, archive import and JSON export. They run under pytest on
+modern interpreters and unittest on the Python 3.6/PyPy lanes, without importing
+pytest or modern analysis dependencies. This is a bounded contract suite, not a
+claim that the entire modern pytest suite runs on Python 3.6. The exact 3.6/RHEL8
+run evidence remains owned by its dedicated CI lane.
+
+
+## Extended property testing
+
+Both nightly workflows have a dedicated CPython 3.12 job calling
+`make nightly-properties`. It selects the existing 1,000-example Hypothesis
+profile once per pipeline, rather than multiplying the cost across every distro
+lane. Regular PR tests keep the deterministic 100-example profile. Failing
+examples remain in the job output and `.hypothesis/` is retained as an artifact.
+Locally run `make nightly-properties`; no scheduler access is required.
+
+
+## Branch coverage and container checkout setup
+
+The shared targets default to `COVERAGE_CORE=ctrace`. Python 3.12 cannot
+measure branches with coverage's sysmon core; its fallback warning would be
+inherited by instrumented subprocesses and contaminate their stderr. GitHub
+and GitLab therefore use the same branch-capable default, keeping exact-output
+assertions intact. Explicit local core overrides remain available.
+
+Schema container jobs trust only their provider's checkout directory before
+running Git commands. This handles bind-mount ownership without disabling Git's
+ownership check globally or trusting unrelated repositories.
+
+
+## CI tool updates from PR #591
+
+The compatible updates from #591 are included: setuptools 84.2.1, build 1.6.1,
+coverage 7.16.2, importlib-metadata 9.0.1, iniconfig 2.3.1, pluggy 1.7.0,
+pytest 9.2.0, Ruff 0.17.3, wheel 0.48.0 and zipp 4.1.2. Identical old/new
+interpreter pins are consolidated; the Ruff hook matches the CI pin.
+
+The proposed setuptools 84.2.1 requirement on Python 3.9 is deliberately not
+adopted: that release requires Python 3.10+. Python 3.9 retains its compatible
+`>=78.1.1,<83` backend range, and Python 3.6-3.8 retain `>=59.6,<60`.
+The modern source-build floor is updated to 84.2.1 on Python 3.10+ only.

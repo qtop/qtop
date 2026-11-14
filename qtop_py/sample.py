@@ -72,7 +72,7 @@ def anonymize_state(state: object) -> "Tuple[ClusterState, IdentifierMaps]":
             mappings["job"][str(value)] = masked
             return masked
         # Bracketed array tasks share the base ID in the jobs collection.
-        match = re.match(r"^(.*?)(\[.*\])?$", str(value))
+        match = re.match(r"^(.*?)(\[[0-9,:%-]+\])?$", str(value))
         if match is None:
             raise ValueError("Invalid job ID")
         return mask(match.group(1), "job") + (match.group(2) or "")
@@ -102,6 +102,7 @@ def anonymize_state(state: object) -> "Tuple[ClusterState, IdentifierMaps]":
     for original, node in zip(original_nodes, state["nodes"]):
         mask_node_extensions(original, node, job_id)
     if "source" in state:  # schema 2: qids are rebuilt from the masked cluster ID and masked native IDs
+        original_prefix = "%s:%s:" % (state["source"]["backend"], state["source"]["cluster_id"])
         source = state["source"]
         source["cluster_id"] = mask(source["cluster_id"], "cluster")
         prefix = "%s:%s:" % (source["backend"], source["cluster_id"])
@@ -111,6 +112,8 @@ def anonymize_state(state: object) -> "Tuple[ClusterState, IdentifierMaps]":
                     record["qid"] = prefix + record[native]
                 if "kind" in original_record:
                     record["kind"] = original_record["kind"]
+                if native == "id" and "parent_qid" in original_record:
+                    record["parent_qid"] = prefix + job_id(original_record["parent_qid"][len(original_prefix) :])
     return state, mappings
 
 

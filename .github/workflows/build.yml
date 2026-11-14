@@ -49,7 +49,9 @@ jobs:
         if: always()
         with:
           name: sample-gate-${{ matrix.python-version }}
-          path: artifacts/sample-gate/
+          path: |
+            artifacts/sample-gate/
+            artifacts/tests/
 
   # No git in the AlmaLinux jobs: it pulled in 55 packages, and checkout falls back to a REST download.
   almalinux-python36:
@@ -73,6 +75,20 @@ jobs:
         with:
           name: sample-gate-python3.6-almalinux8
           path: artifacts/sample-gate-py36/
+
+  schema-compat:
+    runs-on: ubuntu-24.04
+    container: golang:1.25-bookworm
+    env:
+      FORTIFY_BASE_REF: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || 'origin/develop' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Trust the mounted checkout for container Git commands
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+      - run: make schema-ci
 
   type-check:
     runs-on: ubuntu-24.04

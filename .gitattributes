@@ -1,5 +1,6 @@
 # Match .editorconfig for source/configuration; leave fixture formats unchanged.
 *.py text eol=lf
+*.go text eol=lf
 *.sh text eol=lf
 *.yml text eol=lf
 *.yaml text eol=lf

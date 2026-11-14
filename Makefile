@@ -4,11 +4,21 @@
 .DEFAULT_GOAL := help
 
 PYTHON ?= python3
+PYTEST_XDIST_AUTO_NUM_WORKERS ?= 4
+export PYTEST_XDIST_AUTO_NUM_WORKERS
+COVERAGE_CORE ?= ctrace
+export COVERAGE_CORE
+PYTEST_ARGS ?= --durations=20 --durations-min=0.1
+PYTEST_REPORT_DIR ?= artifacts/tests
 # Tests run on every CPU when pytest-xdist is installed (requirements-ci.txt); test_web.py forks a worker, so it runs alone.
 PYTEST_WORKERS = $(shell $(PYTHON) -c "import xdist" >/dev/null 2>&1 && echo "-n auto --ignore=tests/test_web.py")
 PIP ?= $(PYTHON) -m pip
 DIST_DIR ?= dist
 UVX ?= uvx
+GO ?= go
+BASE_SCHEMA ?= schema/cluster-state.cue
+PROPOSED_SCHEMA ?=
+SCHEMA_DEFINITION ?= \#ClusterState
 ZIZMOR ?= $(UVX) --quiet zizmor
 ZIZMOR_FLAGS ?= -qq --offline --no-progress --color never --render-links never --show-audit-urls never
 SAMPLE_GATE_SCHEDULERS ?= pbs,sge,slurm,oar,demo
@@ -30,7 +40,9 @@ FUZZ_ARTIFACT_DIR ?= artifacts/fuzz
 ATHERIS_ARGS ?=
 FORTIFY_BASE_REF ?= origin/develop
 COVERAGE_XML ?= artifacts/coverage/coverage.xml
-COVERAGE_MIN ?= 93
+COVERAGE_MIN ?= 95
+COVERAGE_BRANCH_MIN ?= 91
+COVERAGE_JSON ?= artifacts/coverage/details.json
 REPO_SANITY_DIR ?= artifacts/repo-sanity
 CODE_QUALITY_JSON ?= artifacts/code-quality/gl-code-quality-report.json
 LICENSE_DIR ?= artifacts/license
@@ -62,24 +74,32 @@ ci-deps:: ## Install pinned CI Python dependencies
 	$(PIP) install -r requirements-ci.txt
 
 test:: ## Run the Python test suite
-	$(PYTHON) -m pytest $(PYTEST_WORKERS)
-	$(if $(PYTEST_WORKERS),$(PYTHON) -m pytest tests/test_web.py)
+	@mkdir -p "$(PYTEST_REPORT_DIR)"
+	$(PYTHON) -m pytest $(PYTEST_WORKERS) $(PYTEST_ARGS) --junitxml="$(PYTEST_REPORT_DIR)/main.xml"
+	$(if $(PYTEST_WORKERS),$(PYTHON) -m pytest tests/test_web.py $(PYTEST_ARGS) --junitxml="$(PYTEST_REPORT_DIR)/web.xml")
+
+test-fast:: ## Run parser/model/UI checks; pre-pr remains the full gate
+	@mkdir -p "$(PYTEST_REPORT_DIR)"
+	$(PYTHON) -m pytest $(PYTEST_WORKERS) $(PYTEST_ARGS) \
+		tests/plugins tests/ui tests/test_mvu.py tests/test_cluster_state.py \
+		tests/test_configuration.py tests/test_yaml_parser.py \
+		--junitxml="$(PYTEST_REPORT_DIR)/fast.xml"
 
 coverage:: ## Run tests with coverage.py and print a terminal report
+	@mkdir -p "$(PYTEST_REPORT_DIR)"
 	$(PYTHON) -m coverage erase
-	$(PYTHON) -m coverage run -m pytest $(PYTEST_WORKERS)
-	$(if $(PYTEST_WORKERS),$(PYTHON) -m coverage run -m pytest tests/test_web.py)
+	$(PYTHON) -m coverage run -m pytest $(PYTEST_WORKERS) $(PYTEST_ARGS) --junitxml="$(PYTEST_REPORT_DIR)/main.xml"
+	$(if $(PYTEST_WORKERS),$(PYTHON) -m coverage run -m pytest tests/test_web.py $(PYTEST_ARGS) --junitxml="$(PYTEST_REPORT_DIR)/web.xml")
 	$(PYTHON) -m coverage combine
-	$(PYTHON) -m coverage report --fail-under=$(COVERAGE_MIN)
+	@mkdir -p $(dir $(COVERAGE_JSON))
+	$(PYTHON) -m coverage json -o "$(COVERAGE_JSON)"
+	$(PYTHON) -m coverage report --include='tools/*'
+	$(PYTHON) -m coverage report --include='qtop_py/*'
+	$(PYTHON) tools/check_coverage.py "$(COVERAGE_JSON)" --statements $(COVERAGE_MIN) --branches $(COVERAGE_BRANCH_MIN)
 
-coverage-xml:: ## Run tests under coverage.py and write a CI-ready Cobertura XML report
-	$(PYTHON) -m coverage erase
-	$(PYTHON) -m coverage run -m pytest $(PYTEST_WORKERS)
-	$(if $(PYTEST_WORKERS),$(PYTHON) -m coverage run -m pytest tests/test_web.py)
-	$(PYTHON) -m coverage combine
-	$(PYTHON) -m coverage report --fail-under=$(COVERAGE_MIN)
+coverage-xml:: coverage ## Write runtime Cobertura XML after the shared coverage gate
 	@mkdir -p $(dir $(COVERAGE_XML))
-	$(PYTHON) -m coverage xml -o $(COVERAGE_XML)
+	$(PYTHON) -m coverage xml --include='qtop_py/*' -o "$(COVERAGE_XML)"
 	@echo "wrote $(COVERAGE_XML)"
 
 sample-gate:: ## Run fast committed PBS/SGE/Slurm/OAR/demo qtop sample gates
@@ -116,7 +136,7 @@ deterministic-fuzz:: ## Reproducibly stress parser primitives with a fixed seed
 	$(PYTHON) -m tools.deterministic_fuzz --seed $(FUZZ_SEED) --cases $(FUZZ_CASES)
 
 coverage-fuzz:: ## Run bounded Atheris fuzzing (Linux CPython 3.12 CI dependencies)
-	@mkdir -p "$(FUZZ_ARTIFACT_DIR)/corpus"
+	$(PYTHON) -m tools.prepare_fuzz_corpus "$(FUZZ_ARTIFACT_DIR)/corpus"
 	$(PYTHON) -m tools.atheris_fuzz -runs=$(FUZZ_CASES) -seed=$(FUZZ_SEED) -max_total_time=30 -max_len=256 -timeout=10 -artifact_prefix="$(FUZZ_ARTIFACT_DIR)/" $(ATHERIS_ARGS) "$(FUZZ_ARTIFACT_DIR)/corpus"
 
 fortifications:: ## Check diff health and reject eval() call sites
@@ -142,7 +162,8 @@ type-contracts:: ## Check core contracts with mypy and Pyright (Python 3.12+ too
 	$(PYTHON) -m pyright
 
 property-test:: ## Run bounded Hypothesis properties (HYPOTHESIS_PROFILE=nightly for longer runs)
-	$(PYTHON) -m pytest tests/test_properties.py
+	@mkdir -p "$(PYTEST_REPORT_DIR)"
+	$(PYTHON) -m pytest tests/test_properties.py $(PYTEST_ARGS) --junitxml="$(PYTEST_REPORT_DIR)/properties.xml"
 
 type-check:: type-contracts ## Check core contracts and production/tooling with ty
 	$(PYTHON) -m ty check --python "$$($(PYTHON) -c 'import sys; print(sys.executable)')"
@@ -189,6 +210,7 @@ validated-build:: build ## Build once and validate those exact release artifacts
 compat-py36:: ## Run dependency-light Python 3.6 compatibility checks
 	find qtop_py tools -name '*.py' -print | xargs $(PYTHON) -m py_compile
 	$(PYTHON) -m unittest discover -s tests -p test_legacy_helpers.py
+	$(PYTHON) -m unittest discover -s tests -p test_legacy_contracts.py
 	$(PYTHON) tools/validate_scheduler_samples.py --schedulers $(SAMPLE_GATE_SCHEDULERS) --max-failures $(SAMPLE_GATE_MAX_FAILURES) --artifact-dir $(SAMPLE_GATE_ARTIFACT_DIR)-py36
 
 ci:: test backend-validation deterministic-fuzz lint ruff-check format-check ## Run the shared local/CI validation path
@@ -226,3 +248,22 @@ confirm:: ## Ask for human confirmation before release-like tasks
 
 scorecard-scan:: ## Scan an exact GitHub commit with Scorecard (requires Docker and GITHUB_AUTH_TOKEN)
 	sh ci/scripts/scorecard-scan.sh
+
+schema-compat:: ## Check proposed CUE schema accepts all baseline values (optional Go tooling)
+	$(if $(strip $(PROPOSED_SCHEMA)),,$(error Set PROPOSED_SCHEMA to the candidate CUE file))
+	$(GO) -C tools/schema-compat run -mod=readonly . -base "$(abspath $(BASE_SCHEMA))" -proposed "$(abspath $(PROPOSED_SCHEMA))" -definition '$(SCHEMA_DEFINITION)'
+
+schema-compat-test:: ## Test CUE schema compatibility tooling
+	$(GO) -C tools/schema-compat test -mod=readonly ./...
+
+
+schema-ci:: schema-compat-test ## Test schema tooling and compare with the target branch contract
+	bash ci/scripts/schema_compat.sh "$(FORTIFY_BASE_REF)"
+
+
+soak:: ## Exercise real watch terminal, capture and refresh budgets (SOAK_ARGS for live clusters)
+	$(PYTHON) -m tools.terminal_probe $(SOAK_ARGS)
+
+
+nightly-properties:: ## Run the extended 1,000-example Hypothesis profile
+	HYPOTHESIS_PROFILE=nightly $(MAKE) property-test

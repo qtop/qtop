@@ -10,6 +10,7 @@ import atheris
 
 with atheris.instrument_imports():
     from tools.deterministic_fuzz import exercise_pbs_core_ranges, exercise_slurm_nodelists, exercise_slurm_states
+    from tools.parser_fuzz import DOCUMENT_TARGETS, exercise_document
 
 
 class Inputs:
@@ -30,9 +31,13 @@ class Inputs:
 @atheris.instrument_func
 def fuzz_one_input(data):
     """Run one fuzzer-chosen parser check on data."""
-    provider = atheris.FuzzedDataProvider(data)
+    selector = data[0] % (3 + len(DOCUMENT_TARGETS)) if data else 0
+    if selector >= 3:
+        exercise_document(DOCUMENT_TARGETS[selector - 3], data[1:])
+        return
+    provider = atheris.FuzzedDataProvider(data[1:])
     targets = (exercise_slurm_states, exercise_slurm_nodelists, exercise_pbs_core_ranges)
-    target = targets[provider.ConsumeIntInRange(0, len(targets) - 1)]
+    target = targets[selector]
     target(Inputs(provider), hashlib.sha256())
 
 

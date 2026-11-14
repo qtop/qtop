@@ -274,3 +274,25 @@ def test_fix_config_list_rejects_non_string_first_element(bad_first_element):
     # from str.split deeper in the call; it now raises a clear TypeError.
     with pytest.raises(TypeError):
         fix_config_list(bad_first_element)
+
+
+@pytest.mark.parametrize("text", ("key: scalar\n  key: nested\n", "-: scalar\n  - value\n"))
+def test_nested_yaml_values_do_not_append_to_scalars(tmp_path, text):
+    from qtop_py.yaml_parser import parse
+
+    path = tmp_path / "invalid.yaml"
+    path.write_text(text)
+    with pytest.raises(ValueError, match="require a list"):
+        parse(str(path))
+
+
+def test_fuzz_discovered_yaml_scalar_conflict_is_a_controlled_rejection(tmp_path):
+    from pathlib import Path
+
+    from qtop_py.yaml_parser import parse
+
+    seed = Path(__file__).parent / "fuzz_corpus" / "yaml_scalar.hex"
+    path = tmp_path / "invalid.yaml"
+    path.write_bytes(bytes.fromhex(seed.read_text())[1:])
+    with pytest.raises(ValueError, match="require a list"):
+        parse(str(path))

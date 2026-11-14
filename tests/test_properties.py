@@ -52,7 +52,7 @@ def cluster_states(draw):
                 "core_job_map": assignments,
             }
         )
-    return {
+    state = {
         "jobs": jobs,
         "nodes": nodes,
         "queues": [
@@ -66,6 +66,21 @@ def cluster_states(draw):
             for queue in queues
         ],
     }
+
+    version = draw(st.sampled_from((1, 2, 3)))
+    if version >= 2:
+        cluster_id = draw(NAMES)
+        state.update(schema_version=version, source={"backend": "slurm", "cluster_id": cluster_id})
+        prefix = "slurm:%s:" % cluster_id
+        for collection, native in (("jobs", "id"), ("nodes", "domainname"), ("queues", "name")):
+            for record in state[collection]:
+                record["qid"] = prefix + record[native]
+        if version == 3:
+            state["schema_revision"] = "beta1"
+            for index in range(1, len(jobs)):
+                if draw(st.booleans()):
+                    jobs[index]["parent_qid"] = jobs[draw(st.integers(0, index - 1))]["qid"]
+    return state
 
 
 @given(cluster_states())
@@ -248,3 +263,19 @@ def test_nonempty_texts_fast_path_matches_isinstance_check(values):
     from qtop_py.schedulers.metadata import _nonempty_texts
 
     assert _nonempty_texts(values) == all(isinstance(value, str) and value for value in values)
+
+
+@given(cluster_states())
+def test_versioned_identity_links_survive_anonymization(state):
+    masked, _ = sample.anonymize_state(state)
+    assert validate_cluster_state(masked) is masked
+    assert masked.get("schema_version", 1) == state.get("schema_version", 1)
+    if "source" not in masked:
+        return
+    prefix = "slurm:%s:" % masked["source"]["cluster_id"]
+    identities = {old["qid"]: new["qid"] for old, new in zip(state["jobs"], masked["jobs"])}
+    for collection, native in (("jobs", "id"), ("nodes", "domainname"), ("queues", "name")):
+        assert all(record["qid"] == prefix + record[native] for record in masked[collection])
+    for before, after in zip(state["jobs"], masked["jobs"]):
+        if "parent_qid" in before:
+            assert after["parent_qid"] == identities[before["parent_qid"]]

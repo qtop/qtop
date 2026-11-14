@@ -572,3 +572,30 @@ def test_user_id_ranking_travels_with_anonymized_samples(tmp_path):
 
     assert reloaded == captured
     assert other_order != captured
+
+
+@pytest.mark.parametrize("parent_present", [False, True])
+@pytest.mark.parametrize("parent_id", ["private-parent", "private-parent[private-label]"])
+def test_beta1_parent_references_anonymize_and_replay(tmp_path, parent_present, parent_id):
+    from tests.test_cluster_state import observation
+
+    state = observation()
+    state.update(schema_version=3, schema_revision="beta1")
+    child = state["jobs"][0]
+    child["parent_qid"] = "slurm:cluster-a:" + parent_id
+    if parent_present:
+        state["jobs"].append(dict(child, id=parent_id, qid=child["parent_qid"]))
+        state["jobs"][1].pop("parent_qid")
+    masked, mappings = sample.anonymize_state(state)
+    assert not any(secret in json.dumps(masked) for secret in ("private", "cluster-a", "alice"))
+    prefix = "slurm:%s:" % masked["source"]["cluster_id"]
+    assert masked["jobs"][0]["parent_qid"] == prefix + mappings["job"][parent_id]
+    if parent_present:
+        assert masked["jobs"][0]["parent_qid"] == masked["jobs"][1]["qid"]
+    assert len(masked["jobs"]) == len(state["jobs"])
+    assert validate_cluster_state(masked) is masked
+    assert sample.anonymize_state(state)[0] == masked
+    archive = tmp_path / "beta1.tar"
+    with tarfile.open(str(archive), "w") as saved:
+        sample.add_json(saved, sample.SNAPSHOT_NAME, {"format_version": 1, "scheduler": "slurm", "state": masked, "config": {}, "options": {}})
+    assert sample.load_snapshot(str(archive))["state"] == masked

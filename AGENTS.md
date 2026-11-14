@@ -25,6 +25,8 @@ x86-64 CPython 3.12 environment. On other platforms use
 that CI lane.
 Run times depend on the environment and are not fixed budgets.
 
+For schema changes, run `make schema-compat BASE_SCHEMA=... PROPOSED_SCHEMA=...`; the proposed supported-version union must subsume the baseline (CUE structural contract only).
+
 ## Repo map
 
 - `qtop_py/qtop.py` - main loop, I/O effects and deprecated legacy adapters (see docs/architecture.md); argument handling; `python -m qtop_py.qtop` entry.

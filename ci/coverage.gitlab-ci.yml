@@ -33,8 +33,10 @@ coverage-cobertura:
   artifacts:
     when: always
     reports:
+      junit: artifacts/tests/*.xml
       coverage_report:
         coverage_format: cobertura
         path: artifacts/coverage/coverage.xml
     paths:
       - artifacts/coverage/
+      - artifacts/tests/

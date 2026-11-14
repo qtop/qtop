@@ -33,4 +33,6 @@ jobs:
         if: always()
         with:
           name: sample-gate-manual-pytest
-          path: artifacts/sample-gate/
+          path: |
+            artifacts/sample-gate/
+            artifacts/tests/

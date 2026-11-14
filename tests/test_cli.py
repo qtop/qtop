@@ -367,8 +367,8 @@ def test_scheduler_timeout_or_interrupt_reaps_client_and_preserves_previous_trac
     if spawn_child and os.name != "posix":
         pytest.skip("process-group cleanup is POSIX-specific")
     script = tmp_path / "command.py"
-    child = "subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(5)'])\nopen('child.pid', 'w').write('started')\n" if spawn_child else ""
-    script.write_text("import subprocess, sys, time\n" + child + "print('partial output', flush=True)\ntime.sleep(5)\n", encoding="utf-8")
+    child = "child = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)'])\nopen('child.pid', 'w').write(str(child.pid))\n" if spawn_child else ""
+    script.write_text("import subprocess, sys, time\n" + child + "open('ready', 'w').close()\nprint('partial output', flush=True)\ntime.sleep(60)\n", encoding="utf-8")
     monkeypatch.chdir(tmp_path)
     output = tmp_path / "trace.txt"
     output.write_text("previous snapshot", encoding="utf-8")
@@ -378,6 +378,13 @@ def test_scheduler_timeout_or_interrupt_reaps_client_and_preserves_previous_trac
     def track_process(*args, **kwargs):
         process = popen(*args, **kwargs)
         processes.append(process)
+        deadline = time.monotonic() + 10
+        while not (tmp_path / "ready").exists():
+            if process.poll() is not None or time.monotonic() >= deadline:
+                process.kill()
+                process.wait()
+                pytest.fail("scheduler stand-in did not become ready")
+            time.sleep(0.01)
         if interrupt:
             wait = process.wait
 
@@ -389,13 +396,27 @@ def test_scheduler_timeout_or_interrupt_reaps_client_and_preserves_previous_trac
         return process
 
     monkeypatch.setattr(qtop.subprocess, "Popen", track_process)
-    started = time.monotonic()
     with pytest.raises(KeyboardInterrupt if interrupt else qtop.OperationalError, match=None if interrupt else "timed out after 0.3 seconds"):
         qtop.execute_shell_batch_commands({"trace": shlex.quote(sys.executable) + " " + shlex.quote(str(script))}, {"trace": str(output)}, "trace", str(tmp_path), timeout=0.3)
-    assert time.monotonic() - started < 3
     assert processes[0].poll() is not None
     assert output.read_text() == "previous snapshot"
-    expected_files = {"command.py", "trace.txt", "child.pid"} if spawn_child else {"command.py", "trace.txt"}
+    if spawn_child:
+        child_pid = int((tmp_path / "child.pid").read_text())
+        deadline = time.monotonic() + 5
+        while True:
+            try:
+                os.kill(child_pid, 0)
+                # A killed orphan can remain a zombie until init reaps it.
+                status = Path("/proc/%s/stat" % child_pid)
+                if status.exists() and status.read_text().split(") ", 1)[1].startswith("Z"):
+                    break
+            except ProcessLookupError:
+                break
+            if time.monotonic() >= deadline:
+                os.kill(child_pid, 9)
+                pytest.fail("scheduler child survived process-group cleanup")
+            time.sleep(0.01)
+    expected_files = {"command.py", "trace.txt", "ready"} | ({"child.pid"} if spawn_child else set())
     assert {path.name for path in tmp_path.iterdir()} == expected_files
 
 
