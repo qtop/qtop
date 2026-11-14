@@ -161,6 +161,13 @@ def _list_container(parent: Dict[str, Any], key: str) -> List[Any]:
     return values
 
 
+def _extend_list(parent: Dict[str, Any], key: str, value: Any) -> None:
+    if not isinstance(value, (str, list)):
+        raise ValueError("YAML list continuation requires text or a list")
+    values = _list_container(parent, key)
+    values.extend([value] if isinstance(value, str) else value)
+
+
 def read_yaml_config_block(line: List[Any], fin: Iterable[str], get_lines: Iterator[List[Any]]) -> Tuple[Dict[str, Any], Any]:
     """Read one top-level block starting at line; return it and the next line."""
     block: Dict[str, Any] = dict()
@@ -180,29 +187,29 @@ def read_yaml_config_block(line: List[Any], fin: Iterable[str], get_lines: Itera
         # key_value used below belongs to previous line. It will work for first block line because of short circuit logic
         if line[0] == 0 or (line[0] == 1 and key_value and (next(iter(key_value)) == "-")) or (line[0] == -1 and line[1] == "-"):  # same level or entry level
             key_value, container = process_line(line, fin, get_lines, parent_container)
-            for k in key_value:  # noqa: B007 - binds the dict's sole key to k, read below
-                pass  # assign dict's sole key to k
+            k = next(iter(key_value))
             if parent_container == {} or "-" not in parent_container:
                 parent_container[k] = key_value[k]
             elif "-" in parent_container and "-" not in key_value:
                 last_item = _list_container(parent_container, "-").pop()
+                if not isinstance(last_item, dict):
+                    raise ValueError("YAML mapping continuation requires a mapping list item")
                 key_value.update(last_item)
                 _list_container(parent_container, "-").append(key_value)
             else:
-                _list_container(parent_container, k).extend(key_value[k])  # was waiting for a list, but a str came in!
+                _extend_list(parent_container, k, key_value[k])
             if container == {}:
                 open_containers.append(container)
                 parent_container = open_containers[-1]  # point towards latest container (key_value's value)
 
         elif (line[0] == 1) or (line[0] > 1):  # go down one level
             key_value, container = process_line(line, fin, get_lines, parent_container)
-            for k in key_value:  # noqa: B007 - binds the dict's sole key to k, read below
-                pass
+            k = next(iter(key_value))
             # if container == {}:  # up parent container with new value
             if parent_container == {}:  # above it is a key waiting to be filled with values
                 parent_container[k] = key_value[k]
             else:
-                _list_container(parent_container, k).append(key_value[k]) if isinstance(key_value[k], str) else _list_container(parent_container, k).extend(key_value[k])
+                _extend_list(parent_container, k, key_value[k])
             if container == {}:
                 open_containers.append(container)
                 parent_container = open_containers[-1]  # point towards latest container (key_value's value)
@@ -210,10 +217,9 @@ def read_yaml_config_block(line: List[Any], fin: Iterable[str], get_lines: Itera
         elif line[0] == -2 and line[1] == "-" or line[0] == -1:  # go up two levels
             key_value, container = process_line(line, fin, get_lines, parent_container)
             len(open_containers) > 1 and open_containers.pop() or None
-            for k in key_value:  # noqa: B007 - binds the dict's sole key to k, read below
-                pass  # assign dict's sole key to k
+            k = next(iter(key_value))
             if open_containers[-1].get("-"):
-                _list_container(open_containers[-1], "-").extend(key_value[k])
+                _extend_list(open_containers[-1], "-", key_value[k])
             else:
                 open_containers[-1][k] = key_value[k]
             if container == {}:
@@ -222,6 +228,8 @@ def read_yaml_config_block(line: List[Any], fin: Iterable[str], get_lines: Itera
             else:
                 parent_container = open_containers[-1]
 
+        else:
+            raise ValueError("Unsupported YAML indentation transition: %s" % line[0])
         try:
             line = next(get_lines)
         except StopIteration:

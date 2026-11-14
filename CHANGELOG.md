@@ -5,6 +5,7 @@ Notable changes by version, newest first. See the
 
 ## Unreleased
 
+- Bugfix: centralize YAML container transitions
 - Release: add a dry-run release preparation command
 - CI: emit verified release artifact evidence
 - CI: make validation defaults single-owned
