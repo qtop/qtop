@@ -201,7 +201,7 @@ install-check:: ## Build from an sdist and test a clean installation on this int
 	$(PYTHON) tools/validate_installation.py
 
 release-check:: ## Validate the exact prebuilt sdist/wheel pair without replacing dist files
-	$(PYTHON) tools/validate_installation.py --artifacts-dir "$(DIST_DIR)"
+	$(PYTHON) tools/validate_installation.py --artifacts-dir "$(DIST_DIR)" --report artifacts/release/evidence.json
 
 validated-build:: build ## Build once and validate those exact release artifacts
 	$(MAKE) release-check

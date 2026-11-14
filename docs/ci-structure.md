@@ -267,3 +267,10 @@ The proposed setuptools 84.2.1 requirement on Python 3.9 is deliberately not
 adopted: that release requires Python 3.10+. Python 3.9 retains its compatible
 `>=78.1.1,<83` backend range, and Python 3.6-3.8 retain `>=59.6,<60`.
 The modern source-build floor is updated to 84.2.1 on Python 3.10+ only.
+
+
+`make release-check` emits `artifacts/release/evidence.json` only after both
+installations and unchanged-input hash checks pass. It records version, source
+revision (null outside Git), Python and exact artifact hashes/sizes. A previous
+report is removed before validation; failed runs cannot reuse stale success.
+This evidence supports independent review and does not authorize publication.

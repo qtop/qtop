@@ -5,6 +5,7 @@ Notable changes by version, newest first. See the
 
 ## Unreleased
 
+- CI: emit verified release artifact evidence
 - CI: make validation defaults single-owned
 - CI: isolate packaging builds per worker
 ## 0.9.20261114

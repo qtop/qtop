@@ -38,7 +38,9 @@ def test_packaging_workers_use_distinct_source_trees(tmp_path, monkeypatch):
 
 def test_exact_release_artifacts_install_without_being_replaced(release_artifacts, capsys):
     before = {path.name: digest(path) for path in release_artifacts.iterdir()}
-    validate_installation(artifacts=release_artifacts)
+    evidence = validate_installation(artifacts=release_artifacts)
+    assert evidence["status"] == "passed" and evidence["version"] == __version__
+    assert {item["file"]: item["sha256"] for item in evidence["artifacts"]} == before
     assert {path.name: digest(path) for path in release_artifacts.iterdir()} == before
     assert capsys.readouterr().out.count("all backends passed") == 2
 

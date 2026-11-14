@@ -126,13 +126,37 @@ def validate_installation(root=ROOT, artifacts=None, wheel_only=False):
             if digest(path) != before:
                 raise RuntimeError("Validation modified a release input: %s" % path)
             print("validated sha256 %s %s" % (before, path.name))
+        revision = subprocess.run(["git", "rev-parse", "HEAD"], cwd=str(root), stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
+        return {
+            "version": expected_version,
+            "revision": revision.stdout.strip() if revision.returncode == 0 else None,
+            "python": sys.version,
+            "status": "passed",
+            "wheel_only": wheel_only,
+            "artifacts": [{"file": path.name, "sha256": value, "bytes": path.stat().st_size} for path, value in hashes.items()],
+        }
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--artifacts-dir", type=Path, help="Validate the exact prebuilt sdist/wheel pair in this directory")
     parser.add_argument("--wheel-only", action="store_true", help="With --artifacts-dir: install the prebuilt wheel only, without rebuilding it")
+    parser.add_argument("--report", type=Path, help="Write verified release evidence as JSON")
     options = parser.parse_args()
     if options.wheel_only and options.artifacts_dir is None:
         parser.error("--wheel-only needs --artifacts-dir")
-    validate_installation(artifacts=options.artifacts_dir, wheel_only=options.wheel_only)
+    if options.report:
+        try:
+            from tools.private_output import private_output_dir
+        except ImportError:
+            from private_output import private_output_dir
+
+        private_output_dir(options.report.parent)
+        if options.report.exists() or options.report.is_symlink():
+            options.report.unlink()
+    evidence = validate_installation(artifacts=options.artifacts_dir, wheel_only=options.wheel_only)
+    if options.report:
+        with tempfile.NamedTemporaryFile(mode="w", dir=str(options.report.parent), delete=False) as output:
+            json.dump(evidence, output, indent=2)
+            output.write("\n")
+        os.replace(output.name, str(options.report))
