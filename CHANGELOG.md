@@ -1,31 +1,23 @@
 # Changelog
 
-Notable changes by version, newest first.
-See the [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
+Notable changes by version, newest first. See the
+[roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 
 ## Unreleased
 
-- Bugfix: reject malformed YAML that mixes scalar and nested-list values.
-- Bugfix: synchronize scheduler timeout tests and verify that process-group
-  cleanup stops descendants as well as reaping the direct client.
-- Bugfix: run schema-tool tests and structural backward-compatibility checks
-  in matching GitHub and GitLab jobs.
-- Bugfix: exercise real PTY watch refresh, input, resizing, capture and terminal
-  restoration. Add a bounded soak runner with memory, file and timing reports.
-  Native Windows uses WSL; POSIX terminal tests skip there.
-- Bugfix: enforce runtime statement and branch coverage independently, report
-  tooling separately, and retain per-file branch details.
-- Bugfix: fuzz bounded scheduler, YAML and snapshot documents directly, retain
-  reviewed corpus seeds, and generate schema v2/v3 identity relationships.
-- Bugfix: extend stdlib-only legacy contracts for configuration, subprocess
-  cleanup, anonymized snapshots and JSON export.
-- Bugfix: activate the extended Hypothesis profile in both nightly pipelines.
-- Bugfix: provide a Linux/WSL test runner that snapshots current working edits,
-  records test provenance, and retains JUnit reports and slow-test timings.
-- Bugfix: enforce LF line endings for Go source files to prevent CI whitespace
-  failures after editing on Windows.
-
-- Feature: experimental schema 3 beta1 workload `parent_qid`, with cycle validation and consistent anonymization of present or absent parents; existing renderers keep using legacy maps.
+- CI: make Linux and WSL test runs reproducible with retained reports
+- Bugfix: reject scalar and nested-list conflicts in YAML input
+- CI: run extended property checks in both nightly pipelines
+- CI: expand dependency-free legacy runtime contracts
+- CI: broaden document fuzzing and versioned state properties
+- CI: enforce independent branch and statement coverage floors
+- Bugfix: cover real terminal lifecycle and add bounded soak evidence
+- CI: gate schema compatibility on both CI providers
+- Bugfix: synchronize scheduler timeout tests and verify child termination
+- CI: normalize Go source line endings for CI
+- Feature: experimental schema 3 beta1 workload `parent_qid`, with cycle
+  validation and consistent anonymization of present or absent parents;
+  existing renderers keep using legacy maps.
 
 ## 0.9.20261112
 
