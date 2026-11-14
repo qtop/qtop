@@ -3,6 +3,14 @@
 Notable changes by version, newest first. See the
 [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 
+## Unreleased
+
+- CI: exclude live test outputs from packaging snapshots
+
+## 0.9.20261115
+
+- Release: update version metadata to 0.9.20261115
+
 ## 0.9.20261114
 
 - CI: close terminal probe descriptors when setup fails
