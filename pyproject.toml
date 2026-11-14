@@ -146,7 +146,8 @@ ignore_missing_imports = true
 filterwarnings = ["ignore:.*is deprecated since 0\\.9\\.20261110:DeprecationWarning"]
 
 [tool.coverage.run]
-source = ["qtop_py"]
+source = ["qtop_py", "tools"]
+branch = true
 parallel = true
 patch = ["subprocess"]
 

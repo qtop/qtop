@@ -35,6 +35,8 @@ ATHERIS_ARGS ?=
 FORTIFY_BASE_REF ?= origin/develop
 COVERAGE_XML ?= artifacts/coverage/coverage.xml
 COVERAGE_MIN ?= 93
+COVERAGE_BRANCH_MIN ?= 85
+COVERAGE_JSON ?= artifacts/coverage/details.json
 REPO_SANITY_DIR ?= artifacts/repo-sanity
 CODE_QUALITY_JSON ?= artifacts/code-quality/gl-code-quality-report.json
 LICENSE_DIR ?= artifacts/license
@@ -74,14 +76,22 @@ coverage:: ## Run tests with coverage.py and print a terminal report
 	$(PYTHON) -m coverage run -m pytest $(PYTEST_WORKERS)
 	$(if $(PYTEST_WORKERS),$(PYTHON) -m coverage run -m pytest tests/test_web.py)
 	$(PYTHON) -m coverage combine
-	$(PYTHON) -m coverage report --fail-under=$(COVERAGE_MIN)
+	@mkdir -p $(dir $(COVERAGE_JSON))
+	$(PYTHON) -m coverage json -o "$(COVERAGE_JSON)"
+	$(PYTHON) -m coverage report --include='tools/*'
+	$(PYTHON) -m coverage report --include='qtop_py/*'
+	$(PYTHON) tools/check_coverage.py "$(COVERAGE_JSON)" --statements $(COVERAGE_MIN) --branches $(COVERAGE_BRANCH_MIN)
 
 coverage-xml:: ## Run tests under coverage.py and write a CI-ready Cobertura XML report
 	$(PYTHON) -m coverage erase
 	$(PYTHON) -m coverage run -m pytest $(PYTEST_WORKERS)
 	$(if $(PYTEST_WORKERS),$(PYTHON) -m coverage run -m pytest tests/test_web.py)
 	$(PYTHON) -m coverage combine
-	$(PYTHON) -m coverage report --fail-under=$(COVERAGE_MIN)
+	@mkdir -p $(dir $(COVERAGE_JSON))
+	$(PYTHON) -m coverage json -o "$(COVERAGE_JSON)"
+	$(PYTHON) -m coverage report --include='tools/*'
+	$(PYTHON) -m coverage report --include='qtop_py/*'
+	$(PYTHON) tools/check_coverage.py "$(COVERAGE_JSON)" --statements $(COVERAGE_MIN) --branches $(COVERAGE_BRANCH_MIN)
 	@mkdir -p $(dir $(COVERAGE_XML))
 	$(PYTHON) -m coverage xml -o $(COVERAGE_XML)
 	@echo "wrote $(COVERAGE_XML)"
