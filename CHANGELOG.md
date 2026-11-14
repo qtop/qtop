@@ -7,6 +7,7 @@ Notable changes by version, newest first. See the
 
 ## 0.9.20261113
 
+- CI: raise coverage floors to 95% statements and 91% branches
 - CI: add a fast parser, model and UI test target
 - CI: use branch-capable coverage and trust container checkout paths
 - CI: adopt compatible tool updates from #591
