@@ -15,3 +15,4 @@ against its agreed upper bound before commit. No runtime dependency is added.
 | 6 | 0 | 0 | Bugfix: schedule legacy adapter retirement for 1.0 |
 | 2 | 21 | 100 | Bugfix: type and validate scheduler collection settings |
 | 5 | 21 | 100 | CI: share versioned schema fixtures across Python and CUE |
+| 10 | 52 | 70 | CI: enforce nightly matrix parity between providers |

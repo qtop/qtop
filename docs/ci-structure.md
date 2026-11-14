@@ -281,3 +281,8 @@ Preview release-file changes with `python -m tools.prepare_release`. It derives
 the reviewed plan only when release files are clean and no matching local tag
 exists. It does not commit, tag, fetch checksums or publish. Run the release
 gates and obtain independent review before those separate operations.
+
+The ci-matrix-check target (included in lint and pre-pr) compares expanded
+nightly lane multisets, including package/interpreter choices, Make target
+and failure policy. Matrix edits must update both provider files together.
+PyYAML is pinned for developer validation only; qtop keeps its stdlib parser.

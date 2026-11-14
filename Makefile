@@ -171,7 +171,7 @@ type-check:: type-contracts ## Check core contracts and production/tooling with 
 ruff-check:: ## Run ruff against the source tree
 	$(PYTHON) -m ruff check .
 
-lint:: ruff-check fortifications ## Run dependency-light source and diff health checks
+lint:: ruff-check fortifications ci-matrix-check ## Run dependency-light source and diff health checks
 
 lint-fix:: ## Auto-fix ruff lint issues where possible
 	$(PYTHON) -m ruff check --fix .
@@ -267,3 +267,6 @@ soak:: ## Exercise real watch terminal, capture and refresh budgets (SOAK_ARGS f
 
 nightly-properties:: ## Run the extended 1,000-example Hypothesis profile
 	HYPOTHESIS_PROFILE=nightly $(MAKE) property-test
+
+ci-matrix-check:: ## Verify equivalent expanded nightly lanes on both providers
+	$(PYTHON) -m tools.check_ci_matrix

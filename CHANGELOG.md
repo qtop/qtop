@@ -5,6 +5,7 @@ Notable changes by version, newest first. See the
 
 ## Unreleased
 
+- CI: enforce nightly matrix parity between providers
 - CI: share versioned schema fixtures across Python and CUE
 - Bugfix: type and validate scheduler collection settings
 - Bugfix: schedule legacy adapter retirement for 1.0
