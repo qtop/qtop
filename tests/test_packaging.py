@@ -1,6 +1,7 @@
 ## Copyright (c) 2026 qtop contributors
 ## SPDX-License-Identifier: MIT
 import shutil
+import subprocess
 import sys
 import zipfile
 
@@ -78,3 +79,13 @@ def test_release_metadata_and_assets_are_checked_before_installation(release_art
             target.writestr(member, data)
     with pytest.raises(RuntimeError, match="package identity|installed defaults|console script"):
         exercise_wheel(wheel, __version__, ROOT, tmp_path)
+
+
+def test_failed_release_check_removes_stale_passed_evidence(tmp_path):
+    report = tmp_path / "evidence.json"
+    report.write_text('{"status": "passed"}')
+    result = subprocess.run(
+        [sys.executable, str(ROOT / "tools/validate_installation.py"), "--artifacts-dir", str(tmp_path), "--report", str(report)], stdout=subprocess.PIPE, stderr=subprocess.PIPE
+    )
+    assert result.returncode != 0
+    assert not report.exists()

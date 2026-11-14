@@ -8,8 +8,12 @@ import difflib
 import re
 import subprocess
 from pathlib import Path
+from typing import TYPE_CHECKING
 
-ROOT = Path(__file__).resolve().parents[1]
+if TYPE_CHECKING:
+    from typing import Final
+
+ROOT: "Final" = Path(__file__).resolve().parents[1]
 
 
 def release_plan(root, VERSION):
@@ -18,7 +22,10 @@ def release_plan(root, VERSION):
         raise ValueError("expected 0.9.YYYYMMDD")
     date = datetime.datetime.strptime(VERSION[4:], "%Y%m%d").strftime("%Y-%m-%d")
     package = root / "qtop_py/__init__.py"
-    old = re.search(r'__version__ = "([^"]+)"', package.read_text()).group(1)
+    match = re.search(r'__version__ = "([^"]+)"', package.read_text())
+    if match is None:
+        raise ValueError("package version assignment was not found")
+    old = match.group(1)
     if VERSION <= old:
         raise ValueError("release version must advance")
     changelog = (root / "CHANGELOG.md").read_text()

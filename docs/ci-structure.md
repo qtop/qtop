@@ -286,3 +286,6 @@ The ci-matrix-check target (included in lint and pre-pr) compares expanded
 nightly lane multisets, including package/interpreter choices, Make target
 and failure policy. Matrix edits must update both provider files together.
 PyYAML is pinned for developer validation only; qtop keeps its stdlib parser.
+
+GitHub build and release workflows retain the verified record in the separate
+qtop-release-evidence artifact. GitLab retains it with the build artifacts.

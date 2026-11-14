@@ -5,7 +5,7 @@
 ##
 ## SPDX-License-Identifier: MIT
 ##
-# Nightly interpreter/distro compatibility matrix (#488): 32 active lanes covering
+# Nightly interpreter/distro compatibility matrix (#488): 34 active lanes covering
 # CPython 3.6 through stable 3.15 and PyPy across Debian, Ubuntu, AlmaLinux,
 # Rocky, CentOS Stream, Oracle Linux, Fedora, openSUSE, Amazon Linux and Arch.
 # Every lane routes through ci/scripts/matrix_lane.sh and the Makefile

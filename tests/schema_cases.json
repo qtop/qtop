@@ -6,5 +6,7 @@
 {"name":"missing-source","state":{"jobs":[{"id":"42","user":"alice","state":"R","queue":"debug","extra":"allowed"}],"nodes":[],"queues":[],"schema_version":2},"structural":false,"semantic":false},
 {"name":"unknown-revision","state":{"jobs":[{"id":"42","user":"alice","state":"R","queue":"debug","extra":"allowed"}],"nodes":[],"queues":[],"schema_version":3,"schema_revision":"beta2","source":{"backend":"slurm","cluster_id":"a"}},"structural":false,"semantic":false},
 {"name":"unknown-relation","state":{"jobs":[{"id":"42","user":"alice","state":"R","queue":"debug","extra":"allowed"}],"nodes":[],"queues":[],"allocations":[]},"structural":false,"semantic":false},
-{"name":"wrong-qid","state":{"jobs":[{"id":"42","user":"alice","state":"R","queue":"debug","extra":"allowed","qid":"slurm:a:wrong"}],"nodes":[],"queues":[],"schema_version":2,"source":{"backend":"slurm","cluster_id":"a"}},"structural":true,"semantic":false}
+{"name":"wrong-qid","state":{"jobs":[{"id":"42","user":"alice","state":"R","queue":"debug","extra":"allowed","qid":"slurm:a:wrong"}],"nodes":[],"queues":[],"schema_version":2,"source":{"backend":"slurm","cluster_id":"a"}},"structural":true,"semantic":false},
+{"name":"v1-identity","state":{"jobs":[{"id":"42","user":"alice","state":"R","queue":"debug","extra":"allowed","qid":"slurm:a:42"}],"nodes":[],"queues":[]},"structural":false,"semantic":false},
+{"name":"missing-job-fields","state":{"jobs":[{"id":"42"}],"nodes":[],"queues":[]},"structural":false,"semantic":false}
 ]

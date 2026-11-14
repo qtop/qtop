@@ -5,12 +5,16 @@
 from collections import Counter
 from itertools import product
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from typing import Final
 
 import yaml
 
-ROOT = Path(__file__).resolve().parents[1]
-FIELDS = ("image", "family", "pkgs", "pybin", "target", "experimental")
-DEFAULTS = {"pkgs": "-", "pybin": "python3", "target": "ci", "experimental": False}
+ROOT: "Final" = Path(__file__).resolve().parents[1]
+FIELDS: "Final" = ("image", "family", "pkgs", "pybin", "target", "experimental")
+DEFAULTS: "Final" = {"pkgs": "-", "pybin": "python3", "target": "ci", "experimental": False}
 
 
 def lane_counts(github, gitlab):
@@ -22,7 +26,8 @@ def lane_counts(github, gitlab):
         for row in job["parallel"]["matrix"]:
             values = dict(DEFAULTS, **{key.lower(): value for key, value in row.items()})
             values["experimental"] = job.get("allow_failure", False)
-            gl.update(product(*(values[field] if isinstance(values[field], list) else [values[field]] for field in FIELDS)))
+            axes = [value if isinstance(value, list) else [value] for value in (values[field] for field in FIELDS)]
+            gl.update(product(*axes))
     return gh, gl
 
 

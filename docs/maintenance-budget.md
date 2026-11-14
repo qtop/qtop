@@ -6,13 +6,17 @@ against its agreed upper bound before commit. No runtime dependency is added.
 
 | Item | Net source LOC | Ceiling | Change |
 |---|---:|---:|---|
-| 1 | 12 | 35 | CI: isolate packaging builds per worker |
-| 9 | 7 | 20 | CI: make validation defaults single-owned |
-| 8 | 25 | 40 | CI: emit verified release artifact evidence |
-| 7 | 82 | 100 | Release: add a dry-run release preparation command |
-| 3 | 16 | 60 | Bugfix: centralize YAML container transitions |
-| 4 | 6 | 30 | Bugfix: extract pure runtime input parsing |
-| 6 | 0 | 0 | Bugfix: schedule legacy adapter retirement for 1.0 |
-| 2 | 21 | 100 | Bugfix: type and validate scheduler collection settings |
-| 5 | 21 | 100 | CI: share versioned schema fixtures across Python and CUE |
-| 10 | 52 | 70 | CI: enforce nightly matrix parity between providers |
+| 1 | 12 | 35 | Packaging build isolation |
+| 2 | 21 | 100 | Typed collection settings |
+| 3 | 16 | 60 | YAML container transitions |
+| 4 | 6 | 30 | Runtime input helpers |
+| 5 | 23 | 100 | Shared Python/CUE fixtures |
+| 6 | 0 | 0 | Compatible legacy retirement plan |
+| 7 | 99 | 100 | Release preparation preview/write |
+| 8 | 39 | 40 | Verified release evidence |
+| 9 | 7 | 20 | Single-owned validation defaults |
+| 10 | 56 | 70 | Nightly matrix parity |
+
+Total: 279 net source LOC. Figures include subsequent validation corrections.
+Legacy adapter deletion is reserved for 1.0; this batch adds no source lines
+to its retirement plan and preserves the 0.9 public API.

@@ -5,6 +5,7 @@ Notable changes by version, newest first. See the
 
 ## Unreleased
 
+- CI: cover release failures and resolve tool type checks
 - CI: enforce nightly matrix parity between providers
 - CI: share versioned schema fixtures across Python and CUE
 - Bugfix: type and validate scheduler collection settings
@@ -15,6 +16,7 @@ Notable changes by version, newest first. See the
 - CI: emit verified release artifact evidence
 - CI: make validation defaults single-owned
 - CI: isolate packaging builds per worker
+
 ## 0.9.20261114
 
 - Release: update version metadata to 0.9.20261114
