@@ -274,6 +274,8 @@ installations and unchanged-input hash checks pass. It records version, source
 revision (null outside Git), Python and exact artifact hashes/sizes. A previous
 report is removed before validation; failed runs cannot reuse stale success.
 This evidence supports independent review and does not authorize publication.
+The revision is null for archive checkouts or when Git is unavailable;
+the installation validator does not require Git.
 
 
 Preview release-file changes with `python -m tools.prepare_release`. It derives

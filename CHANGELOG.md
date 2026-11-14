@@ -5,6 +5,7 @@ Notable changes by version, newest first. See the
 
 ## Unreleased
 
+- CI: allow release installation validation without Git metadata
 - CI: consolidate queue policy tests into named contract case tables
 - CI: cover release failures and resolve tool type checks
 - CI: enforce nightly matrix parity between providers

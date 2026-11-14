@@ -4,6 +4,7 @@ import shutil
 import subprocess
 import sys
 import zipfile
+from pathlib import Path
 
 import pytest
 
@@ -44,6 +45,24 @@ def test_exact_release_artifacts_install_without_being_replaced(release_artifact
     assert {item["file"]: item["sha256"] for item in evidence["artifacts"]} == before
     assert {path.name: digest(path) for path in release_artifacts.iterdir()} == before
     assert capsys.readouterr().out.count("all backends passed") == 2
+
+
+@pytest.mark.parametrize("git_available", (True, False), ids=["archive-checkout", "no-git-executable"])
+def test_prebuilt_wheel_validation_without_git_metadata(release_artifacts, tmp_path, monkeypatch, capsys, git_available):
+    if not git_available:
+        bindir = tmp_path / "bin"
+        bindir.mkdir()
+        echo = shutil.which("echo")
+        if echo is not None:
+            shutil.copy2(echo, bindir / Path(echo).name)
+        monkeypatch.setenv("PATH", str(bindir))
+        assert shutil.which("git") is None
+    source = release_artifacts.parent / "source"
+    assert not (source / ".git").exists()
+    evidence = validate_installation(root=source, artifacts=release_artifacts, wheel_only=True)
+    assert evidence["status"] == "passed" and evidence["revision"] is None
+    assert evidence["wheel_only"] is True
+    assert capsys.readouterr().out.count("all backends passed") == 1
 
 
 @pytest.mark.parametrize("layout", ["missing", "stale", "foreign", "symlink"])

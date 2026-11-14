@@ -126,10 +126,12 @@ def validate_installation(root=ROOT, artifacts=None, wheel_only=False):
             if digest(path) != before:
                 raise RuntimeError("Validation modified a release input: %s" % path)
             print("validated sha256 %s %s" % (before, path.name))
-        revision = subprocess.run(["git", "rev-parse", "HEAD"], cwd=str(root), stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
+        revision = (
+            subprocess.run(["git", "rev-parse", "HEAD"], cwd=str(root), stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True) if shutil.which("git") else None
+        )
         return {
             "version": expected_version,
-            "revision": revision.stdout.strip() if revision.returncode == 0 else None,
+            "revision": revision.stdout.strip() if revision is not None and revision.returncode == 0 else None,
             "python": sys.version,
             "status": "passed",
             "wheel_only": wheel_only,
