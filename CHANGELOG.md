@@ -5,6 +5,7 @@ Notable changes by version, newest first. See the
 
 ## 0.9.20261114
 
+- CI: allow terminal probes without readable Git revision metadata
 - CI: bump Ruff to 0.17.5 in CI and pre-commit
 - CI: allow release installation validation without Git metadata
 - CI: consolidate queue policy tests into named contract case tables

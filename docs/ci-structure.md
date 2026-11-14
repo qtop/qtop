@@ -291,3 +291,7 @@ PyYAML is pinned for developer validation only; qtop keeps its stdlib parser.
 
 GitHub build and release workflows retain the verified record in the separate
 qtop-release-evidence artifact. GitLab retains it with the build artifacts.
+
+Terminal probes also record a null revision when Git is missing or refuses the
+checkout ownership. The PTY, capture and terminal-restoration checks still run;
+nightly containers need no additional Git ownership exception for this metadata.

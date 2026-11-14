@@ -27,6 +27,14 @@ def _resident_kib(pid: int) -> int:
     return 0
 
 
+def _revision() -> Optional[str]:
+    """Return the revision when Git can read this checkout."""
+    try:
+        return subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=str(ROOT), universal_newlines=True, stderr=subprocess.DEVNULL).strip()
+    except (OSError, subprocess.CalledProcessError):
+        return None
+
+
 def probe(directory: Path, duration: float, backend: str = "demo", source: Optional[str] = None, shutdown: str = "q") -> Dict[str, Any]:
     """Run qtop in a PTY, exercise keys/resize, and verify terminal restoration."""
     if os.name != "posix":
@@ -114,7 +122,7 @@ def probe(directory: Path, duration: float, backend: str = "demo", source: Optio
             with tarfile.open(str(archive)) as captured:
                 assert captured.getmembers(), "empty capture archive"
         return {
-            "revision": subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=str(ROOT), universal_newlines=True).strip(),
+            "revision": _revision(),
             "python": sys.version,
             "backend": backend,
             "source": source,
