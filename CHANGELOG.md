@@ -5,6 +5,8 @@ Notable changes by version, newest first. See the
 
 ## Unreleased
 
+- CI: exclude live test outputs from packaging snapshots
+
 ## 0.9.20261115
 
 - Release: update version metadata to 0.9.20261115

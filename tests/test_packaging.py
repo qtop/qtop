@@ -18,7 +18,9 @@ def test_source_distribution_installs_with_defaults_and_cli():
 
 def build_release_artifacts(directory):
     source = directory / "source"
-    shutil.copytree(str(ROOT), str(source), ignore=shutil.ignore_patterns(".git", "artifacts", "build", "dist", "*.egg-info", "__pycache__", ".*cache", ".venv"))
+    shutil.copytree(
+        str(ROOT), str(source), ignore=shutil.ignore_patterns(".git", "artifacts", "build", "dist", "*.egg-info", "__pycache__", ".*cache", ".venv", ".coverage*", ".hypothesis")
+    )
     output = directory / "dist"
     checked([sys.executable, "-m", "build", "--no-isolation", "--outdir", str(output)], source)
     return output
@@ -36,6 +38,41 @@ def test_packaging_workers_use_distinct_source_trees(tmp_path, monkeypatch):
         build_release_artifacts(tmp_path / name)
     assert sources[0] != sources[1] and ROOT not in sources
     assert all((source / "qtop_py" / "__init__.py").is_file() for source in sources)
+
+
+@pytest.mark.parametrize("artifact", (".coverage.worker", ".hypothesis"), ids=["coverage-file", "hypothesis-directory"])
+def test_packaging_snapshot_ignores_vanishing_test_outputs(tmp_path, monkeypatch, artifact):
+    root = tmp_path / "checkout"
+    (root / "qtop_py").mkdir(parents=True)
+    (root / "qtop_py/__init__.py").write_text("source")
+    generated = root / artifact
+    if artifact == ".hypothesis":
+        generated.mkdir()
+        (generated / "seed").write_text("example")
+    else:
+        generated.write_text("coverage")
+    ignore_patterns = shutil.ignore_patterns
+
+    def ignore_generated(*patterns):
+        ignore = ignore_patterns(*patterns)
+
+        def discard_after_listing(path, names):
+            if Path(path) == root:
+                if generated.is_dir():
+                    (generated / "seed").unlink()
+                    generated.rmdir()
+                else:
+                    generated.unlink()
+            return ignore(path, names)
+
+        return discard_after_listing
+
+    monkeypatch.setitem(globals(), "ROOT", root)
+    monkeypatch.setitem(globals(), "checked", lambda command, cwd: None)
+    monkeypatch.setattr(shutil, "ignore_patterns", ignore_generated)
+    output = build_release_artifacts(tmp_path / "worker")
+    assert (output.parent / "source/qtop_py/__init__.py").read_text() == "source"
+    assert not (output.parent / "source" / artifact).exists()
 
 
 def test_exact_release_artifacts_install_without_being_replaced(release_artifacts, capsys):
