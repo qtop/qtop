@@ -5,6 +5,10 @@ Notable changes by version, newest first. See the
 
 ## Unreleased
 
+## 0.9.20261114
+
+- Release: update version metadata to 0.9.20261114
+
 ## 0.9.20261113
 
 - CI: raise coverage floors to 95% statements and 91% branches
