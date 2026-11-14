@@ -22,3 +22,31 @@ def test_terminal_harness_rejects_native_windows_before_opening_pty(tmp_path, mo
     monkeypatch.setattr(terminal_probe.os, "name", "nt")
     with pytest.raises(RuntimeError, match="Windows use WSL"):
         terminal_probe.probe(tmp_path, 2)
+
+
+@pytest.mark.skipif(os.name != "posix", reason="PTY watch tests require POSIX; use WSL on Windows")
+def test_probe_waits_for_keyboard_acknowledgement_before_sending_resize(tmp_path, monkeypatch):
+    import signal
+
+    from tools import terminal_probe
+
+    observed = bytearray()
+    read = terminal_probe.os.read
+    kill = terminal_probe.os.kill
+    resized = []
+
+    def record_read(*args):
+        chunk = read(*args)
+        observed.extend(chunk)
+        return chunk
+
+    def check_resize(pid, signum):
+        if signum == signal.SIGWINCH:
+            assert b"Toggling full-name" in observed
+            resized.append(pid)
+        kill(pid, signum)
+
+    monkeypatch.setattr(terminal_probe.os, "read", record_read)
+    monkeypatch.setattr(terminal_probe.os, "kill", check_resize)
+    terminal_probe.probe(tmp_path, 2)
+    assert len(resized) == 1

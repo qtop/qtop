@@ -18,6 +18,15 @@ from typing import Any, Dict, Optional
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def _resident_kib(pid: int) -> int:
+    status = Path("/proc/%s/status" % pid)
+    if status.exists():
+        for line in status.read_text().splitlines():
+            if line.startswith("VmRSS:"):
+                return int(line.split()[1])
+    return 0
+
+
 def probe(directory: Path, duration: float, backend: str = "demo", source: Optional[str] = None, shutdown: str = "q") -> Dict[str, Any]:
     """Run qtop in a PTY, exercise keys/resize, and verify terminal restoration."""
     if os.name != "posix":
@@ -42,6 +51,7 @@ def probe(directory: Path, duration: float, backend: str = "demo", source: Optio
     transcript = bytearray()
     frame_times = []
     peak_rss_kib = peak_files = 0
+    key_sent = False
     exercised = False
     started = time.monotonic()
     deadline = started + 20
@@ -54,26 +64,27 @@ def probe(directory: Path, duration: float, backend: str = "demo", source: Optio
             frames = transcript.count(b"\x1b[2J")
             while len(frame_times) < frames:
                 frame_times.append(time.monotonic())
-            if not exercised and b"Job accounting summary" in transcript:
+            if not key_sent and b"Job accounting summary" in transcript:
                 attrs = termios.tcgetattr(slave)
                 assert not attrs[3] & (termios.ECHO | termios.ICANON), "watch terminal is not in cbreak mode"
                 os.write(master, b"F")
+                key_sent = True
+                deadline = time.monotonic() + 20
+            if key_sent and not exercised and b"Toggling full-name" in transcript:
+                # A resize signal can interrupt stdin.read(1). Wait for the
+                # key's observable effect before exercising resize separately.
                 fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", 45, 120, 0, 0))
                 os.kill(process.pid, signal.SIGWINCH)
                 exercised = True
                 deadline = time.monotonic() + duration
-            status = Path("/proc/%s/status" % process.pid)
-            if status.exists():
-                for line in status.read_text().splitlines():
-                    if line.startswith("VmRSS:"):
-                        peak_rss_kib = max(peak_rss_kib, int(line.split()[1]))
+            peak_rss_kib = max(peak_rss_kib, _resident_kib(process.pid))
             if output.exists():
                 peak_files = max(peak_files, sum(1 for path in output.rglob("*") if path.is_file()))
             if process.poll() is not None:
                 raise AssertionError("watch exited before shutdown: " + transcript[-4000:].decode("utf-8", "replace"))
             if time.monotonic() >= deadline:
                 break
-        assert exercised and len(frame_times) >= 2, "watch did not render and refresh: " + transcript[-4000:].decode("utf-8", "replace")
+        assert exercised and len(frame_times) >= 2, "watch did not acknowledge input and refresh: " + transcript[-4000:].decode("utf-8", "replace")
         assert b"Toggling full-name" in transcript, "single-key input did not reach the watch loop"
         if shutdown == "q":
             os.write(master, b"q")
