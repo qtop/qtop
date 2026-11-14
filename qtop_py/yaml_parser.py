@@ -154,6 +154,13 @@ def parse(fn: str, DEF_INDENT: int = 2) -> Dict[str, Any]:
     return dict([(key, value) for key, value in raw_key_values.items()])
 
 
+def _list_container(parent: Dict[str, Any], key: str) -> List[Any]:
+    values = parent.setdefault(key, [])
+    if not isinstance(values, list):
+        raise ValueError("Nested YAML values require a list for key %r" % key)
+    return values
+
+
 def read_yaml_config_block(line: List[Any], fin: Iterable[str], get_lines: Iterator[List[Any]]) -> Tuple[Dict[str, Any], Any]:
     """Read one top-level block starting at line; return it and the next line."""
     block: Dict[str, Any] = dict()
@@ -178,11 +185,11 @@ def read_yaml_config_block(line: List[Any], fin: Iterable[str], get_lines: Itera
             if parent_container == {} or "-" not in parent_container:
                 parent_container[k] = key_value[k]
             elif "-" in parent_container and "-" not in key_value:
-                last_item = parent_container["-"].pop()
+                last_item = _list_container(parent_container, "-").pop()
                 key_value.update(last_item)
-                parent_container["-"].append(key_value)
+                _list_container(parent_container, "-").append(key_value)
             else:
-                parent_container.setdefault(k, []).extend(key_value[k])  # was waiting for a list, but a str came in!
+                _list_container(parent_container, k).extend(key_value[k])  # was waiting for a list, but a str came in!
             if container == {}:
                 open_containers.append(container)
                 parent_container = open_containers[-1]  # point towards latest container (key_value's value)
@@ -195,7 +202,7 @@ def read_yaml_config_block(line: List[Any], fin: Iterable[str], get_lines: Itera
             if parent_container == {}:  # above it is a key waiting to be filled with values
                 parent_container[k] = key_value[k]
             else:
-                parent_container.setdefault(k, []).append(key_value[k]) if isinstance(key_value[k], str) else parent_container.setdefault(k, []).extend(key_value[k])
+                _list_container(parent_container, k).append(key_value[k]) if isinstance(key_value[k], str) else _list_container(parent_container, k).extend(key_value[k])
             if container == {}:
                 open_containers.append(container)
                 parent_container = open_containers[-1]  # point towards latest container (key_value's value)
@@ -206,7 +213,7 @@ def read_yaml_config_block(line: List[Any], fin: Iterable[str], get_lines: Itera
             for k in key_value:  # noqa: B007 - binds the dict's sole key to k, read below
                 pass  # assign dict's sole key to k
             if open_containers[-1].get("-"):
-                open_containers[-1].setdefault("-", []).extend(key_value[k])
+                _list_container(open_containers[-1], "-").extend(key_value[k])
             else:
                 open_containers[-1][k] = key_value[k]
             if container == {}:
