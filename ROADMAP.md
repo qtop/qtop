@@ -67,7 +67,8 @@ or a release is prepared.
 - [ ] Complete a documented soak-testing campaign.
   - [ ] Track reports in [#567](https://github.com/qtop/qtop/issues/567).
   - [ ] Record qtop revision, scheduler version, Python version, cluster size, test duration and observed failures.
-  - [ ] Exercise sustained watch mode, refreshes, filtering, resizing, capture and replay.
+  - [x] Add a bounded PTY watch/resize/capture harness with resource reports (`make soak`) and terminal-restoration regressions.
+  - [ ] Exercise sustained live watch mode, filtering and replay on each supported scheduler.
   - [ ] Observe memory use, refresh latency and temporary-file growth.
   - [ ] Triage findings and resolve release blockers before declaring 1.0 ready.
 

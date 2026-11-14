@@ -168,3 +168,28 @@ make schema-ci FORTIFY_BASE_REF=origin/develop
 `make pre-pr` remains the Python gate; schema changes additionally require
 `make schema-ci` and Go 1.25 or newer. CUE checks structural compatibility;
 Python tests own referential integrity and scheduler-specific constraints.
+
+
+## Terminal integration and soak evidence
+
+`make test` includes real POSIX PTY tests for watch refreshes, single-key input,
+window resize, capture/export, and restoring terminal attributes after `q`,
+SIGINT, and SIGTERM. No scheduler service is required for these demo tests. They are skipped on
+native Windows before importing the POSIX harness dependencies. Run the full
+Linux suite through WSL on Windows; native Windows support is not certified.
+`make soak` runs the same harness for 60 seconds and writes revision, Python,
+backend, observed frame intervals, peak Linux RSS, output-file high water, and
+capture counts to `artifacts/soak/report.json`, with an ANSI transcript beside it.
+Default budgets are 256 MiB RSS, 1,000 files and 10 seconds between frames.
+Reports and raw captures may contain identities; review before sharing.
+
+```sh
+make soak SOAK_ARGS='--duration 300 --backend slurm --source tests/plugins/slurm_samples/basic'
+# On an authorized scheduler host; this explicitly runs live scheduler commands:
+make soak SOAK_ARGS='--duration 3600 --backend slurm --live --report artifacts/soak/slurm.json'
+```
+
+Repeat on PBS, SGE and OAR hosts and record scheduler version and cluster size
+alongside the report. Fixture and demo runs cannot certify live scheduler behavior.
+Capture archives are checked for integrity; portable capture/replay semantics
+remain covered by `tests/test_sample.py`. Live evidence remains open in ROADMAP.md.

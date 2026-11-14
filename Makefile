@@ -241,3 +241,7 @@ schema-compat-test:: ## Test CUE schema compatibility tooling
 
 schema-ci:: schema-compat-test ## Test schema tooling and compare with the target branch contract
 	bash ci/scripts/schema_compat.sh "$(FORTIFY_BASE_REF)"
+
+
+soak:: ## Exercise real watch terminal, capture and refresh budgets (SOAK_ARGS for live clusters)
+	$(PYTHON) -m tools.terminal_probe $(SOAK_ARGS)
