@@ -256,3 +256,7 @@ schema-ci:: schema-compat-test ## Test schema tooling and compare with the targe
 
 soak:: ## Exercise real watch terminal, capture and refresh budgets (SOAK_ARGS for live clusters)
 	$(PYTHON) -m tools.terminal_probe $(SOAK_ARGS)
+
+
+nightly-properties:: ## Run the extended 1,000-example Hypothesis profile
+	HYPOTHESIS_PROFILE=nightly $(MAKE) property-test

@@ -149,3 +149,21 @@ nightly-matrix-experimental:
         PKGS: 'python,python-pip'
         PYBIN: python
         TARGET: ci
+
+
+extended-properties:
+  image: python:3.12.3-bookworm
+  stage: nightly
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule" && $NIGHTLY_MATRIX == "1"'
+    - if: '$CI_PIPELINE_SOURCE == "web" && $NIGHTLY_MATRIX == "1"'
+  before_script:
+    - apt-get update
+    - apt-get install -y --no-install-recommends make
+    - make ci-deps PYTHON=python
+  script:
+    - make nightly-properties PYTHON=python
+  artifacts:
+    when: always
+    paths:
+      - .hypothesis/

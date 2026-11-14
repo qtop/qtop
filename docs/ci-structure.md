@@ -229,3 +229,13 @@ modern interpreters and unittest on the Python 3.6/PyPy lanes, without importing
 pytest or modern analysis dependencies. This is a bounded contract suite, not a
 claim that the entire modern pytest suite runs on Python 3.6. The exact 3.6/RHEL8
 run evidence remains owned by its dedicated CI lane.
+
+
+## Extended property testing
+
+Both nightly workflows have a dedicated CPython 3.12 job calling
+`make nightly-properties`. It selects the existing 1,000-example Hypothesis
+profile once per pipeline, rather than multiplying the cost across every distro
+lane. Regular PR tests keep the deterministic 100-example profile. Failing
+examples remain in the job output and `.hypothesis/` is retained as an artifact.
+Locally run `make nightly-properties`; no scheduler access is required.
