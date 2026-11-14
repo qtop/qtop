@@ -5,6 +5,7 @@ Notable changes by version, newest first. See the
 
 ## Unreleased
 
+- Release: add a dry-run release preparation command
 - CI: emit verified release artifact evidence
 - CI: make validation defaults single-owned
 - CI: isolate packaging builds per worker

@@ -274,3 +274,10 @@ installations and unchanged-input hash checks pass. It records version, source
 revision (null outside Git), Python and exact artifact hashes/sizes. A previous
 report is removed before validation; failed runs cannot reuse stale success.
 This evidence supports independent review and does not authorize publication.
+
+
+Preview release-file changes with `python -m tools.prepare_release`. It derives
+`0.9.YYYYMMDD` from the branch prefix, or accepts `--version`. `--write` applies
+the reviewed plan only when release files are clean and no matching local tag
+exists. It does not commit, tag, fetch checksums or publish. Run the release
+gates and obtain independent review before those separate operations.

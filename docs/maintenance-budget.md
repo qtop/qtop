@@ -9,3 +9,4 @@ against its agreed upper bound before commit. No runtime dependency is added.
 | 1 | 12 | 35 | CI: isolate packaging builds per worker |
 | 9 | 7 | 20 | CI: make validation defaults single-owned |
 | 8 | 25 | 40 | CI: emit verified release artifact evidence |
+| 7 | 82 | 100 | Release: add a dry-run release preparation command |
