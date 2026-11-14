@@ -5,7 +5,10 @@ Notable changes by version, newest first. See the
 
 ## Unreleased
 
+- CI: use branch-capable coverage and trust container checkout paths
+- CI: adopt compatible tool updates from #591
 - CI: make Linux and WSL test runs reproducible with retained reports
+- Bugfix: acknowledge PTY keyboard input before testing resize
 - Bugfix: reject scalar and nested-list conflicts in YAML input
 - CI: run extended property checks in both nightly pipelines
 - CI: expand dependency-free legacy runtime contracts

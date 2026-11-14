@@ -89,7 +89,7 @@ Before it can replace `almalinux-python36`:
 
 Both nightly matrices use `ci/scripts/matrix_lane.sh` and the shared CI pins.
 Every lane that installs them runs Python 3.10+, so all get the patched
-setuptools 84.2.0 and pytest 9.1.1. Python 3.10-3.11 also install wheel 0.46.2
+setuptools 84.2.1 and pytest 9.2.0. Python 3.10-3.11 also install wheel 0.48.0
 so the installation check uses a backend that supports the project's PEP 639
 license metadata, instead of inheriting an older distro backend. Distributions
 whose system Python is 3.9 (RHEL 9 and its rebuilds, Amazon Linux 2023) run the
@@ -252,3 +252,16 @@ assertions intact. Explicit local core overrides remain available.
 Schema container jobs trust only their provider's checkout directory before
 running Git commands. This handles bind-mount ownership without disabling Git's
 ownership check globally or trusting unrelated repositories.
+
+
+## CI tool updates from PR #591
+
+The compatible updates from #591 are included: setuptools 84.2.1, build 1.6.1,
+coverage 7.16.2, importlib-metadata 9.0.1, iniconfig 2.3.1, pluggy 1.7.0,
+pytest 9.2.0, Ruff 0.17.3, wheel 0.48.0 and zipp 4.1.2. Identical old/new
+interpreter pins are consolidated; the Ruff hook matches the CI pin.
+
+The proposed setuptools 84.2.1 requirement on Python 3.9 is deliberately not
+adopted: that release requires Python 3.10+. Python 3.9 retains its compatible
+`>=78.1.1,<83` backend range, and Python 3.6-3.8 retain `>=59.6,<60`.
+The modern source-build floor is updated to 84.2.1 on Python 3.10+ only.
