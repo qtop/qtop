@@ -1,5 +1,6 @@
 ## Copyright (c) 2026 qtop contributors
 ## SPDX-License-Identifier: MIT
+import shutil
 import sys
 import zipfile
 
@@ -13,11 +14,26 @@ def test_source_distribution_installs_with_defaults_and_cli():
     validate_installation()
 
 
+def build_release_artifacts(directory):
+    source = directory / "source"
+    shutil.copytree(str(ROOT), str(source), ignore=shutil.ignore_patterns(".git", "artifacts", "build", "dist", "*.egg-info", "__pycache__", ".*cache", ".venv"))
+    output = directory / "dist"
+    checked([sys.executable, "-m", "build", "--no-isolation", "--outdir", str(output)], source)
+    return output
+
+
 @pytest.fixture(scope="module")
 def release_artifacts(tmp_path_factory):
-    directory = tmp_path_factory.mktemp("release-artifacts")
-    checked([sys.executable, "-m", "build", "--no-isolation", "--outdir", str(directory)], ROOT)
-    return directory
+    return build_release_artifacts(tmp_path_factory.mktemp("release-artifacts"))
+
+
+def test_packaging_workers_use_distinct_source_trees(tmp_path, monkeypatch):
+    sources = []
+    monkeypatch.setitem(globals(), "checked", lambda command, cwd: sources.append(cwd))
+    for name in ("worker-a", "worker-b"):
+        build_release_artifacts(tmp_path / name)
+    assert sources[0] != sources[1] and ROOT not in sources
+    assert all((source / "qtop_py" / "__init__.py").is_file() for source in sources)
 
 
 def test_exact_release_artifacts_install_without_being_replaced(release_artifacts, capsys):

@@ -5,6 +5,7 @@ Notable changes by version, newest first. See the
 
 ## Unreleased
 
+- CI: isolate packaging builds per worker
 ## 0.9.20261114
 
 - Release: update version metadata to 0.9.20261114
