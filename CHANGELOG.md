@@ -5,22 +5,25 @@ Notable changes by version, newest first. See the
 
 ## Unreleased
 
+## 0.9.20261113
+
 - CI: use branch-capable coverage and trust container checkout paths
 - CI: adopt compatible tool updates from #591
 - CI: make Linux and WSL test runs reproducible with retained reports
-- Bugfix: acknowledge PTY keyboard input before testing resize
-- Bugfix: reject scalar and nested-list conflicts in YAML input
 - CI: run extended property checks in both nightly pipelines
 - CI: expand dependency-free legacy runtime contracts
 - CI: broaden document fuzzing and versioned state properties
 - CI: enforce independent branch and statement coverage floors
-- Bugfix: cover real terminal lifecycle and add bounded soak evidence
 - CI: gate schema compatibility on both CI providers
-- Bugfix: synchronize scheduler timeout tests and verify child termination
 - CI: normalize Go source line endings for CI
+- Bugfix: acknowledge PTY keyboard input before testing resize
+- Bugfix: reject scalar and nested-list conflicts in YAML input
+- Bugfix: cover real terminal lifecycle and add bounded soak evidence
+- Bugfix: synchronize scheduler timeout tests and verify child termination
 - Feature: experimental schema 3 beta1 workload `parent_qid`, with cycle
   validation and consistent anonymization of present or absent parents;
   existing renderers keep using legacy maps.
+- Release: update version metadata to 0.9.20261113
 
 ## 0.9.20261112
 
