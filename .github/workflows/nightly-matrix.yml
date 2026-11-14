@@ -128,7 +128,7 @@ jobs:
               ;;
             rhel|fedora|amazon) dnf -y install git || true ;;
             suse) zypper --non-interactive refresh || true; zypper --non-interactive install git || true ;;
-            arch) pacman -Sy --noconfirm git || true ;;
+            arch) pacman -Syu --noconfirm git || true ;;
             *) echo "official image, git preinstalled" ;;
           esac
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

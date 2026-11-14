@@ -295,3 +295,7 @@ qtop-release-evidence artifact. GitLab retains it with the build artifacts.
 Terminal probes also record a null revision when Git is missing or refuses the
 checkout ownership. The PTY, capture and terminal-restoration checks still run;
 nightly containers need no additional Git ownership exception for this metadata.
+
+The Arch nightly container upgrades packages together with pacman -Syu in both
+checkout bootstrap and the shared lane runner. Mixing a current package index
+with an older base image can otherwise cause OpenSSL file conflicts.
