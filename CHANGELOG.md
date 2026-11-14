@@ -5,6 +5,7 @@ Notable changes by version, newest first. See the
 
 ## Unreleased
 
+- CI: consolidate queue policy tests into named contract case tables
 - CI: cover release failures and resolve tool type checks
 - CI: enforce nightly matrix parity between providers
 - CI: share versioned schema fixtures across Python and CUE

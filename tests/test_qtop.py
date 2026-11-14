@@ -784,12 +784,6 @@ def test_normalize_config_returns_a_runtime_copy():
     assert normalized["USER_CUT_MATRIX_WIDTH"] == 12
 
 
-@pytest.mark.parametrize("scheduler_name", [None, "pbs", "slurm", "oar"])
-@pytest.mark.parametrize(("state", "blocked"), (("D", True), ("DS", True), ("E", False), ("Q", False)))
-def test_queue_is_blocked(state, blocked, scheduler_name):
-    assert qtop_module.queue_is_blocked(state, scheduler_name) is blocked
-
-
 def test_load_yaml_config_keeps_user_symbol_pool_bounded(tmp_path):
     config, _, _ = configuration.load_yaml_config(
         SimpleNamespace(CONFFILE=None), str(Path(__file__).resolve().parents[1]), str(tmp_path), str(tmp_path / "etc"), str(tmp_path / "user")
@@ -1052,16 +1046,6 @@ def test_shared_firstletter_id_keeps_legacy_color_mapping(totals, expected_patte
     assert all(str(symbol) == "a" for symbol in symbols.values())
 
 
-@pytest.mark.parametrize("state", ["a", "A", "c", "C", "d", "D", "E", "o", "s", "S", "u", "Sdu"])
-def test_sge_blocking_flags_are_detected_anywhere(state):
-    assert qtop_module.queue_is_blocked(state, "sge")
-
-
-@pytest.mark.parametrize("state", ["", "-", "?", "r"])
-def test_sge_neutral_states_are_not_marked_blocked(state):
-    assert not qtop_module.queue_is_blocked(state, "sge")
-
-
 @pytest.mark.parametrize("dynamic", [False, True])
 @pytest.mark.parametrize(
     "rule, expected",
@@ -1143,11 +1127,6 @@ def test_init_logging_sets_file_level(tmp_path, monkeypatch, verbose, expected):
                 handler.close()
         logger.setLevel(old_level)
         logger.disabled = old_disabled
-
-
-@pytest.mark.parametrize("state, blocked", [("up", False), ("UP", False), ("down", True), ("drain", True), ("inact", True), ("INACTIVE", True), ("?", False)])
-def test_slurm_partition_blocking_markers(state, blocked):
-    assert qtop_module.queue_is_blocked(state, "slurm") is blocked
 
 
 @pytest.mark.parametrize("head_fails", (False, True))
