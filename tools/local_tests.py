@@ -66,7 +66,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--bootstrap", action="store_true")
     parser.add_argument("--environment", type=Path, default=Path.home() / ".venvs" / "qtop-py312")
-    parser.add_argument("--workers", type=int, default=4)
+    parser.add_argument("--workers", type=int)
     parser.add_argument("--reports", type=Path, default=Path.home() / ".local" / "state" / "qtop-test-reports")
     parser.add_argument("targets", nargs="*", default=["pre-pr", "schema-ci"])
     args = parser.parse_args()
@@ -75,7 +75,7 @@ def main() -> None:
     for command in ("git", "make"):
         if shutil.which(command) is None:
             parser.error("install git, make and python3-venv before bootstrapping (Go is needed for schema-ci)")
-    if args.workers < 1:
+    if args.workers is not None and args.workers < 1:
         parser.error("workers must be positive")
     if any(target.startswith("-") or "=" in target for target in args.targets):
         parser.error("targets must be Make target names")
@@ -93,10 +93,11 @@ def main() -> None:
         manifest = snapshot_checkout(ROOT, workspace)
         env = os.environ.copy()
         env["PATH"] = str(ENV / "bin") + os.pathsep + env.get("PATH", "")
-        env["PYTEST_XDIST_AUTO_NUM_WORKERS"] = str(args.workers)
+        if args.workers is not None:
+            env["PYTEST_XDIST_AUTO_NUM_WORKERS"] = str(args.workers)
         BASE_REF = env.get("FORTIFY_BASE_REF", "origin/develop")
         env["FORTIFY_BASE_REF"] = subprocess.check_output(["git", "rev-parse", BASE_REF], cwd=str(ROOT), universal_newlines=True).strip()
-        manifest.update(targets=args.targets, base_ref=env["FORTIFY_BASE_REF"], workers=args.workers, status="running")
+        manifest.update(targets=args.targets, base_ref=env["FORTIFY_BASE_REF"], workers=env.get("PYTEST_XDIST_AUTO_NUM_WORKERS", "Make default"), status="running")
         try:
             # Sequential targets keep reports and corpus state deterministic.
             for target in args.targets:

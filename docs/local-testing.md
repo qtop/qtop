@@ -126,3 +126,9 @@ matrices run a suite per supported interpreter/distro lane; the separate
 extended-property job runs once per nightly pipeline. Legacy lanes use the
 stdlib compatibility and scheduler-sample checks rather than the full suite.
 Always use the emitted pytest/JUnit counts for the exact run being reviewed.
+
+
+Make owns coverage floors and the default worker count. The runner forwards an
+explicit `--workers` override only when requested; otherwise Make uses its
+default or the environment. Standalone `tools.check_coverage` calls must supply
+`--statements` and `--branches`, as the Make targets already do.

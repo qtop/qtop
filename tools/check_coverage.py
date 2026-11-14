@@ -24,8 +24,8 @@ def main() -> None:
     """Read measured coverage and fail without weakening either configured floor."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("report", type=Path)
-    parser.add_argument("--statements", type=float, default=95)
-    parser.add_argument("--branches", type=float, default=91)
+    parser.add_argument("--statements", type=float, required=True)
+    parser.add_argument("--branches", type=float, required=True)
     args = parser.parse_args()
     statements, branches = percentages(json.loads(args.report.read_text()))
     print("Runtime statements: %.2f%%; branches: %.2f%%" % (statements, branches))
