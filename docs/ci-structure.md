@@ -205,3 +205,15 @@ Developer tooling is measured and printed separately, without an initial floor;
 its uncovered paths must not dilute or inflate the runtime gates. Both providers
 publish the runtime Cobertura report. Prioritize missing cleanup, capture and
 collection branches rather than writing tests only to increase percentages.
+
+
+## Fuzz input scope and corpus reuse
+
+Atheris exercises direct bounded YAML configuration, SGE XML, PBS JSON, OAR
+rows, Slurm rows and snapshot JSON documents, alongside the existing state/range
+properties. Inputs are capped at 4 KiB per document. Known syntax/shape rejections
+are allowed; unexpected exceptions and assertions fail the run. Reviewed seed
+documents live as hex text under `tests/fuzz_corpus/`; `coverage-fuzz` decodes
+them without replacing locally discovered inputs. Preserve `artifacts/fuzz/`
+between local runs. CI publishes that corpus for reproduction; it does not
+silently trust arbitrary corpus artifacts from other revisions or contributors.

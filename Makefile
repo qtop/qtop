@@ -130,7 +130,7 @@ deterministic-fuzz:: ## Reproducibly stress parser primitives with a fixed seed
 	$(PYTHON) -m tools.deterministic_fuzz --seed $(FUZZ_SEED) --cases $(FUZZ_CASES)
 
 coverage-fuzz:: ## Run bounded Atheris fuzzing (Linux CPython 3.12 CI dependencies)
-	@mkdir -p "$(FUZZ_ARTIFACT_DIR)/corpus"
+	$(PYTHON) -m tools.prepare_fuzz_corpus "$(FUZZ_ARTIFACT_DIR)/corpus"
 	$(PYTHON) -m tools.atheris_fuzz -runs=$(FUZZ_CASES) -seed=$(FUZZ_SEED) -max_total_time=30 -max_len=256 -timeout=10 -artifact_prefix="$(FUZZ_ARTIFACT_DIR)/" $(ATHERIS_ARGS) "$(FUZZ_ARTIFACT_DIR)/corpus"
 
 fortifications:: ## Check diff health and reject eval() call sites
