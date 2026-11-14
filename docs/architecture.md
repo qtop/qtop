@@ -178,3 +178,8 @@ source and source map in this file. Check new backend coverage through the
 [shared sample gates](ci-sample-gates.md), and consult the
 [CI structure](ci-structure.md) for validation entry points. User-facing
 commands and display behavior are described in the [qtop guide](documentation.md).
+
+CollectionSettings is the typed, validated view of live command settings.
+The complete Config mapping stays extensible for scheduler-specific keys;
+collection functions accept the GenericBatchSystem class interface rather
+than an unconstrained backend. Normalize at the boundary, before execution.

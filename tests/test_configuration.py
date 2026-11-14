@@ -285,3 +285,17 @@ def test_palettes_set_by_a_layer_skip_palettes_yaml(tmp_path, counted_parse, mon
     config, _, _ = configuration.load_yaml_config(SimpleNamespace(CONFFILE=None, OPTION=[]), str(defaults), str(initial_cwd), str(system), str(user))
     assert config["palettes"] == {"default": {"Red": "0;31"}}
     assert "palettes.yaml" not in counted_parse
+
+
+@pytest.mark.parametrize("timeout", (1, "2.5", 30))
+def test_collection_settings_normalize_validated_values(timeout):
+    raw = {"savepath": "$HOME/qtop", "scheduler_command_timeout": timeout, "extension": {"custom": True}}
+    settings = configuration.collection_settings(raw)
+    assert settings == ("$HOME/qtop", float(timeout))
+    assert raw["extension"] == {"custom": True}
+
+
+@pytest.mark.parametrize("timeout", (True, 0, "bad", float("inf")))
+def test_collection_settings_reject_invalid_timeout_before_commands(timeout):
+    with pytest.raises(ValueError, match="scheduler_command_timeout"):
+        configuration.collection_settings({"savepath": "/tmp", "scheduler_command_timeout": timeout})

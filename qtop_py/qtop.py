@@ -374,7 +374,7 @@ def calculate_term_size(config: Dict[str, Any], FALLBACK_TERM_SIZE: Sequence[int
     return term_height, term_columns
 
 
-def finalize_filepaths_schedulercommands(args: Any, config: Dict[str, Any], backend: Any) -> Dict[str, Tuple[str, str]]:
+def finalize_filepaths_schedulercommands(args: Any, config: Dict[str, Any], backend: Type[GenericBatchSystem]) -> Dict[str, Tuple[str, str]]:
     """Return {input_key: (path, command)}, with PID suffixes for live collection."""
     d = dict()
     fn_append = "_" + str(os.getpid()) if not args.SOURCEDIR else ""
@@ -540,7 +540,7 @@ def get_primary_group_names(account_jobs_table: Sequence[Sequence[Any]]) -> Dict
     return dict((user, group) for user, group in groups if group)
 
 
-def get_input_filenames(INPUT_FNs_commands: Mapping[str, Tuple[str, str]], config: Dict[str, Any], args: Any, backend: Any) -> Dict[str, str]:
+def get_input_filenames(INPUT_FNs_commands: Mapping[str, Tuple[str, str]], config: Dict[str, Any], args: Any, backend: Type[GenericBatchSystem]) -> Dict[str, str]:
     """Return the trace files by key: found in the -s directory, or collected by running the scheduler commands."""
     filenames = dict()
     batch_system_commands = dict()
@@ -548,9 +548,10 @@ def get_input_filenames(INPUT_FNs_commands: Mapping[str, Tuple[str, str]], confi
         filenames[_file], batch_system_commands[_file] = INPUT_FNs_commands[_file]
 
         if not args.SOURCEDIR:
-            _savepath = os.path.realpath(os.path.expandvars(config["savepath"]))
+            SETTINGS = configuration.collection_settings(config)
+            _savepath = os.path.realpath(os.path.expandvars(SETTINGS.SAVEPATH))
             try:
-                filenames[_file] = execute_shell_batch_commands(batch_system_commands, filenames, _file, _savepath, timeout=config.get("scheduler_command_timeout", 30))
+                filenames[_file] = execute_shell_batch_commands(batch_system_commands, filenames, _file, _savepath, timeout=SETTINGS.TIMEOUT)
             except OperationalError as error:
                 if _file not in backend.optional_trace_keys:
                     raise
@@ -703,7 +704,7 @@ def choose_highlight(viewport: Viewport, cluster: Any, display_overrides: Dict[s
     viewport.reset_display()
 
 
-def fetch_scheduler_files(args: Any, config: Dict[str, Any], backend: Any) -> Dict[str, str]:
+def fetch_scheduler_files(args: Any, config: Dict[str, Any], backend: Type[GenericBatchSystem]) -> Dict[str, str]:
     """Return the scheduler trace files, collected live or read from -s; raise OperationalError on bad commands."""
     scheduler_name = backend.get_mnemonic()
     try:

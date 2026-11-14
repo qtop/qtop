@@ -13,3 +13,4 @@ against its agreed upper bound before commit. No runtime dependency is added.
 | 3 | 16 | 60 | Bugfix: centralize YAML container transitions |
 | 4 | 6 | 30 | Bugfix: extract pure runtime input parsing |
 | 6 | 0 | 0 | Bugfix: schedule legacy adapter retirement for 1.0 |
+| 2 | 21 | 100 | Bugfix: type and validate scheduler collection settings |

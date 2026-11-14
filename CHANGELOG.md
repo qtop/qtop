@@ -5,6 +5,7 @@ Notable changes by version, newest first. See the
 
 ## Unreleased
 
+- Bugfix: type and validate scheduler collection settings
 - Bugfix: schedule legacy adapter retirement for 1.0
 - Bugfix: extract pure runtime input parsing
 - Bugfix: centralize YAML container transitions
