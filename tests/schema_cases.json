@@ -1,0 +1,10 @@
+[
+{"name":"v1","state":{"jobs":[{"id":"42","user":"alice","state":"R","queue":"debug","extra":"allowed"}],"nodes":[],"queues":[]},"structural":true,"semantic":true},
+{"name":"v1-explicit","state":{"jobs":[{"id":"42","user":"alice","state":"R","queue":"debug","extra":"allowed"}],"nodes":[],"queues":[],"schema_version":1},"structural":true,"semantic":true},
+{"name":"v2","state":{"jobs":[{"id":"42","user":"alice","state":"R","queue":"debug","extra":"allowed"}],"nodes":[],"queues":[],"schema_version":2,"source":{"backend":"slurm","cluster_id":"a"}},"structural":true,"semantic":true},
+{"name":"v3-beta1","state":{"jobs":[{"id":"42","user":"alice","state":"R","queue":"debug","extra":"allowed"}],"nodes":[],"queues":[],"schema_version":3,"schema_revision":"beta1","source":{"backend":"slurm","cluster_id":"a"}},"structural":true,"semantic":true},
+{"name":"missing-source","state":{"jobs":[{"id":"42","user":"alice","state":"R","queue":"debug","extra":"allowed"}],"nodes":[],"queues":[],"schema_version":2},"structural":false,"semantic":false},
+{"name":"unknown-revision","state":{"jobs":[{"id":"42","user":"alice","state":"R","queue":"debug","extra":"allowed"}],"nodes":[],"queues":[],"schema_version":3,"schema_revision":"beta2","source":{"backend":"slurm","cluster_id":"a"}},"structural":false,"semantic":false},
+{"name":"unknown-relation","state":{"jobs":[{"id":"42","user":"alice","state":"R","queue":"debug","extra":"allowed"}],"nodes":[],"queues":[],"allocations":[]},"structural":false,"semantic":false},
+{"name":"wrong-qid","state":{"jobs":[{"id":"42","user":"alice","state":"R","queue":"debug","extra":"allowed","qid":"slurm:a:wrong"}],"nodes":[],"queues":[],"schema_version":2,"source":{"backend":"slurm","cluster_id":"a"}},"structural":true,"semantic":false}
+]

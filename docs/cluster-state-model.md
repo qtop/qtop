@@ -275,3 +275,8 @@ QID equality/uniqueness, cycles, numeric-string bounds and scheduler extensions
 still require Python tests. This optional developer tool adds no qtop runtime
 dependency. Run directly without Make using `go -C tools/schema-compat run
 -mod=readonly . -base /absolute/baseline.cue -proposed /absolute/proposed.cue`.
+
+The shared tests/schema_cases.json corpus runs through both the Python validator
+and the CUE contract tests in schema-ci. Each case declares structural (CUE)
+and semantic (Python) validity separately: QID equality remains Python-owned.
+Add version acceptance and rejection examples there when extending the schema.

@@ -5,6 +5,7 @@ Notable changes by version, newest first. See the
 
 ## Unreleased
 
+- CI: share versioned schema fixtures across Python and CUE
 - Bugfix: type and validate scheduler collection settings
 - Bugfix: schedule legacy adapter retirement for 1.0
 - Bugfix: extract pure runtime input parsing

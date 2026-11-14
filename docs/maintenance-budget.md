@@ -14,3 +14,4 @@ against its agreed upper bound before commit. No runtime dependency is added.
 | 4 | 6 | 30 | Bugfix: extract pure runtime input parsing |
 | 6 | 0 | 0 | Bugfix: schedule legacy adapter retirement for 1.0 |
 | 2 | 21 | 100 | Bugfix: type and validate scheduler collection settings |
+| 5 | 21 | 100 | CI: share versioned schema fixtures across Python and CUE |
