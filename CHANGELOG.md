@@ -5,6 +5,7 @@ Notable changes by version, newest first. See the
 
 ## 0.9.20261114
 
+- CI: close terminal probe descriptors when setup fails
 - CI: upgrade Arch containers fully before installing nightly dependencies
 - CI: allow terminal probes without readable Git revision metadata
 - CI: bump Ruff to 0.17.5 in CI and pre-commit

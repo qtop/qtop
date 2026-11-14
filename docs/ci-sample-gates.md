@@ -60,6 +60,11 @@ the Default setup configuration and use the committed `codeql.yml`; avoid
 adding a second generated analysis workflow. Follow GitHub's
 [Advanced setup instructions](https://docs.github.com/en/code-security/how-tos/find-and-fix-code-vulnerabilities/configure-code-scanning/configuring-advanced-setup-for-code-scanning).
 Then run the workflow and verify that its results appear in code scanning.
+Local `make pre-pr` runs Ruff, type checks and runtime gates, but not CodeQL.
+Before reporting CodeQL success, inspect both the analysis job and the separate
+CodeQL results check. Resource cleanup tests must cover setup failures as well
+as successful runs.
+
 Repository settings are separate from the committed YAML and apply separately
 to upstream and forks. Weekly/manual triggers require the workflow on the
 repository's default branch.
