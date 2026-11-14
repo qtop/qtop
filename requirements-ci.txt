@@ -14,7 +14,7 @@ pyproject-hooks==1.3.3
 pygments==2.21.0
 pytest==9.2.0
 pytest-xdist==3.8.0
-ruff==0.17.3
+ruff==0.17.4
 setuptools==84.2.1
 wheel==0.48.0; python_version < "3.12"
 tomli==2.5.0
