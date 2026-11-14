@@ -74,6 +74,18 @@ jobs:
           name: sample-gate-python3.6-almalinux8
           path: artifacts/sample-gate-py36/
 
+  schema-compat:
+    runs-on: ubuntu-24.04
+    container: golang:1.25-bookworm
+    env:
+      FORTIFY_BASE_REF: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || 'origin/develop' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - run: make schema-ci
+
   type-check:
     runs-on: ubuntu-24.04
     steps:

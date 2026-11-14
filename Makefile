@@ -237,3 +237,7 @@ schema-compat:: ## Check proposed CUE schema accepts all baseline values (option
 
 schema-compat-test:: ## Test CUE schema compatibility tooling
 	$(GO) -C tools/schema-compat test -mod=readonly ./...
+
+
+schema-ci:: schema-compat-test ## Test schema tooling and compare with the target branch contract
+	bash ci/scripts/schema_compat.sh "$(FORTIFY_BASE_REF)"
