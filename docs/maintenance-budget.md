@@ -11,3 +11,4 @@ against its agreed upper bound before commit. No runtime dependency is added.
 | 8 | 25 | 40 | CI: emit verified release artifact evidence |
 | 7 | 82 | 100 | Release: add a dry-run release preparation command |
 | 3 | 16 | 60 | Bugfix: centralize YAML container transitions |
+| 4 | 6 | 30 | Bugfix: extract pure runtime input parsing |

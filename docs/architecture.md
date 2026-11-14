@@ -145,6 +145,7 @@ runtime globals, while the new query/view pipeline does not depend on them.
 | Shared extraction and backend interface | [serialiser.py](../qtop_py/serialiser.py) |
 | Shared state/configuration types and backend protocol | [state_types.py](../qtop_py/state_types.py) |
 | Canonical snapshot and legacy adapter | [snapshot.py](../qtop_py/snapshot.py) |
+| Replay time and account expression parsing | [input_parsing.py](../qtop_py/input_parsing.py) |
 | Run resource ownership and frame/archive finalization | [runtime.py](../qtop_py/runtime.py) |
 | Common snapshot construction, validation and totals | [cluster_state.py](../qtop_py/cluster_state.py) |
 | Navigation and color definitions | [controls.py](../qtop_py/ui/controls.py), [viewport.py](../qtop_py/ui/viewport.py), [colormap.py](../qtop_py/colormap.py) |
