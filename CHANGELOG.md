@@ -3,16 +3,13 @@
 Notable changes by version, newest first. See the
 [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 
-## Unreleased
-
-- CI: harden report writes and simplify account-row parsing
-- Bugfix: harden scheduler trace paths and simplify reported code patterns
-- CI: exclude live test outputs from packaging snapshots
-
 ## 0.9.20261115
 
 - CI: enforce Ruff builtin naming, context management and exception checks
 - CI: enforce stable Ruff correctness and security checks through Bugbear
+- Bugfix: harden scheduler trace paths and simplify reported code patterns
+- CI: harden report writes and simplify account-row parsing
+- CI: exclude live test outputs from packaging snapshots
 - Release: update version metadata to 0.9.20261115
 
 ## 0.9.20261114
