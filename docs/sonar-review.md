@@ -1,7 +1,6 @@
 # SonarQube review
 
-Source: [public issue list](https://sonarcloud.io/project/issues?id=testOrgan_qtop),
-retrieved 2026-11-14. The list contains 24 S8707 path findings, eight S8786
+The review dated 2026-11-14 covers 24 S8707 path findings, eight S8786
 regex findings, four S8519 eager-list findings, two S2583 required-text
 conditions and one S1656 self-assignment. Other rule families are outside
 this review. Line numbers below refer to the scanned source.
