@@ -479,6 +479,8 @@ class PBSBatchSystem(GenericBatchSystem):
                 core, job = part1, part2
             elif re.match(r"[\w.-]+", part1):  # PBS Pro job id
                 job, core = part1, part2
+            else:
+                raise ValueError("Invalid PBS allocation %r" % core_job)
 
             job = re.sub(r"\[\]$", "", job.strip().split("/")[0].split(".")[0])
             if ("," in core) or ("-" in core):  # job id with subjobs

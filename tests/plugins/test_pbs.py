@@ -175,3 +175,15 @@ def test_nqs_headers_do_not_hijack_a_detected_pbs_table(tmp_path):
         {"JobId": "807140", "UnixAccount": "alice", "S": "R", "Queue": "gpu"},
         {"JobId": "808000", "UnixAccount": "bob", "S": "Q", "Queue": "gpu"},
     ]
+
+
+@pytest.mark.parametrize(
+    "rows",
+    [
+        pytest.param(["!/42"], id="malformed-first"),
+        pytest.param(["0/17.server", "!/42"], id="malformed-after-valid"),
+    ],
+)
+def test_invalid_core_job_prefix_is_rejected(rows):
+    with pytest.raises(ValueError, match="Invalid PBS allocation"):
+        list(pbs.PBSBatchSystem._get_jobs_cores(rows))
