@@ -11,6 +11,7 @@ Notable changes by version, newest first. See the
 
 ## 0.9.20261115
 
+- CI: enforce Ruff builtin naming, context management and exception checks
 - CI: enforce stable Ruff correctness and security checks through Bugbear
 - Release: update version metadata to 0.9.20261115
 

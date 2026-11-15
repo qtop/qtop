@@ -44,7 +44,7 @@ def communicate_with_timeout(command: "subprocess.Popen[bytes]", timeout: float,
                         raise OperationalError("Scheduler command output exceeds %s-byte limit" % limit)
                     target.write(chunk)
                     remaining -= len(chunk)
-        except Exception as error:
+        except Exception as error:  # noqa: BLE001 - re-raise reader failures on the caller thread after killing and reaping the child.
             failures.append(error)
             terminate(command)
 

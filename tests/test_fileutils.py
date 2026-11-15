@@ -142,6 +142,8 @@ def test_expanded_capture_closes_archive_if_initial_population_fails(tmp_path, m
     with pytest.raises(RuntimeError, match="capture population failed"):
         fileutils.init_sample_file(SimpleNamespace(SAMPLE=2, ANONYMIZE=False), str(tmp_path), "sample.tar", {}, "qtopconf.yaml", str(tmp_path))
     assert len(archives) == 1 and archives[0].closed
+    with fileutils.tarfile.open(str(tmp_path / "sample.tar")) as archive:
+        assert archive.getmembers() == []
 
 
 @pytest.mark.parametrize("overwrite, pattern", [(True, r"sample_\.tar"), (False, r"sample__\d{8}-\d{6}\.tar")])

@@ -60,7 +60,7 @@ lint.select = ["E", "F", "I", "W", "ERA", "C90", "D"] ##
 lint.extend-select = [
     "B", "PLE", "PGH", "PIE", "ISC", "RET", "T10", "RUF100",
     "S102", "S307", "S602", "S604", "LOG009", "RSE102", "PLC1802",
-    "PERF102", "RUF059",
+    "PERF102", "RUF059", "A", "SIM115", "BLE",
 ]
 # The class docstring covers __init__ and dunders; tests document themselves through their names.
 lint.ignore = ["D105", "D107"]
