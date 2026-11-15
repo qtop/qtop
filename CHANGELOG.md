@@ -5,6 +5,7 @@ Notable changes by version, newest first. See the
 
 ## Unreleased
 
+- Bugfix: harden scheduler trace paths and simplify reported code patterns
 - CI: exclude live test outputs from packaging snapshots
 
 ## 0.9.20261115

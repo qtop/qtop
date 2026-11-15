@@ -355,7 +355,7 @@ class PBSBatchSystem(GenericBatchSystem):
                             r"(?:,(?:free|busy|down|offline|unknown|job-busy|job-exclusive|reserve|time-shared))*",
                         )
                     elif name == "jobs":
-                        value = re.sub(r"([0-9,\-]+)/([0-9\[\]-]+)(?:\.[\w.*-]+)?", lambda match: match[1] + "/" + mask(match[2], "job") + ".server", value)
+                        value = re.sub(r"(?<![0-9,\-])([0-9,\-]+)/([0-9\[\]-]+)(?:\.[\w.*-]+)?", lambda match: match[1] + "/" + mask(match[2], "job") + ".server", value)
                         value = mask.public(value, r"(?:[0-9,\-]+/[0-9\[\]\-]+\.server(?:,?\s*)?)*")
                     else:
                         name, value = mask(name, "field"), mask(value)
@@ -475,7 +475,7 @@ class PBSBatchSystem(GenericBatchSystem):
         """
         for core_job in jobs:
             part1, part2 = core_job.strip().split("/")
-            if re.search(r"^\d+[,-]?[\d,-]*$", part1):  # Torque job id
+            if re.search(r"^\d[\d,-]*$", part1):  # Torque job id
                 core, job = part1, part2
             elif re.match(r"[\w.-]+", part1):  # PBS Pro job id
                 job, core = part1, part2

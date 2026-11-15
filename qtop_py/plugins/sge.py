@@ -35,12 +35,12 @@ def _required_text_element(parent: etree.Element, path: str) -> etree.Element:
 
 
 def _required_text(parent: etree.Element, path: str) -> str:
-    return _required_text_element(parent, path).text or ""  # nonempty, checked there
+    return cast(str, _required_text_element(parent, path).text)
 
 
 def _anonymize_field(parent: etree.Element, path: str, anonymize: Callable[[str, str], str], category: str) -> str:
     element = _required_text_element(parent, path)
-    text = anonymize(element.text or "", category)  # element.text is nonempty, checked above
+    text = anonymize(cast(str, element.text), category)
     element.text = text
     return text
 

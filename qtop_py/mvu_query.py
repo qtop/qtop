@@ -399,7 +399,7 @@ class WNOccupancy(object):
     def get_hl_q_or_users(_highlighted_queues_or_users: Iterable[Mapping[str, Any]]) -> Iterator[Tuple[Any, str, Callable[..., bool]]]:
         """Yield (user or queue, highlight kind, all/any) for each highlight rule."""
         for selection_users_queues in _highlighted_queues_or_users:
-            selection = list(selection_users_queues.keys())[0]
+            selection = next(iter(selection_users_queues))
             users_queues = selection_users_queues[selection]
             and_or, highlight_kind = selection.rsplit("include_")
             and_or_func = all if not and_or else any
@@ -695,7 +695,7 @@ class Cluster(object):
             _host = state_corejob_dn["domainname"].split(".", 1)[0]
             changed = False
             for remap_line in self.config["remapping"]:
-                pat, repl = list(remap_line.items())[0]
+                pat, repl = next(iter(remap_line.items()))
                 if isinstance(repl, str) and repl.strip().startswith("lambda"):
                     raise ValueError("lambda remapping is no longer supported in %s because eval is disabled" % QTOPCONF_YAML)
                 if re.search(pat, _host):
@@ -723,7 +723,7 @@ class Cluster(object):
         workernode_dict = dict()
         remapped_nodes = dict()
         _sorting_from_conf = self.config["sorting"]
-        user_sorting = self.MVU_model.display_overrides.get("user_sort", (_sorting_from_conf and list(_sorting_from_conf.values())[0]))
+        user_sorting = self.MVU_model.display_overrides.get("user_sort", (_sorting_from_conf and next(iter(_sorting_from_conf.values()))))
         user_filters = self.MVU_model.display_overrides.get("filtering", self.config["filtering"])
         user_filtering = user_filters and user_filters[0]
 
@@ -870,7 +870,7 @@ class WNFilter(object):
                 WNFilter.report_filtered_view()
             nodes = self.worker_nodes[:]
             for filter_rule in filter_rules:
-                rule, args = list(filter_rule.items())[0]
+                rule, args = next(iter(filter_rule.items()))
                 mark_func, keep = filter_types[rule]
                 nodes = mark_func(nodes, args)
                 nodes = list(keep(nodes, rule))

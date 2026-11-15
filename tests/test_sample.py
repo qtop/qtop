@@ -599,3 +599,22 @@ def test_beta1_parent_references_anonymize_and_replay(tmp_path, parent_present, 
     with tarfile.open(str(archive), "w") as saved:
         sample.add_json(saved, sample.SNAPSHOT_NAME, {"format_version": 1, "scheduler": "slurm", "state": masked, "config": {}, "options": {}})
     assert sample.load_snapshot(str(archive))["state"] == masked
+
+
+@pytest.mark.parametrize(
+    "scheduler, key, text",
+    [
+        pytest.param("slurm", "scontrol_file", "field" * 5000, id="slurm-missing-equals"),
+        pytest.param("pbs", "pbsnodes_file", "node1\n     jobs = " + "1" * 20000, id="pbs-missing-core-job-separator"),
+        pytest.param("oar", "oarnodes_s_file", "node1: " + " " * 20000 + "Alive extra", id="oar-extra-value"),
+    ],
+)
+def test_masked_traces_reject_long_malformed_fields(scheduler, key, text):
+    from qtop_py.plugins.oar import OARBatchSystem
+    from qtop_py.plugins.pbs import PBSBatchSystem
+    from qtop_py.plugins.slurm import SlurmBatchSystem
+    from qtop_py.source_trace import TraceMasker
+
+    backend = {"oar": OARBatchSystem, "pbs": PBSBatchSystem, "slurm": SlurmBatchSystem}[scheduler]({}, {}, SimpleNamespace(ANONYMIZE=False))
+    with pytest.raises(ValueError):
+        backend.mask_source_trace(key, text, TraceMasker({}))
