@@ -379,7 +379,7 @@ def test_re_node(domain_name, match):
     try:
         assert m.group(0) == match
     except AttributeError:
-        assert False
+        pytest.fail("node name did not match")
 
 
 @pytest.mark.parametrize(
@@ -425,11 +425,7 @@ def test_create_user_job_counts_raises_jobnotfound():  # user_names, job_states,
     snapshot = Snapshot()
     wns_occupancy = WNOccupancy(None, None, snapshot, None, None)
     with pytest.raises(JobNotFound):
-        wns_occupancy._create_user_job_counts(user_names, job_states, state_abbrevs) == {
-            "cancelled_of_user": {"sotiris": 0, "yannis": 0, "petros": 1},
-            "exiting_of_user": {"sotiris": 0, "kostas": 1, "yannis": 0},
-            "running_of_user": {"sotiris": 1, "yannis": 1},
-        }
+        wns_occupancy._create_user_job_counts(user_names, job_states, state_abbrevs)
 
 
 @pytest.mark.parametrize("switches, shown", (([], True), (["-4"], False), (["--noaccounttotals"], False), (["--accounttotals"], True)))
@@ -923,7 +919,7 @@ def test_get_selected_batch_system_raises_scheduler_not_specified(
             schedulers,
             available_batch_systems,
             config,
-        ) == returned_scheduler
+        )
 
 
 @pytest.mark.parametrize(
@@ -949,7 +945,7 @@ def test_get_selected_batch_system_raises_no_scheduler_found(
             schedulers,
             available_batch_systems,
             config,
-        ) == returned_scheduler
+        )
 
 
 @pytest.mark.parametrize(
@@ -1110,7 +1106,7 @@ def test_output_size_rejects_empty_file_when_dimensions_are_missing(tmp_path, wi
         get_output_size(width, str(output), height)
 
 
-@pytest.mark.parametrize("verbose, expected", [(None, logging.WARN), (0, logging.WARN), (-1, logging.WARN), (1, logging.INFO), (2, logging.DEBUG), (3, logging.DEBUG)])
+@pytest.mark.parametrize("verbose, expected", [(None, logging.WARNING), (0, logging.WARNING), (-1, logging.WARNING), (1, logging.INFO), (2, logging.DEBUG), (3, logging.DEBUG)])
 def test_init_logging_sets_file_level(tmp_path, monkeypatch, verbose, expected):
     monkeypatch.setattr(qtop_utils, "QTOP_LOGFILE", str(tmp_path / "qtop.log"))
     logger = logging.getLogger()

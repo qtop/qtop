@@ -11,6 +11,7 @@ Notable changes by version, newest first. See the
 
 ## 0.9.20261115
 
+- CI: enforce stable Ruff correctness and security checks through Bugbear
 - Release: update version metadata to 0.9.20261115
 
 ## 0.9.20261114

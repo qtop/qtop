@@ -49,7 +49,7 @@ def test_detect_indentation_level(fin, t):
 )
 def test_get_more_lines(fin, t):
     get_lines = get_line(fin)
-    for idx, line in enumerate(fin):
+    for idx, _line in enumerate(fin):
         actual_t = next(get_lines)
         assert actual_t == t[idx]
 

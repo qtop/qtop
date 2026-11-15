@@ -691,7 +691,7 @@ class Cluster(object):
     def do_name_remapping(self, workernode_dict: Dict[Any, Dict[str, Any]]) -> Dict[Any, Dict[str, Any]]:
         """Renames hostnames according to user remapping in conf file (for the wn id label lines)."""
         label_max_len = int(self.config["workernodes_matrix"][0]["wn id lines"]["max_len"])
-        for _, state_corejob_dn in workernode_dict.items():
+        for state_corejob_dn in workernode_dict.values():
             _host = state_corejob_dn["domainname"].split(".", 1)[0]
             changed = False
             for remap_line in self.config["remapping"]:
@@ -875,7 +875,7 @@ class WNFilter(object):
                 nodes = mark_func(nodes, args)
                 nodes = list(keep(nodes, rule))
             nodes = list(keep(nodes, rule, final_pass=True))
-            if len(nodes):
+            if nodes:
                 self.worker_nodes = list(dict((v["domainname"], v) for v in nodes).values())
                 offdown_nodes = sum([1 if "".join(([n.str for n in node["state"]])) in "do" else 0 for node in self.worker_nodes])
                 avail_nodes = self.available_wn = sum([len(node["state"]) for node in self.worker_nodes if str(node["state"][0]) == "-"])

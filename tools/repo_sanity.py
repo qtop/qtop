@@ -120,9 +120,9 @@ def tracked_files(root):
     try:
         out = subprocess.check_output(["git", "ls-files", "-z"], cwd=str(root), stderr=subprocess.DEVNULL)
     except OSError as exc:
-        raise TrackedFileDiscoveryError("Git is required to enumerate tracked files: %s" % exc)
+        raise TrackedFileDiscoveryError("Git is required to enumerate tracked files: %s" % exc) from exc
     except subprocess.CalledProcessError as exc:
-        raise TrackedFileDiscoveryError("'git ls-files' failed in %s with exit status %s; run repo-sanity from a valid Git worktree" % (root, exc.returncode))
+        raise TrackedFileDiscoveryError("'git ls-files' failed in %s with exit status %s; run repo-sanity from a valid Git worktree" % (root, exc.returncode)) from exc
     names = [os.fsdecode(name) for name in out.split(b"\0") if name]
     return [root / n for n in names]
 
@@ -347,7 +347,7 @@ def selftest(report_dir):
         safe_path.parent.mkdir(parents=True, exist_ok=True)
         safe_path.write_text("\x1b[1;32mgreen\x1b[0;m\n", encoding="utf-8")
         scan_file(safe_path, safe_rel, findings)
-        counts, report = write_reports(findings, report_dir, len(plants) + 1)
+        _counts, report = write_reports(findings, report_dir, len(plants) + 1)
         print(report)
         hit = set(f[1] for f in findings if f[0] in ("CRITICAL", "WARNING"))
         missing = [name for name in sorted(plants) if name not in hit]

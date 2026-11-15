@@ -818,7 +818,7 @@ class TerminalResized(Exception):
 
 
 def _raise_resized(_signum: int, _frame: Any) -> None:
-    raise TerminalResized()
+    raise TerminalResized
 
 
 def wait_for_keypress_or_autorefresh(viewport: Viewport, config: Dict[str, Any], FALLBACK_TERMSIZE: Sequence[int], KEYPRESS_TIMEOUT: float = 1) -> str:

@@ -35,7 +35,7 @@ def merge_by_email(counts):
                 group[key] = target
         group[name] = group[email] = target
     totals, names = Counter(), {}
-    for (name, email), lines in counts.items():
+    for (name, _email), lines in counts.items():
         totals[group[name]] += lines
         names.setdefault(group[name], Counter())[name] += lines
     return Counter({names[gid].most_common(1)[0][0]: lines for gid, lines in totals.items()})

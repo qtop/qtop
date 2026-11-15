@@ -351,7 +351,7 @@ def test_schema_2_observations_replay_and_anonymize_without_original_identifiers
     state["jobs"][0].update(id="4242", qid="slurm:prod-west:4242")
     state["nodes"][0].update(domainname="secret-node", qid="slurm:prod-west:secret-node", core_job_map={0: "4242"})
     state["queues"][0].update(qid="slurm:prod-west:" + state["queues"][0]["name"], owner="secret-owner")  # extra fields may hold names
-    masked, mappings = sample.anonymize_state(state)
+    masked, _mappings = sample.anonymize_state(state)
     text = json.dumps(masked)
     assert not any(original in text for original in ("prod-west", "alice", "secret", "debug", "4242"))
     assert masked["schema_version"] == 2 and masked["source"]["backend"] == "slurm" and masked["jobs"][0]["kind"] == "job"

@@ -40,9 +40,9 @@ def test_optional_gpu_counts_cannot_hide_pbs_nodes_or_jobs(tmp_path, caplog, raw
         ("1,2-4,5-6,9", ["1", "2", "3", "4", "5", "6", "9"]),
     ),
 )
-def test_get_corejob_from_range(core_selections, result, job=None):
+def test_get_corejob_from_range(core_selections, result):
     result = iter(result)
-    for core, job in pbs.PBSBatchSystem.get_corejob_from_range(core_selections, job):
+    for core, _job in pbs.PBSBatchSystem.get_corejob_from_range(core_selections, None):
         assert core == next(result)
 
 
