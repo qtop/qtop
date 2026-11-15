@@ -25,7 +25,7 @@ scheduler: auto
 savepath: /tmp/qtop_results_$USER
 
 ## Maximum seconds per live scheduler command; must be positive and finite.
-scheduler_command_timeout: 30
+scheduler_command_timeout: 120
 
 ## Experimental web interface (-B -e). IPv4 address or hostname; no authentication/TLS.
 ## Loopback is the default; exposing it on a network is an explicit operator choice.

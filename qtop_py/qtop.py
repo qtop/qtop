@@ -409,7 +409,7 @@ def auto_get_avail_batch_system(config: Dict[str, Any], backends: Mapping[str, A
     raise SchedulerNotSpecified
 
 
-def execute_shell_batch_commands(batch_system_commands: Mapping[str, str], filenames: Dict[str, str], _file: str, _savepath: str, timeout: float = 30) -> str:
+def execute_shell_batch_commands(batch_system_commands: Mapping[str, str], filenames: Dict[str, str], _file: str, _savepath: str, timeout: float = 120) -> str:
     """Run the scheduler commands from QTOPCONF_YAML, saving each output atomically to its trace file."""
     _batch_system_command = batch_system_commands[_file].strip()
     destination = os.path.abspath(filenames[_file])
@@ -494,7 +494,7 @@ def get_detail_of_name(account_jobs_table: Sequence[Sequence[Any]], config: Dict
         user_details_command = shlex.split(command)
         if not args.GET_GECOS:
             user_details_command[-1] = os.path.expandvars(user_details_command[-1])
-        timeout = float(config.get("scheduler_command_timeout", 30))
+        timeout = float(config.get("scheduler_command_timeout", 120))
         if not isfinite(timeout) or timeout <= 0:
             raise ValueError("scheduler_command_timeout must be positive and finite")
         p = subprocess.Popen(user_details_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=(os.name == "posix"), env=scheduler_env())

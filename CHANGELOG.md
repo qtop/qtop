@@ -5,6 +5,7 @@ Notable changes by version, newest first. See the
 
 ## 0.9.20261116
 
+- Bugfix: increase scheduler command timeout defaults to 120 seconds
 - CI: increase Atheris verification timeouts to 120 seconds
 - Release: update version metadata to 0.9.20261116
 

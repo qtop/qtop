@@ -162,7 +162,7 @@ def collection_settings(config: Mapping[str, Any]) -> CollectionSettings:
     """Validate the collection boundary while retaining extension configuration."""
     SAVEPATH = config["savepath"]
     _text(SAVEPATH, "savepath")
-    TIMEOUT = config.get("scheduler_command_timeout", 30)
+    TIMEOUT = config.get("scheduler_command_timeout", 120)
     try:
         _require(not isinstance(TIMEOUT, bool) and isfinite(float(TIMEOUT)) and float(TIMEOUT) > 0, "scheduler_command_timeout", "positive finite seconds")
         return CollectionSettings(cast(str, SAVEPATH), float(TIMEOUT))

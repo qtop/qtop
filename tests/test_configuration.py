@@ -299,3 +299,7 @@ def test_collection_settings_normalize_validated_values(timeout):
 def test_collection_settings_reject_invalid_timeout_before_commands(timeout):
     with pytest.raises(ValueError, match="scheduler_command_timeout"):
         configuration.collection_settings({"savepath": "/tmp", "scheduler_command_timeout": timeout})
+
+
+def test_collection_settings_default_timeout_allows_slow_clients():
+    assert configuration.collection_settings({"savepath": "/tmp"}).TIMEOUT == 120

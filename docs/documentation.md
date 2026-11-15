@@ -1195,8 +1195,8 @@ truncation. Owned directories under `~/.local/qtop` are restored to `0700` even
 when their existing modes prevent reading or traversing them.
 Symlinks, hard links, special files and foreign-owned logs are refused.
 
-Live scheduler commands have a 30-second timeout. Set `scheduler_command_timeout`
-in your configuration or use `-o scheduler_command_timeout=120` for slow clients.
+Live scheduler commands have a 120-second timeout. Set `scheduler_command_timeout`
+in your configuration or use `-o scheduler_command_timeout=240` for slower clients.
 The value must be positive and finite. Timeouts terminate the client (and its
 process group on POSIX), discard partial output and preserve the previous trace.
 Required command failures exit with a diagnostic; optional-detail fallbacks remain
