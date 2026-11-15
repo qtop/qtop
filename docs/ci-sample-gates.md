@@ -8,9 +8,9 @@ make ci
 ```
 
 That target runs unit tests, the fast committed scheduler sample gate, and the
-fortification checks. The PR-triggered GitHub `build-qtop` workflow and GitLab
-CI call the same target so the meaning of a failure is the same on both
-platforms.
+fortification checks. The primary GitHub `build-qtop` and GitLab PR lanes use
+`make pre-pr coverage-xml`, sharing this contract and running the full suite
+once under coverage. The additional modern interpreter uses `make ci`.
 
 For the complete local pre-PR gate, install the pinned dependencies with
 `make ci-deps` in a Linux x86-64 CPython 3.12 virtual environment, then run
@@ -27,10 +27,9 @@ hosted runners to `ubuntu-24.04`, and set `permissions: contents: read`,
 because the jobs only need repository read access plus artifact upload.
 
 `.github/workflows/build.yml` carries the PR-facing modern Python, AlmaLinux 8,
-and build lanes. `.github/workflows/pytest.yml` stays as a manual
-`workflow_dispatch` validation check and calls the same `make github-ci` path,
-so the historical workflow remains available without carrying separate pytest
-logic.
+and build lanes, plus manual `workflow_dispatch`. Coverage, type checks and
+fuzzing share the primary Python job; separate pytest/coverage workflows are
+unnecessary.
 
 Python packages installed by CI, including transitive helper packages and ruff,
 are pinned in `requirements-ci.txt`; both GitHub Actions and GitLab CI install
@@ -243,7 +242,6 @@ CI checkout it checks the committed branch changes. It rejects:
 
 - control, bidi, or non-ASCII characters added in the diff
 - generated-looking or binary-looking changed paths
-- any Python `eval()` call site in the source tree
 
 Character failures report every affected `file:line:column`, the first offending
 Unicode code point on that line, and escaped source text. Escaping prevents
@@ -251,12 +249,13 @@ control and bidi characters from affecting the diagnostic display.
 
 The generated/binary path check is deliberately conservative because
 `CONTRIBUTING.md` asks contributors not to store heavy artifacts in `qtop`.
-`make fortifications` keeps the source and diff health checks available without
-installing Python packages. `make lint` also runs the repository's ruff checks
-after `make ci-deps` has installed pinned CI dependencies, and
-`make format-check` runs both `ruff format --check .` and
-`ruff format --check --diff .` before checking whitespace against the same
-merge base, including staged and unstaged tracked edits.
+`make fortifications` keeps the unique diff checks available without
+installing Python packages. Its implementation lives in `repo_sanity.py`.
+`make lint` also audits tracked text and runs Ruff after `make ci-deps`.
+Ruff owns syntax, eval/exec, shell-execution and wildcard-import checks; a
+small unsuppressible F403/S307 pass preserves the old AST policy even with
+`noqa`. `make format-check` runs `ruff format --check --diff .` once before
+checking whitespace against the same merge base, including pending tracked edits.
 
 ## Coverage roadmap
 

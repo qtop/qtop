@@ -30,7 +30,7 @@ The [CI contract](ci-structure.md#the-makefile-contract) identifies the jobs and
 - [x] Document non-cryptographic randomness and masking scope
   ([details](#6-randomness)); this is a source review, not a cryptographic CI proof.
 - [x] [CI] Enforce diff/source fortifications in shared CI and tracked-text
-  critical findings in the GitLab repo-sanity job
+  critical findings in both primary PR lanes
   ([details](#7-source-text-and-terminal-data)).
 - [x] [CI] Run lint/format, type checks, coverage-floor, fixture and fuzz gates
   in their configured jobs ([validation](#validation-and-dependency-maintenance)).
@@ -185,9 +185,11 @@ design; changing the PRNG alone would not provide anonymity.
 ### 7. Source text and terminal data
 
 Related PySCG guidance includes `pyscg-0043/0044/0045`.
-[fortifications.py](../tools/fortifications.py) checks added diff lines for
-non-ASCII/control characters, rejects `eval()` and disallows production/tooling
-wildcard imports. Generated/binary-looking paths require manual review.
+`make fortifications`, implemented in
+[repo_sanity.py](../tools/repo_sanity.py), checks added diff lines for
+non-ASCII/control characters. Generated/binary-looking paths require review.
+Ruff rejects `eval()` and wildcard imports, including explicit `noqa` attempts
+in the unsuppressible F403/S307 pass.
 It does not enforce every rule in `AGENTS.md`.
 
 [repo_sanity.py](../tools/repo_sanity.py) audits Git-tracked UTF-8 text up to

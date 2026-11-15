@@ -11,6 +11,7 @@
 name: build-qtop
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - main
@@ -32,8 +33,11 @@ jobs:
       matrix:
         include:
           - python-version: '3.12.3'
+            checks: 'pre-pr coverage-xml'
           - python-version: '3.15.2'
+            checks: ci
     env:
+      MAKE_CHECKS: ${{ matrix.checks }}
       FORTIFY_BASE_REF: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || 'origin/develop' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -44,7 +48,7 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - run: make ci-deps PYTHON=python
-      - run: make github-ci PYTHON=python
+      - run: make $MAKE_CHECKS PYTHON=python
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
@@ -52,6 +56,9 @@ jobs:
           path: |
             artifacts/sample-gate/
             artifacts/tests/
+            artifacts/coverage/
+            artifacts/fuzz/
+            artifacts/repo-sanity/
 
   # No git in the AlmaLinux jobs: it pulled in 55 packages, and checkout falls back to a REST download.
   almalinux-python36:
@@ -89,25 +96,6 @@ jobs:
       - name: Trust the mounted checkout for container Git commands
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
       - run: make schema-ci
-
-  type-check:
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
-        with:
-          python-version: '3.12.3'
-      - run: make ci-deps PYTHON=python
-      - run: make type-check PYTHON=python
-      - name: Coverage-guided parser fuzzing
-        run: make coverage-fuzz PYTHON=python
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        if: always()
-        with:
-          name: fuzz-corpus-and-failures
-          path: artifacts/fuzz/
 
   # Starts at once, beside the test jobs: release.yml builds releases, so waiting here only delayed the install check.
   build:

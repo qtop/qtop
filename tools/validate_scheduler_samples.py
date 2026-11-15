@@ -595,55 +595,30 @@ def run_case_with_home(case, artifact_dir, timeout, qtop_home):
             timeout=timeout,
         )
     except subprocess.TimeoutExpired as exc:
-        stdout = output_text(exc.stdout)
-        stderr = output_text(exc.stderr)
-        ansi_evidence = analyse_ansi_evidence(stdout, expectations)
-        safe_command = write_case_artifacts(case_dir, qtop_home, command, stdout, stderr, ansi_evidence)
-        result = {
-            "name": case["name"],
-            "scheduler": case["scheduler"],
-            "source": display_path(case["source"]),
-            "command": safe_command,
-            "returncode": None,
-            "artifact": display_path(case_dir),
-            "screenshot": display_path(case_dir / "screenshot.svg"),
-            "ok": False,
-            "missing_markers": [],
-            "ansi_evidence": ansi_evidence,
-            "error": "timeout after %s seconds" % timeout,
-        }
-        write_case_summary(case_dir, result)
-        return result
+        stdout, stderr, returncode = output_text(exc.stdout), output_text(exc.stderr), None
+    else:
+        stdout, stderr, returncode = completed.stdout, completed.stderr, completed.returncode
 
-    ansi_evidence = analyse_ansi_evidence(completed.stdout, expectations)
-    safe_command = write_case_artifacts(
-        case_dir,
-        qtop_home,
-        command,
-        completed.stdout,
-        completed.stderr,
-        ansi_evidence,
-    )
-
+    ansi_evidence = analyse_ansi_evidence(stdout, expectations)
+    safe_command = write_case_artifacts(case_dir, qtop_home, command, stdout, stderr, ansi_evidence)
     result = {
         "name": case["name"],
         "scheduler": case["scheduler"],
         "source": display_path(case["source"]),
         "command": safe_command,
-        "returncode": completed.returncode,
+        "returncode": returncode,
         "artifact": display_path(case_dir),
         "screenshot": display_path(case_dir / "screenshot.svg"),
         "ok": False,
         "missing_markers": [],
         "ansi_evidence": ansi_evidence,
     }
-
-    if completed.returncode != 0:
-        result["error"] = "qtop exited non-zero"
+    if returncode != 0:
+        result["error"] = "timeout after %s seconds" % timeout if returncode is None else "qtop exited non-zero"
         write_case_summary(case_dir, result)
         return result
 
-    normalized = normalize_output(completed.stdout)
+    normalized = normalize_output(stdout)
     missing = [marker for marker in case["markers"] if marker not in normalized]
     result["missing_markers"] = missing
     result["ok"] = not missing and ansi_evidence["ok"]

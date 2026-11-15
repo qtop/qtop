@@ -39,3 +39,28 @@ def test_document_targets_do_not_suppress_unexpected_failures(monkeypatch, selec
     monkeypatch.setattr(atheris_fuzz, "exercise_document", broken)
     with pytest.raises(RuntimeError, match="unexpected parser failure"):
         atheris_fuzz.fuzz_one_input(bytes([selector]) + b"payload")
+
+
+def test_seed_corpus_preserves_discovered_and_modified_inputs(tmp_path):
+    (tmp_path / "discovered").write_bytes(b"crash regression")
+    (tmp_path / "yaml").write_bytes(b"modified seed")
+    atheris_fuzz.seed_corpus(tmp_path)
+    assert (tmp_path / "discovered").read_bytes() == b"crash regression"
+    assert (tmp_path / "yaml").read_bytes() == b"modified seed"
+    assert (tmp_path / "pbs").read_bytes() == b'\x05{"Jobs":{}}'
+
+
+def test_atheris_replays_an_existing_input_without_seeding_it(tmp_path):
+    sample = tmp_path / "replay"
+    sample.write_bytes(b"\x05{}")
+    result = subprocess.run(
+        [sys.executable, "-m", "tools.atheris_fuzz", str(sample)],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        universal_newlines=True,
+        timeout=30,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "Running:" in result.stderr
+    assert sample.read_bytes() == b"\x05{}"
+    assert list(tmp_path.iterdir()) == [sample]

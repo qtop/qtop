@@ -5,6 +5,7 @@ Notable changes by version, newest first. See the
 
 ## 0.9.20261115
 
+- CI: consolidate verification entry points and PR gates
 - Docs: refresh extension guidance and reconcile implementation checklists
 - Bugfix: reject PBS allocations with unrecognized prefixes
 - CI: enforce Ruff builtin naming, context management and exception checks

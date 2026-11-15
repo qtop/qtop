@@ -235,10 +235,10 @@ chosen release revision.
 - [x] [CI] coverage.py terminal reporting and Cobertura XML through
   `make coverage` and `make coverage-xml`.
 - [x] [CI] Diff/source fortifications: generated-file review warnings, added-text
-  checks and AST checks rejecting `eval()` and wildcard imports
-  ([tools/fortifications.py](tools/fortifications.py)).
+  checks in [repo_sanity.py](tools/repo_sanity.py), with unsuppressible Ruff
+  rules rejecting `eval()` and wildcard imports.
 - [x] [CI] Tracked-text UTF-8, bidi, invisible-character and confusable-character
-  audits with report artifacts through `make repo-sanity` (GitLab security job;
+  audits with report artifacts through `make repo-sanity` (both primary PR lanes;
   critical findings fail, warnings require `--strict`).
 - [x] [CI] Seeded parser stress checks through `make deterministic-fuzz`.
 - [x] [CI] Committed PBS, SGE, Slurm, OAR and demo fixture gates through
@@ -259,12 +259,10 @@ chosen release revision.
 #### GitHub Actions
 
 - [x] Branch/PR validation across configured modern Python versions,
-  a separate AlmaLinux 8 / Python 3.6 gate and a type/fuzz job; package builds
-  depend on these checks ([build.yml](.github/workflows/build.yml)).
-- [x] Manual shared pytest/CI workflow
-  ([pytest.yml](.github/workflows/pytest.yml)).
-- [x] Coverage workflow retaining Cobertura XML artifacts
-  ([coverage.yml](.github/workflows/coverage.yml)).
+  a separate AlmaLinux 8 / Python 3.6 gate, and integrated type/fuzz/coverage
+  checks; package artifacts are validated independently ([build.yml](.github/workflows/build.yml)).
+- [x] Manual shared CI dispatch and Cobertura artifacts in the primary workflow
+  ([build.yml](.github/workflows/build.yml)).
 - [x] Scheduled/manual distro and interpreter matrix with separate
   experimental lanes and retained validation artifacts
   ([nightly-matrix.yml](.github/workflows/nightly-matrix.yml)).
@@ -280,7 +278,7 @@ chosen release revision.
 
 #### GitLab CI
 
-- [x] Modular test, build, security, coverage, nightly-matrix and Scorecard
+- [x] Modular test/coverage, build, security, nightly-matrix and Scorecard
   configuration with duplicate-push-pipeline suppression
   ([.gitlab-ci.yml](.gitlab-ci.yml)).
 - [x] Modern-Python validation and AlmaLinux 8 / Python 3.6 compatibility
@@ -288,7 +286,7 @@ chosen release revision.
 - [x] Source/wheel builds after validation, with retained distribution
   artifacts ([build configuration](ci/build.gitlab-ci.yml)).
 - [x] Cobertura coverage reports for merge-request presentation
-  ([coverage configuration](ci/coverage.gitlab-ci.yml)).
+  ([test/coverage configuration](ci/test.gitlab-ci.yml)).
 - [x] SAST, IaC SAST and Secret Detection template integration
   ([security configuration](ci/security.gitlab-ci.yml)).
 - [x] Dependency Scanning v2 template integration targeting

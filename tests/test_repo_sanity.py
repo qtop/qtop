@@ -67,7 +67,7 @@ def test_reports_use_neutral_repository_label(tmp_path):
 
 
 def test_main_reports_missing_git_without_traceback(monkeypatch, tmp_path, capsys):
-    args = argparse.Namespace(report_dir=str(tmp_path / "report"), strict=False, selftest=False)
+    args = argparse.Namespace(base_ref=None, report_dir=str(tmp_path / "report"), strict=False, selftest=False)
     monkeypatch.setattr(repo_sanity, "parse_args", lambda: args)
 
     def fail(*args, **kwargs):
@@ -77,3 +77,54 @@ def test_main_reports_missing_git_without_traceback(monkeypatch, tmp_path, capsy
 
     assert repo_sanity.main() == 2
     assert capsys.readouterr().err == "repo-sanity error: Git is required to enumerate tracked files: git executable not found\n"
+
+
+@pytest.mark.parametrize(
+    "codepoint",
+    [
+        0x08,
+        0x0B,
+        0x0C,
+        0x1B,
+        0x1C,
+        0x1D,
+        0x1E,
+        0x7F,
+        0x80,
+        0x85,
+        0x9F,
+        0xAD,
+        0x34F,
+        0x61C,
+        0x180E,
+        *range(0x200B, 0x2010),
+        *range(0x2028, 0x202F),
+        0x2060,
+        *range(0x2066, 0x206A),
+        0xFEFF,
+    ],
+    ids=lambda codepoint: "U+%04X" % codepoint,
+)
+def test_hidden_controls_cannot_disappear_during_line_splitting(tmp_path, codepoint):
+    path = tmp_path / "source.py"
+    path.write_bytes(("visible" + chr(codepoint) + "hidden\n").encode("utf-8"))
+    findings = []
+    repo_sanity.scan_file(path, "source.py", findings)
+    assert any(row[0] == "CRITICAL" and "U+%04X" % codepoint in row[4] for row in findings)
+
+
+@pytest.mark.parametrize(
+    "text,severity",
+    [("p\u0430ssword", "WARNING"), ("p\u03b1ssword", "WARNING"), ("p\uff41ssword", "WARNING"), ("\ufeffsafe", "WARNING"), ("plain ASCII\r\n", "INFO"), ("bad\ufffd", "INFO")],
+    ids=["cyrillic", "greek", "fullwidth", "leading-bom", "crlf", "replacement"],
+)
+def test_text_policy_keeps_confusables_and_encoding_distinct(tmp_path, text, severity):
+    path = tmp_path / "source.py"
+    path.write_bytes(text.encode("utf-8"))
+    findings = []
+    repo_sanity.scan_file(path, "source.py", findings)
+    assert findings and findings[0][0] == severity
+
+
+def test_terminal_fixture_exceptions_reject_planted_attacks(tmp_path):
+    assert repo_sanity.selftest(tmp_path / "proof") == 0
