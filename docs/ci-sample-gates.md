@@ -267,11 +267,13 @@ make coverage
 ```
 
 That target runs `coverage.py` through the same `PYTHON` override used by the
-other targets and fails below the TOTAL coverage floor set by `COVERAGE_MIN`.
-`make coverage-xml` enforces the same floor before emitting its CI report.
-Coverage scope is unchanged; no source files or lines are excluded to meet the
-floor. Direct runtime tests exercise scheduler collection, terminal rendering,
-watch controls, and anonymized archive replay in the measured process.
+other targets. It independently enforces runtime statement coverage through
+`COVERAGE_MIN` (95%) and branch coverage through `COVERAGE_BRANCH_MIN` (91%).
+Developer-tool coverage is printed separately without diluting those floors.
+`make coverage-xml` enforces both floors before emitting runtime Cobertura.
+Coverage.py's combined TOTAL is not the gate; no runtime files or lines are
+excluded to meet the floors. Direct runtime tests exercise scheduler collection,
+terminal rendering, watch controls, and anonymized archive replay in the measured process.
 
 Both coverage workflows run `make coverage-xml` and publish its Cobertura
 report. The AlmaLinux 8 / Python 3.6 lane stays dependency-light and continues

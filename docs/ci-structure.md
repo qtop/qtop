@@ -85,6 +85,23 @@ Before it can replace `almalinux-python36`:
   digest bump after each rebuild, for example as a bot pull request;
 - give GitLab the same job (`ci/test.gitlab-ci.yml`), as both platforms run the same checks.
 
+## Release preparation
+
+On a branch whose first eight characters are a valid next-release date
+(`YYYYMMDD`), preview changes before writing them:
+
+```sh
+python -m tools.prepare_release
+python -m tools.prepare_release --write
+```
+
+`--version` overrides the derived `0.9.YYYYMMDD`. The version must advance;
+existing tags and dirty release-file overwrites are rejected. The helper
+synchronizes package metadata, the manpage, changelog and EasyBuild recipe.
+`tests/test_prepare_release.py` covers preview/history preservation and invalid
+inputs. Preparation neither commits nor tags nor publishes; exact artifact
+validation and independent release approval remain separate requirements.
+
 ## Nightly compatibility lanes
 
 Both nightly matrices use `ci/scripts/matrix_lane.sh` and the shared CI pins.

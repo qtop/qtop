@@ -78,21 +78,23 @@ structure](ci-structure.md) for legacy contracts, coverage and soak tests.
 
 ## When tests run and how many
 
-For the pinned Linux x86-64 Python 3.12 environment at 0.9.20261113:
+For the pinned Linux x86-64 Python 3.12 environment at revision `1134990`
+(0.9.20261115), with the full-run reports and collection checks reviewed on
+2026-11-14:
 
 | Target | Pytest cases per invocation | Coverage enforced |
 |---|---:|---|
-| `test-fast` | 638 parser/model/UI cases | No |
-| `test` or `ci` | 1,504: 1,500 parallel, then 4 web cases serially | No |
-| `coverage`, `coverage-xml` or `pre-pr` | Same 1,504 cases, once | 95% statements, 91% branches |
+| `test-fast` | 664 parser/model/UI cases | No |
+| `test` or `ci` | 1,569: 1,565 parallel, then 4 web cases serially | No |
+| `coverage`, `coverage-xml` or `pre-pr` | Same 1,569 cases, once | 95% statements, 91% branches |
 | `property-test` | 23 cases, already included in the full suite | No |
 | `nightly-properties` | Same 23 cases with the extended profile | No |
 
 Counts describe this revision and installed optional tooling, not fixed quotas.
 The observed pytest 9.2 JUnit summary counter also includes 29 unittest
-subtests: `main.xml` says 1,529 tests but serializes 1,500 `<testcase>` elements;
-`web.xml` adds four. The pytest total is therefore 1,504 cases, while the JUnit
-summary counters add up to 1,533 outcomes. Do not treat those as extra collected
+subtests: `main.xml` reports 1,594 tests and contains 1,565 `<testcase>`
+elements; `web.xml` adds four. The pytest total is therefore 1,569 cases, while the JUnit
+summary counters add up to 1,598 outcomes. Do not treat those as extra collected
 pytest cases.
 
 Hypothesis uses up to 100 examples for each generated property normally and
@@ -113,8 +115,9 @@ GitHub runs the full suite in both modern-Python build lanes on PRs targeting
 coverage workflow reruns the full Python 3.12 suite on those PRs and pushes to
 `main`/`develop`, or manual dispatch. Thus an ordinary PR has two Python 3.12
 suite runs (plain and coverage) and one Python 3.15 run. Optional Atheris is
-not installed on 3.15, so that lane currently passes 1,491 cases and skips one
-module. Python 3.10 passes 1,468 cases and skips two optional-tooling modules.
+not installed on 3.15. Historical 0.9.20261113 measurements were 1,491 cases
+with one skipped module on 3.15 and 1,468 cases with two skipped optional
+modules on 3.10. Those historical counts are not current-revision results.
 
 Publishing a GitHub release runs one full Python 3.12 suite through
 `github-ci`, followed by artifact build/install checks. The manual pytest

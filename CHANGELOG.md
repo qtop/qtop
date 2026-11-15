@@ -5,6 +5,8 @@ Notable changes by version, newest first. See the
 
 ## 0.9.20261115
 
+- Docs: refresh extension guidance and reconcile implementation checklists
+- Bugfix: reject PBS allocations with unrecognized prefixes
 - CI: enforce Ruff builtin naming, context management and exception checks
 - CI: enforce stable Ruff correctness and security checks through Bugbear
 - Bugfix: harden scheduler trace paths and simplify reported code patterns
