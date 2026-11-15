@@ -51,8 +51,8 @@ help:: ## Show this help
 	@grep -E '^[a-zA-Z0-9_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
 		| awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
 
-all:: ## Run every local validation and build target, in six batches
-all:: ci-deps pre-pr validation-suite compat-py36 ci-entrypoints packaging
+all:: ## Run full verification and packaging without repeating tests or samples
+all:: ci-deps pre-pr trace-export-validation test-pbs-samples compat-py36 packaging
 
 validation-suite:: ## Validate scheduler samples, rendered output and trace export
 validation-suite:: backend-validation backend-colour-artifacts render-backends trace-export-validation test-pbs-samples test-slurm-samples
@@ -136,11 +136,10 @@ deterministic-fuzz:: ## Reproducibly stress parser primitives with a fixed seed
 	$(PYTHON) -m tools.deterministic_fuzz --seed $(FUZZ_SEED) --cases $(FUZZ_CASES)
 
 coverage-fuzz:: ## Run bounded Atheris fuzzing (Linux CPython 3.12 CI dependencies)
-	$(PYTHON) -m tools.prepare_fuzz_corpus "$(FUZZ_ARTIFACT_DIR)/corpus"
-	$(PYTHON) -m tools.atheris_fuzz -runs=$(FUZZ_CASES) -seed=$(FUZZ_SEED) -max_total_time=30 -max_len=256 -timeout=10 -artifact_prefix="$(FUZZ_ARTIFACT_DIR)/" $(ATHERIS_ARGS) "$(FUZZ_ARTIFACT_DIR)/corpus"
+	$(PYTHON) -m tools.atheris_fuzz --seed-corpus -runs=$(FUZZ_CASES) -seed=$(FUZZ_SEED) -max_total_time=30 -max_len=256 -timeout=10 -artifact_prefix="$(FUZZ_ARTIFACT_DIR)/" $(ATHERIS_ARGS) "$(FUZZ_ARTIFACT_DIR)/corpus"
 
-fortifications:: ## Check diff health and reject eval() call sites
-	$(PYTHON) tools/fortifications.py --base-ref $(FORTIFY_BASE_REF)
+fortifications:: ## Check added diff text and generated/binary paths
+	$(PYTHON) tools/repo_sanity.py --base-ref "$(FORTIFY_BASE_REF)"
 
 repo-sanity:: ## Audit tracked UTF-8 text for bidi/invisible/confusable characters (qtop/qtop#488)
 	$(PYTHON) tools/repo_sanity.py --report-dir $(REPO_SANITY_DIR)
@@ -170,14 +169,14 @@ type-check:: type-contracts ## Check core contracts and production/tooling with 
 
 ruff-check:: ## Run ruff against the source tree
 	$(PYTHON) -m ruff check .
+	$(PYTHON) -m ruff check --select F403,S307 --ignore-noqa .
 
-lint:: ruff-check fortifications ci-matrix-check ## Run dependency-light source and diff health checks
+lint:: ruff-check fortifications repo-sanity ## Run dependency-light source and diff health checks
 
 lint-fix:: ## Auto-fix ruff lint issues where possible
 	$(PYTHON) -m ruff check --fix .
 
 format-check:: ## Check ruff formatting and branch diff whitespace
-	$(PYTHON) -m ruff format --check .
 	$(PYTHON) -m ruff format --check --diff .
 	git diff --check "$$(git merge-base "$(FORTIFY_BASE_REF)" HEAD)" --
 
@@ -213,10 +212,10 @@ compat-py36:: ## Run dependency-light Python 3.6 compatibility checks
 	$(PYTHON) -m unittest discover -s tests -p test_legacy_contracts.py
 	$(PYTHON) tools/validate_scheduler_samples.py --schedulers $(SAMPLE_GATE_SCHEDULERS) --max-failures $(SAMPLE_GATE_MAX_FAILURES) --artifact-dir $(SAMPLE_GATE_ARTIFACT_DIR)-py36
 
-ci:: test backend-validation deterministic-fuzz lint ruff-check format-check ## Run the shared local/CI validation path
+ci:: test backend-validation deterministic-fuzz lint format-check ## Run the shared local/CI validation path
 
 # Coverage runs the full pytest suite, including the Hypothesis properties.
-pre-pr:: coverage backend-validation deterministic-fuzz lint format-check type-check coverage-fuzz ## Run complete local PR gates (Linux x86-64, CPython 3.12)
+pre-pr:: lint format-check type-check coverage backend-validation deterministic-fuzz coverage-fuzz ## Run complete local PR gates (Linux x86-64, CPython 3.12)
 
 github-ci:: ci ## GitHub Actions entry point for test validation
 
@@ -258,7 +257,14 @@ schema-compat-test:: ## Test CUE schema compatibility tooling
 
 
 schema-ci:: schema-compat-test ## Test schema tooling and compare with the target branch contract
-	bash ci/scripts/schema_compat.sh "$(FORTIFY_BASE_REF)"
+	@set -eu; base=$$(git merge-base "$(FORTIFY_BASE_REF)" HEAD); \
+	if git cat-file -e "$$base:schema/cluster-state.cue" 2>/dev/null; then \
+		baseline=$$(mktemp); trap 'rm -f -- "$$baseline"' EXIT HUP INT TERM; \
+		git show "$$base:schema/cluster-state.cue" > "$$baseline"; \
+		$(MAKE) schema-compat BASE_SCHEMA="$$baseline" PROPOSED_SCHEMA=schema/cluster-state.cue; \
+	else \
+		echo "schema-compat: baseline $$base has no contract; validating first introduction through schema-compat-test"; \
+	fi
 
 
 soak:: ## Exercise real watch terminal, capture and refresh budgets (SOAK_ARGS for live clusters)
@@ -269,4 +275,4 @@ nightly-properties:: ## Run the extended 1,000-example Hypothesis profile
 	HYPOTHESIS_PROFILE=nightly $(MAKE) property-test
 
 ci-matrix-check:: ## Verify equivalent expanded nightly lanes on both providers
-	$(PYTHON) -m tools.check_ci_matrix
+	$(PYTHON) -m pytest tests/test_ci_matrix.py $(PYTEST_ARGS)

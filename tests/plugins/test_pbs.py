@@ -40,9 +40,9 @@ def test_optional_gpu_counts_cannot_hide_pbs_nodes_or_jobs(tmp_path, caplog, raw
         ("1,2-4,5-6,9", ["1", "2", "3", "4", "5", "6", "9"]),
     ),
 )
-def test_get_corejob_from_range(core_selections, result, job=None):
+def test_get_corejob_from_range(core_selections, result):
     result = iter(result)
-    for core, job in pbs.PBSBatchSystem.get_corejob_from_range(core_selections, job):
+    for core, _job in pbs.PBSBatchSystem.get_corejob_from_range(core_selections, None):
         assert core == next(result)
 
 
@@ -175,3 +175,15 @@ def test_nqs_headers_do_not_hijack_a_detected_pbs_table(tmp_path):
         {"JobId": "807140", "UnixAccount": "alice", "S": "R", "Queue": "gpu"},
         {"JobId": "808000", "UnixAccount": "bob", "S": "Q", "Queue": "gpu"},
     ]
+
+
+@pytest.mark.parametrize(
+    "rows",
+    [
+        pytest.param(["!/42"], id="malformed-first"),
+        pytest.param(["0/17.server", "!/42"], id="malformed-after-valid"),
+    ],
+)
+def test_invalid_core_job_prefix_is_rejected(rows):
+    with pytest.raises(ValueError, match="Invalid PBS allocation"):
+        list(pbs.PBSBatchSystem._get_jobs_cores(rows))

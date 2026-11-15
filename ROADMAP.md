@@ -8,7 +8,7 @@ actionable failures and documented compatibility.
 usable on common Linux HPC systems with limited internet access, no administrator
 privileges and minimal Python installations, including the widespread rhel8/py36 combination.
 
-Last reviewed: 2026-11-03
+Last reviewed: 2026-11-14 (source and documentation checklist audit)
 
 ## How to Read This Roadmap
 
@@ -59,7 +59,8 @@ or a release is prepared.
 - [ ] Document the supported environment matrix.
   - [x] Identify configured Linux/interpreter lanes in the [CI structure](docs/ci-structure.md) and linked matrix workflows; passing-run evidence remains release-specific.
   - [x] Distinguish runtime compatibility from developer-tool requirements in [README.md](README.md), [CONTRIBUTING.md](CONTRIBUTING.md) and CI dependency markers.
-  - [ ] State the scope of Windows support and portability checks.
+  - [x] State native Windows/WSL scope and POSIX-only test limits in
+    [local testing](docs/local-testing.md); no native Windows CI is claimed.
   - [ ] Track newer Python compatibility in [#546](https://github.com/qtop/qtop/issues/546).
 
 ### Scheduler Validation and Soak Testing
@@ -107,7 +108,9 @@ or a release is prepared.
   - [x] [CI] Run demo, CLI and committed scheduler samples from installations
     of the supplied wheel and a wheel rebuilt from the supplied sdist.
   - [x] [CI] Run `make legacy-install-check` in the required AlmaLinux 8 / Python 3.6 jobs.
-  - [ ] Make release preparation and dry-run checks reproducible.
+  - [x] Provide preview/write release preparation with dirty-file, version and
+    tag checks in `tools.prepare_release` and `tests/test_prepare_release.py`;
+    see [release preparation](docs/ci-structure.md#release-preparation).
 
 - [ ] Publish a current, consistent release.
   - [ ] Align the source version, Git tag, release notes and PyPI artifacts.
@@ -134,24 +137,37 @@ or a release is prepared.
 
 - [ ] Define the machine-readable output contract.
   - [x] Document current `-E` structure and scope in [the user guide](docs/documentation.md).
-  - [ ] Document fields, types, timestamps, units and missing-value semantics.
-  - [ ] Define schema-version and compatibility expectations.
+  - [x] Document current fields/types, identity and missing-value semantics in
+    the [schema guide](docs/cluster-state-model.md) and `state_types.py`.
+  - [x] Define schema-version, beta revision and replay compatibility contracts
+    with Python regressions and the shared Python/CUE fixture corpus.
+  - [ ] Define concrete timestamps and generic quantities/units when a backend
+    and consumer require them; current observations contain no usage history.
   - [x] [CI] Check scheduler exports and normalized-state round trips in `tests/test_runtime.py` and `tests/test_cluster_state.py`.
   - [ ] Open a separate proposal if live streaming has a demonstrated use case.
 
 - [ ] Separate parsing, normalized state and presentation incrementally.
   - [x] Extract normalized state, snapshot support and viewport helpers with focused interfaces ([architecture](docs/architecture.md)).
   - [x] Separate explicit MVU model/update, snapshot queries and terminal presentation; retain legacy adapters in the runtime.
-  - [ ] Retire remaining runtime globals and compatibility adapters when their callers migrate.
+  - [x] Remove runtime-global dependencies from the new MVU path; runtime tests
+    reject module-state mutation and accidental use of deprecated adapters.
+  - [ ] Retire public compatibility adapters and their global-context tests
+    together in 1.0, after their callers migrate.
   - [x] [CI] Run backend rendering and runtime/capture regressions through the shared test and sample gates.
-  - [ ] Keep extracted interfaces compatible with Python 3.6 while it is supported.
-  - [ ] Avoid making a broad internal rewrite a prerequisite for feature fixes.
+  - [x] [CI] Check extracted runtime/tooling syntax through `compat-py36`;
+    Python 3.6 compatibility remains a requirement for future changes.
+  - [x] Document incremental plugin/schema boundaries and retain the viewport
+    in the UI layer; see
+    [readiness](docs/architecture.md#extension-boundaries-and-readiness).
 
 - [ ] Expand scheduler regression coverage as bugs are resolved.
-  - [ ] Add a focused fixture for each reproducible parsing or accounting failure.
+  - [x] [CI] Reject malformed PBS allocation prefixes, including a malformed
+    row after a valid one, in `tests/plugins/test_pbs.py`.
+  - [ ] Add a focused fixture for each further parsing or accounting failure.
   - [ ] Use synthetic or explicitly approved anonymized snapshots.
   - [ ] Document fixture provenance and expected behavior.
-  - [ ] Keep routine validation fast and reproducible.
+  - [x] Provide `test-fast` and fresh Linux/WSL snapshots with retained reports;
+    [local testing](docs/local-testing.md) keeps the full gate distinct.
 
 ## Later: Conditional Expansion
 
@@ -159,8 +175,11 @@ Open items here are proposals, not 1.0 release requirements.
 
 - [x] Add repository-scoped [Security Insights](security-insights.yml) and
   [OpenSSF preparation/evidence guidance](docs/openssf-readiness.md).
-- [ ] Register and complete the Best Practices/OSPS assessment; add the actual
-  project badge after registration and verify external repository settings.
+- [ ] Complete Best Practices/OSPS assessments and verify external repository
+  settings against their evidence requirements.
+  - [x] Publish the Best Practices project 16179 reference and dynamic badge in
+    README; [readiness guidance](docs/openssf-readiness.md) separates
+    registration from assessment completion.
 - [ ] Add release SBOMs/provenance and evaluate Darnit, Minder or Gemara consumers
   when their evidence and permission requirements are defined.
 
@@ -170,6 +189,8 @@ Open items here are proposals, not 1.0 release requirements.
   - [ ] Include parser, accounting and terminal smoke checks.
 
 - [ ] Provide EasyBuild packaging.
+  - [x] Track a version-matched EasyBuild recipe under `docs/`, synchronized by
+    `tools.prepare_release`; site deployment is not certified by this file.
   - [ ] Requires a site use case and a maintainer able to validate deployment.
   - [ ] Verify configuration discovery and operation without administrator privileges.
 
@@ -214,10 +235,10 @@ chosen release revision.
 - [x] [CI] coverage.py terminal reporting and Cobertura XML through
   `make coverage` and `make coverage-xml`.
 - [x] [CI] Diff/source fortifications: generated-file review warnings, added-text
-  checks and AST checks rejecting `eval()` and wildcard imports
-  ([tools/fortifications.py](tools/fortifications.py)).
+  checks in [repo_sanity.py](tools/repo_sanity.py), with unsuppressible Ruff
+  rules rejecting `eval()` and wildcard imports.
 - [x] [CI] Tracked-text UTF-8, bidi, invisible-character and confusable-character
-  audits with report artifacts through `make repo-sanity` (GitLab security job;
+  audits with report artifacts through `make repo-sanity` (both primary PR lanes;
   critical findings fail, warnings require `--strict`).
 - [x] [CI] Seeded parser stress checks through `make deterministic-fuzz`.
 - [x] [CI] Committed PBS, SGE, Slurm, OAR and demo fixture gates through
@@ -238,12 +259,10 @@ chosen release revision.
 #### GitHub Actions
 
 - [x] Branch/PR validation across configured modern Python versions,
-  a separate AlmaLinux 8 / Python 3.6 gate and a type/fuzz job; package builds
-  depend on these checks ([build.yml](.github/workflows/build.yml)).
-- [x] Manual shared pytest/CI workflow
-  ([pytest.yml](.github/workflows/pytest.yml)).
-- [x] Coverage workflow retaining Cobertura XML artifacts
-  ([coverage.yml](.github/workflows/coverage.yml)).
+  a separate AlmaLinux 8 / Python 3.6 gate, and integrated type/fuzz/coverage
+  checks; package artifacts are validated independently ([build.yml](.github/workflows/build.yml)).
+- [x] Manual shared CI dispatch and Cobertura artifacts in the primary workflow
+  ([build.yml](.github/workflows/build.yml)).
 - [x] Scheduled/manual distro and interpreter matrix with separate
   experimental lanes and retained validation artifacts
   ([nightly-matrix.yml](.github/workflows/nightly-matrix.yml)).
@@ -259,7 +278,7 @@ chosen release revision.
 
 #### GitLab CI
 
-- [x] Modular test, build, security, coverage, nightly-matrix and Scorecard
+- [x] Modular test/coverage, build, security, nightly-matrix and Scorecard
   configuration with duplicate-push-pipeline suppression
   ([.gitlab-ci.yml](.gitlab-ci.yml)).
 - [x] Modern-Python validation and AlmaLinux 8 / Python 3.6 compatibility
@@ -267,7 +286,7 @@ chosen release revision.
 - [x] Source/wheel builds after validation, with retained distribution
   artifacts ([build configuration](ci/build.gitlab-ci.yml)).
 - [x] Cobertura coverage reports for merge-request presentation
-  ([coverage configuration](ci/coverage.gitlab-ci.yml)).
+  ([test/coverage configuration](ci/test.gitlab-ci.yml)).
 - [x] SAST, IaC SAST and Secret Detection template integration
   ([security configuration](ci/security.gitlab-ci.yml)).
 - [x] Dependency Scanning v2 template integration targeting

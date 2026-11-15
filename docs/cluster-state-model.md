@@ -220,14 +220,14 @@ contract alone establishes neither an adapter nor operational NVL72 support.
 
 Open decisions, left to issue #593 on purpose:
 
-- Extending version 2 in place or introducing version 3 for new collections,
-  and whether an `extensions` namespace should open the top level to
-  experimental relations.
+- The shape and version/revision of future collections, including whether a
+  future branch admits an `extensions` namespace. Schema 1/2 and schema 3
+  beta1 remain closed to new top-level collections; preserve their meanings.
 - Whether `kind` stays a closed list (`JOB_KINDS`) or allows namespaced kinds.
-- Serialized containment (`parent_qid`) and relation shapes, the extensible
-  topology vocabulary, canonical units and conversion rules, and prediction
-  provenance and freshness fields. The distinctions above constrain these
-  decisions without prescribing runtime structures.
+- Resource containment and other relation shapes, topology vocabulary,
+  canonical units and conversions, and prediction provenance/freshness.
+  Workload `parent_qid` is already defined by schema 3 beta1 below; it does
+  not represent controller ownership, resource containment or delegation.
 
 ## Experimental schema 3 beta1
 
@@ -239,6 +239,20 @@ Schemas 1 and 2 reject this reserved field. Anonymization rebuilds the reference
 using the job-ID mapping and masked cluster ID, including for absent parents.
 No backend emits beta1 automatically; legacy maps still drive rendering.
 Future betas may require migration; unsupported revisions and collections fail.
+
+## Legacy view projection
+
+The current validator requires integer CPU capacity (`np`), `core_job_map`
+and legacy job/node/domain fields. Adding `pod`, `vm` or `task` as a job kind
+does not itself implement a backend or general resource accounting. Current
+built-in plugins still emit schema 1; schema-2 production needs an agreed
+cluster identity configuration.
+
+A backend reporting quantities or unknown placement needs an explicit display
+projection/capability contract before using the CPU grid. Preserve requests,
+limits and allocations separately, and show unavailable detail without
+inventing core assignments or treating missing data as measured zero.
+The generic quantity and projection contracts remain future work.
 
 ## Deferred on purpose
 

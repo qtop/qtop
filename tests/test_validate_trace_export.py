@@ -124,3 +124,16 @@ def test_main_writes_colour_account_totals_artifacts(tmp_path, monkeypatch):
     assert "[ T] Totals" in rendered_plain_totals
     assert summary["rendered_color_accounttotals_has_ansi"] is True
     assert summary["color_accounttotals_symbols"] == ["*"]
+
+
+@pytest.mark.parametrize(
+    "line, expected",
+    [
+        pytest.param("[ *] alice smith   | counts", ["*"], id="account-with-spaces"),
+        pytest.param("[ *] a|b\t| counts", ["*"], id="pipe-inside-account"),
+        pytest.param("[ *] " + "x" * 20000 + " " * 20000, [], id="missing-separator"),
+        pytest.param("[ T] Totals   | counts", [], id="totals-row"),
+    ],
+)
+def test_account_row_separators_do_not_require_backtracking(line, expected):
+    assert rendered_account_symbols(line) == expected

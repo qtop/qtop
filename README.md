@@ -2,7 +2,7 @@
 
 [![build-qtop](https://github.com/qtop/qtop/actions/workflows/build.yml/badge.svg?branch=develop)](https://github.com/qtop/qtop/actions/workflows/build.yml)
 [![CodeQL status](https://github.com/qtop/qtop/actions/workflows/codeql.yml/badge.svg?branch=develop)](https://github.com/qtop/qtop/actions/workflows/codeql.yml)
-[![Coverage checks](https://github.com/qtop/qtop/actions/workflows/coverage.yml/badge.svg?branch=develop)](https://github.com/qtop/qtop/actions/workflows/coverage.yml)
+[![Coverage checks](https://github.com/qtop/qtop/actions/workflows/build.yml/badge.svg?branch=develop)](https://github.com/qtop/qtop/actions/workflows/build.yml)
 [![License: MIT](https://img.shields.io/github/license/qtop/qtop)](LICENSE)
 ![Python 3](https://img.shields.io/badge/python-3.x-blue.svg)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/qtop/qtop/badge)](https://scorecard.dev/viewer/?uri=github.com/qtop/qtop)

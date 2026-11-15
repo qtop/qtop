@@ -1,7 +1,7 @@
 # Secure Coding Guide for Python (PySCG) alignment
 
-Reviewed against the working tree on 2026-10-30; input boundaries updated 2026-11-02. This document maps implemented
-controls and remaining gaps to the OpenSSF
+Reviewed against the working tree on 2026-11-14. This document maps
+implemented controls and remaining gaps to the OpenSSF
 [Secure Coding Guide for Python](https://github.com/ossf/python-secure-coding-guide).
 It replaces the original proposal for #488; it is not a certification or a
 fresh vulnerability scan. Source references use files and function names
@@ -30,18 +30,22 @@ The [CI contract](ci-structure.md#the-makefile-contract) identifies the jobs and
 - [x] Document non-cryptographic randomness and masking scope
   ([details](#6-randomness)); this is a source review, not a cryptographic CI proof.
 - [x] [CI] Enforce diff/source fortifications in shared CI and tracked-text
-  critical findings in the GitLab repo-sanity job
+  critical findings in both primary PR lanes
   ([details](#7-source-text-and-terminal-data)).
 - [x] [CI] Run lint/format, type checks, coverage-floor, fixture and fuzz gates
   in their configured jobs ([validation](#validation-and-dependency-maintenance)).
 - [x] [CI] Bound XML/JSON/YAML inputs, snapshot archive scanning and command
   output; adversarial regressions run in `make test` (`tests/test_input_safety.py`).
 - [ ] Review broader process-wide memory/CPU budgets beyond these input limits.
-- [ ] Replace predictable render-tool output defaults.
+- [x] Replace predictable render-tool output defaults with repo-local private
+  directories; [details](#remaining-work) identify the tools and checks.
 - [x] [CI] Escape terminal identifiers and log controls; preserve original exports.
 - [x] [CI] Default the experimental web listener to loopback and validate
   configurable host/port settings (`tests/test_web.py`, CLI/config regressions).
-- [ ] Review remaining web-server isolation, asset serving and remote access controls.
+- [x] [CI] Restrict web assets to the page and API endpoints in
+  `tests/test_web.py`; arbitrary files and subdirectories return 404.
+- [ ] Review remaining web-server isolation and remote access controls beyond
+  the documented loopback default and asset allowlist.
 - [ ] Refresh standalone scanner/dependency/Scorecard results and verify external
   repository settings for the assessed commit ([remaining work](#remaining-work)).
 - [x] Add source-backed [Security Insights](../security-insights.yml) and
@@ -181,9 +185,11 @@ design; changing the PRNG alone would not provide anonymity.
 ### 7. Source text and terminal data
 
 Related PySCG guidance includes `pyscg-0043/0044/0045`.
-[fortifications.py](../tools/fortifications.py) checks added diff lines for
-non-ASCII/control characters, rejects `eval()` and disallows production/tooling
-wildcard imports. Generated/binary-looking paths require manual review.
+`make fortifications`, implemented in
+[repo_sanity.py](../tools/repo_sanity.py), checks added diff lines for
+non-ASCII/control characters. Generated/binary-looking paths require review.
+Ruff rejects `eval()` and wildcard imports, including explicit `noqa` attempts
+in the unsuppressible F403/S307 pass.
 It does not enforce every rule in `AGENTS.md`.
 
 [repo_sanity.py](../tools/repo_sanity.py) audits Git-tracked UTF-8 text up to
@@ -201,6 +207,17 @@ including exception text, to prevent forged lines (`pyscg-0022`).
 [Adversarial regressions](../tests/test_input_safety.py) cover both boundaries.
 
 ## Validation and dependency maintenance
+
+Ruff additionally checks builtin shadowing, Bugbear correctness rules, archive
+context management and selected dangerous execution calls. BLE checks retain
+two documented line-specific exemptions: reader failures propagate after child
+reaping, and cleanup failures must not mask a primary error. These are not
+blanket exemptions or a claim that the full Bandit rule family is enabled.
+
+Report helpers reject symlink components/destinations and replace reports
+atomically, preserving existing hard-linked originals. CLI-selected roots
+remain operator-controlled; these checks do not sandbox an LLM runner.
+`tests/test_private_output.py` covers the report protections.
 
 The [Makefile](../Makefile) supplies the shared checks:
 

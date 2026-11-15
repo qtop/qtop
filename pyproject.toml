@@ -56,6 +56,12 @@ include = ["qtop_py*"]
 # and pydocstyle (`D`, Google convention: a one-line summary for every public module, class and function).
 # pycodestyle's E26x comment checks need ruff preview mode, so they are not enforced yet.
 lint.select = ["E", "F", "I", "W", "ERA", "C90", "D"] ##
+# Stable correctness, suppression hygiene, security and small cleanup checks.
+lint.extend-select = [
+    "B", "PLE", "PGH", "PIE", "ISC", "RET", "T10", "RUF100",
+    "S102", "S307", "S602", "S604", "LOG009", "RSE102", "PLC1802",
+    "PERF102", "RUF059", "A", "SIM115", "BLE",
+]
 # The class docstring covers __init__ and dunders; tests document themselves through their names.
 lint.ignore = ["D105", "D107"]
 lint.per-file-ignores = { "tests/**" = ["D"] }
@@ -130,15 +136,6 @@ show_error_context = true
 [[tool.mypy.overrides]]
 module = ["lxml", "ujson"]
 ignore_missing_imports = true
-
-# Pylama, kept for reference: ruff's E, W, F and ERA rules above enforce the same checks in CI.
-# Pylama (pycodestyle, pyflakes, eradicate); ruff stays the CI linter. Ignored: E266 for the
-# `## Copyright`/`## SPDX` headers (house style); E203 and E704, which conflict with ruff format.
-# [tool.pylama]
-# paths = "qtop_py"
-# linters = "pycodestyle,pyflakes,eradicate"
-# max_line_length = 180
-# ignore = "E266,E203,E704"
 
 [tool.pytest.ini_options]
 # Tests that still exercise the deprecated legacy adapters on purpose stay quiet; tests/test_legacy_deprecation.py

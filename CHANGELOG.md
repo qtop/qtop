@@ -3,6 +3,18 @@
 Notable changes by version, newest first. See the
 [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 
+## 0.9.20261115
+
+- Bugfix: reject PBS allocations with unrecognized prefixes
+- Bugfix: harden scheduler trace paths and simplify reported code patterns
+- CI: consolidate verification entry points and PR gates
+- CI: enforce Ruff builtin naming, context management and exception checks
+- CI: enforce stable Ruff correctness and security checks through Bugbear
+- CI: harden report writes and simplify account-row parsing
+- CI: exclude live test outputs from packaging snapshots
+- Docs: refresh extension guidance and reconcile implementation checklists
+- Release: update version metadata to 0.9.20261115
+
 ## 0.9.20261114
 
 - CI: close terminal probe descriptors when setup fails

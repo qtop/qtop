@@ -99,9 +99,8 @@ def main() -> None:
         env["FORTIFY_BASE_REF"] = subprocess.check_output(["git", "rev-parse", BASE_REF], cwd=str(ROOT), universal_newlines=True).strip()
         manifest.update(targets=args.targets, base_ref=env["FORTIFY_BASE_REF"], workers=env.get("PYTEST_XDIST_AUTO_NUM_WORKERS", "Make default"), status="running")
         try:
-            # Sequential targets keep reports and corpus state deterministic.
-            for target in args.targets:
-                subprocess.check_call(["make", target, "PYTHON=" + str(PYTHON)], cwd=str(workspace), env=env)
+            # One Make invocation shares prerequisites across all requested targets.
+            subprocess.check_call(["make"] + args.targets + ["PYTHON=" + str(PYTHON)], cwd=str(workspace), env=env)
             manifest["status"] = "passed"
         except BaseException as error:
             manifest.update(status="failed", error_type=type(error).__name__)

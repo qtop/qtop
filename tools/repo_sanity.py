@@ -6,36 +6,15 @@
 ##
 ## SPDX-License-Identifier: MIT
 ##
-"""Tracked-tree text-trust audit for repo sanity and trustability (#488).
+"""Audit tracked text and branch diffs without relaxing terminal-fixture exceptions.
 
-Complements tools/fortifications.py: fortifications guards the *diff* of a
-merge request, while this tool audits tracked UTF-8 text files within the
-documented size and binary scope so hidden paths receive systematic review.
-
-Checks and severities:
-
-- CRITICAL  bidirectional control characters (Trojan Source, CVE-2021-42574),
-            zero-width/invisible characters, unexpected C0/C1 controls,
-            unicode line/paragraph separators, undecodable (non-UTF-8) files.
-- WARNING   homoglyph-prone letters (Greek/Cyrillic/fullwidth) in an
-            otherwise ASCII tree, byte-order marks.
-- INFO      remaining non-ASCII codepoints (reported, never fatal), lines
-            that change under NFKC normalisation, CRLF line endings, and
-            complete ANSI SGR colour sequences inside four exact fixtures,
-            plus three exact historical leading carriage returns.
-
-Exit status: 1 if any CRITICAL finding (or WARNING with --strict), else 0.
-The text report caps identical (file, kind) detail at REPORT_CAP entries and
-prints a suppression note, so fixture-heavy trees stay reviewable.
-
---selftest plants known-bad samples in a temporary directory and proves the
-detector catches them; the proof output is suitable for review evidence.
-
-This file is intentionally pure ASCII; every audited codepoint is spelled
-as an escape sequence so the auditor passes its own audit.
+Critical findings fail; --strict also fails warnings. JSON retains every finding,
+while text caps repeated details. --selftest proves the planted attack classes.
+Ruff separately checks Python syntax, eval, exec, shell execution and imports.
 """
 
 import argparse
+import ast
 import json
 import os
 import re
@@ -45,34 +24,18 @@ import tempfile
 import unicodedata
 from pathlib import Path
 
+try:
+    from tools.private_output import private_output_dir, write_private_file
+except ImportError:
+    from private_output import private_output_dir, write_private_file
+
 ROOT = Path(__file__).resolve().parents[1]
 
 BIDI_CONTROLS = set("\u202a\u202b\u202c\u202d\u202e\u2066\u2067\u2068\u2069\u200e\u200f\u061c")
 INVISIBLES = set("\u200b\u200c\u200d\u2060\u00ad\u034f\u180e\ufeff")
 LINE_SEPARATORS = set("\u2028\u2029\u0085")
 HOMOGLYPH_RANGES = ((0x0370, 0x03FF), (0x0400, 0x04FF), (0xFF01, 0xFF5E))
-BINARY_SUFFIXES = set(
-    [
-        ".png",
-        ".jpg",
-        ".jpeg",
-        ".gif",
-        ".webp",
-        ".ico",
-        ".pdf",
-        ".gz",
-        ".xz",
-        ".lzma",
-        ".bz2",
-        ".zip",
-        ".whl",
-        ".pyc",
-        ".bin",
-        ".dat",
-        ".woff",
-        ".woff2",
-    ]
-)
+BINARY_SUFFIXES = set(".png .jpg .jpeg .gif .webp .ico .pdf .gz .xz .lzma .bz2 .zip .whl .pyc .bin .dat .woff .woff2".split())
 MAX_BYTES = 5 * 1024 * 1024
 REPORT_CAP = 20
 
@@ -91,6 +54,83 @@ ANSI_SGR_RE = re.compile(r"\x1b\[[0-9;]{0,64}m")
 LEGACY_CR_FIXTURES = ANSI_FIXTURES.difference(set(["helpfile.txt"]))
 
 
+CONTROL_OR_BIDI = re.compile(r"[^\x09\x0a\x0d\x20-\x7e]")
+GENERATED_OR_BINARY = re.compile(
+    r"(^|/)(m4|autogen|configure|Makefile\.in|cmake|tests?/files|fixtures?)/|\.(xz|lzma|gz|bin|dat|png|jpg|jpeg|gif|webp)$",
+    re.IGNORECASE,
+)
+
+
+def run_git(args):
+    """Run git in the repository and return its output."""
+    return subprocess.check_output(["git"] + args, cwd=str(ROOT), stderr=subprocess.STDOUT, universal_newlines=True, encoding="utf-8", errors="replace")
+
+
+def changed_files(base_ref):
+    """Return the files changed since base_ref."""
+    output = run_git(["diff", "--no-ext-diff", "--name-only", "-z", base_ref, "--"])
+    return [name for name in output.split("\0") if name]
+
+
+def diff_lines(base_ref):
+    """Return the lines of the zero-context diff against base_ref."""
+    output = run_git(["-c", "core.quotePath=false", "diff", "--no-ext-diff", "--no-textconv", "--no-color", "--src-prefix=a/", "--dst-prefix=b/", "--unified=0", base_ref, "--"])
+    return output.split("\n")
+
+
+def find_diff_problems(lines):
+    """Report added lines that contain control, bidi or non-ASCII characters."""
+    problems = []
+    filename, number = None, None
+    for line in lines:
+        if line.startswith("diff --git "):
+            filename, number = None, None
+            continue
+        if line.startswith("+++ ") and number is None:
+            filename = line[4:]
+            if filename.startswith('"'):
+                filename = ast.literal_eval(filename)
+            filename = filename[2:] if filename.startswith("b/") else filename
+            if filename == "/dev/null":
+                filename = None
+            continue
+        hunk = re.match(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@", line)
+        if hunk:
+            number = int(hunk.group(1))
+            continue
+        if filename is None or number is None:
+            continue
+        if line.startswith("+"):
+            text = line[1:]
+            match = CONTROL_OR_BIDI.search(text)
+            if match:
+                safe_filename = filename.encode("unicode_escape").decode("ascii")
+                problems.append(
+                    "%s:%s:%s: control, bidi, or non-ASCII character U+%04X in added line: %s" % (safe_filename, number, match.start() + 1, ord(match.group()), ascii(text))
+                )
+            number += 1
+        elif line.startswith(" "):
+            number += 1
+    return problems
+
+
+def check_diff(base_ref):
+    """Check pending branch edits for non-ASCII text and generated paths."""
+    try:
+        base = run_git(["merge-base", base_ref, "HEAD"]).strip()
+        problems = ["manual review required for generated/binary-looking path: %s" % name for name in changed_files(base) if GENERATED_OR_BINARY.search(name)]
+        problems.extend(find_diff_problems(diff_lines(base)))
+    except subprocess.CalledProcessError as exc:
+        sys.stderr.write(exc.output)
+        print("Unable to compare against %s" % base_ref, file=sys.stderr)
+        return 2
+    for problem in problems:
+        print(problem, file=sys.stderr)
+    if not problems:
+        print("fortifications: ok")
+    return int(bool(problems))
+
+
 class TrackedFileDiscoveryError(RuntimeError):
     """Raised when the tracked Git tree cannot be enumerated safely."""
 
@@ -106,18 +146,13 @@ def is_expected_fixture_cr(rel, lineno, col, line):
 
 
 def tracked_files(root):
-    """Return every file Git tracks under ``root``.
-
-    Using ``git ls-files`` keeps the audit aligned with what is actually
-    committed and ignores untracked scratch files. Git is required: falling
-    back to a directory walk could silently scan a different set of files.
-    """
+    """Return every file Git tracks under ``root``."""
     try:
         out = subprocess.check_output(["git", "ls-files", "-z"], cwd=str(root), stderr=subprocess.DEVNULL)
     except OSError as exc:
-        raise TrackedFileDiscoveryError("Git is required to enumerate tracked files: %s" % exc)
+        raise TrackedFileDiscoveryError("Git is required to enumerate tracked files: %s" % exc) from exc
     except subprocess.CalledProcessError as exc:
-        raise TrackedFileDiscoveryError("'git ls-files' failed in %s with exit status %s; run repo-sanity from a valid Git worktree" % (root, exc.returncode))
+        raise TrackedFileDiscoveryError("'git ls-files' failed in %s with exit status %s; run repo-sanity from a valid Git worktree" % (root, exc.returncode)) from exc
     names = [os.fsdecode(name) for name in out.split(b"\0") if name]
     return [root / n for n in names]
 
@@ -128,37 +163,17 @@ def report_path(rel):
 
 
 def codepoint_label(ch):
-    """Return a human-readable ``U+XXXX NAME`` label for a character.
-
-    Falls back to ``UNNAMED`` for codepoints unicodedata cannot name, so the
-    report never crashes on an obscure control character.
-    """
-    try:
-        name = unicodedata.name(ch)
-    except ValueError:
-        name = "UNNAMED"
-    return "U+%04X %s" % (ord(ch), name)
+    """Return a human-readable ``U+XXXX NAME`` label for a character."""
+    return "U+%04X %s" % (ord(ch), unicodedata.name(ch, "UNNAMED"))
 
 
 def is_homoglyph_risk(ch):
-    """Return True if ``ch`` falls in a homoglyph-prone Unicode range.
-
-    Covers Greek, Cyrillic, and fullwidth Latin blocks (HOMOGLYPH_RANGES) --
-    letters that look like ASCII but are not, a common spoofing vector.
-    """
-    cp = ord(ch)
-    for lo, hi in HOMOGLYPH_RANGES:
-        if lo <= cp <= hi:
-            return True
-    return False
+    """Return True if ``ch`` falls in a homoglyph-prone Unicode range."""
+    return any(lo <= ord(ch) <= hi for lo, hi in HOMOGLYPH_RANGES)
 
 
 def proof_line(text, col):
-    """Render an escaped one-line excerpt with a caret under column ``col``.
-
-    Long lines are windowed around the offending column so the proof stays
-    readable; the text is unicode-escaped so the report itself is pure ASCII.
-    """
+    """Render an escaped one-line excerpt with a caret under column ``col``."""
     visual = text
     if len(visual) > 160:
         start = max(0, col - 40)
@@ -209,13 +224,7 @@ def _classify(ch, rel, lineno, col, line):
 
 
 def scan_file(path, rel, findings):
-    """Scan one file and append (severity, path, line, col, msg, proof) rows.
-
-    Skips binary content and oversized files, decodes as UTF-8 (a decode
-    failure is itself a CRITICAL finding), then classifies every non-plain-ASCII
-    codepoint by severity. Inside ANSI_FIXTURES, only complete ANSI SGR colour
-    sequences and three exact historical leading CRs are accepted.
-    """
+    """Scan one file and append (severity, path, line, col, msg, proof) rows."""
     text = _read_text(path, rel, findings)
     if text is None:
         return
@@ -246,13 +255,8 @@ def scan_file(path, rel, findings):
 
 
 def write_reports(findings, report_dir, scanned):
-    """Write report.txt + findings.json and return (counts, report_text).
-
-    Per-line detail is capped at REPORT_CAP entries for each (file, kind) so a
-    fixture-heavy tree stays reviewable; suppressed extras are summarised in a
-    NOTE line. findings.json always carries the full, uncapped list.
-    """
-    report_dir.mkdir(parents=True, exist_ok=True)
+    """Write report.txt + findings.json and return (counts, report_text)."""
+    report_dir = private_output_dir(report_dir)
     counts = {"CRITICAL": 0, "WARNING": 0, "INFO": 0}
     lines = []
     lines.append("repo-sanity text-trust audit")
@@ -277,18 +281,14 @@ def write_reports(findings, report_dir, scanned):
     lines.append("")
     lines.append("summary: %d critical, %d warning, %d info" % (counts["CRITICAL"], counts["WARNING"], counts["INFO"]))
     report = "\n".join(lines) + "\n"
-    (report_dir / "report.txt").write_text(report, encoding="utf-8")
+    write_private_file(report_dir / "report.txt", report)
     payload = [{"severity": s, "path": p, "line": ln, "col": c, "message": m} for s, p, ln, c, m, _ in findings]
-    (report_dir / "findings.json").write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    write_private_file(report_dir / "findings.json", json.dumps(payload, indent=2) + "\n")
     return counts, report
 
 
 def run_audit(root, report_dir, strict):
-    """Audit every tracked text file under ``root`` and return an exit code.
-
-    Prints non-INFO findings to stdout, always writes the full report, and
-    returns 1 on any CRITICAL (or on WARNING when ``strict`` is set), else 0.
-    """
+    """Audit every tracked text file under ``root`` and return an exit code."""
     findings = []
     scanned = 0
     for path in sorted(tracked_files(root)):
@@ -296,7 +296,7 @@ def run_audit(root, report_dir, strict):
             continue
         if path.suffix.lower() in BINARY_SUFFIXES:
             continue
-        rel = report_path(str(path.relative_to(root)))
+        rel = report_path(path.relative_to(root).as_posix())
         scanned += 1
         scan_file(path, rel, findings)
     counts, report = write_reports(findings, report_dir, scanned)
@@ -312,12 +312,7 @@ def run_audit(root, report_dir, strict):
 
 
 def selftest(report_dir):
-    """Plant one file per payload class and prove each is detected.
-
-    Includes undesired terminal controls at exact allowlisted fixture paths,
-    proving the ANSI exception accepts colour sequences rather than arbitrary
-    escape commands.
-    """
+    """Plant one file per payload class and prove each is detected."""
     with tempfile.TemporaryDirectory(prefix="repo-sanity-selftest-") as tmp_name:
         tmp = Path(tmp_name)
         plants = {
@@ -342,7 +337,7 @@ def selftest(report_dir):
         safe_path.parent.mkdir(parents=True, exist_ok=True)
         safe_path.write_text("\x1b[1;32mgreen\x1b[0;m\n", encoding="utf-8")
         scan_file(safe_path, safe_rel, findings)
-        counts, report = write_reports(findings, report_dir, len(plants) + 1)
+        _counts, report = write_reports(findings, report_dir, len(plants) + 1)
         print(report)
         hit = set(f[1] for f in findings if f[0] in ("CRITICAL", "WARNING"))
         missing = [name for name in sorted(plants) if name not in hit]
@@ -360,6 +355,7 @@ def selftest(report_dir):
 def parse_args():
     """Parse CLI options (--report-dir, --strict, --selftest)."""
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--base-ref", help="Check branch diff only, against this merge base")
     parser.add_argument("--report-dir", default="artifacts/repo-sanity", help="Directory for report.txt and findings.json")
     parser.add_argument("--strict", action="store_true", help="Treat WARNING findings as fatal")
     parser.add_argument("--selftest", action="store_true", help="Plant known-bad samples and prove detection")
@@ -369,6 +365,8 @@ def parse_args():
 def main():
     """Entry point: run --selftest, or audit the repo and return its code."""
     args = parse_args()
+    if args.base_ref:
+        return check_diff(args.base_ref)
     report_dir = Path(args.report_dir)
     if args.selftest:
         return selftest(report_dir)

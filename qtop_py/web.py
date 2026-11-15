@@ -55,7 +55,7 @@ class Web(object):
 
             PAGES = ("/", "/index.html")
 
-            def log_message(self, format: str, *args: Any) -> None:
+            def log_message(self, *args: Any, **kwargs: Any) -> None:
                 """Quiet!"""
 
             def do_HEAD(self) -> None:

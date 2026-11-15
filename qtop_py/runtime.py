@@ -48,7 +48,7 @@ class RunResources(object):
         for cleanup in callbacks:
             try:
                 cleanup()
-            except (Exception, KeyboardInterrupt, SystemExit) as error:
+            except (Exception, KeyboardInterrupt, SystemExit) as error:  # noqa: BLE001 - finish every cleanup, then propagate without masking the primary error.
                 failures.append(error)
                 if failed:
                     logging.warning("Cleanup failed: %s", error)

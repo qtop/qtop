@@ -1034,3 +1034,25 @@ def test_no_package_module_imports_the_main_module():
             if "qtop_py.qtop" in names or module == "qtop_py.qtop" or (module == "qtop_py" and "qtop" in names):
                 offenders.append("%s:%s" % (path.relative_to(ROOT), node.lineno))
     assert offenders == []
+
+
+@pytest.mark.parametrize("kind", ["parent", "sibling", "symlink"], ids=["dotdot-escape", "prefix-collision", "symlink-escape"])
+def test_trace_collection_rejects_output_outside_savepath(tmp_path, monkeypatch, kind):
+    from qtop_py import qtop
+
+    savepath = tmp_path / "output"
+    savepath.mkdir()
+    victim = tmp_path / "output-other"
+    victim.mkdir()
+    if kind == "symlink":
+        if os.name != "posix":
+            pytest.skip("creating symlinks needs POSIX or Windows privileges")
+        (savepath / "link").symlink_to(victim, target_is_directory=True)
+        destination = savepath / "link/trace.txt"
+    else:
+        destination = savepath / "../trace.txt" if kind == "parent" else victim / "trace.txt"
+    monkeypatch.setattr(qtop.subprocess, "Popen", lambda *args, **kwargs: pytest.fail("must reject before starting a command"))
+    with pytest.raises(qtop.OperationalError, match="inside savepath"):
+        qtop.execute_shell_batch_commands({"trace": "unused"}, {"trace": str(destination)}, "trace", str(savepath))
+    assert list(victim.iterdir()) == []
+    assert not (tmp_path / "trace.txt").exists()

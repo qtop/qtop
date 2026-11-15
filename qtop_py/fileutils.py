@@ -141,9 +141,9 @@ def init_sample_file(
         return None
 
     # clears any preexisting tar files
-    tar_out = tarfile.open(os.path.join(_savepath, SAMPLE_FILENAME), mode="w")
     with contextlib.ExitStack() as initialization:
-        initialization.callback(tar_out.close)
+        tar_out = initialization.enter_context(tarfile.open(os.path.join(_savepath, SAMPLE_FILENAME), mode="w"))
+        initialization.callback(tar_out.close)  # Finalize even failed captures, as before using the archive's context manager.
         if options.SAMPLE >= 2:
             if not getattr(options, "ANONYMIZE", False):
                 add_to_sample([os.path.join(os.path.realpath(QTOPPATH), QTOPCONF_YAML)], tar_out)

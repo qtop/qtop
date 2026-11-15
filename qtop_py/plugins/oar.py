@@ -111,10 +111,11 @@ class OARBatchSystem(GenericBatchSystem):
                     rows.append("# redacted")
                     continue
                 if key == "oarnodes_s_file":
-                    match = re.fullmatch(r"(\s*)([^:]+):\s*(\S*)\s*", line)
-                    if not match:
+                    indent = line[: len(line) - len(line.lstrip())]
+                    name, separator, value = line[len(indent) :].partition(":")
+                    if not separator or not name or len(value.split()) > 1:
                         raise ValueError("unsupported node row")
-                    indent, name, value = match.groups()
+                    value = value.strip()
                     if not indent:
                         rows.append(mask(name, "node") + ":")
                     else:

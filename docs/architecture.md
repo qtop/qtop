@@ -157,8 +157,8 @@ runtime globals, while the new query/view pipeline does not depend on them.
 `qtop.py` still exports the pre-MVU entry points `MVU_legacy_model()`, `colorize()`,
 `control_qtop()` and the `Cluster`, `WNOccupancy` and `TextDisplay` classes. They build their
 model from module globals (`args`, `config`, `dynamic_config`, `viewport` and so on) that
-callers must set first. Since 0.9.20261110 they raise a `DeprecationWarning` and they will be
-scheduled for removal in 1.0. `main()` and `tools/validate_trace_export.py` use none of them:
+callers must set first. Since 0.9.20261110 they raise a `DeprecationWarning`
+and are scheduled for removal in 1.0. `main()` and `tools/validate_trace_export.py` use none of them:
 build an `MVU_Model` and pass it to `MVU_update`, `MVU_effects`, `MVU_query` and `MVU_view`.
 `main()` sets no module globals; `tests/test_runtime.py` fails if a run changes module-level
 state or triggers a legacy adapter.
@@ -170,6 +170,51 @@ The 1.0 removal commit must delete the adapters, their global declarations and
 adapter-only tests together, update the public import documentation, and pass
 pre-pr plus schema-ci. Keep the pure helper re-exports outside this retirement.
 This is a compatibility commitment, not permission to remove APIs in 0.9.
+
+## Extension boundaries and readiness
+
+The [modular compatibility plan][modular-plan] for issue #593 uses an
+illustrative layout. Preserve existing module paths and public
+interfaces; add modules only when a backend supplies data and a consumer
+needs the behavior. No empty schema or extension packages are needed.
+
+`ui/viewport.py` stays in the presentation layer. Its bounds, scrolling and
+terminal geometry are independent of scheduler policy and schema records.
+MVU copies viewport state explicitly; canonical observations do not contain
+it. Future hierarchy or topology views can add view state when implemented,
+without moving the current viewport or requiring plugins to import it.
+
+Current implementation and remaining preparation:
+
+- [x] Keep existing `plugins/` paths and backend interfaces. Collection,
+  detection, queue policy and display-note hooks are backend-controlled;
+  `tests/test_scheduler_policy.py` exercises a custom backend.
+- [x] Separate normalized observations from MVU queries and presentation;
+  retain legacy adapters until their documented 1.0 retirement.
+- [x] Preserve schema-1/2 validation, replay and anonymization contracts;
+  schema 3 beta1 adds opt-in workload parentage without changing old versions.
+- [ ] Separate growing backend-specific metadata rule sets from the central
+  dispatcher in `schedulers/metadata.py`. Offline validation and masking must
+  remain independent of backend construction and optional client libraries.
+- [ ] Consolidate repeated backend defaults and validation-case declarations
+  when new backends need them. Keep the small explicit registry; avoid a
+  generic discovery framework or unrelated module moves.
+- [ ] Define resource quantities, unknown placement and renderer capabilities
+  with the first backend that needs them. Integer `np` and `core_job_map`
+  remain the existing CPU-grid contract, not a generic resource model.
+
+Kubernetes namespaces, OpenStack projects and Flux scheduler scopes must keep
+native meaning. Do not represent unknown placement as free cores, convert
+fractional requests into invented core assignments, or double-count delegated
+resources. The [schema guide](cluster-state-model.md#future-extension-contracts)
+defines the future semantic boundaries; new identifiers and extensions need
+validation, anonymization and replay coverage together.
+
+A Slurm JSON adapter can reuse Slurm policy under the existing state contract.
+When implemented, a small extractor-selection seam can replace the hardcoded
+`SlurmStatExtractor` in `SlurmBatchSystem.__init__`; duplicating the allocation,
+identity, partition and GPU policies is unnecessary. This seam and the new
+backend are not implemented yet.
 
 ## Keeping the overview current
 
@@ -183,3 +228,5 @@ CollectionSettings is the typed, validated view of live command settings.
 The complete Config mapping stays extensible for scheduler-specific keys;
 collection functions accept the GenericBatchSystem class interface rather
 than an unconstrained backend. Normalize at the boundary, before execution.
+
+[modular-plan]: https://github.com/qtop/qtop/issues/593#issuecomment-6793829851

@@ -626,3 +626,14 @@ def test_partition_availability_keeps_blocking_states_across_node_rows(tmp_path,
     system = SlurmBatchSystem({"sinfo_file": str(info)}, {}, Options())
     system._jobs = []
     assert system.get_queues_info()[2][0]["state"] == expected
+
+
+@pytest.mark.parametrize("suffix", ["*+#~$@%!^-" * 2000, "*" * 20000], ids=["mixed-flags", "repeated-flags"])
+def test_long_node_state_flags_keep_the_base_state(suffix):
+    assert SlurmStatExtractor._map_node_state("IDLE" + suffix) == "-"
+    assert SlurmStatExtractor._map_node_state(suffix + "idle") == "?"
+
+
+def test_allocation_job_name_separator_accepts_long_whitespace():
+    assert SlurmBatchSystem._allocation_job_id("JobId=42" + " " * 20000 + "JobName=JobId=99") == "42"
+    assert SlurmBatchSystem._allocation_job_id("JobId=42" + " " * 20000 + "Other=99") == "42"

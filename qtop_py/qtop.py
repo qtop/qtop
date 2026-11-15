@@ -201,8 +201,9 @@ class TextDisplay(MVU_LegacyAdapter, MVU_TextDisplay):
 
     def display_user_accounts_pool_mappings(self, wns_occupancy: Any) -> None:
         """Resolve user details, then print the user accounts and pool mappings table."""
-        self.MVU_model = self.MVU_model
-        MVU_resolve_user_details(self.MVU_model, wns_occupancy, force=True)
+        model = self.MVU_model
+        self.MVU_model = model
+        MVU_resolve_user_details(model, wns_occupancy, force=True)
         return super().display_user_accounts_pool_mappings(wns_occupancy)
 
 
@@ -411,6 +412,14 @@ def auto_get_avail_batch_system(config: Dict[str, Any], backends: Mapping[str, A
 def execute_shell_batch_commands(batch_system_commands: Mapping[str, str], filenames: Dict[str, str], _file: str, _savepath: str, timeout: float = 30) -> str:
     """Run the scheduler commands from QTOPCONF_YAML, saving each output atomically to its trace file."""
     _batch_system_command = batch_system_commands[_file].strip()
+    destination = os.path.abspath(filenames[_file])
+    save_directory = os.path.realpath(_savepath)
+    try:
+        contained = os.path.commonpath((save_directory, os.path.realpath(os.path.dirname(destination)))) == save_directory
+    except ValueError:
+        contained = False
+    if not contained:
+        raise OperationalError("Scheduler trace output must stay inside savepath")
     tempname = None
     try:
         if not _batch_system_command:
@@ -809,7 +818,7 @@ class TerminalResized(Exception):
 
 
 def _raise_resized(_signum: int, _frame: Any) -> None:
-    raise TerminalResized()
+    raise TerminalResized
 
 
 def wait_for_keypress_or_autorefresh(viewport: Viewport, config: Dict[str, Any], FALLBACK_TERMSIZE: Sequence[int], KEYPRESS_TIMEOUT: float = 1) -> str:

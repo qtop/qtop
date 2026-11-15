@@ -8,10 +8,3 @@ repos:
       - id: ruff-check
         args: [--fix]
       - id: ruff-format
-## We comment the following out, because even if the structure is there to make it work,
-## we dislike forcing it on collaborators - comment out as you please
-##
-##  - repo: https://github.com/Yelp/detect-secrets
-##    rev: v1.5.0
-##    hooks:
-##      - id: detect-secrets  # a false positive is allowlisted on its line: '# pragma: allowlist secret'

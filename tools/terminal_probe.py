@@ -172,14 +172,14 @@ def main() -> None:
         parser.error("duration must be between 2 and 86400 seconds")
     if args.backend != "demo" and not (args.source or args.live):
         parser.error("non-demo backends require --source or explicit --live")
-    from tools.private_output import private_output_dir
+    from tools.private_output import private_output_path, write_private_file
 
-    private_output_dir(args.report.parent)
+    args.report = private_output_path(args.report)
     with tempfile.TemporaryDirectory(prefix="qtop-soak-") as directory:
         result = probe(Path(directory), args.duration, args.backend, str(Path(args.source).resolve()) if args.source else None)
         result["limits"] = {"rss_mib": args.max_rss_mib, "files": args.max_files, "frame_gap_seconds": args.max_frame_gap}
-        args.report.write_text(json.dumps(result, indent=2) + "\n")
-        args.report.with_suffix(".ans").write_bytes((Path(directory) / "terminal.ans").read_bytes())
+        write_private_file(args.report, json.dumps(result, indent=2) + "\n")
+        write_private_file(args.report.with_suffix(".ans"), (Path(directory) / "terminal.ans").read_bytes())
         assert result["peak_rss_kib"] <= args.max_rss_mib * 1024, "RSS budget exceeded"
         assert result["peak_output_files"] <= args.max_files, "file budget exceeded"
         assert result["max_frame_gap_seconds"] <= args.max_frame_gap, "refresh budget exceeded"

@@ -5,18 +5,7 @@
 ##
 ## SPDX-License-Identifier: MIT
 ##
-# Test concern: merge-request/branch validation.
-#
-# - ``modern-python`` -- the full shared validation path (``make gitlab-ci``:
-#   pytest, scheduler sample gates, ruff, fortifications, format checks) on the
-#   pinned modern interpreter. ``FORTIFY_BASE_REF`` follows the MR target branch
-#   so diff-health checks compare against the right base.
-# - ``almalinux-python36`` -- dependency-light Python 3.6 compatibility gate on
-#   AlmaLinux 8 (``make compat-py36``), matching the python3.6/rhel8 floor that
-#   several production clusters still run (see CONTRIBUTING.md).
-#
-# Both jobs are thin wrappers around Makefile targets so the same validation
-# can be reproduced locally and on GitHub Actions without divergence.
+# Primary PR gate runs the suite once under coverage, matching GitHub.
 
 modern-python:
   image: python:3.12.3-bookworm
@@ -31,17 +20,25 @@ modern-python:
     - git fetch origin "${TARGET_BRANCH}:refs/remotes/origin/${TARGET_BRANCH}"
     - export FORTIFY_BASE_REF="origin/${TARGET_BRANCH}"
   script:
-    - make gitlab-ci PYTHON=python
-    - make type-check PYTHON=python
-    - make coverage-fuzz PYTHON=python
+    - make pre-pr coverage-xml PYTHON=python
+  after_script:
+    - make code-quality PYTHON=python
+  coverage: '/TOTAL.+ ([0-9]{1,3}%)/'
   artifacts:
     when: always
     paths:
       - artifacts/sample-gate/
       - artifacts/fuzz/
       - artifacts/tests/
+      - artifacts/coverage/
+      - artifacts/code-quality/
+      - artifacts/repo-sanity/
     reports:
       junit: artifacts/tests/*.xml
+      codequality: artifacts/code-quality/gl-code-quality-report.json
+      coverage_report:
+        coverage_format: cobertura
+        path: artifacts/coverage/coverage.xml
 
 almalinux-python36:
   image: almalinux:8

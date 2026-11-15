@@ -351,7 +351,7 @@ def test_schema_2_observations_replay_and_anonymize_without_original_identifiers
     state["jobs"][0].update(id="4242", qid="slurm:prod-west:4242")
     state["nodes"][0].update(domainname="secret-node", qid="slurm:prod-west:secret-node", core_job_map={0: "4242"})
     state["queues"][0].update(qid="slurm:prod-west:" + state["queues"][0]["name"], owner="secret-owner")  # extra fields may hold names
-    masked, mappings = sample.anonymize_state(state)
+    masked, _mappings = sample.anonymize_state(state)
     text = json.dumps(masked)
     assert not any(original in text for original in ("prod-west", "alice", "secret", "debug", "4242"))
     assert masked["schema_version"] == 2 and masked["source"]["backend"] == "slurm" and masked["jobs"][0]["kind"] == "job"
@@ -599,3 +599,22 @@ def test_beta1_parent_references_anonymize_and_replay(tmp_path, parent_present, 
     with tarfile.open(str(archive), "w") as saved:
         sample.add_json(saved, sample.SNAPSHOT_NAME, {"format_version": 1, "scheduler": "slurm", "state": masked, "config": {}, "options": {}})
     assert sample.load_snapshot(str(archive))["state"] == masked
+
+
+@pytest.mark.parametrize(
+    "scheduler, key, text",
+    [
+        pytest.param("slurm", "scontrol_file", "field" * 5000, id="slurm-missing-equals"),
+        pytest.param("pbs", "pbsnodes_file", "node1\n     jobs = " + "1" * 20000, id="pbs-missing-core-job-separator"),
+        pytest.param("oar", "oarnodes_s_file", "node1: " + " " * 20000 + "Alive extra", id="oar-extra-value"),
+    ],
+)
+def test_masked_traces_reject_long_malformed_fields(scheduler, key, text):
+    from qtop_py.plugins.oar import OARBatchSystem
+    from qtop_py.plugins.pbs import PBSBatchSystem
+    from qtop_py.plugins.slurm import SlurmBatchSystem
+    from qtop_py.source_trace import TraceMasker
+
+    backend = {"oar": OARBatchSystem, "pbs": PBSBatchSystem, "slurm": SlurmBatchSystem}[scheduler]({}, {}, SimpleNamespace(ANONYMIZE=False))
+    with pytest.raises(ValueError):
+        backend.mask_source_trace(key, text, TraceMasker({}))

@@ -1,57 +1,39 @@
 ## Copyright (c) 2026 qtop contributors
 ## SPDX-License-Identifier: MIT
 import subprocess
-from types import SimpleNamespace
+import sys
 
 import pytest
 
-from tools import fortifications
+from tools import repo_sanity as fortifications
 
 
-def test_find_star_imports_reports_wildcard_imports(monkeypatch, tmp_path):
-    source = tmp_path / "qtop_py" / "bad_import.py"
-    source.parent.mkdir()
-    source.write_text("from qtop_py.colormap import *\n", encoding="utf-8")
-
-    monkeypatch.setattr(fortifications, "ROOT", tmp_path)
-    monkeypatch.setattr(fortifications, "iter_python_files", lambda: [source])
-
-    assert fortifications.find_star_imports() == ["qtop_py/bad_import.py:1 wildcard import is not allowed"]
-
-
-def test_find_star_imports_accepts_explicit_imports(monkeypatch, tmp_path):
-    source = tmp_path / "qtop_py" / "good_import.py"
-    source.parent.mkdir()
-    source.write_text("from qtop_py.colormap import color_to_code\n", encoding="utf-8")
-
-    monkeypatch.setattr(fortifications, "ROOT", tmp_path)
-    monkeypatch.setattr(fortifications, "iter_python_files", lambda: [source])
-
-    assert fortifications.find_star_imports() == []
-
-
-def test_find_star_imports_ignores_tests(monkeypatch, tmp_path):
-    source = tmp_path / "tests" / "helper.py"
-    source.parent.mkdir()
-    source.write_text("from qtop_py.colormap import *\n", encoding="utf-8")
-
-    monkeypatch.setattr(fortifications, "ROOT", tmp_path)
-    monkeypatch.setattr(fortifications, "iter_python_files", lambda: [source])
-
-    assert fortifications.find_star_imports() == []
-
-
-def test_find_star_imports_reports_syntax_errors(monkeypatch, tmp_path):
-    source = tmp_path / "tools" / "broken.py"
-    source.parent.mkdir()
-    source.write_text("def broken(:\n", encoding="utf-8")
-
-    monkeypatch.setattr(fortifications, "ROOT", tmp_path)
-    monkeypatch.setattr(fortifications, "iter_python_files", lambda: [source])
-
-    problems = fortifications.find_star_imports()
-    assert len(problems) == 1
-    assert problems[0].startswith("tools/broken.py:1 syntax error while scanning imports: ")
+@pytest.mark.parametrize(
+    "filename,source,rule",
+    [
+        ("qtop_py/bad.py", "from qtop_py.colormap import *", "F403"),
+        ("qtop_py/good.py", "from qtop_py.colormap import color_to_code", None),
+        ("tests/helper.py", "from qtop_py.colormap import *", "F403"),
+        ("tools/broken.py", "def broken(:", "invalid-syntax"),
+        ("tools/unsafe.py", "eval('payload')", "S307"),
+        ("tools/unsafe.py", "eval('payload')  # noqa: S307", "S307"),
+        ("tools/unsafe.py", "from module import *  # noqa: F403", "F403"),
+        ("tools/unsafe.py", "exec('payload')", "S102"),
+        ("tools/unsafe.py", "import subprocess; subprocess.run('payload', shell=True)", "S602"),
+    ],
+    ids=["wildcard-runtime", "explicit-import", "wildcard-test", "syntax", "eval", "suppressed-eval", "suppressed-wildcard", "exec", "shell"],
+)
+def test_ruff_owns_source_protections(tmp_path, filename, source, rule):
+    result = subprocess.run(
+        [sys.executable, "-m", "ruff", "check", "--select", "F403,S102,S307,S602", "--ignore-noqa", "--stdin-filename", filename, "-"],
+        input=source,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        universal_newlines=True,
+        cwd=str(tmp_path),
+    )
+    assert result.returncode == (1 if rule else 0), result.stderr
+    assert rule in result.stdout if rule else "All checks passed" in result.stdout
 
 
 def test_diff_reports_all_locations_and_escapes_unsafe_text():
@@ -130,24 +112,23 @@ def test_main_checks_pending_fixes_and_pending_violations(monkeypatch, tmp_path,
     source.write_text("heading\u2014\n", encoding="utf-8")
     git("commit", "-qam", "branch violation")
     monkeypatch.setattr(fortifications, "ROOT", tmp_path)
-    monkeypatch.setattr(fortifications, "parse_args", lambda: SimpleNamespace(base_ref=base))
-    assert fortifications.main() == 1
+    assert fortifications.check_diff(base) == 1
     assert "AGENTS.md:1:8:" in capsys.readouterr().err
 
     source.write_text("heading-\n")
     if staged:
         git("add", "AGENTS.md")
-    assert fortifications.main() == 0
+    assert fortifications.check_diff(base) == 0
     assert "fortifications: ok" in capsys.readouterr().out
 
     source.write_text("heading\u202e\n", encoding="utf-8")
     if staged:
         git("add", "AGENTS.md")
-    assert fortifications.main() == 1
+    assert fortifications.check_diff(base) == 1
     assert "U+202E" in capsys.readouterr().err
 
     source.write_text("heading\u2028end\n", encoding="utf-8")
-    assert fortifications.main() == 1
+    assert fortifications.check_diff(base) == 1
     diagnostic = capsys.readouterr().err
     assert "AGENTS.md:1:8:" in diagnostic
     assert "U+2028" in diagnostic

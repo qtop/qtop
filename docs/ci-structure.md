@@ -32,12 +32,15 @@ own validation logic in YAML.
 `make pre-pr` combines coverage (including the full pytest/Hypothesis suite),
 scheduler samples, deterministic and Atheris fuzzing, lint/format, and type
 checks. It requires Linux x86-64 CPython 3.12 with `make ci-deps` installed and
-runs pytest once. The CI workflows distribute these same targets across jobs
-and interpreter lanes; `make ci` remains the portable shared test gate.
+runs pytest once. Both providers use `make pre-pr coverage-xml` in their primary
+PR job: coverage, samples, lint, types and fuzzing share one environment.
+GitLab emits its Ruff code-quality report in `after_script`, including on
+validation failures. `make ci` remains the portable shared test gate and the
+additional modern GitHub interpreter lane.
 
 | Concern | Makefile target | GitHub Actions | GitLab CI |
 |---|---|---|---|
-| Shared test validation | `make github-ci` / `make gitlab-ci` | `.github/workflows/build.yml` | `ci/test.gitlab-ci.yml` (`modern-python`) |
+| Primary PR validation | `make pre-pr coverage-xml` | `.github/workflows/build.yml` | `ci/test.gitlab-ci.yml` (`modern-python`) |
 | Python 3.6 / RHEL8 floor | `make compat-py36` | `.github/workflows/build.yml` (`almalinux-python36`) | `ci/test.gitlab-ci.yml` (`almalinux-python36`) |
 | Validated package build | `make github-build` / `make gitlab-build` | `.github/workflows/build.yml` (`build`) | `ci/build.gitlab-ci.yml` (`build`) |
 
@@ -85,6 +88,23 @@ Before it can replace `almalinux-python36`:
   digest bump after each rebuild, for example as a bot pull request;
 - give GitLab the same job (`ci/test.gitlab-ci.yml`), as both platforms run the same checks.
 
+## Release preparation
+
+On a branch whose first eight characters are a valid next-release date
+(`YYYYMMDD`), preview changes before writing them:
+
+```sh
+python -m tools.prepare_release
+python -m tools.prepare_release --write
+```
+
+`--version` overrides the derived `0.9.YYYYMMDD`. The version must advance;
+existing tags and dirty release-file overwrites are rejected. The helper
+synchronizes package metadata, the manpage, changelog and EasyBuild recipe.
+`tests/test_prepare_release.py` covers preview/history preservation and invalid
+inputs. Preparation neither commits nor tags nor publishes; exact artifact
+validation and independent release approval remain separate requirements.
+
 ## Nightly compatibility lanes
 
 Both nightly matrices use `ci/scripts/matrix_lane.sh` and the shared CI pins.
@@ -114,14 +134,14 @@ the CPython tooling stack.
 
 ## Adding a new concern
 
-1. Create `ci/<concern>.gitlab-ci.yml` with a header comment explaining what
-   runs, when, and why (see existing child files for the expected register).
-2. Add any new stage to the root `stages:` list.
-3. Add `- local: ci/<concern>.gitlab-ci.yml` to the root `include:` list.
-4. If the concern introduces new validation logic, expose it as a Makefile
-   target first and keep the job body a thin wrapper; put CI-only helper
-   scripts in `ci/scripts/`. For provider-owned analyzers, document the native
-   integration and its platform requirements under the exceptions above.
+Extend an existing test table, tool configuration or Make prerequisite first.
+A new scheduler usually needs contract cases and sample data, without another
+script or workflow. Add a provider job only for a different interpreter,
+privilege boundary or genuinely independent integration. Keep its entry point
+in Make; document provider-owned analyzers and their requirements here.
+
+The [consolidation inventory](verification-consolidation.md) records retained
+entry points, Unicode detection boundaries and measured savings.
 
 ## Why this layout
 

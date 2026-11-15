@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: MIT
 import pytest
 
-from tools.parser_fuzz import DOCUMENT_TARGETS, exercise_document
+from tools.deterministic_fuzz import DOCUMENT_TARGETS, exercise_document
 
 
 @pytest.mark.parametrize("target", DOCUMENT_TARGETS)

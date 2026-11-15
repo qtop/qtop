@@ -13,13 +13,12 @@
 #
 # - ``ci/test.gitlab-ci.yml`` -- merge-request/branch validation through the
 #                                 shared Makefile contract (``make gitlab-ci``)
-#                                 plus the dependency-light Python 3.6 gate.
+#                                 with Cobertura and the Python 3.6 gate.
 # - ``ci/build.gitlab-ci.yml`` -- sdist/wheel build on top of green tests.
 # - ``ci/security.gitlab-ci.yml`` -- SAST/Secret-Detection/Dependency-Scanning
 #                                 templates plus code-quality, license and
 #                                 repo-sanity jobs (#488).
-# - ``ci/coverage.gitlab-ci.yml`` -- Cobertura coverage publishing (#488).
-# - ``ci/nightly-matrix.gitlab-ci.yml`` -- scheduled 39-lane distro x python
+# - ``ci/nightly-matrix.gitlab-ci.yml`` -- scheduled 34-lane distro x python
 #                                 compatibility matrix (#488).
 # - ``ci/scorecard.gitlab-ci.yml`` -- scheduled OpenSSF Scorecard run (#488).
 #
@@ -56,8 +55,13 @@ stages:
 
 include:
   - local: ci/test.gitlab-ci.yml
+    rules: &regular-pipeline
+      - if: '$CI_PIPELINE_SOURCE =~ /^(schedule|web)$/ && ($NIGHTLY_MATRIX == "1" || $SCORECARD == "1")'
+        when: never
+      - when: always
   - local: ci/build.gitlab-ci.yml
+    rules: *regular-pipeline
   - local: ci/security.gitlab-ci.yml
-  - local: ci/coverage.gitlab-ci.yml
+    rules: *regular-pipeline
   - local: ci/nightly-matrix.gitlab-ci.yml
   - local: ci/scorecard.gitlab-ci.yml
