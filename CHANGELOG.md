@@ -5,6 +5,7 @@ Notable changes by version, newest first. See the
 
 ## Unreleased
 
+- CI: harden report writes and simplify account-row parsing
 - Bugfix: harden scheduler trace paths and simplify reported code patterns
 - CI: exclude live test outputs from packaging snapshots
 

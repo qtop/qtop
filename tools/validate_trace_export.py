@@ -24,11 +24,12 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import qtop_py.qtop as qtop
+from tools.private_output import private_output_dir, write_private_file
 
 ROOT = Path(__file__).resolve().parents[1]
 
 ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
-ACCOUNT_LINE_RE = re.compile(r"^\[\s*(.)\]\s+(.+?)\s+\|")
+ACCOUNT_LINE_RE = re.compile(r"^\[\s*(.)\]\s+")
 
 
 def decode_trace_payload(path):
@@ -136,8 +137,12 @@ def rendered_account_symbols(rendered):
     for line in strip_ansi(rendered).splitlines():
         match = ACCOUNT_LINE_RE.match(line)
         if match:
-            account_name = match.group(2).strip()
-            if account_name == "Totals":
+            remaining = line[match.end() :]
+            separator = re.search(r"\s\|", remaining)
+            if separator is None:
+                continue
+            account_name = remaining[: separator.start()].strip()
+            if not account_name or account_name == "Totals":
                 continue
             symbols.append(match.group(1))
     return symbols
@@ -198,15 +203,15 @@ def main():
     if args.fullview:
         validate_fullview_summary(rendered, args.fullview)
 
-    artifact_dir = Path(args.artifact_dir)
-    artifact_dir.mkdir(parents=True, exist_ok=True)
-    (artifact_dir / "rendered.out").write_text(rendered)
-    (artifact_dir / "rendered-accounttotals.out").write_text(rendered_with_totals)
-    (artifact_dir / "rendered-color.ans").write_text(rendered_color)
-    (artifact_dir / "rendered-color.out").write_text(strip_ansi(rendered_color))
-    (artifact_dir / "rendered-color-accounttotals.ans").write_text(rendered_color_with_totals)
-    (artifact_dir / "rendered-color-accounttotals.out").write_text(strip_ansi(rendered_color_with_totals))
-    (artifact_dir / "summary.json").write_text(
+    artifact_dir = private_output_dir(args.artifact_dir)
+    write_private_file(artifact_dir / "rendered.out", rendered)
+    write_private_file(artifact_dir / "rendered-accounttotals.out", rendered_with_totals)
+    write_private_file(artifact_dir / "rendered-color.ans", rendered_color)
+    write_private_file(artifact_dir / "rendered-color.out", strip_ansi(rendered_color))
+    write_private_file(artifact_dir / "rendered-color-accounttotals.ans", rendered_color_with_totals)
+    write_private_file(artifact_dir / "rendered-color-accounttotals.out", strip_ansi(rendered_color_with_totals))
+    write_private_file(
+        artifact_dir / "summary.json",
         json.dumps(
             {
                 "worker_nodes": len(snapshot.worker_nodes),
@@ -222,7 +227,7 @@ def main():
             },
             indent=2,
             sort_keys=True,
-        )
+        ),
     )
     print("trace-export: ok workers=%s jobs=%s queues=%s" % (len(snapshot.worker_nodes), len(snapshot.jobs_dict), len(snapshot.queues_dict)))
     return 0

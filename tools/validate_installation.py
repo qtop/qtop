@@ -149,16 +149,13 @@ if __name__ == "__main__":
         parser.error("--wheel-only needs --artifacts-dir")
     if options.report:
         try:
-            from tools.private_output import private_output_dir
+            from tools.private_output import private_output_path, write_private_file
         except ImportError:
-            from private_output import private_output_dir
+            from private_output import private_output_path, write_private_file
 
-        private_output_dir(options.report.parent)
+        options.report = private_output_path(options.report)
         if options.report.exists() or options.report.is_symlink():
             options.report.unlink()
     evidence = validate_installation(artifacts=options.artifacts_dir, wheel_only=options.wheel_only)
     if options.report:
-        with tempfile.NamedTemporaryFile(mode="w", dir=str(options.report.parent), delete=False) as output:
-            json.dump(evidence, output, indent=2)
-            output.write("\n")
-        os.replace(output.name, str(options.report))
+        write_private_file(options.report, json.dumps(evidence, indent=2) + "\n")

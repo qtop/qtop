@@ -45,6 +45,11 @@ import tempfile
 import unicodedata
 from pathlib import Path
 
+try:
+    from tools.private_output import private_output_dir, write_private_file
+except ImportError:
+    from private_output import private_output_dir, write_private_file
+
 ROOT = Path(__file__).resolve().parents[1]
 
 BIDI_CONTROLS = set("\u202a\u202b\u202c\u202d\u202e\u2066\u2067\u2068\u2069\u200e\u200f\u061c")
@@ -252,7 +257,7 @@ def write_reports(findings, report_dir, scanned):
     fixture-heavy tree stays reviewable; suppressed extras are summarised in a
     NOTE line. findings.json always carries the full, uncapped list.
     """
-    report_dir.mkdir(parents=True, exist_ok=True)
+    report_dir = private_output_dir(report_dir)
     counts = {"CRITICAL": 0, "WARNING": 0, "INFO": 0}
     lines = []
     lines.append("repo-sanity text-trust audit")
@@ -277,9 +282,9 @@ def write_reports(findings, report_dir, scanned):
     lines.append("")
     lines.append("summary: %d critical, %d warning, %d info" % (counts["CRITICAL"], counts["WARNING"], counts["INFO"]))
     report = "\n".join(lines) + "\n"
-    (report_dir / "report.txt").write_text(report, encoding="utf-8")
+    write_private_file(report_dir / "report.txt", report)
     payload = [{"severity": s, "path": p, "line": ln, "col": c, "message": m} for s, p, ln, c, m, _ in findings]
-    (report_dir / "findings.json").write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    write_private_file(report_dir / "findings.json", json.dumps(payload, indent=2) + "\n")
     return counts, report
 
 

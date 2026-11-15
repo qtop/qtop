@@ -15,7 +15,7 @@ from pathlib import Path
 import pytest
 
 from tools import validate_pbs_samples
-from tools.private_output import private_output_dir
+from tools.private_output import private_output_dir, write_private_file
 
 ROOT = Path(__file__).resolve().parents[1]
 posix_only = pytest.mark.skipif(os.name != "posix", reason="ownership and mode checks need POSIX")
@@ -88,3 +88,57 @@ def test_tools_run_as_scripts_reject_a_planted_symlink(tmp_path, tool, flag):
     )
     assert result.returncode == 2 and "symlink" in result.stderr
     assert list(victim.iterdir()) == []
+
+
+@posix_only
+@pytest.mark.parametrize("location", ["parent", "file"], ids=["symlink-parent", "symlink-file"])
+def test_report_writes_do_not_follow_links(tmp_path, location):
+    victim = tmp_path / "victim"
+    victim.mkdir()
+    target = victim / "report.txt"
+    target.write_text("keep")
+    if location == "parent":
+        planted = tmp_path / "planted"
+        planted.symlink_to(victim, target_is_directory=True)
+        output = planted / "nested/report.txt"
+    else:
+        output = tmp_path / "report.txt"
+        output.symlink_to(target)
+    with pytest.raises(ValueError, match="symlink"):
+        write_private_file(output, "replace")
+    assert target.read_text() == "keep"
+    assert sorted(p.name for p in victim.iterdir()) == ["report.txt"]
+
+
+@posix_only
+def test_report_replacement_does_not_truncate_hard_links(tmp_path):
+    target = tmp_path / "victim.txt"
+    target.write_text("keep")
+    output = tmp_path / "report.txt"
+    os.link(str(target), str(output))
+    write_private_file(output, "replace")
+    assert target.read_text() == "keep"
+    assert output.read_text() == "replace"
+    assert stat.S_IMODE(output.stat().st_mode) == 0o600
+
+
+@pytest.mark.parametrize("content", ["report \u03b1", b"terminal\x1b[0m"], ids=["utf8", "binary"])
+def test_atomic_reports_preserve_contents_and_leave_no_temporary_files(tmp_path, content):
+    path = tmp_path / "report"
+    write_private_file(path, content)
+    assert path.read_bytes() == (content.encode("utf-8") if isinstance(content, str) else content)
+    assert list(tmp_path.iterdir()) == [path]
+
+
+def test_failed_report_replacement_removes_its_temporary_file(tmp_path, monkeypatch):
+    path = tmp_path / "report"
+    path.write_text("keep")
+
+    def fail(*args):
+        raise OSError("replace failed")
+
+    monkeypatch.setattr(os, "replace", fail)
+    with pytest.raises(OSError, match="replace failed"):
+        write_private_file(path, "replace")
+    assert path.read_text() == "keep"
+    assert list(tmp_path.iterdir()) == [path]
