@@ -5,14 +5,14 @@ Notable changes by version, newest first. See the
 
 ## 0.9.20261115
 
-- CI: consolidate verification entry points and PR gates
-- Docs: refresh extension guidance and reconcile implementation checklists
 - Bugfix: reject PBS allocations with unrecognized prefixes
+- Bugfix: harden scheduler trace paths and simplify reported code patterns
+- CI: consolidate verification entry points and PR gates
 - CI: enforce Ruff builtin naming, context management and exception checks
 - CI: enforce stable Ruff correctness and security checks through Bugbear
-- Bugfix: harden scheduler trace paths and simplify reported code patterns
 - CI: harden report writes and simplify account-row parsing
 - CI: exclude live test outputs from packaging snapshots
+- Docs: refresh extension guidance and reconcile implementation checklists
 - Release: update version metadata to 0.9.20261115
 
 ## 0.9.20261114
