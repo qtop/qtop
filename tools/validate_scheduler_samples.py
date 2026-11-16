@@ -44,7 +44,7 @@ ALLOWED_SGR_PARAMETERS = set([0, 1, ORANGE_BACKGROUND] + list(range(30, 38)) + l
 COMMON_COLOUR_EXPECTATIONS = [
     {"semantic": "section opening delimiter", "text": "===> ", "colour": "Gray_D", "sgr": "1;30"},
     {"semantic": "section closing delimiter", "text": " <=== ", "colour": "Gray_D", "sgr": "1;30"},
-    {"semantic": "accounting section title", "text": "Job accounting summary", "colour": "White", "sgr": "1;37"},
+    {"semantic": "accounting section title", "text": "1. Job accounting summary", "colour": "White", "sgr": "1;37"},
     {"semantic": "summary label", "text": "Summary", "colour": "Cyan_L", "sgr": "1;36"},
     {"semantic": "node-count label", "text": "Nodes", "colour": "Red_L", "sgr": "1;31"},
     {"semantic": "core-count label", "text": "cores", "colour": "Green_L", "sgr": "1;32"},
