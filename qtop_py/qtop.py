@@ -385,8 +385,9 @@ def finalize_filepaths_schedulercommands(args: Any, config: Dict[str, Any], back
         path = path % {"savepath": args.workdir, "pid": fn_append}
         # Format codes stay copyable; accept legacy escaped percent signs.
         command = command.replace("%%", "%").replace("%(savepath)s", args.workdir)
-        command = backend.collection_command(fn, command, args)
-        d[fn] = (path, command)
+        adjusted = backend.collection_command(fn, command, args)
+        if adjusted is not None:
+            d[fn] = (path, adjusted)
     return d
 
 

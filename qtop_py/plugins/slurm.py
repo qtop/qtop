@@ -294,8 +294,10 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
     blocked_queue_note = " (partition closed to submissions or scheduling)"
 
     @staticmethod
-    def collection_command(key: str, command: str, options: Any) -> str:
-        """Add --all to the live squeue, sinfo and scontrol commands when qtop runs with --all."""
+    def collection_command(key: str, command: str, options: Any) -> Optional[str]:
+        """Skip details in summary mode and respect --all for live collection."""
+        if key == "scontrol_file" and getattr(options, "SLURM_SUMMARY", False):
+            return None
         if getattr(options, "ALL_PARTITIONS", False) and not options.SOURCEDIR and key in ("squeue_file", "sinfo_file", "scontrol_file"):
             command += " --all"
         return command
@@ -427,7 +429,7 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
         # "" (falsy, like the former None) when a trace is not configured; reading it then fails as an OSError.
         self.squeue_file = scheduler_output_filenames.get("squeue_file", "")
         self.sinfo_file = scheduler_output_filenames.get("sinfo_file", "")
-        self.scontrol_file = scheduler_output_filenames.get("scontrol_file", "")
+        self.scontrol_file = "" if getattr(options, "SLURM_SUMMARY", False) else scheduler_output_filenames.get("scontrol_file", "")
         self.config = config
         self.options = options
         self.slurm_stat_maker = SlurmStatExtractor(self.config, self.options)

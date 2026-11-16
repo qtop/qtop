@@ -11,7 +11,7 @@
 
 import re
 from itertools import count
-from typing import TYPE_CHECKING, Any, Callable, Collection, Dict, Mapping, Sequence, Tuple, cast
+from typing import TYPE_CHECKING, Any, Callable, Collection, Dict, Mapping, Optional, Sequence, Tuple, cast
 
 if TYPE_CHECKING:
     from typing import List
@@ -92,8 +92,8 @@ class GenericBatchSystem(object):
     classic_account_note = "  ('all' includes every reported job state)"
 
     @staticmethod
-    def collection_command(key: str, command: str, options: "Options") -> str:
-        """Return the shell command collecting trace key, adjusted for the options."""
+    def collection_command(key: str, command: str, options: "Options") -> Optional[str]:
+        """Return the command collecting trace key, or None to omit that input."""
         return command
 
     @staticmethod

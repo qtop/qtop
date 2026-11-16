@@ -51,6 +51,7 @@ Select it explicitly when needed:
 ```console
 ./qtop -b slurm_json -w
 ./qtop -b slurm -w
+./qtop --slurm-summary -w
 ./qtop -b pbs -w
 ./qtop -b sge -w
 ./qtop -b oar -w

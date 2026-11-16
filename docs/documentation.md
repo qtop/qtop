@@ -1377,3 +1377,27 @@ The small committed fixtures are synthetic schema examples, not real-cluster
 captures. See [Slurm's client guide](https://slurm.schedmd.com/rest_clients.html)
 and [schema release notes](https://slurm.schedmd.com/openapi_release_notes.html).
 No real Slurm RPC performance or real-cluster validation is claimed.
+
+### Slurm summary mode
+
+`--slurm-summary` selects the legacy `slurm` backend and runs only the configured
+`sinfo` and `squeue` commands, skipping `scontrol` allocation details:
+
+```console
+./qtop --slurm-summary -w
+./qtop -b slurm --slurm-summary --all -w 1
+```
+
+Collection runs synchronously on every display cycle, as in the original text
+backend. There is no 20-second collection timer or background collector in this
+mode; the existing `-w` interval and time spent collecting/rendering govern the
+cycle. Command timeouts still apply. Default autodetection continues to prefer
+Slurm JSON with its independent 20-second cadence.
+
+Reported job states, node inventory and GPU counts/types remain available where
+the configured summaries provide them. CPU positions and uneven per-node CPU
+counts may be estimated; the matrix labels estimated placement. Per-job GPU
+indices are unavailable, even if node-level allocated GRES indices are reported.
+Summary mode also ignores optional allocation-detail traces during offline replay.
+It cannot be combined with `--slurm-json-squeue` or an explicit non-Slurm backend.
+As an explicit selection it overrides scheduler environment/configuration defaults.

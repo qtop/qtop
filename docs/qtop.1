@@ -434,3 +434,13 @@ single background collector queries partitions, nodes and jobs every
 last successful snapshot; scheduler messages show its age and collection span.
 Separate Slurm responses are not a globally atomic scheduler snapshot.
 The command timeout is configurable with scheduler_command_timeout.
+
+.SH SLURM SUMMARY COLLECTION
+.B \-\-slurm-summary
+selects the legacy slurm backend and collects only sinfo and squeue on each
+normal display cycle. There is no independent 20-second polling interval;
+the watch interval and collection/rendering work govern refreshes.
+CPU placement may be estimated; per-job GPU indices are unavailable.
+Optional allocation-detail traces are ignored during offline replay too.
+This option accepts -b slurm or auto, overrides scheduler defaults, respects
+\-\-all, and cannot be combined with \-\-slurm-json-squeue.

@@ -290,3 +290,31 @@ def test_close_cancels_a_worker_without_reporting_shutdown_as_failure():
     finally:
         poller.close()
     assert not poller.thread.is_alive() and poller.read()[1] == ""
+
+
+@pytest.mark.parametrize("all_partitions", (False, True), ids=("visible", "all"))
+def test_slurm_summary_recollects_each_cycle_without_a_poller(frame_context, monkeypatch, all_partitions):
+    frame, args, _config, resources = frame_context
+    args.BATCH_SYSTEM, args.SLURM_SUMMARY, args.ALL_PARTITIONS, args.WATCH = "slurm", True, all_partitions, 1
+    calls = []
+    source = ROOT / "tests/plugins/slurm_samples/cpu_allocations"
+
+    def execute(commands, filenames, key, savepath, **kwargs):
+        assert key in ("squeue_file", "sinfo_file")
+        assert (" --all" in commands[key]) == all_partitions
+        assert "cancel" not in kwargs
+        calls.append(key)
+        text = (source / (key[:-5] + ".txt")).read_text()
+        if len(calls) > 2:
+            text = text.replace("alice", "changed")
+        Path(filenames[key]).write_text(text)
+        return filenames[key]
+
+    monkeypatch.setattr(qtop, "execute_shell_batch_commands", execute)
+    states = [frame()[0].to_cluster_state() for _ in range(3)]
+    assert calls == ["squeue_file", "sinfo_file"] * 3
+    assert resources.poller is None
+    assert states[0]["jobs"][0]["user"] == "alice"
+    assert states[1]["jobs"][0]["user"] == states[2]["jobs"][0]["user"] == "changed"
+    assert states[0]["nodes"][0]["cpu_allocation_source"] == "estimated"
+    assert "slurm_gpu_bindings" not in states[0]["nodes"][0]

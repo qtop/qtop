@@ -89,7 +89,14 @@ def parse_qtop_cmdline_args() -> Namespace:
         default=False,
         help="Mask identifiers where supported by the backend. With -L, save a reproducible masked state/config snapshot instead of raw traces and logs.",
     )
-    parser.add_argument("--slurm-json-squeue", action="store_true", dest="SLURM_JSON_SQUEUE", help="Use squeue --json for slurm_json jobs when scontrol returns empty job JSON")
+    slurm_mode = parser.add_mutually_exclusive_group()
+    slurm_mode.add_argument(
+        "--slurm-summary",
+        action="store_true",
+        dest="SLURM_SUMMARY",
+        help="Use only Slurm sinfo/squeue on each display cycle; CPU placement is estimated and per-job GPU indices are unavailable",
+    )
+    slurm_mode.add_argument("--slurm-json-squeue", action="store_true", dest="SLURM_JSON_SQUEUE", help="Use squeue --json for slurm_json jobs when scontrol returns empty job JSON")
     parser.add_argument("-b", "--batchSystem", action="store", dest="BATCH_SYSTEM", default=None)
     parser.add_argument(
         "--all",
@@ -232,6 +239,10 @@ def parse_qtop_cmdline_args() -> Namespace:
     parser.add_argument("--masked-traces", action="store_true", help="With -L -A -e, add experimental masked scheduler-format traces; unsupported files are omitted")
     parser.add_argument("--load-sample", metavar="ARCHIVE", help="Reproduce an anonymized support snapshot without scheduler commands")
     args = parser.parse_args()
+    if args.SLURM_SUMMARY:
+        if args.BATCH_SYSTEM and args.BATCH_SYSTEM.lower() not in ("auto", "slurm"):
+            parser.error("--slurm-summary requires -b slurm or auto")
+        args.BATCH_SYSTEM = "slurm"
     if args.SHOW_QUEUE_NODES and not args.EXPERIMENTAL:
         parser.error("--queue-nodes requires -e/--experimental")
     return args

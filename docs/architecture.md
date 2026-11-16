@@ -223,6 +223,8 @@ shutdown. The core uses backend-owned interval/fallback hooks, not scheduler-nam
 branches. Slurm JSON reuses Slurm presentation configuration through
 `display_scheduler`. JSON is parsed once per collection; UI snapshots copy the
 published canonical state. Malformed refreshes retain the prior observation.
+Legacy Slurm summary mode omits allocation-detail collection through the
+backend command hook and collects synchronously on each display cycle.
 The [Slurm JSON guide](documentation.md#slurm-json-backend) documents supported
 schemas, partial-SMT limits and conservative raw-JSON masking omissions.
 

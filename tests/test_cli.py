@@ -615,7 +615,8 @@ def test_all_partitions_does_not_change_saved_traces_or_other_backends(tmp_path,
 
 @pytest.mark.skipif(os.name != "posix", reason="Executable scheduler stand-ins require POSIX")
 @pytest.mark.parametrize("all_partitions", (False, True))
-def test_live_slurm_collects_suspended_jobs_and_optional_hidden_partitions(tmp_path, all_partitions):
+@pytest.mark.parametrize("summary", (False, True), ids=("detailed", "summary"))
+def test_live_slurm_collects_suspended_jobs_and_optional_hidden_partitions(tmp_path, all_partitions, summary):
     import json
 
     scripts = {
@@ -623,12 +624,13 @@ def test_live_slurm_collects_suspended_jobs_and_optional_hidden_partitions(tmp_p
         "sinfo": "print('node1|batch|mix|4')\nif '--all' in sys.argv:\n    print('node2|hidden|mix|4')\n",
         "scontrol": ("print('JobId=101\\n Nodes=node1 CPU_IDs=0-1')\nif '--all' in sys.argv:\n    print('JobId=102\\n Nodes=node2 CPU_IDs=2-3 GRES=gpu:h100_nvl:2(IDX:2-3)')\n"),
     }
+    scripts["scontrol"] = "open(__file__ + '.called', 'w').close()\n" + scripts["scontrol"]
     for name, body in scripts.items():
         path = tmp_path / name
         path.write_text("#!%s\nimport sys\n%s" % (sys.executable, body), encoding="utf-8")
         path.chmod(0o755)
     output = tmp_path / "output"
-    flags = ["--all"] if all_partitions else []
+    flags = (["--all"] if all_partitions else []) + (["--slurm-summary"] if summary else [])
     result = run_cli(
         tmp_path,
         "qtop_py.qtop",
@@ -648,9 +650,14 @@ def test_live_slurm_collects_suspended_jobs_and_optional_hidden_partitions(tmp_p
     assert state["jobs"][0]["state"] == "S"
     assert state["nodes"][0]["core_job_map"] == {"0": "101", "1": "101"}
     assert [queue["name"] for queue in state["queues"]] == (["batch", "hidden"] if all_partitions else ["batch"])
+    assert (tmp_path / "scontrol.called").exists() == (not summary)
+    if summary:
+        assert all(node["cpu_allocation_source"] == "estimated" for node in state["nodes"])
+        assert all("slurm_gpu_bindings" not in node for node in state["nodes"])
     if all_partitions:
-        assert state["nodes"][1]["core_job_map"] == {"2": "102", "3": "102"}
-        assert state["nodes"][1]["slurm_gpu_bindings"][0]["device_indices"] == [2, 3]
+        assert state["nodes"][1]["core_job_map"] == ({"0": "102", "1": "102"} if summary else {"2": "102", "3": "102"})
+        if not summary:
+            assert state["nodes"][1]["slurm_gpu_bindings"][0]["device_indices"] == [2, 3]
 
 
 def test_malformed_scheduler_command_quotes_are_actionable(tmp_path):
@@ -1056,3 +1063,24 @@ def test_trace_collection_rejects_output_outside_savepath(tmp_path, monkeypatch,
         qtop.execute_shell_batch_commands({"trace": "unused"}, {"trace": str(destination)}, "trace", str(savepath))
     assert list(victim.iterdir()) == []
     assert not (tmp_path / "trace.txt").exists()
+
+
+@pytest.mark.parametrize("selection", ([], ["-b", "slurm"], ["-b", "auto"], ["-b", "SLURM"]))
+def test_slurm_summary_explicitly_selects_legacy_backend(monkeypatch, selection):
+    from qtop_py import utils
+
+    monkeypatch.setenv("QTOP_SCHEDULER", "slurm_json")
+    monkeypatch.setattr(sys, "argv", ["qtop", "--slurm-summary"] + selection)
+    args = utils.parse_qtop_cmdline_args()
+    assert args.BATCH_SYSTEM == "slurm" and args.SLURM_SUMMARY
+
+
+@pytest.mark.parametrize("conflict", (["-b", "slurm_json"], ["-b", "pbs"], ["-b", "sge"], ["-b", "oar"], ["-b", "demo"], ["--slurm-json-squeue"]))
+def test_slurm_summary_rejects_conflicting_selection(monkeypatch, capsys, conflict):
+    from qtop_py import utils
+
+    monkeypatch.setattr(sys, "argv", ["qtop", "--slurm-summary"] + conflict)
+    with pytest.raises(SystemExit) as raised:
+        utils.parse_qtop_cmdline_args()
+    assert raised.value.code == 2
+    assert "--slurm-summary" in capsys.readouterr().err
