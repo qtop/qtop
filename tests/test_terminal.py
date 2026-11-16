@@ -48,10 +48,17 @@ def test_probe_waits_for_keyboard_acknowledgement_before_sending_resize(tmp_path
             resized.append(pid)
         kill(pid, signum)
 
+    write = terminal_probe.os.write
+
+    def burst(fd, data):
+        return write(fd, b"FF" if data == b"F" else data)
+
+    monkeypatch.setattr(terminal_probe.os, "write", burst)
     monkeypatch.setattr(terminal_probe.os, "read", record_read)
     monkeypatch.setattr(terminal_probe.os, "kill", check_resize)
     terminal_probe.probe(tmp_path, 2)
     assert len(resized) == 1
+    assert observed.count(b"Toggling full-name") >= 2
 
 
 @pytest.mark.skipif(os.name != "posix", reason="PTY watch tests require POSIX; use WSL on Windows")

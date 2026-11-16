@@ -6,10 +6,15 @@ Navigation
   j / Space      scroll down one screen
   k / Backspace  scroll up one screen
   h / l          scroll left / right
-  g / K          jump to the top
+  g / K / 1G     jump to the top (bare 1 still toggles section 1)
   G / J          jump to the bottom
   0 / $          jump to the left / right edge
   R              reset the viewport
+  arrows         up/down one displayed row; left/right horizontally
+  Home / End     first line / last page
+  PageUp/PageDown scroll one page
+  /text Enter    search literal text; empty search repeats; Esc cancels
+  :42 Enter      jump to displayed line 42; Esc cancels
 
 View and analysis
 

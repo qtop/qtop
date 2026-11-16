@@ -372,10 +372,15 @@ Watch mode supports:
 | j / Space | go down one screen |
 | k / Backspace | go up one screen |
 | h / l | go left / right one screen |
-| g / K | go to the top of the matrix |
-| G / J | go to the bottom of the matrix |
+| g / K / 1G / Home | go to the first displayed line |
+| G / J / End | go to the last page |
 | 0 / $ | go to the left / right edge |
 | R | reset the viewport |
+| Up / Down arrows | move one displayed row |
+| Left / Right arrows | move horizontally |
+| PageUp / PageDown | move one page |
+| /text, Enter | search forward for literal text; wrap at the end |
+| :42, Enter | jump to displayed line 42 (one-based) |
 
 #### View and session controls
 
@@ -394,6 +399,13 @@ Watch mode supports:
 | 4 | show / hide independent section 4, Account totals (as ``-4``) |
 | ? | toggle interactive help |
 | q | quit qtop |
+
+Searches include wrapped text and ignore ANSI colour sequences. An empty search
+reuses the previous text. Escape cancels a prompt; Backspace edits and Ctrl-U
+clears it. Addresses refer to displayed rows at the current terminal width.
+Bare `1` still toggles section 1; `1G` goes to the top when typed within the
+0.3-second key-sequence window. Queued keys are read on successive UI cycles;
+synchronous scheduler collection/rendering still takes time within each cycle.
 
 Instant Replay
 --------------

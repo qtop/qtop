@@ -171,7 +171,7 @@ def MVU_node_job_ids(node: Mapping[str, Any], backend: Any = None) -> Set[str]:
 
 def MVU_update(model: "MVU_Model", message: str, payload: Any = None) -> Tuple["MVU_Model", Tuple[Tuple[str, Optional[str]], ...]]:
     """Return the next model and effect requests without performing terminal or scheduler I/O."""
-    keys = set(NAVIGATION_KEYS) | {"snapshot", "layout", "t", "Q", "m", "q", "F", "s", "f", "H", "?", "r", "p", "1", "2", "3", "4"}
+    keys = set(NAVIGATION_KEYS) | {"snapshot", "layout", "t", "Q", "m", "q", "F", "s", "f", "H", "?", "r", "p", "1", "2", "3", "4", "/", ":"}
     if message not in keys:
         return model, ()
     next_model = copy.copy(model)
@@ -189,6 +189,8 @@ def MVU_update(model: "MVU_Model", message: str, payload: Any = None) -> Tuple["
         method, text, bounded = NAVIGATION_KEYS[message]
         moved = getattr(next_model.viewport, method)()
         effects.append(("notice", text if not bounded or moved else "Staying put"))
+    elif message in ("/", ":"):
+        effects.append(("search" if message == "/" else "line", None))
     elif message == "t":
         next_model.display_overrides["transpose_wn_matrices"] = not next_model.display_overrides.get("transpose_wn_matrices", next_model.config["transpose_wn_matrices"])
         next_model.viewport.reset_display()

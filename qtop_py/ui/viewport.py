@@ -138,6 +138,18 @@ class Viewport(BaseViewport):
         """Return the terminal size as (lines, columns)."""
         return self.v_term_size, self.h_term_size
 
+    def scroll_line_down(self) -> bool:
+        """Move down one displayed row, staying within the last page."""
+        previous = self.v_start
+        self.v_start += 1
+        return self.v_start != previous
+
+    def scroll_line_up(self) -> bool:
+        """Move up one displayed row, staying at the top when already there."""
+        previous = self.v_start
+        self.v_start -= 1
+        return self.v_start != previous
+
     def scroll_down(self) -> bool:
         """Scroll down one page; return False at the end."""
         success = False

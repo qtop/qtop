@@ -251,6 +251,39 @@ def test_account_totals_are_an_independent_fourth_section(tmp_path, monkeypatch,
     assert ("Totals" in output) == totals
 
 
+@pytest.mark.parametrize(
+    "key,method",
+    (
+        ("up", "scroll_line_up"),
+        ("down", "scroll_line_down"),
+        ("left", "scroll_left"),
+        ("right", "scroll_right"),
+        ("home", "scroll_top"),
+        ("end", "scroll_bottom"),
+        ("pageup", "scroll_up"),
+        ("pagedown", "scroll_down"),
+    ),
+)
+def test_arrow_and_terminal_navigation_is_an_owned_viewport_update(tmp_path, monkeypatch, key, method):
+    model = MVU_test_model(tmp_path, monkeypatch)
+    model.viewport.max_height, model.viewport.max_width = 200, 400
+    model.viewport.v_start, model.viewport.h_start = 50, 100
+    expected = copy.copy(model.viewport)
+    getattr(expected, method)()
+    updated, effects = MVU_update(model, key)
+    assert vars(updated.viewport) == vars(expected)
+    assert model.viewport.v_start == 50 and model.viewport.h_start == 100
+    assert effects[0][0] == "notice"
+
+
+@pytest.mark.parametrize("key,effect", (("/", "search"), (":", "line")))
+def test_search_and_line_navigation_request_input_as_effects(tmp_path, monkeypatch, key, effect):
+    model = MVU_test_model(tmp_path, monkeypatch)
+    updated, effects = MVU_update(model, key)
+    assert effects == ((effect, None),)
+    assert vars(updated.viewport) == vars(model.viewport)
+
+
 def test_hidden_accounts_skip_optional_name_lookups_even_when_totals_remain(tmp_path, monkeypatch):
     model = MVU_test_model(tmp_path, monkeypatch)
     model.display_overrides["sect_3_off"] = True

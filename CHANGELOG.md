@@ -12,6 +12,7 @@ Notable changes by version, newest first. See the
 - CI: increase Atheris verification timeouts to 120 seconds
 - Feature: match running and total counts to Summary backgrounds
 - Feature: match queued counts to the Summary background
+- Feature: add reliable watch keys and vi navigation
 - Feature: render account totals as an independent fourth section
 - Feature: add Slurm summary collection on each display cycle
 - Feature: add Slurm JSON collection with independent refresh and

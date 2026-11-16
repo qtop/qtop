@@ -82,7 +82,7 @@ from qtop_py.safety import visible_text
 from qtop_py.schedulers.registry import PLUGIN_BATCH_SYSTEMS
 from qtop_py.serialiser import GenericBatchSystem
 from qtop_py.snapshot import Snapshot
-from qtop_py.ui.controls import read_rule_choices
+from qtop_py.ui.controls import KeyboardInput, read_rule_choices
 from qtop_py.ui.mvu_view import MVU_view
 from qtop_py.ui.mvu_view import TextDisplay as MVU_TextDisplay
 from qtop_py.ui.viewport import Viewport, terminal_rows
@@ -232,11 +232,21 @@ def MVU_resolve_user_details(model: Any, occupancy: Any, force: bool = False) ->
     }
 
 
-def MVU_effects(model: Any, effects: Iterable[Tuple[str, Optional[str]]], cluster: Any, old_attrs: Any, new_attrs: Any) -> None:
+def MVU_effects(
+    model: Any,
+    effects: Iterable[Tuple[str, Optional[str]]],
+    cluster: Any,
+    old_attrs: Any,
+    new_attrs: Any,
+    keyboard: Optional[KeyboardInput] = None,
+    output_fp: Optional[str] = None,
+) -> None:
     """Execute requested UI I/O outside MVU_update and the snapshot query."""
     for action, value in effects:
         if action == "notice":
-            print("%s %s" % (model.MVU_colorize("***", "Green_L"), value))
+            write_notice("%s %s" % (model.MVU_colorize("***", "Green_L"), visible_text(value or "")), model.viewport)
+        elif action in ("search", "line"):
+            navigate_prompt(model, keyboard or KeyboardInput(sys.stdin), action, output_fp)
         elif action == "quit":
             print(model.MVU_colorize("\nExiting. Thank you for ..watching ;)\n", "Cyan_L"))
             raise SystemExit(0)
@@ -246,6 +256,61 @@ def MVU_effects(model: Any, effects: Iterable[Tuple[str, Optional[str]]], cluste
             choose_filter(model.viewport, cluster, model.display_overrides, old_attrs, new_attrs, model.MVU_colorize)
         elif action == "highlight":
             choose_highlight(model.viewport, cluster, model.display_overrides, old_attrs, new_attrs, model.MVU_colorize)
+
+
+def write_notice(message: str, viewport: Viewport) -> None:
+    """Replace the reserved notice row without wrapping or scrolling the frame."""
+    row = next(terminal_rows([message], viewport.h_term_size)).rstrip("\n")
+    print("\r\x1b[2K" + row, end="", flush=True)
+
+
+def navigate_prompt(model: Any, keyboard: KeyboardInput, action: str, output_fp: Optional[str]) -> None:
+    """Read a literal search or one-based displayed-row address on the notice row."""
+    text = ""
+    prefix = "/" if action == "search" else ":"
+    while True:
+        shown = list(terminal_rows([prefix + visible_text(text)], model.viewport.h_term_size))[-1].rstrip("\n")
+        print("\r\x1b[2K" + shown, end="", flush=True)
+        char = keyboard.read(navigation=False)
+        if char in ("\r", "\n", "\x1b"):
+            break
+        if char in ("\x7f", "\b"):
+            text = text[:-1]
+        elif char == "\x15":
+            text = ""
+        elif len(text) < 256 and len(char) == 1 and char.isprintable():
+            text += char
+    print("\r\x1b[2K", end="", flush=True)
+    if char == "\x1b":
+        return
+    if action == "line":
+        if text.isdecimal() and int(text) > 0:
+            model.viewport.v_start = int(text) - 1
+        else:
+            write_notice("Enter a positive displayed line number", model.viewport)
+        return
+    text = text or model.display_overrides.get("search_text", "")
+    if not text or not output_fp:
+        return
+    model.display_overrides["search_text"] = text
+    first = None
+    with open(output_fp, encoding="utf-8") as source:
+        start = 0
+        for line in source:
+            visible = re.sub(r"\x1b(?:\[[0-9;:]*m|c)", "", line)
+            position = visible.find(text)
+            if position >= 0:
+                index = start + sum(1 for _ in terminal_rows([visible[: position + 1]], model.viewport.h_term_size)) - 1
+                if first is None:
+                    first = index
+                if index > model.viewport.v_start:
+                    model.viewport.v_start = index
+                    return
+            start += sum(1 for _ in terminal_rows([line], model.viewport.h_term_size))
+    if first is not None:
+        model.viewport.v_start = first
+    else:
+        write_notice("Pattern not found", model.viewport)
 
 
 def control_qtop(viewport: Viewport, read_char: str, cluster: Any, old_attrs: Any, new_attrs: Any) -> None:
@@ -855,15 +920,17 @@ def _raise_resized(_signum: int, _frame: Any) -> None:
     raise TerminalResized
 
 
-def wait_for_keypress_or_autorefresh(viewport: Viewport, config: Dict[str, Any], FALLBACK_TERMSIZE: Sequence[int], KEYPRESS_TIMEOUT: float = 1) -> str:
+def wait_for_keypress_or_autorefresh(
+    viewport: Viewport, config: Dict[str, Any], FALLBACK_TERMSIZE: Sequence[int], KEYPRESS_TIMEOUT: float = 1, keyboard: Optional[KeyboardInput] = None
+) -> str:
     """Return the key pressed within the refresh interval, or a newline to redraw: at its end, or at once on a resize (SIGWINCH)."""
     previous = _signal.signal(SIGWINCH, _raise_resized) if SIGWINCH is not None else None  # only while waiting, never mid-frame
     try:
-        while sys.stdin in select.select([sys.stdin], [], [], KEYPRESS_TIMEOUT)[0]:
-            _read_char = sys.stdin.read(1)
-            if _read_char:
-                logging.debug("Pressed %s" % _read_char)
-                return _read_char
+        reader = keyboard or KeyboardInput(sys.stdin)
+        if reader.pending or reader.stream in select.select([reader.stream], [], [], KEYPRESS_TIMEOUT)[0]:
+            read_char = reader.read()
+            logging.debug("Pressed %s", read_char)
+            return read_char
     except TerminalResized:
         logging.debug("Terminal resized")
     finally:
@@ -1231,6 +1298,7 @@ def main(resources: RunResources) -> None:
 
     stdout = resources.stdout
 
+    keyboard = KeyboardInput(sys.stdin)
     viewport = Viewport()  # controls the part of the qtop matrix shown on screen
     max_line_len = 0
 
@@ -1296,10 +1364,10 @@ def main(resources: RunResources) -> None:
                 _ = subprocess.call(clear_command, stdout=stdout, stderr=stdout)
                 _ = subprocess.call(cat_command, stdout=stdout, stderr=stdout)
 
-                read_char = wait_for_keypress_or_autorefresh(viewport, config, FALLBACK_TERMSIZE, int(args.WATCH) or KEYPRESS_TIMEOUT)
+                read_char = wait_for_keypress_or_autorefresh(viewport, config, FALLBACK_TERMSIZE, int(args.WATCH) or KEYPRESS_TIMEOUT, keyboard)
                 model, effects = MVU_update(model, read_char)
                 viewport, dynamic_config = model.viewport, model.display_overrides
-                MVU_effects(model, effects, cluster, old_attrs, new_attrs)
+                MVU_effects(model, effects, cluster, old_attrs, new_attrs, keyboard, dynamic_config.get("output_fp", output_fp))
 
                 os.chdir(paths.qtoppath)
                 resources.discard_frame()

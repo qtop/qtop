@@ -9,7 +9,8 @@ code, and rendered directly on GitHub.
 The data contract between backends and views, its schema versions and its
 logical relations are described in [cluster-state-model.md](cluster-state-model.md).
 
-Account totals render as section 4 independently of section 3.
+The keyboard reader in `ui/controls.py` decodes complete terminal keys without
+TextIO read-ahead. Account totals render as section 4 independently of section 3.
 
 ## Runtime overview
 

@@ -15,6 +15,7 @@ QTOP_LOGFILE: "Final" = os.path.expandvars("$HOME/.local/qtop/logs/qtop.log")
 USERPATH: "Final" = os.path.expandvars("$HOME/.local/qtop")
 MAX_UNIX_ACCOUNTS: "Final" = 87  # was : 62
 DEFAULT_SCHEDULER_COMMAND_TIMEOUT: "Final" = 120
+KEY_SEQUENCE_TIMEOUT: "Final" = 0.3
 KEYPRESS_TIMEOUT: "Final" = 2  # in sec, time to wait before autorefreshing display
 FALLBACK_TERMSIZE: "Final" = [53, 176]
 SYMBOL_LONG_TAIL_USER: "Final" = "*"
