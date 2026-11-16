@@ -439,8 +439,8 @@ Sotiris Fragkiskos, Fotis Georgatos, Evangelos Papadopoulos, Nicola Trozzi
 and the qtop contributors.
 
 .SH SLURM JSON COLLECTION
-slurm_json is preferred when scontrol is detected. Explicit -b slurm keeps
-the text backend. JSON capability is checked in the first collection;
+Slurm autodetection prefers the legacy slurm backend. Explicit -b slurm_json
+selects JSON collection. JSON capability is checked in the first collection;
 unsupported clients fall back once with a diagnostic. In watch mode, a
 single background collector queries partitions, nodes and jobs every
 20 seconds independently of terminal redraws. Failed refreshes retain the

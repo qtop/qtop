@@ -214,12 +214,13 @@ def test_empty_jobs_falls_back_once_and_later_failure_retains_legacy_snapshot(fr
     assert "next RPC failed" in frame()[0]._collection_error
 
 
-def test_autodetection_prefers_json_but_explicit_legacy_is_preserved(monkeypatch):
+def test_autodetection_prefers_legacy_but_explicit_json_is_preserved(monkeypatch):
     config = yaml_parser.parse(str(ROOT / "qtopconf.yaml"))
     systems = qtop.discover_qtop_batch_systems()
     monkeypatch.setattr(qtop.shutil, "which", lambda command: "/bin/" + command)
-    assert qtop.auto_get_avail_batch_system(config, systems) == "slurm_json"
+    assert qtop.auto_get_avail_batch_system(config, systems) == "slurm"
     assert qtop.decide_batch_system("slurm", None, "auto", config["schedulers"], systems, config) == "slurm"
+    assert qtop.decide_batch_system("slurm_json", None, "auto", config["schedulers"], systems, config) == "slurm_json"
 
 
 def test_live_capture_copies_the_published_trace_set_without_reparsing(frame_context, monkeypatch):

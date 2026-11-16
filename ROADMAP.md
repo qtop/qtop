@@ -334,7 +334,7 @@ item or issue and evidence that the change works.
 
 ### Slurm JSON backend
 
-- [x] Versioned JSON input, preferred detection and explicit legacy selection.
+- [x] Versioned JSON input and explicit JSON selection; legacy Slurm default.
 - [x] Independent 20-second collection, cancellation and stale-data display.
 - [x] Shared Slurm identities, CPU/GPU metadata and portable anonymized replay.
 - [x] [CI] JSON fixtures in sample, installation, parser and fuzz gates.

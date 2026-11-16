@@ -7,7 +7,7 @@
 ## Available colors and fg-bg combinations depicted in colormap.py, in color_to_code
 
 ## scheduler possible values (currently supported): pbs, oar, sge, slurm, slurm_json
-## auto will try to detect available batch commands in the current system
+## auto detects available batch commands, preferring legacy Slurm over JSON.
 scheduler: auto
 
 ## Experimental, administrator-verified Slurm GPU pairs; disabled unless configured.

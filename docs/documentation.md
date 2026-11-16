@@ -1329,8 +1329,8 @@ the mapping because its node patterns identify the installation.
 ### Slurm JSON backend
 
 `-b slurm_json` reads Slurm data-parser JSON instead of the legacy text formats.
-Autodetection prefers it when `scontrol` is available; `-b slurm` still selects
-legacy Slurm explicitly. Queries run sequentially as `scontrol --json show
+Autodetection prefers the legacy `slurm` backend; JSON collection is selected
+explicitly with `-b slurm_json`. Queries run sequentially as `scontrol --json show
 partitions`, then `nodes`, then `jobs`. This ordering puts the typically smaller
 responses first; it is not a measured RPC speed ranking.
 
@@ -1410,8 +1410,8 @@ No real Slurm RPC performance or real-cluster validation is claimed.
 Collection runs synchronously on every display cycle, as in the original text
 backend. There is no 20-second collection timer or background collector in this
 mode; the existing `-w` interval and time spent collecting/rendering govern the
-cycle. Command timeouts still apply. Default autodetection continues to prefer
-Slurm JSON with its independent 20-second cadence.
+cycle. Command timeouts still apply. Default autodetection prefers legacy
+Slurm; explicit JSON selection retains its independent 20-second cadence.
 
 Reported job states, node inventory and GPU counts/types remain available where
 the configured summaries provide them. CPU positions and uneven per-node CPU

@@ -97,7 +97,7 @@ def read_response(path: str, key: str) -> Tuple[str, List[Dict[str, Any]]]:
 class SlurmJSONBatchSystem(SlurmBatchSystem):
     """Slurm JSON backend; publish only completely validated collections."""
 
-    detection_priority = -2
+    detection_priority = -1
     display_scheduler = "slurm"
     collection_interval = 20.0
     fallback_backend = SlurmBatchSystem

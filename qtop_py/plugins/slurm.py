@@ -289,7 +289,7 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
     optional_trace_keys: Tuple[str, ...] = ("scontrol_file",)
     optional_trace_aliases = {"scontrol_file": "scontrol.txt"}
     optional_trace_warning = "Using estimated Slurm CPU placement."
-    detection_priority = -1
+    detection_priority = -2
     node_job_fields = ("slurm_job_ids",)
     blocked_queue_note = " (partition closed to submissions or scheduling)"
 
