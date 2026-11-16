@@ -236,3 +236,24 @@ def test_anonymized_samples_drop_custom_user_accounts_header():
 
     assert "user_accounts_header" not in config
     assert "user_accounts_header" in omitted
+
+
+@pytest.mark.parametrize("accounts,totals", ((True, True), (True, False), (False, True), (False, False)))
+@pytest.mark.parametrize("groups", (False, True))
+def test_account_totals_are_an_independent_fourth_section(tmp_path, monkeypatch, capsys, accounts, totals, groups):
+    model = MVU_test_model(tmp_path, monkeypatch)
+    model.args.SHOW_GROUPS = groups
+    model.display_overrides.update(sect_3_off=not accounts, SHOW_ACCOUNT_TOTALS=totals)
+    MVU_view(MVU_query(model), str(tmp_path), "sample.tar", "qtop.log")
+    output = capsys.readouterr().out
+    assert ("User accounts and pool mappings" in output) == accounts
+    assert ("Account totals" in output) == totals
+    assert ("Totals" in output) == totals
+
+
+def test_hidden_accounts_skip_optional_name_lookups_even_when_totals_remain(tmp_path, monkeypatch):
+    model = MVU_test_model(tmp_path, monkeypatch)
+    model.display_overrides["sect_3_off"] = True
+    monkeypatch.setattr(qtop, "get_detail_of_name", lambda *_args: pytest.fail("hidden account rows must not query user details"))
+    qtop.MVU_resolve_user_details(model, MVU_query(model).occupancy)
+    assert model.user_details == {}

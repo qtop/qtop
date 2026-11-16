@@ -220,7 +220,10 @@ def colorize(
 def MVU_resolve_user_details(model: Any, occupancy: Any, force: bool = False) -> None:
     """Load user full names into the model, only if the accounts table is shown (or force is set)."""
     parts = model.config.get("user_display_parts", [])
-    if not force and not any(part == "user_accounts_pool_mappings" and not getattr(model.args, "sect_%s_off" % index, False) for index, part in enumerate(parts, 1)):
+    if not force and not any(
+        part == "user_accounts_pool_mappings" and not model.display_overrides.get("sect_%s_off" % index, getattr(model.args, "sect_%s_off" % index, False))
+        for index, part in enumerate(parts, 1)
+    ):
         model.user_details = {}
         return
     model.user_details = {

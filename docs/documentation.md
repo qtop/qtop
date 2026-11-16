@@ -299,8 +299,8 @@ differ slightly from the scheduler's own totals.
 
 ``summary_colours`` overrides those colours with colormap names, in the order
 Total, R, Q, Other; a shorter list is reused in turn. Per-user Total, R and Q
-counts and compact queue R/Q counts use the same backgrounds. The accounts
-totals row paints all its state counts like the Summary.
+counts and compact queue R/Q counts use the same backgrounds. The independent
+Account totals section paints all its state counts like the Summary.
 
 On PBS the default Summary R and Q are ``qstat -q``'s queue totals, while the
 accounts table counts ``qstat``'s job list, so the two can differ by a few jobs:
@@ -391,7 +391,7 @@ Watch mode supports:
 | s | apply sorting (remapped matrices; numbered ones keep node order) |
 | t | transpose the matrix |
 | 1, 2, 3 | show / hide sections 1-3 (as ``-1``, ``-2``, ``-3``) |
-| 4 | show / hide the accounts totals row (as ``-4``) |
+| 4 | show / hide independent section 4, Account totals (as ``-4``) |
 | ? | toggle interactive help |
 | q | quit qtop |
 
@@ -1121,8 +1121,8 @@ checkout.
 -  ``-1`` hides the accounting summary section.
 -  ``-2`` hides the worker-node occupancy section.
 -  ``-3`` hides the user accounts and pool mappings section.
--  ``-4`` / ``--noaccounttotals`` hides its totals row, shown by default
-   (up to 0.9.20261110 ``-4`` added it; ``--accounttotals`` still shows it).
+-  ``-4`` / ``--noaccounttotals`` hides section 4, Account totals, shown by
+   default independently of section 3. ``--accounttotals`` explicitly shows it.
 -  ``-a`` / ``--blindremapping`` forces worker-node remapping.
 -  ``-C`` / ``--classic`` selects the classic display style.
 -  ``-F`` forces full worker node names.

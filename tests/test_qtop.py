@@ -463,7 +463,7 @@ def test_init_dirs_uses_parent_when_source_is_a_file(tmp_path, monkeypatch):
     assert changed_to == [str(tmp_path)]
 
 
-def test_display_user_accounts_pool_mappings_adds_totals(monkeypatch, capsys):
+def test_display_account_totals_is_separate_from_user_rows(monkeypatch, capsys):
     class Args(object):
         COLOR = "OFF"
         CLASSIC = False
@@ -488,8 +488,10 @@ def test_display_user_accounts_pool_mappings_adds_totals(monkeypatch, capsys):
     display = TextDisplay(None, qtop_module.config, None, wns_occupancy, None, args)
 
     display.display_user_accounts_pool_mappings(wns_occupancy)
-
+    assert "[ T] Totals" not in capsys.readouterr().out
+    display.display_account_totals()
     output = capsys.readouterr().out
+    assert "Account totals" in output
     assert "[ T] Totals" in output
     assert "|   9      6      3      0 |" in output
     assert "|     3 |" in output
@@ -1198,8 +1200,13 @@ def _plain_accounts(monkeypatch, capsys, config, table, totals=False, color="OFF
     args = SimpleNamespace(COLOR=color, CLASSIC=False, SHOW_ACCOUNT_TOTALS=totals, SHOW_GROUPS=False)
     occupancy = SimpleNamespace(account_jobs_table=table, user_color_patterns={str(row[0]): "account_not_colored" for row in table})
     monkeypatch.setattr(qtop_module, "user_to_color", {}, raising=False)
-    TextDisplay(None, dict(config, SEPARATOR="|"), None, occupancy, None, args).display_user_accounts_pool_mappings(occupancy)
-    return capsys.readouterr().out.splitlines()
+    display = TextDisplay(None, dict(config, SEPARATOR="|"), None, occupancy, None, args)
+    display.display_user_accounts_pool_mappings(occupancy)
+    rows = capsys.readouterr().out.splitlines()
+    if totals:
+        display.display_account_totals()
+        rows += capsys.readouterr().out.splitlines()[-1:]
+    return rows
 
 
 @pytest.mark.parametrize("color, tty, style", (("ON", False, "colour"), ("OFF", True, "reverse"), ("OFF", False, None)))

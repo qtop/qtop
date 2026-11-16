@@ -105,6 +105,8 @@ class TextDisplay(object):
             display_func, opts = display_parts[part][0], display_parts[part][1]
             display_func(*opts) if not sections_off[idx] else None
 
+        if self._toggled("SHOW_ACCOUNT_TOTALS", True):
+            self.display_account_totals()
         self.display_backend_messages()
 
         if not self.args.ANONYMIZE:
@@ -283,20 +285,28 @@ class TextDisplay(object):
             )
         )
 
+        self.display_account_table_header()
+        for line in account_jobs_table:
+            uid = line[0]
+            userid_pat = user_color_patterns[str(uid)]
+            self.display_account_jobs_line(line, userid_pat, detail_of_name, group_of_name)
+
+    def display_account_table_header(self) -> None:
+        """Print the shared column labels for account rows and independent totals."""
         if getattr(self.args, "SHOW_GROUPS", False):
             detail_header = "GECOS field              | primary group        |"
         else:
             detail_header = "Grid certificate DN (info only available under elevated privileges)" if self.args.CLASSIC else "      GECOS field or Grid certificate DN |"
         labels = [label for _, label in self.state_columns("accounts_states", DEFAULT_ACCOUNT_STATES)]
         print("[id] unix account      |jobs >=%s | nodes | %s" % (" + ".join(label.rjust(4) for label in labels), detail_header))
-        for line in account_jobs_table:
-            uid = line[0]
-            userid_pat = user_color_patterns[str(uid)]
-            self.display_account_jobs_line(line, userid_pat, detail_of_name, group_of_name)
 
-        totals = self.account_jobs_totals(account_jobs_table) if self._toggled("SHOW_ACCOUNT_TOTALS", True) else None
+    def display_account_totals(self) -> None:
+        """Display section four independently of the per-user accounts section."""
+        totals = self.account_jobs_totals(self.wns_occupancy.account_jobs_table)
         if totals:
-            self.display_account_jobs_line(totals, "account_not_colored", detail_of_name, group_of_name, highlight=True)
+            print(self.MVU_model.MVU_colorize("\n===> Account totals <===", "White"))
+            self.display_account_table_header()
+            self.display_account_jobs_line(totals, "account_not_colored", {}, {} if getattr(self.args, "SHOW_GROUPS", False) else None, highlight=True)
 
     @staticmethod
     def account_jobs_totals(account_jobs_table: Sequence[Sequence[Any]]) -> Optional[List[Any]]:

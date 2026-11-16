@@ -71,8 +71,8 @@ def parse_qtop_cmdline_args() -> Namespace:
         default=False,
         help="Disable third section of qtop, i.e. User Accounts and Pool Mappings",
     )
-    parser.add_argument("-4", "--noaccounttotals", action="store_false", dest="SHOW_ACCOUNT_TOTALS", default=True, help="Hide the totals row in User Accounts and Pool Mappings")
-    parser.add_argument("--accounttotals", action="store_true", dest="SHOW_ACCOUNT_TOTALS", help="Show the totals row (the default; -4 used to mean this)")
+    parser.add_argument("-4", "--noaccounttotals", action="store_false", dest="SHOW_ACCOUNT_TOTALS", default=True, help="Hide independent section 4, Account totals")
+    parser.add_argument("--accounttotals", action="store_true", dest="SHOW_ACCOUNT_TOTALS", help="Show independent section 4, Account totals (the default)")
     parser.add_argument(
         "-a",
         "--blindremapping",
