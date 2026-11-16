@@ -84,7 +84,7 @@ from qtop_py.snapshot import Snapshot
 from qtop_py.ui.controls import read_rule_choices
 from qtop_py.ui.mvu_view import MVU_view
 from qtop_py.ui.mvu_view import TextDisplay as MVU_TextDisplay
-from qtop_py.ui.viewport import Viewport
+from qtop_py.ui.viewport import Viewport, terminal_rows
 from qtop_py.web import Web
 
 SIGPIPE = getattr(_signal, "SIGPIPE", None)  # absent on Windows
@@ -798,13 +798,13 @@ def decide_batch_system(
     raise NoSchedulerFound
 
 
-def get_output_size(max_line_len: int, output_fp: str, max_height: int = 0) -> Tuple[int, int]:
+def get_output_size(max_line_len: int, output_fp: str, max_height: int = 0, term_columns: int = 0) -> Tuple[int, int]:
     """Returns the char dimensions of the entirety of the qtop output file."""
     ansi_escape = re.compile(r"\x1b[^m]*m")  # matches ANSI escape characters
 
     if not max_height or not max_line_len:
         with open(output_fp, "r", encoding="utf-8", errors="replace") as output_file:
-            output_lines = output_file.readlines()
+            output_lines = list(terminal_rows(output_file, term_columns))
         if not output_lines:
             raise ValueError("There is no output from qtop *whatsoever*. Weird.")
 
@@ -1267,7 +1267,7 @@ def main(resources: RunResources) -> None:
                     MVU_resolve_user_details(view_data.model, view_data.occupancy)
                     display = MVU_view(view_data, savepath, SAMPLE_FILENAME, QTOP_LOGFILE)
 
-                view_data.model.viewport.max_height, max_line_len = get_output_size(max_line_len, output_fp)
+                view_data.model.viewport.max_height, max_line_len = get_output_size(max_line_len, output_fp, term_columns=viewport.h_term_size if args.WATCH else 0)
                 model, _ = MVU_update(model, "layout", view_data.model.viewport)
                 viewport = model.viewport
 

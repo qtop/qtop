@@ -1,10 +1,11 @@
 ## Copyright (c) 2026 qtop contributors
 ## SPDX-License-Identifier: MIT
+import re
 from pathlib import Path
 
 import pytest
 
-from qtop_py.ui.viewport import Viewport
+from qtop_py.ui.viewport import Viewport, terminal_rows
 
 
 def test_defaults():
@@ -236,3 +237,66 @@ def test_pages_miss_no_line(tmp_path):  # qtop/qtop#121: a line went missing bet
     viewport.scroll_bottom()
     last_page = Path(display.show_part_view("t", str(source), viewport.v_start, viewport.v_term_size)).read_text()
     assert last_page.split()[-1] == "99"
+
+
+@pytest.mark.parametrize(
+    "text,columns,expected",
+    [
+        ("abcd\n", 4, ["abcd"]),
+        ("abcde\n", 4, ["abcd", "e"]),
+        ("abcd\nefgh\n", 4, ["abcd", "efgh"]),
+        ("\n", 4, [""]),
+        ("\rheader\n", 4, ["head", "er"]),
+        ("a\tb\n", 4, ["a   ", "    ", "b"]),
+        ("\u754c\u754cx\n", 4, ["\u754c\u754c", "x"]),
+        ("e\u0301xy\n", 2, ["e\u0301x", "y"]),
+        ("\u754c\n", 1, ["?"]),
+    ],
+    ids=("exact-width", "overflow", "exact-newlines", "blank", "banner-return", "tab", "wide-glyphs", "combining", "one-column"),
+)
+def test_terminal_rows_fit_visible_cells(text, columns, expected):
+    assert list(terminal_rows(text.splitlines(keepends=True) if not text.startswith("\r") else [text], columns)) == [row + "\n" for row in expected]
+
+
+@pytest.mark.parametrize("columns", (4, 8, 16), ids=("very-narrow", "narrow", "wide"))
+def test_wrapped_viewport_keeps_top_message_and_every_scrollable_row(tmp_path, columns):
+    from qtop_py.qtop import get_output_size
+    from qtop_py.ui.mvu_view import TextDisplay
+
+    source = tmp_path / "frame.out"
+    text = "TOP\n\x1b[31mABCDEFGHIJKLMNOPQRSTUVWXYZ\x1b[0m\nlast\n"
+    source.write_text(text)
+    viewport = Viewport()
+    viewport.set_term_size(4, columns)
+    viewport.max_height = get_output_size(0, str(source), term_columns=columns)[0]
+    display = TextDisplay.__new__(TextDisplay)
+    display.config, display.viewport = {"savepath": str(tmp_path)}, viewport
+    rows = {}
+    while True:
+        page = Path(display.show_part_view("t", str(source), viewport.v_start, viewport.v_term_size)).read_text()
+        plain = re.sub(r"\x1b\[[0-9;]*m", "", page).splitlines()
+        assert len(plain) <= viewport.page
+        assert all(len(row) <= columns for row in plain)
+        if not rows:
+            assert plain[0] == "TOP"
+        rows.update((viewport.v_start + index, row) for index, row in enumerate(plain))
+        if not viewport.scroll_down():
+            break
+    assert len(rows) == viewport.max_height
+    assert "".join(rows[index] for index in sorted(rows)) == "TOPABCDEFGHIJKLMNOPQRSTUVWXYZlast"
+    viewport.scroll_bottom()
+    assert "last" in Path(display.show_part_view("t", str(source), viewport.v_start, viewport.v_term_size)).read_text()
+
+
+def test_wrapped_rows_restore_ansi_style_on_continuations_and_new_pages():
+    rows = list(terminal_rows(["\x1b[31mabcdef\n", "gh\x1b[0m\n"], 3))
+    assert rows == ["\x1b[31mabc\x1b[0m\n", "\x1b[31mdef\x1b[0m\n", "\x1b[31mgh\x1b[0m\n"]
+
+
+def test_unbounded_rows_preserve_original_output():
+    assert list(terminal_rows(["abc\n", "def"], 0)) == ["abc\n", "def"]
+
+
+def test_terminal_reset_is_zero_width_and_does_not_carry_an_old_style():
+    rows = list(terminal_rows(["\x1b[31ma\n", "\x1bcabcd\n"], 4))
+    assert rows == ["\x1b[31ma\x1b[0m\n", "\x1b[31m\x1bcabcd\n"]

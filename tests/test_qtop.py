@@ -1125,31 +1125,28 @@ def test_init_logging_sets_file_level(tmp_path, monkeypatch, verbose, expected):
         logger.disabled = old_disabled
 
 
-@pytest.mark.parametrize("head_fails", (False, True))
-def test_viewport_pipeline_reaps_both_processes(tmp_path, monkeypatch, head_fails):
+@pytest.mark.parametrize("invalid_utf8", (False, True), ids=("large-frame", "decode-failure"))
+def test_viewport_closes_its_output_on_success_and_failure(tmp_path, monkeypatch, invalid_utf8):
     source = tmp_path / "frame with spaces.out"
-    source.write_text("".join("%s\n" % number for number in range(100000)))
+    source.write_bytes(b"\xff" if invalid_utf8 else "".join("%s\n" % number for number in range(100000)).encode())
     display = TextDisplay.__new__(TextDisplay)
     display.config = {"savepath": str(tmp_path)}
-    popen = qtop_module.subprocess.Popen
-    processes = []
+    temporary_file = mvu_view.tempfile.NamedTemporaryFile
+    outputs = []
 
-    def track_process(command, **kwargs):
-        if head_fails and command[0] == "head":
-            raise OSError("head unavailable")
-        process = popen(command, **kwargs)
-        processes.append(process)
-        return process
+    def track_file(**kwargs):
+        output = temporary_file(**kwargs)
+        outputs.append(output)
+        return output
 
-    monkeypatch.setattr(qtop_module.subprocess, "Popen", track_process)
-    if head_fails:
-        with pytest.raises(OSError, match="head unavailable"):
+    monkeypatch.setattr(mvu_view.tempfile, "NamedTemporaryFile", track_file)
+    if invalid_utf8:
+        with pytest.raises(UnicodeDecodeError):
             display.show_part_view("test", str(source), 2, 3)
     else:
         result = display.show_part_view("test", str(source), 2, 3)
-        assert Path(result).read_text() == "2\n3\n"  # from 0-based line 2, one 2-line page of a 3-row terminal
-        assert len(processes) == 2
-    assert all(process.returncode is not None for process in processes)
+        assert Path(result).read_text() == "2\n3\n"
+    assert len(outputs) == 1 and outputs[0].closed
 
 
 @pytest.mark.parametrize("failure", ["timeout", "exit", "quoting"])

@@ -5,12 +5,11 @@
 import datetime
 import logging
 import os
-import subprocess
 import sys
 import tempfile
 from collections import Counter, OrderedDict
 from functools import lru_cache, partial
-from itertools import cycle, zip_longest
+from itertools import cycle, islice, zip_longest
 from typing import TYPE_CHECKING, Any, Callable, Dict, Iterable, Iterator, List, Mapping, Optional, Sequence, Tuple, overload
 
 if TYPE_CHECKING:
@@ -22,6 +21,7 @@ from qtop_py.mvu import MVU_compress_colored_line as compress_colored_line
 from qtop_py.mvu import MVU_gauge_core_vectors as gauge_core_vectors
 from qtop_py.mvu_query import WNOccupancy
 from qtop_py.safety import visible_text
+from qtop_py.ui.viewport import terminal_rows
 
 # Accounts-table state columns when accounts_states is unset: jobs >= R + Q + O(ther), as the Summary's Total=R+Q+Other.
 DEFAULT_ACCOUNT_STATES = ("running_of_user", "queued_of_user", "other_of_user")
@@ -610,21 +610,13 @@ class TextDisplay(object):
             print(wn_id_str + end_label)
 
     def show_part_view(self, _timestr: str, file: str, x: int, y: int) -> str:
-        """Print the visible part of the rendered output to the terminal, as fast as possible.
-
-        See http://unix.stackexchange.com/questions/47407/cat-line-x-to-line-y-on-a-huge-file
-        """
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".out", prefix="qtop_partview_%s_" % _timestr, dir=self.config["savepath"]) as temp_f:
-            temp_filename = temp_f.name
-        tail_command = ["tail", "-n+" + str(x + 1), file]  # x is a 0-based line offset, tail counts from 1
-        head_command = ["head", "-n" + str(max(y - 1, 1))]  # one page: the last row is kept for qtop's notices
-        with open(temp_filename, "w", encoding="utf-8") as output_file, subprocess.Popen(tail_command, stdout=subprocess.PIPE) as process_tail, subprocess.Popen(
-            head_command, stdin=process_tail.stdout, stdout=output_file
-        ) as process_head:
-            if process_tail.stdout is not None:
-                process_tail.stdout.close()
-            process_head.communicate()
-        return temp_filename
+        """Save one screen of wrapped rows, reserving the last row for notices."""
+        columns = getattr(getattr(self, "viewport", None), "h_term_size", 0)
+        with open(file, encoding="utf-8") as source, tempfile.NamedTemporaryFile(
+            mode="w", encoding="utf-8", delete=False, suffix=".out", prefix="qtop_partview_%s_" % _timestr, dir=self.config["savepath"]
+        ) as output:
+            output.writelines(islice(terminal_rows(source, columns), x, x + max(y - 1, 1)))
+        return output.name
 
     def print_mult_attr_line(
         self, node_column_start: int, node_column_stop: int, transposed_sections: List[Any], attr_lines: Any, label: str, color_func: Any = None, **_config_metadata: Any

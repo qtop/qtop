@@ -5,6 +5,8 @@ Notable changes by version, newest first. See the
 
 ## 0.9.20261116
 
+- Bugfix: paginate wrapped terminal rows without losing the top of the frame
+
 - Feature: add Slurm summary collection on each display cycle
 
 - Feature: add Slurm JSON collection with independent refresh and stale snapshots
