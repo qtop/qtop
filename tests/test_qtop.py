@@ -1363,3 +1363,23 @@ def test_queued_counts_share_summary_background_without_changing_table_alignment
     for count, index in ((5, 0), (2, 1)):
         assert model.MVU_colorize(str(count), colours_by_state[index % len(colours_by_state)]) in coloured
     assert re.sub(r"\x1b\[[0-9;]*m", "", coloured) == plain
+
+
+@pytest.mark.parametrize("expanded", (False, True), ids=("compact", "expanded"))
+@pytest.mark.parametrize("configured", (False, True), ids=("fallback", "configured"))
+def test_queue_labels_match_matrix_letter_backgrounds(capsys, expanded, configured):
+    from qtop_py.mvu import MVU_keep_queue_initials_only_and_colorize
+
+    config = {"palettes": {"PALETTES": ["custom"], "custom": {"White": "0;30;43", "BlackOnBlue": "0;30;44"}}}
+    args = SimpleNamespace(REMAP=False, CLASSIC=False, WATCH=False, EXPAND_QUEUES=expanded, ANONYMIZE=True, COLOR="ON")
+    model = MVU_Model(config, args, None, backend=qtop_module.scheduler_backend("slurm"), user_to_color={"NoPattern": "White"})
+    model.queue_to_color = {"batch": "BlackOnBlue"} if configured else {}
+    queue = SimpleNamespace(run="1", queued="0", state="up")
+    cluster = SimpleNamespace(total_running_jobs=1, total_queued_jobs=0, queues_dict={"batch": queue}, total_wn=1, offdown_nodes=0, available_wn=0, working_cores=1, total_cores=1)
+    display = mvu_view.TextDisplay(None, config, None, None, cluster, args, MVU_model=model)
+    display.display_job_accounting_summary(cluster, None)
+    output = capsys.readouterr().out
+    cell = MVU_keep_queue_initials_only_and_colorize([{"qname": ["batch"]}], model.queue_to_color)[0]["qname"][0]
+    expected = model.MVU_colorize(cell.initial, color_func=cell.color)
+    assert "\x1b[0;30;%sm" % ("44" if configured else "43") in expected
+    assert expected.replace("mb\x1b", "mbatch\x1b") in output

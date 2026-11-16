@@ -6,6 +6,7 @@ Notable changes by version, newest first. See the
 ## 0.9.20261116
 
 
+- Bugfix: match queue names to their matrix colors
 - Bugfix: paginate wrapped terminal rows without losing the top of the frame
 - Bugfix: increase scheduler command timeout defaults to 120 seconds
 - CI: cover Slurm JSON samples, installations and parser fuzzing

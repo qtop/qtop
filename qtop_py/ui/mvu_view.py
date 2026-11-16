@@ -203,11 +203,10 @@ class TextDisplay(object):
         for _queue_name, q_tuple in queues.items() if not expanded else ():
             q_running_jobs, q_queued_jobs = q_tuple.run, q_tuple.queued
             queued_cell = self.count_cells(["queued_of_user"], [q_queued_jobs])[0] if self.args.COLOR == "ON" else str(q_queued_jobs)
-            account = _queue_name if _queue_name in self.MVU_model.queue_to_color else "account_not_colored"
             print(
                 "{indent}{qname}{star}: {run} {q}|".format(
                     indent="  " if expanded else "",
-                    qname=self.MVU_model.MVU_colorize(_queue_name, "", pattern=account, mapping=self.MVU_model.queue_to_color),
+                    qname=self.MVU_model.MVU_colorize(_queue_name, color_func=self.MVU_model.queue_to_color.get(_queue_name, "")),
                     star=self.MVU_model.MVU_colorize("*", "Red_L") if self.MVU_model.backend.queue_is_blocked(q_tuple.state) else "",
                     run=self.count_cells(["running_of_user"], [q_running_jobs])[0] if self.args.COLOR == "ON" else str(q_running_jobs),
                     q="+ " + queued_cell + " " if q_queued_jobs != "0" else "",
@@ -372,10 +371,9 @@ class TextDisplay(object):
         widths = [max([len(str(counts[index])) for _, _, counts in rows] + [len(label)]) for index, label in enumerate(("Total", "R", "Q", "Other"))]
         print("  %s    %s" % (" " * name_width, "   ".join(label.rjust(width) for label, width in zip(("Total", "R", "Q", "Other"), widths))))
         for name, queue, counts in rows:
-            account = name if name in self.MVU_model.queue_to_color else "account_not_colored"
             star = self.MVU_model.MVU_colorize("*", "Red_L") if self.MVU_model.backend.queue_is_blocked(queue.state) else " "
             cells = [" " * (width - len(str(count))) + cell for width, count, cell in zip(widths, counts, self.count_cells(COUNT_KEYS, counts))]
-            label = self.MVU_model.MVU_colorize(name, "", pattern=account, mapping=self.MVU_model.queue_to_color)
+            label = self.MVU_model.MVU_colorize(name, color_func=self.MVU_model.queue_to_color.get(name, ""))
             print("  %s%s%s : %s = %s + %s + %s" % (label, star, " " * (name_width - len(name)), *cells))
 
     def count_cells(self, keys: Sequence[str], counts: Sequence[Any]) -> List[str]:
