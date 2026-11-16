@@ -1093,3 +1093,12 @@ def test_clipped_and_expanded_queue_flags_are_mutually_exclusive(monkeypatch):
     with pytest.raises(SystemExit) as stopped:
         utils.parse_qtop_cmdline_args()
     assert stopped.value.code == 2
+
+
+@pytest.mark.parametrize("flags,clipped,expanded", (([], True, False), (["--no-wrap-queues"], True, False), (["--expand-queues"], False, True)))
+def test_queue_layout_defaults_to_clipping_and_respects_explicit_expansion(monkeypatch, flags, clipped, expanded):
+    from qtop_py import utils
+
+    monkeypatch.setattr(sys, "argv", ["qtop"] + flags)
+    args = utils.parse_qtop_cmdline_args()
+    assert args.NO_WRAP_QUEUES is clipped and args.EXPAND_QUEUES is expanded

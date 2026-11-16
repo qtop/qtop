@@ -174,12 +174,12 @@ def MVU_queue_layout(model: "MVU_Model", queues: Optional[Mapping[str, Any]] = N
     layout = model.display_overrides.get("queue_summary_layout")
     if isinstance(layout, str):
         return layout
-    if getattr(model.args, "NO_WRAP_QUEUES", False):
-        return "clipped"
     if "queue_summary_expanded" in model.display_overrides:
         return "expanded" if model.display_overrides["queue_summary_expanded"] else "compact"
     if getattr(model.args, "EXPAND_QUEUES", False):
         return "expanded"
+    if getattr(model.args, "NO_WRAP_QUEUES", True):
+        return "clipped"
     if getattr(model.args, "WATCH", False) and model.viewport:
         queues = getattr(model.snapshot, "queues_dict", {}) if queues is None else queues
         text = "".join("%s*: %s + %s | " % (name, queue.run, queue.queued) for name, queue in queues.items())

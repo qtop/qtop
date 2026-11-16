@@ -211,10 +211,14 @@ class TextDisplay(object):
                 running_cell = self.count_cells(["running_of_user"], [queue.run])[0] if self.args.COLOR == "ON" else str(queue.run)
                 queued_cell = self.count_cells(["queued_of_user"], [queue.queued])[0] if self.args.COLOR == "ON" else str(queue.queued)
                 entries.append("%s%s: %s %s|" % (label, star, running_cell, "+ " + queued_cell + " " if str(queue.queued) != "0" else ""))
-            line = heading + " " + "".join(entry + " " for entry in entries) + note
-            if layout == "clipped" and self.viewport:
-                line = next(terminal_rows([line], self.viewport.h_term_size)).rstrip("\n")
-            print(line + "\n")
+            line = heading + " " + "".join(entry + " " for entry in entries)
+            if layout == "clipped":
+                if self.viewport:
+                    line = next(terminal_rows([line], self.viewport.h_term_size)).rstrip("\n")
+                print(line)
+                print(note + "\n")
+            else:
+                print(line + note + "\n")
         if getattr(self.args, "SHOW_QUEUE_NODES", False):
             from qtop_py.queue_nodes import queue_node_counts
 

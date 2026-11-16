@@ -151,7 +151,7 @@ def parse_qtop_cmdline_args() -> Namespace:
     )
     queue_layout = parser.add_mutually_exclusive_group()
     queue_layout.add_argument(
-        "--no-wrap-queues", action="store_true", dest="NO_WRAP_QUEUES", help="Clip the Queueing summary to one terminal row (Q cycles compact, expanded and clipped layouts)."
+        "--no-wrap-queues", action="store_true", dest="NO_WRAP_QUEUES", default=True, help="Clip the Queueing summary to one terminal row (the default; Q cycles layouts)."
     )
     queue_layout.add_argument(
         "--expand-queues",
@@ -243,6 +243,8 @@ def parse_qtop_cmdline_args() -> Namespace:
     parser.add_argument("--masked-traces", action="store_true", help="With -L -A -e, add experimental masked scheduler-format traces; unsupported files are omitted")
     parser.add_argument("--load-sample", metavar="ARCHIVE", help="Reproduce an anonymized support snapshot without scheduler commands")
     args = parser.parse_args()
+    if args.EXPAND_QUEUES:
+        args.NO_WRAP_QUEUES = False
     if args.SLURM_SUMMARY:
         if args.BATCH_SYSTEM and args.BATCH_SYSTEM.lower() not in ("auto", "slurm"):
             parser.error("--slurm-summary requires -b slurm or auto")

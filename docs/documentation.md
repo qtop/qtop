@@ -1140,16 +1140,15 @@ checkout.
 -  ``-F`` forces full worker node names.
 -  ``-G`` resolves user details with ``getent passwd``.
 -  ``--show-groups`` adds primary Unix groups to the account table.
--  ``--expand-queues`` displays one queue or partition per summary line;
-   press ``Q`` to cycle compact, expanded and clipped layouts in watch mode.
+-  ``--expand-queues`` displays one queue or partition per summary line.
+   Each expanded line reads ``Total = R + Q + Other``, aligned and in the
+   Summary colours; Other counts the queue's listed jobs beyond its R and Q.
 -  ``--no-wrap-queues`` keeps the Queueing summary on one physical terminal row,
-   clipping overflow to the detected width. It is mutually exclusive with
-   ``--expand-queues``; ``Q`` can change the layout after startup. The default
-   retains automatic expansion for wide summaries. Clipping affects display
-   only; normalized exports retain every queue. Each line reads ``Total = R + Q + Other``,
-   aligned and in the Summary colours; Other counts the queue's listed jobs
-   beyond its R and Q. Watch mode also expands it when
-   the one-line summary would be wider than the terminal.
+   clipping overflow to the detected width. This is the default; it is mutually
+   exclusive with ``--expand-queues``. ``Q`` cycles compact, expanded and clipped
+   layouts after startup. Clipping affects display only; normalized exports
+   retain every queue. The blocked-queue legend stays on its own line in clipped
+   mode, so it is visible even when queue names overflow.
 -  ``-T`` transposes the worker-node matrix.
 -  ``-l`` lets the matrix overflow horizontally, which is useful with
    ``less -RS``.

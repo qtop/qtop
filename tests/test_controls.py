@@ -171,13 +171,14 @@ def test_unknown_key_leaves_view_and_settings_unchanged(controls):
 
 
 def test_q_cycles_compact_expanded_and_clipped_layouts(controls):
-    for expected in ("expanded", "clipped", "compact", "expanded"):
+    for expected in ("compact", "expanded", "clipped", "compact"):
         press(controls, "Q")
         assert overrides(controls)["queue_summary_layout"] == expected
 
 
 def test_q_starts_from_the_actual_automatic_layout(controls):
     controls.model.args.WATCH = True
+    controls.model.args.NO_WRAP_QUEUES = False
     controls.model.snapshot = SimpleNamespace(queues_dict={"long_queue": SimpleNamespace(run="100", queued="100")})
     press(controls, "Q")
     assert overrides(controls)["queue_summary_layout"] == "clipped"

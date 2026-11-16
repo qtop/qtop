@@ -661,7 +661,7 @@ def test_queueing_summary_preserves_order_and_expands(capsys):
 def test_queue_summary_expands_in_watch_mode_when_wider_than_the_terminal(capsys, queues, watch, overrides, expanded):
     queues_dict = {"queue_%03d" % index: SimpleNamespace(run="1", queued="2", state="E") for index in range(queues)}
     cluster = SimpleNamespace(total_running_jobs=0, total_queued_jobs=0, queues_dict=queues_dict, total_wn=0, offdown_nodes=0, available_wn=0, working_cores=0, total_cores=0)
-    args = SimpleNamespace(REMAP=False, CLASSIC=False, WATCH=watch, ANONYMIZE=True, COLOR="OFF")
+    args = SimpleNamespace(REMAP=False, CLASSIC=False, WATCH=watch, ANONYMIZE=True, NO_WRAP_QUEUES=False, COLOR="OFF")
     viewport = Viewport()
     viewport.set_term_size(40, 100)
     model = MVU_Model({}, args, viewport, backend=qtop_module.scheduler_backend("pbs"), display_overrides=overrides)
@@ -1380,6 +1380,8 @@ def test_no_wrap_queues_clips_only_the_queueing_row(capsys, color, clipped):
     assert queue_line.startswith("Queueing : queue_000: 1 + 2 |")
     assert (len(queue_line) <= 40) == clipped
     assert ("queue_149" in queue_line) != clipped
+    if clipped:
+        assert any(line.startswith("* implies blocked") for line in output.splitlines())
     assert "Job accounting summary" in output and "Summary" in output
 
 

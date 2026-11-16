@@ -12,6 +12,7 @@ Notable changes by version, newest first. See the
 - CI: cover Slurm JSON samples, installations and parser fuzzing
 - CI: increase Atheris verification timeouts to 120 seconds
 - Feature: prefer legacy Slurm during autodetection
+- Feature: default to clipped queue summaries
 - Feature: simplify keys and align the watch legend
 - Feature: match running and total counts to Summary backgrounds
 - Feature: match queued counts to the Summary background
