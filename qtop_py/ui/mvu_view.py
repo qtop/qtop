@@ -52,8 +52,15 @@ def summary_count_colours(config: "Config") -> Tuple[str, ...]:
 
 
 WATCH_KEYS: Tuple[Tuple[str, str], ...] = (("q", "quit"), ("?", "help"), ("m", "colour"), ("p", "palette"), ("t", "transpose"), ("H", "highlight"), ("f", "filter"), ("s", "sort"))
-WATCH_KEYS += (("1,2,3,4", "sections"), ("hjkl/arrows", "scroll"), ("/", "search"), (":line", "jump"), ("g/G", "top/bottom"))
-WATCH_KEYS_TEXT = "Keys: " + ", ".join("%s %s" % pair for pair in WATCH_KEYS)
+WATCH_MORE_KEYS: Tuple[Tuple[str, str], ...] = (
+    ("Q", "queue layout"),
+    ("1,2,3,4", "sections"),
+    ("hjkl/arrows", "scroll"),
+    ("/", "search"),
+    (":line", "jump"),
+    ("g/G", "top/bottom"),
+)
+WATCH_KEYS_TEXT = "Keys: " + ",\n      ".join(", ".join("%s %s" % pair for pair in group) for group in (WATCH_KEYS, WATCH_MORE_KEYS))
 BOLD = "\033[1m%s\033[0m"
 
 
@@ -79,7 +86,7 @@ class TextDisplay(object):
             key, text = (lambda s: self.MVU_model.MVU_colorize(s, "Blue_L")), (lambda s: self.MVU_model.MVU_colorize(s, "Yellow"))
         else:
             key, text = "\033[4m%s\033[24m".__mod__, str
-        line = text("Keys: ") + text(", ").join(key(name) + text(" " + label) for name, label in WATCH_KEYS)
+        line = text("Keys: ") + text(",\n      ").join(text(", ").join(key(name) + text(" " + label) for name, label in group) for group in (WATCH_KEYS, WATCH_MORE_KEYS))
         return line if self.args.COLOR == "ON" else BOLD % line
 
     def _toggled(self, key: str, default: bool) -> bool:

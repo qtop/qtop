@@ -50,17 +50,12 @@ class KeyboardInput:
             if char:
                 return char
 
-    def read(self, navigation: bool = True) -> str:
+    def read(self) -> str:
         """Read one character or a bounded CSI/SS3 navigation sequence."""
         if self.pending:
             char, self.pending = self.pending, ""
         else:
             char = self._character()
-        if char == "1" and navigation and select.select([self.stream], [], [], KEY_SEQUENCE_TIMEOUT)[0]:
-            following = self._character()
-            if following == "G":
-                return "home"
-            self.pending = following
         if char != "\x1b" or not select.select([self.stream], [], [], KEY_SEQUENCE_TIMEOUT)[0]:
             return char
         prefix = self._character()

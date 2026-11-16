@@ -30,7 +30,7 @@ def keyboard(monkeypatch):
     "data,expected",
     [
         (b"FQq", ["F", "Q", "q"]),
-        (b"1Gq", ["home", "q"]),
+        (b"1Gq", ["1", "G", "q"]),
         (b"1xq", ["1", "x", "q"]),
         (b"1", ["1"]),
         (b"\x1b[A\x1b[B\x1b[C\x1b[D", ["up", "down", "right", "left"]),
@@ -44,7 +44,7 @@ def keyboard(monkeypatch):
     ],
     ids=(
         "burst",
-        "first-line-chord",
+        "separate-one-and-bottom",
         "bare-one-and-next-key",
         "bare-one",
         "arrows",
@@ -64,8 +64,8 @@ def test_keyboard_decodes_complete_keys_without_losing_following_input(keyboard,
 
 def test_literal_prompts_do_not_interpret_one_g_as_navigation(keyboard):
     reader = keyboard(b"1G")
-    assert reader.read(navigation=False) == "1"
-    assert reader.read(navigation=False) == "G"
+    assert reader.read() == "1"
+    assert reader.read() == "G"
 
 
 def test_keyboard_eof_exits_instead_of_spinning(keyboard):
@@ -127,3 +127,10 @@ def test_notice_stays_on_its_reserved_row_in_a_narrow_terminal(capsys):
     viewport.set_term_size(5, 8)
     qtop.write_notice("very long navigation notice", viewport)
     assert capsys.readouterr().out == "\r\x1b[2Kvery lon"
+
+
+def test_one_and_g_are_immediate_independent_keys(keyboard, monkeypatch):
+    reader = keyboard(b"1G")
+    monkeypatch.setattr(controls.select, "select", lambda *_args: pytest.fail("ordinary keys must not wait for a chord"))
+    assert reader.read() == "1"
+    assert reader.read() == "G"

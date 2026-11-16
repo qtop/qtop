@@ -271,7 +271,7 @@ def navigate_prompt(model: Any, keyboard: KeyboardInput, action: str, output_fp:
     while True:
         shown = list(terminal_rows([prefix + visible_text(text)], model.viewport.h_term_size))[-1].rstrip("\n")
         print("\r\x1b[2K" + shown, end="", flush=True)
-        char = keyboard.read(navigation=False)
+        char = keyboard.read()
         if char in ("\r", "\n", "\x1b"):
             break
         if char in ("\x7f", "\b"):

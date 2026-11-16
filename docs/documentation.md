@@ -372,7 +372,7 @@ Watch mode supports:
 | j / Space | go down one screen |
 | k / Backspace | go up one screen |
 | h / l | go left / right one screen |
-| g / K / 1G / Home | go to the first displayed line |
+| g / K / Home | go to the first displayed line |
 | G / J / End | go to the last page |
 | 0 / $ | go to the left / right edge |
 | R | reset the viewport |
@@ -403,8 +403,8 @@ Watch mode supports:
 Searches include wrapped text and ignore ANSI colour sequences. An empty search
 reuses the previous text. Escape cancels a prompt; Backspace edits and Ctrl-U
 clears it. Addresses refer to displayed rows at the current terminal width.
-Bare `1` still toggles section 1; `1G` goes to the top when typed within the
-0.3-second key-sequence window. Queued keys are read on successive UI cycles;
+Bare `1` toggles section 1 immediately; `G` goes to the bottom independently.
+Queued keys are read on successive UI cycles;
 synchronous scheduler collection/rendering still takes time within each cycle.
 
 Instant Replay
