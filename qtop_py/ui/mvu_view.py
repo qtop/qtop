@@ -200,7 +200,7 @@ class TextDisplay(object):
                     indent="  " if expanded else "",
                     qname=self.MVU_model.MVU_colorize(_queue_name, "", pattern=account, mapping=self.MVU_model.queue_to_color),
                     star=self.MVU_model.MVU_colorize("*", "Red_L") if self.MVU_model.backend.queue_is_blocked(q_tuple.state) else "",
-                    run=self.MVU_model.MVU_colorize(q_running_jobs, "", pattern=account, mapping=self.MVU_model.queue_to_color),
+                    run=self.count_cells(["running_of_user"], [q_running_jobs])[0] if self.args.COLOR == "ON" else str(q_running_jobs),
                     q="+ " + queued_cell + " " if q_queued_jobs != "0" else "",
                 ),
                 end="\n" if expanded else " ",
@@ -393,7 +393,7 @@ class TextDisplay(object):
             cells = self.count_cells(keys, values)
         else:
             for index, key in enumerate(keys):
-                if key == "queued_of_user" and self.args.COLOR == "ON":
+                if key in ("total", "running_of_user", "queued_of_user") and self.args.COLOR == "ON":
                     cells[index] = self.count_cells([key], [values[index]])[0]
         cells = [" " * (4 - len(str(value))) + cell for value, cell in zip(values, cells)]
         state_cells = "   ".join("{%d}" % (7 + index) for index in range(len(state_columns)))

@@ -1350,4 +1350,7 @@ def test_queued_counts_share_summary_background_without_changing_table_alignment
     display.display_account_jobs_line(row, "alice", {})
     coloured = capsys.readouterr().out.rstrip("\n")
     assert "\x1b[%sm3\x1b[0;m" % code in coloured
+    colours_by_state = mvu_view.summary_count_colours(config)
+    for count, index in ((5, 0), (2, 1)):
+        assert model.MVU_colorize(str(count), colours_by_state[index % len(colours_by_state)]) in coloured
     assert re.sub(r"\x1b\[[0-9;]*m", "", coloured) == plain

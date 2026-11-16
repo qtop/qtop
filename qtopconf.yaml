@@ -389,7 +389,7 @@ core_coloring: user_to_color
 ## Summary-line count colours, in order Total, R, Q, Other (more states reuse them), from the colormap names, e.g.
 ## BlackOnBlue, WhiteOnBlue, BlackOnGreen, BlackOnGold, WhiteOnRed, BlackOnOrange256 (needs a 256-colour terminal).
 ## Unset (default): blue, green, orange (red without 256 colours) and yellow backgrounds.
-## Queued counts in compact queue summaries and account rows use the Q colour too.
+## Compact queue R/Q and per-user Total/R/Q counts use these colours too.
 # summary_colours:
 #   - WhiteOnBlue
 #   - BlackOnGreen

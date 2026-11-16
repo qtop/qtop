@@ -298,8 +298,9 @@ neither state; set, every count comes from the job list instead, which may
 differ slightly from the scheduler's own totals.
 
 ``summary_colours`` overrides those colours with colormap names, in the order
-Total, R, Q, Other; a shorter list is reused in turn. The accounts totals row
-paints its jobs and state counts the same way, so the two can be compared.
+Total, R, Q, Other; a shorter list is reused in turn. Per-user Total, R and Q
+counts and compact queue R/Q counts use the same backgrounds. The accounts
+totals row paints all its state counts like the Summary.
 
 On PBS the default Summary R and Q are ``qstat -q``'s queue totals, while the
 accounts table counts ``qstat``'s job list, so the two can differ by a few jobs:
