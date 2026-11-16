@@ -1319,3 +1319,35 @@ def test_legacy_account_display_retains_the_resolved_fallback_model(monkeypatch)
     display = TextDisplay.__new__(TextDisplay)
     display.display_user_accounts_pool_mappings(object())
     assert len(models) == 1
+
+
+@pytest.mark.parametrize(
+    "term,colours,code",
+    [
+        ("xterm-256color", None, "0;30;48;5;208"),
+        ("linux", None, "1;37;41"),
+        ("xterm", ["BlackOnBlue", "BlackOnRed"], "0;30;44"),
+        ("xterm", ["BlackOnBlue", "BlackOnGreen", "BlackOnRed"], "0;30;41"),
+    ],
+    ids=("orange", "red-fallback", "cycled-config", "custom-config"),
+)
+@pytest.mark.parametrize("user_colour", ("Red_L", "BlackOnOrange256"), ids=("foreground-user", "background-user"))
+def test_queued_counts_share_summary_background_without_changing_table_alignment(monkeypatch, capsys, term, colours, code, user_colour):
+    monkeypatch.setenv("TERM", term)
+    monkeypatch.delenv("COLORTERM", raising=False)
+    config = {"accounts_states": [{"queued_of_user": "WAIT"}, "running_of_user"]}
+    if colours:
+        config["summary_colours"] = colours
+    _summary(config, LISTED, color="ON")
+    lines = capsys.readouterr().out.splitlines()
+    for label in ("Summary", "Queueing"):
+        assert "\x1b[%sm4\x1b[0;m" % code in next(line for line in lines if re.sub(r"\x1b\[[0-9;]*m", "", line).startswith(label))
+    row = ["0", 2, 3, 5, "alice", 1, {"running_of_user": 2, "queued_of_user": 3}]
+    plain = _plain_accounts(monkeypatch, capsys, config, [row])[-1]
+    args = SimpleNamespace(COLOR="ON", CLASSIC=False)
+    model = MVU_Model({}, args, None, user_to_color={"alice": user_colour})
+    display = mvu_view.TextDisplay(None, dict(config, SEPARATOR="|"), None, None, None, args, MVU_model=model)
+    display.display_account_jobs_line(row, "alice", {})
+    coloured = capsys.readouterr().out.rstrip("\n")
+    assert "\x1b[%sm3\x1b[0;m" % code in coloured
+    assert re.sub(r"\x1b\[[0-9;]*m", "", coloured) == plain

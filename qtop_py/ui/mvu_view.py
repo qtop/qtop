@@ -193,6 +193,7 @@ class TextDisplay(object):
         print("%(queues)s :" % {"queues": self.MVU_model.MVU_colorize("Queueing", "Cyan_L")}, end="\n" if expanded else " ")
         for _queue_name, q_tuple in queues.items() if not expanded else ():
             q_running_jobs, q_queued_jobs = q_tuple.run, q_tuple.queued
+            queued_cell = self.count_cells(["queued_of_user"], [q_queued_jobs])[0] if self.args.COLOR == "ON" else str(q_queued_jobs)
             account = _queue_name if _queue_name in self.MVU_model.queue_to_color else "account_not_colored"
             print(
                 "{indent}{qname}{star}: {run} {q}|".format(
@@ -200,7 +201,7 @@ class TextDisplay(object):
                     qname=self.MVU_model.MVU_colorize(_queue_name, "", pattern=account, mapping=self.MVU_model.queue_to_color),
                     star=self.MVU_model.MVU_colorize("*", "Red_L") if self.MVU_model.backend.queue_is_blocked(q_tuple.state) else "",
                     run=self.MVU_model.MVU_colorize(q_running_jobs, "", pattern=account, mapping=self.MVU_model.queue_to_color),
-                    q="+ " + self.MVU_model.MVU_colorize(q_queued_jobs, "", account, mapping=self.MVU_model.queue_to_color) + " " if q_queued_jobs != "0" else "",
+                    q="+ " + queued_cell + " " if q_queued_jobs != "0" else "",
                 ),
                 end="\n" if expanded else " ",
             )
@@ -385,12 +386,18 @@ class TextDisplay(object):
 
         detail_width = 25 if group_of_name is not None else 40
         group_column = "{sep} {group:<{width20}} " if group_of_name is not None else ""
-        cells = [self.MVU_model.MVU_colorize(str(value), pattern=userid_pat) for value in [alljobs] + [counts.get(key, 0) for key, _ in state_columns]]
-        if highlight:  # padded outside the colour, so only the digits are painted
-            values = [alljobs] + [counts.get(key, 0) for key, _ in state_columns]
-            cells = [" " * (4 - len(str(value))) + cell for value, cell in zip(values, self.count_cells(["total"] + [key for key, _ in state_columns], values))]
-        state_cells = "   ".join("{%d:>{width4}}" % (7 + index) for index in range(len(state_columns)))
-        row_format = "[ {0:<{width1}}] {4:<{width18}}{sep}{3:>{width4}}   " + state_cells + " {sep} {6:>{width5}} {sep} {5:<{detail_width}} "
+        values = [alljobs] + [counts.get(key, 0) for key, _ in state_columns]
+        keys = ["total"] + [key for key, _ in state_columns]
+        cells = [self.MVU_model.MVU_colorize(str(value), pattern=userid_pat) for value in values]
+        if highlight:
+            cells = self.count_cells(keys, values)
+        else:
+            for index, key in enumerate(keys):
+                if key == "queued_of_user" and self.args.COLOR == "ON":
+                    cells[index] = self.count_cells([key], [values[index]])[0]
+        cells = [" " * (4 - len(str(value))) + cell for value, cell in zip(values, cells)]
+        state_cells = "   ".join("{%d}" % (7 + index) for index in range(len(state_columns)))
+        row_format = "[ {0:<{width1}}] {4:<{width18}}{sep}{3}   " + state_cells + " {sep} {6:>{width5}} {sep} {5:<{detail_width}} "
         print_string = (row_format + group_column + "{sep}").format(
             self.MVU_model.MVU_colorize(str(uid), pattern=userid_pat),
             self.MVU_model.MVU_colorize(str(runningjobs), pattern=userid_pat),
