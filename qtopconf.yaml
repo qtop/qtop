@@ -6,7 +6,7 @@
 ## Lines beginning with single hash are commands commented out that you could try out.
 ## Available colors and fg-bg combinations depicted in colormap.py, in color_to_code
 
-## scheduler possible values (currently supported): pbs, oar, sge, slurm
+## scheduler possible values (currently supported): pbs, oar, sge, slurm, slurm_json
 ## auto will try to detect available batch commands in the current system
 scheduler: auto
 
@@ -46,6 +46,11 @@ schedulers:
     oarstat_file: %(savepath)s/oarstat%(pid)s.txt, oarstat
   sge:
     sge_file: %(savepath)s/qstat%(pid)s.F.xml.stdout, qstat -F -xml -u '*'
+  slurm_json:
+    ## Sequential queries: small partition inventory first, jobs last.
+    partitions_json: %(savepath)s/slurm_partitions%(pid)s.json, scontrol --json show partitions
+    nodes_json: %(savepath)s/slurm_nodes%(pid)s.json, scontrol --json show nodes
+    jobs_json: %(savepath)s/slurm_jobs%(pid)s.json, scontrol --json show jobs
   slurm:
     ## Copy the command after ', ' directly into a shell for debugging.
     ## Include all retained job states, including suspended jobs; --all opts into hidden partitions.
@@ -63,6 +68,7 @@ signature_commands:
   pbs: pbsnodes
   oar: oarnodes
   sge: qacct
+  slurm_json: scontrol
   slurm: sinfo
   demo: echo
 

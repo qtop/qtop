@@ -49,6 +49,7 @@ On a scheduler host, qtop can normally discover the available scheduler:
 Select it explicitly when needed:
 
 ```console
+./qtop -b slurm_json -w
 ./qtop -b slurm -w
 ./qtop -b pbs -w
 ./qtop -b sge -w

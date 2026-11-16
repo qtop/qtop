@@ -618,3 +618,33 @@ def test_masked_traces_reject_long_malformed_fields(scheduler, key, text):
     backend = {"oar": OARBatchSystem, "pbs": PBSBatchSystem, "slurm": SlurmBatchSystem}[scheduler]({}, {}, SimpleNamespace(ANONYMIZE=False))
     with pytest.raises(ValueError):
         backend.mask_source_trace(key, text, TraceMasker({}))
+
+
+def test_slurm_json_raw_and_anonymized_archives_replay_without_live_commands(tmp_path):
+    source = ROOT / "tests/plugins/slurm_json_samples/v0.0.43"
+    output = tmp_path / "raw-output"
+    raw = run_cli(tmp_path / "raw-home", "-b", "slurm_json", "-s", str(source), "-L", "-E", "-O", "-o", "savepath=" + str(output))
+    assert raw.returncode == 0, raw.stderr
+    archive = next(output.glob("*.tar"))
+    original = archive.read_bytes()
+    replayed = tmp_path / "raw-replayed"
+    replay = run_cli(tmp_path / "raw-replay-home", "-b", "slurm_json", "-s", str(archive), "-E", "-O", "-o", "savepath=" + str(replayed))
+    assert replay.returncode == 0, replay.stderr
+    assert archive.read_bytes() == original
+    assert json.loads(next(output.glob("qtop_json*.json")).read_text()) == json.loads(next(replayed.glob("qtop_json*.json")).read_text())
+    masked_output = tmp_path / "masked-output"
+    masked = run_cli(
+        tmp_path / "masked-home", "-b", "slurm_json", "-s", str(source), "-L", "-A", "-e", "--masked-traces", "--raw-companion", "-O", "-o", "savepath=" + str(masked_output)
+    )
+    assert masked.returncode == 0, masked.stderr
+    safe_archive = next(masked_output.glob("qtop_sample_anonymous*.tar"))
+    snapshot = sample.load_snapshot(str(safe_archive))
+    assert snapshot["scheduler"] == "slurm_json"
+    assert not any(word in json.dumps(snapshot["state"]) for word in ("alice", "bob", "node01", "a100"))
+    with tarfile.open(str(safe_archive)) as contents:
+        report = json.load(contents.extractfile("masked-traces/report.json"))
+        assert report["included"] == []
+        assert set(report["omitted"]) == {"jobs_json", "nodes_json", "partitions_json"}
+    replay = run_cli(tmp_path / "masked-replay-home", "--load-sample", str(safe_archive))
+    assert replay.returncode == 0, replay.stderr
+    assert "alice" not in replay.stdout and "node01" not in replay.stdout

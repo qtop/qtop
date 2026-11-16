@@ -32,6 +32,7 @@ import subprocess
 import sys
 import tarfile
 import tempfile
+import threading
 import time
 import traceback
 import warnings
@@ -409,7 +410,15 @@ def auto_get_avail_batch_system(config: Dict[str, Any], backends: Mapping[str, A
     raise SchedulerNotSpecified
 
 
-def execute_shell_batch_commands(batch_system_commands: Mapping[str, str], filenames: Dict[str, str], _file: str, _savepath: str, timeout: float = 120) -> str:
+def execute_shell_batch_commands(
+    batch_system_commands: Mapping[str, str],
+    filenames: Dict[str, str],
+    _file: str,
+    _savepath: str,
+    timeout: float = 120,
+    cancel: Optional[threading.Event] = None,
+    cwd: Optional[str] = None,
+) -> str:
     """Run the scheduler commands from QTOPCONF_YAML, saving each output atomically to its trace file."""
     _batch_system_command = batch_system_commands[_file].strip()
     destination = os.path.abspath(filenames[_file])
@@ -447,13 +456,20 @@ def execute_shell_batch_commands(batch_system_commands: Mapping[str, str], filen
                     " ".join(shlex.quote(arg) for arg in command_args),
                     shlex.quote(os.path.abspath(filenames[_file])),
                 )
-                command = subprocess.Popen(command_args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=(os.name == "posix"), env=scheduler_env())
+                command = subprocess.Popen(
+                    command_args,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    start_new_session=(os.name == "posix"),
+                    env=scheduler_env(),
+                    cwd=cwd,
+                )
             except OSError as error:
                 raise OperationalError("Cannot execute scheduler command %r: %s. Check PATH or load the scheduler module." % (_batch_system_command, error.strerror)) from error
             except ValueError as error:
                 raise OperationalError("Invalid scheduler command %r: %s. Check command quoting in %s." % (_batch_system_command, error, QTOPCONF_YAML)) from error
             try:
-                stderr_data = communicate_with_timeout(command, timeout, stdout=fin)[1]
+                stderr_data = communicate_with_timeout(command, timeout, stdout=fin, **({"cancel": cancel} if cancel is not None else {}))[1]
             except subprocess.TimeoutExpired as failure:
                 raise OperationalError("Scheduler command %r timed out after %g seconds" % (_batch_system_command, timeout)) from failure
             if stderr_data:
@@ -497,7 +513,13 @@ def get_detail_of_name(account_jobs_table: Sequence[Sequence[Any]], config: Dict
         timeout = float(config.get("scheduler_command_timeout", 120))
         if not isfinite(timeout) or timeout <= 0:
             raise ValueError("scheduler_command_timeout must be positive and finite")
-        p = subprocess.Popen(user_details_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=(os.name == "posix"), env=scheduler_env())
+        p = subprocess.Popen(
+            user_details_command,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            start_new_session=(os.name == "posix"),
+            env=scheduler_env(),
+        )
         raw_output, raw_err = communicate_with_timeout(p, timeout)
         output, err = (raw_output or b"").decode("utf-8", errors="replace"), raw_err.decode("utf-8", errors="replace")
     except (OperationalError, OSError, ValueError, TypeError, IndexError, OverflowError, subprocess.TimeoutExpired) as error:
@@ -560,7 +582,14 @@ def get_input_filenames(INPUT_FNs_commands: Mapping[str, Tuple[str, str]], confi
             SETTINGS = configuration.collection_settings(config)
             _savepath = os.path.realpath(os.path.expandvars(SETTINGS.SAVEPATH))
             try:
-                filenames[_file] = execute_shell_batch_commands(batch_system_commands, filenames, _file, _savepath, timeout=SETTINGS.TIMEOUT)
+                filenames[_file] = execute_shell_batch_commands(
+                    batch_system_commands,
+                    filenames,
+                    _file,
+                    _savepath,
+                    timeout=SETTINGS.TIMEOUT,
+                    **getattr(args, "_collection_controls", {}),
+                )
             except OperationalError as error:
                 if _file not in backend.optional_trace_keys:
                     raise
@@ -942,7 +971,7 @@ def report_operational_error(error: BaseException, debug: bool = False) -> None:
         traceback.print_exc(file=sys.stderr)
 
 
-def MVU_collect_snapshot(args: Any, config: Dict[str, Any], backend: Any, trace_paths: Dict[str, str], archive: Any) -> Tuple[Snapshot, Dict[str, Any]]:
+def MVU_collect_snapshot(args: Any, config: Dict[str, Any], backend: Any, trace_paths: Dict[str, str], archive: Any, collected: Any = None) -> Tuple[Snapshot, Dict[str, Any]]:
     """Collect one normalized snapshot, including replay and masking."""
     scheduler = backend.get_mnemonic()
     savepath = config["savepath"]
@@ -954,8 +983,8 @@ def MVU_collect_snapshot(args: Any, config: Dict[str, Any], backend: Any, trace_
             # Collect originals only in memory so all backends share one mapping.
             capture_args = copy.copy(args)
             capture_args.ANONYMIZE = False
-            scheduling_system = backend(trace_paths, config, capture_args)
-            cluster_state = scheduling_system.get_cluster_state(capture_args)
+            scheduling_system = collected.system if collected is not None else backend(trace_paths, config, capture_args)
+            cluster_state = collected.state if collected is not None else scheduling_system.get_cluster_state(capture_args)
             cluster_state, mappings = sample.anonymize_state(cluster_state)
             config, omitted = sample.sanitize_config(config, mappings)
             snapshot_config = copy.deepcopy(config)
@@ -970,11 +999,18 @@ def MVU_collect_snapshot(args: Any, config: Dict[str, Any], backend: Any, trace_
 
                 save_masked_traces(archive, scheduling_system, trace_paths, mappings)
         else:
-            scheduling_system = backend(trace_paths, config, args)
-            cluster_state = scheduling_system.get_cluster_state(args)
+            scheduling_system = collected.system if collected is not None else backend(trace_paths, config, args)
+            cluster_state = collected.state if collected is not None else scheduling_system.get_cluster_state(args)
     except (ValueError, UnicodeError, ParseError) as error:
         raise OperationalError("Cannot parse %s scheduler input in %s: %s" % (scheduler, args.workdir, error)) from error
-    return Snapshot.from_cluster_state(cluster_state), config
+    if collected is not None and args.ANONYMIZE and not args.SAMPLE:
+        cluster_state = sample.anonymize_state(cluster_state)[0]
+    snapshot = Snapshot.from_cluster_state(cluster_state)
+    display_state = getattr(backend, "display_job_state", None)
+    if display_state is not None:
+        for job_id, job in snapshot.jobs_dict.items():
+            snapshot.jobs_dict[job_id] = job._replace(job_state=display_state(job.job_state))
+    return snapshot, config
 
 
 def MVU_export_snapshot(snapshot: Snapshot, args: Any, savepath: str, timestr: str, web: Web) -> None:
@@ -1105,10 +1141,76 @@ def _collect_frame(
         else decide_batch_system(args.BATCH_SYSTEM, os.environ.get("QTOP_SCHEDULER"), config["scheduler"], config["schedulers"], available_batch_systems, config)
     )
     backend = available_batch_systems[scheduler]
-    trace_paths = {} if args.load_sample else fetch_scheduler_files(args, config, backend)
+    collected = None
+    collection_error = ""
+    interval = getattr(backend, "collection_interval", 0)
+    if interval and not args.SOURCEDIR and not args.load_sample:
+        from qtop_py.schedulers.collection import CollectionPoller
+
+        try:
+            commands = finalize_filepaths_schedulercommands(args, config, backend)
+        except CONFIG_ERRORS as error:
+            raise OperationalError("Invalid scheduler collection configuration: %s" % error) from error
+        key = (scheduler, repr(commands), config.get("scheduler_command_timeout"))
+        if resources.poller is None or resources.poller_key != key:
+            resources.stop_collection()
+            capture_args, capture_config = copy.copy(args), copy.deepcopy(config)
+            capture_args.ANONYMIZE = False
+            selected = backend
+            probed = False
+
+            def collect(directory: str, cancel: threading.Event) -> Any:
+                nonlocal selected, probed
+                collection_args = copy.copy(capture_args)
+                collection_args.workdir = directory
+                collection_args._collection_controls = {"cancel": cancel, "cwd": os.path.realpath(os.path.expandvars(capture_config["savepath"]))}
+                collection_config = dict(capture_config, savepath=directory)
+                try:
+                    files = fetch_scheduler_files(collection_args, collection_config, selected)
+                    system = selected(files, collection_config, collection_args)
+                    state = system.get_cluster_state(collection_args)
+                except (OperationalError, ValueError) as error:
+                    fallback = getattr(selected, "fallback_backend", None)
+                    if probed or fallback is None or not selected.capability_failure(error):
+                        raise
+                    logging.warning(
+                        "%s collection capability unavailable: %s; falling back to %s. %s", scheduler, error, fallback.get_mnemonic(), getattr(selected, "fallback_note", "")
+                    )
+                    selected = fallback
+                    files = fetch_scheduler_files(collection_args, collection_config, selected)
+                    system = selected(files, collection_config, collection_args)
+                    state = system.get_cluster_state(collection_args)
+                finally:
+                    probed = True
+                from qtop_py.cluster_state import validate_cluster_state
+
+                state = validate_cluster_state(state)
+                return state, system, selected, files if capture_args.SAMPLE else {}
+
+            resources.poller = CollectionPoller(collect, interval)
+            resources.poller_key = key
+            if args.WATCH:
+                resources.poller.start()
+        collected, collection_error = resources.poller.read()
+        backend = collected.backend
+        trace_paths = {}
+        for trace_key, (name, content) in collected.traces.items():
+            with tempfile.NamedTemporaryFile(dir=args.workdir, delete=False) as stream:
+                stream.write(content)
+                temporary = stream.name
+            destination = os.path.join(args.workdir, name)
+            os.replace(temporary, destination)
+            trace_paths[trace_key] = destination
+    else:
+        resources.stop_collection()
+        trace_paths = {} if args.load_sample else fetch_scheduler_files(args, config, backend)
     sample_filename = fileutils.get_sample_filename(sample_filename, config)
     resources.start_capture(savepath, sample_filename, trace_paths, config, paths.qtoppath)
-    snapshot, config = MVU_collect_snapshot(args, config, backend, trace_paths, resources.archive)
+    snapshot, config = MVU_collect_snapshot(args, config, backend, trace_paths, resources.archive, **({"collected": collected} if collected is not None else {}))
+    if collected is not None:
+        snapshot._collection_age = max(0, time.monotonic() - collected.completed)
+        snapshot._collection_span = collected.completed - collected.started
+        snapshot._collection_error = collection_error
     if args.SAMPLE and args.ANONYMIZE:
         user_to_color = user_to_color_default.copy()
         for rule in config["user_color_mappings"]:

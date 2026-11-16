@@ -286,7 +286,7 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
     """Slurm backend."""
 
     native_queue_membership = True
-    optional_trace_keys = ("scontrol_file",)
+    optional_trace_keys: Tuple[str, ...] = ("scontrol_file",)
     optional_trace_aliases = {"scontrol_file": "scontrol.txt"}
     optional_trace_warning = "Using estimated Slurm CPU placement."
     detection_priority = -1

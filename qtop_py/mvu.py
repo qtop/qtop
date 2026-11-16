@@ -136,7 +136,7 @@ class MVU_Model(object):
         help_file: str = "",
     ) -> None:
         self.config, self.args, self.viewport = config, args, viewport
-        self.backend, self.scheduler = backend, backend.get_mnemonic() if backend is not None else ""
+        self.backend, self.scheduler = backend, getattr(backend, "display_scheduler", backend.get_mnemonic()) if backend is not None else ""
         self.display_overrides = {} if display_overrides is None else display_overrides
         self.snapshot, self.user_to_color = snapshot, {} if user_to_color is None else user_to_color
         self.nodestate_to_color = {} if nodestate_to_color is None else nodestate_to_color
@@ -182,7 +182,7 @@ def MVU_update(model: "MVU_Model", message: str, payload: Any = None) -> Tuple["
         if payload is None:
             raise ValueError("Snapshot update requires collected data")
         next_model.snapshot, next_model.config, next_model.args, next_model.backend, next_model.user_to_color, next_model.nodestate_to_color = payload
-        next_model.scheduler = next_model.backend.get_mnemonic()
+        next_model.scheduler = getattr(next_model.backend, "display_scheduler", next_model.backend.get_mnemonic())
     elif message == "layout":
         next_model.viewport = copy.copy(payload)
     elif message in NAVIGATION_KEYS:

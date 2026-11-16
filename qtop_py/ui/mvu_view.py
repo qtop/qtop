@@ -234,6 +234,14 @@ class TextDisplay(object):
         backend = self.MVU_model.backend
         nodes = getattr(self.cluster, "worker_nodes", [])
         lines = [line for section in ("snapshot", "accounting", "placement", "resources") for line in backend.display_messages(section, self.snapshot, nodes, self.config)]
+        if hasattr(self.snapshot, "_collection_age"):
+            lines.insert(
+                0,
+                "INFO: Last successful collection completed %.1fs ago; collection span %.1fs. Separate responses are not globally atomic."
+                % (self.snapshot._collection_age, self.snapshot._collection_span),
+            )
+            if self.snapshot._collection_error:
+                lines.insert(0, "WARNING: Collection failed; displaying stale data. " + visible_text(self.snapshot._collection_error))
         if lines:
             print("Scheduler messages:")
             print("\n".join(lines))

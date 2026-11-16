@@ -1,0 +1,35 @@
+{
+  "meta": {
+    "plugin": {
+      "data_parser": "data_parser/v0.0.40"
+    }
+  },
+  "errors": [],
+  "warnings": [],
+  "partitions": [
+    {
+      "name": "debug",
+      "partition": {
+        "state": [
+          "UP"
+        ]
+      }
+    },
+    {
+      "name": "batch",
+      "partition": {
+        "state": [
+          "DRAIN"
+        ]
+      }
+    },
+    {
+      "name": "empty",
+      "partition": {
+        "state": [
+          "INACTIVE"
+        ]
+      }
+    }
+  ]
+}

@@ -1306,3 +1306,74 @@ Malformed mappings produce a message instead of interrupting the matrix.
 The feature reuses existing `sinfo` and detailed `scontrol` snapshots and adds
 no scheduler commands. Omit the mapping to disable it. Anonymized samples omit
 the mapping because its node patterns identify the installation.
+
+### Slurm JSON backend
+
+`-b slurm_json` reads Slurm data-parser JSON instead of the legacy text formats.
+Autodetection prefers it when `scontrol` is available; `-b slurm` still selects
+legacy Slurm explicitly. Queries run sequentially as `scontrol --json show
+partitions`, then `nodes`, then `jobs`. This ordering puts the typically smaller
+responses first; it is not a measured RPC speed ranking.
+
+```console
+./qtop -b slurm_json -w
+./qtop -b slurm_json --slurm-json-squeue --all -w
+./qtop -b slurm_json -s tests/plugins/slurm_json_samples/v0.0.43 -F
+```
+
+The first collection also checks JSON capability, without an extra help/RPC
+probe. Unsupported JSON, unknown parser versions and empty command output cause
+one diagnostic and a switch to legacy Slurm. A valid `jobs: []` is an empty
+cluster, not missing JSON support. Malformed allocation data and ordinary RPC
+failures are errors, not reasons to silently downgrade. For clients whose
+`scontrol` returns empty job JSON, `--slurm-json-squeue` substitutes
+`squeue --json --states=all`. `--all` is passed only when requested, to every
+live command; it never bypasses Slurm permissions.
+
+In watch mode one background collector starts on a 20-second monotonic cadence,
+independently of keypresses, redraws or the `-w` display interval. Slow collections
+skip missed slots and never overlap. Each command uses
+`scheduler_command_timeout` (120 seconds by default); shutdown cancels and reaps
+in-flight clients. Failed refreshes retain the previous complete observation.
+Scheduler messages show its age since successful completion and the collection span.
+Freshness/failed-refresh messages are transient UI information; exported state
+keeps its existing schema. These responses **are not globally atomic**: a job can
+change between the partition, node and job queries. The in-process publication
+contains a complete, validated collection; exports use the existing unique-file
+publication path. Collection-command, visibility or timeout changes restart the session.
+
+Supported data-parser metadata versions are `v0.0.40` through `v0.0.45`.
+The older `allocated_nodes`/socket dictionaries and newer
+`nodes.allocation`/socket arrays are distinct adapters into existing Slurm
+accounting, identity, host-list and GRES rules. Other versions are rejected;
+offline malformed/unsupported traces never fall back to live commands.
+Duplicate JSON keys, conflicting identities, missing or inconsistent per-node
+allocations, invalid GPU indices and out-of-budget topology are rejected.
+Overlapping or over-capacity CPU allocations cannot fit the existing single-job
+CPU map and are rejected rather than silently dropping assignments.
+
+Socket/core bitmaps are expanded to Slurm abstract CPU IDs using reported node
+SMT topology and compared with per-node allocation counts. Exact full-core
+allocations are labelled `slurm`; partial-SMT placement is labelled `estimated`
+while retaining the per-node count and candidate core. Missing details use the
+existing explicit estimation policy. Older JSON without per-node counts can be
+ambiguous for partial-SMT allocations across several nodes; inconsistent totals
+are rejected rather than inventing an uneven distribution. `CPU_IDs` are not
+Linux task affinity. State flags remain intact in exports, while Slurm compact
+flag precedence controls display/accounting (for example, COMPLETING overrides
+RUNNING). Arrays, bounded pending-array groups, heterogeneous
+components and multiple eligible partitions retain their existing identities.
+
+GPU/MIG metadata preserves configured types, counts and reported GRES indices.
+Indices are Slurm resource indices, **not physical GPU numbers**. MIG parent
+UUIDs remain unknown; there is no NVML, live GPU telemetry or invented physical
+MIG topology. Raw capture and archive replay work with the JSON traces. `-L -A`
+provides the existing portable anonymized state/config replay. For
+`--masked-traces`, JSON sources are conservatively listed as omitted because
+unknown JSON fields may contain private identifiers; use the portable snapshot.
+An explicitly requested `--raw-companion` remains private, unmasked data.
+
+The small committed fixtures are synthetic schema examples, not real-cluster
+captures. See [Slurm's client guide](https://slurm.schedmd.com/rest_clients.html)
+and [schema release notes](https://slurm.schedmd.com/openapi_release_notes.html).
+No real Slurm RPC performance or real-cluster validation is claimed.

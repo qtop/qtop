@@ -89,6 +89,7 @@ def parse_qtop_cmdline_args() -> Namespace:
         default=False,
         help="Mask identifiers where supported by the backend. With -L, save a reproducible masked state/config snapshot instead of raw traces and logs.",
     )
+    parser.add_argument("--slurm-json-squeue", action="store_true", dest="SLURM_JSON_SQUEUE", help="Use squeue --json for slurm_json jobs when scontrol returns empty job JSON")
     parser.add_argument("-b", "--batchSystem", action="store", dest="BATCH_SYSTEM", default=None)
     parser.add_argument(
         "--all",

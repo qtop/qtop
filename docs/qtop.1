@@ -53,6 +53,7 @@ Scheduler to query:
 .BR pbs ,
 .BR sge ,
 .BR slurm ,
+.BR slurm_json ,
 .BR oar ,
 .B demo
 or
@@ -68,6 +69,10 @@ scheduler commands; a plain output file selects its parent directory.
 Reproduce an anonymized support snapshot (made with
 .BR "\-L \-A" )
 without scheduler commands.
+.TP
+.B \-\-slurm-json-squeue
+Use squeue \-\-json \-\-states=all for slurm_json jobs instead of
+scontrol JSON, for clients returning empty job responses.
 .TP
 .B \-\-all
 Include hidden and group-unavailable partitions in live Slurm queries
@@ -419,3 +424,13 @@ security issues as described in
 .SH AUTHORS
 Sotiris Fragkiskos, Fotis Georgatos, Evangelos Papadopoulos, Nicola Trozzi
 and the qtop contributors.
+
+.SH SLURM JSON COLLECTION
+slurm_json is preferred when scontrol is detected. Explicit -b slurm keeps
+the text backend. JSON capability is checked in the first collection;
+unsupported clients fall back once with a diagnostic. In watch mode, a
+single background collector queries partitions, nodes and jobs every
+20 seconds independently of terminal redraws. Failed refreshes retain the
+last successful snapshot; scheduler messages show its age and collection span.
+Separate Slurm responses are not a globally atomic scheduler snapshot.
+The command timeout is configurable with scheduler_command_timeout.
