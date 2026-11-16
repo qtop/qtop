@@ -21,18 +21,21 @@ qtop \- text-mode monitor of batch-cluster utilization and job status
 .I archive
 .SH DESCRIPTION
 .B qtop
-queries a batch scheduler (PBS/Torque, SGE, Slurm or OAR) and prints three
-sections on one screen:
+queries a batch scheduler (PBS/Torque, SGE, Slurm or OAR) and prints four
+numbered sections on one screen:
 .TP
-.B Job Accounting Summary
+.B 1. Job Accounting Summary
 running and queued jobs per queue or partition, and node and core totals.
 .TP
-.B Worker Node Occupancy
+.B 2. Worker Node Occupancy
 a matrix with one column per worker node and one row per core; each cell
 shows the user (by an id letter and color) whose job occupies that core.
 .TP
-.B User Accounts and Pool Mappings
+.B 3. User Accounts and Pool Mappings
 the per-user legend for the matrix, with job counts by state.
+.TP
+.B 4. Account totals
+independent per-state job and node totals across users.
 .PP
 Without
 .BR \-w ,

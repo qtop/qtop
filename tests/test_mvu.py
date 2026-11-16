@@ -290,3 +290,14 @@ def test_hidden_accounts_skip_optional_name_lookups_even_when_totals_remain(tmp_
     monkeypatch.setattr(qtop, "get_detail_of_name", lambda *_args: pytest.fail("hidden account rows must not query user details"))
     qtop.MVU_resolve_user_details(model, MVU_query(model).occupancy)
     assert model.user_details == {}
+
+
+@pytest.mark.parametrize("hidden", (None, "1", "2", "3", "4"))
+def test_section_titles_keep_their_numbers_when_other_sections_are_hidden(tmp_path, monkeypatch, capsys, hidden):
+    model = MVU_test_model(tmp_path, monkeypatch)
+    if hidden:
+        model, _ = MVU_update(model, hidden)
+    MVU_view(MVU_query(model), str(tmp_path), "sample.tar", "qtop.log")
+    output = re.sub(r"\x1b\[[0-9;]*m", "", capsys.readouterr().out)
+    for number, title in enumerate(("Job accounting summary", "Worker Nodes occupancy", "User accounts and pool mappings", "Account totals"), 1):
+        assert ("===> %s. %s" % (number, title) in output) == (str(number) != hidden)

@@ -66,7 +66,7 @@ BOLD = "\033[1m%s\033[0m"
 
 
 class TextDisplay(object):
-    """Render a frame's sections: job accounting summary, worker-node occupancy and user accounts."""
+    """Render a frame's four numbered sections and scheduler messages."""
 
     def __init__(self, snapshot: Any, config: "Config", viewport: Any, wns_occupancy: Any, cluster: Any, args: Any, MVU_model: Any) -> None:
         self.MVU_model = MVU_model
@@ -156,7 +156,7 @@ class TextDisplay(object):
             print(self.watch_keys_line())
         print(
             self.MVU_model.MVU_colorize("===> ", "Gray_D")
-            + self.MVU_model.MVU_colorize("Job accounting summary", "White")
+            + self.MVU_model.MVU_colorize("1. Job accounting summary", "White")
             + self.MVU_model.MVU_colorize(" <=== ", "Gray_D")
             + self.MVU_model.MVU_colorize(str(datetime.datetime.today())[:-7], "White")
         )
@@ -267,7 +267,7 @@ class TextDisplay(object):
 
         print(
             self.MVU_model.MVU_colorize("===> ", "Gray_D")
-            + self.MVU_model.MVU_colorize("Worker Nodes occupancy", "White")
+            + self.MVU_model.MVU_colorize("2. Worker Nodes occupancy", "White")
             + self.MVU_model.MVU_colorize(" <=== ", "Gray_D")
             + self.MVU_model.MVU_colorize("(%s)", "Gray_D") % note
         )
@@ -285,7 +285,7 @@ class TextDisplay(object):
         group_of_name = self.MVU_model.user_details.get("groups")
         print(
             self.MVU_model.MVU_colorize("\n===> ", "Gray_D")
-            + self.MVU_model.MVU_colorize("User accounts and pool mappings", "White")
+            + self.MVU_model.MVU_colorize("3. User accounts and pool mappings", "White")
             + self.MVU_model.MVU_colorize(" <=== ", "Gray_d")
             + self.MVU_model.MVU_colorize(
                 self.MVU_model.backend.classic_account_note if self.args.CLASSIC else user_accounts_header(self.MVU_model.config),
@@ -312,7 +312,7 @@ class TextDisplay(object):
         """Display section four independently of the per-user accounts section."""
         totals = self.account_jobs_totals(self.wns_occupancy.account_jobs_table)
         if totals:
-            print(self.MVU_model.MVU_colorize("\n===> Account totals <===", "White"))
+            print(self.MVU_model.MVU_colorize("\n===> 4. Account totals <===", "White"))
             self.display_account_table_header()
             self.display_account_jobs_line(totals, "account_not_colored", {}, {} if getattr(self.args, "SHOW_GROUPS", False) else None, highlight=True)
 

@@ -1130,6 +1130,8 @@ checkout.
 
 ### Display controls
 
+Section titles carry fixed numbers 1-4, even when other sections are hidden.
+
 -  ``-1`` hides the accounting summary section.
 -  ``-2`` hides the worker-node occupancy section.
 -  ``-3`` hides the user accounts and pool mappings section.

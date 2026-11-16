@@ -13,6 +13,7 @@ Notable changes by version, newest first. See the
 - CI: increase Atheris verification timeouts to 120 seconds
 - Feature: prefer legacy Slurm during autodetection
 - Feature: default to clipped queue summaries
+- Feature: number the four display section titles
 - Feature: simplify keys and align the watch legend
 - Feature: match running and total counts to Summary backgrounds
 - Feature: match queued counts to the Summary background
