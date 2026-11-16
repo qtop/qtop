@@ -116,8 +116,14 @@ in
 .BR \-C ", " \-\-classic
 Mimic the legacy qtop display as far as possible.
 .TP
+.B \-\-no\-wrap\-queues
+Keep the Queueing summary on one physical terminal row, clipping overflow.
+Mutually exclusive with --expand-queues. Q cycles compact, expanded and clipped
+layouts in watch mode. The default retains automatic width-based expansion.
+Normalized exports retain every queue.
+.TP
 .BR \-\-expand\-queues
-Show one queue or partition per line in the accounting summary (toggle with
+Show one queue or partition per line in the accounting summary (cycle layouts with
 .B Q
 in watch mode).
 .TP
@@ -296,7 +302,7 @@ color cores by user / queue
 cycle the colour palettes
 .TQ
 .B Q
-expand / collapse the queue summary
+cycle compact / expanded / clipped queue layouts
 .TQ
 .B r
 cycle all / real / used core lines

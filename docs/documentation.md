@@ -391,7 +391,7 @@ Watch mode supports:
 | H | highlight users or queues |
 | m | switch core coloring by user / queue |
 | p | cycle the colour palettes of ``palettes.yaml`` |
-| Q | expand / collapse the queueing summary |
+| Q | cycle compact / expanded / clipped Queueing layouts |
 | r | cycle all / real / used core lines |
 | s | apply sorting (remapped matrices; numbered ones keep node order) |
 | t | transpose the matrix |
@@ -1141,7 +1141,12 @@ checkout.
 -  ``-G`` resolves user details with ``getent passwd``.
 -  ``--show-groups`` adds primary Unix groups to the account table.
 -  ``--expand-queues`` displays one queue or partition per summary line;
-   press ``Q`` to toggle it in watch mode. Each line reads ``Total = R + Q + Other``,
+   press ``Q`` to cycle compact, expanded and clipped layouts in watch mode.
+-  ``--no-wrap-queues`` keeps the Queueing summary on one physical terminal row,
+   clipping overflow to the detected width. It is mutually exclusive with
+   ``--expand-queues``; ``Q`` can change the layout after startup. The default
+   retains automatic expansion for wide summaries. Clipping affects display
+   only; normalized exports retain every queue. Each line reads ``Total = R + Q + Other``,
    aligned and in the Summary colours; Other counts the queue's listed jobs
    beyond its R and Q. Watch mode also expands it when
    the one-line summary would be wider than the terminal.

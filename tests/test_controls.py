@@ -71,7 +71,7 @@ def test_downward_movement_stops_at_bottom(controls, capsys, key):
     assert "Staying put" in capsys.readouterr().out
 
 
-@pytest.mark.parametrize("key, setting", (("t", "transpose_wn_matrices"), ("F", "force_names"), ("Q", "queue_summary_expanded")))
+@pytest.mark.parametrize("key, setting", (("t", "transpose_wn_matrices"), ("F", "force_names")))
 def test_display_toggles_are_reversible(controls, key, setting):
     press(controls, key)
     assert overrides(controls)[setting] is True
@@ -168,3 +168,22 @@ def test_unknown_key_leaves_view_and_settings_unchanged(controls):
     press(controls, "z")
     assert (view(controls).v_start, view(controls).h_start) == (20, 30)
     assert overrides(controls) == before
+
+
+def test_q_cycles_compact_expanded_and_clipped_layouts(controls):
+    for expected in ("expanded", "clipped", "compact", "expanded"):
+        press(controls, "Q")
+        assert overrides(controls)["queue_summary_layout"] == expected
+
+
+def test_q_starts_from_the_actual_automatic_layout(controls):
+    controls.model.args.WATCH = True
+    controls.model.snapshot = SimpleNamespace(queues_dict={"long_queue": SimpleNamespace(run="100", queued="100")})
+    press(controls, "Q")
+    assert overrides(controls)["queue_summary_layout"] == "clipped"
+
+
+def test_q_can_leave_the_cli_clipped_layout(controls):
+    controls.model.args.NO_WRAP_QUEUES = True
+    press(controls, "Q")
+    assert overrides(controls)["queue_summary_layout"] == "compact"

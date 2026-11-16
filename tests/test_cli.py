@@ -1084,3 +1084,12 @@ def test_slurm_summary_rejects_conflicting_selection(monkeypatch, capsys, confli
         utils.parse_qtop_cmdline_args()
     assert raised.value.code == 2
     assert "--slurm-summary" in capsys.readouterr().err
+
+
+def test_clipped_and_expanded_queue_flags_are_mutually_exclusive(monkeypatch):
+    from qtop_py import utils
+
+    monkeypatch.setattr(sys, "argv", ["qtop", "--no-wrap-queues", "--expand-queues"])
+    with pytest.raises(SystemExit) as stopped:
+        utils.parse_qtop_cmdline_args()
+    assert stopped.value.code == 2

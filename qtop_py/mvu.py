@@ -169,6 +169,26 @@ def MVU_node_job_ids(node: Mapping[str, Any], backend: Any = None) -> Set[str]:
     return jobs
 
 
+def MVU_queue_layout(model: "MVU_Model", queues: Optional[Mapping[str, Any]] = None) -> str:
+    """Resolve explicit queue layouts before the default width-based expansion."""
+    layout = model.display_overrides.get("queue_summary_layout")
+    if isinstance(layout, str):
+        return layout
+    if getattr(model.args, "NO_WRAP_QUEUES", False):
+        return "clipped"
+    if "queue_summary_expanded" in model.display_overrides:
+        return "expanded" if model.display_overrides["queue_summary_expanded"] else "compact"
+    if getattr(model.args, "EXPAND_QUEUES", False):
+        return "expanded"
+    if getattr(model.args, "WATCH", False) and model.viewport:
+        queues = getattr(model.snapshot, "queues_dict", {}) if queues is None else queues
+        text = "".join("%s*: %s + %s | " % (name, queue.run, queue.queued) for name, queue in queues.items())
+        note = getattr(model.backend, "blocked_queue_note", "")
+        if len("Queueing : * implies blocked" + note + text) > model.viewport.h_term_size:
+            return "expanded"
+    return "compact"
+
+
 def MVU_update(model: "MVU_Model", message: str, payload: Any = None) -> Tuple["MVU_Model", Tuple[Tuple[str, Optional[str]], ...]]:
     """Return the next model and effect requests without performing terminal or scheduler I/O."""
     keys = set(NAVIGATION_KEYS) | {"snapshot", "layout", "t", "Q", "m", "q", "F", "s", "f", "H", "?", "r", "p", "1", "2", "3", "4", "/", ":"}
@@ -196,7 +216,10 @@ def MVU_update(model: "MVU_Model", message: str, payload: Any = None) -> Tuple["
         next_model.viewport.reset_display()
         effects.append(("notice", "Transposing matrix..."))
     elif message == "Q":
-        next_model.display_overrides["queue_summary_expanded"] = not next_model.display_overrides.get("queue_summary_expanded", getattr(next_model.args, "EXPAND_QUEUES", False))
+        layouts = ("compact", "expanded", "clipped")
+        layout = layouts[(layouts.index(MVU_queue_layout(model)) + 1) % len(layouts)]
+        next_model.display_overrides["queue_summary_layout"] = layout
+        effects.append(("notice", "Queueing layout: " + layout))
     elif message == "m":
         mapping = "queue_to_color" if next_model.display_overrides.get("core_coloring", "user_to_color") == "user_to_color" else "user_to_color"
         next_model.display_overrides["core_coloring"] = mapping

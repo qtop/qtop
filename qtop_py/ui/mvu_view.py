@@ -19,6 +19,7 @@ from qtop_py import __version__, utils, yaml_parser
 from qtop_py.constants import DEFAULT_USER_ACCOUNTS_HEADER, DEFAULT_USER_ID_RANKING
 from qtop_py.mvu import MVU_compress_colored_line as compress_colored_line
 from qtop_py.mvu import MVU_gauge_core_vectors as gauge_core_vectors
+from qtop_py.mvu import MVU_queue_layout
 from qtop_py.mvu_query import WNOccupancy
 from qtop_py.safety import visible_text
 from qtop_py.ui.viewport import terminal_rows
@@ -195,28 +196,25 @@ class TextDisplay(object):
             }
         )
 
-        expanded = self.MVU_model.display_overrides.get("queue_summary_expanded", getattr(self.args, "EXPAND_QUEUES", False))
-        if not expanded and self.args.WATCH and self.viewport and "queue_summary_expanded" not in self.MVU_model.display_overrides:  # one per line if too wide
-            line = "".join("%s*: %s + %s | " % (name, queue.run, queue.queued) for name, queue in queues.items())
-            expanded = len("Queueing : * implies blocked" + self.MVU_model.backend.blocked_queue_note + line) > self.viewport.h_term_size
-        print("%(queues)s :" % {"queues": self.MVU_model.MVU_colorize("Queueing", "Cyan_L")}, end="\n" if expanded else " ")
-        for _queue_name, q_tuple in queues.items() if not expanded else ():
-            q_running_jobs, q_queued_jobs = q_tuple.run, q_tuple.queued
-            queued_cell = self.count_cells(["queued_of_user"], [q_queued_jobs])[0] if self.args.COLOR == "ON" else str(q_queued_jobs)
-            print(
-                "{indent}{qname}{star}: {run} {q}|".format(
-                    indent="  " if expanded else "",
-                    qname=self.MVU_model.MVU_colorize(_queue_name, color_func=self.MVU_model.queue_to_color.get(_queue_name, "")),
-                    star=self.MVU_model.MVU_colorize("*", "Red_L") if self.MVU_model.backend.queue_is_blocked(q_tuple.state) else "",
-                    run=self.count_cells(["running_of_user"], [q_running_jobs])[0] if self.args.COLOR == "ON" else str(q_running_jobs),
-                    q="+ " + queued_cell + " " if q_queued_jobs != "0" else "",
-                ),
-                end="\n" if expanded else " ",
-            )
-        if expanded:
+        layout = MVU_queue_layout(self.MVU_model, queues)
+        heading = self.MVU_model.MVU_colorize("Queueing", "Cyan_L") + " :"
+        note = self.MVU_model.MVU_colorize("* implies blocked", "Red") + self.MVU_model.backend.blocked_queue_note
+        if layout == "expanded":
+            print(heading)
             self.display_expanded_queues(queues, snapshot)
-        blocked_note = self.MVU_model.backend.blocked_queue_note
-        print(self.MVU_model.MVU_colorize("* implies blocked", "Red") + blocked_note + "\n")
+            print(note + "\n")
+        else:
+            entries = []
+            for name, queue in queues.items():
+                label = self.MVU_model.MVU_colorize(name, color_func=self.MVU_model.queue_to_color.get(name, ""))
+                star = self.MVU_model.MVU_colorize("*", "Red_L") if self.MVU_model.backend.queue_is_blocked(queue.state) else ""
+                running_cell = self.count_cells(["running_of_user"], [queue.run])[0] if self.args.COLOR == "ON" else str(queue.run)
+                queued_cell = self.count_cells(["queued_of_user"], [queue.queued])[0] if self.args.COLOR == "ON" else str(queue.queued)
+                entries.append("%s%s: %s %s|" % (label, star, running_cell, "+ " + queued_cell + " " if str(queue.queued) != "0" else ""))
+            line = heading + " " + "".join(entry + " " for entry in entries) + note
+            if layout == "clipped" and self.viewport:
+                line = next(terminal_rows([line], self.viewport.h_term_size)).rstrip("\n")
+            print(line + "\n")
         if getattr(self.args, "SHOW_QUEUE_NODES", False):
             from qtop_py.queue_nodes import queue_node_counts
 

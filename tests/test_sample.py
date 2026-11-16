@@ -648,3 +648,27 @@ def test_slurm_json_raw_and_anonymized_archives_replay_without_live_commands(tmp
     replay = run_cli(tmp_path / "masked-replay-home", "--load-sample", str(safe_archive))
     assert replay.returncode == 0, replay.stderr
     assert "alice" not in replay.stdout and "node01" not in replay.stdout
+
+
+def test_clipped_queue_layout_survives_portable_capture_and_replay(tmp_path):
+    source = ROOT / "tests/plugins/slurm_samples/cpu_allocations"
+    output = tmp_path / "capture"
+    captured = run_cli(
+        tmp_path / "home", "-b", "slurm", "-s", str(source), "--no-wrap-queues", "-L", "-A", "-e", "-E", "-O", "-o", "term_size=[30,40]", "-o", "savepath=" + str(output)
+    )
+    assert captured.returncode == 0, captured.stderr
+    archive = next(output.glob("*.tar"))
+    saved = sample.load_snapshot(str(archive))
+    assert saved["options"]["NO_WRAP_QUEUES"] is True
+    assert len(saved["state"]["queues"]) > 1
+    replay_output = tmp_path / "replay"
+    replayed = run_cli(tmp_path / "replay_home", "--load-sample", str(archive), "-E", "-O", "-o", "savepath=" + str(replay_output))
+    assert replayed.returncode == 0, replayed.stderr
+    queue_lines = []
+    for directory in (output, replay_output):
+        frame = next(directory.glob("qtop_fullview_*.out")).read_text()
+        line = next(line for line in frame.splitlines() if line.startswith("Queueing"))
+        assert len(line) <= 40
+        queue_lines.append(line)
+        assert json.loads(next(directory.glob("qtop_json_*.json")).read_text())["queues"] == saved["state"]["queues"]
+    assert queue_lines[0] == queue_lines[1]

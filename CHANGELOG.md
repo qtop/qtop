@@ -14,6 +14,7 @@ Notable changes by version, newest first. See the
 - Feature: simplify keys and align the watch legend
 - Feature: match running and total counts to Summary backgrounds
 - Feature: match queued counts to the Summary background
+- Feature: add clipped queue summaries and Q layout rotation
 - Feature: add reliable watch keys and vi navigation
 - Feature: render account totals as an independent fourth section
 - Feature: add Slurm summary collection on each display cycle

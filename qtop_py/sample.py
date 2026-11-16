@@ -28,6 +28,7 @@ DISPLAY_OPTIONS = (
     "GET_GECOS",
     "SHOW_GROUPS",
     "EXPAND_QUEUES",
+    "NO_WRAP_QUEUES",
     "LESS",
     "NOMASKING",
     "STRICTCHECK",

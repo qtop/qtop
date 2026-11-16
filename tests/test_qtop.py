@@ -439,7 +439,7 @@ def test_account_totals_are_shown_unless_hidden_with_4(monkeypatch, switches, sh
 
 @pytest.mark.parametrize(
     "switch, attribute",
-    (("--show-groups", "SHOW_GROUPS"), ("--expand-queues", "EXPAND_QUEUES")),
+    (("--show-groups", "SHOW_GROUPS"), ("--expand-queues", "EXPAND_QUEUES"), ("--no-wrap-queues", "NO_WRAP_QUEUES")),
 )
 def test_optional_accounting_summary_switches(monkeypatch, switch, attribute):
     monkeypatch.setattr(sys, "argv", ["qtop", switch])
@@ -1363,6 +1363,24 @@ def test_queued_counts_share_summary_background_without_changing_table_alignment
     for count, index in ((5, 0), (2, 1)):
         assert model.MVU_colorize(str(count), colours_by_state[index % len(colours_by_state)]) in coloured
     assert re.sub(r"\x1b\[[0-9;]*m", "", coloured) == plain
+
+
+@pytest.mark.parametrize("color", ("ON", "OFF"))
+@pytest.mark.parametrize("clipped", (False, True), ids=("compact", "clipped"))
+def test_no_wrap_queues_clips_only_the_queueing_row(capsys, color, clipped):
+    queues = {"queue_%03d" % index: SimpleNamespace(run="1", queued="2", state="E") for index in range(150)}
+    cluster = SimpleNamespace(total_running_jobs=150, total_queued_jobs=300, queues_dict=queues, total_wn=0, offdown_nodes=0, available_wn=0, working_cores=0, total_cores=0)
+    args = SimpleNamespace(REMAP=False, CLASSIC=False, WATCH=True, NO_WRAP_QUEUES=clipped, COLOR=color)
+    viewport = Viewport()
+    viewport.set_term_size(40, 40)
+    model = MVU_Model({}, args, viewport, backend=qtop_module.scheduler_backend("pbs"), display_overrides={} if clipped else {"queue_summary_layout": "compact"})
+    mvu_view.TextDisplay(None, {}, viewport, None, None, args, MVU_model=model).display_job_accounting_summary(cluster, None)
+    output = re.sub(r"\x1b\[[0-9;]*m", "", capsys.readouterr().out)
+    queue_line = next(line for line in output.splitlines() if line.startswith("Queueing"))
+    assert queue_line.startswith("Queueing : queue_000: 1 + 2 |")
+    assert (len(queue_line) <= 40) == clipped
+    assert ("queue_149" in queue_line) != clipped
+    assert "Job accounting summary" in output and "Summary" in output
 
 
 @pytest.mark.parametrize("expanded", (False, True), ids=("compact", "expanded"))

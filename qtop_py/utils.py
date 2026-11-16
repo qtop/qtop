@@ -149,12 +149,16 @@ def parse_qtop_cmdline_args() -> Namespace:
         default=False,
         help="Show each active user's primary Unix group in the account table.",
     )
-    parser.add_argument(
+    queue_layout = parser.add_mutually_exclusive_group()
+    queue_layout.add_argument(
+        "--no-wrap-queues", action="store_true", dest="NO_WRAP_QUEUES", help="Clip the Queueing summary to one terminal row (Q cycles compact, expanded and clipped layouts)."
+    )
+    queue_layout.add_argument(
         "--expand-queues",
         action="store_true",
         dest="EXPAND_QUEUES",
         default=False,
-        help="Show one queue or partition per line in the accounting summary (toggle with Q in watch mode).",
+        help="Show one queue or partition per line in the accounting summary (Q cycles layouts in watch mode).",
     )
     parser.add_argument("-l", "--less", action="store_true", dest="LESS", help="Allow matrix to overflow in width. This allows to pipe the output into less -RS")
     parser.add_argument(
