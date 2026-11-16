@@ -54,6 +54,7 @@ from qtop_py import __version__, configuration, fileutils, sample, utils
 from qtop_py.colormap import queue_to_color as colormap_queue_to_color
 from qtop_py.colormap import user_to_color_default
 from qtop_py.constants import (
+    DEFAULT_SCHEDULER_COMMAND_TIMEOUT,
     FALLBACK_TERMSIZE,
     KEYPRESS_TIMEOUT,
     QTOP_LOGFILE,
@@ -416,7 +417,7 @@ def execute_shell_batch_commands(
     filenames: Dict[str, str],
     _file: str,
     _savepath: str,
-    timeout: float = 120,
+    timeout: float = DEFAULT_SCHEDULER_COMMAND_TIMEOUT,
     cancel: Optional[threading.Event] = None,
     cwd: Optional[str] = None,
 ) -> str:
@@ -511,7 +512,7 @@ def get_detail_of_name(account_jobs_table: Sequence[Sequence[Any]], config: Dict
         user_details_command = shlex.split(command)
         if not args.GET_GECOS:
             user_details_command[-1] = os.path.expandvars(user_details_command[-1])
-        timeout = float(config.get("scheduler_command_timeout", 120))
+        timeout = float(config.get("scheduler_command_timeout", DEFAULT_SCHEDULER_COMMAND_TIMEOUT))
         if not isfinite(timeout) or timeout <= 0:
             raise ValueError("scheduler_command_timeout must be positive and finite")
         p = subprocess.Popen(

@@ -18,6 +18,7 @@ if TYPE_CHECKING:
 from qtop_py import fileutils, yaml_parser
 from qtop_py.colormap import color_to_code, nodestate_to_color_default, user_to_color_default
 from qtop_py.constants import (
+    DEFAULT_SCHEDULER_COMMAND_TIMEOUT,
     MAX_USER_ACCOUNTS_HEADER_LEN,
     PALETTES_YAML,
     QTOPCONF_YAML,
@@ -162,7 +163,7 @@ def collection_settings(config: Mapping[str, Any]) -> CollectionSettings:
     """Validate the collection boundary while retaining extension configuration."""
     SAVEPATH = config["savepath"]
     _text(SAVEPATH, "savepath")
-    TIMEOUT = config.get("scheduler_command_timeout", 120)
+    TIMEOUT = config.get("scheduler_command_timeout", DEFAULT_SCHEDULER_COMMAND_TIMEOUT)
     try:
         _require(not isinstance(TIMEOUT, bool) and isfinite(float(TIMEOUT)) and float(TIMEOUT) > 0, "scheduler_command_timeout", "positive finite seconds")
         return CollectionSettings(cast(str, SAVEPATH), float(TIMEOUT))

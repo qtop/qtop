@@ -24,7 +24,8 @@ scheduler: auto
 ## users can select e.g. /dev/shm (ram disk) instead of /tmp for faster processing, or even $TMP or $TMPDIR
 savepath: /tmp/qtop_results_$USER
 
-## Maximum seconds per live scheduler command; must be positive and finite.
+## Maximum seconds per live scheduler command or optional account lookup.
+## Must be positive and finite; CLI override: -o scheduler_command_timeout=240
 scheduler_command_timeout: 120
 
 ## Experimental web interface (-B -e). IPv4 address or hostname; no authentication/TLS.

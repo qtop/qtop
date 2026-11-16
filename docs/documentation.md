@@ -522,7 +522,8 @@ Invalid common settings report the affected key (for example, `sorting.reverse`
 or `term_size`). Backend-specific extension keys remain supported.
 
 `scheduler_command_timeout` also bounds optional user-detail commands from
-`extract_info`; it defaults to 30 seconds and must be positive and finite.
+`extract_info`; it defaults to 120 seconds and must be positive and finite.
+Set it in your `qtopconf.yaml`, or use `-o scheduler_command_timeout=240`.
 Failed or timed-out lookups log a warning and leave the dashboard usable.
 Quoted command arguments, including cache paths containing spaces, are preserved.
 
