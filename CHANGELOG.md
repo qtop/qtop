@@ -6,6 +6,7 @@ Notable changes by version, newest first. See the
 ## 0.9.20261116
 
 - Feature: add Slurm JSON collection with independent refresh and stale snapshots
+- CI: cover Slurm JSON samples, installations and parser fuzzing
 
 - Bugfix: increase scheduler command timeout defaults to 120 seconds
 - CI: increase Atheris verification timeouts to 120 seconds

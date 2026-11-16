@@ -31,7 +31,7 @@ def test_bounded_fuzz_run_collects_coverage(tmp_path):
     assert "cov:" in result.stderr and "DONE" in result.stderr
 
 
-@pytest.mark.parametrize("selector", range(3, 9))
+@pytest.mark.parametrize("selector", range(3, 3 + len(atheris_fuzz.DOCUMENT_TARGETS)))
 def test_document_targets_do_not_suppress_unexpected_failures(monkeypatch, selector):
     def broken(*args):
         raise RuntimeError("unexpected parser failure")

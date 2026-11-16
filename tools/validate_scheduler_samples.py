@@ -98,6 +98,15 @@ ANSI_BRIGHT_COLOURS = {
 }
 
 STATIC_CASES = {
+    "slurm_json": [
+        {
+            "name": "slurm-json-" + version,
+            "source": ROOT / "tests/plugins/slurm_json_samples" / version,
+            "args": ["-b", "slurm_json", "-s", str(ROOT / "tests/plugins/slurm_json_samples" / version), "-c", "ON", "-F"],
+            "markers": ["Total:3 Up:2 Free:0 Nodes", "8/24 cores", "3=2+1+0 jobs", "batch*: 1 + 1", "empty*: 0", "scheduler CPU IDs"],
+        }
+        for version in ("v0.0.40", "v0.0.43")
+    ],
     "pbs": [
         {
             "name": "pbs-contrib",
@@ -633,7 +642,7 @@ def run_case_with_home(case, artifact_dir, timeout, qtop_home):
 def parse_args():
     """Parse the command-line options."""
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--schedulers", default="pbs,sge,slurm,oar,demo", help="Comma-separated scheduler gates to run")
+    parser.add_argument("--schedulers", default="pbs,sge,slurm,slurm_json,oar,demo", help="Comma-separated scheduler gates to run")
     parser.add_argument("--max-failures", type=int, default=0, help="Allowed failed cases before returning non-zero")
     parser.add_argument("--timeout", type=int, default=20, help="Per-case timeout in seconds")
     parser.add_argument("--artifact-dir", default="artifacts/sample-gate", help="Output directory for rendered qtop artifacts")
