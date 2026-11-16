@@ -7,18 +7,14 @@ Notable changes by version, newest first. See the
 
 
 - Bugfix: paginate wrapped terminal rows without losing the top of the frame
-
 - Bugfix: increase scheduler command timeout defaults to 120 seconds
 - CI: cover Slurm JSON samples, installations and parser fuzzing
-
 - CI: increase Atheris verification timeouts to 120 seconds
 - Feature: match queued counts to the Summary background
-
 - Feature: add Slurm summary collection on each display cycle
-
-- Feature: add Slurm JSON collection with independent refresh and stale snapshots
+- Feature: add Slurm JSON collection with independent refresh and
+  stale snapshots
 - Refactor: centralize the configurable scheduler timeout default
-
 - Release: update version metadata to 0.9.20261116
 
 ## 0.9.20261115
