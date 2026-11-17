@@ -1,5 +1,6 @@
 ## Copyright (c) 2026 qtop contributors
 ## SPDX-License-Identifier: MIT
+import io
 import os
 import subprocess
 import sys
@@ -9,7 +10,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from qtop_py import qtop, utils, yaml_parser
+from qtop_py import fileutils, qtop, utils, yaml_parser
 from qtop_py.errors import OperationalError
 from qtop_py.plugins.slurm import SlurmBatchSystem
 from qtop_py.plugins.slurm_json import SlurmJSONBatchSystem
@@ -319,3 +320,31 @@ def test_slurm_summary_recollects_each_cycle_without_a_poller(frame_context, mon
     assert states[1]["jobs"][0]["user"] == states[2]["jobs"][0]["user"] == "changed"
     assert states[0]["nodes"][0]["cpu_allocation_source"] == "estimated"
     assert "slurm_gpu_bindings" not in states[0]["nodes"][0]
+
+
+@pytest.mark.parametrize("fails", [False, True], ids=["success", "command-failure"])
+def test_startup_progress_observes_live_stream_before_waiting(tmp_path, monkeypatch, fails):
+    output, processes = io.StringIO(), []
+    options = SimpleNamespace(_input_progress=fileutils.StartupProgress(output))
+    destination = tmp_path / "jobs.txt"
+
+    def communicate(process, *args, **kwargs):
+        assert output.getvalue() == "."  # visible while the RPC is in flight
+        assert not process.stdout.closed
+        processes.append(process)
+        return communicate_with_timeout(process, *args, **kwargs)
+
+    monkeypatch.setattr(qtop, "communicate_with_timeout", communicate)
+    import shlex
+
+    command = shlex.quote(sys.executable) + " -c " + shlex.quote("print('jobs'); raise SystemExit(%s)" % int(fails))
+    try:
+        qtop.execute_shell_batch_commands({"jobs": command}, {"jobs": str(destination)}, "jobs", str(tmp_path), input_options=options)
+    except OperationalError:
+        assert fails
+    else:
+        assert not fails
+        with fileutils.open_input(str(destination), options=options) as source:
+            assert source.read() == "jobs\n"
+    assert output.getvalue() == ".."  # parsing the saved response adds no dots
+    assert processes[0].stdout.closed and processes[0].stderr.closed

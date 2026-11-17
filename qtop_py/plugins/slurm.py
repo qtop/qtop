@@ -136,7 +136,7 @@ class SlurmStatExtractor(StatExtractor):
 
         jobs: Dict[str, Any] = OrderedDict()
         expanded_count = 0
-        with open(orig_file, "r", encoding="utf-8", errors="replace") as fin:
+        with fileutils.open_input(orig_file, "r", encoding="utf-8", errors="replace", options=self.options) as fin:
             for line in fin:
                 line = line.strip()
                 if not line:
@@ -198,7 +198,7 @@ class SlurmStatExtractor(StatExtractor):
             return []
 
         nodes = []
-        with open(orig_file, "r", encoding="utf-8", errors="replace") as fin:
+        with fileutils.open_input(orig_file, "r", encoding="utf-8", errors="replace", options=self.options) as fin:
             for line in fin:
                 line = line.strip()
                 if not line:
@@ -616,7 +616,7 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
         allocations: Dict[str, Any] = {}
         invalid = set()
         try:
-            with open(self.scontrol_file, "r", encoding="utf-8", errors="replace") as stream:
+            with fileutils.open_input(self.scontrol_file, "r", encoding="utf-8", errors="replace", options=self.options) as stream:
                 job_id = None
                 for line in stream:
                     if re.match(r"\s*JobId=", line):
@@ -662,7 +662,7 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
         if not self.scontrol_file:
             return allocations
         try:
-            with open(self.scontrol_file, "r", encoding="utf-8", errors="replace") as stream:
+            with fileutils.open_input(self.scontrol_file, "r", encoding="utf-8", errors="replace", options=self.options) as stream:
                 job_id = None
                 parsed: Dict[str, Tuple[int, ...]] = {}  # CPU_IDs text -> its distinct CPU numbers, for this collection
                 for line in stream:

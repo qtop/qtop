@@ -106,7 +106,7 @@ class SGEStatExtractor(StatExtractor):
 
     def get_xml_tree(self, xml_file: str) -> Tuple[etree.ElementTree, Any]:
         """Parse an XML file within the size and nesting limits, rejecting DTDs; return the tree and root."""
-        with open(xml_file, mode="rb") as fin:
+        with fileutils.open_input(xml_file, mode="rb", options=self.options) as fin:
             try:
                 # Bandit cannot infer DTD rejection by the custom parser target.
                 parser = _xml_parser()

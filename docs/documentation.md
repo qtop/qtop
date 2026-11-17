@@ -348,6 +348,9 @@ the default colour for any name it leaves out. A ``palettes.yaml`` in the system
 directory or ``~/.local/qtop/`` reorders the list or changes palettes, colour by
 colour. The palettes use 256-colour codes and leave the terminal background alone.
 
+Startup prints a flushed dot to stderr when each scheduler source first opens
+and closes (three sources produce six dots). Later refreshes stay quiet.
+
 Watch mode
 ----------
 

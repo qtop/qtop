@@ -8,7 +8,7 @@ import shlex
 from collections import Counter
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
-from qtop_py import safety
+from qtop_py import fileutils, safety
 from qtop_py.plugins.slurm import SlurmBatchSystem, SlurmStatExtractor, slurm_accounting_state
 from qtop_py.schedulers.gpu import parse_gpu_gres
 
@@ -71,9 +71,9 @@ def unique_fields(pairs: List[Tuple[str, Any]]) -> Dict[str, Any]:
     return fields
 
 
-def read_response(path: str, key: str) -> Tuple[str, List[Dict[str, Any]]]:
+def read_response(path: str, key: str, options: Any = None) -> Tuple[str, List[Dict[str, Any]]]:
     """Reject unknown schemas, error responses and malformed record lists."""
-    with open(path, encoding="utf-8") as stream:
+    with fileutils.open_input(path, encoding="utf-8", options=options) as stream:
         data = safety.load_json(stream, object_pairs_hook=unique_fields)
     if not isinstance(data, dict):
         raise ValueError("Slurm JSON response must be an object")
@@ -154,7 +154,7 @@ class SlurmJSONBatchSystem(SlurmBatchSystem):
             path = scheduler_output_filenames[key + "_json"]
             if not os.path.getsize(path):
                 raise UnsupportedSlurmJSON("empty Slurm JSON %s response; try --slurm-json-squeue for jobs" % key)
-            version, records[key] = read_response(path, key)
+            version, records[key] = read_response(path, key, self.options)
             versions.append(version)
         if len(set(versions)) != 1:
             raise ValueError("Slurm JSON responses use different schema versions")

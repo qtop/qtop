@@ -83,7 +83,7 @@ class PBSStatExtractor(TabularStatExtractor):
             all_qstat_values = []
         else:
             try:
-                with open(orig_file, encoding="utf-8", errors="replace") as f:
+                with fileutils.open_input(orig_file, encoding="utf-8", errors="replace", options=self.options) as f:
                     _ = load_json(f)
             except json.JSONDecodeError:
                 logging.info("Extracting qstat output using regex")
@@ -96,7 +96,7 @@ class PBSStatExtractor(TabularStatExtractor):
 
     def _extract_qstat_regex(self, qstat_file: str) -> List[Dict[str, Any]]:
         all_qstat_values = list()
-        with open(qstat_file, "r", encoding="utf-8", errors="replace") as fin:
+        with fileutils.open_input(qstat_file, "r", encoding="utf-8", errors="replace", options=self.options) as fin:
             re_match_positions = ("job_id", "user", "state", "queue_name")  # was: (1, 5, 7, 8), (1, 4, 5, 8)
 
             pattern = None
@@ -159,7 +159,7 @@ class PBSStatExtractor(TabularStatExtractor):
 
     def _extract_qstat_json(self, qstat_file: str) -> List[Dict[str, Any]]:
         all_qstat_values = list()
-        with open(qstat_file, "r", encoding="utf-8", errors="replace") as fin:
+        with fileutils.open_input(qstat_file, "r", encoding="utf-8", errors="replace", options=self.options) as fin:
             data = load_json(fin)
             jobs = data["Jobs"]
             for job_id, job in jobs.items():
@@ -186,7 +186,7 @@ class PBSStatExtractor(TabularStatExtractor):
             all_qstatq_values = []
         else:
             try:
-                with open(orig_file, encoding="utf-8", errors="replace") as f:
+                with fileutils.open_input(orig_file, encoding="utf-8", errors="replace", options=self.options) as f:
                     _ = load_json(f)
             except json.JSONDecodeError:
                 logging.info("Extracting qstat_q output using regex")
@@ -214,7 +214,7 @@ class PBSStatExtractor(TabularStatExtractor):
         all_qstatq_values = list()
         total_running_jobs: Union[int, str] = 0  # str once read from the totals line
         total_queued_jobs: Union[int, str] = 0
-        with open(qstatq_file, "r", encoding="utf-8", errors="replace") as fin:
+        with fileutils.open_input(qstatq_file, "r", encoding="utf-8", errors="replace", options=self.options) as fin:
             fin.readline()
             fin.readline()
             fin.readline()
@@ -237,7 +237,7 @@ class PBSStatExtractor(TabularStatExtractor):
     def _extract_qstatq_json(self, qstatq_file: str) -> List[Dict[str, Any]]:
         anonymize = self.anonymize_func()
         all_qstatq_values = list()
-        with open(qstatq_file, "r", encoding="utf-8", errors="replace") as fin:
+        with fileutils.open_input(qstatq_file, "r", encoding="utf-8", errors="replace", options=self.options) as fin:
             data = load_json(fin)
             queues = data["Queue"]
             for queue_name, queue in queues.items():
@@ -492,7 +492,7 @@ class PBSBatchSystem(GenericBatchSystem):
 
     def _read_all_blocks(self, orig_file: str) -> List[Dict[str, Any]]:
         """Reads pbsnodes txt file block by block."""
-        with open(orig_file, mode="r", encoding="utf-8", errors="replace") as fin:
+        with fileutils.open_input(orig_file, mode="r", encoding="utf-8", errors="replace", options=self.options) as fin:
             result = []
             reading = True
             while reading:

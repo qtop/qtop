@@ -1102,3 +1102,26 @@ def test_queue_layout_defaults_to_clipping_and_respects_explicit_expansion(monke
     monkeypatch.setattr(sys, "argv", ["qtop"] + flags)
     args = utils.parse_qtop_cmdline_args()
     assert args.NO_WRAP_QUEUES is clipped and args.EXPAND_QUEUES is expanded
+
+
+@pytest.mark.parametrize(
+    "backend, source, flags, dots",
+    [
+        ("slurm", "slurm_samples/cpu_allocations", [], 6),
+        ("slurm", "slurm_samples/basic", [], 4),
+        ("slurm", "slurm_samples/cpu_allocations", ["--slurm-summary"], 4),
+        ("slurm_json", "slurm_json_samples/v0.0.43", [], 6),
+    ],
+    ids=["detailed", "optional-missing", "summary", "json"],
+)
+@pytest.mark.parametrize("watch", [False, True], ids=["one-shot", "two-watch-cycles"])
+def test_startup_progress_counts_sources_once(tmp_path, backend, source, flags, dots, watch):
+    command = [sys.executable, "-m", "qtop_py.qtop", "-b", backend, "-s", str(ROOT / "tests/plugins" / source), "-c", "OFF", "-o", "savepath=" + str(tmp_path / "output")]
+    command += flags + (["-w", "1"] if watch else [])
+    env = dict(os.environ, HOME=str(tmp_path), TERM="xterm")
+    env.pop("QTOP_SCHEDULER", None)
+    result = subprocess.run(command, cwd=str(ROOT), env=env, input="Fq" if watch else "", universal_newlines=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=15)
+    assert result.returncode == 0, result.stderr
+    assert result.stderr.splitlines().count("." * dots) == 1
+    assert not any(re.fullmatch(r"\.+", line) for line in result.stdout.splitlines())
+    assert result.stdout.count("1. Job accounting summary") == (2 if watch else 1)

@@ -42,7 +42,7 @@ class OarStatExtractor(TabularStatExtractor):
         except fileutils.FileEmptyError:
             logging.error("File %s seems to be empty." % orig_file)
             return all_values
-        with open(orig_file, "r", encoding="utf-8", errors="replace") as fin:
+        with fileutils.open_input(orig_file, "r", encoding="utf-8", errors="replace", options=self.options) as fin:
             logging.debug("File state before OarStatExtractor.extract_qstat: %(fin)s" % {"fin": fin})
             _ = fin.readline()  # header
             fin.readline()  # dashes
@@ -237,7 +237,7 @@ class OARBatchSystem(GenericBatchSystem):
         logging.debug("File %s exists: %s" % (fn_s, os.path.isfile(fn_s)))
         if os.stat(fn_s).st_size == 0:
             raise ValueError("OAR node input is empty: %s" % fn_s)
-        data = yaml_parser.safe_load(fn_s, DEF_INDENT=4)
+        data = yaml_parser.safe_load(fn_s, DEF_INDENT=4, options=self.options)
         if self.options.ANONYMIZE:
             nodes_resids = dict([(anonymize(node, "wns"), resid_state.items()) for node, resid_state in data.items()])
         else:
@@ -249,7 +249,7 @@ class OARBatchSystem(GenericBatchSystem):
         resources: Dict[int, Any] = {}
         resid = None
         jobs_list = False
-        with open(fn, encoding="utf-8", errors="replace") as stream:
+        with fileutils.open_input(fn, encoding="utf-8", errors="replace", options=self.options) as stream:
             for line in stream:
                 text = line.strip()
                 if not text or text.startswith("#") or text in ("---", "..."):

@@ -488,6 +488,7 @@ def execute_shell_batch_commands(
     timeout: float = DEFAULT_SCHEDULER_COMMAND_TIMEOUT,
     cancel: Optional[threading.Event] = None,
     cwd: Optional[str] = None,
+    input_options: Any = None,
 ) -> str:
     """Run the scheduler commands from QTOPCONF_YAML, saving each output atomically to its trace file."""
     _batch_system_command = batch_system_commands[_file].strip()
@@ -538,10 +539,11 @@ def execute_shell_batch_commands(
                 raise OperationalError("Cannot execute scheduler command %r: %s. Check PATH or load the scheduler module." % (_batch_system_command, error.strerror)) from error
             except ValueError as error:
                 raise OperationalError("Invalid scheduler command %r: %s. Check command quoting in %s." % (_batch_system_command, error, QTOPCONF_YAML)) from error
-            try:
-                stderr_data = communicate_with_timeout(command, timeout, stdout=fin, **({"cancel": cancel} if cancel is not None else {}))[1]
-            except subprocess.TimeoutExpired as failure:
-                raise OperationalError("Scheduler command %r timed out after %g seconds" % (_batch_system_command, timeout)) from failure
+            with fileutils.input_source(input_options, destination):
+                try:
+                    stderr_data = communicate_with_timeout(command, timeout, stdout=fin, **({"cancel": cancel} if cancel is not None else {}))[1]
+                except subprocess.TimeoutExpired as failure:
+                    raise OperationalError("Scheduler command %r timed out after %g seconds" % (_batch_system_command, timeout)) from failure
             if stderr_data:
                 logging.warning("A message from your shell: %s", stderr_data.decode("utf-8", errors="replace").strip())
             if command.returncode:
@@ -658,6 +660,7 @@ def get_input_filenames(INPUT_FNs_commands: Mapping[str, Tuple[str, str]], confi
                     _file,
                     _savepath,
                     timeout=SETTINGS.TIMEOUT,
+                    **({"input_options": args} if getattr(args, "_input_progress", None) is not None else {}),
                     **getattr(args, "_collection_controls", {}),
                 )
             except OperationalError as error:
@@ -1293,6 +1296,7 @@ def _collect_frame(
 def main(resources: RunResources) -> None:
     """Run qtop: collect, render and, in watch mode, repeat until quit."""
     args, dynamic_config = _parse_run_options(resources)
+    args._input_progress = fileutils.StartupProgress(sys.stderr)
 
     available_batch_systems = discover_qtop_batch_systems()
 
@@ -1327,9 +1331,12 @@ def main(resources: RunResources) -> None:
                 else:
                     viewport.set_term_size(*calculate_term_size(config, FALLBACK_TERMSIZE, viewport))
                 with resources.frame(savepath, timestr) as output_fp:
-                    snapshot, config, backend, user_to_color, SAMPLE_FILENAME = _collect_frame(
-                        resources, args, config, user_to_color, available_batch_systems, savepath, paths, SAMPLE_FILENAME
-                    )
+                    try:
+                        snapshot, config, backend, user_to_color, SAMPLE_FILENAME = _collect_frame(
+                            resources, args, config, user_to_color, available_batch_systems, savepath, paths, SAMPLE_FILENAME
+                        )
+                    finally:
+                        args._input_progress.finish()
                     MVU_export_snapshot(snapshot, args, savepath, timestr, web)
                     if model is None:
                         model = MVU_Model(config, args, viewport, display_overrides=dynamic_config, package_path=paths.qtoppath, help_file=paths.help_fp)

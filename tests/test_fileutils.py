@@ -149,3 +149,50 @@ def test_expanded_capture_closes_archive_if_initial_population_fails(tmp_path, m
 @pytest.mark.parametrize("overwrite, pattern", [(True, r"sample_\.tar"), (False, r"sample__\d{8}-\d{6}\.tar")])
 def test_sample_filename_stamps_datetime_unless_overwriting(overwrite, pattern):
     assert re.fullmatch(pattern, fileutils.get_sample_filename("sample_%(datetime)s.tar", {"overwrite_sample_file": overwrite}))
+
+
+@pytest.mark.parametrize("fails", [False, True], ids=["success", "parser-failure"])
+def test_startup_dots_follow_actual_open_and_close(monkeypatch, fails):
+    stream = io.StringIO("input")
+    observed, flushed = [], []
+    output = SimpleNamespace(write=lambda value: observed.append(stream.closed) if value == "." else None, flush=lambda: flushed.append(True))
+    options = SimpleNamespace(_input_progress=fileutils.StartupProgress(output))
+    monkeypatch.setattr(fileutils, "open", lambda *args, **kwargs: stream, raising=False)
+    try:
+        with fileutils.open_input("source", options=options) as source:
+            assert observed == [False] and len(flushed) == 1
+            assert source.read() == "input"
+            if fails:
+                raise ValueError("parser failed")
+    except ValueError:
+        assert fails
+    assert observed == [False, True] and len(flushed) == 2
+
+
+def test_startup_progress_deduplicates_sources_and_stays_disabled(tmp_path):
+    output = io.StringIO()
+    progress = fileutils.StartupProgress(output)
+    options = SimpleNamespace(_input_progress=progress)
+    for name in ("jobs", "nodes", "partitions"):
+        path = tmp_path / name
+        path.write_text(name)
+        for spelling in (str(path), str(path.resolve())):
+            with fileutils.open_input(spelling, options=options) as source:
+                assert source.read() == name
+    assert output.getvalue() == "......"
+    progress.finish()
+    progress.finish()
+    with fileutils.open_input(str(tmp_path / "jobs"), options=options):
+        pass
+    assert output.getvalue() == "......\n"
+    assert len(progress.seen) == 3
+
+
+def test_failed_input_open_does_not_print_progress(tmp_path):
+    output = io.StringIO()
+    progress = fileutils.StartupProgress(output)
+    with pytest.raises(FileNotFoundError):
+        with fileutils.open_input(str(tmp_path / "missing"), options=SimpleNamespace(_input_progress=progress)):
+            pytest.fail("missing source opened")
+    progress.finish()
+    assert output.getvalue() == ""
