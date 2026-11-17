@@ -10,6 +10,7 @@ Notable changes by version, newest first. See the
 - Bugfix: match queue names to their matrix colors
 - Bugfix: paginate wrapped terminal rows without losing the top of the frame
 - Bugfix: increase scheduler command timeout defaults to 120 seconds
+- CI: avoid ambiguous exception nesting in the raw-mode regression test
 - CI: check numbered section titles in sample gates
 - CI: cover Slurm JSON samples, installations and parser fuzzing
 - CI: increase Atheris verification timeouts to 120 seconds
