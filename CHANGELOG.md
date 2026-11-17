@@ -3,6 +3,37 @@
 Notable changes by version, newest first. See the
 [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 
+## 0.9.20261116
+
+
+- Bugfix: unify Slurm queued and Other counts across summary and accounts
+- Bugfix: match queue names to their matrix colors
+- Bugfix: paginate wrapped terminal rows without losing the top of the frame
+- Bugfix: increase scheduler command timeout defaults to 120 seconds
+- CI: make scheduler input closure explicit for CodeQL
+- CI: avoid ambiguous exception nesting in the raw-mode regression test
+- CI: check numbered section titles in sample gates
+- CI: cover Slurm JSON samples, installations and parser fuzzing
+- CI: increase Atheris verification timeouts to 120 seconds
+- Docs: add a feature-request form asking about co-development availability
+- Feature: show startup progress when scheduler sources open and close
+- Feature: simplify the Keys legend by omitting the m shortcut
+- Feature: add reverse palette rotation with P and 14 optional palettes
+- Feature: prefer legacy Slurm during autodetection
+- Feature: default to clipped queue summaries
+- Feature: number the four display section titles
+- Feature: simplify keys and align the watch legend
+- Feature: match running and total counts to Summary backgrounds
+- Feature: match queued counts to the Summary background
+- Feature: add clipped queue summaries and Q layout rotation
+- Feature: add reliable watch keys and vi navigation
+- Feature: render account totals as an independent fourth section
+- Feature: add Slurm summary collection on each display cycle
+- Feature: add Slurm JSON collection with independent refresh and
+  stale snapshots
+- Refactor: centralize the configurable scheduler timeout default
+- Release: update version metadata to 0.9.20261116
+
 ## 0.9.20261115
 
 - Bugfix: reject PBS allocations with unrecognized prefixes

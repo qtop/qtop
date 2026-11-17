@@ -6,10 +6,15 @@ Navigation
   j / Space      scroll down one screen
   k / Backspace  scroll up one screen
   h / l          scroll left / right
-  g / K          jump to the top
+  g / K / Home   jump to the top (1 toggles section 1 immediately)
   G / J          jump to the bottom
   0 / $          jump to the left / right edge
   R              reset the viewport
+  arrows         up/down one displayed row; left/right horizontally
+  Home / End     first line / last page
+  PageUp/PageDown scroll one page
+  /text Enter    search literal text; empty search repeats; Esc cancels
+  :42 Enter      jump to displayed line 42; Esc cancels
 
 View and analysis
 
@@ -19,11 +24,11 @@ View and analysis
   F              toggle full names / numbered node labels
   m              toggle core coloring by user / queue
   p              cycle the colour palettes of palettes.yaml
-  Q              expand / collapse the queueing summary
+  Q              cycle compact / expanded / clipped Queueing layouts
   r              cycle all / real / used core lines
   t              transpose the worker-node matrix
   1 2 3          show / hide sections 1-3 (as -1, -2, -3)
-  4              show / hide the accounts totals row (as -4)
+  4              show / hide independent section 4, Account totals (as -4)
 
 Session
 

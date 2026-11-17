@@ -3,6 +3,7 @@
 """Critical MVU boundaries: explicit transitions and isolated query/presentation."""
 
 import copy
+import json
 import re
 import sys
 from pathlib import Path
@@ -12,7 +13,8 @@ import pytest
 from qtop_py import configuration, qtop, utils, yaml_parser
 from qtop_py.mvu import MVU_Model, MVU_update
 from qtop_py.mvu_query import MVU_query
-from qtop_py.plugins.slurm import SlurmBatchSystem
+from qtop_py.plugins.slurm import SLURM_JOB_STATES, SlurmBatchSystem
+from qtop_py.plugins.slurm_json import SlurmJSONBatchSystem
 from qtop_py.snapshot import Snapshot
 from qtop_py.ui import mvu_view
 from qtop_py.ui.mvu_view import MVU_view
@@ -76,7 +78,8 @@ def test_number_keys_toggle_sections(tmp_path, monkeypatch, capsys, key, overrid
         assert (gone in capsys.readouterr().out) is shown
 
 
-def test_palette_key_cycles_the_shipped_palettes_and_recolours(tmp_path, monkeypatch):
+@pytest.mark.parametrize("key, direction", [("p", 1), ("P", -1)], ids=["forward", "backward"])
+def test_palette_key_cycles_the_shipped_palettes_and_recolours(tmp_path, monkeypatch, key, direction):
     model = MVU_test_model(tmp_path, monkeypatch)
     model.config["palettes"] = configuration.load_palettes((str(Path(__file__).resolve().parents[1]),))
     model.args.COLOR = "ON"
@@ -84,11 +87,62 @@ def test_palette_key_cycles_the_shipped_palettes_and_recolours(tmp_path, monkeyp
     seen = []
     for _ in model.config["palettes"]["PALETTES"]:
         seen.append((model.display_overrides.get("palette", "default"), model.MVU_colorize("x", "Red_L")))
-        model, effects = MVU_update(model, "p")
+        model, effects = MVU_update(model, key)
         assert effects == (("notice", "Palette: " + model.display_overrides["palette"]),)
-    assert [name for name, _ in seen] == ["default", "green-monitor", "solarized-dark", "gruvbox", "okabe-ito", "monochrome"]
+    order = ["default", "green-monitor", "solarized-dark", "gruvbox", "okabe-ito", "monochrome"]
+    assert [name for name, _ in seen] == [order[(i * direction) % len(order)] for i in range(len(order))]
     assert model.display_overrides["palette"] == "default"  # wrapped around
-    assert seen[0][1] == "\x1b[1;31mx\x1b[0;m" and seen[1][1] == "\x1b[1;38;5;40mx\x1b[0;m" and len({code for _, code in seen}) == 6
+    assert seen[0][1] == "\x1b[1;31mx\x1b[0;m" and dict(seen)["green-monitor"] == "\x1b[1;38;5;40mx\x1b[0;m" and len({code for _, code in seen}) == 6
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "apprentice",
+        "base16-dark",
+        "base16-light",
+        "catppuccin-frappe",
+        "catppuccin-latte",
+        "catppuccin-macchiato",
+        "catppuccin-mocha",
+        "dracula",
+        "material",
+        "papercolor-dark",
+        "papercolor-light",
+        "tender",
+        "tokyo-night-dark",
+        "tokyo-night-light",
+    ],
+)
+def test_optional_palettes_render_when_enabled(tmp_path, monkeypatch, name):
+    root = Path(__file__).resolve().parents[1]
+    model = MVU_test_model(tmp_path, monkeypatch)
+    model.config["palettes"] = configuration.load_palettes((str(root),))
+    palettes = model.config["palettes"]
+    assert len(palettes) == 20  # PALETTES plus 19 mappings; default needs none.
+    assert name not in palettes["PALETTES"]
+    model.args.COLOR = "ON"
+    palettes["PALETTES"] = ["default", name]
+    configuration.validate_config(model.config)
+    forward, _ = MVU_update(model, "p")
+    backward, _ = MVU_update(model, "P")
+    assert forward.display_overrides["palette"] == backward.display_overrides["palette"] == name
+    for colour, code in palettes[name].items():
+        assert forward.MVU_colorize("x", colour) == "\x1b[" + code + "mx\x1b[0;m"
+    assert MVU_update(forward, "p")[0].display_overrides["palette"] == "default"
+    assert MVU_update(backward, "P")[0].display_overrides["palette"] == "default"
+
+
+@pytest.mark.parametrize("key", ["p", "P"], ids=["forward", "backward"])
+@pytest.mark.parametrize("current", [None, "removed"], ids=["single-palette", "removed-palette"])
+def test_palette_rotation_handles_single_and_removed_palettes(tmp_path, monkeypatch, key, current):
+    model = MVU_test_model(tmp_path, monkeypatch)
+    model.config["palettes"] = {"PALETTES": ["default"]}
+    if current:
+        model.display_overrides["palette"] = current
+    rotated, effects = MVU_update(model, key)
+    assert rotated.display_overrides["palette"] == "default"
+    assert effects == (("notice", "Palette: default"),)
 
 
 def test_user_palettes_override_colour_by_colour_and_are_validated(tmp_path):
@@ -236,3 +290,120 @@ def test_anonymized_samples_drop_custom_user_accounts_header():
 
     assert "user_accounts_header" not in config
     assert "user_accounts_header" in omitted
+
+
+@pytest.mark.parametrize("accounts,totals", ((True, True), (True, False), (False, True), (False, False)))
+@pytest.mark.parametrize("groups", (False, True))
+def test_account_totals_are_an_independent_fourth_section(tmp_path, monkeypatch, capsys, accounts, totals, groups):
+    model = MVU_test_model(tmp_path, monkeypatch)
+    model.args.SHOW_GROUPS = groups
+    model.display_overrides.update(sect_3_off=not accounts, SHOW_ACCOUNT_TOTALS=totals)
+    MVU_view(MVU_query(model), str(tmp_path), "sample.tar", "qtop.log")
+    output = capsys.readouterr().out
+    assert ("User accounts and pool mappings" in output) == accounts
+    assert ("Account totals" in output) == totals
+    assert ("Totals" in output) == totals
+
+
+@pytest.mark.parametrize(
+    "key,method",
+    (
+        ("up", "scroll_line_up"),
+        ("down", "scroll_line_down"),
+        ("left", "scroll_left"),
+        ("right", "scroll_right"),
+        ("home", "scroll_top"),
+        ("end", "scroll_bottom"),
+        ("pageup", "scroll_up"),
+        ("pagedown", "scroll_down"),
+    ),
+)
+def test_arrow_and_terminal_navigation_is_an_owned_viewport_update(tmp_path, monkeypatch, key, method):
+    model = MVU_test_model(tmp_path, monkeypatch)
+    model.viewport.max_height, model.viewport.max_width = 200, 400
+    model.viewport.v_start, model.viewport.h_start = 50, 100
+    expected = copy.copy(model.viewport)
+    getattr(expected, method)()
+    updated, effects = MVU_update(model, key)
+    assert vars(updated.viewport) == vars(expected)
+    assert model.viewport.v_start == 50 and model.viewport.h_start == 100
+    assert effects[0][0] == "notice"
+
+
+@pytest.mark.parametrize("key,effect", (("/", "search"), (":", "line")))
+def test_search_and_line_navigation_request_input_as_effects(tmp_path, monkeypatch, key, effect):
+    model = MVU_test_model(tmp_path, monkeypatch)
+    updated, effects = MVU_update(model, key)
+    assert effects == ((effect, None),)
+    assert vars(updated.viewport) == vars(model.viewport)
+
+
+def test_hidden_accounts_skip_optional_name_lookups_even_when_totals_remain(tmp_path, monkeypatch):
+    model = MVU_test_model(tmp_path, monkeypatch)
+    model.display_overrides["sect_3_off"] = True
+    monkeypatch.setattr(qtop, "get_detail_of_name", lambda *_args: pytest.fail("hidden account rows must not query user details"))
+    qtop.MVU_resolve_user_details(model, MVU_query(model).occupancy)
+    assert model.user_details == {}
+
+
+@pytest.mark.parametrize("hidden", (None, "1", "2", "3", "4"))
+def test_section_titles_keep_their_numbers_when_other_sections_are_hidden(tmp_path, monkeypatch, capsys, hidden):
+    model = MVU_test_model(tmp_path, monkeypatch)
+    if hidden:
+        model, _ = MVU_update(model, hidden)
+    MVU_view(MVU_query(model), str(tmp_path), "sample.tar", "qtop.log")
+    output = re.sub(r"\x1b\[[0-9;]*m", "", capsys.readouterr().out)
+    for number, title in enumerate(("Job accounting summary", "Worker Nodes occupancy", "User accounts and pool mappings", "Account totals"), 1):
+        assert ("===> %s. %s" % (number, title) in output) == (str(number) != hidden)
+
+
+@pytest.mark.parametrize("backend", [SlurmBatchSystem, SlurmJSONBatchSystem], ids=["slurm", "slurm-json"])
+@pytest.mark.parametrize("state", sorted(set(SLURM_JOB_STATES.values()) | {"UNKNOWN"}))
+@pytest.mark.parametrize("detailed", [False, True], ids=["default-columns", "detailed-columns"])
+def test_slurm_accounting_agrees_across_views(tmp_path, monkeypatch, capsys, backend, state, detailed):
+    model = MVU_test_model(tmp_path, monkeypatch)
+    if backend is SlurmBatchSystem:
+        queue = tmp_path / "squeue.txt"
+        queue.write_text("1|alice|%s|batch|0|\n" % state)
+        nodes = tmp_path / "sinfo.txt"
+        nodes.write_text("")
+        files = {"squeue_file": str(queue), "sinfo_file": str(nodes)}
+    else:
+        source = Path(__file__).parent / "plugins/slurm_json_samples/v0.0.43"
+        files = {}
+        for key in ("jobs", "nodes", "partitions"):
+            data = json.loads((source / ("slurm_" + key + ".json")).read_text())
+            if key == "jobs":
+                data[key] = [{"job_id": 1, "user_name": "alice", "job_state": [state], "partition": "batch", "cpus": 0, "nodes": ""}]
+            path = tmp_path / (key + ".json")
+            path.write_text(json.dumps(data))
+            files[key + "_json"] = str(path)
+    system = backend(files, model.config, model.args)
+    model.backend = backend
+    model.scheduler = "slurm"
+    cluster_state = system.get_cluster_state(model.args)
+    bucket = "running" if state == "R" else "queued" if state in {"PD", "RD", "RH", "RF", "RQ", "SE"} else "other"
+    assert cluster_state["jobs"][0]["state"] == state
+    assert cluster_state["jobs"][0]["accounting_state"] == bucket
+    model.snapshot = Snapshot.from_cluster_state(cluster_state)
+    expected = [int(bucket == name) for name in ("running", "queued", "other")]
+    assert [model.snapshot.total_running_jobs, model.snapshot.total_queued_jobs] == expected[:2]
+    original_mapping = dict(model.config["state_abbreviations"]["slurm"])
+    if detailed:
+        columns = ["running_of_user", "queued_of_user", "hold_of_user", "configuring_of_user", "special_exit_of_user", "other_of_user"]
+        model.config["accounts_states"] = columns
+        model.config["summary_states"] = columns
+        category = original_mapping.get(state, "unknown_of_user")
+        expected = [int(category == name) for name in columns[:-1]]
+        expected.append(1 - sum(expected))
+    view = MVU_query(model)
+    MVU_view(view, str(tmp_path), "sample.tar", "qtop.log")
+    output = capsys.readouterr().out
+    assert "1=" + "+".join(map(str, expected)) + " jobs" in output
+    for user in ("alice", "Totals"):
+        line = next(line for line in output.splitlines() if re.search(r"\] " + user + r"\s+\|", line))
+        assert list(map(int, line.split("|")[1].split())) == [1] + expected
+    assert view.occupancy.account_jobs_table[0][3] == 1
+    assert model.config["state_abbreviations"]["slurm"] == original_mapping
+    # Portable capture/replay keeps the canonical accounting bucket and raw state.
+    assert Snapshot.from_cluster_state(model.snapshot.to_cluster_state()).total_queued_jobs == model.snapshot.total_queued_jobs

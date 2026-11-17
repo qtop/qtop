@@ -637,3 +637,20 @@ def test_long_node_state_flags_keep_the_base_state(suffix):
 def test_allocation_job_name_separator_accepts_long_whitespace():
     assert SlurmBatchSystem._allocation_job_id("JobId=42" + " " * 20000 + "JobName=JobId=99") == "42"
     assert SlurmBatchSystem._allocation_job_id("JobId=42" + " " * 20000 + "Other=99") == "42"
+
+
+def test_summary_mode_ignores_existing_details_and_keeps_reported_gpu_inventory(detailed_slurm):
+    from types import SimpleNamespace
+
+    detailed, _ = detailed_slurm
+    options = SimpleNamespace(ANONYMIZE=False, SLURM_SUMMARY=True)
+    files = {"squeue_file": detailed.squeue_file, "sinfo_file": detailed.sinfo_file, "scontrol_file": detailed.scontrol_file}
+    system = SlurmBatchSystem(files, {}, options)
+    state = system.get_cluster_state(options)
+    assert system.scontrol_file == ""
+    assert len(state["jobs"]) == 3
+    assert sum(len(node["core_job_map"]) for node in state["nodes"]) == 6
+    assert [node["cpu_allocation_source"] for node in state["nodes"]] == ["estimated", "estimated", "none"]
+    assert all("slurm_gpu_bindings" not in node for node in state["nodes"])
+    assert state["nodes"][0]["slurm_gpu_configured"][0]["count"] == 4
+    assert state["nodes"][0]["slurm_gpu_used"][0]["device_indices"] == [1]

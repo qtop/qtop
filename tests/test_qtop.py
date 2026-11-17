@@ -160,10 +160,10 @@ def test_raw_mode_restores_the_terminal_on_sigterm_and_reapplies_cbreak_on_sigco
 
 def test_raw_mode_degrades_when_the_terminal_refuses_new_attrs(monkeypatch):
     monkeypatch.setattr(qtop_module, "termios", FakeTermios(fail_set=True))
-    with qtop_module.raw_mode(TerminalFile(), WATCH_ARGS) as attrs:
-        assert attrs == ("", "")
-        error = ValueError("in the watch loop")
-        with pytest.raises(ValueError) as raised:
+    error = ValueError("in the watch loop")
+    with pytest.raises(ValueError) as raised:
+        with qtop_module.raw_mode(TerminalFile(), WATCH_ARGS) as attrs:
+            assert attrs == ("", "")
             raise error
     assert raised.value.__context__ is None  # the loop no longer runs inside the termios except block
 
@@ -439,7 +439,7 @@ def test_account_totals_are_shown_unless_hidden_with_4(monkeypatch, switches, sh
 
 @pytest.mark.parametrize(
     "switch, attribute",
-    (("--show-groups", "SHOW_GROUPS"), ("--expand-queues", "EXPAND_QUEUES")),
+    (("--show-groups", "SHOW_GROUPS"), ("--expand-queues", "EXPAND_QUEUES"), ("--no-wrap-queues", "NO_WRAP_QUEUES")),
 )
 def test_optional_accounting_summary_switches(monkeypatch, switch, attribute):
     monkeypatch.setattr(sys, "argv", ["qtop", switch])
@@ -463,7 +463,7 @@ def test_init_dirs_uses_parent_when_source_is_a_file(tmp_path, monkeypatch):
     assert changed_to == [str(tmp_path)]
 
 
-def test_display_user_accounts_pool_mappings_adds_totals(monkeypatch, capsys):
+def test_display_account_totals_is_separate_from_user_rows(monkeypatch, capsys):
     class Args(object):
         COLOR = "OFF"
         CLASSIC = False
@@ -488,8 +488,10 @@ def test_display_user_accounts_pool_mappings_adds_totals(monkeypatch, capsys):
     display = TextDisplay(None, qtop_module.config, None, wns_occupancy, None, args)
 
     display.display_user_accounts_pool_mappings(wns_occupancy)
-
+    assert "[ T] Totals" not in capsys.readouterr().out
+    display.display_account_totals()
     output = capsys.readouterr().out
+    assert "Account totals" in output
     assert "[ T] Totals" in output
     assert "|   9      6      3      0 |" in output
     assert "|     3 |" in output
@@ -659,7 +661,7 @@ def test_queueing_summary_preserves_order_and_expands(capsys):
 def test_queue_summary_expands_in_watch_mode_when_wider_than_the_terminal(capsys, queues, watch, overrides, expanded):
     queues_dict = {"queue_%03d" % index: SimpleNamespace(run="1", queued="2", state="E") for index in range(queues)}
     cluster = SimpleNamespace(total_running_jobs=0, total_queued_jobs=0, queues_dict=queues_dict, total_wn=0, offdown_nodes=0, available_wn=0, working_cores=0, total_cores=0)
-    args = SimpleNamespace(REMAP=False, CLASSIC=False, WATCH=watch, ANONYMIZE=True, COLOR="OFF")
+    args = SimpleNamespace(REMAP=False, CLASSIC=False, WATCH=watch, ANONYMIZE=True, NO_WRAP_QUEUES=False, COLOR="OFF")
     viewport = Viewport()
     viewport.set_term_size(40, 100)
     model = MVU_Model({}, args, viewport, backend=qtop_module.scheduler_backend("pbs"), display_overrides=overrides)
@@ -733,11 +735,13 @@ def test_watch_mode_lists_keys_above_the_summary(capsys, scheduler, watch, color
     lines = capsys.readouterr().out.splitlines()
     plain = [re.sub(r"\x1b\[[0-9;]*m", "", line) for line in lines]
     summary = next(index for index, line in enumerate(plain) if "Job accounting summary" in line)
-    assert (plain[summary - 1] == mvu_view.WATCH_KEYS_TEXT) is (key_style is not None)
-    assert sum(line == mvu_view.WATCH_KEYS_TEXT for line in plain) == (key_style is not None)
+    assert ("\n".join(plain[summary - 2 : summary]) == mvu_view.WATCH_KEYS_TEXT) is (key_style is not None)
+    assert "\n".join(plain).count(mvu_view.WATCH_KEYS_TEXT) == (key_style is not None)
     if key_style:
         keys = ("\x1b[1;34mq\x1b[0;m\x1b[1;33m quit", "\x1b[1;34m1,2,3,4\x1b[0;m") if color == "ON" else ("\x1b[4mq\x1b[24m quit", "\x1b[4m1,2,3,4\x1b[24m")
-        assert lines[summary - 1].startswith(key_style + "Keys: ") and all(key in lines[summary - 1] for key in keys)  # keys stand out from their labels
+        assert lines[summary - 2].startswith(key_style + "Keys: ")
+        assert keys[0] in lines[summary - 2] and keys[1] in lines[summary - 1]
+        assert plain[summary - 2].endswith("s sort,") and plain[summary - 1].startswith("      Q queue layout,")  # keys stand out from their labels
 
 
 def test_available_possible_ids_filters_reserved_user_symbols():
@@ -1125,31 +1129,28 @@ def test_init_logging_sets_file_level(tmp_path, monkeypatch, verbose, expected):
         logger.disabled = old_disabled
 
 
-@pytest.mark.parametrize("head_fails", (False, True))
-def test_viewport_pipeline_reaps_both_processes(tmp_path, monkeypatch, head_fails):
+@pytest.mark.parametrize("invalid_utf8", (False, True), ids=("large-frame", "decode-failure"))
+def test_viewport_closes_its_output_on_success_and_failure(tmp_path, monkeypatch, invalid_utf8):
     source = tmp_path / "frame with spaces.out"
-    source.write_text("".join("%s\n" % number for number in range(100000)))
+    source.write_bytes(b"\xff" if invalid_utf8 else "".join("%s\n" % number for number in range(100000)).encode())
     display = TextDisplay.__new__(TextDisplay)
     display.config = {"savepath": str(tmp_path)}
-    popen = qtop_module.subprocess.Popen
-    processes = []
+    temporary_file = mvu_view.tempfile.NamedTemporaryFile
+    outputs = []
 
-    def track_process(command, **kwargs):
-        if head_fails and command[0] == "head":
-            raise OSError("head unavailable")
-        process = popen(command, **kwargs)
-        processes.append(process)
-        return process
+    def track_file(**kwargs):
+        output = temporary_file(**kwargs)
+        outputs.append(output)
+        return output
 
-    monkeypatch.setattr(qtop_module.subprocess, "Popen", track_process)
-    if head_fails:
-        with pytest.raises(OSError, match="head unavailable"):
+    monkeypatch.setattr(mvu_view.tempfile, "NamedTemporaryFile", track_file)
+    if invalid_utf8:
+        with pytest.raises(UnicodeDecodeError):
             display.show_part_view("test", str(source), 2, 3)
     else:
         result = display.show_part_view("test", str(source), 2, 3)
-        assert Path(result).read_text() == "2\n3\n"  # from 0-based line 2, one 2-line page of a 3-row terminal
-        assert len(processes) == 2
-    assert all(process.returncode is not None for process in processes)
+        assert Path(result).read_text() == "2\n3\n"
+    assert len(outputs) == 1 and outputs[0].closed
 
 
 @pytest.mark.parametrize("failure", ["timeout", "exit", "quoting"])
@@ -1201,8 +1202,13 @@ def _plain_accounts(monkeypatch, capsys, config, table, totals=False, color="OFF
     args = SimpleNamespace(COLOR=color, CLASSIC=False, SHOW_ACCOUNT_TOTALS=totals, SHOW_GROUPS=False)
     occupancy = SimpleNamespace(account_jobs_table=table, user_color_patterns={str(row[0]): "account_not_colored" for row in table})
     monkeypatch.setattr(qtop_module, "user_to_color", {}, raising=False)
-    TextDisplay(None, dict(config, SEPARATOR="|"), None, occupancy, None, args).display_user_accounts_pool_mappings(occupancy)
-    return capsys.readouterr().out.splitlines()
+    display = TextDisplay(None, dict(config, SEPARATOR="|"), None, occupancy, None, args)
+    display.display_user_accounts_pool_mappings(occupancy)
+    rows = capsys.readouterr().out.splitlines()
+    if totals:
+        display.display_account_totals()
+        rows += capsys.readouterr().out.splitlines()[-1:]
+    return rows
 
 
 @pytest.mark.parametrize("color, tty, style", (("ON", False, "colour"), ("OFF", True, "reverse"), ("OFF", False, None)))
@@ -1322,3 +1328,78 @@ def test_legacy_account_display_retains_the_resolved_fallback_model(monkeypatch)
     display = TextDisplay.__new__(TextDisplay)
     display.display_user_accounts_pool_mappings(object())
     assert len(models) == 1
+
+
+@pytest.mark.parametrize(
+    "term,colours,code",
+    [
+        ("xterm-256color", None, "0;30;48;5;208"),
+        ("linux", None, "1;37;41"),
+        ("xterm", ["BlackOnBlue", "BlackOnRed"], "0;30;44"),
+        ("xterm", ["BlackOnBlue", "BlackOnGreen", "BlackOnRed"], "0;30;41"),
+    ],
+    ids=("orange", "red-fallback", "cycled-config", "custom-config"),
+)
+@pytest.mark.parametrize("user_colour", ("Red_L", "BlackOnOrange256"), ids=("foreground-user", "background-user"))
+def test_queued_counts_share_summary_background_without_changing_table_alignment(monkeypatch, capsys, term, colours, code, user_colour):
+    monkeypatch.setenv("TERM", term)
+    monkeypatch.delenv("COLORTERM", raising=False)
+    config = {"accounts_states": [{"queued_of_user": "WAIT"}, "running_of_user"]}
+    if colours:
+        config["summary_colours"] = colours
+    _summary(config, LISTED, color="ON")
+    lines = capsys.readouterr().out.splitlines()
+    for label in ("Summary", "Queueing"):
+        assert "\x1b[%sm4\x1b[0;m" % code in next(line for line in lines if re.sub(r"\x1b\[[0-9;]*m", "", line).startswith(label))
+    row = ["0", 2, 3, 5, "alice", 1, {"running_of_user": 2, "queued_of_user": 3}]
+    plain = _plain_accounts(monkeypatch, capsys, config, [row])[-1]
+    args = SimpleNamespace(COLOR="ON", CLASSIC=False)
+    model = MVU_Model({}, args, None, user_to_color={"alice": user_colour})
+    display = mvu_view.TextDisplay(None, dict(config, SEPARATOR="|"), None, None, None, args, MVU_model=model)
+    display.display_account_jobs_line(row, "alice", {})
+    coloured = capsys.readouterr().out.rstrip("\n")
+    assert "\x1b[%sm3\x1b[0;m" % code in coloured
+    colours_by_state = mvu_view.summary_count_colours(config)
+    for count, index in ((5, 0), (2, 1)):
+        assert model.MVU_colorize(str(count), colours_by_state[index % len(colours_by_state)]) in coloured
+    assert re.sub(r"\x1b\[[0-9;]*m", "", coloured) == plain
+
+
+@pytest.mark.parametrize("color", ("ON", "OFF"))
+@pytest.mark.parametrize("clipped", (False, True), ids=("compact", "clipped"))
+def test_no_wrap_queues_clips_only_the_queueing_row(capsys, color, clipped):
+    queues = {"queue_%03d" % index: SimpleNamespace(run="1", queued="2", state="E") for index in range(150)}
+    cluster = SimpleNamespace(total_running_jobs=150, total_queued_jobs=300, queues_dict=queues, total_wn=0, offdown_nodes=0, available_wn=0, working_cores=0, total_cores=0)
+    args = SimpleNamespace(REMAP=False, CLASSIC=False, WATCH=True, NO_WRAP_QUEUES=clipped, COLOR=color)
+    viewport = Viewport()
+    viewport.set_term_size(40, 40)
+    model = MVU_Model({}, args, viewport, backend=qtop_module.scheduler_backend("pbs"), display_overrides={} if clipped else {"queue_summary_layout": "compact"})
+    mvu_view.TextDisplay(None, {}, viewport, None, None, args, MVU_model=model).display_job_accounting_summary(cluster, None)
+    output = re.sub(r"\x1b\[[0-9;]*m", "", capsys.readouterr().out)
+    queue_line = next(line for line in output.splitlines() if line.startswith("Queueing"))
+    assert queue_line.startswith("Queueing : queue_000: 1 + 2 |")
+    assert (len(queue_line) <= 40) == clipped
+    assert ("queue_149" in queue_line) != clipped
+    if clipped:
+        assert any(line.startswith("* implies blocked") for line in output.splitlines())
+    assert "Job accounting summary" in output and "Summary" in output
+
+
+@pytest.mark.parametrize("expanded", (False, True), ids=("compact", "expanded"))
+@pytest.mark.parametrize("configured", (False, True), ids=("fallback", "configured"))
+def test_queue_labels_match_matrix_letter_backgrounds(capsys, expanded, configured):
+    from qtop_py.mvu import MVU_keep_queue_initials_only_and_colorize
+
+    config = {"palettes": {"PALETTES": ["custom"], "custom": {"White": "0;30;43", "BlackOnBlue": "0;30;44"}}}
+    args = SimpleNamespace(REMAP=False, CLASSIC=False, WATCH=False, EXPAND_QUEUES=expanded, ANONYMIZE=True, COLOR="ON")
+    model = MVU_Model(config, args, None, backend=qtop_module.scheduler_backend("slurm"), user_to_color={"NoPattern": "White"})
+    model.queue_to_color = {"batch": "BlackOnBlue"} if configured else {}
+    queue = SimpleNamespace(run="1", queued="0", state="up")
+    cluster = SimpleNamespace(total_running_jobs=1, total_queued_jobs=0, queues_dict={"batch": queue}, total_wn=1, offdown_nodes=0, available_wn=0, working_cores=1, total_cores=1)
+    display = mvu_view.TextDisplay(None, config, None, None, cluster, args, MVU_model=model)
+    display.display_job_accounting_summary(cluster, None)
+    output = capsys.readouterr().out
+    cell = MVU_keep_queue_initials_only_and_colorize([{"qname": ["batch"]}], model.queue_to_color)[0]["qname"][0]
+    expected = model.MVU_colorize(cell.initial, color_func=cell.color)
+    assert "\x1b[0;30;%sm" % ("44" if configured else "43") in expected
+    assert expected.replace("mb\x1b", "mbatch\x1b") in output

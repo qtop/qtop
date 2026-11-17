@@ -298,8 +298,9 @@ neither state; set, every count comes from the job list instead, which may
 differ slightly from the scheduler's own totals.
 
 ``summary_colours`` overrides those colours with colormap names, in the order
-Total, R, Q, Other; a shorter list is reused in turn. The accounts totals row
-paints its jobs and state counts the same way, so the two can be compared.
+Total, R, Q, Other; a shorter list is reused in turn. Per-user Total, R and Q
+counts and compact queue R/Q counts use the same backgrounds. The independent
+Account totals section paints all its state counts like the Summary.
 
 On PBS the default Summary R and Q are ``qstat -q``'s queue totals, while the
 accounts table counts ``qstat``'s job list, so the two can differ by a few jobs:
@@ -328,17 +329,27 @@ summary_colours:
   - BlackOnGold
 ```
 
+Slurm default job counts include held/requeued jobs (RD, RH, SE) in Q.
+Configuring jobs (CF) already have allocated nodes and count as Other.
+The summary and default account columns share normalized accounting; explicit
+``accounts_states`` / ``summary_states`` retain the configured detailed states.
+
 ### Palettes
 
 ``palettes.yaml``, next to ``qtopconf.yaml``, defines the colour palettes; in
-watch mode ``p`` cycles through its ``PALETTES`` list, starting with the first.
-qtop ships, in that order, ``default``, ``green-monitor`` (monochrome in
+watch mode ``p`` cycles forward and ``P`` backward through its ``PALETTES``
+list, starting with the first. There are 20 palettes; uncomment the extra
+entries in that list to enable them.
+The active list contains, in order, ``default``, ``green-monitor`` (monochrome in
 phosphor-green tones), ``solarized-dark``, ``gruvbox``, ``okabe-ito``
 (colour-blind safe) and ``monochrome`` (bold, underline and reverse). A palette
 maps colormap colour names to ANSI SGR codes, digits and ``;`` only, and keeps
 the default colour for any name it leaves out. A ``palettes.yaml`` in the system
 directory or ``~/.local/qtop/`` reorders the list or changes palettes, colour by
 colour. The palettes use 256-colour codes and leave the terminal background alone.
+
+Startup prints a flushed dot to stderr when each scheduler source first opens
+and closes (three sources produce six dots). Later refreshes stay quiet.
 
 Watch mode
 ----------
@@ -371,10 +382,15 @@ Watch mode supports:
 | j / Space | go down one screen |
 | k / Backspace | go up one screen |
 | h / l | go left / right one screen |
-| g / K | go to the top of the matrix |
-| G / J | go to the bottom of the matrix |
+| g / K / Home | go to the first displayed line |
+| G / J / End | go to the last page |
 | 0 / $ | go to the left / right edge |
 | R | reset the viewport |
+| Up / Down arrows | move one displayed row |
+| Left / Right arrows | move horizontally |
+| PageUp / PageDown | move one page |
+| /text, Enter | search forward for literal text; wrap at the end |
+| :42, Enter | jump to displayed line 42 (one-based) |
 
 #### View and session controls
 
@@ -384,15 +400,22 @@ Watch mode supports:
 | F | switch full names / numbered node labels |
 | H | highlight users or queues |
 | m | switch core coloring by user / queue |
-| p | cycle the colour palettes of ``palettes.yaml`` |
-| Q | expand / collapse the queueing summary |
+| p / P | cycle palettes forward / backward in ``palettes.yaml`` |
+| Q | cycle compact / expanded / clipped Queueing layouts |
 | r | cycle all / real / used core lines |
 | s | apply sorting (remapped matrices; numbered ones keep node order) |
 | t | transpose the matrix |
 | 1, 2, 3 | show / hide sections 1-3 (as ``-1``, ``-2``, ``-3``) |
-| 4 | show / hide the accounts totals row (as ``-4``) |
+| 4 | show / hide independent section 4, Account totals (as ``-4``) |
 | ? | toggle interactive help |
 | q | quit qtop |
+
+Searches include wrapped text and ignore ANSI colour sequences. An empty search
+reuses the previous text. Escape cancels a prompt; Backspace edits and Ctrl-U
+clears it. Addresses refer to displayed rows at the current terminal width.
+Bare `1` toggles section 1 immediately; `G` goes to the bottom independently.
+Queued keys are read on successive UI cycles;
+synchronous scheduler collection/rendering still takes time within each cycle.
 
 Instant Replay
 --------------
@@ -522,7 +545,8 @@ Invalid common settings report the affected key (for example, `sorting.reverse`
 or `term_size`). Backend-specific extension keys remain supported.
 
 `scheduler_command_timeout` also bounds optional user-detail commands from
-`extract_info`; it defaults to 30 seconds and must be positive and finite.
+`extract_info`; it defaults to 120 seconds and must be positive and finite.
+Set it in your `qtopconf.yaml`, or use `-o scheduler_command_timeout=240`.
 Failed or timed-out lookups log a warning and leave the dashboard usable.
 Quoted command arguments, including cache paths containing spaces, are preserved.
 
@@ -1116,21 +1140,27 @@ checkout.
 
 ### Display controls
 
+Section titles carry fixed numbers 1-4, even when other sections are hidden.
+
 -  ``-1`` hides the accounting summary section.
 -  ``-2`` hides the worker-node occupancy section.
 -  ``-3`` hides the user accounts and pool mappings section.
--  ``-4`` / ``--noaccounttotals`` hides its totals row, shown by default
-   (up to 0.9.20261110 ``-4`` added it; ``--accounttotals`` still shows it).
+-  ``-4`` / ``--noaccounttotals`` hides section 4, Account totals, shown by
+   default independently of section 3. ``--accounttotals`` explicitly shows it.
 -  ``-a`` / ``--blindremapping`` forces worker-node remapping.
 -  ``-C`` / ``--classic`` selects the classic display style.
 -  ``-F`` forces full worker node names.
 -  ``-G`` resolves user details with ``getent passwd``.
 -  ``--show-groups`` adds primary Unix groups to the account table.
--  ``--expand-queues`` displays one queue or partition per summary line;
-   press ``Q`` to toggle it in watch mode. Each line reads ``Total = R + Q + Other``,
-   aligned and in the Summary colours; Other counts the queue's listed jobs
-   beyond its R and Q. Watch mode also expands it when
-   the one-line summary would be wider than the terminal.
+-  ``--expand-queues`` displays one queue or partition per summary line.
+   Each expanded line reads ``Total = R + Q + Other``, aligned and in the
+   Summary colours; Other counts the queue's listed jobs beyond its R and Q.
+-  ``--no-wrap-queues`` keeps the Queueing summary on one physical terminal row,
+   clipping overflow to the detected width. This is the default; it is mutually
+   exclusive with ``--expand-queues``. ``Q`` cycles compact, expanded and clipped
+   layouts after startup. Clipping affects display only; normalized exports
+   retain every queue. The blocked-queue legend stays on its own line in clipped
+   mode, so it is visible even when queue names overflow.
 -  ``-T`` transposes the worker-node matrix.
 -  ``-l`` lets the matrix overflow horizontally, which is useful with
    ``less -RS``.
@@ -1195,8 +1225,8 @@ truncation. Owned directories under `~/.local/qtop` are restored to `0700` even
 when their existing modes prevent reading or traversing them.
 Symlinks, hard links, special files and foreign-owned logs are refused.
 
-Live scheduler commands have a 30-second timeout. Set `scheduler_command_timeout`
-in your configuration or use `-o scheduler_command_timeout=120` for slow clients.
+Live scheduler commands have a 120-second timeout. Set `scheduler_command_timeout`
+in your configuration or use `-o scheduler_command_timeout=240` for slower clients.
 The value must be positive and finite. Timeouts terminate the client (and its
 process group on POSIX), discard partial output and preserve the previous trace.
 Required command failures exit with a diagnostic; optional-detail fallbacks remain
@@ -1306,3 +1336,98 @@ Malformed mappings produce a message instead of interrupting the matrix.
 The feature reuses existing `sinfo` and detailed `scontrol` snapshots and adds
 no scheduler commands. Omit the mapping to disable it. Anonymized samples omit
 the mapping because its node patterns identify the installation.
+
+### Slurm JSON backend
+
+`-b slurm_json` reads Slurm data-parser JSON instead of the legacy text formats.
+Autodetection prefers the legacy `slurm` backend; JSON collection is selected
+explicitly with `-b slurm_json`. Queries run sequentially as `scontrol --json show
+partitions`, then `nodes`, then `jobs`. This ordering puts the typically smaller
+responses first; it is not a measured RPC speed ranking.
+
+```console
+./qtop -b slurm_json -w
+./qtop -b slurm_json --slurm-json-squeue --all -w
+./qtop -b slurm_json -s tests/plugins/slurm_json_samples/v0.0.43 -F
+```
+
+The first collection also checks JSON capability, without an extra help/RPC
+probe. Unsupported JSON, unknown parser versions and empty command output cause
+one diagnostic and a switch to legacy Slurm. A valid `jobs: []` is an empty
+cluster, not missing JSON support. Malformed allocation data and ordinary RPC
+failures are errors, not reasons to silently downgrade. For clients whose
+`scontrol` returns empty job JSON, `--slurm-json-squeue` substitutes
+`squeue --json --states=all`. `--all` is passed only when requested, to every
+live command; it never bypasses Slurm permissions.
+
+In watch mode one background collector starts on a 20-second monotonic cadence,
+independently of keypresses, redraws or the `-w` display interval. Slow collections
+skip missed slots and never overlap. Each command uses
+`scheduler_command_timeout` (120 seconds by default); shutdown cancels and reaps
+in-flight clients. Failed refreshes retain the previous complete observation.
+Scheduler messages show its age since successful completion and the collection span.
+Freshness/failed-refresh messages are transient UI information; exported state
+keeps its existing schema. These responses **are not globally atomic**: a job can
+change between the partition, node and job queries. The in-process publication
+contains a complete, validated collection; exports use the existing unique-file
+publication path. Collection-command, visibility or timeout changes restart the session.
+
+Supported data-parser metadata versions are `v0.0.40` through `v0.0.45`.
+The older `allocated_nodes`/socket dictionaries and newer
+`nodes.allocation`/socket arrays are distinct adapters into existing Slurm
+accounting, identity, host-list and GRES rules. Other versions are rejected;
+offline malformed/unsupported traces never fall back to live commands.
+Duplicate JSON keys, conflicting identities, missing or inconsistent per-node
+allocations, invalid GPU indices and out-of-budget topology are rejected.
+Overlapping or over-capacity CPU allocations cannot fit the existing single-job
+CPU map and are rejected rather than silently dropping assignments.
+
+Socket/core bitmaps are expanded to Slurm abstract CPU IDs using reported node
+SMT topology and compared with per-node allocation counts. Exact full-core
+allocations are labelled `slurm`; partial-SMT placement is labelled `estimated`
+while retaining the per-node count and candidate core. Missing details use the
+existing explicit estimation policy. Older JSON without per-node counts can be
+ambiguous for partial-SMT allocations across several nodes; inconsistent totals
+are rejected rather than inventing an uneven distribution. `CPU_IDs` are not
+Linux task affinity. State flags remain intact in exports, while Slurm compact
+flag precedence controls display/accounting (for example, COMPLETING overrides
+RUNNING). Arrays, bounded pending-array groups, heterogeneous
+components and multiple eligible partitions retain their existing identities.
+
+GPU/MIG metadata preserves configured types, counts and reported GRES indices.
+Indices are Slurm resource indices, **not physical GPU numbers**. MIG parent
+UUIDs remain unknown; there is no NVML, live GPU telemetry or invented physical
+MIG topology. Raw capture and archive replay work with the JSON traces. `-L -A`
+provides the existing portable anonymized state/config replay. For
+`--masked-traces`, JSON sources are conservatively listed as omitted because
+unknown JSON fields may contain private identifiers; use the portable snapshot.
+An explicitly requested `--raw-companion` remains private, unmasked data.
+
+The small committed fixtures are synthetic schema examples, not real-cluster
+captures. See [Slurm's client guide](https://slurm.schedmd.com/rest_clients.html)
+and [schema release notes](https://slurm.schedmd.com/openapi_release_notes.html).
+No real Slurm RPC performance or real-cluster validation is claimed.
+
+### Slurm summary mode
+
+`--slurm-summary` selects the legacy `slurm` backend and runs only the configured
+`sinfo` and `squeue` commands, skipping `scontrol` allocation details:
+
+```console
+./qtop --slurm-summary -w
+./qtop -b slurm --slurm-summary --all -w 1
+```
+
+Collection runs synchronously on every display cycle, as in the original text
+backend. There is no 20-second collection timer or background collector in this
+mode; the existing `-w` interval and time spent collecting/rendering govern the
+cycle. Command timeouts still apply. Default autodetection prefers legacy
+Slurm; explicit JSON selection retains its independent 20-second cadence.
+
+Reported job states, node inventory and GPU counts/types remain available where
+the configured summaries provide them. CPU positions and uneven per-node CPU
+counts may be estimated; the matrix labels estimated placement. Per-job GPU
+indices are unavailable, even if node-level allocated GRES indices are reported.
+Summary mode also ignores optional allocation-detail traces during offline replay.
+It cannot be combined with `--slurm-json-squeue` or an explicit non-Slurm backend.
+As an explicit selection it overrides scheduler environment/configuration defaults.

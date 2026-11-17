@@ -2,7 +2,37 @@
 ## SPDX-License-Identifier: MIT
 """The scrollable window onto qtop's rendered output."""
 
-from typing import Tuple
+import re
+import unicodedata
+from typing import Iterable, Iterator, Tuple
+
+
+def terminal_rows(lines: Iterable[str], columns: int) -> Iterator[str]:
+    """Yield width-bounded screen rows, carrying ANSI colours across page boundaries."""
+    if columns <= 0:
+        yield from lines
+        return
+    style = ""
+    for line in lines:
+        row = [style]
+        width = 0
+        for token in re.findall(r"\x1b\[[0-9;:]*m|\x1bc|.", line.rstrip("\n")):
+            if token.startswith("\x1b"):
+                style = "" if token in ("\x1b[m", "\x1b[0m", "\x1b[0;m", "\x1bc") else style + token
+                row.append(token)
+                continue
+            if token == "\r":
+                continue  # the banner's leading carriage return occupies no cell
+            for char in " " * (8 - width % 8) if token == "\t" else token:
+                cells = 0 if unicodedata.combining(char) else 2 if unicodedata.east_asian_width(char) in ("W", "F") else 1
+                if cells > columns:
+                    char, cells = "?", 1  # a wide glyph cannot fit a one-column terminal
+                if cells and width + cells > columns:
+                    yield "".join(row) + ("\x1b[0m" if style else "") + "\n"
+                    row, width = [style], 0
+                row.append(char)
+                width += cells
+        yield "".join(row) + ("\x1b[0m" if style else "") + "\n"
 
 
 class BaseViewport(object):
@@ -107,6 +137,18 @@ class Viewport(BaseViewport):
     def get_term_size(self) -> Tuple[int, int]:
         """Return the terminal size as (lines, columns)."""
         return self.v_term_size, self.h_term_size
+
+    def scroll_line_down(self) -> bool:
+        """Move down one displayed row, staying within the last page."""
+        previous = self.v_start
+        self.v_start += 1
+        return self.v_start != previous
+
+    def scroll_line_up(self) -> bool:
+        """Move up one displayed row, staying at the top when already there."""
+        previous = self.v_start
+        self.v_start -= 1
+        return self.v_start != previous
 
     def scroll_down(self) -> bool:
         """Scroll down one page; return False at the end."""

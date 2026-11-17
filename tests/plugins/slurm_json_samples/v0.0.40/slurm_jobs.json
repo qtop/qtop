@@ -1,0 +1,107 @@
+{
+  "meta": {
+    "plugin": {
+      "data_parser": "data_parser/v0.0.40"
+    }
+  },
+  "errors": [],
+  "warnings": [],
+  "jobs": [
+    {
+      "job_id": 81,
+      "user_name": "alice",
+      "job_state": [
+        "RUNNING"
+      ],
+      "partition": "batch",
+      "cpus": 6,
+      "nodes": "node[01-02]",
+      "het_job_id": 80,
+      "het_job_offset": 1,
+      "job_resources": {
+        "allocated_cpus": 0,
+        "allocated_cores": 6,
+        "allocated_hosts": 2,
+        "nodes": "node[01-02]",
+        "allocated_nodes": [
+          {
+            "nodename": "node01",
+            "cpus_used": 0,
+            "sockets": {
+              "1": {
+                "cores": {
+                  "0": "allocated"
+                }
+              }
+            }
+          },
+          {
+            "nodename": "node02",
+            "cpus_used": 0,
+            "sockets": {
+              "0": {
+                "cores": {
+                  "0": "allocated",
+                  "1": "allocated"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "gres_detail": [
+        "gpu:a100:1(IDX:3)",
+        "gpu:a100_1g.5gb:1(IDX:1)"
+      ],
+      "tres_alloc_str": "cpu=6,gres/gpu=2"
+    },
+    {
+      "job_id": 90,
+      "array_job_id": 42,
+      "array_task_id": {
+        "set": true,
+        "infinite": false,
+        "number": 7
+      },
+      "user_name": "bob",
+      "job_state": [
+        "PENDING"
+      ],
+      "partition": "debug,batch",
+      "cpus": 2,
+      "nodes": "",
+      "job_resources": null
+    },
+    {
+      "job_id": 80,
+      "het_job_id": 80,
+      "het_job_offset": 0,
+      "user_name": "alice",
+      "job_state": [
+        "RUNNING"
+      ],
+      "partition": "debug",
+      "cpus": 2,
+      "nodes": "node01",
+      "job_resources": {
+        "allocated_cpus": 0,
+        "allocated_cores": 2,
+        "allocated_hosts": 1,
+        "nodes": "node01",
+        "allocated_nodes": [
+          {
+            "nodename": "node01",
+            "cpus_used": 0,
+            "sockets": {
+              "0": {
+                "cores": {
+                  "0": "allocated"
+                }
+              }
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

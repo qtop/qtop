@@ -15,6 +15,7 @@ def test_document_parsers_accept_or_reject_bounded_inputs(target, data):
     "target,data",
     (
         ("yaml", b"scheduler: demo\n"),
+        ("slurm_json", b'{"meta":{"plugin":{"data_parser":"v0.0.43"}},"jobs":[]}'),
         ("sge", b"<job_info/>"),
         ("pbs", b'{"Jobs":{}}'),
         ("oar", b"header\n-----\n"),

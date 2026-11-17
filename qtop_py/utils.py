@@ -71,8 +71,8 @@ def parse_qtop_cmdline_args() -> Namespace:
         default=False,
         help="Disable third section of qtop, i.e. User Accounts and Pool Mappings",
     )
-    parser.add_argument("-4", "--noaccounttotals", action="store_false", dest="SHOW_ACCOUNT_TOTALS", default=True, help="Hide the totals row in User Accounts and Pool Mappings")
-    parser.add_argument("--accounttotals", action="store_true", dest="SHOW_ACCOUNT_TOTALS", help="Show the totals row (the default; -4 used to mean this)")
+    parser.add_argument("-4", "--noaccounttotals", action="store_false", dest="SHOW_ACCOUNT_TOTALS", default=True, help="Hide independent section 4, Account totals")
+    parser.add_argument("--accounttotals", action="store_true", dest="SHOW_ACCOUNT_TOTALS", help="Show independent section 4, Account totals (the default)")
     parser.add_argument(
         "-a",
         "--blindremapping",
@@ -89,6 +89,14 @@ def parse_qtop_cmdline_args() -> Namespace:
         default=False,
         help="Mask identifiers where supported by the backend. With -L, save a reproducible masked state/config snapshot instead of raw traces and logs.",
     )
+    slurm_mode = parser.add_mutually_exclusive_group()
+    slurm_mode.add_argument(
+        "--slurm-summary",
+        action="store_true",
+        dest="SLURM_SUMMARY",
+        help="Use only Slurm sinfo/squeue on each display cycle; CPU placement is estimated and per-job GPU indices are unavailable",
+    )
+    slurm_mode.add_argument("--slurm-json-squeue", action="store_true", dest="SLURM_JSON_SQUEUE", help="Use squeue --json for slurm_json jobs when scontrol returns empty job JSON")
     parser.add_argument("-b", "--batchSystem", action="store", dest="BATCH_SYSTEM", default=None)
     parser.add_argument(
         "--all",
@@ -141,12 +149,16 @@ def parse_qtop_cmdline_args() -> Namespace:
         default=False,
         help="Show each active user's primary Unix group in the account table.",
     )
-    parser.add_argument(
+    queue_layout = parser.add_mutually_exclusive_group()
+    queue_layout.add_argument(
+        "--no-wrap-queues", action="store_true", dest="NO_WRAP_QUEUES", default=True, help="Clip the Queueing summary to one terminal row (the default; Q cycles layouts)."
+    )
+    queue_layout.add_argument(
         "--expand-queues",
         action="store_true",
         dest="EXPAND_QUEUES",
         default=False,
-        help="Show one queue or partition per line in the accounting summary (toggle with Q in watch mode).",
+        help="Show one queue or partition per line in the accounting summary (Q cycles layouts in watch mode).",
     )
     parser.add_argument("-l", "--less", action="store_true", dest="LESS", help="Allow matrix to overflow in width. This allows to pipe the output into less -RS")
     parser.add_argument(
@@ -231,6 +243,12 @@ def parse_qtop_cmdline_args() -> Namespace:
     parser.add_argument("--masked-traces", action="store_true", help="With -L -A -e, add experimental masked scheduler-format traces; unsupported files are omitted")
     parser.add_argument("--load-sample", metavar="ARCHIVE", help="Reproduce an anonymized support snapshot without scheduler commands")
     args = parser.parse_args()
+    if args.EXPAND_QUEUES:
+        args.NO_WRAP_QUEUES = False
+    if args.SLURM_SUMMARY:
+        if args.BATCH_SYSTEM and args.BATCH_SYSTEM.lower() not in ("auto", "slurm"):
+            parser.error("--slurm-summary requires -b slurm or auto")
+        args.BATCH_SYSTEM = "slurm"
     if args.SHOW_QUEUE_NODES and not args.EXPERIMENTAL:
         parser.error("--queue-nodes requires -e/--experimental")
     return args

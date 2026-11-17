@@ -187,6 +187,13 @@ class WNOccupancy(object):
             for missing_user_id in missing_user_ids:
                 user_job_per_state_counts[state_count_key].setdefault(missing_user_id, 0)
 
+        # Default R/Q columns share the normalized accounting policy used by
+        # snapshot totals. Explicit columns retain the configured detailed states.
+        jobs = list(getattr(getattr(self, "snapshot", None), "_job_metadata", {}).values())
+        if not self.config.get("accounts_states") and jobs and all("accounting_state" in job for job in jobs):
+            for key, bucket in (("running_of_user", "running"), ("queued_of_user", "queued")):
+                counts = Counter(job["user"] for job in jobs if job["accounting_state"] == bucket)
+                user_job_per_state_counts[key] = {user: counts[user] for user in user_names}
         return user_job_per_state_counts
 
     def _expand_useraccounts_symbols(self, config: Dict[str, Any], user_list: Sequence[Any]) -> Dict[str, Any]:

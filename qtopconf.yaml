@@ -6,8 +6,8 @@
 ## Lines beginning with single hash are commands commented out that you could try out.
 ## Available colors and fg-bg combinations depicted in colormap.py, in color_to_code
 
-## scheduler possible values (currently supported): pbs, oar, sge, slurm
-## auto will try to detect available batch commands in the current system
+## scheduler possible values (currently supported): pbs, oar, sge, slurm, slurm_json
+## auto detects available batch commands, preferring legacy Slurm over JSON.
 scheduler: auto
 
 ## Experimental, administrator-verified Slurm GPU pairs; disabled unless configured.
@@ -24,8 +24,9 @@ scheduler: auto
 ## users can select e.g. /dev/shm (ram disk) instead of /tmp for faster processing, or even $TMP or $TMPDIR
 savepath: /tmp/qtop_results_$USER
 
-## Maximum seconds per live scheduler command; must be positive and finite.
-scheduler_command_timeout: 30
+## Maximum seconds per live scheduler command or optional account lookup.
+## Must be positive and finite; CLI override: -o scheduler_command_timeout=240
+scheduler_command_timeout: 120
 
 ## Experimental web interface (-B -e). IPv4 address or hostname; no authentication/TLS.
 ## Loopback is the default; exposing it on a network is an explicit operator choice.
@@ -46,6 +47,11 @@ schedulers:
     oarstat_file: %(savepath)s/oarstat%(pid)s.txt, oarstat
   sge:
     sge_file: %(savepath)s/qstat%(pid)s.F.xml.stdout, qstat -F -xml -u '*'
+  slurm_json:
+    ## Sequential queries: small partition inventory first, jobs last.
+    partitions_json: %(savepath)s/slurm_partitions%(pid)s.json, scontrol --json show partitions
+    nodes_json: %(savepath)s/slurm_nodes%(pid)s.json, scontrol --json show nodes
+    jobs_json: %(savepath)s/slurm_jobs%(pid)s.json, scontrol --json show jobs
   slurm:
     ## Copy the command after ', ' directly into a shell for debugging.
     ## Include all retained job states, including suspended jobs; --all opts into hidden partitions.
@@ -63,6 +69,7 @@ signature_commands:
   pbs: pbsnodes
   oar: oarnodes
   sge: qacct
+  slurm_json: scontrol
   slurm: sinfo
   demo: echo
 
@@ -382,6 +389,7 @@ core_coloring: user_to_color
 ## Summary-line count colours, in order Total, R, Q, Other (more states reuse them), from the colormap names, e.g.
 ## BlackOnBlue, WhiteOnBlue, BlackOnGreen, BlackOnGold, WhiteOnRed, BlackOnOrange256 (needs a 256-colour terminal).
 ## Unset (default): blue, green, orange (red without 256 colours) and yellow backgrounds.
+## Compact queue R/Q and per-user Total/R/Q counts use these colours too.
 # summary_colours:
 #   - WhiteOnBlue
 #   - BlackOnGreen

@@ -1,6 +1,6 @@
 .\" Copyright (c) 2026 qtop contributors
 .\" SPDX-License-Identifier: MIT
-.TH QTOP 1 "2026-11-15" "qtop 0.9.20261115" "User Commands"
+.TH QTOP 1 "2026-11-16" "qtop 0.9.20261116" "User Commands"
 .nh
 .SH NAME
 qtop \- text-mode monitor of batch-cluster utilization and job status
@@ -21,18 +21,21 @@ qtop \- text-mode monitor of batch-cluster utilization and job status
 .I archive
 .SH DESCRIPTION
 .B qtop
-queries a batch scheduler (PBS/Torque, SGE, Slurm or OAR) and prints three
-sections on one screen:
+queries a batch scheduler (PBS/Torque, SGE, Slurm or OAR) and prints four
+numbered sections on one screen:
 .TP
-.B Job Accounting Summary
+.B 1. Job Accounting Summary
 running and queued jobs per queue or partition, and node and core totals.
 .TP
-.B Worker Node Occupancy
+.B 2. Worker Node Occupancy
 a matrix with one column per worker node and one row per core; each cell
 shows the user (by an id letter and color) whose job occupies that core.
 .TP
-.B User Accounts and Pool Mappings
+.B 3. User Accounts and Pool Mappings
 the per-user legend for the matrix, with job counts by state.
+.TP
+.B 4. Account totals
+independent per-state job and node totals across users.
 .PP
 Without
 .BR \-w ,
@@ -53,6 +56,7 @@ Scheduler to query:
 .BR pbs ,
 .BR sge ,
 .BR slurm ,
+.BR slurm_json ,
 .BR oar ,
 .B demo
 or
@@ -68,6 +72,10 @@ scheduler commands; a plain output file selects its parent directory.
 Reproduce an anonymized support snapshot (made with
 .BR "\-L \-A" )
 without scheduler commands.
+.TP
+.B \-\-slurm-json-squeue
+Use squeue \-\-json \-\-states=all for slurm_json jobs instead of
+scontrol JSON, for clients returning empty job responses.
 .TP
 .B \-\-all
 Include hidden and group-unavailable partitions in live Slurm queries
@@ -93,10 +101,10 @@ Hide the Worker Node Occupancy matrix.
 Hide the User Accounts and Pool Mappings.
 .TP
 .BR \-4 ", " \-\-noaccounttotals
-Hide the totals row of the User Accounts and Pool Mappings, shown by default.
+Hide independent section 4, Account totals, shown by default.
 .TP
 .B \-\-accounttotals
-Show that totals row (the default; up to 0.9.20261110,
+Show Account totals independently of section 3 (the default; up to 0.9.20261110,
 .B \-4
 meant this).
 .TP
@@ -111,8 +119,15 @@ in
 .BR \-C ", " \-\-classic
 Mimic the legacy qtop display as far as possible.
 .TP
+.B \-\-no\-wrap\-queues
+Keep the Queueing summary on one physical terminal row, clipping overflow.
+Mutually exclusive with --expand-queues. Q cycles compact, expanded and clipped
+layouts in watch mode. Clipped overflow is the default.
+The blocked-queue legend stays visible on its own line.
+Normalized exports retain every queue.
+.TP
 .BR \-\-expand\-queues
-Show one queue or partition per line in the accounting summary (toggle with
+Show one queue or partition per line in the accounting summary (cycle layouts with
 .B Q
 in watch mode).
 .TP
@@ -287,11 +302,11 @@ highlight users or queues
 .B m
 color cores by user / queue
 .TQ
-.B p
-cycle the colour palettes
+.B p / P
+cycle the colour palettes forward / backward
 .TQ
 .B Q
-expand / collapse the queue summary
+cycle compact / expanded / clipped queue layouts
 .TQ
 .B r
 cycle all / real / used core lines
@@ -306,13 +321,20 @@ transpose the matrix
 show / hide sections 1-3
 .TQ
 .B 4
-show / hide the accounts totals row
+show / hide independent section 4, Account totals
 .TQ
 .B ?
 toggle help
 .TQ
 .B q
 quit
+.PP
+Arrow Up/Down moves one displayed row; Left/Right moves horizontally.
+Home or g goes to the first line; End or G goes to the last page.
+Bare 1 toggles section 1 immediately; G is a separate key.
+PageUp/PageDown moves one page. /text followed by Enter searches literal text,
+wrapping at the end; an empty search repeats. :42 followed by Enter jumps to
+displayed row 42. Escape cancels, Backspace edits, and Ctrl-U clears a prompt.
 .SH CONFIGURATION
 Settings are read in this order, later ones replacing earlier ones:
 .IP 1. 4
@@ -419,3 +441,23 @@ security issues as described in
 .SH AUTHORS
 Sotiris Fragkiskos, Fotis Georgatos, Evangelos Papadopoulos, Nicola Trozzi
 and the qtop contributors.
+
+.SH SLURM JSON COLLECTION
+Slurm autodetection prefers the legacy slurm backend. Explicit -b slurm_json
+selects JSON collection. JSON capability is checked in the first collection;
+unsupported clients fall back once with a diagnostic. In watch mode, a
+single background collector queries partitions, nodes and jobs every
+20 seconds independently of terminal redraws. Failed refreshes retain the
+last successful snapshot; scheduler messages show its age and collection span.
+Separate Slurm responses are not a globally atomic scheduler snapshot.
+The command timeout is configurable with scheduler_command_timeout.
+
+.SH SLURM SUMMARY COLLECTION
+.B \-\-slurm-summary
+selects the legacy slurm backend and collects only sinfo and squeue on each
+normal display cycle. There is no independent 20-second polling interval;
+the watch interval and collection/rendering work govern refreshes.
+CPU placement may be estimated; per-job GPU indices are unavailable.
+Optional allocation-detail traces are ignored during offline replay too.
+This option accepts -b slurm or auto, overrides scheduler defaults, respects
+\-\-all, and cannot be combined with \-\-slurm-json-squeue.

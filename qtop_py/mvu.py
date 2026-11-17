@@ -67,7 +67,7 @@ def MVU_colorize_nodestate(worker_nodes: Iterable[Mapping[str, Any]], nodestate_
 
 
 def MVU_palette_order(model: "MVU_Model") -> List[str]:
-    """Return the palettes that key p cycles through, from palettes.yaml."""
+    """Return the palettes that keys p/P cycle through, from palettes.yaml."""
     return list((model.config or {}).get("palettes", {}).get("PALETTES") or ["default"])
 
 
@@ -136,7 +136,7 @@ class MVU_Model(object):
         help_file: str = "",
     ) -> None:
         self.config, self.args, self.viewport = config, args, viewport
-        self.backend, self.scheduler = backend, backend.get_mnemonic() if backend is not None else ""
+        self.backend, self.scheduler = backend, getattr(backend, "display_scheduler", backend.get_mnemonic()) if backend is not None else ""
         self.display_overrides = {} if display_overrides is None else display_overrides
         self.snapshot, self.user_to_color = snapshot, {} if user_to_color is None else user_to_color
         self.nodestate_to_color = {} if nodestate_to_color is None else nodestate_to_color
@@ -169,9 +169,29 @@ def MVU_node_job_ids(node: Mapping[str, Any], backend: Any = None) -> Set[str]:
     return jobs
 
 
+def MVU_queue_layout(model: "MVU_Model", queues: Optional[Mapping[str, Any]] = None) -> str:
+    """Resolve explicit queue layouts before the default width-based expansion."""
+    layout = model.display_overrides.get("queue_summary_layout")
+    if isinstance(layout, str):
+        return layout
+    if "queue_summary_expanded" in model.display_overrides:
+        return "expanded" if model.display_overrides["queue_summary_expanded"] else "compact"
+    if getattr(model.args, "EXPAND_QUEUES", False):
+        return "expanded"
+    if getattr(model.args, "NO_WRAP_QUEUES", True):
+        return "clipped"
+    if getattr(model.args, "WATCH", False) and model.viewport:
+        queues = getattr(model.snapshot, "queues_dict", {}) if queues is None else queues
+        text = "".join("%s*: %s + %s | " % (name, queue.run, queue.queued) for name, queue in queues.items())
+        note = getattr(model.backend, "blocked_queue_note", "")
+        if len("Queueing : * implies blocked" + note + text) > model.viewport.h_term_size:
+            return "expanded"
+    return "compact"
+
+
 def MVU_update(model: "MVU_Model", message: str, payload: Any = None) -> Tuple["MVU_Model", Tuple[Tuple[str, Optional[str]], ...]]:
     """Return the next model and effect requests without performing terminal or scheduler I/O."""
-    keys = set(NAVIGATION_KEYS) | {"snapshot", "layout", "t", "Q", "m", "q", "F", "s", "f", "H", "?", "r", "p", "1", "2", "3", "4"}
+    keys = set(NAVIGATION_KEYS) | {"snapshot", "layout", "t", "Q", "m", "q", "F", "s", "f", "H", "?", "r", "p", "P", "1", "2", "3", "4", "/", ":"}
     if message not in keys:
         return model, ()
     next_model = copy.copy(model)
@@ -182,31 +202,36 @@ def MVU_update(model: "MVU_Model", message: str, payload: Any = None) -> Tuple["
         if payload is None:
             raise ValueError("Snapshot update requires collected data")
         next_model.snapshot, next_model.config, next_model.args, next_model.backend, next_model.user_to_color, next_model.nodestate_to_color = payload
-        next_model.scheduler = next_model.backend.get_mnemonic()
+        next_model.scheduler = getattr(next_model.backend, "display_scheduler", next_model.backend.get_mnemonic())
     elif message == "layout":
         next_model.viewport = copy.copy(payload)
     elif message in NAVIGATION_KEYS:
         method, text, bounded = NAVIGATION_KEYS[message]
         moved = getattr(next_model.viewport, method)()
         effects.append(("notice", text if not bounded or moved else "Staying put"))
+    elif message in ("/", ":"):
+        effects.append(("search" if message == "/" else "line", None))
     elif message == "t":
         next_model.display_overrides["transpose_wn_matrices"] = not next_model.display_overrides.get("transpose_wn_matrices", next_model.config["transpose_wn_matrices"])
         next_model.viewport.reset_display()
         effects.append(("notice", "Transposing matrix..."))
     elif message == "Q":
-        next_model.display_overrides["queue_summary_expanded"] = not next_model.display_overrides.get("queue_summary_expanded", getattr(next_model.args, "EXPAND_QUEUES", False))
+        layouts = ("compact", "expanded", "clipped")
+        layout = layouts[(layouts.index(MVU_queue_layout(model)) + 1) % len(layouts)]
+        next_model.display_overrides["queue_summary_layout"] = layout
+        effects.append(("notice", "Queueing layout: " + layout))
     elif message == "m":
         mapping = "queue_to_color" if next_model.display_overrides.get("core_coloring", "user_to_color") == "user_to_color" else "user_to_color"
         next_model.display_overrides["core_coloring"] = mapping
         effects.append(("notice", "Changing to " + ("queue" if mapping == "queue_to_color" else "user")))
-    elif message in ("1", "2", "3", "4"):  # as -1, -2, -3 hide sections 1-3 and -4 the accounts totals row
+    elif message in ("1", "2", "3", "4"):  # as -1 through -4, toggle the four independent sections
         key = "SHOW_ACCOUNT_TOTALS" if message == "4" else "sect_%s_off" % message
         next_model.display_overrides[key] = not next_model.display_overrides.get(key, getattr(next_model.args, key, message == "4"))
-        effects.append(("notice", "Toggling the accounts totals row" if message == "4" else "Toggling section " + message))
-    elif message == "p":
+        effects.append(("notice", "Toggling section 4 (Account totals)" if message == "4" else "Toggling section " + message))
+    elif message in ("p", "P"):
         order = MVU_palette_order(next_model)
         current = next_model.display_overrides.get("palette", order[0])
-        next_model.display_overrides["palette"] = order[(order.index(current) + 1) % len(order)] if current in order else order[0]
+        next_model.display_overrides["palette"] = order[(order.index(current) + (1 if message == "p" else -1)) % len(order)] if current in order else order[0]
         effects.append(("notice", "Palette: " + next_model.display_overrides["palette"]))
     elif message == "F":
         next_model.display_overrides["force_names"] = not next_model.display_overrides.get("force_names", False)

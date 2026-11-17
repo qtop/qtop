@@ -13,7 +13,50 @@ import stat
 import sys
 import tarfile
 import tempfile
-from typing import Any, Dict, Generator, List, Mapping, Optional, TextIO, Tuple
+from typing import Any, Dict, Generator, List, Mapping, Optional, Set, TextIO, Tuple
+
+
+class StartupProgress:
+    """Report each distinct scheduler source once, until startup completes."""
+
+    def __init__(self, output: TextIO) -> None:
+        self.output: Optional[TextIO] = output
+        self.seen: Set[str] = set()
+
+    @contextlib.contextmanager
+    def source(self, path: str) -> Generator[None, None, None]:
+        """Print flushed dots at a source's opening and closing boundaries."""
+        key = os.path.realpath(path)
+        report = self.output is not None and key not in self.seen
+        if report:
+            self.seen.add(key)
+            print(".", end="", file=self.output, flush=True)
+        try:
+            yield
+        finally:
+            if report and self.output is not None:
+                print(".", end="", file=self.output, flush=True)
+
+    def finish(self) -> None:
+        """End the startup line and permanently disable further reporting."""
+        if self.output is not None and self.seen:
+            print(file=self.output, flush=True)
+        self.output = None
+
+
+def input_source(options: Any, path: str) -> Any:
+    """Observe a scheduler source when startup reporting is enabled."""
+    progress = getattr(options, "_input_progress", None)
+    return progress.source(path) if progress is not None else contextlib.ExitStack()
+
+
+@contextlib.contextmanager
+def open_input(path: str, mode: str = "r", options: Any = None, **kwargs: Any) -> Generator[Any, None, None]:
+    """Open scheduler input and report its first startup open and close."""
+    with contextlib.ExitStack() as reporting:
+        with open(path, mode, **kwargs) as stream:
+            reporting.enter_context(input_source(options, path))
+            yield stream
 
 
 def _open_owned(path: str, flags: int, mode: int, directory_fd: int) -> int:

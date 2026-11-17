@@ -21,7 +21,7 @@ PROPOSED_SCHEMA ?=
 SCHEMA_DEFINITION ?= \#ClusterState
 ZIZMOR ?= $(UVX) --quiet zizmor
 ZIZMOR_FLAGS ?= -qq --offline --no-progress --color never --render-links never --show-audit-urls never
-SAMPLE_GATE_SCHEDULERS ?= pbs,sge,slurm,oar,demo
+SAMPLE_GATE_SCHEDULERS ?= pbs,sge,slurm,slurm_json,oar,demo
 AUTHORS_PATHS ?= qtop_py
 SAMPLE_GATE_MAX_FAILURES ?= 0
 SAMPLE_GATE_ARTIFACT_DIR ?= artifacts/sample-gate
@@ -136,7 +136,7 @@ deterministic-fuzz:: ## Reproducibly stress parser primitives with a fixed seed
 	$(PYTHON) -m tools.deterministic_fuzz --seed $(FUZZ_SEED) --cases $(FUZZ_CASES)
 
 coverage-fuzz:: ## Run bounded Atheris fuzzing (Linux CPython 3.12 CI dependencies)
-	$(PYTHON) -m tools.atheris_fuzz --seed-corpus -runs=$(FUZZ_CASES) -seed=$(FUZZ_SEED) -max_total_time=30 -max_len=256 -timeout=10 -artifact_prefix="$(FUZZ_ARTIFACT_DIR)/" $(ATHERIS_ARGS) "$(FUZZ_ARTIFACT_DIR)/corpus"
+	$(PYTHON) -m tools.atheris_fuzz --seed-corpus -runs=$(FUZZ_CASES) -seed=$(FUZZ_SEED) -max_total_time=120 -max_len=256 -timeout=10 -artifact_prefix="$(FUZZ_ARTIFACT_DIR)/" $(ATHERIS_ARGS) "$(FUZZ_ARTIFACT_DIR)/corpus"
 
 fortifications:: ## Check added diff text and generated/binary paths
 	$(PYTHON) tools/repo_sanity.py --base-ref "$(FORTIFY_BASE_REF)"

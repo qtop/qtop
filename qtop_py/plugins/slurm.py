@@ -57,7 +57,12 @@ SLURM_JOB_STATES = {
     "UPDATE_DB": "CG",
 }
 SLURM_COMPACT_JOB_STATES = set(SLURM_JOB_STATES.values())
-SLURM_QUEUED_STATES = {"PD", "CF", "RD", "RF", "RH", "RQ", "SE"}
+SLURM_QUEUED_STATES = {"PD", "RD", "RF", "RH", "RQ", "SE"}
+
+
+def slurm_accounting_state(state: str) -> str:
+    """Group compact states as running, waiting (including held), or other."""
+    return "running" if state == "R" else "queued" if state in SLURM_QUEUED_STATES else "other"
 
 
 class SlurmStatExtractor(StatExtractor):
@@ -131,7 +136,7 @@ class SlurmStatExtractor(StatExtractor):
 
         jobs: Dict[str, Any] = OrderedDict()
         expanded_count = 0
-        with open(orig_file, "r", encoding="utf-8", errors="replace") as fin:
+        with fileutils.open_input(orig_file, "r", encoding="utf-8", errors="replace", options=self.options) as fin:
             for line in fin:
                 line = line.strip()
                 if not line:
@@ -162,7 +167,7 @@ class SlurmStatExtractor(StatExtractor):
                         "raw_state": state,
                         "Queue": partitions[0],
                         "slurm_partitions": partitions,
-                        "accounting_state": "running" if self._map_job_state(state) == "R" else "queued" if self._map_job_state(state) in SLURM_QUEUED_STATES else "other",
+                        "accounting_state": slurm_accounting_state(self._map_job_state(state)),
                         "CPUs": max(1, self._safe_int(cpus, default=1)),
                         "Nodes": nodes,
                     }
@@ -193,7 +198,7 @@ class SlurmStatExtractor(StatExtractor):
             return []
 
         nodes = []
-        with open(orig_file, "r", encoding="utf-8", errors="replace") as fin:
+        with fileutils.open_input(orig_file, "r", encoding="utf-8", errors="replace", options=self.options) as fin:
             for line in fin:
                 line = line.strip()
                 if not line:
@@ -286,16 +291,18 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
     """Slurm backend."""
 
     native_queue_membership = True
-    optional_trace_keys = ("scontrol_file",)
+    optional_trace_keys: Tuple[str, ...] = ("scontrol_file",)
     optional_trace_aliases = {"scontrol_file": "scontrol.txt"}
     optional_trace_warning = "Using estimated Slurm CPU placement."
-    detection_priority = -1
+    detection_priority = -2
     node_job_fields = ("slurm_job_ids",)
     blocked_queue_note = " (partition closed to submissions or scheduling)"
 
     @staticmethod
-    def collection_command(key: str, command: str, options: Any) -> str:
-        """Add --all to the live squeue, sinfo and scontrol commands when qtop runs with --all."""
+    def collection_command(key: str, command: str, options: Any) -> Optional[str]:
+        """Skip details in summary mode and respect --all for live collection."""
+        if key == "scontrol_file" and getattr(options, "SLURM_SUMMARY", False):
+            return None
         if getattr(options, "ALL_PARTITIONS", False) and not options.SOURCEDIR and key in ("squeue_file", "sinfo_file", "scontrol_file"):
             command += " --all"
         return command
@@ -427,7 +434,7 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
         # "" (falsy, like the former None) when a trace is not configured; reading it then fails as an OSError.
         self.squeue_file = scheduler_output_filenames.get("squeue_file", "")
         self.sinfo_file = scheduler_output_filenames.get("sinfo_file", "")
-        self.scontrol_file = scheduler_output_filenames.get("scontrol_file", "")
+        self.scontrol_file = "" if getattr(options, "SLURM_SUMMARY", False) else scheduler_output_filenames.get("scontrol_file", "")
         self.config = config
         self.options = options
         self.slurm_stat_maker = SlurmStatExtractor(self.config, self.options)
@@ -485,15 +492,15 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
                 queue["state"] = state
 
         for job in self._get_jobs():
-            if job["S"] == "R":
+            if job["accounting_state"] == "running":
                 total_running_jobs += 1
-            elif job["S"] in self.QUEUED_STATES:
+            elif job["accounting_state"] == "queued":
                 total_queued_jobs += 1
             for name in job["slurm_partitions"]:
                 queue = queue_counts.setdefault(name, {"run": 0, "queued": 0, "lm": "--", "state": "?"})
-                if job["S"] == "R":
+                if job["accounting_state"] == "running":
                     queue["run"] += 1
-                elif job["S"] in self.QUEUED_STATES:
+                elif job["accounting_state"] == "queued":
                     queue["queued"] += 1
 
         qstatq_lod: "List[RawQueue]" = [
@@ -609,7 +616,7 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
         allocations: Dict[str, Any] = {}
         invalid = set()
         try:
-            with open(self.scontrol_file, "r", encoding="utf-8", errors="replace") as stream:
+            with fileutils.open_input(self.scontrol_file, "r", encoding="utf-8", errors="replace", options=self.options) as stream:
                 job_id = None
                 for line in stream:
                     if re.match(r"\s*JobId=", line):
@@ -655,7 +662,7 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
         if not self.scontrol_file:
             return allocations
         try:
-            with open(self.scontrol_file, "r", encoding="utf-8", errors="replace") as stream:
+            with fileutils.open_input(self.scontrol_file, "r", encoding="utf-8", errors="replace", options=self.options) as stream:
                 job_id = None
                 parsed: Dict[str, Tuple[int, ...]] = {}  # CPU_IDs text -> its distinct CPU numbers, for this collection
                 for line in stream:

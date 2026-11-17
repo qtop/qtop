@@ -143,14 +143,14 @@ def check_nesting(text: str) -> None:
             raise ResourceLimitError("structured input exceeds nesting or item limits")
 
 
-def load_json(stream: Any, limit: Optional[int] = None) -> Any:
+def load_json(stream: Any, limit: Optional[int] = None, object_pairs_hook: Optional[Callable[[Any], Any]] = None) -> Any:
     """Parse JSON from a stream; raise ResourceLimitError over limit bytes (default MAX_INPUT_BYTES) or the nesting limits."""
     limit = MAX_INPUT_BYTES if limit is None else limit
     text = stream.read(limit + 1)
     if len(text if isinstance(text, bytes) else text.encode("utf-8")) > limit:
         raise ResourceLimitError("JSON input exceeds size limit")
     check_nesting(text.decode(json.detect_encoding(text)) if isinstance(text, bytes) else text)
-    return json.loads(text)
+    return json.loads(text, object_pairs_hook=object_pairs_hook)
 
 
 def literal_eval(value: Any) -> Any:

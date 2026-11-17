@@ -20,6 +20,7 @@ from qtop_py.plugins.oar import OarStatExtractor
 from qtop_py.plugins.pbs import PBSBatchSystem, PBSStatExtractor
 from qtop_py.plugins.sge import SGEStatExtractor
 from qtop_py.plugins.slurm import SlurmBatchSystem, SlurmStatExtractor
+from qtop_py.plugins.slurm_json import read_response
 
 ALPHABET = string.ascii_letters + string.digits + "_-+*?#[](),."
 
@@ -68,7 +69,7 @@ def exercise_pbs_core_ranges(generator, transcript):
     transcript.update(repr(parsed).encode("ascii"))
 
 
-DOCUMENT_TARGETS = ("yaml", "sge", "pbs", "oar", "slurm", "snapshot")
+DOCUMENT_TARGETS = ("yaml", "sge", "pbs", "oar", "slurm", "snapshot", "slurm_json")
 
 
 def exercise_document(target: str, data: bytes) -> None:
@@ -91,6 +92,8 @@ def exercise_document(target: str, data: bytes) -> None:
                 OarStatExtractor({}, options).extract_qstat(str(path))
             elif target == "slurm":
                 SlurmStatExtractor({}, options).extract_squeue(str(path))
+            elif target == "slurm_json":
+                read_response(str(path), "jobs")
             elif target == "snapshot":
                 archive_path = Path(directory) / "sample.tar"
                 with tarfile.open(str(archive_path), "w") as archive:

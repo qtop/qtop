@@ -72,6 +72,7 @@ def exercise_wheel(wheel, expected_version, root, work):
         ("oar", root / "qtop_py/contrib"),
         ("sge", root / "qtop_py/contrib"),
         ("slurm", root / "tests/plugins/slurm_samples/basic"),
+        ("slurm_json", root / "tests/plugins/slurm_json_samples/v0.0.43"),
     ):
         output = work / (backend + "-results")
         command = [str(cli), "-b", backend, "-E", "-O", "-o", "savepath=" + str(output)]

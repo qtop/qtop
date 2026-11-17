@@ -26,7 +26,9 @@ def terminate(command: "subprocess.Popen[bytes]") -> None:
         command.kill()
 
 
-def communicate_with_timeout(command: "subprocess.Popen[bytes]", timeout: float, stdout: Optional[IO[bytes]] = None) -> Tuple[Optional[bytes], bytes]:
+def communicate_with_timeout(
+    command: "subprocess.Popen[bytes]", timeout: float, stdout: Optional[IO[bytes]] = None, cancel: Optional[threading.Event] = None
+) -> Tuple[Optional[bytes], bytes]:
     """Drain binary pipes with fixed memory/write limits; kill and reap on failure."""
     output: IO[bytes] = stdout if stdout is not None else io.BytesIO()
     errors = io.BytesIO()
@@ -58,9 +60,18 @@ def communicate_with_timeout(command: "subprocess.Popen[bytes]", timeout: float,
     try:
         for reader in readers:
             reader.start()
-        command.wait(timeout=timeout)
+        if cancel is None:
+            command.wait(timeout=timeout)
+        else:
+            _wait_for_command(command, timeout, deadline, cancel)
         for reader in readers:
-            reader.join(max(0, deadline - time.monotonic()))
+            if cancel is None:
+                reader.join(max(0, deadline - time.monotonic()))
+            else:
+                while reader.is_alive() and time.monotonic() < deadline:
+                    if cancel.is_set():
+                        raise OperationalError("Scheduler collection cancelled")
+                    reader.join(min(0.1, max(0, deadline - time.monotonic())))
         if any(reader.is_alive() for reader in readers):
             raise subprocess.TimeoutExpired(command.args, timeout)
         if failures:
@@ -75,3 +86,17 @@ def communicate_with_timeout(command: "subprocess.Popen[bytes]", timeout: float,
                 if reader.ident is not None:
                     reader.join(1)
     return (None if stdout is not None else cast(io.BytesIO, output).getvalue()), errors.getvalue()
+
+
+def _wait_for_command(command: "subprocess.Popen[bytes]", timeout: float, deadline: float, cancel: threading.Event) -> None:
+    """Wait against the original deadline while allowing collection shutdown."""
+    while command.poll() is None:
+        if cancel.is_set():
+            raise OperationalError("Scheduler collection cancelled")
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise subprocess.TimeoutExpired(command.args, timeout)
+        try:
+            command.wait(timeout=min(0.1, remaining))
+        except subprocess.TimeoutExpired:
+            continue

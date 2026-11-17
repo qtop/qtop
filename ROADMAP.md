@@ -331,3 +331,12 @@ decision and documentation.
 Scheduler fixtures must be synthetic or explicitly approved and anonymized.
 Contributions should identify the user-visible problem, relevant roadmap
 item or issue and evidence that the change works.
+
+### Slurm JSON backend
+
+- [x] Versioned JSON input and explicit JSON selection; legacy Slurm default.
+- [x] Independent 20-second collection, cancellation and stale-data display.
+- [x] Shared Slurm identities, CPU/GPU metadata and portable anonymized replay.
+- [x] [CI] JSON fixtures in sample, installation, parser and fuzz gates.
+- [ ] Real-cluster RPC/version compatibility evidence; fixtures are synthetic.
+- [ ] NVML/live GPU telemetry and physical MIG topology (deferred).

@@ -11,6 +11,7 @@ import pytest
 
 from qtop_py import configuration, yaml_parser
 from qtop_py.configuration import validate_config
+from qtop_py.constants import DEFAULT_SCHEDULER_COMMAND_TIMEOUT
 
 
 @pytest.fixture
@@ -299,3 +300,9 @@ def test_collection_settings_normalize_validated_values(timeout):
 def test_collection_settings_reject_invalid_timeout_before_commands(timeout):
     with pytest.raises(ValueError, match="scheduler_command_timeout"):
         configuration.collection_settings({"savepath": "/tmp", "scheduler_command_timeout": timeout})
+
+
+def test_collection_settings_default_timeout_allows_slow_clients(config):
+    assert configuration.collection_settings({"savepath": "/tmp"}).TIMEOUT == 120
+    assert float(config["scheduler_command_timeout"]) == DEFAULT_SCHEDULER_COMMAND_TIMEOUT
+    assert configuration.collection_settings(config).TIMEOUT == DEFAULT_SCHEDULER_COMMAND_TIMEOUT

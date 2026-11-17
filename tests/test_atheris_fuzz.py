@@ -26,12 +26,12 @@ def test_shared_assertions_are_not_suppressed(monkeypatch):
 
 def test_bounded_fuzz_run_collects_coverage(tmp_path):
     command = [sys.executable, "-m", "tools.atheris_fuzz", "-runs=100", "-seed=488", "-max_len=256", "-artifact_prefix=" + str(tmp_path) + os.sep]
-    result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True, timeout=30)
+    result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True, timeout=120)
     assert result.returncode == 0, result.stderr
     assert "cov:" in result.stderr and "DONE" in result.stderr
 
 
-@pytest.mark.parametrize("selector", range(3, 9))
+@pytest.mark.parametrize("selector", range(3, 3 + len(atheris_fuzz.DOCUMENT_TARGETS)))
 def test_document_targets_do_not_suppress_unexpected_failures(monkeypatch, selector):
     def broken(*args):
         raise RuntimeError("unexpected parser failure")
@@ -58,7 +58,7 @@ def test_atheris_replays_an_existing_input_without_seeding_it(tmp_path):
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         universal_newlines=True,
-        timeout=30,
+        timeout=120,
     )
     assert result.returncode == 0, result.stderr
     assert "Running:" in result.stderr

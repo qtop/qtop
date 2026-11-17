@@ -75,10 +75,12 @@ def scheduler_inputs(tmp_path):
     shutil.copytree(str(ROOT / "qtop_py/contrib"), str(source))
     for name in ("squeue.txt", "sinfo.txt"):
         shutil.copyfile(str(ROOT / "tests/plugins/slurm_samples/basic" / name), str(source / name))
+    for path in (ROOT / "tests/plugins/slurm_json_samples/v0.0.43").glob("*.json"):
+        shutil.copyfile(str(path), str(source / path.name))
     return source
 
 
-@pytest.mark.parametrize("backend, nodes, running", (("slurm", 3, 2), ("pbs", 829, 7590), ("sge", 17, 62), ("oar", 183, 190)))
+@pytest.mark.parametrize("backend, nodes, running", (("slurm", 3, 2), ("slurm_json", 3, 2), ("pbs", 829, 7590), ("sge", 17, 62), ("oar", 183, 190)))
 @pytest.mark.parametrize("mode", ("default", "classic", "anonymous"))
 def test_runtime_exports_and_renders_each_scheduler(runtime, scheduler_inputs, backend, nodes, running, mode):
     flags = {
@@ -246,3 +248,26 @@ def test_export_switches_write_valid_json_and_only_notify_requested_web(tmp_path
         web.set_filename.assert_called_once_with(str(paths[0]))
     else:
         web.set_filename.assert_not_called()
+
+
+def test_watch_wraps_before_paging_and_reflows_after_resize(runtime, scheduler_inputs, monkeypatch):
+    sizes = iter(((8, 20), (8, 40)))
+    keys = iter(("", "q"))
+    monkeypatch.setattr(qtop, "calculate_term_size", lambda *_args: next(sizes))
+    monkeypatch.setattr(qtop, "wait_for_keypress_or_autorefresh", lambda *_args: next(keys))
+    pages = []
+
+    def show(command, **_kwargs):
+        if command[0] == "/bin/cat":
+            pages.append(Path(command[1]).read_text())
+        return 0
+
+    monkeypatch.setattr(qtop.subprocess, "call", show)
+    with pytest.raises(SystemExit) as stopped:
+        runtime("-b", "slurm", "-s", str(scheduler_inputs), "-w", "1", "-c", "ON", save_only=False)
+    assert stopped.value.code == 0 and len(pages) == 2
+    for page, columns in zip(pages, (20, 40)):
+        lines = re.sub(r"\x1b(?:\[[0-9;]*m|c)", "", page).splitlines()
+        assert next(line for line in lines if line.strip()).startswith("./qtop.py")
+        assert len(lines) == 7 and all(len(line) <= columns for line in lines)
+    assert pages[0] != pages[1]

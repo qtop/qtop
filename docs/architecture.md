@@ -9,6 +9,9 @@ code, and rendered directly on GitHub.
 The data contract between backends and views, its schema versions and its
 logical relations are described in [cluster-state-model.md](cluster-state-model.md).
 
+The keyboard reader in `ui/controls.py` decodes complete terminal keys without
+TextIO read-ahead. Account totals render as section 4 independently of section 3.
+
 ## Runtime overview
 
 Solid arrows show control or data flow; dotted arrows show optional outputs.
@@ -36,6 +39,11 @@ flowchart TB
     subgraph collection["Scheduler collection"]
         files["Live scheduler commands or saved traces"]
         slurm["Slurm: plugins/slurm.py"]
+        slurmjson["Slurm JSON: plugins/slurm_json.py"]
+        poller["Single-writer polling: schedulers/collection.py"]
+        poller --> files
+        files --> slurmjson
+        slurmjson -->|shared accounting and resource policy| slurm
         pbs["PBS: plugins/pbs.py"]
         sge["SGE: plugins/sge.py"]
         oar["OAR: plugins/oar.py"]
@@ -51,6 +59,7 @@ flowchart TB
         oar --> shared
         demo --> shared
     end
+    runtime --> poller
     runtime --> files
     runtime --> demo
 
@@ -210,11 +219,17 @@ resources. The [schema guide](cluster-state-model.md#future-extension-contracts)
 defines the future semantic boundaries; new identifiers and extensions need
 validation, anonymization and replay coverage together.
 
-A Slurm JSON adapter can reuse Slurm policy under the existing state contract.
-When implemented, a small extractor-selection seam can replace the hardcoded
-`SlurmStatExtractor` in `SlurmBatchSystem.__init__`; duplicating the allocation,
-identity, partition and GPU policies is unnecessary. This seam and the new
-backend are not implemented yet.
+`plugins/slurm_json.py` now adapts versioned JSON into existing Slurm identity,
+accounting, CPU and GPU policies. `schedulers/collection.py` owns single-writer
+polling and atomic successful-observation publication; RunResources owns worker
+shutdown. The core uses backend-owned interval/fallback hooks, not scheduler-name
+branches. Slurm JSON reuses Slurm presentation configuration through
+`display_scheduler`. JSON is parsed once per collection; UI snapshots copy the
+published canonical state. Malformed refreshes retain the prior observation.
+Legacy Slurm summary mode omits allocation-detail collection through the
+backend command hook and collects synchronously on each display cycle.
+The [Slurm JSON guide](documentation.md#slurm-json-backend) documents supported
+schemas, partial-SMT limits and conservative raw-JSON masking omissions.
 
 ## Keeping the overview current
 

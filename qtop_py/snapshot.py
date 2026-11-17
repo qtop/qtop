@@ -25,6 +25,9 @@ class Snapshot(namedtuple("Snapshot", ["worker_nodes", "jobs_dict", "queues_dict
 
     if TYPE_CHECKING:
         _state: state_types.ClusterState
+        _collection_age: float
+        _collection_span: float
+        _collection_error: str
         _job_metadata: Dict[str, state_types.Job]
 
     @classmethod

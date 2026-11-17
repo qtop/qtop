@@ -33,6 +33,8 @@ class RunResources(object):
         self.trace_paths: Dict[str, str] = {}
         self.capture_paths: Dict[str, str] = OrderedDict()
         self.closed = False
+        self.poller: Any = None
+        self.poller_key: Any = None
 
     def __enter__(self) -> "RunResources":
         return self
@@ -41,7 +43,9 @@ class RunResources(object):
         if self.closed:
             return
         self.closed = True
-        self._cleanup((self.restore_stdout, self.stop_web, self.close_capture, self.restore_cwd, self.cleanup_workspace, self.report_captures), exc_type is not None)
+        self._cleanup(
+            (self.stop_collection, self.restore_stdout, self.stop_web, self.close_capture, self.restore_cwd, self.cleanup_workspace, self.report_captures), exc_type is not None
+        )
 
     def _cleanup(self, callbacks: Iterable[Callable[[], None]], failed: bool) -> None:
         failures: List[BaseException] = []
@@ -118,6 +122,12 @@ class RunResources(object):
                 fileutils.add_to_sample([path for path in self.trace_paths.values() if os.path.isfile(path)], archive)
         finally:
             archive.close()
+
+    def stop_collection(self) -> None:
+        """Stop collection before its captured files or workspace can be released."""
+        if self.poller is not None:
+            self.poller.close()
+            self.poller = None
 
     def restore_stdout(self) -> None:
         """Close any redirected stdout and restore the original one."""

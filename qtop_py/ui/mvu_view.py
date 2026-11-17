@@ -5,12 +5,11 @@
 import datetime
 import logging
 import os
-import subprocess
 import sys
 import tempfile
 from collections import Counter, OrderedDict
 from functools import lru_cache, partial
-from itertools import cycle, zip_longest
+from itertools import cycle, islice, zip_longest
 from typing import TYPE_CHECKING, Any, Callable, Dict, Iterable, Iterator, List, Mapping, Optional, Sequence, Tuple, overload
 
 if TYPE_CHECKING:
@@ -20,8 +19,10 @@ from qtop_py import __version__, utils, yaml_parser
 from qtop_py.constants import DEFAULT_USER_ACCOUNTS_HEADER, DEFAULT_USER_ID_RANKING
 from qtop_py.mvu import MVU_compress_colored_line as compress_colored_line
 from qtop_py.mvu import MVU_gauge_core_vectors as gauge_core_vectors
+from qtop_py.mvu import MVU_queue_layout
 from qtop_py.mvu_query import WNOccupancy
 from qtop_py.safety import visible_text
+from qtop_py.ui.viewport import terminal_rows
 
 # Accounts-table state columns when accounts_states is unset: jobs >= R + Q + O(ther), as the Summary's Total=R+Q+Other.
 DEFAULT_ACCOUNT_STATES = ("running_of_user", "queued_of_user", "other_of_user")
@@ -51,14 +52,29 @@ def summary_count_colours(config: "Config") -> Tuple[str, ...]:
     return ("WhiteOnBlue", "BlackOnGreen", "BlackOnOrange256" if wide else "WhiteOnRed", "BlackOnGold")
 
 
-WATCH_KEYS: Tuple[Tuple[str, str], ...] = (("q", "quit"), ("?", "help"), ("m", "colour"), ("p", "palette"), ("t", "transpose"), ("H", "highlight"), ("f", "filter"), ("s", "sort"))
-WATCH_KEYS += (("1,2,3,4", "sections"), ("hjkl", "scroll"))
-WATCH_KEYS_TEXT = "Keys: " + ", ".join("%s %s" % pair for pair in WATCH_KEYS)
+WATCH_KEYS: Tuple[Tuple[str, str], ...] = (
+    ("q", "quit"),
+    ("?", "help"),
+    ("p/P", "palette +/-"),
+    ("t", "transpose"),
+    ("H", "highlight"),
+    ("f", "filter"),
+    ("s", "sort"),
+)
+WATCH_MORE_KEYS: Tuple[Tuple[str, str], ...] = (
+    ("Q", "queue layout"),
+    ("1,2,3,4", "sections"),
+    ("hjkl/arrows", "scroll"),
+    ("/", "search"),
+    (":line", "jump"),
+    ("g/G", "top/bottom"),
+)
+WATCH_KEYS_TEXT = "Keys: " + ",\n      ".join(", ".join("%s %s" % pair for pair in group) for group in (WATCH_KEYS, WATCH_MORE_KEYS))
 BOLD = "\033[1m%s\033[0m"
 
 
 class TextDisplay(object):
-    """Render a frame's sections: job accounting summary, worker-node occupancy and user accounts."""
+    """Render a frame's four numbered sections and scheduler messages."""
 
     def __init__(self, snapshot: Any, config: "Config", viewport: Any, wns_occupancy: Any, cluster: Any, args: Any, MVU_model: Any) -> None:
         self.MVU_model = MVU_model
@@ -79,7 +95,7 @@ class TextDisplay(object):
             key, text = (lambda s: self.MVU_model.MVU_colorize(s, "Blue_L")), (lambda s: self.MVU_model.MVU_colorize(s, "Yellow"))
         else:
             key, text = "\033[4m%s\033[24m".__mod__, str
-        line = text("Keys: ") + text(", ").join(key(name) + text(" " + label) for name, label in WATCH_KEYS)
+        line = text("Keys: ") + text(",\n      ").join(text(", ").join(key(name) + text(" " + label) for name, label in group) for group in (WATCH_KEYS, WATCH_MORE_KEYS))
         return line if self.args.COLOR == "ON" else BOLD % line
 
     def _toggled(self, key: str, default: bool) -> bool:
@@ -105,6 +121,8 @@ class TextDisplay(object):
             display_func, opts = display_parts[part][0], display_parts[part][1]
             display_func(*opts) if not sections_off[idx] else None
 
+        if self._toggled("SHOW_ACCOUNT_TOTALS", True):
+            self.display_account_totals()
         self.display_backend_messages()
 
         if not self.args.ANONYMIZE:
@@ -146,7 +164,7 @@ class TextDisplay(object):
             print(self.watch_keys_line())
         print(
             self.MVU_model.MVU_colorize("===> ", "Gray_D")
-            + self.MVU_model.MVU_colorize("Job accounting summary", "White")
+            + self.MVU_model.MVU_colorize("1. Job accounting summary", "White")
             + self.MVU_model.MVU_colorize(" <=== ", "Gray_D")
             + self.MVU_model.MVU_colorize(str(datetime.datetime.today())[:-7], "White")
         )
@@ -186,28 +204,29 @@ class TextDisplay(object):
             }
         )
 
-        expanded = self.MVU_model.display_overrides.get("queue_summary_expanded", getattr(self.args, "EXPAND_QUEUES", False))
-        if not expanded and self.args.WATCH and self.viewport and "queue_summary_expanded" not in self.MVU_model.display_overrides:  # one per line if too wide
-            line = "".join("%s*: %s + %s | " % (name, queue.run, queue.queued) for name, queue in queues.items())
-            expanded = len("Queueing : * implies blocked" + self.MVU_model.backend.blocked_queue_note + line) > self.viewport.h_term_size
-        print("%(queues)s :" % {"queues": self.MVU_model.MVU_colorize("Queueing", "Cyan_L")}, end="\n" if expanded else " ")
-        for _queue_name, q_tuple in queues.items() if not expanded else ():
-            q_running_jobs, q_queued_jobs = q_tuple.run, q_tuple.queued
-            account = _queue_name if _queue_name in self.MVU_model.queue_to_color else "account_not_colored"
-            print(
-                "{indent}{qname}{star}: {run} {q}|".format(
-                    indent="  " if expanded else "",
-                    qname=self.MVU_model.MVU_colorize(_queue_name, "", pattern=account, mapping=self.MVU_model.queue_to_color),
-                    star=self.MVU_model.MVU_colorize("*", "Red_L") if self.MVU_model.backend.queue_is_blocked(q_tuple.state) else "",
-                    run=self.MVU_model.MVU_colorize(q_running_jobs, "", pattern=account, mapping=self.MVU_model.queue_to_color),
-                    q="+ " + self.MVU_model.MVU_colorize(q_queued_jobs, "", account, mapping=self.MVU_model.queue_to_color) + " " if q_queued_jobs != "0" else "",
-                ),
-                end="\n" if expanded else " ",
-            )
-        if expanded:
+        layout = MVU_queue_layout(self.MVU_model, queues)
+        heading = self.MVU_model.MVU_colorize("Queueing", "Cyan_L") + " :"
+        note = self.MVU_model.MVU_colorize("* implies blocked", "Red") + self.MVU_model.backend.blocked_queue_note
+        if layout == "expanded":
+            print(heading)
             self.display_expanded_queues(queues, snapshot)
-        blocked_note = self.MVU_model.backend.blocked_queue_note
-        print(self.MVU_model.MVU_colorize("* implies blocked", "Red") + blocked_note + "\n")
+            print(note + "\n")
+        else:
+            entries = []
+            for name, queue in queues.items():
+                label = self.MVU_model.MVU_colorize(name, color_func=self.MVU_model.queue_to_color.get(name, ""))
+                star = self.MVU_model.MVU_colorize("*", "Red_L") if self.MVU_model.backend.queue_is_blocked(queue.state) else ""
+                running_cell = self.count_cells(["running_of_user"], [queue.run])[0] if self.args.COLOR == "ON" else str(queue.run)
+                queued_cell = self.count_cells(["queued_of_user"], [queue.queued])[0] if self.args.COLOR == "ON" else str(queue.queued)
+                entries.append("%s%s: %s %s|" % (label, star, running_cell, "+ " + queued_cell + " " if str(queue.queued) != "0" else ""))
+            line = heading + " " + "".join(entry + " " for entry in entries)
+            if layout == "clipped":
+                if self.viewport:
+                    line = next(terminal_rows([line], self.viewport.h_term_size)).rstrip("\n")
+                print(line)
+                print(note + "\n")
+            else:
+                print(line + note + "\n")
         if getattr(self.args, "SHOW_QUEUE_NODES", False):
             from qtop_py.queue_nodes import queue_node_counts
 
@@ -234,6 +253,14 @@ class TextDisplay(object):
         backend = self.MVU_model.backend
         nodes = getattr(self.cluster, "worker_nodes", [])
         lines = [line for section in ("snapshot", "accounting", "placement", "resources") for line in backend.display_messages(section, self.snapshot, nodes, self.config)]
+        if hasattr(self.snapshot, "_collection_age"):
+            lines.insert(
+                0,
+                "INFO: Last successful collection completed %.1fs ago; collection span %.1fs. Separate responses are not globally atomic."
+                % (self.snapshot._collection_age, self.snapshot._collection_span),
+            )
+            if self.snapshot._collection_error:
+                lines.insert(0, "WARNING: Collection failed; displaying stale data. " + visible_text(self.snapshot._collection_error))
         if lines:
             print("Scheduler messages:")
             print("\n".join(lines))
@@ -248,7 +275,7 @@ class TextDisplay(object):
 
         print(
             self.MVU_model.MVU_colorize("===> ", "Gray_D")
-            + self.MVU_model.MVU_colorize("Worker Nodes occupancy", "White")
+            + self.MVU_model.MVU_colorize("2. Worker Nodes occupancy", "White")
             + self.MVU_model.MVU_colorize(" <=== ", "Gray_D")
             + self.MVU_model.MVU_colorize("(%s)", "Gray_D") % note
         )
@@ -266,7 +293,7 @@ class TextDisplay(object):
         group_of_name = self.MVU_model.user_details.get("groups")
         print(
             self.MVU_model.MVU_colorize("\n===> ", "Gray_D")
-            + self.MVU_model.MVU_colorize("User accounts and pool mappings", "White")
+            + self.MVU_model.MVU_colorize("3. User accounts and pool mappings", "White")
             + self.MVU_model.MVU_colorize(" <=== ", "Gray_d")
             + self.MVU_model.MVU_colorize(
                 self.MVU_model.backend.classic_account_note if self.args.CLASSIC else user_accounts_header(self.MVU_model.config),
@@ -274,20 +301,28 @@ class TextDisplay(object):
             )
         )
 
+        self.display_account_table_header()
+        for line in account_jobs_table:
+            uid = line[0]
+            userid_pat = user_color_patterns[str(uid)]
+            self.display_account_jobs_line(line, userid_pat, detail_of_name, group_of_name)
+
+    def display_account_table_header(self) -> None:
+        """Print the shared column labels for account rows and independent totals."""
         if getattr(self.args, "SHOW_GROUPS", False):
             detail_header = "GECOS field              | primary group        |"
         else:
             detail_header = "Grid certificate DN (info only available under elevated privileges)" if self.args.CLASSIC else "      GECOS field or Grid certificate DN |"
         labels = [label for _, label in self.state_columns("accounts_states", DEFAULT_ACCOUNT_STATES)]
         print("[id] unix account      |jobs >=%s | nodes | %s" % (" + ".join(label.rjust(4) for label in labels), detail_header))
-        for line in account_jobs_table:
-            uid = line[0]
-            userid_pat = user_color_patterns[str(uid)]
-            self.display_account_jobs_line(line, userid_pat, detail_of_name, group_of_name)
 
-        totals = self.account_jobs_totals(account_jobs_table) if self._toggled("SHOW_ACCOUNT_TOTALS", True) else None
+    def display_account_totals(self) -> None:
+        """Display section four independently of the per-user accounts section."""
+        totals = self.account_jobs_totals(self.wns_occupancy.account_jobs_table)
         if totals:
-            self.display_account_jobs_line(totals, "account_not_colored", detail_of_name, group_of_name, highlight=True)
+            print(self.MVU_model.MVU_colorize("\n===> 4. Account totals <===", "White"))
+            self.display_account_table_header()
+            self.display_account_jobs_line(totals, "account_not_colored", {}, {} if getattr(self.args, "SHOW_GROUPS", False) else None, highlight=True)
 
     @staticmethod
     def account_jobs_totals(account_jobs_table: Sequence[Sequence[Any]]) -> Optional[List[Any]]:
@@ -346,10 +381,9 @@ class TextDisplay(object):
         widths = [max([len(str(counts[index])) for _, _, counts in rows] + [len(label)]) for index, label in enumerate(("Total", "R", "Q", "Other"))]
         print("  %s    %s" % (" " * name_width, "   ".join(label.rjust(width) for label, width in zip(("Total", "R", "Q", "Other"), widths))))
         for name, queue, counts in rows:
-            account = name if name in self.MVU_model.queue_to_color else "account_not_colored"
             star = self.MVU_model.MVU_colorize("*", "Red_L") if self.MVU_model.backend.queue_is_blocked(queue.state) else " "
             cells = [" " * (width - len(str(count))) + cell for width, count, cell in zip(widths, counts, self.count_cells(COUNT_KEYS, counts))]
-            label = self.MVU_model.MVU_colorize(name, "", pattern=account, mapping=self.MVU_model.queue_to_color)
+            label = self.MVU_model.MVU_colorize(name, color_func=self.MVU_model.queue_to_color.get(name, ""))
             print("  %s%s%s : %s = %s + %s + %s" % (label, star, " " * (name_width - len(name)), *cells))
 
     def count_cells(self, keys: Sequence[str], counts: Sequence[Any]) -> List[str]:
@@ -377,12 +411,18 @@ class TextDisplay(object):
 
         detail_width = 25 if group_of_name is not None else 40
         group_column = "{sep} {group:<{width20}} " if group_of_name is not None else ""
-        cells = [self.MVU_model.MVU_colorize(str(value), pattern=userid_pat) for value in [alljobs] + [counts.get(key, 0) for key, _ in state_columns]]
-        if highlight:  # padded outside the colour, so only the digits are painted
-            values = [alljobs] + [counts.get(key, 0) for key, _ in state_columns]
-            cells = [" " * (4 - len(str(value))) + cell for value, cell in zip(values, self.count_cells(["total"] + [key for key, _ in state_columns], values))]
-        state_cells = "   ".join("{%d:>{width4}}" % (7 + index) for index in range(len(state_columns)))
-        row_format = "[ {0:<{width1}}] {4:<{width18}}{sep}{3:>{width4}}   " + state_cells + " {sep} {6:>{width5}} {sep} {5:<{detail_width}} "
+        values = [alljobs] + [counts.get(key, 0) for key, _ in state_columns]
+        keys = ["total"] + [key for key, _ in state_columns]
+        cells = [self.MVU_model.MVU_colorize(str(value), pattern=userid_pat) for value in values]
+        if highlight:
+            cells = self.count_cells(keys, values)
+        else:
+            for index, key in enumerate(keys):
+                if key in ("total", "running_of_user", "queued_of_user") and self.args.COLOR == "ON":
+                    cells[index] = self.count_cells([key], [values[index]])[0]
+        cells = [" " * (4 - len(str(value))) + cell for value, cell in zip(values, cells)]
+        state_cells = "   ".join("{%d}" % (7 + index) for index in range(len(state_columns)))
+        row_format = "[ {0:<{width1}}] {4:<{width18}}{sep}{3}   " + state_cells + " {sep} {6:>{width5}} {sep} {5:<{detail_width}} "
         print_string = (row_format + group_column + "{sep}").format(
             self.MVU_model.MVU_colorize(str(uid), pattern=userid_pat),
             self.MVU_model.MVU_colorize(str(runningjobs), pattern=userid_pat),
@@ -602,21 +642,13 @@ class TextDisplay(object):
             print(wn_id_str + end_label)
 
     def show_part_view(self, _timestr: str, file: str, x: int, y: int) -> str:
-        """Print the visible part of the rendered output to the terminal, as fast as possible.
-
-        See http://unix.stackexchange.com/questions/47407/cat-line-x-to-line-y-on-a-huge-file
-        """
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".out", prefix="qtop_partview_%s_" % _timestr, dir=self.config["savepath"]) as temp_f:
-            temp_filename = temp_f.name
-        tail_command = ["tail", "-n+" + str(x + 1), file]  # x is a 0-based line offset, tail counts from 1
-        head_command = ["head", "-n" + str(max(y - 1, 1))]  # one page: the last row is kept for qtop's notices
-        with open(temp_filename, "w", encoding="utf-8") as output_file, subprocess.Popen(tail_command, stdout=subprocess.PIPE) as process_tail, subprocess.Popen(
-            head_command, stdin=process_tail.stdout, stdout=output_file
-        ) as process_head:
-            if process_tail.stdout is not None:
-                process_tail.stdout.close()
-            process_head.communicate()
-        return temp_filename
+        """Save one screen of wrapped rows, reserving the last row for notices."""
+        columns = getattr(getattr(self, "viewport", None), "h_term_size", 0)
+        with open(file, encoding="utf-8") as source, tempfile.NamedTemporaryFile(
+            mode="w", encoding="utf-8", delete=False, suffix=".out", prefix="qtop_partview_%s_" % _timestr, dir=self.config["savepath"]
+        ) as output:
+            output.writelines(islice(terminal_rows(source, columns), x, x + max(y - 1, 1)))
+        return output.name
 
     def print_mult_attr_line(
         self, node_column_start: int, node_column_stop: int, transposed_sections: List[Any], attr_lines: Any, label: str, color_func: Any = None, **_config_metadata: Any
