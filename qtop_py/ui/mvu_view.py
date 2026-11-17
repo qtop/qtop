@@ -55,7 +55,6 @@ def summary_count_colours(config: "Config") -> Tuple[str, ...]:
 WATCH_KEYS: Tuple[Tuple[str, str], ...] = (
     ("q", "quit"),
     ("?", "help"),
-    ("m", "colour"),
     ("p/P", "palette +/-"),
     ("t", "transpose"),
     ("H", "highlight"),
