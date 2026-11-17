@@ -1,0 +1,47 @@
+name: Feature request
+description: Propose a qtop feature or scheduler integration.
+body:
+  - type: textarea
+    id: use_case
+    attributes:
+      label: Use case
+      description: What problem would this solve, and who would benefit?
+    validations:
+      required: true
+  - type: textarea
+    id: proposed_behavior
+    attributes:
+      label: Proposed behavior
+      description: Describe the desired behavior, with an example if possible.
+    validations:
+      required: true
+  - type: input
+    id: affected_area
+    attributes:
+      label: Affected scheduler or area
+      placeholder: Slurm, PBS, SGE, OAR, a new backend, UI, export, etc.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Describe existing workarounds or other approaches.
+  - type: dropdown
+    id: codevelopment
+    attributes:
+      label: Availability for co-development
+      description: Can you help develop or validate this feature?
+      options:
+        - "Yes"
+        - "Possibly, depending on scope and timing"
+        - "No, I am only proposing the feature"
+    validations:
+      required: true
+  - type: textarea
+    id: contribution_details
+    attributes:
+      label: How could you help?
+      description: >-
+        Optional: coding, testing, documentation, sanitized samples, or access
+        to a suitable test environment. Include availability or constraints.

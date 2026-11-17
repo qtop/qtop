@@ -15,6 +15,7 @@ Notable changes by version, newest first. See the
 - CI: check numbered section titles in sample gates
 - CI: cover Slurm JSON samples, installations and parser fuzzing
 - CI: increase Atheris verification timeouts to 120 seconds
+- Docs: add a feature-request form asking about co-development availability
 - Feature: show startup progress when scheduler sources open and close
 - Feature: simplify the Keys legend by omitting the m shortcut
 - Feature: add reverse palette rotation with P and 14 optional palettes
