@@ -9,7 +9,7 @@ from collections import Counter
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 from qtop_py import safety
-from qtop_py.plugins.slurm import SlurmBatchSystem, SlurmStatExtractor
+from qtop_py.plugins.slurm import SlurmBatchSystem, SlurmStatExtractor, slurm_accounting_state
 from qtop_py.schedulers.gpu import parse_gpu_gres
 
 if TYPE_CHECKING:
@@ -253,7 +253,7 @@ class SlurmJSONBatchSystem(SlurmBatchSystem):
                 "raw_state": state,
                 "Queue": partitions[0],
                 "slurm_partitions": partitions,
-                "accounting_state": "running" if primary == "R" else "queued" if primary in self.QUEUED_STATES else "other",
+                "accounting_state": slurm_accounting_state(primary),
                 "CPUs": integer(row.get("cpus"), 0),
                 "Nodes": node_list,
             }

@@ -3,6 +3,7 @@
 """Critical MVU boundaries: explicit transitions and isolated query/presentation."""
 
 import copy
+import json
 import re
 import sys
 from pathlib import Path
@@ -12,7 +13,8 @@ import pytest
 from qtop_py import configuration, qtop, utils, yaml_parser
 from qtop_py.mvu import MVU_Model, MVU_update
 from qtop_py.mvu_query import MVU_query
-from qtop_py.plugins.slurm import SlurmBatchSystem
+from qtop_py.plugins.slurm import SLURM_JOB_STATES, SlurmBatchSystem
+from qtop_py.plugins.slurm_json import SlurmJSONBatchSystem
 from qtop_py.snapshot import Snapshot
 from qtop_py.ui import mvu_view
 from qtop_py.ui.mvu_view import MVU_view
@@ -353,3 +355,55 @@ def test_section_titles_keep_their_numbers_when_other_sections_are_hidden(tmp_pa
     output = re.sub(r"\x1b\[[0-9;]*m", "", capsys.readouterr().out)
     for number, title in enumerate(("Job accounting summary", "Worker Nodes occupancy", "User accounts and pool mappings", "Account totals"), 1):
         assert ("===> %s. %s" % (number, title) in output) == (str(number) != hidden)
+
+
+@pytest.mark.parametrize("backend", [SlurmBatchSystem, SlurmJSONBatchSystem], ids=["slurm", "slurm-json"])
+@pytest.mark.parametrize("state", sorted(set(SLURM_JOB_STATES.values()) | {"UNKNOWN"}))
+@pytest.mark.parametrize("detailed", [False, True], ids=["default-columns", "detailed-columns"])
+def test_slurm_accounting_agrees_across_views(tmp_path, monkeypatch, capsys, backend, state, detailed):
+    model = MVU_test_model(tmp_path, monkeypatch)
+    if backend is SlurmBatchSystem:
+        queue = tmp_path / "squeue.txt"
+        queue.write_text("1|alice|%s|batch|0|\n" % state)
+        nodes = tmp_path / "sinfo.txt"
+        nodes.write_text("")
+        files = {"squeue_file": str(queue), "sinfo_file": str(nodes)}
+    else:
+        source = Path(__file__).parent / "plugins/slurm_json_samples/v0.0.43"
+        files = {}
+        for key in ("jobs", "nodes", "partitions"):
+            data = json.loads((source / ("slurm_" + key + ".json")).read_text())
+            if key == "jobs":
+                data[key] = [{"job_id": 1, "user_name": "alice", "job_state": [state], "partition": "batch", "cpus": 0, "nodes": ""}]
+            path = tmp_path / (key + ".json")
+            path.write_text(json.dumps(data))
+            files[key + "_json"] = str(path)
+    system = backend(files, model.config, model.args)
+    model.backend = backend
+    model.scheduler = "slurm"
+    cluster_state = system.get_cluster_state(model.args)
+    bucket = "running" if state == "R" else "queued" if state in {"PD", "RD", "RH", "RF", "RQ", "SE"} else "other"
+    assert cluster_state["jobs"][0]["state"] == state
+    assert cluster_state["jobs"][0]["accounting_state"] == bucket
+    model.snapshot = Snapshot.from_cluster_state(cluster_state)
+    expected = [int(bucket == name) for name in ("running", "queued", "other")]
+    assert [model.snapshot.total_running_jobs, model.snapshot.total_queued_jobs] == expected[:2]
+    original_mapping = dict(model.config["state_abbreviations"]["slurm"])
+    if detailed:
+        columns = ["running_of_user", "queued_of_user", "hold_of_user", "configuring_of_user", "special_exit_of_user", "other_of_user"]
+        model.config["accounts_states"] = columns
+        model.config["summary_states"] = columns
+        category = original_mapping.get(state, "unknown_of_user")
+        expected = [int(category == name) for name in columns[:-1]]
+        expected.append(1 - sum(expected))
+    view = MVU_query(model)
+    MVU_view(view, str(tmp_path), "sample.tar", "qtop.log")
+    output = capsys.readouterr().out
+    assert "1=" + "+".join(map(str, expected)) + " jobs" in output
+    for user in ("alice", "Totals"):
+        line = next(line for line in output.splitlines() if re.search(r"\] " + user + r"\s+\|", line))
+        assert list(map(int, line.split("|")[1].split())) == [1] + expected
+    assert view.occupancy.account_jobs_table[0][3] == 1
+    assert model.config["state_abbreviations"]["slurm"] == original_mapping
+    # Portable capture/replay keeps the canonical accounting bucket and raw state.
+    assert Snapshot.from_cluster_state(model.snapshot.to_cluster_state()).total_queued_jobs == model.snapshot.total_queued_jobs

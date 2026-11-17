@@ -329,6 +329,11 @@ summary_colours:
   - BlackOnGold
 ```
 
+Slurm default job counts include held/requeued jobs (RD, RH, SE) in Q.
+Configuring jobs (CF) already have allocated nodes and count as Other.
+The summary and default account columns share normalized accounting; explicit
+``accounts_states`` / ``summary_states`` retain the configured detailed states.
+
 ### Palettes
 
 ``palettes.yaml``, next to ``qtopconf.yaml``, defines the colour palettes; in

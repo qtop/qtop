@@ -57,7 +57,12 @@ SLURM_JOB_STATES = {
     "UPDATE_DB": "CG",
 }
 SLURM_COMPACT_JOB_STATES = set(SLURM_JOB_STATES.values())
-SLURM_QUEUED_STATES = {"PD", "CF", "RD", "RF", "RH", "RQ", "SE"}
+SLURM_QUEUED_STATES = {"PD", "RD", "RF", "RH", "RQ", "SE"}
+
+
+def slurm_accounting_state(state: str) -> str:
+    """Group compact states as running, waiting (including held), or other."""
+    return "running" if state == "R" else "queued" if state in SLURM_QUEUED_STATES else "other"
 
 
 class SlurmStatExtractor(StatExtractor):
@@ -162,7 +167,7 @@ class SlurmStatExtractor(StatExtractor):
                         "raw_state": state,
                         "Queue": partitions[0],
                         "slurm_partitions": partitions,
-                        "accounting_state": "running" if self._map_job_state(state) == "R" else "queued" if self._map_job_state(state) in SLURM_QUEUED_STATES else "other",
+                        "accounting_state": slurm_accounting_state(self._map_job_state(state)),
                         "CPUs": max(1, self._safe_int(cpus, default=1)),
                         "Nodes": nodes,
                     }
@@ -487,15 +492,15 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
                 queue["state"] = state
 
         for job in self._get_jobs():
-            if job["S"] == "R":
+            if job["accounting_state"] == "running":
                 total_running_jobs += 1
-            elif job["S"] in self.QUEUED_STATES:
+            elif job["accounting_state"] == "queued":
                 total_queued_jobs += 1
             for name in job["slurm_partitions"]:
                 queue = queue_counts.setdefault(name, {"run": 0, "queued": 0, "lm": "--", "state": "?"})
-                if job["S"] == "R":
+                if job["accounting_state"] == "running":
                     queue["run"] += 1
-                elif job["S"] in self.QUEUED_STATES:
+                elif job["accounting_state"] == "queued":
                     queue["queued"] += 1
 
         qstatq_lod: "List[RawQueue]" = [
