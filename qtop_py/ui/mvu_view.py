@@ -52,7 +52,16 @@ def summary_count_colours(config: "Config") -> Tuple[str, ...]:
     return ("WhiteOnBlue", "BlackOnGreen", "BlackOnOrange256" if wide else "WhiteOnRed", "BlackOnGold")
 
 
-WATCH_KEYS: Tuple[Tuple[str, str], ...] = (("q", "quit"), ("?", "help"), ("m", "colour"), ("p", "palette"), ("t", "transpose"), ("H", "highlight"), ("f", "filter"), ("s", "sort"))
+WATCH_KEYS: Tuple[Tuple[str, str], ...] = (
+    ("q", "quit"),
+    ("?", "help"),
+    ("m", "colour"),
+    ("p/P", "palette +/-"),
+    ("t", "transpose"),
+    ("H", "highlight"),
+    ("f", "filter"),
+    ("s", "sort"),
+)
 WATCH_MORE_KEYS: Tuple[Tuple[str, str], ...] = (
     ("Q", "queue layout"),
     ("1,2,3,4", "sections"),

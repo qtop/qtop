@@ -1,6 +1,6 @@
 ## Copyright (c) 2026 qtop contributors
 ## SPDX-License-Identifier: MIT
-# qtop palettes: in watch mode, key p cycles through PALETTES in order, starting with the first.
+# In watch mode, p/P cycle PALETTES forwards/backwards from the first.
 # A palette maps colormap colour names to ANSI SGR codes (digits and ";" only) and
 # falls back to the default colours for any name it leaves out; "default" needs no entry.
 # Copy this file to ~/.local/qtop/ (or the system directory) to reorder PALETTES,
@@ -14,6 +14,21 @@ PALETTES:
   - gruvbox
   - okabe-ito
   - monochrome
+  # Uncomment extras to include them in p/P rotation (20 palettes total).
+  # - apprentice
+  # - base16-dark
+  # - base16-light
+  # - catppuccin-frappe
+  # - catppuccin-latte
+  # - catppuccin-macchiato
+  # - catppuccin-mocha
+  # - dracula
+  # - material
+  # - papercolor-dark
+  # - papercolor-light
+  # - tender
+  # - tokyo-night-dark
+  # - tokyo-night-light
 
 solarized-dark:
   Gray_D: '1;38;5;240'
@@ -127,3 +142,342 @@ green-monitor:
   BlackOnOrange256: '0;38;5;16;48;5;82'
   WhiteOnRed: '1;38;5;16;48;5;40'
   BlackOnGold: '0;38;5;16;48;5;28'
+
+# Additional Base16 schemes from https://risotto.joeroe.io/ (MIT).
+# Colour values adapted to the nearest xterm-256 colour; terminal background
+# stays unchanged. Original scheme authors are credited below.
+
+# Apprentice by romainl
+apprentice:
+  Gray_D: '1;38;5;101'
+  Gray_L: '0;38;5;67'
+  White: '1;38;5;60'
+  Red: '0;38;5;238'
+  Red_L: '1;38;5;238'
+  Green: '0;38;5;229'
+  Green_L: '1;38;5;229'
+  Purple: '0;38;5;73'
+  Pink: '1;38;5;73'
+  Brown: '0;38;5;208'
+  Yellow: '1;38;5;108'
+  Cyan: '0;38;5;110'
+  Cyan_L: '1;38;5;110'
+  Blue: '0;38;5;103'
+  Blue_L: '1;38;5;103'
+  WhiteOnBlue: '1;38;5;60;48;5;103'
+  BlackOnGreen: '0;38;5;235;48;5;229'
+  BlackOnOrange256: '0;38;5;235;48;5;208'
+  WhiteOnRed: '1;38;5;60;48;5;238'
+  BlackOnGold: '0;38;5;235;48;5;108'
+
+# base16 default dark * https://github.com/chriskempson/base16-default-
+# schemes
+base16-dark:
+  Gray_D: '1;38;5;240'
+  Gray_L: '0;38;5;250'
+  White: '1;38;5;188'
+  Red: '0;38;5;131'
+  Red_L: '1;38;5;131'
+  Green: '0;38;5;143'
+  Green_L: '1;38;5;143'
+  Purple: '0;38;5;139'
+  Pink: '1;38;5;139'
+  Brown: '0;38;5;173'
+  Yellow: '1;38;5;222'
+  Cyan: '0;38;5;109'
+  Cyan_L: '1;38;5;109'
+  Blue: '0;38;5;109'
+  Blue_L: '1;38;5;109'
+  WhiteOnBlue: '1;38;5;188;48;5;109'
+  BlackOnGreen: '0;38;5;234;48;5;143'
+  BlackOnOrange256: '0;38;5;234;48;5;173'
+  WhiteOnRed: '1;38;5;188;48;5;131'
+  BlackOnGold: '0;38;5;234;48;5;222'
+
+# base16 default light * https://github.com/chriskempson/base16-default-
+# schemes
+base16-light:
+  Gray_D: '1;38;5;250'
+  Gray_L: '0;38;5;240'
+  White: '1;38;5;237'
+  Red: '0;38;5;131'
+  Red_L: '1;38;5;131'
+  Green: '0;38;5;143'
+  Green_L: '1;38;5;143'
+  Purple: '0;38;5;139'
+  Pink: '1;38;5;139'
+  Brown: '0;38;5;173'
+  Yellow: '1;38;5;222'
+  Cyan: '0;38;5;109'
+  Cyan_L: '1;38;5;109'
+  Blue: '0;38;5;109'
+  Blue_L: '1;38;5;109'
+  WhiteOnBlue: '1;38;5;237;48;5;109'
+  BlackOnGreen: '0;38;5;231;48;5;143'
+  BlackOnOrange256: '0;38;5;231;48;5;173'
+  WhiteOnRed: '1;38;5;237;48;5;131'
+  BlackOnGold: '0;38;5;231;48;5;222'
+
+#  Catppuccin
+# Frappe Official palette: https://github.com/catppuccin/catppuccin base16
+# mapping: https://github.com/catppuccin/base16 Ported by cmyksoda
+catppuccin-frappe:
+  Gray_D: '1;38;5;59'
+  Gray_L: '0;38;5;60'
+  White: '1;38;5;189'
+  Red: '0;38;5;174'
+  Red_L: '1;38;5;174'
+  Green: '0;38;5;150'
+  Green_L: '1;38;5;150'
+  Purple: '0;38;5;182'
+  Pink: '1;38;5;182'
+  Brown: '0;38;5;216'
+  Yellow: '1;38;5;186'
+  Cyan: '0;38;5;115'
+  Cyan_L: '1;38;5;115'
+  Blue: '0;38;5;111'
+  Blue_L: '1;38;5;111'
+  WhiteOnBlue: '1;38;5;189;48;5;111'
+  BlackOnGreen: '0;38;5;237;48;5;150'
+  BlackOnOrange256: '0;38;5;237;48;5;216'
+  WhiteOnRed: '1;38;5;189;48;5;174'
+  BlackOnGold: '0;38;5;237;48;5;186'
+
+#  Catppuccin
+# Latte Official palette: https://github.com/catppuccin/catppuccin base16
+# mapping: https://github.com/catppuccin/base16 Ported by cmyksoda
+catppuccin-latte:
+  Gray_D: '1;38;5;251'
+  Gray_L: '0;38;5;249'
+  White: '1;38;5;240'
+  Red: '0;38;5;161'
+  Red_L: '1;38;5;161'
+  Green: '0;38;5;70'
+  Green_L: '1;38;5;70'
+  Purple: '0;38;5;99'
+  Pink: '1;38;5;99'
+  Brown: '0;38;5;202'
+  Yellow: '1;38;5;172'
+  Cyan: '0;38;5;30'
+  Cyan_L: '1;38;5;30'
+  Blue: '0;38;5;27'
+  Blue_L: '1;38;5;27'
+  WhiteOnBlue: '1;38;5;240;48;5;27'
+  BlackOnGreen: '0;38;5;255;48;5;70'
+  BlackOnOrange256: '0;38;5;255;48;5;202'
+  WhiteOnRed: '1;38;5;240;48;5;161'
+  BlackOnGold: '0;38;5;255;48;5;172'
+
+#  Catppuccin
+# Macchiato Official palette: https://github.com/catppuccin/catppuccin
+# base16 mapping: https://github.com/catppuccin/base16 Ported by cmyksoda
+catppuccin-macchiato:
+  Gray_D: '1;38;5;240'
+  Gray_L: '0;38;5;60'
+  White: '1;38;5;189'
+  Red: '0;38;5;210'
+  Red_L: '1;38;5;210'
+  Green: '0;38;5;150'
+  Green_L: '1;38;5;150'
+  Purple: '0;38;5;183'
+  Pink: '1;38;5;183'
+  Brown: '0;38;5;216'
+  Yellow: '1;38;5;223'
+  Cyan: '0;38;5;116'
+  Cyan_L: '1;38;5;116'
+  Blue: '0;38;5;111'
+  Blue_L: '1;38;5;111'
+  WhiteOnBlue: '1;38;5;189;48;5;111'
+  BlackOnGreen: '0;38;5;236;48;5;150'
+  BlackOnOrange256: '0;38;5;236;48;5;216'
+  WhiteOnRed: '1;38;5;189;48;5;210'
+  BlackOnGold: '0;38;5;236;48;5;223'
+
+#  Catppuccin
+# Mocha Official palette: https://github.com/catppuccin/catppuccin base16
+# mapping: https://github.com/catppuccin/base16 Ported by cmyksoda
+catppuccin-mocha:
+  Gray_D: '1;38;5;239'
+  Gray_L: '0;38;5;241'
+  White: '1;38;5;189'
+  Red: '0;38;5;211'
+  Red_L: '1;38;5;211'
+  Green: '0;38;5;151'
+  Green_L: '1;38;5;151'
+  Purple: '0;38;5;183'
+  Pink: '1;38;5;183'
+  Brown: '0;38;5;216'
+  Yellow: '1;38;5;223'
+  Cyan: '0;38;5;116'
+  Cyan_L: '1;38;5;116'
+  Blue: '0;38;5;111'
+  Blue_L: '1;38;5;111'
+  WhiteOnBlue: '1;38;5;189;48;5;111'
+  BlackOnGreen: '0;38;5;235;48;5;151'
+  BlackOnOrange256: '0;38;5;235;48;5;216'
+  WhiteOnRed: '1;38;5;189;48;5;211'
+  BlackOnGold: '0;38;5;235;48;5;223'
+
+# Dracula by Mike Barkmin (http://github.com/mikebarkmin) based on Dracula
+# Theme (http://github.com/dracula)
+dracula:
+  Gray_D: '1;38;5;60'
+  Gray_L: '0;38;5;80'
+  White: '1;38;5;255'
+  Red: '0;38;5;169'
+  Red_L: '1;38;5;169'
+  Green: '0;38;5;192'
+  Green_L: '1;38;5;192'
+  Purple: '0;38;5;134'
+  Pink: '1;38;5;134'
+  Brown: '0;38;5;134'
+  Yellow: '1;38;5;47'
+  Cyan: '0;38;5;158'
+  Cyan_L: '1;38;5;158'
+  Blue: '0;38;5;80'
+  Blue_L: '1;38;5;80'
+  WhiteOnBlue: '1;38;5;255;48;5;80'
+  BlackOnGreen: '0;38;5;236;48;5;192'
+  BlackOnOrange256: '0;38;5;236;48;5;134'
+  WhiteOnRed: '1;38;5;255;48;5;169'
+  BlackOnGold: '0;38;5;236;48;5;47'
+
+# Material by Nate Peterson
+material:
+  Gray_D: '1;38;5;60'
+  Gray_L: '0;38;5;152'
+  White: '1;38;5;231'
+  Red: '0;38;5;204'
+  Red_L: '1;38;5;204'
+  Green: '0;38;5;150'
+  Green_L: '1;38;5;150'
+  Purple: '0;38;5;176'
+  Pink: '1;38;5;176'
+  Brown: '0;38;5;209'
+  Yellow: '1;38;5;221'
+  Cyan: '0;38;5;117'
+  Cyan_L: '1;38;5;117'
+  Blue: '0;38;5;111'
+  Blue_L: '1;38;5;111'
+  WhiteOnBlue: '1;38;5;231;48;5;111'
+  BlackOnGreen: '0;38;5;236;48;5;150'
+  BlackOnOrange256: '0;38;5;236;48;5;209'
+  WhiteOnRed: '1;38;5;231;48;5;204'
+  BlackOnGold: '0;38;5;236;48;5;221'
+
+# PaperColor Dark by Jon Leopard (http://github.com/jonleopard) based on
+# PaperColor Theme (https://github.com/NLKNguyen/papercolor-theme)
+papercolor-dark:
+  Gray_D: '1;38;5;179'
+  Gray_L: '0;38;5;74'
+  White: '1;38;5;244'
+  Red: '0;38;5;240'
+  Red_L: '1;38;5;240'
+  Green: '0;38;5;140'
+  Green_L: '1;38;5;140'
+  Purple: '0;38;5;37'
+  Pink: '1;38;5;37'
+  Brown: '0;38;5;71'
+  Yellow: '1;38;5;148'
+  Cyan: '0;38;5;214'
+  Cyan_L: '1;38;5;214'
+  Blue: '0;38;5;205'
+  Blue_L: '1;38;5;205'
+  WhiteOnBlue: '1;38;5;244;48;5;205'
+  BlackOnGreen: '0;38;5;234;48;5;140'
+  BlackOnOrange256: '0;38;5;234;48;5;71'
+  WhiteOnRed: '1;38;5;244;48;5;240'
+  BlackOnGold: '0;38;5;234;48;5;148'
+
+# PaperColor Light by Jon Leopard (http://github.com/jonleopard) based on
+# PaperColor Theme (https://github.com/NLKNguyen/papercolor-theme)
+papercolor-light:
+  Gray_D: '1;38;5;64'
+  Gray_L: '0;38;5;31'
+  White: '1;38;5;238'
+  Red: '0;38;5;250'
+  Red_L: '1;38;5;250'
+  Green: '0;38;5;91'
+  Green_L: '1;38;5;91'
+  Purple: '0;38;5;25'
+  Pink: '1;38;5;25'
+  Brown: '0;38;5;160'
+  Yellow: '1;38;5;162'
+  Cyan: '0;38;5;166'
+  Cyan_L: '1;38;5;166'
+  Blue: '0;38;5;166'
+  Blue_L: '1;38;5;166'
+  WhiteOnBlue: '1;38;5;238;48;5;166'
+  BlackOnGreen: '0;38;5;255;48;5;91'
+  BlackOnOrange256: '0;38;5;255;48;5;160'
+  WhiteOnRed: '1;38;5;238;48;5;250'
+  BlackOnGold: '0;38;5;255;48;5;162'
+
+# tender by Jacobo Tabernero (https://github/com/jacoborus/tender.vim)
+tender:
+  Gray_D: '1;38;5;239'
+  Gray_L: '0;38;5;250'
+  White: '1;38;5;255'
+  Red: '0;38;5;203'
+  Red_L: '1;38;5;203'
+  Green: '0;38;5;185'
+  Green_L: '1;38;5;185'
+  Purple: '0;38;5;180'
+  Pink: '1;38;5;180'
+  Brown: '0;38;5;173'
+  Yellow: '1;38;5;215'
+  Cyan: '0;38;5;81'
+  Cyan_L: '1;38;5;81'
+  Blue: '0;38;5;153'
+  Blue_L: '1;38;5;153'
+  WhiteOnBlue: '1;38;5;255;48;5;153'
+  BlackOnGreen: '0;38;5;235;48;5;185'
+  BlackOnOrange256: '0;38;5;235;48;5;173'
+  WhiteOnRed: '1;38;5;255;48;5;203'
+  BlackOnGold: '0;38;5;235;48;5;215'
+
+# Tokyo Night Dark by Michael Ball
+tokyo-night-dark:
+  Gray_D: '1;38;5;239'
+  Gray_L: '0;38;5;102'
+  White: '1;38;5;146'
+  Red: '0;38;5;153'
+  Red_L: '1;38;5;153'
+  Green: '0;38;5;149'
+  Green_L: '1;38;5;149'
+  Purple: '0;38;5;141'
+  Pink: '1;38;5;141'
+  Brown: '0;38;5;146'
+  Yellow: '1;38;5;38'
+  Cyan: '0;38;5;159'
+  Cyan_L: '1;38;5;159'
+  Blue: '0;38;5;38'
+  Blue_L: '1;38;5;38'
+  WhiteOnBlue: '1;38;5;146;48;5;38'
+  BlackOnGreen: '0;38;5;234;48;5;149'
+  BlackOnOrange256: '0;38;5;234;48;5;146'
+  WhiteOnRed: '1;38;5;146;48;5;153'
+  BlackOnGold: '0;38;5;234;48;5;38'
+
+# Tokyo Night Light by Michael Ball
+tokyo-night-light:
+  Gray_D: '1;38;5;247'
+  Gray_L: '0;38;5;240'
+  White: '1;38;5;238'
+  Red: '0;38;5;238'
+  Red_L: '1;38;5;238'
+  Green: '0;38;5;238'
+  Green_L: '1;38;5;238'
+  Purple: '0;38;5;60'
+  Pink: '1;38;5;60'
+  Brown: '0;38;5;94'
+  Yellow: '1;38;5;24'
+  Cyan: '0;38;5;240'
+  Cyan_L: '1;38;5;240'
+  Blue: '0;38;5;60'
+  Blue_L: '1;38;5;60'
+  WhiteOnBlue: '1;38;5;238;48;5;60'
+  BlackOnGreen: '0;38;5;188;48;5;238'
+  BlackOnOrange256: '0;38;5;188;48;5;94'
+  WhiteOnRed: '1;38;5;238;48;5;238'
+  BlackOnGold: '0;38;5;188;48;5;24'

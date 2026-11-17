@@ -332,8 +332,10 @@ summary_colours:
 ### Palettes
 
 ``palettes.yaml``, next to ``qtopconf.yaml``, defines the colour palettes; in
-watch mode ``p`` cycles through its ``PALETTES`` list, starting with the first.
-qtop ships, in that order, ``default``, ``green-monitor`` (monochrome in
+watch mode ``p`` cycles forward and ``P`` backward through its ``PALETTES``
+list, starting with the first. There are 20 palettes; uncomment the extra
+entries in that list to enable them.
+The active list contains, in order, ``default``, ``green-monitor`` (monochrome in
 phosphor-green tones), ``solarized-dark``, ``gruvbox``, ``okabe-ito``
 (colour-blind safe) and ``monochrome`` (bold, underline and reverse). A palette
 maps colormap colour names to ANSI SGR codes, digits and ``;`` only, and keeps
@@ -390,7 +392,7 @@ Watch mode supports:
 | F | switch full names / numbered node labels |
 | H | highlight users or queues |
 | m | switch core coloring by user / queue |
-| p | cycle the colour palettes of ``palettes.yaml`` |
+| p / P | cycle palettes forward / backward in ``palettes.yaml`` |
 | Q | cycle compact / expanded / clipped Queueing layouts |
 | r | cycle all / real / used core lines |
 | s | apply sorting (remapped matrices; numbered ones keep node order) |

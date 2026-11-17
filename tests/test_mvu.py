@@ -76,7 +76,8 @@ def test_number_keys_toggle_sections(tmp_path, monkeypatch, capsys, key, overrid
         assert (gone in capsys.readouterr().out) is shown
 
 
-def test_palette_key_cycles_the_shipped_palettes_and_recolours(tmp_path, monkeypatch):
+@pytest.mark.parametrize("key, direction", [("p", 1), ("P", -1)], ids=["forward", "backward"])
+def test_palette_key_cycles_the_shipped_palettes_and_recolours(tmp_path, monkeypatch, key, direction):
     model = MVU_test_model(tmp_path, monkeypatch)
     model.config["palettes"] = configuration.load_palettes((str(Path(__file__).resolve().parents[1]),))
     model.args.COLOR = "ON"
@@ -84,11 +85,62 @@ def test_palette_key_cycles_the_shipped_palettes_and_recolours(tmp_path, monkeyp
     seen = []
     for _ in model.config["palettes"]["PALETTES"]:
         seen.append((model.display_overrides.get("palette", "default"), model.MVU_colorize("x", "Red_L")))
-        model, effects = MVU_update(model, "p")
+        model, effects = MVU_update(model, key)
         assert effects == (("notice", "Palette: " + model.display_overrides["palette"]),)
-    assert [name for name, _ in seen] == ["default", "green-monitor", "solarized-dark", "gruvbox", "okabe-ito", "monochrome"]
+    order = ["default", "green-monitor", "solarized-dark", "gruvbox", "okabe-ito", "monochrome"]
+    assert [name for name, _ in seen] == [order[(i * direction) % len(order)] for i in range(len(order))]
     assert model.display_overrides["palette"] == "default"  # wrapped around
-    assert seen[0][1] == "\x1b[1;31mx\x1b[0;m" and seen[1][1] == "\x1b[1;38;5;40mx\x1b[0;m" and len({code for _, code in seen}) == 6
+    assert seen[0][1] == "\x1b[1;31mx\x1b[0;m" and dict(seen)["green-monitor"] == "\x1b[1;38;5;40mx\x1b[0;m" and len({code for _, code in seen}) == 6
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "apprentice",
+        "base16-dark",
+        "base16-light",
+        "catppuccin-frappe",
+        "catppuccin-latte",
+        "catppuccin-macchiato",
+        "catppuccin-mocha",
+        "dracula",
+        "material",
+        "papercolor-dark",
+        "papercolor-light",
+        "tender",
+        "tokyo-night-dark",
+        "tokyo-night-light",
+    ],
+)
+def test_optional_palettes_render_when_enabled(tmp_path, monkeypatch, name):
+    root = Path(__file__).resolve().parents[1]
+    model = MVU_test_model(tmp_path, monkeypatch)
+    model.config["palettes"] = configuration.load_palettes((str(root),))
+    palettes = model.config["palettes"]
+    assert len(palettes) == 20  # PALETTES plus 19 mappings; default needs none.
+    assert name not in palettes["PALETTES"]
+    model.args.COLOR = "ON"
+    palettes["PALETTES"] = ["default", name]
+    configuration.validate_config(model.config)
+    forward, _ = MVU_update(model, "p")
+    backward, _ = MVU_update(model, "P")
+    assert forward.display_overrides["palette"] == backward.display_overrides["palette"] == name
+    for colour, code in palettes[name].items():
+        assert forward.MVU_colorize("x", colour) == "\x1b[" + code + "mx\x1b[0;m"
+    assert MVU_update(forward, "p")[0].display_overrides["palette"] == "default"
+    assert MVU_update(backward, "P")[0].display_overrides["palette"] == "default"
+
+
+@pytest.mark.parametrize("key", ["p", "P"], ids=["forward", "backward"])
+@pytest.mark.parametrize("current", [None, "removed"], ids=["single-palette", "removed-palette"])
+def test_palette_rotation_handles_single_and_removed_palettes(tmp_path, monkeypatch, key, current):
+    model = MVU_test_model(tmp_path, monkeypatch)
+    model.config["palettes"] = {"PALETTES": ["default"]}
+    if current:
+        model.display_overrides["palette"] = current
+    rotated, effects = MVU_update(model, key)
+    assert rotated.display_overrides["palette"] == "default"
+    assert effects == (("notice", "Palette: default"),)
 
 
 def test_user_palettes_override_colour_by_colour_and_are_validated(tmp_path):

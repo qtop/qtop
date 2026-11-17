@@ -67,7 +67,7 @@ def MVU_colorize_nodestate(worker_nodes: Iterable[Mapping[str, Any]], nodestate_
 
 
 def MVU_palette_order(model: "MVU_Model") -> List[str]:
-    """Return the palettes that key p cycles through, from palettes.yaml."""
+    """Return the palettes that keys p/P cycle through, from palettes.yaml."""
     return list((model.config or {}).get("palettes", {}).get("PALETTES") or ["default"])
 
 
@@ -191,7 +191,7 @@ def MVU_queue_layout(model: "MVU_Model", queues: Optional[Mapping[str, Any]] = N
 
 def MVU_update(model: "MVU_Model", message: str, payload: Any = None) -> Tuple["MVU_Model", Tuple[Tuple[str, Optional[str]], ...]]:
     """Return the next model and effect requests without performing terminal or scheduler I/O."""
-    keys = set(NAVIGATION_KEYS) | {"snapshot", "layout", "t", "Q", "m", "q", "F", "s", "f", "H", "?", "r", "p", "1", "2", "3", "4", "/", ":"}
+    keys = set(NAVIGATION_KEYS) | {"snapshot", "layout", "t", "Q", "m", "q", "F", "s", "f", "H", "?", "r", "p", "P", "1", "2", "3", "4", "/", ":"}
     if message not in keys:
         return model, ()
     next_model = copy.copy(model)
@@ -228,10 +228,10 @@ def MVU_update(model: "MVU_Model", message: str, payload: Any = None) -> Tuple["
         key = "SHOW_ACCOUNT_TOTALS" if message == "4" else "sect_%s_off" % message
         next_model.display_overrides[key] = not next_model.display_overrides.get(key, getattr(next_model.args, key, message == "4"))
         effects.append(("notice", "Toggling section 4 (Account totals)" if message == "4" else "Toggling section " + message))
-    elif message == "p":
+    elif message in ("p", "P"):
         order = MVU_palette_order(next_model)
         current = next_model.display_overrides.get("palette", order[0])
-        next_model.display_overrides["palette"] = order[(order.index(current) + 1) % len(order)] if current in order else order[0]
+        next_model.display_overrides["palette"] = order[(order.index(current) + (1 if message == "p" else -1)) % len(order)] if current in order else order[0]
         effects.append(("notice", "Palette: " + next_model.display_overrides["palette"]))
     elif message == "F":
         next_model.display_overrides["force_names"] = not next_model.display_overrides.get("force_names", False)
