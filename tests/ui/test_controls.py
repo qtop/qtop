@@ -9,7 +9,7 @@ from types import SimpleNamespace
 import pytest
 
 from qtop_py import qtop
-from qtop_py.ui import controls
+from qtop_py.ui import controls, terminal
 from qtop_py.ui.controls import KeyboardInput
 from qtop_py.ui.viewport import Viewport
 
@@ -77,7 +77,7 @@ def test_pending_key_is_dispatched_even_without_descriptor_readiness(keyboard, m
     reader = keyboard(b"\x1bq")
     assert reader.read() == "\x1b"
     monkeypatch.setattr(qtop.select, "select", lambda *_args: pytest.fail("pending keys must bypass select"))
-    assert qtop.wait_for_keypress_or_autorefresh(Viewport(), {}, (10, 40), 0, reader) == "q"
+    assert terminal.wait_for_keypress_or_autorefresh(Viewport(), {}, (10, 40), 0, reader) == "q"
 
 
 @pytest.mark.skipif(os.name != "posix", reason="select on terminal/pipe descriptors requires POSIX")
@@ -88,7 +88,7 @@ def test_a_burst_of_keys_is_ready_on_each_successive_watch_cycle(monkeypatch):
         with os.fdopen(read_fd, "r") as stream:
             monkeypatch.setattr(sys, "stdin", stream)
             reader = KeyboardInput(stream)
-            assert [qtop.wait_for_keypress_or_autorefresh(Viewport(), {}, (10, 40), 0, reader) for _ in range(3)] == ["F", "Q", "q"]
+            assert [terminal.wait_for_keypress_or_autorefresh(Viewport(), {}, (10, 40), 0, reader) for _ in range(3)] == ["F", "Q", "q"]
     finally:
         os.close(write_fd)
 

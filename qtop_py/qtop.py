@@ -24,10 +24,8 @@ import importlib.util
 import logging
 import os
 import re
-import select
 import shlex
 import shutil
-import signal as _signal
 import subprocess
 import sys
 import tarfile
@@ -37,11 +35,9 @@ import time
 import traceback
 import warnings
 from collections import OrderedDict
-from functools import lru_cache
 from math import isfinite
-from signal import SIG_DFL, signal
-from types import ModuleType, SimpleNamespace
-from typing import TYPE_CHECKING, Any, Callable, Dict, Generator, Iterable, Iterator, List, Mapping, NamedTuple, Optional, Sequence, Set, Tuple, Type, Union
+from types import SimpleNamespace
+from typing import TYPE_CHECKING, Any, Callable, Dict, Iterable, Iterator, List, Mapping, NamedTuple, Optional, Set, Tuple, Type
 from xml.etree.ElementTree import ParseError
 
 if TYPE_CHECKING:
@@ -63,7 +59,7 @@ from qtop_py.constants import (
     USERPATH,
 )
 from qtop_py.errors import OperationalError
-from qtop_py.input_parsing import extract_regex_detail, get_date_obj_from_str
+from qtop_py.input_parsing import get_date_obj_from_str
 from qtop_py.mvu import (
     MVU_colorize,
     MVU_colorize_nodestate,
@@ -77,6 +73,7 @@ from qtop_py.mvu_query import Cluster as MVU_Cluster
 from qtop_py.mvu_query import MVU_query
 from qtop_py.mvu_query import WNOccupancy as MVU_WNOccupancy
 from qtop_py.process import communicate_with_timeout
+from qtop_py.process import scheduler_env as scheduler_env
 from qtop_py.runtime import RunResources
 from qtop_py.safety import visible_text
 from qtop_py.schedulers.registry import PLUGIN_BATCH_SYSTEMS
@@ -85,16 +82,23 @@ from qtop_py.snapshot import Snapshot
 from qtop_py.ui.controls import KeyboardInput, read_rule_choices
 from qtop_py.ui.mvu_view import MVU_view
 from qtop_py.ui.mvu_view import TextDisplay as MVU_TextDisplay
+from qtop_py.ui.terminal import SIGPIPE as SIGPIPE
+from qtop_py.ui.terminal import SIGWINCH as SIGWINCH
+from qtop_py.ui.terminal import TerminalResized as TerminalResized
+from qtop_py.ui.terminal import _raise_resized as _raise_resized
+from qtop_py.ui.terminal import _set_terminal_attrs as _set_terminal_attrs
+from qtop_py.ui.terminal import calculate_term_size as calculate_term_size
+from qtop_py.ui.terminal import menu_terminal as menu_terminal
+from qtop_py.ui.terminal import raw_mode as raw_mode
+from qtop_py.ui.terminal import reset_sigpipe as reset_sigpipe
+from qtop_py.ui.terminal import termios as termios
+from qtop_py.ui.terminal import wait_for_keypress_or_autorefresh as wait_for_keypress_or_autorefresh
 from qtop_py.ui.viewport import Viewport, terminal_rows
+from qtop_py.user_details import MVU_resolve_user_details as MVU_resolve_user_details
+from qtop_py.user_details import get_detail_of_name as get_detail_of_name
+from qtop_py.user_details import get_primary_group_name as get_primary_group_name
+from qtop_py.user_details import get_primary_group_names as get_primary_group_names
 from qtop_py.web import Web
-
-SIGPIPE = getattr(_signal, "SIGPIPE", None)  # absent on Windows
-SIGWINCH = getattr(_signal, "SIGWINCH", None)
-termios: Optional[ModuleType]
-try:
-    import termios
-except ImportError:
-    termios = None
 
 # Optional context for the deprecated legacy adapters (MVU_legacy_model, colorize, control_qtop and the
 # Cluster/WNOccupancy/TextDisplay classes below), which read it via globals(); declared (not assigned) for
@@ -217,21 +221,6 @@ def colorize(
     return MVU_colorize(_legacy_model(), text, color_func, pattern, mapping, bg_color, bold)
 
 
-def MVU_resolve_user_details(model: Any, occupancy: Any, force: bool = False) -> None:
-    """Load user full names into the model, only if the accounts table is shown (or force is set)."""
-    parts = model.config.get("user_display_parts", [])
-    if not force and not any(
-        part == "user_accounts_pool_mappings" and not model.display_overrides.get("sect_%s_off" % index, getattr(model.args, "sect_%s_off" % index, False))
-        for index, part in enumerate(parts, 1)
-    ):
-        model.user_details = {}
-        return
-    model.user_details = {
-        "names": get_detail_of_name(occupancy.account_jobs_table, model.config, model.args),
-        "groups": get_primary_group_names(occupancy.account_jobs_table) if getattr(model.args, "SHOW_GROUPS", False) else None,
-    }
-
-
 def MVU_effects(
     model: Any,
     effects: Iterable[Tuple[str, Optional[str]]],
@@ -326,18 +315,6 @@ def control_qtop(viewport: Viewport, read_char: str, cluster: Any, old_attrs: An
     MVU_effects(next_model, effects, cluster, old_attrs, new_attrs)
 
 
-def reset_sigpipe() -> None:
-    """Restore the default SIGPIPE action, so piping into head exits quietly."""
-    if SIGPIPE is not None:
-        signal(SIGPIPE, SIG_DFL)
-
-
-def _set_terminal_attrs(attrs: Any) -> None:
-    """Apply terminal attributes when the platform exposes a real stdin TTY."""
-    if termios is not None and sys.__stdin__ is not None:
-        termios.tcsetattr(sys.__stdin__.fileno(), termios.TCSADRAIN, attrs)
-
-
 def scheduler_backend(name: Optional[str]) -> Type[GenericBatchSystem]:
     """Return the backend class called name, or GenericBatchSystem if there is none."""
     return next((backend for backend in PLUGIN_BATCH_SYSTEMS if backend.get_mnemonic() == name), GenericBatchSystem)
@@ -357,94 +334,6 @@ def queue_is_blocked(state: object, scheduler_name: Optional[str] = None) -> boo
     return scheduler_backend(scheduler_name).queue_is_blocked(state)
 
 
-@contextlib.contextmanager
-def raw_mode(file: Any, args: Any) -> Generator[Tuple[Any, Any], None, None]:
-    """Put a watch-mode terminal in cbreak mode (no echo or line buffering; Ctrl-C still works); yield (old, new) attrs.
-
-    Without a terminal, or outside watch mode, nothing changes and the attrs are empty, so keys need Enter.
-    Unread keys are dropped on exit, rather than spilling into the shell. SIGTERM and SIGHUP (kill, a closed
-    ssh session) exit through the restore too, and SIGCONT (fg after Ctrl-Z) re-applies cbreak mode.
-    """
-    old_attrs: Any = ""
-    new_attrs: Any = ""
-    if args.WATCH and not args.ONLYSAVETOFILE and termios is not None:
-        try:
-            old_attrs = termios.tcgetattr(file.fileno())
-            new_attrs = old_attrs[:]
-            new_attrs[3] &= ~(termios.ECHO | termios.ICANON)
-            termios.tcsetattr(file.fileno(), termios.TCSADRAIN, new_attrs)
-        except (AttributeError, OSError, termios.error):
-            old_attrs = new_attrs = ""  # not a terminal: nothing to restore
-    if not old_attrs or termios is None:
-        yield "", ""
-        return
-    tty = termios
-
-    def leave(signum: int, _frame: Any) -> None:
-        raise SystemExit(128 + signum)
-
-    def resume(_signum: int, _frame: Any) -> None:
-        tty.tcsetattr(file.fileno(), tty.TCSADRAIN, new_attrs)
-
-    handlers = [(sig, _signal.signal(sig, handler)) for sig, handler in ((_signal.SIGTERM, leave), (_signal.SIGHUP, leave), (_signal.SIGCONT, resume))]
-    try:
-        yield old_attrs, new_attrs
-    finally:
-        for sig, previous in handlers:
-            _signal.signal(sig, previous)
-        termios.tcsetattr(file.fileno(), termios.TCSAFLUSH, old_attrs)
-
-
-def calculate_term_size(config: Dict[str, Any], FALLBACK_TERM_SIZE: Sequence[int], viewport: Viewport) -> Tuple[int, int]:
-    """Gets the dimensions of the terminal window where qtop will be displayed.
-
-    ``viewport`` is passed explicitly so this helper does not depend on global
-    state. If ``stty`` is absent, cannot be started, or returns unusable output,
-    the viewport size is used before the configured fallback.
-    """
-    fallback_term_size = config.get("term_size", FALLBACK_TERM_SIZE)
-    try:
-        height, columns = [int(value) for value in fallback_term_size]
-        if height <= 0 or columns <= 0:
-            raise ValueError("dimensions must be positive")
-    except (TypeError, ValueError) as error:
-        raise OperationalError("Invalid configuration: term_size must contain two positive integers.") from error
-
-    stty = shutil.which("stty")
-    stty_error: Union[bytes, OSError] = b"stty not found"
-    tty_size = b""
-    if stty:
-        try:
-            command = subprocess.Popen([stty, "size"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            tty_size, stty_error = command.communicate()
-        except OSError as exc:
-            stty_error = exc
-
-    if not stty_error:
-        try:
-            term_height, term_columns = [int(x) for x in tty_size.strip().split()]
-            if term_height <= 0 or term_columns <= 0:
-                raise ValueError("terminal dimensions must be positive")
-        except (TypeError, ValueError):
-            logging.debug("Ignoring unusable terminal dimensions reported by stty: %r", tty_size)
-        else:
-            logging.debug('terminal size v, h from "stty size": %s, %s' % (term_height, term_columns))
-            return term_height, term_columns
-
-    logging.warning("Failed to autodetect terminal size. (Running in an IDE? in a pipe?) Falling back via %s / viewport." % QTOPCONF_YAML)
-    try:
-        term_height, term_columns = [int(x) for x in viewport.get_term_size()]
-        if term_height <= 0 or term_columns <= 0:
-            raise ValueError("terminal dimensions must be positive")
-    except (AttributeError, KeyError, OSError, TypeError, ValueError):
-        term_height, term_columns = [int(x) for x in fallback_term_size]
-        logging.debug("(hardcoded) fallback terminal size v, h: %s, %s" % (term_height, term_columns))
-    else:
-        logging.debug("viewport-provided terminal size v, h: %s, %s" % (term_height, term_columns))
-
-    return term_height, term_columns
-
-
 def finalize_filepaths_schedulercommands(args: Any, config: Dict[str, Any], backend: Type[GenericBatchSystem]) -> Dict[str, Tuple[str, str]]:
     """Return {input_key: (path, command)}, with PID suffixes for live collection."""
     d = dict()
@@ -458,13 +347,6 @@ def finalize_filepaths_schedulercommands(args: Any, config: Dict[str, Any], back
         if adjusted is not None:
             d[fn] = (path, adjusted)
     return d
-
-
-def scheduler_env() -> Dict[str, str]:
-    """Environment for scheduler-facing commands: C locale, so the dates and messages qtop parses are not localised."""
-    env = dict(os.environ)
-    env["LC_ALL"] = "C"
-    return env
 
 
 def auto_get_avail_batch_system(config: Dict[str, Any], backends: Mapping[str, Any]) -> str:
@@ -559,90 +441,6 @@ def execute_shell_batch_commands(
                 os.unlink(tempname)
 
 
-def get_detail_of_name(account_jobs_table: Sequence[Sequence[Any]], config: Dict[str, Any], args: Any) -> Dict[str, str]:
-    """Return each user's full name, read from getent_passwd.txt (or the file QTOPCONF_YAML names)."""
-    extract_info = config.get("extract_info", None)
-    if not extract_info:
-        return dict()
-
-    sep = ":"
-    field_idx = int(extract_info.get("field_to_use", 5))
-    regex = extract_info.get("regex", None)
-
-    command_key = "user_details_realtime" if args.GET_GECOS else "user_details_cache"
-    command = extract_info.get(command_key)
-    if not isinstance(command, str) or not command.strip():
-        logging.warning("No valid %s command in %s; skipping user details.", command_key, QTOPCONF_YAML)
-        return {}
-
-    try:
-        if args.GET_GECOS:
-            users = " ".join(shlex.quote(str(line[4])) for line in account_jobs_table if line[4] != "Totals")
-            command = command % users
-        user_details_command = shlex.split(command)
-        if not args.GET_GECOS:
-            user_details_command[-1] = os.path.expandvars(user_details_command[-1])
-        timeout = float(config.get("scheduler_command_timeout", DEFAULT_SCHEDULER_COMMAND_TIMEOUT))
-        if not isfinite(timeout) or timeout <= 0:
-            raise ValueError("scheduler_command_timeout must be positive and finite")
-        p = subprocess.Popen(
-            user_details_command,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            start_new_session=(os.name == "posix"),
-            env=scheduler_env(),
-        )
-        raw_output, raw_err = communicate_with_timeout(p, timeout)
-        output, err = (raw_output or b"").decode("utf-8", errors="replace"), raw_err.decode("utf-8", errors="replace")
-    except (OperationalError, OSError, ValueError, TypeError, IndexError, OverflowError, subprocess.TimeoutExpired) as error:
-        logging.warning("Cannot collect %s command %r: %s; skipping user details.", command_key, command, error)
-        return {}
-    if p.returncode:
-        logging.warning("%s failed (exit %s): %s; skipping user details.", command_key, p.returncode, err.strip()[:300])
-        return {}
-    if err:
-        logging.warning("%s: %s", command_key, err.strip()[:300])
-
-    detail_of_name = dict()
-    for line in output.split("\n"):
-        try:
-            user, field = line.strip().split(sep)[0 : field_idx : field_idx - 1]
-        except ValueError:
-            continue
-        else:
-            try:
-                detail = extract_regex_detail(regex, field)
-            except (AttributeError, TypeError, ValueError):
-                detail = field.strip()
-            finally:
-                detail_of_name[user] = visible_text(detail)
-    return detail_of_name
-
-
-@lru_cache(maxsize=None)
-def get_primary_group_name(user: str) -> str:
-    """Resolve and cache one primary group, including through NSS/LDAP."""
-    try:
-        import grp
-        import pwd
-    except ImportError:
-        logging.warning("Unix group information is unavailable on this platform.")
-        return ""
-
-    try:
-        return grp.getgrgid(pwd.getpwnam(user).pw_gid).gr_name
-    except (KeyError, OSError):
-        logging.warning("Could not resolve the primary Unix group for %s.", user)
-        return ""
-
-
-def get_primary_group_names(account_jobs_table: Sequence[Sequence[Any]]) -> Dict[str, str]:
-    """Resolve primary groups only for users present in the current snapshot."""
-    users = (line[4] for line in account_jobs_table if line[4] != "Totals")
-    groups = ((user, get_primary_group_name(user)) for user in users)
-    return dict((user, group) for user, group in groups if group)
-
-
 def get_input_filenames(INPUT_FNs_commands: Mapping[str, Tuple[str, str]], config: Dict[str, Any], args: Any, backend: Type[GenericBatchSystem]) -> Dict[str, str]:
     """Return the trace files by key: found in the -s directory, or collected by running the scheduler commands."""
     filenames = dict()
@@ -687,19 +485,6 @@ def check_python_version() -> None:
     """Raise OperationalError unless running on Python 3."""
     if sys.version_info[0] != 3:
         raise OperationalError("Only Python 3 is supported.")
-
-
-@contextlib.contextmanager
-def menu_terminal(old_attrs: Any, new_attrs: Any) -> Generator[None, None, None]:
-    """Show a menu with the terminal echoing input, then restore watch-mode settings; without a terminal, change nothing."""
-    if not old_attrs:
-        yield
-        return
-    _set_terminal_attrs(old_attrs)
-    try:
-        yield
-    finally:
-        _set_terminal_attrs(new_attrs)
 
 
 def choose_sort(viewport: Viewport, display_overrides: Dict[str, Any], old_attrs: Any, new_attrs: Any, colorize: Callable[..., Any] = colorize) -> None:
@@ -913,34 +698,6 @@ def init_dirs(args: Any, _savepath: str) -> Any:
     logging.debug("Working directory is now: %s" % args.workdir)
     os.chdir(args.workdir)
     return args
-
-
-class TerminalResized(Exception):
-    """SIGWINCH arrived while qtop waited for a key."""
-
-
-def _raise_resized(_signum: int, _frame: Any) -> None:
-    raise TerminalResized
-
-
-def wait_for_keypress_or_autorefresh(
-    viewport: Viewport, config: Dict[str, Any], FALLBACK_TERMSIZE: Sequence[int], KEYPRESS_TIMEOUT: float = 1, keyboard: Optional[KeyboardInput] = None
-) -> str:
-    """Return the key pressed within the refresh interval, or a newline to redraw: at its end, or at once on a resize (SIGWINCH)."""
-    previous = _signal.signal(SIGWINCH, _raise_resized) if SIGWINCH is not None else None  # only while waiting, never mid-frame
-    try:
-        reader = keyboard or KeyboardInput(sys.stdin)
-        if reader.pending or reader.stream in select.select([reader.stream], [], [], KEYPRESS_TIMEOUT)[0]:
-            read_char = reader.read()
-            logging.debug("Pressed %s", read_char)
-            return read_char
-    except TerminalResized:
-        logging.debug("Terminal resized")
-    finally:
-        if SIGWINCH is not None:
-            _signal.signal(SIGWINCH, previous)
-    viewport.set_term_size(*calculate_term_size(config, FALLBACK_TERMSIZE, viewport))  # a resize just redraws ("r" cycles core lines)
-    return "\n"
 
 
 def discover_qtop_batch_systems() -> Dict[str, Any]:

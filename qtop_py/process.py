@@ -9,7 +9,7 @@ import signal
 import subprocess
 import threading
 import time
-from typing import IO, List, Optional, Tuple, cast
+from typing import IO, Dict, List, Optional, Tuple, cast
 
 from qtop_py.errors import OperationalError
 
@@ -100,3 +100,10 @@ def _wait_for_command(command: "subprocess.Popen[bytes]", timeout: float, deadli
             command.wait(timeout=min(0.1, remaining))
         except subprocess.TimeoutExpired:
             continue
+
+
+def scheduler_env() -> Dict[str, str]:
+    """Environment for scheduler-facing commands: C locale, so the dates and messages qtop parses are not localised."""
+    env = dict(os.environ)
+    env["LC_ALL"] = "C"
+    return env

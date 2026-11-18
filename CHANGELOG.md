@@ -10,6 +10,7 @@ Notable changes by version, newest first. See the
 - CI: update Go schema dependencies and use Go 1.26 in both CI lanes
 - Docs: clarify local-user disclosure risks of the loopback web view
 - Feature: support Slurm JSON v0.0.46 with version-specific v44-46 fixtures
+- Refactor: separate terminal handling and account enrichment from qtop
 - Release: update version metadata to 0.9.20261117
 
 ## 0.9.20261116

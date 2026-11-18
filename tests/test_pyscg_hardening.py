@@ -14,6 +14,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from qtop_py import process, user_details
 from qtop_py import qtop as qtop_module
 from qtop_py.errors import OperationalError
 from qtop_py.plugins import sge
@@ -38,7 +39,7 @@ def test_unexpected_sge_xml_failures_are_reported_not_silently_exited(tmp_path, 
 
 def test_scheduler_commands_get_the_c_locale_without_touching_our_environment(monkeypatch):
     monkeypatch.setenv("LC_ALL", "de_CH.UTF-8")
-    env = qtop_module.scheduler_env()
+    env = process.scheduler_env()
     assert env["LC_ALL"] == "C" and os.environ["LC_ALL"] == "de_CH.UTF-8"
 
 
@@ -52,7 +53,7 @@ def test_user_detail_command_runs_in_the_c_locale(monkeypatch):
     monkeypatch.setattr(qtop_module.subprocess, "Popen", fake_popen)
     config = {"extract_info": {"user_details_realtime": "getent passwd %s"}, "scheduler_command_timeout": 5}
     table = [["0", 1, 0, 1, "alice", 1]]
-    assert qtop_module.get_detail_of_name(table, config, SimpleNamespace(GET_GECOS=True)) == {}
+    assert user_details.get_detail_of_name(table, config, SimpleNamespace(GET_GECOS=True)) == {}
     assert seen["env"]["LC_ALL"] == "C"
 
 

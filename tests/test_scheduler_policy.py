@@ -9,7 +9,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from qtop_py import qtop
+from qtop_py import qtop, user_details
 from qtop_py.queue_nodes import queue_node_counts
 from qtop_py.serialiser import GenericBatchSystem
 
@@ -105,7 +105,7 @@ def test_collection_uses_explicit_inputs_without_runtime_initialization(monkeypa
     assert qtop.fetch_scheduler_files(options, config, CustomBackend) == {"main_file": str(trace)}
     monkeypatch.setattr(qtop.shutil, "which", lambda command: "/bin/native")
     assert qtop.auto_get_avail_batch_system({"signature_commands": {"custom": "native"}}, {"custom": CustomBackend}) == "custom"
-    assert qtop.get_detail_of_name([], {"extract_info": None}, SimpleNamespace(GET_GECOS=False)) == {}
+    assert user_details.get_detail_of_name([], {"extract_info": None}, SimpleNamespace(GET_GECOS=False)) == {}
 
 
 def test_archive_collection_uses_explicit_backend_and_caches_selected_set(monkeypatch, tmp_path):

@@ -16,6 +16,7 @@ import pytest
 
 from qtop_py import qtop, utils
 from qtop_py.sample import SNAPSHOT_NAME
+from qtop_py.ui import terminal as terminal_io
 
 ROOT = Path(__file__).resolve().parents[1]
 MISSING = object()
@@ -148,7 +149,7 @@ def test_runtime_failures_restore_stdout_and_close_logs(runtime, tmp_path, capsy
 
 def test_watch_refreshes_after_transpose_and_quits_cleanly(runtime, scheduler_inputs, monkeypatch):
     keys = iter(("t", "q"))
-    monkeypatch.setattr(qtop, "wait_for_keypress_or_autorefresh", lambda *_args: next(keys))
+    monkeypatch.setattr(terminal_io, "wait_for_keypress_or_autorefresh", lambda *_args: next(keys))
     calls = []
     monkeypatch.setattr(qtop.subprocess, "call", lambda command, **_kwargs: calls.append(command) or 0)
     with pytest.raises(SystemExit) as stopped:
@@ -187,7 +188,7 @@ def test_watch_capture_closes_each_archive_before_key_handling(runtime, schedule
         return next(keys)
 
     monkeypatch.setattr(qtop.fileutils, "init_sample_file", capture)
-    monkeypatch.setattr(qtop, "wait_for_keypress_or_autorefresh", key)
+    monkeypatch.setattr(terminal_io, "wait_for_keypress_or_autorefresh", key)
     monkeypatch.setattr(qtop.subprocess, "call", lambda *args, **kwargs: 0)
     flags = ["-A", "-e"] if anonymous else []
     with pytest.raises(SystemExit) as stopped:
@@ -253,8 +254,8 @@ def test_export_switches_write_valid_json_and_only_notify_requested_web(tmp_path
 def test_watch_wraps_before_paging_and_reflows_after_resize(runtime, scheduler_inputs, monkeypatch):
     sizes = iter(((8, 20), (8, 40)))
     keys = iter(("", "q"))
-    monkeypatch.setattr(qtop, "calculate_term_size", lambda *_args: next(sizes))
-    monkeypatch.setattr(qtop, "wait_for_keypress_or_autorefresh", lambda *_args: next(keys))
+    monkeypatch.setattr(terminal_io, "calculate_term_size", lambda *_args: next(sizes))
+    monkeypatch.setattr(terminal_io, "wait_for_keypress_or_autorefresh", lambda *_args: next(keys))
     pages = []
 
     def show(command, **_kwargs):

@@ -9,6 +9,7 @@ import pytest
 
 from qtop_py import qtop
 from qtop_py.mvu_query import WNFilter
+from qtop_py.ui import terminal as terminal_io
 from qtop_py.ui.viewport import Viewport
 
 
@@ -103,7 +104,7 @@ def test_help_returns_to_cluster_and_quit_leaves_cleanup_to_owner(controls):
 def test_menus_use_the_models_colour_setting(monkeypatch, capsys):
     answers = iter([""])
     monkeypatch.setattr("builtins.input", lambda *_args: next(answers))
-    monkeypatch.setattr(qtop, "_set_terminal_attrs", Mock())
+    monkeypatch.setattr(terminal_io, "_set_terminal_attrs", Mock())
     press(make_controls(color="ON"), "s")
     assert "\x1b[" in capsys.readouterr().out  # -c ON: the menu numbers are coloured
 
@@ -113,7 +114,7 @@ def test_sort_menu_handles_invalid_input_and_cancel(controls, monkeypatch, answe
     answers = iter(answers)
     monkeypatch.setattr("builtins.input", lambda *_args: next(answers))
     terminal = Mock()
-    monkeypatch.setattr(qtop, "_set_terminal_attrs", terminal)
+    monkeypatch.setattr(terminal_io, "_set_terminal_attrs", terminal)
     press(controls, "s")
     assert [entry[0] for entry in overrides(controls)["user_sort"]] == expected
     assert (view(controls).v_start, view(controls).h_start) == (0, 0)
@@ -131,7 +132,7 @@ def test_filter_and_highlight_menus_preserve_selected_rules(controls, monkeypatc
     answers = iter(answers)
     monkeypatch.setattr("builtins.input", lambda *_args: next(answers))
     terminal = Mock()
-    monkeypatch.setattr(qtop, "_set_terminal_attrs", terminal)
+    monkeypatch.setattr(terminal_io, "_set_terminal_attrs", terminal)
     press(controls, key)
     assert overrides(controls)[setting] == expected
     assert isinstance(controls.cluster.wn_filter, WNFilter)
@@ -143,7 +144,7 @@ def test_filter_and_highlight_menus_preserve_selected_rules(controls, monkeypatc
 @pytest.mark.parametrize("answer", ("", "not-a-number", "99"))
 def test_filter_and_highlight_menus_cancel_invalid_commands(controls, monkeypatch, key, setting, answer):
     monkeypatch.setattr("builtins.input", lambda *_args: answer)
-    monkeypatch.setattr(qtop, "_set_terminal_attrs", Mock())
+    monkeypatch.setattr(terminal_io, "_set_terminal_attrs", Mock())
     press(controls, key)
     assert overrides(controls)[setting] == []
 
@@ -156,7 +157,7 @@ def test_menu_interruption_restores_terminal(controls, monkeypatch, key, failure
 
     monkeypatch.setattr("builtins.input", interrupt)
     terminal = Mock()
-    monkeypatch.setattr(qtop, "_set_terminal_attrs", terminal)
+    monkeypatch.setattr(terminal_io, "_set_terminal_attrs", terminal)
     with pytest.raises(failure):
         press(controls, key)
     assert terminal.call_count == 2
