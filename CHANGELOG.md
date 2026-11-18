@@ -6,6 +6,7 @@ Notable changes by version, newest first. See the
 ## 0.9.20261117
 
 - Bugfix: keep collection and extraction workspaces in configured savepath
+- CI: update Go schema dependencies and use Go 1.26 in both CI lanes
 - Release: update version metadata to 0.9.20261117
 
 ## 0.9.20261116

@@ -15,7 +15,7 @@ sudo apt-get update
 sudo apt-get install -y git make python3-venv golang-go nodejs
 ```
 
-Go must be 1.25 or newer, or have Go's automatic toolchain download enabled.
+Go must be 1.26 or newer, or have Go's automatic toolchain download enabled.
 From a Windows PowerShell checkout:
 
 ```powershell

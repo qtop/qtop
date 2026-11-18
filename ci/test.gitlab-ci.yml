@@ -59,7 +59,7 @@ almalinux-python36:
 
 
 schema-compat:
-  image: golang:1.25-bookworm
+  image: golang:1.26-bookworm
   stage: test
   variables:
     GIT_DEPTH: "0"

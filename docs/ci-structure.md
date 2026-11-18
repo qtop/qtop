@@ -174,7 +174,7 @@ environment. The GitLab scheduled report scans the canonical default branch.
 
 ## Schema compatibility gate
 
-Both providers run `make schema-ci` in a Go 1.25 Bookworm container, separately
+Both providers run `make schema-ci` in a Go 1.26 Bookworm container, separately
 from the Python gates. This runs the Go contract tests, then compares the
 working contract with the contract at the merge base of `FORTIFY_BASE_REF`
 (default `origin/develop`). Narrowing any supported schema version fails.
@@ -186,7 +186,7 @@ make schema-ci FORTIFY_BASE_REF=origin/develop
 ```
 
 `make pre-pr` remains the Python gate; schema changes additionally require
-`make schema-ci` and Go 1.25 or newer. CUE checks structural compatibility;
+`make schema-ci` and Go 1.26 or newer. CUE checks structural compatibility;
 Python tests own referential integrity and scheduler-specific constraints.
 
 

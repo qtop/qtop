@@ -267,7 +267,7 @@ The generic quantity and projection contracts remain future work.
 
 ## Developer compatibility check
 
-With Go 1.25+ installed (CUE library pinned in `tools/schema-compat/go.mod`), compare two self-contained CUE files that each define
+With Go 1.26+ installed (CUE library pinned in `tools/schema-compat/go.mod`), compare two self-contained CUE files that each define
 `#ClusterState` (override with `SCHEMA_DEFINITION` for another definition):
 
 ```console
