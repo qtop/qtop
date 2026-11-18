@@ -147,6 +147,7 @@ runtime globals, while the new query/view pipeline does not depend on them.
 | Runtime orchestration, I/O effects and compatibility adapters (deprecated, see below) | [qtop.py](../qtop_py/qtop.py) |
 | Explicit model and update messages | [mvu.py](../qtop_py/mvu.py) |
 | Snapshot queries, filtering and occupancy calculations | [mvu_query.py](../qtop_py/mvu_query.py) |
+| Watch effects, prompts and menus | [effects.py](../qtop_py/ui/effects.py) |
 | Terminal modes, signals, sizing and key waits | [terminal.py](../qtop_py/ui/terminal.py) |
 | Optional account names and groups | [user_details.py](../qtop_py/user_details.py) |
 | Terminal presentation | [mvu_view.py](../qtop_py/ui/mvu_view.py) |

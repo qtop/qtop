@@ -9,6 +9,7 @@ import pytest
 
 from qtop_py import qtop
 from qtop_py.mvu_query import WNFilter
+from qtop_py.ui import effects as ui_effects
 from qtop_py.ui import terminal as terminal_io
 from qtop_py.ui.viewport import Viewport
 
@@ -30,7 +31,7 @@ def controls():
 
 def press(controls, key):
     controls.model, effects = qtop.MVU_update(controls.model, key)
-    qtop.MVU_effects(controls.model, effects, controls.cluster, [0, 0, 0, 0], [0, 0, 0, 0])
+    ui_effects.MVU_effects(controls.model, effects, controls.cluster, [0, 0, 0, 0], [0, 0, 0, 0])
 
 
 def view(controls):
