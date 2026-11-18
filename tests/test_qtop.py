@@ -160,12 +160,15 @@ def test_raw_mode_restores_the_terminal_on_sigterm_and_reapplies_cbreak_on_sigco
 
 def test_raw_mode_degrades_when_the_terminal_refuses_new_attrs(monkeypatch):
     monkeypatch.setattr(qtop_module, "termios", FakeTermios(fail_set=True))
-    error = ValueError("in the watch loop")
-    with pytest.raises(ValueError) as raised:
+    caught = False
+    try:
         with qtop_module.raw_mode(TerminalFile(), WATCH_ARGS) as attrs:
             assert attrs == ("", "")
-            raise error
-    assert raised.value.__context__ is None  # the loop no longer runs inside the termios except block
+            raise ValueError("in the watch loop")
+    except ValueError as raised:
+        assert raised.__context__ is None  # the loop no longer runs inside the termios except block
+        caught = True
+    assert caught, "raw_mode swallowed the watch-loop error"
 
 
 def test_menus_leave_a_non_terminal_alone(monkeypatch):

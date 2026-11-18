@@ -6,6 +6,7 @@ Notable changes by version, newest first. See the
 ## 0.9.20261117
 
 - Bugfix: keep collection and extraction workspaces in configured savepath
+- CI: make raw-mode exception propagation explicit for CodeQL
 - CI: update Go schema dependencies and use Go 1.26 in both CI lanes
 - Docs: clarify local-user disclosure risks of the loopback web view
 - Feature: support Slurm JSON v0.0.46 with version-specific v44-46 fixtures
