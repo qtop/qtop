@@ -30,6 +30,9 @@ from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any, Callable, Dict, Iterator, Mapping, Optional, Set, Tuple, Type
 
 from qtop_py import __version__, configuration, fileutils, sample, utils
+from qtop_py import input_parsing as _input_parsing
+from qtop_py import process as _process
+from qtop_py import user_details as _user_details
 from qtop_py.colormap import queue_to_color as colormap_queue_to_color
 from qtop_py.configuration import CONFIG_ERRORS as CONFIG_ERRORS
 from qtop_py.constants import (
@@ -44,8 +47,6 @@ from qtop_py.errors import InvalidScheduler as InvalidScheduler
 from qtop_py.errors import NoSchedulerFound as NoSchedulerFound
 from qtop_py.errors import OperationalError
 from qtop_py.errors import SchedulerNotSpecified as SchedulerNotSpecified
-from qtop_py.input_parsing import extract_regex_detail as extract_regex_detail
-from qtop_py.input_parsing import get_date_obj_from_str as get_date_obj_from_str
 from qtop_py.mvu import (
     MVU_colorize,
     MVU_colorize_nodestate,
@@ -58,8 +59,6 @@ from qtop_py.mvu import (
 from qtop_py.mvu_query import Cluster as MVU_Cluster
 from qtop_py.mvu_query import MVU_query
 from qtop_py.mvu_query import WNOccupancy as MVU_WNOccupancy
-from qtop_py.process import execute_shell_batch_commands as execute_shell_batch_commands
-from qtop_py.process import scheduler_env as scheduler_env
 from qtop_py.runtime import MVU_export_snapshot as MVU_export_snapshot
 from qtop_py.runtime import RunPaths as RunPaths
 from qtop_py.runtime import RunResources
@@ -67,14 +66,11 @@ from qtop_py.runtime import get_output_size as get_output_size
 from qtop_py.runtime import init_dirs as init_dirs
 from qtop_py.runtime import pick_frames_to_replay as pick_frames_to_replay
 from qtop_py.safety import visible_text
+from qtop_py.schedulers import collector as _collector
+from qtop_py.schedulers import registry as _registry
 from qtop_py.schedulers.collector import MVU_collect_snapshot as MVU_collect_snapshot
 from qtop_py.schedulers.collector import _collect_frame as _collect_frame
-from qtop_py.schedulers.collector import fetch_scheduler_files as fetch_scheduler_files
-from qtop_py.schedulers.collector import finalize_filepaths_schedulercommands as finalize_filepaths_schedulercommands
-from qtop_py.schedulers.collector import get_input_filenames as get_input_filenames
 from qtop_py.schedulers.registry import PLUGIN_BATCH_SYSTEMS
-from qtop_py.schedulers.registry import auto_get_avail_batch_system as auto_get_avail_batch_system
-from qtop_py.schedulers.registry import decide_batch_system as decide_batch_system
 from qtop_py.schedulers.registry import discover_qtop_batch_systems as discover_qtop_batch_systems
 from qtop_py.serialiser import GenericBatchSystem
 from qtop_py.snapshot import Snapshot
@@ -82,26 +78,10 @@ from qtop_py.ui import effects as ui_effects
 from qtop_py.ui import terminal as terminal_io
 from qtop_py.ui.controls import KeyboardInput
 from qtop_py.ui.effects import MVU_effects as MVU_effects
-from qtop_py.ui.effects import navigate_prompt as navigate_prompt
-from qtop_py.ui.effects import write_notice as write_notice
 from qtop_py.ui.mvu_view import MVU_view
 from qtop_py.ui.mvu_view import TextDisplay as MVU_TextDisplay
-from qtop_py.ui.terminal import SIGPIPE as SIGPIPE
-from qtop_py.ui.terminal import SIGWINCH as SIGWINCH
-from qtop_py.ui.terminal import TerminalResized as TerminalResized
-from qtop_py.ui.terminal import _raise_resized as _raise_resized
-from qtop_py.ui.terminal import _set_terminal_attrs as _set_terminal_attrs
-from qtop_py.ui.terminal import calculate_term_size as calculate_term_size
-from qtop_py.ui.terminal import menu_terminal as menu_terminal
-from qtop_py.ui.terminal import raw_mode as raw_mode
-from qtop_py.ui.terminal import reset_sigpipe as reset_sigpipe
-from qtop_py.ui.terminal import termios as termios
-from qtop_py.ui.terminal import wait_for_keypress_or_autorefresh as wait_for_keypress_or_autorefresh
 from qtop_py.ui.viewport import Viewport
 from qtop_py.user_details import MVU_resolve_user_details as MVU_resolve_user_details
-from qtop_py.user_details import get_detail_of_name as get_detail_of_name
-from qtop_py.user_details import get_primary_group_name as get_primary_group_name
-from qtop_py.user_details import get_primary_group_names as get_primary_group_names
 from qtop_py.web import Web
 
 if TYPE_CHECKING:
@@ -133,6 +113,34 @@ compress_colored_line = MVU_compress_colored_line
 gauge_core_vectors = MVU_gauge_core_vectors
 
 keep_queue_initials_only_and_colorize = MVU_keep_queue_initials_only_and_colorize
+
+
+# Explicit compatibility bindings preserve old imports after implementation moves.
+extract_regex_detail = _input_parsing.extract_regex_detail
+get_date_obj_from_str = _input_parsing.get_date_obj_from_str
+execute_shell_batch_commands = _process.execute_shell_batch_commands
+scheduler_env = _process.scheduler_env
+fetch_scheduler_files = _collector.fetch_scheduler_files
+finalize_filepaths_schedulercommands = _collector.finalize_filepaths_schedulercommands
+get_input_filenames = _collector.get_input_filenames
+auto_get_avail_batch_system = _registry.auto_get_avail_batch_system
+decide_batch_system = _registry.decide_batch_system
+navigate_prompt = ui_effects.navigate_prompt
+write_notice = ui_effects.write_notice
+SIGPIPE = terminal_io.SIGPIPE
+SIGWINCH = terminal_io.SIGWINCH
+TerminalResized = terminal_io.TerminalResized
+_raise_resized = terminal_io._raise_resized
+_set_terminal_attrs = terminal_io._set_terminal_attrs
+calculate_term_size = terminal_io.calculate_term_size
+menu_terminal = terminal_io.menu_terminal
+raw_mode = terminal_io.raw_mode
+reset_sigpipe = terminal_io.reset_sigpipe
+termios = terminal_io.termios
+wait_for_keypress_or_autorefresh = terminal_io.wait_for_keypress_or_autorefresh
+get_detail_of_name = _user_details.get_detail_of_name
+get_primary_group_name = _user_details.get_primary_group_name
+get_primary_group_names = _user_details.get_primary_group_names
 
 
 LEGACY_DEPRECATION = "%s is deprecated since 0.9.20261110 and is scheduled for removal in 1.0; %s"
