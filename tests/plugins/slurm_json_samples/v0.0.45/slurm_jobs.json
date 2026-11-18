@@ -1,0 +1,14 @@
+{
+  "meta": {"plugin": {"data_parser": "data_parser/v0.0.45"}},
+  "errors": [], "warnings": [],
+  "jobs": [
+    {"job_id": 81, "user_name": "alice", "job_state": ["RUNNING"], "partition": "batch", "cpus": {"set": true, "infinite": false, "number": 6}, "nodes": "node[01-02]", "het_job_id": {"set": true, "infinite": false, "number": 80}, "het_job_offset": {"set": true, "infinite": false, "number": 1}, "gres_detail": ["gpu:a100:1(IDX:3)", "gpu:a100_1g.5gb:1(IDX:1)"], "tres_alloc_str": "cpu=6,gres/gpu=2", "array_job_id": {"set": false, "infinite": false, "number": 0}, "array_task_id": {"set": false, "infinite": false, "number": 0}, "job_resources": {"cpus": 6, "threads_per_core": {"set": true, "infinite": false, "number": 2}, "nodes": {"count": 2, "list": "node[01-02]", "allocation": [
+      {"index": 0, "name": "node01", "cpus": {"count": 2, "used": 2}, "sockets": [{"index": 0, "cores": [{"index": 0, "status": ["UNALLOCATED"]}, {"index": 1, "status": ["UNALLOCATED"]}]}, {"index": 1, "cores": [{"index": 0, "status": ["ALLOCATED", "IN_USE"]}, {"index": 1, "status": ["UNALLOCATED"]}]}], "memory": {"used": 0, "allocated": 1024}},
+      {"index": 1, "name": "node02", "cpus": {"count": 4, "used": 4}, "sockets": [{"index": 0, "cores": [{"index": 0, "status": ["ALLOCATED", "IN_USE"]}, {"index": 1, "status": ["ALLOCATED", "IN_USE"]}]}, {"index": 1, "cores": [{"index": 0, "status": ["UNALLOCATED"]}, {"index": 1, "status": ["UNALLOCATED"]}]}], "memory": {"used": 0, "allocated": 1024}}
+    ]}}},
+    {"job_id": 90, "array_job_id": {"set": true, "infinite": false, "number": 42}, "array_task_id": {"set": true, "infinite": false, "number": 7}, "user_name": "bob", "job_state": ["PENDING"], "partition": "debug,batch", "cpus": {"set": true, "infinite": false, "number": 2}, "nodes": "", "job_resources": null, "het_job_id": {"set": false, "infinite": false, "number": 0}, "het_job_offset": {"set": false, "infinite": false, "number": 0}},
+    {"job_id": 80, "het_job_id": {"set": true, "infinite": false, "number": 80}, "het_job_offset": {"set": true, "infinite": false, "number": 0}, "user_name": "alice", "job_state": ["RUNNING"], "partition": "debug", "cpus": {"set": true, "infinite": false, "number": 2}, "nodes": "node01", "array_job_id": {"set": false, "infinite": false, "number": 0}, "array_task_id": {"set": false, "infinite": false, "number": 0}, "job_resources": {"cpus": 2, "threads_per_core": {"set": true, "infinite": false, "number": 2}, "nodes": {"count": 1, "list": "node01", "allocation": [
+      {"index": 0, "name": "node01", "cpus": {"count": 2, "used": 2}, "sockets": [{"index": 0, "cores": [{"index": 0, "status": ["ALLOCATED", "IN_USE"]}, {"index": 1, "status": ["UNALLOCATED"]}]}, {"index": 1, "cores": [{"index": 0, "status": ["UNALLOCATED"]}, {"index": 1, "status": ["UNALLOCATED"]}]}], "memory": {"used": 0, "allocated": 1024}}
+    ]}}}
+  ]
+}

@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from qtop_py import configuration, qtop, utils, yaml_parser
+from qtop_py import configuration, qtop, user_details, utils, yaml_parser
 from qtop_py.mvu import MVU_Model, MVU_update
 from qtop_py.mvu_query import MVU_query
 from qtop_py.plugins.slurm import SLURM_JOB_STATES, SlurmBatchSystem
@@ -341,8 +341,8 @@ def test_search_and_line_navigation_request_input_as_effects(tmp_path, monkeypat
 def test_hidden_accounts_skip_optional_name_lookups_even_when_totals_remain(tmp_path, monkeypatch):
     model = MVU_test_model(tmp_path, monkeypatch)
     model.display_overrides["sect_3_off"] = True
-    monkeypatch.setattr(qtop, "get_detail_of_name", lambda *_args: pytest.fail("hidden account rows must not query user details"))
-    qtop.MVU_resolve_user_details(model, MVU_query(model).occupancy)
+    monkeypatch.setattr(user_details, "get_detail_of_name", lambda *_args: pytest.fail("hidden account rows must not query user details"))
+    user_details.MVU_resolve_user_details(model, MVU_query(model).occupancy)
     assert model.user_details == {}
 
 

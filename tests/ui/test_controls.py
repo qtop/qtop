@@ -8,8 +8,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from qtop_py import qtop
-from qtop_py.ui import controls
+from qtop_py.ui import controls, terminal
+from qtop_py.ui import effects as ui_effects
 from qtop_py.ui.controls import KeyboardInput
 from qtop_py.ui.viewport import Viewport
 
@@ -76,8 +76,8 @@ def test_keyboard_eof_exits_instead_of_spinning(keyboard):
 def test_pending_key_is_dispatched_even_without_descriptor_readiness(keyboard, monkeypatch):
     reader = keyboard(b"\x1bq")
     assert reader.read() == "\x1b"
-    monkeypatch.setattr(qtop.select, "select", lambda *_args: pytest.fail("pending keys must bypass select"))
-    assert qtop.wait_for_keypress_or_autorefresh(Viewport(), {}, (10, 40), 0, reader) == "q"
+    monkeypatch.setattr(terminal.select, "select", lambda *_args: pytest.fail("pending keys must bypass select"))
+    assert terminal.wait_for_keypress_or_autorefresh(Viewport(), {}, (10, 40), 0, reader) == "q"
 
 
 @pytest.mark.skipif(os.name != "posix", reason="select on terminal/pipe descriptors requires POSIX")
@@ -88,7 +88,7 @@ def test_a_burst_of_keys_is_ready_on_each_successive_watch_cycle(monkeypatch):
         with os.fdopen(read_fd, "r") as stream:
             monkeypatch.setattr(sys, "stdin", stream)
             reader = KeyboardInput(stream)
-            assert [qtop.wait_for_keypress_or_autorefresh(Viewport(), {}, (10, 40), 0, reader) for _ in range(3)] == ["F", "Q", "q"]
+            assert [terminal.wait_for_keypress_or_autorefresh(Viewport(), {}, (10, 40), 0, reader) for _ in range(3)] == ["F", "Q", "q"]
     finally:
         os.close(write_fd)
 
@@ -118,14 +118,14 @@ def test_navigation_prompts_use_displayed_rows_and_leave_invalid_input_alone(tmp
     viewport.set_term_size(5, 10)
     viewport.max_height, viewport.v_start = 100, start
     model = SimpleNamespace(viewport=viewport, display_overrides={"search_text": "needle"})
-    qtop.navigate_prompt(model, keyboard(typed.encode()), action, str(source))
+    ui_effects.navigate_prompt(model, keyboard(typed.encode()), action, str(source))
     assert viewport.v_start == expected
 
 
 def test_notice_stays_on_its_reserved_row_in_a_narrow_terminal(capsys):
     viewport = Viewport()
     viewport.set_term_size(5, 8)
-    qtop.write_notice("very long navigation notice", viewport)
+    ui_effects.write_notice("very long navigation notice", viewport)
     assert capsys.readouterr().out == "\r\x1b[2Kvery lon"
 
 

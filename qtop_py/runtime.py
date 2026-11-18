@@ -3,20 +3,29 @@
 """Own run resources independently of collection and rendering policy."""
 
 import contextlib
+import datetime
+import glob
 import logging
 import os
+import re
 import sys
+import tarfile
+import tempfile
 from collections import OrderedDict
 from types import TracebackType
-from typing import TYPE_CHECKING, Any, Callable, Dict, Generator, Iterable, List, Mapping, Optional, Type
-
-if TYPE_CHECKING:
-    import tarfile
-
-    from qtop_py.web import Web
+from typing import TYPE_CHECKING, Any, Callable, Dict, Generator, Iterable, Iterator, List, Mapping, NamedTuple, Optional, Tuple, Type
 
 from qtop_py import fileutils, sample
 from qtop_py.constants import QTOPCONF_YAML
+from qtop_py.input_parsing import get_date_obj_from_str
+from qtop_py.snapshot import Snapshot
+from qtop_py.ui.viewport import terminal_rows
+
+if TYPE_CHECKING:
+    from qtop_py.web import Web
+
+
+RunPaths = NamedTuple("RunPaths", [("initial_cwd", str), ("curpath", str), ("qtoppath", str), ("help_fp", str)])
 
 
 class RunResources(object):
@@ -157,3 +166,83 @@ class RunResources(object):
         """Print where the support and raw-trace archives were written."""
         for path, label in self.capture_paths.items():
             sys.stderr.write("%s %s\n" % (label, path))
+
+
+def get_output_size(max_line_len: int, output_fp: str, max_height: int = 0, term_columns: int = 0) -> Tuple[int, int]:
+    """Returns the char dimensions of the entirety of the qtop output file."""
+    ansi_escape = re.compile(r"\x1b[^m]*m")  # matches ANSI escape characters
+
+    if not max_height or not max_line_len:
+        with open(output_fp, "r", encoding="utf-8", errors="replace") as output_file:
+            output_lines = list(terminal_rows(output_file, term_columns))
+        if not output_lines:
+            raise ValueError("There is no output from qtop *whatsoever*. Weird.")
+
+        if not max_height:
+            max_height = len(output_lines)
+
+        if not max_line_len:
+            max_line_len = max(len(ansi_escape.sub("", line.strip())) for line in output_lines)
+
+    logging.debug("Total nr of lines: %s" % max_height)
+    logging.debug("Max line length: %s" % max_line_len)
+
+    return max_height, max_line_len
+
+
+def init_dirs(args: Any, _savepath: str) -> Any:
+    """Resolve the -s source (directory or trace archive) and the save path; return the updated options."""
+    args.SOURCEDIR = os.path.realpath(args.SOURCEDIR) if args.SOURCEDIR else None
+    if args.SOURCEDIR and os.path.isfile(args.SOURCEDIR):
+        if tarfile.is_tarfile(args.SOURCEDIR) or args.SOURCEDIR.lower().endswith((".tar", ".tar.gz", ".tgz", ".tar.bz2", ".tbz2", ".tar.xz", ".txz")):
+            args.source_archive = args.SOURCEDIR
+            args.source_workspace = tempfile.TemporaryDirectory(prefix="qtop-traces-", dir=_savepath)
+            args.SOURCEDIR = args.source_workspace.name
+        else:
+            args.SOURCEDIR = os.path.dirname(args.SOURCEDIR)
+    logging.debug("User-defined source directory: %s" % args.SOURCEDIR)
+    args.workdir = args.SOURCEDIR or _savepath
+    logging.debug("Working directory is now: %s" % args.workdir)
+    os.chdir(args.workdir)
+    return args
+
+
+def pick_frames_to_replay(_savepath: str, args: Any, config: Dict[str, Any]) -> Tuple[Iterator[str], Any]:
+    """Return the saved frames in savepath that -R asks to replay."""
+    if args.REPLAY[0] == 0:  # add default arg, if no replay start time is set in the cmdline
+        time_delta = fileutils.get_timedelta(fileutils.parse_time_input(config["replay_last"]))
+        some_time_ago = datetime.datetime.now() - time_delta
+        args.REPLAY[0] = some_time_ago.strftime("%Y%m%dT%H%M%S")
+    if len(args.REPLAY) == 1:  # add default arg, if no replay duration is set in the cmdline
+        args.REPLAY.append("2m")
+
+    time_delta = fileutils.get_timedelta(fileutils.parse_time_input(args.REPLAY[1]))
+    watch_start_datetime_obj = get_date_obj_from_str(args.REPLAY[0], datetime.datetime.now())
+    REC_FP_ALL = _savepath + "/*_partview*.out"
+    rec_files = glob.iglob(REC_FP_ALL)
+    useful_frames: List[str] = []
+
+    for rec_file in rec_files:
+        rec_file_last_modified_date = datetime.datetime.strptime(rec_file.rsplit("/", 1)[-1].split("_")[2], "%Y%m%dT%H%M%S")
+        if datetime.timedelta(seconds=0) < rec_file_last_modified_date - watch_start_datetime_obj < time_delta:
+            useful_frames.append(rec_file)
+
+    return iter(useful_frames[::-1]), args.REPLAY
+
+
+def MVU_export_snapshot(snapshot: Snapshot, args: Any, savepath: str, timestr: str, web: "Web") -> None:
+    """Write the snapshot as JSON for -E or the web view, and point the web server at it."""
+    if not (args.EXPORT or args.WEB):
+        return
+    with tempfile.NamedTemporaryFile(delete=False, prefix="qtop_json_%s_" % timestr, suffix=".json", dir=savepath) as json_file:
+        json_filename = json_file.name
+    saved = False
+    try:
+        snapshot.save(json_filename)
+        saved = True
+    finally:
+        if not saved:
+            with contextlib.suppress(OSError):
+                os.unlink(json_filename)
+    if args.WEB:
+        web.set_filename(json_filename)

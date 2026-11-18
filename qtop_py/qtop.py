@@ -16,45 +16,26 @@
 ##
 """qtop's command line, watch loop and the deprecated legacy adapters."""
 
-import contextlib
 import copy
-import datetime
-import glob
 import importlib.util
 import logging
 import os
-import re
-import select
-import shlex
-import shutil
-import signal as _signal
 import subprocess
 import sys
 import tarfile
-import tempfile
-import threading
 import time
 import traceback
 import warnings
-from collections import OrderedDict
-from functools import lru_cache
-from math import isfinite
-from signal import SIG_DFL, signal
-from types import ModuleType, SimpleNamespace
-from typing import TYPE_CHECKING, Any, Callable, Dict, Generator, Iterable, Iterator, List, Mapping, NamedTuple, Optional, Sequence, Set, Tuple, Type, Union
-from xml.etree.ElementTree import ParseError
-
-if TYPE_CHECKING:
-    from qtop_py import state_types
-
-    config: state_types.Config
-    dynamic_config: state_types.Config
+from types import SimpleNamespace
+from typing import TYPE_CHECKING, Any, Callable, Dict, Iterator, Mapping, Optional, Set, Tuple, Type
 
 from qtop_py import __version__, configuration, fileutils, sample, utils
+from qtop_py import input_parsing as _input_parsing
+from qtop_py import process as _process
+from qtop_py import user_details as _user_details
 from qtop_py.colormap import queue_to_color as colormap_queue_to_color
-from qtop_py.colormap import user_to_color_default
+from qtop_py.configuration import CONFIG_ERRORS as CONFIG_ERRORS
 from qtop_py.constants import (
-    DEFAULT_SCHEDULER_COMMAND_TIMEOUT,
     FALLBACK_TERMSIZE,
     KEYPRESS_TIMEOUT,
     QTOP_LOGFILE,
@@ -62,8 +43,10 @@ from qtop_py.constants import (
     SYSTEMCONFDIR,
     USERPATH,
 )
+from qtop_py.errors import InvalidScheduler as InvalidScheduler
+from qtop_py.errors import NoSchedulerFound as NoSchedulerFound
 from qtop_py.errors import OperationalError
-from qtop_py.input_parsing import extract_regex_detail, get_date_obj_from_str
+from qtop_py.errors import SchedulerNotSpecified as SchedulerNotSpecified
 from qtop_py.mvu import (
     MVU_colorize,
     MVU_colorize_nodestate,
@@ -76,25 +59,37 @@ from qtop_py.mvu import (
 from qtop_py.mvu_query import Cluster as MVU_Cluster
 from qtop_py.mvu_query import MVU_query
 from qtop_py.mvu_query import WNOccupancy as MVU_WNOccupancy
-from qtop_py.process import communicate_with_timeout
+from qtop_py.runtime import MVU_export_snapshot as MVU_export_snapshot
+from qtop_py.runtime import RunPaths as RunPaths
 from qtop_py.runtime import RunResources
+from qtop_py.runtime import get_output_size as get_output_size
+from qtop_py.runtime import init_dirs as init_dirs
+from qtop_py.runtime import pick_frames_to_replay as pick_frames_to_replay
 from qtop_py.safety import visible_text
+from qtop_py.schedulers import collector as _collector
+from qtop_py.schedulers import registry as _registry
+from qtop_py.schedulers.collector import MVU_collect_snapshot as MVU_collect_snapshot
+from qtop_py.schedulers.collector import _collect_frame as _collect_frame
 from qtop_py.schedulers.registry import PLUGIN_BATCH_SYSTEMS
+from qtop_py.schedulers.registry import discover_qtop_batch_systems as discover_qtop_batch_systems
 from qtop_py.serialiser import GenericBatchSystem
 from qtop_py.snapshot import Snapshot
-from qtop_py.ui.controls import KeyboardInput, read_rule_choices
+from qtop_py.ui import effects as ui_effects
+from qtop_py.ui import terminal as terminal_io
+from qtop_py.ui.controls import KeyboardInput
+from qtop_py.ui.effects import MVU_effects as MVU_effects
 from qtop_py.ui.mvu_view import MVU_view
 from qtop_py.ui.mvu_view import TextDisplay as MVU_TextDisplay
-from qtop_py.ui.viewport import Viewport, terminal_rows
+from qtop_py.ui.viewport import Viewport
+from qtop_py.user_details import MVU_resolve_user_details as MVU_resolve_user_details
 from qtop_py.web import Web
 
-SIGPIPE = getattr(_signal, "SIGPIPE", None)  # absent on Windows
-SIGWINCH = getattr(_signal, "SIGWINCH", None)
-termios: Optional[ModuleType]
-try:
-    import termios
-except ImportError:
-    termios = None
+if TYPE_CHECKING:
+    from qtop_py import state_types
+
+    config: state_types.Config
+    dynamic_config: state_types.Config
+
 
 # Optional context for the deprecated legacy adapters (MVU_legacy_model, colorize, control_qtop and the
 # Cluster/WNOccupancy/TextDisplay classes below), which read it via globals(); declared (not assigned) for
@@ -118,6 +113,32 @@ compress_colored_line = MVU_compress_colored_line
 gauge_core_vectors = MVU_gauge_core_vectors
 
 keep_queue_initials_only_and_colorize = MVU_keep_queue_initials_only_and_colorize
+
+
+# Explicit compatibility bindings preserve old imports after implementation moves.
+extract_regex_detail = _input_parsing.extract_regex_detail
+get_date_obj_from_str = _input_parsing.get_date_obj_from_str
+execute_shell_batch_commands = _process.execute_shell_batch_commands
+scheduler_env = _process.scheduler_env
+fetch_scheduler_files = _collector.fetch_scheduler_files
+finalize_filepaths_schedulercommands = _collector.finalize_filepaths_schedulercommands
+get_input_filenames = _collector.get_input_filenames
+auto_get_avail_batch_system = _registry.auto_get_avail_batch_system
+decide_batch_system = _registry.decide_batch_system
+navigate_prompt = ui_effects.navigate_prompt
+write_notice = ui_effects.write_notice
+SIGPIPE = terminal_io.SIGPIPE
+SIGWINCH = terminal_io.SIGWINCH
+TerminalResized = terminal_io.TerminalResized
+calculate_term_size = terminal_io.calculate_term_size
+menu_terminal = terminal_io.menu_terminal
+raw_mode = terminal_io.raw_mode
+reset_sigpipe = terminal_io.reset_sigpipe
+termios = terminal_io.termios
+wait_for_keypress_or_autorefresh = terminal_io.wait_for_keypress_or_autorefresh
+get_detail_of_name = _user_details.get_detail_of_name
+get_primary_group_name = _user_details.get_primary_group_name
+get_primary_group_names = _user_details.get_primary_group_names
 
 
 LEGACY_DEPRECATION = "%s is deprecated since 0.9.20261110 and is scheduled for removal in 1.0; %s"
@@ -217,102 +238,6 @@ def colorize(
     return MVU_colorize(_legacy_model(), text, color_func, pattern, mapping, bg_color, bold)
 
 
-def MVU_resolve_user_details(model: Any, occupancy: Any, force: bool = False) -> None:
-    """Load user full names into the model, only if the accounts table is shown (or force is set)."""
-    parts = model.config.get("user_display_parts", [])
-    if not force and not any(
-        part == "user_accounts_pool_mappings" and not model.display_overrides.get("sect_%s_off" % index, getattr(model.args, "sect_%s_off" % index, False))
-        for index, part in enumerate(parts, 1)
-    ):
-        model.user_details = {}
-        return
-    model.user_details = {
-        "names": get_detail_of_name(occupancy.account_jobs_table, model.config, model.args),
-        "groups": get_primary_group_names(occupancy.account_jobs_table) if getattr(model.args, "SHOW_GROUPS", False) else None,
-    }
-
-
-def MVU_effects(
-    model: Any,
-    effects: Iterable[Tuple[str, Optional[str]]],
-    cluster: Any,
-    old_attrs: Any,
-    new_attrs: Any,
-    keyboard: Optional[KeyboardInput] = None,
-    output_fp: Optional[str] = None,
-) -> None:
-    """Execute requested UI I/O outside MVU_update and the snapshot query."""
-    for action, value in effects:
-        if action == "notice":
-            write_notice("%s %s" % (model.MVU_colorize("***", "Green_L"), visible_text(value or "")), model.viewport)
-        elif action in ("search", "line"):
-            navigate_prompt(model, keyboard or KeyboardInput(sys.stdin), action, output_fp)
-        elif action == "quit":
-            print(model.MVU_colorize("\nExiting. Thank you for ..watching ;)\n", "Cyan_L"))
-            raise SystemExit(0)
-        elif action == "sort":
-            choose_sort(model.viewport, model.display_overrides, old_attrs, new_attrs, model.MVU_colorize)
-        elif action == "filter":
-            choose_filter(model.viewport, cluster, model.display_overrides, old_attrs, new_attrs, model.MVU_colorize)
-        elif action == "highlight":
-            choose_highlight(model.viewport, cluster, model.display_overrides, old_attrs, new_attrs, model.MVU_colorize)
-
-
-def write_notice(message: str, viewport: Viewport) -> None:
-    """Replace the reserved notice row without wrapping or scrolling the frame."""
-    row = next(terminal_rows([message], viewport.h_term_size)).rstrip("\n")
-    print("\r\x1b[2K" + row, end="", flush=True)
-
-
-def navigate_prompt(model: Any, keyboard: KeyboardInput, action: str, output_fp: Optional[str]) -> None:
-    """Read a literal search or one-based displayed-row address on the notice row."""
-    text = ""
-    prefix = "/" if action == "search" else ":"
-    while True:
-        shown = list(terminal_rows([prefix + visible_text(text)], model.viewport.h_term_size))[-1].rstrip("\n")
-        print("\r\x1b[2K" + shown, end="", flush=True)
-        char = keyboard.read()
-        if char in ("\r", "\n", "\x1b"):
-            break
-        if char in ("\x7f", "\b"):
-            text = text[:-1]
-        elif char == "\x15":
-            text = ""
-        elif len(text) < 256 and len(char) == 1 and char.isprintable():
-            text += char
-    print("\r\x1b[2K", end="", flush=True)
-    if char == "\x1b":
-        return
-    if action == "line":
-        if text.isdecimal() and int(text) > 0:
-            model.viewport.v_start = int(text) - 1
-        else:
-            write_notice("Enter a positive displayed line number", model.viewport)
-        return
-    text = text or model.display_overrides.get("search_text", "")
-    if not text or not output_fp:
-        return
-    model.display_overrides["search_text"] = text
-    first = None
-    with open(output_fp, encoding="utf-8") as source:
-        start = 0
-        for line in source:
-            visible = re.sub(r"\x1b(?:\[[0-9;:]*m|c)", "", line)
-            position = visible.find(text)
-            if position >= 0:
-                index = start + sum(1 for _ in terminal_rows([visible[: position + 1]], model.viewport.h_term_size)) - 1
-                if first is None:
-                    first = index
-                if index > model.viewport.v_start:
-                    model.viewport.v_start = index
-                    return
-            start += sum(1 for _ in terminal_rows([line], model.viewport.h_term_size))
-    if first is not None:
-        model.viewport.v_start = first
-    else:
-        write_notice("Pattern not found", model.viewport)
-
-
 def control_qtop(viewport: Viewport, read_char: str, cluster: Any, old_attrs: Any, new_attrs: Any) -> None:
     """Deprecated key handler on module globals; main() uses MVU_update and MVU_effects on its own model."""
     global dynamic_config
@@ -324,18 +249,6 @@ def control_qtop(viewport: Viewport, read_char: str, cluster: Any, old_attrs: An
     next_model.viewport = viewport
     dynamic_config = next_model.display_overrides
     MVU_effects(next_model, effects, cluster, old_attrs, new_attrs)
-
-
-def reset_sigpipe() -> None:
-    """Restore the default SIGPIPE action, so piping into head exits quietly."""
-    if SIGPIPE is not None:
-        signal(SIGPIPE, SIG_DFL)
-
-
-def _set_terminal_attrs(attrs: Any) -> None:
-    """Apply terminal attributes when the platform exposes a real stdin TTY."""
-    if termios is not None and sys.__stdin__ is not None:
-        termios.tcsetattr(sys.__stdin__.fileno(), termios.TCSADRAIN, attrs)
 
 
 def scheduler_backend(name: Optional[str]) -> Type[GenericBatchSystem]:
@@ -357,604 +270,16 @@ def queue_is_blocked(state: object, scheduler_name: Optional[str] = None) -> boo
     return scheduler_backend(scheduler_name).queue_is_blocked(state)
 
 
-@contextlib.contextmanager
-def raw_mode(file: Any, args: Any) -> Generator[Tuple[Any, Any], None, None]:
-    """Put a watch-mode terminal in cbreak mode (no echo or line buffering; Ctrl-C still works); yield (old, new) attrs.
-
-    Without a terminal, or outside watch mode, nothing changes and the attrs are empty, so keys need Enter.
-    Unread keys are dropped on exit, rather than spilling into the shell. SIGTERM and SIGHUP (kill, a closed
-    ssh session) exit through the restore too, and SIGCONT (fg after Ctrl-Z) re-applies cbreak mode.
-    """
-    old_attrs: Any = ""
-    new_attrs: Any = ""
-    if args.WATCH and not args.ONLYSAVETOFILE and termios is not None:
-        try:
-            old_attrs = termios.tcgetattr(file.fileno())
-            new_attrs = old_attrs[:]
-            new_attrs[3] &= ~(termios.ECHO | termios.ICANON)
-            termios.tcsetattr(file.fileno(), termios.TCSADRAIN, new_attrs)
-        except (AttributeError, OSError, termios.error):
-            old_attrs = new_attrs = ""  # not a terminal: nothing to restore
-    if not old_attrs or termios is None:
-        yield "", ""
-        return
-    tty = termios
-
-    def leave(signum: int, _frame: Any) -> None:
-        raise SystemExit(128 + signum)
-
-    def resume(_signum: int, _frame: Any) -> None:
-        tty.tcsetattr(file.fileno(), tty.TCSADRAIN, new_attrs)
-
-    handlers = [(sig, _signal.signal(sig, handler)) for sig, handler in ((_signal.SIGTERM, leave), (_signal.SIGHUP, leave), (_signal.SIGCONT, resume))]
-    try:
-        yield old_attrs, new_attrs
-    finally:
-        for sig, previous in handlers:
-            _signal.signal(sig, previous)
-        termios.tcsetattr(file.fileno(), termios.TCSAFLUSH, old_attrs)
-
-
-def calculate_term_size(config: Dict[str, Any], FALLBACK_TERM_SIZE: Sequence[int], viewport: Viewport) -> Tuple[int, int]:
-    """Gets the dimensions of the terminal window where qtop will be displayed.
-
-    ``viewport`` is passed explicitly so this helper does not depend on global
-    state. If ``stty`` is absent, cannot be started, or returns unusable output,
-    the viewport size is used before the configured fallback.
-    """
-    fallback_term_size = config.get("term_size", FALLBACK_TERM_SIZE)
-    try:
-        height, columns = [int(value) for value in fallback_term_size]
-        if height <= 0 or columns <= 0:
-            raise ValueError("dimensions must be positive")
-    except (TypeError, ValueError) as error:
-        raise OperationalError("Invalid configuration: term_size must contain two positive integers.") from error
-
-    stty = shutil.which("stty")
-    stty_error: Union[bytes, OSError] = b"stty not found"
-    tty_size = b""
-    if stty:
-        try:
-            command = subprocess.Popen([stty, "size"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            tty_size, stty_error = command.communicate()
-        except OSError as exc:
-            stty_error = exc
-
-    if not stty_error:
-        try:
-            term_height, term_columns = [int(x) for x in tty_size.strip().split()]
-            if term_height <= 0 or term_columns <= 0:
-                raise ValueError("terminal dimensions must be positive")
-        except (TypeError, ValueError):
-            logging.debug("Ignoring unusable terminal dimensions reported by stty: %r", tty_size)
-        else:
-            logging.debug('terminal size v, h from "stty size": %s, %s' % (term_height, term_columns))
-            return term_height, term_columns
-
-    logging.warning("Failed to autodetect terminal size. (Running in an IDE? in a pipe?) Falling back via %s / viewport." % QTOPCONF_YAML)
-    try:
-        term_height, term_columns = [int(x) for x in viewport.get_term_size()]
-        if term_height <= 0 or term_columns <= 0:
-            raise ValueError("terminal dimensions must be positive")
-    except (AttributeError, KeyError, OSError, TypeError, ValueError):
-        term_height, term_columns = [int(x) for x in fallback_term_size]
-        logging.debug("(hardcoded) fallback terminal size v, h: %s, %s" % (term_height, term_columns))
-    else:
-        logging.debug("viewport-provided terminal size v, h: %s, %s" % (term_height, term_columns))
-
-    return term_height, term_columns
-
-
-def finalize_filepaths_schedulercommands(args: Any, config: Dict[str, Any], backend: Type[GenericBatchSystem]) -> Dict[str, Tuple[str, str]]:
-    """Return {input_key: (path, command)}, with PID suffixes for live collection."""
-    d = dict()
-    fn_append = "_" + str(os.getpid()) if not args.SOURCEDIR else ""
-    for fn, path_command in config["schedulers"][backend.get_mnemonic()].items():
-        path, command = path_command.strip().split(", ", 1)
-        path = path % {"savepath": args.workdir, "pid": fn_append}
-        # Format codes stay copyable; accept legacy escaped percent signs.
-        command = command.replace("%%", "%").replace("%(savepath)s", args.workdir)
-        adjusted = backend.collection_command(fn, command, args)
-        if adjusted is not None:
-            d[fn] = (path, adjusted)
-    return d
-
-
-def scheduler_env() -> Dict[str, str]:
-    """Environment for scheduler-facing commands: C locale, so the dates and messages qtop parses are not localised."""
-    env = dict(os.environ)
-    env["LC_ALL"] = "C"
-    return env
-
-
-def auto_get_avail_batch_system(config: Dict[str, Any], backends: Mapping[str, Any]) -> str:
-    """Return the first scheduler whose commands exist on this system, for scheduler auto."""
-    signature_commands: Dict[str, str] = config["signature_commands"]
-    prioritized_commands = sorted(signature_commands.items(), key=lambda item: backends.get(item[0], GenericBatchSystem).detection_priority)
-    for system, batch_command in prioritized_commands:
-        if system not in backends or backends[system].is_simulated or not shutil.which(batch_command):
-            continue
-        logging.debug("Auto-detected scheduler: %s", system)
-        return system
-
-    raise SchedulerNotSpecified
-
-
-def execute_shell_batch_commands(
-    batch_system_commands: Mapping[str, str],
-    filenames: Dict[str, str],
-    _file: str,
-    _savepath: str,
-    timeout: float = DEFAULT_SCHEDULER_COMMAND_TIMEOUT,
-    cancel: Optional[threading.Event] = None,
-    cwd: Optional[str] = None,
-    input_options: Any = None,
-) -> str:
-    """Run the scheduler commands from QTOPCONF_YAML, saving each output atomically to its trace file."""
-    _batch_system_command = batch_system_commands[_file].strip()
-    destination = os.path.abspath(filenames[_file])
-    save_directory = os.path.realpath(_savepath)
-    try:
-        contained = os.path.commonpath((save_directory, os.path.realpath(os.path.dirname(destination)))) == save_directory
-    except ValueError:
-        contained = False
-    if not contained:
-        raise OperationalError("Scheduler trace output must stay inside savepath")
-    tempname = None
-    try:
-        if not _batch_system_command:
-            raise OperationalError("Empty scheduler command for %s; check %s." % (_file, QTOPCONF_YAML))
-        try:
-            timeout = float(timeout)
-            if not isfinite(timeout) or timeout <= 0:
-                raise ValueError("nonpositive or nonfinite timeout")
-        except (TypeError, ValueError, OverflowError) as error:
-            raise OperationalError("scheduler_command_timeout must be a positive finite number of seconds") from error
-        with tempfile.NamedTemporaryFile("wb", dir=_savepath, delete=False) as fin:
-            logging.debug("\tFile state before subprocess call: %(fin)s" % {"fin": fin})
-            logging.debug("\tWaiting on subprocess.call...")
-
-            # splitting the command passed in so only the first item in a command
-            # from the yaml file is executed with the rest of the line treated as
-            # arguments, this enables shell=False, and keeps us from having
-            # injected commands
-            tempname = fin.name
-            try:
-                command_args = shlex.split(_batch_system_command)
-                logging.debug(
-                    "Trace collection command: (cd %s && %s > %s)",
-                    shlex.quote(os.getcwd()),
-                    " ".join(shlex.quote(arg) for arg in command_args),
-                    shlex.quote(os.path.abspath(filenames[_file])),
-                )
-                command = subprocess.Popen(
-                    command_args,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    start_new_session=(os.name == "posix"),
-                    env=scheduler_env(),
-                    cwd=cwd,
-                )
-            except OSError as error:
-                raise OperationalError("Cannot execute scheduler command %r: %s. Check PATH or load the scheduler module." % (_batch_system_command, error.strerror)) from error
-            except ValueError as error:
-                raise OperationalError("Invalid scheduler command %r: %s. Check command quoting in %s." % (_batch_system_command, error, QTOPCONF_YAML)) from error
-            with fileutils.input_source(input_options, destination):
-                try:
-                    stderr_data = communicate_with_timeout(command, timeout, stdout=fin, **({"cancel": cancel} if cancel is not None else {}))[1]
-                except subprocess.TimeoutExpired as failure:
-                    raise OperationalError("Scheduler command %r timed out after %g seconds" % (_batch_system_command, timeout)) from failure
-            if stderr_data:
-                logging.warning("A message from your shell: %s", stderr_data.decode("utf-8", errors="replace").strip())
-            if command.returncode:
-                detail = " ".join(stderr_data.decode("utf-8", errors="replace").splitlines())[:300] or "no diagnostic output"
-                raise OperationalError("Scheduler command %r failed (exit %s): %s" % (_batch_system_command, command.returncode, detail))
-            logging.debug("File state after subprocess call: %(fin)s" % {"fin": fin})
-        os.rename(tempname, filenames[_file])
-
-        return filenames[_file]
-    finally:
-        if tempname is not None:
-            with contextlib.suppress(OSError):
-                os.unlink(tempname)
-
-
-def get_detail_of_name(account_jobs_table: Sequence[Sequence[Any]], config: Dict[str, Any], args: Any) -> Dict[str, str]:
-    """Return each user's full name, read from getent_passwd.txt (or the file QTOPCONF_YAML names)."""
-    extract_info = config.get("extract_info", None)
-    if not extract_info:
-        return dict()
-
-    sep = ":"
-    field_idx = int(extract_info.get("field_to_use", 5))
-    regex = extract_info.get("regex", None)
-
-    command_key = "user_details_realtime" if args.GET_GECOS else "user_details_cache"
-    command = extract_info.get(command_key)
-    if not isinstance(command, str) or not command.strip():
-        logging.warning("No valid %s command in %s; skipping user details.", command_key, QTOPCONF_YAML)
-        return {}
-
-    try:
-        if args.GET_GECOS:
-            users = " ".join(shlex.quote(str(line[4])) for line in account_jobs_table if line[4] != "Totals")
-            command = command % users
-        user_details_command = shlex.split(command)
-        if not args.GET_GECOS:
-            user_details_command[-1] = os.path.expandvars(user_details_command[-1])
-        timeout = float(config.get("scheduler_command_timeout", DEFAULT_SCHEDULER_COMMAND_TIMEOUT))
-        if not isfinite(timeout) or timeout <= 0:
-            raise ValueError("scheduler_command_timeout must be positive and finite")
-        p = subprocess.Popen(
-            user_details_command,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            start_new_session=(os.name == "posix"),
-            env=scheduler_env(),
-        )
-        raw_output, raw_err = communicate_with_timeout(p, timeout)
-        output, err = (raw_output or b"").decode("utf-8", errors="replace"), raw_err.decode("utf-8", errors="replace")
-    except (OperationalError, OSError, ValueError, TypeError, IndexError, OverflowError, subprocess.TimeoutExpired) as error:
-        logging.warning("Cannot collect %s command %r: %s; skipping user details.", command_key, command, error)
-        return {}
-    if p.returncode:
-        logging.warning("%s failed (exit %s): %s; skipping user details.", command_key, p.returncode, err.strip()[:300])
-        return {}
-    if err:
-        logging.warning("%s: %s", command_key, err.strip()[:300])
-
-    detail_of_name = dict()
-    for line in output.split("\n"):
-        try:
-            user, field = line.strip().split(sep)[0 : field_idx : field_idx - 1]
-        except ValueError:
-            continue
-        else:
-            try:
-                detail = extract_regex_detail(regex, field)
-            except (AttributeError, TypeError, ValueError):
-                detail = field.strip()
-            finally:
-                detail_of_name[user] = visible_text(detail)
-    return detail_of_name
-
-
-@lru_cache(maxsize=None)
-def get_primary_group_name(user: str) -> str:
-    """Resolve and cache one primary group, including through NSS/LDAP."""
-    try:
-        import grp
-        import pwd
-    except ImportError:
-        logging.warning("Unix group information is unavailable on this platform.")
-        return ""
-
-    try:
-        return grp.getgrgid(pwd.getpwnam(user).pw_gid).gr_name
-    except (KeyError, OSError):
-        logging.warning("Could not resolve the primary Unix group for %s.", user)
-        return ""
-
-
-def get_primary_group_names(account_jobs_table: Sequence[Sequence[Any]]) -> Dict[str, str]:
-    """Resolve primary groups only for users present in the current snapshot."""
-    users = (line[4] for line in account_jobs_table if line[4] != "Totals")
-    groups = ((user, get_primary_group_name(user)) for user in users)
-    return dict((user, group) for user, group in groups if group)
-
-
-def get_input_filenames(INPUT_FNs_commands: Mapping[str, Tuple[str, str]], config: Dict[str, Any], args: Any, backend: Type[GenericBatchSystem]) -> Dict[str, str]:
-    """Return the trace files by key: found in the -s directory, or collected by running the scheduler commands."""
-    filenames = dict()
-    batch_system_commands = dict()
-    for _file in INPUT_FNs_commands:
-        filenames[_file], batch_system_commands[_file] = INPUT_FNs_commands[_file]
-
-        if not args.SOURCEDIR:
-            SETTINGS = configuration.collection_settings(config)
-            _savepath = os.path.realpath(os.path.expandvars(SETTINGS.SAVEPATH))
-            try:
-                filenames[_file] = execute_shell_batch_commands(
-                    batch_system_commands,
-                    filenames,
-                    _file,
-                    _savepath,
-                    timeout=SETTINGS.TIMEOUT,
-                    **({"input_options": args} if getattr(args, "_input_progress", None) is not None else {}),
-                    **getattr(args, "_collection_controls", {}),
-                )
-            except OperationalError as error:
-                if _file not in backend.optional_trace_keys:
-                    raise
-                logging.warning("%s %s", error, backend.optional_trace_warning)
-                filenames.pop(_file)
-                continue
-
-        if _file in backend.optional_trace_keys and not os.path.isfile(filenames[_file]):
-            filenames.pop(_file)
-            continue
-        if not os.path.isfile(filenames[_file]):
-            raise OperationalError("Scheduler input file %s was not found. Check -s/--SetSourceDir and the selected scheduler." % filenames[_file])
-    if args.SOURCEDIR:
-        for key, alias in backend.optional_trace_aliases.items():
-            detail_path = os.path.join(args.SOURCEDIR, alias)
-            if key not in filenames and os.path.isfile(detail_path):
-                filenames[key] = detail_path
-    return filenames
-
-
 def check_python_version() -> None:
     """Raise OperationalError unless running on Python 3."""
     if sys.version_info[0] != 3:
         raise OperationalError("Only Python 3 is supported.")
 
 
-@contextlib.contextmanager
-def menu_terminal(old_attrs: Any, new_attrs: Any) -> Generator[None, None, None]:
-    """Show a menu with the terminal echoing input, then restore watch-mode settings; without a terminal, change nothing."""
-    if not old_attrs:
-        yield
-        return
-    _set_terminal_attrs(old_attrs)
-    try:
-        yield
-    finally:
-        _set_terminal_attrs(new_attrs)
-
-
-def choose_sort(viewport: Viewport, display_overrides: Dict[str, Any], old_attrs: Any, new_attrs: Any, colorize: Callable[..., Any] = colorize) -> None:
-    """Ask for a worker-node sort order and store it in the display overrides."""
-    sort_map: Dict[str, Any] = OrderedDict()
-
-    sort_map["0"] = ("sort reset", [])
-    sort_map["1"] = ("sort by nodename-notnum", [])
-    sort_map["2"] = ("sort by nodename-notnum length", [])
-    sort_map["3"] = ("sort by all numbers", [])
-    sort_map["4"] = ("sort by first letter", [])
-    sort_map["5"] = ("sort by node state", [])
-    sort_map["6"] = ("sort by nr of cores", [])
-    sort_map["7"] = ("sort by core occupancy", [])
-
-    print(
-        "Type in sort order. This can be a single number or a sequence of numbers,\n"
-        "e.g. to sort first by first word, then by all numbers then by first name length, type 132, then <enter>."
-    )
-
-    for nr, sort_method in sort_map.items():
-        print("(%s): %s" % (colorize(nr, color_func="Red_L"), sort_method[0]))
-
-    with menu_terminal(old_attrs, new_attrs):
-        display_overrides["user_sort"] = []
-        while True:
-            sort_choice = input(
-                "\nChoose sorting order, or Enter to exit:-> ",
-            )
-            if not sort_choice:
-                break
-
-            sort_order = list(sort_choice)
-            if not set(sort_order).issubset(sort_map):
-                continue
-
-            sort_args = [sort_map[i] for i in sort_order]
-            display_overrides["user_sort"] = sort_args
-            break
-    viewport.reset_display()
-
-
-def choose_filter(viewport: Viewport, cluster: Any, display_overrides: Dict[str, Any], old_attrs: Any, new_attrs: Any, colorize: Callable[..., Any] = colorize) -> None:
-    """Ask for worker-node filters and store them in the display overrides."""
-    cluster.wn_filter = cluster.WNFilter(cluster.worker_nodes)
-    filter_map = {
-        1: "exclude_node_states",
-        2: "exclude_numbers",
-        3: "exclude_name_patterns",
-        4: "or_include_node_states",
-        5: "or_include_numbers",
-        6: "or_include_name_patterns",
-        7: "include_node_states",
-        8: "include_numbers",
-        9: "include_name_patterns",
-        10: "include_queues",
-    }
-    print(
-        "Filter out nodes by:\n%(one)s state %(two)s number"
-        " %(three)s name substring or RegEx pattern"
-        % {
-            "one": colorize("(1)", color_func="Red_L"),
-            "two": colorize("(2)", color_func="Red_L"),
-            "three": colorize("(3)", color_func="Red_L"),
-        }
-    )
-    print(
-        "Filter in nodes by:\n(any) %(four)s state %(five)s number %(six)s name substring or RegEx pattern\n"
-        "(all) %(seven)s state %(eight)s number %(nine)s name substring or RegEx pattern %(ten)s queue"
-        % {
-            "four": colorize("(4)", color_func="Red_L"),
-            "five": colorize("(5)", color_func="Red_L"),
-            "six": colorize("(6)", color_func="Red_L"),
-            "seven": colorize("(7)", color_func="Red_L"),
-            "eight": colorize("(8)", color_func="Red_L"),
-            "nine": colorize("(9)", color_func="Red_L"),
-            "ten": colorize("(10)", color_func="Red_L"),
-        }
-    )
-    with menu_terminal(old_attrs, new_attrs):
-        display_overrides["filtering"] = []
-        read_rule_choices("Filter", filter_map, display_overrides["filtering"])
-    viewport.reset_display()
-
-
-def choose_highlight(viewport: Viewport, cluster: Any, display_overrides: Dict[str, Any], old_attrs: Any, new_attrs: Any, colorize: Callable[..., Any] = colorize) -> None:
-    """Ask for users or queues to highlight and store them in the display overrides."""
-    cluster.wn_filter = cluster.WNFilter(cluster.worker_nodes)
-    filter_map = {
-        1: "or_include_user_id",
-        2: "or_include_user_pat",
-        3: "or_include_queue",
-        4: "include_user_id",
-        5: "include_user_pat",
-        6: "include_queue",
-    }
-    print(
-        "Highlight cores by:\n"
-        "(any) %(one)s userID %(two)s user name (regex) %(three)s queue\n"
-        "(all) %(four)s userID %(five)s user name (regex) %(six)s queue"
-        % {
-            "one": colorize("(1)", color_func="Red_L"),
-            "two": colorize("(2)", color_func="Red_L"),
-            "three": colorize("(3)", color_func="Red_L"),
-            "four": colorize("(4)", color_func="Red_L"),
-            "five": colorize("(5)", color_func="Red_L"),
-            "six": colorize("(6)", color_func="Red_L"),
-        }
-    )
-    with menu_terminal(old_attrs, new_attrs):
-        display_overrides["highlight"] = []
-        read_rule_choices("Highlight", filter_map, display_overrides["highlight"])
-    viewport.reset_display()
-
-
-def fetch_scheduler_files(args: Any, config: Dict[str, Any], backend: Type[GenericBatchSystem]) -> Dict[str, str]:
-    """Return the scheduler trace files, collected live or read from -s; raise OperationalError on bad commands."""
-    scheduler_name = backend.get_mnemonic()
-    try:
-        INPUT_FNs_commands = finalize_filepaths_schedulercommands(args, config, backend)
-    except (ValueError, TypeError, KeyError, AttributeError) as error:
-        raise OperationalError("Invalid scheduler command configuration for %s in %s: %s" % (scheduler_name, QTOPCONF_YAML, error)) from error
-    if getattr(args, "source_archive", None):
-        from qtop_py.trace_archive import load_trace_archive
-
-        try:
-            if not hasattr(args, "archive_trace_paths"):
-                args.archive_trace_paths = load_trace_archive(args.source_archive, args.workdir, config["schedulers"][scheduler_name], backend.optional_trace_keys)
-            paths: Dict[str, str] = args.archive_trace_paths.copy()
-            return paths
-        except (OSError, tarfile.TarError, ValueError) as error:
-            raise OperationalError("Cannot read scheduler trace archive %s: %s" % (args.source_archive, error)) from error
-    return get_input_filenames(INPUT_FNs_commands, config, args, backend)
-
-
-def decide_batch_system(
-    cmdline_switch: Optional[str],
-    env_var: Optional[str],
-    config_file_batch_option: str,
-    schedulers: Mapping[str, Any],
-    available_batch_systems: Mapping[str, Any],
-    config: Dict[str, Any],
-) -> str:
-    """Return the scheduler from -b, QTOP_SCHEDULER or QTOPCONF_YAML, in that order.
-
-    With auto, guess it from the scheduler commands available on this system.
-    """
-    avail_systems = list(available_batch_systems.keys()) + ["auto"]
-    if cmdline_switch and cmdline_switch.lower() not in avail_systems:
-        logging.critical("Selected scheduler system not supported. Available choices are %s." % ", ".join(avail_systems))
-        logging.critical("For help, try ./qtop.py --help")
-        logging.critical("Log file created in %s" % os.path.expandvars(QTOP_LOGFILE))
-        raise InvalidScheduler
-    for scheduler in (cmdline_switch, env_var, config_file_batch_option):
-        if scheduler is None:
-            continue
-        scheduler = scheduler.lower()
-
-        if scheduler == "auto":
-            scheduler = auto_get_avail_batch_system(config, available_batch_systems)
-            logging.debug("Selected scheduler is %s" % scheduler)
-            return scheduler
-        if scheduler in schedulers:
-            logging.info("User-selected scheduler: %s" % scheduler)
-            return scheduler
-        if scheduler and scheduler not in schedulers:  # a scheduler that does not exist is inputted
-            raise NoSchedulerFound
-    raise NoSchedulerFound
-
-
-def get_output_size(max_line_len: int, output_fp: str, max_height: int = 0, term_columns: int = 0) -> Tuple[int, int]:
-    """Returns the char dimensions of the entirety of the qtop output file."""
-    ansi_escape = re.compile(r"\x1b[^m]*m")  # matches ANSI escape characters
-
-    if not max_height or not max_line_len:
-        with open(output_fp, "r", encoding="utf-8", errors="replace") as output_file:
-            output_lines = list(terminal_rows(output_file, term_columns))
-        if not output_lines:
-            raise ValueError("There is no output from qtop *whatsoever*. Weird.")
-
-        if not max_height:
-            max_height = len(output_lines)
-
-        if not max_line_len:
-            max_line_len = max(len(ansi_escape.sub("", line.strip())) for line in output_lines)
-
-    logging.debug("Total nr of lines: %s" % max_height)
-    logging.debug("Max line length: %s" % max_line_len)
-
-    return max_height, max_line_len
-
-
 def attempt_faster_xml_parsing(config: Dict[str, Any]) -> None:
     """Only warn: the parsers use xml.etree either way (see faster_xml_parsing in docs/documentation.md)."""
     if config["faster_xml_parsing"] and importlib.util.find_spec("lxml") is None:
         logging.warning('Module lxml is missing. Try issuing "pip install lxml". Reverting to xml module.')
-
-
-def init_dirs(args: Any, _savepath: str) -> Any:
-    """Resolve the -s source (directory or trace archive) and the save path; return the updated options."""
-    args.SOURCEDIR = os.path.realpath(args.SOURCEDIR) if args.SOURCEDIR else None
-    if args.SOURCEDIR and os.path.isfile(args.SOURCEDIR):
-        if tarfile.is_tarfile(args.SOURCEDIR) or args.SOURCEDIR.lower().endswith((".tar", ".tar.gz", ".tgz", ".tar.bz2", ".tbz2", ".tar.xz", ".txz")):
-            args.source_archive = args.SOURCEDIR
-            args.source_workspace = tempfile.TemporaryDirectory(prefix="qtop-traces-")
-            args.SOURCEDIR = args.source_workspace.name
-        else:
-            args.SOURCEDIR = os.path.dirname(args.SOURCEDIR)
-    logging.debug("User-defined source directory: %s" % args.SOURCEDIR)
-    args.workdir = args.SOURCEDIR or _savepath
-    logging.debug("Working directory is now: %s" % args.workdir)
-    os.chdir(args.workdir)
-    return args
-
-
-class TerminalResized(Exception):
-    """SIGWINCH arrived while qtop waited for a key."""
-
-
-def _raise_resized(_signum: int, _frame: Any) -> None:
-    raise TerminalResized
-
-
-def wait_for_keypress_or_autorefresh(
-    viewport: Viewport, config: Dict[str, Any], FALLBACK_TERMSIZE: Sequence[int], KEYPRESS_TIMEOUT: float = 1, keyboard: Optional[KeyboardInput] = None
-) -> str:
-    """Return the key pressed within the refresh interval, or a newline to redraw: at its end, or at once on a resize (SIGWINCH)."""
-    previous = _signal.signal(SIGWINCH, _raise_resized) if SIGWINCH is not None else None  # only while waiting, never mid-frame
-    try:
-        reader = keyboard or KeyboardInput(sys.stdin)
-        if reader.pending or reader.stream in select.select([reader.stream], [], [], KEYPRESS_TIMEOUT)[0]:
-            read_char = reader.read()
-            logging.debug("Pressed %s", read_char)
-            return read_char
-    except TerminalResized:
-        logging.debug("Terminal resized")
-    finally:
-        if SIGWINCH is not None:
-            _signal.signal(SIGWINCH, previous)
-    viewport.set_term_size(*calculate_term_size(config, FALLBACK_TERMSIZE, viewport))  # a resize just redraws ("r" cycles core lines)
-    return "\n"
-
-
-def discover_qtop_batch_systems() -> Dict[str, Any]:
-    """Return the scheduler backends by name; raise OperationalError on an empty or duplicate name."""
-    available_batch_systems = {}
-    for batch_system in PLUGIN_BATCH_SYSTEMS:
-        mnemonic = batch_system.get_mnemonic()
-        if not mnemonic:
-            raise OperationalError("Scheduler plugin has an empty mnemonic.")
-        if mnemonic in available_batch_systems:
-            raise OperationalError("Duplicate scheduler mnemonic: %s" % mnemonic)
-        available_batch_systems[mnemonic] = batch_system
-
-    return available_batch_systems
 
 
 def process_args(args: Any) -> Tuple[Any, int]:
@@ -972,49 +297,6 @@ def require_experimental_opt_in(args: Any) -> None:
     if args.WEB and not args.EXPERIMENTAL:  # anonymization (-A) graduated in 0.9.20261111 (#548)
         print("The web interface requires --experimental (-e). Exiting...")
         raise SystemExit(1)
-
-
-def pick_frames_to_replay(_savepath: str, args: Any, config: Dict[str, Any]) -> Tuple[Iterator[str], Any]:
-    """Return the saved frames in savepath that -R asks to replay."""
-    if args.REPLAY[0] == 0:  # add default arg, if no replay start time is set in the cmdline
-        time_delta = fileutils.get_timedelta(fileutils.parse_time_input(config["replay_last"]))
-        some_time_ago = datetime.datetime.now() - time_delta
-        args.REPLAY[0] = some_time_ago.strftime("%Y%m%dT%H%M%S")
-    if len(args.REPLAY) == 1:  # add default arg, if no replay duration is set in the cmdline
-        args.REPLAY.append("2m")
-
-    time_delta = fileutils.get_timedelta(fileutils.parse_time_input(args.REPLAY[1]))
-    watch_start_datetime_obj = get_date_obj_from_str(args.REPLAY[0], datetime.datetime.now())
-    REC_FP_ALL = _savepath + "/*_partview*.out"
-    rec_files = glob.iglob(REC_FP_ALL)
-    useful_frames: List[str] = []
-
-    for rec_file in rec_files:
-        rec_file_last_modified_date = datetime.datetime.strptime(rec_file.rsplit("/", 1)[-1].split("_")[2], "%Y%m%dT%H%M%S")
-        if datetime.timedelta(seconds=0) < rec_file_last_modified_date - watch_start_datetime_obj < time_delta:
-            useful_frames.append(rec_file)
-
-    return iter(useful_frames[::-1]), args.REPLAY
-
-
-class NoSchedulerFound(Exception):
-    """No scheduler was given and none could be detected."""
-
-    def __init__(self) -> None:
-        msg = "No suitable scheduler was found. Please define one in a switch or env variable or in %s.\nFor more help, try ./qtop.py --help\nLog file created in %s" % (
-            QTOPCONF_YAML,
-            os.path.expandvars(QTOP_LOGFILE),
-        )
-        Exception.__init__(self, msg)
-        logging.critical(msg)
-
-
-class SchedulerNotSpecified(Exception):
-    """Auto-detection found no scheduler."""
-
-
-class InvalidScheduler(Exception):
-    """The requested scheduler is not one qtop supports."""
 
 
 def cli_error_message(error: BaseException) -> str:
@@ -1046,66 +328,6 @@ def report_operational_error(error: BaseException, debug: bool = False) -> None:
         traceback.print_exc(file=sys.stderr)
 
 
-def MVU_collect_snapshot(args: Any, config: Dict[str, Any], backend: Any, trace_paths: Dict[str, str], archive: Any, collected: Any = None) -> Tuple[Snapshot, Dict[str, Any]]:
-    """Collect one normalized snapshot, including replay and masking."""
-    scheduler = backend.get_mnemonic()
-    savepath = config["savepath"]
-    scheduling_system: "state_types.Scheduler"
-    try:
-        if args.load_sample:
-            cluster_state = args.sample_snapshot["state"]
-        elif args.SAMPLE and args.ANONYMIZE:
-            # Collect originals only in memory so all backends share one mapping.
-            capture_args = copy.copy(args)
-            capture_args.ANONYMIZE = False
-            scheduling_system = collected.system if collected is not None else backend(trace_paths, config, capture_args)
-            cluster_state = collected.state if collected is not None else scheduling_system.get_cluster_state(capture_args)
-            cluster_state, mappings = sample.anonymize_state(cluster_state)
-            config, omitted = sample.sanitize_config(config, mappings)
-            snapshot_config = copy.deepcopy(config)
-            config["savepath"] = savepath
-            args.GET_GECOS = False
-            args.SHOW_GROUPS = False
-            if archive is None:
-                raise OperationalError("Support archive was not initialized.")
-            sample.save_snapshot(archive, cluster_state, snapshot_config, args, scheduler, __version__, omitted)
-            if args.masked_traces:
-                from qtop_py.source_trace import save_masked_traces
-
-                save_masked_traces(archive, scheduling_system, trace_paths, mappings)
-        else:
-            scheduling_system = collected.system if collected is not None else backend(trace_paths, config, args)
-            cluster_state = collected.state if collected is not None else scheduling_system.get_cluster_state(args)
-    except (ValueError, UnicodeError, ParseError) as error:
-        raise OperationalError("Cannot parse %s scheduler input in %s: %s" % (scheduler, args.workdir, error)) from error
-    if collected is not None and args.ANONYMIZE and not args.SAMPLE:
-        cluster_state = sample.anonymize_state(cluster_state)[0]
-    snapshot = Snapshot.from_cluster_state(cluster_state)
-    display_state = getattr(backend, "display_job_state", None)
-    if display_state is not None:
-        for job_id, job in snapshot.jobs_dict.items():
-            snapshot.jobs_dict[job_id] = job._replace(job_state=display_state(job.job_state))
-    return snapshot, config
-
-
-def MVU_export_snapshot(snapshot: Snapshot, args: Any, savepath: str, timestr: str, web: Web) -> None:
-    """Write the snapshot as JSON for -E or the web view, and point the web server at it."""
-    if not (args.EXPORT or args.WEB):
-        return
-    with tempfile.NamedTemporaryFile(delete=False, prefix="qtop_json_%s_" % timestr, suffix=".json", dir=savepath) as json_file:
-        json_filename = json_file.name
-    saved = False
-    try:
-        snapshot.save(json_filename)
-        saved = True
-    finally:
-        if not saved:
-            with contextlib.suppress(OSError):
-                os.unlink(json_filename)
-    if args.WEB:
-        web.set_filename(json_filename)
-
-
 collect_snapshot = MVU_collect_snapshot
 export_snapshot = MVU_export_snapshot
 
@@ -1127,10 +349,7 @@ def cli_main() -> int:
         return 1
 
 
-CONFIG_ERRORS = (ValueError, TypeError, KeyError, IndexError, AttributeError, StopIteration)
-
 # Locations fixed for the whole run: launch directory, package/source root and help file.
-RunPaths = NamedTuple("RunPaths", [("initial_cwd", str), ("curpath", str), ("qtoppath", str), ("help_fp", str)])
 
 
 def _parse_run_options(resources: RunResources) -> Tuple[Any, Dict[str, Any]]:
@@ -1196,103 +415,6 @@ def _start_web(web: Web, config: Dict[str, Any]) -> None:
     logging.warning("Experimental web interface at http://%s:%s (no authentication or TLS).", web.host, web.port)
 
 
-def _collect_frame(
-    resources: RunResources,
-    args: Any,
-    config: Dict[str, Any],
-    user_to_color: Dict[str, str],
-    available_batch_systems: Mapping[str, Any],
-    savepath: str,
-    paths: RunPaths,
-    sample_filename: str,
-) -> Tuple[Snapshot, Dict[str, Any], Any, Dict[str, str], str]:
-    """Pick the scheduler, start the frame's capture and collect one snapshot.
-
-    Returns (snapshot, config, backend, user_to_color, sample filename).
-    """
-    scheduler = (
-        args.sample_snapshot["scheduler"]
-        if args.load_sample
-        else decide_batch_system(args.BATCH_SYSTEM, os.environ.get("QTOP_SCHEDULER"), config["scheduler"], config["schedulers"], available_batch_systems, config)
-    )
-    backend = available_batch_systems[scheduler]
-    collected = None
-    collection_error = ""
-    interval = getattr(backend, "collection_interval", 0)
-    if interval and not args.SOURCEDIR and not args.load_sample:
-        from qtop_py.schedulers.collection import CollectionPoller
-
-        try:
-            commands = finalize_filepaths_schedulercommands(args, config, backend)
-        except CONFIG_ERRORS as error:
-            raise OperationalError("Invalid scheduler collection configuration: %s" % error) from error
-        key = (scheduler, repr(commands), config.get("scheduler_command_timeout"))
-        if resources.poller is None or resources.poller_key != key:
-            resources.stop_collection()
-            capture_args, capture_config = copy.copy(args), copy.deepcopy(config)
-            capture_args.ANONYMIZE = False
-            selected = backend
-            probed = False
-
-            def collect(directory: str, cancel: threading.Event) -> Any:
-                nonlocal selected, probed
-                collection_args = copy.copy(capture_args)
-                collection_args.workdir = directory
-                collection_args._collection_controls = {"cancel": cancel, "cwd": os.path.realpath(os.path.expandvars(capture_config["savepath"]))}
-                collection_config = dict(capture_config, savepath=directory)
-                try:
-                    files = fetch_scheduler_files(collection_args, collection_config, selected)
-                    system = selected(files, collection_config, collection_args)
-                    state = system.get_cluster_state(collection_args)
-                except (OperationalError, ValueError) as error:
-                    fallback = getattr(selected, "fallback_backend", None)
-                    if probed or fallback is None or not selected.capability_failure(error):
-                        raise
-                    logging.warning(
-                        "%s collection capability unavailable: %s; falling back to %s. %s", scheduler, error, fallback.get_mnemonic(), getattr(selected, "fallback_note", "")
-                    )
-                    selected = fallback
-                    files = fetch_scheduler_files(collection_args, collection_config, selected)
-                    system = selected(files, collection_config, collection_args)
-                    state = system.get_cluster_state(collection_args)
-                finally:
-                    probed = True
-                from qtop_py.cluster_state import validate_cluster_state
-
-                state = validate_cluster_state(state)
-                return state, system, selected, files if capture_args.SAMPLE else {}
-
-            resources.poller = CollectionPoller(collect, interval)
-            resources.poller_key = key
-            if args.WATCH:
-                resources.poller.start()
-        collected, collection_error = resources.poller.read()
-        backend = collected.backend
-        trace_paths = {}
-        for trace_key, (name, content) in collected.traces.items():
-            with tempfile.NamedTemporaryFile(dir=args.workdir, delete=False) as stream:
-                stream.write(content)
-                temporary = stream.name
-            destination = os.path.join(args.workdir, name)
-            os.replace(temporary, destination)
-            trace_paths[trace_key] = destination
-    else:
-        resources.stop_collection()
-        trace_paths = {} if args.load_sample else fetch_scheduler_files(args, config, backend)
-    sample_filename = fileutils.get_sample_filename(sample_filename, config)
-    resources.start_capture(savepath, sample_filename, trace_paths, config, paths.qtoppath)
-    snapshot, config = MVU_collect_snapshot(args, config, backend, trace_paths, resources.archive, **({"collected": collected} if collected is not None else {}))
-    if collected is not None:
-        snapshot._collection_age = max(0, time.monotonic() - collected.completed)
-        snapshot._collection_span = collected.completed - collected.started
-        snapshot._collection_error = collection_error
-    if args.SAMPLE and args.ANONYMIZE:
-        user_to_color = user_to_color_default.copy()
-        for rule in config["user_color_mappings"]:
-            user_to_color.update(rule)
-    return snapshot, config, backend, user_to_color, sample_filename
-
-
 def main(resources: RunResources) -> None:
     """Run qtop: collect, render and, in watch mode, repeat until quit."""
     args, dynamic_config = _parse_run_options(resources)
@@ -1315,7 +437,7 @@ def main(resources: RunResources) -> None:
 
     model = None
     web = resources.web = Web(paths.initial_cwd)
-    with raw_mode(sys.stdin, args) as (old_attrs, new_attrs):  # single-key input; the menus switch back to old_attrs
+    with terminal_io.raw_mode(sys.stdin, args) as (old_attrs, new_attrs):  # single-key input; the menus switch back to old_attrs
         try:
             while True:
                 config, user_to_color, nodestate_to_color = _load_config(args, paths)
@@ -1329,7 +451,7 @@ def main(resources: RunResources) -> None:
                 if args.LESS:
                     viewport.set_term_size(500, 9999)
                 else:
-                    viewport.set_term_size(*calculate_term_size(config, FALLBACK_TERMSIZE, viewport))
+                    viewport.set_term_size(*terminal_io.calculate_term_size(config, FALLBACK_TERMSIZE, viewport))
                 with resources.frame(savepath, timestr) as output_fp:
                     try:
                         snapshot, config, backend, user_to_color, SAMPLE_FILENAME = _collect_frame(
@@ -1371,7 +493,7 @@ def main(resources: RunResources) -> None:
                 _ = subprocess.call(clear_command, stdout=stdout, stderr=stdout)
                 _ = subprocess.call(cat_command, stdout=stdout, stderr=stdout)
 
-                read_char = wait_for_keypress_or_autorefresh(viewport, config, FALLBACK_TERMSIZE, int(args.WATCH) or KEYPRESS_TIMEOUT, keyboard)
+                read_char = terminal_io.wait_for_keypress_or_autorefresh(viewport, config, FALLBACK_TERMSIZE, int(args.WATCH) or KEYPRESS_TIMEOUT, keyboard)
                 model, effects = MVU_update(model, read_char)
                 viewport, dynamic_config = model.viewport, model.display_overrides
                 MVU_effects(model, effects, cluster, old_attrs, new_attrs, keyboard, dynamic_config.get("output_fp", output_fp))
@@ -1384,6 +506,21 @@ def main(resources: RunResources) -> None:
             if not (args.SAMPLE and args.ANONYMIZE):
                 print("\nExiting. Thank you for ...watching ;)\n")
             raise SystemExit(0) from None
+
+
+def choose_sort(viewport: Viewport, display_overrides: Dict[str, Any], old_attrs: Any, new_attrs: Any, colorize: Callable[..., Any] = colorize) -> None:
+    """Retain the legacy default colour callback for the public menu helper."""
+    ui_effects.choose_sort(viewport, display_overrides, old_attrs, new_attrs, colorize)
+
+
+def choose_filter(viewport: Viewport, cluster: Any, display_overrides: Dict[str, Any], old_attrs: Any, new_attrs: Any, colorize: Callable[..., Any] = colorize) -> None:
+    """Retain the legacy default colour callback for the public menu helper."""
+    ui_effects.choose_filter(viewport, cluster, display_overrides, old_attrs, new_attrs, colorize)
+
+
+def choose_highlight(viewport: Viewport, cluster: Any, display_overrides: Dict[str, Any], old_attrs: Any, new_attrs: Any, colorize: Callable[..., Any] = colorize) -> None:
+    """Retain the legacy default colour callback for the public menu helper."""
+    ui_effects.choose_highlight(viewport, cluster, display_overrides, old_attrs, new_attrs, colorize)
 
 
 if __name__ == "__main__":

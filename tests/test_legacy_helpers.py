@@ -2,6 +2,7 @@
 ## SPDX-License-Identifier: MIT
 """Stdlib-only compatibility checks for Python 3.6+ and PyPy."""
 
+import importlib
 import subprocess
 import sys
 import tempfile
@@ -72,3 +73,25 @@ class SchedulerXMLCompatibility(unittest.TestCase):
                 with self.subTest(limit=name), patch.object(safety, name, limit):
                     with self.assertRaisesRegex(etree.ParseError, "XML input exceeds"):
                         extractor.get_xml_tree(str(path))
+
+
+class RuntimeImportCompatibility(unittest.TestCase):
+    def test_qtop_preserves_extracted_public_helpers(self):
+        from qtop_py import qtop
+
+        owners = (
+            ("qtop_py.ui.terminal", "reset_sigpipe raw_mode calculate_term_size menu_terminal wait_for_keypress_or_autorefresh TerminalResized"),
+            ("qtop_py.user_details", "MVU_resolve_user_details get_detail_of_name get_primary_group_name get_primary_group_names"),
+            ("qtop_py.ui.effects", "MVU_effects write_notice navigate_prompt"),
+            ("qtop_py.schedulers.registry", "auto_get_avail_batch_system decide_batch_system discover_qtop_batch_systems"),
+            ("qtop_py.schedulers.collector", "finalize_filepaths_schedulercommands get_input_filenames fetch_scheduler_files MVU_collect_snapshot"),
+            ("qtop_py.process", "execute_shell_batch_commands scheduler_env"),
+            ("qtop_py.runtime", "RunPaths get_output_size init_dirs pick_frames_to_replay MVU_export_snapshot"),
+            ("qtop_py.errors", "NoSchedulerFound SchedulerNotSpecified InvalidScheduler"),
+            ("qtop_py.input_parsing", "get_date_obj_from_str extract_regex_detail"),
+        )
+        for path, names in owners:
+            owner = importlib.import_module(path)
+            for name in names.split():
+                with self.subTest(helper=name):
+                    self.assertIs(getattr(qtop, name), getattr(owner, name))

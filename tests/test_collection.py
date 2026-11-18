@@ -10,12 +10,14 @@ from types import SimpleNamespace
 
 import pytest
 
-from qtop_py import fileutils, qtop, utils, yaml_parser
+from qtop_py import fileutils, utils, yaml_parser
+from qtop_py import process as process_io
 from qtop_py.errors import OperationalError
 from qtop_py.plugins.slurm import SlurmBatchSystem
 from qtop_py.plugins.slurm_json import SlurmJSONBatchSystem
 from qtop_py.process import communicate_with_timeout
 from qtop_py.runtime import RunResources
+from qtop_py.schedulers import collector, registry
 from qtop_py.schedulers.collection import CollectionPoller
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -157,7 +159,7 @@ def frame_context(tmp_path, monkeypatch):
     paths = SimpleNamespace(qtoppath=str(ROOT))
 
     def frame():
-        return qtop._collect_frame(resources, args, config, {}, qtop.discover_qtop_batch_systems(), str(tmp_path), paths, "sample%(datetime)s.tar")
+        return collector._collect_frame(resources, args, config, {}, registry.discover_qtop_batch_systems(), str(tmp_path), paths, "sample%(datetime)s.tar")
 
     yield frame, args, config, resources
     resources.stop_collection()
@@ -173,10 +175,11 @@ def test_json_collection_is_ordered_and_cached_between_redraws(frame_context, mo
         assert "cancel" in kwargs
         assert Path(kwargs["cwd"]) == Path(_config["savepath"])
         assert Path(filenames[key]).parent == Path(savepath)
+        assert Path(savepath).parent == Path(_config["savepath"])
         Path(filenames[key]).write_bytes((SAMPLES / ("slurm_" + key[:-5] + ".json")).read_bytes())
         return filenames[key]
 
-    monkeypatch.setattr(qtop, "execute_shell_batch_commands", execute)
+    monkeypatch.setattr(process_io, "execute_shell_batch_commands", execute)
     first = frame()[0]
     for _ in range(5):
         assert frame()[0].to_cluster_state() == first.to_cluster_state()
@@ -204,7 +207,7 @@ def test_empty_jobs_falls_back_once_and_later_failure_retains_legacy_snapshot(fr
         base = ROOT / "tests/plugins/slurm_samples/basic"
         return {"squeue_file": str(base / "squeue.txt"), "sinfo_file": str(base / "sinfo.txt")}
 
-    monkeypatch.setattr(qtop, "fetch_scheduler_files", fetch)
+    monkeypatch.setattr(collector, "fetch_scheduler_files", fetch)
     snapshot, _, selected, _, _ = frame()
     assert selected is SlurmBatchSystem
     assert "falling back to slurm" in caplog.text
@@ -217,11 +220,11 @@ def test_empty_jobs_falls_back_once_and_later_failure_retains_legacy_snapshot(fr
 
 def test_autodetection_prefers_legacy_but_explicit_json_is_preserved(monkeypatch):
     config = yaml_parser.parse(str(ROOT / "qtopconf.yaml"))
-    systems = qtop.discover_qtop_batch_systems()
-    monkeypatch.setattr(qtop.shutil, "which", lambda command: "/bin/" + command)
-    assert qtop.auto_get_avail_batch_system(config, systems) == "slurm"
-    assert qtop.decide_batch_system("slurm", None, "auto", config["schedulers"], systems, config) == "slurm"
-    assert qtop.decide_batch_system("slurm_json", None, "auto", config["schedulers"], systems, config) == "slurm_json"
+    systems = registry.discover_qtop_batch_systems()
+    monkeypatch.setattr(registry.shutil, "which", lambda command: "/bin/" + command)
+    assert registry.auto_get_avail_batch_system(config, systems) == "slurm"
+    assert registry.decide_batch_system("slurm", None, "auto", config["schedulers"], systems, config) == "slurm"
+    assert registry.decide_batch_system("slurm_json", None, "auto", config["schedulers"], systems, config) == "slurm_json"
 
 
 def test_live_capture_copies_the_published_trace_set_without_reparsing(frame_context, monkeypatch):
@@ -235,7 +238,7 @@ def test_live_capture_copies_the_published_trace_set_without_reparsing(frame_con
         return filenames[key]
 
     captured = []
-    monkeypatch.setattr(qtop, "execute_shell_batch_commands", execute)
+    monkeypatch.setattr(process_io, "execute_shell_batch_commands", execute)
     monkeypatch.setattr(resources, "start_capture", lambda savepath, filename, traces, *rest: captured.append({key: Path(path).read_bytes() for key, path in traces.items()}))
     frame()
     frame()
@@ -253,7 +256,7 @@ def test_collection_process_has_an_explicit_working_directory(tmp_path):
     output.mkdir()
     target = output / "trace"
     command = shlex.quote(sys.executable) + " -c " + shlex.quote("from pathlib import Path; print(Path('marker').read_text())")
-    qtop.execute_shell_batch_commands({"trace": command}, {"trace": str(target)}, "trace", str(output), cancel=threading.Event(), cwd=str(working))
+    process_io.execute_shell_batch_commands({"trace": command}, {"trace": str(target)}, "trace", str(output), cancel=threading.Event(), cwd=str(working))
     assert target.read_text().strip() == "correct RPC directory"
 
 
@@ -312,7 +315,7 @@ def test_slurm_summary_recollects_each_cycle_without_a_poller(frame_context, mon
         Path(filenames[key]).write_text(text)
         return filenames[key]
 
-    monkeypatch.setattr(qtop, "execute_shell_batch_commands", execute)
+    monkeypatch.setattr(process_io, "execute_shell_batch_commands", execute)
     states = [frame()[0].to_cluster_state() for _ in range(3)]
     assert calls == ["squeue_file", "sinfo_file"] * 3
     assert resources.poller is None
@@ -334,12 +337,12 @@ def test_startup_progress_observes_live_stream_before_waiting(tmp_path, monkeypa
         processes.append(process)
         return communicate_with_timeout(process, *args, **kwargs)
 
-    monkeypatch.setattr(qtop, "communicate_with_timeout", communicate)
+    monkeypatch.setattr(process_io, "communicate_with_timeout", communicate)
     import shlex
 
     command = shlex.quote(sys.executable) + " -c " + shlex.quote("print('jobs'); raise SystemExit(%s)" % int(fails))
     try:
-        qtop.execute_shell_batch_commands({"jobs": command}, {"jobs": str(destination)}, "jobs", str(tmp_path), input_options=options)
+        process_io.execute_shell_batch_commands({"jobs": command}, {"jobs": str(destination)}, "jobs", str(tmp_path), input_options=options)
     except OperationalError:
         assert fails
     else:
@@ -348,3 +351,36 @@ def test_startup_progress_observes_live_stream_before_waiting(tmp_path, monkeypa
             assert source.read() == "jobs\n"
     assert output.getvalue() == ".."  # parsing the saved response adds no dots
     assert processes[0].stdout.closed and processes[0].stderr.closed
+
+
+@pytest.mark.parametrize("fails", [False, True], ids=["success", "failure"])
+def test_collection_workspace_uses_savepath_without_fallback(tmp_path, monkeypatch, fails):
+    parent = tmp_path / "configured"
+    parent.mkdir()
+    elsewhere = tmp_path / "system-temp"
+    elsewhere.mkdir()
+    monkeypatch.setattr("tempfile.tempdir", str(elsewhere))
+    now, paths = [0.0], []
+
+    def collect(directory, cancel):
+        path = Path(directory)
+        paths.append(path)
+        assert path.parent == parent
+        assert path.stat().st_mode & 0o777 == 0o700
+        (path / "partial").write_text("data")
+        if fails and len(paths) > 1:
+            raise OSError("workspace full")
+        return {"generation": len(paths)}, None, None, {}
+
+    poller = CollectionPoller(collect, 20, clock=lambda: now[0], SAVEPATH=str(parent))
+    original = poller.read()[0]
+    now[0] = 20
+    assert poller.refresh()
+    assert poller.read()[0].state == (original.state if fails else {"generation": 2})
+    assert all(not path.exists() for path in paths)
+    assert list(parent.iterdir()) == list(elsewhere.iterdir()) == []
+    poller.close()
+    parent.rmdir()
+    with pytest.raises(FileNotFoundError):
+        CollectionPoller(collect, 20, SAVEPATH=str(parent))
+    assert list(elsewhere.iterdir()) == []

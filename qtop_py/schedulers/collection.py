@@ -17,10 +17,11 @@ Observation = NamedTuple("Observation", [("state", Any), ("system", Any), ("back
 class CollectionPoller:
     """Publish complete observations atomically, retaining the previous success on failure."""
 
-    def __init__(self, collect: Callable[[str, threading.Event], Any], INTERVAL: float, clock: Callable[[], float] = time.monotonic) -> None:
+    def __init__(self, collect: Callable[[str, threading.Event], Any], INTERVAL: float, clock: Callable[[], float] = time.monotonic, SAVEPATH: Optional[str] = None) -> None:
         if INTERVAL <= 0:
             raise ValueError("collection interval must be positive")
         self.collect, self.INTERVAL, self.clock = collect, INTERVAL, clock
+        self.SAVEPATH = SAVEPATH
         self.stop = threading.Event()
         self.lock = threading.Lock()
         self.collection_lock = threading.Lock()
@@ -31,7 +32,7 @@ class CollectionPoller:
 
     def _collect(self) -> Observation:
         started = self.clock()
-        with tempfile.TemporaryDirectory(prefix="qtop-collection-") as directory:
+        with tempfile.TemporaryDirectory(prefix="qtop-collection-", dir=self.SAVEPATH) as directory:
             state, system, backend, paths = self.collect(directory, self.stop)
             traces = {}
             for key, path in paths.items():

@@ -19,7 +19,7 @@ from unittest.mock import Mock
 
 import pytest
 
-from qtop_py import configuration
+from qtop_py import configuration, user_details
 from qtop_py import qtop as qtop_module
 from qtop_py import utils as qtop_utils
 from qtop_py.colormap import color_to_code
@@ -37,7 +37,9 @@ from qtop_py.qtop import (
     get_output_size,
     init_dirs,
 )
+from qtop_py.schedulers import registry
 from qtop_py.ui import mvu_view
+from qtop_py.ui import terminal as terminal_io
 from qtop_py.ui.viewport import Viewport
 
 SYMBOL_NON_EXISTENT_NODE = "#"
@@ -99,7 +101,7 @@ def test_raw_mode_allows_watch_mode_without_terminal_attrs(monkeypatch):
             raise OSError("not a terminal")
 
     entered_context = False
-    with qtop_module.raw_mode(NonTerminalFile(), WATCH_ARGS):
+    with terminal_io.raw_mode(NonTerminalFile(), WATCH_ARGS):
         entered_context = True
 
     assert entered_context
@@ -131,9 +133,9 @@ class TerminalFile:
 @pytest.mark.parametrize("failure", (None, RuntimeError))
 def test_raw_mode_yields_cbreak_attrs_and_restores_flushing(monkeypatch, failure):
     fake = FakeTermios()
-    monkeypatch.setattr(qtop_module, "termios", fake)
+    monkeypatch.setattr(terminal_io, "termios", fake)
     try:
-        with qtop_module.raw_mode(TerminalFile(), WATCH_ARGS) as (old_attrs, new_attrs):
+        with terminal_io.raw_mode(TerminalFile(), WATCH_ARGS) as (old_attrs, new_attrs):
             assert (old_attrs[3], new_attrs[3]) == (11, 1)  # echo and line buffering off; other flags kept
             if failure:
                 raise failure()
@@ -147,10 +149,10 @@ def test_raw_mode_restores_the_terminal_on_sigterm_and_reapplies_cbreak_on_sigco
     import signal
 
     fake = FakeTermios()
-    monkeypatch.setattr(qtop_module, "termios", fake)
+    monkeypatch.setattr(terminal_io, "termios", fake)
     previous = signal.getsignal(signal.SIGTERM)
     with pytest.raises(SystemExit) as exited:
-        with qtop_module.raw_mode(TerminalFile(), WATCH_ARGS):
+        with terminal_io.raw_mode(TerminalFile(), WATCH_ARGS):
             os.kill(os.getpid(), signal.SIGCONT)  # as after fg
             os.kill(os.getpid(), signal.SIGTERM)  # as from kill
     assert exited.value.code == 128 + signal.SIGTERM
@@ -159,19 +161,22 @@ def test_raw_mode_restores_the_terminal_on_sigterm_and_reapplies_cbreak_on_sigco
 
 
 def test_raw_mode_degrades_when_the_terminal_refuses_new_attrs(monkeypatch):
-    monkeypatch.setattr(qtop_module, "termios", FakeTermios(fail_set=True))
-    error = ValueError("in the watch loop")
-    with pytest.raises(ValueError) as raised:
-        with qtop_module.raw_mode(TerminalFile(), WATCH_ARGS) as attrs:
+    monkeypatch.setattr(terminal_io, "termios", FakeTermios(fail_set=True))
+    caught = False
+    try:
+        with terminal_io.raw_mode(TerminalFile(), WATCH_ARGS) as attrs:
             assert attrs == ("", "")
-            raise error
-    assert raised.value.__context__ is None  # the loop no longer runs inside the termios except block
+            raise ValueError("in the watch loop")
+    except ValueError as raised:
+        assert raised.__context__ is None  # the loop no longer runs inside the termios except block
+        caught = True
+    assert caught, "raw_mode swallowed the watch-loop error"
 
 
 def test_menus_leave_a_non_terminal_alone(monkeypatch):
     terminal = Mock()
-    monkeypatch.setattr(qtop_module, "_set_terminal_attrs", terminal)
-    with qtop_module.menu_terminal("", ""):
+    monkeypatch.setattr(terminal_io, "_set_terminal_attrs", terminal)
+    with terminal_io.menu_terminal("", ""):
         pass
     assert terminal.call_count == 0
 
@@ -182,20 +187,20 @@ def test_raw_mode_does_not_swallow_unexpected_fileno_errors(monkeypatch):
             raise RuntimeError("unexpected")
 
     with pytest.raises(RuntimeError, match="unexpected"):
-        with qtop_module.raw_mode(BrokenFile(), WATCH_ARGS):
+        with terminal_io.raw_mode(BrokenFile(), WATCH_ARGS):
             pass
 
 
 def test_terminal_resize_redraws_without_cycling_core_lines(monkeypatch):
     viewport = qtop_module.Viewport()
     viewport.set_term_size(40, 120)
-    monkeypatch.setattr(qtop_module.select, "select", lambda *_args: ([], [], []))  # no key within the refresh interval
-    monkeypatch.setattr(qtop_module, "calculate_term_size", lambda *_args: (50, 160))  # the terminal was resized
-    assert qtop_module.wait_for_keypress_or_autorefresh(viewport, {}, (40, 120), 0) == "\n"
+    monkeypatch.setattr(terminal_io.select, "select", lambda *_args: ([], [], []))  # no key within the refresh interval
+    monkeypatch.setattr(terminal_io, "calculate_term_size", lambda *_args: (50, 160))  # the terminal was resized
+    assert terminal_io.wait_for_keypress_or_autorefresh(viewport, {}, (40, 120), 0) == "\n"
     assert viewport.get_term_size() == (50, 160)
 
 
-@pytest.mark.skipif(qtop_module.SIGWINCH is None, reason="no SIGWINCH on this platform")
+@pytest.mark.skipif(terminal_io.SIGWINCH is None, reason="no SIGWINCH on this platform")
 def test_terminal_resize_redraws_at_once_on_sigwinch(monkeypatch):
     import os
     import signal
@@ -206,10 +211,10 @@ def test_terminal_resize_redraws_at_once_on_sigwinch(monkeypatch):
 
     viewport = qtop_module.Viewport()
     viewport.set_term_size(40, 120)
-    monkeypatch.setattr(qtop_module.select, "select", resize_while_waiting)
-    monkeypatch.setattr(qtop_module, "calculate_term_size", lambda *_args: (50, 160))
+    monkeypatch.setattr(terminal_io.select, "select", resize_while_waiting)
+    monkeypatch.setattr(terminal_io, "calculate_term_size", lambda *_args: (50, 160))
     previous = signal.getsignal(signal.SIGWINCH)
-    assert qtop_module.wait_for_keypress_or_autorefresh(viewport, {}, (40, 120), 60) == "\n"
+    assert terminal_io.wait_for_keypress_or_autorefresh(viewport, {}, (40, 120), 60) == "\n"
     assert viewport.get_term_size() == (50, 160) and signal.getsignal(signal.SIGWINCH) is previous
 
 
@@ -226,10 +231,10 @@ def test_sort_worker_nodes_rejects_custom_python_sorting(monkeypatch):
 def test_reset_sigpipe_is_noop_when_platform_has_no_sigpipe(monkeypatch):
     calls = []
 
-    monkeypatch.setattr(qtop_module, "SIGPIPE", None)
-    monkeypatch.setattr(qtop_module, "signal", lambda *args: calls.append(args))
+    monkeypatch.setattr(terminal_io, "SIGPIPE", None)
+    monkeypatch.setattr(terminal_io, "signal", lambda *args: calls.append(args))
 
-    qtop_module.reset_sigpipe()
+    terminal_io.reset_sigpipe()
 
     assert calls == []
 
@@ -237,44 +242,44 @@ def test_reset_sigpipe_is_noop_when_platform_has_no_sigpipe(monkeypatch):
 def test_reset_sigpipe_restores_default_when_available(monkeypatch):
     calls = []
 
-    monkeypatch.setattr(qtop_module, "SIGPIPE", 13)
-    monkeypatch.setattr(qtop_module, "SIG_DFL", "default")
-    monkeypatch.setattr(qtop_module, "signal", lambda *args: calls.append(args))
+    monkeypatch.setattr(terminal_io, "SIGPIPE", 13)
+    monkeypatch.setattr(terminal_io, "SIG_DFL", "default")
+    monkeypatch.setattr(terminal_io, "signal", lambda *args: calls.append(args))
 
-    qtop_module.reset_sigpipe()
+    terminal_io.reset_sigpipe()
 
     assert calls == [(13, "default")]
 
 
 def test_raw_mode_is_noop_when_platform_has_no_termios(monkeypatch):
-    monkeypatch.setattr(qtop_module, "termios", None)
+    monkeypatch.setattr(terminal_io, "termios", None)
 
-    with qtop_module.raw_mode(sys.stdin, WATCH_ARGS):
+    with terminal_io.raw_mode(sys.stdin, WATCH_ARGS):
         pass
 
 
 def test_scheduler_autodetection_skips_demo_and_missing_commands(monkeypatch):
     available = {"echo": "/bin/echo", "qhost": "/usr/bin/qhost"}
-    monkeypatch.setattr(qtop_module.shutil, "which", available.get)
+    monkeypatch.setattr(registry.shutil, "which", available.get)
     config = {"signature_commands": {"demo": "echo", "pbs": "pbsnodes", "sge": "qhost"}}
 
-    assert qtop_module.auto_get_avail_batch_system(config, qtop_module.discover_qtop_batch_systems()) == "sge"
+    assert registry.auto_get_avail_batch_system(config, registry.discover_qtop_batch_systems()) == "sge"
 
 
 def test_scheduler_autodetection_fails_when_only_demo_is_available(monkeypatch):
-    monkeypatch.setattr(qtop_module.shutil, "which", lambda command: "/bin/echo" if command == "echo" else None)
+    monkeypatch.setattr(registry.shutil, "which", lambda command: "/bin/echo" if command == "echo" else None)
     config = {"signature_commands": {"demo": "echo", "pbs": "pbsnodes"}}
 
     with pytest.raises(SchedulerNotSpecified):
-        qtop_module.auto_get_avail_batch_system(config, qtop_module.discover_qtop_batch_systems())
+        registry.auto_get_avail_batch_system(config, registry.discover_qtop_batch_systems())
 
 
 def test_scheduler_autodetection_prioritizes_slurm(monkeypatch):
     available = {"qstat": "/site/bin/qstat", "sinfo": "/usr/bin/sinfo"}
-    monkeypatch.setattr(qtop_module.shutil, "which", available.get)
+    monkeypatch.setattr(registry.shutil, "which", available.get)
     config = {"signature_commands": {"sge": "qstat", "slurm": "sinfo"}}
 
-    assert qtop_module.auto_get_avail_batch_system(config, qtop_module.discover_qtop_batch_systems()) == "slurm"
+    assert registry.auto_get_avail_batch_system(config, registry.discover_qtop_batch_systems()) == "slurm"
 
 
 def test_experimental_features_require_explicit_opt_in(capsys):
@@ -507,7 +512,7 @@ def test_missing_user_details_command_is_optional(monkeypatch, caplog, realtime,
     options = SimpleNamespace(GET_GECOS=realtime)
     config = {"extract_info": info}
     monkeypatch.setattr(qtop_module.subprocess, "Popen", lambda *args, **kwargs: pytest.fail("No command should run"))
-    assert qtop_module.get_detail_of_name([], config, options) == {}
+    assert user_details.get_detail_of_name([], config, options) == {}
     assert key in caplog.text
 
 
@@ -521,8 +526,8 @@ def test_configured_user_details_command_still_returns_details(monkeypatch, real
     options = SimpleNamespace(GET_GECOS=realtime)
     config = {"extract_info": {key: command}}
     monkeypatch.setattr(qtop_module.subprocess, "Popen", lambda command, **kwargs: calls.append(command) or process)
-    monkeypatch.setattr(qtop_module, "communicate_with_timeout", lambda *args: (b"alice:x:1000:1000:Alice Example:/home/alice:/bin/sh\n", b""))
-    assert qtop_module.get_detail_of_name([["0", 1, 0, 1, "alice", 1]], config, options) == {"alice": "Alice Example"}
+    monkeypatch.setattr(user_details, "communicate_with_timeout", lambda *args: (b"alice:x:1000:1000:Alice Example:/home/alice:/bin/sh\n", b""))
+    assert user_details.get_detail_of_name([["0", 1, 0, 1, "alice", 1]], config, options) == {"alice": "Alice Example"}
     assert calls == [["getent", "passwd", "alice"] if realtime else ["cat", "/tmp/qtop-user-details/passwd"]]
 
 
@@ -536,7 +541,7 @@ def test_unavailable_user_details_command_is_optional(monkeypatch, caplog, realt
         raise FileNotFoundError("executable not found")
 
     monkeypatch.setattr(qtop_module.subprocess, "Popen", unavailable)
-    assert qtop_module.get_detail_of_name([], config, options) == {}
+    assert user_details.get_detail_of_name([], config, options) == {}
     assert key in caplog.text
     assert "missing-command" in caplog.text
 
@@ -581,7 +586,7 @@ def test_display_user_accounts_can_show_primary_groups(monkeypatch, capsys):
     monkeypatch.setattr(qtop_module, "args", args, raising=False)
     monkeypatch.setattr(qtop_module, "config", {"SEPARATOR": "|"}, raising=False)
     monkeypatch.setattr(qtop_module, "user_to_color", {}, raising=False)
-    monkeypatch.setattr(qtop_module, "get_primary_group_names", lambda table: {"alice": "research"})
+    monkeypatch.setattr(user_details, "get_primary_group_names", lambda table: {"alice": "research"})
 
     TextDisplay(None, qtop_module.config, None, occupancy, None, args).display_user_accounts_pool_mappings(occupancy)
 
@@ -1176,7 +1181,7 @@ def test_user_details_failures_are_optional_and_processes_reaped(tmp_path, monke
 
     monkeypatch.setattr(qtop_module.subprocess, "Popen", track)
     started = time.monotonic()
-    assert qtop_module.get_detail_of_name([], config, options) == {}
+    assert user_details.get_detail_of_name([], config, options) == {}
     assert time.monotonic() - started < 5
     assert all(process.returncode is not None for process in processes)
     assert "skipping user details" in caplog.text
@@ -1192,7 +1197,7 @@ def test_user_details_preserve_quoted_arguments_and_skip_malformed_rows(tmp_path
     key = "user_details_realtime" if realtime else "user_details_cache"
     options = SimpleNamespace(GET_GECOS=realtime)
     config = {"extract_info": {key: command}}
-    assert qtop_module.get_detail_of_name([["0", 1, 0, 1, "alice smith", 1]], config, options) == {"alice smith": "Alice Smith"}
+    assert user_details.get_detail_of_name([["0", 1, 0, 1, "alice smith", 1]], config, options) == {"alice smith": "Alice Smith"}
 
 
 PBS_STATES = {"R": "running_of_user", "Q": "queued_of_user", "C": "cancelled_of_user", "E": "exiting_of_user", "X": "expired_of_user"}

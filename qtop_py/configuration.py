@@ -425,3 +425,6 @@ def load_yaml_config(args: Any, package_dir: str, initial_cwd: str, system_dir: 
         config["palettes"] = load_palettes((os.path.realpath(package_dir), system_dir, user_dir))
     logging.info("Updated main dictionary. Length: %s items", len(config))
     return prepare_config(config, args)
+
+
+CONFIG_ERRORS = (ValueError, TypeError, KeyError, IndexError, AttributeError, StopIteration)
