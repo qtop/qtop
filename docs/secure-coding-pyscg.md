@@ -285,9 +285,9 @@ not a current settings audit.
    or group/world-writable output directories and creates new ones as 0700.
 - [x] The optional [web server](../qtop_py/web.py) has no login, by design
    (PySCG-0055). It binds to `127.0.0.1:8080` by default and has no
-   authentication or TLS. On a shared login node any local user can read
-   `api.json`, but that holds the scheduler state they can already query with the
-   workload manager's own commands, so it adds no disclosure. Any other bind
+   authentication or TLS. Loopback binding does not isolate local users.
+   Enable the web view only when all local users may access the exported data;
+   otherwise require authentication or stronger isolation. Any other bind
    address is an explicit `experimental_web_host` choice and belongs behind an
    authenticating reverse proxy; it is not a protected remote dashboard.
 - [x] Limit static web assets. The server answers only `/`, `/index.html` and
