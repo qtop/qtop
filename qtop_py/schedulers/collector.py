@@ -105,7 +105,7 @@ def MVU_collect_snapshot(args: Any, config: Dict[str, Any], backend: Any, trace_
     """Collect one normalized snapshot, including replay and masking."""
     scheduler = backend.get_mnemonic()
     savepath = config["savepath"]
-    scheduling_system: "state_types.Scheduler"
+    scheduling_system: state_types.Scheduler
     try:
         if args.load_sample:
             cluster_state = args.sample_snapshot["state"]

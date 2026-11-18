@@ -6,6 +6,7 @@ Notable changes by version, newest first. See the
 ## 0.9.20261117
 
 - Bugfix: keep collection and extraction workspaces in configured savepath
+- CI: remove unused private aliases and expose the collector type reference
 - CI: make compatibility exports explicit to resolve unused-import warnings
 - CI: make raw-mode exception propagation explicit for CodeQL
 - CI: update Go schema dependencies and use Go 1.26 in both CI lanes
