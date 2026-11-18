@@ -37,6 +37,7 @@ from qtop_py.qtop import (
     get_output_size,
     init_dirs,
 )
+from qtop_py.schedulers import registry
 from qtop_py.ui import mvu_view
 from qtop_py.ui import terminal as terminal_io
 from qtop_py.ui.viewport import Viewport
@@ -259,26 +260,26 @@ def test_raw_mode_is_noop_when_platform_has_no_termios(monkeypatch):
 
 def test_scheduler_autodetection_skips_demo_and_missing_commands(monkeypatch):
     available = {"echo": "/bin/echo", "qhost": "/usr/bin/qhost"}
-    monkeypatch.setattr(qtop_module.shutil, "which", available.get)
+    monkeypatch.setattr(registry.shutil, "which", available.get)
     config = {"signature_commands": {"demo": "echo", "pbs": "pbsnodes", "sge": "qhost"}}
 
-    assert qtop_module.auto_get_avail_batch_system(config, qtop_module.discover_qtop_batch_systems()) == "sge"
+    assert registry.auto_get_avail_batch_system(config, registry.discover_qtop_batch_systems()) == "sge"
 
 
 def test_scheduler_autodetection_fails_when_only_demo_is_available(monkeypatch):
-    monkeypatch.setattr(qtop_module.shutil, "which", lambda command: "/bin/echo" if command == "echo" else None)
+    monkeypatch.setattr(registry.shutil, "which", lambda command: "/bin/echo" if command == "echo" else None)
     config = {"signature_commands": {"demo": "echo", "pbs": "pbsnodes"}}
 
     with pytest.raises(SchedulerNotSpecified):
-        qtop_module.auto_get_avail_batch_system(config, qtop_module.discover_qtop_batch_systems())
+        registry.auto_get_avail_batch_system(config, registry.discover_qtop_batch_systems())
 
 
 def test_scheduler_autodetection_prioritizes_slurm(monkeypatch):
     available = {"qstat": "/site/bin/qstat", "sinfo": "/usr/bin/sinfo"}
-    monkeypatch.setattr(qtop_module.shutil, "which", available.get)
+    monkeypatch.setattr(registry.shutil, "which", available.get)
     config = {"signature_commands": {"sge": "qstat", "slurm": "sinfo"}}
 
-    assert qtop_module.auto_get_avail_batch_system(config, qtop_module.discover_qtop_batch_systems()) == "slurm"
+    assert registry.auto_get_avail_batch_system(config, registry.discover_qtop_batch_systems()) == "slurm"
 
 
 def test_experimental_features_require_explicit_opt_in(capsys):

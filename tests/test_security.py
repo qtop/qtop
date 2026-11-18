@@ -217,7 +217,8 @@ class Plugin:
     @staticmethod
     def get_mnemonic():
         return 'duplicate'
-qtop.PLUGIN_BATCH_SYSTEMS = [Plugin, Plugin]
+from qtop_py.schedulers import registry
+registry.PLUGIN_BATCH_SYSTEMS = [Plugin, Plugin]
 checks.append((qtop.discover_qtop_batch_systems, qtop.OperationalError))
 for operation, expected in checks:
     try:

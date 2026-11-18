@@ -8,8 +8,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from qtop_py import qtop
-from qtop_py.ui import controls, effects as ui_effects, terminal
+from qtop_py.ui import controls, terminal
+from qtop_py.ui import effects as ui_effects
 from qtop_py.ui.controls import KeyboardInput
 from qtop_py.ui.viewport import Viewport
 

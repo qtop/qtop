@@ -16,7 +16,8 @@ from xml.etree.ElementTree import ParseError
 
 import pytest
 
-from qtop_py import configuration, process, qtop, safety, sample, yaml_parser
+from qtop_py import configuration, qtop, safety, sample, yaml_parser
+from qtop_py import process as process_io
 from qtop_py.plugins.pbs import PBSStatExtractor
 from qtop_py.plugins.sge import SGEStatExtractor
 from qtop_py.snapshot import Snapshot
@@ -179,14 +180,14 @@ def test_snapshot_member_limit_and_duplicate_rejection(tmp_path, monkeypatch, fi
 
 @pytest.mark.parametrize("channel", ["stdout", "stderr"])
 def test_command_output_overflow_preserves_previous_trace_and_cleans_tempfiles(tmp_path, monkeypatch, channel):
-    monkeypatch.setattr(process, "MAX_STDOUT_BYTES", 4096)
-    monkeypatch.setattr(process, "MAX_STDERR_BYTES", 4096)
+    monkeypatch.setattr(process_io, "MAX_STDOUT_BYTES", 4096)
+    monkeypatch.setattr(process_io, "MAX_STDERR_BYTES", 4096)
     path = tmp_path / "trace.txt"
     path.write_bytes(b"previous snapshot")
     script = "import sys; sys.%s.buffer.write(b'x'*65536)" % channel
     command = " ".join(shlex.quote(arg) for arg in (sys.executable, "-c", script))
     with pytest.raises(qtop.OperationalError, match="output exceeds"):
-        qtop.execute_shell_batch_commands({"trace": command}, {"trace": str(path)}, "trace", str(tmp_path))
+        process_io.execute_shell_batch_commands({"trace": command}, {"trace": str(path)}, "trace", str(tmp_path))
     assert path.read_bytes() == b"previous snapshot"
     assert list(tmp_path.iterdir()) == [path]
 
@@ -194,7 +195,7 @@ def test_command_output_overflow_preserves_previous_trace_and_cleans_tempfiles(t
 def test_bounded_command_drains_both_pipes_without_deadlock():
     script = "import sys; sys.stderr.buffer.write(b'e'*131072); sys.stdout.buffer.write(b'o'*131072)"
     command = subprocess.Popen([sys.executable, "-c", script], stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=(os.name == "posix"))
-    output, errors = process.communicate_with_timeout(command, 5)
+    output, errors = process_io.communicate_with_timeout(command, 5)
     assert output == b"o" * 131072 and errors == b"e" * 131072
     assert command.returncode == 0
 
@@ -234,7 +235,7 @@ def test_command_reader_failure_reaps_client():
         [sys.executable, "-c", "print('output', flush=True); import time; time.sleep(5)"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=(os.name == "posix")
     )
     with pytest.raises(OSError, match="disk full"):
-        process.communicate_with_timeout(command, 3, stdout=BrokenSink())
+        process_io.communicate_with_timeout(command, 3, stdout=BrokenSink())
     assert command.poll() is not None
 
 

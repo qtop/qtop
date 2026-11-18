@@ -4,13 +4,19 @@
 
 import contextlib
 import io
+import logging
 import os
+import shlex
 import signal
 import subprocess
+import tempfile
 import threading
 import time
-from typing import IO, Dict, List, Optional, Tuple, cast
+from math import isfinite
+from typing import IO, Any, Dict, List, Mapping, Optional, Tuple, cast
 
+from qtop_py import fileutils
+from qtop_py.constants import DEFAULT_SCHEDULER_COMMAND_TIMEOUT, QTOPCONF_YAML
 from qtop_py.errors import OperationalError
 
 MAX_STDOUT_BYTES = 256 * 1024 * 1024
@@ -107,3 +113,82 @@ def scheduler_env() -> Dict[str, str]:
     env = dict(os.environ)
     env["LC_ALL"] = "C"
     return env
+
+
+def execute_shell_batch_commands(
+    batch_system_commands: Mapping[str, str],
+    filenames: Dict[str, str],
+    _file: str,
+    _savepath: str,
+    timeout: float = DEFAULT_SCHEDULER_COMMAND_TIMEOUT,
+    cancel: Optional[threading.Event] = None,
+    cwd: Optional[str] = None,
+    input_options: Any = None,
+) -> str:
+    """Run the scheduler commands from QTOPCONF_YAML, saving each output atomically to its trace file."""
+    _batch_system_command = batch_system_commands[_file].strip()
+    destination = os.path.abspath(filenames[_file])
+    save_directory = os.path.realpath(_savepath)
+    try:
+        contained = os.path.commonpath((save_directory, os.path.realpath(os.path.dirname(destination)))) == save_directory
+    except ValueError:
+        contained = False
+    if not contained:
+        raise OperationalError("Scheduler trace output must stay inside savepath")
+    tempname = None
+    try:
+        if not _batch_system_command:
+            raise OperationalError("Empty scheduler command for %s; check %s." % (_file, QTOPCONF_YAML))
+        try:
+            timeout = float(timeout)
+            if not isfinite(timeout) or timeout <= 0:
+                raise ValueError("nonpositive or nonfinite timeout")
+        except (TypeError, ValueError, OverflowError) as error:
+            raise OperationalError("scheduler_command_timeout must be a positive finite number of seconds") from error
+        with tempfile.NamedTemporaryFile("wb", dir=_savepath, delete=False) as fin:
+            logging.debug("\tFile state before subprocess call: %(fin)s" % {"fin": fin})
+            logging.debug("\tWaiting on subprocess.call...")
+
+            # splitting the command passed in so only the first item in a command
+            # from the yaml file is executed with the rest of the line treated as
+            # arguments, this enables shell=False, and keeps us from having
+            # injected commands
+            tempname = fin.name
+            try:
+                command_args = shlex.split(_batch_system_command)
+                logging.debug(
+                    "Trace collection command: (cd %s && %s > %s)",
+                    shlex.quote(os.getcwd()),
+                    " ".join(shlex.quote(arg) for arg in command_args),
+                    shlex.quote(os.path.abspath(filenames[_file])),
+                )
+                command = subprocess.Popen(
+                    command_args,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    start_new_session=(os.name == "posix"),
+                    env=scheduler_env(),
+                    cwd=cwd,
+                )
+            except OSError as error:
+                raise OperationalError("Cannot execute scheduler command %r: %s. Check PATH or load the scheduler module." % (_batch_system_command, error.strerror)) from error
+            except ValueError as error:
+                raise OperationalError("Invalid scheduler command %r: %s. Check command quoting in %s." % (_batch_system_command, error, QTOPCONF_YAML)) from error
+            with fileutils.input_source(input_options, destination):
+                try:
+                    stderr_data = communicate_with_timeout(command, timeout, stdout=fin, **({"cancel": cancel} if cancel is not None else {}))[1]
+                except subprocess.TimeoutExpired as failure:
+                    raise OperationalError("Scheduler command %r timed out after %g seconds" % (_batch_system_command, timeout)) from failure
+            if stderr_data:
+                logging.warning("A message from your shell: %s", stderr_data.decode("utf-8", errors="replace").strip())
+            if command.returncode:
+                detail = " ".join(stderr_data.decode("utf-8", errors="replace").splitlines())[:300] or "no diagnostic output"
+                raise OperationalError("Scheduler command %r failed (exit %s): %s" % (_batch_system_command, command.returncode, detail))
+            logging.debug("File state after subprocess call: %(fin)s" % {"fin": fin})
+        os.rename(tempname, filenames[_file])
+
+        return filenames[_file]
+    finally:
+        if tempname is not None:
+            with contextlib.suppress(OSError):
+                os.unlink(tempname)

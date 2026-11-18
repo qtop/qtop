@@ -14,6 +14,7 @@ from pathlib import Path
 
 import pytest
 
+from qtop_py import process as process_io
 from qtop_py import qtop, utils
 from qtop_py.sample import SNAPSHOT_NAME
 from qtop_py.ui import terminal as terminal_io
@@ -166,7 +167,7 @@ def test_watch_refreshes_after_transpose_and_quits_cleanly(runtime, scheduler_in
     [("transpose_wn_matrices='maybe'", "transpose_wn_matrices"), ("term_size=[0,80]", "term_size"), ("sorting={'user_sort': [] , 'reverse': 'maybe'}", "sorting.reverse")],
 )
 def test_invalid_cli_overrides_fail_with_key_before_collection(runtime, monkeypatch, capsys, override, key):
-    monkeypatch.setattr(qtop, "execute_shell_batch_commands", lambda *args, **kwargs: pytest.fail("Invalid config must not execute scheduler commands"))
+    monkeypatch.setattr(process_io, "execute_shell_batch_commands", lambda *args, **kwargs: pytest.fail("Invalid config must not execute scheduler commands"))
     code, _ = runtime("-b", "demo", "-o", override)
     assert code != 0
     assert key in capsys.readouterr().err

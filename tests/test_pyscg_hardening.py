@@ -14,8 +14,9 @@ from types import SimpleNamespace
 
 import pytest
 
-from qtop_py import process, user_details
+from qtop_py import process as process_io
 from qtop_py import qtop as qtop_module
+from qtop_py import user_details
 from qtop_py.errors import OperationalError
 from qtop_py.plugins import sge
 from qtop_py.plugins.pbs import PBSStatExtractor
@@ -39,7 +40,7 @@ def test_unexpected_sge_xml_failures_are_reported_not_silently_exited(tmp_path, 
 
 def test_scheduler_commands_get_the_c_locale_without_touching_our_environment(monkeypatch):
     monkeypatch.setenv("LC_ALL", "de_CH.UTF-8")
-    env = process.scheduler_env()
+    env = process_io.scheduler_env()
     assert env["LC_ALL"] == "C" and os.environ["LC_ALL"] == "de_CH.UTF-8"
 
 

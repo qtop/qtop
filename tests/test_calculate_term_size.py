@@ -40,7 +40,7 @@ class _FakeViewport:
 
 @pytest.fixture(autouse=True)
 def resolved_stty(monkeypatch):
-    monkeypatch.setattr(qtop.shutil, "which", lambda command: "/test/stty")
+    monkeypatch.setattr(terminal_io.shutil, "which", lambda command: "/test/stty")
 
 
 def test_stty_success_is_used(monkeypatch):
@@ -70,7 +70,7 @@ def test_fallback_uses_explicit_viewport(monkeypatch):
 
 
 def test_fallback_when_stty_is_not_installed(monkeypatch):
-    monkeypatch.setattr(qtop.shutil, "which", lambda command: None)
+    monkeypatch.setattr(terminal_io.shutil, "which", lambda command: None)
     assert terminal_io.calculate_term_size({}, [53, 176], _FakeViewport((24, 80))) == (24, 80)
 
 
@@ -88,5 +88,5 @@ def test_fallback_when_stty_output_is_invalid(monkeypatch):
 
 
 def test_fallback_when_viewport_is_unavailable(monkeypatch):
-    monkeypatch.setattr(qtop.shutil, "which", lambda command: None)
+    monkeypatch.setattr(terminal_io.shutil, "which", lambda command: None)
     assert terminal_io.calculate_term_size({}, [53, 176], None) == (53, 176)

@@ -79,7 +79,7 @@ flowchart TB
         colors["Color mappings: colormap.py"]
         json["JSON export: snapshot.py"]
         capture["Sample archives: fileutils.py"]
-        replay["Saved-frame replay: qtop.py"]
+        replay["Saved-frame replay: runtime.py"]
         web["Experimental web interface: web.py"]
         render --> terminal
         render --> viewport
@@ -96,13 +96,17 @@ flowchart TB
 ## Following a snapshot through the code
 
 1. The CLI enters `cli_main()` and `main()` in
-   [qtop.py](../qtop_py/qtop.py). The runtime loads configuration, selects a
-   registered backend, and either executes its configured commands or reads
+   [qtop.py](../qtop_py/qtop.py). The runtime loads configuration;
+   `schedulers/registry.py` selects a registered backend. The collector either
+   executes its configured commands or reads
    files supplied with `-s`. The demo backend generates fictional data.
-   The loop calls `MVU_collect_snapshot()`, `MVU_export_snapshot()`,
+   `schedulers/collector.py` owns command/file collection and capture-aware
+   snapshot construction. The loop calls `MVU_collect_snapshot()`,
+   `MVU_export_snapshot()`,
    `MVU_query()` and `MVU_view()`. `MVU_update()` accepts snapshots and keyboard
    messages, returning a new model and effect requests; the runtime executes
-   menu input, user-detail lookups and terminal effects.
+   menu input and terminal effects through `ui/effects.py` and
+   `ui/terminal.py`; `user_details.py` owns optional account enrichment.
    [configuration.py](../qtop_py/configuration.py) owns file precedence,
    normalization, CLI overrides and validation. The runtime passes configuration,
    options and the selected backend explicitly to collection helpers.
@@ -121,7 +125,7 @@ flowchart TB
    `display_overrides`, `user_details` and `transposed_sections`. `Cluster`, `WNFilter` and
    `WNOccupancy` in [mvu_query.py](../qtop_py/mvu_query.py) calculate layout,
    filtering, user accounting and per-core occupancy. `MVU_view()` delegates
-   the three terminal sections to [mvu_view.py](../qtop_py/ui/mvu_view.py).
+   the four terminal sections to [mvu_view.py](../qtop_py/ui/mvu_view.py).
    Both stages receive an explicit model rather than reading runtime globals;
    derived layout does not modify the canonical snapshot.
 4. `-E` exports the snapshot as JSON. `-L` creates a support sample archive.
@@ -134,8 +138,9 @@ traces, restores the launch directory, and reports capture paths at exit.
 Menu input restores terminal settings even when interrupted.
 
 [mvu.py](../qtop_py/mvu.py) uses ordinary Python 3.6-compatible classes and
-functions, with no framework dependency. Collection still occurs once per
-refresh; the MVU split adds no scheduler commands. Legacy imports and controller
+functions, with no framework dependency. Legacy collection occurs once per
+refresh; interval-driven backends use the single-writer poller. The MVU split
+adds no scheduler commands. Legacy imports and controller
 entry points remain adapters in `qtop.py`; those adapters still support the old
 runtime globals, while the new query/view pipeline does not depend on them.
 
@@ -144,7 +149,7 @@ runtime globals, while the new query/view pipeline does not depend on them.
 | Responsibility | Source |
 | --- | --- |
 | Launchers and installed entry point | [qtop](../qtop), [qtop.py](../qtop_py/qtop.py), [pyproject.toml](../pyproject.toml) |
-| Runtime orchestration, I/O effects and compatibility adapters (deprecated, see below) | [qtop.py](../qtop_py/qtop.py) |
+| CLI/watch orchestration and compatibility adapters (deprecated, see below) | [qtop.py](../qtop_py/qtop.py) |
 | Explicit model and update messages | [mvu.py](../qtop_py/mvu.py) |
 | Snapshot queries, filtering and occupancy calculations | [mvu_query.py](../qtop_py/mvu_query.py) |
 | Watch effects, prompts and menus | [effects.py](../qtop_py/ui/effects.py) |
@@ -153,12 +158,14 @@ runtime globals, while the new query/view pipeline does not depend on them.
 | Terminal presentation | [mvu_view.py](../qtop_py/ui/mvu_view.py) |
 | Command-line options and logging | [utils.py](../qtop_py/utils.py) |
 | Configuration loading, preparation and parsing | [configuration.py](../qtop_py/configuration.py), [qtopconf.yaml](../qtopconf.yaml), [yaml_parser.py](../qtop_py/yaml_parser.py) |
+| Scheduler selection and collection orchestration | [registry.py](../qtop_py/schedulers/registry.py), [collector.py](../qtop_py/schedulers/collector.py) |
+| Bounded subprocess execution | [process.py](../qtop_py/process.py) |
 | Scheduler backends and support | [Slurm](../qtop_py/plugins/slurm.py), [PBS](../qtop_py/plugins/pbs.py), [SGE](../qtop_py/plugins/sge.py), [OAR](../qtop_py/plugins/oar.py), [demo](../qtop_py/plugins/demo.py), [support helpers](../qtop_py/schedulers/) |
 | Shared extraction and backend interface | [serialiser.py](../qtop_py/serialiser.py) |
 | Shared state/configuration types and backend protocol | [state_types.py](../qtop_py/state_types.py) |
 | Canonical snapshot and legacy adapter | [snapshot.py](../qtop_py/snapshot.py) |
 | Replay time and account expression parsing | [input_parsing.py](../qtop_py/input_parsing.py) |
-| Run resource ownership and frame/archive finalization | [runtime.py](../qtop_py/runtime.py) |
+| Run resources, frame/export I/O, replay and extraction workspaces | [runtime.py](../qtop_py/runtime.py) |
 | Common snapshot construction, validation and totals | [cluster_state.py](../qtop_py/cluster_state.py) |
 | Navigation and color definitions | [controls.py](../qtop_py/ui/controls.py), [viewport.py](../qtop_py/ui/viewport.py), [colormap.py](../qtop_py/colormap.py) |
 | Capture archives and temporary files | [fileutils.py](../qtop_py/fileutils.py) |
@@ -182,6 +189,13 @@ The 1.0 removal commit must delete the adapters, their global declarations and
 adapter-only tests together, update the public import documentation, and pass
 pre-pr plus schema-ci. Keep the pure helper re-exports outside this retirement.
 This is a compatibility commitment, not permission to remove APIs in 0.9.
+
+The CLI re-exports extracted public helpers so existing imports and exception
+handlers keep working. Three menu adapters retain the legacy default color
+callback; modern effects pass the model callback explicitly. Implementation
+tests patch the owning module rather than the entry point. No owner imports
+`qtop.py`; `RunPaths` lives with `RunResources`, and shared configuration errors
+and scheduler exceptions belong to their configuration/error modules.
 
 ## Extension boundaries and readiness
 
