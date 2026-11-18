@@ -17,7 +17,7 @@ SAMPLES = Path(__file__).parent / "slurm_json_samples"
 
 @pytest.fixture(params=SUPPORTED_PARSERS, ids=SUPPORTED_PARSERS)
 def json_files(request, tmp_path):
-    family = "v0.0.40" if request.param == "v0.0.40" else "v0.0.43"
+    family = request.param if (SAMPLES / request.param).is_dir() else "v0.0.43"
     paths = {}
     for key in ("jobs", "nodes", "partitions"):
         data = json.loads((SAMPLES / family / ("slurm_" + key + ".json")).read_text())
@@ -212,11 +212,12 @@ def test_allocation_inconsistencies_reject_the_whole_collection(json_files, dama
                 if old:
                     allocations.append(allocations[0])
                 else:
-                    allocations[0]["sockets"][0]["cores"].append(allocations[0]["sockets"][0]["cores"][0])
+                    socket = next(socket for socket in allocations[0]["sockets"] if any("ALLOCATED" in core["status"] for core in socket["cores"]))
+                    socket["cores"].append(next(core for core in socket["cores"] if "ALLOCATED" in core["status"]))
             elif old:
                 allocations[0]["sockets"] = {"99": {"cores": {"0": "allocated"}}}
             else:
-                allocations[0]["sockets"][0]["index"] = 99
+                next(socket for socket in allocations[0]["sockets"] if any("ALLOCATED" in core["status"] for core in socket["cores"]))["index"] = 99
 
         mutate(json_files, "jobs", change)
     with pytest.raises(ValueError):
@@ -278,7 +279,7 @@ def test_nonintegral_core_indices_cannot_be_truncated(json_files):
         if "allocated_nodes" in resource:
             resource["allocated_nodes"][0]["sockets"]["1"]["cores"] = {"0.5": "allocated"}
         else:
-            resource["nodes"]["allocation"][0]["sockets"][0]["cores"][0]["index"] = 0.5
+            next(core for socket in resource["nodes"]["allocation"][0]["sockets"] for core in socket["cores"] if "ALLOCATED" in core["status"])["index"] = 0.5
 
     mutate(json_files, "jobs", change)
     with pytest.raises(ValueError):
@@ -340,3 +341,22 @@ def test_unrepresentable_cpu_allocations_cannot_be_silently_dropped(json_files, 
     system = backend(json_files)
     with pytest.raises(ValueError, match="overlap or exceed"):
         system.get_cluster_state(system.options)
+
+
+@pytest.mark.parametrize("version", ["v0.0.44", "v0.0.45", "v0.0.46"])
+def test_version_specific_fixtures_preserve_replay_and_allocation_flags(version, tmp_path):
+    from qtop_py.snapshot import Snapshot
+
+    files = {key + "_json": str(SAMPLES / version / ("slurm_" + key + ".json")) for key in ("jobs", "nodes", "partitions")}
+    system = backend(files)
+    for job in system._jobs:
+        assert job["JobId"] in {"80+0", "80+1", "42_7"}
+    original = system.get_cluster_state(system.options)
+    reference = backend({key + "_json": str(SAMPLES / "v0.0.43" / ("slurm_" + key + ".json")) for key in ("jobs", "nodes", "partitions")})
+    assert original == reference.get_cluster_state(reference.options)
+    path = tmp_path / "state.json"
+    Snapshot.from_cluster_state(original).save(str(path))
+    restored = Snapshot.from_cluster_state(json.loads(path.read_text()))
+    assert json.loads(json.dumps(restored.to_cluster_state())) == json.loads(json.dumps(original))
+    masked, _ = anonymize_state(original)
+    assert Snapshot.from_cluster_state(masked).total_queued_jobs == restored.total_queued_jobs == 1

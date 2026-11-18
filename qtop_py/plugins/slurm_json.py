@@ -32,7 +32,7 @@ JOB_FLAG_PRIORITY: "Final" = (
     "RESV_DEL_HOLD",
     "SIGNALING",
 )
-SUPPORTED_PARSERS: "Final" = ("v0.0.40", "v0.0.41", "v0.0.42", "v0.0.43", "v0.0.44", "v0.0.45")
+SUPPORTED_PARSERS: "Final" = ("v0.0.40", "v0.0.41", "v0.0.42", "v0.0.43", "v0.0.44", "v0.0.45", "v0.0.46")
 
 
 class UnsupportedSlurmJSON(ValueError):

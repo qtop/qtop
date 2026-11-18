@@ -105,7 +105,7 @@ STATIC_CASES = {
             "args": ["-b", "slurm_json", "-s", str(ROOT / "tests/plugins/slurm_json_samples" / version), "-c", "ON", "-F"],
             "markers": ["Total:3 Up:2 Free:0 Nodes", "8/24 cores", "3=2+1+0 jobs", "batch*: 1 + 1", "empty*: 0", "scheduler CPU IDs"],
         }
-        for version in ("v0.0.40", "v0.0.43")
+        for version in ("v0.0.40", "v0.0.43", "v0.0.44", "v0.0.45", "v0.0.46")
     ],
     "pbs": [
         {
