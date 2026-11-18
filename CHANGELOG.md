@@ -5,6 +5,7 @@ Notable changes by version, newest first. See the
 
 ## 0.9.20261117
 
+- Bugfix: keep collection and extraction workspaces in configured savepath
 - Release: update version metadata to 0.9.20261117
 
 ## 0.9.20261116

@@ -497,6 +497,19 @@ then the configured ``scheduler``. A selected value of ``auto`` triggers
 command discovery at that point. ``QTOP_COLOR`` supplies the color preference
 when ``-c AUTO`` is used.
 
+Use one setting for all qtop intermediate files, including background collection
+and archive-extraction workspaces, rendered frames, traces, exports and captures:
+
+```console
+./qtop -w -o 'savepath=/dev/shm/qtop_$USER'
+```
+
+Or set ``savepath: /dev/shm/qtop_$USER`` in your configuration. qtop uses that
+filesystem exclusively for these files and reports an error if it cannot create
+them; it does not fall back to another temporary directory. Input files remain
+where supplied. The persistent diagnostic log remains under
+``~/.local/qtop/logs/``; this setting does not relocate it or Python bytecode.
+
 The ``savepath`` expands environment variables and is created with permissions
 ``0700`` (accessible only to its owner). This also applies to ``-o savepath=...``;
 use an absolute path. On macOS, the standard root-owned `/tmp` and `/var`

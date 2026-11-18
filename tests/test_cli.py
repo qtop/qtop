@@ -1125,3 +1125,34 @@ def test_startup_progress_counts_sources_once(tmp_path, backend, source, flags, 
     assert result.stderr.splitlines().count("." * dots) == 1
     assert not any(re.fullmatch(r"\.+", line) for line in result.stdout.splitlines())
     assert result.stdout.count("1. Job accounting summary") == (2 if watch else 1)
+
+
+@pytest.mark.parametrize("valid", [False, True], ids=["bad-archive", "valid-archive"])
+def test_archive_workspace_uses_savepath_and_is_removed(tmp_path, monkeypatch, valid):
+    import tarfile
+    from types import SimpleNamespace
+
+    from qtop_py import qtop
+    from qtop_py.runtime import RunResources
+
+    source = tmp_path / "source.tar"
+    if valid:
+        with tarfile.open(str(source), "w"):
+            pass
+    else:
+        source.write_text("not a tar archive")
+    output = tmp_path / "configured"
+    output.mkdir()
+    elsewhere = tmp_path / "system-temp"
+    elsewhere.mkdir()
+    monkeypatch.setattr("tempfile.tempdir", str(elsewhere))
+    monkeypatch.chdir(tmp_path)
+    with RunResources() as resources:
+        args = resources.options = SimpleNamespace(SOURCEDIR=str(source))
+        qtop.init_dirs(args, str(output))
+        workspace = Path(args.workdir)
+        assert workspace.parent == output
+        assert workspace.stat().st_mode & 0o777 == 0o700
+        assert list(elsewhere.iterdir()) == []
+    assert not workspace.exists()
+    assert list(output.iterdir()) == []

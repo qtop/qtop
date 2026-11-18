@@ -173,6 +173,7 @@ def test_json_collection_is_ordered_and_cached_between_redraws(frame_context, mo
         assert "cancel" in kwargs
         assert Path(kwargs["cwd"]) == Path(_config["savepath"])
         assert Path(filenames[key]).parent == Path(savepath)
+        assert Path(savepath).parent == Path(_config["savepath"])
         Path(filenames[key]).write_bytes((SAMPLES / ("slurm_" + key[:-5] + ".json")).read_bytes())
         return filenames[key]
 
@@ -348,3 +349,36 @@ def test_startup_progress_observes_live_stream_before_waiting(tmp_path, monkeypa
             assert source.read() == "jobs\n"
     assert output.getvalue() == ".."  # parsing the saved response adds no dots
     assert processes[0].stdout.closed and processes[0].stderr.closed
+
+
+@pytest.mark.parametrize("fails", [False, True], ids=["success", "failure"])
+def test_collection_workspace_uses_savepath_without_fallback(tmp_path, monkeypatch, fails):
+    parent = tmp_path / "configured"
+    parent.mkdir()
+    elsewhere = tmp_path / "system-temp"
+    elsewhere.mkdir()
+    monkeypatch.setattr("tempfile.tempdir", str(elsewhere))
+    now, paths = [0.0], []
+
+    def collect(directory, cancel):
+        path = Path(directory)
+        paths.append(path)
+        assert path.parent == parent
+        assert path.stat().st_mode & 0o777 == 0o700
+        (path / "partial").write_text("data")
+        if fails and len(paths) > 1:
+            raise OSError("workspace full")
+        return {"generation": len(paths)}, None, None, {}
+
+    poller = CollectionPoller(collect, 20, clock=lambda: now[0], SAVEPATH=str(parent))
+    original = poller.read()[0]
+    now[0] = 20
+    assert poller.refresh()
+    assert poller.read()[0].state == (original.state if fails else {"generation": 2})
+    assert all(not path.exists() for path in paths)
+    assert list(parent.iterdir()) == list(elsewhere.iterdir()) == []
+    poller.close()
+    parent.rmdir()
+    with pytest.raises(FileNotFoundError):
+        CollectionPoller(collect, 20, SAVEPATH=str(parent))
+    assert list(elsewhere.iterdir()) == []

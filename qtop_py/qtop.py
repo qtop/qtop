@@ -904,7 +904,7 @@ def init_dirs(args: Any, _savepath: str) -> Any:
     if args.SOURCEDIR and os.path.isfile(args.SOURCEDIR):
         if tarfile.is_tarfile(args.SOURCEDIR) or args.SOURCEDIR.lower().endswith((".tar", ".tar.gz", ".tgz", ".tar.bz2", ".tbz2", ".tar.xz", ".txz")):
             args.source_archive = args.SOURCEDIR
-            args.source_workspace = tempfile.TemporaryDirectory(prefix="qtop-traces-")
+            args.source_workspace = tempfile.TemporaryDirectory(prefix="qtop-traces-", dir=_savepath)
             args.SOURCEDIR = args.source_workspace.name
         else:
             args.SOURCEDIR = os.path.dirname(args.SOURCEDIR)
@@ -1226,7 +1226,7 @@ def _collect_frame(
             commands = finalize_filepaths_schedulercommands(args, config, backend)
         except CONFIG_ERRORS as error:
             raise OperationalError("Invalid scheduler collection configuration: %s" % error) from error
-        key = (scheduler, repr(commands), config.get("scheduler_command_timeout"))
+        key = (scheduler, repr(commands), config.get("scheduler_command_timeout"), savepath)
         if resources.poller is None or resources.poller_key != key:
             resources.stop_collection()
             capture_args, capture_config = copy.copy(args), copy.deepcopy(config)
@@ -1262,7 +1262,7 @@ def _collect_frame(
                 state = validate_cluster_state(state)
                 return state, system, selected, files if capture_args.SAMPLE else {}
 
-            resources.poller = CollectionPoller(collect, interval)
+            resources.poller = CollectionPoller(collect, interval, SAVEPATH=savepath)
             resources.poller_key = key
             if args.WATCH:
                 resources.poller.start()

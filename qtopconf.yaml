@@ -21,7 +21,9 @@ scheduler: auto
 ##   new_nodes: node[023-033]
 
 ## where to save output from batch commands and their intermediate conversion to json format
-## users can select e.g. /dev/shm (ram disk) instead of /tmp for faster processing, or even $TMP or $TMPDIR
+## All intermediate files, collection/extraction workspaces, exports and captures.
+## Use a private subdirectory, e.g. /dev/shm/qtop_$USER, or $TMPDIR/qtop_$USER.
+## CLI: -o savepath=/dev/shm/qtop_$USER (no fallback to another filesystem).
 savepath: /tmp/qtop_results_$USER
 
 ## Maximum seconds per live scheduler command or optional account lookup.
