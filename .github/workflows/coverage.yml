@@ -1,0 +1,50 @@
+##
+## qtop is a tool to monitor queuing systems - https://github.com/qtop/qtop
+##
+## Copyright (c) 2026 Vadik Malik
+##
+## SPDX-License-Identifier: MIT
+##
+# Coverage gate, GitHub flavour: runs the full suite once under coverage and
+# enforces COVERAGE_MIN/COVERAGE_BRANCH_MIN, so this workflow's badge means
+# exactly "tests pass and coverage meets the floors". build.yml runs the rest of
+# pre-pr; GitLab keeps both in one modern-python job. The Cobertura report is a
+# workflow artifact, so no external coverage service or token is required.
+
+name: coverage-qtop
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - develop
+      - 'releases/**'
+  pull_request:
+    branches:
+      - main
+      - develop
+
+permissions:
+  contents: read
+
+jobs:
+  coverage:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.12.3'
+      - run: make ci-deps PYTHON=python
+      - run: make coverage-xml PYTHON=python
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: coverage-cobertura-xml
+          path: |
+            artifacts/coverage/
+            artifacts/tests/

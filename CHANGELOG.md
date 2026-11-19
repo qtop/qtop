@@ -7,6 +7,8 @@ Notable changes by version, newest first. See the
 
 - Release: update version metadata to 0.9.20261118
 - Tools: prepare_release stages the EasyBuild recipe rename with git mv
+- CI: restore coverage.yml as the only GitHub coverage run, so its badge reports the coverage gate alone
+- Docs: README badges follow main, and the outdated PyPI release note is gone
 - Tests: package and repo-sanity tests run on macOS (no copied system binaries, non-UTF-8 names skip cleanly)
 
 ## 0.9.20261117

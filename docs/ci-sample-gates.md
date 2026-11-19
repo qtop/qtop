@@ -8,9 +8,10 @@ make ci
 ```
 
 That target runs unit tests, the fast committed scheduler sample gate, and the
-fortification checks. The primary GitHub `build-qtop` and GitLab PR lanes use
-`make pre-pr coverage-xml`, sharing this contract and running the full suite
-once under coverage. The additional modern interpreter uses `make ci`.
+fortification checks. The GitLab PR lane uses `make pre-pr coverage-xml`,
+sharing this contract and running the full suite once under coverage. GitHub
+runs the same checks, with the coverage run in `coverage-qtop` and the rest of
+`pre-pr` in `build-qtop`. The additional modern interpreter uses `make ci`.
 
 For the complete local pre-PR gate, install the pinned dependencies with
 `make ci-deps` in a Linux x86-64 CPython 3.12 virtual environment, then run
