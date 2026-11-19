@@ -5,13 +5,13 @@ Notable changes by version, newest first. See the
 
 ## 0.9.20261118
 
-- Release: update version metadata to 0.9.20261118
-- Tools: prepare_release stages the EasyBuild recipe rename with git mv
+- Bugfix: highlight (H) no longer crashes on an unknown user ID or invalid pattern, and user IDs match whole user names (#603)
 - CI: restore coverage.yml as the only GitHub coverage run, so its badge reports the coverage gate alone
+- CI: release publishing stops unless the release tag is v<package version> (temporary until 1.0)
 - Docs: README badges follow main, and the outdated PyPI release note is gone
 - Tests: package and repo-sanity tests run on macOS (no copied system binaries, non-UTF-8 names skip cleanly)
-- CI: release publishing stops unless the release tag is v<package version> (temporary until 1.0)
-- Bugfix: highlight (H) no longer crashes on an unknown user ID or invalid pattern, and user IDs match whole user names (#603)
+- Tools: prepare_release stages the EasyBuild recipe rename with git mv
+- Release: update version metadata to 0.9.20261118
 
 ## 0.9.20261117
 
