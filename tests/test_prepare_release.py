@@ -1,7 +1,9 @@
 # Copyright (c) 2026 qtop contributors
 # SPDX-License-Identifier: MIT
+import os
 import shutil
 import subprocess
+import sys
 
 import pytest
 
@@ -34,6 +36,29 @@ def test_release_cli_writes_only_when_requested(tmp_path, monkeypatch, write):
     monkeypatch.setattr("sys.argv", ["prepare-release", "--version", "0.9.20990101"] + (["--write"] if write else []))
     prepare_release.main()
     assert (tmp_path / "version.txt").exists() is write
+
+
+@pytest.mark.parametrize(
+    ("tag", "passes"),
+    (("v" + __version__, True), (__version__, False), ("v0.9.20990101", False), ("", False)),
+    ids=("matching", "missing-v", "other-version", "unset"),
+)
+def test_release_tag_check_requires_v_package_version(tag, passes):
+    make = shutil.which("make")
+    if make is None:
+        pytest.skip("make is not installed")
+    env = dict(os.environ, RELEASE_TAG=tag)
+    result = subprocess.run(
+        [make, "--no-print-directory", "release-tag-check", "PYTHON=" + sys.executable],
+        cwd=str(ROOT),
+        env=env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        universal_newlines=True,
+    )
+    assert (result.returncode == 0) is passes, result.stdout
+    if tag and not passes:
+        assert "does not match package version " + __version__ in result.stdout
 
 
 def test_release_write_stages_recipe_rename_with_git_mv(tmp_path, monkeypatch):

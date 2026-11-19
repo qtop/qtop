@@ -202,6 +202,15 @@ install-check:: ## Build from an sdist and test a clean installation on this int
 release-check:: ## Validate the exact prebuilt sdist/wheel pair without replacing dist files
 	$(PYTHON) tools/validate_installation.py --artifacts-dir "$(DIST_DIR)" --report artifacts/release/evidence.json
 
+# Temporary until the 1.0 namespace change: a release tag must be v<__version__>,
+# the form the EasyBuild recipe downloads. RELEASE_TAG comes from the environment.
+release-tag-check:: ## Fail unless RELEASE_TAG is v<package version>
+	@test -n "$$RELEASE_TAG" || { echo "RELEASE_TAG is not set"; exit 1; }
+	@VERSION="$$($(PYTHON) -c 'from qtop_py import __version__; print(__version__)')"; \
+	test "$$RELEASE_TAG" = "v$$VERSION" || { \
+		echo "Release tag $$RELEASE_TAG does not match package version $$VERSION"; exit 1; }; \
+	echo "Release tag $$RELEASE_TAG matches qtop $$VERSION"
+
 validated-build:: build ## Build once and validate those exact release artifacts
 	$(MAKE) release-check
 

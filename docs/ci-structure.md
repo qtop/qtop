@@ -110,6 +110,11 @@ synchronizes package metadata, the manpage, changelog and EasyBuild recipe.
 inputs. Preparation neither commits nor tags nor publishes; exact artifact
 validation and independent release approval remain separate requirements.
 
+Tag the release `v<version>`: the EasyBuild recipe downloads that tarball.
+`release.yml` runs `make release-tag-check` first, so a published release whose
+tag differs from `qtop_py.__version__` fails before building or reaching PyPI.
+This gate is temporary until the 1.0 namespace change.
+
 ## Nightly compatibility lanes
 
 Both nightly matrices use `ci/scripts/matrix_lane.sh` and the shared CI pins.
