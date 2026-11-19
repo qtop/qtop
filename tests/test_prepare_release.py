@@ -1,5 +1,8 @@
 # Copyright (c) 2026 qtop contributors
 # SPDX-License-Identifier: MIT
+import shutil
+import subprocess
+
 import pytest
 
 from qtop_py import __version__
@@ -31,3 +34,25 @@ def test_release_cli_writes_only_when_requested(tmp_path, monkeypatch, write):
     monkeypatch.setattr("sys.argv", ["prepare-release", "--version", "0.9.20990101"] + (["--write"] if write else []))
     prepare_release.main()
     assert (tmp_path / "version.txt").exists() is write
+
+
+def test_release_write_stages_recipe_rename_with_git_mv(tmp_path, monkeypatch):
+    git = shutil.which("git")
+    if git is None:
+        pytest.skip("git is not installed")
+    old, new = "recipe-0.9.20260101.eb", "recipe-0.9.20990101.eb"
+    subprocess.check_call([git, "init", "-q", str(tmp_path)])
+    (tmp_path / old).write_text("version = '0.9.20260101'\n")
+    subprocess.check_call([git, "add", old], cwd=str(tmp_path))
+    identity = ["-c", "user.name=qtop", "-c", "user.email=qtop@example.invalid", "-c", "commit.gpgsign=false"]
+    subprocess.check_call([git] + identity + ["commit", "-q", "-m", "init"], cwd=str(tmp_path))
+    check_output = subprocess.check_output
+    monkeypatch.setattr(prepare_release, "ROOT", tmp_path)
+    monkeypatch.setattr(prepare_release, "release_plan", lambda *args: {old: None, new: "version = '0.9.20990101'\n"})
+    monkeypatch.setattr(prepare_release.subprocess, "check_output", lambda *args, **kwargs: "")
+    monkeypatch.setattr("sys.argv", ["prepare-release", "--version", "0.9.20990101", "--write"])
+    prepare_release.main()
+    status = check_output([git, "status", "--porcelain"], cwd=str(tmp_path), universal_newlines=True)
+    assert status.startswith("R") and "%s -> %s" % (old, new) in status
+    assert (tmp_path / new).read_text() == "version = '0.9.20990101'\n"
+    assert not (tmp_path / old).exists()

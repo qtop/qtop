@@ -6,6 +6,7 @@ Notable changes by version, newest first. See the
 ## 0.9.20261118
 
 - Release: update version metadata to 0.9.20261118
+- Tools: prepare_release stages the EasyBuild recipe rename with git mv
 
 ## 0.9.20261117
 

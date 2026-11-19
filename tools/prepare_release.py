@@ -76,10 +76,15 @@ def main():
         if args.write:
             for name, content in edits.items():
                 path = ROOT / name
-                if content is None:
-                    path.unlink()
-                else:
+                if content is not None:
                     path.write_text(content)
+                    continue
+                renamed = re.sub(r"0\.9\.[0-9]{8}", VERSION, name)
+                moved = renamed != name and renamed in edits
+                if moved:
+                    moved = subprocess.call(["git", "mv", "--", name, renamed], cwd=str(ROOT)) == 0
+                if not moved:
+                    path.unlink()
     except (ValueError, OSError) as error:
         parser.error(str(error))
 
