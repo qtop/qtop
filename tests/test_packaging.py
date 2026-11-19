@@ -91,7 +91,11 @@ def test_prebuilt_wheel_validation_without_git_metadata(release_artifacts, tmp_p
         bindir.mkdir()
         echo = shutil.which("echo")
         if echo is not None:
-            shutil.copy2(echo, bindir / Path(echo).name)
+            # The demo backend runs echo; macOS kills system binaries copied elsewhere, so link where possible.
+            try:
+                (bindir / Path(echo).name).symlink_to(echo)
+            except OSError:
+                shutil.copy(echo, bindir / Path(echo).name)
         monkeypatch.setenv("PATH", str(bindir))
         assert shutil.which("git") is None
     source = release_artifacts.parent / "source"

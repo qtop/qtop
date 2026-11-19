@@ -1,6 +1,7 @@
 ## Copyright (c) 2026 qtop contributors
 ## SPDX-License-Identifier: MIT
 import argparse
+import errno
 import json
 import os
 import subprocess
@@ -38,8 +39,6 @@ def test_tracked_files_reports_git_command_failure(monkeypatch, tmp_path):
 
 
 def test_tracked_files_preserves_non_utf8_filename_bytes(monkeypatch, tmp_path):
-    source = tmp_path / os.fsdecode(b"tracked-\xff.py")
-    source.write_text('access = "user\u202e"\n', encoding="utf-8")
     monkeypatch.setattr(
         repo_sanity.subprocess,
         "check_output",
@@ -50,6 +49,12 @@ def test_tracked_files_preserves_non_utf8_filename_bytes(monkeypatch, tmp_path):
 
     assert len(paths) == 1
     assert os.fsencode(paths[0].name) == b"tracked-\xff.py"
+    try:
+        paths[0].write_text('access = "user\u202e"\n', encoding="utf-8")
+    except OSError as exc:
+        if exc.errno != errno.EILSEQ:
+            raise
+        pytest.skip("filesystem rejects non-UTF-8 filenames (e.g. macOS APFS)")
     report_dir = tmp_path / "report"
     assert repo_sanity.run_audit(tmp_path, report_dir, strict=False) == 1
     report = (report_dir / "report.txt").read_text(encoding="utf-8")
