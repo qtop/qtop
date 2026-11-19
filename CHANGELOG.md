@@ -11,6 +11,7 @@ Notable changes by version, newest first. See the
 - Docs: README badges follow main, and the outdated PyPI release note is gone
 - Tests: package and repo-sanity tests run on macOS (no copied system binaries, non-UTF-8 names skip cleanly)
 - CI: release publishing stops unless the release tag is v<package version> (temporary until 1.0)
+- Bugfix: highlight (H) no longer crashes on an unknown user ID or invalid pattern, and user IDs match whole user names (#603)
 
 ## 0.9.20261117
 
