@@ -2,4 +2,4 @@
 ## SPDX-License-Identifier: MIT
 """qtop: a text-mode monitor for PBS, SGE, OAR and Slurm clusters."""
 
-__version__ = "0.9.20261117"
+__version__ = "0.9.20261118"
