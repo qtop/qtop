@@ -12,6 +12,7 @@ Notable changes by version, newest first. See the
 - CI: publishing stops unless the release tag is v<package version> (temporary until 1.0)
 - Docs: README badges follow main; the outdated PyPI release note is gone
 - Docs: sonar-review.md records the 2026-11-20 review; kept findings get a comment at their line
+- Docs: skills/qtop-cluster-status/SKILL.md guides AI agents through snapshots, JSON and replay
 - Feature: named node labels change colour per name group, at most 5 nodes at a time (#197)
 - Feature: stack_jobs_per_node (S in watch mode) stacks each node's jobs from core 0 (#182)
 - Feature: Q in watch mode gains a hidden layout that drops the Queueing line
