@@ -3,6 +3,10 @@
 Notable changes by version, newest first. See the
 [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 
+## 0.9.20261120
+
+- Release: update version metadata to 0.9.20261120
+
 ## 0.9.20261119
 
 - Bugfix: section 4 Totals counts distinct occupied nodes, not the sum of per-user node counts
