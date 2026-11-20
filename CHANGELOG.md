@@ -6,6 +6,7 @@ Notable changes by version, newest first. See the
 ## 0.9.20261118
 
 - Bugfix: highlight (H) no longer crashes on an unknown user ID or invalid pattern, and user IDs match whole user names (#603)
+- Bugfix: vertical_separator_every_X_columns no longer crashes the matrix; separators are drawn in dark grey in every line
 - CI: restore coverage.yml as the only GitHub coverage run, so its badge reports the coverage gate alone
 - CI: release publishing stops unless the release tag is v<package version> (temporary until 1.0)
 - Docs: README badges follow main, and the outdated PyPI release note is gone

@@ -31,6 +31,8 @@ from qtop_py.ui.viewport import terminal_rows
 DEFAULT_ACCOUNT_STATES = ("running_of_user", "queued_of_user", "other_of_user")
 # Named worker-node labels change colour per name group, and at least every this many nodes within one (#197).
 LABEL_GROUP_SIZE: "Final" = 5
+# Vertical separators (vertical_separator_every_X_columns) are drawn in this colour in every matrix line.
+SEPARATOR_COLOR: "Final" = "Gray_D"
 
 
 def label_group_colors(hosts: Sequence[str], colors: Sequence[str], group_size: int = LABEL_GROUP_SIZE) -> List[str]:
@@ -631,7 +633,7 @@ class TextDisplay(object):
             ALT_LABEL_COLORS = self.config["ALT_LABEL_COLORS"]
             hosts = [node["host"] for node in self.cluster.workernode_dict.values()]  # the label columns' order
             node_colors = label_group_colors(hosts, ALT_LABEL_COLORS)[start:stop]
-            separator = [ALT_LABEL_COLORS[0]] * len(self.config["SEPARATOR"])
+            separator = [SEPARATOR_COLOR] * len(self.config["SEPARATOR"])
             line_colors = self._insert_separators(node_colors, separator, self.config["vertical_separator_every_X_columns"])
             self.print_wnid_lines(
                 wn_vert_labels,
@@ -684,7 +686,7 @@ class TextDisplay(object):
 
         for _line in attr_lines:
             line = attr_lines[_line][node_column_start:node_column_stop]
-            attr_line = self._insert_separators(line, self.config["SEPARATOR"], self.config["vertical_separator_every_X_columns"])
+            attr_line = self._insert_separators(line, self._separator_cells(), self.config["vertical_separator_every_X_columns"])
             attr_line = "".join([self.MVU_model.MVU_colorize(char.initial, color_func=char.color) for char in attr_line])
             print(attr_line + "=" + label)
 
@@ -698,7 +700,7 @@ class TextDisplay(object):
             if is_corevector_removable:
                 continue
 
-            core_x_vector = self._insert_separators(core_x_vector, self.config["SEPARATOR"], self.config["vertical_separator_every_X_columns"])
+            core_x_vector = self._insert_separators(core_x_vector, self._separator_cells(), self.config["vertical_separator_every_X_columns"])
             colored_core_x = [self.MVU_model.MVU_colorize(elem, color_func=elem.color) for elem in core_x_vector]
             core_x_vector = "".join([str(item) for item in colored_core_x])
             yield core_x_vector + self.MVU_model.MVU_colorize("=Core" + str(ind), pattern="account_not_colored")
@@ -712,6 +714,10 @@ class TextDisplay(object):
                 cells[:] = cells[::-1] if reverse else cells
                 row = cells
             yield row
+
+    def _separator_cells(self) -> List[utils.ColorStr]:
+        """The vertical separator as coloured cells, for lines whose cells carry their own colour."""
+        return [utils.ColorStr(char, color=SEPARATOR_COLOR) for char in self.config["SEPARATOR"]]
 
     def _insert_separators(self, orig_str: Any, separator: Sequence[str], pos: int, stopaftern: int = 0) -> Any:
         """Inserts separator into orig_str every pos-th position, optionally stopping after stopaftern times."""
