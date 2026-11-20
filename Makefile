@@ -168,7 +168,7 @@ sbom:: ## Write a CycloneDX SBOM of the wheel in DIST_DIR (run build first)
 	"$(SBOM_VENV)/bin/python" -m pip install --disable-pip-version-check --no-index --find-links "$(DIST_DIR)" "qtop==$$VERSION"
 	"$(SBOM_VENV)/bin/python" -m pip uninstall --disable-pip-version-check -y pip
 	@mkdir -p $(SBOM_DIR)
-	$(PYTHON) -m cyclonedx_py environment --mc-type application --output-reproducible --output-format JSON \
+	$(PYTHON) -m cyclonedx_py environment --mc-type application --output-format JSON \
 		--output-file "$(SBOM_DIR)/qtop.cdx.json" "$(SBOM_VENV)/bin/python"
 	@echo "wrote $(SBOM_DIR)/qtop.cdx.json"
 
