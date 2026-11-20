@@ -133,3 +133,13 @@ def test_text_policy_keeps_confusables_and_encoding_distinct(tmp_path, text, sev
 
 def test_terminal_fixture_exceptions_reject_planted_attacks(tmp_path):
     assert repo_sanity.selftest(tmp_path / "proof") == 0
+
+
+@pytest.mark.parametrize("base_ref", ("--output=/tmp/qtop-injected", "-p", ""))
+def test_check_diff_rejects_option_like_base_refs_before_running_git(monkeypatch, capsys, base_ref):
+    def fail(args):
+        raise AssertionError("git must not run: %r" % args)
+
+    monkeypatch.setattr(repo_sanity, "run_git", fail)
+    assert repo_sanity.check_diff(base_ref) == 2
+    assert "Invalid base ref" in capsys.readouterr().err

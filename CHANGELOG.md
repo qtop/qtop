@@ -14,6 +14,7 @@ Notable changes by version, newest first. See the
 - Feature: stack_jobs_per_node (S in watch mode) stacks each node's jobs from its first core, ignoring scheduler core placement (#182)
 - Tests: package and repo-sanity tests run on macOS (no copied system binaries, non-UTF-8 names skip cleanly)
 - Tools: prepare_release stages the EasyBuild recipe rename with git mv
+- Tools: repo-sanity rejects a --base-ref that git would read as an option (Sonar)
 - Release: update version metadata to 0.9.20261118
 
 ## 0.9.20261117

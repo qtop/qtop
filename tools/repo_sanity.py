@@ -116,6 +116,9 @@ def find_diff_problems(lines):
 
 def check_diff(base_ref):
     """Check pending branch edits for non-ASCII text and generated paths."""
+    if not base_ref or base_ref.startswith("-"):  # git would read it as an option, not a revision
+        print("Invalid base ref %r: expected a branch, tag or commit" % base_ref, file=sys.stderr)
+        return 2
     try:
         base = run_git(["merge-base", base_ref, "HEAD"]).strip()
         problems = ["manual review required for generated/binary-looking path: %s" % name for name in changed_files(base) if GENERATED_OR_BINARY.search(name)]
