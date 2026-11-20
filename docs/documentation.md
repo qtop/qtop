@@ -55,7 +55,7 @@ invoking it in demo mode:
 ```
 
 When used, the ``-b`` switch must always be followed by one of the
-supported batch systems (pbs, sge, oar, slurm, slurm_json, lsf, demo).
+supported batch systems (pbs, sge, oar, slurm, slurm_json, lsf, htcondor, demo).
 
 That should create and destroy fictional jobs in fictional machines from
 fictional users, and display all that in a colorful but not yet very
@@ -1151,7 +1151,7 @@ checkout.
 ### Input selection
 
 -  ``-b SYSTEM`` selects the scheduler backend. Common values are
-   ``demo``, ``pbs``, ``sge``, ``oar``, ``slurm``, ``slurm_json`` and ``lsf``.
+   ``demo``, ``pbs``, ``sge``, ``oar``, ``slurm``, ``slurm_json``, ``lsf`` and ``htcondor``.
 -  ``-s DIRECTORY`` / ``--SetSourceDir`` reads scheduler output files from
    ``DIRECTORY`` instead of running commands. Passing an existing output file
    selects its parent directory; qtop still needs all files for that backend.
@@ -1517,6 +1517,33 @@ The backend is built from IBM's documented LSF 10.1 formats and synthetic
 traces in `tests/plugins/lsf_samples/`; it has not yet been checked against a
 live cluster. If `bjobs` reports "No unfinished job found" with a nonzero exit
 status, the live collection fails; replaying a saved empty trace works.
+
+### HTCondor backend
+
+`-b htcondor` reads HTCondor JSON ClassAds; autodetection selects it when
+`condor_status` is on the `PATH`. Each frame runs (see `qtopconf.yaml`):
+
+```console
+condor_status -json -attributes Name,Machine,SlotType,PartitionableSlot,DynamicSlot,State,Activity,Cpus,TotalSlotCpus
+condor_q -allusers -json -attributes ClusterId,ProcId,Owner,JobStatus,RemoteHost,RequestCpus,AcctGroup
+./qtop -b htcondor -s tests/plugins/htcondor_samples/basic -F
+```
+
+- **Machines** group slots by `Machine`. Cores are each partitionable slot's
+  `TotalSlotCpus` plus each static slot's `Cpus`; dynamic slots are carved from
+  them. A machine whose slots are all `Drained` or in the `Owner` state is shown
+  as off (`o`); otherwise `-`.
+- **Jobs** are `ClusterId.ProcId`, with condor_q's state letters (`I`, `R`,
+  `H`, `S`, `X`, `C`; transferring output is `E`). A job fills its slot's
+  `Cpus` (or `RequestCpus`) on the machine named in `RemoteHost`.
+- **Queues**: HTCondor has none, so accounting groups (`AcctGroup`) stand in;
+  jobs without one are `default`. Running and idle counts come from condor_q.
+
+`condor_q` asks the local schedd; for a pool with several, add `-global` in a
+personal `qtopconf.yaml`. Masked source traces (`--masked-traces`) are not
+offered for HTCondor and are listed as omitted; `-A` exports are anonymized.
+The backend is built from documented JSON output and synthetic traces in
+`tests/plugins/htcondor_samples/`; it has not yet been checked against a live pool.
 
 ## Adding a scheduler backend
 

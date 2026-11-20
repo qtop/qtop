@@ -1,0 +1,67 @@
+[
+ {
+  "ClusterId": 100,
+  "ProcId": 0,
+  "Owner": "alice",
+  "JobStatus": 2,
+  "RequestCpus": 8,
+  "RemoteHost": "slot1_1@node01.example.org",
+  "AcctGroup": "group_physics"
+ },
+ {
+  "ClusterId": 100,
+  "ProcId": 1,
+  "Owner": "alice",
+  "JobStatus": 2,
+  "RequestCpus": 16,
+  "RemoteHost": "slot1_2@node01.example.org",
+  "AcctGroup": "group_physics"
+ },
+ {
+  "ClusterId": 101,
+  "ProcId": 0,
+  "Owner": "bob",
+  "JobStatus": 2,
+  "RequestCpus": 16,
+  "RemoteHost": "slot1_1@node02.example.org"
+ },
+ {
+  "ClusterId": 102,
+  "ProcId": 0,
+  "Owner": "carol",
+  "JobStatus": 1,
+  "RequestCpus": 4,
+  "AcctGroup": "group_bio"
+ },
+ {
+  "ClusterId": 102,
+  "ProcId": 1,
+  "Owner": "carol",
+  "JobStatus": 5,
+  "RequestCpus": 4,
+  "AcctGroup": "group_bio"
+ },
+ {
+  "ClusterId": 103,
+  "ProcId": 0,
+  "Owner": "dave",
+  "JobStatus": 2,
+  "RequestCpus": 1,
+  "RemoteHost": "slot1@node04.example.org"
+ },
+ {
+  "ClusterId": 104,
+  "ProcId": 0,
+  "Owner": "erin",
+  "JobStatus": 7,
+  "RequestCpus": 1,
+  "RemoteHost": "slot2@node04.example.org"
+ },
+ {
+  "ClusterId": 105,
+  "ProcId": 0,
+  "Owner": "bob",
+  "JobStatus": 1,
+  "RequestCpus": 2
+ }
+]

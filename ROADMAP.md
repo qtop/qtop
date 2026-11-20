@@ -196,6 +196,11 @@ Open items here are proposals, not 1.0 release requirements.
     (`make osps-audit`); Privateer/Gemara and Minder are deferred with reasons in
     [OpenSSF readiness](docs/openssf-readiness.md#future-integrations).
 
+- [ ] Add HTCondor support.
+  - [x] Synthetic JSON ClassAd traces in `tests/plugins/htcondor_samples/basic`.
+  - [ ] An owner and anonymized traces from a live pool (multiple schedds, GPUs).
+  - [x] [CI] Parser, accounting and terminal smoke checks
+    (`tests/plugins/test_htcondor.py`, conformance, sample gate).
 - [ ] Add LSF support.
   - [ ] Requires an owner and representative synthetic or approved anonymized traces.
     - [x] Synthetic LSF 10.1 traces in `tests/plugins/lsf_samples/basic`.
