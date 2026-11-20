@@ -114,6 +114,9 @@ or a release is prepared.
 
 - [ ] Publish a current, consistent release.
   - [ ] Align the source version, Git tag, release notes and PyPI artifacts.
+    - [x] [CI] `make release-tag-check` stops `release.yml` before building or
+      publishing unless the release tag is `v<__version__>`. Temporary: remove
+      or rework it with the 1.0 namespace change.
   - [ ] Summarize user-visible changes and known limitations.
   - [ ] Verify installation from the published package.
   - [ ] Update installation documentation once publication is confirmed.

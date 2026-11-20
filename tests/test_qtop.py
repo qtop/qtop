@@ -1390,6 +1390,20 @@ def test_no_wrap_queues_clips_only_the_queueing_row(capsys, color, clipped):
     assert "Job accounting summary" in output and "Summary" in output
 
 
+@pytest.mark.parametrize("color", ("ON", "OFF"))
+def test_hidden_queue_layout_drops_only_the_queueing_lines(capsys, color):
+    queues = {"long": SimpleNamespace(run="1", queued="2", state="E")}
+    cluster = SimpleNamespace(total_running_jobs=1, total_queued_jobs=2, queues_dict=queues, total_wn=0, offdown_nodes=0, available_wn=0, working_cores=0, total_cores=0)
+    args = SimpleNamespace(REMAP=False, CLASSIC=False, WATCH=True, NO_WRAP_QUEUES=True, COLOR=color)
+    viewport = Viewport()
+    viewport.set_term_size(40, 80)
+    model = MVU_Model({}, args, viewport, backend=qtop_module.scheduler_backend("pbs"), display_overrides={"queue_summary_layout": "hidden"})
+    mvu_view.TextDisplay(None, {}, viewport, None, None, args, MVU_model=model).display_job_accounting_summary(cluster, None)
+    output = re.sub(r"\x1b\[[0-9;]*m", "", capsys.readouterr().out)
+    assert "Queueing :" not in output and "implies blocked" not in output  # the title banner also says "Queueing"
+    assert "Job accounting summary" in output and "Summary" in output
+
+
 @pytest.mark.parametrize("expanded", (False, True), ids=("compact", "expanded"))
 @pytest.mark.parametrize("configured", (False, True), ids=("fallback", "configured"))
 def test_queue_labels_match_matrix_letter_backgrounds(capsys, expanded, configured):

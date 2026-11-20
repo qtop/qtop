@@ -355,6 +355,7 @@ class PBSBatchSystem(GenericBatchSystem):
                             r"(?:,(?:free|busy|down|offline|unknown|job-busy|job-exclusive|reserve|time-shared))*",
                         )
                     elif name == "jobs":
+                        # Sonar regex finding: linear here, since the lookbehind only lets a match start at the beginning of a run; see docs/sonar-review.md
                         value = re.sub(r"(?<![0-9,\-])([0-9,\-]+)/([0-9\[\]-]+)(?:\.[\w.*-]+)?", lambda match: match[1] + "/" + mask(match[2], "job") + ".server", value)
                         value = mask.public(value, r"(?:[0-9,\-]+/[0-9\[\]\-]+\.server(?:,?\s*)?)*")
                     else:

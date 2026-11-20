@@ -64,6 +64,15 @@ def test_MVU_update_returns_owned_state_and_effects_without_io(tmp_path, monkeyp
     assert model.display_overrides == original_overrides
 
 
+def test_MVU_update_S_toggles_job_stacking_from_the_configured_default(tmp_path, monkeypatch):
+    model = MVU_test_model(tmp_path, monkeypatch)
+    stacked, effects = MVU_update(model, "S")
+    assert stacked.display_overrides["stack_jobs_per_node"] is True and effects == (("notice", "Stacking jobs per node"),)
+    unstacked, effects = MVU_update(stacked, "S")
+    assert unstacked.display_overrides["stack_jobs_per_node"] is False and effects == (("notice", "Showing jobs on their scheduler cores"),)
+    assert "stack_jobs_per_node" not in model.display_overrides
+
+
 SECTION_KEYS = [("1", "sect_1_off", "Job accounting summary"), ("2", "sect_2_off", "Worker Nodes occupancy"), ("3", "sect_3_off", "User accounts")]
 SECTION_KEYS += [("4", "SHOW_ACCOUNT_TOTALS", "Totals")]
 

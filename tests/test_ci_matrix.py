@@ -41,6 +41,26 @@ def test_committed_nightly_matrices_match():
     assert github and github == gitlab
 
 
+def make_prerequisites(target):
+    """Return the prerequisite targets of a double-colon Makefile rule."""
+    for line in (ROOT / "Makefile").read_text().splitlines():
+        if line.startswith(target + "::"):
+            return line.split("::", 1)[1].split("##", 1)[0].split()
+    raise AssertionError("Makefile has no %s:: rule" % target)
+
+
+def test_github_split_runs_every_pre_pr_check_once():
+    def workflow(name):
+        return yaml.safe_load((ROOT / ".github/workflows" / name).read_text())
+
+    lanes = workflow("build.yml")["jobs"]["modern-python"]["strategy"]["matrix"]["include"]
+    build_checks = next(lane["checks"].split() for lane in lanes if lane["python-version"] == "3.12.3")
+    coverage_runs = [step["run"] for step in workflow("coverage.yml")["jobs"]["coverage"]["steps"] if "run" in step]
+    assert "make coverage-xml PYTHON=python" in coverage_runs
+    assert "coverage" in make_prerequisites("coverage-xml")
+    assert Counter(build_checks + ["coverage"]) == Counter(make_prerequisites("pre-pr"))
+
+
 @pytest.mark.parametrize("change", ("missing", "duplicate", "failure-policy", "target"))
 def test_nightly_matrix_drift_is_detected(change):
     github, gitlab = read_matrices()

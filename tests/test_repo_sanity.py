@@ -1,6 +1,7 @@
 ## Copyright (c) 2026 qtop contributors
 ## SPDX-License-Identifier: MIT
 import argparse
+import errno
 import json
 import os
 import subprocess
@@ -38,8 +39,6 @@ def test_tracked_files_reports_git_command_failure(monkeypatch, tmp_path):
 
 
 def test_tracked_files_preserves_non_utf8_filename_bytes(monkeypatch, tmp_path):
-    source = tmp_path / os.fsdecode(b"tracked-\xff.py")
-    source.write_text('access = "user\u202e"\n', encoding="utf-8")
     monkeypatch.setattr(
         repo_sanity.subprocess,
         "check_output",
@@ -50,6 +49,12 @@ def test_tracked_files_preserves_non_utf8_filename_bytes(monkeypatch, tmp_path):
 
     assert len(paths) == 1
     assert os.fsencode(paths[0].name) == b"tracked-\xff.py"
+    try:
+        paths[0].write_text('access = "user\u202e"\n', encoding="utf-8")
+    except OSError as exc:
+        if exc.errno != errno.EILSEQ:
+            raise
+        pytest.skip("filesystem rejects non-UTF-8 filenames (e.g. macOS APFS)")
     report_dir = tmp_path / "report"
     assert repo_sanity.run_audit(tmp_path, report_dir, strict=False) == 1
     report = (report_dir / "report.txt").read_text(encoding="utf-8")
@@ -128,3 +133,13 @@ def test_text_policy_keeps_confusables_and_encoding_distinct(tmp_path, text, sev
 
 def test_terminal_fixture_exceptions_reject_planted_attacks(tmp_path):
     assert repo_sanity.selftest(tmp_path / "proof") == 0
+
+
+@pytest.mark.parametrize("base_ref", ("--output=/tmp/qtop-injected", "-p", ""))
+def test_check_diff_rejects_option_like_base_refs_before_running_git(monkeypatch, capsys, base_ref):
+    def fail(args):
+        raise AssertionError("git must not run: %r" % args)
+
+    monkeypatch.setattr(repo_sanity, "run_git", fail)
+    assert repo_sanity.check_diff(base_ref) == 2
+    assert "Invalid base ref" in capsys.readouterr().err

@@ -20,6 +20,32 @@ from qtop_py.mvu import MVU_reserved_pattern_mappings as _reserved_pattern_mappi
 from qtop_py.serialiser import resolve_job_id
 
 ACCOUNT_LETTERS = re.compile(r"[A-Za-z]+")
+# A highlight rule as a test on a core's (user, queue): the matched text, or None.
+HighlightMatcher = Callable[[str, str], Optional[str]]
+
+
+def _user_matcher(users: Set[str]) -> HighlightMatcher:
+    """Match the users that share one matrix ID, by whole name."""
+
+    def match(user: str, queue: str) -> Optional[str]:
+        return user if user in users else None
+
+    return match
+
+
+def _pattern_matcher(pattern: "re.Pattern[str]", on_queue: bool) -> HighlightMatcher:
+    """Match a regular expression at the start of the queue, or of the user name."""
+
+    def match(user: str, queue: str) -> Optional[str]:
+        found = pattern.match(queue if on_queue else user)
+        return found.group(0) if found is not None else None
+
+    return match
+
+
+def _match_nothing(user: str, queue: str) -> Optional[str]:
+    """Stand in for a highlight rule that can never match, such as an invalid pattern."""
+    return None
 
 
 def rank_users(
@@ -363,6 +389,7 @@ class WNOccupancy(object):
         core_user_map: Dict[str, Any] = OrderedDict()
 
         core_coloring = self.MVU_model.display_overrides.get("core_coloring", self.config["core_coloring"])
+        self._stack_jobs = self.MVU_model.display_overrides.get("stack_jobs_per_node", self.config.get("stack_jobs_per_node", False))
 
         for core_nr in self.cluster.core_span:
             core_user_map["Core%svector" % str(core_nr)] = []  # Cpu0vector, Cpu1vector, Cpu2vector, ... = [],[],[], ...
@@ -388,6 +415,8 @@ class WNOccupancy(object):
         node = self.cluster.workernode_dict[_node]
         state = node["state"]
         corejobs = node.get("core_job_map", dict())
+        if self.__dict__.get("_stack_jobs"):
+            corejobs = self.stack_core_jobs(corejobs)
         non_existent_node_symbol = self.config["non_existent_node_symbol"]
         gray_hash = utils.ColorStr(non_existent_node_symbol, color="Gray_D")
         gray_underscore = utils.ColorStr("_", color="Gray_D")
@@ -401,6 +430,20 @@ class WNOccupancy(object):
                 core_vectors[core].append(gray_underscore)
             for vector in core_vectors[np:]:  # core lines beyond this node's cores
                 vector.append(gray_hash)
+
+    @staticmethod
+    def stack_core_jobs(corejobs: Mapping[Any, str]) -> Dict[int, str]:
+        """Re-place a node's jobs from core 0, each job's cores together, ordered by each job's lowest core (#182)."""
+
+        def position(core: Any) -> Tuple[int, int]:  # numbered cores in order; anything else after them, as given
+            text = str(core)
+            return (0, int(text)) if text.isdecimal() else (1, 0)  # isdigit() also accepts superscript digits, which int() rejects
+
+        cores_of_job: Dict[str, int] = OrderedDict()
+        for _, job in sorted(corejobs.items(), key=lambda item: position(item[0])):
+            cores_of_job[job] = cores_of_job.get(job, 0) + 1
+        stacked = (job for job, count in cores_of_job.items() for _ in range(count))
+        return dict(enumerate(stacked))
 
     @staticmethod
     def get_hl_q_or_users(_highlighted_queues_or_users: Iterable[Mapping[str, Any]]) -> Iterator[Tuple[Any, str, Callable[..., bool]]]:
@@ -452,28 +495,39 @@ class WNOccupancy(object):
         if highlight is None:
             _highlighted_queues_or_users = self.MVU_model.display_overrides.get("highlight", self.config["highlight"])
             highlight_rules = list(WNOccupancy.get_hl_q_or_users(_highlighted_queues_or_users))
-            if any(kind == "user_id" for _, kind, _ in highlight_rules):  # user IDs become user names once
-                id_to_user = dict(zip((str(x) for x in self.user_to_id.values()), self.user_to_id.keys()))
-                highlight_rules = [(id_to_user[rule] if kind == "user_id" else rule, kind, func) for rule, kind, func in highlight_rules]
-            highlight = self._highlight = (_highlighted_queues_or_users, highlight_rules, highlight_rules[-1][2] if highlight_rules else any)
-        _highlighted_queues_or_users, highlight_rules, and_or_func = highlight
+            highlight = self._highlight = (
+                _highlighted_queues_or_users,
+                self._highlight_matchers(highlight_rules),
+                highlight_rules[-1][2] if highlight_rules else any,
+            )
+        _highlighted_queues_or_users, matchers, and_or_func = highlight
         id_: utils.ColorStr = utils.ColorStr.from_other_color_str(self.user_to_id[user])
         viewed_pattern = self.user_color_patterns[str(id_)] if _core_coloring == "user_to_color" else queue
-        matches = []
-        for user_queue_to_highlight, highlight_kind, _ in highlight_rules:
-            if highlight_kind == "user_pat":
-                actual_user_queue = user
-            elif highlight_kind == "user_id":
-                actual_user_queue = user
-            elif highlight_kind == "queue":
-                actual_user_queue = queue
-            matches.append(re.match(user_queue_to_highlight, actual_user_queue))
-        if not _highlighted_queues_or_users or and_or_func(match.group(0) if match is not None else None for match in matches):
+        if not _highlighted_queues_or_users or and_or_func(match(user, queue) for match in matchers):
             id_.color = selected_pat_to_color_map.get(viewed_pattern, "White")  # queue or user decided on runtime
         else:
             id_.color = "Gray_D"
         id_.q = queue
         return id_
+
+    def _highlight_matchers(self, highlight_rules: Iterable[Tuple[Any, str, Callable[..., bool]]]) -> List[HighlightMatcher]:
+        """Turn highlight rules into (user, queue) matchers; an unknown user ID or invalid pattern matches nothing."""
+        id_to_users: Dict[str, Set[str]] = {}
+        for unix_account, userid in self.user_to_id.items():  # users past the ID range share one symbol
+            id_to_users.setdefault(str(userid), set()).add(unix_account)
+        matchers: List[HighlightMatcher] = []
+        for rule, kind, _ in highlight_rules:
+            if kind == "user_id":
+                matchers.append(_user_matcher(id_to_users.get(str(rule), set())))
+                continue
+            try:
+                pattern = re.compile(rule)
+            except re.error as exc:
+                logging.warning("Ignoring invalid highlight pattern %r: %s", rule, exc)
+                matchers.append(_match_nothing)
+                continue
+            matchers.append(_pattern_matcher(pattern, on_queue=kind == "queue"))
+        return matchers
 
     def _resolve(self, job: str, job_to_user_and_queue: "Mapping[str, Tuple[str, str]]") -> str:
         """resolve_job_id, memoized per frame: cores of one job resolve once, not once per core."""

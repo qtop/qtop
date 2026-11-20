@@ -3,6 +3,26 @@
 Notable changes by version, newest first. See the
 [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 
+## 0.9.20261118
+
+- Bugfix: highlight (H) ignores unknown user IDs and bad patterns instead of crashing (#603)
+- Bugfix: -R/--replay takes its start time and optional duration again (broken since 2023)
+- Bugfix: vertical_separator_every_X_columns no longer crashes the worker-node matrix
+- CI: restore coverage.yml as the only GitHub coverage run, so its badge shows the coverage gate
+- CI: publishing stops unless the release tag is v<package version> (temporary until 1.0)
+- Docs: README badges follow main; the outdated PyPI release note is gone
+- Docs: sonar-review.md records the 2026-11-20 review; kept findings get a comment at their line
+- Docs: skills/qtop-cluster-status/SKILL.md guides AI agents through snapshots, JSON and replay
+- Feature: named node labels change colour per name group, at most 5 nodes at a time (#197)
+- Feature: stack_jobs_per_node (S in watch mode) stacks each node's jobs from core 0 (#182)
+- Feature: Q in watch mode gains a hidden layout that drops the Queueing line
+- Refactor: Sonar cleanups without behaviour change (web page head, bash [[ ]], regexes)
+- Tests: package and repo-sanity tests run on macOS
+- Tests: items in the latest CHANGELOG section stay within 100 characters
+- Tools: prepare_release stages the EasyBuild recipe rename with git mv
+- Tools: repo-sanity rejects a --base-ref that git would read as an option (Sonar)
+- Release: update version metadata to 0.9.20261118
+
 ## 0.9.20261117
 
 - Bugfix: keep collection and extraction workspaces in configured savepath

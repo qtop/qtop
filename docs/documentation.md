@@ -401,9 +401,10 @@ Watch mode supports:
 | H | highlight users or queues |
 | m | switch core coloring by user / queue |
 | p / P | cycle palettes forward / backward in ``palettes.yaml`` |
-| Q | cycle compact / expanded / clipped Queueing layouts |
+| Q | cycle compact / expanded / clipped / hidden Queueing layouts |
 | r | cycle all / real / used core lines |
 | s | apply sorting (remapped matrices; numbered ones keep node order) |
+| S | stack each node's jobs from its first core / show scheduler core placement (``stack_jobs_per_node``) |
 | t | transpose the matrix |
 | 1, 2, 3 | show / hide sections 1-3 (as ``-1``, ``-2``, ``-3``) |
 | 4 | show / hide independent section 4, Account totals (as ``-4``) |
@@ -1170,8 +1171,8 @@ Section titles carry fixed numbers 1-4, even when other sections are hidden.
    Summary colours; Other counts the queue's listed jobs beyond its R and Q.
 -  ``--no-wrap-queues`` keeps the Queueing summary on one physical terminal row,
    clipping overflow to the detected width. This is the default; it is mutually
-   exclusive with ``--expand-queues``. ``Q`` cycles compact, expanded and clipped
-   layouts after startup. Clipping affects display only; normalized exports
+   exclusive with ``--expand-queues``. ``Q`` cycles compact, expanded, clipped and
+   hidden layouts after startup; hidden drops the Queueing line and its legend. Clipping affects display only; normalized exports
    retain every queue. The blocked-queue legend stays on its own line in clipped
    mode, so it is visible even when queue names overflow.
 -  ``-T`` transposes the worker-node matrix.

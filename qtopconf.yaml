@@ -197,6 +197,9 @@ non_existent_node_symbol: #
 ## 0 removes nothing, 1 removes corelines consisting entirely of '#'s,
 ## 2 removes corelines consisting of '#'s and '_'s.
 rem_empty_corelines: 0
+## If True, ignore the scheduler's job-core mapping and stack each node's jobs from its
+## first core, one job's cores together, as SGE always shows them (S toggles it in watch mode).
+stack_jobs_per_node: False
 ## Term size is autodetected. If that fails, a value is read from here.
 ## If commented out, will get a fallback_terms_size from within constants.py
 # term_size: [53, 176]
@@ -313,7 +316,8 @@ workernodes_matrix:
        5: ['={________}', '={________}', '={_Worker_}', '={__Node__}', '={___ID___}']
        6: ['={________}', '={________}', '={________}', '={_Worker_}', '={__Node__}', '={___ID___}']
        7: ['={________}', '={________}', '={________}', '={________}', '={_Worker_}', '={__Node__}', '={___ID___}']
-     ## Alternate colors used for worker-node ID label rows.
+     ## Colors that named worker-node labels (-F) alternate through: they change per name group
+     ## (names differing only in digits) and at least every 5 nodes within a group.
      alt_label_colors: [White, Blue_L]
 # - temperature:  # not working, for illustrative purposes
 #     yaml key: temperature  # how it's found in the yaml file

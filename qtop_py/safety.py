@@ -187,6 +187,7 @@ class LimitedReader(object):
 @contextlib.contextmanager
 def snapshot_archive(path: str) -> Generator[tarfile.TarFile, None, None]:
     """Open a plain, gzip, bzip2 or xz snapshot tarball as a stream, within MAX_ARCHIVE_BYTES."""
+    # Sonar path finding: this path is the caller's chosen input, by design; see docs/sonar-review.md
     with open(path, "rb") as source, contextlib.ExitStack() as stack:
         stream: Any = source  # becomes a decompressing reader below
         magic = stream.read(6)

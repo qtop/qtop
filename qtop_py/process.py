@@ -185,6 +185,7 @@ def execute_shell_batch_commands(
                 detail = " ".join(stderr_data.decode("utf-8", errors="replace").splitlines())[:300] or "no diagnostic output"
                 raise OperationalError("Scheduler command %r failed (exit %s): %s" % (_batch_system_command, command.returncode, detail))
             logging.debug("File state after subprocess call: %(fin)s" % {"fin": fin})
+        # Sonar path finding: destination already contained (checked against the real savepath above); see docs/sonar-review.md
         os.rename(tempname, filenames[_file])
 
         return filenames[_file]

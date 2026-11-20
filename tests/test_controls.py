@@ -172,8 +172,8 @@ def test_unknown_key_leaves_view_and_settings_unchanged(controls):
     assert overrides(controls) == before
 
 
-def test_q_cycles_compact_expanded_and_clipped_layouts(controls):
-    for expected in ("compact", "expanded", "clipped", "compact"):
+def test_q_cycles_compact_expanded_clipped_and_hidden_layouts(controls):
+    for expected in ("hidden", "compact", "expanded", "clipped", "hidden"):  # starts from the default, clipped
         press(controls, "Q")
         assert overrides(controls)["queue_summary_layout"] == expected
 
@@ -188,5 +188,7 @@ def test_q_starts_from_the_actual_automatic_layout(controls):
 
 def test_q_can_leave_the_cli_clipped_layout(controls):
     controls.model.args.NO_WRAP_QUEUES = True
+    press(controls, "Q")
+    assert overrides(controls)["queue_summary_layout"] == "hidden"
     press(controls, "Q")
     assert overrides(controls)["queue_summary_layout"] == "compact"

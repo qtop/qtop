@@ -56,7 +56,7 @@ LEGACY_CR_FIXTURES = ANSI_FIXTURES.difference(set(["helpfile.txt"]))
 
 CONTROL_OR_BIDI = re.compile(r"[^\x09\x0a\x0d\x20-\x7e]")
 GENERATED_OR_BINARY = re.compile(
-    r"(^|/)(m4|autogen|configure|Makefile\.in|cmake|tests?/files|fixtures?)/|\.(xz|lzma|gz|bin|dat|png|jpg|jpeg|gif|webp)$",
+    r"(?:(^|/)(m4|autogen|configure|Makefile\.in|cmake|tests?/files|fixtures?)/)|(?:\.(xz|lzma|gz|bin|dat|png|jpg|jpeg|gif|webp)$)",
     re.IGNORECASE,
 )
 
@@ -116,6 +116,9 @@ def find_diff_problems(lines):
 
 def check_diff(base_ref):
     """Check pending branch edits for non-ASCII text and generated paths."""
+    if not base_ref or base_ref.startswith("-"):  # git would read it as an option, not a revision
+        print("Invalid base ref %r: expected a branch, tag or commit" % base_ref, file=sys.stderr)
+        return 2
     try:
         base = run_git(["merge-base", base_ref, "HEAD"]).strip()
         problems = ["manual review required for generated/binary-looking path: %s" % name for name in changed_files(base) if GENERATED_OR_BINARY.search(name)]

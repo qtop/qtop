@@ -23,6 +23,7 @@ def private_output_dir(path):
             raise ValueError("output directory %s has a symlink component" % path)
     if path.exists() and not path.is_dir():
         raise ValueError("output path %s exists and is not a directory" % path)
+    # Sonar path finding: destination already contained (symlinked ancestors and non-directories are rejected above; the root is the caller's choice); see docs/sonar-review.md
     path.mkdir(mode=0o700, parents=True, exist_ok=True)
     info = os.lstat(str(path))
     if stat.S_ISLNK(info.st_mode):
@@ -55,6 +56,7 @@ def write_private_file(path, content):
         with tempfile.NamedTemporaryFile(mode=mode, encoding=None if mode == "wb" else "utf-8", dir=str(path.parent), delete=False) as output:
             temporary = output.name
             output.write(content)
+        # Sonar path finding: destination already contained (atomic replace of a checked destination); see docs/sonar-review.md
         os.replace(temporary, str(path))
     finally:
         if temporary is not None:

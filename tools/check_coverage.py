@@ -27,6 +27,7 @@ def main() -> None:
     parser.add_argument("--statements", type=float, required=True)
     parser.add_argument("--branches", type=float, required=True)
     args = parser.parse_args()
+    # Sonar path finding: this path is the caller's chosen input, by design; see docs/sonar-review.md
     statements, branches = percentages(json.loads(args.report.read_text()))
     print("Runtime statements: %.2f%%; branches: %.2f%%" % (statements, branches))
     if statements < args.statements or branches < args.branches:

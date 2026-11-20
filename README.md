@@ -1,8 +1,8 @@
 # qtop
 
-[![build-qtop](https://github.com/qtop/qtop/actions/workflows/build.yml/badge.svg?branch=develop)](https://github.com/qtop/qtop/actions/workflows/build.yml)
-[![CodeQL status](https://github.com/qtop/qtop/actions/workflows/codeql.yml/badge.svg?branch=develop)](https://github.com/qtop/qtop/actions/workflows/codeql.yml)
-[![Coverage checks](https://github.com/qtop/qtop/actions/workflows/build.yml/badge.svg?branch=develop)](https://github.com/qtop/qtop/actions/workflows/build.yml)
+[![build-qtop](https://github.com/qtop/qtop/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/qtop/qtop/actions/workflows/build.yml?query=branch%3Amain)
+[![Coverage checks](https://github.com/qtop/qtop/actions/workflows/coverage.yml/badge.svg?branch=main)](https://github.com/qtop/qtop/actions/workflows/coverage.yml?query=branch%3Amain)
+[![CodeQL status](https://github.com/qtop/qtop/actions/workflows/codeql.yml/badge.svg?branch=main)](https://github.com/qtop/qtop/actions/workflows/codeql.yml?query=branch%3Amain)
 [![License: MIT](https://img.shields.io/github/license/qtop/qtop)](LICENSE)
 ![Python 3](https://img.shields.io/badge/python-3.x-blue.svg)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/qtop/qtop/badge)](https://scorecard.dev/viewer/?uri=github.com/qtop/qtop)
@@ -81,10 +81,6 @@ backend; modern Python uses the metadata in `pyproject.toml`.
 python3 -m pip install --user qtop
 $HOME/.local/bin/qtop --version
 ```
-
-PyPI currently serves qtop's legacy 2016 release. Until the next release is
-published, install from source for current Slurm support and recent fixes. A
-system-wide or virtual-environment installation can omit `--user`.
 
 ## Capture, inspect and replay
 

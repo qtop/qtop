@@ -24,8 +24,9 @@ View and analysis
   F              toggle full names / numbered node labels
   m              toggle core coloring by user / queue
   p              cycle the colour palettes of palettes.yaml
-  Q              cycle compact / expanded / clipped Queueing layouts
+  Q              cycle compact / expanded / clipped / hidden Queueing line
   r              cycle all / real / used core lines
+  S              stack jobs per node / show scheduler core placement
   t              transpose the worker-node matrix
   1 2 3          show / hide sections 1-3 (as -1, -2, -3)
   4              show / hide independent section 4, Account totals (as -4)

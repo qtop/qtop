@@ -150,10 +150,77 @@ def test_core_cell_highlight_rules_are_built_once_per_frame(monkeypatch):
     monkeypatch.setattr(WNOccupancy, "get_hl_q_or_users", staticmethod(lambda selected: built.append(1) or rules(selected)))
     cells = [occupancy._core_cell(user, queue, "user_to_color") for user, queue in (("alice", "batch"), ("bob", "batch"), ("bob", "long"))]
     assert [cell.color for cell in cells] == ["Red", "Gray_D", "Blue"] and built == [1]
-    fresh = qtop.WNOccupancy.__new__(qtop.WNOccupancy)
-    fresh.__dict__.update({key: value for key, value in vars(occupancy).items() if key != "_highlight"}, config={"highlight": [{"include_user_id": ["7"]}]})
-    with pytest.raises(KeyError, match="7"):  # an unknown user ID fails as before
-        fresh._core_cell("alice", "batch", "user_to_color")
+
+
+def _highlight_occupancy(rules, user_to_id):
+    from types import SimpleNamespace
+
+    occupancy = qtop.WNOccupancy.__new__(qtop.WNOccupancy)
+    occupancy.MVU_model = SimpleNamespace(display_overrides={"highlight": rules}, user_to_color={user: "Red" for user in user_to_id})
+    occupancy.config = {"highlight": []}
+    occupancy.user_to_id = {user: qtop.utils.ColorStr(userid) for user, userid in user_to_id.items()}
+    occupancy.user_color_patterns = {userid: user for user, userid in user_to_id.items()}
+    return occupancy
+
+
+@pytest.mark.parametrize(
+    ("rules", "warns"),
+    (
+        ([{"or_include_user_id": ["cms360"]}], False),  # issue #603: a user name typed where an ID is expected
+        ([{"include_user_id": ["7"]}], False),
+        ([{"or_include_user_pat": ["cms["]}], True),  # invalid regular expressions
+        ([{"or_include_queue": ["("]}], True),
+    ),
+    ids=("user-name-as-id", "unknown-id", "invalid-user-pattern", "invalid-queue-pattern"),
+)
+def test_core_cell_highlight_rules_that_match_nothing_do_not_crash(rules, warns, caplog):
+    occupancy = _highlight_occupancy(rules, {"alice": "0", "cms360": "1"})
+    cells = [occupancy._core_cell(user, "batch", "user_to_color") for user in ("alice", "cms360")]
+    assert [cell.color for cell in cells] == ["Gray_D", "Gray_D"]
+    assert ("Ignoring invalid highlight pattern" in caplog.text) is warns
+
+
+@pytest.mark.parametrize(
+    ("corejobs", "expected"),
+    (
+        ({}, {}),
+        ({4: "b", 0: "a", 2: "a", "5": "c"}, {0: "a", 1: "a", 2: "b", 3: "c"}),  # by lowest core; int or str keys
+        ({1: "b", 3: "a", 5: "b"}, {0: "b", 1: "b", 2: "a"}),  # a job's cores stay together
+        ({"x": "z", 7: "y"}, {0: "y", 1: "z"}),  # non-numeric cores after numbered ones
+    ),
+    ids=("empty", "ordered-by-lowest-core", "grouped", "non-numeric-last"),
+)
+def test_stack_core_jobs_packs_each_job_from_core_zero(corejobs, expected):
+    assert qtop.WNOccupancy.stack_core_jobs(corejobs) == expected
+
+
+def test_stacked_matrix_starts_every_node_at_its_first_core(tmp_path):
+    import os
+    import re
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[1]
+    env = dict(os.environ, HOME=str(tmp_path), PYTHONPATH=str(root))
+    env.pop("QTOP_SCHEDULER", None)
+    sample = root / "tests/plugins/slurm_samples/cpu_allocations"
+
+    def core_lines(*options):
+        command = [sys.executable, "-m", "qtop_py.qtop", "-b", "slurm", "-s", str(sample), "-c", "OFF", "-o", "transpose_wn_matrices=False"]
+        command += [item for option in options for item in ("-o", option)] + ["-o", "savepath=%s" % (tmp_path / "output")]
+        output = subprocess.run(command, cwd=str(root), env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True).stdout
+        return [line.split("=")[0] for line in output.splitlines() if re.match(r"^\S+=Core\d+$", line)]
+
+    assert core_lines()[:6] == ["0__", "_1_", "0__", "_1_", "1__", "_1_"]
+    assert core_lines("stack_jobs_per_node=True")[:6] == ["01_", "01_", "11_", "___", "___", "___"]
+
+
+def test_core_cell_user_id_highlight_matches_whole_names_and_shared_ids():
+    rules = [{"or_include_user_id": ["0", "+"]}]
+    occupancy = _highlight_occupancy(rules, {"ab": "0", "abc": "1", "x.y": "2", "late1": "+", "late2": "+"})
+    colors = {user: occupancy._core_cell(user, "batch", "user_to_color").color for user in ("ab", "abc", "x.y", "late1", "late2")}
+    assert colors == {"ab": "Red", "abc": "Gray_D", "x.y": "Gray_D", "late1": "Red", "late2": "Red"}
 
 
 def test_worker_node_name_regex_accepts_underscores():

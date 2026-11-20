@@ -183,12 +183,14 @@ def parse_qtop_cmdline_args() -> Namespace:
         "-R",
         "--replay",
         dest="REPLAY",
+        nargs="+",  # TIME [DURATION]; lost in the optparse-to-argparse migration
+        metavar="TIME",
         help="""instant replay from a specific moment in time for the
                            cluster, and for a specified duration. The value
                            provided should be in either of the following formats:
                            yyyymmddTHHMMSS, e.g. 20161118T182300, (explicit form)
                            HHMM, e.g. 1823 (current day is implied),\t\t
-                           mmddTHHMM, e.g. 1118 T1823 (current year is implied).
+                           mmddTHHMM, e.g. 1118T1823 (current year is implied).
                            A second value is optional and denotes the desired
                            length of the playback, e.g. -R 1823 1m,
                            or -R 1800 1h. A default duration of 2m is used, if
@@ -251,6 +253,8 @@ def parse_qtop_cmdline_args() -> Namespace:
         args.BATCH_SYSTEM = "slurm"
     if args.SHOW_QUEUE_NODES and not args.EXPERIMENTAL:
         parser.error("--queue-nodes requires -e/--experimental")
+    if args.REPLAY and len(args.REPLAY) > 2:
+        parser.error("-R/--replay takes a start time and an optional duration, e.g. -R 1823 1h")
     return args
 
 

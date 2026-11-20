@@ -378,9 +378,9 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
                     name, value = mask(name, "field"), mask(value)
                 return name + "=" + value
 
-            if re.sub(r"(?<!\S)\S+?=\S*", "", text).strip():
+            if re.sub(r"(?<!\S)\S[^\s=]*=\S*", "", text).strip():
                 raise ValueError("unsupported detail syntax")
-            return "scontrol.txt", re.sub(r"(?<!\S)(\S+?)=(\S*)", field, text)
+            return "scontrol.txt", re.sub(r"(?<!\S)(\S[^\s=]*)=(\S*)", field, text)
         if key not in ("squeue_file", "sinfo_file"):
             raise ValueError("unsupported trace")
         rows = []
@@ -586,6 +586,7 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
     @staticmethod
     def _allocation_job_id(header: str) -> Optional[str]:
         # Job names are arbitrary text and must not be interpreted as identity fields.
+        # Sonar regex finding: linear here, since the lookbehind only lets a match start at the beginning of a whitespace run; see docs/sonar-review.md
         header = re.split(r"(?<!\s)\s+JobName=", header, maxsplit=1)[0]
         pairs = re.findall(r"(?:^|\s)(JobId|ArrayJobId|ArrayTaskId|HetJobId|HetJobOffset)=(\S+)", header)
         fields: Dict[str, str] = dict(pairs)

@@ -42,7 +42,7 @@ old entry point and updates its callers; it does not remove its guarantees.
 | File/interface | Decision and callers | Estimated LOC saved |
 | --- | --- | ---: |
 | .github/workflows/build.yml | Keep; primary Python lane runs pre-pr plus Cobertura once; absorb type/fuzz job | 20 |
-| .github/workflows/coverage.yml | Delete; move report/upload into build.yml, update README badge/docs | 48 |
+| .github/workflows/coverage.yml | Delete; move report/upload into build.yml, update README badge/docs. Restored in 0.9.20261118 as the only coverage run, so the README badge reports the coverage gate alone; build.yml runs the rest of pre-pr | 48 |
 | .github/workflows/pytest.yml | Delete redundant manual wrapper; add workflow_dispatch to build.yml | 38 |
 | .github/workflows/nightly-matrix.yml | Keep all 34 lanes and extended properties; retain thin Make dispatch | 0 |
 | .github/workflows/release.yml | Keep publishing boundary and exact-artifact guarantees | 0 |

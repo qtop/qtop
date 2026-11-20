@@ -173,6 +173,20 @@ def test_queue_node_summary_is_opt_in_and_uses_full_slurm_names(tmp_path, enable
     assert ("Queue nodes (experimental, idle/total): compute: 0/2 | long: 1/1" in result.stdout) is enabled
 
 
+@pytest.mark.parametrize("labels", ([], ["-F"]), ids=("numbered", "named"))
+@pytest.mark.parametrize("colour", ("OFF", "ON"))
+def test_vertical_separators_render_in_every_matrix_line(tmp_path, labels, colour):
+    sample = str(ROOT / "tests/plugins/slurm_samples/large_cluster")
+    options = ["-o", "transpose_wn_matrices=False", "-o", "vertical_separator_every_X_columns=4", "-o", "savepath=%s" % (tmp_path / "output")]
+    result = run_cli(tmp_path, "qtop_py.qtop", "-b", "slurm", "-s", sample, "-c", colour, *labels, *options)
+    assert result.returncode == 0, result.stderr
+    plain = re.sub(r"\x1b\[[0-9;]*m", "", result.stdout)
+    matrix = [line.split("=")[0] for line in plain.splitlines() if re.search(r"=(\{_*[A-Za-z_]*_*\}|Node state|queue name|Core\d+)$", line)]
+    assert any(line.endswith("=Node state") for line in plain.splitlines()) and len(matrix) > 3
+    separator_columns = {tuple(index for index, char in enumerate(line) if char == "|") for line in matrix}
+    assert separator_columns == {(4, 9, 14, 19, 22)}  # 18 nodes: every line splits after each 4 columns
+
+
 def test_oar_job_summary_counts_jobs_instead_of_resource_slots(tmp_path):
     import json
 
@@ -1097,6 +1111,37 @@ def test_clipped_and_expanded_queue_flags_are_mutually_exclusive(monkeypatch):
     with pytest.raises(SystemExit) as stopped:
         utils.parse_qtop_cmdline_args()
     assert stopped.value.code == 2
+
+
+@pytest.mark.parametrize(("values", "expected"), ((["1823"], ["1823"]), (["1118T1823", "1h"], ["1118T1823", "1h"])))
+def test_replay_takes_a_start_time_and_an_optional_duration(monkeypatch, values, expected):
+    from qtop_py import utils
+
+    monkeypatch.setattr(sys, "argv", ["qtop", "-R"] + values)
+    assert utils.parse_qtop_cmdline_args().REPLAY == expected
+
+
+def test_replay_rejects_a_third_value(monkeypatch, capsys):
+    from qtop_py import utils
+
+    monkeypatch.setattr(sys, "argv", ["qtop", "-R", "1823", "1h", "extra"])
+    with pytest.raises(SystemExit) as stopped:
+        utils.parse_qtop_cmdline_args()
+    assert stopped.value.code == 2 and "takes a start time and an optional duration" in capsys.readouterr().err
+
+
+def test_replay_shows_a_saved_frame_and_reports_missing_ones(tmp_path):
+    savepath = tmp_path / "results"
+    savepath.mkdir()
+    (savepath / "qtop_partview_20261118T182310_abcd1234.out").write_text("REPLAYED-FRAME-MARKER\n")
+    options = ["-o", "savepath=%s" % savepath, "-c", "OFF"]
+    replayed = run_cli(tmp_path, "qtop_py.qtop", "-R", "20261118T182300", "1m", *options)
+    assert replayed.returncode == 0, replayed.stderr
+    assert "REPLAYED-FRAME-MARKER" in replayed.stdout
+    missing = run_cli(tmp_path, "qtop_py.qtop", "-R", "20261118T190000", *options)
+    assert missing.returncode == 0, missing.stderr
+    assert "REPLAYED-FRAME-MARKER" not in missing.stdout
+    assert "No (more) recorded instances available to show" in missing.stdout + missing.stderr
 
 
 @pytest.mark.parametrize("flags,clipped,expanded", (([], True, False), (["--no-wrap-queues"], True, False), (["--expand-queues"], False, True)))

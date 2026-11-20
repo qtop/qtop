@@ -32,8 +32,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # pre-pr without its coverage run, which coverage.yml owns so its badge reports only the coverage gate.
           - python-version: '3.12.3'
-            checks: 'pre-pr coverage-xml'
+            checks: 'lint format-check type-check backend-validation deterministic-fuzz coverage-fuzz'
           - python-version: '3.15.2'
             checks: ci
     env:

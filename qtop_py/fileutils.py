@@ -54,6 +54,7 @@ def input_source(options: Any, path: str) -> Any:
 def open_input(path: str, mode: str = "r", options: Any = None, **kwargs: Any) -> Generator[Any, None, None]:
     """Open scheduler input and report its first startup open and close."""
     with contextlib.ExitStack() as reporting:
+        # Sonar path finding: this path is the caller's chosen input, by design; see docs/sonar-review.md
         with open(path, mode, **kwargs) as stream:
             reporting.enter_context(input_source(options, path))
             yield stream

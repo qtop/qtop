@@ -32,15 +32,20 @@ own validation logic in YAML.
 `make pre-pr` combines coverage (including the full pytest/Hypothesis suite),
 scheduler samples, deterministic and Atheris fuzzing, lint/format, and type
 checks. It requires Linux x86-64 CPython 3.12 with `make ci-deps` installed and
-runs pytest once. Both providers use `make pre-pr coverage-xml` in their primary
-PR job: coverage, samples, lint, types and fuzzing share one environment.
+runs pytest once. GitLab runs `make pre-pr coverage-xml` in its primary PR job:
+coverage, samples, lint, types and fuzzing share one environment. GitHub runs
+the same checks split across two workflows, so the `coverage-qtop` badge
+reports only the coverage gate: `.github/workflows/coverage.yml` runs
+`make coverage-xml`, and the 3.12 lane of `build.yml` runs the other `pre-pr`
+prerequisites. `tests/test_ci_matrix.py` fails if the split drifts from `pre-pr`.
 GitLab emits its Ruff code-quality report in `after_script`, including on
 validation failures. `make ci` remains the portable shared test gate and the
 additional modern GitHub interpreter lane.
 
 | Concern | Makefile target | GitHub Actions | GitLab CI |
 |---|---|---|---|
-| Primary PR validation | `make pre-pr coverage-xml` | `.github/workflows/build.yml` | `ci/test.gitlab-ci.yml` (`modern-python`) |
+| Primary PR validation | `make pre-pr coverage-xml` | `.github/workflows/build.yml` (`modern-python`, all but coverage) | `ci/test.gitlab-ci.yml` (`modern-python`) |
+| Coverage gate and Cobertura | `make coverage-xml` | `.github/workflows/coverage.yml` | `ci/test.gitlab-ci.yml` (`modern-python`) |
 | Python 3.6 / RHEL8 floor | `make compat-py36` | `.github/workflows/build.yml` (`almalinux-python36`) | `ci/test.gitlab-ci.yml` (`almalinux-python36`) |
 | Validated package build | `make github-build` / `make gitlab-build` | `.github/workflows/build.yml` (`build`) | `ci/build.gitlab-ci.yml` (`build`) |
 
@@ -104,6 +109,11 @@ synchronizes package metadata, the manpage, changelog and EasyBuild recipe.
 `tests/test_prepare_release.py` covers preview/history preservation and invalid
 inputs. Preparation neither commits nor tags nor publishes; exact artifact
 validation and independent release approval remain separate requirements.
+
+Tag the release `v<version>`: the EasyBuild recipe downloads that tarball.
+`release.yml` runs `make release-tag-check` first, so a published release whose
+tag differs from `qtop_py.__version__` fails before building or reaching PyPI.
+This gate is temporary until the 1.0 namespace change.
 
 ## Nightly compatibility lanes
 

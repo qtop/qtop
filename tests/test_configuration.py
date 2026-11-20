@@ -24,6 +24,7 @@ def config():
     [
         ("savepath", None),
         ("transpose_wn_matrices", "maybe"),
+        ("stack_jobs_per_node", "maybe"),
         ("scheduler_command_timeout", "nan"),
         ("scheduler_command_timeout", float("inf")),
         ("scheduler_command_timeout", 0),

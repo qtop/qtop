@@ -46,3 +46,41 @@ The final eight findings need review in SonarQube with these boundaries in
 mind. A further policy restricting input locations would change supported
 CLI behavior and needs an explicitly chosen allowed root. The next scan is
 required to establish which findings SonarQube recognizes as resolved.
+
+## Review 2026-11-20
+
+This review covers 27 open findings: 13 S8707-style path findings, one
+command-argument finding, six shell `[` tests, four regex-runtime findings, three
+HTML findings and one regex-precedence finding. Line numbers refer to the
+scanned source. No finding is suppressed in SonarQube; each one left as it is
+has a `Sonar ... finding` comment at its line that points here.
+
+### Changed (14)
+
+| Scanned file and lines | Change |
+| --- | --- |
+| `tools/repo_sanity.py:66` | `check_diff` refuses a `--base-ref` starting with `-` (or empty) before running git. |
+| `ci/scripts/matrix_lane.sh:35,42,92,114` (6) | `[[ ]]` tests; the script is bash. |
+| `qtop_py/web/index.html:1,3` (3) | DOCTYPE, `lang="en"` and `<title>`. |
+| `tools/repo_sanity.py` `GENERATED_OR_BINARY` | Each alternative grouped explicitly; same matches. |
+| `qtop_py/plugins/slurm.py:381,383` | `\S+?=` became `\S[^\s=]*=`: the same names, checked on 200000 random strings. |
+
+### Left as they are (14)
+
+| Scanned file and lines | Reason |
+| --- | --- |
+| `qtop_py/fileutils.py:57` | The `-s` input path is the caller's choice. |
+| `qtop_py/runtime.py:206` | `chdir` into the `-s` directory or savepath, both chosen by the caller. |
+| `qtop_py/safety.py:190` | Caller-selected archive input, as in the 2026-11-14 review. |
+| `qtop_py/trace_archive.py:36,74` | Caller-selected archive; output as in the 2026-11-14 review. |
+| `tools/check_coverage.py:30` | Caller-selected coverage JSON. |
+| `tools/validate_trace_export.py:37,169` | Caller-selected trace and reference inputs. |
+| `qtop_py/process.py:188` | Destination is checked against the real savepath (`commonpath`) before the command runs. |
+| `qtop_py/schedulers/collector.py:227` | The trace name is `os.path.basename()` inside the working directory. |
+| `tools/private_output.py:26,58` | Symlinked ancestors and non-directories are rejected; replacement is atomic; the root is the caller's choice. |
+| `qtop_py/plugins/pbs.py:358` | The `(?<![0-9,\-])` lookbehind lets a match start only at the beginning of a run, so matching stays linear. |
+| `qtop_py/plugins/slurm.py:589` | The `(?<!\s)` lookbehind lets `\s+` start only at the beginning of a whitespace run. |
+
+Restricting input locations would change supported CLI behaviour and needs an
+explicitly chosen allowed root, as the earlier review notes. These findings
+can be marked "Safe" or "Won't fix" in SonarQube with a link to this section.

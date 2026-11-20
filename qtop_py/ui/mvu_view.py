@@ -5,14 +5,17 @@
 import datetime
 import logging
 import os
+import re
 import sys
 import tempfile
 from collections import Counter, OrderedDict
 from functools import lru_cache, partial
-from itertools import cycle, islice, zip_longest
+from itertools import islice, zip_longest
 from typing import TYPE_CHECKING, Any, Callable, Dict, Iterable, Iterator, List, Mapping, Optional, Sequence, Tuple, overload
 
 if TYPE_CHECKING:
+    from typing import Final
+
     from qtop_py.state_types import Config
 
 from qtop_py import __version__, utils, yaml_parser
@@ -26,6 +29,29 @@ from qtop_py.ui.viewport import terminal_rows
 
 # Accounts-table state columns when accounts_states is unset: jobs >= R + Q + O(ther), as the Summary's Total=R+Q+Other.
 DEFAULT_ACCOUNT_STATES = ("running_of_user", "queued_of_user", "other_of_user")
+# Named worker-node labels change colour per name group, and at least every this many nodes within one (#197).
+LABEL_GROUP_SIZE: "Final" = 5
+# Vertical separators (vertical_separator_every_X_columns) are drawn in this colour in every matrix line.
+SEPARATOR_COLOR: "Final" = "Gray_D"
+
+
+def label_group_colors(hosts: Sequence[str], colors: Sequence[str], group_size: int = LABEL_GROUP_SIZE) -> List[str]:
+    """Return one label colour per host, alternating at each name group or every group_size hosts within one.
+
+    Hosts whose names differ only in their digits (wn01, wn02; c1.site, c2.site) form a group.
+    """
+    result: List[str] = []
+    previous_key = None
+    run = index = 0
+    for host in hosts:
+        key = re.sub(r"[0-9]+", "#", host)
+        if result and (key != previous_key or run == group_size):
+            index += 1
+            run = 0
+        previous_key = key
+        run += 1
+        result.append(colors[index % len(colors)])
+    return result
 
 
 def user_accounts_header(config: "Config") -> str:
@@ -207,7 +233,9 @@ class TextDisplay(object):
         layout = MVU_queue_layout(self.MVU_model, queues)
         heading = self.MVU_model.MVU_colorize("Queueing", "Cyan_L") + " :"
         note = self.MVU_model.MVU_colorize("* implies blocked", "Red") + self.MVU_model.backend.blocked_queue_note
-        if layout == "expanded":
+        if layout == "hidden":  # Q's last step: no Queueing line and no blocked-queue legend
+            pass
+        elif layout == "expanded":
             print(heading)
             self.display_expanded_queues(queues, snapshot)
             print(note + "\n")
@@ -604,20 +632,19 @@ class TextDisplay(object):
                 end_labels.setdefault(str(num), end_labels["7"] + num * ["={________}"])
 
             end_labels_iter = iter(end_labels[str(node_str_width)])
+            ALT_LABEL_COLORS = self.config["ALT_LABEL_COLORS"]
+            hosts = [node["host"] for node in self.cluster.workernode_dict.values()]  # the label columns' order
+            node_colors = label_group_colors(hosts, ALT_LABEL_COLORS)[start:stop]
+            separator = [SEPARATOR_COLOR] * len(self.config["SEPARATOR"])
+            line_colors = self._insert_separators(node_colors, separator, self.config["vertical_separator_every_X_columns"])
             self.print_wnid_lines(
                 wn_vert_labels,
                 start,
                 stop,
                 end_labels_iter,
                 self.MVU_model.transposed_sections,
-                colors_factory=partial(self.highlight_alternately, *self.config["ALT_LABEL_COLORS"]),
+                colors_factory=partial(iter, line_colors),
             )
-
-    def highlight_alternately(self, color_a: str, color_b: str) -> Iterator[str]:
-        """Yield color_a and color_b alternately, forever."""
-        colors = cycle([color_a, color_b])
-        for color in colors:
-            yield color
 
     def color_plainly(self, color_0: str, color_1: str, condition: bool) -> Iterator[str]:
         """Yield color_0 if condition holds, otherwise color_1, forever."""
@@ -661,7 +688,7 @@ class TextDisplay(object):
 
         for _line in attr_lines:
             line = attr_lines[_line][node_column_start:node_column_stop]
-            attr_line = self._insert_separators(line, self.config["SEPARATOR"], self.config["vertical_separator_every_X_columns"])
+            attr_line = self._insert_separators(line, self._separator_cells(), self.config["vertical_separator_every_X_columns"])
             attr_line = "".join([self.MVU_model.MVU_colorize(char.initial, color_func=char.color) for char in attr_line])
             print(attr_line + "=" + label)
 
@@ -675,7 +702,7 @@ class TextDisplay(object):
             if is_corevector_removable:
                 continue
 
-            core_x_vector = self._insert_separators(core_x_vector, self.config["SEPARATOR"], self.config["vertical_separator_every_X_columns"])
+            core_x_vector = self._insert_separators(core_x_vector, self._separator_cells(), self.config["vertical_separator_every_X_columns"])
             colored_core_x = [self.MVU_model.MVU_colorize(elem, color_func=elem.color) for elem in core_x_vector]
             core_x_vector = "".join([str(item) for item in colored_core_x])
             yield core_x_vector + self.MVU_model.MVU_colorize("=Core" + str(ind), pattern="account_not_colored")
@@ -690,7 +717,11 @@ class TextDisplay(object):
                 row = cells
             yield row
 
-    def _insert_separators(self, orig_str: Any, separator: str, pos: int, stopaftern: int = 0) -> Any:
+    def _separator_cells(self) -> List[utils.ColorStr]:
+        """The vertical separator as coloured cells, for lines whose cells carry their own colour."""
+        return [utils.ColorStr(char, color=SEPARATOR_COLOR) for char in self.config["SEPARATOR"]]
+
+    def _insert_separators(self, orig_str: Any, separator: Sequence[Any], pos: int, stopaftern: int = 0) -> Any:
         """Inserts separator into orig_str every pos-th position, optionally stopping after stopaftern times."""
         if not pos:  # default value is zero, means no vertical separators
             return orig_str
