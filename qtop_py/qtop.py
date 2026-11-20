@@ -14,9 +14,8 @@
 ##
 ## SPDX-License-Identifier: MIT
 ##
-"""qtop's command line, watch loop and the deprecated legacy adapters."""
+"""qtop's command line and watch loop, plus compatibility re-exports of moved helpers."""
 
-import copy
 import importlib.util
 import logging
 import os
@@ -25,9 +24,7 @@ import sys
 import tarfile
 import time
 import traceback
-import warnings
-from types import SimpleNamespace
-from typing import TYPE_CHECKING, Any, Callable, Dict, Iterator, Mapping, Optional, Set, Tuple, Type
+from typing import TYPE_CHECKING, Any, Dict, Iterator, Mapping, Optional, Set, Tuple, Type
 
 from qtop_py import __version__, configuration, fileutils, sample, utils
 from qtop_py import input_parsing as _input_parsing
@@ -48,7 +45,6 @@ from qtop_py.errors import NoSchedulerFound as NoSchedulerFound
 from qtop_py.errors import OperationalError
 from qtop_py.errors import SchedulerNotSpecified as SchedulerNotSpecified
 from qtop_py.mvu import (
-    MVU_colorize,
     MVU_colorize_nodestate,
     MVU_compress_colored_line,
     MVU_gauge_core_vectors,
@@ -56,9 +52,7 @@ from qtop_py.mvu import (
     MVU_Model,
     MVU_update,
 )
-from qtop_py.mvu_query import Cluster as MVU_Cluster
 from qtop_py.mvu_query import MVU_query
-from qtop_py.mvu_query import WNOccupancy as MVU_WNOccupancy
 from qtop_py.runtime import MVU_export_snapshot as MVU_export_snapshot
 from qtop_py.runtime import RunPaths as RunPaths
 from qtop_py.runtime import RunResources
@@ -73,38 +67,18 @@ from qtop_py.schedulers.collector import _collect_frame as _collect_frame
 from qtop_py.schedulers.registry import PLUGIN_BATCH_SYSTEMS
 from qtop_py.schedulers.registry import discover_qtop_batch_systems as discover_qtop_batch_systems
 from qtop_py.serialiser import GenericBatchSystem
-from qtop_py.snapshot import Snapshot
+from qtop_py.snapshot import Snapshot as Snapshot
 from qtop_py.ui import effects as ui_effects
 from qtop_py.ui import terminal as terminal_io
 from qtop_py.ui.controls import KeyboardInput
 from qtop_py.ui.effects import MVU_effects as MVU_effects
 from qtop_py.ui.mvu_view import MVU_view
-from qtop_py.ui.mvu_view import TextDisplay as MVU_TextDisplay
 from qtop_py.ui.viewport import Viewport
 from qtop_py.user_details import MVU_resolve_user_details as MVU_resolve_user_details
 from qtop_py.web import Web
 
 if TYPE_CHECKING:
     from typing import Final
-
-    from qtop_py import state_types
-
-    config: state_types.Config
-    dynamic_config: state_types.Config
-
-
-# Optional context for the deprecated legacy adapters (MVU_legacy_model, colorize, control_qtop and the
-# Cluster/WNOccupancy/TextDisplay classes below), which read it via globals(); declared (not assigned) for
-# type checkers. main() sets none of it: each run's state is local and passed explicitly.
-args: Any
-scheduler: Any
-snapshot: Any
-user_to_color: Dict[str, str]
-viewport: Viewport
-HELP_FP: str
-QTOPPATH: str
-
-Document = Snapshot  # deprecated alias, kept for one release; use Snapshot
 
 colorize_nodestate = MVU_colorize_nodestate
 
@@ -141,116 +115,6 @@ wait_for_keypress_or_autorefresh = terminal_io.wait_for_keypress_or_autorefresh
 get_detail_of_name = _user_details.get_detail_of_name
 get_primary_group_name = _user_details.get_primary_group_name
 get_primary_group_names = _user_details.get_primary_group_names
-
-
-LEGACY_DEPRECATION: "Final" = "%s is deprecated since 0.9.20261110 and is scheduled for removal in 1.0; %s"
-
-
-def _warn_legacy(name: str, instead: str) -> None:
-    warnings.warn(LEGACY_DEPRECATION % (name, instead), DeprecationWarning, stacklevel=3)
-
-
-def MVU_legacy_model(instance: Any = None) -> MVU_Model:
-    """Deprecated compatibility boundary for older qtop imports; new pipeline stages never use it."""
-    _warn_legacy("qtop.MVU_legacy_model()", "build an MVU_Model and pass it explicitly")
-    return _legacy_model(instance)
-
-
-def _legacy_model(instance: Any = None) -> MVU_Model:
-    """MVU_legacy_model without the warning, for the other deprecated adapters."""
-    display_overrides = globals().get("dynamic_config", {})
-    config = getattr(instance, "config", globals().get("config", {})) or {}
-    options = getattr(instance, "args", globals().get("args")) or SimpleNamespace(COLOR="OFF")
-    name = globals().get("scheduler", config.get("scheduler", ""))
-    backend = scheduler_backend(name)
-    model = MVU_Model(
-        config,
-        options,
-        getattr(instance, "viewport", globals().get("viewport")),
-        display_overrides=display_overrides,
-        snapshot=getattr(instance, "snapshot", globals().get("snapshot")),
-        user_to_color=globals().get("user_to_color", {}),
-        package_path=globals().get("QTOPPATH", ""),
-        help_file=globals().get("HELP_FP", ""),
-    )
-    model.backend, model.scheduler = backend, name
-    model.transposed_sections = globals().get("transposed_sections", [])
-    return model
-
-
-class MVU_LegacyAdapter(object):
-    """Deprecated: qtop's Cluster/WNOccupancy/TextDisplay; use mvu_query/ui.mvu_view through MVU_query and MVU_view."""
-
-    def __init__(self, *args: Any, **kwargs: Any) -> None:
-        _warn_legacy("qtop.%s" % type(self).__name__, "use MVU_Model with MVU_update, MVU_query and MVU_view")
-        if kwargs.get("MVU_model") is None:
-            kwargs["MVU_model"] = _legacy_model(self)
-        super().__init__(*args, **kwargs)
-        for name in ("config", "args", "snapshot", "viewport"):
-            if hasattr(self, name):
-                setattr(self.MVU_model, name, getattr(self, name))
-
-    @property
-    def MVU_model(self) -> Any:
-        """Return the model set on this adapter, or one built from qtop's module globals."""
-        model = self.__dict__.get("_MVU_model")
-        return _legacy_model(self) if model is None else model
-
-    @MVU_model.setter
-    def MVU_model(self, model: Any) -> None:
-        """Return the model set on this adapter, or one built from qtop's module globals."""
-        self._MVU_model = model
-
-
-class Cluster(MVU_LegacyAdapter, MVU_Cluster):
-    """Deprecated: use mvu_query.Cluster through MVU_query."""
-
-
-class WNOccupancy(MVU_LegacyAdapter, MVU_WNOccupancy):
-    """Deprecated: use mvu_query.WNOccupancy through MVU_query."""
-
-    def __init__(self, cluster: Any, config: Dict[str, Any], snapshot: Any, user_to_color: Dict[str, str], job_ids: Any = None, **kwargs: Any) -> None:
-        super().__init__(cluster, config, snapshot, user_to_color, **kwargs)
-
-    def strict_check_jobs(self, cluster: Any) -> None:
-        """Print a mismatch message if the counted and reported running jobs differ."""
-        occupancy = copy.copy(self)
-        occupancy.MVU_model = _legacy_model(self)
-        message = MVU_WNOccupancy.MVU_check_jobs(occupancy, cluster)
-        if message:
-            print(message)
-
-
-class TextDisplay(MVU_LegacyAdapter, MVU_TextDisplay):
-    """Deprecated: use ui.mvu_view.TextDisplay through MVU_view."""
-
-    def display_user_accounts_pool_mappings(self, wns_occupancy: Any) -> None:
-        """Resolve user details, then print the user accounts and pool mappings table."""
-        model = self.MVU_model
-        self.MVU_model = model
-        MVU_resolve_user_details(model, wns_occupancy, force=True)
-        return super().display_user_accounts_pool_mappings(wns_occupancy)
-
-
-def colorize(
-    text: Any, color_func: Optional[str] = None, pattern: str = "NoPattern", mapping: Optional[Mapping[str, str]] = None, bg_color: Optional[str] = None, bold: bool = False
-) -> Any:
-    """Deprecated: use MVU_Model.MVU_colorize, which honours the model's own -c setting."""
-    _warn_legacy("qtop.colorize()", "use MVU_Model.MVU_colorize")
-    return MVU_colorize(_legacy_model(), text, color_func, pattern, mapping, bg_color, bold)
-
-
-def control_qtop(viewport: Viewport, read_char: str, cluster: Any, old_attrs: Any, new_attrs: Any) -> None:
-    """Deprecated key handler on module globals; main() uses MVU_update and MVU_effects on its own model."""
-    global dynamic_config
-    _warn_legacy("qtop.control_qtop()", "use MVU_update and MVU_effects")
-    model = _legacy_model()
-    model.viewport = viewport
-    next_model, effects = MVU_update(model, read_char)
-    viewport.__dict__.update(next_model.viewport.__dict__)
-    next_model.viewport = viewport
-    dynamic_config = next_model.display_overrides
-    MVU_effects(next_model, effects, cluster, old_attrs, new_attrs)
 
 
 def scheduler_backend(name: Optional[str]) -> Type[GenericBatchSystem]:
@@ -518,21 +382,6 @@ def main(resources: RunResources) -> None:
             if not (args.SAMPLE and args.ANONYMIZE):
                 print("\nExiting. Thank you for ...watching ;)\n")
             raise SystemExit(0) from None
-
-
-def choose_sort(viewport: Viewport, display_overrides: Dict[str, Any], old_attrs: Any, new_attrs: Any, colorize: Callable[..., Any] = colorize) -> None:
-    """Retain the legacy default colour callback for the public menu helper."""
-    ui_effects.choose_sort(viewport, display_overrides, old_attrs, new_attrs, colorize)
-
-
-def choose_filter(viewport: Viewport, cluster: Any, display_overrides: Dict[str, Any], old_attrs: Any, new_attrs: Any, colorize: Callable[..., Any] = colorize) -> None:
-    """Retain the legacy default colour callback for the public menu helper."""
-    ui_effects.choose_filter(viewport, cluster, display_overrides, old_attrs, new_attrs, colorize)
-
-
-def choose_highlight(viewport: Viewport, cluster: Any, display_overrides: Dict[str, Any], old_attrs: Any, new_attrs: Any, colorize: Callable[..., Any] = colorize) -> None:
-    """Retain the legacy default colour callback for the public menu helper."""
-    ui_effects.choose_highlight(viewport, cluster, display_overrides, old_attrs, new_attrs, colorize)
 
 
 if __name__ == "__main__":

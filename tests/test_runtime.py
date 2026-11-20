@@ -9,7 +9,6 @@ import re
 import shutil
 import sys
 import tarfile
-import warnings
 from pathlib import Path
 
 import pytest
@@ -21,8 +20,8 @@ from qtop_py.ui import terminal as terminal_io
 
 ROOT = Path(__file__).resolve().parents[1]
 MISSING = object()
-# Context the legacy adapters read via globals(); a run must neither set nor change any of it.
-LEGACY_CONTEXT = ("QTOPPATH", "HELP_FP", "scheduler", "config", "dynamic_config", "viewport", "user_to_color", "args", "snapshot", "transposed_sections")
+# Module attributes the retired legacy adapters read via globals(); a run must not bring any of them back.
+MODULE_STATE = ("QTOPPATH", "HELP_FP", "scheduler", "config", "dynamic_config", "viewport", "user_to_color", "args", "snapshot", "transposed_sections")
 
 
 @pytest.fixture
@@ -51,15 +50,11 @@ def runtime(tmp_path, monkeypatch):
         logger = logging.getLogger()
         handlers = logger.handlers[:]
         level, disabled = logger.level, logger.disabled
-        before = {name: vars(qtop).get(name, MISSING) for name in LEGACY_CONTEXT}
+        before = {name: vars(qtop).get(name, MISSING) for name in MODULE_STATE}
         try:
-            with warnings.catch_warnings(record=True) as caught:
-                warnings.simplefilter("always")
-                return qtop.cli_main(), output
+            return qtop.cli_main(), output
         finally:
-            assert {name: vars(qtop).get(name, MISSING) for name in LEGACY_CONTEXT} == before, "main() changed module-level state"
-            legacy = [str(w.message) for w in caught if issubclass(w.category, DeprecationWarning) and "is deprecated since" in str(w.message)]
-            assert not legacy, "a qtop run used a deprecated legacy adapter: %s" % legacy
+            assert {name: vars(qtop).get(name, MISSING) for name in MODULE_STATE} == before, "main() changed module-level state"
             for handler in logger.handlers[:]:
                 if handler not in handlers:
                     logger.removeHandler(handler)

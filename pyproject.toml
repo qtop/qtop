@@ -139,11 +139,6 @@ show_error_context = true
 module = ["lxml", "ujson"]
 ignore_missing_imports = true
 
-[tool.pytest.ini_options]
-# Tests that still exercise the deprecated legacy adapters on purpose stay quiet; tests/test_legacy_deprecation.py
-# checks every adapter still warns, and the runtime fixture fails if a normal run triggers one.
-filterwarnings = ["ignore:.*is deprecated since 0\\.9\\.20261110:DeprecationWarning"]
-
 [tool.coverage.run]
 source = ["qtop_py", "tools"]
 branch = true

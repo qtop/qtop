@@ -155,11 +155,11 @@ or a release is prepared.
 
 - [ ] Separate parsing, normalized state and presentation incrementally.
   - [x] Extract normalized state, snapshot support and viewport helpers with focused interfaces ([architecture](docs/architecture.md)).
-  - [x] Separate explicit MVU model/update, snapshot queries and terminal presentation; retain legacy adapters in the runtime.
+  - [x] Separate explicit MVU model/update, snapshot queries and terminal presentation.
   - [x] Remove runtime-global dependencies from the new MVU path; runtime tests
-    reject module-state mutation and accidental use of deprecated adapters.
-  - [ ] Retire public compatibility adapters and their global-context tests
-    together in 1.0, after their callers migrate.
+    reject module-state mutation.
+  - [x] Retire the public compatibility adapters and their global-context tests
+    together (0.9.20261119); tests build explicit models via `tests/mvu_support.py`.
   - [x] [CI] Run backend rendering and runtime/capture regressions through the shared test and sample gates.
   - [x] [CI] Check extracted runtime/tooling syntax through `compat-py36`;
     Python 3.6 compatibility remains a requirement for future changes.

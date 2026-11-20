@@ -11,9 +11,11 @@ import pytest
 
 from qtop_py import process as process_io
 from qtop_py import qtop, user_details
+from qtop_py.mvu import MVU_Model
 from qtop_py.queue_nodes import queue_node_counts
 from qtop_py.schedulers import collector, registry
 from qtop_py.serialiser import GenericBatchSystem
+from qtop_py.ui import mvu_view
 
 
 class CustomBackend(GenericBatchSystem):
@@ -42,9 +44,7 @@ class CustomBackend(GenericBatchSystem):
 
 def test_plugin_controls_collection_optional_inputs_and_queue_policy(monkeypatch, tmp_path, capsys):
     monkeypatch.setattr(qtop, "PLUGIN_BATCH_SYSTEMS", (CustomBackend,))
-    monkeypatch.setattr(qtop, "scheduler", "custom", raising=False)
     options = SimpleNamespace(SOURCEDIR=str(tmp_path), workdir=str(tmp_path))
-    monkeypatch.setattr(qtop, "args", options, raising=False)
     config = {"schedulers": {"custom": {"main_file": "%(savepath)s/main.txt, native", "detail_file": "%(savepath)s/detail.txt, details"}}}
     (tmp_path / "main.txt").write_text("native trace")
     (tmp_path / "native-details.txt").write_text("native optional detail")
@@ -60,7 +60,8 @@ def test_plugin_controls_collection_optional_inputs_and_queue_policy(monkeypatch
     monkeypatch.setattr(CustomBackend, "native_queue_membership", True)
     idle = dict(domainname="node1", qname=["batch"], state="-", core_job_map={})
     assert queue_node_counts([idle], ["batch"], CustomBackend) == [("batch", 1, 1)]
-    display = qtop.TextDisplay(None, config, None, None, SimpleNamespace(worker_nodes=[]), options)
+    model = MVU_Model(config, options, None, backend=CustomBackend)
+    display = mvu_view.TextDisplay(None, config, None, None, SimpleNamespace(worker_nodes=[]), options, MVU_model=model)
     display.display_backend_messages()
     assert capsys.readouterr().out.splitlines() == [
         "Scheduler messages:",
@@ -74,8 +75,6 @@ def test_plugin_controls_collection_optional_inputs_and_queue_policy(monkeypatch
 
 def test_plugin_controls_optional_live_failure_and_detection(monkeypatch, tmp_path, caplog):
     monkeypatch.setattr(registry, "PLUGIN_BATCH_SYSTEMS", (GenericCompetitor, CustomBackend))
-    monkeypatch.setattr(qtop, "scheduler", "custom", raising=False)
-    monkeypatch.setattr(qtop, "args", SimpleNamespace(SOURCEDIR=None), raising=False)
     monkeypatch.setattr(registry.shutil, "which", lambda command: "/usr/bin/" + command)
     assert registry.auto_get_avail_batch_system({"signature_commands": {"competitor": "other", "custom": "native"}}, registry.discover_qtop_batch_systems()) == "custom"
 

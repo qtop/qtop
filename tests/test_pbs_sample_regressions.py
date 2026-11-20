@@ -8,11 +8,12 @@ import pytest
 
 from qtop_py import qtop
 from qtop_py.mvu import MVU_Model
+from qtop_py.mvu_query import Cluster, WNOccupancy
 from qtop_py.plugins.pbs import PBSStatExtractor
 
 
 def test_find_matrices_width_handles_empty_worker_nodes():
-    occupancy = qtop.WNOccupancy.__new__(qtop.WNOccupancy)
+    occupancy = WNOccupancy.__new__(WNOccupancy)
     occupancy.cluster = SimpleNamespace(highest_wn=0, workernode_list=[])
     occupancy.config = {
         "workernodes_matrix": [{"wn id lines": {"min_masking_threshold": 30}}],
@@ -24,7 +25,7 @@ def test_find_matrices_width_handles_empty_worker_nodes():
 
 
 def test_general_attribute_lines_handle_empty_worker_node_dict():
-    occupancy = qtop.WNOccupancy.__new__(qtop.WNOccupancy)
+    occupancy = WNOccupancy.__new__(WNOccupancy)
     occupancy.cluster = SimpleNamespace(workernode_dict={})
     config = {"scheduler": "pbs", "workernodes_matrix": [{"state": {"max_len": 1}}]}
 
@@ -32,7 +33,7 @@ def test_general_attribute_lines_handle_empty_worker_node_dict():
 
 
 def test_general_attribute_lines_preserve_colored_sequence_items():
-    occupancy = qtop.WNOccupancy.__new__(qtop.WNOccupancy)
+    occupancy = WNOccupancy.__new__(WNOccupancy)
     colored_state = qtop.utils.ColorStr("r", color="Blue")
     occupancy.cluster = SimpleNamespace(
         workernode_dict={
@@ -103,9 +104,9 @@ def test_pbs_json_missing_or_invalid_counts_fail_explicitly(tmp_path, counts):
         PBSStatExtractor({}, SimpleNamespace(ANONYMIZE=False)).extract_qstatq(str(path))
 
 
-def test_decide_remapping_handles_mixed_numeric_and_named_nodes(monkeypatch):
-    monkeypatch.setattr(qtop, "dynamic_config", {}, raising=False)
-    cluster = qtop.Cluster.__new__(qtop.Cluster)
+def test_decide_remapping_handles_mixed_numeric_and_named_nodes():
+    cluster = Cluster.__new__(Cluster)
+    cluster.MVU_model = MVU_Model({}, SimpleNamespace(), None)
     cluster.total_wn = 2
     cluster.args = SimpleNamespace(BLINDREMAP=False)
     cluster.workernode_list = [1, "trueno_ita"]
@@ -116,7 +117,7 @@ def test_decide_remapping_handles_mixed_numeric_and_named_nodes(monkeypatch):
 
 
 def test_cores_resolve_once_keep_free_order_unknown_markers_and_shared_cells(monkeypatch, caplog):
-    occupancy = qtop.WNOccupancy.__new__(qtop.WNOccupancy)
+    occupancy = WNOccupancy.__new__(WNOccupancy)
     monkeypatch.setattr(occupancy, "_core_cell", lambda user, queue, _coloring: qtop.utils.ColorStr(user + "@" + queue), raising=False)
     resolved = []
     resolve = occupancy._resolve
@@ -138,14 +139,12 @@ def test_cores_resolve_once_keep_free_order_unknown_markers_and_shared_cells(mon
 def test_core_cell_highlight_rules_are_built_once_per_frame(monkeypatch):
     from types import SimpleNamespace
 
-    occupancy = qtop.WNOccupancy.__new__(qtop.WNOccupancy)
+    occupancy = WNOccupancy.__new__(WNOccupancy)
     occupancy.MVU_model = SimpleNamespace(display_overrides={}, user_to_color={"alice": "Red", "bob": "Blue"})
     occupancy.config = {"highlight": [{"or_include_user_id": ["0"]}, {"or_include_queue": ["long"]}]}
     occupancy.user_to_id = {"alice": qtop.utils.ColorStr("0"), "bob": qtop.utils.ColorStr("1")}
     occupancy.user_color_patterns = {"0": "alice", "1": "bob"}
     built = []
-    from qtop_py.mvu_query import WNOccupancy
-
     rules = WNOccupancy.get_hl_q_or_users
     monkeypatch.setattr(WNOccupancy, "get_hl_q_or_users", staticmethod(lambda selected: built.append(1) or rules(selected)))
     cells = [occupancy._core_cell(user, queue, "user_to_color") for user, queue in (("alice", "batch"), ("bob", "batch"), ("bob", "long"))]
@@ -155,7 +154,7 @@ def test_core_cell_highlight_rules_are_built_once_per_frame(monkeypatch):
 def _highlight_occupancy(rules, user_to_id):
     from types import SimpleNamespace
 
-    occupancy = qtop.WNOccupancy.__new__(qtop.WNOccupancy)
+    occupancy = WNOccupancy.__new__(WNOccupancy)
     occupancy.MVU_model = SimpleNamespace(display_overrides={"highlight": rules}, user_to_color={user: "Red" for user in user_to_id})
     occupancy.config = {"highlight": []}
     occupancy.user_to_id = {user: qtop.utils.ColorStr(userid) for user, userid in user_to_id.items()}
@@ -191,7 +190,7 @@ def test_core_cell_highlight_rules_that_match_nothing_do_not_crash(rules, warns,
     ids=("empty", "ordered-by-lowest-core", "grouped", "non-numeric-last"),
 )
 def test_stack_core_jobs_packs_each_job_from_core_zero(corejobs, expected):
-    assert qtop.WNOccupancy.stack_core_jobs(corejobs) == expected
+    assert WNOccupancy.stack_core_jobs(corejobs) == expected
 
 
 def test_stacked_matrix_starts_every_node_at_its_first_core(tmp_path):

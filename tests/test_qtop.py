@@ -18,6 +18,7 @@ from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
+from mvu_support import explicit_model
 
 from qtop_py import configuration, user_details
 from qtop_py import qtop as qtop_module
@@ -26,12 +27,10 @@ from qtop_py.colormap import color_to_code
 from qtop_py.constants import SYMBOL_LONG_TAIL_USER, SYMBOL_UNKNOWN_NODE_STATE
 from qtop_py.errors import JobNotFound
 from qtop_py.mvu import MVU_Model
-from qtop_py.mvu_query import WNFilter
+from qtop_py.mvu_query import Cluster, WNFilter, WNOccupancy
 from qtop_py.qtop import (
     NoSchedulerFound,
     SchedulerNotSpecified,
-    TextDisplay,
-    WNOccupancy,
     decide_batch_system,
     get_date_obj_from_str,
     get_output_size,
@@ -80,9 +79,9 @@ def test_update_config_defaults_missing_coreline_setting(config, base, remove):
     assert configuration.update_config_with_cmdline_vars(args, dict(config))["rem_empty_corelines"] == base + remove
 
 
-def test_sort_worker_nodes_uses_named_sort_keys(monkeypatch):
-    monkeypatch.setattr(qtop_module, "dynamic_config", {}, raising=False)
-    cluster = qtop_module.Cluster.__new__(qtop_module.Cluster)
+def test_sort_worker_nodes_uses_named_sort_keys():
+    cluster = Cluster.__new__(Cluster)
+    cluster.MVU_model = explicit_model()
     cluster.config = {"sorting": {"user_sort": ["sort by all numbers"], "reverse": False}}
     cluster.worker_nodes = [
         {"domainname": "node10", "state": "-", "np": "1", "core_job_map": {}},
@@ -218,9 +217,9 @@ def test_terminal_resize_redraws_at_once_on_sigwinch(monkeypatch):
     assert viewport.get_term_size() == (50, 160) and signal.getsignal(signal.SIGWINCH) is previous
 
 
-def test_sort_worker_nodes_rejects_custom_python_sorting(monkeypatch):
-    monkeypatch.setattr(qtop_module, "dynamic_config", {}, raising=False)
-    cluster = qtop_module.Cluster.__new__(qtop_module.Cluster)
+def test_sort_worker_nodes_rejects_custom_python_sorting():
+    cluster = Cluster.__new__(Cluster)
+    cluster.MVU_model = explicit_model()
     cluster.config = {"sorting": {"user_sort": ["sort by custom definition"], "reverse": False}}
     cluster.worker_nodes = [{"domainname": "node1", "state": "-", "np": "1", "core_job_map": {}}]
 
@@ -411,7 +410,7 @@ def test_create_job_counts():  # user_names, job_states, state_abbrevs
 
     snapshot = Snapshot()
 
-    wns_occupancy = WNOccupancy(None, None, snapshot, None, None)
+    wns_occupancy = WNOccupancy(None, None, snapshot, None, MVU_model=explicit_model())
     assert wns_occupancy._create_user_job_counts(user_names, job_states, state_abbrevs) == {
         "cancelled_of_user": {"sotiris": 0, "yannis": 0, "petros": 1},
         "exiting_of_user": {"sotiris": 0, "kostas": 1, "yannis": 0},
@@ -428,7 +427,7 @@ def test_create_user_job_counts_raises_jobnotfound():  # user_names, job_states,
         jobs_dict = {}
 
     snapshot = Snapshot()
-    wns_occupancy = WNOccupancy(None, None, snapshot, None, None)
+    wns_occupancy = WNOccupancy(None, None, snapshot, None, MVU_model=explicit_model())
     with pytest.raises(JobNotFound):
         wns_occupancy._create_user_job_counts(user_names, job_states, state_abbrevs)
 
@@ -486,12 +485,9 @@ def test_display_account_totals_is_separate_from_user_rows(monkeypatch, capsys):
         }
 
     args = Args()
-    monkeypatch.setattr(qtop_module, "args", args, raising=False)
-    monkeypatch.setattr(qtop_module, "config", {"SEPARATOR": "|"}, raising=False)
-    monkeypatch.setattr(qtop_module, "user_to_color", {}, raising=False)
-
+    config = {"SEPARATOR": "|"}
     wns_occupancy = WNSOccupancy()
-    display = TextDisplay(None, qtop_module.config, None, wns_occupancy, None, args)
+    display = mvu_view.TextDisplay(None, config, None, wns_occupancy, None, args, MVU_model=explicit_model(config, args))
 
     display.display_user_accounts_pool_mappings(wns_occupancy)
     assert "[ T] Totals" not in capsys.readouterr().out
@@ -564,12 +560,9 @@ def test_display_user_accounts_pool_mappings_hides_totals_by_default(monkeypatch
         }
 
     args = Args()
-    monkeypatch.setattr(qtop_module, "args", args, raising=False)
-    monkeypatch.setattr(qtop_module, "config", {"SEPARATOR": "|"}, raising=False)
-    monkeypatch.setattr(qtop_module, "user_to_color", {}, raising=False)
-
+    config = {"SEPARATOR": "|"}
     wns_occupancy = WNSOccupancy()
-    display = TextDisplay(None, qtop_module.config, None, wns_occupancy, None, args)
+    display = mvu_view.TextDisplay(None, config, None, wns_occupancy, None, args, MVU_model=explicit_model(config, args))
 
     display.display_user_accounts_pool_mappings(wns_occupancy)
 
@@ -584,12 +577,12 @@ def test_display_user_accounts_can_show_primary_groups(monkeypatch, capsys):
         account_jobs_table=[["0", 2, 3, 5, "alice", 1]],
         user_color_patterns={"0": "account_not_colored"},
     )
-    monkeypatch.setattr(qtop_module, "args", args, raising=False)
-    monkeypatch.setattr(qtop_module, "config", {"SEPARATOR": "|"}, raising=False)
-    monkeypatch.setattr(qtop_module, "user_to_color", {}, raising=False)
+    config = {"SEPARATOR": "|"}
     monkeypatch.setattr(user_details, "get_primary_group_names", lambda table: {"alice": "research"})
+    model = explicit_model(config, args)
+    user_details.MVU_resolve_user_details(model, occupancy, force=True)
 
-    TextDisplay(None, qtop_module.config, None, occupancy, None, args).display_user_accounts_pool_mappings(occupancy)
+    mvu_view.TextDisplay(None, config, None, occupancy, None, args, MVU_model=model).display_user_accounts_pool_mappings(occupancy)
 
     output = capsys.readouterr().out
     assert "primary group" in output
@@ -601,11 +594,9 @@ def test_display_user_accounts_can_show_primary_groups(monkeypatch, capsys):
 @pytest.mark.parametrize("groups", [None, {"alice": "research"}])
 def test_account_row_colors_preserve_visible_alignment(monkeypatch, capsys, color, mode, groups):
     args = SimpleNamespace(COLOR=mode)
-    monkeypatch.setattr(qtop_module, "args", args, raising=False)
-    monkeypatch.setattr(qtop_module, "config", {"SEPARATOR": "|"}, raising=False)
-    monkeypatch.setattr(qtop_module, "user_to_color", {"user": color}, raising=False)
+    config = {"SEPARATOR": "|"}
     monkeypatch.setitem(color_to_code, "Gray2BG", ";47")
-    display = TextDisplay(None, qtop_module.config, None, None, None, args)
+    display = mvu_view.TextDisplay(None, config, None, None, None, args, MVU_model=explicit_model(config, args, user_to_color={"user": color}))
     line = ["0", 2, 3, 5, "alice", 1]
     display.display_account_jobs_line(line, "user", {"alice": "Alice"}, groups)
     rendered = capsys.readouterr().out
@@ -615,27 +606,24 @@ def test_account_row_colors_preserve_visible_alignment(monkeypatch, capsys, colo
     assert re.sub(r"\x1b\[[0-9;]*m", "", rendered) == plain
 
 
-def test_strict_check_counts_unique_jobs_across_slots_nodes_and_shared_resources(capsys, monkeypatch):
-    monkeypatch.setattr(qtop_module, "scheduler", "oar", raising=False)
+def test_strict_check_counts_unique_jobs_across_slots_nodes_and_shared_resources():
     nodes = [
         {"core_job_map": {0: "101", 1: "101"}, "oar_job_ids": ["101", "102"]},
         {"core_job_map": {0: "101", 1: "103", 2: "?"}},
     ]
-    assert qtop_module.WNOccupancy._count_jobs_strict(nodes) == 3
+    assert WNOccupancy._count_jobs_strict(nodes) == 3
     arrays = [{"core_job_map": {0: "42[1]", 1: "42[2]"}}]
-    assert qtop_module.WNOccupancy._count_jobs_strict(arrays, {"42"}) == 1
-    assert qtop_module.WNOccupancy._count_jobs_strict(arrays, {"42[1]", "42[2]"}) == 2
+    assert WNOccupancy._count_jobs_strict(arrays, {"42"}) == 1
+    assert WNOccupancy._count_jobs_strict(arrays, {"42[1]", "42[2]"}) == 2
     snapshot = SimpleNamespace(worker_nodes=nodes, jobs_dict={"101": SimpleNamespace(job_state="R"), "102": SimpleNamespace(job_state="R"), "103": SimpleNamespace(job_state="F")})
-    occupancy = SimpleNamespace(snapshot=snapshot, config={"state_abbreviations": {"oar": {"R": "running_of_user", "F": "Finishing"}}})
-    qtop_module.WNOccupancy.strict_check_jobs(occupancy, SimpleNamespace(total_running_jobs=2))
-    assert capsys.readouterr().out == ""
-    qtop_module.WNOccupancy.strict_check_jobs(occupancy, SimpleNamespace(total_running_jobs=3))
-    assert "Counted jobs (2)" in capsys.readouterr().out
-    monkeypatch.setattr(qtop_module, "scheduler", "sge", raising=False)
+    config = {"state_abbreviations": {"oar": {"R": "running_of_user", "F": "Finishing"}}}
+    occupancy = SimpleNamespace(snapshot=snapshot, config=config, MVU_model=explicit_model(config, scheduler="oar"))
+    assert WNOccupancy.MVU_check_jobs(occupancy, SimpleNamespace(total_running_jobs=2)) is None
+    assert "Counted jobs (2)" in WNOccupancy.MVU_check_jobs(occupancy, SimpleNamespace(total_running_jobs=3))
     snapshot.jobs_dict = {"101": SimpleNamespace(job_state="r"), "102": SimpleNamespace(job_state="Rr"), "103": SimpleNamespace(job_state="s")}
     occupancy.config = {"state_abbreviations": {"sge": {"r": "running_of_user", "Rr": "running_of_user", "s": "suspended_of_user"}}}
-    qtop_module.WNOccupancy.strict_check_jobs(occupancy, SimpleNamespace(total_running_jobs=2))
-    assert capsys.readouterr().out == ""
+    occupancy.MVU_model = explicit_model(occupancy.config, scheduler="sge")
+    assert WNOccupancy.MVU_check_jobs(occupancy, SimpleNamespace(total_running_jobs=2)) is None
 
 
 def test_queueing_summary_preserves_order_and_expands(capsys):
@@ -688,7 +676,9 @@ def test_expanded_queues_align_and_count_other_jobs_per_queue(capsys, monkeypatc
     args = SimpleNamespace(REMAP=False, CLASSIC=False, WATCH=False, EXPAND_QUEUES=True, ANONYMIZE=True, COLOR=color)
     model = MVU_Model({}, args, None, backend=qtop_module.scheduler_backend("pbs"))
     config = {"state_abbreviations": {"pbs": PBS_STATES}}
-    TextDisplay(SimpleNamespace(jobs_dict=jobs), config, None, None, cluster, args, MVU_model=model).display_job_accounting_summary(cluster, SimpleNamespace(jobs_dict=jobs))
+    mvu_view.TextDisplay(SimpleNamespace(jobs_dict=jobs), config, None, None, cluster, args, MVU_model=model).display_job_accounting_summary(
+        cluster, SimpleNamespace(jobs_dict=jobs)
+    )
 
     lines = [re.sub(r"\x1b\[[0-9;]*m", "", line) for line in capsys.readouterr().out.splitlines()]
     start = lines.index("Queueing :")
@@ -996,11 +986,11 @@ def test_short_replay_time_handles_calendar_boundaries(now, expected):
     assert get_date_obj_from_str("2100", datetime.datetime(*now)) == datetime.datetime(*expected)
 
 
-def test_unknown_scheduler_job_state_preserves_accounting(monkeypatch, caplog):
-    monkeypatch.setattr(qtop_module, "scheduler", "slurm", raising=False)
+def test_unknown_scheduler_job_state_preserves_accounting(caplog):
     state_abbrevs = {"R": "running_of_user", "PD": "queued_of_user"}
     occupancy = WNOccupancy.__new__(WNOccupancy)
     occupancy.config = {"state_abbreviations": {"slurm": state_abbrevs}}
+    occupancy.MVU_model = explicit_model(occupancy.config, scheduler="slurm")
     users = ["alice", "bob", "alice"]
     counts = occupancy._calculate_user_job_counts(users, ["R", "NEW_STATE", "PD"])
     assert counts["running_of_user"] == {"alice": 1, "bob": 0}
@@ -1060,10 +1050,7 @@ def test_shared_firstletter_id_keeps_legacy_color_mapping(totals, expected_patte
         ({"exclude_name_patterns": ["^N/A$"]}, ["node01", "node03"]),
     ],
 )
-def test_node_filters_enable_compact_mapping(monkeypatch, dynamic, rule, expected):
-    monkeypatch.setattr(qtop_module, "dynamic_config", {"filtering": [rule]} if dynamic else {}, raising=False)
-    monkeypatch.setattr(qtop_module, "user_to_color", {}, raising=False)
-    monkeypatch.setattr(qtop_module, "args", SimpleNamespace(COLOR="OFF"), raising=False)
+def test_node_filters_enable_compact_mapping(dynamic, rule, expected):
     nodes = [{"domainname": name, "state": [qtop_utils.ColorStr("-")], "np": 2, "core_job_map": {0: job}} for name, job in [("node01", "100"), ("node03", "200")]]
     config = {
         "filtering": [] if dynamic else [rule],
@@ -1076,7 +1063,8 @@ def test_node_filters_enable_compact_mapping(monkeypatch, dynamic, rule, expecte
     snapshot = SimpleNamespace(jobs_dict={}, queues_dict={}, total_running_jobs=2, total_queued_jobs=0)
     args = SimpleNamespace(ANONYMIZE=False, BLINDREMAP=False)
 
-    cluster = qtop_module.Cluster(snapshot, nodes, WNFilter, config, args)
+    model = explicit_model(config, args, display_overrides={"filtering": [rule]} if dynamic else {})
+    cluster = Cluster(snapshot, nodes, WNFilter, config, args, MVU_model=model)
 
     assert args.REMAP is True
     assert [node["domainname"] for node in cluster.workernode_dict.values()] == expected
@@ -1086,9 +1074,9 @@ def test_node_filters_enable_compact_mapping(monkeypatch, dynamic, rule, expecte
 
 
 @pytest.mark.parametrize("filters", [None, [], [{}]])
-def test_empty_dynamic_filters_do_not_force_remapping(monkeypatch, filters):
-    monkeypatch.setattr(qtop_module, "dynamic_config", {"filtering": filters}, raising=False)
-    cluster = qtop_module.Cluster.__new__(qtop_module.Cluster)
+def test_empty_dynamic_filters_do_not_force_remapping(filters):
+    cluster = Cluster.__new__(Cluster)
+    cluster.MVU_model = explicit_model(display_overrides={"filtering": filters})
     cluster.config = {"filtering": [{"include_name_patterns": ["node"]}], "percentage": 0.8, "exotic_starting_wn_nr": 9000}
     cluster.args = SimpleNamespace(BLINDREMAP=False)
     cluster.total_wn = 2
@@ -1139,7 +1127,7 @@ def test_init_logging_sets_file_level(tmp_path, monkeypatch, verbose, expected):
 def test_viewport_closes_its_output_on_success_and_failure(tmp_path, monkeypatch, invalid_utf8):
     source = tmp_path / "frame with spaces.out"
     source.write_bytes(b"\xff" if invalid_utf8 else "".join("%s\n" % number for number in range(100000)).encode())
-    display = TextDisplay.__new__(TextDisplay)
+    display = mvu_view.TextDisplay.__new__(mvu_view.TextDisplay)
     display.config = {"savepath": str(tmp_path)}
     temporary_file = mvu_view.tempfile.NamedTemporaryFile
     outputs = []
@@ -1207,8 +1195,8 @@ PBS_STATES = {"R": "running_of_user", "Q": "queued_of_user", "C": "cancelled_of_
 def _plain_accounts(monkeypatch, capsys, config, table, totals=False, color="OFF", nodes_in_use=2):
     args = SimpleNamespace(COLOR=color, CLASSIC=False, SHOW_ACCOUNT_TOTALS=totals, SHOW_GROUPS=False)
     occupancy = SimpleNamespace(account_jobs_table=table, nodes_in_use=nodes_in_use, user_color_patterns={str(row[0]): "account_not_colored" for row in table})
-    monkeypatch.setattr(qtop_module, "user_to_color", {}, raising=False)
-    display = TextDisplay(None, dict(config, SEPARATOR="|"), None, occupancy, None, args)
+    config = dict(config, SEPARATOR="|")
+    display = mvu_view.TextDisplay(None, config, None, occupancy, None, args, MVU_model=explicit_model(config, args))
     display.display_user_accounts_pool_mappings(occupancy)
     rows = capsys.readouterr().out.splitlines()
     if totals:
@@ -1309,31 +1297,7 @@ def test_summary_states_count_the_job_list_when_tuned(capsys):
 
 
 def test_job_state_totals_keep_unknown_states():
-    assert qtop_module.WNOccupancy.job_state_totals(["R", "R", "Z"], {"R": "running_of_user"}) == {"running_of_user": 2, "unknown_of_user": 1}
-
-
-def test_legacy_account_display_retains_the_resolved_fallback_model(monkeypatch):
-    models = []
-
-    def fallback(instance):
-        model = SimpleNamespace(user_details={})
-        models.append(model)
-        return model
-
-    def resolve(model, occupancy, force=False):
-        assert force
-        model.user_details["alice"] = "Alice"
-
-    def render(display, occupancy):
-        assert display.MVU_model is models[0]
-        assert display.MVU_model.user_details == {"alice": "Alice"}
-
-    monkeypatch.setattr(qtop_module, "_legacy_model", fallback)
-    monkeypatch.setattr(qtop_module, "MVU_resolve_user_details", resolve)
-    monkeypatch.setattr(qtop_module.MVU_TextDisplay, "display_user_accounts_pool_mappings", render)
-    display = TextDisplay.__new__(TextDisplay)
-    display.display_user_accounts_pool_mappings(object())
-    assert len(models) == 1
+    assert WNOccupancy.job_state_totals(["R", "R", "Z"], {"R": "running_of_user"}) == {"running_of_user": 2, "unknown_of_user": 1}
 
 
 @pytest.mark.parametrize(

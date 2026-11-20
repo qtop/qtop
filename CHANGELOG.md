@@ -19,6 +19,7 @@ Notable changes by version, newest first. See the
 - Feature: writable parents of savepath and the log no longer stop qtop unless --strict-parents
 - Refactor: per-backend extension specs; a conformance test checks every registered backend
 - Refactor: snapshots complete when built; the view reads no clock or environment
+- Refactor: retire the deprecated qtop.py adapters (colorize, control_qtop, wrapper classes)
 - Refactor: lazy logging arguments (ruff G rules) and "Final" on module constants
 - Release: update version metadata to 0.9.20261119
 

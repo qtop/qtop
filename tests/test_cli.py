@@ -479,11 +479,12 @@ def test_interrupted_nonanonymous_capture_exits_cleanly_and_finalizes_archive(tm
     output = tmp_path / "capture"
     script = """
 from qtop_py import qtop
-display = qtop.TextDisplay.display_selected_sections
+from qtop_py.ui import mvu_view
+display = mvu_view.TextDisplay.display_selected_sections
 def interrupt_after_display(self, *args, **kwargs):
     display(self, *args, **kwargs)
     raise KeyboardInterrupt
-qtop.TextDisplay.display_selected_sections = interrupt_after_display
+mvu_view.TextDisplay.display_selected_sections = interrupt_after_display
 raise SystemExit(qtop.cli_main())
 """
     result = subprocess.run(
@@ -599,7 +600,6 @@ def test_slurm_config_command_matches_shell_execution(tmp_path, monkeypatch, sch
     script.write_text("#!%s\nimport json, sys\nprint(json.dumps(sys.argv[1:]))\n" % sys.executable, encoding="utf-8")
     script.chmod(0o755)
     monkeypatch.setenv("PATH", str(tmp_path) + os.pathsep + os.environ.get("PATH", ""))
-    monkeypatch.setattr(qtop, "scheduler", "slurm", raising=False)
     args = type("Options", (), {"SOURCEDIR": None, "workdir": str(tmp_path), "ALL_PARTITIONS": all_partitions})()
     finalized = collector.finalize_filepaths_schedulercommands(args, config, qtop.scheduler_backend("slurm"))
     output_path, command = finalized[scheduler_file]
@@ -625,7 +625,6 @@ def test_all_partitions_does_not_change_saved_traces_or_other_backends(tmp_path,
     from qtop_py import qtop, yaml_parser
 
     config = yaml_parser.parse(str(ROOT / "qtopconf.yaml"))
-    monkeypatch.setattr(qtop, "scheduler", scheduler_name, raising=False)
     args = SimpleNamespace(SOURCEDIR=source, workdir=str(tmp_path), ALL_PARTITIONS=False)
     default = collector.finalize_filepaths_schedulercommands(args, config, qtop.scheduler_backend(scheduler_name))
     args.ALL_PARTITIONS = True
