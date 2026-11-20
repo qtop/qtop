@@ -5,7 +5,7 @@
 import copy
 import json
 from collections import OrderedDict, namedtuple
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Callable, Optional, Tuple, cast
 
 from qtop_py.cluster_state import validate_cluster_state, validated_cluster_state_totals
 from qtop_py.safety import raw_and_visible
@@ -31,17 +31,26 @@ class Snapshot(namedtuple("Snapshot", ["worker_nodes", "jobs_dict", "queues_dict
         _job_metadata: Dict[str, state_types.Job]
 
     @classmethod
-    def from_cluster_state(cls, cluster_state: "state_types.ClusterState", validated: bool = False) -> "Snapshot":
-        """Validate a cluster state and build the snapshot, with display-safe text.
+    def from_cluster_state(
+        cls,
+        cluster_state: "state_types.ClusterState",
+        validated: bool = False,
+        display_state: Optional[Callable[[str], str]] = None,
+        collection: Optional[Tuple[float, float, str]] = None,
+    ) -> "Snapshot":
+        """Validate a cluster state and build the complete snapshot, with display-safe text.
 
         validated=True skips validation for a state the caller has just passed through
         validate_cluster_state() itself (live collection does, in its worker thread).
+        display_state maps each job state for display (the exported state keeps the original).
+        collection is (age, span, error) of a background poll. Nothing is set after this returns.
         """
         # The one copy boundary (JSON-shaped): one traversal yields the raw copy kept
         # for export and the display-safe copy, sharing no dict or list.
         original, cluster_state = raw_and_visible(cluster_state if validated else validate_cluster_state(cluster_state))
         totals = validated_cluster_state_totals(cluster_state)
-        jobs_dict = OrderedDict((job["id"], JobRow(job["user"], job["state"], job["queue"])) for job in cluster_state["jobs"])
+        shown_state = display_state or (lambda state: state)
+        jobs_dict = OrderedDict((job["id"], JobRow(job["user"], shown_state(job["state"]), job["queue"])) for job in cluster_state["jobs"])
         queues_dict = OrderedDict(
             (
                 queue["name"],
@@ -58,6 +67,8 @@ class Snapshot(namedtuple("Snapshot", ["worker_nodes", "jobs_dict", "queues_dict
         )
         snapshot._state = original
         snapshot._job_metadata = {job["id"]: job for job in cluster_state["jobs"]}
+        if collection is not None:
+            snapshot._collection_age, snapshot._collection_span, snapshot._collection_error = collection
         return snapshot
 
     @property

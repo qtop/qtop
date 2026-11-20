@@ -3,7 +3,9 @@
 """Terminal modes, signal handling, geometry and refresh waits."""
 
 import contextlib
+import datetime
 import logging
+import os
 import select
 import shutil
 import signal as _signal
@@ -20,6 +22,8 @@ from qtop_py.ui.viewport import Viewport
 
 if TYPE_CHECKING:  # typing.Final is Python 3.8+; the quoted annotations keep 3.6 working
     from typing import Final
+
+    from qtop_py.mvu import TerminalInfo
 
 SIGPIPE: "Final" = getattr(_signal, "SIGPIPE", None)
 SIGWINCH: "Final" = getattr(_signal, "SIGWINCH", None)
@@ -169,3 +173,12 @@ def wait_for_keypress_or_autorefresh(
             _signal.signal(SIGWINCH, previous)
     viewport.set_term_size(*calculate_term_size(config, FALLBACK_TERMSIZE, viewport))  # a resize just redraws ("r" cycles core lines)
     return "\n"
+
+
+def capture_terminal() -> "TerminalInfo":
+    """Read the frame time and terminal facts the view needs, once per frame, at the runtime boundary."""
+    from qtop_py.mvu import TerminalInfo
+
+    wide = "256color" in os.environ.get("TERM", "") or bool(os.environ.get("COLORTERM"))
+    stdout = sys.__stdout__
+    return TerminalInfo(str(datetime.datetime.today())[:-7], wide, stdout is not None and stdout.isatty())

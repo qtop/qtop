@@ -103,8 +103,14 @@ flowchart TB
    `schedulers/collector.py` owns command/file collection and capture-aware
    snapshot construction. The loop calls `MVU_collect_snapshot()`,
    `MVU_export_snapshot()`,
-   `MVU_query()` and `MVU_view()`. `MVU_update()` accepts snapshots and keyboard
-   messages, returning a new model and effect requests; the runtime executes
+   `MVU_query()` and `MVU_view()`. The snapshot is complete when built: display
+   job states and collection timings are passed to `Snapshot.from_cluster_state()`.
+   `MVU_update()` accepts snapshots, the per-frame `terminal` facts (frame time,
+   256-colour support, whether stdout is a terminal; captured by
+   `ui/terminal.capture_terminal()`) and keyboard messages, returning a new model
+   and effect requests. The view reads no clock or environment, so one model
+   renders the same text; UI state holds flags such as `show_help`, while the
+   runtime chooses the files to show. The runtime executes
    menu input and terminal effects through `ui/effects.py` and
    `ui/terminal.py`; `user_details.py` owns optional account enrichment.
    [configuration.py](../qtop_py/configuration.py) owns file precedence,

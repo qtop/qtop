@@ -5,6 +5,7 @@
 import copy
 import re
 import signal
+from collections import namedtuple
 from itertools import groupby
 from typing import Any, Callable, Dict, Iterable, Iterator, List, Mapping, Optional, Set, Tuple
 
@@ -13,6 +14,8 @@ from qtop_py.colormap import color_to_code, queue_to_color
 from qtop_py.constants import SYMBOL_LONG_TAIL_USER
 from qtop_py.schedulers.metadata import NODE_JOB_FIELDS
 from qtop_py.ui.controls import NAVIGATION_KEYS
+
+TerminalInfo = namedtuple("TerminalInfo", ["frame_time", "wide_colours", "is_tty"])
 
 
 def MVU_reserved_pattern_mappings(config: Mapping[str, Any]) -> Dict[str, str]:
@@ -144,6 +147,9 @@ class MVU_Model(object):
         self.package_path, self.help_file = package_path, help_file
         self.transposed_sections: List[str] = []
         self.user_details: Dict[str, Any] = {}
+        # Frame time and terminal facts the runtime captured (ui.terminal.capture_terminal), so the
+        # view reads no clock or environment; None only for models built outside the main loop.
+        self.terminal: Optional[TerminalInfo] = None
 
     def MVU_colorize(self, *args: Any, **kwargs: Any) -> Any:
         """Colour text with this model's colour maps; see MVU_colorize."""
@@ -191,7 +197,7 @@ def MVU_queue_layout(model: "MVU_Model", queues: Optional[Mapping[str, Any]] = N
 
 def MVU_update(model: "MVU_Model", message: str, payload: Any = None) -> Tuple["MVU_Model", Tuple[Tuple[str, Optional[str]], ...]]:
     """Return the next model and effect requests without performing terminal or scheduler I/O."""
-    keys = set(NAVIGATION_KEYS) | {"snapshot", "layout", "t", "S", "Q", "m", "q", "F", "s", "f", "H", "?", "r", "p", "P", "1", "2", "3", "4", "/", ":"}
+    keys = set(NAVIGATION_KEYS) | {"snapshot", "layout", "terminal", "t", "S", "Q", "m", "q", "F", "s", "f", "H", "?", "r", "p", "P", "1", "2", "3", "4", "/", ":"}
     if message not in keys:
         return model, ()
     next_model = copy.copy(model)
@@ -205,6 +211,8 @@ def MVU_update(model: "MVU_Model", message: str, payload: Any = None) -> Tuple["
         next_model.scheduler = getattr(next_model.backend, "display_scheduler", next_model.backend.get_mnemonic())
     elif message == "layout":
         next_model.viewport = copy.copy(payload)
+    elif message == "terminal":
+        next_model.terminal = payload
     elif message in NAVIGATION_KEYS:
         method, text, bounded = NAVIGATION_KEYS[message]
         moved = getattr(next_model.viewport, method)()
@@ -242,10 +250,9 @@ def MVU_update(model: "MVU_Model", message: str, payload: Any = None) -> Tuple["
         effects.append(("notice", "Toggling full-name/incremental nr WN labels"))
     elif message == "?":
         next_model.viewport.reset_display()
-        if "output_fp" in next_model.display_overrides:
-            next_model.display_overrides.pop("output_fp")
-        else:
-            next_model.display_overrides["output_fp"] = next_model.help_file
+        # UI state records only that help is shown; the runtime, which owns the files, opens help_file.
+        if next_model.display_overrides.pop("show_help", False) is False:
+            next_model.display_overrides["show_help"] = True
         effects.append(("notice", "opening help..."))
     elif message == "r":
         mode = (next_model.display_overrides.get("rem_empty_corelines", next_model.config["rem_empty_corelines"]) + 1) % 3

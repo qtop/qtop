@@ -93,9 +93,9 @@ def test_color_mapping_and_empty_coreline_modes_cycle(controls):
 
 def test_help_returns_to_cluster_and_quit_leaves_cleanup_to_owner(controls):
     press(controls, "?")
-    assert overrides(controls)["output_fp"] == "help.txt"
+    assert overrides(controls)["show_help"] is True
     press(controls, "?")
-    assert "output_fp" not in overrides(controls)
+    assert "show_help" not in overrides(controls)
     with pytest.raises(SystemExit) as stopped:
         press(controls, "q")
     assert stopped.value.code == 0

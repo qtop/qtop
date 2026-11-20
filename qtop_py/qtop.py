@@ -473,6 +473,7 @@ def main(resources: RunResources) -> None:
                     if model is None:
                         model = MVU_Model(config, args, viewport, display_overrides=dynamic_config, package_path=paths.qtoppath, help_file=paths.help_fp)
                     model, _ = MVU_update(model, "snapshot", (snapshot, config, args, backend, user_to_color, nodestate_to_color))
+                    model, _ = MVU_update(model, "terminal", terminal_io.capture_terminal())
                     view_data = MVU_query(model)
                     cluster = view_data.cluster
                     MVU_resolve_user_details(view_data.model, view_data.occupancy)
@@ -496,8 +497,9 @@ def main(resources: RunResources) -> None:
                         logging.critical("No (more) recorded instances available to show! Exiting...")
                         break
                 else:
-                    output_partview_fp = display.show_part_view(timestr, file=dynamic_config.get("output_fp", output_fp), x=viewport.v_start, y=viewport.v_term_size)
-                    logging.debug("dynamic_config filename in main loop: %s", dynamic_config.get("output_fp", output_fp))
+                    shown_fp = paths.help_fp if dynamic_config.get("show_help") else output_fp
+                    output_partview_fp = display.show_part_view(timestr, file=shown_fp, x=viewport.v_start, y=viewport.v_term_size)
+                    logging.debug("Shown file in main loop: %s", shown_fp)
                 clear_command = ["/usr/bin/clear"]
                 cat_command = ["/bin/cat", output_partview_fp]
                 _ = subprocess.call(clear_command, stdout=stdout, stderr=stdout)
@@ -506,7 +508,7 @@ def main(resources: RunResources) -> None:
                 read_char = terminal_io.wait_for_keypress_or_autorefresh(viewport, config, FALLBACK_TERMSIZE, int(args.WATCH) or KEYPRESS_TIMEOUT, keyboard)
                 model, effects = MVU_update(model, read_char)
                 viewport, dynamic_config = model.viewport, model.display_overrides
-                MVU_effects(model, effects, cluster, old_attrs, new_attrs, keyboard, dynamic_config.get("output_fp", output_fp))
+                MVU_effects(model, effects, cluster, old_attrs, new_attrs, keyboard, paths.help_fp if dynamic_config.get("show_help") else output_fp)
 
                 os.chdir(paths.qtoppath)
                 resources.discard_frame()

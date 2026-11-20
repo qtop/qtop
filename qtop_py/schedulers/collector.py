@@ -129,8 +129,10 @@ def fetch_scheduler_files(args: Any, config: Dict[str, Any], backend: Type[Gener
     return get_input_filenames(INPUT_FNs_commands, config, args, backend)
 
 
-def MVU_collect_snapshot(args: Any, config: Dict[str, Any], backend: Any, trace_paths: Dict[str, str], archive: Any, collected: Any = None) -> Tuple[Snapshot, Dict[str, Any]]:
-    """Collect one normalized snapshot, including replay and masking."""
+def MVU_collect_snapshot(
+    args: Any, config: Dict[str, Any], backend: Any, trace_paths: Dict[str, str], archive: Any, collected: Any = None, collection_error: str = ""
+) -> Tuple[Snapshot, Dict[str, Any]]:
+    """Collect one normalized snapshot, including replay and masking; the snapshot is complete when built."""
     scheduler = backend.get_mnemonic()
     savepath = config["savepath"]
     scheduling_system: state_types.Scheduler
@@ -165,11 +167,8 @@ def MVU_collect_snapshot(args: Any, config: Dict[str, Any], backend: Any, trace_
         cluster_state = sample.anonymize_state(cluster_state)[0]
     # The poller's collect() already validated its state; --demanding validates it again here.
     prevalidated = collected is not None and cluster_state is collected.state and not getattr(args, "DEMANDING", False)
-    snapshot = Snapshot.from_cluster_state(cluster_state, validated=prevalidated)
-    display_state = getattr(backend, "display_job_state", None)
-    if display_state is not None:
-        for job_id, job in snapshot.jobs_dict.items():
-            snapshot.jobs_dict[job_id] = job._replace(job_state=display_state(job.job_state))
+    collection = None if collected is None else (max(0, time.monotonic() - collected.completed), collected.completed - collected.started, collection_error)
+    snapshot = Snapshot.from_cluster_state(cluster_state, validated=prevalidated, display_state=getattr(backend, "display_job_state", None), collection=collection)
     return snapshot, config
 
 
@@ -262,11 +261,7 @@ def _collect_frame(
         trace_paths = {} if args.load_sample else fetch_scheduler_files(args, config, backend)
     sample_filename = fileutils.get_sample_filename(sample_filename, config)
     resources.start_capture(savepath, sample_filename, trace_paths, config, paths.qtoppath)
-    snapshot, config = MVU_collect_snapshot(args, config, backend, trace_paths, resources.archive, **({"collected": collected} if collected is not None else {}))
-    if collected is not None:
-        snapshot._collection_age = max(0, time.monotonic() - collected.completed)
-        snapshot._collection_span = collected.completed - collected.started
-        snapshot._collection_error = collection_error
+    snapshot, config = MVU_collect_snapshot(args, config, backend, trace_paths, resources.archive, collected=collected, collection_error=collection_error)
     if args.SAMPLE and args.ANONYMIZE:
         user_to_color = user_to_color_default.copy()
         for rule in config["user_color_mappings"]:
