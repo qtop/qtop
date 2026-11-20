@@ -24,6 +24,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import qtop_py.qtop as qtop
+from qtop_py.snapshot import Snapshot
 from tools.private_output import private_output_dir, write_private_file
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -44,7 +45,7 @@ def load_exported_snapshot(path):
     """Return the Snapshot in an exported trace, cluster state or legacy five-field form."""
     payload = decode_trace_payload(path)
     if isinstance(payload, dict):
-        return qtop.Snapshot.from_cluster_state(payload)
+        return Snapshot.from_cluster_state(payload)
     if not isinstance(payload, list) or len(payload) != 5:
         raise ValueError("expected ClusterState or legacy qtop snapshot payload")
 
@@ -54,7 +55,7 @@ def load_exported_snapshot(path):
 
     jobs_dict = OrderedDict((job_id, JobRow(*values)) for job_id, values in raw_jobs.items())
     queues_dict = OrderedDict((queue, QueueRow(*values)) for queue, values in raw_queues.items())
-    return qtop.Snapshot(worker_nodes, jobs_dict, queues_dict, total_running_jobs, total_queued_jobs)
+    return Snapshot(worker_nodes, jobs_dict, queues_dict, total_running_jobs, total_queued_jobs)
 
 
 def qtop_args(show_account_totals=False, color="OFF"):
@@ -100,7 +101,7 @@ def render_snapshot(snapshot, show_account_totals=False, color="OFF", term_heigh
     config["extract_info"] = None
     viewport = qtop.Viewport()
     viewport.set_term_size(term_height, term_columns)
-    trace_snapshot = qtop.Snapshot(copy.deepcopy(snapshot.worker_nodes), snapshot.jobs_dict, snapshot.queues_dict, snapshot.total_running_jobs, snapshot.total_queued_jobs)
+    trace_snapshot = Snapshot(copy.deepcopy(snapshot.worker_nodes), snapshot.jobs_dict, snapshot.queues_dict, snapshot.total_running_jobs, snapshot.total_queued_jobs)
     backend = qtop.discover_qtop_batch_systems()["slurm"]
     model = qtop.MVU_Model(config, args, viewport, display_overrides={"force_names": 1}, package_path=str(ROOT), help_file=str(ROOT / "helpfile.txt"))
     model, _ = qtop.MVU_update(model, "snapshot", (trace_snapshot, config, args, backend, user_to_color, nodestate_to_color))

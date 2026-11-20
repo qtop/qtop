@@ -16,6 +16,7 @@ import pytest
 from qtop_py import process as process_io
 from qtop_py import qtop, utils
 from qtop_py.sample import SNAPSHOT_NAME
+from qtop_py.snapshot import Snapshot
 from qtop_py.ui import terminal as terminal_io
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -236,7 +237,7 @@ def test_export_switches_write_valid_json_and_only_notify_requested_web(tmp_path
 
     state = {"jobs": [], "nodes": [], "queues": []}
     web = Mock()
-    qtop.export_snapshot(qtop.Snapshot.from_cluster_state(state), SimpleNamespace(EXPORT=export, WEB=serve), str(tmp_path), "test", web)
+    qtop.export_snapshot(Snapshot.from_cluster_state(state), SimpleNamespace(EXPORT=export, WEB=serve), str(tmp_path), "test", web)
     paths = list(tmp_path.glob("qtop_json_*.json"))
     assert len(paths) == int(export or serve)
     if paths:

@@ -67,7 +67,6 @@ from qtop_py.schedulers.collector import _collect_frame as _collect_frame
 from qtop_py.schedulers.registry import PLUGIN_BATCH_SYSTEMS
 from qtop_py.schedulers.registry import discover_qtop_batch_systems as discover_qtop_batch_systems
 from qtop_py.serialiser import GenericBatchSystem
-from qtop_py.snapshot import Snapshot as Snapshot
 from qtop_py.ui import effects as ui_effects
 from qtop_py.ui import terminal as terminal_io
 from qtop_py.ui.controls import KeyboardInput

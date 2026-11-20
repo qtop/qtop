@@ -23,7 +23,7 @@ from qtop_py import sample, yaml_parser
 from qtop_py.cluster_state import build_cluster_state, cluster_state_totals, validate_cluster_state
 from qtop_py.plugins.pbs import PBSBatchSystem, PBSStatExtractor
 from qtop_py.plugins.slurm import SlurmBatchSystem
-from qtop_py.qtop import Snapshot
+from qtop_py.snapshot import Snapshot
 from qtop_py.ui.viewport import Viewport
 
 settings.register_profile("ci", max_examples=100, derandomize=True, deadline=None)
