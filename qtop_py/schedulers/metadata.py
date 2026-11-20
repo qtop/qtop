@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, Mapping, Tuple, cast
 if TYPE_CHECKING:
     from qtop_py.state_types import Job, Node
 
-from qtop_py.schedulers.extensions import ExtensionSpec, nonempty_texts, validate_identities, validate_text_lists
+from qtop_py.schedulers.extensions import ExtensionSpec, validate_identities, validate_text_lists
 from qtop_py.schedulers.oar_extension import OAR_EXTENSION
 from qtop_py.schedulers.slurm_extension import SLURM_EXTENSION
 
@@ -21,7 +21,6 @@ EXTENSIONS: Tuple[ExtensionSpec, ...] = (SLURM_EXTENSION, OAR_EXTENSION)
 DIAGNOSTICS = {spec.diagnostics[0]: (spec.label, spec.diagnostics[1]) for spec in EXTENSIONS if spec.diagnostics is not None}
 JOB_IDENTITIES = tuple(identity for spec in EXTENSIONS for identity in spec.job_identities)
 NODE_JOB_FIELDS = tuple(field for spec in EXTENSIONS for field in spec.node_job_fields)
-_nonempty_texts = nonempty_texts  # kept for existing importers
 
 
 def validate_diagnostics(data: Dict[str, object]) -> None:

@@ -260,9 +260,9 @@ def test_core_job_map_fast_path_accepts_exactly_what_isinstance_accepts(cores):
 
 @given(st.lists(JSON_LEAVES, max_size=6))
 def test_nonempty_texts_fast_path_matches_isinstance_check(values):
-    from qtop_py.schedulers.metadata import _nonempty_texts
+    from qtop_py.schedulers.extensions import nonempty_texts
 
-    assert _nonempty_texts(values) == all(isinstance(value, str) and value for value in values)
+    assert nonempty_texts(values) == all(isinstance(value, str) and value for value in values)
 
 
 @given(cluster_states())
