@@ -9,6 +9,7 @@ from collections import OrderedDict
 from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Tuple
 
 from qtop_py import fileutils, yaml_parser
+from qtop_py.schedulers.oar_extension import OAR_EXTENSION
 from qtop_py.schedulers.tabular import TabularStatExtractor
 from qtop_py.serialiser import GenericBatchSystem, StatExtractor
 
@@ -64,7 +65,8 @@ class OarStatExtractor(TabularStatExtractor):
 class OARBatchSystem(GenericBatchSystem):
     """OAR backend."""
 
-    node_job_fields = ("oar_job_ids",)
+    extensions = OAR_EXTENSION
+    node_job_fields = OAR_EXTENSION.node_job_fields
 
     @staticmethod
     def display_messages(section: str, snapshot: object, nodes: "List[Node]", config: "Config") -> List[str]:

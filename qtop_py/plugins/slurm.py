@@ -17,6 +17,7 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, List, Mapping, Match, Opt
 import qtop_py.fileutils as fileutils
 from qtop_py.hostlist import HostlistParser
 from qtop_py.schedulers.gpu import parse_gpu_gres
+from qtop_py.schedulers.slurm_extension import SLURM_EXTENSION
 from qtop_py.serialiser import GenericBatchSystem, StatExtractor
 
 if TYPE_CHECKING:
@@ -317,7 +318,8 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
     optional_trace_aliases = {"scontrol_file": "scontrol.txt"}
     optional_trace_warning = "Using estimated Slurm CPU placement."
     detection_priority = -2
-    node_job_fields = ("slurm_job_ids",)
+    extensions = SLURM_EXTENSION
+    node_job_fields = SLURM_EXTENSION.node_job_fields
     blocked_queue_note = " (partition closed to submissions or scheduling)"
 
     @staticmethod

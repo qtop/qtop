@@ -1465,3 +1465,33 @@ indices are unavailable, even if node-level allocated GRES indices are reported.
 Summary mode also ignores optional allocation-detail traces during offline replay.
 It cannot be combined with `--slurm-json-squeue` or an explicit non-Slurm backend.
 As an explicit selection it overrides scheduler environment/configuration defaults.
+
+## Adding a scheduler backend
+
+A backend is a `GenericBatchSystem` subclass in `qtop_py/plugins/`. It implements
+`get_jobs_info`, `get_queues_info`, `get_worker_nodes` and `get_mnemonic`, and returns
+the scheduler-neutral cluster state; query, display, export and replay never branch on
+the scheduler. Optional hooks (`queue_is_blocked`, `node_state_marker`,
+`display_messages`, `collection_command`, ...) have defaults in `serialiser.py`.
+
+To register it:
+
+1. Add the class to `PLUGIN_BATCH_SYSTEMS` in `qtop_py/schedulers/registry.py`.
+2. In `qtopconf.yaml`, add its commands under `schedulers:` and one command under
+   `signature_commands:` for auto-detection. Matrix rows without a `systems:` list
+   (the default ones) already apply to it.
+3. Commit sample traces and list them for the sample gate in
+   `tools/validate_scheduler_samples.py`; add the name to `SAMPLE_GATE_SCHEDULERS`
+   in the `Makefile`.
+
+If its jobs or nodes carry fields beyond the neutral schema (array IDs, slot
+counts, job lists on nodes), describe them in one `ExtensionSpec`
+(`qtop_py/schedulers/extensions.py`) in its own module, as
+`slurm_extension.py` and `oar_extension.py` do. Set the plugin's `extensions` to it,
+take `node_job_fields` from it, and list it in `metadata.EXTENSIONS`. Validation,
+`-A` masking and the idle test then cover those fields for every state, including
+replayed and `--load-sample` ones that are validated without the plugin.
+
+`tests/test_plugin_conformance.py` runs for every registered backend. It fails
+until the steps above are done, and it checks each committed sample through export,
+validation, replay and `-A` (no user name may survive anonymization).

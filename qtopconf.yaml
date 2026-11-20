@@ -324,16 +324,16 @@ workernodes_matrix:
 #     label: Temperature (C)  # how to label it on the qtop matrix
 #     option: {}
 #     max_len: 1
+ ## Rows without a systems list apply to every scheduler, so a new backend gets them too.
+ ## Add e.g. "systems: [pbs, slurm]" to a row to show it only for those schedulers.
  - node state:
      yaml_key: state
      label: Node state
      max_len: 5
-     systems: [sge, oar, pbs, slurm, demo]
  - queue name:
      yaml_key: qname
      label: queue name
      max_len: 13
-     systems: [sge, oar, pbs, slurm, demo]
  - core_user_map:
      options1: {}
      options2: {}

@@ -1,23 +1,27 @@
 ## Copyright (c) 2026 qtop contributors
 ## SPDX-License-Identifier: MIT
-"""Backend-owned snapshot metadata rules; no runtime/plugin registry imports."""
+"""Scheduler extension rules for cluster states, combined from each backend's ExtensionSpec.
 
-import copy
-import re
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Mapping, cast
+Validation, -A masking and the idle test loop over EXTENSIONS; nothing here names a scheduler.
+A new backend with extension fields adds its spec module and one entry below; the plugin
+conformance test fails if a registered plugin's spec is missing. No runtime/plugin imports.
+"""
+
+from typing import TYPE_CHECKING, Any, Callable, Dict, Mapping, Tuple, cast
 
 if TYPE_CHECKING:
     from qtop_py.state_types import Job, Node
 
-from qtop_py.schedulers.gpu import validate_gpu_resources
+from qtop_py.schedulers.extensions import ExtensionSpec, nonempty_texts, validate_identities, validate_text_lists
+from qtop_py.schedulers.oar_extension import OAR_EXTENSION
+from qtop_py.schedulers.slurm_extension import SLURM_EXTENSION
 
-DIAGNOSTICS = {
-    "slurm_diagnostics": ("Slurm", ("rejected_squeue_rows", "rejected_sinfo_rows", "jobs_with_missing_nodes", "jobs_with_invalid_nodelists")),
-    "oar_diagnostics": ("OAR", ("missing_resources", "extra_resources", "unlisted_jobs", "shared_resources")),
-}
-JOB_IDENTITIES = (("slurm_array_job_id", "slurm_array_task_id", "_"), ("slurm_het_job_id", "slurm_het_job_offset", "+"))
-NODE_JOB_FIELDS = ("slurm_job_ids", "oar_job_ids")
-_TEXT_TYPE = frozenset((str,))
+EXTENSIONS: Tuple[ExtensionSpec, ...] = (SLURM_EXTENSION, OAR_EXTENSION)
+
+DIAGNOSTICS = {spec.diagnostics[0]: (spec.label, spec.diagnostics[1]) for spec in EXTENSIONS if spec.diagnostics is not None}
+JOB_IDENTITIES = tuple(identity for spec in EXTENSIONS for identity in spec.job_identities)
+NODE_JOB_FIELDS = tuple(field for spec in EXTENSIONS for field in spec.node_job_fields)
+_nonempty_texts = nonempty_texts  # kept for existing importers
 
 
 def validate_diagnostics(data: Dict[str, object]) -> None:
@@ -32,69 +36,30 @@ def validate_diagnostics(data: Dict[str, object]) -> None:
             raise ValueError(label + " diagnostics require known counters with nonnegative integer values")
 
 
-def _nonempty_texts(values: List[object]) -> bool:
-    """Check every value is a nonempty str."""
-    if _TEXT_TYPE.issuperset(map(type, values)):  # exact str only, so nonempty is truthiness
-        return all(values)
-    return all(isinstance(value, str) and value for value in values)
-
-
 def validate_record_extensions(kind: str, record: Dict[str, object]) -> None:
     """Raise ValueError if a job's or node's scheduler-specific fields are malformed."""
-    for field in ("slurm_partitions",) if kind == "jobs" else NODE_JOB_FIELDS if kind == "nodes" else ():
-        if field in record:
-            values = record[field]
-            if not isinstance(values, list) or (field == "slurm_partitions" and not values) or not _nonempty_texts(cast(List[object], values)):
-                raise ValueError("%s must be a list of nonempty strings" % field)
-            if field == "slurm_partitions" and record["queue"] not in values:
-                raise ValueError("job queue must belong to slurm_partitions")
-    if kind == "jobs":
-        if all(parent in record for parent, _, _ in JOB_IDENTITIES):
-            raise ValueError("job cannot have both Slurm array and heterogeneous identities")
-        for parent, child, separator in JOB_IDENTITIES:
-            if parent in record or child in record:
-                base, index = record.get(parent), record.get(child)
-                if not isinstance(base, str) or not isinstance(index, str) or not re.fullmatch(r"[0-9]+", base) or not re.fullmatch(r"[0-9]+", index):
-                    raise ValueError("job Slurm identity requires a numeric parent and task/component ID")
-                if record["id"] != base + separator + index:
-                    raise ValueError("job Slurm identity conflicts with canonical ID")
-    if kind == "nodes":
-        if "slurm_node_state" in record and not isinstance(record["slurm_node_state"], str):
-            raise ValueError("slurm_node_state must be text")
-        for field in ("slurm_gpu_configured", "slurm_gpu_used", "slurm_gpu_bindings"):
-            if field in record:
-                validate_gpu_resources(record[field], binding=field == "slurm_gpu_bindings")
-        if "slurm_unmapped_cpus" in record and (type(record["slurm_unmapped_cpus"]) is not int or record["slurm_unmapped_cpus"] < 0):
-            raise ValueError("slurm_unmapped_cpus must be a nonnegative integer")
-        if "cpu_allocation_source" in record and record["cpu_allocation_source"] not in ("slurm", "estimated", "none"):
-            raise ValueError("node cpu_allocation_source must be slurm, estimated or none")
+    for spec in EXTENSIONS:
+        if kind == "jobs":
+            spec.validate_job(record)
+            validate_identities(record, spec.job_identities, spec.label)
+        elif kind == "nodes":
+            validate_text_lists(record, spec.node_job_fields)
+            spec.validate_node(record)
 
 
 def mask_job_extensions(original: Mapping[str, Any], target: "Job", mask: Callable[[str, str], str]) -> None:
     """Copy a job's scheduler-specific fields to target, masking partition and job names."""
-    job = cast(Dict[str, object], target)
-    if "slurm_partitions" in original:
-        job["slurm_partitions"] = [mask(name, "queue") for name in original["slurm_partitions"]]
-    for parent, child, _ in JOB_IDENTITIES:
-        if parent in original:
-            job[parent], job[child] = mask(original[parent], "job"), original.get(child, "")
+    for spec in EXTENSIONS:
+        spec.mask_job(original, cast(Dict[str, object], target), mask)
 
 
 def mask_node_extensions(original: Mapping[str, Any], target: "Node", mask_job: Callable[[str], str]) -> None:
     """Copy a node's scheduler-specific fields to target, masking job IDs."""
-    node = cast(Dict[str, Any], target)
-    node.update({field: original[field] for field in ("slurm_node_state", "slurm_unmapped_cpus", "cpu_allocation_source") if field in original})
-    node.update({field: [mask_job(value) for value in original[field]] for field in NODE_JOB_FIELDS if field in original})
-    for field in ("slurm_gpu_configured", "slurm_gpu_used", "slurm_gpu_bindings"):
-        if field in original:
-            node[field] = copy.deepcopy(original[field])
-            for resource in node[field]:
-                resource["type"] = resource["parent_gpu_uuid"] = None
-                if field == "slurm_gpu_bindings":
-                    resource["job_id"] = mask_job(resource["job_id"])
+    for spec in EXTENSIONS:
+        spec.mask_node(original, cast(Dict[str, Any], target), mask_job)
 
 
 def node_is_idle(node: Mapping[str, Any]) -> bool:
-    """Return True if the node is free, runs no jobs and uses no GPUs."""
+    """Return True if the node is free, runs no jobs and no extension field shows it in use."""
     available = node["state"] == "-" and not node["core_job_map"] and not any(node.get(field) for field in NODE_JOB_FIELDS)
-    return available and node.get("slurm_node_state", "idle").lower() == "idle" and not any(resource["count"] for resource in node.get("slurm_gpu_used", []))
+    return available and not any(spec.node_busy(node) for spec in EXTENSIONS)

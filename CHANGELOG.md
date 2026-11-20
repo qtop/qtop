@@ -14,6 +14,7 @@ Notable changes by version, newest first. See the
 - Feature: scheduler commands run concurrently, so a frame waits for the slowest, not their sum
 - Feature: scheduler_command_timeout defaults to 180 seconds (was 120)
 - Feature: writable parents of savepath and the log no longer stop qtop unless --strict-parents
+- Refactor: per-backend extension specs; a conformance test checks every registered backend
 - Release: update version metadata to 0.9.20261119
 
 ## 0.9.20261118
