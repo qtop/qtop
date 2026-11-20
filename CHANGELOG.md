@@ -7,6 +7,7 @@ Notable changes by version, newest first. See the
 
 - Bugfix: section 4 Totals counts distinct occupied nodes, not the sum of per-user node counts
 - Bugfix: trace archives must be regular files; traces land via a private workspace descriptor
+- Bugfix: --masked-traces and --raw-companion require -e, as their help text says
 - Bugfix: sort-configuration errors reach the log as plain text, not escaped colour codes
 - CI: the baseline image runs as unprivileged uid 1001, not root
 - Docs: an "Experimental features" table lists each feature, how to enable it and its checks

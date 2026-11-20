@@ -373,7 +373,7 @@ def _parse_run_options(resources: RunResources) -> Tuple[Any, Dict[str, Any]]:
     dynamic_config: Dict[str, Any] = dict()
     args, dynamic_config["force_names"] = process_args(args)
     require_experimental_opt_in(args)
-    if (args.raw_companion or args.masked_traces) and not (args.SAMPLE and args.ANONYMIZE):
+    if (args.raw_companion or args.masked_traces) and not (args.SAMPLE and args.ANONYMIZE and args.EXPERIMENTAL):
         raise OperationalError("--raw-companion and --masked-traces require -L -A -e")
     if args.load_sample:
         if args.BATCH_SYSTEM or args.SOURCEDIR or args.CONFFILE or args.SAMPLE or args.WATCH or args.REPLAY or args.ANONYMIZE:

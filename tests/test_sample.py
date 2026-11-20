@@ -114,8 +114,9 @@ def test_source_trace_archives_preserve_private_input_and_replay_masked_formats(
 
 
 @pytest.mark.parametrize("flag", ("--raw-companion", "--masked-traces"))
-def test_source_trace_flags_require_anonymous_capture(tmp_path, flag):
-    result = run_cli(tmp_path / "home", flag)
+@pytest.mark.parametrize("given", ((), ("-L", "-A")), ids=("alone", "without-e"))
+def test_source_trace_flags_require_anonymous_capture_and_experimental(tmp_path, flag, given):
+    result = run_cli(tmp_path / "home", flag, *given)
     assert result.returncode != 0
     assert "require -L -A -e" in result.stderr
 

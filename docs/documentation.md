@@ -1221,12 +1221,11 @@ to turn it on; "checked" means qtop refuses to start without the stated options.
 | --- | --- | --- | --- |
 | Web interface | `-B` | `-e` | [web configuration](#experimental-web-configuration); no login or TLS |
 | Queue idle/total node counts | `--queue-nodes`; optional `experimental_queue_nodes` mapping | `-e` | [queue-node summary](#experimental-queue-node-summary) |
-| Masked scheduler-format traces in a support archive | `--masked-traces` | `-L -A` | [support archives](#support-archives) |
-| Separate private archive of unmasked inputs | `--raw-companion` | `-L -A` | [support archives](#support-archives) |
+| Masked scheduler-format traces in a support archive | `--masked-traces` | `-L -A -e` | [support archives](#support-archives) |
+| Separate private archive of unmasked inputs | `--raw-companion` | `-L -A -e` | [support archives](#support-archives) |
 | Configured GPU pairs below the matrix (Slurm) | `experimental_gpu_pairs` in user `qtopconf.yaml` | none | [GPU pairs](#experimental-configured-gpu-pairs-slurm) |
 
-The help text and error message for `--masked-traces` and `--raw-companion`
-also mention `-e`, but qtop does not check it. `-A` is not experimental.
+`-A` is not experimental.
 
 ### Experimental web configuration
 
