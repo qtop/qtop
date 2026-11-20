@@ -81,3 +81,11 @@ def test_release_write_stages_recipe_rename_with_git_mv(tmp_path, monkeypatch):
     assert status.startswith("R") and "%s -> %s" % (old, new) in status
     assert (tmp_path / new).read_text() == "version = '0.9.20990101'\n"
     assert not (tmp_path / old).exists()
+
+
+def test_latest_changelog_items_are_single_lines_within_100_characters():
+    latest = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8").split("\n## ")[1]  # older sections stay as written
+    items = [line for line in latest.splitlines()[1:] if line.strip()]
+    assert items and all(line.startswith("- ") for line in items), "one line per item, no wrapped continuations"
+    long = ["%d characters: %s" % (len(line), line[:40]) for line in items if len(line) > 100]
+    assert not long, "shorten these CHANGELOG items to 100 characters: %s" % "; ".join(long)

@@ -5,17 +5,18 @@ Notable changes by version, newest first. See the
 
 ## 0.9.20261118
 
-- Bugfix: highlight (H) no longer crashes on an unknown user ID or invalid pattern, and user IDs match whole user names (#603)
-- Bugfix: vertical_separator_every_X_columns no longer crashes the matrix; separators are drawn in dark grey in every line
-- CI: restore coverage.yml as the only GitHub coverage run, so its badge reports the coverage gate alone
-- CI: release publishing stops unless the release tag is v<package version> (temporary until 1.0)
-- Docs: README badges follow main, and the outdated PyPI release note is gone
-- Docs: sonar-review.md records the 2026-11-20 review; findings left as they are carry a comment at their line
-- Feature: named node labels change colour per name group, at most 5 nodes at a time, instead of every node (#197)
-- Feature: stack_jobs_per_node (S in watch mode) stacks each node's jobs from its first core, ignoring scheduler core placement (#182)
-- Feature: Q in watch mode gains a fourth, hidden layout that drops the Queueing line
-- Refactor: Sonar cleanups without behaviour change: web page DOCTYPE, lang and title; [[ tests in matrix_lane.sh; explicit regex grouping in repo-sanity and Slurm detail parsing
-- Tests: package and repo-sanity tests run on macOS (no copied system binaries, non-UTF-8 names skip cleanly)
+- Bugfix: highlight (H) ignores unknown user IDs and bad patterns instead of crashing (#603)
+- Bugfix: vertical_separator_every_X_columns no longer crashes the worker-node matrix
+- CI: restore coverage.yml as the only GitHub coverage run, so its badge shows the coverage gate
+- CI: publishing stops unless the release tag is v<package version> (temporary until 1.0)
+- Docs: README badges follow main; the outdated PyPI release note is gone
+- Docs: sonar-review.md records the 2026-11-20 review; kept findings get a comment at their line
+- Feature: named node labels change colour per name group, at most 5 nodes at a time (#197)
+- Feature: stack_jobs_per_node (S in watch mode) stacks each node's jobs from core 0 (#182)
+- Feature: Q in watch mode gains a hidden layout that drops the Queueing line
+- Refactor: Sonar cleanups without behaviour change (web page head, bash [[ ]], regexes)
+- Tests: package and repo-sanity tests run on macOS
+- Tests: items in the latest CHANGELOG section stay within 100 characters
 - Tools: prepare_release stages the EasyBuild recipe rename with git mv
 - Tools: repo-sanity rejects a --base-ref that git would read as an option (Sonar)
 - Release: update version metadata to 0.9.20261118
