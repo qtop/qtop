@@ -5,6 +5,7 @@ Notable changes by version, newest first. See the
 
 ## 0.9.20261120
 
+- Bugfix: Slurm array ranges are no longer cut (SLURM_BITSTR_LEN=0); a cut one skips its row (#606)
 - CI: PR builds run make sbom and sbom-ci; releases verify attestations and attach SBOMs
 - CI: weekly report-only OSPS Baseline audit with pinned Darnit (make osps-audit)
 - Docs: offline attestation check (make verify-attestations-offline); releases keep evidence

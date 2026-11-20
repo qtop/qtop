@@ -560,8 +560,6 @@ def test_explicit_array_columns_determine_canonical_identity(tmp_path, display, 
         ("101_[1-...]", "102", "3"),
         ("201+0", "101", "3"),
         ("501", "", "3"),
-        ("501", "101", "junk"),
-        ("501", "101", "1-..."),
     ],
 )
 def test_explicit_array_identity_conflicts_are_actionable(tmp_path, display, parent, task):
@@ -569,6 +567,27 @@ def test_explicit_array_identity_conflicts_are_actionable(tmp_path, display, par
     path.write_text("%s|alice|PD|compute|2|(Priority)|cpu=2|N/A|N/A|%s|%s\n" % (display, parent, task))
     with pytest.raises(ValueError, match="Slurm array"):
         SlurmStatExtractor({}, Options()).extract_squeue(str(path))
+
+
+@pytest.mark.parametrize(
+    "display, parent, task",
+    [
+        ("501", "101", "junk"),
+        ("501", "101", "1-..."),
+        # qtop/qtop#606: a pending task range cut at SLURM_BITSTR_LEN characters.
+        ("453906_[2,6-14,21-26,39-41,45-4", "453906", "2,6-14,21-26,39-41,45-4"),
+        ("453906_[2,6-14,21-26,39-41,45-4", "453906", "2,6-14,21-26,39-41,45-4..."),
+    ],
+)
+def test_unusable_array_task_ranges_reject_the_row_not_the_snapshot(tmp_path, caplog, display, parent, task):
+    path = tmp_path / "squeue.txt"
+    path.write_text("%s|alice|PD|compute|2|(Priority)|cpu=2|N/A|N/A|%s|%s\n700|bob|R|compute|1|node001|cpu=1|N/A|N/A|N/A|N/A\n" % (display, parent, task))
+    extractor = SlurmStatExtractor({}, Options())
+    with caplog.at_level("WARNING"):
+        jobs = extractor.extract_squeue(str(path))
+    assert [job["JobId"] for job in jobs] == ["700"]
+    assert extractor.rejected_squeue_rows == 1
+    assert "SLURM_BITSTR_LEN=0" in caplog.text
 
 
 def test_explicit_array_fields_match_scontrol_internal_job_ids(detailed_slurm):

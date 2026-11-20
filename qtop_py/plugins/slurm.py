@@ -68,6 +68,10 @@ def slurm_accounting_state(state: str) -> str:
     return "running" if state == "R" else "queued" if state in SLURM_QUEUED_STATES else "other"
 
 
+class SlurmArrayIdError(ValueError):
+    """An array task range that cannot be expanded: malformed, truncated or too large."""
+
+
 class SlurmStatExtractor(StatExtractor):
     """Parse squeue, sinfo and scontrol output."""
 
@@ -79,23 +83,23 @@ class SlurmStatExtractor(StatExtractor):
         if "_[" not in job_id:
             return [job_id]
         match = re.fullmatch(r"([0-9]+)_\[([0-9,:-]+)(?:%[1-9][0-9]*)?\]", job_id)
-        error = "Invalid, truncated or oversized Slurm array ID %r; collect squeue with -r/--array." % job_id
+        error = "Invalid, truncated or oversized Slurm array ID %r; collect squeue with -r/--array and SLURM_BITSTR_LEN=0." % job_id
         if match is None:
-            raise ValueError(error)
+            raise SlurmArrayIdError(error)
         tasks: Set[int] = set()
         expanded_count = 0
         for token in match.group(2).split(","):
             span = re.fullmatch(r"([0-9]{1,10})(?:-([0-9]{1,10})(?::([0-9]{1,10}))?)?", token)
             if span is None:
-                raise ValueError(error)
+                raise SlurmArrayIdError(error)
             first = int(span.group(1))
             last = int(span.group(2)) if span.group(2) is not None else first
             step = int(span.group(3)) if span.group(3) is not None else 1
             if last < first or step < 1:
-                raise ValueError(error)
+                raise SlurmArrayIdError(error)
             expanded_count += (last - first) // step + 1
             if expanded_count > cls.MAX_EXPANDED_TASKS:
-                raise ValueError(error)
+                raise SlurmArrayIdError(error)
             tasks.update(range(first, last + 1, step))
         return ["%s_%s" % (match.group(1), task) for task in sorted(tasks)]
 
@@ -125,6 +129,21 @@ class SlurmStatExtractor(StatExtractor):
             return {"slurm_array_job_id": match.group(1), "slurm_array_task_id": match.group(3)}
         return {"slurm_het_job_id": match.group(1), "slurm_het_job_offset": match.group(3)}
 
+    def _row_task_ids(self, line: str, job_id: str, fields: List[str]) -> Optional[List[str]]:
+        """Return the task IDs a squeue row stands for, or None for an unusable array range.
+
+        One such row, typically a task range cut by SLURM_BITSTR_LEN in a saved trace, is counted
+        as rejected rather than failing the whole snapshot (qtop/qtop#606); conflicts still raise.
+        """
+        try:
+            if len(fields) == 11 and not (fields[10] in ("", "N/A") and "_" not in job_id):
+                return self.task_ids(job_id, fields[9], fields[10])
+            return self.expand_job_id(job_id) if "_[" in job_id else [job_id]
+        except SlurmArrayIdError as error:
+            self.rejected_squeue_rows += 1
+            logging.warning("Line: %s rejected: %s", line, error)
+            return None
+
     def extract_squeue(self, orig_file: str) -> List[Dict[str, Any]]:
         """Parse squeue output; live collection also passes --states=all.
 
@@ -145,7 +164,6 @@ class SlurmStatExtractor(StatExtractor):
         states: Dict[str, Tuple[str, str]] = {}
         partition_lists: Dict[str, Optional[Tuple[str, ...]]] = {}
         cpu_counts: Dict[str, int] = {}
-        no_array = ("", "N/A")
         with fileutils.open_input(orig_file, "r", encoding="utf-8", errors="replace", options=self.options) as fin:
             for line in fin:
                 line = line.strip()
@@ -165,12 +183,9 @@ class SlurmStatExtractor(StatExtractor):
                     logging.warning("Line: %s not properly parsed as Slurm squeue output.", line)
                     continue
 
-                if len(fields) == 11 and not (fields[10] in no_array and "_" not in job_id):
-                    task_ids = self.task_ids(job_id, fields[9], fields[10])
-                elif "_[" in job_id:
-                    task_ids = self.expand_job_id(job_id)
-                else:
-                    task_ids = [job_id]
+                task_ids = self._row_task_ids(line, job_id, fields)
+                if task_ids is None:
+                    continue
                 if "_[" in job_id or len(task_ids) > 1:
                     expanded_count += len(task_ids)
                     if expanded_count > self.MAX_EXPANDED_TASKS:
@@ -361,7 +376,10 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
             if diagnostics.get("jobs_with_invalid_nodelists"):
                 lines.append("INFO: Invalid node lists: a starting or completing job may have no nodes yet; otherwise check that squeue does not cut the NodeList field.")
             if diagnostics.get("rejected_squeue_rows") or diagnostics.get("rejected_sinfo_rows"):
-                lines.append("INFO: Rejected rows: check the squeue/sinfo formats in qtopconf.yaml; qtop logs each rejected line.")
+                lines.append(
+                    "INFO: Rejected rows: check the squeue/sinfo formats in qtopconf.yaml and that SLURM_BITSTR_LEN=0 "
+                    "when the traces were saved (truncated array ranges); qtop logs each rejected line."
+                )
         elif section == "accounting":
             lines.append("INFO: Slurm job counts include individual array tasks and heterogeneous components.")
             if any(len(job.get("slurm_partitions", [])) > 1 for job in getattr(snapshot, "_job_metadata", {}).values()):

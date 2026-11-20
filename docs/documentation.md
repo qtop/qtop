@@ -617,6 +617,13 @@ Quotes keep the pipe characters inside the format argument. qtop honors
 shell-style argument quoting without invoking a shell. Existing custom
 configurations using doubled ``%%`` format codes remain supported.
 
+qtop runs scheduler commands with ``LC_ALL=C`` and ``SLURM_BITSTR_LEN=0``.
+The latter stops Slurm cutting long pending array task ranges (such as
+``453906_[2,6-14,21-26,...]``) at its default length; set it too when
+copying the commands above. A saved trace whose array range was cut still
+loads: that row is skipped and reported as a rejected job row, so the
+pending tasks it held are missing from the counts (qtop/qtop#606).
+
 The bundled `squeue` command explicitly selects all states still retained by
 the controller, including suspended jobs. This is not historical accounting;
 recently finished jobs may also appear in user totals while Slurm retains them.
@@ -843,7 +850,7 @@ For manual Slurm collection on a scheduler host:
 
 ```sh
 qtop_trace_dir=$(mktemp -d)
-squeue -r -h -O 'JobID:0|,UserName:0|,StateCompact:0|,Partition:0|,NumCPUs:0|,NodeList:0|,tres-alloc:0|,tres-per-node:0|,tres-per-task:0|,ArrayJobID:0|,ArrayTaskID:0' > "$qtop_trace_dir/squeue.txt"
+SLURM_BITSTR_LEN=0 squeue -r -h -O 'JobID:0|,UserName:0|,StateCompact:0|,Partition:0|,NumCPUs:0|,NodeList:0|,tres-alloc:0|,tres-per-node:0|,tres-per-task:0|,ArrayJobID:0|,ArrayTaskID:0' > "$qtop_trace_dir/squeue.txt"
 sinfo -N -h -O 'NodeList:0|,Partition:0|,StateCompact:0|,CPUs:0|,Gres:0|,GresUsed:0|,Available:0' > "$qtop_trace_dir/sinfo.txt"
 ./qtop -b slurm -s "$qtop_trace_dir"
 ```
