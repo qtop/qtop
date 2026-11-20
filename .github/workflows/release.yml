@@ -50,6 +50,7 @@ jobs:
       - run: |
           mkdir -p artifacts/release-assets
           cp artifacts/sbom/qtop.cdx.json artifacts/sbom/ci.cdx.json artifacts/release-assets/
+          cp artifacts/release/evidence.json artifacts/release-assets/qtop-release-evidence.json
           jq -c . "$PROVENANCE_BUNDLE" > artifacts/release-assets/qtop-provenance.intoto.jsonl
           jq -c . "$SBOM_BUNDLE" > artifacts/release-assets/qtop-sbom.intoto.jsonl
         env:

@@ -19,6 +19,10 @@ reusable across assessment tools; keep integrations outside qtop's runtime.
   evidence; registration alone does not establish a passing status.
 - [ ] Complete an OSPS Baseline assessment and resolve or document gaps.
 - [ ] Produce release SBOMs/provenance and document consumer verification.
+  - [x] Configure SBOM generation, build provenance and SBOM attestations in
+    the release workflow, with online and offline verification recipes; see
+    [supply-chain plan](supply-chain-sbom.md).
+  - [ ] Confirm them on the first published release.
 - [ ] Evaluate policy tooling against a chosen baseline and scoped permissions.
 
 ## Security Insights

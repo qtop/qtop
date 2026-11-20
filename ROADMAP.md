@@ -106,7 +106,8 @@ or a release is prepared.
   - [x] [CI] Build sdist/wheel artifacts; legacy installation checks version metadata against the source.
   - [x] [CI] Validate the exact sdist/wheel pair in clean environments through
     `make release-check`, required by both CI build entry points.
-  - [ ] Retain passing artifact/compatibility evidence for the chosen release revision.
+  - [x] Retain passing artifact/compatibility evidence for the chosen release revision:
+    `release.yml` attaches the `release-check` report (`qtop-release-evidence.json`) to each release.
   - [ ] Audit all release documentation/package contents beyond the bundled configuration and help checks.
   - [x] [CI] Run demo, CLI and committed scheduler samples from installations
     of the supplied wheel and a wheel rebuilt from the supplied sdist.
@@ -189,6 +190,9 @@ Open items here are proposals, not 1.0 release requirements.
     registration from assessment completion.
 - [ ] Add release SBOMs/provenance and evaluate Darnit, Minder or Gemara consumers
   when their evidence and permission requirements are defined.
+  - [x] Generate, attest and attach release SBOMs and build provenance in
+    `release.yml`; see [supply-chain plan](docs/supply-chain-sbom.md).
+  - [ ] Evaluate Darnit, Minder or Gemara consumers.
 
 - [ ] Add LSF support.
   - [ ] Requires an owner and representative synthetic or approved anonymized traces.

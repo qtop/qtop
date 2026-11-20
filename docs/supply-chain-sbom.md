@@ -25,8 +25,7 @@ service settings or claim a SLSA level.
   configuration alone does not establish them.
 - [ ] Produce SBOMit inputs: per-step in-toto attestations and a signed policy
   (see "SBOMit readiness" below).
-- [ ] Hash-lock the complete CI toolchain, including the license-report helper's
-  transitive dependencies.
+- [ ] Hash-lock the complete CI toolchain (Phase 3).
 
 The 2026-10-06 Scorecard snapshot is historical evidence, not current publication
 or signing status. Recheck Packaging and Signed-Releases after release changes.
@@ -95,7 +94,8 @@ formats immediately.
    `make verify-attestations` then checks both, as a consumer would, before
    PyPI publishing. A separate `release-assets` job, the only one with
    `contents: write`, attaches `qtop.cdx.json`, `ci.cdx.json`,
-   `qtop-provenance.intoto.jsonl` and `qtop-sbom.intoto.jsonl` to the release.
+   `qtop-provenance.intoto.jsonl`, `qtop-sbom.intoto.jsonl` and the
+   `release-check` report `qtop-release-evidence.json` to the release.
 2. **GitLab provenance:** enable
    [runner artifact provenance metadata](https://docs.gitlab.com/ci/runners/configure_runners/#artifact-provenance-metadata)
    with `RUNNER_GENERATE_ARTIFACTS_METADATA: "true"`. Its JSON statement is
@@ -126,11 +126,28 @@ See [OpenSSF readiness](openssf-readiness.md) for related metadata and assessmen
   SBOM, also attached to the release as `qtop.cdx.json`. With the release files
   in a directory, `make verify-attestations DIST_DIR=<dir>` runs both checks for
   each file; the release workflow runs it on `dist/` right after attesting.
-- [ ] Document [offline verification](https://docs.github.com/en/actions/how-tos/secure-your-work/use-artifact-attestations/verify-attestations-offline),
-  including exporting attestation bundles and trusted roots before transfer to
-  an air-gapped site; the online command alone is insufficient there.
-- [ ] Add platform-appropriate hash locks for all CI dependencies and enforce
-  them with `pip install --require-hashes`.
+- [x] Document [offline verification](https://docs.github.com/en/actions/how-tos/secure-your-work/use-artifact-attestations/verify-attestations-offline).
+  On a connected machine, download the release's `qtop-*.whl`/`.tar.gz` and the
+  two `.intoto.jsonl` bundles into one directory, and save the Sigstore trusted
+  root next to them:
+
+  ```sh
+  gh attestation trusted-root > trusted_root.jsonl
+  ```
+
+  Transfer the directory, then verify both attestations with no network access:
+
+  ```sh
+  make verify-attestations-offline DIST_DIR=<dir>
+  ```
+
+  The target runs `gh attestation verify --bundle <dir>/qtop-*.intoto.jsonl
+  --custom-trusted-root <dir>/trusted_root.jsonl` with the same repository and
+  signer-workflow checks as the online recipe. Refresh the trusted root when
+  Sigstore rotates keys; an old one rejects newer releases.
+- [ ] Add platform-appropriate hash locks for all CI dependencies, including the
+  separately pinned license-report and SBOM helpers and their transitive
+  dependencies, and enforce them with `pip install --require-hashes`.
 - [ ] Compare SBOMs in reviews once generation is stable. Document expected
   differences between build tooling and shipped package inventories.
 

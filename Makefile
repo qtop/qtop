@@ -186,10 +186,20 @@ sbom-ci:: sbom-tool ## Write a CycloneDX SBOM of the build/CI environment that r
 	@echo "wrote $(SBOM_DIR)/ci.cdx.json"
 
 # Consumers run this on downloaded release files; the release workflow runs it right after attesting.
-verify-attestations:: ## Verify GitHub provenance and SBOM attestations of each DIST_DIR file (needs gh)
-	for artifact in "$(DIST_DIR)"/*; do \
+verify-attestations:: ## Verify GitHub provenance and SBOM attestations of each DIST_DIR wheel/sdist (needs gh)
+	for artifact in "$(DIST_DIR)"/*.whl "$(DIST_DIR)"/*.tar.gz; do \
 		gh attestation verify "$$artifact" --repo "$(ATTEST_REPO)" --signer-workflow "$(ATTEST_SIGNER)" || exit 1; \
 		gh attestation verify "$$artifact" --repo "$(ATTEST_REPO)" --signer-workflow "$(ATTEST_SIGNER)" \
+			--predicate-type https://cyclonedx.org/bom > /dev/null || exit 1; \
+	done
+
+# Air-gapped sites: DIST_DIR holds the release files, both .intoto.jsonl bundles and trusted_root.jsonl.
+verify-attestations-offline:: ## Verify DIST_DIR wheel/sdist against release bundles and a saved trusted root, offline
+	for artifact in "$(DIST_DIR)"/*.whl "$(DIST_DIR)"/*.tar.gz; do \
+		gh attestation verify "$$artifact" --repo "$(ATTEST_REPO)" --signer-workflow "$(ATTEST_SIGNER)" \
+			--bundle "$(DIST_DIR)/qtop-provenance.intoto.jsonl" --custom-trusted-root "$(DIST_DIR)/trusted_root.jsonl" || exit 1; \
+		gh attestation verify "$$artifact" --repo "$(ATTEST_REPO)" --signer-workflow "$(ATTEST_SIGNER)" \
+			--bundle "$(DIST_DIR)/qtop-sbom.intoto.jsonl" --custom-trusted-root "$(DIST_DIR)/trusted_root.jsonl" \
 			--predicate-type https://cyclonedx.org/bom > /dev/null || exit 1; \
 	done
 

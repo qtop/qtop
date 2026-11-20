@@ -106,6 +106,12 @@ def test_release_attests_the_published_distributions_and_their_sbom():
     assert build["permissions"] == {"contents": "read", "id-token": "write", "attestations": "write"}
     assert workflow["jobs"]["release-assets"]["permissions"] == {"contents": "write"}
     assert workflow["jobs"]["release-assets"]["needs"] == "build"
+    # The offline recipe reads the bundles under the names the release attaches them as.
+    assets = next(step["run"] for step in steps if "artifacts/release-assets" in step.get("run", ""))
+    offline = " ".join(make_recipe("verify-attestations-offline"))
+    for name in ("qtop-provenance.intoto.jsonl", "qtop-sbom.intoto.jsonl"):
+        assert name in assets and name in offline
+    assert "qtop-release-evidence.json" in assets and "qtop.cdx.json" in assets and "ci.cdx.json" in assets
     for job in workflow["jobs"].values():
         for step in job["steps"]:
             if "uses" in step:
