@@ -11,6 +11,7 @@ Notable changes by version, newest first. See the
 - Bugfix: -L archives are written as .part and renamed on close, so a SIGTERM leaves none empty
 - Bugfix: sort-configuration errors reach the log as plain text, not escaped colour codes
 - CI: the baseline image runs as unprivileged uid 1001, not root
+- CI: coverage-qtop runs on Python 3.14 with the sysmon core, about 2.5x faster than ctrace
 - Docs: add @sfranky as maintainer and code owner (MAINTAINERS.md, CODEOWNERS)
 - Docs: an "Experimental features" table lists each feature, how to enable it and its checks
 - Feature: live frames validate the cluster state once, not twice (--demanding keeps both)

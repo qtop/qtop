@@ -38,9 +38,12 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
-          python-version: '3.12.3'
+          # 3.14+ measures branches with sys.monitoring, much cheaper than the ctrace tracer.
+          python-version: '3.14.8'
       - run: make ci-deps PYTHON=python
       - run: make coverage-xml PYTHON=python
+        env:
+          COVERAGE_CORE: sysmon
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
