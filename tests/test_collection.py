@@ -183,11 +183,11 @@ def test_json_collection_is_ordered_and_cached_between_redraws(frame_context, mo
     first = frame()[0]
     for _ in range(5):
         assert frame()[0].to_cluster_state() == first.to_cluster_state()
-    assert calls == ["partitions_json", "nodes_json", "jobs_json"]
+    assert sorted(calls) == ["jobs_json", "nodes_json", "partitions_json"]
     assert first._collection_age >= 0
     resources.poller.deadline = 0
     resources.poller.refresh()
-    assert calls == ["partitions_json", "nodes_json", "jobs_json"] * 2
+    assert sorted(calls) == sorted(["jobs_json", "nodes_json", "partitions_json"] * 2)
 
 
 def test_empty_jobs_falls_back_once_and_later_failure_retains_legacy_snapshot(frame_context, monkeypatch, caplog):
@@ -307,7 +307,6 @@ def test_slurm_summary_recollects_each_cycle_without_a_poller(frame_context, mon
     def execute(commands, filenames, key, savepath, **kwargs):
         assert key in ("squeue_file", "sinfo_file")
         assert (" --all" in commands[key]) == all_partitions
-        assert "cancel" not in kwargs
         calls.append(key)
         text = (source / (key[:-5] + ".txt")).read_text()
         if len(calls) > 2:
@@ -317,7 +316,7 @@ def test_slurm_summary_recollects_each_cycle_without_a_poller(frame_context, mon
 
     monkeypatch.setattr(process_io, "execute_shell_batch_commands", execute)
     states = [frame()[0].to_cluster_state() for _ in range(3)]
-    assert calls == ["squeue_file", "sinfo_file"] * 3
+    assert sorted(calls) == sorted(["squeue_file", "sinfo_file"] * 3)
     assert resources.poller is None
     assert states[0]["jobs"][0]["user"] == "alice"
     assert states[1]["jobs"][0]["user"] == states[2]["jobs"][0]["user"] == "changed"
@@ -384,3 +383,38 @@ def test_collection_workspace_uses_savepath_without_fallback(tmp_path, monkeypat
     with pytest.raises(FileNotFoundError):
         CollectionPoller(collect, 20, SAVEPATH=str(parent))
     assert list(elsewhere.iterdir()) == []
+
+
+def _timed_commands(tmp_path, scripts):
+    import shlex
+    import time
+
+    commands = {}
+    for key, script in scripts.items():
+        commands[key] = (str(tmp_path / (key + ".txt")), " ".join(shlex.quote(part) for part in (sys.executable, "-c", script)))
+    args = SimpleNamespace(SOURCEDIR=None)
+    start = time.monotonic()
+    try:
+        return collector.get_input_filenames(commands, {"savepath": str(tmp_path), "scheduler_command_timeout": 30}, args, SlurmBatchSystem), time.monotonic() - start
+    except OperationalError as error:
+        return error, time.monotonic() - start
+
+
+def test_scheduler_commands_run_concurrently_and_keep_config_order(tmp_path):
+    slow = "import time; time.sleep(0.6); print('%s')"
+    files, elapsed = _timed_commands(tmp_path, {key: slow % key for key in ("squeue_file", "sinfo_file", "scontrol_file")})
+    assert list(files) == ["squeue_file", "sinfo_file", "scontrol_file"]
+    assert all(open(path).read() == key + "\n" for key, path in files.items())
+    assert elapsed < 1.5  # three 0.6 s commands one after another would take 1.8 s or more
+
+
+def test_a_failed_required_command_stops_the_others(tmp_path):
+    error, elapsed = _timed_commands(tmp_path, {"squeue_file": "import sys; sys.exit(3)", "sinfo_file": "import time; time.sleep(20)"})
+    assert isinstance(error, OperationalError)
+    assert "exit 3" in str(error)
+    assert elapsed < 10
+
+
+def test_a_failed_optional_command_is_dropped_while_the_rest_complete(tmp_path):
+    files, _ = _timed_commands(tmp_path, {"squeue_file": "print('q')", "sinfo_file": "print('n')", "scontrol_file": "import sys; sys.exit(1)"})
+    assert sorted(files) == ["sinfo_file", "squeue_file"]
