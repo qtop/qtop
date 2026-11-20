@@ -180,6 +180,22 @@ def safe_exit_with_file_close(handle: int, name: str, stdout: TextIO, options: A
     sys.exit(0)
 
 
+class _SampleArchive(tarfile.TarFile):
+    """A support archive written under a hidden .part name and renamed into place on close.
+
+    A watch stopped mid-capture (SIGTERM raises SystemExit anywhere) leaves only the .part file,
+    never an empty or truncated archive under the final name.
+    """
+
+    target = ""
+
+    def close(self) -> None:
+        super().close()
+        target, self.target = self.target, ""  # rename once; close() may be called again
+        if target and self.name:
+            os.replace(self.name, target)
+
+
 def init_sample_file(
     options: Any, _savepath: str, SAMPLE_FILENAME: str, scheduler_output_filenames: Mapping[str, str], QTOPCONF_YAML: str, QTOPPATH: str
 ) -> Optional[tarfile.TarFile]:
@@ -192,7 +208,10 @@ def init_sample_file(
 
     # clears any preexisting tar files
     with contextlib.ExitStack() as initialization:
-        tar_out = initialization.enter_context(tarfile.open(os.path.join(_savepath, SAMPLE_FILENAME), mode="w"))
+        target = os.path.join(_savepath, SAMPLE_FILENAME)
+        partial = os.path.join(_savepath, "." + SAMPLE_FILENAME + ".part")
+        tar_out = initialization.enter_context(_SampleArchive.open(partial, mode="w"))
+        tar_out.target = target
         initialization.callback(tar_out.close)  # Finalize even failed captures, as before using the archive's context manager.
         if options.SAMPLE >= 2:
             if not getattr(options, "ANONYMIZE", False):

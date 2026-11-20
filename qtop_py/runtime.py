@@ -109,7 +109,7 @@ class RunResources(object):
         if archive is None:  # only when SAMPLE < 1, excluded above
             return
         self.archive = archive
-        self.capture_paths[str(archive.name)] = "Sample files saved in"
+        self.capture_paths[getattr(archive, "target", "") or str(archive.name)] = "Sample files saved in"
         if options.SAMPLE >= 2 and not options.ANONYMIZE:
             sample.add_json(archive, "qtop-effective-config.json", config)
         if options.raw_companion:
