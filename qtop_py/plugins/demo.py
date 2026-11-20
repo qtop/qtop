@@ -20,7 +20,7 @@ from qtop_py.serialiser import GenericBatchSystem
 if TYPE_CHECKING:
     from typing import Final
 
-    from qtop_py.state_types import Config, JobsInfo, Node, Options, QueuesInfo, RawQueue
+    from qtop_py.state_types import Config, JobsInfo, Node, Options, QueuesInfo
 
 WORKER_NODES: "Final" = 80
 QUEUES: "Final" = ["urgent", "transfer", "batch"]
@@ -270,16 +270,18 @@ class DemoBatchSystem(GenericBatchSystem):
 
         total_queued_jobs = self.sim.get_total_queued()
 
-        qstatq_list: "List[RawQueue]" = list()
-
-        for queue_name in QUEUES:
-            qstatq: "RawQueue" = {
-                "queue_name": queue_name,
-                "run": run_for_queue[queue_name],
-                "queued": str(len(self.sim.queue_jobs[queue_name])),
-                "state": self.sim.queue_state[queue_name],
-                "lm": random.randint(0, 100),
-            }
-            qstatq_list.append(qstatq)
-
-        return total_running_jobs, total_queued_jobs, qstatq_list
+        # Built in the return so QueuesInfo types each record as a RawQueue.
+        return (
+            total_running_jobs,
+            total_queued_jobs,
+            [
+                {
+                    "queue_name": queue_name,
+                    "run": run_for_queue[queue_name],
+                    "queued": str(len(self.sim.queue_jobs[queue_name])),
+                    "state": self.sim.queue_state[queue_name],
+                    "lm": random.randint(0, 100),
+                }
+                for queue_name in QUEUES
+            ],
+        )
