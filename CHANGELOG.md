@@ -9,6 +9,7 @@ Notable changes by version, newest first. See the
 - Bugfix: trace archives must be regular files; traces land via a private workspace descriptor
 - Bugfix: sort-configuration errors reach the log as plain text, not escaped colour codes
 - CI: the baseline image runs as unprivileged uid 1001, not root
+- Docs: an "Experimental features" table lists each feature, how to enable it and its checks
 - Feature: live frames validate the cluster state once, not twice (--demanding keeps both)
 - Feature: Slurm squeue parsing is about 2x faster on large traces (per-trace caches, fast paths)
 - Feature: --demanding turns on -S, --strict-parents and a second state validation together
