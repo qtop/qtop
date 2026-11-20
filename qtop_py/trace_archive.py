@@ -27,7 +27,8 @@ def _open_archive_file(path: str) -> int:
 
     A FIFO, device or directory passed by mistake (e.g. -s /dev/stdin) is rejected instead of read.
     """
-    descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | getattr(os, "O_NONBLOCK", 0) | getattr(os, "O_CLOEXEC", 0))
+    flags = os.O_RDONLY | os.O_NOFOLLOW | getattr(os, "O_NONBLOCK", 0) | getattr(os, "O_CLOEXEC", 0)
+    descriptor = os.open(path, flags)  # NOSONAR: -s archive is the caller's chosen input, opened read-only, no symlink, regular file only; see docs/sonar-review.md
     try:
         if not stat.S_ISREG(os.fstat(descriptor).st_mode):
             raise ValueError("trace archive must be a regular file")
@@ -41,7 +42,8 @@ def _open_archive_file(path: str) -> int:
 
 def _open_private_workspace(directory: str) -> int:
     """Open qtop's trace workspace as a directory descriptor: no symlink, owned by us, mode 0700."""
-    descriptor = os.open(directory, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | getattr(os, "O_CLOEXEC", 0))
+    flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | getattr(os, "O_CLOEXEC", 0)
+    descriptor = os.open(directory, flags)  # NOSONAR: qtop's own TemporaryDirectory in savepath; ownership and mode 0700 checked below; see docs/sonar-review.md
     info = os.fstat(descriptor)
     if info.st_uid != os.geteuid() or stat.S_IMODE(info.st_mode) & 0o077:
         os.close(descriptor)

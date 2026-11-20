@@ -96,3 +96,19 @@ archive is still the caller's choice, which no allowed-root policy restricts.
 | `qtop_py/trace_archive.py:37` | The archive is opened once, without following a final symlink, and must be a regular file; a FIFO or device (e.g. `-s /dev/stdin`) is refused instead of read. `tarfile` reads that descriptor, not the path. |
 | `qtop_py/trace_archive.py:76` | Traces are created through a descriptor of the workspace, which must be a non-symlink directory owned by the current user with no group or other access. Each configured name must be a single path component, and each file is created with `O_EXCL`, `O_NOFOLLOW` and mode 0600. No destination path is joined from CLI input. |
 | `ci/baseline/Dockerfile:7` | The image ends with `USER 1001:1001`, an unprivileged `qtop` user whose uid matches the GitHub Actions runner, so the container job can still write its mounted workspace. |
+
+## Suppressed in code (2026-11-20)
+
+The two `trace_archive.py` path findings, reviewed and hardened above, were
+raised again ("Path Traversal via faulty LLM-supplied CLI arguments", lines
+30 and 44 of that scan). They carry `# NOSONAR` with the reason at the line,
+the only suppressions in this review. Neither path can be confined without
+changing supported behaviour:
+
+| Code | Why the path is acceptable |
+| --- | --- |
+| `_open_archive_file`: `os.open(path, ...)` | `path` is the archive passed with `-s`, the caller's chosen input. It is opened read-only with `O_NOFOLLOW` and must be a regular file; members are read from that descriptor, never extracted by their archive paths. |
+| `_open_private_workspace`: `os.open(directory, ...)` | `directory` is qtop's own `TemporaryDirectory` inside `savepath`. It is opened with `O_NOFOLLOW` and `O_DIRECTORY` and must be owned by the current user with mode 0700; traces are created through that descriptor. |
+
+An LLM or other runner that passes CLI arguments must still enforce its own
+permitted roots, as stated under "Path finding disposition".
