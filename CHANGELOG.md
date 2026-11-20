@@ -12,6 +12,7 @@ Notable changes by version, newest first. See the
 - Bugfix: sort-configuration errors reach the log as plain text, not escaped colour codes
 - CI: the baseline image runs as unprivileged uid 1001, not root
 - CI: coverage-qtop runs on Python 3.14 with the sysmon core, about 2.5x faster than ctrace
+- CI: releases attest dist/* build provenance and a CycloneDX SBOM (make sbom)
 - Docs: add @sfranky as maintainer and code owner (MAINTAINERS.md, CODEOWNERS)
 - Docs: an "Experimental features" table lists each feature, how to enable it and its checks
 - Feature: live frames validate the cluster state once, not twice (--demanding keeps both)

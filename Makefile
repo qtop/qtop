@@ -46,6 +46,9 @@ COVERAGE_JSON ?= artifacts/coverage/details.json
 REPO_SANITY_DIR ?= artifacts/repo-sanity
 CODE_QUALITY_JSON ?= artifacts/code-quality/gl-code-quality-report.json
 LICENSE_DIR ?= artifacts/license
+SBOM_DIR ?= artifacts/sbom
+SBOM_VENV ?= build/sbom-venv
+CYCLONEDX_BOM ?= cyclonedx-bom==9.0.0
 
 help:: ## Show this help
 	@grep -E '^[a-zA-Z0-9_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -155,6 +158,19 @@ license-report:: ## Report licenses of the pinned CI dependency set (pip-license
 	$(PYTHON) -m piplicenses --format=markdown --with-urls > $(LICENSE_DIR)/ci-dependencies.md
 	$(PYTHON) -m piplicenses --format=json > $(LICENSE_DIR)/ci-dependencies.json
 	@echo "wrote $(LICENSE_DIR)"
+
+# The SBOM inventories the built wheel installed alone, as users get it, not the CI toolchain.
+# --no-index with --find-links keeps local paths out and yields the pkg:pypi purl.
+sbom:: ## Write a CycloneDX SBOM of the wheel in DIST_DIR (run build first)
+	$(PIP) install $(CYCLONEDX_BOM)
+	$(PYTHON) -m venv --clear "$(SBOM_VENV)"
+	VERSION="$$($(PYTHON) -c 'from qtop_py import __version__; print(__version__)')"; \
+	"$(SBOM_VENV)/bin/python" -m pip install --disable-pip-version-check --no-index --find-links "$(DIST_DIR)" "qtop==$$VERSION"
+	"$(SBOM_VENV)/bin/python" -m pip uninstall --disable-pip-version-check -y pip
+	@mkdir -p $(SBOM_DIR)
+	$(PYTHON) -m cyclonedx_py environment --mc-type application --output-reproducible --output-format JSON \
+		--output-file "$(SBOM_DIR)/qtop.cdx.json" "$(SBOM_VENV)/bin/python"
+	@echo "wrote $(SBOM_DIR)/qtop.cdx.json"
 
 type-contracts:: ## Check core contracts with mypy and Pyright (Python 3.12+ tooling)
 	$(PYTHON) -m mypy
