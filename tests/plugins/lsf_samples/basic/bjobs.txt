@@ -1,0 +1,10 @@
+JOBID|JOBINDEX|STAT|USER|QUEUE|EXEC_HOST
+1001|0|RUN|alice|normal|8*hosta01
+1002|0|RUN|bob|normal|4*hosta01:12*hosta02
+1003|0|RUN|carol|short|4*hosta02
+1004|0|PEND|alice|normal|-
+1005|0|PEND|dave|long|-
+1006|1|RUN|carol|short|hosta01:hosta01
+1006|2|PEND|carol|short|-
+1007|0|SSUSP|bob|normal|2*hosta01
+1008|0|PSUSP|erin|long|-

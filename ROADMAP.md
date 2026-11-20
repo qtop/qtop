@@ -196,8 +196,12 @@ Open items here are proposals, not 1.0 release requirements.
 
 - [ ] Add LSF support.
   - [ ] Requires an owner and representative synthetic or approved anonymized traces.
-  - [ ] Define the supported command/output variants and normalized-state mapping.
-  - [ ] Include parser, accounting and terminal smoke checks.
+    - [x] Synthetic LSF 10.1 traces in `tests/plugins/lsf_samples/basic`.
+    - [ ] An owner and anonymized traces from a live cluster.
+  - [x] Define the supported command/output variants and normalized-state mapping
+    (`bhosts -w`, `bqueues -w`, delimited `bjobs -o`; see docs/documentation.md).
+  - [x] [CI] Include parser, accounting and terminal smoke checks
+    (`tests/plugins/test_lsf.py`, conformance, masked-trace replay, sample gate).
 
 - [ ] Provide EasyBuild packaging.
   - [x] Track a version-matched EasyBuild recipe under `docs/`, synchronized by

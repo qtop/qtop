@@ -1,0 +1,6 @@
+HOST_NAME          STATUS       JL/U    MAX  NJOBS    RUN  SSUSP  USUSP    RSV
+hosta01            ok              -     32     16     14      2      0      0
+hosta02            closed_Full     -     16     16     16      0      0      0
+hostb01            closed_Adm      -     16      0      0      0      0      0
+hostb02            unavail         -      8      0      0      0      0      0
+hostc01            ok              -     16      0      0      0      0      0

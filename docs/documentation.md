@@ -55,7 +55,7 @@ invoking it in demo mode:
 ```
 
 When used, the ``-b`` switch must always be followed by one of the
-supported batch systems (pbs, sge, oar, slurm, demo).
+supported batch systems (pbs, sge, oar, slurm, slurm_json, lsf, demo).
 
 That should create and destroy fictional jobs in fictional machines from
 fictional users, and display all that in a colorful but not yet very
@@ -1144,7 +1144,7 @@ checkout.
 ### Input selection
 
 -  ``-b SYSTEM`` selects the scheduler backend. Common values are
-   ``demo``, ``pbs``, ``sge``, ``oar``, and ``slurm``.
+   ``demo``, ``pbs``, ``sge``, ``oar``, ``slurm``, ``slurm_json`` and ``lsf``.
 -  ``-s DIRECTORY`` / ``--SetSourceDir`` reads scheduler output files from
    ``DIRECTORY`` instead of running commands. Passing an existing output file
    selects its parent directory; qtop still needs all files for that backend.
@@ -1480,6 +1480,36 @@ indices are unavailable, even if node-level allocated GRES indices are reported.
 Summary mode also ignores optional allocation-detail traces during offline replay.
 It cannot be combined with `--slurm-json-squeue` or an explicit non-Slurm backend.
 As an explicit selection it overrides scheduler environment/configuration defaults.
+
+### LSF backend
+
+`-b lsf` reads LSF output; autodetection selects it when `bhosts`
+is on the `PATH`. Each frame runs three commands (see `qtopconf.yaml`):
+
+```console
+bhosts -w
+bqueues -w
+bjobs -u all -o "jobid jobindex stat user queue exec_host delimiter='|'"
+./qtop -b lsf -s tests/plugins/lsf_samples/basic -F
+```
+
+- **Hosts** come from `bhosts -w`; `MAX` is the slot count (when it is `-` or
+  exceeded, the slots in use). `ok` is shown as `-`, `closed_Full`/`closed_Excl`
+  as `j`, `closed_Busy` as `b`, administrator or policy closures (`closed_Adm`,
+  `closed_Lock`, `closed_Wind`, ...) as `o`, and `unavail`, `unreach` and
+  `closed_LIM` as `d`; anything else is `?`.
+- **Jobs** keep LSF states (`RUN`, `PEND`, `PSUSP`, `USUSP`, `SSUSP`, ...);
+  array elements are `jobid[index]`. Each job fills its `EXEC_HOST` slots in
+  bjobs order; `4*hostA:2*hostB` and repeated host names are both accepted, and
+  suspended jobs keep their slots.
+- **Queues** take status and `MAX` from `bqueues -w`; `Closed` or `Inact`
+  queues are marked blocked. Running and pending counts come from bjobs, because
+  bqueues counts slots, not jobs.
+
+The backend is built from IBM's documented LSF 10.1 formats and synthetic
+traces in `tests/plugins/lsf_samples/`; it has not yet been checked against a
+live cluster. If `bjobs` reports "No unfinished job found" with a nonzero exit
+status, the live collection fails; replaying a saved empty trace works.
 
 ## Adding a scheduler backend
 

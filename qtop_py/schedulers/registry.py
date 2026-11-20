@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, Any, Dict, Mapping, Optional
 from qtop_py.constants import QTOP_LOGFILE
 from qtop_py.errors import InvalidScheduler, NoSchedulerFound, OperationalError, SchedulerNotSpecified
 from qtop_py.plugins.demo import DemoBatchSystem
+from qtop_py.plugins.lsf import LSFBatchSystem
 from qtop_py.plugins.oar import OARBatchSystem
 from qtop_py.plugins.pbs import PBSBatchSystem
 from qtop_py.plugins.sge import SGEBatchSystem
@@ -20,7 +21,7 @@ from qtop_py.serialiser import GenericBatchSystem
 if TYPE_CHECKING:  # typing.Final is Python 3.8+; the quoted annotations keep 3.6 working
     from typing import Final
 
-PLUGIN_BATCH_SYSTEMS: "Final" = (DemoBatchSystem, OARBatchSystem, PBSBatchSystem, SGEBatchSystem, SlurmBatchSystem, SlurmJSONBatchSystem)
+PLUGIN_BATCH_SYSTEMS: "Final" = (DemoBatchSystem, LSFBatchSystem, OARBatchSystem, PBSBatchSystem, SGEBatchSystem, SlurmBatchSystem, SlurmJSONBatchSystem)
 
 
 def auto_get_avail_batch_system(config: Dict[str, Any], backends: Mapping[str, Any]) -> str:

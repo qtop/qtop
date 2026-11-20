@@ -7,6 +7,7 @@ Notable changes by version, newest first. See the
 
 - CI: PR builds run make sbom and sbom-ci; releases verify attestations and attach SBOMs
 - Docs: offline attestation check (make verify-attestations-offline); releases keep evidence
+- Feature: LSF backend (-b lsf) reading bhosts, bqueues and bjobs; tested on synthetic traces
 - Release: update version metadata to 0.9.20261120
 
 ## 0.9.20261119
