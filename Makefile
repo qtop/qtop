@@ -52,6 +52,9 @@ SBOM_TOOL_VENV ?= build/sbom-tool
 ATTEST_REPO ?= qtop/qtop
 ATTEST_SIGNER ?= $(ATTEST_REPO)/.github/workflows/release.yml
 CYCLONEDX_BOM ?= cyclonedx-bom==9.0.0
+OSPS_DIR ?= artifacts/osps
+OSPS_VENV ?= build/osps-venv
+OSPS_TOOLS ?= darnit-mcp==0.1.1 zizmor==1.32.0
 
 help:: ## Show this help
 	@grep -E '^[a-zA-Z0-9_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -161,6 +164,17 @@ license-report:: ## Report licenses of the pinned CI dependency set (pip-license
 	$(PYTHON) -m piplicenses --format=markdown --with-urls > $(LICENSE_DIR)/ci-dependencies.md
 	$(PYTHON) -m piplicenses --format=json > $(LICENSE_DIR)/ci-dependencies.json
 	@echo "wrote $(LICENSE_DIR)"
+
+# Report-only OSPS Baseline audit; darnit's remediation tools are never called. It reads repository
+# settings for the checked-out branch through gh/GITHUB_TOKEN, so run it on the default branch.
+# Needs Python 3.11+ on Linux x86-64/aarch64, macOS arm64 or Windows (darnit's wheels).
+# The raw audit holds command evidence (e.g. the caller's GitHub profile) and stays in build/.
+osps-audit:: ## Report-only OSPS Baseline audit with pinned Darnit (needs gh auth or GITHUB_TOKEN)
+	$(PYTHON) -m venv "$(OSPS_VENV)"
+	"$(OSPS_VENV)/bin/python" -m pip install --disable-pip-version-check -q $(OSPS_TOOLS)
+	@mkdir -p build
+	PATH="$(abspath $(OSPS_VENV))/bin:$$PATH" "$(OSPS_VENV)/bin/darnit" audit --no-fail -o json . > build/osps-darnit.json
+	$(PYTHON) tools/osps_report.py build/osps-darnit.json --output-dir "$(OSPS_DIR)"
 
 # The generator lives in its own venv, so neither scanned environment lists it.
 sbom-tool::

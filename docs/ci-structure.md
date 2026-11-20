@@ -28,6 +28,10 @@ action and GitLab CLI entry point, and included GitLab security analyzers are
 explicit provider-native exceptions. Scorecard's branch scan uses the shared
 `make scorecard-scan` target. These exceptions do not permit duplicating qtop's
 own validation logic in YAML.
+The weekly `osps-baseline-qtop` workflow is GitHub-only because its OSPS
+Baseline controls read GitHub repository settings; it calls the shared
+`make osps-audit` target and is report-only (see
+[OpenSSF readiness](openssf-readiness.md#osps-baseline-audit)).
 
 `make pre-pr` combines coverage (including the full pytest/Hypothesis suite),
 scheduler samples, deterministic and Atheris fuzzing, lint/format, and type

@@ -192,7 +192,9 @@ Open items here are proposals, not 1.0 release requirements.
   when their evidence and permission requirements are defined.
   - [x] Generate, attest and attach release SBOMs and build provenance in
     `release.yml`; see [supply-chain plan](docs/supply-chain-sbom.md).
-  - [ ] Evaluate Darnit, Minder or Gemara consumers.
+  - [x] Evaluate Darnit, Minder or Gemara consumers: Darnit runs report-only
+    (`make osps-audit`); Privateer/Gemara and Minder are deferred with reasons in
+    [OpenSSF readiness](docs/openssf-readiness.md#future-integrations).
 
 - [ ] Add LSF support.
   - [ ] Requires an owner and representative synthetic or approved anonymized traces.
