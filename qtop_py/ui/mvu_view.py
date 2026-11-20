@@ -5,14 +5,17 @@
 import datetime
 import logging
 import os
+import re
 import sys
 import tempfile
 from collections import Counter, OrderedDict
 from functools import lru_cache, partial
-from itertools import cycle, islice, zip_longest
+from itertools import islice, zip_longest
 from typing import TYPE_CHECKING, Any, Callable, Dict, Iterable, Iterator, List, Mapping, Optional, Sequence, Tuple, overload
 
 if TYPE_CHECKING:
+    from typing import Final
+
     from qtop_py.state_types import Config
 
 from qtop_py import __version__, utils, yaml_parser
@@ -26,6 +29,27 @@ from qtop_py.ui.viewport import terminal_rows
 
 # Accounts-table state columns when accounts_states is unset: jobs >= R + Q + O(ther), as the Summary's Total=R+Q+Other.
 DEFAULT_ACCOUNT_STATES = ("running_of_user", "queued_of_user", "other_of_user")
+# Named worker-node labels change colour per name group, and at least every this many nodes within one (#197).
+LABEL_GROUP_SIZE: "Final" = 5
+
+
+def label_group_colors(hosts: Sequence[str], colors: Sequence[str], group_size: int = LABEL_GROUP_SIZE) -> List[str]:
+    """Return one label colour per host, alternating at each name group or every group_size hosts within one.
+
+    Hosts whose names differ only in their digits (wn01, wn02; c1.site, c2.site) form a group.
+    """
+    result: List[str] = []
+    previous_key = None
+    run = index = 0
+    for host in hosts:
+        key = re.sub(r"[0-9]+", "#", host)
+        if result and (key != previous_key or run == group_size):
+            index += 1
+            run = 0
+        previous_key = key
+        run += 1
+        result.append(colors[index % len(colors)])
+    return result
 
 
 def user_accounts_header(config: "Config") -> str:
@@ -604,20 +628,19 @@ class TextDisplay(object):
                 end_labels.setdefault(str(num), end_labels["7"] + num * ["={________}"])
 
             end_labels_iter = iter(end_labels[str(node_str_width)])
+            ALT_LABEL_COLORS = self.config["ALT_LABEL_COLORS"]
+            hosts = [node["host"] for node in self.cluster.workernode_dict.values()]  # the label columns' order
+            node_colors = label_group_colors(hosts, ALT_LABEL_COLORS)[start:stop]
+            separator = [ALT_LABEL_COLORS[0]] * len(self.config["SEPARATOR"])
+            line_colors = self._insert_separators(node_colors, separator, self.config["vertical_separator_every_X_columns"])
             self.print_wnid_lines(
                 wn_vert_labels,
                 start,
                 stop,
                 end_labels_iter,
                 self.MVU_model.transposed_sections,
-                colors_factory=partial(self.highlight_alternately, *self.config["ALT_LABEL_COLORS"]),
+                colors_factory=partial(iter, line_colors),
             )
-
-    def highlight_alternately(self, color_a: str, color_b: str) -> Iterator[str]:
-        """Yield color_a and color_b alternately, forever."""
-        colors = cycle([color_a, color_b])
-        for color in colors:
-            yield color
 
     def color_plainly(self, color_0: str, color_1: str, condition: bool) -> Iterator[str]:
         """Yield color_0 if condition holds, otherwise color_1, forever."""
@@ -690,7 +713,7 @@ class TextDisplay(object):
                 row = cells
             yield row
 
-    def _insert_separators(self, orig_str: Any, separator: str, pos: int, stopaftern: int = 0) -> Any:
+    def _insert_separators(self, orig_str: Any, separator: Sequence[str], pos: int, stopaftern: int = 0) -> Any:
         """Inserts separator into orig_str every pos-th position, optionally stopping after stopaftern times."""
         if not pos:  # default value is zero, means no vertical separators
             return orig_str
