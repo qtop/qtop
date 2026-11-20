@@ -82,6 +82,7 @@ class WNOccupancy(object):
         self.account_jobs_table: List[List[Any]] = list()
         self.user_to_id: Dict[str, Any] = dict()
         self.job_to_user_and_queue: Dict[str, Tuple[str, str]] = dict()
+        self.nodes_in_use = 0
         self.user_names, self.job_states = self._get_usernames_and_states(snapshot.jobs_dict)
 
         self.calculate(snapshot, user_to_color)
@@ -104,6 +105,8 @@ class WNOccupancy(object):
 
         self.job_to_user_and_queue = {job_id: (job.user_name, job.job_queue) for job_id, job in snapshot.jobs_dict.items()}
         self.user_machine_use = self.calculate_user_node_use(self.cluster, self.job_to_user_and_queue)
+        # Distinct nodes with any account's job; summing per-user node counts would count shared nodes repeatedly.
+        self.nodes_in_use = sum(1 for node in self.cluster.workernode_dict.values() if node["node_user_set"])
 
         user_job_per_state_counts = self._calculate_user_job_counts(self.user_names, self.job_states)
         users_by_job_count = self._produce_user_lot(self.user_names, user_job_per_state_counts)

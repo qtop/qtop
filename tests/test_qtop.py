@@ -479,6 +479,7 @@ def test_display_account_totals_is_separate_from_user_rows(monkeypatch, capsys):
             ["0", 2, 3, 5, "alice", 1],
             ["1", 4, 0, 4, "bob", 2],
         ]
+        nodes_in_use = 2  # alice's node is one of bob's two
         user_color_patterns = {
             "0": "account_not_colored",
             "1": "account_not_colored",
@@ -499,7 +500,7 @@ def test_display_account_totals_is_separate_from_user_rows(monkeypatch, capsys):
     assert "Account totals" in output
     assert "[ T] Totals" in output
     assert "|   9      6      3      0 |" in output
-    assert "|     3 |" in output
+    assert "|     2 |" in output  # distinct nodes, not the 1 + 2 per-user sum
 
 
 @pytest.mark.parametrize("realtime", [False, True])
@@ -1203,9 +1204,9 @@ def test_user_details_preserve_quoted_arguments_and_skip_malformed_rows(tmp_path
 PBS_STATES = {"R": "running_of_user", "Q": "queued_of_user", "C": "cancelled_of_user", "E": "exiting_of_user", "X": "expired_of_user"}
 
 
-def _plain_accounts(monkeypatch, capsys, config, table, totals=False, color="OFF"):
+def _plain_accounts(monkeypatch, capsys, config, table, totals=False, color="OFF", nodes_in_use=2):
     args = SimpleNamespace(COLOR=color, CLASSIC=False, SHOW_ACCOUNT_TOTALS=totals, SHOW_GROUPS=False)
-    occupancy = SimpleNamespace(account_jobs_table=table, user_color_patterns={str(row[0]): "account_not_colored" for row in table})
+    occupancy = SimpleNamespace(account_jobs_table=table, nodes_in_use=nodes_in_use, user_color_patterns={str(row[0]): "account_not_colored" for row in table})
     monkeypatch.setattr(qtop_module, "user_to_color", {}, raising=False)
     display = TextDisplay(None, dict(config, SEPARATOR="|"), None, occupancy, None, args)
     display.display_user_accounts_pool_mappings(occupancy)

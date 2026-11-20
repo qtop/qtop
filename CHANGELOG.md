@@ -5,6 +5,7 @@ Notable changes by version, newest first. See the
 
 ## 0.9.20261119
 
+- Bugfix: section 4 Totals counts distinct occupied nodes, not the sum of per-user node counts
 - Feature: writable parents of savepath and the log no longer stop qtop unless --strict-parents
 - Release: update version metadata to 0.9.20261119
 

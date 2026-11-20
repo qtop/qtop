@@ -1220,3 +1220,12 @@ def test_writable_parent_of_savepath_stops_only_with_strict_parents(tmp_path):
     assert strict.returncode != 0
     assert "untrusted parent" in strict.stderr
     assert not strict_output.exists()
+
+
+def test_account_totals_count_distinct_nodes_not_the_per_user_sum(tmp_path):
+    result = run_cli(tmp_path, "qtop_py.qtop", "-b", "demo", "-c", "OFF", "-o", "savepath=%s" % (tmp_path / "out"))
+    assert result.returncode == 0, result.stderr
+    up = int(re.search(r"Up:(\d+)", result.stdout).group(1))
+    users = re.findall(r"^\[ ?\w\] (?!Totals)\S+ +\|[^|]*\| +(\d+) \|", result.stdout, re.M)
+    total = int(re.search(r"^\[ T\] Totals +\|[^|]*\| +(\d+) \|", result.stdout, re.M).group(1))
+    assert max(map(int, users)) <= total <= up < sum(map(int, users))

@@ -346,15 +346,18 @@ class TextDisplay(object):
 
     def display_account_totals(self) -> None:
         """Display section four independently of the per-user accounts section."""
-        totals = self.account_jobs_totals(self.wns_occupancy.account_jobs_table)
+        totals = self.account_jobs_totals(self.wns_occupancy.account_jobs_table, self.wns_occupancy.nodes_in_use)
         if totals:
             print(self.MVU_model.MVU_colorize("\n===> 4. Account totals <===", "White"))
             self.display_account_table_header()
             self.display_account_jobs_line(totals, "account_not_colored", {}, {} if getattr(self.args, "SHOW_GROUPS", False) else None, highlight=True)
 
     @staticmethod
-    def account_jobs_totals(account_jobs_table: Sequence[Sequence[Any]]) -> Optional[List[Any]]:
-        """Return the per-state job totals over all accounts, or None if there are no accounts."""
+    def account_jobs_totals(account_jobs_table: Sequence[Sequence[Any]], nodes_in_use: int) -> Optional[List[Any]]:
+        """Return the per-state job totals over all accounts, or None if there are no accounts.
+
+        nodes_in_use is the number of distinct nodes running any account's job, not the sum of per-user node counts.
+        """
         if not account_jobs_table:
             return None
 
@@ -368,7 +371,7 @@ class TextDisplay(object):
             sum(int(line[2]) for line in account_jobs_table),
             sum(int(line[3]) for line in account_jobs_table),
             "Totals",
-            sum(int(line[5]) for line in account_jobs_table),
+            nodes_in_use,
             state_totals,
         ]
 
