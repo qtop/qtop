@@ -31,11 +31,15 @@ class Snapshot(namedtuple("Snapshot", ["worker_nodes", "jobs_dict", "queues_dict
         _job_metadata: Dict[str, state_types.Job]
 
     @classmethod
-    def from_cluster_state(cls, cluster_state: "state_types.ClusterState") -> "Snapshot":
-        """Validate a cluster state and build the snapshot, with display-safe text."""
+    def from_cluster_state(cls, cluster_state: "state_types.ClusterState", validated: bool = False) -> "Snapshot":
+        """Validate a cluster state and build the snapshot, with display-safe text.
+
+        validated=True skips validation for a state the caller has just passed through
+        validate_cluster_state() itself (live collection does, in its worker thread).
+        """
         # The one copy boundary (JSON-shaped): one traversal yields the raw copy kept
         # for export and the display-safe copy, sharing no dict or list.
-        original, cluster_state = raw_and_visible(validate_cluster_state(cluster_state))
+        original, cluster_state = raw_and_visible(cluster_state if validated else validate_cluster_state(cluster_state))
         totals = validated_cluster_state_totals(cluster_state)
         jobs_dict = OrderedDict((job["id"], JobRow(job["user"], job["state"], job["queue"])) for job in cluster_state["jobs"])
         queues_dict = OrderedDict(

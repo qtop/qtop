@@ -219,6 +219,14 @@ def parse_qtop_cmdline_args() -> Namespace:
         help="Enable the experimental web interface on port 8080 (requires -e/--experimental)",
     )
     parser.add_argument(
+        "--demanding",
+        action="store_true",
+        dest="DEMANDING",
+        default=False,
+        help="Turn on every strict check at once: -S/--StrictCheck, --strict-parents, and re-validating each "
+        "collected cluster state at the snapshot boundary (slower on large clusters)",
+    )
+    parser.add_argument(
         "--strict-parents",
         action="store_true",
         dest="STRICT_PARENTS",

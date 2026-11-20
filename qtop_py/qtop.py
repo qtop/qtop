@@ -352,12 +352,19 @@ def cli_main() -> int:
 # Locations fixed for the whole run: launch directory, package/source root and help file.
 
 
+def apply_demanding(args: Any) -> None:
+    """--demanding turns on the strictest checks together: -S and --strict-parents here; the collector re-validates."""
+    if getattr(args, "DEMANDING", False):
+        args.STRICTCHECK = args.STRICT_PARENTS = True
+
+
 def _parse_run_options(resources: RunResources) -> Tuple[Any, Dict[str, Any]]:
     """Parse and validate the command line, including a --load-sample snapshot's display options."""
     args = resources.options = utils.parse_qtop_cmdline_args()
     if args.version:
         print("qtop current version: " + __version__)
         sys.exit(0)
+    apply_demanding(args)
     fileutils.STRICT_PARENTS = args.STRICT_PARENTS
     utils.init_logging(args)
     resources.logfile = QTOP_LOGFILE

@@ -1229,3 +1229,24 @@ def test_account_totals_count_distinct_nodes_not_the_per_user_sum(tmp_path):
     users = re.findall(r"^\[ ?\w\] (?!Totals)\S+ +\|[^|]*\| +(\d+) \|", result.stdout, re.M)
     total = int(re.search(r"^\[ T\] Totals +\|[^|]*\| +(\d+) \|", result.stdout, re.M).group(1))
     assert max(map(int, users)) <= total <= up < sum(map(int, users))
+
+
+def test_demanding_turns_on_strict_parents_and_strict_check(tmp_path):
+    shared = tmp_path / "shared"
+    shared.mkdir()
+    shared.chmod(0o775)
+    refused = run_cli(tmp_path, "qtop_py.qtop", "--demanding", "-b", "demo", "-c", "OFF", "-o", "savepath=%s" % (shared / "out"))
+    assert refused.returncode != 0
+    assert "untrusted parent" in refused.stderr
+    checked = run_cli(tmp_path, "qtop_py.qtop", "--demanding", "-b", "demo", "-c", "OFF", "-o", "savepath=%s" % (tmp_path / "out"))
+    assert checked.returncode == 0, checked.stderr
+
+
+@pytest.mark.parametrize("argv, strict", ((["-b", "demo"], False), (["--demanding", "-b", "demo"], True)))
+def test_demanding_expands_to_the_strict_flags(monkeypatch, argv, strict):
+    from qtop_py import qtop, utils
+
+    monkeypatch.setattr(sys, "argv", ["qtop"] + argv)
+    args = utils.parse_qtop_cmdline_args()
+    qtop.apply_demanding(args)
+    assert (args.STRICTCHECK, args.STRICT_PARENTS) == (strict, strict)

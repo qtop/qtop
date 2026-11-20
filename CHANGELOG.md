@@ -6,7 +6,9 @@ Notable changes by version, newest first. See the
 ## 0.9.20261119
 
 - Bugfix: section 4 Totals counts distinct occupied nodes, not the sum of per-user node counts
+- Feature: live frames validate the cluster state once, not twice (--demanding keeps both)
 - Feature: Slurm squeue parsing is about 2x faster on large traces (per-trace caches, fast paths)
+- Feature: --demanding turns on -S, --strict-parents and a second state validation together
 - Feature: scheduler commands run concurrently, so a frame waits for the slowest, not their sum
 - Feature: scheduler_command_timeout defaults to 180 seconds (was 120)
 - Feature: writable parents of savepath and the log no longer stop qtop unless --strict-parents

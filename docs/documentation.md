@@ -1194,6 +1194,24 @@ Section titles carry fixed numbers 1-4, even when other sections are hidden.
 -  ``-B`` enables the experimental web interface at `127.0.0.1:8080` by
    default and requires ``-e``/``--experimental``. See the configuration below.
 
+### Strict checks
+
+By default qtop favours speed and tolerates common site setups. Three checks
+can be made stricter, one at a time or all at once:
+
+-  ``-S`` / ``--StrictCheck`` compares the scheduler's running-job total with
+   the jobs qtop found and displayed.
+-  ``--strict-parents`` stops qtop when a parent directory of ``savepath`` or of
+   the log is writable by group or others without the sticky bit. Without it,
+   such a parent (e.g. a group-writable ``/home`` or ``/gpfs/home``) is noted
+   at ``-v`` and qtop continues; the directories qtop owns are always created or
+   tightened to mode 0700 and never followed through symbolic links.
+-  Live collection validates each cluster state once, in its collection
+   thread. ``--demanding`` validates it again when the snapshot is built.
+
+``--demanding`` turns on all three. It costs about half a second per frame on a
+cluster of several thousand nodes, mostly from the second validation.
+
 ### Experimental web configuration
 
 The web interface remains experimental and has no authentication or TLS. The

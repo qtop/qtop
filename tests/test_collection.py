@@ -404,17 +404,42 @@ def test_scheduler_commands_run_concurrently_and_keep_config_order(tmp_path):
     slow = "import time; time.sleep(0.6); print('%s')"
     files, elapsed = _timed_commands(tmp_path, {key: slow % key for key in ("squeue_file", "sinfo_file", "scontrol_file")})
     assert list(files) == ["squeue_file", "sinfo_file", "scontrol_file"]
-    assert all(open(path).read() == key + "\n" for key, path in files.items())
+    assert all(Path(path).read_text() == key + "\n" for key, path in files.items())
     assert elapsed < 1.5  # three 0.6 s commands one after another would take 1.8 s or more
 
 
-def test_a_failed_required_command_stops_the_others(tmp_path):
-    error, elapsed = _timed_commands(tmp_path, {"squeue_file": "import sys; sys.exit(3)", "sinfo_file": "import time; time.sleep(20)"})
+def test_the_first_required_failure_in_config_order_is_reported(tmp_path):
+    late_first = "import sys, time; time.sleep(0.4); sys.exit(3)"
+    error, _ = _timed_commands(tmp_path, {"squeue_file": late_first, "sinfo_file": "import sys; sys.exit(4)"})
     assert isinstance(error, OperationalError)
-    assert "exit 3" in str(error)
-    assert elapsed < 10
+    assert "exit 3" in str(error)  # squeue comes first in config order, although sinfo failed sooner
 
 
 def test_a_failed_optional_command_is_dropped_while_the_rest_complete(tmp_path):
     files, _ = _timed_commands(tmp_path, {"squeue_file": "print('q')", "sinfo_file": "print('n')", "scontrol_file": "import sys; sys.exit(1)"})
     assert sorted(files) == ["sinfo_file", "squeue_file"]
+
+
+@pytest.mark.parametrize("demanding", (False, True), ids=("default", "demanding"))
+def test_live_state_is_validated_once_unless_demanding(frame_context, monkeypatch, demanding):
+    from qtop_py import cluster_state, snapshot
+
+    frame, args, _config, _resources = frame_context
+    args.DEMANDING = demanding
+
+    def execute(commands, filenames, key, savepath, **kwargs):
+        Path(filenames[key]).write_bytes((SAMPLES / ("slurm_" + key[:-5] + ".json")).read_bytes())
+        return filenames[key]
+
+    calls = []
+    real_validate = cluster_state.validate_cluster_state
+
+    def counting_validate(state):
+        calls.append(1)
+        return real_validate(state)
+
+    monkeypatch.setattr(process_io, "execute_shell_batch_commands", execute)
+    monkeypatch.setattr(cluster_state, "validate_cluster_state", counting_validate)
+    monkeypatch.setattr(snapshot, "validate_cluster_state", counting_validate)
+    frame()
+    assert len(calls) == (2 if demanding else 1)

@@ -257,6 +257,14 @@ only behind an authenticating reverse proxy.
 Print debug messages and operational-error tracebacks to standard error and
 the log file.
 .TP
+.B \-\-demanding
+Turn on every strict check at once:
+.BR \-S ,
+.BR \-\-strict\-parents ,
+and validating each live-collected cluster state a second time when the
+snapshot is built (live collection otherwise validates it once). Slower on
+large clusters.
+.TP
 .B \-\-strict\-parents
 Stop when a parent directory of
 .I savepath
