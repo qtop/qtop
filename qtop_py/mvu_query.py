@@ -411,7 +411,7 @@ class WNOccupancy(object):
 
         def position(core: Any) -> Tuple[int, int]:  # numbered cores in order; anything else after them, as given
             text = str(core)
-            return (0, int(text)) if text.isdecimal() else (1, 0)  # isdigit() would let "²" reach int()
+            return (0, int(text)) if text.isdecimal() else (1, 0)  # isdigit() also accepts superscript digits, which int() rejects
 
         cores_of_job: Dict[str, int] = OrderedDict()
         for _, job in sorted(corejobs.items(), key=lambda item: position(item[0])):
