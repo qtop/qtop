@@ -363,6 +363,7 @@ class WNOccupancy(object):
         core_user_map: Dict[str, Any] = OrderedDict()
 
         core_coloring = self.MVU_model.display_overrides.get("core_coloring", self.config["core_coloring"])
+        self._stack_jobs = self.MVU_model.display_overrides.get("stack_jobs_per_node", self.config.get("stack_jobs_per_node", False))
 
         for core_nr in self.cluster.core_span:
             core_user_map["Core%svector" % str(core_nr)] = []  # Cpu0vector, Cpu1vector, Cpu2vector, ... = [],[],[], ...
@@ -388,6 +389,8 @@ class WNOccupancy(object):
         node = self.cluster.workernode_dict[_node]
         state = node["state"]
         corejobs = node.get("core_job_map", dict())
+        if self.__dict__.get("_stack_jobs"):
+            corejobs = self.stack_core_jobs(corejobs)
         non_existent_node_symbol = self.config["non_existent_node_symbol"]
         gray_hash = utils.ColorStr(non_existent_node_symbol, color="Gray_D")
         gray_underscore = utils.ColorStr("_", color="Gray_D")
@@ -401,6 +404,20 @@ class WNOccupancy(object):
                 core_vectors[core].append(gray_underscore)
             for vector in core_vectors[np:]:  # core lines beyond this node's cores
                 vector.append(gray_hash)
+
+    @staticmethod
+    def stack_core_jobs(corejobs: Mapping[Any, str]) -> Dict[int, str]:
+        """Re-place a node's jobs from core 0, each job's cores together, ordered by each job's lowest core (#182)."""
+
+        def position(core: Any) -> Tuple[int, int]:  # numbered cores in order; anything else after them, as given
+            text = str(core)
+            return (0, int(text)) if text.isdecimal() else (1, 0)  # isdigit() would let "²" reach int()
+
+        cores_of_job: Dict[str, int] = OrderedDict()
+        for _, job in sorted(corejobs.items(), key=lambda item: position(item[0])):
+            cores_of_job[job] = cores_of_job.get(job, 0) + 1
+        stacked = (job for job, count in cores_of_job.items() for _ in range(count))
+        return dict(enumerate(stacked))
 
     @staticmethod
     def get_hl_q_or_users(_highlighted_queues_or_users: Iterable[Mapping[str, Any]]) -> Iterator[Tuple[Any, str, Callable[..., bool]]]:

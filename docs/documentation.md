@@ -404,6 +404,7 @@ Watch mode supports:
 | Q | cycle compact / expanded / clipped Queueing layouts |
 | r | cycle all / real / used core lines |
 | s | apply sorting (remapped matrices; numbered ones keep node order) |
+| S | stack each node's jobs from its first core / show scheduler core placement (``stack_jobs_per_node``) |
 | t | transpose the matrix |
 | 1, 2, 3 | show / hide sections 1-3 (as ``-1``, ``-2``, ``-3``) |
 | 4 | show / hide independent section 4, Account totals (as ``-4``) |

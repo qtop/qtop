@@ -180,6 +180,42 @@ def test_core_cell_highlight_rules_that_match_nothing_do_not_crash(rules, warns,
     assert ("Ignoring invalid highlight pattern" in caplog.text) is warns
 
 
+@pytest.mark.parametrize(
+    ("corejobs", "expected"),
+    (
+        ({}, {}),
+        ({4: "b", 0: "a", 2: "a", "5": "c"}, {0: "a", 1: "a", 2: "b", 3: "c"}),  # by lowest core; int or str keys
+        ({1: "b", 3: "a", 5: "b"}, {0: "b", 1: "b", 2: "a"}),  # a job's cores stay together
+        ({"x": "z", 7: "y"}, {0: "y", 1: "z"}),  # non-numeric cores after numbered ones
+    ),
+    ids=("empty", "ordered-by-lowest-core", "grouped", "non-numeric-last"),
+)
+def test_stack_core_jobs_packs_each_job_from_core_zero(corejobs, expected):
+    assert qtop.WNOccupancy.stack_core_jobs(corejobs) == expected
+
+
+def test_stacked_matrix_starts_every_node_at_its_first_core(tmp_path):
+    import os
+    import re
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[1]
+    env = dict(os.environ, HOME=str(tmp_path), PYTHONPATH=str(root))
+    env.pop("QTOP_SCHEDULER", None)
+    sample = root / "tests/plugins/slurm_samples/cpu_allocations"
+
+    def core_lines(*options):
+        command = [sys.executable, "-m", "qtop_py.qtop", "-b", "slurm", "-s", str(sample), "-c", "OFF", "-o", "transpose_wn_matrices=False"]
+        command += [item for option in options for item in ("-o", option)] + ["-o", "savepath=%s" % (tmp_path / "output")]
+        output = subprocess.run(command, cwd=str(root), env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True).stdout
+        return [line.split("=")[0] for line in output.splitlines() if re.match(r"^\S+=Core\d+$", line)]
+
+    assert core_lines()[:6] == ["0__", "_1_", "0__", "_1_", "1__", "_1_"]
+    assert core_lines("stack_jobs_per_node=True")[:6] == ["01_", "01_", "11_", "___", "___", "___"]
+
+
 def test_core_cell_user_id_highlight_matches_whole_names_and_shared_ids():
     rules = [{"or_include_user_id": ["0", "+"]}]
     occupancy = _highlight_occupancy(rules, {"ab": "0", "abc": "1", "x.y": "2", "late1": "+", "late2": "+"})

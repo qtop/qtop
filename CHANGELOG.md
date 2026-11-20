@@ -10,6 +10,7 @@ Notable changes by version, newest first. See the
 - CI: release publishing stops unless the release tag is v<package version> (temporary until 1.0)
 - Docs: README badges follow main, and the outdated PyPI release note is gone
 - Feature: named node labels change colour per name group, at most 5 nodes at a time, instead of every node (#197)
+- Feature: stack_jobs_per_node (S in watch mode) stacks each node's jobs from its first core, ignoring scheduler core placement (#182)
 - Tests: package and repo-sanity tests run on macOS (no copied system binaries, non-UTF-8 names skip cleanly)
 - Tools: prepare_release stages the EasyBuild recipe rename with git mv
 - Release: update version metadata to 0.9.20261118

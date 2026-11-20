@@ -191,7 +191,7 @@ def MVU_queue_layout(model: "MVU_Model", queues: Optional[Mapping[str, Any]] = N
 
 def MVU_update(model: "MVU_Model", message: str, payload: Any = None) -> Tuple["MVU_Model", Tuple[Tuple[str, Optional[str]], ...]]:
     """Return the next model and effect requests without performing terminal or scheduler I/O."""
-    keys = set(NAVIGATION_KEYS) | {"snapshot", "layout", "t", "Q", "m", "q", "F", "s", "f", "H", "?", "r", "p", "P", "1", "2", "3", "4", "/", ":"}
+    keys = set(NAVIGATION_KEYS) | {"snapshot", "layout", "t", "S", "Q", "m", "q", "F", "s", "f", "H", "?", "r", "p", "P", "1", "2", "3", "4", "/", ":"}
     if message not in keys:
         return model, ()
     next_model = copy.copy(model)
@@ -215,6 +215,10 @@ def MVU_update(model: "MVU_Model", message: str, payload: Any = None) -> Tuple["
         next_model.display_overrides["transpose_wn_matrices"] = not next_model.display_overrides.get("transpose_wn_matrices", next_model.config["transpose_wn_matrices"])
         next_model.viewport.reset_display()
         effects.append(("notice", "Transposing matrix..."))
+    elif message == "S":
+        stacked = not next_model.display_overrides.get("stack_jobs_per_node", next_model.config.get("stack_jobs_per_node", False))
+        next_model.display_overrides["stack_jobs_per_node"] = stacked
+        effects.append(("notice", "Stacking jobs per node" if stacked else "Showing jobs on their scheduler cores"))
     elif message == "Q":
         layouts = ("compact", "expanded", "clipped")
         layout = layouts[(layouts.index(MVU_queue_layout(model)) + 1) % len(layouts)]

@@ -124,8 +124,8 @@ def _validate_scalars(config: Any) -> None:
     """Required text, flag and counter settings."""
     for key in ("scheduler", "savepath", "vertical_separator", "non_existent_node_symbol"):
         _text(config.get(key), key)
-    for key in ("transpose_wn_matrices", "fill_with_user_firstletter", "faster_xml_parsing", "overwrite_sample_file"):
-        value = literal(config.get(key))
+    for key in ("transpose_wn_matrices", "fill_with_user_firstletter", "faster_xml_parsing", "overwrite_sample_file", "stack_jobs_per_node"):
+        value = literal(config.get(key, False) if key == "stack_jobs_per_node" else config.get(key))
         _require(type(value) in (bool, int) and value in (False, True), key, "True, False, 0 or 1")
     for key in ("vertical_separator_every_X_columns", "rem_empty_corelines", "exotic_starting_wn_nr"):
         _integer(config.get(key, 0), key)
@@ -339,6 +339,7 @@ def normalize_config(raw_config: Dict[str, Any]) -> Dict[str, Any]:
         "overwrite_sample_file",
     ):
         config[key] = literal(config[key])
+    config["stack_jobs_per_node"] = bool(literal(config.get("stack_jobs_per_node", False)))
     config["sorting"]["reverse"] = literal(config["sorting"].get("reverse", "0"))
     wn_id_lines = config["workernodes_matrix"][0]["wn id lines"]
     config["ALT_LABEL_COLORS"] = yaml_parser.fix_config_list(wn_id_lines["alt_label_colors"])
