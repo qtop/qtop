@@ -13,6 +13,7 @@ Notable changes by version, newest first. See the
 - Docs: sonar-review.md records the 2026-11-20 review; findings left as they are carry a comment at their line
 - Feature: named node labels change colour per name group, at most 5 nodes at a time, instead of every node (#197)
 - Feature: stack_jobs_per_node (S in watch mode) stacks each node's jobs from its first core, ignoring scheduler core placement (#182)
+- Feature: Q in watch mode gains a fourth, hidden layout that drops the Queueing line
 - Refactor: Sonar cleanups without behaviour change: web page DOCTYPE, lang and title; [[ tests in matrix_lane.sh; explicit regex grouping in repo-sanity and Slurm detail parsing
 - Tests: package and repo-sanity tests run on macOS (no copied system binaries, non-UTF-8 names skip cleanly)
 - Tools: prepare_release stages the EasyBuild recipe rename with git mv

@@ -233,7 +233,9 @@ class TextDisplay(object):
         layout = MVU_queue_layout(self.MVU_model, queues)
         heading = self.MVU_model.MVU_colorize("Queueing", "Cyan_L") + " :"
         note = self.MVU_model.MVU_colorize("* implies blocked", "Red") + self.MVU_model.backend.blocked_queue_note
-        if layout == "expanded":
+        if layout == "hidden":  # Q's last step: no Queueing line and no blocked-queue legend
+            pass
+        elif layout == "expanded":
             print(heading)
             self.display_expanded_queues(queues, snapshot)
             print(note + "\n")

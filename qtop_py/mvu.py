@@ -220,7 +220,7 @@ def MVU_update(model: "MVU_Model", message: str, payload: Any = None) -> Tuple["
         next_model.display_overrides["stack_jobs_per_node"] = stacked
         effects.append(("notice", "Stacking jobs per node" if stacked else "Showing jobs on their scheduler cores"))
     elif message == "Q":
-        layouts = ("compact", "expanded", "clipped")
+        layouts = ("compact", "expanded", "clipped", "hidden")
         layout = layouts[(layouts.index(MVU_queue_layout(model)) + 1) % len(layouts)]
         next_model.display_overrides["queue_summary_layout"] = layout
         effects.append(("notice", "Queueing layout: " + layout))

@@ -121,8 +121,8 @@ Mimic the legacy qtop display as far as possible.
 .TP
 .B \-\-no\-wrap\-queues
 Keep the Queueing summary on one physical terminal row, clipping overflow.
-Mutually exclusive with --expand-queues. Q cycles compact, expanded and clipped
-layouts in watch mode. Clipped overflow is the default.
+Mutually exclusive with --expand-queues. Q cycles compact, expanded, clipped and
+hidden layouts in watch mode; hidden drops the Queueing line. Clipped overflow is the default.
 The blocked-queue legend stays visible on its own line.
 Normalized exports retain every queue.
 .TP
@@ -306,7 +306,7 @@ color cores by user / queue
 cycle the colour palettes forward / backward
 .TQ
 .B Q
-cycle compact / expanded / clipped queue layouts
+cycle compact / expanded / clipped / hidden queue layouts
 .TQ
 .B r
 cycle all / real / used core lines
