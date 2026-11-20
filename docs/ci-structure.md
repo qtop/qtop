@@ -58,6 +58,9 @@ path. It checks version metadata, entry points, bundled defaults, help, demo and
 committed PBS/OAR/SGE/Slurm samples, and reports unchanged input SHA-256 digests.
 Rebuilding the sdist uses the current pinned backend without dependency downloads.
 The original release files are never replaced by that rebuild.
+Then `make sbom sbom-ci` writes CycloneDX SBOMs of the installed wheel and of
+the build environment to `artifacts/sbom/`, kept as build artifacts; see
+[supply-chain-sbom.md](supply-chain-sbom.md).
 
 The GitHub release workflow already calls `make github-build`, so validation must
 pass before its artifact upload and downstream PyPI publishing job. GitLab's build

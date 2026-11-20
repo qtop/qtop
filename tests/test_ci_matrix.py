@@ -49,6 +49,18 @@ def make_prerequisites(target):
     raise AssertionError("Makefile has no %s:: rule" % target)
 
 
+def make_recipe(target):
+    """Return the words of a double-colon Makefile rule's recipe lines."""
+    lines = (ROOT / "Makefile").read_text().splitlines()
+    start = next(index for index, line in enumerate(lines) if line.startswith(target + "::"))
+    recipe = []
+    for line in lines[start + 1 :]:
+        if not line.startswith("\t"):
+            break
+        recipe += line.split()
+    return recipe
+
+
 def test_github_split_runs_every_pre_pr_check_once():
     def workflow(name):
         return yaml.safe_load((ROOT / ".github/workflows" / name).read_text())
@@ -81,14 +93,19 @@ def test_release_attests_the_published_distributions_and_their_sbom():
     workflow = yaml.safe_load((ROOT / ".github/workflows/release.yml").read_text())
     build = workflow["jobs"]["build"]
     steps = build["steps"]
-    runs = [step["run"] for step in steps if "run" in step]
+    positions = {step.get("id") or step.get("run", "").split(" PYTHON")[0]: index for index, step in enumerate(steps)}
     attest = {step["uses"].split("@")[0]: step for step in steps if step.get("uses", "").startswith("actions/attest")}
-    assert runs.index("make sbom PYTHON=python") > runs.index("make ci-deps github-ci github-build PYTHON=python")
+    # github-build writes the SBOMs (validated-build runs sbom sbom-ci); verification follows both attestations.
+    assert {"release-check", "sbom", "sbom-ci"} <= set(make_recipe("validated-build"))
+    assert positions["make ci-deps github-ci github-build"] < positions["provenance"] < positions["sbom-attestation"]
+    assert positions["sbom-attestation"] < positions["make verify-attestations"]
     assert set(attest) == {"actions/attest-build-provenance", "actions/attest-sbom"}
     assert all(step["with"]["subject-path"] == "dist/*" for step in attest.values())
     assert attest["actions/attest-sbom"]["with"]["sbom-path"] == "artifacts/sbom/qtop.cdx.json"
     assert "SBOM_DIR ?= artifacts/sbom" in (ROOT / "Makefile").read_text()
     assert build["permissions"] == {"contents": "read", "id-token": "write", "attestations": "write"}
+    assert workflow["jobs"]["release-assets"]["permissions"] == {"contents": "write"}
+    assert workflow["jobs"]["release-assets"]["needs"] == "build"
     for job in workflow["jobs"].values():
         for step in job["steps"]:
             if "uses" in step:

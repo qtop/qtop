@@ -48,6 +48,9 @@ CODE_QUALITY_JSON ?= artifacts/code-quality/gl-code-quality-report.json
 LICENSE_DIR ?= artifacts/license
 SBOM_DIR ?= artifacts/sbom
 SBOM_VENV ?= build/sbom-venv
+SBOM_TOOL_VENV ?= build/sbom-tool
+ATTEST_REPO ?= qtop/qtop
+ATTEST_SIGNER ?= $(ATTEST_REPO)/.github/workflows/release.yml
 CYCLONEDX_BOM ?= cyclonedx-bom==9.0.0
 
 help:: ## Show this help
@@ -159,18 +162,36 @@ license-report:: ## Report licenses of the pinned CI dependency set (pip-license
 	$(PYTHON) -m piplicenses --format=json > $(LICENSE_DIR)/ci-dependencies.json
 	@echo "wrote $(LICENSE_DIR)"
 
-# The SBOM inventories the built wheel installed alone, as users get it, not the CI toolchain.
+# The generator lives in its own venv, so neither scanned environment lists it.
+sbom-tool::
+	$(PYTHON) -m venv "$(SBOM_TOOL_VENV)"
+	"$(SBOM_TOOL_VENV)/bin/python" -m pip install --disable-pip-version-check -q $(CYCLONEDX_BOM)
+
+# The release SBOM inventories the built wheel installed alone, as users get it.
 # --no-index with --find-links keeps local paths out and yields the pkg:pypi purl.
-sbom:: ## Write a CycloneDX SBOM of the wheel in DIST_DIR (run build first)
-	$(PIP) install $(CYCLONEDX_BOM)
+sbom:: sbom-tool ## Write a CycloneDX SBOM of the wheel in DIST_DIR (run build first)
 	$(PYTHON) -m venv --clear "$(SBOM_VENV)"
 	VERSION="$$($(PYTHON) -c 'from qtop_py import __version__; print(__version__)')"; \
 	"$(SBOM_VENV)/bin/python" -m pip install --disable-pip-version-check --no-index --find-links "$(DIST_DIR)" "qtop==$$VERSION"
 	"$(SBOM_VENV)/bin/python" -m pip uninstall --disable-pip-version-check -y pip
 	@mkdir -p $(SBOM_DIR)
-	$(PYTHON) -m cyclonedx_py environment --mc-type application --output-reproducible --output-format JSON \
-		--output-file "$(SBOM_DIR)/qtop.cdx.json" "$(SBOM_VENV)/bin/python"
+	"$(SBOM_TOOL_VENV)/bin/python" -m cyclonedx_py environment --mc-type application --output-reproducible \
+		--output-format JSON --output-file "$(SBOM_DIR)/qtop.cdx.json" "$(SBOM_VENV)/bin/python"
 	@echo "wrote $(SBOM_DIR)/qtop.cdx.json"
+
+sbom-ci:: sbom-tool ## Write a CycloneDX SBOM of the build/CI environment that runs PYTHON
+	@mkdir -p $(SBOM_DIR)
+	"$(SBOM_TOOL_VENV)/bin/python" -m cyclonedx_py environment --output-reproducible --output-format JSON \
+		--output-file "$(SBOM_DIR)/ci.cdx.json" "$$($(PYTHON) -c 'import sys; print(sys.executable)')"
+	@echo "wrote $(SBOM_DIR)/ci.cdx.json"
+
+# Consumers run this on downloaded release files; the release workflow runs it right after attesting.
+verify-attestations:: ## Verify GitHub provenance and SBOM attestations of each DIST_DIR file (needs gh)
+	for artifact in "$(DIST_DIR)"/*; do \
+		gh attestation verify "$$artifact" --repo "$(ATTEST_REPO)" --signer-workflow "$(ATTEST_SIGNER)" || exit 1; \
+		gh attestation verify "$$artifact" --repo "$(ATTEST_REPO)" --signer-workflow "$(ATTEST_SIGNER)" \
+			--predicate-type https://cyclonedx.org/bom > /dev/null || exit 1; \
+	done
 
 type-contracts:: ## Check core contracts with mypy and Pyright (Python 3.12+ tooling)
 	$(PYTHON) -m mypy
@@ -227,8 +248,8 @@ release-tag-check:: ## Fail unless RELEASE_TAG is v<package version>
 		echo "Release tag $$RELEASE_TAG does not match package version $$VERSION"; exit 1; }; \
 	echo "Release tag $$RELEASE_TAG matches qtop $$VERSION"
 
-validated-build:: build ## Build once and validate those exact release artifacts
-	$(MAKE) release-check
+validated-build:: build ## Build once, validate those exact release artifacts and inventory them
+	$(MAKE) release-check sbom sbom-ci
 
 
 compat-py36:: ## Run dependency-light Python 3.6 compatibility checks
