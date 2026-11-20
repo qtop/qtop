@@ -32,14 +32,14 @@ TARGET="${4:?TARGET required (ci|compat-py36)}"
 log() { printf '\n=== %s ===\n' "$*"; }
 
 PKG_LIST=""
-if [ "${PKGS}" != "-" ]; then
+if [[ "${PKGS}" != "-" ]]; then
     PKG_LIST="$(printf '%s' "${PKGS}" | tr ',' ' ')"
 fi
 
 fix_eol_apt_sources() {
     # Debian buster and Ubuntu focal live on archive mirrors after EOL; keep
     # those lanes runnable so the matrix can still exercise old interpreters.
-    if grep -qs 'buster' /etc/os-release && [ -f /etc/apt/sources.list ]; then
+    if grep -qs 'buster' /etc/os-release && [[ -f /etc/apt/sources.list ]]; then
         sed -i \
             -e 's|deb.debian.org/debian-security|archive.debian.org/debian-security|g' \
             -e 's|security.debian.org/debian-security|archive.debian.org/debian-security|g' \
@@ -89,7 +89,7 @@ case "${FAMILY}" in
             :
         else
             rc=$?
-            [ "$rc" -ge 100 ] && [ "$rc" -le 107 ] || exit "$rc"
+            [[ "$rc" -ge 100 ]] && [[ "$rc" -le 107 ]] || exit "$rc"
             echo "note: zypper returned informational code $rc (repo skipped); continuing"
         fi
         ;;
@@ -111,7 +111,7 @@ case "${TARGET}" in
         # Official python/pypy images ship a writable pip; distro interpreters
         # get an isolated venv so externally-managed-environment policies
         # (PEP 668: Debian, Fedora, Arch) and root site-packages stay untouched.
-        if [ "${FAMILY}" = "pythonimg" ] || [ "${FAMILY}" = "pypyimg" ]; then
+        if [[ "${FAMILY}" = "pythonimg" ]] || [[ "${FAMILY}" = "pypyimg" ]]; then
             LANE_PY="${PYBIN}"
         else
             log "creating lane venv"

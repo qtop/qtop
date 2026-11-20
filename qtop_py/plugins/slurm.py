@@ -378,9 +378,9 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
                     name, value = mask(name, "field"), mask(value)
                 return name + "=" + value
 
-            if re.sub(r"(?<!\S)\S+?=\S*", "", text).strip():
+            if re.sub(r"(?<!\S)\S[^\s=]*=\S*", "", text).strip():
                 raise ValueError("unsupported detail syntax")
-            return "scontrol.txt", re.sub(r"(?<!\S)(\S+?)=(\S*)", field, text)
+            return "scontrol.txt", re.sub(r"(?<!\S)(\S[^\s=]*)=(\S*)", field, text)
         if key not in ("squeue_file", "sinfo_file"):
             raise ValueError("unsupported trace")
         rows = []

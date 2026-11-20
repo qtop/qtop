@@ -56,7 +56,7 @@ LEGACY_CR_FIXTURES = ANSI_FIXTURES.difference(set(["helpfile.txt"]))
 
 CONTROL_OR_BIDI = re.compile(r"[^\x09\x0a\x0d\x20-\x7e]")
 GENERATED_OR_BINARY = re.compile(
-    r"(^|/)(m4|autogen|configure|Makefile\.in|cmake|tests?/files|fixtures?)/|\.(xz|lzma|gz|bin|dat|png|jpg|jpeg|gif|webp)$",
+    r"(?:(^|/)(m4|autogen|configure|Makefile\.in|cmake|tests?/files|fixtures?)/)|(?:\.(xz|lzma|gz|bin|dat|png|jpg|jpeg|gif|webp)$)",
     re.IGNORECASE,
 )
 
