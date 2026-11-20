@@ -6,6 +6,7 @@ Notable changes by version, newest first. See the
 ## 0.9.20261118
 
 - Bugfix: highlight (H) ignores unknown user IDs and bad patterns instead of crashing (#603)
+- Bugfix: -R/--replay takes its start time and optional duration again (broken since 2023)
 - Bugfix: vertical_separator_every_X_columns no longer crashes the worker-node matrix
 - CI: restore coverage.yml as the only GitHub coverage run, so its badge shows the coverage gate
 - CI: publishing stops unless the release tag is v<package version> (temporary until 1.0)

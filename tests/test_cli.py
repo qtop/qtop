@@ -1113,6 +1113,37 @@ def test_clipped_and_expanded_queue_flags_are_mutually_exclusive(monkeypatch):
     assert stopped.value.code == 2
 
 
+@pytest.mark.parametrize(("values", "expected"), ((["1823"], ["1823"]), (["1118T1823", "1h"], ["1118T1823", "1h"])))
+def test_replay_takes_a_start_time_and_an_optional_duration(monkeypatch, values, expected):
+    from qtop_py import utils
+
+    monkeypatch.setattr(sys, "argv", ["qtop", "-R"] + values)
+    assert utils.parse_qtop_cmdline_args().REPLAY == expected
+
+
+def test_replay_rejects_a_third_value(monkeypatch, capsys):
+    from qtop_py import utils
+
+    monkeypatch.setattr(sys, "argv", ["qtop", "-R", "1823", "1h", "extra"])
+    with pytest.raises(SystemExit) as stopped:
+        utils.parse_qtop_cmdline_args()
+    assert stopped.value.code == 2 and "takes a start time and an optional duration" in capsys.readouterr().err
+
+
+def test_replay_shows_a_saved_frame_and_reports_missing_ones(tmp_path):
+    savepath = tmp_path / "results"
+    savepath.mkdir()
+    (savepath / "qtop_partview_20261118T182310_abcd1234.out").write_text("REPLAYED-FRAME-MARKER\n")
+    options = ["-o", "savepath=%s" % savepath, "-c", "OFF"]
+    replayed = run_cli(tmp_path, "qtop_py.qtop", "-R", "20261118T182300", "1m", *options)
+    assert replayed.returncode == 0, replayed.stderr
+    assert "REPLAYED-FRAME-MARKER" in replayed.stdout
+    missing = run_cli(tmp_path, "qtop_py.qtop", "-R", "20261118T190000", *options)
+    assert missing.returncode == 0, missing.stderr
+    assert "REPLAYED-FRAME-MARKER" not in missing.stdout
+    assert "No (more) recorded instances available to show" in missing.stdout + missing.stderr
+
+
 @pytest.mark.parametrize("flags,clipped,expanded", (([], True, False), (["--no-wrap-queues"], True, False), (["--expand-queues"], False, True)))
 def test_queue_layout_defaults_to_clipping_and_respects_explicit_expansion(monkeypatch, flags, clipped, expanded):
     from qtop_py import utils
