@@ -99,7 +99,7 @@ not external `/usr/bin/which`. Other runtime subprocesses also use argv lists.
 
 This prevents shell syntax from being interpreted by a shell, but live commands,
 optional account lookups and `PATH` must still be trusted: programs run with
-the operator's privileges. Scheduler collection and account lookups have configurable deadlines (120 seconds
+the operator's privileges. Scheduler collection and account lookups have configurable deadlines (180 seconds
 by default), 256 MiB stdout and 1 MiB stderr limits. The shared
 [process helper](../qtop_py/process.py) drains both binary pipes with bounded
 readers, kills failed commands/process groups on POSIX and reaps clients.

@@ -28,7 +28,7 @@ savepath: /tmp/qtop_results_$USER
 
 ## Maximum seconds per live scheduler command or optional account lookup.
 ## Must be positive and finite; CLI override: -o scheduler_command_timeout=240
-scheduler_command_timeout: 120
+scheduler_command_timeout: 180
 
 ## Experimental web interface (-B -e). IPv4 address or hostname; no authentication/TLS.
 ## Loopback is the default; exposing it on a network is an explicit operator choice.

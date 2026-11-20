@@ -171,7 +171,7 @@ def test_json_collection_is_ordered_and_cached_between_redraws(frame_context, mo
 
     def execute(commands, filenames, key, savepath, **kwargs):
         calls.append(key)
-        assert kwargs["timeout"] == 120
+        assert kwargs["timeout"] == 180
         assert "cancel" in kwargs
         assert Path(kwargs["cwd"]) == Path(_config["savepath"])
         assert Path(filenames[key]).parent == Path(savepath)

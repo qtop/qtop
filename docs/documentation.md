@@ -559,7 +559,7 @@ Invalid common settings report the affected key (for example, `sorting.reverse`
 or `term_size`). Backend-specific extension keys remain supported.
 
 `scheduler_command_timeout` also bounds optional user-detail commands from
-`extract_info`; it defaults to 120 seconds and must be positive and finite.
+`extract_info`; it defaults to 180 seconds and must be positive and finite.
 Set it in your `qtopconf.yaml`, or use `-o scheduler_command_timeout=240`.
 Failed or timed-out lookups log a warning and leave the dashboard usable.
 Quoted command arguments, including cache paths containing spaces, are preserved.
@@ -1239,7 +1239,7 @@ truncation. Owned directories under `~/.local/qtop` are restored to `0700` even
 when their existing modes prevent reading or traversing them.
 Symlinks, hard links, special files and foreign-owned logs are refused.
 
-Live scheduler commands have a 120-second timeout. Set `scheduler_command_timeout`
+Live scheduler commands have a 180-second timeout. Set `scheduler_command_timeout`
 in your configuration or use `-o scheduler_command_timeout=240` for slower clients.
 The value must be positive and finite. Timeouts terminate the client (and its
 process group on POSIX), discard partial output and preserve the previous trace.
@@ -1377,7 +1377,7 @@ live command; it never bypasses Slurm permissions.
 In watch mode one background collector starts on a 20-second monotonic cadence,
 independently of keypresses, redraws or the `-w` display interval. Slow collections
 skip missed slots and never overlap. Each command uses
-`scheduler_command_timeout` (120 seconds by default); shutdown cancels and reaps
+`scheduler_command_timeout` (180 seconds by default); shutdown cancels and reaps
 in-flight clients. Failed refreshes retain the previous complete observation.
 Scheduler messages show its age since successful completion and the collection span.
 Freshness/failed-refresh messages are transient UI information; exported state
