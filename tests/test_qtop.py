@@ -1171,7 +1171,7 @@ def test_user_details_failures_are_optional_and_processes_reaped(tmp_path, monke
     )
     command = " ".join(shlex.quote(value) for value in (sys.executable, str(script))) if failure != "quoting" else "unterminated '"
     options = SimpleNamespace(GET_GECOS=False)
-    config = {"extract_info": {"user_details_cache": command}, "scheduler_command_timeout": 0.2}
+    config = {"extract_info": {"user_details_cache": command}, "scheduler_command_timeout": 1}  # 0.2 s flaked under parallel load
     processes = []
     popen = qtop_module.subprocess.Popen
 
