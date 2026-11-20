@@ -1,0 +1,9 @@
+---
+## Codacy analyses the shipped package (qtop_py/), its configuration and CI wrappers.
+## Tests and tools are harnesses that run qtop and git as subprocesses, assert, and use
+## fixture paths and hosts by design; ruff, CodeQL and the CI gates cover them instead.
+## Runtime findings left by design carry "# nosec <rule> - reason" at the line;
+## see docs/sonar-review.md for the shared review of path and subprocess findings.
+exclude_paths:
+  - "tests/**"
+  - "tools/**"

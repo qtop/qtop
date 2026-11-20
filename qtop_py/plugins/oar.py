@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Tuple
 from qtop_py import fileutils, yaml_parser
 from qtop_py.schedulers.oar_extension import OAR_EXTENSION
 from qtop_py.schedulers.tabular import TabularStatExtractor
-from qtop_py.serialiser import GenericBatchSystem, StatExtractor
+from qtop_py.serialiser import GenericBatchSystem
 
 if TYPE_CHECKING:
     from typing import Final
@@ -26,7 +26,7 @@ class OarStatExtractor(TabularStatExtractor):
     """Parse oarstat and oarnodes output."""
 
     def __init__(self, config: "Config", options: "Options") -> None:
-        StatExtractor.__init__(self, config, options)
+        super().__init__(config, options)
         self.user_q_search = (
             r"^(?P<job_id>[0-9]+)\s+"
             r"(?:(?P<name>.*?)\s+)?"

@@ -7,6 +7,7 @@ Notable changes by version, newest first. See the
 
 - Bugfix: Slurm array ranges are no longer cut (SLURM_BITSTR_LEN=0); a cut one skips its row (#606)
 - CI: PR builds run make sbom and sbom-ci; releases verify attestations and attach SBOMs
+- CI: Codacy scope and justified nosec markers; schema-compat targets Go 1.26.11
 - CI: weekly report-only OSPS Baseline audit with pinned Darnit (make osps-audit)
 - Docs: offline attestation check (make verify-attestations-offline); releases keep evidence
 - Feature: HTCondor backend (-b htcondor) reading condor_status/condor_q JSON; synthetic traces

@@ -98,7 +98,8 @@ def test_anonymize_maps_machines_in_status_and_remote_hosts_alike():
     _job_ids, users, _states, queues = condor.get_jobs_info()
     nodes = nodes_by_name(condor)
     assert "alice" not in users and "group_physics" not in queues and "default" in queues
-    assert not any("example.org" in name for name in nodes)
+    machines = {ad["Machine"] for ad in json.loads((SAMPLE / "condor_status.json").read_text())}
+    assert len(machines) == 5 and not machines & set(nodes)
     assert len(nodes) == 5  # remote hosts resolved to the same anonymized machines
     assert any(node["np"] == 32 and node["core_job_map"].get(0) == "100.0" for node in nodes.values())
 

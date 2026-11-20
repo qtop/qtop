@@ -19,7 +19,7 @@
 import importlib.util
 import logging
 import os
-import subprocess
+import subprocess  # nosec B404 - fixed /bin/cat and /usr/bin/clear argv lists, never a shell
 import sys
 import tarfile
 import time
@@ -350,7 +350,7 @@ def main(resources: RunResources) -> None:
                     break
                 if not args.WATCH:  # one-off display of qtop output, will exit afterwards (no --watch cmdline switch)
                     cat_command = ["/bin/cat", output_fp]  # not clearing the screen beforehand is the intended behaviour here
-                    _ = subprocess.call(cat_command, stdout=stdout, stderr=stdout)
+                    _ = subprocess.call(cat_command, stdout=stdout, stderr=stdout)  # nosec B603 # nosemgrep - fixed /bin/cat argv
                     break
                 # --watch
                 if args.REPLAY:
@@ -365,8 +365,8 @@ def main(resources: RunResources) -> None:
                     logging.debug("Shown file in main loop: %s", shown_fp)
                 clear_command = ["/usr/bin/clear"]
                 cat_command = ["/bin/cat", output_partview_fp]
-                _ = subprocess.call(clear_command, stdout=stdout, stderr=stdout)
-                _ = subprocess.call(cat_command, stdout=stdout, stderr=stdout)
+                _ = subprocess.call(clear_command, stdout=stdout, stderr=stdout)  # nosec B603 # nosemgrep - fixed /usr/bin/clear argv
+                _ = subprocess.call(cat_command, stdout=stdout, stderr=stdout)  # nosec B603 # nosemgrep - fixed /bin/cat argv
 
                 read_char = terminal_io.wait_for_keypress_or_autorefresh(viewport, config, FALLBACK_TERMSIZE, int(args.WATCH) or KEYPRESS_TIMEOUT, keyboard)
                 model, effects = MVU_update(model, read_char)

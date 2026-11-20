@@ -22,7 +22,7 @@ from typing import TYPE_CHECKING, Any, Dict, Iterable, Iterator, List, Optional,
 import qtop_py.fileutils as fileutils
 from qtop_py.safety import load_json
 from qtop_py.schedulers.tabular import TabularStatExtractor
-from qtop_py.serialiser import GenericBatchSystem, StatExtractor, resolve_job_id
+from qtop_py.serialiser import GenericBatchSystem, resolve_job_id
 
 if TYPE_CHECKING:
     from typing import Final
@@ -46,7 +46,7 @@ class PBSStatExtractor(TabularStatExtractor):
     """Parse qstat and qstat -q output, tabular or JSON."""
 
     def __init__(self, config: "Config", options: "Options") -> None:
-        StatExtractor.__init__(self, config, options)
+        super().__init__(config, options)
         self.user_q_search = (
             r"^(?P<host_name>(?P<job_id>[0-9\[\]-]+)\.(?P<domain>[\w.*-]+))\s+"
             r"(?P<name>.+?)\s+"

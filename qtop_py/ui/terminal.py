@@ -9,7 +9,7 @@ import os
 import select
 import shutil
 import signal as _signal
-import subprocess
+import subprocess  # nosec B404 - stty size via shutil.which, argv list, never a shell
 import sys
 from signal import SIG_DFL, signal
 from types import ModuleType
@@ -104,7 +104,7 @@ def calculate_term_size(config: Dict[str, Any], FALLBACK_TERM_SIZE: Sequence[int
     tty_size = b""
     if stty:
         try:
-            command = subprocess.Popen([stty, "size"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            command = subprocess.Popen([stty, "size"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)  # nosec B603 # nosemgrep - stty from shutil.which
             tty_size, stty_error = command.communicate()
         except OSError as exc:
             stty_error = exc

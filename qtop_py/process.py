@@ -8,7 +8,7 @@ import logging
 import os
 import shlex
 import signal
-import subprocess
+import subprocess  # nosec B404 - scheduler commands run as argv lists, never a shell
 import tempfile
 import threading
 import time
@@ -171,7 +171,7 @@ def execute_shell_batch_commands(
                     " ".join(shlex.quote(arg) for arg in command_args),
                     shlex.quote(os.path.abspath(filenames[_file])),
                 )
-                command = subprocess.Popen(
+                command = subprocess.Popen(  # nosec B603 # nosemgrep - shlex-split qtopconf.yaml command, argv list, never a shell
                     command_args,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,

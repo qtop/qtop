@@ -124,7 +124,7 @@ def check_nesting(text: str) -> None:
         if position < skip:
             continue
         if quote:
-            if token == "\\":
+            if token == "\\":  # nosec B105 - a parser token, not a credential
                 skip = position + 2
             elif token == quote:
                 quote = None
@@ -136,7 +136,7 @@ def check_nesting(text: str) -> None:
             depth += 1
         elif token in ("]", "}", ")"):
             depth -= 1
-        elif token != ",":
+        elif token != ",":  # nosec B105 - a parser token, not a credential
             continue
         items += 1
         if depth > MAX_DEPTH or items > MAX_ITEMS:

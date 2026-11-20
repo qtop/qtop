@@ -32,6 +32,11 @@ The weekly `osps-baseline-qtop` workflow is GitHub-only because its OSPS
 Baseline controls read GitHub repository settings; it calls the shared
 `make osps-audit` target and is report-only (see
 [OpenSSF readiness](openssf-readiness.md#osps-baseline-audit)).
+Codacy analyses `qtop_py/` and the CI configuration; `.codacy.yml` excludes
+`tests/` and `tools/`, harnesses that run subprocesses and use fixture paths by
+design and are covered by ruff, CodeQL and the gates above. Runtime findings left
+by design carry `# nosec <rule> - reason` (and `nosemgrep` where Semgrep also
+matches) at the line; Bandit reports none in `qtop_py/`.
 
 `make pre-pr` combines coverage (including the full pytest/Hypothesis suite),
 scheduler samples, deterministic and Atheris fuzzing, lint/format, and type
