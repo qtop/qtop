@@ -35,7 +35,7 @@ def test_archive_selection_is_coherent_complete_and_order_independent(tmp_path, 
     archive = tmp_path / "input.tar"
     make_archive(archive, list(reversed(entries)) if reverse else entries, mode)
     output = tmp_path / "output"
-    output.mkdir()
+    output.mkdir(mode=0o700)
     paths = trace_archive.load_trace_archive(str(archive), str(output), CONFIGURED, ("scontrol_file",))
     assert {key: Path(path).read_text() for key, path in paths.items()} == {"squeue_file": "jobs 10", "sinfo_file": "nodes 10", "scontrol_file": "details 10"}
     assert sorted(p.name for p in output.iterdir()) == ["scontrol.txt", "sinfo.txt", "squeue.txt"]
@@ -45,7 +45,7 @@ def test_archive_selection_is_coherent_complete_and_order_independent(tmp_path, 
 def test_equal_completeness_uses_lexicographically_last_cohort(tmp_path, reverse):
     entries = [(folder + "/" + name + "_10.txt", folder) for folder in ("a", "z") for name in ("squeue", "sinfo")]
     make_archive(tmp_path / "input.tar", list(reversed(entries)) if reverse else entries)
-    (tmp_path / "output").mkdir()
+    (tmp_path / "output").mkdir(mode=0o700)
     paths = trace_archive.load_trace_archive(str(tmp_path / "input.tar"), str(tmp_path / "output"), CONFIGURED, ("scontrol_file",))
     assert all(Path(path).read_text() == "z" for path in paths.values())
 
@@ -63,7 +63,7 @@ def test_equal_completeness_uses_lexicographically_last_cohort(tmp_path, reverse
 )
 def test_archive_never_mixes_incomplete_sets_or_uses_unsafe_members(tmp_path, entries):
     make_archive(tmp_path / "input.tar", entries)
-    (tmp_path / "output").mkdir()
+    (tmp_path / "output").mkdir(mode=0o700)
     with pytest.raises(ValueError, match="no unambiguous complete"):
         trace_archive.load_trace_archive(str(tmp_path / "input.tar"), str(tmp_path / "output"), CONFIGURED, ("scontrol_file",))
     assert list((tmp_path / "output").iterdir()) == []
@@ -76,15 +76,75 @@ def test_archive_does_not_follow_links_or_special_files(tmp_path, kind):
         member = tarfile.TarInfo("squeue.txt")
         member.type, member.linkname = kind, "sinfo.txt"
         archive.addfile(member)
-    (tmp_path / "output").mkdir()
+    (tmp_path / "output").mkdir(mode=0o700)
     with pytest.raises(ValueError, match="no unambiguous complete"):
         trace_archive.load_trace_archive(str(tmp_path / "input.tar"), str(tmp_path / "output"), CONFIGURED, ("scontrol_file",))
 
 
 def test_archive_limits_are_checked_before_materialization(tmp_path, monkeypatch):
     make_archive(tmp_path / "input.tar", [("squeue.txt", "jobs"), ("sinfo.txt", "nodes")])
-    (tmp_path / "output").mkdir()
+    (tmp_path / "output").mkdir(mode=0o700)
     monkeypatch.setattr(trace_archive, "MAX_TRACE_BYTES", 2)
     with pytest.raises(ValueError, match="size limits"):
         trace_archive.load_trace_archive(str(tmp_path / "input.tar"), str(tmp_path / "output"), CONFIGURED, ("scontrol_file",))
     assert list((tmp_path / "output").iterdir()) == []
+
+
+def _complete_archive(tmp_path):
+    make_archive(tmp_path / "input.tar", [("squeue_1.txt", "jobs"), ("sinfo_1.txt", "nodes")])
+    return tmp_path / "input.tar"
+
+
+def test_archive_workspace_must_be_private(tmp_path):
+    archive = _complete_archive(tmp_path)
+    shared = tmp_path / "shared"
+    shared.mkdir(mode=0o700)
+    shared.chmod(0o755)
+    with pytest.raises(PermissionError, match="private directory"):
+        trace_archive.load_trace_archive(str(archive), str(shared), CONFIGURED, ("scontrol_file",))
+    assert list(shared.iterdir()) == []
+
+
+def test_archive_workspace_must_not_be_a_symlink(tmp_path):
+    archive = _complete_archive(tmp_path)
+    (tmp_path / "real").mkdir(mode=0o700)
+    (tmp_path / "link").symlink_to(tmp_path / "real", target_is_directory=True)
+    with pytest.raises(OSError):
+        trace_archive.load_trace_archive(str(archive), str(tmp_path / "link"), CONFIGURED, ("scontrol_file",))
+    assert list((tmp_path / "real").iterdir()) == []
+
+
+def test_archive_input_must_be_a_regular_file_not_a_fifo_or_symlink(tmp_path):
+    import os
+
+    archive = _complete_archive(tmp_path)
+    output = tmp_path / "output"
+    output.mkdir(mode=0o700)
+    fifo = tmp_path / "pipe.tar"
+    os.mkfifo(str(fifo))
+    with pytest.raises(ValueError, match="regular file"):
+        trace_archive.load_trace_archive(str(fifo), str(output), CONFIGURED, ("scontrol_file",))
+    (tmp_path / "link.tar").symlink_to(archive)
+    with pytest.raises(OSError):
+        trace_archive.load_trace_archive(str(tmp_path / "link.tar"), str(output), CONFIGURED, ("scontrol_file",))
+    assert list(output.iterdir()) == []
+
+
+def test_extracted_traces_are_private_and_never_overwrite(tmp_path):
+    import stat
+
+    archive = _complete_archive(tmp_path)
+    output = tmp_path / "output"
+    output.mkdir(mode=0o700)
+    paths = trace_archive.load_trace_archive(str(archive), str(output), CONFIGURED, ("scontrol_file",))
+    assert all(stat.S_IMODE(Path(path).stat().st_mode) == 0o600 for path in paths.values())
+    with pytest.raises(FileExistsError):
+        trace_archive.load_trace_archive(str(archive), str(output), CONFIGURED, ("scontrol_file",))
+
+
+def test_configured_trace_names_must_be_plain_file_names(tmp_path):
+    archive = _complete_archive(tmp_path)
+    (tmp_path / "output").mkdir(mode=0o700)
+    configured = dict(CONFIGURED, sinfo_file="%(savepath)s/sinfo%(pid)s.txt/.., ignored")
+    with pytest.raises(ValueError, match="plain file name"):
+        trace_archive.load_trace_archive(str(archive), str(tmp_path / "output"), configured, ("scontrol_file",))

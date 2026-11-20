@@ -6,6 +6,8 @@ Notable changes by version, newest first. See the
 ## 0.9.20261119
 
 - Bugfix: section 4 Totals counts distinct occupied nodes, not the sum of per-user node counts
+- Bugfix: trace archives must be regular files; traces land via a private workspace descriptor
+- CI: the baseline image runs as unprivileged uid 1001, not root
 - Feature: live frames validate the cluster state once, not twice (--demanding keeps both)
 - Feature: Slurm squeue parsing is about 2x faster on large traces (per-trace caches, fast paths)
 - Feature: --demanding turns on -S, --strict-parents and a second state validation together

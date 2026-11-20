@@ -113,7 +113,7 @@ def test_collection_uses_explicit_inputs_without_runtime_initialization(monkeypa
 def test_archive_collection_uses_explicit_backend_and_caches_selected_set(monkeypatch, tmp_path):
     monkeypatch.setattr(qtop, "scheduler", "unrelated", raising=False)
     output = tmp_path / "replay"
-    output.mkdir()
+    output.mkdir(mode=0o700)  # as qtop's own mkdtemp workspace
     archive = tmp_path / "native.tar"
     with tarfile.open(str(archive), "w") as tar:
         entry = tarfile.TarInfo("capture/main.txt")
