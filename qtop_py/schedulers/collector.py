@@ -42,9 +42,7 @@ def finalize_filepaths_schedulercommands(args: Any, config: Dict[str, Any], back
     return d
 
 
-def _run_commands_concurrently(
-    INPUT_FNs_commands: Mapping[str, Tuple[str, str]], config: Dict[str, Any], args: Any, backend: Type[GenericBatchSystem]
-) -> Dict[str, Any]:
+def _run_commands_concurrently(INPUT_FNs_commands: Mapping[str, Tuple[str, str]], config: Dict[str, Any], args: Any, backend: Type[GenericBatchSystem]) -> Dict[str, Any]:
     """Start every scheduler command at once; return {key: path or OperationalError} in config order.
 
     A frame then waits for the slowest command, not the sum of all of them. Each command keeps its
