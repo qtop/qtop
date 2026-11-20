@@ -18,7 +18,7 @@ if TYPE_CHECKING:
 
 from qtop_py import safety
 from qtop_py.cluster_state import validate_cluster_state
-from qtop_py.schedulers.metadata import JOB_IDENTITIES, mask_job_extensions, mask_node_extensions
+from qtop_py.schedulers.metadata import job_identity, mask_job_extensions, mask_node_extensions
 
 SNAPSHOT_NAME: "Final" = "qtop-snapshot.json"
 DISPLAY_OPTIONS: "Final" = (
@@ -65,12 +65,12 @@ def anonymize_state(state: object) -> "Tuple[ClusterState, IdentifierMaps]":
             mapping[value] = str(100000 + index) if kind == "job" else "%s_anon_%s_%s" % (kind[0], {"node": "wn", "queue": "q"}.get(kind, kind), index)
         return mapping[value]
 
-    structured_jobs = {job["id"]: job for job in state["jobs"] if any(parent in job for parent, _, _ in JOB_IDENTITIES)}
+    structured_jobs = {job["id"]: job for job in state["jobs"] if job_identity(job) is not None}
 
     def job_id(value: str) -> str:
         identity = structured_jobs.get(str(value))
         if identity is not None:
-            parent, child, separator = next(fields for fields in JOB_IDENTITIES if fields[0] in identity)
+            parent, child, separator = cast("Tuple[str, str, str]", job_identity(identity))
             masked = mask(str(identity.get(parent, "")), "job") + separator + str(identity.get(child, ""))
             mappings["job"][str(value)] = masked
             return masked

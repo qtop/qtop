@@ -7,7 +7,7 @@ A new backend with extension fields adds its spec module and one entry below; th
 conformance test fails if a registered plugin's spec is missing. No runtime/plugin imports.
 """
 
-from typing import TYPE_CHECKING, Any, Callable, Dict, Mapping, Tuple, cast
+from typing import TYPE_CHECKING, Any, Callable, Dict, Mapping, Optional, Tuple, cast
 
 if TYPE_CHECKING:
     from typing import Final
@@ -23,6 +23,11 @@ EXTENSIONS: "Final[Tuple[ExtensionSpec, ...]]" = (SLURM_EXTENSION, OAR_EXTENSION
 DIAGNOSTICS: "Final" = {spec.diagnostics[0]: (spec.label, spec.diagnostics[1]) for spec in EXTENSIONS if spec.diagnostics is not None}
 JOB_IDENTITIES: "Final" = tuple(identity for spec in EXTENSIONS for identity in spec.job_identities)
 NODE_JOB_FIELDS: "Final" = tuple(field for spec in EXTENSIONS for field in spec.node_job_fields)
+
+
+def job_identity(job: Mapping[str, Any]) -> Optional[Tuple[str, str, str]]:
+    """Return the (parent field, child field, separator) of a job's structured ID, or None."""
+    return next((fields for fields in JOB_IDENTITIES if fields[0] in job), None)
 
 
 def validate_diagnostics(data: Dict[str, object]) -> None:
