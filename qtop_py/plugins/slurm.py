@@ -21,10 +21,12 @@ from qtop_py.schedulers.slurm_extension import SLURM_EXTENSION
 from qtop_py.serialiser import GenericBatchSystem, StatExtractor
 
 if TYPE_CHECKING:
+    from typing import Final
+
     from qtop_py.source_trace import TraceMasker
     from qtop_py.state_types import ClusterState, Config, JobsInfo, Node, Options, QueuesInfo, RawQueue
 
-SLURM_JOB_STATES = {
+SLURM_JOB_STATES: "Final" = {
     "BOOT_FAIL": "BF",
     "CANCELLED": "CA",
     "COMPLETED": "CD",
@@ -57,8 +59,8 @@ SLURM_JOB_STATES = {
     "RECONFIG_FAIL": "F",
     "UPDATE_DB": "CG",
 }
-SLURM_COMPACT_JOB_STATES = set(SLURM_JOB_STATES.values())
-SLURM_QUEUED_STATES = {"PD", "RD", "RF", "RH", "RQ", "SE"}
+SLURM_COMPACT_JOB_STATES: "Final" = set(SLURM_JOB_STATES.values())
+SLURM_QUEUED_STATES: "Final" = {"PD", "RD", "RF", "RH", "RQ", "SE"}
 
 
 def slurm_accounting_state(state: str) -> str:
@@ -132,7 +134,7 @@ class SlurmStatExtractor(StatExtractor):
         try:
             fileutils.check_empty_file(orig_file)
         except fileutils.FileEmptyError:
-            logging.error("File %s seems to be empty." % orig_file)
+            logging.error("File %s seems to be empty.", orig_file)
             return []
 
         jobs: Dict[str, Any] = OrderedDict()
@@ -160,7 +162,7 @@ class SlurmStatExtractor(StatExtractor):
                         partitions_seen = partition_lists[partition]
                 if partitions_seen is None:
                     self.rejected_squeue_rows += 1
-                    logging.warning("Line: %s not properly parsed as Slurm squeue output." % line)
+                    logging.warning("Line: %s not properly parsed as Slurm squeue output.", line)
                     continue
 
                 if len(fields) == 11 and not (fields[10] in no_array and "_" not in job_id):
@@ -217,7 +219,7 @@ class SlurmStatExtractor(StatExtractor):
         try:
             fileutils.check_empty_file(orig_file)
         except fileutils.FileEmptyError:
-            logging.error("File %s seems to be empty." % orig_file)
+            logging.error("File %s seems to be empty.", orig_file)
             return []
 
         nodes = []
@@ -235,7 +237,7 @@ class SlurmStatExtractor(StatExtractor):
                         raise ValueError("missing required node field")
                 except ValueError:
                     self.rejected_sinfo_rows += 1
-                    logging.warning("Line: %s not properly parsed as Slurm sinfo output." % line)
+                    logging.warning("Line: %s not properly parsed as Slurm sinfo output.", line)
                     continue
 
                 nodes.append(
@@ -497,9 +499,8 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
         queue_names = [job["Queue"] for job in jobs]
 
         logging.debug(
-            "job_ids, usernames, job_states, queue_names lengths: "
-            "%(job_ids)s, %(usernames)s, %(job_states)s, %(queue_names)s"
-            % {"job_ids": len(job_ids), "usernames": len(usernames), "job_states": len(job_states), "queue_names": len(queue_names)}
+            "job_ids, usernames, job_states, queue_names lengths: %(job_ids)s, %(usernames)s, %(job_states)s, %(queue_names)s",
+            {"job_ids": len(job_ids), "usernames": len(usernames), "job_states": len(job_states), "queue_names": len(queue_names)},
         )
         return job_ids, usernames, job_states, queue_names
 
@@ -604,7 +605,7 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
                 node = worker_nodes_by_name[hosts[0]]
                 node["slurm_unmapped_cpus"] = node.get("slurm_unmapped_cpus", 0) + missing
         worker_nodes = list(worker_nodes_by_name.values())
-        logging.info("worker_nodes contains %s entries" % len(worker_nodes))
+        logging.info("worker_nodes contains %s entries", len(worker_nodes))
         return cast("List[Node]", worker_nodes)  # built field by field as Node records
 
     @staticmethod

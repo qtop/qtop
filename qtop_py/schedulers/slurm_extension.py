@@ -3,14 +3,17 @@
 """Slurm's extension fields (slurm_*) in a cluster state: owned by the slurm and slurm_json plugins."""
 
 import copy
-from typing import Any, Dict, List, Mapping, cast
+from typing import TYPE_CHECKING, Any, Dict, List, Mapping, cast
 
 from qtop_py.schedulers.extensions import ExtensionSpec, Mask, MaskJob, nonempty_texts
 from qtop_py.schedulers.gpu import validate_gpu_resources
 
-GPU_FIELDS = ("slurm_gpu_configured", "slurm_gpu_used", "slurm_gpu_bindings")
-NODE_JOB_FIELDS = ("slurm_job_ids",)
-JOB_IDENTITIES = (("slurm_array_job_id", "slurm_array_task_id", "_"), ("slurm_het_job_id", "slurm_het_job_offset", "+"))
+if TYPE_CHECKING:  # typing.Final is Python 3.8+; the quoted annotations keep 3.6 working
+    from typing import Final
+
+GPU_FIELDS: "Final" = ("slurm_gpu_configured", "slurm_gpu_used", "slurm_gpu_bindings")
+NODE_JOB_FIELDS: "Final" = ("slurm_job_ids",)
+JOB_IDENTITIES: "Final" = (("slurm_array_job_id", "slurm_array_task_id", "_"), ("slurm_het_job_id", "slurm_het_job_offset", "+"))
 
 
 def validate_job(record: Dict[str, object]) -> None:
@@ -63,7 +66,7 @@ def node_busy(node: Mapping[str, Any]) -> bool:
     return node.get("slurm_node_state", "idle").lower() != "idle" or any(resource["count"] for resource in node.get("slurm_gpu_used", []))
 
 
-SLURM_EXTENSION = ExtensionSpec(
+SLURM_EXTENSION: "Final" = ExtensionSpec(
     "Slurm",
     diagnostics=("slurm_diagnostics", ("rejected_squeue_rows", "rejected_sinfo_rows", "jobs_with_missing_nodes", "jobs_with_invalid_nodelists")),
     node_job_fields=NODE_JOB_FIELDS,

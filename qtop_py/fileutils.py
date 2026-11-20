@@ -161,7 +161,7 @@ def get_new_temp_file(_savepath: str, suffix: str, prefix: str) -> Tuple[int, st
     mkstemp, not NamedTemporaryFile: sys.stdout is redirected to the descriptor.
     """
     fd, temp_filepath = tempfile.mkstemp(suffix=suffix, prefix=prefix, dir=_savepath)  # **kwargs
-    logging.debug("temp_filepath: %s" % temp_filepath)
+    logging.debug("temp_filepath: %s", temp_filepath)
     return fd, temp_filepath
 
 
@@ -247,7 +247,7 @@ def add_to_sample(filepaths_to_add: List[str], sample_out: tarfile.TarFile, samp
     for filepath_to_add in filepaths_to_add:
         fn = os.path.basename(filepath_to_add)
         try:
-            logging.debug("Adding %s to sample..." % filepath_to_add)
+            logging.debug("Adding %s to sample...", filepath_to_add)
             sample_out.add(filepath_to_add, arcname=fn if not subdir else os.path.join(subdir, fn), filter=_without_archive_owner)
         except (OSError, tarfile.TarError) as error:
             logging.error("Could not add %s to the sample archive; skipping it: %s", filepath_to_add, error)

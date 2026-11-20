@@ -428,4 +428,4 @@ def load_yaml_config(args: Any, package_dir: str, initial_cwd: str, system_dir: 
     return prepare_config(config, args)
 
 
-CONFIG_ERRORS = (ValueError, TypeError, KeyError, IndexError, AttributeError, StopIteration)
+CONFIG_ERRORS: "Final" = (ValueError, TypeError, KeyError, IndexError, AttributeError, StopIteration)

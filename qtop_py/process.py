@@ -13,14 +13,17 @@ import tempfile
 import threading
 import time
 from math import isfinite
-from typing import IO, Any, Dict, List, Mapping, Optional, Tuple, cast
+from typing import IO, TYPE_CHECKING, Any, Dict, List, Mapping, Optional, Tuple, cast
 
 from qtop_py import fileutils
 from qtop_py.constants import DEFAULT_SCHEDULER_COMMAND_TIMEOUT, QTOPCONF_YAML
 from qtop_py.errors import OperationalError
 
-MAX_STDOUT_BYTES = 256 * 1024 * 1024
-MAX_STDERR_BYTES = 1024 * 1024
+if TYPE_CHECKING:  # typing.Final is Python 3.8+; the quoted annotations keep 3.6 working
+    from typing import Final
+
+MAX_STDOUT_BYTES: "Final" = 256 * 1024 * 1024
+MAX_STDERR_BYTES: "Final" = 1024 * 1024
 
 
 def terminate(command: "subprocess.Popen[bytes]") -> None:
@@ -146,7 +149,7 @@ def execute_shell_batch_commands(
         except (TypeError, ValueError, OverflowError) as error:
             raise OperationalError("scheduler_command_timeout must be a positive finite number of seconds") from error
         with tempfile.NamedTemporaryFile("wb", dir=_savepath, delete=False) as fin:
-            logging.debug("\tFile state before subprocess call: %(fin)s" % {"fin": fin})
+            logging.debug("\tFile state before subprocess call: %(fin)s", {"fin": fin})
             logging.debug("\tWaiting on subprocess.call...")
 
             # splitting the command passed in so only the first item in a command
@@ -184,7 +187,7 @@ def execute_shell_batch_commands(
             if command.returncode:
                 detail = " ".join(stderr_data.decode("utf-8", errors="replace").splitlines())[:300] or "no diagnostic output"
                 raise OperationalError("Scheduler command %r failed (exit %s): %s" % (_batch_system_command, command.returncode, detail))
-            logging.debug("File state after subprocess call: %(fin)s" % {"fin": fin})
+            logging.debug("File state after subprocess call: %(fin)s", {"fin": fin})
         # Sonar path finding: destination already contained (checked against the real savepath above); see docs/sonar-review.md
         os.rename(tempname, filenames[_file])
 

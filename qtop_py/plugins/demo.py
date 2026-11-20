@@ -18,18 +18,20 @@ from typing import TYPE_CHECKING, Any, DefaultDict, Dict, List, Tuple
 from qtop_py.serialiser import GenericBatchSystem
 
 if TYPE_CHECKING:
+    from typing import Final
+
     from qtop_py.state_types import Config, JobsInfo, Node, Options, QueuesInfo, RawQueue
 
-WORKER_NODES = 80
-QUEUES = ["urgent", "transfer", "batch"]
+WORKER_NODES: "Final" = 80
+QUEUES: "Final" = ["urgent", "transfer", "batch"]
 
-AVG_JOB_DURATION = 5  # In units of refresh period (e.g. 2 seconds)
-DESIRED_GRID_UTILIZATION = 0.75  # The grid won't be scheduled beydond this ratio
+AVG_JOB_DURATION: "Final" = 5  # In units of refresh period (e.g. 2 seconds)
+DESIRED_GRID_UTILIZATION: "Final" = 0.75  # The grid won't be scheduled beydond this ratio
 
-NODE_REPAIR_PROBABILITY = 0.03
-NODE_FAILURE_PROBABILITY = 0.01
+NODE_REPAIR_PROBABILITY: "Final" = 0.03
+NODE_FAILURE_PROBABILITY: "Final" = 0.01
 
-QUEUE_STATE_CHANGE_PROBABILITY = 0.05
+QUEUE_STATE_CHANGE_PROBABILITY: "Final" = 0.05
 
 # A single running-job record. Grouping the four attributes keeps the parallel
 # result lists returned by get_jobs_info() the same length by construction.

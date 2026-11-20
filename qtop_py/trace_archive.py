@@ -11,12 +11,15 @@ import stat
 import tarfile
 from collections import defaultdict
 from pathlib import PurePosixPath
-from typing import DefaultDict, Dict, Iterable, List, Mapping, Tuple
+from typing import TYPE_CHECKING, DefaultDict, Dict, Iterable, List, Mapping, Tuple
 
-MAX_MEMBERS = 10000
-MAX_TRACE_BYTES = 256 * 1024 * 1024
-MAX_SET_BYTES = 512 * 1024 * 1024
-MAX_ARCHIVE_BYTES = 1024 * 1024 * 1024
+if TYPE_CHECKING:  # typing.Final is Python 3.8+; the quoted annotations keep 3.6 working
+    from typing import Final
+
+MAX_MEMBERS: "Final" = 10000
+MAX_TRACE_BYTES: "Final" = 256 * 1024 * 1024
+MAX_SET_BYTES: "Final" = 512 * 1024 * 1024
+MAX_ARCHIVE_BYTES: "Final" = 1024 * 1024 * 1024
 
 
 def _open_archive_file(path: str) -> int:

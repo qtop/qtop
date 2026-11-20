@@ -11,15 +11,18 @@ import subprocess
 import sys
 from signal import SIG_DFL, signal
 from types import ModuleType
-from typing import Any, Dict, Generator, Optional, Sequence, Tuple, Union
+from typing import TYPE_CHECKING, Any, Dict, Generator, Optional, Sequence, Tuple, Union
 
 from qtop_py.constants import QTOPCONF_YAML
 from qtop_py.errors import OperationalError
 from qtop_py.ui.controls import KeyboardInput
 from qtop_py.ui.viewport import Viewport
 
-SIGPIPE = getattr(_signal, "SIGPIPE", None)
-SIGWINCH = getattr(_signal, "SIGWINCH", None)
+if TYPE_CHECKING:  # typing.Final is Python 3.8+; the quoted annotations keep 3.6 working
+    from typing import Final
+
+SIGPIPE: "Final" = getattr(_signal, "SIGPIPE", None)
+SIGWINCH: "Final" = getattr(_signal, "SIGWINCH", None)
 termios: Optional[ModuleType]
 try:
     import termios
@@ -110,19 +113,19 @@ def calculate_term_size(config: Dict[str, Any], FALLBACK_TERM_SIZE: Sequence[int
         except (TypeError, ValueError):
             logging.debug("Ignoring unusable terminal dimensions reported by stty: %r", tty_size)
         else:
-            logging.debug('terminal size v, h from "stty size": %s, %s' % (term_height, term_columns))
+            logging.debug('terminal size v, h from "stty size": %s, %s', term_height, term_columns)
             return term_height, term_columns
 
-    logging.warning("Failed to autodetect terminal size. (Running in an IDE? in a pipe?) Falling back via %s / viewport." % QTOPCONF_YAML)
+    logging.warning("Failed to autodetect terminal size. (Running in an IDE? in a pipe?) Falling back via %s / viewport.", QTOPCONF_YAML)
     try:
         term_height, term_columns = [int(x) for x in viewport.get_term_size()]
         if term_height <= 0 or term_columns <= 0:
             raise ValueError("terminal dimensions must be positive")
     except (AttributeError, KeyError, OSError, TypeError, ValueError):
         term_height, term_columns = [int(x) for x in fallback_term_size]
-        logging.debug("(hardcoded) fallback terminal size v, h: %s, %s" % (term_height, term_columns))
+        logging.debug("(hardcoded) fallback terminal size v, h: %s, %s", term_height, term_columns)
     else:
-        logging.debug("viewport-provided terminal size v, h: %s, %s" % (term_height, term_columns))
+        logging.debug("viewport-provided terminal size v, h: %s, %s", term_height, term_columns)
 
     return term_height, term_columns
 

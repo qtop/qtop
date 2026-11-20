@@ -7,6 +7,7 @@ Notable changes by version, newest first. See the
 
 - Bugfix: section 4 Totals counts distinct occupied nodes, not the sum of per-user node counts
 - Bugfix: trace archives must be regular files; traces land via a private workspace descriptor
+- Bugfix: sort-configuration errors reach the log as plain text, not escaped colour codes
 - CI: the baseline image runs as unprivileged uid 1001, not root
 - Feature: live frames validate the cluster state once, not twice (--demanding keeps both)
 - Feature: Slurm squeue parsing is about 2x faster on large traces (per-trace caches, fast paths)
@@ -15,6 +16,7 @@ Notable changes by version, newest first. See the
 - Feature: scheduler_command_timeout defaults to 180 seconds (was 120)
 - Feature: writable parents of savepath and the log no longer stop qtop unless --strict-parents
 - Refactor: per-backend extension specs; a conformance test checks every registered backend
+- Refactor: lazy logging arguments (ruff G rules) and "Final" on module constants
 - Release: update version metadata to 0.9.20261119
 
 ## 0.9.20261118

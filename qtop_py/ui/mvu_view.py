@@ -28,7 +28,7 @@ from qtop_py.safety import visible_text
 from qtop_py.ui.viewport import terminal_rows
 
 # Accounts-table state columns when accounts_states is unset: jobs >= R + Q + O(ther), as the Summary's Total=R+Q+Other.
-DEFAULT_ACCOUNT_STATES = ("running_of_user", "queued_of_user", "other_of_user")
+DEFAULT_ACCOUNT_STATES: "Final" = ("running_of_user", "queued_of_user", "other_of_user")
 # Named worker-node labels change colour per name group, and at least every this many nodes within one (#197).
 LABEL_GROUP_SIZE: "Final" = 5
 # Vertical separators (vertical_separator_every_X_columns) are drawn in this colour in every matrix line.
@@ -63,8 +63,8 @@ def user_accounts_header(config: "Config") -> str:
     return visible_text(USER_ACCOUNTS_HEADER.replace("{ranking}", ", ".join(USER_ID_RANKING)), escape_backslashes=False)
 
 
-REVERSE = "\033[7m%s\033[0m"
-COUNT_KEYS = ("total", "running_of_user", "queued_of_user", "other_of_user")  # the Summary colour slots
+REVERSE: "Final" = "\033[7m%s\033[0m"
+COUNT_KEYS: "Final" = ("total", "running_of_user", "queued_of_user", "other_of_user")  # the Summary colour slots
 
 
 def summary_count_colours(config: "Config") -> Tuple[str, ...]:
@@ -78,7 +78,7 @@ def summary_count_colours(config: "Config") -> Tuple[str, ...]:
     return ("WhiteOnBlue", "BlackOnGreen", "BlackOnOrange256" if wide else "WhiteOnRed", "BlackOnGold")
 
 
-WATCH_KEYS: Tuple[Tuple[str, str], ...] = (
+WATCH_KEYS: "Final[Tuple[Tuple[str, str], ...]]" = (
     ("q", "quit"),
     ("?", "help"),
     ("p/P", "palette +/-"),
@@ -87,7 +87,7 @@ WATCH_KEYS: Tuple[Tuple[str, str], ...] = (
     ("f", "filter"),
     ("s", "sort"),
 )
-WATCH_MORE_KEYS: Tuple[Tuple[str, str], ...] = (
+WATCH_MORE_KEYS: "Final[Tuple[Tuple[str, str], ...]]" = (
     ("Q", "queue layout"),
     ("1,2,3,4", "sections"),
     ("hjkl/arrows", "scroll"),
@@ -95,8 +95,8 @@ WATCH_MORE_KEYS: Tuple[Tuple[str, str], ...] = (
     (":line", "jump"),
     ("g/G", "top/bottom"),
 )
-WATCH_KEYS_TEXT = "Keys: " + ",\n      ".join(", ".join("%s %s" % pair for pair in group) for group in (WATCH_KEYS, WATCH_MORE_KEYS))
-BOLD = "\033[1m%s\033[0m"
+WATCH_KEYS_TEXT: "Final" = "Keys: " + ",\n      ".join(", ".join("%s %s" % pair for pair in group) for group in (WATCH_KEYS, WATCH_MORE_KEYS))
+BOLD: "Final" = "\033[1m%s\033[0m"
 
 
 class TextDisplay(object):
@@ -539,7 +539,7 @@ class TextDisplay(object):
             max_width = len(joined_list)
             self.viewport.max_width = max_width
 
-            logging.debug("Printed horizontally from %s to %s" % (self.viewport.h_start, self.viewport.h_stop))
+            logging.debug("Printed horizontally from %s to %s", self.viewport.h_start, self.viewport.h_stop)
         else:
             self.viewport.max_width = self.viewport.get_term_size()[1]
         print()

@@ -85,6 +85,8 @@ from qtop_py.user_details import MVU_resolve_user_details as MVU_resolve_user_de
 from qtop_py.web import Web
 
 if TYPE_CHECKING:
+    from typing import Final
+
     from qtop_py import state_types
 
     config: state_types.Config
@@ -127,8 +129,8 @@ auto_get_avail_batch_system = _registry.auto_get_avail_batch_system
 decide_batch_system = _registry.decide_batch_system
 navigate_prompt = ui_effects.navigate_prompt
 write_notice = ui_effects.write_notice
-SIGPIPE = terminal_io.SIGPIPE
-SIGWINCH = terminal_io.SIGWINCH
+SIGPIPE: "Final" = terminal_io.SIGPIPE
+SIGWINCH: "Final" = terminal_io.SIGWINCH
 TerminalResized = terminal_io.TerminalResized
 calculate_term_size = terminal_io.calculate_term_size
 menu_terminal = terminal_io.menu_terminal
@@ -141,7 +143,7 @@ get_primary_group_name = _user_details.get_primary_group_name
 get_primary_group_names = _user_details.get_primary_group_names
 
 
-LEGACY_DEPRECATION = "%s is deprecated since 0.9.20261110 and is scheduled for removal in 1.0; %s"
+LEGACY_DEPRECATION: "Final" = "%s is deprecated since 0.9.20261110 and is scheduled for removal in 1.0; %s"
 
 
 def _warn_legacy(name: str, instead: str) -> None:
@@ -286,7 +288,7 @@ def process_args(args: Any) -> Tuple[Any, int]:
     """Resolve -c AUTO and the remap and names options; return the options and NAMED_WNS."""
     if args.COLOR == "AUTO":
         args.COLOR = "ON" if (os.environ.get("QTOP_COLOR", sys.stdout.isatty()) in ("ON", True)) else "OFF"
-    logging.debug("args.COLOR is now set to: %s" % args.COLOR)
+    logging.debug("args.COLOR is now set to: %s", args.COLOR)
     args.REMAP = False  # Default value
     NAMED_WNS = 1 if args.FORCE_NAMES else 0
     return args, NAMED_WNS
@@ -391,7 +393,7 @@ def _parse_run_options(resources: RunResources) -> Tuple[Any, Dict[str, Any]]:
 
 def _run_paths() -> RunPaths:
     initial_cwd = os.getcwd()
-    logging.debug("Initial qtop directory: %s" % initial_cwd)
+    logging.debug("Initial qtop directory: %s", initial_cwd)
     curpath = os.path.expanduser(initial_cwd)  # where qtop was invoked from
     package_path = os.path.dirname(os.path.realpath(__file__))
     source_path = os.path.dirname(package_path)
@@ -495,7 +497,7 @@ def main(resources: RunResources) -> None:
                         break
                 else:
                     output_partview_fp = display.show_part_view(timestr, file=dynamic_config.get("output_fp", output_fp), x=viewport.v_start, y=viewport.v_term_size)
-                    logging.debug("dynamic_config filename in main loop: %s" % dynamic_config.get("output_fp", output_fp))
+                    logging.debug("dynamic_config filename in main loop: %s", dynamic_config.get("output_fp", output_fp))
                 clear_command = ["/usr/bin/clear"]
                 cat_command = ["/bin/cat", output_partview_fp]
                 _ = subprocess.call(clear_command, stdout=stdout, stderr=stdout)

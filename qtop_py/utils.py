@@ -51,7 +51,7 @@ def init_logging(options: Any) -> None:
     logger.addHandler(stream_handler)
     logger.disabled = False
 
-    logging.info("\n" + "=" * 50 + "STARTING NEW LOG ENTRY..." + "=" * 50 + "\n\n")
+    logging.info("\n%sSTARTING NEW LOG ENTRY...%s\n\n", "=" * 50, "=" * 50)
 
     logging.debug("Verbosity level = %s", options.verbose)
     logging.debug("input, output isatty: %s\t%s", sys.stdin.isatty(), sys.stdout.isatty())

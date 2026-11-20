@@ -8,7 +8,7 @@ import re
 from collections import Counter, OrderedDict, namedtuple
 from math import ceil
 from operator import itemgetter
-from typing import Any, Callable, Collection, Dict, Iterable, Iterator, List, Mapping, Optional, Sequence, Set, Tuple, Union
+from typing import TYPE_CHECKING, Any, Callable, Collection, Dict, Iterable, Iterator, List, Mapping, Optional, Sequence, Set, Tuple, Union
 
 from qtop_py import configuration, utils, yaml_parser
 from qtop_py.constants import DEFAULT_USER_ID_RANKING, QTOPCONF_YAML, SYMBOL_LONG_TAIL_USER
@@ -19,7 +19,10 @@ from qtop_py.mvu import MVU_node_job_ids as node_job_ids
 from qtop_py.mvu import MVU_reserved_pattern_mappings as _reserved_pattern_mappings
 from qtop_py.serialiser import resolve_job_id
 
-ACCOUNT_LETTERS = re.compile(r"[A-Za-z]+")
+if TYPE_CHECKING:  # typing.Final is Python 3.8+; the quoted annotations keep 3.6 working
+    from typing import Final
+
+ACCOUNT_LETTERS: "Final" = re.compile(r"[A-Za-z]+")
 # A highlight rule as a test on a core's (user, queue): the matched text, or None.
 HighlightMatcher = Callable[[str, str], Optional[str]]
 
@@ -314,8 +317,8 @@ class WNOccupancy(object):
             stop = start + wn_number
             extra_matrices_nr = 0
 
-        logging.debug("reported term_columns, DEADWEIGHT: %s\t%s" % (term_columns, DEADWEIGHT))
-        logging.debug("reported start/stop lengths: %s--> %s" % (start, stop))
+        logging.debug("reported term_columns, DEADWEIGHT: %s\t%s", term_columns, DEADWEIGHT)
+        logging.debug("reported start/stop lengths: %s--> %s", start, stop)
         return start, stop, extra_matrices_nr
 
     def calc_all_wnid_label_lines(self, NAMED_WNS: Any) -> Dict[str, Any]:  # (total_wn) in case of multiple cluster.node_name_prefixes
@@ -365,7 +368,7 @@ class WNOccupancy(object):
             ) from error
         min_len = min(user_max_len, real_max_len)
         if real_max_len > user_max_len:
-            logging.warning("Some longer %(attr)ss have been cropped due to %(attr)s length restriction by user" % {"attr": part_name})
+            logging.warning("Some longer %(attr)ss have been cropped due to %(attr)s length restriction by user", {"attr": part_name})
 
         # initialisation of lines
         multiline_map: Dict[str, Any] = OrderedDict()
@@ -733,7 +736,7 @@ class Cluster(object):
             REMAP = True
         else:
             REMAP = False
-        logging.info("Blind Remapping [user selected]: %s,\n\t\t\t\t\t\t\t\t  Decided Remapping: %s" % (self.args.BLINDREMAP, REMAP))
+        logging.info("Blind Remapping [user selected]: %s,\n\t\t\t\t\t\t\t\t  Decided Remapping: %s", self.args.BLINDREMAP, REMAP)
 
         if logging.getLogger().isEnabledFor(logging.DEBUG) and REMAP:
             user_request = "The user has requested it (blindremap switch)" if self.args.BLINDREMAP else False
@@ -748,7 +751,7 @@ class Cluster(object):
 
             numbering_collisions = "there are numbering collisions or non-numbered WNs" if has_mixed_or_non_numeric_wns else False
 
-            logging.debug("Remapping decided due to: \n\t %s" % list(filter(None, [user_request, subclusters, exotic_starting, percentage_unassigned, numbering_collisions])))
+            logging.debug("Remapping decided due to: \n\t %s", list(filter(None, [user_request, subclusters, exotic_starting, percentage_unassigned, numbering_collisions])))
 
         return REMAP
 
@@ -840,14 +843,12 @@ class Cluster(object):
         try:
             return sorted(self.worker_nodes, key=sort_key, reverse=self.config["sorting"]["reverse"])
         except (IndexError, ValueError):
-            logging.critical("There's (probably) something wrong in your sorting configuration in %s." % QTOPCONF_YAML)
+            logging.critical("There's (probably) something wrong in your sorting configuration in %s.", QTOPCONF_YAML)
             raise
         except KeyError as e:
-            msg = "Worker Nodes don't contain '%s' as a key." % str(e)
-            logging.error(self.MVU_model.MVU_colorize(msg, color_func="Red_L"))
+            logging.error("Worker Nodes don't contain '%s' as a key.", e)
         except NameError as e:
-            msg = "Wrong input '%s'. Please check the examples in qtopconf.yaml." % str(e)
-            logging.error(self.MVU_model.MVU_colorize(msg, color_func="Red_L"))
+            logging.error("Wrong input '%s'. Please check the examples in qtopconf.yaml.", e)
 
         return self.worker_nodes
 
