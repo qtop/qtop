@@ -721,7 +721,7 @@ class TextDisplay(object):
         """The vertical separator as coloured cells, for lines whose cells carry their own colour."""
         return [utils.ColorStr(char, color=SEPARATOR_COLOR) for char in self.config["SEPARATOR"]]
 
-    def _insert_separators(self, orig_str: Any, separator: Sequence[str], pos: int, stopaftern: int = 0) -> Any:
+    def _insert_separators(self, orig_str: Any, separator: Sequence[Any], pos: int, stopaftern: int = 0) -> Any:
         """Inserts separator into orig_str every pos-th position, optionally stopping after stopaftern times."""
         if not pos:  # default value is zero, means no vertical separators
             return orig_str

@@ -20,6 +20,32 @@ from qtop_py.mvu import MVU_reserved_pattern_mappings as _reserved_pattern_mappi
 from qtop_py.serialiser import resolve_job_id
 
 ACCOUNT_LETTERS = re.compile(r"[A-Za-z]+")
+# A highlight rule as a test on a core's (user, queue): the matched text, or None.
+HighlightMatcher = Callable[[str, str], Optional[str]]
+
+
+def _user_matcher(users: Set[str]) -> HighlightMatcher:
+    """Match the users that share one matrix ID, by whole name."""
+
+    def match(user: str, queue: str) -> Optional[str]:
+        return user if user in users else None
+
+    return match
+
+
+def _pattern_matcher(pattern: "re.Pattern[str]", on_queue: bool) -> HighlightMatcher:
+    """Match a regular expression at the start of the queue, or of the user name."""
+
+    def match(user: str, queue: str) -> Optional[str]:
+        found = pattern.match(queue if on_queue else user)
+        return found.group(0) if found is not None else None
+
+    return match
+
+
+def _match_nothing(user: str, queue: str) -> Optional[str]:
+    """Stand in for a highlight rule that can never match, such as an invalid pattern."""
+    return None
 
 
 def rank_users(
@@ -484,33 +510,24 @@ class WNOccupancy(object):
         id_.q = queue
         return id_
 
-    def _highlight_matchers(self, highlight_rules: Iterable[Tuple[Any, str, Callable[..., bool]]]) -> List[Callable[[str, str], Optional[str]]]:
+    def _highlight_matchers(self, highlight_rules: Iterable[Tuple[Any, str, Callable[..., bool]]]) -> List[HighlightMatcher]:
         """Turn highlight rules into (user, queue) matchers; an unknown user ID or invalid pattern matches nothing."""
         id_to_users: Dict[str, Set[str]] = {}
         for unix_account, userid in self.user_to_id.items():  # users past the ID range share one symbol
             id_to_users.setdefault(str(userid), set()).add(unix_account)
-        matchers: List[Callable[[str, str], Optional[str]]] = []
+        matchers: List[HighlightMatcher] = []
         for rule, kind, _ in highlight_rules:
             if kind == "user_id":
-                users = id_to_users.get(str(rule), set())
-                matchers.append(lambda user, queue, users=users: user if user in users else None)
+                matchers.append(_user_matcher(id_to_users.get(str(rule), set())))
                 continue
             try:
                 pattern = re.compile(rule)
             except re.error as exc:
                 logging.warning("Ignoring invalid highlight pattern %r: %s", rule, exc)
-                matchers.append(lambda user, queue: None)
+                matchers.append(_match_nothing)
                 continue
-            if kind == "queue":
-                matchers.append(lambda user, queue, pattern=pattern: self._group(pattern.match(queue)))
-            else:
-                matchers.append(lambda user, queue, pattern=pattern: self._group(pattern.match(user)))
+            matchers.append(_pattern_matcher(pattern, on_queue=kind == "queue"))
         return matchers
-
-    @staticmethod
-    def _group(match: "Optional[re.Match[str]]") -> Optional[str]:
-        """Return the matched text, or None when there is no match."""
-        return match.group(0) if match is not None else None
 
     def _resolve(self, job: str, job_to_user_and_queue: "Mapping[str, Tuple[str, str]]") -> str:
         """resolve_job_id, memoized per frame: cores of one job resolve once, not once per core."""
