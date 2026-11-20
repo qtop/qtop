@@ -3,6 +3,7 @@
 import os
 import re
 import shlex
+import stat
 import subprocess
 import sys
 from pathlib import Path
@@ -1204,3 +1205,18 @@ def test_archive_workspace_uses_savepath_and_is_removed(tmp_path, monkeypatch, v
         assert list(elsewhere.iterdir()) == []
     assert not workspace.exists()
     assert list(output.iterdir()) == []
+
+
+def test_writable_parent_of_savepath_stops_only_with_strict_parents(tmp_path):
+    shared = tmp_path / "shared"
+    shared.mkdir()
+    shared.chmod(0o775)
+    output = shared / "results"
+    lenient = run_cli(tmp_path, "qtop_py.qtop", "-b", "demo", "-c", "OFF", "-o", "savepath=%s" % output)
+    assert lenient.returncode == 0, lenient.stderr
+    assert stat.S_IMODE(output.stat().st_mode) == 0o700
+    strict_output = shared / "strict"
+    strict = run_cli(tmp_path, "qtop_py.qtop", "--strict-parents", "-b", "demo", "-c", "OFF", "-o", "savepath=%s" % strict_output)
+    assert strict.returncode != 0
+    assert "untrusted parent" in strict.stderr
+    assert not strict_output.exists()

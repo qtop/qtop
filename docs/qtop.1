@@ -257,6 +257,19 @@ only behind an authenticating reverse proxy.
 Print debug messages and operational-error tracebacks to standard error and
 the log file.
 .TP
+.B \-\-strict\-parents
+Stop when a parent directory of
+.I savepath
+or of the log file is writable by group or others without the sticky bit.
+By default qtop continues and notes such a parent at
+.B \-v
+verbosity; shared site trees such as a group-writable
+.I /home
+or
+.I /gpfs/home
+are common. The directories qtop owns are always created or tightened to mode
+0700 and never followed through symbolic links.
+.TP
 .BR \-v ", " \-\-verbose
 Increase verbosity; may be repeated.
 .TP

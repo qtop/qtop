@@ -15,6 +15,10 @@ import tarfile
 import tempfile
 from typing import Any, Dict, Generator, List, Mapping, Optional, Set, TextIO, Tuple
 
+# Off by default: shared site trees (/gpfs/home, group-writable /home) would otherwise stop every run.
+# --strict-parents turns it on, so a writable non-sticky ancestor of savepath or the log stops qtop.
+STRICT_PARENTS = False
+
 
 class StartupProgress:
     """Report each distinct scheduler source once, until startup completes."""
@@ -116,7 +120,9 @@ def _private_directory(path: str) -> Generator[Tuple[str, int], None, None]:
                     raise PermissionError(errno.EACCES, "Save directory must be owned by the current user", path)
                 os.fchmod(fd, 0o700)
             elif writable_by_others and not info.st_mode & stat.S_ISVTX:
-                raise PermissionError(errno.EACCES, "Save directory has an untrusted parent (writable without sticky bit)", parent)
+                if STRICT_PARENTS:
+                    raise PermissionError(errno.EACCES, "Save directory has an untrusted parent (writable without sticky bit; --strict-parents)", parent)
+                logging.getLogger(__name__).info("Save directory parent %s is writable by others without sticky bit; continuing (see --strict-parents)", parent)
         yield path, fd
     finally:
         os.close(fd)

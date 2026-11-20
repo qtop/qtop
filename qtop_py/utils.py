@@ -218,6 +218,13 @@ def parse_qtop_cmdline_args() -> Namespace:
         default=False,
         help="Enable the experimental web interface on port 8080 (requires -e/--experimental)",
     )
+    parser.add_argument(
+        "--strict-parents",
+        action="store_true",
+        dest="STRICT_PARENTS",
+        default=False,
+        help="Stop when a parent of savepath or the log directory is writable by others without sticky bit (default: continue)",
+    )
     parser.add_argument("-v", "--verbose", dest="verbose", action="count", help="Increase verbosity (specify multiple times for more)")
     parser.add_argument("-V", "--version", dest="version", action="store_true", help="Print qtop version")
     parser.add_argument(
