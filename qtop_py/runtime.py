@@ -203,6 +203,7 @@ def init_dirs(args: Any, _savepath: str) -> Any:
     logging.debug("User-defined source directory: %s" % args.SOURCEDIR)
     args.workdir = args.SOURCEDIR or _savepath
     logging.debug("Working directory is now: %s" % args.workdir)
+    # Sonar path finding: -s or savepath is the caller's chosen working directory, by design; see docs/sonar-review.md
     os.chdir(args.workdir)
     return args
 

@@ -586,6 +586,7 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
     @staticmethod
     def _allocation_job_id(header: str) -> Optional[str]:
         # Job names are arbitrary text and must not be interpreted as identity fields.
+        # Sonar regex finding: linear here, since the lookbehind only lets a match start at the beginning of a whitespace run; see docs/sonar-review.md
         header = re.split(r"(?<!\s)\s+JobName=", header, maxsplit=1)[0]
         pairs = re.findall(r"(?:^|\s)(JobId|ArrayJobId|ArrayTaskId|HetJobId|HetJobOffset)=(\S+)", header)
         fields: Dict[str, str] = dict(pairs)

@@ -33,6 +33,7 @@ def load_trace_archive(path: str, directory: str, configured: Mapping[str, str],
         raise ValueError("configured trace filenames must be distinct")
     required = set(configured) - set(optional)
     cohorts: DefaultDict[Tuple[str, str], DefaultDict[str, List[tarfile.TarInfo]]] = defaultdict(lambda: defaultdict(list))
+    # Sonar path finding: this path is the caller's chosen input, by design; see docs/sonar-review.md
     with tarfile.open(path, "r:*") as archive:
         for index, member in enumerate(archive):
             if index >= MAX_MEMBERS or member.offset_data + member.size > MAX_ARCHIVE_BYTES:
@@ -71,6 +72,7 @@ def load_trace_archive(path: str, directory: str, configured: Mapping[str, str],
             source = archive.extractfile(member)
             if source is None:
                 raise ValueError("selected trace data is missing")
+            # Sonar path finding: destination already contained (configured basenames, opened exclusively in the private workspace); see docs/sonar-review.md
             with source, open(target, "xb") as output:
                 shutil.copyfileobj(source, output, length=64 * 1024)
             logging.debug("Trace archive member: %s -> %s", member.name, target)

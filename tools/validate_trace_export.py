@@ -34,6 +34,7 @@ ACCOUNT_LINE_RE = re.compile(r"^\[\s*(.)\]\s+")
 
 def decode_trace_payload(path):
     """Return the JSON decoded from a base64 gzip file."""
+    # Sonar path finding: this path is the caller's chosen input, by design; see docs/sonar-review.md
     encoded = Path(path).read_bytes()
     decoded = base64.b64decode(encoded)
     return json.loads(gzip.decompress(decoded))
@@ -166,6 +167,7 @@ def extract_summary_line(text):
 
 def validate_fullview_summary(rendered, fullview_path):
     """Raise ValueError if the rendered summary differs from the fullview file's."""
+    # Sonar path finding: this path is the caller's chosen input, by design; see docs/sonar-review.md
     expected = extract_summary_line(Path(fullview_path).read_text(errors="replace"))
     actual = extract_summary_line(rendered)
     if expected != actual:

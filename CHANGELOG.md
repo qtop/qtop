@@ -10,6 +10,7 @@ Notable changes by version, newest first. See the
 - CI: restore coverage.yml as the only GitHub coverage run, so its badge reports the coverage gate alone
 - CI: release publishing stops unless the release tag is v<package version> (temporary until 1.0)
 - Docs: README badges follow main, and the outdated PyPI release note is gone
+- Docs: sonar-review.md records the 2026-11-20 review; findings left as they are carry a comment at their line
 - Feature: named node labels change colour per name group, at most 5 nodes at a time, instead of every node (#197)
 - Feature: stack_jobs_per_node (S in watch mode) stacks each node's jobs from its first core, ignoring scheduler core placement (#182)
 - Refactor: Sonar cleanups without behaviour change: web page DOCTYPE, lang and title; [[ tests in matrix_lane.sh; explicit regex grouping in repo-sanity and Slurm detail parsing

@@ -224,6 +224,7 @@ def _collect_frame(
                 stream.write(content)
                 temporary = stream.name
             destination = os.path.join(args.workdir, name)
+            # Sonar path finding: destination already contained (the trace name is a basename inside workdir); see docs/sonar-review.md
             os.replace(temporary, destination)
             trace_paths[trace_key] = destination
     else:
