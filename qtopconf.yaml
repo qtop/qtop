@@ -6,7 +6,7 @@
 ## Lines beginning with single hash are commands commented out that you could try out.
 ## Available colors and fg-bg combinations depicted in colormap.py, in color_to_code
 
-## scheduler possible values (currently supported): pbs, oar, sge, slurm, slurm_json
+## scheduler possible values (currently supported): pbs, oar, sge, slurm, slurm_json, lsf, htcondor
 ## auto detects available batch commands, preferring legacy Slurm over JSON.
 scheduler: auto
 
@@ -63,6 +63,15 @@ schedulers:
     scontrol_file: %(savepath)s/scontrol%(pid)s.txt, scontrol --details show jobs
     #squeue_file: %(savepath)s/squeue%(pid)s.txt, squeue --states=all -r -h -o '%i|%u|%t|%P|%C|%N'
     #sinfo_file: %(savepath)s/sinfo%(pid)s.txt, sinfo -N -h -o '%N|%P|%t|%c|%a'
+  lsf:
+    ## Hosts and queues as wide whitespace tables; jobs with a named, '|'-delimited header.
+    bhosts_file: %(savepath)s/bhosts%(pid)s.txt, bhosts -w
+    bqueues_file: %(savepath)s/bqueues%(pid)s.txt, bqueues -w
+    bjobs_file: %(savepath)s/bjobs%(pid)s.txt, bjobs -u all -o "jobid jobindex stat user queue exec_host delimiter='|'"
+  htcondor:
+    ## JSON ClassAds; condor_q asks the local schedd (use -global for every schedd in the pool).
+    status_json: %(savepath)s/condor_status%(pid)s.json, condor_status -json -attributes Name,Machine,SlotType,PartitionableSlot,DynamicSlot,State,Activity,Cpus,TotalSlotCpus
+    q_json: %(savepath)s/condor_q%(pid)s.json, condor_q -allusers -json -attributes ClusterId,ProcId,Owner,JobStatus,RemoteHost,RequestCpus,AcctGroup
   demo:
     demo_file: %(savepath)s/demo%(pid)s.txt, echo 'Demo here'
 
@@ -73,6 +82,8 @@ signature_commands:
   sge: qacct
   slurm_json: scontrol
   slurm: sinfo
+  lsf: bhosts
+  htcondor: condor_status
   demo: echo
 
 ## Symbols used to summarize the resource states reported for an OAR node.
@@ -167,6 +178,26 @@ state_abbreviations:
     SO: stage_out_of_user
     S: suspended_of_user
     ST: stopped_of_user
+  lsf:
+    RUN: running_of_user
+    PEND: queued_of_user
+    PSUSP: hold_of_user
+    USUSP: suspended_of_user
+    SSUSP: suspended_of_user
+    PROV: configuring_of_user
+    WAIT: waiting_of_user
+    DONE: finished_of_user
+    EXIT: failed_of_user
+    ZOMBI: exiting_of_user
+    UNKWN: unknown_of_user
+  htcondor:
+    I: queued_of_user
+    R: running_of_user
+    H: hold_of_user
+    S: suspended_of_user
+    E: exiting_of_user
+    X: cancelled_of_user
+    C: finished_of_user
   demo:
     Q: queued_of_user
     R: running_of_user

@@ -151,6 +151,37 @@ STATIC_CASES = {
             ],
         }
     ],
+    "lsf": [
+        {
+            "name": "lsf-basic",
+            "source": ROOT / "tests/plugins/lsf_samples/basic",
+            "args": ["-b", "lsf", "-s", str(ROOT / "tests/plugins/lsf_samples/basic"), "-c", "ON", "-F"],
+            "markers": [
+                "Summary : Total:5 Up:3 Free:2 Nodes",
+                "32/88 cores",
+                "9=4+3+2 jobs",
+                "short: 2 + 1",
+                "idle*: 0",
+                "Worker Nodes occupancy",
+                "User accounts and pool mappings",
+            ],
+        }
+    ],
+    "htcondor": [
+        {
+            "name": "htcondor-basic",
+            "source": ROOT / "tests/plugins/htcondor_samples/basic",
+            "args": ["-b", "htcondor", "-s", str(ROOT / "tests/plugins/htcondor_samples/basic"), "-c", "ON", "-F"],
+            "markers": [
+                "Summary : Total:5 Up:3 Free:3 Nodes",
+                "42/76 cores",
+                "8=4+2+2 jobs",
+                "default: 2 + 1",
+                "Worker Nodes occupancy",
+                "User accounts and pool mappings",
+            ],
+        }
+    ],
     "demo": [
         {
             "name": "demo-generated",

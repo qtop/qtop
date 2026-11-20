@@ -3,6 +3,17 @@
 Notable changes by version, newest first. See the
 [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 
+## 0.9.20261120
+
+- Bugfix: Slurm array ranges are no longer cut (SLURM_BITSTR_LEN=0); a cut one skips its row (#606)
+- CI: PR builds run make sbom and sbom-ci; releases verify attestations and attach SBOMs
+- CI: Codacy scope and justified nosec markers; schema-compat targets Go 1.26.11
+- CI: weekly report-only OSPS Baseline audit with pinned Darnit (make osps-audit)
+- Docs: offline attestation check (make verify-attestations-offline); releases keep evidence
+- Feature: HTCondor backend (-b htcondor) reading condor_status/condor_q JSON; synthetic traces
+- Feature: LSF backend (-b lsf) reading bhosts, bqueues and bjobs; tested on synthetic traces
+- Release: update version metadata to 0.9.20261120
+
 ## 0.9.20261119
 
 - Bugfix: section 4 Totals counts distinct occupied nodes, not the sum of per-user node counts

@@ -37,10 +37,12 @@ def run_cli(home, *args, extra_env=None):
         ("pbs", {"qstat_file": "qstat.txt", "qstatq_file": "qstat_q.txt", "pbsnodes_file": "pbsnodes_a.txt"}),
         ("oar", {"oarstat_file": "oarstat.txt", "oarnodes_s_file": "oarnodes_s_Y.txt", "oarnodes_y_file": "oarnodes_Y.txt"}),
         ("sge", {"sge_file": "qstat.F.xml.stdout"}),
+        ("lsf", {"bhosts_file": "bhosts.txt", "bqueues_file": "bqueues.txt", "bjobs_file": "bjobs.txt"}),
     ),
 )
 def test_source_trace_archives_preserve_private_input_and_replay_masked_formats(tmp_path, backend, files):
-    source = ROOT / "tests/plugins/slurm_samples/basic" if backend == "slurm" else ROOT / "qtop_py/contrib"
+    samples = {"slurm": ROOT / "tests/plugins/slurm_samples/basic", "lsf": ROOT / "tests/plugins/lsf_samples/basic"}
+    source = samples.get(backend, ROOT / "qtop_py/contrib")
     inputs = tmp_path / "inputs"
     inputs.mkdir()
     originals = {key: (source / name).read_bytes() for key, name in files.items()}

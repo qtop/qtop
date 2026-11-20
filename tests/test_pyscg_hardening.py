@@ -73,3 +73,10 @@ def test_web_page_loads_no_third_party_script():
     page = (ROOT / "qtop_py" / "web" / "index.html").read_text()
     assert not re.search(r"<script[^>]+src=", page, re.I) and "jquery" not in page.lower()
     assert 'fetch("api.json"' in page
+
+
+def test_scheduler_commands_print_untruncated_slurm_array_ranges(monkeypatch):
+    """qtop/qtop#606: squeue cuts array task ranges at SLURM_BITSTR_LEN characters unless it is 0."""
+    monkeypatch.setenv("SLURM_BITSTR_LEN", "32")
+    assert process_io.scheduler_env()["SLURM_BITSTR_LEN"] == "0"
+    assert os.environ["SLURM_BITSTR_LEN"] == "32"

@@ -5,7 +5,7 @@
 import logging
 import os
 import shlex
-import subprocess
+import subprocess  # nosec B404 - getent command as an argv list, never a shell
 from functools import lru_cache
 from math import isfinite
 from typing import Any, Dict, Sequence
@@ -58,7 +58,7 @@ def get_detail_of_name(account_jobs_table: Sequence[Sequence[Any]], config: Dict
         timeout = float(config.get("scheduler_command_timeout", DEFAULT_SCHEDULER_COMMAND_TIMEOUT))
         if not isfinite(timeout) or timeout <= 0:
             raise ValueError("scheduler_command_timeout must be positive and finite")
-        p = subprocess.Popen(
+        p = subprocess.Popen(  # nosec B603 # nosemgrep - shlex-split user-details command, argv list, never a shell
             user_details_command,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,

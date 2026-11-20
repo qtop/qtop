@@ -106,7 +106,8 @@ or a release is prepared.
   - [x] [CI] Build sdist/wheel artifacts; legacy installation checks version metadata against the source.
   - [x] [CI] Validate the exact sdist/wheel pair in clean environments through
     `make release-check`, required by both CI build entry points.
-  - [ ] Retain passing artifact/compatibility evidence for the chosen release revision.
+  - [x] Retain passing artifact/compatibility evidence for the chosen release revision:
+    `release.yml` attaches the `release-check` report (`qtop-release-evidence.json`) to each release.
   - [ ] Audit all release documentation/package contents beyond the bundled configuration and help checks.
   - [x] [CI] Run demo, CLI and committed scheduler samples from installations
     of the supplied wheel and a wheel rebuilt from the supplied sdist.
@@ -189,11 +190,25 @@ Open items here are proposals, not 1.0 release requirements.
     registration from assessment completion.
 - [ ] Add release SBOMs/provenance and evaluate Darnit, Minder or Gemara consumers
   when their evidence and permission requirements are defined.
+  - [x] Generate, attest and attach release SBOMs and build provenance in
+    `release.yml`; see [supply-chain plan](docs/supply-chain-sbom.md).
+  - [x] Evaluate Darnit, Minder or Gemara consumers: Darnit runs report-only
+    (`make osps-audit`); Privateer/Gemara and Minder are deferred with reasons in
+    [OpenSSF readiness](docs/openssf-readiness.md#future-integrations).
 
+- [ ] Add HTCondor support.
+  - [x] Synthetic JSON ClassAd traces in `tests/plugins/htcondor_samples/basic`.
+  - [ ] An owner and anonymized traces from a live pool (multiple schedds, GPUs).
+  - [x] [CI] Parser, accounting and terminal smoke checks
+    (`tests/plugins/test_htcondor.py`, conformance, sample gate).
 - [ ] Add LSF support.
   - [ ] Requires an owner and representative synthetic or approved anonymized traces.
-  - [ ] Define the supported command/output variants and normalized-state mapping.
-  - [ ] Include parser, accounting and terminal smoke checks.
+    - [x] Synthetic LSF 10.1 traces in `tests/plugins/lsf_samples/basic`.
+    - [ ] An owner and anonymized traces from a live cluster.
+  - [x] Define the supported command/output variants and normalized-state mapping
+    (`bhosts -w`, `bqueues -w`, delimited `bjobs -o`; see docs/documentation.md).
+  - [x] [CI] Include parser, accounting and terminal smoke checks
+    (`tests/plugins/test_lsf.py`, conformance, masked-trace replay, sample gate).
 
 - [ ] Provide EasyBuild packaging.
   - [x] Track a version-matched EasyBuild recipe under `docs/`, synchronized by

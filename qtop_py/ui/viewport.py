@@ -21,9 +21,9 @@ def terminal_rows(lines: Iterable[str], columns: int) -> Iterator[str]:
                 style = "" if token in ("\x1b[m", "\x1b[0m", "\x1b[0;m", "\x1bc") else style + token
                 row.append(token)
                 continue
-            if token == "\r":
+            if token == "\r":  # nosec B105 - a text token, not a credential
                 continue  # the banner's leading carriage return occupies no cell
-            for char in " " * (8 - width % 8) if token == "\t" else token:
+            for char in " " * (8 - width % 8) if token == "\t" else token:  # nosec B105 - a text token, not a credential
                 cells = 0 if unicodedata.combining(char) else 2 if unicodedata.east_asian_width(char) in ("W", "F") else 1
                 if cells > columns:
                     char, cells = "?", 1  # a wide glyph cannot fit a one-column terminal

@@ -1,0 +1,108 @@
+[
+ {
+  "Name": "slot1@node01.example.org",
+  "Machine": "node01.example.org",
+  "SlotType": "Partitionable",
+  "PartitionableSlot": true,
+  "State": "Unclaimed",
+  "Activity": "Idle",
+  "Cpus": 8,
+  "TotalSlotCpus": 32
+ },
+ {
+  "Name": "slot1_1@node01.example.org",
+  "Machine": "node01.example.org",
+  "SlotType": "Dynamic",
+  "DynamicSlot": true,
+  "State": "Claimed",
+  "Activity": "Busy",
+  "Cpus": 8,
+  "TotalSlotCpus": 8
+ },
+ {
+  "Name": "slot1_2@node01.example.org",
+  "Machine": "node01.example.org",
+  "SlotType": "Dynamic",
+  "DynamicSlot": true,
+  "State": "Claimed",
+  "Activity": "Busy",
+  "Cpus": 16,
+  "TotalSlotCpus": 16
+ },
+ {
+  "Name": "slot1@node02.example.org",
+  "Machine": "node02.example.org",
+  "SlotType": "Partitionable",
+  "PartitionableSlot": true,
+  "State": "Unclaimed",
+  "Activity": "Idle",
+  "Cpus": 0,
+  "TotalSlotCpus": 16
+ },
+ {
+  "Name": "slot1_1@node02.example.org",
+  "Machine": "node02.example.org",
+  "SlotType": "Dynamic",
+  "DynamicSlot": true,
+  "State": "Claimed",
+  "Activity": "Busy",
+  "Cpus": 16,
+  "TotalSlotCpus": 16
+ },
+ {
+  "Name": "slot1@node03.example.org",
+  "Machine": "node03.example.org",
+  "SlotType": "Partitionable",
+  "PartitionableSlot": true,
+  "State": "Drained",
+  "Activity": "Retiring",
+  "Cpus": 16,
+  "TotalSlotCpus": 16
+ },
+ {
+  "Name": "slot1@node04.example.org",
+  "Machine": "node04.example.org",
+  "SlotType": "Static",
+  "State": "Claimed",
+  "Activity": "Busy",
+  "Cpus": 1,
+  "TotalSlotCpus": 1
+ },
+ {
+  "Name": "slot2@node04.example.org",
+  "Machine": "node04.example.org",
+  "SlotType": "Static",
+  "State": "Claimed",
+  "Activity": "Suspended",
+  "Cpus": 1,
+  "TotalSlotCpus": 1
+ },
+ {
+  "Name": "slot3@node04.example.org",
+  "Machine": "node04.example.org",
+  "SlotType": "Static",
+  "State": "Unclaimed",
+  "Activity": "Idle",
+  "Cpus": 1,
+  "TotalSlotCpus": 1
+ },
+ {
+  "Name": "slot4@node04.example.org",
+  "Machine": "node04.example.org",
+  "SlotType": "Static",
+  "State": "Unclaimed",
+  "Activity": "Idle",
+  "Cpus": 1,
+  "TotalSlotCpus": 1
+ },
+ {
+  "Name": "slot1@node05.example.org",
+  "Machine": "node05.example.org",
+  "SlotType": "Partitionable",
+  "PartitionableSlot": true,
+  "State": "Owner",
+  "Activity": "Idle",
+  "Cpus": 8,
+  "TotalSlotCpus": 8
+ }
+]

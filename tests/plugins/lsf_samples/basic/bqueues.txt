@@ -1,0 +1,5 @@
+QUEUE_NAME      PRIO STATUS          MAX JL/U JL/P JL/H NJOBS  PEND   RUN  SUSP
+short            40  Open:Active       -    -    -    -    10     4     6     0
+normal           30  Open:Active     256   64    -    -    46    16    28     2
+long             20  Open:Active       -    -    -    -     8     8     0     0
+idle             10  Closed:Inact      -    -    -    -     0     0     0     0

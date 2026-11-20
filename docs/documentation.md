@@ -55,7 +55,7 @@ invoking it in demo mode:
 ```
 
 When used, the ``-b`` switch must always be followed by one of the
-supported batch systems (pbs, sge, oar, slurm, demo).
+supported batch systems (pbs, sge, oar, slurm, slurm_json, lsf, htcondor, demo).
 
 That should create and destroy fictional jobs in fictional machines from
 fictional users, and display all that in a colorful but not yet very
@@ -617,6 +617,13 @@ Quotes keep the pipe characters inside the format argument. qtop honors
 shell-style argument quoting without invoking a shell. Existing custom
 configurations using doubled ``%%`` format codes remain supported.
 
+qtop runs scheduler commands with ``LC_ALL=C`` and ``SLURM_BITSTR_LEN=0``.
+The latter stops Slurm cutting long pending array task ranges (such as
+``453906_[2,6-14,21-26,...]``) at its default length; set it too when
+copying the commands above. A saved trace whose array range was cut still
+loads: that row is skipped and reported as a rejected job row, so the
+pending tasks it held are missing from the counts (qtop/qtop#606).
+
 The bundled `squeue` command explicitly selects all states still retained by
 the controller, including suspended jobs. This is not historical accounting;
 recently finished jobs may also appear in user totals while Slurm retains them.
@@ -843,7 +850,7 @@ For manual Slurm collection on a scheduler host:
 
 ```sh
 qtop_trace_dir=$(mktemp -d)
-squeue -r -h -O 'JobID:0|,UserName:0|,StateCompact:0|,Partition:0|,NumCPUs:0|,NodeList:0|,tres-alloc:0|,tres-per-node:0|,tres-per-task:0|,ArrayJobID:0|,ArrayTaskID:0' > "$qtop_trace_dir/squeue.txt"
+SLURM_BITSTR_LEN=0 squeue -r -h -O 'JobID:0|,UserName:0|,StateCompact:0|,Partition:0|,NumCPUs:0|,NodeList:0|,tres-alloc:0|,tres-per-node:0|,tres-per-task:0|,ArrayJobID:0|,ArrayTaskID:0' > "$qtop_trace_dir/squeue.txt"
 sinfo -N -h -O 'NodeList:0|,Partition:0|,StateCompact:0|,CPUs:0|,Gres:0|,GresUsed:0|,Available:0' > "$qtop_trace_dir/sinfo.txt"
 ./qtop -b slurm -s "$qtop_trace_dir"
 ```
@@ -1144,7 +1151,7 @@ checkout.
 ### Input selection
 
 -  ``-b SYSTEM`` selects the scheduler backend. Common values are
-   ``demo``, ``pbs``, ``sge``, ``oar``, and ``slurm``.
+   ``demo``, ``pbs``, ``sge``, ``oar``, ``slurm``, ``slurm_json``, ``lsf`` and ``htcondor``.
 -  ``-s DIRECTORY`` / ``--SetSourceDir`` reads scheduler output files from
    ``DIRECTORY`` instead of running commands. Passing an existing output file
    selects its parent directory; qtop still needs all files for that backend.
@@ -1480,6 +1487,63 @@ indices are unavailable, even if node-level allocated GRES indices are reported.
 Summary mode also ignores optional allocation-detail traces during offline replay.
 It cannot be combined with `--slurm-json-squeue` or an explicit non-Slurm backend.
 As an explicit selection it overrides scheduler environment/configuration defaults.
+
+### LSF backend
+
+`-b lsf` reads LSF output; autodetection selects it when `bhosts`
+is on the `PATH`. Each frame runs three commands (see `qtopconf.yaml`):
+
+```console
+bhosts -w
+bqueues -w
+bjobs -u all -o "jobid jobindex stat user queue exec_host delimiter='|'"
+./qtop -b lsf -s tests/plugins/lsf_samples/basic -F
+```
+
+- **Hosts** come from `bhosts -w`; `MAX` is the slot count (when it is `-` or
+  exceeded, the slots in use). `ok` is shown as `-`, `closed_Full`/`closed_Excl`
+  as `j`, `closed_Busy` as `b`, administrator or policy closures (`closed_Adm`,
+  `closed_Lock`, `closed_Wind`, ...) as `o`, and `unavail`, `unreach` and
+  `closed_LIM` as `d`; anything else is `?`.
+- **Jobs** keep LSF states (`RUN`, `PEND`, `PSUSP`, `USUSP`, `SSUSP`, ...);
+  array elements are `jobid[index]`. Each job fills its `EXEC_HOST` slots in
+  bjobs order; `4*hostA:2*hostB` and repeated host names are both accepted, and
+  suspended jobs keep their slots.
+- **Queues** take status and `MAX` from `bqueues -w`; `Closed` or `Inact`
+  queues are marked blocked. Running and pending counts come from bjobs, because
+  bqueues counts slots, not jobs.
+
+The backend is built from IBM's documented LSF 10.1 formats and synthetic
+traces in `tests/plugins/lsf_samples/`; it has not yet been checked against a
+live cluster. If `bjobs` reports "No unfinished job found" with a nonzero exit
+status, the live collection fails; replaying a saved empty trace works.
+
+### HTCondor backend
+
+`-b htcondor` reads HTCondor JSON ClassAds; autodetection selects it when
+`condor_status` is on the `PATH`. Each frame runs (see `qtopconf.yaml`):
+
+```console
+condor_status -json -attributes Name,Machine,SlotType,PartitionableSlot,DynamicSlot,State,Activity,Cpus,TotalSlotCpus
+condor_q -allusers -json -attributes ClusterId,ProcId,Owner,JobStatus,RemoteHost,RequestCpus,AcctGroup
+./qtop -b htcondor -s tests/plugins/htcondor_samples/basic -F
+```
+
+- **Machines** group slots by `Machine`. Cores are each partitionable slot's
+  `TotalSlotCpus` plus each static slot's `Cpus`; dynamic slots are carved from
+  them. A machine whose slots are all `Drained` or in the `Owner` state is shown
+  as off (`o`); otherwise `-`.
+- **Jobs** are `ClusterId.ProcId`, with condor_q's state letters (`I`, `R`,
+  `H`, `S`, `X`, `C`; transferring output is `E`). A job fills its slot's
+  `Cpus` (or `RequestCpus`) on the machine named in `RemoteHost`.
+- **Queues**: HTCondor has none, so accounting groups (`AcctGroup`) stand in;
+  jobs without one are `default`. Running and idle counts come from condor_q.
+
+`condor_q` asks the local schedd; for a pool with several, add `-global` in a
+personal `qtopconf.yaml`. Masked source traces (`--masked-traces`) are not
+offered for HTCondor and are listed as omitted; `-A` exports are anonymized.
+The backend is built from documented JSON output and synthetic traces in
+`tests/plugins/htcondor_samples/`; it has not yet been checked against a live pool.
 
 ## Adding a scheduler backend
 

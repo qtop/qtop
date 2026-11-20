@@ -11,7 +11,7 @@ import tempfile
 import threading
 import time
 from typing import TYPE_CHECKING, Any, Callable, Dict, Mapping, Tuple, Type
-from xml.etree.ElementTree import ParseError
+from xml.etree.ElementTree import ParseError  # nosec B405 - exception class only; parsing is in plugins/sge.py
 
 from qtop_py import __version__, configuration, fileutils, process, sample
 from qtop_py.colormap import user_to_color_default

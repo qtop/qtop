@@ -28,6 +28,15 @@ action and GitLab CLI entry point, and included GitLab security analyzers are
 explicit provider-native exceptions. Scorecard's branch scan uses the shared
 `make scorecard-scan` target. These exceptions do not permit duplicating qtop's
 own validation logic in YAML.
+The weekly `osps-baseline-qtop` workflow is GitHub-only because its OSPS
+Baseline controls read GitHub repository settings; it calls the shared
+`make osps-audit` target and is report-only (see
+[OpenSSF readiness](openssf-readiness.md#osps-baseline-audit)).
+Codacy analyses `qtop_py/` and the CI configuration; `.codacy.yml` excludes
+`tests/` and `tools/`, harnesses that run subprocesses and use fixture paths by
+design and are covered by ruff, CodeQL and the gates above. Runtime findings left
+by design carry `# nosec <rule> - reason` (and `nosemgrep` where Semgrep also
+matches) at the line; Bandit reports none in `qtop_py/`.
 
 `make pre-pr` combines coverage (including the full pytest/Hypothesis suite),
 scheduler samples, deterministic and Atheris fuzzing, lint/format, and type
@@ -58,6 +67,9 @@ path. It checks version metadata, entry points, bundled defaults, help, demo and
 committed PBS/OAR/SGE/Slurm samples, and reports unchanged input SHA-256 digests.
 Rebuilding the sdist uses the current pinned backend without dependency downloads.
 The original release files are never replaced by that rebuild.
+Then `make sbom sbom-ci` writes CycloneDX SBOMs of the installed wheel and of
+the build environment to `artifacts/sbom/`, kept as build artifacts; see
+[supply-chain-sbom.md](supply-chain-sbom.md).
 
 The GitHub release workflow already calls `make github-build`, so validation must
 pass before its artifact upload and downstream PyPI publishing job. GitLab's build

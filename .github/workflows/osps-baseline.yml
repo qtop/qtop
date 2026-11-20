@@ -1,0 +1,38 @@
+##
+## qtop is a tool to monitor queuing systems - https://github.com/qtop/qtop
+##
+## SPDX-License-Identifier: MIT
+##
+# Report-only OSPS Baseline audit (make osps-audit, pinned Darnit) of the
+# default branch: input to the self-assessment in docs/openssf-readiness.md,
+# not a gate. It never remediates and only reads, with the workflow token.
+# GitHub-only: the controls inspect this repository's GitHub settings.
+
+name: osps-baseline-qtop
+
+on:
+  schedule:
+    - cron: '17 4 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.12.3'
+      - run: make osps-audit PYTHON=python
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ github.token }}
+      - run: cat artifacts/osps/osps-baseline.md >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with: {name: osps-baseline, path: artifacts/osps/}

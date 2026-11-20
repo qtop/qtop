@@ -31,22 +31,37 @@ jobs:
       - run: make release-tag-check PYTHON=python
         env:
           RELEASE_TAG: ${{ github.event.release.tag_name }}
+      # github-build also writes artifacts/sbom/qtop.cdx.json (release) and ci.cdx.json (build environment).
       - run: make ci-deps github-ci github-build PYTHON=python
-      - run: make sbom PYTHON=python
-      # Signed in-toto statements bound to the exact dist/* digests; verify with gh attestation verify.
-      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+      # Signed in-toto statements bound to the exact dist/* digests.
+      - id: provenance
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: 'dist/*'
-      - uses: actions/attest-sbom@c604332985a26aa8cf1bdc465b92731239ec6b9e # v4.1.0
+      - id: sbom-attestation
+        uses: actions/attest-sbom@c604332985a26aa8cf1bdc465b92731239ec6b9e # v4.1.0
         with:
           subject-path: 'dist/*'
           sbom-path: artifacts/sbom/qtop.cdx.json
+      # Check what consumers will check before anything is published.
+      - run: make verify-attestations PYTHON=python ATTEST_REPO="$GITHUB_REPOSITORY"
+        env:
+          GH_TOKEN: ${{ github.token }}
+      - run: |
+          mkdir -p artifacts/release-assets
+          cp artifacts/sbom/qtop.cdx.json artifacts/sbom/ci.cdx.json artifacts/release-assets/
+          cp artifacts/release/evidence.json artifacts/release-assets/qtop-release-evidence.json
+          jq -c . "$PROVENANCE_BUNDLE" > artifacts/release-assets/qtop-provenance.intoto.jsonl
+          jq -c . "$SBOM_BUNDLE" > artifacts/release-assets/qtop-sbom.intoto.jsonl
+        env:
+          PROVENANCE_BUNDLE: ${{ steps.provenance.outputs.bundle-path }}
+          SBOM_BUNDLE: ${{ steps.sbom-attestation.outputs.bundle-path }}
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: python-package-distributions
           path: dist/
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with: {name: qtop-sbom, path: artifacts/sbom/qtop.cdx.json}
+        with: {name: qtop-release-assets, path: artifacts/release-assets/}
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with: {name: qtop-release-evidence, path: artifacts/release/evidence.json}
 
@@ -65,3 +80,20 @@ jobs:
           name: python-package-distributions
           path: dist/
       - uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # v1.14.3
+
+  # Its own job, so contents: write never reaches the build that runs project code.
+  release-assets:
+    name: Attach SBOMs and attestation bundles to the release
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: qtop-release-assets
+          path: release-assets/
+      - run: gh release upload "$RELEASE_TAG" release-assets/* --repo "$GITHUB_REPOSITORY"
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}

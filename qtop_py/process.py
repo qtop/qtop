@@ -8,7 +8,7 @@ import logging
 import os
 import shlex
 import signal
-import subprocess
+import subprocess  # nosec B404 - scheduler commands run as argv lists, never a shell
 import tempfile
 import threading
 import time
@@ -112,9 +112,15 @@ def _wait_for_command(command: "subprocess.Popen[bytes]", timeout: float, deadli
 
 
 def scheduler_env() -> Dict[str, str]:
-    """Environment for scheduler-facing commands: C locale, so the dates and messages qtop parses are not localised."""
+    """Environment for scheduler-facing commands, so the output qtop parses is complete and not localised.
+
+    LC_ALL=C keeps dates and messages in the C locale. SLURM_BITSTR_LEN=0 stops Slurm cutting
+    array task ranges (e.g. 453906_[2,6-14,...]) at its default length (qtop/qtop#606); it
+    overrides a user's own setting, which suits interactive squeue but breaks parsing.
+    """
     env = dict(os.environ)
     env["LC_ALL"] = "C"
+    env["SLURM_BITSTR_LEN"] = "0"
     return env
 
 
@@ -165,7 +171,7 @@ def execute_shell_batch_commands(
                     " ".join(shlex.quote(arg) for arg in command_args),
                     shlex.quote(os.path.abspath(filenames[_file])),
                 )
-                command = subprocess.Popen(
+                command = subprocess.Popen(  # nosec B603 # nosemgrep - shlex-split qtopconf.yaml command, argv list, never a shell
                     command_args,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,

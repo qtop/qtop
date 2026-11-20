@@ -1,6 +1,6 @@
 module qtop.local/schema-compat
 
-go 1.26.0
+go 1.26.11
 
 require cuelang.org/go v0.17.1
 

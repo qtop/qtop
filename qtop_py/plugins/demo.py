@@ -20,8 +20,10 @@ from qtop_py.serialiser import GenericBatchSystem
 if TYPE_CHECKING:
     from typing import Final
 
-    from qtop_py.state_types import Config, JobsInfo, Node, Options, QueuesInfo, RawQueue
+    from qtop_py.state_types import Config, JobsInfo, Node, Options, QueuesInfo
 
+# The simulated cluster's only source of randomness; fictional jobs, not security (one instance, so it can be seeded).
+SIMULATION_RNG: "Final" = random.Random()  # nosec B311 - simulation only
 WORKER_NODES: "Final" = 80
 QUEUES: "Final" = ["urgent", "transfer", "batch"]
 
@@ -72,7 +74,7 @@ class LittleClusterSimulator(object):
         # Create random cores per worker node
         self.nps = []
         for _ in range(WORKER_NODES):
-            self.nps.append(random.choice([8, 16, 24, 32]))
+            self.nps.append(SIMULATION_RNG.choice([8, 16, 24, 32]))
 
         self.total_nps = sum(self.nps)
 
@@ -89,7 +91,7 @@ class LittleClusterSimulator(object):
         self.node_state = []
         p_all = NODE_REPAIR_PROBABILITY + NODE_FAILURE_PROBABILITY
         for _ in range(WORKER_NODES):
-            state = random.choice(["-", "b"]) if random.random() * p_all > NODE_REPAIR_PROBABILITY else random.choice(["d"])
+            state = SIMULATION_RNG.choice(["-", "b"]) if SIMULATION_RNG.random() * p_all > NODE_REPAIR_PROBABILITY else SIMULATION_RNG.choice(["d"])
 
             self.node_state.append(state)
 
@@ -110,23 +112,23 @@ class LittleClusterSimulator(object):
         """A few jobs will be scheduled to die..."""
         for node in range(WORKER_NODES):
             for job_id in self.core_job_map[node]:
-                if job_id and random.random() < p_job_die:
-                    self.job_state[job_id] = random.choice(["C", "E", "W"])
+                if job_id and SIMULATION_RNG.random() < p_job_die:
+                    self.job_state[job_id] = SIMULATION_RNG.choice(["C", "E", "W"])
 
     def _fail_or_repair_nodes(self) -> None:
         """Make a few servers fail or get repaired."""
         for node in range(WORKER_NODES):
             if self.node_state[node] == "d":
-                if random.random() < NODE_REPAIR_PROBABILITY:
+                if SIMULATION_RNG.random() < NODE_REPAIR_PROBABILITY:
                     # We have a repair... ready to schedule
-                    self.node_state[node] = random.choice(["-", "b"])
-            elif random.random() < NODE_FAILURE_PROBABILITY:
+                    self.node_state[node] = SIMULATION_RNG.choice(["-", "b"])
+            elif SIMULATION_RNG.random() < NODE_FAILURE_PROBABILITY:
                 # We have a failure. All jobs completed (if only!)
                 self.node_state[node] = "d"
                 for core, job_id in enumerate(self.core_job_map[node]):
                     if job_id:
                         self.core_job_map[node][core] = None
-                        self.job_state[job_id] = random.choice(["C", "E", "W"])
+                        self.job_state[job_id] = SIMULATION_RNG.choice(["C", "E", "W"])
 
     def _find_slots(self) -> Tuple[List[Tuple[int, int]], int]:
         """Return the free (node, core) slots on working nodes and the number of busy ones."""
@@ -150,13 +152,13 @@ class LittleClusterSimulator(object):
 
         if to_schedule > 0:
             # Pick the first `to_schedule` random slots
-            random.shuffle(empty_slots)
+            SIMULATION_RNG.shuffle(empty_slots)
             lucky_slots = empty_slots[:to_schedule]
 
             # and give them jobs from the queues
             for node, core in lucky_slots:
                 queue_names = list(self.queue_jobs.keys())
-                random.shuffle(queue_names)
+                SIMULATION_RNG.shuffle(queue_names)
                 for queue_name in queue_names:
                     if self.queue_jobs[queue_name]:
                         job_id = self.queue_jobs[queue_name].pop()
@@ -167,8 +169,8 @@ class LittleClusterSimulator(object):
     def _shuffle_queue_states(self) -> None:
         """Shuffle queue states as well, every now and then."""
         for queue_name in QUEUES:
-            if random.random() < QUEUE_STATE_CHANGE_PROBABILITY:
-                self.queue_state[queue_name] = random.choice(["Q", "R", "C", "E", "W"])
+            if SIMULATION_RNG.random() < QUEUE_STATE_CHANGE_PROBABILITY:
+                self.queue_state[queue_name] = SIMULATION_RNG.choice(["Q", "R", "C", "E", "W"])
 
     def get_total_queued(self) -> int:
         """Return the number of jobs waiting in all queues."""
@@ -186,14 +188,14 @@ class LittleClusterSimulator(object):
         self.queue_state = {}
         for queue_name in QUEUES:
             # Add a random number of jobs into each queue
-            for _jobs in range(random.randint(100, 3000)):
+            for _jobs in range(SIMULATION_RNG.randint(100, 3000)):
                 job_id = "j%d" % jobcnt
-                username = random.choice(["alice023", "cms347", "cms125", "lhcbplt01", "cms360", "Atlassm"])
+                username = SIMULATION_RNG.choice(["alice023", "cms347", "cms125", "lhcbplt01", "cms360", "Atlassm"])
                 self.queue_jobs[queue_name].append(job_id)
                 self.job_state[job_id] = "Q"  # Initialy everything queued
                 self.job_meta[job_id] = (queue_name, username)
                 jobcnt += 1
-            self.queue_state[queue_name] = random.choice(["Q", "R", "C", "E", "W"])
+            self.queue_state[queue_name] = SIMULATION_RNG.choice(["Q", "R", "C", "E", "W"])
 
 
 class DemoBatchSystem(GenericBatchSystem):
@@ -270,16 +272,18 @@ class DemoBatchSystem(GenericBatchSystem):
 
         total_queued_jobs = self.sim.get_total_queued()
 
-        qstatq_list: "List[RawQueue]" = list()
-
-        for queue_name in QUEUES:
-            qstatq: "RawQueue" = {
-                "queue_name": queue_name,
-                "run": run_for_queue[queue_name],
-                "queued": str(len(self.sim.queue_jobs[queue_name])),
-                "state": self.sim.queue_state[queue_name],
-                "lm": random.randint(0, 100),
-            }
-            qstatq_list.append(qstatq)
-
-        return total_running_jobs, total_queued_jobs, qstatq_list
+        # Built in the return so QueuesInfo types each record as a RawQueue.
+        return (
+            total_running_jobs,
+            total_queued_jobs,
+            [
+                {
+                    "queue_name": queue_name,
+                    "run": run_for_queue[queue_name],
+                    "queued": str(len(self.sim.queue_jobs[queue_name])),
+                    "state": self.sim.queue_state[queue_name],
+                    "lm": SIMULATION_RNG.randint(0, 100),
+                }
+                for queue_name in QUEUES
+            ],
+        )

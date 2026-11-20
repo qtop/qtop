@@ -978,13 +978,19 @@ def test_slurm_array_tasks_and_heterogeneous_components_render_consistently(tmp_
     assert state["nodes"][1]["core_job_map"]["7"] == "201+1"
 
 
-def test_truncated_slurm_array_trace_fails_with_collection_advice(tmp_path):
-    (tmp_path / "squeue.txt").write_text("101_[1-...]|alice|PD|compute|1|(Priority)\n")
-    (tmp_path / "sinfo.txt").write_text("node001|compute|idle|8\n")
-    result = run_cli(tmp_path, "qtop_py.qtop", "-b", "slurm", "-s", str(tmp_path), "-O", "-o", "savepath=" + str(tmp_path / "results"))
-    assert result.returncode == 1
-    assert "collect squeue with -r/--array" in result.stderr
+def test_truncated_slurm_array_row_is_reported_not_fatal(tmp_path):
+    """qtop/qtop#606: a cut array range costs that row, flagged as rejected, not the whole run."""
+    import json
+
+    (tmp_path / "squeue.txt").write_text("101_[1-...]|alice|PD|compute|1|(Priority)\n102|bob|R|compute|1|node001\n")
+    (tmp_path / "sinfo.txt").write_text("node001|compute|alloc|8\n")
+    output = tmp_path / "results"
+    result = run_cli(tmp_path, "qtop_py.qtop", "-b", "slurm", "-s", str(tmp_path), "-E", "-O", "-o", "savepath=" + str(output))
+    assert result.returncode == 0, result.stderr
     assert "Traceback" not in result.stderr
+    state = json.loads(next(output.glob("qtop_json_*.json")).read_text())
+    assert [job["id"] for job in state["jobs"]] == ["102"]
+    assert state["slurm_diagnostics"]["rejected_squeue_rows"] == 1
 
 
 @pytest.mark.parametrize("availability", ["up", "down", "drain", "inact"])

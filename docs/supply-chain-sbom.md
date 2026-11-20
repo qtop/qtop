@@ -16,15 +16,16 @@ service settings or claim a SLSA level.
   successful publication. Workflow configuration alone does not establish these.
 - [x] Generate the release-package SBOM (`make sbom`, CycloneDX JSON) and attest
   it to the release distributions in `.github/workflows/release.yml`.
-- [ ] Generate and publish a separately scoped CI/build-environment SBOM.
+- [x] Generate a separately scoped CI/build-environment SBOM (`make sbom-ci`).
+- [x] Run both SBOM targets on every PR build (GitHub and GitLab) and attach the
+  SBOMs and attestation bundles to each GitHub release.
 - [x] Configure GitHub build provenance for `dist/*` and document consumer
   verification (Phase 3).
 - [ ] Confirm attestations on the first published release; workflow
   configuration alone does not establish them.
 - [ ] Produce SBOMit inputs: per-step in-toto attestations and a signed policy
   (see "SBOMit readiness" below).
-- [ ] Hash-lock the complete CI toolchain, including the license-report helper's
-  transitive dependencies.
+- [ ] Hash-lock the complete CI toolchain (Phase 3).
 
 The 2026-10-06 Scorecard snapshot is historical evidence, not current publication
 or signing status. Recheck Packaging and Signed-Releases after release changes.
@@ -66,8 +67,13 @@ the wheel from `DIST_DIR` alone into `build/sbom-venv` (`--no-index
 reproducible CycloneDX 1.6 file `artifacts/sbom/qtop.cdx.json` with the pinned
 `cyclonedx-bom` from the CI environment. The generator version is recorded in
 the SBOM metadata; the wheel digest is bound by the attestation subject. This
-installed-wheel scan does not inventory every file in the sdist. The CI
-environment row is not implemented.
+installed-wheel scan does not inventory every file in the sdist. `make sbom-ci` implements the build-and-CI row: it scans the environment that
+runs `PYTHON` into `artifacts/sbom/ci.cdx.json`. Both targets run the generator
+from its own `build/sbom-tool` venv, so neither inventory lists it. `make
+validated-build` (behind `github-build` and `gitlab-build`) runs both after
+`release-check`, so every PR build exercises them and keeps them as artifacts
+(`qtop-sbom` on GitHub, `artifacts/sbom/` on GitLab). The deployment row stays
+with each site.
 
 Publish the inventories with CI build artifacts and, for releases, with the exact
 release distributions. GitLab's native dependency-scanning reports are an
@@ -83,8 +89,13 @@ formats immediately.
    `dist/*` files. This requires `contents: read`, `id-token: write` and
    `attestations: write` in the generating job. The release `build` job runs
    `actions/attest-build-provenance` and `actions/attest-sbom` over `dist/*`,
-   commit-pinned, after `make github-build sbom`. Both produce in-toto
+   commit-pinned, after `make github-build`. Both produce in-toto
    statements signed through Sigstore with the workflow's OIDC identity.
+   `make verify-attestations` then checks both, as a consumer would, before
+   PyPI publishing. A separate `release-assets` job, the only one with
+   `contents: write`, attaches `qtop.cdx.json`, `ci.cdx.json`,
+   `qtop-provenance.intoto.jsonl`, `qtop-sbom.intoto.jsonl` and the
+   `release-check` report `qtop-release-evidence.json` to the release.
 2. **GitLab provenance:** enable
    [runner artifact provenance metadata](https://docs.gitlab.com/ci/runners/configure_runners/#artifact-provenance-metadata)
    with `RUNNER_GENERATE_ARTIFACTS_METADATA: "true"`. Its JSON statement is
@@ -112,12 +123,31 @@ See [OpenSSF readiness](openssf-readiness.md) for related metadata and assessmen
   ```
 
   The first checks build provenance; the second checks and prints the attested
-  SBOM. The `qtop-sbom` workflow artifact holds the same file.
-- [ ] Document [offline verification](https://docs.github.com/en/actions/how-tos/secure-your-work/use-artifact-attestations/verify-attestations-offline),
-  including exporting attestation bundles and trusted roots before transfer to
-  an air-gapped site; the online command alone is insufficient there.
-- [ ] Add platform-appropriate hash locks for all CI dependencies and enforce
-  them with `pip install --require-hashes`.
+  SBOM, also attached to the release as `qtop.cdx.json`. With the release files
+  in a directory, `make verify-attestations DIST_DIR=<dir>` runs both checks for
+  each file; the release workflow runs it on `dist/` right after attesting.
+- [x] Document [offline verification](https://docs.github.com/en/actions/how-tos/secure-your-work/use-artifact-attestations/verify-attestations-offline).
+  On a connected machine, download the release's `qtop-*.whl`/`.tar.gz` and the
+  two `.intoto.jsonl` bundles into one directory, and save the Sigstore trusted
+  root next to them:
+
+  ```sh
+  gh attestation trusted-root > trusted_root.jsonl
+  ```
+
+  Transfer the directory, then verify both attestations with no network access:
+
+  ```sh
+  make verify-attestations-offline DIST_DIR=<dir>
+  ```
+
+  The target runs `gh attestation verify --bundle <dir>/qtop-*.intoto.jsonl
+  --custom-trusted-root <dir>/trusted_root.jsonl` with the same repository and
+  signer-workflow checks as the online recipe. Refresh the trusted root when
+  Sigstore rotates keys; an old one rejects newer releases.
+- [ ] Add platform-appropriate hash locks for all CI dependencies, including the
+  separately pinned license-report and SBOM helpers and their transitive
+  dependencies, and enforce them with `pip install --require-hashes`.
 - [ ] Compare SBOMs in reviews once generation is stable. Document expected
   differences between build tooling and shipped package inventories.
 
