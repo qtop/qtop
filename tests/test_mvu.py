@@ -58,9 +58,9 @@ def test_MVU_update_returns_owned_state_and_effects_without_io(tmp_path, monkeyp
     assert MVU_update(model, "unknown") == (model, ())
     assert MVU_update(model, "q")[1] == (("quit", None),)
     help_model, _ = MVU_update(model, "?")
-    assert help_model.display_overrides["output_fp"] == model.help_file
+    assert help_model.display_overrides["show_help"] is True  # a flag, not a file path
     restored_model, _ = MVU_update(help_model, "?")
-    assert "output_fp" not in restored_model.display_overrides
+    assert "show_help" not in restored_model.display_overrides
     assert model.display_overrides == original_overrides
 
 
@@ -416,3 +416,38 @@ def test_slurm_accounting_agrees_across_views(tmp_path, monkeypatch, capsys, bac
     assert model.config["state_abbreviations"]["slurm"] == original_mapping
     # Portable capture/replay keeps the canonical accounting bucket and raw state.
     assert Snapshot.from_cluster_state(model.snapshot.to_cluster_state()).total_queued_jobs == model.snapshot.total_queued_jobs
+
+
+def test_snapshot_is_complete_when_built_and_display_state_leaves_the_export_alone():
+    state = {"jobs": [{"id": "1", "user": "alice", "state": "R", "queue": "q"}], "nodes": [], "queues": []}
+    snapshot = Snapshot.from_cluster_state(state, display_state=lambda job_state: "shown-" + job_state, collection=(3.0, 1.5, "late"))
+    assert snapshot.jobs_dict["1"].job_state == "shown-R"
+    assert snapshot.to_cluster_state()["jobs"][0]["state"] == "R"
+    assert (snapshot._collection_age, snapshot._collection_span, snapshot._collection_error) == (3.0, 1.5, "late")
+    assert not hasattr(Snapshot.from_cluster_state(state), "_collection_age")
+
+
+def test_MVU_update_records_the_terminal_without_effects(tmp_path, monkeypatch):
+    from qtop_py.mvu import TerminalInfo
+
+    model = MVU_test_model(tmp_path, monkeypatch)
+    info = TerminalInfo("2026-01-02 03:04:05", True, False)
+    next_model, effects = MVU_update(model, "terminal", info)
+    assert next_model.terminal == info and effects == ()
+    assert model.terminal is None
+
+
+def test_view_renders_the_same_text_from_the_same_model_whatever_the_clock_or_terminal(tmp_path, monkeypatch, capsys):
+    from types import SimpleNamespace
+
+    from qtop_py.mvu import TerminalInfo
+
+    model, _ = MVU_update(MVU_test_model(tmp_path, monkeypatch), "terminal", TerminalInfo("2026-01-02 03:04:05", False, False))
+    outputs = []
+    for term, tty in (("xterm-256color", True), ("linux", False)):
+        monkeypatch.setenv("TERM", term)
+        monkeypatch.setattr(sys, "__stdout__", SimpleNamespace(isatty=lambda tty=tty: tty))
+        MVU_view(MVU_query(model), str(tmp_path), "sample.tar", "qtop.log")
+        outputs.append(capsys.readouterr().out)
+    assert outputs[0] == outputs[1]
+    assert "2026-01-02 03:04:05" in outputs[0]

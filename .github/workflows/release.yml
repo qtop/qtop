@@ -16,6 +16,10 @@ jobs:
   build:
     name: Build release distributions
     runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      id-token: write # Sigstore signing of the attestations below
+      attestations: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -28,10 +32,21 @@ jobs:
         env:
           RELEASE_TAG: ${{ github.event.release.tag_name }}
       - run: make ci-deps github-ci github-build PYTHON=python
+      - run: make sbom PYTHON=python
+      # Signed in-toto statements bound to the exact dist/* digests; verify with gh attestation verify.
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: 'dist/*'
+      - uses: actions/attest-sbom@c604332985a26aa8cf1bdc465b92731239ec6b9e # v4.1.0
+        with:
+          subject-path: 'dist/*'
+          sbom-path: artifacts/sbom/qtop.cdx.json
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: python-package-distributions
           path: dist/
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with: {name: qtop-sbom, path: artifacts/sbom/qtop.cdx.json}
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with: {name: qtop-release-evidence, path: artifacts/release/evidence.json}
 

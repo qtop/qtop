@@ -25,11 +25,13 @@ from qtop_py.schedulers.tabular import TabularStatExtractor
 from qtop_py.serialiser import GenericBatchSystem, StatExtractor, resolve_job_id
 
 if TYPE_CHECKING:
+    from typing import Final
+
     from qtop_py.source_trace import TraceMasker
     from qtop_py.state_types import Config, JobsInfo, Node, Options, QueuesInfo, RawQueue
 
 # NQS request states mapped onto PBS single-letter job states.
-NQS_REQUEST_STATES = {
+NQS_REQUEST_STATES: "Final" = {
     "EXITING": "E",
     "HELD": "H",
     "QUEUED": "Q",
@@ -79,7 +81,7 @@ class PBSStatExtractor(TabularStatExtractor):
         try:
             fileutils.check_empty_file(orig_file)
         except fileutils.FileEmptyError:
-            logging.error("File %s seems to be empty." % orig_file)
+            logging.error("File %s seems to be empty.", orig_file)
             all_qstat_values = []
         else:
             try:
@@ -149,11 +151,11 @@ class PBSStatExtractor(TabularStatExtractor):
         m = re.match(self.nqs_request, line.strip())
         if m is None:
             if re.match(r"^\d+:", line.strip()):
-                logging.warning("Line: %s not properly parsed as an NQS request. Skipping." % line.strip())
+                logging.warning("Line: %s not properly parsed as an NQS request. Skipping.", line.strip())
             return None
         state = NQS_REQUEST_STATES.get(m.group("state"))
         if state is None:
-            logging.warning("Unknown NQS request state %s in line: %s. Skipping." % (m.group("state"), line.strip()))
+            logging.warning("Unknown NQS request state %s in line: %s. Skipping.", m.group("state"), line.strip())
             return None
         return {"JobId": m.group("job_id"), "UnixAccount": self.anonymize(m.group("user"), "users"), "S": state, "Queue": queue_name}
 
@@ -182,7 +184,7 @@ class PBSStatExtractor(TabularStatExtractor):
         try:
             fileutils.check_empty_file(orig_file)
         except fileutils.FileEmptyError:
-            logging.error("File %s seems to be empty." % orig_file)
+            logging.error("File %s seems to be empty.", orig_file)
             all_qstatq_values = []
         else:
             try:
@@ -445,9 +447,8 @@ class PBSBatchSystem(GenericBatchSystem):
             queue_names.append(qstat["Queue"])
 
         logging.debug(
-            "job_ids, usernames, job_states, queue_names lengths: "
-            "%(job_ids)s, %(usernames)s, %(job_states)s, %(queue_names)s"
-            % {"job_ids": len(job_ids), "usernames": len(usernames), "job_states": len(job_states), "queue_names": len(queue_names)}
+            "job_ids, usernames, job_states, queue_names lengths: %(job_ids)s, %(usernames)s, %(job_states)s, %(queue_names)s",
+            {"job_ids": len(job_ids), "usernames": len(usernames), "job_states": len(job_states), "queue_names": len(queue_names)},
         )
         return job_ids, usernames, job_states, queue_names
 

@@ -1,6 +1,6 @@
 .\" Copyright (c) 2026 qtop contributors
 .\" SPDX-License-Identifier: MIT
-.TH QTOP 1 "2026-11-18" "qtop 0.9.20261118" "User Commands"
+.TH QTOP 1 "2026-11-19" "qtop 0.9.20261119" "User Commands"
 .nh
 .SH NAME
 qtop \- text-mode monitor of batch-cluster utilization and job status
@@ -256,6 +256,27 @@ only behind an authenticating reverse proxy.
 .BR \-d ", " \-\-debug
 Print debug messages and operational-error tracebacks to standard error and
 the log file.
+.TP
+.B \-\-demanding
+Turn on every strict check at once:
+.BR \-S ,
+.BR \-\-strict\-parents ,
+and validating each live-collected cluster state a second time when the
+snapshot is built (live collection otherwise validates it once). Slower on
+large clusters.
+.TP
+.B \-\-strict\-parents
+Stop when a parent directory of
+.I savepath
+or of the log file is writable by group or others without the sticky bit.
+By default qtop continues and notes such a parent at
+.B \-v
+verbosity; shared site trees such as a group-writable
+.I /home
+or
+.I /gpfs/home
+are common. The directories qtop owns are always created or tightened to mode
+0700 and never followed through symbolic links.
 .TP
 .BR \-v ", " \-\-verbose
 Increase verbosity; may be repeated.

@@ -127,7 +127,7 @@ def test_extended_sample_preserves_package_source_paths(tmp_path, installed):
 
 def test_expanded_capture_closes_archive_if_initial_population_fails(tmp_path, monkeypatch):
     archives = []
-    original = fileutils.tarfile.open
+    original = fileutils._SampleArchive.open
 
     def opened(*args, **kwargs):
         archive = original(*args, **kwargs)
@@ -137,13 +137,22 @@ def test_expanded_capture_closes_archive_if_initial_population_fails(tmp_path, m
     def fail(*args, **kwargs):
         raise RuntimeError("capture population failed")
 
-    monkeypatch.setattr(fileutils.tarfile, "open", opened)
+    monkeypatch.setattr(fileutils._SampleArchive, "open", opened)
     monkeypatch.setattr(fileutils, "add_to_sample", fail)
     with pytest.raises(RuntimeError, match="capture population failed"):
         fileutils.init_sample_file(SimpleNamespace(SAMPLE=2, ANONYMIZE=False), str(tmp_path), "sample.tar", {}, "qtopconf.yaml", str(tmp_path))
     assert len(archives) == 1 and archives[0].closed
     with fileutils.tarfile.open(str(tmp_path / "sample.tar")) as archive:
         assert archive.getmembers() == []
+
+
+def test_interrupted_capture_leaves_no_archive_under_the_final_name(tmp_path):
+    archive = fileutils.init_sample_file(SimpleNamespace(SAMPLE=1), str(tmp_path), "sample.tar", {}, "qtopconf.yaml", str(tmp_path))
+    assert archive.target == str(tmp_path / "sample.tar")
+    assert not (tmp_path / "sample.tar").exists() and (tmp_path / ".sample.tar.part").exists()
+    archive.close()
+    archive.close()
+    assert [path.name for path in tmp_path.iterdir()] == ["sample.tar"]
 
 
 @pytest.mark.parametrize("overwrite, pattern", [(True, r"sample_\.tar"), (False, r"sample__\d{8}-\d{6}\.tar")])

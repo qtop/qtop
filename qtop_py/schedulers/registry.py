@@ -5,7 +5,7 @@
 import logging
 import os
 import shutil
-from typing import Any, Dict, Mapping, Optional
+from typing import TYPE_CHECKING, Any, Dict, Mapping, Optional
 
 from qtop_py.constants import QTOP_LOGFILE
 from qtop_py.errors import InvalidScheduler, NoSchedulerFound, OperationalError, SchedulerNotSpecified
@@ -17,7 +17,10 @@ from qtop_py.plugins.slurm import SlurmBatchSystem
 from qtop_py.plugins.slurm_json import SlurmJSONBatchSystem
 from qtop_py.serialiser import GenericBatchSystem
 
-PLUGIN_BATCH_SYSTEMS = (DemoBatchSystem, OARBatchSystem, PBSBatchSystem, SGEBatchSystem, SlurmBatchSystem, SlurmJSONBatchSystem)
+if TYPE_CHECKING:  # typing.Final is Python 3.8+; the quoted annotations keep 3.6 working
+    from typing import Final
+
+PLUGIN_BATCH_SYSTEMS: "Final" = (DemoBatchSystem, OARBatchSystem, PBSBatchSystem, SGEBatchSystem, SlurmBatchSystem, SlurmJSONBatchSystem)
 
 
 def auto_get_avail_batch_system(config: Dict[str, Any], backends: Mapping[str, Any]) -> str:
@@ -47,9 +50,9 @@ def decide_batch_system(
     """
     avail_systems = list(available_batch_systems.keys()) + ["auto"]
     if cmdline_switch and cmdline_switch.lower() not in avail_systems:
-        logging.critical("Selected scheduler system not supported. Available choices are %s." % ", ".join(avail_systems))
+        logging.critical("Selected scheduler system not supported. Available choices are %s.", ", ".join(avail_systems))
         logging.critical("For help, try ./qtop.py --help")
-        logging.critical("Log file created in %s" % os.path.expandvars(QTOP_LOGFILE))
+        logging.critical("Log file created in %s", os.path.expandvars(QTOP_LOGFILE))
         raise InvalidScheduler
     for scheduler in (cmdline_switch, env_var, config_file_batch_option):
         if scheduler is None:
@@ -58,10 +61,10 @@ def decide_batch_system(
 
         if scheduler == "auto":
             scheduler = auto_get_avail_batch_system(config, available_batch_systems)
-            logging.debug("Selected scheduler is %s" % scheduler)
+            logging.debug("Selected scheduler is %s", scheduler)
             return scheduler
         if scheduler in schedulers:
-            logging.info("User-selected scheduler: %s" % scheduler)
+            logging.info("User-selected scheduler: %s", scheduler)
             return scheduler
         if scheduler and scheduler not in schedulers:  # a scheduler that does not exist is inputted
             raise NoSchedulerFound

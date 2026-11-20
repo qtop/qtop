@@ -17,13 +17,16 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, List, Mapping, Match, Opt
 import qtop_py.fileutils as fileutils
 from qtop_py.hostlist import HostlistParser
 from qtop_py.schedulers.gpu import parse_gpu_gres
+from qtop_py.schedulers.slurm_extension import SLURM_EXTENSION
 from qtop_py.serialiser import GenericBatchSystem, StatExtractor
 
 if TYPE_CHECKING:
+    from typing import Final
+
     from qtop_py.source_trace import TraceMasker
     from qtop_py.state_types import ClusterState, Config, JobsInfo, Node, Options, QueuesInfo, RawQueue
 
-SLURM_JOB_STATES = {
+SLURM_JOB_STATES: "Final" = {
     "BOOT_FAIL": "BF",
     "CANCELLED": "CA",
     "COMPLETED": "CD",
@@ -56,8 +59,8 @@ SLURM_JOB_STATES = {
     "RECONFIG_FAIL": "F",
     "UPDATE_DB": "CG",
 }
-SLURM_COMPACT_JOB_STATES = set(SLURM_JOB_STATES.values())
-SLURM_QUEUED_STATES = {"PD", "RD", "RF", "RH", "RQ", "SE"}
+SLURM_COMPACT_JOB_STATES: "Final" = set(SLURM_JOB_STATES.values())
+SLURM_QUEUED_STATES: "Final" = {"PD", "RD", "RF", "RH", "RQ", "SE"}
 
 
 def slurm_accounting_state(state: str) -> str:
@@ -131,55 +134,77 @@ class SlurmStatExtractor(StatExtractor):
         try:
             fileutils.check_empty_file(orig_file)
         except fileutils.FileEmptyError:
-            logging.error("File %s seems to be empty." % orig_file)
+            logging.error("File %s seems to be empty.", orig_file)
             return []
 
         jobs: Dict[str, Any] = OrderedDict()
         expanded_count = 0
+        # Per-trace caches: a large squeue repeats few distinct users, states, partitions and CPU counts.
+        # anonymize() is stable per name, so caching it keeps -A mappings in first-seen order.
+        users: Dict[str, str] = {}
+        states: Dict[str, Tuple[str, str]] = {}
+        partition_lists: Dict[str, Optional[Tuple[str, ...]]] = {}
+        cpu_counts: Dict[str, int] = {}
+        no_array = ("", "N/A")
         with fileutils.open_input(orig_file, "r", encoding="utf-8", errors="replace", options=self.options) as fin:
             for line in fin:
                 line = line.strip()
                 if not line:
                     continue
-                try:
-                    fields = [field.strip() for field in line.split("|")]
-                    if len(fields) not in (6, 9, 11):
-                        raise ValueError("expected 6 legacy, 9 resource or 11 identity fields")
+                fields = [field.strip() for field in line.split("|")]
+                partitions_seen = None
+                if len(fields) in (6, 9, 11):
                     job_id, user, state, partition, cpus, nodes = fields[:6]
-                    if not all((job_id, user, state)) or not all(name.strip().rstrip("*") for name in partition.split(",")):
-                        raise ValueError("missing required job field")
-                except ValueError:
+                    if job_id and user and state:
+                        if partition not in partition_lists:
+                            names = [name.strip().rstrip("*") for name in partition.split(",")]
+                            partition_lists[partition] = tuple(OrderedDict.fromkeys(self.anonymize(name, "qs") for name in names)) if all(names) else None
+                        partitions_seen = partition_lists[partition]
+                if partitions_seen is None:
                     self.rejected_squeue_rows += 1
-                    logging.warning("Line: %s not properly parsed as Slurm squeue output." % line)
+                    logging.warning("Line: %s not properly parsed as Slurm squeue output.", line)
                     continue
 
-                task_ids = self.task_ids(job_id, fields[9], fields[10]) if len(fields) == 11 else self.expand_job_id(job_id)
+                if len(fields) == 11 and not (fields[10] in no_array and "_" not in job_id):
+                    task_ids = self.task_ids(job_id, fields[9], fields[10])
+                elif "_[" in job_id:
+                    task_ids = self.expand_job_id(job_id)
+                else:
+                    task_ids = [job_id]
                 if "_[" in job_id or len(task_ids) > 1:
                     expanded_count += len(task_ids)
                     if expanded_count > self.MAX_EXPANDED_TASKS:
                         raise ValueError("Too many grouped Slurm array tasks; collect squeue with -r/--array.")
-                partitions = list(OrderedDict.fromkeys(self.anonymize(name.strip().rstrip("*"), "qs") for name in partition.split(",") if name.strip().rstrip("*")))
+                if state not in states:
+                    mapped = self._map_job_state(state)
+                    states[state] = (mapped, slurm_accounting_state(mapped))
+                mapped_state, accounting = states[state]
+                if user not in users:
+                    users[user] = self.anonymize(user, "users")
+                if cpus not in cpu_counts:
+                    cpu_counts[cpus] = max(1, self._safe_int(cpus, default=1))
                 for task_id in task_ids:
                     job = {
                         "JobId": task_id,
-                        "UnixAccount": self.anonymize(user, "users"),
-                        "S": self._map_job_state(state),
+                        "UnixAccount": users[user],
+                        "S": mapped_state,
                         "raw_state": state,
-                        "Queue": partitions[0],
-                        "slurm_partitions": partitions,
-                        "accounting_state": slurm_accounting_state(self._map_job_state(state)),
-                        "CPUs": max(1, self._safe_int(cpus, default=1)),
+                        "Queue": partitions_seen[0],
+                        "slurm_partitions": list(partitions_seen),
+                        "accounting_state": accounting,
+                        "CPUs": cpu_counts[cpus],
                         "Nodes": nodes,
                     }
-                    job.update(self.identity_fields(task_id))
+                    if "_" in task_id or "+" in task_id:
+                        job.update(self.identity_fields(task_id))
                     if len(fields) >= 9:
-                        job.update(zip(("slurm_tres_alloc", "slurm_tres_per_node", "slurm_tres_per_task"), fields[6:9]))
+                        job["slurm_tres_alloc"], job["slurm_tres_per_node"], job["slurm_tres_per_task"] = fields[6:9]
                     if task_id in jobs and jobs[task_id] != job:
                         previous = jobs[task_id]
                         ignored = {"Queue", "slurm_partitions"}
                         comparable = {key: value for key, value in job.items() if key not in ignored}
                         if job["S"] in SLURM_QUEUED_STATES and {key: value for key, value in previous.items() if key not in ignored} == comparable:
-                            previous["slurm_partitions"] = list(OrderedDict.fromkeys(previous["slurm_partitions"] + partitions))
+                            previous["slurm_partitions"] = list(OrderedDict.fromkeys(previous["slurm_partitions"] + list(partitions_seen)))
                             continue
                         raise ValueError("Conflicting Slurm records for job %s; collect a fresh squeue trace with -r/--array." % task_id)
                     jobs[task_id] = job
@@ -194,7 +219,7 @@ class SlurmStatExtractor(StatExtractor):
         try:
             fileutils.check_empty_file(orig_file)
         except fileutils.FileEmptyError:
-            logging.error("File %s seems to be empty." % orig_file)
+            logging.error("File %s seems to be empty.", orig_file)
             return []
 
         nodes = []
@@ -212,7 +237,7 @@ class SlurmStatExtractor(StatExtractor):
                         raise ValueError("missing required node field")
                 except ValueError:
                     self.rejected_sinfo_rows += 1
-                    logging.warning("Line: %s not properly parsed as Slurm sinfo output." % line)
+                    logging.warning("Line: %s not properly parsed as Slurm sinfo output.", line)
                     continue
 
                 nodes.append(
@@ -295,7 +320,8 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
     optional_trace_aliases = {"scontrol_file": "scontrol.txt"}
     optional_trace_warning = "Using estimated Slurm CPU placement."
     detection_priority = -2
-    node_job_fields = ("slurm_job_ids",)
+    extensions = SLURM_EXTENSION
+    node_job_fields = SLURM_EXTENSION.node_job_fields
     blocked_queue_note = " (partition closed to submissions or scheduling)"
 
     @staticmethod
@@ -473,9 +499,8 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
         queue_names = [job["Queue"] for job in jobs]
 
         logging.debug(
-            "job_ids, usernames, job_states, queue_names lengths: "
-            "%(job_ids)s, %(usernames)s, %(job_states)s, %(queue_names)s"
-            % {"job_ids": len(job_ids), "usernames": len(usernames), "job_states": len(job_states), "queue_names": len(queue_names)}
+            "job_ids, usernames, job_states, queue_names lengths: %(job_ids)s, %(usernames)s, %(job_states)s, %(queue_names)s",
+            {"job_ids": len(job_ids), "usernames": len(usernames), "job_states": len(job_states), "queue_names": len(queue_names)},
         )
         return job_ids, usernames, job_states, queue_names
 
@@ -580,7 +605,7 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
                 node = worker_nodes_by_name[hosts[0]]
                 node["slurm_unmapped_cpus"] = node.get("slurm_unmapped_cpus", 0) + missing
         worker_nodes = list(worker_nodes_by_name.values())
-        logging.info("worker_nodes contains %s entries" % len(worker_nodes))
+        logging.info("worker_nodes contains %s entries", len(worker_nodes))
         return cast("List[Node]", worker_nodes)  # built field by field as Node records
 
     @staticmethod

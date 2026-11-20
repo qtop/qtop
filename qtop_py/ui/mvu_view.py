@@ -2,11 +2,9 @@
 ## SPDX-License-Identifier: MIT
 """Terminal presentation of an explicit MVU view_data."""
 
-import datetime
 import logging
 import os
 import re
-import sys
 import tempfile
 from collections import Counter, OrderedDict
 from functools import lru_cache, partial
@@ -16,6 +14,7 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, Iterable, Iterator, List,
 if TYPE_CHECKING:
     from typing import Final
 
+    from qtop_py.mvu import TerminalInfo
     from qtop_py.state_types import Config
 
 from qtop_py import __version__, utils, yaml_parser
@@ -25,10 +24,11 @@ from qtop_py.mvu import MVU_gauge_core_vectors as gauge_core_vectors
 from qtop_py.mvu import MVU_queue_layout
 from qtop_py.mvu_query import WNOccupancy
 from qtop_py.safety import visible_text
+from qtop_py.ui.terminal import capture_terminal
 from qtop_py.ui.viewport import terminal_rows
 
 # Accounts-table state columns when accounts_states is unset: jobs >= R + Q + O(ther), as the Summary's Total=R+Q+Other.
-DEFAULT_ACCOUNT_STATES = ("running_of_user", "queued_of_user", "other_of_user")
+DEFAULT_ACCOUNT_STATES: "Final" = ("running_of_user", "queued_of_user", "other_of_user")
 # Named worker-node labels change colour per name group, and at least every this many nodes within one (#197).
 LABEL_GROUP_SIZE: "Final" = 5
 # Vertical separators (vertical_separator_every_X_columns) are drawn in this colour in every matrix line.
@@ -63,22 +63,22 @@ def user_accounts_header(config: "Config") -> str:
     return visible_text(USER_ACCOUNTS_HEADER.replace("{ranking}", ", ".join(USER_ID_RANKING)), escape_backslashes=False)
 
 
-REVERSE = "\033[7m%s\033[0m"
-COUNT_KEYS = ("total", "running_of_user", "queued_of_user", "other_of_user")  # the Summary colour slots
+REVERSE: "Final" = "\033[7m%s\033[0m"
+COUNT_KEYS: "Final" = ("total", "running_of_user", "queued_of_user", "other_of_user")  # the Summary colour slots
 
 
-def summary_count_colours(config: "Config") -> Tuple[str, ...]:
+def summary_count_colours(config: "Config", wide_colours: Optional[bool] = None) -> Tuple[str, ...]:
     """Return the Total, R, Q and Other colours: summary_colours, or blue, green, orange and yellow backgrounds.
 
     Orange needs 256 colours (TERM *256color, or COLORTERM set); elsewhere, e.g. the Linux console, Q falls back to red.
     """
     if config.get("summary_colours"):
         return tuple(config["summary_colours"])
-    wide = "256color" in os.environ.get("TERM", "") or bool(os.environ.get("COLORTERM"))
+    wide = capture_terminal().wide_colours if wide_colours is None else wide_colours
     return ("WhiteOnBlue", "BlackOnGreen", "BlackOnOrange256" if wide else "WhiteOnRed", "BlackOnGold")
 
 
-WATCH_KEYS: Tuple[Tuple[str, str], ...] = (
+WATCH_KEYS: "Final[Tuple[Tuple[str, str], ...]]" = (
     ("q", "quit"),
     ("?", "help"),
     ("p/P", "palette +/-"),
@@ -87,7 +87,7 @@ WATCH_KEYS: Tuple[Tuple[str, str], ...] = (
     ("f", "filter"),
     ("s", "sort"),
 )
-WATCH_MORE_KEYS: Tuple[Tuple[str, str], ...] = (
+WATCH_MORE_KEYS: "Final[Tuple[Tuple[str, str], ...]]" = (
     ("Q", "queue layout"),
     ("1,2,3,4", "sections"),
     ("hjkl/arrows", "scroll"),
@@ -95,8 +95,8 @@ WATCH_MORE_KEYS: Tuple[Tuple[str, str], ...] = (
     (":line", "jump"),
     ("g/G", "top/bottom"),
 )
-WATCH_KEYS_TEXT = "Keys: " + ",\n      ".join(", ".join("%s %s" % pair for pair in group) for group in (WATCH_KEYS, WATCH_MORE_KEYS))
-BOLD = "\033[1m%s\033[0m"
+WATCH_KEYS_TEXT: "Final" = "Keys: " + ",\n      ".join(", ".join("%s %s" % pair for pair in group) for group in (WATCH_KEYS, WATCH_MORE_KEYS))
+BOLD: "Final" = "\033[1m%s\033[0m"
 
 
 class TextDisplay(object):
@@ -192,7 +192,7 @@ class TextDisplay(object):
             self.MVU_model.MVU_colorize("===> ", "Gray_D")
             + self.MVU_model.MVU_colorize("1. Job accounting summary", "White")
             + self.MVU_model.MVU_colorize(" <=== ", "Gray_D")
-            + self.MVU_model.MVU_colorize(str(datetime.datetime.today())[:-7], "White")
+            + self.MVU_model.MVU_colorize(self.terminal().frame_time, "White")
         )
 
         summary_states = self.state_columns("summary_states")
@@ -346,15 +346,18 @@ class TextDisplay(object):
 
     def display_account_totals(self) -> None:
         """Display section four independently of the per-user accounts section."""
-        totals = self.account_jobs_totals(self.wns_occupancy.account_jobs_table)
+        totals = self.account_jobs_totals(self.wns_occupancy.account_jobs_table, self.wns_occupancy.nodes_in_use)
         if totals:
             print(self.MVU_model.MVU_colorize("\n===> 4. Account totals <===", "White"))
             self.display_account_table_header()
             self.display_account_jobs_line(totals, "account_not_colored", {}, {} if getattr(self.args, "SHOW_GROUPS", False) else None, highlight=True)
 
     @staticmethod
-    def account_jobs_totals(account_jobs_table: Sequence[Sequence[Any]]) -> Optional[List[Any]]:
-        """Return the per-state job totals over all accounts, or None if there are no accounts."""
+    def account_jobs_totals(account_jobs_table: Sequence[Sequence[Any]], nodes_in_use: int) -> Optional[List[Any]]:
+        """Return the per-state job totals over all accounts, or None if there are no accounts.
+
+        nodes_in_use is the number of distinct nodes running any account's job, not the sum of per-user node counts.
+        """
         if not account_jobs_table:
             return None
 
@@ -368,7 +371,7 @@ class TextDisplay(object):
             sum(int(line[2]) for line in account_jobs_table),
             sum(int(line[3]) for line in account_jobs_table),
             "Totals",
-            sum(int(line[5]) for line in account_jobs_table),
+            nodes_in_use,
             state_totals,
         ]
 
@@ -414,10 +417,15 @@ class TextDisplay(object):
             label = self.MVU_model.MVU_colorize(name, color_func=self.MVU_model.queue_to_color.get(name, ""))
             print("  %s%s%s : %s = %s + %s + %s" % (label, star, " " * (name_width - len(name)), *cells))
 
+    def terminal(self) -> "TerminalInfo":
+        """Return the frame's captured time and terminal facts; models built outside the main loop read them now."""
+        return getattr(self.MVU_model, "terminal", None) or capture_terminal()
+
     def count_cells(self, keys: Sequence[str], counts: Sequence[Any]) -> List[str]:
         """Paint job counts in the Summary colours: Total, R, Q and Other by state key, other states by position."""
-        colours, terminal = summary_count_colours(self.config), sys.__stdout__
-        if self.args.COLOR == "OFF" and terminal is not None and terminal.isatty():  # monochrome on a terminal: reverse video
+        terminal = self.terminal()
+        colours = summary_count_colours(self.config, terminal.wide_colours)
+        if self.args.COLOR == "OFF" and terminal.is_tty:  # monochrome on a terminal: reverse video
             return [REVERSE % count for count in counts]
         slots = [COUNT_KEYS.index(key) if key in COUNT_KEYS else index for index, key in enumerate(keys)]
         return [self.MVU_model.MVU_colorize(str(count), colours[slot % len(colours)]) for slot, count in zip(slots, counts)]  # plain unless -c ON
@@ -536,7 +544,7 @@ class TextDisplay(object):
             max_width = len(joined_list)
             self.viewport.max_width = max_width
 
-            logging.debug("Printed horizontally from %s to %s" % (self.viewport.h_start, self.viewport.h_stop))
+            logging.debug("Printed horizontally from %s to %s", self.viewport.h_start, self.viewport.h_stop)
         else:
             self.viewport.max_width = self.viewport.get_term_size()[1]
         print()

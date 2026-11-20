@@ -10,21 +10,23 @@ import re
 from typing import TYPE_CHECKING, Dict, List, Optional, Sequence, Set, cast
 
 if TYPE_CHECKING:
+    from typing import Final
+
     from qtop_py.state_types import ClusterState, Job, Node, Queue, RawQueue
 
 from qtop_py.safety import MAX_CORES_PER_NODE
 from qtop_py.schedulers.metadata import DIAGNOSTICS, validate_diagnostics, validate_record_extensions
 
-CLUSTER_STATE_KEYS = ("jobs", "nodes", "queues")
+CLUSTER_STATE_KEYS: "Final" = ("jobs", "nodes", "queues")
 # Schema 1 is the bare jobs/nodes/queues state, with no envelope. Schema 2 adds the
 # observation envelope, an optional qid on jobs, nodes and queues, and job kind (docs/cluster-state-model.md).
-ENVELOPE_KEYS = ("schema_version", "source")
+ENVELOPE_KEYS: "Final" = ("schema_version", "source")
 # The top level is closed: every key is a relation, a scheduler's diagnostics or one of these envelope keys
 # of the state's schema version. A new top-level collection (issue #593) is a new row here, i.e. a new
 # schema version, so an older reader rejects it instead of silently dropping data it cannot see.
-SCHEMA_KEYS = {1: frozenset(("schema_version",)), 2: frozenset(ENVELOPE_KEYS), 3: frozenset(ENVELOPE_KEYS + ("schema_revision",))}
-JOB_KINDS = ("job", "pod", "vm", "task")
-NATIVE_IDS = {"jobs": "id", "nodes": "domainname", "queues": "name"}  # the native ID inside each relation's qid
+SCHEMA_KEYS: "Final" = {1: frozenset(("schema_version",)), 2: frozenset(ENVELOPE_KEYS), 3: frozenset(ENVELOPE_KEYS + ("schema_revision",))}
+JOB_KINDS: "Final" = ("job", "pod", "vm", "task")
+NATIVE_IDS: "Final" = {"jobs": "id", "nodes": "domainname", "queues": "name"}  # the native ID inside each relation's qid
 
 
 def build_cluster_state(

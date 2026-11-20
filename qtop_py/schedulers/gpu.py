@@ -8,9 +8,11 @@ from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Optional, Sequence
 from qtop_py.hostlist import HostlistParser
 
 if TYPE_CHECKING:
+    from typing import Final
+
     from qtop_py.state_types import GPUResource
 
-MAX_GPU_INDICES = 100000
+MAX_GPU_INDICES: "Final" = 100000
 
 
 def _pair_inventory(mapping: object) -> Dict[str, List[List[int]]]:

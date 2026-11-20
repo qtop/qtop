@@ -103,8 +103,14 @@ flowchart TB
    `schedulers/collector.py` owns command/file collection and capture-aware
    snapshot construction. The loop calls `MVU_collect_snapshot()`,
    `MVU_export_snapshot()`,
-   `MVU_query()` and `MVU_view()`. `MVU_update()` accepts snapshots and keyboard
-   messages, returning a new model and effect requests; the runtime executes
+   `MVU_query()` and `MVU_view()`. The snapshot is complete when built: display
+   job states and collection timings are passed to `Snapshot.from_cluster_state()`.
+   `MVU_update()` accepts snapshots, the per-frame `terminal` facts (frame time,
+   256-colour support, whether stdout is a terminal; captured by
+   `ui/terminal.capture_terminal()`) and keyboard messages, returning a new model
+   and effect requests. The view reads no clock or environment, so one model
+   renders the same text; UI state holds flags such as `show_help`, while the
+   runtime chooses the files to show. The runtime executes
    menu input and terminal effects through `ui/effects.py` and
    `ui/terminal.py`; `user_details.py` owns optional account enrichment.
    [configuration.py](../qtop_py/configuration.py) owns file precedence,
@@ -149,7 +155,7 @@ runtime globals, while the new query/view pipeline does not depend on them.
 | Responsibility | Source |
 | --- | --- |
 | Launchers and installed entry point | [qtop](../qtop), [qtop.py](../qtop_py/qtop.py), [pyproject.toml](../pyproject.toml) |
-| CLI/watch orchestration and compatibility adapters (deprecated, see below) | [qtop.py](../qtop_py/qtop.py) |
+| CLI/watch orchestration and helper re-exports | [qtop.py](../qtop_py/qtop.py) |
 | Explicit model and update messages | [mvu.py](../qtop_py/mvu.py) |
 | Snapshot queries, filtering and occupancy calculations | [mvu_query.py](../qtop_py/mvu_query.py) |
 | Watch effects, prompts and menus | [effects.py](../qtop_py/ui/effects.py) |
@@ -171,28 +177,21 @@ runtime globals, while the new query/view pipeline does not depend on them.
 | Capture archives and temporary files | [fileutils.py](../qtop_py/fileutils.py) |
 | Experimental HTTP output | [web.py](../qtop_py/web.py), [web/index.html](../qtop_py/web/index.html) |
 
-### Deprecated legacy adapters
+### Retired legacy adapters
 
-`qtop.py` still exports the pre-MVU entry points `MVU_legacy_model()`, `colorize()`,
-`control_qtop()` and the `Cluster`, `WNOccupancy` and `TextDisplay` classes. They build their
-model from module globals (`args`, `config`, `dynamic_config`, `viewport` and so on) that
-callers must set first. Since 0.9.20261110 they raise a `DeprecationWarning`
-and are scheduled for removal in 1.0. `main()` and `tools/validate_trace_export.py` use none of them:
-build an `MVU_Model` and pass it to `MVU_update`, `MVU_effects`, `MVU_query` and `MVU_view`.
-`main()` sets no module globals; `tests/test_runtime.py` fails if a run changes module-level
-state or triggers a legacy adapter.
-
-Before 1.0, retain these public adapters and their warning/compatibility tests.
-New presentation tests call ui.mvu_view.TextDisplay directly with an explicit
-model; existing global-context tests are migrated as their fixtures change.
-The 1.0 removal commit must delete the adapters, their global declarations and
-adapter-only tests together, update the public import documentation, and pass
-pre-pr plus schema-ci. Keep the pure helper re-exports outside this retirement.
-This is a compatibility commitment, not permission to remove APIs in 0.9.
+The pre-MVU entry points `MVU_legacy_model()`, `colorize()`, `control_qtop()`, the
+`Cluster`, `WNOccupancy` and `TextDisplay` wrapper classes, the `Document` alias and the
+`choose_sort/filter/highlight` wrappers were removed from `qtop.py` in 0.9.20261119, after a
+`DeprecationWarning` since 0.9.20261110. They built their model from module globals (`args`,
+`config`, `dynamic_config`, `viewport` and so on). Build an `MVU_Model` and pass it to
+`MVU_update`, `MVU_effects`, `MVU_query` and `MVU_view`; use `mvu_query.Cluster`,
+`mvu_query.WNOccupancy` and `ui.mvu_view.TextDisplay` with an explicit `MVU_model`, and
+`MVU_Model.MVU_colorize`. Tests do the same through `tests/mvu_support.explicit_model()`.
+`main()` sets no module globals; `tests/test_runtime.py` fails if a run brings any back.
 
 The CLI re-exports extracted public helpers so existing imports and exception
-handlers keep working. Three menu adapters retain the legacy default color
-callback; modern effects pass the model callback explicitly. Implementation
+handlers keep working; these pure re-exports were not part of the retirement.
+Menu effects pass the model's colour callback explicitly. Implementation
 tests patch the owning module rather than the entry point. No owner imports
 `qtop.py`; `RunPaths` lives with `RunResources`, and shared configuration errors
 and scheduler exceptions belong to their configuration/error modules.
@@ -216,12 +215,14 @@ Current implementation and remaining preparation:
   detection, queue policy and display-note hooks are backend-controlled;
   `tests/test_scheduler_policy.py` exercises a custom backend.
 - [x] Separate normalized observations from MVU queries and presentation;
-  retain legacy adapters until their documented 1.0 retirement.
+  the legacy adapters are retired (0.9.20261119).
 - [x] Preserve schema-1/2 validation, replay and anonymization contracts;
   schema 3 beta1 adds opt-in workload parentage without changing old versions.
-- [ ] Separate growing backend-specific metadata rule sets from the central
-  dispatcher in `schedulers/metadata.py`. Offline validation and masking must
-  remain independent of backend construction and optional client libraries.
+- [x] Separate growing backend-specific metadata rule sets from the central
+  dispatcher in `schedulers/metadata.py`: each backend owns an `ExtensionSpec`
+  (`slurm_extension.py`, `oar_extension.py`) that imports no plugin, so offline
+  validation and masking stay independent of backend construction and optional
+  client libraries; `tests/test_plugin_conformance.py` checks every backend.
 - [ ] Consolidate repeated backend defaults and validation-case declarations
   when new backends need them. Keep the small explicit registry; avoid a
   generic discovery framework or unrelated module moves.

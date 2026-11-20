@@ -29,7 +29,7 @@ For schema changes, run `make schema-compat BASE_SCHEMA=... PROPOSED_SCHEMA=...`
 
 ## Repo map
 
-- `qtop_py/qtop.py` - main loop, I/O effects and deprecated legacy adapters (see docs/architecture.md); argument handling; `python -m qtop_py.qtop` entry.
+- `qtop_py/qtop.py` - main loop, I/O effects and helper re-exports (see docs/architecture.md); argument handling; `python -m qtop_py.qtop` entry.
 - `qtop_py/mvu.py`, `mvu_query.py`, `ui/mvu_view.py` - explicit model/update, snapshot queries and terminal presentation.
 - `qtop_py/plugins/{pbs,sge,slurm,oar,demo}.py` - backends; `qtop_py/schedulers/` - registration, metadata and GPU helpers.
 - `qtop_py/cluster_state.py`, `snapshot.py`, `ui/viewport.py`, `colormap.py` - normalized snapshots, navigation and colors.

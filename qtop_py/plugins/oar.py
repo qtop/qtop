@@ -9,14 +9,17 @@ from collections import OrderedDict
 from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Tuple
 
 from qtop_py import fileutils, yaml_parser
+from qtop_py.schedulers.oar_extension import OAR_EXTENSION
 from qtop_py.schedulers.tabular import TabularStatExtractor
 from qtop_py.serialiser import GenericBatchSystem, StatExtractor
 
 if TYPE_CHECKING:
+    from typing import Final
+
     from qtop_py.source_trace import TraceMasker
     from qtop_py.state_types import ClusterState, Config, JobsInfo, Node, Options, QueuesInfo
 
-DEFAULT_NODE_STATE_MAPPING = {"Alive": "-", "Dead": "d", "Suspected": "s", "Mixed": "%", "Unknown": "?"}
+DEFAULT_NODE_STATE_MAPPING: "Final" = {"Alive": "-", "Dead": "d", "Suspected": "s", "Mixed": "%", "Unknown": "?"}
 
 
 class OarStatExtractor(TabularStatExtractor):
@@ -40,10 +43,10 @@ class OarStatExtractor(TabularStatExtractor):
         try:
             fileutils.check_empty_file(orig_file)
         except fileutils.FileEmptyError:
-            logging.error("File %s seems to be empty." % orig_file)
+            logging.error("File %s seems to be empty.", orig_file)
             return all_values
         with fileutils.open_input(orig_file, "r", encoding="utf-8", errors="replace", options=self.options) as fin:
-            logging.debug("File state before OarStatExtractor.extract_qstat: %(fin)s" % {"fin": fin})
+            logging.debug("File state before OarStatExtractor.extract_qstat: %(fin)s", {"fin": fin})
             _ = fin.readline()  # header
             fin.readline()  # dashes
             re_match_positions = ("job_id", "user", "job_state", "queue")
@@ -64,7 +67,8 @@ class OarStatExtractor(TabularStatExtractor):
 class OARBatchSystem(GenericBatchSystem):
     """OAR backend."""
 
-    node_job_fields = ("oar_job_ids",)
+    extensions = OAR_EXTENSION
+    node_job_fields = OAR_EXTENSION.node_job_fields
 
     @staticmethod
     def display_messages(section: str, snapshot: object, nodes: "List[Node]", config: "Config") -> List[str]:
@@ -200,7 +204,7 @@ class OARBatchSystem(GenericBatchSystem):
             d["state"] = self._calculate_oar_state(nodes_jobs[node], node_state_mapping)
             worker_nodes.append(d)
 
-        logging.info("worker_nodes contains %s entries" % len(worker_nodes))
+        logging.info("worker_nodes contains %s entries", len(worker_nodes))
         return self.ensure_worker_nodes_have_qnames(worker_nodes, job_ids, job_queues)
 
     def get_jobs_info(self) -> "JobsInfo":
@@ -210,9 +214,8 @@ class OARBatchSystem(GenericBatchSystem):
         job_ids, usernames, job_states, queue_names = map(list, zip(*records)) if records else ([], [], [], [])
 
         logging.debug(
-            "job_ids, usernames, job_states, queue_names lengths: "
-            "%(job_ids)s, %(usernames)s, %(job_states)s, %(queue_names)s"
-            % {"job_ids": len(job_ids), "usernames": len(usernames), "job_states": len(job_states), "queue_names": len(queue_names)}
+            "job_ids, usernames, job_states, queue_names lengths: %(job_ids)s, %(usernames)s, %(job_states)s, %(queue_names)s",
+            {"job_ids": len(job_ids), "usernames": len(usernames), "job_states": len(job_states), "queue_names": len(queue_names)},
         )
         return job_ids, usernames, job_states, queue_names
 
@@ -234,7 +237,7 @@ class OARBatchSystem(GenericBatchSystem):
         if not os.path.isfile(fn_s):
             raise FileNotFoundError("OAR node input is not a regular file: %s" % fn_s)
         anonymize = self.oar_stat_maker.anonymize_func()
-        logging.debug("File %s exists: %s" % (fn_s, os.path.isfile(fn_s)))
+        logging.debug("File %s exists: %s", fn_s, os.path.isfile(fn_s))
         if os.stat(fn_s).st_size == 0:
             raise ValueError("OAR node input is empty: %s" % fn_s)
         data = yaml_parser.safe_load(fn_s, DEF_INDENT=4, options=self.options)

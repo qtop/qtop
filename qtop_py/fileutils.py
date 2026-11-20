@@ -15,6 +15,10 @@ import tarfile
 import tempfile
 from typing import Any, Dict, Generator, List, Mapping, Optional, Set, TextIO, Tuple
 
+# Off by default: shared site trees (/gpfs/home, group-writable /home) would otherwise stop every run.
+# --strict-parents turns it on, so a writable non-sticky ancestor of savepath or the log stops qtop.
+STRICT_PARENTS = False
+
 
 class StartupProgress:
     """Report each distinct scheduler source once, until startup completes."""
@@ -116,7 +120,9 @@ def _private_directory(path: str) -> Generator[Tuple[str, int], None, None]:
                     raise PermissionError(errno.EACCES, "Save directory must be owned by the current user", path)
                 os.fchmod(fd, 0o700)
             elif writable_by_others and not info.st_mode & stat.S_ISVTX:
-                raise PermissionError(errno.EACCES, "Save directory has an untrusted parent (writable without sticky bit)", parent)
+                if STRICT_PARENTS:
+                    raise PermissionError(errno.EACCES, "Save directory has an untrusted parent (writable without sticky bit; --strict-parents)", parent)
+                logging.getLogger(__name__).info("Save directory parent %s is writable by others without sticky bit; continuing (see --strict-parents)", parent)
         yield path, fd
     finally:
         os.close(fd)
@@ -155,7 +161,7 @@ def get_new_temp_file(_savepath: str, suffix: str, prefix: str) -> Tuple[int, st
     mkstemp, not NamedTemporaryFile: sys.stdout is redirected to the descriptor.
     """
     fd, temp_filepath = tempfile.mkstemp(suffix=suffix, prefix=prefix, dir=_savepath)  # **kwargs
-    logging.debug("temp_filepath: %s" % temp_filepath)
+    logging.debug("temp_filepath: %s", temp_filepath)
     return fd, temp_filepath
 
 
@@ -174,6 +180,22 @@ def safe_exit_with_file_close(handle: int, name: str, stdout: TextIO, options: A
     sys.exit(0)
 
 
+class _SampleArchive(tarfile.TarFile):
+    """A support archive written under a hidden .part name and renamed into place on close.
+
+    A watch stopped mid-capture (SIGTERM raises SystemExit anywhere) leaves only the .part file,
+    never an empty or truncated archive under the final name.
+    """
+
+    target = ""
+
+    def close(self) -> None:
+        super().close()
+        target, self.target = self.target, ""  # rename once; close() may be called again
+        if target and self.name:
+            os.replace(self.name, target)
+
+
 def init_sample_file(
     options: Any, _savepath: str, SAMPLE_FILENAME: str, scheduler_output_filenames: Mapping[str, str], QTOPCONF_YAML: str, QTOPPATH: str
 ) -> Optional[tarfile.TarFile]:
@@ -186,7 +208,10 @@ def init_sample_file(
 
     # clears any preexisting tar files
     with contextlib.ExitStack() as initialization:
-        tar_out = initialization.enter_context(tarfile.open(os.path.join(_savepath, SAMPLE_FILENAME), mode="w"))
+        target = os.path.join(_savepath, SAMPLE_FILENAME)
+        partial = os.path.join(_savepath, "." + SAMPLE_FILENAME + ".part")
+        tar_out = initialization.enter_context(_SampleArchive.open(partial, mode="w"))
+        tar_out.target = target
         initialization.callback(tar_out.close)  # Finalize even failed captures, as before using the archive's context manager.
         if options.SAMPLE >= 2:
             if not getattr(options, "ANONYMIZE", False):
@@ -241,7 +266,7 @@ def add_to_sample(filepaths_to_add: List[str], sample_out: tarfile.TarFile, samp
     for filepath_to_add in filepaths_to_add:
         fn = os.path.basename(filepath_to_add)
         try:
-            logging.debug("Adding %s to sample..." % filepath_to_add)
+            logging.debug("Adding %s to sample...", filepath_to_add)
             sample_out.add(filepath_to_add, arcname=fn if not subdir else os.path.join(subdir, fn), filter=_without_archive_owner)
         except (OSError, tarfile.TarError) as error:
             logging.error("Could not add %s to the sample archive; skipping it: %s", filepath_to_add, error)

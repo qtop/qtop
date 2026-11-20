@@ -75,3 +75,21 @@ def test_nightly_matrix_drift_is_detected(change):
         lanes[0]["target"] = "compat-py36"
     gh, gl = lane_counts(github, gitlab)
     assert gh != gl
+
+
+def test_release_attests_the_published_distributions_and_their_sbom():
+    workflow = yaml.safe_load((ROOT / ".github/workflows/release.yml").read_text())
+    build = workflow["jobs"]["build"]
+    steps = build["steps"]
+    runs = [step["run"] for step in steps if "run" in step]
+    attest = {step["uses"].split("@")[0]: step for step in steps if step.get("uses", "").startswith("actions/attest")}
+    assert runs.index("make sbom PYTHON=python") > runs.index("make ci-deps github-ci github-build PYTHON=python")
+    assert set(attest) == {"actions/attest-build-provenance", "actions/attest-sbom"}
+    assert all(step["with"]["subject-path"] == "dist/*" for step in attest.values())
+    assert attest["actions/attest-sbom"]["with"]["sbom-path"] == "artifacts/sbom/qtop.cdx.json"
+    assert "SBOM_DIR ?= artifacts/sbom" in (ROOT / "Makefile").read_text()
+    assert build["permissions"] == {"contents": "read", "id-token": "write", "attestations": "write"}
+    for job in workflow["jobs"].values():
+        for step in job["steps"]:
+            if "uses" in step:
+                assert len(step["uses"].split("@")[1]) == 40, "pin %s to a commit SHA" % step["uses"]

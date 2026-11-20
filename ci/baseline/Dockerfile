@@ -12,3 +12,8 @@ RUN sed -i -e 's|^mirrorlist=|#mirrorlist=|' -e 's|^# *baseurl=|baseurl=|' /etc/
  && dnf clean all \
  && rm -rf /var/cache/dnf \
  && python3.6 --version
+
+# Run as an unprivileged user. uid 1001 matches the GitHub Actions runner, so a
+# container job can still check out into and write its mounted workspace.
+RUN useradd --uid 1001 --user-group --create-home --shell /bin/bash qtop
+USER 1001:1001

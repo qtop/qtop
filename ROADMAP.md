@@ -61,7 +61,8 @@ or a release is prepared.
   - [x] Distinguish runtime compatibility from developer-tool requirements in [README.md](README.md), [CONTRIBUTING.md](CONTRIBUTING.md) and CI dependency markers.
   - [x] State native Windows/WSL scope and POSIX-only test limits in
     [local testing](docs/local-testing.md); no native Windows CI is claimed.
-  - [ ] Track newer Python compatibility in [#546](https://github.com/qtop/qtop/issues/546).
+  - [x] Newer Python compatibility ([#546](https://github.com/qtop/qtop/issues/546)): CPython 3.15 runs in the
+    `modern-python` GitHub job, and the GitLab nightly matrix adds PyPy lanes.
 
 ### Scheduler Validation and Soak Testing
 
@@ -79,7 +80,8 @@ or a release is prepared.
   - [x] [CI] Check committed fixture accounting and exports through backend tests, `tests/test_runtime.py` and `make backend-validation`.
   - [ ] Resolve or explicitly defer reproducible correctness bugs.
   - [x] [CI] Preserve queue-summary order/expansion in `tests/test_qtop.py`.
-  - [ ] Complete the ordering decision for [#560](https://github.com/qtop/qtop/issues/560).
+  - [x] [CI] Queues keep the scheduler's input order and expand or collapse on request
+    ([#560](https://github.com/qtop/qtop/issues/560)); `test_queueing_summary_preserves_order_and_expands`.
 
 ### Predictable Failures and Safe Capture
 
@@ -88,14 +90,15 @@ or a release is prepared.
   - [x] [CI] Assert nonzero exits for the covered operational failures; review uncovered paths before release.
   - [ ] Review diagnostic completeness across all release-blocking failure paths.
   - [x] [CI] Exercise operational failure cleanup and stdout restoration in `tests/test_runtime.py` and `tests/test_cli.py`.
-  - [ ] Track related QA work in [#484](https://github.com/qtop/qtop/issues/484).
+  - [x] Related QA work in [#484](https://github.com/qtop/qtop/issues/484) is closed.
 
 - [ ] Validate capture and anonymization behavior.
   - [x] [CI] Reproduce normalized state and rendering from support snapshots in `tests/test_sample.py`.
   - [x] [CI] Check anonymized snapshot job/node/queue links and configuration masking in `tests/test_sample.py`.
   - [x] [CI] Test snapshot archive creation/loading, invalid payloads and disabled imported lookup commands in `tests/test_sample.py`.
   - [x] Document masking scope and limitations in [the user guide](docs/documentation.md) and [security guide](docs/secure-coding-pyscg.md).
-  - [ ] Resolve the experimental-status decision for `-A`: [#548](https://github.com/qtop/qtop/issues/548).
+  - [x] `-A` is no longer experimental and needs no `-e` since 0.9.20261111
+    ([#548](https://github.com/qtop/qtop/issues/548)).
 
 ### Packaging and Release Delivery
 
@@ -126,9 +129,10 @@ or a release is prepared.
 - [ ] Validate the 1.0 user documentation.
   - [ ] Check quickstart, installation, capture, replay, export and troubleshooting examples against the release revision.
   - [ ] Document scheduler-specific requirements and supported environments.
-  - [ ] Identify experimental features individually.
+  - [x] Identify experimental features individually: [experimental features](docs/documentation.md#experimental-features).
   - [ ] Preserve historical release information.
-  - [ ] Track documentation work in [#498](https://github.com/qtop/qtop/issues/498) and history reconciliation in [#489](https://github.com/qtop/qtop/issues/489).
+  - [x] Documentation refresh [#498](https://github.com/qtop/qtop/issues/498) and history reconciliation
+    [#489](https://github.com/qtop/qtop/issues/489) are closed.
 
 - [ ] Record the 1.0 release decision.
   - [ ] Link compatibility, artifact, scheduler and soak-test evidence.
@@ -151,11 +155,11 @@ or a release is prepared.
 
 - [ ] Separate parsing, normalized state and presentation incrementally.
   - [x] Extract normalized state, snapshot support and viewport helpers with focused interfaces ([architecture](docs/architecture.md)).
-  - [x] Separate explicit MVU model/update, snapshot queries and terminal presentation; retain legacy adapters in the runtime.
+  - [x] Separate explicit MVU model/update, snapshot queries and terminal presentation.
   - [x] Remove runtime-global dependencies from the new MVU path; runtime tests
-    reject module-state mutation and accidental use of deprecated adapters.
-  - [ ] Retire public compatibility adapters and their global-context tests
-    together in 1.0, after their callers migrate.
+    reject module-state mutation.
+  - [x] Retire the public compatibility adapters and their global-context tests
+    together (0.9.20261119); tests build explicit models via `tests/mvu_support.py`.
   - [x] [CI] Run backend rendering and runtime/capture regressions through the shared test and sample gates.
   - [x] [CI] Check extracted runtime/tooling syntax through `compat-py36`;
     Python 3.6 compatibility remains a requirement for future changes.

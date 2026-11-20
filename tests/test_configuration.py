@@ -304,6 +304,6 @@ def test_collection_settings_reject_invalid_timeout_before_commands(timeout):
 
 
 def test_collection_settings_default_timeout_allows_slow_clients(config):
-    assert configuration.collection_settings({"savepath": "/tmp"}).TIMEOUT == 120
+    assert configuration.collection_settings({"savepath": "/tmp"}).TIMEOUT == 180
     assert float(config["scheduler_command_timeout"]) == DEFAULT_SCHEDULER_COMMAND_TIMEOUT
     assert configuration.collection_settings(config).TIMEOUT == DEFAULT_SCHEDULER_COMMAND_TIMEOUT

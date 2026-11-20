@@ -559,7 +559,7 @@ Invalid common settings report the affected key (for example, `sorting.reverse`
 or `term_size`). Backend-specific extension keys remain supported.
 
 `scheduler_command_timeout` also bounds optional user-detail commands from
-`extract_info`; it defaults to 120 seconds and must be positive and finite.
+`extract_info`; it defaults to 180 seconds and must be positive and finite.
 Set it in your `qtopconf.yaml`, or use `-o scheduler_command_timeout=240`.
 Failed or timed-out lookups log a warning and leave the dashboard usable.
 Quoted command arguments, including cache paths containing spaces, are preserved.
@@ -1194,6 +1194,39 @@ Section titles carry fixed numbers 1-4, even when other sections are hidden.
 -  ``-B`` enables the experimental web interface at `127.0.0.1:8080` by
    default and requires ``-e``/``--experimental``. See the configuration below.
 
+### Strict checks
+
+By default qtop favours speed and tolerates common site setups. Three checks
+can be made stricter, one at a time or all at once:
+
+-  ``-S`` / ``--StrictCheck`` compares the scheduler's running-job total with
+   the jobs qtop found and displayed.
+-  ``--strict-parents`` stops qtop when a parent directory of ``savepath`` or of
+   the log is writable by group or others without the sticky bit. Without it,
+   such a parent (e.g. a group-writable ``/home`` or ``/gpfs/home``) is noted
+   at ``-v`` and qtop continues; the directories qtop owns are always created or
+   tightened to mode 0700 and never followed through symbolic links.
+-  Live collection validates each cluster state once, in its collection
+   thread. ``--demanding`` validates it again when the snapshot is built.
+
+``--demanding`` turns on all three. It costs about half a second per frame on a
+cluster of several thousand nodes, mostly from the second validation.
+
+### Experimental features
+
+These features may change or go away without notice. Each is listed with how
+to turn it on; "checked" means qtop refuses to start without the stated options.
+
+| Feature | Turn on with | Required, checked | Details |
+| --- | --- | --- | --- |
+| Web interface | `-B` | `-e` | [web configuration](#experimental-web-configuration); no login or TLS |
+| Queue idle/total node counts | `--queue-nodes`; optional `experimental_queue_nodes` mapping | `-e` | [queue-node summary](#experimental-queue-node-summary) |
+| Masked scheduler-format traces in a support archive | `--masked-traces` | `-L -A -e` | [support archives](#support-archives) |
+| Separate private archive of unmasked inputs | `--raw-companion` | `-L -A -e` | [support archives](#support-archives) |
+| Configured GPU pairs below the matrix (Slurm) | `experimental_gpu_pairs` in user `qtopconf.yaml` | none | [GPU pairs](#experimental-configured-gpu-pairs-slurm) |
+
+`-A` is not experimental.
+
 ### Experimental web configuration
 
 The web interface remains experimental and has no authentication or TLS. The
@@ -1239,7 +1272,7 @@ truncation. Owned directories under `~/.local/qtop` are restored to `0700` even
 when their existing modes prevent reading or traversing them.
 Symlinks, hard links, special files and foreign-owned logs are refused.
 
-Live scheduler commands have a 120-second timeout. Set `scheduler_command_timeout`
+Live scheduler commands have a 180-second timeout. Set `scheduler_command_timeout`
 in your configuration or use `-o scheduler_command_timeout=240` for slower clients.
 The value must be positive and finite. Timeouts terminate the client (and its
 process group on POSIX), discard partial output and preserve the previous trace.
@@ -1377,7 +1410,7 @@ live command; it never bypasses Slurm permissions.
 In watch mode one background collector starts on a 20-second monotonic cadence,
 independently of keypresses, redraws or the `-w` display interval. Slow collections
 skip missed slots and never overlap. Each command uses
-`scheduler_command_timeout` (120 seconds by default); shutdown cancels and reaps
+`scheduler_command_timeout` (180 seconds by default); shutdown cancels and reaps
 in-flight clients. Failed refreshes retain the previous complete observation.
 Scheduler messages show its age since successful completion and the collection span.
 Freshness/failed-refresh messages are transient UI information; exported state
@@ -1447,3 +1480,33 @@ indices are unavailable, even if node-level allocated GRES indices are reported.
 Summary mode also ignores optional allocation-detail traces during offline replay.
 It cannot be combined with `--slurm-json-squeue` or an explicit non-Slurm backend.
 As an explicit selection it overrides scheduler environment/configuration defaults.
+
+## Adding a scheduler backend
+
+A backend is a `GenericBatchSystem` subclass in `qtop_py/plugins/`. It implements
+`get_jobs_info`, `get_queues_info`, `get_worker_nodes` and `get_mnemonic`, and returns
+the scheduler-neutral cluster state; query, display, export and replay never branch on
+the scheduler. Optional hooks (`queue_is_blocked`, `node_state_marker`,
+`display_messages`, `collection_command`, ...) have defaults in `serialiser.py`.
+
+To register it:
+
+1. Add the class to `PLUGIN_BATCH_SYSTEMS` in `qtop_py/schedulers/registry.py`.
+2. In `qtopconf.yaml`, add its commands under `schedulers:` and one command under
+   `signature_commands:` for auto-detection. Matrix rows without a `systems:` list
+   (the default ones) already apply to it.
+3. Commit sample traces and list them for the sample gate in
+   `tools/validate_scheduler_samples.py`; add the name to `SAMPLE_GATE_SCHEDULERS`
+   in the `Makefile`.
+
+If its jobs or nodes carry fields beyond the neutral schema (array IDs, slot
+counts, job lists on nodes), describe them in one `ExtensionSpec`
+(`qtop_py/schedulers/extensions.py`) in its own module, as
+`slurm_extension.py` and `oar_extension.py` do. Set the plugin's `extensions` to it,
+take `node_job_fields` from it, and list it in `metadata.EXTENSIONS`. Validation,
+`-A` masking and the idle test then cover those fields for every state, including
+replayed and `--load-sample` ones that are validated without the plugin.
+
+`tests/test_plugin_conformance.py` runs for every registered backend. It fails
+until the steps above are done, and it checks each committed sample through export,
+validation, replay and `-A` (no user name may survive anonymization).

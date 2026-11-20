@@ -120,7 +120,7 @@ class SGEStatExtractor(StatExtractor):
             except (etree.ParseError, IOError):
                 raise
             except Exception as error:
-                logging.debug("XML file state %s" % fin, exc_info=True)
+                logging.debug("XML file state %s", fin, exc_info=True)
                 raise OperationalError("Cannot read SGE XML %s: %s" % (xml_file, error)) from error
             else:
                 root = tree.getroot()
@@ -275,7 +275,7 @@ class SGEBatchSystem(GenericBatchSystem):
 
     def get_queues_info(self) -> "QueuesInfo":
         """Return the running and queued totals and per-queue records from qstat -xml."""
-        logging.debug("Parsing tree of %s" % self.sge_file)
+        logging.debug("Parsing tree of %s", self.sge_file)
         fileutils.check_empty_file(self.sge_file)
 
         root = self.sge_stat_maker.root
@@ -283,7 +283,7 @@ class SGEBatchSystem(GenericBatchSystem):
         qstatq_list = self._extract_queues("queue_info/Queue-List", root)
 
         total_running_jobs = sum(int(d["run"]) for d in qstatq_list)
-        logging.info("Total running jobs found: %s" % total_running_jobs)
+        logging.info("Total running jobs found: %s", total_running_jobs)
 
         for d in qstatq_list:
             d["run"] = str(d["run"])
@@ -292,15 +292,15 @@ class SGEBatchSystem(GenericBatchSystem):
         total_queued_jobs = self._get_total_queued_jobs("job_info/job_list", root)
 
         qstatq_list.append({"run": "0", "queued": total_queued_jobs, "queue_name": "Pending", "state": "-", "lm": "0"})
-        logging.debug("qstatq_list contains %s elements" % len(qstatq_list))
-        logging.debug("Closing %s" % self.sge_file)
+        logging.debug("qstatq_list contains %s elements", len(qstatq_list))
+        logging.debug("Closing %s", self.sge_file)
 
         queues: "List[RawQueue]" = cast("List[RawQueue]", qstatq_list)  # every row is a queue record
         return total_running_jobs, int(total_queued_jobs), queues
 
     def get_worker_nodes(self, job_ids: List[str], job_queues: List[str], options: "Options") -> "List[Node]":
         """Return the nodes, with their queues and slots, from qstat -xml."""
-        logging.debug("Parsing tree of %s" % self.sge_file)
+        logging.debug("Parsing tree of %s", self.sge_file)
 
         tree, root = self.sge_stat_maker.tree, self.sge_stat_maker.root
 
@@ -343,8 +343,8 @@ class SGEBatchSystem(GenericBatchSystem):
         for existing_wn in existing_wns:
             self._expand_whole_queue_node(existing_wn, whole_queue_jobs.get(existing_wn["domainname"]))
 
-        logging.debug("Closing %s" % self.sge_file)
-        logging.info("existing_wns contains %s entries" % len(existing_wns))
+        logging.debug("Closing %s", self.sge_file)
+        logging.info("existing_wns contains %s entries", len(existing_wns))
 
         # last to be reading the xml file, can now write back if anonymizing..
         if self.options.SAMPLE >= 1:
@@ -360,9 +360,8 @@ class SGEBatchSystem(GenericBatchSystem):
         job_ids, usernames, job_states, queue_names = map(list, zip(*records)) if records else ([], [], [], [])
 
         logging.debug(
-            "job_ids, usernames, job_states, queue_names lengths: "
-            "%(job_ids)s, %(usernames)s, %(job_states)s, %(queue_names)s"
-            % {"job_ids": len(job_ids), "usernames": len(usernames), "job_states": len(job_states), "queue_names": len(queue_names)}
+            "job_ids, usernames, job_states, queue_names lengths: %(job_ids)s, %(usernames)s, %(job_states)s, %(queue_names)s",
+            {"job_ids": len(job_ids), "usernames": len(usernames), "job_states": len(job_states), "queue_names": len(queue_names)},
         )
         return job_ids, usernames, job_states, queue_names
 
@@ -469,6 +468,6 @@ class SGEBatchSystem(GenericBatchSystem):
 
     def _get_total_queued_jobs(self, xpath: str, root: etree.Element) -> str:
         total_queued_jobs = str(self._count_jobs(root.findall(xpath), "queued_of_user"))
-        logging.info("Total queued jobs found: %s" % total_queued_jobs)
+        logging.info("Total queued jobs found: %s", total_queued_jobs)
 
         return total_queued_jobs

@@ -281,6 +281,11 @@ inherited by instrumented subprocesses and contaminate their stderr. GitHub
 and GitLab therefore use the same branch-capable default, keeping exact-output
 assertions intact. Explicit local core overrides remain available.
 
+The GitHub coverage-qtop job is the exception: it runs on CPython 3.14, where
+the sysmon core measures branches, with `COVERAGE_CORE=sysmon`. That cuts the
+instrumented suite by about a quarter. The gate covers `qtop_py/` only, so the
+Atheris tests skipped there (atheris is pinned to 3.12) do not affect it.
+
 Schema container jobs trust only their provider's checkout directory before
 running Git commands. This handles bind-mount ownership without disabling Git's
 ownership check globally or trusting unrelated repositories.

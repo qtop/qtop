@@ -18,9 +18,10 @@ from types import SimpleNamespace
 import pytest
 
 from qtop_py.mvu import MVU_Model
+from qtop_py.mvu_query import Cluster, WNOccupancy
 from qtop_py.plugins.oar import DEFAULT_NODE_STATE_MAPPING, OARBatchSystem, OarStatExtractor
-from qtop_py.qtop import Cluster, Snapshot, WNOccupancy
 from qtop_py.sample import anonymize_state
+from qtop_py.snapshot import Snapshot
 
 
 class _Opts:

@@ -15,6 +15,7 @@ from types import SimpleNamespace
 from xml.etree.ElementTree import ParseError
 
 import pytest
+from mvu_support import explicit_model
 
 from qtop_py import configuration, qtop, safety, sample, yaml_parser
 from qtop_py import process as process_io
@@ -24,7 +25,7 @@ from qtop_py.snapshot import Snapshot
 
 
 @pytest.mark.parametrize("hostile", ["x\x1b[2J", "x\x1b]52;c;secret\x07", "x\r\nWARNING: forged", "x\x9b2J", "x\u202e", "x\u061c", "x\udcff", "x\\n"])
-def test_display_identifiers_are_inert_and_export_remains_original(hostile, monkeypatch):
+def test_display_identifiers_are_inert_and_export_remains_original(hostile):
     state = {
         "jobs": [{"id": "1", "user": hostile, "state": "R", "queue": hostile}],
         "nodes": [{"domainname": hostile, "state": "-", "np": 1, "core_job_map": {0: "1"}, "qname": [hostile]}],
@@ -35,8 +36,7 @@ def test_display_identifiers_are_inert_and_export_remains_original(hostile, monk
     assert display_name == snapshot.jobs_dict["1"].user_name == snapshot.worker_nodes[0]["domainname"]
     assert not safety._CONTROLS.search(display_name)
     assert snapshot.to_cluster_state() == state
-    monkeypatch.setattr(qtop, "args", SimpleNamespace(COLOR="ON"), raising=False)
-    coloured = qtop.colorize(display_name, color_func="Red", mapping={"NoPattern": "Red"})
+    coloured = explicit_model(args=SimpleNamespace(COLOR="ON")).MVU_colorize(display_name, color_func="Red", mapping={"NoPattern": "Red"})
     assert coloured.startswith("\x1b[")
     assert display_name in coloured
 

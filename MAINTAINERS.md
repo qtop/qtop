@@ -6,11 +6,12 @@
 |---|---|---|
 | Primary maintainer | Fotis Georgatos | [@fgeorgatos](https://github.com/fgeorgatos), [email](mailto:kefalonia@gmail.com) |
 | Second maintainer | Evangelos Papadopoulos | [@evanspap](https://github.com/evanspap), [email](mailto:evangelos.papadopoulos@gmail.com) |
+| Maintainer | Sotiris Fragkiskos | [@sfranky](https://github.com/sfranky) |
 
 Maintainers function as standing backup for each other,
-for review assignment, coordination and escalation. Both share maintenance and
+for review assignment, coordination and escalation. All share maintenance and
 review responsibilities. [CODEOWNERS](.github/CODEOWNERS) routes all paths
-to both maintainers. Package author credits in [pyproject.toml](pyproject.toml)
+to all maintainers. Package author credits in [pyproject.toml](pyproject.toml)
 are not a list of current administrators or release publishers.
 
 ## Four-eyes principle

@@ -20,6 +20,7 @@ if TYPE_CHECKING:
     from qtop_py.state_types import ClusterState, Config, JobsInfo, Node, Options, QueuesInfo
 
 from qtop_py.cluster_state import build_cluster_state
+from qtop_py.schedulers.extensions import ExtensionSpec
 from qtop_py.schedulers.metadata import node_is_idle
 
 
@@ -83,6 +84,9 @@ class GenericBatchSystem(object):
     optional_trace_warning = "Optional scheduler details unavailable."
     detection_priority = 0
     is_simulated = False
+    # A backend whose records carry extra fields declares their ExtensionSpec here (and lists it in
+    # metadata.EXTENSIONS); node_job_fields then comes from that spec, not a second copy.
+    extensions: Optional[ExtensionSpec] = None
     node_job_fields: Tuple[str, ...] = ()
     blocked_queue_note = ""
     native_queue_membership = False

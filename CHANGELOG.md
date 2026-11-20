@@ -3,6 +3,30 @@
 Notable changes by version, newest first. See the
 [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 
+## 0.9.20261119
+
+- Bugfix: section 4 Totals counts distinct occupied nodes, not the sum of per-user node counts
+- Bugfix: trace archives must be regular files; traces land via a private workspace descriptor
+- Bugfix: --masked-traces and --raw-companion require -e, as their help text says
+- Bugfix: -L archives are written as .part and renamed on close, so a SIGTERM leaves none empty
+- Bugfix: sort-configuration errors reach the log as plain text, not escaped colour codes
+- CI: the baseline image runs as unprivileged uid 1001, not root
+- CI: coverage-qtop runs on Python 3.14 with the sysmon core, about 2.5x faster than ctrace
+- CI: releases attest dist/* build provenance and a CycloneDX SBOM (make sbom)
+- Docs: add @sfranky as maintainer and code owner (MAINTAINERS.md, CODEOWNERS)
+- Docs: an "Experimental features" table lists each feature, how to enable it and its checks
+- Feature: live frames validate the cluster state once, not twice (--demanding keeps both)
+- Feature: Slurm squeue parsing is about 2x faster on large traces (per-trace caches, fast paths)
+- Feature: --demanding turns on -S, --strict-parents and a second state validation together
+- Feature: scheduler commands run concurrently, so a frame waits for the slowest, not their sum
+- Feature: scheduler_command_timeout defaults to 180 seconds (was 120)
+- Feature: writable parents of savepath and the log no longer stop qtop unless --strict-parents
+- Refactor: per-backend extension specs; a conformance test checks every registered backend
+- Refactor: snapshots complete when built; the view reads no clock or environment
+- Refactor: retire the deprecated qtop.py adapters (colorize, control_qtop, wrapper classes)
+- Refactor: lazy logging arguments (ruff G rules) and "Final" on module constants
+- Release: update version metadata to 0.9.20261119
+
 ## 0.9.20261118
 
 - Bugfix: highlight (H) ignores unknown user IDs and bad patterns instead of crashing (#603)

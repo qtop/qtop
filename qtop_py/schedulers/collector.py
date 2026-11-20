@@ -2,6 +2,7 @@
 ## SPDX-License-Identifier: MIT
 """Scheduler-neutral command collection, capture and snapshot orchestration."""
 
+import concurrent.futures
 import copy
 import logging
 import os
@@ -41,32 +42,59 @@ def finalize_filepaths_schedulercommands(args: Any, config: Dict[str, Any], back
     return d
 
 
+def _run_commands_concurrently(INPUT_FNs_commands: Mapping[str, Tuple[str, str]], config: Dict[str, Any], args: Any, backend: Type[GenericBatchSystem]) -> Dict[str, Any]:
+    """Start every scheduler command at once; return {key: path or OperationalError} in config order.
+
+    A frame then waits for the slowest command, not the sum of all of them. Each command keeps its
+    own timeout, and the first required failure in config order is raised, so errors read as they
+    did when the commands ran one after another. The caller's cancel event stops them all.
+    """
+    SETTINGS = configuration.collection_settings(config)
+    _savepath = os.path.realpath(os.path.expandvars(SETTINGS.SAVEPATH))
+    filenames = {key: path for key, (path, _) in INPUT_FNs_commands.items()}
+    commands = {key: command for key, (_, command) in INPUT_FNs_commands.items()}
+    controls = dict(getattr(args, "_collection_controls", {}))
+    outer_cancel = controls.pop("cancel", None)
+    stop = threading.Event()
+    progress = {"input_options": args} if getattr(args, "_input_progress", None) is not None else {}
+
+    def run(key: str) -> str:
+        return process.execute_shell_batch_commands(commands, filenames, key, _savepath, timeout=SETTINGS.TIMEOUT, cancel=stop, **progress, **controls)
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max(1, len(filenames)), thread_name_prefix="qtop-command") as pool:
+        futures = {key: pool.submit(run, key) for key in filenames}
+        pending = set(futures.values())
+        try:
+            while pending:
+                _, pending = concurrent.futures.wait(pending, timeout=0.1)
+                if outer_cancel is not None and outer_cancel.is_set():
+                    stop.set()
+        finally:
+            if pending:  # interrupted (e.g. Ctrl-C): stop the commands still running
+                stop.set()
+    results: Dict[str, Any] = {}
+    for key, future in futures.items():
+        error = future.exception()
+        if error is not None and (key not in backend.optional_trace_keys or not isinstance(error, OperationalError)):
+            raise error
+        results[key] = error if error is not None else future.result()
+    return results
+
+
 def get_input_filenames(INPUT_FNs_commands: Mapping[str, Tuple[str, str]], config: Dict[str, Any], args: Any, backend: Type[GenericBatchSystem]) -> Dict[str, str]:
     """Return the trace files by key: found in the -s directory, or collected by running the scheduler commands."""
     filenames = dict()
-    batch_system_commands = dict()
+    collected = {} if args.SOURCEDIR else _run_commands_concurrently(INPUT_FNs_commands, config, args, backend)
     for _file in INPUT_FNs_commands:
-        filenames[_file], batch_system_commands[_file] = INPUT_FNs_commands[_file]
+        filenames[_file] = INPUT_FNs_commands[_file][0]
 
         if not args.SOURCEDIR:
-            SETTINGS = configuration.collection_settings(config)
-            _savepath = os.path.realpath(os.path.expandvars(SETTINGS.SAVEPATH))
-            try:
-                filenames[_file] = process.execute_shell_batch_commands(
-                    batch_system_commands,
-                    filenames,
-                    _file,
-                    _savepath,
-                    timeout=SETTINGS.TIMEOUT,
-                    **({"input_options": args} if getattr(args, "_input_progress", None) is not None else {}),
-                    **getattr(args, "_collection_controls", {}),
-                )
-            except OperationalError as error:
-                if _file not in backend.optional_trace_keys:
-                    raise
-                logging.warning("%s %s", error, backend.optional_trace_warning)
+            result = collected[_file]
+            if isinstance(result, OperationalError):
+                logging.warning("%s %s", result, backend.optional_trace_warning)
                 filenames.pop(_file)
                 continue
+            filenames[_file] = result
 
         if _file in backend.optional_trace_keys and not os.path.isfile(filenames[_file]):
             filenames.pop(_file)
@@ -101,8 +129,10 @@ def fetch_scheduler_files(args: Any, config: Dict[str, Any], backend: Type[Gener
     return get_input_filenames(INPUT_FNs_commands, config, args, backend)
 
 
-def MVU_collect_snapshot(args: Any, config: Dict[str, Any], backend: Any, trace_paths: Dict[str, str], archive: Any, collected: Any = None) -> Tuple[Snapshot, Dict[str, Any]]:
-    """Collect one normalized snapshot, including replay and masking."""
+def MVU_collect_snapshot(
+    args: Any, config: Dict[str, Any], backend: Any, trace_paths: Dict[str, str], archive: Any, collected: Any = None, collection_error: str = ""
+) -> Tuple[Snapshot, Dict[str, Any]]:
+    """Collect one normalized snapshot, including replay and masking; the snapshot is complete when built."""
     scheduler = backend.get_mnemonic()
     savepath = config["savepath"]
     scheduling_system: state_types.Scheduler
@@ -135,11 +165,10 @@ def MVU_collect_snapshot(args: Any, config: Dict[str, Any], backend: Any, trace_
         raise OperationalError("Cannot parse %s scheduler input in %s: %s" % (scheduler, args.workdir, error)) from error
     if collected is not None and args.ANONYMIZE and not args.SAMPLE:
         cluster_state = sample.anonymize_state(cluster_state)[0]
-    snapshot = Snapshot.from_cluster_state(cluster_state)
-    display_state = getattr(backend, "display_job_state", None)
-    if display_state is not None:
-        for job_id, job in snapshot.jobs_dict.items():
-            snapshot.jobs_dict[job_id] = job._replace(job_state=display_state(job.job_state))
+    # The poller's collect() already validated its state; --demanding validates it again here.
+    prevalidated = collected is not None and cluster_state is collected.state and not getattr(args, "DEMANDING", False)
+    collection = None if collected is None else (max(0, time.monotonic() - collected.completed), collected.completed - collected.started, collection_error)
+    snapshot = Snapshot.from_cluster_state(cluster_state, validated=prevalidated, display_state=getattr(backend, "display_job_state", None), collection=collection)
     return snapshot, config
 
 
@@ -232,11 +261,7 @@ def _collect_frame(
         trace_paths = {} if args.load_sample else fetch_scheduler_files(args, config, backend)
     sample_filename = fileutils.get_sample_filename(sample_filename, config)
     resources.start_capture(savepath, sample_filename, trace_paths, config, paths.qtoppath)
-    snapshot, config = MVU_collect_snapshot(args, config, backend, trace_paths, resources.archive, **({"collected": collected} if collected is not None else {}))
-    if collected is not None:
-        snapshot._collection_age = max(0, time.monotonic() - collected.completed)
-        snapshot._collection_span = collected.completed - collected.started
-        snapshot._collection_error = collection_error
+    snapshot, config = MVU_collect_snapshot(args, config, backend, trace_paths, resources.archive, collected=collected, collection_error=collection_error)
     if args.SAMPLE and args.ANONYMIZE:
         user_to_color = user_to_color_default.copy()
         for rule in config["user_color_mappings"]:

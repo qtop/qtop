@@ -3,6 +3,7 @@
 import os
 import re
 import shlex
+import stat
 import subprocess
 import sys
 from pathlib import Path
@@ -478,11 +479,12 @@ def test_interrupted_nonanonymous_capture_exits_cleanly_and_finalizes_archive(tm
     output = tmp_path / "capture"
     script = """
 from qtop_py import qtop
-display = qtop.TextDisplay.display_selected_sections
+from qtop_py.ui import mvu_view
+display = mvu_view.TextDisplay.display_selected_sections
 def interrupt_after_display(self, *args, **kwargs):
     display(self, *args, **kwargs)
     raise KeyboardInterrupt
-qtop.TextDisplay.display_selected_sections = interrupt_after_display
+mvu_view.TextDisplay.display_selected_sections = interrupt_after_display
 raise SystemExit(qtop.cli_main())
 """
     result = subprocess.run(
@@ -598,7 +600,6 @@ def test_slurm_config_command_matches_shell_execution(tmp_path, monkeypatch, sch
     script.write_text("#!%s\nimport json, sys\nprint(json.dumps(sys.argv[1:]))\n" % sys.executable, encoding="utf-8")
     script.chmod(0o755)
     monkeypatch.setenv("PATH", str(tmp_path) + os.pathsep + os.environ.get("PATH", ""))
-    monkeypatch.setattr(qtop, "scheduler", "slurm", raising=False)
     args = type("Options", (), {"SOURCEDIR": None, "workdir": str(tmp_path), "ALL_PARTITIONS": all_partitions})()
     finalized = collector.finalize_filepaths_schedulercommands(args, config, qtop.scheduler_backend("slurm"))
     output_path, command = finalized[scheduler_file]
@@ -624,7 +625,6 @@ def test_all_partitions_does_not_change_saved_traces_or_other_backends(tmp_path,
     from qtop_py import qtop, yaml_parser
 
     config = yaml_parser.parse(str(ROOT / "qtopconf.yaml"))
-    monkeypatch.setattr(qtop, "scheduler", scheduler_name, raising=False)
     args = SimpleNamespace(SOURCEDIR=source, workdir=str(tmp_path), ALL_PARTITIONS=False)
     default = collector.finalize_filepaths_schedulercommands(args, config, qtop.scheduler_backend(scheduler_name))
     args.ALL_PARTITIONS = True
@@ -1204,3 +1204,48 @@ def test_archive_workspace_uses_savepath_and_is_removed(tmp_path, monkeypatch, v
         assert list(elsewhere.iterdir()) == []
     assert not workspace.exists()
     assert list(output.iterdir()) == []
+
+
+def test_writable_parent_of_savepath_stops_only_with_strict_parents(tmp_path):
+    shared = tmp_path / "shared"
+    shared.mkdir()
+    shared.chmod(0o775)
+    output = shared / "results"
+    lenient = run_cli(tmp_path, "qtop_py.qtop", "-b", "demo", "-c", "OFF", "-o", "savepath=%s" % output)
+    assert lenient.returncode == 0, lenient.stderr
+    assert stat.S_IMODE(output.stat().st_mode) == 0o700
+    strict_output = shared / "strict"
+    strict = run_cli(tmp_path, "qtop_py.qtop", "--strict-parents", "-b", "demo", "-c", "OFF", "-o", "savepath=%s" % strict_output)
+    assert strict.returncode != 0
+    assert "untrusted parent" in strict.stderr
+    assert not strict_output.exists()
+
+
+def test_account_totals_count_distinct_nodes_not_the_per_user_sum(tmp_path):
+    result = run_cli(tmp_path, "qtop_py.qtop", "-b", "demo", "-c", "OFF", "-o", "savepath=%s" % (tmp_path / "out"))
+    assert result.returncode == 0, result.stderr
+    up = int(re.search(r"Up:(\d+)", result.stdout).group(1))
+    users = re.findall(r"^\[ ?\w\] (?!Totals)\S+ +\|[^|]*\| +(\d+) \|", result.stdout, re.M)
+    total = int(re.search(r"^\[ T\] Totals +\|[^|]*\| +(\d+) \|", result.stdout, re.M).group(1))
+    assert max(map(int, users)) <= total <= up < sum(map(int, users))
+
+
+def test_demanding_turns_on_strict_parents_and_strict_check(tmp_path):
+    shared = tmp_path / "shared"
+    shared.mkdir()
+    shared.chmod(0o775)
+    refused = run_cli(tmp_path, "qtop_py.qtop", "--demanding", "-b", "demo", "-c", "OFF", "-o", "savepath=%s" % (shared / "out"))
+    assert refused.returncode != 0
+    assert "untrusted parent" in refused.stderr
+    checked = run_cli(tmp_path, "qtop_py.qtop", "--demanding", "-b", "demo", "-c", "OFF", "-o", "savepath=%s" % (tmp_path / "out"))
+    assert checked.returncode == 0, checked.stderr
+
+
+@pytest.mark.parametrize("argv, strict", ((["-b", "demo"], False), (["--demanding", "-b", "demo"], True)))
+def test_demanding_expands_to_the_strict_flags(monkeypatch, argv, strict):
+    from qtop_py import qtop, utils
+
+    monkeypatch.setattr(sys, "argv", ["qtop"] + argv)
+    args = utils.parse_qtop_cmdline_args()
+    qtop.apply_demanding(args)
+    assert (args.STRICTCHECK, args.STRICT_PARENTS) == (strict, strict)

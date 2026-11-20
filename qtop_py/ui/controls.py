@@ -5,11 +5,14 @@
 import codecs
 import os
 import select
-from typing import Any, Dict, List, Mapping
+from typing import TYPE_CHECKING, Any, Dict, List, Mapping
 
 from qtop_py.constants import KEY_SEQUENCE_TIMEOUT
 
-NAVIGATION_KEYS = {
+if TYPE_CHECKING:  # typing.Final is Python 3.8+; the quoted annotations keep 3.6 working
+    from typing import Final
+
+NAVIGATION_KEYS: "Final" = {
     "j": ("scroll_down", "Going down...", True),
     " ": ("scroll_down", "Going down...", True),
     "k": ("scroll_up", "Going up...", True),

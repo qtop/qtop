@@ -109,7 +109,7 @@ class RunResources(object):
         if archive is None:  # only when SAMPLE < 1, excluded above
             return
         self.archive = archive
-        self.capture_paths[str(archive.name)] = "Sample files saved in"
+        self.capture_paths[getattr(archive, "target", "") or str(archive.name)] = "Sample files saved in"
         if options.SAMPLE >= 2 and not options.ANONYMIZE:
             sample.add_json(archive, "qtop-effective-config.json", config)
         if options.raw_companion:
@@ -184,8 +184,8 @@ def get_output_size(max_line_len: int, output_fp: str, max_height: int = 0, term
         if not max_line_len:
             max_line_len = max(len(ansi_escape.sub("", line.strip())) for line in output_lines)
 
-    logging.debug("Total nr of lines: %s" % max_height)
-    logging.debug("Max line length: %s" % max_line_len)
+    logging.debug("Total nr of lines: %s", max_height)
+    logging.debug("Max line length: %s", max_line_len)
 
     return max_height, max_line_len
 
@@ -200,9 +200,9 @@ def init_dirs(args: Any, _savepath: str) -> Any:
             args.SOURCEDIR = args.source_workspace.name
         else:
             args.SOURCEDIR = os.path.dirname(args.SOURCEDIR)
-    logging.debug("User-defined source directory: %s" % args.SOURCEDIR)
+    logging.debug("User-defined source directory: %s", args.SOURCEDIR)
     args.workdir = args.SOURCEDIR or _savepath
-    logging.debug("Working directory is now: %s" % args.workdir)
+    logging.debug("Working directory is now: %s", args.workdir)
     # Sonar path finding: -s or savepath is the caller's chosen working directory, by design; see docs/sonar-review.md
     os.chdir(args.workdir)
     return args

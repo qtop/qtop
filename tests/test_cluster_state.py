@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from qtop_py.cluster_state import build_cluster_state, cluster_state_totals, validate_cluster_state
-from qtop_py.qtop import Snapshot
+from qtop_py.snapshot import Snapshot
 
 
 def sample_state():

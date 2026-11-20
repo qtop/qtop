@@ -8,8 +8,10 @@ import pytest
 from qtop_py import qtop
 from qtop_py.cluster_state import cluster_state_totals, validate_cluster_state
 from qtop_py.mvu import MVU_Model
+from qtop_py.mvu_query import Cluster, WNOccupancy
 from qtop_py.plugins.slurm import SlurmBatchSystem
 from qtop_py.sample import anonymize_state
+from qtop_py.snapshot import Snapshot
 
 
 @pytest.mark.parametrize("hosts, missing, invalid", [("node2", 1, 0), ("node[1-2]", 1, 0), ("node[2-1]", 0, 1)])
@@ -21,7 +23,7 @@ def test_unrepresented_allocations_are_flagged_and_jobs_survive_replay(trace, ho
     assert diagnostics.get("jobs_with_invalid_nodelists", 0) == invalid
     assert state["jobs"][0]["id"] == "1"
     assert state["queues"][0]["running"] == 1
-    assert qtop.Snapshot.from_cluster_state(state).to_cluster_state() == state
+    assert Snapshot.from_cluster_state(state).to_cluster_state() == state
     masked, _ = anonymize_state(state)
     assert masked["slurm_diagnostics"] == diagnostics
     assert validate_cluster_state(masked) == masked
@@ -49,11 +51,11 @@ def test_slurm_state_suffix_reaches_matrix_and_snapshot(trace, raw_state, normal
     assert state["nodes"][0]["slurm_node_state"] == raw_state + suffix
     masked, _ = anonymize_state(state)
     assert validate_cluster_state(masked)["nodes"][0]["slurm_node_state"] == raw_state + suffix
-    replayed = qtop.Snapshot.from_cluster_state(masked).to_cluster_state()
+    replayed = Snapshot.from_cluster_state(masked).to_cluster_state()
     colored = qtop.colorize_nodestate(replayed["nodes"], {normalized: "Green"})
     occupancy = SimpleNamespace(cluster=SimpleNamespace(workernode_dict={1: colored[0]}))
     config = {"workernodes_matrix": [{"node state": {"max_len": 1}}]}
-    lines = qtop.WNOccupancy.calc_general_mult_attr_line(occupancy, "node state", "state", config, SlurmBatchSystem)
+    lines = WNOccupancy.calc_general_mult_attr_line(occupancy, "node state", "state", config, SlurmBatchSystem)
     assert str(lines["attr1line"][0]) == (suffix[-1] if suffix else normalized)
     assert lines["attr1line"][0].color == "Green"
     assert str(colored[0]["state"][0]) == normalized
@@ -99,8 +101,8 @@ def test_shared_cpus_retain_both_users_node_membership(trace, details):
     assert node["slurm_unmapped_cpus"] == 4
     cluster = SimpleNamespace(workernode_dict={1: node})
     cluster.MVU_model = MVU_Model({}, slurm.options, None, backend=SlurmBatchSystem)
-    qtop.Cluster._calculate_jobs_per_node(cluster, cluster.workernode_dict)
-    users = qtop.WNOccupancy.calculate_user_node_use(None, cluster, {"1": ("alice", "batch"), "2": ("bob", "batch")})
+    Cluster._calculate_jobs_per_node(cluster, cluster.workernode_dict)
+    users = WNOccupancy.calculate_user_node_use(None, cluster, {"1": ("alice", "batch"), "2": ("bob", "batch")})
     assert users == {"alice": 1, "bob": 1}
     masked, mappings = anonymize_state(state)
     assert masked["nodes"][0]["slurm_job_ids"] == [mappings["job"][job] for job in ("1", "2")]
@@ -118,7 +120,7 @@ def test_pending_partition_memberships_do_not_inflate_global_totals(trace, jobs)
     assert [(queue["name"], queue["queued"]) for queue in state["queues"]] == [("batch", 1), ("gpu", 1)]
     assert slurm.get_queues_info()[:2] == (0, 1)
     assert cluster_state_totals(state) == {"running_jobs": 0, "queued_jobs": 1}
-    snapshot = qtop.Snapshot.from_cluster_state(state)
+    snapshot = Snapshot.from_cluster_state(state)
     assert snapshot.total_queued_jobs == 1
     assert snapshot.to_cluster_state() == state
     masked, mappings = anonymize_state(state)

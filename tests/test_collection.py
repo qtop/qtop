@@ -171,7 +171,7 @@ def test_json_collection_is_ordered_and_cached_between_redraws(frame_context, mo
 
     def execute(commands, filenames, key, savepath, **kwargs):
         calls.append(key)
-        assert kwargs["timeout"] == 120
+        assert kwargs["timeout"] == 180
         assert "cancel" in kwargs
         assert Path(kwargs["cwd"]) == Path(_config["savepath"])
         assert Path(filenames[key]).parent == Path(savepath)
@@ -183,11 +183,11 @@ def test_json_collection_is_ordered_and_cached_between_redraws(frame_context, mo
     first = frame()[0]
     for _ in range(5):
         assert frame()[0].to_cluster_state() == first.to_cluster_state()
-    assert calls == ["partitions_json", "nodes_json", "jobs_json"]
+    assert sorted(calls) == ["jobs_json", "nodes_json", "partitions_json"]
     assert first._collection_age >= 0
     resources.poller.deadline = 0
     resources.poller.refresh()
-    assert calls == ["partitions_json", "nodes_json", "jobs_json"] * 2
+    assert sorted(calls) == sorted(["jobs_json", "nodes_json", "partitions_json"] * 2)
 
 
 def test_empty_jobs_falls_back_once_and_later_failure_retains_legacy_snapshot(frame_context, monkeypatch, caplog):
@@ -307,7 +307,6 @@ def test_slurm_summary_recollects_each_cycle_without_a_poller(frame_context, mon
     def execute(commands, filenames, key, savepath, **kwargs):
         assert key in ("squeue_file", "sinfo_file")
         assert (" --all" in commands[key]) == all_partitions
-        assert "cancel" not in kwargs
         calls.append(key)
         text = (source / (key[:-5] + ".txt")).read_text()
         if len(calls) > 2:
@@ -317,7 +316,7 @@ def test_slurm_summary_recollects_each_cycle_without_a_poller(frame_context, mon
 
     monkeypatch.setattr(process_io, "execute_shell_batch_commands", execute)
     states = [frame()[0].to_cluster_state() for _ in range(3)]
-    assert calls == ["squeue_file", "sinfo_file"] * 3
+    assert sorted(calls) == sorted(["squeue_file", "sinfo_file"] * 3)
     assert resources.poller is None
     assert states[0]["jobs"][0]["user"] == "alice"
     assert states[1]["jobs"][0]["user"] == states[2]["jobs"][0]["user"] == "changed"
@@ -384,3 +383,63 @@ def test_collection_workspace_uses_savepath_without_fallback(tmp_path, monkeypat
     with pytest.raises(FileNotFoundError):
         CollectionPoller(collect, 20, SAVEPATH=str(parent))
     assert list(elsewhere.iterdir()) == []
+
+
+def _timed_commands(tmp_path, scripts):
+    import shlex
+    import time
+
+    commands = {}
+    for key, script in scripts.items():
+        commands[key] = (str(tmp_path / (key + ".txt")), " ".join(shlex.quote(part) for part in (sys.executable, "-c", script)))
+    args = SimpleNamespace(SOURCEDIR=None)
+    start = time.monotonic()
+    try:
+        return collector.get_input_filenames(commands, {"savepath": str(tmp_path), "scheduler_command_timeout": 30}, args, SlurmBatchSystem), time.monotonic() - start
+    except OperationalError as error:
+        return error, time.monotonic() - start
+
+
+def test_scheduler_commands_run_concurrently_and_keep_config_order(tmp_path):
+    slow = "import time; time.sleep(0.6); print('%s')"
+    files, elapsed = _timed_commands(tmp_path, {key: slow % key for key in ("squeue_file", "sinfo_file", "scontrol_file")})
+    assert list(files) == ["squeue_file", "sinfo_file", "scontrol_file"]
+    assert all(Path(path).read_text() == key + "\n" for key, path in files.items())
+    assert elapsed < 1.5  # three 0.6 s commands one after another would take 1.8 s or more
+
+
+def test_the_first_required_failure_in_config_order_is_reported(tmp_path):
+    late_first = "import sys, time; time.sleep(0.4); sys.exit(3)"
+    error, _ = _timed_commands(tmp_path, {"squeue_file": late_first, "sinfo_file": "import sys; sys.exit(4)"})
+    assert isinstance(error, OperationalError)
+    assert "exit 3" in str(error)  # squeue comes first in config order, although sinfo failed sooner
+
+
+def test_a_failed_optional_command_is_dropped_while_the_rest_complete(tmp_path):
+    files, _ = _timed_commands(tmp_path, {"squeue_file": "print('q')", "sinfo_file": "print('n')", "scontrol_file": "import sys; sys.exit(1)"})
+    assert sorted(files) == ["sinfo_file", "squeue_file"]
+
+
+@pytest.mark.parametrize("demanding", (False, True), ids=("default", "demanding"))
+def test_live_state_is_validated_once_unless_demanding(frame_context, monkeypatch, demanding):
+    from qtop_py import cluster_state, snapshot
+
+    frame, args, _config, _resources = frame_context
+    args.DEMANDING = demanding
+
+    def execute(commands, filenames, key, savepath, **kwargs):
+        Path(filenames[key]).write_bytes((SAMPLES / ("slurm_" + key[:-5] + ".json")).read_bytes())
+        return filenames[key]
+
+    calls = []
+    real_validate = cluster_state.validate_cluster_state
+
+    def counting_validate(state):
+        calls.append(1)
+        return real_validate(state)
+
+    monkeypatch.setattr(process_io, "execute_shell_batch_commands", execute)
+    monkeypatch.setattr(cluster_state, "validate_cluster_state", counting_validate)
+    monkeypatch.setattr(snapshot, "validate_cluster_state", counting_validate)
+    frame()
+    assert len(calls) == (2 if demanding else 1)

@@ -51,7 +51,7 @@ def init_logging(options: Any) -> None:
     logger.addHandler(stream_handler)
     logger.disabled = False
 
-    logging.info("\n" + "=" * 50 + "STARTING NEW LOG ENTRY..." + "=" * 50 + "\n\n")
+    logging.info("\n%sSTARTING NEW LOG ENTRY...%s\n\n", "=" * 50, "=" * 50)
 
     logging.debug("Verbosity level = %s", options.verbose)
     logging.debug("input, output isatty: %s\t%s", sys.stdin.isatty(), sys.stdout.isatty())
@@ -217,6 +217,21 @@ def parse_qtop_cmdline_args() -> Namespace:
         action="store_true",
         default=False,
         help="Enable the experimental web interface on port 8080 (requires -e/--experimental)",
+    )
+    parser.add_argument(
+        "--demanding",
+        action="store_true",
+        dest="DEMANDING",
+        default=False,
+        help="Turn on every strict check at once: -S/--StrictCheck, --strict-parents, and re-validating each "
+        "collected cluster state at the snapshot boundary (slower on large clusters)",
+    )
+    parser.add_argument(
+        "--strict-parents",
+        action="store_true",
+        dest="STRICT_PARENTS",
+        default=False,
+        help="Stop when a parent of savepath or the log directory is writable by others without sticky bit (default: continue)",
     )
     parser.add_argument("-v", "--verbose", dest="verbose", action="count", help="Increase verbosity (specify multiple times for more)")
     parser.add_argument("-V", "--version", dest="version", action="store_true", help="Print qtop version")

@@ -61,6 +61,8 @@ lint.extend-select = [
     "B", "PLE", "PGH", "PIE", "ISC", "RET", "T10", "RUF100",
     "S102", "S307", "S602", "S604", "LOG009", "RSE102", "PLC1802",
     "PERF102", "RUF059", "A", "SIM115", "BLE",
+    # Lazy logging arguments: no formatting when a level is off; SafeLogFormatter escapes the rendered record.
+    "G001", "G002", "G003", "G004",
 ]
 # The class docstring covers __init__ and dunders; tests document themselves through their names.
 lint.ignore = ["D105", "D107"]
@@ -136,11 +138,6 @@ show_error_context = true
 [[tool.mypy.overrides]]
 module = ["lxml", "ujson"]
 ignore_missing_imports = true
-
-[tool.pytest.ini_options]
-# Tests that still exercise the deprecated legacy adapters on purpose stay quiet; tests/test_legacy_deprecation.py
-# checks every adapter still warns, and the runtime fixture fails if a normal run triggers one.
-filterwarnings = ["ignore:.*is deprecated since 0\\.9\\.20261110:DeprecationWarning"]
 
 [tool.coverage.run]
 source = ["qtop_py", "tools"]

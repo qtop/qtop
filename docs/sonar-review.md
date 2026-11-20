@@ -84,3 +84,15 @@ has a `Sonar ... finding` comment at its line that points here.
 Restricting input locations would change supported CLI behaviour and needs an
 explicitly chosen allowed root, as the earlier review notes. These findings
 can be marked "Safe" or "Won't fix" in SonarQube with a link to this section.
+
+## Follow-up 2026-11-20
+
+Three findings, all changed rather than left as they are. The next scan shows
+whether SonarQube recognizes the trace-archive pair as resolved; the input
+archive is still the caller's choice, which no allowed-root policy restricts.
+
+| Scanned file and lines | Change |
+| --- | --- |
+| `qtop_py/trace_archive.py:37` | The archive is opened once, without following a final symlink, and must be a regular file; a FIFO or device (e.g. `-s /dev/stdin`) is refused instead of read. `tarfile` reads that descriptor, not the path. |
+| `qtop_py/trace_archive.py:76` | Traces are created through a descriptor of the workspace, which must be a non-symlink directory owned by the current user with no group or other access. Each configured name must be a single path component, and each file is created with `O_EXCL`, `O_NOFOLLOW` and mode 0600. No destination path is joined from CLI input. |
+| `ci/baseline/Dockerfile:7` | The image ends with `USER 1001:1001`, an unprivileged `qtop` user whose uid matches the GitHub Actions runner, so the container job can still write its mounted workspace. |

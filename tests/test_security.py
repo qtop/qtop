@@ -81,13 +81,46 @@ def test_save_directory_rejects_symlink_components(tmp_path, suffix):
     assert stat.S_IMODE(target.stat().st_mode) == 0o755
 
 
-def test_save_directory_rejects_writable_nonsticky_parent(tmp_path):
+def test_save_directory_rejects_writable_nonsticky_parent_when_strict(tmp_path, monkeypatch):
+    monkeypatch.setattr(fileutils, "STRICT_PARENTS", True)
     parent = tmp_path / "shared"
     parent.mkdir()
     parent.chmod(0o777)
     with pytest.raises(PermissionError, match="untrusted parent"):
         fileutils.private_save_directory(str(parent / "results"))
     assert not (parent / "results").exists()
+
+
+@pytest.mark.parametrize("mode", (0o770, 0o775, 0o777))
+def test_save_directory_accepts_writable_nonsticky_parent_by_default(tmp_path, caplog, mode):
+    parent = tmp_path / "shared"
+    parent.mkdir()
+    parent.chmod(mode)
+    target = parent / "results"
+    with caplog.at_level(logging.INFO, logger="qtop_py.fileutils"):
+        assert fileutils.private_save_directory(str(target)) == str(target)
+    assert stat.S_IMODE(target.stat().st_mode) == 0o700
+    assert stat.S_IMODE(parent.stat().st_mode) == mode
+    assert str(parent) in caplog.text and "--strict-parents" in caplog.text
+
+
+def test_log_stream_accepts_writable_nonsticky_parent_by_default(tmp_path):
+    parent = tmp_path / "home"
+    parent.mkdir()
+    parent.chmod(0o775)
+    with fileutils.private_log_stream(str(parent / "logs" / "qtop.log")) as stream:
+        stream.write("ok\n")
+    assert stat.S_IMODE((parent / "logs").stat().st_mode) == 0o700
+
+
+def test_lenient_parents_still_reject_symlinked_save_directory(tmp_path):
+    parent = tmp_path / "shared"
+    parent.mkdir()
+    parent.chmod(0o777)
+    (tmp_path / "elsewhere").mkdir()
+    (parent / "results").symlink_to(tmp_path / "elsewhere", target_is_directory=True)
+    with pytest.raises(OSError):
+        fileutils.private_save_directory(str(parent / "results"))
 
 
 @pytest.mark.parametrize(
@@ -138,8 +171,12 @@ def test_macos_save_directory_handles_only_root_owned_system_aliases(tmp_path, m
         assert not (parent / "results").exists()
 
 
-@pytest.mark.parametrize("mode, allowed", ((0o755, True), (0o1777, True), (0o770, False), (0o777, False)))
-def test_save_directory_handles_site_owned_parents(tmp_path, monkeypatch, mode, allowed):
+@pytest.mark.parametrize(
+    "mode, strict, allowed",
+    ((0o755, True, True), (0o1777, True, True), (0o770, True, False), (0o777, True, False), (0o770, False, True), (0o777, False, True)),
+)
+def test_save_directory_handles_site_owned_parents(tmp_path, monkeypatch, mode, strict, allowed):
+    monkeypatch.setattr(fileutils, "STRICT_PARENTS", strict)
     parent = tmp_path / "site-owned"
     parent.mkdir()
     parent.chmod(mode)
