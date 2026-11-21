@@ -3,6 +3,10 @@
 Notable changes by version, newest first. See the
 [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 
+## 0.9.20261121
+
+- Release: update version metadata to 0.9.20261121
+
 ## 0.9.20261120
 
 - Bugfix: the attested release SBOM keeps its CycloneDX serialNumber (v0.9.20261119/20 tags)
