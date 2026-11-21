@@ -89,6 +89,12 @@ def test_nightly_matrix_drift_is_detected(change):
     assert gh != gl
 
 
+def test_attested_sbom_keeps_the_serial_number_attest_sbom_requires():
+    """actions/attest-sbom rejects CycloneDX without serialNumber, which --output-reproducible omits."""
+    assert "--output-reproducible" not in make_recipe("sbom")
+    assert "--output-format JSON" in " ".join(make_recipe("sbom"))
+
+
 def test_release_attests_the_published_distributions_and_their_sbom():
     workflow = yaml.safe_load((ROOT / ".github/workflows/release.yml").read_text())
     build = workflow["jobs"]["build"]

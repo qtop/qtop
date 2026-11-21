@@ -183,13 +183,14 @@ sbom-tool::
 
 # The release SBOM inventories the built wheel installed alone, as users get it.
 # --no-index with --find-links keeps local paths out and yields the pkg:pypi purl.
+# Not --output-reproducible: actions/attest-sbom accepts CycloneDX only with a serialNumber.
 sbom:: sbom-tool ## Write a CycloneDX SBOM of the wheel in DIST_DIR (run build first)
 	$(PYTHON) -m venv --clear "$(SBOM_VENV)"
 	VERSION="$$($(PYTHON) -c 'from qtop_py import __version__; print(__version__)')"; \
 	"$(SBOM_VENV)/bin/python" -m pip install --disable-pip-version-check --no-index --find-links "$(DIST_DIR)" "qtop==$$VERSION"
 	"$(SBOM_VENV)/bin/python" -m pip uninstall --disable-pip-version-check -y pip
 	@mkdir -p $(SBOM_DIR)
-	"$(SBOM_TOOL_VENV)/bin/python" -m cyclonedx_py environment --mc-type application --output-reproducible \
+	"$(SBOM_TOOL_VENV)/bin/python" -m cyclonedx_py environment --mc-type application \
 		--output-format JSON --output-file "$(SBOM_DIR)/qtop.cdx.json" "$(SBOM_VENV)/bin/python"
 	@echo "wrote $(SBOM_DIR)/qtop.cdx.json"
 

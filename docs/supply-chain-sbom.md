@@ -21,8 +21,8 @@ service settings or claim a SLSA level.
   SBOMs and attestation bundles to each GitHub release.
 - [x] Configure GitHub build provenance for `dist/*` and document consumer
   verification (Phase 3).
-- [ ] Confirm attestations on the first published release; workflow
-  configuration alone does not establish them.
+- [x] Confirm attestations on the first published release: v0.9.20261120
+  published provenance and SBOM attestations and attached both SBOMs and bundles.
 - [ ] Produce SBOMit inputs: per-step in-toto attestations and a signed policy
   (see "SBOMit readiness" below).
 - [ ] Hash-lock the complete CI toolchain (Phase 3).
@@ -63,9 +63,11 @@ cyclonedx-py environment /path/to/ci-venv/bin/python \
 `make sbom` implements the release-package row: after `make build`, it installs
 the wheel from `DIST_DIR` alone into `build/sbom-venv` (`--no-index
 --find-links`, so no local paths enter the SBOM and the component gets its
-`pkg:pypi` purl), removes the bootstrap `pip`, and writes the validated,
-reproducible CycloneDX 1.6 file `artifacts/sbom/qtop.cdx.json` with the pinned
-`cyclonedx-bom` from the CI environment. The generator version is recorded in
+`pkg:pypi` purl), removes the bootstrap `pip`, and writes the validated
+CycloneDX 1.6 file `artifacts/sbom/qtop.cdx.json` with the pinned
+`cyclonedx-bom` from the CI environment. It is not `--output-reproducible`:
+`actions/attest-sbom` accepts CycloneDX only with the `serialNumber` that option
+omits, as the failed first v0.9.20261119 release run showed. The generator version is recorded in
 the SBOM metadata; the wheel digest is bound by the attestation subject. This
 installed-wheel scan does not inventory every file in the sdist. `make sbom-ci` implements the build-and-CI row: it scans the environment that
 runs `PYTHON` into `artifacts/sbom/ci.cdx.json`. Both targets run the generator
@@ -112,7 +114,9 @@ See [OpenSSF readiness](openssf-readiness.md) for related metadata and assessmen
 
 ## Phase 3 -- consumption and enforcement
 
-- [ ] Test this verification recipe against the first attested release:
+- [x] Test this verification recipe against the first attested release
+  (v0.9.20261120: the wheel and sdist downloaded from PyPI pass
+  `make verify-attestations`):
 
   ```sh
   gh attestation verify qtop-<version>-py3-none-any.whl --repo qtop/qtop \

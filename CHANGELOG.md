@@ -5,6 +5,7 @@ Notable changes by version, newest first. See the
 
 ## 0.9.20261120
 
+- Bugfix: the attested release SBOM keeps its CycloneDX serialNumber (v0.9.20261119/20 tags)
 - Bugfix: Slurm array ranges are no longer cut (SLURM_BITSTR_LEN=0); a cut one skips its row (#606)
 - CI: PR builds run make sbom and sbom-ci; releases verify attestations and attach SBOMs
 - CI: Codacy scope and justified nosec markers; schema-compat targets Go 1.26.11
