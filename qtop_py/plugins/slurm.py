@@ -24,7 +24,7 @@ if TYPE_CHECKING:
     from typing import Final
 
     from qtop_py.core_source_trace import TraceMasker
-    from qtop_py.core_state_types import ClusterState, Config, JobsInfo, Node, Options, QueuesInfo, RawQueue
+    from qtop_py.core_state_types import ClusterState, Config, JobsInfo, Node, Options, QueuesInfo
 
 SLURM_JOB_STATES: "Final" = {
     "BOOT_FAIL": "BF",
@@ -546,18 +546,21 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
                 elif job["accounting_state"] == "queued":
                     queue["queued"] += 1
 
-        qstatq_lod: "List[RawQueue]" = [
-            {
-                "queue_name": queue_name,
-                "run": str(values["run"]),
-                "queued": str(values["queued"]),
-                "lm": values["lm"],
-                "state": values["state"],
-            }
-            for queue_name, values in queue_counts.items()
-        ]
-
-        return total_running_jobs, total_queued_jobs, qstatq_lod
+        # Built in the return so QueuesInfo types each record as a queue record.
+        return (
+            total_running_jobs,
+            total_queued_jobs,
+            [
+                {
+                    "queue_name": queue_name,
+                    "run": str(values["run"]),
+                    "queued": str(values["queued"]),
+                    "lm": values["lm"],
+                    "state": values["state"],
+                }
+                for queue_name, values in queue_counts.items()
+            ],
+        )
 
     def get_worker_nodes(self, job_ids: List[str], job_queues: List[str], options: "Options") -> "List[Node]":
         """Return the nodes from sinfo, merged across partitions, with their jobs, CPUs and GPUs."""

@@ -7,6 +7,7 @@ Notable changes by version, newest first. See the
 
 - Bugfix: a root-owned symlinked /home (autofs/NFS) no longer fails with Not a directory (#615)
 - Bugfix: a timed-out or cancelled command's forked child no longer escapes the kill (macOS)
+- Bugfix: CodeQL unused RawQueue imports in the PBS, SGE and Slurm backends
 - Feature: unusable savepath or log warns and falls back to /dev/shm; --strict-parents stops
 - Refactor: scheduler core no longer imports app modules; a boundary test keeps it library-ready
 - Refactor: top-level core modules are now qtop_py/core_*.py, e.g. core_serialiser; old paths gone

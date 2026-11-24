@@ -24,7 +24,7 @@ from qtop_py.core_serialiser import GenericBatchSystem, StatExtractor
 
 if TYPE_CHECKING:
     from qtop_py.core_source_trace import TraceMasker
-    from qtop_py.core_state_types import Config, JobsInfo, Node, Options, QueuesInfo, RawQueue
+    from qtop_py.core_state_types import Config, JobsInfo, Node, Options, QueuesInfo
 
 
 def _required_text_element(parent: etree.Element, path: str) -> etree.Element:
@@ -295,8 +295,7 @@ class SGEBatchSystem(GenericBatchSystem):
         logging.debug("qstatq_list contains %s elements", len(qstatq_list))
         logging.debug("Closing %s", self.sge_file)
 
-        queues: "List[RawQueue]" = cast("List[RawQueue]", qstatq_list)  # every row is a queue record
-        return total_running_jobs, int(total_queued_jobs), queues
+        return cast("QueuesInfo", (total_running_jobs, int(total_queued_jobs), qstatq_list))  # every row is a queue record
 
     def get_worker_nodes(self, job_ids: List[str], job_queues: List[str], options: "Options") -> "List[Node]":
         """Return the nodes, with their queues and slots, from qstat -xml."""

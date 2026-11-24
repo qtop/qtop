@@ -28,7 +28,7 @@ if TYPE_CHECKING:
     from typing import Final
 
     from qtop_py.core_source_trace import TraceMasker
-    from qtop_py.core_state_types import Config, JobsInfo, Node, Options, QueuesInfo, RawQueue
+    from qtop_py.core_state_types import Config, JobsInfo, Node, Options, QueuesInfo
 
 # NQS request states mapped onto PBS single-letter job states.
 NQS_REQUEST_STATES: "Final" = {
@@ -465,8 +465,8 @@ class PBSBatchSystem(GenericBatchSystem):
         else:
             total_running_jobs, total_queued_jobs = 0, 0
 
-        queues: "List[RawQueue]" = cast("List[RawQueue]", qstatq_list)  # every row but the totals line is a queue record
-        return int(total_running_jobs), int(total_queued_jobs), queues
+        # every row but the totals line is a queue record
+        return cast("QueuesInfo", (int(total_running_jobs), int(total_queued_jobs), qstatq_list))
 
     @staticmethod
     def _get_jobs_cores(jobs: List[str]) -> Iterator[Tuple[str, str]]:  # block['jobs']
