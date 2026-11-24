@@ -77,14 +77,14 @@ def test_grouped_pending_arrays_use_existing_bounded_expansion(json_files):
         job["array_task_string"] = "1-5:2%2"
 
     mutate(json_files, "jobs", change)
-    state = backend(json_files).get_cluster_state(SimpleNamespace(ANONYMIZE=False))
+    state = backend(json_files).get_cluster_state(BackendOptions())
     assert [job["id"] for job in state["jobs"]] == ["80+1", "42_1", "42_3", "42_5", "80+0"]
 
 
 def test_empty_clusters_have_valid_empty_lists(json_files):
     for kind in ("jobs", "nodes", "partitions"):
         mutate(json_files, kind, lambda data, kind=kind: data.__setitem__(kind, []))
-    state = backend(json_files).get_cluster_state(SimpleNamespace(ANONYMIZE=False))
+    state = backend(json_files).get_cluster_state(BackendOptions())
     assert state == {"jobs": [], "nodes": [], "queues": []}
 
 

@@ -80,9 +80,8 @@ def _xml_parser() -> etree.XMLParser:
 class SGEStatExtractor(StatExtractor):
     """Parse SGE qstat -xml output, keeping queues listed in sge_whole_queues whole."""
 
-    def __init__(self, config: "Config", options: "Options", scheduler_output_filenames: Dict[str, str]) -> None:
+    def __init__(self, config: "Config", options: "Options") -> None:
         StatExtractor.__init__(self, config, options)
-        self.scheduler_output_filenames = scheduler_output_filenames
         # The in-house YAML parser yields flow lists as one comma-joined string; queue names never contain commas.
         self.whole_queue_patterns = [p.strip() for item in config.get("sge_whole_queues") or () for p in item.split(",") if p.strip()]
         # Queue-List elements matching sge_whole_queues.
@@ -119,9 +118,8 @@ class SGEStatExtractor(StatExtractor):
     def extract_qstat(self, orig_file: str) -> List[Any]:
         """Parse qstat -xml output into job records."""
         all_values: List[Any] = list()
-        self.orig_file = orig_file
         self.whole_queue_elems = set()
-        self.tree, self.root = self.get_xml_tree(orig_file)
+        _tree, self.root = self.get_xml_tree(orig_file)
         root = self.root
 
         for queue_elem in root.findall("queue_info/Queue-List"):
@@ -253,7 +251,7 @@ class SGEBatchSystem(GenericBatchSystem):
         self.sge_file = scheduler_output_filenames.get("sge_file", "")
         self.config = config
         self.options = options
-        self.sge_stat_maker = SGEStatExtractor(self.config, self.options, scheduler_output_filenames)
+        self.sge_stat_maker = SGEStatExtractor(self.config, self.options)
 
     def get_queues_info(self) -> "QueuesInfo":
         """Return the running and queued totals and per-queue records from qstat -xml."""

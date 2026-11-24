@@ -25,7 +25,7 @@ from qtop_py.snapshot import Snapshot
 
 
 class _Opts:
-    ANONYMIZE = False
+    SOURCEDIR = None
 
 
 def _make_extractor():

@@ -8,11 +8,11 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
-from types import SimpleNamespace
 from unittest.mock import patch
 from xml.etree import ElementTree as etree
 
 from qtop_py import core_safety as safety
+from qtop_py.core_api import BackendOptions
 from qtop_py.core_source_trace import TraceMasker
 from qtop_py.plugins.sge import SGEBatchSystem, SGEStatExtractor
 from tools import validate_pbs_samples
@@ -44,7 +44,7 @@ class SchedulerXMLCompatibility(unittest.TestCase):
         ]
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "qstat.xml"
-            extractor = SGEStatExtractor({}, SimpleNamespace(ANONYMIZE=False), {})
+            extractor = SGEStatExtractor({}, BackendOptions())
             for encoding in ("utf-8", "utf-16", "utf-16-be"):
                 for xml in declarations:
                     with self.subTest(encoding=encoding, xml=xml):
@@ -57,7 +57,7 @@ class SchedulerXMLCompatibility(unittest.TestCase):
     def test_predefined_entities_remain_supported(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "qstat.xml"
-            extractor = SGEStatExtractor({}, SimpleNamespace(ANONYMIZE=False), {})
+            extractor = SGEStatExtractor({}, BackendOptions())
             for encoding in ("utf-8", "utf-16", "utf-16-be"):
                 with self.subTest(encoding=encoding):
                     path.write_bytes("<root>alice &amp; bob</root>".encode(encoding))
@@ -68,7 +68,7 @@ class SchedulerXMLCompatibility(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "qstat.xml"
             path.write_text("<root><child/><child/></root>")
-            extractor = SGEStatExtractor({}, SimpleNamespace(ANONYMIZE=False), {})
+            extractor = SGEStatExtractor({}, BackendOptions())
             for name, limit in (("MAX_INPUT_BYTES", 8), ("MAX_DEPTH", 1), ("MAX_ITEMS", 2)):
                 with self.subTest(limit=name), patch.object(safety, name, limit):
                     with self.assertRaisesRegex(etree.ParseError, "XML input exceeds"):

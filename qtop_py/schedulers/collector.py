@@ -144,11 +144,9 @@ def MVU_collect_snapshot(
         if args.load_sample:
             cluster_state = args.sample_snapshot["state"]
         elif args.SAMPLE and args.ANONYMIZE:
-            # Collect originals only in memory so all backends share one mapping.
-            capture_args = copy.copy(args)
-            capture_args.ANONYMIZE = False
-            scheduling_system = collected.system if collected is not None else backend(trace_paths, config, capture_args)
-            cluster_state = collected.state if collected is not None else scheduling_system.get_cluster_state(capture_args)
+            # Mask the built state once, so the archive and the display share one mapping.
+            scheduling_system = collected.system if collected is not None else backend(trace_paths, config, args)
+            cluster_state = collected.state if collected is not None else scheduling_system.get_cluster_state(args)
             cluster_state, mappings = sample.anonymize_state(cluster_state)
             config, omitted = sample.sanitize_config(config, mappings)
             snapshot_config = copy.deepcopy(config)
@@ -179,7 +177,6 @@ def MVU_collect_snapshot(
 def make_collector(args: Any, config: Dict[str, Any], backend: Any, scheduler: str) -> Callable[[str, threading.Event], Any]:
     """Build a collector with a single capability probe and fallback decision."""
     capture_args, capture_config = copy.copy(args), copy.deepcopy(config)
-    capture_args.ANONYMIZE = False
     selected = backend
     probed = False
 

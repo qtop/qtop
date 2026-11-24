@@ -12,11 +12,12 @@ from pathlib import Path
 
 import pytest
 
+from qtop_py.core_api import BackendOptions
 from qtop_py.plugins.slurm import SLURM_JOB_STATES, SlurmBatchSystem, SlurmStatExtractor
 
 
 class Options(object):
-    ANONYMIZE = False
+    SOURCEDIR = None
 
 
 def scheduler_files(sample_name):
@@ -265,10 +266,8 @@ def test_worker_nodes_expand_each_job_node_list_once_per_collection(monkeypatch,
     assert job_lists and all(calls.count(nodelist) == 1 for nodelist in job_lists)  # was once per pass: up to 4 times
 
 
-@pytest.mark.parametrize("anonymize", (False, True))
-def test_partial_and_malformed_synthetic_snapshot(anonymize, caplog):
+def test_partial_and_malformed_synthetic_snapshot(caplog):
     options = Options()
-    options.ANONYMIZE = anonymize
     slurm = SlurmBatchSystem(scheduler_files("partial_and_malformed"), {}, options)
     ids, users, states, queues = slurm.get_jobs_info()
     assert ids == ["701", "702", "703", "704", "705", "706"]
@@ -659,10 +658,9 @@ def test_allocation_job_name_separator_accepts_long_whitespace():
 
 
 def test_summary_mode_ignores_existing_details_and_keeps_reported_gpu_inventory(detailed_slurm):
-    from types import SimpleNamespace
 
     detailed, _ = detailed_slurm
-    options = SimpleNamespace(ANONYMIZE=False, SLURM_SUMMARY=True)
+    options = BackendOptions(SLURM_SUMMARY=True)
     files = {"squeue_file": detailed.squeue_file, "sinfo_file": detailed.sinfo_file, "scontrol_file": detailed.scontrol_file}
     system = SlurmBatchSystem(files, {}, options)
     state = system.get_cluster_state(options)

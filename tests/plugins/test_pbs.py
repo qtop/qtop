@@ -9,10 +9,10 @@
 ##
 
 from io import StringIO
-from types import SimpleNamespace
 
 import pytest
 
+from qtop_py.core_api import BackendOptions
 from qtop_py.plugins import pbs
 
 
@@ -20,7 +20,7 @@ from qtop_py.plugins import pbs
 def test_optional_gpu_counts_cannot_hide_pbs_nodes_or_jobs(tmp_path, caplog, raw, invalid):
     path = tmp_path / "pbsnodes.txt"
     path.write_text("node1\n    state = free\n    np = 2\n    jobs = 0/101.server\n" + ("    gpus = %s\n" % raw if raw is not None else ""))
-    options = SimpleNamespace(ANONYMIZE=False)
+    options = BackendOptions()
     backend = pbs.PBSBatchSystem({"pbsnodes_file": str(path)}, {}, options)
     nodes = backend.get_worker_nodes(["101"], ["workq"], options)
     assert len(nodes) == 1
@@ -73,7 +73,7 @@ def test_blank_separators_and_wrapped_allocations_preserve_every_node(tmp_path):
     path.write_text(
         "\n\nnode1\n    state = free\n    np = 2\n    jobs = 0/101.server,\n        1/102.server\n\n \n\nnode2\n    state = free\n    np = 1\n    jobs = 0/103.server\n"
     )
-    options = SimpleNamespace(ANONYMIZE=False)
+    options = BackendOptions()
     backend = pbs.PBSBatchSystem({"pbsnodes_file": str(path)}, {}, options)
     nodes = backend.get_worker_nodes(["101", "102", "103"], ["workq"] * 3, options)
     assert [node["domainname"] for node in nodes] == ["node1", "node2"]
@@ -91,7 +91,7 @@ def test_task_identity_does_not_depend_on_slot_format(allocation):
 def test_array_allocations_resolve_only_against_reported_jobs(tmp_path, known, expected):
     path = tmp_path / "pbsnodes.txt"
     path.write_text("node1\n    state = free\n    np = 2\n    jobs = 0-1/101[7].server\n")
-    options = SimpleNamespace(ANONYMIZE=False)
+    options = BackendOptions()
     backend = pbs.PBSBatchSystem({"pbsnodes_file": str(path)}, {}, options)
     node = backend.get_worker_nodes(known, ["workq"] * len(known), options)[0]
     assert node["core_job_map"] == {"0": expected, "1": expected}
@@ -101,7 +101,7 @@ def test_array_allocations_resolve_only_against_reported_jobs(tmp_path, known, e
 def _qstat(tmp_path, *lines):
     path = tmp_path / "qstat.txt"
     path.write_text("\n".join(lines) + "\n")
-    return pbs.PBSStatExtractor({}, SimpleNamespace(ANONYMIZE=False)).extract_qstat(str(path))
+    return pbs.PBSStatExtractor({}, BackendOptions()).extract_qstat(str(path))
 
 
 PRIOR_HEADER = (
