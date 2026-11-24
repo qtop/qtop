@@ -5,6 +5,7 @@ Notable changes by version, newest first. See the
 
 ## 0.9.20261121
 
+- Bugfix: a root-owned symlinked parent such as an autofs/NFS `/home` no longer stops qtop with `Not a directory (home)` (#615)
 - Release: update version metadata to 0.9.20261121
 
 ## 0.9.20261120

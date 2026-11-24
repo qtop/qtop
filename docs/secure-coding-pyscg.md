@@ -151,7 +151,10 @@ to the effective user and is automatically restricted to `0700`, including
 existing group/other-writable directories. The owned `~/.local/qtop` tree is
 also tightened when opening its configuration/log subdirectories.
 On macOS, root-owned `/tmp` and `/var` aliases to `/private/tmp` and
-`/private/var` are expanded before the same component checks. Other symlinks
+`/private/var` are expanded before the same component checks. A root-owned
+symlink in an ancestor directory that group and others cannot write (an autofs
+or NFS `/home`, #615) is resolved and the walk restarts from `/` on its target,
+at most 40 times; qtop-owned directories are never followed. Other symlinks
 and writable non-sticky ancestors are rejected; sticky shared parents
 and non-writable site-owned ancestors are allowed. Unsupported non-POSIX checks
 fail explicitly. Temporary outputs use `mkstemp` or `NamedTemporaryFile`.

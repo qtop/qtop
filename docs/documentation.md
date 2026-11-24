@@ -514,8 +514,10 @@ where supplied. The persistent diagnostic log remains under
 The ``savepath`` expands environment variables and is created with permissions
 ``0700`` (accessible only to its owner). This also applies to ``-o savepath=...``;
 use an absolute path. On macOS, the standard root-owned `/tmp` and `/var`
-aliases are expanded into `/private` before validation. qtop verifies ownership
-and rejects other symlink components. Existing directories owned by the current
+aliases are expanded into `/private` before validation. A root-owned symlink
+in a parent directory that others cannot write, such as an autofs or NFS
+``/home -> /nfs/home``, is followed; qtop verifies ownership and rejects other
+symlink components, and never follows one for a directory it owns. Existing directories owned by the current
 user are automatically restricted to ``0700``, including group/other-writable
 output directories and the ``~/.local/qtop`` configuration/log tree. Unrelated
 writable parent directories require the sticky bit, as on ``/tmp``;

@@ -76,6 +76,27 @@ def _open_owned(path: str, flags: int, mode: int, directory_fd: int) -> int:
         return os.open(path, flags, mode, dir_fd=directory_fd)
 
 
+_MAX_SYMLINK_HOPS = 40
+
+
+def _site_parent_link(name: str, directory_fd: int) -> Optional[str]:
+    """Return the target of a root-owned parent symlink in a directory others cannot write, else None."""
+    try:
+        link = os.stat(name, dir_fd=directory_fd, follow_symlinks=False)
+    except OSError:
+        return None
+    if not stat.S_ISLNK(link.st_mode) or link.st_uid != 0 or os.fstat(directory_fd).st_mode & (stat.S_IWGRP | stat.S_IWOTH):
+        return None
+    return os.readlink(name, dir_fd=directory_fd)
+
+
+def _path_parts(path: str) -> List[str]:
+    parts = path.strip(os.sep).split(os.sep)
+    if not parts[0]:
+        raise PermissionError(errno.EACCES, "The filesystem root cannot be a save directory", path)
+    return parts
+
+
 @contextlib.contextmanager
 def _private_directory(path: str) -> Generator[Tuple[str, int], None, None]:
     """Create or tighten an owned output directory without following symlinks."""
@@ -95,21 +116,44 @@ def _private_directory(path: str) -> Generator[Tuple[str, int], None, None]:
                     if private_root == alias or private_root.startswith(alias + os.sep):
                         private_root = "/private" + private_root
                 break
-    parts = path.strip(os.sep).split(os.sep)
-    if not parts[0]:
-        raise PermissionError(errno.EACCES, "The filesystem root cannot be a save directory", path)
+    parts = _path_parts(path)
     uid = os.geteuid()
     flags = os.O_DIRECTORY | os.O_NOFOLLOW
     parent_access = getattr(os, "O_PATH", os.O_RDONLY)
     fd = os.open(os.sep, flags | parent_access)
+    hops = 0
     try:
-        for index, part in enumerate(parts):
+        index = 0
+        while index < len(parts):
+            part = parts[index]
             with contextlib.suppress(FileExistsError):
                 os.mkdir(part, mode=0o700, dir_fd=fd)
             parent = os.path.join(os.sep, *parts[: index + 1])
             private_directory = index == len(parts) - 1 or parent == private_root or parent.startswith(private_root + os.sep)
             access = os.O_RDONLY if private_directory else parent_access
-            child_fd = _open_owned(part, flags | access, 0o700, fd) if private_directory else os.open(part, flags | access, dir_fd=fd)
+            try:
+                child_fd = _open_owned(part, flags | access, 0o700, fd) if private_directory else os.open(part, flags | access, dir_fd=fd)
+            except OSError as error:
+                # Site layouts such as an autofs /home -> /nfs/home (#615): follow a parent link only if root
+                # placed it where others cannot write; directories qtop owns are never followed.
+                target = None
+                if not private_directory and error.errno in (errno.ENOTDIR, errno.ELOOP):
+                    target = _site_parent_link(part, fd)
+                if target is None:
+                    raise
+                hops += 1
+                if hops > _MAX_SYMLINK_HOPS:
+                    raise OSError(errno.ELOOP, "Too many symbolic links in save directory path", path) from error
+                resolved = os.path.normpath(os.path.join(os.path.dirname(parent), target))
+                if private_root == parent or private_root.startswith(parent + os.sep):
+                    private_root = resolved + private_root[len(parent) :]
+                path = os.path.join(resolved, *parts[index + 1 :])
+                parts = _path_parts(path)
+                os.close(fd)
+                fd = os.open(os.sep, flags | parent_access)
+                index = 0
+                continue
+            index += 1
             os.close(fd)
             fd = child_fd
             info = os.fstat(fd)
