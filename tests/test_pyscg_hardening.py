@@ -40,7 +40,7 @@ def test_unexpected_sge_xml_failures_are_reported_not_silently_exited(tmp_path, 
 
 def test_scheduler_commands_get_the_c_locale_without_touching_our_environment(monkeypatch):
     monkeypatch.setenv("LC_ALL", "de_CH.UTF-8")
-    env = process_io.scheduler_env()
+    env = process_io.scheduler_env(os.environ)
     assert env["LC_ALL"] == "C" and os.environ["LC_ALL"] == "de_CH.UTF-8"
 
 
@@ -78,5 +78,5 @@ def test_web_page_loads_no_third_party_script():
 def test_scheduler_commands_print_untruncated_slurm_array_ranges(monkeypatch):
     """qtop/qtop#606: squeue cuts array task ranges at SLURM_BITSTR_LEN characters unless it is 0."""
     monkeypatch.setenv("SLURM_BITSTR_LEN", "32")
-    assert process_io.scheduler_env()["SLURM_BITSTR_LEN"] == "0"
+    assert process_io.scheduler_env(os.environ)["SLURM_BITSTR_LEN"] == "0"
     assert os.environ["SLURM_BITSTR_LEN"] == "32"

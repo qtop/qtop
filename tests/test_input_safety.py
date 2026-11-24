@@ -190,7 +190,7 @@ def test_command_output_overflow_preserves_previous_trace_and_cleans_tempfiles(t
     script = "import sys; sys.%s.buffer.write(b'x'*65536)" % channel
     command = " ".join(shlex.quote(arg) for arg in (sys.executable, "-c", script))
     with pytest.raises(qtop.OperationalError, match="output exceeds"):
-        process_io.execute_shell_batch_commands({"trace": command}, {"trace": str(path)}, "trace", str(tmp_path))
+        process_io.execute_shell_batch_commands({"trace": command}, {"trace": str(path)}, "trace", str(tmp_path), env=os.environ)
     assert path.read_bytes() == b"previous snapshot"
     assert list(tmp_path.iterdir()) == [path]
 

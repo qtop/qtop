@@ -9,8 +9,8 @@ standard library or third-party packages), and must not print, touch stdout/stde
 read the environment or the home directory. Configuration files, savepath, logging setup, colours
 and the TUI belong to the application, which passes what the core needs.
 
-KNOWN_VIOLATIONS lists what is still to move. A new violation fails, and so does a listed one
-that is gone, so the list only shrinks.
+KNOWN_VIOLATIONS is empty. A new violation fails; were one ever listed, it must stay real, so
+the list can only shrink.
 """
 
 import ast
@@ -34,12 +34,7 @@ SIDE_EFFECTS = {
     ("path", "expandvars"),
 }
 
-KNOWN_VIOLATIONS = {
-    # The default command timeout and the qtopconf.yaml name in its error messages.
-    ("qtop_py.core_process", "imports qtop_py.constants"),
-    # scheduler_env() builds the child environment; a library caller should pass it in.
-    ("qtop_py.core_process", "uses os.environ"),
-}
+KNOWN_VIOLATIONS = set()  # empty: keep it so; a new entry needs a reason and a plan to remove it
 
 
 def _module_name(path):

@@ -16,7 +16,6 @@ from math import isfinite
 from typing import IO, TYPE_CHECKING, Any, Dict, List, Mapping, Optional, Tuple, cast
 
 from qtop_py import core_inputs as inputs
-from qtop_py.constants import DEFAULT_SCHEDULER_COMMAND_TIMEOUT, QTOPCONF_YAML
 from qtop_py.core_errors import OperationalError
 
 if TYPE_CHECKING:  # typing.Final is Python 3.8+; the quoted annotations keep 3.6 working
@@ -24,6 +23,7 @@ if TYPE_CHECKING:  # typing.Final is Python 3.8+; the quoted annotations keep 3.
 
 MAX_STDOUT_BYTES: "Final" = 256 * 1024 * 1024
 MAX_STDERR_BYTES: "Final" = 1024 * 1024
+DEFAULT_SCHEDULER_COMMAND_TIMEOUT: "Final" = 180
 
 
 def terminate(command: "subprocess.Popen[bytes]") -> None:
@@ -130,14 +130,14 @@ def _wait_for_command(command: "subprocess.Popen[bytes]", timeout: float, deadli
             continue
 
 
-def scheduler_env() -> Dict[str, str]:
-    """Environment for scheduler-facing commands, so the output qtop parses is complete and not localised.
+def scheduler_env(base: Mapping[str, str]) -> Dict[str, str]:
+    """Return base (the caller's environment) adjusted so the scheduler output qtop parses is complete.
 
     LC_ALL=C keeps dates and messages in the C locale. SLURM_BITSTR_LEN=0 stops Slurm cutting
     array task ranges (e.g. 453906_[2,6-14,...]) at its default length (qtop/qtop#606); it
     overrides a user's own setting, which suits interactive squeue but breaks parsing.
     """
-    env = dict(os.environ)
+    env = dict(base)
     env["LC_ALL"] = "C"
     env["SLURM_BITSTR_LEN"] = "0"
     return env
@@ -152,8 +152,15 @@ def execute_shell_batch_commands(
     cancel: Optional[threading.Event] = None,
     cwd: Optional[str] = None,
     input_options: Any = None,
+    *,
+    env: Mapping[str, str],
+    config_name: str = "the scheduler command configuration",
 ) -> str:
-    """Run the scheduler commands from QTOPCONF_YAML, saving each output atomically to its trace file."""
+    """Run a configured scheduler command, saving its output atomically to its trace file.
+
+    env is the environment to start from (the CLI passes os.environ); config_name names where the
+    commands come from, for error messages.
+    """
     _batch_system_command = batch_system_commands[_file].strip()
     destination = os.path.abspath(filenames[_file])
     save_directory = os.path.realpath(_savepath)
@@ -166,7 +173,7 @@ def execute_shell_batch_commands(
     tempname = None
     try:
         if not _batch_system_command:
-            raise OperationalError("Empty scheduler command for %s; check %s." % (_file, QTOPCONF_YAML))
+            raise OperationalError("Empty scheduler command for %s; check %s." % (_file, config_name))
         try:
             timeout = float(timeout)
             if not isfinite(timeout) or timeout <= 0:
@@ -195,13 +202,13 @@ def execute_shell_batch_commands(
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
                     start_new_session=(os.name == "posix"),
-                    env=scheduler_env(),
+                    env=scheduler_env(env),
                     cwd=cwd,
                 )
             except OSError as error:
                 raise OperationalError("Cannot execute scheduler command %r: %s. Check PATH or load the scheduler module." % (_batch_system_command, error.strerror)) from error
             except ValueError as error:
-                raise OperationalError("Invalid scheduler command %r: %s. Check command quoting in %s." % (_batch_system_command, error, QTOPCONF_YAML)) from error
+                raise OperationalError("Invalid scheduler command %r: %s. Check command quoting in %s." % (_batch_system_command, error, config_name)) from error
             with inputs.input_source(input_options, destination):
                 try:
                     stderr_data = communicate_with_timeout(command, timeout, stdout=fin, **({"cancel": cancel} if cancel is not None else {}))[1]

@@ -376,10 +376,10 @@ def test_scheduler_command_checks_exit_status_and_cleans_up(tmp_path, exit_code)
     arguments = ({"trace": "%s %s" % (sys.executable, script)}, {"trace": str(output)}, "trace", str(tmp_path))
     if exit_code:
         with pytest.raises(qtop.OperationalError, match="failed \\(exit 7\\): scheduler warning"):
-            process_io.execute_shell_batch_commands(*arguments)
+            process_io.execute_shell_batch_commands(*arguments, env=os.environ)
         assert output.read_text() == "previous snapshot"
     else:
-        assert process_io.execute_shell_batch_commands(*arguments) == str(output)
+        assert process_io.execute_shell_batch_commands(*arguments, env=os.environ) == str(output)
         assert output.read_text() == "usable output\n"
     assert {path.name for path in tmp_path.iterdir()} == {"command.py", "trace.txt"}
 
@@ -424,7 +424,7 @@ def test_scheduler_timeout_or_interrupt_reaps_client_and_preserves_previous_trac
     monkeypatch.setattr(qtop.subprocess, "Popen", track_process)
     with pytest.raises(KeyboardInterrupt if interrupt else qtop.OperationalError, match=None if interrupt else "timed out after 0.3 seconds"):
         process_io.execute_shell_batch_commands(
-            {"trace": shlex.quote(sys.executable) + " " + shlex.quote(str(script))}, {"trace": str(output)}, "trace", str(tmp_path), timeout=0.3
+            {"trace": shlex.quote(sys.executable) + " " + shlex.quote(str(script))}, {"trace": str(output)}, "trace", str(tmp_path), timeout=0.3, env=os.environ
         )
     assert processes[0].poll() is not None
     assert output.read_text() == "previous snapshot"
@@ -453,7 +453,7 @@ def test_scheduler_timeout_rejects_invalid_limits(tmp_path, timeout):
     from qtop_py import qtop
 
     with pytest.raises(qtop.OperationalError, match="positive finite number"):
-        process_io.execute_shell_batch_commands({"trace": "unused"}, {"trace": str(tmp_path / "trace.txt")}, "trace", str(tmp_path), timeout=timeout)
+        process_io.execute_shell_batch_commands({"trace": "unused"}, {"trace": str(tmp_path / "trace.txt")}, "trace", str(tmp_path), timeout=timeout, env=os.environ)
     assert list(tmp_path.iterdir()) == []
 
 
@@ -524,7 +524,7 @@ def test_logged_trace_collection_command_can_be_pasted_into_shell(tmp_path, monk
     target = tmp_path / "trace '$HOME;.txt"
     monkeypatch.chdir(tmp_path)
     with caplog.at_level("DEBUG"):
-        process_io.execute_shell_batch_commands({"trace": command}, {"trace": target.name}, "trace", str(tmp_path))
+        process_io.execute_shell_batch_commands({"trace": command}, {"trace": target.name}, "trace", str(tmp_path), env=os.environ)
     prefix = "Trace collection command: "
     logged = next(record.getMessage()[len(prefix) :] for record in caplog.records if record.getMessage().startswith(prefix))
     assert json.loads(target.read_text()) == expected
@@ -615,7 +615,7 @@ def test_slurm_config_command_matches_shell_execution(tmp_path, monkeypatch, sch
     assert command == configured_command + (" --all" if all_partitions else "")
     expected = expected + (["--all"] if all_partitions else [])
     shell_output = subprocess.check_output(["/bin/sh", "-c", command], universal_newlines=True)
-    process_io.execute_shell_batch_commands({scheduler_file: command}, {scheduler_file: output_path}, scheduler_file, str(tmp_path))
+    process_io.execute_shell_batch_commands({scheduler_file: command}, {scheduler_file: output_path}, scheduler_file, str(tmp_path), env=os.environ)
     assert json.loads(shell_output) == expected
     assert json.loads(Path(output_path).read_text()) == expected
     # Old user configs continue to produce the same scheduler arguments.
@@ -623,7 +623,7 @@ def test_slurm_config_command_matches_shell_execution(tmp_path, monkeypatch, sch
     legacy_command = configured_command.replace("'", "").replace("%", "%%")
     config["schedulers"]["slurm"][scheduler_file] = path_template + ", " + legacy_command
     legacy_path, legacy_command = collector.finalize_filepaths_schedulercommands(args, config, qtop.scheduler_backend("slurm"))[scheduler_file]
-    process_io.execute_shell_batch_commands({scheduler_file: legacy_command}, {scheduler_file: legacy_path}, scheduler_file, str(tmp_path))
+    process_io.execute_shell_batch_commands({scheduler_file: legacy_command}, {scheduler_file: legacy_path}, scheduler_file, str(tmp_path), env=os.environ)
     assert json.loads(Path(legacy_path).read_text()) == expected
 
 
@@ -692,7 +692,7 @@ def test_malformed_scheduler_command_quotes_are_actionable(tmp_path):
     from qtop_py import qtop
 
     with pytest.raises(qtop.OperationalError, match="Check command quoting"):
-        process_io.execute_shell_batch_commands({"trace": "squeue -o 'unterminated"}, {"trace": str(tmp_path / "trace.txt")}, "trace", str(tmp_path))
+        process_io.execute_shell_batch_commands({"trace": "squeue -o 'unterminated"}, {"trace": str(tmp_path / "trace.txt")}, "trace", str(tmp_path), env=os.environ)
     assert list(tmp_path.iterdir()) == []
 
 
@@ -1094,7 +1094,7 @@ def test_trace_collection_rejects_output_outside_savepath(tmp_path, monkeypatch,
         destination = savepath / "../trace.txt" if kind == "parent" else victim / "trace.txt"
     monkeypatch.setattr(qtop.subprocess, "Popen", lambda *args, **kwargs: pytest.fail("must reject before starting a command"))
     with pytest.raises(qtop.OperationalError, match="inside savepath"):
-        process_io.execute_shell_batch_commands({"trace": "unused"}, {"trace": str(destination)}, "trace", str(savepath))
+        process_io.execute_shell_batch_commands({"trace": "unused"}, {"trace": str(destination)}, "trace", str(savepath), env=os.environ)
     assert list(victim.iterdir()) == []
     assert not (tmp_path / "trace.txt").exists()
 

@@ -209,7 +209,9 @@ Configuration files, savepath, logging setup, colours, the CLI's messages and th
 TUI belong to the application, which passes the core what it needs. For example,
 scheduler errors carry the requested name and choices, and the CLI words them.
 [test_core_boundary.py](../tests/test_core_boundary.py) enforces this; its
-`KNOWN_VIOLATIONS` lists what is still to move and may only shrink.
+`KNOWN_VIOLATIONS` is empty: the core reads no environment and no application
+constants (the command runner takes `env`, its timeout and a `config_name` for its
+messages from the caller).
 
 The [modular compatibility plan][modular-plan] for issue #593 uses an
 illustrative layout. Preserve existing module paths and public

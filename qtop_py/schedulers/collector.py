@@ -61,7 +61,9 @@ def _run_commands_concurrently(INPUT_FNs_commands: Mapping[str, Tuple[str, str]]
     progress = {"input_options": args} if getattr(args, "_input_progress", None) is not None else {}
 
     def run(key: str) -> str:
-        return process.execute_shell_batch_commands(commands, filenames, key, _savepath, timeout=SETTINGS.TIMEOUT, cancel=stop, **progress, **controls)
+        return process.execute_shell_batch_commands(
+            commands, filenames, key, _savepath, timeout=SETTINGS.TIMEOUT, cancel=stop, env=os.environ, config_name=QTOPCONF_YAML, **progress, **controls
+        )
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=max(1, len(filenames)), thread_name_prefix="qtop-command") as pool:
         futures = {key: pool.submit(run, key) for key in filenames}

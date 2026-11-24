@@ -279,7 +279,7 @@ def test_collection_process_has_an_explicit_working_directory(tmp_path):
     output.mkdir()
     target = output / "trace"
     command = shlex.quote(sys.executable) + " -c " + shlex.quote("from pathlib import Path; print(Path('marker').read_text())")
-    process_io.execute_shell_batch_commands({"trace": command}, {"trace": str(target)}, "trace", str(output), cancel=threading.Event(), cwd=str(working))
+    process_io.execute_shell_batch_commands({"trace": command}, {"trace": str(target)}, "trace", str(output), cancel=threading.Event(), cwd=str(working), env=os.environ)
     assert target.read_text().strip() == "correct RPC directory"
 
 
@@ -364,7 +364,7 @@ def test_startup_progress_observes_live_stream_before_waiting(tmp_path, monkeypa
 
     command = shlex.quote(sys.executable) + " -c " + shlex.quote("print('jobs'); raise SystemExit(%s)" % int(fails))
     try:
-        process_io.execute_shell_batch_commands({"jobs": command}, {"jobs": str(destination)}, "jobs", str(tmp_path), input_options=options)
+        process_io.execute_shell_batch_commands({"jobs": command}, {"jobs": str(destination)}, "jobs", str(tmp_path), input_options=options, env=os.environ)
     except OperationalError:
         assert fails
     else:

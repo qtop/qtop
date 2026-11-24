@@ -19,7 +19,6 @@ from qtop_py import core_yaml_parser as yaml_parser
 from qtop_py import fileutils
 from qtop_py.colormap import color_to_code, nodestate_to_color_default, user_to_color_default
 from qtop_py.constants import (
-    DEFAULT_SCHEDULER_COMMAND_TIMEOUT,
     MAX_USER_ACCOUNTS_HEADER_LEN,
     PALETTES_YAML,
     QTOPCONF_YAML,
@@ -29,6 +28,7 @@ from qtop_py.constants import (
     USER_ID_RANKING_NAME_KEYS,
 )
 from qtop_py.core_errors import OperationalError
+from qtop_py.core_process import DEFAULT_SCHEDULER_COMMAND_TIMEOUT
 from qtop_py.core_safety import ResourceLimitError, literal_eval
 
 # Parsed YAML layers by path, each with the stat signature it was parsed under.

@@ -10,6 +10,7 @@ Notable changes by version, newest first. See the
 - Feature: unusable savepath or log warns and falls back to /dev/shm; --strict-parents stops
 - Refactor: scheduler core no longer imports app modules; a boundary test keeps it library-ready
 - Refactor: top-level core modules are now qtop_py/core_*.py, e.g. core_serialiser; old paths gone
+- Refactor: the command runner takes env, timeout and config name from its caller; boundary clean
 - Release: ab79cda SBOM fix; v0.9.20261119/20 retagged onto it, both on PyPI with attestations
 - Release: update version metadata to 0.9.20261121
 
