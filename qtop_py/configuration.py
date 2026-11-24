@@ -391,7 +391,7 @@ def prepare_config(config: Dict[str, Any], args: Any = None) -> Tuple[Dict[str, 
     if args is not None:
         config = update_config_with_cmdline_vars(args, config)
         validate_config(config)
-    config["savepath"] = fileutils.private_save_directory(config["savepath"])
+    config["savepath"] = fileutils.with_fallback("savepath", config["savepath"], fileutils.private_save_directory)
     logging.debug("%s files will be saved in directory %s.", config["scheduler"], config["savepath"])
 
     return config, user_to_color, nodestate_to_color

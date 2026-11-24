@@ -17,14 +17,19 @@ from typing import Any, Callable, Dict, Iterator, Optional
 
 from qtop_py import fileutils
 from qtop_py.constants import QTOP_LOGFILE
-from qtop_py.safety import SafeLogFormatter
+from qtop_py.safety import SafeLogFormatter, visible_text
 
 
 class PrivateFileHandler(logging.FileHandler):
     """Log file handler that opens its file privately (mode 0600)."""
 
     def _open(self) -> io.TextIOWrapper:
-        return fileutils.private_log_stream(self.baseFilename)
+        def open_log(path: str) -> io.TextIOWrapper:
+            stream = fileutils.private_log_stream(path)
+            self.baseFilename = path
+            return stream
+
+        return fileutils.with_fallback("log", self.baseFilename, open_log, leaf="qtop.log")
 
 
 def init_logging(options: Any) -> None:
@@ -40,10 +45,17 @@ def init_logging(options: Any) -> None:
     logger = logging.getLogger()
     logger.setLevel(logging.DEBUG)
 
-    fh = PrivateFileHandler(QTOP_LOGFILE, encoding="utf-8")
-    fh.setLevel(logging.DEBUG if options.DEBUG else log_level)
-    fh.setFormatter(formatter)
-    logger.addHandler(fh)
+    try:
+        fh = PrivateFileHandler(QTOP_LOGFILE, encoding="utf-8")
+    except OSError as error:
+        if fileutils.STRICT_PARENTS:
+            raise
+        # Neither the log nor its fallback is usable: keep running, without a log file.
+        sys.stderr.write("qtop: warning: no log file: %s (%s)\n" % (visible_text(error.strerror or error), visible_text(error.filename)))
+    else:
+        fh.setLevel(logging.DEBUG if options.DEBUG else log_level)
+        fh.setFormatter(formatter)
+        logger.addHandler(fh)
 
     stream_handler = logging.StreamHandler()
     stream_handler.setLevel(logging.DEBUG if options.DEBUG else logging.ERROR)
@@ -231,7 +243,8 @@ def parse_qtop_cmdline_args() -> Namespace:
         action="store_true",
         dest="STRICT_PARENTS",
         default=False,
-        help="Stop when a parent of savepath or the log directory is writable by others without sticky bit (default: continue)",
+        help="Stop when a parent of savepath or the log directory is writable by others without sticky bit, or either is unusable "
+        "(default: continue; an unusable one falls back to a private /dev/shm directory)",
     )
     parser.add_argument("-v", "--verbose", dest="verbose", action="count", help="Increase verbosity (specify multiple times for more)")
     parser.add_argument("-V", "--version", dest="version", action="store_true", help="Print qtop version")

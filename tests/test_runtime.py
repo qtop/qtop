@@ -36,7 +36,6 @@ def runtime(tmp_path, monkeypatch):
     monkeypatch.setattr(qtop, "USERPATH", str(home / ".local/qtop"))
     monkeypatch.setattr(qtop, "SYSTEMCONFDIR", str(tmp_path / "etc"))
     log = str(tmp_path / "logs/qtop.log")
-    monkeypatch.setattr(qtop, "QTOP_LOGFILE", log)
     monkeypatch.setattr(utils, "QTOP_LOGFILE", log)
     sequence = itertools.count()
     views = []  # every MVU_query result, so tests can inspect the derived cluster

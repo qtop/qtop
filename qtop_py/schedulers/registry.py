@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any, Dict, Mapping, Optional
 
 from qtop_py.constants import QTOP_LOGFILE
 from qtop_py.errors import InvalidScheduler, NoSchedulerFound, OperationalError, SchedulerNotSpecified
+from qtop_py.fileutils import active_log_path
 from qtop_py.plugins.demo import DemoBatchSystem
 from qtop_py.plugins.htcondor import HTCondorBatchSystem
 from qtop_py.plugins.lsf import LSFBatchSystem
@@ -54,7 +55,7 @@ def decide_batch_system(
     if cmdline_switch and cmdline_switch.lower() not in avail_systems:
         logging.critical("Selected scheduler system not supported. Available choices are %s.", ", ".join(avail_systems))
         logging.critical("For help, try ./qtop.py --help")
-        logging.critical("Log file created in %s", os.path.expandvars(QTOP_LOGFILE))
+        logging.critical("Log file created in %s", active_log_path() or os.path.expandvars(QTOP_LOGFILE))
         raise InvalidScheduler
     for scheduler in (cmdline_switch, env_var, config_file_batch_option):
         if scheduler is None:

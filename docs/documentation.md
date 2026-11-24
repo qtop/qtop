@@ -505,11 +505,16 @@ and archive-extraction workspaces, rendered frames, traces, exports and captures
 ./qtop -w -o 'savepath=/dev/shm/qtop_$USER'
 ```
 
-Or set ``savepath: /dev/shm/qtop_$USER`` in your configuration. qtop uses that
-filesystem exclusively for these files and reports an error if it cannot create
-them; it does not fall back to another temporary directory. Input files remain
-where supplied. The persistent diagnostic log remains under
-``~/.local/qtop/logs/``; this setting does not relocate it or Python bytecode.
+Or set ``savepath: /dev/shm/qtop_$USER`` in your configuration. If qtop cannot
+create or verify that directory (for example a refused symlink or a foreign
+owner), it prints a warning and, as a best effort, uses a private
+``qtop_fallback_<uid>`` directory under ``/dev/shm``, else the system temporary
+directory, or under ``$QTOP_FALLBACK_DIR`` when that is set. The persistent
+diagnostic log remains under ``~/.local/qtop/logs/`` and falls back the same
+way; if no log location works, qtop runs without a log file. The fallback goes
+through the same private-directory checks; ``--strict-parents`` (or
+``--demanding``) stops with the original error instead. Input files remain where
+supplied; this setting does not relocate the log or Python bytecode.
 
 The ``savepath`` expands environment variables and is created with permissions
 ``0700`` (accessible only to its owner). This also applies to ``-o savepath=...``;
@@ -1214,7 +1219,8 @@ can be made stricter, one at a time or all at once:
    the log is writable by group or others without the sticky bit. Without it,
    such a parent (e.g. a group-writable ``/home`` or ``/gpfs/home``) is noted
    at ``-v`` and qtop continues; the directories qtop owns are always created or
-   tightened to mode 0700 and never followed through symbolic links.
+   tightened to mode 0700 and never followed through symbolic links. It also
+   disables the best-effort ``/dev/shm`` fallback for ``savepath`` and the log.
 -  Live collection validates each cluster state once, in its collection
    thread. ``--demanding`` validates it again when the snapshot is built.
 

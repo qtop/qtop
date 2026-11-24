@@ -22,6 +22,9 @@ def run_cli(tmp_path, module, *args, extra_env=None):
     env = os.environ.copy()
     env["HOME"] = str(tmp_path)
     env.pop("QTOP_SCHEDULER", None)
+    # Keep the best-effort log/savepath fallback inside the test directory.
+    env["QTOP_FALLBACK_DIR"] = str(tmp_path / "fallback")
+    (tmp_path / "fallback").mkdir(exist_ok=True)
     env.update(extra_env or {})
     env["PYTHONPATH"] = str(ROOT) + os.pathsep + env.get("PYTHONPATH", "")
 
@@ -280,11 +283,15 @@ def test_operational_failures_are_actionable(tmp_path, failure):
         args += ["-o", "term_size=[0,80]"]
         expected = "two positive integers"
     else:
-        # Exercise failure before logging is initialized, without chmod/root
-        # behavior differences between CI and developer machines.
+        # An unusable ~/.local, without chmod/root behavior differences between
+        # CI and developer machines: the log falls back with a warning (#615),
+        # then reading the user configuration fails.
         (tmp_path / ".local").write_text("not a directory", encoding="utf-8")
         expected = ".local"
     result = run_cli(tmp_path, "qtop_py.qtop", *args)
+    if failure == "log-directory":
+        assert "qtop: warning: cannot use log" in result.stderr
+        assert (tmp_path / "fallback" / ("qtop_fallback_%d" % os.geteuid()) / "qtop.log").is_file()
     assert result.returncode == 1
     assert "qtop: " in result.stderr
     assert expected in result.stderr

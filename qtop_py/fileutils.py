@@ -13,7 +13,9 @@ import stat
 import sys
 import tarfile
 import tempfile
-from typing import Any, Dict, Generator, List, Mapping, Optional, Set, TextIO, Tuple
+from typing import Any, Callable, Dict, Generator, List, Mapping, Optional, Set, TextIO, Tuple, TypeVar
+
+from qtop_py.safety import visible_text
 
 # Off by default: shared site trees (/gpfs/home, group-writable /home) would otherwise stop every run.
 # --strict-parents turns it on, so a writable non-sticky ancestor of savepath or the log stops qtop.
@@ -191,6 +193,61 @@ def private_log_stream(path: str) -> io.TextIOWrapper:
         stream = os.fdopen(descriptor, "a", encoding="utf-8")
         allocation.pop_all()
         return stream
+
+
+# Best-effort escape when savepath or the log cannot pass the checks above: a private directory
+# under /dev/shm (then the system temp dir), created through the same no-follow walk.
+FALLBACK_ROOTS: Tuple[str, ...] = ("/dev/shm",)  # nosec B108 - private 0700 subdirectory via _private_directory
+_fallback_warnings: Set[Tuple[str, str]] = set()
+_T = TypeVar("_T")
+
+
+def _fallback_roots() -> List[str]:
+    """QTOP_FALLBACK_DIR if set (e.g. node-local scratch), else /dev/shm and the system temp dir."""
+    override = os.environ.get("QTOP_FALLBACK_DIR")
+    roots = (os.path.expandvars(override),) if override else FALLBACK_ROOTS + (tempfile.gettempdir(),)
+    return [root for root in dict.fromkeys(roots) if os.path.isdir(root)]
+
+
+def _warn_fallback(what: str, path: str, error: OSError, fallback: str) -> None:
+    if (what, path) in _fallback_warnings:
+        return
+    _fallback_warnings.add((what, path))
+    reason = "%s%s" % (error.strerror or error, " (%s)" % error.filename if error.filename else "")
+    message = visible_text("warning: cannot use %s %s: %s; using %s instead (best effort; --strict-parents stops instead)" % (what, path, reason, fallback))
+    sys.stderr.write("qtop: %s\n" % message)
+    if logging.getLogger().handlers:  # before init_logging, Python's last-resort handler would repeat it
+        logging.getLogger(__name__).warning("%s", message)
+
+
+def with_fallback(what: str, path: str, attempt: Callable[[str], _T], leaf: str = "") -> _T:
+    """Return attempt(path), or attempt() on a private fallback directory with a warning if path fails.
+
+    With --strict-parents the original error propagates instead.
+    """
+    try:
+        return attempt(path)
+    except OSError as error:
+        if STRICT_PARENTS:
+            raise
+        for root in _fallback_roots():
+            directory = os.path.join(root, "qtop_fallback_%d" % os.geteuid())
+            candidate = os.path.join(directory, leaf) if leaf else directory
+            try:
+                result = attempt(candidate)
+            except OSError:
+                continue
+            _warn_fallback(what, path, error, candidate)
+            return result
+        raise
+
+
+def active_log_path() -> Optional[str]:
+    """Return the file the root logger writes to, which may be a fallback, or None without one."""
+    for handler in logging.getLogger().handlers:
+        if isinstance(handler, logging.FileHandler):
+            return handler.baseFilename
+    return None
 
 
 def check_empty_file(orig_file: str) -> None:

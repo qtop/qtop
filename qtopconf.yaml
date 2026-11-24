@@ -23,7 +23,8 @@ scheduler: auto
 ## where to save output from batch commands and their intermediate conversion to json format
 ## All intermediate files, collection/extraction workspaces, exports and captures.
 ## Use a private subdirectory, e.g. /dev/shm/qtop_$USER, or $TMPDIR/qtop_$USER.
-## CLI: -o savepath=/dev/shm/qtop_$USER (no fallback to another filesystem).
+## CLI: -o savepath=/dev/shm/qtop_$USER. If it is unusable, qtop warns and uses a private
+## qtop_fallback_<uid> under /dev/shm, the temp dir or $QTOP_FALLBACK_DIR (--strict-parents stops).
 savepath: /tmp/qtop_results_$USER
 
 ## Maximum seconds per live scheduler command or optional account lookup.

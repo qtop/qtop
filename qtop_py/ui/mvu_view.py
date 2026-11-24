@@ -128,7 +128,7 @@ class TextDisplay(object):
         """Return a watch-mode toggle (keys 1-4), else the command-line value."""
         return bool(getattr(self.MVU_model, "display_overrides", {}).get(key, getattr(self.args, key, default)))
 
-    def display_selected_sections(self, _savepath: str, SAMPLE_FILENAME: str, QTOP_LOGFILE: str) -> None:
+    def display_selected_sections(self, _savepath: str, SAMPLE_FILENAME: str, QTOP_LOGFILE: Optional[str]) -> None:
         """Print the sections listed in user_display_parts, minus those disabled with -1, -2 or -3."""
         sections_off = {idx: self._toggled("sect_%d_off" % idx, False) for idx in (1, 2, 3)}  # -1, -2, -3, or keys 1-3
         display_parts: Dict[str, Tuple[Callable[..., Any], Tuple[Any, ...]]] = {
@@ -151,7 +151,7 @@ class TextDisplay(object):
             self.display_account_totals()
         self.display_backend_messages()
 
-        if not self.args.ANONYMIZE:
+        if not self.args.ANONYMIZE and QTOP_LOGFILE:
             print("\nLog file created in %s" % os.path.expandvars(QTOP_LOGFILE))
         if self.args.STRICTCHECK:
             message = self.wns_occupancy.MVU_check_jobs(self.cluster)
@@ -743,7 +743,7 @@ class TextDisplay(object):
         return sep_str
 
 
-def MVU_view(view_data: Tuple[Any, Any, Any], savepath: str, sample_filename: str, logfile: str) -> TextDisplay:
+def MVU_view(view_data: Tuple[Any, Any, Any], savepath: str, sample_filename: str, logfile: Optional[str]) -> TextDisplay:
     """Render the model's frame to stdout and return the display."""
     model, cluster, occupancy = view_data
     display = TextDisplay(model.snapshot, model.config, model.viewport, occupancy, cluster, model.args, MVU_model=model)

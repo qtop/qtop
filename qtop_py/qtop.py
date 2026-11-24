@@ -35,7 +35,6 @@ from qtop_py.configuration import CONFIG_ERRORS as CONFIG_ERRORS
 from qtop_py.constants import (
     FALLBACK_TERMSIZE,
     KEYPRESS_TIMEOUT,
-    QTOP_LOGFILE,
     QTOPCONF_YAML,
     SYSTEMCONFDIR,
     USERPATH,
@@ -232,7 +231,7 @@ def _parse_run_options(resources: RunResources) -> Tuple[Any, Dict[str, Any]]:
     apply_demanding(args)
     fileutils.STRICT_PARENTS = args.STRICT_PARENTS
     utils.init_logging(args)
-    resources.logfile = QTOP_LOGFILE
+    resources.logfile = fileutils.active_log_path()
     dynamic_config: Dict[str, Any] = dict()
     args, dynamic_config["force_names"] = process_args(args)
     require_experimental_opt_in(args)
@@ -340,7 +339,7 @@ def main(resources: RunResources) -> None:
                     view_data = MVU_query(model)
                     cluster = view_data.cluster
                     MVU_resolve_user_details(view_data.model, view_data.occupancy)
-                    display = MVU_view(view_data, savepath, SAMPLE_FILENAME, QTOP_LOGFILE)
+                    display = MVU_view(view_data, savepath, SAMPLE_FILENAME, resources.logfile)
 
                 view_data.model.viewport.max_height, max_line_len = get_output_size(max_line_len, output_fp, term_columns=viewport.h_term_size if args.WATCH else 0)
                 model, _ = MVU_update(model, "layout", view_data.model.viewport)

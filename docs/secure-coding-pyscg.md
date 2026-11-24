@@ -154,7 +154,10 @@ On macOS, root-owned `/tmp` and `/var` aliases to `/private/tmp` and
 `/private/var` are expanded before the same component checks. A root-owned
 symlink in an ancestor directory that group and others cannot write (an autofs
 or NFS `/home`, #615) is resolved and the walk restarts from `/` on its target,
-at most 40 times; qtop-owned directories are never followed. Other symlinks
+at most 40 times; qtop-owned directories are never followed. If savepath or the
+log still fails these checks, `with_fallback` retries the same walk on a private
+`qtop_fallback_<uid>` under `/dev/shm`, the temp dir or `$QTOP_FALLBACK_DIR`,
+and warns; `--strict-parents` disables that. Other symlinks
 and writable non-sticky ancestors are rejected; sticky shared parents
 and non-writable site-owned ancestors are allowed. Unsupported non-POSIX checks
 fail explicitly. Temporary outputs use `mkstemp` or `NamedTemporaryFile`.

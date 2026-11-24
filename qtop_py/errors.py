@@ -6,6 +6,7 @@ import logging
 import os
 
 from qtop_py.constants import QTOP_LOGFILE, QTOPCONF_YAML
+from qtop_py.fileutils import active_log_path
 
 
 class OperationalError(Exception):
@@ -26,7 +27,7 @@ class NoSchedulerFound(Exception):
     def __init__(self) -> None:
         msg = "No suitable scheduler was found. Please define one in a switch or env variable or in %s.\nFor more help, try ./qtop.py --help\nLog file created in %s" % (
             QTOPCONF_YAML,
-            os.path.expandvars(QTOP_LOGFILE),
+            active_log_path() or os.path.expandvars(QTOP_LOGFILE),
         )
         Exception.__init__(self, msg)
         logging.critical(msg)

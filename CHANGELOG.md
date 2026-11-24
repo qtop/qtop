@@ -6,6 +6,8 @@ Notable changes by version, newest first. See the
 ## 0.9.20261121
 
 - Bugfix: a root-owned symlinked parent such as an autofs/NFS `/home` no longer stops qtop with `Not a directory (home)` (#615)
+- Feature: if savepath or the log fails the private-path checks, qtop warns and uses a private
+  `qtop_fallback_<uid>` under /dev/shm, the temp dir or `QTOP_FALLBACK_DIR`; --strict-parents stops instead
 - Release: update version metadata to 0.9.20261121
 
 ## 0.9.20261120
