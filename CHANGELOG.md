@@ -6,6 +6,7 @@ Notable changes by version, newest first. See the
 ## 0.9.20261121
 
 - Bugfix: a root-owned symlinked /home (autofs/NFS) no longer fails with Not a directory (#615)
+- Bugfix: a timed-out or cancelled command's forked child no longer escapes the kill (macOS)
 - Feature: unusable savepath or log warns and falls back to /dev/shm; --strict-parents stops
 - Refactor: scheduler core no longer imports app modules; a boundary test keeps it library-ready
 - Release: ab79cda SBOM fix; v0.9.20261119/20 retagged onto it, both on PyPI with attestations

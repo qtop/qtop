@@ -29,10 +29,28 @@ MAX_STDERR_BYTES: "Final" = 1024 * 1024
 def terminate(command: "subprocess.Popen[bytes]") -> None:
     """Kill a command and, on POSIX, its whole process group."""
     if os.name == "posix":
-        with contextlib.suppress(ProcessLookupError):
+        # EPERM: macOS reports it for a group whose remaining members are zombies.
+        with contextlib.suppress(ProcessLookupError, PermissionError):
             os.killpg(command.pid, signal.SIGKILL)
     else:
         command.kill()
+
+
+def _kill_group_stragglers(command: "subprocess.Popen[bytes]", timeout: float = 1.0) -> None:
+    """Kill group members that escaped terminate(), until the group is gone.
+
+    A process forked while killpg() is delivered can miss it (seen on macOS), and would hold the
+    output pipes open. Only after the leader is reaped: the group then contains just stragglers.
+    """
+    if os.name != "posix" or command.returncode is None:
+        return
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        try:
+            os.killpg(command.pid, signal.SIGKILL)
+        except (ProcessLookupError, PermissionError):  # gone, or only zombies left (macOS: EPERM)
+            return
+        time.sleep(0.01)
 
 
 def communicate_with_timeout(
@@ -91,6 +109,7 @@ def communicate_with_timeout(
             terminate(command)
             with contextlib.suppress(subprocess.TimeoutExpired):
                 command.wait(timeout=1)
+            _kill_group_stragglers(command)
             for reader in readers:
                 if reader.ident is not None:
                     reader.join(1)

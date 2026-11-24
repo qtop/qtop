@@ -1,10 +1,13 @@
 ## Copyright (c) 2026 qtop contributors
 ## SPDX-License-Identifier: MIT
+import contextlib
 import io
 import os
+import signal
 import subprocess
 import sys
 import threading
+import time
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -145,6 +148,24 @@ def test_cancellation_reaps_clients_and_inherited_pipe_holders(child_exits):
             process.kill()
         process.wait()
     assert process.stdout.closed and process.stderr.closed
+
+
+@pytest.mark.skipif(os.name != "posix", reason="process groups are POSIX-specific")
+def test_group_stragglers_that_escaped_the_first_kill_are_killed():
+    """A child forked while killpg() is delivered can miss it; once the leader is reaped, kill the rest."""
+    code = "import os,time; pid=os.fork(); time.sleep(60) if pid==0 else None"
+    leader = subprocess.Popen([sys.executable, "-c", code], start_new_session=True)
+    leader.wait(10)  # the leader exits at once; its child stays in the group, as if it escaped the kill
+    try:
+        os.killpg(leader.pid, 0)
+        process_io._kill_group_stragglers(leader)
+        with pytest.raises((ProcessLookupError, PermissionError)):  # gone, or only a zombie left (macOS: EPERM)
+            for _ in range(100):  # the killed child is reaped by init shortly after
+                os.killpg(leader.pid, 0)
+                time.sleep(0.01)
+    finally:
+        with contextlib.suppress(ProcessLookupError, PermissionError):
+            os.killpg(leader.pid, signal.SIGKILL)
 
 
 @pytest.fixture
