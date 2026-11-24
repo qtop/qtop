@@ -10,7 +10,8 @@ from pathlib import Path
 
 import pytest
 
-from qtop_py import configuration, qtop, user_details, utils, yaml_parser
+from qtop_py import configuration, qtop, user_details, utils
+from qtop_py import core_yaml_parser as yaml_parser
 from qtop_py.mvu import MVU_Model, MVU_update
 from qtop_py.mvu_query import MVU_query
 from qtop_py.plugins.slurm import SLURM_JOB_STATES, SlurmBatchSystem
@@ -222,7 +223,8 @@ def test_user_id_ranking_orders_by_counts_then_name(USER_ID_RANKING, expected):
 
 
 def test_user_id_ranking_default_is_all_then_r_then_name_desc():
-    from qtop_py import configuration, yaml_parser
+    from qtop_py import configuration
+    from qtop_py import core_yaml_parser as yaml_parser
     from qtop_py.constants import DEFAULT_USER_ID_RANKING
 
     config = yaml_parser.parse(str(Path(__file__).resolve().parents[1] / "qtopconf.yaml"))
@@ -259,7 +261,7 @@ def test_rendered_matrix_does_not_depend_on_hash_seed(tmp_path):
 
 
 def test_node_queue_names_are_sorted_with_unknown_last():
-    from qtop_py.serialiser import GenericBatchSystem
+    from qtop_py.core_serialiser import GenericBatchSystem
 
     node = {"core_job_map": {"0": "3", "1": "1", "2": "2", "3": "9"}}
     (result,) = GenericBatchSystem.ensure_worker_nodes_have_qnames([node], ["1", "2", "3"], ["short", "long", "debug"])
@@ -293,7 +295,7 @@ def test_user_accounts_header_rejects_non_single_line_text(USER_ACCOUNTS_HEADER)
 
 
 def test_anonymized_samples_drop_custom_user_accounts_header():
-    from qtop_py import sample
+    from qtop_py import core_sample as sample
 
     config, omitted = sample.sanitize_config({"user_accounts_header": "CSCS Alps: {ranking}"}, {kind: {} for kind in ("user", "node", "queue", "job")})
 

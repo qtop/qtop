@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, Mapping, Optional, Tuple,
 if TYPE_CHECKING:
     from typing import Final
 
-    from qtop_py.state_types import Job, Node
+    from qtop_py.core_state_types import Job, Node
 
 from qtop_py.schedulers.extensions import ExtensionSpec, validate_identities, validate_text_lists
 from qtop_py.schedulers.oar_extension import OAR_EXTENSION

@@ -15,7 +15,8 @@ from pathlib import Path
 from types import SimpleNamespace
 from xml.etree.ElementTree import ParseError
 
-from qtop_py import configuration, sample
+from qtop_py import configuration
+from qtop_py import core_sample as sample
 from qtop_py.plugins.oar import OarStatExtractor
 from qtop_py.plugins.pbs import PBSBatchSystem, PBSStatExtractor
 from qtop_py.plugins.sge import SGEStatExtractor

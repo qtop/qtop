@@ -12,9 +12,9 @@ from typing import TYPE_CHECKING, Dict, List, Optional, Sequence, Set, cast
 if TYPE_CHECKING:
     from typing import Final
 
-    from qtop_py.state_types import ClusterState, Job, Node, Queue, RawQueue
+    from qtop_py.core_state_types import ClusterState, Job, Node, Queue, RawQueue
 
-from qtop_py.safety import MAX_CORES_PER_NODE
+from qtop_py.core_safety import MAX_CORES_PER_NODE
 from qtop_py.schedulers.metadata import DIAGNOSTICS, validate_diagnostics, validate_record_extensions
 
 CLUSTER_STATE_KEYS: "Final" = ("jobs", "nodes", "queues")

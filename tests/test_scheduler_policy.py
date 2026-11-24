@@ -9,12 +9,12 @@ from types import SimpleNamespace
 
 import pytest
 
-from qtop_py import process as process_io
+from qtop_py import core_process as process_io
 from qtop_py import qtop, user_details
+from qtop_py.core_queue_nodes import queue_node_counts
+from qtop_py.core_serialiser import GenericBatchSystem
 from qtop_py.mvu import MVU_Model
-from qtop_py.queue_nodes import queue_node_counts
 from qtop_py.schedulers import collector, registry
-from qtop_py.serialiser import GenericBatchSystem
 from qtop_py.ui import mvu_view
 
 

@@ -14,17 +14,17 @@ import re
 from collections import OrderedDict
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Mapping, Match, Optional, Set, Tuple, cast
 
-from qtop_py import inputs
-from qtop_py.hostlist import HostlistParser
+from qtop_py import core_inputs as inputs
+from qtop_py.core_hostlist import HostlistParser
+from qtop_py.core_serialiser import GenericBatchSystem, StatExtractor
 from qtop_py.schedulers.gpu import parse_gpu_gres
 from qtop_py.schedulers.slurm_extension import SLURM_EXTENSION
-from qtop_py.serialiser import GenericBatchSystem, StatExtractor
 
 if TYPE_CHECKING:
     from typing import Final
 
-    from qtop_py.source_trace import TraceMasker
-    from qtop_py.state_types import ClusterState, Config, JobsInfo, Node, Options, QueuesInfo, RawQueue
+    from qtop_py.core_source_trace import TraceMasker
+    from qtop_py.core_state_types import ClusterState, Config, JobsInfo, Node, Options, QueuesInfo, RawQueue
 
 SLURM_JOB_STATES: "Final" = {
     "BOOT_FAIL": "BF",

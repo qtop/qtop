@@ -7,14 +7,14 @@ import re
 from collections import OrderedDict
 from typing import TYPE_CHECKING, Any, Dict, List, Tuple
 
-from qtop_py import inputs
-from qtop_py.serialiser import GenericBatchSystem, StatExtractor
+from qtop_py import core_inputs as inputs
+from qtop_py.core_serialiser import GenericBatchSystem, StatExtractor
 
 if TYPE_CHECKING:
     from typing import Final
 
-    from qtop_py.source_trace import TraceMasker
-    from qtop_py.state_types import Config, JobsInfo, Node, Options, QueuesInfo
+    from qtop_py.core_source_trace import TraceMasker
+    from qtop_py.core_state_types import Config, JobsInfo, Node, Options, QueuesInfo
 
 ## bhosts STATUS to qtop node symbols: '-' usable, 'j' full, 'b' busy, 'o' closed by an
 ## administrator or policy (counted off), 'd' down or unreachable, '?' anything else.

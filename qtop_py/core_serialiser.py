@@ -16,10 +16,10 @@ from typing import TYPE_CHECKING, Any, Callable, Collection, Dict, Mapping, Opti
 if TYPE_CHECKING:
     from typing import List
 
-    from qtop_py.source_trace import TraceMasker
-    from qtop_py.state_types import ClusterState, Config, JobsInfo, Node, Options, QueuesInfo
+    from qtop_py.core_source_trace import TraceMasker
+    from qtop_py.core_state_types import ClusterState, Config, JobsInfo, Node, Options, QueuesInfo
 
-from qtop_py.cluster_state import build_cluster_state
+from qtop_py.core_cluster_state import build_cluster_state
 from qtop_py.schedulers.extensions import ExtensionSpec
 from qtop_py.schedulers.metadata import node_is_idle
 

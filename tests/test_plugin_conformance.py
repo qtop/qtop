@@ -17,8 +17,8 @@ from pathlib import Path
 
 import pytest
 
-from qtop_py import yaml_parser
-from qtop_py.cluster_state import validate_cluster_state
+from qtop_py import core_yaml_parser as yaml_parser
+from qtop_py.core_cluster_state import validate_cluster_state
 from qtop_py.schedulers import metadata, registry
 from qtop_py.snapshot import Snapshot
 

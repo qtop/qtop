@@ -8,16 +8,17 @@ import re
 from collections import OrderedDict
 from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Tuple
 
-from qtop_py import inputs, yaml_parser
+from qtop_py import core_inputs as inputs
+from qtop_py import core_yaml_parser as yaml_parser
+from qtop_py.core_serialiser import GenericBatchSystem
 from qtop_py.schedulers.oar_extension import OAR_EXTENSION
 from qtop_py.schedulers.tabular import TabularStatExtractor
-from qtop_py.serialiser import GenericBatchSystem
 
 if TYPE_CHECKING:
     from typing import Final
 
-    from qtop_py.source_trace import TraceMasker
-    from qtop_py.state_types import ClusterState, Config, JobsInfo, Node, Options, QueuesInfo
+    from qtop_py.core_source_trace import TraceMasker
+    from qtop_py.core_state_types import ClusterState, Config, JobsInfo, Node, Options, QueuesInfo
 
 DEFAULT_NODE_STATE_MAPPING: "Final" = {"Alive": "-", "Dead": "d", "Suspected": "s", "Mixed": "%", "Unknown": "?"}
 

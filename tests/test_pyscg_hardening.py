@@ -14,10 +14,10 @@ from types import SimpleNamespace
 
 import pytest
 
-from qtop_py import process as process_io
+from qtop_py import core_process as process_io
 from qtop_py import qtop as qtop_module
 from qtop_py import user_details
-from qtop_py.errors import OperationalError
+from qtop_py.core_errors import OperationalError
 from qtop_py.plugins import sge
 from qtop_py.plugins.pbs import PBSStatExtractor
 

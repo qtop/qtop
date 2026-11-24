@@ -227,7 +227,7 @@ def test_runtime_validation_survives_optimization(tmp_path, optimized):
     code = """
 import sys
 from types import SimpleNamespace
-from qtop_py import fileutils, qtop, utils, yaml_parser
+from qtop_py import fileutils, qtop, utils, core_yaml_parser as yaml_parser
 from qtop_py.plugins.oar import OARBatchSystem
 
 oar = OARBatchSystem({}, {}, SimpleNamespace(ANONYMIZE=False))

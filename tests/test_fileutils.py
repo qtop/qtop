@@ -15,7 +15,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from qtop_py import fileutils, inputs
+from qtop_py import core_inputs as inputs
+from qtop_py import fileutils
 
 
 @pytest.mark.parametrize("sampling", (0, 1))

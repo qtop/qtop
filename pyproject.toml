@@ -155,6 +155,6 @@ show_missing = true
 [tool.pyright]
 pythonVersion = "3.12"
 pythonPlatform = "Linux"
-include = ["qtop_py/state_types.py", "qtop_py/cluster_state.py", "qtop_py/sample.py", "qtop_py/serialiser.py", "qtop_py/ui/viewport.py"]
+include = ["qtop_py/core_state_types.py", "qtop_py/core_cluster_state.py", "qtop_py/core_sample.py", "qtop_py/core_serialiser.py", "qtop_py/ui/viewport.py"]
 typeCheckingMode = "standard"
-strict = ["qtop_py/state_types.py", "qtop_py/cluster_state.py", "qtop_py/sample.py", "qtop_py/ui/viewport.py"]
+strict = ["qtop_py/core_state_types.py", "qtop_py/core_cluster_state.py", "qtop_py/core_sample.py", "qtop_py/ui/viewport.py"]

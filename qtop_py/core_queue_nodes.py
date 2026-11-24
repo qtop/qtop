@@ -5,7 +5,7 @@
 from collections import OrderedDict
 from typing import Any, Dict, List, Optional, Set, Tuple
 
-from qtop_py.hostlist import HostlistParser
+from qtop_py.core_hostlist import HostlistParser
 
 
 def queue_node_counts(nodes: List[Dict[str, Any]], queue_names: List[str], backend: Any, mapping: object = None) -> List[Tuple[str, Optional[int], Optional[int]]]:

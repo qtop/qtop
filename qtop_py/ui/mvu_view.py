@@ -14,16 +14,17 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, Iterable, Iterator, List,
 if TYPE_CHECKING:
     from typing import Final
 
+    from qtop_py.core_state_types import Config
     from qtop_py.mvu import TerminalInfo
-    from qtop_py.state_types import Config
 
-from qtop_py import __version__, utils, yaml_parser
+from qtop_py import __version__, utils
+from qtop_py import core_yaml_parser as yaml_parser
 from qtop_py.constants import DEFAULT_USER_ACCOUNTS_HEADER, DEFAULT_USER_ID_RANKING
+from qtop_py.core_safety import visible_text
 from qtop_py.mvu import MVU_compress_colored_line as compress_colored_line
 from qtop_py.mvu import MVU_gauge_core_vectors as gauge_core_vectors
 from qtop_py.mvu import MVU_queue_layout
 from qtop_py.mvu_query import WNOccupancy
-from qtop_py.safety import visible_text
 from qtop_py.ui.terminal import capture_terminal
 from qtop_py.ui.viewport import terminal_rows
 
@@ -256,7 +257,7 @@ class TextDisplay(object):
             else:
                 print(line + note + "\n")
         if getattr(self.args, "SHOW_QUEUE_NODES", False):
-            from qtop_py.queue_nodes import queue_node_counts
+            from qtop_py.core_queue_nodes import queue_node_counts
 
             try:
                 counts = queue_node_counts(snapshot.worker_nodes, list(snapshot.queues_dict), self.MVU_model.backend, self.config.get("experimental_queue_nodes"))

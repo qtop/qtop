@@ -7,10 +7,10 @@ from types import SimpleNamespace
 
 import pytest
 
-from qtop_py.cluster_state import validate_cluster_state
+from qtop_py.core_cluster_state import validate_cluster_state
+from qtop_py.core_sample import anonymize_state
 from qtop_py.plugins.slurm import SlurmBatchSystem
 from qtop_py.plugins.slurm_json import SUPPORTED_PARSERS, SlurmJSONBatchSystem, UnsupportedSlurmJSON
-from qtop_py.sample import anonymize_state
 
 SAMPLES = Path(__file__).parent / "slurm_json_samples"
 

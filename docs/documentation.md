@@ -554,7 +554,7 @@ now used, such as:
 -  not being able to write arbitrarily deeply nested dictionary-like
    structures, without fear it's going to break the universe.
 
-Anyone brave enough to dive into ``yaml_parser.py``, or better still,
+Anyone brave enough to dive into ``core_yaml_parser.py``, or better still,
 rewrite the darn thing, is more than welcome to, by the way. It goes
 without saying that only a very basic implementation is required (what
 you can see used in the configuration file, really!) and none of the
@@ -1559,7 +1559,7 @@ A backend is a `GenericBatchSystem` subclass in `qtop_py/plugins/`. It implement
 `get_jobs_info`, `get_queues_info`, `get_worker_nodes` and `get_mnemonic`, and returns
 the scheduler-neutral cluster state; query, display, export and replay never branch on
 the scheduler. Optional hooks (`queue_is_blocked`, `node_state_marker`,
-`display_messages`, `collection_command`, ...) have defaults in `serialiser.py`.
+`display_messages`, `collection_command`, ...) have defaults in `core_serialiser.py`.
 
 To register it:
 

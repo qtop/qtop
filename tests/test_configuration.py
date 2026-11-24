@@ -9,7 +9,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from qtop_py import configuration, yaml_parser
+from qtop_py import configuration
+from qtop_py import core_yaml_parser as yaml_parser
 from qtop_py.configuration import validate_config
 from qtop_py.constants import DEFAULT_SCHEDULER_COMMAND_TIMEOUT
 

@@ -15,12 +15,12 @@ import time
 from collections import defaultdict, namedtuple
 from typing import TYPE_CHECKING, Any, DefaultDict, Dict, List, Tuple
 
-from qtop_py.serialiser import GenericBatchSystem
+from qtop_py.core_serialiser import GenericBatchSystem
 
 if TYPE_CHECKING:
     from typing import Final
 
-    from qtop_py.state_types import Config, JobsInfo, Node, Options, QueuesInfo
+    from qtop_py.core_state_types import Config, JobsInfo, Node, Options, QueuesInfo
 
 # The simulated cluster's only source of randomness; fictional jobs, not security (one instance, so it can be seeded).
 SIMULATION_RNG: "Final" = random.Random()  # nosec B311 - simulation only

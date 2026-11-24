@@ -15,7 +15,7 @@ import tarfile
 import tempfile
 from typing import Any, Callable, Dict, Generator, List, Mapping, Optional, Set, TextIO, Tuple, TypeVar
 
-from qtop_py.safety import visible_text
+from qtop_py.core_safety import visible_text
 
 # Off by default: shared site trees (/gpfs/home, group-writable /home) would otherwise stop every run.
 # --strict-parents turns it on, so a writable non-sticky ancestor of savepath or the log stops qtop.

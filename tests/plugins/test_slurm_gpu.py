@@ -5,9 +5,9 @@ from types import SimpleNamespace
 
 import pytest
 
-from qtop_py.cluster_state import validate_cluster_state
+from qtop_py.core_cluster_state import validate_cluster_state
+from qtop_py.core_sample import anonymize_state
 from qtop_py.plugins.slurm import SlurmBatchSystem
-from qtop_py.sample import anonymize_state
 from qtop_py.schedulers.gpu import parse_gpu_gres
 from qtop_py.snapshot import Snapshot
 

@@ -20,7 +20,7 @@ such as the terminal views or future cost records, belongs outside it.
 
 A state without `schema_version` is version 1, and `"schema_version": 1` means
 the same. `validate_cluster_state()` in
-[cluster_state.py](../qtop_py/cluster_state.py) rejects unsupported versions and beta revisions, a
+[core_cluster_state.py](../qtop_py/core_cluster_state.py) rejects unsupported versions and beta revisions, a
 `source` in version 1, and version 2 fields (`qid`, `kind`) in a version 1
 state, so a record's meaning never depends on guessing. Snapshot archives keep
 `format_version: 1`, because the archive layout is unchanged. The state inside
@@ -55,7 +55,7 @@ ClusterState = {
   MIG descriptors, and the CPU allocation source. Views keep using them, and
   `qid` is never needed to render.
 
-Anonymization ([sample.py](../qtop_py/sample.py)) keeps the backend, masks
+Anonymization ([core_sample.py](../qtop_py/core_sample.py)) keeps the backend, masks
 `cluster_id`, and rebuilds each `qid` from the backend, the masked cluster ID
 and the record's already-masked `id`, `domainname` or queue `name`. Queues,
 like jobs and nodes, are rebuilt from known fields only, so an unknown field
@@ -128,7 +128,7 @@ current schema is ready for them without carrying any of them:
 
 - **The top level is closed.** `validate_cluster_state()` accepts only the
   relations, the known `*_diagnostics` and the envelope keys of the state's
-  version (`SCHEMA_KEYS` in [cluster_state.py](../qtop_py/cluster_state.py)),
+  version (`SCHEMA_KEYS` in [core_cluster_state.py](../qtop_py/core_cluster_state.py)),
   and names any other key in its error. An older qtop therefore rejects a
   newer observation instead of silently showing part of it. A new top-level
   collection is one new `SCHEMA_KEYS` row, that is a new `schema_version`, plus

@@ -13,9 +13,10 @@ from typing import TYPE_CHECKING, Any, Dict, List, Mapping, NamedTuple, Set, Tup
 if TYPE_CHECKING:
     from typing import Final
 
-    from qtop_py.state_types import Config
+    from qtop_py.core_state_types import Config
 
-from qtop_py import fileutils, yaml_parser
+from qtop_py import core_yaml_parser as yaml_parser
+from qtop_py import fileutils
 from qtop_py.colormap import color_to_code, nodestate_to_color_default, user_to_color_default
 from qtop_py.constants import (
     DEFAULT_SCHEDULER_COMMAND_TIMEOUT,
@@ -27,8 +28,8 @@ from qtop_py.constants import (
     USER_ID_RANKING_COUNT_KEYS,
     USER_ID_RANKING_NAME_KEYS,
 )
-from qtop_py.errors import OperationalError
-from qtop_py.safety import ResourceLimitError, literal_eval
+from qtop_py.core_errors import OperationalError
+from qtop_py.core_safety import ResourceLimitError, literal_eval
 
 # Parsed YAML layers by path, each with the stat signature it was parsed under.
 # Watch mode reloads the configuration every frame; an unchanged file is

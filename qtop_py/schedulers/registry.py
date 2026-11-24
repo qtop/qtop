@@ -6,7 +6,8 @@ import logging
 import shutil
 from typing import TYPE_CHECKING, Any, Dict, Mapping, Optional
 
-from qtop_py.errors import InvalidScheduler, NoSchedulerFound, OperationalError, SchedulerNotSpecified
+from qtop_py.core_errors import InvalidScheduler, NoSchedulerFound, OperationalError, SchedulerNotSpecified
+from qtop_py.core_serialiser import GenericBatchSystem
 from qtop_py.plugins.demo import DemoBatchSystem
 from qtop_py.plugins.htcondor import HTCondorBatchSystem
 from qtop_py.plugins.lsf import LSFBatchSystem
@@ -15,7 +16,6 @@ from qtop_py.plugins.pbs import PBSBatchSystem
 from qtop_py.plugins.sge import SGEBatchSystem
 from qtop_py.plugins.slurm import SlurmBatchSystem
 from qtop_py.plugins.slurm_json import SlurmJSONBatchSystem
-from qtop_py.serialiser import GenericBatchSystem
 
 if TYPE_CHECKING:  # typing.Final is Python 3.8+; the quoted annotations keep 3.6 working
     from typing import Final

@@ -13,8 +13,10 @@ import unittest
 from pathlib import Path
 from types import SimpleNamespace
 
-from qtop_py import configuration, sample, yaml_parser
-from qtop_py.process import communicate_with_timeout
+from qtop_py import configuration
+from qtop_py import core_sample as sample
+from qtop_py import core_yaml_parser as yaml_parser
+from qtop_py.core_process import communicate_with_timeout
 from qtop_py.snapshot import Snapshot
 
 ROOT = Path(__file__).resolve().parents[1]

@@ -11,7 +11,7 @@ from xml.etree import ElementTree as etree
 
 import pytest
 
-from qtop_py import process as process_io
+from qtop_py import core_process as process_io
 from qtop_py import runtime
 from qtop_py.schedulers import collector
 
@@ -551,7 +551,8 @@ def test_option_value_can_contain_equals():
 def test_unreadable_optional_config_is_not_ignored(tmp_path, monkeypatch):
     from types import SimpleNamespace
 
-    from qtop_py import qtop, yaml_parser
+    from qtop_py import core_yaml_parser as yaml_parser
+    from qtop_py import qtop
 
     parse = yaml_parser.parse
     optional_path = str(tmp_path / "etc" / "qtopconf.yaml")
@@ -598,7 +599,8 @@ def test_replay_configuration_failure_is_concise(tmp_path):
 def test_slurm_config_command_matches_shell_execution(tmp_path, monkeypatch, scheduler_file, expected, all_partitions):
     import json
 
-    from qtop_py import qtop, yaml_parser
+    from qtop_py import core_yaml_parser as yaml_parser
+    from qtop_py import qtop
 
     config = yaml_parser.parse(str(ROOT / "qtopconf.yaml"))
     configured_command = config["schedulers"]["slurm"][scheduler_file].split(", ", 1)[1]
@@ -629,7 +631,8 @@ def test_slurm_config_command_matches_shell_execution(tmp_path, monkeypatch, sch
 def test_all_partitions_does_not_change_saved_traces_or_other_backends(tmp_path, monkeypatch, scheduler_name, source):
     from types import SimpleNamespace
 
-    from qtop_py import qtop, yaml_parser
+    from qtop_py import core_yaml_parser as yaml_parser
+    from qtop_py import qtop
 
     config = yaml_parser.parse(str(ROOT / "qtopconf.yaml"))
     args = SimpleNamespace(SOURCEDIR=source, workdir=str(tmp_path), ALL_PARTITIONS=False)

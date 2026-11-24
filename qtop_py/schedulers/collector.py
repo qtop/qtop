@@ -13,18 +13,20 @@ import time
 from typing import TYPE_CHECKING, Any, Callable, Dict, Mapping, Tuple, Type
 from xml.etree.ElementTree import ParseError  # nosec B405 - exception class only; parsing is in plugins/sge.py
 
-from qtop_py import __version__, configuration, fileutils, process, sample
+from qtop_py import __version__, configuration, fileutils
+from qtop_py import core_process as process
+from qtop_py import core_sample as sample
 from qtop_py.colormap import user_to_color_default
 from qtop_py.configuration import CONFIG_ERRORS
 from qtop_py.constants import QTOPCONF_YAML
-from qtop_py.errors import OperationalError
+from qtop_py.core_errors import OperationalError
+from qtop_py.core_serialiser import GenericBatchSystem
 from qtop_py.runtime import RunPaths, RunResources
 from qtop_py.schedulers.registry import decide_batch_system
-from qtop_py.serialiser import GenericBatchSystem
 from qtop_py.snapshot import Snapshot
 
 if TYPE_CHECKING:
-    from qtop_py import state_types
+    from qtop_py import core_state_types as state_types
 
 
 def finalize_filepaths_schedulercommands(args: Any, config: Dict[str, Any], backend: Type[GenericBatchSystem]) -> Dict[str, Tuple[str, str]]:
@@ -155,7 +157,7 @@ def MVU_collect_snapshot(
                 raise OperationalError("Support archive was not initialized.")
             sample.save_snapshot(archive, cluster_state, snapshot_config, args, scheduler, __version__, omitted)
             if args.masked_traces:
-                from qtop_py.source_trace import save_masked_traces
+                from qtop_py.core_source_trace import save_masked_traces
 
                 save_masked_traces(archive, scheduling_system, trace_paths, mappings)
         else:
@@ -200,7 +202,7 @@ def make_collector(args: Any, config: Dict[str, Any], backend: Any, scheduler: s
             state = system.get_cluster_state(collection_args)
         finally:
             probed = True
-        from qtop_py.cluster_state import validate_cluster_state
+        from qtop_py.core_cluster_state import validate_cluster_state
 
         state = validate_cluster_state(state)
         return state, system, selected, files if capture_args.SAMPLE else {}

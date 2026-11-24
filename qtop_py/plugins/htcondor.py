@@ -7,13 +7,13 @@ import logging
 from collections import OrderedDict
 from typing import TYPE_CHECKING, Any, Dict, List, Mapping
 
-from qtop_py import inputs
-from qtop_py.serialiser import GenericBatchSystem, StatExtractor
+from qtop_py import core_inputs as inputs
+from qtop_py.core_serialiser import GenericBatchSystem, StatExtractor
 
 if TYPE_CHECKING:
     from typing import Final
 
-    from qtop_py.state_types import Config, JobsInfo, Node, Options, QueuesInfo
+    from qtop_py.core_state_types import Config, JobsInfo, Node, Options, QueuesInfo
 
 ## condor_q JobStatus codes, as the letters condor_q prints (6, transferring output, is shown as E).
 JOB_STATES: "Final" = {1: "I", 2: "R", 3: "X", 4: "C", 5: "H", 6: "E", 7: "S"}

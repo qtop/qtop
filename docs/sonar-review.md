@@ -36,8 +36,8 @@ No findings have been dismissed or suppressed in SonarQube.
 | `tools/validate_trace_export.py:202-209` | Shared private directory and report writers. |
 | `qtop_py/qtop.py:456` | Reject trace destinations outside `savepath`. |
 | `tools/check_coverage.py:30` | Review: intentional caller-selected input JSON. |
-| `qtop_py/yaml_parser.py:138` | Review: intentional caller-selected YAML input. |
-| `qtop_py/safety.py:190` | Review: intentional caller-selected archive input. |
+| `qtop_py/core_yaml_parser.py:138` | Review: intentional caller-selected YAML input. |
+| `qtop_py/core_safety.py:190` | Review: intentional caller-selected archive input. |
 | `tools/validate_trace_export.py:36,164` | Review: selected trace and reference inputs. |
 | `qtop_py/qtop.py:803` | Review: intentional `-s` working-directory selection. |
 | `qtop_py/trace_archive.py:36,74` | Review: selected input archive; output uses configured basenames, rejects unsafe archive members and opens exclusively in the private workspace. |
@@ -71,11 +71,11 @@ has a `Sonar ... finding` comment at its line that points here.
 | --- | --- |
 | `qtop_py/fileutils.py:57` | The `-s` input path is the caller's choice. |
 | `qtop_py/runtime.py:206` | `chdir` into the `-s` directory or savepath, both chosen by the caller. |
-| `qtop_py/safety.py:190` | Caller-selected archive input, as in the 2026-11-14 review. |
+| `qtop_py/core_safety.py:190` | Caller-selected archive input, as in the 2026-11-14 review. |
 | `qtop_py/trace_archive.py:36,74` | Caller-selected archive; output as in the 2026-11-14 review. |
 | `tools/check_coverage.py:30` | Caller-selected coverage JSON. |
 | `tools/validate_trace_export.py:37,169` | Caller-selected trace and reference inputs. |
-| `qtop_py/process.py:188` | Destination is checked against the real savepath (`commonpath`) before the command runs. |
+| `qtop_py/core_process.py:188` | Destination is checked against the real savepath (`commonpath`) before the command runs. |
 | `qtop_py/schedulers/collector.py:227` | The trace name is `os.path.basename()` inside the working directory. |
 | `tools/private_output.py:26,58` | Symlinked ancestors and non-directories are rejected; replacement is atomic; the root is the caller's choice. |
 | `qtop_py/plugins/pbs.py:358` | The `(?<![0-9,\-])` lookbehind lets a match start only at the beginning of a run, so matching stays linear. |

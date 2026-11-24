@@ -4,10 +4,10 @@
 
 import pytest
 
+from qtop_py.core_queue_nodes import queue_node_counts
+from qtop_py.core_sample import sanitize_config
+from qtop_py.core_yaml_parser import safe_load
 from qtop_py.qtop import queue_is_blocked, scheduler_backend
-from qtop_py.queue_nodes import queue_node_counts
-from qtop_py.sample import sanitize_config
-from qtop_py.yaml_parser import safe_load
 
 
 def node(name, queues, **extra):

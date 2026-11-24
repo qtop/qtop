@@ -17,8 +17,11 @@ from xml.etree.ElementTree import ParseError
 import pytest
 from mvu_support import explicit_model
 
-from qtop_py import configuration, qtop, safety, sample, yaml_parser
-from qtop_py import process as process_io
+from qtop_py import configuration, qtop
+from qtop_py import core_process as process_io
+from qtop_py import core_safety as safety
+from qtop_py import core_sample as sample
+from qtop_py import core_yaml_parser as yaml_parser
 from qtop_py.plugins.pbs import PBSStatExtractor
 from qtop_py.plugins.sge import SGEStatExtractor
 from qtop_py.snapshot import Snapshot

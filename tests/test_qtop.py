@@ -25,7 +25,7 @@ from qtop_py import qtop as qtop_module
 from qtop_py import utils as qtop_utils
 from qtop_py.colormap import color_to_code
 from qtop_py.constants import SYMBOL_LONG_TAIL_USER, SYMBOL_UNKNOWN_NODE_STATE
-from qtop_py.errors import JobNotFound
+from qtop_py.core_errors import JobNotFound
 from qtop_py.mvu import MVU_Model
 from qtop_py.mvu_query import Cluster, WNFilter, WNOccupancy
 from qtop_py.qtop import (

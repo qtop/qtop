@@ -13,9 +13,9 @@ from pathlib import Path
 
 import pytest
 
-from qtop_py import process as process_io
+from qtop_py import core_process as process_io
 from qtop_py import qtop, utils
-from qtop_py.sample import SNAPSHOT_NAME
+from qtop_py.core_sample import SNAPSHOT_NAME
 from qtop_py.snapshot import Snapshot
 from qtop_py.ui import terminal as terminal_io
 

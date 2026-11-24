@@ -19,8 +19,9 @@ if sys.version_info < (3, 12):
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-from qtop_py import sample, yaml_parser
-from qtop_py.cluster_state import build_cluster_state, cluster_state_totals, validate_cluster_state
+from qtop_py import core_sample as sample
+from qtop_py import core_yaml_parser as yaml_parser
+from qtop_py.core_cluster_state import build_cluster_state, cluster_state_totals, validate_cluster_state
 from qtop_py.plugins.pbs import PBSBatchSystem, PBSStatExtractor
 from qtop_py.plugins.slurm import SlurmBatchSystem
 from qtop_py.snapshot import Snapshot
@@ -242,7 +243,7 @@ def _containers(value, found):
 
 @given(JSON_SHAPED)
 def test_raw_and_visible_matches_both_passes_and_owns_every_container(value):
-    from qtop_py.safety import raw_and_visible, rebuild, visible_data
+    from qtop_py.core_safety import raw_and_visible, rebuild, visible_data
 
     raw, safe = raw_and_visible(value)
     assert repr(raw) == repr(rebuild(value)) and repr(safe) == repr(visible_data(value))  # repr: key order and str subclasses
@@ -253,7 +254,7 @@ def test_raw_and_visible_matches_both_passes_and_owns_every_container(value):
 
 @given(st.dictionaries(JSON_KEYS | st.floats(allow_nan=False) | st.none(), JSON_LEAVES, max_size=6))
 def test_core_job_map_fast_path_accepts_exactly_what_isinstance_accepts(cores):
-    from qtop_py.cluster_state import _core_job_map_types_valid
+    from qtop_py.core_cluster_state import _core_job_map_types_valid
 
     assert _core_job_map_types_valid(cores) == all(isinstance(core, (str, int)) and isinstance(job, str) for core, job in cores.items())
 

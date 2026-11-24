@@ -4,9 +4,9 @@
 
 from types import SimpleNamespace
 
+from qtop_py.core_serialiser import GenericBatchSystem
 from qtop_py.mvu import MVU_Model
 from qtop_py.schedulers.registry import discover_qtop_batch_systems
-from qtop_py.serialiser import GenericBatchSystem
 
 
 def explicit_model(config=None, args=None, viewport=None, snapshot=None, user_to_color=None, scheduler="", display_overrides=None):

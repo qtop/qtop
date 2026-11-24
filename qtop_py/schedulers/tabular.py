@@ -6,7 +6,7 @@ import logging
 import re
 from typing import Dict, Sequence
 
-from qtop_py.serialiser import StatExtractor
+from qtop_py.core_serialiser import StatExtractor
 
 
 class TabularStatExtractor(StatExtractor):

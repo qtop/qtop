@@ -11,10 +11,10 @@ from math import isfinite
 from typing import Any, Dict, Sequence
 
 from qtop_py.constants import DEFAULT_SCHEDULER_COMMAND_TIMEOUT, QTOPCONF_YAML
-from qtop_py.errors import OperationalError
+from qtop_py.core_errors import OperationalError
+from qtop_py.core_process import communicate_with_timeout, scheduler_env
+from qtop_py.core_safety import visible_text
 from qtop_py.input_parsing import extract_regex_detail
-from qtop_py.process import communicate_with_timeout, scheduler_env
-from qtop_py.safety import visible_text
 
 
 def MVU_resolve_user_details(model: Any, occupancy: Any, force: bool = False) -> None:

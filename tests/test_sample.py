@@ -15,8 +15,9 @@ from types import SimpleNamespace
 
 import pytest
 
-from qtop_py import sample, yaml_parser
-from qtop_py.cluster_state import validate_cluster_state
+from qtop_py import core_sample as sample
+from qtop_py import core_yaml_parser as yaml_parser
+from qtop_py.core_cluster_state import validate_cluster_state
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -187,8 +188,8 @@ def test_raw_companion_survives_parser_failure(tmp_path):
 
 
 def test_masked_details_and_array_ids_keep_source_structure():
+    from qtop_py.core_source_trace import TraceMasker
     from qtop_py.plugins.slurm import SlurmBatchSystem
-    from qtop_py.source_trace import TraceMasker
 
     mask = TraceMasker({"job": {"42": "100000"}, "node": {"node001": "n_anon_wn_0", "node002": "n_anon_wn_1"}})
     assert mask("42_[0-3%2]", "job") == "100000_[0-3%2]"
@@ -202,8 +203,8 @@ def test_masked_details_and_array_ids_keep_source_structure():
 
 
 def test_json_traces_redact_unused_fields_and_keep_native_identifiers(tmp_path):
+    from qtop_py.core_source_trace import TraceMasker
     from qtop_py.plugins.pbs import PBSBatchSystem
-    from qtop_py.source_trace import TraceMasker
 
     backend = PBSBatchSystem({}, {}, SimpleNamespace(ANONYMIZE=False))
     mask = TraceMasker({"job": {"17": "100000"}, "user": {"alice": "u_anon_user_0"}, "queue": {"batch": "q_anon_q_0"}})
@@ -226,8 +227,8 @@ def test_json_traces_redact_unused_fields_and_keep_native_identifiers(tmp_path):
 
 @pytest.mark.parametrize("payload", ("<job_info><private_tag>secret</private_tag></job_info>", '<!DOCTYPE job_info [<!ENTITY secret "private">]><job_info>&secret;</job_info>'))
 def test_unsupported_xml_traces_are_omitted_without_exception_details(tmp_path, payload):
+    from qtop_py.core_source_trace import save_masked_traces
     from qtop_py.plugins.sge import SGEBatchSystem
-    from qtop_py.source_trace import save_masked_traces
 
     path = tmp_path / "private.xml"
     path.write_text(payload)
@@ -613,10 +614,10 @@ def test_beta1_parent_references_anonymize_and_replay(tmp_path, parent_present, 
     ],
 )
 def test_masked_traces_reject_long_malformed_fields(scheduler, key, text):
+    from qtop_py.core_source_trace import TraceMasker
     from qtop_py.plugins.oar import OARBatchSystem
     from qtop_py.plugins.pbs import PBSBatchSystem
     from qtop_py.plugins.slurm import SlurmBatchSystem
-    from qtop_py.source_trace import TraceMasker
 
     backend = {"oar": OARBatchSystem, "pbs": PBSBatchSystem, "slurm": SlurmBatchSystem}[scheduler]({}, {}, SimpleNamespace(ANONYMIZE=False))
     with pytest.raises(ValueError):

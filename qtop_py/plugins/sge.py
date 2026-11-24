@@ -17,13 +17,14 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Set, Tupl
 # SGE parses with NoDTDTreeBuilder below, rejecting all DTD declarations.
 from xml.etree import ElementTree as etree  # nosec B405
 
-from qtop_py import inputs, safety
-from qtop_py.errors import OperationalError
-from qtop_py.serialiser import GenericBatchSystem, StatExtractor
+from qtop_py import core_inputs as inputs
+from qtop_py import core_safety as safety
+from qtop_py.core_errors import OperationalError
+from qtop_py.core_serialiser import GenericBatchSystem, StatExtractor
 
 if TYPE_CHECKING:
-    from qtop_py.source_trace import TraceMasker
-    from qtop_py.state_types import Config, JobsInfo, Node, Options, QueuesInfo, RawQueue
+    from qtop_py.core_source_trace import TraceMasker
+    from qtop_py.core_state_types import Config, JobsInfo, Node, Options, QueuesInfo, RawQueue
 
 
 def _required_text_element(parent: etree.Element, path: str) -> etree.Element:

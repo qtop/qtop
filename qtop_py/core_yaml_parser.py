@@ -14,8 +14,9 @@ import logging
 import os
 from typing import Any, Dict, Iterable, Iterator, List, Mapping, Optional, Tuple
 
-from qtop_py import inputs, safety
-from qtop_py.safety import ResourceLimitError, literal_eval
+from qtop_py import core_inputs as inputs
+from qtop_py import core_safety as safety
+from qtop_py.core_safety import ResourceLimitError, literal_eval
 
 """Small dependency-free parser for qtop's deliberately limited YAML subset."""
 

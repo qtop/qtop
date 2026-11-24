@@ -10,14 +10,15 @@ from math import ceil
 from operator import itemgetter
 from typing import TYPE_CHECKING, Any, Callable, Collection, Dict, Iterable, Iterator, List, Mapping, Optional, Sequence, Set, Tuple, Union
 
-from qtop_py import configuration, utils, yaml_parser
+from qtop_py import configuration, utils
+from qtop_py import core_yaml_parser as yaml_parser
 from qtop_py.constants import DEFAULT_USER_ID_RANKING, QTOPCONF_YAML, SYMBOL_LONG_TAIL_USER
-from qtop_py.errors import JobNotFound, OperationalError
+from qtop_py.core_errors import JobNotFound, OperationalError
+from qtop_py.core_serialiser import resolve_job_id
 from qtop_py.mvu import MVU_colorize_nodestate, MVU_keep_queue_initials_only_and_colorize
 from qtop_py.mvu import MVU_gauge_core_vectors as gauge_core_vectors
 from qtop_py.mvu import MVU_node_job_ids as node_job_ids
 from qtop_py.mvu import MVU_reserved_pattern_mappings as _reserved_pattern_mappings
-from qtop_py.serialiser import resolve_job_id
 
 if TYPE_CHECKING:  # typing.Final is Python 3.8+; the quoted annotations keep 3.6 working
     from typing import Final

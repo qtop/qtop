@@ -2,8 +2,9 @@
 ## SPDX-License-Identifier: MIT
 """The scheduler core stays free of the application around it, so it can become a library.
 
-Core: the backends (plugins), the scheduler helpers, cluster state and its schema, input reading,
-trace masking, snapshots and the command runner. It may import only other core modules (and the
+Core: the top-level ``qtop_py/core_*.py`` modules (cluster state and its schema, input reading,
+trace masking, snapshots, the command runner...), the backends in ``plugins/`` and the helpers in
+``schedulers/`` except the collector. It may import only other core modules (and the
 standard library or third-party packages), and must not print, touch stdout/stderr/stdin, exit,
 read the environment or the home directory. Configuration files, savepath, logging setup, colours
 and the TUI belong to the application, which passes what the core needs.
@@ -18,20 +19,6 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 PACKAGE = ROOT / "qtop_py"
 
-CORE_MODULES = {
-    "qtop_py.cluster_state",
-    "qtop_py.errors",
-    "qtop_py.hostlist",
-    "qtop_py.inputs",
-    "qtop_py.process",
-    "qtop_py.queue_nodes",
-    "qtop_py.safety",
-    "qtop_py.sample",
-    "qtop_py.serialiser",
-    "qtop_py.source_trace",
-    "qtop_py.state_types",
-    "qtop_py.yaml_parser",
-}
 CORE_PACKAGES = ("qtop_py.plugins", "qtop_py.schedulers")
 APP_IN_CORE_PACKAGES = {"qtop_py.schedulers.collector"}  # orchestrates a run from the configuration
 
@@ -49,9 +36,9 @@ SIDE_EFFECTS = {
 
 KNOWN_VIOLATIONS = {
     # The default command timeout and the qtopconf.yaml name in its error messages.
-    ("qtop_py.process", "imports qtop_py.constants"),
+    ("qtop_py.core_process", "imports qtop_py.constants"),
     # scheduler_env() builds the child environment; a library caller should pass it in.
-    ("qtop_py.process", "uses os.environ"),
+    ("qtop_py.core_process", "uses os.environ"),
 }
 
 
@@ -61,11 +48,7 @@ def _module_name(path):
 
 
 MODULES = {_module_name(path): path for path in PACKAGE.rglob("*.py")}
-CORE = {
-    name
-    for name in MODULES
-    if name in CORE_MODULES or (name.startswith(tuple(package + "." for package in CORE_PACKAGES)) and name not in APP_IN_CORE_PACKAGES)
-}
+CORE = {name for name in MODULES if name.startswith("qtop_py.core_") or (name.startswith(tuple(package + "." for package in CORE_PACKAGES)) and name not in APP_IN_CORE_PACKAGES)}
 
 
 def _imported_modules(node):
@@ -94,7 +77,8 @@ def _all_violations():
 
 
 def test_core_modules_exist():
-    assert CORE_MODULES <= set(MODULES) and APP_IN_CORE_PACKAGES <= set(MODULES)
+    assert APP_IN_CORE_PACKAGES <= set(MODULES)
+    assert len([name for name in CORE if name.startswith("qtop_py.core_")]) >= 12
 
 
 def test_core_adds_no_application_dependency_or_side_effect():

@@ -17,7 +17,7 @@ from typing import Any, Callable, Dict, Iterator, Optional
 
 from qtop_py import fileutils
 from qtop_py.constants import QTOP_LOGFILE
-from qtop_py.safety import SafeLogFormatter, visible_text
+from qtop_py.core_safety import SafeLogFormatter, visible_text
 
 
 class PrivateFileHandler(logging.FileHandler):

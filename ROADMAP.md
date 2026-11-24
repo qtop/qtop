@@ -146,7 +146,7 @@ or a release is prepared.
 - [ ] Define the machine-readable output contract.
   - [x] Document current `-E` structure and scope in [the user guide](docs/documentation.md).
   - [x] Document current fields/types, identity and missing-value semantics in
-    the [schema guide](docs/cluster-state-model.md) and `state_types.py`.
+    the [schema guide](docs/cluster-state-model.md) and `core_state_types.py`.
   - [x] Define schema-version, beta revision and replay compatibility contracts
     with Python regressions and the shared Python/CUE fixture corpus.
   - [ ] Define concrete timestamps and generic quantities/units when a backend

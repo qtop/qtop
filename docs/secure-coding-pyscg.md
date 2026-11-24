@@ -101,19 +101,19 @@ This prevents shell syntax from being interpreted by a shell, but live commands,
 optional account lookups and `PATH` must still be trusted: programs run with
 the operator's privileges. Scheduler collection and account lookups have configurable deadlines (180 seconds
 by default), 256 MiB stdout and 1 MiB stderr limits. The shared
-[process helper](../qtop_py/process.py) drains both binary pipes with bounded
+[process helper](../qtop_py/core_process.py) drains both binary pipes with bounded
 readers, kills failed commands/process groups on POSIX and reaps clients.
 Partial scheduler traces never replace the previous successful capture.
 
 ### 3. Deserialization and runtime validation
 
-For PySCG `pyscg-0023`, the [limited YAML parser](../qtop_py/yaml_parser.py)
+For PySCG `pyscg-0023`, the [limited YAML parser](../qtop_py/core_yaml_parser.py)
 uses `ast.literal_eval` for Python literals, not `eval` or object constructors.
 It remains a limited YAML implementation. Input is capped at 256 MiB,
 64 indentation levels and 1 MiB per line/literal. Literal parsing additionally
 checks bracket depth and a 100,000-AST-node budget. JSON loading checks size,
 64-level nesting and two million structural items before deserialization.
-Shared limits live in [safety.py](../qtop_py/safety.py). [validate_cluster_state](../qtop_py/cluster_state.py) checks imported
+Shared limits live in [core_safety.py](../qtop_py/core_safety.py). [validate_cluster_state](../qtop_py/core_cluster_state.py) checks imported
 record shapes, required text, nonnegative counts and supported resource metadata.
 Runtime checks raise exceptions and survive `python -O` (`pyscg-0037`);
 [security tests](../tests/test_security.py) verify that boundary.
@@ -126,7 +126,7 @@ See [backend regressions](../tests/plugins/) and
 
 ### 4. Support archives, replay and privacy
 
-For PySCG `pyscg-0012`, [load_snapshot](../qtop_py/sample.py) reads a named
+For PySCG `pyscg-0012`, [load_snapshot](../qtop_py/core_sample.py) reads a named
 JSON member without extracting archive files to disk. It requires a regular
 member of at most 64 MiB and validates format, cluster state and known display
 options. Imported account-lookup commands are disabled. Streaming archive scanning also caps members at 10,000 and decompressed tar
@@ -183,8 +183,8 @@ Direct `python -m qtop_py.qtop` retains normal Python import behavior.
 For PySCG `pyscg-0038`, `random` generates
 [demo data](../qtop_py/plugins/demo.py) and reproducible
 [fuzz inputs](../tools/deterministic_fuzz.py), not keys or tokens.
-[Legacy masking](../qtop_py/serialiser.py) and
-[snapshot anonymization](../qtop_py/sample.py) use mappings/counters, not random
+[Legacy masking](../qtop_py/core_serialiser.py) and
+[snapshot anonymization](../qtop_py/core_sample.py) use mappings/counters, not random
 secrets. New authentication or secrecy requirements would need a separate
 design; changing the PRNG alone would not provide anonymity.
 

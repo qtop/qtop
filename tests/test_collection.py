@@ -13,12 +13,14 @@ from types import SimpleNamespace
 
 import pytest
 
-from qtop_py import fileutils, inputs, utils, yaml_parser
-from qtop_py import process as process_io
-from qtop_py.errors import OperationalError
+from qtop_py import core_inputs as inputs
+from qtop_py import core_process as process_io
+from qtop_py import core_yaml_parser as yaml_parser
+from qtop_py import fileutils, utils
+from qtop_py.core_errors import OperationalError
+from qtop_py.core_process import communicate_with_timeout
 from qtop_py.plugins.slurm import SlurmBatchSystem
 from qtop_py.plugins.slurm_json import SlurmJSONBatchSystem
-from qtop_py.process import communicate_with_timeout
 from qtop_py.runtime import RunResources
 from qtop_py.schedulers import collector, registry
 from qtop_py.schedulers.collection import CollectionPoller
@@ -443,7 +445,8 @@ def test_a_failed_optional_command_is_dropped_while_the_rest_complete(tmp_path):
 
 @pytest.mark.parametrize("demanding", (False, True), ids=("default", "demanding"))
 def test_live_state_is_validated_once_unless_demanding(frame_context, monkeypatch, demanding):
-    from qtop_py import cluster_state, snapshot
+    from qtop_py import core_cluster_state as cluster_state
+    from qtop_py import snapshot
 
     frame, args, _config, _resources = frame_context
     args.DEMANDING = demanding

@@ -12,9 +12,9 @@ from types import SimpleNamespace
 from unittest.mock import patch
 from xml.etree import ElementTree as etree
 
-from qtop_py import safety
+from qtop_py import core_safety as safety
+from qtop_py.core_source_trace import TraceMasker
 from qtop_py.plugins.sge import SGEBatchSystem, SGEStatExtractor
-from qtop_py.source_trace import TraceMasker
 from tools import validate_pbs_samples
 
 
@@ -85,9 +85,9 @@ class RuntimeImportCompatibility(unittest.TestCase):
             ("qtop_py.ui.effects", "MVU_effects write_notice navigate_prompt"),
             ("qtop_py.schedulers.registry", "auto_get_avail_batch_system decide_batch_system discover_qtop_batch_systems"),
             ("qtop_py.schedulers.collector", "finalize_filepaths_schedulercommands get_input_filenames fetch_scheduler_files MVU_collect_snapshot"),
-            ("qtop_py.process", "execute_shell_batch_commands scheduler_env"),
+            ("qtop_py.core_process", "execute_shell_batch_commands scheduler_env"),
             ("qtop_py.runtime", "RunPaths get_output_size init_dirs pick_frames_to_replay MVU_export_snapshot"),
-            ("qtop_py.errors", "NoSchedulerFound SchedulerNotSpecified InvalidScheduler"),
+            ("qtop_py.core_errors", "NoSchedulerFound SchedulerNotSpecified InvalidScheduler"),
             ("qtop_py.input_parsing", "get_date_obj_from_str extract_regex_detail"),
         )
         for path, names in owners:

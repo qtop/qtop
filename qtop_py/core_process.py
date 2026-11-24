@@ -15,9 +15,9 @@ import time
 from math import isfinite
 from typing import IO, TYPE_CHECKING, Any, Dict, List, Mapping, Optional, Tuple, cast
 
-from qtop_py import inputs
+from qtop_py import core_inputs as inputs
 from qtop_py.constants import DEFAULT_SCHEDULER_COMMAND_TIMEOUT, QTOPCONF_YAML
-from qtop_py.errors import OperationalError
+from qtop_py.core_errors import OperationalError
 
 if TYPE_CHECKING:  # typing.Final is Python 3.8+; the quoted annotations keep 3.6 working
     from typing import Final

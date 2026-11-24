@@ -414,7 +414,7 @@ def test_detailed_allocations_match_array_and_heterogeneous_ids(detailed_slurm, 
 
 
 def test_anonymized_details_preserve_provenance_and_mask_resource_text(detailed_slurm):
-    from qtop_py.sample import anonymize_state
+    from qtop_py.core_sample import anonymize_state
 
     slurm, _ = detailed_slurm
     state, mappings = anonymize_state(slurm.get_cluster_state(Options()))

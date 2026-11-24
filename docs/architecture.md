@@ -29,7 +29,7 @@ flowchart TB
         runtime --> update
         update -->|effect requests| runtime
         options["Options and logging: utils.py"]
-        config["Configuration: configuration.py / yaml_parser.py"]
+        config["Configuration: configuration.py / core_yaml_parser.py"]
         cli --> runtime
         runtime --> options
         runtime --> config
@@ -48,7 +48,7 @@ flowchart TB
         sge["SGE: plugins/sge.py"]
         oar["OAR: plugins/oar.py"]
         demo["Generated demo: plugins/demo.py"]
-        shared["Shared extraction and collection: serialiser.py"]
+        shared["Shared extraction and collection: core_serialiser.py"]
         files --> slurm
         files --> pbs
         files --> sge
@@ -64,7 +64,7 @@ flowchart TB
     runtime --> demo
 
     subgraph state["Cluster state and calculations"]
-        model["Common jobs, nodes and queues: cluster_state.py"]
+        model["Common jobs, nodes and queues: core_cluster_state.py"]
         snapshot["Snapshot: snapshot.py"]
         calculations["MVU_query: mvu_query.py"]
         model --> snapshot
@@ -118,8 +118,8 @@ flowchart TB
    options and the selected backend explicitly to collection helpers.
 2. Each backend implements `get_jobs_info()`, `get_queues_info()` and
    `get_worker_nodes()`. `GenericBatchSystem.get_cluster_state()` in
-   [serialiser.py](../qtop_py/serialiser.py) combines their results through
-   [build_cluster_state()](../qtop_py/cluster_state.py).
+   [core_serialiser.py](../qtop_py/core_serialiser.py) combines their results through
+   [build_cluster_state()](../qtop_py/core_cluster_state.py).
    Backend class hooks also define command adjustments, optional trace aliases,
    detection priority, queue blocking and scheduler-specific display notes.
    The core dispatches capabilities; scheduler support rules validate and mask extensions.
@@ -163,18 +163,18 @@ runtime globals, while the new query/view pipeline does not depend on them.
 | Optional account names and groups | [user_details.py](../qtop_py/user_details.py) |
 | Terminal presentation | [mvu_view.py](../qtop_py/ui/mvu_view.py) |
 | Command-line options and logging | [utils.py](../qtop_py/utils.py) |
-| Configuration loading, preparation and parsing | [configuration.py](../qtop_py/configuration.py), [qtopconf.yaml](../qtopconf.yaml), [yaml_parser.py](../qtop_py/yaml_parser.py) |
+| Configuration loading, preparation and parsing | [configuration.py](../qtop_py/configuration.py), [qtopconf.yaml](../qtopconf.yaml), [core_yaml_parser.py](../qtop_py/core_yaml_parser.py) |
 | Scheduler selection and collection orchestration | [registry.py](../qtop_py/schedulers/registry.py), [collector.py](../qtop_py/schedulers/collector.py) |
-| Bounded subprocess execution | [process.py](../qtop_py/process.py) |
+| Bounded subprocess execution | [core_process.py](../qtop_py/core_process.py) |
 | Scheduler backends and support | [Slurm](../qtop_py/plugins/slurm.py), [PBS](../qtop_py/plugins/pbs.py), [SGE](../qtop_py/plugins/sge.py), [OAR](../qtop_py/plugins/oar.py), [demo](../qtop_py/plugins/demo.py), [support helpers](../qtop_py/schedulers/) |
-| Shared extraction and backend interface | [serialiser.py](../qtop_py/serialiser.py) |
-| Shared state/configuration types and backend protocol | [state_types.py](../qtop_py/state_types.py) |
+| Shared extraction and backend interface | [core_serialiser.py](../qtop_py/core_serialiser.py) |
+| Shared state/configuration types and backend protocol | [core_state_types.py](../qtop_py/core_state_types.py) |
 | Canonical snapshot and legacy adapter | [snapshot.py](../qtop_py/snapshot.py) |
 | Replay time and account expression parsing | [input_parsing.py](../qtop_py/input_parsing.py) |
 | Run resources, frame/export I/O, replay and extraction workspaces | [runtime.py](../qtop_py/runtime.py) |
-| Common snapshot construction, validation and totals | [cluster_state.py](../qtop_py/cluster_state.py) |
+| Common snapshot construction, validation and totals | [core_cluster_state.py](../qtop_py/core_cluster_state.py) |
 | Navigation and color definitions | [controls.py](../qtop_py/ui/controls.py), [viewport.py](../qtop_py/ui/viewport.py), [colormap.py](../qtop_py/colormap.py) |
-| Scheduler input reading for backends (core) | [inputs.py](../qtop_py/inputs.py) |
+| Scheduler input reading for backends (core) | [core_inputs.py](../qtop_py/core_inputs.py) |
 | Capture archives, private directories and fallback | [fileutils.py](../qtop_py/fileutils.py) |
 | Experimental HTTP output | [web.py](../qtop_py/web.py), [web/index.html](../qtop_py/web/index.html) |
 
@@ -201,9 +201,9 @@ and scheduler exceptions belong to their configuration/error modules.
 
 ### Scheduler core and application
 
-The scheduler core (backends, `schedulers/` helpers except the collector, cluster
-state, input reading, trace masking, snapshots and the command runner) is kept
-ready to become a library. It imports only other core modules, and does not print,
+The scheduler core (the top-level `qtop_py/core_*.py` modules, the backends in
+`plugins/` and the `schedulers/` helpers except the collector) is kept ready to
+become a library. It imports only other core modules, and does not print,
 write to stdout or stderr, exit, or read the environment or home directory.
 Configuration files, savepath, logging setup, colours, the CLI's messages and the
 TUI belong to the application, which passes the core what it needs. For example,
