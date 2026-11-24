@@ -14,16 +14,15 @@ import re
 from collections import OrderedDict
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Mapping, Match, Optional, Set, Tuple, cast
 
-from qtop_py import core_inputs as inputs
+from qtop_py.core_api import FileEmptyError, GenericBatchSystem, StatExtractor, check_empty_file, open_input
 from qtop_py.core_hostlist import HostlistParser
-from qtop_py.core_serialiser import GenericBatchSystem, StatExtractor
 from qtop_py.schedulers.gpu import parse_gpu_gres
 from qtop_py.schedulers.slurm_extension import SLURM_EXTENSION
 
 if TYPE_CHECKING:
     from typing import Final
 
-    from qtop_py.core_source_trace import TraceMasker
+    from qtop_py.core_api import TraceMasker
     from qtop_py.core_state_types import ClusterState, Config, JobsInfo, Node, Options, QueuesInfo
 
 SLURM_JOB_STATES: "Final" = {
@@ -151,8 +150,8 @@ class SlurmStatExtractor(StatExtractor):
         """
         self.rejected_squeue_rows = 0
         try:
-            inputs.check_empty_file(orig_file)
-        except inputs.FileEmptyError:
+            check_empty_file(orig_file)
+        except FileEmptyError:
             logging.error("File %s seems to be empty.", orig_file)
             return []
 
@@ -164,7 +163,7 @@ class SlurmStatExtractor(StatExtractor):
         states: Dict[str, Tuple[str, str]] = {}
         partition_lists: Dict[str, Optional[Tuple[str, ...]]] = {}
         cpu_counts: Dict[str, int] = {}
-        with inputs.open_input(orig_file, "r", encoding="utf-8", errors="replace", options=self.options) as fin:
+        with open_input(orig_file, "r", encoding="utf-8", errors="replace", options=self.options) as fin:
             for line in fin:
                 line = line.strip()
                 if not line:
@@ -232,13 +231,13 @@ class SlurmStatExtractor(StatExtractor):
         """
         self.rejected_sinfo_rows = 0
         try:
-            inputs.check_empty_file(orig_file)
-        except inputs.FileEmptyError:
+            check_empty_file(orig_file)
+        except FileEmptyError:
             logging.error("File %s seems to be empty.", orig_file)
             return []
 
         nodes = []
-        with inputs.open_input(orig_file, "r", encoding="utf-8", errors="replace", options=self.options) as fin:
+        with open_input(orig_file, "r", encoding="utf-8", errors="replace", options=self.options) as fin:
             for line in fin:
                 line = line.strip()
                 if not line:
@@ -663,7 +662,7 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
         allocations: Dict[str, Any] = {}
         invalid = set()
         try:
-            with inputs.open_input(self.scontrol_file, "r", encoding="utf-8", errors="replace", options=self.options) as stream:
+            with open_input(self.scontrol_file, "r", encoding="utf-8", errors="replace", options=self.options) as stream:
                 job_id = None
                 for line in stream:
                     if re.match(r"\s*JobId=", line):
@@ -709,7 +708,7 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
         if not self.scontrol_file:
             return allocations
         try:
-            with inputs.open_input(self.scontrol_file, "r", encoding="utf-8", errors="replace", options=self.options) as stream:
+            with open_input(self.scontrol_file, "r", encoding="utf-8", errors="replace", options=self.options) as stream:
                 job_id = None
                 parsed: Dict[str, Tuple[int, ...]] = {}  # CPU_IDs text -> its distinct CPU numbers, for this collection
                 for line in stream:

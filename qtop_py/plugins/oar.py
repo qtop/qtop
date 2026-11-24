@@ -8,16 +8,15 @@ import re
 from collections import OrderedDict
 from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Tuple
 
-from qtop_py import core_inputs as inputs
 from qtop_py import core_yaml_parser as yaml_parser
-from qtop_py.core_serialiser import GenericBatchSystem
+from qtop_py.core_api import FileEmptyError, GenericBatchSystem, check_empty_file, open_input
 from qtop_py.schedulers.oar_extension import OAR_EXTENSION
 from qtop_py.schedulers.tabular import TabularStatExtractor
 
 if TYPE_CHECKING:
     from typing import Final
 
-    from qtop_py.core_source_trace import TraceMasker
+    from qtop_py.core_api import TraceMasker
     from qtop_py.core_state_types import ClusterState, Config, JobsInfo, Node, Options, QueuesInfo
 
 DEFAULT_NODE_STATE_MAPPING: "Final" = {"Alive": "-", "Dead": "d", "Suspected": "s", "Mixed": "%", "Unknown": "?"}
@@ -42,11 +41,11 @@ class OarStatExtractor(TabularStatExtractor):
         """Parse oarstat output into job records; an empty file yields none."""
         all_values: List[Any] = list()
         try:
-            inputs.check_empty_file(orig_file)
-        except inputs.FileEmptyError:
+            check_empty_file(orig_file)
+        except FileEmptyError:
             logging.error("File %s seems to be empty.", orig_file)
             return all_values
-        with inputs.open_input(orig_file, "r", encoding="utf-8", errors="replace", options=self.options) as fin:
+        with open_input(orig_file, "r", encoding="utf-8", errors="replace", options=self.options) as fin:
             logging.debug("File state before OarStatExtractor.extract_qstat: %(fin)s", {"fin": fin})
             _ = fin.readline()  # header
             fin.readline()  # dashes
@@ -253,7 +252,7 @@ class OARBatchSystem(GenericBatchSystem):
         resources: Dict[int, Any] = {}
         resid = None
         jobs_list = False
-        with inputs.open_input(fn, encoding="utf-8", errors="replace", options=self.options) as stream:
+        with open_input(fn, encoding="utf-8", errors="replace", options=self.options) as stream:
             for line in stream:
                 text = line.strip()
                 if not text or text.startswith("#") or text in ("---", "..."):

@@ -7,13 +7,12 @@ import re
 from collections import OrderedDict
 from typing import TYPE_CHECKING, Any, Dict, List, Tuple
 
-from qtop_py import core_inputs as inputs
-from qtop_py.core_serialiser import GenericBatchSystem, StatExtractor
+from qtop_py.core_api import GenericBatchSystem, StatExtractor, open_input
 
 if TYPE_CHECKING:
     from typing import Final
 
-    from qtop_py.core_source_trace import TraceMasker
+    from qtop_py.core_api import TraceMasker
     from qtop_py.core_state_types import Config, JobsInfo, Node, Options, QueuesInfo
 
 ## bhosts STATUS to qtop node symbols: '-' usable, 'j' full, 'b' busy, 'o' closed by an
@@ -162,7 +161,7 @@ class LSFBatchSystem(GenericBatchSystem):
     def _read_bjobs(self, path: str) -> List[Dict[str, Any]]:
         """Parse bjobs -o "... delimiter='|'" output, whose header names the columns."""
         jobs: List[Dict[str, Any]] = []
-        with inputs.open_input(path, "r", encoding="utf-8", errors="replace", options=self.options) as stream:
+        with open_input(path, "r", encoding="utf-8", errors="replace", options=self.options) as stream:
             lines = [line.rstrip("\n") for line in stream if line.strip()]
         if not lines or lines[0].strip().startswith(NO_JOBS):
             return jobs
@@ -192,7 +191,7 @@ class LSFBatchSystem(GenericBatchSystem):
 
     def _table(self, path: str, first_column: str) -> List[Dict[str, str]]:
         """Parse a whitespace-aligned bhosts/bqueues table by its header names."""
-        with inputs.open_input(path, "r", encoding="utf-8", errors="replace", options=self.options) as stream:
+        with open_input(path, "r", encoding="utf-8", errors="replace", options=self.options) as stream:
             lines = [line.split() for line in stream if line.strip()]
         if not lines or lines[0][0] != first_column:
             raise ValueError("LSF table %s does not start with a %s header" % (path, first_column))

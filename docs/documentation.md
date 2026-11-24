@@ -1561,6 +1561,11 @@ the scheduler-neutral cluster state; query, display, export and replay never bra
 the scheduler. Optional hooks (`queue_is_blocked`, `node_state_marker`,
 `display_messages`, `collection_command`, ...) have defaults in `core_serialiser.py`.
 
+Import the shared interface from `qtop_py/core_api.py` (`GenericBatchSystem`,
+`StatExtractor`, `open_input`, `check_empty_file`, `TraceMasker`, ...), and the state
+types from `qtop_py/core_state_types.py` under `TYPE_CHECKING`; `tests/test_core_api.py`
+pins the interface.
+
 To register it:
 
 1. Add the class to `PLUGIN_BATCH_SYSTEMS` in `qtop_py/schedulers/registry.py`.

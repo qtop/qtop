@@ -209,6 +209,8 @@ Configuration files, savepath, logging setup, colours, the CLI's messages and th
 TUI belong to the application, which passes the core what it needs. For example,
 scheduler errors carry the requested name and choices, and the CLI words them.
 [test_core_boundary.py](../tests/test_core_boundary.py) enforces this; its
+Backends take the shared interface from
+[core_api.py](../qtop_py/core_api.py), the library's public surface for them.
 `KNOWN_VIOLATIONS` is empty: the core reads no environment and no application
 constants (the command runner takes `env`, its timeout and a `config_name` for its
 messages from the caller).

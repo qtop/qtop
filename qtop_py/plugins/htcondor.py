@@ -7,8 +7,7 @@ import logging
 from collections import OrderedDict
 from typing import TYPE_CHECKING, Any, Dict, List, Mapping
 
-from qtop_py import core_inputs as inputs
-from qtop_py.core_serialiser import GenericBatchSystem, StatExtractor
+from qtop_py.core_api import GenericBatchSystem, StatExtractor, open_input
 
 if TYPE_CHECKING:
     from typing import Final
@@ -129,7 +128,7 @@ class HTCondorBatchSystem(GenericBatchSystem):
 
     def _ads(self, path: str) -> List[Mapping[str, Any]]:
         """Read a JSON ClassAd list; empty output (condor_q with no jobs) is an empty list."""
-        with inputs.open_input(path, "r", encoding="utf-8", errors="replace", options=self.options) as stream:
+        with open_input(path, "r", encoding="utf-8", errors="replace", options=self.options) as stream:
             text = stream.read()
         if not text.strip():
             return []
