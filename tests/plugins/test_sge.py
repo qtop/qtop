@@ -322,3 +322,14 @@ def test_num_proc_is_capped_at_parse_time(tmp_path, caplog, num_proc, np, whole)
     assert node["np"] == (int(np) if np else 2)
     assert node["existing_busy_cores"] == (int(np) if np and whole else 2)
     assert ("Ignoring invalid SGE num_proc" in caplog.text) is (not np)
+
+
+@pytest.mark.parametrize("name", ["world", "world@node01@x"])
+def test_queue_list_name_must_be_queue_at_node(tmp_path, name):
+    path = tmp_path / "qstat.F.xml.stdout"
+    path.write_text(
+        '<job_info><queue_info><Queue-List><name>%s</name><resource name="qname">world</resource>'
+        '<resource name="hostname">node01</resource></Queue-List></queue_info><job_info/></job_info>' % name
+    )
+    with pytest.raises(ValueError, match="queue@node"):
+        SGEBatchSystem({"sge_file": str(path)}, {}, Options()).get_jobs_info()

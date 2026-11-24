@@ -91,7 +91,8 @@ class SGEStatExtractor(StatExtractor):
     @staticmethod
     def _check_queue_list_nametag(queue_list_nametag: etree.Element) -> None:
         """Require a Queue-List name of the form queue@node."""
-        _name, _nodename = (queue_list_nametag.text or "").split("@")  # nonempty, checked by the caller
+        if (queue_list_nametag.text or "").count("@") != 1:  # nonempty, checked by the caller
+            raise ValueError("SGE Queue-List name is not queue@node: %r" % queue_list_nametag.text)
 
     def get_xml_tree(self, xml_file: str) -> Tuple[etree.ElementTree, Any]:
         """Parse an XML file within the size and nesting limits, rejecting DTDs; return the tree and root."""
@@ -167,7 +168,6 @@ class SGEStatExtractor(StatExtractor):
             owner = _required_text(subelem, "./JB_owner")
             job_num = _job_id(subelem)
             _required_text(subelem, "./JB_name")
-            queue_name = queue_name
             qstat_values: Dict[str, Any] = dict()
             qstat_values["JobId"] = job_num
             qstat_values["UnixAccount"] = owner
