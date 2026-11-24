@@ -156,7 +156,7 @@ class PBSStatExtractor(TabularStatExtractor):
         if state is None:
             logging.warning("Unknown NQS request state %s in line: %s. Skipping.", m.group("state"), line.strip())
             return None
-        return {"JobId": m.group("job_id"), "UnixAccount": self.anonymize(m.group("user"), "users"), "S": state, "Queue": queue_name}
+        return {"JobId": m.group("job_id"), "UnixAccount": m.group("user"), "S": state, "Queue": queue_name}
 
     def _extract_qstat_json(self, qstat_file: str) -> List[Dict[str, Any]]:
         all_qstat_values = list()
@@ -166,7 +166,6 @@ class PBSStatExtractor(TabularStatExtractor):
             for job_id, job in jobs.items():
                 qstat_values = dict()
                 user = job["Job_Owner"].split("@")[0]
-                user = self.anonymize(user, "users")
                 qstat_values["JobId"] = job_id.split(".")[0]
                 qstat_values["Queue"] = job["queue"]
                 qstat_values["JobName"] = job["Job_Name"]
@@ -199,7 +198,6 @@ class PBSStatExtractor(TabularStatExtractor):
         return all_qstatq_values
 
     def _extract_qstatq_regex(self, qstatq_file: str) -> List[Dict[str, Any]]:
-        anonymize = self.anonymize_func()
         queue_search = (
             r"^(?P<queue_name>[\w.-]+)\s+"
             r"(?:--|[0-9]+[mgtkp]b[a-z]*)\s+"
@@ -226,7 +224,7 @@ class PBSStatExtractor(TabularStatExtractor):
                 m = re.search(queue_search, line)
                 n = re.search(run_qd_search, line)
                 if m is not None:
-                    queue_name = m.group("queue_name") if not self.options.ANONYMIZE else anonymize(m.group("queue_name"), "qs")
+                    queue_name = m.group("queue_name")
                     run, queued, lm, state = m.group("run"), m.group("queued"), m.group("lm"), m.group("state")
                     all_qstatq_values.append({"queue_name": queue_name, "run": run, "queued": queued, "lm": lm, "state": state})
                 elif n is not None:
@@ -236,14 +234,12 @@ class PBSStatExtractor(TabularStatExtractor):
         return all_qstatq_values
 
     def _extract_qstatq_json(self, qstatq_file: str) -> List[Dict[str, Any]]:
-        anonymize = self.anonymize_func()
         all_qstatq_values = list()
         with open_input(qstatq_file, "r", encoding="utf-8", errors="replace", options=self.options) as fin:
             data = load_json(fin)
             queues = data["Queue"]
             for queue_name, queue in queues.items():
                 qstatq_values = dict()
-                queue_name = queue_name if not self.options.ANONYMIZE else anonymize(queue_name, "qs")
                 qstatq_values["queue_name"] = queue_name
                 try:
                     pairs = [token.split(":", 1) for token in queue["state_count"].split()]
@@ -393,10 +389,9 @@ class PBSBatchSystem(GenericBatchSystem):
         raw_blocks = self._read_all_blocks(self.pbsnodes_file)
         known_ids = set(job_ids)
         all_pbs_values = []
-        anonymize = self.qstat_maker.anonymize_func()
         for block in raw_blocks:
             pbs_values = dict()
-            pbs_values["domainname"] = block["domainname"] if not self.options.ANONYMIZE else anonymize(block["domainname"], "wns")
+            pbs_values["domainname"] = block["domainname"]
 
             nextchar = block["state"][0]
             state = "-" if nextchar == "f" else nextchar

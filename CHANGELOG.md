@@ -8,11 +8,13 @@ Notable changes by version, newest first. See the
 - Bugfix: a root-owned symlinked /home (autofs/NFS) no longer fails with Not a directory (#615)
 - Bugfix: a timed-out or cancelled command's forked child no longer escapes the kill (macOS)
 - Bugfix: CodeQL unused RawQueue imports in the PBS, SGE and Slurm backends
+- Bugfix: plain -A masks names like -w -A and -L -A (u_anon_user_0), not per backend (b_anon_user_0)
 - Feature: unusable savepath or log warns and falls back to /dev/shm; --strict-parents stops
 - Refactor: scheduler core no longer imports app modules; a boundary test keeps it library-ready
 - Refactor: top-level core modules are now qtop_py/core_*.py, e.g. core_serialiser; old paths gone
 - Refactor: the command runner takes env, timeout and config name from its caller; boundary clean
 - Refactor: backends import the shared interface from qtop_py/core_api.py; a test pins its surface
+- Refactor: backends no longer read -A or -L; their options carry collection settings only
 - Release: ab79cda SBOM fix; v0.9.20261119/20 retagged onto it, both on PyPI with attestations
 - Release: update version metadata to 0.9.20261121
 

@@ -7,6 +7,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from qtop_py.core_api import BackendOptions
 from qtop_py.core_cluster_state import validate_cluster_state
 from qtop_py.core_sample import anonymize_state
 from qtop_py.plugins.slurm import SlurmBatchSystem
@@ -251,7 +252,7 @@ def test_unavailable_details_are_explicitly_estimated_and_flags_are_retained(jso
 
     mutate(json_files, "jobs", change)
     system = backend(json_files)
-    state = system.get_cluster_state(SimpleNamespace(ANONYMIZE=True))
+    state = anonymize_state(system.get_cluster_state(BackendOptions()))[0]  # -A masks after the state is built
     assert state["jobs"][0]["state"] == "RUNNING+COMPLETING"
     assert state["nodes"][0]["cpu_allocation_source"] == "estimated"
     assert "alice" not in str(state)

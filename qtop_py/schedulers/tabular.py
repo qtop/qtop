@@ -24,5 +24,4 @@ class TabularStatExtractor(StatExtractor):
             logging.warning("Line: %s not properly parsed by regex expression. Assuming alternative qstat format.", line.strip())
             raise
         job_id = job_id.split(".")[0]
-        user = self.anonymize(user, "users")
         return {"JobId": job_id, "UnixAccount": user, "S": job_state, "Queue": queue}

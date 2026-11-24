@@ -134,9 +134,12 @@ if TYPE_CHECKING:
         options: Dict[str, object]  # Known display flags are validated; extra metadata may be retained.
 
     class Options(Protocol):
-        """The command-line options a backend may read."""
+        """The run options a backend may read: the CLI's namespace, or core_api.BackendOptions.
 
-        ANONYMIZE: bool
+        ALL_PARTITIONS, SLURM_SUMMARY and SLURM_JSON_SQUEUE are optional and read with getattr.
+        """
+
+        SOURCEDIR: Optional[str]
 
     JobsInfo = Tuple[List[str], List[str], List[str], List[str]]
     QueuesInfo = Tuple[int, int, List[RawQueue]]

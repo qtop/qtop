@@ -58,7 +58,6 @@ class OarStatExtractor(TabularStatExtractor):
                     qstat_values = self._process_qstat_line(pattern, line, re_match_positions)
                 except AttributeError as error:
                     raise ValueError("Cannot parse OAR job row: %s" % line.strip()) from error
-                qstat_values["Queue"] = self.anonymize(qstat_values["Queue"], "qs")
                 all_values.append(qstat_values)
 
         return all_values
@@ -236,16 +235,11 @@ class OARBatchSystem(GenericBatchSystem):
     def _read_oarnodes_s_yaml(self, fn_s: str) -> Dict[str, Any]:
         if not os.path.isfile(fn_s):
             raise FileNotFoundError("OAR node input is not a regular file: %s" % fn_s)
-        anonymize = self.oar_stat_maker.anonymize_func()
         logging.debug("File %s exists: %s", fn_s, os.path.isfile(fn_s))
         if os.stat(fn_s).st_size == 0:
             raise ValueError("OAR node input is empty: %s" % fn_s)
         data = yaml_parser.safe_load(fn_s, DEF_INDENT=4, options=self.options)
-        if self.options.ANONYMIZE:
-            nodes_resids = dict([(anonymize(node, "wns"), resid_state.items()) for node, resid_state in data.items()])
-        else:
-            nodes_resids = dict([(node, resid_state.items()) for node, resid_state in data.items()])
-        return nodes_resids
+        return {node: resid_state.items() for node, resid_state in data.items()}
 
     def _read_oarnodes_y_textyaml(self, fn: str) -> Dict[int, Any]:
         """Stream relevant YAML fields; blanks do not terminate resource records."""

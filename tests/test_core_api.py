@@ -3,14 +3,17 @@
 """core_api is the stable surface for scheduler backends; these tests pin it."""
 
 import ast
+import json
 from pathlib import Path
 from types import SimpleNamespace
 
 from qtop_py import core_api
+from qtop_py.schedulers import collector
 
 ROOT = Path(__file__).resolve().parents[1]
 
 PUBLIC = [
+    "BackendOptions",
     "FileEmptyError",
     "GenericBatchSystem",
     "OperationalError",
@@ -65,7 +68,31 @@ def test_a_backend_written_against_core_api_alone_yields_a_valid_state(tmp_path)
         def get_worker_nodes(self, job_ids, job_queues, options):
             return [{"domainname": "node1", "state": "-", "np": 2, "core_job_map": {0: "7"}, "qname": ["batch"]}]
 
-    options = SimpleNamespace(SOURCEDIR=None)
-    state = TinyBackend({"jobs": str(trace)}, {}, options).get_cluster_state(options)
+    state = TinyBackend({"jobs": str(trace)}, {}, core_api.BackendOptions()).get_cluster_state(core_api.BackendOptions())
     assert core_api.validate_cluster_state(state) == state
     assert [job["user"] for job in state["jobs"]] == ["alice", "bob"]
+
+
+def test_one_shot_anonymize_masks_the_built_state_once():
+    """qtop -A without -w or -L masks in the collector, as watch mode does; backends see raw names."""
+    raw = {
+        "jobs": [{"id": "7", "user": "alice", "state": "R", "queue": "batch"}],
+        "nodes": [{"domainname": "node1", "state": "-", "np": 1, "core_job_map": {"0": "7"}, "qname": ["batch"]}],
+        "queues": [{"name": "batch", "limit": "--", "running": 1, "queued": 0, "state": "Q"}],
+    }
+
+    class RawBackend:
+        @staticmethod
+        def get_mnemonic():
+            return "raw"
+
+        def __init__(self, files, config, options):
+            assert not hasattr(options, "ANONYMIZE") or options.ANONYMIZE  # it may be set; backends ignore it
+
+        def get_cluster_state(self, options):
+            return json.loads(json.dumps(raw))
+
+    args = SimpleNamespace(load_sample=None, SAMPLE=0, ANONYMIZE=True, workdir="")
+    snapshot, _config = collector.MVU_collect_snapshot(args, {"savepath": ""}, RawBackend, {}, None)
+    text = json.dumps(snapshot.to_cluster_state())
+    assert not any(name in text for name in ("alice", "node1", "batch"))

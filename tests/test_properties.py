@@ -216,11 +216,11 @@ def test_snapshot_import_rejects_malformed_nested_metadata(tmp_path, change):
         sample.load_snapshot(path)
 
 
-def test_pbs_json_queue_anonymization_supplies_its_category(tmp_path):
+def test_pbs_json_queue_rows_keep_raw_names_for_masking_after_the_state(tmp_path):
     path = tmp_path / "qstat_q.json"
     path.write_text('{"Queue":{"private_queue":{"enabled":true,"state_count":"Transit:0 Queued:2 Held:0 Waiting:0 Running:1 Exiting:0"}}}')
-    rows = PBSStatExtractor({}, SimpleNamespace(ANONYMIZE=True)).extract_qstatq(str(path))
-    assert rows[0]["queue_name"] == "p_anon_q_0"
+    rows = PBSStatExtractor({}, SimpleNamespace(SOURCEDIR=None)).extract_qstatq(str(path))
+    assert rows[0]["queue_name"] == "private_queue"  # -A masks the built state, not the parser
     assert rows[0]["run"] == "1" and rows[0]["queued"] == "2"
 
 

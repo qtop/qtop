@@ -2,7 +2,6 @@
 ## SPDX-License-Identifier: MIT
 """Versioned Slurm JSON input using the existing Slurm accounting and GRES rules."""
 
-import copy
 import os
 import shlex
 from collections import Counter
@@ -136,9 +135,7 @@ class SlurmJSONBatchSystem(SlurmBatchSystem):
         )
 
     def __init__(self, scheduler_output_filenames: Dict[str, str], config: "Config", options: "Options") -> None:
-        raw_options = copy.copy(options)
-        raw_options.ANONYMIZE = False
-        super().__init__({}, config, raw_options)
+        super().__init__({}, config, options)
         self._topology: Dict[str, Dict[str, Any]] = {}
         self._gpu_inventory: Dict[str, Dict[str, Any]] = {}
         self._allocations: Dict[str, Dict[str, Tuple[List[int], int, bool]]] = {}
@@ -395,10 +392,6 @@ class SlurmJSONBatchSystem(SlurmBatchSystem):
         state["queues"] = list(queues.values())
         for node in state["nodes"]:
             node["qname"] = [name for name in node["qname"] if name]
-        if options.ANONYMIZE:
-            from qtop_py.core_sample import anonymize_state
-
-            state = anonymize_state(state)[0]
         return state
 
     def mask_source_trace(self, key: str, text: str, mask: "TraceMasker") -> Tuple[str, str]:

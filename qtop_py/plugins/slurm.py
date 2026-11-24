@@ -158,8 +158,6 @@ class SlurmStatExtractor(StatExtractor):
         jobs: Dict[str, Any] = OrderedDict()
         expanded_count = 0
         # Per-trace caches: a large squeue repeats few distinct users, states, partitions and CPU counts.
-        # anonymize() is stable per name, so caching it keeps -A mappings in first-seen order.
-        users: Dict[str, str] = {}
         states: Dict[str, Tuple[str, str]] = {}
         partition_lists: Dict[str, Optional[Tuple[str, ...]]] = {}
         cpu_counts: Dict[str, int] = {}
@@ -175,7 +173,7 @@ class SlurmStatExtractor(StatExtractor):
                     if job_id and user and state:
                         if partition not in partition_lists:
                             names = [name.strip().rstrip("*") for name in partition.split(",")]
-                            partition_lists[partition] = tuple(OrderedDict.fromkeys(self.anonymize(name, "qs") for name in names)) if all(names) else None
+                            partition_lists[partition] = tuple(OrderedDict.fromkeys(names)) if all(names) else None
                         partitions_seen = partition_lists[partition]
                 if partitions_seen is None:
                     self.rejected_squeue_rows += 1
@@ -193,14 +191,12 @@ class SlurmStatExtractor(StatExtractor):
                     mapped = self._map_job_state(state)
                     states[state] = (mapped, slurm_accounting_state(mapped))
                 mapped_state, accounting = states[state]
-                if user not in users:
-                    users[user] = self.anonymize(user, "users")
                 if cpus not in cpu_counts:
                     cpu_counts[cpus] = max(1, self._safe_int(cpus, default=1))
                 for task_id in task_ids:
                     job = {
                         "JobId": task_id,
-                        "UnixAccount": users[user],
+                        "UnixAccount": user,
                         "S": mapped_state,
                         "raw_state": state,
                         "Queue": partitions_seen[0],
@@ -256,9 +252,9 @@ class SlurmStatExtractor(StatExtractor):
 
                 nodes.append(
                     {
-                        "domainname": self.anonymize(node_name, "wns"),
+                        "domainname": node_name,
                         "raw_domainname": node_name,
-                        "qname": self.anonymize(partition.rstrip("*"), "qs"),
+                        "qname": partition.rstrip("*"),
                         "state": self._map_node_state(state),
                         "slurm_node_state": state,
                         "partition_state": (fields[-1].lower() or "?") if len(fields) in (5, 7) else "?",

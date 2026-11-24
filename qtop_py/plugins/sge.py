@@ -12,7 +12,7 @@
 __author__ = "sfranky"
 import fnmatch
 import logging
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Set, Tuple, cast
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set, Tuple, cast
 
 # SGE parses with NoDTDTreeBuilder below, rejecting all DTD declarations.
 from xml.etree import ElementTree as etree  # nosec B405
@@ -36,15 +36,8 @@ def _required_text(parent: etree.Element, path: str) -> str:
     return cast(str, _required_text_element(parent, path).text)
 
 
-def _anonymize_field(parent: etree.Element, path: str, anonymize: Callable[[str, str], str], category: str) -> str:
-    element = _required_text_element(parent, path)
-    text = anonymize(cast(str, element.text), category)
-    element.text = text
-    return text
-
-
-def _job_id(parent: etree.Element, anonymize: Callable[[str, str], str]) -> str:
-    job_id = _anonymize_field(parent, "./JB_job_number", anonymize, "jobnums")
+def _job_id(parent: etree.Element) -> str:
+    job_id = _required_text(parent, "./JB_job_number")
     tasks = (parent.findtext("./tasks") or "").strip()
     return "%s.%s" % (job_id, tasks) if tasks else job_id
 
@@ -92,15 +85,13 @@ class SGEStatExtractor(StatExtractor):
         self.scheduler_output_filenames = scheduler_output_filenames
         # The in-house YAML parser yields flow lists as one comma-joined string; queue names never contain commas.
         self.whole_queue_patterns = [p.strip() for item in config.get("sge_whole_queues") or () for p in item.split(",") if p.strip()]
-        # Queue-List elements matching sge_whole_queues, recorded before anonymization rewrites their names.
+        # Queue-List elements matching sge_whole_queues.
         self.whole_queue_elems: Set[etree.Element] = set()
 
-    def anonymize_queue_list_nametag(self, queue_list_nametag: etree.Element) -> str:
-        """Return queue@node with both parts anonymised."""
-        name, nodename = (queue_list_nametag.text or "").split("@")  # nonempty, checked by the caller
-        name = self.anonymize(name, "qs")
-        nodename = self.anonymize(nodename, "wns")
-        return name + "@" + nodename
+    @staticmethod
+    def _check_queue_list_nametag(queue_list_nametag: etree.Element) -> None:
+        """Require a Queue-List name of the form queue@node."""
+        _name, _nodename = (queue_list_nametag.text or "").split("@")  # nonempty, checked by the caller
 
     def get_xml_tree(self, xml_file: str) -> Tuple[etree.ElementTree, Any]:
         """Parse an XML file within the size and nesting limits, rejecting DTDs; return the tree and root."""
@@ -135,7 +126,7 @@ class SGEStatExtractor(StatExtractor):
         for queue_elem in root.findall("queue_info/Queue-List"):
             queue_name_elems = queue_elem.findall("resource")
             queue_list_nametag = _required_text_element(queue_elem, "name")
-            queue_list_nametag.text = self.anonymize_queue_list_nametag(queue_list_nametag)
+            self._check_queue_list_nametag(queue_list_nametag)
             _q_name_elems = iter(queue_name_elems)
             for queue_name_elem in _q_name_elems:
                 if queue_name_elem.attrib.get("name") == "qname":
@@ -143,12 +134,12 @@ class SGEStatExtractor(StatExtractor):
                         raise etree.ParseError("SGE XML requires a nonempty qname resource")
                     if any(fnmatch.fnmatchcase(queue_name_elem.text, pattern) for pattern in self.whole_queue_patterns):
                         self.whole_queue_elems.add(queue_elem)
-                    queue_name_elem.text = self.anonymize(queue_name_elem.text, "qs")
+                    queue_name_elem.text = queue_name_elem.text
                     next_q_name_elem = next(_q_name_elems, None)
                     if next_q_name_elem is None or not next_q_name_elem.text:
                         raise etree.ParseError("SGE XML requires a nonempty hostname resource")
                     # if queue_name_elem.attrib.get('name') == 'hostname': # assume next must be hostname?
-                    next_q_name_elem.text = self.anonymize(next_q_name_elem.text, "wns")
+                    next_q_name_elem.text = next_q_name_elem.text
                     break
             else:
                 raise ValueError("No such queue name")
@@ -173,13 +164,10 @@ class SGEStatExtractor(StatExtractor):
     def _extract_job_info(self, all_values: List[Any], elem: etree.Element, elem_text: str, queue_name: str) -> List[Any]:
         """Extract scheduler job records from an XML element into ``all_values``."""
         for subelem in elem.findall(elem_text):
-            owner = _anonymize_field(subelem, "./JB_owner", self.anonymize, "users")
-            job_num = _job_id(subelem, self.anonymize)
-            _anonymize_field(subelem, "./JB_name", self.anonymize, "jobnames")
-            subm_time = subelem.find("./JB_submission_time")
-            if subm_time is not None and subm_time.text:
-                _anonymize_field(subelem, "./JB_submission_time", self.anonymize, "jobtimes")
-            queue_name = self.anonymize(queue_name, "qs")
+            owner = _required_text(subelem, "./JB_owner")
+            job_num = _job_id(subelem)
+            _required_text(subelem, "./JB_name")
+            queue_name = queue_name
             qstat_values: Dict[str, Any] = dict()
             qstat_values["JobId"] = job_num
             qstat_values["UnixAccount"] = owner
@@ -266,10 +254,6 @@ class SGEBatchSystem(GenericBatchSystem):
         self.config = config
         self.options = options
         self.sge_stat_maker = SGEStatExtractor(self.config, self.options, scheduler_output_filenames)
-        if self.options.ANONYMIZE:
-            self.anonymize = self.sge_stat_maker.anonymize_func()
-        else:
-            self.anonymize = self.sge_stat_maker.eponymize_func()
 
     def get_queues_info(self) -> "QueuesInfo":
         """Return the running and queued totals and per-queue records from qstat -xml."""
@@ -299,7 +283,7 @@ class SGEBatchSystem(GenericBatchSystem):
         """Return the nodes, with their queues and slots, from qstat -xml."""
         logging.debug("Parsing tree of %s", self.sge_file)
 
-        tree, root = self.sge_stat_maker.tree, self.sge_stat_maker.root
+        root = self.sge_stat_maker.root
 
         existing_wns: List[Dict[str, Any]] = list()
         existing_node_names = set()
@@ -342,12 +326,6 @@ class SGEBatchSystem(GenericBatchSystem):
 
         logging.debug("Closing %s", self.sge_file)
         logging.info("existing_wns contains %s entries", len(existing_wns))
-
-        # last to be reading the xml file, can now write back if anonymizing..
-        if self.options.SAMPLE >= 1:
-            anon_file = self.sge_stat_maker.orig_file + "%s" % ("_anon" if self.options.ANONYMIZE else "")
-            self.sge_stat_maker.scheduler_output_filenames["sge_file"] = anon_file
-            tree.write(anon_file)
         return cast("List[Node]", existing_wns)  # built field by field as Node records
 
     def get_jobs_info(self) -> "JobsInfo":
@@ -380,10 +358,10 @@ class SGEBatchSystem(GenericBatchSystem):
             if state != "running":
                 continue
 
-            owner = _anonymize_field(subelem, "./JB_owner", self.anonymize, "users")
-            job_num = _job_id(subelem, self.anonymize)
-            _anonymize_field(subelem, "./JB_name", self.anonymize, "jobnames")
-            _anonymize_field(subelem, "./JAT_start_time", self.anonymize, "jobtimes")
+            owner = _required_text(subelem, "./JB_owner")
+            job_num = _job_id(subelem)
+            _required_text(subelem, "./JB_name")
+            _required_text(subelem, "./JAT_start_time")
             slots_text = (subelem.findtext("./slots") or "").strip() or "1"
             try:
                 slots = int(slots_text)
@@ -403,11 +381,11 @@ class SGEBatchSystem(GenericBatchSystem):
         resources = queue_elem.findall("resource")
         for resource in resources:
             if resource.attrib.get("name") == "hostname":
-                worker_node["domainname"] = self.anonymize(cast(str, resource.text), "wns")  # a missing text passes through, as before
+                worker_node["domainname"] = cast(str, resource.text)  # a missing text passes through, as before
                 count += 1
             elif resource.attrib.get("name") == "qname":
                 qname = resource.text
-                worker_node["qname"] = [self.anonymize(cast(str, qname), "qs")]  # likewise
+                worker_node["qname"] = [cast(str, qname)]  # likewise
                 count += 1
             elif resource.attrib.get("name") == "num_proc":
                 # Treat an implausible core count like a missing one, before anything loops over it.
@@ -434,7 +412,7 @@ class SGEBatchSystem(GenericBatchSystem):
             queue_names = queue_elem.findall("resource")
             for _queue_name in queue_names:
                 if _queue_name.attrib.get("name") == "qname":
-                    queue_name = self.anonymize(cast(str, _queue_name.text), "qs")  # likewise
+                    queue_name = cast(str, _queue_name.text)  # likewise
                     break
             else:
                 raise ValueError("No such resource")

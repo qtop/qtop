@@ -1091,7 +1091,9 @@ tar -tf "$qtop_masked_dir"/qtop_sample_*.tar
 With ``-L -A -e``, the archive includes ``qtop-snapshot.json`` containing
 anonymized parsed state, sanitized effective configuration, display options,
 qtop/Python versions and a UTC capture timestamp. Users, nodes, queues and job
-IDs receive consistent replacements; core-to-job links remain intact. The
+IDs receive consistent replacements (such as `u_anon_user_0`, `n_anon_wn_0`,
+`q_anon_q_0`); core-to-job links remain intact. Plain ``-A``, with or without
+``-w``, masks the displayed state the same way. The
 archive uses the name ``qtop_sample_anonymous.tar`` (with a timestamp when
 configured). It also includes the masked rendered screen and a short
 ``capture-log.json`` status record, rather than the original log.
@@ -1564,7 +1566,9 @@ the scheduler. Optional hooks (`queue_is_blocked`, `node_state_marker`,
 Import the shared interface from `qtop_py/core_api.py` (`GenericBatchSystem`,
 `StatExtractor`, `open_input`, `check_empty_file`, `TraceMasker`, ...), and the state
 types from `qtop_py/core_state_types.py` under `TYPE_CHECKING`; `tests/test_core_api.py`
-pins the interface.
+pins the interface. A backend reports raw
+names: `-A` masks the built state once, for every backend, so it never reads `-A`
+or `-L`. Its options carry only collection settings (`core_api.BackendOptions`).
 
 To register it:
 

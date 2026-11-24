@@ -4,16 +4,18 @@
 ## qtop is a tool to monitor queuing systems - https://github.com/qtop/qtop
 ##
 
+import json
 from pathlib import Path
 from xml.etree import ElementTree as etree
 
 import pytest
 
+from qtop_py.core_sample import anonymize_state
 from qtop_py.plugins.sge import SGEBatchSystem, SGEStatExtractor
 
 
 class Options(object):
-    ANONYMIZE = False
+    SOURCEDIR = None
 
 
 def test_contrib_queue_counts_remain_numeric_while_aggregating():
@@ -254,7 +256,7 @@ def test_idle_nodes_keep_queue_membership(slots_used, same_host):
     assert all(node["core_job_map"] == {} and node["np"] == 16 and node["state"] == "-" for node in nodes)
 
 
-def _whole_queue_nodes(tmp_path, patterns, instances, anonymize=False):
+def _whole_queue_nodes(tmp_path, patterns, instances):
     template = (
         '<Queue-List><name>{queue}@{host}</name><resource name="qname">{queue}</resource><resource name="hostname">{host}</resource>'
         '<resource name="num_proc">16</resource>{job}</Queue-List>'
@@ -267,7 +269,7 @@ def _whole_queue_nodes(tmp_path, patterns, instances, anonymize=False):
     path = tmp_path / "qstat.F.xml.stdout"
     path.write_text("<job_info><queue_info>" + queues + "</queue_info><job_info/></job_info>")
     options = Options()
-    options.ANONYMIZE, options.SAMPLE = anonymize, 0
+    options.SAMPLE = 0
     config = {} if patterns is None else {"sge_whole_queues": patterns}
     system = SGEBatchSystem({"sge_file": str(path)}, config, options)
     system.get_jobs_info()
@@ -293,9 +295,13 @@ def test_idle_whole_queue_node_stays_idle(tmp_path):
     assert node["core_job_map"] == {} and node["existing_busy_cores"] == 0
 
 
-def test_whole_queues_match_raw_names_under_anonymization(tmp_path):
-    (node,) = _whole_queue_nodes(tmp_path, ["world"], [("world", "node01", "100", 2)], anonymize=True)
-    assert node["existing_busy_cores"] == 16 and "world" not in node["qname"][0]
+def test_whole_queues_match_raw_names_then_anonymize_masks_them(tmp_path):
+    (node,) = _whole_queue_nodes(tmp_path, ["world"], [("world", "node01", "100", 2)])
+    assert node["existing_busy_cores"] == 16
+    system = SGEBatchSystem({"sge_file": str(tmp_path / "qstat.F.xml.stdout")}, {"sge_whole_queues": ["world"]}, Options())
+    state = anonymize_state(system.get_cluster_state(Options()))[0]  # -A masks the built state
+    assert "world" not in json.dumps(state) and "node01" not in json.dumps(state)
+    assert len(state["nodes"][0]["core_job_map"]) == 16
 
 
 @pytest.mark.parametrize("num_proc, np", [("16", "16"), ("65536", "65536"), ("65537", 0), ("100000000", 0), ("-4", 0), ("abc", 0), ("", 0)])

@@ -167,7 +167,7 @@ def MVU_collect_snapshot(
             cluster_state = collected.state if collected is not None else scheduling_system.get_cluster_state(args)
     except (ValueError, UnicodeError, ParseError) as error:
         raise OperationalError("Cannot parse %s scheduler input in %s: %s" % (scheduler, args.workdir, error)) from error
-    if collected is not None and args.ANONYMIZE and not args.SAMPLE:
+    if getattr(args, "ANONYMIZE", False) and not args.SAMPLE and not args.load_sample:  # -A: masked once, after the state is built
         cluster_state = sample.anonymize_state(cluster_state)[0]
     # The poller's collect() already validated its state; --demanding validates it again here.
     prevalidated = collected is not None and cluster_state is collected.state and not getattr(args, "DEMANDING", False)
