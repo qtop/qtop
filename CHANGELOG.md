@@ -3,6 +3,10 @@
 Notable changes by version, newest first. See the
 [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 
+## 0.9.20261122
+
+- Release: update version metadata to 0.9.20261122
+
 ## 0.9.20261121
 
 - Bugfix: a root-owned symlinked /home (autofs/NFS) no longer fails with Not a directory (#615)
