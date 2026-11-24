@@ -9,7 +9,7 @@ import threading
 import time
 from typing import Any, Callable, Dict, NamedTuple, Optional, Tuple
 
-from qtop_py.errors import OperationalError
+from qtop_py.core_errors import OperationalError
 
 Observation = NamedTuple("Observation", [("state", Any), ("system", Any), ("backend", Any), ("traces", Dict[str, Tuple[str, bytes]]), ("started", float), ("completed", float)])
 

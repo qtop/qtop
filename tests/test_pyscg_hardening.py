@@ -14,10 +14,11 @@ from types import SimpleNamespace
 
 import pytest
 
-from qtop_py import process as process_io
+from qtop_py import core_process as process_io
 from qtop_py import qtop as qtop_module
 from qtop_py import user_details
-from qtop_py.errors import OperationalError
+from qtop_py.core_api import BackendOptions
+from qtop_py.core_errors import OperationalError
 from qtop_py.plugins import sge
 from qtop_py.plugins.pbs import PBSStatExtractor
 
@@ -32,7 +33,7 @@ def test_unexpected_sge_xml_failures_are_reported_not_silently_exited(tmp_path, 
         raise RuntimeError("parser exploded")
 
     monkeypatch.setattr(sge, "_xml_parser", broken_parser)
-    extractor = sge.SGEStatExtractor({}, SimpleNamespace(ANONYMIZE=False), {})
+    extractor = sge.SGEStatExtractor({}, BackendOptions())
     with pytest.raises(OperationalError, match="Cannot read SGE XML .*parser exploded") as raised:
         extractor.get_xml_tree(str(path))
     assert isinstance(raised.value.__cause__, RuntimeError)
@@ -40,7 +41,7 @@ def test_unexpected_sge_xml_failures_are_reported_not_silently_exited(tmp_path, 
 
 def test_scheduler_commands_get_the_c_locale_without_touching_our_environment(monkeypatch):
     monkeypatch.setenv("LC_ALL", "de_CH.UTF-8")
-    env = process_io.scheduler_env()
+    env = process_io.scheduler_env(os.environ)
     assert env["LC_ALL"] == "C" and os.environ["LC_ALL"] == "de_CH.UTF-8"
 
 
@@ -65,7 +66,7 @@ def test_non_utf8_scheduler_output_is_parsed_not_fatal(tmp_path):
         b"---------------- ---------------- ---------------- -------- - -----\n"
         b"807140.delta     caf\xe9-run         alice            22:41:42 R gpu\n"
     )
-    records = PBSStatExtractor({}, SimpleNamespace(ANONYMIZE=False)).extract_qstat(str(path))
+    records = PBSStatExtractor({}, BackendOptions()).extract_qstat(str(path))
     assert records == [{"JobId": "807140", "UnixAccount": "alice", "S": "R", "Queue": "gpu"}]
 
 
@@ -78,5 +79,5 @@ def test_web_page_loads_no_third_party_script():
 def test_scheduler_commands_print_untruncated_slurm_array_ranges(monkeypatch):
     """qtop/qtop#606: squeue cuts array task ranges at SLURM_BITSTR_LEN characters unless it is 0."""
     monkeypatch.setenv("SLURM_BITSTR_LEN", "32")
-    assert process_io.scheduler_env()["SLURM_BITSTR_LEN"] == "0"
+    assert process_io.scheduler_env(os.environ)["SLURM_BITSTR_LEN"] == "0"
     assert os.environ["SLURM_BITSTR_LEN"] == "32"

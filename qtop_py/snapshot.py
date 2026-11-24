@@ -7,13 +7,13 @@ import json
 from collections import OrderedDict, namedtuple
 from typing import TYPE_CHECKING, Callable, Optional, Tuple, cast
 
-from qtop_py.cluster_state import validate_cluster_state, validated_cluster_state_totals
-from qtop_py.safety import raw_and_visible
+from qtop_py.core_cluster_state import validate_cluster_state, validated_cluster_state_totals
+from qtop_py.core_safety import raw_and_visible
 
 if TYPE_CHECKING:
     from typing import Dict
 
-    from qtop_py import state_types
+    from qtop_py import core_state_types as state_types
 
 
 JobRow = namedtuple("JobRow", ["user_name", "job_state", "job_queue"])

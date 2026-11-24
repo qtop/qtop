@@ -15,6 +15,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from qtop_py import core_inputs as inputs
 from qtop_py import fileutils
 
 
@@ -166,9 +167,9 @@ def test_startup_dots_follow_actual_open_and_close(monkeypatch, fails):
     observed, flushed = [], []
     output = SimpleNamespace(write=lambda value: observed.append(stream.closed) if value == "." else None, flush=lambda: flushed.append(True))
     options = SimpleNamespace(_input_progress=fileutils.StartupProgress(output))
-    monkeypatch.setattr(fileutils, "open", lambda *args, **kwargs: stream, raising=False)
+    monkeypatch.setattr(inputs, "open", lambda *args, **kwargs: stream, raising=False)
     try:
-        with fileutils.open_input("source", options=options) as source:
+        with inputs.open_input("source", options=options) as source:
             assert observed == [False] and len(flushed) == 1
             assert source.read() == "input"
             if fails:
@@ -186,12 +187,12 @@ def test_startup_progress_deduplicates_sources_and_stays_disabled(tmp_path):
         path = tmp_path / name
         path.write_text(name)
         for spelling in (str(path), str(path.resolve())):
-            with fileutils.open_input(spelling, options=options) as source:
+            with inputs.open_input(spelling, options=options) as source:
                 assert source.read() == name
     assert output.getvalue() == "......"
     progress.finish()
     progress.finish()
-    with fileutils.open_input(str(tmp_path / "jobs"), options=options):
+    with inputs.open_input(str(tmp_path / "jobs"), options=options):
         pass
     assert output.getvalue() == "......\n"
     assert len(progress.seen) == 3
@@ -201,7 +202,7 @@ def test_failed_input_open_does_not_print_progress(tmp_path):
     output = io.StringIO()
     progress = fileutils.StartupProgress(output)
     with pytest.raises(FileNotFoundError):
-        with fileutils.open_input(str(tmp_path / "missing"), options=SimpleNamespace(_input_progress=progress)):
+        with inputs.open_input(str(tmp_path / "missing"), options=SimpleNamespace(_input_progress=progress)):
             pytest.fail("missing source opened")
     progress.finish()
     assert output.getvalue() == ""

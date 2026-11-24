@@ -14,17 +14,16 @@ import re
 from collections import OrderedDict
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Mapping, Match, Optional, Set, Tuple, cast
 
-import qtop_py.fileutils as fileutils
-from qtop_py.hostlist import HostlistParser
+from qtop_py.core_api import FileEmptyError, GenericBatchSystem, StatExtractor, check_empty_file, open_input
+from qtop_py.core_hostlist import HostlistParser
 from qtop_py.schedulers.gpu import parse_gpu_gres
 from qtop_py.schedulers.slurm_extension import SLURM_EXTENSION
-from qtop_py.serialiser import GenericBatchSystem, StatExtractor
 
 if TYPE_CHECKING:
     from typing import Final
 
-    from qtop_py.source_trace import TraceMasker
-    from qtop_py.state_types import ClusterState, Config, JobsInfo, Node, Options, QueuesInfo, RawQueue
+    from qtop_py.core_api import TraceMasker
+    from qtop_py.core_state_types import ClusterState, Config, JobsInfo, Node, Options, QueuesInfo
 
 SLURM_JOB_STATES: "Final" = {
     "BOOT_FAIL": "BF",
@@ -151,20 +150,18 @@ class SlurmStatExtractor(StatExtractor):
         """
         self.rejected_squeue_rows = 0
         try:
-            fileutils.check_empty_file(orig_file)
-        except fileutils.FileEmptyError:
+            check_empty_file(orig_file)
+        except FileEmptyError:
             logging.error("File %s seems to be empty.", orig_file)
             return []
 
         jobs: Dict[str, Any] = OrderedDict()
         expanded_count = 0
         # Per-trace caches: a large squeue repeats few distinct users, states, partitions and CPU counts.
-        # anonymize() is stable per name, so caching it keeps -A mappings in first-seen order.
-        users: Dict[str, str] = {}
         states: Dict[str, Tuple[str, str]] = {}
         partition_lists: Dict[str, Optional[Tuple[str, ...]]] = {}
         cpu_counts: Dict[str, int] = {}
-        with fileutils.open_input(orig_file, "r", encoding="utf-8", errors="replace", options=self.options) as fin:
+        with open_input(orig_file, "r", encoding="utf-8", errors="replace", options=self.options) as fin:
             for line in fin:
                 line = line.strip()
                 if not line:
@@ -176,7 +173,7 @@ class SlurmStatExtractor(StatExtractor):
                     if job_id and user and state:
                         if partition not in partition_lists:
                             names = [name.strip().rstrip("*") for name in partition.split(",")]
-                            partition_lists[partition] = tuple(OrderedDict.fromkeys(self.anonymize(name, "qs") for name in names)) if all(names) else None
+                            partition_lists[partition] = tuple(OrderedDict.fromkeys(names)) if all(names) else None
                         partitions_seen = partition_lists[partition]
                 if partitions_seen is None:
                     self.rejected_squeue_rows += 1
@@ -194,14 +191,12 @@ class SlurmStatExtractor(StatExtractor):
                     mapped = self._map_job_state(state)
                     states[state] = (mapped, slurm_accounting_state(mapped))
                 mapped_state, accounting = states[state]
-                if user not in users:
-                    users[user] = self.anonymize(user, "users")
                 if cpus not in cpu_counts:
                     cpu_counts[cpus] = max(1, self._safe_int(cpus, default=1))
                 for task_id in task_ids:
                     job = {
                         "JobId": task_id,
-                        "UnixAccount": users[user],
+                        "UnixAccount": user,
                         "S": mapped_state,
                         "raw_state": state,
                         "Queue": partitions_seen[0],
@@ -232,13 +227,13 @@ class SlurmStatExtractor(StatExtractor):
         """
         self.rejected_sinfo_rows = 0
         try:
-            fileutils.check_empty_file(orig_file)
-        except fileutils.FileEmptyError:
+            check_empty_file(orig_file)
+        except FileEmptyError:
             logging.error("File %s seems to be empty.", orig_file)
             return []
 
         nodes = []
-        with fileutils.open_input(orig_file, "r", encoding="utf-8", errors="replace", options=self.options) as fin:
+        with open_input(orig_file, "r", encoding="utf-8", errors="replace", options=self.options) as fin:
             for line in fin:
                 line = line.strip()
                 if not line:
@@ -257,9 +252,9 @@ class SlurmStatExtractor(StatExtractor):
 
                 nodes.append(
                     {
-                        "domainname": self.anonymize(node_name, "wns"),
+                        "domainname": node_name,
                         "raw_domainname": node_name,
-                        "qname": self.anonymize(partition.rstrip("*"), "qs"),
+                        "qname": partition.rstrip("*"),
                         "state": self._map_node_state(state),
                         "slurm_node_state": state,
                         "partition_state": (fields[-1].lower() or "?") if len(fields) in (5, 7) else "?",
@@ -546,18 +541,21 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
                 elif job["accounting_state"] == "queued":
                     queue["queued"] += 1
 
-        qstatq_lod: "List[RawQueue]" = [
-            {
-                "queue_name": queue_name,
-                "run": str(values["run"]),
-                "queued": str(values["queued"]),
-                "lm": values["lm"],
-                "state": values["state"],
-            }
-            for queue_name, values in queue_counts.items()
-        ]
-
-        return total_running_jobs, total_queued_jobs, qstatq_lod
+        # Built in the return so QueuesInfo types each record as a queue record.
+        return (
+            total_running_jobs,
+            total_queued_jobs,
+            [
+                {
+                    "queue_name": queue_name,
+                    "run": str(values["run"]),
+                    "queued": str(values["queued"]),
+                    "lm": values["lm"],
+                    "state": values["state"],
+                }
+                for queue_name, values in queue_counts.items()
+            ],
+        )
 
     def get_worker_nodes(self, job_ids: List[str], job_queues: List[str], options: "Options") -> "List[Node]":
         """Return the nodes from sinfo, merged across partitions, with their jobs, CPUs and GPUs."""
@@ -660,7 +658,7 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
         allocations: Dict[str, Any] = {}
         invalid = set()
         try:
-            with fileutils.open_input(self.scontrol_file, "r", encoding="utf-8", errors="replace", options=self.options) as stream:
+            with open_input(self.scontrol_file, "r", encoding="utf-8", errors="replace", options=self.options) as stream:
                 job_id = None
                 for line in stream:
                     if re.match(r"\s*JobId=", line):
@@ -706,7 +704,7 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
         if not self.scontrol_file:
             return allocations
         try:
-            with fileutils.open_input(self.scontrol_file, "r", encoding="utf-8", errors="replace", options=self.options) as stream:
+            with open_input(self.scontrol_file, "r", encoding="utf-8", errors="replace", options=self.options) as stream:
                 job_id = None
                 parsed: Dict[str, Tuple[int, ...]] = {}  # CPU_IDs text -> its distinct CPU numbers, for this collection
                 for line in stream:

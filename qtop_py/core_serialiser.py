@@ -10,16 +10,15 @@
 """Shared scheduler parsing: the StatExtractor base and the GenericBatchSystem interface."""
 
 import re
-from itertools import count
-from typing import TYPE_CHECKING, Any, Callable, Collection, Dict, Mapping, Optional, Sequence, Tuple, cast
+from typing import TYPE_CHECKING, Any, Collection, Dict, Mapping, Optional, Sequence, Tuple, cast
 
 if TYPE_CHECKING:
     from typing import List
 
-    from qtop_py.source_trace import TraceMasker
-    from qtop_py.state_types import ClusterState, Config, JobsInfo, Node, Options, QueuesInfo
+    from qtop_py.core_source_trace import TraceMasker
+    from qtop_py.core_state_types import ClusterState, Config, JobsInfo, Node, Options, QueuesInfo
 
-from qtop_py.cluster_state import build_cluster_state
+from qtop_py.core_cluster_state import build_cluster_state
 from qtop_py.schedulers.extensions import ExtensionSpec
 from qtop_py.schedulers.metadata import node_is_idle
 
@@ -41,39 +40,6 @@ class StatExtractor(object):
     def __init__(self, config: "Config", options: "Options") -> None:
         self.config = config
         self.options = options
-        self.anonymize = self.anonymize_func() if self.options.ANONYMIZE else self.eponymize_func()
-
-    def anonymize_func(self) -> Callable[[str, str], str]:
-        """Return a function mapping each name to a stable anonymous one, for -A output that can be shared.
-
-        d4-p4-04 --> d_anon_wn_0, d4-p4-05 --> d_anon_wn_1, biomed017 --> b_anon_user_0, alice --> a_anon_q_0
-        """
-        counters = {}
-        stored_dict: Dict[str, Tuple[str, str]] = {}
-        for key in ["users", "wns", "qs", "jobnums", "jobnames", "jobtimes"]:
-            counters[key] = count()
-
-        maps = {"users": "_anon_user_", "wns": "_anon_wn_", "qs": "_anon_q_", "jobnums": "_anon_jn_", "jobnames": "_anon_nm_", "jobtimes": "never"}
-
-        def _anonymize_func(s: str, a_type: str) -> str:
-            """Return the anonymous name of s for the kind a_type (users, wns, qs, ...)."""
-            dup_counter = counters[a_type]
-
-            s_type = maps[a_type]
-            cnt = "0"
-            new_name_parts = [s[0], s_type, cnt]
-            if s not in stored_dict:
-                cnt = str(next(dup_counter))
-                new_name_parts.pop()
-                new_name_parts.append(cnt)
-            stored_dict.setdefault(s, ("".join(new_name_parts), s_type))
-            return stored_dict[s][0]
-
-        return _anonymize_func
-
-    def eponymize_func(self) -> Callable[[str, str], str]:
-        """Return a function that leaves names unchanged, used when not anonymising."""
-        return lambda s, a_type: s
 
 
 class GenericBatchSystem(object):

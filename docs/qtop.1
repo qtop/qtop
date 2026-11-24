@@ -1,6 +1,6 @@
 .\" Copyright (c) 2026 qtop contributors
 .\" SPDX-License-Identifier: MIT
-.TH QTOP 1 "2026-11-20" "qtop 0.9.20261120" "User Commands"
+.TH QTOP 1 "2026-11-21" "qtop 0.9.20261121" "User Commands"
 .nh
 .SH NAME
 qtop \- text-mode monitor of batch-cluster utilization and job status
@@ -278,7 +278,14 @@ verbosity; shared site trees such as a group-writable
 or
 .I /gpfs/home
 are common. The directories qtop owns are always created or tightened to mode
-0700 and never followed through symbolic links.
+0700 and never followed through symbolic links. It also stops on an unusable
+.I savepath
+or log instead of warning and falling back to a private
+.I qtop_fallback_<uid>
+directory under
+.IR /dev/shm ,
+the temporary directory or
+.BR QTOP_FALLBACK_DIR .
 .TP
 .BR \-v ", " \-\-verbose
 Increase verbosity; may be repeated.
@@ -403,6 +410,15 @@ With
 .B ON
 forces color; any other value disables it; when unset, color is used on a
 terminal.
+.TP
+.B QTOP_FALLBACK_DIR
+Directory for the best-effort
+.I qtop_fallback_<uid>
+used when
+.I savepath
+or the log is unusable; by default
+.I /dev/shm
+then the temporary directory.
 .TP
 .BR HOME ", " USER
 Locate the per-user configuration and log, and expand the default

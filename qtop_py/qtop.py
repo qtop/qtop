@@ -26,9 +26,10 @@ import time
 import traceback
 from typing import TYPE_CHECKING, Any, Dict, Iterator, Mapping, Optional, Set, Tuple, Type
 
-from qtop_py import __version__, configuration, fileutils, sample, utils
+from qtop_py import __version__, configuration, fileutils, utils
+from qtop_py import core_process as _process
+from qtop_py import core_sample as sample
 from qtop_py import input_parsing as _input_parsing
-from qtop_py import process as _process
 from qtop_py import user_details as _user_details
 from qtop_py.colormap import queue_to_color as colormap_queue_to_color
 from qtop_py.configuration import CONFIG_ERRORS as CONFIG_ERRORS
@@ -40,10 +41,12 @@ from qtop_py.constants import (
     SYSTEMCONFDIR,
     USERPATH,
 )
-from qtop_py.errors import InvalidScheduler as InvalidScheduler
-from qtop_py.errors import NoSchedulerFound as NoSchedulerFound
-from qtop_py.errors import OperationalError
-from qtop_py.errors import SchedulerNotSpecified as SchedulerNotSpecified
+from qtop_py.core_errors import InvalidScheduler as InvalidScheduler
+from qtop_py.core_errors import NoSchedulerFound as NoSchedulerFound
+from qtop_py.core_errors import OperationalError
+from qtop_py.core_errors import SchedulerNotSpecified as SchedulerNotSpecified
+from qtop_py.core_safety import visible_text
+from qtop_py.core_serialiser import GenericBatchSystem
 from qtop_py.mvu import (
     MVU_colorize_nodestate,
     MVU_compress_colored_line,
@@ -59,14 +62,12 @@ from qtop_py.runtime import RunResources
 from qtop_py.runtime import get_output_size as get_output_size
 from qtop_py.runtime import init_dirs as init_dirs
 from qtop_py.runtime import pick_frames_to_replay as pick_frames_to_replay
-from qtop_py.safety import visible_text
 from qtop_py.schedulers import collector as _collector
 from qtop_py.schedulers import registry as _registry
 from qtop_py.schedulers.collector import MVU_collect_snapshot as MVU_collect_snapshot
 from qtop_py.schedulers.collector import _collect_frame as _collect_frame
 from qtop_py.schedulers.registry import PLUGIN_BATCH_SYSTEMS
 from qtop_py.schedulers.registry import discover_qtop_batch_systems as discover_qtop_batch_systems
-from qtop_py.serialiser import GenericBatchSystem
 from qtop_py.ui import effects as ui_effects
 from qtop_py.ui import terminal as terminal_io
 from qtop_py.ui.controls import KeyboardInput
@@ -168,9 +169,23 @@ def cli_error_message(error: BaseException) -> str:
     """Return the message the CLI prints for an expected error, or an empty one."""
     if isinstance(error, SchedulerNotSpecified):
         return "No scheduler could be auto-detected. Select one with -b/--batchSystem, QTOP_SCHEDULER, or qtopconf.yaml."
-    if isinstance(error, NoSchedulerFound):
+    if isinstance(error, (NoSchedulerFound, InvalidScheduler)):
         return ""
     return str(error)
+
+
+def scheduler_error_lines(error: BaseException) -> Tuple[str, ...]:
+    """Return the critical log lines that explain a scheduler the CLI could not select."""
+    log = fileutils.active_log_path() or os.path.expandvars(QTOP_LOGFILE)
+    if isinstance(error, InvalidScheduler):
+        choices = "Selected scheduler system not supported. Available choices are %s." % ", ".join(error.choices)
+        return (choices, "For help, try ./qtop.py --help", "Log file created in %s" % log)
+    if isinstance(error, NoSchedulerFound):
+        return (
+            "No suitable scheduler was found. Please define one in a switch or env variable or in %s.\n"
+            "For more help, try ./qtop.py --help\nLog file created in %s" % (QTOPCONF_YAML, log),
+        )
+    return ()
 
 
 def report_operational_error(error: BaseException, debug: bool = False) -> None:
@@ -205,6 +220,8 @@ def cli_main() -> int:
             main(resources)
             return 0
     except (InvalidScheduler, NoSchedulerFound, SchedulerNotSpecified) as error:
+        for line in scheduler_error_lines(error):
+            logging.critical("%s", line)
         message = cli_error_message(error)
         if message:
             sys.stderr.write("%s\n" % message)
@@ -232,7 +249,7 @@ def _parse_run_options(resources: RunResources) -> Tuple[Any, Dict[str, Any]]:
     apply_demanding(args)
     fileutils.STRICT_PARENTS = args.STRICT_PARENTS
     utils.init_logging(args)
-    resources.logfile = QTOP_LOGFILE
+    resources.logfile = fileutils.active_log_path()
     dynamic_config: Dict[str, Any] = dict()
     args, dynamic_config["force_names"] = process_args(args)
     require_experimental_opt_in(args)
@@ -340,7 +357,7 @@ def main(resources: RunResources) -> None:
                     view_data = MVU_query(model)
                     cluster = view_data.cluster
                     MVU_resolve_user_details(view_data.model, view_data.occupancy)
-                    display = MVU_view(view_data, savepath, SAMPLE_FILENAME, QTOP_LOGFILE)
+                    display = MVU_view(view_data, savepath, SAMPLE_FILENAME, resources.logfile)
 
                 view_data.model.viewport.max_height, max_line_len = get_output_size(max_line_len, output_fp, term_columns=viewport.h_term_size if args.WATCH else 0)
                 model, _ = MVU_update(model, "layout", view_data.model.viewport)

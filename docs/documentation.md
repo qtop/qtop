@@ -505,17 +505,24 @@ and archive-extraction workspaces, rendered frames, traces, exports and captures
 ./qtop -w -o 'savepath=/dev/shm/qtop_$USER'
 ```
 
-Or set ``savepath: /dev/shm/qtop_$USER`` in your configuration. qtop uses that
-filesystem exclusively for these files and reports an error if it cannot create
-them; it does not fall back to another temporary directory. Input files remain
-where supplied. The persistent diagnostic log remains under
-``~/.local/qtop/logs/``; this setting does not relocate it or Python bytecode.
+Or set ``savepath: /dev/shm/qtop_$USER`` in your configuration. If qtop cannot
+create or verify that directory (for example a refused symlink or a foreign
+owner), it prints a warning and, as a best effort, uses a private
+``qtop_fallback_<uid>`` directory under ``/dev/shm``, else the system temporary
+directory, or under ``$QTOP_FALLBACK_DIR`` when that is set. The persistent
+diagnostic log remains under ``~/.local/qtop/logs/`` and falls back the same
+way; if no log location works, qtop runs without a log file. The fallback goes
+through the same private-directory checks; ``--strict-parents`` (or
+``--demanding``) stops with the original error instead. Input files remain where
+supplied; this setting does not relocate the log or Python bytecode.
 
 The ``savepath`` expands environment variables and is created with permissions
 ``0700`` (accessible only to its owner). This also applies to ``-o savepath=...``;
 use an absolute path. On macOS, the standard root-owned `/tmp` and `/var`
-aliases are expanded into `/private` before validation. qtop verifies ownership
-and rejects other symlink components. Existing directories owned by the current
+aliases are expanded into `/private` before validation. A root-owned symlink
+in a parent directory that others cannot write, such as an autofs or NFS
+``/home -> /nfs/home``, is followed; qtop verifies ownership and rejects other
+symlink components, and never follows one for a directory it owns. Existing directories owned by the current
 user are automatically restricted to ``0700``, including group/other-writable
 output directories and the ``~/.local/qtop`` configuration/log tree. Unrelated
 writable parent directories require the sticky bit, as on ``/tmp``;
@@ -547,7 +554,7 @@ now used, such as:
 -  not being able to write arbitrarily deeply nested dictionary-like
    structures, without fear it's going to break the universe.
 
-Anyone brave enough to dive into ``yaml_parser.py``, or better still,
+Anyone brave enough to dive into ``core_yaml_parser.py``, or better still,
 rewrite the darn thing, is more than welcome to, by the way. It goes
 without saying that only a very basic implementation is required (what
 you can see used in the configuration file, really!) and none of the
@@ -1084,7 +1091,9 @@ tar -tf "$qtop_masked_dir"/qtop_sample_*.tar
 With ``-L -A -e``, the archive includes ``qtop-snapshot.json`` containing
 anonymized parsed state, sanitized effective configuration, display options,
 qtop/Python versions and a UTC capture timestamp. Users, nodes, queues and job
-IDs receive consistent replacements; core-to-job links remain intact. The
+IDs receive consistent replacements (such as `u_anon_user_0`, `n_anon_wn_0`,
+`q_anon_q_0`); core-to-job links remain intact. Plain ``-A``, with or without
+``-w``, masks the displayed state the same way. The
 archive uses the name ``qtop_sample_anonymous.tar`` (with a timestamp when
 configured). It also includes the masked rendered screen and a short
 ``capture-log.json`` status record, rather than the original log.
@@ -1212,7 +1221,8 @@ can be made stricter, one at a time or all at once:
    the log is writable by group or others without the sticky bit. Without it,
    such a parent (e.g. a group-writable ``/home`` or ``/gpfs/home``) is noted
    at ``-v`` and qtop continues; the directories qtop owns are always created or
-   tightened to mode 0700 and never followed through symbolic links.
+   tightened to mode 0700 and never followed through symbolic links. It also
+   disables the best-effort ``/dev/shm`` fallback for ``savepath`` and the log.
 -  Live collection validates each cluster state once, in its collection
    thread. ``--demanding`` validates it again when the snapshot is built.
 
@@ -1551,7 +1561,14 @@ A backend is a `GenericBatchSystem` subclass in `qtop_py/plugins/`. It implement
 `get_jobs_info`, `get_queues_info`, `get_worker_nodes` and `get_mnemonic`, and returns
 the scheduler-neutral cluster state; query, display, export and replay never branch on
 the scheduler. Optional hooks (`queue_is_blocked`, `node_state_marker`,
-`display_messages`, `collection_command`, ...) have defaults in `serialiser.py`.
+`display_messages`, `collection_command`, ...) have defaults in `core_serialiser.py`.
+
+Import the shared interface from `qtop_py/core_api.py` (`GenericBatchSystem`,
+`StatExtractor`, `open_input`, `check_empty_file`, `TraceMasker`, ...), and the state
+types from `qtop_py/core_state_types.py` under `TYPE_CHECKING`; `tests/test_core_api.py`
+pins the interface. A backend reports raw
+names: `-A` masks the built state once, for every backend, so it never reads `-A`
+or `-L`. Its options carry only collection settings (`core_api.BackendOptions`).
 
 To register it:
 

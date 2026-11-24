@@ -14,10 +14,10 @@ from typing import TYPE_CHECKING, Dict, List, Optional, Tuple, cast, overload
 if TYPE_CHECKING:
     from typing import Final
 
-    from qtop_py.state_types import ClusterState, Config, IdentifierMaps, Options, SampleSnapshot
+    from qtop_py.core_state_types import ClusterState, Config, IdentifierMaps, Options, SampleSnapshot
 
-from qtop_py import safety
-from qtop_py.cluster_state import validate_cluster_state
+from qtop_py import core_safety as safety
+from qtop_py.core_cluster_state import validate_cluster_state
 from qtop_py.schedulers.metadata import job_identity, mask_job_extensions, mask_node_extensions
 
 SNAPSHOT_NAME: "Final" = "qtop-snapshot.json"

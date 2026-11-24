@@ -1,13 +1,13 @@
 ## Copyright (c) 2026 qtop contributors
 ## SPDX-License-Identifier: MIT
 import json
-from types import SimpleNamespace
 
 import pytest
 
-from qtop_py.cluster_state import validate_cluster_state
+from qtop_py.core_api import BackendOptions
+from qtop_py.core_cluster_state import validate_cluster_state
+from qtop_py.core_sample import anonymize_state
 from qtop_py.plugins.slurm import SlurmBatchSystem
-from qtop_py.sample import anonymize_state
 from qtop_py.schedulers.gpu import parse_gpu_gres
 from qtop_py.snapshot import Snapshot
 
@@ -52,7 +52,7 @@ def backend(tmp_path, details):
         path = tmp_path / (name + ".txt")
         path.write_text(text)
         paths[name + "_file"] = str(path)
-    return SlurmBatchSystem(paths, {}, SimpleNamespace(ANONYMIZE=False))
+    return SlurmBatchSystem(paths, {}, BackendOptions())
 
 
 def test_bindings_survive_export_replay_and_anonymization(tmp_path):

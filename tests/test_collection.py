@@ -1,21 +1,26 @@
 ## Copyright (c) 2026 qtop contributors
 ## SPDX-License-Identifier: MIT
+import contextlib
 import io
 import os
+import signal
 import subprocess
 import sys
 import threading
+import time
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 
-from qtop_py import fileutils, utils, yaml_parser
-from qtop_py import process as process_io
-from qtop_py.errors import OperationalError
+from qtop_py import core_inputs as inputs
+from qtop_py import core_process as process_io
+from qtop_py import core_yaml_parser as yaml_parser
+from qtop_py import fileutils, utils
+from qtop_py.core_errors import OperationalError
+from qtop_py.core_process import communicate_with_timeout
 from qtop_py.plugins.slurm import SlurmBatchSystem
 from qtop_py.plugins.slurm_json import SlurmJSONBatchSystem
-from qtop_py.process import communicate_with_timeout
 from qtop_py.runtime import RunResources
 from qtop_py.schedulers import collector, registry
 from qtop_py.schedulers.collection import CollectionPoller
@@ -147,6 +152,24 @@ def test_cancellation_reaps_clients_and_inherited_pipe_holders(child_exits):
     assert process.stdout.closed and process.stderr.closed
 
 
+@pytest.mark.skipif(os.name != "posix", reason="process groups are POSIX-specific")
+def test_group_stragglers_that_escaped_the_first_kill_are_killed():
+    """A child forked while killpg() is delivered can miss it; once the leader is reaped, kill the rest."""
+    code = "import os,time; pid=os.fork(); time.sleep(60) if pid==0 else None"
+    leader = subprocess.Popen([sys.executable, "-c", code], start_new_session=True)
+    leader.wait(10)  # the leader exits at once; its child stays in the group, as if it escaped the kill
+    try:
+        os.killpg(leader.pid, 0)
+        process_io._kill_group_stragglers(leader)
+        with pytest.raises((ProcessLookupError, PermissionError)):  # gone, or only a zombie left (macOS: EPERM)
+            for _ in range(100):  # the killed child is reaped by init shortly after
+                os.killpg(leader.pid, 0)
+                time.sleep(0.01)
+    finally:
+        with contextlib.suppress(ProcessLookupError, PermissionError):
+            os.killpg(leader.pid, signal.SIGKILL)
+
+
 @pytest.fixture
 def frame_context(tmp_path, monkeypatch):
     monkeypatch.setattr(sys, "argv", ["qtop", "-b", "slurm_json"])
@@ -256,7 +279,7 @@ def test_collection_process_has_an_explicit_working_directory(tmp_path):
     output.mkdir()
     target = output / "trace"
     command = shlex.quote(sys.executable) + " -c " + shlex.quote("from pathlib import Path; print(Path('marker').read_text())")
-    process_io.execute_shell_batch_commands({"trace": command}, {"trace": str(target)}, "trace", str(output), cancel=threading.Event(), cwd=str(working))
+    process_io.execute_shell_batch_commands({"trace": command}, {"trace": str(target)}, "trace", str(output), cancel=threading.Event(), cwd=str(working), env=os.environ)
     assert target.read_text().strip() == "correct RPC directory"
 
 
@@ -341,12 +364,12 @@ def test_startup_progress_observes_live_stream_before_waiting(tmp_path, monkeypa
 
     command = shlex.quote(sys.executable) + " -c " + shlex.quote("print('jobs'); raise SystemExit(%s)" % int(fails))
     try:
-        process_io.execute_shell_batch_commands({"jobs": command}, {"jobs": str(destination)}, "jobs", str(tmp_path), input_options=options)
+        process_io.execute_shell_batch_commands({"jobs": command}, {"jobs": str(destination)}, "jobs", str(tmp_path), input_options=options, env=os.environ)
     except OperationalError:
         assert fails
     else:
         assert not fails
-        with fileutils.open_input(str(destination), options=options) as source:
+        with inputs.open_input(str(destination), options=options) as source:
             assert source.read() == "jobs\n"
     assert output.getvalue() == ".."  # parsing the saved response adds no dots
     assert processes[0].stdout.closed and processes[0].stderr.closed
@@ -422,7 +445,8 @@ def test_a_failed_optional_command_is_dropped_while_the_rest_complete(tmp_path):
 
 @pytest.mark.parametrize("demanding", (False, True), ids=("default", "demanding"))
 def test_live_state_is_validated_once_unless_demanding(frame_context, monkeypatch, demanding):
-    from qtop_py import cluster_state, snapshot
+    from qtop_py import core_cluster_state as cluster_state
+    from qtop_py import snapshot
 
     frame, args, _config, _resources = frame_context
     args.DEMANDING = demanding

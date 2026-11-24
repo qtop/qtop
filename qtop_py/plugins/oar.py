@@ -8,16 +8,16 @@ import re
 from collections import OrderedDict
 from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Tuple
 
-from qtop_py import fileutils, yaml_parser
+from qtop_py import core_yaml_parser as yaml_parser
+from qtop_py.core_api import FileEmptyError, GenericBatchSystem, check_empty_file, open_input
 from qtop_py.schedulers.oar_extension import OAR_EXTENSION
 from qtop_py.schedulers.tabular import TabularStatExtractor
-from qtop_py.serialiser import GenericBatchSystem
 
 if TYPE_CHECKING:
     from typing import Final
 
-    from qtop_py.source_trace import TraceMasker
-    from qtop_py.state_types import ClusterState, Config, JobsInfo, Node, Options, QueuesInfo
+    from qtop_py.core_api import TraceMasker
+    from qtop_py.core_state_types import ClusterState, Config, JobsInfo, Node, Options, QueuesInfo
 
 DEFAULT_NODE_STATE_MAPPING: "Final" = {"Alive": "-", "Dead": "d", "Suspected": "s", "Mixed": "%", "Unknown": "?"}
 
@@ -41,11 +41,11 @@ class OarStatExtractor(TabularStatExtractor):
         """Parse oarstat output into job records; an empty file yields none."""
         all_values: List[Any] = list()
         try:
-            fileutils.check_empty_file(orig_file)
-        except fileutils.FileEmptyError:
+            check_empty_file(orig_file)
+        except FileEmptyError:
             logging.error("File %s seems to be empty.", orig_file)
             return all_values
-        with fileutils.open_input(orig_file, "r", encoding="utf-8", errors="replace", options=self.options) as fin:
+        with open_input(orig_file, "r", encoding="utf-8", errors="replace", options=self.options) as fin:
             logging.debug("File state before OarStatExtractor.extract_qstat: %(fin)s", {"fin": fin})
             _ = fin.readline()  # header
             fin.readline()  # dashes
@@ -58,7 +58,6 @@ class OarStatExtractor(TabularStatExtractor):
                     qstat_values = self._process_qstat_line(pattern, line, re_match_positions)
                 except AttributeError as error:
                     raise ValueError("Cannot parse OAR job row: %s" % line.strip()) from error
-                qstat_values["Queue"] = self.anonymize(qstat_values["Queue"], "qs")
                 all_values.append(qstat_values)
 
         return all_values
@@ -236,23 +235,18 @@ class OARBatchSystem(GenericBatchSystem):
     def _read_oarnodes_s_yaml(self, fn_s: str) -> Dict[str, Any]:
         if not os.path.isfile(fn_s):
             raise FileNotFoundError("OAR node input is not a regular file: %s" % fn_s)
-        anonymize = self.oar_stat_maker.anonymize_func()
         logging.debug("File %s exists: %s", fn_s, os.path.isfile(fn_s))
         if os.stat(fn_s).st_size == 0:
             raise ValueError("OAR node input is empty: %s" % fn_s)
         data = yaml_parser.safe_load(fn_s, DEF_INDENT=4, options=self.options)
-        if self.options.ANONYMIZE:
-            nodes_resids = dict([(anonymize(node, "wns"), resid_state.items()) for node, resid_state in data.items()])
-        else:
-            nodes_resids = dict([(node, resid_state.items()) for node, resid_state in data.items()])
-        return nodes_resids
+        return {node: resid_state.items() for node, resid_state in data.items()}
 
     def _read_oarnodes_y_textyaml(self, fn: str) -> Dict[int, Any]:
         """Stream relevant YAML fields; blanks do not terminate resource records."""
         resources: Dict[int, Any] = {}
         resid = None
         jobs_list = False
-        with fileutils.open_input(fn, encoding="utf-8", errors="replace", options=self.options) as stream:
+        with open_input(fn, encoding="utf-8", errors="replace", options=self.options) as stream:
             for line in stream:
                 text = line.strip()
                 if not text or text.startswith("#") or text in ("---", "..."):

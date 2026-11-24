@@ -7,14 +7,13 @@ import re
 from collections import OrderedDict
 from typing import TYPE_CHECKING, Any, Dict, List, Tuple
 
-from qtop_py import fileutils
-from qtop_py.serialiser import GenericBatchSystem, StatExtractor
+from qtop_py.core_api import GenericBatchSystem, open_input
 
 if TYPE_CHECKING:
     from typing import Final
 
-    from qtop_py.source_trace import TraceMasker
-    from qtop_py.state_types import Config, JobsInfo, Node, Options, QueuesInfo
+    from qtop_py.core_api import TraceMasker
+    from qtop_py.core_state_types import Config, JobsInfo, Node, Options, QueuesInfo
 
 ## bhosts STATUS to qtop node symbols: '-' usable, 'j' full, 'b' busy, 'o' closed by an
 ## administrator or policy (counted off), 'd' down or unreachable, '?' anything else.
@@ -76,8 +75,6 @@ class LSFBatchSystem(GenericBatchSystem):
         self.bjobs_file = scheduler_output_filenames.get("bjobs_file", "")
         self.config = config
         self.options = options
-        # With -A, one stable mapping for users, queues and hosts across all three traces.
-        self.anonymize = StatExtractor(config, options).anonymize
 
     def get_jobs_info(self) -> "JobsInfo":
         """Return job IDs (array elements as id[index]), users, LSF states and queues from bjobs."""
@@ -91,7 +88,7 @@ class LSFBatchSystem(GenericBatchSystem):
         """
         queues: Dict[str, Any] = OrderedDict()
         for row in self._table(self.bqueues_file, "QUEUE_NAME"):
-            limit, name = row.get("MAX", "-"), self.anonymize(row["QUEUE_NAME"], "qs")
+            limit, name = row.get("MAX", "-"), row["QUEUE_NAME"]
             queues[name] = {"queue_name": name, "run": 0, "queued": 0, "lm": limit if limit != "-" else "--", "state": row["STATUS"]}
         for job in self._jobs():
             queue = queues.setdefault(job["queue"], {"queue_name": job["queue"], "run": 0, "queued": 0, "lm": "--", "state": "?"})
@@ -103,7 +100,7 @@ class LSFBatchSystem(GenericBatchSystem):
         """Return hosts from bhosts, filling each one's slots with the jobs bjobs places there, in bjobs order."""
         nodes: Dict[str, Dict[str, Any]] = OrderedDict()
         for row in self._table(self.bhosts_file, "HOST_NAME"):
-            maximum, name = row.get("MAX", "-"), self.anonymize(row["HOST_NAME"], "wns")
+            maximum, name = row.get("MAX", "-"), row["HOST_NAME"]
             node: Dict[str, Any] = OrderedDict()
             node["domainname"] = name
             node["np"] = int(maximum) if maximum.isdigit() else 0
@@ -162,7 +159,7 @@ class LSFBatchSystem(GenericBatchSystem):
     def _read_bjobs(self, path: str) -> List[Dict[str, Any]]:
         """Parse bjobs -o "... delimiter='|'" output, whose header names the columns."""
         jobs: List[Dict[str, Any]] = []
-        with fileutils.open_input(path, "r", encoding="utf-8", errors="replace", options=self.options) as stream:
+        with open_input(path, "r", encoding="utf-8", errors="replace", options=self.options) as stream:
             lines = [line.rstrip("\n") for line in stream if line.strip()]
         if not lines or lines[0].strip().startswith(NO_JOBS):
             return jobs
@@ -182,17 +179,17 @@ class LSFBatchSystem(GenericBatchSystem):
             jobs.append(
                 {
                     "id": row["JOBID"] if index == "0" else "%s[%s]" % (row["JOBID"], index),
-                    "user": self.anonymize(row["USER"], "users"),
+                    "user": row["USER"],
                     "state": row["STAT"],
-                    "queue": self.anonymize(row["QUEUE"], "qs"),
-                    "slots": OrderedDict((self.anonymize(host, "wns"), count) for host, count in slots.items()),
+                    "queue": row["QUEUE"],
+                    "slots": OrderedDict((host, count) for host, count in slots.items()),
                 }
             )
         return jobs
 
     def _table(self, path: str, first_column: str) -> List[Dict[str, str]]:
         """Parse a whitespace-aligned bhosts/bqueues table by its header names."""
-        with fileutils.open_input(path, "r", encoding="utf-8", errors="replace", options=self.options) as stream:
+        with open_input(path, "r", encoding="utf-8", errors="replace", options=self.options) as stream:
             lines = [line.split() for line in stream if line.strip()]
         if not lines or lines[0][0] != first_column:
             raise ValueError("LSF table %s does not start with a %s header" % (path, first_column))

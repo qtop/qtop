@@ -13,18 +13,20 @@ import time
 from typing import TYPE_CHECKING, Any, Callable, Dict, Mapping, Tuple, Type
 from xml.etree.ElementTree import ParseError  # nosec B405 - exception class only; parsing is in plugins/sge.py
 
-from qtop_py import __version__, configuration, fileutils, process, sample
+from qtop_py import __version__, configuration, fileutils
+from qtop_py import core_process as process
+from qtop_py import core_sample as sample
 from qtop_py.colormap import user_to_color_default
 from qtop_py.configuration import CONFIG_ERRORS
 from qtop_py.constants import QTOPCONF_YAML
-from qtop_py.errors import OperationalError
+from qtop_py.core_errors import OperationalError
+from qtop_py.core_serialiser import GenericBatchSystem
 from qtop_py.runtime import RunPaths, RunResources
 from qtop_py.schedulers.registry import decide_batch_system
-from qtop_py.serialiser import GenericBatchSystem
 from qtop_py.snapshot import Snapshot
 
 if TYPE_CHECKING:
-    from qtop_py import state_types
+    from qtop_py import core_state_types as state_types
 
 
 def finalize_filepaths_schedulercommands(args: Any, config: Dict[str, Any], backend: Type[GenericBatchSystem]) -> Dict[str, Tuple[str, str]]:
@@ -59,7 +61,9 @@ def _run_commands_concurrently(INPUT_FNs_commands: Mapping[str, Tuple[str, str]]
     progress = {"input_options": args} if getattr(args, "_input_progress", None) is not None else {}
 
     def run(key: str) -> str:
-        return process.execute_shell_batch_commands(commands, filenames, key, _savepath, timeout=SETTINGS.TIMEOUT, cancel=stop, **progress, **controls)
+        return process.execute_shell_batch_commands(
+            commands, filenames, key, _savepath, timeout=SETTINGS.TIMEOUT, cancel=stop, env=os.environ, config_name=QTOPCONF_YAML, **progress, **controls
+        )
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=max(1, len(filenames)), thread_name_prefix="qtop-command") as pool:
         futures = {key: pool.submit(run, key) for key in filenames}
@@ -140,11 +144,9 @@ def MVU_collect_snapshot(
         if args.load_sample:
             cluster_state = args.sample_snapshot["state"]
         elif args.SAMPLE and args.ANONYMIZE:
-            # Collect originals only in memory so all backends share one mapping.
-            capture_args = copy.copy(args)
-            capture_args.ANONYMIZE = False
-            scheduling_system = collected.system if collected is not None else backend(trace_paths, config, capture_args)
-            cluster_state = collected.state if collected is not None else scheduling_system.get_cluster_state(capture_args)
+            # Mask the built state once, so the archive and the display share one mapping.
+            scheduling_system = collected.system if collected is not None else backend(trace_paths, config, args)
+            cluster_state = collected.state if collected is not None else scheduling_system.get_cluster_state(args)
             cluster_state, mappings = sample.anonymize_state(cluster_state)
             config, omitted = sample.sanitize_config(config, mappings)
             snapshot_config = copy.deepcopy(config)
@@ -155,7 +157,7 @@ def MVU_collect_snapshot(
                 raise OperationalError("Support archive was not initialized.")
             sample.save_snapshot(archive, cluster_state, snapshot_config, args, scheduler, __version__, omitted)
             if args.masked_traces:
-                from qtop_py.source_trace import save_masked_traces
+                from qtop_py.core_source_trace import save_masked_traces
 
                 save_masked_traces(archive, scheduling_system, trace_paths, mappings)
         else:
@@ -163,7 +165,7 @@ def MVU_collect_snapshot(
             cluster_state = collected.state if collected is not None else scheduling_system.get_cluster_state(args)
     except (ValueError, UnicodeError, ParseError) as error:
         raise OperationalError("Cannot parse %s scheduler input in %s: %s" % (scheduler, args.workdir, error)) from error
-    if collected is not None and args.ANONYMIZE and not args.SAMPLE:
+    if getattr(args, "ANONYMIZE", False) and not args.SAMPLE and not args.load_sample:  # -A: masked once, after the state is built
         cluster_state = sample.anonymize_state(cluster_state)[0]
     # The poller's collect() already validated its state; --demanding validates it again here.
     prevalidated = collected is not None and cluster_state is collected.state and not getattr(args, "DEMANDING", False)
@@ -175,7 +177,6 @@ def MVU_collect_snapshot(
 def make_collector(args: Any, config: Dict[str, Any], backend: Any, scheduler: str) -> Callable[[str, threading.Event], Any]:
     """Build a collector with a single capability probe and fallback decision."""
     capture_args, capture_config = copy.copy(args), copy.deepcopy(config)
-    capture_args.ANONYMIZE = False
     selected = backend
     probed = False
 
@@ -200,7 +201,7 @@ def make_collector(args: Any, config: Dict[str, Any], backend: Any, scheduler: s
             state = system.get_cluster_state(collection_args)
         finally:
             probed = True
-        from qtop_py.cluster_state import validate_cluster_state
+        from qtop_py.core_cluster_state import validate_cluster_state
 
         state = validate_cluster_state(state)
         return state, system, selected, files if capture_args.SAMPLE else {}

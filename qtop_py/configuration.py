@@ -13,12 +13,12 @@ from typing import TYPE_CHECKING, Any, Dict, List, Mapping, NamedTuple, Set, Tup
 if TYPE_CHECKING:
     from typing import Final
 
-    from qtop_py.state_types import Config
+    from qtop_py.core_state_types import Config
 
-from qtop_py import fileutils, yaml_parser
+from qtop_py import core_yaml_parser as yaml_parser
+from qtop_py import fileutils
 from qtop_py.colormap import color_to_code, nodestate_to_color_default, user_to_color_default
 from qtop_py.constants import (
-    DEFAULT_SCHEDULER_COMMAND_TIMEOUT,
     MAX_USER_ACCOUNTS_HEADER_LEN,
     PALETTES_YAML,
     QTOPCONF_YAML,
@@ -27,8 +27,9 @@ from qtop_py.constants import (
     USER_ID_RANKING_COUNT_KEYS,
     USER_ID_RANKING_NAME_KEYS,
 )
-from qtop_py.errors import OperationalError
-from qtop_py.safety import ResourceLimitError, literal_eval
+from qtop_py.core_errors import OperationalError
+from qtop_py.core_process import DEFAULT_SCHEDULER_COMMAND_TIMEOUT
+from qtop_py.core_safety import ResourceLimitError, literal_eval
 
 # Parsed YAML layers by path, each with the stat signature it was parsed under.
 # Watch mode reloads the configuration every frame; an unchanged file is
@@ -391,7 +392,7 @@ def prepare_config(config: Dict[str, Any], args: Any = None) -> Tuple[Dict[str, 
     if args is not None:
         config = update_config_with_cmdline_vars(args, config)
         validate_config(config)
-    config["savepath"] = fileutils.private_save_directory(config["savepath"])
+    config["savepath"] = fileutils.with_fallback("savepath", config["savepath"], fileutils.private_save_directory)
     logging.debug("%s files will be saved in directory %s.", config["scheduler"], config["savepath"])
 
     return config, user_to_color, nodestate_to_color

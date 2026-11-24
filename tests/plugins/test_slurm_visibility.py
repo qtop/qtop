@@ -6,11 +6,12 @@ from types import SimpleNamespace
 import pytest
 
 from qtop_py import qtop
-from qtop_py.cluster_state import cluster_state_totals, validate_cluster_state
+from qtop_py.core_api import BackendOptions
+from qtop_py.core_cluster_state import cluster_state_totals, validate_cluster_state
+from qtop_py.core_sample import anonymize_state
 from qtop_py.mvu import MVU_Model
 from qtop_py.mvu_query import Cluster, WNOccupancy
 from qtop_py.plugins.slurm import SlurmBatchSystem
-from qtop_py.sample import anonymize_state
 from qtop_py.snapshot import Snapshot
 
 
@@ -77,7 +78,7 @@ def trace(tmp_path):
                 path = tmp_path / (key + ".txt")
                 path.write_text(text)
                 files[key + "_file"] = str(path)
-        return SlurmBatchSystem(files, {}, SimpleNamespace(ANONYMIZE=False))
+        return SlurmBatchSystem(files, {}, BackendOptions())
 
     return create
 

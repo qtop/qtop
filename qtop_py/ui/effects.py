@@ -7,7 +7,7 @@ import sys
 from collections import OrderedDict
 from typing import Any, Callable, Dict, Iterable, Optional, Tuple
 
-from qtop_py.safety import visible_text
+from qtop_py.core_safety import visible_text
 from qtop_py.ui.controls import KeyboardInput, read_rule_choices
 from qtop_py.ui.terminal import menu_terminal
 from qtop_py.ui.viewport import Viewport, terminal_rows

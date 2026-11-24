@@ -7,10 +7,11 @@ from types import SimpleNamespace
 
 import pytest
 
-from qtop_py.cluster_state import validate_cluster_state
+from qtop_py.core_api import BackendOptions
+from qtop_py.core_cluster_state import validate_cluster_state
+from qtop_py.core_sample import anonymize_state
 from qtop_py.plugins.slurm import SlurmBatchSystem
 from qtop_py.plugins.slurm_json import SUPPORTED_PARSERS, SlurmJSONBatchSystem, UnsupportedSlurmJSON
-from qtop_py.sample import anonymize_state
 
 SAMPLES = Path(__file__).parent / "slurm_json_samples"
 
@@ -76,14 +77,14 @@ def test_grouped_pending_arrays_use_existing_bounded_expansion(json_files):
         job["array_task_string"] = "1-5:2%2"
 
     mutate(json_files, "jobs", change)
-    state = backend(json_files).get_cluster_state(SimpleNamespace(ANONYMIZE=False))
+    state = backend(json_files).get_cluster_state(BackendOptions())
     assert [job["id"] for job in state["jobs"]] == ["80+1", "42_1", "42_3", "42_5", "80+0"]
 
 
 def test_empty_clusters_have_valid_empty_lists(json_files):
     for kind in ("jobs", "nodes", "partitions"):
         mutate(json_files, kind, lambda data, kind=kind: data.__setitem__(kind, []))
-    state = backend(json_files).get_cluster_state(SimpleNamespace(ANONYMIZE=False))
+    state = backend(json_files).get_cluster_state(BackendOptions())
     assert state == {"jobs": [], "nodes": [], "queues": []}
 
 
@@ -251,7 +252,7 @@ def test_unavailable_details_are_explicitly_estimated_and_flags_are_retained(jso
 
     mutate(json_files, "jobs", change)
     system = backend(json_files)
-    state = system.get_cluster_state(SimpleNamespace(ANONYMIZE=True))
+    state = anonymize_state(system.get_cluster_state(BackendOptions()))[0]  # -A masks after the state is built
     assert state["jobs"][0]["state"] == "RUNNING+COMPLETING"
     assert state["nodes"][0]["cpu_allocation_source"] == "estimated"
     assert "alice" not in str(state)

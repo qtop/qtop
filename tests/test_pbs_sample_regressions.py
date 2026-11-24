@@ -7,6 +7,7 @@ from types import SimpleNamespace
 import pytest
 
 from qtop_py import qtop
+from qtop_py.core_api import BackendOptions
 from qtop_py.mvu import MVU_Model
 from qtop_py.mvu_query import Cluster, WNOccupancy
 from qtop_py.plugins.pbs import PBSStatExtractor
@@ -59,7 +60,7 @@ def test_pbs_qstat_regex_skips_unmatched_lines(tmp_path, job_name, user):
         "this line does not match either supported qstat format\n"
         f"1234.server      {job_name:16} {user:16} 00:01:00 R workq\n"
     )
-    extractor = PBSStatExtractor({}, SimpleNamespace(ANONYMIZE=False))
+    extractor = PBSStatExtractor({}, BackendOptions())
 
     assert extractor._extract_qstat_regex(str(qstat_file)) == [{"JobId": "1234", "UnixAccount": user, "S": "R", "Queue": "workq"}]
 
@@ -70,7 +71,7 @@ def test_pbs_json_queue_limit_and_boolean_enabled_state(tmp_path):
         '{"Queue": {"workq": {"state_count": "Transit:0 Queued:2 Held:0 Waiting:0 Running:3 Exiting:0 Begun:0", "enabled": true, "max_run": 24}}}',
         encoding="utf-8",
     )
-    extractor = PBSStatExtractor({}, SimpleNamespace(ANONYMIZE=False))
+    extractor = PBSStatExtractor({}, BackendOptions())
 
     queues = extractor._extract_qstatq_json(str(qstatq_file))
 
@@ -82,7 +83,7 @@ def test_pbs_json_queue_limit_and_boolean_enabled_state(tmp_path):
 def test_pbs_json_queue_status_preserves_enabled_and_started(tmp_path, enabled, started, expected):
     path = tmp_path / "queues.json"
     path.write_text(json.dumps({"Queue": {"workq": {"enabled": enabled, "started": started, "state_count": "Running:3 Queued:2"}}}))
-    rows = PBSStatExtractor({}, SimpleNamespace(ANONYMIZE=False)).extract_qstatq(str(path))
+    rows = PBSStatExtractor({}, BackendOptions()).extract_qstatq(str(path))
     assert rows[0]["state"] == expected
     assert qtop.queue_is_blocked(expected, "pbs") == (expected != "E R")
 
@@ -91,7 +92,7 @@ def test_pbs_json_queue_status_preserves_enabled_and_started(tmp_path, enabled, 
 def test_pbs_json_counts_are_independent_of_order_and_whitespace(tmp_path, counts):
     path = tmp_path / "queues.json"
     path.write_text(json.dumps({"Queue": {"workq": {"enabled": True, "state_count": counts}}}))
-    rows = PBSStatExtractor({}, SimpleNamespace(ANONYMIZE=False)).extract_qstatq(str(path))
+    rows = PBSStatExtractor({}, BackendOptions()).extract_qstatq(str(path))
     assert (rows[0]["run"], rows[0]["queued"]) == ("3", "2")
     assert rows[-1] == {"Total_running": 3, "Total_queued": 2}
 
@@ -101,7 +102,7 @@ def test_pbs_json_missing_or_invalid_counts_fail_explicitly(tmp_path, counts):
     path = tmp_path / "queues.json"
     path.write_text(json.dumps({"Queue": {"workq": {"enabled": True, "state_count": counts}}}))
     with pytest.raises(ValueError, match="Invalid PBS state_count for queue workq"):
-        PBSStatExtractor({}, SimpleNamespace(ANONYMIZE=False)).extract_qstatq(str(path))
+        PBSStatExtractor({}, BackendOptions()).extract_qstatq(str(path))
 
 
 def test_decide_remapping_handles_mixed_numeric_and_named_nodes():

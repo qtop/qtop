@@ -11,12 +11,13 @@ import subprocess
 import sys
 import tarfile
 from pathlib import Path
-from types import SimpleNamespace
 
 import pytest
 
-from qtop_py import sample, yaml_parser
-from qtop_py.cluster_state import validate_cluster_state
+from qtop_py import core_sample as sample
+from qtop_py import core_yaml_parser as yaml_parser
+from qtop_py.core_api import BackendOptions
+from qtop_py.core_cluster_state import validate_cluster_state
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -187,14 +188,14 @@ def test_raw_companion_survives_parser_failure(tmp_path):
 
 
 def test_masked_details_and_array_ids_keep_source_structure():
+    from qtop_py.core_source_trace import TraceMasker
     from qtop_py.plugins.slurm import SlurmBatchSystem
-    from qtop_py.source_trace import TraceMasker
 
     mask = TraceMasker({"job": {"42": "100000"}, "node": {"node001": "n_anon_wn_0", "node002": "n_anon_wn_1"}})
     assert mask("42_[0-3%2]", "job") == "100000_[0-3%2]"
     assert mask("42_1", "job") == "100000_1"
     assert mask("42+1", "job") == "100000+1"
-    backend = SlurmBatchSystem({}, {}, SimpleNamespace(ANONYMIZE=False))
+    backend = SlurmBatchSystem({}, {}, BackendOptions())
     _, text = backend.mask_source_trace("scontrol_file", "JobId=42 UserId=private_alice(999)\n   Nodes=node[001-002] CPU_IDs=0-3,7 Mem=12 GRES=gpu:h100:2\n", mask)
     assert "Nodes=n_anon_wn_0,n_anon_wn_1 CPU_IDs=0-3,7 Mem=12" in text
     assert "JobId=100000" in text
@@ -202,10 +203,10 @@ def test_masked_details_and_array_ids_keep_source_structure():
 
 
 def test_json_traces_redact_unused_fields_and_keep_native_identifiers(tmp_path):
+    from qtop_py.core_source_trace import TraceMasker
     from qtop_py.plugins.pbs import PBSBatchSystem
-    from qtop_py.source_trace import TraceMasker
 
-    backend = PBSBatchSystem({}, {}, SimpleNamespace(ANONYMIZE=False))
+    backend = PBSBatchSystem({}, {}, BackendOptions())
     mask = TraceMasker({"job": {"17": "100000"}, "user": {"alice": "u_anon_user_0"}, "queue": {"batch": "q_anon_q_0"}})
     jobs = {
         "Jobs": {"17.private-server": {"Job_Owner": "alice@private-host", "Job_Name": "private-name", "queue": "batch", "job_state": "R", "secret": {"private-label": 7654321}}}
@@ -226,14 +227,14 @@ def test_json_traces_redact_unused_fields_and_keep_native_identifiers(tmp_path):
 
 @pytest.mark.parametrize("payload", ("<job_info><private_tag>secret</private_tag></job_info>", '<!DOCTYPE job_info [<!ENTITY secret "private">]><job_info>&secret;</job_info>'))
 def test_unsupported_xml_traces_are_omitted_without_exception_details(tmp_path, payload):
+    from qtop_py.core_source_trace import save_masked_traces
     from qtop_py.plugins.sge import SGEBatchSystem
-    from qtop_py.source_trace import save_masked_traces
 
     path = tmp_path / "private.xml"
     path.write_text(payload)
     archive = tmp_path / "masked.tar"
     with tarfile.open(str(archive), "w") as stream:
-        save_masked_traces(stream, SGEBatchSystem({}, {}, SimpleNamespace(ANONYMIZE=False)), {"sge_file": str(path)}, {})
+        save_masked_traces(stream, SGEBatchSystem({}, {}, BackendOptions()), {"sge_file": str(path)}, {})
     with tarfile.open(str(archive)) as stream:
         assert stream.getnames() == ["masked-traces/report.json"]
         report = stream.extractfile("masked-traces/report.json").read()
@@ -491,13 +492,12 @@ def test_slurm_cpu_details_and_resources_survive_snapshot_replay(tmp_path, anony
 
 
 def test_anonymized_slurm_parent_and_child_ids_remain_consistent():
-    from types import SimpleNamespace
 
     from qtop_py.plugins.slurm import SlurmBatchSystem
 
     source = ROOT / "tests/plugins/slurm_samples/arrays_and_het"
     files = {name + "_file": str(source / (name + ".txt")) for name in ("squeue", "sinfo", "scontrol")}
-    options = SimpleNamespace(ANONYMIZE=False)
+    options = BackendOptions()
     original = SlurmBatchSystem(files, {}, options).get_cluster_state(options)
     masked, mappings = sample.anonymize_state(original)
     array_parents = set()
@@ -613,12 +613,12 @@ def test_beta1_parent_references_anonymize_and_replay(tmp_path, parent_present, 
     ],
 )
 def test_masked_traces_reject_long_malformed_fields(scheduler, key, text):
+    from qtop_py.core_source_trace import TraceMasker
     from qtop_py.plugins.oar import OARBatchSystem
     from qtop_py.plugins.pbs import PBSBatchSystem
     from qtop_py.plugins.slurm import SlurmBatchSystem
-    from qtop_py.source_trace import TraceMasker
 
-    backend = {"oar": OARBatchSystem, "pbs": PBSBatchSystem, "slurm": SlurmBatchSystem}[scheduler]({}, {}, SimpleNamespace(ANONYMIZE=False))
+    backend = {"oar": OARBatchSystem, "pbs": PBSBatchSystem, "slurm": SlurmBatchSystem}[scheduler]({}, {}, BackendOptions())
     with pytest.raises(ValueError):
         backend.mask_source_trace(key, text, TraceMasker({}))
 

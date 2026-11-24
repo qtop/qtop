@@ -4,16 +4,17 @@
 
 import json
 from pathlib import Path
-from types import SimpleNamespace
 
 import pytest
 
+from qtop_py.core_api import BackendOptions
+from qtop_py.core_sample import anonymize_state
 from qtop_py.plugins.htcondor import JOB_STATES, HTCondorBatchSystem, slot_type
 
 SAMPLE = Path(__file__).resolve().parent / "htcondor_samples" / "basic"
 
 
-def backend(tmp_path=None, status=None, jobs=None, anonymize=False):
+def backend(tmp_path=None, status=None, jobs=None):
     """Return an HTCondor backend over the sample traces, with either trace replaced (JSON-encoded unless str)."""
     paths = {"status_json": str(SAMPLE / "condor_status.json"), "q_json": str(SAMPLE / "condor_q.json")}
     for key, value in (("status_json", status), ("q_json", jobs)):
@@ -21,7 +22,7 @@ def backend(tmp_path=None, status=None, jobs=None, anonymize=False):
             path = tmp_path / key
             path.write_text(value if isinstance(value, str) else json.dumps(value))
             paths[key] = str(path)
-    return HTCondorBatchSystem(paths, {}, SimpleNamespace(ANONYMIZE=anonymize))
+    return HTCondorBatchSystem(paths, {}, BackendOptions())
 
 
 def nodes_by_name(condor):
@@ -94,18 +95,19 @@ def test_status_ads_need_name_and_machine(tmp_path):
 
 
 def test_anonymize_maps_machines_in_status_and_remote_hosts_alike():
-    condor = backend(anonymize=True)
-    _job_ids, users, _states, queues = condor.get_jobs_info()
-    nodes = nodes_by_name(condor)
-    assert "alice" not in users and "group_physics" not in queues and "default" in queues
+    """-A masks the built state once; a job's remote host and its status machine stay one node."""
+    state = anonymize_state(backend().get_cluster_state(BackendOptions()))[0]
+    text = json.dumps(state)
     machines = {ad["Machine"] for ad in json.loads((SAMPLE / "condor_status.json").read_text())}
-    assert len(machines) == 5 and not machines & set(nodes)
-    assert len(nodes) == 5  # remote hosts resolved to the same anonymized machines
-    assert any(node["np"] == 32 and node["core_job_map"].get(0) == "100.0" for node in nodes.values())
+    assert len(machines) == 5 and not any(machine in text for machine in machines)
+    assert "alice" not in text and "group_physics" not in text
+    assert len(state["nodes"]) == 5
+    job_ids = {job["id"] for job in state["jobs"]}
+    assert any(node["np"] == 32 and node["core_job_map"].get("0") in job_ids for node in state["nodes"])
 
 
 def test_every_job_status_letter_is_configured():
-    from qtop_py import yaml_parser
+    from qtop_py import core_yaml_parser as yaml_parser
 
     config = yaml_parser.parse(str(Path(__file__).resolve().parents[2] / "qtopconf.yaml"))
     assert set(JOB_STATES.values()) == set(config["state_abbreviations"]["htcondor"])

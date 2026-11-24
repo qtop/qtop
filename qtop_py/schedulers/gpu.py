@@ -5,12 +5,12 @@
 import re
 from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Optional, Sequence
 
-from qtop_py.hostlist import HostlistParser
+from qtop_py.core_hostlist import HostlistParser
 
 if TYPE_CHECKING:
     from typing import Final
 
-    from qtop_py.state_types import GPUResource
+    from qtop_py.core_state_types import GPUResource
 
 MAX_GPU_INDICES: "Final" = 100000
 

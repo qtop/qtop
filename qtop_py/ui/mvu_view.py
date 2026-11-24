@@ -14,16 +14,17 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, Iterable, Iterator, List,
 if TYPE_CHECKING:
     from typing import Final
 
+    from qtop_py.core_state_types import Config
     from qtop_py.mvu import TerminalInfo
-    from qtop_py.state_types import Config
 
-from qtop_py import __version__, utils, yaml_parser
+from qtop_py import __version__, utils
+from qtop_py import core_yaml_parser as yaml_parser
 from qtop_py.constants import DEFAULT_USER_ACCOUNTS_HEADER, DEFAULT_USER_ID_RANKING
+from qtop_py.core_safety import visible_text
 from qtop_py.mvu import MVU_compress_colored_line as compress_colored_line
 from qtop_py.mvu import MVU_gauge_core_vectors as gauge_core_vectors
 from qtop_py.mvu import MVU_queue_layout
 from qtop_py.mvu_query import WNOccupancy
-from qtop_py.safety import visible_text
 from qtop_py.ui.terminal import capture_terminal
 from qtop_py.ui.viewport import terminal_rows
 
@@ -128,7 +129,7 @@ class TextDisplay(object):
         """Return a watch-mode toggle (keys 1-4), else the command-line value."""
         return bool(getattr(self.MVU_model, "display_overrides", {}).get(key, getattr(self.args, key, default)))
 
-    def display_selected_sections(self, _savepath: str, SAMPLE_FILENAME: str, QTOP_LOGFILE: str) -> None:
+    def display_selected_sections(self, _savepath: str, SAMPLE_FILENAME: str, QTOP_LOGFILE: Optional[str]) -> None:
         """Print the sections listed in user_display_parts, minus those disabled with -1, -2 or -3."""
         sections_off = {idx: self._toggled("sect_%d_off" % idx, False) for idx in (1, 2, 3)}  # -1, -2, -3, or keys 1-3
         display_parts: Dict[str, Tuple[Callable[..., Any], Tuple[Any, ...]]] = {
@@ -151,7 +152,7 @@ class TextDisplay(object):
             self.display_account_totals()
         self.display_backend_messages()
 
-        if not self.args.ANONYMIZE:
+        if not self.args.ANONYMIZE and QTOP_LOGFILE:
             print("\nLog file created in %s" % os.path.expandvars(QTOP_LOGFILE))
         if self.args.STRICTCHECK:
             message = self.wns_occupancy.MVU_check_jobs(self.cluster)
@@ -256,7 +257,7 @@ class TextDisplay(object):
             else:
                 print(line + note + "\n")
         if getattr(self.args, "SHOW_QUEUE_NODES", False):
-            from qtop_py.queue_nodes import queue_node_counts
+            from qtop_py.core_queue_nodes import queue_node_counts
 
             try:
                 counts = queue_node_counts(snapshot.worker_nodes, list(snapshot.queues_dict), self.MVU_model.backend, self.config.get("experimental_queue_nodes"))
@@ -743,7 +744,7 @@ class TextDisplay(object):
         return sep_str
 
 
-def MVU_view(view_data: Tuple[Any, Any, Any], savepath: str, sample_filename: str, logfile: str) -> TextDisplay:
+def MVU_view(view_data: Tuple[Any, Any, Any], savepath: str, sample_filename: str, logfile: Optional[str]) -> TextDisplay:
     """Render the model's frame to stdout and return the display."""
     model, cluster, occupancy = view_data
     display = TextDisplay(model.snapshot, model.config, model.viewport, occupancy, cluster, model.args, MVU_model=model)

@@ -2,11 +2,13 @@
 ## SPDX-License-Identifier: MIT
 """Tests for the LSF backend's bhosts, bqueues and bjobs parsing."""
 
+import json
 from pathlib import Path
-from types import SimpleNamespace
 
 import pytest
 
+from qtop_py.core_api import BackendOptions
+from qtop_py.core_sample import anonymize_state
 from qtop_py.plugins.lsf import HOST_STATES, LSFBatchSystem, parse_exec_host
 
 SAMPLE = Path(__file__).resolve().parent / "lsf_samples" / "basic"
@@ -15,7 +17,7 @@ BQUEUES = "QUEUE_NAME PRIO STATUS MAX JL/U JL/P JL/H NJOBS PEND RUN SUSP\n"
 BJOBS = "JOBID|JOBINDEX|STAT|USER|QUEUE|EXEC_HOST\n"
 
 
-def backend(tmp_path=None, bhosts=None, bqueues=None, bjobs=None, anonymize=False):
+def backend(tmp_path=None, bhosts=None, bqueues=None, bjobs=None):
     """Return an LSF backend over the sample traces, with any given trace replaced."""
     paths = {key: str(SAMPLE / name) for key, name in (("bhosts_file", "bhosts.txt"), ("bqueues_file", "bqueues.txt"), ("bjobs_file", "bjobs.txt"))}
     for key, text in (("bhosts_file", bhosts), ("bqueues_file", bqueues), ("bjobs_file", bjobs)):
@@ -23,7 +25,7 @@ def backend(tmp_path=None, bhosts=None, bqueues=None, bjobs=None, anonymize=Fals
             path = tmp_path / key
             path.write_text(text)
             paths[key] = str(path)
-    return LSFBatchSystem(paths, {}, SimpleNamespace(ANONYMIZE=anonymize))
+    return LSFBatchSystem(paths, {}, BackendOptions())
 
 
 def nodes_by_name(lsf):
@@ -122,13 +124,13 @@ def test_closed_or_inactive_queues_are_blocked(state, blocked):
 
 
 def test_anonymize_maps_hosts_users_and_queues_consistently():
-    lsf = backend(anonymize=True)
-    _job_ids, users, _states, queues = lsf.get_jobs_info()
-    nodes = nodes_by_name(lsf)
-    assert "alice" not in users and "normal" not in queues
-    assert not any(name.startswith("host") for name in nodes)
-    # The host bjobs places 1001 on is the same anonymized bhosts host.
-    assert any(node["core_job_map"].get(0) == "1001" and node["np"] == 32 for node in nodes.values())
+    """-A masks the built state once; the host bjobs places a job on is the same bhosts host."""
+    state = anonymize_state(backend().get_cluster_state(BackendOptions()))[0]
+    text = json.dumps(state)
+    assert "alice" not in text and "normal" not in text
+    assert not any(node["domainname"].startswith("host") for node in state["nodes"])
+    job_ids = {job["id"] for job in state["jobs"]}
+    assert any(node["core_job_map"].get("0") in job_ids and node["np"] == 32 for node in state["nodes"])
 
 
 def test_every_mapped_state_is_a_known_symbol():

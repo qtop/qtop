@@ -19,8 +19,9 @@ if sys.version_info < (3, 12):
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-from qtop_py import sample, yaml_parser
-from qtop_py.cluster_state import build_cluster_state, cluster_state_totals, validate_cluster_state
+from qtop_py import core_sample as sample
+from qtop_py import core_yaml_parser as yaml_parser
+from qtop_py.core_cluster_state import build_cluster_state, cluster_state_totals, validate_cluster_state
 from qtop_py.plugins.pbs import PBSBatchSystem, PBSStatExtractor
 from qtop_py.plugins.slurm import SlurmBatchSystem
 from qtop_py.snapshot import Snapshot
@@ -215,11 +216,11 @@ def test_snapshot_import_rejects_malformed_nested_metadata(tmp_path, change):
         sample.load_snapshot(path)
 
 
-def test_pbs_json_queue_anonymization_supplies_its_category(tmp_path):
+def test_pbs_json_queue_rows_keep_raw_names_for_masking_after_the_state(tmp_path):
     path = tmp_path / "qstat_q.json"
     path.write_text('{"Queue":{"private_queue":{"enabled":true,"state_count":"Transit:0 Queued:2 Held:0 Waiting:0 Running:1 Exiting:0"}}}')
-    rows = PBSStatExtractor({}, SimpleNamespace(ANONYMIZE=True)).extract_qstatq(str(path))
-    assert rows[0]["queue_name"] == "p_anon_q_0"
+    rows = PBSStatExtractor({}, SimpleNamespace(SOURCEDIR=None)).extract_qstatq(str(path))
+    assert rows[0]["queue_name"] == "private_queue"  # -A masks the built state, not the parser
     assert rows[0]["run"] == "1" and rows[0]["queued"] == "2"
 
 
@@ -242,7 +243,7 @@ def _containers(value, found):
 
 @given(JSON_SHAPED)
 def test_raw_and_visible_matches_both_passes_and_owns_every_container(value):
-    from qtop_py.safety import raw_and_visible, rebuild, visible_data
+    from qtop_py.core_safety import raw_and_visible, rebuild, visible_data
 
     raw, safe = raw_and_visible(value)
     assert repr(raw) == repr(rebuild(value)) and repr(safe) == repr(visible_data(value))  # repr: key order and str subclasses
@@ -253,7 +254,7 @@ def test_raw_and_visible_matches_both_passes_and_owns_every_container(value):
 
 @given(st.dictionaries(JSON_KEYS | st.floats(allow_nan=False) | st.none(), JSON_LEAVES, max_size=6))
 def test_core_job_map_fast_path_accepts_exactly_what_isinstance_accepts(cores):
-    from qtop_py.cluster_state import _core_job_map_types_valid
+    from qtop_py.core_cluster_state import _core_job_map_types_valid
 
     assert _core_job_map_types_valid(cores) == all(isinstance(core, (str, int)) and isinstance(job, str) for core, job in cores.items())
 

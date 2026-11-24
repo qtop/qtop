@@ -4,16 +4,18 @@
 ## qtop is a tool to monitor queuing systems - https://github.com/qtop/qtop
 ##
 
+import json
 from pathlib import Path
 from xml.etree import ElementTree as etree
 
 import pytest
 
+from qtop_py.core_sample import anonymize_state
 from qtop_py.plugins.sge import SGEBatchSystem, SGEStatExtractor
 
 
 class Options(object):
-    ANONYMIZE = False
+    SOURCEDIR = None
 
 
 def test_contrib_queue_counts_remain_numeric_while_aggregating():
@@ -34,7 +36,7 @@ def test_scheduler_xml_accepts_predefined_entities(tmp_path, encoding):
     sample = tmp_path / "qstat.xml"
     sample.write_bytes("<job_info><name>alice &amp; bob</name></job_info>".encode(encoding))
 
-    extractor = SGEStatExtractor({}, Options(), {})
+    extractor = SGEStatExtractor({}, Options())
     tree, root = extractor.get_xml_tree(str(sample))
 
     assert tree.getroot() is root
@@ -56,7 +58,7 @@ def test_scheduler_xml_accepts_predefined_entities(tmp_path, encoding):
 def test_scheduler_xml_rejects_dtds(tmp_path, encoding, xml):
     sample = tmp_path / "qstat.xml"
     sample.write_bytes(xml.encode(encoding))
-    extractor = SGEStatExtractor({}, Options(), {})
+    extractor = SGEStatExtractor({}, Options())
 
     with pytest.raises(etree.ParseError, match="DTD declarations are not supported in scheduler XML"):
         extractor.get_xml_tree(str(sample))
@@ -65,7 +67,7 @@ def test_scheduler_xml_rejects_dtds(tmp_path, encoding, xml):
 def test_scheduler_xml_still_reports_malformed_input(tmp_path):
     sample = tmp_path / "qstat.xml"
     sample.write_bytes(b"<job_info>")
-    extractor = SGEStatExtractor({}, Options(), {})
+    extractor = SGEStatExtractor({}, Options())
 
     with pytest.raises(etree.ParseError):
         extractor.get_xml_tree(str(sample))
@@ -107,14 +109,11 @@ def test_optional_queue_xml_fields_keep_defaults():
     assert system._extract_queues("Queue-List", root)[0]["state"] == "?"
 
 
-@pytest.mark.parametrize("anonymize", (False, True))
-def test_empty_optional_submission_time_is_ignored(anonymize):
+def test_empty_optional_submission_time_is_ignored():
     queue = etree.fromstring(
         "<Queue-List><job_list><JB_owner>alice</JB_owner><JB_job_number>123</JB_job_number><JB_name>job</JB_name><state>qw</state><JB_submission_time/></job_list></Queue-List>"
     )
-    options = Options()
-    options.ANONYMIZE = anonymize
-    extractor = SGEStatExtractor({}, options, {})
+    extractor = SGEStatExtractor({}, Options())
     records = extractor._extract_job_info([], queue, "job_list", "batch")
     assert len(records) == 1
     assert records[0]["S"] == "qw"
@@ -157,7 +156,6 @@ def test_running_job_occupancy_uses_allocated_slots(slots, expected):
 def test_contrib_occupied_slots_match_running_allocations():
     sample = Path(__file__).resolve().parents[2] / "qtop_py" / "contrib" / "qstat.F.xml.stdout"
     options = Options()
-    options.SAMPLE = 0
     system = SGEBatchSystem({"sge_file": str(sample)}, {}, options)
     state = system.get_cluster_state(options)
     expected = sum(int(job.findtext("slots", "1")) for job in system.sge_stat_maker.root.findall("queue_info/Queue-List/job_list") if job.get("state") == "running")
@@ -168,11 +166,9 @@ def test_contrib_occupied_slots_match_running_allocations():
 def test_node_queues_keep_xml_order_not_hash_order():
     template = '<Queue-List><resource name="qname">{queue}</resource><resource name="hostname">node01</resource><resource name="num_proc">4</resource></Queue-List>'
     options = Options()
-    options.SAMPLE = 0
     system = SGEBatchSystem({}, {}, options)
     queues = "".join(template.format(queue=queue) for queue in ("zeta", "alpha", "mid", "alpha"))
     system.sge_stat_maker.root = etree.fromstring("<job_info><queue_info>" + queues + "</queue_info></job_info>")
-    system.sge_stat_maker.tree = etree.ElementTree(system.sge_stat_maker.root)
     (node,) = system.get_worker_nodes([], [], options)
     assert node["qname"] == ["zeta", "alpha", "mid"]  # a set gave a different order per PYTHONHASHSEED
 
@@ -187,10 +183,8 @@ def test_allocated_slots_survive_multiple_queue_instances(same_host):
     )
     queues = template.format(queue="batch", host="node01", slots=2, job=100) + template.format(queue="long", host="node01" if same_host else "node02", slots=3, job=200)
     options = Options()
-    options.SAMPLE = 0
     system = SGEBatchSystem({}, {}, options)
     system.sge_stat_maker.root = etree.fromstring("<job_info><queue_info>" + queues + "</queue_info></job_info>")
-    system.sge_stat_maker.tree = etree.ElementTree(system.sge_stat_maker.root)
     nodes = system.get_worker_nodes([], [], options)
     allocations = [job for node in nodes for job in node["core_job_map"].values()]
     assert len(nodes) == (1 if same_host else 2)
@@ -241,10 +235,8 @@ def test_idle_nodes_keep_queue_membership(slots_used, same_host):
         if slots_used is not None:
             etree.SubElement(queue, "slots_used").text = slots_used
     options = Options()
-    options.SAMPLE = 0
     system = SGEBatchSystem({}, {}, options)
     system.sge_stat_maker.root = root
-    system.sge_stat_maker.tree = etree.ElementTree(root)
 
     nodes = system.get_worker_nodes([], [], options)
 
@@ -254,7 +246,7 @@ def test_idle_nodes_keep_queue_membership(slots_used, same_host):
     assert all(node["core_job_map"] == {} and node["np"] == 16 and node["state"] == "-" for node in nodes)
 
 
-def _whole_queue_nodes(tmp_path, patterns, instances, anonymize=False):
+def _whole_queue_nodes(tmp_path, patterns, instances):
     template = (
         '<Queue-List><name>{queue}@{host}</name><resource name="qname">{queue}</resource><resource name="hostname">{host}</resource>'
         '<resource name="num_proc">16</resource>{job}</Queue-List>'
@@ -267,7 +259,6 @@ def _whole_queue_nodes(tmp_path, patterns, instances, anonymize=False):
     path = tmp_path / "qstat.F.xml.stdout"
     path.write_text("<job_info><queue_info>" + queues + "</queue_info><job_info/></job_info>")
     options = Options()
-    options.ANONYMIZE, options.SAMPLE = anonymize, 0
     config = {} if patterns is None else {"sge_whole_queues": patterns}
     system = SGEBatchSystem({"sge_file": str(path)}, config, options)
     system.get_jobs_info()
@@ -293,9 +284,13 @@ def test_idle_whole_queue_node_stays_idle(tmp_path):
     assert node["core_job_map"] == {} and node["existing_busy_cores"] == 0
 
 
-def test_whole_queues_match_raw_names_under_anonymization(tmp_path):
-    (node,) = _whole_queue_nodes(tmp_path, ["world"], [("world", "node01", "100", 2)], anonymize=True)
-    assert node["existing_busy_cores"] == 16 and "world" not in node["qname"][0]
+def test_whole_queues_match_raw_names_then_anonymize_masks_them(tmp_path):
+    (node,) = _whole_queue_nodes(tmp_path, ["world"], [("world", "node01", "100", 2)])
+    assert node["existing_busy_cores"] == 16
+    system = SGEBatchSystem({"sge_file": str(tmp_path / "qstat.F.xml.stdout")}, {"sge_whole_queues": ["world"]}, Options())
+    state = anonymize_state(system.get_cluster_state(Options()))[0]  # -A masks the built state
+    assert "world" not in json.dumps(state) and "node01" not in json.dumps(state)
+    assert len(state["nodes"][0]["core_job_map"]) == 16
 
 
 @pytest.mark.parametrize("num_proc, np", [("16", "16"), ("65536", "65536"), ("65537", 0), ("100000000", 0), ("-4", 0), ("abc", 0), ("", 0)])
@@ -309,10 +304,20 @@ def test_num_proc_is_capped_at_parse_time(tmp_path, caplog, num_proc, np, whole)
     path = tmp_path / "qstat.F.xml.stdout"
     path.write_text("<job_info><queue_info>" + queue + "</queue_info><job_info/></job_info>")
     options = Options()
-    options.SAMPLE = 0
     system = SGEBatchSystem({"sge_file": str(path)}, {"sge_whole_queues": ["world"]} if whole else {}, options)
     system.get_jobs_info()
     (node,) = system.get_worker_nodes([], [], options)
     assert node["np"] == (int(np) if np else 2)
     assert node["existing_busy_cores"] == (int(np) if np and whole else 2)
     assert ("Ignoring invalid SGE num_proc" in caplog.text) is (not np)
+
+
+@pytest.mark.parametrize("name", ["world", "world@node01@x"])
+def test_queue_list_name_must_be_queue_at_node(tmp_path, name):
+    path = tmp_path / "qstat.F.xml.stdout"
+    path.write_text(
+        '<job_info><queue_info><Queue-List><name>%s</name><resource name="qname">world</resource>'
+        '<resource name="hostname">node01</resource></Queue-List></queue_info><job_info/></job_info>' % name
+    )
+    with pytest.raises(ValueError, match="queue@node"):
+        SGEBatchSystem({"sge_file": str(path)}, {}, Options()).get_jobs_info()

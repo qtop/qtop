@@ -17,6 +17,6 @@ The shipped qtopconf.yaml and scheduler fixtures are executable examples.
   Do not use them in configuration. Unsupported indentation transitions and
   incompatible list/mapping continuations raise ValueError.
 
-Input bytes, line length and nesting depth are limited by qtop_py.safety.
+Input bytes, line length and nesting depth are limited by qtop_py.core_safety.
 Container transition checks live in _list_container and _extend_list; changes
 must retain the configuration and OAR sample tests and deterministic fuzz gate.

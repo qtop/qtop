@@ -17,8 +17,12 @@ from xml.etree.ElementTree import ParseError
 import pytest
 from mvu_support import explicit_model
 
-from qtop_py import configuration, qtop, safety, sample, yaml_parser
-from qtop_py import process as process_io
+from qtop_py import configuration, qtop
+from qtop_py import core_process as process_io
+from qtop_py import core_safety as safety
+from qtop_py import core_sample as sample
+from qtop_py import core_yaml_parser as yaml_parser
+from qtop_py.core_api import BackendOptions
 from qtop_py.plugins.pbs import PBSStatExtractor
 from qtop_py.plugins.sge import SGEStatExtractor
 from qtop_py.snapshot import Snapshot
@@ -121,7 +125,7 @@ def test_pbs_json_cannot_bypass_shared_size_limit(tmp_path, monkeypatch):
     path = tmp_path / "qstat.json"
     path.write_text(json.dumps({"Jobs": {}, "padding": "x" * 100}))
     with pytest.raises(safety.ResourceLimitError):
-        PBSStatExtractor({}, SimpleNamespace(ANONYMIZE=False)).extract_qstat(str(path))
+        PBSStatExtractor({}, BackendOptions()).extract_qstat(str(path))
 
 
 @pytest.mark.parametrize("kind", ["bytes", "depth", "elements"])
@@ -135,7 +139,7 @@ def test_xml_limits_are_enforced_during_parsing(tmp_path, monkeypatch, kind):
         monkeypatch.setattr(safety, "MAX_ITEMS", 2)
     path = tmp_path / "input.xml"
     path.write_text(text)
-    extractor = SGEStatExtractor({}, SimpleNamespace(ANONYMIZE=False), {})
+    extractor = SGEStatExtractor({}, BackendOptions())
     with pytest.raises(ParseError, match="XML input exceeds"):
         extractor.get_xml_tree(str(path))
 
@@ -187,7 +191,7 @@ def test_command_output_overflow_preserves_previous_trace_and_cleans_tempfiles(t
     script = "import sys; sys.%s.buffer.write(b'x'*65536)" % channel
     command = " ".join(shlex.quote(arg) for arg in (sys.executable, "-c", script))
     with pytest.raises(qtop.OperationalError, match="output exceeds"):
-        process_io.execute_shell_batch_commands({"trace": command}, {"trace": str(path)}, "trace", str(tmp_path))
+        process_io.execute_shell_batch_commands({"trace": command}, {"trace": str(path)}, "trace", str(tmp_path), env=os.environ)
     assert path.read_bytes() == b"previous snapshot"
     assert list(tmp_path.iterdir()) == [path]
 

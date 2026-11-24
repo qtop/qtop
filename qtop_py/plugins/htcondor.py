@@ -7,13 +7,12 @@ import logging
 from collections import OrderedDict
 from typing import TYPE_CHECKING, Any, Dict, List, Mapping
 
-from qtop_py import fileutils
-from qtop_py.serialiser import GenericBatchSystem, StatExtractor
+from qtop_py.core_api import GenericBatchSystem, open_input
 
 if TYPE_CHECKING:
     from typing import Final
 
-    from qtop_py.state_types import Config, JobsInfo, Node, Options, QueuesInfo
+    from qtop_py.core_state_types import Config, JobsInfo, Node, Options, QueuesInfo
 
 ## condor_q JobStatus codes, as the letters condor_q prints (6, transferring output, is shown as E).
 JOB_STATES: "Final" = {1: "I", 2: "R", 3: "X", 4: "C", 5: "H", 6: "E", 7: "S"}
@@ -49,8 +48,6 @@ class HTCondorBatchSystem(GenericBatchSystem):
         self.q_file = scheduler_output_filenames.get("q_json", "")
         self.config = config
         self.options = options
-        # With -A, one stable mapping for owners, groups and machines across both traces.
-        self.anonymize = StatExtractor(config, options).anonymize
 
     def get_jobs_info(self) -> "JobsInfo":
         """Return ClusterId.ProcId job IDs, owners, condor_q state letters and accounting groups."""
@@ -73,7 +70,7 @@ class HTCondorBatchSystem(GenericBatchSystem):
         for ad in self._ads(self.status_file):
             if not isinstance(ad.get("Machine"), str) or not ad["Machine"] or not isinstance(ad.get("Name"), str):
                 raise ValueError("condor_status ad lacks Name or Machine: %r" % ad.get("Name"))
-            name = self.anonymize(ad["Machine"], "wns")
+            name = ad["Machine"]
             machine = machines.setdefault(name, {"cores": 0, "states": set()})
             kind = slot_type(ad)
             if kind == "Partitionable":
@@ -105,7 +102,7 @@ class HTCondorBatchSystem(GenericBatchSystem):
         slot, separator, machine = name.partition("@")
         if not separator or not slot or not machine:
             raise ValueError("Invalid HTCondor slot name: %r" % name)
-        return "%s@%s" % (slot, self.anonymize(machine, "wns"))
+        return "%s@%s" % (slot, machine)
 
     def _jobs(self) -> List[Dict[str, Any]]:
         if not hasattr(self, "_parsed_jobs"):
@@ -120,16 +117,16 @@ class HTCondorBatchSystem(GenericBatchSystem):
         remote = ad.get("RemoteHost")
         return {
             "id": "%s.%s" % (cluster, proc),
-            "user": self.anonymize(ad["Owner"], "users"),
+            "user": ad["Owner"],
             "state": JOB_STATES[status],
-            "queue": self.anonymize(group, "qs") if isinstance(group, str) and group else DEFAULT_GROUP,
+            "queue": group if isinstance(group, str) and group else DEFAULT_GROUP,
             "slot": self._slot(remote) if isinstance(remote, str) and remote else "",
             "cpus": _count(ad.get("RequestCpus"), 1) or 1,
         }
 
     def _ads(self, path: str) -> List[Mapping[str, Any]]:
         """Read a JSON ClassAd list; empty output (condor_q with no jobs) is an empty list."""
-        with fileutils.open_input(path, "r", encoding="utf-8", errors="replace", options=self.options) as stream:
+        with open_input(path, "r", encoding="utf-8", errors="replace", options=self.options) as stream:
             text = stream.read()
         if not text.strip():
             return []

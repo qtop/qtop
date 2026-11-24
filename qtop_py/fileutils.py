@@ -13,7 +13,9 @@ import stat
 import sys
 import tarfile
 import tempfile
-from typing import Any, Dict, Generator, List, Mapping, Optional, Set, TextIO, Tuple
+from typing import Any, Callable, Dict, Generator, List, Mapping, Optional, Set, TextIO, Tuple, TypeVar
+
+from qtop_py.core_safety import visible_text
 
 # Off by default: shared site trees (/gpfs/home, group-writable /home) would otherwise stop every run.
 # --strict-parents turns it on, so a writable non-sticky ancestor of savepath or the log stops qtop.
@@ -48,22 +50,6 @@ class StartupProgress:
         self.output = None
 
 
-def input_source(options: Any, path: str) -> Any:
-    """Observe a scheduler source when startup reporting is enabled."""
-    progress = getattr(options, "_input_progress", None)
-    return progress.source(path) if progress is not None else contextlib.ExitStack()
-
-
-@contextlib.contextmanager
-def open_input(path: str, mode: str = "r", options: Any = None, **kwargs: Any) -> Generator[Any, None, None]:
-    """Open scheduler input and report its first startup open and close."""
-    with contextlib.ExitStack() as reporting:
-        # Sonar path finding: this path is the caller's chosen input, by design; see docs/sonar-review.md
-        with open(path, mode, **kwargs) as stream:
-            reporting.enter_context(input_source(options, path))
-            yield stream
-
-
 def _open_owned(path: str, flags: int, mode: int, directory_fd: int) -> int:
     try:
         return os.open(path, flags, mode, dir_fd=directory_fd)
@@ -74,6 +60,27 @@ def _open_owned(path: str, flags: int, mode: int, directory_fd: int) -> int:
             raise
         os.chmod(path, mode, dir_fd=directory_fd, follow_symlinks=False)
         return os.open(path, flags, mode, dir_fd=directory_fd)
+
+
+_MAX_SYMLINK_HOPS = 40
+
+
+def _site_parent_link(name: str, directory_fd: int) -> Optional[str]:
+    """Return the target of a root-owned parent symlink in a directory others cannot write, else None."""
+    try:
+        link = os.stat(name, dir_fd=directory_fd, follow_symlinks=False)
+    except OSError:
+        return None
+    if not stat.S_ISLNK(link.st_mode) or link.st_uid != 0 or os.fstat(directory_fd).st_mode & (stat.S_IWGRP | stat.S_IWOTH):
+        return None
+    return os.readlink(name, dir_fd=directory_fd)
+
+
+def _path_parts(path: str) -> List[str]:
+    parts = path.strip(os.sep).split(os.sep)
+    if not parts[0]:
+        raise PermissionError(errno.EACCES, "The filesystem root cannot be a save directory", path)
+    return parts
 
 
 @contextlib.contextmanager
@@ -95,21 +102,44 @@ def _private_directory(path: str) -> Generator[Tuple[str, int], None, None]:
                     if private_root == alias or private_root.startswith(alias + os.sep):
                         private_root = "/private" + private_root
                 break
-    parts = path.strip(os.sep).split(os.sep)
-    if not parts[0]:
-        raise PermissionError(errno.EACCES, "The filesystem root cannot be a save directory", path)
+    parts = _path_parts(path)
     uid = os.geteuid()
     flags = os.O_DIRECTORY | os.O_NOFOLLOW
     parent_access = getattr(os, "O_PATH", os.O_RDONLY)
     fd = os.open(os.sep, flags | parent_access)
+    hops = 0
     try:
-        for index, part in enumerate(parts):
+        index = 0
+        while index < len(parts):
+            part = parts[index]
             with contextlib.suppress(FileExistsError):
                 os.mkdir(part, mode=0o700, dir_fd=fd)
             parent = os.path.join(os.sep, *parts[: index + 1])
             private_directory = index == len(parts) - 1 or parent == private_root or parent.startswith(private_root + os.sep)
             access = os.O_RDONLY if private_directory else parent_access
-            child_fd = _open_owned(part, flags | access, 0o700, fd) if private_directory else os.open(part, flags | access, dir_fd=fd)
+            try:
+                child_fd = _open_owned(part, flags | access, 0o700, fd) if private_directory else os.open(part, flags | access, dir_fd=fd)
+            except OSError as error:
+                # Site layouts such as an autofs /home -> /nfs/home (#615): follow a parent link only if root
+                # placed it where others cannot write; directories qtop owns are never followed.
+                target = None
+                if not private_directory and error.errno in (errno.ENOTDIR, errno.ELOOP):
+                    target = _site_parent_link(part, fd)
+                if target is None:
+                    raise
+                hops += 1
+                if hops > _MAX_SYMLINK_HOPS:
+                    raise OSError(errno.ELOOP, "Too many symbolic links in save directory path", path) from error
+                resolved = os.path.normpath(os.path.join(os.path.dirname(parent), target))
+                if private_root == parent or private_root.startswith(parent + os.sep):
+                    private_root = resolved + private_root[len(parent) :]
+                path = os.path.join(resolved, *parts[index + 1 :])
+                parts = _path_parts(path)
+                os.close(fd)
+                fd = os.open(os.sep, flags | parent_access)
+                index = 0
+                continue
+            index += 1
             os.close(fd)
             fd = child_fd
             info = os.fstat(fd)
@@ -149,10 +179,59 @@ def private_log_stream(path: str) -> io.TextIOWrapper:
         return stream
 
 
-def check_empty_file(orig_file: str) -> None:
-    """Raise FileEmptyError if the scheduler output file is empty."""
-    if os.path.getsize(orig_file) == 0:
-        raise FileEmptyError(orig_file)
+# Best-effort escape when savepath or the log cannot pass the checks above: a private directory
+# under /dev/shm (then the system temp dir), created through the same no-follow walk.
+FALLBACK_ROOTS: Tuple[str, ...] = ("/dev/shm",)  # nosec B108 - private 0700 subdirectory via _private_directory
+_fallback_warnings: Set[Tuple[str, str]] = set()
+_T = TypeVar("_T")
+
+
+def _fallback_roots() -> List[str]:
+    """QTOP_FALLBACK_DIR if set (e.g. node-local scratch), else /dev/shm and the system temp dir."""
+    override = os.environ.get("QTOP_FALLBACK_DIR")
+    roots = (os.path.expandvars(override),) if override else FALLBACK_ROOTS + (tempfile.gettempdir(),)
+    return [root for root in dict.fromkeys(roots) if os.path.isdir(root)]
+
+
+def _warn_fallback(what: str, path: str, error: OSError, fallback: str) -> None:
+    if (what, path) in _fallback_warnings:
+        return
+    _fallback_warnings.add((what, path))
+    reason = "%s%s" % (error.strerror or error, " (%s)" % error.filename if error.filename else "")
+    message = visible_text("warning: cannot use %s %s: %s; using %s instead (best effort; --strict-parents stops instead)" % (what, path, reason, fallback))
+    sys.stderr.write("qtop: %s\n" % message)
+    if logging.getLogger().handlers:  # before init_logging, Python's last-resort handler would repeat it
+        logging.getLogger(__name__).warning("%s", message)
+
+
+def with_fallback(what: str, path: str, attempt: Callable[[str], _T], leaf: str = "") -> _T:
+    """Return attempt(path), or attempt() on a private fallback directory with a warning if path fails.
+
+    With --strict-parents the original error propagates instead.
+    """
+    try:
+        return attempt(path)
+    except OSError as error:
+        if STRICT_PARENTS:
+            raise
+        for root in _fallback_roots():
+            directory = os.path.join(root, "qtop_fallback_%d" % os.geteuid())
+            candidate = os.path.join(directory, leaf) if leaf else directory
+            try:
+                result = attempt(candidate)
+            except OSError:
+                continue
+            _warn_fallback(what, path, error, candidate)
+            return result
+        raise
+
+
+def active_log_path() -> Optional[str]:
+    """Return the file the root logger writes to, which may be a fallback, or None without one."""
+    for handler in logging.getLogger().handlers:
+        if isinstance(handler, logging.FileHandler):
+            return handler.baseFilename
+    return None
 
 
 def get_new_temp_file(_savepath: str, suffix: str, prefix: str) -> Tuple[int, str]:
@@ -280,16 +359,6 @@ def get_sample_filename(SAMPLE_FILENAME: str, config: Mapping[str, Any]) -> str:
     else:
         SAMPLE_FILENAME = SAMPLE_FILENAME % {"datetime": "_" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")}
     return SAMPLE_FILENAME
-
-
-class FileEmptyError(Exception):
-    """A scheduler output file is empty; the message is also logged as a warning."""
-
-    def __init__(self, fn: str) -> None:
-        msg = "File %s is empty.\nIs your batch scheduler loaded with jobs?" % fn
-        Exception.__init__(self, msg)
-        logging.warning(msg)
-        self.fn = fn
 
 
 def deprecate_old_output_files(config: Mapping[str, Any]) -> None:

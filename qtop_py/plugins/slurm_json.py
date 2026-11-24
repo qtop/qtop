@@ -2,21 +2,21 @@
 ## SPDX-License-Identifier: MIT
 """Versioned Slurm JSON input using the existing Slurm accounting and GRES rules."""
 
-import copy
 import os
 import shlex
 from collections import Counter
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
-from qtop_py import fileutils, safety
+from qtop_py import core_safety as safety
+from qtop_py.core_api import open_input
 from qtop_py.plugins.slurm import SlurmBatchSystem, SlurmStatExtractor, slurm_accounting_state
 from qtop_py.schedulers.gpu import parse_gpu_gres
 
 if TYPE_CHECKING:
     from typing import Final
 
-    from qtop_py.source_trace import TraceMasker
-    from qtop_py.state_types import ClusterState, Config, Options
+    from qtop_py.core_api import TraceMasker
+    from qtop_py.core_state_types import ClusterState, Config, Options
 
 JOB_FLAG_PRIORITY: "Final" = (
     "COMPLETING",
@@ -73,7 +73,7 @@ def unique_fields(pairs: List[Tuple[str, Any]]) -> Dict[str, Any]:
 
 def read_response(path: str, key: str, options: Any = None) -> Tuple[str, List[Dict[str, Any]]]:
     """Reject unknown schemas, error responses and malformed record lists."""
-    with fileutils.open_input(path, encoding="utf-8", options=options) as stream:
+    with open_input(path, encoding="utf-8", options=options) as stream:
         data = safety.load_json(stream, object_pairs_hook=unique_fields)
     if not isinstance(data, dict):
         raise ValueError("Slurm JSON response must be an object")
@@ -135,9 +135,7 @@ class SlurmJSONBatchSystem(SlurmBatchSystem):
         )
 
     def __init__(self, scheduler_output_filenames: Dict[str, str], config: "Config", options: "Options") -> None:
-        raw_options = copy.copy(options)
-        raw_options.ANONYMIZE = False
-        super().__init__({}, config, raw_options)
+        super().__init__({}, config, options)
         self._topology: Dict[str, Dict[str, Any]] = {}
         self._gpu_inventory: Dict[str, Dict[str, Any]] = {}
         self._allocations: Dict[str, Dict[str, Tuple[List[int], int, bool]]] = {}
@@ -394,10 +392,6 @@ class SlurmJSONBatchSystem(SlurmBatchSystem):
         state["queues"] = list(queues.values())
         for node in state["nodes"]:
             node["qname"] = [name for name in node["qname"] if name]
-        if options.ANONYMIZE:
-            from qtop_py.sample import anonymize_state
-
-            state = anonymize_state(state)[0]
         return state
 
     def mask_source_trace(self, key: str, text: str, mask: "TraceMasker") -> Tuple[str, str]:

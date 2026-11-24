@@ -226,11 +226,11 @@ def test_runtime_validation_survives_optimization(tmp_path, optimized):
     empty.write_text("")
     code = """
 import sys
-from types import SimpleNamespace
-from qtop_py import fileutils, qtop, utils, yaml_parser
+from qtop_py import fileutils, qtop, utils, core_yaml_parser as yaml_parser
+from qtop_py.core_api import BackendOptions
 from qtop_py.plugins.oar import OARBatchSystem
 
-oar = OARBatchSystem({}, {}, SimpleNamespace(ANONYMIZE=False))
+oar = OARBatchSystem({}, {}, BackendOptions())
 def invalid_watch():
     original = sys.argv
     try:
@@ -375,6 +375,86 @@ def test_private_log_rejects_symlinked_parent(tmp_path):
     with pytest.raises(OSError):
         fileutils.private_log_stream(str(link / "qtop.log"))
     assert not (target / "qtop.log").exists()
+
+
+def _as_root_owned(monkeypatch, *links):
+    """Report these symlinks as root-owned, as a site's autofs/NFS links are."""
+    inodes = {os.lstat(str(link)).st_ino for link in links}
+    real_stat = os.stat
+
+    def stat_as_root(path, *args, **kwargs):
+        info = real_stat(path, *args, **kwargs)
+        if kwargs.get("follow_symlinks") is False and stat.S_ISLNK(info.st_mode) and info.st_ino in inodes:
+            values = list(info)
+            values[4] = 0
+            return os.stat_result(values)
+        return info
+
+    monkeypatch.setattr(fileutils.os, "stat", stat_as_root)
+
+
+def _site_home(tmp_path, target):
+    site = tmp_path / "site"
+    site.mkdir()
+    site.chmod(0o755)
+    (tmp_path / "export" / "home" / "alice").mkdir(parents=True)
+    home = site / "home"
+    home.symlink_to(target, target_is_directory=True)
+    return site, home
+
+
+@pytest.mark.parametrize("relative", (False, True))
+def test_private_log_follows_root_owned_site_home_link(tmp_path, monkeypatch, relative):
+    """#615: an autofs/NFS /home -> /export/home no longer stops qtop with 'Not a directory (home)'."""
+    _, home = _site_home(tmp_path, "../export/home" if relative else tmp_path / "export" / "home")
+    _as_root_owned(monkeypatch, home)
+    monkeypatch.setenv("HOME", str(home / "alice"))
+    qtop_root = tmp_path / "export" / "home" / "alice" / ".local" / "qtop"
+    qtop_root.mkdir(parents=True)
+    qtop_root.chmod(0o755)
+    with fileutils.private_log_stream(str(home / "alice" / ".local" / "qtop" / "logs" / "qtop.log")) as stream:
+        stream.write("ok\n")
+    assert (qtop_root / "logs" / "qtop.log").read_text() == "ok\n"
+    assert stat.S_IMODE(qtop_root.stat().st_mode) == 0o700
+
+
+def test_save_directory_resolves_root_owned_site_link(tmp_path, monkeypatch):
+    _, home = _site_home(tmp_path, tmp_path / "export" / "home")
+    _as_root_owned(monkeypatch, home)
+    target = tmp_path / "export" / "home" / "alice" / "results"
+    assert fileutils.private_save_directory(str(home / "alice" / "results")) == str(target)
+    assert stat.S_IMODE(target.stat().st_mode) == 0o700
+
+
+@pytest.mark.parametrize("mode", (0o775, 0o777, 0o1777))
+def test_root_owned_link_in_writable_parent_is_refused(tmp_path, monkeypatch, mode):
+    site, home = _site_home(tmp_path, tmp_path / "export" / "home")
+    _as_root_owned(monkeypatch, home)
+    site.chmod(mode)
+    with pytest.raises(OSError):
+        fileutils.private_save_directory(str(home / "alice" / "results"))
+    assert not (tmp_path / "export" / "home" / "alice" / "results").exists()
+
+
+def test_root_owned_link_as_qtop_owned_directory_is_refused(tmp_path, monkeypatch):
+    _, home = _site_home(tmp_path, tmp_path / "export" / "home")
+    _as_root_owned(monkeypatch, home)
+    exported = tmp_path / "export" / "home"
+    exported.chmod(0o755)
+    with pytest.raises(OSError):
+        fileutils.private_save_directory(str(home))
+    assert stat.S_IMODE(exported.stat().st_mode) == 0o755
+
+
+def test_root_owned_link_loop_is_bounded(tmp_path, monkeypatch):
+    site = tmp_path / "site"
+    site.mkdir()
+    site.chmod(0o755)
+    (site / "a").symlink_to("b", target_is_directory=True)
+    (site / "b").symlink_to("a", target_is_directory=True)
+    _as_root_owned(monkeypatch, site / "a", site / "b")
+    with pytest.raises(OSError):
+        fileutils.private_save_directory(str(site / "a" / "results"))
 
 
 def test_private_log_rejects_foreign_owner_before_chmod(tmp_path, monkeypatch):

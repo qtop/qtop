@@ -12,10 +12,11 @@ import string
 import tarfile
 import tempfile
 from pathlib import Path
-from types import SimpleNamespace
 from xml.etree.ElementTree import ParseError
 
-from qtop_py import configuration, sample
+from qtop_py import configuration
+from qtop_py import core_sample as sample
+from qtop_py.core_api import BackendOptions
 from qtop_py.plugins.oar import OarStatExtractor
 from qtop_py.plugins.pbs import PBSBatchSystem, PBSStatExtractor
 from qtop_py.plugins.sge import SGEStatExtractor
@@ -77,7 +78,7 @@ def exercise_document(target: str, data: bytes) -> None:
     # Syntax and shape failures are expected; assertions, resource failures,
     # OS errors and unrelated exceptions must remain visible to the fuzzer.
     rejected = (ValueError, TypeError, KeyError, IndexError, StopIteration, ParseError)
-    options = SimpleNamespace(ANONYMIZE=False)
+    options = BackendOptions()
     with tempfile.TemporaryDirectory(prefix="qtop-fuzz-") as directory:
         path = Path(directory) / "input"
         path.write_bytes(data[:4096])
@@ -85,7 +86,7 @@ def exercise_document(target: str, data: bytes) -> None:
             if target == "yaml":
                 configuration.parse_layer(str(path))
             elif target == "sge":
-                SGEStatExtractor({}, options, {}).get_xml_tree(str(path))
+                SGEStatExtractor({}, options).get_xml_tree(str(path))
             elif target == "pbs":
                 PBSStatExtractor({}, options)._extract_qstat_json(str(path))
             elif target == "oar":

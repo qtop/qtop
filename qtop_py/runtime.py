@@ -15,7 +15,8 @@ from collections import OrderedDict
 from types import TracebackType
 from typing import TYPE_CHECKING, Any, Callable, Dict, Generator, Iterable, Iterator, List, Mapping, NamedTuple, Optional, Tuple, Type
 
-from qtop_py import fileutils, sample
+from qtop_py import core_sample as sample
+from qtop_py import fileutils
 from qtop_py.constants import QTOPCONF_YAML
 from qtop_py.input_parsing import get_date_obj_from_str
 from qtop_py.snapshot import Snapshot

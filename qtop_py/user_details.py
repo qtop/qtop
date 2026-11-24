@@ -10,11 +10,11 @@ from functools import lru_cache
 from math import isfinite
 from typing import Any, Dict, Sequence
 
-from qtop_py.constants import DEFAULT_SCHEDULER_COMMAND_TIMEOUT, QTOPCONF_YAML
-from qtop_py.errors import OperationalError
+from qtop_py.constants import QTOPCONF_YAML
+from qtop_py.core_errors import OperationalError
+from qtop_py.core_process import DEFAULT_SCHEDULER_COMMAND_TIMEOUT, communicate_with_timeout, scheduler_env
+from qtop_py.core_safety import visible_text
 from qtop_py.input_parsing import extract_regex_detail
-from qtop_py.process import communicate_with_timeout, scheduler_env
-from qtop_py.safety import visible_text
 
 
 def MVU_resolve_user_details(model: Any, occupancy: Any, force: bool = False) -> None:
@@ -63,7 +63,7 @@ def get_detail_of_name(account_jobs_table: Sequence[Sequence[Any]], config: Dict
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             start_new_session=(os.name == "posix"),
-            env=scheduler_env(),
+            env=scheduler_env(os.environ),
         )
         raw_output, raw_err = communicate_with_timeout(p, timeout)
         output, err = (raw_output or b"").decode("utf-8", errors="replace"), raw_err.decode("utf-8", errors="replace")

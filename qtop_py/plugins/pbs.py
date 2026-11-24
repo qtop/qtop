@@ -19,16 +19,15 @@ import logging
 import re
 from typing import TYPE_CHECKING, Any, Dict, Iterable, Iterator, List, Optional, TextIO, Tuple, Union, cast
 
-import qtop_py.fileutils as fileutils
-from qtop_py.safety import load_json
+from qtop_py.core_api import FileEmptyError, GenericBatchSystem, check_empty_file, open_input, resolve_job_id
+from qtop_py.core_safety import load_json
 from qtop_py.schedulers.tabular import TabularStatExtractor
-from qtop_py.serialiser import GenericBatchSystem, resolve_job_id
 
 if TYPE_CHECKING:
     from typing import Final
 
-    from qtop_py.source_trace import TraceMasker
-    from qtop_py.state_types import Config, JobsInfo, Node, Options, QueuesInfo, RawQueue
+    from qtop_py.core_api import TraceMasker
+    from qtop_py.core_state_types import Config, JobsInfo, Node, Options, QueuesInfo
 
 # NQS request states mapped onto PBS single-letter job states.
 NQS_REQUEST_STATES: "Final" = {
@@ -79,13 +78,13 @@ class PBSStatExtractor(TabularStatExtractor):
         [{"JobId": "1234", "JobName": "My Job", "Queue": "workq", "UnixAccount": "user1", "S": "Q"}]
         """
         try:
-            fileutils.check_empty_file(orig_file)
-        except fileutils.FileEmptyError:
+            check_empty_file(orig_file)
+        except FileEmptyError:
             logging.error("File %s seems to be empty.", orig_file)
             all_qstat_values = []
         else:
             try:
-                with fileutils.open_input(orig_file, encoding="utf-8", errors="replace", options=self.options) as f:
+                with open_input(orig_file, encoding="utf-8", errors="replace", options=self.options) as f:
                     _ = load_json(f)
             except json.JSONDecodeError:
                 logging.info("Extracting qstat output using regex")
@@ -98,7 +97,7 @@ class PBSStatExtractor(TabularStatExtractor):
 
     def _extract_qstat_regex(self, qstat_file: str) -> List[Dict[str, Any]]:
         all_qstat_values = list()
-        with fileutils.open_input(qstat_file, "r", encoding="utf-8", errors="replace", options=self.options) as fin:
+        with open_input(qstat_file, "r", encoding="utf-8", errors="replace", options=self.options) as fin:
             re_match_positions = ("job_id", "user", "state", "queue_name")  # was: (1, 5, 7, 8), (1, 4, 5, 8)
 
             pattern = None
@@ -157,17 +156,16 @@ class PBSStatExtractor(TabularStatExtractor):
         if state is None:
             logging.warning("Unknown NQS request state %s in line: %s. Skipping.", m.group("state"), line.strip())
             return None
-        return {"JobId": m.group("job_id"), "UnixAccount": self.anonymize(m.group("user"), "users"), "S": state, "Queue": queue_name}
+        return {"JobId": m.group("job_id"), "UnixAccount": m.group("user"), "S": state, "Queue": queue_name}
 
     def _extract_qstat_json(self, qstat_file: str) -> List[Dict[str, Any]]:
         all_qstat_values = list()
-        with fileutils.open_input(qstat_file, "r", encoding="utf-8", errors="replace", options=self.options) as fin:
+        with open_input(qstat_file, "r", encoding="utf-8", errors="replace", options=self.options) as fin:
             data = load_json(fin)
             jobs = data["Jobs"]
             for job_id, job in jobs.items():
                 qstat_values = dict()
                 user = job["Job_Owner"].split("@")[0]
-                user = self.anonymize(user, "users")
                 qstat_values["JobId"] = job_id.split(".")[0]
                 qstat_values["Queue"] = job["queue"]
                 qstat_values["JobName"] = job["Job_Name"]
@@ -182,13 +180,13 @@ class PBSStatExtractor(TabularStatExtractor):
         [{"queue_name": "workq", "run": "63", "queued": "4", "lm": "", "state": "E"}]
         """
         try:
-            fileutils.check_empty_file(orig_file)
-        except fileutils.FileEmptyError:
+            check_empty_file(orig_file)
+        except FileEmptyError:
             logging.error("File %s seems to be empty.", orig_file)
             all_qstatq_values = []
         else:
             try:
-                with fileutils.open_input(orig_file, encoding="utf-8", errors="replace", options=self.options) as f:
+                with open_input(orig_file, encoding="utf-8", errors="replace", options=self.options) as f:
                     _ = load_json(f)
             except json.JSONDecodeError:
                 logging.info("Extracting qstat_q output using regex")
@@ -200,7 +198,6 @@ class PBSStatExtractor(TabularStatExtractor):
         return all_qstatq_values
 
     def _extract_qstatq_regex(self, qstatq_file: str) -> List[Dict[str, Any]]:
-        anonymize = self.anonymize_func()
         queue_search = (
             r"^(?P<queue_name>[\w.-]+)\s+"
             r"(?:--|[0-9]+[mgtkp]b[a-z]*)\s+"
@@ -216,7 +213,7 @@ class PBSStatExtractor(TabularStatExtractor):
         all_qstatq_values = list()
         total_running_jobs: Union[int, str] = 0  # str once read from the totals line
         total_queued_jobs: Union[int, str] = 0
-        with fileutils.open_input(qstatq_file, "r", encoding="utf-8", errors="replace", options=self.options) as fin:
+        with open_input(qstatq_file, "r", encoding="utf-8", errors="replace", options=self.options) as fin:
             fin.readline()
             fin.readline()
             fin.readline()
@@ -227,7 +224,7 @@ class PBSStatExtractor(TabularStatExtractor):
                 m = re.search(queue_search, line)
                 n = re.search(run_qd_search, line)
                 if m is not None:
-                    queue_name = m.group("queue_name") if not self.options.ANONYMIZE else anonymize(m.group("queue_name"), "qs")
+                    queue_name = m.group("queue_name")
                     run, queued, lm, state = m.group("run"), m.group("queued"), m.group("lm"), m.group("state")
                     all_qstatq_values.append({"queue_name": queue_name, "run": run, "queued": queued, "lm": lm, "state": state})
                 elif n is not None:
@@ -237,14 +234,12 @@ class PBSStatExtractor(TabularStatExtractor):
         return all_qstatq_values
 
     def _extract_qstatq_json(self, qstatq_file: str) -> List[Dict[str, Any]]:
-        anonymize = self.anonymize_func()
         all_qstatq_values = list()
-        with fileutils.open_input(qstatq_file, "r", encoding="utf-8", errors="replace", options=self.options) as fin:
+        with open_input(qstatq_file, "r", encoding="utf-8", errors="replace", options=self.options) as fin:
             data = load_json(fin)
             queues = data["Queue"]
             for queue_name, queue in queues.items():
                 qstatq_values = dict()
-                queue_name = queue_name if not self.options.ANONYMIZE else anonymize(queue_name, "qs")
                 qstatq_values["queue_name"] = queue_name
                 try:
                     pairs = [token.split(":", 1) for token in queue["state_count"].split()]
@@ -387,17 +382,16 @@ class PBSBatchSystem(GenericBatchSystem):
     def get_worker_nodes(self, job_ids: List[str], job_queues: List[str], options: "Options") -> "List[Node]":
         """Return the nodes from pbsnodes; an empty file yields none."""
         try:
-            fileutils.check_empty_file(self.pbsnodes_file)
-        except fileutils.FileEmptyError:
+            check_empty_file(self.pbsnodes_file)
+        except FileEmptyError:
             return []
 
         raw_blocks = self._read_all_blocks(self.pbsnodes_file)
         known_ids = set(job_ids)
         all_pbs_values = []
-        anonymize = self.qstat_maker.anonymize_func()
         for block in raw_blocks:
             pbs_values = dict()
-            pbs_values["domainname"] = block["domainname"] if not self.options.ANONYMIZE else anonymize(block["domainname"], "wns")
+            pbs_values["domainname"] = block["domainname"]
 
             nextchar = block["state"][0]
             state = "-" if nextchar == "f" else nextchar
@@ -465,8 +459,8 @@ class PBSBatchSystem(GenericBatchSystem):
         else:
             total_running_jobs, total_queued_jobs = 0, 0
 
-        queues: "List[RawQueue]" = cast("List[RawQueue]", qstatq_list)  # every row but the totals line is a queue record
-        return int(total_running_jobs), int(total_queued_jobs), queues
+        # every row but the totals line is a queue record
+        return cast("QueuesInfo", (int(total_running_jobs), int(total_queued_jobs), qstatq_list))
 
     @staticmethod
     def _get_jobs_cores(jobs: List[str]) -> Iterator[Tuple[str, str]]:  # block['jobs']
@@ -494,7 +488,7 @@ class PBSBatchSystem(GenericBatchSystem):
 
     def _read_all_blocks(self, orig_file: str) -> List[Dict[str, Any]]:
         """Reads pbsnodes txt file block by block."""
-        with fileutils.open_input(orig_file, mode="r", encoding="utf-8", errors="replace", options=self.options) as fin:
+        with open_input(orig_file, mode="r", encoding="utf-8", errors="replace", options=self.options) as fin:
             result = []
             reading = True
             while reading:

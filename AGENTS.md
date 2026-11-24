@@ -32,8 +32,8 @@ For schema changes, run `make schema-compat BASE_SCHEMA=... PROPOSED_SCHEMA=...`
 - `qtop_py/qtop.py` - main loop, I/O effects and helper re-exports (see docs/architecture.md); argument handling; `python -m qtop_py.qtop` entry.
 - `qtop_py/mvu.py`, `mvu_query.py`, `ui/mvu_view.py` - explicit model/update, snapshot queries and terminal presentation.
 - `qtop_py/plugins/{pbs,sge,slurm,oar,lsf,htcondor,demo}.py` - backends; `qtop_py/schedulers/` - registration, metadata and GPU helpers.
-- `qtop_py/cluster_state.py`, `snapshot.py`, `ui/viewport.py`, `colormap.py` - normalized snapshots, navigation and colors.
-- `qtopconf.yaml`, `qtop_py/yaml_parser.py` - configuration and its stdlib parser.
+- `qtop_py/core_cluster_state.py`, `snapshot.py`, `ui/viewport.py`, `colormap.py` - normalized snapshots, navigation and colors.
+- `qtopconf.yaml`, `qtop_py/core_yaml_parser.py` - configuration and its stdlib parser.
 - `tests/` (`tests/plugins/` per scheduler, `slurm_samples/`) and `qtop_py/contrib/` - fixtures and reference scheduler outputs.
 - `tools/` - validation gates invoked by the Makefile.
 - `.github/workflows/`, `.gitlab-ci.yml`, `ci/` - thin platform wrappers around `make` targets.
@@ -45,6 +45,8 @@ For schema changes, run `make schema-compat BASE_SCHEMA=... PROPOSED_SCHEMA=...`
 CLI behaviour, output formats, and supported schedulers unless the task requires otherwise.
 Keep `qtop_py/qtop.py` scheduler-neutral: put scheduler-specific parsing, policies
 and behavior in plugins behind shared interfaces, not scheduler-name branches in the core.
+Keep the scheduler core free of the application (docs/architecture.md, tests/test_core_boundary.py):
+plugins and core helpers take what they need as arguments, never configuration, UI or stderr.
 
 1.2 Python 3.6 is the minimum supported runtime (`requires-python = ">=3.6"`):
 do not use `dataclasses`, `from __future__ import annotations`, walrus, positional-only

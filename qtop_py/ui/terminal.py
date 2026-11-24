@@ -16,7 +16,7 @@ from types import ModuleType
 from typing import TYPE_CHECKING, Any, Dict, Generator, Optional, Sequence, Tuple, Union
 
 from qtop_py.constants import QTOPCONF_YAML
-from qtop_py.errors import OperationalError
+from qtop_py.core_errors import OperationalError
 from qtop_py.ui.controls import KeyboardInput
 from qtop_py.ui.viewport import Viewport
 

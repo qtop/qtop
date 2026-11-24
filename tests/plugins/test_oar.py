@@ -7,7 +7,7 @@
 """Tests for the OAR statistics extractor.
 
 OAR previously had no empty-input guard, unlike the PBS, SGE and Slurm plugins
-which all call ``fileutils.check_empty_file``. An empty ``oarstat`` file would
+which all call ``inputs.check_empty_file``. An empty ``oarstat`` file would
 therefore be parsed as if it held data. ``extract_qstat`` now mirrors the PBS
 behaviour: log the empty file and return no records.
 """
@@ -17,15 +17,15 @@ from types import SimpleNamespace
 
 import pytest
 
+from qtop_py.core_sample import anonymize_state
 from qtop_py.mvu import MVU_Model
 from qtop_py.mvu_query import Cluster, WNOccupancy
 from qtop_py.plugins.oar import DEFAULT_NODE_STATE_MAPPING, OARBatchSystem, OarStatExtractor
-from qtop_py.sample import anonymize_state
 from qtop_py.snapshot import Snapshot
 
 
 class _Opts:
-    ANONYMIZE = False
+    SOURCEDIR = None
 
 
 def _make_extractor():
@@ -146,8 +146,7 @@ def test_extract_qstat_missing_file_still_raises(tmp_path):
         _make_extractor().extract_qstat(str(missing))
 
 
-@pytest.mark.parametrize("anonymize", (False, True))
-def test_queue_counts_reuse_job_snapshot_and_preserve_custom_queues(tmp_path, monkeypatch, anonymize):
+def test_queue_counts_reuse_job_snapshot_and_preserve_custom_queues(tmp_path, monkeypatch):
     path = tmp_path / "oarstat.txt"
     path.write_text(
         "Job id Name User Submission Date S Queue\n"
@@ -158,7 +157,7 @@ def test_queue_counts_reuse_job_snapshot_and_preserve_custom_queues(tmp_path, mo
         "104 job bob 2026-10-29 10:00:00 F default-long\n"
         "105 job bob 2026-10-29 10:00:00 H held\n"
     )
-    backend = OARBatchSystem({"oarstat_file": str(path)}, {}, SimpleNamespace(ANONYMIZE=anonymize))
+    backend = OARBatchSystem({"oarstat_file": str(path)}, {}, SimpleNamespace(SOURCEDIR=None))
     original = backend.oar_stat_maker.extract_qstat
     reads = []
 
@@ -175,11 +174,7 @@ def test_queue_counts_reuse_job_snapshot_and_preserve_custom_queues(tmp_path, mo
     assert [(queue["run"], queue["queued"]) for queue in queues] == [(1, 1), (1, 0), (0, 0)]
     assert [queue["queue_name"] for queue in queues] == [names[0], names[2], names[4]]
     assert all(queue["lm"] == "--" and queue["state"] == "?" for queue in queues)
-    if anonymize:
-        assert not set(names) & {"default", "default-long", "held"}
-        assert "alice" not in users
-    else:
-        assert names == ["default", "default", "default-long", "default-long", "held"]
+    assert names == ["default", "default", "default-long", "default-long", "held"] and users[0] == "alice"
     assert backend.get_queues_info() == (running, waiting, queues)
     assert reads == [str(path)]
 

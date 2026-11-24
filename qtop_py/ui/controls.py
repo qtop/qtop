@@ -13,10 +13,10 @@ if TYPE_CHECKING:  # typing.Final is Python 3.8+; the quoted annotations keep 3.
     from typing import Final
 
 NAVIGATION_KEYS: "Final" = {
-    "j": ("scroll_down", "Going down...", True),
-    " ": ("scroll_down", "Going down...", True),
-    "k": ("scroll_up", "Going up...", True),
-    "\x7f": ("scroll_up", "Going up...", True),
+    "j": ("scroll_down", "Scrolling down...", True),
+    " ": ("scroll_down", "Scrolling down...", True),
+    "k": ("scroll_up", "Scrolling up...", True),
+    "\x7f": ("scroll_up", "Scrolling up...", True),
     "l": ("scroll_right", "Going right...", False),
     "h": ("scroll_left", "Going left...", False),
     "$": ("scroll_far_right", "Going far right...", False),
@@ -26,14 +26,14 @@ NAVIGATION_KEYS: "Final" = {
     "K": ("scroll_top", "Going to the top...", False),
     "g": ("scroll_top", "Going to the top...", False),
     "R": ("reset_display", "Resetting display...", False),
-    "up": ("scroll_line_up", "Going up...", True),
-    "down": ("scroll_line_down", "Going down...", True),
+    "up": ("scroll_line_up", "Scrolling up...", True),
+    "down": ("scroll_line_down", "Scrolling down...", True),
     "left": ("scroll_left", "Going left...", False),
     "right": ("scroll_right", "Going right...", False),
     "home": ("scroll_top", "Going to the top...", False),
     "end": ("scroll_bottom", "Going to the bottom...", True),
-    "pageup": ("scroll_up", "Going up...", False),
-    "pagedown": ("scroll_down", "Going down...", True),
+    "pageup": ("scroll_up", "Scrolling up...", False),
+    "pagedown": ("scroll_down", "Scrolling down...", True),
 }
 
 

@@ -6,9 +6,9 @@ from pathlib import Path
 
 import pytest
 
-from qtop_py.sample import sanitize_config
+from qtop_py.core_sample import sanitize_config
+from qtop_py.core_yaml_parser import safe_load
 from qtop_py.schedulers.gpu import configured_pair_lines, parse_gpu_gres
-from qtop_py.yaml_parser import safe_load
 from tests.plugins.test_slurm_gpu import backend
 
 
