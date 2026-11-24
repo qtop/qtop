@@ -8,7 +8,7 @@ import re
 from collections import OrderedDict
 from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Tuple
 
-from qtop_py import fileutils, yaml_parser
+from qtop_py import inputs, yaml_parser
 from qtop_py.schedulers.oar_extension import OAR_EXTENSION
 from qtop_py.schedulers.tabular import TabularStatExtractor
 from qtop_py.serialiser import GenericBatchSystem
@@ -41,11 +41,11 @@ class OarStatExtractor(TabularStatExtractor):
         """Parse oarstat output into job records; an empty file yields none."""
         all_values: List[Any] = list()
         try:
-            fileutils.check_empty_file(orig_file)
-        except fileutils.FileEmptyError:
+            inputs.check_empty_file(orig_file)
+        except inputs.FileEmptyError:
             logging.error("File %s seems to be empty.", orig_file)
             return all_values
-        with fileutils.open_input(orig_file, "r", encoding="utf-8", errors="replace", options=self.options) as fin:
+        with inputs.open_input(orig_file, "r", encoding="utf-8", errors="replace", options=self.options) as fin:
             logging.debug("File state before OarStatExtractor.extract_qstat: %(fin)s", {"fin": fin})
             _ = fin.readline()  # header
             fin.readline()  # dashes
@@ -252,7 +252,7 @@ class OARBatchSystem(GenericBatchSystem):
         resources: Dict[int, Any] = {}
         resid = None
         jobs_list = False
-        with fileutils.open_input(fn, encoding="utf-8", errors="replace", options=self.options) as stream:
+        with inputs.open_input(fn, encoding="utf-8", errors="replace", options=self.options) as stream:
             for line in stream:
                 text = line.strip()
                 if not text or text.startswith("#") or text in ("---", "..."):

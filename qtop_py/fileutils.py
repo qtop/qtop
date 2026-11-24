@@ -50,22 +50,6 @@ class StartupProgress:
         self.output = None
 
 
-def input_source(options: Any, path: str) -> Any:
-    """Observe a scheduler source when startup reporting is enabled."""
-    progress = getattr(options, "_input_progress", None)
-    return progress.source(path) if progress is not None else contextlib.ExitStack()
-
-
-@contextlib.contextmanager
-def open_input(path: str, mode: str = "r", options: Any = None, **kwargs: Any) -> Generator[Any, None, None]:
-    """Open scheduler input and report its first startup open and close."""
-    with contextlib.ExitStack() as reporting:
-        # Sonar path finding: this path is the caller's chosen input, by design; see docs/sonar-review.md
-        with open(path, mode, **kwargs) as stream:
-            reporting.enter_context(input_source(options, path))
-            yield stream
-
-
 def _open_owned(path: str, flags: int, mode: int, directory_fd: int) -> int:
     try:
         return os.open(path, flags, mode, dir_fd=directory_fd)
@@ -250,12 +234,6 @@ def active_log_path() -> Optional[str]:
     return None
 
 
-def check_empty_file(orig_file: str) -> None:
-    """Raise FileEmptyError if the scheduler output file is empty."""
-    if os.path.getsize(orig_file) == 0:
-        raise FileEmptyError(orig_file)
-
-
 def get_new_temp_file(_savepath: str, suffix: str, prefix: str) -> Tuple[int, str]:
     """Create a temporary output file in savepath; return its descriptor and path.
 
@@ -381,16 +359,6 @@ def get_sample_filename(SAMPLE_FILENAME: str, config: Mapping[str, Any]) -> str:
     else:
         SAMPLE_FILENAME = SAMPLE_FILENAME % {"datetime": "_" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")}
     return SAMPLE_FILENAME
-
-
-class FileEmptyError(Exception):
-    """A scheduler output file is empty; the message is also logged as a warning."""
-
-    def __init__(self, fn: str) -> None:
-        msg = "File %s is empty.\nIs your batch scheduler loaded with jobs?" % fn
-        Exception.__init__(self, msg)
-        logging.warning(msg)
-        self.fn = fn
 
 
 def deprecate_old_output_files(config: Mapping[str, Any]) -> None:

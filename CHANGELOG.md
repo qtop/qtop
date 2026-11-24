@@ -7,6 +7,7 @@ Notable changes by version, newest first. See the
 
 - Bugfix: a root-owned symlinked /home (autofs/NFS) no longer fails with Not a directory (#615)
 - Feature: unusable savepath or log warns and falls back to /dev/shm; --strict-parents stops
+- Refactor: scheduler core no longer imports app modules; a boundary test keeps it library-ready
 - Release: ab79cda SBOM fix; v0.9.20261119/20 retagged onto it, both on PyPI with attestations
 - Release: update version metadata to 0.9.20261121
 

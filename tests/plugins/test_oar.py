@@ -7,7 +7,7 @@
 """Tests for the OAR statistics extractor.
 
 OAR previously had no empty-input guard, unlike the PBS, SGE and Slurm plugins
-which all call ``fileutils.check_empty_file``. An empty ``oarstat`` file would
+which all call ``inputs.check_empty_file``. An empty ``oarstat`` file would
 therefore be parsed as if it held data. ``extract_qstat`` now mirrors the PBS
 behaviour: log the empty file and return no records.
 """

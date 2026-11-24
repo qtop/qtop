@@ -2,11 +2,7 @@
 ## SPDX-License-Identifier: MIT
 """Exceptions shared across qtop's modules."""
 
-import logging
-import os
-
-from qtop_py.constants import QTOP_LOGFILE, QTOPCONF_YAML
-from qtop_py.fileutils import active_log_path
+from typing import Optional, Sequence
 
 
 class OperationalError(Exception):
@@ -22,15 +18,11 @@ class JobNotFound(Exception):
 
 
 class NoSchedulerFound(Exception):
-    """No scheduler was given and none could be detected."""
+    """No scheduler was given, or the one given is not configured; the CLI explains how to pick one."""
 
-    def __init__(self) -> None:
-        msg = "No suitable scheduler was found. Please define one in a switch or env variable or in %s.\nFor more help, try ./qtop.py --help\nLog file created in %s" % (
-            QTOPCONF_YAML,
-            active_log_path() or os.path.expandvars(QTOP_LOGFILE),
-        )
-        Exception.__init__(self, msg)
-        logging.critical(msg)
+    def __init__(self, requested: Optional[str] = None) -> None:
+        Exception.__init__(self, "No suitable scheduler was found" + (": %s" % requested if requested else ""))
+        self.requested = requested
 
 
 class SchedulerNotSpecified(Exception):
@@ -39,3 +31,8 @@ class SchedulerNotSpecified(Exception):
 
 class InvalidScheduler(Exception):
     """The requested scheduler is not one qtop supports."""
+
+    def __init__(self, requested: str = "", choices: Sequence[str] = ()) -> None:
+        Exception.__init__(self, "Selected scheduler system not supported: %s" % requested)
+        self.requested = requested
+        self.choices = tuple(choices)

@@ -174,7 +174,8 @@ runtime globals, while the new query/view pipeline does not depend on them.
 | Run resources, frame/export I/O, replay and extraction workspaces | [runtime.py](../qtop_py/runtime.py) |
 | Common snapshot construction, validation and totals | [cluster_state.py](../qtop_py/cluster_state.py) |
 | Navigation and color definitions | [controls.py](../qtop_py/ui/controls.py), [viewport.py](../qtop_py/ui/viewport.py), [colormap.py](../qtop_py/colormap.py) |
-| Capture archives and temporary files | [fileutils.py](../qtop_py/fileutils.py) |
+| Scheduler input reading for backends (core) | [inputs.py](../qtop_py/inputs.py) |
+| Capture archives, private directories and fallback | [fileutils.py](../qtop_py/fileutils.py) |
 | Experimental HTTP output | [web.py](../qtop_py/web.py), [web/index.html](../qtop_py/web/index.html) |
 
 ### Retired legacy adapters
@@ -197,6 +198,18 @@ tests patch the owning module rather than the entry point. No owner imports
 and scheduler exceptions belong to their configuration/error modules.
 
 ## Extension boundaries and readiness
+
+### Scheduler core and application
+
+The scheduler core (backends, `schedulers/` helpers except the collector, cluster
+state, input reading, trace masking, snapshots and the command runner) is kept
+ready to become a library. It imports only other core modules, and does not print,
+write to stdout or stderr, exit, or read the environment or home directory.
+Configuration files, savepath, logging setup, colours, the CLI's messages and the
+TUI belong to the application, which passes the core what it needs. For example,
+scheduler errors carry the requested name and choices, and the CLI words them.
+[test_core_boundary.py](../tests/test_core_boundary.py) enforces this; its
+`KNOWN_VIOLATIONS` lists what is still to move and may only shrink.
 
 The [modular compatibility plan][modular-plan] for issue #593 uses an
 illustrative layout. Preserve existing module paths and public

@@ -35,6 +35,7 @@ from qtop_py.configuration import CONFIG_ERRORS as CONFIG_ERRORS
 from qtop_py.constants import (
     FALLBACK_TERMSIZE,
     KEYPRESS_TIMEOUT,
+    QTOP_LOGFILE,
     QTOPCONF_YAML,
     SYSTEMCONFDIR,
     USERPATH,
@@ -167,9 +168,23 @@ def cli_error_message(error: BaseException) -> str:
     """Return the message the CLI prints for an expected error, or an empty one."""
     if isinstance(error, SchedulerNotSpecified):
         return "No scheduler could be auto-detected. Select one with -b/--batchSystem, QTOP_SCHEDULER, or qtopconf.yaml."
-    if isinstance(error, NoSchedulerFound):
+    if isinstance(error, (NoSchedulerFound, InvalidScheduler)):
         return ""
     return str(error)
+
+
+def scheduler_error_lines(error: BaseException) -> Tuple[str, ...]:
+    """Return the critical log lines that explain a scheduler the CLI could not select."""
+    log = fileutils.active_log_path() or os.path.expandvars(QTOP_LOGFILE)
+    if isinstance(error, InvalidScheduler):
+        choices = "Selected scheduler system not supported. Available choices are %s." % ", ".join(error.choices)
+        return (choices, "For help, try ./qtop.py --help", "Log file created in %s" % log)
+    if isinstance(error, NoSchedulerFound):
+        return (
+            "No suitable scheduler was found. Please define one in a switch or env variable or in %s.\n"
+            "For more help, try ./qtop.py --help\nLog file created in %s" % (QTOPCONF_YAML, log),
+        )
+    return ()
 
 
 def report_operational_error(error: BaseException, debug: bool = False) -> None:
@@ -204,6 +219,8 @@ def cli_main() -> int:
             main(resources)
             return 0
     except (InvalidScheduler, NoSchedulerFound, SchedulerNotSpecified) as error:
+        for line in scheduler_error_lines(error):
+            logging.critical("%s", line)
         message = cli_error_message(error)
         if message:
             sys.stderr.write("%s\n" % message)

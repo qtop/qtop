@@ -15,7 +15,7 @@ import time
 from math import isfinite
 from typing import IO, TYPE_CHECKING, Any, Dict, List, Mapping, Optional, Tuple, cast
 
-from qtop_py import fileutils
+from qtop_py import inputs
 from qtop_py.constants import DEFAULT_SCHEDULER_COMMAND_TIMEOUT, QTOPCONF_YAML
 from qtop_py.errors import OperationalError
 
@@ -183,7 +183,7 @@ def execute_shell_batch_commands(
                 raise OperationalError("Cannot execute scheduler command %r: %s. Check PATH or load the scheduler module." % (_batch_system_command, error.strerror)) from error
             except ValueError as error:
                 raise OperationalError("Invalid scheduler command %r: %s. Check command quoting in %s." % (_batch_system_command, error, QTOPCONF_YAML)) from error
-            with fileutils.input_source(input_options, destination):
+            with inputs.input_source(input_options, destination):
                 try:
                     stderr_data = communicate_with_timeout(command, timeout, stdout=fin, **({"cancel": cancel} if cancel is not None else {}))[1]
                 except subprocess.TimeoutExpired as failure:

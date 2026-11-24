@@ -8,7 +8,7 @@ import shlex
 from collections import Counter
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
-from qtop_py import fileutils, safety
+from qtop_py import inputs, safety
 from qtop_py.plugins.slurm import SlurmBatchSystem, SlurmStatExtractor, slurm_accounting_state
 from qtop_py.schedulers.gpu import parse_gpu_gres
 
@@ -73,7 +73,7 @@ def unique_fields(pairs: List[Tuple[str, Any]]) -> Dict[str, Any]:
 
 def read_response(path: str, key: str, options: Any = None) -> Tuple[str, List[Dict[str, Any]]]:
     """Reject unknown schemas, error responses and malformed record lists."""
-    with fileutils.open_input(path, encoding="utf-8", options=options) as stream:
+    with inputs.open_input(path, encoding="utf-8", options=options) as stream:
         data = safety.load_json(stream, object_pairs_hook=unique_fields)
     if not isinstance(data, dict):
         raise ValueError("Slurm JSON response must be an object")

@@ -17,8 +17,7 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Set, Tupl
 # SGE parses with NoDTDTreeBuilder below, rejecting all DTD declarations.
 from xml.etree import ElementTree as etree  # nosec B405
 
-import qtop_py.fileutils as fileutils
-from qtop_py import safety
+from qtop_py import inputs, safety
 from qtop_py.errors import OperationalError
 from qtop_py.serialiser import GenericBatchSystem, StatExtractor
 
@@ -106,7 +105,7 @@ class SGEStatExtractor(StatExtractor):
 
     def get_xml_tree(self, xml_file: str) -> Tuple[etree.ElementTree, Any]:
         """Parse an XML file within the size and nesting limits, rejecting DTDs; return the tree and root."""
-        with fileutils.open_input(xml_file, mode="rb", options=self.options) as fin:
+        with inputs.open_input(xml_file, mode="rb", options=self.options) as fin:
             try:
                 # Bandit cannot infer DTD rejection by the custom parser target.
                 parser = _xml_parser()
@@ -276,7 +275,7 @@ class SGEBatchSystem(GenericBatchSystem):
     def get_queues_info(self) -> "QueuesInfo":
         """Return the running and queued totals and per-queue records from qstat -xml."""
         logging.debug("Parsing tree of %s", self.sge_file)
-        fileutils.check_empty_file(self.sge_file)
+        inputs.check_empty_file(self.sge_file)
 
         root = self.sge_stat_maker.root
 

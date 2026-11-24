@@ -14,7 +14,7 @@ import logging
 import os
 from typing import Any, Dict, Iterable, Iterator, List, Mapping, Optional, Tuple
 
-from qtop_py import fileutils, safety
+from qtop_py import inputs, safety
 from qtop_py.safety import ResourceLimitError, literal_eval
 
 """Small dependency-free parser for qtop's deliberately limited YAML subset."""
@@ -135,7 +135,7 @@ def convert_dash_key_in_dict(d: Any) -> Any:
 def parse(fn: str, DEF_INDENT: int = 2, options: Any = None) -> Dict[str, Any]:
     """Parse a YAML file within MAX_INPUT_BYTES into a dict; an empty file yields an empty one."""
     raw_key_values = {}
-    with fileutils.open_input(fn, mode="r", encoding="utf-8", options=options) as fin:
+    with inputs.open_input(fn, mode="r", encoding="utf-8", options=options) as fin:
         if os.fstat(fin.fileno()).st_size > safety.MAX_INPUT_BYTES:
             raise ResourceLimitError("YAML input exceeds size limit")
         if os.fstat(fin.fileno()).st_size == 0:

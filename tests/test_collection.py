@@ -10,7 +10,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from qtop_py import fileutils, utils, yaml_parser
+from qtop_py import fileutils, inputs, utils, yaml_parser
 from qtop_py import process as process_io
 from qtop_py.errors import OperationalError
 from qtop_py.plugins.slurm import SlurmBatchSystem
@@ -346,7 +346,7 @@ def test_startup_progress_observes_live_stream_before_waiting(tmp_path, monkeypa
         assert fails
     else:
         assert not fails
-        with fileutils.open_input(str(destination), options=options) as source:
+        with inputs.open_input(str(destination), options=options) as source:
             assert source.read() == "jobs\n"
     assert output.getvalue() == ".."  # parsing the saved response adds no dots
     assert processes[0].stdout.closed and processes[0].stderr.closed

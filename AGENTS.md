@@ -45,6 +45,8 @@ For schema changes, run `make schema-compat BASE_SCHEMA=... PROPOSED_SCHEMA=...`
 CLI behaviour, output formats, and supported schedulers unless the task requires otherwise.
 Keep `qtop_py/qtop.py` scheduler-neutral: put scheduler-specific parsing, policies
 and behavior in plugins behind shared interfaces, not scheduler-name branches in the core.
+Keep the scheduler core free of the application (docs/architecture.md, tests/test_core_boundary.py):
+plugins and core helpers take what they need as arguments, never configuration, UI or stderr.
 
 1.2 Python 3.6 is the minimum supported runtime (`requires-python = ">=3.6"`):
 do not use `dataclasses`, `from __future__ import annotations`, walrus, positional-only
