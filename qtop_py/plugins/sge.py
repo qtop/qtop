@@ -119,7 +119,7 @@ class SGEStatExtractor(StatExtractor):
         """Parse qstat -xml output into job records."""
         all_values: List[Any] = list()
         self.whole_queue_elems = set()
-        _tree, self.root = self.get_xml_tree(orig_file)
+        self.root = self.get_xml_tree(orig_file)[1]
         root = self.root
 
         for queue_elem in root.findall("queue_info/Queue-List"):
