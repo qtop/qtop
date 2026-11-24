@@ -12,6 +12,7 @@ from qtop_py import __version__
 from tools.validate_installation import ROOT, checked, digest, exercise_wheel, validate_installation
 
 
+@pytest.mark.packaging
 def test_source_distribution_installs_with_defaults_and_cli():
     validate_installation()
 
@@ -75,6 +76,7 @@ def test_packaging_snapshot_ignores_vanishing_test_outputs(tmp_path, monkeypatch
     assert not (output.parent / "source" / artifact).exists()
 
 
+@pytest.mark.packaging
 def test_exact_release_artifacts_install_without_being_replaced(release_artifacts, capsys):
     before = {path.name: digest(path) for path in release_artifacts.iterdir()}
     evidence = validate_installation(artifacts=release_artifacts)
@@ -84,6 +86,7 @@ def test_exact_release_artifacts_install_without_being_replaced(release_artifact
     assert capsys.readouterr().out.count("all backends passed") == 2
 
 
+@pytest.mark.packaging
 @pytest.mark.parametrize("git_available", (True, False), ids=["archive-checkout", "no-git-executable"])
 def test_prebuilt_wheel_validation_without_git_metadata(release_artifacts, tmp_path, monkeypatch, capsys, git_available):
     if not git_available:
@@ -123,6 +126,7 @@ def test_release_directory_rejects_ambiguous_inputs(tmp_path, layout):
         validate_installation(artifacts=tmp_path)
 
 
+@pytest.mark.packaging
 @pytest.mark.parametrize("tampering", ["version", "defaults", "entrypoint"])
 def test_release_metadata_and_assets_are_checked_before_installation(release_artifacts, tmp_path, tampering):
     (original,) = release_artifacts.glob("*.whl")

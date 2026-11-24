@@ -141,6 +141,9 @@ show_error_context = true
 module = ["lxml", "ujson"]
 ignore_missing_imports = true
 
+[tool.pytest.ini_options]
+markers = ["packaging: builds and pip-installs the sdist/wheel; make test-packaging runs them, make test and coverage skip them"]
+
 [tool.coverage.run]
 source = ["qtop_py", "tools"]
 branch = true

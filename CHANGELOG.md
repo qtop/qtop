@@ -5,6 +5,8 @@ Notable changes by version, newest first. See the
 
 ## 0.9.20261122
 
+- CI: slow sdist/wheel install tests move to make test-packaging, run by the build jobs and nightly
+- Tests: the concurrent-commands test checks overlap with a rendezvous, not a 1.5 s limit
 - Release: update version metadata to 0.9.20261122
 
 ## 0.9.20261121

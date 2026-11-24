@@ -10,6 +10,8 @@ COVERAGE_CORE ?= ctrace
 export COVERAGE_CORE
 PYTEST_ARGS ?= --durations=20 --durations-min=0.1
 PYTEST_REPORT_DIR ?= artifacts/tests
+# Build-and-install tests are slow (about a minute); test-packaging runs them, in the build jobs and nightly lanes.
+PYTEST_MARKERS ?= not packaging
 # Tests run on every CPU when pytest-xdist is installed (requirements-ci.txt); test_web.py forks a worker, so it runs alone.
 PYTEST_WORKERS = $(shell $(PYTHON) -c "import xdist" >/dev/null 2>&1 && echo "-n auto --ignore=tests/test_web.py")
 PIP ?= $(PYTHON) -m pip
@@ -84,8 +86,12 @@ ci-deps:: ## Install pinned CI Python dependencies
 
 test:: ## Run the Python test suite
 	@mkdir -p "$(PYTEST_REPORT_DIR)"
-	$(PYTHON) -m pytest $(PYTEST_WORKERS) $(PYTEST_ARGS) --junitxml="$(PYTEST_REPORT_DIR)/main.xml"
+	$(PYTHON) -m pytest $(PYTEST_WORKERS) $(PYTEST_ARGS) -m "$(PYTEST_MARKERS)" --junitxml="$(PYTEST_REPORT_DIR)/main.xml"
 	$(if $(PYTEST_WORKERS),$(PYTHON) -m pytest tests/test_web.py $(PYTEST_ARGS) --junitxml="$(PYTEST_REPORT_DIR)/web.xml")
+
+test-packaging:: ## Build, install and validate the sdist/wheel in pytest (the cases test and coverage skip)
+	@mkdir -p "$(PYTEST_REPORT_DIR)"
+	$(PYTHON) -m pytest $(PYTEST_WORKERS) $(PYTEST_ARGS) -m packaging tests/test_packaging.py --junitxml="$(PYTEST_REPORT_DIR)/packaging.xml"
 
 test-fast:: ## Run parser/model/UI checks; pre-pr remains the full gate
 	@mkdir -p "$(PYTEST_REPORT_DIR)"
@@ -97,7 +103,7 @@ test-fast:: ## Run parser/model/UI checks; pre-pr remains the full gate
 coverage:: ## Run tests with coverage.py and print a terminal report
 	@mkdir -p "$(PYTEST_REPORT_DIR)"
 	$(PYTHON) -m coverage erase
-	$(PYTHON) -m coverage run -m pytest $(PYTEST_WORKERS) $(PYTEST_ARGS) --junitxml="$(PYTEST_REPORT_DIR)/main.xml"
+	$(PYTHON) -m coverage run -m pytest $(PYTEST_WORKERS) $(PYTEST_ARGS) -m "$(PYTEST_MARKERS)" --junitxml="$(PYTEST_REPORT_DIR)/main.xml"
 	$(if $(PYTEST_WORKERS),$(PYTHON) -m coverage run -m pytest tests/test_web.py $(PYTEST_ARGS) --junitxml="$(PYTEST_REPORT_DIR)/web.xml")
 	$(PYTHON) -m coverage combine
 	@mkdir -p $(dir $(COVERAGE_JSON))
@@ -292,14 +298,14 @@ github-ci:: ci ## GitHub Actions entry point for test validation
 
 gitlab-ci:: ci ## GitLab CI entry point for test validation
 
-nightly-ci:: test backend-validation ## Git-free validation path for nightly matrix lanes (interpreter compatibility, qtop/qtop#488)
+nightly-ci:: test test-packaging backend-validation ## Git-free validation path for nightly matrix lanes (interpreter compatibility, qtop/qtop#488)
 
 build:: ci-deps ## Build source and wheel distributions with pinned CI build deps
 	$(PYTHON) -m build --no-isolation --outdir "$(DIST_DIR)"
 
-github-build:: validated-build ## GitHub Actions entry point for validated package builds
+github-build:: validated-build test-packaging ## GitHub Actions entry point for validated package builds
 
-gitlab-build:: validated-build ## GitLab CI entry point for validated package builds
+gitlab-build:: validated-build test-packaging ## GitLab CI entry point for validated package builds
 
 dist:: build ## Alias for build, matching common release target names
 

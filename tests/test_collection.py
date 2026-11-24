@@ -440,11 +440,25 @@ def _timed_commands(tmp_path, scripts):
 
 
 def test_scheduler_commands_run_concurrently_and_keep_config_order(tmp_path):
-    slow = "import time; time.sleep(0.6); print('%s')"
-    files, elapsed = _timed_commands(tmp_path, {key: slow % key for key in ("squeue_file", "sinfo_file", "scontrol_file")})
-    assert list(files) == ["squeue_file", "sinfo_file", "scontrol_file"]
+    """Each command waits until all three have started: run one after another, the first gives up and fails."""
+    keys = ("squeue_file", "sinfo_file", "scontrol_file")
+    barrier = tmp_path / "barrier"
+    barrier.mkdir()
+    rendezvous = (
+        "import pathlib, sys, time\n"
+        "barrier = pathlib.Path(%r)\n"
+        "(barrier / '%s').touch()\n"
+        "deadline = time.monotonic() + 20\n"
+        "while len(list(barrier.iterdir())) < 3:\n"
+        "    if time.monotonic() > deadline:\n"
+        "        sys.exit('ran alone')\n"
+        "    time.sleep(0.01)\n"
+        "print('%s')\n"
+    )
+    files, _ = _timed_commands(tmp_path, {key: rendezvous % (str(barrier), key, key) for key in keys})
+    assert not isinstance(files, OperationalError), files
+    assert list(files) == list(keys)
     assert all(Path(path).read_text() == key + "\n" for key, path in files.items())
-    assert elapsed < 1.5  # three 0.6 s commands one after another would take 1.8 s or more
 
 
 def test_the_first_required_failure_in_config_order_is_reported(tmp_path):
