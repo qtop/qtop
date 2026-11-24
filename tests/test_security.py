@@ -75,6 +75,9 @@ def test_save_directory_rejects_symlink_components(tmp_path, suffix):
     target.mkdir(mode=0o755)
     link = tmp_path / "link"
     link.symlink_to(target, target_is_directory=True)
+    if suffix and os.geteuid() == 0:  # root's own link in a 0700 parent is a trusted site link (#615)
+        assert fileutils.private_save_directory(str(link) + suffix) == os.path.realpath(str(target / "results"))
+        return
     with pytest.raises(OSError):
         fileutils.private_save_directory(str(link) + suffix)
     assert not (target / "results").exists()
@@ -130,11 +133,12 @@ def test_lenient_parents_still_reject_symlinked_save_directory(tmp_path):
         ("/tmp", "/private/tmp", 0, True),
         ("/var", "private/var", 0, True),
         ("/var", "/private/var", 0, True),
-        ("/tmp", "private/elsewhere", 0, False),
+        ("/tmp", "private/elsewhere", 0, "site"),  # not an Apple alias, but a root-owned site link (#615)
         ("/tmp", "private/tmp", 12345, False),
     ],
 )
 def test_macos_save_directory_handles_only_root_owned_system_aliases(tmp_path, monkeypatch, alias, destination, owner, allowed):
+    """The faked owner applies to every ownership check, so the outcome does not depend on who runs the tests."""
     root = tmp_path / "root"
     parent = root / "private" / alias.lstrip("/")
     parent.mkdir(parents=True)
@@ -152,13 +156,28 @@ def test_macos_save_directory_handles_only_root_owned_system_aliases(tmp_path, m
             return os.stat_result(values)
         return real_lstat(path, *args, **kwargs)
 
+    real_stat = os.stat
+
+    def virtual_stat(path, *args, **kwargs):
+        result = real_stat(path, *args, **kwargs)
+        if path == alias.lstrip("/") and kwargs.get("dir_fd") is not None and not kwargs.get("follow_symlinks", True):
+            values = list(result)
+            values[4] = owner
+            return os.stat_result(values)
+        return result
+
     real_readlink = os.readlink
     monkeypatch.setattr(fileutils.sys, "platform", "darwin")
     monkeypatch.delattr(fileutils.os, "O_PATH", raising=False)
     monkeypatch.setattr(fileutils.os, "open", virtual_open)
     monkeypatch.setattr(fileutils.os, "lstat", virtual_lstat)
-    monkeypatch.setattr(fileutils.os, "readlink", lambda path: real_readlink(str(root / alias.lstrip("/"))) if path == alias else real_readlink(path))
-    if allowed:
+    monkeypatch.setattr(fileutils.os, "stat", virtual_stat)
+    monkeypatch.setattr(fileutils.os, "readlink", lambda path, **kwargs: real_readlink(str(root / alias.lstrip("/"))) if path == alias else real_readlink(path, **kwargs))
+    if allowed == "site":
+        assert fileutils.private_save_directory(alias + "/results") == "/private/elsewhere/results"
+        assert stat.S_IMODE((root / "private" / "elsewhere" / "results").stat().st_mode) == 0o700
+        assert not (parent / "results").exists()
+    elif allowed:
         assert fileutils.private_save_directory(alias + "/results") == "/private" + alias + "/results"
         assert stat.S_IMODE((parent / "results").stat().st_mode) == 0o700
         (parent / "redirect").symlink_to(parent / "results", target_is_directory=True)

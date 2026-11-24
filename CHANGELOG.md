@@ -16,6 +16,7 @@ Notable changes by version, newest first. See the
 - Refactor: the command runner takes env, timeout and config name from its caller; boundary clean
 - Refactor: backends import the shared interface from qtop_py/core_api.py; a test pins its surface
 - Refactor: backends no longer read -A or -L; their options carry collection settings only
+- Tests: nightly root lanes pass; straggler and #615 symlink tests no longer assume a non-root user
 - Release: ab79cda SBOM fix; v0.9.20261119/20 retagged onto it, both on PyPI with attestations
 - Release: update version metadata to 0.9.20261121
 

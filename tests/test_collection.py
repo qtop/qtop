@@ -152,20 +152,36 @@ def test_cancellation_reaps_clients_and_inherited_pipe_holders(child_exits):
     assert process.stdout.closed and process.stderr.closed
 
 
+def _dead(pid):
+    """True once pid is gone or a zombie; a container's PID 1 may never reap it, and root never gets EPERM."""
+    try:
+        os.kill(pid, 0)
+    except (ProcessLookupError, PermissionError):
+        return True
+    try:
+        with open("/proc/%d/stat" % pid) as stat_file:
+            return stat_file.read().rsplit(")", 1)[1].split()[0] == "Z"
+    except OSError:
+        state = subprocess.run(["ps", "-o", "stat=", "-p", str(pid)], stdout=subprocess.PIPE, check=False).stdout
+        return not state.strip() or state.strip().startswith(b"Z")
+
+
 @pytest.mark.skipif(os.name != "posix", reason="process groups are POSIX-specific")
 def test_group_stragglers_that_escaped_the_first_kill_are_killed():
     """A child forked while killpg() is delivered can miss it; once the leader is reaped, kill the rest."""
-    code = "import os,time; pid=os.fork(); time.sleep(60) if pid==0 else None"
-    leader = subprocess.Popen([sys.executable, "-c", code], start_new_session=True)
+    code = "import os,time\nif os.fork()==0:\n    print(os.getpid(),flush=True); time.sleep(60)"
+    leader = subprocess.Popen([sys.executable, "-c", code], start_new_session=True, stdout=subprocess.PIPE)
+    child = int(leader.stdout.readline())
     leader.wait(10)  # the leader exits at once; its child stays in the group, as if it escaped the kill
     try:
-        os.killpg(leader.pid, 0)
+        assert not _dead(child)
         process_io._kill_group_stragglers(leader)
-        with pytest.raises((ProcessLookupError, PermissionError)):  # gone, or only a zombie left (macOS: EPERM)
-            for _ in range(100):  # the killed child is reaped by init shortly after
-                os.killpg(leader.pid, 0)
-                time.sleep(0.01)
+        deadline = time.monotonic() + 5
+        while not _dead(child) and time.monotonic() < deadline:
+            time.sleep(0.01)
+        assert _dead(child)
     finally:
+        leader.stdout.close()
         with contextlib.suppress(ProcessLookupError, PermissionError):
             os.killpg(leader.pid, signal.SIGKILL)
 
