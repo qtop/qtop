@@ -61,6 +61,8 @@ lint.extend-select = [
     "B", "PLE", "PGH", "PIE", "ISC", "RET", "T10", "RUF100",
     "S102", "S307", "S602", "S604", "LOG009", "RSE102", "PLC1802",
     "PERF102", "RUF059", "A", "SIM115", "BLE",
+    # Self-assignment, as CodeQL's py/redundant-assignment reports it.
+    "PLW0127", "PLW0128",
     # Lazy logging arguments: no formatting when a level is off; SafeLogFormatter escapes the rendered record.
     "G001", "G002", "G003", "G004",
 ]
