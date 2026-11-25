@@ -24,7 +24,7 @@ import sys
 import tarfile
 import time
 import traceback
-from typing import TYPE_CHECKING, Any, Dict, Iterator, Mapping, Optional, Set, Tuple, Type
+from typing import TYPE_CHECKING, Any, Dict, Iterator, List, Mapping, Optional, Set, Tuple, Type
 
 from qtop_py import __version__, configuration, fileutils, utils
 from qtop_py import core_process as _process
@@ -174,18 +174,16 @@ def cli_error_message(error: BaseException) -> str:
     return str(error)
 
 
-def scheduler_error_lines(error: BaseException) -> Tuple[str, ...]:
+def scheduler_error_lines(error: BaseException) -> List[str]:
     """Return the critical log lines that explain a scheduler the CLI could not select."""
     log = fileutils.active_log_path() or os.path.expandvars(QTOP_LOGFILE)
     if isinstance(error, InvalidScheduler):
-        choices = "Selected scheduler system not supported. Available choices are %s." % ", ".join(error.choices)
-        return (choices, "For help, try ./qtop.py --help", "Log file created in %s" % log)
-    if isinstance(error, NoSchedulerFound):
-        return (
-            "No suitable scheduler was found. Please define one in a switch or env variable or in %s.\n"
-            "For more help, try ./qtop.py --help\nLog file created in %s" % (QTOPCONF_YAML, log),
-        )
-    return ()
+        reason = "Selected scheduler system not supported. Available choices are %s." % ", ".join(error.choices)
+    elif isinstance(error, NoSchedulerFound):
+        reason = "No suitable scheduler was found. Please define one in a switch or env variable or in %s." % QTOPCONF_YAML
+    else:
+        return []
+    return [reason, "For help, try ./qtop.py --help", "Log file created in %s" % log]
 
 
 def report_operational_error(error: BaseException, debug: bool = False) -> None:

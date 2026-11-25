@@ -5,6 +5,7 @@ Notable changes by version, newest first. See the
 
 ## 0.9.20261122
 
+- Bugfix: SonarCloud findings on 1e01dac: SGE no-op self-assignments, uneven scheduler error lines
 - CI: slow sdist/wheel install tests move to make test-packaging, run by the build jobs and nightly
 - CI: nightly splits into a blocking 8-lane core run and a 26-lane wide run that may be flaky
 - CI: PRs run the core debian:bookworm lane (root, distro Python), as nightly failures came from it

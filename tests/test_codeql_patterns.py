@@ -7,7 +7,8 @@
 - py/unused-local-variable: an unpacking whose plain names are all unused, including ``_``-prefixed
   ones, which ruff's RUF059 exempts.
 
-Self-assignment (py/redundant-assignment) is ruff's PLW0127/PLW0128, enabled in pyproject.toml.
+Self-assignment (py/redundant-assignment) is ruff's PLW0127/PLW0128, enabled in pyproject.toml, for plain
+names; ``x.attr = x.attr``, which SonarCloud reports, is checked here.
 """
 
 import ast
@@ -66,11 +67,20 @@ def _all_unused_unpackings(tree):
     return found
 
 
+def _attribute_self_assignments(tree):
+    return [
+        "line %d" % node.lineno
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Assign) and isinstance(node.value, ast.Attribute) and ast.unparse(node.value) in map(ast.unparse, node.targets)
+    ]
+
+
 @pytest.mark.parametrize("path", SOURCES, ids=lambda path: str(path.relative_to(ROOT)))
 def test_no_codeql_only_findings(path):
     tree = ast.parse(path.read_text(encoding="utf-8"))
     assert not _type_only_imports_used_only_in_function_bodies(tree), "move the use into a signature or drop the import"
     assert not _all_unused_unpackings(tree), "index the value you need instead of unpacking unused names"
+    assert not _attribute_self_assignments(tree), "drop the no-op self-assignment"
 
 
 def test_the_checks_see_both_patterns():
@@ -81,8 +91,10 @@ if TYPE_CHECKING:
 def f(value):
     _a, _b = value.split("@")
     queues: "Local" = cast("Local", value)
+    value.text = value.text
     return queues
 """
     tree = ast.parse(source)
     assert _type_only_imports_used_only_in_function_bodies(tree) == ["Local"]
     assert _all_unused_unpackings(tree) == ["line 6: _a, _b"]
+    assert _attribute_self_assignments(tree) == ["line 8"]
