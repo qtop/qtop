@@ -7,6 +7,7 @@ Notable changes by version, newest first. See the
 
 - Bugfix: core_api.collect_state() reads SOURCEDIR traces in place, not from the workdir
 - Docs: "Using qtop as a library" documents core_api, with qtop's collector as the reference caller
+- Docs: visualisation-topics.md gathers the [VIS] ideas of #10, #11, #12, #34 and asks for use cases
 - Feature: (experimental) Slurm NVLink domains (topology/block): free nodes, idle GPUs, jobs across
 - Feature: Slurm tpu: and npu: GRES are kept beside gpu:, for any device count (kind field)
 - Feature: GPUs/TPUs/NPUs are node-matrix cells with user IDs, before the cores (gpu_map, =Gpu0)
