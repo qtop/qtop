@@ -24,7 +24,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 class LegacyRuntimeContracts(unittest.TestCase):
     def test_configuration_rejects_invalid_timeout_before_execution(self):
-        config = yaml_parser.parse(str(ROOT / "qtopconf.yaml"))
+        config = configuration.with_backend_defaults(yaml_parser.parse(str(ROOT / "qtopconf.yaml")))
         configuration.validate_config(config)
         for value in (0, -1, "nan", "inf", True):
             with self.subTest(value=value):

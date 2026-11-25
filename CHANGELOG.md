@@ -8,6 +8,7 @@ Notable changes by version, newest first. See the
 - Bugfix: SonarCloud findings on 1e01dac: SGE no-op self-assignments, uneven scheduler error lines
 - Bugfix: -R mmddTHHMM parses with the current year, so 29 February works (and Python 3.15 agrees)
 - Bugfix: Codacy: a YAML-parser expression statement; reasons recorded for the findings that stay
+- Bugfix: a qtopconf.yaml layer setting one scheduler command no longer drops all the others
 - CI: slow sdist/wheel install tests move to make test-packaging, run by the build jobs and nightly
 - CI: nightly splits into a blocking 8-lane core run and a 26-lane wide run that may be flaky
 - CI: PRs run the core debian:bookworm lane (root, distro Python), as nightly failures came from it
@@ -18,6 +19,7 @@ Notable changes by version, newest first. See the
 - Docs: the README calls the terminal interface fast, not extremely fast
 - Docs: qtop.1 gets an OPTIONS entry for --slurm-summary; a test now requires one for every option
 - Feature: the wheel ships py.typed (PEP 561), so type checkers read qtop's annotations
+- Feature: plugins are self-standing: commands, states and registration live in the plugin module
 - Refactor: one core_process helper starts commands and checks timeouts; dead comments gone
 - Refactor: --strict-parents is passed to fileutils, not set globally; no $HOME read at import
 - Refactor: core modules log via getLogger(__name__), so a host app's logging is left alone

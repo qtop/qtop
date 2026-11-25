@@ -68,6 +68,26 @@ class OarStatExtractor(TabularStatExtractor):
 class OARBatchSystem(GenericBatchSystem):
     """OAR backend."""
 
+    detection_priority = 1  # -b auto: Slurm -2, Slurm JSON -1, PBS 0, OAR 1, SGE 2, LSF 3, HTCondor 4
+    signature_command = "oarnodes"
+    default_commands = {
+        "oarnodes_s_file": "%(savepath)s/oarnodes_s_Y%(pid)s.txt, oarnodes -s -Y",
+        "oarnodes_y_file": "%(savepath)s/oarnodes_Y%(pid)s.txt, oarnodes -Y",
+        "oarstat_file": "%(savepath)s/oarstat%(pid)s.txt, oarstat",
+    }
+    # OAR's own names: W Waiting/toAckReservation, L toLaunch/Launching, H Hold, R Running,
+    # T Terminated, E Error/toError, F Finishing, S Suspended/Resuming.
+    state_abbreviations = {
+        "E": "Error",
+        "F": "Finishing",
+        "S": "cancelled_of_user",
+        "H": "Hold",
+        "L": "waiting_of_user",
+        "W": "queued_of_user",
+        "R": "running_of_user",
+        "T": "exiting_of_user",
+    }
+
     extensions = OAR_EXTENSION
     node_job_fields = OAR_EXTENSION.node_job_fields
 

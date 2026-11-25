@@ -480,8 +480,16 @@ qtop applies settings in this order; later values replace earlier ones:
    Dedicated CLI switches also apply their documented display behavior.
 
 File overrides replace whole top-level values rather than recursively merging
-nested mappings. To customize ``schedulers`` or ``state_abbreviations``, copy
-and edit the complete mapping from [qtopconf.yaml](../qtopconf.yaml).
+nested mappings, with three exceptions: ``schedulers``, ``signature_commands``
+and ``state_abbreviations`` merge per backend and, within one backend, per key.
+Their defaults come from each backend in ``qtop_py/plugins/``; a layer sets only
+what it changes, for example one command:
+
+```yaml
+schedulers:
+  slurm:
+    sinfo_file: %(savepath)s/sinfo%(pid)s.txt, sinfo -N -h -O 'NodeList:0|,Partition:0|,StateCompact:0|,CPUs:0'
+```
 
 ``-o`` accepts top-level keys, not dotted paths. Values are parsed as Python
 literals where possible (for example ``True``, ``1``, or a list); other values
@@ -863,19 +871,17 @@ sinfo -N -h -O 'NodeList:0|,Partition:0|,StateCompact:0|,CPUs:0|,Gres:0|,GresUse
 ```
 
 qtop also has a scheduler-type discovery system, meaning it will try to
-guess which scheduler system is installed in your system. The keys below
-let the user decide which command it should be that uniquely
-characterises the scheduler. Slurm is checked first so that an unrelated
-``qstat`` command does not mask an available ``sinfo`` command.
+guess which scheduler system is installed in your system. Each backend
+declares the command that characterises it (``signature_command``) and a
+``detection_priority``: Slurm (``sinfo``) first, then Slurm JSON, PBS
+(``pbsnodes``), OAR, SGE, LSF and HTCondor, so that an unrelated ``qstat``
+command does not mask an available ``sinfo`` command. Override one in a
+configuration layer:
 
 ```yaml
 ---
     signature_commands:
-      pbs: pbsnodes
-      oar: oarnodes
-      sge: qacct
-      slurm: sinfo
-      demo: echo
+      lsf: lsid
 ---
 ```
 
@@ -894,8 +900,9 @@ this setting is enabled.
 
 #### State abbreviations
 
-The complete per-backend mappings are in ``state_abbreviations`` in
-[qtopconf.yaml](../qtopconf.yaml). For example, the Slurm mapping includes:
+Each backend declares its complete mapping as ``state_abbreviations`` in its
+module under [qtop_py/plugins/](../qtop_py/plugins/); a configuration layer
+overrides single states. For example, the Slurm mapping includes:
 
 | Job state | Accounting category |
 | --- | --- |
@@ -1570,15 +1577,19 @@ pins the interface. A backend reports raw
 names: `-A` masks the built state once, for every backend, so it never reads `-A`
 or `-L`. Its options carry only collection settings (`core_api.BackendOptions`).
 
-To register it:
+A backend is self-standing: its module declares, on the class, `default_commands`
+(trace key to `"output file, command"`), the `signature_command` that `-b auto` looks
+for, a `detection_priority` and its `state_abbreviations`. `schedulers/registry.py`
+finds every `GenericBatchSystem` subclass defined in a `qtop_py/plugins/` module, so
+there is nothing to register; other packages add backends through the
+`qtop.backends` entry-point group (Python 3.8+). Configuration layers override the
+declared defaults per key, and matrix rows without a `systems:` list (the default
+ones) already apply to it. Then:
 
-1. Add the class to `PLUGIN_BATCH_SYSTEMS` in `qtop_py/schedulers/registry.py`.
-2. In `qtopconf.yaml`, add its commands under `schedulers:` and one command under
-   `signature_commands:` for auto-detection. Matrix rows without a `systems:` list
-   (the default ones) already apply to it.
-3. Commit sample traces and list them for the sample gate in
-   `tools/validate_scheduler_samples.py`; add the name to `SAMPLE_GATE_SCHEDULERS`
-   in the `Makefile`.
+1. Add the default commands to the commented list in `qtopconf.yaml`
+   (`tests/test_backend_discovery.py` checks the copy).
+2. Commit sample traces and their cases in `tools/validate_scheduler_samples.py`; the
+   sample gate runs every registered backend and fails without them.
 
 If its jobs or nodes carry fields beyond the neutral schema (array IDs, slot
 counts, job lists on nodes), describe them in one `ExtensionSpec`

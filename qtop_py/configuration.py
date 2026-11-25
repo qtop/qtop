@@ -30,6 +30,7 @@ from qtop_py.constants import (
 from qtop_py.core_errors import OperationalError
 from qtop_py.core_process import DEFAULT_SCHEDULER_COMMAND_TIMEOUT
 from qtop_py.core_safety import ResourceLimitError, literal_eval
+from qtop_py.schedulers import registry
 
 # Parsed YAML layers by path, each with the stat signature it was parsed under.
 # Watch mode reloads the configuration every frame; an unchanged file is
@@ -373,8 +374,36 @@ def update_config_with_cmdline_vars(args: Any, config: Dict[str, Any]) -> Dict[s
     return config
 
 
+BACKEND_SECTIONS: "Final" = ("schedulers", "signature_commands", "state_abbreviations")
+
+
+def merge_layer(config: Dict[str, Any], layer: Mapping[str, Any]) -> None:
+    """config.update(layer), except that the backend sections merge per backend and, within one, per key.
+
+    A layer that sets schedulers: {slurm: {sinfo_file: ...}} changes that one command and keeps the
+    other Slurm commands and every other backend's.
+    """
+    layer = dict(layer)
+    for key in BACKEND_SECTIONS:
+        if isinstance(config.get(key), dict) and isinstance(layer.get(key), dict):
+            merged = dict(config[key])
+            for name, value in layer[key].items():
+                current = merged.get(name)
+                merged[name] = {**current, **value} if isinstance(current, dict) and isinstance(value, dict) else value
+            layer[key] = merged
+    config.update(layer)
+
+
+def with_backend_defaults(config: Mapping[str, Any]) -> Dict[str, Any]:
+    """Return config over the commands, signature commands and state names the backends declare."""
+    merged: Dict[str, Any] = registry.backend_defaults(registry.discover_qtop_batch_systems())
+    merge_layer(merged, config)
+    return merged
+
+
 def prepare_config(config: Dict[str, Any], args: Any = None) -> Tuple[Dict[str, Any], Dict[str, str], Dict[str, str]]:
     """Validate and normalise the configuration; return it with the user and node-state colour maps."""
+    config = with_backend_defaults(config)
     validate_config(config)
     config = normalize_config(config)
 
@@ -412,7 +441,7 @@ def load_yaml_config(args: Any, package_dir: str, initial_cwd: str, system_dir: 
         except FileNotFoundError:
             logging.info("%s could not be found in %s/", QTOPCONF_YAML, directory)
         else:
-            config.update(layer)
+            merge_layer(config, layer)
             logging.info("%s configuration loaded from %s/. Length: %s items", label, directory, len(layer))
     if args.CONFFILE:
         for directory in (user_dir, initial_cwd):
@@ -420,7 +449,7 @@ def load_yaml_config(args: Any, package_dir: str, initial_cwd: str, system_dir: 
                 custom = parse_layer(os.path.join(directory, args.CONFFILE))
             except FileNotFoundError:
                 continue
-            config.update(custom)
+            merge_layer(config, custom)
             logging.info("Custom User configuration loaded from %s/. Length: %s items", directory, len(custom))
             break
         else:

@@ -17,7 +17,7 @@ from qtop_py.core_process import DEFAULT_SCHEDULER_COMMAND_TIMEOUT
 
 @pytest.fixture
 def config():
-    return yaml_parser.parse(str(Path(__file__).resolve().parents[1] / "qtopconf.yaml"))
+    return configuration.with_backend_defaults(yaml_parser.parse(str(Path(__file__).resolve().parents[1] / "qtopconf.yaml")))
 
 
 @pytest.mark.parametrize(
@@ -90,7 +90,7 @@ def test_state_column_examples_parse_and_validate(tmp_path):
     text = _uncomment(text, "summary_states:\n  - running_of_user\n  - queued_of_user\n  - other_of_user")
     path = tmp_path / "qtopconf.yaml"
     path.write_text(text)
-    config = yaml_parser.parse(str(path))
+    config = configuration.with_backend_defaults(yaml_parser.parse(str(path)))
     assert config["accounts_states"] == [{"exiting_of_user": "Ex"}, "running_of_user", "cancelled_of_user", "queued_of_user", "other_of_user"]
     assert config["summary_states"] == ["running_of_user", "queued_of_user", "other_of_user"]
     validate_config(config)
@@ -103,7 +103,7 @@ def test_summary_colours_example_parses_and_validates(tmp_path):
     path.write_text(
         text.replace("# summary_colours:\n" + "".join("#   - %s\n" % colour for colour in colours), "summary_colours:\n" + "".join("  - %s\n" % colour for colour in colours))
     )
-    config = yaml_parser.parse(str(path))
+    config = configuration.with_backend_defaults(yaml_parser.parse(str(path)))
     assert config["summary_colours"] == colours
     validate_config(config)
 
@@ -112,7 +112,7 @@ def test_sge_whole_queues_example_parses_and_validates(tmp_path):
     text = (Path(__file__).resolve().parents[1] / "qtopconf.yaml").read_text()
     path = tmp_path / "qtopconf.yaml"
     path.write_text(text.replace("# sge_whole_queues:\n#   - world\n#   - whole*", "sge_whole_queues:\n  - world\n  - whole*"))
-    config = yaml_parser.parse(str(path))
+    config = configuration.with_backend_defaults(yaml_parser.parse(str(path)))
     assert config["sge_whole_queues"] == ["world", "whole*"]
     validate_config(config)
 

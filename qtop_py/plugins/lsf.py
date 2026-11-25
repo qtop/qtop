@@ -58,6 +58,28 @@ def parse_exec_host(value: str) -> "OrderedDict[str, int]":
 class LSFBatchSystem(GenericBatchSystem):
     """LSF backend."""
 
+    detection_priority = 3  # -b auto: Slurm -2, Slurm JSON -1, PBS 0, OAR 1, SGE 2, LSF 3, HTCondor 4
+    signature_command = "bhosts"
+    default_commands = {
+        # Hosts and queues as wide whitespace tables; jobs with a named, '|'-delimited header.
+        "bhosts_file": "%(savepath)s/bhosts%(pid)s.txt, bhosts -w",
+        "bqueues_file": "%(savepath)s/bqueues%(pid)s.txt, bqueues -w",
+        "bjobs_file": "%(savepath)s/bjobs%(pid)s.txt, bjobs -u all -o \"jobid jobindex stat user queue exec_host delimiter='|'\"",
+    }
+    state_abbreviations = {
+        "RUN": "running_of_user",
+        "PEND": "queued_of_user",
+        "PSUSP": "hold_of_user",
+        "USUSP": "suspended_of_user",
+        "SSUSP": "suspended_of_user",
+        "PROV": "configuring_of_user",
+        "WAIT": "waiting_of_user",
+        "DONE": "finished_of_user",
+        "EXIT": "failed_of_user",
+        "ZOMBI": "exiting_of_user",
+        "UNKWN": "unknown_of_user",
+    }
+
     blocked_queue_note = " (queue Closed or Inact)"
 
     @staticmethod

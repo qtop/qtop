@@ -17,6 +17,7 @@ from pathlib import Path
 
 import pytest
 
+from qtop_py import configuration
 from qtop_py import core_yaml_parser as yaml_parser
 from qtop_py.core_cluster_state import validate_cluster_state
 from qtop_py.schedulers import metadata, registry
@@ -24,7 +25,7 @@ from qtop_py.snapshot import Snapshot
 
 ROOT = Path(__file__).resolve().parents[1]
 BACKENDS = registry.discover_qtop_batch_systems()
-CONFIG = yaml_parser.parse(str(ROOT / "qtopconf.yaml"))
+CONFIG = configuration.with_backend_defaults(yaml_parser.parse(str(ROOT / "qtopconf.yaml")))
 
 sys.path.insert(0, str(ROOT / "tools"))
 from validate_scheduler_samples import discover_cases  # noqa: E402
@@ -34,8 +35,8 @@ SAMPLE_CASES = discover_cases(sorted(BACKENDS), ROOT / "tests/plugins/slurm_samp
 
 @pytest.mark.parametrize("mnemonic", sorted(BACKENDS))
 def test_backend_is_configured_and_gated(mnemonic):
-    assert mnemonic in CONFIG["schedulers"], "add %s commands under schedulers: in qtopconf.yaml" % mnemonic
-    assert mnemonic in CONFIG["signature_commands"], "add %s under signature_commands: for auto-detection" % mnemonic
+    assert mnemonic in CONFIG["schedulers"], "declare default_commands on the %s backend class" % mnemonic
+    assert mnemonic in CONFIG["signature_commands"], "declare a signature_command on the %s backend class for -b auto" % mnemonic
     gate = re.search(r"^SAMPLE_GATE_SCHEDULERS \?= (\S+)$", (ROOT / "Makefile").read_text(), re.M)
     assert gate and mnemonic in gate.group(1).split(","), "add %s to SAMPLE_GATE_SCHEDULERS in the Makefile" % mnemonic
     assert any(case["scheduler"] == mnemonic for case in SAMPLE_CASES), "add a %s sample to tools/validate_scheduler_samples.py" % mnemonic

@@ -180,6 +180,40 @@ class SGEStatExtractor(StatExtractor):
 class SGEBatchSystem(GenericBatchSystem):
     """SGE backend."""
 
+    detection_priority = 2  # -b auto: Slurm -2, Slurm JSON -1, PBS 0, OAR 1, SGE 2, LSF 3, HTCondor 4
+    signature_command = "qacct"
+    default_commands = {
+        "sge_file": "%(savepath)s/qstat%(pid)s.F.xml.stdout, qstat -F -xml -u '*'",
+    }
+    state_abbreviations = {
+        # ref: http://www.softpanorama.org/HPC/Grid_engine/Reference/qstat.shtml
+        "r": "running_of_user",
+        "E": "exiting_of_user",
+        "qw": "queued_of_user",
+        "C": "cancelled_of_user",
+        "W": "waiting_of_user",
+        "R": "restarting_of_user",
+        "hr": "hr_of_user",
+        "hRq": "hRq_of_user",
+        "Ehqw": "Ehqw_of_user",
+        "Eqw": "Eqw_of_user",
+        "hqw": "hold_of_user",
+        "t": "transferring_of_user",
+        "T": "threshold_reached",
+        "ht": "ht_of_user",
+        "dr": "job_ending_of_user",
+        "dt": "dt_of_user",
+        "dht": "dht_of_user",
+        "s": "suspended_of_user",
+        "S": "suspended_by_the_queue",
+        "shite": "testing_of_user",
+        "ERq": "ERq_of_user",
+        "Rq": "queued_of_user",
+        "Rs": "suspended_of_user",
+        "Rt": "transferring_of_user",
+        "Rr": "running_of_user",
+    }
+
     native_queue_membership = True
     blocked_queue_note = " (at least one queue instance)"
 

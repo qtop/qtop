@@ -266,6 +266,28 @@ class PBSStatExtractor(TabularStatExtractor):
 class PBSBatchSystem(GenericBatchSystem):
     """PBS/Torque and PBS Pro backend."""
 
+    signature_command = "pbsnodes"
+    default_commands = {
+        "pbsnodes_file": "%(savepath)s/pbsnodes_a%(pid)s.txt, pbsnodes -a",
+        "qstatq_file": "%(savepath)s/qstat_q%(pid)s.txt, qstat -Q -f -F json",
+        "qstat_file": "%(savepath)s/qstat%(pid)s.txt, qstat -f -F json",
+    }
+    state_abbreviations = {
+        "Q": "queued_of_user",
+        "R": "running_of_user",
+        "C": "cancelled_of_user",
+        "E": "exiting_of_user",
+        "W": "waiting_of_user",
+        "H": "held_of_user",
+        "B": "begun_of_user",
+        "F": "finished_of_user",
+        "M": "moved_of_user",
+        "S": "suspended_of_user",
+        "T": "transiting_of_user",
+        "U": "suspended_useractive_of_user",
+        "X": "expired_of_user",
+    }
+
     classic_report_name = "PBS"
     classic_job_count_source = "reported by qstat - q"
     classic_account_note = "  ('all' also includes those in C and W states, as reported by qstat)"

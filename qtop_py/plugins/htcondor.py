@@ -38,6 +38,25 @@ def _count(value: Any, default: int = 0) -> int:
 class HTCondorBatchSystem(GenericBatchSystem):
     """HTCondor backend; accounting groups stand in for queues."""
 
+    detection_priority = 4  # -b auto: Slurm -2, Slurm JSON -1, PBS 0, OAR 1, SGE 2, LSF 3, HTCondor 4
+    signature_command = "condor_status"
+    default_commands = {
+        # JSON ClassAds; condor_q asks the local schedd (use -global for every schedd in the pool).
+        "status_json": (
+            "%(savepath)s/condor_status%(pid)s.json, condor_status -json -attributes Name,Machine,SlotType,PartitionableSlot,DynamicSlot,State,Activity,Cpus,TotalSlotCpus"
+        ),
+        "q_json": "%(savepath)s/condor_q%(pid)s.json, condor_q -allusers -json -attributes ClusterId,ProcId,Owner,JobStatus,RemoteHost,RequestCpus,AcctGroup",
+    }
+    state_abbreviations = {
+        "I": "queued_of_user",
+        "R": "running_of_user",
+        "H": "hold_of_user",
+        "S": "suspended_of_user",
+        "E": "exiting_of_user",
+        "X": "cancelled_of_user",
+        "C": "finished_of_user",
+    }
+
     classic_account_note = "  (queues are accounting groups; 'default' has none)"
 
     @staticmethod

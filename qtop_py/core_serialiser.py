@@ -48,8 +48,13 @@ class GenericBatchSystem(object):
     optional_trace_keys: Tuple[str, ...] = ()
     optional_trace_aliases: Dict[str, str] = {}
     optional_trace_warning = "Optional scheduler details unavailable."
-    detection_priority = 0
+    detection_priority = 0  # -b auto tries lower values first; ties keep the configuration's order
     is_simulated = False
+    # Each backend declares its own defaults; schedulers.registry reads only what a class declares
+    # itself, and the configuration layers override them per key (qtopconf.yaml schedulers: etc.).
+    signature_command: Optional[str] = None  # a command whose presence means this scheduler (-b auto)
+    default_commands: Mapping[str, str] = {}  # trace key -> "savepath file template, command"
+    state_abbreviations: Mapping[str, str] = {}  # scheduler job state -> qtop state name
     # A backend whose records carry extra fields declares their ExtensionSpec here (and lists it in
     # metadata.EXTENSIONS); node_job_fields then comes from that spec, not a second copy.
     extensions: Optional[ExtensionSpec] = None

@@ -241,9 +241,10 @@ Current implementation and remaining preparation:
   (`slurm_extension.py`, `oar_extension.py`) that imports no plugin, so offline
   validation and masking stay independent of backend construction and optional
   client libraries; `tests/test_plugin_conformance.py` checks every backend.
-- [ ] Consolidate repeated backend defaults and validation-case declarations
-  when new backends need them. Keep the small explicit registry; avoid a
-  generic discovery framework or unrelated module moves.
+- [x] Consolidate repeated backend defaults: each plugin declares its commands,
+  signature command, detection priority and state names; the registry finds plugin
+  modules (`pkgutil`) and `qtop.backends` entry points, and the sample gate covers
+  every registered backend. Still no framework beyond those two mechanisms.
 - [ ] Define resource quantities, unknown placement and renderer capabilities
   with the first backend that needs them. Integer `np` and `core_job_map`
   remain the existing CPU-grid contract, not a generic resource model.

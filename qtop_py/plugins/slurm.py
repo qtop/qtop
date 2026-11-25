@@ -327,6 +327,45 @@ class SlurmStatExtractor(StatExtractor):
 class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
     """Slurm backend."""
 
+    signature_command = "sinfo"
+    default_commands = {
+        # Copy the command after ', ' directly into a shell for debugging.
+        # Include all retained job states, including suspended jobs; --all opts into hidden partitions.
+        "squeue_file": (
+            "%(savepath)s/squeue%(pid)s.txt, squeue --states=all -r -h -O "
+            "'JobID:0|,UserName:0|,StateCompact:0|,Partition:0|,NumCPUs:0|,NodeList:0|,tres-alloc:0|,tres-per-node:0|,tres-per-task:0|,ArrayJobID:0|,ArrayTaskID:0'"
+        ),
+        "sinfo_file": "%(savepath)s/sinfo%(pid)s.txt, sinfo -N -h -O 'NodeList:0|,Partition:0|,StateCompact:0|,CPUs:0|,Gres:0|,GresUsed:0|,Available:0'",
+        # Collect Slurm CPU IDs by default; missing/failed details use estimates.
+        "scontrol_file": "%(savepath)s/scontrol%(pid)s.txt, scontrol --details show jobs",
+    }
+    state_abbreviations = {
+        "BF": "failed_boot_of_user",
+        "R": "running_of_user",
+        "RH": "hold_of_user",
+        "PD": "queued_of_user",
+        "CA": "cancelled_of_user",
+        "CD": "finished_of_user",
+        "CG": "exiting_of_user",
+        "CF": "configuring_of_user",
+        "DL": "deadline_of_user",
+        "F": "failed_of_user",
+        "NF": "failed_node_of_user",
+        "OOM": "out_of_memory_of_user",
+        "TO": "timeout_of_user",
+        "PR": "preempted_of_user",
+        "RD": "hold_of_user",
+        "RF": "queued_of_user",
+        "RQ": "queued_of_user",
+        "RS": "resizing_of_user",
+        "RV": "revoked_of_user",
+        "SI": "signaling_of_user",
+        "SE": "special_exit_of_user",
+        "SO": "stage_out_of_user",
+        "S": "suspended_of_user",
+        "ST": "stopped_of_user",
+    }
+
     native_queue_membership = True
     optional_trace_keys: Tuple[str, ...] = ("scontrol_file",)
     optional_trace_aliases = {"scontrol_file": "scontrol.txt"}

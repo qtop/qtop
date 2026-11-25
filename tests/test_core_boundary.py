@@ -45,7 +45,11 @@ def _module_name(path):
 
 
 MODULES = {_module_name(path): path for path in PACKAGE.rglob("*.py")}
-CORE = {name for name in MODULES if name.startswith("qtop_py.core_") or (name.startswith(tuple(package + "." for package in CORE_PACKAGES)) and name not in APP_IN_CORE_PACKAGES)}
+CORE = {
+    name
+    for name in MODULES
+    if name.startswith("qtop_py.core_") or name in CORE_PACKAGES or (name.startswith(tuple(package + "." for package in CORE_PACKAGES)) and name not in APP_IN_CORE_PACKAGES)
+}
 
 
 def _imported_modules(node):

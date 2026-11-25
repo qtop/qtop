@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+from qtop_py import configuration
 from qtop_py.core_api import BackendOptions
 from qtop_py.core_sample import anonymize_state
 from qtop_py.plugins.htcondor import JOB_STATES, HTCondorBatchSystem, slot_type
@@ -109,5 +110,5 @@ def test_anonymize_maps_machines_in_status_and_remote_hosts_alike():
 def test_every_job_status_letter_is_configured():
     from qtop_py import core_yaml_parser as yaml_parser
 
-    config = yaml_parser.parse(str(Path(__file__).resolve().parents[2] / "qtopconf.yaml"))
+    config = configuration.with_backend_defaults(yaml_parser.parse(str(Path(__file__).resolve().parents[2] / "qtopconf.yaml")))
     assert set(JOB_STATES.values()) == set(config["state_abbreviations"]["htcondor"])

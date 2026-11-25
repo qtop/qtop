@@ -14,6 +14,7 @@ from pathlib import Path
 
 import pytest
 
+from qtop_py import configuration
 from qtop_py import core_sample as sample
 from qtop_py import core_yaml_parser as yaml_parser
 from qtop_py.core_api import BackendOptions
@@ -373,7 +374,7 @@ def test_schema_2_observations_replay_and_anonymize_without_original_identifiers
 
 
 def test_config_masking_translates_regexes_without_changing_control_strings():
-    defaults = yaml_parser.parse(str(ROOT / "qtopconf.yaml"))
+    defaults = configuration.with_backend_defaults(yaml_parser.parse(str(ROOT / "qtopconf.yaml")))
     config = dict(defaults)
     config.update(
         {

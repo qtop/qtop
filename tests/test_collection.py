@@ -13,10 +13,10 @@ from types import SimpleNamespace
 
 import pytest
 
+from qtop_py import configuration, fileutils, utils
 from qtop_py import core_inputs as inputs
 from qtop_py import core_process as process_io
 from qtop_py import core_yaml_parser as yaml_parser
-from qtop_py import fileutils, utils
 from qtop_py.core_errors import OperationalError
 from qtop_py.core_process import communicate_with_timeout
 from qtop_py.plugins.slurm import SlurmBatchSystem
@@ -191,7 +191,7 @@ def frame_context(tmp_path, monkeypatch):
     monkeypatch.setattr(sys, "argv", ["qtop", "-b", "slurm_json"])
     args = utils.parse_qtop_cmdline_args()
     args.workdir = str(tmp_path)
-    config = yaml_parser.parse(str(ROOT / "qtopconf.yaml"))
+    config = configuration.with_backend_defaults(yaml_parser.parse(str(ROOT / "qtopconf.yaml")))
     config["savepath"] = str(tmp_path)
     resources = RunResources()
     monkeypatch.setattr(resources, "start_capture", lambda *args: None)
@@ -258,7 +258,7 @@ def test_empty_jobs_falls_back_once_and_later_failure_retains_legacy_snapshot(fr
 
 
 def test_autodetection_prefers_legacy_but_explicit_json_is_preserved(monkeypatch):
-    config = yaml_parser.parse(str(ROOT / "qtopconf.yaml"))
+    config = configuration.with_backend_defaults(yaml_parser.parse(str(ROOT / "qtopconf.yaml")))
     systems = registry.discover_qtop_batch_systems()
     monkeypatch.setattr(registry.shutil, "which", lambda command: "/bin/" + command)
     assert registry.auto_get_avail_batch_system(config, systems) == "slurm"
