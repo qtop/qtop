@@ -147,6 +147,11 @@ a checkout owned by another user, it meets the conditions behind most nightly
 failures before merge. It needs a Linux container runtime, so on macOS rely on
 the PR job rather than reproducing it locally.
 
+Scheduled runs test `develop`: GitHub schedules the default branch, `main`, which
+only moves at releases, so the checkout switches to `develop`, and the GitLab
+schedule targets `develop`. Manual runs test the ref they are started on, so
+run both workflows on `main` before tagging a release.
+
 All lanes use `ci/scripts/matrix_lane.sh` and the shared CI pins.
 Every lane that installs them runs Python 3.10+, so all get the patched
 setuptools 84.2.1 and pytest 9.2.0. Python 3.10-3.11 also install wheel 0.48.0

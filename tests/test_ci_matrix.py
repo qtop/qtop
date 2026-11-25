@@ -71,6 +71,13 @@ def make_recipe(target):
     return recipe
 
 
+def test_scheduled_nightly_runs_test_develop():
+    """GitHub schedules main, which only moves at releases; scheduled runs check out develop instead."""
+    github, _ = read_matrices()
+    checkouts = [step for workflow in github.values() for job in workflow["jobs"].values() for step in job["steps"] if step.get("uses", "").startswith("actions/checkout")]
+    assert checkouts and all(step["with"]["ref"] == "${{ github.event_name == 'schedule' && 'develop' || '' }}" for step in checkouts)
+
+
 def test_pull_requests_run_the_core_debian_lane_on_both_forges():
     """Most nightly failures came from lane conditions (root, distro toolchain); PRs now run one such lane."""
     github, _ = read_matrices()

@@ -38,6 +38,9 @@ on:
   push:
     branches:
       - 'develop-202607-*'
+  # Scheduled runs check out develop: GitHub schedules the default branch (main),
+  # which only moves at releases, so regressions would surface days late.
+  # Manual and challenge-branch runs test the ref they were started on.
   schedule:
     - cron: '20 4 * * *'
   workflow_dispatch:
@@ -52,6 +55,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          ref: ${{ github.event_name == 'schedule' && 'develop' || '' }}
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: '3.12.3'
@@ -102,6 +106,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          ref: ${{ github.event_name == 'schedule' && 'develop' || '' }}
       - run: bash ci/scripts/matrix_lane.sh "${{ matrix.family }}" "${{ matrix.pkgs || '-' }}" "${{ matrix.pybin || 'python3' }}" "${{ matrix.target || 'ci' }}"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()

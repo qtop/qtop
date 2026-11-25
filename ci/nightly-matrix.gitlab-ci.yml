@@ -16,6 +16,8 @@
 #
 # Activation (one-time, GitLab UI): Build > Pipeline schedules > New schedule
 #   - interval pattern: 20 4 * * *
+#   - target branch: develop (main only moves at releases, so regressions
+#     would surface days late)
 #   - add variable NIGHTLY_MATRIX=1
 # A manual web-triggered pipeline with NIGHTLY_MATRIX=1 runs the same lanes
 # on demand. Regular branch/MR pipelines never run these jobs.
