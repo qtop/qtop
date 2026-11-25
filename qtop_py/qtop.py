@@ -245,7 +245,6 @@ def _parse_run_options(resources: RunResources) -> Tuple[Any, Dict[str, Any]]:
         print("qtop current version: " + __version__)
         sys.exit(0)
     apply_demanding(args)
-    fileutils.STRICT_PARENTS = args.STRICT_PARENTS
     utils.init_logging(args)
     resources.logfile = fileutils.active_log_path()
     dynamic_config: Dict[str, Any] = dict()

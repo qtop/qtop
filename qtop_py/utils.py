@@ -11,6 +11,7 @@
 
 import io
 import logging
+import os
 import sys
 from argparse import ArgumentParser, Namespace
 from typing import Any, Callable, Dict, Iterator, Optional
@@ -21,15 +22,19 @@ from qtop_py.core_safety import SafeLogFormatter, visible_text
 
 
 class PrivateFileHandler(logging.FileHandler):
-    """Log file handler that opens its file privately (mode 0600)."""
+    """Log file handler that opens its file privately (mode 0600); strict is --strict-parents."""
+
+    def __init__(self, filename: str, strict: bool = False, **kwargs: Any) -> None:
+        self.strict = strict
+        super().__init__(filename, **kwargs)
 
     def _open(self) -> io.TextIOWrapper:
         def open_log(path: str) -> io.TextIOWrapper:
-            stream = fileutils.private_log_stream(path)
+            stream = fileutils.private_log_stream(path, self.strict)
             self.baseFilename = path
             return stream
 
-        return fileutils.with_fallback("log", self.baseFilename, open_log, leaf="qtop.log")
+        return fileutils.with_fallback("log", self.baseFilename, open_log, leaf="qtop.log", strict=self.strict)
 
 
 def init_logging(options: Any) -> None:
@@ -45,10 +50,11 @@ def init_logging(options: Any) -> None:
     logger = logging.getLogger()
     logger.setLevel(logging.DEBUG)
 
+    strict = bool(getattr(options, "STRICT_PARENTS", False))
     try:
-        fh = PrivateFileHandler(QTOP_LOGFILE, encoding="utf-8")
+        fh = PrivateFileHandler(os.path.expandvars(QTOP_LOGFILE), strict, encoding="utf-8")
     except OSError as error:
-        if fileutils.STRICT_PARENTS:
+        if strict:
             raise
         # Neither the log nor its fallback is usable: keep running, without a log file.
         sys.stderr.write("qtop: warning: no log file: %s (%s)\n" % (visible_text(error.strerror or error), visible_text(error.filename)))

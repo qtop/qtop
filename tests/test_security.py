@@ -84,13 +84,12 @@ def test_save_directory_rejects_symlink_components(tmp_path, suffix):
     assert stat.S_IMODE(target.stat().st_mode) == 0o755
 
 
-def test_save_directory_rejects_writable_nonsticky_parent_when_strict(tmp_path, monkeypatch):
-    monkeypatch.setattr(fileutils, "STRICT_PARENTS", True)
+def test_save_directory_rejects_writable_nonsticky_parent_when_strict(tmp_path):
     parent = tmp_path / "shared"
     parent.mkdir()
     parent.chmod(0o777)
     with pytest.raises(PermissionError, match="untrusted parent"):
-        fileutils.private_save_directory(str(parent / "results"))
+        fileutils.private_save_directory(str(parent / "results"), strict=True)
     assert not (parent / "results").exists()
 
 
@@ -195,7 +194,6 @@ def test_macos_save_directory_handles_only_root_owned_system_aliases(tmp_path, m
     ((0o755, True, True), (0o1777, True, True), (0o770, True, False), (0o777, True, False), (0o770, False, True), (0o777, False, True)),
 )
 def test_save_directory_handles_site_owned_parents(tmp_path, monkeypatch, mode, strict, allowed):
-    monkeypatch.setattr(fileutils, "STRICT_PARENTS", strict)
     parent = tmp_path / "site-owned"
     parent.mkdir()
     parent.chmod(mode)
@@ -213,12 +211,12 @@ def test_save_directory_handles_site_owned_parents(tmp_path, monkeypatch, mode, 
 
     monkeypatch.setattr(fileutils.os, "fstat", site_owner)
     if allowed:
-        assert fileutils.private_save_directory(str(target)) == str(target)
+        assert fileutils.private_save_directory(str(target), strict) == str(target)
         assert stat.S_IMODE(target.stat().st_mode) == 0o700
         assert target.stat().st_uid == os.geteuid()
     else:
         with pytest.raises(PermissionError, match="untrusted parent") as caught:
-            fileutils.private_save_directory(str(target))
+            fileutils.private_save_directory(str(target), strict)
         assert caught.value.filename == str(parent)
         assert not target.exists()
     assert stat.S_IMODE(parent.stat().st_mode) == mode

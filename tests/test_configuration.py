@@ -144,7 +144,7 @@ def test_loading_preserves_precedence_and_applies_cli_once(tmp_path, monkeypatch
             (user / "custom.yaml").write_text("marker: custom-user\n")
     output = str(tmp_path / "cli-output")
     calls = []
-    monkeypatch.setattr(configuration.fileutils, "private_save_directory", lambda path: calls.append(path) or path)
+    monkeypatch.setattr(configuration.fileutils, "private_save_directory", lambda path, strict=False: calls.append(path) or path)
     options = SimpleNamespace(CONFFILE="custom.yaml" if custom_location else None, OPTION=["savepath=" + output], TRANSPOSE=True, REM_EMPTY_CORELINES=2)
     # Watch mode can reload after init_dirs has changed cwd to the trace directory.
     monkeypatch.chdir(system)
@@ -165,7 +165,7 @@ def test_loading_preserves_precedence_and_applies_cli_once(tmp_path, monkeypatch
 def test_snapshot_configuration_is_isolated_from_file_layers_and_mutation(config, monkeypatch):
     original = copy.deepcopy(config)
     monkeypatch.setattr(configuration.yaml_parser, "parse", lambda path: pytest.fail("Snapshot replay must not read local configuration"))
-    monkeypatch.setattr(configuration.fileutils, "private_save_directory", lambda path: path)
+    monkeypatch.setattr(configuration.fileutils, "private_save_directory", lambda path, strict=False: path)
     options = SimpleNamespace(load_sample="support.tar", sample_snapshot={"config": config}, OPTION=["scheduler_command_timeout=4"], TRANSPOSE=False)
     prepared, colors, _ = configuration.load_yaml_config(options, "unused", "unused", "unused", "unused")
     assert prepared["scheduler_command_timeout"] == 4
@@ -175,7 +175,7 @@ def test_snapshot_configuration_is_isolated_from_file_layers_and_mutation(config
 
 
 def test_cli_validation_precedes_output_directory_creation(config, monkeypatch):
-    monkeypatch.setattr(configuration.fileutils, "private_save_directory", lambda path: pytest.fail("Invalid overrides must not create directories"))
+    monkeypatch.setattr(configuration.fileutils, "private_save_directory", lambda path, strict=False: pytest.fail("Invalid overrides must not create directories"))
     with pytest.raises(ValueError, match="term_size"):
         configuration.prepare_config(config, SimpleNamespace(OPTION=["term_size=[0, 80]"]))
 
@@ -213,7 +213,7 @@ def counted_parse(monkeypatch):
     parsed = []
     parse = yaml_parser.parse
     monkeypatch.setattr(configuration.yaml_parser, "parse", lambda path: (os.path.exists(path) and parsed.append(Path(path).name)) or parse(path))  # count real parses only
-    monkeypatch.setattr(configuration.fileutils, "private_save_directory", lambda path: path)
+    monkeypatch.setattr(configuration.fileutils, "private_save_directory", lambda path, strict=False: path)
     yield parsed
     configuration.clear_layer_cache()
 

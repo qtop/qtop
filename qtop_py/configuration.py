@@ -392,14 +392,16 @@ def prepare_config(config: Dict[str, Any], args: Any = None) -> Tuple[Dict[str, 
     if args is not None:
         config = update_config_with_cmdline_vars(args, config)
         validate_config(config)
-    config["savepath"] = fileutils.with_fallback("savepath", config["savepath"], fileutils.private_save_directory)
+    strict = bool(getattr(args, "STRICT_PARENTS", False))
+    config["savepath"] = fileutils.with_fallback("savepath", config["savepath"], lambda path: fileutils.private_save_directory(path, strict), strict=strict)
     logging.debug("%s files will be saved in directory %s.", config["scheduler"], config["savepath"])
 
     return config, user_to_color, nodestate_to_color
 
 
 def load_yaml_config(args: Any, package_dir: str, initial_cwd: str, system_dir: str, user_dir: str) -> Tuple[Dict[str, Any], Dict[str, str], Dict[str, str]]:
-    """Load defaults < system < user < custom, then prepare CLI overrides."""
+    """Load defaults < system < user < custom, then prepare CLI overrides; user_dir may name $HOME."""
+    user_dir = os.path.expandvars(user_dir)
     if getattr(args, "load_sample", None):
         return prepare_config(args.sample_snapshot["config"], args)
     config = parse_layer(os.path.join(os.path.realpath(package_dir), QTOPCONF_YAML))

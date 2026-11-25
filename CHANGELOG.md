@@ -16,6 +16,7 @@ Notable changes by version, newest first. See the
 - Docs: the README calls the terminal interface fast, not extremely fast
 - Docs: qtop.1 gets an OPTIONS entry for --slurm-summary; a test now requires one for every option
 - Refactor: one core_process helper starts commands and checks timeouts; dead comments gone
+- Refactor: --strict-parents is passed to fileutils, not set globally; no $HOME read at import
 - Tests: the concurrent-commands test checks overlap with a rendezvous, not a 1.5 s limit
 - Tests: input_parsing, user_details and snapshot reach 100% coverage (regex, groups, legacy rows)
 - Release: update version metadata to 0.9.20261122
