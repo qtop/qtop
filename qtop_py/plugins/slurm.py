@@ -436,15 +436,15 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
             return SlurmBatchSystem._accounting_messages(snapshot)
         if section == "placement":
             return SlurmBatchSystem._placement_messages(nodes)
-        if section == "resources":
-            return SlurmBatchSystem._accelerator_messages(nodes, config) + (SlurmBatchSystem._gpu_pair_messages(nodes, config) if config.get("experimental_gpu_pairs") else [])
+        if section == "accelerators":
+            return SlurmBatchSystem._accelerator_messages(nodes)
+        if section == "resources" and config.get("experimental_gpu_pairs"):
+            return SlurmBatchSystem._gpu_pair_messages(nodes, config)
         return []
 
     @staticmethod
-    def _accelerator_messages(nodes: "List[Node]", config: "Config") -> List[str]:
-        """List each node's GPUs, TPUs and NPUs with their jobs, unless accelerator_map is false."""
-        if config.get("accelerator_map", True) is False:
-            return []
+    def _accelerator_messages(nodes: "List[Node]") -> List[str]:
+        """List each node's GPUs, TPUs and NPUs with their jobs; the view places them (accelerator_map)."""
         from qtop_py.schedulers.gpu import accelerator_map_lines
 
         lines = accelerator_map_lines(nodes)

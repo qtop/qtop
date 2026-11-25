@@ -98,7 +98,11 @@ class GenericBatchSystem(object):
 
     @staticmethod
     def display_messages(section: str, snapshot: object, nodes: "List[Node]", config: "Config") -> "List[str]":
-        """Return severity-prefixed display lines for the scheduler messages block."""
+        """Return severity-prefixed display lines for a section of notes.
+
+        Sections: snapshot, accounting, placement and resources go to the scheduler messages block;
+        accelerators (devices by node) go before or after the node matrix (accelerator_map).
+        """
         return []
 
     def mask_source_trace(self, key: str, text: str, mask: "TraceMasker") -> "Tuple[str, str]":

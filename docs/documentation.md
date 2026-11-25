@@ -1375,7 +1375,7 @@ unknown. Native Slurm/SGE memberships survive anonymization and replay.
 
 # Accelerators by node (Slurm)
 
-Below the worker-node matrices, Slurm nodes with GPUs, TPUs or NPUs get one line
+Above the worker-node matrices, Slurm nodes with GPUs, TPUs or NPUs get one line
 each, listing every device with the jobs holding it:
 
 ```text
@@ -1393,12 +1393,16 @@ Indices are Slurm GRES indices, not CUDA or physical IDs. A device is `idle` onl
 when Slurm's usage data shows it unused; otherwise it is `?`, as with
 `--slurm-summary`, which collects no per-job indices. MIG slices are left out of
 the map. Exports, `-A` and replay keep the devices; TPU and NPU records carry a
-`kind` field, and records without one are GPUs. To hide the lines, set this in
-your `qtopconf.yaml`:
+`kind` field, and records without one are GPUs.
+
+Nodes rarely carry more than 8 devices, so the lines are short and sit before the
+matrix by default. Choose their place, or hide them, in your `qtopconf.yaml`:
 
 ```yaml
-accelerator_map: false
+accelerator_map: after   # before (default), after the matrices, or false
 ```
+
+When the node matrix is hidden (`-2`), the lines join the scheduler messages.
 
 # Experimental configured GPU pairs (Slurm)
 

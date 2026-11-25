@@ -100,6 +100,14 @@ WATCH_KEYS_TEXT: "Final" = "Keys: " + ",\n      ".join(", ".join("%s %s" % pair 
 BOLD: "Final" = "\033[1m%s\033[0m"
 
 
+def accelerator_lines(display: Any) -> List[str]:
+    """The backend's accelerators-by-node lines for a display, or none when accelerator_map is off."""
+    if display.config.get("accelerator_map", "before") == "off":
+        return []
+    nodes = getattr(display.cluster, "worker_nodes", [])
+    return list(display.MVU_model.backend.display_messages("accelerators", display.snapshot, nodes, display.config))
+
+
 class TextDisplay(object):
     """Render a frame's four numbered sections and scheduler messages."""
 
@@ -132,6 +140,7 @@ class TextDisplay(object):
     def display_selected_sections(self, _savepath: str, SAMPLE_FILENAME: str, QTOP_LOGFILE: Optional[str]) -> None:
         """Print the sections listed in user_display_parts, minus those disabled with -1, -2 or -3."""
         sections_off = {idx: self._toggled("sect_%d_off" % idx, False) for idx in (1, 2, 3)}  # -1, -2, -3, or keys 1-3
+        self._accelerators_shown = False  # set when the node matrix shows them (accelerator_map)
         display_parts: Dict[str, Tuple[Callable[..., Any], Tuple[Any, ...]]] = {
             "job_accounting_summary": (self.display_job_accounting_summary, (self.cluster, self.snapshot)),
             "workernodes_matrix": (self.display_wns_occupancy, (self.wns_occupancy, self.cluster)),
@@ -272,16 +281,30 @@ class TextDisplay(object):
         node_column_stop = self.wns_occupancy.node_column_stop
 
         self.display_basic_legend()
+        placement = self.config.get("accelerator_map", "before")
+        if placement == "before":
+            self.display_accelerators()
         self.display_matrix(wns_occupancy, node_column_start, node_column_stop)
         # the transposed matrix is one continuous block, doesn't make sense to break into more matrices
         if not self.MVU_model.display_overrides.get("transpose_wn_matrices", self.config["transpose_wn_matrices"]):
             self.display_remaining_matrices(wns_occupancy, node_column_start, node_column_stop)
+        if placement == "after":
+            self.display_accelerators()
+
+    def display_accelerators(self) -> None:
+        """Print the accelerators by node next to the matrix (accelerator_map: before or after)."""
+        lines = accelerator_lines(self)
+        self._accelerators_shown = True
+        if lines:
+            print("\n".join(lines))
 
     def display_backend_messages(self) -> None:
         """Print the scheduler's notes, if any, under Scheduler messages."""
         backend = self.MVU_model.backend
         nodes = getattr(self.cluster, "worker_nodes", [])
         lines = [line for section in ("snapshot", "accounting", "placement", "resources") for line in backend.display_messages(section, self.snapshot, nodes, self.config)]
+        if not getattr(self, "_accelerators_shown", False):  # no node matrix (-2): keep them with the notes
+            lines.extend(accelerator_lines(self))
         if hasattr(self.snapshot, "_collection_age"):
             lines.insert(
                 0,

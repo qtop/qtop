@@ -88,9 +88,64 @@ def test_imported_tpu_records_are_validated(tmp_path, field, value):
         validate_cluster_state(state)
 
 
-def test_the_map_is_a_slurm_resources_note_and_can_be_switched_off(tmp_path):
+def test_the_map_is_its_own_slurm_section(tmp_path):
     state = slurm_state(tmp_path, "node1|acc|mix|8|gpu:8(IDX:0-7)|gpu:0(IDX:N/A)\n", "")
-    shown = SlurmBatchSystem.display_messages("resources", None, state["nodes"], {})
+    shown = SlurmBatchSystem.display_messages("accelerators", None, state["nodes"], {})
     assert shown == ["INFO: Accelerators by node (job IDs, ? = unknown):", "INFO: node1: gpu0-7=idle"]
-    assert SlurmBatchSystem.display_messages("resources", None, state["nodes"], {"accelerator_map": False}) == []
-    assert SlurmBatchSystem.display_messages("resources", None, [{"domainname": "cpu1"}], {}) == []
+    assert SlurmBatchSystem.display_messages("resources", None, state["nodes"], {}) == []
+    assert SlurmBatchSystem.display_messages("accelerators", None, [{"domainname": "cpu1"}], {}) == []
+
+
+@pytest.mark.parametrize(
+    "value,placement",
+    [("before", "before"), ("After", "after"), ("false", "off"), ("False", "off"), (False, "off"), ("off", "off"), ("true", "before"), (True, "before")],
+)
+def test_accelerator_map_takes_yaml_text_and_python_values(value, placement):
+    from qtop_py.configuration import accelerator_map_placement
+
+    assert accelerator_map_placement(value) == placement
+
+
+def test_an_unknown_accelerator_map_value_is_a_config_error():
+    from qtop_py.configuration import accelerator_map_placement
+
+    with pytest.raises(ValueError, match="before, after or false"):
+        accelerator_map_placement("below")
+
+
+def _view(placement, nodes):
+    from types import SimpleNamespace
+
+    from qtop_py.ui.mvu_view import TextDisplay
+
+    display = object.__new__(TextDisplay)
+    display.config = {"transpose_wn_matrices": True} if placement is None else {"transpose_wn_matrices": True, "accelerator_map": placement}
+    display.MVU_model = SimpleNamespace(backend=SlurmBatchSystem, display_overrides={})
+    display.cluster = SimpleNamespace(worker_nodes=nodes)
+    display.snapshot = SimpleNamespace()
+    display.wns_occupancy = SimpleNamespace(node_column_start=0, node_column_stop=1)
+    display.display_basic_legend = lambda: print("LEGEND")
+    display.display_matrix = lambda *args: print("MATRIX")
+    return display
+
+
+@pytest.mark.parametrize(
+    "placement,expected", [(None, ["LEGEND", "ACC", "MATRIX"]), ("before", ["LEGEND", "ACC", "MATRIX"]), ("after", ["LEGEND", "MATRIX", "ACC"]), ("off", ["LEGEND", "MATRIX"])]
+)
+def test_the_map_goes_before_or_after_the_matrix(tmp_path, capsys, placement, expected):
+    state = slurm_state(tmp_path, "node1|acc|mix|8|gpu:8(IDX:0-7)|gpu:0(IDX:N/A)\n", "")
+    display = _view(placement, state["nodes"])
+    display._accelerators_shown = False
+    display.display_wns_occupancy(None, display.cluster)
+    lines = capsys.readouterr().out.splitlines()
+    assert ["ACC" if line.startswith("INFO: ") else line for line in lines if line != "INFO: node1: gpu0-7=idle"] == expected
+    display.display_backend_messages()
+    assert "Accelerators" not in capsys.readouterr().out  # shown once, by the matrix
+
+
+def test_with_the_matrix_hidden_the_map_joins_the_scheduler_messages(tmp_path, capsys):
+    state = slurm_state(tmp_path, "node1|acc|mix|8|gpu:8(IDX:0-7)|gpu:0(IDX:N/A)\n", "")
+    display = _view("before", state["nodes"])
+    display._accelerators_shown = False  # -2: display_wns_occupancy never ran
+    display.display_backend_messages()
+    assert "INFO: node1: gpu0-7=idle" in capsys.readouterr().out.splitlines()
