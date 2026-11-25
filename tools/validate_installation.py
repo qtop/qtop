@@ -50,6 +50,8 @@ def exercise_wheel(wheel, expected_version, root, work):
         for filename in ("qtopconf.yaml", "palettes.yaml", "helpfile.txt"):
             if archive.read("qtop_py/" + filename) != (root / filename).read_bytes():
                 raise RuntimeError("Missing or altered installed defaults: %s" % filename)
+        if "qtop_py/py.typed" not in archive.namelist():
+            raise RuntimeError("The wheel must carry the PEP 561 py.typed marker")
     environment = work / "installed"
     checked([sys.executable, "-m", "venv", str(environment)], work)
     bindir = environment / ("Scripts" if os.name == "nt" else "bin")

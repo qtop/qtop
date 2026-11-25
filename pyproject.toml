@@ -51,6 +51,9 @@ version = {attr = "qtop_py.__version__"}
 [tool.setuptools.packages.find]
 include = ["qtop_py*"]
 
+[tool.setuptools.package-data]
+qtop_py = ["py.typed"]  # PEP 561: type checkers read qtop's annotations in code that imports it
+
 [tool.ruff]
 # pycodestyle (`E`, `W`), Pyflakes (`F`), isort (`I`), eradicate (`ERA`: no commented-out code)
 # and pydocstyle (`D`, Google convention: a one-line summary for every public module, class and function).

@@ -15,6 +15,7 @@ Notable changes by version, newest first. See the
 - Docs: Slurm JSON v0.0.46 is checked against Slurm 26.11.0, not 26.11.0rc1; hres node field ignored
 - Docs: the README calls the terminal interface fast, not extremely fast
 - Docs: qtop.1 gets an OPTIONS entry for --slurm-summary; a test now requires one for every option
+- Feature: the wheel ships py.typed (PEP 561), so type checkers read qtop's annotations
 - Refactor: one core_process helper starts commands and checks timeouts; dead comments gone
 - Refactor: --strict-parents is passed to fileutils, not set globally; no $HOME read at import
 - Refactor: core modules log via getLogger(__name__), so a host app's logging is left alone
