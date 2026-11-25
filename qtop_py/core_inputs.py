@@ -11,6 +11,8 @@ import logging
 import os
 from typing import Any, Generator
 
+logger = logging.getLogger(__name__)
+
 
 def input_source(options: Any, path: str) -> Any:
     """Observe a scheduler source when startup reporting is enabled."""
@@ -40,5 +42,5 @@ class FileEmptyError(Exception):
     def __init__(self, fn: str) -> None:
         msg = "File %s is empty.\nIs your batch scheduler loaded with jobs?" % fn
         Exception.__init__(self, msg)
-        logging.warning(msg)
+        logger.warning(msg)
         self.fn = fn

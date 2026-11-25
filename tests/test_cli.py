@@ -11,8 +11,8 @@ from xml.etree import ElementTree as etree
 
 import pytest
 
+from qtop_py import configuration, runtime
 from qtop_py import core_process as process_io
-from qtop_py import runtime
 from qtop_py.schedulers import collector
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -602,7 +602,7 @@ def test_slurm_config_command_matches_shell_execution(tmp_path, monkeypatch, sch
     from qtop_py import core_yaml_parser as yaml_parser
     from qtop_py import qtop
 
-    config = yaml_parser.parse(str(ROOT / "qtopconf.yaml"))
+    config = configuration.with_backend_defaults(yaml_parser.parse(str(ROOT / "qtopconf.yaml")))
     configured_command = config["schedulers"]["slurm"][scheduler_file].split(", ", 1)[1]
     executable = configured_command.split()[0]
     script = tmp_path / executable
@@ -634,7 +634,7 @@ def test_all_partitions_does_not_change_saved_traces_or_other_backends(tmp_path,
     from qtop_py import core_yaml_parser as yaml_parser
     from qtop_py import qtop
 
-    config = yaml_parser.parse(str(ROOT / "qtopconf.yaml"))
+    config = configuration.with_backend_defaults(yaml_parser.parse(str(ROOT / "qtopconf.yaml")))
     args = SimpleNamespace(SOURCEDIR=source, workdir=str(tmp_path), ALL_PARTITIONS=False)
     default = collector.finalize_filepaths_schedulercommands(args, config, qtop.scheduler_backend(scheduler_name))
     args.ALL_PARTITIONS = True

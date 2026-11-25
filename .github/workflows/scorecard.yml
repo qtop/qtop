@@ -45,7 +45,7 @@ jobs:
     runs-on: ubuntu-24.04
     permissions:
       security-events: write
-      id-token: write
+      id-token: write  # nosemgrep - OIDC permission for publish_results, not a stored token
       contents: read
       actions: read
     steps:

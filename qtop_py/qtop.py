@@ -16,7 +16,6 @@
 ##
 """qtop's command line and watch loop, plus compatibility re-exports of moved helpers."""
 
-import importlib.util
 import logging
 import os
 import subprocess  # nosec B404 - fixed /bin/cat and /usr/bin/clear argv lists, never a shell
@@ -24,7 +23,7 @@ import sys
 import tarfile
 import time
 import traceback
-from typing import TYPE_CHECKING, Any, Dict, Iterator, Mapping, Optional, Set, Tuple, Type
+from typing import TYPE_CHECKING, Any, Dict, Iterator, List, Mapping, Optional, Set, Tuple, Type
 
 from qtop_py import __version__, configuration, fileutils, utils
 from qtop_py import core_process as _process
@@ -142,12 +141,6 @@ def check_python_version() -> None:
         raise OperationalError("Only Python 3 is supported.")
 
 
-def attempt_faster_xml_parsing(config: Dict[str, Any]) -> None:
-    """Only warn: the parsers use xml.etree either way (see faster_xml_parsing in docs/documentation.md)."""
-    if config["faster_xml_parsing"] and importlib.util.find_spec("lxml") is None:
-        logging.warning('Module lxml is missing. Try issuing "pip install lxml". Reverting to xml module.')
-
-
 def process_args(args: Any) -> Tuple[Any, int]:
     """Resolve -c AUTO and the remap and names options; return the options and NAMED_WNS."""
     if args.COLOR == "AUTO":
@@ -174,18 +167,16 @@ def cli_error_message(error: BaseException) -> str:
     return str(error)
 
 
-def scheduler_error_lines(error: BaseException) -> Tuple[str, ...]:
+def scheduler_error_lines(error: BaseException) -> List[str]:
     """Return the critical log lines that explain a scheduler the CLI could not select."""
     log = fileutils.active_log_path() or os.path.expandvars(QTOP_LOGFILE)
     if isinstance(error, InvalidScheduler):
-        choices = "Selected scheduler system not supported. Available choices are %s." % ", ".join(error.choices)
-        return (choices, "For help, try ./qtop.py --help", "Log file created in %s" % log)
-    if isinstance(error, NoSchedulerFound):
-        return (
-            "No suitable scheduler was found. Please define one in a switch or env variable or in %s.\n"
-            "For more help, try ./qtop.py --help\nLog file created in %s" % (QTOPCONF_YAML, log),
-        )
-    return ()
+        reason = "Selected scheduler system not supported. Available choices are %s." % ", ".join(error.choices)
+    elif isinstance(error, NoSchedulerFound):
+        reason = "No suitable scheduler was found. Please define one in a switch or env variable or in %s." % QTOPCONF_YAML
+    else:
+        return []
+    return [reason, "For help, try ./qtop.py --help", "Log file created in %s" % log]
 
 
 def report_operational_error(error: BaseException, debug: bool = False) -> None:
@@ -247,7 +238,6 @@ def _parse_run_options(resources: RunResources) -> Tuple[Any, Dict[str, Any]]:
         print("qtop current version: " + __version__)
         sys.exit(0)
     apply_demanding(args)
-    fileutils.STRICT_PARENTS = args.STRICT_PARENTS
     utils.init_logging(args)
     resources.logfile = fileutils.active_log_path()
     dynamic_config: Dict[str, Any] = dict()
@@ -335,7 +325,6 @@ def main(resources: RunResources) -> None:
                     _start_web(web, config)
                 savepath = config["savepath"]
                 timestr = time.strftime("%Y%m%dT%H%M%S")
-                attempt_faster_xml_parsing(config)
                 args = init_dirs(args, savepath)
 
                 if args.LESS:

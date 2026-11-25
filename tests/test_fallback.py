@@ -61,10 +61,9 @@ def test_usable_savepath_never_falls_back(shm, tmp_path, capsys):
     assert not shm.exists() and capsys.readouterr().err == ""
 
 
-def test_strict_parents_keeps_the_original_error(shm, refused, monkeypatch):
-    monkeypatch.setattr(fileutils, "STRICT_PARENTS", True)
+def test_strict_parents_keeps_the_original_error(shm, refused):
     with pytest.raises(OSError):
-        fileutils.with_fallback("savepath", refused, fileutils.private_save_directory)
+        fileutils.with_fallback("savepath", refused, fileutils.private_save_directory, strict=True)
     assert not shm.exists()
 
 
@@ -111,7 +110,7 @@ def test_log_handler_falls_back_and_reports_the_actual_log(shm, tmp_path, capsys
 
 
 def test_init_logging_runs_without_a_log_file_when_nothing_is_usable(monkeypatch, capsys):
-    def unusable(path):
+    def unusable(path, strict=False):
         raise NotADirectoryError(20, "Not a directory", "home")
 
     monkeypatch.setattr(fileutils, "private_log_stream", unusable)
@@ -131,18 +130,35 @@ def test_init_logging_runs_without_a_log_file_when_nothing_is_usable(monkeypatch
 
 
 def test_init_logging_strict_parents_still_stops(monkeypatch):
-    def unusable(path):
+    def unusable(path, strict=False):
         raise NotADirectoryError(20, "Not a directory", "home")
 
     monkeypatch.setattr(fileutils, "private_log_stream", unusable)
-    monkeypatch.setattr(fileutils, "STRICT_PARENTS", True)
     logger = logging.getLogger()
     old_handlers = list(logger.handlers)
     try:
         with pytest.raises(NotADirectoryError):
-            utils.init_logging(SimpleNamespace(verbose=0, DEBUG=False))
+            utils.init_logging(SimpleNamespace(verbose=0, DEBUG=False, STRICT_PARENTS=True))
     finally:
         for handler in list(logger.handlers):
             if handler not in old_handlers:
                 logger.removeHandler(handler)
                 handler.close()
+
+
+def test_the_log_follows_home_at_run_time_not_at_import(tmp_path, monkeypatch):
+    """constants.QTOP_LOGFILE is a $HOME template: importing qtop reads no environment."""
+    monkeypatch.setenv("HOME", str(tmp_path))
+    logger = logging.getLogger()
+    old_handlers, old_level, old_disabled = list(logger.handlers), logger.level, logger.disabled
+    try:
+        utils.init_logging(SimpleNamespace(verbose=0, DEBUG=False))
+        added = [handler.baseFilename for handler in logger.handlers if handler not in old_handlers and isinstance(handler, logging.FileHandler)]
+        assert added == [str(tmp_path / ".local" / "qtop" / "logs" / "qtop.log")]
+    finally:
+        for handler in list(logger.handlers):
+            if handler not in old_handlers:
+                logger.removeHandler(handler)
+                handler.close()
+        logger.setLevel(old_level)
+        logger.disabled = old_disabled

@@ -15,7 +15,7 @@ if TYPE_CHECKING:
     from qtop_py.core_state_types import ClusterState, Job, Node, Queue, RawQueue
 
 from qtop_py.core_safety import MAX_CORES_PER_NODE
-from qtop_py.schedulers.metadata import DIAGNOSTICS, validate_diagnostics, validate_record_extensions
+from qtop_py.schedulers.metadata import extensions, validate_diagnostics, validate_record_extensions
 
 CLUSTER_STATE_KEYS: "Final" = ("jobs", "nodes", "queues")
 # Schema 1 is the bare jobs/nodes/queues state, with no envelope. Schema 2 adds the
@@ -97,7 +97,7 @@ def _schema_version(data: Dict[str, object]) -> int:
     if version == 3 and data.get("schema_revision") != "beta1":
         raise ValueError("schema_version 3 requires schema_revision beta1")
     keys = set(data)
-    unknown = keys - DIAGNOSTICS.keys() - SCHEMA_KEYS[version] - set(CLUSTER_STATE_KEYS)
+    unknown = keys - extensions().diagnostics.keys() - SCHEMA_KEYS[version] - set(CLUSTER_STATE_KEYS)
     if unknown or not keys.issuperset(CLUSTER_STATE_KEYS):
         raise ValueError(
             "cluster state keys must be jobs, nodes, queues with optional scheduler diagnostics%s"

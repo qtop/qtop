@@ -7,6 +7,8 @@ import re
 from collections import OrderedDict
 from typing import List, Optional
 
+logger = logging.getLogger(__name__)
+
 
 class HostlistParser:
     # Bound both numeric ranges and Cartesian products from untrusted traces.
@@ -63,7 +65,7 @@ class HostlistParser:
                     raise ValueError("too many expanded hosts")
             return list(OrderedDict.fromkeys(expanded))
         except ValueError as error:
-            logging.warning("Ignoring invalid host list %r: %s", nodelist, error)
+            logger.warning("Ignoring invalid host list %r: %s", nodelist, error)
             return []
 
     @classmethod

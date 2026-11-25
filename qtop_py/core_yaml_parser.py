@@ -18,6 +18,8 @@ from qtop_py import core_inputs as inputs
 from qtop_py import core_safety as safety
 from qtop_py.core_safety import ResourceLimitError, literal_eval
 
+logger = logging.getLogger(__name__)
+
 """Small dependency-free parser for qtop's deliberately limited YAML subset."""
 
 
@@ -141,7 +143,7 @@ def parse(fn: str, DEF_INDENT: int = 2, options: Any = None) -> Dict[str, Any]:
             raise ResourceLimitError("YAML input exceeds size limit")
         if os.fstat(fin.fileno()).st_size == 0:
             raise ValueError("Configuration file is empty: %s" % fn)
-        logging.debug("File state before parse: %s", fin)
+        logger.debug("File state before parse: %s", fin)
         lines = get_line(fin, DEF_INDENT=DEF_INDENT)
         line = next(lines)
         while line:
@@ -151,7 +153,7 @@ def parse(fn: str, DEF_INDENT: int = 2, options: Any = None) -> Dict[str, Any]:
                 block[k] = convert_dash_key_in_dict(block[k])
             raw_key_values.update(block)
 
-    logging.debug("File state after parse: %s", fin)
+    logger.debug("File state after parse: %s", fin)
     return dict([(key, value) for key, value in raw_key_values.items()])
 
 
@@ -184,7 +186,6 @@ def read_yaml_config_block(line: List[Any], fin: Iterable[str], get_lines: Itera
             return {}, ""
 
     while len(line) > 1:  # as long as a blank line is not reached (i.e. block is not complete)
-        # if line[0] == 0 or (line[0] != 0 and line[1] == '-'):  # same level
         # key_value used below belongs to previous line. It will work for first block line because of short circuit logic
         if line[0] == 0 or (line[0] == 1 and key_value and (next(iter(key_value)) == "-")) or (line[0] == -1 and line[1] == "-"):  # same level or entry level
             key_value, container = process_line(line, fin, get_lines, parent_container)
@@ -206,7 +207,6 @@ def read_yaml_config_block(line: List[Any], fin: Iterable[str], get_lines: Itera
         elif (line[0] == 1) or (line[0] > 1):  # go down one level
             key_value, container = process_line(line, fin, get_lines, parent_container)
             k = next(iter(key_value))
-            # if container == {}:  # up parent container with new value
             if parent_container == {}:  # above it is a key waiting to be filled with values
                 parent_container[k] = key_value[k]
             else:
@@ -217,7 +217,8 @@ def read_yaml_config_block(line: List[Any], fin: Iterable[str], get_lines: Itera
 
         elif line[0] == -2 and line[1] == "-" or line[0] == -1:  # go up two levels
             key_value, container = process_line(line, fin, get_lines, parent_container)
-            len(open_containers) > 1 and open_containers.pop() or None
+            if len(open_containers) > 1:
+                open_containers.pop()
             k = next(iter(key_value))
             if open_containers[-1].get("-"):
                 _extend_list(open_containers[-1], "-", key_value[k])
@@ -300,7 +301,7 @@ def process_code(fin: Iterable[str]) -> str:
 def safe_load(fin: str, DEF_INDENT: int = 2, options: Any = None) -> Dict[str, Any]:
     """Parse a YAML file into a dict."""
     a_dict = parse(fin, DEF_INDENT, options)
-    logging.debug("YAML dict length: %s", len(a_dict))
+    logger.debug("YAML dict length: %s", len(a_dict))
     return a_dict
 
 

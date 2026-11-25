@@ -40,8 +40,8 @@ def get_date_obj_from_str(s: str, now: datetime.datetime) -> datetime.datetime:
         _inp_datetime = now.replace(hour=_inp_datetime.hour, minute=_inp_datetime.minute, second=0)
         inp_datetime = _inp_datetime if now > _inp_datetime else _inp_datetime - datetime.timedelta(days=1)
     elif len(s) == 9:
-        _inp_datetime = datetime.datetime.strptime(s, "%m%dT%H%M")
-        inp_datetime = _inp_datetime.replace(year=now.year, second=0)
+        # Parse with the year: strptime would otherwise assume 1900, which has no 29 February.
+        inp_datetime = datetime.datetime.strptime("%04d%s" % (now.year, s), "%Y%m%dT%H%M")
     else:
         raise ValueError("The datetime format provided is incorrect.\nTry one of the formats: yyyymmddTHHMMSS, HHMM, mmddTHHMM.")
     return inp_datetime

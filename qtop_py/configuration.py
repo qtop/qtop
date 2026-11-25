@@ -30,6 +30,7 @@ from qtop_py.constants import (
 from qtop_py.core_errors import OperationalError
 from qtop_py.core_process import DEFAULT_SCHEDULER_COMMAND_TIMEOUT
 from qtop_py.core_safety import ResourceLimitError, literal_eval
+from qtop_py.schedulers import registry
 
 # Parsed YAML layers by path, each with the stat signature it was parsed under.
 # Watch mode reloads the configuration every frame; an unchanged file is
@@ -125,7 +126,7 @@ def _validate_scalars(config: Any) -> None:
     """Required text, flag and counter settings."""
     for key in ("scheduler", "savepath", "vertical_separator", "non_existent_node_symbol"):
         _text(config.get(key), key)
-    for key in ("transpose_wn_matrices", "fill_with_user_firstletter", "faster_xml_parsing", "overwrite_sample_file", "stack_jobs_per_node"):
+    for key in ("transpose_wn_matrices", "fill_with_user_firstletter", "overwrite_sample_file", "stack_jobs_per_node"):
         value = literal(config.get(key, False) if key == "stack_jobs_per_node" else config.get(key))
         _require(type(value) in (bool, int) and value in (False, True), key, "True, False, 0 or 1")
     for key in ("vertical_separator_every_X_columns", "rem_empty_corelines", "exotic_starting_wn_nr"):
@@ -198,13 +199,10 @@ def _validate_user_accounts_header(config: "Config") -> None:
 
 
 def _validate_display(config: Any) -> None:
-    """SGE whole queues and display sections."""
-    whole_queues = config.get("sge_whole_queues")
-    _require(
-        whole_queues is None or isinstance(whole_queues, list) and all(isinstance(item, str) and bool(item.strip()) for item in whole_queues),
-        "sge_whole_queues",
-        "a list of queue names or glob patterns",
-    )
+    """Display sections, then each backend's own settings (check_config)."""
+    for backend in registry.PLUGIN_BATCH_SYSTEMS:
+        if "check_config" in vars(backend):
+            backend.check_config(config)
     parts = config.get("user_display_parts")
     allowed = ("job_accounting_summary", "workernodes_matrix", "user_accounts_pool_mappings")
     _require(isinstance(parts, list) and len(parts) <= 3 and all(part in allowed for part in parts), "user_display_parts", "up to three known display sections")
@@ -335,7 +333,6 @@ def normalize_config(raw_config: Dict[str, Any]) -> Dict[str, Any]:
     for key in (
         "transpose_wn_matrices",
         "fill_with_user_firstletter",
-        "faster_xml_parsing",
         "vertical_separator_every_X_columns",
         "overwrite_sample_file",
     ):
@@ -373,8 +370,36 @@ def update_config_with_cmdline_vars(args: Any, config: Dict[str, Any]) -> Dict[s
     return config
 
 
+BACKEND_SECTIONS: "Final" = ("schedulers", "signature_commands", "state_abbreviations")
+
+
+def merge_layer(config: Dict[str, Any], layer: Mapping[str, Any]) -> None:
+    """config.update(layer), except that the backend sections merge per backend and, within one, per key.
+
+    A layer that sets schedulers: {slurm: {sinfo_file: ...}} changes that one command and keeps the
+    other Slurm commands and every other backend's.
+    """
+    layer = dict(layer)
+    for key in BACKEND_SECTIONS:
+        if isinstance(config.get(key), dict) and isinstance(layer.get(key), dict):
+            merged = dict(config[key])
+            for name, value in layer[key].items():
+                current = merged.get(name)
+                merged[name] = {**current, **value} if isinstance(current, dict) and isinstance(value, dict) else value
+            layer[key] = merged
+    config.update(layer)
+
+
+def with_backend_defaults(config: Mapping[str, Any]) -> Dict[str, Any]:
+    """Return config over the commands, signature commands and state names the backends declare."""
+    merged: Dict[str, Any] = registry.backend_defaults(registry.discover_qtop_batch_systems())
+    merge_layer(merged, config)
+    return merged
+
+
 def prepare_config(config: Dict[str, Any], args: Any = None) -> Tuple[Dict[str, Any], Dict[str, str], Dict[str, str]]:
     """Validate and normalise the configuration; return it with the user and node-state colour maps."""
+    config = with_backend_defaults(config)
     validate_config(config)
     config = normalize_config(config)
 
@@ -392,14 +417,16 @@ def prepare_config(config: Dict[str, Any], args: Any = None) -> Tuple[Dict[str, 
     if args is not None:
         config = update_config_with_cmdline_vars(args, config)
         validate_config(config)
-    config["savepath"] = fileutils.with_fallback("savepath", config["savepath"], fileutils.private_save_directory)
+    strict = bool(getattr(args, "STRICT_PARENTS", False))
+    config["savepath"] = fileutils.with_fallback("savepath", config["savepath"], lambda path: fileutils.private_save_directory(path, strict), strict=strict)
     logging.debug("%s files will be saved in directory %s.", config["scheduler"], config["savepath"])
 
     return config, user_to_color, nodestate_to_color
 
 
 def load_yaml_config(args: Any, package_dir: str, initial_cwd: str, system_dir: str, user_dir: str) -> Tuple[Dict[str, Any], Dict[str, str], Dict[str, str]]:
-    """Load defaults < system < user < custom, then prepare CLI overrides."""
+    """Load defaults < system < user < custom, then prepare CLI overrides; user_dir may name $HOME."""
+    user_dir = os.path.expandvars(user_dir)
     if getattr(args, "load_sample", None):
         return prepare_config(args.sample_snapshot["config"], args)
     config = parse_layer(os.path.join(os.path.realpath(package_dir), QTOPCONF_YAML))
@@ -410,7 +437,7 @@ def load_yaml_config(args: Any, package_dir: str, initial_cwd: str, system_dir: 
         except FileNotFoundError:
             logging.info("%s could not be found in %s/", QTOPCONF_YAML, directory)
         else:
-            config.update(layer)
+            merge_layer(config, layer)
             logging.info("%s configuration loaded from %s/. Length: %s items", label, directory, len(layer))
     if args.CONFFILE:
         for directory in (user_dir, initial_cwd):
@@ -418,7 +445,7 @@ def load_yaml_config(args: Any, package_dir: str, initial_cwd: str, system_dir: 
                 custom = parse_layer(os.path.join(directory, args.CONFFILE))
             except FileNotFoundError:
                 continue
-            config.update(custom)
+            merge_layer(config, custom)
             logging.info("Custom User configuration loaded from %s/. Length: %s items", directory, len(custom))
             break
         else:

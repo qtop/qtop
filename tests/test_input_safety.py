@@ -209,7 +209,7 @@ def test_bounded_command_drains_both_pipes_without_deadlock():
     [("experimental_web_port", 0), ("experimental_web_port", 65536), ("experimental_web_port", True), ("experimental_web_host", ""), ("experimental_web_host", "127.0.0.1\n")],
 )
 def test_invalid_experimental_web_configuration_is_rejected(key, value):
-    config = yaml_parser.parse(str(Path(__file__).resolve().parents[1] / "qtopconf.yaml"))
+    config = configuration.with_backend_defaults(yaml_parser.parse(str(Path(__file__).resolve().parents[1] / "qtopconf.yaml")))
     config[key] = value
     with pytest.raises(ValueError, match=key):
         configuration.validate_config(config)
@@ -217,7 +217,7 @@ def test_invalid_experimental_web_configuration_is_rejected(key, value):
 
 @pytest.mark.parametrize("host,port", [("127.0.0.1", 8080), ("0.0.0.0", 8181), ("localhost", "9000")])
 def test_experimental_web_settings_accept_explicit_operator_choices(host, port):
-    config = yaml_parser.parse(str(Path(__file__).resolve().parents[1] / "qtopconf.yaml"))
+    config = configuration.with_backend_defaults(yaml_parser.parse(str(Path(__file__).resolve().parents[1] / "qtopconf.yaml")))
     config.update(experimental_web_host=host, experimental_web_port=port)
     configuration.validate_config(config)
 

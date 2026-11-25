@@ -268,3 +268,21 @@ def test_watch_wraps_before_paging_and_reflows_after_resize(runtime, scheduler_i
         assert next(line for line in lines if line.strip()).startswith("./qtop.py")
         assert len(lines) == 7 and all(len(line) <= columns for line in lines)
     assert pages[0] != pages[1]
+
+
+def test_legacy_five_field_snapshots_convert_to_a_cluster_state():
+    """tools/validate_trace_export.py still builds Snapshot(...) from old five-field exports."""
+    from collections import OrderedDict, namedtuple
+
+    from qtop_py.core_cluster_state import validate_cluster_state
+    from qtop_py.snapshot import JobRow
+
+    QueueRow = namedtuple("QueueRow", ["lm", "queued", "run", "state"])
+    nodes = [{"domainname": "wn1", "state": "-", "np": 2, "core_job_map": {0: "7"}, "qname": ["batch"]}]
+    jobs = OrderedDict([("7", JobRow("alice", "R", "batch")), ("8", JobRow("bob", "Q", "batch"))])
+    snapshot = Snapshot(nodes, jobs, OrderedDict([("batch", QueueRow("--", "1", "1", "Q"))]), 1, 1)
+    state = snapshot.to_cluster_state()
+    assert state["jobs"] == [{"id": "7", "user": "alice", "state": "R", "queue": "batch"}, {"id": "8", "user": "bob", "state": "Q", "queue": "batch"}]
+    assert state["queues"] == [{"name": "batch", "limit": "--", "queued": 1, "running": 1, "state": "Q"}]
+    assert state["nodes"] == nodes and state["nodes"] is not nodes
+    assert validate_cluster_state(state) == state

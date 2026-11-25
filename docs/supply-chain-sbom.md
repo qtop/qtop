@@ -32,8 +32,8 @@ or signing status. Recheck Packaging and Signed-Releases after release changes.
 
 ## Phase 1 -- inventory and SBOMs
 
-qtop declares no required third-party runtime packages; `lxml` and `ujson` are
-optional accelerators. A package SBOM does not automatically inventory the Python
+qtop declares no required third-party runtime packages; `ujson` is an optional
+accelerator. A package SBOM does not automatically inventory the Python
 interpreter, operating system or optional packages installed at an HPC site.
 Keep these inventories separate:
 

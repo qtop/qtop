@@ -2,7 +2,6 @@
 ## SPDX-License-Identifier: MIT
 """Shared defaults, paths and file names for qtop."""
 
-import os
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:  # typing.Final is Python 3.8+; the quoted annotations keep 3.6 working
@@ -11,8 +10,9 @@ if TYPE_CHECKING:  # typing.Final is Python 3.8+; the quoted annotations keep 3.
 SYSTEMCONFDIR: "Final" = "/etc"
 QTOPCONF_YAML: "Final" = "qtopconf.yaml"
 PALETTES_YAML: "Final" = "palettes.yaml"
-QTOP_LOGFILE: "Final" = os.path.expandvars("$HOME/.local/qtop/logs/qtop.log")
-USERPATH: "Final" = os.path.expandvars("$HOME/.local/qtop")
+# Templates, expanded where they are used, so importing qtop never reads the environment.
+QTOP_LOGFILE: "Final" = "$HOME/.local/qtop/logs/qtop.log"
+USERPATH: "Final" = "$HOME/.local/qtop"
 MAX_UNIX_ACCOUNTS: "Final" = 87  # was : 62
 KEY_SEQUENCE_TIMEOUT: "Final" = 0.3
 KEYPRESS_TIMEOUT: "Final" = 2  # in sec, time to wait before autorefreshing display

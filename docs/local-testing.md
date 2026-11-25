@@ -16,61 +16,34 @@ sudo apt-get install -y git make python3-venv golang-go nodejs
 ```
 
 Go must be 1.26 or newer, or have Go's automatic toolchain download enabled.
-From a Windows PowerShell checkout:
-
-```powershell
-.\tools\test-local.ps1 --bootstrap
-```
-
-From Linux or a WSL shell in the source checkout:
-
-```sh
-python3 -m tools.local_tests --bootstrap
-```
-
-Bootstrap installs uv 0.13.8 into a separate tool environment, obtains managed
-Python 3.12, then installs `requirements-ci.txt` into `~/.venvs/qtop-py312`. It
-requires network access. No project runtime dependencies are added. Re-run
-`--bootstrap` after CI pins change. It does not change shell profiles.
+Install [uv](https://docs.astral.sh/uv/) (or `pipx install nox`). Use a
+Linux-native clone inside WSL, not the Windows checkout under `/mnt/c`:
+Windows mounts lack the POSIX permissions and timing the suite checks.
 
 ## Daily use
 
-```powershell
-.\tools\test-local.ps1
-.\tools\test-local.ps1 test-fast
-```
+From the checkout:
 
 ```sh
-python3 -m tools.local_tests
-python3 -m tools.local_tests test-fast
+uvx nox
+uvx nox -- test-fast
 ```
 
-The default runs `pre-pr` then `schema-ci`, with four workers. `test-fast`
-runs a parser/model/UI subset for iteration; it does not replace the full
-gate. Test and coverage gates retain separate main/web JUnit reports under
-`artifacts/tests/` and show the 20 slowest tests. Override `PYTEST_ARGS` or
-`PYTEST_REPORT_DIR` when invoking Make directly; both CI providers retain
-those reports. Every invocation makes a fresh Linux-native snapshot of HEAD
-plus staged, unstaged and untracked non-ignored files. Deletions are
-included; ignored files stay excluded. This avoids testing a stale secondary
-clone or depending on Windows mount timing. Do not edit the source during
-snapshot creation. The source Git checkout is never reset or cleaned.
-Existing virtual environments are reused.
+[noxfile.py](../noxfile.py) creates a Python 3.12 environment (uv fetches
+Python 3.12 if it is missing), installs `requirements-ci.txt` and runs the
+requested Make targets in one Make invocation; the default is `pre-pr` then
+`schema-ci`. Later runs reuse the environment and re-check the pins; `-R` skips
+that check, and `-N` rebuilds the environment. `test-fast` runs a
+parser/model/UI subset for iteration; it does not replace the full gate. Test
+and coverage gates retain separate main/web JUnit reports under
+`artifacts/tests/` and show the 20 slowest tests; override `PYTEST_ARGS`,
+`PYTEST_REPORT_DIR` or `PYTEST_XDIST_AUTO_NUM_WORKERS` in the environment.
+Make runs in the checkout itself, so do not edit sources during a run.
 
-A unique `~/.local/state/qtop-test-reports/run-*` directory retains reports and
-a manifest with revision, working-tree digest/status, target list and baseline
-SHA. The Linux temporary copy is removed after the run. Use `--reports` to
-choose another location. On Windows mounts without WSL metadata, private
-report-directory permissions cannot be enforced; enable metadata or use the
-default Linux-native report directory. The runner fails explicitly instead of
-weakening private output checks.
-
-To run directly from an existing Linux-native checkout:
+To run without nox, in any Python 3.12 environment with `requirements-ci.txt`:
 
 ```sh
-source ~/.venvs/qtop-py312/bin/activate
-export PYTEST_XDIST_AUTO_NUM_WORKERS=4
-make pre-pr schema-ci
+make pre-pr schema-ci PYTHON=python
 ```
 
 Python 3.6/RHEL8 verification remains a separate CI lane. See [CI
@@ -88,6 +61,7 @@ For the pinned Linux x86-64 Python 3.12 environment at revision `1134990`
 | `test` or `ci` | 1,569: 1,565 parallel, then 4 web cases serially | No |
 | `coverage`, `coverage-xml` or `pre-pr` | Same 1,569 cases, once | 95% statements, 91% branches |
 | `property-test` | 23 cases, already included in the full suite | No |
+| `test-packaging` | 7 build-and-install cases that `test` and `coverage` skip; build jobs and nightly lanes run them | No |
 | `nightly-properties` | Same 23 cases with the extended profile | No |
 
 Counts describe this revision and installed optional tooling, not fixed quotas.
@@ -102,11 +76,9 @@ Hypothesis uses up to 100 examples for each generated property normally and
 also runs 13 scheduler samples and both 5,000-case fuzzers (seed 488), plus
 lint and type checks. Those checks are separate from the pytest totals.
 
-The Windows launcher and `python3 -m tools.local_tests` default to `pre-pr`
-followed by `schema-ci`: one full pytest run plus the separate Go schema gate.
-Passing multiple targets to the launcher starts a separate Make invocation for
-each, so requesting both `pre-pr` and `coverage-xml` repeats the full suite.
-Within one Make invocation, shared prerequisites run once; for example,
+`nox` defaults to `pre-pr` followed by `schema-ci`: one full pytest run plus
+the separate Go schema gate. Within one Make invocation, shared prerequisites
+run once; for example,
 `make pre-pr coverage-xml` reuses the coverage run. `make ci coverage` runs the
 suite twice because `test` and `coverage` are distinct targets.
 

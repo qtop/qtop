@@ -227,7 +227,7 @@ def test_user_id_ranking_default_is_all_then_r_then_name_desc():
     from qtop_py import core_yaml_parser as yaml_parser
     from qtop_py.constants import DEFAULT_USER_ID_RANKING
 
-    config = yaml_parser.parse(str(Path(__file__).resolve().parents[1] / "qtopconf.yaml"))
+    config = configuration.with_backend_defaults(yaml_parser.parse(str(Path(__file__).resolve().parents[1] / "qtopconf.yaml")))
 
     assert tuple(config["user_id_ranking"]) == DEFAULT_USER_ID_RANKING == ("all", "R", "name_desc")
     configuration._validate_user_id_ranking(config)

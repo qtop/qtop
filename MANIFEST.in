@@ -18,5 +18,5 @@ recursive-include .github/workflows *.yml
 recursive-include docs *.md *.png *.1
 recursive-include tools *.py
 
-recursive-include qtop_py *.py *.sh *.jdl *.html *.txt *.ref *.gif *.stdout
+recursive-include qtop_py py.typed *.py *.sh *.jdl *.html *.txt *.ref *.gif *.stdout
 recursive-include tests *.py *.txt *.json *.hex

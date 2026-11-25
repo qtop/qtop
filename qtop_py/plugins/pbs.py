@@ -29,6 +29,8 @@ if TYPE_CHECKING:
     from qtop_py.core_api import TraceMasker
     from qtop_py.core_state_types import Config, JobsInfo, Node, Options, QueuesInfo
 
+logger = logging.getLogger(__name__)
+
 # NQS request states mapped onto PBS single-letter job states.
 NQS_REQUEST_STATES: "Final" = {
     "EXITING": "E",
@@ -80,17 +82,17 @@ class PBSStatExtractor(TabularStatExtractor):
         try:
             check_empty_file(orig_file)
         except FileEmptyError:
-            logging.error("File %s seems to be empty.", orig_file)
+            logger.error("File %s seems to be empty.", orig_file)
             all_qstat_values = []
         else:
             try:
                 with open_input(orig_file, encoding="utf-8", errors="replace", options=self.options) as f:
                     _ = load_json(f)
             except json.JSONDecodeError:
-                logging.info("Extracting qstat output using regex")
+                logger.info("Extracting qstat output using regex")
                 all_qstat_values = self._extract_qstat_regex(orig_file)
             else:
-                logging.info("Extracting qstat output using json")
+                logger.info("Extracting qstat output using json")
                 all_qstat_values = self._extract_qstat_json(orig_file)
 
         return all_qstat_values
@@ -150,11 +152,11 @@ class PBSStatExtractor(TabularStatExtractor):
         m = re.match(self.nqs_request, line.strip())
         if m is None:
             if re.match(r"^\d+:", line.strip()):
-                logging.warning("Line: %s not properly parsed as an NQS request. Skipping.", line.strip())
+                logger.warning("Line: %s not properly parsed as an NQS request. Skipping.", line.strip())
             return None
         state = NQS_REQUEST_STATES.get(m.group("state"))
         if state is None:
-            logging.warning("Unknown NQS request state %s in line: %s. Skipping.", m.group("state"), line.strip())
+            logger.warning("Unknown NQS request state %s in line: %s. Skipping.", m.group("state"), line.strip())
             return None
         return {"JobId": m.group("job_id"), "UnixAccount": m.group("user"), "S": state, "Queue": queue_name}
 
@@ -182,17 +184,17 @@ class PBSStatExtractor(TabularStatExtractor):
         try:
             check_empty_file(orig_file)
         except FileEmptyError:
-            logging.error("File %s seems to be empty.", orig_file)
+            logger.error("File %s seems to be empty.", orig_file)
             all_qstatq_values = []
         else:
             try:
                 with open_input(orig_file, encoding="utf-8", errors="replace", options=self.options) as f:
                     _ = load_json(f)
             except json.JSONDecodeError:
-                logging.info("Extracting qstat_q output using regex")
+                logger.info("Extracting qstat_q output using regex")
                 all_qstatq_values = self._extract_qstatq_regex(orig_file)
             else:
-                logging.info("Extracting qstat_q output using json")
+                logger.info("Extracting qstat_q output using json")
                 all_qstatq_values = self._extract_qstatq_json(orig_file)
 
         return all_qstatq_values
@@ -263,6 +265,28 @@ class PBSStatExtractor(TabularStatExtractor):
 
 class PBSBatchSystem(GenericBatchSystem):
     """PBS/Torque and PBS Pro backend."""
+
+    signature_command = "pbsnodes"
+    default_commands = {
+        "pbsnodes_file": "%(savepath)s/pbsnodes_a%(pid)s.txt, pbsnodes -a",
+        "qstatq_file": "%(savepath)s/qstat_q%(pid)s.txt, qstat -Q -f -F json",
+        "qstat_file": "%(savepath)s/qstat%(pid)s.txt, qstat -f -F json",
+    }
+    state_abbreviations = {
+        "Q": "queued_of_user",
+        "R": "running_of_user",
+        "C": "cancelled_of_user",
+        "E": "exiting_of_user",
+        "W": "waiting_of_user",
+        "H": "held_of_user",
+        "B": "begun_of_user",
+        "F": "finished_of_user",
+        "M": "moved_of_user",
+        "S": "suspended_of_user",
+        "T": "transiting_of_user",
+        "U": "suspended_useractive_of_user",
+        "X": "expired_of_user",
+    }
 
     classic_report_name = "PBS"
     classic_job_count_source = "reported by qstat - q"
@@ -412,7 +436,7 @@ class PBSBatchSystem(GenericBatchSystem):
                 if gpus < 0:
                     raise ValueError("abnormal GPU count")
             except (TypeError, ValueError):
-                logging.warning("Ignoring invalid PBS GPU count %r on node %s", raw_gpus, pbs_values["domainname"])
+                logger.warning("Ignoring invalid PBS GPU count %r on node %s", raw_gpus, pbs_values["domainname"])
             else:
                 if gpus > 0:
                     pbs_values["gpus"] = raw_gpus
@@ -440,7 +464,7 @@ class PBSBatchSystem(GenericBatchSystem):
             job_states.append(qstat["S"])
             queue_names.append(qstat["Queue"])
 
-        logging.debug(
+        logger.debug(
             "job_ids, usernames, job_states, queue_names lengths: %(job_ids)s, %(usernames)s, %(job_states)s, %(queue_names)s",
             {"job_ids": len(job_ids), "usernames": len(usernames), "job_states": len(job_states), "queue_names": len(queue_names)},
         )

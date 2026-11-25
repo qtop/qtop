@@ -98,6 +98,30 @@ jobs:
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
       - run: make schema-ci
 
+  # The nightly-core debian:bookworm lane on every PR: root in a container, the distro's Python and
+  # git owned by another user -- conditions behind most nightly failures (root-only permission
+  # checks, git rev-parse, distro build tooling) that the jobs above never see.
+  nightly-lane:
+    name: debian:bookworm python3 ci (nightly-core lane)
+    runs-on: ubuntu-24.04
+    container: debian:bookworm
+    timeout-minutes: 20
+    steps:
+      - name: bootstrap git for checkout
+        run: |
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends git ca-certificates
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: bash ci/scripts/matrix_lane.sh debian python3,python3-venv,python3-pip python3 ci
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: nightly-lane-debian-bookworm
+          path: artifacts/
+          if-no-files-found: ignore
+
   # Starts at once, beside the test jobs: release.yml builds releases, so waiting here only delayed the install check.
   build:
     runs-on: ubuntu-24.04

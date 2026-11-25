@@ -11,6 +11,7 @@
 
 import datetime
 import logging
+import os
 import re
 import sys
 from pathlib import Path
@@ -26,6 +27,7 @@ from qtop_py import utils as qtop_utils
 from qtop_py.colormap import color_to_code
 from qtop_py.constants import SYMBOL_LONG_TAIL_USER, SYMBOL_UNKNOWN_NODE_STATE
 from qtop_py.core_errors import JobNotFound
+from qtop_py.input_parsing import extract_regex_detail
 from qtop_py.mvu import MVU_Model
 from qtop_py.mvu_query import Cluster, WNFilter, WNOccupancy
 from qtop_py.qtop import (
@@ -984,6 +986,52 @@ def test_get_date_obj_from_str(s, now, day_meant):
 )
 def test_short_replay_time_handles_calendar_boundaries(now, expected):
     assert get_date_obj_from_str("2100", datetime.datetime(*now)) == datetime.datetime(*expected)
+
+
+@pytest.mark.parametrize("value, expected", (("11-18T18:23", (2028, 11, 18, 18, 23)), ("0229T1200", (2028, 2, 29, 12, 0))))
+def test_month_day_replay_time_implies_the_current_year(value, expected):
+    """Leap day included: parsing without the year used 1900, which has no 29 February."""
+    assert get_date_obj_from_str(value, datetime.datetime(2028, 12, 1, 9)) == datetime.datetime(*expected)
+
+
+@pytest.mark.parametrize(
+    "regex, field, expected",
+    (
+        ("re.search('^([^,]*)', field).group(1)", "Alice Example, Room 7", "Alice Example"),
+        ('re.search("(R[a-z]+ [0-9]+)", field).group(1)', "Alice Example, Room 7", "Room 7"),
+        ("field.split(',')[0]", "Alice", ValueError),  # only re.search(...).group(n) is accepted
+        ("re.search('^Bob', field).group(0)", "Alice", ValueError),  # no match
+    ),
+)
+def test_user_detail_regex_expressions(regex, field, expected):
+    if expected is ValueError:
+        with pytest.raises(ValueError):
+            extract_regex_detail(regex, field)
+    else:
+        assert extract_regex_detail(regex, field) == expected
+
+
+def test_user_details_apply_the_regex_and_keep_unmatched_fields_whole(monkeypatch, caplog):
+    passwd = b"alice:x:1:1:Alice Example, Room 7:/home/alice:/bin/sh\nbob:x:2:2:Bob:/home/bob:/bin/sh\nmalformed\n"
+    monkeypatch.setattr(user_details, "start_command", lambda *args, **kwargs: SimpleNamespace(returncode=0))
+    monkeypatch.setattr(user_details, "communicate_with_timeout", lambda *args: (passwd, b"getent: partial result\n"))
+    config = {"extract_info": {"user_details_cache": "cat passwd", "regex": "re.search('^([^,]*),', field).group(1)"}}
+    assert user_details.get_detail_of_name([], config, SimpleNamespace(GET_GECOS=False)) == {"alice": "Alice Example", "bob": "Bob"}
+    assert "getent: partial result" in caplog.text
+
+
+def test_primary_groups_resolve_known_users_and_skip_unknown_ones(monkeypatch, caplog):
+    grp, pwd = pytest.importorskip("grp"), pytest.importorskip("pwd")
+    me = pwd.getpwuid(os.getuid()).pw_name
+    user_details.get_primary_group_name.cache_clear()
+    table = [["0", 1, 0, 1, me, 1], ["0", 1, 0, 1, "qtop-no-such-user", 1], ["", 2, 0, 2, "Totals", 2]]
+    assert user_details.get_primary_group_names(table) == {me: grp.getgrgid(pwd.getpwnam(me).pw_gid).gr_name}
+    assert "qtop-no-such-user" in caplog.text
+    user_details.get_primary_group_name.cache_clear()
+    monkeypatch.setitem(sys.modules, "grp", None)  # as on Windows: no Unix group database
+    assert user_details.get_primary_group_names(table) == {}
+    assert "unavailable on this platform" in caplog.text
+    user_details.get_primary_group_name.cache_clear()
 
 
 def test_unknown_scheduler_job_state_preserves_accounting(caplog):

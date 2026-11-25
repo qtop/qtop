@@ -90,6 +90,37 @@ class Viewport(BaseViewport):
     """Class that extends BaseViewport to provide the actual movements of the Viewport."""
 
     @property
+    def max_height(self) -> int:
+        """Lines of the current output; setting it keeps the view inside the output."""
+        return self._max_height
+
+    @max_height.setter
+    def max_height(self, value: int) -> None:
+        self._max_height = value
+        self._keep_inside()
+
+    @property
+    def max_width(self) -> int:
+        """Columns of the current output; setting it keeps the view inside the output."""
+        return self._max_width
+
+    @max_width.setter
+    def max_width(self, value: int) -> None:
+        self._max_width = value
+        self._keep_inside()
+
+    def _keep_inside(self) -> None:
+        """Re-clamp the offsets once the output size is known, e.g. after 2 hides the node matrix.
+
+        Without it, a view scrolled below the end of a now shorter output showed a blank screen
+        until the next scroll key.
+        """
+        if getattr(self, "_max_height", 0):
+            self.v_start = self._v_start
+        if getattr(self, "_max_width", 0):
+            self.h_start = self._h_start
+
+    @property
     def h_start(self) -> int:
         """The first visible column."""
         return self._h_start
@@ -133,6 +164,7 @@ class Viewport(BaseViewport):
         """Set the terminal size in lines and columns."""
         self.v_term_size = term_height
         self.h_term_size = term_columns
+        self._keep_inside()
 
     def get_term_size(self) -> Tuple[int, int]:
         """Return the terminal size as (lines, columns)."""

@@ -16,14 +16,16 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, List, Mapping, Match, Opt
 
 from qtop_py.core_api import FileEmptyError, GenericBatchSystem, StatExtractor, check_empty_file, open_input
 from qtop_py.core_hostlist import HostlistParser
+from qtop_py.plugins.slurm_extension import SLURM_EXTENSION
 from qtop_py.schedulers.gpu import parse_gpu_gres
-from qtop_py.schedulers.slurm_extension import SLURM_EXTENSION
 
 if TYPE_CHECKING:
     from typing import Final
 
     from qtop_py.core_api import TraceMasker
     from qtop_py.core_state_types import ClusterState, Config, JobsInfo, Node, Options, QueuesInfo
+
+logger = logging.getLogger(__name__)
 
 SLURM_JOB_STATES: "Final" = {
     "BOOT_FAIL": "BF",
@@ -140,7 +142,7 @@ class SlurmStatExtractor(StatExtractor):
             return self.expand_job_id(job_id) if "_[" in job_id else [job_id]
         except SlurmArrayIdError as error:
             self.rejected_squeue_rows += 1
-            logging.warning("Line: %s rejected: %s", line, error)
+            logger.warning("Line: %s rejected: %s", line, error)
             return None
 
     def extract_squeue(self, orig_file: str) -> List[Dict[str, Any]]:
@@ -152,7 +154,7 @@ class SlurmStatExtractor(StatExtractor):
         try:
             check_empty_file(orig_file)
         except FileEmptyError:
-            logging.error("File %s seems to be empty.", orig_file)
+            logger.error("File %s seems to be empty.", orig_file)
             return []
 
         jobs: Dict[str, Any] = OrderedDict()
@@ -177,7 +179,7 @@ class SlurmStatExtractor(StatExtractor):
                         partitions_seen = partition_lists[partition]
                 if partitions_seen is None:
                     self.rejected_squeue_rows += 1
-                    logging.warning("Line: %s not properly parsed as Slurm squeue output.", line)
+                    logger.warning("Line: %s not properly parsed as Slurm squeue output.", line)
                     continue
 
                 task_ids = self._row_task_ids(line, job_id, fields)
@@ -229,7 +231,7 @@ class SlurmStatExtractor(StatExtractor):
         try:
             check_empty_file(orig_file)
         except FileEmptyError:
-            logging.error("File %s seems to be empty.", orig_file)
+            logger.error("File %s seems to be empty.", orig_file)
             return []
 
         nodes = []
@@ -247,7 +249,7 @@ class SlurmStatExtractor(StatExtractor):
                         raise ValueError("missing required node field")
                 except ValueError:
                     self.rejected_sinfo_rows += 1
-                    logging.warning("Line: %s not properly parsed as Slurm sinfo output.", line)
+                    logger.warning("Line: %s not properly parsed as Slurm sinfo output.", line)
                     continue
 
                 nodes.append(
@@ -325,6 +327,77 @@ class SlurmStatExtractor(StatExtractor):
 class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
     """Slurm backend."""
 
+    signature_command = "sinfo"
+    default_commands = {
+        # Copy the command after ', ' directly into a shell for debugging.
+        # Include all retained job states, including suspended jobs; --all opts into hidden partitions.
+        "squeue_file": (
+            "%(savepath)s/squeue%(pid)s.txt, squeue --states=all -r -h -O "
+            "'JobID:0|,UserName:0|,StateCompact:0|,Partition:0|,NumCPUs:0|,NodeList:0|,tres-alloc:0|,tres-per-node:0|,tres-per-task:0|,ArrayJobID:0|,ArrayTaskID:0'"
+        ),
+        "sinfo_file": "%(savepath)s/sinfo%(pid)s.txt, sinfo -N -h -O 'NodeList:0|,Partition:0|,StateCompact:0|,CPUs:0|,Gres:0|,GresUsed:0|,Available:0'",
+        # Collect Slurm CPU IDs by default; missing/failed details use estimates.
+        "scontrol_file": "%(savepath)s/scontrol%(pid)s.txt, scontrol --details show jobs",
+    }
+    state_abbreviations = {
+        "BF": "failed_boot_of_user",
+        "R": "running_of_user",
+        "RH": "hold_of_user",
+        "PD": "queued_of_user",
+        "CA": "cancelled_of_user",
+        "CD": "finished_of_user",
+        "CG": "exiting_of_user",
+        "CF": "configuring_of_user",
+        "DL": "deadline_of_user",
+        "F": "failed_of_user",
+        "NF": "failed_node_of_user",
+        "OOM": "out_of_memory_of_user",
+        "TO": "timeout_of_user",
+        "PR": "preempted_of_user",
+        "RD": "hold_of_user",
+        "RF": "queued_of_user",
+        "RQ": "queued_of_user",
+        "RS": "resizing_of_user",
+        "RV": "revoked_of_user",
+        "SI": "signaling_of_user",
+        "SE": "special_exit_of_user",
+        "SO": "stage_out_of_user",
+        "S": "suspended_of_user",
+        "ST": "stopped_of_user",
+    }
+
+    # squeue cuts array task ranges (453906_[2,6-14,...]) at SLURM_BITSTR_LEN characters unless it is 0
+    # (qtop/qtop#606); this overrides a user's own setting, which suits interactive squeue but breaks parsing.
+    command_env = {"SLURM_BITSTR_LEN": "0"}
+
+    @staticmethod
+    def add_cli_options(parser: Any) -> None:
+        """--slurm-summary, --slurm-json-squeue and --all, for the slurm and slurm_json backends."""
+        slurm_mode = parser.add_mutually_exclusive_group()
+        slurm_mode.add_argument(
+            "--slurm-summary",
+            action="store_true",
+            dest="SLURM_SUMMARY",
+            help="Use only Slurm sinfo/squeue on each display cycle; CPU placement is estimated and per-job GPU indices are unavailable",
+        )
+        slurm_mode.add_argument(
+            "--slurm-json-squeue", action="store_true", dest="SLURM_JSON_SQUEUE", help="Use squeue --json for slurm_json jobs when scontrol returns empty job JSON"
+        )
+        parser.add_argument(
+            "--all",
+            action="store_true",
+            dest="ALL_PARTITIONS",
+            help="Include hidden and group-unavailable partitions in live Slurm queries (subject to permissions)",
+        )
+
+    @staticmethod
+    def check_cli_options(parser: Any, args: Any) -> None:
+        """--slurm-summary selects the legacy slurm backend; it accepts -b slurm or auto."""
+        if getattr(args, "SLURM_SUMMARY", False):
+            if args.BATCH_SYSTEM and args.BATCH_SYSTEM.lower() not in ("auto", "slurm"):
+                parser.error("--slurm-summary requires -b slurm or auto")
+            args.BATCH_SYSTEM = "slurm"
+
     native_queue_membership = True
     optional_trace_keys: Tuple[str, ...] = ("scontrol_file",)
     optional_trace_aliases = {"scontrol_file": "scontrol.txt"}
@@ -357,48 +430,75 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
     @staticmethod
     def display_messages(section: str, snapshot: object, nodes: "List[Node]", config: "Config") -> List[str]:
         """Return the Slurm notes for a section: rejected rows, accounting rules and CPU placement caveats."""
-        lines = []
         if section == "snapshot":
-            diagnostics = getattr(snapshot, "_diagnostics", {}).get("slurm_diagnostics", {})
-            if any(diagnostics.values()):
-                lines.append(
-                    "WARNING: Slurm snapshot incomplete: %s rejected job rows; %s rejected node rows; "
-                    "%s active jobs reference missing nodes; %s active jobs have invalid node lists."
-                    % tuple(diagnostics.get(key, 0) for key in ("rejected_squeue_rows", "rejected_sinfo_rows", "jobs_with_missing_nodes", "jobs_with_invalid_nodelists"))
-                )
-            if diagnostics.get("jobs_with_missing_nodes"):
-                lines.append("INFO: Jobs on missing nodes: those nodes may be in hidden or group-unavailable partitions; try qtop --all, if not already used.")
-            if diagnostics.get("jobs_with_invalid_nodelists"):
-                lines.append("INFO: Invalid node lists: a starting or completing job may have no nodes yet; otherwise check that squeue does not cut the NodeList field.")
-            if diagnostics.get("rejected_squeue_rows") or diagnostics.get("rejected_sinfo_rows"):
-                lines.append(
-                    "INFO: Rejected rows: check the squeue/sinfo formats in qtopconf.yaml and that SLURM_BITSTR_LEN=0 "
-                    "when the traces were saved (truncated array ranges); qtop logs each rejected line."
-                )
-        elif section == "accounting":
-            lines.append("INFO: Slurm job counts include individual array tasks and heterogeneous components.")
-            if any(len(job.get("slurm_partitions", [])) > 1 for job in getattr(snapshot, "_job_metadata", {}).values()):
-                lines.append("INFO: Slurm partition counts include each eligible partition; global job counts are unique.")
-        elif section == "placement":
-            sources = {node.get("cpu_allocation_source") for node in nodes}
-            if "estimated" in sources:
-                lines.append("WARNING: Slurm CPU placement: estimated where allocation details are unavailable.")
-            if "slurm" in sources:
-                lines.append("INFO: Slurm CPU placement: scheduler CPU IDs; Linux task affinity is not shown.")
-            omitted = sum(node.get("slurm_unmapped_cpus", 0) for node in nodes)
-            if omitted:
-                lines.append("WARNING: Slurm CPU matrix omits %s shared/excess CPU assignments; job/node membership is retained." % omitted)
-        elif section == "resources" and config.get("experimental_gpu_pairs"):
-            from qtop_py.schedulers.gpu import configured_pair_lines
+            return SlurmBatchSystem._snapshot_messages(snapshot)
+        if section == "accounting":
+            return SlurmBatchSystem._accounting_messages(snapshot)
+        if section == "placement":
+            return SlurmBatchSystem._placement_messages(nodes)
+        if section == "resources" and config.get("experimental_gpu_pairs"):
+            return SlurmBatchSystem._gpu_pair_messages(nodes, config)
+        return []
 
-            try:
-                pairs = configured_pair_lines(nodes, config["experimental_gpu_pairs"])
-            except ValueError as error:
-                lines.append("WARNING: Configured GPU pairs unavailable: %s" % error)
-            else:
-                if pairs:
-                    lines.append("INFO: Configured GPU pairs (experimental; job IDs, ? = unknown):")
-                    lines.extend("INFO: " + line for line in pairs)
+    @staticmethod
+    def _snapshot_messages(snapshot: object) -> List[str]:
+        """Warn about rejected rows and jobs on missing or invalid node lists, with what to check."""
+        lines = []
+        diagnostics = getattr(snapshot, "_diagnostics", {}).get("slurm_diagnostics", {})
+        if any(diagnostics.values()):
+            lines.append(
+                "WARNING: Slurm snapshot incomplete: %s rejected job rows; %s rejected node rows; "
+                "%s active jobs reference missing nodes; %s active jobs have invalid node lists."
+                % tuple(diagnostics.get(key, 0) for key in ("rejected_squeue_rows", "rejected_sinfo_rows", "jobs_with_missing_nodes", "jobs_with_invalid_nodelists"))
+            )
+        if diagnostics.get("jobs_with_missing_nodes"):
+            lines.append("INFO: Jobs on missing nodes: those nodes may be in hidden or group-unavailable partitions; try qtop --all, if not already used.")
+        if diagnostics.get("jobs_with_invalid_nodelists"):
+            lines.append("INFO: Invalid node lists: a starting or completing job may have no nodes yet; otherwise check that squeue does not cut the NodeList field.")
+        if diagnostics.get("rejected_squeue_rows") or diagnostics.get("rejected_sinfo_rows"):
+            lines.append(
+                "INFO: Rejected rows: check the squeue/sinfo formats in qtopconf.yaml and that SLURM_BITSTR_LEN=0 "
+                "when the traces were saved (truncated array ranges); qtop logs each rejected line."
+            )
+        return lines
+
+    @staticmethod
+    def _accounting_messages(snapshot: object) -> List[str]:
+        """Explain how array tasks, heterogeneous components and multi-partition jobs are counted."""
+        lines = []
+        lines.append("INFO: Slurm job counts include individual array tasks and heterogeneous components.")
+        if any(len(job.get("slurm_partitions", [])) > 1 for job in getattr(snapshot, "_job_metadata", {}).values()):
+            lines.append("INFO: Slurm partition counts include each eligible partition; global job counts are unique.")
+        return lines
+
+    @staticmethod
+    def _placement_messages(nodes: "List[Node]") -> List[str]:
+        """Say where CPU placement is estimated or comes from Slurm, and what the matrix omits."""
+        lines = []
+        sources = {node.get("cpu_allocation_source") for node in nodes}
+        if "estimated" in sources:
+            lines.append("WARNING: Slurm CPU placement: estimated where allocation details are unavailable.")
+        if "slurm" in sources:
+            lines.append("INFO: Slurm CPU placement: scheduler CPU IDs; Linux task affinity is not shown.")
+        omitted = sum(node.get("slurm_unmapped_cpus", 0) for node in nodes)
+        if omitted:
+            lines.append("WARNING: Slurm CPU matrix omits %s shared/excess CPU assignments; job/node membership is retained." % omitted)
+        return lines
+
+    @staticmethod
+    def _gpu_pair_messages(nodes: "List[Node]", config: "Config") -> List[str]:
+        """List the configured GPU pairs (experimental_gpu_pairs) and their jobs."""
+        lines = []
+        from qtop_py.schedulers.gpu import configured_pair_lines
+
+        try:
+            pairs = configured_pair_lines(nodes, config["experimental_gpu_pairs"])
+        except ValueError as error:
+            lines.append("WARNING: Configured GPU pairs unavailable: %s" % error)
+        else:
+            if pairs:
+                lines.append("INFO: Configured GPU pairs (experimental; job IDs, ? = unknown):")
+                lines.extend("INFO: " + line for line in pairs)
         return lines
 
     def mask_source_trace(self, key: str, text: str, mask: "TraceMasker") -> Tuple[str, str]:
@@ -511,7 +611,7 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
         job_states = [job["S"] for job in jobs]
         queue_names = [job["Queue"] for job in jobs]
 
-        logging.debug(
+        logger.debug(
             "job_ids, usernames, job_states, queue_names lengths: %(job_ids)s, %(usernames)s, %(job_states)s, %(queue_names)s",
             {"job_ids": len(job_ids), "usernames": len(usernames), "job_states": len(job_states), "queue_names": len(queue_names)},
         )
@@ -621,7 +721,7 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
                 node = worker_nodes_by_name[hosts[0]]
                 node["slurm_unmapped_cpus"] = node.get("slurm_unmapped_cpus", 0) + missing
         worker_nodes = list(worker_nodes_by_name.values())
-        logging.info("worker_nodes contains %s entries", len(worker_nodes))
+        logger.info("worker_nodes contains %s entries", len(worker_nodes))
         return cast("List[Node]", worker_nodes)  # built field by field as Node records
 
     @staticmethod
@@ -652,11 +752,30 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
                     try:
                         node[parsed] = parse_gpu_gres(node[raw])
                     except ValueError as error:
-                        logging.warning("Ignoring invalid Slurm GPU metadata: %s", error)
+                        logger.warning("Ignoring invalid Slurm GPU metadata: %s", error)
         if not self.scontrol_file:
             return
+        allocations, invalid = self._read_gpu_allocations()
+        for job in self._get_jobs():
+            job_id = job["JobId"]
+            if job["S"] not in self.ACTIVE_STATES or job_id in invalid:
+                continue
+            allocated = set(job_hosts(job) if job_hosts else self.expand_nodelist(job["Nodes"]))
+            allocation = allocations.get(job_id, {})
+            if not set(allocation).issubset(allocated):
+                continue
+            for host, resources in allocation.items():
+                if host in worker_nodes:
+                    bindings = worker_nodes[host].setdefault("slurm_gpu_bindings", [])
+                    bindings.extend(dict(resource, job_id=job_id) for resource in resources)
+
+    def _read_gpu_allocations(self) -> Tuple[Dict[str, Any], Set[str]]:
+        """Return GPU allocations by job and host from the scontrol details, and the jobs whose details are invalid.
+
+        An unreadable file yields none, so no GPU is bound to a job.
+        """
         allocations: Dict[str, Any] = {}
-        invalid = set()
+        invalid: Set[str] = set()
         try:
             with open_input(self.scontrol_file, "r", encoding="utf-8", errors="replace", options=self.options) as stream:
                 job_id = None
@@ -684,20 +803,9 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
                             invalid.add(job_id)
                         allocation[host] = resources
         except (OSError, UnicodeError) as error:
-            logging.warning("Cannot read optional Slurm GPU details: %s", error)
-            return
-        for job in self._get_jobs():
-            job_id = job["JobId"]
-            if job["S"] not in self.ACTIVE_STATES or job_id in invalid:
-                continue
-            allocated = set(job_hosts(job) if job_hosts else self.expand_nodelist(job["Nodes"]))
-            allocation = allocations.get(job_id, {})
-            if not set(allocation).issubset(allocated):
-                continue
-            for host, resources in allocation.items():
-                if host in worker_nodes:
-                    bindings = worker_nodes[host].setdefault("slurm_gpu_bindings", [])
-                    bindings.extend(dict(resource, job_id=job_id) for resource in resources)
+            logger.warning("Cannot read optional Slurm GPU details: %s", error)
+            return {}, set()
+        return allocations, invalid
 
     def _read_cpu_allocations(self) -> Dict[str, Any]:
         allocations: Dict[str, Any] = {}
@@ -735,7 +843,7 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
                                         break
                                     allocation[host] = cpus if type(cpus) is tuple else tuple(map(int, cpus))
         except (OSError, UnicodeError, ValueError) as error:
-            logging.warning("Cannot read optional Slurm CPU details: %s; using estimates.", error)
+            logger.warning("Cannot read optional Slurm CPU details: %s; using estimates.", error)
             return {}
         return allocations
 
@@ -754,13 +862,13 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
             if not valid:
                 estimated.update(hosts)
                 if job["JobId"] in details:
-                    logging.warning("Incomplete or inconsistent Slurm CPU details for job %s; using estimates.", job["JobId"])
+                    logger.warning("Incomplete or inconsistent Slurm CPU details for job %s; using estimates.", job["JobId"])
                 continue
             for host, cpus in allocation.items():
                 for cpu in cpus:
                     if cpu in exact[host] and exact[host][cpu] != job["JobId"]:
                         estimated.add(host)
-                        logging.warning("Overlapping Slurm CPU allocations on %s; using estimates.", host)
+                        logger.warning("Overlapping Slurm CPU allocations on %s; using estimates.", host)
                     exact[host][cpu] = job["JobId"]
         for host, node in worker_nodes.items():
             if exact[host] and host not in estimated:

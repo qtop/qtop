@@ -11,9 +11,10 @@
 
 import io
 import logging
+import os
 import sys
 from argparse import ArgumentParser, Namespace
-from typing import Any, Callable, Dict, Iterator, Optional
+from typing import Any, Callable, Dict, Iterator, List, Optional
 
 from qtop_py import fileutils
 from qtop_py.constants import QTOP_LOGFILE
@@ -21,15 +22,19 @@ from qtop_py.core_safety import SafeLogFormatter, visible_text
 
 
 class PrivateFileHandler(logging.FileHandler):
-    """Log file handler that opens its file privately (mode 0600)."""
+    """Log file handler that opens its file privately (mode 0600); strict is --strict-parents."""
+
+    def __init__(self, filename: str, strict: bool = False, **kwargs: Any) -> None:
+        self.strict = strict
+        super().__init__(filename, **kwargs)
 
     def _open(self) -> io.TextIOWrapper:
         def open_log(path: str) -> io.TextIOWrapper:
-            stream = fileutils.private_log_stream(path)
+            stream = fileutils.private_log_stream(path, self.strict)
             self.baseFilename = path
             return stream
 
-        return fileutils.with_fallback("log", self.baseFilename, open_log, leaf="qtop.log")
+        return fileutils.with_fallback("log", self.baseFilename, open_log, leaf="qtop.log", strict=self.strict)
 
 
 def init_logging(options: Any) -> None:
@@ -45,10 +50,11 @@ def init_logging(options: Any) -> None:
     logger = logging.getLogger()
     logger.setLevel(logging.DEBUG)
 
+    strict = bool(getattr(options, "STRICT_PARENTS", False))
     try:
-        fh = PrivateFileHandler(QTOP_LOGFILE, encoding="utf-8")
+        fh = PrivateFileHandler(os.path.expandvars(QTOP_LOGFILE), strict, encoding="utf-8")
     except OSError as error:
-        if fileutils.STRICT_PARENTS:
+        if strict:
             raise
         # Neither the log nor its fallback is usable: keep running, without a log file.
         sys.stderr.write("qtop: warning: no log file: %s (%s)\n" % (visible_text(error.strerror or error), visible_text(error.filename)))
@@ -67,6 +73,13 @@ def init_logging(options: Any) -> None:
 
     logging.debug("Verbosity level = %s", options.verbose)
     logging.debug("input, output isatty: %s\t%s", sys.stdin.isatty(), sys.stdout.isatty())
+
+
+def backend_option_hooks() -> List[Any]:
+    """Return the backends that declare their own command-line options (inherited hooks run once)."""
+    from qtop_py.schedulers import registry
+
+    return [backend for backend in registry.PLUGIN_BATCH_SYSTEMS if "add_cli_options" in vars(backend) or "check_cli_options" in vars(backend)]
 
 
 def parse_qtop_cmdline_args() -> Namespace:
@@ -101,21 +114,10 @@ def parse_qtop_cmdline_args() -> Namespace:
         default=False,
         help="Mask identifiers where supported by the backend. With -L, save a reproducible masked state/config snapshot instead of raw traces and logs.",
     )
-    slurm_mode = parser.add_mutually_exclusive_group()
-    slurm_mode.add_argument(
-        "--slurm-summary",
-        action="store_true",
-        dest="SLURM_SUMMARY",
-        help="Use only Slurm sinfo/squeue on each display cycle; CPU placement is estimated and per-job GPU indices are unavailable",
-    )
-    slurm_mode.add_argument("--slurm-json-squeue", action="store_true", dest="SLURM_JSON_SQUEUE", help="Use squeue --json for slurm_json jobs when scontrol returns empty job JSON")
     parser.add_argument("-b", "--batchSystem", action="store", dest="BATCH_SYSTEM", default=None)
-    parser.add_argument(
-        "--all",
-        action="store_true",
-        dest="ALL_PARTITIONS",
-        help="Include hidden and group-unavailable partitions in live Slurm queries (subject to permissions)",
-    )
+    backends = backend_option_hooks()
+    for backend in backends:
+        backend.add_cli_options(parser)
     parser.add_argument(
         "-c",
         "--COLOR",
@@ -275,10 +277,8 @@ def parse_qtop_cmdline_args() -> Namespace:
     args = parser.parse_args()
     if args.EXPAND_QUEUES:
         args.NO_WRAP_QUEUES = False
-    if args.SLURM_SUMMARY:
-        if args.BATCH_SYSTEM and args.BATCH_SYSTEM.lower() not in ("auto", "slurm"):
-            parser.error("--slurm-summary requires -b slurm or auto")
-        args.BATCH_SYSTEM = "slurm"
+    for backend in backends:
+        backend.check_cli_options(parser, args)
     if args.SHOW_QUEUE_NODES and not args.EXPERIMENTAL:
         parser.error("--queue-nodes requires -e/--experimental")
     if args.REPLAY and len(args.REPLAY) > 2:

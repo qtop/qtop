@@ -5,14 +5,13 @@
 import logging
 import os
 import shlex
-import subprocess  # nosec B404 - getent command as an argv list, never a shell
+import subprocess  # nosec B404 - only for TimeoutExpired; core_process starts the command
 from functools import lru_cache
-from math import isfinite
 from typing import Any, Dict, Sequence
 
 from qtop_py.constants import QTOPCONF_YAML
 from qtop_py.core_errors import OperationalError
-from qtop_py.core_process import DEFAULT_SCHEDULER_COMMAND_TIMEOUT, communicate_with_timeout, scheduler_env
+from qtop_py.core_process import DEFAULT_SCHEDULER_COMMAND_TIMEOUT, communicate_with_timeout, positive_timeout, start_command
 from qtop_py.core_safety import visible_text
 from qtop_py.input_parsing import extract_regex_detail
 
@@ -55,16 +54,8 @@ def get_detail_of_name(account_jobs_table: Sequence[Sequence[Any]], config: Dict
         user_details_command = shlex.split(command)
         if not args.GET_GECOS:
             user_details_command[-1] = os.path.expandvars(user_details_command[-1])
-        timeout = float(config.get("scheduler_command_timeout", DEFAULT_SCHEDULER_COMMAND_TIMEOUT))
-        if not isfinite(timeout) or timeout <= 0:
-            raise ValueError("scheduler_command_timeout must be positive and finite")
-        p = subprocess.Popen(  # nosec B603 # nosemgrep - shlex-split user-details command, argv list, never a shell
-            user_details_command,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            start_new_session=(os.name == "posix"),
-            env=scheduler_env(os.environ),
-        )
+        timeout = positive_timeout(config.get("scheduler_command_timeout", DEFAULT_SCHEDULER_COMMAND_TIMEOUT))
+        p = start_command(user_details_command, os.environ)
         raw_output, raw_err = communicate_with_timeout(p, timeout)
         output, err = (raw_output or b"").decode("utf-8", errors="replace"), raw_err.decode("utf-8", errors="replace")
     except (OperationalError, OSError, ValueError, TypeError, IndexError, OverflowError, subprocess.TimeoutExpired) as error:

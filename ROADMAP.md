@@ -21,7 +21,7 @@ Last reviewed: 2026-11-14 (source and documentation checklist audit)
 - `[CI]` means a configured CI job calls a shared Makefile gate that fails when
   the stated check fails. It is scoped to that gate's inputs and interpreter lanes,
   not a claim that a particular run passed or that branch protection requires it.
-- Optional local targets, report-only analyzers, experimental allow-failure lanes
+- Optional local targets, report-only analyzers, nightly-wide lanes
   and external service activation do not count as enforced checks.
   See [the CI contract](docs/ci-structure.md#the-makefile-contract).
   Release availability is recorded separately in the changelog.
@@ -174,7 +174,7 @@ or a release is prepared.
   - [ ] Add a focused fixture for each further parsing or accounting failure.
   - [ ] Use synthetic or explicitly approved anonymized snapshots.
   - [ ] Document fixture provenance and expected behavior.
-  - [x] Provide `test-fast` and fresh Linux/WSL snapshots with retained reports;
+  - [x] Provide `test-fast` and a one-command local gate run (`uvx nox`);
     [local testing](docs/local-testing.md) keeps the full gate distinct.
 
 ## Later: Conditional Expansion
@@ -285,9 +285,10 @@ chosen release revision.
   checks; package artifacts are validated independently ([build.yml](.github/workflows/build.yml)).
 - [x] Manual shared CI dispatch and Cobertura artifacts in the primary workflow
   ([build.yml](.github/workflows/build.yml)).
-- [x] Scheduled/manual distro and interpreter matrix with separate
-  experimental lanes and retained validation artifacts
-  ([nightly-matrix.yml](.github/workflows/nightly-matrix.yml)).
+- [x] Scheduled/manual distro and interpreter matrix in two runs, a blocking
+  core and a wider drift watch, with retained validation artifacts
+  ([nightly-core.yml](.github/workflows/nightly-core.yml),
+  [nightly-wide.yml](.github/workflows/nightly-wide.yml)).
 - [x] OpenSSF Scorecard analysis, SARIF artifacts/code-scanning uploads
   and public-result publication from `main`
   ([scorecard.yml](.github/workflows/scorecard.yml)).

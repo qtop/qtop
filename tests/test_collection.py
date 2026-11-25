@@ -13,10 +13,10 @@ from types import SimpleNamespace
 
 import pytest
 
+from qtop_py import configuration, fileutils, utils
 from qtop_py import core_inputs as inputs
 from qtop_py import core_process as process_io
 from qtop_py import core_yaml_parser as yaml_parser
-from qtop_py import fileutils, utils
 from qtop_py.core_errors import OperationalError
 from qtop_py.core_process import communicate_with_timeout
 from qtop_py.plugins.slurm import SlurmBatchSystem
@@ -191,7 +191,7 @@ def frame_context(tmp_path, monkeypatch):
     monkeypatch.setattr(sys, "argv", ["qtop", "-b", "slurm_json"])
     args = utils.parse_qtop_cmdline_args()
     args.workdir = str(tmp_path)
-    config = yaml_parser.parse(str(ROOT / "qtopconf.yaml"))
+    config = configuration.with_backend_defaults(yaml_parser.parse(str(ROOT / "qtopconf.yaml")))
     config["savepath"] = str(tmp_path)
     resources = RunResources()
     monkeypatch.setattr(resources, "start_capture", lambda *args: None)
@@ -258,7 +258,7 @@ def test_empty_jobs_falls_back_once_and_later_failure_retains_legacy_snapshot(fr
 
 
 def test_autodetection_prefers_legacy_but_explicit_json_is_preserved(monkeypatch):
-    config = yaml_parser.parse(str(ROOT / "qtopconf.yaml"))
+    config = configuration.with_backend_defaults(yaml_parser.parse(str(ROOT / "qtopconf.yaml")))
     systems = registry.discover_qtop_batch_systems()
     monkeypatch.setattr(registry.shutil, "which", lambda command: "/bin/" + command)
     assert registry.auto_get_avail_batch_system(config, systems) == "slurm"
@@ -440,11 +440,25 @@ def _timed_commands(tmp_path, scripts):
 
 
 def test_scheduler_commands_run_concurrently_and_keep_config_order(tmp_path):
-    slow = "import time; time.sleep(0.6); print('%s')"
-    files, elapsed = _timed_commands(tmp_path, {key: slow % key for key in ("squeue_file", "sinfo_file", "scontrol_file")})
-    assert list(files) == ["squeue_file", "sinfo_file", "scontrol_file"]
+    """Each command waits until all three have started: run one after another, the first gives up and fails."""
+    keys = ("squeue_file", "sinfo_file", "scontrol_file")
+    barrier = tmp_path / "barrier"
+    barrier.mkdir()
+    rendezvous = (
+        "import pathlib, sys, time\n"
+        "barrier = pathlib.Path(%r)\n"
+        "(barrier / '%s').touch()\n"
+        "deadline = time.monotonic() + 20\n"
+        "while len(list(barrier.iterdir())) < 3:\n"
+        "    if time.monotonic() > deadline:\n"
+        "        sys.exit('ran alone')\n"
+        "    time.sleep(0.01)\n"
+        "print('%s')\n"
+    )
+    files, _ = _timed_commands(tmp_path, {key: rendezvous % (str(barrier), key, key) for key in keys})
+    assert not isinstance(files, OperationalError), files
+    assert list(files) == list(keys)
     assert all(Path(path).read_text() == key + "\n" for key, path in files.items())
-    assert elapsed < 1.5  # three 0.6 s commands one after another would take 1.8 s or more
 
 
 def test_the_first_required_failure_in_config_order_is_reported(tmp_path):

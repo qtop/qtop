@@ -3,6 +3,38 @@
 Notable changes by version, newest first. See the
 [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 
+## 0.9.20261122
+
+- Bugfix: SonarCloud findings on 1e01dac: SGE no-op self-assignments, uneven scheduler error lines
+- Bugfix: -R mmddTHHMM parses with the current year, so 29 February works (and Python 3.15 agrees)
+- Bugfix: Codacy: a YAML-parser expression statement; reasons recorded for the findings that stay
+- Bugfix: a qtopconf.yaml layer setting one scheduler command no longer drops all the others
+- Bugfix: watch mode no longer goes blank when 2 hides the node matrix while scrolled down
+- CI: slow sdist/wheel install tests move to make test-packaging, run by the build jobs and nightly
+- CI: nightly splits into a blocking 8-lane core run and a 26-lane wide run that may be flaky
+- CI: PRs run the core debian:bookworm lane (root, distro Python), as nightly failures came from it
+- CI: scheduled nightly runs test develop, not main, so a regression shows up the day after merge
+- CI: nightly core runs python:3.12-bookworm and python:3.15-bookworm; 3.11 and 3.14 move to wide
+- CI: uvx nox runs the local Make gates; tools/local_tests.py and test-local.ps1 are gone
+- CI: the sample gate runs every registered backend by default (SAMPLE_GATE_SCHEDULERS=all)
+- Docs: Slurm JSON v0.0.46 is checked against Slurm 26.11.0, not 26.11.0rc1; hres node field ignored
+- Docs: the README calls the terminal interface fast, not extremely fast
+- Docs: qtop.1 gets an OPTIONS entry for --slurm-summary; a test now requires one for every option
+- Feature: the wheel ships py.typed (PEP 561), so type checkers read qtop's annotations
+- Feature: plugins are self-standing: commands, states and registration live in the plugin module
+- Feature: core_api.collect_state() collects a validated state with no CLI or config file
+- Refactor: one core_process helper starts commands and checks timeouts; dead comments gone
+- Refactor: --strict-parents is passed to fileutils, not set globally; no $HOME read at import
+- Refactor: core modules log via getLogger(__name__), so a host app's logging is left alone
+- Refactor: extension specs live with their plugins; metadata collects them from the registry
+- Refactor: Slurm's --all, --slurm-summary and --slurm-json-squeue are declared by the plugin
+- Refactor: SGE and OAR settings belong to their plugins; the no-op faster_xml_parsing is gone
+- Refactor: plugins declare their commands' environment; Slurm's SLURM_BITSTR_LEN=0 moved there
+- Refactor: complexity cap 20 -> 19: Slurm GPU details, Slurm notes and the / and : prompts split
+- Tests: the concurrent-commands test checks overlap with a rendezvous, not a 1.5 s limit
+- Tests: input_parsing, user_details and snapshot reach 100% coverage (regex, groups, legacy rows)
+- Release: update version metadata to 0.9.20261122
+
 ## 0.9.20261121
 
 - Bugfix: a root-owned symlinked /home (autofs/NFS) no longer fails with Not a directory (#615)

@@ -480,8 +480,16 @@ qtop applies settings in this order; later values replace earlier ones:
    Dedicated CLI switches also apply their documented display behavior.
 
 File overrides replace whole top-level values rather than recursively merging
-nested mappings. To customize ``schedulers`` or ``state_abbreviations``, copy
-and edit the complete mapping from [qtopconf.yaml](../qtopconf.yaml).
+nested mappings, with three exceptions: ``schedulers``, ``signature_commands``
+and ``state_abbreviations`` merge per backend and, within one backend, per key.
+Their defaults come from each backend in ``qtop_py/plugins/``; a layer sets only
+what it changes, for example one command:
+
+```yaml
+schedulers:
+  slurm:
+    sinfo_file: %(savepath)s/sinfo%(pid)s.txt, sinfo -N -h -O 'NodeList:0|,Partition:0|,StateCompact:0|,CPUs:0'
+```
 
 ``-o`` accepts top-level keys, not dotted paths. Values are parsed as Python
 literals where possible (for example ``True``, ``1``, or a list); other values
@@ -863,39 +871,32 @@ sinfo -N -h -O 'NodeList:0|,Partition:0|,StateCompact:0|,CPUs:0|,Gres:0|,GresUse
 ```
 
 qtop also has a scheduler-type discovery system, meaning it will try to
-guess which scheduler system is installed in your system. The keys below
-let the user decide which command it should be that uniquely
-characterises the scheduler. Slurm is checked first so that an unrelated
-``qstat`` command does not mask an available ``sinfo`` command.
+guess which scheduler system is installed in your system. Each backend
+declares the command that characterises it (``signature_command``) and a
+``detection_priority``: Slurm (``sinfo``) first, then Slurm JSON, PBS
+(``pbsnodes``), OAR, SGE, LSF and HTCondor, so that an unrelated ``qstat``
+command does not mask an available ``sinfo`` command. Override one in a
+configuration layer:
 
 ```yaml
 ---
     signature_commands:
-      pbs: pbsnodes
-      oar: oarnodes
-      sge: qacct
-      slurm: sinfo
-      demo: echo
+      lsf: lsid
 ---
 ```
 
 #### XML parsing
 
-```yaml
----
-    faster_xml_parsing: False
----
-```
-
 SGE XML uses the standard-library parser, which rejects DTD declarations.
-No additional XML package is required. Leave ``faster_xml_parsing`` at its
-default ``False``; the current SGE parser does not switch to ``lxml`` when
-this setting is enabled.
+No additional XML package is required. The former ``faster_xml_parsing`` setting
+never switched the parser to ``lxml`` and has been removed; a configuration that
+still sets it is accepted and the value ignored.
 
 #### State abbreviations
 
-The complete per-backend mappings are in ``state_abbreviations`` in
-[qtopconf.yaml](../qtopconf.yaml). For example, the Slurm mapping includes:
+Each backend declares its complete mapping as ``state_abbreviations`` in its
+module under [qtop_py/plugins/](../qtop_py/plugins/); a configuration layer
+overrides single states. For example, the Slurm mapping includes:
 
 | Job state | Accounting category |
 | --- | --- |
@@ -1437,7 +1438,7 @@ contains a complete, validated collection; exports use the existing unique-file
 publication path. Collection-command, visibility or timeout changes restart the session.
 
 Supported data-parser metadata versions are `v0.0.40` through `v0.0.46`.
-Version 46 is checked against Slurm 26.11.0rc1; see the fixture README for
+Version 46 is checked against Slurm 26.11.0; see the fixture README for
 source provenance and the limits of this synthetic validation.
 The older `allocated_nodes`/socket dictionaries and newer
 `nodes.allocation`/socket arrays are distinct adapters into existing Slurm
@@ -1570,23 +1571,32 @@ pins the interface. A backend reports raw
 names: `-A` masks the built state once, for every backend, so it never reads `-A`
 or `-L`. Its options carry only collection settings (`core_api.BackendOptions`).
 
-To register it:
+A backend is self-standing: its module declares, on the class, `default_commands`
+(trace key to `"output file, command"`), the `signature_command` that `-b auto` looks
+for, a `detection_priority` and its `state_abbreviations`. `schedulers/registry.py`
+finds every `GenericBatchSystem` subclass defined in a `qtop_py/plugins/` module, so
+there is nothing to register; other packages add backends through the
+`qtop.backends` entry-point group (Python 3.8+). Configuration layers override the
+declared defaults per key, and matrix rows without a `systems:` list (the default
+ones) already apply to it. Its own command-line switches come from the
+`add_cli_options(parser)` and `check_cli_options(parser, args)` hooks, as Slurm's
+`--all`, `--slurm-summary` and `--slurm-json-squeue` do; the backend reads them with
+`getattr` and a default, and `core_api.BackendOptions(**options)` passes them without
+the CLI. Then:
 
-1. Add the class to `PLUGIN_BATCH_SYSTEMS` in `qtop_py/schedulers/registry.py`.
-2. In `qtopconf.yaml`, add its commands under `schedulers:` and one command under
-   `signature_commands:` for auto-detection. Matrix rows without a `systems:` list
-   (the default ones) already apply to it.
-3. Commit sample traces and list them for the sample gate in
-   `tools/validate_scheduler_samples.py`; add the name to `SAMPLE_GATE_SCHEDULERS`
-   in the `Makefile`.
+1. Add the default commands to the commented list in `qtopconf.yaml`
+   (`tests/test_backend_discovery.py` checks the copy).
+2. Commit sample traces and their cases in `tools/validate_scheduler_samples.py`; the
+   sample gate runs every registered backend and fails without them.
 
 If its jobs or nodes carry fields beyond the neutral schema (array IDs, slot
 counts, job lists on nodes), describe them in one `ExtensionSpec`
-(`qtop_py/schedulers/extensions.py`) in its own module, as
-`slurm_extension.py` and `oar_extension.py` do. Set the plugin's `extensions` to it,
-take `node_job_fields` from it, and list it in `metadata.EXTENSIONS`. Validation,
-`-A` masking and the idle test then cover those fields for every state, including
-replayed and `--load-sample` ones that are validated without the plugin.
+(`qtop_py/schedulers/extensions.py`) in the plugin module, as `oar.py` does, or next
+to it when plugins share it, as `plugins/slurm_extension.py` does. Set the plugin's
+`extensions` to it and take `node_job_fields` from it; `schedulers/metadata.py`
+collects the specs of all registered backends. Validation, `-A` masking and the idle
+test then cover those fields for every state, including replayed and `--load-sample`
+ones.
 
 `tests/test_plugin_conformance.py` runs for every registered backend. It fails
 until the steps above are done, and it checks each committed sample through export,

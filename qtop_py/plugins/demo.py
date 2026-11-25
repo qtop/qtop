@@ -201,6 +201,18 @@ class LittleClusterSimulator(object):
 class DemoBatchSystem(GenericBatchSystem):
     """Reference backend: shows what qtop expects from a batch system, fed by LittleClusterSimulator."""
 
+    signature_command = "echo"
+    default_commands = {
+        "demo_file": "%(savepath)s/demo%(pid)s.txt, echo 'Demo here'",
+    }
+    state_abbreviations = {
+        "Q": "queued_of_user",
+        "R": "running_of_user",
+        "C": "cancelled_of_user",
+        "E": "exiting_of_user",
+        "W": "waiting_of_user",
+    }
+
     is_simulated = True
 
     @staticmethod

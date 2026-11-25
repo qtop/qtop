@@ -15,6 +15,7 @@ from tools.validate_scheduler_samples import (
     analyse_ansi_evidence,
     discover_cases,
     inspect_ansi,
+    registered_schedulers,
     run_case,
     sanitize_artifact_text,
     write_svg_screenshot,
@@ -37,13 +38,15 @@ def expected_colour_output(overrides=None, omitted=None):
     return "\n".join(spans) + "\n"
 
 
-def test_discover_cases_covers_all_shared_validation_backends():
-    cases = discover_cases(["pbs", "sge", "slurm", "oar", "demo"], ROOT / "tests/plugins/slurm_samples")
+def test_discover_cases_covers_every_registered_backend():
+    """A new plugin registers itself; this fails until it also brings sample cases."""
+    registered = registered_schedulers()
+    cases = discover_cases(registered, ROOT / "tests/plugins/slurm_samples")
 
     schedulers = {case["scheduler"] for case in cases}
     names = {case["name"] for case in cases}
 
-    assert schedulers == {"pbs", "sge", "slurm", "oar", "demo"}
+    assert len(registered) >= 8 and schedulers == set(registered)
     assert {"pbs-contrib", "sge-contrib", "oar-contrib", "demo-generated"} <= names
     assert any(name.startswith("slurm-") for name in names)
     assert all(case["colour_expectations"][: len(COMMON_COLOUR_EXPECTATIONS)] == COMMON_COLOUR_EXPECTATIONS for case in cases)

@@ -36,7 +36,13 @@ Codacy analyses `qtop_py/` and the CI configuration; `.codacy.yml` excludes
 `tests/` and `tools/`, harnesses that run subprocesses and use fixture paths by
 design and are covered by ruff, CodeQL and the gates above. Runtime findings left
 by design carry `# nosec <rule> - reason` (and `nosemgrep` where Semgrep also
-matches) at the line; Bandit reports none in `qtop_py/`.
+matches) at the line; Bandit reports none in `qtop_py/`. Two kinds of Codacy
+finding stay by design and are marked in Codacy rather than changed:
+`defusedxml` for the SGE parser, which rejects every DTD and keeps qtop free of
+runtime dependencies, and `id-token: write` in `release.yml` and `scorecard.yml`,
+an OIDC permission (PyPI trusted publishing, Scorecard publishing), not a
+stored token. Its report that `AGENTS.md` cites a missing `CONTRIBUTING.md` is
+wrong: the file is at the repository root.
 
 `make pre-pr` combines coverage (including the full pytest/Hypothesis suite),
 scheduler samples, deterministic and Atheris fuzzing, lint/format, and type
@@ -129,7 +135,30 @@ This gate is temporary until the 1.0 namespace change.
 
 ## Nightly compatibility lanes
 
-Both nightly matrices use `ci/scripts/matrix_lane.sh` and the shared CI pins.
+The nightly matrix runs as two separately reported tiers, mirrored lane for lane
+on both forges:
+
+| Tier | Where | Lanes | A failure means |
+|---|---|---:|---|
+| core | `nightly-core.yml`; GitLab job `nightly-core` | 8 | a qtop regression: fix it before the next release |
+| wide | `nightly-wide.yml`; GitLab job `nightly-wide` (`allow_failure`) | 26 | possible distro, mirror or interpreter drift: look when convenient |
+
+The core lanes take one lane per dimension that has caught regressions:
+python.org CPython 3.12 and 3.15, Debian bookworm and Ubuntu 24.04 system
+Python, Fedora 42, AlmaLinux 9 with Python 3.12, and the runtime floors
+AlmaLinux 8 Python 3.6 and Rocky Linux 9 system Python 3.9 (`compat-py36`).
+Pull requests also run the core `debian:bookworm` lane (job `nightly-lane` in
+`build.yml` and `ci/test.gitlab-ci.yml`): as root, with the distro's Python and
+a checkout owned by another user, it meets the conditions behind most nightly
+failures before merge. It needs a Linux container runtime, so on macOS rely on
+the PR job rather than reproducing it locally.
+
+Scheduled runs test `develop`: GitHub schedules the default branch, `main`, which
+only moves at releases, so the checkout switches to `develop`, and the GitLab
+schedule targets `develop`. Manual runs test the ref they are started on, so
+run both workflows on `main` before tagging a release.
+
+All lanes use `ci/scripts/matrix_lane.sh` and the shared CI pins.
 Every lane that installs them runs Python 3.10+, so all get the patched
 setuptools 84.2.1 and pytest 9.2.0. Python 3.10-3.11 also install wheel 0.48.0
 so the installation check uses a backend that supports the project's PEP 639
@@ -141,7 +170,7 @@ The build requirement in [pyproject.toml](../pyproject.toml) keeps setuptools
 ranges for Python 3.6-3.9 users who build from source; CI never installs those
 older releases, and Python 3.6 installs the wheel built on CPython 3.12.
 
-The three experimental PyPy lanes use `make compat-py36`, the existing
+The three PyPy lanes (wide tier) use `make compat-py36`, the existing
 stdlib-only compatibility gate: syntax compilation, unittest regressions
 (including XML DTD rejection and parser budgets) and all scheduler sample gates.
 They do not install `requirements-ci.txt` or run the full pytest suite.
@@ -333,7 +362,7 @@ gates and obtain independent review before those separate operations.
 
 The ci-matrix-check target (included in lint and pre-pr) compares expanded
 nightly lane multisets, including package/interpreter choices, Make target
-and failure policy. Matrix edits must update both provider files together.
+and tier; it also checks that PRs run the core debian:bookworm lane. Matrix edits must update both provider files together.
 PyYAML is pinned for developer validation only; qtop keeps its stdlib parser.
 
 GitHub build and release workflows retain the verified record in the separate

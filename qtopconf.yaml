@@ -36,191 +36,43 @@ scheduler_command_timeout: 180
 experimental_web_host: 127.0.0.1
 experimental_web_port: 8080
 
-## batch commands, filenames to save their output in
-## If user sets a sourcedir, qtop expects to find the respective
-## filenames below, minus the _pid.
-schedulers:
-  pbs:
-    pbsnodes_file: %(savepath)s/pbsnodes_a%(pid)s.txt, pbsnodes -a
-    qstatq_file: %(savepath)s/qstat_q%(pid)s.txt, qstat -Q -f -F json
-    qstat_file: %(savepath)s/qstat%(pid)s.txt, qstat -f -F json
-  oar:
-    oarnodes_s_file: %(savepath)s/oarnodes_s_Y%(pid)s.txt, oarnodes -s -Y
-    oarnodes_y_file: %(savepath)s/oarnodes_Y%(pid)s.txt, oarnodes -Y
-    oarstat_file: %(savepath)s/oarstat%(pid)s.txt, oarstat
-  sge:
-    sge_file: %(savepath)s/qstat%(pid)s.F.xml.stdout, qstat -F -xml -u '*'
-  slurm_json:
-    ## Sequential queries: small partition inventory first, jobs last.
-    partitions_json: %(savepath)s/slurm_partitions%(pid)s.json, scontrol --json show partitions
-    nodes_json: %(savepath)s/slurm_nodes%(pid)s.json, scontrol --json show nodes
-    jobs_json: %(savepath)s/slurm_jobs%(pid)s.json, scontrol --json show jobs
-  slurm:
-    ## Copy the command after ', ' directly into a shell for debugging.
-    ## Include all retained job states, including suspended jobs; --all opts into hidden partitions.
-    squeue_file: %(savepath)s/squeue%(pid)s.txt, squeue --states=all -r -h -O 'JobID:0|,UserName:0|,StateCompact:0|,Partition:0|,NumCPUs:0|,NodeList:0|,tres-alloc:0|,tres-per-node:0|,tres-per-task:0|,ArrayJobID:0|,ArrayTaskID:0'
-    sinfo_file: %(savepath)s/sinfo%(pid)s.txt, sinfo -N -h -O 'NodeList:0|,Partition:0|,StateCompact:0|,CPUs:0|,Gres:0|,GresUsed:0|,Available:0'
-    ## Collect Slurm CPU IDs by default; missing/failed details use estimates.
-    scontrol_file: %(savepath)s/scontrol%(pid)s.txt, scontrol --details show jobs
-    #squeue_file: %(savepath)s/squeue%(pid)s.txt, squeue --states=all -r -h -o '%i|%u|%t|%P|%C|%N'
-    #sinfo_file: %(savepath)s/sinfo%(pid)s.txt, sinfo -N -h -o '%N|%P|%t|%c|%a'
-  lsf:
-    ## Hosts and queues as wide whitespace tables; jobs with a named, '|'-delimited header.
-    bhosts_file: %(savepath)s/bhosts%(pid)s.txt, bhosts -w
-    bqueues_file: %(savepath)s/bqueues%(pid)s.txt, bqueues -w
-    bjobs_file: %(savepath)s/bjobs%(pid)s.txt, bjobs -u all -o "jobid jobindex stat user queue exec_host delimiter='|'"
-  htcondor:
-    ## JSON ClassAds; condor_q asks the local schedd (use -global for every schedd in the pool).
-    status_json: %(savepath)s/condor_status%(pid)s.json, condor_status -json -attributes Name,Machine,SlotType,PartitionableSlot,DynamicSlot,State,Activity,Cpus,TotalSlotCpus
-    q_json: %(savepath)s/condor_q%(pid)s.json, condor_q -allusers -json -attributes ClusterId,ProcId,Owner,JobStatus,RemoteHost,RequestCpus,AcctGroup
-  demo:
-    demo_file: %(savepath)s/demo%(pid)s.txt, echo 'Demo here'
+## Each backend in qtop_py/plugins/ declares its scheduler commands, the signature command that
+## -b auto looks for, and its state names. Set any of them here: a layer overrides only the keys
+## it names (schedulers.slurm.sinfo_file, signature_commands.lsf, state_abbreviations.pbs.Q...),
+## the rest keep their defaults. Each command line is 'output file, command'; with -s, qtop reads
+## those files (minus %(pid)s) instead. The default commands, ready to copy into a shell:
+# schedulers:
+#   demo:
+#     demo_file: %(savepath)s/demo%(pid)s.txt, echo 'Demo here'
+#   htcondor:
+#     status_json: %(savepath)s/condor_status%(pid)s.json, condor_status -json -attributes Name,Machine,SlotType,PartitionableSlot,DynamicSlot,State,Activity,Cpus,TotalSlotCpus
+#     q_json: %(savepath)s/condor_q%(pid)s.json, condor_q -allusers -json -attributes ClusterId,ProcId,Owner,JobStatus,RemoteHost,RequestCpus,AcctGroup
+#   lsf:
+#     bhosts_file: %(savepath)s/bhosts%(pid)s.txt, bhosts -w
+#     bqueues_file: %(savepath)s/bqueues%(pid)s.txt, bqueues -w
+#     bjobs_file: %(savepath)s/bjobs%(pid)s.txt, bjobs -u all -o "jobid jobindex stat user queue exec_host delimiter='|'"
+#   oar:
+#     oarnodes_s_file: %(savepath)s/oarnodes_s_Y%(pid)s.txt, oarnodes -s -Y
+#     oarnodes_y_file: %(savepath)s/oarnodes_Y%(pid)s.txt, oarnodes -Y
+#     oarstat_file: %(savepath)s/oarstat%(pid)s.txt, oarstat
+#   pbs:
+#     pbsnodes_file: %(savepath)s/pbsnodes_a%(pid)s.txt, pbsnodes -a
+#     qstatq_file: %(savepath)s/qstat_q%(pid)s.txt, qstat -Q -f -F json
+#     qstat_file: %(savepath)s/qstat%(pid)s.txt, qstat -f -F json
+#   sge:
+#     sge_file: %(savepath)s/qstat%(pid)s.F.xml.stdout, qstat -F -xml -u '*'
+#   slurm:
+#     squeue_file: %(savepath)s/squeue%(pid)s.txt, squeue --states=all -r -h -O 'JobID:0|,UserName:0|,StateCompact:0|,Partition:0|,NumCPUs:0|,NodeList:0|,tres-alloc:0|,tres-per-node:0|,tres-per-task:0|,ArrayJobID:0|,ArrayTaskID:0'
+#     sinfo_file: %(savepath)s/sinfo%(pid)s.txt, sinfo -N -h -O 'NodeList:0|,Partition:0|,StateCompact:0|,CPUs:0|,Gres:0|,GresUsed:0|,Available:0'
+#     scontrol_file: %(savepath)s/scontrol%(pid)s.txt, scontrol --details show jobs
+#   slurm_json:
+#     partitions_json: %(savepath)s/slurm_partitions%(pid)s.json, scontrol --json show partitions
+#     nodes_json: %(savepath)s/slurm_nodes%(pid)s.json, scontrol --json show nodes
+#     jobs_json: %(savepath)s/slurm_jobs%(pid)s.json, scontrol --json show jobs
 
-## commands used to uniquely identify the scheduler installed
-signature_commands:
-  pbs: pbsnodes
-  oar: oarnodes
-  sge: qacct
-  slurm_json: scontrol
-  slurm: sinfo
-  lsf: bhosts
-  htcondor: condor_status
-  demo: echo
-
-## Symbols used to summarize the resource states reported for an OAR node.
-oar_node_state_mappings:
-  Alive: '-'
-  Dead: d
-  Suspected: s
-  Mixed: '%'
-  Unknown: '?'
-
-## Utilises lxml module. Needs to be installed in your system.
-## Might result in segmentation fault in some systems.
-faster_xml_parsing: False
-
-## Meaning of queue state abbreviations
-state_abbreviations:
-  pbs:
-    Q: queued_of_user
-    R: running_of_user
-    C: cancelled_of_user
-    E: exiting_of_user
-    W: waiting_of_user
-    H: held_of_user
-    B: begun_of_user
-    F: finished_of_user
-    M: moved_of_user
-    S: suspended_of_user
-    T: transiting_of_user
-    U: suspended_useractive_of_user
-    X: expired_of_user
-  oar:
-    E: Error
-    F: Finishing
-    S: Resuming
-    H: Hold
-    L: waiting_of_user
-    W: queued_of_user
-    R: running_of_user
-    T: exiting_of_user
-    S: cancelled_of_user
-  sge:
-    ## ref: http://www.softpanorama.org/HPC/Grid_engine/Reference/qstat.shtml
-    r: running_of_user
-    E: exiting_of_user  # not real
-    qw: queued_of_user
-    C: cancelled_of_user  # not real
-    W: waiting_of_user  # not real
-    R: restarting_of_user
-    hr: hr_of_user
-    hRq: hRq_of_user
-    Ehqw: Ehqw_of_user
-    Eqw: Eqw_of_user
-    hqw: hold_of_user
-    hRq: hRq_of_user
-    t: transferring_of_user
-    T: threshold_reached
-    ht: ht_of_user
-    dr: job_ending_of_user
-    dt: dt_of_user
-    dht: dht_of_user
-    s: suspended_of_user
-    S: suspended_by_the_queue
-    shite: testing_of_user
-    ERq: ERq_of_user
-    Rq: queued_of_user
-    Rs: suspended_of_user
-    Rq: queued_of_user
-    Rt: transferring_of_user
-    Rr: running_of_user    
-  slurm:
-    BF: failed_boot_of_user
-    R: running_of_user
-    RH: hold_of_user  ## requeued_hold_of_user
-    PD: queued_of_user
-    CA: cancelled_of_user
-    CD: finished_of_user
-    CG: exiting_of_user
-    CF: configuring_of_user
-    DL: deadline_of_user
-    F: failed_of_user
-    NF: failed_node_of_user
-    OOM: out_of_memory_of_user
-    TO: timeout_of_user
-    PR: preempted_of_user
-    RD: hold_of_user
-    RF: queued_of_user
-    RQ: queued_of_user
-    RS: resizing_of_user
-    RV: revoked_of_user
-    SI: signaling_of_user
-    SE: special_exit_of_user
-    SO: stage_out_of_user
-    S: suspended_of_user
-    ST: stopped_of_user
-  lsf:
-    RUN: running_of_user
-    PEND: queued_of_user
-    PSUSP: hold_of_user
-    USUSP: suspended_of_user
-    SSUSP: suspended_of_user
-    PROV: configuring_of_user
-    WAIT: waiting_of_user
-    DONE: finished_of_user
-    EXIT: failed_of_user
-    ZOMBI: exiting_of_user
-    UNKWN: unknown_of_user
-  htcondor:
-    I: queued_of_user
-    R: running_of_user
-    H: hold_of_user
-    S: suspended_of_user
-    E: exiting_of_user
-    X: cancelled_of_user
-    C: finished_of_user
-  demo:
-    Q: queued_of_user
-    R: running_of_user
-    C: cancelled_of_user
-    E: exiting_of_user
-    W: waiting_of_user
-
-## original OAR abbreviations:
-## state_abbreviations = {
-##     'W': 'Waiting',
-##     'L': 'toLaunch',
-##     'L': 'Launching',
-##     'H': 'Hold',
-##     'R': 'Running',
-##     'T': 'Terminated',
-##     'E': 'Error',
-##     'E': 'toError',
-##     'F': 'Finishing',
-##     'S': 'Suspended',
-##     'S': 'Resuming',
-##     'W': 'toAckReservation',
-## }
+## OAR only: the symbol shown for each OAR node state; set only the states to change, e.g.
+# oar_node_state_mappings:
+#   Dead: X
 
 percentage: 0.8 # if less than PERCENTAGE x 100% of the matrices have jobs, perform a blind remap
 possible_ids: 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz # IDs of unix accounts, for the lower part of qtop

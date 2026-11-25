@@ -18,9 +18,14 @@ Fields unrelated to this backend are deliberately omitted.
 
 ## Version 44-46 source review
 
-Reviewed against SchedMD tag `slurm-26-11-0-0rc1`, commit
-`a202eca2bfaf2f17f945fa73b185a542bcc54d6a`:
-https://github.com/SchedMD/slurm/tree/a202eca2bfaf2f17f945fa73b185a542bcc54d6a/src/plugins/data_parser
+Reviewed against SchedMD tag `slurm-26-11-0-1` (Slurm 26.11.0), commit
+`7a94f2a5580b4e0f5e99b8228db53cd6763302e1`:
+https://github.com/SchedMD/slurm/tree/7a94f2a5580b4e0f5e99b8228db53cd6763302e1/src/plugins/data_parser
+
+The first review used the 26.11.0rc1 tag; up to 26.11.0 the data parser changed
+only in v0.0.46: a new node field `hres` (HRES layers), which qtop ignores, and
+how request input is parsed, which does not affect dumped responses. The v0.0.46
+fixtures with `hres` added to every node yield the same cluster state.
 
 For each version, `parsers.c` defines `NODE`, `JOB_INFO`, `PARTITION_INFO`,
 `JOB_RES`, `JOB_RES_NODE`, `JOB_RES_SOCKET`, `JOB_RES_CORE` and the custom

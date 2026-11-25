@@ -4,6 +4,7 @@
 
 import ast
 import json
+import os
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -21,6 +22,7 @@ PUBLIC = [
     "TraceMasker",
     "build_cluster_state",
     "check_empty_file",
+    "collect_state",
     "open_input",
     "resolve_job_id",
     "validate_cluster_state",
@@ -96,3 +98,49 @@ def test_one_shot_anonymize_masks_the_built_state_once():
     snapshot, _config = collector.MVU_collect_snapshot(args, {"savepath": ""}, RawBackend, {}, None)
     text = json.dumps(snapshot.to_cluster_state())
     assert not any(name in text for name in ("alice", "node1", "batch"))
+
+
+def test_collect_state_runs_a_backends_own_commands_without_the_cli(tmp_path):
+    """The library entry point: no command line, configuration file or terminal."""
+    from qtop_py.plugins.demo import DemoBatchSystem
+
+    state = core_api.collect_state(DemoBatchSystem, str(tmp_path), env=os.environ)
+    assert core_api.validate_cluster_state(state) == state and state["nodes"] and state["jobs"]
+
+
+class _TableBackend(core_api.GenericBatchSystem):
+    """One trace, 'id user state queue node' per line; the command is never needed with SOURCEDIR."""
+
+    default_commands = {"jobs": "%(savepath)s/jobs%(pid)s.txt, false"}
+
+    @staticmethod
+    def get_mnemonic():
+        return "table"
+
+    def __init__(self, files, config, options):
+        with core_api.open_input(files["jobs"], options=options) as stream:
+            self.rows = [line.split() for line in stream if line.strip()]
+
+    def get_jobs_info(self):
+        return [r[0] for r in self.rows], [r[1] for r in self.rows], [r[2] for r in self.rows], [r[3] for r in self.rows]
+
+    def get_queues_info(self):
+        return 1, 0, [{"queue_name": "batch", "run": "1", "queued": "0", "lm": "--", "state": "Q"}]
+
+    def get_worker_nodes(self, job_ids, job_queues, options):
+        return [{"domainname": "node1", "state": "-", "np": 1, "core_job_map": {0: "7"}, "qname": ["batch"]}]
+
+
+def test_collect_state_reads_a_source_directory_without_running_commands(tmp_path):
+    (tmp_path / "jobs.txt").write_text("7 alice R batch node1\n")
+    state = core_api.collect_state(_TableBackend, str(tmp_path), core_api.BackendOptions(SOURCEDIR=str(tmp_path)))
+    assert [(job["id"], job["user"]) for job in state["jobs"]] == [("7", "alice")]
+
+
+def test_collect_state_reports_a_failing_required_command(tmp_path):
+    import pytest
+
+    with pytest.raises(core_api.OperationalError, match="failed"):
+        core_api.collect_state(_TableBackend, str(tmp_path), env=os.environ)  # runs "false"
+    with pytest.raises(ValueError, match="env="):
+        core_api.collect_state(_TableBackend, str(tmp_path))

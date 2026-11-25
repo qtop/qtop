@@ -17,10 +17,6 @@ from typing import Any, Callable, Dict, Generator, List, Mapping, Optional, Set,
 
 from qtop_py.core_safety import visible_text
 
-# Off by default: shared site trees (/gpfs/home, group-writable /home) would otherwise stop every run.
-# --strict-parents turns it on, so a writable non-sticky ancestor of savepath or the log stops qtop.
-STRICT_PARENTS = False
-
 
 class StartupProgress:
     """Report each distinct scheduler source once, until startup completes."""
@@ -84,8 +80,12 @@ def _path_parts(path: str) -> List[str]:
 
 
 @contextlib.contextmanager
-def _private_directory(path: str) -> Generator[Tuple[str, int], None, None]:
-    """Create or tighten an owned output directory without following symlinks."""
+def _private_directory(path: str, strict: bool = False) -> Generator[Tuple[str, int], None, None]:
+    """Create or tighten an owned output directory without following symlinks.
+
+    strict (--strict-parents) refuses a parent others can write without the sticky bit; off by default,
+    since shared site trees (/gpfs/home, group-writable /home) would otherwise stop every run.
+    """
     if not isinstance(path, str) or not path.strip():
         raise ValueError("Save directory must be a nonempty path")
     if os.name != "posix":
@@ -148,9 +148,9 @@ def _private_directory(path: str) -> Generator[Tuple[str, int], None, None]:
             if private_directory:
                 if info.st_uid != uid:
                     raise PermissionError(errno.EACCES, "Save directory must be owned by the current user", path)
-                os.fchmod(fd, 0o700)
+                os.fchmod(fd, 0o700)  # nosemgrep - owner-only: rwx for the current user, nothing for group or others
             elif writable_by_others and not info.st_mode & stat.S_ISVTX:
-                if STRICT_PARENTS:
+                if strict:
                     raise PermissionError(errno.EACCES, "Save directory has an untrusted parent (writable without sticky bit; --strict-parents)", parent)
                 logging.getLogger(__name__).info("Save directory parent %s is writable by others without sticky bit; continuing (see --strict-parents)", parent)
         yield path, fd
@@ -158,16 +158,16 @@ def _private_directory(path: str) -> Generator[Tuple[str, int], None, None]:
         os.close(fd)
 
 
-def private_save_directory(path: str) -> str:
+def private_save_directory(path: str, strict: bool = False) -> str:
     """Create or tighten an owned output directory without following symlinks."""
-    with _private_directory(path) as (directory, _):
+    with _private_directory(path, strict) as (directory, _):
         return directory
 
 
-def private_log_stream(path: str) -> io.TextIOWrapper:
+def private_log_stream(path: str, strict: bool = False) -> io.TextIOWrapper:
     """Open a user-owned, singly linked regular log through a verified directory FD."""
     directory, name = os.path.split(os.path.abspath(os.path.expandvars(path)))
-    with _private_directory(directory) as (_, directory_fd), contextlib.ExitStack() as allocation:
+    with _private_directory(directory, strict) as (_, directory_fd), contextlib.ExitStack() as allocation:
         descriptor = _open_owned(name, os.O_WRONLY | os.O_CREAT | os.O_APPEND | os.O_NOFOLLOW | os.O_NONBLOCK, 0o600, directory_fd)
         allocation.callback(os.close, descriptor)
         info = os.fstat(descriptor)
@@ -204,15 +204,15 @@ def _warn_fallback(what: str, path: str, error: OSError, fallback: str) -> None:
         logging.getLogger(__name__).warning("%s", message)
 
 
-def with_fallback(what: str, path: str, attempt: Callable[[str], _T], leaf: str = "") -> _T:
+def with_fallback(what: str, path: str, attempt: Callable[[str], _T], leaf: str = "", strict: bool = False) -> _T:
     """Return attempt(path), or attempt() on a private fallback directory with a warning if path fails.
 
-    With --strict-parents the original error propagates instead.
+    With strict (--strict-parents) the original error propagates instead.
     """
     try:
         return attempt(path)
     except OSError as error:
-        if STRICT_PARENTS:
+        if strict:
             raise
         for root in _fallback_roots():
             directory = os.path.join(root, "qtop_fallback_%d" % os.geteuid())

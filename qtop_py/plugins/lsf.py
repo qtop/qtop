@@ -15,6 +15,8 @@ if TYPE_CHECKING:
     from qtop_py.core_api import TraceMasker
     from qtop_py.core_state_types import Config, JobsInfo, Node, Options, QueuesInfo
 
+logger = logging.getLogger(__name__)
+
 ## bhosts STATUS to qtop node symbols: '-' usable, 'j' full, 'b' busy, 'o' closed by an
 ## administrator or policy (counted off), 'd' down or unreachable, '?' anything else.
 HOST_STATES: "Final" = {
@@ -55,6 +57,28 @@ def parse_exec_host(value: str) -> "OrderedDict[str, int]":
 
 class LSFBatchSystem(GenericBatchSystem):
     """LSF backend."""
+
+    detection_priority = 3  # -b auto: Slurm -2, Slurm JSON -1, PBS 0, OAR 1, SGE 2, LSF 3, HTCondor 4
+    signature_command = "bhosts"
+    default_commands = {
+        # Hosts and queues as wide whitespace tables; jobs with a named, '|'-delimited header.
+        "bhosts_file": "%(savepath)s/bhosts%(pid)s.txt, bhosts -w",
+        "bqueues_file": "%(savepath)s/bqueues%(pid)s.txt, bqueues -w",
+        "bjobs_file": "%(savepath)s/bjobs%(pid)s.txt, bjobs -u all -o \"jobid jobindex stat user queue exec_host delimiter='|'\"",
+    }
+    state_abbreviations = {
+        "RUN": "running_of_user",
+        "PEND": "queued_of_user",
+        "PSUSP": "hold_of_user",
+        "USUSP": "suspended_of_user",
+        "SSUSP": "suspended_of_user",
+        "PROV": "configuring_of_user",
+        "WAIT": "waiting_of_user",
+        "DONE": "finished_of_user",
+        "EXIT": "failed_of_user",
+        "ZOMBI": "exiting_of_user",
+        "UNKWN": "unknown_of_user",
+    }
 
     blocked_queue_note = " (queue Closed or Inact)"
 
@@ -114,7 +138,7 @@ class LSFBatchSystem(GenericBatchSystem):
                 node["core_job_map"].update((first + slot, job["id"]) for slot in range(count))
         for node in nodes.values():
             node["np"] = max(node["np"], len(node["core_job_map"]))  # MAX '-' or an oversubscribed host
-        logging.info("worker_nodes contains %s entries", len(nodes))
+        logger.info("worker_nodes contains %s entries", len(nodes))
         return self.ensure_worker_nodes_have_qnames(list(nodes.values()), job_ids, job_queues)
 
     def mask_source_trace(self, key: str, text: str, mask: "TraceMasker") -> Tuple[str, str]:

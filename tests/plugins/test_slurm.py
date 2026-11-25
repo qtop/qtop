@@ -256,7 +256,7 @@ def test_worker_nodes_expand_each_job_node_list_once_per_collection(monkeypatch,
     expand = SlurmBatchSystem.expand_nodelist.__func__
 
     def counting(cls, nodelist):
-        if sys._getframe(1).f_code.co_name not in ("_read_cpu_allocations", "_apply_gpu_allocations"):  # not scontrol's own lists
+        if sys._getframe(1).f_code.co_name not in ("_read_cpu_allocations", "_read_gpu_allocations"):  # not scontrol's own lists
             calls.append(nodelist)
         return expand(cls, nodelist)
 

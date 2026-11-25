@@ -51,6 +51,9 @@ version = {attr = "qtop_py.__version__"}
 [tool.setuptools.packages.find]
 include = ["qtop_py*"]
 
+[tool.setuptools.package-data]
+qtop_py = ["py.typed"]  # PEP 561: type checkers read qtop's annotations in code that imports it
+
 [tool.ruff]
 # pycodestyle (`E`, `W`), Pyflakes (`F`), isort (`I`), eradicate (`ERA`: no commented-out code)
 # and pydocstyle (`D`, Google convention: a one-line summary for every public module, class and function).
@@ -70,10 +73,10 @@ lint.extend-select = [
 lint.ignore = ["D105", "D107"]
 lint.per-file-ignores = { "tests/**" = ["D"] }
 lint.pydocstyle.convention = "google"
-# C90 (mccabe): the limit passes today; lower it as functions are split. At 20 now:
-# yaml_parser.read_yaml_config_block, slurm._apply_gpu_allocations.
-# FIXME: max-complexity 15 needs 10 functions split, 10 (mccabe's default) needs 34.
-lint.mccabe.max-complexity = 20
+# C90 (mccabe): the limit passes today; lower it as functions are split. At 19 now:
+# core_yaml_parser.read_yaml_config_block, core_cluster_state.validate_cluster_state.
+# FIXME: max-complexity 15 needs 13 functions split, 10 (mccabe's default) needs 31.
+lint.mccabe.max-complexity = 19
 
 # Ruff still exposes py37 as its lowest target; Python 3.6 runtime
 # compatibility stays covered by the separate compat-py36 gate.
@@ -95,7 +98,7 @@ include = ["qtop_py", "tools"]
 
 [tool.ty.analysis]
 # Both imports are optional accelerators; qtop has stdlib fallbacks.
-allowed-unresolved-imports = ["atheris", "lxml", "ujson"]
+allowed-unresolved-imports = ["atheris", "ujson"]
 
 [tool.ty.terminal]
 # One diagnostic per line keeps local and CI logs useful (including `ty check
@@ -138,8 +141,11 @@ show_error_context = true
 
 # Optional accelerators with stdlib fallbacks (cf. tool.ty.analysis).
 [[tool.mypy.overrides]]
-module = ["lxml", "ujson"]
+module = ["ujson"]
 ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+markers = ["packaging: builds and pip-installs the sdist/wheel; make test-packaging runs them, make test and coverage skip them"]
 
 [tool.coverage.run]
 source = ["qtop_py", "tools"]

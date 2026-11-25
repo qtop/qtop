@@ -48,10 +48,29 @@ class GenericBatchSystem(object):
     optional_trace_keys: Tuple[str, ...] = ()
     optional_trace_aliases: Dict[str, str] = {}
     optional_trace_warning = "Optional scheduler details unavailable."
-    detection_priority = 0
+    detection_priority = 0  # -b auto tries lower values first; ties keep the configuration's order
     is_simulated = False
-    # A backend whose records carry extra fields declares their ExtensionSpec here (and lists it in
-    # metadata.EXTENSIONS); node_job_fields then comes from that spec, not a second copy.
+    # Each backend declares its own defaults; schedulers.registry reads only what a class declares
+    # itself, and the configuration layers override them per key (qtopconf.yaml schedulers: etc.).
+    signature_command: Optional[str] = None  # a command whose presence means this scheduler (-b auto)
+    command_env: Mapping[str, str] = {}  # environment the scheduler commands need; it overrides the user's
+
+    @staticmethod
+    def add_cli_options(parser: Any) -> None:
+        """Add this backend's own qtop options to the argparse parser; options are read with getattr."""
+
+    @staticmethod
+    def check_config(config: "Config") -> None:
+        """Raise ValueError ("key: expected ...") if this backend's own configuration keys are malformed."""
+
+    @staticmethod
+    def check_cli_options(parser: Any, args: Any) -> None:
+        """Check or complete this backend's options after parsing; call parser.error() to reject them."""
+
+    default_commands: Mapping[str, str] = {}  # trace key -> "savepath file template, command"
+    state_abbreviations: Mapping[str, str] = {}  # scheduler job state -> qtop state name
+    # A backend whose records carry extra fields declares their ExtensionSpec here; metadata collects
+    # the specs of all registered backends, and node_job_fields comes from the spec, not a second copy.
     extensions: Optional[ExtensionSpec] = None
     node_job_fields: Tuple[str, ...] = ()
     blocked_queue_note = ""

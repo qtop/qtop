@@ -17,7 +17,7 @@ from qtop_py.core_process import DEFAULT_SCHEDULER_COMMAND_TIMEOUT
 
 @pytest.fixture
 def config():
-    return yaml_parser.parse(str(Path(__file__).resolve().parents[1] / "qtopconf.yaml"))
+    return configuration.with_backend_defaults(yaml_parser.parse(str(Path(__file__).resolve().parents[1] / "qtopconf.yaml")))
 
 
 @pytest.mark.parametrize(
@@ -90,7 +90,7 @@ def test_state_column_examples_parse_and_validate(tmp_path):
     text = _uncomment(text, "summary_states:\n  - running_of_user\n  - queued_of_user\n  - other_of_user")
     path = tmp_path / "qtopconf.yaml"
     path.write_text(text)
-    config = yaml_parser.parse(str(path))
+    config = configuration.with_backend_defaults(yaml_parser.parse(str(path)))
     assert config["accounts_states"] == [{"exiting_of_user": "Ex"}, "running_of_user", "cancelled_of_user", "queued_of_user", "other_of_user"]
     assert config["summary_states"] == ["running_of_user", "queued_of_user", "other_of_user"]
     validate_config(config)
@@ -103,7 +103,7 @@ def test_summary_colours_example_parses_and_validates(tmp_path):
     path.write_text(
         text.replace("# summary_colours:\n" + "".join("#   - %s\n" % colour for colour in colours), "summary_colours:\n" + "".join("  - %s\n" % colour for colour in colours))
     )
-    config = yaml_parser.parse(str(path))
+    config = configuration.with_backend_defaults(yaml_parser.parse(str(path)))
     assert config["summary_colours"] == colours
     validate_config(config)
 
@@ -112,7 +112,7 @@ def test_sge_whole_queues_example_parses_and_validates(tmp_path):
     text = (Path(__file__).resolve().parents[1] / "qtopconf.yaml").read_text()
     path = tmp_path / "qtopconf.yaml"
     path.write_text(text.replace("# sge_whole_queues:\n#   - world\n#   - whole*", "sge_whole_queues:\n  - world\n  - whole*"))
-    config = yaml_parser.parse(str(path))
+    config = configuration.with_backend_defaults(yaml_parser.parse(str(path)))
     assert config["sge_whole_queues"] == ["world", "whole*"]
     validate_config(config)
 
@@ -144,7 +144,7 @@ def test_loading_preserves_precedence_and_applies_cli_once(tmp_path, monkeypatch
             (user / "custom.yaml").write_text("marker: custom-user\n")
     output = str(tmp_path / "cli-output")
     calls = []
-    monkeypatch.setattr(configuration.fileutils, "private_save_directory", lambda path: calls.append(path) or path)
+    monkeypatch.setattr(configuration.fileutils, "private_save_directory", lambda path, strict=False: calls.append(path) or path)
     options = SimpleNamespace(CONFFILE="custom.yaml" if custom_location else None, OPTION=["savepath=" + output], TRANSPOSE=True, REM_EMPTY_CORELINES=2)
     # Watch mode can reload after init_dirs has changed cwd to the trace directory.
     monkeypatch.chdir(system)
@@ -165,7 +165,7 @@ def test_loading_preserves_precedence_and_applies_cli_once(tmp_path, monkeypatch
 def test_snapshot_configuration_is_isolated_from_file_layers_and_mutation(config, monkeypatch):
     original = copy.deepcopy(config)
     monkeypatch.setattr(configuration.yaml_parser, "parse", lambda path: pytest.fail("Snapshot replay must not read local configuration"))
-    monkeypatch.setattr(configuration.fileutils, "private_save_directory", lambda path: path)
+    monkeypatch.setattr(configuration.fileutils, "private_save_directory", lambda path, strict=False: path)
     options = SimpleNamespace(load_sample="support.tar", sample_snapshot={"config": config}, OPTION=["scheduler_command_timeout=4"], TRANSPOSE=False)
     prepared, colors, _ = configuration.load_yaml_config(options, "unused", "unused", "unused", "unused")
     assert prepared["scheduler_command_timeout"] == 4
@@ -175,7 +175,7 @@ def test_snapshot_configuration_is_isolated_from_file_layers_and_mutation(config
 
 
 def test_cli_validation_precedes_output_directory_creation(config, monkeypatch):
-    monkeypatch.setattr(configuration.fileutils, "private_save_directory", lambda path: pytest.fail("Invalid overrides must not create directories"))
+    monkeypatch.setattr(configuration.fileutils, "private_save_directory", lambda path, strict=False: pytest.fail("Invalid overrides must not create directories"))
     with pytest.raises(ValueError, match="term_size"):
         configuration.prepare_config(config, SimpleNamespace(OPTION=["term_size=[0, 80]"]))
 
@@ -213,7 +213,7 @@ def counted_parse(monkeypatch):
     parsed = []
     parse = yaml_parser.parse
     monkeypatch.setattr(configuration.yaml_parser, "parse", lambda path: (os.path.exists(path) and parsed.append(Path(path).name)) or parse(path))  # count real parses only
-    monkeypatch.setattr(configuration.fileutils, "private_save_directory", lambda path: path)
+    monkeypatch.setattr(configuration.fileutils, "private_save_directory", lambda path, strict=False: path)
     yield parsed
     configuration.clear_layer_cache()
 

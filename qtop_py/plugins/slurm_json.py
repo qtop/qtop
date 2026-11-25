@@ -97,6 +97,14 @@ def read_response(path: str, key: str, options: Any = None) -> Tuple[str, List[D
 class SlurmJSONBatchSystem(SlurmBatchSystem):
     """Slurm JSON backend; publish only completely validated collections."""
 
+    signature_command = "scontrol"
+    default_commands = {
+        # Sequential queries: small partition inventory first, jobs last.
+        "partitions_json": "%(savepath)s/slurm_partitions%(pid)s.json, scontrol --json show partitions",
+        "nodes_json": "%(savepath)s/slurm_nodes%(pid)s.json, scontrol --json show nodes",
+        "jobs_json": "%(savepath)s/slurm_jobs%(pid)s.json, scontrol --json show jobs",
+    }
+
     detection_priority = -1
     display_scheduler = "slurm"
     collection_interval = 20.0

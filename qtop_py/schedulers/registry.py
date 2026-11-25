@@ -2,25 +2,66 @@
 ## SPDX-License-Identifier: MIT
 """The available scheduler backends, by name."""
 
+import importlib
 import logging
+import pkgutil
 import shutil
-from typing import TYPE_CHECKING, Any, Dict, Mapping, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Optional, Type
 
+from qtop_py import plugins
 from qtop_py.core_errors import InvalidScheduler, NoSchedulerFound, OperationalError, SchedulerNotSpecified
 from qtop_py.core_serialiser import GenericBatchSystem
-from qtop_py.plugins.demo import DemoBatchSystem
-from qtop_py.plugins.htcondor import HTCondorBatchSystem
-from qtop_py.plugins.lsf import LSFBatchSystem
-from qtop_py.plugins.oar import OARBatchSystem
-from qtop_py.plugins.pbs import PBSBatchSystem
-from qtop_py.plugins.sge import SGEBatchSystem
-from qtop_py.plugins.slurm import SlurmBatchSystem
-from qtop_py.plugins.slurm_json import SlurmJSONBatchSystem
 
 if TYPE_CHECKING:  # typing.Final is Python 3.8+; the quoted annotations keep 3.6 working
     from typing import Final
 
-PLUGIN_BATCH_SYSTEMS: "Final" = (DemoBatchSystem, HTCondorBatchSystem, LSFBatchSystem, OARBatchSystem, PBSBatchSystem, SGEBatchSystem, SlurmBatchSystem, SlurmJSONBatchSystem)
+logger = logging.getLogger(__name__)
+
+ENTRY_POINT_GROUP: "Final" = "qtop.backends"
+
+
+def _defined_in(module: Any) -> "List[Type[GenericBatchSystem]]":
+    return [value for value in vars(module).values() if isinstance(value, type) and issubclass(value, GenericBatchSystem) and value.__module__ == module.__name__]
+
+
+def _builtin_backends() -> "List[Type[GenericBatchSystem]]":
+    """Every backend class defined in a qtop_py/plugins module: adding the module adds the backend."""
+    names = sorted(info.name for info in pkgutil.iter_modules(plugins.__path__))
+    return [backend for name in names for backend in _defined_in(importlib.import_module(plugins.__name__ + "." + name))]
+
+
+def _installed_backends() -> "List[Type[GenericBatchSystem]]":
+    """Backends other packages register in the qtop.backends entry-point group (Python 3.8+)."""
+    try:
+        from importlib.metadata import entry_points
+    except ImportError:  # Python 3.6/3.7: built-in backends only
+        return []
+    found: Any = entry_points()
+    group = found.select(group=ENTRY_POINT_GROUP) if hasattr(found, "select") else found.get(ENTRY_POINT_GROUP, ())
+    backends = []
+    for entry in group:
+        try:
+            backends.append(entry.load())
+        except Exception as error:  # noqa: BLE001 - a broken third-party backend must not stop qtop
+            logger.warning("Skipping scheduler backend %s: %s", entry.name, error)
+    return backends
+
+
+PLUGIN_BATCH_SYSTEMS: "Final" = tuple(_builtin_backends() + _installed_backends())
+
+
+def backend_defaults(backends: Mapping[str, Any]) -> Dict[str, Dict[str, Any]]:
+    """Return the configuration sections each backend declares on its own class (not inherited)."""
+    defaults: Dict[str, Dict[str, Any]] = {"schedulers": {}, "signature_commands": {}, "state_abbreviations": {}}
+    for name, backend in backends.items():
+        own = vars(backend)
+        if own.get("default_commands"):
+            defaults["schedulers"][name] = dict(own["default_commands"])
+        if own.get("signature_command"):
+            defaults["signature_commands"][name] = own["signature_command"]
+        if own.get("state_abbreviations"):
+            defaults["state_abbreviations"][name] = dict(own["state_abbreviations"])
+    return defaults
 
 
 def auto_get_avail_batch_system(config: Dict[str, Any], backends: Mapping[str, Any]) -> str:
@@ -30,7 +71,7 @@ def auto_get_avail_batch_system(config: Dict[str, Any], backends: Mapping[str, A
     for system, batch_command in prioritized_commands:
         if system not in backends or backends[system].is_simulated or not shutil.which(batch_command):
             continue
-        logging.debug("Auto-detected scheduler: %s", system)
+        logger.debug("Auto-detected scheduler: %s", system)
         return system
 
     raise SchedulerNotSpecified
@@ -58,10 +99,10 @@ def decide_batch_system(
 
         if scheduler == "auto":
             scheduler = auto_get_avail_batch_system(config, available_batch_systems)
-            logging.debug("Selected scheduler is %s", scheduler)
+            logger.debug("Selected scheduler is %s", scheduler)
             return scheduler
         if scheduler in schedulers:
-            logging.info("User-selected scheduler: %s", scheduler)
+            logger.info("User-selected scheduler: %s", scheduler)
             return scheduler
         if scheduler and scheduler not in schedulers:  # a scheduler that does not exist is inputted
             raise NoSchedulerFound(scheduler)

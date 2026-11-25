@@ -112,3 +112,29 @@ changing supported behaviour:
 
 An LLM or other runner that passes CLI arguments must still enforce its own
 permitted roots, as stated under "Path finding disposition".
+
+## Review 2026-11-25 (scan of 1e01dac)
+
+Eight findings: three changed, five left as they are.
+
+### Changed (3)
+
+| Scanned file and lines | Change |
+| --- | --- |
+| `qtop_py/plugins/sge.py:136,141` | Removed `elem.text = elem.text`, a no-op on both lines. `tests/test_codeql_patterns.py` now rejects attribute self-assignment, which ruff's PLW0127 does not cover. |
+| `qtop_py/qtop.py:177` | `scheduler_error_lines` returns a list of the same three lines (reason, help hint, log file) for both scheduler errors; one used to be a single string with embedded newlines. |
+
+### Left as they are (5)
+
+| Scanned file and lines | Reason |
+| --- | --- |
+| `qtop_py/core_inputs.py:26` | The scheduler input the caller selected with `-s`; reported again because `inputs.py` became `core_inputs.py` (`fileutils.py:57` in the 2026-11-20 review). |
+| `qtop_py/trace_archive.py:31,46` | As under "Suppressed in code": the `-s` archive, and qtop's own 0700 workspace. |
+| `tools/osps_report.py:49` | The raw Darnit audit JSON the caller names; read only, output goes to the chosen `--output-dir`. |
+| `qtop_py/fileutils.py:184` | `/dev/shm` is only the parent of the fallback: qtop creates `qtop_fallback_<uid>` there with mode 0700 through the no-follow walk, which rejects a planted symlink or a directory owned by someone else. |
+
+The `# NOSONAR` at the two `trace_archive.py` lines did not keep this rule
+("Path Traversal via faulty LLM-supplied CLI arguments") from reopening them,
+so suppressing in code does not work for it. These five need marking "Safe"
+or "Accepted" in SonarCloud with a link to this section. As before, an LLM or
+other runner that passes CLI arguments must enforce its own permitted roots.

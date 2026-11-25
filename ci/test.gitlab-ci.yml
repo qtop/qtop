@@ -40,6 +40,19 @@ modern-python:
         coverage_format: cobertura
         path: artifacts/coverage/coverage.xml
 
+# The nightly-core debian:bookworm lane on every MR: root, the distro's Python and its toolchain.
+nightly-lane:
+  image: debian:bookworm
+  stage: test
+  script:
+    - bash ci/scripts/matrix_lane.sh debian python3,python3-venv,python3-pip python3 ci
+  artifacts:
+    when: always
+    paths:
+      - artifacts/
+    reports:
+      junit: artifacts/tests/*.xml
+
 almalinux-python36:
   image: almalinux:8
   stage: test

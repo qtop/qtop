@@ -545,6 +545,15 @@ def write_svg_screenshot(path, text, max_lines=38, max_columns=132):
     write_text(path, svg)
 
 
+def registered_schedulers():
+    """Return every backend the registry finds; each must have sample cases here."""
+    if str(ROOT) not in sys.path:  # run as a script, tools/ is sys.path[0]
+        sys.path.insert(0, str(ROOT))
+    from qtop_py.schedulers.registry import discover_qtop_batch_systems
+
+    return list(discover_qtop_batch_systems())
+
+
 def discover_cases(schedulers, slurm_samples_dir):
     """Return the sample cases for the given schedulers."""
     cases = []
@@ -673,7 +682,7 @@ def run_case_with_home(case, artifact_dir, timeout, qtop_home):
 def parse_args():
     """Parse the command-line options."""
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--schedulers", default="pbs,sge,slurm,slurm_json,oar,demo", help="Comma-separated scheduler gates to run")
+    parser.add_argument("--schedulers", default="all", help="Comma-separated scheduler gates to run; all (default) is every registered backend")
     parser.add_argument("--max-failures", type=int, default=0, help="Allowed failed cases before returning non-zero")
     parser.add_argument("--timeout", type=int, default=20, help="Per-case timeout in seconds")
     parser.add_argument("--artifact-dir", default="artifacts/sample-gate", help="Output directory for rendered qtop artifacts")
@@ -685,6 +694,8 @@ def main():
     """Run the selected cases and return non-zero beyond --max-failures."""
     args = parse_args()
     schedulers = [item.strip() for item in args.schedulers.split(",") if item.strip()]
+    if schedulers == ["all"]:
+        schedulers = registered_schedulers()
     artifact_dir = Path(args.artifact_dir)
     if not artifact_dir.is_absolute():
         artifact_dir = ROOT / artifact_dir

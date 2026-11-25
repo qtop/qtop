@@ -21,6 +21,8 @@ from qtop_py.core_errors import OperationalError
 if TYPE_CHECKING:  # typing.Final is Python 3.8+; the quoted annotations keep 3.6 working
     from typing import Final
 
+logger = logging.getLogger(__name__)
+
 MAX_STDOUT_BYTES: "Final" = 256 * 1024 * 1024
 MAX_STDERR_BYTES: "Final" = 1024 * 1024
 DEFAULT_SCHEDULER_COMMAND_TIMEOUT: "Final" = 180
@@ -100,7 +102,7 @@ def communicate_with_timeout(
                         raise OperationalError("Scheduler collection cancelled")
                     reader.join(min(0.1, max(0, deadline - time.monotonic())))
         if any(reader.is_alive() for reader in readers):
-            raise subprocess.TimeoutExpired(command.args, timeout)
+            raise subprocess.TimeoutExpired(command.args, timeout)  # nosemgrep - raises the timeout exception; runs nothing
         if failures:
             raise failures[0]
         failed = False
@@ -123,7 +125,7 @@ def _wait_for_command(command: "subprocess.Popen[bytes]", timeout: float, deadli
             raise OperationalError("Scheduler collection cancelled")
         remaining = deadline - time.monotonic()
         if remaining <= 0:
-            raise subprocess.TimeoutExpired(command.args, timeout)
+            raise subprocess.TimeoutExpired(command.args, timeout)  # nosemgrep - raises the timeout exception; runs nothing
         try:
             command.wait(timeout=min(0.1, remaining))
         except subprocess.TimeoutExpired:
@@ -131,16 +133,31 @@ def _wait_for_command(command: "subprocess.Popen[bytes]", timeout: float, deadli
 
 
 def scheduler_env(base: Mapping[str, str]) -> Dict[str, str]:
-    """Return base (the caller's environment) adjusted so the scheduler output qtop parses is complete.
+    """Return base (the caller's environment) with LC_ALL=C, so dates and messages parse the same everywhere.
 
-    LC_ALL=C keeps dates and messages in the C locale. SLURM_BITSTR_LEN=0 stops Slurm cutting
-    array task ranges (e.g. 453906_[2,6-14,...]) at its default length (qtop/qtop#606); it
-    overrides a user's own setting, which suits interactive squeue but breaks parsing.
+    Variables a scheduler needs come from its backend (command_env), which the caller merges into base.
     """
     env = dict(base)
     env["LC_ALL"] = "C"
-    env["SLURM_BITSTR_LEN"] = "0"
     return env
+
+
+def positive_timeout(value: Any) -> float:
+    """Return value as seconds, or raise ValueError unless it is a positive finite number."""
+    try:
+        seconds = float(value)
+    except (TypeError, ValueError, OverflowError) as error:
+        raise ValueError("scheduler_command_timeout must be a positive finite number of seconds") from error
+    if not isfinite(seconds) or seconds <= 0:
+        raise ValueError("scheduler_command_timeout must be a positive finite number of seconds")
+    return seconds
+
+
+def start_command(argv: List[str], env: Mapping[str, str], cwd: Optional[str] = None) -> "subprocess.Popen[bytes]":
+    """Start argv in its own session (POSIX) with piped output and the scheduler environment."""
+    return subprocess.Popen(  # nosec B603 # nosemgrep - shlex-split configured command, argv list, never a shell
+        argv, stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=(os.name == "posix"), env=scheduler_env(env), cwd=cwd
+    )
 
 
 def execute_shell_batch_commands(
@@ -175,14 +192,12 @@ def execute_shell_batch_commands(
         if not _batch_system_command:
             raise OperationalError("Empty scheduler command for %s; check %s." % (_file, config_name))
         try:
-            timeout = float(timeout)
-            if not isfinite(timeout) or timeout <= 0:
-                raise ValueError("nonpositive or nonfinite timeout")
-        except (TypeError, ValueError, OverflowError) as error:
-            raise OperationalError("scheduler_command_timeout must be a positive finite number of seconds") from error
+            timeout = positive_timeout(timeout)
+        except ValueError as error:
+            raise OperationalError(str(error)) from error
         with tempfile.NamedTemporaryFile("wb", dir=_savepath, delete=False) as fin:
-            logging.debug("\tFile state before subprocess call: %(fin)s", {"fin": fin})
-            logging.debug("\tWaiting on subprocess.call...")
+            logger.debug("\tFile state before subprocess call: %(fin)s", {"fin": fin})
+            logger.debug("\tWaiting on subprocess.call...")
 
             # splitting the command passed in so only the first item in a command
             # from the yaml file is executed with the rest of the line treated as
@@ -191,20 +206,13 @@ def execute_shell_batch_commands(
             tempname = fin.name
             try:
                 command_args = shlex.split(_batch_system_command)
-                logging.debug(
+                logger.debug(
                     "Trace collection command: (cd %s && %s > %s)",
                     shlex.quote(os.getcwd()),
                     " ".join(shlex.quote(arg) for arg in command_args),
                     shlex.quote(os.path.abspath(filenames[_file])),
                 )
-                command = subprocess.Popen(  # nosec B603 # nosemgrep - shlex-split qtopconf.yaml command, argv list, never a shell
-                    command_args,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    start_new_session=(os.name == "posix"),
-                    env=scheduler_env(env),
-                    cwd=cwd,
-                )
+                command = start_command(command_args, env, cwd)
             except OSError as error:
                 raise OperationalError("Cannot execute scheduler command %r: %s. Check PATH or load the scheduler module." % (_batch_system_command, error.strerror)) from error
             except ValueError as error:
@@ -215,11 +223,11 @@ def execute_shell_batch_commands(
                 except subprocess.TimeoutExpired as failure:
                     raise OperationalError("Scheduler command %r timed out after %g seconds" % (_batch_system_command, timeout)) from failure
             if stderr_data:
-                logging.warning("A message from your shell: %s", stderr_data.decode("utf-8", errors="replace").strip())
+                logger.warning("A message from your shell: %s", stderr_data.decode("utf-8", errors="replace").strip())
             if command.returncode:
                 detail = " ".join(stderr_data.decode("utf-8", errors="replace").splitlines())[:300] or "no diagnostic output"
                 raise OperationalError("Scheduler command %r failed (exit %s): %s" % (_batch_system_command, command.returncode, detail))
-            logging.debug("File state after subprocess call: %(fin)s", {"fin": fin})
+            logger.debug("File state after subprocess call: %(fin)s", {"fin": fin})
         # Sonar path finding: destination already contained (checked against the real savepath above); see docs/sonar-review.md
         os.rename(tempname, filenames[_file])
 
