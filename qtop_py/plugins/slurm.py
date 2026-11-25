@@ -366,6 +366,10 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
         "ST": "stopped_of_user",
     }
 
+    # squeue cuts array task ranges (453906_[2,6-14,...]) at SLURM_BITSTR_LEN characters unless it is 0
+    # (qtop/qtop#606); this overrides a user's own setting, which suits interactive squeue but breaks parsing.
+    command_env = {"SLURM_BITSTR_LEN": "0"}
+
     @staticmethod
     def add_cli_options(parser: Any) -> None:
         """--slurm-summary, --slurm-json-squeue and --all, for the slurm and slurm_json backends."""

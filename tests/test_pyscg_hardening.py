@@ -78,6 +78,13 @@ def test_web_page_loads_no_third_party_script():
 
 def test_scheduler_commands_print_untruncated_slurm_array_ranges(monkeypatch):
     """qtop/qtop#606: squeue cuts array task ranges at SLURM_BITSTR_LEN characters unless it is 0."""
+    from qtop_py.plugins.pbs import PBSBatchSystem
+    from qtop_py.plugins.slurm import SlurmBatchSystem
+    from qtop_py.plugins.slurm_json import SlurmJSONBatchSystem
+    from qtop_py.schedulers import collector
+
     monkeypatch.setenv("SLURM_BITSTR_LEN", "32")
-    assert process_io.scheduler_env(os.environ)["SLURM_BITSTR_LEN"] == "0"
+    for backend in (SlurmBatchSystem, SlurmJSONBatchSystem):
+        assert process_io.scheduler_env(collector.command_env(backend))["SLURM_BITSTR_LEN"] == "0"
+    assert process_io.scheduler_env(collector.command_env(PBSBatchSystem))["SLURM_BITSTR_LEN"] == "32"  # only Slurm sets it
     assert os.environ["SLURM_BITSTR_LEN"] == "32"

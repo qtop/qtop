@@ -44,6 +44,11 @@ def finalize_filepaths_schedulercommands(args: Any, config: Dict[str, Any], back
     return d
 
 
+def command_env(backend: Type[GenericBatchSystem]) -> Dict[str, str]:
+    """Return the environment for a backend's commands: qtop's own, with what the backend requires."""
+    return {**os.environ, **backend.command_env}
+
+
 def _run_commands_concurrently(INPUT_FNs_commands: Mapping[str, Tuple[str, str]], config: Dict[str, Any], args: Any, backend: Type[GenericBatchSystem]) -> Dict[str, Any]:
     """Start every scheduler command at once; return {key: path or OperationalError} in config order.
 
@@ -59,10 +64,11 @@ def _run_commands_concurrently(INPUT_FNs_commands: Mapping[str, Tuple[str, str]]
     outer_cancel = controls.pop("cancel", None)
     stop = threading.Event()
     progress = {"input_options": args} if getattr(args, "_input_progress", None) is not None else {}
+    environment = command_env(backend)
 
     def run(key: str) -> str:
         return process.execute_shell_batch_commands(
-            commands, filenames, key, _savepath, timeout=SETTINGS.TIMEOUT, cancel=stop, env=os.environ, config_name=QTOPCONF_YAML, **progress, **controls
+            commands, filenames, key, _savepath, timeout=SETTINGS.TIMEOUT, cancel=stop, env=environment, config_name=QTOPCONF_YAML, **progress, **controls
         )
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=max(1, len(filenames)), thread_name_prefix="qtop-command") as pool:

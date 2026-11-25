@@ -53,6 +53,7 @@ class GenericBatchSystem(object):
     # Each backend declares its own defaults; schedulers.registry reads only what a class declares
     # itself, and the configuration layers override them per key (qtopconf.yaml schedulers: etc.).
     signature_command: Optional[str] = None  # a command whose presence means this scheduler (-b auto)
+    command_env: Mapping[str, str] = {}  # environment the scheduler commands need; it overrides the user's
 
     @staticmethod
     def add_cli_options(parser: Any) -> None:

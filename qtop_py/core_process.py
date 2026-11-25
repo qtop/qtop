@@ -133,15 +133,12 @@ def _wait_for_command(command: "subprocess.Popen[bytes]", timeout: float, deadli
 
 
 def scheduler_env(base: Mapping[str, str]) -> Dict[str, str]:
-    """Return base (the caller's environment) adjusted so the scheduler output qtop parses is complete.
+    """Return base (the caller's environment) with LC_ALL=C, so dates and messages parse the same everywhere.
 
-    LC_ALL=C keeps dates and messages in the C locale. SLURM_BITSTR_LEN=0 stops Slurm cutting
-    array task ranges (e.g. 453906_[2,6-14,...]) at its default length (qtop/qtop#606); it
-    overrides a user's own setting, which suits interactive squeue but breaks parsing.
+    Variables a scheduler needs come from its backend (command_env), which the caller merges into base.
     """
     env = dict(base)
     env["LC_ALL"] = "C"
-    env["SLURM_BITSTR_LEN"] = "0"
     return env
 
 
