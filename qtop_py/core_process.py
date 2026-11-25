@@ -143,6 +143,24 @@ def scheduler_env(base: Mapping[str, str]) -> Dict[str, str]:
     return env
 
 
+def positive_timeout(value: Any) -> float:
+    """Return value as seconds, or raise ValueError unless it is a positive finite number."""
+    try:
+        seconds = float(value)
+    except (TypeError, ValueError, OverflowError) as error:
+        raise ValueError("scheduler_command_timeout must be a positive finite number of seconds") from error
+    if not isfinite(seconds) or seconds <= 0:
+        raise ValueError("scheduler_command_timeout must be a positive finite number of seconds")
+    return seconds
+
+
+def start_command(argv: List[str], env: Mapping[str, str], cwd: Optional[str] = None) -> "subprocess.Popen[bytes]":
+    """Start argv in its own session (POSIX) with piped output and the scheduler environment."""
+    return subprocess.Popen(  # nosec B603 # nosemgrep - shlex-split configured command, argv list, never a shell
+        argv, stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=(os.name == "posix"), env=scheduler_env(env), cwd=cwd
+    )
+
+
 def execute_shell_batch_commands(
     batch_system_commands: Mapping[str, str],
     filenames: Dict[str, str],
@@ -175,11 +193,9 @@ def execute_shell_batch_commands(
         if not _batch_system_command:
             raise OperationalError("Empty scheduler command for %s; check %s." % (_file, config_name))
         try:
-            timeout = float(timeout)
-            if not isfinite(timeout) or timeout <= 0:
-                raise ValueError("nonpositive or nonfinite timeout")
-        except (TypeError, ValueError, OverflowError) as error:
-            raise OperationalError("scheduler_command_timeout must be a positive finite number of seconds") from error
+            timeout = positive_timeout(timeout)
+        except ValueError as error:
+            raise OperationalError(str(error)) from error
         with tempfile.NamedTemporaryFile("wb", dir=_savepath, delete=False) as fin:
             logging.debug("\tFile state before subprocess call: %(fin)s", {"fin": fin})
             logging.debug("\tWaiting on subprocess.call...")
@@ -197,14 +213,7 @@ def execute_shell_batch_commands(
                     " ".join(shlex.quote(arg) for arg in command_args),
                     shlex.quote(os.path.abspath(filenames[_file])),
                 )
-                command = subprocess.Popen(  # nosec B603 # nosemgrep - shlex-split qtopconf.yaml command, argv list, never a shell
-                    command_args,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    start_new_session=(os.name == "posix"),
-                    env=scheduler_env(env),
-                    cwd=cwd,
-                )
+                command = start_command(command_args, env, cwd)
             except OSError as error:
                 raise OperationalError("Cannot execute scheduler command %r: %s. Check PATH or load the scheduler module." % (_batch_system_command, error.strerror)) from error
             except ValueError as error:

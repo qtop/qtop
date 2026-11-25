@@ -184,7 +184,6 @@ def read_yaml_config_block(line: List[Any], fin: Iterable[str], get_lines: Itera
             return {}, ""
 
     while len(line) > 1:  # as long as a blank line is not reached (i.e. block is not complete)
-        # if line[0] == 0 or (line[0] != 0 and line[1] == '-'):  # same level
         # key_value used below belongs to previous line. It will work for first block line because of short circuit logic
         if line[0] == 0 or (line[0] == 1 and key_value and (next(iter(key_value)) == "-")) or (line[0] == -1 and line[1] == "-"):  # same level or entry level
             key_value, container = process_line(line, fin, get_lines, parent_container)
@@ -206,7 +205,6 @@ def read_yaml_config_block(line: List[Any], fin: Iterable[str], get_lines: Itera
         elif (line[0] == 1) or (line[0] > 1):  # go down one level
             key_value, container = process_line(line, fin, get_lines, parent_container)
             k = next(iter(key_value))
-            # if container == {}:  # up parent container with new value
             if parent_container == {}:  # above it is a key waiting to be filled with values
                 parent_container[k] = key_value[k]
             else:

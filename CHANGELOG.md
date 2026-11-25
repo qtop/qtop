@@ -13,6 +13,7 @@ Notable changes by version, newest first. See the
 - CI: nightly core runs python:3.12-bookworm and python:3.15-bookworm; 3.11 and 3.14 move to wide
 - Docs: Slurm JSON v0.0.46 is checked against Slurm 26.11.0, not 26.11.0rc1; hres node field ignored
 - Docs: the README calls the terminal interface fast, not extremely fast
+- Refactor: one core_process helper starts commands and checks timeouts; dead comments gone
 - Tests: the concurrent-commands test checks overlap with a rendezvous, not a 1.5 s limit
 - Release: update version metadata to 0.9.20261122
 

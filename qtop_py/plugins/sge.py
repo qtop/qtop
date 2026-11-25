@@ -136,7 +136,6 @@ class SGEStatExtractor(StatExtractor):
                     next_q_name_elem = next(_q_name_elems, None)
                     if next_q_name_elem is None or not next_q_name_elem.text:
                         raise etree.ParseError("SGE XML requires a nonempty hostname resource")
-                    # if queue_name_elem.attrib.get('name') == 'hostname': # assume next must be hostname?
                     break
             else:
                 raise ValueError("No such queue name")
