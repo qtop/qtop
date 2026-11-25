@@ -13,19 +13,18 @@ if TYPE_CHECKING:
 import yaml
 
 ROOT: "Final" = Path(__file__).resolve().parents[1]
-FIELDS: "Final" = ("image", "family", "pkgs", "pybin", "target", "experimental")
-DEFAULTS: "Final" = {"pkgs": "-", "pybin": "python3", "target": "ci", "experimental": False}
+FIELDS: "Final" = ("image", "family", "pkgs", "pybin", "target", "tier")
+DEFAULTS: "Final" = {"pkgs": "-", "pybin": "python3", "target": "ci"}
+TIERS: "Final" = ("core", "wide")  # GitHub: nightly-<tier>.yml; GitLab: job nightly-<tier>
 
 
 def lane_counts(github, gitlab):
-    """Return lane multisets, retaining duplicate lanes and failure policy."""
-    gh = Counter(tuple(dict(DEFAULTS, **lane)[field] for field in FIELDS) for lane in github["jobs"]["lane"]["strategy"]["matrix"]["include"])
+    """Return lane multisets per tier, retaining duplicate lanes."""
+    gh = Counter(tuple(dict(DEFAULTS, tier=tier, **lane)[field] for field in FIELDS) for tier in TIERS for lane in github[tier]["jobs"]["lane"]["strategy"]["matrix"]["include"])
     gl = Counter()
-    for name in ("nightly-matrix", "nightly-matrix-experimental"):
-        job = gitlab[name]
-        for row in job["parallel"]["matrix"]:
-            values = dict(DEFAULTS, **{key.lower(): value for key, value in row.items()})
-            values["experimental"] = job.get("allow_failure", False)
+    for tier in TIERS:
+        for row in gitlab["nightly-" + tier]["parallel"]["matrix"]:
+            values = dict(DEFAULTS, tier=tier, **{key.lower(): value for key, value in row.items()})
             axes = [value if isinstance(value, list) else [value] for value in (values[field] for field in FIELDS)]
             gl.update(product(*axes))
     return gh, gl
@@ -33,12 +32,23 @@ def lane_counts(github, gitlab):
 
 def read_matrices():
     """Read provider documents with the developer-only safe YAML loader."""
-    return tuple(yaml.safe_load((ROOT / path).read_text()) for path in (".github/workflows/nightly-matrix.yml", "ci/nightly-matrix.gitlab-ci.yml"))
+
+    def load(path):
+        return yaml.safe_load((ROOT / path).read_text())
+
+    return {tier: load(".github/workflows/nightly-%s.yml" % tier) for tier in TIERS}, load("ci/nightly-matrix.gitlab-ci.yml")
 
 
 def test_committed_nightly_matrices_match():
     github, gitlab = lane_counts(*read_matrices())
     assert github and github == gitlab
+    assert sum(1 for lane in github.elements() if lane[-1] == "core") == 8
+
+
+def test_only_wide_lanes_may_fail_without_failing_their_run():
+    github, gitlab = read_matrices()
+    assert all("continue-on-error" not in job for workflow in github.values() for job in workflow["jobs"].values())
+    assert gitlab["nightly-wide"]["allow_failure"] is True and "allow_failure" not in gitlab["nightly-core"]
 
 
 def make_prerequisites(target):
@@ -61,6 +71,17 @@ def make_recipe(target):
     return recipe
 
 
+def test_pull_requests_run_the_core_debian_lane_on_both_forges():
+    """Most nightly failures came from lane conditions (root, distro toolchain); PRs now run one such lane."""
+    github, _ = read_matrices()
+    lane = next(lane for lane in github["core"]["jobs"]["lane"]["strategy"]["matrix"]["include"] if lane["image"] == "debian:bookworm")
+    command = "bash ci/scripts/matrix_lane.sh %s %s %s %s" % tuple(dict(DEFAULTS, **lane)[field] for field in ("family", "pkgs", "pybin", "target"))
+    build = yaml.safe_load((ROOT / ".github/workflows/build.yml").read_text())["jobs"]["nightly-lane"]
+    assert build["container"] == "debian:bookworm" and command in [step.get("run") for step in build["steps"]]
+    gitlab = yaml.safe_load((ROOT / "ci/test.gitlab-ci.yml").read_text())["nightly-lane"]
+    assert gitlab["image"] == "debian:bookworm" and gitlab["script"] == [command]
+
+
 def test_github_split_runs_every_pre_pr_check_once():
     def workflow(name):
         return yaml.safe_load((ROOT / ".github/workflows" / name).read_text())
@@ -73,16 +94,16 @@ def test_github_split_runs_every_pre_pr_check_once():
     assert Counter(build_checks + ["coverage"]) == Counter(make_prerequisites("pre-pr"))
 
 
-@pytest.mark.parametrize("change", ("missing", "duplicate", "failure-policy", "target"))
+@pytest.mark.parametrize("change", ("missing", "duplicate", "tier", "target"))
 def test_nightly_matrix_drift_is_detected(change):
     github, gitlab = read_matrices()
-    lanes = github["jobs"]["lane"]["strategy"]["matrix"]["include"]
+    lanes = github["core"]["jobs"]["lane"]["strategy"]["matrix"]["include"]
     if change == "missing":
         lanes.pop()
     elif change == "duplicate":
         lanes.append(lanes[0].copy())
-    elif change == "failure-policy":
-        lanes[0]["experimental"] = True
+    elif change == "tier":
+        github["wide"]["jobs"]["lane"]["strategy"]["matrix"]["include"].append(lanes.pop())
     else:
         lanes[0]["target"] = "compat-py36"
     gh, gl = lane_counts(github, gitlab)

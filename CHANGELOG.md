@@ -6,6 +6,8 @@ Notable changes by version, newest first. See the
 ## 0.9.20261122
 
 - CI: slow sdist/wheel install tests move to make test-packaging, run by the build jobs and nightly
+- CI: nightly splits into a blocking 8-lane core run and a 26-lane wide run that may be flaky
+- CI: PRs run the core debian:bookworm lane (root, distro Python), as nightly failures came from it
 - Tests: the concurrent-commands test checks overlap with a rendezvous, not a 1.5 s limit
 - Release: update version metadata to 0.9.20261122
 

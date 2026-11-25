@@ -1,0 +1,111 @@
+##
+## qtop is a tool to monitor queuing systems - https://github.com/qtop/qtop
+##
+## Copyright (c) 2026 Vadik Malik
+##
+## SPDX-License-Identifier: MIT
+##
+# Nightly core (#488): 8 blocking lanes, one per dimension that has caught
+# regressions -- python.org images (oldest/newest supported), Debian and Ubuntu
+# system interpreters, Fedora's new toolchain, RHEL-family Python 3.12, and the
+# Python 3.6 and RHEL 9 system 3.9 runtime floors (compat-py36). A red core
+# run is a qtop regression to fix. nightly-wide.yml runs the other lanes,
+# where distro and mirror drift is expected; ci/nightly-matrix.gitlab-ci.yml
+# mirrors both lane for lane. Every lane routes through
+# ci/scripts/matrix_lane.sh and the Makefile contract.
+#
+# Lane targets are git-free on purpose: the nightly matrix watches
+# interpreter/runtime drift; diff-health checks stay in MR/PR pipelines.
+# build.yml runs the debian:bookworm lane on every PR, so root-only, no-git
+# and distro-toolchain failures show up before merge.
+#
+# Findings from the first live runs (2026-06-11) and how they were resolved:
+# - the pinned CI set floors at Python 3.10 (patched pytest and setuptools
+#   need it), so older interpreters, e.g. the Python 3.9 of RHEL 9 and Amazon
+#   Linux 2023, use the dependency-light gate;
+# - qtop autodetection used a hardcoded /usr/bin/which, which broke minimal
+#   RHEL-family/Arch images -- fixed in this PR by switching to stdlib
+#   shutil.which(), so no lane needs a "which" package anymore;
+# - openSUSE Leap base images lack tar (checkout's tarball fallback), so the
+#   bootstrap step below installs git first.
+
+name: nightly-core-qtop
+
+on:
+  # A challenge branch push can validate its exact head in a contributor fork.
+  # workflow_dispatch alone is unavailable there until this workflow exists on
+  # the fork's default branch.
+  push:
+    branches:
+      - 'develop-202607-*'
+  schedule:
+    - cron: '20 4 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  extended-properties:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.12.3'
+      - run: make ci-deps PYTHON=python
+      - run: make nightly-properties PYTHON=python
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: nightly-property-examples
+          path: |
+            .hypothesis/
+            artifacts/tests/
+          include-hidden-files: true
+          if-no-files-found: ignore
+
+  lane:
+    name: ${{ matrix.image }} ${{ matrix.pybin || 'python3' }} ${{ matrix.target || 'ci' }}
+    runs-on: ubuntu-24.04
+    container: ${{ matrix.image }}
+    strategy:
+      fail-fast: false
+      # GitHub Actions matrix `include` has no per-key defaults, so the job
+      # `name` and the run step fall back with `||`: a lane omits any key equal
+      # to its default -- pkgs: '-', pybin: python3, target: ci.
+      matrix:
+        include:
+          - { image: 'python:3.11-bookworm', family: pythonimg, pybin: python }
+          - { image: 'python:3.14-bookworm', family: pythonimg, pybin: python }
+          - { image: 'debian:bookworm', family: debian, pkgs: 'python3,python3-venv,python3-pip' }
+          - { image: 'ubuntu:24.04', family: debian, pkgs: 'python3,python3-venv,python3-pip' }
+          - { image: 'fedora:42', family: fedora, pkgs: 'python3,python3-pip' }
+          - { image: 'almalinux:9', family: rhel, pkgs: 'python3.12,python3.12-pip', pybin: python3.12 }
+          - { image: 'almalinux:8', family: rhel, pkgs: 'python36', pybin: python3.6, target: compat-py36 }
+          - { image: 'rockylinux:9', family: rhel, pkgs: 'python3,python3-pip', target: compat-py36 }  # system Python 3.9
+    steps:
+      - name: bootstrap git for checkout (best effort; suse strictly needs it)
+        run: |
+          case "${{ matrix.family }}" in
+            debian)
+              apt-get update || true
+              DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends git ca-certificates || true
+              ;;
+            rhel|fedora|amazon) dnf -y install git || true ;;
+            suse) zypper --non-interactive refresh || true; zypper --non-interactive install git || true ;;
+            arch) pacman -Syu --noconfirm git || true ;;
+            *) echo "official image, git preinstalled" ;;
+          esac
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: bash ci/scripts/matrix_lane.sh "${{ matrix.family }}" "${{ matrix.pkgs || '-' }}" "${{ matrix.pybin || 'python3' }}" "${{ matrix.target || 'ci' }}"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: nightly-lane-${{ strategy.job-index }}
+          path: artifacts/
+          if-no-files-found: ignore

@@ -18,8 +18,8 @@
 # - ``ci/security.gitlab-ci.yml`` -- SAST/Secret-Detection/Dependency-Scanning
 #                                 templates plus code-quality, license and
 #                                 repo-sanity jobs (#488).
-# - ``ci/nightly-matrix.gitlab-ci.yml`` -- scheduled 34-lane distro x python
-#                                 compatibility matrix (#488).
+# - ``ci/nightly-matrix.gitlab-ci.yml`` -- scheduled distro x python matrix:
+#                                 8 core lanes plus 26 allow_failure wide lanes (#488).
 # - ``ci/scorecard.gitlab-ci.yml`` -- scheduled OpenSSF Scorecard run (#488).
 #
 # Project-owned validation jobs use Makefile targets where practical; included

@@ -7,9 +7,9 @@
 ## SPDX-License-Identifier: MIT
 ##
 # Shared nightly-matrix lane runner, used identically by GitHub Actions
-# (.github/workflows/nightly-matrix.yml) and GitLab CI
-# (ci/nightly-matrix.gitlab-ci.yml) so the >30 distro x python lanes stay
-# DRY across forges (#488). The lane purpose is interpreter/runtime
+# (.github/workflows/nightly-core.yml, nightly-wide.yml and the PR lane in
+# build.yml) and GitLab CI (ci/nightly-matrix.gitlab-ci.yml, ci/test.gitlab-ci.yml)
+# so the 34 distro x python lanes stay DRY across forges (#488). The lane purpose is interpreter/runtime
 # compatibility -- diff-health checks stay in the merge-request pipelines,
 # which is why lanes call git-free Makefile targets only:
 #
