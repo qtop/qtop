@@ -10,7 +10,8 @@
 ## auto detects available batch commands, preferring legacy Slurm over JSON.
 scheduler: auto
 
-## Slurm GPUs, TPUs and NPUs by node, with their jobs: before (default) or after the matrix, or false.
+## GPUs/TPUs/NPUs are matrix cells with user IDs, as cores are. For job IDs too, add lines
+## before or after the matrix (false, the default, shows only the cells).
 ## accelerator_map: before
 
 ## Experimental, administrator-verified Slurm GPU pairs; disabled unless configured.

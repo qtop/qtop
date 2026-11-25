@@ -128,6 +128,7 @@ class WNOccupancy(object):
                 self.__setattr__(part_name, self.calc_general_mult_attr_line(part_name, yaml_key, self.config, self.MVU_model.backend))
 
         self.core_user_map = self._calc_core_matrix(self.user_to_id, self.job_to_user_and_queue)
+        self.gpu_user_map = self._calc_accelerator_matrix(self.job_to_user_and_queue)
 
     def _create_account_jobs_table(self, user_to_id: Dict[str, Any], account_jobs_table: List[List[Any]]) -> Tuple[List[List[Any]], Dict[str, Any]]:
         for row in account_jobs_table:
@@ -407,6 +408,45 @@ class WNOccupancy(object):
             self._fill_node_cores_vector(_node, core_vectors, job_to_user_and_queue, core_coloring)
 
         return core_user_map
+
+    def _calc_accelerator_matrix(self, job_to_user_and_queue: Mapping[str, Tuple[str, str]]) -> Dict[str, Any]:
+        """Return the accelerator lines (Gpu0vector, ..., Tpu0vector, ..., Npu0vector, ...): GPUs are cores of another kind.
+
+        A device holds its job's user symbol, coloured as a core of that job would be; "_" is idle,
+        a gray "?" means Slurm's usage does not say who holds it, and nodes with fewer devices of a
+        kind are padded with non_existent_node_symbol. No node with accelerators: no lines.
+        """
+        from qtop_py.schedulers.gpu import ACCELERATOR_KINDS, device_status, node_devices
+
+        nodes = self.cluster.workernode_dict
+        devices = {name: {kind: node_devices(node, kind) for kind in ACCELERATOR_KINDS} for name, node in nodes.items()}
+        span = {kind: max([len(found[kind]) for found in devices.values()] or [0]) for kind in ACCELERATOR_KINDS}
+        vectors_of: Dict[str, List[List[Any]]] = OrderedDict((kind, []) for kind in ACCELERATOR_KINDS)
+        gpu_user_map: Dict[str, Any] = OrderedDict()
+        for kind in ACCELERATOR_KINDS:
+            for index in range(span[kind]):
+                vectors_of[kind].append(gpu_user_map.setdefault("%s%svector" % (kind.capitalize(), index), []))
+        if not gpu_user_map:
+            return gpu_user_map
+        core_coloring = self.MVU_model.display_overrides.get("core_coloring", self.config["core_coloring"])
+        gray_hash = utils.ColorStr(self.config["non_existent_node_symbol"], color="Gray_D")
+        gray_underscore = utils.ColorStr("_", color="Gray_D")
+        gray_unknown = utils.ColorStr("?", color="Gray_D")
+        for name, node in nodes.items():
+            for kind, vectors in vectors_of.items():
+                mine = devices[name][kind] if node["state"] != "?" else []
+                jobs, unknown = {}, set()
+                for position, index in enumerate(mine):
+                    status = device_status(node, kind, index)
+                    if status == "?":
+                        unknown.add(position)
+                    elif status != "idle":
+                        jobs[position] = status.split("/")[0]  # a shared device shows its first job's user
+                for position in self.color_cores_and_return_unused(len(mine), vectors, jobs, core_coloring, job_to_user_and_queue):
+                    vectors[position].append(gray_unknown if position in unknown else gray_underscore)
+                for vector in vectors[len(mine) :]:
+                    vector.append(gray_hash)
+        return gpu_user_map
 
     def _fill_node_cores_vector(
         self,

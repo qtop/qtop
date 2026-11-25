@@ -131,11 +131,11 @@ details are missing, so its GPUs show as `?`. The jobs change every 20 seconds:
 
 ```sh
 ./qtop -b demo72 -w 5
-./qtop -b demo72 -o accelerator_map=after
+./qtop -b demo72 -o accelerator_map=before
 ```
 
 The trays carry the same Slurm GPU records as live Slurm data, so the
-[accelerator map](#accelerators-by-node-slurm), `-A`, exports and replay work
+[GPU cells in the matrix](#accelerators-by-node-slurm), `-A`, exports and replay work
 as they do on a real cluster.
 
 Bundled scheduler case studies
@@ -1392,34 +1392,48 @@ unknown. Native Slurm/SGE memberships survive anonymization and replay.
 
 # Accelerators by node (Slurm)
 
-Above the worker-node matrices, Slurm nodes with GPUs, TPUs or NPUs get one line
-each, listing every device with the jobs holding it:
+GPUs are cores of another kind: in the worker-node matrix, each Slurm node with
+GPUs, TPUs or NPUs gets one cell per device, ahead of its cores, holding the ID of
+the user whose job has it, coloured as that job's cores are. With the default
+transposed matrix, a `gpu_map` block precedes each node's `core_map`:
+
+```text
+===> 2. Worker Nodes occupancy <=== (wnid_lines/gpu_map/core_map/Node state/queue name)
+01|7___|777777777777777777777777777777777777____...|b|i|
+02|1111|111111111111111111111111111111111111111...|b|t|
+09|????|_______________________________________...|d| |
+```
+
+Without `-T` transposition, the device lines (`=Gpu0`, `=Gpu1`, ..., `=Tpu0`,
+`=Npu0`) come before the core lines. `occupancy_column_order` can place
+`gpu_map` elsewhere. `_` is an idle device; a gray `?` means Slurm
+reports the device in use (or reports no usage, as for a down node) but not which
+job holds it, as with `--slurm-summary`, which collects no per-job indices.
+Nodes with fewer devices are padded with `non_existent_node_symbol`, as for cores.
+A device shared by several jobs shows the first job's user. `rem_empty_corelines`
+drops unused device lines as it drops unused core lines.
+
+Devices come from the node's Slurm GRES (`gpu:`, `tpu:` and `npu:` entries of any
+type and count; `IDX:` indices when Slurm reports them, otherwise numbered from 0)
+and their jobs from `scontrol show job -d` (`GRES=...(IDX:...)`). Indices are
+Slurm GRES indices, not CUDA or physical IDs. MIG slices are left out. Exports,
+`-A` and replay keep the devices; TPU and NPU records carry a `kind` field, and
+records without one are GPUs.
+
+For job IDs instead of users, add one line per node before or after the matrix:
+
+```yaml
+accelerator_map: before   # or after; false (the default) shows only the matrix cells
+```
 
 ```text
 INFO: Accelerators by node (job IDs, ? = unknown):
 INFO: gpu003: gpu0-1=101 gpu2-6=idle gpu7=102
-INFO: tpu014: tpu0-3=210
 INFO: npu007: npu0-7=idle
 ```
 
-Devices come from the node's Slurm GRES (`gpu:`, `tpu:` and `npu:` entries of any
-type and count; `IDX:` indices when Slurm reports them, otherwise numbered from 0)
-and their jobs from `scontrol show job -d` (`GRES=...(IDX:...)`). Consecutive
-devices with the same jobs share a label, so 8 or 64 devices stay one line.
-Indices are Slurm GRES indices, not CUDA or physical IDs. A device is `idle` only
-when Slurm's usage data shows it unused; otherwise it is `?`, as with
-`--slurm-summary`, which collects no per-job indices. MIG slices are left out of
-the map. Exports, `-A` and replay keep the devices; TPU and NPU records carry a
-`kind` field, and records without one are GPUs.
-
-Nodes rarely carry more than 8 devices, so the lines are short and sit before the
-matrix by default. Choose their place, or hide them, in your `qtopconf.yaml`:
-
-```yaml
-accelerator_map: after   # before (default), after the matrices, or false
-```
-
-When the node matrix is hidden (`-2`), the lines join the scheduler messages.
+Consecutive devices with the same jobs share a label, so 8 or 64 devices stay one
+line. When the node matrix is hidden (`-2`), these lines join the scheduler messages.
 
 # Experimental configured GPU pairs (Slurm)
 

@@ -101,7 +101,7 @@ class GenericBatchSystem(object):
         """Return severity-prefixed display lines for a section of notes.
 
         Sections: snapshot, accounting, placement and resources go to the scheduler messages block;
-        accelerators (devices by node) go before or after the node matrix (accelerator_map).
+        accelerators (job IDs by device) go before or after the node matrix if accelerator_map asks.
         """
         return []
 

@@ -130,7 +130,7 @@ def _view(placement, nodes):
 
 
 @pytest.mark.parametrize(
-    "placement,expected", [(None, ["LEGEND", "ACC", "MATRIX"]), ("before", ["LEGEND", "ACC", "MATRIX"]), ("after", ["LEGEND", "MATRIX", "ACC"]), ("off", ["LEGEND", "MATRIX"])]
+    "placement,expected", [(None, ["LEGEND", "MATRIX"]), ("before", ["LEGEND", "ACC", "MATRIX"]), ("after", ["LEGEND", "MATRIX", "ACC"]), ("off", ["LEGEND", "MATRIX"])]
 )
 def test_the_map_goes_before_or_after_the_matrix(tmp_path, capsys, placement, expected):
     state = slurm_state(tmp_path, "node1|acc|mix|8|gpu:8(IDX:0-7)|gpu:0(IDX:N/A)\n", "")
@@ -149,3 +149,35 @@ def test_with_the_matrix_hidden_the_map_joins_the_scheduler_messages(tmp_path, c
     display._accelerators_shown = False  # -2: display_wns_occupancy never ran
     display.display_backend_messages()
     assert "INFO: node1: gpu0-7=idle" in capsys.readouterr().out.splitlines()
+
+
+def _qtop(tmp_path, *flags):
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[2]
+    command = [sys.executable, "-m", "qtop_py.qtop", "-b", "slurm", "-s", str(root / "tests/plugins/slurm_samples/arrays_and_het"), "-c", "OFF"]
+    result = subprocess.run(
+        command + list(flags) + ["-o", "savepath=%s" % tmp_path], cwd=str(root), stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True, check=True
+    )
+    return result.stdout.splitlines()
+
+
+def test_gpus_are_matrix_cells_with_user_ids_like_cores(tmp_path):
+    lines = _qtop(tmp_path)
+    assert "(wnid_lines/gpu_map/core_map/Node state/queue name)" in "\n".join(lines)
+    rows = [line for line in lines if line[:2] in ("1|", "2|")]
+    # GPUs (idle _, in use by an unnamed job ?) | cores | state | queue
+    assert rows == ["1|_?__|1_0_0___|b|c|", "2|__?_|_0_1_0_1|b|c|"]
+    assert not any("Accelerators by node" in line for line in lines)  # job-ID lines are opt-in
+
+
+def test_untransposed_matrices_list_gpu_lines_above_the_core_lines(tmp_path):
+    labels = [line.rsplit("=", 1)[1] for line in _qtop(tmp_path, "-T") if "=" in line and line.rsplit("=", 1)[1][:3] in ("Cor", "Gpu")]
+    assert labels == ["Gpu%s" % gpu for gpu in range(4)] + ["Core%s" % core for core in range(8)]
+
+
+def test_job_id_lines_can_still_join_the_matrix(tmp_path):
+    lines = _qtop(tmp_path, "-o", "accelerator_map=before")
+    assert lines[lines.index("INFO: Accelerators by node (job IDs, ? = unknown):") - 1].startswith("===> 2. Worker Nodes occupancy")

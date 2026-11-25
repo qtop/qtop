@@ -102,7 +102,7 @@ BOLD: "Final" = "\033[1m%s\033[0m"
 
 def accelerator_lines(display: Any) -> List[str]:
     """The backend's accelerators-by-node lines for a display, or none when accelerator_map is off."""
-    if display.config.get("accelerator_map", "before") == "off":
+    if display.config.get("accelerator_map", "off") == "off":
         return []
     nodes = getattr(display.cluster, "worker_nodes", [])
     return list(display.MVU_model.backend.display_messages("accelerators", display.snapshot, nodes, display.config))
@@ -281,7 +281,7 @@ class TextDisplay(object):
         node_column_stop = self.wns_occupancy.node_column_stop
 
         self.display_basic_legend()
-        placement = self.config.get("accelerator_map", "before")
+        placement = self.config.get("accelerator_map", "off")
         if placement == "before":
             self.display_accelerators()
         self.display_matrix(wns_occupancy, node_column_start, node_column_stop)
@@ -292,7 +292,7 @@ class TextDisplay(object):
             self.display_accelerators()
 
     def display_accelerators(self) -> None:
-        """Print the accelerators by node next to the matrix (accelerator_map: before or after)."""
+        """Print the accelerators' job IDs by node next to the matrix (accelerator_map: before or after; off by default)."""
         lines = accelerator_lines(self)
         self._accelerators_shown = True
         if lines:
@@ -321,7 +321,10 @@ class TextDisplay(object):
     def display_basic_legend(self) -> None:
         """Displays the Worker Nodes occupancy label plus columns explanation."""
         if self.MVU_model.display_overrides.get("transpose_wn_matrices", self.config["transpose_wn_matrices"]):
-            note = "/".join(self.config["occupancy_column_order"])
+            order = list(self.config["occupancy_column_order"])
+            if getattr(self.wns_occupancy, "gpu_user_map", None) and "gpu_map" not in order and "core_map" in order:
+                order.insert(order.index("core_map"), "gpu_map")
+            note = "/".join(order)
         else:
             note = "you can read vertically the node IDs"
 
@@ -516,7 +519,7 @@ class TextDisplay(object):
         occupancy_parts: Dict[str, Tuple[Callable[..., Any], Tuple[Any, ...], Dict[str, Any]]] = {
             "wn id lines": (self.display_wnid_lines, (node_column_start, node_column_stop, self.cluster.highest_wn, wn_vert_labels), {"inner_attrs": None}),
             "core_user_map": (
-                self.print_core_lines,
+                self.print_cores_and_accelerators,
                 (core_user_map, node_column_start, node_column_stop, self.MVU_model.transposed_sections, user_color_patterns, mapping),
                 {"attrs": None},
             ),
@@ -549,8 +552,9 @@ class TextDisplay(object):
 
         if self.MVU_model.display_overrides.get("transpose_wn_matrices", self.config["transpose_wn_matrices"]):
             order = self.config["occupancy_column_order"]
-            for _idx, (_item, matrix) in enumerate(zip(order, self.MVU_model.transposed_sections)):
-                matrix[0] = order.index(matrix[1])
+            for matrix in self.MVU_model.transposed_sections:
+                # gpu_map goes right before core_map unless occupancy_column_order places it
+                matrix[0] = order.index(matrix[1]) if matrix[1] in order or matrix[1] != "gpu_map" else order.index("core_map") - 0.5
 
             self.MVU_model.transposed_sections.sort(key=lambda item: item[0])
             # TRY
@@ -605,6 +609,13 @@ class TextDisplay(object):
         print(compress_colored_line(s))
         return joined_list
 
+    def print_cores_and_accelerators(self, core_user_map: Dict[str, Any], *opts: Any, **kwargs: Any) -> None:
+        """Print the accelerator lines (Gpu0, Tpu0, Npu0...) of the nodes, then their core lines."""
+        accelerators = getattr(self.wns_occupancy, "gpu_user_map", None)
+        if accelerators:
+            self.print_core_lines(accelerators, *opts, **dict(kwargs, section="gpu_map"))
+        self.print_core_lines(core_user_map, *opts, **kwargs)
+
     def print_core_lines(
         self,
         core_user_map: Dict[str, Any],
@@ -616,8 +627,9 @@ class TextDisplay(object):
         attrs: Any,
         options1: Any,
         options2: Any,
+        section: str = "core_map",
     ) -> None:
-        """Print the core lines of a matrix slice, transposed if asked."""
+        """Print the core (or, with section="gpu_map", accelerator) lines of a matrix slice, transposed if asked."""
         self.MVU_model.MVU_reset_sigpipe()
         remove_corelines = self.MVU_model.display_overrides.get("rem_empty_corelines", self.config["rem_empty_corelines"]) + 1
 
@@ -631,7 +643,7 @@ class TextDisplay(object):
                     del core_user_map[k]
 
             masked = {key: line[node_column_start:] for key, line in core_user_map.items()}  # one block, minus masked leading nodes
-            tuple_ = [None, "core_map", self.transpose_matrix(masked, colored=False, coloring_pat=user_color_patterns)]
+            tuple_ = [None, section, self.transpose_matrix(masked, colored=False, coloring_pat=user_color_patterns)]
             transposed_sections.append(tuple_)
             return
         # if corelines horizontal (non-transposed matrix)
@@ -728,7 +740,7 @@ class TextDisplay(object):
         """Yield the core lines, skipping cores that no node in the matrix has."""
         non_existent_symbol = self.config["non_existent_node_symbol"]
         remove_corelines = self.MVU_model.display_overrides.get("rem_empty_corelines", self.config["rem_empty_corelines"]) + 1
-        for core_x_vector, ind, _k, is_corevector_removable in gauge_core_vectors(
+        for core_x_vector, _ind, k, is_corevector_removable in gauge_core_vectors(
             core_user_map, node_column_start, node_column_stop, WNOccupancy.coreline_notthere_or_unused, non_existent_symbol, remove_corelines
         ):
             if is_corevector_removable:
@@ -737,7 +749,7 @@ class TextDisplay(object):
             core_x_vector = self._insert_separators(core_x_vector, self._separator_cells(), self.config["vertical_separator_every_X_columns"])
             colored_core_x = [self.MVU_model.MVU_colorize(elem, color_func=elem.color) for elem in core_x_vector]
             core_x_vector = "".join([str(item) for item in colored_core_x])
-            yield core_x_vector + self.MVU_model.MVU_colorize("=Core" + str(ind), pattern="account_not_colored")
+            yield core_x_vector + self.MVU_model.MVU_colorize("=" + k[: -len("vector")], pattern="account_not_colored")  # =Core0, =Gpu0
 
     def transpose_matrix(self, d: Dict[str, Any], colored: bool = False, reverse: bool = False, coloring_pat: Any = None) -> Iterator[Sequence[str]]:
         """Return the matrix (a mapping of string lists) transposed, coloured if asked."""

@@ -69,7 +69,6 @@ def test_plugin_controls_collection_optional_inputs_and_queue_policy(monkeypatch
         "INFO: custom accounting",
         "INFO: custom placement",
         "INFO: custom resources",
-        "INFO: custom accelerators",  # no node matrix printed here, so they join the notes
         "",
     ]
 

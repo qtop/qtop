@@ -202,8 +202,9 @@ ACCELERATOR_MAP_PLACEMENTS = ("before", "after", "off")
 
 
 def accelerator_map_placement(value: Any) -> str:
-    """Return where the accelerator map goes: before or after the node matrix, or off.
+    """Return where the job-ID lines of the accelerator map go: before or after the node matrix, or off (the default).
 
+    The matrix itself always shows each device's user, as for cores; these lines add job IDs.
     YAML text and Python values both work: before/after, and true/false/on/off/yes/no/1/0
     (true means before). Raise ValueError otherwise.
     """
@@ -225,7 +226,7 @@ def _validate_display(config: Any) -> None:
     parts = config.get("user_display_parts")
     allowed = ("job_accounting_summary", "workernodes_matrix", "user_accounts_pool_mappings")
     _require(isinstance(parts, list) and len(parts) <= 3 and all(part in allowed for part in parts), "user_display_parts", "up to three known display sections")
-    accelerator_map_placement(config.get("accelerator_map", "before"))
+    accelerator_map_placement(config.get("accelerator_map", "off"))
 
 
 def _validate_colors(config: Any) -> None:
@@ -358,7 +359,7 @@ def normalize_config(raw_config: Dict[str, Any]) -> Dict[str, Any]:
     ):
         config[key] = literal(config[key])
     config["stack_jobs_per_node"] = bool(literal(config.get("stack_jobs_per_node", False)))
-    config["accelerator_map"] = accelerator_map_placement(config.get("accelerator_map", "before"))
+    config["accelerator_map"] = accelerator_map_placement(config.get("accelerator_map", "off"))
     config["sorting"]["reverse"] = literal(config["sorting"].get("reverse", "0"))
     wn_id_lines = config["workernodes_matrix"][0]["wn id lines"]
     config["ALT_LABEL_COLORS"] = yaml_parser.fix_config_list(wn_id_lines["alt_label_colors"])

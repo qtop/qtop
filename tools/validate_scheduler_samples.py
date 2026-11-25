@@ -205,8 +205,7 @@ STATIC_CASES = {
             "markers": [
                 "This data is simulated",
                 "Summary : Total:18",
-                "Accelerators by node",
-                "tray01: gpu0",
+                "gpu_map/core_map/Node state",
                 "Worker Nodes occupancy",
                 "demo72 simulates one GB200 NVL72 rack",
             ],

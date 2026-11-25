@@ -8,7 +8,8 @@ Notable changes by version, newest first. See the
 - Bugfix: core_api.collect_state() reads SOURCEDIR traces in place, not from the workdir
 - Docs: "Using qtop as a library" documents core_api, with qtop's collector as the reference caller
 - Feature: Slurm tpu: and npu: GRES are kept beside gpu:, for any device count (kind field)
-- Feature: an accelerator map lists node GPUs/TPUs/NPUs and jobs; accelerator_map before/after/false
+- Feature: GPUs/TPUs/NPUs are node-matrix cells with user IDs, before the cores (gpu_map, =Gpu0)
+- Feature: accelerator_map: before/after adds job-ID lines per node to the matrix; off by default
 - Feature: qtop -b demo72 simulates a GB200 NVL72 rack (18 trays x 4 GPUs) to try the GPU view
 - Feature: core_api.collect() returns the state, backend object and traces; collection steps public
 - Refactor: qtop's collector collects through core_api only; tests/test_core_api.py enforces it
