@@ -20,6 +20,8 @@ from qtop_py.plugins.slurm_json import SlurmJSONBatchSystem
 if TYPE_CHECKING:  # typing.Final is Python 3.8+; the quoted annotations keep 3.6 working
     from typing import Final
 
+logger = logging.getLogger(__name__)
+
 PLUGIN_BATCH_SYSTEMS: "Final" = (DemoBatchSystem, HTCondorBatchSystem, LSFBatchSystem, OARBatchSystem, PBSBatchSystem, SGEBatchSystem, SlurmBatchSystem, SlurmJSONBatchSystem)
 
 
@@ -30,7 +32,7 @@ def auto_get_avail_batch_system(config: Dict[str, Any], backends: Mapping[str, A
     for system, batch_command in prioritized_commands:
         if system not in backends or backends[system].is_simulated or not shutil.which(batch_command):
             continue
-        logging.debug("Auto-detected scheduler: %s", system)
+        logger.debug("Auto-detected scheduler: %s", system)
         return system
 
     raise SchedulerNotSpecified
@@ -58,10 +60,10 @@ def decide_batch_system(
 
         if scheduler == "auto":
             scheduler = auto_get_avail_batch_system(config, available_batch_systems)
-            logging.debug("Selected scheduler is %s", scheduler)
+            logger.debug("Selected scheduler is %s", scheduler)
             return scheduler
         if scheduler in schedulers:
-            logging.info("User-selected scheduler: %s", scheduler)
+            logger.info("User-selected scheduler: %s", scheduler)
             return scheduler
         if scheduler and scheduler not in schedulers:  # a scheduler that does not exist is inputted
             raise NoSchedulerFound(scheduler)

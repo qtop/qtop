@@ -6,7 +6,9 @@ Core: the top-level ``qtop_py/core_*.py`` modules (cluster state and its schema,
 trace masking, snapshots, the command runner...), the backends in ``plugins/`` and the helpers in
 ``schedulers/`` except the collector. It may import only other core modules (and the
 standard library or third-party packages), and must not print, touch stdout/stderr/stdin, exit,
-read the environment or the home directory. Configuration files, savepath, logging setup, colours
+read the environment or the home directory, or log through the root logger: logging.warning() and
+friends call basicConfig() in a host application that has not set up logging, so the core uses
+logging.getLogger(__name__). Configuration files, savepath, logging setup, colours
 and the TUI belong to the application, which passes what the core needs.
 
 KNOWN_VIOLATIONS is empty. A new violation fails; were one ever listed, it must stay real, so
@@ -32,7 +34,7 @@ SIDE_EFFECTS = {
     ("os", "chdir"),
     ("path", "expanduser"),
     ("path", "expandvars"),
-}
+} | {("logging", level) for level in ("debug", "info", "warning", "error", "critical", "exception", "log", "basicConfig")}
 
 KNOWN_VIOLATIONS = set()  # empty: keep it so; a new entry needs a reason and a plan to remove it
 
@@ -88,8 +90,9 @@ def test_known_violations_are_still_real():
 
 def test_the_check_sees_a_violation(tmp_path, monkeypatch):
     module = PACKAGE / "plugins" / "demo.py"
-    source = module.read_text(encoding="utf-8") + "\nfrom qtop_py import configuration\nprint(configuration)\n"
+    source = module.read_text(encoding="utf-8") + "\nfrom qtop_py import configuration\nprint(configuration)\nlogging.warning(configuration)\n"
     planted = tmp_path / "demo.py"
     planted.write_text(source, encoding="utf-8")
     monkeypatch.setitem(MODULES, "qtop_py.plugins.demo", planted)
-    assert {("qtop_py.plugins.demo", "imports qtop_py.configuration"), ("qtop_py.plugins.demo", "calls print")} <= _violations("qtop_py.plugins.demo")
+    expected = {"imports qtop_py.configuration", "calls print", "uses logging.warning"}
+    assert {("qtop_py.plugins.demo", violation) for violation in expected} <= _violations("qtop_py.plugins.demo")

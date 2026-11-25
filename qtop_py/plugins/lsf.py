@@ -15,6 +15,8 @@ if TYPE_CHECKING:
     from qtop_py.core_api import TraceMasker
     from qtop_py.core_state_types import Config, JobsInfo, Node, Options, QueuesInfo
 
+logger = logging.getLogger(__name__)
+
 ## bhosts STATUS to qtop node symbols: '-' usable, 'j' full, 'b' busy, 'o' closed by an
 ## administrator or policy (counted off), 'd' down or unreachable, '?' anything else.
 HOST_STATES: "Final" = {
@@ -114,7 +116,7 @@ class LSFBatchSystem(GenericBatchSystem):
                 node["core_job_map"].update((first + slot, job["id"]) for slot in range(count))
         for node in nodes.values():
             node["np"] = max(node["np"], len(node["core_job_map"]))  # MAX '-' or an oversubscribed host
-        logging.info("worker_nodes contains %s entries", len(nodes))
+        logger.info("worker_nodes contains %s entries", len(nodes))
         return self.ensure_worker_nodes_have_qnames(list(nodes.values()), job_ids, job_queues)
 
     def mask_source_trace(self, key: str, text: str, mask: "TraceMasker") -> Tuple[str, str]:

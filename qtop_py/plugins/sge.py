@@ -24,6 +24,8 @@ if TYPE_CHECKING:
     from qtop_py.core_api import TraceMasker
     from qtop_py.core_state_types import Config, JobsInfo, Node, Options, QueuesInfo
 
+logger = logging.getLogger(__name__)
+
 
 def _required_text_element(parent: etree.Element, path: str) -> etree.Element:
     element = parent.find(path)
@@ -109,7 +111,7 @@ class SGEStatExtractor(StatExtractor):
             except (etree.ParseError, IOError):
                 raise
             except Exception as error:
-                logging.debug("XML file state %s", fin, exc_info=True)
+                logger.debug("XML file state %s", fin, exc_info=True)
                 raise OperationalError("Cannot read SGE XML %s: %s" % (xml_file, error)) from error
             else:
                 root = tree.getroot()
@@ -143,17 +145,17 @@ class SGEStatExtractor(StatExtractor):
             try:
                 all_values = self._extract_job_info(all_values, queue_elem, "job_list", queue_name=queue_name_elem.text)
             except ValueError:
-                logging.warning("No jobs found in XML file!")
+                logger.warning("No jobs found in XML file!")
 
         # look for the remaining, pending jobs, found later in the xml file
         job_info_elem = root.find("./job_info")
         if job_info_elem is None:
-            logging.debug("No pending jobs found!")
+            logger.debug("No pending jobs found!")
         else:
             try:
                 all_values = self._extract_job_info(all_values, job_info_elem, "job_list", queue_name="Pending")
             except ValueError:
-                logging.warning("No jobs found in XML file!")
+                logger.warning("No jobs found in XML file!")
 
         return all_values
 
@@ -252,7 +254,7 @@ class SGEBatchSystem(GenericBatchSystem):
 
     def get_queues_info(self) -> "QueuesInfo":
         """Return the running and queued totals and per-queue records from qstat -xml."""
-        logging.debug("Parsing tree of %s", self.sge_file)
+        logger.debug("Parsing tree of %s", self.sge_file)
         check_empty_file(self.sge_file)
 
         root = self.sge_stat_maker.root
@@ -260,7 +262,7 @@ class SGEBatchSystem(GenericBatchSystem):
         qstatq_list = self._extract_queues("queue_info/Queue-List", root)
 
         total_running_jobs = sum(int(d["run"]) for d in qstatq_list)
-        logging.info("Total running jobs found: %s", total_running_jobs)
+        logger.info("Total running jobs found: %s", total_running_jobs)
 
         for d in qstatq_list:
             d["run"] = str(d["run"])
@@ -269,14 +271,14 @@ class SGEBatchSystem(GenericBatchSystem):
         total_queued_jobs = self._get_total_queued_jobs("job_info/job_list", root)
 
         qstatq_list.append({"run": "0", "queued": total_queued_jobs, "queue_name": "Pending", "state": "-", "lm": "0"})
-        logging.debug("qstatq_list contains %s elements", len(qstatq_list))
-        logging.debug("Closing %s", self.sge_file)
+        logger.debug("qstatq_list contains %s elements", len(qstatq_list))
+        logger.debug("Closing %s", self.sge_file)
 
         return cast("QueuesInfo", (total_running_jobs, int(total_queued_jobs), qstatq_list))  # every row is a queue record
 
     def get_worker_nodes(self, job_ids: List[str], job_queues: List[str], options: "Options") -> "List[Node]":
         """Return the nodes, with their queues and slots, from qstat -xml."""
-        logging.debug("Parsing tree of %s", self.sge_file)
+        logger.debug("Parsing tree of %s", self.sge_file)
 
         root = self.sge_stat_maker.root
 
@@ -319,8 +321,8 @@ class SGEBatchSystem(GenericBatchSystem):
         for existing_wn in existing_wns:
             self._expand_whole_queue_node(existing_wn, whole_queue_jobs.get(existing_wn["domainname"]))
 
-        logging.debug("Closing %s", self.sge_file)
-        logging.info("existing_wns contains %s entries", len(existing_wns))
+        logger.debug("Closing %s", self.sge_file)
+        logger.info("existing_wns contains %s entries", len(existing_wns))
         return cast("List[Node]", existing_wns)  # built field by field as Node records
 
     def get_jobs_info(self) -> "JobsInfo":
@@ -329,7 +331,7 @@ class SGEBatchSystem(GenericBatchSystem):
         records = [(str(qstat["JobId"]), qstat["UnixAccount"], qstat["S"], qstat["Queue"]) for qstat in all_values]
         job_ids, usernames, job_states, queue_names = map(list, zip(*records)) if records else ([], [], [], [])
 
-        logging.debug(
+        logger.debug(
             "job_ids, usernames, job_states, queue_names lengths: %(job_ids)s, %(usernames)s, %(job_states)s, %(queue_names)s",
             {"job_ids": len(job_ids), "usernames": len(usernames), "job_states": len(job_states), "queue_names": len(queue_names)},
         )
@@ -385,7 +387,7 @@ class SGEBatchSystem(GenericBatchSystem):
             elif resource.attrib.get("name") == "num_proc":
                 # Treat an implausible core count like a missing one, before anything loops over it.
                 if safety.cores_per_node(resource.text) is None:
-                    logging.warning("Ignoring invalid SGE num_proc %r (expected 0..%d)", resource.text, safety.MAX_CORES_PER_NODE)
+                    logger.warning("Ignoring invalid SGE num_proc %r (expected 0..%d)", resource.text, safety.MAX_CORES_PER_NODE)
                     worker_node["np"] = 0
                 else:
                     worker_node["np"] = resource.text
@@ -438,6 +440,6 @@ class SGEBatchSystem(GenericBatchSystem):
 
     def _get_total_queued_jobs(self, xpath: str, root: etree.Element) -> str:
         total_queued_jobs = str(self._count_jobs(root.findall(xpath), "queued_of_user"))
-        logging.info("Total queued jobs found: %s", total_queued_jobs)
+        logger.info("Total queued jobs found: %s", total_queued_jobs)
 
         return total_queued_jobs

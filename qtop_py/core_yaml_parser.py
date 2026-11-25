@@ -18,6 +18,8 @@ from qtop_py import core_inputs as inputs
 from qtop_py import core_safety as safety
 from qtop_py.core_safety import ResourceLimitError, literal_eval
 
+logger = logging.getLogger(__name__)
+
 """Small dependency-free parser for qtop's deliberately limited YAML subset."""
 
 
@@ -141,7 +143,7 @@ def parse(fn: str, DEF_INDENT: int = 2, options: Any = None) -> Dict[str, Any]:
             raise ResourceLimitError("YAML input exceeds size limit")
         if os.fstat(fin.fileno()).st_size == 0:
             raise ValueError("Configuration file is empty: %s" % fn)
-        logging.debug("File state before parse: %s", fin)
+        logger.debug("File state before parse: %s", fin)
         lines = get_line(fin, DEF_INDENT=DEF_INDENT)
         line = next(lines)
         while line:
@@ -151,7 +153,7 @@ def parse(fn: str, DEF_INDENT: int = 2, options: Any = None) -> Dict[str, Any]:
                 block[k] = convert_dash_key_in_dict(block[k])
             raw_key_values.update(block)
 
-    logging.debug("File state after parse: %s", fin)
+    logger.debug("File state after parse: %s", fin)
     return dict([(key, value) for key, value in raw_key_values.items()])
 
 
@@ -298,7 +300,7 @@ def process_code(fin: Iterable[str]) -> str:
 def safe_load(fin: str, DEF_INDENT: int = 2, options: Any = None) -> Dict[str, Any]:
     """Parse a YAML file into a dict."""
     a_dict = parse(fin, DEF_INDENT, options)
-    logging.debug("YAML dict length: %s", len(a_dict))
+    logger.debug("YAML dict length: %s", len(a_dict))
     return a_dict
 
 

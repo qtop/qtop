@@ -11,6 +11,8 @@ from typing import Any, Callable, Dict, NamedTuple, Optional, Tuple
 
 from qtop_py.core_errors import OperationalError
 
+logger = logging.getLogger(__name__)
+
 Observation = NamedTuple("Observation", [("state", Any), ("system", Any), ("backend", Any), ("traces", Dict[str, Tuple[str, bytes]]), ("started", float), ("completed", float)])
 
 
@@ -49,7 +51,7 @@ class CollectionPoller:
                 observed = self._collect()
             except (OperationalError, OSError, ValueError, TypeError) as error:
                 if not self.stop.is_set():
-                    logging.warning("Scheduler collection failed; retaining last successful snapshot: %s", error)
+                    logger.warning("Scheduler collection failed; retaining last successful snapshot: %s", error)
                     with self.lock:
                         self.error = str(error)
             else:

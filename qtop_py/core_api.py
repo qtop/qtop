@@ -5,7 +5,8 @@
 A backend subclasses GenericBatchSystem (and usually StatExtractor), reads its traces with
 open_input/check_empty_file, and returns a ClusterState from get_cluster_state(). It never sees
 the CLI: options carry only what collection needs (BackendOptions shows the fields), and -A
-masking happens once, after the state is built. Everything else in qtop_py is internal.
+masking happens once, after the state is built. The core logs to qtop_py.* loggers and never
+configures logging itself. Everything else in qtop_py is internal.
 
 The types (ClusterState, Node, Options, ...) exist for type checkers only, as qtop supports
 Python 3.6: import them from qtop_py.core_state_types under ``if TYPE_CHECKING:``.

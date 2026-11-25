@@ -25,6 +25,8 @@ if TYPE_CHECKING:
     from qtop_py.core_api import TraceMasker
     from qtop_py.core_state_types import ClusterState, Config, JobsInfo, Node, Options, QueuesInfo
 
+logger = logging.getLogger(__name__)
+
 SLURM_JOB_STATES: "Final" = {
     "BOOT_FAIL": "BF",
     "CANCELLED": "CA",
@@ -140,7 +142,7 @@ class SlurmStatExtractor(StatExtractor):
             return self.expand_job_id(job_id) if "_[" in job_id else [job_id]
         except SlurmArrayIdError as error:
             self.rejected_squeue_rows += 1
-            logging.warning("Line: %s rejected: %s", line, error)
+            logger.warning("Line: %s rejected: %s", line, error)
             return None
 
     def extract_squeue(self, orig_file: str) -> List[Dict[str, Any]]:
@@ -152,7 +154,7 @@ class SlurmStatExtractor(StatExtractor):
         try:
             check_empty_file(orig_file)
         except FileEmptyError:
-            logging.error("File %s seems to be empty.", orig_file)
+            logger.error("File %s seems to be empty.", orig_file)
             return []
 
         jobs: Dict[str, Any] = OrderedDict()
@@ -177,7 +179,7 @@ class SlurmStatExtractor(StatExtractor):
                         partitions_seen = partition_lists[partition]
                 if partitions_seen is None:
                     self.rejected_squeue_rows += 1
-                    logging.warning("Line: %s not properly parsed as Slurm squeue output.", line)
+                    logger.warning("Line: %s not properly parsed as Slurm squeue output.", line)
                     continue
 
                 task_ids = self._row_task_ids(line, job_id, fields)
@@ -229,7 +231,7 @@ class SlurmStatExtractor(StatExtractor):
         try:
             check_empty_file(orig_file)
         except FileEmptyError:
-            logging.error("File %s seems to be empty.", orig_file)
+            logger.error("File %s seems to be empty.", orig_file)
             return []
 
         nodes = []
@@ -247,7 +249,7 @@ class SlurmStatExtractor(StatExtractor):
                         raise ValueError("missing required node field")
                 except ValueError:
                     self.rejected_sinfo_rows += 1
-                    logging.warning("Line: %s not properly parsed as Slurm sinfo output.", line)
+                    logger.warning("Line: %s not properly parsed as Slurm sinfo output.", line)
                     continue
 
                 nodes.append(
@@ -511,7 +513,7 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
         job_states = [job["S"] for job in jobs]
         queue_names = [job["Queue"] for job in jobs]
 
-        logging.debug(
+        logger.debug(
             "job_ids, usernames, job_states, queue_names lengths: %(job_ids)s, %(usernames)s, %(job_states)s, %(queue_names)s",
             {"job_ids": len(job_ids), "usernames": len(usernames), "job_states": len(job_states), "queue_names": len(queue_names)},
         )
@@ -621,7 +623,7 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
                 node = worker_nodes_by_name[hosts[0]]
                 node["slurm_unmapped_cpus"] = node.get("slurm_unmapped_cpus", 0) + missing
         worker_nodes = list(worker_nodes_by_name.values())
-        logging.info("worker_nodes contains %s entries", len(worker_nodes))
+        logger.info("worker_nodes contains %s entries", len(worker_nodes))
         return cast("List[Node]", worker_nodes)  # built field by field as Node records
 
     @staticmethod
@@ -652,7 +654,7 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
                     try:
                         node[parsed] = parse_gpu_gres(node[raw])
                     except ValueError as error:
-                        logging.warning("Ignoring invalid Slurm GPU metadata: %s", error)
+                        logger.warning("Ignoring invalid Slurm GPU metadata: %s", error)
         if not self.scontrol_file:
             return
         allocations: Dict[str, Any] = {}
@@ -684,7 +686,7 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
                             invalid.add(job_id)
                         allocation[host] = resources
         except (OSError, UnicodeError) as error:
-            logging.warning("Cannot read optional Slurm GPU details: %s", error)
+            logger.warning("Cannot read optional Slurm GPU details: %s", error)
             return
         for job in self._get_jobs():
             job_id = job["JobId"]
@@ -735,7 +737,7 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
                                         break
                                     allocation[host] = cpus if type(cpus) is tuple else tuple(map(int, cpus))
         except (OSError, UnicodeError, ValueError) as error:
-            logging.warning("Cannot read optional Slurm CPU details: %s; using estimates.", error)
+            logger.warning("Cannot read optional Slurm CPU details: %s; using estimates.", error)
             return {}
         return allocations
 
@@ -754,13 +756,13 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
             if not valid:
                 estimated.update(hosts)
                 if job["JobId"] in details:
-                    logging.warning("Incomplete or inconsistent Slurm CPU details for job %s; using estimates.", job["JobId"])
+                    logger.warning("Incomplete or inconsistent Slurm CPU details for job %s; using estimates.", job["JobId"])
                 continue
             for host, cpus in allocation.items():
                 for cpu in cpus:
                     if cpu in exact[host] and exact[host][cpu] != job["JobId"]:
                         estimated.add(host)
-                        logging.warning("Overlapping Slurm CPU allocations on %s; using estimates.", host)
+                        logger.warning("Overlapping Slurm CPU allocations on %s; using estimates.", host)
                     exact[host][cpu] = job["JobId"]
         for host, node in worker_nodes.items():
             if exact[host] and host not in estimated:

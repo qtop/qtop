@@ -21,6 +21,8 @@ from qtop_py.core_errors import OperationalError
 if TYPE_CHECKING:  # typing.Final is Python 3.8+; the quoted annotations keep 3.6 working
     from typing import Final
 
+logger = logging.getLogger(__name__)
+
 MAX_STDOUT_BYTES: "Final" = 256 * 1024 * 1024
 MAX_STDERR_BYTES: "Final" = 1024 * 1024
 DEFAULT_SCHEDULER_COMMAND_TIMEOUT: "Final" = 180
@@ -197,8 +199,8 @@ def execute_shell_batch_commands(
         except ValueError as error:
             raise OperationalError(str(error)) from error
         with tempfile.NamedTemporaryFile("wb", dir=_savepath, delete=False) as fin:
-            logging.debug("\tFile state before subprocess call: %(fin)s", {"fin": fin})
-            logging.debug("\tWaiting on subprocess.call...")
+            logger.debug("\tFile state before subprocess call: %(fin)s", {"fin": fin})
+            logger.debug("\tWaiting on subprocess.call...")
 
             # splitting the command passed in so only the first item in a command
             # from the yaml file is executed with the rest of the line treated as
@@ -207,7 +209,7 @@ def execute_shell_batch_commands(
             tempname = fin.name
             try:
                 command_args = shlex.split(_batch_system_command)
-                logging.debug(
+                logger.debug(
                     "Trace collection command: (cd %s && %s > %s)",
                     shlex.quote(os.getcwd()),
                     " ".join(shlex.quote(arg) for arg in command_args),
@@ -224,11 +226,11 @@ def execute_shell_batch_commands(
                 except subprocess.TimeoutExpired as failure:
                     raise OperationalError("Scheduler command %r timed out after %g seconds" % (_batch_system_command, timeout)) from failure
             if stderr_data:
-                logging.warning("A message from your shell: %s", stderr_data.decode("utf-8", errors="replace").strip())
+                logger.warning("A message from your shell: %s", stderr_data.decode("utf-8", errors="replace").strip())
             if command.returncode:
                 detail = " ".join(stderr_data.decode("utf-8", errors="replace").splitlines())[:300] or "no diagnostic output"
                 raise OperationalError("Scheduler command %r failed (exit %s): %s" % (_batch_system_command, command.returncode, detail))
-            logging.debug("File state after subprocess call: %(fin)s", {"fin": fin})
+            logger.debug("File state after subprocess call: %(fin)s", {"fin": fin})
         # Sonar path finding: destination already contained (checked against the real savepath above); see docs/sonar-review.md
         os.rename(tempname, filenames[_file])
 
