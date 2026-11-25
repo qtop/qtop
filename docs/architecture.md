@@ -100,8 +100,10 @@ flowchart TB
    `schedulers/registry.py` selects a registered backend. The collector either
    executes its configured commands or reads
    files supplied with `-s`. The demo backend generates fictional data.
-   `schedulers/collector.py` owns command/file collection and capture-aware
-   snapshot construction. The loop calls `MVU_collect_snapshot()`,
+   `schedulers/collector.py` adapts the CLI options and configuration to
+   [core_collect.py](../qtop_py/core_collect.py), which builds the command lines,
+   runs them concurrently and finds the traces, and owns capture-aware snapshot
+   construction. The loop calls `MVU_collect_snapshot()`,
    `MVU_export_snapshot()`,
    `MVU_query()` and `MVU_view()`. The snapshot is complete when built: display
    job states and collection timings are passed to `Snapshot.from_cluster_state()`.
@@ -211,7 +213,10 @@ scheduler errors carry the requested name and choices, and the CLI words them.
 [test_core_boundary.py](../tests/test_core_boundary.py) enforces this; its
 Backends take the shared interface from
 [core_api.py](../qtop_py/core_api.py), the library's public surface for them, and
-report raw names: `-A` masks the built state once, in the collector.
+report raw names: `-A` masks the built state once, in the collector. For library
+callers, `core_api.collect_state(backend, workdir, options, env=os.environ)` runs a
+backend end to end (its commands, or a `BackendOptions(SOURCEDIR=...)` directory)
+and returns a validated cluster state, with no CLI, configuration file or TUI.
 `KNOWN_VIOLATIONS` is empty: the core reads no environment and no application
 constants (the command runner takes `env`, its timeout and a `config_name` for its
 messages from the caller).

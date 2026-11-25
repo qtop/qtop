@@ -55,6 +55,9 @@ class GenericBatchSystem(object):
     signature_command: Optional[str] = None  # a command whose presence means this scheduler (-b auto)
     command_env: Mapping[str, str] = {}  # environment the scheduler commands need; it overrides the user's
 
+    def __init__(self, scheduler_output_filenames: Mapping[str, str], config: "Config", options: "Options") -> None:
+        """Read the traces (by key) and keep what get_cluster_state() needs; every backend implements it."""
+
     @staticmethod
     def add_cli_options(parser: Any) -> None:
         """Add this backend's own qtop options to the argparse parser; options are read with getattr."""

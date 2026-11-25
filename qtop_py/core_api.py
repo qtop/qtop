@@ -5,7 +5,8 @@
 A backend subclasses GenericBatchSystem (and usually StatExtractor), reads its traces with
 open_input/check_empty_file, and returns a ClusterState from get_cluster_state(). It never sees
 the CLI: options carry only what collection needs (BackendOptions shows the fields), and -A
-masking happens once, after the state is built. The core logs to qtop_py.* loggers and never
+masking happens once, after the state is built. collect_state() runs a backend end to end:
+commands (or a source directory), parsing and validation. The core logs to qtop_py.* loggers and never
 configures logging itself. Everything else in qtop_py is internal.
 
 The types (ClusterState, Node, Options, ...) exist for type checkers only, as qtop supports
@@ -13,9 +14,8 @@ Python 3.6: import them from qtop_py.core_state_types under ``if TYPE_CHECKING:`
 tests/test_core_api.py pins this surface.
 """
 
-from typing import Any, Optional
-
 from qtop_py.core_cluster_state import build_cluster_state, validate_cluster_state
+from qtop_py.core_collect import BackendOptions, collect_state
 from qtop_py.core_errors import OperationalError
 from qtop_py.core_inputs import FileEmptyError, check_empty_file, open_input
 from qtop_py.core_serialiser import GenericBatchSystem, StatExtractor, resolve_job_id
@@ -30,22 +30,8 @@ __all__ = [
     "TraceMasker",
     "build_cluster_state",
     "check_empty_file",
+    "collect_state",
     "open_input",
     "resolve_job_id",
     "validate_cluster_state",
 ]
-
-
-class BackendOptions(object):
-    """The run options a backend may read, for callers without qtop's command line.
-
-    SOURCEDIR: read traces from this directory instead of running commands. Any other keyword
-    becomes an attribute: a backend's own switches, with the names its add_cli_options() gives
-    them (e.g. Slurm's ALL_PARTITIONS, SLURM_SUMMARY, SLURM_JSON_SQUEUE). Backends read those
-    with getattr and a default, so an option left out means the default.
-    """
-
-    def __init__(self, SOURCEDIR: Optional[str] = None, **backend_options: Any) -> None:
-        self.SOURCEDIR = SOURCEDIR
-        for name, value in backend_options.items():
-            setattr(self, name, value)

@@ -2,7 +2,6 @@
 ## SPDX-License-Identifier: MIT
 """Scheduler-neutral command collection, capture and snapshot orchestration."""
 
-import concurrent.futures
 import copy
 import logging
 import os
@@ -13,8 +12,7 @@ import time
 from typing import TYPE_CHECKING, Any, Callable, Dict, Mapping, Tuple, Type
 from xml.etree.ElementTree import ParseError  # nosec B405 # nosemgrep - exception class only; parsing is in plugins/sge.py
 
-from qtop_py import __version__, configuration, fileutils
-from qtop_py import core_process as process
+from qtop_py import __version__, configuration, core_collect, fileutils
 from qtop_py import core_sample as sample
 from qtop_py.colormap import user_to_color_default
 from qtop_py.configuration import CONFIG_ERRORS
@@ -30,93 +28,38 @@ if TYPE_CHECKING:
 
 
 def finalize_filepaths_schedulercommands(args: Any, config: Dict[str, Any], backend: Type[GenericBatchSystem]) -> Dict[str, Tuple[str, str]]:
-    """Return {input_key: (path, command)}, with PID suffixes for live collection."""
-    d = dict()
-    fn_append = "_" + str(os.getpid()) if not args.SOURCEDIR else ""
-    for fn, path_command in config["schedulers"][backend.get_mnemonic()].items():
-        path, command = path_command.strip().split(", ", 1)
-        path = path % {"savepath": args.workdir, "pid": fn_append}
-        # Format codes stay copyable; accept legacy escaped percent signs.
-        command = command.replace("%%", "%").replace("%(savepath)s", args.workdir)
-        adjusted = backend.collection_command(fn, command, args)
-        if adjusted is not None:
-            d[fn] = (path, adjusted)
-    return d
+    """Return {input_key: (path, command)} for the configured commands, with PID suffixes for live collection."""
+    return core_collect.command_lines(backend, config["schedulers"][backend.get_mnemonic()], args.workdir, args)
 
 
 def command_env(backend: Type[GenericBatchSystem]) -> Dict[str, str]:
     """Return the environment for a backend's commands: qtop's own, with what the backend requires."""
-    return {**os.environ, **backend.command_env}
+    return core_collect.command_env(backend, os.environ)
 
 
 def _run_commands_concurrently(INPUT_FNs_commands: Mapping[str, Tuple[str, str]], config: Dict[str, Any], args: Any, backend: Type[GenericBatchSystem]) -> Dict[str, Any]:
-    """Start every scheduler command at once; return {key: path or OperationalError} in config order.
-
-    A frame then waits for the slowest command, not the sum of all of them. Each command keeps its
-    own timeout, and the first required failure in config order is raised, so errors read as they
-    did when the commands ran one after another. The caller's cancel event stops them all.
-    """
+    """Run the commands with the configured savepath and timeout; see core_collect.run_commands."""
     SETTINGS = configuration.collection_settings(config)
-    _savepath = os.path.realpath(os.path.expandvars(SETTINGS.SAVEPATH))
-    filenames = {key: path for key, (path, _) in INPUT_FNs_commands.items()}
-    commands = {key: command for key, (_, command) in INPUT_FNs_commands.items()}
     controls = dict(getattr(args, "_collection_controls", {}))
-    outer_cancel = controls.pop("cancel", None)
-    stop = threading.Event()
+    cancel = controls.pop("cancel", None)
     progress = {"input_options": args} if getattr(args, "_input_progress", None) is not None else {}
-    environment = command_env(backend)
-
-    def run(key: str) -> str:
-        return process.execute_shell_batch_commands(
-            commands, filenames, key, _savepath, timeout=SETTINGS.TIMEOUT, cancel=stop, env=environment, config_name=QTOPCONF_YAML, **progress, **controls
-        )
-
-    with concurrent.futures.ThreadPoolExecutor(max_workers=max(1, len(filenames)), thread_name_prefix="qtop-command") as pool:
-        futures = {key: pool.submit(run, key) for key in filenames}
-        pending = set(futures.values())
-        try:
-            while pending:
-                _, pending = concurrent.futures.wait(pending, timeout=0.1)
-                if outer_cancel is not None and outer_cancel.is_set():
-                    stop.set()
-        finally:
-            if pending:  # interrupted (e.g. Ctrl-C): stop the commands still running
-                stop.set()
-    results: Dict[str, Any] = {}
-    for key, future in futures.items():
-        error = future.exception()
-        if error is not None and (key not in backend.optional_trace_keys or not isinstance(error, OperationalError)):
-            raise error
-        results[key] = error if error is not None else future.result()
-    return results
+    return core_collect.run_commands(
+        dict(INPUT_FNs_commands),
+        backend,
+        os.path.expandvars(SETTINGS.SAVEPATH),
+        os.environ,
+        timeout=SETTINGS.TIMEOUT,
+        cancel=cancel,
+        config_name=QTOPCONF_YAML,
+        **progress,
+        **controls,
+    )
 
 
 def get_input_filenames(INPUT_FNs_commands: Mapping[str, Tuple[str, str]], config: Dict[str, Any], args: Any, backend: Type[GenericBatchSystem]) -> Dict[str, str]:
     """Return the trace files by key: found in the -s directory, or collected by running the scheduler commands."""
-    filenames = dict()
-    collected = {} if args.SOURCEDIR else _run_commands_concurrently(INPUT_FNs_commands, config, args, backend)
-    for _file in INPUT_FNs_commands:
-        filenames[_file] = INPUT_FNs_commands[_file][0]
-
-        if not args.SOURCEDIR:
-            result = collected[_file]
-            if isinstance(result, OperationalError):
-                logging.warning("%s %s", result, backend.optional_trace_warning)
-                filenames.pop(_file)
-                continue
-            filenames[_file] = result
-
-        if _file in backend.optional_trace_keys and not os.path.isfile(filenames[_file]):
-            filenames.pop(_file)
-            continue
-        if not os.path.isfile(filenames[_file]):
-            raise OperationalError("Scheduler input file %s was not found. Check -s/--SetSourceDir and the selected scheduler." % filenames[_file])
-    if args.SOURCEDIR:
-        for key, alias in backend.optional_trace_aliases.items():
-            detail_path = os.path.join(args.SOURCEDIR, alias)
-            if key not in filenames and os.path.isfile(detail_path):
-                filenames[key] = detail_path
-    return filenames
+    collected = None if args.SOURCEDIR else _run_commands_concurrently(INPUT_FNs_commands, config, args, backend)
+    return core_collect.trace_files(dict(INPUT_FNs_commands), backend, args, collected)
 
 
 def fetch_scheduler_files(args: Any, config: Dict[str, Any], backend: Type[GenericBatchSystem]) -> Dict[str, str]:

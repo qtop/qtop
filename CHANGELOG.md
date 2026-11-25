@@ -22,6 +22,7 @@ Notable changes by version, newest first. See the
 - Docs: qtop.1 gets an OPTIONS entry for --slurm-summary; a test now requires one for every option
 - Feature: the wheel ships py.typed (PEP 561), so type checkers read qtop's annotations
 - Feature: plugins are self-standing: commands, states and registration live in the plugin module
+- Feature: core_api.collect_state() collects a validated state with no CLI or config file
 - Refactor: one core_process helper starts commands and checks timeouts; dead comments gone
 - Refactor: --strict-parents is passed to fileutils, not set globally; no $HOME read at import
 - Refactor: core modules log via getLogger(__name__), so a host app's logging is left alone
