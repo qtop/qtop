@@ -216,7 +216,11 @@ Backends take the shared interface from
 report raw names: `-A` masks the built state once, in the collector. For library
 callers, `core_api.collect_state(backend, workdir, options, env=os.environ)` runs a
 backend end to end (its commands, or a `BackendOptions(SOURCEDIR=...)` directory)
-and returns a validated cluster state, with no CLI, configuration file or TUI.
+and returns a validated cluster state, with no CLI, configuration file or TUI;
+`core_api.collect()` also returns the backend object and the traces. The collector is
+the reference caller: it takes all of this from `core_api` alone, which
+`tests/test_core_api.py` enforces (see
+[Using qtop as a library](documentation.md#using-qtop-as-a-library)).
 `KNOWN_VIOLATIONS` is empty: the core reads no environment and no application
 constants (the command runner takes `env`, its timeout and a `config_name` for its
 messages from the caller).

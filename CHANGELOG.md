@@ -5,6 +5,10 @@ Notable changes by version, newest first. See the
 
 ## 0.9.20261123
 
+- Bugfix: core_api.collect_state() reads SOURCEDIR traces in place, not from the workdir
+- Docs: "Using qtop as a library" documents core_api, with qtop's collector as the reference caller
+- Feature: core_api.collect() returns the state, backend object and traces; collection steps public
+- Refactor: qtop's collector collects through core_api only; tests/test_core_api.py enforces it
 - Release: update version metadata to 0.9.20261123
 
 ## 0.9.20261122

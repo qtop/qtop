@@ -476,7 +476,7 @@ def test_a_failed_optional_command_is_dropped_while_the_rest_complete(tmp_path):
 @pytest.mark.parametrize("demanding", (False, True), ids=("default", "demanding"))
 def test_live_state_is_validated_once_unless_demanding(frame_context, monkeypatch, demanding):
     from qtop_py import core_cluster_state as cluster_state
-    from qtop_py import snapshot
+    from qtop_py import core_collect, snapshot
 
     frame, args, _config, _resources = frame_context
     args.DEMANDING = demanding
@@ -494,6 +494,7 @@ def test_live_state_is_validated_once_unless_demanding(frame_context, monkeypatc
 
     monkeypatch.setattr(process_io, "execute_shell_batch_commands", execute)
     monkeypatch.setattr(cluster_state, "validate_cluster_state", counting_validate)
+    monkeypatch.setattr(core_collect, "validate_cluster_state", counting_validate)  # core_api.collect()
     monkeypatch.setattr(snapshot, "validate_cluster_state", counting_validate)
     frame()
     assert len(calls) == (2 if demanding else 1)

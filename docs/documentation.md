@@ -1556,6 +1556,61 @@ offered for HTCondor and are listed as omitted; `-A` exports are anonymized.
 The backend is built from documented JSON output and synthetic traces in
 `tests/plugins/htcondor_samples/`; it has not yet been checked against a live pool.
 
+## Using qtop as a library
+
+`qtop_py.core_api` is the public interface of qtop's scheduler core. It collects a
+validated, scheduler-neutral cluster state with no command line, configuration file or
+terminal, and it is the only module callers should import from (types aside, see below).
+`tests/test_core_api.py` pins its names; changing them is an API change for the
+CHANGELOG.
+
+```python
+import os
+import tempfile
+
+from qtop_py import core_api
+from qtop_py.plugins.slurm import SlurmBatchSystem
+
+with tempfile.TemporaryDirectory() as workdir:
+    # Run the backend's own default commands (squeue, sinfo, ...) in the caller's environment.
+    state = core_api.collect_state(SlurmBatchSystem, workdir, env=os.environ)
+    print(len(state["jobs"]), "jobs on", len(state["nodes"]), "nodes")
+
+    # Or read traces saved earlier, in place (the layout qtop -s DIR reads): nothing runs, no env needed.
+    state = core_api.collect_state(SlurmBatchSystem, workdir, core_api.BackendOptions(SOURCEDIR="traces/"))
+```
+
+- `collect_state(backend, workdir, options=None, commands=None, config=None, timeout=...,
+  cancel=None, env=None)` returns the validated state. `backend` is a backend class
+  (`SlurmBatchSystem`, `PBSBatchSystem`, `SGEBatchSystem`, `OARBatchSystem`,
+  `LSFBatchSystem`, `HTCondorBatchSystem`, `SlurmJSONBatchSystem` in `qtop_py.plugins.*`, or
+  your own). `workdir` must exist and receives the live traces; `SOURCEDIR` traces are read in place. `env` is required to run
+  commands, so the core never reads the environment by itself.
+- `collect(...)` takes the same arguments plus `files=` (trace paths by key, when the
+  traces are already in hand) and returns a `Collection`: `.state`, `.system` (the backend
+  object, e.g. for `TraceMasker`) and `.files`.
+- `BackendOptions(SOURCEDIR=None, **switches)` carries a backend's own switches by the
+  names its `add_cli_options()` gives them (for Slurm: `ALL_PARTITIONS`, `SLURM_SUMMARY`,
+  `SLURM_JSON_SQUEUE`); a switch left out takes its default.
+- `command_lines`, `command_env`, `run_commands` and `trace_files` are the steps
+  `collect()` composes, for callers that store or ship traces apart from parsing them.
+- Errors: `OperationalError` for failed commands and missing traces, `ValueError` for
+  unparsable input and a missing `env=`.
+- The record types (`ClusterState`, `Node`, `Job`, ...) are for type checkers only, as
+  qtop supports Python 3.6: import them from `qtop_py.core_state_types` under
+  `if TYPE_CHECKING:`.
+
+The core logs to `qtop_py.*` loggers and never configures logging, prints or exits.
+
+**qtop is the reference caller.** `qtop_py/schedulers/collector.py`, the part of qtop
+that collects for the CLI, the TUI, `-w` watch mode and support archives, takes all of
+this from `core_api` alone: one-shot runs call `core_api.collect(..., files=...)` on the
+traces they fetched (live, from `-s` or from a trace archive), and the watch-mode poller
+calls it on each round. `tests/test_core_api.py` fails if the collector imports these
+names from the core modules behind `core_api`, so qtop keeps using the interface it
+offers. Read that module for a full-featured example: configured commands, timeouts,
+cancellation, backend fallback and masking.
+
 ## Adding a scheduler backend
 
 A backend is a `GenericBatchSystem` subclass in `qtop_py/plugins/`. It implements
