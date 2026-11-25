@@ -217,7 +217,8 @@ def read_yaml_config_block(line: List[Any], fin: Iterable[str], get_lines: Itera
 
         elif line[0] == -2 and line[1] == "-" or line[0] == -1:  # go up two levels
             key_value, container = process_line(line, fin, get_lines, parent_container)
-            len(open_containers) > 1 and open_containers.pop() or None
+            if len(open_containers) > 1:
+                open_containers.pop()
             k = next(iter(key_value))
             if open_containers[-1].get("-"):
                 _extend_list(open_containers[-1], "-", key_value[k])

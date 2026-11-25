@@ -15,7 +15,7 @@ import logging
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set, Tuple, cast
 
 # SGE parses with NoDTDTreeBuilder below, rejecting all DTD declarations.
-from xml.etree import ElementTree as etree  # nosec B405
+from xml.etree import ElementTree as etree  # nosec B405 # nosemgrep - NoDTDTreeBuilder rejects every DTD, so no entity expansion; no runtime deps
 
 from qtop_py import core_safety as safety
 from qtop_py.core_api import GenericBatchSystem, OperationalError, StatExtractor, check_empty_file, open_input

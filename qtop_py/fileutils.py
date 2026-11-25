@@ -148,7 +148,7 @@ def _private_directory(path: str, strict: bool = False) -> Generator[Tuple[str, 
             if private_directory:
                 if info.st_uid != uid:
                     raise PermissionError(errno.EACCES, "Save directory must be owned by the current user", path)
-                os.fchmod(fd, 0o700)
+                os.fchmod(fd, 0o700)  # nosemgrep - owner-only: rwx for the current user, nothing for group or others
             elif writable_by_others and not info.st_mode & stat.S_ISVTX:
                 if strict:
                     raise PermissionError(errno.EACCES, "Save directory has an untrusted parent (writable without sticky bit; --strict-parents)", parent)

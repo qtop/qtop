@@ -102,7 +102,7 @@ def communicate_with_timeout(
                         raise OperationalError("Scheduler collection cancelled")
                     reader.join(min(0.1, max(0, deadline - time.monotonic())))
         if any(reader.is_alive() for reader in readers):
-            raise subprocess.TimeoutExpired(command.args, timeout)
+            raise subprocess.TimeoutExpired(command.args, timeout)  # nosemgrep - raises the timeout exception; runs nothing
         if failures:
             raise failures[0]
         failed = False
@@ -125,7 +125,7 @@ def _wait_for_command(command: "subprocess.Popen[bytes]", timeout: float, deadli
             raise OperationalError("Scheduler collection cancelled")
         remaining = deadline - time.monotonic()
         if remaining <= 0:
-            raise subprocess.TimeoutExpired(command.args, timeout)
+            raise subprocess.TimeoutExpired(command.args, timeout)  # nosemgrep - raises the timeout exception; runs nothing
         try:
             command.wait(timeout=min(0.1, remaining))
         except subprocess.TimeoutExpired:
