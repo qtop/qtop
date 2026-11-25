@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Tuple
 
 from qtop_py import core_yaml_parser as yaml_parser
 from qtop_py.core_api import FileEmptyError, GenericBatchSystem, check_empty_file, open_input
-from qtop_py.schedulers.oar_extension import OAR_EXTENSION
+from qtop_py.schedulers.extensions import ExtensionSpec
 from qtop_py.schedulers.tabular import TabularStatExtractor
 
 if TYPE_CHECKING:
@@ -63,6 +63,14 @@ class OarStatExtractor(TabularStatExtractor):
                 all_values.append(qstat_values)
 
         return all_values
+
+
+# OAR's extension fields (oar_*) in a cluster state; metadata collects them through OARBatchSystem.extensions.
+OAR_EXTENSION: "Final" = ExtensionSpec(
+    "OAR",
+    diagnostics=("oar_diagnostics", ("missing_resources", "extra_resources", "unlisted_jobs", "shared_resources")),
+    node_job_fields=("oar_job_ids",),
+)
 
 
 class OARBatchSystem(GenericBatchSystem):

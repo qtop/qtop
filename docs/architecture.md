@@ -238,9 +238,9 @@ Current implementation and remaining preparation:
   schema 3 beta1 adds opt-in workload parentage without changing old versions.
 - [x] Separate growing backend-specific metadata rule sets from the central
   dispatcher in `schedulers/metadata.py`: each backend owns an `ExtensionSpec`
-  (`slurm_extension.py`, `oar_extension.py`) that imports no plugin, so offline
-  validation and masking stay independent of backend construction and optional
-  client libraries; `tests/test_plugin_conformance.py` checks every backend.
+  (`plugins/slurm_extension.py`, inline in `plugins/oar.py`) declared as its
+  `extensions`; metadata collects them from the registry on first use (plugins use
+  only the standard library); `tests/test_plugin_conformance.py` checks every backend.
 - [x] Consolidate repeated backend defaults: each plugin declares its commands,
   signature command, detection priority and state names; the registry finds plugin
   modules (`pkgutil`) and `qtop.backends` entry points, and the sample gate covers

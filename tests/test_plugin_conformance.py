@@ -49,13 +49,13 @@ def test_backend_extension_fields_are_declared_once(mnemonic):
     if spec is None:
         assert backend.node_job_fields == (), "%s lists node job fields without an ExtensionSpec, so -A would not mask them" % mnemonic
         return
-    assert any(spec is known for known in metadata.EXTENSIONS), "list %r in metadata.EXTENSIONS" % spec
+    assert any(spec is known for known in metadata.extensions().specs), "%r is not collected by metadata.extensions()" % spec
     assert backend.node_job_fields == spec.node_job_fields
 
 
 def test_extension_specs_do_not_overlap():
     seen = {}
-    for spec in metadata.EXTENSIONS:
+    for spec in metadata.extensions().specs:
         keys = list(spec.node_job_fields) + [field for identity in spec.job_identities for field in identity[:2]]
         keys += [spec.diagnostics[0]] if spec.diagnostics else []
         for key in keys:

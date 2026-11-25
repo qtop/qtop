@@ -3,10 +3,10 @@
 """The shape of one scheduler's extension fields in a cluster state.
 
 A backend whose jobs or nodes carry fields beyond the neutral schema (slurm_*, oar_*, ...)
-describes them in one ExtensionSpec, declares it as its plugin's ``extensions`` attribute,
-and lists it once in metadata.EXTENSIONS. Validation, masking (-A) and the idle test then
-cover those fields for every state, whichever backend produced it: replay and --load-sample
-validate without knowing the plugin. Specs import no plugin, so metadata stays cycle-free.
+describes them in one ExtensionSpec, in or next to its plugin module, and declares it as the
+plugin's ``extensions`` attribute. schedulers.metadata collects the registered backends' specs,
+so validation, masking (-A) and the idle test cover those fields for every state, whichever
+backend produced it, including replayed and --load-sample states.
 """
 
 import re

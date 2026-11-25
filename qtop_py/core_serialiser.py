@@ -55,8 +55,8 @@ class GenericBatchSystem(object):
     signature_command: Optional[str] = None  # a command whose presence means this scheduler (-b auto)
     default_commands: Mapping[str, str] = {}  # trace key -> "savepath file template, command"
     state_abbreviations: Mapping[str, str] = {}  # scheduler job state -> qtop state name
-    # A backend whose records carry extra fields declares their ExtensionSpec here (and lists it in
-    # metadata.EXTENSIONS); node_job_fields then comes from that spec, not a second copy.
+    # A backend whose records carry extra fields declares their ExtensionSpec here; metadata collects
+    # the specs of all registered backends, and node_job_fields comes from the spec, not a second copy.
     extensions: Optional[ExtensionSpec] = None
     node_job_fields: Tuple[str, ...] = ()
     blocked_queue_note = ""

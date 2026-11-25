@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, List, Mapping, Match, Opt
 from qtop_py.core_api import FileEmptyError, GenericBatchSystem, StatExtractor, check_empty_file, open_input
 from qtop_py.core_hostlist import HostlistParser
 from qtop_py.schedulers.gpu import parse_gpu_gres
-from qtop_py.schedulers.slurm_extension import SLURM_EXTENSION
+from qtop_py.plugins.slurm_extension import SLURM_EXTENSION
 
 if TYPE_CHECKING:
     from typing import Final

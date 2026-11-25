@@ -12,7 +12,7 @@ from typing import Any, Callable, Dict, Iterable, Iterator, List, Mapping, Optio
 from qtop_py import utils
 from qtop_py.colormap import color_to_code, queue_to_color
 from qtop_py.constants import SYMBOL_LONG_TAIL_USER
-from qtop_py.schedulers.metadata import NODE_JOB_FIELDS
+from qtop_py.schedulers.metadata import extensions
 from qtop_py.ui.controls import NAVIGATION_KEYS
 
 TerminalInfo = namedtuple("TerminalInfo", ["frame_time", "wide_colours", "is_tty"])
@@ -169,7 +169,7 @@ class MVU_Model(object):
 def MVU_node_job_ids(node: Mapping[str, Any], backend: Any = None) -> Set[str]:
     """Return the job IDs on a node: its core map plus the standard and backend-specific job fields."""
     jobs = set(node["core_job_map"].values())
-    fields = NODE_JOB_FIELDS if backend is None else set(NODE_JOB_FIELDS).union(backend.node_job_fields)
+    fields = extensions().node_job_fields if backend is None else set(extensions().node_job_fields).union(backend.node_job_fields)
     for field in fields:
         jobs.update(node.get(field, []))
     return jobs

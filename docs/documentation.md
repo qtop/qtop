@@ -1593,11 +1593,12 @@ ones) already apply to it. Then:
 
 If its jobs or nodes carry fields beyond the neutral schema (array IDs, slot
 counts, job lists on nodes), describe them in one `ExtensionSpec`
-(`qtop_py/schedulers/extensions.py`) in its own module, as
-`slurm_extension.py` and `oar_extension.py` do. Set the plugin's `extensions` to it,
-take `node_job_fields` from it, and list it in `metadata.EXTENSIONS`. Validation,
-`-A` masking and the idle test then cover those fields for every state, including
-replayed and `--load-sample` ones that are validated without the plugin.
+(`qtop_py/schedulers/extensions.py`) in the plugin module, as `oar.py` does, or next
+to it when plugins share it, as `plugins/slurm_extension.py` does. Set the plugin's
+`extensions` to it and take `node_job_fields` from it; `schedulers/metadata.py`
+collects the specs of all registered backends. Validation, `-A` masking and the idle
+test then cover those fields for every state, including replayed and `--load-sample`
+ones.
 
 `tests/test_plugin_conformance.py` runs for every registered backend. It fails
 until the steps above are done, and it checks each committed sample through export,
