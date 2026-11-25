@@ -1373,6 +1373,33 @@ Sample replay retains the display option. Manual mappings are omitted from
 anonymized samples to avoid exposing node patterns; PBS/OAR counts then remain
 unknown. Native Slurm/SGE memberships survive anonymization and replay.
 
+# Accelerators by node (Slurm)
+
+Below the worker-node matrices, Slurm nodes with GPUs, TPUs or NPUs get one line
+each, listing every device with the jobs holding it:
+
+```text
+INFO: Accelerators by node (job IDs, ? = unknown):
+INFO: gpu003: gpu0-1=101 gpu2-6=idle gpu7=102
+INFO: tpu014: tpu0-3=210
+INFO: npu007: npu0-7=idle
+```
+
+Devices come from the node's Slurm GRES (`gpu:`, `tpu:` and `npu:` entries of any
+type and count; `IDX:` indices when Slurm reports them, otherwise numbered from 0)
+and their jobs from `scontrol show job -d` (`GRES=...(IDX:...)`). Consecutive
+devices with the same jobs share a label, so 8 or 64 devices stay one line.
+Indices are Slurm GRES indices, not CUDA or physical IDs. A device is `idle` only
+when Slurm's usage data shows it unused; otherwise it is `?`, as with
+`--slurm-summary`, which collects no per-job indices. MIG slices are left out of
+the map. Exports, `-A` and replay keep the devices; TPU and NPU records carry a
+`kind` field, and records without one are GPUs. To hide the lines, set this in
+your `qtopconf.yaml`:
+
+```yaml
+accelerator_map: false
+```
+
 # Experimental configured GPU pairs (Slurm)
 
 Add this optional mapping to your user `qtopconf.yaml` to display job ownership

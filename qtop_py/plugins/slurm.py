@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, List, Mapping, Match, Opt
 from qtop_py.core_api import FileEmptyError, GenericBatchSystem, StatExtractor, check_empty_file, open_input
 from qtop_py.core_hostlist import HostlistParser
 from qtop_py.plugins.slurm_extension import SLURM_EXTENSION
-from qtop_py.schedulers.gpu import parse_gpu_gres
+from qtop_py.schedulers.gpu import parse_accelerator_gres
 
 if TYPE_CHECKING:
     from typing import Final
@@ -429,16 +429,26 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
 
     @staticmethod
     def display_messages(section: str, snapshot: object, nodes: "List[Node]", config: "Config") -> List[str]:
-        """Return the Slurm notes for a section: rejected rows, accounting rules and CPU placement caveats."""
+        """Return the Slurm notes for a section: rejected rows, accounting rules, CPU placement caveats and accelerators."""
         if section == "snapshot":
             return SlurmBatchSystem._snapshot_messages(snapshot)
         if section == "accounting":
             return SlurmBatchSystem._accounting_messages(snapshot)
         if section == "placement":
             return SlurmBatchSystem._placement_messages(nodes)
-        if section == "resources" and config.get("experimental_gpu_pairs"):
-            return SlurmBatchSystem._gpu_pair_messages(nodes, config)
+        if section == "resources":
+            return SlurmBatchSystem._accelerator_messages(nodes, config) + (SlurmBatchSystem._gpu_pair_messages(nodes, config) if config.get("experimental_gpu_pairs") else [])
         return []
+
+    @staticmethod
+    def _accelerator_messages(nodes: "List[Node]", config: "Config") -> List[str]:
+        """List each node's GPUs, TPUs and NPUs with their jobs, unless accelerator_map is false."""
+        if config.get("accelerator_map", True) is False:
+            return []
+        from qtop_py.schedulers.gpu import accelerator_map_lines
+
+        lines = accelerator_map_lines(nodes)
+        return ["INFO: Accelerators by node (job IDs, ? = unknown):"] + ["INFO: " + line for line in lines] if lines else []
 
     @staticmethod
     def _snapshot_messages(snapshot: object) -> List[str]:
@@ -750,7 +760,7 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
             for raw, parsed in (("slurm_gres", "slurm_gpu_configured"), ("slurm_gres_used", "slurm_gpu_used")):
                 if raw in node:
                     try:
-                        node[parsed] = parse_gpu_gres(node[raw])
+                        node[parsed] = parse_accelerator_gres(node[raw])
                     except ValueError as error:
                         logger.warning("Ignoring invalid Slurm GPU metadata: %s", error)
         if not self.scontrol_file:
@@ -790,7 +800,7 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
                         continue
                     hosts = self.expand_nodelist(fields["Nodes"])
                     try:
-                        resources = parse_gpu_gres(fields["GRES"])
+                        resources = parse_accelerator_gres(fields["GRES"])
                     except ValueError:
                         invalid.add(job_id)
                         continue

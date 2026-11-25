@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 from qtop_py import core_safety as safety
 from qtop_py.core_api import open_input
 from qtop_py.plugins.slurm import SlurmBatchSystem, SlurmStatExtractor, slurm_accounting_state
-from qtop_py.schedulers.gpu import parse_gpu_gres
+from qtop_py.schedulers.gpu import parse_accelerator_gres
 
 if TYPE_CHECKING:
     from typing import Final
@@ -202,7 +202,7 @@ class SlurmJSONBatchSystem(SlurmBatchSystem):
                 if gres is not None:
                     if not isinstance(gres, str):
                         raise ValueError("invalid Slurm node GRES")
-                    self._gpu_inventory[name][target] = parse_gpu_gres(gres)
+                    self._gpu_inventory[name][target] = parse_accelerator_gres(gres)
             for partition in partitions or [""]:
                 nodes.append(
                     {
@@ -290,7 +290,7 @@ class SlurmJSONBatchSystem(SlurmBatchSystem):
         gres = [] if gres is None else gres
         if not isinstance(gres, list) or gres and len(gres) != len(hosts):
             raise ValueError("Slurm GRES detail does not match allocated hosts")
-        self._bindings[job["JobId"]] = {host: parse_gpu_gres(value) for host, value in zip(hosts, gres) if value is not None}
+        self._bindings[job["JobId"]] = {host: parse_accelerator_gres(value) for host, value in zip(hosts, gres) if value is not None}
         resources = row.get("job_resources")
         if resources is None:
             return  # unavailable detail is explicitly estimated by the legacy policy
