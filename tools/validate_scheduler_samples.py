@@ -197,6 +197,21 @@ STATIC_CASES = {
             ],
         }
     ],
+    "demo72": [
+        {
+            "name": "demo72-generated",
+            "source": ROOT,
+            "args": ["-c", "ON", "-F", "-b", "demo72"],
+            "markers": [
+                "This data is simulated",
+                "Summary : Total:18",
+                "Accelerators by node",
+                "tray01: gpu0",
+                "Worker Nodes occupancy",
+                "demo72 simulates one GB200 NVL72 rack",
+            ],
+        }
+    ],
 }
 
 SLURM_MARKERS_BY_SAMPLE = {

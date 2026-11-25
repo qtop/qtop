@@ -121,6 +121,23 @@ For an interactive session, use watch mode. The optional value after
 While in watch mode, the movement keys from [Keyboard shortcuts](#keyboard-shortcuts) let you move through the matrix,
 transpose it, switch node ID display, apply filters, or quit.
 
+### NVL72 demo
+
+`-b demo72` simulates one GB200 NVL72 rack, a single NVLink domain: 18 compute
+trays (`tray01`..`tray18`), each with 4 GPUs and 144 Grace cores, 36 per GPU.
+A training job holds a run of whole trays, inference and debug jobs take 1, 2 or
+4 GPUs of one tray, a tray may be down, a full-rack job waits, and one job's GPU
+details are missing, so its GPUs show as `?`. The jobs change every 20 seconds:
+
+```sh
+./qtop -b demo72 -w 5
+./qtop -b demo72 -o accelerator_map=after
+```
+
+The trays carry the same Slurm GPU records as live Slurm data, so the
+[accelerator map](#accelerators-by-node-slurm), `-A`, exports and replay work
+as they do on a real cluster.
+
 Bundled scheduler case studies
 ------------------------------
 

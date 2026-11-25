@@ -9,6 +9,7 @@ Notable changes by version, newest first. See the
 - Docs: "Using qtop as a library" documents core_api, with qtop's collector as the reference caller
 - Feature: Slurm tpu: and npu: GRES are kept beside gpu:, for any device count (kind field)
 - Feature: an accelerator map lists node GPUs/TPUs/NPUs and jobs; accelerator_map before/after/false
+- Feature: qtop -b demo72 simulates a GB200 NVL72 rack (18 trays x 4 GPUs) to try the GPU view
 - Feature: core_api.collect() returns the state, backend object and traces; collection steps public
 - Refactor: qtop's collector collects through core_api only; tests/test_core_api.py enforces it
 - Release: update version metadata to 0.9.20261123

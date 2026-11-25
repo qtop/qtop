@@ -47,6 +47,8 @@ experimental_web_port: 8080
 # schedulers:
 #   demo:
 #     demo_file: %(savepath)s/demo%(pid)s.txt, echo 'Demo here'
+#   demo72:
+#     demo72_file: %(savepath)s/demo72%(pid)s.txt, echo 'NVL72 demo here'
 #   htcondor:
 #     status_json: %(savepath)s/condor_status%(pid)s.json, condor_status -json -attributes Name,Machine,SlotType,PartitionableSlot,DynamicSlot,State,Activity,Cpus,TotalSlotCpus
 #     q_json: %(savepath)s/condor_q%(pid)s.json, condor_q -allusers -json -attributes ClusterId,ProcId,Owner,JobStatus,RemoteHost,RequestCpus,AcctGroup
