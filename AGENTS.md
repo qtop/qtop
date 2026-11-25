@@ -55,7 +55,7 @@ and note that ruff's `py37` target cannot catch 3.6 regressions, so `make compat
 
 1.3 Follow established project patterns and the OpenSSF Secure Coding Guide for Python
 as mapped in `docs/secure-coding-pyscg.md`; the runtime path stays standard-library only
-(`lxml` and `ujson` are optional accelerators with stdlib fallbacks), and new runtime
+(`ujson` is an optional accelerator with a stdlib fallback), and new runtime
 dependencies require clear justification and maintainer approval.
 
 1.4 Stop and ask before changing scheduler semantics, rendered output, or configuration

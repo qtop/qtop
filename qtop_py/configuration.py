@@ -126,7 +126,7 @@ def _validate_scalars(config: Any) -> None:
     """Required text, flag and counter settings."""
     for key in ("scheduler", "savepath", "vertical_separator", "non_existent_node_symbol"):
         _text(config.get(key), key)
-    for key in ("transpose_wn_matrices", "fill_with_user_firstletter", "faster_xml_parsing", "overwrite_sample_file", "stack_jobs_per_node"):
+    for key in ("transpose_wn_matrices", "fill_with_user_firstletter", "overwrite_sample_file", "stack_jobs_per_node"):
         value = literal(config.get(key, False) if key == "stack_jobs_per_node" else config.get(key))
         _require(type(value) in (bool, int) and value in (False, True), key, "True, False, 0 or 1")
     for key in ("vertical_separator_every_X_columns", "rem_empty_corelines", "exotic_starting_wn_nr"):
@@ -199,13 +199,10 @@ def _validate_user_accounts_header(config: "Config") -> None:
 
 
 def _validate_display(config: Any) -> None:
-    """SGE whole queues and display sections."""
-    whole_queues = config.get("sge_whole_queues")
-    _require(
-        whole_queues is None or isinstance(whole_queues, list) and all(isinstance(item, str) and bool(item.strip()) for item in whole_queues),
-        "sge_whole_queues",
-        "a list of queue names or glob patterns",
-    )
+    """Display sections, then each backend's own settings (check_config)."""
+    for backend in registry.PLUGIN_BATCH_SYSTEMS:
+        if "check_config" in vars(backend):
+            backend.check_config(config)
     parts = config.get("user_display_parts")
     allowed = ("job_accounting_summary", "workernodes_matrix", "user_accounts_pool_mappings")
     _require(isinstance(parts, list) and len(parts) <= 3 and all(part in allowed for part in parts), "user_display_parts", "up to three known display sections")
@@ -336,7 +333,6 @@ def normalize_config(raw_config: Dict[str, Any]) -> Dict[str, Any]:
     for key in (
         "transpose_wn_matrices",
         "fill_with_user_firstletter",
-        "faster_xml_parsing",
         "vertical_separator_every_X_columns",
         "overwrite_sample_file",
     ):

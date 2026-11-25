@@ -27,6 +27,7 @@ Notable changes by version, newest first. See the
 - Refactor: core modules log via getLogger(__name__), so a host app's logging is left alone
 - Refactor: extension specs live with their plugins; metadata collects them from the registry
 - Refactor: Slurm's --all, --slurm-summary and --slurm-json-squeue are declared by the plugin
+- Refactor: SGE and OAR settings belong to their plugins; the no-op faster_xml_parsing is gone
 - Tests: the concurrent-commands test checks overlap with a rendezvous, not a 1.5 s limit
 - Tests: input_parsing, user_details and snapshot reach 100% coverage (regex, groups, legacy rows)
 - Release: update version metadata to 0.9.20261122

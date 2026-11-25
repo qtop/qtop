@@ -70,17 +70,9 @@ experimental_web_port: 8080
 #     nodes_json: %(savepath)s/slurm_nodes%(pid)s.json, scontrol --json show nodes
 #     jobs_json: %(savepath)s/slurm_jobs%(pid)s.json, scontrol --json show jobs
 
-## Symbols used to summarize the resource states reported for an OAR node.
-oar_node_state_mappings:
-  Alive: '-'
-  Dead: d
-  Suspected: s
-  Mixed: '%'
-  Unknown: '?'
-
-## Utilises lxml module. Needs to be installed in your system.
-## Might result in segmentation fault in some systems.
-faster_xml_parsing: False
+## OAR only: the symbol shown for each OAR node state; set only the states to change, e.g.
+# oar_node_state_mappings:
+#   Dead: X
 
 percentage: 0.8 # if less than PERCENTAGE x 100% of the matrices have jobs, perform a blind remap
 possible_ids: 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz # IDs of unix accounts, for the lower part of qtop

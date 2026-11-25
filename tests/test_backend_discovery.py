@@ -92,3 +92,16 @@ def test_backend_options_come_from_the_plugins_once():
     assert [backend.get_mnemonic() for backend in utils.backend_option_hooks()] == ["slurm"]
     options = BackendOptions(SOURCEDIR="/traces", ALL_PARTITIONS=True)
     assert (options.SOURCEDIR, options.ALL_PARTITIONS, getattr(options, "SLURM_SUMMARY", False)) == ("/traces", True, False)
+
+
+def test_backend_settings_are_checked_by_their_plugin_and_retired_keys_are_ignored():
+    config = configuration.with_backend_defaults(yaml_parser.parse(str(ROOT / "qtopconf.yaml")))
+    config["faster_xml_parsing"] = True  # removed setting: an old configuration still loads
+    configuration.validate_config(config)
+    config["sge_whole_queues"] = ["world", " "]
+    try:
+        configuration.validate_config(config)
+    except ValueError as error:
+        assert str(error).startswith("sge_whole_queues: expected")
+    else:
+        raise AssertionError("SGEBatchSystem.check_config must reject a blank queue pattern")

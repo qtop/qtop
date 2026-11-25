@@ -98,7 +98,7 @@ include = ["qtop_py", "tools"]
 
 [tool.ty.analysis]
 # Both imports are optional accelerators; qtop has stdlib fallbacks.
-allowed-unresolved-imports = ["atheris", "lxml", "ujson"]
+allowed-unresolved-imports = ["atheris", "ujson"]
 
 [tool.ty.terminal]
 # One diagnostic per line keeps local and CI logs useful (including `ty check
@@ -141,7 +141,7 @@ show_error_context = true
 
 # Optional accelerators with stdlib fallbacks (cf. tool.ty.analysis).
 [[tool.mypy.overrides]]
-module = ["lxml", "ujson"]
+module = ["ujson"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

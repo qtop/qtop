@@ -16,7 +16,6 @@
 ##
 """qtop's command line and watch loop, plus compatibility re-exports of moved helpers."""
 
-import importlib.util
 import logging
 import os
 import subprocess  # nosec B404 - fixed /bin/cat and /usr/bin/clear argv lists, never a shell
@@ -140,12 +139,6 @@ def check_python_version() -> None:
     """Raise OperationalError unless running on Python 3."""
     if sys.version_info[0] != 3:
         raise OperationalError("Only Python 3 is supported.")
-
-
-def attempt_faster_xml_parsing(config: Dict[str, Any]) -> None:
-    """Only warn: the parsers use xml.etree either way (see faster_xml_parsing in docs/documentation.md)."""
-    if config["faster_xml_parsing"] and importlib.util.find_spec("lxml") is None:
-        logging.warning('Module lxml is missing. Try issuing "pip install lxml". Reverting to xml module.')
 
 
 def process_args(args: Any) -> Tuple[Any, int]:
@@ -332,7 +325,6 @@ def main(resources: RunResources) -> None:
                     _start_web(web, config)
                 savepath = config["savepath"]
                 timestr = time.strftime("%Y%m%dT%H%M%S")
-                attempt_faster_xml_parsing(config)
                 args = init_dirs(args, savepath)
 
                 if args.LESS:

@@ -887,16 +887,10 @@ configuration layer:
 
 #### XML parsing
 
-```yaml
----
-    faster_xml_parsing: False
----
-```
-
 SGE XML uses the standard-library parser, which rejects DTD declarations.
-No additional XML package is required. Leave ``faster_xml_parsing`` at its
-default ``False``; the current SGE parser does not switch to ``lxml`` when
-this setting is enabled.
+No additional XML package is required. The former ``faster_xml_parsing`` setting
+never switched the parser to ``lxml`` and has been removed; a configuration that
+still sets it is accepted and the value ignored.
 
 #### State abbreviations
 

@@ -59,6 +59,10 @@ class GenericBatchSystem(object):
         """Add this backend's own qtop options to the argparse parser; options are read with getattr."""
 
     @staticmethod
+    def check_config(config: "Config") -> None:
+        """Raise ValueError ("key: expected ...") if this backend's own configuration keys are malformed."""
+
+    @staticmethod
     def check_cli_options(parser: Any, args: Any) -> None:
         """Check or complete this backend's options after parsing; call parser.error() to reject them."""
 

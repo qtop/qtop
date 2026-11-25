@@ -214,6 +214,13 @@ class SGEBatchSystem(GenericBatchSystem):
         "Rr": "running_of_user",
     }
 
+    @staticmethod
+    def check_config(config: "Config") -> None:
+        """sge_whole_queues, if set, lists queue names or fnmatch globs."""
+        whole_queues = config.get("sge_whole_queues")
+        if not (whole_queues is None or isinstance(whole_queues, list) and all(isinstance(item, str) and item.strip() for item in whole_queues)):
+            raise ValueError("sge_whole_queues: expected a list of queue names or glob patterns")
+
     native_queue_membership = True
     blocked_queue_note = " (at least one queue instance)"
 
