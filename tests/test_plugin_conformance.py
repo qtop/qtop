@@ -38,7 +38,7 @@ def test_backend_is_configured_and_gated(mnemonic):
     assert mnemonic in CONFIG["schedulers"], "declare default_commands on the %s backend class" % mnemonic
     assert mnemonic in CONFIG["signature_commands"], "declare a signature_command on the %s backend class for -b auto" % mnemonic
     gate = re.search(r"^SAMPLE_GATE_SCHEDULERS \?= (\S+)$", (ROOT / "Makefile").read_text(), re.M)
-    assert gate and mnemonic in gate.group(1).split(","), "add %s to SAMPLE_GATE_SCHEDULERS in the Makefile" % mnemonic
+    assert gate and (gate.group(1) == "all" or mnemonic in gate.group(1).split(",")), "SAMPLE_GATE_SCHEDULERS must be all or list %s" % mnemonic
     assert any(case["scheduler"] == mnemonic for case in SAMPLE_CASES), "add a %s sample to tools/validate_scheduler_samples.py" % mnemonic
 
 
