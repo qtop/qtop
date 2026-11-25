@@ -6,6 +6,7 @@ Notable changes by version, newest first. See the
 ## 0.9.20261122
 
 - Bugfix: SonarCloud findings on 1e01dac: SGE no-op self-assignments, uneven scheduler error lines
+- Bugfix: -R mmddTHHMM parses with the current year, so 29 February works (and Python 3.15 agrees)
 - CI: slow sdist/wheel install tests move to make test-packaging, run by the build jobs and nightly
 - CI: nightly splits into a blocking 8-lane core run and a 26-lane wide run that may be flaky
 - CI: PRs run the core debian:bookworm lane (root, distro Python), as nightly failures came from it
@@ -15,6 +16,7 @@ Notable changes by version, newest first. See the
 - Docs: the README calls the terminal interface fast, not extremely fast
 - Refactor: one core_process helper starts commands and checks timeouts; dead comments gone
 - Tests: the concurrent-commands test checks overlap with a rendezvous, not a 1.5 s limit
+- Tests: input_parsing, user_details and snapshot reach 100% coverage (regex, groups, legacy rows)
 - Release: update version metadata to 0.9.20261122
 
 ## 0.9.20261121
