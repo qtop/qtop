@@ -30,6 +30,7 @@ Notable changes by version, newest first. See the
 - Refactor: Slurm's --all, --slurm-summary and --slurm-json-squeue are declared by the plugin
 - Refactor: SGE and OAR settings belong to their plugins; the no-op faster_xml_parsing is gone
 - Refactor: plugins declare their commands' environment; Slurm's SLURM_BITSTR_LEN=0 moved there
+- Refactor: complexity cap 20 -> 19: Slurm GPU details, Slurm notes and the / and : prompts split
 - Tests: the concurrent-commands test checks overlap with a rendezvous, not a 1.5 s limit
 - Tests: input_parsing, user_details and snapshot reach 100% coverage (regex, groups, legacy rows)
 - Release: update version metadata to 0.9.20261122

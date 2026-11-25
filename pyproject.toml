@@ -73,10 +73,10 @@ lint.extend-select = [
 lint.ignore = ["D105", "D107"]
 lint.per-file-ignores = { "tests/**" = ["D"] }
 lint.pydocstyle.convention = "google"
-# C90 (mccabe): the limit passes today; lower it as functions are split. At 20 now:
-# yaml_parser.read_yaml_config_block, slurm._apply_gpu_allocations.
-# FIXME: max-complexity 15 needs 10 functions split, 10 (mccabe's default) needs 34.
-lint.mccabe.max-complexity = 20
+# C90 (mccabe): the limit passes today; lower it as functions are split. At 19 now:
+# core_yaml_parser.read_yaml_config_block, core_cluster_state.validate_cluster_state.
+# FIXME: max-complexity 15 needs 13 functions split, 10 (mccabe's default) needs 31.
+lint.mccabe.max-complexity = 19
 
 # Ruff still exposes py37 as its lowest target; Python 3.6 runtime
 # compatibility stays covered by the separate compat-py36 gate.

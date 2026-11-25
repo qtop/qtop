@@ -45,10 +45,9 @@ def write_notice(message: str, viewport: Viewport) -> None:
     print("\r\x1b[2K" + row, end="", flush=True)
 
 
-def navigate_prompt(model: Any, keyboard: KeyboardInput, action: str, output_fp: Optional[str]) -> None:
-    """Read a literal search or one-based displayed-row address on the notice row."""
+def _read_prompt(model: Any, keyboard: KeyboardInput, prefix: str) -> Optional[str]:
+    """Echo and edit text on the notice row until Enter; return it, or None for Escape."""
     text = ""
-    prefix = "/" if action == "search" else ":"
     while True:
         shown = list(terminal_rows([prefix + visible_text(text)], model.viewport.h_term_size))[-1].rstrip("\n")
         print("\r\x1b[2K" + shown, end="", flush=True)
@@ -62,18 +61,11 @@ def navigate_prompt(model: Any, keyboard: KeyboardInput, action: str, output_fp:
         elif len(text) < 256 and len(char) == 1 and char.isprintable():
             text += char
     print("\r\x1b[2K", end="", flush=True)
-    if char == "\x1b":
-        return
-    if action == "line":
-        if text.isdecimal() and int(text) > 0:
-            model.viewport.v_start = int(text) - 1
-        else:
-            write_notice("Enter a positive displayed line number", model.viewport)
-        return
-    text = text or model.display_overrides.get("search_text", "")
-    if not text or not output_fp:
-        return
-    model.display_overrides["search_text"] = text
+    return None if char == "\x1b" else text
+
+
+def _search(model: Any, text: str, output_fp: str) -> None:
+    """Move to the next displayed row containing text, wrapping to the first match."""
     first = None
     with open(output_fp, encoding="utf-8") as source:
         start = 0
@@ -92,6 +84,24 @@ def navigate_prompt(model: Any, keyboard: KeyboardInput, action: str, output_fp:
         model.viewport.v_start = first
     else:
         write_notice("Pattern not found", model.viewport)
+
+
+def navigate_prompt(model: Any, keyboard: KeyboardInput, action: str, output_fp: Optional[str]) -> None:
+    """Read a literal search or one-based displayed-row address on the notice row."""
+    text = _read_prompt(model, keyboard, "/" if action == "search" else ":")
+    if text is None:
+        return
+    if action == "line":
+        if text.isdecimal() and int(text) > 0:
+            model.viewport.v_start = int(text) - 1
+        else:
+            write_notice("Enter a positive displayed line number", model.viewport)
+        return
+    text = text or model.display_overrides.get("search_text", "")
+    if not text or not output_fp:
+        return
+    model.display_overrides["search_text"] = text
+    _search(model, text, output_fp)
 
 
 def choose_sort(viewport: Viewport, display_overrides: Dict[str, Any], old_attrs: Any, new_attrs: Any, colorize: Callable[..., Any]) -> None:
