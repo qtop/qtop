@@ -3,6 +3,10 @@
 Notable changes by version, newest first. See the
 [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 
+## 0.9.20261123
+
+- Release: update version metadata to 0.9.20261123
+
 ## 0.9.20261122
 
 - Bugfix: SonarCloud findings on 1e01dac: SGE no-op self-assignments, uneven scheduler error lines
