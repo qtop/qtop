@@ -98,3 +98,19 @@ def f(value):
     assert _type_only_imports_used_only_in_function_bodies(tree) == ["Local"]
     assert _all_unused_unpackings(tree) == ["line 6: _a, _b"]
     assert _attribute_self_assignments(tree) == ["line 8"]
+
+
+def test_backend_base_class_declares_no_constructor():
+    """py/missing-call-to-init: every backend defines __init__(files, config, options) without
+    calling the base class, so GenericBatchSystem must not define one (core_collect casts instead)."""
+    from qtop_py.core_serialiser import GenericBatchSystem
+
+    assert "__init__" not in vars(GenericBatchSystem)
+
+
+def test_metadata_reaches_the_registry_only_at_run_time():
+    """py/cyclic-import: plugins import metadata, so metadata must not import the registry statically."""
+    tree = ast.parse((ROOT / "qtop_py/schedulers/metadata.py").read_text(encoding="utf-8"))
+    imported = {alias.name for node in ast.walk(tree) if isinstance(node, ast.Import) for alias in node.names}
+    imported |= {"%s.%s" % (node.module, alias.name) for node in ast.walk(tree) if isinstance(node, ast.ImportFrom) for alias in node.names}
+    assert not any("registry" in name for name in imported)

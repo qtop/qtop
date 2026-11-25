@@ -8,6 +8,7 @@ registry is read on first use, not at import. A replayed or --load-sample state 
 against every registered backend's spec, whichever backend produced it.
 """
 
+import importlib
 from functools import lru_cache
 from typing import TYPE_CHECKING, Any, Callable, Dict, Mapping, NamedTuple, Optional, Tuple, cast
 
@@ -30,7 +31,8 @@ Extensions = NamedTuple(
 @lru_cache(maxsize=None)
 def extensions() -> Extensions:
     """Return the registered backends' ExtensionSpecs, each once, and what they declare together."""
-    from qtop_py.schedulers import registry  # here: the plugins that registry loads import this module
+    # Deliberate, resolved at first use: the registry loads the plugins, and plugins import this module.
+    registry = importlib.import_module("qtop_py.schedulers.registry")
 
     specs: Tuple[ExtensionSpec, ...] = ()
     for backend in registry.PLUGIN_BATCH_SYSTEMS:

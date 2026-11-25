@@ -11,7 +11,7 @@ import concurrent.futures
 import logging
 import os
 import threading
-from typing import TYPE_CHECKING, Any, Dict, Mapping, Optional, Tuple, Type
+from typing import TYPE_CHECKING, Any, Dict, Mapping, Optional, Tuple, Type, cast
 
 from qtop_py import core_process as process
 from qtop_py.core_cluster_state import validate_cluster_state
@@ -161,5 +161,6 @@ def collect_state(
     if not options.SOURCEDIR and env is None:
         raise ValueError("collect_state needs env= (e.g. os.environ) to run the scheduler commands")
     collected = None if options.SOURCEDIR else run_commands(lines, backend, workdir, env or {}, timeout=timeout, cancel=cancel)
-    system = backend(trace_files(lines, backend, options, collected), dict(config or {}), options)
+    # Every backend defines __init__(files, config, options); the base class declares none (CodeQL py/missing-call-to-init).
+    system = cast(Any, backend)(trace_files(lines, backend, options, collected), dict(config or {}), options)
     return validate_cluster_state(system.get_cluster_state(options))
