@@ -138,7 +138,7 @@ on both forges:
 | wide | `nightly-wide.yml`; GitLab job `nightly-wide` (`allow_failure`) | 26 | possible distro, mirror or interpreter drift: look when convenient |
 
 The core lanes take one lane per dimension that has caught regressions:
-python.org CPython 3.11 and 3.14, Debian bookworm and Ubuntu 24.04 system
+python.org CPython 3.12 and 3.15, Debian bookworm and Ubuntu 24.04 system
 Python, Fedora 42, AlmaLinux 9 with Python 3.12, and the runtime floors
 AlmaLinux 8 Python 3.6 and Rocky Linux 9 system Python 3.9 (`compat-py36`).
 Pull requests also run the core `debian:bookworm` lane (job `nightly-lane` in

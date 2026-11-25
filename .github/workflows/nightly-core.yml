@@ -6,7 +6,7 @@
 ## SPDX-License-Identifier: MIT
 ##
 # Nightly core (#488): 8 blocking lanes, one per dimension that has caught
-# regressions -- python.org images (oldest/newest supported), Debian and Ubuntu
+# regressions -- python.org CPython 3.12 and 3.15 images, Debian and Ubuntu
 # system interpreters, Fedora's new toolchain, RHEL-family Python 3.12, and the
 # Python 3.6 and RHEL 9 system 3.9 runtime floors (compat-py36). A red core
 # run is a qtop regression to fix. nightly-wide.yml runs the other lanes,
@@ -82,8 +82,8 @@ jobs:
       # to its default -- pkgs: '-', pybin: python3, target: ci.
       matrix:
         include:
-          - { image: 'python:3.11-bookworm', family: pythonimg, pybin: python }
-          - { image: 'python:3.14-bookworm', family: pythonimg, pybin: python }
+          - { image: 'python:3.12-bookworm', family: pythonimg, pybin: python }
+          - { image: 'python:3.15-bookworm', family: pythonimg, pybin: python }
           - { image: 'debian:bookworm', family: debian, pkgs: 'python3,python3-venv,python3-pip' }
           - { image: 'ubuntu:24.04', family: debian, pkgs: 'python3,python3-venv,python3-pip' }
           - { image: 'fedora:42', family: fedora, pkgs: 'python3,python3-pip' }

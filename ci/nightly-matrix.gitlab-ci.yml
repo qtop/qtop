@@ -40,7 +40,7 @@ nightly-core:
   extends: .nightly-lane-base
   parallel:
     matrix:
-      - IMAGE: ['python:3.11-bookworm', 'python:3.14-bookworm']
+      - IMAGE: ['python:3.12-bookworm', 'python:3.15-bookworm']
         FAMILY: pythonimg
         PKGS: '-'
         PYBIN: python
@@ -76,7 +76,7 @@ nightly-wide:
   allow_failure: true
   parallel:
     matrix:
-      - IMAGE: ['python:3.12-bookworm', 'python:3.13-bookworm', 'python:3.15.2-bookworm']
+      - IMAGE: ['python:3.11-bookworm', 'python:3.13-bookworm', 'python:3.14-bookworm']
         FAMILY: pythonimg
         PKGS: '-'
         PYBIN: python

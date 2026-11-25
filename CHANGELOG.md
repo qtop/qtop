@@ -10,6 +10,7 @@ Notable changes by version, newest first. See the
 - CI: nightly splits into a blocking 8-lane core run and a 26-lane wide run that may be flaky
 - CI: PRs run the core debian:bookworm lane (root, distro Python), as nightly failures came from it
 - CI: scheduled nightly runs test develop, not main, so a regression shows up the day after merge
+- CI: nightly core runs python:3.12-bookworm and python:3.15-bookworm; 3.11 and 3.14 move to wide
 - Docs: Slurm JSON v0.0.46 is checked against Slurm 26.11.0, not 26.11.0rc1; hres node field ignored
 - Tests: the concurrent-commands test checks overlap with a rendezvous, not a 1.5 s limit
 - Release: update version metadata to 0.9.20261122
