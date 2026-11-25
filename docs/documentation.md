@@ -1584,7 +1584,11 @@ finds every `GenericBatchSystem` subclass defined in a `qtop_py/plugins/` module
 there is nothing to register; other packages add backends through the
 `qtop.backends` entry-point group (Python 3.8+). Configuration layers override the
 declared defaults per key, and matrix rows without a `systems:` list (the default
-ones) already apply to it. Then:
+ones) already apply to it. Its own command-line switches come from the
+`add_cli_options(parser)` and `check_cli_options(parser, args)` hooks, as Slurm's
+`--all`, `--slurm-summary` and `--slurm-json-squeue` do; the backend reads them with
+`getattr` and a default, and `core_api.BackendOptions(**options)` passes them without
+the CLI. Then:
 
 1. Add the default commands to the commented list in `qtopconf.yaml`
    (`tests/test_backend_discovery.py` checks the copy).

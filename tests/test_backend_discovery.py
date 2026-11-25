@@ -82,3 +82,13 @@ def test_qtopconf_lists_the_plugins_default_commands_verbatim(tmp_path):
     path = tmp_path / "schedulers.yaml"
     path.write_text("schedulers:\n" + re.sub(r"^# ", "", block, flags=re.M))
     assert yaml_parser.parse(str(path))["schedulers"] == registry.backend_defaults(registry.discover_qtop_batch_systems())["schedulers"]
+
+
+def test_backend_options_come_from_the_plugins_once():
+    """slurm_json inherits Slurm's option hooks; they must register once, or argparse would refuse them."""
+    from qtop_py import utils
+    from qtop_py.core_api import BackendOptions
+
+    assert [backend.get_mnemonic() for backend in utils.backend_option_hooks()] == ["slurm"]
+    options = BackendOptions(SOURCEDIR="/traces", ALL_PARTITIONS=True)
+    assert (options.SOURCEDIR, options.ALL_PARTITIONS, getattr(options, "SLURM_SUMMARY", False)) == ("/traces", True, False)

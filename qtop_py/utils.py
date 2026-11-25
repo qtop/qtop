@@ -14,7 +14,7 @@ import logging
 import os
 import sys
 from argparse import ArgumentParser, Namespace
-from typing import Any, Callable, Dict, Iterator, Optional
+from typing import Any, Callable, Dict, Iterator, List, Optional
 
 from qtop_py import fileutils
 from qtop_py.constants import QTOP_LOGFILE
@@ -75,6 +75,13 @@ def init_logging(options: Any) -> None:
     logging.debug("input, output isatty: %s\t%s", sys.stdin.isatty(), sys.stdout.isatty())
 
 
+def backend_option_hooks() -> List[Any]:
+    """Return the backends that declare their own command-line options (inherited hooks run once)."""
+    from qtop_py.schedulers import registry
+
+    return [backend for backend in registry.PLUGIN_BATCH_SYSTEMS if "add_cli_options" in vars(backend) or "check_cli_options" in vars(backend)]
+
+
 def parse_qtop_cmdline_args() -> Namespace:
     """Parse qtop's command-line options."""
     parser = ArgumentParser(prog="qtop", description="")
@@ -107,21 +114,10 @@ def parse_qtop_cmdline_args() -> Namespace:
         default=False,
         help="Mask identifiers where supported by the backend. With -L, save a reproducible masked state/config snapshot instead of raw traces and logs.",
     )
-    slurm_mode = parser.add_mutually_exclusive_group()
-    slurm_mode.add_argument(
-        "--slurm-summary",
-        action="store_true",
-        dest="SLURM_SUMMARY",
-        help="Use only Slurm sinfo/squeue on each display cycle; CPU placement is estimated and per-job GPU indices are unavailable",
-    )
-    slurm_mode.add_argument("--slurm-json-squeue", action="store_true", dest="SLURM_JSON_SQUEUE", help="Use squeue --json for slurm_json jobs when scontrol returns empty job JSON")
     parser.add_argument("-b", "--batchSystem", action="store", dest="BATCH_SYSTEM", default=None)
-    parser.add_argument(
-        "--all",
-        action="store_true",
-        dest="ALL_PARTITIONS",
-        help="Include hidden and group-unavailable partitions in live Slurm queries (subject to permissions)",
-    )
+    backends = backend_option_hooks()
+    for backend in backends:
+        backend.add_cli_options(parser)
     parser.add_argument(
         "-c",
         "--COLOR",
@@ -281,10 +277,8 @@ def parse_qtop_cmdline_args() -> Namespace:
     args = parser.parse_args()
     if args.EXPAND_QUEUES:
         args.NO_WRAP_QUEUES = False
-    if args.SLURM_SUMMARY:
-        if args.BATCH_SYSTEM and args.BATCH_SYSTEM.lower() not in ("auto", "slurm"):
-            parser.error("--slurm-summary requires -b slurm or auto")
-        args.BATCH_SYSTEM = "slurm"
+    for backend in backends:
+        backend.check_cli_options(parser, args)
     if args.SHOW_QUEUE_NODES and not args.EXPERIMENTAL:
         parser.error("--queue-nodes requires -e/--experimental")
     if args.REPLAY and len(args.REPLAY) > 2:

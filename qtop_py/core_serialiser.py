@@ -53,6 +53,15 @@ class GenericBatchSystem(object):
     # Each backend declares its own defaults; schedulers.registry reads only what a class declares
     # itself, and the configuration layers override them per key (qtopconf.yaml schedulers: etc.).
     signature_command: Optional[str] = None  # a command whose presence means this scheduler (-b auto)
+
+    @staticmethod
+    def add_cli_options(parser: Any) -> None:
+        """Add this backend's own qtop options to the argparse parser; options are read with getattr."""
+
+    @staticmethod
+    def check_cli_options(parser: Any, args: Any) -> None:
+        """Check or complete this backend's options after parsing; call parser.error() to reject them."""
+
     default_commands: Mapping[str, str] = {}  # trace key -> "savepath file template, command"
     state_abbreviations: Mapping[str, str] = {}  # scheduler job state -> qtop state name
     # A backend whose records carry extra fields declares their ExtensionSpec here; metadata collects

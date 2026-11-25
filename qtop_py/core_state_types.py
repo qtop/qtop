@@ -136,7 +136,7 @@ if TYPE_CHECKING:
     class Options(Protocol):
         """The run options a backend may read: the CLI's namespace, or core_api.BackendOptions.
 
-        ALL_PARTITIONS, SLURM_SUMMARY and SLURM_JSON_SQUEUE are optional and read with getattr.
+        A backend's own switches (add_cli_options) are optional and read with getattr.
         """
 
         SOURCEDIR: Optional[str]

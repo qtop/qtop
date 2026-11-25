@@ -16,8 +16,8 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, List, Mapping, Match, Opt
 
 from qtop_py.core_api import FileEmptyError, GenericBatchSystem, StatExtractor, check_empty_file, open_input
 from qtop_py.core_hostlist import HostlistParser
-from qtop_py.schedulers.gpu import parse_gpu_gres
 from qtop_py.plugins.slurm_extension import SLURM_EXTENSION
+from qtop_py.schedulers.gpu import parse_gpu_gres
 
 if TYPE_CHECKING:
     from typing import Final
@@ -365,6 +365,34 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
         "S": "suspended_of_user",
         "ST": "stopped_of_user",
     }
+
+    @staticmethod
+    def add_cli_options(parser: Any) -> None:
+        """--slurm-summary, --slurm-json-squeue and --all, for the slurm and slurm_json backends."""
+        slurm_mode = parser.add_mutually_exclusive_group()
+        slurm_mode.add_argument(
+            "--slurm-summary",
+            action="store_true",
+            dest="SLURM_SUMMARY",
+            help="Use only Slurm sinfo/squeue on each display cycle; CPU placement is estimated and per-job GPU indices are unavailable",
+        )
+        slurm_mode.add_argument(
+            "--slurm-json-squeue", action="store_true", dest="SLURM_JSON_SQUEUE", help="Use squeue --json for slurm_json jobs when scontrol returns empty job JSON"
+        )
+        parser.add_argument(
+            "--all",
+            action="store_true",
+            dest="ALL_PARTITIONS",
+            help="Include hidden and group-unavailable partitions in live Slurm queries (subject to permissions)",
+        )
+
+    @staticmethod
+    def check_cli_options(parser: Any, args: Any) -> None:
+        """--slurm-summary selects the legacy slurm backend; it accepts -b slurm or auto."""
+        if getattr(args, "SLURM_SUMMARY", False):
+            if args.BATCH_SYSTEM and args.BATCH_SYSTEM.lower() not in ("auto", "slurm"):
+                parser.error("--slurm-summary requires -b slurm or auto")
+            args.BATCH_SYSTEM = "slurm"
 
     native_queue_membership = True
     optional_trace_keys: Tuple[str, ...] = ("scontrol_file",)

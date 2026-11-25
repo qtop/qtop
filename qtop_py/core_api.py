@@ -13,7 +13,7 @@ Python 3.6: import them from qtop_py.core_state_types under ``if TYPE_CHECKING:`
 tests/test_core_api.py pins this surface.
 """
 
-from typing import Optional
+from typing import Any, Optional
 
 from qtop_py.core_cluster_state import build_cluster_state, validate_cluster_state
 from qtop_py.core_errors import OperationalError
@@ -39,13 +39,13 @@ __all__ = [
 class BackendOptions(object):
     """The run options a backend may read, for callers without qtop's command line.
 
-    SOURCEDIR: read traces from this directory instead of running commands. ALL_PARTITIONS,
-    SLURM_SUMMARY and SLURM_JSON_SQUEUE: Slurm collection switches (qtop --all, --slurm-summary,
-    --slurm-json-squeue).
+    SOURCEDIR: read traces from this directory instead of running commands. Any other keyword
+    becomes an attribute: a backend's own switches, with the names its add_cli_options() gives
+    them (e.g. Slurm's ALL_PARTITIONS, SLURM_SUMMARY, SLURM_JSON_SQUEUE). Backends read those
+    with getattr and a default, so an option left out means the default.
     """
 
-    def __init__(self, SOURCEDIR: Optional[str] = None, ALL_PARTITIONS: bool = False, SLURM_SUMMARY: bool = False, SLURM_JSON_SQUEUE: bool = False) -> None:
+    def __init__(self, SOURCEDIR: Optional[str] = None, **backend_options: Any) -> None:
         self.SOURCEDIR = SOURCEDIR
-        self.ALL_PARTITIONS = ALL_PARTITIONS
-        self.SLURM_SUMMARY = SLURM_SUMMARY
-        self.SLURM_JSON_SQUEUE = SLURM_JSON_SQUEUE
+        for name, value in backend_options.items():
+            setattr(self, name, value)
