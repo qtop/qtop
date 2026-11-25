@@ -75,6 +75,11 @@ Reproduce an anonymized support snapshot (made with
 .BR "\-L \-A" )
 without scheduler commands.
 .TP
+.B \-\-slurm-summary
+Collect only sinfo and squeue on each display cycle, with the legacy slurm
+backend; see
+.BR "SLURM SUMMARY COLLECTION" .
+.TP
 .B \-\-slurm-json-squeue
 Use squeue \-\-json \-\-states=all for slurm_json jobs instead of
 scontrol JSON, for clients returning empty job responses.
