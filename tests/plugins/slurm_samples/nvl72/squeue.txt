@@ -1,0 +1,4 @@
+301|alice|R|gpu|576|nvl[015-022]|cpu=576,gres/gpu=32|gres/gpu:gb200:4|N/A
+302|bob|R|gpu|720|nvl[001-010]|cpu=720,gres/gpu=40|gres/gpu:gb200:4|N/A
+303|carol|R|gpu|72|nvl[023-024]|cpu=72,gres/gpu=4|gres/gpu:gb200:2|N/A
+304|dave|PD|gpu|288|(Resources)|cpu=288,gres/gpu=16|gres/gpu:gb200:4|N/A

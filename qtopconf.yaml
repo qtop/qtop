@@ -14,6 +14,10 @@ scheduler: auto
 ## before or after the matrix (false, the default, shows only the cells).
 ## accelerator_map: before
 
+## Experimental: Slurm topology/block blocks (e.g. GB200/GB300 NVL72 NVLink domains), one line
+## each with free nodes, idle accelerators and jobs spanning blocks; disabled unless set to true.
+## experimental_nvlink_blocks: true
+
 ## Experimental, administrator-verified Slurm GPU pairs; disabled unless configured.
 ## Node ranges use Slurm hostlist syntax. Indices are Slurm GRES indices, not CUDA IDs.
 ## experimental_gpu_pairs:
@@ -71,6 +75,7 @@ experimental_web_port: 8080
 #     squeue_file: %(savepath)s/squeue%(pid)s.txt, squeue --states=all -r -h -O 'JobID:0|,UserName:0|,StateCompact:0|,Partition:0|,NumCPUs:0|,NodeList:0|,tres-alloc:0|,tres-per-node:0|,tres-per-task:0|,ArrayJobID:0|,ArrayTaskID:0'
 #     sinfo_file: %(savepath)s/sinfo%(pid)s.txt, sinfo -N -h -O 'NodeList:0|,Partition:0|,StateCompact:0|,CPUs:0|,Gres:0|,GresUsed:0|,Available:0'
 #     scontrol_file: %(savepath)s/scontrol%(pid)s.txt, scontrol --details show jobs
+#     topology_file: %(savepath)s/topology%(pid)s.txt, scontrol show topology
 #   slurm_json:
 #     partitions_json: %(savepath)s/slurm_partitions%(pid)s.json, scontrol --json show partitions
 #     nodes_json: %(savepath)s/slurm_nodes%(pid)s.json, scontrol --json show nodes

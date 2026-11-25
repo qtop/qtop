@@ -218,6 +218,16 @@ def accelerator_map_placement(value: Any) -> str:
     raise ValueError("accelerator_map: expected before, after or false")
 
 
+def switch(value: Any, key: str) -> bool:
+    """Return a yes/no setting as a bool: YAML text and Python values (true/false, yes/no, on/off, 1/0)."""
+    text = str(value).strip().lower()
+    if text in ("true", "yes", "on", "1"):
+        return True
+    if text in ("false", "no", "off", "0", "none", ""):
+        return False
+    raise ValueError("%s: expected true or false" % key)
+
+
 def _validate_display(config: Any) -> None:
     """Display sections, then each backend's own settings (check_config)."""
     for backend in registry.PLUGIN_BATCH_SYSTEMS:
@@ -227,6 +237,7 @@ def _validate_display(config: Any) -> None:
     allowed = ("job_accounting_summary", "workernodes_matrix", "user_accounts_pool_mappings")
     _require(isinstance(parts, list) and len(parts) <= 3 and all(part in allowed for part in parts), "user_display_parts", "up to three known display sections")
     accelerator_map_placement(config.get("accelerator_map", "off"))
+    switch(config.get("experimental_nvlink_blocks", False), "experimental_nvlink_blocks")
 
 
 def _validate_colors(config: Any) -> None:
@@ -360,6 +371,7 @@ def normalize_config(raw_config: Dict[str, Any]) -> Dict[str, Any]:
         config[key] = literal(config[key])
     config["stack_jobs_per_node"] = bool(literal(config.get("stack_jobs_per_node", False)))
     config["accelerator_map"] = accelerator_map_placement(config.get("accelerator_map", "off"))
+    config["experimental_nvlink_blocks"] = switch(config.get("experimental_nvlink_blocks", False), "experimental_nvlink_blocks")
     config["sorting"]["reverse"] = literal(config["sorting"].get("reverse", "0"))
     wn_id_lines = config["workernodes_matrix"][0]["wn id lines"]
     config["ALT_LABEL_COLORS"] = yaml_parser.fix_config_list(wn_id_lines["alt_label_colors"])
@@ -382,6 +394,11 @@ def update_config_with_cmdline_vars(args: Any, config: Dict[str, Any]) -> Dict[s
     for opt in getattr(args, "OPTION", ()):
         key, val = get_key_val_from_option_string(opt)
         config[key] = literal(val)
+    try:  # -o comes after normalize_config: read these settings the same way, e.g. -o experimental_nvlink_blocks=true
+        config["accelerator_map"] = accelerator_map_placement(config.get("accelerator_map", "off"))
+        config["experimental_nvlink_blocks"] = switch(config.get("experimental_nvlink_blocks", False), "experimental_nvlink_blocks")
+    except ValueError as error:
+        raise OperationalError("Invalid -o option: %s" % error) from error
 
     if getattr(args, "TRANSPOSE", False):
         config["transpose_wn_matrices"] = not config["transpose_wn_matrices"]

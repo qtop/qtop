@@ -1,0 +1,2 @@
+BlockName=nvl72_01 BlockIndex=0 Nodes=nvl[001-018] BlockSize=18
+BlockName=nvl72_02 BlockIndex=1 Nodes=nvl[019-036] BlockSize=18

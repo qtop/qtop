@@ -223,7 +223,17 @@ SLURM_MARKERS_BY_SAMPLE = {
     "large_multi_partition": ["Summary : Total:18 Up:17 Free:10 Nodes", "104/288 cores", "6=3+1+2 jobs"],
     "mixed": ["Summary : Total:2 Up:1 Free:0 Nodes", "4/16 cores", "4=2+0+2 jobs"],
     "multi_partition": ["Summary : Total:2 Up:2 Free:1 Nodes", "4/32 cores", "3=2+1+0 jobs"],
+    "nvl72": [
+        "Summary : Total:36 Up:35 Free:15 Nodes",
+        "1368/5184 cores",
+        "4=3+1+0 jobs",
+        "nvl72_01: 18 nodes (4 free, 14 busy), gpu 16/72 idle, jobs across blocks: 301",
+        "nvl72_02: 18 nodes (11 free, 6 busy), gpu 52/72 idle, jobs across blocks: 301",
+    ],
 }
+
+# Extra flags per Slurm sample, e.g. to switch on the experimental feature the sample shows.
+SLURM_ARGS_BY_SAMPLE = {"nvl72": ["-o", "experimental_nvlink_blocks=true"]}
 
 COMMON_RENDER_MARKERS = [
     "Worker Nodes occupancy",
@@ -588,6 +598,7 @@ def discover_cases(schedulers, slurm_samples_dir):
                         "name": "slurm-%s" % sample_dir.name,
                         "scheduler": "slurm",
                         "source": sample_dir,
+                        "args": ["-s", str(sample_dir), "-c", "ON", "-F", "-b", "slurm"] + SLURM_ARGS_BY_SAMPLE.get(sample_dir.name, []),
                         "markers": SLURM_MARKERS_BY_SAMPLE[sample_dir.name] + COMMON_RENDER_MARKERS,
                         "colour_expectations": list(COMMON_COLOUR_EXPECTATIONS),
                     }

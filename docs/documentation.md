@@ -633,6 +633,7 @@ schedulers:
     squeue_file: %(savepath)s/squeue%(pid)s.txt, squeue -r -h -O 'JobID:0|,UserName:0|,StateCompact:0|,Partition:0|,NumCPUs:0|,NodeList:0|,tres-alloc:0|,tres-per-node:0|,tres-per-task:0|,ArrayJobID:0|,ArrayTaskID:0'
     sinfo_file: %(savepath)s/sinfo%(pid)s.txt, sinfo -N -h -O 'NodeList:0|,Partition:0|,StateCompact:0|,CPUs:0|,Gres:0|,GresUsed:0|,Available:0'
     scontrol_file: %(savepath)s/scontrol%(pid)s.txt, scontrol --details show jobs
+    topology_file: %(savepath)s/topology%(pid)s.txt, scontrol show topology
   demo:
     demo_file: %(savepath)s/demo%(pid)s.txt, echo 'Demo here'
 ```
@@ -1083,7 +1084,7 @@ Pass a tarball directly to ``-s`` to replay native scheduler input:
 Plain, gzip, bzip2 and xz tar archives are supported. Members are grouped by
 parent directory and shared capture suffix: ``squeue_123.txt``, ``sinfo_123.txt``
 and ``scontrol_123.txt`` form one set. Required files must all be present;
-Slurm's ``scontrol`` details are optional. qtop prefers sets with more configured
+Slurm's ``scontrol`` details and ``topology`` blocks are optional. qtop prefers sets with more configured
 files, then the lexicographically last directory/suffix, independent of member
 order. This ordering does not infer capture time. Duplicate members make a set
 ambiguous and ineligible. ``-d`` logs the selected set and member names.
@@ -1259,6 +1260,7 @@ to turn it on; "checked" means qtop refuses to start without the stated options.
 | Masked scheduler-format traces in a support archive | `--masked-traces` | `-L -A -e` | [support archives](#support-archives) |
 | Separate private archive of unmasked inputs | `--raw-companion` | `-L -A -e` | [support archives](#support-archives) |
 | Configured GPU pairs below the matrix (Slurm) | `experimental_gpu_pairs` in user `qtopconf.yaml` | none | [GPU pairs](#experimental-configured-gpu-pairs-slurm) |
+| Topology blocks / NVLink domains (Slurm) | `experimental_nvlink_blocks: true` in user `qtopconf.yaml` | none | [Topology blocks](#experimental-topology-blocks-nvlink-domains-slurm) |
 
 `-A` is not experimental.
 
@@ -1434,6 +1436,48 @@ INFO: npu007: npu0-7=idle
 
 Consecutive devices with the same jobs share a label, so 8 or 64 devices stay one
 line. When the node matrix is hidden (`-2`), these lines join the scheduler messages.
+
+# Experimental topology blocks: NVLink domains (Slurm)
+
+GB200/GB300 NVL72-class clusters describe each NVLink domain (rack) to Slurm as a
+block of the `topology/block` plugin, in `topology.conf`
+(`BlockName=nvl72_01 Nodes=nvl[001-018]`) or `topology.yaml` (`block:` / `blocks:`).
+qtop reads them from `scontrol show topology`, collected as the optional
+`topology_file` trace, and lists each block below the accelerator map:
+
+```text
+INFO: Topology blocks (Slurm topology/block, e.g. NVLink domains):
+INFO: nvl72_01: 18 nodes (4 free, 14 busy), gpu 16/72 idle, jobs across blocks: 301
+INFO: nvl72_02: 18 nodes (11 free, 6 busy), gpu 52/72 idle, jobs across blocks: 301
+```
+
+Free nodes are idle and run no jobs, as in the Summary's `Free`; busy nodes run
+jobs; the rest are down, drained or reserved. Accelerators count as idle as in the
+accelerator map, so unknown usage (`?`) is not idle. Jobs across blocks run on
+nodes of more than one block, so their GPUs do not share one NVLink domain.
+
+Only `BlockName=` records are used: `AggregatedBlock=` records (higher
+`BlockSizes` levels) and `topology/tree` switches are not NVLink domains and are
+ignored. Slurm does not document this output, so qtop follows Slurm's own
+`topology/block` printer: one `BlockName=<name> BlockIndex=<n> Nodes=<hostlist>
+BlockSize=<n>` line per block. A cluster without `topology/block`, a failed
+command or a missing trace shows no blocks; failures are logged, not displayed.
+`--slurm-summary` does not collect the trace. For offline input, save the output
+as `topology.txt` alongside `squeue.txt` and `sinfo.txt`.
+
+Each node in a block carries its name in `slurm_block`. Exports and replay keep
+it; `-A` masks block names (`b_anon_block_0`, ...) in the state and in the
+masked `topology.txt` trace, keeping the grouping.
+
+The lines are experimental and hidden unless you enable them in your `qtopconf.yaml`
+(or with `-o experimental_nvlink_blocks=true`):
+
+```yaml
+experimental_nvlink_blocks: true
+```
+
+The trace is collected either way, so support archives and replays carry the
+blocks; enabling the lines later shows them for saved input too.
 
 # Experimental configured GPU pairs (Slurm)
 

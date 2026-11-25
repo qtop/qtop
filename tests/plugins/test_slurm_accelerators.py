@@ -181,3 +181,30 @@ def test_untransposed_matrices_list_gpu_lines_above_the_core_lines(tmp_path):
 def test_job_id_lines_can_still_join_the_matrix(tmp_path):
     lines = _qtop(tmp_path, "-o", "accelerator_map=before")
     assert lines[lines.index("INFO: Accelerators by node (job IDs, ? = unknown):") - 1].startswith("===> 2. Worker Nodes occupancy")
+
+
+@pytest.mark.parametrize(
+    "option,key,expected",
+    [
+        ("accelerator_map=false", "accelerator_map", "off"),
+        ("accelerator_map=After", "accelerator_map", "after"),
+        ("experimental_nvlink_blocks=true", "experimental_nvlink_blocks", True),
+        ("experimental_nvlink_blocks=no", "experimental_nvlink_blocks", False),
+    ],
+)
+def test_command_line_options_read_these_settings_like_the_yaml(option, key, expected):
+    from types import SimpleNamespace
+
+    from qtop_py.configuration import update_config_with_cmdline_vars
+
+    assert update_config_with_cmdline_vars(SimpleNamespace(OPTION=[option]), {})[key] == expected
+
+
+def test_a_bad_command_line_setting_is_an_operational_error():
+    from types import SimpleNamespace
+
+    from qtop_py.configuration import update_config_with_cmdline_vars
+    from qtop_py.core_errors import OperationalError
+
+    with pytest.raises(OperationalError, match="accelerator_map"):
+        update_config_with_cmdline_vars(SimpleNamespace(OPTION=["accelerator_map=below"]), {})

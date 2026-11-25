@@ -78,6 +78,8 @@ class ExtensionSpec(object):
     mask_job(original, job, mask) / mask_node(original, node, mask_job): copy the fields into
         the anonymized record, masking names. The default mask_node copies node_job_fields with
         each job ID masked; a custom one must do that itself (it chooses the key order).
+    mask_node_names(original, node, mask): copy node fields that hold other names (e.g. a Slurm
+        block), masked as mask(name, kind); the kind must be one of core_sample's mapping kinds.
     node_busy(node): True if the extension fields alone show the node is in use.
     """
 
@@ -92,6 +94,7 @@ class ExtensionSpec(object):
         mask_job: Callable[[Mapping[str, Any], Dict[str, object], Mask], None] = _no_mask_job,
         mask_node: Optional[Callable[[Mapping[str, Any], Dict[str, Any], MaskJob], None]] = None,
         node_busy: Callable[[Mapping[str, Any]], bool] = _never_busy,
+        mask_node_names: Callable[[Mapping[str, Any], Dict[str, Any], Mask], None] = _no_mask_job,
     ) -> None:
         self.label = label
         self.diagnostics = diagnostics
@@ -102,6 +105,7 @@ class ExtensionSpec(object):
         self.mask_job = mask_job
         self.mask_node = mask_node or _mask_node_job_fields(node_job_fields)
         self.node_busy = node_busy
+        self.mask_node_names = mask_node_names
 
     def __repr__(self) -> str:
         return "ExtensionSpec(%r)" % self.label

@@ -45,7 +45,7 @@ DISPLAY_OPTIONS: "Final" = (
 def anonymize_state(state: object) -> "Tuple[ClusterState, IdentifierMaps]":
     """Mask public identifiers consistently, including job/core references."""
     state = copy.deepcopy(validate_cluster_state(state))
-    mappings: "IdentifierMaps" = {kind: {} for kind in ("user", "node", "queue", "job", "cluster")}
+    mappings: "IdentifierMaps" = {kind: {} for kind in ("user", "node", "queue", "job", "cluster", "block")}
 
     @overload
     def mask(value: str, kind: str) -> str:
@@ -103,7 +103,7 @@ def anonymize_state(state: object) -> "Tuple[ClusterState, IdentifierMaps]":
         for node in state["nodes"]
     ]
     for original, node in zip(original_nodes, state["nodes"]):
-        mask_node_extensions(original, node, job_id)
+        mask_node_extensions(original, node, job_id, mask)
     if "source" in state:  # schema 2: qids are rebuilt from the masked cluster ID and masked native IDs
         original_prefix = "%s:%s:" % (state["source"]["backend"], state["source"]["cluster_id"])
         source = state["source"]

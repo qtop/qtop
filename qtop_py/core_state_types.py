@@ -58,6 +58,7 @@ if TYPE_CHECKING:
         """Optional scheduler-specific node fields (Slurm state and GPUs, OAR jobs, CPU placement)."""
 
         slurm_node_state: str
+        slurm_block: str
         slurm_gpu_configured: List[GPUResource]
         slurm_gpu_used: List[GPUResource]
         slurm_gpu_bindings: List[GPUBinding]

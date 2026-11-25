@@ -80,10 +80,12 @@ def mask_job_extensions(original: Mapping[str, Any], target: "Job", mask: Callab
         spec.mask_job(original, cast(Dict[str, object], target), mask)
 
 
-def mask_node_extensions(original: Mapping[str, Any], target: "Node", mask_job: Callable[[str], str]) -> None:
-    """Copy a node's scheduler-specific fields to target, masking job IDs."""
+def mask_node_extensions(original: Mapping[str, Any], target: "Node", mask_job: Callable[[str], str], mask: Optional[Callable[[str, str], str]] = None) -> None:
+    """Copy a node's scheduler-specific fields to target, masking job IDs and, given mask, other names."""
     for spec in extensions().specs:
         spec.mask_node(original, cast(Dict[str, Any], target), mask_job)
+        if mask is not None:
+            spec.mask_node_names(original, cast(Dict[str, Any], target), mask)
 
 
 def node_is_idle(node: Mapping[str, Any]) -> bool:

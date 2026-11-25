@@ -122,7 +122,7 @@ def trace_files(commands: Commands, backend: Type[GenericBatchSystem], options: 
         if collected is not None:
             result = collected[key]
             if isinstance(result, OperationalError):
-                logger.warning("%s %s", result, backend.optional_trace_warning)
+                logger.warning("%s %s", result, backend.optional_trace_warnings.get(key, backend.optional_trace_warning))
                 continue
             path = result
         if key in backend.optional_trace_keys and not os.path.isfile(path):
