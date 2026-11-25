@@ -81,6 +81,13 @@ def test_grouped_pending_arrays_use_existing_bounded_expansion(json_files):
     assert [job["id"] for job in state["jobs"]] == ["80+1", "42_1", "42_3", "42_5", "80+0"]
 
 
+def test_node_fields_added_after_review_are_ignored(json_files):
+    """Slurm 26.11.0 added the node field hres (HRES layers) to v0.0.46 after rc1; qtop does not read it."""
+    before = backend(json_files).get_cluster_state(BackendOptions())
+    mutate(json_files, "nodes", lambda data: [node.__setitem__("hres", [{"layer": "rack", "name": "r1"}]) for node in data["nodes"]])
+    assert backend(json_files).get_cluster_state(BackendOptions()) == before
+
+
 def test_empty_clusters_have_valid_empty_lists(json_files):
     for kind in ("jobs", "nodes", "partitions"):
         mutate(json_files, kind, lambda data, kind=kind: data.__setitem__(kind, []))

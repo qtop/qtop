@@ -1437,7 +1437,7 @@ contains a complete, validated collection; exports use the existing unique-file
 publication path. Collection-command, visibility or timeout changes restart the session.
 
 Supported data-parser metadata versions are `v0.0.40` through `v0.0.46`.
-Version 46 is checked against Slurm 26.11.0rc1; see the fixture README for
+Version 46 is checked against Slurm 26.11.0; see the fixture README for
 source provenance and the limits of this synthetic validation.
 The older `allocated_nodes`/socket dictionaries and newer
 `nodes.allocation`/socket arrays are distinct adapters into existing Slurm
