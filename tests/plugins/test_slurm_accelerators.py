@@ -174,8 +174,8 @@ def test_gpus_are_matrix_cells_with_user_ids_like_cores(tmp_path):
 
 
 def test_untransposed_matrices_list_gpu_lines_above_the_core_lines(tmp_path):
-    labels = [line.rsplit("=", 1)[1] for line in _qtop(tmp_path, "-T") if "=" in line and line.rsplit("=", 1)[1][:3] in ("Cor", "Gpu")]
-    assert labels == ["Gpu%s" % gpu for gpu in range(4)] + ["Core%s" % core for core in range(8)]
+    labels = [line.rsplit("=", 1)[1] for line in _qtop(tmp_path, "-T") if "=" in line and line.rsplit("=", 1)[1][:3] in ("Cpu", "Gpu")]
+    assert labels == ["Gpu%s" % gpu for gpu in range(4)] + ["Cpu%s" % core for core in range(8)]
 
 
 def test_job_id_lines_can_still_join_the_matrix(tmp_path):
@@ -208,3 +208,38 @@ def test_a_bad_command_line_setting_is_an_operational_error():
 
     with pytest.raises(OperationalError, match="accelerator_map"):
         update_config_with_cmdline_vars(SimpleNamespace(OPTION=["accelerator_map=below"]), {})
+
+
+@pytest.mark.parametrize(
+    "value,kinds",
+    [
+        ("all", ("gpu", "tpu", "npu")),
+        (True, ("gpu", "tpu", "npu")),
+        ("npu, gpu", ("gpu", "npu")),
+        (["gpu, npu"], ("gpu", "npu")),
+        (["tpu"], ("tpu",)),
+        ("none", ()),
+        ("false", ()),
+        (False, ()),
+    ],
+)
+def test_matrix_accelerators_takes_yaml_text_lists_and_python_values(value, kinds):
+    from qtop_py.configuration import matrix_accelerators
+
+    assert matrix_accelerators(value) == kinds
+
+
+def test_unknown_accelerator_kinds_are_a_config_error():
+    from qtop_py.configuration import matrix_accelerators
+
+    with pytest.raises(ValueError, match="fpga"):
+        matrix_accelerators("gpu, fpga")
+
+
+def test_hidden_kinds_leave_the_matrix_and_the_job_id_lines(tmp_path):
+    state = slurm_state(tmp_path, "node1|acc|mix|8|gpu:2(IDX:0-1),npu:4(IDX:0-3)|gpu:0(IDX:N/A),npu:0(IDX:N/A)\n", "")
+    assert accelerator_map_lines(state["nodes"], ("npu",)) == ["node1: npu0-3=idle"]
+    assert SlurmBatchSystem.display_messages("accelerators", None, state["nodes"], {"matrix_accelerators": ()}) == []
+    rows = [line for line in _qtop(tmp_path, "-o", "matrix_accelerators=none") if line[:2] in ("1|", "2|")]
+    assert rows == ["1|1_0_0___|b|c|", "2|_0_1_0_1|b|c|"]  # CPUs only, as before GPUs were shown
+    assert "gpu_map" not in "\n".join(_qtop(tmp_path, "-o", "matrix_accelerators=none"))

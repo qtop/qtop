@@ -159,15 +159,16 @@ def _runs(devices: Sequence[int], statuses: Sequence[str]) -> List[str]:
     return labels
 
 
-def accelerator_map_lines(nodes: Sequence[Mapping[str, Any]]) -> List[str]:
+def accelerator_map_lines(nodes: Sequence[Mapping[str, Any]], kinds: Sequence[str] = ACCELERATOR_KINDS) -> List[str]:
     """One line per node with accelerators: each GPU, TPU and NPU with its jobs, e.g. "n1: gpu0-1=101 gpu2-7=idle".
 
-    Any number of devices; consecutive devices of the same status share one label.
+    Any number of devices; consecutive devices of the same status share one label. kinds limits the
+    kinds shown (matrix_accelerators).
     """
     lines = []
     for node in nodes:
         labels: List[str] = []
-        for kind in ACCELERATOR_KINDS:
+        for kind in (kind for kind in ACCELERATOR_KINDS if kind in kinds):
             devices = node_devices(node, kind)
             labels.extend(kind + label for label in _runs(devices, [device_status(node, kind, index) for index in devices]))
         if labels:

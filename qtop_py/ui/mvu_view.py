@@ -232,7 +232,7 @@ class TextDisplay(object):
                 "Nodes": self.MVU_model.MVU_colorize("Nodes", "Red_L"),
                 "working_cores": self.MVU_model.MVU_colorize(str(cluster.working_cores), "Green_L"),
                 "total_cores": self.MVU_model.MVU_colorize(str(cluster.total_cores), "Green_L"),
-                "Cores": self.MVU_model.MVU_colorize("cores", "Green_L"),
+                "Cores": self.MVU_model.MVU_colorize("cpus", "Green_L"),
                 "job_counts": shown[0] + "=" + "+".join(shown[1:]),
                 "job_labels": job_labels[0] + "=" + "+".join(job_labels[1:]),
                 "jobs": self.MVU_model.MVU_colorize("jobs", "Blue_L"),
@@ -749,7 +749,7 @@ class TextDisplay(object):
             core_x_vector = self._insert_separators(core_x_vector, self._separator_cells(), self.config["vertical_separator_every_X_columns"])
             colored_core_x = [self.MVU_model.MVU_colorize(elem, color_func=elem.color) for elem in core_x_vector]
             core_x_vector = "".join([str(item) for item in colored_core_x])
-            yield core_x_vector + self.MVU_model.MVU_colorize("=" + k[: -len("vector")], pattern="account_not_colored")  # =Core0, =Gpu0
+            yield core_x_vector + self.MVU_model.MVU_colorize("=" + k[: -len("vector")], pattern="account_not_colored")  # =Cpu0, =Gpu0
 
     def transpose_matrix(self, d: Dict[str, Any], colored: bool = False, reverse: bool = False, coloring_pat: Any = None) -> Iterator[Sequence[str]]:
         """Return the matrix (a mapping of string lists) transposed, coloured if asked."""

@@ -13,6 +13,8 @@ scheduler: auto
 ## GPUs/TPUs/NPUs are matrix cells with user IDs, as cores are. For job IDs too, add lines
 ## before or after the matrix (false, the default, shows only the cells).
 ## accelerator_map: before
+## Accelerator kinds the display shows: all (default), none, or some of gpu, tpu, npu.
+## matrix_accelerators: all
 
 ## Experimental: Slurm topology/block blocks (e.g. GB200/GB300 NVL72 NVLink domains), one line
 ## each with free nodes, idle accelerators and jobs spanning blocks; disabled unless set to true.

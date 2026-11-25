@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 from qtop_py.core_api import GenericBatchSystem
 from qtop_py.plugins.slurm_extension import SLURM_EXTENSION
-from qtop_py.schedulers.gpu import accelerator_map_lines
+from qtop_py.schedulers.gpu import ACCELERATOR_KINDS, accelerator_map_lines
 
 if TYPE_CHECKING:
     from typing import Final
@@ -164,7 +164,7 @@ class Demo72BatchSystem(GenericBatchSystem):
     def display_messages(section: str, snapshot: object, nodes: "List[Node]", config: "Config") -> List[str]:
         """Return the accelerator map, and what the simulation stands for."""
         if section == "accelerators":
-            lines = accelerator_map_lines(nodes)
+            lines = accelerator_map_lines(nodes, config.get("matrix_accelerators", ACCELERATOR_KINDS))
             return ["INFO: Accelerators by node (job IDs, ? = unknown):"] + ["INFO: " + line for line in lines] if lines else []
         if section == "placement":
             return ["INFO: demo72 simulates one GB200 NVL72 rack (one NVLink domain): %s trays x %s GPUs, %s Grace cores per GPU." % (TRAYS, GPUS_PER_TRAY, CORES_PER_GPU)]

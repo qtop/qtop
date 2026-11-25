@@ -12,12 +12,12 @@
 import logging
 import re
 from collections import OrderedDict
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Mapping, Match, Optional, Set, Tuple, cast
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Mapping, Match, Optional, Sequence, Set, Tuple, cast
 
 from qtop_py.core_api import FileEmptyError, GenericBatchSystem, StatExtractor, check_empty_file, open_input
 from qtop_py.core_hostlist import HostlistParser
 from qtop_py.plugins.slurm_extension import SLURM_EXTENSION
-from qtop_py.schedulers.gpu import parse_accelerator_gres
+from qtop_py.schedulers.gpu import ACCELERATOR_KINDS, parse_accelerator_gres
 
 if TYPE_CHECKING:
     from typing import Final
@@ -443,17 +443,17 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
         if section == "placement":
             return SlurmBatchSystem._placement_messages(nodes)
         if section == "accelerators":
-            return SlurmBatchSystem._accelerator_messages(nodes)
+            return SlurmBatchSystem._accelerator_messages(nodes, config.get("matrix_accelerators", ACCELERATOR_KINDS))
         if section == "resources":
             return SlurmBatchSystem._block_messages(nodes, config) + (SlurmBatchSystem._gpu_pair_messages(nodes, config) if config.get("experimental_gpu_pairs") else [])
         return []
 
     @staticmethod
-    def _accelerator_messages(nodes: "List[Node]") -> List[str]:
+    def _accelerator_messages(nodes: "List[Node]", kinds: Sequence[str] = ACCELERATOR_KINDS) -> List[str]:
         """List each node's GPUs, TPUs and NPUs with their jobs; the view places them (accelerator_map)."""
         from qtop_py.schedulers.gpu import accelerator_map_lines
 
-        lines = accelerator_map_lines(nodes)
+        lines = accelerator_map_lines(nodes, kinds)
         return ["INFO: Accelerators by node (job IDs, ? = unknown):"] + ["INFO: " + line for line in lines] if lines else []
 
     @staticmethod
@@ -464,7 +464,7 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
         """
         if config.get("experimental_nvlink_blocks") is not True:
             return []
-        from qtop_py.schedulers.gpu import ACCELERATOR_KINDS, device_status, node_devices
+        from qtop_py.schedulers.gpu import device_status, node_devices
 
         blocks: Dict[str, List[Mapping[str, Any]]] = OrderedDict()
         job_blocks: Dict[str, Set[str]] = {}
@@ -480,7 +480,7 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
             free = sum(1 for member, held in zip(members, jobs) if str(member["state"][0]) == "-" and not held and not SLURM_EXTENSION.node_busy(member))
             busy = sum(1 for held in jobs if held)
             parts = ["%s nodes (%s free, %s busy)" % (len(members), free, busy)]
-            for kind in ACCELERATOR_KINDS:
+            for kind in (kind for kind in ACCELERATOR_KINDS if kind in config.get("matrix_accelerators", ACCELERATOR_KINDS)):
                 statuses = [device_status(member, kind, index) for member in members for index in node_devices(member, kind)]
                 if statuses:
                     parts.append("%s %s/%s idle" % (kind, statuses.count("idle"), len(statuses)))

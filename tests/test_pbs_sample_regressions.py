@@ -210,7 +210,7 @@ def test_stacked_matrix_starts_every_node_at_its_first_core(tmp_path):
         command = [sys.executable, "-m", "qtop_py.qtop", "-b", "slurm", "-s", str(sample), "-c", "OFF", "-o", "transpose_wn_matrices=False"]
         command += [item for option in options for item in ("-o", option)] + ["-o", "savepath=%s" % (tmp_path / "output")]
         output = subprocess.run(command, cwd=str(root), env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True).stdout
-        return [line.split("=")[0] for line in output.splitlines() if re.match(r"^\S+=Core\d+$", line)]
+        return [line.split("=")[0] for line in output.splitlines() if re.match(r"^\S+=Cpu\d+$", line)]
 
     assert core_lines()[:6] == ["0__", "_1_", "0__", "_1_", "1__", "_1_"]
     assert core_lines("stack_jobs_per_node=True")[:6] == ["01_", "01_", "11_", "___", "___", "___"]

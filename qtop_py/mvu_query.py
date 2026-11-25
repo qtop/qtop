@@ -400,7 +400,7 @@ class WNOccupancy(object):
         self._stack_jobs = self.MVU_model.display_overrides.get("stack_jobs_per_node", self.config.get("stack_jobs_per_node", False))
 
         for core_nr in self.cluster.core_span:
-            core_user_map["Core%svector" % str(core_nr)] = []  # Cpu0vector, Cpu1vector, Cpu2vector, ... = [],[],[], ...
+            core_user_map["Cpu%svector" % str(core_nr)] = []  # Cpu0vector, Cpu1vector, ...: the scheduler's CPUs (logical; threads when SMT is on)
         # The same lists by core position, so filling a cell needs no key built per core.
         core_vectors = list(core_user_map.values())
 
@@ -418,12 +418,13 @@ class WNOccupancy(object):
         """
         from qtop_py.schedulers.gpu import ACCELERATOR_KINDS, device_status, node_devices
 
+        kinds = [kind for kind in ACCELERATOR_KINDS if kind in self.config.get("matrix_accelerators", ACCELERATOR_KINDS)]
         nodes = self.cluster.workernode_dict
-        devices = {name: {kind: node_devices(node, kind) for kind in ACCELERATOR_KINDS} for name, node in nodes.items()}
-        span = {kind: max([len(found[kind]) for found in devices.values()] or [0]) for kind in ACCELERATOR_KINDS}
-        vectors_of: Dict[str, List[List[Any]]] = OrderedDict((kind, []) for kind in ACCELERATOR_KINDS)
+        devices = {name: {kind: node_devices(node, kind) for kind in kinds} for name, node in nodes.items()}
+        span = {kind: max([len(found[kind]) for found in devices.values()] or [0]) for kind in kinds}
+        vectors_of: Dict[str, List[List[Any]]] = OrderedDict((kind, []) for kind in kinds)
         gpu_user_map: Dict[str, Any] = OrderedDict()
-        for kind in ACCELERATOR_KINDS:
+        for kind in kinds:
             for index in range(span[kind]):
                 vectors_of[kind].append(gpu_user_map.setdefault("%s%svector" % (kind.capitalize(), index), []))
         if not gpu_user_map:

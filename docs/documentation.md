@@ -419,7 +419,7 @@ Watch mode supports:
 | m | switch core coloring by user / queue |
 | p / P | cycle palettes forward / backward in ``palettes.yaml`` |
 | Q | cycle compact / expanded / clipped / hidden Queueing layouts |
-| r | cycle all / real / used core lines |
+| r | cycle all / real / used CPU lines |
 | s | apply sorting (remapped matrices; numbered ones keep node order) |
 | S | stack each node's jobs from its first core / show scheduler core placement (``stack_jobs_per_node``) |
 | t | transpose the matrix |
@@ -1407,13 +1407,28 @@ transposed matrix, a `gpu_map` block precedes each node's `core_map`:
 ```
 
 Without `-T` transposition, the device lines (`=Gpu0`, `=Gpu1`, ..., `=Tpu0`,
-`=Npu0`) come before the core lines. `occupancy_column_order` can place
+`=Npu0`) come before the CPU lines (`=Cpu0`, ...). `occupancy_column_order` can place
 `gpu_map` elsewhere. `_` is an idle device; a gray `?` means Slurm
 reports the device in use (or reports no usage, as for a down node) but not which
 job holds it, as with `--slurm-summary`, which collects no per-job indices.
 Nodes with fewer devices are padded with `non_existent_node_symbol`, as for cores.
 A device shared by several jobs shows the first job's user. `rem_empty_corelines`
-drops unused device lines as it drops unused core lines.
+drops unused device lines as it drops unused CPU lines.
+
+The CPU lines are the scheduler's allocatable CPUs: logical CPUs, so hardware
+threads when SMT is on (Slurm `CPUs`, PBS `np`), which is why they are labelled
+`Cpu0`, `Cpu1`, ... and the Summary counts `cpus`, not cores. Configuration keys
+keep their names (`core_map`, `core_coloring`, `rem_empty_corelines`).
+
+To leave some kinds out, or show CPUs only, list the kinds to show:
+
+```yaml
+matrix_accelerators: gpu   # all (the default), none, or some of gpu, tpu, npu
+```
+
+It applies to the matrix cells, the job-ID lines and the experimental block notes,
+and works with `-o matrix_accelerators=none`. It changes the display only:
+collection, exports, `-A` and replay keep every device.
 
 Devices come from the node's Slurm GRES (`gpu:`, `tpu:` and `npu:` entries of any
 type and count; `IDX:` indices when Slurm reports them, otherwise numbered from 0)
