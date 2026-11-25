@@ -12,6 +12,7 @@ Notable changes by version, newest first. See the
 - CI: PRs run the core debian:bookworm lane (root, distro Python), as nightly failures came from it
 - CI: scheduled nightly runs test develop, not main, so a regression shows up the day after merge
 - CI: nightly core runs python:3.12-bookworm and python:3.15-bookworm; 3.11 and 3.14 move to wide
+- CI: uvx nox runs the local Make gates; tools/local_tests.py and test-local.ps1 are gone
 - Docs: Slurm JSON v0.0.46 is checked against Slurm 26.11.0, not 26.11.0rc1; hres node field ignored
 - Docs: the README calls the terminal interface fast, not extremely fast
 - Docs: qtop.1 gets an OPTIONS entry for --slurm-summary; a test now requires one for every option

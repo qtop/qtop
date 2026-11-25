@@ -18,14 +18,14 @@ old entry point and updates its callers; it does not remove its guarantees.
 | tools/deterministic_fuzz.py | Keep, absorb parser targets | Make deterministic-fuzz, Atheris and tests; seeded primitive invariants | 5 with parser helper |
 | tools/fortifications.py | Merge unique diff checks into repo_sanity | Make lint and focused tests; added-line ASCII and generated-path review | 70 |
 | tools/loc_authors.py | Keep | Make authors; blame attribution merged by identity, unlike authors-lines | 0 |
-| tools/local_tests.py | Keep | Windows wrapper and documented Linux CLI; fresh native snapshot and evidence | 0 |
+| tools/local_tests.py | Replaced in 0.9.20261122 by noxfile.py (environment and Make gates; no snapshot or manifest) | Windows wrapper and documented Linux CLI; fresh native snapshot and evidence | 0 |
 | tools/parser_fuzz.py | Merge into deterministic_fuzz | Atheris and parser tests; six bounded document targets | counted above |
 | tools/prepare_fuzz_corpus.py | Merge into Atheris startup | Make coverage-fuzz; seed without overwriting discovered corpus | counted above |
 | tools/prepare_release.py | Keep | Release documentation and tests; synchronized metadata and release guards | 0 |
 | tools/private_output.py | Keep | Report tools and security tests; ownership, links, atomic replacement | 0 |
 | tools/repo_sanity.py | Keep and simplify | Make repo-sanity/lint and tests; tracked-text trust and diff policy | 100 |
 | tools/terminal_probe.py | Keep | Make soak and tests; real PTY, captures, refresh/resource budgets | 0 |
-| tools/test-local.ps1 | Keep | Windows contributors; argument-safe WSL entry | 0 |
+| tools/test-local.ps1 | Removed in 0.9.20261122; run `uvx nox` inside WSL | Windows contributors; argument-safe WSL entry | 0 |
 | tools/validate_installation.py | Keep | Make install/release checks and tests; exact distributions, clean installs | 0 |
 | tools/validate_pbs_samples.py | Keep | Make test-pbs-samples, docs, legacy/security tests; curated external corpus | 0 |
 | tools/validate_scheduler_samples.py | Keep, merge repeated result assembly | Make sample/render gates and tests; semantic ANSI and sample evidence | 40 |
@@ -107,7 +107,7 @@ below include local use in addition to the named automatic callers.
 
 `all` no longer invokes ci-entrypoints after coverage or rerenders identical
 samples into several destinations. Explicit rendering targets and custom
-output variables still work. local_tests passes requested targets to one Make
+output variables still work. noxfile.py (formerly local_tests) passes requested targets to one Make
 invocation, retaining sequential default execution and shared prerequisites.
 
 ## Unicode replacement experiment

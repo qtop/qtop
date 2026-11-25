@@ -174,7 +174,7 @@ or a release is prepared.
   - [ ] Add a focused fixture for each further parsing or accounting failure.
   - [ ] Use synthetic or explicitly approved anonymized snapshots.
   - [ ] Document fixture provenance and expected behavior.
-  - [x] Provide `test-fast` and fresh Linux/WSL snapshots with retained reports;
+  - [x] Provide `test-fast` and a one-command local gate run (`uvx nox`);
     [local testing](docs/local-testing.md) keeps the full gate distinct.
 
 ## Later: Conditional Expansion
