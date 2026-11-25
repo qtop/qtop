@@ -9,6 +9,7 @@ Notable changes by version, newest first. See the
 - Bugfix: -R mmddTHHMM parses with the current year, so 29 February works (and Python 3.15 agrees)
 - Bugfix: Codacy: a YAML-parser expression statement; reasons recorded for the findings that stay
 - Bugfix: a qtopconf.yaml layer setting one scheduler command no longer drops all the others
+- Bugfix: watch mode no longer goes blank when 2 hides the node matrix while scrolled down
 - CI: slow sdist/wheel install tests move to make test-packaging, run by the build jobs and nightly
 - CI: nightly splits into a blocking 8-lane core run and a 26-lane wide run that may be flaky
 - CI: PRs run the core debian:bookworm lane (root, distro Python), as nightly failures came from it

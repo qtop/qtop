@@ -124,13 +124,13 @@ def test_after_scroll_down_no_max_height():
 def test_after_scroll_up():
     viewport = Viewport(vstart=276)
     viewport.set_term_size(53, 176)
-    viewport.max_height = 300
+    viewport.max_height = 300  # line 276 is past the last start, 300 - 52: the view moves up to 248
     viewport.scroll_up()
     assert 300 == viewport.max_height
     assert 0 == viewport.h_start
     assert 176 == viewport.h_stop
-    assert 276 - 52 == viewport.v_start
-    assert 276 - 52 + 53 == viewport.v_stop
+    assert 248 - 52 == viewport.v_start
+    assert 248 - 52 + 53 == viewport.v_stop
 
 
 def test_after_scroll_down_scroll_up():
@@ -187,8 +187,8 @@ This is a quick'n'clean way to run many edge cases without re-writing the whole 
     (
         (0, 0, [53, 176], (200, 200), (0, 53, 24, 200)),  # test1
         (0, 100, [53, 176], (400, 400), (0, 53, 188, 364)),  # test2 etc
-        (0, 100, [53, 176], (400, 200), (0, 53, 100, 276)),
-        (0, 199, [53, 176], (400, 200), (0, 53, 199, 375)),
+        (0, 100, [53, 176], (400, 200), (0, 53, 24, 200)),  # a start past the right edge is clamped to it
+        (0, 199, [53, 176], (400, 200), (0, 53, 24, 200)),
     ),
 )
 def test_after_scroll_right(init_vstart, init_hstart, term_size, max_matrix_dim, expected):
@@ -300,3 +300,28 @@ def test_unbounded_rows_preserve_original_output():
 def test_terminal_reset_is_zero_width_and_does_not_carry_an_old_style():
     rows = list(terminal_rows(["\x1b[31ma\n", "\x1bcabcd\n"], 4))
     assert rows == ["\x1b[31ma\x1b[0m\n", "\x1b[31m\x1bcabcd\n"]
+
+
+@pytest.mark.parametrize("hidden_rows", (0, 140, 290))
+def test_a_shorter_output_keeps_the_view_inside_it(hidden_rows):
+    """Scrolled down, then 2 hides the node matrix: the view must not start past the new end."""
+    viewport = Viewport()
+    viewport.set_term_size(50, 120)
+    viewport.max_width, viewport.max_height = 120, 300
+    viewport.scroll_bottom()
+    assert viewport.v_start == 300 - 49
+    viewport.max_height = 300 - hidden_rows
+    assert viewport.v_start == max(300 - hidden_rows - 49, 0)
+    assert viewport.v_start < max(viewport.max_height, 1)  # something is always on screen
+
+
+def test_a_narrower_output_and_a_taller_terminal_keep_the_view_inside():
+    viewport = Viewport()
+    viewport.set_term_size(20, 80)
+    viewport.max_width, viewport.max_height = 400, 100
+    viewport.scroll_far_right()
+    viewport.scroll_bottom()
+    viewport.max_width = 100
+    assert viewport.h_start == 20
+    viewport.set_term_size(60, 80)
+    assert viewport.v_start == 100 - 59
