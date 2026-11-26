@@ -65,6 +65,7 @@ SLURM_COMPACT_JOB_STATES: "Final" = set(SLURM_JOB_STATES.values())
 # topology_block.c). Aggregated blocks print AggregatedBlock= and are not domains; topology/tree prints SwitchName=.
 TOPOLOGY_BLOCK_RE: "Final" = re.compile(r"(BlockName|AggregatedBlock)=(\S+) BlockIndex=([0-9]+)(?: Nodes=(\S+))? BlockSize=([0-9]+)")
 SLURM_QUEUED_STATES: "Final" = {"PD", "RD", "RF", "RH", "RQ", "SE"}
+INCOMPLETE_SNAPSHOT_COUNTERS: "Final" = ("rejected_squeue_rows", "rejected_sinfo_rows", "jobs_with_missing_nodes", "jobs_with_invalid_nodelists")
 
 
 def slurm_accounting_state(state: str) -> str:
@@ -442,7 +443,8 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
             return SlurmBatchSystem._accounting_messages(snapshot)
         if section == "placement":
             kinds = config.get("matrix_accelerators", ACCELERATOR_KINDS)
-            return SlurmBatchSystem._placement_messages(nodes) + SlurmBatchSystem._unseen_holder_messages(nodes, kinds)
+            all_partitions = bool(getattr(snapshot, "_diagnostics", {}).get("slurm_diagnostics", {}).get("all_partitions"))
+            return SlurmBatchSystem._placement_messages(nodes) + SlurmBatchSystem._unseen_holder_messages(nodes, kinds, all_partitions)
         if section == "accelerators":
             return SlurmBatchSystem._accelerator_messages(nodes, config.get("matrix_accelerators", ACCELERATOR_KINDS))
         if section == "resources":
@@ -510,13 +512,15 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
         """Warn about rejected rows and jobs on missing or invalid node lists, with what to check."""
         lines = []
         diagnostics = getattr(snapshot, "_diagnostics", {}).get("slurm_diagnostics", {})
-        if any(diagnostics.values()):
+        if any(diagnostics.get(key) for key in INCOMPLETE_SNAPSHOT_COUNTERS):
             lines.append(
                 "WARNING: Slurm snapshot incomplete: %s rejected job rows; %s rejected node rows; "
                 "%s active jobs reference missing nodes; %s active jobs have invalid node lists."
-                % tuple(diagnostics.get(key, 0) for key in ("rejected_squeue_rows", "rejected_sinfo_rows", "jobs_with_missing_nodes", "jobs_with_invalid_nodelists"))
+                % tuple(diagnostics.get(key, 0) for key in INCOMPLETE_SNAPSHOT_COUNTERS)
             )
-        if diagnostics.get("jobs_with_missing_nodes"):
+        if diagnostics.get("jobs_with_missing_nodes") and diagnostics.get("all_partitions"):
+            lines.append("INFO: Jobs on missing nodes: those nodes may be in group-unavailable partitions, even with --all.")
+        elif diagnostics.get("jobs_with_missing_nodes"):
             lines.append("INFO: Jobs on missing nodes: those nodes may be in hidden or group-unavailable partitions; try qtop --all, if not already used.")
         if diagnostics.get("jobs_with_invalid_nodelists"):
             lines.append("INFO: Invalid node lists: a starting or completing job may have no nodes yet; otherwise check that squeue does not cut the NodeList field.")
@@ -551,8 +555,11 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
         return lines
 
     @staticmethod
-    def _unseen_holder_messages(nodes: "List[Node]", kinds: Sequence[str] = ACCELERATOR_KINDS) -> List[str]:
-        """Count the accelerators Slurm lists in use whose job qtop cannot name (?), and say why that may be."""
+    def _unseen_holder_messages(nodes: "List[Node]", kinds: Sequence[str] = ACCELERATOR_KINDS, all_partitions: bool = False) -> List[str]:
+        """Count the accelerators Slurm lists in use whose job qtop cannot name (?), and say why that may be.
+
+        Without --all, jobs in hidden partitions are the cause qtop can remove: a warning asks for it.
+        """
         from qtop_py.schedulers.gpu import held_by_unseen_job, node_devices
 
         without_details: Dict[str, int] = {}  # kind -> devices on nodes without scontrol allocation details
@@ -570,11 +577,12 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
         lines = []
         if without_details:
             lines.append("WARNING: Slurm accelerators: %s in use show ? where allocation details are unavailable." % described(without_details))
-        if unlisted:
-            lines.append(
-                "INFO: Slurm accelerators: %s in use by jobs qtop does not see show ?: try --all for hidden partitions;"
-                " PrivateData=jobs hides other users' jobs; jobs may start or end between the commands." % described(unlisted)
-            )
+        others = "PrivateData=jobs hides other users' jobs; jobs may start or end between the commands."
+        if unlisted and not all_partitions:
+            lines.append("WARNING: Slurm accelerators: %s in use by jobs qtop does not see show ?: run qtop --all for hidden partitions." % described(unlisted))
+            lines.append("INFO: Slurm accelerators: if --all does not name their jobs, " + others)
+        elif unlisted:
+            lines.append("INFO: Slurm accelerators: %s in use by jobs qtop does not see show ?, even with --all: %s" % (described(unlisted), others))
         return lines
 
     @staticmethod
@@ -709,6 +717,8 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
             count = getattr(self.slurm_stat_maker, "rejected_%s_rows" % source, 0)
             if count:
                 diagnostics["rejected_%s_rows" % source] = count
+        if getattr(self.options, "ALL_PARTITIONS", False) and not getattr(self.options, "SOURCEDIR", None):
+            diagnostics["all_partitions"] = 1  # the notes then stop suggesting --all
         if diagnostics:
             state["slurm_diagnostics"] = diagnostics
         return state

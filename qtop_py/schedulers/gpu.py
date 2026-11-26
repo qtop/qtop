@@ -139,6 +139,27 @@ def node_devices(node: "Mapping[str, Any]", kind: str) -> List[int]:
     return sorted(devices)
 
 
+def node_slices(node: "Mapping[str, Any]", kind: str) -> List[int]:
+    """Return the MIG slice indices of a kind configured on a node; slices without indices follow its whole devices."""
+    taken = node_devices(node, kind)
+    slices: List[int] = []
+    for resource in node.get("slurm_gpu_configured") or []:
+        if resource_kind(resource) != kind or resource["mig_profile"] is None:
+            continue
+        indices = resource["device_indices"]
+        if indices is None:
+            start = max(taken + slices) + 1 if taken or slices else 0
+            indices = list(range(start, start + min(resource["count"], MAX_GPU_INDICES)))
+        slices.extend(index for index in indices if index not in slices and index not in taken)
+    return sorted(slices)
+
+
+def slice_jobs(node: "Mapping[str, Any]", kind: str, index: int) -> List[str]:
+    """The IDs of the jobs whose GRES indices on the node include the MIG slice."""
+    bindings = node.get("slurm_gpu_bindings", [])
+    return sorted({b["job_id"] for b in bindings if resource_kind(b) == kind and b.get("mig_profile") is not None and index in (b.get("device_indices") or [])})
+
+
 def _device_jobs(node: "Mapping[str, Any]", kind: str, index: int) -> List[str]:
     """The IDs of the jobs whose GRES indices on the node include the whole device."""
     bindings = node.get("slurm_gpu_bindings", [])
@@ -148,11 +169,12 @@ def _device_jobs(node: "Mapping[str, Any]", kind: str, index: int) -> List[str]:
 def _whole_device_usage(node: "Mapping[str, Any]", kind: str) -> "Tuple[bool, List[int]]":
     """Whether Slurm's usage of a kind on the node names its whole devices, and the indices it lists as in use.
 
-    MIG slices are left out: their indices are not whole devices, so a slice in use says nothing of the others.
+    Only whole-device entries say which whole devices are idle: MIG slices in use do not, since they may sit on any
+    of them, but beside a whole-device entry they say nothing of the whole devices it covers.
     """
     used = [resource for resource in node.get("slurm_gpu_used") or [] if resource_kind(resource) == kind]
     whole = [resource for resource in used if resource["mig_profile"] is None]
-    known = bool(used) and all(resource["count"] == 0 or resource["device_indices"] is not None for resource in whole)
+    known = bool(whole) and all(resource["count"] == 0 or resource["device_indices"] is not None for resource in whole)
     return known, [index for resource in whole for index in resource["device_indices"] or []]
 
 

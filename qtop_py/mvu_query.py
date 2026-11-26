@@ -414,14 +414,15 @@ class WNOccupancy(object):
 
         A device holds its job's user symbol, coloured as a core of that job would be; "_" is idle,
         a gray "?" means Slurm's usage does not say who holds it, and nodes with fewer devices of a
-        kind are padded with non_existent_node_symbol. No node with accelerators: no lines.
+        kind are padded with non_existent_node_symbol. A node's MIG slices follow its whole devices:
+        the user of a slice's job, or a gray "%". No node with accelerators: no lines.
         """
-        from qtop_py.schedulers.gpu import ACCELERATOR_KINDS, node_devices
+        from qtop_py.schedulers.gpu import ACCELERATOR_KINDS, node_devices, node_slices
 
         kinds = [kind for kind in ACCELERATOR_KINDS if kind in self.config.get("matrix_accelerators", ACCELERATOR_KINDS)]
         nodes = self.cluster.workernode_dict
-        devices = {name: {kind: node_devices(node, kind) for kind in kinds} for name, node in nodes.items()}
-        span = {kind: max([len(found[kind]) for found in devices.values()] or [0]) for kind in kinds}
+        devices = {name: {kind: (node_devices(node, kind), node_slices(node, kind)) for kind in kinds} for name, node in nodes.items()}
+        span = {kind: max([sum(map(len, found[kind])) for found in devices.values()] or [0]) for kind in kinds}
         vectors_of: Dict[str, List[List[Any]]] = OrderedDict((kind, []) for kind in kinds)
         gpu_user_map: Dict[str, Any] = OrderedDict()
         for kind in kinds:
@@ -432,8 +433,8 @@ class WNOccupancy(object):
         core_coloring = self.MVU_model.display_overrides.get("core_coloring", self.config["core_coloring"])
         for name, node in nodes.items():
             for kind, vectors in vectors_of.items():
-                mine = devices[name][kind] if node["state"] != "?" else []
-                self._fill_node_device_vectors(node, kind, mine, vectors, core_coloring, job_to_user_and_queue)
+                whole, slices = devices[name][kind] if node["state"] != "?" else ([], [])
+                self._fill_node_device_vectors(node, kind, whole, vectors, core_coloring, job_to_user_and_queue, slices)
         return gpu_user_map
 
     def _fill_node_device_vectors(
@@ -444,20 +445,28 @@ class WNOccupancy(object):
         vectors: Sequence[List[Any]],
         core_coloring: str,
         job_to_user_and_queue: Mapping[str, Tuple[str, str]],
+        slices: Sequence[int] = (),
     ) -> None:
-        """Append one node's cell to each line of a kind: its job's user, _ idle, gray ? unknown, or padding."""
-        from qtop_py.schedulers.gpu import device_status
+        """Append one node's cell to each line of a kind: its job's user, _ idle, gray ? unknown, then its MIG slices (gray % unheld), or padding."""
+        from qtop_py.schedulers.gpu import device_status, slice_jobs
 
-        jobs, unknown = {}, set()
+        jobs, marks = {}, {}
         for position, index in enumerate(devices):
             status = device_status(node, kind, index)
             if status == "?":
-                unknown.add(position)
+                marks[position] = "?"
             elif status != "idle":
                 jobs[position] = status.split("/")[0]  # a shared device shows its first job's user
-        for position in self.color_cores_and_return_unused(len(devices), vectors, jobs, core_coloring, job_to_user_and_queue):
-            vectors[position].append(utils.ColorStr("?" if position in unknown else "_", color="Gray_D"))
-        for vector in vectors[len(devices) :]:
+        for position, index in enumerate(slices, len(devices)):
+            held = slice_jobs(node, kind, index)
+            if held:
+                jobs[position] = held[0]
+            else:
+                marks[position] = "%"
+        cells = len(devices) + len(slices)
+        for position in self.color_cores_and_return_unused(cells, vectors, jobs, core_coloring, job_to_user_and_queue):
+            vectors[position].append(utils.ColorStr(marks.get(position, "_"), color="Gray_D"))
+        for vector in vectors[cells:]:
             vector.append(utils.ColorStr(self.config["non_existent_node_symbol"], color="Gray_D"))
 
     def _fill_node_cores_vector(

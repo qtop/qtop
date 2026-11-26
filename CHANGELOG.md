@@ -8,6 +8,8 @@ Notable changes by version, newest first. See the
 - Bugfix: tools/prepare_release.py writes no ## Unreleased heading, as the changelog keeps none
 - Bugfix: a MIG slice in use no longer turns the idle whole GPUs of its node into a gray ?
 - Feature: Slurm notes count the GPUs/TPUs/NPUs in use shown ?, and say why their jobs are unknown
+- Feature: MIG slices get matrix cells after the whole GPUs: the user of their job, or a gray %
+- Feature: GPUs held by unseen jobs warn to run qtop --all, unless slurm_diagnostics says it ran
 - Tests: CHANGELOG top heading, manpage date and EasyBuild recipe must agree with __version__
 - Release: update version metadata to 0.9.20261124
 
