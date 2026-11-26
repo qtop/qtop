@@ -3,6 +3,10 @@
 Notable changes by version, newest first. See the
 [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 
+## 0.9.20261124
+
+- Release: update version metadata to 0.9.20261124
+
 ## 0.9.20261123
 
 - Bugfix: core_api.collect_state() reads SOURCEDIR traces in place, not from the workdir
