@@ -48,6 +48,7 @@ class GenericBatchSystem(object):
     optional_trace_keys: Tuple[str, ...] = ()
     optional_trace_aliases: Dict[str, str] = {}
     optional_trace_warning = "Optional scheduler details unavailable."
+    optional_trace_warnings: Dict[str, str] = {}  # trace key -> its own warning, instead of optional_trace_warning
     detection_priority = 0  # -b auto tries lower values first; ties keep the configuration's order
     is_simulated = False
     # Each backend declares its own defaults; schedulers.registry reads only what a class declares
@@ -98,7 +99,11 @@ class GenericBatchSystem(object):
 
     @staticmethod
     def display_messages(section: str, snapshot: object, nodes: "List[Node]", config: "Config") -> "List[str]":
-        """Return severity-prefixed display lines for the scheduler messages block."""
+        """Return severity-prefixed display lines for a section of notes.
+
+        Sections: snapshot, accounting, placement and resources go to the scheduler messages block;
+        accelerators (job IDs by device) go before or after the node matrix if accelerator_map asks.
+        """
         return []
 
     def mask_source_trace(self, key: str, text: str, mask: "TraceMasker") -> "Tuple[str, str]":

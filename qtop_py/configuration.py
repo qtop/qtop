@@ -31,6 +31,7 @@ from qtop_py.core_errors import OperationalError
 from qtop_py.core_process import DEFAULT_SCHEDULER_COMMAND_TIMEOUT
 from qtop_py.core_safety import ResourceLimitError, literal_eval
 from qtop_py.schedulers import registry
+from qtop_py.schedulers.gpu import ACCELERATOR_KINDS
 
 # Parsed YAML layers by path, each with the stat signature it was parsed under.
 # Watch mode reloads the configuration every frame; an unchanged file is
@@ -198,6 +199,55 @@ def _validate_user_accounts_header(config: "Config") -> None:
     )
 
 
+ACCELERATOR_MAP_PLACEMENTS = ("before", "after", "off")
+
+
+def accelerator_map_placement(value: Any) -> str:
+    """Return where the job-ID lines of the accelerator map go: before or after the node matrix, or off (the default).
+
+    The matrix itself always shows each device's user, as for cores; these lines add job IDs.
+    YAML text and Python values both work: before/after, and true/false/on/off/yes/no/1/0
+    (true means before). Raise ValueError otherwise.
+    """
+    text = str(value).strip().lower()
+    if text in ("before", "true", "on", "yes", "1"):
+        return "before"
+    if text in ("after",):
+        return "after"
+    if text in ("off", "false", "no", "0", "none"):
+        return "off"
+    raise ValueError("accelerator_map: expected before, after or false")
+
+
+def matrix_accelerators(value: Any) -> Tuple[str, ...]:
+    """Return the accelerator kinds to display, in ACCELERATOR_KINDS order: matrix cells, job-ID lines and block notes.
+
+    Takes "gpu, tpu", a YAML list, all/true (every kind, the default) or none/false (CPUs only).
+    Display only: collection, exports, -A and replay keep every device. Raise ValueError otherwise.
+    """
+    if isinstance(value, (list, tuple)):
+        value = ",".join(str(item) for item in value)
+    names = [name for name in re.split(r"[\s,\[\]]+", str(value).strip().lower()) if name]
+    if names in (["all"], ["true"]):
+        return tuple(ACCELERATOR_KINDS)
+    if names in ([], ["none"], ["false"], ["off"]):
+        return ()
+    unknown = [name for name in names if name not in ACCELERATOR_KINDS]
+    if unknown:
+        raise ValueError("matrix_accelerators: expected all, none or some of %s, not %s" % (", ".join(ACCELERATOR_KINDS), ", ".join(unknown)))
+    return tuple(kind for kind in ACCELERATOR_KINDS if kind in names)
+
+
+def switch(value: Any, key: str) -> bool:
+    """Return a yes/no setting as a bool: YAML text and Python values (true/false, yes/no, on/off, 1/0)."""
+    text = str(value).strip().lower()
+    if text in ("true", "yes", "on", "1"):
+        return True
+    if text in ("false", "no", "off", "0", "none", ""):
+        return False
+    raise ValueError("%s: expected true or false" % key)
+
+
 def _validate_display(config: Any) -> None:
     """Display sections, then each backend's own settings (check_config)."""
     for backend in registry.PLUGIN_BATCH_SYSTEMS:
@@ -206,6 +256,9 @@ def _validate_display(config: Any) -> None:
     parts = config.get("user_display_parts")
     allowed = ("job_accounting_summary", "workernodes_matrix", "user_accounts_pool_mappings")
     _require(isinstance(parts, list) and len(parts) <= 3 and all(part in allowed for part in parts), "user_display_parts", "up to three known display sections")
+    accelerator_map_placement(config.get("accelerator_map", "off"))
+    switch(config.get("experimental_nvlink_blocks", False), "experimental_nvlink_blocks")
+    matrix_accelerators(config.get("matrix_accelerators", "all"))
 
 
 def _validate_colors(config: Any) -> None:
@@ -338,6 +391,9 @@ def normalize_config(raw_config: Dict[str, Any]) -> Dict[str, Any]:
     ):
         config[key] = literal(config[key])
     config["stack_jobs_per_node"] = bool(literal(config.get("stack_jobs_per_node", False)))
+    config["accelerator_map"] = accelerator_map_placement(config.get("accelerator_map", "off"))
+    config["experimental_nvlink_blocks"] = switch(config.get("experimental_nvlink_blocks", False), "experimental_nvlink_blocks")
+    config["matrix_accelerators"] = matrix_accelerators(config.get("matrix_accelerators", "all"))
     config["sorting"]["reverse"] = literal(config["sorting"].get("reverse", "0"))
     wn_id_lines = config["workernodes_matrix"][0]["wn id lines"]
     config["ALT_LABEL_COLORS"] = yaml_parser.fix_config_list(wn_id_lines["alt_label_colors"])
@@ -360,6 +416,12 @@ def update_config_with_cmdline_vars(args: Any, config: Dict[str, Any]) -> Dict[s
     for opt in getattr(args, "OPTION", ()):
         key, val = get_key_val_from_option_string(opt)
         config[key] = literal(val)
+    try:  # -o comes after normalize_config: read these settings the same way, e.g. -o experimental_nvlink_blocks=true
+        config["accelerator_map"] = accelerator_map_placement(config.get("accelerator_map", "off"))
+        config["experimental_nvlink_blocks"] = switch(config.get("experimental_nvlink_blocks", False), "experimental_nvlink_blocks")
+        config["matrix_accelerators"] = matrix_accelerators(config.get("matrix_accelerators", "all"))
+    except ValueError as error:
+        raise OperationalError("Invalid -o option: %s" % error) from error
 
     if getattr(args, "TRANSPOSE", False):
         config["transpose_wn_matrices"] = not config["transpose_wn_matrices"]

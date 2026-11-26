@@ -12,12 +12,12 @@
 import logging
 import re
 from collections import OrderedDict
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Mapping, Match, Optional, Set, Tuple, cast
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Mapping, Match, Optional, Sequence, Set, Tuple, cast
 
 from qtop_py.core_api import FileEmptyError, GenericBatchSystem, StatExtractor, check_empty_file, open_input
 from qtop_py.core_hostlist import HostlistParser
 from qtop_py.plugins.slurm_extension import SLURM_EXTENSION
-from qtop_py.schedulers.gpu import parse_gpu_gres
+from qtop_py.schedulers.gpu import ACCELERATOR_KINDS, parse_accelerator_gres
 
 if TYPE_CHECKING:
     from typing import Final
@@ -61,6 +61,9 @@ SLURM_JOB_STATES: "Final" = {
     "UPDATE_DB": "CG",
 }
 SLURM_COMPACT_JOB_STATES: "Final" = set(SLURM_JOB_STATES.values())
+# scontrol show topology, topology/block: "BlockName=b1 BlockIndex=0 Nodes=n[01-18] BlockSize=18" (Slurm's
+# topology_block.c). Aggregated blocks print AggregatedBlock= and are not domains; topology/tree prints SwitchName=.
+TOPOLOGY_BLOCK_RE: "Final" = re.compile(r"(BlockName|AggregatedBlock)=(\S+) BlockIndex=([0-9]+)(?: Nodes=(\S+))? BlockSize=([0-9]+)")
 SLURM_QUEUED_STATES: "Final" = {"PD", "RD", "RF", "RH", "RQ", "SE"}
 
 
@@ -338,6 +341,8 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
         "sinfo_file": "%(savepath)s/sinfo%(pid)s.txt, sinfo -N -h -O 'NodeList:0|,Partition:0|,StateCompact:0|,CPUs:0|,Gres:0|,GresUsed:0|,Available:0'",
         # Collect Slurm CPU IDs by default; missing/failed details use estimates.
         "scontrol_file": "%(savepath)s/scontrol%(pid)s.txt, scontrol --details show jobs",
+        # Slurm topology/block (e.g. NVL72 NVLink domains); other topologies list no blocks.
+        "topology_file": "%(savepath)s/topology%(pid)s.txt, scontrol show topology",
     }
     state_abbreviations = {
         "BF": "failed_boot_of_user",
@@ -399,9 +404,10 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
             args.BATCH_SYSTEM = "slurm"
 
     native_queue_membership = True
-    optional_trace_keys: Tuple[str, ...] = ("scontrol_file",)
-    optional_trace_aliases = {"scontrol_file": "scontrol.txt"}
+    optional_trace_keys: Tuple[str, ...] = ("scontrol_file", "topology_file")
+    optional_trace_aliases = {"scontrol_file": "scontrol.txt", "topology_file": "topology.txt"}
     optional_trace_warning = "Using estimated Slurm CPU placement."
+    optional_trace_warnings = {"topology_file": "Slurm topology blocks are not shown."}
     detection_priority = -2
     extensions = SLURM_EXTENSION
     node_job_fields = SLURM_EXTENSION.node_job_fields
@@ -410,7 +416,7 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
     @staticmethod
     def collection_command(key: str, command: str, options: Any) -> Optional[str]:
         """Skip details in summary mode and respect --all for live collection."""
-        if key == "scontrol_file" and getattr(options, "SLURM_SUMMARY", False):
+        if key in ("scontrol_file", "topology_file") and getattr(options, "SLURM_SUMMARY", False):
             return None
         if getattr(options, "ALL_PARTITIONS", False) and not options.SOURCEDIR and key in ("squeue_file", "sinfo_file", "scontrol_file"):
             command += " --all"
@@ -429,16 +435,74 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
 
     @staticmethod
     def display_messages(section: str, snapshot: object, nodes: "List[Node]", config: "Config") -> List[str]:
-        """Return the Slurm notes for a section: rejected rows, accounting rules and CPU placement caveats."""
+        """Return the Slurm notes for a section: rejected rows, accounting rules, CPU placement caveats and accelerators."""
         if section == "snapshot":
             return SlurmBatchSystem._snapshot_messages(snapshot)
         if section == "accounting":
             return SlurmBatchSystem._accounting_messages(snapshot)
         if section == "placement":
             return SlurmBatchSystem._placement_messages(nodes)
-        if section == "resources" and config.get("experimental_gpu_pairs"):
-            return SlurmBatchSystem._gpu_pair_messages(nodes, config)
+        if section == "accelerators":
+            return SlurmBatchSystem._accelerator_messages(nodes, config.get("matrix_accelerators", ACCELERATOR_KINDS))
+        if section == "resources":
+            return SlurmBatchSystem._block_messages(nodes, config) + (SlurmBatchSystem._gpu_pair_messages(nodes, config) if config.get("experimental_gpu_pairs") else [])
         return []
+
+    @staticmethod
+    def _accelerator_messages(nodes: "List[Node]", kinds: Sequence[str] = ACCELERATOR_KINDS) -> List[str]:
+        """List each node's GPUs, TPUs and NPUs with their jobs; the view places them (accelerator_map)."""
+        from qtop_py.schedulers.gpu import accelerator_map_lines
+
+        lines = accelerator_map_lines(nodes, kinds)
+        return ["INFO: Accelerators by node (job IDs, ? = unknown):"] + ["INFO: " + line for line in lines] if lines else []
+
+    @staticmethod
+    def _block_messages(nodes: "List[Node]", config: "Config") -> List[str]:
+        """Experimental: one line per topology block (NVLink domain) with free/busy nodes, idle accelerators and jobs across blocks.
+
+        Shown only with experimental_nvlink_blocks: true (the configuration normalizes YAML text to a bool).
+        """
+        if config.get("experimental_nvlink_blocks") is not True:
+            return []
+        blocks, job_blocks = SlurmBatchSystem._gather_blocks(nodes)
+        kinds = [kind for kind in ACCELERATOR_KINDS if kind in config.get("matrix_accelerators", ACCELERATOR_KINDS)]
+        lines = ["INFO: %s: %s" % (name, SlurmBatchSystem._block_summary(members, job_blocks, kinds)) for name, members in blocks.items()]
+        return ["INFO: Topology blocks (Slurm topology/block, e.g. NVLink domains):"] + lines if lines else []
+
+    @staticmethod
+    def _node_jobs(node: Mapping[str, Any]) -> Set[str]:
+        """The jobs on a node: those on its CPUs and those Slurm lists for it."""
+        return set(node["core_job_map"].values()) | set(node.get("slurm_job_ids", ()))
+
+    @staticmethod
+    def _gather_blocks(nodes: "List[Node]") -> Tuple[Dict[str, List[Mapping[str, Any]]], Dict[str, Set[str]]]:
+        """Return the nodes of each block, in node order, and the blocks each job runs in."""
+        blocks: Dict[str, List[Mapping[str, Any]]] = OrderedDict()
+        job_blocks: Dict[str, Set[str]] = {}
+        for node in nodes:
+            if "slurm_block" not in node:
+                continue
+            blocks.setdefault(node["slurm_block"], []).append(node)
+            for job_id in SlurmBatchSystem._node_jobs(node):
+                job_blocks.setdefault(job_id, set()).add(node["slurm_block"])
+        return blocks, job_blocks
+
+    @staticmethod
+    def _block_summary(members: List[Mapping[str, Any]], job_blocks: Mapping[str, Set[str]], kinds: Sequence[str]) -> str:
+        """Describe one block: nodes free/busy, idle/total devices of each kind, and jobs that also run in another block."""
+        from qtop_py.schedulers.gpu import device_status, node_devices
+
+        jobs = [SlurmBatchSystem._node_jobs(member) for member in members]
+        free = sum(1 for member, held in zip(members, jobs) if str(member["state"][0]) == "-" and not held and not SLURM_EXTENSION.node_busy(member))
+        parts = ["%s nodes (%s free, %s busy)" % (len(members), free, sum(1 for held in jobs if held))]
+        for kind in kinds:
+            statuses = [device_status(member, kind, index) for member in members for index in node_devices(member, kind)]
+            if statuses:
+                parts.append("%s %s/%s idle" % (kind, statuses.count("idle"), len(statuses)))
+        spanning = sorted({job_id for held in jobs for job_id in held if len(job_blocks[job_id]) > 1}, key=lambda job_id: (len(job_id), job_id))
+        if spanning:
+            parts.append("jobs across blocks: " + " ".join(spanning))
+        return ", ".join(parts)
 
     @staticmethod
     def _snapshot_messages(snapshot: object) -> List[str]:
@@ -501,8 +565,25 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
                 lines.extend("INFO: " + line for line in pairs)
         return lines
 
+    def _mask_topology(self, text: str, mask: "TraceMasker") -> str:
+        """Mask block and node names of scontrol show topology block records; raise ValueError on any other line."""
+        rows = []
+        for line in text.splitlines():
+            match = TOPOLOGY_BLOCK_RE.fullmatch(line.strip())
+            if match is None:
+                raise ValueError("unsupported topology line")
+            label, block, index, hosts, size = match.groups()
+            expanded = self.expand_nodelist(hosts)
+            if hosts and not expanded:
+                raise ValueError("invalid topology node list")
+            nodes = " Nodes=" + ",".join(mask(host, "node") for host in expanded) if hosts else ""
+            rows.append("%s=%s BlockIndex=%s%s BlockSize=%s" % (label, mask(block, "block"), index, nodes, size))
+        return "\n".join(rows) + "\n"
+
     def mask_source_trace(self, key: str, text: str, mask: "TraceMasker") -> Tuple[str, str]:
-        """Return the masked name and text of an squeue, sinfo or scontrol trace."""
+        """Return the masked name and text of an squeue, sinfo, scontrol or topology trace."""
+        if key == "topology_file":
+            return "topology.txt", self._mask_topology(text, mask)
         if key == "scontrol_file":
 
             def field(match: Match[str]) -> str:
@@ -574,6 +655,7 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
         self.squeue_file = scheduler_output_filenames.get("squeue_file", "")
         self.sinfo_file = scheduler_output_filenames.get("sinfo_file", "")
         self.scontrol_file = "" if getattr(options, "SLURM_SUMMARY", False) else scheduler_output_filenames.get("scontrol_file", "")
+        self.topology_file = "" if getattr(options, "SLURM_SUMMARY", False) else scheduler_output_filenames.get("topology_file", "")
         self.config = config
         self.options = options
         self.slurm_stat_maker = SlurmStatExtractor(self.config, self.options)
@@ -706,6 +788,7 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
 
         self._apply_cpu_allocations(worker_nodes_by_name, job_hosts)
         self._apply_gpu_allocations(worker_nodes_by_name, job_hosts)
+        self._apply_blocks(worker_nodes_by_name)
         for node in worker_nodes_by_name.values():
             node.pop("slurm_unmapped_cpus", None)
         mapped: Dict[str, Any] = {}
@@ -723,6 +806,35 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
         worker_nodes = list(worker_nodes_by_name.values())
         logger.info("worker_nodes contains %s entries", len(worker_nodes))
         return cast("List[Node]", worker_nodes)  # built field by field as Node records
+
+    def _read_blocks(self) -> Dict[str, str]:
+        """Return {node: block} from the optional topology trace; empty if it is missing, unreadable or not topology/block."""
+        if not self.topology_file:
+            return {}
+        try:
+            with open_input(self.topology_file, "r", encoding="utf-8", errors="replace", options=self.options) as stream:
+                text = stream.read()
+        except OSError as error:
+            logger.info("Slurm topology unavailable: %s", error)
+            return {}
+        blocks: Dict[str, str] = {}
+        for line in text.splitlines():
+            match = TOPOLOGY_BLOCK_RE.fullmatch(line.strip())
+            if match is None or match.group(1) != "BlockName" or match.group(4) is None:
+                continue  # aggregated blocks, tree switches, messages and empty blocks
+            hosts = self.expand_nodelist(match.group(4))
+            if not hosts:
+                logger.warning("Ignoring Slurm topology block with an invalid node list: %s", match.group(2))
+            for host in hosts:
+                blocks.setdefault(host, match.group(2))
+        return blocks
+
+    def _apply_blocks(self, worker_nodes: Dict[str, Dict[str, Any]]) -> None:
+        """Set slurm_block on each node in a topology block."""
+        blocks = self._read_blocks()
+        for raw_name, node in worker_nodes.items():
+            if raw_name in blocks:
+                node["slurm_block"] = blocks[raw_name]
 
     @staticmethod
     def _allocation_job_id(header: str) -> Optional[str]:
@@ -750,7 +862,7 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
             for raw, parsed in (("slurm_gres", "slurm_gpu_configured"), ("slurm_gres_used", "slurm_gpu_used")):
                 if raw in node:
                     try:
-                        node[parsed] = parse_gpu_gres(node[raw])
+                        node[parsed] = parse_accelerator_gres(node[raw])
                     except ValueError as error:
                         logger.warning("Ignoring invalid Slurm GPU metadata: %s", error)
         if not self.scontrol_file:
@@ -790,7 +902,7 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
                         continue
                     hosts = self.expand_nodelist(fields["Nodes"])
                     try:
-                        resources = parse_gpu_gres(fields["GRES"])
+                        resources = parse_accelerator_gres(fields["GRES"])
                     except ValueError:
                         invalid.add(job_id)
                         continue

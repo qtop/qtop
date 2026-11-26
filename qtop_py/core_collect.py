@@ -122,7 +122,7 @@ def trace_files(commands: Commands, backend: Type[GenericBatchSystem], options: 
         if collected is not None:
             result = collected[key]
             if isinstance(result, OperationalError):
-                logger.warning("%s %s", result, backend.optional_trace_warning)
+                logger.warning("%s %s", result, backend.optional_trace_warnings.get(key, backend.optional_trace_warning))
                 continue
             path = result
         if key in backend.optional_trace_keys and not os.path.isfile(path):
@@ -138,6 +138,54 @@ def trace_files(commands: Commands, backend: Type[GenericBatchSystem], options: 
     return files
 
 
+class Collection(object):
+    """One collection: the validated state, the backend object that built it and its trace files by key."""
+
+    __slots__ = ("state", "system", "files")
+
+    def __init__(self, state: "ClusterState", system: Any, files: Dict[str, str]) -> None:  # system: a backend instance
+        self.state = state
+        self.system = system
+        self.files = files
+
+
+def collect(
+    backend: Type[GenericBatchSystem],
+    workdir: str,
+    options: Optional[Any] = None,
+    commands: Optional[Mapping[str, str]] = None,
+    config: Optional[Mapping[str, Any]] = None,
+    timeout: float = DEFAULT_SCHEDULER_COMMAND_TIMEOUT,
+    cancel: Optional[threading.Event] = None,
+    env: Optional[Mapping[str, str]] = None,
+    files: Optional[Mapping[str, str]] = None,
+    config_name: str = "the scheduler command configuration",
+    **runner: Any,
+) -> Collection:
+    """Collect, build and validate one cluster state with backend; return it with its backend object and traces.
+
+    workdir receives the traces (it must exist). commands are "output file, command" entries by
+    trace key, by default the backend's default_commands; with options.SOURCEDIR (see
+    BackendOptions) the traces are read from that directory instead of running anything, and with
+    files (trace paths by key, e.g. from an archive) nothing is collected at all. To run commands,
+    pass env, the environment they start from (e.g. os.environ). config is what the backend reads
+    (state_abbreviations, its own keys); timeout limits each command; config_name names the
+    configuration in command errors; runner passes cwd= and input_options= to the command runner.
+    """
+    options = options if options is not None else BackendOptions()
+    if files is None:
+        # With SOURCEDIR the traces are read where they are; workdir only receives live output.
+        lines = command_lines(backend, backend.default_commands if commands is None else commands, options.SOURCEDIR or workdir, options)
+        if not options.SOURCEDIR and env is None:
+            raise ValueError("collect_state needs env= (e.g. os.environ) to run the scheduler commands")
+        collected = None if options.SOURCEDIR else run_commands(lines, backend, workdir, env or {}, timeout=timeout, cancel=cancel, config_name=config_name, **runner)
+        files = trace_files(lines, backend, options, collected)
+    files = dict(files)
+    # Every backend defines __init__(files, config, options); the base class declares none (CodeQL py/missing-call-to-init).
+    system = cast(Any, backend)(files, config if isinstance(config, dict) else dict(config or {}), options)
+    return Collection(validate_cluster_state(system.get_cluster_state(options)), system, files)
+
+
 def collect_state(
     backend: Type[GenericBatchSystem],
     workdir: str,
@@ -148,19 +196,5 @@ def collect_state(
     cancel: Optional[threading.Event] = None,
     env: Optional[Mapping[str, str]] = None,
 ) -> "ClusterState":
-    """Collect, build and validate one cluster state with backend.
-
-    workdir receives the traces (it must exist). commands are "output file, command" entries by
-    trace key, by default the backend's default_commands; with options.SOURCEDIR (see
-    BackendOptions) the traces are read from that directory instead of running anything. To run
-    commands, pass env, the environment they start from (e.g. os.environ). config is what the
-    backend reads (state_abbreviations, its own keys); timeout limits each command.
-    """
-    options = options if options is not None else BackendOptions()
-    lines = command_lines(backend, backend.default_commands if commands is None else commands, workdir, options)
-    if not options.SOURCEDIR and env is None:
-        raise ValueError("collect_state needs env= (e.g. os.environ) to run the scheduler commands")
-    collected = None if options.SOURCEDIR else run_commands(lines, backend, workdir, env or {}, timeout=timeout, cancel=cancel)
-    # Every backend defines __init__(files, config, options); the base class declares none (CodeQL py/missing-call-to-init).
-    system = cast(Any, backend)(trace_files(lines, backend, options, collected), dict(config or {}), options)
-    return validate_cluster_state(system.get_cluster_state(options))
+    """Collect, build and validate one cluster state with backend: collect(...).state (see collect)."""
+    return collect(backend, workdir, options, commands, config, timeout, cancel, env).state

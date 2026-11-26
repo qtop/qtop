@@ -27,9 +27,11 @@ def validate_job(record: Dict[str, object]) -> None:
 
 
 def validate_node(record: Dict[str, object]) -> None:
-    """Raise ValueError if a node's Slurm state, GPU, CPU or allocation-source fields are malformed."""
+    """Raise ValueError if a node's Slurm state, block, GPU, CPU or allocation-source fields are malformed."""
     if "slurm_node_state" in record and not isinstance(record["slurm_node_state"], str):
         raise ValueError("slurm_node_state must be text")
+    if "slurm_block" in record and not nonempty_texts([record["slurm_block"]]):
+        raise ValueError("slurm_block must be nonempty text")
     for field in GPU_FIELDS:
         if field in record:
             validate_gpu_resources(record[field], binding=field == "slurm_gpu_bindings")
@@ -61,6 +63,12 @@ def mask_node(original: Mapping[str, Any], node: Dict[str, Any], mask_job_id: Ma
                     resource["job_id"] = mask_job_id(resource["job_id"])
 
 
+def mask_node_names(original: Mapping[str, Any], node: Dict[str, Any], mask: Mask) -> None:
+    """Copy the node's topology block (its NVLink domain), masked as a block name."""
+    if "slurm_block" in original:
+        node["slurm_block"] = mask(original["slurm_block"], "block")
+
+
 def node_busy(node: Mapping[str, Any]) -> bool:
     """True if Slurm reports the node not idle or any of its GPUs in use."""
     return node.get("slurm_node_state", "idle").lower() != "idle" or any(resource["count"] for resource in node.get("slurm_gpu_used", []))
@@ -76,4 +84,5 @@ SLURM_EXTENSION: "Final" = ExtensionSpec(
     mask_job=mask_job,
     mask_node=mask_node,
     node_busy=node_busy,
+    mask_node_names=mask_node_names,
 )

@@ -128,6 +128,7 @@ class WNOccupancy(object):
                 self.__setattr__(part_name, self.calc_general_mult_attr_line(part_name, yaml_key, self.config, self.MVU_model.backend))
 
         self.core_user_map = self._calc_core_matrix(self.user_to_id, self.job_to_user_and_queue)
+        self.gpu_user_map = self._calc_accelerator_matrix(self.job_to_user_and_queue)
 
     def _create_account_jobs_table(self, user_to_id: Dict[str, Any], account_jobs_table: List[List[Any]]) -> Tuple[List[List[Any]], Dict[str, Any]]:
         for row in account_jobs_table:
@@ -399,7 +400,7 @@ class WNOccupancy(object):
         self._stack_jobs = self.MVU_model.display_overrides.get("stack_jobs_per_node", self.config.get("stack_jobs_per_node", False))
 
         for core_nr in self.cluster.core_span:
-            core_user_map["Core%svector" % str(core_nr)] = []  # Cpu0vector, Cpu1vector, Cpu2vector, ... = [],[],[], ...
+            core_user_map["Cpu%svector" % str(core_nr)] = []  # Cpu0vector, Cpu1vector, ...: the scheduler's CPUs (logical; threads when SMT is on)
         # The same lists by core position, so filling a cell needs no key built per core.
         core_vectors = list(core_user_map.values())
 
@@ -407,6 +408,57 @@ class WNOccupancy(object):
             self._fill_node_cores_vector(_node, core_vectors, job_to_user_and_queue, core_coloring)
 
         return core_user_map
+
+    def _calc_accelerator_matrix(self, job_to_user_and_queue: Mapping[str, Tuple[str, str]]) -> Dict[str, Any]:
+        """Return the accelerator lines (Gpu0vector, ..., Tpu0vector, ..., Npu0vector, ...): GPUs are cores of another kind.
+
+        A device holds its job's user symbol, coloured as a core of that job would be; "_" is idle,
+        a gray "?" means Slurm's usage does not say who holds it, and nodes with fewer devices of a
+        kind are padded with non_existent_node_symbol. No node with accelerators: no lines.
+        """
+        from qtop_py.schedulers.gpu import ACCELERATOR_KINDS, node_devices
+
+        kinds = [kind for kind in ACCELERATOR_KINDS if kind in self.config.get("matrix_accelerators", ACCELERATOR_KINDS)]
+        nodes = self.cluster.workernode_dict
+        devices = {name: {kind: node_devices(node, kind) for kind in kinds} for name, node in nodes.items()}
+        span = {kind: max([len(found[kind]) for found in devices.values()] or [0]) for kind in kinds}
+        vectors_of: Dict[str, List[List[Any]]] = OrderedDict((kind, []) for kind in kinds)
+        gpu_user_map: Dict[str, Any] = OrderedDict()
+        for kind in kinds:
+            for index in range(span[kind]):
+                vectors_of[kind].append(gpu_user_map.setdefault("%s%svector" % (kind.capitalize(), index), []))
+        if not gpu_user_map:
+            return gpu_user_map
+        core_coloring = self.MVU_model.display_overrides.get("core_coloring", self.config["core_coloring"])
+        for name, node in nodes.items():
+            for kind, vectors in vectors_of.items():
+                mine = devices[name][kind] if node["state"] != "?" else []
+                self._fill_node_device_vectors(node, kind, mine, vectors, core_coloring, job_to_user_and_queue)
+        return gpu_user_map
+
+    def _fill_node_device_vectors(
+        self,
+        node: Mapping[str, Any],
+        kind: str,
+        devices: Sequence[int],
+        vectors: Sequence[List[Any]],
+        core_coloring: str,
+        job_to_user_and_queue: Mapping[str, Tuple[str, str]],
+    ) -> None:
+        """Append one node's cell to each line of a kind: its job's user, _ idle, gray ? unknown, or padding."""
+        from qtop_py.schedulers.gpu import device_status
+
+        jobs, unknown = {}, set()
+        for position, index in enumerate(devices):
+            status = device_status(node, kind, index)
+            if status == "?":
+                unknown.add(position)
+            elif status != "idle":
+                jobs[position] = status.split("/")[0]  # a shared device shows its first job's user
+        for position in self.color_cores_and_return_unused(len(devices), vectors, jobs, core_coloring, job_to_user_and_queue):
+            vectors[position].append(utils.ColorStr("?" if position in unknown else "_", color="Gray_D"))
+        for vector in vectors[len(devices) :]:
+            vector.append(utils.ColorStr(self.config["non_existent_node_symbol"], color="Gray_D"))
 
     def _fill_node_cores_vector(
         self,

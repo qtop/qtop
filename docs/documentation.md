@@ -121,6 +121,23 @@ For an interactive session, use watch mode. The optional value after
 While in watch mode, the movement keys from [Keyboard shortcuts](#keyboard-shortcuts) let you move through the matrix,
 transpose it, switch node ID display, apply filters, or quit.
 
+### NVL72 demo
+
+`-b demo72` simulates one GB200 NVL72 rack, a single NVLink domain: 18 compute
+trays (`tray01`..`tray18`), each with 4 GPUs and 144 Grace cores, 36 per GPU.
+A training job holds a run of whole trays, inference and debug jobs take 1, 2 or
+4 GPUs of one tray, a tray may be down, a full-rack job waits, and one job's GPU
+details are missing, so its GPUs show as `?`. The jobs change every 20 seconds:
+
+```sh
+./qtop -b demo72 -w 5
+./qtop -b demo72 -o accelerator_map=before
+```
+
+The trays carry the same Slurm GPU records as live Slurm data, so the
+[GPU cells in the matrix](#accelerators-by-node-slurm), `-A`, exports and replay work
+as they do on a real cluster.
+
 Bundled scheduler case studies
 ------------------------------
 
@@ -402,7 +419,7 @@ Watch mode supports:
 | m | switch core coloring by user / queue |
 | p / P | cycle palettes forward / backward in ``palettes.yaml`` |
 | Q | cycle compact / expanded / clipped / hidden Queueing layouts |
-| r | cycle all / real / used core lines |
+| r | cycle all / real / used CPU lines |
 | s | apply sorting (remapped matrices; numbered ones keep node order) |
 | S | stack each node's jobs from its first core / show scheduler core placement (``stack_jobs_per_node``) |
 | t | transpose the matrix |
@@ -616,6 +633,7 @@ schedulers:
     squeue_file: %(savepath)s/squeue%(pid)s.txt, squeue -r -h -O 'JobID:0|,UserName:0|,StateCompact:0|,Partition:0|,NumCPUs:0|,NodeList:0|,tres-alloc:0|,tres-per-node:0|,tres-per-task:0|,ArrayJobID:0|,ArrayTaskID:0'
     sinfo_file: %(savepath)s/sinfo%(pid)s.txt, sinfo -N -h -O 'NodeList:0|,Partition:0|,StateCompact:0|,CPUs:0|,Gres:0|,GresUsed:0|,Available:0'
     scontrol_file: %(savepath)s/scontrol%(pid)s.txt, scontrol --details show jobs
+    topology_file: %(savepath)s/topology%(pid)s.txt, scontrol show topology
   demo:
     demo_file: %(savepath)s/demo%(pid)s.txt, echo 'Demo here'
 ```
@@ -1066,7 +1084,7 @@ Pass a tarball directly to ``-s`` to replay native scheduler input:
 Plain, gzip, bzip2 and xz tar archives are supported. Members are grouped by
 parent directory and shared capture suffix: ``squeue_123.txt``, ``sinfo_123.txt``
 and ``scontrol_123.txt`` form one set. Required files must all be present;
-Slurm's ``scontrol`` details are optional. qtop prefers sets with more configured
+Slurm's ``scontrol`` details and ``topology`` blocks are optional. qtop prefers sets with more configured
 files, then the lexicographically last directory/suffix, independent of member
 order. This ordering does not infer capture time. Duplicate members make a set
 ambiguous and ineligible. ``-d`` logs the selected set and member names.
@@ -1242,6 +1260,7 @@ to turn it on; "checked" means qtop refuses to start without the stated options.
 | Masked scheduler-format traces in a support archive | `--masked-traces` | `-L -A -e` | [support archives](#support-archives) |
 | Separate private archive of unmasked inputs | `--raw-companion` | `-L -A -e` | [support archives](#support-archives) |
 | Configured GPU pairs below the matrix (Slurm) | `experimental_gpu_pairs` in user `qtopconf.yaml` | none | [GPU pairs](#experimental-configured-gpu-pairs-slurm) |
+| Topology blocks / NVLink domains (Slurm) | `experimental_nvlink_blocks: true` in user `qtopconf.yaml` | none | [Topology blocks](#experimental-topology-blocks-nvlink-domains-slurm) |
 
 `-A` is not experimental.
 
@@ -1372,6 +1391,109 @@ totals need not sum to the cluster total. The option adds no scheduler commands.
 Sample replay retains the display option. Manual mappings are omitted from
 anonymized samples to avoid exposing node patterns; PBS/OAR counts then remain
 unknown. Native Slurm/SGE memberships survive anonymization and replay.
+
+# Accelerators by node (Slurm)
+
+GPUs are cores of another kind: in the worker-node matrix, each Slurm node with
+GPUs, TPUs or NPUs gets one cell per device, ahead of its cores, holding the ID of
+the user whose job has it, coloured as that job's cores are. With the default
+transposed matrix, a `gpu_map` block precedes each node's `core_map`:
+
+```text
+===> 2. Worker Nodes occupancy <=== (wnid_lines/gpu_map/core_map/Node state/queue name)
+01|7___|777777777777777777777777777777777777____...|b|i|
+02|1111|111111111111111111111111111111111111111...|b|t|
+09|????|_______________________________________...|d| |
+```
+
+Without `-T` transposition, the device lines (`=Gpu0`, `=Gpu1`, ..., `=Tpu0`,
+`=Npu0`) come before the CPU lines (`=Cpu0`, ...), between two dashed rules, as the
+`|` separators set off each section of the transposed matrix. `occupancy_column_order` can place
+`gpu_map` elsewhere. `_` is an idle device; a gray `?` means Slurm
+reports the device in use (or reports no usage, as for a down node) but not which
+job holds it, as with `--slurm-summary`, which collects no per-job indices.
+Nodes with fewer devices are padded with `non_existent_node_symbol`, as for cores.
+A device shared by several jobs shows the first job's user. `rem_empty_corelines`
+drops unused device lines as it drops unused CPU lines.
+
+The CPU lines are the scheduler's allocatable CPUs: logical CPUs, so hardware
+threads when SMT is on (Slurm `CPUs`, PBS `np`), which is why they are labelled
+`Cpu0`, `Cpu1`, ... and the Summary counts `cpus`, not cores. Configuration keys
+keep their names (`core_map`, `core_coloring`, `rem_empty_corelines`).
+
+To leave some kinds out, or show CPUs only, list the kinds to show:
+
+```yaml
+matrix_accelerators: gpu   # all (the default), none, or some of gpu, tpu, npu
+```
+
+It applies to the matrix cells, the job-ID lines and the experimental block notes,
+and works with `-o matrix_accelerators=none`. It changes the display only:
+collection, exports, `-A` and replay keep every device.
+
+Devices come from the node's Slurm GRES (`gpu:`, `tpu:` and `npu:` entries of any
+type and count; `IDX:` indices when Slurm reports them, otherwise numbered from 0)
+and their jobs from `scontrol show job -d` (`GRES=...(IDX:...)`). Indices are
+Slurm GRES indices, not CUDA or physical IDs. MIG slices are left out. Exports,
+`-A` and replay keep the devices; TPU and NPU records carry a `kind` field, and
+records without one are GPUs.
+
+For job IDs instead of users, add one line per node before or after the matrix:
+
+```yaml
+accelerator_map: before   # or after; false (the default) shows only the matrix cells
+```
+
+```text
+INFO: Accelerators by node (job IDs, ? = unknown):
+INFO: gpu003: gpu0-1=101 gpu2-6=idle gpu7=102
+INFO: npu007: npu0-7=idle
+```
+
+Consecutive devices with the same jobs share a label, so 8 or 64 devices stay one
+line. When the node matrix is hidden (`-2`), these lines join the scheduler messages.
+
+# Experimental topology blocks: NVLink domains (Slurm)
+
+GB200/GB300 NVL72-class clusters describe each NVLink domain (rack) to Slurm as a
+block of the `topology/block` plugin, in `topology.conf`
+(`BlockName=nvl72_01 Nodes=nvl[001-018]`) or `topology.yaml` (`block:` / `blocks:`).
+qtop reads them from `scontrol show topology`, collected as the optional
+`topology_file` trace, and lists each block below the accelerator map:
+
+```text
+INFO: Topology blocks (Slurm topology/block, e.g. NVLink domains):
+INFO: nvl72_01: 18 nodes (4 free, 14 busy), gpu 16/72 idle, jobs across blocks: 301
+INFO: nvl72_02: 18 nodes (11 free, 6 busy), gpu 52/72 idle, jobs across blocks: 301
+```
+
+Free nodes are idle and run no jobs, as in the Summary's `Free`; busy nodes run
+jobs; the rest are down, drained or reserved. Accelerators count as idle as in the
+accelerator map, so unknown usage (`?`) is not idle. Jobs across blocks run on
+nodes of more than one block, so their GPUs do not share one NVLink domain.
+
+Only `BlockName=` records are used: `AggregatedBlock=` records (higher
+`BlockSizes` levels) and `topology/tree` switches are not NVLink domains and are
+ignored. Slurm does not document this output, so qtop follows Slurm's own
+`topology/block` printer: one `BlockName=<name> BlockIndex=<n> Nodes=<hostlist>
+BlockSize=<n>` line per block. A cluster without `topology/block`, a failed
+command or a missing trace shows no blocks; failures are logged, not displayed.
+`--slurm-summary` does not collect the trace. For offline input, save the output
+as `topology.txt` alongside `squeue.txt` and `sinfo.txt`.
+
+Each node in a block carries its name in `slurm_block`. Exports and replay keep
+it; `-A` masks block names (`b_anon_block_0`, ...) in the state and in the
+masked `topology.txt` trace, keeping the grouping.
+
+The lines are experimental and hidden unless you enable them in your `qtopconf.yaml`
+(or with `-o experimental_nvlink_blocks=true`):
+
+```yaml
+experimental_nvlink_blocks: true
+```
+
+The trace is collected either way, so support archives and replays carry the
+blocks; enabling the lines later shows them for saved input too.
 
 # Experimental configured GPU pairs (Slurm)
 
@@ -1555,6 +1677,61 @@ personal `qtopconf.yaml`. Masked source traces (`--masked-traces`) are not
 offered for HTCondor and are listed as omitted; `-A` exports are anonymized.
 The backend is built from documented JSON output and synthetic traces in
 `tests/plugins/htcondor_samples/`; it has not yet been checked against a live pool.
+
+## Using qtop as a library
+
+`qtop_py.core_api` is the public interface of qtop's scheduler core. It collects a
+validated, scheduler-neutral cluster state with no command line, configuration file or
+terminal, and it is the only module callers should import from (types aside, see below).
+`tests/test_core_api.py` pins its names; changing them is an API change for the
+CHANGELOG.
+
+```python
+import os
+import tempfile
+
+from qtop_py import core_api
+from qtop_py.plugins.slurm import SlurmBatchSystem
+
+with tempfile.TemporaryDirectory() as workdir:
+    # Run the backend's own default commands (squeue, sinfo, ...) in the caller's environment.
+    state = core_api.collect_state(SlurmBatchSystem, workdir, env=os.environ)
+    print(len(state["jobs"]), "jobs on", len(state["nodes"]), "nodes")
+
+    # Or read traces saved earlier, in place (the layout qtop -s DIR reads): nothing runs, no env needed.
+    state = core_api.collect_state(SlurmBatchSystem, workdir, core_api.BackendOptions(SOURCEDIR="traces/"))
+```
+
+- `collect_state(backend, workdir, options=None, commands=None, config=None, timeout=...,
+  cancel=None, env=None)` returns the validated state. `backend` is a backend class
+  (`SlurmBatchSystem`, `PBSBatchSystem`, `SGEBatchSystem`, `OARBatchSystem`,
+  `LSFBatchSystem`, `HTCondorBatchSystem`, `SlurmJSONBatchSystem` in `qtop_py.plugins.*`, or
+  your own). `workdir` must exist and receives the live traces; `SOURCEDIR` traces are read in place. `env` is required to run
+  commands, so the core never reads the environment by itself.
+- `collect(...)` takes the same arguments plus `files=` (trace paths by key, when the
+  traces are already in hand) and returns a `Collection`: `.state`, `.system` (the backend
+  object, e.g. for `TraceMasker`) and `.files`.
+- `BackendOptions(SOURCEDIR=None, **switches)` carries a backend's own switches by the
+  names its `add_cli_options()` gives them (for Slurm: `ALL_PARTITIONS`, `SLURM_SUMMARY`,
+  `SLURM_JSON_SQUEUE`); a switch left out takes its default.
+- `command_lines`, `command_env`, `run_commands` and `trace_files` are the steps
+  `collect()` composes, for callers that store or ship traces apart from parsing them.
+- Errors: `OperationalError` for failed commands and missing traces, `ValueError` for
+  unparsable input and a missing `env=`.
+- The record types (`ClusterState`, `Node`, `Job`, ...) are for type checkers only, as
+  qtop supports Python 3.6: import them from `qtop_py.core_state_types` under
+  `if TYPE_CHECKING:`.
+
+The core logs to `qtop_py.*` loggers and never configures logging, prints or exits.
+
+**qtop is the reference caller.** `qtop_py/schedulers/collector.py`, the part of qtop
+that collects for the CLI, the TUI, `-w` watch mode and support archives, takes all of
+this from `core_api` alone: one-shot runs call `core_api.collect(..., files=...)` on the
+traces they fetched (live, from `-s` or from a trace archive), and the watch-mode poller
+calls it on each round. `tests/test_core_api.py` fails if the collector imports these
+names from the core modules behind `core_api`, so qtop keeps using the interface it
+offers. Read that module for a full-featured example: configured commands, timeouts,
+cancellation, backend fallback and masking.
 
 ## Adding a scheduler backend
 

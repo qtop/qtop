@@ -12,13 +12,12 @@ import time
 from typing import TYPE_CHECKING, Any, Callable, Dict, Mapping, Tuple, Type
 from xml.etree.ElementTree import ParseError  # nosec B405 # nosemgrep - exception class only; parsing is in plugins/sge.py
 
-from qtop_py import __version__, configuration, core_collect, fileutils
+from qtop_py import __version__, configuration, core_api, fileutils
 from qtop_py import core_sample as sample
 from qtop_py.colormap import user_to_color_default
 from qtop_py.configuration import CONFIG_ERRORS
 from qtop_py.constants import QTOPCONF_YAML
-from qtop_py.core_errors import OperationalError
-from qtop_py.core_serialiser import GenericBatchSystem
+from qtop_py.core_api import GenericBatchSystem, OperationalError
 from qtop_py.runtime import RunPaths, RunResources
 from qtop_py.schedulers.registry import decide_batch_system
 from qtop_py.snapshot import Snapshot
@@ -29,21 +28,21 @@ if TYPE_CHECKING:
 
 def finalize_filepaths_schedulercommands(args: Any, config: Dict[str, Any], backend: Type[GenericBatchSystem]) -> Dict[str, Tuple[str, str]]:
     """Return {input_key: (path, command)} for the configured commands, with PID suffixes for live collection."""
-    return core_collect.command_lines(backend, config["schedulers"][backend.get_mnemonic()], args.workdir, args)
+    return core_api.command_lines(backend, config["schedulers"][backend.get_mnemonic()], args.workdir, args)
 
 
 def command_env(backend: Type[GenericBatchSystem]) -> Dict[str, str]:
     """Return the environment for a backend's commands: qtop's own, with what the backend requires."""
-    return core_collect.command_env(backend, os.environ)
+    return core_api.command_env(backend, os.environ)
 
 
 def _run_commands_concurrently(INPUT_FNs_commands: Mapping[str, Tuple[str, str]], config: Dict[str, Any], args: Any, backend: Type[GenericBatchSystem]) -> Dict[str, Any]:
-    """Run the commands with the configured savepath and timeout; see core_collect.run_commands."""
+    """Run the commands with the configured savepath and timeout; see core_api.run_commands."""
     SETTINGS = configuration.collection_settings(config)
     controls = dict(getattr(args, "_collection_controls", {}))
     cancel = controls.pop("cancel", None)
     progress = {"input_options": args} if getattr(args, "_input_progress", None) is not None else {}
-    return core_collect.run_commands(
+    return core_api.run_commands(
         dict(INPUT_FNs_commands),
         backend,
         os.path.expandvars(SETTINGS.SAVEPATH),
@@ -59,7 +58,7 @@ def _run_commands_concurrently(INPUT_FNs_commands: Mapping[str, Tuple[str, str]]
 def get_input_filenames(INPUT_FNs_commands: Mapping[str, Tuple[str, str]], config: Dict[str, Any], args: Any, backend: Type[GenericBatchSystem]) -> Dict[str, str]:
     """Return the trace files by key: found in the -s directory, or collected by running the scheduler commands."""
     collected = None if args.SOURCEDIR else _run_commands_concurrently(INPUT_FNs_commands, config, args, backend)
-    return core_collect.trace_files(dict(INPUT_FNs_commands), backend, args, collected)
+    return core_api.trace_files(dict(INPUT_FNs_commands), backend, args, collected)
 
 
 def fetch_scheduler_files(args: Any, config: Dict[str, Any], backend: Type[GenericBatchSystem]) -> Dict[str, str]:
@@ -89,13 +88,14 @@ def MVU_collect_snapshot(
     scheduler = backend.get_mnemonic()
     savepath = config["savepath"]
     scheduling_system: state_types.Scheduler
+    built = None  # the core_api collection (the poller's, or built here from trace_paths)
     try:
         if args.load_sample:
             cluster_state = args.sample_snapshot["state"]
         elif args.SAMPLE and args.ANONYMIZE:
             # Mask the built state once, so the archive and the display share one mapping.
-            scheduling_system = collected.system if collected is not None else backend(trace_paths, config, args)
-            cluster_state = collected.state if collected is not None else scheduling_system.get_cluster_state(args)
+            built = collected if collected is not None else core_api.collect(backend, args.workdir, args, config=config, files=trace_paths)
+            scheduling_system, cluster_state = built.system, built.state
             cluster_state, mappings = sample.anonymize_state(cluster_state)
             config, omitted = sample.sanitize_config(config, mappings)
             snapshot_config = copy.deepcopy(config)
@@ -110,14 +110,14 @@ def MVU_collect_snapshot(
 
                 save_masked_traces(archive, scheduling_system, trace_paths, mappings)
         else:
-            scheduling_system = collected.system if collected is not None else backend(trace_paths, config, args)
-            cluster_state = collected.state if collected is not None else scheduling_system.get_cluster_state(args)
+            built = collected if collected is not None else core_api.collect(backend, args.workdir, args, config=config, files=trace_paths)
+            cluster_state = built.state
     except (ValueError, UnicodeError, ParseError) as error:
         raise OperationalError("Cannot parse %s scheduler input in %s: %s" % (scheduler, args.workdir, error)) from error
     if getattr(args, "ANONYMIZE", False) and not args.SAMPLE and not args.load_sample:  # -A: masked once, after the state is built
         cluster_state = sample.anonymize_state(cluster_state)[0]
-    # The poller's collect() already validated its state; --demanding validates it again here.
-    prevalidated = collected is not None and cluster_state is collected.state and not getattr(args, "DEMANDING", False)
+    # core_api.collect() already validated the state (unless -A replaced it); --demanding validates it again here.
+    prevalidated = built is not None and cluster_state is built.state and not getattr(args, "DEMANDING", False)
     collection = None if collected is None else (max(0, time.monotonic() - collected.completed), collected.completed - collected.started, collection_error)
     snapshot = Snapshot.from_cluster_state(cluster_state, validated=prevalidated, display_state=getattr(backend, "display_job_state", None), collection=collection)
     return snapshot, config
@@ -135,24 +135,23 @@ def make_collector(args: Any, config: Dict[str, Any], backend: Any, scheduler: s
         collection_args.workdir = directory
         collection_args._collection_controls = {"cancel": cancel, "cwd": os.path.realpath(os.path.expandvars(capture_config["savepath"]))}
         collection_config = dict(capture_config, savepath=directory)
-        try:
+
+        def attempt() -> Any:
             files = fetch_scheduler_files(collection_args, collection_config, selected)
-            system = selected(files, collection_config, collection_args)
-            state = system.get_cluster_state(collection_args)
+            return core_api.collect(selected, directory, collection_args, config=collection_config, files=files)
+
+        try:
+            built = attempt()
         except (OperationalError, ValueError) as error:
             fallback = getattr(selected, "fallback_backend", None)
             if probed or fallback is None or not selected.capability_failure(error):
                 raise
             logging.warning("%s collection capability unavailable: %s; falling back to %s. %s", scheduler, error, fallback.get_mnemonic(), getattr(selected, "fallback_note", ""))
             selected = fallback
-            files = fetch_scheduler_files(collection_args, collection_config, selected)
-            system = selected(files, collection_config, collection_args)
-            state = system.get_cluster_state(collection_args)
+            built = attempt()
         finally:
             probed = True
-        from qtop_py.core_cluster_state import validate_cluster_state
-
-        state = validate_cluster_state(state)
+        state, system, files = built.state, built.system, built.files
         return state, system, selected, files if capture_args.SAMPLE else {}
 
     return collect

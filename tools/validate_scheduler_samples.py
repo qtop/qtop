@@ -47,7 +47,7 @@ COMMON_COLOUR_EXPECTATIONS = [
     {"semantic": "accounting section title", "text": "1. Job accounting summary", "colour": "White", "sgr": "1;37"},
     {"semantic": "summary label", "text": "Summary", "colour": "Cyan_L", "sgr": "1;36"},
     {"semantic": "node-count label", "text": "Nodes", "colour": "Red_L", "sgr": "1;31"},
-    {"semantic": "core-count label", "text": "cores", "colour": "Green_L", "sgr": "1;32"},
+    {"semantic": "cpu-count label", "text": "cpus", "colour": "Green_L", "sgr": "1;32"},
     {"semantic": "job-count label", "text": "jobs", "colour": "Blue_L", "sgr": "1;34"},
     {"semantic": "blocked-queue warning", "text": "* implies blocked", "colour": "Red", "sgr": "0;31"},
 ]
@@ -103,7 +103,7 @@ STATIC_CASES = {
             "name": "slurm-json-" + version,
             "source": ROOT / "tests/plugins/slurm_json_samples" / version,
             "args": ["-b", "slurm_json", "-s", str(ROOT / "tests/plugins/slurm_json_samples" / version), "-c", "ON", "-F"],
-            "markers": ["Total:3 Up:2 Free:0 Nodes", "8/24 cores", "3=2+1+0 jobs", "batch*: 1 + 1", "empty*: 0", "scheduler CPU IDs"],
+            "markers": ["Total:3 Up:2 Free:0 Nodes", "8/24 cpus", "3=2+1+0 jobs", "batch*: 1 + 1", "empty*: 0", "scheduler CPU IDs"],
         }
         for version in ("v0.0.40", "v0.0.43", "v0.0.44", "v0.0.45", "v0.0.46")
     ],
@@ -114,7 +114,7 @@ STATIC_CASES = {
             "args": ["-c", "ON", "-s", str(CONTRIB), "-raF", "-b", "pbs"],
             "markers": [
                 "Summary : Total:829 Up:819 Free:91 Nodes",
-                "7629/7872 cores",
+                "7629/7872 cpus",
                 "10955=7590+3365+0 jobs",
                 "Worker Nodes occupancy",
                 "User accounts and pool mappings",
@@ -128,7 +128,7 @@ STATIC_CASES = {
             "args": ["-s", str(CONTRIB), "-c", "ON", "-Fadvv", "-b", "sge"],
             "markers": [
                 "Summary : Total:17 Up:17 Free:4 Nodes",
-                "61/408 cores",
+                "61/408 cpus",
                 "93=62+31+0 jobs",
                 "Worker Nodes occupancy",
                 "User accounts and pool mappings",
@@ -142,7 +142,7 @@ STATIC_CASES = {
             "args": ["-s", str(CONTRIB), "-c", "ON", "-F", "-b", "oar"],
             "markers": [
                 "Summary : Total:183 Up:172 Free:167 Nodes",
-                "1349/2520 cores",
+                "1349/2520 cpus",
                 "260=190+69+1 jobs",
                 "default: 187 + 69",
                 "besteffort: 3",
@@ -158,7 +158,7 @@ STATIC_CASES = {
             "args": ["-b", "lsf", "-s", str(ROOT / "tests/plugins/lsf_samples/basic"), "-c", "ON", "-F"],
             "markers": [
                 "Summary : Total:5 Up:3 Free:2 Nodes",
-                "32/88 cores",
+                "32/88 cpus",
                 "9=4+3+2 jobs",
                 "short: 2 + 1",
                 "idle*: 0",
@@ -174,7 +174,7 @@ STATIC_CASES = {
             "args": ["-b", "htcondor", "-s", str(ROOT / "tests/plugins/htcondor_samples/basic"), "-c", "ON", "-F"],
             "markers": [
                 "Summary : Total:5 Up:3 Free:3 Nodes",
-                "42/76 cores",
+                "42/76 cpus",
                 "8=4+2+2 jobs",
                 "default: 2 + 1",
                 "Worker Nodes occupancy",
@@ -197,19 +197,43 @@ STATIC_CASES = {
             ],
         }
     ],
+    "demo72": [
+        {
+            "name": "demo72-generated",
+            "source": ROOT,
+            "args": ["-c", "ON", "-F", "-b", "demo72"],
+            "markers": [
+                "This data is simulated",
+                "Summary : Total:18",
+                "gpu_map/core_map/Node state",
+                "Worker Nodes occupancy",
+                "demo72 simulates one GB200 NVL72 rack",
+            ],
+        }
+    ],
 }
 
 SLURM_MARKERS_BY_SAMPLE = {
-    "arrays_and_het": ["Summary : Total:2 Up:2 Free:0 Nodes", "7/16 cores", "8=4+4+0 jobs", "individual array tasks and heterogeneous components"],
-    "cpu_allocations": ["Summary : Total:3 Up:3 Free:1 Nodes", "6/24 cores", "3=2+1+0 jobs", "scheduler CPU IDs", "long*: 0 + 1"],
-    "partial_and_malformed": ["Summary : Total:3 Up:3 Free:0 Nodes", "5/12 cores", "6=4+1+1 jobs"],
-    "basic": ["Summary : Total:3 Up:3 Free:2 Nodes", "4/16 cores", "3=2+1+0 jobs"],
-    "large_cluster": ["Summary : Total:18 Up:17 Free:9 Nodes", "120/288 cores", "6=3+1+2 jobs"],
-    "large_mixed": ["Summary : Total:20 Up:19 Free:9 Nodes", "160/320 cores", "6=3+1+2 jobs"],
-    "large_multi_partition": ["Summary : Total:18 Up:17 Free:10 Nodes", "104/288 cores", "6=3+1+2 jobs"],
-    "mixed": ["Summary : Total:2 Up:1 Free:0 Nodes", "4/16 cores", "4=2+0+2 jobs"],
-    "multi_partition": ["Summary : Total:2 Up:2 Free:1 Nodes", "4/32 cores", "3=2+1+0 jobs"],
+    "arrays_and_het": ["Summary : Total:2 Up:2 Free:0 Nodes", "7/16 cpus", "8=4+4+0 jobs", "individual array tasks and heterogeneous components"],
+    "cpu_allocations": ["Summary : Total:3 Up:3 Free:1 Nodes", "6/24 cpus", "3=2+1+0 jobs", "scheduler CPU IDs", "long*: 0 + 1"],
+    "partial_and_malformed": ["Summary : Total:3 Up:3 Free:0 Nodes", "5/12 cpus", "6=4+1+1 jobs"],
+    "basic": ["Summary : Total:3 Up:3 Free:2 Nodes", "4/16 cpus", "3=2+1+0 jobs"],
+    "large_cluster": ["Summary : Total:18 Up:17 Free:9 Nodes", "120/288 cpus", "6=3+1+2 jobs"],
+    "large_mixed": ["Summary : Total:20 Up:19 Free:9 Nodes", "160/320 cpus", "6=3+1+2 jobs"],
+    "large_multi_partition": ["Summary : Total:18 Up:17 Free:10 Nodes", "104/288 cpus", "6=3+1+2 jobs"],
+    "mixed": ["Summary : Total:2 Up:1 Free:0 Nodes", "4/16 cpus", "4=2+0+2 jobs"],
+    "multi_partition": ["Summary : Total:2 Up:2 Free:1 Nodes", "4/32 cpus", "3=2+1+0 jobs"],
+    "nvl72": [
+        "Summary : Total:36 Up:35 Free:15 Nodes",
+        "1368/5184 cpus",
+        "4=3+1+0 jobs",
+        "nvl72_01: 18 nodes (4 free, 14 busy), gpu 16/72 idle, jobs across blocks: 301",
+        "nvl72_02: 18 nodes (11 free, 6 busy), gpu 52/72 idle, jobs across blocks: 301",
+    ],
 }
+
+# Extra flags per Slurm sample, e.g. to switch on the experimental feature the sample shows.
+SLURM_ARGS_BY_SAMPLE = {"nvl72": ["-o", "experimental_nvlink_blocks=true"]}
 
 COMMON_RENDER_MARKERS = [
     "Worker Nodes occupancy",
@@ -574,6 +598,7 @@ def discover_cases(schedulers, slurm_samples_dir):
                         "name": "slurm-%s" % sample_dir.name,
                         "scheduler": "slurm",
                         "source": sample_dir,
+                        "args": ["-s", str(sample_dir), "-c", "ON", "-F", "-b", "slurm"] + SLURM_ARGS_BY_SAMPLE.get(sample_dir.name, []),
                         "markers": SLURM_MARKERS_BY_SAMPLE[sample_dir.name] + COMMON_RENDER_MARKERS,
                         "colour_expectations": list(COMMON_COLOUR_EXPECTATIONS),
                     }

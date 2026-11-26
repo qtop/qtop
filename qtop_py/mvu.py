@@ -41,8 +41,8 @@ def MVU_gauge_core_vectors(
 ) -> Iterator[Tuple[Any, int, str, bool]]:
     """Yield each core line with a flag telling whether REM_EMPTY_CORELINES may omit it."""
     delta = node_column_stop - node_column_start
-    for ind, k in enumerate(core_user_map.copy()):
-        core_x_vector = core_user_map["Core" + str(ind) + "vector"][node_column_start:node_column_stop]
+    for ind, (k, vector) in enumerate(list(core_user_map.items())):  # Cpu0vector, ... or Gpu0vector, ...
+        core_x_vector = vector[node_column_start:node_column_stop]
         core_x_str = "".join(str(x) for x in core_x_vector)
         yield core_x_vector, ind, k, coreline_notthere_or_unused(non_existent_symbol, remove_corelines, delta, core_x_str)
 

@@ -76,7 +76,7 @@ def _export(case, tmp_path, *extra):
     return json.loads(export.read_text())
 
 
-@pytest.mark.parametrize("case", [case for case in SAMPLE_CASES if case["scheduler"] != "demo"], ids=lambda case: case["name"])
+@pytest.mark.parametrize("case", [case for case in SAMPLE_CASES if case["scheduler"] not in ("demo", "demo72")], ids=lambda case: case["name"])
 def test_backend_sample_survives_export_anonymization_and_replay(case, tmp_path):
     state = _export(case, tmp_path)
     validated = validate_cluster_state(state)

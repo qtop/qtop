@@ -3,6 +3,26 @@
 Notable changes by version, newest first. See the
 [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 
+## 0.9.20261123
+
+- Bugfix: core_api.collect_state() reads SOURCEDIR traces in place, not from the workdir
+- Docs: "Using qtop as a library" documents core_api, with qtop's collector as the reference caller
+- Docs: visualisation-topics.md gathers the [VIS] ideas of #10, #11, #12, #34 and asks for use cases
+- Feature: (experimental) Slurm NVLink domains (topology/block): free nodes, idle GPUs, jobs across
+- Feature: Slurm tpu: and npu: GRES are kept beside gpu:, for any device count (kind field)
+- Feature: GPUs/TPUs/NPUs are node-matrix cells with user IDs, before the cores (gpu_map, =Gpu0)
+- Feature: accelerator_map: before/after adds job-ID lines per node to the matrix; off by default
+- Feature: matrix_accelerators: gpu, tpu, npu, all or none picks the device kinds qtop displays
+- Feature: with -T, dashed rules above and below the GPU/TPU/NPU lines set them apart, like the |s
+- Feature: matrix CPU lines read =Cpu0.. and the Summary counts cpus: logical CPUs, not cores
+- Feature: qtop -b demo72 simulates a GB200 NVL72 rack (18 trays x 4 GPUs) to try the GPU view
+- Feature: core_api.collect() returns the state, backend object and traces; collection steps public
+- Feature: experimental_nvlink_blocks: true shows Slurm topology block notes; -A masks block names
+- Feature: optional Slurm topology_file trace (scontrol show topology); nodes keep slurm_block
+- Refactor: optional traces may log their own warning; extension specs may mask node names
+- Refactor: qtop's collector collects through core_api only; tests/test_core_api.py enforces it
+- Release: update version metadata to 0.9.20261123
+
 ## 0.9.20261122
 
 - Bugfix: SonarCloud findings on 1e01dac: SGE no-op self-assignments, uneven scheduler error lines

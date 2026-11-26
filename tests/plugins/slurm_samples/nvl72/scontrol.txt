@@ -1,0 +1,11 @@
+JobId=301 JobName=train
+   JobState=RUNNING NumCPUs=576
+   Nodes=nvl[015-022] CPU_IDs=0-71 Mem=65536 GRES=gpu:gb200:4(IDX:0-3)
+
+JobId=302 JobName=pretrain
+   JobState=RUNNING NumCPUs=720
+   Nodes=nvl[001-010] CPU_IDs=0-71 Mem=65536 GRES=gpu:gb200:4(IDX:0-3)
+
+JobId=303 JobName=eval
+   JobState=RUNNING NumCPUs=72
+   Nodes=nvl[023-024] CPU_IDs=0-35 Mem=16384 GRES=gpu:gb200:2(IDX:0-1)

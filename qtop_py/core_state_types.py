@@ -37,8 +37,11 @@ if TYPE_CHECKING:
         state: str
         queue: str
 
-    class GPUResource(TypedDict):
-        """A GPU count of one type, with device indices and MIG details when known."""
+    class _AcceleratorKind(TypedDict, total=False):
+        kind: str  # "tpu" or "npu"; absent for a GPU
+
+    class GPUResource(_AcceleratorKind):
+        """An accelerator count of one type (a GPU unless kind says TPU or NPU), with device indices and MIG details when known."""
 
         type: Optional[str]
         count: int
@@ -55,6 +58,7 @@ if TYPE_CHECKING:
         """Optional scheduler-specific node fields (Slurm state and GPUs, OAR jobs, CPU placement)."""
 
         slurm_node_state: str
+        slurm_block: str
         slurm_gpu_configured: List[GPUResource]
         slurm_gpu_used: List[GPUResource]
         slurm_gpu_bindings: List[GPUBinding]

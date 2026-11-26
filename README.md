@@ -147,6 +147,7 @@ gates, including coverage, type checks and both parser fuzzers. See
 ## Documentation and community
 
 - [User documentation and tutorial](docs/documentation.md)
+- [Visualisation topics waiting for use cases](docs/visualisation-topics.md): tell us yours
 - [Contributing guide](CONTRIBUTING.md)
 - [Maintenance roles, review routing and escalation](MAINTAINERS.md)
 - [Code of conduct](CODE_OF_CONDUCT.md)
