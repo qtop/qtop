@@ -1,5 +1,5 @@
-# Copyright (c) 2026 qtop contributors
-# SPDX-License-Identifier: MIT
+## Copyright (c) 2026 qtop contributors
+## SPDX-License-Identifier: MIT
 """Preview or write synchronized release files; never commit, tag or publish."""
 
 import argparse

@@ -1,5 +1,5 @@
-# Copyright (c) 2026 qtop contributors
-# SPDX-License-Identifier: MIT
+## Copyright (c) 2026 qtop contributors
+## SPDX-License-Identifier: MIT
 """Exercise a real watch-mode terminal and report bounded soak-test evidence."""
 
 import argparse

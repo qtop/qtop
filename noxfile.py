@@ -1,5 +1,5 @@
-# Copyright (c) 2026 qtop contributors
-# SPDX-License-Identifier: MIT
+## Copyright (c) 2026 qtop contributors
+## SPDX-License-Identifier: MIT
 """Run qtop's Make gates in a managed Python 3.12 environment with the pinned CI requirements.
 
 `uvx nox` runs make pre-pr schema-ci; `uvx nox -- test-fast` runs any Make targets, in one invocation.
