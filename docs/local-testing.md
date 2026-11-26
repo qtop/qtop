@@ -32,8 +32,9 @@ uvx nox@2026.10.20 -- test-fast
 nox is pinned in these commands and, as a minimum, by `nox.needs_version` in
 [noxfile.py](../noxfile.py); Dependabot does not update them, so bump both together.
 
-[noxfile.py](../noxfile.py) creates a Python 3.12 environment (uv fetches
-Python 3.12 if it is missing), installs `requirements-ci.txt` and runs the
+[noxfile.py](../noxfile.py) creates a Python 3.12.3 environment, as CI's modern-Python
+lanes use (uv fetches it if it is missing; `QTOP_NOX_PYTHON=3.13 uvx nox@2026.10.20`
+tries another interpreter), installs `requirements-ci.txt` and runs the
 requested Make targets in one Make invocation; the default is `pre-pr` then
 `schema-ci`. Later runs reuse the environment and re-check the pins; `-R` skips
 that check, and `-N` rebuilds the environment. `test-fast` runs a
@@ -85,12 +86,13 @@ run once; for example,
 `make pre-pr coverage-xml` reuses the coverage run. `make ci coverage` runs the
 suite twice because `test` and `coverage` are distinct targets.
 
-GitHub runs the full suite in both modern-Python build lanes on PRs targeting
-`main`/`develop` and pushes to `main`, `develop` or `releases/**`. Its separate
-coverage workflow reruns the full Python 3.12 suite on those PRs and pushes to
-`main`/`develop`, or manual dispatch. Thus an ordinary PR has two Python 3.12
-suite runs (plain and coverage) and one Python 3.15 run. Optional Atheris is
-not installed on 3.15. Historical 0.9.20261113 measurements were 1,491 cases
+On PRs targeting `main`/`develop` and pushes to `main`, `develop` or
+`releases/**`, GitHub's build.yml runs the full suite in its Python 3.15.2 lane
+(`make ci`); its 3.12.3 lane runs the other `pre-pr` gates, without pytest. The
+separate coverage workflow reruns the full suite under coverage on Python 3.15.2
+for those PRs and pushes to `main`/`develop`, or manual dispatch. Thus an ordinary
+PR has two Python 3.15 suite runs on GitHub (plain and coverage); GitLab's primary
+job runs it once on 3.12.3. Optional Atheris is not installed on 3.15. Historical 0.9.20261113 measurements were 1,491 cases
 with one skipped module on 3.15 and 1,468 cases with two skipped optional
 modules on 3.10. Those historical counts are not current-revision results.
 
