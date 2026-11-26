@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.9.20260926
 
 - Documentation: convert the roadmap and changelog to Markdown.
 - Documentation: refresh README Python support and CI badge wording.
@@ -9,6 +9,7 @@
 - Documentation: clarify why qtop keeps runtime dependencies minimal on
   early or bare HPC clusters.
 - Build tooling: add Makefile aliases for lint and format fix workflows.
+- Release: develop snapshot of 2026-09-26 (#554, #555); version string set for this tag.
 
 ## 0.9.20260610
 
