@@ -610,11 +610,27 @@ class TextDisplay(object):
         return joined_list
 
     def print_cores_and_accelerators(self, core_user_map: Dict[str, Any], *opts: Any, **kwargs: Any) -> None:
-        """Print the accelerator lines (Gpu0, Tpu0, Npu0...) of the nodes, then their core lines."""
+        """Print the accelerator lines (Gpu0, Tpu0, Npu0...) of the nodes, then their CPU lines.
+
+        Transposed, the gpu_map block sits between | separators like every section; untransposed
+        (-T), a dashed rule before and after the accelerator lines sets them apart in the same way.
+        """
         accelerators = getattr(self.wns_occupancy, "gpu_user_map", None)
-        if accelerators:
+        if accelerators and not self.MVU_model.display_overrides.get("transpose_wn_matrices", self.config["transpose_wn_matrices"]):
+            node_column_start, node_column_stop, _sections, user_color_patterns, mapping = opts
+            lines = list(self.get_core_lines(accelerators, node_column_start, node_column_stop, user_color_patterns, mapping, kwargs.get("attrs")))
+            if lines:
+                rule = self.matrix_rule(node_column_start, node_column_stop)
+                print("\n".join([rule] + [compress_colored_line(line) for line in lines] + [rule]))
+        elif accelerators:
             self.print_core_lines(accelerators, *opts, **dict(kwargs, section="gpu_map"))
         self.print_core_lines(core_user_map, *opts, **kwargs)
+
+    def matrix_rule(self, node_column_start: int, node_column_stop: int) -> str:
+        """A dashed line as wide as the matrix's node columns, vertical separators included, in gray."""
+        cells = [utils.ColorStr("-", color="Gray_D") for _ in range(node_column_start, node_column_stop)]
+        cells = self._insert_separators(cells, self._separator_cells(), self.config["vertical_separator_every_X_columns"])
+        return "".join(str(self.MVU_model.MVU_colorize(cell.initial, color_func=cell.color)) for cell in cells)
 
     def print_core_lines(
         self,

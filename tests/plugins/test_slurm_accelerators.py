@@ -243,3 +243,12 @@ def test_hidden_kinds_leave_the_matrix_and_the_job_id_lines(tmp_path):
     rows = [line for line in _qtop(tmp_path, "-o", "matrix_accelerators=none") if line[:2] in ("1|", "2|")]
     assert rows == ["1|1_0_0___|b|c|", "2|_0_1_0_1|b|c|"]  # CPUs only, as before GPUs were shown
     assert "gpu_map" not in "\n".join(_qtop(tmp_path, "-o", "matrix_accelerators=none"))
+
+
+def test_untransposed_gpu_lines_sit_between_dashed_rules(tmp_path):
+    lines = _qtop(tmp_path, "-T")
+    start = lines.index("--")
+    assert lines[start - 1] == "cc=queue name"
+    assert [line.rsplit("=", 1)[1] for line in lines[start + 1 : start + 5]] == ["Gpu0", "Gpu1", "Gpu2", "Gpu3"]
+    assert lines[start + 5] == "--" and lines[start + 6].endswith("=Cpu0")
+    assert "--" not in _qtop(tmp_path, "-T", "-o", "matrix_accelerators=none")  # no devices shown, no rules

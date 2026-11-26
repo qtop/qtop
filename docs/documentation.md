@@ -1407,7 +1407,8 @@ transposed matrix, a `gpu_map` block precedes each node's `core_map`:
 ```
 
 Without `-T` transposition, the device lines (`=Gpu0`, `=Gpu1`, ..., `=Tpu0`,
-`=Npu0`) come before the CPU lines (`=Cpu0`, ...). `occupancy_column_order` can place
+`=Npu0`) come before the CPU lines (`=Cpu0`, ...), between two dashed rules, as the
+`|` separators set off each section of the transposed matrix. `occupancy_column_order` can place
 `gpu_map` elsewhere. `_` is an idle device; a gray `?` means Slurm
 reports the device in use (or reports no usage, as for a down node) but not which
 job holds it, as with `--slurm-summary`, which collects no per-job indices.
